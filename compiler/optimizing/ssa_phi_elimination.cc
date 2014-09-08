@@ -26,6 +26,8 @@ void SsaDeadPhiElimination::Run() {
       HPhi* phi = it.Current()->AsPhi();
       if (phi->HasEnvironmentUses()) {
         // TODO: Do we want to keep that phi alive?
+        worklist_.Add(phi);
+        phi->SetLive();
         continue;
       }
       for (HUseIterator<HInstruction> it(phi->GetUses()); !it.Done(); it.Advance()) {
@@ -105,7 +107,7 @@ void SsaRedundantPhiElimination::Run() {
 
     for (size_t i = 1; i < phi->InputCount(); ++i) {
       HInstruction* input = phi->InputAt(i);
-      // For a loop phi, If the input is the phi, the phi is still candidate for
+      // For a loop phi, if the input is the phi, the phi is still candidate for
       // elimination.
       if (input != candidate && input != phi) {
         candidate = nullptr;

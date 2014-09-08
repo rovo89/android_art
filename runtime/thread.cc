@@ -2070,48 +2070,72 @@ class ReferenceMapVisitor : public StackVisitor {
 
     // Process register map (which native and runtime methods don't have)
     if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
-      const uint8_t* native_gc_map = m->GetNativeGcMap();
-      CHECK(native_gc_map != nullptr) << PrettyMethod(m);
-      const DexFile::CodeItem* code_item = m->GetCodeItem();
-      DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be nullptr or how would we compile its instructions?
-      NativePcOffsetToReferenceMap map(native_gc_map);
-      size_t num_regs = std::min(map.RegWidth() * 8,
-                                 static_cast<size_t>(code_item->registers_size_));
-      if (num_regs > 0) {
+      if (m->IsOptimized()) {
         Runtime* runtime = Runtime::Current();
         const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(m);
         uintptr_t native_pc_offset = m->NativePcOffset(GetCurrentQuickFramePc(), entry_point);
-        const uint8_t* reg_bitmap = map.FindBitMap(native_pc_offset);
-        DCHECK(reg_bitmap != nullptr);
-        const void* code_pointer = mirror::ArtMethod::EntryPointToCodePointer(entry_point);
-        const VmapTable vmap_table(m->GetVmapTable(code_pointer));
-        QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
-        // For all dex registers in the bitmap
-        StackReference<mirror::ArtMethod>* cur_quick_frame = GetCurrentQuickFrame();
-        DCHECK(cur_quick_frame != nullptr);
-        for (size_t reg = 0; reg < num_regs; ++reg) {
-          // Does this register hold a reference?
-          if (TestBitmap(reg, reg_bitmap)) {
-            uint32_t vmap_offset;
-            if (vmap_table.IsInContext(reg, kReferenceVReg, &vmap_offset)) {
-              int vmap_reg = vmap_table.ComputeRegister(frame_info.CoreSpillMask(), vmap_offset,
-                                                        kReferenceVReg);
-              // This is sound as spilled GPRs will be word sized (ie 32 or 64bit).
-              mirror::Object** ref_addr = reinterpret_cast<mirror::Object**>(GetGPRAddress(vmap_reg));
-              if (*ref_addr != nullptr) {
-                visitor_(ref_addr, reg, this);
+        StackMap map = m->GetStackMap(native_pc_offset);
+        MemoryRegion mask = map.GetStackMask();
+        for (size_t i = 0; i < mask.size_in_bits(); ++i) {
+          if (mask.LoadBit(i)) {
+            StackReference<mirror::Object>* ref_addr =
+                  reinterpret_cast<StackReference<mirror::Object>*>(cur_quick_frame) + i;
+            mirror::Object* ref = ref_addr->AsMirrorPtr();
+            if (ref != nullptr) {
+              mirror::Object* new_ref = ref;
+              visitor_(&new_ref, -1, this);
+              if (ref != new_ref) {
+                ref_addr->Assign(new_ref);
               }
-            } else {
-              StackReference<mirror::Object>* ref_addr =
-                  reinterpret_cast<StackReference<mirror::Object>*>(
-                      GetVRegAddr(cur_quick_frame, code_item, frame_info.CoreSpillMask(),
-                                  frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), reg));
-              mirror::Object* ref = ref_addr->AsMirrorPtr();
-              if (ref != nullptr) {
-                mirror::Object* new_ref = ref;
-                visitor_(&new_ref, reg, this);
-                if (ref != new_ref) {
-                  ref_addr->Assign(new_ref);
+            }
+          }
+        }
+      } else {
+        const uint8_t* native_gc_map = m->GetNativeGcMap();
+        CHECK(native_gc_map != nullptr) << PrettyMethod(m);
+        const DexFile::CodeItem* code_item = m->GetCodeItem();
+        // Can't be nullptr or how would we compile its instructions?
+        DCHECK(code_item != nullptr) << PrettyMethod(m);
+        NativePcOffsetToReferenceMap map(native_gc_map);
+        size_t num_regs = std::min(map.RegWidth() * 8,
+                                   static_cast<size_t>(code_item->registers_size_));
+        if (num_regs > 0) {
+          Runtime* runtime = Runtime::Current();
+          const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(m);
+          uintptr_t native_pc_offset = m->NativePcOffset(GetCurrentQuickFramePc(), entry_point);
+          const uint8_t* reg_bitmap = map.FindBitMap(native_pc_offset);
+          DCHECK(reg_bitmap != nullptr);
+          const void* code_pointer = mirror::ArtMethod::EntryPointToCodePointer(entry_point);
+          const VmapTable vmap_table(m->GetVmapTable(code_pointer));
+          QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
+          // For all dex registers in the bitmap
+          StackReference<mirror::ArtMethod>* cur_quick_frame = GetCurrentQuickFrame();
+          DCHECK(cur_quick_frame != nullptr);
+          for (size_t reg = 0; reg < num_regs; ++reg) {
+            // Does this register hold a reference?
+            if (TestBitmap(reg, reg_bitmap)) {
+              uint32_t vmap_offset;
+              if (vmap_table.IsInContext(reg, kReferenceVReg, &vmap_offset)) {
+                int vmap_reg = vmap_table.ComputeRegister(frame_info.CoreSpillMask(), vmap_offset,
+                                                          kReferenceVReg);
+                // This is sound as spilled GPRs will be word sized (ie 32 or 64bit).
+                mirror::Object** ref_addr =
+                    reinterpret_cast<mirror::Object**>(GetGPRAddress(vmap_reg));
+                if (*ref_addr != nullptr) {
+                  visitor_(ref_addr, reg, this);
+                }
+              } else {
+                StackReference<mirror::Object>* ref_addr =
+                    reinterpret_cast<StackReference<mirror::Object>*>(
+                        GetVRegAddr(cur_quick_frame, code_item, frame_info.CoreSpillMask(),
+                                    frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), reg));
+                mirror::Object* ref = ref_addr->AsMirrorPtr();
+                if (ref != nullptr) {
+                  mirror::Object* new_ref = ref;
+                  visitor_(&new_ref, reg, this);
+                  if (ref != new_ref) {
+                    ref_addr->Assign(new_ref);
+                  }
                 }
               }
             }

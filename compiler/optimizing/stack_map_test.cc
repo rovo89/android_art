@@ -34,7 +34,7 @@ bool SameBits(MemoryRegion region, const BitVector& bit_vector) {
 TEST(StackMapTest, Test1) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  StackMapStream<size_t> stream(&arena);
+  StackMapStream stream(&arena);
 
   ArenaBitVector sp_mask(&arena, 0, false);
   stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, 2, 0);
@@ -46,15 +46,15 @@ TEST(StackMapTest, Test1) {
   MemoryRegion region(memory, size);
   stream.FillIn(region);
 
-  CodeInfo<size_t> code_info(region);
+  CodeInfo code_info(region);
   ASSERT_EQ(0u, code_info.GetStackMaskSize());
   ASSERT_EQ(1u, code_info.GetNumberOfStackMaps());
 
-  StackMap<size_t> stack_map = code_info.GetStackMapAt(0);
+  StackMap stack_map = code_info.GetStackMapAt(0);
   ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForDexPc(0)));
-  ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePc(64)));
+  ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(64)));
   ASSERT_EQ(0u, stack_map.GetDexPc());
-  ASSERT_EQ(64u, stack_map.GetNativePc());
+  ASSERT_EQ(64u, stack_map.GetNativePcOffset());
   ASSERT_EQ(0x3u, stack_map.GetRegisterMask());
   ASSERT_FALSE(stack_map.HasInlineInfo());
 
@@ -71,7 +71,7 @@ TEST(StackMapTest, Test1) {
 TEST(StackMapTest, Test2) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  StackMapStream<size_t> stream(&arena);
+  StackMapStream stream(&arena);
 
   ArenaBitVector sp_mask1(&arena, 0, true);
   sp_mask1.SetBit(2);
@@ -93,15 +93,15 @@ TEST(StackMapTest, Test2) {
   MemoryRegion region(memory, size);
   stream.FillIn(region);
 
-  CodeInfo<size_t> code_info(region);
+  CodeInfo code_info(region);
   ASSERT_EQ(1u, code_info.GetStackMaskSize());
   ASSERT_EQ(2u, code_info.GetNumberOfStackMaps());
 
-  StackMap<size_t> stack_map = code_info.GetStackMapAt(0);
+  StackMap stack_map = code_info.GetStackMapAt(0);
   ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForDexPc(0)));
-  ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePc(64)));
+  ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(64)));
   ASSERT_EQ(0u, stack_map.GetDexPc());
-  ASSERT_EQ(64u, stack_map.GetNativePc());
+  ASSERT_EQ(64u, stack_map.GetNativePcOffset());
   ASSERT_EQ(0x3u, stack_map.GetRegisterMask());
 
   MemoryRegion stack_mask = stack_map.GetStackMask();
@@ -120,9 +120,9 @@ TEST(StackMapTest, Test2) {
 
   stack_map = code_info.GetStackMapAt(1);
   ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForDexPc(1u)));
-  ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePc(128u)));
+  ASSERT_TRUE(stack_map.Equals(code_info.GetStackMapForNativePcOffset(128u)));
   ASSERT_EQ(1u, stack_map.GetDexPc());
-  ASSERT_EQ(128u, stack_map.GetNativePc());
+  ASSERT_EQ(128u, stack_map.GetNativePcOffset());
   ASSERT_EQ(0xFFu, stack_map.GetRegisterMask());
 
   stack_mask = stack_map.GetStackMask();

@@ -57,7 +57,7 @@ public class Main extends TestCase {
                               int[] ints, Object[] objects, long[] longs, int index) {
     bools[0] = true;
     assertEquals(true, bools[0]);
-    bools[1] = true;
+    bools[index] = true;
     assertEquals(true, bools[index]);
 
     bytes[0] = -4;

@@ -41,10 +41,11 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
   if (!is_leaf) {
     MarkNotLeaf();
   }
-  ComputeFrameSize(GetGraph()->GetMaximumNumberOfOutVRegs()
-                   + GetGraph()->GetNumberOfLocalVRegs()
-                   + GetGraph()->GetNumberOfTemporaries()
-                   + 1 /* filler */);
+  ComputeFrameSize(GetGraph()->GetNumberOfLocalVRegs()
+                     + GetGraph()->GetNumberOfTemporaries()
+                     + 1 /* filler */,
+                   GetGraph()->GetMaximumNumberOfOutVRegs()
+                     + 1 /* current method */);
   GenerateFrameEntry();
 
   for (size_t i = 0, e = blocks.Size(); i < e; ++i) {
@@ -110,10 +111,10 @@ size_t CodeGenerator::AllocateFreeRegisterInternal(
   return -1;
 }
 
-void CodeGenerator::ComputeFrameSize(size_t number_of_spill_slots) {
+void CodeGenerator::ComputeFrameSize(size_t number_of_spill_slots, size_t number_of_out_slots) {
   SetFrameSize(RoundUp(
       number_of_spill_slots * kVRegSize
-      + kVRegSize  // Art method
+      + number_of_out_slots * kVRegSize
       + FrameEntrySpillSize(),
       kStackAlignment));
 }
@@ -374,6 +375,97 @@ void CodeGenerator::BuildVMapTable(std::vector<uint8_t>* data) const {
   vmap_encoder.PushBackUnsigned(VmapTable::kAdjustedFpMarker);
 
   *data = vmap_encoder.GetData();
+}
+
+void CodeGenerator::BuildStackMaps(std::vector<uint8_t>* data) {
+  uint32_t size = stack_map_stream_.ComputeNeededSize();
+  data->resize(size);
+  MemoryRegion region(data->data(), size);
+  stack_map_stream_.FillIn(region);
+}
+
+void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
+  // Collect PC infos for the mapping table.
+  struct PcInfo pc_info;
+  pc_info.dex_pc = dex_pc;
+  pc_info.native_pc = GetAssembler()->CodeSize();
+  pc_infos_.Add(pc_info);
+
+  // Populate stack map information.
+
+  if (instruction == nullptr) {
+    // For stack overflow checks.
+    stack_map_stream_.AddStackMapEntry(dex_pc, pc_info.native_pc, 0, 0, 0, 0);
+    return;
+  }
+
+  LocationSummary* locations = instruction->GetLocations();
+  HEnvironment* environment = instruction->GetEnvironment();
+
+  size_t environment_size = instruction->EnvironmentSize();
+
+  size_t register_mask = 0;
+  size_t inlining_depth = 0;
+  stack_map_stream_.AddStackMapEntry(
+      dex_pc, pc_info.native_pc, register_mask,
+      locations->GetStackMask(), environment_size, inlining_depth);
+
+  // Walk over the environment, and record the location of dex registers.
+  for (size_t i = 0; i < environment_size; ++i) {
+    HInstruction* current = environment->GetInstructionAt(i);
+    if (current == nullptr) {
+      stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kNone, 0);
+      continue;
+    }
+
+    Location location = locations->GetEnvironmentAt(i);
+    switch (location.GetKind()) {
+      case Location::kConstant: {
+        DCHECK(current == location.GetConstant());
+        if (current->IsLongConstant()) {
+          int64_t value = current->AsLongConstant()->GetValue();
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, Low32Bits(value));
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, High32Bits(value));
+          ++i;
+          DCHECK_LT(i, environment_size);
+        } else {
+          DCHECK(current->IsIntConstant());
+          int32_t value = current->AsIntConstant()->GetValue();
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, value);
+        }
+        break;
+      }
+
+      case Location::kStackSlot: {
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInStack, location.GetStackIndex());
+        break;
+      }
+
+      case Location::kDoubleStackSlot: {
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInStack, location.GetStackIndex());
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInStack,
+                                              location.GetHighStackIndex(kVRegSize));
+        ++i;
+        DCHECK_LT(i, environment_size);
+        break;
+      }
+
+      case Location::kRegister : {
+        int id = location.reg().RegId();
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInRegister, id);
+        if (current->GetType() == Primitive::kPrimDouble
+            || current->GetType() == Primitive::kPrimLong) {
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInRegister, id);
+          ++i;
+          DCHECK_LT(i, environment_size);
+        }
+        break;
+      }
+
+      default:
+        LOG(FATAL) << "Unexpected kind " << location.GetKind();
+    }
+  }
 }
 
 }  // namespace art

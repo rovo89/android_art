@@ -164,6 +164,25 @@ CompiledMethod::CompiledMethod(CompilerDriver* driver,
 
 CompiledMethod::CompiledMethod(CompilerDriver* driver,
                                InstructionSet instruction_set,
+                               const std::vector<uint8_t>& quick_code,
+                               const size_t frame_size_in_bytes,
+                               const uint32_t core_spill_mask,
+                               const uint32_t fp_spill_mask,
+                               const std::vector<uint8_t>& mapping_table,
+                               const std::vector<uint8_t>& stack_map)
+    : CompiledCode(driver, instruction_set, quick_code),
+      frame_size_in_bytes_(frame_size_in_bytes),
+      core_spill_mask_(core_spill_mask),
+      fp_spill_mask_(fp_spill_mask),
+      src_mapping_table_(driver->DeduplicateSrcMappingTable(SrcMap())),
+      mapping_table_(driver->DeduplicateMappingTable(mapping_table)),
+      vmap_table_(driver->DeduplicateVMapTable(stack_map)),
+      gc_map_(nullptr),
+      cfi_info_(nullptr) {
+}
+
+CompiledMethod::CompiledMethod(CompilerDriver* driver,
+                               InstructionSet instruction_set,
                                const std::vector<uint8_t>& code,
                                const size_t frame_size_in_bytes,
                                const uint32_t core_spill_mask,
