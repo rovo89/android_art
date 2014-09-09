@@ -1130,7 +1130,7 @@ RegLocation Mir2Lir::InlineTargetWide(CallInfo* info) {
   return res;
 }
 
-bool Mir2Lir::GenInlinedReferenceGet(CallInfo* info) {
+bool Mir2Lir::GenInlinedReferenceGetReferent(CallInfo* info) {
   if (cu_->instruction_set == kMips) {
     // TODO - add Mips implementation
     return false;
