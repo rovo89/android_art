@@ -26,7 +26,11 @@
 namespace art {
 
 jclass WellKnownClasses::com_android_dex_Dex;
+jclass WellKnownClasses::dalvik_system_DexFile;
+jclass WellKnownClasses::dalvik_system_DexPathList;
+jclass WellKnownClasses::dalvik_system_DexPathList$Element;
 jclass WellKnownClasses::dalvik_system_PathClassLoader;
+jclass WellKnownClasses::java_lang_BootClassLoader;
 jclass WellKnownClasses::java_lang_ClassLoader;
 jclass WellKnownClasses::java_lang_ClassNotFoundException;
 jclass WellKnownClasses::java_lang_Daemons;
@@ -79,6 +83,10 @@ jmethodID WellKnownClasses::java_nio_DirectByteBuffer_init;
 jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_broadcast;
 jmethodID WellKnownClasses::org_apache_harmony_dalvik_ddmc_DdmServer_dispatch;
 
+jfieldID WellKnownClasses::dalvik_system_DexFile_cookie;
+jfieldID WellKnownClasses::dalvik_system_PathClassLoader_pathList;
+jfieldID WellKnownClasses::dalvik_system_DexPathList_dexElements;
+jfieldID WellKnownClasses::dalvik_system_DexPathList$Element_dexFile;
 jfieldID WellKnownClasses::java_lang_Thread_daemon;
 jfieldID WellKnownClasses::java_lang_Thread_group;
 jfieldID WellKnownClasses::java_lang_Thread_lock;
@@ -131,7 +139,11 @@ static jmethodID CachePrimitiveBoxingMethod(JNIEnv* env, char prim_name, const c
 
 void WellKnownClasses::Init(JNIEnv* env) {
   com_android_dex_Dex = CacheClass(env, "com/android/dex/Dex");
+  dalvik_system_DexFile = CacheClass(env, "dalvik/system/DexFile");
+  dalvik_system_DexPathList = CacheClass(env, "dalvik/system/DexPathList");
+  dalvik_system_DexPathList$Element = CacheClass(env, "dalvik/system/DexPathList$Element");
   dalvik_system_PathClassLoader = CacheClass(env, "dalvik/system/PathClassLoader");
+  java_lang_BootClassLoader = CacheClass(env, "java/lang/BootClassLoader");
   java_lang_ClassLoader = CacheClass(env, "java/lang/ClassLoader");
   java_lang_ClassNotFoundException = CacheClass(env, "java/lang/ClassNotFoundException");
   java_lang_Daemons = CacheClass(env, "java/lang/Daemons");
@@ -179,6 +191,10 @@ void WellKnownClasses::Init(JNIEnv* env) {
   org_apache_harmony_dalvik_ddmc_DdmServer_broadcast = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "broadcast", "(I)V");
   org_apache_harmony_dalvik_ddmc_DdmServer_dispatch = CacheMethod(env, org_apache_harmony_dalvik_ddmc_DdmServer, true, "dispatch", "(I[BII)Lorg/apache/harmony/dalvik/ddmc/Chunk;");
 
+  dalvik_system_DexFile_cookie = CacheField(env, dalvik_system_DexFile, false, "mCookie", "J");
+  dalvik_system_PathClassLoader_pathList = CacheField(env, dalvik_system_PathClassLoader, false, "pathList", "Ldalvik/system/DexPathList;");
+  dalvik_system_DexPathList_dexElements = CacheField(env, dalvik_system_DexPathList, false, "dexElements", "[Ldalvik/system/DexPathList$Element;");
+  dalvik_system_DexPathList$Element_dexFile = CacheField(env, dalvik_system_DexPathList$Element, false, "dexFile", "Ldalvik/system/DexFile;");
   java_lang_Thread_daemon = CacheField(env, java_lang_Thread, false, "daemon", "Z");
   java_lang_Thread_group = CacheField(env, java_lang_Thread, false, "group", "Ljava/lang/ThreadGroup;");
   java_lang_Thread_lock = CacheField(env, java_lang_Thread, false, "lock", "Ljava/lang/Object;");
