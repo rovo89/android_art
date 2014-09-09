@@ -62,7 +62,8 @@ class ObjectRegistry {
 
   JDWP::ObjectId Add(mirror::Object* o)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::thread_list_lock_);
-  JDWP::RefTypeId AddRefType(mirror::Class* c) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  JDWP::RefTypeId AddRefType(mirror::Class* c)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::thread_list_lock_);
 
   template<typename T> T Get(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (id == 0) {
