@@ -164,7 +164,9 @@ if [ "$RELOCATE" = "y" ]; then
   # since we are relocating. Get the total size of the /system/framework directory
   # in 512 byte blocks and set it as the ulimit. This should be more than enough
   # room.
-  ulimit -S $(du -c -B512 ${ANDROID_ROOT}/framework | tail -1 | cut -f1) || exit 1
+  if [ ! `uname` = "Darwin" ]; then  # TODO: Darwin doesn't support "du -B..."
+    ulimit -S $(du -c -B512 ${ANDROID_ROOT}/framework | tail -1 | cut -f1) || exit 1
+  fi
 else
   FLAGS="${FLAGS} -Xnorelocate"
   COMPILER_FLAGS="${COMPILER_FLAGS} --runtime-arg -Xnorelocate --no-include-patch-information"
