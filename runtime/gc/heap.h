@@ -130,8 +130,12 @@ class Heap {
   // If true, measure the total allocation time.
   static constexpr bool kMeasureAllocationTime = false;
   // Primitive arrays larger than this size are put in the large object space.
+#ifdef __LP64__
+  // Temporarily disable LOS on 64 bit until MAP_32BIT performance issues are fixed. b/17414549
+  static constexpr size_t kDefaultLargeObjectThreshold = 0xFFFFFFFFU;
+#else
   static constexpr size_t kDefaultLargeObjectThreshold = 3 * kPageSize;
-
+#endif
   static constexpr size_t kDefaultStartingSize = kPageSize;
   static constexpr size_t kDefaultInitialSize = 2 * MB;
   static constexpr size_t kDefaultMaximumSize = 256 * MB;
