@@ -584,6 +584,10 @@ const byte* ElfFile::FindDynamicSymbolAddress(const std::string& symbol_name) co
 }
 
 const Elf32_Sym* ElfFile::FindDynamicSymbol(const std::string& symbol_name) const {
+  if (GetHashBucketNum() == 0) {
+    // No dynamic symbols at all.
+    return nullptr;
+  }
   Elf32_Word hash = elfhash(symbol_name.c_str());
   Elf32_Word bucket_index = hash % GetHashBucketNum();
   Elf32_Word symbol_and_chain_index = GetHashBucket(bucket_index);
