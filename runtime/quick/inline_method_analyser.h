@@ -53,7 +53,7 @@ enum InlineMethodOpcode : uint16_t {
   kIntrinsicRint,
   kIntrinsicRoundFloat,
   kIntrinsicRoundDouble,
-  kIntrinsicGet,
+  kIntrinsicReferenceGetReferent,
   kIntrinsicCharAt,
   kIntrinsicCompareTo,
   kIntrinsicIsEmptyOrLength,
