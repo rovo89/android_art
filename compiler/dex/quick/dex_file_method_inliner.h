@@ -145,7 +145,7 @@ class DexFileMethodInliner {
       kNameCacheFloor,
       kNameCacheRint,
       kNameCacheRound,
-      kNameCacheReferenceGet,
+      kNameCacheReferenceGetReferent,
       kNameCacheCharAt,
       kNameCacheCompareTo,
       kNameCacheIsEmpty,
