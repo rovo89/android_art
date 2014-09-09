@@ -3520,12 +3520,24 @@ void MethodVerifier::VerifyPrimitivePut(RegType& target_type, RegType& insn_type
     value_compatible = value_type.IsFloatTypes();
   } else if (target_type.IsLong()) {
     instruction_compatible = insn_type.IsLong();
-    RegType& value_type_hi = work_line_->GetRegisterType(vregA + 1);
-    value_compatible = value_type.IsLongTypes() && value_type.CheckWidePair(value_type_hi);
+    // Additional register check: this is not checked statically (as part of VerifyInstructions),
+    // as target_type depends on the resolved type of the field.
+    if (instruction_compatible && work_line_->NumRegs() > vregA + 1) {
+      RegType& value_type_hi = work_line_->GetRegisterType(vregA + 1);
+      value_compatible = value_type.IsLongTypes() && value_type.CheckWidePair(value_type_hi);
+    } else {
+      value_compatible = false;
+    }
   } else if (target_type.IsDouble()) {
     instruction_compatible = insn_type.IsLong();  // no put-double, so expect put-long
-    RegType& value_type_hi = work_line_->GetRegisterType(vregA + 1);
-    value_compatible = value_type.IsDoubleTypes() && value_type.CheckWidePair(value_type_hi);
+    // Additional register check: this is not checked statically (as part of VerifyInstructions),
+    // as target_type depends on the resolved type of the field.
+    if (instruction_compatible && work_line_->NumRegs() > vregA + 1) {
+      RegType& value_type_hi = work_line_->GetRegisterType(vregA + 1);
+      value_compatible = value_type.IsDoubleTypes() && value_type.CheckWidePair(value_type_hi);
+    } else {
+      value_compatible = false;
+    }
   } else {
     instruction_compatible = false;  // reference with primitive store
     value_compatible = false;  // unused
