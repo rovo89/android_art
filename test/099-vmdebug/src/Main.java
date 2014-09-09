@@ -29,17 +29,15 @@ public class Main {
     }
 
     private static void testMethodTracing() throws Exception {
-        String tempFileName;
-        if (new File("/tmp").isDirectory()) {
-            tempFileName = "/tmp/test.trace";
-        } else if (new File("/sdcard").isDirectory()) {
-            tempFileName = "/sdcard/test.trace";
-        } else {
-            System.out.println("Can't find proper output directory for trace file");
-            return;
+        File tempFile;
+        try {
+            tempFile = File.createTempFile("test", ".trace");
+        } catch (IOException e) {
+            System.setProperty("java.io.tmpdir", "/sdcard");
+            tempFile = File.createTempFile("test", ".trace");
         }
-        File tempFile = new File(tempFileName);
-        tempFile.delete();
+        tempFile.deleteOnExit();
+        String tempFileName = tempFile.getPath();
 
         if (VMDebug.getMethodTracingMode() != 0) {
             VMDebug.stopMethodTracing();
