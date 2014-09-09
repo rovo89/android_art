@@ -311,7 +311,7 @@ static Dbg::HpsgWhat gDdmHpsgWhat;
 static Dbg::HpsgWhen gDdmNhsgWhen = Dbg::HPSG_WHEN_NEVER;
 static Dbg::HpsgWhat gDdmNhsgWhat;
 
-static ObjectRegistry* gRegistry = nullptr;
+ObjectRegistry* Dbg::gRegistry = nullptr;
 
 // Recent allocation tracking.
 AllocRecord* Dbg::recent_allocation_records_ = nullptr;  // TODO: CircularBuffer<AllocRecord>
@@ -401,7 +401,7 @@ static bool IsSuspendedForDebugger(ScopedObjectAccessUnchecked& soa, Thread* thr
 
 static mirror::Array* DecodeArray(JDWP::RefTypeId id, JDWP::JdwpError& status)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Object* o = gRegistry->Get<mirror::Object*>(id);
+  mirror::Object* o = Dbg::GetObjectRegistry()->Get<mirror::Object*>(id);
   if (o == NULL || o == ObjectRegistry::kInvalidObject) {
     status = JDWP::ERR_INVALID_OBJECT;
     return NULL;
@@ -416,7 +416,7 @@ static mirror::Array* DecodeArray(JDWP::RefTypeId id, JDWP::JdwpError& status)
 
 static mirror::Class* DecodeClass(JDWP::RefTypeId id, JDWP::JdwpError& status)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Object* o = gRegistry->Get<mirror::Object*>(id);
+  mirror::Object* o = Dbg::GetObjectRegistry()->Get<mirror::Object*>(id);
   if (o == NULL || o == ObjectRegistry::kInvalidObject) {
     status = JDWP::ERR_INVALID_OBJECT;
     return NULL;
@@ -433,7 +433,7 @@ static JDWP::JdwpError DecodeThread(ScopedObjectAccessUnchecked& soa, JDWP::Obje
     EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_)
     LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Object* thread_peer = gRegistry->Get<mirror::Object*>(thread_id);
+  mirror::Object* thread_peer = Dbg::GetObjectRegistry()->Get<mirror::Object*>(thread_id);
   if (thread_peer == NULL || thread_peer == ObjectRegistry::kInvalidObject) {
     // This isn't even an object.
     return JDWP::ERR_INVALID_OBJECT;
@@ -509,8 +509,7 @@ static JDWP::JdwpTag TagFromClass(const ScopedObjectAccessUnchecked& soa, mirror
  *
  * Null objects are tagged JT_OBJECT.
  */
-static JDWP::JdwpTag TagFromObject(const ScopedObjectAccessUnchecked& soa, mirror::Object* o)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+JDWP::JdwpTag Dbg::TagFromObject(const ScopedObjectAccessUnchecked& soa, mirror::Object* o) {
   return (o == NULL) ? JDWP::JT_OBJECT : TagFromClass(soa, o->GetClass());
 }
 
@@ -838,8 +837,13 @@ std::string Dbg::GetClassName(JDWP::RefTypeId class_id) {
   if (!o->IsClass()) {
     return StringPrintf("non-class %p", o);  // This is only used for debugging output anyway.
   }
+  return GetClassName(o->AsClass());
+}
+
+std::string Dbg::GetClassName(mirror::Class* klass) {
+  DCHECK(klass != nullptr);
   std::string temp;
-  return DescriptorToName(o->AsClass()->GetDescriptor(&temp));
+  return DescriptorToName(klass->GetDescriptor(&temp));
 }
 
 JDWP::JdwpError Dbg::GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& class_object_id) {
@@ -1102,8 +1106,7 @@ void Dbg::DisposeObject(JDWP::ObjectId object_id, uint32_t reference_count)
   gRegistry->DisposeObject(object_id, reference_count);
 }
 
-static JDWP::JdwpTypeTag GetTypeTag(mirror::Class* klass)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+JDWP::JdwpTypeTag Dbg::GetTypeTag(mirror::Class* klass) {
   DCHECK(klass != nullptr);
   if (klass->IsArrayClass()) {
     return JDWP::TT_ARRAY;
@@ -1412,17 +1415,7 @@ JDWP::JdwpError Dbg::CreateArrayObject(JDWP::RefTypeId array_class_id, uint32_t 
   return JDWP::ERR_NONE;
 }
 
-bool Dbg::MatchType(JDWP::RefTypeId instance_class_id, JDWP::RefTypeId class_id) {
-  JDWP::JdwpError status;
-  mirror::Class* c1 = DecodeClass(instance_class_id, status);
-  CHECK(c1 != NULL);
-  mirror::Class* c2 = DecodeClass(class_id, status);
-  CHECK(c2 != NULL);
-  return c2->IsAssignableFrom(c1);
-}
-
-static JDWP::FieldId ToFieldId(const mirror::ArtField* f)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+JDWP::FieldId Dbg::ToFieldId(const mirror::ArtField* f) {
   CHECK(!kMovingFields);
   return static_cast<JDWP::FieldId>(reinterpret_cast<uintptr_t>(f));
 }
@@ -1445,16 +1438,52 @@ static mirror::ArtMethod* FromMethodId(JDWP::MethodId mid)
   return reinterpret_cast<mirror::ArtMethod*>(static_cast<uintptr_t>(mid));
 }
 
-static void SetLocation(JDWP::JdwpLocation& location, mirror::ArtMethod* m, uint32_t dex_pc)
+bool Dbg::MatchThread(JDWP::ObjectId expected_thread_id, Thread* event_thread) {
+  CHECK(event_thread != nullptr);
+  mirror::Object* expected_thread_peer = gRegistry->Get<mirror::Object*>(expected_thread_id);
+  return expected_thread_peer == event_thread->GetPeer();
+}
+
+bool Dbg::MatchLocation(const JDWP::JdwpLocation& expected_location,
+                        const JDWP::EventLocation& event_location) {
+  if (expected_location.dex_pc != event_location.dex_pc) {
+    return false;
+  }
+  mirror::ArtMethod* m = FromMethodId(expected_location.method_id);
+  return m == event_location.method;
+}
+
+bool Dbg::MatchType(mirror::Class* event_class, JDWP::RefTypeId class_id) {
+  JDWP::JdwpError status;
+  mirror::Class* expected_class = DecodeClass(class_id, status);
+  CHECK(expected_class != nullptr);
+  return expected_class->IsAssignableFrom(event_class);
+}
+
+bool Dbg::MatchField(JDWP::RefTypeId expected_type_id, JDWP::FieldId expected_field_id,
+                     mirror::ArtField* event_field) {
+  mirror::ArtField* expected_field = FromFieldId(expected_field_id);
+  if (expected_field != event_field) {
+    return false;
+  }
+  return Dbg::MatchType(event_field->GetDeclaringClass(), expected_type_id);
+}
+
+bool Dbg::MatchInstance(JDWP::ObjectId expected_instance_id, mirror::Object* event_instance) {
+  mirror::Object* modifier_instance = gRegistry->Get<mirror::Object*>(expected_instance_id);
+  return modifier_instance == event_instance;
+}
+
+void Dbg::SetJdwpLocation(JDWP::JdwpLocation* location, mirror::ArtMethod* m, uint32_t dex_pc)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if (m == NULL) {
-    memset(&location, 0, sizeof(location));
+  if (m == nullptr) {
+    memset(&location, 0, sizeof(*location));
   } else {
     mirror::Class* c = m->GetDeclaringClass();
-    location.type_tag = GetTypeTag(c);
-    location.class_id = gRegistry->AddRefType(c);
-    location.method_id = ToMethodId(m);
-    location.dex_pc = (m->IsNative() || m->IsProxyMethod()) ? static_cast<uint64_t>(-1) : dex_pc;
+    location->type_tag = GetTypeTag(c);
+    location->class_id = gRegistry->AddRefType(c);
+    location->method_id = ToMethodId(m);
+    location->dex_pc = (m->IsNative() || m->IsProxyMethod()) ? static_cast<uint64_t>(-1) : dex_pc;
   }
 }
 
@@ -1751,7 +1780,7 @@ static JDWP::JdwpError GetFieldValueImpl(JDWP::RefTypeId ref_type_id, JDWP::Obje
     return status;
   }
 
-  mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
+  mirror::Object* o = Dbg::GetObjectRegistry()->Get<mirror::Object*>(object_id);
   if ((!is_static && o == NULL) || o == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
@@ -1810,7 +1839,7 @@ JDWP::JdwpError Dbg::GetStaticFieldValue(JDWP::RefTypeId ref_type_id, JDWP::Fiel
 static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId field_id,
                                          uint64_t value, int width, bool is_static)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Object* o = gRegistry->Get<mirror::Object*>(object_id);
+  mirror::Object* o = Dbg::GetObjectRegistry()->Get<mirror::Object*>(object_id);
   if ((!is_static && o == NULL) || o == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
   }
@@ -1844,7 +1873,7 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId
       f->Set32<false>(o, value);
     }
   } else {
-    mirror::Object* v = gRegistry->Get<mirror::Object*>(value);
+    mirror::Object* v = Dbg::GetObjectRegistry()->Get<mirror::Object*>(value);
     if (v == ObjectRegistry::kInvalidObject) {
       return JDWP::ERR_INVALID_OBJECT;
     }
@@ -2211,7 +2240,7 @@ JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_fram
       if (depth_ >= start_frame_) {
         JDWP::FrameId frame_id(GetFrameId());
         JDWP::JdwpLocation location;
-        SetLocation(location, GetMethod(), GetDexPc());
+        SetJdwpLocation(&location, GetMethod(), GetDexPc());
         VLOG(jdwp) << StringPrintf("    Frame %3zd: id=%3" PRIu64 " ", depth_, frame_id) << location;
         expandBufAdd8BE(buf_, frame_id);
         expandBufAddLocation(buf_, location);
@@ -2243,8 +2272,12 @@ JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_fram
 }
 
 JDWP::ObjectId Dbg::GetThreadSelfId() {
+  return GetThreadId(Thread::Current());
+}
+
+JDWP::ObjectId Dbg::GetThreadId(Thread* thread) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  return gRegistry->Add(soa.Self()->GetPeer());
+  return gRegistry->Add(thread->GetPeer());
 }
 
 void Dbg::SuspendVM() {
@@ -2642,16 +2675,15 @@ JDWP::JdwpError Dbg::SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame
   return visitor.error_;
 }
 
-JDWP::ObjectId Dbg::GetThisObjectIdForEvent(mirror::Object* this_object) {
-  // If 'this_object' isn't already in the registry, we know that we're not looking for it, so
-  // there's no point adding it to the registry and burning through ids.
-  // When registering an event request with an instance filter, we've been given an existing object
-  // id so it must already be present in the registry when the event fires.
-  JDWP::ObjectId this_id = 0;
-  if (this_object != nullptr && gRegistry->Contains(this_object)) {
-    this_id = gRegistry->Add(this_object);
+static void SetEventLocation(JDWP::EventLocation* location, mirror::ArtMethod* m, uint32_t dex_pc)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(location != nullptr);
+  if (m == nullptr) {
+    memset(location, 0, sizeof(*location));
+  } else {
+    location->method = m;
+    location->dex_pc = (m->IsNative() || m->IsProxyMethod()) ? static_cast<uint32_t>(-1) : dex_pc;
   }
-  return this_id;
 }
 
 void Dbg::PostLocationEvent(mirror::ArtMethod* m, int dex_pc, mirror::Object* this_object,
@@ -2661,12 +2693,10 @@ void Dbg::PostLocationEvent(mirror::ArtMethod* m, int dex_pc, mirror::Object* th
   }
   DCHECK(m != nullptr);
   DCHECK_EQ(m->IsStatic(), this_object == nullptr);
-  JDWP::JdwpLocation location;
-  SetLocation(location, m, dex_pc);
+  JDWP::EventLocation location;
+  SetEventLocation(&location, m, dex_pc);
 
-  // We need 'this' for InstanceOnly filters only.
-  JDWP::ObjectId this_id = GetThisObjectIdForEvent(this_object);
-  gJdwpState->PostLocationEvent(&location, this_id, event_flags, return_value);
+  gJdwpState->PostLocationEvent(&location, this_object, event_flags, return_value);
 }
 
 void Dbg::PostFieldAccessEvent(mirror::ArtMethod* m, int dex_pc,
@@ -2676,14 +2706,10 @@ void Dbg::PostFieldAccessEvent(mirror::ArtMethod* m, int dex_pc,
   }
   DCHECK(m != nullptr);
   DCHECK(f != nullptr);
-  JDWP::JdwpLocation location;
-  SetLocation(location, m, dex_pc);
+  JDWP::EventLocation location;
+  SetEventLocation(&location, m, dex_pc);
 
-  JDWP::RefTypeId type_id = gRegistry->AddRefType(f->GetDeclaringClass());
-  JDWP::FieldId field_id = ToFieldId(f);
-  JDWP::ObjectId this_id = gRegistry->Add(this_object);
-
-  gJdwpState->PostFieldEvent(&location, type_id, field_id, this_id, nullptr, false);
+  gJdwpState->PostFieldEvent(&location, f, this_object, nullptr, false);
 }
 
 void Dbg::PostFieldModificationEvent(mirror::ArtMethod* m, int dex_pc,
@@ -2695,14 +2721,10 @@ void Dbg::PostFieldModificationEvent(mirror::ArtMethod* m, int dex_pc,
   DCHECK(m != nullptr);
   DCHECK(f != nullptr);
   DCHECK(field_value != nullptr);
-  JDWP::JdwpLocation location;
-  SetLocation(location, m, dex_pc);
+  JDWP::EventLocation location;
+  SetEventLocation(&location, m, dex_pc);
 
-  JDWP::RefTypeId type_id = gRegistry->AddRefType(f->GetDeclaringClass());
-  JDWP::FieldId field_id = ToFieldId(f);
-  JDWP::ObjectId this_id = gRegistry->Add(this_object);
-
-  gJdwpState->PostFieldEvent(&location, type_id, field_id, this_id, field_value, true);
+  gJdwpState->PostFieldEvent(&location, f, this_object, field_value, true);
 }
 
 void Dbg::PostException(const ThrowLocation& throw_location,
@@ -2711,33 +2733,20 @@ void Dbg::PostException(const ThrowLocation& throw_location,
   if (!IsDebuggerActive()) {
     return;
   }
+  JDWP::EventLocation exception_throw_location;
+  SetEventLocation(&exception_throw_location, throw_location.GetMethod(), throw_location.GetDexPc());
+  JDWP::EventLocation exception_catch_location;
+  SetEventLocation(&exception_catch_location, catch_method, catch_dex_pc);
 
-  JDWP::JdwpLocation jdwp_throw_location;
-  SetLocation(jdwp_throw_location, throw_location.GetMethod(), throw_location.GetDexPc());
-  JDWP::JdwpLocation catch_location;
-  SetLocation(catch_location, catch_method, catch_dex_pc);
-
-  // We need 'this' for InstanceOnly filters only.
-  JDWP::ObjectId this_id = GetThisObjectIdForEvent(throw_location.GetThis());
-  JDWP::ObjectId exception_id = gRegistry->Add(exception_object);
-  JDWP::RefTypeId exception_class_id = gRegistry->AddRefType(exception_object->GetClass());
-
-  gJdwpState->PostException(&jdwp_throw_location, exception_id, exception_class_id, &catch_location,
-                            this_id);
+  gJdwpState->PostException(&exception_throw_location, exception_object, &exception_catch_location,
+                            throw_location.GetThis());
 }
 
 void Dbg::PostClassPrepare(mirror::Class* c) {
   if (!IsDebuggerActive()) {
     return;
   }
-
-  // OLD-TODO - we currently always send both "verified" and "prepared" since
-  // debuggers seem to like that.  There might be some advantage to honesty,
-  // since the class may not yet be verified.
-  int state = JDWP::CS_VERIFIED | JDWP::CS_PREPARED;
-  JDWP::JdwpTypeTag tag = GetTypeTag(c);
-  std::string temp;
-  gJdwpState->PostClassPrepare(tag, gRegistry->Add(c), c->GetDescriptor(&temp), state);
+  gJdwpState->PostClassPrepare(c);
 }
 
 void Dbg::UpdateDebugger(Thread* thread, mirror::Object* this_object,
@@ -3153,7 +3162,7 @@ class ScopedThreadSuspension {
         self_suspend_ = true;
       } else {
         soa.Self()->TransitionFromRunnableToSuspended(kWaitingForDebuggerSuspension);
-        jobject thread_peer = gRegistry->GetJObject(thread_id);
+        jobject thread_peer = Dbg::GetObjectRegistry()->GetJObject(thread_id);
         bool timed_out;
         Thread* suspended_thread;
         {
@@ -3815,9 +3824,7 @@ void Dbg::DdmSetThreadNotification(bool enable) {
 
 void Dbg::PostThreadStartOrStop(Thread* t, uint32_t type) {
   if (IsDebuggerActive()) {
-    ScopedObjectAccessUnchecked soa(Thread::Current());
-    JDWP::ObjectId id = gRegistry->Add(t->GetPeer());
-    gJdwpState->PostThreadChange(id, type == CHUNK_TYPE("THCR"));
+    gJdwpState->PostThreadChange(t, type == CHUNK_TYPE("THCR"));
   }
   Dbg::DdmSendThreadNotification(t, type);
 }
