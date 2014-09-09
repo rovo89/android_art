@@ -200,9 +200,9 @@ done
 #
 # Cannot use realpath, as it does not exist on Mac.
 # Cannot us a simple "cd", as the path might not be created yet.
-# Use -m option of readlink: canonicalizes, but allows non-existing components.
-tmp_dir="`cd $oldwd ; readlink -m $tmp_dir`"
-
+# Cannot use readlink -m, as it does not exist on Mac.
+# Fallback to nuclear option:
+tmp_dir="`cd $oldwd ; python -c "import os; print os.path.realpath('$tmp_dir')"`"
 mkdir -p $tmp_dir
 
 if [ "$trace" = "true" ]; then
