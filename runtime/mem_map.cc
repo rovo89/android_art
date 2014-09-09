@@ -130,6 +130,7 @@ static uintptr_t GenerateNextMemPos() {
 uintptr_t MemMap::next_mem_pos_ = GenerateNextMemPos();
 #endif
 
+#if !defined(__APPLE__)  // TODO: Reanable after b/16861075 BacktraceMap issue is addressed.
 // Return true if the address range is contained in a single /proc/self/map entry.
 static bool ContainedWithinExistingMap(uintptr_t begin,
                                        uintptr_t end,
@@ -152,6 +153,7 @@ static bool ContainedWithinExistingMap(uintptr_t begin,
                             begin, end, maps.c_str());
   return false;
 }
+#endif
 
 // Return true if the address range does not conflict with any /proc/self/maps entry.
 static bool CheckNonOverlapping(uintptr_t begin,
@@ -386,8 +388,6 @@ MemMap* MemMap::MapFileAtAddress(byte* expected_ptr, size_t byte_count, int prot
                                  std::string* error_msg) {
   CHECK_NE(0, prot);
   CHECK_NE(0, flags & (MAP_SHARED | MAP_PRIVATE));
-  uintptr_t expected = reinterpret_cast<uintptr_t>(expected_ptr);
-  uintptr_t limit = expected + byte_count;
 
   // Note that we do not allow MAP_FIXED unless reuse == true, i.e we
   // expect his mapping to be contained within an existing map.
@@ -396,7 +396,11 @@ MemMap* MemMap::MapFileAtAddress(byte* expected_ptr, size_t byte_count, int prot
     // Only use this if you actually made the page reservation yourself.
     CHECK(expected_ptr != nullptr);
 
+#if !defined(__APPLE__)  // TODO: Reanable after b/16861075 BacktraceMap issue is addressed.
+    uintptr_t expected = reinterpret_cast<uintptr_t>(expected_ptr);
+    uintptr_t limit = expected + byte_count;
     DCHECK(ContainedWithinExistingMap(expected, limit, error_msg));
+#endif
     flags |= MAP_FIXED;
   } else {
     CHECK_EQ(0, flags & MAP_FIXED);
