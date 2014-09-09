@@ -2420,9 +2420,9 @@ int MIR::DecodedInstruction::FlagsOf() const {
     case kMirOpDivZeroCheck:
       return Instruction::kContinue | Instruction::kThrow;
     case kMirOpCheck:
-      return 0;
+      return Instruction::kContinue | Instruction::kThrow;
     case kMirOpCheckPart2:
-      return 0;
+      return Instruction::kContinue;
     case kMirOpSelect:
       return Instruction::kContinue;
     case kMirOpConstVector:
@@ -2457,6 +2457,12 @@ int MIR::DecodedInstruction::FlagsOf() const {
       return Instruction::kContinue;
     case kMirOpReturnVectorRegisters:
       return Instruction::kContinue;
+    case kMirOpMemBarrier:
+      return Instruction::kContinue;
+    case kMirOpPackedArrayGet:
+      return Instruction::kContinue | Instruction::kThrow;
+    case kMirOpPackedArrayPut:
+      return Instruction::kContinue | Instruction::kThrow;
     default:
       LOG(WARNING) << "ExtendedFlagsOf: Unhandled case: " << static_cast<int> (opcode);
       return 0;
