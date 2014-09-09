@@ -965,12 +965,6 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
     return;
   }
 
-  // <clinit> is another special case. The runtime holds the class lock while calling <clinit>.
-  if (m->IsClassInitializer()) {
-    callback(m->GetDeclaringClass(), callback_context);
-    // Fall through because there might be synchronization in the user code too.
-  }
-
   // Is there any reason to believe there's any synchronization in this method?
   const DexFile::CodeItem* code_item = m->GetCodeItem();
   CHECK(code_item != NULL) << PrettyMethod(m);
