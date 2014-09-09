@@ -192,6 +192,96 @@ bool LargeObjectMapSpace::Contains(const mirror::Object* obj) const {
   }
 }
 
+// Keeps track of allocation sizes + whether or not the previous allocation is free.
+// Used to coalesce free blocks and find the best fit block for an allocation.
+class AllocationInfo {
+ public:
+  AllocationInfo() : prev_free_(0), alloc_size_(0) {
+  }
+  // Return the number of pages that the allocation info covers.
+  size_t AlignSize() const {
+    return alloc_size_ & ~kFlagFree;
+  }
+  // Returns the allocation size in bytes.
+  size_t ByteSize() const {
+    return AlignSize() * FreeListSpace::kAlignment;
+  }
+  // Updates the allocation size and whether or not it is free.
+  void SetByteSize(size_t size, bool free) {
+    DCHECK_ALIGNED(size, FreeListSpace::kAlignment);
+    alloc_size_ = (size / FreeListSpace::kAlignment) | (free ? kFlagFree : 0U);
+  }
+  bool IsFree() const {
+    return (alloc_size_ & kFlagFree) != 0;
+  }
+  // Finds and returns the next non free allocation info after ourself.
+  AllocationInfo* GetNextInfo() {
+    return this + AlignSize();
+  }
+  const AllocationInfo* GetNextInfo() const {
+    return this + AlignSize();
+  }
+  // Returns the previous free allocation info by using the prev_free_ member to figure out
+  // where it is. This is only used for coalescing so we only need to be able to do it if the
+  // previous allocation info is free.
+  AllocationInfo* GetPrevFreeInfo() {
+    DCHECK_NE(prev_free_, 0U);
+    return this - prev_free_;
+  }
+  // Returns the address of the object associated with this allocation info.
+  mirror::Object* GetObjectAddress() {
+    return reinterpret_cast<mirror::Object*>(reinterpret_cast<uintptr_t>(this) + sizeof(*this));
+  }
+  // Return how many kAlignment units there are before the free block.
+  size_t GetPrevFree() const {
+    return prev_free_;
+  }
+  // Returns how many free bytes there is before the block.
+  size_t GetPrevFreeBytes() const {
+    return GetPrevFree() * FreeListSpace::kAlignment;
+  }
+  // Update the size of the free block prior to the allocation.
+  void SetPrevFreeBytes(size_t bytes) {
+    DCHECK_ALIGNED(bytes, FreeListSpace::kAlignment);
+    prev_free_ = bytes / FreeListSpace::kAlignment;
+  }
+
+ private:
+  // Used to implement best fit object allocation. Each allocation has an AllocationInfo which
+  // contains the size of the previous free block preceding it. Implemented in such a way that we
+  // can also find the iterator for any allocation info pointer.
+  static constexpr uint32_t kFlagFree = 0x8000000;
+  // Contains the size of the previous free block with kAlignment as the unit. If 0 then the
+  // allocation before us is not free.
+  // These variables are undefined in the middle of allocations / free blocks.
+  uint32_t prev_free_;
+  // Allocation size of this object in kAlignment as the unit.
+  uint32_t alloc_size_;
+};
+
+size_t FreeListSpace::GetSlotIndexForAllocationInfo(const AllocationInfo* info) const {
+  DCHECK_GE(info, allocation_info_);
+  DCHECK_LT(info, reinterpret_cast<AllocationInfo*>(allocation_info_map_->End()));
+  return info - allocation_info_;
+}
+
+AllocationInfo* FreeListSpace::GetAllocationInfoForAddress(uintptr_t address) {
+  return &allocation_info_[GetSlotIndexForAddress(address)];
+}
+
+const AllocationInfo* FreeListSpace::GetAllocationInfoForAddress(uintptr_t address) const {
+  return &allocation_info_[GetSlotIndexForAddress(address)];
+}
+
+inline bool FreeListSpace::SortByPrevFree::operator()(const AllocationInfo* a,
+                                                      const AllocationInfo* b) const {
+  if (a->GetPrevFree() < b->GetPrevFree()) return true;
+  if (a->GetPrevFree() > b->GetPrevFree()) return false;
+  if (a->AlignSize() < b->AlignSize()) return true;
+  if (a->AlignSize() > b->AlignSize()) return false;
+  return reinterpret_cast<uintptr_t>(a) < reinterpret_cast<uintptr_t>(b);
+}
+
 FreeListSpace* FreeListSpace::Create(const std::string& name, byte* requested_begin, size_t size) {
   CHECK_EQ(size % kAlignment, 0U);
   std::string error_msg;
@@ -205,112 +295,113 @@ FreeListSpace::FreeListSpace(const std::string& name, MemMap* mem_map, byte* beg
     : LargeObjectSpace(name, begin, end),
       mem_map_(mem_map),
       lock_("free list space lock", kAllocSpaceLock) {
-  free_end_ = end - begin;
+  const size_t space_capacity = end - begin;
+  free_end_ = space_capacity;
+  CHECK_ALIGNED(space_capacity, kAlignment);
+  const size_t alloc_info_size = sizeof(AllocationInfo) * (space_capacity / kAlignment);
+  std::string error_msg;
+  allocation_info_map_.reset(MemMap::MapAnonymous("large object free list space allocation info map",
+                                                  nullptr, alloc_info_size, PROT_READ | PROT_WRITE,
+                                                  false, &error_msg));
+  CHECK(allocation_info_map_.get() != nullptr) << "Failed to allocate allocation info map"
+      << error_msg;
+  allocation_info_ = reinterpret_cast<AllocationInfo*>(allocation_info_map_->Begin());
 }
 
 FreeListSpace::~FreeListSpace() {}
 
 void FreeListSpace::Walk(DlMallocSpace::WalkCallback callback, void* arg) {
   MutexLock mu(Thread::Current(), lock_);
-  uintptr_t free_end_start = reinterpret_cast<uintptr_t>(end_) - free_end_;
-  AllocationHeader* cur_header = reinterpret_cast<AllocationHeader*>(Begin());
-  while (reinterpret_cast<uintptr_t>(cur_header) < free_end_start) {
-    cur_header = cur_header->GetNextNonFree();
-    size_t alloc_size = cur_header->AllocationSize();
-    byte* byte_start = reinterpret_cast<byte*>(cur_header->GetObjectAddress());
-    byte* byte_end = byte_start + alloc_size - sizeof(AllocationHeader);
-    callback(byte_start, byte_end, alloc_size, arg);
-    callback(NULL, NULL, 0, arg);
-    cur_header = reinterpret_cast<AllocationHeader*>(byte_end);
+  const uintptr_t free_end_start = reinterpret_cast<uintptr_t>(end_) - free_end_;
+  AllocationInfo* cur_info = &allocation_info_[0];
+  const AllocationInfo* end_info = GetAllocationInfoForAddress(free_end_start);
+  while (cur_info < end_info) {
+    if (!cur_info->IsFree()) {
+      size_t alloc_size = cur_info->ByteSize();
+      byte* byte_start = reinterpret_cast<byte*>(GetAddressForAllocationInfo(cur_info));
+      byte* byte_end = byte_start + alloc_size;
+      callback(byte_start, byte_end, alloc_size, arg);
+      callback(nullptr, nullptr, 0, arg);
+    }
+    cur_info = cur_info->GetNextInfo();
   }
+  CHECK_EQ(cur_info, end_info);
 }
 
-void FreeListSpace::RemoveFreePrev(AllocationHeader* header) {
-  CHECK(!header->IsFree());
-  CHECK_GT(header->GetPrevFree(), size_t(0));
-  FreeBlocks::iterator found = free_blocks_.lower_bound(header);
-  CHECK(found != free_blocks_.end());
-  CHECK_EQ(*found, header);
-  free_blocks_.erase(found);
-}
-
-FreeListSpace::AllocationHeader* FreeListSpace::GetAllocationHeader(const mirror::Object* obj) {
-  DCHECK(Contains(obj));
-  return reinterpret_cast<AllocationHeader*>(reinterpret_cast<uintptr_t>(obj) -
-      sizeof(AllocationHeader));
-}
-
-FreeListSpace::AllocationHeader* FreeListSpace::AllocationHeader::GetNextNonFree() {
-  // We know that there has to be at least one object after us or else we would have
-  // coalesced with the free end region. May be worth investigating a better way to do this
-  // as it may be expensive for large allocations.
-  for (uintptr_t pos = reinterpret_cast<uintptr_t>(this);; pos += kAlignment) {
-    AllocationHeader* cur = reinterpret_cast<AllocationHeader*>(pos);
-    if (!cur->IsFree()) return cur;
-  }
+void FreeListSpace::RemoveFreePrev(AllocationInfo* info) {
+  CHECK_GT(info->GetPrevFree(), 0U);
+  auto it = free_blocks_.lower_bound(info);
+  CHECK(it != free_blocks_.end());
+  CHECK_EQ(*it, info);
+  free_blocks_.erase(it);
 }
 
 size_t FreeListSpace::Free(Thread* self, mirror::Object* obj) {
   MutexLock mu(self, lock_);
-  DCHECK(Contains(obj));
-  AllocationHeader* header = GetAllocationHeader(obj);
-  CHECK(IsAligned<kAlignment>(header));
-  size_t allocation_size = header->AllocationSize();
-  DCHECK_GT(allocation_size, size_t(0));
-  DCHECK(IsAligned<kAlignment>(allocation_size));
+  DCHECK(Contains(obj)) << reinterpret_cast<void*>(Begin()) << " " << obj << " "
+                        << reinterpret_cast<void*>(End());
+  DCHECK_ALIGNED(obj, kAlignment);
+  AllocationInfo* info = GetAllocationInfoForAddress(reinterpret_cast<uintptr_t>(obj));
+  DCHECK(!info->IsFree());
+  const size_t allocation_size = info->ByteSize();
+  DCHECK_GT(allocation_size, 0U);
+  DCHECK_ALIGNED(allocation_size, kAlignment);
+  info->SetByteSize(allocation_size, true);  // Mark as free.
   // Look at the next chunk.
-  AllocationHeader* next_header = header->GetNextAllocationHeader();
+  AllocationInfo* next_info = info->GetNextInfo();
   // Calculate the start of the end free block.
   uintptr_t free_end_start = reinterpret_cast<uintptr_t>(end_) - free_end_;
-  size_t header_prev_free = header->GetPrevFree();
+  size_t prev_free_bytes = info->GetPrevFreeBytes();
   size_t new_free_size = allocation_size;
-  if (header_prev_free) {
-    new_free_size += header_prev_free;
-    RemoveFreePrev(header);
+  if (prev_free_bytes != 0) {
+    // Coalesce with previous free chunk.
+    new_free_size += prev_free_bytes;
+    RemoveFreePrev(info);
+    info = info->GetPrevFreeInfo();
+    // The previous allocation info must not be free since we are supposed to always coalesce.
+    DCHECK_EQ(info->GetPrevFreeBytes(), 0U) << "Previous allocation was free";
   }
-  if (reinterpret_cast<uintptr_t>(next_header) >= free_end_start) {
+  uintptr_t next_addr = GetAddressForAllocationInfo(next_info);
+  if (next_addr >= free_end_start) {
     // Easy case, the next chunk is the end free region.
-    CHECK_EQ(reinterpret_cast<uintptr_t>(next_header), free_end_start);
+    CHECK_EQ(next_addr, free_end_start);
     free_end_ += new_free_size;
   } else {
-    AllocationHeader* new_free_header;
-    DCHECK(IsAligned<kAlignment>(next_header));
-    if (next_header->IsFree()) {
-      // Find the next chunk by reading each page until we hit one with non-zero chunk.
-      AllocationHeader* next_next_header = next_header->GetNextNonFree();
-      DCHECK(IsAligned<kAlignment>(next_next_header));
-      DCHECK(IsAligned<kAlignment>(next_next_header->AllocationSize()));
-      RemoveFreePrev(next_next_header);
-      new_free_header = next_next_header;
-      new_free_size += next_next_header->GetPrevFree();
+    AllocationInfo* new_free_info;
+    if (next_info->IsFree()) {
+      AllocationInfo* next_next_info = next_info->GetNextInfo();
+      // Next next info can't be free since we always coalesce.
+      DCHECK(!next_next_info->IsFree());
+      DCHECK(IsAligned<kAlignment>(next_next_info->ByteSize()));
+      new_free_info = next_next_info;
+      new_free_size += next_next_info->GetPrevFreeBytes();
+      RemoveFreePrev(next_next_info);
     } else {
-      new_free_header = next_header;
+      new_free_info = next_info;
     }
-    new_free_header->prev_free_ = new_free_size;
-    free_blocks_.insert(new_free_header);
+    new_free_info->SetPrevFreeBytes(new_free_size);
+    free_blocks_.insert(new_free_info);
+    info->SetByteSize(new_free_size, true);
+    DCHECK_EQ(info->GetNextInfo(), new_free_info);
   }
   --num_objects_allocated_;
   DCHECK_LE(allocation_size, num_bytes_allocated_);
   num_bytes_allocated_ -= allocation_size;
-  madvise(header, allocation_size, MADV_DONTNEED);
+  madvise(obj, allocation_size, MADV_DONTNEED);
   if (kIsDebugBuild) {
     // Can't disallow reads since we use them to find next chunks during coalescing.
-    mprotect(header, allocation_size, PROT_READ);
+    mprotect(obj, allocation_size, PROT_READ);
   }
   return allocation_size;
 }
 
-bool FreeListSpace::Contains(const mirror::Object* obj) const {
-  return mem_map_->HasAddress(obj);
-}
-
 size_t FreeListSpace::AllocationSize(mirror::Object* obj, size_t* usable_size) {
-  AllocationHeader* header = GetAllocationHeader(obj);
   DCHECK(Contains(obj));
-  DCHECK(!header->IsFree());
-  size_t alloc_size = header->AllocationSize();
+  AllocationInfo* info = GetAllocationInfoForAddress(reinterpret_cast<uintptr_t>(obj));
+  DCHECK(!info->IsFree());
+  size_t alloc_size = info->ByteSize();
   if (usable_size != nullptr) {
-    *usable_size = alloc_size - sizeof(AllocationHeader);
+    *usable_size = alloc_size;
   }
   return alloc_size;
 }
@@ -318,56 +409,56 @@ size_t FreeListSpace::AllocationSize(mirror::Object* obj, size_t* usable_size) {
 mirror::Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
                                      size_t* usable_size) {
   MutexLock mu(self, lock_);
-  size_t allocation_size = RoundUp(num_bytes + sizeof(AllocationHeader), kAlignment);
-  AllocationHeader temp;
-  temp.SetPrevFree(allocation_size);
-  temp.SetAllocationSize(0);
-  AllocationHeader* new_header;
+  const size_t allocation_size = RoundUp(num_bytes, kAlignment);
+  AllocationInfo temp_info;
+  temp_info.SetPrevFreeBytes(allocation_size);
+  temp_info.SetByteSize(0, false);
+  AllocationInfo* new_info;
   // Find the smallest chunk at least num_bytes in size.
-  FreeBlocks::iterator found = free_blocks_.lower_bound(&temp);
-  if (found != free_blocks_.end()) {
-    AllocationHeader* header = *found;
-    free_blocks_.erase(found);
-
-    // Fit our object in the previous free header space.
-    new_header = header->GetPrevFreeAllocationHeader();
-
-    // Remove the newly allocated block from the header and update the prev_free_.
-    header->prev_free_ -= allocation_size;
-    if (header->prev_free_ > 0) {
+  auto it = free_blocks_.lower_bound(&temp_info);
+  if (it != free_blocks_.end()) {
+    AllocationInfo* info = *it;
+    free_blocks_.erase(it);
+    // Fit our object in the previous allocation info free space.
+    new_info = info->GetPrevFreeInfo();
+    // Remove the newly allocated block from the info and update the prev_free_.
+    info->SetPrevFreeBytes(info->GetPrevFreeBytes() - allocation_size);
+    if (info->GetPrevFreeBytes() > 0) {
+      AllocationInfo* new_free = info - info->GetPrevFree();
+      new_free->SetPrevFreeBytes(0);
+      new_free->SetByteSize(info->GetPrevFreeBytes(), true);
       // If there is remaining space, insert back into the free set.
-      free_blocks_.insert(header);
+      free_blocks_.insert(info);
     }
   } else {
     // Try to steal some memory from the free space at the end of the space.
     if (LIKELY(free_end_ >= allocation_size)) {
       // Fit our object at the start of the end free block.
-      new_header = reinterpret_cast<AllocationHeader*>(end_ - free_end_);
+      new_info = GetAllocationInfoForAddress(reinterpret_cast<uintptr_t>(End()) - free_end_);
       free_end_ -= allocation_size;
     } else {
       return nullptr;
     }
   }
-
   DCHECK(bytes_allocated != nullptr);
   *bytes_allocated = allocation_size;
   if (usable_size != nullptr) {
-    *usable_size = allocation_size - sizeof(AllocationHeader);
+    *usable_size = allocation_size;
   }
   // Need to do these inside of the lock.
   ++num_objects_allocated_;
   ++total_objects_allocated_;
   num_bytes_allocated_ += allocation_size;
   total_bytes_allocated_ += allocation_size;
-
+  mirror::Object* obj = reinterpret_cast<mirror::Object*>(GetAddressForAllocationInfo(new_info));
   // We always put our object at the start of the free block, there can not be another free block
   // before it.
   if (kIsDebugBuild) {
-    mprotect(new_header, allocation_size, PROT_READ | PROT_WRITE);
+    mprotect(obj, allocation_size, PROT_READ | PROT_WRITE);
   }
-  new_header->SetPrevFree(0);
-  new_header->SetAllocationSize(allocation_size);
-  return new_header->GetObjectAddress();
+  new_info->SetPrevFreeBytes(0);
+  new_info->SetByteSize(allocation_size, false);
+  return obj;
 }
 
 void FreeListSpace::Dump(std::ostream& os) const {
@@ -376,21 +467,20 @@ void FreeListSpace::Dump(std::ostream& os) const {
      << " begin: " << reinterpret_cast<void*>(Begin())
      << " end: " << reinterpret_cast<void*>(End()) << "\n";
   uintptr_t free_end_start = reinterpret_cast<uintptr_t>(end_) - free_end_;
-  AllocationHeader* cur_header = reinterpret_cast<AllocationHeader*>(Begin());
-  while (reinterpret_cast<uintptr_t>(cur_header) < free_end_start) {
-    byte* free_start = reinterpret_cast<byte*>(cur_header);
-    cur_header = cur_header->GetNextNonFree();
-    byte* free_end = reinterpret_cast<byte*>(cur_header);
-    if (free_start != free_end) {
-      os << "Free block at address: " << reinterpret_cast<const void*>(free_start)
-         << " of length " << free_end - free_start << " bytes\n";
+  const AllocationInfo* cur_info =
+      GetAllocationInfoForAddress(reinterpret_cast<uintptr_t>(Begin()));
+  const AllocationInfo* end_info = GetAllocationInfoForAddress(free_end_start);
+  while (cur_info < end_info) {
+    size_t size = cur_info->ByteSize();
+    uintptr_t address = GetAddressForAllocationInfo(cur_info);
+    if (cur_info->IsFree()) {
+      os << "Free block at address: " << reinterpret_cast<const void*>(address)
+         << " of length " << size << " bytes\n";
+    } else {
+      os << "Large object at address: " << reinterpret_cast<const void*>(address)
+         << " of length " << size << " bytes\n";
     }
-    size_t alloc_size = cur_header->AllocationSize();
-    byte* byte_start = reinterpret_cast<byte*>(cur_header->GetObjectAddress());
-    byte* byte_end = byte_start + alloc_size - sizeof(AllocationHeader);
-    os << "Large object at address: " << reinterpret_cast<const void*>(free_start)
-       << " of length " << byte_end - byte_start << " bytes\n";
-    cur_header = reinterpret_cast<AllocationHeader*>(byte_end);
+    cur_info = cur_info->GetNextInfo();
   }
   if (free_end_) {
     os << "Free block at address: " << reinterpret_cast<const void*>(free_end_start)
