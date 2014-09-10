@@ -962,15 +962,15 @@ mirror::Class* RegType::ClassJoin(mirror::Class* s, mirror::Class* t) {
 void RegType::CheckInvariants() const {
   if (IsConstant() || IsConstantLo() || IsConstantHi()) {
     CHECK(descriptor_.empty()) << *this;
-    CHECK(klass_ == NULL) << *this;
+    CHECK(klass_.IsNull()) << *this;
   }
-  if (klass_ != NULL) {
+  if (!klass_.IsNull()) {
     CHECK(!descriptor_.empty()) << *this;
   }
 }
 
 void RegType::VisitRoots(RootCallback* callback, void* arg) {
-  if (klass_ != nullptr) {
+  if (!klass_.IsNull()) {
     callback(reinterpret_cast<mirror::Object**>(&klass_), arg, 0, kRootUnknown);
   }
 }
@@ -982,31 +982,31 @@ void UninitializedThisReferenceType::CheckInvariants() const {
 void UnresolvedUninitializedThisRefType::CheckInvariants() const {
   CHECK_EQ(GetAllocationPc(), 0U) << *this;
   CHECK(!descriptor_.empty()) << *this;
-  CHECK(klass_ == NULL) << *this;
+  CHECK(klass_.IsNull()) << *this;
 }
 
 void UnresolvedUninitializedRefType::CheckInvariants() const {
   CHECK(!descriptor_.empty()) << *this;
-  CHECK(klass_ == NULL) << *this;
+  CHECK(klass_.IsNull()) << *this;
 }
 
 void UnresolvedMergedType::CheckInvariants() const {
   // Unresolved merged types: merged types should be defined.
   CHECK(descriptor_.empty()) << *this;
-  CHECK(klass_ == NULL) << *this;
+  CHECK(klass_.IsNull()) << *this;
   CHECK_NE(merged_types_.first, 0U) << *this;
   CHECK_NE(merged_types_.second, 0U) << *this;
 }
 
 void UnresolvedReferenceType::CheckInvariants() const {
   CHECK(!descriptor_.empty()) << *this;
-  CHECK(klass_ == NULL) << *this;
+  CHECK(klass_.IsNull()) << *this;
 }
 
 void UnresolvedSuperClass::CheckInvariants() const {
   // Unresolved merged types: merged types should be defined.
   CHECK(descriptor_.empty()) << *this;
-  CHECK(klass_ == NULL) << *this;
+  CHECK(klass_.IsNull()) << *this;
   CHECK_NE(unresolved_child_id_, 0U) << *this;
 }
 
