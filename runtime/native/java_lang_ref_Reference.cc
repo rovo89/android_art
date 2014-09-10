@@ -23,7 +23,7 @@
 
 namespace art {
 
-static jobject Reference_get(JNIEnv* env, jobject javaThis) {
+static jobject Reference_getReferent(JNIEnv* env, jobject javaThis) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Reference* const ref = soa.Decode<mirror::Reference*>(javaThis);
   mirror::Object* const referent =
@@ -32,7 +32,7 @@ static jobject Reference_get(JNIEnv* env, jobject javaThis) {
 }
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(Reference, get, "!()Ljava/lang/Object;"),
+  NATIVE_METHOD(Reference, getReferent, "!()Ljava/lang/Object;"),
 };
 
 void register_java_lang_ref_Reference(JNIEnv* env) {
