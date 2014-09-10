@@ -26,6 +26,7 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "gc_root.h"
 #include "globals.h"
 #include "object_callbacks.h"
 #include "primitive.h"
@@ -212,9 +213,9 @@ class RegType {
   }
   mirror::Class* GetClass() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(!IsUnresolvedReference());
-    DCHECK(klass_ != NULL) << Dump();
+    DCHECK(!klass_.IsNull()) << Dump();
     DCHECK(HasClass());
-    return klass_;
+    return klass_.Read();
   }
   uint16_t GetId() const {
     return cache_id_;
@@ -286,7 +287,7 @@ class RegType {
 
 
   const std::string descriptor_;
-  mirror::Class* klass_;  // Non-const only due to moving classes.
+  mutable GcRoot<mirror::Class> klass_;  // Non-const only due to moving classes.
   const uint16_t cache_id_;
 
   friend class RegTypeCache;
