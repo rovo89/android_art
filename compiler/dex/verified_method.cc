@@ -216,7 +216,7 @@ void VerifiedMethod::GenerateDevirtMap(verifier::MethodVerifier* method_verifier
     verifier::RegisterLine* line = method_verifier->GetRegLine(dex_pc);
     bool is_range = (inst->Opcode() ==  Instruction::INVOKE_VIRTUAL_RANGE) ||
         (inst->Opcode() ==  Instruction::INVOKE_INTERFACE_RANGE);
-    verifier::RegType&
+    const verifier::RegType&
         reg_type(line->GetRegisterType(is_range ? inst->VRegC_3rc() : inst->VRegC_35c()));
 
     if (!reg_type.HasClass()) {
@@ -284,18 +284,18 @@ void VerifiedMethod::GenerateSafeCastSet(verifier::MethodVerifier* method_verifi
       const verifier::RegisterLine* line = method_verifier->GetRegLine(dex_pc);
       bool is_safe_cast = false;
       if (code == Instruction::CHECK_CAST) {
-        verifier::RegType& reg_type(line->GetRegisterType(inst->VRegA_21c()));
-        verifier::RegType& cast_type =
+        const verifier::RegType& reg_type(line->GetRegisterType(inst->VRegA_21c()));
+        const verifier::RegType& cast_type =
             method_verifier->ResolveCheckedClass(inst->VRegB_21c());
         is_safe_cast = cast_type.IsStrictlyAssignableFrom(reg_type);
       } else {
-        verifier::RegType& array_type(line->GetRegisterType(inst->VRegB_23x()));
+        const verifier::RegType& array_type(line->GetRegisterType(inst->VRegB_23x()));
         // We only know its safe to assign to an array if the array type is precise. For example,
         // an Object[] can have any type of object stored in it, but it may also be assigned a
         // String[] in which case the stores need to be of Strings.
         if (array_type.IsPreciseReference()) {
-          verifier::RegType& value_type(line->GetRegisterType(inst->VRegA_23x()));
-          verifier::RegType& component_type = method_verifier->GetRegTypeCache()
+          const verifier::RegType& value_type(line->GetRegisterType(inst->VRegA_23x()));
+          const verifier::RegType& component_type = method_verifier->GetRegTypeCache()
               ->GetComponentType(array_type, method_verifier->GetClassLoader());
           is_safe_cast = component_type.IsStrictlyAssignableFrom(value_type);
         }

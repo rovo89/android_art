@@ -51,99 +51,99 @@ class RegTypeCache {
     }
   }
   static void ShutDown();
-  RegType& GetFromId(uint16_t id) const;
-  RegType& From(mirror::ClassLoader* loader, const char* descriptor, bool precise)
+  const art::verifier::RegType& GetFromId(uint16_t id) const;
+  const RegType& From(mirror::ClassLoader* loader, const char* descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  RegType& FromClass(const char* descriptor, mirror::Class* klass, bool precise)
+  const RegType& FromClass(const char* descriptor, mirror::Class* klass, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ConstantType& FromCat1Const(int32_t value, bool precise)
+  const ConstantType& FromCat1Const(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ConstantType& FromCat2ConstLo(int32_t value, bool precise)
+  const ConstantType& FromCat2ConstLo(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ConstantType& FromCat2ConstHi(int32_t value, bool precise)
+  const ConstantType& FromCat2ConstHi(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  RegType& FromDescriptor(mirror::ClassLoader* loader, const char* descriptor, bool precise)
+  const RegType& FromDescriptor(mirror::ClassLoader* loader, const char* descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  RegType& FromUnresolvedMerge(RegType& left, RegType& right)
+  const RegType& FromUnresolvedMerge(const RegType& left, const RegType& right)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  RegType& FromUnresolvedSuperClass(RegType& child)
+  const RegType& FromUnresolvedSuperClass(const RegType& child)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  RegType& JavaLangString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const RegType& JavaLangString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // String is final and therefore always precise.
     return From(NULL, "Ljava/lang/String;", true);
   }
-  RegType& JavaLangThrowable(bool precise)
+  const RegType& JavaLangThrowable(bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return From(NULL, "Ljava/lang/Throwable;", precise);
   }
-  ConstantType& Zero() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const ConstantType& Zero() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return FromCat1Const(0, true);
   }
-  ConstantType& One() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const ConstantType& One() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return FromCat1Const(1, true);
   }
   size_t GetCacheSize() {
     return entries_.size();
   }
-  RegType& Boolean() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const RegType& Boolean() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *BooleanType::GetInstance();
   }
-  RegType& Byte() {
+  const RegType& Byte() {
     return *ByteType::GetInstance();
   }
-  RegType& Char()  {
+  const RegType& Char()  {
     return *CharType::GetInstance();
   }
-  RegType& Short()  {
+  const RegType& Short()  {
     return *ShortType::GetInstance();
   }
-  RegType& Integer() {
+  const RegType& Integer() {
     return *IntegerType::GetInstance();
   }
-  RegType& Float() {
+  const RegType& Float() {
     return *FloatType::GetInstance();
   }
-  RegType& LongLo() {
+  const RegType& LongLo() {
     return *LongLoType::GetInstance();
   }
-  RegType& LongHi() {
+  const RegType& LongHi() {
     return *LongHiType::GetInstance();
   }
-  RegType& DoubleLo() {
+  const RegType& DoubleLo() {
     return *DoubleLoType::GetInstance();
   }
-  RegType& DoubleHi() {
+  const RegType& DoubleHi() {
     return *DoubleHiType::GetInstance();
   }
-  RegType& Undefined() {
+  const RegType& Undefined() {
     return *UndefinedType::GetInstance();
   }
-  RegType& Conflict() {
+  const RegType& Conflict() {
     return *ConflictType::GetInstance();
   }
-  RegType& JavaLangClass(bool precise) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const RegType& JavaLangClass(bool precise) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return From(NULL, "Ljava/lang/Class;", precise);
   }
-  RegType& JavaLangObject(bool precise) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const RegType& JavaLangObject(bool precise) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return From(NULL, "Ljava/lang/Object;", precise);
   }
-  UninitializedType& Uninitialized(RegType& type, uint32_t allocation_pc)
+  const UninitializedType& Uninitialized(const RegType& type, uint32_t allocation_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Create an uninitialized 'this' argument for the given type.
-  UninitializedType& UninitializedThisArgument(RegType& type)
+  const UninitializedType& UninitializedThisArgument(const RegType& type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  RegType& FromUninitialized(RegType& uninit_type)
+  const RegType& FromUninitialized(const RegType& uninit_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ImpreciseConstType& ByteConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ImpreciseConstType& CharConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ImpreciseConstType& ShortConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ImpreciseConstType& IntConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ImpreciseConstType& PosByteConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ImpreciseConstType& PosShortConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  RegType& GetComponentType(RegType& array, mirror::ClassLoader* loader)
+  const ImpreciseConstType& ByteConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const ImpreciseConstType& CharConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const ImpreciseConstType& ShortConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const ImpreciseConstType& IntConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const ImpreciseConstType& PosByteConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const ImpreciseConstType& PosShortConstant() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const RegType& GetComponentType(const RegType& array, mirror::ClassLoader* loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  RegType& RegTypeFromPrimitiveType(Primitive::Type) const;
+  const RegType& RegTypeFromPrimitiveType(Primitive::Type) const;
 
   void VisitRoots(RootCallback* callback, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -153,7 +153,7 @@ class RegTypeCache {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool MatchDescriptor(size_t idx, const StringPiece& descriptor, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  ConstantType& FromCat1NonSmallConstant(int32_t value, bool precise)
+  const ConstantType& FromCat1NonSmallConstant(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void AddEntry(RegType* new_entry);
