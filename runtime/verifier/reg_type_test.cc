@@ -33,21 +33,21 @@ TEST_F(RegTypeTest, ConstLoHi) {
   // Tests creating primitive types types.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
-  RegType& ref_type_const_0 = cache.FromCat1Const(10, true);
-  RegType& ref_type_const_1 = cache.FromCat1Const(10, true);
-  RegType& ref_type_const_2 = cache.FromCat1Const(30, true);
-  RegType& ref_type_const_3 = cache.FromCat1Const(30, false);
+  const RegType& ref_type_const_0 = cache.FromCat1Const(10, true);
+  const RegType& ref_type_const_1 = cache.FromCat1Const(10, true);
+  const RegType& ref_type_const_2 = cache.FromCat1Const(30, true);
+  const RegType& ref_type_const_3 = cache.FromCat1Const(30, false);
   EXPECT_TRUE(ref_type_const_0.Equals(ref_type_const_1));
   EXPECT_FALSE(ref_type_const_0.Equals(ref_type_const_2));
   EXPECT_FALSE(ref_type_const_0.Equals(ref_type_const_3));
 
-  RegType& ref_type_const_wide_0 = cache.FromCat2ConstHi(50, true);
-  RegType& ref_type_const_wide_1 = cache.FromCat2ConstHi(50, true);
+  const RegType& ref_type_const_wide_0 = cache.FromCat2ConstHi(50, true);
+  const RegType& ref_type_const_wide_1 = cache.FromCat2ConstHi(50, true);
   EXPECT_TRUE(ref_type_const_wide_0.Equals(ref_type_const_wide_1));
 
-  RegType& ref_type_const_wide_2 = cache.FromCat2ConstLo(50, true);
-  RegType& ref_type_const_wide_3 = cache.FromCat2ConstLo(50, true);
-  RegType& ref_type_const_wide_4 = cache.FromCat2ConstLo(55, true);
+  const RegType& ref_type_const_wide_2 = cache.FromCat2ConstLo(50, true);
+  const RegType& ref_type_const_wide_3 = cache.FromCat2ConstLo(50, true);
+  const RegType& ref_type_const_wide_4 = cache.FromCat2ConstLo(55, true);
   EXPECT_TRUE(ref_type_const_wide_2.Equals(ref_type_const_wide_3));
   EXPECT_FALSE(ref_type_const_wide_2.Equals(ref_type_const_wide_4));
 }
@@ -56,11 +56,11 @@ TEST_F(RegTypeTest, Pairs) {
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
   int64_t val = static_cast<int32_t>(1234);
-  RegType& precise_lo = cache.FromCat2ConstLo(static_cast<int32_t>(val), true);
-  RegType& precise_hi = cache.FromCat2ConstHi(static_cast<int32_t>(val >> 32), true);
-  RegType& precise_const = cache.FromCat1Const(static_cast<int32_t>(val >> 32), true);
-  RegType& long_lo = cache.LongLo();
-  RegType& long_hi = cache.LongHi();
+  const RegType& precise_lo = cache.FromCat2ConstLo(static_cast<int32_t>(val), true);
+  const RegType& precise_hi = cache.FromCat2ConstHi(static_cast<int32_t>(val >> 32), true);
+  const RegType& precise_const = cache.FromCat1Const(static_cast<int32_t>(val >> 32), true);
+  const RegType& long_lo = cache.LongLo();
+  const RegType& long_hi = cache.LongHi();
   // Check sanity of types.
   EXPECT_TRUE(precise_lo.IsLowHalf());
   EXPECT_FALSE(precise_hi.IsLowHalf());
@@ -80,7 +80,7 @@ TEST_F(RegTypeTest, Primitives) {
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
 
-  RegType& bool_reg_type = cache.Boolean();
+  const RegType& bool_reg_type = cache.Boolean();
   EXPECT_FALSE(bool_reg_type.IsUndefined());
   EXPECT_FALSE(bool_reg_type.IsConflict());
   EXPECT_FALSE(bool_reg_type.IsZero());
@@ -112,7 +112,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_TRUE(bool_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(bool_reg_type.IsNonZeroReferenceTypes());
 
-  RegType& byte_reg_type = cache.Byte();
+  const RegType& byte_reg_type = cache.Byte();
   EXPECT_FALSE(byte_reg_type.IsUndefined());
   EXPECT_FALSE(byte_reg_type.IsConflict());
   EXPECT_FALSE(byte_reg_type.IsZero());
@@ -144,7 +144,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_TRUE(byte_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(byte_reg_type.IsNonZeroReferenceTypes());
 
-  RegType& char_reg_type = cache.Char();
+  const RegType& char_reg_type = cache.Char();
   EXPECT_FALSE(char_reg_type.IsUndefined());
   EXPECT_FALSE(char_reg_type.IsConflict());
   EXPECT_FALSE(char_reg_type.IsZero());
@@ -176,7 +176,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_TRUE(char_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(char_reg_type.IsNonZeroReferenceTypes());
 
-  RegType& short_reg_type = cache.Short();
+  const RegType& short_reg_type = cache.Short();
   EXPECT_FALSE(short_reg_type.IsUndefined());
   EXPECT_FALSE(short_reg_type.IsConflict());
   EXPECT_FALSE(short_reg_type.IsZero());
@@ -208,7 +208,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_TRUE(short_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(short_reg_type.IsNonZeroReferenceTypes());
 
-  RegType& int_reg_type = cache.Integer();
+  const RegType& int_reg_type = cache.Integer();
   EXPECT_FALSE(int_reg_type.IsUndefined());
   EXPECT_FALSE(int_reg_type.IsConflict());
   EXPECT_FALSE(int_reg_type.IsZero());
@@ -240,7 +240,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_TRUE(int_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(int_reg_type.IsNonZeroReferenceTypes());
 
-  RegType& long_reg_type = cache.LongLo();
+  const RegType& long_reg_type = cache.LongLo();
   EXPECT_FALSE(long_reg_type.IsUndefined());
   EXPECT_FALSE(long_reg_type.IsConflict());
   EXPECT_FALSE(long_reg_type.IsZero());
@@ -272,7 +272,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(long_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(long_reg_type.IsNonZeroReferenceTypes());
 
-  RegType& float_reg_type = cache.Float();
+  const RegType& float_reg_type = cache.Float();
   EXPECT_FALSE(float_reg_type.IsUndefined());
   EXPECT_FALSE(float_reg_type.IsConflict());
   EXPECT_FALSE(float_reg_type.IsZero());
@@ -304,7 +304,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(float_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(float_reg_type.IsNonZeroReferenceTypes());
 
-  RegType& double_reg_type = cache.DoubleLo();
+  const RegType& double_reg_type = cache.DoubleLo();
   EXPECT_FALSE(double_reg_type.IsUndefined());
   EXPECT_FALSE(double_reg_type.IsConflict());
   EXPECT_FALSE(double_reg_type.IsZero());
@@ -344,9 +344,9 @@ TEST_F(RegTypeReferenceTest, JavalangObjectImprecise) {
   // match the one that is imprecise.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
-  RegType& imprecise_obj = cache.JavaLangObject(false);
-  RegType& precise_obj = cache.JavaLangObject(true);
-  RegType& precise_obj_2 = cache.FromDescriptor(NULL, "Ljava/lang/Object;", true);
+  const RegType& imprecise_obj = cache.JavaLangObject(false);
+  const RegType& precise_obj = cache.JavaLangObject(true);
+  const RegType& precise_obj_2 = cache.FromDescriptor(NULL, "Ljava/lang/Object;", true);
 
   EXPECT_TRUE(precise_obj.Equals(precise_obj_2));
   EXPECT_FALSE(imprecise_obj.Equals(precise_obj));
@@ -359,14 +359,14 @@ TEST_F(RegTypeReferenceTest, UnresolvedType) {
   // a hit second time.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
-  RegType& ref_type_0 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  const RegType& ref_type_0 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.IsUnresolvedReference());
   EXPECT_TRUE(ref_type_0.IsNonZeroReferenceTypes());
 
-  RegType& ref_type_1 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  const RegType& ref_type_1 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.Equals(ref_type_1));
 
-  RegType& unresolved_super_class =  cache.FromUnresolvedSuperClass(ref_type_0);
+  const RegType& unresolved_super_class =  cache.FromUnresolvedSuperClass(ref_type_0);
   EXPECT_TRUE(unresolved_super_class.IsUnresolvedSuperClass());
   EXPECT_TRUE(unresolved_super_class.IsNonZeroReferenceTypes());
 }
@@ -375,21 +375,21 @@ TEST_F(RegTypeReferenceTest, UnresolvedUnintializedType) {
   // Tests creating types uninitialized types from unresolved types.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
-  RegType& ref_type_0 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  const RegType& ref_type_0 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.IsUnresolvedReference());
-  RegType& ref_type = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  const RegType& ref_type = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.Equals(ref_type));
   // Create an uninitialized type of this unresolved type
-  RegType& unresolved_unintialised = cache.Uninitialized(ref_type, 1101ull);
+  const RegType& unresolved_unintialised = cache.Uninitialized(ref_type, 1101ull);
   EXPECT_TRUE(unresolved_unintialised.IsUnresolvedAndUninitializedReference());
   EXPECT_TRUE(unresolved_unintialised.IsUninitializedTypes());
   EXPECT_TRUE(unresolved_unintialised.IsNonZeroReferenceTypes());
   // Create an uninitialized type of this unresolved type with different  PC
-  RegType& ref_type_unresolved_unintialised_1 =  cache.Uninitialized(ref_type, 1102ull);
+  const RegType& ref_type_unresolved_unintialised_1 =  cache.Uninitialized(ref_type, 1102ull);
   EXPECT_TRUE(unresolved_unintialised.IsUnresolvedAndUninitializedReference());
   EXPECT_FALSE(unresolved_unintialised.Equals(ref_type_unresolved_unintialised_1));
   // Create an uninitialized type of this unresolved type with the same PC
-  RegType& unresolved_unintialised_2 = cache.Uninitialized(ref_type, 1101ull);
+  const RegType& unresolved_unintialised_2 = cache.Uninitialized(ref_type, 1101ull);
   EXPECT_TRUE(unresolved_unintialised.Equals(unresolved_unintialised_2));
 }
 
@@ -397,12 +397,12 @@ TEST_F(RegTypeReferenceTest, Dump) {
   // Tests types for proper Dump messages.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
-  RegType& unresolved_ref = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
-  RegType& unresolved_ref_another = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExistEither;", true);
-  RegType& resolved_ref = cache.JavaLangString();
-  RegType& resolved_unintialiesd = cache.Uninitialized(resolved_ref, 10);
-  RegType& unresolved_unintialized = cache.Uninitialized(unresolved_ref, 12);
-  RegType& unresolved_merged = cache.FromUnresolvedMerge(unresolved_ref, unresolved_ref_another);
+  const RegType& unresolved_ref = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  const RegType& unresolved_ref_another = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExistEither;", true);
+  const RegType& resolved_ref = cache.JavaLangString();
+  const RegType& resolved_unintialiesd = cache.Uninitialized(resolved_ref, 10);
+  const RegType& unresolved_unintialized = cache.Uninitialized(unresolved_ref, 12);
+  const RegType& unresolved_merged = cache.FromUnresolvedMerge(unresolved_ref, unresolved_ref_another);
 
   std::string expected = "Unresolved Reference: java.lang.DoesNotExist";
   EXPECT_EQ(expected, unresolved_ref.Dump());
@@ -422,16 +422,16 @@ TEST_F(RegTypeReferenceTest, JavalangString) {
   // The JavaLangObject method instead of FromDescriptor. String class is final.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
-  RegType& ref_type = cache.JavaLangString();
-  RegType& ref_type_2 = cache.JavaLangString();
-  RegType& ref_type_3 = cache.FromDescriptor(NULL, "Ljava/lang/String;", true);
+  const RegType& ref_type = cache.JavaLangString();
+  const RegType& ref_type_2 = cache.JavaLangString();
+  const RegType& ref_type_3 = cache.FromDescriptor(NULL, "Ljava/lang/String;", true);
 
   EXPECT_TRUE(ref_type.Equals(ref_type_2));
   EXPECT_TRUE(ref_type_2.Equals(ref_type_3));
   EXPECT_TRUE(ref_type.IsPreciseReference());
 
   // Create an uninitialized type out of this:
-  RegType& ref_type_unintialized = cache.Uninitialized(ref_type, 0110ull);
+  const RegType& ref_type_unintialized = cache.Uninitialized(ref_type, 0110ull);
   EXPECT_TRUE(ref_type_unintialized.IsUninitializedReference());
   EXPECT_FALSE(ref_type_unintialized.IsUnresolvedAndUninitializedReference());
 }
@@ -442,9 +442,9 @@ TEST_F(RegTypeReferenceTest, JavalangObject) {
   // The JavaLangObject method instead of FromDescriptor. Object Class in not final.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
-  RegType& ref_type = cache.JavaLangObject(true);
-  RegType& ref_type_2 = cache.JavaLangObject(true);
-  RegType& ref_type_3 = cache.FromDescriptor(NULL, "Ljava/lang/Object;", true);
+  const RegType& ref_type = cache.JavaLangObject(true);
+  const RegType& ref_type_2 = cache.JavaLangObject(true);
+  const RegType& ref_type_3 = cache.FromDescriptor(NULL, "Ljava/lang/Object;", true);
 
   EXPECT_TRUE(ref_type.Equals(ref_type_2));
   EXPECT_TRUE(ref_type_3.Equals(ref_type_2));
@@ -455,19 +455,20 @@ TEST_F(RegTypeReferenceTest, Merging) {
   // String and object , LUB is object.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache_new(true);
-  RegType& string = cache_new.JavaLangString();
-  RegType& Object = cache_new.JavaLangObject(true);
+  const RegType& string = cache_new.JavaLangString();
+  const RegType& Object = cache_new.JavaLangObject(true);
   EXPECT_TRUE(string.Merge(Object, &cache_new).IsJavaLangObject());
   // Merge two unresolved types.
-  RegType& ref_type_0 = cache_new.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  const RegType& ref_type_0 = cache_new.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.IsUnresolvedReference());
-  RegType& ref_type_1 = cache_new.FromDescriptor(NULL, "Ljava/lang/DoesNotExistToo;", true);
+  const RegType& ref_type_1 = cache_new.FromDescriptor(NULL, "Ljava/lang/DoesNotExistToo;", true);
   EXPECT_FALSE(ref_type_0.Equals(ref_type_1));
 
-  RegType& merged = ref_type_1.Merge(ref_type_0, &cache_new);
+  const RegType& merged = ref_type_1.Merge(ref_type_0, &cache_new);
   EXPECT_TRUE(merged.IsUnresolvedMergedReference());
+  RegType& merged_nonconst = const_cast<RegType&>(merged);
 
-  std::set<uint16_t> merged_ids = (down_cast<UnresolvedMergedType*>(&merged))->GetMergedTypes();
+  std::set<uint16_t> merged_ids = (down_cast<UnresolvedMergedType*>(&merged_nonconst))->GetMergedTypes();
   EXPECT_EQ(ref_type_0.GetId(), *(merged_ids.begin()));
   EXPECT_EQ(ref_type_1.GetId(), *((++merged_ids.begin())));
 }
@@ -478,27 +479,27 @@ TEST_F(RegTypeTest, MergingFloat) {
   RegTypeCache cache_new(true);
 
   constexpr int32_t kTestConstantValue = 10;
-  RegType& float_type = cache_new.Float();
-  RegType& precise_cst = cache_new.FromCat1Const(kTestConstantValue, true);
-  RegType& imprecise_cst = cache_new.FromCat1Const(kTestConstantValue, false);
+  const RegType& float_type = cache_new.Float();
+  const RegType& precise_cst = cache_new.FromCat1Const(kTestConstantValue, true);
+  const RegType& imprecise_cst = cache_new.FromCat1Const(kTestConstantValue, false);
   {
     // float MERGE precise cst => float.
-    RegType& merged = float_type.Merge(precise_cst, &cache_new);
+    const RegType& merged = float_type.Merge(precise_cst, &cache_new);
     EXPECT_TRUE(merged.IsFloat());
   }
   {
     // precise cst MERGE float => float.
-    RegType& merged = precise_cst.Merge(float_type, &cache_new);
+    const RegType& merged = precise_cst.Merge(float_type, &cache_new);
     EXPECT_TRUE(merged.IsFloat());
   }
   {
     // float MERGE imprecise cst => float.
-    RegType& merged = float_type.Merge(imprecise_cst, &cache_new);
+    const RegType& merged = float_type.Merge(imprecise_cst, &cache_new);
     EXPECT_TRUE(merged.IsFloat());
   }
   {
     // imprecise cst MERGE float => float.
-    RegType& merged = imprecise_cst.Merge(float_type, &cache_new);
+    const RegType& merged = imprecise_cst.Merge(float_type, &cache_new);
     EXPECT_TRUE(merged.IsFloat());
   }
 }
@@ -509,50 +510,50 @@ TEST_F(RegTypeTest, MergingLong) {
   RegTypeCache cache_new(true);
 
   constexpr int32_t kTestConstantValue = 10;
-  RegType& long_lo_type = cache_new.LongLo();
-  RegType& long_hi_type = cache_new.LongHi();
-  RegType& precise_cst_lo = cache_new.FromCat2ConstLo(kTestConstantValue, true);
-  RegType& imprecise_cst_lo = cache_new.FromCat2ConstLo(kTestConstantValue, false);
-  RegType& precise_cst_hi = cache_new.FromCat2ConstHi(kTestConstantValue, true);
-  RegType& imprecise_cst_hi = cache_new.FromCat2ConstHi(kTestConstantValue, false);
+  const RegType& long_lo_type = cache_new.LongLo();
+  const RegType& long_hi_type = cache_new.LongHi();
+  const RegType& precise_cst_lo = cache_new.FromCat2ConstLo(kTestConstantValue, true);
+  const RegType& imprecise_cst_lo = cache_new.FromCat2ConstLo(kTestConstantValue, false);
+  const RegType& precise_cst_hi = cache_new.FromCat2ConstHi(kTestConstantValue, true);
+  const RegType& imprecise_cst_hi = cache_new.FromCat2ConstHi(kTestConstantValue, false);
   {
     // lo MERGE precise cst lo => lo.
-    RegType& merged = long_lo_type.Merge(precise_cst_lo, &cache_new);
+    const RegType& merged = long_lo_type.Merge(precise_cst_lo, &cache_new);
     EXPECT_TRUE(merged.IsLongLo());
   }
   {
     // precise cst lo MERGE lo => lo.
-    RegType& merged = precise_cst_lo.Merge(long_lo_type, &cache_new);
+    const RegType& merged = precise_cst_lo.Merge(long_lo_type, &cache_new);
     EXPECT_TRUE(merged.IsLongLo());
   }
   {
     // lo MERGE imprecise cst lo => lo.
-    RegType& merged = long_lo_type.Merge(imprecise_cst_lo, &cache_new);
+    const RegType& merged = long_lo_type.Merge(imprecise_cst_lo, &cache_new);
     EXPECT_TRUE(merged.IsLongLo());
   }
   {
     // imprecise cst lo MERGE lo => lo.
-    RegType& merged = imprecise_cst_lo.Merge(long_lo_type, &cache_new);
+    const RegType& merged = imprecise_cst_lo.Merge(long_lo_type, &cache_new);
     EXPECT_TRUE(merged.IsLongLo());
   }
   {
     // hi MERGE precise cst hi => hi.
-    RegType& merged = long_hi_type.Merge(precise_cst_hi, &cache_new);
+    const RegType& merged = long_hi_type.Merge(precise_cst_hi, &cache_new);
     EXPECT_TRUE(merged.IsLongHi());
   }
   {
     // precise cst hi MERGE hi => hi.
-    RegType& merged = precise_cst_hi.Merge(long_hi_type, &cache_new);
+    const RegType& merged = precise_cst_hi.Merge(long_hi_type, &cache_new);
     EXPECT_TRUE(merged.IsLongHi());
   }
   {
     // hi MERGE imprecise cst hi => hi.
-    RegType& merged = long_hi_type.Merge(imprecise_cst_hi, &cache_new);
+    const RegType& merged = long_hi_type.Merge(imprecise_cst_hi, &cache_new);
     EXPECT_TRUE(merged.IsLongHi());
   }
   {
     // imprecise cst hi MERGE hi => hi.
-    RegType& merged = imprecise_cst_hi.Merge(long_hi_type, &cache_new);
+    const RegType& merged = imprecise_cst_hi.Merge(long_hi_type, &cache_new);
     EXPECT_TRUE(merged.IsLongHi());
   }
 }
@@ -563,50 +564,50 @@ TEST_F(RegTypeTest, MergingDouble) {
   RegTypeCache cache_new(true);
 
   constexpr int32_t kTestConstantValue = 10;
-  RegType& double_lo_type = cache_new.DoubleLo();
-  RegType& double_hi_type = cache_new.DoubleHi();
-  RegType& precise_cst_lo = cache_new.FromCat2ConstLo(kTestConstantValue, true);
-  RegType& imprecise_cst_lo = cache_new.FromCat2ConstLo(kTestConstantValue, false);
-  RegType& precise_cst_hi = cache_new.FromCat2ConstHi(kTestConstantValue, true);
-  RegType& imprecise_cst_hi = cache_new.FromCat2ConstHi(kTestConstantValue, false);
+  const RegType& double_lo_type = cache_new.DoubleLo();
+  const RegType& double_hi_type = cache_new.DoubleHi();
+  const RegType& precise_cst_lo = cache_new.FromCat2ConstLo(kTestConstantValue, true);
+  const RegType& imprecise_cst_lo = cache_new.FromCat2ConstLo(kTestConstantValue, false);
+  const RegType& precise_cst_hi = cache_new.FromCat2ConstHi(kTestConstantValue, true);
+  const RegType& imprecise_cst_hi = cache_new.FromCat2ConstHi(kTestConstantValue, false);
   {
     // lo MERGE precise cst lo => lo.
-    RegType& merged = double_lo_type.Merge(precise_cst_lo, &cache_new);
+    const RegType& merged = double_lo_type.Merge(precise_cst_lo, &cache_new);
     EXPECT_TRUE(merged.IsDoubleLo());
   }
   {
     // precise cst lo MERGE lo => lo.
-    RegType& merged = precise_cst_lo.Merge(double_lo_type, &cache_new);
+    const RegType& merged = precise_cst_lo.Merge(double_lo_type, &cache_new);
     EXPECT_TRUE(merged.IsDoubleLo());
   }
   {
     // lo MERGE imprecise cst lo => lo.
-    RegType& merged = double_lo_type.Merge(imprecise_cst_lo, &cache_new);
+    const RegType& merged = double_lo_type.Merge(imprecise_cst_lo, &cache_new);
     EXPECT_TRUE(merged.IsDoubleLo());
   }
   {
     // imprecise cst lo MERGE lo => lo.
-    RegType& merged = imprecise_cst_lo.Merge(double_lo_type, &cache_new);
+    const RegType& merged = imprecise_cst_lo.Merge(double_lo_type, &cache_new);
     EXPECT_TRUE(merged.IsDoubleLo());
   }
   {
     // hi MERGE precise cst hi => hi.
-    RegType& merged = double_hi_type.Merge(precise_cst_hi, &cache_new);
+    const RegType& merged = double_hi_type.Merge(precise_cst_hi, &cache_new);
     EXPECT_TRUE(merged.IsDoubleHi());
   }
   {
     // precise cst hi MERGE hi => hi.
-    RegType& merged = precise_cst_hi.Merge(double_hi_type, &cache_new);
+    const RegType& merged = precise_cst_hi.Merge(double_hi_type, &cache_new);
     EXPECT_TRUE(merged.IsDoubleHi());
   }
   {
     // hi MERGE imprecise cst hi => hi.
-    RegType& merged = double_hi_type.Merge(imprecise_cst_hi, &cache_new);
+    const RegType& merged = double_hi_type.Merge(imprecise_cst_hi, &cache_new);
     EXPECT_TRUE(merged.IsDoubleHi());
   }
   {
     // imprecise cst hi MERGE hi => hi.
-    RegType& merged = imprecise_cst_hi.Merge(double_hi_type, &cache_new);
+    const RegType& merged = imprecise_cst_hi.Merge(double_hi_type, &cache_new);
     EXPECT_TRUE(merged.IsDoubleHi());
   }
 }
@@ -615,8 +616,8 @@ TEST_F(RegTypeTest, ConstPrecision) {
   // Tests creating primitive types types.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache_new(true);
-  RegType& imprecise_const = cache_new.FromCat1Const(10, false);
-  RegType& precise_const = cache_new.FromCat1Const(10, true);
+  const RegType& imprecise_const = cache_new.FromCat1Const(10, false);
+  const RegType& precise_const = cache_new.FromCat1Const(10, true);
 
   EXPECT_TRUE(imprecise_const.IsImpreciseConstant());
   EXPECT_TRUE(precise_const.IsPreciseConstant());
