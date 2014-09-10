@@ -4433,7 +4433,6 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, ConstHandle<mi
     return false;
   }
   CreateReferenceInstanceOffsets(klass);
-  CreateReferenceStaticOffsets(klass);
   CHECK_EQ(mirror::Class::kStatusLoaded, klass->GetStatus());
 
   if (!klass->IsTemp() || (!init_done_ && klass->GetClassSize() == class_size)) {
@@ -5166,20 +5165,13 @@ void ClassLinker::CreateReferenceInstanceOffsets(ConstHandle<mirror::Class> klas
       return;
     }
   }
-  CreateReferenceOffsets(klass, false, reference_offsets);
+  CreateReferenceOffsets(klass, reference_offsets);
 }
 
-void ClassLinker::CreateReferenceStaticOffsets(ConstHandle<mirror::Class> klass) {
-  CreateReferenceOffsets(klass, true, 0);
-}
-
-void ClassLinker::CreateReferenceOffsets(ConstHandle<mirror::Class> klass, bool is_static,
+void ClassLinker::CreateReferenceOffsets(ConstHandle<mirror::Class> klass,
                                          uint32_t reference_offsets) {
-  size_t num_reference_fields =
-      is_static ? klass->NumReferenceStaticFieldsDuringLinking()
-                : klass->NumReferenceInstanceFieldsDuringLinking();
-  mirror::ObjectArray<mirror::ArtField>* fields =
-      is_static ? klass->GetSFields() : klass->GetIFields();
+  size_t num_reference_fields = klass->NumReferenceInstanceFieldsDuringLinking();
+  mirror::ObjectArray<mirror::ArtField>* fields = klass->GetIFields();
   // All of the fields that contain object references are guaranteed
   // to be at the beginning of the fields list.
   for (size_t i = 0; i < num_reference_fields; ++i) {
@@ -5197,12 +5189,7 @@ void ClassLinker::CreateReferenceOffsets(ConstHandle<mirror::Class> klass, bool 
       break;
     }
   }
-  // Update fields in klass
-  if (is_static) {
-    klass->SetReferenceStaticOffsets(reference_offsets);
-  } else {
-    klass->SetReferenceInstanceOffsets(reference_offsets);
-  }
+  klass->SetReferenceInstanceOffsets(reference_offsets);
 }
 
 mirror::String* ClassLinker::ResolveString(const DexFile& dex_file, uint32_t string_idx,

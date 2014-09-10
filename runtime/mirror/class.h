@@ -871,14 +871,6 @@ class MANAGED Class FINAL : public Object {
   // TODO: uint16_t
   void SetStaticField(uint32_t i, ArtField* f) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  uint32_t GetReferenceStaticOffsets() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, reference_static_offsets_));
-  }
-
-  void SetReferenceStaticOffsets(uint32_t new_reference_offsets)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Find a static or instance field using the JLS resolution order
   static ArtField* FindField(Thread* self, Handle<Class> klass, const StringPiece& name,
                              const StringPiece& type)
@@ -1149,9 +1141,6 @@ class MANAGED Class FINAL : public Object {
 
   // Bitmap of offsets of ifields.
   uint32_t reference_instance_offsets_;
-
-  // Bitmap of offsets of sfields.
-  uint32_t reference_static_offsets_;
 
   // State of class initialization.
   Status status_;
