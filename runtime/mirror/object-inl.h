@@ -888,9 +888,9 @@ inline bool Object::CasFieldStrongSequentiallyConsistentObject(MemberOffset fiel
 
 template<bool kVisitClass, bool kIsStatic, typename Visitor>
 inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& visitor) {
-  if (LIKELY(ref_offsets != CLASS_WALK_SUPER)) {
+  if (!kIsStatic && LIKELY(ref_offsets != CLASS_WALK_SUPER)) {
     if (!kVisitClass) {
-     // Mask out the class from the reference offsets.
+      // Mask out the class from the reference offsets.
       ref_offsets ^= kWordHighBitMask;
     }
     DCHECK_EQ(ClassOffset().Uint32Value(), 0U);
@@ -902,7 +902,7 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
       ref_offsets &= ~(CLASS_HIGH_BIT >> right_shift);
     }
   } else {
-    // There is no reference offset bitmap.  In the non-static case, walk up the class
+    // There is no reference offset bitmap. In the non-static case, walk up the class
     // inheritance hierarchy and find reference offsets the hard way. In the static case, just
     // consider this class.
     for (mirror::Class* klass = kIsStatic ? AsClass() : GetClass(); klass != nullptr;
@@ -930,8 +930,7 @@ inline void Object::VisitInstanceFieldsReferences(mirror::Class* klass, const Vi
 template<bool kVisitClass, typename Visitor>
 inline void Object::VisitStaticFieldsReferences(mirror::Class* klass, const Visitor& visitor) {
   DCHECK(!klass->IsTemp());
-  klass->VisitFieldsReferences<kVisitClass, true>(
-      klass->GetReferenceStaticOffsets<kVerifyNone>(), visitor);
+  klass->VisitFieldsReferences<kVisitClass, true>(0, visitor);
 }
 
 template <const bool kVisitClass, VerifyObjectFlags kVerifyFlags, typename Visitor,

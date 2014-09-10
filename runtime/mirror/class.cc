@@ -292,18 +292,6 @@ void Class::SetReferenceInstanceOffsets(uint32_t new_reference_offsets) {
                     new_reference_offsets);
 }
 
-void Class::SetReferenceStaticOffsets(uint32_t new_reference_offsets) {
-  if (new_reference_offsets != CLASS_WALK_SUPER) {
-    // Sanity check that the number of bits set in the reference offset bitmap
-    // agrees with the number of references
-    CHECK_EQ((size_t)POPCOUNT(new_reference_offsets),
-             NumReferenceStaticFieldsDuringLinking());
-  }
-  // Not called within a transaction.
-  SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, reference_static_offsets_),
-                    new_reference_offsets);
-}
-
 bool Class::IsInSamePackage(const StringPiece& descriptor1, const StringPiece& descriptor2) {
   size_t i = 0;
   while (descriptor1[i] != '\0' && descriptor1[i] == descriptor2[i]) {
