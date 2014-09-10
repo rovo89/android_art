@@ -25,7 +25,7 @@
 namespace art {
 namespace verifier {
 
-inline RegType& RegisterLine::GetRegisterType(uint32_t vsrc) const {
+inline const RegType& RegisterLine::GetRegisterType(uint32_t vsrc) const {
   // The register index was validated during the static pass, so we don't need to check it here.
   DCHECK_LT(vsrc, num_regs_);
   return verifier_->GetRegTypeCache()->GetFromId(line_[vsrc]);

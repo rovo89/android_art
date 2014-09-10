@@ -81,26 +81,26 @@ class RegisterLine {
   // Set the type of register N, verifying that the register is valid.  If "newType" is the "Lo"
   // part of a 64-bit value, register N+1 will be set to "newType+1".
   // The register index was validated during the static pass, so we don't need to check it here.
-  bool SetRegisterType(uint32_t vdst, RegType& new_type)
+  bool SetRegisterType(uint32_t vdst, const RegType& new_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool SetRegisterTypeWide(uint32_t vdst, RegType& new_type1, RegType& new_type2)
+  bool SetRegisterTypeWide(uint32_t vdst, const RegType& new_type1, const RegType& new_type2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /* Set the type of the "result" register. */
-  void SetResultRegisterType(RegType& new_type)
+  void SetResultRegisterType(const RegType& new_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetResultRegisterTypeWide(RegType& new_type1, RegType& new_type2)
+  void SetResultRegisterTypeWide(const RegType& new_type1, const RegType& new_type2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the type of register vsrc.
-  RegType& GetRegisterType(uint32_t vsrc) const;
+  const RegType& GetRegisterType(uint32_t vsrc) const;
 
-  bool VerifyRegisterType(uint32_t vsrc, RegType& check_type)
+  bool VerifyRegisterType(uint32_t vsrc, const RegType& check_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool VerifyRegisterTypeWide(uint32_t vsrc, RegType& check_type1, RegType& check_type2)
+  bool VerifyRegisterTypeWide(uint32_t vsrc, const RegType& check_type1, const RegType& check_type2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CopyFromLine(const RegisterLine* src) {
@@ -110,7 +110,7 @@ class RegisterLine {
     reg_to_lock_depths_ = src->reg_to_lock_depths_;
   }
 
-  std::string Dump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  std::string Dump() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void FillWithGarbage() {
     memset(&line_, 0xf1, num_regs_ * sizeof(uint16_t));
@@ -126,7 +126,7 @@ class RegisterLine {
    * to prevent them from being used (otherwise, MarkRefsAsInitialized would mark the old ones and
    * the new ones at the same time).
    */
-  void MarkUninitRefsAsInvalid(RegType& uninit_type)
+  void MarkUninitRefsAsInvalid(const RegType& uninit_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -134,7 +134,7 @@ class RegisterLine {
    * reference type. This is called when an appropriate constructor is invoked -- all copies of
    * the reference must be marked as initialized.
    */
-  void MarkRefsAsInitialized(RegType& uninit_type)
+  void MarkRefsAsInitialized(const RegType& uninit_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -173,30 +173,30 @@ class RegisterLine {
    * The argument count is in vA, and the first argument is in vC, for both "simple" and "range"
    * versions. We just need to make sure vA is >= 1 and then return vC.
    */
-  RegType& GetInvocationThis(const Instruction* inst, bool is_range)
+  const RegType& GetInvocationThis(const Instruction* inst, bool is_range)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Verify types for a simple two-register instruction (e.g. "neg-int").
    * "dst_type" is stored into vA, and "src_type" is verified against vB.
    */
-  void CheckUnaryOp(const Instruction* inst, RegType& dst_type,
-                    RegType& src_type)
+  void CheckUnaryOp(const Instruction* inst, const RegType& dst_type,
+                    const RegType& src_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CheckUnaryOpWide(const Instruction* inst,
-                        RegType& dst_type1, RegType& dst_type2,
-                        RegType& src_type1, RegType& src_type2)
+                        const RegType& dst_type1, const RegType& dst_type2,
+                        const RegType& src_type1, const RegType& src_type2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CheckUnaryOpToWide(const Instruction* inst,
-                          RegType& dst_type1, RegType& dst_type2,
-                          RegType& src_type)
+                          const RegType& dst_type1, const RegType& dst_type2,
+                          const RegType& src_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CheckUnaryOpFromWide(const Instruction* inst,
-                            RegType& dst_type,
-                            RegType& src_type1, RegType& src_type2)
+                            const RegType& dst_type,
+                            const RegType& src_type1, const RegType& src_type2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -205,19 +205,19 @@ class RegisterLine {
    * against vB/vC.
    */
   void CheckBinaryOp(const Instruction* inst,
-                     RegType& dst_type, RegType& src_type1, RegType& src_type2,
+                     const RegType& dst_type, const RegType& src_type1, const RegType& src_type2,
                      bool check_boolean_op)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CheckBinaryOpWide(const Instruction* inst,
-                         RegType& dst_type1, RegType& dst_type2,
-                         RegType& src_type1_1, RegType& src_type1_2,
-                         RegType& src_type2_1, RegType& src_type2_2)
+                         const RegType& dst_type1, const RegType& dst_type2,
+                         const RegType& src_type1_1, const RegType& src_type1_2,
+                         const RegType& src_type2_1, const RegType& src_type2_2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CheckBinaryOpWideShift(const Instruction* inst,
-                              RegType& long_lo_type, RegType& long_hi_type,
-                              RegType& int_type)
+                              const RegType& long_lo_type, const RegType& long_hi_type,
+                              const RegType& int_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -225,20 +225,20 @@ class RegisterLine {
    * are verified against vA/vB, then "dst_type" is stored into vA.
    */
   void CheckBinaryOp2addr(const Instruction* inst,
-                          RegType& dst_type,
-                          RegType& src_type1, RegType& src_type2,
+                          const RegType& dst_type,
+                          const RegType& src_type1, const RegType& src_type2,
                           bool check_boolean_op)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CheckBinaryOp2addrWide(const Instruction* inst,
-                              RegType& dst_type1, RegType& dst_type2,
-                              RegType& src_type1_1, RegType& src_type1_2,
-                              RegType& src_type2_1, RegType& src_type2_2)
+                              const RegType& dst_type1, const RegType& dst_type2,
+                              const RegType& src_type1_1, const RegType& src_type1_2,
+                              const RegType& src_type2_1, const RegType& src_type2_2)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CheckBinaryOp2addrWideShift(const Instruction* inst,
-                                   RegType& long_lo_type, RegType& long_hi_type,
-                                   RegType& int_type)
+                                   const RegType& long_lo_type, const RegType& long_hi_type,
+                                   const RegType& int_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -248,7 +248,7 @@ class RegisterLine {
    * If "check_boolean_op" is set, we use the constant value in vC.
    */
   void CheckLiteralOp(const Instruction* inst,
-                      RegType& dst_type, RegType& src_type,
+                      const RegType& dst_type, const RegType& src_type,
                       bool check_boolean_op, bool is_lit16)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

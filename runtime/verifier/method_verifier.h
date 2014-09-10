@@ -232,7 +232,7 @@ class MethodVerifier {
   bool HasCheckCasts() const;
   bool HasVirtualOrInterfaceInvokes() const;
   bool HasFailures() const;
-  RegType& ResolveCheckedClass(uint32_t class_idx)
+  const RegType& ResolveCheckedClass(uint32_t class_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
@@ -473,34 +473,34 @@ class MethodVerifier {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Helper to perform verification on puts of primitive type.
-  void VerifyPrimitivePut(RegType& target_type, RegType& insn_type,
+  void VerifyPrimitivePut(const RegType& target_type, const RegType& insn_type,
                           const uint32_t vregA) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an aget instruction. The destination register's type will be set to
   // be that of component type of the array unless the array type is unknown, in which case a
   // bottom type inferred from the type of instruction is used. is_primitive is false for an
   // aget-object.
-  void VerifyAGet(const Instruction* inst, RegType& insn_type,
+  void VerifyAGet(const Instruction* inst, const RegType& insn_type,
                   bool is_primitive) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an aput instruction.
-  void VerifyAPut(const Instruction* inst, RegType& insn_type,
+  void VerifyAPut(const Instruction* inst, const RegType& insn_type,
                   bool is_primitive) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Lookup instance field and fail for resolution violations
-  mirror::ArtField* GetInstanceField(RegType& obj_type, int field_idx)
+  mirror::ArtField* GetInstanceField(const RegType& obj_type, int field_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Lookup static field and fail for resolution violations
   mirror::ArtField* GetStaticField(int field_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an iget or sget instruction.
-  void VerifyISGet(const Instruction* inst, RegType& insn_type,
+  void VerifyISGet(const Instruction* inst, const RegType& insn_type,
                    bool is_primitive, bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an iput or sput instruction.
-  void VerifyISPut(const Instruction* inst, RegType& insn_type,
+  void VerifyISPut(const Instruction* inst, const RegType& insn_type,
                    bool is_primitive, bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -510,18 +510,18 @@ class MethodVerifier {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an iget-quick instruction.
-  void VerifyIGetQuick(const Instruction* inst, RegType& insn_type,
+  void VerifyIGetQuick(const Instruction* inst, const RegType& insn_type,
                        bool is_primitive)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Perform verification of an iput-quick instruction.
-  void VerifyIPutQuick(const Instruction* inst, RegType& insn_type,
+  void VerifyIPutQuick(const Instruction* inst, const RegType& insn_type,
                        bool is_primitive)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolves a class based on an index and performs access checks to ensure the referrer can
   // access the resolved class.
-  RegType& ResolveClassAndCheckAccess(uint32_t class_idx)
+  const RegType& ResolveClassAndCheckAccess(uint32_t class_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -529,7 +529,7 @@ class MethodVerifier {
    * address, determine the Join of all exceptions that can land here. Fails if no matching
    * exception handler can be found or if the Join of exception types fails.
    */
-  RegType& GetCaughtExceptionType()
+  const RegType& GetCaughtExceptionType()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -615,14 +615,14 @@ class MethodVerifier {
   }
 
   // Return the register type for the method.
-  RegType& GetMethodReturnType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const RegType& GetMethodReturnType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get a type representing the declaring class of the method.
-  RegType& GetDeclaringClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const RegType& GetDeclaringClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   InstructionFlags* CurrentInsnFlags();
 
-  RegType& DetermineCat1Constant(int32_t value, bool precise)
+  const RegType& DetermineCat1Constant(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   RegTypeCache reg_types_;
@@ -643,7 +643,7 @@ class MethodVerifier {
   // Its object representation if known.
   ConstHandle<mirror::ArtMethod> mirror_method_ GUARDED_BY(Locks::mutator_lock_);
   const uint32_t method_access_flags_;  // Method's access flags.
-  RegType* return_type_;  // Lazily computed return type of the method.
+  const RegType* return_type_;  // Lazily computed return type of the method.
   const DexFile* const dex_file_;  // The dex file containing the method.
   // The dex_cache for the declaring class of the method.
   ConstHandle<mirror::DexCache> dex_cache_ GUARDED_BY(Locks::mutator_lock_);
@@ -651,7 +651,7 @@ class MethodVerifier {
   ConstHandle<mirror::ClassLoader> class_loader_ GUARDED_BY(Locks::mutator_lock_);
   const DexFile::ClassDef* const class_def_;  // The class def of the declaring class of the method.
   const DexFile::CodeItem* const code_item_;  // The code item containing the code for the method.
-  RegType* declaring_class_;  // Lazily computed reg type of the method's declaring class.
+  const RegType* declaring_class_;  // Lazily computed reg type of the method's declaring class.
   // Instruction widths and flags, one entry per code unit.
   std::unique_ptr<InstructionFlags[]> insn_flags_;
   // The dex PC of a FindLocksAtDexPc request, -1 otherwise.

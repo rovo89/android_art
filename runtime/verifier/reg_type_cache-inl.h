@@ -24,14 +24,14 @@
 namespace art {
 namespace verifier {
 
-inline RegType& RegTypeCache::GetFromId(uint16_t id) const {
+inline const art::verifier::RegType& RegTypeCache::GetFromId(uint16_t id) const {
   DCHECK_LT(id, entries_.size());
   RegType* result = entries_[id];
   DCHECK(result != NULL);
   return *result;
 }
 
-inline ConstantType& RegTypeCache::FromCat1Const(int32_t value, bool precise) {
+inline const ConstantType& RegTypeCache::FromCat1Const(int32_t value, bool precise) {
   // We only expect 0 to be a precise constant.
   DCHECK(value != 0 || precise);
   if (precise && (value >= kMinSmallConstant) && (value <= kMaxSmallConstant)) {
