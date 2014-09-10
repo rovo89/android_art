@@ -389,14 +389,21 @@ class DexFile {
   // For normal dex files, location and base location coincide. If a dex file is part of a multidex
   // archive, the base location is the name of the originating jar/apk, stripped of any internal
   // classes*.dex path.
-  const std::string GetBaseLocation() const {
-    if (IsMultiDexLocation(location_.c_str())) {
-      std::pair<const char*, const char*> pair = SplitMultiDexLocation(location_.c_str());
-      std::string res(pair.first);
-      delete[] pair.first;
-      return res;
+  static std::string GetBaseLocation(const char* location) {
+    const char* pos = strrchr(location, kMultiDexSeparator);
+    if (pos == nullptr) {
+      return location;
     } else {
+      return std::string(location, pos - location);
+    }
+  }
+
+  std::string GetBaseLocation() const {
+    size_t pos = location_.rfind(kMultiDexSeparator);
+    if (pos == std::string::npos) {
       return location_;
+    } else {
+      return location_.substr(0, pos);
     }
   }
 
@@ -917,13 +924,6 @@ class DexFile {
   // Check whether a location denotes a multidex dex file. This is a very simple check: returns
   // whether the string contains the separator character.
   static bool IsMultiDexLocation(const char* location);
-
-  // Splits a multidex location at the last separator character. The second component is a pointer
-  // to the character after the separator. The first is a copy of the substring up to the separator.
-  //
-  // Note: It's the caller's job to free the first component of the returned pair.
-  // Bug 15313523: gcc/libc++ don't allow a unique_ptr for the first component
-  static std::pair<const char*, const char*> SplitMultiDexLocation(const char* location);
 
 
   // The base address of the memory mapping.

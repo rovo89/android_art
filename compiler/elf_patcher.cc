@@ -200,7 +200,8 @@ bool ElfPatcher::PatchElf() {
     mirror::ArtMethod* target = GetTargetMethod(patch);
     uintptr_t quick_code = reinterpret_cast<uintptr_t>(class_linker->GetQuickOatCodeFor(target));
     DCHECK_NE(quick_code, 0U) << PrettyMethod(target);
-    const OatFile* target_oat = class_linker->FindOpenedOatFileForDexFile(*patch->GetTargetDexFile());
+    const OatFile* target_oat =
+        class_linker->FindOpenedOatDexFileForDexFile(*patch->GetTargetDexFile())->GetOatFile();
     // Get where the data actually starts. if target is this oat_file_ it is oat_data_start_,
     // otherwise it is wherever target_oat is loaded.
     uintptr_t oat_data_addr = GetBaseAddressFor(target_oat);
