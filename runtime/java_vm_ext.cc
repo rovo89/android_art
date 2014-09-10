@@ -760,6 +760,11 @@ void JavaVMExt::SweepJniWeakGlobals(IsMarkedCallback* callback, void* arg) {
   for (mirror::Object** entry : weak_globals_) {
     // Since this is called by the GC, we don't need a read barrier.
     mirror::Object* obj = *entry;
+    if (obj == nullptr) {
+      // Need to skip null here to distinguish between null entries
+      // and cleared weak ref entries.
+      continue;
+    }
     mirror::Object* new_obj = callback(obj, arg);
     if (new_obj == nullptr) {
       new_obj = Runtime::Current()->GetClearedJniWeakGlobal();
