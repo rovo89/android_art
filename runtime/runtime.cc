@@ -599,9 +599,7 @@ static bool OpenDexFilesFromImage(const std::vector<std::string>& dex_filenames,
     return false;
   }
 
-  std::vector<const OatFile::OatDexFile*> oat_dex_files = oat_file->GetOatDexFiles();
-  for (size_t i = 0; i < oat_dex_files.size(); i++) {
-    const OatFile::OatDexFile* oat_dex_file = oat_dex_files[i];
+  for (const OatFile::OatDexFile* oat_dex_file : oat_file->GetOatDexFiles()) {
     if (oat_dex_file == nullptr) {
       *failures += 1;
       continue;

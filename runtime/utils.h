@@ -20,6 +20,7 @@
 #include <pthread.h>
 
 #include <limits>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -501,6 +502,18 @@ void PushWord(std::vector<uint8_t>* buf, int32_t data);
 
 void EncodeUnsignedLeb128(uint32_t data, std::vector<uint8_t>* buf);
 void EncodeSignedLeb128(int32_t data, std::vector<uint8_t>* buf);
+
+// Deleter using free() for use with std::unique_ptr<>. See also UniqueCPtr<> below.
+struct FreeDelete {
+  // NOTE: Deleting a const object is valid but free() takes a non-const pointer.
+  void operator()(const void* ptr) const {
+    free(const_cast<void*>(ptr));
+  }
+};
+
+// Alias for std::unique_ptr<> that uses the C function free() to delete objects.
+template <typename T>
+using UniqueCPtr = std::unique_ptr<T, FreeDelete>;
 
 }  // namespace art
 

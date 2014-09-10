@@ -214,12 +214,21 @@ class OatFile {
     // Opens the DexFile referred to by this OatDexFile from within the containing OatFile.
     const DexFile* OpenDexFile(std::string* error_msg) const;
 
+    const OatFile* GetOatFile() const {
+      return oat_file_;
+    }
+
     // Returns the size of the DexFile refered to by this OatDexFile.
     size_t FileSize() const;
 
     // Returns original path of DexFile that was the source of this OatDexFile.
     const std::string& GetDexFileLocation() const {
       return dex_file_location_;
+    }
+
+    // Returns the canonical location of DexFile that was the source of this OatDexFile.
+    const std::string& GetCanonicalDexFileLocation() const {
+      return canonical_dex_file_location_;
     }
 
     // Returns checksum of original DexFile that was the source of this OatDexFile;
@@ -235,12 +244,14 @@ class OatFile {
    private:
     OatDexFile(const OatFile* oat_file,
                const std::string& dex_file_location,
+               const std::string& canonical_dex_file_location,
                uint32_t dex_file_checksum,
                const byte* dex_file_pointer,
                const uint32_t* oat_class_offsets_pointer);
 
     const OatFile* const oat_file_;
     const std::string dex_file_location_;
+    const std::string canonical_dex_file_location_;
     const uint32_t dex_file_location_checksum_;
     const byte* const dex_file_pointer_;
     const uint32_t* const oat_class_offsets_pointer_;
@@ -254,7 +265,9 @@ class OatFile {
                                   bool exception_if_not_found = true) const
       LOCKS_EXCLUDED(secondary_lookup_lock_);
 
-  std::vector<const OatDexFile*> GetOatDexFiles() const;
+  const std::vector<const OatDexFile*>& GetOatDexFiles() const {
+    return oat_dex_files_storage_;
+  }
 
   size_t Size() const {
     return End() - Begin();
@@ -307,6 +320,9 @@ class OatFile {
   // dlopen handle during runtime.
   void* dlopen_handle_;
 
+  // Owning storage for the OatDexFile objects.
+  std::vector<const OatDexFile*> oat_dex_files_storage_;
+
   // NOTE: We use a StringPiece as the key type to avoid a memory allocation on every
   // lookup with a const char* key. The StringPiece doesn't own its backing storage,
   // therefore we're using the OatDexFile::dex_file_location_ as the backing storage
@@ -314,11 +330,11 @@ class OatFile {
   // of keys in secondary_oat_dex_files_ and oat_dex_files_by_canonical_location_.
   typedef AllocationTrackingSafeMap<StringPiece, const OatDexFile*, kAllocatorTagOatFile> Table;
 
-  // Map each plain dex file location retrieved from the oat file to its OatDexFile.
-  // This map doesn't change after it's constructed in Setup() and therefore doesn't
-  // need any locking and provides the cheapest dex file lookup for GetOatDexFile()
-  // for a very frequent use case. Never contains a nullptr value.
-  Table oat_dex_files_;                         // Owns the OatDexFile* values.
+  // Map each location and canonical location (if different) retrieved from the
+  // oat file to its OatDexFile. This map doesn't change after it's constructed in Setup()
+  // and therefore doesn't need any locking and provides the cheapest dex file lookup
+  // for GetOatDexFile() for a very frequent use case. Never contains a nullptr value.
+  Table oat_dex_files_;
 
   // Lock guarding all members needed for secondary lookup in GetOatDexFile().
   mutable Mutex secondary_lookup_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
@@ -328,10 +344,6 @@ class OatFile {
   // failed (null). If it doesn't contain an entry we need to calculate the canonical
   // location and use oat_dex_files_by_canonical_location_.
   mutable Table secondary_oat_dex_files_ GUARDED_BY(secondary_lookup_lock_);
-
-  // Map the canonical location to an OatDexFile. This lazily constructed map is used
-  // when we're doing the secondary lookup for a given location for the first time.
-  mutable Table oat_dex_files_by_canonical_location_ GUARDED_BY(secondary_lookup_lock_);
 
   // Cache of strings. Contains the backing storage for keys in the secondary_oat_dex_files_
   // and the lazily initialized oat_dex_files_by_canonical_location_.
