@@ -2008,7 +2008,7 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
       if (pair.second != nullptr) {
         mirror::Class* klass = LookupClass(descriptor, nullptr);
         if (klass != nullptr) {
-          return klass;
+          return EnsureResolved(self, descriptor, klass);
         }
         klass = DefineClass(descriptor, NullHandle<mirror::ClassLoader>(), *pair.first,
                             *pair.second);
