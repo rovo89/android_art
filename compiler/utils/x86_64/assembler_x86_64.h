@@ -253,7 +253,7 @@ class Address : public Operand {
 
 class X86_64Assembler FINAL : public Assembler {
  public:
-  X86_64Assembler() {}
+  X86_64Assembler() : cfi_cfa_offset_(0), cfi_pc_(0) {}
   virtual ~X86_64Assembler() {}
 
   /*

@@ -16,6 +16,7 @@
 
 #include "assembler_x86_64.h"
 
+#include "base/stl_util.h"
 #include "utils/assembler_test.h"
 
 namespace art {
@@ -60,6 +61,11 @@ class AssemblerX86_64Test : public AssemblerTest<x86_64::X86_64Assembler, x86_64
       registers_.push_back(new x86_64::CpuRegister(x86_64::R14));
       registers_.push_back(new x86_64::CpuRegister(x86_64::R15));
     }
+  }
+
+  void TearDown() OVERRIDE {
+    AssemblerTest::TearDown();
+    STLDeleteElements(&registers_);
   }
 
   std::vector<x86_64::CpuRegister*> GetRegisters() OVERRIDE {
@@ -219,6 +225,7 @@ std::string setcc_test_fn(x86_64::X86_64Assembler* assembler) {
     }
   }
 
+  STLDeleteElements(&registers);
   return str.str();
 }
 

@@ -442,7 +442,14 @@ define define-test-art-gtest-combination
   endif
 
   rule_name := $(3)test-art-$(1)-gtest$(4)
-  dependencies := $$(ART_TEST_$(2)_GTEST$(4)_RULES)
+  ifeq ($(3),valgrind-)
+    ifneq ($(1),host)
+      $$(error valgrind tests only wired up for the host)
+    endif
+    dependencies := $$(ART_TEST_$(2)_VALGRIND_GTEST$(4)_RULES)
+  else
+    dependencies := $$(ART_TEST_$(2)_GTEST$(4)_RULES)
+  endif
 
 .PHONY: $$(rule_name)
 $$(rule_name): $$(dependencies)
