@@ -229,6 +229,11 @@ test-art-host-interpreter$(2ND_ART_PHONY_TEST_HOST_SUFFIX): test-art-host-run-te
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 endif
 
+# Valgrind. Currently only 32b gtests.
+.PHONY: valgrind-test-art-host
+valgrind-test-art-host: valgrind-test-art-host-gtest32
+	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
+
 ########################################################################
 # target test rules
 

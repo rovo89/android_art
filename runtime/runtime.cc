@@ -139,9 +139,6 @@ Runtime::Runtime()
       system_class_loader_(nullptr),
       dump_gc_performance_on_shutdown_(false),
       preinitialization_transaction_(nullptr),
-      null_pointer_handler_(nullptr),
-      suspend_handler_(nullptr),
-      stack_overflow_handler_(nullptr),
       verify_(false),
       target_sdk_version_(0),
       implicit_null_checks_(false),
@@ -199,10 +196,6 @@ Runtime::~Runtime() {
   // TODO: acquire a static mutex on Runtime to avoid racing.
   CHECK(instance_ == nullptr || instance_ == this);
   instance_ = nullptr;
-
-  delete null_pointer_handler_;
-  delete suspend_handler_;
-  delete stack_overflow_handler_;
 }
 
 struct AbortState {
@@ -733,7 +726,8 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     case kArm64:
     case kX86_64:
       implicit_null_checks_ = true;
-      implicit_so_checks_ = true;
+      // Installing stack protection does not play well with valgrind.
+      implicit_so_checks_ = (RUNNING_ON_VALGRIND == 0);
       break;
     default:
       // Keep the defaults.
@@ -745,16 +739,19 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
 
     // These need to be in a specific order.  The null point check handler must be
     // after the suspend check and stack overflow check handlers.
+    //
+    // Note: the instances attach themselves to the fault manager and are handled by it. The manager
+    //       will delete the instance on Shutdown().
     if (implicit_suspend_checks_) {
-      suspend_handler_ = new SuspensionHandler(&fault_manager);
+      new SuspensionHandler(&fault_manager);
     }
 
     if (implicit_so_checks_) {
-      stack_overflow_handler_ = new StackOverflowHandler(&fault_manager);
+      new StackOverflowHandler(&fault_manager);
     }
 
     if (implicit_null_checks_) {
-      null_pointer_handler_ = new NullPointerHandler(&fault_manager);
+      new NullPointerHandler(&fault_manager);
     }
 
     if (kEnableJavaStackTraceHandler) {

@@ -156,7 +156,7 @@ inline mirror::ArtField* ClassLinker::ResolveField(uint32_t field_idx, mirror::A
 }
 
 inline mirror::Object* ClassLinker::AllocObject(Thread* self) {
-  return GetClassRoot(kJavaLangObject)->Alloc<false, false>(self,
+  return GetClassRoot(kJavaLangObject)->Alloc<true, false>(self,
       Runtime::Current()->GetHeap()->GetCurrentAllocator());
 }
 

@@ -206,19 +206,20 @@ const DexFile* DexFile::OpenFile(int fd, const char* location, bool verify,
 
   const Header* dex_header = reinterpret_cast<const Header*>(map->Begin());
 
-  const DexFile* dex_file = OpenMemory(location, dex_header->checksum_, map.release(), error_msg);
-  if (dex_file == nullptr) {
+  std::unique_ptr<const DexFile> dex_file(OpenMemory(location, dex_header->checksum_, map.release(),
+                                                     error_msg));
+  if (dex_file.get() == nullptr) {
     *error_msg = StringPrintf("Failed to open dex file '%s' from memory: %s", location,
                               error_msg->c_str());
     return nullptr;
   }
 
-  if (verify && !DexFileVerifier::Verify(dex_file, dex_file->Begin(), dex_file->Size(), location,
-                                         error_msg)) {
+  if (verify && !DexFileVerifier::Verify(dex_file.get(), dex_file->Begin(), dex_file->Size(),
+                                         location, error_msg)) {
     return nullptr;
   }
 
-  return dex_file;
+  return dex_file.release();
 }
 
 const char* DexFile::kClassesDex = "classes.dex";
