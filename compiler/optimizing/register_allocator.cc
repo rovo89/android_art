@@ -738,9 +738,14 @@ static bool IsInputMove(HInstruction* instruction) {
   return instruction->GetLifetimePosition() == kInputMoveLifetimePosition;
 }
 
+static bool IsValidDestination(Location destination) {
+  return destination.IsRegister() || destination.IsStackSlot() || destination.IsDoubleStackSlot();
+}
+
 void RegisterAllocator::AddInputMoveFor(HInstruction* instruction,
                                         Location source,
                                         Location destination) const {
+  DCHECK(IsValidDestination(destination));
   if (source.Equals(destination)) return;
 
   DCHECK(instruction->AsPhi() == nullptr);
@@ -763,6 +768,7 @@ void RegisterAllocator::AddInputMoveFor(HInstruction* instruction,
 void RegisterAllocator::InsertParallelMoveAt(size_t position,
                                              Location source,
                                              Location destination) const {
+  DCHECK(IsValidDestination(destination));
   if (source.Equals(destination)) return;
 
   HInstruction* at = liveness_.GetInstructionFromPosition(position / 2);
@@ -806,6 +812,7 @@ void RegisterAllocator::InsertParallelMoveAt(size_t position,
 void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
                                                    Location source,
                                                    Location destination) const {
+  DCHECK(IsValidDestination(destination));
   if (source.Equals(destination)) return;
 
   DCHECK_EQ(block->GetSuccessors().Size(), 1u);
@@ -828,6 +835,7 @@ void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
 void RegisterAllocator::InsertParallelMoveAtEntryOf(HBasicBlock* block,
                                                     Location source,
                                                     Location destination) const {
+  DCHECK(IsValidDestination(destination));
   if (source.Equals(destination)) return;
 
   HInstruction* first = block->GetFirstInstruction();
@@ -845,6 +853,7 @@ void RegisterAllocator::InsertParallelMoveAtEntryOf(HBasicBlock* block,
 void RegisterAllocator::InsertMoveAfter(HInstruction* instruction,
                                         Location source,
                                         Location destination) const {
+  DCHECK(IsValidDestination(destination));
   if (source.Equals(destination)) return;
 
   if (instruction->AsPhi() != nullptr) {
@@ -892,7 +901,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
         Location expected_location = locations->InAt(use->GetInputIndex());
         if (expected_location.IsUnallocated()) {
           locations->SetInAt(use->GetInputIndex(), source);
-        } else {
+        } else if (!expected_location.IsConstant()) {
           AddInputMoveFor(use->GetUser(), source, expected_location);
         }
       }
