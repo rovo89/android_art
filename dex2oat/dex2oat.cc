@@ -697,12 +697,18 @@ class WatchDog {
   }
 
   // When setting timeouts, keep in mind that the build server may not be as fast as your desktop.
+  // Debug builds are slower so they have larger timeouts.
+  static const unsigned int kSlowdownFactor = kIsDebugBuild ? 5U : 1U;
 #if ART_USE_PORTABLE_COMPILER
-  static const unsigned int kWatchDogWarningSeconds =  2 * 60;  // 2 minutes.
-  static const unsigned int kWatchDogTimeoutSeconds = 30 * 60;  // 25 minutes + buffer.
+  // 2 minutes scaled by kSlowdownFactor.
+  static const unsigned int kWatchDogWarningSeconds = kSlowdownFactor * 2 * 60;
+  // 30 minutes scaled by kSlowdownFactor.
+  static const unsigned int kWatchDogTimeoutSeconds = kSlowdownFactor * 30 * 60;
 #else
-  static const unsigned int kWatchDogWarningSeconds =  1 * 60;  // 1 minute.
-  static const unsigned int kWatchDogTimeoutSeconds =  6 * 60;  // 5 minutes + buffer.
+  // 1 minutes scaled by kSlowdownFactor.
+  static const unsigned int kWatchDogWarningSeconds = kSlowdownFactor * 1 * 60;
+  // 6 minutes scaled by kSlowdownFactor.
+  static const unsigned int kWatchDogTimeoutSeconds = kSlowdownFactor * 6 * 60;
 #endif
 
   bool is_watch_dog_enabled_;
