@@ -773,8 +773,9 @@ void ConditionVariable::WaitHoldingLocks(Thread* self) {
   guard_.recursion_count_ = old_recursion_count;
 }
 
-void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
+bool ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
   DCHECK(self == NULL || self == Thread::Current());
+  bool timed_out = false;
   guard_.AssertExclusiveHeld(self);
   guard_.CheckSafeToWait(self);
   unsigned int old_recursion_count = guard_.recursion_count_;
@@ -790,6 +791,7 @@ void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
   if (futex(sequence_.Address(), FUTEX_WAIT, cur_sequence, &rel_ts, NULL, 0) != 0) {
     if (errno == ETIMEDOUT) {
       // Timed out we're done.
+      timed_out = true;
     } else if ((errno == EAGAIN) || (errno == EINTR)) {
       // A signal or ConditionVariable::Signal/Broadcast has come in.
     } else {
@@ -814,13 +816,16 @@ void ConditionVariable::TimedWait(Thread* self, int64_t ms, int32_t ns) {
   timespec ts;
   InitTimeSpec(true, clock, ms, ns, &ts);
   int rc = TEMP_FAILURE_RETRY(pthread_cond_timedwait(&cond_, &guard_.mutex_, &ts));
-  if (rc != 0 && rc != ETIMEDOUT) {
+  if (rc == ETIMEDOUT) {
+    timed_out = true;
+  } else if (rc != 0) {
     errno = rc;
     PLOG(FATAL) << "TimedWait failed for " << name_;
   }
   guard_.exclusive_owner_ = old_owner;
 #endif
   guard_.recursion_count_ = old_recursion_count;
+  return timed_out;
 }
 
 void Locks::Init() {

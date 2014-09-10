@@ -15,17 +15,15 @@
  */
 
 #include "callee_save_frame.h"
-#include "entrypoints/entrypoint_utils-inl.h"
-#include "thread.h"
-#include "thread_list.h"
+#include "thread-inl.h"
 
 namespace art {
 
-extern "C" void artTestSuspendFromCode(Thread* thread, StackReference<mirror::ArtMethod>* sp)
+extern "C" void artTestSuspendFromCode(Thread* self, StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Called when suspend count check value is 0 and thread->suspend_count_ != 0
-  FinishCalleeSaveFrameSetup(thread, sp, Runtime::kRefsOnly);
-  CheckSuspend(thread);
+  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  self->CheckSuspend();
 }
 
 }  // namespace art

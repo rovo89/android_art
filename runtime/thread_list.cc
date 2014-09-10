@@ -88,10 +88,7 @@ void ThreadList::DumpNativeStacks(std::ostream& os) {
 }
 
 void ThreadList::DumpForSigQuit(std::ostream& os) {
-  {
-    MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
-    DumpLocked(os);
-  }
+  Dump(os);
   DumpUnattachedThreads(os);
 }
 
@@ -133,12 +130,50 @@ void ThreadList::DumpUnattachedThreads(std::ostream& os) {
   closedir(d);
 }
 
-void ThreadList::DumpLocked(std::ostream& os) {
-  os << "DALVIK THREADS (" << list_.size() << "):\n";
-  for (const auto& thread : list_) {
-    thread->Dump(os);
-    os << "\n";
+// A closure used by Thread::Dump.
+class DumpCheckpoint FINAL : public Closure {
+ public:
+  explicit DumpCheckpoint(std::ostream* os) : os_(os), barrier_(0) {}
+
+  void Run(Thread* thread) OVERRIDE {
+    // Note thread and self may not be equal if thread was already suspended at the point of the
+    // request.
+    Thread* self = Thread::Current();
+    std::ostringstream local_os;
+    {
+      ScopedObjectAccess soa(self);
+      thread->Dump(local_os);
+    }
+    local_os << "\n";
+    {
+      // Use the logging lock to ensure serialization when writing to the common ostream.
+      MutexLock mu(self, *Locks::logging_lock_);
+      *os_ << local_os.str();
+    }
+    barrier_.Pass(self);
   }
+
+  void WaitForThreadsToRunThroughCheckpoint(size_t threads_running_checkpoint) {
+    Thread* self = Thread::Current();
+    ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
+    barrier_.Increment(self, threads_running_checkpoint);
+  }
+
+ private:
+  // The common stream that will accumulate all the dumps.
+  std::ostream* const os_;
+  // The barrier to be passed through and for the requestor to wait upon.
+  Barrier barrier_;
+};
+
+void ThreadList::Dump(std::ostream& os) {
+  {
+    MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+    os << "DALVIK THREADS (" << list_.size() << "):\n";
+  }
+  DumpCheckpoint checkpoint(&os);
+  size_t threads_running_checkpoint = RunCheckpoint(&checkpoint);
+  checkpoint.WaitForThreadsToRunThroughCheckpoint(threads_running_checkpoint);
 }
 
 void ThreadList::AssertThreadsAreSuspended(Thread* self, Thread* ignore1, Thread* ignore2) {
@@ -155,12 +190,12 @@ void ThreadList::AssertThreadsAreSuspended(Thread* self, Thread* ignore1, Thread
 
 #if HAVE_TIMED_RWLOCK
 // Attempt to rectify locks so that we dump thread list with required locks before exiting.
-static void UnsafeLogFatalForThreadSuspendAllTimeout() NO_THREAD_SAFETY_ANALYSIS __attribute__((noreturn));
+static void UnsafeLogFatalForThreadSuspendAllTimeout() __attribute__((noreturn));
 static void UnsafeLogFatalForThreadSuspendAllTimeout() {
   Runtime* runtime = Runtime::Current();
   std::ostringstream ss;
   ss << "Thread suspend timeout\n";
-  runtime->GetThreadList()->DumpLocked(ss);
+  runtime->GetThreadList()->Dump(ss);
   LOG(FATAL) << ss.str();
   exit(0);
 }
@@ -266,12 +301,10 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
 // threads.  Returns the number of successful requests.
 size_t ThreadList::RunCheckpointOnRunnableThreads(Closure* checkpoint_function) {
   Thread* self = Thread::Current();
-  if (kIsDebugBuild) {
-    Locks::mutator_lock_->AssertNotExclusiveHeld(self);
-    Locks::thread_list_lock_->AssertNotHeld(self);
-    Locks::thread_suspend_count_lock_->AssertNotHeld(self);
-    CHECK_NE(self->GetState(), kRunnable);
-  }
+  Locks::mutator_lock_->AssertNotExclusiveHeld(self);
+  Locks::thread_list_lock_->AssertNotHeld(self);
+  Locks::thread_suspend_count_lock_->AssertNotHeld(self);
+  CHECK_NE(self->GetState(), kRunnable);
 
   size_t count = 0;
   {

@@ -1725,15 +1725,15 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
      */
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(dex_file)));
     std::string error_msg;
-    if (verifier::MethodVerifier::VerifyClass(&dex_file, dex_cache, class_loader, &class_def, true,
-                                              &error_msg) ==
+    if (verifier::MethodVerifier::VerifyClass(soa.Self(), &dex_file, dex_cache, class_loader,
+                                              &class_def, true, &error_msg) ==
                                                   verifier::MethodVerifier::kHardFailure) {
       LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(descriptor)
                  << " because: " << error_msg;
     }
   } else if (!SkipClass(jclass_loader, dex_file, klass.Get())) {
     CHECK(klass->IsResolved()) << PrettyClass(klass.Get());
-    class_linker->VerifyClass(klass);
+    class_linker->VerifyClass(soa.Self(), klass);
 
     if (klass->IsErroneous()) {
       // ClassLinker::VerifyClass throws, which isn't useful in the compiler.
@@ -1778,7 +1778,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
     if (klass->IsVerified()) {
       // Attempt to initialize the class but bail if we either need to initialize the super-class
       // or static fields.
-      manager->GetClassLinker()->EnsureInitialized(klass, false, false);
+      manager->GetClassLinker()->EnsureInitialized(soa.Self(), klass, false, false);
       if (!klass->IsInitialized()) {
         // We don't want non-trivial class initialization occurring on multiple threads due to
         // deadlock problems. For example, a parent class is initialized (holding its lock) that
@@ -1792,7 +1792,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
         ObjectLock<mirror::Class> lock(soa.Self(), h_klass);
         // Attempt to initialize allowing initialization of parent classes but still not static
         // fields.
-        manager->GetClassLinker()->EnsureInitialized(klass, false, true);
+        manager->GetClassLinker()->EnsureInitialized(soa.Self(), klass, false, true);
         if (!klass->IsInitialized()) {
           // We need to initialize static fields, we only do this for image classes that aren't
           // marked with the $NoPreloadHolder (which implies this should not be initialized early).
@@ -1811,7 +1811,8 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
             // Run the class initializer in transaction mode.
             runtime->EnterTransactionMode(&transaction);
             const mirror::Class::Status old_status = klass->GetStatus();
-            bool success = manager->GetClassLinker()->EnsureInitialized(klass, true, true);
+            bool success = manager->GetClassLinker()->EnsureInitialized(soa.Self(), klass, true,
+                                                                        true);
             // TODO we detach transaction from runtime to indicate we quit the transactional
             // mode which prevents the GC from visiting objects modified during the transaction.
             // Ensure GC is not run so don't access freed objects when aborting transaction.

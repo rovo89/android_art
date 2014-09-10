@@ -592,7 +592,7 @@ static void UnsafeLogFatalForSuspendCount(Thread* self, Thread* thread) NO_THREA
     }
   }
   std::ostringstream ss;
-  Runtime::Current()->GetThreadList()->DumpLocked(ss);
+  Runtime::Current()->GetThreadList()->Dump(ss);
   LOG(FATAL) << ss.str();
 }
 
@@ -1602,7 +1602,8 @@ void Thread::ThrowNewExceptionV(const ThrowLocation& throw_location,
   ThrowNewException(throw_location, exception_class_descriptor, msg.c_str());
 }
 
-void Thread::ThrowNewException(const ThrowLocation& throw_location, const char* exception_class_descriptor,
+void Thread::ThrowNewException(const ThrowLocation& throw_location,
+                               const char* exception_class_descriptor,
                                const char* msg) {
   // Callers should either clear or call ThrowNewWrappedException.
   AssertNoPendingExceptionForNewException(msg);
@@ -1638,7 +1639,8 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
     return;
   }
 
-  if (UNLIKELY(!runtime->GetClassLinker()->EnsureInitialized(exception_class, true, true))) {
+  if (UNLIKELY(!runtime->GetClassLinker()->EnsureInitialized(soa.Self(), exception_class, true,
+                                                             true))) {
     DCHECK(IsExceptionPending());
     return;
   }

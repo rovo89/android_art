@@ -45,7 +45,7 @@ class ExceptionTest : public CommonRuntimeTest {
     my_klass_ = class_linker_->FindClass(soa.Self(), "LExceptionHandle;", class_loader);
     ASSERT_TRUE(my_klass_ != NULL);
     Handle<mirror::Class> klass(hs.NewHandle(my_klass_));
-    class_linker_->EnsureInitialized(klass, true, true);
+    class_linker_->EnsureInitialized(soa.Self(), klass, true, true);
     my_klass_ = klass.Get();
 
     dex_ = my_klass_->GetDexCache()->GetDexFile();

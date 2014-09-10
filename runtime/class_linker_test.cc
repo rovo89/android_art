@@ -855,7 +855,7 @@ TEST_F(ClassLinkerTest, StaticFields) {
       hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Statics"))));
   Handle<mirror::Class> statics(
       hs.NewHandle(class_linker_->FindClass(soa.Self(), "LStatics;", class_loader)));
-  class_linker_->EnsureInitialized(statics, true, true);
+  class_linker_->EnsureInitialized(soa.Self(), statics, true, true);
 
   // Static final primitives that are initialized by a compile-time constant
   // expression resolve to a copy of a constant value from the constant pool.
@@ -1133,7 +1133,7 @@ TEST_F(ClassLinkerTest, Preverified_UninitializedBoot) {
 
   CheckPreverified(security_manager.Get(), false);
 
-  class_linker_->EnsureInitialized(security_manager, true, true);
+  class_linker_->EnsureInitialized(soa.Self(), security_manager, true, true);
   CheckPreverified(security_manager.Get(), true);
 }
 
@@ -1148,7 +1148,7 @@ TEST_F(ClassLinkerTest, Preverified_App) {
 
   CheckPreverified(statics.Get(), false);
 
-  class_linker_->EnsureInitialized(statics, true, true);
+  class_linker_->EnsureInitialized(soa.Self(), statics, true, true);
   CheckPreverified(statics.Get(), true);
 }
 

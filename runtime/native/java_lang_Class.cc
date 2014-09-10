@@ -78,7 +78,7 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
     return nullptr;
   }
   if (initialize) {
-    class_linker->EnsureInitialized(c, true, true);
+    class_linker->EnsureInitialized(soa.Self(), c, true, true);
   }
   return soa.AddLocalReference<jclass>(c.Get());
 }

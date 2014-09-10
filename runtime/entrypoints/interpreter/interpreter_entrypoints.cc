@@ -36,7 +36,8 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& m
       self->PushShadowFrame(shadow_frame);
       StackHandleScope<1> hs(self);
       Handle<mirror::Class> h_class(hs.NewHandle(declaringClass));
-      if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_class, true, true))) {
+      if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_class, true,
+                                                                            true))) {
         self->PopShadowFrame();
         DCHECK(self->IsExceptionPending());
         return;

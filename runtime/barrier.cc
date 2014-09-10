@@ -57,17 +57,19 @@ void Barrier::Increment(Thread* self, int delta) {
   }
 }
 
-void Barrier::Increment(Thread* self, int delta, uint32_t timeout_ms) {
+bool Barrier::Increment(Thread* self, int delta, uint32_t timeout_ms) {
   MutexLock mu(self, lock_);
   SetCountLocked(self, count_ + delta);
+  bool timed_out = false;
   if (count_ != 0) {
-    condition_.TimedWait(self, timeout_ms, 0);
+    timed_out = condition_.TimedWait(self, timeout_ms, 0);
   }
+  return timed_out;
 }
 
 void Barrier::SetCountLocked(Thread* self, int count) {
   count_ = count;
-  if (count_ == 0) {
+  if (count == 0) {
     condition_.Broadcast(self);
   }
 }
