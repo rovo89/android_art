@@ -44,15 +44,6 @@ ART_TEST_KNOWN_BROKEN := \
 # Failing valgrind tests.
 # Note: *all* 64b tests involving the runtime do not work currently. b/15170219.
 
-# Optimizing compiler codegen is not destructed and can leak non-arena-ed structures.
-ART_TEST_KNOWN_BROKEN += \
-  valgrind-test-art-host-gtest-codegen_test32 \
-  valgrind-test-art-host-gtest-find_loops_test32 \
-  valgrind-test-art-host-gtest-linearize_test32 \
-  valgrind-test-art-host-gtest-live_ranges_test32 \
-  valgrind-test-art-host-gtest-liveness_test32 \
-  valgrind-test-art-host-gtest-register_allocator_test32
-
 # List of known failing tests that when executed won't cause test execution to not finish.
 # The test name must be the full rule name such as test-art-host-oat-optimizing-HelloWorld64.
 ART_TEST_KNOWN_FAILING :=

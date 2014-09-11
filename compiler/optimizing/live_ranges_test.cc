@@ -16,6 +16,7 @@
 
 #include "builder.h"
 #include "code_generator.h"
+#include "code_generator_x86.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "nodes.h"
@@ -58,8 +59,8 @@ TEST(LiveRangesTest, CFG1) {
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
 
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, InstructionSet::kX86);
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
   LiveInterval* interval = liveness.GetInstructionFromSsaIndex(0)->GetLiveInterval();
@@ -104,8 +105,8 @@ TEST(LiveRangesTest, CFG2) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, InstructionSet::kX86);
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
   LiveInterval* interval = liveness.GetInstructionFromSsaIndex(0)->GetLiveInterval();
@@ -153,8 +154,8 @@ TEST(LiveRangesTest, CFG3) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, InstructionSet::kX86);
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
   // Test for the 4 constant.
@@ -229,8 +230,8 @@ TEST(LiveRangesTest, Loop) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, InstructionSet::kX86);
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
   // Test for the 0 constant.

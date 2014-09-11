@@ -48,11 +48,11 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
                      + 1 /* current method */);
   GenerateFrameEntry();
 
+  HGraphVisitor* location_builder = GetLocationBuilder();
+  HGraphVisitor* instruction_visitor = GetInstructionVisitor();
   for (size_t i = 0, e = blocks.Size(); i < e; ++i) {
     HBasicBlock* block = blocks.Get(i);
     Bind(GetLabelOf(block));
-    HGraphVisitor* location_builder = GetLocationBuilder();
-    HGraphVisitor* instruction_visitor = GetInstructionVisitor();
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       current->Accept(location_builder);
@@ -77,10 +77,10 @@ void CodeGenerator::CompileOptimized(CodeAllocator* allocator) {
   block_labels_.SetSize(blocks.Size());
 
   GenerateFrameEntry();
+  HGraphVisitor* instruction_visitor = GetInstructionVisitor();
   for (size_t i = 0, e = blocks.Size(); i < e; ++i) {
     HBasicBlock* block = blocks.Get(i);
     Bind(GetLabelOf(block));
-    HGraphVisitor* instruction_visitor = GetInstructionVisitor();
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       current->Accept(instruction_visitor);

@@ -102,13 +102,14 @@ void SsaLivenessAnalysis::NumberInstructions() {
   // to differentiate between the start and end of an instruction. Adding 2 to
   // the lifetime position for each instruction ensures the start of an
   // instruction is different than the end of the previous instruction.
+  HGraphVisitor* location_builder = codegen_->GetLocationBuilder();
   for (HLinearOrderIterator it(*this); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     block->SetLifetimeStart(lifetime_position);
 
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
-      current->Accept(codegen_->GetLocationBuilder());
+      current->Accept(location_builder);
       LocationSummary* locations = current->GetLocations();
       if (locations != nullptr && locations->Out().IsValid()) {
         instructions_from_ssa_index_.Add(current);
