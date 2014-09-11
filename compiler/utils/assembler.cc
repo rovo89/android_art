@@ -92,6 +92,7 @@ void AssemblerBuffer::ExtendCapacity() {
 
   // Compute the relocation delta and switch to the new contents area.
   ptrdiff_t delta = new_contents - contents_;
+  delete[] contents_;
   contents_ = new_contents;
 
   // Update the cursor and recompute the limit.

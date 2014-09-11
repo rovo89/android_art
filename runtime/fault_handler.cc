@@ -19,6 +19,7 @@
 #include <setjmp.h>
 #include <sys/mman.h>
 #include <sys/ucontext.h>
+#include "base/stl_util.h"
 #include "mirror/art_method.h"
 #include "mirror/class.h"
 #include "sigchain.h"
@@ -115,10 +116,20 @@ void FaultManager::Init() {
   initialized_ = true;
 }
 
-void FaultManager::Shutdown() {
+void FaultManager::Release() {
   if (initialized_) {
     UnclaimSignalChain(SIGSEGV);
     initialized_ = false;
+  }
+}
+
+void FaultManager::Shutdown() {
+  if (initialized_) {
+    Release();
+
+    // Free all handlers.
+    STLDeleteElements(&generated_code_handlers_);
+    STLDeleteElements(&other_handlers_);
   }
 }
 
@@ -156,9 +167,9 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
 
   // Now set up the nested signal handler.
 
-  // Shutdown the fault manager so that it will remove the signal chain for
+  // Release the fault manager so that it will remove the signal chain for
   // SIGSEGV and we call the real sigaction.
-  fault_manager.Shutdown();
+  fault_manager.Release();
 
   // The action for SIGSEGV should be the default handler now.
 
@@ -226,6 +237,7 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
 }
 
 void FaultManager::AddHandler(FaultHandler* handler, bool generated_code) {
+  DCHECK(initialized_);
   if (generated_code) {
     generated_code_handlers_.push_back(handler);
   } else {

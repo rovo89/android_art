@@ -981,7 +981,7 @@ bool CompilerDriver::CanEmbedReferenceTypeInCode(ClassReference* ref,
 
   ScopedObjectAccess soa(Thread::Current());
   mirror::Class* reference_class = mirror::Reference::GetJavaLangRefReference();
-  bool is_initialized;
+  bool is_initialized = false;
   bool unused_finalizable;
   // Make sure we have a finished Reference class object before attempting to use it.
   if (!CanEmbedTypeInCode(*reference_class->GetDexCache()->GetDexFile(),
