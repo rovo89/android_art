@@ -1152,7 +1152,8 @@ void Dbg::GetClassList(std::vector<JDWP::RefTypeId>& classes) {
   };
 
   ClassListCreator clc(classes);
-  Runtime::Current()->GetClassLinker()->VisitClasses(ClassListCreator::Visit, &clc);
+  Runtime::Current()->GetClassLinker()->VisitClassesWithoutClassesLock(ClassListCreator::Visit,
+                                                                       &clc);
 }
 
 JDWP::JdwpError Dbg::GetClassInfo(JDWP::RefTypeId class_id, JDWP::JdwpTypeTag* pTypeTag,
