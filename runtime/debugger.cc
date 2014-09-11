@@ -2083,66 +2083,51 @@ JDWP::JdwpError Dbg::Interrupt(JDWP::ObjectId thread_id) {
   return JDWP::ERR_NONE;
 }
 
+static bool IsInDesiredThreadGroup(ScopedObjectAccessUnchecked& soa,
+                                   mirror::Object* desired_thread_group, mirror::Object* peer)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // Do we want threads from all thread groups?
+  if (desired_thread_group == nullptr) {
+    return true;
+  }
+  mirror::ArtField* thread_group_field = soa.DecodeField(WellKnownClasses::java_lang_Thread_group);
+  DCHECK(thread_group_field != nullptr);
+  mirror::Object* group = thread_group_field->GetObject(peer);
+  return (group == desired_thread_group);
+}
+
 void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& thread_ids) {
-  class ThreadListVisitor {
-   public:
-    ThreadListVisitor(const ScopedObjectAccessUnchecked& soa, mirror::Object* desired_thread_group,
-                      std::vector<JDWP::ObjectId>& thread_ids)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        : soa_(soa), desired_thread_group_(desired_thread_group), thread_ids_(thread_ids) {}
-
-    static void Visit(Thread* t, void* arg) {
-      reinterpret_cast<ThreadListVisitor*>(arg)->Visit(t);
-    }
-
-    // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
-    // annotalysis.
-    void Visit(Thread* t) NO_THREAD_SAFETY_ANALYSIS {
-      if (t == Dbg::GetDebugThread()) {
-        // Skip the JDWP thread. Some debuggers get bent out of shape when they can't suspend and
-        // query all threads, so it's easier if we just don't tell them about this thread.
-        return;
-      }
-      if (t->IsStillStarting()) {
-        // This thread is being started (and has been registered in the thread list). However, it is
-        // not completely started yet so we must ignore it.
-        return;
-      }
-      mirror::Object* peer = t->GetPeer();
-      if (IsInDesiredThreadGroup(peer)) {
-        thread_ids_.push_back(gRegistry->Add(peer));
-      }
-    }
-
-   private:
-    bool IsInDesiredThreadGroup(mirror::Object* peer)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-      // peer might be NULL if the thread is still starting up.
-      if (peer == NULL) {
-        // We can't tell the debugger about this thread yet.
-        // TODO: if we identified threads to the debugger by their Thread*
-        // rather than their peer's mirror::Object*, we could fix this.
-        // Doing so might help us report ZOMBIE threads too.
-        return false;
-      }
-      // Do we want threads from all thread groups?
-      if (desired_thread_group_ == NULL) {
-        return true;
-      }
-      mirror::Object* group = soa_.DecodeField(WellKnownClasses::java_lang_Thread_group)->GetObject(peer);
-      return (group == desired_thread_group_);
-    }
-
-    const ScopedObjectAccessUnchecked& soa_;
-    mirror::Object* const desired_thread_group_;
-    std::vector<JDWP::ObjectId>& thread_ids_;
-  };
-
   ScopedObjectAccessUnchecked soa(Thread::Current());
   mirror::Object* thread_group = gRegistry->Get<mirror::Object*>(thread_group_id);
-  ThreadListVisitor tlv(soa, thread_group, thread_ids);
-  MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
-  Runtime::Current()->GetThreadList()->ForEach(ThreadListVisitor::Visit, &tlv);
+  std::list<Thread*> all_threads_list;
+  {
+    MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
+    all_threads_list = Runtime::Current()->GetThreadList()->GetList();
+  }
+  for (Thread* t : all_threads_list) {
+    if (t == Dbg::GetDebugThread()) {
+      // Skip the JDWP thread. Some debuggers get bent out of shape when they can't suspend and
+      // query all threads, so it's easier if we just don't tell them about this thread.
+      continue;
+    }
+    if (t->IsStillStarting()) {
+      // This thread is being started (and has been registered in the thread list). However, it is
+      // not completely started yet so we must ignore it.
+      continue;
+    }
+    mirror::Object* peer = t->GetPeer();
+    if (peer == nullptr) {
+      // peer might be NULL if the thread is still starting up. We can't tell the debugger about
+      // this thread yet.
+      // TODO: if we identified threads to the debugger by their Thread*
+      // rather than their peer's mirror::Object*, we could fix this.
+      // Doing so might help us report ZOMBIE threads too.
+      continue;
+    }
+    if (IsInDesiredThreadGroup(soa, thread_group, peer)) {
+      thread_ids.push_back(gRegistry->Add(peer));
+    }
+  }
 }
 
 void Dbg::GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& child_thread_group_ids) {
