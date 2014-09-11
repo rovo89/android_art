@@ -16,6 +16,7 @@
 
 #include "builder.h"
 #include "code_generator.h"
+#include "code_generator_x86.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "nodes.h"
@@ -49,8 +50,8 @@ static void TestCode(const uint16_t* data, const char* expected) {
   graph->BuildDominatorTree();
   graph->TransformToSSA();
   graph->FindNaturalLoops();
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, InstructionSet::kX86);
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
   std::ostringstream buffer;

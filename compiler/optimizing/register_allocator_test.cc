@@ -16,6 +16,7 @@
 
 #include "builder.h"
 #include "code_generator.h"
+#include "code_generator_x86.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "nodes.h"
@@ -41,10 +42,10 @@ static bool Check(const uint16_t* data) {
   graph->BuildDominatorTree();
   graph->TransformToSSA();
   graph->FindNaturalLoops();
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, kX86);
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
-  RegisterAllocator register_allocator(&allocator, codegen, liveness);
+  RegisterAllocator register_allocator(&allocator, &codegen, liveness);
   register_allocator.AllocateRegisters();
   return register_allocator.Validate(false);
 }
@@ -57,7 +58,7 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = new (&allocator) HGraph(&allocator);
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, kX86);
+  x86::CodeGeneratorX86 codegen(graph);
   GrowableArray<LiveInterval*> intervals(&allocator, 0);
 
   // Test with two intervals of the same range.
@@ -66,11 +67,11 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     intervals.Add(BuildInterval(ranges, arraysize(ranges), &allocator, 0));
     intervals.Add(BuildInterval(ranges, arraysize(ranges), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     ASSERT_FALSE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
     intervals.Reset();
   }
 
@@ -81,11 +82,11 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     static constexpr size_t ranges2[][2] = {{42, 43}};
     intervals.Add(BuildInterval(ranges2, arraysize(ranges2), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
     intervals.Reset();
   }
 
@@ -96,11 +97,11 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     static constexpr size_t ranges2[][2] = {{42, 43}};
     intervals.Add(BuildInterval(ranges2, arraysize(ranges2), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
     intervals.Reset();
   }
 
@@ -111,11 +112,11 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     static constexpr size_t ranges2[][2] = {{42, 47}};
     intervals.Add(BuildInterval(ranges2, arraysize(ranges2), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     ASSERT_FALSE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
     intervals.Reset();
   }
 
@@ -127,16 +128,16 @@ TEST(RegisterAllocatorTest, ValidateIntervals) {
     static constexpr size_t ranges2[][2] = {{42, 47}};
     intervals.Add(BuildInterval(ranges2, arraysize(ranges2), &allocator, 1));
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
 
     intervals.Get(1)->SetRegister(0);
     // Sibling of the first interval has no register allocated to it.
     ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
 
     intervals.Get(0)->GetNextSibling()->SetRegister(0);
     ASSERT_FALSE(RegisterAllocator::ValidateIntervals(
-        intervals, 0, 0, *codegen, &allocator, true, false));
+        intervals, 0, 0, codegen, &allocator, true, false));
   }
 }
 
@@ -298,10 +299,10 @@ TEST(RegisterAllocatorTest, Loop3) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildSSAGraph(data, &allocator);
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, kX86);
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
-  RegisterAllocator register_allocator(&allocator, codegen, liveness);
+  RegisterAllocator register_allocator(&allocator, &codegen, liveness);
   register_allocator.AllocateRegisters();
   ASSERT_TRUE(register_allocator.Validate(false));
 
@@ -330,8 +331,8 @@ TEST(RegisterAllocatorTest, FirstRegisterUse) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildSSAGraph(data, &allocator);
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, kArm);
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
   HAdd* first_add = graph->GetBlocks().Get(1)->GetFirstInstruction()->AsAdd();
@@ -383,10 +384,10 @@ TEST(RegisterAllocatorTest, DeadPhi) {
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildSSAGraph(data, &allocator);
   SsaDeadPhiElimination(graph).Run();
-  CodeGenerator* codegen = CodeGenerator::Create(&allocator, graph, kX86);
-  SsaLivenessAnalysis liveness(*graph, codegen);
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
-  RegisterAllocator register_allocator(&allocator, codegen, liveness);
+  RegisterAllocator register_allocator(&allocator, &codegen, liveness);
   register_allocator.AllocateRegisters();
   ASSERT_TRUE(register_allocator.Validate(false));
 }

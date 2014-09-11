@@ -124,7 +124,7 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
 class CodeGeneratorARM : public CodeGenerator {
  public:
   explicit CodeGeneratorARM(HGraph* graph);
-  virtual ~CodeGeneratorARM() { }
+  virtual ~CodeGeneratorARM() {}
 
   virtual void GenerateFrameEntry() OVERRIDE;
   virtual void GenerateFrameExit() OVERRIDE;
