@@ -94,7 +94,7 @@ Array* Array::CreateMultiArray(Thread* self, Handle<Class> element_class,
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   mirror::Class* element_class_ptr = element_class.Get();
   StackHandleScope<1> hs(self);
-  Handle<mirror::Class> array_class(
+  MutableHandle<mirror::Class> array_class(
       hs.NewHandle(class_linker->FindArrayClass(self, &element_class_ptr)));
   if (UNLIKELY(array_class.Get() == nullptr)) {
     CHECK(self->IsExceptionPending());
