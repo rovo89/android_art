@@ -3530,9 +3530,11 @@ void ClassLinker::VerifyClass(ConstHandle<mirror::Class> klass) {
   ObjectLock<mirror::Class> lock(self, klass);
 
   // Don't attempt to re-verify if already sufficiently verified.
-  if (klass->IsVerified() ||
-      (klass->IsCompileTimeVerified() && Runtime::Current()->IsCompiler())) {
+  if (klass->IsVerified()) {
     EnsurePreverifiedMethods(klass);
+    return;
+  }
+  if (klass->IsCompileTimeVerified() && Runtime::Current()->IsCompiler()) {
     return;
   }
 
@@ -3641,6 +3643,9 @@ void ClassLinker::VerifyClass(ConstHandle<mirror::Class> klass) {
         klass->SetStatus(mirror::Class::kStatusRetryVerificationAtRuntime, self);
       } else {
         klass->SetStatus(mirror::Class::kStatusVerified, self);
+        // As this is a fake verified status, make sure the methods are _not_ marked preverified
+        // later.
+        klass->SetAccessFlags(klass->GetAccessFlags() | kAccPreverified);
       }
     }
   } else {
