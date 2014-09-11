@@ -98,7 +98,7 @@ class TopologicalSortOrderTest : public testing::Test {
 
     DexFile::CodeItem* code_item = static_cast<DexFile::CodeItem*>(cu_.arena.Alloc(sizeof(DexFile::CodeItem),
                                                                                    kArenaAllocMisc));
-    cu_.mir_graph->current_code_item_ = cu_.code_item = code_item;
+    cu_.mir_graph->current_code_item_ = code_item;
   }
 
   template <size_t count>
