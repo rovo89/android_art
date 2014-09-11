@@ -220,7 +220,7 @@ const RegType& RegTypeCache::FromClass(const char* descriptor, mirror::Class* kl
     // Look for the reference in the list of entries to have.
     for (size_t i = primitive_count_; i < entries_.size(); i++) {
       RegType* cur_entry = entries_[i];
-      if (cur_entry->klass_ == klass && MatchingPrecisionForClass(cur_entry, precise)) {
+      if (cur_entry->klass_.Read() == klass && MatchingPrecisionForClass(cur_entry, precise)) {
         return *cur_entry;
       }
     }
@@ -507,7 +507,7 @@ const UninitializedType& RegTypeCache::UninitializedThisArgument(const RegType& 
 const ConstantType& RegTypeCache::FromCat1NonSmallConstant(int32_t value, bool precise) {
   for (size_t i = primitive_count_; i < entries_.size(); i++) {
     RegType* cur_entry = entries_[i];
-    if (cur_entry->klass_ == NULL && cur_entry->IsConstant() &&
+    if (cur_entry->klass_.IsNull() && cur_entry->IsConstant() &&
         cur_entry->IsPreciseConstant() == precise &&
         (down_cast<ConstantType*>(cur_entry))->ConstantValue() == value) {
       return *down_cast<ConstantType*>(cur_entry);
