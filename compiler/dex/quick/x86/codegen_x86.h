@@ -497,6 +497,8 @@ class X86Mir2Lir : public Mir2Lir {
   void MaskVectorRegister(X86OpCode opcode, RegStorage rs_src1, uint32_t m1, uint32_t m2,
                           uint32_t m3, uint32_t m4);
   void AppendOpcodeWithConst(X86OpCode opcode, int reg, MIR* mir);
+  virtual void LoadVectorRegister(RegStorage rs_dest, RegStorage rs_src, OpSize opsize,
+                                  int op_mov);
 
   static bool ProvidesFullMemoryBarrier(X86OpCode opcode);
 
@@ -914,7 +916,7 @@ class X86Mir2Lir : public Mir2Lir {
    * @param bb Basic block containing instruction.
    * @param mir Instruction to analyze.
    */
-  void AnalyzeFPInstruction(int opcode, BasicBlock * bb, MIR *mir);
+  virtual void AnalyzeFPInstruction(int opcode, BasicBlock * bb, MIR *mir);
 
   /*
    * @brief Analyze one use of a double operand.
