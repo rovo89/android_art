@@ -49,7 +49,6 @@ class InternalCodeAllocator : public CodeAllocator {
   DISALLOW_COPY_AND_ASSIGN(InternalCodeAllocator);
 };
 
-#if defined(__i386__) || defined(__arm__) || defined(__x86_64__)
 static void Run(const InternalCodeAllocator& allocator,
                 const CodeGenerator& codegen,
                 bool has_result,
@@ -66,7 +65,6 @@ static void Run(const InternalCodeAllocator& allocator,
     CHECK_EQ(result, expected);
   }
 }
-#endif
 
 static void TestCode(const uint16_t* data, bool has_result = false, int32_t expected = 0) {
   ArenaPool pool;
