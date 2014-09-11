@@ -2071,6 +2071,91 @@ ClassPathEntry FindInClassPath(const char* descriptor,
                         reinterpret_cast<const DexFile::ClassDef*>(NULL));
 }
 
+mirror::Class* ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
+                                                       Thread* self, const char* descriptor,
+                                                       ConstHandle<mirror::ClassLoader> class_loader) {
+  if (class_loader->GetClass() !=
+      soa.Decode<mirror::Class*>(WellKnownClasses::dalvik_system_PathClassLoader) ||
+      class_loader->GetParent()->GetClass() !=
+          soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_BootClassLoader)) {
+    return nullptr;
+  }
+  ClassPathEntry pair = FindInClassPath(descriptor, boot_class_path_);
+  // Check if this would be found in the parent boot class loader.
+  if (pair.second != nullptr) {
+    mirror::Class* klass = LookupClass(descriptor, nullptr);
+    if (klass != nullptr) {
+      return EnsureResolved(self, descriptor, klass);
+    }
+    klass = DefineClass(descriptor, NullHandle<mirror::ClassLoader>(), *pair.first,
+                        *pair.second);
+    if (klass != nullptr) {
+      return klass;
+    }
+    CHECK(self->IsExceptionPending()) << descriptor;
+    self->ClearException();
+  } else {
+    // RegisterDexFile may allocate dex caches (and cause thread suspension).
+    StackHandleScope<3> hs(self);
+    // The class loader is a PathClassLoader which inherits from BaseDexClassLoader.
+    // We need to get the DexPathList and loop through it.
+    Handle<mirror::ArtField> cookie_field =
+        hs.NewHandle(soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie));
+    Handle<mirror::ArtField> dex_file_field =
+        hs.NewHandle(
+            soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList$Element_dexFile));
+    mirror::Object* dex_path_list =
+        soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList)->
+        GetObject(class_loader.Get());
+    if (dex_path_list != nullptr && dex_file_field.Get() != nullptr &&
+        cookie_field.Get() != nullptr) {
+      // DexPathList has an array dexElements of Elements[] which each contain a dex file.
+      mirror::Object* dex_elements_obj =
+          soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->
+          GetObject(dex_path_list);
+      // Loop through each dalvik.system.DexPathList$Element's dalvik.system.DexFile and look
+      // at the mCookie which is a DexFile vector.
+      if (dex_elements_obj != nullptr) {
+        Handle<mirror::ObjectArray<mirror::Object>> dex_elements =
+            hs.NewHandle(dex_elements_obj->AsObjectArray<mirror::Object>());
+        for (int32_t i = 0; i < dex_elements->GetLength(); ++i) {
+          mirror::Object* element = dex_elements->GetWithoutChecks(i);
+          if (element == nullptr) {
+            // Should never happen, fall back to java code to throw a NPE.
+            break;
+          }
+          mirror::Object* dex_file = dex_file_field->GetObject(element);
+          if (dex_file != nullptr) {
+            const uint64_t cookie = cookie_field->GetLong(dex_file);
+            auto* dex_files =
+                reinterpret_cast<std::vector<const DexFile*>*>(static_cast<uintptr_t>(cookie));
+            if (dex_files == nullptr) {
+              // This should never happen so log a warning.
+              LOG(WARNING) << "Null DexFile::mCookie for " << descriptor;
+              break;
+            }
+            for (const DexFile* dex_file : *dex_files) {
+              const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
+              if (dex_class_def != nullptr) {
+                RegisterDexFile(*dex_file);
+                mirror::Class* klass =
+                    DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
+                if (klass == nullptr) {
+                  CHECK(self->IsExceptionPending()) << descriptor;
+                  self->ClearException();
+                  return nullptr;
+                }
+                return klass;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return nullptr;
+}
+
 mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
                                       ConstHandle<mirror::ClassLoader> class_loader) {
   DCHECK_NE(*descriptor, '\0') << "descriptor is empty string";
@@ -2114,7 +2199,6 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
     // a NoClassDefFoundError being allocated.
     ClassPathEntry pair = FindInClassPath(descriptor, boot_class_path_);
     if (pair.second != nullptr) {
-      StackHandleScope<1> hs(self);
       return DefineClass(descriptor, NullHandle<mirror::ClassLoader>(), *pair.first, *pair.second);
     }
     // Next try the compile time class path.
@@ -2131,86 +2215,9 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
     }
   } else {
     ScopedObjectAccessUnchecked soa(self);
-    if (class_loader->GetClass() ==
-            soa.Decode<mirror::Class*>(WellKnownClasses::dalvik_system_PathClassLoader) &&
-        class_loader->GetParent()->GetClass() ==
-            soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_BootClassLoader)) {
-      ClassPathEntry pair = FindInClassPath(descriptor, boot_class_path_);
-      // Check if this would be found in the parent boot class loader.
-      if (pair.second != nullptr) {
-        mirror::Class* klass = LookupClass(descriptor, nullptr);
-        if (klass != nullptr) {
-          return EnsureResolved(self, descriptor, klass);
-        }
-        klass = DefineClass(descriptor, NullHandle<mirror::ClassLoader>(), *pair.first,
-                            *pair.second);
-        if (klass == nullptr) {
-          CHECK(self->IsExceptionPending()) << descriptor;
-          self->ClearException();
-        } else {
-          return klass;
-        }
-      } else {
-        // RegisterDexFile may allocate dex caches (and cause thread suspension).
-        StackHandleScope<3> hs(self);
-        // The class loader is a PathClassLoader which inherits from BaseDexClassLoader.
-        // We need to get the DexPathList and loop through it.
-        Handle<mirror::ArtField> cookie_field =
-            hs.NewHandle(soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie));
-        Handle<mirror::ArtField> dex_file_field =
-            hs.NewHandle(
-                soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList$Element_dexFile));
-        mirror::Object* dex_path_list =
-            soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList)->
-            GetObject(class_loader.Get());
-        if (dex_path_list != nullptr && dex_file_field.Get() != nullptr &&
-            cookie_field.Get() != nullptr) {
-          // DexPathList has an array dexElements of Elements[] which each contain a dex file.
-          mirror::Object* dex_elements_obj =
-              soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->
-              GetObject(dex_path_list);
-          // Loop through each dalvik.system.DexPathList$Element's dalvik.system.DexFile and look
-          // at the mCookie which is a DexFile vector.
-          if (dex_elements_obj != nullptr) {
-            Handle<mirror::ObjectArray<mirror::Object>> dex_elements =
-                hs.NewHandle(dex_elements_obj->AsObjectArray<mirror::Object>());
-            for (int32_t i = 0; i < dex_elements->GetLength(); ++i) {
-              mirror::Object* element = dex_elements->GetWithoutChecks(i);
-              if (element == nullptr) {
-                // Should never happen, fall back to java code to throw a NPE.
-                break;
-              }
-              mirror::Object* dex_file = dex_file_field->GetObject(element);
-              if (dex_file != nullptr) {
-                const uint64_t cookie = cookie_field->GetLong(dex_file);
-                auto* dex_files =
-                    reinterpret_cast<std::vector<const DexFile*>*>(static_cast<uintptr_t>(cookie));
-                if (dex_files == nullptr) {
-                  // This should never happen so log a warning.
-                  LOG(WARNING) << "Null DexFile::mCookie for " << descriptor;
-                  break;
-                }
-                for (const DexFile* dex_file : *dex_files) {
-                  const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
-                  if (dex_class_def != nullptr) {
-                    RegisterDexFile(*dex_file);
-                    mirror::Class* klass =
-                        DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
-                    if (klass == nullptr) {
-                      CHECK(self->IsExceptionPending()) << descriptor;
-                      self->ClearException();
-                      // Exit the loop to make the java code generate an exception.
-                      i = dex_elements->GetLength();
-                      break;
-                    }
-                    return klass;
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+    mirror::Class* klass = FindClassInPathClassLoader(soa, self, descriptor, class_loader);
+    if (klass != nullptr) {
+      return klass;
     }
     ScopedLocalRef<jobject> class_loader_object(soa.Env(),
                                                 soa.AddLocalReference<jobject>(class_loader.Get()));

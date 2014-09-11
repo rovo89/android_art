@@ -76,6 +76,12 @@ class ClassLinker {
                            ConstHandle<mirror::ClassLoader> class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Find a class in the path class loader, loading it if necessary.
+  mirror::Class* FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
+                                            Thread* self, const char* descriptor,
+                                            ConstHandle<mirror::ClassLoader> class_loader)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Finds a class by its descriptor using the "system" class loader, ie by searching the
   // boot_class_path_.
   mirror::Class* FindSystemClass(Thread* self, const char* descriptor)
