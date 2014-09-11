@@ -3415,6 +3415,7 @@ void ClassLinker::VerifyClass(Handle<mirror::Class> klass) {
   // Don't attempt to re-verify if already sufficiently verified.
   if (klass->IsVerified() ||
       (klass->IsCompileTimeVerified() && Runtime::Current()->IsCompiler())) {
+    EnsurePreverifiedMethods(klass);
     return;
   }
 
@@ -3437,6 +3438,7 @@ void ClassLinker::VerifyClass(Handle<mirror::Class> klass) {
   // Skip verification if disabled.
   if (!Runtime::Current()->IsVerificationEnabled()) {
     klass->SetStatus(mirror::Class::kStatusVerified, self);
+    EnsurePreverifiedMethods(klass);
     return;
   }
 
@@ -3539,7 +3541,14 @@ void ClassLinker::VerifyClass(Handle<mirror::Class> klass) {
     // Note: we're going here during compilation and at runtime. When we set the
     // kAccPreverified flag when compiling image classes, the flag is recorded
     // in the image and is set when loading the image.
+    EnsurePreverifiedMethods(klass);
+  }
+}
+
+void ClassLinker::EnsurePreverifiedMethods(Handle<mirror::Class> klass) {
+  if ((klass->GetAccessFlags() & kAccPreverified) == 0) {
     klass->SetPreverifiedFlagOnAllMethods();
+    klass->SetAccessFlags(klass->GetAccessFlags() | kAccPreverified);
   }
 }
 
@@ -3677,7 +3686,8 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   }
   DCHECK(klass->GetClass() != NULL);
   klass->SetObjectSize(sizeof(mirror::Proxy));
-  klass->SetAccessFlags(kAccClassIsProxy | kAccPublic | kAccFinal);
+  // Set the class access flags incl. preverified, so we do not try to set the flag on the methods.
+  klass->SetAccessFlags(kAccClassIsProxy | kAccPublic | kAccFinal | kAccPreverified);
   klass->SetClassLoader(soa.Decode<mirror::ClassLoader*>(loader));
   DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
   klass->SetName(soa.Decode<mirror::String*>(name));
@@ -4238,6 +4248,7 @@ bool ClassLinker::EnsureInitialized(Handle<mirror::Class> c, bool can_init_field
                                     bool can_init_parents) {
   DCHECK(c.Get() != nullptr);
   if (c->IsInitialized()) {
+    EnsurePreverifiedMethods(c);
     return true;
   }
   const bool success = InitializeClass(c, can_init_fields, can_init_parents);

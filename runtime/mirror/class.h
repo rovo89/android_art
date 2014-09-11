@@ -217,10 +217,7 @@ class MANAGED Class FINAL : public Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   uint32_t GetAccessFlags() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetAccessFlags(uint32_t new_access_flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // Not called within a transaction.
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags);
-  }
+  void SetAccessFlags(uint32_t new_access_flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if the class is an interface.
   bool IsInterface() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
