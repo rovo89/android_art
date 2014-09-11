@@ -206,12 +206,10 @@ class IrtIterator {
   explicit IrtIterator(GcRoot<mirror::Object>* table, size_t i, size_t capacity)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : table_(table), i_(i), capacity_(capacity) {
-    SkipNullsAndTombstones();
   }
 
   IrtIterator& operator++() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ++i_;
-    SkipNullsAndTombstones();
     return *this;
   }
 
@@ -225,8 +223,6 @@ class IrtIterator {
   }
 
  private:
-  void SkipNullsAndTombstones() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   GcRoot<mirror::Object>* const table_;
   size_t i_;
   const size_t capacity_;

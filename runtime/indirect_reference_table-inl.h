@@ -27,15 +27,6 @@ namespace mirror {
 class Object;
 }  // namespace mirror
 
-inline void IrtIterator::SkipNullsAndTombstones() {
-  // We skip NULLs and tombstones. Clients don't want to see implementation details.
-  while (i_ < capacity_ &&
-         (table_[i_].IsNull() ||
-          Runtime::Current()->IsClearedJniWeakGlobal(table_[i_].Read<kWithoutReadBarrier>()))) {
-    ++i_;
-  }
-}
-
 // Verifies that the indirect table lookup is valid.
 // Returns "false" if something looks bad.
 inline bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {

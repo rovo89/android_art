@@ -29,9 +29,7 @@ inline bool Runtime::IsClearedJniWeakGlobal(mirror::Object* obj) {
 
 inline mirror::Object* Runtime::GetClearedJniWeakGlobal() {
   mirror::Object* obj = sentinel_.Read();
-  if (obj == nullptr) {
-    LOG(ERROR) << "Failed to return cleared JNI weak global sentinel";
-  }
+  DCHECK(obj != nullptr);
   return obj;
 }
 
