@@ -95,7 +95,7 @@ class JavaVMExt : public JavaVM {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os)
-      LOCKS_EXCLUDED(Locks::jni_libraries_lock_, globals_lock_, weak_globals_lock_, pins_lock_);
+      LOCKS_EXCLUDED(Locks::jni_libraries_lock_, globals_lock_, weak_globals_lock_);
 
   void DumpReferenceTables(std::ostream& os)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -127,14 +127,6 @@ class JavaVMExt : public JavaVM {
   mirror::Object* DecodeWeakGlobal(Thread* self, IndirectRef ref)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void PinPrimitiveArray(Thread* self, mirror::Array* array)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(pins_lock_);
-
-  void UnpinPrimitiveArray(Thread* self, mirror::Array* array)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(pins_lock_);
-
   const JNIInvokeInterface* GetUncheckedFunctions() const {
     return unchecked_functions_;
   }
@@ -153,10 +145,6 @@ class JavaVMExt : public JavaVM {
 
   // Extra diagnostics.
   const std::string trace_;
-
-  // Used to hold references to pinned primitive arrays.
-  Mutex pins_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  ReferenceTable pin_table_ GUARDED_BY(pins_lock_);
 
   // JNI global references.
   ReaderWriterMutex globals_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
