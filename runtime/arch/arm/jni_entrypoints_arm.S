@@ -22,11 +22,13 @@
     .extern artFindNativeMethod
 ENTRY art_jni_dlsym_lookup_stub
     push   {r0, r1, r2, r3, lr}           @ spill regs
-    .save  {r0, r1, r2, r3, lr}
-    .pad #20
     .cfi_adjust_cfa_offset 20
+    .cfi_rel_offset r0, 0
+    .cfi_rel_offset r1, 4
+    .cfi_rel_offset r2, 8
+    .cfi_rel_offset r3, 12
+    .cfi_rel_offset lr, 16
     sub    sp, #12                        @ pad stack pointer to align frame
-    .pad #12
     .cfi_adjust_cfa_offset 12
     blx    artFindNativeMethod
     mov    r12, r0                        @ save result in r12
@@ -35,9 +37,12 @@ ENTRY art_jni_dlsym_lookup_stub
     cbz    r0, 1f                         @ is method code null?
     pop    {r0, r1, r2, r3, lr}           @ restore regs
     .cfi_adjust_cfa_offset -20
+    .cfi_restore r0
+    .cfi_restore r1
+    .cfi_restore r2
+    .cfi_restore r3
+    .cfi_restore lr
     bx     r12                            @ if non-null, tail call to method's code
 1:
-    .cfi_adjust_cfa_offset 20
     pop    {r0, r1, r2, r3, pc}           @ restore regs and return to caller to handle exception
-    .cfi_adjust_cfa_offset -20
 END art_jni_dlsym_lookup_stub
