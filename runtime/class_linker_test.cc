@@ -1091,4 +1091,65 @@ TEST_F(ClassLinkerTest, ValidatePredefinedClassSizes) {
   EXPECT_EQ(c->GetClassSize(), mirror::ArtMethod::ClassSize());
 }
 
+static void CheckMethod(mirror::ArtMethod* method, bool verified)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (!method->IsNative() && !method->IsAbstract()) {
+    EXPECT_EQ((method->GetAccessFlags() & kAccPreverified) != 0U, verified)
+        << PrettyMethod(method, true);
+  }
+}
+
+static void CheckPreverified(mirror::Class* c, bool preverified)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  EXPECT_EQ((c->GetAccessFlags() & kAccPreverified) != 0U, preverified)
+      << "Class " << PrettyClass(c) << " not as expected";
+  for (uint32_t i = 0; i < c->NumDirectMethods(); ++i) {
+    CheckMethod(c->GetDirectMethod(i), preverified);
+  }
+  for (uint32_t i = 0; i < c->NumVirtualMethods(); ++i) {
+    CheckMethod(c->GetVirtualMethod(i), preverified);
+  }
+}
+
+TEST_F(ClassLinkerTest, Preverified_InitializedBoot) {
+  ScopedObjectAccess soa(Thread::Current());
+
+  mirror::Class* JavaLangObject = class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;");
+  ASSERT_TRUE(JavaLangObject != NULL);
+  EXPECT_TRUE(JavaLangObject->IsInitialized()) << "Not testing already initialized class from the "
+                                                  "core";
+  CheckPreverified(JavaLangObject, true);
+}
+
+TEST_F(ClassLinkerTest, Preverified_UninitializedBoot) {
+  ScopedObjectAccess soa(Thread::Current());
+
+  StackHandleScope<1> hs(soa.Self());
+
+  Handle<mirror::Class> security_manager(hs.NewHandle(class_linker_->FindSystemClass(
+      soa.Self(), "Ljava/lang/SecurityManager;")));
+  EXPECT_FALSE(security_manager->IsInitialized()) << "Not testing uninitialized class from the "
+                                                     "core";
+
+  CheckPreverified(security_manager.Get(), false);
+
+  class_linker_->EnsureInitialized(security_manager, true, true);
+  CheckPreverified(security_manager.Get(), true);
+}
+
+TEST_F(ClassLinkerTest, Preverified_App) {
+  ScopedObjectAccess soa(Thread::Current());
+
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Statics"))));
+  Handle<mirror::Class> statics(
+      hs.NewHandle(class_linker_->FindClass(soa.Self(), "LStatics;", class_loader)));
+
+  CheckPreverified(statics.Get(), false);
+
+  class_linker_->EnsureInitialized(statics, true, true);
+  CheckPreverified(statics.Get(), true);
+}
+
 }  // namespace art
