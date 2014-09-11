@@ -114,8 +114,15 @@ struct WellKnownClasses {
   static jfieldID java_lang_ThreadGroup_mainThreadGroup;
   static jfieldID java_lang_ThreadGroup_name;
   static jfieldID java_lang_ThreadGroup_systemThreadGroup;
+  static jfieldID java_lang_Throwable_cause;
+  static jfieldID java_lang_Throwable_detailMessage;
+  static jfieldID java_lang_Throwable_stackTrace;
+  static jfieldID java_lang_Throwable_stackState;
+  static jfieldID java_lang_Throwable_suppressedExceptions;
   static jfieldID java_nio_DirectByteBuffer_capacity;
   static jfieldID java_nio_DirectByteBuffer_effectiveDirectAddress;
+  static jfieldID java_util_Collections_EMPTY_LIST;
+  static jfieldID libcore_util_EmptyArray_STACK_TRACE_ELEMENT;
   static jfieldID org_apache_harmony_dalvik_ddmc_Chunk_data;
   static jfieldID org_apache_harmony_dalvik_ddmc_Chunk_length;
   static jfieldID org_apache_harmony_dalvik_ddmc_Chunk_offset;
