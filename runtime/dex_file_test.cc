@@ -355,8 +355,8 @@ TEST_F(DexFileTest, GetMultiDexClassesDexName) {
 
 TEST_F(DexFileTest, GetDexCanonicalLocation) {
   ScratchFile file;
-  char* dex_location_real = realpath(file.GetFilename().c_str(), nullptr);
-  std::string dex_location(dex_location_real);
+  UniqueCPtr<const char[]> dex_location_real(realpath(file.GetFilename().c_str(), nullptr));
+  std::string dex_location(dex_location_real.get());
 
   ASSERT_EQ(dex_location, DexFile::GetDexCanonicalLocation(dex_location.c_str()));
   std::string multidex_location = DexFile::GetMultiDexClassesDexName(1, dex_location.c_str());
@@ -371,8 +371,6 @@ TEST_F(DexFileTest, GetDexCanonicalLocation) {
   ASSERT_EQ(multidex_location, DexFile::GetDexCanonicalLocation(multidex_location_sym.c_str()));
 
   ASSERT_EQ(0, unlink(dex_location_sym.c_str()));
-
-  free(dex_location_real);
 }
 
 }  // namespace art
