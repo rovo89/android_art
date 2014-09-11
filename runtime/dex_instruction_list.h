@@ -122,7 +122,7 @@
   V(0x65, SGET_CHAR, "sget-char", k21c, true, kFieldRef, kContinue | kThrow | kLoad | kRegBFieldOrConstant, kVerifyRegA | kVerifyRegBField) \
   V(0x66, SGET_SHORT, "sget-short", k21c, true, kFieldRef, kContinue | kThrow | kLoad | kRegBFieldOrConstant, kVerifyRegA | kVerifyRegBField) \
   V(0x67, SPUT, "sput", k21c, false, kFieldRef, kContinue | kThrow | kStore | kRegBFieldOrConstant, kVerifyRegA | kVerifyRegBField) \
-  V(0x68, SPUT_WIDE, "sput-wide", k21c, false, kFieldRef, kContinue | kThrow | kStore | kRegBFieldOrConstant, kVerifyRegA | kVerifyRegBField) \
+  V(0x68, SPUT_WIDE, "sput-wide", k21c, false, kFieldRef, kContinue | kThrow | kStore | kRegBFieldOrConstant, kVerifyRegAWide | kVerifyRegBField) \
   V(0x69, SPUT_OBJECT, "sput-object", k21c, false, kFieldRef, kContinue | kThrow | kStore | kRegBFieldOrConstant, kVerifyRegA | kVerifyRegBField) \
   V(0x6A, SPUT_BOOLEAN, "sput-boolean", k21c, false, kFieldRef, kContinue | kThrow | kStore | kRegBFieldOrConstant, kVerifyRegA | kVerifyRegBField) \
   V(0x6B, SPUT_BYTE, "sput-byte", k21c, false, kFieldRef, kContinue | kThrow | kStore | kRegBFieldOrConstant, kVerifyRegA | kVerifyRegBField) \
