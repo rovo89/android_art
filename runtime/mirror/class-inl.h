@@ -741,6 +741,15 @@ inline void Class::InitializeClassVisitor::operator()(
   klass->SetDexTypeIndex(DexFile::kDexNoIndex16);  // Default to no valid type index.
 }
 
+inline void Class::SetAccessFlags(uint32_t new_access_flags) {
+  // Called inside a transaction when setting pre-verified flag during boot image compilation.
+  if (Runtime::Current()->IsActiveTransaction()) {
+    SetField32<true>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags);
+  } else {
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags);
+  }
+}
+
 }  // namespace mirror
 }  // namespace art
 
