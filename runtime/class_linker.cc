@@ -3662,7 +3662,7 @@ void ClassLinker::VerifyClass(ConstHandle<mirror::Class> klass) {
   }
 }
 
-void ClassLinker::EnsurePreverifiedMethods(Handle<mirror::Class> klass) {
+void ClassLinker::EnsurePreverifiedMethods(ConstHandle<mirror::Class> klass) {
   if ((klass->GetAccessFlags() & kAccPreverified) == 0) {
     klass->SetPreverifiedFlagOnAllMethods();
     klass->SetAccessFlags(klass->GetAccessFlags() | kAccPreverified);

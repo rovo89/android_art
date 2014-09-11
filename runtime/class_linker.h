@@ -634,7 +634,7 @@ class ClassLinker {
 
   // Ensures that methods have the kAccPreverified bit set. We use the kAccPreverfied bit on the
   // class access flags to determine whether this has been done before.
-  void EnsurePreverifiedMethods(Handle<mirror::Class> c)
+  void EnsurePreverifiedMethods(ConstHandle<mirror::Class> c)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Class* LookupClassFromTableLocked(const char* descriptor,
