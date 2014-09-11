@@ -463,16 +463,8 @@ class Runtime {
 
   void AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::string>* arg_vector) const;
 
-  bool ExplicitNullChecks() const {
-    return null_pointer_handler_ == nullptr;
-  }
-
-  bool ExplicitSuspendChecks() const {
-    return suspend_handler_ == nullptr;
-  }
-
   bool ExplicitStackOverflowChecks() const {
-    return stack_overflow_handler_ == nullptr;
+    return !implicit_so_checks_;
   }
 
   bool IsVerificationEnabled() const {
@@ -636,9 +628,6 @@ class Runtime {
 
   // Transaction used for pre-initializing classes at compilation time.
   Transaction* preinitialization_transaction_;
-  NullPointerHandler* null_pointer_handler_;
-  SuspensionHandler* suspend_handler_;
-  StackOverflowHandler* stack_overflow_handler_;
 
   // If false, verification is disabled. True by default.
   bool verify_;

@@ -197,13 +197,13 @@ TEST_F(OatTest, OatHeaderIsValid) {
     std::vector<const DexFile*> dex_files;
     uint32_t image_file_location_oat_checksum = 0;
     uint32_t image_file_location_oat_begin = 0;
-    OatHeader* oat_header = OatHeader::Create(instruction_set,
-                                              instruction_set_features,
-                                              &dex_files,
-                                              image_file_location_oat_checksum,
-                                              image_file_location_oat_begin,
-                                              nullptr);
-    ASSERT_NE(oat_header, nullptr);
+    std::unique_ptr<OatHeader> oat_header(OatHeader::Create(instruction_set,
+                                                            instruction_set_features,
+                                                            &dex_files,
+                                                            image_file_location_oat_checksum,
+                                                            image_file_location_oat_begin,
+                                                            nullptr));
+    ASSERT_NE(oat_header.get(), nullptr);
     ASSERT_TRUE(oat_header->IsValid());
 
     char* magic = const_cast<char*>(oat_header->GetMagic());
