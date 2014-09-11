@@ -80,10 +80,14 @@ class ObjectRegistry {
 
   void Clear() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void DisableCollection(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void EnableCollection(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DisableCollection(JDWP::ObjectId id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
 
-  bool IsCollected(JDWP::ObjectId id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void EnableCollection(JDWP::ObjectId id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
+
+  bool IsCollected(JDWP::ObjectId id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
 
   void DisposeObject(JDWP::ObjectId id, uint32_t reference_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -94,13 +98,24 @@ class ObjectRegistry {
 
  private:
   JDWP::ObjectId InternalAdd(mirror::Object* o)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::thread_list_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(lock_, Locks::thread_list_lock_);
+
   mirror::Object* InternalGet(JDWP::ObjectId id, JDWP::JdwpError* error)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void Demote(ObjectRegistryEntry& entry) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, lock_);
-  void Promote(ObjectRegistryEntry& entry) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(lock_);
+
+  void Demote(ObjectRegistryEntry& entry)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(lock_);
+
+  void Promote(ObjectRegistryEntry& entry)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(lock_);
+
   bool Contains(mirror::Object* o, ObjectRegistryEntry** out_entry)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
+
   bool ContainsLocked(Thread* self, mirror::Object* o, int32_t identity_hash_code,
                       ObjectRegistryEntry** out_entry)
       EXCLUSIVE_LOCKS_REQUIRED(lock_) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
