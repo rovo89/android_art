@@ -427,7 +427,7 @@ const ArmEncodingMap ArmMir2Lir::EncodingMap[kArmLast] = {
                  REG_DEF_LR | NEEDS_FIXUP, "vldr", "!0s, [!1C, #!2E]", 4, kFixupVLoad),
     ENCODING_MAP(kThumb2Vldrd,       0xed900b00,
                  kFmtDfp, 22, 12, kFmtBitBlt, 19, 16, kFmtBitBlt, 7, 0,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1 | IS_LOAD_OFF |
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1 | IS_LOAD_OFF4 |
                  REG_DEF_LR | NEEDS_FIXUP, "vldr", "!0S, [!1C, #!2E]", 4, kFixupVLoad),
     ENCODING_MAP(kThumb2Vmuls,        0xee200a00,
                  kFmtSfp, 22, 12, kFmtSfp, 7, 16, kFmtSfp, 5, 0,
