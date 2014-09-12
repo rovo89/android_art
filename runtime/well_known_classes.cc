@@ -21,6 +21,7 @@
 #include "base/logging.h"
 #include "mirror/class.h"
 #include "ScopedLocalRef.h"
+#include "scoped_thread_state_change.h"
 #include "thread-inl.h"
 
 namespace art {
@@ -122,18 +123,32 @@ static jclass CacheClass(JNIEnv* env, const char* jni_class_name) {
   return reinterpret_cast<jclass>(env->NewGlobalRef(c.get()));
 }
 
-static jfieldID CacheField(JNIEnv* env, jclass c, bool is_static, const char* name, const char* signature) {
-  jfieldID fid = is_static ? env->GetStaticFieldID(c, name, signature) : env->GetFieldID(c, name, signature);
+static jfieldID CacheField(JNIEnv* env, jclass c, bool is_static,
+                           const char* name, const char* signature) {
+  jfieldID fid = (is_static ?
+                  env->GetStaticFieldID(c, name, signature) :
+                  env->GetFieldID(c, name, signature));
   if (fid == NULL) {
-    LOG(FATAL) << "Couldn't find field \"" << name << "\" with signature \"" << signature << "\"";
+    ScopedObjectAccess soa(env);
+    std::ostringstream os;
+    WellKnownClasses::ToClass(c)->DumpClass(os, mirror::Class::kDumpClassFullDetail);
+    LOG(FATAL) << "Couldn't find field \"" << name << "\" with signature \"" << signature << "\": "
+               << os.str();
   }
   return fid;
 }
 
-jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static, const char* name, const char* signature) {
-  jmethodID mid = is_static ? env->GetStaticMethodID(c, name, signature) : env->GetMethodID(c, name, signature);
+jmethodID CacheMethod(JNIEnv* env, jclass c, bool is_static,
+                      const char* name, const char* signature) {
+  jmethodID mid = (is_static ?
+                   env->GetStaticMethodID(c, name, signature) :
+                   env->GetMethodID(c, name, signature));
   if (mid == NULL) {
-    LOG(FATAL) << "Couldn't find method \"" << name << "\" with signature \"" << signature << "\"";
+    ScopedObjectAccess soa(env);
+    std::ostringstream os;
+    WellKnownClasses::ToClass(c)->DumpClass(os, mirror::Class::kDumpClassFullDetail);
+    LOG(FATAL) << "Couldn't find method \"" << name << "\" with signature \"" << signature << "\": "
+               << os.str();
   }
   return mid;
 }
