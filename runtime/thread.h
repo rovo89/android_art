@@ -146,6 +146,12 @@ class Thread {
 
   static Thread* Current();
 
+  // On a runnable thread, check for pending thread suspension request and handle if pending.
+  void AllowThreadSuspension() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Process pending thread suspension request and handle if pending.
+  void CheckSuspend() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   static Thread* FromManagedThread(const ScopedObjectAccessAlreadyRunnable& ts,
                                    mirror::Object* thread_peer)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_)
@@ -1029,7 +1035,11 @@ class Thread {
       deoptimization_shadow_frame(nullptr), shadow_frame_under_construction(nullptr), name(nullptr),
       pthread_self(0), last_no_thread_suspension_cause(nullptr), thread_local_start(nullptr),
       thread_local_pos(nullptr), thread_local_end(nullptr), thread_local_objects(0),
-      thread_local_alloc_stack_top(nullptr), thread_local_alloc_stack_end(nullptr) {
+      thread_local_alloc_stack_top(nullptr), thread_local_alloc_stack_end(nullptr),
+      nested_signal_state(nullptr) {
+        for (size_t i = 0; i < kLockLevelCount; ++i) {
+          held_mutexes[i] = nullptr;
+        }
     }
 
     // The biased card table, see CardTable for details.
@@ -1162,7 +1172,6 @@ class Thread {
   friend class Runtime;  // For CreatePeer.
   friend class QuickExceptionHandler;  // For dumping the stack.
   friend class ScopedThreadStateChange;
-  friend class SignalCatcher;  // For SetStateUnsafe.
   friend class StubTest;  // For accessing entrypoints.
   friend class ThreadList;  // For ~Thread and Destroy.
 

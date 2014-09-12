@@ -462,7 +462,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
-    if (UNLIKELY(!class_linker->EnsureInitialized(h_class, true, true))) {
+    if (UNLIKELY(!class_linker->EnsureInitialized(self, h_class, true, true))) {
       CHECK(self->IsExceptionPending());
       self->PopShadowFrame();
       return;
@@ -537,7 +537,7 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
       StackHandleScope<1> hs(self);
       HandleWrapper<Class> h_declaring_class(hs.NewHandleWrapper(&declaring_class));
       if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(
-          h_declaring_class, true, true))) {
+          self, h_declaring_class, true, true))) {
         DCHECK(self->IsExceptionPending());
         self->PopShadowFrame();
         return;

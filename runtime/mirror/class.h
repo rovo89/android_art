@@ -266,6 +266,16 @@ class MANAGED Class FINAL : public Object {
     return (GetAccessFlags() & kAccSynthetic) != 0;
   }
 
+  // Returns true if the class can avoid access checks.
+  bool IsPreverified() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return (GetAccessFlags() & kAccPreverified) != 0;
+  }
+
+  void SetPreverified() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
+    SetAccessFlags(flags | kAccPreverified);
+  }
+
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool IsTypeOfReferenceClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags<kVerifyFlags>() & kAccClassIsReference) != 0;

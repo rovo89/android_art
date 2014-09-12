@@ -560,7 +560,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   if (UNLIKELY(!declaring_class->IsInitialized())) {
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::Class> h_class(hs.NewHandle(declaring_class));
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_class, true, true)) {
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(soa.Self(), h_class, true, true)) {
       return nullptr;
     }
     declaring_class = h_class.Get();

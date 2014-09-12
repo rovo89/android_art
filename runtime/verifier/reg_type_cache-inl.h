@@ -17,16 +17,19 @@
 #ifndef ART_RUNTIME_VERIFIER_REG_TYPE_CACHE_INL_H_
 #define ART_RUNTIME_VERIFIER_REG_TYPE_CACHE_INL_H_
 
+#include "class_linker.h"
+#include "mirror/class-inl.h"
+#include "mirror/string.h"
+#include "mirror/throwable.h"
 #include "reg_type.h"
 #include "reg_type_cache.h"
-#include "class_linker.h"
 
 namespace art {
 namespace verifier {
 
 inline const art::verifier::RegType& RegTypeCache::GetFromId(uint16_t id) const {
   DCHECK_LT(id, entries_.size());
-  RegType* result = entries_[id];
+  const RegType* result = entries_[id];
   DCHECK(result != NULL);
   return *result;
 }
@@ -38,6 +41,81 @@ inline const ConstantType& RegTypeCache::FromCat1Const(int32_t value, bool preci
     return *small_precise_constants_[value - kMinSmallConstant];
   }
   return FromCat1NonSmallConstant(value, precise);
+}
+
+inline const ImpreciseConstType& RegTypeCache::ByteConstant() {
+  const ConstantType& result = FromCat1Const(std::numeric_limits<jbyte>::min(), false);
+  DCHECK(result.IsImpreciseConstant());
+  return *down_cast<const ImpreciseConstType*>(&result);
+}
+
+inline const ImpreciseConstType& RegTypeCache::CharConstant() {
+  int32_t jchar_max = static_cast<int32_t>(std::numeric_limits<jchar>::max());
+  const ConstantType& result =  FromCat1Const(jchar_max, false);
+  DCHECK(result.IsImpreciseConstant());
+  return *down_cast<const ImpreciseConstType*>(&result);
+}
+
+inline const ImpreciseConstType& RegTypeCache::ShortConstant() {
+  const ConstantType& result =  FromCat1Const(std::numeric_limits<jshort>::min(), false);
+  DCHECK(result.IsImpreciseConstant());
+  return *down_cast<const ImpreciseConstType*>(&result);
+}
+
+inline const ImpreciseConstType& RegTypeCache::IntConstant() {
+  const ConstantType& result = FromCat1Const(std::numeric_limits<jint>::max(), false);
+  DCHECK(result.IsImpreciseConstant());
+  return *down_cast<const ImpreciseConstType*>(&result);
+}
+
+inline const ImpreciseConstType& RegTypeCache::PosByteConstant() {
+  const ConstantType& result = FromCat1Const(std::numeric_limits<jbyte>::max(), false);
+  DCHECK(result.IsImpreciseConstant());
+  return *down_cast<const ImpreciseConstType*>(&result);
+}
+
+inline const ImpreciseConstType& RegTypeCache::PosShortConstant() {
+  const ConstantType& result =  FromCat1Const(std::numeric_limits<jshort>::max(), false);
+  DCHECK(result.IsImpreciseConstant());
+  return *down_cast<const ImpreciseConstType*>(&result);
+}
+
+inline const PreciseReferenceType& RegTypeCache::JavaLangClass() {
+  const RegType* result = &FromClass("Ljava/lang/Class;", mirror::Class::GetJavaLangClass(), true);
+  DCHECK(result->IsPreciseReference());
+  return *down_cast<const PreciseReferenceType*>(result);
+}
+
+inline const PreciseReferenceType& RegTypeCache::JavaLangString() {
+  // String is final and therefore always precise.
+  const RegType* result = &FromClass("Ljava/lang/String;", mirror::String::GetJavaLangString(),
+                                     true);
+  DCHECK(result->IsPreciseReference());
+  return *down_cast<const PreciseReferenceType*>(result);
+}
+
+inline const RegType&  RegTypeCache::JavaLangThrowable(bool precise) {
+  const RegType* result = &FromClass("Ljava/lang/Throwable;",
+                                     mirror::Throwable::GetJavaLangThrowable(), precise);
+  if (precise) {
+    DCHECK(result->IsPreciseReference());
+    return *down_cast<const PreciseReferenceType*>(result);
+  } else {
+    DCHECK(result->IsReference());
+    return *down_cast<const ReferenceType*>(result);
+  }
+}
+
+inline const RegType& RegTypeCache::JavaLangObject(bool precise) {
+  const RegType* result = &FromClass("Ljava/lang/Object;",
+                                     mirror::Class::GetJavaLangClass()->GetSuperClass(), precise);
+  if (precise) {
+    DCHECK(result->IsPreciseReference());
+    return *down_cast<const PreciseReferenceType*>(result);
+  } else {
+    DCHECK(result->IsReference());
+    return *down_cast<const ReferenceType*>(result);
+  }
 }
 
 }  // namespace verifier

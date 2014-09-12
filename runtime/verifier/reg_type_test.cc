@@ -21,6 +21,7 @@
 #include "base/casts.h"
 #include "common_runtime_test.h"
 #include "reg_type_cache-inl.h"
+#include "reg_type-inl.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
 
@@ -346,7 +347,7 @@ TEST_F(RegTypeReferenceTest, JavalangObjectImprecise) {
   RegTypeCache cache(true);
   const RegType& imprecise_obj = cache.JavaLangObject(false);
   const RegType& precise_obj = cache.JavaLangObject(true);
-  const RegType& precise_obj_2 = cache.FromDescriptor(NULL, "Ljava/lang/Object;", true);
+  const RegType& precise_obj_2 = cache.FromDescriptor(nullptr, "Ljava/lang/Object;", true);
 
   EXPECT_TRUE(precise_obj.Equals(precise_obj_2));
   EXPECT_FALSE(imprecise_obj.Equals(precise_obj));
@@ -359,11 +360,11 @@ TEST_F(RegTypeReferenceTest, UnresolvedType) {
   // a hit second time.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
-  const RegType& ref_type_0 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  const RegType& ref_type_0 = cache.FromDescriptor(nullptr, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.IsUnresolvedReference());
   EXPECT_TRUE(ref_type_0.IsNonZeroReferenceTypes());
 
-  const RegType& ref_type_1 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  const RegType& ref_type_1 = cache.FromDescriptor(nullptr, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.Equals(ref_type_1));
 
   const RegType& unresolved_super_class =  cache.FromUnresolvedSuperClass(ref_type_0);
@@ -375,9 +376,9 @@ TEST_F(RegTypeReferenceTest, UnresolvedUnintializedType) {
   // Tests creating types uninitialized types from unresolved types.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
-  const RegType& ref_type_0 = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  const RegType& ref_type_0 = cache.FromDescriptor(nullptr, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.IsUnresolvedReference());
-  const RegType& ref_type = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  const RegType& ref_type = cache.FromDescriptor(nullptr, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.Equals(ref_type));
   // Create an uninitialized type of this unresolved type
   const RegType& unresolved_unintialised = cache.Uninitialized(ref_type, 1101ull);
@@ -397,8 +398,8 @@ TEST_F(RegTypeReferenceTest, Dump) {
   // Tests types for proper Dump messages.
   ScopedObjectAccess soa(Thread::Current());
   RegTypeCache cache(true);
-  const RegType& unresolved_ref = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
-  const RegType& unresolved_ref_another = cache.FromDescriptor(NULL, "Ljava/lang/DoesNotExistEither;", true);
+  const RegType& unresolved_ref = cache.FromDescriptor(nullptr, "Ljava/lang/DoesNotExist;", true);
+  const RegType& unresolved_ref_another = cache.FromDescriptor(nullptr, "Ljava/lang/DoesNotExistEither;", true);
   const RegType& resolved_ref = cache.JavaLangString();
   const RegType& resolved_unintialiesd = cache.Uninitialized(resolved_ref, 10);
   const RegType& unresolved_unintialized = cache.Uninitialized(unresolved_ref, 12);
@@ -424,7 +425,7 @@ TEST_F(RegTypeReferenceTest, JavalangString) {
   RegTypeCache cache(true);
   const RegType& ref_type = cache.JavaLangString();
   const RegType& ref_type_2 = cache.JavaLangString();
-  const RegType& ref_type_3 = cache.FromDescriptor(NULL, "Ljava/lang/String;", true);
+  const RegType& ref_type_3 = cache.FromDescriptor(nullptr, "Ljava/lang/String;", true);
 
   EXPECT_TRUE(ref_type.Equals(ref_type_2));
   EXPECT_TRUE(ref_type_2.Equals(ref_type_3));
@@ -444,7 +445,7 @@ TEST_F(RegTypeReferenceTest, JavalangObject) {
   RegTypeCache cache(true);
   const RegType& ref_type = cache.JavaLangObject(true);
   const RegType& ref_type_2 = cache.JavaLangObject(true);
-  const RegType& ref_type_3 = cache.FromDescriptor(NULL, "Ljava/lang/Object;", true);
+  const RegType& ref_type_3 = cache.FromDescriptor(nullptr, "Ljava/lang/Object;", true);
 
   EXPECT_TRUE(ref_type.Equals(ref_type_2));
   EXPECT_TRUE(ref_type_3.Equals(ref_type_2));
@@ -459,9 +460,9 @@ TEST_F(RegTypeReferenceTest, Merging) {
   const RegType& Object = cache_new.JavaLangObject(true);
   EXPECT_TRUE(string.Merge(Object, &cache_new).IsJavaLangObject());
   // Merge two unresolved types.
-  const RegType& ref_type_0 = cache_new.FromDescriptor(NULL, "Ljava/lang/DoesNotExist;", true);
+  const RegType& ref_type_0 = cache_new.FromDescriptor(nullptr, "Ljava/lang/DoesNotExist;", true);
   EXPECT_TRUE(ref_type_0.IsUnresolvedReference());
-  const RegType& ref_type_1 = cache_new.FromDescriptor(NULL, "Ljava/lang/DoesNotExistToo;", true);
+  const RegType& ref_type_1 = cache_new.FromDescriptor(nullptr, "Ljava/lang/DoesNotExistToo;", true);
   EXPECT_FALSE(ref_type_0.Equals(ref_type_1));
 
   const RegType& merged = ref_type_1.Merge(ref_type_0, &cache_new);

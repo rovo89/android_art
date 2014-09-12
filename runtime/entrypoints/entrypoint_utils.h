@@ -174,8 +174,6 @@ static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self)
 void CheckReferenceResult(mirror::Object* o, Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-static inline void CheckSuspend(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
 JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, const char* shorty,
                                     jobject rcvr_jobj, jobject interface_art_method_jobj,
                                     std::vector<jvalue>& args)

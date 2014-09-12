@@ -459,7 +459,7 @@ class Heap {
                                                               bool fail_ok) const;
   space::Space* FindSpaceFromObject(const mirror::Object*, bool fail_ok) const;
 
-  void DumpForSigQuit(std::ostream& os) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DumpForSigQuit(std::ostream& os);
 
   // Do a pending heap transition or trim.
   void DoPendingTransitionOrTrim() LOCKS_EXCLUDED(heap_trim_request_lock_);

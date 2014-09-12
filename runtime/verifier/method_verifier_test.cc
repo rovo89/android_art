@@ -32,11 +32,12 @@ class MethodVerifierTest : public CommonRuntimeTest {
   void VerifyClass(const std::string& descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ASSERT_TRUE(descriptor != NULL);
-    mirror::Class* klass = class_linker_->FindSystemClass(Thread::Current(), descriptor.c_str());
+    Thread* self = Thread::Current();
+    mirror::Class* klass = class_linker_->FindSystemClass(self, descriptor.c_str());
 
     // Verify the class
     std::string error_msg;
-    ASSERT_TRUE(MethodVerifier::VerifyClass(klass, true, &error_msg) == MethodVerifier::kNoFailure)
+    ASSERT_TRUE(MethodVerifier::VerifyClass(self, klass, true, &error_msg) == MethodVerifier::kNoFailure)
         << error_msg;
   }
 

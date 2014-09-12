@@ -117,7 +117,7 @@ class ReflectionTest : public CommonCompilerTest {
       // Ensure class is initialized before allocating object
       StackHandleScope<1> hs(self);
       Handle<mirror::Class> h_class(hs.NewHandle(c));
-      bool initialized = class_linker_->EnsureInitialized(h_class, true, true);
+      bool initialized = class_linker_->EnsureInitialized(self, h_class, true, true);
       CHECK(initialized);
       *receiver = c->AllocObject(self);
     }

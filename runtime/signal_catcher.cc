@@ -118,17 +118,6 @@ void SignalCatcher::Output(const std::string& s) {
 
 void SignalCatcher::HandleSigQuit() {
   Runtime* runtime = Runtime::Current();
-  ThreadList* thread_list = runtime->GetThreadList();
-
-  // Grab exclusively the mutator lock, set state to Runnable without checking for a pending
-  // suspend request as we're going to suspend soon anyway. We set the state to Runnable to avoid
-  // giving away the mutator lock.
-  thread_list->SuspendAll();
-  Thread* self = Thread::Current();
-  Locks::mutator_lock_->AssertExclusiveHeld(self);
-  const char* old_cause = self->StartAssertNoThreadSuspension("Handling SIGQUIT");
-  ThreadState old_state = self->SetStateUnsafe(kRunnable);
-
   std::ostringstream os;
   os << "\n"
       << "----- pid " << getpid() << " at " << GetIsoDate() << " -----\n";
@@ -149,14 +138,6 @@ void SignalCatcher::HandleSigQuit() {
     }
   }
   os << "----- end " << getpid() << " -----\n";
-  CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
-  self->EndAssertNoThreadSuspension(old_cause);
-  thread_list->ResumeAll();
-  // Run the checkpoints after resuming the threads to prevent deadlocks if the checkpoint function
-  // acquires the mutator lock.
-  if (self->ReadFlag(kCheckpointRequest)) {
-    self->RunCheckpointFunction();
-  }
   Output(os.str());
 }
 

@@ -79,7 +79,7 @@ static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
     // has changed and to null-check the return value in case the
     // initialization fails.
     *slow_path = true;
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_klass, true, true)) {
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_klass, true, true)) {
       DCHECK(self->IsExceptionPending());
       return nullptr;  // Failure
     } else {
@@ -107,7 +107,7 @@ static inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::Class* 
     // has changed and to null-check the return value in case the
     // initialization fails.
     *slow_path = true;
-    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_class, true, true)) {
+    if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
       DCHECK(self->IsExceptionPending());
       return nullptr;  // Failure
     }
@@ -324,7 +324,7 @@ static inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, mirror::Ar
     } else {
       StackHandleScope<1> hs(self);
       Handle<mirror::Class> h_class(hs.NewHandle(fields_class));
-      if (LIKELY(class_linker->EnsureInitialized(h_class, true, true))) {
+      if (LIKELY(class_linker->EnsureInitialized(self, h_class, true, true))) {
         // Otherwise let's ensure the class is initialized before resolving the field.
         return resolved_field;
       }
@@ -603,7 +603,7 @@ static inline mirror::Class* ResolveVerifyAndClinit(uint32_t type_idx,
   }
   StackHandleScope<1> hs(self);
   Handle<mirror::Class> h_class(hs.NewHandle(klass));
-  if (!class_linker->EnsureInitialized(h_class, true, true)) {
+  if (!class_linker->EnsureInitialized(self, h_class, true, true)) {
     CHECK(self->IsExceptionPending());
     return nullptr;  // Failure - Indicate to caller to deliver exception
   }
@@ -637,18 +637,6 @@ static inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self) {
   if (saved_exception != NULL) {
     self->SetException(saved_throw_location, saved_exception);
     self->SetExceptionReportedToInstrumentation(is_exception_reported);
-  }
-}
-
-static inline void CheckSuspend(Thread* thread) {
-  for (;;) {
-    if (thread->ReadFlag(kCheckpointRequest)) {
-      thread->RunCheckpointFunction();
-    } else if (thread->ReadFlag(kSuspendRequest)) {
-      thread->FullSuspendCheck();
-    } else {
-      break;
-    }
   }
 }
 
