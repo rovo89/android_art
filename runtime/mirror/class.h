@@ -139,7 +139,7 @@ class MANAGED Class FINAL : public Object {
   //
   // TODO: Explain the other states
   enum Status {
-    kStatusRetired = -2, // Retired, should not be used. Use the newly cloned one instead.
+    kStatusRetired = -2,  // Retired, should not be used. Use the newly cloned one instead.
     kStatusError = -1,
     kStatusNotReady = 0,
     kStatusIdx = 1,  // Loaded, DEX idx in super_class_type_idx_ and interfaces_type_idx_.
