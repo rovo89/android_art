@@ -28,7 +28,6 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "gc/heap.h"
-#include "instruction_set.h"
 #include "os.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
@@ -43,21 +42,20 @@ static void DumpCmdLine(std::ostream& os) {
 #if defined(__linux__)
   // Show the original command line, and the current command line too if it's changed.
   // On Android, /proc/self/cmdline will have been rewritten to something like "system_server".
-  // Note: The string "Cmd line:" is chosen to match the format used by debuggerd.
   std::string current_cmd_line;
   if (ReadFileToString("/proc/self/cmdline", &current_cmd_line)) {
-    current_cmd_line.resize(current_cmd_line.find_last_not_of('\0') + 1); // trim trailing '\0's
+    current_cmd_line.resize(current_cmd_line.size() - 1);  // Lose the trailing '\0'.
     std::replace(current_cmd_line.begin(), current_cmd_line.end(), '\0', ' ');
 
-    os << "Cmd line: " << current_cmd_line << "\n";
+    os << "Cmdline: " << current_cmd_line;
     const char* stashed_cmd_line = GetCmdLine();
-    if (stashed_cmd_line != NULL && current_cmd_line != stashed_cmd_line
-            && strcmp(stashed_cmd_line, "<unset>") != 0) {
-      os << "Original command line: " << stashed_cmd_line << "\n";
+    if (stashed_cmd_line != NULL && current_cmd_line != stashed_cmd_line) {
+      os << "Original command line: " << stashed_cmd_line;
     }
   }
+  os << "\n";
 #else
-  os << "Cmd line: " << GetCmdLine() << "\n";
+  os << "Cmdline: " << GetCmdLine() << "\n";
 #endif
 }
 
@@ -134,9 +132,6 @@ void SignalCatcher::HandleSigQuit() {
       << "----- pid " << getpid() << " at " << GetIsoDate() << " -----\n";
 
   DumpCmdLine(os);
-
-  // Note: The string "ABI:" is chosen to match the format used by debuggerd.
-  os << "ABI: " << GetInstructionSetString(runtime->GetInstructionSet()) << "\n";
 
   os << "Build type: " << (kIsDebugBuild ? "debug" : "optimized") << "\n";
 
