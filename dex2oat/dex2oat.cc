@@ -160,7 +160,14 @@ static void Usage(const char* fmt, ...) {
   UsageError("      Example: --compiler-backend=Portable");
   UsageError("      Default: Quick");
   UsageError("");
-  UsageError("  --compiler-filter=(verify-none|interpret-only|space|balanced|speed|everything):");
+  UsageError("  --compiler-filter="
+                "(verify-none"
+                "|interpret-only"
+                "|space"
+                "|balanced"
+                "|speed"
+                "|everything"
+                "|time):");
   UsageError("      select compiler filter.");
   UsageError("      Example: --compiler-filter=everything");
 #if ART_SMALL_MODE
@@ -1181,6 +1188,8 @@ static int dex2oat(int argc, char** argv) {
     compiler_filter = CompilerOptions::kSpeed;
   } else if (strcmp(compiler_filter_string, "everything") == 0) {
     compiler_filter = CompilerOptions::kEverything;
+  } else if (strcmp(compiler_filter_string, "time") == 0) {
+    compiler_filter = CompilerOptions::kTime;
   } else {
     Usage("Unknown --compiler-filter value %s", compiler_filter_string);
   }
@@ -1376,7 +1385,7 @@ static int dex2oat(int argc, char** argv) {
    * If we're not in interpret-only or verify-none mode, go ahead and compile small applications.
    * Don't bother to check if we're doing the image.
    */
-  if (!image && compiler_options->IsCompilationEnabled()) {
+  if (!image && compiler_options->IsCompilationEnabled() && compiler_kind == Compiler::kQuick) {
     size_t num_methods = 0;
     for (size_t i = 0; i != dex_files.size(); ++i) {
       const DexFile* dex_file = dex_files[i];
