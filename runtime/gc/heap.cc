@@ -83,8 +83,13 @@ static constexpr size_t kMaxConcurrentRemainingBytes = 512 * KB;
 // relative to partial/full GC. This may be desirable since sticky GCs interfere less with mutator
 // threads (lower pauses, use less memory bandwidth).
 static constexpr double kStickyGcThroughputAdjustment = 1.0;
-// Whether or not we use the free list large object space.
+// Whether or not we use the free list large object space. Only use it if USE_ART_LOW_4G_ALLOCATOR
+// since this means that we have to use the slow msync loop in MemMap::MapAnonymous.
+#if USE_ART_LOW_4G_ALLOCATOR
+static constexpr bool kUseFreeListSpaceForLOS = true;
+#else
 static constexpr bool kUseFreeListSpaceForLOS = false;
+#endif
 // Whether or not we compact the zygote in PreZygoteFork.
 static constexpr bool kCompactZygote = kMovingCollector;
 // How many reserve entries are at the end of the allocation stack, these are only needed if the
