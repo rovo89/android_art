@@ -456,9 +456,7 @@ bool DexFileVerifier::CheckClassDataItemField(uint32_t idx, uint32_t access_flag
     return false;
   }
 
-  uint32_t access_field_mask = kAccPublic | kAccPrivate | kAccProtected | kAccStatic |
-      kAccFinal | kAccVolatile | kAccTransient | kAccSynthetic | kAccEnum;
-  if (UNLIKELY((access_flags & ~access_field_mask) != 0)) {
+  if (UNLIKELY((access_flags & ~kAccJavaFlagsMask) != 0)) {
     ErrorStringPrintf("Bad class_data_item field access_flags %x", access_flags);
     return false;
   }
@@ -482,9 +480,8 @@ bool DexFileVerifier::CheckClassDataItemMethod(uint32_t idx, uint32_t access_fla
     return false;
   }
 
-  uint32_t access_method_mask = kAccPublic | kAccPrivate | kAccProtected | kAccStatic |
-      kAccFinal | kAccSynchronized | kAccBridge | kAccVarargs | kAccNative | kAccAbstract |
-      kAccStrict | kAccSynthetic | kAccConstructor | kAccDeclaredSynchronized;
+  constexpr uint32_t access_method_mask = kAccJavaFlagsMask | kAccConstructor |
+      kAccDeclaredSynchronized;
   if (UNLIKELY(((access_flags & ~access_method_mask) != 0) ||
                (is_synchronized && !allow_synchronized))) {
     ErrorStringPrintf("Bad class_data_item method access_flags %x", access_flags);
@@ -686,24 +683,26 @@ bool DexFileVerifier::CheckEncodedAnnotation() {
 bool DexFileVerifier::CheckIntraClassDataItem() {
   ClassDataItemIterator it(*dex_file_, ptr_);
 
+  // These calls use the raw access flags to check whether the whole dex field is valid.
+
   for (; it.HasNextStaticField(); it.Next()) {
-    if (!CheckClassDataItemField(it.GetMemberIndex(), it.GetMemberAccessFlags(), true)) {
+    if (!CheckClassDataItemField(it.GetMemberIndex(), it.GetRawMemberAccessFlags(), true)) {
       return false;
     }
   }
   for (; it.HasNextInstanceField(); it.Next()) {
-    if (!CheckClassDataItemField(it.GetMemberIndex(), it.GetMemberAccessFlags(), false)) {
+    if (!CheckClassDataItemField(it.GetMemberIndex(), it.GetRawMemberAccessFlags(), false)) {
       return false;
     }
   }
   for (; it.HasNextDirectMethod(); it.Next()) {
-    if (!CheckClassDataItemMethod(it.GetMemberIndex(), it.GetMemberAccessFlags(),
+    if (!CheckClassDataItemMethod(it.GetMemberIndex(), it.GetRawMemberAccessFlags(),
         it.GetMethodCodeItemOffset(), true)) {
       return false;
     }
   }
   for (; it.HasNextVirtualMethod(); it.Next()) {
-    if (!CheckClassDataItemMethod(it.GetMemberIndex(), it.GetMemberAccessFlags(),
+    if (!CheckClassDataItemMethod(it.GetMemberIndex(), it.GetRawMemberAccessFlags(),
         it.GetMethodCodeItemOffset(), false)) {
       return false;
     }
