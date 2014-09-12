@@ -424,11 +424,12 @@ bool Arm64Mir2Lir::GenInlinedRound(CallInfo* info, bool is_double) {
   RegLocation rl_dest = (is_double) ? InlineTargetWide(info) : InlineTarget(info);
   rl_src = (is_double) ? LoadValueWide(rl_src, kFPReg) : LoadValue(rl_src, kFPReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  RegStorage r_imm_point5 = (is_double) ? AllocTempDouble() : AllocTempSingle();
   RegStorage r_tmp = (is_double) ? AllocTempDouble() : AllocTempSingle();
   // 0.5f and 0.5d are encoded in the same way.
-  NewLIR2(kA64Fmov2fI | wide, r_tmp.GetReg(), encoded_imm);
-  NewLIR3(kA64Fadd3fff | wide, rl_src.reg.GetReg(), rl_src.reg.GetReg(), r_tmp.GetReg());
-  NewLIR2((is_double) ? kA64Fcvtms2xS : kA64Fcvtms2ws, rl_result.reg.GetReg(), rl_src.reg.GetReg());
+  NewLIR2(kA64Fmov2fI | wide, r_imm_point5.GetReg(), encoded_imm);
+  NewLIR3(kA64Fadd3fff | wide, r_tmp.GetReg(), rl_src.reg.GetReg(), r_imm_point5.GetReg());
+  NewLIR2((is_double) ? kA64Fcvtms2xS : kA64Fcvtms2ws, rl_result.reg.GetReg(), r_tmp.GetReg());
   (is_double) ? StoreValueWide(rl_dest, rl_result) : StoreValue(rl_dest, rl_result);
   return true;
 }
