@@ -80,6 +80,8 @@ void LargeObjectSpaceTest::LargeObjectTest() {
         ASSERT_GE(los->Free(Thread::Current(), obj), request_size);
       }
     }
+    // Test that dump doesn't crash.
+    los->Dump(LOG(INFO));
 
     size_t bytes_allocated = 0;
     // Checks that the coalescing works.
