@@ -1695,7 +1695,6 @@ class JNI {
     ScopedObjectAccess soa(env);
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
     mirror::CharArray* chars = s->GetCharArray();
-    soa.Vm()->PinPrimitiveArray(soa.Self(), chars);
     gc::Heap* heap = Runtime::Current()->GetHeap();
     if (heap->IsMovableObject(chars)) {
       if (is_copy != nullptr) {
@@ -1724,7 +1723,6 @@ class JNI {
     if (chars != (s_chars->GetData() + s->GetOffset())) {
       delete[] chars;
     }
-    soa.Vm()->UnpinPrimitiveArray(soa.Self(), s->GetCharArray());
   }
 
   static const jchar* GetStringCritical(JNIEnv* env, jstring java_string, jboolean* is_copy) {
@@ -1733,7 +1731,6 @@ class JNI {
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
     mirror::CharArray* chars = s->GetCharArray();
     int32_t offset = s->GetOffset();
-    soa.Vm()->PinPrimitiveArray(soa.Self(), chars);
     gc::Heap* heap = Runtime::Current()->GetHeap();
     if (heap->IsMovableObject(chars)) {
       StackHandleScope<1> hs(soa.Self());
@@ -1749,8 +1746,6 @@ class JNI {
   static void ReleaseStringCritical(JNIEnv* env, jstring java_string, const jchar* chars) {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
     ScopedObjectAccess soa(env);
-    soa.Vm()->UnpinPrimitiveArray(soa.Self(),
-                                  soa.Decode<mirror::String*>(java_string)->GetCharArray());
     gc::Heap* heap = Runtime::Current()->GetHeap();
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
     mirror::CharArray* s_chars = s->GetCharArray();
@@ -1906,7 +1901,6 @@ class JNI {
       // Re-decode in case the object moved since IncrementDisableGC waits for GC to complete.
       array = soa.Decode<mirror::Array*>(java_array);
     }
-    soa.Vm()->PinPrimitiveArray(soa.Self(), array);
     if (is_copy != nullptr) {
       *is_copy = JNI_FALSE;
     }
@@ -2331,7 +2325,6 @@ class JNI {
     if (UNLIKELY(array == nullptr)) {
       return nullptr;
     }
-    soa.Vm()->PinPrimitiveArray(soa.Self(), array);
     // Only make a copy if necessary.
     if (Runtime::Current()->GetHeap()->IsMovableObject(array)) {
       if (is_copy != nullptr) {
@@ -2394,7 +2387,6 @@ class JNI {
         // Non copy to a movable object must means that we had disabled the moving GC.
         heap->DecrementDisableMovingGC(soa.Self());
       }
-      soa.Vm()->UnpinPrimitiveArray(soa.Self(), array);
     }
   }
 
