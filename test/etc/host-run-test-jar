@@ -76,7 +76,7 @@ while true; do
         INTERPRETER="y"
         shift
     elif [ "x$1" = "x--64" ]; then
-        ISA="x64"
+        ISA="x86_64"
         exe="${ANDROID_HOST_OUT}/bin/dalvikvm64"
         shift
     elif [ "x$1" = "x--no-verify" ]; then
