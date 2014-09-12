@@ -150,8 +150,8 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
 
   if (two_byte) {
     switch (opcode) {
-      case 0x10:            // vmovsd/ss
-      case 0x11:            // vmovsd/ss
+      case 0x10:        // vmovsd/ss
+      case 0x11:        // vmovsd/ss
       case 0xb6:        // movzx
       case 0xb7:
       case 0xbe:        // movsx
@@ -165,7 +165,8 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
     }
   } else {
     switch (opcode) {
-      case 0x89:            // mov
+      case 0x88:        // mov byte
+      case 0x89:        // mov
       case 0x8b:
       case 0x38:        // cmp with memory.
       case 0x39:
