@@ -30,6 +30,7 @@ public class Main {
     }
 
     public static void main(String args[]) throws Exception {
+        b17411468();
         b2296099Test();
         b2302318Test();
         b2487514Test();
@@ -59,6 +60,17 @@ public class Main {
         atomicLong();
         LiveFlags.test();
         minDoubleWith3ConstsTest();
+    }
+
+    public static void b17411468() {
+      // b/17411468 - inline Math.round failure.
+      double d1 = 1.0;
+      double d2 = Math.round(d1);
+      if (d1 == d2) {
+        System.out.println("b17411468 passes");
+      } else {
+        System.out.println("b17411468 fails: Math.round(" + d1 + ") returned " + d2);
+      }
     }
 
     public static double minDouble(double a, double b, double c) {
