@@ -169,6 +169,7 @@ Runtime::Runtime()
       dump_gc_performance_on_shutdown_(false),
       preinitialization_transaction_(nullptr),
       verify_(false),
+      allow_dex_file_fallback_(true),
       target_sdk_version_(0),
       implicit_null_checks_(false),
       implicit_so_checks_(false),
@@ -380,7 +381,9 @@ bool Runtime::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
   InitLogging(NULL);  // Calls Locks::Init() as a side effect.
   instance_ = new Runtime;
   if (!instance_->Init(options, ignore_unrecognized)) {
-    delete instance_;
+    // TODO: Currently deleting the instance will abort the runtime on destruction. Now This will
+    // leak memory, instead. Fix the destructor. b/19100793.
+    // delete instance_;
     instance_ = NULL;
     return false;
   }
@@ -762,6 +765,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   intern_table_ = new InternTable;
 
   verify_ = runtime_options.GetOrDefault(Opt::Verify);
+  allow_dex_file_fallback_ = !runtime_options.Exists(Opt::NoDexFileFallback);
 
   if (runtime_options.GetOrDefault(Opt::Interpret)) {
     GetInstrumentation()->ForceInterpretOnly();
@@ -799,6 +803,11 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
                        xgc_option.verify_post_gc_rosalloc_,
                        runtime_options.GetOrDefault(Opt::EnableHSpaceCompactForOOM),
                        runtime_options.GetOrDefault(Opt::HSpaceCompactForOOMMinIntervalsMs));
+
+  if (heap_->GetImageSpace() == nullptr && !allow_dex_file_fallback_) {
+    LOG(ERROR) << "Dex file fallback disabled, cannot continue without image.";
+    return false;
+  }
 
   dump_gc_performance_on_shutdown_ = runtime_options.Exists(Opt::DumpGCPerformanceOnShutdown);
 
