@@ -31,16 +31,23 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
   if (name.c_str() == NULL) {
     return NULL;
   }
-
+  ClassLinker* cl = Runtime::Current()->GetClassLinker();
   std::string descriptor(DotToDescriptor(name.c_str()));
-  mirror::Class* c = Runtime::Current()->GetClassLinker()->LookupClass(descriptor.c_str(), loader);
+  mirror::Class* c = cl->LookupClass(descriptor.c_str(), loader);
   if (c != NULL && c->IsResolved()) {
     return soa.AddLocalReference<jclass>(c);
-  } else {
-    // Class wasn't resolved so it may be erroneous or not yet ready, force the caller to go into
-    // the regular loadClass code.
-    return NULL;
   }
+  if (loader != nullptr) {
+    // Try the common case.
+    StackHandleScope<1> hs(soa.Self());
+    c = cl->FindClassInPathClassLoader(soa, soa.Self(), descriptor.c_str(), hs.NewHandle(loader));
+    if (c != nullptr) {
+      return soa.AddLocalReference<jclass>(c);
+    }
+  }
+  // Class wasn't resolved so it may be erroneous or not yet ready, force the caller to go into
+  // the regular loadClass code.
+  return NULL;
 }
 
 static jint VMClassLoader_getBootClassPathSize(JNIEnv*, jclass) {
