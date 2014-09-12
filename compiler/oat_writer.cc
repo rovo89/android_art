@@ -459,7 +459,7 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
         }
         const std::vector<uint8_t>& gc_map = compiled_method->GetGcMap();
         size_t gc_map_size = gc_map.size() * sizeof(gc_map[0]);
-        bool is_native = (it.GetMemberAccessFlags() & kAccNative) != 0;
+        bool is_native = it.MemberIsNative();
         CHECK(gc_map_size != 0 || is_native || status < mirror::Class::kStatusVerified)
             << &gc_map << " " << gc_map_size << " " << (is_native ? "true" : "false") << " "
             << (status < mirror::Class::kStatusVerified) << " " << status << " "

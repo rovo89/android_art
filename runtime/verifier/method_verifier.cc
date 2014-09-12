@@ -168,7 +168,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
                                                       class_def,
                                                       it.GetMethodCodeItem(),
                                                       method,
-                                                      it.GetMemberAccessFlags(),
+                                                      it.GetMethodAccessFlags(),
                                                       allow_soft_failures,
                                                       false);
     if (result != kNoFailure) {
@@ -212,7 +212,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(const DexFile* dex_file,
                                                       class_def,
                                                       it.GetMethodCodeItem(),
                                                       method,
-                                                      it.GetMemberAccessFlags(),
+                                                      it.GetMethodAccessFlags(),
                                                       allow_soft_failures,
                                                       false);
     if (result != kNoFailure) {
