@@ -61,9 +61,6 @@ static const size_t kMonitorsMax = 4096;  // Arbitrary sanity check.
 static const size_t kLocalsInitial = 64;  // Arbitrary.
 static const size_t kLocalsMax = 512;  // Arbitrary sanity check.
 
-static const size_t kPinTableInitial = 16;  // Arbitrary.
-static const size_t kPinTableMax = 1024;  // Arbitrary sanity check.
-
 static size_t gGlobalsInitial = 512;  // Arbitrary.
 static size_t gGlobalsMax = 51200;  // Arbitrary sanity check. (Must fit in 16 bits.)
 
@@ -241,20 +238,6 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     return nullptr;
   }
   return soa.EncodeField(field);
-}
-
-static void PinPrimitiveArray(const ScopedObjectAccess& soa, mirror::Array* array)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  JavaVMExt* vm = soa.Vm();
-  MutexLock mu(soa.Self(), vm->pins_lock);
-  vm->pin_table.Add(array);
-}
-
-static void UnpinPrimitiveArray(const ScopedObjectAccess& soa, mirror::Array* array)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  JavaVMExt* vm = soa.Vm();
-  MutexLock mu(soa.Self(), vm->pins_lock);
-  vm->pin_table.Remove(array);
 }
 
 static void ThrowAIOOBE(ScopedObjectAccess& soa, mirror::Array* array, jsize start,
@@ -1996,7 +1979,6 @@ class JNI {
     ScopedObjectAccess soa(env);
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
     mirror::CharArray* chars = s->GetCharArray();
-    PinPrimitiveArray(soa, chars);
     gc::Heap* heap = Runtime::Current()->GetHeap();
     if (heap->IsMovableObject(chars)) {
       if (is_copy != nullptr) {
@@ -2025,7 +2007,6 @@ class JNI {
     if (chars != (s_chars->GetData() + s->GetOffset())) {
       delete[] chars;
     }
-    UnpinPrimitiveArray(soa, s->GetCharArray());
   }
 
   static const jchar* GetStringCritical(JNIEnv* env, jstring java_string, jboolean* is_copy) {
@@ -2034,7 +2015,6 @@ class JNI {
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
     mirror::CharArray* chars = s->GetCharArray();
     int32_t offset = s->GetOffset();
-    PinPrimitiveArray(soa, chars);
     gc::Heap* heap = Runtime::Current()->GetHeap();
     if (heap->IsMovableObject(chars)) {
       StackHandleScope<1> hs(soa.Self());
@@ -2050,7 +2030,6 @@ class JNI {
   static void ReleaseStringCritical(JNIEnv* env, jstring java_string, const jchar* chars) {
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
     ScopedObjectAccess soa(env);
-    UnpinPrimitiveArray(soa, soa.Decode<mirror::String*>(java_string)->GetCharArray());
     gc::Heap* heap = Runtime::Current()->GetHeap();
     mirror::String* s = soa.Decode<mirror::String*>(java_string);
     mirror::CharArray* s_chars = s->GetCharArray();
@@ -2204,7 +2183,6 @@ class JNI {
       // Re-decode in case the object moved since IncrementDisableGC waits for GC to complete.
       array = soa.Decode<mirror::Array*>(java_array);
     }
-    PinPrimitiveArray(soa, array);
     if (is_copy != nullptr) {
       *is_copy = JNI_FALSE;
     }
@@ -2631,7 +2609,6 @@ class JNI {
     if (UNLIKELY(array == nullptr)) {
       return nullptr;
     }
-    PinPrimitiveArray(soa, array);
     // Only make a copy if necessary.
     if (Runtime::Current()->GetHeap()->IsMovableObject(array)) {
       if (is_copy != nullptr) {
@@ -2693,7 +2670,6 @@ class JNI {
         // Non copy to a movable object must means that we had disabled the moving GC.
         heap->DecrementDisableMovingGC(soa.Self());
       }
-      UnpinPrimitiveArray(soa, array);
     }
   }
 
@@ -3145,8 +3121,6 @@ JavaVMExt::JavaVMExt(Runtime* runtime, ParsedOptions* options)
       check_jni(false),
       force_copy(false),  // TODO: add a way to enable this
       trace(options->jni_trace_),
-      pins_lock("JNI pin table lock", kPinTableLock),
-      pin_table("pin table", kPinTableInitial, kPinTableMax),
       globals_lock("JNI global reference table lock"),
       globals(gGlobalsInitial, gGlobalsMax, kGlobal),
       libraries_lock("JNI shared libraries map lock", kLoadLibraryLock),
@@ -3197,10 +3171,6 @@ void JavaVMExt::DumpForSigQuit(std::ostream& os) {
   }
   Thread* self = Thread::Current();
   {
-    MutexLock mu(self, pins_lock);
-    os << "; pins=" << pin_table.Size();
-  }
-  {
     ReaderMutexLock mu(self, globals_lock);
     os << "; globals=" << globals.Capacity();
   }
@@ -3247,10 +3217,6 @@ void JavaVMExt::DumpReferenceTables(std::ostream& os) {
   {
     MutexLock mu(self, weak_globals_lock_);
     weak_globals_.Dump(os);
-  }
-  {
-    MutexLock mu(self, pins_lock);
-    pin_table.Dump(os);
   }
 }
 
@@ -3444,10 +3410,6 @@ void JavaVMExt::VisitRoots(RootCallback* callback, void* arg) {
   {
     ReaderMutexLock mu(self, globals_lock);
     globals.VisitRoots(callback, arg, 0, kRootJNIGlobal);
-  }
-  {
-    MutexLock mu(self, pins_lock);
-    pin_table.VisitRoots(callback, arg, 0, kRootVMInternal);
   }
   {
     MutexLock mu(self, libraries_lock);

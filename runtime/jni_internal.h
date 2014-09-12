@@ -112,10 +112,6 @@ class JavaVMExt : public JavaVM {
   // Extra diagnostics.
   std::string trace;
 
-  // Used to hold references to pinned primitive arrays.
-  Mutex pins_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
-  ReferenceTable pin_table GUARDED_BY(pins_lock);
-
   // JNI global references.
   ReaderWriterMutex globals_lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   // Not guarded by globals_lock since we sometimes use SynchronizedGet in Thread::DecodeJObject.
