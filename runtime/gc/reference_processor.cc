@@ -30,8 +30,13 @@ namespace gc {
 
 ReferenceProcessor::ReferenceProcessor()
     : process_references_args_(nullptr, nullptr, nullptr),
-      preserving_references_(false), lock_("reference processor lock", kReferenceProcessorLock),
-      condition_("reference processor condition", lock_) {
+      preserving_references_(false),
+      condition_("reference processor condition", *Locks::reference_processor_lock_) ,
+      soft_reference_queue_(Locks::reference_queue_soft_references_lock_),
+      weak_reference_queue_(Locks::reference_queue_weak_references_lock_),
+      finalizer_reference_queue_(Locks::reference_queue_finalizer_references_lock_),
+      phantom_reference_queue_(Locks::reference_queue_phantom_references_lock_),
+      cleared_references_(Locks::reference_queue_cleared_references_lock_) {
 }
 
 void ReferenceProcessor::EnableSlowPath() {
@@ -50,7 +55,7 @@ mirror::Object* ReferenceProcessor::GetReferent(Thread* self, mirror::Reference*
   if (UNLIKELY(!SlowPathEnabled()) || referent == nullptr) {
     return referent;
   }
-  MutexLock mu(self, lock_);
+  MutexLock mu(self, *Locks::reference_processor_lock_);
   while (SlowPathEnabled()) {
     mirror::HeapReference<mirror::Object>* const referent_addr =
         reference->GetReferentReferenceAddr();
@@ -93,12 +98,12 @@ bool ReferenceProcessor::PreserveSoftReferenceCallback(mirror::HeapReference<mir
 }
 
 void ReferenceProcessor::StartPreservingReferences(Thread* self) {
-  MutexLock mu(self, lock_);
+  MutexLock mu(self, *Locks::reference_processor_lock_);
   preserving_references_ = true;
 }
 
 void ReferenceProcessor::StopPreservingReferences(Thread* self) {
-  MutexLock mu(self, lock_);
+  MutexLock mu(self, *Locks::reference_processor_lock_);
   preserving_references_ = false;
   // We are done preserving references, some people who are blocked may see a marked referent.
   condition_.Broadcast(self);
@@ -114,7 +119,7 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
   TimingLogger::ScopedTiming t(concurrent ? __FUNCTION__ : "(Paused)ProcessReferences", timings);
   Thread* self = Thread::Current();
   {
-    MutexLock mu(self, lock_);
+    MutexLock mu(self, *Locks::reference_processor_lock_);
     process_references_args_.is_marked_callback_ = is_marked_callback;
     process_references_args_.mark_callback_ = mark_object_callback;
     process_references_args_.arg_ = arg;
@@ -163,7 +168,7 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
   DCHECK(finalizer_reference_queue_.IsEmpty());
   DCHECK(phantom_reference_queue_.IsEmpty());
   {
-    MutexLock mu(self, lock_);
+    MutexLock mu(self, *Locks::reference_processor_lock_);
     // Need to always do this since the next GC may be concurrent. Doing this for only concurrent
     // could result in a stale is_marked_callback_ being called before the reference processing
     // starts since there is a small window of time where slow_path_enabled_ is enabled but the
@@ -223,6 +228,32 @@ void ReferenceProcessor::EnqueueClearedReferences(Thread* self) {
     }
     cleared_references_.Clear();
   }
+}
+
+bool ReferenceProcessor::MakeCircularListIfUnenqueued(mirror::FinalizerReference* reference) {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, *Locks::reference_processor_lock_);
+  // Wait untul we are done processing reference.
+  while (SlowPathEnabled()) {
+    condition_.Wait(self);
+  }
+  // At this point, since the sentinel of the reference is live, it is guaranteed to not be
+  // enqueued if we just finished processing references. Otherwise, we may be doing the main GC
+  // phase. Since we are holding the reference processor lock, it guarantees that reference
+  // processing can't begin. The GC could have just enqueued the reference one one of the internal
+  // GC queues, but since we hold the lock finalizer_reference_queue_ lock it also prevents this
+  // race.
+  MutexLock mu2(self, *Locks::reference_queue_finalizer_references_lock_);
+  if (!reference->IsEnqueued()) {
+    CHECK(reference->IsFinalizerReferenceInstance());
+    if (Runtime::Current()->IsActiveTransaction()) {
+      reference->SetPendingNext<true>(reference);
+    } else {
+      reference->SetPendingNext<false>(reference);
+    }
+    return true;
+  }
+  return false;
 }
 
 }  // namespace gc
