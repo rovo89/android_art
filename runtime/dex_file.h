@@ -997,7 +997,6 @@ class DexFile {
   };
   typedef std::unordered_map<const char*, const ClassDef*, UTF16HashCmp, UTF16HashCmp> Index;
   mutable Atomic<Index*> class_def_index_;
-  mutable Mutex build_class_def_index_mutex_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 };
 std::ostream& operator<<(std::ostream& os, const DexFile& dex_file);
 
