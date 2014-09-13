@@ -80,34 +80,34 @@ class RegTypeCache {
   const BooleanType& Boolean() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *BooleanType::GetInstance();
   }
-  const RegType& Byte() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const ByteType& Byte() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *ByteType::GetInstance();
   }
-  const RegType& Char() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const CharType& Char() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *CharType::GetInstance();
   }
-  const RegType& Short() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const ShortType& Short() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *ShortType::GetInstance();
   }
-  const RegType& Integer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const IntegerType& Integer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *IntegerType::GetInstance();
   }
-  const RegType& Float() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const FloatType& Float() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *FloatType::GetInstance();
   }
-  const RegType& LongLo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const LongLoType& LongLo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *LongLoType::GetInstance();
   }
-  const RegType& LongHi() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const LongHiType& LongHi() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *LongHiType::GetInstance();
   }
-  const RegType& DoubleLo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const DoubleLoType& DoubleLo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *DoubleLoType::GetInstance();
   }
-  const RegType& DoubleHi() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const DoubleHiType& DoubleHi() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *DoubleHiType::GetInstance();
   }
-  const RegType& Undefined() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const UndefinedType& Undefined() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *UndefinedType::GetInstance();
   }
   const ConflictType& Conflict() {
