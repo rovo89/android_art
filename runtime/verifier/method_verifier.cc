@@ -297,20 +297,24 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self, uint32_t 
   return result;
 }
 
-void MethodVerifier::VerifyMethodAndDump(Thread* self, std::ostream& os, uint32_t dex_method_idx,
-                                         const DexFile* dex_file,
-                                         ConstHandle<mirror::DexCache> dex_cache,
-                                         ConstHandle<mirror::ClassLoader> class_loader,
-                                         const DexFile::ClassDef* class_def,
-                                         const DexFile::CodeItem* code_item,
-                                         ConstHandle<mirror::ArtMethod> method,
-                                         uint32_t method_access_flags) {
-  MethodVerifier verifier(self, dex_file, dex_cache, class_loader, class_def, code_item,
-                          dex_method_idx, method, method_access_flags, true, true, true);
-  verifier.Verify();
-  verifier.DumpFailures(os);
-  os << verifier.info_messages_.str();
-  verifier.Dump(os);
+MethodVerifier* MethodVerifier::VerifyMethodAndDump(Thread* self, std::ostream& os,
+                                                    uint32_t dex_method_idx,
+                                                    const DexFile* dex_file,
+                                                    ConstHandle<mirror::DexCache> dex_cache,
+                                                    ConstHandle<mirror::ClassLoader> class_loader,
+                                                    const DexFile::ClassDef* class_def,
+                                                    const DexFile::CodeItem* code_item,
+                                                    ConstHandle<mirror::ArtMethod> method,
+                                                    uint32_t method_access_flags) {
+  MethodVerifier* verifier = new MethodVerifier(self, dex_file, dex_cache, class_loader,
+                                                class_def, code_item, dex_method_idx, method,
+                                                method_access_flags, true, true, true, true);
+  verifier->Verify();
+  verifier->DumpFailures(os);
+  os << verifier->info_messages_.str();
+  verifier->Dump(os);
+
+  return verifier;
 }
 
 MethodVerifier::MethodVerifier(Thread* self,
@@ -320,7 +324,7 @@ MethodVerifier::MethodVerifier(Thread* self,
                                const DexFile::CodeItem* code_item, uint32_t dex_method_idx,
                                ConstHandle<mirror::ArtMethod> method, uint32_t method_access_flags,
                                bool can_load_classes, bool allow_soft_failures,
-                               bool need_precise_constants)
+                               bool need_precise_constants, bool verify_to_dump)
     : self_(self),
       reg_types_(can_load_classes),
       work_insn_idx_(-1),
@@ -344,7 +348,8 @@ MethodVerifier::MethodVerifier(Thread* self,
       allow_soft_failures_(allow_soft_failures),
       need_precise_constants_(need_precise_constants),
       has_check_casts_(false),
-      has_virtual_or_interface_invokes_(false) {
+      has_virtual_or_interface_invokes_(false),
+      verify_to_dump_(verify_to_dump) {
   Runtime::Current()->AddMethodVerifier(this);
   DCHECK(class_def != nullptr);
 }
@@ -774,7 +779,7 @@ bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_of
       result = false;
       break;
   }
-  if (inst->GetVerifyIsRuntimeOnly() && Runtime::Current()->IsCompiler()) {
+  if (inst->GetVerifyIsRuntimeOnly() && Runtime::Current()->IsCompiler() && !verify_to_dump_) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "opcode only expected at runtime " << inst->Name();
     result = false;
   }
