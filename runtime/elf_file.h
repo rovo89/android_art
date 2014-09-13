@@ -67,35 +67,20 @@ class ElfFile {
   Elf32_Ehdr& GetHeader() const;
 
   Elf32_Word GetProgramHeaderNum() const;
-  Elf32_Phdr& GetProgramHeader(Elf32_Word) const;
-  Elf32_Phdr* FindProgamHeaderByType(Elf32_Word type) const;
+  Elf32_Phdr* GetProgramHeader(Elf32_Word) const;
 
   Elf32_Word GetSectionHeaderNum() const;
-  Elf32_Shdr& GetSectionHeader(Elf32_Word) const;
+  Elf32_Shdr* GetSectionHeader(Elf32_Word) const;
   Elf32_Shdr* FindSectionByType(Elf32_Word type) const;
   Elf32_Shdr* FindSectionByName(const std::string& name) const;
 
-  Elf32_Shdr& GetSectionNameStringSection() const;
+  Elf32_Shdr* GetSectionNameStringSection() const;
 
   // Find .dynsym using .hash for more efficient lookup than FindSymbolAddress.
   const byte* FindDynamicSymbolAddress(const std::string& symbol_name) const;
-  const Elf32_Sym* FindDynamicSymbol(const std::string& symbol_name) const;
 
-  static bool IsSymbolSectionType(Elf32_Word section_type);
   Elf32_Word GetSymbolNum(Elf32_Shdr&) const;
-  Elf32_Sym& GetSymbol(Elf32_Word section_type, Elf32_Word i) const;
-
-  // Find symbol in specified table, returning nullptr if it is not found.
-  //
-  // If build_map is true, builds a map to speed repeated access. The
-  // map does not included untyped symbol values (aka STT_NOTYPE)
-  // since they can contain duplicates. If build_map is false, the map
-  // will be used if it was already created. Typically build_map
-  // should be set unless only a small number of symbols will be
-  // looked up.
-  Elf32_Sym* FindSymbolByName(Elf32_Word section_type,
-                              const std::string& symbol_name,
-                              bool build_map);
+  Elf32_Sym* GetSymbol(Elf32_Word section_type, Elf32_Word i) const;
 
   // Find address of symbol in specified table, returning 0 if it is
   // not found. See FindSymbolByName for an explanation of build_map.
@@ -107,13 +92,8 @@ class ElfFile {
   // special 0 offset.
   const char* GetString(Elf32_Shdr&, Elf32_Word) const;
 
-  // Lookup a string by section type. Returns nullptr for special 0 offset.
-  const char* GetString(Elf32_Word section_type, Elf32_Word) const;
-
   Elf32_Word GetDynamicNum() const;
   Elf32_Dyn& GetDynamic(Elf32_Word) const;
-  Elf32_Dyn* FindDynamicByType(Elf32_Sword type) const;
-  Elf32_Word FindDynamicValueByType(Elf32_Sword type) const;
 
   Elf32_Word GetRelNum(Elf32_Shdr&) const;
   Elf32_Rel& GetRel(Elf32_Shdr&, Elf32_Word) const;
@@ -148,13 +128,44 @@ class ElfFile {
   Elf32_Word* GetHashSectionStart() const;
   Elf32_Word GetHashBucketNum() const;
   Elf32_Word GetHashChainNum() const;
-  Elf32_Word GetHashBucket(size_t i) const;
-  Elf32_Word GetHashChain(size_t i) const;
+  Elf32_Word GetHashBucket(size_t i, bool* ok) const;
+  Elf32_Word GetHashChain(size_t i, bool* ok) const;
 
   typedef std::map<std::string, Elf32_Sym*> SymbolTable;
   SymbolTable** GetSymbolTable(Elf32_Word section_type);
 
   bool ValidPointer(const byte* start) const;
+
+  const Elf32_Sym* FindDynamicSymbol(const std::string& symbol_name) const;
+
+  // Check that certain sections and their dependencies exist.
+  bool CheckSectionsExist(std::string* error_msg) const;
+
+  // Check that the link of the first section links to the second section.
+  bool CheckSectionsLinked(const byte* source, const byte* target) const;
+
+  // Check whether the offset is in range, and set to target to Begin() + offset if OK.
+  bool CheckAndSet(Elf32_Off offset, const char* label, byte** target, std::string* error_msg);
+
+  // Find symbol in specified table, returning nullptr if it is not found.
+  //
+  // If build_map is true, builds a map to speed repeated access. The
+  // map does not included untyped symbol values (aka STT_NOTYPE)
+  // since they can contain duplicates. If build_map is false, the map
+  // will be used if it was already created. Typically build_map
+  // should be set unless only a small number of symbols will be
+  // looked up.
+  Elf32_Sym* FindSymbolByName(Elf32_Word section_type,
+                              const std::string& symbol_name,
+                              bool build_map);
+
+  Elf32_Phdr* FindProgamHeaderByType(Elf32_Word type) const;
+
+  Elf32_Dyn* FindDynamicByType(Elf32_Sword type) const;
+  Elf32_Word FindDynamicValueByType(Elf32_Sword type) const;
+
+  // Lookup a string by section type. Returns nullptr for special 0 offset.
+  const char* GetString(Elf32_Word section_type, Elf32_Word) const;
 
   const File* const file_;
   const bool writable_;
