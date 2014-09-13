@@ -19,6 +19,7 @@
 #include <dlfcn.h>
 #include <sstream>
 #include <string.h>
+#include <unistd.h>
 
 #include "base/bit_vector.h"
 #include "base/stl_util.h"
@@ -91,6 +92,14 @@ OatFile* OatFile::Open(const std::string& filename,
       return nullptr;
     }
     ret.reset(OpenElfFile(file.get(), location, requested_base, false, executable, error_msg));
+
+    // Opening the file failed. Try to delete it and maybe we have more luck after it gets
+    // regenerated.
+    if (ret.get() == nullptr) {
+      LOG(WARNING) << "Attempting to unlink oat file " << filename << " that could not be opened. "
+                   << "Error was: " << error_msg;
+      unlink(file->GetPath().c_str());  // Try to remove the file.
+    }
   }
   return ret.release();
 }

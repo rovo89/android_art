@@ -276,7 +276,7 @@ bool ElfPatcher::WriteOutPatchData() {
         << "We got more patches than anticipated";
     CHECK_LE(reinterpret_cast<uintptr_t>(elf_file_->Begin()) + shdr->sh_offset + shdr->sh_size,
               reinterpret_cast<uintptr_t>(elf_file_->End())) << "section is too large";
-    CHECK(shdr == &elf_file_->GetSectionHeader(elf_file_->GetSectionHeaderNum() - 1) ||
+    CHECK(shdr == elf_file_->GetSectionHeader(elf_file_->GetSectionHeaderNum() - 1) ||
           shdr->sh_offset + shdr->sh_size <= (shdr + 1)->sh_offset)
         << "Section overlaps onto next section";
     // It's mmap'd so we can just memcpy.
