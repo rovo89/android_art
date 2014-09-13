@@ -127,7 +127,6 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
     if (concurrent) {
       StartPreservingReferences(self);
     }
-
     soft_reference_queue_.ForwardSoftReferences(&PreserveSoftReferenceCallback,
                                                 &process_references_args_);
     process_mark_stack_callback(arg);
