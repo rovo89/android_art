@@ -80,34 +80,34 @@ class RegTypeCache {
   const BooleanType& Boolean() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *BooleanType::GetInstance();
   }
-  const ByteType& Byte() {
+  const RegType& Byte() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *ByteType::GetInstance();
   }
-  const CharType& Char()  {
+  const RegType& Char() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *CharType::GetInstance();
   }
-  const ShortType& Short()  {
+  const RegType& Short() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *ShortType::GetInstance();
   }
-  const IntegerType& Integer() {
+  const RegType& Integer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *IntegerType::GetInstance();
   }
-  const FloatType& Float() {
+  const RegType& Float() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *FloatType::GetInstance();
   }
-  const LongLoType& LongLo() {
+  const RegType& LongLo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *LongLoType::GetInstance();
   }
-  const LongHiType& LongHi() {
+  const RegType& LongHi() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *LongHiType::GetInstance();
   }
-  const DoubleLoType& DoubleLo() {
+  const RegType& DoubleLo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *DoubleLoType::GetInstance();
   }
-  const DoubleHiType& DoubleHi() {
+  const RegType& DoubleHi() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *DoubleHiType::GetInstance();
   }
-  const UndefinedType& Undefined() {
+  const RegType& Undefined() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *UndefinedType::GetInstance();
   }
   const ConflictType& Conflict() {
@@ -138,6 +138,8 @@ class RegTypeCache {
   const RegType& RegTypeFromPrimitiveType(Primitive::Type) const;
 
   void VisitRoots(RootCallback* callback, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void VisitStaticRoots(RootCallback* callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   void FillPrimitiveAndSmallConstantTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
