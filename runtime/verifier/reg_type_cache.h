@@ -85,40 +85,40 @@ class RegTypeCache {
   size_t GetCacheSize() {
     return entries_.size();
   }
-  RegType& Boolean() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  static RegType& Boolean() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *BooleanType::GetInstance();
   }
-  RegType& Byte() {
+  static RegType& Byte() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *ByteType::GetInstance();
   }
-  RegType& Char()  {
+  static RegType& Char() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *CharType::GetInstance();
   }
-  RegType& Short()  {
+  static RegType& Short() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *ShortType::GetInstance();
   }
-  RegType& Integer() {
+  static RegType& Integer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *IntegerType::GetInstance();
   }
-  RegType& Float() {
+  static RegType& Float() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *FloatType::GetInstance();
   }
-  RegType& LongLo() {
+  static RegType& LongLo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *LongLoType::GetInstance();
   }
-  RegType& LongHi() {
+  static RegType& LongHi() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *LongHiType::GetInstance();
   }
-  RegType& DoubleLo() {
+  static RegType& DoubleLo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *DoubleLoType::GetInstance();
   }
-  RegType& DoubleHi() {
+  static RegType& DoubleHi() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *DoubleHiType::GetInstance();
   }
-  RegType& Undefined() {
+  static RegType& Undefined() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *UndefinedType::GetInstance();
   }
-  RegType& Conflict() {
+  static RegType& Conflict() {
     return *ConflictType::GetInstance();
   }
   RegType& JavaLangClass(bool precise) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -146,6 +146,8 @@ class RegTypeCache {
   RegType& RegTypeFromPrimitiveType(Primitive::Type) const;
 
   void VisitRoots(RootCallback* callback, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void VisitStaticRoots(RootCallback* callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   void FillPrimitiveAndSmallConstantTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
