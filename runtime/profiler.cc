@@ -119,12 +119,12 @@ static void GetSample(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(Locks::mu
 }
 
 // A closure that is called by the thread checkpoint code.
-class SampleCheckpoint : public Closure {
+class SampleCheckpoint FINAL : public Closure {
  public:
   explicit SampleCheckpoint(BackgroundMethodSamplingProfiler* const profiler) :
     profiler_(profiler) {}
 
-  virtual void Run(Thread* thread) NO_THREAD_SAFETY_ANALYSIS {
+  void Run(Thread* thread) OVERRIDE {
     Thread* self = Thread::Current();
     if (thread == nullptr) {
       LOG(ERROR) << "Checkpoint with nullptr thread";
@@ -192,6 +192,7 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
       VLOG(profiler) << "Delaying profile start for " << delay_secs << " secs";
       MutexLock mu(self, profiler->wait_lock_);
       profiler->period_condition_.TimedWait(self, delay_secs * 1000, 0);
+      // We were either signaled by Stop or timedout, in either case ignore the timed out result.
 
       // Expand the backoff by its coefficient, but don't go beyond the max.
       backoff = std::min(backoff * profiler->options_.GetBackoffCoefficient(), kMaxBackoffSecs);
@@ -238,17 +239,13 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
       // is done with a timeout so that we can detect problems with the checkpoint
       // running code.  We should never see this.
       const uint32_t kWaitTimeoutMs = 10000;
-      const uint32_t kWaitTimeoutUs = kWaitTimeoutMs * 1000;
 
-      uint64_t waitstart_us = MicroTime();
       // Wait for all threads to pass the barrier.
-      profiler->profiler_barrier_->Increment(self, barrier_count, kWaitTimeoutMs);
-      uint64_t waitend_us = MicroTime();
-      uint64_t waitdiff_us = waitend_us - waitstart_us;
+      bool timed_out =  profiler->profiler_barrier_->Increment(self, barrier_count, kWaitTimeoutMs);
 
       // We should never get a timeout.  If we do, it suggests a problem with the checkpoint
       // code.  Crash the process in this case.
-      CHECK_LT(waitdiff_us, kWaitTimeoutUs);
+      CHECK(!timed_out);
 
       // Update the current time.
       now_us = MicroTime();

@@ -190,7 +190,7 @@ class Instruction {
   }
 
   // Reads an instruction out of the stream from the current address plus an offset.
-  const Instruction* RelativeAt(int32_t offset) const {
+  const Instruction* RelativeAt(int32_t offset) const WARN_UNUSED {
     return At(reinterpret_cast<const uint16_t*>(this) + offset);
   }
 

@@ -496,7 +496,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
       // Ensure static method's class is initialized.
       StackHandleScope<1> hs(self);
       Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
-      if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_class, true, true)) {
+      if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
         DCHECK(Thread::Current()->IsExceptionPending()) << PrettyMethod(method);
         self->PopManagedStackFragment(fragment);
         return 0;
@@ -808,7 +808,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
     // Ensure that the called method's class is initialized.
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::Class> called_class(hs.NewHandle(called->GetDeclaringClass()));
-    linker->EnsureInitialized(called_class, true, true);
+    linker->EnsureInitialized(soa.Self(), called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {
       code = called->GetEntryPointFromQuickCompiledCode();
     } else if (called_class->IsInitializing()) {

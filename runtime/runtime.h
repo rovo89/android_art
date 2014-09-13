@@ -197,8 +197,7 @@ class Runtime {
   // Detaches the current native thread from the runtime.
   void DetachCurrentThread() LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  void DumpForSigQuit(std::ostream& os)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DumpForSigQuit(std::ostream& os);
   void DumpLockHolders(std::ostream& os);
 
   ~Runtime();

@@ -92,17 +92,20 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if the class linker is initialized.
-  bool IsInitialized() const;
+  bool IsInitialized() const {
+    return init_done_;
+  }
 
   // Define a new a class based on a ClassDef from a DexFile
-  mirror::Class* DefineClass(const char* descriptor,
+  mirror::Class* DefineClass(Thread* self, const char* descriptor,
                              ConstHandle<mirror::ClassLoader> class_loader,
                              const DexFile& dex_file, const DexFile::ClassDef& dex_class_def)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds a class by its descriptor, returning NULL if it isn't wasn't loaded
   // by the given 'class_loader'.
-  mirror::Class* LookupClass(const char* descriptor, const mirror::ClassLoader* class_loader)
+  mirror::Class* LookupClass(Thread* self, const char* descriptor,
+                             const mirror::ClassLoader* class_loader)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -124,8 +127,7 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DumpForSigQuit(std::ostream& os)
-      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_);
 
   size_t NumLoadedClasses()
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
@@ -221,7 +223,8 @@ class ClassLinker {
   // Returns true on success, false if there's an exception pending.
   // can_run_clinit=false allows the compiler to attempt to init a class,
   // given the restriction that no <clinit> execution is possible.
-  bool EnsureInitialized(ConstHandle<mirror::Class> c, bool can_init_fields, bool can_init_parents)
+  bool EnsureInitialized(Thread* self, ConstHandle<mirror::Class> c, bool can_init_fields,
+                         bool can_init_parents)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Initializes classes that have instances in the image but that have
@@ -323,7 +326,8 @@ class ClassLinker {
                                                                               size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VerifyClass(ConstHandle<mirror::Class> klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VerifyClass(Thread* self, ConstHandle<mirror::Class> klass)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class* klass,
                                mirror::Class::Status& oat_file_class_status)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -444,7 +448,7 @@ class ClassLinker {
                                   ConstHandle<mirror::ClassLoader> class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void AppendToBootClassPath(const DexFile& dex_file)
+  void AppendToBootClassPath(Thread* self, const DexFile& dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AppendToBootClassPath(const DexFile& dex_file, ConstHandle<mirror::DexCache> dex_cache)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -454,15 +458,11 @@ class ClassLinker {
   uint32_t SizeOfClassWithoutEmbeddedTables(const DexFile& dex_file,
                                             const DexFile::ClassDef& dex_class_def);
 
-  void LoadClass(const DexFile& dex_file,
-                 const DexFile::ClassDef& dex_class_def,
-                 ConstHandle<mirror::Class> klass,
-                 mirror::ClassLoader* class_loader)
+  void LoadClass(Thread* self, const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
+                 ConstHandle<mirror::Class> klass, mirror::ClassLoader* class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void LoadClassMembers(const DexFile& dex_file,
-                        const byte* class_data,
-                        ConstHandle<mirror::Class> klass,
-                        mirror::ClassLoader* class_loader,
+  void LoadClassMembers(Thread* self, const DexFile& dex_file, const byte* class_data,
+                        ConstHandle<mirror::Class> klass, mirror::ClassLoader* class_loader,
                         const OatFile::OatClass* oat_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -488,7 +488,7 @@ class ClassLinker {
   bool IsDexFileRegisteredLocked(const DexFile& dex_file)
       SHARED_LOCKS_REQUIRED(dex_lock_, Locks::mutator_lock_);
 
-  bool InitializeClass(ConstHandle<mirror::Class> klass, bool can_run_clinit,
+  bool InitializeClass(Thread* self, ConstHandle<mirror::Class> klass, bool can_run_clinit,
                        bool can_init_parents)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool WaitForInitializeClass(ConstHandle<mirror::Class> klass, Thread* self,
@@ -528,11 +528,12 @@ class ClassLinker {
                             ConstHandle<mirror::ObjectArray<mirror::Class>> interfaces)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool LinkStaticFields(ConstHandle<mirror::Class> klass, size_t* class_size)
+  bool LinkStaticFields(Thread* self, ConstHandle<mirror::Class> klass, size_t* class_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool LinkInstanceFields(ConstHandle<mirror::Class> klass)
+  bool LinkInstanceFields(Thread* self, ConstHandle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  bool LinkFields(ConstHandle<mirror::Class> klass, bool is_static, size_t* class_size)
+  bool LinkFields(Thread* self, ConstHandle<mirror::Class> klass, bool is_static,
+                  size_t* class_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void LinkCode(ConstHandle<mirror::ArtMethod> method, const OatFile::OatClass* oat_class,
                 const DexFile& dex_file, uint32_t dex_method_index, uint32_t method_index)

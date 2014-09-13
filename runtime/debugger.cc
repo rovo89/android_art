@@ -3051,7 +3051,7 @@ static bool IsMethodPossiblyInlined(Thread* self, mirror::ArtMethod* m)
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
   Handle<mirror::ArtMethod> method(hs.NewHandle(m));
-  verifier::MethodVerifier verifier(dex_cache->GetDexFile(), dex_cache, class_loader,
+  verifier::MethodVerifier verifier(self, dex_cache->GetDexFile(), dex_cache, class_loader,
                                     &m->GetClassDef(), code_item, m->GetDexMethodIndex(), method,
                                     m->GetAccessFlags(), false, true, false);
   // Note: we don't need to verify the method.

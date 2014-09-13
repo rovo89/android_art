@@ -23,6 +23,7 @@
 
 #include "base/casts.h"
 #include "base/mutex-inl.h"
+#include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/heap.h"
 #include "jni_env_ext.h"
 
@@ -42,6 +43,26 @@ inline Thread* Thread::Current() {
   } else {
     void* thread = pthread_getspecific(Thread::pthread_key_self_);
     return reinterpret_cast<Thread*>(thread);
+  }
+}
+
+inline void Thread::AllowThreadSuspension() {
+  DCHECK_EQ(Thread::Current(), this);
+  if (UNLIKELY(TestAllFlags())) {
+    CheckSuspend();
+  }
+}
+
+inline void Thread::CheckSuspend() {
+  DCHECK_EQ(Thread::Current(), this);
+  for (;;) {
+    if (ReadFlag(kCheckpointRequest)) {
+      RunCheckpointFunction();
+    } else if (ReadFlag(kSuspendRequest)) {
+      FullSuspendCheck();
+    } else {
+      break;
+    }
   }
 }
 

@@ -189,8 +189,8 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
       StackHandleScope<1> hs(soa.Self());
       Handle<mirror::ClassLoader> class_loader(
           hs.NewHandle(soa.Decode<mirror::ClassLoader*>(javaLoader)));
-      mirror::Class* result = class_linker->DefineClass(descriptor.c_str(), class_loader, *dex_file,
-                                                        *dex_class_def);
+      mirror::Class* result = class_linker->DefineClass(soa.Self(), descriptor.c_str(),
+                                                        class_loader, *dex_file, *dex_class_def);
       if (result != nullptr) {
         VLOG(class_linker) << "DexFile_defineClassNative returning " << result;
         return soa.AddLocalReference<jclass>(result);

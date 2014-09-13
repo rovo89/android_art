@@ -48,7 +48,7 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
     return nullptr;
   }
 
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(c, true, true)) {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(soa.Self(), c, true, true)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return nullptr;
   }

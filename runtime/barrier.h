@@ -38,10 +38,11 @@ class Barrier {
   void Init(Thread* self, int count);
 
   // Increment the count by delta, wait on condition if count is non zero.
-  void Increment(Thread* self, int delta);
+  void Increment(Thread* self, int delta) LOCKS_EXCLUDED(lock_);
 
-  // Increment the count by delta, wait on condition if count is non zero, with a timeout
-  void Increment(Thread* self, int delta, uint32_t timeout_ms) LOCKS_EXCLUDED(lock_);
+  // Increment the count by delta, wait on condition if count is non zero, with a timeout. Returns
+  // true if time out occurred.
+  bool Increment(Thread* self, int delta, uint32_t timeout_ms) LOCKS_EXCLUDED(lock_);
 
  private:
   void SetCountLocked(Thread* self, int count) EXCLUSIVE_LOCKS_REQUIRED(lock_);

@@ -38,7 +38,7 @@
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
-#include "verifier/register_line.h"
+#include "verifier/reg_type-inl.h"
 #include "verifier/register_line-inl.h"
 
 namespace art {
@@ -127,7 +127,7 @@ bool VerifiedMethod::GenerateGcMap(verifier::MethodVerifier* method_verifier) {
         dex_gc_map_.push_back((i >> 8) & 0xFF);
       }
       verifier::RegisterLine* line = method_verifier->GetRegLine(i);
-      line->WriteReferenceBitMap(dex_gc_map_, ref_bitmap_bytes);
+      line->WriteReferenceBitMap(method_verifier, &dex_gc_map_, ref_bitmap_bytes);
     }
   }
   DCHECK_EQ(dex_gc_map_.size(), table_size);
@@ -151,7 +151,7 @@ void VerifiedMethod::VerifyGcMap(verifier::MethodVerifier* method_verifier,
       map_index++;
       verifier::RegisterLine* line = method_verifier->GetRegLine(i);
       for (size_t j = 0; j < code_item->registers_size_; j++) {
-        if (line->GetRegisterType(j).IsNonZeroReferenceTypes()) {
+        if (line->GetRegisterType(method_verifier, j).IsNonZeroReferenceTypes()) {
           DCHECK_LT(j / 8, map.RegWidth());
           DCHECK_EQ((reg_bitmap[j / 8] >> (j % 8)) & 1, 1);
         } else if ((j / 8) < map.RegWidth()) {
@@ -178,7 +178,7 @@ void VerifiedMethod::ComputeGcMapSizes(verifier::MethodVerifier* method_verifier
       local_gc_points++;
       max_insn = i;
       verifier::RegisterLine* line = method_verifier->GetRegLine(i);
-      max_ref_reg = line->GetMaxNonZeroReferenceReg(max_ref_reg);
+      max_ref_reg = line->GetMaxNonZeroReferenceReg(method_verifier, max_ref_reg);
     }
   }
   *gc_points = local_gc_points;
@@ -217,7 +217,8 @@ void VerifiedMethod::GenerateDevirtMap(verifier::MethodVerifier* method_verifier
     bool is_range = (inst->Opcode() ==  Instruction::INVOKE_VIRTUAL_RANGE) ||
         (inst->Opcode() ==  Instruction::INVOKE_INTERFACE_RANGE);
     const verifier::RegType&
-        reg_type(line->GetRegisterType(is_range ? inst->VRegC_3rc() : inst->VRegC_35c()));
+        reg_type(line->GetRegisterType(method_verifier,
+                                       is_range ? inst->VRegC_3rc() : inst->VRegC_35c()));
 
     if (!reg_type.HasClass()) {
       // We will compute devirtualization information only when we know the Class of the reg type.
@@ -284,17 +285,20 @@ void VerifiedMethod::GenerateSafeCastSet(verifier::MethodVerifier* method_verifi
       const verifier::RegisterLine* line = method_verifier->GetRegLine(dex_pc);
       bool is_safe_cast = false;
       if (code == Instruction::CHECK_CAST) {
-        const verifier::RegType& reg_type(line->GetRegisterType(inst->VRegA_21c()));
+        const verifier::RegType& reg_type(line->GetRegisterType(method_verifier,
+                                                                inst->VRegA_21c()));
         const verifier::RegType& cast_type =
             method_verifier->ResolveCheckedClass(inst->VRegB_21c());
         is_safe_cast = cast_type.IsStrictlyAssignableFrom(reg_type);
       } else {
-        const verifier::RegType& array_type(line->GetRegisterType(inst->VRegB_23x()));
+        const verifier::RegType& array_type(line->GetRegisterType(method_verifier,
+                                                                  inst->VRegB_23x()));
         // We only know its safe to assign to an array if the array type is precise. For example,
         // an Object[] can have any type of object stored in it, but it may also be assigned a
         // String[] in which case the stores need to be of Strings.
         if (array_type.IsPreciseReference()) {
-          const verifier::RegType& value_type(line->GetRegisterType(inst->VRegA_23x()));
+          const verifier::RegType& value_type(line->GetRegisterType(method_verifier,
+                                                                    inst->VRegA_23x()));
           const verifier::RegType& component_type = method_verifier->GetRegTypeCache()
               ->GetComponentType(array_type, method_verifier->GetClassLoader());
           is_safe_cast = component_type.IsStrictlyAssignableFrom(value_type);

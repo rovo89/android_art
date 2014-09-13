@@ -24,17 +24,18 @@
 
 namespace art {
 
-static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoader, jstring javaName) {
+static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoader,
+                                            jstring javaName) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::ClassLoader* loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
   ScopedUtfChars name(env, javaName);
-  if (name.c_str() == NULL) {
-    return NULL;
+  if (name.c_str() == nullptr) {
+    return nullptr;
   }
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
   std::string descriptor(DotToDescriptor(name.c_str()));
-  mirror::Class* c = cl->LookupClass(descriptor.c_str(), loader);
-  if (c != NULL && c->IsResolved()) {
+  mirror::Class* c = cl->LookupClass(soa.Self(), descriptor.c_str(), loader);
+  if (c != nullptr && c->IsResolved()) {
     return soa.AddLocalReference<jclass>(c);
   }
   if (loader != nullptr) {
@@ -47,7 +48,7 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
   }
   // Class wasn't resolved so it may be erroneous or not yet ready, force the caller to go into
   // the regular loadClass code.
-  return NULL;
+  return nullptr;
 }
 
 static jint VMClassLoader_getBootClassPathSize(JNIEnv*, jclass) {
@@ -67,13 +68,15 @@ static jint VMClassLoader_getBootClassPathSize(JNIEnv*, jclass) {
  * with '/'); if it's not we'd need to make it absolute as part of forming
  * the URL string.
  */
-static jstring VMClassLoader_getBootClassPathResource(JNIEnv* env, jclass, jstring javaName, jint index) {
+static jstring VMClassLoader_getBootClassPathResource(JNIEnv* env, jclass, jstring javaName,
+                                                      jint index) {
   ScopedUtfChars name(env, javaName);
   if (name.c_str() == nullptr) {
     return nullptr;
   }
 
-  const std::vector<const DexFile*>& path = Runtime::Current()->GetClassLinker()->GetBootClassPath();
+  const std::vector<const DexFile*>& path =
+      Runtime::Current()->GetClassLinker()->GetBootClassPath();
   if (index < 0 || size_t(index) >= path.size()) {
     return nullptr;
   }

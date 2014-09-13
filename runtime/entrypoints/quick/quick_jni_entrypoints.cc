@@ -14,15 +14,8 @@
  * limitations under the License.
  */
 
-#include "dex_file-inl.h"
-#include "entrypoints/entrypoint_utils-inl.h"
-#include "mirror/art_method-inl.h"
-#include "mirror/class-inl.h"
-#include "mirror/object.h"
 #include "mirror/object-inl.h"
-#include "mirror/object_array-inl.h"
-#include "scoped_thread_state_change.h"
-#include "thread.h"
+#include "thread-inl.h"
 #include "verify_object-inl.h"
 
 namespace art {
@@ -56,7 +49,7 @@ static void GoToRunnable(Thread* self) NO_THREAD_SAFETY_ANALYSIS {
     // In fast JNI mode we never transitioned out of runnable. Perform a suspend check if there
     // is a flag raised.
     DCHECK(Locks::mutator_lock_->IsSharedHeld(self));
-    CheckSuspend(self);
+    self->CheckSuspend();
   }
 }
 

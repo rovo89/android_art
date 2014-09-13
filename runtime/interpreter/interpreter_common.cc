@@ -800,7 +800,7 @@ static void UnstartedRuntimeFindClass(Thread* self, ConstHandle<mirror::String> 
   if (found != nullptr && initialize_class) {
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> h_class(hs.NewHandle(found));
-    if (!class_linker->EnsureInitialized(h_class, true, true)) {
+    if (!class_linker->EnsureInitialized(self, h_class, true, true)) {
       CHECK(self->IsExceptionPending());
       return;
     }
