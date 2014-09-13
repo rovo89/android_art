@@ -150,12 +150,14 @@ class MethodVerifier {
                                  bool allow_soft_failures, std::string* error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void VerifyMethodAndDump(Thread* self, std::ostream& os, uint32_t method_idx,
-                                  const DexFile* dex_file, ConstHandle<mirror::DexCache> dex_cache,
-                                  ConstHandle<mirror::ClassLoader> class_loader,
-                                  const DexFile::ClassDef* class_def,
-                                  const DexFile::CodeItem* code_item,
-                                  ConstHandle<mirror::ArtMethod> method, uint32_t method_access_flags)
+  static MethodVerifier* VerifyMethodAndDump(Thread* self, std::ostream& os, uint32_t method_idx,
+                                             const DexFile* dex_file,
+                                             ConstHandle<mirror::DexCache> dex_cache,
+                                             ConstHandle<mirror::ClassLoader> class_loader,
+                                             const DexFile::ClassDef* class_def,
+                                             const DexFile::CodeItem* code_item,
+                                             ConstHandle<mirror::ArtMethod> method,
+                                             uint32_t method_access_flags)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint8_t EncodePcToReferenceMapData() const;
@@ -209,8 +211,10 @@ class MethodVerifier {
                  const DexFile::CodeItem* code_item, uint32_t method_idx,
                  ConstHandle<mirror::ArtMethod> method,
                  uint32_t access_flags, bool can_load_classes, bool allow_soft_failures,
-                 bool need_precise_constants)
-          SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+                 bool need_precise_constants) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : MethodVerifier(self, dex_file, dex_cache, class_loader, class_def, code_item, method_idx,
+                       method, access_flags, can_load_classes, allow_soft_failures,
+                       need_precise_constants, false) {}
 
   ~MethodVerifier();
 
@@ -238,6 +242,15 @@ class MethodVerifier {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
+  // Private constructor for dumping.
+  MethodVerifier(Thread* self, const DexFile* dex_file, ConstHandle<mirror::DexCache> dex_cache,
+                 ConstHandle<mirror::ClassLoader> class_loader, const DexFile::ClassDef* class_def,
+                 const DexFile::CodeItem* code_item, uint32_t method_idx,
+                 ConstHandle<mirror::ArtMethod> method,
+                 uint32_t access_flags, bool can_load_classes, bool allow_soft_failures,
+                 bool need_precise_constants, bool verify_to_dump)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Adds the given string to the beginning of the last failure message.
   void PrependToLastFailMessage(std::string);
 
@@ -262,7 +275,7 @@ class MethodVerifier {
                                   const DexFile::CodeItem* code_item,
                                   ConstHandle<mirror::ArtMethod> method, uint32_t method_access_flags,
                                   bool allow_soft_failures, bool need_precise_constants)
-          SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void FindLocksAtDexPc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -506,7 +519,7 @@ class MethodVerifier {
                    bool is_primitive, bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Returns the access field of a quick field access (iget/iput-quick) or NULL
+  // Returns the access field of a quick field access (iget/iput-quick) or nullptr
   // if it cannot be found.
   mirror::ArtField* GetQuickFieldAccess(const Instruction* inst, RegisterLine* reg_line)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -561,7 +574,7 @@ class MethodVerifier {
    * Widening conversions on integers and references are allowed, but
    * narrowing conversions are not.
    *
-   * Returns the resolved method on success, NULL on failure (with *failure
+   * Returns the resolved method on success, nullptr on failure (with *failure
    * set appropriately).
    */
   mirror::ArtMethod* VerifyInvocationArgs(const Instruction* inst,
@@ -662,7 +675,7 @@ class MethodVerifier {
   // The dex PC of a FindLocksAtDexPc request, -1 otherwise.
   uint32_t interesting_dex_pc_;
   // The container into which FindLocksAtDexPc should write the registers containing held locks,
-  // NULL if we're not doing FindLocksAtDexPc.
+  // nullptr if we're not doing FindLocksAtDexPc.
   std::vector<uint32_t>* monitor_enter_dex_pcs_;
 
   // The types of any error that occurs.
@@ -704,6 +717,11 @@ class MethodVerifier {
   // Indicates the method being verified contains at least one invoke-virtual/range
   // or invoke-interface/range.
   bool has_virtual_or_interface_invokes_;
+
+  // Indicates whether we verify to dump the info. In that case we accept quickened instructions
+  // even though we might detect to be a compiler. Should only be set when running
+  // VerifyMethodAndDump.
+  const bool verify_to_dump_;
 };
 std::ostream& operator<<(std::ostream& os, const MethodVerifier::FailureKind& rhs);
 
