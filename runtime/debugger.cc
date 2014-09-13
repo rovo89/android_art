@@ -4375,10 +4375,7 @@ struct AllocRecordStackVisitor : public StackVisitor {
   size_t depth;
 };
 
-void Dbg::RecordAllocation(mirror::Class* type, size_t byte_count) {
-  Thread* self = Thread::Current();
-  CHECK(self != nullptr);
-
+void Dbg::RecordAllocation(Thread* self, mirror::Class* type, size_t byte_count) {
   MutexLock mu(self, *Locks::alloc_tracker_lock_);
   if (recent_allocation_records_ == nullptr) {
     // In the process of shutting down recording, bail.

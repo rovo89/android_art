@@ -140,7 +140,7 @@ inline mirror::Object* Heap::AllocObjectWithAllocator(Thread* self, mirror::Clas
   }
   if (kInstrumented) {
     if (Dbg::IsAllocTrackingEnabled()) {
-      Dbg::RecordAllocation(klass, bytes_allocated);
+      Dbg::RecordAllocation(self, klass, bytes_allocated);
     }
   } else {
     DCHECK(!Dbg::IsAllocTrackingEnabled());
