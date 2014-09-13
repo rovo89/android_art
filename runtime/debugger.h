@@ -561,7 +561,7 @@ class Dbg {
   /*
    * Recent allocation tracking support.
    */
-  static void RecordAllocation(mirror::Class* type, size_t byte_count)
+  static void RecordAllocation(Thread* self, mirror::Class* type, size_t byte_count)
       LOCKS_EXCLUDED(Locks::alloc_tracker_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void SetAllocTrackingEnabled(bool enabled) LOCKS_EXCLUDED(Locks::alloc_tracker_lock_);
