@@ -2778,8 +2778,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
   if (kUseBakerOrBrooksReadBarrier) {
     klass->AssertReadBarrierPointer();
   }
-  uint32_t access_flags = dex_class_def.access_flags_;
-  // Make sure that none of our runtime-only flags are set.
+  uint32_t access_flags = dex_class_def.GetJavaAccessFlags();
   CHECK_EQ(access_flags & ~kAccJavaFlagsMask, 0U);
   klass->SetAccessFlags(access_flags);
   klass->SetClassLoader(class_loader);
@@ -2919,7 +2918,7 @@ void ClassLinker::LoadField(const DexFile& /*dex_file*/, const ClassDataItemIter
   uint32_t field_idx = it.GetMemberIndex();
   dst->SetDexFieldIndex(field_idx);
   dst->SetDeclaringClass(klass.Get());
-  dst->SetAccessFlags(it.GetMemberAccessFlags());
+  dst->SetAccessFlags(it.GetFieldAccessFlags());
 }
 
 mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file,
@@ -2945,7 +2944,7 @@ mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file
   dst->SetDexCacheResolvedMethods(klass->GetDexCache()->GetResolvedMethods());
   dst->SetDexCacheResolvedTypes(klass->GetDexCache()->GetResolvedTypes());
 
-  uint32_t access_flags = it.GetMemberAccessFlags();
+  uint32_t access_flags = it.GetMethodAccessFlags();
 
   if (UNLIKELY(strcmp("finalize", method_name) == 0)) {
     // Set finalizable flag on declaring class.
