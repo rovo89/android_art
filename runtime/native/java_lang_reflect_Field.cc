@@ -97,7 +97,8 @@ static bool CheckReceiver(const ScopedFastNativeObjectAccess& soa, jobject j_rcv
     StackHandleScope<2> hs(soa.Self());
     HandleWrapper<mirror::ArtField> h_f(hs.NewHandleWrapper(f));
     Handle<mirror::Class> h_klass(hs.NewHandle((*f)->GetDeclaringClass()));
-    if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_klass, true, true))) {
+    if (UNLIKELY(!Runtime::Current()->GetClassLinker()->EnsureInitialized(soa.Self(), h_klass, true,
+                                                                          true))) {
       DCHECK(soa.Self()->IsExceptionPending());
       *class_or_rcvr = nullptr;
       return false;

@@ -823,7 +823,8 @@ bool IsValidMemberName(const char* s) {
 }
 
 enum ClassNameType { kName, kDescriptor };
-static bool IsValidClassName(const char* s, ClassNameType type, char separator) {
+template<ClassNameType kType, char kSeparator>
+static bool IsValidClassName(const char* s) {
   int arrayCount = 0;
   while (*s == '[') {
     arrayCount++;
@@ -835,7 +836,8 @@ static bool IsValidClassName(const char* s, ClassNameType type, char separator) 
     return false;
   }
 
-  if (arrayCount != 0) {
+  ClassNameType type = kType;
+  if (type != kDescriptor && arrayCount != 0) {
     /*
      * If we're looking at an array of some sort, then it doesn't
      * matter if what is being asked for is a class name; the
@@ -903,7 +905,7 @@ static bool IsValidClassName(const char* s, ClassNameType type, char separator) 
       return (type == kDescriptor) && !sepOrFirst && (s[1] == '\0');
     case '/':
     case '.':
-      if (c != separator) {
+      if (c != kSeparator) {
         // The wrong separator character.
         return false;
       }
@@ -925,15 +927,15 @@ static bool IsValidClassName(const char* s, ClassNameType type, char separator) 
 }
 
 bool IsValidBinaryClassName(const char* s) {
-  return IsValidClassName(s, kName, '.');
+  return IsValidClassName<kName, '.'>(s);
 }
 
 bool IsValidJniClassName(const char* s) {
-  return IsValidClassName(s, kName, '/');
+  return IsValidClassName<kName, '/'>(s);
 }
 
 bool IsValidDescriptor(const char* s) {
-  return IsValidClassName(s, kDescriptor, '/');
+  return IsValidClassName<kDescriptor, '/'>(s);
 }
 
 void Split(const std::string& s, char separator, std::vector<std::string>& result) {

@@ -192,7 +192,7 @@ static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t str
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> h_class(hs.NewHandle(java_lang_string_class));
-    if (UNLIKELY(!class_linker->EnsureInitialized(h_class, true, true))) {
+    if (UNLIKELY(!class_linker->EnsureInitialized(self, h_class, true, true))) {
       DCHECK(self->IsExceptionPending());
       return nullptr;
     }

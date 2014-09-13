@@ -68,14 +68,6 @@ class RegTypeCache {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& FromUnresolvedSuperClass(const RegType& child)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const RegType& JavaLangString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // String is final and therefore always precise.
-    return From(NULL, "Ljava/lang/String;", true);
-  }
-  const RegType& JavaLangThrowable(bool precise)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return From(NULL, "Ljava/lang/Throwable;", precise);
-  }
   const ConstantType& Zero() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return FromCat1Const(0, true);
   }
@@ -85,48 +77,48 @@ class RegTypeCache {
   size_t GetCacheSize() {
     return entries_.size();
   }
-  const RegType& Boolean() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const BooleanType& Boolean() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return *BooleanType::GetInstance();
   }
-  const RegType& Byte() {
+  const ByteType& Byte() {
     return *ByteType::GetInstance();
   }
-  const RegType& Char()  {
+  const CharType& Char()  {
     return *CharType::GetInstance();
   }
-  const RegType& Short()  {
+  const ShortType& Short()  {
     return *ShortType::GetInstance();
   }
-  const RegType& Integer() {
+  const IntegerType& Integer() {
     return *IntegerType::GetInstance();
   }
-  const RegType& Float() {
+  const FloatType& Float() {
     return *FloatType::GetInstance();
   }
-  const RegType& LongLo() {
+  const LongLoType& LongLo() {
     return *LongLoType::GetInstance();
   }
-  const RegType& LongHi() {
+  const LongHiType& LongHi() {
     return *LongHiType::GetInstance();
   }
-  const RegType& DoubleLo() {
+  const DoubleLoType& DoubleLo() {
     return *DoubleLoType::GetInstance();
   }
-  const RegType& DoubleHi() {
+  const DoubleHiType& DoubleHi() {
     return *DoubleHiType::GetInstance();
   }
-  const RegType& Undefined() {
+  const UndefinedType& Undefined() {
     return *UndefinedType::GetInstance();
   }
-  const RegType& Conflict() {
+  const ConflictType& Conflict() {
     return *ConflictType::GetInstance();
   }
-  const RegType& JavaLangClass(bool precise) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return From(NULL, "Ljava/lang/Class;", precise);
-  }
-  const RegType& JavaLangObject(bool precise) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return From(NULL, "Ljava/lang/Object;", precise);
-  }
+
+  const PreciseReferenceType& JavaLangClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const PreciseReferenceType& JavaLangString() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const RegType& JavaLangThrowable(bool precise) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const RegType& JavaLangObject(bool precise) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const UninitializedType& Uninitialized(const RegType& type, uint32_t allocation_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Create an uninitialized 'this' argument for the given type.
@@ -159,17 +151,14 @@ class RegTypeCache {
   void AddEntry(RegType* new_entry);
 
   template <class Type>
-  static Type* CreatePrimitiveTypeInstance(const std::string& descriptor)
+  static const Type* CreatePrimitiveTypeInstance(const std::string& descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void CreatePrimitiveAndSmallConstantTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // The actual storage for the RegTypes.
-  std::vector<RegType*> entries_;
 
   // A quick look up for popular small constants.
   static constexpr int32_t kMinSmallConstant = -1;
   static constexpr int32_t kMaxSmallConstant = 4;
-  static PreciseConstType* small_precise_constants_[kMaxSmallConstant - kMinSmallConstant + 1];
+  static const PreciseConstType* small_precise_constants_[kMaxSmallConstant - kMinSmallConstant + 1];
 
   static constexpr size_t kNumPrimitivesAndSmallConstants =
       12 + (kMaxSmallConstant - kMinSmallConstant + 1);
@@ -179,6 +168,9 @@ class RegTypeCache {
 
   // Number of well known primitives that will be copied into a RegTypeCache upon construction.
   static uint16_t primitive_count_;
+
+  // The actual storage for the RegTypes.
+  std::vector<const RegType*> entries_;
 
   // Whether or not we're allowed to load classes.
   const bool can_load_classes_;

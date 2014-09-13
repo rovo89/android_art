@@ -656,7 +656,8 @@ class OatDumper {
         StackHandleScope<1> hs(soa.Self());
         Handle<mirror::DexCache> dex_cache(
             hs.NewHandle(runtime->GetClassLinker()->FindDexCache(dex_file)));
-        verifier::MethodVerifier verifier(&dex_file, dex_cache, NullHandle<mirror::ClassLoader>(),
+        verifier::MethodVerifier verifier(soa.Self(), &dex_file, dex_cache,
+                                          NullHandle<mirror::ClassLoader>(),
                                           &class_def, code_item, dex_method_idx,
                                           NullHandle<mirror::ArtMethod>(), method_access_flags,
                                           true, true, true);
@@ -966,9 +967,10 @@ class OatDumper {
       StackHandleScope<1> hs(soa.Self());
       Handle<mirror::DexCache> dex_cache(
           hs.NewHandle(Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file)));
-      verifier::MethodVerifier::VerifyMethodAndDump(os, dex_method_idx, dex_file, dex_cache,
-                                                    NullHandle<mirror::ClassLoader>(), &class_def,
-                                                    code_item, NullHandle<mirror::ArtMethod>(),
+      verifier::MethodVerifier::VerifyMethodAndDump(soa.Self(), os, dex_method_idx, dex_file,
+                                                    dex_cache, NullHandle<mirror::ClassLoader>(),
+                                                    &class_def, code_item,
+                                                    NullHandle<mirror::ArtMethod>(),
                                                     method_access_flags);
     }
   }

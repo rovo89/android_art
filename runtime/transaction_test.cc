@@ -110,7 +110,7 @@ TEST_F(TransactionTest, StaticFieldsTest) {
   Handle<mirror::Class> h_klass(
       hs.NewHandle(class_linker_->FindClass(soa.Self(), "LStaticFieldsTest;", class_loader)));
   ASSERT_TRUE(h_klass.Get() != nullptr);
-  class_linker_->EnsureInitialized(h_klass, true, true);
+  class_linker_->EnsureInitialized(soa.Self(), h_klass, true, true);
   ASSERT_TRUE(h_klass->IsInitialized());
 
   // Lookup fields.
@@ -205,7 +205,7 @@ TEST_F(TransactionTest, InstanceFieldsTest) {
   Handle<mirror::Class> h_klass(
       hs.NewHandle(class_linker_->FindClass(soa.Self(), "LInstanceFieldsTest;", class_loader)));
   ASSERT_TRUE(h_klass.Get() != nullptr);
-  class_linker_->EnsureInitialized(h_klass, true, true);
+  class_linker_->EnsureInitialized(soa.Self(), h_klass, true, true);
   ASSERT_TRUE(h_klass->IsInitialized());
 
   // Allocate an InstanceFieldTest object.
@@ -305,7 +305,7 @@ TEST_F(TransactionTest, StaticArrayFieldsTest) {
   Handle<mirror::Class> h_klass(
       hs.NewHandle(class_linker_->FindClass(soa.Self(), "LStaticArrayFieldsTest;", class_loader)));
   ASSERT_TRUE(h_klass.Get() != nullptr);
-  class_linker_->EnsureInitialized(h_klass, true, true);
+  class_linker_->EnsureInitialized(soa.Self(), h_klass, true, true);
   ASSERT_TRUE(h_klass->IsInitialized());
 
   // Lookup fields.
@@ -419,12 +419,12 @@ TEST_F(TransactionTest, EmptyClass) {
   Handle<mirror::Class> h_klass(
       hs.NewHandle(class_linker_->FindClass(soa.Self(), "LTransaction$EmptyStatic;", class_loader)));
   ASSERT_TRUE(h_klass.Get() != nullptr);
-  class_linker_->VerifyClass(h_klass);
+  class_linker_->VerifyClass(soa.Self(), h_klass);
   ASSERT_TRUE(h_klass->IsVerified());
 
   Transaction transaction;
   Runtime::Current()->EnterTransactionMode(&transaction);
-  class_linker_->EnsureInitialized(h_klass, true, true);
+  class_linker_->EnsureInitialized(soa.Self(), h_klass, true, true);
   Runtime::Current()->ExitTransactionMode();
   ASSERT_FALSE(soa.Self()->IsExceptionPending());
 }
@@ -440,12 +440,12 @@ TEST_F(TransactionTest, StaticFieldClass) {
       hs.NewHandle(class_linker_->FindClass(soa.Self(), "LTransaction$StaticFieldClass;",
                                             class_loader)));
   ASSERT_TRUE(h_klass.Get() != nullptr);
-  class_linker_->VerifyClass(h_klass);
+  class_linker_->VerifyClass(soa.Self(), h_klass);
   ASSERT_TRUE(h_klass->IsVerified());
 
   Transaction transaction;
   Runtime::Current()->EnterTransactionMode(&transaction);
-  class_linker_->EnsureInitialized(h_klass, true, true);
+  class_linker_->EnsureInitialized(soa.Self(), h_klass, true, true);
   Runtime::Current()->ExitTransactionMode();
   ASSERT_FALSE(soa.Self()->IsExceptionPending());
 }
@@ -464,29 +464,29 @@ TEST_F(TransactionTest, BlacklistedClass) {
       hs.NewHandle(class_linker_->FindSystemClass(soa.Self(),
                                                   "Ljava/lang/ExceptionInInitializerError;")));
   ASSERT_TRUE(h_klass.Get() != nullptr);
-  class_linker_->VerifyClass(h_klass);
+  class_linker_->VerifyClass(soa.Self(), h_klass);
   ASSERT_TRUE(h_klass->IsVerified());
   h_klass.Assign(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/InternalError;"));
   ASSERT_TRUE(h_klass.Get() != nullptr);
-  class_linker_->VerifyClass(h_klass);
+  class_linker_->VerifyClass(soa.Self(), h_klass);
   ASSERT_TRUE(h_klass->IsVerified());
 
   // Load and verify Transaction$NativeSupport used in class initialization.
   h_klass.Assign(class_linker_->FindClass(soa.Self(), "LTransaction$NativeSupport;",
                                              class_loader));
   ASSERT_TRUE(h_klass.Get() != nullptr);
-  class_linker_->VerifyClass(h_klass);
+  class_linker_->VerifyClass(soa.Self(), h_klass);
   ASSERT_TRUE(h_klass->IsVerified());
 
   h_klass.Assign(class_linker_->FindClass(soa.Self(), "LTransaction$BlacklistedClass;",
                                              class_loader));
   ASSERT_TRUE(h_klass.Get() != nullptr);
-  class_linker_->VerifyClass(h_klass);
+  class_linker_->VerifyClass(soa.Self(), h_klass);
   ASSERT_TRUE(h_klass->IsVerified());
 
   Transaction transaction;
   Runtime::Current()->EnterTransactionMode(&transaction);
-  class_linker_->EnsureInitialized(h_klass, true, true);
+  class_linker_->EnsureInitialized(soa.Self(), h_klass, true, true);
   Runtime::Current()->ExitTransactionMode();
   ASSERT_TRUE(soa.Self()->IsExceptionPending());
 }

@@ -152,7 +152,7 @@ class PACKED(4) OatHeader {
 enum OatClassType {
   kOatClassAllCompiled = 0,   // OatClass is followed by an OatMethodOffsets for each method.
   kOatClassSomeCompiled = 1,  // A bitmap of which OatMethodOffsets are present follows the OatClass.
-  kOatClassNoneCompiled = 2,  // All methods are interpretted so no OatMethodOffsets are necessary.
+  kOatClassNoneCompiled = 2,  // All methods are interpreted so no OatMethodOffsets are necessary.
   kOatClassMax = 3,
 };
 

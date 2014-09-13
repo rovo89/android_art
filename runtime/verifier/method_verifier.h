@@ -140,16 +140,18 @@ class MethodVerifier {
   };
 
   /* Verify a class. Returns "kNoFailure" on success. */
-  static FailureKind VerifyClass(mirror::Class* klass, bool allow_soft_failures, std::string* error)
+  static FailureKind VerifyClass(Thread* self, mirror::Class* klass, bool allow_soft_failures,
+                                 std::string* error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static FailureKind VerifyClass(const DexFile* dex_file, ConstHandle<mirror::DexCache> dex_cache,
+  static FailureKind VerifyClass(Thread* self, const DexFile* dex_file,
+                                 ConstHandle<mirror::DexCache> dex_cache,
                                  ConstHandle<mirror::ClassLoader> class_loader,
                                  const DexFile::ClassDef* class_def,
                                  bool allow_soft_failures, std::string* error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void VerifyMethodAndDump(std::ostream& os, uint32_t method_idx, const DexFile* dex_file,
-                                  ConstHandle<mirror::DexCache> dex_cache,
+  static void VerifyMethodAndDump(Thread* self, std::ostream& os, uint32_t method_idx,
+                                  const DexFile* dex_file, ConstHandle<mirror::DexCache> dex_cache,
                                   ConstHandle<mirror::ClassLoader> class_loader,
                                   const DexFile::ClassDef* class_def,
                                   const DexFile::CodeItem* code_item,
@@ -202,7 +204,7 @@ class MethodVerifier {
     return can_load_classes_;
   }
 
-  MethodVerifier(const DexFile* dex_file, ConstHandle<mirror::DexCache> dex_cache,
+  MethodVerifier(Thread* self, const DexFile* dex_file, ConstHandle<mirror::DexCache> dex_cache,
                  ConstHandle<mirror::ClassLoader> class_loader, const DexFile::ClassDef* class_def,
                  const DexFile::CodeItem* code_item, uint32_t method_idx,
                  ConstHandle<mirror::ArtMethod> method,
@@ -253,7 +255,7 @@ class MethodVerifier {
    *  (3) Iterate through the method, checking type safety and looking
    *      for code flow problems.
    */
-  static FailureKind VerifyMethod(uint32_t method_idx, const DexFile* dex_file,
+  static FailureKind VerifyMethod(Thread* self, uint32_t method_idx, const DexFile* dex_file,
                                   ConstHandle<mirror::DexCache> dex_cache,
                                   ConstHandle<mirror::ClassLoader> class_loader,
                                   const DexFile::ClassDef* class_def_idx,
@@ -624,6 +626,9 @@ class MethodVerifier {
 
   const RegType& DetermineCat1Constant(int32_t value, bool precise)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // The thread we're verifying on.
+  Thread* const self_;
 
   RegTypeCache reg_types_;
 

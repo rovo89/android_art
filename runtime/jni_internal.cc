@@ -108,7 +108,7 @@ static mirror::Class* EnsureInitialized(Thread* self, mirror::Class* klass)
   }
   StackHandleScope<1> hs(self);
   Handle<mirror::Class> h_klass(hs.NewHandle(klass));
-  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(h_klass, true, true)) {
+  if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_klass, true, true)) {
     return nullptr;
   }
   return h_klass.Get();

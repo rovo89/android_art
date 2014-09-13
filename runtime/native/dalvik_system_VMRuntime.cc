@@ -238,7 +238,7 @@ static void PreloadDexCachesResolveString(Handle<mirror::DexCache> dex_cache, ui
 }
 
 // Based on ClassLinker::ResolveType.
-static void PreloadDexCachesResolveType(mirror::DexCache* dex_cache, uint32_t type_idx)
+static void PreloadDexCachesResolveType(Thread* self, mirror::DexCache* dex_cache, uint32_t type_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Class* klass = dex_cache->GetResolvedType(type_idx);
   if (klass != NULL) {
@@ -250,7 +250,7 @@ static void PreloadDexCachesResolveType(mirror::DexCache* dex_cache, uint32_t ty
   if (class_name[1] == '\0') {
     klass = linker->FindPrimitiveClass(class_name[0]);
   } else {
-    klass = linker->LookupClass(class_name, NULL);
+    klass = linker->LookupClass(self, class_name, NULL);
   }
   if (klass == NULL) {
     return;
@@ -427,7 +427,6 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
 
   Runtime* runtime = Runtime::Current();
   ClassLinker* linker = runtime->GetClassLinker();
-  Thread* self = ThreadForEnv(env);
 
   // We use a std::map to avoid heap allocating StringObjects to lookup in gDvm.literalStrings
   StringTable strings;
@@ -440,7 +439,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
   for (size_t i = 0; i< boot_class_path.size(); i++) {
     const DexFile* dex_file = boot_class_path[i];
     CHECK(dex_file != NULL);
-    StackHandleScope<1> hs(self);
+    StackHandleScope<1> hs(soa.Self());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->FindDexCache(*dex_file)));
 
     if (kPreloadDexCachesStrings) {
@@ -451,7 +450,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
 
     if (kPreloadDexCachesTypes) {
       for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
-        PreloadDexCachesResolveType(dex_cache.Get(), i);
+        PreloadDexCachesResolveType(soa.Self(), dex_cache.Get(), i);
       }
     }
 

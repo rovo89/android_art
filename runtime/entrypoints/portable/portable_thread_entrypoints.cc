@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-#include "entrypoints/entrypoint_utils-inl.h"
-#include "mirror/art_method.h"
-#include "mirror/object-inl.h"
 #include "verifier/dex_gc_map.h"
 #include "stack.h"
+#include "thread-inl.h"
 
 namespace art {
 
@@ -71,7 +69,7 @@ class ShadowFrameCopyVisitor : public StackVisitor {
 
 extern "C" void art_portable_test_suspend_from_code(Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  CheckSuspend(self);
+  self->CheckSuspend();
   if (Runtime::Current()->GetInstrumentation()->ShouldPortableCodeDeoptimize()) {
     // Save out the shadow frame to the heap
     ShadowFrameCopyVisitor visitor(self);

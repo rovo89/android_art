@@ -20,24 +20,23 @@
 #include <stdint.h>
 #include <string>
 
-#include "base/logging.h"
+#include "base/macros.h"
 
 namespace art {
 namespace verifier {
 
-class InstructionFlags {
+class InstructionFlags FINAL {
  public:
-  InstructionFlags() : length_(0), flags_(0) {}
+  InstructionFlags() : flags_(0) {}
 
-  void SetLengthInCodeUnits(size_t length) {
-    DCHECK_LT(length, 65536u);
-    length_ = length;
+  void SetIsOpcode() {
+    flags_ |= 1 << kOpcode;
   }
-  size_t GetLengthInCodeUnits() {
-    return length_;
+  void ClearIsOpcode() {
+    flags_ &= ~(1 << kOpcode);
   }
   bool IsOpcode() const {
-    return length_ != 0;
+    return (flags_ & (1 << kOpcode)) != 0;
   }
 
   void SetInTry() {
@@ -117,20 +116,21 @@ class InstructionFlags {
     // Register type information flowing into the instruction changed and so the instruction must be
     // reprocessed.
     kChanged = 1,
+    // The item at this location is an opcode.
+    kOpcode = 2,
     // Instruction is contained within a try region.
-    kInTry = 2,
+    kInTry = 3,
     // Instruction is the target of a branch (ie the start of a basic block).
-    kBranchTarget = 3,
+    kBranchTarget = 4,
     // Location of interest to the compiler for GC maps and verifier based method sharpening.
-    kCompileTimeInfoPoint = 4,
+    kCompileTimeInfoPoint = 5,
     // A return instruction.
-    kReturn = 5,
+    kReturn = 6,
   };
-
-  // Size of instruction in code units.
-  uint16_t length_;
   uint8_t flags_;
 };
+
+COMPILE_ASSERT(sizeof(InstructionFlags) == sizeof(uint8_t), err);
 
 }  // namespace verifier
 }  // namespace art

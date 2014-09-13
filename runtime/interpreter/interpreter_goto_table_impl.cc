@@ -249,9 +249,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       // perform the memory barrier now.
       QuasiAtomic::ThreadFenceForConstructor();
     }
-    if (UNLIKELY(self->TestAllFlags())) {
-      CheckSuspend(self);
-    }
+    self->AllowThreadSuspension();
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
@@ -268,9 +266,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_START(RETURN_VOID_BARRIER) {
     QuasiAtomic::ThreadFenceForConstructor();
     JValue result;
-    if (UNLIKELY(self->TestAllFlags())) {
-      CheckSuspend(self);
-    }
+    self->AllowThreadSuspension();
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
@@ -288,9 +284,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     JValue result;
     result.SetJ(0);
     result.SetI(shadow_frame.GetVReg(inst->VRegA_11x(inst_data)));
-    if (UNLIKELY(self->TestAllFlags())) {
-      CheckSuspend(self);
-    }
+    self->AllowThreadSuspension();
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
@@ -307,9 +301,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_START(RETURN_WIDE) {
     JValue result;
     result.SetJ(shadow_frame.GetVRegLong(inst->VRegA_11x(inst_data)));
-    if (UNLIKELY(self->TestAllFlags())) {
-      CheckSuspend(self);
-    }
+    self->AllowThreadSuspension();
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
       instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
@@ -325,9 +317,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
 
   HANDLE_INSTRUCTION_START(RETURN_OBJECT) {
     JValue result;
-    if (UNLIKELY(self->TestAllFlags())) {
-      CheckSuspend(self);
-    }
+    self->AllowThreadSuspension();
     const uint8_t vreg_index = inst->VRegA_11x(inst_data);
     Object* obj_result = shadow_frame.GetVRegReference(vreg_index);
     if (do_assignability_check && obj_result != NULL) {
@@ -632,7 +622,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     int8_t offset = inst->VRegA_10t(inst_data);
     if (IsBackwardBranch(offset)) {
       if (UNLIKELY(self->TestAllFlags())) {
-        CheckSuspend(self);
+        self->CheckSuspend();
         UPDATE_HANDLER_TABLE();
       }
     }
@@ -644,7 +634,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     int16_t offset = inst->VRegA_20t();
     if (IsBackwardBranch(offset)) {
       if (UNLIKELY(self->TestAllFlags())) {
-        CheckSuspend(self);
+        self->CheckSuspend();
         UPDATE_HANDLER_TABLE();
       }
     }
@@ -656,7 +646,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     int32_t offset = inst->VRegA_30t();
     if (IsBackwardBranch(offset)) {
       if (UNLIKELY(self->TestAllFlags())) {
-        CheckSuspend(self);
+        self->CheckSuspend();
         UPDATE_HANDLER_TABLE();
       }
     }
@@ -668,7 +658,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     int32_t offset = DoPackedSwitch(inst, shadow_frame, inst_data);
     if (IsBackwardBranch(offset)) {
       if (UNLIKELY(self->TestAllFlags())) {
-        CheckSuspend(self);
+        self->CheckSuspend();
         UPDATE_HANDLER_TABLE();
       }
     }
@@ -680,7 +670,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     int32_t offset = DoSparseSwitch(inst, shadow_frame, inst_data);
     if (IsBackwardBranch(offset)) {
       if (UNLIKELY(self->TestAllFlags())) {
-        CheckSuspend(self);
+        self->CheckSuspend();
         UPDATE_HANDLER_TABLE();
       }
     }
@@ -773,7 +763,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
-          CheckSuspend(self);
+          self->CheckSuspend();
           UPDATE_HANDLER_TABLE();
         }
       }
@@ -789,7 +779,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
-          CheckSuspend(self);
+          self->CheckSuspend();
           UPDATE_HANDLER_TABLE();
         }
       }
@@ -805,7 +795,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
-          CheckSuspend(self);
+          self->CheckSuspend();
           UPDATE_HANDLER_TABLE();
         }
       }
@@ -821,7 +811,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
-          CheckSuspend(self);
+          self->CheckSuspend();
           UPDATE_HANDLER_TABLE();
         }
       }
@@ -837,7 +827,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
-          CheckSuspend(self);
+          self->CheckSuspend();
           UPDATE_HANDLER_TABLE();
         }
       }
@@ -853,7 +843,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       int16_t offset = inst->VRegC_22t();
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
-          CheckSuspend(self);
+          self->CheckSuspend();
           UPDATE_HANDLER_TABLE();
         }
       }
@@ -869,7 +859,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       int16_t offset = inst->VRegB_21t();
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
-          CheckSuspend(self);
+          self->CheckSuspend();
           UPDATE_HANDLER_TABLE();
         }
       }
@@ -885,7 +875,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       int16_t offset = inst->VRegB_21t();
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
-          CheckSuspend(self);
+          self->CheckSuspend();
           UPDATE_HANDLER_TABLE();
         }
       }
@@ -901,7 +891,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       int16_t offset = inst->VRegB_21t();
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
-          CheckSuspend(self);
+          self->CheckSuspend();
           UPDATE_HANDLER_TABLE();
         }
       }
@@ -917,7 +907,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       int16_t offset = inst->VRegB_21t();
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
-          CheckSuspend(self);
+          self->CheckSuspend();
           UPDATE_HANDLER_TABLE();
         }
       }
@@ -933,7 +923,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       int16_t offset = inst->VRegB_21t();
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
-          CheckSuspend(self);
+          self->CheckSuspend();
           UPDATE_HANDLER_TABLE();
         }
       }
@@ -949,7 +939,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
       int16_t offset = inst->VRegB_21t();
       if (IsBackwardBranch(offset)) {
         if (UNLIKELY(self->TestAllFlags())) {
-          CheckSuspend(self);
+          self->CheckSuspend();
           UPDATE_HANDLER_TABLE();
         }
       }
@@ -2399,7 +2389,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   exception_pending_label: {
     CHECK(self->IsExceptionPending());
     if (UNLIKELY(self->TestAllFlags())) {
-      CheckSuspend(self);
+      self->CheckSuspend();
       UPDATE_HANDLER_TABLE();
     }
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
