@@ -4162,6 +4162,10 @@ void MethodVerifier::Shutdown() {
   verifier::RegTypeCache::ShutDown();
 }
 
+void MethodVerifier::VisitStaticRoots(RootCallback* callback, void* arg) {
+  RegTypeCache::VisitStaticRoots(callback, arg);
+}
+
 void MethodVerifier::VisitRoots(RootCallback* callback, void* arg) {
   reg_types_.VisitRoots(callback, arg);
 }
