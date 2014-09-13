@@ -85,17 +85,18 @@ bool ElfFixup::FixupDynamic(ElfFile& elf_file, uintptr_t base_address) {
 
 bool ElfFixup::FixupSectionHeaders(ElfFile& elf_file, uintptr_t base_address) {
   for (Elf32_Word i = 0; i < elf_file.GetSectionHeaderNum(); i++) {
-    Elf32_Shdr& sh = elf_file.GetSectionHeader(i);
+    Elf32_Shdr* sh = elf_file.GetSectionHeader(i);
+    CHECK(sh != nullptr);
     // 0 implies that the section will not exist in the memory of the process
-    if (sh.sh_addr == 0) {
+    if (sh->sh_addr == 0) {
       continue;
     }
     if (DEBUG_FIXUP) {
       LOG(INFO) << StringPrintf("In %s moving Elf32_Shdr[%d] from 0x%08x to 0x%08" PRIxPTR,
                                 elf_file.GetFile().GetPath().c_str(), i,
-                                sh.sh_addr, sh.sh_addr + base_address);
+                                sh->sh_addr, sh->sh_addr + base_address);
     }
-    sh.sh_addr += base_address;
+    sh->sh_addr += base_address;
   }
   return true;
 }
@@ -103,18 +104,19 @@ bool ElfFixup::FixupSectionHeaders(ElfFile& elf_file, uintptr_t base_address) {
 bool ElfFixup::FixupProgramHeaders(ElfFile& elf_file, uintptr_t base_address) {
   // TODO: ELFObjectFile doesn't have give to Elf32_Phdr, so we do that ourselves for now.
   for (Elf32_Word i = 0; i < elf_file.GetProgramHeaderNum(); i++) {
-    Elf32_Phdr& ph = elf_file.GetProgramHeader(i);
-    CHECK_EQ(ph.p_vaddr, ph.p_paddr) << elf_file.GetFile().GetPath() << " i=" << i;
-    CHECK((ph.p_align == 0) || (0 == ((ph.p_vaddr - ph.p_offset) & (ph.p_align - 1))))
+    Elf32_Phdr* ph = elf_file.GetProgramHeader(i);
+    CHECK(ph != nullptr);
+    CHECK_EQ(ph->p_vaddr, ph->p_paddr) << elf_file.GetFile().GetPath() << " i=" << i;
+    CHECK((ph->p_align == 0) || (0 == ((ph->p_vaddr - ph->p_offset) & (ph->p_align - 1))))
             << elf_file.GetFile().GetPath() << " i=" << i;
     if (DEBUG_FIXUP) {
       LOG(INFO) << StringPrintf("In %s moving Elf32_Phdr[%d] from 0x%08x to 0x%08" PRIxPTR,
                                 elf_file.GetFile().GetPath().c_str(), i,
-                                ph.p_vaddr, ph.p_vaddr + base_address);
+                                ph->p_vaddr, ph->p_vaddr + base_address);
     }
-    ph.p_vaddr += base_address;
-    ph.p_paddr += base_address;
-    CHECK((ph.p_align == 0) || (0 == ((ph.p_vaddr - ph.p_offset) & (ph.p_align - 1))))
+    ph->p_vaddr += base_address;
+    ph->p_paddr += base_address;
+    CHECK((ph->p_align == 0) || (0 == ((ph->p_vaddr - ph->p_offset) & (ph->p_align - 1))))
             << elf_file.GetFile().GetPath() << " i=" << i;
   }
   return true;
@@ -124,20 +126,21 @@ bool ElfFixup::FixupSymbols(ElfFile& elf_file, uintptr_t base_address, bool dyna
   Elf32_Word section_type = dynamic ? SHT_DYNSYM : SHT_SYMTAB;
   // TODO: Unfortunate ELFObjectFile has protected symbol access, so use ElfFile
   Elf32_Shdr* symbol_section = elf_file.FindSectionByType(section_type);
-  if (symbol_section == NULL) {
+  if (symbol_section == nullptr) {
     // file is missing optional .symtab
     CHECK(!dynamic) << elf_file.GetFile().GetPath();
     return true;
   }
   for (uint32_t i = 0; i < elf_file.GetSymbolNum(*symbol_section); i++) {
-    Elf32_Sym& symbol = elf_file.GetSymbol(section_type, i);
-    if (symbol.st_value != 0) {
+    Elf32_Sym* symbol = elf_file.GetSymbol(section_type, i);
+    CHECK(symbol != nullptr);
+    if (symbol->st_value != 0) {
       if (DEBUG_FIXUP) {
         LOG(INFO) << StringPrintf("In %s moving Elf32_Sym[%d] from 0x%08x to 0x%08" PRIxPTR,
                                   elf_file.GetFile().GetPath().c_str(), i,
-                                  symbol.st_value, symbol.st_value + base_address);
+                                  symbol->st_value, symbol->st_value + base_address);
       }
-      symbol.st_value += base_address;
+      symbol->st_value += base_address;
     }
   }
   return true;
@@ -145,10 +148,11 @@ bool ElfFixup::FixupSymbols(ElfFile& elf_file, uintptr_t base_address, bool dyna
 
 bool ElfFixup::FixupRelocations(ElfFile& elf_file, uintptr_t base_address) {
   for (Elf32_Word i = 0; i < elf_file.GetSectionHeaderNum(); i++) {
-    Elf32_Shdr& sh = elf_file.GetSectionHeader(i);
-    if (sh.sh_type == SHT_REL) {
-      for (uint32_t i = 0; i < elf_file.GetRelNum(sh); i++) {
-        Elf32_Rel& rel = elf_file.GetRel(sh, i);
+    Elf32_Shdr* sh = elf_file.GetSectionHeader(i);
+    CHECK(sh != nullptr);
+    if (sh->sh_type == SHT_REL) {
+      for (uint32_t i = 0; i < elf_file.GetRelNum(*sh); i++) {
+        Elf32_Rel& rel = elf_file.GetRel(*sh, i);
         if (DEBUG_FIXUP) {
           LOG(INFO) << StringPrintf("In %s moving Elf32_Rel[%d] from 0x%08x to 0x%08" PRIxPTR,
                                     elf_file.GetFile().GetPath().c_str(), i,
@@ -156,9 +160,9 @@ bool ElfFixup::FixupRelocations(ElfFile& elf_file, uintptr_t base_address) {
         }
         rel.r_offset += base_address;
       }
-    } else if (sh.sh_type == SHT_RELA) {
-      for (uint32_t i = 0; i < elf_file.GetRelaNum(sh); i++) {
-        Elf32_Rela& rela = elf_file.GetRela(sh, i);
+    } else if (sh->sh_type == SHT_RELA) {
+      for (uint32_t i = 0; i < elf_file.GetRelaNum(*sh); i++) {
+        Elf32_Rela& rela = elf_file.GetRela(*sh, i);
         if (DEBUG_FIXUP) {
           LOG(INFO) << StringPrintf("In %s moving Elf32_Rela[%d] from 0x%08x to 0x%08" PRIxPTR,
                                     elf_file.GetFile().GetPath().c_str(), i,

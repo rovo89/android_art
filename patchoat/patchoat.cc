@@ -525,14 +525,15 @@ bool PatchOat::PatchElf() {
   t.NewTiming("Fixup Elf Headers");
   // Fixup Phdr's
   for (unsigned int i = 0; i < oat_file_->GetProgramHeaderNum(); i++) {
-    Elf32_Phdr& hdr = oat_file_->GetProgramHeader(i);
-    if (hdr.p_vaddr != 0 && hdr.p_vaddr != hdr.p_offset) {
+    Elf32_Phdr* hdr = oat_file_->GetProgramHeader(i);
+    CHECK(hdr != nullptr);
+    if (hdr->p_vaddr != 0 && hdr->p_vaddr != hdr->p_offset) {
       need_fixup = true;
-      hdr.p_vaddr += delta_;
+      hdr->p_vaddr += delta_;
     }
-    if (hdr.p_paddr != 0 && hdr.p_paddr != hdr.p_offset) {
+    if (hdr->p_paddr != 0 && hdr->p_paddr != hdr->p_offset) {
       need_fixup = true;
-      hdr.p_paddr += delta_;
+      hdr->p_paddr += delta_;
     }
   }
   if (!need_fixup) {
@@ -542,9 +543,10 @@ bool PatchOat::PatchElf() {
   }
   t.NewTiming("Fixup Section Headers");
   for (unsigned int i = 0; i < oat_file_->GetSectionHeaderNum(); i++) {
-    Elf32_Shdr& hdr = oat_file_->GetSectionHeader(i);
-    if (hdr.sh_addr != 0) {
-      hdr.sh_addr += delta_;
+    Elf32_Shdr* hdr = oat_file_->GetSectionHeader(i);
+    CHECK(hdr != nullptr);
+    if (hdr->sh_addr != 0) {
+      hdr->sh_addr += delta_;
     }
   }
 

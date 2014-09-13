@@ -1019,6 +1019,7 @@ static int dex2oat(int argc, char** argv) {
       include_debug_symbols = true;
     } else if (option == "--no-include-debug-symbols" || option == "--strip-symbols") {
       include_debug_symbols = false;
+      generate_gdb_information = false;  // Depends on debug symbols, see above.
     } else if (option.starts_with("--profile-file=")) {
       profile_file = option.substr(strlen("--profile-file=")).data();
       VLOG(compiler) << "dex2oat: profile file is " << profile_file;

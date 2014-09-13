@@ -72,13 +72,15 @@ bool ElfStripper::Strip(File* file, std::string* error_msg) {
   section_headers.reserve(elf_file->GetSectionHeaderNum());
 
 
-  Elf32_Shdr& string_section = elf_file->GetSectionNameStringSection();
+  Elf32_Shdr* string_section = elf_file->GetSectionNameStringSection();
+  CHECK(string_section != nullptr);
   for (Elf32_Word i = 0; i < elf_file->GetSectionHeaderNum(); i++) {
-    Elf32_Shdr& sh = elf_file->GetSectionHeader(i);
-    const char* name = elf_file->GetString(string_section, sh.sh_name);
-    if (name == NULL) {
+    Elf32_Shdr* sh = elf_file->GetSectionHeader(i);
+    CHECK(sh != nullptr);
+    const char* name = elf_file->GetString(*string_section, sh->sh_name);
+    if (name == nullptr) {
       CHECK_EQ(0U, i);
-      section_headers.push_back(sh);
+      section_headers.push_back(*sh);
       section_headers_original_indexes.push_back(0);
       continue;
     }
@@ -87,32 +89,34 @@ bool ElfStripper::Strip(File* file, std::string* error_msg) {
         || (strcmp(name, ".symtab") == 0)) {
       continue;
     }
-    section_headers.push_back(sh);
+    section_headers.push_back(*sh);
     section_headers_original_indexes.push_back(i);
   }
   CHECK_NE(0U, section_headers.size());
   CHECK_EQ(section_headers.size(), section_headers_original_indexes.size());
 
   // section 0 is the NULL section, sections start at offset of first section
-  Elf32_Off offset = elf_file->GetSectionHeader(1).sh_offset;
+  CHECK(elf_file->GetSectionHeader(1) != nullptr);
+  Elf32_Off offset = elf_file->GetSectionHeader(1)->sh_offset;
   for (size_t i = 1; i < section_headers.size(); i++) {
     Elf32_Shdr& new_sh = section_headers[i];
-    Elf32_Shdr& old_sh = elf_file->GetSectionHeader(section_headers_original_indexes[i]);
-    CHECK_EQ(new_sh.sh_name, old_sh.sh_name);
-    if (old_sh.sh_addralign > 1) {
-      offset = RoundUp(offset, old_sh.sh_addralign);
+    Elf32_Shdr* old_sh = elf_file->GetSectionHeader(section_headers_original_indexes[i]);
+    CHECK(old_sh != nullptr);
+    CHECK_EQ(new_sh.sh_name, old_sh->sh_name);
+    if (old_sh->sh_addralign > 1) {
+      offset = RoundUp(offset, old_sh->sh_addralign);
     }
-    if (old_sh.sh_offset == offset) {
+    if (old_sh->sh_offset == offset) {
       // already in place
-      offset += old_sh.sh_size;
+      offset += old_sh->sh_size;
       continue;
     }
     // shift section earlier
     memmove(elf_file->Begin() + offset,
-            elf_file->Begin() + old_sh.sh_offset,
-            old_sh.sh_size);
+            elf_file->Begin() + old_sh->sh_offset,
+            old_sh->sh_size);
     new_sh.sh_offset = offset;
-    offset += old_sh.sh_size;
+    offset += old_sh->sh_size;
   }
 
   Elf32_Off shoff = offset;
