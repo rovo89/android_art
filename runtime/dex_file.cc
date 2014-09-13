@@ -354,8 +354,7 @@ DexFile::DexFile(const byte* base, size_t size,
       proto_ids_(reinterpret_cast<const ProtoId*>(base + header_->proto_ids_off_)),
       class_defs_(reinterpret_cast<const ClassDef*>(base + header_->class_defs_off_)),
       find_class_def_misses_(0),
-      class_def_index_(nullptr),
-      build_class_def_index_mutex_("DexFile index creation mutex") {
+      class_def_index_(nullptr) {
   CHECK(begin_ != NULL) << GetLocation();
   CHECK_GT(size_, 0U) << GetLocation();
 }
@@ -444,20 +443,21 @@ const DexFile::ClassDef* DexFile::FindClassDef(const char* descriptor) const {
   // up. This isn't done eagerly at construction as construction is not performed in multi-threaded
   // sections of tools like dex2oat. If we're lazy we hopefully increase the chance of balancing
   // out which thread builds the index.
-  find_class_def_misses_++;
   const uint32_t kMaxFailedDexClassDefLookups = 100;
-  if (find_class_def_misses_ > kMaxFailedDexClassDefLookups) {
-    MutexLock mu(Thread::Current(), build_class_def_index_mutex_);
-    // Are we the first ones building the index?
-    if (class_def_index_.LoadSequentiallyConsistent() == nullptr) {
-      index = new Index(num_class_defs);
-      for (uint32_t i = 0; i < num_class_defs;  ++i) {
-        const ClassDef& class_def = GetClassDef(i);
-        const char* descriptor = GetClassDescriptor(class_def);
-        index->insert(std::make_pair(descriptor, &class_def));
-      }
-      class_def_index_.StoreSequentiallyConsistent(index);
+  uint32_t old_misses = find_class_def_misses_.FetchAndAddSequentiallyConsistent(1);
+  if (old_misses == kMaxFailedDexClassDefLookups) {
+    // Are we the ones moving the miss count past the max? Sanity check the index doesn't exist.
+    CHECK(class_def_index_.LoadSequentiallyConsistent() == nullptr);
+    // Build the index.
+    index = new Index(num_class_defs);
+    for (uint32_t i = 0; i < num_class_defs;  ++i) {
+      const ClassDef& class_def = GetClassDef(i);
+      const char* descriptor = GetClassDescriptor(class_def);
+      index->insert(std::make_pair(descriptor, &class_def));
     }
+    // Sanity check the index still doesn't exist, only 1 thread should build it.
+    CHECK(class_def_index_.LoadSequentiallyConsistent() == nullptr);
+    class_def_index_.StoreSequentiallyConsistent(index);
   }
   return nullptr;
 }
