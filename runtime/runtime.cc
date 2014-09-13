@@ -1147,6 +1147,7 @@ void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
       callee_save_methods_[i].VisitRoot(callback, arg, 0, kRootVMInternal);
     }
   }
+  verifier::MethodVerifier::VisitStaticRoots(callback, arg);
   {
     MutexLock mu(Thread::Current(), method_verifier_lock_);
     for (verifier::MethodVerifier* verifier : method_verifiers_) {

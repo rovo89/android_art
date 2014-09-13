@@ -555,6 +555,28 @@ void RegTypeCache::Dump(std::ostream& os) {
   }
 }
 
+void RegTypeCache::VisitStaticRoots(RootCallback* callback, void* arg) {
+  // Visit the primitive types, this is required since if there are no active verifiers they wont
+  // be in the entries array, and therefore not visited as roots.
+  if (primitive_initialized_) {
+    UndefinedType::GetInstance()->VisitRoots(callback, arg);
+    ConflictType::GetInstance()->VisitRoots(callback, arg);
+    BooleanType::GetInstance()->VisitRoots(callback, arg);
+    ByteType::GetInstance()->VisitRoots(callback, arg);
+    ShortType::GetInstance()->VisitRoots(callback, arg);
+    CharType::GetInstance()->VisitRoots(callback, arg);
+    IntegerType::GetInstance()->VisitRoots(callback, arg);
+    LongLoType::GetInstance()->VisitRoots(callback, arg);
+    LongHiType::GetInstance()->VisitRoots(callback, arg);
+    FloatType::GetInstance()->VisitRoots(callback, arg);
+    DoubleLoType::GetInstance()->VisitRoots(callback, arg);
+    DoubleHiType::GetInstance()->VisitRoots(callback, arg);
+    for (int32_t value = kMinSmallConstant; value <= kMaxSmallConstant; ++value) {
+      small_precise_constants_[value - kMinSmallConstant]->VisitRoots(callback, arg);
+    }
+  }
+}
+
 void RegTypeCache::VisitRoots(RootCallback* callback, void* arg) {
   for (const RegType* entry : entries_) {
     entry->VisitRoots(callback, arg);
