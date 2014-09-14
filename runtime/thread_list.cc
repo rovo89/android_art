@@ -156,7 +156,11 @@ class DumpCheckpoint FINAL : public Closure {
   void WaitForThreadsToRunThroughCheckpoint(size_t threads_running_checkpoint) {
     Thread* self = Thread::Current();
     ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
-    barrier_.Increment(self, threads_running_checkpoint);
+    const uint32_t kWaitTimeoutMs = 10000;
+    bool timed_out = barrier_.Increment(self, threads_running_checkpoint, kWaitTimeoutMs);
+    if (timed_out) {
+      LOG(kIsDebugBuild ? FATAL : ERROR) << "Unexpected time out during dump checkpoint.";
+    }
   }
 
  private:
