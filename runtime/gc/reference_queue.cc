@@ -25,13 +25,12 @@
 namespace art {
 namespace gc {
 
-ReferenceQueue::ReferenceQueue()
-    : lock_("reference queue lock"), list_(nullptr) {
+ReferenceQueue::ReferenceQueue(Mutex* lock) : lock_(lock), list_(nullptr) {
 }
 
 void ReferenceQueue::AtomicEnqueueIfNotEnqueued(Thread* self, mirror::Reference* ref) {
   DCHECK(ref != NULL);
-  MutexLock mu(self, lock_);
+  MutexLock mu(self, *lock_);
   if (!ref->IsEnqueued()) {
     EnqueuePendingReference(ref);
   }
