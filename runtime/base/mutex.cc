@@ -37,19 +37,25 @@ ReaderWriterMutex* Locks::breakpoint_lock_ = nullptr;
 ReaderWriterMutex* Locks::classlinker_classes_lock_ = nullptr;
 Mutex* Locks::deoptimization_lock_ = nullptr;
 ReaderWriterMutex* Locks::heap_bitmap_lock_ = nullptr;
+Mutex* Locks::intern_table_lock_ = nullptr;
 Mutex* Locks::jni_libraries_lock_ = nullptr;
 Mutex* Locks::logging_lock_ = nullptr;
 Mutex* Locks::mem_maps_lock_ = nullptr;
 Mutex* Locks::modify_ldt_lock_ = nullptr;
 ReaderWriterMutex* Locks::mutator_lock_ = nullptr;
 Mutex* Locks::profiler_lock_ = nullptr;
+Mutex* Locks::reference_processor_lock_ = nullptr;
+Mutex* Locks::reference_queue_cleared_references_lock_ = nullptr;
+Mutex* Locks::reference_queue_finalizer_references_lock_ = nullptr;
+Mutex* Locks::reference_queue_phantom_references_lock_ = nullptr;
+Mutex* Locks::reference_queue_soft_references_lock_ = nullptr;
+Mutex* Locks::reference_queue_weak_references_lock_ = nullptr;
 Mutex* Locks::runtime_shutdown_lock_ = nullptr;
 Mutex* Locks::thread_list_lock_ = nullptr;
 Mutex* Locks::thread_list_suspend_thread_lock_ = nullptr;
 Mutex* Locks::thread_suspend_count_lock_ = nullptr;
 Mutex* Locks::trace_lock_ = nullptr;
 Mutex* Locks::unexpected_signal_lock_ = nullptr;
-Mutex* Locks::intern_table_lock_ = nullptr;
 
 struct AllMutexData {
   // A guard for all_mutexes_ that's not a mutex (Mutexes must CAS to acquire and busy wait).
@@ -932,6 +938,30 @@ void Locks::Init() {
     UPDATE_CURRENT_LOCK_LEVEL(kInternTableLock);
     DCHECK(intern_table_lock_ == nullptr);
     intern_table_lock_ = new Mutex("InternTable lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kReferenceProcessorLock);
+    DCHECK(reference_processor_lock_ == nullptr);
+    reference_processor_lock_ = new Mutex("ReferenceProcessor lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kReferenceQueueClearedReferencesLock);
+    DCHECK(reference_queue_cleared_references_lock_ == nullptr);
+    reference_queue_cleared_references_lock_ = new Mutex("ReferenceQueue cleared references lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kReferenceQueueWeakReferencesLock);
+    DCHECK(reference_queue_weak_references_lock_ == nullptr);
+    reference_queue_weak_references_lock_ = new Mutex("ReferenceQueue cleared references lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kReferenceQueueFinalizerReferencesLock);
+    DCHECK(reference_queue_finalizer_references_lock_ == nullptr);
+    reference_queue_finalizer_references_lock_ = new Mutex("ReferenceQueue finalizer references lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kReferenceQueuePhantomReferencesLock);
+    DCHECK(reference_queue_phantom_references_lock_ == nullptr);
+    reference_queue_phantom_references_lock_ = new Mutex("ReferenceQueue phantom references lock", current_lock_level);
+
+    UPDATE_CURRENT_LOCK_LEVEL(kReferenceQueueSoftReferencesLock);
+    DCHECK(reference_queue_soft_references_lock_ == nullptr);
+    reference_queue_soft_references_lock_ = new Mutex("ReferenceQueue soft references lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kAbortLock);
     DCHECK(abort_lock_ == nullptr);

@@ -44,7 +44,7 @@ class Heap;
 // java.lang.ref.Reference objects.
 class ReferenceQueue {
  public:
-  explicit ReferenceQueue();
+  explicit ReferenceQueue(Mutex* lock);
   // Enqueue a reference if is not already enqueued. Thread safe to call from multiple threads
   // since it uses a lock to avoid a race between checking for the references presence and adding
   // it.
@@ -90,7 +90,7 @@ class ReferenceQueue {
  private:
   // Lock, used for parallel GC reference enqueuing. It allows for multiple threads simultaneously
   // calling AtomicEnqueueIfNotEnqueued.
-  Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex* lock_;
   // The actual reference list. Only a root for the mark compact GC since it will be null for other
   // GC types.
   mirror::Reference* list_;
