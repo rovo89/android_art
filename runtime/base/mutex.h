@@ -60,11 +60,16 @@ enum LockLevel {
   kThreadSuspendCountLock,
   kAbortLock,
   kJdwpSocketLock,
+  kReferenceQueueSoftReferencesLock,
+  kReferenceQueuePhantomReferencesLock,
+  kReferenceQueueFinalizerReferencesLock,
+  kReferenceQueueWeakReferencesLock,
+  kReferenceQueueClearedReferencesLock,
+  kReferenceProcessorLock,
   kRosAllocGlobalLock,
   kRosAllocBracketLock,
   kRosAllocBulkFreeLock,
   kAllocSpaceLock,
-  kReferenceProcessorLock,
   kDexFileMethodInlinerLock,
   kDexFileToMethodInlinerMapLock,
   kMarkSweepMarkStackLock,
@@ -594,8 +599,26 @@ class Locks {
   // Guards intern table.
   static Mutex* intern_table_lock_ ACQUIRED_AFTER(modify_ldt_lock_);
 
+  // Guards reference processor.
+  static Mutex* reference_processor_lock_ ACQUIRED_AFTER(intern_table_lock_);
+
+  // Guards cleared references queue.
+  static Mutex* reference_queue_cleared_references_lock_ ACQUIRED_AFTER(reference_processor_lock_);
+
+  // Guards weak references queue.
+  static Mutex* reference_queue_weak_references_lock_ ACQUIRED_AFTER(reference_queue_cleared_references_lock_);
+
+  // Guards finalizer references queue.
+  static Mutex* reference_queue_finalizer_references_lock_ ACQUIRED_AFTER(reference_queue_weak_references_lock_);
+
+  // Guards phantom references queue.
+  static Mutex* reference_queue_phantom_references_lock_ ACQUIRED_AFTER(reference_queue_finalizer_references_lock_);
+
+  // Guards soft references queue.
+  static Mutex* reference_queue_soft_references_lock_ ACQUIRED_AFTER(reference_queue_phantom_references_lock_);
+
   // Have an exclusive aborting thread.
-  static Mutex* abort_lock_ ACQUIRED_AFTER(intern_table_lock_);
+  static Mutex* abort_lock_ ACQUIRED_AFTER(reference_queue_soft_references_lock_);
 
   // Allow mutual exclusion when manipulating Thread::suspend_count_.
   // TODO: Does the trade-off of a per-thread lock make sense?
