@@ -74,4 +74,22 @@ TEST(CodegenTest, CFG4) {
 
   TestCode(data);
 }
+
+TEST(CodegenTest, CFG5) {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::IF_EQZ, 0xFFFF,
+    Instruction::RETURN_VOID);
+
+  TestCode(data);
+}
+
+TEST(CodegenTest, CFG6) {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::IF_NEZ, 0xFFFF,
+    Instruction::RETURN_VOID);
+
+  TestCode(data);
+}
 }  // namespace art

@@ -164,7 +164,6 @@ void HGraphBuilder::If_21t(const Instruction& instruction, uint32_t dex_offset) 
   current_block_->AddInstruction(comparison);
   HInstruction* ifinst = new (arena_) HIf(comparison);
   current_block_->AddInstruction(ifinst);
-  fprintf(stderr, "%d and %d\n", dex_offset, target_offset);
   HBasicBlock* target = FindBlockStartingAt(dex_offset + target_offset);
   DCHECK(target != nullptr);
   current_block_->AddSuccessor(target);
