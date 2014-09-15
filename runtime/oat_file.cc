@@ -454,8 +454,12 @@ const DexFile* OatFile::OatDexFile::OpenDexFile(std::string* error_msg) const {
                        dex_file_location_checksum_, error_msg);
 }
 
+uint32_t OatFile::OatDexFile::GetOatClassOffset(uint16_t class_def_index) const {
+  return oat_class_offsets_pointer_[class_def_index];
+}
+
 OatFile::OatClass OatFile::OatDexFile::GetOatClass(uint16_t class_def_index) const {
-  uint32_t oat_class_offset = oat_class_offsets_pointer_[class_def_index];
+  uint32_t oat_class_offset = GetOatClassOffset(class_def_index);
 
   const byte* oat_class_pointer = oat_file_->Begin() + oat_class_offset;
   CHECK_LT(oat_class_pointer, oat_file_->End()) << oat_file_->GetLocation();
@@ -531,47 +535,52 @@ OatFile::OatClass::OatClass(const OatFile* oat_file,
     }
 }
 
-const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) const {
+uint32_t OatFile::OatClass::GetOatMethodOffsetsOffset(uint32_t method_index) const {
+  const OatMethodOffsets* oat_method_offsets = GetOatMethodOffsets(method_index);
+  if (oat_method_offsets == nullptr) {
+    return 0u;
+  }
+  return reinterpret_cast<const uint8_t*>(oat_method_offsets) - oat_file_->Begin();
+}
+
+const OatMethodOffsets* OatFile::OatClass::GetOatMethodOffsets(uint32_t method_index) const {
   // NOTE: We don't keep the number of methods and cannot do a bounds check for method_index.
-  if (methods_pointer_ == NULL) {
+  if (methods_pointer_ == nullptr) {
     CHECK_EQ(kOatClassNoneCompiled, type_);
-    return OatMethod(NULL, 0, 0);
+    return nullptr;
   }
   size_t methods_pointer_index;
-  if (bitmap_ == NULL) {
+  if (bitmap_ == nullptr) {
     CHECK_EQ(kOatClassAllCompiled, type_);
     methods_pointer_index = method_index;
   } else {
     CHECK_EQ(kOatClassSomeCompiled, type_);
     if (!BitVector::IsBitSet(bitmap_, method_index)) {
-      return OatMethod(NULL, 0, 0);
+      return nullptr;
     }
     size_t num_set_bits = BitVector::NumSetBits(bitmap_, method_index);
     methods_pointer_index = num_set_bits;
   }
   const OatMethodOffsets& oat_method_offsets = methods_pointer_[methods_pointer_index];
-  if (oat_file_->IsExecutable()
-      || (Runtime::Current() == nullptr)
-      || Runtime::Current()->IsCompiler()) {
+  return &oat_method_offsets;
+}
+
+const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) const {
+  const OatMethodOffsets* oat_method_offsets = GetOatMethodOffsets(method_index);
+  if (oat_method_offsets == nullptr) {
+    return OatMethod(nullptr, 0, 0);
+  }
+  if (oat_file_->IsExecutable() ||
+      Runtime::Current() == nullptr ||        // This case applies for oatdump.
+      Runtime::Current()->IsCompiler()) {
     return OatMethod(
         oat_file_->Begin(),
-        oat_method_offsets.code_offset_,
-        oat_method_offsets.gc_map_offset_);
+        oat_method_offsets->code_offset_,
+        oat_method_offsets->gc_map_offset_);
   } else {
     // We aren't allowed to use the compiled code. We just force it down the interpreted version.
     return OatMethod(oat_file_->Begin(), 0, 0);
   }
-}
-
-
-uint32_t OatFile::OatMethod::GetQuickCodeSize() const {
-  uintptr_t code = reinterpret_cast<uintptr_t>(GetQuickCode());
-  if (code == 0) {
-    return 0;
-  }
-  // TODO: make this Thumb2 specific
-  code &= ~0x1;
-  return reinterpret_cast<uint32_t*>(code)[-1];
 }
 
 void OatFile::OatMethod::LinkMethod(mirror::ArtMethod* method) const {

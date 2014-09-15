@@ -79,6 +79,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/base/histogram_test.cc \
   runtime/base/mutex_test.cc \
   runtime/base/scoped_flock_test.cc \
+  runtime/base/stringprintf_test.cc \
   runtime/base/timing_logger_test.cc \
   runtime/base/unix_file/fd_file_test.cc \
   runtime/base/unix_file/mapped_file_test.cc \
