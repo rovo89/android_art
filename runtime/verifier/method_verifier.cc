@@ -3323,8 +3323,8 @@ mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst
 }
 
 mirror::ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
-                                                                     bool is_range) {
-  DCHECK(Runtime::Current()->IsStarted());
+                                                                bool is_range) {
+  DCHECK(Runtime::Current()->IsStarted() || verify_to_dump_);
   mirror::ArtMethod* res_method = GetQuickInvokedMethod(inst, work_line_.get(),
                                                              is_range);
   if (res_method == nullptr) {
@@ -3840,7 +3840,7 @@ mirror::ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
 
 void MethodVerifier::VerifyIGetQuick(const Instruction* inst, RegType& insn_type,
                                      bool is_primitive) {
-  DCHECK(Runtime::Current()->IsStarted());
+  DCHECK(Runtime::Current()->IsStarted() || verify_to_dump_);
   mirror::ArtField* field = GetQuickFieldAccess(inst, work_line_.get());
   if (field == nullptr) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer field from " << inst->Name();
@@ -3900,7 +3900,7 @@ void MethodVerifier::VerifyIGetQuick(const Instruction* inst, RegType& insn_type
 
 void MethodVerifier::VerifyIPutQuick(const Instruction* inst, RegType& insn_type,
                                      bool is_primitive) {
-  DCHECK(Runtime::Current()->IsStarted());
+  DCHECK(Runtime::Current()->IsStarted() || verify_to_dump_);
   mirror::ArtField* field = GetQuickFieldAccess(inst, work_line_.get());
   if (field == nullptr) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer field from " << inst->Name();
