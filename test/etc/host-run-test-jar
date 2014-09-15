@@ -27,6 +27,8 @@ PATCHOAT=""
 DEX2OAT=""
 FALSE_BIN="/bin/false"
 HAVE_IMAGE="y"
+TIME_OUT="y"
+TIME_OUT_VALUE=5m
 exe="${ANDROID_HOST_OUT}/bin/dalvikvm32"
 main="Main"
 
@@ -65,10 +67,12 @@ while true; do
         shift
     elif [ "x$1" = "x--debug" ]; then
         DEBUGGER="y"
+        TIME_OUT="n"
         shift
     elif [ "x$1" = "x--gdb" ]; then
         GDB="y"
         DEV_MODE="y"
+        TIME_OUT="n"
         shift
     elif [ "x$1" = "x--invoke-with" ]; then
         shift
@@ -199,6 +203,10 @@ fi
 
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
 cmdline="$INVOKE_WITH $gdb $exe $gdbargs -XXlib:$LIB $PATCHOAT $DEX2OAT $JNI_OPTS $FLAGS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar $main"
+if [ "$TIME_OUT" = "y" ]; then
+  # Add timeout command if time out is desired.
+  cmdline="timeout $TIME_OUT_VALUE $cmdline"
+fi
 if [ "$DEV_MODE" = "y" ]; then
   if [ "$PREBUILD" = "y" ]; then
     echo "$mkdir_cmd && $prebuild_cmd && $cmdline"
@@ -222,4 +230,8 @@ else
   # ld.so will helpfully warn us of this. Unfortunately this messes up our error
   # checking so we will just filter out the error with a grep.
   LD_PRELOAD=libsigchain.so $cmdline "$@" 2>&1 | grep -v -E "^ERROR: ld\.so: object '.+\.so' from LD_PRELOAD cannot be preloaded: ignored\.$"
+  # Add extra detail if time out is enabled.
+  if [ ${PIPESTATUS[0]} = 124 ] && [ "$TIME_OUT" = "y" ]; then
+    echo -e "\e[91mTEST TIMED OUT!\e[0m" >&2
+  fi
 fi
