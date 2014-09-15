@@ -151,6 +151,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/optimizing/register_allocator_test.cc \
   compiler/optimizing/ssa_test.cc \
   compiler/optimizing/stack_map_test.cc \
+  compiler/optimizing/suspend_check_test.cc \
   compiler/output_stream_test.cc \
   compiler/utils/arena_allocator_test.cc \
   compiler/utils/dedupe_set_test.cc \
