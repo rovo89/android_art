@@ -54,7 +54,7 @@ class HGraphBuilder : public ValueObject {
   // Analyzes the dex instruction and adds HInstruction to the graph
   // to execute that instruction. Returns whether the instruction can
   // be handled.
-  bool AnalyzeDexInstruction(const Instruction& instruction, int32_t dex_offset);
+  bool AnalyzeDexInstruction(const Instruction& instruction, uint32_t dex_offset);
 
   // Finds all instructions that start a new block, and populates branch_targets_ with
   // the newly created blocks.
@@ -70,6 +70,7 @@ class HGraphBuilder : public ValueObject {
   HLocal* GetLocalAt(int register_index) const;
   void UpdateLocal(int register_index, HInstruction* instruction) const;
   HInstruction* LoadLocal(int register_index, Primitive::Type type) const;
+  void PotentiallyAddSuspendCheck(int32_t target_offset, uint32_t dex_offset);
 
   // Temporarily returns whether the compiler supports the parameters
   // of the method.
