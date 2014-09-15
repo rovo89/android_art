@@ -1360,11 +1360,20 @@ void MIRGraph::InlineSpecialMethods(BasicBlock* bb) {
     if (!method_info.FastPath()) {
       continue;
     }
+
     InvokeType sharp_type = method_info.GetSharpType();
-    if ((sharp_type != kDirect) &&
-        (sharp_type != kStatic || method_info.NeedsClassInitialization())) {
+    if ((sharp_type != kDirect) && (sharp_type != kStatic)) {
       continue;
     }
+
+    if (sharp_type == kStatic) {
+      bool needs_clinit = method_info.NeedsClassInitialization() &&
+          ((mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0);
+      if (needs_clinit) {
+        continue;
+      }
+    }
+
     DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
     MethodReference target = method_info.GetTargetMethod();
     if (cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(target.dex_file)
