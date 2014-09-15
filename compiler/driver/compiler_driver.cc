@@ -1605,7 +1605,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
     // We require a constructor barrier if there are final instance fields.
     requires_constructor_barrier = false;
     while (it.HasNextInstanceField()) {
-      if ((it.GetMemberAccessFlags() & kAccFinal) != 0) {
+      if (it.MemberIsFinal()) {
         requires_constructor_barrier = true;
       }
       if (resolve_fields_and_methods) {
@@ -1946,7 +1946,7 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
       continue;
     }
     previous_direct_method_idx = method_idx;
-    driver->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
+    driver->CompileMethod(it.GetMethodCodeItem(), it.GetMethodAccessFlags(),
                           it.GetMethodInvokeType(class_def), class_def_index,
                           method_idx, jclass_loader, dex_file, dex_to_dex_compilation_level);
     it.Next();
@@ -1962,7 +1962,7 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
       continue;
     }
     previous_virtual_method_idx = method_idx;
-    driver->CompileMethod(it.GetMethodCodeItem(), it.GetMemberAccessFlags(),
+    driver->CompileMethod(it.GetMethodCodeItem(), it.GetMethodAccessFlags(),
                           it.GetMethodInvokeType(class_def), class_def_index,
                           method_idx, jclass_loader, dex_file, dex_to_dex_compilation_level);
     it.Next();

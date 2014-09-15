@@ -1,0 +1,34 @@
+#!/bin/bash
+#
+# Copyright (C) 2014 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Stop if something fails.
+set -e
+
+# The classes are pre-compiled and modified with ASM.
+#
+# To reproduce, compile the source files. Asm.java needs the ASM libraries (core and tree). Then
+# run Asm.java, which produces Inf.out and NonInf.out. Rename these to class files and put them
+# into the classes directory (this assumes the ASM libraries are names asm.jar and asm-tree.jar):
+#
+# javac Inf.java NonInf.java Main.java
+# javac -cp asm.jar:asm-tree.jar:. Asm.java
+# java -cp asm.jar:asm-tree.jar:. Asm
+# mv Inf.out classes/Inf.class
+# mv NonInf.out classes/NonInf.class
+# mv Main.class A.class A\$B.class A\$C.class classes/
+
+${DX} --debug --dex --dump-to=classes.lst --output=classes.dex classes
+zip $TEST_NAME.jar classes.dex

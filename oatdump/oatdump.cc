@@ -220,14 +220,14 @@ class OatSymbolizer : public CodeOutput {
     while (it.HasNextDirectMethod()) {
       const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
       WalkOatMethod(class_def, class_method_idx, oat_method, dex_file, it.GetMemberIndex(),
-                    it.GetMethodCodeItem(), it.GetMemberAccessFlags(), callback);
+                    it.GetMethodCodeItem(), it.GetMethodAccessFlags(), callback);
       class_method_idx++;
       it.Next();
     }
     while (it.HasNextVirtualMethod()) {
       const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
       WalkOatMethod(class_def, class_method_idx, oat_method, dex_file, it.GetMemberIndex(),
-                    it.GetMethodCodeItem(), it.GetMemberAccessFlags(), callback);
+                    it.GetMethodCodeItem(), it.GetMethodAccessFlags(), callback);
       class_method_idx++;
       it.Next();
     }
@@ -570,14 +570,14 @@ class OatDumper {
     while (it.HasNextDirectMethod()) {
       const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
       DumpOatMethod(os, class_def, class_method_idx, oat_method, dex_file,
-                    it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags());
+                    it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetRawMemberAccessFlags());
       class_method_idx++;
       it.Next();
     }
     while (it.HasNextVirtualMethod()) {
       const OatFile::OatMethod oat_method = oat_class.GetOatMethod(class_method_idx);
       DumpOatMethod(os, class_def, class_method_idx, oat_method, dex_file,
-                    it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetMemberAccessFlags());
+                    it.GetMemberIndex(), it.GetMethodCodeItem(), it.GetRawMemberAccessFlags());
       class_method_idx++;
       it.Next();
     }

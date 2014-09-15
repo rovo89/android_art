@@ -175,7 +175,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                       class_def,
                                                       it.GetMethodCodeItem(),
                                                       h_method,
-                                                      it.GetMemberAccessFlags(),
+                                                      it.GetMethodAccessFlags(),
                                                       allow_soft_failures,
                                                       false);
     if (result != kNoFailure) {
@@ -223,7 +223,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                       class_def,
                                                       it.GetMethodCodeItem(),
                                                       h_method,
-                                                      it.GetMemberAccessFlags(),
+                                                      it.GetMethodAccessFlags(),
                                                       allow_soft_failures,
                                                       false);
     if (result != kNoFailure) {
