@@ -140,6 +140,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/jni/jni_compiler_test.cc \
   compiler/oat_test.cc \
   compiler/optimizing/codegen_test.cc \
+  compiler/optimizing/dead_code_elimination_test.cc \
   compiler/optimizing/dominator_test.cc \
   compiler/optimizing/find_loops_test.cc \
   compiler/optimizing/graph_checker_test.cc \

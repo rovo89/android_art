@@ -23,6 +23,8 @@
 #include "dex_instruction.h"
 #include "ssa_liveness_analysis.h"
 
+#include "gtest/gtest.h"
+
 namespace art {
 
 #define NUM_INSTRUCTIONS(...)  \
@@ -72,6 +74,24 @@ inline HGraph* CreateCFG(ArenaAllocator* allocator, const uint16_t* data) {
     reinterpret_cast<const DexFile::CodeItem*>(data);
   HGraph* graph = builder.BuildGraph(*item);
   return graph;
+}
+
+// Naive string diff data type.
+typedef std::list<std::pair<std::string, std::string>> diff_t;
+
+// An alias for the empty string used to make it clear that a line is
+// removed in a diff.
+static const std::string removed = "";
+
+// Naive patch command: apply a diff to a string.
+inline std::string Patch(const std::string& original, const diff_t& diff) {
+  std::string result = original;
+  for (const auto& p : diff) {
+    std::string::size_type pos = result.find(p.first);
+    EXPECT_NE(pos, std::string::npos);
+    result.replace(pos, p.first.size(), p.second);
+  }
+  return result;
 }
 
 }  // namespace art
