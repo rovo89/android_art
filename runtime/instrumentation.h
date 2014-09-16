@@ -182,10 +182,10 @@ class Instrumentation {
     return interpreter_handler_table_;
   }
 
-  void InstrumentQuickAllocEntryPoints() LOCKS_EXCLUDED(Locks::thread_list_lock_,
-                                                        Locks::runtime_shutdown_lock_);
-  void UninstrumentQuickAllocEntryPoints() LOCKS_EXCLUDED(Locks::thread_list_lock_,
-                                                          Locks::runtime_shutdown_lock_);
+  void InstrumentQuickAllocEntryPoints(bool suspended)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::runtime_shutdown_lock_);
+  void UninstrumentQuickAllocEntryPoints(bool suspended)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::runtime_shutdown_lock_);
   void ResetQuickAllocEntryPoints() EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_);
 
   // Update the code of a method respecting any installed stubs.
@@ -350,7 +350,7 @@ class Instrumentation {
 
   // No thread safety analysis to get around SetQuickAllocEntryPointsInstrumented requiring
   // exclusive access to mutator lock which you can't get if the runtime isn't started.
-  void SetEntrypointsInstrumented(bool instrumented) NO_THREAD_SAFETY_ANALYSIS;
+  void SetEntrypointsInstrumented(bool instrumented, bool suspended) NO_THREAD_SAFETY_ANALYSIS;
 
   void MethodEnterEventImpl(Thread* thread, mirror::Object* this_object,
                             mirror::ArtMethod* method, uint32_t dex_pc) const

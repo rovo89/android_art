@@ -597,10 +597,13 @@ static void ResetQuickAllocEntryPointsForThread(Thread* thread, void* arg) {
   thread->ResetQuickAllocEntryPointsForThread();
 }
 
-void Instrumentation::SetEntrypointsInstrumented(bool instrumented) {
+void Instrumentation::SetEntrypointsInstrumented(bool instrumented, bool suspended) {
   Runtime* runtime = Runtime::Current();
   ThreadList* tl = runtime->GetThreadList();
-  if (runtime->IsStarted()) {
+  if (suspended) {
+    Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
+  }
+  if (runtime->IsStarted() && !suspended) {
     tl->SuspendAll();
   }
   {
@@ -608,30 +611,30 @@ void Instrumentation::SetEntrypointsInstrumented(bool instrumented) {
     SetQuickAllocEntryPointsInstrumented(instrumented);
     ResetQuickAllocEntryPoints();
   }
-  if (runtime->IsStarted()) {
+  if (runtime->IsStarted() && !suspended) {
     tl->ResumeAll();
   }
 }
 
-void Instrumentation::InstrumentQuickAllocEntryPoints() {
+void Instrumentation::InstrumentQuickAllocEntryPoints(bool suspended) {
   // TODO: the read of quick_alloc_entry_points_instrumentation_counter_ is racey and this code
   //       should be guarded by a lock.
   DCHECK_GE(quick_alloc_entry_points_instrumentation_counter_.LoadSequentiallyConsistent(), 0);
   const bool enable_instrumentation =
       quick_alloc_entry_points_instrumentation_counter_.FetchAndAddSequentiallyConsistent(1) == 0;
   if (enable_instrumentation) {
-    SetEntrypointsInstrumented(true);
+    SetEntrypointsInstrumented(true, suspended);
   }
 }
 
-void Instrumentation::UninstrumentQuickAllocEntryPoints() {
+void Instrumentation::UninstrumentQuickAllocEntryPoints(bool suspended) {
   // TODO: the read of quick_alloc_entry_points_instrumentation_counter_ is racey and this code
   //       should be guarded by a lock.
   DCHECK_GT(quick_alloc_entry_points_instrumentation_counter_.LoadSequentiallyConsistent(), 0);
   const bool disable_instrumentation =
       quick_alloc_entry_points_instrumentation_counter_.FetchAndSubSequentiallyConsistent(1) == 1;
   if (disable_instrumentation) {
-    SetEntrypointsInstrumented(false);
+    SetEntrypointsInstrumented(false, suspended);
   }
 }
 
