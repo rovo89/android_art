@@ -3349,7 +3349,8 @@ mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst
   CHECK(dispatch_class->HasVTable()) << PrettyDescriptor(dispatch_class);
   uint16_t vtable_index = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
   CHECK_LT(static_cast<int32_t>(vtable_index), dispatch_class->GetVTableLength())
-      << PrettyDescriptor(klass);
+      << PrettyDescriptor(klass) << " in method "
+      << PrettyMethod(dex_method_idx_, *dex_file_, true);
   mirror::ArtMethod* res_method = dispatch_class->GetVTableEntry(vtable_index);
   CHECK(!self_->IsExceptionPending());
   return res_method;
