@@ -72,6 +72,7 @@
 #include "reflection.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
+#include "sigchain.h"
 #include "signal_catcher.h"
 #include "signal_set.h"
 #include "handle_scope-inl.h"
@@ -746,6 +747,11 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
       // Keep the defaults.
       break;
   }
+
+  // Always initialize the signal chain so that any calls to sigaction get
+  // correctly routed to the next in the chain regardless of whether we
+  // have claimed the signal or not.
+  InitializeSignalChain();
 
   if (implicit_null_checks_ || implicit_so_checks_ || implicit_suspend_checks_) {
     fault_manager.Init();
