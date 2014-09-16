@@ -877,6 +877,10 @@ void Locks::Init() {
     DCHECK(heap_bitmap_lock_ == nullptr);
     heap_bitmap_lock_ = new ReaderWriterMutex("heap bitmap lock", current_lock_level);
 
+    UPDATE_CURRENT_LOCK_LEVEL(kTraceLock);
+    DCHECK(trace_lock_ == nullptr);
+    trace_lock_ = new Mutex("trace lock", current_lock_level);
+
     UPDATE_CURRENT_LOCK_LEVEL(kRuntimeShutdownLock);
     DCHECK(runtime_shutdown_lock_ == nullptr);
     runtime_shutdown_lock_ = new Mutex("runtime shutdown lock", current_lock_level);
@@ -884,10 +888,6 @@ void Locks::Init() {
     UPDATE_CURRENT_LOCK_LEVEL(kProfilerLock);
     DCHECK(profiler_lock_ == nullptr);
     profiler_lock_ = new Mutex("profiler lock", current_lock_level);
-
-    UPDATE_CURRENT_LOCK_LEVEL(kTraceLock);
-    DCHECK(trace_lock_ == nullptr);
-    trace_lock_ = new Mutex("trace lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kDeoptimizationLock);
     DCHECK(deoptimization_lock_ == nullptr);
