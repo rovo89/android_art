@@ -446,7 +446,7 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
 
   ScopedObjectAccess soa(self);
   StackHandleScope<1> hs(self);
-  Handle<mirror::String> peer_thread_name(hs.NewHandle(GetThreadName(soa)));
+  MutableHandle<mirror::String> peer_thread_name(hs.NewHandle(GetThreadName(soa)));
   if (peer_thread_name.Get() == nullptr) {
     // The Thread constructor should have set the Thread.name to a
     // non-null value. However, because we can run without code

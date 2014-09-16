@@ -1488,7 +1488,7 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
       // Initialize padding entries.
       size_t expected_slots = handle_scope_->NumberOfReferences();
       while (cur_entry_ < expected_slots) {
-        handle_scope_->GetHandle(cur_entry_++).Assign(nullptr);
+        handle_scope_->GetMutableHandle(cur_entry_++).Assign(nullptr);
       }
       DCHECK_NE(cur_entry_, 0U);
     }
@@ -1509,7 +1509,7 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
 
 uintptr_t BuildGenericJniFrameVisitor::FillJniCall::PushHandle(mirror::Object* ref) {
   uintptr_t tmp;
-  Handle<mirror::Object> h = handle_scope_->GetHandle(cur_entry_);
+  MutableHandle<mirror::Object> h = handle_scope_->GetMutableHandle(cur_entry_);
   h.Assign(ref);
   tmp = reinterpret_cast<uintptr_t>(h.ToJObject());
   cur_entry_++;

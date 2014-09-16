@@ -22,7 +22,7 @@
 namespace art {
 
 template <typename T>
-ObjectLock<T>::ObjectLock(Thread* self, ConstHandle<T> object) : self_(self), obj_(object) {
+ObjectLock<T>::ObjectLock(Thread* self, Handle<T> object) : self_(self), obj_(object) {
   CHECK(object.Get() != nullptr);
   obj_->MonitorEnter(self_);
 }

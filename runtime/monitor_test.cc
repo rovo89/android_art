@@ -58,7 +58,7 @@ class MonitorTest : public CommonRuntimeTest {
 static const size_t kMaxHandles = 1000000;  // Use arbitrary large amount for now.
 static void FillHeap(Thread* self, ClassLinker* class_linker,
                      std::unique_ptr<StackHandleScope<kMaxHandles>>* hsp,
-                     std::vector<Handle<mirror::Object>>* handles)
+                     std::vector<MutableHandle<mirror::Object>>* handles)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Runtime::Current()->GetHeap()->SetIdealFootprint(1 * GB);
 
@@ -73,7 +73,7 @@ static void FillHeap(Thread* self, ClassLinker* class_linker,
   // Start allocating with 128K
   size_t length = 128 * KB / 4;
   while (length > 10) {
-    Handle<mirror::Object> h((*hsp)->NewHandle<mirror::Object>(
+    MutableHandle<mirror::Object> h((*hsp)->NewHandle<mirror::Object>(
         mirror::ObjectArray<mirror::Object>::Alloc(self, ca.Get(), length / 4)));
     if (self->IsExceptionPending() || h.Get() == nullptr) {
       self->ClearException();
@@ -92,7 +92,7 @@ static void FillHeap(Thread* self, ClassLinker* class_linker,
 
   // Allocate simple objects till it fails.
   while (!self->IsExceptionPending()) {
-    Handle<mirror::Object> h = (*hsp)->NewHandle<mirror::Object>(c->AllocObject(self));
+    MutableHandle<mirror::Object> h = (*hsp)->NewHandle<mirror::Object>(c->AllocObject(self));
     if (!self->IsExceptionPending() && h.Get() != nullptr) {
       handles->push_back(h);
     }
@@ -307,7 +307,7 @@ static void CommonWaitSetup(MonitorTest* test, ClassLinker* class_linker, uint64
 
   // Fill the heap.
   std::unique_ptr<StackHandleScope<kMaxHandles>> hsp;
-  std::vector<Handle<mirror::Object>> handles;
+  std::vector<MutableHandle<mirror::Object>> handles;
   {
     Thread* self = Thread::Current();
     ScopedObjectAccess soa(self);

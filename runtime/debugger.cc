@@ -3611,7 +3611,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   }
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
-  Handle<mirror::ArtMethod> m(hs.NewHandle(pReq->method));
+  MutableHandle<mirror::ArtMethod> m(hs.NewHandle(pReq->method));
   if ((pReq->options & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver != nullptr) {
     mirror::ArtMethod* actual_method = pReq->klass->FindVirtualMethodForVirtualOrInterface(m.Get());
     if (actual_method != m.Get()) {
