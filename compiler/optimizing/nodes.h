@@ -443,6 +443,7 @@ class HBasicBlock : public ArenaObject {
   M(BoundsCheck)                                           \
   M(NullCheck)                                             \
   M(Temporary)                                             \
+  M(SuspendCheck)                                          \
 
 #define FOR_EACH_INSTRUCTION(M)                            \
   FOR_EACH_CONCRETE_INSTRUCTION(M)                         \
@@ -1591,6 +1592,25 @@ class HTemporary : public HTemplateInstruction<0> {
   const size_t index_;
 
   DISALLOW_COPY_AND_ASSIGN(HTemporary);
+};
+
+class HSuspendCheck : public HTemplateInstruction<0> {
+ public:
+  explicit HSuspendCheck(uint32_t dex_pc)
+      : HTemplateInstruction(SideEffects::ChangesSomething()), dex_pc_(dex_pc) {}
+
+  virtual bool NeedsEnvironment() const {
+    return true;
+  }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(SuspendCheck);
+
+ private:
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HSuspendCheck);
 };
 
 class MoveOperands : public ArenaObject {
