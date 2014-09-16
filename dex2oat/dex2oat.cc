@@ -426,6 +426,11 @@ class Dex2Oat {
       return nullptr;
     }
 
+    // Flush result to disk. Patching code will re-open the file (mmap), so ensure that our view
+    // of the file already made it there and won't be re-ordered with writes from PatchOat or
+    // image patching.
+    oat_file->Flush();
+
     if (!driver->IsImage() && driver->GetCompilerOptions().GetIncludePatchInformation()) {
       t2.NewTiming("Patching ELF");
       std::string error_msg;
