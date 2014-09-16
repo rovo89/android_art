@@ -90,6 +90,29 @@ class StackOverflowCheckSlowPathARM : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(StackOverflowCheckSlowPathARM);
 };
 
+class SuspendCheckSlowPathARM : public SlowPathCode {
+ public:
+  explicit SuspendCheckSlowPathARM(HSuspendCheck* instruction)
+      : instruction_(instruction) {}
+
+  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    __ Bind(GetEntryLabel());
+    int32_t offset = QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pTestSuspend).Int32Value();
+    __ ldr(LR, Address(TR, offset));
+    __ blx(LR);
+    codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
+    __ b(GetReturnLabel());
+  }
+
+  Label* GetReturnLabel() { return &return_label_; }
+
+ private:
+  HSuspendCheck* const instruction_;
+  Label return_label_;
+
+  DISALLOW_COPY_AND_ASSIGN(SuspendCheckSlowPathARM);
+};
+
 class BoundsCheckSlowPathARM : public SlowPathCode {
  public:
   explicit BoundsCheckSlowPathARM(HBoundsCheck* instruction,
@@ -1492,6 +1515,21 @@ void LocationsBuilderARM::VisitParallelMove(HParallelMove* instruction) {
 
 void InstructionCodeGeneratorARM::VisitParallelMove(HParallelMove* instruction) {
   codegen_->GetMoveResolver()->EmitNativeCode(instruction);
+}
+
+void LocationsBuilderARM::VisitSuspendCheck(HSuspendCheck* instruction) {
+  new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
+}
+
+void InstructionCodeGeneratorARM::VisitSuspendCheck(HSuspendCheck* instruction) {
+  SuspendCheckSlowPathARM* slow_path =
+      new (GetGraph()->GetArena()) SuspendCheckSlowPathARM(instruction);
+  codegen_->AddSlowPath(slow_path);
+
+  __ AddConstant(R4, R4, -1);
+  __ cmp(R4, ShifterOperand(0));
+  __ b(slow_path->GetEntryLabel(), LE);
+  __ Bind(slow_path->GetReturnLabel());
 }
 
 ArmAssembler* ParallelMoveResolverARM::GetAssembler() const {

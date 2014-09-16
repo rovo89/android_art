@@ -48,6 +48,19 @@ LiveInterval* BuildInterval(const size_t ranges[][2],
   return interval;
 }
 
+void RemoveSuspendChecks(HGraph* graph) {
+  for (size_t i = 0, e = graph->GetBlocks().Size(); i < e; ++i) {
+    for (HInstructionIterator it(graph->GetBlocks().Get(i)->GetInstructions());
+         !it.Done();
+         it.Advance()) {
+      HInstruction* current = it.Current();
+      if (current->IsSuspendCheck()) {
+        current->GetBlock()->RemoveInstruction(current);
+      }
+    }
+  }
+}
+
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_OPTIMIZING_UNIT_TEST_H_

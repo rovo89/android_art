@@ -114,6 +114,27 @@ class BoundsCheckSlowPathX86 : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathX86);
 };
 
+class SuspendCheckSlowPathX86 : public SlowPathCode {
+ public:
+  explicit SuspendCheckSlowPathX86(HSuspendCheck* instruction)
+      : instruction_(instruction) {}
+
+  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    __ Bind(GetEntryLabel());
+    __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pTestSuspend)));
+    codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
+    __ jmp(GetReturnLabel());
+  }
+
+  Label* GetReturnLabel() { return &return_label_; }
+
+ private:
+  HSuspendCheck* const instruction_;
+  Label return_label_;
+
+  DISALLOW_COPY_AND_ASSIGN(SuspendCheckSlowPathX86);
+};
+
 #undef __
 #define __ reinterpret_cast<X86Assembler*>(GetAssembler())->
 
@@ -1481,6 +1502,20 @@ void LocationsBuilderX86::VisitParallelMove(HParallelMove* instruction) {
 
 void InstructionCodeGeneratorX86::VisitParallelMove(HParallelMove* instruction) {
   codegen_->GetMoveResolver()->EmitNativeCode(instruction);
+}
+
+void LocationsBuilderX86::VisitSuspendCheck(HSuspendCheck* instruction) {
+  new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCallOnSlowPath);
+}
+
+void InstructionCodeGeneratorX86::VisitSuspendCheck(HSuspendCheck* instruction) {
+  SuspendCheckSlowPathX86* slow_path =
+      new (GetGraph()->GetArena()) SuspendCheckSlowPathX86(instruction);
+  codegen_->AddSlowPath(slow_path);
+  __ fs()->cmpl(Address::Absolute(
+      Thread::ThreadFlagsOffset<kX86WordSize>().Int32Value()), Immediate(0));
+  __ j(kNotEqual, slow_path->GetEntryLabel());
+  __ Bind(slow_path->GetReturnLabel());
 }
 
 X86Assembler* ParallelMoveResolverX86::GetAssembler() const {

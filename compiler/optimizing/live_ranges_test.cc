@@ -32,6 +32,9 @@ static HGraph* BuildGraph(const uint16_t* data, ArenaAllocator* allocator) {
   HGraphBuilder builder(allocator);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   HGraph* graph = builder.BuildGraph(*item);
+  // Suspend checks implementation may change in the future, and this test relies
+  // on how instructions are ordered.
+  RemoveSuspendChecks(graph);
   graph->BuildDominatorTree();
   graph->TransformToSSA();
   graph->FindNaturalLoops();
