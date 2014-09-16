@@ -385,7 +385,7 @@ class Runtime {
 
   void ResetStats(int kinds);
 
-  void SetStatsEnabled(bool new_state);
+  void SetStatsEnabled(bool new_state, bool suspended);
 
   enum class NativeBridgeAction {  // private
     kUnload,
