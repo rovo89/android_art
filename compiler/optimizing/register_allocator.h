@@ -21,6 +21,8 @@
 #include "primitive.h"
 #include "utils/growable_array.h"
 
+#include "gtest/gtest.h"
+
 namespace art {
 
 class CodeGenerator;
@@ -176,6 +178,8 @@ class RegisterAllocator {
 
   // Slots reserved for out arguments.
   size_t reserved_out_slots_;
+
+  FRIEND_TEST(RegisterAllocatorTest, FreeUntil);
 
   DISALLOW_COPY_AND_ASSIGN(RegisterAllocator);
 };

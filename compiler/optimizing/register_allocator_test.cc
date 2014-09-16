@@ -392,4 +392,59 @@ TEST(RegisterAllocatorTest, DeadPhi) {
   ASSERT_TRUE(register_allocator.Validate(false));
 }
 
+/**
+ * Test that the TryAllocateFreeReg method works in the presence of inactive intervals
+ * that share the same register. It should split the interval it is currently
+ * allocating for at the minimum lifetime position between the two inactive intervals.
+ */
+TEST(RegisterAllocatorTest, FreeUntil) {
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::RETURN);
+
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  HGraph* graph = BuildSSAGraph(data, &allocator);
+  SsaDeadPhiElimination(graph).Run();
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
+  liveness.Analyze();
+  RegisterAllocator register_allocator(&allocator, &codegen, liveness);
+
+  // Add an artifical range to cover the temps that will be put in the unhandled list.
+  LiveInterval* unhandled = graph->GetEntryBlock()->GetFirstInstruction()->GetLiveInterval();
+  unhandled->AddLoopRange(0, 60);
+
+  // Add three temps holding the same register, and starting at different positions.
+  // Put the one that should be picked in the middle of the inactive list to ensure
+  // we do not depend on an order.
+  LiveInterval* interval = LiveInterval::MakeTempInterval(&allocator, nullptr, Primitive::kPrimInt);
+  interval->SetRegister(0);
+  interval->AddRange(40, 50);
+  register_allocator.inactive_.Add(interval);
+
+  interval = LiveInterval::MakeTempInterval(&allocator, nullptr, Primitive::kPrimInt);
+  interval->SetRegister(0);
+  interval->AddRange(20, 30);
+  register_allocator.inactive_.Add(interval);
+
+  interval = LiveInterval::MakeTempInterval(&allocator, nullptr, Primitive::kPrimInt);
+  interval->SetRegister(0);
+  interval->AddRange(60, 70);
+  register_allocator.inactive_.Add(interval);
+
+  register_allocator.number_of_registers_ = 1;
+  register_allocator.registers_array_ = allocator.AllocArray<size_t>(1);
+  register_allocator.processing_core_registers_ = true;
+  register_allocator.unhandled_ = &register_allocator.unhandled_core_intervals_;
+
+  register_allocator.TryAllocateFreeReg(unhandled);
+
+  // Check that we have split the interval.
+  ASSERT_EQ(1u, register_allocator.unhandled_->Size());
+  // Check that we know need to find a new register where the next interval
+  // that uses the register starts.
+  ASSERT_EQ(20u, register_allocator.unhandled_->Get(0)->GetStart());
+}
+
 }  // namespace art
