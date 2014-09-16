@@ -93,13 +93,9 @@ OatFile* OatFile::Open(const std::string& filename,
     }
     ret.reset(OpenElfFile(file.get(), location, requested_base, false, executable, error_msg));
 
-    // Opening the file failed. Try to delete it and maybe we have more luck after it gets
-    // regenerated.
-    if (ret.get() == nullptr) {
-      LOG(WARNING) << "Attempting to unlink oat file " << filename << " that could not be opened. "
-                   << "Error was: " << error_msg;
-      unlink(file->GetPath().c_str());  // Try to remove the file.
-    }
+    // It would be nice to unlink here. But we might have opened the file created by the
+    // ScopedLock, which we better not delete to avoid races. TODO: Investigate how to fix the API
+    // to allow removal when we know the ELF must be borked.
   }
   return ret.release();
 }
