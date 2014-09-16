@@ -996,14 +996,14 @@ void Runtime::DumpLockHolders(std::ostream& os) {
   }
 }
 
-void Runtime::SetStatsEnabled(bool new_state) {
+void Runtime::SetStatsEnabled(bool new_state, bool suspended) {
   if (new_state == true) {
     GetStats()->Clear(~0);
     // TODO: wouldn't it make more sense to clear _all_ threads' stats?
     Thread::Current()->GetStats()->Clear(~0);
-    GetInstrumentation()->InstrumentQuickAllocEntryPoints();
+    GetInstrumentation()->InstrumentQuickAllocEntryPoints(suspended);
   } else {
-    GetInstrumentation()->UninstrumentQuickAllocEntryPoints();
+    GetInstrumentation()->UninstrumentQuickAllocEntryPoints(suspended);
   }
   stats_enabled_ = new_state;
 }
