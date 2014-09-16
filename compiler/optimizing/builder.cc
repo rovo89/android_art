@@ -138,13 +138,15 @@ static bool CanHandleCodeItem(const DexFile::CodeItem& code_item) {
 
 template<typename T>
 void HGraphBuilder::If_22t(const Instruction& instruction, uint32_t dex_offset) {
+  int32_t target_offset = instruction.GetTargetOffset();
+  PotentiallyAddSuspendCheck(target_offset, dex_offset);
   HInstruction* first = LoadLocal(instruction.VRegA(), Primitive::kPrimInt);
   HInstruction* second = LoadLocal(instruction.VRegB(), Primitive::kPrimInt);
   T* comparison = new (arena_) T(first, second);
   current_block_->AddInstruction(comparison);
   HInstruction* ifinst = new (arena_) HIf(comparison);
   current_block_->AddInstruction(ifinst);
-  HBasicBlock* target = FindBlockStartingAt(dex_offset + instruction.GetTargetOffset());
+  HBasicBlock* target = FindBlockStartingAt(dex_offset + target_offset);
   DCHECK(target != nullptr);
   current_block_->AddSuccessor(target);
   target = FindBlockStartingAt(dex_offset + instruction.SizeInCodeUnits());
@@ -155,12 +157,14 @@ void HGraphBuilder::If_22t(const Instruction& instruction, uint32_t dex_offset) 
 
 template<typename T>
 void HGraphBuilder::If_21t(const Instruction& instruction, uint32_t dex_offset) {
+  int32_t target_offset = instruction.GetTargetOffset();
+  PotentiallyAddSuspendCheck(target_offset, dex_offset);
   HInstruction* value = LoadLocal(instruction.VRegA(), Primitive::kPrimInt);
   T* comparison = new (arena_) T(value, GetIntConstant(0));
   current_block_->AddInstruction(comparison);
   HInstruction* ifinst = new (arena_) HIf(comparison);
   current_block_->AddInstruction(ifinst);
-  HBasicBlock* target = FindBlockStartingAt(dex_offset + instruction.GetTargetOffset());
+  HBasicBlock* target = FindBlockStartingAt(dex_offset + target_offset);
   DCHECK(target != nullptr);
   current_block_->AddSuccessor(target);
   target = FindBlockStartingAt(dex_offset + instruction.SizeInCodeUnits());
@@ -209,6 +213,8 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
   // Add the exit block at the end to give it the highest id.
   graph_->AddBlock(exit_block_);
   exit_block_->AddInstruction(new (arena_) HExit());
+  // Add the suspend check to the entry block.
+  entry_block_->AddInstruction(new (arena_) HSuspendCheck(0));
   entry_block_->AddInstruction(new (arena_) HGoto());
   return graph_;
 }
@@ -462,7 +468,15 @@ void HGraphBuilder::BuildArrayAccess(const Instruction& instruction,
   }
 }
 
-bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_t dex_offset) {
+void HGraphBuilder::PotentiallyAddSuspendCheck(int32_t target_offset, uint32_t dex_offset) {
+  if (target_offset <= 0) {
+    // Unconditionnally add a suspend check to backward branches. We can remove
+    // them after we recognize loops in the graph.
+    current_block_->AddInstruction(new (arena_) HSuspendCheck(dex_offset));
+  }
+}
+
+bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32_t dex_offset) {
   if (current_block_ == nullptr) {
     return true;  // Dead code
   }
@@ -580,7 +594,9 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, int32_
     case Instruction::GOTO:
     case Instruction::GOTO_16:
     case Instruction::GOTO_32: {
-      HBasicBlock* target = FindBlockStartingAt(instruction.GetTargetOffset() + dex_offset);
+      int32_t offset = instruction.GetTargetOffset();
+      PotentiallyAddSuspendCheck(offset, dex_offset);
+      HBasicBlock* target = FindBlockStartingAt(offset + dex_offset);
       DCHECK(target != nullptr);
       current_block_->AddInstruction(new (arena_) HGoto());
       current_block_->AddSuccessor(target);
