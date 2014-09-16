@@ -83,13 +83,6 @@ static constexpr size_t kMaxConcurrentRemainingBytes = 512 * KB;
 // relative to partial/full GC. This may be desirable since sticky GCs interfere less with mutator
 // threads (lower pauses, use less memory bandwidth).
 static constexpr double kStickyGcThroughputAdjustment = 1.0;
-// Whether or not we use the free list large object space. Only use it if USE_ART_LOW_4G_ALLOCATOR
-// since this means that we have to use the slow msync loop in MemMap::MapAnonymous.
-#if USE_ART_LOW_4G_ALLOCATOR
-static constexpr bool kUseFreeListSpaceForLOS = true;
-#else
-static constexpr bool kUseFreeListSpaceForLOS = false;
-#endif
 // Whether or not we compact the zygote in PreZygoteFork.
 static constexpr bool kCompactZygote = kMovingCollector;
 // How many reserve entries are at the end of the allocation stack, these are only needed if the
@@ -107,8 +100,9 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
            double target_utilization, double foreground_heap_growth_multiplier,
            size_t capacity, size_t non_moving_space_capacity, const std::string& image_file_name,
            const InstructionSet image_instruction_set, CollectorType foreground_collector_type,
-           CollectorType background_collector_type, size_t parallel_gc_threads,
-           size_t conc_gc_threads, bool low_memory_mode,
+           CollectorType background_collector_type,
+           space::LargeObjectSpaceType large_object_space_type, size_t large_object_threshold,
+           size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
            size_t long_pause_log_threshold, size_t long_gc_log_threshold,
            bool ignore_max_footprint, bool use_tlab,
            bool verify_pre_gc_heap, bool verify_pre_sweeping_heap, bool verify_post_gc_heap,
@@ -135,7 +129,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       ignore_max_footprint_(ignore_max_footprint),
       zygote_creation_lock_("zygote creation lock", kZygoteCreationLock),
       zygote_space_(nullptr),
-      large_object_threshold_(kDefaultLargeObjectThreshold),  // Starts out disabled.
+      large_object_threshold_(large_object_threshold),
       collector_type_running_(kCollectorTypeNone),
       last_gc_type_(collector::kGcTypeNone),
       next_gc_type_(collector::kGcTypePartial),
@@ -338,13 +332,21 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   CHECK(non_moving_space_ != nullptr);
   CHECK(!non_moving_space_->CanMoveObjects());
   // Allocate the large object space.
-  if (kUseFreeListSpaceForLOS) {
-    large_object_space_ = space::FreeListSpace::Create("large object space", nullptr, capacity_);
+  if (large_object_space_type == space::kLargeObjectSpaceTypeFreeList) {
+    large_object_space_ = space::FreeListSpace::Create("free list large object space", nullptr,
+                                                       capacity_);
+    CHECK(large_object_space_ != nullptr) << "Failed to create large object space";
+  } else if (large_object_space_type == space::kLargeObjectSpaceTypeMap) {
+    large_object_space_ = space::LargeObjectMapSpace::Create("mem map large object space");
+    CHECK(large_object_space_ != nullptr) << "Failed to create large object space";
   } else {
-    large_object_space_ = space::LargeObjectMapSpace::Create("large object space");
+    // Disable the large object space by making the cutoff excessively large.
+    large_object_threshold_ = std::numeric_limits<size_t>::max();
+    large_object_space_ = nullptr;
   }
-  CHECK(large_object_space_ != nullptr) << "Failed to create large object space";
-  AddSpace(large_object_space_);
+  if (large_object_space_ != nullptr) {
+    AddSpace(large_object_space_);
+  }
   // Compute heap capacity. Continuous spaces are sorted in order of Begin().
   CHECK(!continuous_spaces_.empty());
   // Relies on the spaces being sorted.
@@ -712,7 +714,8 @@ void Heap::MarkAllocStackAsLive(accounting::ObjectStack* stack) {
   CHECK(space1 != nullptr);
   CHECK(space2 != nullptr);
   MarkAllocStack(space1->GetLiveBitmap(), space2->GetLiveBitmap(),
-                 large_object_space_->GetLiveBitmap(), stack);
+                 (large_object_space_ != nullptr ? large_object_space_->GetLiveBitmap() : nullptr),
+                 stack);
 }
 
 void Heap::DeleteThreadPool() {
@@ -1002,7 +1005,10 @@ void Heap::Trim() {
       total_alloc_space_size += malloc_space->Size();
     }
   }
-  total_alloc_space_allocated = GetBytesAllocated() - large_object_space_->GetBytesAllocated();
+  total_alloc_space_allocated = GetBytesAllocated();
+  if (large_object_space_ != nullptr) {
+    total_alloc_space_allocated -= large_object_space_->GetBytesAllocated();
+  }
   if (bump_pointer_space_ != nullptr) {
     total_alloc_space_allocated -= bump_pointer_space_->Size();
   }
@@ -2018,6 +2024,7 @@ void Heap::MarkAllocStack(accounting::ContinuousSpaceBitmap* bitmap1,
       } else if (bitmap2->HasAddress(obj)) {
         bitmap2->Set(obj);
       } else {
+        DCHECK(large_objects != nullptr);
         large_objects->Set(obj);
       }
     }

@@ -16,7 +16,7 @@
 
 #include "gc/heap.h"
 #include "gc/space/large_object_space.h"
-#include "gc/space/space.h"
+#include "gc/space/space-inl.h"
 #include "sticky_mark_sweep.h"
 #include "thread-inl.h"
 
@@ -32,7 +32,6 @@ StickyMarkSweep::StickyMarkSweep(Heap* heap, bool is_concurrent, const std::stri
 
 void StickyMarkSweep::BindBitmaps() {
   PartialMarkSweep::BindBitmaps();
-
   WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   // For sticky GC, we want to bind the bitmaps of all spaces as the allocation stack lets us
   // know what was allocated since the last GC. A side-effect of binding the allocation space mark
@@ -44,7 +43,10 @@ void StickyMarkSweep::BindBitmaps() {
       space->AsContinuousMemMapAllocSpace()->BindLiveToMarkBitmap();
     }
   }
-  GetHeap()->GetLargeObjectsSpace()->CopyLiveToMarked();
+  for (const auto& space : GetHeap()->GetDiscontinuousSpaces()) {
+    CHECK(space->IsLargeObjectSpace());
+    space->AsLargeObjectSpace()->CopyLiveToMarked();
+  }
 }
 
 void StickyMarkSweep::MarkReachableObjects() {
