@@ -24,6 +24,7 @@
 
 #include "globals.h"
 #include "gc/collector_type.h"
+#include "gc/space/large_object_space.h"
 #include "instruction_set.h"
 #include "profiler_options.h"
 
@@ -72,6 +73,8 @@ class ParsedOptions {
   size_t heap_min_free_;
   size_t heap_max_free_;
   size_t heap_non_moving_space_capacity_;
+  gc::space::LargeObjectSpaceType large_object_space_type_;
+  size_t large_object_threshold_;
   double heap_target_utilization_;
   double foreground_heap_growth_multiplier_;
   unsigned int parallel_gc_threads_;

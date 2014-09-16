@@ -30,6 +30,7 @@
 #include "gc/collector/garbage_collector.h"
 #include "gc/collector/gc_type.h"
 #include "gc/collector_type.h"
+#include "gc/space/large_object_space.h"
 #include "globals.h"
 #include "gtest/gtest.h"
 #include "instruction_set.h"
@@ -129,8 +130,6 @@ class Heap {
  public:
   // If true, measure the total allocation time.
   static constexpr bool kMeasureAllocationTime = false;
-  // Primitive arrays larger than this size are put in the large object space.
-  static constexpr size_t kDefaultLargeObjectThreshold = 3 * kPageSize;
   static constexpr size_t kDefaultStartingSize = kPageSize;
   static constexpr size_t kDefaultInitialSize = 2 * MB;
   static constexpr size_t kDefaultMaximumSize = 256 * MB;
@@ -142,7 +141,17 @@ class Heap {
   static constexpr size_t kDefaultTLABSize = 256 * KB;
   static constexpr double kDefaultTargetUtilization = 0.5;
   static constexpr double kDefaultHeapGrowthMultiplier = 2.0;
-
+  // Primitive arrays larger than this size are put in the large object space.
+  static constexpr size_t kDefaultLargeObjectThreshold = 3 * kPageSize;
+  // Whether or not we use the free list large object space. Only use it if USE_ART_LOW_4G_ALLOCATOR
+  // since this means that we have to use the slow msync loop in MemMap::MapAnonymous.
+#if USE_ART_LOW_4G_ALLOCATOR
+  static constexpr space::LargeObjectSpaceType kDefaultLargeObjectSpaceType =
+      space::kLargeObjectSpaceTypeFreeList;
+#else
+  static constexpr space::LargeObjectSpaceType kDefaultLargeObjectSpaceType =
+      space::kLargeObjectSpaceTypeMap;
+#endif
   // Used so that we don't overflow the allocation time atomic integer.
   static constexpr size_t kTimeAdjust = 1024;
 
@@ -161,6 +170,7 @@ class Heap {
                 const std::string& original_image_file_name,
                 InstructionSet image_instruction_set,
                 CollectorType foreground_collector_type, CollectorType background_collector_type,
+                space::LargeObjectSpaceType large_object_space_type, size_t large_object_threshold,
                 size_t parallel_gc_threads, size_t conc_gc_threads, bool low_memory_mode,
                 size_t long_pause_threshold, size_t long_gc_threshold,
                 bool ignore_max_footprint, bool use_tlab,
