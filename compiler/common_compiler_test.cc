@@ -367,7 +367,7 @@ void CommonCompilerTest::CompileMethod(mirror::ArtMethod* method) {
   MakeExecutable(method);
 }
 
-void CommonCompilerTest::CompileDirectMethod(ConstHandle<mirror::ClassLoader> class_loader,
+void CommonCompilerTest::CompileDirectMethod(Handle<mirror::ClassLoader> class_loader,
                                              const char* class_name, const char* method_name,
                                              const char* signature) {
   std::string class_descriptor(DotToDescriptor(class_name));
@@ -380,7 +380,7 @@ void CommonCompilerTest::CompileDirectMethod(ConstHandle<mirror::ClassLoader> cl
   CompileMethod(method);
 }
 
-void CommonCompilerTest::CompileVirtualMethod(ConstHandle<mirror::ClassLoader> class_loader,
+void CommonCompilerTest::CompileVirtualMethod(Handle<mirror::ClassLoader> class_loader,
                                               const char* class_name, const char* method_name,
                                               const char* signature) {
   std::string class_descriptor(DotToDescriptor(class_name));

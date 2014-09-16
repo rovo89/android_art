@@ -144,19 +144,19 @@ class MethodVerifier {
                                  std::string* error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static FailureKind VerifyClass(Thread* self, const DexFile* dex_file,
-                                 ConstHandle<mirror::DexCache> dex_cache,
-                                 ConstHandle<mirror::ClassLoader> class_loader,
+                                 Handle<mirror::DexCache> dex_cache,
+                                 Handle<mirror::ClassLoader> class_loader,
                                  const DexFile::ClassDef* class_def,
                                  bool allow_soft_failures, std::string* error)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static MethodVerifier* VerifyMethodAndDump(Thread* self, std::ostream& os, uint32_t method_idx,
                                              const DexFile* dex_file,
-                                             ConstHandle<mirror::DexCache> dex_cache,
-                                             ConstHandle<mirror::ClassLoader> class_loader,
+                                             Handle<mirror::DexCache> dex_cache,
+                                             Handle<mirror::ClassLoader> class_loader,
                                              const DexFile::ClassDef* class_def,
                                              const DexFile::CodeItem* code_item,
-                                             ConstHandle<mirror::ArtMethod> method,
+                                             Handle<mirror::ArtMethod> method,
                                              uint32_t method_access_flags)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -206,10 +206,10 @@ class MethodVerifier {
     return can_load_classes_;
   }
 
-  MethodVerifier(Thread* self, const DexFile* dex_file, ConstHandle<mirror::DexCache> dex_cache,
-                 ConstHandle<mirror::ClassLoader> class_loader, const DexFile::ClassDef* class_def,
+  MethodVerifier(Thread* self, const DexFile* dex_file, Handle<mirror::DexCache> dex_cache,
+                 Handle<mirror::ClassLoader> class_loader, const DexFile::ClassDef* class_def,
                  const DexFile::CodeItem* code_item, uint32_t method_idx,
-                 ConstHandle<mirror::ArtMethod> method,
+                 Handle<mirror::ArtMethod> method,
                  uint32_t access_flags, bool can_load_classes, bool allow_soft_failures,
                  bool need_precise_constants) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : MethodVerifier(self, dex_file, dex_cache, class_loader, class_def, code_item, method_idx,
@@ -245,10 +245,10 @@ class MethodVerifier {
 
  private:
   // Private constructor for dumping.
-  MethodVerifier(Thread* self, const DexFile* dex_file, ConstHandle<mirror::DexCache> dex_cache,
-                 ConstHandle<mirror::ClassLoader> class_loader, const DexFile::ClassDef* class_def,
+  MethodVerifier(Thread* self, const DexFile* dex_file, Handle<mirror::DexCache> dex_cache,
+                 Handle<mirror::ClassLoader> class_loader, const DexFile::ClassDef* class_def,
                  const DexFile::CodeItem* code_item, uint32_t method_idx,
-                 ConstHandle<mirror::ArtMethod> method,
+                 Handle<mirror::ArtMethod> method,
                  uint32_t access_flags, bool can_load_classes, bool allow_soft_failures,
                  bool need_precise_constants, bool verify_to_dump)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -271,11 +271,11 @@ class MethodVerifier {
    *      for code flow problems.
    */
   static FailureKind VerifyMethod(Thread* self, uint32_t method_idx, const DexFile* dex_file,
-                                  ConstHandle<mirror::DexCache> dex_cache,
-                                  ConstHandle<mirror::ClassLoader> class_loader,
+                                  Handle<mirror::DexCache> dex_cache,
+                                  Handle<mirror::ClassLoader> class_loader,
                                   const DexFile::ClassDef* class_def_idx,
                                   const DexFile::CodeItem* code_item,
-                                  ConstHandle<mirror::ArtMethod> method, uint32_t method_access_flags,
+                                  Handle<mirror::ArtMethod> method, uint32_t method_access_flags,
                                   bool allow_soft_failures, bool need_precise_constants)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -661,14 +661,14 @@ class MethodVerifier {
 
   const uint32_t dex_method_idx_;  // The method we're working on.
   // Its object representation if known.
-  ConstHandle<mirror::ArtMethod> mirror_method_ GUARDED_BY(Locks::mutator_lock_);
+  Handle<mirror::ArtMethod> mirror_method_ GUARDED_BY(Locks::mutator_lock_);
   const uint32_t method_access_flags_;  // Method's access flags.
   const RegType* return_type_;  // Lazily computed return type of the method.
   const DexFile* const dex_file_;  // The dex file containing the method.
   // The dex_cache for the declaring class of the method.
-  ConstHandle<mirror::DexCache> dex_cache_ GUARDED_BY(Locks::mutator_lock_);
+  Handle<mirror::DexCache> dex_cache_ GUARDED_BY(Locks::mutator_lock_);
   // The class loader for the declaring class of the method.
-  ConstHandle<mirror::ClassLoader> class_loader_ GUARDED_BY(Locks::mutator_lock_);
+  Handle<mirror::ClassLoader> class_loader_ GUARDED_BY(Locks::mutator_lock_);
   const DexFile::ClassDef* const class_def_;  // The class def of the declaring class of the method.
   const DexFile::CodeItem* const code_item_;  // The code item containing the code for the method.
   const RegType* declaring_class_;  // Lazily computed reg type of the method's declaring class.

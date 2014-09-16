@@ -30,23 +30,23 @@ template<class T> class Handle;
 
 // Handles are memory locations that contain GC roots. As the mirror::Object*s within a handle are
 // GC visible then the GC may move the references within them, something that couldn't be done with
-// a wrap pointer. Handles are generally allocated within HandleScopes. ConstHandle is a super-class
-// of Handle and doesn't support assignment operations.
+// a wrap pointer. Handles are generally allocated within HandleScopes. Handle is a super-class
+// of MutableHandle and doesn't support assignment operations.
 template<class T>
-class ConstHandle {
+class Handle {
  public:
-  ConstHandle() : reference_(nullptr) {
+  Handle() : reference_(nullptr) {
   }
 
-  ALWAYS_INLINE ConstHandle(const ConstHandle<T>& handle) : reference_(handle.reference_) {
+  ALWAYS_INLINE Handle(const Handle<T>& handle) : reference_(handle.reference_) {
   }
 
-  ALWAYS_INLINE ConstHandle<T>& operator=(const ConstHandle<T>& handle) {
+  ALWAYS_INLINE Handle<T>& operator=(const Handle<T>& handle) {
     reference_ = handle.reference_;
     return *this;
   }
 
-  ALWAYS_INLINE explicit ConstHandle(StackReference<T>* reference) : reference_(reference) {
+  ALWAYS_INLINE explicit Handle(StackReference<T>* reference) : reference_(reference) {
   }
 
   ALWAYS_INLINE T& operator*() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -73,11 +73,11 @@ class ConstHandle {
   StackReference<T>* reference_;
 
   template<typename S>
-  explicit ConstHandle(StackReference<S>* reference)
+  explicit Handle(StackReference<S>* reference)
       : reference_(reinterpret_cast<StackReference<T>*>(reference)) {
   }
   template<typename S>
-  explicit ConstHandle(const ConstHandle<S>& handle)
+  explicit Handle(const Handle<S>& handle)
       : reference_(reinterpret_cast<StackReference<T>*>(handle.reference_)) {
   }
 
@@ -91,7 +91,7 @@ class ConstHandle {
 
  private:
   friend class BuildGenericJniFrameVisitor;
-  template<class S> friend class ConstHandle;
+  template<class S> friend class Handle;
   friend class HandleScope;
   template<class S> friend class HandleWrapper;
   template<size_t kNumReferences> friend class StackHandleScope;
@@ -99,42 +99,43 @@ class ConstHandle {
 
 // Handles that support assignment.
 template<class T>
-class Handle : public ConstHandle<T> {
+class MutableHandle : public Handle<T> {
  public:
-  Handle() {
+  MutableHandle() {
   }
 
-  ALWAYS_INLINE Handle(const Handle<T>& handle) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : ConstHandle<T>(handle.reference_) {
+  ALWAYS_INLINE MutableHandle(const MutableHandle<T>& handle)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : Handle<T>(handle.reference_) {
   }
 
-  ALWAYS_INLINE Handle<T>& operator=(const Handle<T>& handle)
+  ALWAYS_INLINE MutableHandle<T>& operator=(const MutableHandle<T>& handle)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ConstHandle<T>::operator=(handle);
+    Handle<T>::operator=(handle);
     return *this;
   }
 
-  ALWAYS_INLINE explicit Handle(StackReference<T>* reference)
+  ALWAYS_INLINE explicit MutableHandle(StackReference<T>* reference)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : ConstHandle<T>(reference) {
+      : Handle<T>(reference) {
   }
 
   ALWAYS_INLINE T* Assign(T* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    StackReference<T>* ref = ConstHandle<T>::GetReference();
+    StackReference<T>* ref = Handle<T>::GetReference();
     T* const old = ref->AsMirrorPtr();
     ref->Assign(reference);
     return old;
   }
 
   template<typename S>
-  explicit Handle(const Handle<S>& handle) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : ConstHandle<T>(handle) {
+  explicit MutableHandle(const MutableHandle<S>& handle) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : Handle<T>(handle) {
   }
 
  protected:
   template<typename S>
-  explicit Handle(StackReference<S>* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : ConstHandle<T>(reference) {
+  explicit MutableHandle(StackReference<S>* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : Handle<T>(reference) {
   }
 
  private:
@@ -146,9 +147,9 @@ class Handle : public ConstHandle<T> {
 
 // A special case of Handle that only holds references to null.
 template<class T>
-class NullHandle : public ConstHandle<T> {
+class NullHandle : public Handle<T> {
  public:
-  NullHandle() : ConstHandle<T>(&null_ref_) {
+  NullHandle() : Handle<T>(&null_ref_) {
   }
 
  private:

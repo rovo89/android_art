@@ -65,7 +65,7 @@
 namespace art {
 
 struct ClassOffsets;
-template<class T> class ConstHandle;
+template<class T> class Handle;
 template<class T> class Handle;
 class Signature;
 class StringPiece;
@@ -990,7 +990,7 @@ class MANAGED Class FINAL : public Object {
 
   uint16_t GetDirectInterfaceTypeIdx(uint32_t idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static mirror::Class* GetDirectInterface(Thread* self, ConstHandle<mirror::Class> klass,
+  static mirror::Class* GetDirectInterface(Thread* self, Handle<mirror::Class> klass,
                                            uint32_t idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

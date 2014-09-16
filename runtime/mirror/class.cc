@@ -760,7 +760,7 @@ uint16_t Class::GetDirectInterfaceTypeIdx(uint32_t idx) {
   return GetInterfaceTypeList()->GetTypeItem(idx).type_idx_;
 }
 
-mirror::Class* Class::GetDirectInterface(Thread* self, ConstHandle<mirror::Class> klass,
+mirror::Class* Class::GetDirectInterface(Thread* self, Handle<mirror::Class> klass,
                                          uint32_t idx) {
   DCHECK(klass.Get() != nullptr);
   DCHECK(!klass->IsPrimitive());
