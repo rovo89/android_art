@@ -120,7 +120,7 @@ mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
   mirror::Object* obj = reinterpret_cast<mirror::Object*>(mem_map->Begin());
   large_objects_.push_back(obj);
   mem_maps_.Put(obj, mem_map);
-  size_t allocation_size = mem_map->Size();
+  const size_t allocation_size = mem_map->BaseSize();
   DCHECK(bytes_allocated != nullptr);
   begin_ = std::min(begin_, reinterpret_cast<byte*>(obj));
   byte* obj_end = reinterpret_cast<byte*>(obj) + allocation_size;
@@ -145,8 +145,9 @@ size_t LargeObjectMapSpace::Free(Thread* self, mirror::Object* ptr) {
     Runtime::Current()->GetHeap()->DumpSpaces(LOG(ERROR));
     LOG(FATAL) << "Attempted to free large object " << ptr << " which was not live";
   }
-  DCHECK_GE(num_bytes_allocated_, found->second->Size());
-  size_t allocation_size = found->second->Size();
+  const size_t map_size = found->second->BaseSize();
+  DCHECK_GE(num_bytes_allocated_, map_size);
+  size_t allocation_size = map_size;
   num_bytes_allocated_ -= allocation_size;
   --num_objects_allocated_;
   delete found->second;
@@ -158,7 +159,7 @@ size_t LargeObjectMapSpace::AllocationSize(mirror::Object* obj, size_t* usable_s
   MutexLock mu(Thread::Current(), lock_);
   auto found = mem_maps_.find(obj);
   CHECK(found != mem_maps_.end()) << "Attempted to get size of a large object which is not live";
-  return found->second->Size();
+  return found->second->BaseSize();
 }
 
 size_t LargeObjectSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) {

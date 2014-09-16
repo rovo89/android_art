@@ -697,6 +697,8 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
                        options->image_isa_,
                        options->collector_type_,
                        options->background_collector_type_,
+                       options->large_object_space_type_,
+                       options->large_object_threshold_,
                        options->parallel_gc_threads_,
                        options->conc_gc_threads_,
                        options->low_memory_mode_,
