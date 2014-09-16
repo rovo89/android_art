@@ -114,13 +114,22 @@ class OatFile {
       }
     }
 
+    // Returns 0.
     uint32_t GetPortableCodeSize() const {
       // TODO: With Quick, we store the size before the code. With Portable, the code is in a .o
       // file we don't manage ourselves. ELF symbols do have a concept of size, so we could capture
       // that and store it somewhere, such as the OatMethod.
       return 0;
     }
+
+    // Returns size of quick code.
     uint32_t GetQuickCodeSize() const;
+    uint32_t GetQuickCodeSizeOffset() const;
+
+    // Returns OatQuickMethodHeader for debugging. Most callers should
+    // use more specific methods such as GetQuickCodeSize.
+    const OatQuickMethodHeader* GetOatQuickMethodHeader() const;
+    uint32_t GetOatQuickMethodHeaderOffset() const;
 
     const uint8_t* GetNativeGcMap() const {
       return GetOatPointer<const uint8_t*>(native_gc_map_offset_);
@@ -129,10 +138,14 @@ class OatFile {
     size_t GetFrameSizeInBytes() const;
     uint32_t GetCoreSpillMask() const;
     uint32_t GetFpSpillMask() const;
-    uint32_t GetMappingTableOffset() const;
-    uint32_t GetVmapTableOffset() const;
+
     const uint8_t* GetMappingTable() const;
+    uint32_t GetMappingTableOffset() const;
+    uint32_t GetMappingTableOffsetOffset() const;
+
     const uint8_t* GetVmapTable() const;
+    uint32_t GetVmapTableOffset() const;
+    uint32_t GetVmapTableOffsetOffset() const;
 
     // Create an OatMethod with offsets relative to the given base address
     OatMethod(const byte* base, const uint32_t code_offset, const uint32_t gc_map_offset)
@@ -176,10 +189,20 @@ class OatFile {
     }
 
     // Get the OatMethod entry based on its index into the class
-    // defintion. direct methods come first, followed by virtual
-    // methods. note that runtime created methods such as miranda
+    // defintion. Direct methods come first, followed by virtual
+    // methods. Note that runtime created methods such as miranda
     // methods are not included.
     const OatMethod GetOatMethod(uint32_t method_index) const;
+
+    // Return a pointer to the OatMethodOffsets for the requested
+    // method_index, or nullptr if none is present. Note that most
+    // callers should use GetOatMethod.
+    const OatMethodOffsets* GetOatMethodOffsets(uint32_t method_index) const;
+
+    // Return the offset from the start of the OatFile to the
+    // OatMethodOffsets for the requested method_index, or 0 if none
+    // is present. Note that most callers should use GetOatMethod.
+    uint32_t GetOatMethodOffsetsOffset(uint32_t method_index) const;
 
     // A representation of an invalid OatClass, used when an OatClass can't be found.
     // See ClassLinker::FindOatClass.
@@ -238,6 +261,9 @@ class OatFile {
 
     // Returns the OatClass for the class specified by the given DexFile class_def_index.
     OatClass GetOatClass(uint16_t class_def_index) const;
+
+    // Returns the offset to the OatClass information. Most callers should use GetOatClass.
+    uint32_t GetOatClassOffset(uint16_t class_def_index) const;
 
     ~OatDexFile();
 

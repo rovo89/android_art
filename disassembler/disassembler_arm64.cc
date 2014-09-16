@@ -34,7 +34,8 @@ static uint32_t ReadU32(const uint8_t* ptr) {
 size_t DisassemblerArm64::Dump(std::ostream& os, const uint8_t* begin) {
   uint32_t instruction = ReadU32(begin);
   decoder.Decode(reinterpret_cast<vixl::Instruction*>(&instruction));
-  os << StringPrintf("%p: %08x\t%s\n", begin, instruction, disasm.GetOutput());
+  os << FormatInstructionPointer(begin)
+     << StringPrintf(": %08x\t%s\n", instruction, disasm.GetOutput());
   return vixl::kInstructionSize;
 }
 
