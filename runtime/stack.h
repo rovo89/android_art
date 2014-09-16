@@ -604,8 +604,8 @@ class StackVisitor {
    *     | Compiler temp region          |  ... (reg >= max_num_special_temps)
    *     |      .                        |
    *     |      .                        |
-   *     | V[max_num_special_temps + 1] |
-   *     | V[max_num_special_temps + 0] |
+   *     | V[max_num_special_temps + 1]  |
+   *     | V[max_num_special_temps + 0]  |
    *     +-------------------------------+
    *     | OUT[outs-1]                   |
    *     | OUT[outs-2]                   |
