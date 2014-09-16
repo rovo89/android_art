@@ -440,7 +440,8 @@ bool RegisterAllocator::TryAllocateFreeReg(LiveInterval* current) {
     DCHECK(inactive->HasRegister());
     size_t next_intersection = inactive->FirstIntersectionWith(current);
     if (next_intersection != kNoLifetime) {
-      free_until[inactive->GetRegister()] = next_intersection;
+      free_until[inactive->GetRegister()] =
+          std::min(free_until[inactive->GetRegister()], next_intersection);
     }
   }
 
