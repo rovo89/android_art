@@ -154,7 +154,7 @@ class SrcMap FINAL : public std::vector<SrcMapElem> {
       // get rid of the highest values
       size_t i = size() - 1;
       for (; i > 0 ; i--) {
-        if ((*this)[i].from_ >= highest_pc) {
+        if ((*this)[i].from_ < highest_pc) {
           break;
         }
       }
