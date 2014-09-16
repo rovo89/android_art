@@ -19,6 +19,7 @@
 #include <iostream>
 
 #include "base/logging.h"
+#include "base/stringprintf.h"
 #include "disassembler_arm.h"
 #include "disassembler_arm64.h"
 #include "disassembler_mips.h"
@@ -26,20 +27,29 @@
 
 namespace art {
 
-Disassembler* Disassembler::Create(InstructionSet instruction_set) {
+Disassembler* Disassembler::Create(InstructionSet instruction_set, DisassemblerOptions* options) {
   if (instruction_set == kArm || instruction_set == kThumb2) {
-    return new arm::DisassemblerArm();
+    return new arm::DisassemblerArm(options);
   } else if (instruction_set == kArm64) {
-    return new arm64::DisassemblerArm64();
+    return new arm64::DisassemblerArm64(options);
   } else if (instruction_set == kMips) {
-    return new mips::DisassemblerMips();
+    return new mips::DisassemblerMips(options);
   } else if (instruction_set == kX86) {
-    return new x86::DisassemblerX86(false);
+    return new x86::DisassemblerX86(options, false);
   } else if (instruction_set == kX86_64) {
-    return new x86::DisassemblerX86(true);
+    return new x86::DisassemblerX86(options, true);
   } else {
     UNIMPLEMENTED(FATAL) << "no disassembler for " << instruction_set;
     return NULL;
+  }
+}
+
+std::string Disassembler::FormatInstructionPointer(const uint8_t* begin) {
+  if (disassembler_options_->absolute_addresses_) {
+    return StringPrintf("%p", begin);
+  } else {
+    size_t offset = begin - disassembler_options_->base_address_;
+    return StringPrintf("0x%08zx", offset);
   }
 }
 

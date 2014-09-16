@@ -26,10 +26,31 @@
 
 namespace art {
 
+class DisassemblerOptions {
+ public:
+  // Should the disassembler print absolute or relative addresses.
+  const bool absolute_addresses_;
+
+  // Base addess for calculating relative code offsets when absolute_addresses_ is false.
+  const uint8_t* const base_address_;
+
+  DisassemblerOptions(bool absolute_addresses, const uint8_t* base_address)
+      : absolute_addresses_(absolute_addresses), base_address_(base_address) {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(DisassemblerOptions);
+};
+
 class Disassembler {
  public:
-  static Disassembler* Create(InstructionSet instruction_set);
-  virtual ~Disassembler() {}
+  // Creates a Disassembler for the given InstructionSet with the
+  // non-null DisassemblerOptions which become owned by the
+  // Disassembler.
+  static Disassembler* Create(InstructionSet instruction_set, DisassemblerOptions* options);
+
+  virtual ~Disassembler() {
+    delete disassembler_options_;
+  }
 
   // Dump a single instruction returning the length of that instruction.
   virtual size_t Dump(std::ostream& os, const uint8_t* begin) = 0;
@@ -37,9 +58,15 @@ class Disassembler {
   virtual void Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) = 0;
 
  protected:
-  Disassembler() {}
+  explicit Disassembler(DisassemblerOptions* disassembler_options)
+      : disassembler_options_(disassembler_options) {
+    CHECK(disassembler_options_ != nullptr);
+  }
+
+  std::string FormatInstructionPointer(const uint8_t* begin);
 
  private:
+  DisassemblerOptions* disassembler_options_;
   DISALLOW_COPY_AND_ASSIGN(Disassembler);
 };
 

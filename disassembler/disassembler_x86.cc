@@ -1215,7 +1215,9 @@ DISASSEMBLER_ENTRY(cmp,
       displacement = *reinterpret_cast<const int32_t*>(instr);
       instr += 4;
     }
-    args << StringPrintf("%+d (%p)", displacement, instr + displacement);
+    args << StringPrintf("%+d (", displacement)
+         << FormatInstructionPointer(instr + displacement)
+         << ")";
   }
   if (prefix[1] == kFs && !supports_rex_) {
     args << "  ; ";
@@ -1238,8 +1240,8 @@ DISASSEMBLER_ENTRY(cmp,
     default: LOG(FATAL) << "Unreachable";
   }
   prefixed_opcode << opcode.str();
-  os << StringPrintf("%p: %22s    \t%-7s ", begin_instr, hex.str().c_str(),
-                     prefixed_opcode.str().c_str())
+  os << FormatInstructionPointer(begin_instr)
+     << StringPrintf(": %22s    \t%-7s ", hex.str().c_str(), prefixed_opcode.str().c_str())
      << args.str() << '\n';
   return instr - begin_instr;
 }  // NOLINT(readability/fn_size)
