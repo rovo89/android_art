@@ -373,10 +373,8 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
 
       // Enable count of allocs if specified in the flags.
       if ((flags && kTraceCountAllocs) != 0) {
-        runtime->SetStatsEnabled(true);
+        runtime->SetStatsEnabled(true, true);
       }
-
-
 
       if (sampling_enabled) {
         CHECK_PTHREAD_CALL(pthread_create, (&sampling_pthread_, NULL, &RunSamplingThread,
@@ -492,7 +490,7 @@ void Trace::FinishTracing() {
   size_t final_offset = cur_offset_.LoadRelaxed();
 
   if ((flags_ & kTraceCountAllocs) != 0) {
-    Runtime::Current()->SetStatsEnabled(false);
+    Runtime::Current()->SetStatsEnabled(false, true);
   }
 
   std::set<mirror::ArtMethod*> visited_methods;
