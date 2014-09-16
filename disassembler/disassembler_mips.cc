@@ -168,7 +168,7 @@ static uint32_t ReadU32(const uint8_t* ptr) {
   return ptr[0] | (ptr[1] << 8) | (ptr[2] << 16) | (ptr[3] << 24);
 }
 
-static void DumpMips(std::ostream& os, const uint8_t* instr_ptr) {
+size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
   uint32_t instruction = ReadU32(instr_ptr);
 
   uint32_t rs = (instruction >> 21) & 0x1f;  // I-type, R-type.
@@ -197,7 +197,8 @@ static void DumpMips(std::ostream& os, const uint8_t* instr_ptr) {
               int32_t offset = static_cast<int16_t>(instruction & 0xffff);
               offset <<= 2;
               offset += 4;  // Delay slot.
-              args << StringPrintf("%p  ; %+d", instr_ptr + offset, offset);
+              args << FormatInstructionPointer(instr_ptr + offset)
+                   << StringPrintf("  ; %+d", offset);
             }
             break;
           case 'D': args << 'r' << rd; break;
@@ -254,17 +255,15 @@ static void DumpMips(std::ostream& os, const uint8_t* instr_ptr) {
     }
   }
 
-  os << StringPrintf("%p: %08x\t%-7s ", instr_ptr, instruction, opcode.c_str()) << args.str() << '\n';
-}
-
-size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* begin) {
-  DumpMips(os, begin);
+  os << FormatInstructionPointer(instr_ptr)
+     << StringPrintf(": %08x\t%-7s ", instruction, opcode.c_str())
+     << args.str() << '\n';
   return 4;
 }
 
 void DisassemblerMips::Dump(std::ostream& os, const uint8_t* begin, const uint8_t* end) {
   for (const uint8_t* cur = begin; cur < end; cur += 4) {
-    DumpMips(os, cur);
+    Dump(os, cur);
   }
 }
 

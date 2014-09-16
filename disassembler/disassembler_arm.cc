@@ -94,7 +94,7 @@ void DisassemblerArm::DumpMemoryDomain(std::ostream& os, uint32_t domain) {
 }
 
 void DisassemblerArm::DumpBranchTarget(std::ostream& os, const uint8_t* instr_ptr, int32_t imm32) {
-  os << StringPrintf("%+d (%p)", imm32, instr_ptr + imm32);
+  os << StringPrintf("%+d (", imm32) << FormatInstructionPointer(instr_ptr + imm32) << ")";
 }
 
 static uint32_t ReadU16(const uint8_t* ptr) {
@@ -356,7 +356,9 @@ void DisassemblerArm::DumpArm(std::ostream& os, const uint8_t* instr_ptr) {
     opcode += kConditionCodeNames[cond];
     opcode += suffixes;
     // TODO: a more complete ARM disassembler could generate wider opcodes.
-    os << StringPrintf("%p: %08x\t%-7s ", instr_ptr, instruction, opcode.c_str()) << args.str() << '\n';
+    os << FormatInstructionPointer(instr_ptr)
+       << StringPrintf(": %08x\t%-7s ", instruction, opcode.c_str())
+       << args.str() << '\n';
 }
 
 int32_t ThumbExpand(int32_t imm12) {
@@ -1608,7 +1610,9 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
     opcode << "UNKNOWN " << op2;
   }
 
-  os << StringPrintf("%p: %08x\t%-7s ", instr_ptr, instr, opcode.str().c_str()) << args.str() << '\n';
+  os << FormatInstructionPointer(instr_ptr)
+     << StringPrintf(": %08x\t%-7s ", instr, opcode.str().c_str())
+     << args.str() << '\n';
   return 4;
 }  // NOLINT(readability/fn_size)
 
@@ -1936,7 +1940,9 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
       it_conditions_.pop_back();
     }
 
-    os << StringPrintf("%p: %04x    \t%-7s ", instr_ptr, instr, opcode.str().c_str()) << args.str() << '\n';
+    os << FormatInstructionPointer(instr_ptr)
+       << StringPrintf(": %04x    \t%-7s ", instr, opcode.str().c_str())
+       << args.str() << '\n';
   }
   return 2;
 }
