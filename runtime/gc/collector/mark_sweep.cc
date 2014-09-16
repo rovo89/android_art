@@ -374,7 +374,8 @@ class MarkSweepMarkObjectSlowPath {
     }
     space::LargeObjectSpace* large_object_space = mark_sweep_->GetHeap()->GetLargeObjectsSpace();
     if (UNLIKELY(obj == nullptr || !IsAligned<kPageSize>(obj) ||
-                 (kIsDebugBuild && !large_object_space->Contains(obj)))) {
+                 (kIsDebugBuild && large_object_space != nullptr &&
+                     !large_object_space->Contains(obj)))) {
       LOG(ERROR) << "Tried to mark " << obj << " not contained by any spaces";
       LOG(ERROR) << "Attempting see if it's a bad root";
       mark_sweep_->VerifyRoots();
@@ -481,7 +482,7 @@ void MarkSweep::VerifyRoot(const Object* root, size_t vreg, const StackVisitor* 
   // See if the root is on any space bitmap.
   if (heap_->GetLiveBitmap()->GetContinuousSpaceBitmap(root) == nullptr) {
     space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
-    if (!large_object_space->Contains(root)) {
+    if (large_object_space != nullptr && !large_object_space->Contains(root)) {
       LOG(ERROR) << "Found invalid root: " << root << " with type " << root_type;
       if (visitor != NULL) {
         LOG(ERROR) << visitor->DescribeLocation() << " in VReg: " << vreg;
@@ -1074,20 +1075,22 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
   }
   // Handle the large object space.
   space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
-  accounting::LargeObjectBitmap* large_live_objects = large_object_space->GetLiveBitmap();
-  accounting::LargeObjectBitmap* large_mark_objects = large_object_space->GetMarkBitmap();
-  if (swap_bitmaps) {
-    std::swap(large_live_objects, large_mark_objects);
-  }
-  for (size_t i = 0; i < count; ++i) {
-    Object* obj = objects[i];
-    // Handle large objects.
-    if (kUseThreadLocalAllocationStack && obj == nullptr) {
-      continue;
+  if (large_object_space != nullptr) {
+    accounting::LargeObjectBitmap* large_live_objects = large_object_space->GetLiveBitmap();
+    accounting::LargeObjectBitmap* large_mark_objects = large_object_space->GetMarkBitmap();
+    if (swap_bitmaps) {
+      std::swap(large_live_objects, large_mark_objects);
     }
-    if (!large_mark_objects->Test(obj)) {
-      ++freed_los.objects;
-      freed_los.bytes += large_object_space->Free(self, obj);
+    for (size_t i = 0; i < count; ++i) {
+      Object* obj = objects[i];
+      // Handle large objects.
+      if (kUseThreadLocalAllocationStack && obj == nullptr) {
+        continue;
+      }
+      if (!large_mark_objects->Test(obj)) {
+        ++freed_los.objects;
+        freed_los.bytes += large_object_space->Free(self, obj);
+      }
     }
   }
   {
@@ -1125,8 +1128,11 @@ void MarkSweep::Sweep(bool swap_bitmaps) {
 }
 
 void MarkSweep::SweepLargeObjects(bool swap_bitmaps) {
-  TimingLogger::ScopedTiming split(__FUNCTION__, GetTimings());
-  RecordFreeLOS(heap_->GetLargeObjectsSpace()->Sweep(swap_bitmaps));
+  space::LargeObjectSpace* los = heap_->GetLargeObjectsSpace();
+  if (los != nullptr) {
+    TimingLogger::ScopedTiming split(__FUNCTION__, GetTimings());
+    RecordFreeLOS(los->Sweep(swap_bitmaps));
+  }
 }
 
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been

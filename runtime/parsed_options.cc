@@ -63,6 +63,8 @@ ParsedOptions::ParsedOptions()
     heap_min_free_(gc::Heap::kDefaultMinFree),
     heap_max_free_(gc::Heap::kDefaultMaxFree),
     heap_non_moving_space_capacity_(gc::Heap::kDefaultNonMovingSpaceCapacity),
+    large_object_space_type_(gc::Heap::kDefaultLargeObjectSpaceType),
+    large_object_threshold_(gc::Heap::kDefaultLargeObjectThreshold),
     heap_target_utilization_(gc::Heap::kDefaultTargetUtilization),
     foreground_heap_growth_multiplier_(gc::Heap::kDefaultHeapGrowthMultiplier),
     parallel_gc_threads_(1),
@@ -452,6 +454,32 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
       if (!ParseXGcOption(option)) {
         return false;
       }
+    } else if (StartsWith(option, "-XX:LargeObjectSpace=")) {
+      std::string substring;
+      if (!ParseStringAfterChar(option, '=', &substring)) {
+        return false;
+      }
+      if (substring == "disabled") {
+        large_object_space_type_ = gc::space::kLargeObjectSpaceTypeDisabled;
+      } else if (substring == "freelist") {
+        large_object_space_type_ = gc::space::kLargeObjectSpaceTypeFreeList;
+      } else if (substring == "map") {
+        large_object_space_type_ = gc::space::kLargeObjectSpaceTypeMap;
+      } else {
+        Usage("Unknown -XX:LargeObjectSpace= option %s\n", substring.c_str());
+        return false;
+      }
+    } else if (StartsWith(option, "-XX:LargeObjectThreshold=")) {
+      std::string substring;
+      if (!ParseStringAfterChar(option, '=', &substring)) {
+        return false;
+      }
+      size_t size = ParseMemoryOption(substring.c_str(), 1);
+      if (size == 0) {
+        Usage("Failed to parse memory option %s\n", option.c_str());
+        return false;
+      }
+      large_object_threshold_ = size;
     } else if (StartsWith(option, "-XX:BackgroundGC=")) {
       std::string substring;
       if (!ParseStringAfterChar(option, '=', &substring)) {
@@ -757,7 +785,6 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xstacktracefile:<filename>\n");
   UsageMessage(stream, "  -Xgc:[no]preverify\n");
   UsageMessage(stream, "  -Xgc:[no]postverify\n");
-  UsageMessage(stream, "  -XX:+DisableExplicitGC\n");
   UsageMessage(stream, "  -XX:HeapGrowthLimit=N\n");
   UsageMessage(stream, "  -XX:HeapMinFree=N\n");
   UsageMessage(stream, "  -XX:HeapMaxFree=N\n");
@@ -774,6 +801,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xgc:[no]postverify_rosalloc\n");
   UsageMessage(stream, "  -Xgc:[no]presweepingverify\n");
   UsageMessage(stream, "  -Ximage:filename\n");
+  UsageMessage(stream, "  -XX:+DisableExplicitGC\n");
   UsageMessage(stream, "  -XX:ParallelGCThreads=integervalue\n");
   UsageMessage(stream, "  -XX:ConcGCThreads=integervalue\n");
   UsageMessage(stream, "  -XX:MaxSpinsBeforeThinLockInflation=integervalue\n");
@@ -783,6 +811,8 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -XX:IgnoreMaxFootprint\n");
   UsageMessage(stream, "  -XX:UseTLAB\n");
   UsageMessage(stream, "  -XX:BackgroundGC=none\n");
+  UsageMessage(stream, "  -XX:LargeObjectSpace={disabled,map,freelist}\n");
+  UsageMessage(stream, "  -XX:LargeObjectThreshold=N\n");
   UsageMessage(stream, "  -Xmethod-trace\n");
   UsageMessage(stream, "  -Xmethod-trace-file:filename");
   UsageMessage(stream, "  -Xmethod-trace-file-size:integervalue\n");

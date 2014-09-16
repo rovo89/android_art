@@ -365,23 +365,23 @@ void SemiSpace::MarkReachableObjects() {
   }
 
   CHECK_EQ(is_large_object_space_immune_, collect_from_space_only_);
-  if (is_large_object_space_immune_) {
+  space::LargeObjectSpace* los = GetHeap()->GetLargeObjectsSpace();
+  if (is_large_object_space_immune_ && los != nullptr) {
     TimingLogger::ScopedTiming t("VisitLargeObjects", GetTimings());
     DCHECK(collect_from_space_only_);
     // Delay copying the live set to the marked set until here from
     // BindBitmaps() as the large objects on the allocation stack may
     // be newly added to the live set above in MarkAllocStackAsLive().
-    GetHeap()->GetLargeObjectsSpace()->CopyLiveToMarked();
+    los->CopyLiveToMarked();
 
     // When the large object space is immune, we need to scan the
     // large object space as roots as they contain references to their
     // classes (primitive array classes) that could move though they
     // don't contain any other references.
-    space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
-    accounting::LargeObjectBitmap* large_live_bitmap = large_object_space->GetLiveBitmap();
+    accounting::LargeObjectBitmap* large_live_bitmap = los->GetLiveBitmap();
     SemiSpaceScanObjectVisitor visitor(this);
-    large_live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(large_object_space->Begin()),
-                                        reinterpret_cast<uintptr_t>(large_object_space->End()),
+    large_live_bitmap->VisitMarkedRange(reinterpret_cast<uintptr_t>(los->Begin()),
+                                        reinterpret_cast<uintptr_t>(los->End()),
                                         visitor);
   }
   // Recursively process the mark stack.
@@ -655,8 +655,11 @@ void SemiSpace::Sweep(bool swap_bitmaps) {
 
 void SemiSpace::SweepLargeObjects(bool swap_bitmaps) {
   DCHECK(!is_large_object_space_immune_);
-  TimingLogger::ScopedTiming split("SweepLargeObjects", GetTimings());
-  RecordFreeLOS(heap_->GetLargeObjectsSpace()->Sweep(swap_bitmaps));
+  space::LargeObjectSpace* los = heap_->GetLargeObjectsSpace();
+  if (los != nullptr) {
+    TimingLogger::ScopedTiming split("SweepLargeObjects", GetTimings());
+    RecordFreeLOS(los->Sweep(swap_bitmaps));
+  }
 }
 
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
@@ -751,6 +754,7 @@ void SemiSpace::FinishPhase() {
   from_space_ = nullptr;
   CHECK(mark_stack_->IsEmpty());
   mark_stack_->Reset();
+  space::LargeObjectSpace* los = GetHeap()->GetLargeObjectsSpace();
   if (generational_) {
     // Decide whether to do a whole heap collection or a bump pointer
     // only space collection at the next collection by updating
@@ -762,7 +766,7 @@ void SemiSpace::FinishPhase() {
       bytes_promoted_since_last_whole_heap_collection_ += bytes_promoted_;
       bool bytes_promoted_threshold_exceeded =
           bytes_promoted_since_last_whole_heap_collection_ >= kBytesPromotedThreshold;
-      uint64_t current_los_bytes_allocated = GetHeap()->GetLargeObjectsSpace()->GetBytesAllocated();
+      uint64_t current_los_bytes_allocated = los != nullptr ? los->GetBytesAllocated() : 0U;
       uint64_t last_los_bytes_allocated =
           large_object_bytes_allocated_at_last_whole_heap_collection_;
       bool large_object_bytes_threshold_exceeded =
@@ -775,7 +779,7 @@ void SemiSpace::FinishPhase() {
       // Reset the counters.
       bytes_promoted_since_last_whole_heap_collection_ = bytes_promoted_;
       large_object_bytes_allocated_at_last_whole_heap_collection_ =
-          GetHeap()->GetLargeObjectsSpace()->GetBytesAllocated();
+          los != nullptr ? los->GetBytesAllocated() : 0U;
       collect_from_space_only_ = true;
     }
   }
