@@ -547,8 +547,11 @@ void MarkCompact::Sweep(bool swap_bitmaps) {
 }
 
 void MarkCompact::SweepLargeObjects(bool swap_bitmaps) {
-  TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
-  RecordFreeLOS(heap_->GetLargeObjectsSpace()->Sweep(swap_bitmaps));
+  space::LargeObjectSpace* los = heap_->GetLargeObjectsSpace();
+  if (los != nullptr) {
+    TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());\
+    RecordFreeLOS(los->Sweep(swap_bitmaps));
+  }
 }
 
 // Process the "referent" field in a java.lang.ref.Reference.  If the referent has not yet been
