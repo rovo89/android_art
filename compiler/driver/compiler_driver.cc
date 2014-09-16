@@ -627,7 +627,7 @@ bool CompilerDriver::IsImageClass(const char* descriptor) const {
   }
 }
 
-static void ResolveExceptionsForMethod(MethodHelper* mh,
+static void ResolveExceptionsForMethod(MutableMethodHelper* mh,
     std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   const DexFile::CodeItem* code_item = mh->GetMethod()->GetCodeItem();
@@ -670,7 +670,7 @@ static bool ResolveCatchBlockExceptionsClassVisitor(mirror::Class* c, void* arg)
   std::set<std::pair<uint16_t, const DexFile*>>* exceptions_to_resolve =
       reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*>>*>(arg);
   StackHandleScope<1> hs(Thread::Current());
-  MethodHelper mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
+  MutableMethodHelper mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
   for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
     mh.ChangeMethod(c->GetVirtualMethod(i));
     ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
@@ -761,7 +761,7 @@ static void MaybeAddToImageClasses(Handle<mirror::Class> c, std::set<std::string
   Thread* self = Thread::Current();
   StackHandleScope<1> hs(self);
   // Make a copy of the handle so that we don't clobber it doing Assign.
-  Handle<mirror::Class> klass(hs.NewHandle(c.Get()));
+  MutableHandle<mirror::Class> klass(hs.NewHandle(c.Get()));
   std::string temp;
   while (!klass->IsObjectClass()) {
     const char* descriptor = klass->GetDescriptor(&temp);

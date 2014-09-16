@@ -25,7 +25,8 @@
 
 namespace art {
 
-mirror::String* MethodHelper::GetNameAsString(Thread* self) {
+template <template <class T> class HandleKind>
+mirror::String* MethodHelperT<HandleKind>::GetNameAsString(Thread* self) {
   const DexFile* dex_file = method_->GetDexFile();
   mirror::ArtMethod* method = method_->GetInterfaceMethodIfProxy();
   uint32_t dex_method_idx = method->GetDexMethodIndex();
@@ -36,7 +37,10 @@ mirror::String* MethodHelper::GetNameAsString(Thread* self) {
                                                              dex_cache);
 }
 
-bool MethodHelper::HasSameSignatureWithDifferentClassLoaders(MethodHelper* other) {
+template <template <class T> class HandleKind>
+template <template <class T2> class HandleKind2>
+bool MethodHelperT<HandleKind>::HasSameSignatureWithDifferentClassLoaders(
+    MethodHelperT<HandleKind2>* other) {
   if (UNLIKELY(GetReturnType() != other->GetReturnType())) {
     return false;
   }
@@ -62,7 +66,8 @@ bool MethodHelper::HasSameSignatureWithDifferentClassLoaders(MethodHelper* other
   return true;
 }
 
-uint32_t MethodHelper::FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile)
+template <template <class T> class HandleKind>
+uint32_t MethodHelperT<HandleKind>::FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtMethod* method = GetMethod();
   const DexFile* dexfile = method->GetDexFile();
@@ -102,8 +107,9 @@ uint32_t MethodHelper::FindDexMethodIndexInOtherDexFile(const DexFile& other_dex
   return DexFile::kDexNoIndex;
 }
 
-uint32_t MethodHelper::FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile,
-                                                        uint32_t name_and_signature_idx)
+template <template <typename> class HandleKind>
+uint32_t MethodHelperT<HandleKind>::FindDexMethodIndexInOtherDexFile(
+    const DexFile& other_dexfile, uint32_t name_and_signature_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtMethod* method = GetMethod();
   const DexFile* dexfile = method->GetDexFile();
@@ -132,5 +138,39 @@ uint32_t MethodHelper::FindDexMethodIndexInOtherDexFile(const DexFile& other_dex
   }
   return DexFile::kDexNoIndex;
 }
+
+// Instantiate methods.
+template mirror::String* MethodHelperT<Handle>::GetNameAsString(Thread* self);
+
+template mirror::String* MethodHelperT<MutableHandle>::GetNameAsString(Thread* self);
+
+template
+uint32_t MethodHelperT<Handle>::FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile);
+template
+uint32_t MethodHelperT<MutableHandle>::FindDexMethodIndexInOtherDexFile(
+    const DexFile& other_dexfile);
+
+template
+uint32_t MethodHelperT<Handle>::FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile,
+                                                                 uint32_t name_and_signature_idx);
+template
+uint32_t MethodHelperT<MutableHandle>::FindDexMethodIndexInOtherDexFile(
+    const DexFile& other_dexfile, uint32_t name_and_signature_idx);
+
+template
+bool MethodHelperT<Handle>::HasSameSignatureWithDifferentClassLoaders<Handle>(
+    MethodHelperT<Handle>* other);
+
+template
+bool MethodHelperT<Handle>::HasSameSignatureWithDifferentClassLoaders<MutableHandle>(
+    MethodHelperT<MutableHandle>* other);
+
+template
+bool MethodHelperT<MutableHandle>::HasSameSignatureWithDifferentClassLoaders<Handle>(
+    MethodHelperT<Handle>* other);
+
+template
+bool MethodHelperT<MutableHandle>::HasSameSignatureWithDifferentClassLoaders<MutableHandle>(
+    MethodHelperT<MutableHandle>* other);
 
 }  // namespace art

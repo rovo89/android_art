@@ -455,7 +455,7 @@ class CatchLocationFinder : public StackVisitor {
   Thread* const self_;
   StackHandleScope<1> handle_scope_;
   Handle<mirror::Throwable>* exception_;
-  Handle<mirror::ArtMethod> catch_method_;
+  MutableHandle<mirror::ArtMethod> catch_method_;
   uint32_t catch_dex_pc_;
   bool clear_exception_;
 
@@ -780,8 +780,8 @@ void RecordArrayElementsInTransaction(mirror::Array* array, int32_t count)
 }
 
 // Helper function to deal with class loading in an unstarted runtime.
-static void UnstartedRuntimeFindClass(Thread* self, ConstHandle<mirror::String> className,
-                                      ConstHandle<mirror::ClassLoader> class_loader, JValue* result,
+static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> className,
+                                      Handle<mirror::ClassLoader> class_loader, JValue* result,
                                       const std::string& method_name, bool initialize_class,
                                       bool abort_if_not_found)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
