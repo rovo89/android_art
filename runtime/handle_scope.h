@@ -89,6 +89,12 @@ class PACKED(4) HandleScope {
     return Handle<mirror::Object>(&references_[i]);
   }
 
+  MutableHandle<mirror::Object> GetMutableHandle(size_t i)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+    DCHECK_LT(i, number_of_references_);
+    return MutableHandle<mirror::Object>(&references_[i]);
+  }
+
   void SetReference(size_t i, mirror::Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       ALWAYS_INLINE {
     DCHECK_LT(i, number_of_references_);
@@ -139,14 +145,14 @@ class PACKED(4) HandleScope {
 // A wrapper which wraps around Object** and restores the pointer in the destructor.
 // TODO: Add more functionality.
 template<class T>
-class HandleWrapper : public Handle<T> {
+class HandleWrapper : public MutableHandle<T> {
  public:
-  HandleWrapper(T** obj, const Handle<T>& handle)
-     : Handle<T>(handle), obj_(obj) {
+  HandleWrapper(T** obj, const MutableHandle<T>& handle)
+     : MutableHandle<T>(handle), obj_(obj) {
   }
 
   ~HandleWrapper() {
-    *obj_ = Handle<T>::Get();
+    *obj_ = MutableHandle<T>::Get();
   }
 
  private:
@@ -169,10 +175,10 @@ class PACKED(4) StackHandleScope FINAL : public HandleScope {
     return references_storage_[i].AsMirrorPtr();
   }
 
-  Handle<mirror::Object> GetHandle(size_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+  MutableHandle<mirror::Object> GetHandle(size_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       ALWAYS_INLINE {
     DCHECK_LT(i, number_of_references_);
-    return Handle<mirror::Object>(&references_storage_[i]);
+    return MutableHandle<mirror::Object>(&references_storage_[i]);
   }
 
   void SetReference(size_t i, mirror::Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
@@ -182,9 +188,9 @@ class PACKED(4) StackHandleScope FINAL : public HandleScope {
   }
 
   template<class T>
-  Handle<T> NewHandle(T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  MutableHandle<T> NewHandle(T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetReference(pos_, object);
-    Handle<T> h(GetHandle(pos_));
+    MutableHandle<T> h(GetHandle(pos_));
     pos_++;
     return h;
   }
@@ -192,7 +198,7 @@ class PACKED(4) StackHandleScope FINAL : public HandleScope {
   template<class T>
   HandleWrapper<T> NewHandleWrapper(T** object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetReference(pos_, *object);
-    Handle<T> h(GetHandle(pos_));
+    MutableHandle<T> h(GetHandle(pos_));
     pos_++;
     return HandleWrapper<T>(object, h);
   }

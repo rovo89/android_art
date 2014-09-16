@@ -24,17 +24,11 @@
 
 namespace art {
 
-class MethodHelper {
+template <template <class T> class HandleKind>
+class MethodHelperT {
  public:
-  explicit MethodHelper(Handle<mirror::ArtMethod> m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : method_(m), shorty_(nullptr), shorty_len_(0) {
-    SetMethod(m.Get());
-  }
-
-  void ChangeMethod(mirror::ArtMethod* new_m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(new_m != nullptr);
-    SetMethod(new_m);
-    shorty_ = nullptr;
+  explicit MethodHelperT(HandleKind<mirror::ArtMethod> m)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) : method_(m), shorty_(nullptr), shorty_len_(0) {
   }
 
   mirror::ArtMethod* GetMethod() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -110,10 +104,12 @@ class MethodHelper {
     return GetParamPrimitiveType(param) == Primitive::kPrimNot;
   }
 
-  ALWAYS_INLINE bool HasSameNameAndSignature(MethodHelper* other)
+  template <template <class T> class HandleKind2>
+  ALWAYS_INLINE bool HasSameNameAndSignature(MethodHelperT<HandleKind2>* other)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool HasSameSignatureWithDifferentClassLoaders(MethodHelper* other)
+  template <template <class T> class HandleKind2>
+  bool HasSameSignatureWithDifferentClassLoaders(MethodHelperT<HandleKind2>* other)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Class* GetClassFromTypeIdx(uint16_t type_idx, bool resolve = true)
@@ -130,6 +126,33 @@ class MethodHelper {
                                             uint32_t name_and_signature_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+ protected:
+  HandleKind<mirror::ArtMethod> method_;
+
+  const char* shorty_;
+  uint32_t shorty_len_;
+
+ private:
+  template <template <class T2> class HandleKind2> friend class MethodHelperT;
+
+  DISALLOW_COPY_AND_ASSIGN(MethodHelperT);
+};
+
+class MethodHelper : public MethodHelperT<Handle> {
+  using MethodHelperT<Handle>::MethodHelperT;
+ private:
+  DISALLOW_COPY_AND_ASSIGN(MethodHelper);
+};
+
+class MutableMethodHelper : public MethodHelperT<MutableHandle> {
+  using MethodHelperT<MutableHandle>::MethodHelperT;
+ public:
+  void ChangeMethod(mirror::ArtMethod* new_m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(new_m != nullptr);
+    SetMethod(new_m);
+    shorty_ = nullptr;
+  }
+
  private:
   // Set the method_ field, for proxy methods looking up the interface method via the resolved
   // methods table.
@@ -137,11 +160,7 @@ class MethodHelper {
     method_.Assign(method);
   }
 
-  Handle<mirror::ArtMethod> method_;
-  const char* shorty_;
-  uint32_t shorty_len_;
-
-  DISALLOW_COPY_AND_ASSIGN(MethodHelper);
+  DISALLOW_COPY_AND_ASSIGN(MutableMethodHelper);
 };
 
 }  // namespace art

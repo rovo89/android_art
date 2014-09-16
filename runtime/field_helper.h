@@ -27,11 +27,6 @@ class FieldHelper {
  public:
   explicit FieldHelper(Handle<mirror::ArtField> f) : field_(f) {}
 
-  void ChangeField(mirror::ArtField* new_f) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(new_f != nullptr);
-    field_.Assign(new_f);
-  }
-
   mirror::ArtField* GetField() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return field_.Get();
   }

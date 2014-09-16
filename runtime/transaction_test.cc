@@ -460,7 +460,7 @@ TEST_F(TransactionTest, BlacklistedClass) {
 
   // Load and verify java.lang.ExceptionInInitializerError and java.lang.InternalError which will
   // be thrown by class initialization due to native call.
-  Handle<mirror::Class> h_klass(
+  MutableHandle<mirror::Class> h_klass(
       hs.NewHandle(class_linker_->FindSystemClass(soa.Self(),
                                                   "Ljava/lang/ExceptionInInitializerError;")));
   ASSERT_TRUE(h_klass.Get() != nullptr);

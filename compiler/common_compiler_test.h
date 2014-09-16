@@ -63,11 +63,11 @@ class CommonCompilerTest : public CommonRuntimeTest {
 
   void CompileMethod(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void CompileDirectMethod(ConstHandle<mirror::ClassLoader> class_loader, const char* class_name,
+  void CompileDirectMethod(Handle<mirror::ClassLoader> class_loader, const char* class_name,
                            const char* method_name, const char* signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void CompileVirtualMethod(ConstHandle<mirror::ClassLoader> class_loader, const char* class_name,
+  void CompileVirtualMethod(Handle<mirror::ClassLoader> class_loader, const char* class_name,
                             const char* method_name, const char* signature)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

@@ -278,10 +278,11 @@ class ClassLinkerTest : public CommonRuntimeTest {
     // Confirm that all instances fields are packed together at the start
     EXPECT_GE(klass->NumInstanceFields(), klass->NumReferenceInstanceFields());
     StackHandleScope<1> hs(Thread::Current());
-    FieldHelper fh(hs.NewHandle<mirror::ArtField>(nullptr));
+    MutableHandle<mirror::ArtField> fhandle = hs.NewHandle<mirror::ArtField>(nullptr);
     for (size_t i = 0; i < klass->NumReferenceInstanceFields(); i++) {
       mirror::ArtField* field = klass->GetInstanceField(i);
-      fh.ChangeField(field);
+      fhandle.Assign(field);
+      FieldHelper fh(fhandle);
       ASSERT_TRUE(!field->IsPrimitiveType());
       mirror::Class* field_type = fh.GetType();
       ASSERT_TRUE(field_type != NULL);
@@ -289,7 +290,8 @@ class ClassLinkerTest : public CommonRuntimeTest {
     }
     for (size_t i = klass->NumReferenceInstanceFields(); i < klass->NumInstanceFields(); i++) {
       mirror::ArtField* field = klass->GetInstanceField(i);
-      fh.ChangeField(field);
+      fhandle.Assign(field);
+      FieldHelper fh(fhandle);
       mirror::Class* field_type = fh.GetType();
       ASSERT_TRUE(field_type != NULL);
       if (!fh.GetField()->IsPrimitiveType() || !field_type->IsPrimitive()) {

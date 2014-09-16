@@ -143,7 +143,7 @@ ArtMethod* ArtMethod::FindOverriddenMethod() {
     } else {
       StackHandleScope<2> hs(Thread::Current());
       MethodHelper mh(hs.NewHandle(this));
-      MethodHelper interface_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
+      MutableMethodHelper interface_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
       IfTable* iftable = GetDeclaringClass()->GetIfTable();
       for (size_t i = 0; i < iftable->Count() && result == NULL; i++) {
         Class* interface = iftable->GetInterface(i);

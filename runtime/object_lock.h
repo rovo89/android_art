@@ -28,7 +28,7 @@ class Thread;
 template <typename T>
 class ObjectLock {
  public:
-  ObjectLock(Thread* self, ConstHandle<T> object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ObjectLock(Thread* self, Handle<T> object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ~ObjectLock() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -40,7 +40,7 @@ class ObjectLock {
 
  private:
   Thread* const self_;
-  ConstHandle<T> const obj_;
+  Handle<T> const obj_;
 
   DISALLOW_COPY_AND_ASSIGN(ObjectLock);
 };
