@@ -607,7 +607,7 @@ void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const De
   Resolve(class_loader, dex_files, thread_pool, timings);
 
   if (!compiler_options_->IsVerificationEnabled()) {
-    VLOG(compiler) << "Verify none mode specified, skipping verification.";
+    LOG(INFO) << "Verify none mode specified, skipping verification.";
     SetVerified(class_loader, dex_files, thread_pool, timings);
     return;
   }
@@ -1796,8 +1796,11 @@ static void SetVerifiedClass(const ParallelCompilationManager* manager, size_t c
       ClassReference ref(manager->GetDexFile(), class_def_index);
       manager->GetCompiler()->RecordClassStatus(ref, klass->GetStatus());
     }
+  } else {
+    Thread* self = soa.Self();
+    DCHECK(self->IsExceptionPending());
+    self->ClearException();
   }
-  soa.Self()->AssertNoPendingException();
 }
 
 void CompilerDriver::SetVerifiedDexFile(jobject class_loader, const DexFile& dex_file,
