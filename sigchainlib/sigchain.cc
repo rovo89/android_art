@@ -26,6 +26,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "sigchain.h"
+
 #if defined(__APPLE__)
 #define _NSIG NSIG
 #endif
@@ -71,6 +73,9 @@ class SignalAction {
 
 // User's signal handlers
 static SignalAction user_sigactions[_NSIG];
+static bool initialized;
+static void* linked_sigaction_sym;
+static void* linked_sigprocmask_sym;
 
 static void log(const char* format, ...) {
   char buf[256];
@@ -91,6 +96,7 @@ static void CheckSignalValid(int signal) {
     abort();
   }
 }
+
 
 // Claim a signal chain for a particular signal.
 void ClaimSignalChain(int signal, struct sigaction* oldaction) {
@@ -153,14 +159,17 @@ int sigaction(int signal, const struct sigaction* new_action, struct sigaction* 
   // Will only get here if the signal chain has not been claimed.  We want
   // to pass the sigaction on to the kernel via the real sigaction in libc.
 
-  void* linked_sigaction_sym = dlsym(RTLD_NEXT, "sigaction");
   if (linked_sigaction_sym == nullptr) {
-    linked_sigaction_sym = dlsym(RTLD_DEFAULT, "sigaction");
-    if (linked_sigaction_sym == nullptr ||
-        linked_sigaction_sym == reinterpret_cast<void*>(sigaction)) {
-      log("Unable to find next sigaction in signal chain");
-      abort();
-    }
+    // Perform lazy initialization.
+    // This will only occur outside of a signal context since we have
+    // not been initialized and therefore cannot be within the ART
+    // runtime.
+    InitializeSignalChain();
+  }
+
+  if (linked_sigaction_sym == nullptr) {
+    log("Unable to find next sigaction in signal chain");
+    abort();
   }
 
   typedef int (*SigAction)(int, const struct sigaction*, struct sigaction*);
@@ -186,14 +195,14 @@ int sigprocmask(int how, const sigset_t* bionic_new_set, sigset_t* bionic_old_se
     new_set_ptr = &tmpset;
   }
 
-  void* linked_sigprocmask_sym = dlsym(RTLD_NEXT, "sigprocmask");
   if (linked_sigprocmask_sym == nullptr) {
-    linked_sigprocmask_sym = dlsym(RTLD_DEFAULT, "sigprocmask");
-    if (linked_sigprocmask_sym == nullptr ||
-        linked_sigprocmask_sym == reinterpret_cast<void*>(sigprocmask)) {
-      log("Unable to find next sigprocmask in signal chain");
-      abort();
-    }
+    // Perform lazy initialization.
+    InitializeSignalChain();
+  }
+
+  if (linked_sigprocmask_sym == nullptr) {
+    log("Unable to find next sigprocmask in signal chain");
+    abort();
   }
 
   typedef int (*SigProcMask)(int how, const sigset_t*, sigset_t*);
@@ -201,5 +210,36 @@ int sigprocmask(int how, const sigset_t* bionic_new_set, sigset_t* bionic_old_se
   return linked_sigprocmask(how, new_set_ptr, bionic_old_set);
 }
 }   // extern "C"
+
+void InitializeSignalChain() {
+  // Warning.
+  // Don't call this from within a signal context as it makes calls to
+  // dlsym.  Calling into the dynamic linker will result in locks being
+  // taken and if it so happens that a signal occurs while one of these
+  // locks is already taken, dlsym will block trying to reenter a
+  // mutex and we will never get out of it.
+  if (initialized) {
+    // Don't initialize twice.
+    return;
+  }
+  linked_sigaction_sym = dlsym(RTLD_NEXT, "sigaction");
+  if (linked_sigaction_sym == nullptr) {
+    linked_sigaction_sym = dlsym(RTLD_DEFAULT, "sigaction");
+    if (linked_sigaction_sym == nullptr ||
+      linked_sigaction_sym == reinterpret_cast<void*>(sigaction)) {
+        linked_sigaction_sym = nullptr;
+    }
+  }
+
+  linked_sigprocmask_sym = dlsym(RTLD_NEXT, "sigprocmask");
+  if (linked_sigprocmask_sym == nullptr) {
+    linked_sigprocmask_sym = dlsym(RTLD_DEFAULT, "sigprocmask");
+    if (linked_sigprocmask_sym == nullptr ||
+        linked_sigprocmask_sym == reinterpret_cast<void*>(sigprocmask)) {
+         linked_sigprocmask_sym = nullptr;
+    }
+  }
+  initialized = true;
+}
 }   // namespace art
 
