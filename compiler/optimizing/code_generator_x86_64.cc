@@ -20,6 +20,7 @@
 #include "gc/accounting/card_table.h"
 #include "mirror/array.h"
 #include "mirror/art_method.h"
+#include "mirror/class.h"
 #include "mirror/object_reference.h"
 #include "thread.h"
 #include "utils/assembler.h"
@@ -709,12 +710,46 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
 }
 
 void LocationsBuilderX86_64::VisitInvokeStatic(HInvokeStatic* invoke) {
+  HandleInvoke(invoke);
+}
+
+void InstructionCodeGeneratorX86_64::VisitInvokeStatic(HInvokeStatic* invoke) {
+  CpuRegister temp = invoke->GetLocations()->GetTemp(0).AsX86_64().AsCpuRegister();
+  uint32_t heap_reference_size = sizeof(mirror::HeapReference<mirror::Object>);
+  size_t index_in_cache = mirror::Array::DataOffset(heap_reference_size).SizeValue() +
+      invoke->GetIndexInDexCache() * heap_reference_size;
+
+  // TODO: Implement all kinds of calls:
+  // 1) boot -> boot
+  // 2) app -> boot
+  // 3) app -> app
+  //
+  // Currently we implement the app -> app logic, which looks up in the resolve cache.
+
+  // temp = method;
+  LoadCurrentMethod(temp);
+  // temp = temp->dex_cache_resolved_methods_;
+  __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().SizeValue()));
+  // temp = temp[index_in_cache]
+  __ movl(temp, Address(temp, index_in_cache));
+  // (temp + offset_of_quick_compiled_code)()
+  __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().SizeValue()));
+
+  DCHECK(!codegen_->IsLeafMethod());
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+}
+
+void LocationsBuilderX86_64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
+  HandleInvoke(invoke);
+}
+
+void LocationsBuilderX86_64::HandleInvoke(HInvoke* invoke) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
   locations->AddTemp(X86_64CpuLocation(RDI));
 
   InvokeDexCallingConventionVisitor calling_convention_visitor;
-  for (size_t i = 0; i < invoke->InputCount(); ++i) {
+  for (size_t i = 0; i < invoke->InputCount(); i++) {
     HInstruction* input = invoke->InputAt(i);
     locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));
   }
@@ -740,26 +775,23 @@ void LocationsBuilderX86_64::VisitInvokeStatic(HInvokeStatic* invoke) {
   }
 }
 
-void InstructionCodeGeneratorX86_64::VisitInvokeStatic(HInvokeStatic* invoke) {
+void InstructionCodeGeneratorX86_64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   CpuRegister temp = invoke->GetLocations()->GetTemp(0).AsX86_64().AsCpuRegister();
-  uint32_t heap_reference_size = sizeof(mirror::HeapReference<mirror::Object>);
-  size_t index_in_cache = mirror::Array::DataOffset(heap_reference_size).SizeValue() +
-      invoke->GetIndexInDexCache() * heap_reference_size;
-
-  // TODO: Implement all kinds of calls:
-  // 1) boot -> boot
-  // 2) app -> boot
-  // 3) app -> app
-  //
-  // Currently we implement the app -> app logic, which looks up in the resolve cache.
-
-  // temp = method;
-  LoadCurrentMethod(temp);
-  // temp = temp->dex_cache_resolved_methods_;
-  __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().SizeValue()));
-  // temp = temp[index_in_cache]
-  __ movl(temp, Address(temp, index_in_cache));
-  // (temp + offset_of_quick_compiled_code)()
+  size_t method_offset = mirror::Class::EmbeddedVTableOffset().SizeValue() +
+          invoke->GetVTableIndex() * sizeof(mirror::Class::VTableEntry);
+  LocationSummary* locations = invoke->GetLocations();
+  Location receiver = locations->InAt(0);
+  size_t class_offset = mirror::Object::ClassOffset().SizeValue();
+  // temp = object->GetClass();
+  if (receiver.IsStackSlot()) {
+    __ movq(temp, Address(CpuRegister(RSP), receiver.GetStackIndex()));
+    __ movq(temp, Address(temp, class_offset));
+  } else {
+    __ movq(temp, Address(receiver.AsX86_64().AsCpuRegister(), class_offset));
+  }
+  // temp = temp->GetMethodAt(method_offset);
+  __ movl(temp, Address(temp, method_offset));
+  // call temp->GetEntryPoint();
   __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().SizeValue()));
 
   DCHECK(!codegen_->IsLeafMethod());

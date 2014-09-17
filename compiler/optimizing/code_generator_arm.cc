@@ -20,6 +20,7 @@
 #include "gc/accounting/card_table.h"
 #include "mirror/array.h"
 #include "mirror/art_method.h"
+#include "mirror/class.h"
 #include "thread.h"
 #include "utils/assembler.h"
 #include "utils/arm/assembler_arm.h"
@@ -818,6 +819,47 @@ void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
 }
 
 void LocationsBuilderARM::VisitInvokeStatic(HInvokeStatic* invoke) {
+  HandleInvoke(invoke);
+}
+
+void InstructionCodeGeneratorARM::LoadCurrentMethod(Register reg) {
+  __ ldr(reg, Address(SP, kCurrentMethodStackOffset));
+}
+
+void InstructionCodeGeneratorARM::VisitInvokeStatic(HInvokeStatic* invoke) {
+  Register temp = invoke->GetLocations()->GetTemp(0).AsArm().AsCoreRegister();
+  uint32_t heap_reference_size = sizeof(mirror::HeapReference<mirror::Object>);
+  size_t index_in_cache = mirror::Array::DataOffset(heap_reference_size).Int32Value() +
+      invoke->GetIndexInDexCache() * kArmWordSize;
+
+  // TODO: Implement all kinds of calls:
+  // 1) boot -> boot
+  // 2) app -> boot
+  // 3) app -> app
+  //
+  // Currently we implement the app -> app logic, which looks up in the resolve cache.
+
+  // temp = method;
+  LoadCurrentMethod(temp);
+  // temp = temp->dex_cache_resolved_methods_;
+  __ ldr(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
+  // temp = temp[index_in_cache]
+  __ ldr(temp, Address(temp, index_in_cache));
+  // LR = temp[offset_of_quick_compiled_code]
+  __ ldr(LR, Address(temp,
+                     mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value()));
+  // LR()
+  __ blx(LR);
+
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  DCHECK(!codegen_->IsLeafMethod());
+}
+
+void LocationsBuilderARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
+  HandleInvoke(invoke);
+}
+
+void LocationsBuilderARM::HandleInvoke(HInvoke* invoke) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
   locations->AddTemp(ArmCoreLocation(R0));
@@ -852,37 +894,30 @@ void LocationsBuilderARM::VisitInvokeStatic(HInvokeStatic* invoke) {
   }
 }
 
-void InstructionCodeGeneratorARM::LoadCurrentMethod(Register reg) {
-  __ ldr(reg, Address(SP, kCurrentMethodStackOffset));
-}
 
-void InstructionCodeGeneratorARM::VisitInvokeStatic(HInvokeStatic* invoke) {
+void InstructionCodeGeneratorARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   Register temp = invoke->GetLocations()->GetTemp(0).AsArm().AsCoreRegister();
-  uint32_t heap_reference_size = sizeof(mirror::HeapReference<mirror::Object>);
-  size_t index_in_cache = mirror::Array::DataOffset(heap_reference_size).Int32Value() +
-      invoke->GetIndexInDexCache() * kArmWordSize;
-
-  // TODO: Implement all kinds of calls:
-  // 1) boot -> boot
-  // 2) app -> boot
-  // 3) app -> app
-  //
-  // Currently we implement the app -> app logic, which looks up in the resolve cache.
-
-  // temp = method;
-  LoadCurrentMethod(temp);
-  // temp = temp->dex_cache_resolved_methods_;
-  __ ldr(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
-  // temp = temp[index_in_cache]
-  __ ldr(temp, Address(temp, index_in_cache));
-  // LR = temp[offset_of_quick_compiled_code]
-  __ ldr(LR, Address(temp,
-                     mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value()));
-  // LR()
+  uint32_t method_offset = mirror::Class::EmbeddedVTableOffset().Uint32Value() +
+          invoke->GetVTableIndex() * sizeof(mirror::Class::VTableEntry);
+  LocationSummary* locations = invoke->GetLocations();
+  Location receiver = locations->InAt(0);
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  // temp = object->GetClass();
+  if (receiver.IsStackSlot()) {
+    __ ldr(temp, Address(SP, receiver.GetStackIndex()));
+    __ ldr(temp, Address(temp, class_offset));
+  } else {
+    __ ldr(temp, Address(receiver.AsArm().AsCoreRegister(), class_offset));
+  }
+  // temp = temp->GetMethodAt(method_offset);
+  uint32_t entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value();
+  __ ldr(temp, Address(temp, method_offset));
+  // LR = temp->GetEntryPoint();
+  __ ldr(LR, Address(temp, entry_point));
+  // LR();
   __ blx(LR);
-
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
   DCHECK(!codegen_->IsLeafMethod());
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void LocationsBuilderARM::VisitAdd(HAdd* add) {

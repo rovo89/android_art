@@ -91,6 +91,8 @@ class LocationsBuilderX86_64 : public HGraphVisitor {
 
 #undef DECLARE_VISIT_INSTRUCTION
 
+  void HandleInvoke(HInvoke* invoke);
+
  private:
   CodeGeneratorX86_64* const codegen_;
   InvokeDexCallingConventionVisitor parameter_visitor_;
