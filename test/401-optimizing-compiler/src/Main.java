@@ -97,6 +97,11 @@ public class Main {
     if (exception == null) {
       throw new Error("Missing NullPointerException");
     }
+
+    result = $opt$InvokeVirtualMethod();
+    if (result != 42) {
+      throw new Error("Unexpected result: " + result);
+    }
   }
 
   public static void invokePrivate() {
@@ -203,6 +208,14 @@ public class Main {
 
   public static void $opt$SetFieldInOldObject(Main m) {
     m.o = new Main();
+  }
+
+  public static int $opt$InvokeVirtualMethod() {
+    return new Main().virtualMethod();
+  }
+
+  public int virtualMethod() {
+    return 42;
   }
 
   Object o;

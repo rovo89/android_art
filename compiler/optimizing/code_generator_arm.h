@@ -93,6 +93,8 @@ class LocationsBuilderARM : public HGraphVisitor {
 
 #undef DECLARE_VISIT_INSTRUCTION
 
+  void HandleInvoke(HInvoke* invoke);
+
  private:
   CodeGeneratorARM* const codegen_;
   InvokeDexCallingConventionVisitor parameter_visitor_;

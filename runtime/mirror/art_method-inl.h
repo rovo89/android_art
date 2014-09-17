@@ -285,14 +285,17 @@ inline const uint8_t* ArtMethod::GetVmapTable(const void* code_pointer) {
 }
 
 inline StackMap ArtMethod::GetStackMap(uint32_t native_pc_offset) {
+  return GetOptimizedCodeInfo().GetStackMapForNativePcOffset(native_pc_offset);
+}
+
+inline CodeInfo ArtMethod::GetOptimizedCodeInfo() {
   DCHECK(IsOptimized());
   const void* code_pointer = GetQuickOatCodePointer();
   DCHECK(code_pointer != nullptr);
   uint32_t offset =
       reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].vmap_table_offset_;
   const void* data = reinterpret_cast<const void*>(reinterpret_cast<const uint8_t*>(code_pointer) - offset);
-  CodeInfo code_info(data);
-  return code_info.GetStackMapForNativePcOffset(native_pc_offset);
+  return CodeInfo(data);
 }
 
 inline void ArtMethod::SetOatNativeGcMapOffset(uint32_t gc_map_offset) {

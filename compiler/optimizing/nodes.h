@@ -422,6 +422,7 @@ class HBasicBlock : public ArenaObject {
   M(If)                                                    \
   M(IntConstant)                                           \
   M(InvokeStatic)                                          \
+  M(InvokeVirtual)                                         \
   M(LoadLocal)                                             \
   M(Local)                                                 \
   M(LongConstant)                                          \
@@ -1270,6 +1271,26 @@ class HInvokeStatic : public HInvoke {
   const uint32_t index_in_dex_cache_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeStatic);
+};
+
+class HInvokeVirtual : public HInvoke {
+ public:
+  HInvokeVirtual(ArenaAllocator* arena,
+                 uint32_t number_of_arguments,
+                 Primitive::Type return_type,
+                 uint32_t dex_pc,
+                 uint32_t vtable_index)
+      : HInvoke(arena, number_of_arguments, return_type, dex_pc),
+        vtable_index_(vtable_index) {}
+
+  uint32_t GetVTableIndex() const { return vtable_index_; }
+
+  DECLARE_INSTRUCTION(InvokeVirtual);
+
+ private:
+  const uint32_t vtable_index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HInvokeVirtual);
 };
 
 class HNewInstance : public HExpression<0> {

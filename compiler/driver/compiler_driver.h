@@ -260,7 +260,7 @@ class CompilerDriver {
       uint16_t* declaring_class_idx, uint16_t* declaring_method_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Get declaration location of a resolved field.
+  // Get the index in the vtable of the method.
   uint16_t GetResolvedMethodVTableIndex(
       mirror::ArtMethod* resolved_method, InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
