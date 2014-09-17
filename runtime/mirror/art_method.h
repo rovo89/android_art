@@ -155,7 +155,9 @@ class MANAGED ArtMethod FINAL : public Object {
     // Temporary solution for detecting if a method has been optimized: the compiler
     // does not create a GC map. Instead, the vmap table contains the stack map
     // (as in stack_map.h).
-    return (GetEntryPointFromQuickCompiledCode() != nullptr) && (GetNativeGcMap() == nullptr);
+    return (GetEntryPointFromQuickCompiledCode() != nullptr)
+        && (GetQuickOatCodePointer() != nullptr)
+        && (GetNativeGcMap() == nullptr);
   }
 
   bool IsPortableCompiled() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -349,6 +351,7 @@ class MANAGED ArtMethod FINAL : public Object {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   StackMap GetStackMap(uint32_t native_pc_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  CodeInfo GetOptimizedCodeInfo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const uint8_t* GetNativeGcMap() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetFieldPtr<uint8_t*>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, gc_map_));
