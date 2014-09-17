@@ -1877,9 +1877,21 @@ JDWP::JdwpError Dbg::SetStaticFieldValue(JDWP::FieldId field_id, uint64_t value,
   return SetFieldValueImpl(0, field_id, value, width, true);
 }
 
-std::string Dbg::StringToUtf8(JDWP::ObjectId string_id) {
-  mirror::String* s = gRegistry->Get<mirror::String*>(string_id);
-  return s->ToModifiedUtf8();
+JDWP::JdwpError Dbg::StringToUtf8(JDWP::ObjectId string_id, std::string* str) {
+  mirror::Object* obj = gRegistry->Get<mirror::Object*>(string_id);
+  if (obj == nullptr || obj == ObjectRegistry::kInvalidObject) {
+    return JDWP::ERR_INVALID_OBJECT;
+  }
+  {
+    ScopedObjectAccessUnchecked soa(Thread::Current());
+    mirror::Class* java_lang_String = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_String);
+    if (!java_lang_String->IsAssignableFrom(obj->GetClass())) {
+      // This isn't a string.
+      return JDWP::ERR_INVALID_STRING;
+    }
+  }
+  *str = obj->AsString()->ToModifiedUtf8();
+  return JDWP::ERR_NONE;
 }
 
 void Dbg::OutputJValue(JDWP::JdwpTag tag, const JValue* return_value, JDWP::ExpandBuf* pReply) {
