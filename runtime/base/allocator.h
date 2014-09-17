@@ -66,6 +66,7 @@ enum AllocatorTag {
   kAllocatorTagCompileTimeClassPath,
   kAllocatorTagOatFile,
   kAllocatorTagDexFileVerifier,
+  kAllocatorTagRosAlloc,
   kAllocatorTagCount,  // Must always be last element.
 };
 std::ostream& operator<<(std::ostream& os, const AllocatorTag& tag);
@@ -147,6 +148,10 @@ class TrackingAllocator : public TypeStaticIf<kEnableTrackingAllocator,
 template<class Key, class T, AllocatorTag kTag, class Compare = std::less<Key>>
 class AllocationTrackingMultiMap : public std::multimap<
     Key, T, Compare, TrackingAllocator<std::pair<Key, T>, kTag>> {
+};
+
+template<class Key, AllocatorTag kTag, class Compare = std::less<Key>>
+class AllocationTrackingSet : public std::set<Key, Compare, TrackingAllocator<Key, kTag>> {
 };
 
 }  // namespace art

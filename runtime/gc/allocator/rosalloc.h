@@ -26,6 +26,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "base/allocator.h"
 #include "base/mutex.h"
 #include "base/logging.h"
 #include "globals.h"
@@ -53,7 +54,7 @@ class RosAlloc {
       size_t pm_idx = rosalloc->ToPageMapIndex(fpr_base);
       size_t byte_size = rosalloc->free_page_run_size_map_[pm_idx];
       DCHECK_GE(byte_size, static_cast<size_t>(0));
-      DCHECK_EQ(byte_size % kPageSize, static_cast<size_t>(0));
+      DCHECK_ALIGNED(byte_size, kPageSize);
       return byte_size;
     }
     void SetByteSize(RosAlloc* rosalloc, size_t byte_size)
@@ -403,6 +404,7 @@ class RosAlloc {
 
   // We use thread-local runs for the size Brackets whose indexes
   // are less than this index. We use shared (current) runs for the rest.
+
   static const size_t kNumThreadLocalSizeBrackets = 11;
 
  private:
@@ -423,12 +425,13 @@ class RosAlloc {
 
   // The run sets that hold the runs whose slots are not all
   // full. non_full_runs_[i] is guarded by size_bracket_locks_[i].
-  std::set<Run*> non_full_runs_[kNumOfSizeBrackets];
+  AllocationTrackingSet<Run*, kAllocatorTagRosAlloc> non_full_runs_[kNumOfSizeBrackets];
   // The run sets that hold the runs whose slots are all full. This is
   // debug only. full_runs_[i] is guarded by size_bracket_locks_[i].
-  std::unordered_set<Run*, hash_run, eq_run> full_runs_[kNumOfSizeBrackets];
+  std::unordered_set<Run*, hash_run, eq_run, TrackingAllocator<Run*, kAllocatorTagRosAlloc>>
+      full_runs_[kNumOfSizeBrackets];
   // The set of free pages.
-  std::set<FreePageRun*> free_page_runs_ GUARDED_BY(lock_);
+  AllocationTrackingSet<FreePageRun*, kAllocatorTagRosAlloc> free_page_runs_ GUARDED_BY(lock_);
   // The dedicated full run, it is always full and shared by all threads when revoking happens.
   // This is an optimization since enables us to avoid a null check for revoked runs.
   static Run* dedicated_full_run_;
@@ -460,7 +463,8 @@ class RosAlloc {
   // The table that indicates the size of free page runs. These sizes
   // are stored here to avoid storing in the free page header and
   // release backing pages.
-  std::vector<size_t> free_page_run_size_map_ GUARDED_BY(lock_);
+  std::vector<size_t, TrackingAllocator<size_t, kAllocatorTagRosAlloc>> free_page_run_size_map_
+      GUARDED_BY(lock_);
   // The global lock. Used to guard the page map, the free page set,
   // and the footprint.
   Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
