@@ -20,6 +20,7 @@
 #include "gc/accounting/card_table.h"
 #include "mirror/array.h"
 #include "mirror/art_method.h"
+#include "mirror/class.h"
 #include "thread.h"
 #include "utils/assembler.h"
 #include "utils/stack_checks.h"
@@ -763,6 +764,40 @@ void InstructionCodeGeneratorX86::VisitReturn(HReturn* ret) {
 }
 
 void LocationsBuilderX86::VisitInvokeStatic(HInvokeStatic* invoke) {
+  HandleInvoke(invoke);
+}
+
+void InstructionCodeGeneratorX86::VisitInvokeStatic(HInvokeStatic* invoke) {
+  Register temp = invoke->GetLocations()->GetTemp(0).AsX86().AsCpuRegister();
+  uint32_t heap_reference_size = sizeof(mirror::HeapReference<mirror::Object>);
+  size_t index_in_cache = mirror::Array::DataOffset(heap_reference_size).Int32Value() +
+      invoke->GetIndexInDexCache() * kX86WordSize;
+
+  // TODO: Implement all kinds of calls:
+  // 1) boot -> boot
+  // 2) app -> boot
+  // 3) app -> app
+  //
+  // Currently we implement the app -> app logic, which looks up in the resolve cache.
+
+  // temp = method;
+  LoadCurrentMethod(temp);
+  // temp = temp->dex_cache_resolved_methods_;
+  __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
+  // temp = temp[index_in_cache]
+  __ movl(temp, Address(temp, index_in_cache));
+  // (temp + offset_of_quick_compiled_code)()
+  __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value()));
+
+  DCHECK(!codegen_->IsLeafMethod());
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+}
+
+void LocationsBuilderX86::VisitInvokeVirtual(HInvokeVirtual* invoke) {
+  HandleInvoke(invoke);
+}
+
+void LocationsBuilderX86::HandleInvoke(HInvoke* invoke) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
   locations->AddTemp(X86CpuLocation(EAX));
@@ -799,26 +834,23 @@ void LocationsBuilderX86::VisitInvokeStatic(HInvokeStatic* invoke) {
   invoke->SetLocations(locations);
 }
 
-void InstructionCodeGeneratorX86::VisitInvokeStatic(HInvokeStatic* invoke) {
+void InstructionCodeGeneratorX86::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   Register temp = invoke->GetLocations()->GetTemp(0).AsX86().AsCpuRegister();
-  uint32_t heap_reference_size = sizeof(mirror::HeapReference<mirror::Object>);
-  size_t index_in_cache = mirror::Array::DataOffset(heap_reference_size).Int32Value() +
-      invoke->GetIndexInDexCache() * kX86WordSize;
-
-  // TODO: Implement all kinds of calls:
-  // 1) boot -> boot
-  // 2) app -> boot
-  // 3) app -> app
-  //
-  // Currently we implement the app -> app logic, which looks up in the resolve cache.
-
-  // temp = method;
-  LoadCurrentMethod(temp);
-  // temp = temp->dex_cache_resolved_methods_;
-  __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
-  // temp = temp[index_in_cache]
-  __ movl(temp, Address(temp, index_in_cache));
-  // (temp + offset_of_quick_compiled_code)()
+  uint32_t method_offset = mirror::Class::EmbeddedVTableOffset().Uint32Value() +
+          invoke->GetVTableIndex() * sizeof(mirror::Class::VTableEntry);
+  LocationSummary* locations = invoke->GetLocations();
+  Location receiver = locations->InAt(0);
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  // temp = object->GetClass();
+  if (receiver.IsStackSlot()) {
+    __ movl(temp, Address(ESP, receiver.GetStackIndex()));
+    __ movl(temp, Address(temp, class_offset));
+  } else {
+    __ movl(temp, Address(receiver.AsX86().AsCpuRegister(), class_offset));
+  }
+  // temp = temp->GetMethodAt(method_offset);
+  __ movl(temp, Address(temp, method_offset));
+  // call temp->GetEntryPoint();
   __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value()));
 
   DCHECK(!codegen_->IsLeafMethod());

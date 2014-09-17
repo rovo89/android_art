@@ -331,18 +331,61 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
                                 bool is_range,
                                 uint32_t* args,
                                 uint32_t register_index) {
+  Instruction::Code opcode = instruction.Opcode();
+  InvokeType invoke_type;
+  switch (opcode) {
+    case Instruction::INVOKE_STATIC:
+    case Instruction::INVOKE_STATIC_RANGE:
+      invoke_type = kStatic;
+      break;
+    case Instruction::INVOKE_DIRECT:
+    case Instruction::INVOKE_DIRECT_RANGE:
+      invoke_type = kDirect;
+      break;
+    case Instruction::INVOKE_VIRTUAL:
+    case Instruction::INVOKE_VIRTUAL_RANGE:
+      invoke_type = kVirtual;
+      break;
+    case Instruction::INVOKE_INTERFACE:
+    case Instruction::INVOKE_INTERFACE_RANGE:
+      invoke_type = kInterface;
+      break;
+    case Instruction::INVOKE_SUPER_RANGE:
+    case Instruction::INVOKE_SUPER:
+      invoke_type = kSuper;
+      break;
+    default:
+      LOG(FATAL) << "Unexpected invoke op: " << opcode;
+      return false;
+  }
+
   const DexFile::MethodId& method_id = dex_file_->GetMethodId(method_idx);
   const DexFile::ProtoId& proto_id = dex_file_->GetProtoId(method_id.proto_idx_);
   const char* descriptor = dex_file_->StringDataByIdx(proto_id.shorty_idx_);
   Primitive::Type return_type = Primitive::GetType(descriptor[0]);
-  bool is_instance_call =
-      instruction.Opcode() != Instruction::INVOKE_STATIC
-      && instruction.Opcode() != Instruction::INVOKE_STATIC_RANGE;
+  bool is_instance_call = invoke_type != kStatic;
   const size_t number_of_arguments = strlen(descriptor) - (is_instance_call ? 0 : 1);
 
-  // Treat invoke-direct like static calls for now.
-  HInvoke* invoke = new (arena_) HInvokeStatic(
-      arena_, number_of_arguments, return_type, dex_offset, method_idx);
+  HInvoke* invoke = nullptr;
+  if (invoke_type == kVirtual) {
+    MethodReference target_method(dex_file_, method_idx);
+    uintptr_t direct_code;
+    uintptr_t direct_method;
+    int vtable_index;
+    // TODO: Add devirtualization support.
+    compiler_driver_->ComputeInvokeInfo(dex_compilation_unit_, dex_offset, true, true,
+                                        &invoke_type, &target_method, &vtable_index,
+                                        &direct_code, &direct_method);
+    if (vtable_index == -1) {
+      return false;
+    }
+    invoke = new (arena_) HInvokeVirtual(
+        arena_, number_of_arguments, return_type, dex_offset, vtable_index);
+  } else {
+    // Treat invoke-direct like static calls for now.
+    invoke = new (arena_) HInvokeStatic(
+        arena_, number_of_arguments, return_type, dex_offset, method_idx);
+  }
 
   size_t start_index = 0;
   Temporaries temps(graph_, is_instance_call ? 1 : 0);
@@ -620,7 +663,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::INVOKE_STATIC:
-    case Instruction::INVOKE_DIRECT: {
+    case Instruction::INVOKE_DIRECT:
+    case Instruction::INVOKE_VIRTUAL: {
       uint32_t method_idx = instruction.VRegB_35c();
       uint32_t number_of_vreg_arguments = instruction.VRegA_35c();
       uint32_t args[5];
@@ -632,7 +676,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::INVOKE_STATIC_RANGE:
-    case Instruction::INVOKE_DIRECT_RANGE: {
+    case Instruction::INVOKE_DIRECT_RANGE:
+    case Instruction::INVOKE_VIRTUAL_RANGE: {
       uint32_t method_idx = instruction.VRegB_3rc();
       uint32_t number_of_vreg_arguments = instruction.VRegA_3rc();
       uint32_t register_index = instruction.VRegC();
