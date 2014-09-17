@@ -108,4 +108,4 @@ class CheckReferenceMapVisitor : public StackVisitor {
 
 }  // namespace art
 
-#endif  // ART_RUNTIME_REFERENCE_MAP_VISITOR_H_
+#endif  // ART_RUNTIME_CHECK_REFERENCE_MAP_VISITOR_H_
