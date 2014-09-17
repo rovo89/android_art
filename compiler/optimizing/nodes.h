@@ -331,6 +331,13 @@ class HBasicBlock : public ArenaObject {
     block->successors_.Add(this);
   }
 
+  void SwapPredecessors() {
+    DCHECK(predecessors_.Size() == 2);
+    HBasicBlock* temp = predecessors_.Get(0);
+    predecessors_.Put(0, predecessors_.Get(1));
+    predecessors_.Put(1, temp);
+  }
+
   size_t GetPredecessorIndexOf(HBasicBlock* predecessor) {
     for (size_t i = 0, e = predecessors_.Size(); i < e; ++i) {
       if (predecessors_.Get(i) == predecessor) {

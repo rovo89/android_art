@@ -194,6 +194,11 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
     }
     pre_header->AddSuccessor(header);
   }
+
+  // Make sure the second predecessor of a loop header is the back edge.
+  if (header->GetPredecessors().Get(1) != info->GetBackEdges().Get(0)) {
+    header->SwapPredecessors();
+  }
 }
 
 void HGraph::SimplifyCFG() {
