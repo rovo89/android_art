@@ -381,7 +381,7 @@ class Dbg {
   static JDWP::JdwpError SetStaticFieldValue(JDWP::FieldId field_id, uint64_t value, int width)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static std::string StringToUtf8(JDWP::ObjectId string_id)
+  static JDWP::JdwpError StringToUtf8(JDWP::ObjectId string_id, std::string* str)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void OutputJValue(JDWP::JdwpTag tag, const JValue* return_value, JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
