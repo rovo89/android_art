@@ -780,10 +780,7 @@ class OatDumper {
                                     oat_method.GetVmapTableOffsetOffset());
         success = false;
       } else if (options_->dump_vmap_) {
-        if (oat_method.GetNativeGcMap() != nullptr) {
-          // The native GC map is null for methods compiled with the optimizing compiler.
-          DumpVmap(*indent2_os, oat_method);
-        }
+        DumpVmap(*indent2_os, oat_method);
       }
     }
     {
@@ -894,6 +891,12 @@ class OatDumper {
   }
 
   void DumpVmap(std::ostream& os, const OatFile::OatMethod& oat_method) {
+    // If the native GC map is null, then this method has been compiled with the
+    // optimizing compiler. The optimizing compiler currently outputs its stack map
+    // in the vmap table, and the code below does not work with such a stack map.
+    if (oat_method.GetNativeGcMap() == nullptr) {
+      return;
+    }
     const uint8_t* raw_table = oat_method.GetVmapTable();
     if (raw_table != nullptr) {
       const VmapTable vmap_table(raw_table);
