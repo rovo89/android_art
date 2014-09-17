@@ -192,7 +192,8 @@ class HLoopInformation : public ArenaObject {
   HLoopInformation(HBasicBlock* header, HGraph* graph)
       : header_(header),
         back_edges_(graph->GetArena(), kDefaultNumberOfBackEdges),
-        blocks_(graph->GetArena(), graph->GetBlocks().Size(), false) {}
+        // Make bit vector growable, as the number of blocks may change.
+        blocks_(graph->GetArena(), graph->GetBlocks().Size(), true) {}
 
   HBasicBlock* GetHeader() const {
     return header_;
