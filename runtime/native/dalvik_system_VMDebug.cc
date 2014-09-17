@@ -60,11 +60,11 @@ static jobjectArray VMDebug_getVmFeatureList(JNIEnv* env, jclass) {
 }
 
 static void VMDebug_startAllocCounting(JNIEnv*, jclass) {
-  Runtime::Current()->SetStatsEnabled(true);
+  Runtime::Current()->SetStatsEnabled(true, false);
 }
 
 static void VMDebug_stopAllocCounting(JNIEnv*, jclass) {
-  Runtime::Current()->SetStatsEnabled(false);
+  Runtime::Current()->SetStatsEnabled(false, false);
 }
 
 static jint VMDebug_getAllocCount(JNIEnv*, jclass, jint kind) {
