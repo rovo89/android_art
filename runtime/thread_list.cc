@@ -872,14 +872,21 @@ void ThreadList::Unregister(Thread* self) {
     // thread_suspend_count_lock_ so that the unregistering thread cannot be suspended.
     // Note: deliberately not using MutexLock that could hold a stale self pointer.
     Locks::thread_list_lock_->ExclusiveLock(self);
-    CHECK(Contains(self));
-    Locks::thread_suspend_count_lock_->ExclusiveLock(self);
-    bool removed = false;
-    if (!self->IsSuspended()) {
-      list_.remove(self);
-      removed = true;
+    bool removed = true;
+    if (!Contains(self)) {
+      std::ostringstream os;
+      DumpNativeStack(os, GetTid(), "  native: ", nullptr);
+      LOG(ERROR) << "Request to unregister unattached thread\n" << os.str();
+    } else {
+      Locks::thread_suspend_count_lock_->ExclusiveLock(self);
+      if (!self->IsSuspended()) {
+        list_.remove(self);
+      } else {
+        // We failed to remove the thread due to a suspend request, loop and try again.
+        removed = false;
+      }
+      Locks::thread_suspend_count_lock_->ExclusiveUnlock(self);
     }
-    Locks::thread_suspend_count_lock_->ExclusiveUnlock(self);
     Locks::thread_list_lock_->ExclusiveUnlock(self);
     if (removed) {
       delete self;
