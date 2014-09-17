@@ -151,7 +151,12 @@ static JdwpError FinishInvoke(JdwpState*, Request* request, ExpandBuf* pReply,
     /* show detailed debug output */
     if (resultTag == JT_STRING && exceptObjId == 0) {
       if (resultValue != 0) {
-        VLOG(jdwp) << "      string '" << Dbg::StringToUtf8(resultValue) << "'";
+        if (VLOG_IS_ON(jdwp)) {
+          std::string result_string;
+          JDWP::JdwpError error = Dbg::StringToUtf8(resultValue, &result_string);
+          CHECK_EQ(error, JDWP::ERR_NONE);
+          VLOG(jdwp) << "      string '" << result_string << "'";
+        }
       } else {
         VLOG(jdwp) << "      string (null)";
       }
@@ -919,7 +924,11 @@ static JdwpError OR_ReferringObjects(JdwpState*, Request* request, ExpandBuf* re
 static JdwpError SR_Value(JdwpState*, Request* request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectId stringObject = request->ReadObjectId();
-  std::string str(Dbg::StringToUtf8(stringObject));
+  std::string str;
+  JDWP::JdwpError error = Dbg::StringToUtf8(stringObject, &str);
+  if (error != JDWP::ERR_NONE) {
+    return error;
+  }
 
   VLOG(jdwp) << StringPrintf("    --> %s", PrintableString(str.c_str()).c_str());
 
