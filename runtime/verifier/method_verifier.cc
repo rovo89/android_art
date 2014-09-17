@@ -312,9 +312,15 @@ MethodVerifier* MethodVerifier::VerifyMethodAndDump(Thread* self, std::ostream& 
   verifier->Verify();
   verifier->DumpFailures(os);
   os << verifier->info_messages_.str();
-  verifier->Dump(os);
-
-  return verifier;
+  // Only dump and return if no hard failures. Otherwise the verifier may be not fully initialized
+  // and querying any info is dangerous/can abort.
+  if (verifier->have_pending_hard_failure_) {
+    delete verifier;
+    return nullptr;
+  } else {
+    verifier->Dump(os);
+    return verifier;
+  }
 }
 
 MethodVerifier::MethodVerifier(Thread* self,
