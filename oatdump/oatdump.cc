@@ -53,10 +53,12 @@
 #include "runtime.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
+#include "ScopedLocalRef.h"
 #include "thread_list.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
 #include "vmap_table.h"
+#include "well_known_classes.h"
 
 namespace art {
 
@@ -105,7 +107,6 @@ static void usage() {
           "  --no-disassemble may be used to disable disassembly.\n"
           "      Example: --no-disassemble\n"
           "\n");
-  exit(EXIT_FAILURE);
 }
 
 const char* image_roots_descriptions_[] = {
@@ -343,18 +344,21 @@ class OatDumperOptions {
                    bool dump_raw_gc_map,
                    bool dump_vmap,
                    bool disassemble_code,
-                   bool absolute_addresses)
+                   bool absolute_addresses,
+                   Handle<mirror::ClassLoader>* class_loader)
     : dump_raw_mapping_table_(dump_raw_mapping_table),
       dump_raw_gc_map_(dump_raw_gc_map),
       dump_vmap_(dump_vmap),
       disassemble_code_(disassemble_code),
-      absolute_addresses_(absolute_addresses) {}
+      absolute_addresses_(absolute_addresses),
+      class_loader_(class_loader) {}
 
   const bool dump_raw_mapping_table_;
   const bool dump_raw_gc_map_;
   const bool dump_vmap_;
   const bool disassemble_code_;
   const bool absolute_addresses_;
+  Handle<mirror::ClassLoader>* class_loader_;
 };
 
 class OatDumper {
@@ -366,6 +370,7 @@ class OatDumper {
       disassembler_(Disassembler::Create(oat_file_.GetOatHeader().GetInstructionSet(),
                                          new DisassemblerOptions(options_->absolute_addresses_,
                                                                  oat_file.Begin()))) {
+    CHECK(options_->class_loader_ != nullptr);
     AddAllOffsets();
   }
 
@@ -1170,9 +1175,10 @@ class OatDumper {
       StackHandleScope<1> hs(soa.Self());
       Handle<mirror::DexCache> dex_cache(
           hs.NewHandle(Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file)));
+      DCHECK(options_->class_loader_ != nullptr);
       return verifier::MethodVerifier::VerifyMethodAndDump(soa.Self(), os, dex_method_idx, dex_file,
                                                            dex_cache,
-                                                           NullHandle<mirror::ClassLoader>(),
+                                                           *options_->class_loader_,
                                                            &class_def, code_item,
                                                            NullHandle<mirror::ArtMethod>(),
                                                            method_access_flags);
@@ -1955,122 +1961,10 @@ class ImageDumper {
   DISALLOW_COPY_AND_ASSIGN(ImageDumper);
 };
 
-static int oatdump(int argc, char** argv) {
-  InitLogging(argv);
+static NoopCompilerCallbacks callbacks;
 
-  // Skip over argv[0].
-  argv++;
-  argc--;
-
-  if (argc == 0) {
-    fprintf(stderr, "No arguments specified\n");
-    usage();
-  }
-
-  const char* oat_filename = nullptr;
-  const char* image_location = nullptr;
-  const char* boot_image_location = nullptr;
-  InstructionSet instruction_set = kRuntimeISA;
-  std::string elf_filename_prefix;
-  std::ostream* os = &std::cout;
-  std::unique_ptr<std::ofstream> out;
-  std::string output_name;
-  bool dump_raw_mapping_table = false;
-  bool dump_raw_gc_map = false;
-  bool dump_vmap = true;
-  bool disassemble_code = true;
-  bool symbolize = false;
-
-  for (int i = 0; i < argc; i++) {
-    const StringPiece option(argv[i]);
-    if (option.starts_with("--oat-file=")) {
-      oat_filename = option.substr(strlen("--oat-file=")).data();
-    } else if (option.starts_with("--image=")) {
-      image_location = option.substr(strlen("--image=")).data();
-    } else if (option.starts_with("--boot-image=")) {
-      boot_image_location = option.substr(strlen("--boot-image=")).data();
-    } else if (option.starts_with("--instruction-set=")) {
-      StringPiece instruction_set_str = option.substr(strlen("--instruction-set=")).data();
-      if (instruction_set_str == "arm") {
-        instruction_set = kThumb2;
-      } else if (instruction_set_str == "arm64") {
-        instruction_set = kArm64;
-      } else if (instruction_set_str == "mips") {
-        instruction_set = kMips;
-      } else if (instruction_set_str == "x86") {
-        instruction_set = kX86;
-      } else if (instruction_set_str == "x86_64") {
-        instruction_set = kX86_64;
-      }
-    } else if (option =="--dump:raw_mapping_table") {
-      dump_raw_mapping_table = true;
-    } else if (option == "--dump:raw_gc_map") {
-      dump_raw_gc_map = true;
-    } else if (option == "--no-dump:vmap") {
-      dump_vmap = false;
-    } else if (option == "--no-disassemble") {
-      disassemble_code = false;
-    } else if (option.starts_with("--output=")) {
-      output_name = option.substr(strlen("--output=")).ToString();
-      const char* filename = output_name.c_str();
-      out.reset(new std::ofstream(filename));
-      if (!out->good()) {
-        fprintf(stderr, "Failed to open output filename %s\n", filename);
-        usage();
-      }
-      os = out.get();
-    } else if (option.starts_with("--symbolize=")) {
-      oat_filename = option.substr(strlen("--symbolize=")).data();
-      symbolize = true;
-    } else {
-      fprintf(stderr, "Unknown argument %s\n", option.data());
-      usage();
-    }
-  }
-
-  if (image_location == nullptr && oat_filename == nullptr) {
-    fprintf(stderr, "Either --image or --oat must be specified\n");
-    return EXIT_FAILURE;
-  }
-
-  if (image_location != nullptr && oat_filename != nullptr) {
-    fprintf(stderr, "Either --image or --oat must be specified but not both\n");
-    return EXIT_FAILURE;
-  }
-
-  // If we are only doing the oat file, disable absolute_addresses. Keep them for image dumping.
-  bool absolute_addresses = (oat_filename == nullptr);
-  std::unique_ptr<OatDumperOptions> oat_dumper_options(new OatDumperOptions(dump_raw_mapping_table,
-                                                                            dump_raw_gc_map,
-                                                                            dump_vmap,
-                                                                            disassemble_code,
-                                                                            absolute_addresses));
-  if (oat_filename != nullptr) {
-    std::string error_msg;
-    OatFile* oat_file =
-        OatFile::Open(oat_filename, oat_filename, nullptr, false, &error_msg);
-    if (oat_file == nullptr) {
-      fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
-      return EXIT_FAILURE;
-    }
-    if (symbolize) {
-      OatSymbolizer oat_symbolizer(oat_file, output_name);
-      if (!oat_symbolizer.Init()) {
-        fprintf(stderr, "Failed to initialize symbolizer\n");
-        return EXIT_FAILURE;
-      }
-      if (!oat_symbolizer.Symbolize()) {
-        fprintf(stderr, "Failed to symbolize\n");
-        return EXIT_FAILURE;
-      }
-    } else {
-      OatDumper oat_dumper(*oat_file, oat_dumper_options.release());
-      bool success = oat_dumper.Dump(*os);
-      return (success) ? EXIT_SUCCESS : EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-  }
-
+static Runtime* StartRuntime(const char* boot_image_location, const char* image_location,
+                             InstructionSet instruction_set) {
   RuntimeOptions options;
   std::string image_option;
   std::string oat_option;
@@ -2078,7 +1972,6 @@ static int oatdump(int argc, char** argv) {
   std::string boot_oat_option;
 
   // We are more like a compiler than a run-time. We don't want to execute code.
-  NoopCompilerCallbacks callbacks;
   options.push_back(std::make_pair("compilercallbacks", &callbacks));
 
   if (boot_image_location != nullptr) {
@@ -2097,14 +1990,24 @@ static int oatdump(int argc, char** argv) {
 
   if (!Runtime::Create(options, false)) {
     fprintf(stderr, "Failed to create runtime\n");
-    return EXIT_FAILURE;
+    return nullptr;
   }
-  std::unique_ptr<Runtime> runtime(Runtime::Current());
+
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
   // give it away now and then switch to a more manageable ScopedObjectAccess.
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+
+  return Runtime::Current();
+}
+
+static int DumpImage(Runtime* runtime, const char* image_location, OatDumperOptions* options,
+                     std::ostream* os) {
+  // Dumping the image, no explicit class loader.
+  NullHandle<mirror::ClassLoader> null_class_loader;
+  options->class_loader_ = &null_class_loader;
+
   ScopedObjectAccess soa(Thread::Current());
-  gc::Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* heap = runtime->GetHeap();
   gc::space::ImageSpace* image_space = heap->GetImageSpace();
   CHECK(image_space != nullptr);
   const ImageHeader& image_header = image_space->GetImageHeader();
@@ -2112,9 +2015,225 @@ static int oatdump(int argc, char** argv) {
     fprintf(stderr, "Invalid image header %s\n", image_location);
     return EXIT_FAILURE;
   }
-  ImageDumper image_dumper(os, *image_space, image_header, oat_dumper_options.release());
+  ImageDumper image_dumper(os, *image_space, image_header, options);
   bool success = image_dumper.Dump();
   return (success) ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+static int DumpOatWithRuntime(Runtime* runtime, OatFile* oat_file, OatDumperOptions* options,
+                              std::ostream* os) {
+  CHECK(runtime != nullptr && oat_file != nullptr && options != nullptr);
+
+  Thread* self = Thread::Current();
+  CHECK(self != nullptr);
+  // Need well-known-classes.
+  WellKnownClasses::Init(self->GetJniEnv());
+
+  // Need to register dex files to get a working dex cache.
+  ScopedObjectAccess soa(self);
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  class_linker->RegisterOatFile(oat_file);
+  std::vector<const DexFile*> dex_files;
+  for (const OatFile::OatDexFile* odf : oat_file->GetOatDexFiles()) {
+    std::string error_msg;
+    const DexFile* dex_file = odf->OpenDexFile(&error_msg);
+    CHECK(dex_file != nullptr) << error_msg;
+    class_linker->RegisterDexFile(*dex_file);
+    dex_files.push_back(dex_file);
+  }
+
+  // Need a class loader.
+  soa.Env()->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader);
+  ScopedLocalRef<jobject> class_loader_local(soa.Env(),
+      soa.Env()->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader));
+  jobject class_loader = soa.Env()->NewGlobalRef(class_loader_local.get());
+  // Fake that we're a compiler.
+  runtime->SetCompileTimeClassPath(class_loader, dex_files);
+
+  // Use the class loader while dumping.
+  StackHandleScope<1> scope(self);
+  Handle<mirror::ClassLoader> loader_handle = scope.NewHandle(
+      soa.Decode<mirror::ClassLoader*>(class_loader));
+  options->class_loader_ = &loader_handle;
+
+  OatDumper oat_dumper(*oat_file, options);
+  bool success = oat_dumper.Dump(*os);
+  return (success) ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+static int DumpOatWithoutRuntime(OatFile* oat_file, OatDumperOptions* options, std::ostream* os) {
+  // No image = no class loader.
+  NullHandle<mirror::ClassLoader> null_class_loader;
+  options->class_loader_ = &null_class_loader;
+
+  OatDumper oat_dumper(*oat_file, options);
+  bool success = oat_dumper.Dump(*os);
+  return (success) ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+static int DumpOat(Runtime* runtime, const char* oat_filename, OatDumperOptions* options,
+                   std::ostream* os) {
+  std::string error_msg;
+  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, nullptr, false, &error_msg);
+  if (oat_file == nullptr) {
+    fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
+    return EXIT_FAILURE;
+  }
+
+  if (runtime != nullptr) {
+    return DumpOatWithRuntime(runtime, oat_file, options, os);
+  } else {
+    return DumpOatWithoutRuntime(oat_file, options, os);
+  }
+}
+
+static int SymbolizeOat(const char* oat_filename, std::string& output_name) {
+  std::string error_msg;
+  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, nullptr, false, &error_msg);
+  if (oat_file == nullptr) {
+    fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
+    return EXIT_FAILURE;
+  }
+
+  OatSymbolizer oat_symbolizer(oat_file, output_name);
+  if (!oat_symbolizer.Init()) {
+    fprintf(stderr, "Failed to initialize symbolizer\n");
+    return EXIT_FAILURE;
+  }
+  if (!oat_symbolizer.Symbolize()) {
+    fprintf(stderr, "Failed to symbolize\n");
+    return EXIT_FAILURE;
+  }
+
+  return EXIT_SUCCESS;
+}
+
+struct OatdumpArgs {
+  bool Parse(int argc, char** argv) {
+    // Skip over argv[0].
+    argv++;
+    argc--;
+
+    if (argc == 0) {
+      fprintf(stderr, "No arguments specified\n");
+      usage();
+      return false;
+    }
+
+    for (int i = 0; i < argc; i++) {
+      const StringPiece option(argv[i]);
+      if (option.starts_with("--oat-file=")) {
+        oat_filename_ = option.substr(strlen("--oat-file=")).data();
+      } else if (option.starts_with("--image=")) {
+        image_location_ = option.substr(strlen("--image=")).data();
+      } else if (option.starts_with("--boot-image=")) {
+        boot_image_location_ = option.substr(strlen("--boot-image=")).data();
+      } else if (option.starts_with("--instruction-set=")) {
+        StringPiece instruction_set_str = option.substr(strlen("--instruction-set=")).data();
+        instruction_set_ = GetInstructionSetFromString(instruction_set_str.data());
+        if (instruction_set_ == kNone) {
+          fprintf(stderr, "Unsupported instruction set %s\n", instruction_set_str.data());
+          usage();
+          return false;
+        }
+      } else if (option =="--dump:raw_mapping_table") {
+        dump_raw_mapping_table_ = true;
+      } else if (option == "--dump:raw_gc_map") {
+        dump_raw_gc_map_ = true;
+      } else if (option == "--no-dump:vmap") {
+        dump_vmap_ = false;
+      } else if (option == "--no-disassemble") {
+        disassemble_code_ = false;
+      } else if (option.starts_with("--output=")) {
+        output_name_ = option.substr(strlen("--output=")).ToString();
+        const char* filename = output_name_.c_str();
+        out_.reset(new std::ofstream(filename));
+        if (!out_->good()) {
+          fprintf(stderr, "Failed to open output filename %s\n", filename);
+          usage();
+          return false;
+        }
+        os_ = out_.get();
+      } else if (option.starts_with("--symbolize=")) {
+        oat_filename_ = option.substr(strlen("--symbolize=")).data();
+        symbolize_ = true;
+      } else {
+        fprintf(stderr, "Unknown argument %s\n", option.data());
+        usage();
+        return false;
+      }
+    }
+
+    if (image_location_ == nullptr && oat_filename_ == nullptr) {
+      fprintf(stderr, "Either --image or --oat must be specified\n");
+      return false;
+    }
+
+    if (image_location_ != nullptr && oat_filename_ != nullptr) {
+      fprintf(stderr, "Either --image or --oat must be specified but not both\n");
+      return false;
+    }
+
+    return true;
+  }
+
+  const char* oat_filename_ = nullptr;
+  const char* image_location_ = nullptr;
+  const char* boot_image_location_ = nullptr;
+  InstructionSet instruction_set_ = kRuntimeISA;
+  std::string elf_filename_prefix_;
+  std::ostream* os_ = &std::cout;
+  std::unique_ptr<std::ofstream> out_;
+  std::string output_name_;
+  bool dump_raw_mapping_table_ = false;
+  bool dump_raw_gc_map_ = false;
+  bool dump_vmap_ = true;
+  bool disassemble_code_ = true;
+  bool symbolize_ = false;
+};
+
+static int oatdump(int argc, char** argv) {
+  InitLogging(argv);
+
+  OatdumpArgs args;
+  if (!args.Parse(argc, argv)) {
+    return EXIT_FAILURE;
+  }
+
+  // If we are only doing the oat file, disable absolute_addresses. Keep them for image dumping.
+  bool absolute_addresses = (args.oat_filename_ == nullptr);
+
+  std::unique_ptr<OatDumperOptions> oat_dumper_options(new OatDumperOptions(
+      args.dump_raw_mapping_table_,
+      args.dump_raw_gc_map_,
+      args.dump_vmap_,
+      args.disassemble_code_,
+      absolute_addresses,
+      nullptr));
+
+  std::unique_ptr<Runtime> runtime;
+  if ((args.boot_image_location_ != nullptr || args.image_location_ != nullptr) &&
+      !args.symbolize_) {
+    // If we have a boot image option, try to start the runtime; except when just symbolizing.
+    runtime.reset(StartRuntime(args.boot_image_location_,
+                               args.image_location_,
+                               args.instruction_set_));
+  }
+
+  if (args.oat_filename_ != nullptr) {
+    if (args.symbolize_) {
+      return SymbolizeOat(args.oat_filename_, args.output_name_);
+    } else {
+      return DumpOat(runtime.get(), args.oat_filename_, oat_dumper_options.release(), args.os_);
+    }
+  }
+
+  if (runtime.get() == nullptr) {
+    // We need the runtime when printing an image.
+    return EXIT_FAILURE;
+  }
+
+  return DumpImage(runtime.get(), args.image_location_, oat_dumper_options.release(), args.os_);
 }
 
 }  // namespace art
