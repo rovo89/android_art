@@ -2104,6 +2104,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   // Back to back GCs can cause 0 ms of wait time in between GC invocations.
   if (LIKELY(ms_delta != 0)) {
     allocation_rate_ = ((gc_start_size - last_gc_size_) * 1000) / ms_delta;
+    ATRACE_INT("Allocation rate KB/s", allocation_rate_ / KB);
     VLOG(heap) << "Allocation rate: " << PrettySize(allocation_rate_) << "/s";
   }
 
