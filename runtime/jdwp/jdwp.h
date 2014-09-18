@@ -36,8 +36,13 @@ union JValue;
 class Thread;
 
 namespace mirror {
+  class ArtField;
   class ArtMethod;
+  class Class;
+  class Object;
+  class Throwable;
 }  // namespace mirror
+class Thread;
 
 namespace JDWP {
 
@@ -64,6 +69,11 @@ static inline void expandBufAddMethodId(ExpandBuf* pReply, MethodId id) { expand
 static inline void expandBufAddObjectId(ExpandBuf* pReply, ObjectId id) { expandBufAdd8BE(pReply, id); }
 static inline void expandBufAddRefTypeId(ExpandBuf* pReply, RefTypeId id) { expandBufAdd8BE(pReply, id); }
 static inline void expandBufAddFrameId(ExpandBuf* pReply, FrameId id) { expandBufAdd8BE(pReply, id); }
+
+struct EventLocation {
+  mirror::ArtMethod* method;
+  uint32_t dex_pc;
+};
 
 /*
  * Holds a JDWP "location".
@@ -178,7 +188,7 @@ struct JdwpState {
    * The VM has finished initializing.  Only called when the debugger is
    * connected at the time initialization completes.
    */
-  bool PostVMStart() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool PostVMStart() LOCKS_EXCLUDED(event_list_lock_) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * A location of interest has been reached.  This is used for breakpoints,
@@ -192,8 +202,9 @@ struct JdwpState {
    *
    * "returnValue" is non-null for MethodExit events only.
    */
-  bool PostLocationEvent(const JdwpLocation* pLoc, ObjectId thisPtr, int eventFlags,
+  bool PostLocationEvent(const EventLocation* pLoc, mirror::Object* thisPtr, int eventFlags,
                          const JValue* returnValue)
+     LOCKS_EXCLUDED(event_list_lock_)
      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -203,8 +214,9 @@ struct JdwpState {
    * "fieldValue" is non-null for field modification events only.
    * "is_modification" is true for field modification, false for field access.
    */
-  bool PostFieldEvent(const JdwpLocation* pLoc, RefTypeId typeId, FieldId fieldId,
-                      ObjectId thisPtr, const JValue* fieldValue, bool is_modification)
+  bool PostFieldEvent(const EventLocation* pLoc, mirror::ArtField* field, mirror::Object* thisPtr,
+                      const JValue* fieldValue, bool is_modification)
+      LOCKS_EXCLUDED(event_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
@@ -212,21 +224,23 @@ struct JdwpState {
    *
    * Pass in a zeroed-out "*pCatchLoc" if the exception wasn't caught.
    */
-  bool PostException(const JdwpLocation* pThrowLoc, ObjectId excepId, RefTypeId excepClassId,
-                     const JdwpLocation* pCatchLoc, ObjectId thisPtr)
+  bool PostException(const EventLocation* pThrowLoc, mirror::Throwable* exception_object,
+                     const EventLocation* pCatchLoc, mirror::Object* thisPtr)
+      LOCKS_EXCLUDED(event_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * A thread has started or stopped.
    */
-  bool PostThreadChange(ObjectId threadId, bool start)
+  bool PostThreadChange(Thread* thread, bool start)
+      LOCKS_EXCLUDED(event_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Class has been prepared.
    */
-  bool PostClassPrepare(JdwpTypeTag tag, RefTypeId refTypeId, const std::string& signature,
-                        int status)
+  bool PostClassPrepare(mirror::Class* klass)
+      LOCKS_EXCLUDED(event_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
