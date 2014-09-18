@@ -410,11 +410,13 @@ void PatchOat::VisitObject(mirror::Object* object) {
 void PatchOat::FixupMethod(mirror::ArtMethod* object, mirror::ArtMethod* copy) {
   // Just update the entry points if it looks like we should.
   // TODO: sanity check all the pointers' values
+#if defined(ART_USE_PORTABLE_COMPILER)
   uintptr_t portable = reinterpret_cast<uintptr_t>(
       object->GetEntryPointFromPortableCompiledCode<kVerifyNone>());
   if (portable != 0) {
     copy->SetEntryPointFromPortableCompiledCode(reinterpret_cast<void*>(portable + delta_));
   }
+#endif
   uintptr_t quick= reinterpret_cast<uintptr_t>(
       object->GetEntryPointFromQuickCompiledCode<kVerifyNone>());
   if (quick != 0) {

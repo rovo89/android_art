@@ -207,20 +207,25 @@ inline uint32_t ArtMethod::GetQuickOatCodeOffset() {
   return PointerToLowMemUInt32(GetEntryPointFromQuickCompiledCode());
 }
 
+
+#if defined(ART_USE_PORTABLE_COMPILER)
 inline uint32_t ArtMethod::GetPortableOatCodeOffset() {
   DCHECK(!Runtime::Current()->IsStarted());
   return PointerToLowMemUInt32(GetEntryPointFromPortableCompiledCode());
 }
+#endif
 
 inline void ArtMethod::SetQuickOatCodeOffset(uint32_t code_offset) {
   DCHECK(!Runtime::Current()->IsStarted());
   SetEntryPointFromQuickCompiledCode(reinterpret_cast<void*>(code_offset));
 }
 
+#if defined(ART_USE_PORTABLE_COMPILER)
 inline void ArtMethod::SetPortableOatCodeOffset(uint32_t code_offset) {
   DCHECK(!Runtime::Current()->IsStarted());
   SetEntryPointFromPortableCompiledCode(reinterpret_cast<void*>(code_offset));
 }
+#endif
 
 inline const void* ArtMethod::GetQuickOatEntryPoint() {
   if (IsPortableCompiled() || IsAbstract() || IsRuntimeMethod() || IsProxyMethod()) {

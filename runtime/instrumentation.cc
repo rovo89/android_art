@@ -85,7 +85,9 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
 static void UpdateEntrypoints(mirror::ArtMethod* method, const void* quick_code,
                               const void* portable_code, bool have_portable_code)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+#if defined(ART_USE_PORTABLE_COMPILER)
   method->SetEntryPointFromPortableCompiledCode(portable_code);
+#endif
   method->SetEntryPointFromQuickCompiledCode(quick_code);
   bool portable_enabled = method->IsPortableCompiled();
   if (have_portable_code && !portable_enabled) {
@@ -102,9 +104,13 @@ static void UpdateEntrypoints(mirror::ArtMethod* method, const void* quick_code,
          && !method->IsNative() && !method->IsProxyMethod())) {
       if (kIsDebugBuild) {
         if (quick_code == GetQuickToInterpreterBridge()) {
+#if defined(ART_USE_PORTABLE_COMPILER)
           DCHECK(portable_code == GetPortableToInterpreterBridge());
+#endif
         } else if (quick_code == class_linker->GetQuickResolutionTrampoline()) {
+#if defined(ART_USE_PORTABLE_COMPILER)
           DCHECK(portable_code == class_linker->GetPortableResolutionTrampoline());
+#endif
         }
       }
       DCHECK(!method->IsNative()) << PrettyMethod(method);
@@ -132,21 +138,32 @@ void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   bool is_class_initialized = method->GetDeclaringClass()->IsInitialized();
   bool have_portable_code = false;
+#if !defined(ART_USE_PORTABLE_COMPILER)
+  new_portable_code = nullptr;
+#endif
   if (uninstall) {
     if ((forced_interpret_only_ || IsDeoptimized(method)) && !method->IsNative()) {
+#if defined(ART_USE_PORTABLE_COMPILER)
       new_portable_code = GetPortableToInterpreterBridge();
+#endif
       new_quick_code = GetQuickToInterpreterBridge();
     } else if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
+#if defined(ART_USE_PORTABLE_COMPILER)
       new_portable_code = class_linker->GetPortableOatCodeFor(method, &have_portable_code);
+#endif
       new_quick_code = class_linker->GetQuickOatCodeFor(method);
     } else {
+#if defined(ART_USE_PORTABLE_COMPILER)
       new_portable_code = class_linker->GetPortableResolutionTrampoline();
+#endif
       new_quick_code = class_linker->GetQuickResolutionTrampoline();
     }
   } else {  // !uninstall
     if ((interpreter_stubs_installed_ || forced_interpret_only_ || IsDeoptimized(method)) &&
         !method->IsNative()) {
+#if defined(ART_USE_PORTABLE_COMPILER)
       new_portable_code = GetPortableToInterpreterBridge();
+#endif
       new_quick_code = GetQuickToInterpreterBridge();
     } else {
       // Do not overwrite resolution trampoline. When the trampoline initializes the method's
@@ -154,15 +171,21 @@ void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
       // For more details, see ClassLinker::FixupStaticTrampolines.
       if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
         if (entry_exit_stubs_installed_) {
+#if defined(ART_USE_PORTABLE_COMPILER)
           new_portable_code = GetPortableToInterpreterBridge();
+#endif
           new_quick_code = GetQuickInstrumentationEntryPoint();
         } else {
+#if defined(ART_USE_PORTABLE_COMPILER)
           new_portable_code = class_linker->GetPortableOatCodeFor(method, &have_portable_code);
+#endif
           new_quick_code = class_linker->GetQuickOatCodeFor(method);
           DCHECK(new_quick_code != class_linker->GetQuickToInterpreterBridgeTrampoline());
         }
       } else {
+#if defined(ART_USE_PORTABLE_COMPILER)
         new_portable_code = class_linker->GetPortableResolutionTrampoline();
+#endif
         new_quick_code = class_linker->GetQuickResolutionTrampoline();
       }
     }
@@ -657,7 +680,11 @@ void Instrumentation::UpdateMethodsCode(mirror::ArtMethod* method, const void* q
     new_have_portable_code = have_portable_code;
   } else {
     if ((interpreter_stubs_installed_ || IsDeoptimized(method)) && !method->IsNative()) {
+#if defined(ART_USE_PORTABLE_COMPILER)
       new_portable_code = GetPortableToInterpreterBridge();
+#else
+      new_portable_code = portable_code;
+#endif
       new_quick_code = GetQuickToInterpreterBridge();
       new_have_portable_code = false;
     } else {
@@ -665,14 +692,20 @@ void Instrumentation::UpdateMethodsCode(mirror::ArtMethod* method, const void* q
       if (quick_code == class_linker->GetQuickResolutionTrampoline() ||
           quick_code == class_linker->GetQuickToInterpreterBridgeTrampoline() ||
           quick_code == GetQuickToInterpreterBridge()) {
+#if defined(ART_USE_PORTABLE_COMPILER)
         DCHECK((portable_code == class_linker->GetPortableResolutionTrampoline()) ||
                (portable_code == GetPortableToInterpreterBridge()));
+#endif
         new_portable_code = portable_code;
         new_quick_code = quick_code;
         new_have_portable_code = have_portable_code;
       } else if (entry_exit_stubs_installed_) {
         new_quick_code = GetQuickInstrumentationEntryPoint();
+#if defined(ART_USE_PORTABLE_COMPILER)
         new_portable_code = GetPortableToInterpreterBridge();
+#else
+        new_portable_code = portable_code;
+#endif
         new_have_portable_code = false;
       } else {
         new_portable_code = portable_code;
@@ -754,7 +787,12 @@ void Instrumentation::Deoptimize(mirror::ArtMethod* method) {
         << " is already deoptimized";
   }
   if (!interpreter_stubs_installed_) {
-    UpdateEntrypoints(method, GetQuickInstrumentationEntryPoint(), GetPortableToInterpreterBridge(),
+    UpdateEntrypoints(method, GetQuickInstrumentationEntryPoint(),
+#if defined(ART_USE_PORTABLE_COMPILER)
+                      GetPortableToInterpreterBridge(),
+#else
+                      nullptr,
+#endif
                       false);
 
     // Install instrumentation exit stub and instrumentation frames. We may already have installed
@@ -788,11 +826,20 @@ void Instrumentation::Undeoptimize(mirror::ArtMethod* method) {
         !method->GetDeclaringClass()->IsInitialized()) {
       // TODO: we're updating to entrypoints in the image here, we can avoid the trampoline.
       UpdateEntrypoints(method, class_linker->GetQuickResolutionTrampoline(),
-                        class_linker->GetPortableResolutionTrampoline(), false);
+#if defined(ART_USE_PORTABLE_COMPILER)
+                        class_linker->GetPortableResolutionTrampoline(),
+#else
+                        nullptr,
+#endif
+                        false);
     } else {
       bool have_portable_code = false;
       const void* quick_code = class_linker->GetQuickOatCodeFor(method);
+#if defined(ART_USE_PORTABLE_COMPILER)
       const void* portable_code = class_linker->GetPortableOatCodeFor(method, &have_portable_code);
+#else
+      const void* portable_code = nullptr;
+#endif
       UpdateEntrypoints(method, quick_code, portable_code, have_portable_code);
     }
 

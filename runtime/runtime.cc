@@ -1192,10 +1192,14 @@ mirror::ArtMethod* Runtime::CreateImtConflictMethod() {
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   // When compiling, the code pointer will get set later when the image is loaded.
   if (runtime->IsCompiler()) {
+#if defined(ART_USE_PORTABLE_COMPILER)
     method->SetEntryPointFromPortableCompiledCode(nullptr);
+#endif
     method->SetEntryPointFromQuickCompiledCode(nullptr);
   } else {
+#if defined(ART_USE_PORTABLE_COMPILER)
     method->SetEntryPointFromPortableCompiledCode(class_linker->GetPortableImtConflictTrampoline());
+#endif
     method->SetEntryPointFromQuickCompiledCode(class_linker->GetQuickImtConflictTrampoline());
   }
   return method.Get();
@@ -1212,10 +1216,14 @@ mirror::ArtMethod* Runtime::CreateResolutionMethod() {
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   // When compiling, the code pointer will get set later when the image is loaded.
   if (runtime->IsCompiler()) {
+#if defined(ART_USE_PORTABLE_COMPILER)
     method->SetEntryPointFromPortableCompiledCode(nullptr);
+#endif
     method->SetEntryPointFromQuickCompiledCode(nullptr);
   } else {
+#if defined(ART_USE_PORTABLE_COMPILER)
     method->SetEntryPointFromPortableCompiledCode(class_linker->GetPortableResolutionTrampoline());
+#endif
     method->SetEntryPointFromQuickCompiledCode(class_linker->GetQuickResolutionTrampoline());
   }
   return method.Get();
@@ -1230,7 +1238,9 @@ mirror::ArtMethod* Runtime::CreateCalleeSaveMethod(CalleeSaveType type) {
   method->SetDeclaringClass(mirror::ArtMethod::GetJavaLangReflectArtMethod());
   // TODO: use a special method for callee saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
+#if defined(ART_USE_PORTABLE_COMPILER)
   method->SetEntryPointFromPortableCompiledCode(nullptr);
+#endif
   method->SetEntryPointFromQuickCompiledCode(nullptr);
   DCHECK_NE(instruction_set_, kNone);
   return method.Get();

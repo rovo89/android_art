@@ -129,10 +129,12 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
                                            << " "
                                            << dex->GetMethodDeclaringClassDescriptor(dex->GetMethodId(i))
                                            << " " << dex->GetMethodName(dex->GetMethodId(i));
+#if defined(ART_USE_PORTABLE_COMPILER)
     EXPECT_TRUE(method->GetEntryPointFromPortableCompiledCode() != NULL) << "method_idx=" << i
                                            << " "
                                            << dex->GetMethodDeclaringClassDescriptor(dex->GetMethodId(i))
                                            << " " << dex->GetMethodName(dex->GetMethodId(i));
+#endif
   }
   EXPECT_EQ(dex->NumFieldIds(), dex_cache->NumResolvedFields());
   for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {

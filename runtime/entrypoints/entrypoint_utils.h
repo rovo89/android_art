@@ -199,6 +199,7 @@ static inline uintptr_t GetQuickInstrumentationExitPc() {
   return reinterpret_cast<uintptr_t>(art_quick_instrumentation_exit);
 }
 
+#if defined(ART_USE_PORTABLE_COMPILER)
 extern "C" void art_portable_to_interpreter_bridge(mirror::ArtMethod*);
 static inline const void* GetPortableToInterpreterBridge() {
   return reinterpret_cast<void*>(art_portable_to_interpreter_bridge);
@@ -208,12 +209,14 @@ static inline const void* GetPortableToQuickBridge() {
   // TODO: portable to quick bridge. Bug: 8196384
   return GetPortableToInterpreterBridge();
 }
+#endif
 
 extern "C" void art_quick_to_interpreter_bridge(mirror::ArtMethod*);
 static inline const void* GetQuickToInterpreterBridge() {
   return reinterpret_cast<void*>(art_quick_to_interpreter_bridge);
 }
 
+#if defined(ART_USE_PORTABLE_COMPILER)
 static inline const void* GetQuickToPortableBridge() {
   // TODO: quick to portable bridge. Bug: 8196384
   return GetQuickToInterpreterBridge();
@@ -223,6 +226,7 @@ extern "C" void art_portable_proxy_invoke_handler();
 static inline const void* GetPortableProxyInvokeHandler() {
   return reinterpret_cast<void*>(art_portable_proxy_invoke_handler);
 }
+#endif
 
 extern "C" void art_quick_proxy_invoke_handler();
 static inline const void* GetQuickProxyInvokeHandler() {

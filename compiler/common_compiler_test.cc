@@ -217,8 +217,11 @@ void CommonCompilerTest::MakeExecutable(mirror::ArtMethod* method) {
     // No code? You must mean to go into the interpreter.
     // Or the generic JNI...
     if (!method->IsNative()) {
-      const void* method_code = kUsePortableCompiler ? GetPortableToInterpreterBridge()
-          : GetQuickToInterpreterBridge();
+#if defined(ART_USE_PORTABLE_COMPILER)
+      const void* method_code = GetPortableToInterpreterBridge();
+#else
+      const void* method_code = GetQuickToInterpreterBridge();
+#endif
       OatFile::OatMethod oat_method = CreateOatMethod(method_code, nullptr);
       oat_method.LinkMethod(method);
       method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
@@ -231,6 +234,7 @@ void CommonCompilerTest::MakeExecutable(mirror::ArtMethod* method) {
     }
   }
   // Create bridges to transition between different kinds of compiled bridge.
+#if defined(ART_USE_PORTABLE_COMPILER)
   if (method->GetEntryPointFromPortableCompiledCode() == nullptr) {
     method->SetEntryPointFromPortableCompiledCode(GetPortableToQuickBridge());
   } else {
@@ -238,6 +242,9 @@ void CommonCompilerTest::MakeExecutable(mirror::ArtMethod* method) {
     method->SetEntryPointFromQuickCompiledCode(GetQuickToPortableBridge());
     method->SetIsPortableCompiled();
   }
+#else
+  CHECK(method->GetEntryPointFromQuickCompiledCode() != nullptr);
+#endif
 }
 
 void CommonCompilerTest::MakeExecutable(const void* code_start, size_t code_length) {

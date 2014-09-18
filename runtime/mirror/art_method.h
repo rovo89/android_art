@@ -151,7 +151,7 @@ class MANAGED ArtMethod FINAL : public Object {
   }
 
   bool IsPortableCompiled() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return (GetAccessFlags() & kAccPortableCompiled) != 0;
+    return kUsePortableCompiler && ((GetAccessFlags() & kAccPortableCompiled) != 0);
   }
 
   void SetIsPortableCompiled() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -257,6 +257,7 @@ class MANAGED ArtMethod FINAL : public Object {
         entry_point_from_interpreter);
   }
 
+#if defined(ART_USE_PORTABLE_COMPILER)
   static MemberOffset EntryPointFromPortableCompiledCodeOffset() {
     return MemberOffset(OFFSETOF_MEMBER(ArtMethod, entry_point_from_portable_compiled_code_));
   }
@@ -273,6 +274,7 @@ class MANAGED ArtMethod FINAL : public Object {
     SetFieldPtr<false, true, kVerifyFlags>(
         EntryPointFromPortableCompiledCodeOffset(), entry_point_from_portable_compiled_code);
   }
+#endif
 
   static MemberOffset EntryPointFromQuickCompiledCodeOffset() {
     return MemberOffset(OFFSETOF_MEMBER(ArtMethod, entry_point_from_quick_compiled_code_));
@@ -309,10 +311,12 @@ class MANAGED ArtMethod FINAL : public Object {
 
   void AssertPcIsWithinQuickCode(uintptr_t pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uint32_t GetQuickOatCodeOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+#if defined(ART_USE_PORTABLE_COMPILER)
   uint32_t GetPortableOatCodeOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetQuickOatCodeOffset(uint32_t code_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetPortableOatCodeOffset(uint32_t code_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+#endif
+  uint32_t GetQuickOatCodeOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void SetQuickOatCodeOffset(uint32_t code_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static const void* EntryPointToCodePointer(const void* entry_point) ALWAYS_INLINE {
     uintptr_t code = reinterpret_cast<uintptr_t>(entry_point);
@@ -498,7 +502,9 @@ class MANAGED ArtMethod FINAL : public Object {
 
   // Method dispatch from portable compiled code invokes this pointer which may cause bridging into
   // quick compiled code or the interpreter.
+#if defined(ART_USE_PORTABLE_COMPILER)
   uint64_t entry_point_from_portable_compiled_code_;
+#endif
 
   // Method dispatch from quick compiled code invokes this pointer which may cause bridging into
   // portable compiled code or the interpreter.

@@ -401,25 +401,39 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::ArtMethod* called
     Handle<mirror::Class> called_class(hs.NewHandle(called->GetDeclaringClass()));
     linker->EnsureInitialized(called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {
+#if defined(ART_USE_PORTABLE_COMPILER)
       code = called->GetEntryPointFromPortableCompiledCode();
+#else
+      code = nullptr;
+#endif
       // TODO: remove this after we solve the link issue.
       if (code == nullptr) {
+#if defined(ART_USE_PORTABLE_COMPILER)
         bool have_portable_code;
         code = linker->GetPortableOatCodeFor(called, &have_portable_code);
+#endif
       }
     } else if (called_class->IsInitializing()) {
       if (invoke_type == kStatic) {
         // Class is still initializing, go to oat and grab code (trampoline must be left in place
         // until class is initialized to stop races between threads).
+#if defined(ART_USE_PORTABLE_COMPILER)
         bool have_portable_code;
         code = linker->GetPortableOatCodeFor(called, &have_portable_code);
+#endif
       } else {
         // No trampoline for non-static methods.
+#if defined(ART_USE_PORTABLE_COMPILER)
         code = called->GetEntryPointFromPortableCompiledCode();
+#else
+        code = nullptr;
+#endif
         // TODO: remove this after we solve the link issue.
         if (code == nullptr) {
+#if defined(ART_USE_PORTABLE_COMPILER)
           bool have_portable_code;
           code = linker->GetPortableOatCodeFor(called, &have_portable_code);
+#endif
         }
       }
     } else {
