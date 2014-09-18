@@ -154,11 +154,15 @@ void OptimizingCompiler::UnInit() const {
 }
 
 OptimizingCompiler::~OptimizingCompiler() {
-  size_t unoptimized_percent = (unoptimized_compiled_methods_ * 100 / total_compiled_methods_);
-  size_t optimized_percent = (optimized_compiled_methods_ * 100 / total_compiled_methods_);
-  LOG(INFO) << "Compiled " << total_compiled_methods_ << " methods: "
-            << unoptimized_percent << "% (" << unoptimized_compiled_methods_ << ") unoptimized, "
-            << optimized_percent << "% (" << optimized_compiled_methods_ << ") optimized.";
+  if (total_compiled_methods_ == 0) {
+    LOG(INFO) << "Did not compile any method.";
+  } else {
+    size_t unoptimized_percent = (unoptimized_compiled_methods_ * 100 / total_compiled_methods_);
+    size_t optimized_percent = (optimized_compiled_methods_ * 100 / total_compiled_methods_);
+    LOG(INFO) << "Compiled " << total_compiled_methods_ << " methods: "
+              << unoptimized_percent << "% (" << unoptimized_compiled_methods_ << ") unoptimized, "
+              << optimized_percent << "% (" << optimized_compiled_methods_ << ") optimized.";
+  }
 }
 
 bool OptimizingCompiler::CanCompileMethod(uint32_t method_idx, const DexFile& dex_file,
