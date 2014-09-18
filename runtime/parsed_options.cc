@@ -80,7 +80,7 @@ ParsedOptions::ParsedOptions()
     gc::kCollectorTypeCMS),
 #error "ART default GC type must be set"
 #endif
-    background_collector_type_(gc::kCollectorTypeHomogeneousSpaceCompact),
+    background_collector_type_(gc::kCollectorTypeNone),
                                                     // If background_collector_type_ is
                                                     // kCollectorTypeNone, it defaults to the
                                                     // collector_type_ after parsing options. If
