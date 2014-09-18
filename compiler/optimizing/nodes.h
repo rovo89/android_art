@@ -513,6 +513,11 @@ class SideEffects : public ValueObject {
     return SideEffects(((1 << count) - 1) << kFlagChangesCount);
   }
 
+  bool HasSideEffects() const {
+    size_t all_bits_set = (1 << kFlagChangesCount) - 1;
+    return (flags_ & all_bits_set) != 0;
+  }
+
  private:
   static constexpr int kFlagChangesSomething = 0;
   static constexpr int kFlagChangesCount = kFlagChangesSomething + 1;
@@ -564,6 +569,7 @@ class HInstruction : public ArenaObject {
 
   virtual bool NeedsEnvironment() const { return false; }
   virtual bool IsControlFlow() const { return false; }
+  bool HasSideEffects() const { return side_effects_.HasSideEffects(); }
 
   void AddUseAt(HInstruction* user, size_t index) {
     uses_ = new (block_->GetGraph()->GetArena()) HUseListNode<HInstruction>(user, index, uses_);
