@@ -328,10 +328,6 @@ else
   LIBART_CFLAGS += -DUSE_JEMALLOC
 endif
 
-ifeq ($(ART_USE_HSPACE_COMPACT),true)
-  LIBART_CFLAGS += -DART_USE_HSPACE_COMPACT
-endif
-
 # $(1): target or host
 # $(2): ndebug or debug
 define build-libart
