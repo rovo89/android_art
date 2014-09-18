@@ -56,6 +56,12 @@ class HInstructionList {
   void AddInstruction(HInstruction* instruction);
   void RemoveInstruction(HInstruction* instruction);
 
+  // Return true if `instruction1` is found before `instruction2` in
+  // this instruction list and false otherwise.  Abort if none
+  // of these instructions is found.
+  bool FoundBefore(const HInstruction* instruction1,
+                   const HInstruction* instruction2) const;
+
  private:
   HInstruction* first_instruction_;
   HInstruction* last_instruction_;
@@ -352,6 +358,9 @@ class HBasicBlock : public ArenaObject {
   void AddInstruction(HInstruction* instruction);
   void RemoveInstruction(HInstruction* instruction);
   void InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor);
+  // Replace instruction `initial` with `replacement` within this block.
+  void ReplaceAndRemoveInstructionWith(HInstruction* initial,
+                                       HInstruction* replacement);
   void AddPhi(HPhi* phi);
   void RemovePhi(HPhi* phi);
 
@@ -448,19 +457,21 @@ class HBasicBlock : public ArenaObject {
 
 #define FOR_EACH_INSTRUCTION(M)                            \
   FOR_EACH_CONCRETE_INSTRUCTION(M)                         \
-  M(Constant)
+  M(Constant)                                              \
+  M(BinaryOperation)
 
 #define FORWARD_DECLARATION(type) class H##type;
 FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
 #undef FORWARD_DECLARATION
 
-#define DECLARE_INSTRUCTION(type)                          \
-  virtual const char* DebugName() const { return #type; }  \
-  virtual H##type* As##type() { return this; }             \
-  virtual bool InstructionTypeEquals(HInstruction* other) const {     \
-    return other->Is##type();                              \
-  }                                                        \
-  virtual void Accept(HGraphVisitor* visitor)              \
+#define DECLARE_INSTRUCTION(type)                                       \
+  virtual const char* DebugName() const { return #type; }               \
+  virtual const H##type* As##type() const OVERRIDE { return this; }     \
+  virtual H##type* As##type() OVERRIDE { return this; }                 \
+  virtual bool InstructionTypeEquals(HInstruction* other) const {       \
+    return other->Is##type();                                           \
+  }                                                                     \
+  virtual void Accept(HGraphVisitor* visitor)
 
 template <typename T>
 class HUseListNode : public ArenaObject {
@@ -582,6 +593,10 @@ class HInstruction : public ArenaObject {
     return result;
   }
 
+  // Does this instruction dominate `other_instruction`?  Aborts if
+  // this instruction and `other_instruction` are both phis.
+  bool Dominates(HInstruction* other_instruction) const;
+
   int GetId() const { return id_; }
   void SetId(int id) { id_ = id; }
 
@@ -607,7 +622,8 @@ class HInstruction : public ArenaObject {
   }
 
 #define INSTRUCTION_TYPE_CHECK(type)                                           \
-  bool Is##type() { return (As##type() != nullptr); }                          \
+  bool Is##type() const { return (As##type() != nullptr); }                    \
+  virtual const H##type* As##type() const { return nullptr; }                  \
   virtual H##type* As##type() { return nullptr; }
 
   FOR_EACH_INSTRUCTION(INSTRUCTION_TYPE_CHECK)
@@ -983,6 +999,8 @@ class HBinaryOperation : public HExpression<2> {
 
   virtual bool CanBeMoved() const { return true; }
   virtual bool InstructionDataEquals(HInstruction* other) const { return true; }
+
+  DECLARE_INSTRUCTION(BinaryOperation);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HBinaryOperation);

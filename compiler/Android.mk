@@ -90,6 +90,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/code_generator_arm.cc \
 	optimizing/code_generator_x86.cc \
 	optimizing/code_generator_x86_64.cc \
+	optimizing/graph_checker.cc \
 	optimizing/graph_visualizer.cc \
 	optimizing/locations.cc \
 	optimizing/nodes.cc \
