@@ -297,15 +297,14 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self, uint32_t 
   return result;
 }
 
-MethodVerifier* MethodVerifier::VerifyMethodAndDump(Thread* self, std::ostream& os,
-                                                    uint32_t dex_method_idx,
-                                                    const DexFile* dex_file,
-                                                    Handle<mirror::DexCache> dex_cache,
-                                                    Handle<mirror::ClassLoader> class_loader,
-                                                    const DexFile::ClassDef* class_def,
-                                                    const DexFile::CodeItem* code_item,
-                                                    Handle<mirror::ArtMethod> method,
-                                                    uint32_t method_access_flags) {
+MethodVerifier* MethodVerifier::VerifyMethodAndDump(Thread* self, std::ostream& os, uint32_t dex_method_idx,
+                                         const DexFile* dex_file,
+                                         Handle<mirror::DexCache> dex_cache,
+                                         Handle<mirror::ClassLoader> class_loader,
+                                         const DexFile::ClassDef* class_def,
+                                         const DexFile::CodeItem* code_item,
+                                         Handle<mirror::ArtMethod> method,
+                                         uint32_t method_access_flags) {
   MethodVerifier* verifier = new MethodVerifier(self, dex_file, dex_cache, class_loader,
                                                 class_def, code_item, dex_method_idx, method,
                                                 method_access_flags, true, true, true, true);

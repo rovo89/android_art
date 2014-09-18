@@ -1170,9 +1170,12 @@ class OatDumper {
       StackHandleScope<1> hs(soa.Self());
       Handle<mirror::DexCache> dex_cache(
           hs.NewHandle(Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file)));
-      return verifier::MethodVerifier::VerifyMethodAndDump(soa.Self(), os, dex_method_idx,
-          dex_file, dex_cache, NullHandle<mirror::ClassLoader>(), &class_def, code_item,
-          NullHandle<mirror::ArtMethod>(), method_access_flags);
+      return verifier::MethodVerifier::VerifyMethodAndDump(soa.Self(), os, dex_method_idx, dex_file,
+                                                           dex_cache,
+                                                           NullHandle<mirror::ClassLoader>(),
+                                                           &class_def, code_item,
+                                                           NullHandle<mirror::ArtMethod>(),
+                                                           method_access_flags);
     }
 
     return nullptr;

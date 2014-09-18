@@ -248,9 +248,9 @@ class MethodVerifier {
   MethodVerifier(Thread* self, const DexFile* dex_file, Handle<mirror::DexCache> dex_cache,
                  Handle<mirror::ClassLoader> class_loader, const DexFile::ClassDef* class_def,
                  const DexFile::CodeItem* code_item, uint32_t method_idx,
-                 Handle<mirror::ArtMethod> method,
-                 uint32_t access_flags, bool can_load_classes, bool allow_soft_failures,
-                 bool need_precise_constants, bool verify_to_dump)
+                 Handle<mirror::ArtMethod> method, uint32_t access_flags,
+                 bool can_load_classes, bool allow_soft_failures, bool need_precise_constants,
+                 bool verify_to_dump)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Adds the given string to the beginning of the last failure message.
