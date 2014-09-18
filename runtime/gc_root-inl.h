@@ -29,10 +29,5 @@ inline MirrorType* GcRoot<MirrorType>::Read() {
   return ReadBarrier::BarrierForRoot<MirrorType, kReadBarrierOption>(&root_);
 }
 
-template<class MirrorType>
-inline void GcRoot<MirrorType>::Assign(MirrorType* value) {
-  root_ = value;
-}
-
 }  // namespace art
 #endif  // ART_RUNTIME_GC_ROOT_INL_H_
