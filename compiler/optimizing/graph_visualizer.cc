@@ -81,6 +81,23 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     }
   }
 
+  char GetTypeId(Primitive::Type type) {
+    switch (type) {
+      case Primitive::kPrimBoolean: return 'z';
+      case Primitive::kPrimByte: return 'b';
+      case Primitive::kPrimChar: return 'c';
+      case Primitive::kPrimShort: return 's';
+      case Primitive::kPrimInt: return 'i';
+      case Primitive::kPrimLong: return 'j';
+      case Primitive::kPrimFloat: return 'f';
+      case Primitive::kPrimDouble: return 'd';
+      case Primitive::kPrimNot: return 'l';
+      case Primitive::kPrimVoid: return 'v';
+    }
+    LOG(FATAL) << "Unreachable";
+    return 'v';
+  }
+
   void PrintPredecessors(HBasicBlock* block) {
     AddIndent();
     output_ << "predecessors";
@@ -140,7 +157,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     if (instruction->InputCount() > 0) {
       output_ << " [ ";
       for (HInputIterator inputs(instruction); !inputs.Done(); inputs.Advance()) {
-        output_ << "v" << inputs.Current()->GetId() << " ";
+        output_ << GetTypeId(inputs.Current()->GetType()) << inputs.Current()->GetId() << " ";
       }
       output_ << "]";
     }
@@ -175,7 +192,8 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       HInstruction* instruction = it.Current();
       AddIndent();
       int bci = 0;
-      output_ << bci << " " << instruction->NumberOfUses() << " v" << instruction->GetId() << " ";
+      output_ << bci << " " << instruction->NumberOfUses()
+              << " " << GetTypeId(instruction->GetType()) << instruction->GetId() << " ";
       instruction->Accept(this);
       output_ << kEndInstructionMarker << std::endl;
     }
@@ -214,7 +232,8 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       AddIndent();
       HInstruction* instruction = it.Current();
-      output_ << instruction->GetId() << " v" << instruction->GetId() << "[ ";
+      output_ << instruction->GetId() << " " << GetTypeId(instruction->GetType())
+              << instruction->GetId() << "[ ";
       for (HInputIterator inputs(instruction); !inputs.Done(); inputs.Advance()) {
         output_ << inputs.Current()->GetId() << " ";
       }

@@ -28,7 +28,11 @@ static Primitive::Type MergeTypes(Primitive::Type existing, Primitive::Type new_
     case Primitive::kPrimNot:
       return existing;
     default:
-      return new_type;
+      // Phis are initialized with a void type, so if we are asked
+      // to merge with a void type, we should use the existing one.
+      return new_type == Primitive::kPrimVoid
+          ? existing
+          : new_type;
   }
 }
 
