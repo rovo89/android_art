@@ -307,6 +307,14 @@ void HBasicBlock::InsertInstructionBefore(HInstruction* instruction, HInstructio
   instruction->SetId(GetGraph()->GetNextInstructionId());
 }
 
+void HBasicBlock::ReplaceAndRemoveInstructionWith(HInstruction* initial,
+                                                  HInstruction* replacement) {
+  DCHECK(initial->GetBlock() == this);
+  InsertInstructionBefore(replacement, initial);
+  initial->ReplaceWith(replacement);
+  RemoveInstruction(initial);
+}
+
 static void Add(HInstructionList* instruction_list,
                 HBasicBlock* block,
                 HInstruction* instruction) {
@@ -389,6 +397,54 @@ void HInstructionList::RemoveInstruction(HInstruction* instruction) {
   }
   if (instruction == last_instruction_) {
     last_instruction_ = instruction->previous_;
+  }
+}
+
+bool HInstructionList::FoundBefore(const HInstruction* instruction1,
+                                   const HInstruction* instruction2) const {
+  DCHECK_EQ(instruction1->GetBlock(), instruction2->GetBlock());
+  for (HInstructionIterator it(*this); !it.Done(); it.Advance()) {
+    if (it.Current() == instruction1) {
+      return true;
+    }
+    if (it.Current() == instruction2) {
+      return false;
+    }
+  }
+  LOG(FATAL) << "Did not find an order between two instructions of the same block.";
+  return true;
+}
+
+bool HInstruction::Dominates(HInstruction* other_instruction) const {
+  HBasicBlock* block = GetBlock();
+  HBasicBlock* other_block = other_instruction->GetBlock();
+  if (block != other_block) {
+    return GetBlock()->Dominates(other_instruction->GetBlock());
+  } else {
+    // If both instructions are in the same block, ensure this
+    // instruction comes before `other_instruction`.
+    if (IsPhi()) {
+      if (!other_instruction->IsPhi()) {
+        // Phis appear before non phi-instructions so this instruction
+        // dominates `other_instruction`.
+        return true;
+      } else {
+        // There is no order among phis.
+        LOG(FATAL) << "There is no dominance between phis of a same block.";
+        return false;
+      }
+    } else {
+      // `this` is not a phi.
+      if (other_instruction->IsPhi()) {
+        // Phis appear before non phi-instructions so this instruction
+        // does not dominate `other_instruction`.
+        return false;
+      } else {
+        // Check whether this instruction comes before
+        // `other_instruction` in the instruction list.
+        return block->GetInstructions().FoundBefore(this, other_instruction);
+      }
+    }
   }
 }
 
