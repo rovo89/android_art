@@ -80,8 +80,10 @@ class JniCompilerTest : public CommonCompilerTest {
         CompileMethod(method);
         ASSERT_TRUE(method->GetEntryPointFromQuickCompiledCode() != nullptr)
             << method_name << " " << method_sig;
+#if defined(ART_USE_PORTABLE_COMPILER)
         ASSERT_TRUE(method->GetEntryPointFromPortableCompiledCode() != nullptr)
             << method_name << " " << method_sig;
+#endif
       }
     }
   }

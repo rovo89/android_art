@@ -592,9 +592,11 @@ OatFile::OatMethod::~OatMethod() {}
 
 void OatFile::OatMethod::LinkMethod(mirror::ArtMethod* method) const {
   CHECK(method != NULL);
+#if defined(ART_USE_PORTABLE_COMPILER)
   method->SetEntryPointFromPortableCompiledCode(GetPortableCode());
+#endif
   method->SetEntryPointFromQuickCompiledCode(GetQuickCode());
-  method->SetNativeGcMap(GetNativeGcMap());  // Used by native methods in work around JNI mode.
+  method->SetNativeGcMap(GetNativeGcMap());
 }
 
 }  // namespace art

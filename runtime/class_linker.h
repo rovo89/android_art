@@ -342,14 +342,18 @@ class ClassLinker {
   // Get the oat code for a method when its class isn't yet initialized
   const void* GetQuickOatCodeFor(mirror::ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+#if defined(ART_USE_PORTABLE_COMPILER)
   const void* GetPortableOatCodeFor(mirror::ArtMethod* method, bool* have_portable_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+#endif
 
   // Get the oat code for a method from a method index.
   const void* GetQuickOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx, uint32_t method_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+#if defined(ART_USE_PORTABLE_COMPILER)
   const void* GetPortableOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx, uint32_t method_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+#endif
 
   pid_t GetClassesLockOwner();  // For SignalCatcher.
   pid_t GetDexLockOwner();  // For SignalCatcher.

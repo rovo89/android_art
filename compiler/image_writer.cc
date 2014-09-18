@@ -739,17 +739,23 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
 
   // The resolution method has a special trampoline to call.
   if (UNLIKELY(orig == Runtime::Current()->GetResolutionMethod())) {
+#if defined(ART_USE_PORTABLE_COMPILER)
     copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(GetOatAddress(portable_resolution_trampoline_offset_));
+#endif
     copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_resolution_trampoline_offset_));
   } else if (UNLIKELY(orig == Runtime::Current()->GetImtConflictMethod())) {
+#if defined(ART_USE_PORTABLE_COMPILER)
     copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(GetOatAddress(portable_imt_conflict_trampoline_offset_));
+#endif
     copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_imt_conflict_trampoline_offset_));
   } else {
     // We assume all methods have code. If they don't currently then we set them to the use the
     // resolution trampoline. Abstract methods never have code and so we need to make sure their
     // use results in an AbstractMethodError. We use the interpreter to achieve this.
     if (UNLIKELY(orig->IsAbstract())) {
+#if defined(ART_USE_PORTABLE_COMPILER)
       copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(GetOatAddress(portable_to_interpreter_bridge_offset_));
+#endif
       copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_to_interpreter_bridge_offset_));
       copy->SetEntryPointFromInterpreter<kVerifyNone>(reinterpret_cast<EntryPointFromInterpreter*>
           (const_cast<byte*>(GetOatAddress(interpreter_to_interpreter_bridge_offset_))));
@@ -759,8 +765,9 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
       copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(quick_code);
 
       // Portable entrypoint:
-      const byte* portable_code = GetOatAddress(orig->GetPortableOatCodeOffset());
       bool portable_is_interpreted = false;
+#if defined(ART_USE_PORTABLE_COMPILER)
+      const byte* portable_code = GetOatAddress(orig->GetPortableOatCodeOffset());
       if (portable_code != nullptr &&
           (!orig->IsStatic() || orig->IsConstructor() || orig->GetDeclaringClass()->IsInitialized())) {
         // We have code for a non-static or initialized method, just use the code.
@@ -780,7 +787,7 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
         portable_code = GetOatAddress(portable_resolution_trampoline_offset_);
       }
       copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(portable_code);
-
+#endif
       // JNI entrypoint:
       if (orig->IsNative()) {
         // The native method's pointer is set to a stub to lookup via dlsym.

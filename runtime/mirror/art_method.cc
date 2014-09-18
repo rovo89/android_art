@@ -310,13 +310,21 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   } else {
     const bool kLogInvocationStartAndReturn = false;
     bool have_quick_code = GetEntryPointFromQuickCompiledCode() != nullptr;
+#if defined(ART_USE_PORTABLE_COMPILER)
     bool have_portable_code = GetEntryPointFromPortableCompiledCode() != nullptr;
+#else
+    bool have_portable_code = false;
+#endif
     if (LIKELY(have_quick_code || have_portable_code)) {
       if (kLogInvocationStartAndReturn) {
         LOG(INFO) << StringPrintf("Invoking '%s' %s code=%p", PrettyMethod(this).c_str(),
                                   have_quick_code ? "quick" : "portable",
                                   have_quick_code ? GetEntryPointFromQuickCompiledCode()
+#if defined(ART_USE_PORTABLE_COMPILER)
                                                   : GetEntryPointFromPortableCompiledCode());
+#else
+                                                  : nullptr);
+#endif
       }
       if (!IsPortableCompiled()) {
 #ifdef __LP64__
@@ -345,7 +353,11 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
         LOG(INFO) << StringPrintf("Returned '%s' %s code=%p", PrettyMethod(this).c_str(),
                                   have_quick_code ? "quick" : "portable",
                                   have_quick_code ? GetEntryPointFromQuickCompiledCode()
+#if defined(ART_USE_PORTABLE_COMPILER)
                                                   : GetEntryPointFromPortableCompiledCode());
+#else
+                                                  : nullptr);
+#endif
       }
     } else {
       LOG(INFO) << "Not invoking '" << PrettyMethod(this) << "' code=null";
