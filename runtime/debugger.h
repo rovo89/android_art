@@ -43,6 +43,8 @@ class Object;
 class Throwable;
 }  // namespace mirror
 class AllocRecord;
+class ObjectRegistry;
+class ScopedObjectAccessUnchecked;
 class Thread;
 class ThrowLocation;
 
@@ -250,6 +252,8 @@ class Dbg {
    */
   static std::string GetClassName(JDWP::RefTypeId id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static std::string GetClassName(mirror::Class* klass)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetClassObject(JDWP::RefTypeId id, JDWP::ObjectId& class_object_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::JdwpError GetSuperclass(JDWP::RefTypeId id, JDWP::RefTypeId& superclass_id)
@@ -294,7 +298,24 @@ class Dbg {
                                            JDWP::ObjectId& new_array)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static bool MatchType(JDWP::RefTypeId instance_class_id, JDWP::RefTypeId class_id)
+  //
+  // Event filtering.
+  //
+  static bool MatchThread(JDWP::ObjectId expected_thread_id, Thread* event_thread)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static bool MatchLocation(const JDWP::JdwpLocation& expected_location,
+                            const JDWP::EventLocation& event_location)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static bool MatchType(mirror::Class* event_class, JDWP::RefTypeId class_id)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static bool MatchField(JDWP::RefTypeId expected_type_id, JDWP::FieldId expected_field_id,
+                         mirror::ArtField* event_field)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static bool MatchInstance(JDWP::ObjectId expected_instance_id, mirror::Object* event_instance)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   //
@@ -426,8 +447,9 @@ class Dbg {
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static JDWP::ObjectId GetThreadSelfId()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static JDWP::ObjectId GetThreadSelfId() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static JDWP::ObjectId GetThreadId(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   static void SuspendVM()
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
@@ -597,6 +619,22 @@ class Dbg {
   static void DdmSendHeapSegments(bool native)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static ObjectRegistry* GetObjectRegistry() {
+    return gRegistry;
+  }
+
+  static JDWP::JdwpTag TagFromObject(const ScopedObjectAccessUnchecked& soa, mirror::Object* o)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static JDWP::JdwpTypeTag GetTypeTag(mirror::Class* klass)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static JDWP::FieldId ToFieldId(const mirror::ArtField* f)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static void SetJdwpLocation(JDWP::JdwpLocation* location, mirror::ArtMethod* m, uint32_t dex_pc)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   static void DdmBroadcast(bool connect) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStartOrStop(Thread*, uint32_t)
@@ -605,9 +643,6 @@ class Dbg {
   static void PostLocationEvent(mirror::ArtMethod* method, int pcOffset,
                                 mirror::Object* thisPtr, int eventFlags,
                                 const JValue* return_value)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  static JDWP::ObjectId GetThisObjectIdForEvent(mirror::Object* this_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void ProcessDeoptimizationRequest(const DeoptimizationRequest& request)
@@ -621,6 +656,8 @@ class Dbg {
   static size_t alloc_record_max_ GUARDED_BY(Locks::alloc_tracker_lock_);
   static size_t alloc_record_head_ GUARDED_BY(Locks::alloc_tracker_lock_);
   static size_t alloc_record_count_ GUARDED_BY(Locks::alloc_tracker_lock_);
+
+  static ObjectRegistry* gRegistry;
 
   // Deoptimization requests to be processed each time the event list is updated. This is used when
   // registering and unregistering events so we do not deoptimize while holding the event list
