@@ -339,7 +339,7 @@ class HBasicBlock : public ArenaObject {
   }
 
   void SwapPredecessors() {
-    DCHECK(predecessors_.Size() == 2);
+    DCHECK_EQ(predecessors_.Size(), 2u);
     HBasicBlock* temp = predecessors_.Get(0);
     predecessors_.Put(0, predecessors_.Get(1));
     predecessors_.Put(1, temp);
