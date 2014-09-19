@@ -1,0 +1,294 @@
+/*
+ * Copyright (C) 2014 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include "builder.h"
+#include "gvn.h"
+#include "nodes.h"
+#include "optimizing_unit_test.h"
+#include "utils/arena_allocator.h"
+
+#include "gtest/gtest.h"
+
+namespace art {
+
+TEST(GVNTest, LocalFieldElimination) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+
+  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+  HInstruction* parameter = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
+  entry->AddInstruction(parameter);
+
+  HBasicBlock* block = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(block);
+  entry->AddSuccessor(block);
+
+  block->AddInstruction(
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot, MemberOffset(42)));
+  block->AddInstruction(
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot, MemberOffset(42)));
+  HInstruction* to_remove = block->GetLastInstruction();
+  block->AddInstruction(
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot, MemberOffset(43)));
+  HInstruction* different_offset = block->GetLastInstruction();
+  // Kill the value.
+  block->AddInstruction(new (&allocator) HInstanceFieldSet(
+      parameter, parameter, Primitive::kPrimNot, MemberOffset(42)));
+  block->AddInstruction(
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot, MemberOffset(42)));
+  HInstruction* use_after_kill = block->GetLastInstruction();
+  block->AddInstruction(new (&allocator) HExit());
+
+  ASSERT_EQ(to_remove->GetBlock(), block);
+  ASSERT_EQ(different_offset->GetBlock(), block);
+  ASSERT_EQ(use_after_kill->GetBlock(), block);
+
+  graph->BuildDominatorTree();
+  graph->TransformToSSA();
+  GlobalValueNumberer(&allocator, graph).Run();
+
+  ASSERT_TRUE(to_remove->GetBlock() == nullptr);
+  ASSERT_EQ(different_offset->GetBlock(), block);
+  ASSERT_EQ(use_after_kill->GetBlock(), block);
+}
+
+TEST(GVNTest, GlobalFieldElimination) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+
+  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+  HInstruction* parameter = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
+  entry->AddInstruction(parameter);
+
+  HBasicBlock* block = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(block);
+  entry->AddSuccessor(block);
+  block->AddInstruction(
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+
+  block->AddInstruction(new (&allocator) HIf(block->GetLastInstruction()));
+  HBasicBlock* then = new (&allocator) HBasicBlock(graph);
+  HBasicBlock* else_ = new (&allocator) HBasicBlock(graph);
+  HBasicBlock* join = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(then);
+  graph->AddBlock(else_);
+  graph->AddBlock(join);
+
+  block->AddSuccessor(then);
+  block->AddSuccessor(else_);
+  then->AddSuccessor(join);
+  else_->AddSuccessor(join);
+
+  then->AddInstruction(
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+  then->AddInstruction(new (&allocator) HGoto());
+  else_->AddInstruction(
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+  else_->AddInstruction(new (&allocator) HGoto());
+  join->AddInstruction(
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+  join->AddInstruction(new (&allocator) HExit());
+
+  graph->BuildDominatorTree();
+  graph->TransformToSSA();
+  GlobalValueNumberer(&allocator, graph).Run();
+
+  // Check that all field get instructions have been GVN'ed.
+  ASSERT_TRUE(then->GetFirstInstruction()->IsGoto());
+  ASSERT_TRUE(else_->GetFirstInstruction()->IsGoto());
+  ASSERT_TRUE(join->GetFirstInstruction()->IsExit());
+}
+
+TEST(GVNTest, LoopFieldElimination) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+
+  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+
+  HInstruction* parameter = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
+  entry->AddInstruction(parameter);
+
+  HBasicBlock* block = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(block);
+  entry->AddSuccessor(block);
+  block->AddInstruction(
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+  block->AddInstruction(new (&allocator) HGoto());
+
+  HBasicBlock* loop_header = new (&allocator) HBasicBlock(graph);
+  HBasicBlock* loop_body = new (&allocator) HBasicBlock(graph);
+  HBasicBlock* exit = new (&allocator) HBasicBlock(graph);
+
+  graph->AddBlock(loop_header);
+  graph->AddBlock(loop_body);
+  graph->AddBlock(exit);
+  block->AddSuccessor(loop_header);
+  loop_header->AddSuccessor(loop_body);
+  loop_header->AddSuccessor(exit);
+  loop_body->AddSuccessor(loop_header);
+
+  loop_header->AddInstruction(
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+  HInstruction* field_get_in_loop_header = loop_header->GetLastInstruction();
+  loop_header->AddInstruction(new (&allocator) HIf(block->GetLastInstruction()));
+
+  // Kill inside the loop body to prevent field gets inside the loop header
+  // and the body to be GVN'ed.
+  loop_body->AddInstruction(new (&allocator) HInstanceFieldSet(
+      parameter, parameter, Primitive::kPrimNot, MemberOffset(42)));
+  HInstruction* field_set = loop_body->GetLastInstruction();
+  loop_body->AddInstruction(
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+  HInstruction* field_get_in_loop_body = loop_body->GetLastInstruction();
+  loop_body->AddInstruction(new (&allocator) HGoto());
+
+  exit->AddInstruction(
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+  HInstruction* field_get_in_exit = exit->GetLastInstruction();
+  exit->AddInstruction(new (&allocator) HExit());
+
+  ASSERT_EQ(field_get_in_loop_header->GetBlock(), loop_header);
+  ASSERT_EQ(field_get_in_loop_body->GetBlock(), loop_body);
+  ASSERT_EQ(field_get_in_exit->GetBlock(), exit);
+
+  graph->BuildDominatorTree();
+  graph->TransformToSSA();
+  graph->FindNaturalLoops();
+  GlobalValueNumberer(&allocator, graph).Run();
+
+  // Check that all field get instructions are still there.
+  ASSERT_EQ(field_get_in_loop_header->GetBlock(), loop_header);
+  ASSERT_EQ(field_get_in_loop_body->GetBlock(), loop_body);
+  // The exit block is dominated by the loop header, whose field get
+  // does not get killed by the loop flags.
+  ASSERT_TRUE(field_get_in_exit->GetBlock() == nullptr);
+
+  // Now remove the field set, and check that all field get instructions have been GVN'ed.
+  loop_body->RemoveInstruction(field_set);
+  GlobalValueNumberer(&allocator, graph).Run();
+
+  ASSERT_TRUE(field_get_in_loop_header->GetBlock() == nullptr);
+  ASSERT_TRUE(field_get_in_loop_body->GetBlock() == nullptr);
+  ASSERT_TRUE(field_get_in_exit->GetBlock() == nullptr);
+}
+
+// Test that inner loops affect the side effects of the outer loop.
+TEST(GVNTest, LoopSideEffects) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+
+  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+
+  HBasicBlock* outer_loop_header = new (&allocator) HBasicBlock(graph);
+  HBasicBlock* outer_loop_body = new (&allocator) HBasicBlock(graph);
+  HBasicBlock* outer_loop_exit = new (&allocator) HBasicBlock(graph);
+  HBasicBlock* inner_loop_header = new (&allocator) HBasicBlock(graph);
+  HBasicBlock* inner_loop_body = new (&allocator) HBasicBlock(graph);
+  HBasicBlock* inner_loop_exit = new (&allocator) HBasicBlock(graph);
+
+  graph->AddBlock(outer_loop_header);
+  graph->AddBlock(outer_loop_body);
+  graph->AddBlock(outer_loop_exit);
+  graph->AddBlock(inner_loop_header);
+  graph->AddBlock(inner_loop_body);
+  graph->AddBlock(inner_loop_exit);
+
+  entry->AddSuccessor(outer_loop_header);
+  outer_loop_header->AddSuccessor(outer_loop_body);
+  outer_loop_header->AddSuccessor(outer_loop_exit);
+  outer_loop_body->AddSuccessor(inner_loop_header);
+  inner_loop_header->AddSuccessor(inner_loop_body);
+  inner_loop_header->AddSuccessor(inner_loop_exit);
+  inner_loop_body->AddSuccessor(inner_loop_header);
+  inner_loop_exit->AddSuccessor(outer_loop_header);
+
+  HInstruction* parameter = new (&allocator) HParameterValue(0, Primitive::kPrimBoolean);
+  entry->AddInstruction(parameter);
+  entry->AddInstruction(new (&allocator) HGoto());
+  outer_loop_header->AddInstruction(new (&allocator) HIf(parameter));
+  outer_loop_body->AddInstruction(new (&allocator) HGoto());
+  inner_loop_header->AddInstruction(new (&allocator) HIf(parameter));
+  inner_loop_body->AddInstruction(new (&allocator) HGoto());
+  inner_loop_exit->AddInstruction(new (&allocator) HGoto());
+  outer_loop_exit->AddInstruction(new (&allocator) HExit());
+
+  graph->BuildDominatorTree();
+  graph->TransformToSSA();
+  graph->FindNaturalLoops();
+
+  ASSERT_TRUE(inner_loop_header->GetLoopInformation()->IsIn(
+      *outer_loop_header->GetLoopInformation()));
+
+  // Check that the loops don't have side effects.
+  {
+    // Make one block with a side effect.
+    entry->AddInstruction(new (&allocator) HInstanceFieldSet(
+        parameter, parameter, Primitive::kPrimNot, MemberOffset(42)));
+
+    GlobalValueNumberer gvn(&allocator, graph);
+    gvn.Run();
+
+    ASSERT_TRUE(gvn.GetBlockEffects(entry).HasSideEffects());
+    ASSERT_FALSE(gvn.GetLoopEffects(outer_loop_header).HasSideEffects());
+    ASSERT_FALSE(gvn.GetLoopEffects(inner_loop_header).HasSideEffects());
+  }
+
+  // Check that the side effects of the outer loop does not affect the inner loop.
+  {
+    outer_loop_body->InsertInstructionBefore(
+        new (&allocator) HInstanceFieldSet(
+            parameter, parameter, Primitive::kPrimNot, MemberOffset(42)),
+        outer_loop_body->GetLastInstruction());
+
+    GlobalValueNumberer gvn(&allocator, graph);
+    gvn.Run();
+
+    ASSERT_TRUE(gvn.GetBlockEffects(entry).HasSideEffects());
+    ASSERT_TRUE(gvn.GetBlockEffects(outer_loop_body).HasSideEffects());
+    ASSERT_TRUE(gvn.GetLoopEffects(outer_loop_header).HasSideEffects());
+    ASSERT_FALSE(gvn.GetLoopEffects(inner_loop_header).HasSideEffects());
+  }
+
+  // Check that the side effects of the inner loop affects the outer loop.
+  {
+    outer_loop_body->RemoveInstruction(outer_loop_body->GetFirstInstruction());
+    inner_loop_body->InsertInstructionBefore(
+        new (&allocator) HInstanceFieldSet(
+            parameter, parameter, Primitive::kPrimNot, MemberOffset(42)),
+        inner_loop_body->GetLastInstruction());
+
+    GlobalValueNumberer gvn(&allocator, graph);
+    gvn.Run();
+
+    ASSERT_TRUE(gvn.GetBlockEffects(entry).HasSideEffects());
+    ASSERT_FALSE(gvn.GetBlockEffects(outer_loop_body).HasSideEffects());
+    ASSERT_TRUE(gvn.GetLoopEffects(outer_loop_header).HasSideEffects());
+    ASSERT_TRUE(gvn.GetLoopEffects(inner_loop_header).HasSideEffects());
+  }
+}
+}  // namespace art

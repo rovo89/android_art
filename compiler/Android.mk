@@ -94,6 +94,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/dead_code_elimination.cc \
 	optimizing/graph_checker.cc \
 	optimizing/graph_visualizer.cc \
+	optimizing/gvn.cc \
 	optimizing/locations.cc \
 	optimizing/nodes.cc \
 	optimizing/optimizing_compiler.cc \

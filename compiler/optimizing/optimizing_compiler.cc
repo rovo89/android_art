@@ -25,6 +25,7 @@
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
 #include "graph_visualizer.h"
+#include "gvn.h"
 #include "nodes.h"
 #include "register_allocator.h"
 #include "ssa_phi_elimination.h"
@@ -260,6 +261,8 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
 
     SsaRedundantPhiElimination(graph).Run();
     SsaDeadPhiElimination(graph).Run();
+    GlobalValueNumberer(graph->GetArena(), graph).Run();
+    visualizer.DumpGraph(kGVNPassName);
 
     SsaLivenessAnalysis liveness(*graph, codegen);
     liveness.Analyze();
@@ -300,6 +303,9 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     graph->TransformToSSA();
     visualizer.DumpGraph("ssa");
     graph->FindNaturalLoops();
+    SsaRedundantPhiElimination(graph).Run();
+    SsaDeadPhiElimination(graph).Run();
+    GlobalValueNumberer(graph->GetArena(), graph).Run();
     SsaLivenessAnalysis liveness(*graph, codegen);
     liveness.Analyze();
     visualizer.DumpGraph(kLivenessPassName);
