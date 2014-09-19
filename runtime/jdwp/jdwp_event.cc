@@ -297,9 +297,6 @@ void JdwpState::UnregisterEvent(JdwpEvent* pEvent) {
 /*
  * Remove the event with the given ID from the list.
  *
- * Failure to find the event isn't really an error, but it is a little
- * weird.  (It looks like Eclipse will try to be extra careful and will
- * explicitly remove one-off single-step events.)
  */
 void JdwpState::UnregisterEventById(uint32_t requestId) {
   bool found = false;
@@ -319,7 +316,11 @@ void JdwpState::UnregisterEventById(uint32_t requestId) {
   if (found) {
     Dbg::ManageDeoptimization();
   } else {
-    LOG(WARNING) << StringPrintf("Odd: no match when removing event reqId=0x%04x", requestId);
+    // Failure to find the event isn't really an error. For instance, it looks like Eclipse will
+    // try to be extra careful and will explicitly remove one-off single-step events (using a
+    // 'count' event modifier of 1). So the event may have already been removed as part of the
+    // event notification (see JdwpState::CleanupMatchList).
+    VLOG(jdwp) << StringPrintf("No match when removing event reqId=0x%04x", requestId);
   }
 }
 
