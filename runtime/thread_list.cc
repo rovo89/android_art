@@ -728,11 +728,14 @@ void ThreadList::SuspendSelfForDebugger() {
       Thread::resume_cond_->Wait(self);
       if (self->GetSuspendCount() != 0) {
         // The condition was signaled but we're still suspended. This
-        // can happen if the debugger lets go while a SIGQUIT thread
+        // can happen when we suspend then resume all threads to
+        // update instrumentation or compute monitor info. This can
+        // also happen if the debugger lets go while a SIGQUIT thread
         // dump event is pending (assuming SignalCatcher was resumed for
         // just long enough to try to grab the thread-suspend lock).
-        LOG(WARNING) << *self << " still suspended after undo "
-                   << "(suspend count=" << self->GetSuspendCount() << ")";
+        VLOG(jdwp) << *self << " still suspended after undo "
+                   << "(suspend count=" << self->GetSuspendCount() << ", "
+                   << "debug suspend count=" << self->GetDebugSuspendCount() << ")";
       }
     }
     CHECK_EQ(self->GetSuspendCount(), 0);
