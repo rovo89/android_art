@@ -2268,6 +2268,20 @@ void X86Mir2Lir::GenReduceVector(BasicBlock *bb, MIR *mir) {
   }
 }
 
+void X86Mir2Lir::LoadVectorRegister(RegStorage rs_dest, RegStorage rs_src,
+                                    OpSize opsize, int op_mov) {
+  if (!cu_->target64 && opsize == k64) {
+    // Logic assumes that longs are loaded in GP register pairs.
+    NewLIR2(kX86MovdxrRR, rs_dest.GetReg(), rs_src.GetLowReg());
+    RegStorage r_tmp = AllocTempDouble();
+    NewLIR2(kX86MovdxrRR, r_tmp.GetReg(), rs_src.GetHighReg());
+    NewLIR2(kX86PunpckldqRR, rs_dest.GetReg(), r_tmp.GetReg());
+    FreeTemp(r_tmp);
+  } else {
+    NewLIR2(op_mov, rs_dest.GetReg(), rs_src.GetReg());
+  }
+}
+
 void X86Mir2Lir::GenSetVector(BasicBlock *bb, MIR *mir) {
   DCHECK_EQ(mir->dalvikInsn.vC & 0xFFFF, 128U);
   OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
@@ -2321,16 +2335,7 @@ void X86Mir2Lir::GenSetVector(BasicBlock *bb, MIR *mir) {
   RegStorage reg_to_shuffle = rl_src.reg;
 
   // Load the value into the XMM register.
-  if (!cu_->target64 && opsize == k64) {
-    // Logic assumes that longs are loaded in GP register pairs.
-    NewLIR2(kX86MovdxrRR, rs_dest.GetReg(), reg_to_shuffle.GetLowReg());
-    RegStorage r_tmp = AllocTempDouble();
-    NewLIR2(kX86MovdxrRR, r_tmp.GetReg(), reg_to_shuffle.GetHighReg());
-    NewLIR2(kX86PunpckldqRR, rs_dest.GetReg(), r_tmp.GetReg());
-    FreeTemp(r_tmp);
-  } else {
-    NewLIR2(op_mov, rs_dest.GetReg(), reg_to_shuffle.GetReg());
-  }
+  LoadVectorRegister(rs_dest, reg_to_shuffle, opsize, op_mov);
 
   if (opsize == kSignedByte || opsize == kUnsignedByte) {
     // In the byte case, first duplicate it to be a word
