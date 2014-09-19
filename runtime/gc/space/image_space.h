@@ -110,7 +110,8 @@ class ImageSpace : public MemMapSpace {
                                 bool* has_system,
                                 std::string* data_location,
                                 bool* dalvik_cache_exists,
-                                bool* has_data);
+                                bool* has_data,
+                                bool *is_global_cache);
 
  private:
   // Tries to initialize an ImageSpace from the given image path,
