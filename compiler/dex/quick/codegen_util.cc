@@ -1224,6 +1224,7 @@ LIR *Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStor
 
 void Mir2Lir::AddSlowPath(LIRSlowPath* slowpath) {
   slow_paths_.Insert(slowpath);
+  ResetDefTracking();
 }
 
 void Mir2Lir::LoadCodeAddress(const MethodReference& target_method, InvokeType type,
