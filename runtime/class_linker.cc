@@ -1323,8 +1323,9 @@ const OatFile* ClassLinker::OpenOatFileFromDexLocation(const std::string& dex_lo
   std::string dalvik_cache;
   bool have_android_data = false;
   bool have_dalvik_cache = false;
+  bool is_global_cache = false;
   GetDalvikCache(GetInstructionSetString(kRuntimeISA), false, &dalvik_cache,
-                 &have_android_data, &have_dalvik_cache);
+                 &have_android_data, &have_dalvik_cache, &is_global_cache);
   std::string cache_filename;
   if (have_dalvik_cache) {
     cache_filename = GetDalvikCacheFilenameOrDie(dex_location.c_str(), dalvik_cache.c_str());

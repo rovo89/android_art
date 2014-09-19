@@ -504,7 +504,9 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
   std::string cache_dir;
   bool have_android_data = false;
   bool dalvik_cache_exists = false;
-  GetDalvikCache(instruction_set, false, &cache_dir, &have_android_data, &dalvik_cache_exists);
+  bool is_global_cache = false;
+  GetDalvikCache(instruction_set, false, &cache_dir, &have_android_data, &dalvik_cache_exists,
+                 &is_global_cache);
   std::string cache_filename;  // was cache_location
   bool have_cache_filename = false;
   if (dalvik_cache_exists) {
