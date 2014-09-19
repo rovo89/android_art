@@ -132,6 +132,8 @@ class CodeGeneratorARM : public CodeGenerator {
   virtual void GenerateFrameExit() OVERRIDE;
   virtual void Bind(Label* label) OVERRIDE;
   virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
+  virtual void SaveCoreRegister(Location stack_location, uint32_t reg_id) OVERRIDE;
+  virtual void RestoreCoreRegister(Location stack_location, uint32_t reg_id) OVERRIDE;
 
   virtual size_t GetWordSize() const OVERRIDE {
     return kArmWordSize;

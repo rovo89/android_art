@@ -98,10 +98,12 @@ class SuspendCheckSlowPathARM : public SlowPathCode {
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
+    codegen->SaveLiveRegisters(instruction_->GetLocations());
     int32_t offset = QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pTestSuspend).Int32Value();
     __ ldr(LR, Address(TR, offset));
     __ blx(LR);
     codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
+    codegen->RestoreLiveRegisters(instruction_->GetLocations());
     __ b(GetReturnLabel());
   }
 
@@ -180,6 +182,14 @@ void CodeGeneratorARM::DumpCoreRegister(std::ostream& stream, int reg) const {
 
 void CodeGeneratorARM::DumpFloatingPointRegister(std::ostream& stream, int reg) const {
   stream << ArmManagedRegister::FromDRegister(DRegister(reg));
+}
+
+void CodeGeneratorARM::SaveCoreRegister(Location stack_location, uint32_t reg_id) {
+  __ str(static_cast<Register>(reg_id), Address(SP, stack_location.GetStackIndex()));
+}
+
+void CodeGeneratorARM::RestoreCoreRegister(Location stack_location, uint32_t reg_id) {
+  __ ldr(static_cast<Register>(reg_id), Address(SP, stack_location.GetStackIndex()));
 }
 
 CodeGeneratorARM::CodeGeneratorARM(HGraph* graph)

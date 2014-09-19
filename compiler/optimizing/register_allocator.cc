@@ -45,7 +45,8 @@ RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator,
         number_of_registers_(-1),
         registers_array_(nullptr),
         blocked_registers_(allocator->AllocArray<bool>(codegen->GetNumberOfRegisters())),
-        reserved_out_slots_(0) {
+        reserved_out_slots_(0),
+        maximum_number_of_live_registers_(0) {
   codegen->SetupBlockedRegisters(blocked_registers_);
   physical_register_intervals_.SetSize(codegen->GetNumberOfRegisters());
   // Always reserve for the current method and the graph's max out registers.
@@ -157,9 +158,34 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
     }
   }
 
+  bool core_register = (instruction->GetType() != Primitive::kPrimDouble)
+      && (instruction->GetType() != Primitive::kPrimFloat);
+
+  GrowableArray<LiveInterval*>& unhandled = core_register
+      ? unhandled_core_intervals_
+      : unhandled_fp_intervals_;
+
   if (locations->CanCall()) {
-    codegen_->MarkNotLeaf();
+    if (!instruction->IsSuspendCheck()) {
+      codegen_->MarkNotLeaf();
+    }
     safepoints_.Add(instruction);
+    if (locations->OnlyCallsOnSlowPath()) {
+      // We add a synthesized range at this position to record the live registers
+      // at this position. Ideally, we could just update the safepoints when locations
+      // are updated, but we currently need to know the full stack size before updating
+      // locations (because of parameters and the fact that we don't have a frame pointer).
+      // And knowing the full stack size requires to know the maximum number of live
+      // registers at calls in slow paths.
+      // By adding the following interval in the algorithm, we can compute this
+      // maximum before updating locations.
+      LiveInterval* interval = LiveInterval::MakeSlowPathInterval(allocator_, instruction);
+      interval->AddRange(position, position + 1);
+      unhandled.Add(interval);
+    }
+  }
+
+  if (locations->WillCall()) {
     // Block all registers.
     for (size_t i = 0; i < codegen_->GetNumberOfCoreRegisters(); ++i) {
       BlockRegister(Location::RegisterLocation(ManagedRegister(i)),
@@ -175,12 +201,6 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
       BlockRegister(input, position, position + 1, instruction->InputAt(i)->GetType());
     }
   }
-
-  bool core_register = (instruction->GetType() != Primitive::kPrimDouble)
-      && (instruction->GetType() != Primitive::kPrimFloat);
-  GrowableArray<LiveInterval*>& unhandled = core_register
-      ? unhandled_core_intervals_
-      : unhandled_fp_intervals_;
 
   LiveInterval* current = instruction->GetLiveInterval();
   if (current == nullptr) return;
@@ -403,6 +423,14 @@ void RegisterAllocator::LinearScan() {
         --i;
         active_.Add(interval);
       }
+    }
+
+    if (current->IsSlowPathSafepoint()) {
+      // Synthesized interval to record the maximum number of live registers
+      // at safepoints. No need to allocate a register for it.
+      maximum_number_of_live_registers_ =
+          std::max(maximum_number_of_live_registers_, active_.Size());
+      continue;
     }
 
     // (4) Try to find an available register.
@@ -926,14 +954,13 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
       LocationSummary* locations = safepoint->GetLocations();
       if (!current->Covers(position)) continue;
 
-      if (current->GetType() == Primitive::kPrimNot) {
-        DCHECK(current->GetParent()->HasSpillSlot());
+      if ((current->GetType() == Primitive::kPrimNot) && current->GetParent()->HasSpillSlot()) {
         locations->SetStackBit(current->GetParent()->GetSpillSlot() / kVRegSize);
       }
 
       switch (source.GetKind()) {
         case Location::kRegister: {
-          locations->SetLiveRegister(source.reg().RegId());
+          locations->AddLiveRegister(source);
           if (current->GetType() == Primitive::kPrimNot) {
             locations->SetRegisterBit(source.reg().RegId());
           }
@@ -1016,7 +1043,8 @@ static Location FindLocationAt(LiveInterval* interval, size_t position) {
 }
 
 void RegisterAllocator::Resolve() {
-  codegen_->ComputeFrameSize(spill_slots_.Size(), reserved_out_slots_);
+  codegen_->ComputeFrameSize(
+      spill_slots_.Size(), maximum_number_of_live_registers_, reserved_out_slots_);
 
   // Adjust the Out Location of instructions.
   // TODO: Use pointers of Location inside LiveInterval to avoid doing another iteration.
