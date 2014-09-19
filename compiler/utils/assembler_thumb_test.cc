@@ -116,6 +116,19 @@ std::string GetAndroidToolsDir() {
     std::string subdir = toolsdir + std::string("/") + std::string(entry->d_name);
     size_t eabi = subdir.find(TOOL_PREFIX);
     if (eabi != std::string::npos) {
+      // Check if "bin/{as,objcopy,objdump}" exist under this folder.
+      struct stat exec_st;
+      std::string exec_path;
+      exec_path = subdir + "/bin/" + TOOL_PREFIX + "as";
+      if (stat(exec_path.c_str(), &exec_st) != 0)
+        continue;
+      exec_path = subdir + "/bin/" + TOOL_PREFIX + "objcopy";
+      if (stat(exec_path.c_str(), &exec_st) != 0)
+        continue;
+      exec_path = subdir + "/bin/" + TOOL_PREFIX + "objdump";
+      if (stat(exec_path.c_str(), &exec_st) != 0)
+        continue;
+
       std::string suffix = subdir.substr(eabi + strlen(TOOL_PREFIX));
       double version = strtod(suffix.c_str(), nullptr);
       if (version > maxversion) {
