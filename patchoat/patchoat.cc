@@ -79,9 +79,10 @@ static bool LocationToFilename(const std::string& location, InstructionSet isa,
 
   bool have_android_data = false;
   bool dalvik_cache_exists = false;
+  bool is_global_cache = false;
   std::string dalvik_cache;
   GetDalvikCache(GetInstructionSetString(isa), false, &dalvik_cache,
-                 &have_android_data, &dalvik_cache_exists);
+                 &have_android_data, &dalvik_cache_exists, &is_global_cache);
 
   std::string cache_filename;
   if (have_android_data && dalvik_cache_exists) {
@@ -969,9 +970,11 @@ static int patchoat(int argc, char **argv) {
     std::string cache_filename;
     bool has_cache = false;
     bool has_android_data_unused = false;
+    bool is_global_cache = false;
     if (!gc::space::ImageSpace::FindImageFilename(patched_image_location.c_str(), isa,
                                                   &system_filename, &has_system, &cache_filename,
-                                                  &has_android_data_unused, &has_cache)) {
+                                                  &has_android_data_unused, &has_cache,
+                                                  &is_global_cache)) {
       Usage("Unable to determine image file for location %s", patched_image_location.c_str());
     }
     if (has_cache) {
