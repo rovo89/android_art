@@ -192,7 +192,7 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Movnti32MR, kMemReg,    IS_STORE | IS_TERTIARY_OP | REG_USE02,   { 0x0F,          0, 0xC3, 0, 0, 0, 0, 0, false }, "Movnti32MR", "[!0r+!1d],!2r" },
   { kX86Movnti32AR, kArrayReg,  IS_STORE | IS_QUIN_OP     | REG_USE014,  { 0x0F,          0, 0xC3, 0, 0, 0, 0, 0, false }, "Movnti32AR", "[!0r+!1r<<!2d+!3d],!4r" },
   { kX86Mov32TR, kThreadReg, IS_STORE | IS_BINARY_OP   | REG_USE1,       { THREAD_PREFIX, 0, 0x89, 0, 0, 0, 0, 0, false }, "Mov32TR", "fs:[!0d],!1r" },
-  { kX86Mov32RR, kRegReg,               IS_BINARY_OP   | REG_DEF0_USE1,  { 0,             0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov32RR", "!0r,!1r" },
+  { kX86Mov32RR, kRegReg,    IS_MOVE  | IS_BINARY_OP   | REG_DEF0_USE1,  { 0,             0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov32RR", "!0r,!1r" },
   { kX86Mov32RM, kRegMem,    IS_LOAD  | IS_TERTIARY_OP | REG_DEF0_USE1,  { 0,             0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov32RM", "!0r,[!1r+!2d]" },
   { kX86Mov32RA, kRegArray,  IS_LOAD  | IS_QUIN_OP     | REG_DEF0_USE12, { 0,             0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov32RA", "!0r,[!1r+!2r<<!3d+!4d]" },
   { kX86Mov32RT, kRegThread, IS_LOAD  | IS_BINARY_OP   | REG_DEF0,       { THREAD_PREFIX, 0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov32RT", "!0r,fs:[!1d]" },
@@ -201,15 +201,15 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Mov32AI, kArrayImm,  IS_STORE | IS_QUIN_OP     | REG_USE01,      { 0,             0, 0xC7, 0, 0, 0, 0, 4, false }, "Mov32AI", "[!0r+!1r<<!2d+!3d],!4d" },
   { kX86Mov32TI, kThreadImm, IS_STORE | IS_BINARY_OP,                    { THREAD_PREFIX, 0, 0xC7, 0, 0, 0, 0, 4, false }, "Mov32TI", "fs:[!0d],!1d" },
 
-  { kX86Lea32RM, kRegMem, IS_TERTIARY_OP | IS_LOAD | REG_DEF0_USE1,      { 0,             0, 0x8D, 0, 0, 0, 0, 0, false }, "Lea32RM", "!0r,[!1r+!2d]" },
-  { kX86Lea32RA, kRegArray, IS_QUIN_OP | REG_DEF0_USE12,                 { 0,             0, 0x8D, 0, 0, 0, 0, 0, false }, "Lea32RA", "!0r,[!1r+!2r<<!3d+!4d]" },
+  { kX86Lea32RM, kRegMem,               IS_TERTIARY_OP | REG_DEF0_USE1,  { 0,             0, 0x8D, 0, 0, 0, 0, 0, false }, "Lea32RM", "!0r,[!1r+!2d]" },
+  { kX86Lea32RA, kRegArray,             IS_QUIN_OP | REG_DEF0_USE12,     { 0,             0, 0x8D, 0, 0, 0, 0, 0, false }, "Lea32RA", "!0r,[!1r+!2r<<!3d+!4d]" },
 
   { kX86Mov64MR, kMemReg,    IS_STORE | IS_TERTIARY_OP | REG_USE02,      { REX_W,             0, 0x89, 0, 0, 0, 0, 0, false }, "Mov64MR", "[!0r+!1d],!2r" },
   { kX86Mov64AR, kArrayReg,  IS_STORE | IS_QUIN_OP     | REG_USE014,     { REX_W,             0, 0x89, 0, 0, 0, 0, 0, false }, "Mov64AR", "[!0r+!1r<<!2d+!3d],!4r" },
   { kX86Movnti64MR, kMemReg,    IS_STORE | IS_TERTIARY_OP | REG_USE02,   { 0x0F,              0, 0xC3, 0, 0, 0, 0, 0, false }, "Movnti64MR", "[!0r+!1d],!2r" },
   { kX86Movnti64AR, kArrayReg,  IS_STORE | IS_QUIN_OP     | REG_USE014,  { 0x0F,              0, 0xC3, 0, 0, 0, 0, 0, false }, "Movnti64AR", "[!0r+!1r<<!2d+!3d],!4r" },
   { kX86Mov64TR, kThreadReg, IS_STORE | IS_BINARY_OP   | REG_USE1,       { THREAD_PREFIX, REX_W, 0x89, 0, 0, 0, 0, 0, false }, "Mov64TR", "fs:[!0d],!1r" },
-  { kX86Mov64RR, kRegReg,               IS_BINARY_OP   | REG_DEF0_USE1,  { REX_W,             0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov64RR", "!0r,!1r" },
+  { kX86Mov64RR, kRegReg,    IS_MOVE  | IS_BINARY_OP   | REG_DEF0_USE1,  { REX_W,             0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov64RR", "!0r,!1r" },
   { kX86Mov64RM, kRegMem,    IS_LOAD  | IS_TERTIARY_OP | REG_DEF0_USE1,  { REX_W,             0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov64RM", "!0r,[!1r+!2d]" },
   { kX86Mov64RA, kRegArray,  IS_LOAD  | IS_QUIN_OP     | REG_DEF0_USE12, { REX_W,             0, 0x8B, 0, 0, 0, 0, 0, false }, "Mov64RA", "!0r,[!1r+!2r<<!3d+!4d]" },
   { kX86Mov64RT, kRegThread, IS_LOAD  | IS_BINARY_OP   | REG_DEF0,       { THREAD_PREFIX, REX_W, 0x8B, 0, 0, 0, 0, 0, false }, "Mov64RT", "!0r,fs:[!1d]" },
@@ -219,8 +219,8 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86Mov64AI, kArrayImm,  IS_STORE | IS_QUIN_OP     | REG_USE01,      { REX_W,             0, 0xC7, 0, 0, 0, 0, 4, false }, "Mov64AI", "[!0r+!1r<<!2d+!3d],!4d" },
   { kX86Mov64TI, kThreadImm, IS_STORE | IS_BINARY_OP,                    { THREAD_PREFIX, REX_W, 0xC7, 0, 0, 0, 0, 4, false }, "Mov64TI", "fs:[!0d],!1d" },
 
-  { kX86Lea64RM, kRegMem, IS_TERTIARY_OP | IS_LOAD | REG_DEF0_USE1,      { REX_W,             0, 0x8D, 0, 0, 0, 0, 0, false }, "Lea64RM", "!0r,[!1r+!2d]" },
-  { kX86Lea64RA, kRegArray, IS_QUIN_OP | REG_DEF0_USE12,                 { REX_W,             0, 0x8D, 0, 0, 0, 0, 0, false }, "Lea64RA", "!0r,[!1r+!2r<<!3d+!4d]" },
+  { kX86Lea64RM, kRegMem,               IS_TERTIARY_OP | REG_DEF0_USE1,  { REX_W,             0, 0x8D, 0, 0, 0, 0, 0, false }, "Lea64RM", "!0r,[!1r+!2d]" },
+  { kX86Lea64RA, kRegArray,             IS_QUIN_OP | REG_DEF0_USE12,     { REX_W,             0, 0x8D, 0, 0, 0, 0, 0, false }, "Lea64RA", "!0r,[!1r+!2r<<!3d+!4d]" },
 
   { kX86Cmov32RRC, kRegRegCond, IS_TERTIARY_OP | REG_DEF0_USE01 | USES_CCODES, { 0,     0, 0x0F, 0x40, 0, 0, 0, 0, false }, "Cmovcc32RR", "!2c !0r,!1r" },
   { kX86Cmov64RRC, kRegRegCond, IS_TERTIARY_OP | REG_DEF0_USE01 | USES_CCODES, { REX_W, 0, 0x0F, 0x40, 0, 0, 0, 0, false }, "Cmovcc64RR", "!2c !0r,!1r" },
@@ -444,14 +444,14 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86PslldRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x72, 0, 6, 0, 1, false }, "PslldRI", "!0r,!1d" },
   { kX86PsllqRI, kRegImm, IS_BINARY_OP | REG_DEF0_USE0, { 0x66, 0, 0x0F, 0x73, 0, 6, 0, 1, false }, "PsllqRI", "!0r,!1d" },
 
-  { kX86Fild32M,  kMem,     IS_LOAD    | IS_UNARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xDB, 0x00, 0, 0, 0, 0, false }, "Fild32M",  "[!0r,!1d]" },
-  { kX86Fild64M,  kMem,     IS_LOAD    | IS_UNARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xDF, 0x00, 0, 5, 0, 0, false }, "Fild64M",  "[!0r,!1d]" },
-  { kX86Fld32M,   kMem,     IS_LOAD    | IS_UNARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xD9, 0x00, 0, 0, 0, 0, false }, "Fld32M",   "[!0r,!1d]" },
-  { kX86Fld64M,   kMem,     IS_LOAD    | IS_UNARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xDD, 0x00, 0, 0, 0, 0, false }, "Fld64M",   "[!0r,!1d]" },
-  { kX86Fstp32M,  kMem,     IS_STORE   | IS_UNARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xD9, 0x00, 0, 3, 0, 0, false }, "Fstps32M", "[!0r,!1d]" },
-  { kX86Fstp64M,  kMem,     IS_STORE   | IS_UNARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xDD, 0x00, 0, 3, 0, 0, false }, "Fstpd64M", "[!0r,!1d]" },
-  { kX86Fst32M,   kMem,     IS_STORE   | IS_UNARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xD9, 0x00, 0, 2, 0, 0, false }, "Fsts32M",  "[!0r,!1d]" },
-  { kX86Fst64M,   kMem,     IS_STORE   | IS_UNARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xDD, 0x00, 0, 2, 0, 0, false }, "Fstd64M",  "[!0r,!1d]" },
+  { kX86Fild32M,  kMem,     IS_LOAD    | IS_BINARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xDB, 0x00, 0, 0, 0, 0, false }, "Fild32M",  "[!0r,!1d]" },
+  { kX86Fild64M,  kMem,     IS_LOAD    | IS_BINARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xDF, 0x00, 0, 5, 0, 0, false }, "Fild64M",  "[!0r,!1d]" },
+  { kX86Fld32M,   kMem,     IS_LOAD    | IS_BINARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xD9, 0x00, 0, 0, 0, 0, false }, "Fld32M",   "[!0r,!1d]" },
+  { kX86Fld64M,   kMem,     IS_LOAD    | IS_BINARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xDD, 0x00, 0, 0, 0, 0, false }, "Fld64M",   "[!0r,!1d]" },
+  { kX86Fstp32M,  kMem,     IS_STORE   | IS_BINARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xD9, 0x00, 0, 3, 0, 0, false }, "Fstps32M", "[!0r,!1d]" },
+  { kX86Fstp64M,  kMem,     IS_STORE   | IS_BINARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xDD, 0x00, 0, 3, 0, 0, false }, "Fstpd64M", "[!0r,!1d]" },
+  { kX86Fst32M,   kMem,     IS_STORE   | IS_BINARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xD9, 0x00, 0, 2, 0, 0, false }, "Fsts32M",  "[!0r,!1d]" },
+  { kX86Fst64M,   kMem,     IS_STORE   | IS_BINARY_OP | REG_USE0 | USE_FP_STACK, { 0x0,  0,    0xDD, 0x00, 0, 2, 0, 0, false }, "Fstd64M",  "[!0r,!1d]" },
   { kX86Fprem,    kNullary, NO_OPERAND | USE_FP_STACK,                          { 0xD9, 0,    0xF8, 0,    0, 0, 0, 0, false }, "Fprem64",  "" },
   { kX86Fucompp,  kNullary, NO_OPERAND | USE_FP_STACK,                          { 0xDA, 0,    0xE9, 0,    0, 0, 0, 0, false }, "Fucompp",  "" },
   { kX86Fstsw16R, kNullary, NO_OPERAND | REG_DEFA | USE_FP_STACK,               { 0x9B, 0xDF, 0xE0, 0,    0, 0, 0, 0, false }, "Fstsw16R", "ax" },
@@ -680,7 +680,8 @@ size_t X86Mir2Lir::ComputeSize(const X86EncodingMap* entry, int32_t raw_reg, int
     }
     if (displacement != 0 || LowRegisterBits(raw_base) == rs_rBP.GetRegNum()) {
       // BP requires an explicit displacement, even when it's 0.
-      if (entry->opcode != kX86Lea32RA && entry->opcode != kX86Lea64RA) {
+      if (entry->opcode != kX86Lea32RA && entry->opcode != kX86Lea64RA &&
+          entry->opcode != kX86Lea32RM && entry->opcode != kX86Lea64RM) {
         DCHECK_NE(entry->flags & (IS_LOAD | IS_STORE), UINT64_C(0)) << entry->name;
       }
       size += IS_SIMM8(displacement) ? 1 : 4;
