@@ -125,7 +125,7 @@ static bool GenerateImage(const std::string& image_filename, InstructionSet imag
   }
   // We should clean up so we are more likely to have room for the image.
   if (Runtime::Current()->IsZygote()) {
-    LOG(INFO) << "Pruning dalvik-cache since we are relocating an image and will need to recompile";
+    LOG(INFO) << "Pruning dalvik-cache since we are generating an image and will need to recompile";
     PruneDexCache(image_isa);
   }
 
@@ -177,7 +177,8 @@ bool ImageSpace::FindImageFilename(const char* image_location,
                                    bool* has_system,
                                    std::string* cache_filename,
                                    bool* dalvik_cache_exists,
-                                   bool* has_cache) {
+                                   bool* has_cache,
+                                   bool* is_global_cache) {
   *has_system = false;
   *has_cache = false;
   // image_location = /system/framework/boot.art
@@ -192,7 +193,7 @@ bool ImageSpace::FindImageFilename(const char* image_location,
   *dalvik_cache_exists = false;
   std::string dalvik_cache;
   GetDalvikCache(GetInstructionSetString(image_isa), true, &dalvik_cache,
-                 &have_android_data, dalvik_cache_exists);
+                 &have_android_data, dalvik_cache_exists, is_global_cache);
 
   if (have_android_data && *dalvik_cache_exists) {
     // Always set output location even if it does not exist,
@@ -285,8 +286,9 @@ ImageHeader* ImageSpace::ReadImageHeaderOrDie(const char* image_location,
   std::string cache_filename;
   bool has_cache = false;
   bool dalvik_cache_exists = false;
+  bool is_global_cache = false;
   if (FindImageFilename(image_location, image_isa, &system_filename, &has_system,
-                        &cache_filename, &dalvik_cache_exists, &has_cache)) {
+                        &cache_filename, &dalvik_cache_exists, &has_cache, &is_global_cache)) {
     if (Runtime::Current()->ShouldRelocate()) {
       if (has_system && has_cache) {
         std::unique_ptr<ImageHeader> sys_hdr(new ImageHeader);
@@ -344,6 +346,21 @@ static bool ChecksumsMatch(const char* image_a, const char* image_b) {
       && hdr_a.GetOatChecksum() == hdr_b.GetOatChecksum();
 }
 
+static bool ImageCreationAllowed(bool is_global_cache, std::string* error_msg) {
+  // Anyone can write into a "local" cache.
+  if (!is_global_cache) {
+    return true;
+  }
+
+  // Only the zygote is allowed to create the global boot image.
+  if (Runtime::Current()->IsZygote()) {
+    return true;
+  }
+
+  *error_msg = "Only the zygote can create the global boot image.";
+  return false;
+}
+
 ImageSpace* ImageSpace::Create(const char* image_location,
                                const InstructionSet image_isa,
                                std::string* error_msg) {
@@ -352,9 +369,10 @@ ImageSpace* ImageSpace::Create(const char* image_location,
   std::string cache_filename;
   bool has_cache = false;
   bool dalvik_cache_exists = false;
+  bool is_global_cache = true;
   const bool found_image = FindImageFilename(image_location, image_isa, &system_filename,
                                              &has_system, &cache_filename, &dalvik_cache_exists,
-                                             &has_cache);
+                                             &has_cache, &is_global_cache);
 
   ImageSpace* space;
   bool relocate = Runtime::Current()->ShouldRelocate();
@@ -377,18 +395,27 @@ ImageSpace* ImageSpace::Create(const char* image_location,
           relocated_version_used = true;
         } else {
           // We cannot have a relocated version, Relocate the system one and use it.
-          if (can_compile && RelocateImage(image_location, cache_filename.c_str(), image_isa,
-                                           error_msg)) {
+
+          std::string reason;
+          bool success;
+
+          // Check whether we are allowed to relocate.
+          if (!can_compile) {
+            reason = "Image dex2oat disabled by -Xnoimage-dex2oat.";
+            success = false;
+          } else if (!ImageCreationAllowed(is_global_cache, &reason)) {
+            // Whether we can write to the cache.
+            success = false;
+          } else {
+            // Try to relocate.
+            success = RelocateImage(image_location, cache_filename.c_str(), image_isa, &reason);
+          }
+
+          if (success) {
             relocated_version_used = true;
             image_filename = &cache_filename;
           } else {
-            std::string reason;
-            if (can_compile) {
-              reason = StringPrintf(": %s", error_msg->c_str());
-            } else {
-              reason = " because image dex2oat is disabled.";
-            }
-            *error_msg = StringPrintf("Unable to relocate image '%s' from '%s' to '%s'%s",
+            *error_msg = StringPrintf("Unable to relocate image '%s' from '%s' to '%s': %s",
                                       image_location, system_filename.c_str(),
                                       cache_filename.c_str(), reason.c_str());
             return nullptr;
@@ -459,6 +486,8 @@ ImageSpace* ImageSpace::Create(const char* image_location,
     return nullptr;
   } else if (!dalvik_cache_exists) {
     *error_msg = StringPrintf("No place to put generated image.");
+    return nullptr;
+  } else if (!ImageCreationAllowed(is_global_cache, error_msg)) {
     return nullptr;
   } else if (!GenerateImage(cache_filename, image_isa, error_msg)) {
     *error_msg = StringPrintf("Failed to generate image '%s': %s",

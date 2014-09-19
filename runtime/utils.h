@@ -451,8 +451,9 @@ std::string GetDalvikCacheOrDie(const char* subdir, bool create_if_absent = true
 // Return true if we found the dalvik cache and stored it in the dalvik_cache argument.
 // have_android_data will be set to true if we have an ANDROID_DATA that exists,
 // dalvik_cache_exists will be true if there is a dalvik-cache directory that is present.
+// The flag is_global_cache tells whether this cache is /data/dalvik-cache.
 void GetDalvikCache(const char* subdir, bool create_if_absent, std::string* dalvik_cache,
-                    bool* have_android_data, bool* dalvik_cache_exists);
+                    bool* have_android_data, bool* dalvik_cache_exists, bool* is_global_cache);
 
 // Returns the absolute dalvik-cache path for a DexFile or OatFile. The path returned will be
 // rooted at cache_location.
