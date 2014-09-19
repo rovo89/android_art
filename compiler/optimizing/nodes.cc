@@ -124,6 +124,7 @@ void HGraph::VisitBlockForDominatorTree(HBasicBlock* block,
   // dominator of the block. We can then start visiting its successors.
   if (visits->Get(block->GetBlockId()) ==
       block->GetPredecessors().Size() - block->NumberOfBackEdges()) {
+    block->GetDominator()->AddDominatedBlock(block);
     reverse_post_order_.Add(block);
     for (size_t i = 0; i < block->GetSuccessors().Size(); i++) {
       VisitBlockForDominatorTree(block->GetSuccessors().Get(i), block, visits);
@@ -543,6 +544,7 @@ bool HCondition::NeedsMaterialization() const {
 
 bool HInstruction::Equals(HInstruction* other) const {
   if (!InstructionTypeEquals(other)) return false;
+  DCHECK_EQ(GetKind(), other->GetKind());
   if (!InstructionDataEquals(other)) return false;
   if (GetType() != other->GetType()) return false;
   if (InputCount() != other->InputCount()) return false;
@@ -550,6 +552,7 @@ bool HInstruction::Equals(HInstruction* other) const {
   for (size_t i = 0, e = InputCount(); i < e; ++i) {
     if (InputAt(i) != other->InputAt(i)) return false;
   }
+  DCHECK_EQ(ComputeHashCode(), other->ComputeHashCode());
   return true;
 }
 
