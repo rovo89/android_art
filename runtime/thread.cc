@@ -962,6 +962,13 @@ static bool ShouldShowNativeStack(const Thread* thread)
     return false;
   }
 
+  // Threads with no managed stack frames should be shown.
+  const ManagedStack* managed_stack = thread->GetManagedStack();
+  if (managed_stack == NULL || (managed_stack->GetTopQuickFrame() == NULL &&
+      managed_stack->GetTopShadowFrame() == NULL)) {
+    return true;
+  }
+
   // In some other native method? That's interesting.
   // We don't just check kNative because native methods will be in state kSuspended if they're
   // calling back into the VM, or kBlocked if they're blocked on a monitor, or one of the
