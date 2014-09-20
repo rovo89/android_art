@@ -543,11 +543,9 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
   {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     // TODO: Image spaces only?
-    const char* old = self->StartAssertNoThreadSuspension("ImageWriter");
     DCHECK_LT(image_end_, image_->Size());
     // Clear any pre-existing monitors which may have been in the monitor words.
     heap->VisitObjects(WalkFieldsCallback, this);
-    self->EndAssertNoThreadSuspension(old);
   }
 
   const byte* oat_file_begin = image_begin_ + RoundUp(image_end_, kPageSize);
@@ -577,20 +575,18 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
 
 void ImageWriter::CopyAndFixupObjects()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  Thread* self = Thread::Current();
-  const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
+  ScopedAssertNoThreadSuspension ants(Thread::Current(), "ImageWriter");
   gc::Heap* heap = Runtime::Current()->GetHeap();
   // TODO: heap validation can't handle this fix up pass
   heap->DisableObjectValidation();
   // TODO: Image spaces only?
-  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  WriterMutexLock mu(ants.Self(), *Locks::heap_bitmap_lock_);
   heap->VisitObjects(CopyAndFixupObjectsCallback, this);
   // Fix up the object previously had hash codes.
   for (const std::pair<mirror::Object*, uint32_t>& hash_pair : saved_hashes_) {
     hash_pair.first->SetLockWord(LockWord::FromHashCode(hash_pair.second), false);
   }
   saved_hashes_.clear();
-  self->EndAssertNoThreadSuspension(old_cause);
 }
 
 void ImageWriter::CopyAndFixupObjectsCallback(Object* obj, void* arg) {

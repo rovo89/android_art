@@ -685,9 +685,8 @@ void Heap::CreateThreadPool() {
 }
 
 void Heap::VisitObjects(ObjectCallback callback, void* arg) {
-  Thread* self = Thread::Current();
   // GCs can move objects, so don't allow this.
-  const char* old_cause = self->StartAssertNoThreadSuspension("Visiting objects");
+  ScopedAssertNoThreadSuspension ants(Thread::Current(), "Visiting objects");
   if (bump_pointer_space_ != nullptr) {
     // Visit objects in bump pointer space.
     bump_pointer_space_->Walk(callback, arg);
@@ -704,7 +703,6 @@ void Heap::VisitObjects(ObjectCallback callback, void* arg) {
     }
   }
   GetLiveBitmap()->Walk(callback, arg);
-  self->EndAssertNoThreadSuspension(old_cause);
 }
 
 void Heap::MarkAllocStackAsLive(accounting::ObjectStack* stack) {
@@ -1429,12 +1427,10 @@ class InstanceCounter {
 void Heap::CountInstances(const std::vector<mirror::Class*>& classes, bool use_is_assignable_from,
                           uint64_t* counts) {
   // Can't do any GC in this function since this may move classes.
-  Thread* self = Thread::Current();
-  auto* old_cause = self->StartAssertNoThreadSuspension("CountInstances");
+  ScopedAssertNoThreadSuspension ants(Thread::Current(), "CountInstances");
   InstanceCounter counter(classes, use_is_assignable_from, counts);
-  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  ReaderMutexLock mu(ants.Self(), *Locks::heap_bitmap_lock_);
   VisitObjects(InstanceCounter::Callback, &counter);
-  self->EndAssertNoThreadSuspension(old_cause);
 }
 
 class InstanceCollector {
@@ -1447,8 +1443,7 @@ class InstanceCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     DCHECK(arg != nullptr);
     InstanceCollector* instance_collector = reinterpret_cast<InstanceCollector*>(arg);
-    mirror::Class* instance_class = obj->GetClass();
-    if (instance_class == instance_collector->class_) {
+    if (obj->GetClass() == instance_collector->class_) {
       if (instance_collector->max_count_ == 0 ||
           instance_collector->instances_.size() < instance_collector->max_count_) {
         instance_collector->instances_.push_back(obj);
@@ -1457,8 +1452,8 @@ class InstanceCollector {
   }
 
  private:
-  mirror::Class* class_;
-  uint32_t max_count_;
+  const mirror::Class* const class_;
+  const uint32_t max_count_;
   std::vector<mirror::Object*>& instances_;
   DISALLOW_COPY_AND_ASSIGN(InstanceCollector);
 };
@@ -1466,12 +1461,10 @@ class InstanceCollector {
 void Heap::GetInstances(mirror::Class* c, int32_t max_count,
                         std::vector<mirror::Object*>& instances) {
   // Can't do any GC in this function since this may move classes.
-  Thread* self = Thread::Current();
-  auto* old_cause = self->StartAssertNoThreadSuspension("GetInstances");
+  ScopedAssertNoThreadSuspension ants(Thread::Current(), "GetInstances");
   InstanceCollector collector(c, max_count, instances);
-  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  ReaderMutexLock mu(ants.Self(), *Locks::heap_bitmap_lock_);
   VisitObjects(&InstanceCollector::Callback, &collector);
-  self->EndAssertNoThreadSuspension(old_cause);
 }
 
 class ReferringObjectsFinder {
@@ -1504,8 +1497,8 @@ class ReferringObjectsFinder {
   }
 
  private:
-  mirror::Object* object_;
-  uint32_t max_count_;
+  const mirror::Object* const object_;
+  const uint32_t max_count_;
   std::vector<mirror::Object*>& referring_objects_;
   DISALLOW_COPY_AND_ASSIGN(ReferringObjectsFinder);
 };
@@ -1513,12 +1506,10 @@ class ReferringObjectsFinder {
 void Heap::GetReferringObjects(mirror::Object* o, int32_t max_count,
                                std::vector<mirror::Object*>& referring_objects) {
   // Can't do any GC in this function since this may move the object o.
-  Thread* self = Thread::Current();
-  auto* old_cause = self->StartAssertNoThreadSuspension("GetReferringObjects");
+  ScopedAssertNoThreadSuspension ants(Thread::Current(), "GetReferringObjects");
   ReferringObjectsFinder finder(o, max_count, referring_objects);
-  WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+  ReaderMutexLock mu(ants.Self(), *Locks::heap_bitmap_lock_);
   VisitObjects(&ReferringObjectsFinder::Callback, &finder);
-  self->EndAssertNoThreadSuspension(old_cause);
 }
 
 void Heap::CollectGarbage(bool clear_soft_references) {

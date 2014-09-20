@@ -1991,7 +1991,7 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
   if (error != JDWP::ERR_NONE) {
     return JDWP::ERR_INVALID_OBJECT;
   }
-  const char* old_cause = soa.Self()->StartAssertNoThreadSuspension("Debugger: GetThreadGroup");
+  ScopedAssertNoThreadSuspension ants(soa.Self(), "Debugger: GetThreadGroup");
   // Okay, so it's an object, but is it actually a thread?
   {
     MutexLock mu(soa.Self(), *Locks::thread_list_lock_);
@@ -2012,7 +2012,6 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
     JDWP::ObjectId thread_group_id = gRegistry->Add(group);
     expandBufAddObjectId(pReply, thread_group_id);
   }
-  soa.Self()->EndAssertNoThreadSuspension(old_cause);
   return error;
 }
 
@@ -2046,12 +2045,11 @@ JDWP::JdwpError Dbg::GetThreadGroupName(JDWP::ObjectId thread_group_id, JDWP::Ex
   if (error != JDWP::ERR_NONE) {
     return error;
   }
-  const char* old_cause = soa.Self()->StartAssertNoThreadSuspension("Debugger: GetThreadGroupName");
+  ScopedAssertNoThreadSuspension ants(soa.Self(), "Debugger: GetThreadGroupName");
   mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ThreadGroup);
   mirror::ArtField* f = c->FindInstanceField("name", "Ljava/lang/String;");
   CHECK(f != nullptr);
   mirror::String* s = reinterpret_cast<mirror::String*>(f->GetObject(thread_group));
-  soa.Self()->EndAssertNoThreadSuspension(old_cause);
 
   std::string thread_group_name(s->ToModifiedUtf8());
   expandBufAddUtf8String(pReply, thread_group_name);
@@ -2065,14 +2063,15 @@ JDWP::JdwpError Dbg::GetThreadGroupParent(JDWP::ObjectId thread_group_id, JDWP::
   if (error != JDWP::ERR_NONE) {
     return error;
   }
-  const char* old_cause = soa.Self()->StartAssertNoThreadSuspension("Debugger: GetThreadGroupParent");
-  mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ThreadGroup);
-  CHECK(c != nullptr);
-  mirror::ArtField* f = c->FindInstanceField("parent", "Ljava/lang/ThreadGroup;");
-  CHECK(f != nullptr);
-  mirror::Object* parent = f->GetObject(thread_group);
-  soa.Self()->EndAssertNoThreadSuspension(old_cause);
-
+  mirror::Object* parent;
+  {
+    ScopedAssertNoThreadSuspension ants(soa.Self(), "Debugger: GetThreadGroupParent");
+    mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ThreadGroup);
+    CHECK(c != nullptr);
+    mirror::ArtField* f = c->FindInstanceField("parent", "Ljava/lang/ThreadGroup;");
+    CHECK(f != nullptr);
+    parent = f->GetObject(thread_group);
+  }
   JDWP::ObjectId parent_group_id = gRegistry->Add(parent);
   expandBufAddObjectId(pReply, parent_group_id);
   return JDWP::ERR_NONE;

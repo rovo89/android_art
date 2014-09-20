@@ -2950,7 +2950,7 @@ mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file
   }
   DCHECK(dst->IsArtMethod()) << PrettyDescriptor(dst->GetClass());
 
-  const char* old_cause = self->StartAssertNoThreadSuspension("LoadMethod");
+  ScopedAssertNoThreadSuspension ants(self, "LoadMethod");
   dst->SetDexMethodIndex(dex_method_idx);
   dst->SetDeclaringClass(klass.Get());
   dst->SetCodeItemOffset(it.GetMethodCodeItemOffset());
@@ -2997,7 +2997,6 @@ mirror::ArtMethod* ClassLinker::LoadMethod(Thread* self, const DexFile& dex_file
   }
   dst->SetAccessFlags(access_flags);
 
-  self->EndAssertNoThreadSuspension(old_cause);
   return dst;
 }
 
@@ -3474,8 +3473,7 @@ void ClassLinker::MoveImageClassesToClassTable() {
   if (!dex_cache_image_class_lookup_required_) {
     return;  // All dex cache classes are already in the class table.
   }
-  const char* old_no_suspend_cause =
-      self->StartAssertNoThreadSuspension("Moving image classes to class table");
+  ScopedAssertNoThreadSuspension ants(self, "Moving image classes to class table");
   mirror::ObjectArray<mirror::DexCache>* dex_caches = GetImageDexCaches();
   std::string temp;
   for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
@@ -3501,13 +3499,10 @@ void ClassLinker::MoveImageClassesToClassTable() {
     }
   }
   dex_cache_image_class_lookup_required_ = false;
-  self->EndAssertNoThreadSuspension(old_no_suspend_cause);
 }
 
 mirror::Class* ClassLinker::LookupClassFromImage(const char* descriptor) {
-  Thread* self = Thread::Current();
-  const char* old_no_suspend_cause =
-      self->StartAssertNoThreadSuspension("Image class lookup");
+  ScopedAssertNoThreadSuspension ants(Thread::Current(), "Image class lookup");
   mirror::ObjectArray<mirror::DexCache>* dex_caches = GetImageDexCaches();
   for (int32_t i = 0; i < dex_caches->GetLength(); ++i) {
     mirror::DexCache* dex_cache = dex_caches->Get(i);
@@ -3521,13 +3516,11 @@ mirror::Class* ClassLinker::LookupClassFromImage(const char* descriptor) {
         uint16_t type_idx = dex_file->GetIndexForTypeId(*type_id);
         mirror::Class* klass = dex_cache->GetResolvedType(type_idx);
         if (klass != nullptr) {
-          self->EndAssertNoThreadSuspension(old_no_suspend_cause);
           return klass;
         }
       }
     }
   }
-  self->EndAssertNoThreadSuspension(old_no_suspend_cause);
   return nullptr;
 }
 
@@ -5077,7 +5070,7 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
   // we want a relatively stable order so that adding new fields
   // minimizes disruption of C++ version such as Class and Method.
   std::deque<mirror::ArtField*> grouped_and_sorted_fields;
-  const char* old_no_suspend_cause  = self->StartAssertNoThreadSuspension(
+  const char* old_no_suspend_cause = self->StartAssertNoThreadSuspension(
       "Naked ArtField references in deque");
   for (size_t i = 0; i < num_fields; i++) {
     mirror::ArtField* f = fields->Get(i);
