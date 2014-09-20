@@ -97,7 +97,7 @@ inline LIR* Mir2Lir::NewLIR2(int opcode, int dest, int src1) {
 }
 
 inline LIR* Mir2Lir::NewLIR2NoDest(int opcode, int src, int info) {
-  DCHECK(IsPseudoLirOp(opcode) || (GetTargetInstFlags(opcode) & IS_UNARY_OP))
+  DCHECK(IsPseudoLirOp(opcode) || (GetTargetInstFlags(opcode) & IS_BINARY_OP))
       << GetTargetInstName(opcode) << " " << opcode << " "
       << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " "
       << current_dalvik_offset_;
