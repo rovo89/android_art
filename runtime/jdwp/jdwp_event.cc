@@ -1125,12 +1125,19 @@ bool JdwpState::PostException(const EventLocation* pThrowLoc, mirror::Throwable*
   DCHECK(exception_object != nullptr);
   DCHECK(pThrowLoc != nullptr);
   DCHECK(pCatchLoc != nullptr);
-  DCHECK(pThrowLoc->method != nullptr);
-  DCHECK_EQ(pThrowLoc->method->IsStatic(), thisPtr == nullptr);
+  if (pThrowLoc->method != nullptr) {
+    DCHECK_EQ(pThrowLoc->method->IsStatic(), thisPtr == nullptr);
+  } else {
+    VLOG(jdwp) << "Unexpected: exception event with empty throw location";
+  }
 
   ModBasket basket;
   basket.pLoc = pThrowLoc;
-  basket.locationClass = pThrowLoc->method->GetDeclaringClass();
+  if (pThrowLoc->method != nullptr) {
+    basket.locationClass = pThrowLoc->method->GetDeclaringClass();
+  } else {
+    basket.locationClass = nullptr;
+  }
   basket.thread = Thread::Current();
   basket.className = Dbg::GetClassName(basket.locationClass);
   basket.exceptionClass = exception_object->GetClass();
