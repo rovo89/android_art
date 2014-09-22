@@ -845,7 +845,9 @@ std::string Dbg::GetClassName(JDWP::RefTypeId class_id) {
 }
 
 std::string Dbg::GetClassName(mirror::Class* klass) {
-  DCHECK(klass != nullptr);
+  if (klass == nullptr) {
+    return "NULL";
+  }
   std::string temp;
   return DescriptorToName(klass->GetDescriptor(&temp));
 }
@@ -1466,6 +1468,9 @@ bool Dbg::MatchLocation(const JDWP::JdwpLocation& expected_location,
 }
 
 bool Dbg::MatchType(mirror::Class* event_class, JDWP::RefTypeId class_id) {
+  if (event_class == nullptr) {
+    return false;
+  }
   JDWP::JdwpError error;
   mirror::Class* expected_class = DecodeClass(class_id, &error);
   CHECK(expected_class != nullptr);
@@ -1490,7 +1495,7 @@ bool Dbg::MatchInstance(JDWP::ObjectId expected_instance_id, mirror::Object* eve
 void Dbg::SetJdwpLocation(JDWP::JdwpLocation* location, mirror::ArtMethod* m, uint32_t dex_pc)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (m == nullptr) {
-    memset(&location, 0, sizeof(*location));
+    memset(location, 0, sizeof(*location));
   } else {
     mirror::Class* c = m->GetDeclaringClass();
     location->type_tag = GetTypeTag(c);
@@ -1502,11 +1507,18 @@ void Dbg::SetJdwpLocation(JDWP::JdwpLocation* location, mirror::ArtMethod* m, ui
 
 std::string Dbg::GetMethodName(JDWP::MethodId method_id) {
   mirror::ArtMethod* m = FromMethodId(method_id);
+  if (m == nullptr) {
+    return "NULL";
+  }
   return m->GetName();
 }
 
 std::string Dbg::GetFieldName(JDWP::FieldId field_id) {
-  return FromFieldId(field_id)->GetName();
+  mirror::ArtField* f = FromFieldId(field_id);
+  if (f == nullptr) {
+    return "NULL";
+  }
+  return f->GetName();
 }
 
 /*
