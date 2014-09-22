@@ -1180,6 +1180,23 @@ class Thread {
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };
 
+class ScopedAssertNoThreadSuspension {
+ public:
+  ScopedAssertNoThreadSuspension(Thread* self, const char* cause)
+      : self_(self), old_cause_(self->StartAssertNoThreadSuspension(cause)) {
+  }
+  ~ScopedAssertNoThreadSuspension() {
+    self_->EndAssertNoThreadSuspension(old_cause_);
+  }
+  Thread* Self() {
+    return self_;
+  }
+
+ private:
+  Thread* const self_;
+  const char* old_cause_;
+};
+
 std::ostream& operator<<(std::ostream& os, const Thread& thread);
 std::ostream& operator<<(std::ostream& os, const ThreadState& state);
 
