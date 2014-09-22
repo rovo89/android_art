@@ -351,6 +351,16 @@ static void Remove(HInstructionList* instruction_list,
   for (size_t i = 0; i < instruction->InputCount(); i++) {
     instruction->InputAt(i)->RemoveUser(instruction, i);
   }
+
+  HEnvironment* environment = instruction->GetEnvironment();
+  if (environment != nullptr) {
+    for (size_t i = 0, e = environment->Size(); i < e; ++i) {
+      HInstruction* vreg = environment->GetInstructionAt(i);
+      if (vreg != nullptr) {
+        vreg->RemoveEnvironmentUser(environment, i);
+      }
+    }
+  }
 }
 
 void HBasicBlock::RemoveInstruction(HInstruction* instruction) {
@@ -361,13 +371,16 @@ void HBasicBlock::RemovePhi(HPhi* phi) {
   Remove(&phis_, this, phi);
 }
 
-void HInstruction::RemoveUser(HInstruction* user, size_t input_index) {
-  HUseListNode<HInstruction>* previous = nullptr;
-  HUseListNode<HInstruction>* current = uses_;
+template <typename T>
+static void RemoveFromUseList(T* user,
+                              size_t input_index,
+                              HUseListNode<T>** list) {
+  HUseListNode<T>* previous = nullptr;
+  HUseListNode<T>* current = *list;
   while (current != nullptr) {
     if (current->GetUser() == user && current->GetIndex() == input_index) {
       if (previous == NULL) {
-        uses_ = current->GetTail();
+        *list = current->GetTail();
       } else {
         previous->SetTail(current->GetTail());
       }
@@ -375,6 +388,14 @@ void HInstruction::RemoveUser(HInstruction* user, size_t input_index) {
     previous = current;
     current = current->GetTail();
   }
+}
+
+void HInstruction::RemoveUser(HInstruction* user, size_t input_index) {
+  RemoveFromUseList(user, input_index, &uses_);
+}
+
+void HInstruction::RemoveEnvironmentUser(HEnvironment* user, size_t input_index) {
+  RemoveFromUseList(user, input_index, &env_uses_);
 }
 
 void HInstructionList::AddInstruction(HInstruction* instruction) {
