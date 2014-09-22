@@ -796,6 +796,10 @@ void RegisterAllocator::InsertParallelMoveAt(size_t position,
       // This is a parallel move for connecting siblings in a same block. We need to
       // differentiate it with moves for connecting blocks, and input moves.
       if (previous->GetLifetimePosition() != position) {
+        // If the previous instruction of the previous instruction is not a parallel
+        // move, we have to insert the new parallel move before the input or connecting
+        // block moves.
+        at = previous;
         previous = previous->GetPrevious();
       }
     }
