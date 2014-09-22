@@ -142,8 +142,9 @@ inline LIR* Mir2Lir::NewLIR5(int opcode, int dest, int src1, int src2, int info1
  */
 inline void Mir2Lir::SetupRegMask(ResourceMask* mask, int reg) {
   DCHECK_EQ((reg & ~RegStorage::kRegValMask), 0);
-  DCHECK(reginfo_map_.Get(reg) != nullptr) << "No info for 0x" << reg;
-  *mask = mask->Union(reginfo_map_.Get(reg)->DefUseMask());
+  DCHECK_LT(static_cast<size_t>(reg), reginfo_map_.size());
+  DCHECK(reginfo_map_[reg] != nullptr) << "No info for 0x" << reg;
+  *mask = mask->Union(reginfo_map_[reg]->DefUseMask());
 }
 
 /*
@@ -151,8 +152,9 @@ inline void Mir2Lir::SetupRegMask(ResourceMask* mask, int reg) {
  */
 inline void Mir2Lir::ClearRegMask(ResourceMask* mask, int reg) {
   DCHECK_EQ((reg & ~RegStorage::kRegValMask), 0);
-  DCHECK(reginfo_map_.Get(reg) != nullptr) << "No info for 0x" << reg;
-  *mask = mask->ClearBits(reginfo_map_.Get(reg)->DefUseMask());
+  DCHECK_LT(static_cast<size_t>(reg), reginfo_map_.size());
+  DCHECK(reginfo_map_[reg] != nullptr) << "No info for 0x" << reg;
+  *mask = mask->ClearBits(reginfo_map_[reg]->DefUseMask());
 }
 
 /*
@@ -256,8 +258,7 @@ inline void Mir2Lir::SetupResourceMasks(LIR* lir) {
 }
 
 inline art::Mir2Lir::RegisterInfo* Mir2Lir::GetRegInfo(RegStorage reg) {
-  RegisterInfo* res = reg.IsPair() ? reginfo_map_.Get(reg.GetLowReg()) :
-      reginfo_map_.Get(reg.GetReg());
+  RegisterInfo* res = reg.IsPair() ? reginfo_map_[reg.GetLowReg()] : reginfo_map_[reg.GetReg()];
   DCHECK(res != nullptr);
   return res;
 }

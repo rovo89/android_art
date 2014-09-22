@@ -31,6 +31,7 @@
 #include "llvm/intrinsic_helper.h"
 #include "llvm/llvm_compilation_unit.h"
 #include "safe_map.h"
+#include "utils/arena_containers.h"
 
 namespace llvm {
   class Module;
@@ -104,9 +105,10 @@ class MirConverter : public Backend {
         placeholder_bb_(NULL),
         entry_bb_(NULL),
         entry_target_bb_(NULL),
-        llvm_values_(arena, mir_graph->GetNumSSARegs()),
+        llvm_values_(arena->Adapter()),
         temp_name_(0),
         current_dalvik_offset_(0) {
+      llvm_values_.reserve(mir_graph->GetNumSSARegs());
       if (kIsDebugBuild) {
         cu->enable_debug |= (1 << kDebugVerifyBitcode);
       }
@@ -228,7 +230,7 @@ class MirConverter : public Backend {
     ::llvm::BasicBlock* entry_bb_;
     ::llvm::BasicBlock* entry_target_bb_;
     std::string bitcode_filename_;
-    GrowableArray< ::llvm::Value*> llvm_values_;
+    ArenaVector< ::llvm::Value*> llvm_values_;
     int32_t temp_name_;
     SafeMap<int32_t, ::llvm::BasicBlock*> id_to_block_map_;  // block id -> llvm bb.
     int current_dalvik_offset_;

@@ -129,8 +129,8 @@ class GlobalValueNumberingTest : public testing::Test {
     { bb, static_cast<Instruction::Code>(kMirOpPhi), 0, 0u, 2u, { src1, src2 }, 1, { reg } }
 
   void DoPrepareIFields(const IFieldDef* defs, size_t count) {
-    cu_.mir_graph->ifield_lowering_infos_.Reset();
-    cu_.mir_graph->ifield_lowering_infos_.Resize(count);
+    cu_.mir_graph->ifield_lowering_infos_.clear();
+    cu_.mir_graph->ifield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const IFieldDef* def = &defs[i];
       MirIFieldLoweringInfo field_info(def->field_idx);
@@ -140,7 +140,7 @@ class GlobalValueNumberingTest : public testing::Test {
         field_info.flags_ = 0u |  // Without kFlagIsStatic.
             (def->is_volatile ? MirIFieldLoweringInfo::kFlagIsVolatile : 0u);
       }
-      cu_.mir_graph->ifield_lowering_infos_.Insert(field_info);
+      cu_.mir_graph->ifield_lowering_infos_.push_back(field_info);
     }
   }
 
@@ -150,8 +150,8 @@ class GlobalValueNumberingTest : public testing::Test {
   }
 
   void DoPrepareSFields(const SFieldDef* defs, size_t count) {
-    cu_.mir_graph->sfield_lowering_infos_.Reset();
-    cu_.mir_graph->sfield_lowering_infos_.Resize(count);
+    cu_.mir_graph->sfield_lowering_infos_.clear();
+    cu_.mir_graph->sfield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const SFieldDef* def = &defs[i];
       MirSFieldLoweringInfo field_info(def->field_idx);
@@ -163,7 +163,7 @@ class GlobalValueNumberingTest : public testing::Test {
         field_info.declaring_field_idx_ = def->declaring_field_idx;
         field_info.flags_ |= (def->is_volatile ? MirSFieldLoweringInfo::kFlagIsVolatile : 0u);
       }
-      cu_.mir_graph->sfield_lowering_infos_.Insert(field_info);
+      cu_.mir_graph->sfield_lowering_infos_.push_back(field_info);
     }
   }
 
@@ -174,41 +174,33 @@ class GlobalValueNumberingTest : public testing::Test {
 
   void DoPrepareBasicBlocks(const BBDef* defs, size_t count) {
     cu_.mir_graph->block_id_map_.clear();
-    cu_.mir_graph->block_list_.Reset();
+    cu_.mir_graph->block_list_.clear();
     ASSERT_LT(3u, count);  // null, entry, exit and at least one bytecode block.
     ASSERT_EQ(kNullBlock, defs[0].type);
     ASSERT_EQ(kEntryBlock, defs[1].type);
     ASSERT_EQ(kExitBlock, defs[2].type);
     for (size_t i = 0u; i != count; ++i) {
       const BBDef* def = &defs[i];
-      BasicBlock* bb = cu_.mir_graph->NewMemBB(def->type, i);
-      cu_.mir_graph->block_list_.Insert(bb);
+      BasicBlock* bb = cu_.mir_graph->CreateNewBB(def->type);
       if (def->num_successors <= 2) {
         bb->successor_block_list_type = kNotUsed;
-        bb->successor_blocks = nullptr;
         bb->fall_through = (def->num_successors >= 1) ? def->successors[0] : 0u;
         bb->taken = (def->num_successors >= 2) ? def->successors[1] : 0u;
       } else {
         bb->successor_block_list_type = kPackedSwitch;
         bb->fall_through = 0u;
         bb->taken = 0u;
-        bb->successor_blocks = new (&cu_.arena) GrowableArray<SuccessorBlockInfo*>(
-            &cu_.arena, def->num_successors, kGrowableArraySuccessorBlocks);
+        bb->successor_blocks.reserve(def->num_successors);
         for (size_t j = 0u; j != def->num_successors; ++j) {
           SuccessorBlockInfo* successor_block_info =
               static_cast<SuccessorBlockInfo*>(cu_.arena.Alloc(sizeof(SuccessorBlockInfo),
                                                                kArenaAllocSuccessor));
           successor_block_info->block = j;
           successor_block_info->key = 0u;  // Not used by class init check elimination.
-          bb->successor_blocks->Insert(successor_block_info);
+          bb->successor_blocks.push_back(successor_block_info);
         }
       }
-      bb->predecessors = new (&cu_.arena) GrowableArray<BasicBlockId>(
-          &cu_.arena, def->num_predecessors, kGrowableArrayPredecessors);
-      for (size_t j = 0u; j != def->num_predecessors; ++j) {
-        ASSERT_NE(0u, def->predecessors[j]);
-        bb->predecessors->Insert(def->predecessors[j]);
-      }
+      bb->predecessors.assign(def->predecessors, def->predecessors + def->num_predecessors);
       if (def->type == kDalvikByteCode || def->type == kEntryBlock || def->type == kExitBlock) {
         bb->data_flow_info = static_cast<BasicBlockDataFlow*>(
             cu_.arena.Alloc(sizeof(BasicBlockDataFlow), kArenaAllocDFInfo));
@@ -216,10 +208,10 @@ class GlobalValueNumberingTest : public testing::Test {
       }
     }
     cu_.mir_graph->num_blocks_ = count;
-    ASSERT_EQ(count, cu_.mir_graph->block_list_.Size());
-    cu_.mir_graph->entry_block_ = cu_.mir_graph->block_list_.Get(1);
+    ASSERT_EQ(count, cu_.mir_graph->block_list_.size());
+    cu_.mir_graph->entry_block_ = cu_.mir_graph->block_list_[1];
     ASSERT_EQ(kEntryBlock, cu_.mir_graph->entry_block_->block_type);
-    cu_.mir_graph->exit_block_ = cu_.mir_graph->block_list_.Get(2);
+    cu_.mir_graph->exit_block_ = cu_.mir_graph->block_list_[2];
     ASSERT_EQ(kExitBlock, cu_.mir_graph->exit_block_->block_type);
   }
 
@@ -235,24 +227,23 @@ class GlobalValueNumberingTest : public testing::Test {
     for (size_t i = 0u; i != count; ++i) {
       const MIRDef* def = &defs[i];
       MIR* mir = &mirs_[i];
-      ASSERT_LT(def->bbid, cu_.mir_graph->block_list_.Size());
-      BasicBlock* bb = cu_.mir_graph->block_list_.Get(def->bbid);
+      ASSERT_LT(def->bbid, cu_.mir_graph->block_list_.size());
+      BasicBlock* bb = cu_.mir_graph->block_list_[def->bbid];
       bb->AppendMIR(mir);
       mir->dalvikInsn.opcode = def->opcode;
       mir->dalvikInsn.vB = static_cast<int32_t>(def->value);
       mir->dalvikInsn.vB_wide = def->value;
       if (def->opcode >= Instruction::IGET && def->opcode <= Instruction::IPUT_SHORT) {
-        ASSERT_LT(def->field_info, cu_.mir_graph->ifield_lowering_infos_.Size());
+        ASSERT_LT(def->field_info, cu_.mir_graph->ifield_lowering_infos_.size());
         mir->meta.ifield_lowering_info = def->field_info;
       } else if (def->opcode >= Instruction::SGET && def->opcode <= Instruction::SPUT_SHORT) {
-        ASSERT_LT(def->field_info, cu_.mir_graph->sfield_lowering_infos_.Size());
+        ASSERT_LT(def->field_info, cu_.mir_graph->sfield_lowering_infos_.size());
         mir->meta.sfield_lowering_info = def->field_info;
       } else if (def->opcode == static_cast<Instruction::Code>(kMirOpPhi)) {
         mir->meta.phi_incoming = static_cast<BasicBlockId*>(
             allocator_->Alloc(def->num_uses * sizeof(BasicBlockId), kArenaAllocDFInfo));
-        for (size_t i = 0; i != def->num_uses; ++i) {
-          mir->meta.phi_incoming[i] = bb->predecessors->Get(i);
-        }
+        ASSERT_EQ(def->num_uses, bb->predecessors.size());
+        std::copy(bb->predecessors.begin(), bb->predecessors.end(), mir->meta.phi_incoming);
       }
       mir->ssa_rep = &ssa_reps_[i];
       mir->ssa_rep->num_uses = def->num_uses;
@@ -345,11 +336,11 @@ class GlobalValueNumberingTest : public testing::Test {
     allocator_.reset(ScopedArenaAllocator::Create(&cu_.arena_stack));
     // Bind all possible sregs to live vregs for test purposes.
     live_in_v_->SetInitialBits(kMaxSsaRegs);
-    cu_.mir_graph->ssa_base_vregs_ = new (&cu_.arena) GrowableArray<int>(&cu_.arena, kMaxSsaRegs);
-    cu_.mir_graph->ssa_subscripts_ = new (&cu_.arena) GrowableArray<int>(&cu_.arena, kMaxSsaRegs);
+    cu_.mir_graph->ssa_base_vregs_.reserve(kMaxSsaRegs);
+    cu_.mir_graph->ssa_subscripts_.reserve(kMaxSsaRegs);
     for (unsigned int i = 0; i < kMaxSsaRegs; i++) {
-      cu_.mir_graph->ssa_base_vregs_->Insert(i);
-      cu_.mir_graph->ssa_subscripts_->Insert(0);
+      cu_.mir_graph->ssa_base_vregs_.push_back(i);
+      cu_.mir_graph->ssa_subscripts_.push_back(0);
     }
   }
 
@@ -438,12 +429,10 @@ GlobalValueNumberingTestCatch::GlobalValueNumberingTestCatch()
   // Add successor block info to the check block.
   BasicBlock* check_bb = cu_.mir_graph->GetBasicBlock(3u);
   check_bb->successor_block_list_type = kCatch;
-  check_bb->successor_blocks = new (&cu_.arena) GrowableArray<SuccessorBlockInfo*>(
-      &cu_.arena, 2, kGrowableArraySuccessorBlocks);
   SuccessorBlockInfo* successor_block_info = reinterpret_cast<SuccessorBlockInfo*>
       (cu_.arena.Alloc(sizeof(SuccessorBlockInfo), kArenaAllocSuccessor));
   successor_block_info->block = catch_handler->id;
-  check_bb->successor_blocks->Insert(successor_block_info);
+  check_bb->successor_blocks.push_back(successor_block_info);
 }
 
 class GlobalValueNumberingTestTwoConsecutiveLoops : public GlobalValueNumberingTest {
@@ -2120,12 +2109,10 @@ TEST_F(GlobalValueNumberingTest, NormalPathToCatchEntry) {
   // Add successor block info to the check block.
   BasicBlock* check_bb = cu_.mir_graph->GetBasicBlock(3u);
   check_bb->successor_block_list_type = kCatch;
-  check_bb->successor_blocks = new (&cu_.arena) GrowableArray<SuccessorBlockInfo*>(
-      &cu_.arena, 2, kGrowableArraySuccessorBlocks);
   SuccessorBlockInfo* successor_block_info = reinterpret_cast<SuccessorBlockInfo*>
       (cu_.arena.Alloc(sizeof(SuccessorBlockInfo), kArenaAllocSuccessor));
   successor_block_info->block = catch_handler->id;
-  check_bb->successor_blocks->Insert(successor_block_info);
+  check_bb->successor_blocks.push_back(successor_block_info);
   BasicBlock* merge_block = cu_.mir_graph->GetBasicBlock(4u);
   std::swap(merge_block->taken, merge_block->fall_through);
   PrepareMIRs(mirs);

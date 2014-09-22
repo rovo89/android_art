@@ -26,61 +26,14 @@ namespace art {
 // Type of growable list for memory tuning.
 enum OatListKind {
   kGrowableArrayMisc = 0,
-  kGrowableArrayBlockList,
-  kGrowableArraySSAtoDalvikMap,
-  kGrowableArrayDfsOrder,
-  kGrowableArrayDfsPostOrder,
-  kGrowableArrayDomPostOrderTraversal,
-  kGrowableArraySwitchTables,
-  kGrowableArrayFillArrayData,
-  kGrowableArraySuccessorBlocks,
-  kGrowableArrayPredecessors,
-  kGrowableArraySlowPaths,
   kGNumListKinds
 };
 
+// Deprecated
+// TODO: Replace all uses with ArenaVector<T>.
 template<typename T>
 class GrowableArray {
   public:
-    class Iterator {
-      public:
-        explicit Iterator(GrowableArray* g_list)
-          : idx_(0),
-            g_list_(g_list) {}
-
-        explicit Iterator()
-          : idx_(0),
-            g_list_(nullptr) {}
-
-        // NOTE: returns 0/NULL when no next.
-        // TODO: redo to make usage consistent with other iterators.
-        T Next() {
-          DCHECK(g_list_ != nullptr);
-          if (idx_ >= g_list_->Size()) {
-            return 0;
-          } else {
-            return g_list_->Get(idx_++);
-          }
-        }
-
-        void Reset() {
-          idx_ = 0;
-        }
-
-        void Reset(GrowableArray* g_list) {
-          idx_ = 0;
-          g_list_ = g_list;
-        }
-
-        size_t GetIndex() const {
-          return idx_;
-        }
-
-      private:
-        size_t idx_;
-        GrowableArray* g_list_;
-    };
-
     GrowableArray(ArenaAllocator* arena, size_t init_length, OatListKind kind = kGrowableArrayMisc)
       : arena_(arena),
         num_allocated_(init_length),

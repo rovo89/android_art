@@ -757,11 +757,10 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest, OpSize size, Primitive::Typ
 void Mir2Lir::HandleSlowPaths() {
   // We should check slow_paths_.Size() every time, because a new slow path
   // may be created during slowpath->Compile().
-  for (size_t i = 0; i < slow_paths_.Size(); ++i) {
-    LIRSlowPath* slowpath = slow_paths_.Get(i);
+  for (LIRSlowPath* slowpath : slow_paths_) {
     slowpath->Compile();
   }
-  slow_paths_.Reset();
+  slow_paths_.clear();
 }
 
 void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size, Primitive::Type type,

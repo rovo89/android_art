@@ -901,7 +901,7 @@ const uint64_t MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
 
 /* Return the base virtual register for a SSA name */
 int MIRGraph::SRegToVReg(int ssa_reg) const {
-  return ssa_base_vregs_->Get(ssa_reg);
+  return ssa_base_vregs_[ssa_reg];
 }
 
 /* Any register that is used before being defined is considered live-in */
@@ -1025,14 +1025,14 @@ int MIRGraph::AddNewSReg(int v_reg) {
   int subscript = ++ssa_last_defs_[v_reg];
   uint32_t ssa_reg = GetNumSSARegs();
   SetNumSSARegs(ssa_reg + 1);
-  ssa_base_vregs_->Insert(v_reg);
-  ssa_subscripts_->Insert(subscript);
-  DCHECK_EQ(ssa_base_vregs_->Size(), ssa_subscripts_->Size());
+  ssa_base_vregs_.push_back(v_reg);
+  ssa_subscripts_.push_back(subscript);
+  DCHECK_EQ(ssa_base_vregs_.size(), ssa_subscripts_.size());
   // If we are expanding very late, update use counts too.
-  if (ssa_reg > 0 && use_counts_.Size() == ssa_reg) {
+  if (ssa_reg > 0 && use_counts_.size() == ssa_reg) {
     // Need to expand the counts.
-    use_counts_.Insert(0);
-    raw_use_counts_.Insert(0);
+    use_counts_.push_back(0);
+    raw_use_counts_.push_back(0);
   }
   return ssa_reg;
 }
@@ -1276,10 +1276,11 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
 void MIRGraph::CompilerInitializeSSAConversion() {
   size_t num_reg = GetNumOfCodeAndTempVRs();
 
-  ssa_base_vregs_ = new (arena_) GrowableArray<int>(arena_, num_reg + GetDefCount() + 128,
-                                                    kGrowableArraySSAtoDalvikMap);
-  ssa_subscripts_ = new (arena_) GrowableArray<int>(arena_, num_reg + GetDefCount() + 128,
-                                                    kGrowableArraySSAtoDalvikMap);
+  ssa_base_vregs_.clear();
+  ssa_base_vregs_.reserve(num_reg + GetDefCount() + 128);
+  ssa_subscripts_.clear();
+  ssa_subscripts_.reserve(num_reg + GetDefCount() + 128);
+
   /*
    * Initial number of SSA registers is equal to the number of Dalvik
    * registers.
@@ -1292,8 +1293,8 @@ void MIRGraph::CompilerInitializeSSAConversion() {
    * into "(0 << 16) | i"
    */
   for (unsigned int i = 0; i < num_reg; i++) {
-    ssa_base_vregs_->Insert(i);
-    ssa_subscripts_->Insert(0);
+    ssa_base_vregs_.push_back(i);
+    ssa_subscripts_.push_back(0);
   }
 
   /*
@@ -1321,15 +1322,11 @@ void MIRGraph::CompilerInitializeSSAConversion() {
   /*
    * Allocate the BasicBlockDataFlow structure for the entry and code blocks
    */
-  GrowableArray<BasicBlock*>::Iterator iterator(&block_list_);
-
-  while (true) {
-    BasicBlock* bb = iterator.Next();
-    if (bb == NULL) break;
+  for (BasicBlock* bb : block_list_) {
     if (bb->hidden == true) continue;
     if (bb->block_type == kDalvikByteCode ||
-      bb->block_type == kEntryBlock ||
-      bb->block_type == kExitBlock) {
+        bb->block_type == kEntryBlock ||
+        bb->block_type == kExitBlock) {
       bb->data_flow_info =
           static_cast<BasicBlockDataFlow*>(arena_->Alloc(sizeof(BasicBlockDataFlow),
                                                          kArenaAllocDFInfo));
@@ -1405,8 +1402,8 @@ void MIRGraph::CountUses(struct BasicBlock* bb) {
     }
     for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
       int s_reg = mir->ssa_rep->uses[i];
-      raw_use_counts_.Increment(s_reg);
-      use_counts_.Put(s_reg, use_counts_.Get(s_reg) + weight);
+      raw_use_counts_[s_reg] += 1u;
+      use_counts_[s_reg] += weight;
     }
     if (!(cu_->disable_opt & (1 << kPromoteCompilerTemps))) {
       uint64_t df_attributes = GetDataFlowAttributes(mir);
@@ -1421,8 +1418,8 @@ void MIRGraph::CountUses(struct BasicBlock* bb) {
          * and save results for both here and GenInvoke.  For now, go ahead
          * and assume all invokes use method*.
          */
-        raw_use_counts_.Increment(method_sreg_);
-        use_counts_.Put(method_sreg_, use_counts_.Get(method_sreg_) + weight);
+        raw_use_counts_[method_sreg_] += 1u;
+        use_counts_[method_sreg_] += weight;
       }
     }
   }
@@ -1430,21 +1427,16 @@ void MIRGraph::CountUses(struct BasicBlock* bb) {
 
 /* Verify if all the successor is connected with all the claimed predecessors */
 bool MIRGraph::VerifyPredInfo(BasicBlock* bb) {
-  GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
-
-  while (true) {
-    BasicBlock* pred_bb = GetBasicBlock(iter.Next());
-    if (!pred_bb) break;
+  for (BasicBlockId pred_id : bb->predecessors) {
+    BasicBlock* pred_bb = GetBasicBlock(pred_id);
+    DCHECK(pred_bb != nullptr);
     bool found = false;
     if (pred_bb->taken == bb->id) {
         found = true;
     } else if (pred_bb->fall_through == bb->id) {
         found = true;
     } else if (pred_bb->successor_block_list_type != kNotUsed) {
-      GrowableArray<SuccessorBlockInfo*>::Iterator iterator(pred_bb->successor_blocks);
-      while (true) {
-        SuccessorBlockInfo *successor_block_info = iterator.Next();
-        if (successor_block_info == NULL) break;
+      for (SuccessorBlockInfo* successor_block_info : pred_bb->successor_blocks) {
         BasicBlockId succ_bb = successor_block_info->block;
         if (succ_bb == bb->id) {
             found = true;

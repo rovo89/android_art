@@ -1268,13 +1268,12 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
 bool Mir2Lir::SpecialMIR2LIR(const InlineMethod& special) {
   cu_->NewTimingSplit("SpecialMIR2LIR");
   // Find the first DalvikByteCode block.
-  int num_reachable_blocks = mir_graph_->GetNumReachableBlocks();
+  DCHECK_EQ(mir_graph_->GetNumReachableBlocks(), mir_graph_->GetDfsOrder().size());
   BasicBlock*bb = NULL;
-  for (int idx = 0; idx < num_reachable_blocks; idx++) {
-    // TODO: no direct access of growable lists.
-    int dfs_index = mir_graph_->GetDfsOrder()->Get(idx);
-    bb = mir_graph_->GetBasicBlock(dfs_index);
-    if (bb->block_type == kDalvikByteCode) {
+  for (BasicBlockId dfs_id : mir_graph_->GetDfsOrder()) {
+    BasicBlock* candidate = mir_graph_->GetBasicBlock(dfs_id);
+    if (candidate->block_type == kDalvikByteCode) {
+      bb = candidate;
       break;
     }
   }

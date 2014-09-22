@@ -430,16 +430,16 @@ bool MipsMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 }
 
 void MipsMir2Lir::CompilerInitializeRegAlloc() {
-  reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs, empty_pool /* core64 */, sp_regs,
-                                        dp_regs, reserved_regs, empty_pool /* reserved64 */,
-                                        core_temps, empty_pool /* core64_temps */, sp_temps,
-                                        dp_temps);
+  reg_pool_.reset(new (arena_) RegisterPool(this, arena_, core_regs, empty_pool /* core64 */,
+                                            sp_regs, dp_regs,
+                                            reserved_regs, empty_pool /* reserved64 */,
+                                            core_temps, empty_pool /* core64_temps */,
+                                            sp_temps, dp_temps));
 
   // Target-specific adjustments.
 
   // Alias single precision floats to appropriate half of overlapping double.
-  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->sp_regs_);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+  for (RegisterInfo* info : reg_pool_->sp_regs_) {
     int sp_reg_num = info->GetReg().GetRegNum();
 #if (FR_BIT == 0)
     int dp_reg_num = sp_reg_num & ~1;

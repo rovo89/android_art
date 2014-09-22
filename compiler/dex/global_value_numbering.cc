@@ -89,21 +89,20 @@ LocalValueNumbering* GlobalValueNumbering::PrepareBasicBlock(BasicBlock* bb,
     // the loop head stack will also be empty and there will be nothing to merge anyway.
     bool use_all_predecessors = true;
     uint16_t loop_head_idx = 0u;  // Used only if !use_all_predecessors.
-    if (mir_graph_->GetTopologicalSortOrderLoopHeadStack()->Size() != 0) {
+    if (mir_graph_->GetTopologicalSortOrderLoopHeadStack()->size() != 0) {
       // Full GVN inside a loop, see if we're at the loop head for the first time.
-      auto top = mir_graph_->GetTopologicalSortOrderLoopHeadStack()->Peek();
+      auto top = mir_graph_->GetTopologicalSortOrderLoopHeadStack()->back();
       loop_head_idx = top.first;
       bool recalculating = top.second;
       use_all_predecessors = recalculating ||
-          loop_head_idx != mir_graph_->GetTopologicalSortOrderIndexes()->Get(bb->id);
+          loop_head_idx != mir_graph_->GetTopologicalSortOrderIndexes()[bb->id];
     }
-    GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
-    for (BasicBlock* pred_bb = mir_graph_->GetBasicBlock(iter.Next());
-         pred_bb != nullptr; pred_bb = mir_graph_->GetBasicBlock(iter.Next())) {
-      if (lvns_[pred_bb->id] != nullptr &&
+    for (BasicBlockId pred_id : bb->predecessors) {
+      DCHECK_NE(pred_id, NullBasicBlockId);
+      if (lvns_[pred_id] != nullptr &&
           (use_all_predecessors ||
-              mir_graph_->GetTopologicalSortOrderIndexes()->Get(pred_bb->id) < loop_head_idx)) {
-        merge_lvns_.push_back(lvns_[pred_bb->id]);
+              mir_graph_->GetTopologicalSortOrderIndexes()[pred_id] < loop_head_idx)) {
+        merge_lvns_.push_back(lvns_[pred_id]);
       }
     }
     // Determine merge type.
