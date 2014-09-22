@@ -795,14 +795,11 @@ void CompilerDriver::UpdateImageClasses(TimingLogger* timings) {
   if (IsImage()) {
     TimingLogger::ScopedTiming t("UpdateImageClasses", timings);
     // Update image_classes_ with classes for objects created by <clinit> methods.
-    Thread* self = Thread::Current();
-    const char* old_cause = self->StartAssertNoThreadSuspension("ImageWriter");
     gc::Heap* heap = Runtime::Current()->GetHeap();
     // TODO: Image spaces only?
     ScopedObjectAccess soa(Thread::Current());
-    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    WriterMutexLock mu(soa.Self(), *Locks::heap_bitmap_lock_);
     heap->VisitObjects(FindClinitImageClassesCallback, this);
-    self->EndAssertNoThreadSuspension(old_cause);
   }
 }
 
@@ -1872,7 +1869,8 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
             // TODO we detach transaction from runtime to indicate we quit the transactional
             // mode which prevents the GC from visiting objects modified during the transaction.
             // Ensure GC is not run so don't access freed objects when aborting transaction.
-            const char* old_casue = soa.Self()->StartAssertNoThreadSuspension("Transaction end");
+
+            ScopedAssertNoThreadSuspension ants(soa.Self(), "Transaction end");
             runtime->ExitTransactionMode();
 
             if (!success) {
@@ -1885,7 +1883,6 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
               transaction.Abort();
               CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
             }
-            soa.Self()->EndAssertNoThreadSuspension(old_casue);
           }
         }
         soa.Self()->AssertNoPendingException();
