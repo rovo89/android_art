@@ -624,11 +624,13 @@ class HInstruction : public ArenaObject {
   }
 
   void AddEnvUseAt(HEnvironment* user, size_t index) {
+    DCHECK(user != nullptr);
     env_uses_ = new (block_->GetGraph()->GetArena()) HUseListNode<HEnvironment>(
         user, index, env_uses_);
   }
 
   void RemoveUser(HInstruction* user, size_t index);
+  void RemoveEnvironmentUser(HEnvironment* user, size_t index);
 
   HUseListNode<HInstruction>* GetUses() const { return uses_; }
   HUseListNode<HEnvironment>* GetEnvUses() const { return env_uses_; }
