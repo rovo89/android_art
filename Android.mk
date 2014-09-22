@@ -77,7 +77,8 @@ endif
 
 .PHONY: clean-oat-target
 clean-oat-target:
-	adb remount
+	adb root
+	adb wait-for-device remount
 	adb shell rm -rf $(ART_TARGET_NATIVETEST_DIR)
 	adb shell rm -rf $(ART_TARGET_TEST_DIR)
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*/*
@@ -140,7 +141,8 @@ include $(art_path)/test/Android.run-test.mk
 # Sync test files to the target, depends upon all things that must be pushed to the target.
 .PHONY: test-art-target-sync
 test-art-target-sync: $(TEST_ART_TARGET_SYNC_DEPS)
-	adb remount
+	adb root
+	adb wait-for-device remount
 	adb sync
 
 # Undefine variable now its served its purpose.
@@ -348,7 +350,8 @@ oat-target: $(ART_TARGET_DEPENDENCIES) $(DEFAULT_DEX_PREOPT_INSTALLED_IMAGE) $(O
 
 .PHONY: oat-target-sync
 oat-target-sync: oat-target
-	adb remount
+	adb root
+	adb wait-for-device remount
 	adb sync
 
 ########################################################################
@@ -367,29 +370,29 @@ build-art-target: $(TARGET_OUT_EXECUTABLES)/art $(ART_TARGET_DEPENDENCIES) $(TAR
 
 .PHONY: use-art
 use-art:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libart.so
 	adb shell start
 
 .PHONY: use-artd
 use-artd:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libartd.so
 	adb shell start
 
 .PHONY: use-dalvik
 use-dalvik:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell setprop persist.sys.dalvik.vm.lib.2 libdvm.so
 	adb shell start
 
 .PHONY: use-art-full
 use-art-full:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter ""
 	adb shell setprop dalvik.vm.image-dex2oat-filter ""
@@ -398,8 +401,8 @@ use-art-full:
 
 .PHONY: use-artd-full
 use-artd-full:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter ""
 	adb shell setprop dalvik.vm.image-dex2oat-filter ""
@@ -408,8 +411,8 @@ use-artd-full:
 
 .PHONY: use-art-smart
 use-art-smart:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter "interpret-only"
 	adb shell setprop dalvik.vm.image-dex2oat-filter ""
@@ -418,8 +421,8 @@ use-art-smart:
 
 .PHONY: use-art-interpret-only
 use-art-interpret-only:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter "interpret-only"
 	adb shell setprop dalvik.vm.image-dex2oat-filter "interpret-only"
@@ -428,8 +431,8 @@ use-art-interpret-only:
 
 .PHONY: use-artd-interpret-only
 use-artd-interpret-only:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter "interpret-only"
 	adb shell setprop dalvik.vm.image-dex2oat-filter "interpret-only"
@@ -438,8 +441,8 @@ use-artd-interpret-only:
 
 .PHONY: use-art-verify-none
 use-art-verify-none:
-	adb root && sleep 3
-	adb shell stop
+	adb root
+	adb wait-for-device shell stop
 	adb shell rm -rf $(ART_TARGET_DALVIK_CACHE_DIR)/*
 	adb shell setprop dalvik.vm.dex2oat-filter "verify-none"
 	adb shell setprop dalvik.vm.image-dex2oat-filter "verify-none"
