@@ -424,14 +424,18 @@ void InstructionCodeGeneratorX86_64::VisitIf(HIf* if_instr) {
   DCHECK(cond->IsCondition());
   HCondition* condition = cond->AsCondition();
   if (condition->NeedsMaterialization()) {
-    // Materialized condition, compare against 0.
-    Location lhs = if_instr->GetLocations()->InAt(0);
-    if (lhs.IsRegister()) {
-      __ cmpl(lhs.AsX86_64().AsCpuRegister(), Immediate(0));
-    } else {
-      __ cmpl(Address(CpuRegister(RSP), lhs.GetStackIndex()), Immediate(0));
+    // Moves do not affect the eflags register, so if the condition is evaluated
+    // just before the if, we don't need to evaluate it again.
+    if (!condition->IsBeforeWhenDisregardMoves(if_instr)) {
+      // Materialized condition, compare against 0.
+      Location lhs = if_instr->GetLocations()->InAt(0);
+      if (lhs.IsRegister()) {
+        __ cmpl(lhs.AsX86_64().AsCpuRegister(), Immediate(0));
+      } else {
+        __ cmpl(Address(CpuRegister(RSP), lhs.GetStackIndex()), Immediate(0));
+      }
     }
-    __ j(kEqual, codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
+    __ j(kNotEqual, codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
   } else {
     Location lhs = condition->GetLocations()->InAt(0);
     Location rhs = condition->GetLocations()->InAt(1);
@@ -505,6 +509,9 @@ void LocationsBuilderX86_64::VisitCondition(HCondition* comp) {
 void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* comp) {
   if (comp->NeedsMaterialization()) {
     LocationSummary* locations = comp->GetLocations();
+    CpuRegister reg = locations->Out().AsX86_64().AsCpuRegister();
+    // Clear register: setcc only sets the low byte.
+    __ xorq(reg, reg);
     if (locations->InAt(1).IsRegister()) {
       __ cmpq(locations->InAt(0).AsX86_64().AsCpuRegister(),
               locations->InAt(1).AsX86_64().AsCpuRegister());
@@ -515,8 +522,7 @@ void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* comp) {
       __ cmpq(locations->InAt(0).AsX86_64().AsCpuRegister(),
               Address(CpuRegister(RSP), locations->InAt(1).GetStackIndex()));
     }
-    __ setcc(X86_64Condition(comp->GetCondition()),
-             comp->GetLocations()->Out().AsX86_64().AsCpuRegister());
+    __ setcc(X86_64Condition(comp->GetCondition()), reg);
   }
 }
 
