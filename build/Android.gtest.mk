@@ -151,6 +151,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/optimizing/liveness_test.cc \
   compiler/optimizing/live_interval_test.cc \
   compiler/optimizing/live_ranges_test.cc \
+  compiler/optimizing/nodes_test.cc \
   compiler/optimizing/parallel_move_test.cc \
   compiler/optimizing/pretty_printer_test.cc \
   compiler/optimizing/register_allocator_test.cc \
