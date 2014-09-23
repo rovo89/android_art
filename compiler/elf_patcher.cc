@@ -188,9 +188,8 @@ bool ElfPatcher::PatchElf() {
                      compiler_driver_->GetMethodsToPatch().size() +
                      compiler_driver_->GetClassesToPatch().size());
   }
-  Thread* self = Thread::Current();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  const char* old_cause = self->StartAssertNoThreadSuspension("ElfPatcher");
+  ScopedAssertNoThreadSuspension ants(Thread::Current(), "ElfPatcher");
 
   typedef std::vector<const CompilerDriver::CallPatchInformation*> CallPatches;
   const CallPatches& code_to_patch = compiler_driver_->GetCodeToPatch();
@@ -258,8 +257,6 @@ bool ElfPatcher::PatchElf() {
     mirror::Class* target = GetTargetType(patch);
     SetPatchLocation(patch, PointerToLowMemUInt32(get_image_address_(cb_data_, target)));
   }
-
-  self->EndAssertNoThreadSuspension(old_cause);
 
   if (write_patches_) {
     return WriteOutPatchData();
