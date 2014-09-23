@@ -158,6 +158,60 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
       }
     }
   }
+
+  if (block->IsLoopHeader()) {
+    CheckLoop(block);
+  }
+}
+
+void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
+  int id = loop_header->GetBlockId();
+
+  // Ensure the pre-header block is first in the list of
+  // predecessors of a loop header.
+  if (!loop_header->IsLoopPreHeaderFirstPredecessor()) {
+    std::stringstream error;
+    error << "Loop pre-header is not the first predecessor of the loop header "
+          << id << ".";
+    errors_.Insert(error.str());
+  }
+
+  // Ensure the loop header has only two predecessors and that only the
+  // second one is a back edge.
+  if (loop_header->GetPredecessors().Size() < 2) {
+    std::stringstream error;
+    error << "Loop header " << id << " has less than two predecessors.";
+    errors_.Insert(error.str());
+  } else if (loop_header->GetPredecessors().Size() > 2) {
+    std::stringstream error;
+    error << "Loop header " << id << " has more than two predecessors.";
+    errors_.Insert(error.str());
+  } else {
+    HLoopInformation* loop_information = loop_header->GetLoopInformation();
+    HBasicBlock* first_predecessor = loop_header->GetPredecessors().Get(0);
+    if (loop_information->IsBackEdge(first_predecessor)) {
+      std::stringstream error;
+      error << "First predecessor of loop header " << id << " is a back edge.";
+      errors_.Insert(error.str());
+    }
+    HBasicBlock* second_predecessor = loop_header->GetPredecessors().Get(1);
+    if (!loop_information->IsBackEdge(second_predecessor)) {
+      std::stringstream error;
+      error << "Second predecessor of loop header " << id
+            << " is not a back edge.";
+      errors_.Insert(error.str());
+    }
+  }
+
+  // Ensure there is only one back edge per loop.
+  size_t num_back_edges =
+    loop_header->GetLoopInformation()->GetBackEdges().Size();
+  if (num_back_edges != 1) {
+      std::stringstream error;
+      error << "Loop defined by header " << id << " has "
+            << num_back_edges << " back edge(s).";
+      errors_.Insert(error.str());
+  }
 }
 
 void SSAChecker::VisitInstruction(HInstruction* instruction) {
@@ -176,6 +230,50 @@ void SSAChecker::VisitInstruction(HInstruction* instruction) {
             << " does not dominate use " << instruction->GetId()
             << " in block " << current_block_->GetBlockId() << ".";
       errors_.Insert(error.str());
+    }
+  }
+}
+
+void SSAChecker::VisitPhi(HPhi* phi) {
+  VisitInstruction(phi);
+
+  // Ensure the first input of a phi is not itself.
+  if (phi->InputAt(0) == phi) {
+      std::stringstream error;
+      error << "Loop phi " << phi->GetId()
+            << " in block " << phi->GetBlock()->GetBlockId()
+            << " is its own first input.";
+      errors_.Insert(error.str());
+  }
+
+  // Ensure the number of phi inputs is the same as the number of
+  // its predecessors.
+  const GrowableArray<HBasicBlock*>& predecessors =
+    phi->GetBlock()->GetPredecessors();
+  if (phi->InputCount() != predecessors.Size()) {
+    std::stringstream error;
+    error << "Phi " << phi->GetId()
+          << " in block " << phi->GetBlock()->GetBlockId()
+          << " has " << phi->InputCount() << " inputs, but block "
+          << phi->GetBlock()->GetBlockId() << " has "
+          << predecessors.Size() << " predecessors.";
+    errors_.Insert(error.str());
+  } else {
+    // Ensure phi input at index I either comes from the Ith
+    // predecessor or from a block that dominates this predecessor.
+    for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
+      HInstruction* input = phi->InputAt(i);
+      HBasicBlock* predecessor = predecessors.Get(i);
+      if (!(input->GetBlock() == predecessor
+            || input->GetBlock()->Dominates(predecessor))) {
+        std::stringstream error;
+        error << "Input " << input->GetId() << " at index " << i
+              << " of phi " << phi->GetId()
+              << " from block " << phi->GetBlock()->GetBlockId()
+              << " is not defined in predecessor number " << i
+              << " nor in a block dominating it.";
+        errors_.Insert(error.str());
+      }
     }
   }
 }

@@ -383,6 +383,12 @@ class HBasicBlock : public ArenaObject {
     return (loop_information_ != nullptr) && (loop_information_->GetHeader() == this);
   }
 
+  bool IsLoopPreHeaderFirstPredecessor() const {
+    DCHECK(IsLoopHeader());
+    DCHECK(!GetPredecessors().IsEmpty());
+    return GetPredecessors().Get(0) == GetLoopInformation()->GetPreHeader();
+  }
+
   HLoopInformation* GetLoopInformation() const {
     return loop_information_;
   }
@@ -606,7 +612,7 @@ class HInstruction : public ArenaObject {
   bool IsInLoop() const { return block_->IsInLoop(); }
   bool IsLoopHeaderPhi() { return IsPhi() && block_->IsLoopHeader(); }
 
-  virtual size_t InputCount() const  = 0;
+  virtual size_t InputCount() const = 0;
   virtual HInstruction* InputAt(size_t i) const = 0;
 
   virtual void Accept(HGraphVisitor* visitor) = 0;
