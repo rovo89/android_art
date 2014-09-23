@@ -83,10 +83,6 @@ void SsaDeadPhiElimination::Run() {
   }
 }
 
-static bool LoopPreHeaderIsFirstPredecessor(HBasicBlock* block) {
-  return block->GetPredecessors().Get(0) == block->GetLoopInformation()->GetPreHeader();
-}
-
 void SsaRedundantPhiElimination::Run() {
   // Add all phis in the worklist.
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
@@ -109,7 +105,7 @@ void SsaRedundantPhiElimination::Run() {
     // A loop phi cannot have itself as the first phi. Note that this
     // check relies on our simplification pass ensuring the pre-header
     // block is first in the list of predecessors of the loop header.
-    DCHECK(!phi->IsLoopHeaderPhi() || LoopPreHeaderIsFirstPredecessor(phi->GetBlock()));
+    DCHECK(!phi->IsLoopHeaderPhi() || phi->GetBlock()->IsLoopPreHeaderFirstPredecessor());
     DCHECK_NE(phi, candidate);
 
     for (size_t i = 1; i < phi->InputCount(); ++i) {
