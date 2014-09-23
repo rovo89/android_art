@@ -266,6 +266,34 @@ class Location : public ValueObject {
   uword value_;
 };
 
+class RegisterSet : public ValueObject {
+ public:
+  RegisterSet() : core_registers_(0), floating_point_registers_(0) {}
+
+  void Add(Location loc) {
+    // TODO: floating point registers.
+    core_registers_ |= (1 << loc.reg().RegId());
+  }
+
+  bool ContainsCoreRegister(uint32_t id) {
+    return Contains(core_registers_, id);
+  }
+
+  bool ContainsFloatingPointRegister(uint32_t id) {
+    return Contains(floating_point_registers_, id);
+  }
+
+  static bool Contains(uint32_t register_set, uint32_t reg) {
+    return (register_set & (1 << reg)) != 0;
+  }
+
+ private:
+  uint32_t core_registers_;
+  uint32_t floating_point_registers_;
+
+  DISALLOW_COPY_AND_ASSIGN(RegisterSet);
+};
+
 /**
  * The code generator computes LocationSummary for each instruction so that
  * the instruction itself knows what code to generate: where to find the inputs
@@ -327,6 +355,8 @@ class LocationSummary : public ArenaObject {
   Location Out() const { return output_; }
 
   bool CanCall() const { return call_kind_ != kNoCall; }
+  bool WillCall() const { return call_kind_ == kCall; }
+  bool OnlyCallsOnSlowPath() const { return call_kind_ == kCallOnSlowPath; }
   bool NeedsSafepoint() const { return CanCall(); }
 
   void SetStackBit(uint32_t index) {
@@ -337,12 +367,20 @@ class LocationSummary : public ArenaObject {
     register_mask_ |= (1 << reg_id);
   }
 
-  void SetLiveRegister(uint32_t reg_id) {
-    live_registers_ |= (1 << reg_id);
+  bool RegisterContainsObject(uint32_t reg_id) {
+    return RegisterSet::Contains(register_mask_, reg_id);
+  }
+
+  void AddLiveRegister(Location location) {
+    live_registers_.Add(location);
   }
 
   BitVector* GetStackMask() const {
     return stack_mask_;
+  }
+
+  RegisterSet* GetLiveRegisters() {
+    return &live_registers_;
   }
 
  private:
@@ -359,7 +397,7 @@ class LocationSummary : public ArenaObject {
   uint32_t register_mask_;
 
   // Registers that are in use at this position.
-  uint32_t live_registers_;
+  RegisterSet live_registers_;
 
   DISALLOW_COPY_AND_ASSIGN(LocationSummary);
 };
