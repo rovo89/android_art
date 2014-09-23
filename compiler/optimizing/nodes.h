@@ -1095,7 +1095,14 @@ class HCondition : public HBinaryOperation {
       : HBinaryOperation(Primitive::kPrimBoolean, first, second) {}
 
   virtual bool IsCommutative() { return true; }
+
+  // For register allocation purposes, returns whether this instruction needs to be
+  // materialized (that is, not just be in the processor flags).
   bool NeedsMaterialization() const;
+
+  // For code generation purposes, returns whether this instruction is just before
+  // `if_`, and disregard moves in between.
+  bool IsBeforeWhenDisregardMoves(HIf* if_) const;
 
   DECLARE_INSTRUCTION(Condition);
 

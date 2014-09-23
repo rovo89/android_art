@@ -555,12 +555,20 @@ bool HCondition::NeedsMaterialization() const {
     return true;
   }
 
-  // TODO: should we allow intervening instructions with no side-effect between this condition
-  // and the If instruction?
+  // TODO: if there is no intervening instructions with side-effect between this condition
+  // and the If instruction, we should move the condition just before the If.
   if (GetNext() != user) {
     return true;
   }
   return false;
+}
+
+bool HCondition::IsBeforeWhenDisregardMoves(HIf* if_) const {
+  HInstruction* previous = if_->GetPrevious();
+  while (previous != nullptr && previous->IsParallelMove()) {
+    previous = previous->GetPrevious();
+  }
+  return previous == this;
 }
 
 bool HInstruction::Equals(HInstruction* other) const {
