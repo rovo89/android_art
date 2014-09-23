@@ -577,7 +577,7 @@ void LocationsBuilderARM::VisitIf(HIf* if_instr) {
   DCHECK(cond->IsCondition());
   HCondition* condition = cond->AsCondition();
   if (condition->NeedsMaterialization()) {
-    locations->SetInAt(0, Location::Any());
+    locations->SetInAt(0, Location::RequiresRegister());
   }
 }
 
@@ -590,7 +590,7 @@ void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
     DCHECK(if_instr->GetLocations()->InAt(0).IsRegister());
     __ cmp(if_instr->GetLocations()->InAt(0).AsArm().AsCoreRegister(),
            ShifterOperand(0));
-    __ b(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()), EQ);
+    __ b(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()), NE);
   } else {
     // Condition has not been materialized, use its inputs as the comparison and its
     // condition as the branch condition.
