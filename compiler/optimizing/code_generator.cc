@@ -44,6 +44,7 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
   ComputeFrameSize(GetGraph()->GetNumberOfLocalVRegs()
                      + GetGraph()->GetNumberOfTemporaries()
                      + 1 /* filler */,
+                   0, /* the baseline compiler does not have live registers at slow path */
                    GetGraph()->GetMaximumNumberOfOutVRegs()
                      + 1 /* current method */);
   GenerateFrameEntry();
@@ -111,10 +112,15 @@ size_t CodeGenerator::AllocateFreeRegisterInternal(
   return -1;
 }
 
-void CodeGenerator::ComputeFrameSize(size_t number_of_spill_slots, size_t number_of_out_slots) {
+void CodeGenerator::ComputeFrameSize(size_t number_of_spill_slots,
+                                     size_t maximum_number_of_live_registers,
+                                     size_t number_of_out_slots) {
+  first_register_slot_in_slow_path_ = (number_of_out_slots + number_of_spill_slots) * kVRegSize;
+
   SetFrameSize(RoundUp(
       number_of_spill_slots * kVRegSize
       + number_of_out_slots * kVRegSize
+      + maximum_number_of_live_registers * GetWordSize()
       + FrameEntrySpillSize(),
       kStackAlignment));
 }
@@ -464,6 +470,50 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
 
       default:
         LOG(FATAL) << "Unexpected kind " << location.GetKind();
+    }
+  }
+}
+
+size_t CodeGenerator::GetStackOffsetOfSavedRegister(size_t index) {
+  return first_register_slot_in_slow_path_ + index * GetWordSize();
+}
+
+void CodeGenerator::SaveLiveRegisters(LocationSummary* locations) {
+  RegisterSet* register_set = locations->GetLiveRegisters();
+  uint32_t count = 0;
+  for (size_t i = 0, e = GetNumberOfCoreRegisters(); i < e; ++i) {
+    if (register_set->ContainsCoreRegister(i)) {
+      size_t stack_offset = GetStackOffsetOfSavedRegister(count);
+      ++count;
+      SaveCoreRegister(Location::StackSlot(stack_offset), i);
+      // If the register holds an object, update the stack mask.
+      if (locations->RegisterContainsObject(i)) {
+        locations->SetStackBit(stack_offset / kVRegSize);
+      }
+    }
+  }
+
+  for (size_t i = 0, e = GetNumberOfFloatingPointRegisters(); i < e; ++i) {
+    if (register_set->ContainsFloatingPointRegister(i)) {
+      LOG(FATAL) << "Unimplemented";
+    }
+  }
+}
+
+void CodeGenerator::RestoreLiveRegisters(LocationSummary* locations) {
+  RegisterSet* register_set = locations->GetLiveRegisters();
+  uint32_t count = 0;
+  for (size_t i = 0, e = GetNumberOfCoreRegisters(); i < e; ++i) {
+    if (register_set->ContainsCoreRegister(i)) {
+      size_t stack_offset = GetStackOffsetOfSavedRegister(count);
+      ++count;
+      RestoreCoreRegister(Location::StackSlot(stack_offset), i);
+    }
+  }
+
+  for (size_t i = 0, e = GetNumberOfFloatingPointRegisters(); i < e; ++i) {
+    if (register_set->ContainsFloatingPointRegister(i)) {
+      LOG(FATAL) << "Unimplemented";
     }
   }
 }
