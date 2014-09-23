@@ -340,6 +340,8 @@ class PrimitiveType : public RegType {
  public:
   PrimitiveType(mirror::Class* klass, const std::string& descriptor,
                 uint16_t cache_id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool HasClassVirtual() const OVERRIDE { return true; }
 };
 
 class Cat1Type : public PrimitiveType {

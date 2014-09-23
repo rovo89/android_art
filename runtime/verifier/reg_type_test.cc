@@ -112,6 +112,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(bool_reg_type.IsDoubleTypes());
   EXPECT_TRUE(bool_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(bool_reg_type.IsNonZeroReferenceTypes());
+  EXPECT_TRUE(bool_reg_type.HasClass());
 
   const RegType& byte_reg_type = cache.Byte();
   EXPECT_FALSE(byte_reg_type.IsUndefined());
@@ -144,6 +145,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(byte_reg_type.IsDoubleTypes());
   EXPECT_TRUE(byte_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(byte_reg_type.IsNonZeroReferenceTypes());
+  EXPECT_TRUE(byte_reg_type.HasClass());
 
   const RegType& char_reg_type = cache.Char();
   EXPECT_FALSE(char_reg_type.IsUndefined());
@@ -176,6 +178,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(char_reg_type.IsDoubleTypes());
   EXPECT_TRUE(char_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(char_reg_type.IsNonZeroReferenceTypes());
+  EXPECT_TRUE(char_reg_type.HasClass());
 
   const RegType& short_reg_type = cache.Short();
   EXPECT_FALSE(short_reg_type.IsUndefined());
@@ -208,6 +211,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(short_reg_type.IsDoubleTypes());
   EXPECT_TRUE(short_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(short_reg_type.IsNonZeroReferenceTypes());
+  EXPECT_TRUE(short_reg_type.HasClass());
 
   const RegType& int_reg_type = cache.Integer();
   EXPECT_FALSE(int_reg_type.IsUndefined());
@@ -240,6 +244,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(int_reg_type.IsDoubleTypes());
   EXPECT_TRUE(int_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(int_reg_type.IsNonZeroReferenceTypes());
+  EXPECT_TRUE(int_reg_type.HasClass());
 
   const RegType& long_reg_type = cache.LongLo();
   EXPECT_FALSE(long_reg_type.IsUndefined());
@@ -272,6 +277,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(long_reg_type.IsDoubleTypes());
   EXPECT_FALSE(long_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(long_reg_type.IsNonZeroReferenceTypes());
+  EXPECT_TRUE(long_reg_type.HasClass());
 
   const RegType& float_reg_type = cache.Float();
   EXPECT_FALSE(float_reg_type.IsUndefined());
@@ -304,6 +310,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_FALSE(float_reg_type.IsDoubleTypes());
   EXPECT_FALSE(float_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(float_reg_type.IsNonZeroReferenceTypes());
+  EXPECT_TRUE(float_reg_type.HasClass());
 
   const RegType& double_reg_type = cache.DoubleLo();
   EXPECT_FALSE(double_reg_type.IsUndefined());
@@ -336,6 +343,7 @@ TEST_F(RegTypeTest, Primitives) {
   EXPECT_TRUE(double_reg_type.IsDoubleTypes());
   EXPECT_FALSE(double_reg_type.IsArrayIndexTypes());
   EXPECT_FALSE(double_reg_type.IsNonZeroReferenceTypes());
+  EXPECT_TRUE(double_reg_type.HasClass());
 }
 
 class RegTypeReferenceTest : public CommonRuntimeTest {};
