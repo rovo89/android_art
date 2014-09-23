@@ -20,6 +20,8 @@
 #include <map>
 #include <sstream>
 
+#include "base/bit_vector-inl.h"
+
 namespace art {
 
 void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
@@ -211,6 +213,19 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
       error << "Loop defined by header " << id << " has "
             << num_back_edges << " back edge(s).";
       errors_.Insert(error.str());
+  }
+
+  // Ensure all blocks in the loop are dominated by the loop header.
+  const ArenaBitVector& loop_blocks =
+    loop_header->GetLoopInformation()->GetBlocks();
+  for (uint32_t i : loop_blocks.Indexes()) {
+    HBasicBlock* loop_block = GetGraph()->GetBlocks().Get(i);
+    if (!loop_header->Dominates(loop_block)) {
+      std::stringstream error;
+      error << "Loop block " << loop_block->GetBlockId()
+            << " not dominated by loop header " << id;
+      errors_.Insert(error.str());
+    }
   }
 }
 
