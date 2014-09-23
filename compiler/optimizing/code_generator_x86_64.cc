@@ -103,8 +103,10 @@ class SuspendCheckSlowPathX86_64 : public SlowPathCode {
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
+    codegen->SaveLiveRegisters(instruction_->GetLocations());
     __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pTestSuspend), true));
     codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
+    codegen->RestoreLiveRegisters(instruction_->GetLocations());
     __ jmp(GetReturnLabel());
   }
 
@@ -168,6 +170,14 @@ void CodeGeneratorX86_64::DumpCoreRegister(std::ostream& stream, int reg) const 
 
 void CodeGeneratorX86_64::DumpFloatingPointRegister(std::ostream& stream, int reg) const {
   stream << X86_64ManagedRegister::FromXmmRegister(FloatRegister(reg));
+}
+
+void CodeGeneratorX86_64::SaveCoreRegister(Location stack_location, uint32_t reg_id) {
+  __ movq(Address(CpuRegister(RSP), stack_location.GetStackIndex()), CpuRegister(reg_id));
+}
+
+void CodeGeneratorX86_64::RestoreCoreRegister(Location stack_location, uint32_t reg_id) {
+  __ movq(CpuRegister(reg_id), Address(CpuRegister(RSP), stack_location.GetStackIndex()));
 }
 
 CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph)

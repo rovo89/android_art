@@ -138,7 +138,8 @@ class LiveInterval : public ArenaObject {
                HInstruction* defined_by = nullptr,
                bool is_fixed = false,
                int reg = kNoRegister,
-               bool is_temp = false)
+               bool is_temp = false,
+               bool is_slow_path_safepoint = false)
       : allocator_(allocator),
         first_range_(nullptr),
         last_range_(nullptr),
@@ -150,7 +151,13 @@ class LiveInterval : public ArenaObject {
         spill_slot_(kNoSpillSlot),
         is_fixed_(is_fixed),
         is_temp_(is_temp),
+        is_slow_path_safepoint_(is_slow_path_safepoint),
         defined_by_(defined_by) {}
+
+  static LiveInterval* MakeSlowPathInterval(ArenaAllocator* allocator, HInstruction* instruction) {
+    return new (allocator) LiveInterval(
+        allocator, Primitive::kPrimVoid, instruction, false, kNoRegister, false, true);
+  }
 
   static LiveInterval* MakeFixedInterval(ArenaAllocator* allocator, int reg, Primitive::Type type) {
     return new (allocator) LiveInterval(allocator, type, nullptr, true, reg, false);
@@ -163,6 +170,7 @@ class LiveInterval : public ArenaObject {
   }
 
   bool IsFixed() const { return is_fixed_; }
+  bool IsSlowPathSafepoint() const { return is_slow_path_safepoint_; }
 
   void AddUse(HInstruction* instruction, size_t input_index, bool is_environment) {
     // Set the use within the instruction.
@@ -479,6 +487,9 @@ class LiveInterval : public ArenaObject {
 
   // Whether the interval is for a temporary.
   const bool is_temp_;
+
+  // Whether the interval is for a safepoint that calls on slow path.
+  const bool is_slow_path_safepoint_;
 
   // The instruction represented by this interval.
   HInstruction* const defined_by_;
