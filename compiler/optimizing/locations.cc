@@ -28,7 +28,7 @@ LocationSummary::LocationSummary(HInstruction* instruction, CallKind call_kind)
       call_kind_(call_kind),
       stack_mask_(nullptr),
       register_mask_(0),
-      live_registers_(0) {
+      live_registers_() {
   inputs_.SetSize(instruction->InputCount());
   for (size_t i = 0; i < instruction->InputCount(); ++i) {
     inputs_.Put(i, Location());
