@@ -43,398 +43,98 @@ class ArchTest : public CommonRuntimeTest {
   }
 };
 
+// Common tests are declared next to the constants.
+#define ADD_TEST_EQ(x, y) EXPECT_EQ(x, y);
+#include "asm_support.h"
 
-TEST_F(ArchTest, ARM) {
+TEST_F(ArchTest, CheckCommonOffsetsAndSizes) {
+  CheckAsmSupportOffsetsAndSizes();
+}
+
+// Grab architecture specific constants.
+namespace arm {
 #include "arch/arm/asm_support_arm.h"
-#undef ART_RUNTIME_ARCH_ARM_ASM_SUPPORT_ARM_H_
-
-
-#ifdef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kArm, Runtime::kSaveAll, FRAME_SIZE_SAVE_ALL_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for SaveAll";
-#endif
-#ifdef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kArm, Runtime::kRefsOnly, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for RefsOnly";
-#endif
-#ifdef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kArm, Runtime::kRefsAndArgs, FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for RefsAndArgs";
-#endif
-
-
-#ifdef RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef THREAD_SELF_OFFSET
-#undef THREAD_SELF_OFFSET
-#endif
-#ifdef THREAD_CARD_TABLE_OFFSET
-#undef THREAD_CARD_TABLE_OFFSET
-#endif
-#ifdef THREAD_EXCEPTION_OFFSET
-#undef THREAD_EXCEPTION_OFFSET
-#endif
-#ifdef THREAD_ID_OFFSET
-#undef THREAD_ID_OFFSET
-#endif
-#ifdef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
+static constexpr size_t kFrameSizeSaveAllCalleeSave = FRAME_SIZE_SAVE_ALL_CALLEE_SAVE;
 #undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-#endif
-#ifdef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
+static constexpr size_t kFrameSizeRefsOnlyCalleeSave = FRAME_SIZE_REFS_ONLY_CALLEE_SAVE;
 #undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-#endif
-#ifdef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
+static constexpr size_t kFrameSizeRefsAndArgsCalleeSave = FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE;
 #undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-#endif
-#ifdef HEAP_REFERENCE_SIZE
-#undef HEAP_REFERENCE_SIZE
-#endif
+}
+
+namespace arm64 {
+#include "arch/arm64/asm_support_arm64.h"
+static constexpr size_t kFrameSizeSaveAllCalleeSave = FRAME_SIZE_SAVE_ALL_CALLEE_SAVE;
+#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
+static constexpr size_t kFrameSizeRefsOnlyCalleeSave = FRAME_SIZE_REFS_ONLY_CALLEE_SAVE;
+#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
+static constexpr size_t kFrameSizeRefsAndArgsCalleeSave = FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE;
+#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
+}
+
+namespace mips {
+#include "arch/mips/asm_support_mips.h"
+static constexpr size_t kFrameSizeSaveAllCalleeSave = FRAME_SIZE_SAVE_ALL_CALLEE_SAVE;
+#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
+static constexpr size_t kFrameSizeRefsOnlyCalleeSave = FRAME_SIZE_REFS_ONLY_CALLEE_SAVE;
+#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
+static constexpr size_t kFrameSizeRefsAndArgsCalleeSave = FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE;
+#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
+}
+
+namespace x86 {
+#include "arch/x86/asm_support_x86.h"
+static constexpr size_t kFrameSizeSaveAllCalleeSave = FRAME_SIZE_SAVE_ALL_CALLEE_SAVE;
+#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
+static constexpr size_t kFrameSizeRefsOnlyCalleeSave = FRAME_SIZE_REFS_ONLY_CALLEE_SAVE;
+#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
+static constexpr size_t kFrameSizeRefsAndArgsCalleeSave = FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE;
+#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
+}
+
+namespace x86_64 {
+#include "arch/x86_64/asm_support_x86_64.h"
+static constexpr size_t kFrameSizeSaveAllCalleeSave = FRAME_SIZE_SAVE_ALL_CALLEE_SAVE;
+#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
+static constexpr size_t kFrameSizeRefsOnlyCalleeSave = FRAME_SIZE_REFS_ONLY_CALLEE_SAVE;
+#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
+static constexpr size_t kFrameSizeRefsAndArgsCalleeSave = FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE;
+#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
+}
+
+// Check architecture specific constants are sound.
+TEST_F(ArchTest, ARM) {
+  CheckFrameSize(InstructionSet::kArm, Runtime::kSaveAll, arm::kFrameSizeSaveAllCalleeSave);
+  CheckFrameSize(InstructionSet::kArm, Runtime::kRefsOnly, arm::kFrameSizeRefsOnlyCalleeSave);
+  CheckFrameSize(InstructionSet::kArm, Runtime::kRefsAndArgs, arm::kFrameSizeRefsAndArgsCalleeSave);
 }
 
 
 TEST_F(ArchTest, ARM64) {
-#include "arch/arm64/asm_support_arm64.h"
-#undef ART_RUNTIME_ARCH_ARM64_ASM_SUPPORT_ARM64_H_
-
-
-#ifdef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kArm64, Runtime::kSaveAll, FRAME_SIZE_SAVE_ALL_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for SaveAll";
-#endif
-#ifdef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kArm64, Runtime::kRefsOnly, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for RefsOnly";
-#endif
-#ifdef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kArm64, Runtime::kRefsAndArgs, FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for RefsAndArgs";
-#endif
-
-
-#ifdef RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef THREAD_SELF_OFFSET
-#undef THREAD_SELF_OFFSET
-#endif
-#ifdef THREAD_CARD_TABLE_OFFSET
-#undef THREAD_CARD_TABLE_OFFSET
-#endif
-#ifdef THREAD_EXCEPTION_OFFSET
-#undef THREAD_EXCEPTION_OFFSET
-#endif
-#ifdef THREAD_ID_OFFSET
-#undef THREAD_ID_OFFSET
-#endif
-#ifdef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-#endif
-#ifdef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-#endif
-#ifdef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-#endif
-#ifdef HEAP_REFERENCE_SIZE
-#undef HEAP_REFERENCE_SIZE
-#endif
+  CheckFrameSize(InstructionSet::kArm64, Runtime::kSaveAll, arm64::kFrameSizeSaveAllCalleeSave);
+  CheckFrameSize(InstructionSet::kArm64, Runtime::kRefsOnly, arm64::kFrameSizeRefsOnlyCalleeSave);
+  CheckFrameSize(InstructionSet::kArm64, Runtime::kRefsAndArgs,
+                 arm64::kFrameSizeRefsAndArgsCalleeSave);
 }
-
 
 TEST_F(ArchTest, MIPS) {
-#include "arch/mips/asm_support_mips.h"
-#undef ART_RUNTIME_ARCH_MIPS_ASM_SUPPORT_MIPS_H_
-
-
-#ifdef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kMips, Runtime::kSaveAll, FRAME_SIZE_SAVE_ALL_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for SaveAll";
-#endif
-#ifdef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kMips, Runtime::kRefsOnly, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for RefsOnly";
-#endif
-#ifdef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kMips, Runtime::kRefsAndArgs, FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for RefsAndArgs";
-#endif
-
-
-#ifdef RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef THREAD_SELF_OFFSET
-#undef THREAD_SELF_OFFSET
-#endif
-#ifdef THREAD_CARD_TABLE_OFFSET
-#undef THREAD_CARD_TABLE_OFFSET
-#endif
-#ifdef THREAD_EXCEPTION_OFFSET
-#undef THREAD_EXCEPTION_OFFSET
-#endif
-#ifdef THREAD_ID_OFFSET
-#undef THREAD_ID_OFFSET
-#endif
-#ifdef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-#endif
-#ifdef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-#endif
-#ifdef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-#endif
-#ifdef HEAP_REFERENCE_SIZE
-#undef HEAP_REFERENCE_SIZE
-#endif
+  CheckFrameSize(InstructionSet::kMips, Runtime::kSaveAll, mips::kFrameSizeSaveAllCalleeSave);
+  CheckFrameSize(InstructionSet::kMips, Runtime::kRefsOnly, mips::kFrameSizeRefsOnlyCalleeSave);
+  CheckFrameSize(InstructionSet::kMips, Runtime::kRefsAndArgs,
+                 mips::kFrameSizeRefsAndArgsCalleeSave);
 }
-
 
 TEST_F(ArchTest, X86) {
-#include "arch/x86/asm_support_x86.h"
-#undef ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_H_
-
-
-#ifdef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kX86, Runtime::kSaveAll, FRAME_SIZE_SAVE_ALL_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for SaveAll";
-#endif
-#ifdef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kX86, Runtime::kRefsOnly, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for RefsOnly";
-#endif
-#ifdef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kX86, Runtime::kRefsAndArgs, FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for RefsAndArgs";
-#endif
-
-
-#ifdef RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef THREAD_SELF_OFFSET
-#undef THREAD_SELF_OFFSET
-#endif
-#ifdef THREAD_CARD_TABLE_OFFSET
-#undef THREAD_CARD_TABLE_OFFSET
-#endif
-#ifdef THREAD_EXCEPTION_OFFSET
-#undef THREAD_EXCEPTION_OFFSET
-#endif
-#ifdef THREAD_ID_OFFSET
-#undef THREAD_ID_OFFSET
-#endif
-#ifdef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-#endif
-#ifdef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-#endif
-#ifdef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-#endif
-#ifdef HEAP_REFERENCE_SIZE
-#undef HEAP_REFERENCE_SIZE
-#endif
+  CheckFrameSize(InstructionSet::kX86, Runtime::kSaveAll, x86::kFrameSizeSaveAllCalleeSave);
+  CheckFrameSize(InstructionSet::kX86, Runtime::kRefsOnly, x86::kFrameSizeRefsOnlyCalleeSave);
+  CheckFrameSize(InstructionSet::kX86, Runtime::kRefsAndArgs, x86::kFrameSizeRefsAndArgsCalleeSave);
 }
-
 
 TEST_F(ArchTest, X86_64) {
-#include "arch/x86_64/asm_support_x86_64.h"
-#undef ART_RUNTIME_ARCH_X86_64_ASM_SUPPORT_X86_64_H_
-
-
-#ifdef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kX86_64, Runtime::kSaveAll, FRAME_SIZE_SAVE_ALL_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for SaveAll";
-#endif
-#ifdef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kX86_64, Runtime::kRefsOnly, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for RefsOnly";
-#endif
-#ifdef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-  CheckFrameSize(InstructionSet::kX86_64, Runtime::kRefsAndArgs, FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE);
-#else
-  LOG(WARNING) << "No frame size for RefsAndArgs";
-#endif
-
-
-#ifdef RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET
-#undef RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET
-#endif
-#ifdef THREAD_SELF_OFFSET
-#undef THREAD_SELF_OFFSET
-#endif
-#ifdef THREAD_CARD_TABLE_OFFSET
-#undef THREAD_CARD_TABLE_OFFSET
-#endif
-#ifdef THREAD_EXCEPTION_OFFSET
-#undef THREAD_EXCEPTION_OFFSET
-#endif
-#ifdef THREAD_ID_OFFSET
-#undef THREAD_ID_OFFSET
-#endif
-#ifdef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
-#endif
-#ifdef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
-#endif
-#ifdef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
-#endif
-#ifdef HEAP_REFERENCE_SIZE
-#undef HEAP_REFERENCE_SIZE
-#endif
-}
-
-
-// The following tests are all for the running architecture. So we get away
-// with just including it and not undefining it every time.
-
-#if defined(__arm__)
-#include "arch/arm/asm_support_arm.h"
-#elif defined(__aarch64__)
-#include "arch/arm64/asm_support_arm64.h"
-#elif defined(__mips__)
-#include "arch/mips/asm_support_mips.h"
-#elif defined(__i386__)
-#include "arch/x86/asm_support_x86.h"
-#elif defined(__x86_64__)
-#include "arch/x86_64/asm_support_x86_64.h"
-#else
-  // This happens for the host test.
-#ifdef __LP64__
-#include "arch/x86_64/asm_support_x86_64.h"
-#else
-#include "arch/x86/asm_support_x86.h"
-#endif
-#endif
-
-
-TEST_F(ArchTest, ThreadOffsets) {
-  // Ugly hack, change when possible.
-#ifdef __LP64__
-#define POINTER_SIZE 8
-#else
-#define POINTER_SIZE 4
-#endif
-
-#if defined(THREAD_SELF_OFFSET)
-  ThreadOffset<POINTER_SIZE> self_offset = Thread::SelfOffset<POINTER_SIZE>();
-  EXPECT_EQ(self_offset.Int32Value(), THREAD_SELF_OFFSET);
-#else
-  LOG(INFO) << "No Thread Self Offset found.";
-#endif
-
-#if defined(THREAD_CARD_TABLE_OFFSET)
-  ThreadOffset<POINTER_SIZE> card_offset = Thread::CardTableOffset<POINTER_SIZE>();
-  EXPECT_EQ(card_offset.Int32Value(), THREAD_CARD_TABLE_OFFSET);
-#else
-  LOG(INFO) << "No Thread Card Table Offset found.";
-#endif
-
-#if defined(THREAD_EXCEPTION_OFFSET)
-  ThreadOffset<POINTER_SIZE> exc_offset = Thread::ExceptionOffset<POINTER_SIZE>();
-    EXPECT_EQ(exc_offset.Int32Value(), THREAD_EXCEPTION_OFFSET);
-#else
-  LOG(INFO) << "No Thread Exception Offset found.";
-#endif
-
-#if defined(THREAD_ID_OFFSET)
-  ThreadOffset<POINTER_SIZE> id_offset = Thread::ThinLockIdOffset<POINTER_SIZE>();
-  EXPECT_EQ(id_offset.Int32Value(), THREAD_ID_OFFSET);
-#else
-  LOG(INFO) << "No Thread ID Offset found.";
-#endif
-}
-
-
-TEST_F(ArchTest, CalleeSaveMethodOffsets) {
-#if defined(RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET)
-  EXPECT_EQ(Runtime::GetCalleeSaveMethodOffset(Runtime::kSaveAll),
-            static_cast<size_t>(RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET));
-#else
-  LOG(INFO) << "No Runtime Save-all Offset found.";
-#endif
-
-#if defined(RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET)
-  EXPECT_EQ(Runtime::GetCalleeSaveMethodOffset(Runtime::kRefsOnly),
-            static_cast<size_t>(RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET));
-#else
-  LOG(INFO) << "No Runtime Refs-only Offset found.";
-#endif
-
-#if defined(RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET)
-  EXPECT_EQ(Runtime::GetCalleeSaveMethodOffset(Runtime::kRefsAndArgs),
-            static_cast<size_t>(RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET));
-#else
-  LOG(INFO) << "No Runtime Refs-and-Args Offset found.";
-#endif
-}
-
-
-TEST_F(ArchTest, HeapReferenceSize) {
-#if defined(HEAP_REFERENCE_SIZE)
-  EXPECT_EQ(sizeof(mirror::HeapReference<mirror::Object>),
-            static_cast<size_t>(HEAP_REFERENCE_SIZE));
-#else
-  LOG(INFO) << "No expected HeapReference Size found.";
-#endif
-}
-
-TEST_F(ArchTest, StackReferenceSize) {
-#if defined(STACK_REFERENCE_SIZE)
-  EXPECT_EQ(sizeof(StackReference<mirror::Object>),
-            static_cast<size_t>(STACK_REFERENCE_SIZE));
-#else
-  LOG(INFO) << "No expected StackReference Size #define found.";
-#endif
+  CheckFrameSize(InstructionSet::kX86_64, Runtime::kSaveAll, x86_64::kFrameSizeSaveAllCalleeSave);
+  CheckFrameSize(InstructionSet::kX86_64, Runtime::kRefsOnly, x86_64::kFrameSizeRefsOnlyCalleeSave);
+  CheckFrameSize(InstructionSet::kX86_64, Runtime::kRefsAndArgs,
+                 x86_64::kFrameSizeRefsAndArgsCalleeSave);
 }
 
 }  // namespace art

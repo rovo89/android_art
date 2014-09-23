@@ -49,29 +49,16 @@ void Thread::InitCpu() {
 
   // Sanity check that reads from %gs point to this Thread*.
   Thread* self_check;
-  CHECK_EQ(THREAD_SELF_OFFSET, SelfOffset<8>().Int32Value());
   __asm__ __volatile__("movq %%gs:(%1), %0"
       : "=r"(self_check)  // output
       : "r"(THREAD_SELF_OFFSET)  // input
       :);  // clobber
   CHECK_EQ(self_check, this);
-
-  // Sanity check other offsets.
-  CHECK_EQ(static_cast<size_t>(RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET),
-           Runtime::GetCalleeSaveMethodOffset(Runtime::kSaveAll));
-  CHECK_EQ(static_cast<size_t>(RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET),
-           Runtime::GetCalleeSaveMethodOffset(Runtime::kRefsOnly));
-  CHECK_EQ(static_cast<size_t>(RUNTIME_REF_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET),
-           Runtime::GetCalleeSaveMethodOffset(Runtime::kRefsAndArgs));
-  CHECK_EQ(THREAD_EXCEPTION_OFFSET, ExceptionOffset<8>().Int32Value());
-  CHECK_EQ(THREAD_CARD_TABLE_OFFSET, CardTableOffset<8>().Int32Value());
-  CHECK_EQ(THREAD_ID_OFFSET, ThinLockIdOffset<8>().Int32Value());
 }
 
 void Thread::CleanupCpu() {
   // Sanity check that reads from %gs point to this Thread*.
   Thread* self_check;
-  CHECK_EQ(THREAD_SELF_OFFSET, SelfOffset<8>().Int32Value());
   __asm__ __volatile__("movq %%gs:(%1), %0"
       : "=r"(self_check)  // output
       : "r"(THREAD_SELF_OFFSET)  // input

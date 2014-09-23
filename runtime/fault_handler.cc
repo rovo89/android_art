@@ -400,7 +400,7 @@ bool JavaStackTraceHandler::Action(int sig, siginfo_t* siginfo, void* context) {
     // Inside of generated code, sp[0] is the method, so sp is the frame.
     StackReference<mirror::ArtMethod>* frame =
         reinterpret_cast<StackReference<mirror::ArtMethod>*>(sp);
-    self->SetTopOfStack(frame, 0);  // Since we don't necessarily have a dex pc, pass in 0.
+    self->SetTopOfStack(frame);
 #ifdef TEST_NESTED_SIGNAL
     // To test the nested signal handler we raise a signal here.  This will cause the
     // nested signal handler to be called and perform a longjmp back to the setjmp

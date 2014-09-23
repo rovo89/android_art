@@ -21,7 +21,6 @@
 
     .extern artPortableProxyInvokeHandler
 ENTRY art_portable_proxy_invoke_handler
-    GENERATE_GLOBAL_POINTER
     # Fake callee save ref and args frame set up, note portable doesn't use callee save frames.
     # TODO: just save the registers that are needed in artPortableProxyInvokeHandler.
     addiu  $sp, $sp, -64
@@ -72,7 +71,6 @@ END art_portable_proxy_invoke_handler
      *   [sp + 20] = result type char
      */
 ENTRY art_portable_invoke_stub
-    GENERATE_GLOBAL_POINTER
     sw    $a0, 0($sp)           # save out a0
     addiu $sp, $sp, -16         # spill s0, s1, fp, ra
     .cfi_adjust_cfa_offset 16
@@ -87,7 +85,7 @@ ENTRY art_portable_invoke_stub
     move  $fp, $sp              # save sp in fp
     .cfi_def_cfa_register 30
     move  $s1, $a3              # move managed thread pointer into s1
-    addiu $s0, $zero, SUSPEND_CHECK_INTERVAL  # reset s0 to suspend check interval
+    addiu $s0, $zero, SUSPEND_CHECK_INTERVAL  # reset s0 to suspend check interval. TODO: unused?
     addiu $t0, $a2, 16          # create space for method pointer in frame
     srl   $t0, $t0, 3           # shift the frame size right 3
     sll   $t0, $t0, 3           # shift the frame size left 3 to align to 16 bytes
@@ -100,7 +98,7 @@ ENTRY art_portable_invoke_stub
     lw    $a1, 4($sp)           # copy arg value for a1
     lw    $a2, 8($sp)           # copy arg value for a2
     lw    $a3, 12($sp)          # copy arg value for a3
-    lw    $t9, METHOD_PORTABLE_CODE_OFFSET($a0)  # get pointer to the code
+    lw    $t9, MIRROR_ART_METHOD_PORTABLE_CODE_OFFSET($a0)  # get pointer to the code
     jalr  $t9                   # call the method
     sw    $zero, 0($sp)         # store NULL for method* at bottom of frame
     move  $sp, $fp              # restore the stack

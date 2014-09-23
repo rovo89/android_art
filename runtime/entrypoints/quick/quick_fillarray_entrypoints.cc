@@ -25,10 +25,9 @@ namespace art {
  * Handle fill array data by copying appropriate part of dex file into array.
  */
 extern "C" int artHandleFillArrayDataFromCode(uint32_t payload_offset, mirror::Array* array,
-                                              mirror::ArtMethod* method, Thread* self,
-                                              StackReference<mirror::ArtMethod>* sp)
+                                              mirror::ArtMethod* method, Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly);
+  ScopedQuickEntrypointChecks sqec(self);
   const uint16_t* const insns = method->GetCodeItem()->insns_;
   const Instruction::ArrayDataPayload* payload =
       reinterpret_cast<const Instruction::ArrayDataPayload*>(insns + payload_offset);

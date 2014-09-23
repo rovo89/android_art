@@ -365,9 +365,8 @@ class Thread {
 
   ThrowLocation GetCurrentLocationForThrow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetTopOfStack(StackReference<mirror::ArtMethod>* top_method, uintptr_t pc) {
+  void SetTopOfStack(StackReference<mirror::ArtMethod>* top_method) {
     tlsPtr_.managed_stack.SetTopQuickFrame(top_method);
-    tlsPtr_.managed_stack.SetTopQuickFramePc(pc);
   }
 
   void SetTopOfShadowStack(ShadowFrame* top) {
@@ -635,13 +634,6 @@ class Thread {
     return ThreadOffsetFromTlsPtr<pointer_size>(
         OFFSETOF_MEMBER(tls_ptr_sized_values, managed_stack) +
         ManagedStack::TopQuickFrameOffset());
-  }
-
-  template<size_t pointer_size>
-  static ThreadOffset<pointer_size> TopOfManagedStackPcOffset() {
-    return ThreadOffsetFromTlsPtr<pointer_size>(
-        OFFSETOF_MEMBER(tls_ptr_sized_values, managed_stack) +
-        ManagedStack::TopQuickFramePcOffset());
   }
 
   const ManagedStack* GetManagedStack() const {

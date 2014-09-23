@@ -27,9 +27,8 @@
 
 namespace art {
 
-extern "C" void artDeoptimize(Thread* self, StackReference<mirror::ArtMethod>* sp)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kSaveAll);
+extern "C" void artDeoptimize(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ScopedQuickEntrypointChecks sqec(self);
   self->SetException(ThrowLocation(), Thread::GetDeoptimizationException());
   self->QuickDeliverException();
 }

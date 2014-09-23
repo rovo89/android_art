@@ -526,7 +526,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
        current_fragment = current_fragment->GetLink()) {
     cur_shadow_frame_ = current_fragment->GetTopShadowFrame();
     cur_quick_frame_ = current_fragment->GetTopQuickFrame();
-    cur_quick_frame_pc_ = current_fragment->GetTopQuickFramePc();
+    cur_quick_frame_pc_ = 0;
 
     if (cur_quick_frame_ != NULL) {  // Handle quick stack frames.
       // Can't be both a shadow and a quick fragment.

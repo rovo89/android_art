@@ -1016,6 +1016,7 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
   // Set return PC and check the sanity of the stack.
   *return_pc = instrumentation_frame.return_pc_;
   CheckStackDepth(self, instrumentation_frame, 0);
+  self->VerifyStack();
 
   mirror::ArtMethod* method = instrumentation_frame.method_;
   uint32_t length;

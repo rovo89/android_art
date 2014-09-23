@@ -1221,13 +1221,12 @@ TEST_F(StubTest, StringCompareTo) {
   // Use array so we can index into it and use a matrix for expected results
   // Setup: The first half is standard. The second half uses a non-zero offset.
   // TODO: Shared backing arrays.
-  static constexpr size_t kBaseStringCount  = 8;
-  const char* c[kBaseStringCount] = { "", "", "a", "aa", "ab",
+  const char* c[] = { "", "", "a", "aa", "ab",
       "aacaacaacaacaacaac",  // This one's under the default limit to go to __memcmp16.
       "aacaacaacaacaacaacaacaacaacaacaacaac",     // This one's over.
       "aacaacaacaacaacaacaacaacaacaacaacaaca" };  // As is this one. We need a separate one to
                                                   // defeat object-equal optimizations.
-
+  static constexpr size_t kBaseStringCount  = arraysize(c);
   static constexpr size_t kStringCount = 2 * kBaseStringCount;
 
   StackHandleScope<kStringCount> hs(self);
@@ -1337,10 +1336,9 @@ static void GetSetByteStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
                            mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-  constexpr size_t num_values = 5;
-  int8_t values[num_values] = { -128, -64, 0, 64, 127 };
+  int8_t values[] = { -128, -64, 0, 64, 127 };
 
-  for (size_t i = 0; i < num_values; ++i) {
+  for (size_t i = 0; i < arraysize(values); ++i) {
     test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                               static_cast<size_t>(values[i]),
                               0U,
@@ -1367,10 +1365,9 @@ static void GetSetBooleanInstance(Handle<mirror::Object>* obj, Handle<mirror::Ar
                              Thread* self, mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-  constexpr size_t num_values = 5;
-  uint8_t values[num_values] = { 0, true, 2, 128, 0xFF };
+  uint8_t values[] = { 0, true, 2, 128, 0xFF };
 
-  for (size_t i = 0; i < num_values; ++i) {
+  for (size_t i = 0; i < arraysize(values); ++i) {
     test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                               reinterpret_cast<size_t>(obj->Get()),
                               static_cast<size_t>(values[i]),
@@ -1401,10 +1398,9 @@ static void GetSetByteInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtFi
                              Thread* self, mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-  constexpr size_t num_values = 5;
-  int8_t values[num_values] = { -128, -64, 0, 64, 127 };
+  int8_t values[] = { -128, -64, 0, 64, 127 };
 
-  for (size_t i = 0; i < num_values; ++i) {
+  for (size_t i = 0; i < arraysize(values); ++i) {
     test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                               reinterpret_cast<size_t>(obj->Get()),
                               static_cast<size_t>(values[i]),
@@ -1435,10 +1431,9 @@ static void GetSetCharStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
                            mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-  constexpr size_t num_values = 6;
-  uint16_t values[num_values] = { 0, 1, 2, 255, 32768, 0xFFFF };
+  uint16_t values[] = { 0, 1, 2, 255, 32768, 0xFFFF };
 
-  for (size_t i = 0; i < num_values; ++i) {
+  for (size_t i = 0; i < arraysize(values); ++i) {
     test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                               static_cast<size_t>(values[i]),
                               0U,
@@ -1464,10 +1459,9 @@ static void GetSetShortStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtFie
                            mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-  constexpr size_t num_values = 6;
-  int16_t values[num_values] = { -0x7FFF, -32768, 0, 255, 32767, 0x7FFE };
+  int16_t values[] = { -0x7FFF, -32768, 0, 255, 32767, 0x7FFE };
 
-  for (size_t i = 0; i < num_values; ++i) {
+  for (size_t i = 0; i < arraysize(values); ++i) {
     test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                               static_cast<size_t>(values[i]),
                               0U,
@@ -1494,10 +1488,9 @@ static void GetSetCharInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtFi
                              Thread* self, mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-  constexpr size_t num_values = 6;
-  uint16_t values[num_values] = { 0, 1, 2, 255, 32768, 0xFFFF };
+  uint16_t values[] = { 0, 1, 2, 255, 32768, 0xFFFF };
 
-  for (size_t i = 0; i < num_values; ++i) {
+  for (size_t i = 0; i < arraysize(values); ++i) {
     test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                               reinterpret_cast<size_t>(obj->Get()),
                               static_cast<size_t>(values[i]),
@@ -1527,10 +1520,9 @@ static void GetSetShortInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtF
                              Thread* self, mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-  constexpr size_t num_values = 6;
-  int16_t values[num_values] = { -0x7FFF, -32768, 0, 255, 32767, 0x7FFE };
+  int16_t values[] = { -0x7FFF, -32768, 0, 255, 32767, 0x7FFE };
 
-  for (size_t i = 0; i < num_values; ++i) {
+  for (size_t i = 0; i < arraysize(values); ++i) {
     test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                               reinterpret_cast<size_t>(obj->Get()),
                               static_cast<size_t>(values[i]),
@@ -1561,10 +1553,9 @@ static void GetSet32Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>
                            mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-  constexpr size_t num_values = 7;
-  uint32_t values[num_values] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF };
+  uint32_t values[] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF };
 
-  for (size_t i = 0; i < num_values; ++i) {
+  for (size_t i = 0; i < arraysize(values); ++i) {
     test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                               static_cast<size_t>(values[i]),
                               0U,
@@ -1592,10 +1583,9 @@ static void GetSet32Instance(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
                              Thread* self, mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
-  constexpr size_t num_values = 7;
-  uint32_t values[num_values] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF };
+  uint32_t values[] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF };
 
-  for (size_t i = 0; i < num_values; ++i) {
+  for (size_t i = 0; i < arraysize(values); ++i) {
     test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                               reinterpret_cast<size_t>(obj->Get()),
                               static_cast<size_t>(values[i]),
@@ -1716,10 +1706,9 @@ static void GetSet64Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>
                            mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if (defined(__x86_64__) && !defined(__APPLE__)) || defined(__aarch64__)
-  constexpr size_t num_values = 8;
-  uint64_t values[num_values] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF, 0xFFFFFFFFFFFF };
+  uint64_t values[] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF, 0xFFFFFFFFFFFF };
 
-  for (size_t i = 0; i < num_values; ++i) {
+  for (size_t i = 0; i < arraysize(values); ++i) {
     test->Invoke3UWithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                                values[i],
                                StubTest::GetEntrypoint(self, kQuickSet64Static),
@@ -1746,10 +1735,9 @@ static void GetSet64Instance(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
                              Thread* self, mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if (defined(__x86_64__) && !defined(__APPLE__)) || defined(__aarch64__)
-  constexpr size_t num_values = 8;
-  uint64_t values[num_values] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF, 0xFFFFFFFFFFFF };
+  uint64_t values[] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF, 0xFFFFFFFFFFFF };
 
-  for (size_t i = 0; i < num_values; ++i) {
+  for (size_t i = 0; i < arraysize(values); ++i) {
     test->Invoke3WithReferrer(static_cast<size_t>((*f)->GetDexFieldIndex()),
                               reinterpret_cast<size_t>(obj->Get()),
                               static_cast<size_t>(values[i]),
@@ -2109,10 +2097,10 @@ TEST_F(StubTest, StringIndexOf) {
   // Use array so we can index into it and use a matrix for expected results
   // Setup: The first half is standard. The second half uses a non-zero offset.
   // TODO: Shared backing arrays.
-  static constexpr size_t kStringCount = 7;
-  const char* c_str[kStringCount] = { "", "a", "ba", "cba", "dcba", "edcba", "asdfghjkl" };
-  static constexpr size_t kCharCount = 5;
-  const char c_char[kCharCount] = { 'a', 'b', 'c', 'd', 'e' };
+  const char* c_str[] = { "", "a", "ba", "cba", "dcba", "edcba", "asdfghjkl" };
+  static constexpr size_t kStringCount = arraysize(c_str);
+  const char c_char[] = { 'a', 'b', 'c', 'd', 'e' };
+  static constexpr size_t kCharCount = arraysize(c_char);
 
   StackHandleScope<kStringCount> hs(self);
   Handle<mirror::String> s[kStringCount];
