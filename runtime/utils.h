@@ -311,6 +311,10 @@ std::string PrettyClass(mirror::Class* c)
 std::string PrettyClassAndClassLoader(mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+// Returns a human-readable version of the Java part of the access flags, e.g., "private static "
+// (note the trailing whitespace).
+std::string PrettyJavaAccessFlags(uint32_t access_flags);
+
 // Returns a human-readable size string such as "1MB".
 std::string PrettySize(int64_t size_in_bytes);
 

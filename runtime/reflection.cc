@@ -592,9 +592,16 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   }
 
   // If method is not set to be accessible, verify it can be accessed by the caller.
-  if (!accessible && !VerifyAccess(soa.Self(), receiver, declaring_class, m->GetAccessFlags())) {
-    ThrowIllegalAccessException(nullptr, StringPrintf("Cannot access method: %s",
-                                                      PrettyMethod(m).c_str()).c_str());
+  mirror::Class* calling_class = nullptr;
+  if (!accessible && !VerifyAccess(soa.Self(), receiver, declaring_class, m->GetAccessFlags(),
+                                   &calling_class)) {
+    ThrowIllegalAccessException(nullptr,
+        StringPrintf("Class %s cannot access %s method %s of class %s",
+            calling_class == nullptr ? "null" : PrettyClass(calling_class).c_str(),
+            PrettyJavaAccessFlags(m->GetAccessFlags()).c_str(),
+            PrettyMethod(m).c_str(),
+            m->GetDeclaringClass() == nullptr ? "null" :
+                PrettyClass(m->GetDeclaringClass()).c_str()).c_str());
     return nullptr;
   }
 
@@ -815,7 +822,8 @@ bool UnboxPrimitiveForResult(const ThrowLocation& throw_location, mirror::Object
   return UnboxPrimitive(&throw_location, o, dst_class, nullptr, unboxed_value);
 }
 
-bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_class, uint32_t access_flags) {
+bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_class,
+                  uint32_t access_flags, mirror::Class** calling_class) {
   if ((access_flags & kAccPublic) != 0) {
     return true;
   }
@@ -829,6 +837,8 @@ bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_cl
   if (caller_class == declaring_class) {
     return true;
   }
+  ScopedAssertNoThreadSuspension sants(self, "verify-access");
+  *calling_class = caller_class;
   if ((access_flags & kAccPrivate) != 0) {
     return false;
   }
