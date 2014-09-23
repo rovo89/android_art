@@ -82,6 +82,8 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
   }
 
   char GetTypeId(Primitive::Type type) {
+    // Note that Primitive::Descriptor would not work for us
+    // because it does not handle reference types (that is kPrimNot).
     switch (type) {
       case Primitive::kPrimBoolean: return 'z';
       case Primitive::kPrimByte: return 'b';
@@ -127,6 +129,12 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       }
     } else if (location.IsConstant()) {
       output_ << "constant";
+      HConstant* constant = location.GetConstant();
+      if (constant->IsIntConstant()) {
+        output_ << " " << constant->AsIntConstant()->GetValue();
+      } else if (constant->IsLongConstant()) {
+        output_ << " " << constant->AsLongConstant()->GetValue();
+      }
     } else if (location.IsInvalid()) {
       output_ << "invalid";
     } else if (location.IsStackSlot()) {
