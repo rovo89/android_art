@@ -38,6 +38,7 @@
 #include "scoped_thread_state_change.h"
 #include "handle_scope-inl.h"
 #include "utils/arm/assembler_thumb2.h"
+#include "utils/arm64/assembler_arm64.h"
 #include "verifier/method_verifier.h"
 
 namespace art {
@@ -117,10 +118,14 @@ class OatWriter::X86RelativeCallPatcher FINAL : public RelativeCallPatcher {
   DISALLOW_COPY_AND_ASSIGN(X86RelativeCallPatcher);
 };
 
-class OatWriter::Thumb2RelativeCallPatcher FINAL : public RelativeCallPatcher {
+class OatWriter::ArmBaseRelativeCallPatcher : public RelativeCallPatcher {
  public:
-  explicit Thumb2RelativeCallPatcher(OatWriter* writer)
-      : writer_(writer), thunk_code_(CompileThunkCode()),
+  ArmBaseRelativeCallPatcher(OatWriter* writer,
+                             InstructionSet instruction_set, std::vector<uint8_t> thunk_code,
+                             uint32_t max_positive_displacement, uint32_t max_negative_displacement)
+      : writer_(writer), instruction_set_(instruction_set), thunk_code_(thunk_code),
+        max_positive_displacement_(max_positive_displacement),
+        max_negative_displacement_(max_negative_displacement),
         thunk_locations_(), current_thunk_to_write_(0u), unprocessed_patches_() {
   }
 
@@ -130,11 +135,11 @@ class OatWriter::Thumb2RelativeCallPatcher FINAL : public RelativeCallPatcher {
     // of code. To avoid any alignment discrepancies for the final chunk, we always align the
     // offset after reserving of writing any chunk.
     if (UNLIKELY(compiled_method == nullptr)) {
-      uint32_t aligned_offset = CompiledMethod::AlignCode(offset, kThumb2);
+      uint32_t aligned_offset = CompiledMethod::AlignCode(offset, instruction_set_);
       bool needs_thunk = ReserveSpaceProcessPatches(aligned_offset);
       if (needs_thunk) {
         thunk_locations_.push_back(aligned_offset);
-        offset = CompiledMethod::AlignCode(aligned_offset + thunk_code_.size(), kThumb2);
+        offset = CompiledMethod::AlignCode(aligned_offset + thunk_code_.size(), instruction_set_);
       }
       return offset;
     }
@@ -143,14 +148,14 @@ class OatWriter::Thumb2RelativeCallPatcher FINAL : public RelativeCallPatcher {
     uint32_t quick_code_offset = compiled_method->AlignCode(offset) + sizeof(OatQuickMethodHeader);
     uint32_t next_aligned_offset = compiled_method->AlignCode(quick_code_offset + quick_code_size);
     if (!unprocessed_patches_.empty() &&
-        next_aligned_offset - unprocessed_patches_.front().second > kMaxPositiveDisplacement) {
+        next_aligned_offset - unprocessed_patches_.front().second > max_positive_displacement_) {
       bool needs_thunk = ReserveSpaceProcessPatches(next_aligned_offset);
       if (needs_thunk) {
         // A single thunk will cover all pending patches.
         unprocessed_patches_.clear();
         uint32_t thunk_location = compiled_method->AlignCode(offset);
         thunk_locations_.push_back(thunk_location);
-        offset = CompiledMethod::AlignCode(thunk_location + thunk_code_.size(), kThumb2);
+        offset = CompiledMethod::AlignCode(thunk_location + thunk_code_.size(), instruction_set_);
       }
     }
     for (const LinkerPatch& patch : compiled_method->GetPatches()) {
@@ -166,7 +171,7 @@ class OatWriter::Thumb2RelativeCallPatcher FINAL : public RelativeCallPatcher {
     if (current_thunk_to_write_ == thunk_locations_.size()) {
       return offset;
     }
-    uint32_t aligned_offset = CompiledMethod::AlignCode(offset, kThumb2);
+    uint32_t aligned_offset = CompiledMethod::AlignCode(offset, instruction_set_);
     if (UNLIKELY(aligned_offset == thunk_locations_[current_thunk_to_write_])) {
       ++current_thunk_to_write_;
       uint32_t aligned_code_delta = aligned_offset - offset;
@@ -179,7 +184,7 @@ class OatWriter::Thumb2RelativeCallPatcher FINAL : public RelativeCallPatcher {
       writer_->size_relative_call_thunks_ += thunk_code_.size();
       uint32_t thunk_end_offset = aligned_offset + thunk_code_.size();
       // Align after writing chunk, see the ReserveSpace() above.
-      offset = CompiledMethod::AlignCode(thunk_end_offset, kThumb2);
+      offset = CompiledMethod::AlignCode(thunk_end_offset, instruction_set_);
       aligned_code_delta = offset - thunk_end_offset;
       if (aligned_code_delta != 0u && !writer_->WriteCodeAlignment(out, aligned_code_delta)) {
         return 0u;
@@ -188,30 +193,88 @@ class OatWriter::Thumb2RelativeCallPatcher FINAL : public RelativeCallPatcher {
     return offset;
   }
 
-  void Patch(std::vector<uint8_t>* code, uint32_t literal_offset, uint32_t patch_offset,
-             uint32_t target_offset) OVERRIDE {
-    DCHECK_LE(literal_offset + 4u, code->size());
-    DCHECK_EQ(literal_offset & 1u, 0u);
-    DCHECK_EQ(patch_offset & 1u, 0u);
-    DCHECK_EQ(target_offset & 1u, 1u);  // Thumb2 mode bit.
+ protected:
+  uint32_t CalculateDisplacement(uint32_t patch_offset, uint32_t target_offset) {
     // Unsigned arithmetic with its well-defined overflow behavior is just fine here.
-    uint32_t displacement = target_offset - 1u - patch_offset;
+    uint32_t displacement = target_offset - patch_offset;
     // NOTE: With unsigned arithmetic we do mean to use && rather than || below.
-    if (displacement > kMaxPositiveDisplacement && displacement < -kMaxNegativeDisplacement) {
+    if (displacement > max_positive_displacement_ && displacement < -max_negative_displacement_) {
       // Unwritten thunks have higher offsets, check if it's within range.
       DCHECK(current_thunk_to_write_ == thunk_locations_.size() ||
              thunk_locations_[current_thunk_to_write_] > patch_offset);
       if (current_thunk_to_write_ != thunk_locations_.size() &&
-          thunk_locations_[current_thunk_to_write_] - patch_offset < kMaxPositiveDisplacement) {
+          thunk_locations_[current_thunk_to_write_] - patch_offset < max_positive_displacement_) {
         displacement = thunk_locations_[current_thunk_to_write_] - patch_offset;
       } else {
         // We must have a previous thunk then.
         DCHECK_NE(current_thunk_to_write_, 0u);
         DCHECK_LT(thunk_locations_[current_thunk_to_write_ - 1], patch_offset);
         displacement = thunk_locations_[current_thunk_to_write_ - 1] - patch_offset;
-        DCHECK(displacement >= -kMaxNegativeDisplacement);
+        DCHECK(displacement >= -max_negative_displacement_);
       }
     }
+    return displacement;
+  }
+
+ private:
+  bool ReserveSpaceProcessPatches(uint32_t next_aligned_offset) {
+    // Process as many patches as possible, stop only on unresolved targets or calls too far back.
+    while (!unprocessed_patches_.empty()) {
+      uint32_t patch_offset = unprocessed_patches_.front().second;
+      auto it = writer_->method_offset_map_.find(unprocessed_patches_.front().first);
+      if (it == writer_->method_offset_map_.end()) {
+        // If still unresolved, check if we have a thunk within range.
+        DCHECK(thunk_locations_.empty() || thunk_locations_.back() <= patch_offset);
+        if (thunk_locations_.empty() ||
+            patch_offset - thunk_locations_.back() > max_negative_displacement_) {
+          return next_aligned_offset - patch_offset > max_positive_displacement_;
+        }
+      } else if (it->second >= patch_offset) {
+        DCHECK_LE(it->second - patch_offset, max_positive_displacement_);
+      } else {
+        // When calling back, check if we have a thunk that's closer than the actual target.
+        uint32_t target_offset = (thunk_locations_.empty() || it->second > thunk_locations_.back())
+            ? it->second
+            : thunk_locations_.back();
+        DCHECK_GT(patch_offset, target_offset);
+        if (patch_offset - target_offset > max_negative_displacement_) {
+          return true;
+        }
+      }
+      unprocessed_patches_.pop_front();
+    }
+    return false;
+  }
+
+  OatWriter* const writer_;
+  const InstructionSet instruction_set_;
+  const std::vector<uint8_t> thunk_code_;
+  const uint32_t max_positive_displacement_;
+  const uint32_t max_negative_displacement_;
+  std::vector<uint32_t> thunk_locations_;
+  size_t current_thunk_to_write_;
+
+  // ReserveSpace() tracks unprocessed patches.
+  typedef std::pair<MethodReference, uint32_t> UnprocessedPatch;
+  std::deque<UnprocessedPatch> unprocessed_patches_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArmBaseRelativeCallPatcher);
+};
+
+class OatWriter::Thumb2RelativeCallPatcher FINAL : public ArmBaseRelativeCallPatcher {
+ public:
+  explicit Thumb2RelativeCallPatcher(OatWriter* writer)
+      : ArmBaseRelativeCallPatcher(writer, kThumb2, CompileThunkCode(),
+                                   kMaxPositiveDisplacement, kMaxNegativeDisplacement) {
+  }
+
+  void Patch(std::vector<uint8_t>* code, uint32_t literal_offset, uint32_t patch_offset,
+             uint32_t target_offset) OVERRIDE {
+    DCHECK_LE(literal_offset + 4u, code->size());
+    DCHECK_EQ(literal_offset & 1u, 0u);
+    DCHECK_EQ(patch_offset & 1u, 0u);
+    DCHECK_EQ(target_offset & 1u, 1u);  // Thumb2 mode bit.
+    uint32_t displacement = CalculateDisplacement(patch_offset, target_offset & ~1u);
     displacement -= kPcDisplacement;  // The base PC is at the end of the 4-byte patch.
     DCHECK_EQ(displacement & 1u, 0u);
     DCHECK((displacement >> 24) == 0u || (displacement >> 24) == 255u);  // 25-bit signed.
@@ -237,35 +300,6 @@ class OatWriter::Thumb2RelativeCallPatcher FINAL : public RelativeCallPatcher {
   }
 
  private:
-  bool ReserveSpaceProcessPatches(uint32_t next_aligned_offset) {
-    // Process as many patches as possible, stop only on unresolved targets or calls too far back.
-    while (!unprocessed_patches_.empty()) {
-      uint32_t patch_offset = unprocessed_patches_.front().second;
-      auto it = writer_->method_offset_map_.find(unprocessed_patches_.front().first);
-      if (it == writer_->method_offset_map_.end()) {
-        // If still unresolved, check if we have a thunk within range.
-        DCHECK(thunk_locations_.empty() || thunk_locations_.back() <= patch_offset);
-        if (thunk_locations_.empty() ||
-            patch_offset - thunk_locations_.back() > kMaxNegativeDisplacement) {
-          return next_aligned_offset - patch_offset > kMaxPositiveDisplacement;
-        }
-      } else if (it->second >= patch_offset) {
-        DCHECK_LE(it->second - patch_offset, kMaxPositiveDisplacement);
-      } else {
-        // When calling back, check if we have a thunk that's closer than the actual target.
-        uint32_t target_offset = (thunk_locations_.empty() || it->second > thunk_locations_.back())
-            ? it->second
-            : thunk_locations_.back();
-        DCHECK_GT(patch_offset, target_offset);
-        if (patch_offset - target_offset > kMaxNegativeDisplacement) {
-          return true;
-        }
-      }
-      unprocessed_patches_.pop_front();
-    }
-    return false;
-  }
-
   static std::vector<uint8_t> CompileThunkCode() {
     // The thunk just uses the entry point in the ArtMethod. This works even for calls
     // to the generic JNI and interpreter trampolines.
@@ -289,16 +323,58 @@ class OatWriter::Thumb2RelativeCallPatcher FINAL : public RelativeCallPatcher {
   static constexpr uint32_t kMaxPositiveDisplacement = (1u << 24) - 2 + kPcDisplacement;
   static constexpr uint32_t kMaxNegativeDisplacement = (1u << 24) - kPcDisplacement;
 
-  OatWriter* const writer_;
-  const std::vector<uint8_t> thunk_code_;
-  std::vector<uint32_t> thunk_locations_;
-  size_t current_thunk_to_write_;
-
-  // ReserveSpace() tracks unprocessed patches.
-  typedef std::pair<MethodReference, uint32_t> UnprocessedPatch;
-  std::deque<UnprocessedPatch> unprocessed_patches_;
-
   DISALLOW_COPY_AND_ASSIGN(Thumb2RelativeCallPatcher);
+};
+
+class OatWriter::Arm64RelativeCallPatcher FINAL : public ArmBaseRelativeCallPatcher {
+ public:
+  explicit Arm64RelativeCallPatcher(OatWriter* writer)
+      : ArmBaseRelativeCallPatcher(writer, kArm64, CompileThunkCode(),
+                                   kMaxPositiveDisplacement, kMaxNegativeDisplacement) {
+  }
+
+  void Patch(std::vector<uint8_t>* code, uint32_t literal_offset, uint32_t patch_offset,
+             uint32_t target_offset) OVERRIDE {
+    DCHECK_LE(literal_offset + 4u, code->size());
+    DCHECK_EQ(literal_offset & 3u, 0u);
+    DCHECK_EQ(patch_offset & 3u, 0u);
+    DCHECK_EQ(target_offset & 3u, 0u);
+    uint32_t displacement = CalculateDisplacement(patch_offset, target_offset & ~1u);
+    DCHECK_EQ(displacement & 3u, 0u);
+    DCHECK((displacement >> 27) == 0u || (displacement >> 27) == 31u);  // 28-bit signed.
+    uint32_t value = (displacement & 0x0fffffffu) >> 2;
+    value |= 0x94000000;  // BL
+
+    uint8_t* addr = &(*code)[literal_offset];
+    // Check that we're just overwriting an existing BL.
+    DCHECK_EQ(addr[3] & 0xfc, 0x94);
+    // Write the new BL.
+    addr[0] = (value >> 0) & 0xff;
+    addr[1] = (value >> 8) & 0xff;
+    addr[2] = (value >> 16) & 0xff;
+    addr[3] = (value >> 24) & 0xff;
+  }
+
+ private:
+  static std::vector<uint8_t> CompileThunkCode() {
+    // The thunk just uses the entry point in the ArtMethod. This works even for calls
+    // to the generic JNI and interpreter trampolines.
+    arm64::Arm64Assembler assembler;
+    Offset offset(mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
+    assembler.JumpTo(ManagedRegister(arm64::X0), offset, ManagedRegister(arm64::IP0));
+    std::vector<uint8_t> thunk_code(assembler.CodeSize());
+    MemoryRegion code(thunk_code.data(), thunk_code.size());
+    assembler.FinalizeInstructions(code);
+    return thunk_code;
+  }
+
+  // Maximum positive and negative displacement measured from the patch location.
+  // (Signed 28 bit displacement with the last bit 0 has range [-2^27, 2^27-4] measured from
+  // the ARM64 PC pointing to the BL.)
+  static constexpr uint32_t kMaxPositiveDisplacement = (1u << 27) - 4u;
+  static constexpr uint32_t kMaxNegativeDisplacement = (1u << 27);
+
+  DISALLOW_COPY_AND_ASSIGN(Arm64RelativeCallPatcher);
 };
 
 #define DCHECK_OFFSET() \
@@ -373,7 +449,8 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
       relative_call_patcher_.reset(new Thumb2RelativeCallPatcher(this));
       break;
     case kArm64:
-      // TODO: Implement relative calls for arm64.
+      relative_call_patcher_.reset(new Arm64RelativeCallPatcher(this));
+      break;
     default:
       relative_call_patcher_.reset(new NoRelativeCallPatcher);
       break;
@@ -868,8 +945,8 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     : OatDexMethodVisitor(writer, relative_offset),
       out_(out),
       file_offset_(file_offset),
-      self_(Thread::Current()),
-      old_no_thread_suspension_cause_(self_->StartAssertNoThreadSuspension("OatWriter patching")),
+      soa_(Thread::Current()),
+      no_thread_suspension_(soa_.Self(), "OatWriter patching"),
       class_linker_(Runtime::Current()->GetClassLinker()),
       dex_cache_(nullptr) {
     if (writer_->image_writer_ != nullptr) {
@@ -877,12 +954,9 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
       CHECK(writer_->image_writer_->IsImageAddressSpaceReady());
       patched_code_.reserve(16 * KB);
     }
-    self_->TransitionFromSuspendedToRunnable();
   }
 
   ~WriteCodeMethodVisitor() UNLOCK_FUNCTION(Locks::mutator_lock_) {
-    self_->EndAssertNoThreadSuspension(old_no_thread_suspension_cause_);
-    self_->TransitionFromRunnableToSuspended(kNative);
   }
 
   bool StartClass(const DexFile* dex_file, size_t class_def_index)
@@ -997,9 +1071,9 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
 
  private:
   OutputStream* const out_;
-  size_t const file_offset_;
-  Thread* const self_;
-  const char* const old_no_thread_suspension_cause_;  // TODO: Use ScopedAssertNoThreadSuspension.
+  const size_t file_offset_;
+  const ScopedObjectAccess soa_;
+  const ScopedAssertNoThreadSuspension no_thread_suspension_;
   ClassLinker* const class_linker_;
   mirror::DexCache* dex_cache_;
   std::vector<uint8_t> patched_code_;

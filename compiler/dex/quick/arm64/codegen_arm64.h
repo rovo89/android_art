@@ -259,6 +259,28 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
 
   size_t GetInstructionOffset(LIR* lir) OVERRIDE;
 
+  NextCallInsn GetNextSDCallInsn() OVERRIDE;
+
+  /*
+   * @brief Generate a relative call to the method that will be patched at link time.
+   * @param target_method The MethodReference of the method to be invoked.
+   * @param type How the method will be invoked.
+   * @returns Call instruction
+   */
+  LIR* CallWithLinkerFixup(const MethodReference& target_method, InvokeType type);
+
+  /*
+   * @brief Generate the actual call insn based on the method info.
+   * @param method_info the lowering info for the method call.
+   * @returns Call instruction
+   */
+  virtual LIR* GenCallInsn(const MirMethodLoweringInfo& method_info) OVERRIDE;
+
+  /*
+   * @brief Handle ARM specific literals.
+   */
+  void InstallLiteralPools() OVERRIDE;
+
   LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) OVERRIDE;
 
  private:
@@ -396,6 +418,8 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
 
   InToRegStorageMapping in_to_reg_storage_mapping_;
   static const A64EncodingMap EncodingMap[kA64Last];
+
+  ArenaVector<LIR*> call_method_insns_;
 };
 
 }  // namespace art

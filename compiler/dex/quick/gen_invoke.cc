@@ -495,7 +495,8 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                           uintptr_t direct_code, uintptr_t direct_method,
                           InvokeType type) {
   DCHECK(cu->instruction_set != kX86 && cu->instruction_set != kX86_64 &&
-         cu->instruction_set != kThumb2 && cu->instruction_set != kArm);
+         cu->instruction_set != kThumb2 && cu->instruction_set != kArm &&
+         cu->instruction_set != kArm64);
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   if (direct_code != 0 && direct_method != 0) {
     switch (state) {
@@ -1751,7 +1752,8 @@ NextCallInsn Mir2Lir::GetNextSDCallInsn() {
 
 LIR* Mir2Lir::GenCallInsn(const MirMethodLoweringInfo& method_info) {
   DCHECK(cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64 &&
-         cu_->instruction_set != kThumb2 && cu_->instruction_set != kArm);
+         cu_->instruction_set != kThumb2 && cu_->instruction_set != kArm &&
+         cu_->instruction_set != kArm64);
   return OpReg(kOpBlx, TargetPtrReg(kInvokeTgt));
 }
 
