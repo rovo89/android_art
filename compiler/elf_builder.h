@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_ELF_BUILDER_H_
 #define ART_COMPILER_ELF_BUILDER_H_
 
+#include "base/stl_util.h"
 #include "buffered_output_stream.h"
 #include "elf_utils.h"
 #include "file_output_stream.h"
@@ -354,11 +355,123 @@ class ElfSymtabBuilder : public ElfSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr>
   ElfSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> strtab_;
 };
 
+template <typename Elf_Word>
+class ElfFilePiece {
+ public:
+  virtual ~ElfFilePiece() {}
+
+  virtual bool Write(File* elf_file) {
+    if (static_cast<off_t>(offset_) != lseek(elf_file->Fd(), offset_, SEEK_SET)) {
+      PLOG(ERROR) << "Failed to seek to " << GetDescription() << " offset " << offset_ << " for "
+          << elf_file->GetPath();
+      return false;
+    }
+
+    return DoActualWrite(elf_file);
+  }
+
+  static bool Compare(ElfFilePiece* a, ElfFilePiece* b) {
+    return a->offset_ < b->offset_;
+  }
+
+ protected:
+  explicit ElfFilePiece(Elf_Word offset) : offset_(offset) {}
+
+  virtual std::string GetDescription() = 0;
+  virtual bool DoActualWrite(File* elf_file) = 0;
+
+  Elf_Word offset_;
+};
+
+template <typename Elf_Word>
+class ElfFileMemoryPiece : public ElfFilePiece<Elf_Word> {
+ public:
+  ElfFileMemoryPiece(const std::string& name, Elf_Word offset, const void* data, Elf_Word size)
+      : ElfFilePiece<Elf_Word>(offset), dbg_name_(name), data_(data), size_(size) {}
+
+  bool DoActualWrite(File* elf_file) OVERRIDE {
+    DCHECK(data_ != nullptr || size_ == 0U) << dbg_name_ << " " << size_;
+
+    if (!elf_file->WriteFully(data_, size_)) {
+      PLOG(ERROR) << "Failed to write " << dbg_name_ << " for " << elf_file->GetPath();
+      return false;
+    }
+
+    return true;
+  }
+
+  std::string GetDescription() OVERRIDE {
+    return dbg_name_;
+  }
+
+ private:
+  const std::string& dbg_name_;
+  const void *data_;
+  Elf_Word size_;
+};
+
 class CodeOutput {
  public:
   virtual bool Write(OutputStream* out) = 0;
   virtual ~CodeOutput() {}
 };
+
+template <typename Elf_Word>
+class ElfFileRodataPiece : public ElfFilePiece<Elf_Word> {
+ public:
+  ElfFileRodataPiece(Elf_Word offset, CodeOutput* output) : ElfFilePiece<Elf_Word>(offset),
+      output_(output) {}
+
+  bool DoActualWrite(File* elf_file) OVERRIDE {
+    std::unique_ptr<BufferedOutputStream> output_stream(
+        new BufferedOutputStream(new FileOutputStream(elf_file)));
+    if (!output_->Write(output_stream.get())) {
+      PLOG(ERROR) << "Failed to write .rodata and .text for " << elf_file->GetPath();
+      return false;
+    }
+
+    return true;
+  }
+
+  std::string GetDescription() OVERRIDE {
+    return ".rodata";
+  }
+
+ private:
+  CodeOutput* output_;
+};
+
+template <typename Elf_Word>
+class ElfFileOatTextPiece : public ElfFilePiece<Elf_Word> {
+ public:
+  ElfFileOatTextPiece(Elf_Word offset, CodeOutput* output) : ElfFilePiece<Elf_Word>(offset),
+      output_(output) {}
+
+  bool DoActualWrite(File* elf_file) OVERRIDE {
+    // All data is written by the ElfFileRodataPiece right now, as the oat writer writes in one
+    // piece. This is for future flexibility.
+    UNUSED(output_);
+    return true;
+  }
+
+  std::string GetDescription() OVERRIDE {
+    return ".text";
+  }
+
+ private:
+  CodeOutput* output_;
+};
+
+template <typename Elf_Word>
+static bool WriteOutFile(const std::vector<ElfFilePiece<Elf_Word>*>& pieces, File* elf_file) {
+  // TODO It would be nice if this checked for overlap.
+  for (auto it = pieces.begin(); it != pieces.end(); ++it) {
+    if (!(*it)->Write(elf_file)) {
+      return false;
+    }
+  }
+  return true;
+}
 
 template <typename Elf_Word, typename Elf_Shdr>
 static inline constexpr Elf_Word NextOffset(const Elf_Shdr& cur, const Elf_Shdr& prev) {
@@ -667,7 +780,7 @@ class ElfBuilder FINAL {
   }
 
   bool Write() {
-    std::vector<ElfFilePiece> pieces;
+    std::vector<ElfFilePiece<Elf_Word>*> pieces;
     Elf_Shdr prev = dynamic_builder_.section_;
     std::string strtab;
 
@@ -746,8 +859,9 @@ class ElfBuilder FINAL {
       it->section_.sh_addr = 0;
       it->section_.sh_size = it->GetBuffer()->size();
       it->section_.sh_link = it->GetLink();
-      pieces.push_back(ElfFilePiece(it->name_, it->section_.sh_offset,
-                                    it->GetBuffer()->data(), it->GetBuffer()->size()));
+
+      // We postpone adding an ElfFilePiece to keep the order in "pieces."
+
       prev = it->section_;
       if (debug_logging_) {
         LOG(INFO) << it->name_ << " off=" << it->section_.sh_offset
@@ -824,55 +938,62 @@ class ElfBuilder FINAL {
     elf_header_.e_shstrndx = shstrtab_builder_.section_index_;
 
     // Add the rest of the pieces to the list.
-    pieces.push_back(ElfFilePiece("Elf Header", 0, &elf_header_, sizeof(elf_header_)));
-    pieces.push_back(ElfFilePiece("Program headers", PHDR_OFFSET,
-                                  &program_headers_, sizeof(program_headers_)));
-    pieces.push_back(ElfFilePiece(".dynamic", dynamic_builder_.section_.sh_offset,
-                                  dynamic.data(), dynamic_builder_.section_.sh_size));
-    pieces.push_back(ElfFilePiece(".dynsym", dynsym_builder_.section_.sh_offset,
-                                  dynsym.data(), dynsym.size() * sizeof(Elf_Sym)));
-    pieces.push_back(ElfFilePiece(".dynstr", dynsym_builder_.GetStrTab()->section_.sh_offset,
-                                  dynstr_.c_str(), dynstr_.size()));
-    pieces.push_back(ElfFilePiece(".hash", hash_builder_.section_.sh_offset,
-                                  hash_.data(), hash_.size() * sizeof(Elf_Word)));
-    pieces.push_back(ElfFilePiece(".rodata", rodata_builder_.section_.sh_offset,
-                                  nullptr, rodata_builder_.section_.sh_size));
-    pieces.push_back(ElfFilePiece(".text", text_builder_.section_.sh_offset,
-                                  nullptr, text_builder_.section_.sh_size));
+    pieces.push_back(new ElfFileMemoryPiece<Elf_Word>("Elf Header", 0, &elf_header_,
+                                                      sizeof(elf_header_)));
+    pieces.push_back(new ElfFileMemoryPiece<Elf_Word>("Program headers", PHDR_OFFSET,
+                                                      &program_headers_, sizeof(program_headers_)));
+    pieces.push_back(new ElfFileMemoryPiece<Elf_Word>(".dynamic",
+                                                      dynamic_builder_.section_.sh_offset,
+                                                      dynamic.data(),
+                                                      dynamic_builder_.section_.sh_size));
+    pieces.push_back(new ElfFileMemoryPiece<Elf_Word>(".dynsym", dynsym_builder_.section_.sh_offset,
+                                                      dynsym.data(),
+                                                      dynsym.size() * sizeof(Elf_Sym)));
+    pieces.push_back(new ElfFileMemoryPiece<Elf_Word>(".dynstr",
+                                                    dynsym_builder_.GetStrTab()->section_.sh_offset,
+                                                    dynstr_.c_str(), dynstr_.size()));
+    pieces.push_back(new ElfFileMemoryPiece<Elf_Word>(".hash", hash_builder_.section_.sh_offset,
+                                                      hash_.data(),
+                                                      hash_.size() * sizeof(Elf_Word)));
+    pieces.push_back(new ElfFileRodataPiece<Elf_Word>(rodata_builder_.section_.sh_offset,
+                                                      oat_writer_));
+    pieces.push_back(new ElfFileOatTextPiece<Elf_Word>(text_builder_.section_.sh_offset,
+                                                       oat_writer_));
     if (IncludingDebugSymbols()) {
-      pieces.push_back(ElfFilePiece(".symtab", symtab_builder_.section_.sh_offset,
-                                    symtab.data(), symtab.size() * sizeof(Elf_Sym)));
-      pieces.push_back(ElfFilePiece(".strtab", symtab_builder_.GetStrTab()->section_.sh_offset,
-                                    strtab.c_str(), strtab.size()));
+      pieces.push_back(new ElfFileMemoryPiece<Elf_Word>(".symtab",
+                                                        symtab_builder_.section_.sh_offset,
+                                                        symtab.data(),
+                                                        symtab.size() * sizeof(Elf_Sym)));
+      pieces.push_back(new ElfFileMemoryPiece<Elf_Word>(".strtab",
+                                                    symtab_builder_.GetStrTab()->section_.sh_offset,
+                                                    strtab.c_str(), strtab.size()));
     }
-    pieces.push_back(ElfFilePiece(".shstrtab", shstrtab_builder_.section_.sh_offset,
-                                  &shstrtab_[0], shstrtab_.size()));
+    pieces.push_back(new ElfFileMemoryPiece<Elf_Word>(".shstrtab",
+                                                      shstrtab_builder_.section_.sh_offset,
+                                                      &shstrtab_[0], shstrtab_.size()));
     for (uint32_t i = 0; i < section_ptrs_.size(); ++i) {
       // Just add all the sections in induvidually since they are all over the
       // place on the heap/stack.
       Elf_Word cur_off = sections_offset + i * sizeof(Elf_Shdr);
-      pieces.push_back(ElfFilePiece("section table piece", cur_off,
-                                    section_ptrs_[i], sizeof(Elf_Shdr)));
+      pieces.push_back(new ElfFileMemoryPiece<Elf_Word>("section table piece", cur_off,
+                                                        section_ptrs_[i], sizeof(Elf_Shdr)));
+    }
+
+    // Postponed debug info.
+    for (auto it = other_builders_.begin(); it != other_builders_.end(); ++it) {
+      pieces.push_back(new ElfFileMemoryPiece<Elf_Word>(it->name_, it->section_.sh_offset,
+                                                        it->GetBuffer()->data(),
+                                                        it->GetBuffer()->size()));
     }
 
     if (!WriteOutFile(pieces)) {
       LOG(ERROR) << "Unable to write to file " << elf_file_->GetPath();
-      return false;
-    }
-    // write out the actual oat file data.
-    Elf_Word oat_data_offset = rodata_builder_.section_.sh_offset;
-    if (static_cast<off_t>(oat_data_offset) != lseek(elf_file_->Fd(), oat_data_offset, SEEK_SET)) {
-      PLOG(ERROR) << "Failed to seek to .rodata offset " << oat_data_offset
-                  << " for " << elf_file_->GetPath();
-      return false;
-    }
-    std::unique_ptr<BufferedOutputStream> output_stream(
-        new BufferedOutputStream(new FileOutputStream(elf_file_)));
-    if (!oat_writer_->Write(output_stream.get())) {
-      PLOG(ERROR) << "Failed to write .rodata and .text for " << elf_file_->GetPath();
+
+      STLDeleteElements(&pieces);  // Have to manually clean pieces.
       return false;
     }
 
+    STLDeleteElements(&pieces);  // Have to manually clean pieces.
     return true;
   }
 
@@ -1028,34 +1149,12 @@ class ElfBuilder FINAL {
     }
   }
 
-  struct ElfFilePiece {
-    ElfFilePiece(const std::string& name, Elf_Word offset, const void* data, Elf_Word size)
-    : dbg_name_(name), offset_(offset), data_(data), size_(size) {}
-    ~ElfFilePiece() {}
-
-    const std::string& dbg_name_;
-    Elf_Word offset_;
-    const void *data_;
-    Elf_Word size_;
-    static bool Compare(ElfFilePiece a, ElfFilePiece b) {
-      return a.offset_ < b.offset_;
-    }
-  };
 
   // Write each of the pieces out to the file.
-  bool WriteOutFile(const std::vector<ElfFilePiece>& pieces) {
-    // TODO It would be nice if this checked for overlap.
+  bool WriteOutFile(const std::vector<ElfFilePiece<Elf_Word>*>& pieces) {
     for (auto it = pieces.begin(); it != pieces.end(); ++it) {
-      if (it->data_) {
-        if (static_cast<off_t>(it->offset_) != lseek(elf_file_->Fd(), it->offset_, SEEK_SET)) {
-          PLOG(ERROR) << "Failed to seek to " << it->dbg_name_ << " offset location "
-                      << it->offset_ << " for " << elf_file_->GetPath();
-          return false;
-        }
-        if (!elf_file_->WriteFully(it->data_, it->size_)) {
-          PLOG(ERROR) << "Failed to write " << it->dbg_name_ << " for " << elf_file_->GetPath();
-          return false;
-        }
+      if (!(*it)->Write(elf_file_)) {
+        return false;
       }
     }
     return true;
