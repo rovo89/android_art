@@ -111,15 +111,17 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env, jclass, jlong token, ji
   thread->InitAfterFork();
   EnableDebugFeatures(debug_flags);
 
-  Runtime::NativeBridgeAction action = Runtime::NativeBridgeAction::kUnload;
   if (instruction_set != nullptr) {
     ScopedUtfChars isa_string(env, instruction_set);
     InstructionSet isa = GetInstructionSetFromString(isa_string.c_str());
+    Runtime::NativeBridgeAction action = Runtime::NativeBridgeAction::kUnload;
     if (isa != kNone && isa != kRuntimeISA) {
       action = Runtime::NativeBridgeAction::kInitialize;
     }
+    Runtime::Current()->DidForkFromZygote(env, action, isa_string.c_str());
+  } else {
+    Runtime::Current()->DidForkFromZygote(env, Runtime::NativeBridgeAction::kUnload, nullptr);
   }
-  Runtime::Current()->DidForkFromZygote(action);
 }
 
 static JNINativeMethod gMethods[] = {
