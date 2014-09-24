@@ -291,22 +291,7 @@ class ElfWriterQuick FINAL : public ElfWriter {
     // oatlastword
     void SetupRequiredSymbols();
     void AssignSectionStr(ElfSectionBuilder *builder, std::string* strtab);
-    struct ElfFilePiece {
-      ElfFilePiece(const std::string& name, Elf32_Word offset, const void* data, Elf32_Word size)
-          : dbg_name_(name), offset_(offset), data_(data), size_(size) {}
-      ~ElfFilePiece() {}
 
-      const std::string& dbg_name_;
-      Elf32_Word offset_;
-      const void *data_;
-      Elf32_Word size_;
-      static bool Compare(ElfFilePiece a, ElfFilePiece b) {
-        return a.offset_ < b.offset_;
-      }
-    };
-
-    // Write each of the pieces out to the file.
-    bool WriteOutFile(const std::vector<ElfFilePiece>& pieces);
     bool IncludingDebugSymbols() { return add_symbols_ && symtab_builder_.GetSize() > 1; }
   };
 
