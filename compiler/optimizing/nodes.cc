@@ -141,7 +141,7 @@ void HGraph::TransformToSSA() {
 void HGraph::SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor) {
   // Insert a new node between `block` and `successor` to split the
   // critical edge.
-  HBasicBlock* new_block = new (arena_) HBasicBlock(this);
+  HBasicBlock* new_block = new (arena_) HBasicBlock(this, successor->GetDexPc());
   AddBlock(new_block);
   new_block->AddInstruction(new (arena_) HGoto());
   block->ReplaceSuccessor(successor, new_block);
@@ -162,8 +162,10 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
   // If there are more than one back edge, make them branch to the same block that
   // will become the only back edge. This simplifies finding natural loops in the
   // graph.
-  if (info->NumberOfBackEdges() > 1) {
-    HBasicBlock* new_back_edge = new (arena_) HBasicBlock(this);
+  // Also, if the loop is a do/while (that is the back edge is an if), change the
+  // back edge to be a goto. This simplifies code generation of suspend cheks.
+  if (info->NumberOfBackEdges() > 1 || info->GetBackEdges().Get(0)->GetLastInstruction()->IsIf()) {
+    HBasicBlock* new_back_edge = new (arena_) HBasicBlock(this, header->GetDexPc());
     AddBlock(new_back_edge);
     new_back_edge->AddInstruction(new (arena_) HGoto());
     for (size_t pred = 0, e = info->GetBackEdges().Size(); pred < e; ++pred) {
@@ -180,7 +182,7 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
   // loop.
   size_t number_of_incomings = header->GetPredecessors().Size() - info->NumberOfBackEdges();
   if (number_of_incomings != 1) {
-    HBasicBlock* pre_header = new (arena_) HBasicBlock(this);
+    HBasicBlock* pre_header = new (arena_) HBasicBlock(this, header->GetDexPc());
     AddBlock(pre_header);
     pre_header->AddInstruction(new (arena_) HGoto());
 
@@ -200,6 +202,18 @@ void HGraph::SimplifyLoop(HBasicBlock* header) {
   if (header->GetPredecessors().Get(1) != info->GetBackEdges().Get(0)) {
     header->SwapPredecessors();
   }
+
+  // Place the suspend check at the beginning of the header, so that live registers
+  // will be known when allocating registers. Note that code generation can still
+  // generate the suspend check at the back edge, but needs to be careful with
+  // loop phi spill slots (which are not written to at back edge).
+  HInstruction* first_instruction = header->GetFirstInstruction();
+  if (!first_instruction->IsSuspendCheck()) {
+    HSuspendCheck* check = new (arena_) HSuspendCheck(header->GetDexPc());
+    header->InsertInstructionBefore(check, first_instruction);
+    first_instruction = check;
+  }
+  info->SetSuspendCheck(first_instruction->AsSuspendCheck());
 }
 
 void HGraph::SimplifyCFG() {

@@ -363,6 +363,10 @@ class LocationSummary : public ArenaObject {
     stack_mask_->SetBit(index);
   }
 
+  void ClearStackBit(uint32_t index) {
+    stack_mask_->ClearBit(index);
+  }
+
   void SetRegisterBit(uint32_t reg_id) {
     register_mask_ |= (1 << reg_id);
   }
