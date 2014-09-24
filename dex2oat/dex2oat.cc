@@ -1224,6 +1224,7 @@ static int dex2oat(int argc, char** argv) {
   } else {
     oat_file.reset(new File(oat_fd, oat_location));
     oat_file->DisableAutoClose();
+    oat_file->SetLength(0);
   }
   if (oat_file.get() == nullptr) {
     PLOG(ERROR) << "Failed to create oat file: " << oat_location;
