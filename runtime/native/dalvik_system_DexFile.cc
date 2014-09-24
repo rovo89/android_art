@@ -292,7 +292,7 @@ static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* 
   std::unique_ptr<const OatFile> oat_file(OatFile::Open(oat_filename, oat_filename, nullptr,
                                                         false, &error_msg));
   if (oat_file.get() == nullptr) {
-    if (kVerboseLogging) {
+    if (kReasonLogging) {
       LOG(INFO) << "DexFile_isDexOptNeeded failed to open oat file '" << oat_filename
           << "' for file location '" << filename << "': " << error_msg;
     }
@@ -319,13 +319,13 @@ static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* 
         return kUpToDate;
       } else if (should_relocate_if_possible &&
                   ClassLinker::VerifyOatImageChecksum(oat_file.get(), target_instruction_set)) {
-        if (kVerboseLogging) {
+        if (kReasonLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded file " << oat_filename
                     << " needs to be relocated for " << filename;
         }
         return kPatchoatNeeded;
       } else {
-        if (kVerboseLogging) {
+        if (kReasonLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded file " << oat_filename
                     << " is out of date for " << filename;
         }
@@ -343,13 +343,13 @@ static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* 
       } else if (location_checksum == oat_dex_file->GetDexFileLocationChecksum()
                   && should_relocate_if_possible
                   && ClassLinker::VerifyOatImageChecksum(oat_file.get(), target_instruction_set)) {
-        if (kVerboseLogging) {
+        if (kReasonLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded file " << oat_filename
                     << " needs to be relocated for " << filename;
         }
         return kPatchoatNeeded;
       } else {
-        if (kVerboseLogging) {
+        if (kReasonLogging) {
           LOG(INFO) << "DexFile_isDexOptNeeded file " << oat_filename
                     << " is out of date for " << filename;
         }
@@ -357,7 +357,7 @@ static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* 
       }
     }
   } else {
-    if (kVerboseLogging) {
+    if (kReasonLogging) {
       LOG(INFO) << "DexFile_isDexOptNeeded file " << oat_filename
                 << " does not contain " << filename;
     }
@@ -367,9 +367,10 @@ static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* 
 
 static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
     const char* pkgname, const char* instruction_set, const jboolean defer) {
-  // TODO disable this logging.
-  const bool kVerboseLogging = false;  // Spammy logging.
-  const bool kReasonLogging = true;  // Logging of reason for returning JNI_TRUE.
+  // Spammy logging for kUpToDate
+  const bool kVerboseLogging = false;
+  // Logging of reason for returning kDexoptNeeded or kPatchoatNeeded.
+  const bool kReasonLogging = true;
 
   if ((filename == nullptr) || !OS::FileExists(filename)) {
     LOG(ERROR) << "DexFile_isDexOptNeeded file '" << filename << "' does not exist";
