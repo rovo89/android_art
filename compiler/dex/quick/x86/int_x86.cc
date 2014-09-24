@@ -2813,8 +2813,8 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       LoadValueDirectFixed(rl_rhs, t_reg);
       if (is_two_addr) {
         // Can we do this directly into memory?
-        rl_result = UpdateLocTyped(rl_dest, kCoreReg);
         rl_rhs = LoadValue(rl_rhs, kCoreReg);
+        rl_result = UpdateLocTyped(rl_dest, kCoreReg);
         if (rl_result.location != kLocPhysReg) {
           // Okay, we can do this into memory
           OpMemReg(op, rl_result, t_reg.GetReg());
