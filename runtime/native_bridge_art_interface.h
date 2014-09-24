@@ -19,15 +19,21 @@
 
 #include <jni.h>
 #include <stdint.h>
+#include <string>
 
 namespace art {
 
-const char* GetMethodShorty(JNIEnv* env, jmethodID mid);
+// Mirror libnativebridge interface. Done to have the ART callbacks out of line, and not require
+// the system/core header file in other files.
 
-uint32_t GetNativeMethodCount(JNIEnv* env, jclass clazz);
+void LoadNativeBridge(std::string& native_bridge_library_filename);
 
-uint32_t GetNativeMethods(JNIEnv* env, jclass clazz, JNINativeMethod* methods,
-                          uint32_t method_count);
+// This is mostly for testing purposes, as in a full system this is called by Zygote code.
+void PreInitializeNativeBridge(std::string dir);
+
+void InitializeNativeBridge(JNIEnv* env, const char* instruction_set);
+
+void UnloadNativeBridge();
 
 };  // namespace art
 
