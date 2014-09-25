@@ -315,6 +315,11 @@ class OatSymbolizer : public CodeOutput {
     }
   }
 
+  // Set oat data offset. Required by ElfBuilder/CodeOutput.
+  void SetCodeOffset(size_t offset) {
+    // Nothing to do.
+  }
+
   // Write oat code. Required by ElfBuilder/CodeOutput.
   bool Write(OutputStream* out) {
     return out->WriteFully(oat_file_->Begin(), oat_file_->End() - oat_file_->Begin());

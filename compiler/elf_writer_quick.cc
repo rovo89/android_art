@@ -85,26 +85,6 @@ bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
   return elf_writer.Write(oat_writer, dex_files, android_root, is_host);
 }
 
-// Add patch information to this section. Each patch is a Elf_Word that
-// identifies an offset from the start of the text section
-static void ReservePatchSpace(const CompilerDriver* compiler_driver, std::vector<uint8_t>* buffer,
-                              bool debug) {
-  size_t size =
-      compiler_driver->GetCodeToPatch().size() +
-      compiler_driver->GetMethodsToPatch().size() +
-      compiler_driver->GetClassesToPatch().size();
-  if (size == 0) {
-    if (debug) {
-      LOG(INFO) << "No patches to record";
-    }
-    return;
-  }
-  buffer->resize(size * sizeof(uintptr_t));
-  if (debug) {
-    LOG(INFO) << "Patches reserved for " << size;
-  }
-}
-
 std::vector<uint8_t>* ConstructCIEFrameX86(bool is_x86_64) {
   std::vector<uint8_t>* cfi_info = new std::vector<uint8_t>;
 
@@ -219,6 +199,9 @@ class OatWriterWrapper : public CodeOutput {
  public:
   explicit OatWriterWrapper(OatWriter* oat_writer) : oat_writer_(oat_writer) {}
 
+  void SetCodeOffset(size_t offset) {
+    oat_writer_->SetOatDataOffset(offset);
+  }
   bool Write(OutputStream* out) OVERRIDE {
     return oat_writer_->Write(out);
   }
@@ -274,7 +257,13 @@ bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
   if (compiler_driver_->GetCompilerOptions().GetIncludePatchInformation()) {
     ElfRawSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> oat_patches(
         ".oat_patches", SHT_OAT_PATCH, 0, NULL, 0, sizeof(uintptr_t), sizeof(uintptr_t));
-    ReservePatchSpace(compiler_driver_, oat_patches.GetBuffer(), debug);
+    const std::vector<uintptr_t>& locations = oat_writer->GetAbsolutePatchLocations();
+    const uint8_t* begin = reinterpret_cast<const uint8_t*>(&locations[0]);
+    const uint8_t* end = begin + locations.size() * sizeof(locations[0]);
+    oat_patches.GetBuffer()->assign(begin, end);
+    if (debug) {
+      LOG(INFO) << "Prepared .oat_patches for " << locations.size() << " patches.";
+    }
     builder->RegisterRawSection(oat_patches);
   }
 

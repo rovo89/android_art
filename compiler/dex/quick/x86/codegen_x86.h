@@ -341,6 +341,7 @@ class X86Mir2Lir : public Mir2Lir {
 
   void FlushIns(RegLocation* ArgLocs, RegLocation rl_method) OVERRIDE;
 
+  NextCallInsn GetNextSDCallInsn() OVERRIDE;
   int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
                            NextCallInsn next_call_insn,
                            const MethodReference& target_method,
@@ -361,7 +362,14 @@ class X86Mir2Lir : public Mir2Lir {
    * @param type How the method will be invoked.
    * @returns Call instruction
    */
-  virtual LIR * CallWithLinkerFixup(const MethodReference& target_method, InvokeType type);
+  LIR* CallWithLinkerFixup(const MethodReference& target_method, InvokeType type);
+
+  /*
+   * @brief Generate the actual call insn based on the method info.
+   * @param method_info the lowering info for the method call.
+   * @returns Call instruction
+   */
+  LIR* GenCallInsn(const MirMethodLoweringInfo& method_info) OVERRIDE;
 
   /*
    * @brief Handle x86 specific literals

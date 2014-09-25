@@ -169,6 +169,8 @@ class CompilerDriver {
 
   CompiledMethod* GetCompiledMethod(MethodReference ref) const
       LOCKS_EXCLUDED(compiled_methods_lock_);
+  size_t GetNonRelativeLinkerPatchCount() const
+      LOCKS_EXCLUDED(compiled_methods_lock_);
 
   void AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
                                      uint16_t class_def_index);
@@ -313,43 +315,6 @@ class CompilerDriver {
   const VerifiedMethod* GetVerifiedMethod(const DexFile* dex_file, uint32_t method_idx) const;
   bool IsSafeCast(const DexCompilationUnit* mUnit, uint32_t dex_pc);
 
-  // Record patch information for later fix up.
-  void AddCodePatch(const DexFile* dex_file,
-                    uint16_t referrer_class_def_idx,
-                    uint32_t referrer_method_idx,
-                    InvokeType referrer_invoke_type,
-                    uint32_t target_method_idx,
-                    const DexFile* target_dex_file,
-                    InvokeType target_invoke_type,
-                    size_t literal_offset)
-      LOCKS_EXCLUDED(compiled_methods_lock_);
-  void AddRelativeCodePatch(const DexFile* dex_file,
-                            uint16_t referrer_class_def_idx,
-                            uint32_t referrer_method_idx,
-                            InvokeType referrer_invoke_type,
-                            uint32_t target_method_idx,
-                            const DexFile* target_dex_file,
-                            InvokeType target_invoke_type,
-                            size_t literal_offset,
-                            int32_t pc_relative_offset)
-      LOCKS_EXCLUDED(compiled_methods_lock_);
-  void AddMethodPatch(const DexFile* dex_file,
-                      uint16_t referrer_class_def_idx,
-                      uint32_t referrer_method_idx,
-                      InvokeType referrer_invoke_type,
-                      uint32_t target_method_idx,
-                      const DexFile* target_dex_file,
-                      InvokeType target_invoke_type,
-                      size_t literal_offset)
-      LOCKS_EXCLUDED(compiled_methods_lock_);
-  void AddClassPatch(const DexFile* dex_file,
-                     uint16_t referrer_class_def_idx,
-                     uint32_t referrer_method_idx,
-                     uint32_t target_method_idx,
-                     const DexFile* target_dex_file,
-                     size_t literal_offset)
-      LOCKS_EXCLUDED(compiled_methods_lock_);
-
   bool GetSupportBootImageFixup() const {
     return support_boot_image_fixup_;
   }
@@ -386,198 +351,12 @@ class CompilerDriver {
     return thread_count_;
   }
 
-  class CallPatchInformation;
-  class TypePatchInformation;
-
   bool GetDumpPasses() const {
     return dump_passes_;
   }
 
   CumulativeLogger* GetTimingsLogger() const {
     return timings_logger_;
-  }
-
-  class PatchInformation {
-   public:
-    const DexFile& GetDexFile() const {
-      return *dex_file_;
-    }
-    uint16_t GetReferrerClassDefIdx() const {
-      return referrer_class_def_idx_;
-    }
-    uint32_t GetReferrerMethodIdx() const {
-      return referrer_method_idx_;
-    }
-    size_t GetLiteralOffset() const {
-      return literal_offset_;
-    }
-
-    virtual bool IsCall() const {
-      return false;
-    }
-    virtual bool IsType() const {
-      return false;
-    }
-    virtual const CallPatchInformation* AsCall() const {
-      LOG(FATAL) << "Unreachable";
-      return nullptr;
-    }
-    virtual const TypePatchInformation* AsType() const {
-      LOG(FATAL) << "Unreachable";
-      return nullptr;
-    }
-
-   protected:
-    PatchInformation(const DexFile* dex_file,
-                     uint16_t referrer_class_def_idx,
-                     uint32_t referrer_method_idx,
-                     size_t literal_offset)
-      : dex_file_(dex_file),
-        referrer_class_def_idx_(referrer_class_def_idx),
-        referrer_method_idx_(referrer_method_idx),
-        literal_offset_(literal_offset) {
-      CHECK(dex_file_ != nullptr);
-    }
-    virtual ~PatchInformation() {}
-
-    const DexFile* const dex_file_;
-    const uint16_t referrer_class_def_idx_;
-    const uint32_t referrer_method_idx_;
-    const size_t literal_offset_;
-
-    friend class CompilerDriver;
-  };
-
-  class CallPatchInformation : public PatchInformation {
-   public:
-    InvokeType GetReferrerInvokeType() const {
-      return referrer_invoke_type_;
-    }
-    uint32_t GetTargetMethodIdx() const {
-      return target_method_idx_;
-    }
-    const DexFile* GetTargetDexFile() const {
-      return target_dex_file_;
-    }
-    InvokeType GetTargetInvokeType() const {
-      return target_invoke_type_;
-    }
-
-    const CallPatchInformation* AsCall() const {
-      return this;
-    }
-    bool IsCall() const {
-      return true;
-    }
-    virtual bool IsRelative() const {
-      return false;
-    }
-    virtual int RelativeOffset() const {
-      return 0;
-    }
-
-   protected:
-    CallPatchInformation(const DexFile* dex_file,
-                         uint16_t referrer_class_def_idx,
-                         uint32_t referrer_method_idx,
-                         InvokeType referrer_invoke_type,
-                         uint32_t target_method_idx,
-                         const DexFile* target_dex_file,
-                         InvokeType target_invoke_type,
-                         size_t literal_offset)
-        : PatchInformation(dex_file, referrer_class_def_idx,
-                           referrer_method_idx, literal_offset),
-          referrer_invoke_type_(referrer_invoke_type),
-          target_method_idx_(target_method_idx),
-          target_dex_file_(target_dex_file),
-          target_invoke_type_(target_invoke_type) {
-    }
-
-   private:
-    const InvokeType referrer_invoke_type_;
-    const uint32_t target_method_idx_;
-    const DexFile* target_dex_file_;
-    const InvokeType target_invoke_type_;
-
-    friend class CompilerDriver;
-    DISALLOW_COPY_AND_ASSIGN(CallPatchInformation);
-  };
-
-  class RelativeCallPatchInformation : public CallPatchInformation {
-   public:
-    bool IsRelative() const {
-      return true;
-    }
-    int RelativeOffset() const {
-      return offset_;
-    }
-
-   private:
-    RelativeCallPatchInformation(const DexFile* dex_file,
-                                 uint16_t referrer_class_def_idx,
-                                 uint32_t referrer_method_idx,
-                                 InvokeType referrer_invoke_type,
-                                 uint32_t target_method_idx,
-                                 const DexFile* target_dex_file,
-                                 InvokeType target_invoke_type,
-                                 size_t literal_offset,
-                                 int32_t pc_relative_offset)
-        : CallPatchInformation(dex_file, referrer_class_def_idx,
-                           referrer_method_idx, referrer_invoke_type, target_method_idx,
-                           target_dex_file, target_invoke_type, literal_offset),
-          offset_(pc_relative_offset) {
-    }
-
-    const int offset_;
-
-    friend class CompilerDriver;
-    DISALLOW_COPY_AND_ASSIGN(RelativeCallPatchInformation);
-  };
-
-  class TypePatchInformation : public PatchInformation {
-   public:
-    const DexFile& GetTargetTypeDexFile() const {
-      return *target_type_dex_file_;
-    }
-
-    uint32_t GetTargetTypeIdx() const {
-      return target_type_idx_;
-    }
-
-    bool IsType() const {
-      return true;
-    }
-    const TypePatchInformation* AsType() const {
-      return this;
-    }
-
-   private:
-    TypePatchInformation(const DexFile* dex_file,
-                         uint16_t referrer_class_def_idx,
-                         uint32_t referrer_method_idx,
-                         uint32_t target_type_idx,
-                         const DexFile* target_type_dex_file,
-                         size_t literal_offset)
-        : PatchInformation(dex_file, referrer_class_def_idx,
-                           referrer_method_idx, literal_offset),
-          target_type_idx_(target_type_idx), target_type_dex_file_(target_type_dex_file) {
-    }
-
-    const uint32_t target_type_idx_;
-    const DexFile* target_type_dex_file_;
-
-    friend class CompilerDriver;
-    DISALLOW_COPY_AND_ASSIGN(TypePatchInformation);
-  };
-
-  const std::vector<const CallPatchInformation*>& GetCodeToPatch() const {
-    return code_to_patch_;
-  }
-  const std::vector<const CallPatchInformation*>& GetMethodsToPatch() const {
-    return methods_to_patch_;
-  }
-  const std::vector<const TypePatchInformation*>& GetClassesToPatch() const {
-    return classes_to_patch_;
   }
 
   // Checks if class specified by type_idx is one of the image_classes_
@@ -689,10 +468,6 @@ class CompilerDriver {
   static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  std::vector<const CallPatchInformation*> code_to_patch_;
-  std::vector<const CallPatchInformation*> methods_to_patch_;
-  std::vector<const TypePatchInformation*> classes_to_patch_;
-
   const CompilerOptions* const compiler_options_;
   VerificationResults* const verification_results_;
   DexFileToMethodInlinerMap* const method_inliner_map_;
@@ -715,6 +490,9 @@ class CompilerDriver {
   // All method references that this compiler has compiled.
   mutable Mutex compiled_methods_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   MethodTable compiled_methods_ GUARDED_BY(compiled_methods_lock_);
+  // Number of non-relative patches in all compiled methods. These patches need space
+  // in the .oat_patches ELF section if requested in the compiler options.
+  size_t non_relative_linker_patch_count_ GUARDED_BY(compiled_methods_lock_);
 
   const bool image_;
 

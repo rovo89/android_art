@@ -452,6 +452,11 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
                  reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 + (operand << 1),
                  lir->target);
              break;
+           case 'T':
+             snprintf(tbuf, arraysize(tbuf), "%s", PrettyMethod(
+                 static_cast<uint32_t>(lir->operands[1]),
+                 *reinterpret_cast<const DexFile*>(UnwrapPointer(lir->operands[2]))).c_str());
+             break;
            case 'u': {
              int offset_1 = lir->operands[0];
              int offset_2 = NEXT_LIR(lir)->operands[0];
@@ -551,7 +556,9 @@ RegisterClass ArmMir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatil
 }
 
 ArmMir2Lir::ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
-    : Mir2Lir(cu, mir_graph, arena) {
+    : Mir2Lir(cu, mir_graph, arena),
+      call_method_insns_(arena->Adapter()) {
+  call_method_insns_.reserve(100);
   // Sanity check - make sure encoding map lines up.
   for (int i = 0; i < kArmLast; i++) {
     if (ArmMir2Lir::EncodingMap[i].opcode != i) {
@@ -821,6 +828,23 @@ RegStorage ArmMir2Lir::AllocPreservedSingle(int s_reg) {
     }
   }
   return res;
+}
+
+void ArmMir2Lir::InstallLiteralPools() {
+  // PC-relative calls to methods.
+  patches_.reserve(call_method_insns_.size());
+  for (LIR* p : call_method_insns_) {
+      DCHECK_EQ(p->opcode, kThumb2Bl);
+      uint32_t target_method_idx = p->operands[1];
+      const DexFile* target_dex_file =
+          reinterpret_cast<const DexFile*>(UnwrapPointer(p->operands[2]));
+
+      patches_.push_back(LinkerPatch::RelativeCodePatch(p->offset,
+                                                        target_dex_file, target_method_idx));
+  }
+
+  // And do the normal processing.
+  Mir2Lir::InstallLiteralPools();
 }
 
 }  // namespace art
