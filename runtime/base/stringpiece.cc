@@ -19,26 +19,34 @@
 #include <iostream>
 #include <utility>
 
+#include "logging.h"
+
 namespace art {
+
+#if !defined(NDEBUG)
+char StringPiece::operator[](size_type i) const {
+  CHECK_LT(i, length_);
+  return ptr_[i];
+}
+#endif
 
 void StringPiece::CopyToString(std::string* target) const {
   target->assign(ptr_, length_);
 }
 
-int StringPiece::copy(char* buf, size_type n, size_type pos) const {
-  int ret = std::min(length_ - pos, n);
+StringPiece::size_type StringPiece::copy(char* buf, size_type n, size_type pos) const {
+  size_type ret = std::min(length_ - pos, n);
   memcpy(buf, ptr_ + pos, ret);
   return ret;
 }
 
 StringPiece::size_type StringPiece::find(const StringPiece& s, size_type pos) const {
-  if (length_ < 0 || pos > static_cast<size_type>(length_))
+  if (length_ == 0 || pos > static_cast<size_type>(length_)) {
     return npos;
-
-  const char* result = std::search(ptr_ + pos, ptr_ + length_,
-                                   s.ptr_, s.ptr_ + s.length_);
+  }
+  const char* result = std::search(ptr_ + pos, ptr_ + length_, s.ptr_, s.ptr_ + s.length_);
   const size_type xpos = result - ptr_;
-  return xpos + s.length_ <= static_cast<size_type>(length_) ? xpos : npos;
+  return xpos + s.length_ <= length_ ? xpos : npos;
 }
 
 int StringPiece::compare(const StringPiece& x) const {
@@ -51,7 +59,7 @@ int StringPiece::compare(const StringPiece& x) const {
 }
 
 StringPiece::size_type StringPiece::find(char c, size_type pos) const {
-  if (length_ <= 0 || pos >= static_cast<size_type>(length_)) {
+  if (length_ == 0 || pos >= length_) {
     return npos;
   }
   const char* result = std::find(ptr_ + pos, ptr_ + length_, c);
@@ -69,7 +77,7 @@ StringPiece::size_type StringPiece::rfind(const StringPiece& s, size_type pos) c
 }
 
 StringPiece::size_type StringPiece::rfind(char c, size_type pos) const {
-  if (length_ <= 0) return npos;
+  if (length_ == 0) return npos;
   for (int i = std::min(pos, static_cast<size_type>(length_ - 1));
        i >= 0; --i) {
     if (ptr_[i] == c) {
@@ -84,8 +92,6 @@ StringPiece StringPiece::substr(size_type pos, size_type n) const {
   if (n > length_ - pos) n = length_ - pos;
   return StringPiece(ptr_ + pos, n);
 }
-
-const StringPiece::size_type StringPiece::npos = size_type(-1);
 
 std::ostream& operator<<(std::ostream& o, const StringPiece& piece) {
   o.write(piece.data(), piece.size());
