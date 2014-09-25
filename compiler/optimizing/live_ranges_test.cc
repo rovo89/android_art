@@ -233,6 +233,7 @@ TEST(LiveRangesTest, Loop) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
+  RemoveSuspendChecks(graph);
   x86::CodeGeneratorX86 codegen(graph);
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();

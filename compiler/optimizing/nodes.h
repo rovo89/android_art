@@ -1796,7 +1796,7 @@ class HTemporary : public HTemplateInstruction<0> {
 class HSuspendCheck : public HTemplateInstruction<0> {
  public:
   explicit HSuspendCheck(uint32_t dex_pc)
-      : HTemplateInstruction(SideEffects::ChangesSomething()), dex_pc_(dex_pc) {}
+      : HTemplateInstruction(SideEffects::None()), dex_pc_(dex_pc) {}
 
   virtual bool NeedsEnvironment() const {
     return true;
