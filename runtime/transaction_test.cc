@@ -89,7 +89,7 @@ TEST_F(TransactionTest, Array_length) {
   Handle<mirror::Array> h_obj(
       hs.NewHandle(
           mirror::Array::Alloc<true>(soa.Self(), h_klass.Get(), kArraySize,
-                                     h_klass->GetComponentSize(),
+                                     h_klass->GetComponentSizeShift(),
                                      Runtime::Current()->GetHeap()->GetCurrentAllocator())));
   ASSERT_TRUE(h_obj.Get() != nullptr);
   ASSERT_EQ(h_obj->GetClass(), h_klass.Get());

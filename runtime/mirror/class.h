@@ -345,8 +345,15 @@ class MANAGED Class FINAL : public Object {
 
   void SetPrimitiveType(Primitive::Type new_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_EQ(sizeof(Primitive::Type), sizeof(int32_t));
-    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_), new_type);
+    int32_t v32 = static_cast<int32_t>(new_type);
+    DCHECK_EQ(v32 & 0xFFFF, v32) << "upper 16 bits aren't zero";
+    // Store the component size shift in the upper 16 bits.
+    v32 |= Primitive::ComponentSizeShift(new_type) << 16;
+    SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, primitive_type_), v32);
   }
+
+  template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  size_t GetPrimitiveTypeSizeShift() ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if the class is a primitive type.
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
@@ -457,8 +464,12 @@ class MANAGED Class FINAL : public Object {
 
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   size_t GetComponentSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return Primitive::ComponentSize(
-        GetComponentType<kDefaultVerifyFlags, kReadBarrierOption>()->GetPrimitiveType());
+    return 1U << GetComponentSizeShift();
+  }
+
+  template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
+  size_t GetComponentSizeShift() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetComponentType<kDefaultVerifyFlags, kReadBarrierOption>()->GetPrimitiveTypeSizeShift();
   }
 
   bool IsObjectClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -1149,8 +1160,9 @@ class MANAGED Class FINAL : public Object {
   // See also class_size_.
   uint32_t object_size_;
 
-  // Primitive type value, or Primitive::kPrimNot (0); set for generated primitive classes.
-  Primitive::Type primitive_type_;
+  // The lower 16 bits contains a Primitive::Type value. The upper 16
+  // bits contains the size shift of the primitive type.
+  uint32_t primitive_type_;
 
   // Bitmap of offsets of ifields.
   uint32_t reference_instance_offsets_;

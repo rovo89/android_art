@@ -36,8 +36,8 @@ static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
     mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(self, &element_class);
     DCHECK(array_class != nullptr);
     gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentAllocator();
-    result->SetL(mirror::Array::Alloc<true>(self, array_class, length,
-                                            array_class->GetComponentSize(), allocator, true));
+    result->SetL(mirror::Array::Alloc<true, true>(self, array_class, length,
+                                                  array_class->GetComponentSizeShift(), allocator));
   } else if (name == "java.lang.ClassLoader dalvik.system.VMStack.getCallingClassLoader()") {
     result->SetL(NULL);
   } else if (name == "java.lang.Class dalvik.system.VMStack.getStackClass2()") {
