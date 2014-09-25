@@ -47,7 +47,7 @@ inline bool IndirectReferenceTable::GetChecked(IndirectRef iref) const {
     AbortIfNoCheckJNI();
     return false;
   }
-  if (UNLIKELY(table_[idx].IsNull())) {
+  if (UNLIKELY(table_[idx].GetReference()->IsNull())) {
     LOG(ERROR) << "JNI ERROR (app bug): accessed deleted " << kind_ << " " << iref;
     AbortIfNoCheckJNI();
     return false;
@@ -77,7 +77,7 @@ inline mirror::Object* IndirectReferenceTable::Get(IndirectRef iref) const {
     return nullptr;
   }
   uint32_t idx = ExtractIndex(iref);
-  mirror::Object* obj = table_[idx].Read<kReadBarrierOption>();
+  mirror::Object* obj = table_[idx].GetReference()->Read<kWithoutReadBarrier>();
   VerifyObject(obj);
   return obj;
 }
