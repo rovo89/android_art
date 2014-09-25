@@ -118,9 +118,9 @@ class SuspendCheckSlowPathARM : public SlowPathCode {
 
 class BoundsCheckSlowPathARM : public SlowPathCode {
  public:
-  explicit BoundsCheckSlowPathARM(HBoundsCheck* instruction,
-                                  Location index_location,
-                                  Location length_location)
+  BoundsCheckSlowPathARM(HBoundsCheck* instruction,
+                         Location index_location,
+                         Location length_location)
       : instruction_(instruction),
         index_location_(index_location),
         length_location_(length_location) {}
