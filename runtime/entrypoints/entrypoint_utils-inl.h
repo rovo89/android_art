@@ -230,11 +230,11 @@ static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
     }
     gc::Heap* heap = Runtime::Current()->GetHeap();
     return mirror::Array::Alloc<kInstrumented>(self, klass, component_count,
-                                               klass->GetComponentSize(),
+                                               klass->GetComponentSizeShift(),
                                                heap->GetCurrentAllocator());
   }
   return mirror::Array::Alloc<kInstrumented>(self, klass, component_count,
-                                             klass->GetComponentSize(), allocator_type);
+                                             klass->GetComponentSizeShift(), allocator_type);
 }
 
 template <bool kAccessCheck, bool kInstrumented>
@@ -259,7 +259,7 @@ static inline mirror::Array* AllocArrayFromCodeResolved(mirror::Class* klass,
   // No need to retry a slow-path allocation as the above code won't cause a GC or thread
   // suspension.
   return mirror::Array::Alloc<kInstrumented>(self, klass, component_count,
-                                             klass->GetComponentSize(), allocator_type);
+                                             klass->GetComponentSizeShift(), allocator_type);
 }
 
 template<FindFieldType type, bool access_check>
