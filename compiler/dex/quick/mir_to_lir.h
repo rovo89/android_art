@@ -33,7 +33,6 @@
 #include "utils/array_ref.h"
 #include "utils/arena_allocator.h"
 #include "utils/arena_containers.h"
-#include "utils/growable_array.h"
 #include "utils/stack_checks.h"
 
 namespace art {
@@ -437,20 +436,21 @@ class Mir2Lir : public Backend {
       static void* operator new(size_t size, ArenaAllocator* arena) {
         return arena->Alloc(size, kArenaAllocRegAlloc);
       }
+      static void operator delete(void* ptr) { UNUSED(ptr); }
       void ResetNextTemp() {
         next_core_reg_ = 0;
         next_sp_reg_ = 0;
         next_dp_reg_ = 0;
       }
-      GrowableArray<RegisterInfo*> core_regs_;
+      ArenaVector<RegisterInfo*> core_regs_;
       int next_core_reg_;
-      GrowableArray<RegisterInfo*> core64_regs_;
+      ArenaVector<RegisterInfo*> core64_regs_;
       int next_core64_reg_;
-      GrowableArray<RegisterInfo*> sp_regs_;    // Single precision float.
+      ArenaVector<RegisterInfo*> sp_regs_;    // Single precision float.
       int next_sp_reg_;
-      GrowableArray<RegisterInfo*> dp_regs_;    // Double precision float.
+      ArenaVector<RegisterInfo*> dp_regs_;    // Double precision float.
       int next_dp_reg_;
-      GrowableArray<RegisterInfo*>* ref_regs_;  // Points to core_regs_ or core64_regs_
+      ArenaVector<RegisterInfo*>* ref_regs_;  // Points to core_regs_ or core64_regs_
       int* next_ref_reg_;
 
      private:
@@ -597,13 +597,13 @@ class Mir2Lir : public Backend {
      * may be worth conditionally-compiling a set of identity functions here.
      */
     uint32_t WrapPointer(void* pointer) {
-      uint32_t res = pointer_storage_.Size();
-      pointer_storage_.Insert(pointer);
+      uint32_t res = pointer_storage_.size();
+      pointer_storage_.push_back(pointer);
       return res;
     }
 
     void* UnwrapPointer(size_t index) {
-      return pointer_storage_.Get(index);
+      return pointer_storage_[index];
     }
 
     // strdup(), but allocates from the arena.
@@ -713,7 +713,7 @@ class Mir2Lir : public Backend {
     void SimpleRegAlloc();
     void ResetRegPool();
     void CompilerInitPool(RegisterInfo* info, RegStorage* regs, int num);
-    void DumpRegPool(GrowableArray<RegisterInfo*>* regs);
+    void DumpRegPool(ArenaVector<RegisterInfo*>* regs);
     void DumpCoreRegPool();
     void DumpFpRegPool();
     void DumpRegPools();
@@ -728,7 +728,7 @@ class Mir2Lir : public Backend {
     RegStorage AllocPreservedFpReg(int s_reg);
     virtual RegStorage AllocPreservedSingle(int s_reg);
     virtual RegStorage AllocPreservedDouble(int s_reg);
-    RegStorage AllocTempBody(GrowableArray<RegisterInfo*> &regs, int* next_temp, bool required);
+    RegStorage AllocTempBody(ArenaVector<RegisterInfo*>& regs, int* next_temp, bool required);
     virtual RegStorage AllocTemp(bool required = true);
     virtual RegStorage AllocTempWide(bool required = true);
     virtual RegStorage AllocTempRef(bool required = true);
@@ -739,7 +739,7 @@ class Mir2Lir : public Backend {
     void FlushReg(RegStorage reg);
     void FlushRegWide(RegStorage reg);
     RegStorage AllocLiveReg(int s_reg, int reg_class, bool wide);
-    RegStorage FindLiveReg(GrowableArray<RegisterInfo*> &regs, int s_reg);
+    RegStorage FindLiveReg(ArenaVector<RegisterInfo*>& regs, int s_reg);
     virtual void FreeTemp(RegStorage reg);
     virtual void FreeRegLocTemps(RegLocation rl_keep, RegLocation rl_free);
     virtual bool IsLive(RegStorage reg);
@@ -1676,11 +1676,11 @@ class Mir2Lir : public Backend {
   protected:
     CompilationUnit* const cu_;
     MIRGraph* const mir_graph_;
-    GrowableArray<SwitchTable*> switch_tables_;
-    GrowableArray<FillArrayData*> fill_array_data_;
-    GrowableArray<RegisterInfo*> tempreg_info_;
-    GrowableArray<RegisterInfo*> reginfo_map_;
-    GrowableArray<void*> pointer_storage_;
+    ArenaVector<SwitchTable*> switch_tables_;
+    ArenaVector<FillArrayData*> fill_array_data_;
+    ArenaVector<RegisterInfo*> tempreg_info_;
+    ArenaVector<RegisterInfo*> reginfo_map_;
+    ArenaVector<void*> pointer_storage_;
     CodeOffset current_code_offset_;    // Working byte offset of machine instructons.
     CodeOffset data_offset_;            // starting offset of literal pool.
     size_t total_size_;                   // header + code size.
@@ -1697,7 +1697,7 @@ class Mir2Lir : public Backend {
      */
     DexOffset current_dalvik_offset_;
     size_t estimated_native_code_size_;     // Just an estimate; used to reserve code_buffer_ size.
-    RegisterPool* reg_pool_;
+    std::unique_ptr<RegisterPool> reg_pool_;
     /*
      * Sanity checking for the register temp tracking.  The same ssa
      * name should never be associated with one temp register per
@@ -1720,7 +1720,7 @@ class Mir2Lir : public Backend {
     LIR* first_lir_insn_;
     LIR* last_lir_insn_;
 
-    GrowableArray<LIRSlowPath*> slow_paths_;
+    ArenaVector<LIRSlowPath*> slow_paths_;
 
     // The memory reference type for new LIRs.
     // NOTE: Passing this as an explicit parameter by all functions that directly or indirectly

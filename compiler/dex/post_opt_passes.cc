@@ -84,7 +84,7 @@ void CalculatePredecessors::Start(PassDataHolder* data) const {
   // First clear all predecessors.
   AllNodesIterator first(mir_graph);
   for (BasicBlock* bb = first.Next(); bb != nullptr; bb = first.Next()) {
-    bb->predecessors->Reset();
+    bb->predecessors.clear();
   }
 
   // Now calculate all predecessors.
@@ -100,7 +100,7 @@ void CalculatePredecessors::Start(PassDataHolder* data) const {
 
     // Now iterate through the children to set the predecessor bits.
     for (BasicBlock* child = child_iter.Next(); child != nullptr; child = child_iter.Next()) {
-      child->predecessors->Insert(bb->id);
+      child->predecessors.push_back(bb->id);
     }
   }
 }
