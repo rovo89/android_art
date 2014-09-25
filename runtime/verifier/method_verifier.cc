@@ -650,6 +650,11 @@ bool MethodVerifier::ScanTryCatchBlocks() {
             << "exception handler starts at bad address (" << dex_pc << ")";
         return false;
       }
+      if (!CheckNotMoveResult(code_item_->insns_, dex_pc)) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+            << "exception handler begins with move-result* (" << dex_pc << ")";
+        return false;
+      }
       insn_flags_[dex_pc].SetBranchTarget();
       // Ensure exception types are resolved so that they don't need resolution to be delivered,
       // unresolved exception types will be ignored by exception delivery
@@ -2766,7 +2771,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       return false;
     }
     DCHECK_EQ(isConditional, (opcode_flags & Instruction::kContinue) != 0);
-    if (!CheckNotMoveException(code_item_->insns_, work_insn_idx_ + branch_target)) {
+    if (!CheckNotMoveExceptionOrMoveResult(code_item_->insns_, work_insn_idx_ + branch_target)) {
       return false;
     }
     /* update branch target, set "changed" if appropriate */
@@ -2812,7 +2817,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
          (((int32_t) switch_insns[offset_to_targets + targ * 2 + 1]) << 16);
       abs_offset = work_insn_idx_ + offset;
       DCHECK_LT(abs_offset, code_item_->insns_size_in_code_units_);
-      if (!CheckNotMoveException(code_item_->insns_, abs_offset)) {
+      if (!CheckNotMoveExceptionOrMoveResult(code_item_->insns_, abs_offset)) {
         return false;
       }
       if (!UpdateRegisters(abs_offset, work_line_.get(), false)) {
@@ -3999,6 +4004,19 @@ bool MethodVerifier::CheckNotMoveException(const uint16_t* insns, int insn_idx) 
     return false;
   }
   return true;
+}
+
+bool MethodVerifier::CheckNotMoveResult(const uint16_t* insns, int insn_idx) {
+  if (((insns[insn_idx] & 0xff) >= Instruction::MOVE_RESULT) &&
+      ((insns[insn_idx] & 0xff) <= Instruction::MOVE_RESULT_OBJECT)) {
+    Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid use of move-result*";
+    return false;
+  }
+  return true;
+}
+
+bool MethodVerifier::CheckNotMoveExceptionOrMoveResult(const uint16_t* insns, int insn_idx) {
+  return (CheckNotMoveException(insns, insn_idx) && CheckNotMoveResult(insns, insn_idx));
 }
 
 bool MethodVerifier::UpdateRegisters(uint32_t next_insn, RegisterLine* merge_line,
