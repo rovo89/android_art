@@ -83,7 +83,7 @@ class ParallelMoveResolverARM : public ParallelMoveResolver {
 
 class LocationsBuilderARM : public HGraphVisitor {
  public:
-  explicit LocationsBuilderARM(HGraph* graph, CodeGeneratorARM* codegen)
+  LocationsBuilderARM(HGraph* graph, CodeGeneratorARM* codegen)
       : HGraphVisitor(graph), codegen_(codegen) {}
 
 #define DECLARE_VISIT_INSTRUCTION(name)     \
