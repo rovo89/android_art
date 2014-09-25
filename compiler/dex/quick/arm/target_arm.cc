@@ -568,16 +568,16 @@ Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
 }
 
 void ArmMir2Lir::CompilerInitializeRegAlloc() {
-  reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs, empty_pool /* core64 */, sp_regs,
-                                        dp_regs, reserved_regs, empty_pool /* reserved64 */,
-                                        core_temps, empty_pool /* core64_temps */, sp_temps,
-                                        dp_temps);
+  reg_pool_.reset(new (arena_) RegisterPool(this, arena_, core_regs, empty_pool /* core64 */,
+                                            sp_regs, dp_regs,
+                                            reserved_regs, empty_pool /* reserved64 */,
+                                            core_temps, empty_pool /* core64_temps */,
+                                            sp_temps, dp_temps));
 
   // Target-specific adjustments.
 
   // Alias single precision floats to appropriate half of overlapping double.
-  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->sp_regs_);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+  for (RegisterInfo* info : reg_pool_->sp_regs_) {
     int sp_reg_num = info->GetReg().GetRegNum();
     int dp_reg_num = sp_reg_num >> 1;
     RegStorage dp_reg = RegStorage::Solo64(RegStorage::kFloatingPoint | dp_reg_num);
@@ -784,8 +784,7 @@ RegStorage ArmMir2Lir::AllocPreservedDouble(int s_reg) {
      * TODO: until runtime support is in, make sure we avoid promoting the same vreg to
      * different underlying physical registers.
      */
-    GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->dp_regs_);
-    for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+    for (RegisterInfo* info : reg_pool_->dp_regs_) {
       if (!info->IsTemp() && !info->InUse()) {
         res = info->GetReg();
         info->MarkInUse();
@@ -809,8 +808,7 @@ RegStorage ArmMir2Lir::AllocPreservedDouble(int s_reg) {
 // Reserve a callee-save sp single register.
 RegStorage ArmMir2Lir::AllocPreservedSingle(int s_reg) {
   RegStorage res;
-  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->sp_regs_);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+  for (RegisterInfo* info : reg_pool_->sp_regs_) {
     if (!info->IsTemp() && !info->InUse()) {
       res = info->GetReg();
       int p_map_idx = SRegToPMap(s_reg);

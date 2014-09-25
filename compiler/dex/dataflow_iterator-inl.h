@@ -28,7 +28,7 @@ inline BasicBlock* DataflowIterator::ForwardSingleNext() {
   // Are we not yet at the end?
   if (idx_ < end_idx_) {
     // Get the next index.
-    BasicBlockId bb_id = block_id_list_->Get(idx_);
+    BasicBlockId bb_id = (*block_id_list_)[idx_];
     res = mir_graph_->GetBasicBlock(bb_id);
     idx_++;
   }
@@ -51,7 +51,7 @@ inline BasicBlock* DataflowIterator::ForwardRepeatNext() {
   // Are we not yet at the end?
   if (idx_ < end_idx_) {
     // Get the BasicBlockId.
-    BasicBlockId bb_id = block_id_list_->Get(idx_);
+    BasicBlockId bb_id = (*block_id_list_)[idx_];
     res = mir_graph_->GetBasicBlock(bb_id);
     idx_++;
   }
@@ -66,7 +66,7 @@ inline BasicBlock* DataflowIterator::ReverseSingleNext() {
   // Are we not yet at the end?
   if (idx_ >= 0) {
     // Get the BasicBlockId.
-    BasicBlockId bb_id = block_id_list_->Get(idx_);
+    BasicBlockId bb_id = (*block_id_list_)[idx_];
     res = mir_graph_->GetBasicBlock(bb_id);
     idx_--;
   }
@@ -89,7 +89,7 @@ inline BasicBlock* DataflowIterator::ReverseRepeatNext() {
   // Are we not yet done?
   if (idx_ >= 0) {
     // Get the BasicBlockId.
-    BasicBlockId bb_id = block_id_list_->Get(idx_);
+    BasicBlockId bb_id = (*block_id_list_)[idx_];
     res = mir_graph_->GetBasicBlock(bb_id);
     idx_--;
   }
@@ -97,26 +97,20 @@ inline BasicBlock* DataflowIterator::ReverseRepeatNext() {
   return res;
 }
 
-// AllNodes uses the existing GrowableArray iterator, and should be considered unordered.
+// AllNodes uses the existing block list, and should be considered unordered.
 inline BasicBlock* AllNodesIterator::Next(bool had_change) {
-  BasicBlock* res = NULL;
-
-  // Suppose we want to keep looking.
-  bool keep_looking = true;
-
-  // Find the next BasicBlock.
-  while (keep_looking == true) {
-    // Get next BasicBlock.
-    res = all_nodes_iterator_.Next();
-
-    // Are we done or is the BasicBlock not hidden?
-    if ((res == NULL) || (res->hidden == false)) {
-      keep_looking = false;
-    }
-  }
-
   // Update changed: if had_changed is true, we remember it for the whole iteration.
   changed_ |= had_change;
+
+  BasicBlock* res = nullptr;
+  while (idx_ != end_idx_) {
+    BasicBlock* bb = mir_graph_->GetBlockList()[idx_++];
+    DCHECK(bb != nullptr);
+    if (!bb->hidden) {
+      res = bb;
+      break;
+    }
+  }
 
   return res;
 }
@@ -124,7 +118,7 @@ inline BasicBlock* AllNodesIterator::Next(bool had_change) {
 inline BasicBlock* LoopRepeatingTopologicalSortIterator::Next(bool had_change) {
   if (idx_ != 0) {
     // Mark last processed block visited.
-    BasicBlock* bb = mir_graph_->GetBasicBlock(block_id_list_->Get(idx_ - 1));
+    BasicBlock* bb = mir_graph_->GetBasicBlock((*block_id_list_)[idx_ - 1]);
     bb->visited = true;
     if (had_change) {
       // If we had a change we need to revisit the children.
@@ -138,16 +132,17 @@ inline BasicBlock* LoopRepeatingTopologicalSortIterator::Next(bool had_change) {
   while (true) {
     // Pop loops we have left and check if we need to recalculate one of them.
     // NOTE: We need to do this even if idx_ == end_idx_.
-    while (loop_head_stack_->Size() != 0u &&
-        loop_ends_->Get(loop_head_stack_->Peek().first) == idx_) {
-      auto top = loop_head_stack_->Peek();
+    while (loop_head_stack_->size() != 0u &&
+        (*loop_ends_)[loop_head_stack_->back().first] == idx_) {
+      auto top = loop_head_stack_->back();
       uint16_t loop_head_idx = top.first;
       bool recalculated = top.second;
-      loop_head_stack_->Pop();
-      BasicBlock* loop_head = mir_graph_->GetBasicBlock(block_id_list_->Get(loop_head_idx));
+      loop_head_stack_->pop_back();
+      BasicBlock* loop_head = mir_graph_->GetBasicBlock((*block_id_list_)[loop_head_idx]);
       DCHECK(loop_head != nullptr);
       if (!recalculated || !loop_head->visited) {
-        loop_head_stack_->Insert(std::make_pair(loop_head_idx, true));  // Recalculating this loop.
+        // Recalculating this loop.
+        loop_head_stack_->push_back(std::make_pair(loop_head_idx, true));
         idx_ = loop_head_idx + 1;
         return loop_head;
       }
@@ -160,11 +155,11 @@ inline BasicBlock* LoopRepeatingTopologicalSortIterator::Next(bool had_change) {
     // Get next block and return it if unvisited.
     BasicBlockId idx = idx_;
     idx_ += 1;
-    BasicBlock* bb = mir_graph_->GetBasicBlock(block_id_list_->Get(idx));
+    BasicBlock* bb = mir_graph_->GetBasicBlock((*block_id_list_)[idx]);
     DCHECK(bb != nullptr);
     if (!bb->visited) {
-      if (loop_ends_->Get(idx) != 0u) {
-        loop_head_stack_->Insert(std::make_pair(idx, false));  // Not recalculating.
+      if ((*loop_ends_)[idx] != 0u) {
+        loop_head_stack_->push_back(std::make_pair(idx, false));  // Not recalculating.
       }
       return bb;
     }

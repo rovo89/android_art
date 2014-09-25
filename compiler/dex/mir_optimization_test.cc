@@ -76,8 +76,8 @@ class ClassInitCheckEliminationTest : public testing::Test {
     { opcode, bb, field_info }
 
   void DoPrepareSFields(const SFieldDef* defs, size_t count) {
-    cu_.mir_graph->sfield_lowering_infos_.Reset();
-    cu_.mir_graph->sfield_lowering_infos_.Resize(count);
+    cu_.mir_graph->sfield_lowering_infos_.clear();
+    cu_.mir_graph->sfield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const SFieldDef* def = &defs[i];
       MirSFieldLoweringInfo field_info(def->field_idx);
@@ -89,7 +89,7 @@ class ClassInitCheckEliminationTest : public testing::Test {
       }
       ASSERT_EQ(def->declaring_dex_file != 0u, field_info.IsResolved());
       ASSERT_FALSE(field_info.IsInitialized());
-      cu_.mir_graph->sfield_lowering_infos_.Insert(field_info);
+      cu_.mir_graph->sfield_lowering_infos_.push_back(field_info);
     }
   }
 
@@ -100,51 +100,43 @@ class ClassInitCheckEliminationTest : public testing::Test {
 
   void DoPrepareBasicBlocks(const BBDef* defs, size_t count) {
     cu_.mir_graph->block_id_map_.clear();
-    cu_.mir_graph->block_list_.Reset();
+    cu_.mir_graph->block_list_.clear();
     ASSERT_LT(3u, count);  // null, entry, exit and at least one bytecode block.
     ASSERT_EQ(kNullBlock, defs[0].type);
     ASSERT_EQ(kEntryBlock, defs[1].type);
     ASSERT_EQ(kExitBlock, defs[2].type);
     for (size_t i = 0u; i != count; ++i) {
       const BBDef* def = &defs[i];
-      BasicBlock* bb = cu_.mir_graph->NewMemBB(def->type, i);
-      cu_.mir_graph->block_list_.Insert(bb);
+      BasicBlock* bb = cu_.mir_graph->CreateNewBB(def->type);
       if (def->num_successors <= 2) {
         bb->successor_block_list_type = kNotUsed;
-        bb->successor_blocks = nullptr;
         bb->fall_through = (def->num_successors >= 1) ? def->successors[0] : 0u;
         bb->taken = (def->num_successors >= 2) ? def->successors[1] : 0u;
       } else {
         bb->successor_block_list_type = kPackedSwitch;
         bb->fall_through = 0u;
         bb->taken = 0u;
-        bb->successor_blocks = new (&cu_.arena) GrowableArray<SuccessorBlockInfo*>(
-            &cu_.arena, def->num_successors, kGrowableArraySuccessorBlocks);
+        bb->successor_blocks.reserve(def->num_successors);
         for (size_t j = 0u; j != def->num_successors; ++j) {
           SuccessorBlockInfo* successor_block_info =
               static_cast<SuccessorBlockInfo*>(cu_.arena.Alloc(sizeof(SuccessorBlockInfo),
                                                                kArenaAllocSuccessor));
           successor_block_info->block = j;
           successor_block_info->key = 0u;  // Not used by class init check elimination.
-          bb->successor_blocks->Insert(successor_block_info);
+          bb->successor_blocks.push_back(successor_block_info);
         }
       }
-      bb->predecessors = new (&cu_.arena) GrowableArray<BasicBlockId>(
-          &cu_.arena, def->num_predecessors, kGrowableArrayPredecessors);
-      for (size_t j = 0u; j != def->num_predecessors; ++j) {
-        ASSERT_NE(0u, def->predecessors[j]);
-        bb->predecessors->Insert(def->predecessors[j]);
-      }
+      bb->predecessors.assign(def->predecessors, def->predecessors + def->num_predecessors);
       if (def->type == kDalvikByteCode || def->type == kEntryBlock || def->type == kExitBlock) {
         bb->data_flow_info = static_cast<BasicBlockDataFlow*>(
             cu_.arena.Alloc(sizeof(BasicBlockDataFlow), kArenaAllocDFInfo));
       }
     }
     cu_.mir_graph->num_blocks_ = count;
-    ASSERT_EQ(count, cu_.mir_graph->block_list_.Size());
-    cu_.mir_graph->entry_block_ = cu_.mir_graph->block_list_.Get(1);
+    ASSERT_EQ(count, cu_.mir_graph->block_list_.size());
+    cu_.mir_graph->entry_block_ = cu_.mir_graph->block_list_[1];
     ASSERT_EQ(kEntryBlock, cu_.mir_graph->entry_block_->block_type);
-    cu_.mir_graph->exit_block_ = cu_.mir_graph->block_list_.Get(2);
+    cu_.mir_graph->exit_block_ = cu_.mir_graph->block_list_[2];
     ASSERT_EQ(kExitBlock, cu_.mir_graph->exit_block_->block_type);
   }
 
@@ -161,11 +153,11 @@ class ClassInitCheckEliminationTest : public testing::Test {
       const MIRDef* def = &defs[i];
       MIR* mir = &mirs_[i];
       mir->dalvikInsn.opcode = def->opcode;
-      ASSERT_LT(def->bbid, cu_.mir_graph->block_list_.Size());
-      BasicBlock* bb = cu_.mir_graph->block_list_.Get(def->bbid);
+      ASSERT_LT(def->bbid, cu_.mir_graph->block_list_.size());
+      BasicBlock* bb = cu_.mir_graph->block_list_[def->bbid];
       bb->AppendMIR(mir);
       if (def->opcode >= Instruction::SGET && def->opcode <= Instruction::SPUT_SHORT) {
-        ASSERT_LT(def->field_or_method_info, cu_.mir_graph->sfield_lowering_infos_.Size());
+        ASSERT_LT(def->field_or_method_info, cu_.mir_graph->sfield_lowering_infos_.size());
         mir->meta.sfield_lowering_info = def->field_or_method_info;
       }
       mir->ssa_rep = nullptr;
@@ -408,12 +400,10 @@ TEST_F(ClassInitCheckEliminationTest, Catch) {
   // Add successor block info to the check block.
   BasicBlock* check_bb = cu_.mir_graph->GetBasicBlock(3u);
   check_bb->successor_block_list_type = kCatch;
-  check_bb->successor_blocks = new (&cu_.arena) GrowableArray<SuccessorBlockInfo*>(
-      &cu_.arena, 2, kGrowableArraySuccessorBlocks);
   SuccessorBlockInfo* successor_block_info = reinterpret_cast<SuccessorBlockInfo*>
       (cu_.arena.Alloc(sizeof(SuccessorBlockInfo), kArenaAllocSuccessor));
   successor_block_info->block = catch_handler->id;
-  check_bb->successor_blocks->Insert(successor_block_info);
+  check_bb->successor_blocks.push_back(successor_block_info);
   PrepareMIRs(mirs);
   PerformClassInitCheckElimination();
   ASSERT_EQ(arraysize(expected_ignore_clinit_check), mir_count_);

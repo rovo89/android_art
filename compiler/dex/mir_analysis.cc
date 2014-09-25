@@ -1218,25 +1218,25 @@ void MIRGraph::DoCacheFieldLoweringInfo() {
 
   if (ifield_pos != 0u) {
     // Resolve instance field infos.
-    DCHECK_EQ(ifield_lowering_infos_.Size(), 0u);
-    ifield_lowering_infos_.Resize(ifield_pos);
+    DCHECK_EQ(ifield_lowering_infos_.size(), 0u);
+    ifield_lowering_infos_.reserve(ifield_pos);
     for (size_t pos = 0u; pos != ifield_pos; ++pos) {
-      ifield_lowering_infos_.Insert(MirIFieldLoweringInfo(field_idxs[pos]));
+      ifield_lowering_infos_.push_back(MirIFieldLoweringInfo(field_idxs[pos]));
     }
     MirIFieldLoweringInfo::Resolve(cu_->compiler_driver, GetCurrentDexCompilationUnit(),
-                                ifield_lowering_infos_.GetRawStorage(), ifield_pos);
+                                   ifield_lowering_infos_.data(), ifield_pos);
   }
 
   if (sfield_pos != max_refs) {
     // Resolve static field infos.
-    DCHECK_EQ(sfield_lowering_infos_.Size(), 0u);
-    sfield_lowering_infos_.Resize(max_refs - sfield_pos);
+    DCHECK_EQ(sfield_lowering_infos_.size(), 0u);
+    sfield_lowering_infos_.reserve(max_refs - sfield_pos);
     for (size_t pos = max_refs; pos != sfield_pos;) {
       --pos;
-      sfield_lowering_infos_.Insert(MirSFieldLoweringInfo(field_idxs[pos]));
+      sfield_lowering_infos_.push_back(MirSFieldLoweringInfo(field_idxs[pos]));
     }
     MirSFieldLoweringInfo::Resolve(cu_->compiler_driver, GetCurrentDexCompilationUnit(),
-                                sfield_lowering_infos_.GetRawStorage(), max_refs - sfield_pos);
+                                   sfield_lowering_infos_.data(), max_refs - sfield_pos);
   }
 }
 
@@ -1338,9 +1338,9 @@ void MIRGraph::DoCacheMethodLoweringInfo() {
   }
 
   // Prepare unique method infos, set method info indexes for their MIRs.
-  DCHECK_EQ(method_lowering_infos_.Size(), 0u);
+  DCHECK_EQ(method_lowering_infos_.size(), 0u);
   const size_t count = invoke_map.size();
-  method_lowering_infos_.Resize(count);
+  method_lowering_infos_.reserve(count);
   for (size_t pos = 0u; pos != count; ++pos) {
     const MapEntry* entry = sequential_entries[pos];
     MirMethodLoweringInfo method_info(entry->target_method_idx,
@@ -1348,10 +1348,10 @@ void MIRGraph::DoCacheMethodLoweringInfo() {
     if (entry->devirt_target != nullptr) {
       method_info.SetDevirtualizationTarget(*entry->devirt_target);
     }
-    method_lowering_infos_.Insert(method_info);
+    method_lowering_infos_.push_back(method_info);
   }
   MirMethodLoweringInfo::Resolve(cu_->compiler_driver, GetCurrentDexCompilationUnit(),
-                                 method_lowering_infos_.GetRawStorage(), count);
+                                 method_lowering_infos_.data(), count);
 }
 
 bool MIRGraph::SkipCompilationByName(const std::string& methodname) {
