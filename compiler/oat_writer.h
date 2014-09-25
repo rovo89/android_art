@@ -23,6 +23,7 @@
 
 #include "driver/compiler_driver.h"
 #include "mem_map.h"
+#include "method_reference.h"
 #include "oat.h"
 #include "mirror/class.h"
 #include "safe_map.h"
@@ -31,6 +32,7 @@ namespace art {
 
 class BitVector;
 class CompiledMethod;
+class ImageWriter;
 class OutputStream;
 
 // OatHeader         variable length with count of D OatDexFiles
@@ -82,6 +84,7 @@ class OatWriter {
             uintptr_t image_file_location_oat_begin,
             int32_t image_patch_delta,
             const CompilerDriver* compiler,
+            ImageWriter* image_writer,
             TimingLogger* timings,
             SafeMap<std::string, std::string>* key_value_store);
 
@@ -91,6 +94,14 @@ class OatWriter {
 
   size_t GetSize() const {
     return size_;
+  }
+
+  const std::vector<uintptr_t>& GetAbsolutePatchLocations() const {
+    return absolute_patch_locations_;
+  }
+
+  void SetOatDataOffset(size_t oat_data_offset) {
+    oat_data_offset_ = oat_data_offset;
   }
 
   bool Write(OutputStream* out);
@@ -159,6 +170,8 @@ class OatWriter {
   size_t WriteMaps(OutputStream* out, const size_t file_offset, size_t relative_offset);
   size_t WriteCode(OutputStream* out, const size_t file_offset, size_t relative_offset);
   size_t WriteCodeDexFiles(OutputStream* out, const size_t file_offset, size_t relative_offset);
+
+  bool WriteCodeAlignment(OutputStream* out, uint32_t aligned_code_delta);
 
   class OatDexFile {
    public:
@@ -248,12 +261,16 @@ class OatWriter {
   std::vector<DebugInfo> method_info_;
 
   const CompilerDriver* const compiler_driver_;
+  ImageWriter* const image_writer_;
 
   // note OatFile does not take ownership of the DexFiles
   const std::vector<const DexFile*>* dex_files_;
 
   // Size required for Oat data structures.
   size_t size_;
+
+  // Offset of the oat data from the start of the mmapped region of the elf file.
+  size_t oat_data_offset_;
 
   // dependencies on the image.
   uint32_t image_file_location_oat_checksum_;
@@ -296,6 +313,7 @@ class OatWriter {
   uint32_t size_method_header_;
   uint32_t size_code_;
   uint32_t size_code_alignment_;
+  uint32_t size_relative_call_thunks_;
   uint32_t size_mapping_table_;
   uint32_t size_vmap_table_;
   uint32_t size_gc_map_;
@@ -309,6 +327,18 @@ class OatWriter {
   uint32_t size_oat_class_method_bitmaps_;
   uint32_t size_oat_class_method_offsets_;
 
+  class RelativeCallPatcher;
+  class NoRelativeCallPatcher;
+  class X86RelativeCallPatcher;
+  class Thumb2RelativeCallPatcher;
+
+  std::unique_ptr<RelativeCallPatcher> relative_call_patcher_;
+
+  // The locations of absolute patches relative to the start of the executable section.
+  std::vector<uintptr_t> absolute_patch_locations_;
+
+  SafeMap<MethodReference, uint32_t, MethodReferenceComparator> method_offset_map_;
+
   struct CodeOffsetsKeyComparator {
     bool operator()(const CompiledMethod* lhs, const CompiledMethod* rhs) const {
       if (lhs->GetQuickCode() != rhs->GetQuickCode()) {
@@ -320,6 +350,18 @@ class OatWriter {
       }
       if (UNLIKELY(&lhs->GetVmapTable() != &rhs->GetVmapTable())) {
         return &lhs->GetVmapTable() < &rhs->GetVmapTable();
+      }
+      const auto& lhs_patches = lhs->GetPatches();
+      const auto& rhs_patches = rhs->GetPatches();
+      if (UNLIKELY(lhs_patches.size() != rhs_patches.size())) {
+        return lhs_patches.size() < rhs_patches.size();
+      }
+      auto rit = rhs_patches.begin();
+      for (const LinkerPatch& lpatch : lhs_patches) {
+        if (UNLIKELY(!(lpatch == *rit))) {
+          return lpatch < *rit;
+        }
+        ++rit;
       }
       return false;
     }

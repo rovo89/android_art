@@ -67,19 +67,40 @@ bool ElfWriterMclinker::Write(OatWriter* oat_writer,
                               bool is_host) {
   std::vector<uint8_t> oat_contents;
   oat_contents.reserve(oat_writer->GetSize());
-  VectorOutputStream output_stream("oat contents", oat_contents);
-  CHECK(oat_writer->Write(&output_stream));
-  CHECK_EQ(oat_writer->GetSize(), oat_contents.size());
 
   Init();
-  AddOatInput(oat_contents);
+  mcld::LDSection* oat_section = AddOatInput(oat_writer, &oat_contents);
   if (kUsePortableCompiler) {
     AddMethodInputs(dex_files);
     AddRuntimeInputs(android_root, is_host);
   }
-  if (!Link()) {
+
+  // link inputs
+  if (!linker_->link(*module_.get(), *ir_builder_.get())) {
+    LOG(ERROR) << "Failed to link " << elf_file_->GetPath();
     return false;
   }
+
+  // Fill oat_contents.
+  VectorOutputStream output_stream("oat contents", oat_contents);
+  oat_writer->SetOatDataOffset(oat_section->offset());
+  CHECK(oat_writer->Write(&output_stream));
+  CHECK_EQ(oat_writer->GetSize(), oat_contents.size());
+
+  // emit linked output
+  // TODO: avoid dup of fd by fixing Linker::emit to not close the argument fd.
+  int fd = dup(elf_file_->Fd());
+  if (fd == -1) {
+    PLOG(ERROR) << "Failed to dup file descriptor for " << elf_file_->GetPath();
+    return false;
+  }
+  if (!linker_->emit(*module_.get(), fd)) {
+    LOG(ERROR) << "Failed to emit " << elf_file_->GetPath();
+    return false;
+  }
+  mcld::Finalize();
+  LOG(INFO) << "ELF file written successfully: " << elf_file_->GetPath();
+
   oat_contents.clear();
   if (kUsePortableCompiler) {
     FixupOatMethodOffsets(dex_files);
@@ -156,16 +177,13 @@ void ElfWriterMclinker::Init() {
   linker_->emulate(*linker_script_.get(), *linker_config_.get());
 }
 
-void ElfWriterMclinker::AddOatInput(std::vector<uint8_t>& oat_contents) {
-  // Add an artificial memory input. Based on LinkerTest.
-  std::string error_msg;
-  std::unique_ptr<OatFile> oat_file(OatFile::OpenMemory(oat_contents, elf_file_->GetPath(), &error_msg));
-  CHECK(oat_file.get() != NULL) << elf_file_->GetPath() << ": " << error_msg;
-
-  const char* oat_data_start = reinterpret_cast<const char*>(&oat_file->GetOatHeader());
-  const size_t oat_data_length = oat_file->GetOatHeader().GetExecutableOffset();
+mcld::LDSection* ElfWriterMclinker::AddOatInput(OatWriter* oat_writer,
+                                                std::vector<uint8_t>* oat_contents) {
+  // NOTE: oat_contents has sufficient reserved space but it doesn't contain the data yet.
+  const char* oat_data_start = reinterpret_cast<const char*>(&(*oat_contents)[0]);
+  const size_t oat_data_length = oat_writer->GetOatHeader().GetExecutableOffset();
   const char* oat_code_start = oat_data_start + oat_data_length;
-  const size_t oat_code_length = oat_file->Size() - oat_data_length;
+  const size_t oat_code_length = oat_writer->GetSize() - oat_data_length;
 
   // TODO: ownership of oat_input?
   oat_input_ = ir_builder_->CreateInput("oat contents",
@@ -205,7 +223,7 @@ void ElfWriterMclinker::AddOatInput(std::vector<uint8_t>& oat_contents) {
 
   // TODO: why does IRBuilder::CreateRegion take a non-const pointer?
   mcld::Fragment* text_fragment = ir_builder_->CreateRegion(const_cast<char*>(oat_data_start),
-                                                            oat_file->Size());
+                                                            oat_writer->GetSize());
   CHECK(text_fragment != NULL);
   ir_builder_->AppendFragment(*text_fragment, *text_sectiondata);
 
@@ -236,6 +254,8 @@ void ElfWriterMclinker::AddOatInput(std::vector<uint8_t>& oat_contents) {
                          // subtract a word so symbol is within section
                          (oat_data_length + oat_code_length) - sizeof(uint32_t),  // offset
                          text_section);
+
+  return text_section;
 }
 
 void ElfWriterMclinker::AddMethodInputs(const std::vector<const DexFile*>& dex_files) {
@@ -320,29 +340,6 @@ void ElfWriterMclinker::AddRuntimeInputs(const std::string& android_root, bool i
   // TODO: ownership of libm_lib_input?
   mcld::Input* libm_lib_input_input = ir_builder_->ReadInput(libm_lib, libm_lib);
   CHECK(libm_lib_input_input != NULL);
-}
-
-bool ElfWriterMclinker::Link() {
-  // link inputs
-  if (!linker_->link(*module_.get(), *ir_builder_.get())) {
-    LOG(ERROR) << "Failed to link " << elf_file_->GetPath();
-    return false;
-  }
-
-  // emit linked output
-  // TODO: avoid dup of fd by fixing Linker::emit to not close the argument fd.
-  int fd = dup(elf_file_->Fd());
-  if (fd == -1) {
-    PLOG(ERROR) << "Failed to dup file descriptor for " << elf_file_->GetPath();
-    return false;
-  }
-  if (!linker_->emit(*module_.get(), fd)) {
-    LOG(ERROR) << "Failed to emit " << elf_file_->GetPath();
-    return false;
-  }
-  mcld::Finalize();
-  LOG(INFO) << "ELF file written successfully: " << elf_file_->GetPath();
-  return true;
 }
 
 void ElfWriterMclinker::FixupOatMethodOffsets(const std::vector<const DexFile*>& dex_files) {

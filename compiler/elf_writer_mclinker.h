@@ -61,11 +61,10 @@ class ElfWriterMclinker FINAL : public ElfWriter {
   ~ElfWriterMclinker();
 
   void Init();
-  void AddOatInput(std::vector<uint8_t>& oat_contents);
+  mcld::LDSection* AddOatInput(OatWriter* oat_writer, std::vector<uint8_t>* oat_contents);
   void AddMethodInputs(const std::vector<const DexFile*>& dex_files);
   void AddCompiledCodeInput(const CompiledCode& compiled_code);
   void AddRuntimeInputs(const std::string& android_root, bool is_host);
-  bool Link();
   void FixupOatMethodOffsets(const std::vector<const DexFile*>& dex_files)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   uint32_t FixupCompiledCodeOffset(ElfFile& elf_file,

@@ -20,6 +20,7 @@
 #include "arm_lir.h"
 #include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir.h"
+#include "utils/arena_containers.h"
 
 namespace art {
 
@@ -185,6 +186,28 @@ class ArmMir2Lir FINAL : public Mir2Lir {
       return false;  // Wide FPRs are formed by pairing.
     }
 
+    NextCallInsn GetNextSDCallInsn() OVERRIDE;
+
+    /*
+     * @brief Generate a relative call to the method that will be patched at link time.
+     * @param target_method The MethodReference of the method to be invoked.
+     * @param type How the method will be invoked.
+     * @returns Call instruction
+     */
+    LIR* CallWithLinkerFixup(const MethodReference& target_method, InvokeType type);
+
+    /*
+     * @brief Generate the actual call insn based on the method info.
+     * @param method_info the lowering info for the method call.
+     * @returns Call instruction
+     */
+    LIR* GenCallInsn(const MirMethodLoweringInfo& method_info) OVERRIDE;
+
+    /*
+     * @brief Handle ARM specific literals.
+     */
+    void InstallLiteralPools() OVERRIDE;
+
     LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) OVERRIDE;
     size_t GetInstructionOffset(LIR* lir);
 
@@ -215,6 +238,8 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     static constexpr ResourceMask GetRegMaskArm(RegStorage reg);
     static constexpr ResourceMask EncodeArmRegList(int reg_list);
     static constexpr ResourceMask EncodeArmRegFpcsList(int reg_list);
+
+    ArenaVector<LIR*> call_method_insns_;
 };
 
 }  // namespace art
