@@ -746,10 +746,18 @@ void X86Assembler::xchgl(Register dst, Register src) {
   EmitRegisterOperand(dst, src);
 }
 
+
 void X86Assembler::xchgl(Register reg, const Address& address) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x87);
   EmitOperand(reg, address);
+}
+
+
+void X86Assembler::cmpw(const Address& address, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitComplex(7, address, imm);
 }
 
 

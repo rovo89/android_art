@@ -93,8 +93,8 @@ class StackOverflowCheckSlowPathARM : public SlowPathCode {
 
 class SuspendCheckSlowPathARM : public SlowPathCode {
  public:
-  explicit SuspendCheckSlowPathARM(HSuspendCheck* instruction)
-      : instruction_(instruction) {}
+  explicit SuspendCheckSlowPathARM(HSuspendCheck* instruction, HBasicBlock* successor)
+      : instruction_(instruction), successor_(successor) {}
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
@@ -104,13 +104,24 @@ class SuspendCheckSlowPathARM : public SlowPathCode {
     __ blx(LR);
     codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
     codegen->RestoreLiveRegisters(instruction_->GetLocations());
-    __ b(GetReturnLabel());
+    if (successor_ == nullptr) {
+      __ b(GetReturnLabel());
+    } else {
+      __ b(codegen->GetLabelOf(successor_));
+    }
   }
 
-  Label* GetReturnLabel() { return &return_label_; }
+  Label* GetReturnLabel() {
+    DCHECK(successor_ == nullptr);
+    return &return_label_;
+  }
 
  private:
   HSuspendCheck* const instruction_;
+  // If not null, the block to branch to after the suspend check.
+  HBasicBlock* const successor_;
+
+  // If `successor_` is null, the label to branch to after the suspend check.
   Label return_label_;
 
   DISALLOW_COPY_AND_ASSIGN(SuspendCheckSlowPathARM);
@@ -562,9 +573,22 @@ void LocationsBuilderARM::VisitGoto(HGoto* got) {
 
 void InstructionCodeGeneratorARM::VisitGoto(HGoto* got) {
   HBasicBlock* successor = got->GetSuccessor();
-  if (GetGraph()->GetExitBlock() == successor) {
-    codegen_->GenerateFrameExit();
-  } else if (!codegen_->GoesToNextBlock(got->GetBlock(), successor)) {
+  DCHECK(!successor->IsExitBlock());
+
+  HBasicBlock* block = got->GetBlock();
+  HInstruction* previous = got->GetPrevious();
+
+  HLoopInformation* info = block->GetLoopInformation();
+  if (info != nullptr && info->IsBackEdge(block) && info->HasSuspendCheck()) {
+    codegen_->ClearSpillSlotsFromLoopPhisInStackMap(info->GetSuspendCheck());
+    GenerateSuspendCheck(info->GetSuspendCheck(), successor);
+    return;
+  }
+
+  if (block->IsEntryBlock() && (previous != nullptr) && previous->IsSuspendCheck()) {
+    GenerateSuspendCheck(previous->AsSuspendCheck(), nullptr);
+  }
+  if (!codegen_->GoesToNextBlock(got->GetBlock(), successor)) {
     __ b(codegen_->GetLabelOf(successor));
   }
 }
@@ -1567,14 +1591,34 @@ void LocationsBuilderARM::VisitSuspendCheck(HSuspendCheck* instruction) {
 }
 
 void InstructionCodeGeneratorARM::VisitSuspendCheck(HSuspendCheck* instruction) {
+  HBasicBlock* block = instruction->GetBlock();
+  if (block->GetLoopInformation() != nullptr) {
+    DCHECK(block->GetLoopInformation()->GetSuspendCheck() == instruction);
+    // The back edge will generate the suspend check.
+    return;
+  }
+  if (block->IsEntryBlock() && instruction->GetNext()->IsGoto()) {
+    // The goto will generate the suspend check.
+    return;
+  }
+  GenerateSuspendCheck(instruction, nullptr);
+}
+
+void InstructionCodeGeneratorARM::GenerateSuspendCheck(HSuspendCheck* instruction,
+                                                       HBasicBlock* successor) {
   SuspendCheckSlowPathARM* slow_path =
-      new (GetGraph()->GetArena()) SuspendCheckSlowPathARM(instruction);
+      new (GetGraph()->GetArena()) SuspendCheckSlowPathARM(instruction, successor);
   codegen_->AddSlowPath(slow_path);
 
   __ AddConstant(R4, R4, -1);
   __ cmp(R4, ShifterOperand(0));
-  __ b(slow_path->GetEntryLabel(), LE);
-  __ Bind(slow_path->GetReturnLabel());
+  if (successor == nullptr) {
+    __ b(slow_path->GetEntryLabel(), LE);
+    __ Bind(slow_path->GetReturnLabel());
+  } else {
+    __ b(codegen_->GetLabelOf(successor), GT);
+    __ b(slow_path->GetEntryLabel());
+  }
 }
 
 ArmAssembler* ParallelMoveResolverARM::GetAssembler() const {
