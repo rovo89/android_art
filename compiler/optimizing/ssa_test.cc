@@ -83,10 +83,10 @@ static void TestCode(const uint16_t* data, const char* expected) {
   HGraph* graph = builder.BuildGraph(*item);
   ASSERT_NE(graph, nullptr);
 
+  graph->BuildDominatorTree();
   // Suspend checks implementation may change in the future, and this test relies
   // on how instructions are ordered.
   RemoveSuspendChecks(graph);
-  graph->BuildDominatorTree();
   graph->TransformToSSA();
   ReNumberInstructions(graph);
 
