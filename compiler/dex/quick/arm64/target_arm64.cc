@@ -602,14 +602,13 @@ Mir2Lir* Arm64CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph
 }
 
 void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
-  reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs, core64_regs, sp_regs, dp_regs,
-                                        reserved_regs, reserved64_regs, core_temps, core64_temps,
-                                        sp_temps, dp_temps);
+  reg_pool_.reset(new (arena_) RegisterPool(this, arena_, core_regs, core64_regs, sp_regs, dp_regs,
+                                            reserved_regs, reserved64_regs,
+                                            core_temps, core64_temps, sp_temps, dp_temps));
 
   // Target-specific adjustments.
   // Alias single precision float registers to corresponding double registers.
-  GrowableArray<RegisterInfo*>::Iterator fp_it(&reg_pool_->sp_regs_);
-  for (RegisterInfo* info = fp_it.Next(); info != nullptr; info = fp_it.Next()) {
+  for (RegisterInfo* info : reg_pool_->sp_regs_) {
     int fp_reg_num = info->GetReg().GetRegNum();
     RegStorage dp_reg = RegStorage::FloatSolo64(fp_reg_num);
     RegisterInfo* dp_reg_info = GetRegInfo(dp_reg);
@@ -622,8 +621,7 @@ void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
   }
 
   // Alias 32bit W registers to corresponding 64bit X registers.
-  GrowableArray<RegisterInfo*>::Iterator w_it(&reg_pool_->core_regs_);
-  for (RegisterInfo* info = w_it.Next(); info != nullptr; info = w_it.Next()) {
+  for (RegisterInfo* info : reg_pool_->core_regs_) {
     int x_reg_num = info->GetReg().GetRegNum();
     RegStorage x_reg = RegStorage::Solo64(x_reg_num);
     RegisterInfo* x_reg_info = GetRegInfo(x_reg);

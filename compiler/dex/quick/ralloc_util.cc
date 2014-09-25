@@ -28,8 +28,7 @@ namespace art {
  * live until it is either explicitly killed or reallocated.
  */
 void Mir2Lir::ResetRegPool() {
-  GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
-  for (RegisterInfo* info = iter.Next(); info != NULL; info = iter.Next()) {
+  for (RegisterInfo* info : tempreg_info_) {
     info->MarkFree();
   }
   // Reset temp tracking sanity check.
@@ -66,41 +65,38 @@ Mir2Lir::RegisterPool::RegisterPool(Mir2Lir* m2l, ArenaAllocator* arena,
                                     const ArrayRef<const RegStorage>& core64_temps,
                                     const ArrayRef<const RegStorage>& sp_temps,
                                     const ArrayRef<const RegStorage>& dp_temps) :
-    core_regs_(arena, core_regs.size()), next_core_reg_(0),
-    core64_regs_(arena, core64_regs.size()), next_core64_reg_(0),
-    sp_regs_(arena, sp_regs.size()), next_sp_reg_(0),
-    dp_regs_(arena, dp_regs.size()), next_dp_reg_(0), m2l_(m2l)  {
+    core_regs_(arena->Adapter()), next_core_reg_(0),
+    core64_regs_(arena->Adapter()), next_core64_reg_(0),
+    sp_regs_(arena->Adapter()), next_sp_reg_(0),
+    dp_regs_(arena->Adapter()), next_dp_reg_(0), m2l_(m2l)  {
   // Initialize the fast lookup map.
-  m2l_->reginfo_map_.Reset();
-  if (kIsDebugBuild) {
-    m2l_->reginfo_map_.Resize(RegStorage::kMaxRegs);
-    for (unsigned i = 0; i < RegStorage::kMaxRegs; i++) {
-      m2l_->reginfo_map_.Insert(nullptr);
-    }
-  } else {
-    m2l_->reginfo_map_.SetSize(RegStorage::kMaxRegs);
-  }
+  m2l_->reginfo_map_.clear();
+  m2l_->reginfo_map_.resize(RegStorage::kMaxRegs, nullptr);
 
   // Construct the register pool.
+  core_regs_.reserve(core_regs.size());
   for (const RegStorage& reg : core_regs) {
     RegisterInfo* info = new (arena) RegisterInfo(reg, m2l_->GetRegMaskCommon(reg));
-    m2l_->reginfo_map_.Put(reg.GetReg(), info);
-    core_regs_.Insert(info);
+    m2l_->reginfo_map_[reg.GetReg()] = info;
+    core_regs_.push_back(info);
   }
+  core64_regs_.reserve(core64_regs.size());
   for (const RegStorage& reg : core64_regs) {
     RegisterInfo* info = new (arena) RegisterInfo(reg, m2l_->GetRegMaskCommon(reg));
-    m2l_->reginfo_map_.Put(reg.GetReg(), info);
-    core64_regs_.Insert(info);
+    m2l_->reginfo_map_[reg.GetReg()] = info;
+    core64_regs_.push_back(info);
   }
+  sp_regs_.reserve(sp_regs.size());
   for (const RegStorage& reg : sp_regs) {
     RegisterInfo* info = new (arena) RegisterInfo(reg, m2l_->GetRegMaskCommon(reg));
-    m2l_->reginfo_map_.Put(reg.GetReg(), info);
-    sp_regs_.Insert(info);
+    m2l_->reginfo_map_[reg.GetReg()] = info;
+    sp_regs_.push_back(info);
   }
+  dp_regs_.reserve(dp_regs.size());
   for (const RegStorage& reg : dp_regs) {
     RegisterInfo* info = new (arena) RegisterInfo(reg, m2l_->GetRegMaskCommon(reg));
-    m2l_->reginfo_map_.Put(reg.GetReg(), info);
-    dp_regs_.Insert(info);
+    m2l_->reginfo_map_[reg.GetReg()] = info;
+    dp_regs_.push_back(info);
   }
 
   // Keep special registers from being allocated.
@@ -127,10 +123,10 @@ Mir2Lir::RegisterPool::RegisterPool(Mir2Lir* m2l, ArenaAllocator* arena,
 
   // Add an entry for InvalidReg with zero'd mask.
   RegisterInfo* invalid_reg = new (arena) RegisterInfo(RegStorage::InvalidReg(), kEncodeNone);
-  m2l_->reginfo_map_.Put(RegStorage::InvalidReg().GetReg(), invalid_reg);
+  m2l_->reginfo_map_[RegStorage::InvalidReg().GetReg()] = invalid_reg;
 
   // Existence of core64 registers implies wide references.
-  if (core64_regs_.Size() != 0) {
+  if (core64_regs_.size() != 0) {
     ref_regs_ = &core64_regs_;
     next_ref_reg_ = &next_core64_reg_;
   } else {
@@ -139,10 +135,9 @@ Mir2Lir::RegisterPool::RegisterPool(Mir2Lir* m2l, ArenaAllocator* arena,
   }
 }
 
-void Mir2Lir::DumpRegPool(GrowableArray<RegisterInfo*>* regs) {
+void Mir2Lir::DumpRegPool(ArenaVector<RegisterInfo*>* regs) {
   LOG(INFO) << "================================================";
-  GrowableArray<RegisterInfo*>::Iterator it(regs);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+  for (RegisterInfo* info : *regs) {
     LOG(INFO) << StringPrintf(
         "R[%d:%d:%c]: T:%d, U:%d, W:%d, p:%d, LV:%d, D:%d, SR:%d, DEF:%d",
         info->GetReg().GetReg(), info->GetReg().GetRegNum(), info->GetReg().IsFloat() ?  'f' : 'c',
@@ -222,8 +217,7 @@ void Mir2Lir::ClobberSReg(int s_reg) {
     if (kIsDebugBuild && s_reg == live_sreg_) {
       live_sreg_ = INVALID_SREG;
     }
-    GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
-    for (RegisterInfo* info = iter.Next(); info != NULL; info = iter.Next()) {
+    for (RegisterInfo* info : tempreg_info_) {
       if (info->SReg() == s_reg) {
         if (info->GetReg().NotExactlyEquals(info->Partner())) {
           // Dealing with a pair - clobber the other half.
@@ -278,8 +272,7 @@ RegStorage Mir2Lir::AllocPreservedCoreReg(int s_reg) {
    * happens from the single or double pool.  This entire section of code could stand
    * a good refactoring.
    */
-  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->core_regs_);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+  for (RegisterInfo* info : reg_pool_->core_regs_) {
     if (!info->IsTemp() && !info->InUse()) {
       res = info->GetReg();
       RecordCorePromotion(res, s_reg);
@@ -311,8 +304,7 @@ RegStorage Mir2Lir::AllocPreservedFpReg(int s_reg) {
    */
   DCHECK_NE(cu_->instruction_set, kThumb2);
   RegStorage res;
-  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->sp_regs_);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+  for (RegisterInfo* info : reg_pool_->sp_regs_) {
     if (!info->IsTemp() && !info->InUse()) {
       res = info->GetReg();
       RecordFpPromotion(res, s_reg);
@@ -337,13 +329,14 @@ RegStorage Mir2Lir::AllocPreservedSingle(int s_reg) {
 }
 
 
-RegStorage Mir2Lir::AllocTempBody(GrowableArray<RegisterInfo*> &regs, int* next_temp, bool required) {
-  int num_regs = regs.Size();
+RegStorage Mir2Lir::AllocTempBody(ArenaVector<RegisterInfo*>& regs, int* next_temp, bool required) {
+  int num_regs = regs.size();
   int next = *next_temp;
   for (int i = 0; i< num_regs; i++) {
-    if (next >= num_regs)
+    if (next >= num_regs) {
       next = 0;
-    RegisterInfo* info = regs.Get(next);
+    }
+    RegisterInfo* info = regs[next];
     // Try to allocate a register that doesn't hold a live value.
     if (info->IsTemp() && !info->InUse() && info->IsDead()) {
       // If it's wide, split it up.
@@ -367,9 +360,10 @@ RegStorage Mir2Lir::AllocTempBody(GrowableArray<RegisterInfo*> &regs, int* next_
   next = *next_temp;
   // No free non-live regs.  Anything we can kill?
   for (int i = 0; i< num_regs; i++) {
-    if (next >= num_regs)
+    if (next >= num_regs) {
       next = 0;
-    RegisterInfo* info = regs.Get(next);
+    }
+    RegisterInfo* info = regs[next];
     if (info->IsTemp() && !info->InUse()) {
       // Got one.  Kill it.
       ClobberSReg(info->SReg());
@@ -401,7 +395,7 @@ RegStorage Mir2Lir::AllocTemp(bool required) {
 
 RegStorage Mir2Lir::AllocTempWide(bool required) {
   RegStorage res;
-  if (reg_pool_->core64_regs_.Size() != 0) {
+  if (reg_pool_->core64_regs_.size() != 0) {
     res = AllocTempBody(reg_pool_->core64_regs_, &reg_pool_->next_core64_reg_, required);
   } else {
     RegStorage low_reg = AllocTemp();
@@ -458,10 +452,9 @@ RegStorage Mir2Lir::AllocTypedTemp(bool fp_hint, int reg_class, bool required) {
   return AllocTemp(required);
 }
 
-RegStorage Mir2Lir::FindLiveReg(GrowableArray<RegisterInfo*> &regs, int s_reg) {
+RegStorage Mir2Lir::FindLiveReg(ArenaVector<RegisterInfo*>& regs, int s_reg) {
   RegStorage res;
-  GrowableArray<RegisterInfo*>::Iterator it(&regs);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+  for (RegisterInfo* info : regs) {
     if ((info->SReg() == s_reg) && info->IsLive()) {
       res = info->GetReg();
       break;
@@ -714,15 +707,13 @@ void Mir2Lir::ResetDefLocWide(RegLocation rl) {
 }
 
 void Mir2Lir::ResetDefTracking() {
-  GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
-  for (RegisterInfo* info = iter.Next(); info != NULL; info = iter.Next()) {
+  for (RegisterInfo* info : tempreg_info_) {
     info->ResetDefBody();
   }
 }
 
 void Mir2Lir::ClobberAllTemps() {
-  GrowableArray<RegisterInfo*>::Iterator iter(&tempreg_info_);
-  for (RegisterInfo* info = iter.Next(); info != NULL; info = iter.Next()) {
+  for (RegisterInfo* info : tempreg_info_) {
     ClobberBody(info);
   }
 }
@@ -780,8 +771,7 @@ void Mir2Lir::FlushSpecificReg(RegisterInfo* info) {
 }
 
 void Mir2Lir::FlushAllRegs() {
-  GrowableArray<RegisterInfo*>::Iterator it(&tempreg_info_);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+  for (RegisterInfo* info : tempreg_info_) {
     if (info->IsDirty() && info->IsLive()) {
       FlushSpecificReg(info);
     }
@@ -853,14 +843,16 @@ void Mir2Lir::MarkLive(RegLocation loc) {
 void Mir2Lir::MarkTemp(RegStorage reg) {
   DCHECK(!reg.IsPair());
   RegisterInfo* info = GetRegInfo(reg);
-  tempreg_info_.Insert(info);
+  tempreg_info_.push_back(info);
   info->SetIsTemp(true);
 }
 
 void Mir2Lir::UnmarkTemp(RegStorage reg) {
   DCHECK(!reg.IsPair());
   RegisterInfo* info = GetRegInfo(reg);
-  tempreg_info_.Delete(info);
+  auto pos = std::find(tempreg_info_.begin(), tempreg_info_.end(), info);
+  DCHECK(pos != tempreg_info_.end());
+  tempreg_info_.erase(pos);
   info->SetIsTemp(false);
 }
 
@@ -932,8 +924,7 @@ void Mir2Lir::MarkInUse(RegStorage reg) {
 }
 
 bool Mir2Lir::CheckCorePoolSanity() {
-  GrowableArray<RegisterInfo*>::Iterator it(&tempreg_info_);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+  for (RegisterInfo* info : tempreg_info_) {
     int my_sreg = info->SReg();
     if (info->IsTemp() && info->IsLive() && info->IsWide() && my_sreg != INVALID_SREG) {
       RegStorage my_reg = info->GetReg();

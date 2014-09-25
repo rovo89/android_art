@@ -57,51 +57,43 @@ class TopologicalSortOrderTest : public testing::Test {
 
   void DoPrepareBasicBlocks(const BBDef* defs, size_t count) {
     cu_.mir_graph->block_id_map_.clear();
-    cu_.mir_graph->block_list_.Reset();
+    cu_.mir_graph->block_list_.clear();
     ASSERT_LT(3u, count);  // null, entry, exit and at least one bytecode block.
     ASSERT_EQ(kNullBlock, defs[0].type);
     ASSERT_EQ(kEntryBlock, defs[1].type);
     ASSERT_EQ(kExitBlock, defs[2].type);
     for (size_t i = 0u; i != count; ++i) {
       const BBDef* def = &defs[i];
-      BasicBlock* bb = cu_.mir_graph->NewMemBB(def->type, i);
-      cu_.mir_graph->block_list_.Insert(bb);
+      BasicBlock* bb = cu_.mir_graph->CreateNewBB(def->type);
       if (def->num_successors <= 2) {
         bb->successor_block_list_type = kNotUsed;
-        bb->successor_blocks = nullptr;
         bb->fall_through = (def->num_successors >= 1) ? def->successors[0] : 0u;
         bb->taken = (def->num_successors >= 2) ? def->successors[1] : 0u;
       } else {
         bb->successor_block_list_type = kPackedSwitch;
         bb->fall_through = 0u;
         bb->taken = 0u;
-        bb->successor_blocks = new (&cu_.arena) GrowableArray<SuccessorBlockInfo*>(
-            &cu_.arena, def->num_successors, kGrowableArraySuccessorBlocks);
+        bb->successor_blocks.reserve(def->num_successors);
         for (size_t j = 0u; j != def->num_successors; ++j) {
           SuccessorBlockInfo* successor_block_info =
               static_cast<SuccessorBlockInfo*>(cu_.arena.Alloc(sizeof(SuccessorBlockInfo),
                                                                kArenaAllocSuccessor));
           successor_block_info->block = j;
           successor_block_info->key = 0u;  // Not used by class init check elimination.
-          bb->successor_blocks->Insert(successor_block_info);
+          bb->successor_blocks.push_back(successor_block_info);
         }
       }
-      bb->predecessors = new (&cu_.arena) GrowableArray<BasicBlockId>(
-          &cu_.arena, def->num_predecessors, kGrowableArrayPredecessors);
-      for (size_t j = 0u; j != def->num_predecessors; ++j) {
-        ASSERT_NE(0u, def->predecessors[j]);
-        bb->predecessors->Insert(def->predecessors[j]);
-      }
+      bb->predecessors.assign(def->predecessors, def->predecessors + def->num_predecessors);
       if (def->type == kDalvikByteCode || def->type == kEntryBlock || def->type == kExitBlock) {
         bb->data_flow_info = static_cast<BasicBlockDataFlow*>(
             cu_.arena.Alloc(sizeof(BasicBlockDataFlow), kArenaAllocDFInfo));
       }
     }
     cu_.mir_graph->num_blocks_ = count;
-    ASSERT_EQ(count, cu_.mir_graph->block_list_.Size());
-    cu_.mir_graph->entry_block_ = cu_.mir_graph->block_list_.Get(1);
+    ASSERT_EQ(count, cu_.mir_graph->block_list_.size());
+    cu_.mir_graph->entry_block_ = cu_.mir_graph->block_list_[1];
     ASSERT_EQ(kEntryBlock, cu_.mir_graph->entry_block_->block_type);
-    cu_.mir_graph->exit_block_ = cu_.mir_graph->block_list_.Get(2);
+    cu_.mir_graph->exit_block_ = cu_.mir_graph->block_list_[2];
     ASSERT_EQ(kExitBlock, cu_.mir_graph->exit_block_->block_type);
 
     DexFile::CodeItem* code_item = static_cast<DexFile::CodeItem*>(cu_.arena.Alloc(sizeof(DexFile::CodeItem),
@@ -120,21 +112,21 @@ class TopologicalSortOrderTest : public testing::Test {
     cu_.mir_graph->ComputeDominators();
     cu_.mir_graph->ComputeTopologicalSortOrder();
     cu_.mir_graph->SSATransformationEnd();
-    ASSERT_NE(cu_.mir_graph->topological_order_, nullptr);
-    ASSERT_NE(cu_.mir_graph->topological_order_loop_ends_, nullptr);
-    ASSERT_NE(cu_.mir_graph->topological_order_indexes_, nullptr);
-    ASSERT_EQ(cu_.mir_graph->GetNumBlocks(), cu_.mir_graph->topological_order_indexes_->Size());
-    for (size_t i = 0, size = cu_.mir_graph->GetTopologicalSortOrder()->Size(); i != size; ++i) {
-      ASSERT_LT(cu_.mir_graph->topological_order_->Get(i), cu_.mir_graph->GetNumBlocks());
-      BasicBlockId id = cu_.mir_graph->topological_order_->Get(i);
-      EXPECT_EQ(i, cu_.mir_graph->topological_order_indexes_->Get(id));
+    ASSERT_FALSE(cu_.mir_graph->topological_order_.empty());
+    ASSERT_FALSE(cu_.mir_graph->topological_order_loop_ends_.empty());
+    ASSERT_FALSE(cu_.mir_graph->topological_order_indexes_.empty());
+    ASSERT_EQ(cu_.mir_graph->GetNumBlocks(), cu_.mir_graph->topological_order_indexes_.size());
+    for (size_t i = 0, size = cu_.mir_graph->GetTopologicalSortOrder().size(); i != size; ++i) {
+      ASSERT_LT(cu_.mir_graph->topological_order_[i], cu_.mir_graph->GetNumBlocks());
+      BasicBlockId id = cu_.mir_graph->topological_order_[i];
+      EXPECT_EQ(i, cu_.mir_graph->topological_order_indexes_[id]);
     }
   }
 
   void DoCheckOrder(const BasicBlockId* ids, size_t count) {
-    ASSERT_EQ(count, cu_.mir_graph->GetTopologicalSortOrder()->Size());
+    ASSERT_EQ(count, cu_.mir_graph->GetTopologicalSortOrder().size());
     for (size_t i = 0; i != count; ++i) {
-      EXPECT_EQ(ids[i], cu_.mir_graph->GetTopologicalSortOrder()->Get(i)) << i;
+      EXPECT_EQ(ids[i], cu_.mir_graph->GetTopologicalSortOrder()[i]) << i;
     }
   }
 
@@ -145,8 +137,8 @@ class TopologicalSortOrderTest : public testing::Test {
 
   void DoCheckLoopEnds(const uint16_t* ends, size_t count) {
     for (size_t i = 0; i != count; ++i) {
-      ASSERT_LT(i, cu_.mir_graph->GetTopologicalSortOrderLoopEnds()->Size());
-      EXPECT_EQ(ends[i], cu_.mir_graph->GetTopologicalSortOrderLoopEnds()->Get(i)) << i;
+      ASSERT_LT(i, cu_.mir_graph->GetTopologicalSortOrderLoopEnds().size());
+      EXPECT_EQ(ends[i], cu_.mir_graph->GetTopologicalSortOrderLoopEnds()[i]) << i;
     }
   }
 
