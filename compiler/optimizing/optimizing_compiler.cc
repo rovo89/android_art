@@ -26,6 +26,7 @@
 #include "driver/dex_compilation_unit.h"
 #include "graph_visualizer.h"
 #include "gvn.h"
+#include "instruction_simplifier.h"
 #include "nodes.h"
 #include "register_allocator.h"
 #include "ssa_phi_elimination.h"
@@ -261,6 +262,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
 
     SsaRedundantPhiElimination(graph).Run();
     SsaDeadPhiElimination(graph).Run();
+    InstructionSimplifier(graph).Run();
     GlobalValueNumberer(graph->GetArena(), graph).Run();
     visualizer.DumpGraph(kGVNPassName);
 

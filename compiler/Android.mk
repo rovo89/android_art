@@ -95,6 +95,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/graph_checker.cc \
 	optimizing/graph_visualizer.cc \
 	optimizing/gvn.cc \
+	optimizing/instruction_simplifier.cc \
 	optimizing/locations.cc \
 	optimizing/nodes.cc \
 	optimizing/optimizing_compiler.cc \

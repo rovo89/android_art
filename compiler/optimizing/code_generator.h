@@ -143,6 +143,13 @@ class CodeGenerator : public ArenaObject {
     is_leaf_ = false;
   }
 
+  // Clears the spill slots taken by loop phis in the `LocationSummary` of the
+  // suspend check. This is called when the code generator generates code
+  // for the suspend check at the back edge (instead of where the suspend check
+  // is, which is the loop entry). At this point, the spill slots for the phis
+  // have not been written to.
+  void ClearSpillSlotsFromLoopPhisInStackMap(HSuspendCheck* suspend_check) const;
+
  protected:
   CodeGenerator(HGraph* graph, size_t number_of_registers)
       : frame_size_(kUninitializedFrameSize),

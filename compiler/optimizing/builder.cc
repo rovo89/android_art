@@ -183,9 +183,9 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
 
   // Setup the graph with the entry block and exit block.
   graph_ = new (arena_) HGraph(arena_);
-  entry_block_ = new (arena_) HBasicBlock(graph_);
+  entry_block_ = new (arena_) HBasicBlock(graph_, 0);
   graph_->AddBlock(entry_block_);
-  exit_block_ = new (arena_) HBasicBlock(graph_);
+  exit_block_ = new (arena_) HBasicBlock(graph_, kNoDexPc);
   graph_->SetEntryBlock(entry_block_);
   graph_->SetExitBlock(exit_block_);
 
@@ -241,7 +241,7 @@ void HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr, const uint16_
   branch_targets_.SetSize(code_end - code_ptr);
 
   // Create the first block for the dex instructions, single successor of the entry block.
-  HBasicBlock* block = new (arena_) HBasicBlock(graph_);
+  HBasicBlock* block = new (arena_) HBasicBlock(graph_, 0);
   branch_targets_.Put(0, block);
   entry_block_->AddSuccessor(block);
 
@@ -254,13 +254,13 @@ void HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr, const uint16_
       int32_t target = instruction.GetTargetOffset() + dex_offset;
       // Create a block for the target instruction.
       if (FindBlockStartingAt(target) == nullptr) {
-        block = new (arena_) HBasicBlock(graph_);
+        block = new (arena_) HBasicBlock(graph_, target);
         branch_targets_.Put(target, block);
       }
       dex_offset += instruction.SizeInCodeUnits();
       code_ptr += instruction.SizeInCodeUnits();
       if ((code_ptr < code_end) && (FindBlockStartingAt(dex_offset) == nullptr)) {
-        block = new (arena_) HBasicBlock(graph_);
+        block = new (arena_) HBasicBlock(graph_, dex_offset);
         branch_targets_.Put(dex_offset, block);
       }
     } else {
