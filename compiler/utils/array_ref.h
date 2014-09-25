@@ -82,12 +82,13 @@ class ArrayRef {
       : array_(array), size_(size) {
   }
 
-  explicit ArrayRef(std::vector<T>& v)
+  template <typename Alloc>
+  explicit ArrayRef(std::vector<T, Alloc>& v)
       : array_(v.data()), size_(v.size()) {
   }
 
-  template <typename U>
-  ArrayRef(const std::vector<U>& v,
+  template <typename U, typename Alloc>
+  ArrayRef(const std::vector<U, Alloc>& v,
            typename std::enable_if<std::is_same<T, const U>::value, tag>::tag t = tag())
       : array_(v.data()), size_(v.size()) {
   }
@@ -166,6 +167,16 @@ class ArrayRef {
   T* array_;
   size_t size_;
 };
+
+template <typename T>
+bool operator==(const ArrayRef<T>& lhs, const ArrayRef<T>& rhs) {
+  return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin());
+}
+
+template <typename T>
+bool operator!=(const ArrayRef<T>& lhs, const ArrayRef<T>& rhs) {
+  return !(lhs == rhs);
+}
 
 }  // namespace art
 

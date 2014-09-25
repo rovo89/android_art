@@ -528,6 +528,7 @@ enum ArmOpcode {
   kThumb2Vldms,      // vldms rd, <list>.
   kThumb2Vstms,      // vstms rd, <list>.
   kThumb2BUncond,    // b <label>.
+  kThumb2Bl,         // bl with linker fixup. [11110] S imm10 [11] J1 [1] J2 imm11.
   kThumb2MovImm16H,  // similar to kThumb2MovImm16, but target high hw.
   kThumb2AddPCR,     // Thumb2 2-operand add with hard-coded PC target.
   kThumb2Adr,        // Special purpose encoding of ADR for switch tables.
