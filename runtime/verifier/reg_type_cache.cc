@@ -288,6 +288,7 @@ const Type* RegTypeCache::CreatePrimitiveTypeInstance(const std::string& descrip
   if (!descriptor.empty()) {
     klass = art::Runtime::Current()->GetClassLinker()->FindSystemClass(Thread::Current(),
                                                                        descriptor.c_str());
+    DCHECK(klass != nullptr);
   }
   const Type* entry = Type::CreateInstance(klass, descriptor, RegTypeCache::primitive_count_);
   RegTypeCache::primitive_count_++;
