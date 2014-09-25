@@ -116,6 +116,11 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   X86_64Assembler* GetAssembler() const { return assembler_; }
 
  private:
+  // Generate code for the given suspend check. If not null, `successor`
+  // is the block to branch to if the suspend check is not needed, and after
+  // the suspend call.
+  void GenerateSuspendCheck(HSuspendCheck* instruction, HBasicBlock* successor);
+
   X86_64Assembler* const assembler_;
   CodeGeneratorX86_64* const codegen_;
 

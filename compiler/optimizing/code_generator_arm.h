@@ -117,6 +117,11 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
   void LoadCurrentMethod(Register reg);
 
  private:
+  // Generate code for the given suspend check. If not null, `successor`
+  // is the block to branch to if the suspend check is not needed, and after
+  // the suspend call.
+  void GenerateSuspendCheck(HSuspendCheck* check, HBasicBlock* successor);
+
   ArmAssembler* const assembler_;
   CodeGeneratorARM* const codegen_;
 
