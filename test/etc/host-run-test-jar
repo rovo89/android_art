@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 #
 # Run the code in test.jar using the host-mode virtual machine. The jar should
 # contain a top-level class named Main to run.
