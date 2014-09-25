@@ -310,7 +310,7 @@ class LocationSummary : public ArenaObject {
     kCall
   };
 
-  explicit LocationSummary(HInstruction* instruction, CallKind call_kind = kNoCall);
+  LocationSummary(HInstruction* instruction, CallKind call_kind = kNoCall);
 
   void SetInAt(uint32_t at, Location location) {
     inputs_.Put(at, location);

@@ -121,9 +121,9 @@ class SuspendCheckSlowPathX86_64 : public SlowPathCode {
 
 class BoundsCheckSlowPathX86_64 : public SlowPathCode {
  public:
-  explicit BoundsCheckSlowPathX86_64(HBoundsCheck* instruction,
-                                     Location index_location,
-                                     Location length_location)
+  BoundsCheckSlowPathX86_64(HBoundsCheck* instruction,
+                            Location index_location,
+                            Location length_location)
       : instruction_(instruction),
         index_location_(index_location),
         length_location_(length_location) {}
