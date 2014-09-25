@@ -33,13 +33,12 @@ class MANAGED Array : public Object {
   // The size of a java.lang.Class representing an array.
   static uint32_t ClassSize();
 
-  // Allocates an array with the given properties, if fill_usable is true the array will be of at
+  // Allocates an array with the given properties, if kFillUsable is true the array will be of at
   // least component_count size, however, if there's usable space at the end of the allocation the
   // array will fill it.
-  template <bool kIsInstrumented>
-  static Array* Alloc(Thread* self, Class* array_class, int32_t component_count,
-                      size_t component_size, gc::AllocatorType allocator_type,
-                      bool fill_usable = false)
+  template <bool kIsInstrumented, bool kFillUsable = false>
+  ALWAYS_INLINE static Array* Alloc(Thread* self, Class* array_class, int32_t component_count,
+                                    size_t component_size_shift, gc::AllocatorType allocator_type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static Array* CreateMultiArray(Thread* self, Handle<Class> element_class,
@@ -66,12 +65,11 @@ class MANAGED Array : public Object {
   }
 
   static MemberOffset DataOffset(size_t component_size) {
-    if (component_size != sizeof(int64_t)) {
-      return OFFSET_OF_OBJECT_MEMBER(Array, first_element_);
-    } else {
-      // Align longs and doubles.
-      return MemberOffset(OFFSETOF_MEMBER(Array, first_element_) + 4);
-    }
+    DCHECK(IsPowerOfTwo(component_size)) << component_size;
+    size_t data_offset = RoundUp(OFFSETOF_MEMBER(Array, first_element_), component_size);
+    DCHECK_EQ(RoundUp(data_offset, component_size), data_offset)
+        << "Array data offset isn't aligned with component size";
+    return MemberOffset(data_offset);
   }
 
   void* GetRawData(size_t component_size, int32_t index)
