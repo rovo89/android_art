@@ -612,6 +612,21 @@ class MethodVerifier {
   bool CheckNotMoveException(const uint16_t* insns, int insn_idx);
 
   /*
+   * Verify that the target instruction is not "move-result". It is important that we cannot
+   * branch to move-result instructions, but we have to make this a distinct check instead of
+   * adding it to CheckNotMoveException, because it is legal to continue into "move-result"
+   * instructions - as long as the previous instruction was an invoke, which is checked elsewhere.
+   */
+  bool CheckNotMoveResult(const uint16_t* insns, int insn_idx);
+
+  /*
+   * Verify that the target instruction is not "move-result" or "move-exception". This is to
+   * be used when checking branch and switch instructions, but not instructions that can
+   * continue.
+   */
+  bool CheckNotMoveExceptionOrMoveResult(const uint16_t* insns, int insn_idx);
+
+  /*
   * Control can transfer to "next_insn". Merge the registers from merge_line into the table at
   * next_insn, and set the changed flag on the target address if any of the registers were changed.
   * In the case of fall-through, update the merge line on a change as its the working line for the
