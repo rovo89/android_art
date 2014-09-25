@@ -1274,7 +1274,7 @@ class HLocal : public HTemplateInstruction<0> {
 // Load a given local. The local is an input of this instruction.
 class HLoadLocal : public HExpression<1> {
  public:
-  explicit HLoadLocal(HLocal* local, Primitive::Type type)
+  HLoadLocal(HLocal* local, Primitive::Type type)
       : HExpression(type, SideEffects::None()) {
     SetRawInputAt(0, local);
   }
@@ -1592,7 +1592,7 @@ class HNullCheck : public HExpression<1> {
 
 class FieldInfo : public ValueObject {
  public:
-  explicit FieldInfo(MemberOffset field_offset, Primitive::Type field_type)
+  FieldInfo(MemberOffset field_offset, Primitive::Type field_type)
       : field_offset_(field_offset), field_type_(field_type) {}
 
   MemberOffset GetFieldOffset() const { return field_offset_; }

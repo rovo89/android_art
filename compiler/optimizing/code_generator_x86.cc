@@ -92,9 +92,9 @@ class StackOverflowCheckSlowPathX86 : public SlowPathCode {
 
 class BoundsCheckSlowPathX86 : public SlowPathCode {
  public:
-  explicit BoundsCheckSlowPathX86(HBoundsCheck* instruction,
-                                  Location index_location,
-                                  Location length_location)
+  BoundsCheckSlowPathX86(HBoundsCheck* instruction,
+                         Location index_location,
+                         Location length_location)
       : instruction_(instruction), index_location_(index_location), length_location_(length_location) {}
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
