@@ -314,6 +314,7 @@ void ClassLinker::InitWithoutImage(const std::vector<const DexFile*>& boot_class
     java_lang_Class->AssertReadBarrierPointer();
   }
   java_lang_Class->SetClassSize(mirror::Class::ClassClassSize());
+  java_lang_Class->SetPrimitiveType(Primitive::kPrimNot);
   heap->DecrementDisableMovingGC(self);
   // AllocClass(mirror::Class*) can now be used
 
@@ -338,6 +339,12 @@ void ClassLinker::InitWithoutImage(const std::vector<const DexFile*>& boot_class
   // Setup the char (primitive) class to be used for char[].
   Handle<mirror::Class> char_class(hs.NewHandle(
       AllocClass(self, java_lang_Class.Get(), mirror::Class::PrimitiveClassSize())));
+  // The primitive char class won't be initialized by
+  // InitializePrimitiveClass until line 459, but strings (and
+  // internal char arrays) will be allocated before that and the
+  // component size, which is computed from the primitive type, needs
+  // to be set here.
+  char_class->SetPrimitiveType(Primitive::kPrimChar);
 
   // Setup the char[] class to be used for String.
   Handle<mirror::Class> char_array_class(hs.NewHandle(

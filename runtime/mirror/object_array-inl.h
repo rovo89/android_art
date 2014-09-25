@@ -35,10 +35,13 @@ template<class T>
 inline ObjectArray<T>* ObjectArray<T>::Alloc(Thread* self, Class* object_array_class,
                                              int32_t length, gc::AllocatorType allocator_type) {
   Array* array = Array::Alloc<true>(self, object_array_class, length,
-                                    sizeof(HeapReference<Object>), allocator_type);
+                                    ComponentSizeShiftWidth<sizeof(HeapReference<Object>)>(),
+                                    allocator_type);
   if (UNLIKELY(array == nullptr)) {
     return nullptr;
   } else {
+    DCHECK_EQ(array->GetClass()->GetComponentSizeShift(),
+              ComponentSizeShiftWidth<sizeof(HeapReference<Object>)>());
     return array->AsObjectArray<T>();
   }
 }

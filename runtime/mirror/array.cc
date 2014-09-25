@@ -48,7 +48,8 @@ static Array* RecursiveCreateMultiArray(Thread* self,
   StackHandleScope<1> hs(self);
   Handle<Array> new_array(
       hs.NewHandle(
-          Array::Alloc<true>(self, array_class.Get(), array_length, array_class->GetComponentSize(),
+          Array::Alloc<true>(self, array_class.Get(), array_length,
+                             array_class->GetComponentSizeShift(),
                              Runtime::Current()->GetHeap()->GetCurrentAllocator())));
   if (UNLIKELY(new_array.Get() == nullptr)) {
     CHECK(self->IsExceptionPending());
