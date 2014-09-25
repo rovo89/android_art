@@ -337,6 +337,8 @@ class X86Assembler FINAL : public Assembler {
   void xchgl(Register dst, Register src);
   void xchgl(Register reg, const Address& address);
 
+  void cmpw(const Address& address, const Immediate& imm);
+
   void cmpl(Register reg, const Immediate& imm);
   void cmpl(Register reg0, Register reg1);
   void cmpl(Register reg, const Address& address);

@@ -685,14 +685,6 @@ void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
   }
   size_t end = last_sibling->GetEnd();
 
-  if (NeedTwoSpillSlot(parent->GetType())) {
-    AllocateTwoSpillSlots(parent, end);
-  } else {
-    AllocateOneSpillSlot(parent, end);
-  }
-}
-
-void RegisterAllocator::AllocateTwoSpillSlots(LiveInterval* parent, size_t end) {
   // Find an available spill slot.
   size_t slot = 0;
   for (size_t e = spill_slots_.Size(); slot < e; ++slot) {
@@ -706,35 +698,25 @@ void RegisterAllocator::AllocateTwoSpillSlots(LiveInterval* parent, size_t end) 
     }
   }
 
-  if (slot == spill_slots_.Size()) {
-    // We need a new spill slot.
-    spill_slots_.Add(end);
-    spill_slots_.Add(end);
-  } else if (slot == spill_slots_.Size() - 1) {
-    spill_slots_.Put(slot, end);
-    spill_slots_.Add(end);
-  } else {
-    spill_slots_.Put(slot, end);
-    spill_slots_.Put(slot + 1, end);
-  }
-
-  parent->SetSpillSlot((slot + reserved_out_slots_) * kVRegSize);
-}
-
-void RegisterAllocator::AllocateOneSpillSlot(LiveInterval* parent, size_t end) {
-  // Find an available spill slot.
-  size_t slot = 0;
-  for (size_t e = spill_slots_.Size(); slot < e; ++slot) {
-    if (spill_slots_.Get(slot) <= parent->GetStart()) {
-      break;
+  if (NeedTwoSpillSlot(parent->GetType())) {
+    if (slot == spill_slots_.Size()) {
+      // We need a new spill slot.
+      spill_slots_.Add(end);
+      spill_slots_.Add(end);
+    } else if (slot == spill_slots_.Size() - 1) {
+      spill_slots_.Put(slot, end);
+      spill_slots_.Add(end);
+    } else {
+      spill_slots_.Put(slot, end);
+      spill_slots_.Put(slot + 1, end);
     }
-  }
-
-  if (slot == spill_slots_.Size()) {
-    // We need a new spill slot.
-    spill_slots_.Add(end);
   } else {
-    spill_slots_.Put(slot, end);
+    if (slot == spill_slots_.Size()) {
+      // We need a new spill slot.
+      spill_slots_.Add(end);
+    } else {
+      spill_slots_.Put(slot, end);
+    }
   }
 
   parent->SetSpillSlot((slot + reserved_out_slots_) * kVRegSize);

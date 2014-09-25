@@ -32,6 +32,7 @@ class HInstruction;
 class HIntConstant;
 class HGraphVisitor;
 class HPhi;
+class HSuspendCheck;
 class LiveInterval;
 class LocationSummary;
 
@@ -201,6 +202,7 @@ class HLoopInformation : public ArenaObject {
  public:
   HLoopInformation(HBasicBlock* header, HGraph* graph)
       : header_(header),
+        suspend_check_(nullptr),
         back_edges_(graph->GetArena(), kDefaultNumberOfBackEdges),
         // Make bit vector growable, as the number of blocks may change.
         blocks_(graph->GetArena(), graph->GetBlocks().Size(), true) {}
@@ -208,6 +210,10 @@ class HLoopInformation : public ArenaObject {
   HBasicBlock* GetHeader() const {
     return header_;
   }
+
+  HSuspendCheck* GetSuspendCheck() const { return suspend_check_; }
+  void SetSuspendCheck(HSuspendCheck* check) { suspend_check_ = check; }
+  bool HasSuspendCheck() const { return suspend_check_ != nullptr; }
 
   void AddBackEdge(HBasicBlock* back_edge) {
     back_edges_.Add(back_edge);
@@ -257,6 +263,7 @@ class HLoopInformation : public ArenaObject {
   void PopulateRecursive(HBasicBlock* block);
 
   HBasicBlock* header_;
+  HSuspendCheck* suspend_check_;
   GrowableArray<HBasicBlock*> back_edges_;
   ArenaBitVector blocks_;
 
@@ -264,13 +271,15 @@ class HLoopInformation : public ArenaObject {
 };
 
 static constexpr size_t kNoLifetime = -1;
+static constexpr uint32_t kNoDexPc = -1;
 
 // A block in a method. Contains the list of instructions represented
 // as a double linked list. Each block knows its predecessors and
 // successors.
+
 class HBasicBlock : public ArenaObject {
  public:
-  explicit HBasicBlock(HGraph* graph)
+  explicit HBasicBlock(HGraph* graph, uint32_t dex_pc = kNoDexPc)
       : graph_(graph),
         predecessors_(graph->GetArena(), kDefaultNumberOfPredecessors),
         successors_(graph->GetArena(), kDefaultNumberOfSuccessors),
@@ -278,6 +287,7 @@ class HBasicBlock : public ArenaObject {
         dominator_(nullptr),
         dominated_blocks_(graph->GetArena(), kDefaultNumberOfDominatedBlocks),
         block_id_(-1),
+        dex_pc_(dex_pc),
         lifetime_start_(kNoLifetime),
         lifetime_end_(kNoLifetime) {}
 
@@ -291,6 +301,14 @@ class HBasicBlock : public ArenaObject {
 
   const GrowableArray<HBasicBlock*>& GetDominatedBlocks() const {
     return dominated_blocks_;
+  }
+
+  bool IsEntryBlock() const {
+    return graph_->GetEntryBlock() == this;
+  }
+
+  bool IsExitBlock() const {
+    return graph_->GetExitBlock() == this;
   }
 
   void AddBackEdge(HBasicBlock* back_edge) {
@@ -426,6 +444,8 @@ class HBasicBlock : public ArenaObject {
   void SetLifetimeStart(size_t start) { lifetime_start_ = start; }
   void SetLifetimeEnd(size_t end) { lifetime_end_ = end; }
 
+  uint32_t GetDexPc() const { return dex_pc_; }
+
  private:
   HGraph* const graph_;
   GrowableArray<HBasicBlock*> predecessors_;
@@ -436,6 +456,8 @@ class HBasicBlock : public ArenaObject {
   HBasicBlock* dominator_;
   GrowableArray<HBasicBlock*> dominated_blocks_;
   int block_id_;
+  // The dex program counter of the first instruction of this block.
+  const uint32_t dex_pc_;
   size_t lifetime_start_;
   size_t lifetime_end_;
 

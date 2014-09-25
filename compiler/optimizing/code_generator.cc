@@ -25,6 +25,7 @@
 #include "gc_map_builder.h"
 #include "leb128.h"
 #include "mapping_table.h"
+#include "ssa_liveness_analysis.h"
 #include "utils/assembler.h"
 #include "verifier/dex_gc_map.h"
 #include "vmap_table.h"
@@ -514,6 +515,25 @@ void CodeGenerator::RestoreLiveRegisters(LocationSummary* locations) {
   for (size_t i = 0, e = GetNumberOfFloatingPointRegisters(); i < e; ++i) {
     if (register_set->ContainsFloatingPointRegister(i)) {
       LOG(FATAL) << "Unimplemented";
+    }
+  }
+}
+
+void CodeGenerator::ClearSpillSlotsFromLoopPhisInStackMap(HSuspendCheck* suspend_check) const {
+  LocationSummary* locations = suspend_check->GetLocations();
+  HBasicBlock* block = suspend_check->GetBlock();
+  DCHECK(block->GetLoopInformation()->GetSuspendCheck() == suspend_check);
+  DCHECK(block->IsLoopHeader());
+
+  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    HInstruction* current = it.Current();
+    LiveInterval* interval = current->GetLiveInterval();
+    // We only need to clear bits of loop phis containing objects and allocated in register.
+    // Loop phis allocated on stack already have the object in the stack.
+    if (current->GetType() == Primitive::kPrimNot
+        && interval->HasRegister()
+        && interval->HasSpillSlot()) {
+      locations->ClearStackBit(interval->GetSpillSlot() / kVRegSize);
     }
   }
 }

@@ -100,8 +100,6 @@ class RegisterAllocator {
 
   // Allocate a spill slot for the given interval.
   void AllocateSpillSlotFor(LiveInterval* interval);
-  void AllocateOneSpillSlot(LiveInterval* interval, size_t end);
-  void AllocateTwoSpillSlots(LiveInterval* interval, size_t end);
 
   // Connect adjacent siblings within blocks.
   void ConnectSiblings(LiveInterval* interval);
