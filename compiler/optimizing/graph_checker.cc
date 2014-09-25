@@ -141,6 +141,38 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
     }
     errors_.Insert(error.str());
   }
+
+  // Ensure the inputs of `instruction` are defined in a block of the graph.
+  for (HInputIterator input_it(instruction); !input_it.Done();
+       input_it.Advance()) {
+    HInstruction* input = input_it.Current();
+    const HInstructionList& list = input->IsPhi()
+        ? input->GetBlock()->GetPhis()
+        : input->GetBlock()->GetInstructions();
+    if (!list.Contains(input)) {
+      std::stringstream error;
+      error << "Input " << input->GetId()
+            << " of instruction " << instruction->GetId()
+            << " is not defined in a basic block of the control-flow graph.";
+      errors_.Insert(error.str());
+    }
+  }
+
+  // Ensure the uses of `instruction` are defined in a block of the graph.
+  for (HUseIterator<HInstruction> use_it(instruction->GetUses());
+       !use_it.Done(); use_it.Advance()) {
+    HInstruction* use = use_it.Current()->GetUser();
+    const HInstructionList& list = use->IsPhi()
+        ? use->GetBlock()->GetPhis()
+        : use->GetBlock()->GetInstructions();
+    if (!list.Contains(use)) {
+      std::stringstream error;
+      error << "User " << use->GetId()
+            << " of instruction " << instruction->GetId()
+            << " is not defined in a basic block of the control-flow graph.";
+      errors_.Insert(error.str());
+    }
+  }
 }
 
 void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
