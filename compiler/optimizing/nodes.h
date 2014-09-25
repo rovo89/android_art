@@ -57,6 +57,9 @@ class HInstructionList {
   void AddInstruction(HInstruction* instruction);
   void RemoveInstruction(HInstruction* instruction);
 
+  // Return true if this list contains `instruction`.
+  bool Contains(HInstruction* instruction) const;
+
   // Return true if `instruction1` is found before `instruction2` in
   // this instruction list and false otherwise.  Abort if none
   // of these instructions is found.

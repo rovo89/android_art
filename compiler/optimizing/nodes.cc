@@ -427,6 +427,15 @@ void HInstructionList::RemoveInstruction(HInstruction* instruction) {
   }
 }
 
+bool HInstructionList::Contains(HInstruction* instruction) const {
+  for (HInstructionIterator it(*this); !it.Done(); it.Advance()) {
+    if (it.Current() == instruction) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool HInstructionList::FoundBefore(const HInstruction* instruction1,
                                    const HInstruction* instruction2) const {
   DCHECK_EQ(instruction1->GetBlock(), instruction2->GetBlock());
