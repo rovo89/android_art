@@ -86,8 +86,8 @@ class LocalValueNumberingTest : public testing::Test {
     { opcode, 0u, 0u, 0, { }, 1, { reg } }  // CONST_CLASS, CONST_STRING, NEW_ARRAY, ...
 
   void DoPrepareIFields(const IFieldDef* defs, size_t count) {
-    cu_.mir_graph->ifield_lowering_infos_.Reset();
-    cu_.mir_graph->ifield_lowering_infos_.Resize(count);
+    cu_.mir_graph->ifield_lowering_infos_.clear();
+    cu_.mir_graph->ifield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const IFieldDef* def = &defs[i];
       MirIFieldLoweringInfo field_info(def->field_idx);
@@ -97,7 +97,7 @@ class LocalValueNumberingTest : public testing::Test {
         field_info.flags_ = 0u |  // Without kFlagIsStatic.
             (def->is_volatile ? MirIFieldLoweringInfo::kFlagIsVolatile : 0u);
       }
-      cu_.mir_graph->ifield_lowering_infos_.Insert(field_info);
+      cu_.mir_graph->ifield_lowering_infos_.push_back(field_info);
     }
   }
 
@@ -107,8 +107,8 @@ class LocalValueNumberingTest : public testing::Test {
   }
 
   void DoPrepareSFields(const SFieldDef* defs, size_t count) {
-    cu_.mir_graph->sfield_lowering_infos_.Reset();
-    cu_.mir_graph->sfield_lowering_infos_.Resize(count);
+    cu_.mir_graph->sfield_lowering_infos_.clear();
+    cu_.mir_graph->sfield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const SFieldDef* def = &defs[i];
       MirSFieldLoweringInfo field_info(def->field_idx);
@@ -120,7 +120,7 @@ class LocalValueNumberingTest : public testing::Test {
         field_info.declaring_field_idx_ = def->declaring_field_idx;
         field_info.flags_ |= (def->is_volatile ? MirSFieldLoweringInfo::kFlagIsVolatile : 0u);
       }
-      cu_.mir_graph->sfield_lowering_infos_.Insert(field_info);
+      cu_.mir_graph->sfield_lowering_infos_.push_back(field_info);
     }
   }
 
@@ -140,10 +140,10 @@ class LocalValueNumberingTest : public testing::Test {
       mir->dalvikInsn.vB = static_cast<int32_t>(def->value);
       mir->dalvikInsn.vB_wide = def->value;
       if (def->opcode >= Instruction::IGET && def->opcode <= Instruction::IPUT_SHORT) {
-        ASSERT_LT(def->field_info, cu_.mir_graph->ifield_lowering_infos_.Size());
+        ASSERT_LT(def->field_info, cu_.mir_graph->ifield_lowering_infos_.size());
         mir->meta.ifield_lowering_info = def->field_info;
       } else if (def->opcode >= Instruction::SGET && def->opcode <= Instruction::SPUT_SHORT) {
-        ASSERT_LT(def->field_info, cu_.mir_graph->sfield_lowering_infos_.Size());
+        ASSERT_LT(def->field_info, cu_.mir_graph->sfield_lowering_infos_.size());
         mir->meta.sfield_lowering_info = def->field_info;
       }
       mir->ssa_rep = &ssa_reps_[i];
@@ -170,8 +170,8 @@ class LocalValueNumberingTest : public testing::Test {
   }
 
   void MakeSFieldUninitialized(uint32_t sfield_index) {
-    CHECK_LT(sfield_index, cu_.mir_graph->sfield_lowering_infos_.Size());
-    cu_.mir_graph->sfield_lowering_infos_.GetRawStorage()[sfield_index].flags_ &=
+    CHECK_LT(sfield_index, cu_.mir_graph->sfield_lowering_infos_.size());
+    cu_.mir_graph->sfield_lowering_infos_[sfield_index].flags_ &=
         ~MirSFieldLoweringInfo::kFlagIsInitialized;
   }
 

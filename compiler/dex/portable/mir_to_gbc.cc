@@ -64,7 +64,7 @@ LLVMInfo::~LLVMInfo() {
 }
 
 ::llvm::Value* MirConverter::GetLLVMValue(int s_reg) {
-  return llvm_values_.Get(s_reg);
+  return llvm_values_[s_reg];
 }
 
 void MirConverter::SetVregOnValue(::llvm::Value* val, int s_reg) {
@@ -87,7 +87,7 @@ void MirConverter::DefineValueOnly(::llvm::Value* val, int s_reg) {
   }
   placeholder->replaceAllUsesWith(val);
   val->takeName(placeholder);
-  llvm_values_.Put(s_reg, val);
+  llvm_values_[s_reg] = val;
   ::llvm::Instruction* inst = ::llvm::dyn_cast< ::llvm::Instruction>(placeholder);
   DCHECK(inst != NULL);
   inst->eraseFromParent();
@@ -1740,15 +1740,12 @@ bool MirConverter::BlockBitcodeConversion(BasicBlock* bb) {
             art::llvm::IntrinsicHelper::CatchTargets);
         ::llvm::Value* switch_key =
             irb_->CreateCall(intr, irb_->getInt32(mir->offset));
-        GrowableArray<SuccessorBlockInfo*>::Iterator iter(bb->successor_blocks);
         // New basic block to use for work half
         ::llvm::BasicBlock* work_bb =
             ::llvm::BasicBlock::Create(*context_, "", func_);
         ::llvm::SwitchInst* sw =
-            irb_->CreateSwitch(switch_key, work_bb, bb->successor_blocks->Size());
-        while (true) {
-          SuccessorBlockInfo *successor_block_info = iter.Next();
-          if (successor_block_info == NULL) break;
+            irb_->CreateSwitch(switch_key, work_bb, bb->successor_blocks.size());
+        for (SuccessorBlockInfo *successor_block_info : bb->successor_blocks) {
           ::llvm::BasicBlock *target =
               GetLLVMBlock(successor_block_info->block);
           int type_index = successor_block_info->key;
@@ -1908,18 +1905,18 @@ void MirConverter::MethodMIR2Bitcode() {
     ::llvm::Value* val;
     RegLocation rl_temp = mir_graph_->reg_location_[i];
     if ((mir_graph_->SRegToVReg(i) < 0) || rl_temp.high_word) {
-      llvm_values_.Insert(0);
+      llvm_values_.push_back(0);
     } else if ((i < mir_graph_->GetFirstInVR()) ||
                (i >= (mir_graph_->GetFirstTempVR()))) {
       ::llvm::Constant* imm_value = mir_graph_->reg_location_[i].wide ?
          irb_->getJLong(0) : irb_->getJInt(0);
       val = EmitConst(imm_value, mir_graph_->reg_location_[i]);
       val->setName(mir_graph_->GetSSAName(i));
-      llvm_values_.Insert(val);
+      llvm_values_.push_back(val);
     } else {
       // Recover previously-created argument values
       ::llvm::Value* arg_val = arg_iter++;
-      llvm_values_.Insert(arg_val);
+      llvm_values_.push_back(arg_val);
     }
   }
 

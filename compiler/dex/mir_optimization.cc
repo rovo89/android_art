@@ -28,7 +28,7 @@
 namespace art {
 
 static unsigned int Predecessors(BasicBlock* bb) {
-  return bb->predecessors->Size();
+  return bb->predecessors.size();
 }
 
 /* Setup a constant value for opcodes thare have the DF_SETS_CONST attribute */
@@ -230,7 +230,8 @@ COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_GTZ) == kCondGt, check_if_g
 COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_LEZ) == kCondLe, check_if_lez_ccode);
 
 int MIRGraph::GetSSAUseCount(int s_reg) {
-  return raw_use_counts_.Get(s_reg);
+  DCHECK_LT(static_cast<size_t>(s_reg), ssa_subscripts_.size());
+  return raw_use_counts_[s_reg];
 }
 
 size_t MIRGraph::GetNumBytesForSpecialTemps() const {
@@ -697,7 +698,8 @@ bool MIRGraph::LayoutBlocks(BasicBlock* bb) {
     if ((walker->block_type == kEntryBlock) || (Predecessors(walker) != 1)) {
       break;
     }
-    BasicBlock* prev = GetBasicBlock(walker->predecessors->Get(0));
+    DCHECK(!walker->predecessors.empty());
+    BasicBlock* prev = GetBasicBlock(walker->predecessors[0]);
 
     // If we visited the predecessor, we are done.
     if (prev->visited) {
@@ -784,7 +786,7 @@ void MIRGraph::CombineBlocks(struct BasicBlock* bb) {
     *bb->last_mir_insn = *throw_insn;
     // Use the successor info from the next block
     bb->successor_block_list_type = bb_next->successor_block_list_type;
-    bb->successor_blocks = bb_next->successor_blocks;
+    bb->successor_blocks.swap(bb_next->successor_blocks);  // Swap instead of copying.
     // Use the ending block linkage from the next block
     bb->fall_through = bb_next->fall_through;
     GetBasicBlock(bb->taken)->block_type = kDead;  // Kill the unused exception block
@@ -856,8 +858,8 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
         int this_reg = GetFirstInVR();
         ssa_regs_to_check->ClearBit(this_reg);
       }
-    } else if (bb->predecessors->Size() == 1) {
-      BasicBlock* pred_bb = GetBasicBlock(bb->predecessors->Get(0));
+    } else if (bb->predecessors.size() == 1) {
+      BasicBlock* pred_bb = GetBasicBlock(bb->predecessors[0]);
       // pred_bb must have already been processed at least once.
       DCHECK(pred_bb->data_flow_info->ending_check_v != nullptr);
       ssa_regs_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
@@ -883,25 +885,22 @@ bool MIRGraph::EliminateNullChecksAndInferTypes(BasicBlock* bb) {
       }
     } else {
       // Starting state is union of all incoming arcs
-      GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
-      BasicBlock* pred_bb = GetBasicBlock(iter.Next());
-      CHECK(pred_bb != NULL);
-      while (pred_bb->data_flow_info->ending_check_v == nullptr) {
-        pred_bb = GetBasicBlock(iter.Next());
-        // At least one predecessor must have been processed before this bb.
+      bool copied_first = false;
+      for (BasicBlockId pred_id : bb->predecessors) {
+        BasicBlock* pred_bb = GetBasicBlock(pred_id);
         DCHECK(pred_bb != nullptr);
-        DCHECK(pred_bb->data_flow_info != nullptr);
-      }
-      ssa_regs_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
-      while (true) {
-        pred_bb = GetBasicBlock(iter.Next());
-        if (!pred_bb) break;
         DCHECK(pred_bb->data_flow_info != nullptr);
         if (pred_bb->data_flow_info->ending_check_v == nullptr) {
           continue;
         }
-        ssa_regs_to_check->Union(pred_bb->data_flow_info->ending_check_v);
+        if (!copied_first) {
+          copied_first = true;
+          ssa_regs_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
+        } else {
+          ssa_regs_to_check->Union(pred_bb->data_flow_info->ending_check_v);
+        }
       }
+      DCHECK(copied_first);  // At least one predecessor must have been processed before this bb.
     }
     // At this point, ssa_regs_to_check shows which sregs have an object definition with
     // no intervening uses.
@@ -1156,35 +1155,31 @@ bool MIRGraph::EliminateClassInitChecks(BasicBlock* bb) {
   DCHECK(classes_to_check != nullptr);
   if (bb->block_type == kEntryBlock) {
     classes_to_check->SetInitialBits(temp_bit_vector_size_);
-  } else if (bb->predecessors->Size() == 1) {
-    BasicBlock* pred_bb = GetBasicBlock(bb->predecessors->Get(0));
+  } else if (bb->predecessors.size() == 1) {
+    BasicBlock* pred_bb = GetBasicBlock(bb->predecessors[0]);
     // pred_bb must have already been processed at least once.
     DCHECK(pred_bb != nullptr);
     DCHECK(pred_bb->data_flow_info != nullptr);
     DCHECK(pred_bb->data_flow_info->ending_check_v != nullptr);
     classes_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
   } else {
-    // Starting state is union of all incoming arcs
-    GrowableArray<BasicBlockId>::Iterator iter(bb->predecessors);
-    BasicBlock* pred_bb = GetBasicBlock(iter.Next());
-    DCHECK(pred_bb != NULL);
-    DCHECK(pred_bb->data_flow_info != NULL);
-    while (pred_bb->data_flow_info->ending_check_v == nullptr) {
-      pred_bb = GetBasicBlock(iter.Next());
-      // At least one predecessor must have been processed before this bb.
+    // Starting state is union of all incoming arcs.
+    bool copied_first = false;
+    for (BasicBlockId pred_id : bb->predecessors) {
+      BasicBlock* pred_bb = GetBasicBlock(pred_id);
       DCHECK(pred_bb != nullptr);
-      DCHECK(pred_bb->data_flow_info != nullptr);
-    }
-    classes_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
-    while (true) {
-      pred_bb = GetBasicBlock(iter.Next());
-      if (!pred_bb) break;
       DCHECK(pred_bb->data_flow_info != nullptr);
       if (pred_bb->data_flow_info->ending_check_v == nullptr) {
         continue;
       }
-      classes_to_check->Union(pred_bb->data_flow_info->ending_check_v);
+      if (!copied_first) {
+        copied_first = true;
+        classes_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
+      } else {
+        classes_to_check->Union(pred_bb->data_flow_info->ending_check_v);
+      }
     }
+    DCHECK(copied_first);  // At least one predecessor must have been processed before this bb.
   }
   // At this point, classes_to_check shows which classes need clinit checks.
 
@@ -1312,8 +1307,8 @@ void MIRGraph::ComputeInlineIFieldLoweringInfo(uint16_t field_idx, MIR* invoke, 
   MirIFieldLoweringInfo::Resolve(cu_->compiler_driver, &inlined_unit, &inlined_field_info, 1u);
   DCHECK(inlined_field_info.IsResolved());
 
-  uint32_t field_info_index = ifield_lowering_infos_.Size();
-  ifield_lowering_infos_.Insert(inlined_field_info);
+  uint32_t field_info_index = ifield_lowering_infos_.size();
+  ifield_lowering_infos_.push_back(inlined_field_info);
   temp_bit_vector_->SetBit(method_index);
   temp_insn_data_[method_index] = field_info_index;
   iget_or_iput->meta.ifield_lowering_info = field_info_index;
@@ -1321,7 +1316,7 @@ void MIRGraph::ComputeInlineIFieldLoweringInfo(uint16_t field_idx, MIR* invoke, 
 
 bool MIRGraph::InlineSpecialMethodsGate() {
   if ((cu_->disable_opt & (1 << kSuppressMethodInlining)) != 0 ||
-      method_lowering_infos_.Size() == 0u) {
+      method_lowering_infos_.size() == 0u) {
     return false;
   }
   if (cu_->compiler_driver->GetMethodInlinerMap() == nullptr) {
@@ -1337,7 +1332,7 @@ void MIRGraph::InlineSpecialMethodsStart() {
 
   DCHECK(temp_scoped_alloc_.get() == nullptr);
   temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
-  temp_bit_vector_size_ = method_lowering_infos_.Size();
+  temp_bit_vector_size_ = method_lowering_infos_.size();
   temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
       temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapMisc);
   temp_bit_vector_->ClearAllBits();

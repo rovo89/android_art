@@ -947,13 +947,13 @@ class X86Mir2Lir : public Mir2Lir {
   LIR* setup_method_address_[2];
 
   // Instructions needing patching with Method* values.
-  GrowableArray<LIR*> method_address_insns_;
+  ArenaVector<LIR*> method_address_insns_;
 
   // Instructions needing patching with Class Type* values.
-  GrowableArray<LIR*> class_type_address_insns_;
+  ArenaVector<LIR*> class_type_address_insns_;
 
   // Instructions needing patching with PC relative code addresses.
-  GrowableArray<LIR*> call_method_insns_;
+  ArenaVector<LIR*> call_method_insns_;
 
   // Prologue decrement of stack pointer.
   LIR* stack_decrement_;

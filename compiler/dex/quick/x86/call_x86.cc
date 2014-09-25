@@ -73,7 +73,7 @@ void X86Mir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocat
   int size = table[1];
   tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*),
                                                       kArenaAllocLIR));
-  switch_tables_.Insert(tab_rec);
+  switch_tables_.push_back(tab_rec);
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
@@ -145,7 +145,7 @@ void X86Mir2Lir::GenFillArrayData(MIR* mir, DexOffset table_offset, RegLocation 
   uint32_t size = tab_rec->table[2] | ((static_cast<uint32_t>(tab_rec->table[3])) << 16);
   tab_rec->size = (size * width) + 8;
 
-  fill_array_data_.Insert(tab_rec);
+  fill_array_data_.push_back(tab_rec);
 
   // Making a call - use explicit registers
   FlushAllRegs();   /* Everything to home location */

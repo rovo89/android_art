@@ -620,13 +620,15 @@ bool X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
 
 void X86Mir2Lir::CompilerInitializeRegAlloc() {
   if (cu_->target64) {
-    reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_64, core_regs_64q, sp_regs_64,
-                                          dp_regs_64, reserved_regs_64, reserved_regs_64q,
-                                          core_temps_64, core_temps_64q, sp_temps_64, dp_temps_64);
+    reg_pool_.reset(new (arena_) RegisterPool(this, arena_, core_regs_64, core_regs_64q, sp_regs_64,
+                                              dp_regs_64, reserved_regs_64, reserved_regs_64q,
+                                              core_temps_64, core_temps_64q,
+                                              sp_temps_64, dp_temps_64));
   } else {
-    reg_pool_ = new (arena_) RegisterPool(this, arena_, core_regs_32, empty_pool, sp_regs_32,
-                                          dp_regs_32, reserved_regs_32, empty_pool,
-                                          core_temps_32, empty_pool, sp_temps_32, dp_temps_32);
+    reg_pool_.reset(new (arena_) RegisterPool(this, arena_, core_regs_32, empty_pool, sp_regs_32,
+                                              dp_regs_32, reserved_regs_32, empty_pool,
+                                              core_temps_32, empty_pool,
+                                              sp_temps_32, dp_temps_32));
   }
 
   // Target-specific adjustments.
@@ -635,7 +637,7 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
   const ArrayRef<const RegStorage> *xp_regs = cu_->target64 ? &xp_regs_64 : &xp_regs_32;
   for (RegStorage reg : *xp_regs) {
     RegisterInfo* info = new (arena_) RegisterInfo(reg, GetRegMaskCommon(reg));
-    reginfo_map_.Put(reg.GetReg(), info);
+    reginfo_map_[reg.GetReg()] = info;
   }
   const ArrayRef<const RegStorage> *xp_temps = cu_->target64 ? &xp_temps_64 : &xp_temps_32;
   for (RegStorage reg : *xp_temps) {
@@ -645,8 +647,7 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
 
   // Alias single precision xmm to double xmms.
   // TODO: as needed, add larger vector sizes - alias all to the largest.
-  GrowableArray<RegisterInfo*>::Iterator it(&reg_pool_->sp_regs_);
-  for (RegisterInfo* info = it.Next(); info != nullptr; info = it.Next()) {
+  for (RegisterInfo* info : reg_pool_->sp_regs_) {
     int sp_reg_num = info->GetReg().GetRegNum();
     RegStorage xp_reg = RegStorage::Solo128(sp_reg_num);
     RegisterInfo* xp_reg_info = GetRegInfo(xp_reg);
@@ -666,8 +667,7 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
 
   if (cu_->target64) {
     // Alias 32bit W registers to corresponding 64bit X registers.
-    GrowableArray<RegisterInfo*>::Iterator w_it(&reg_pool_->core_regs_);
-    for (RegisterInfo* info = w_it.Next(); info != nullptr; info = w_it.Next()) {
+    for (RegisterInfo* info : reg_pool_->core_regs_) {
       int x_reg_num = info->GetReg().GetRegNum();
       RegStorage x_reg = RegStorage::Solo64(x_reg_num);
       RegisterInfo* x_reg_info = GetRegInfo(x_reg);
@@ -785,11 +785,14 @@ RegisterClass X86Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatil
 X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Mir2Lir(cu, mir_graph, arena),
       base_of_code_(nullptr), store_method_addr_(false), store_method_addr_used_(false),
-      method_address_insns_(arena, 100, kGrowableArrayMisc),
-      class_type_address_insns_(arena, 100, kGrowableArrayMisc),
-      call_method_insns_(arena, 100, kGrowableArrayMisc),
+      method_address_insns_(arena->Adapter()),
+      class_type_address_insns_(arena->Adapter()),
+      call_method_insns_(arena->Adapter()),
       stack_decrement_(nullptr), stack_increment_(nullptr),
       const_vectors_(nullptr) {
+  method_address_insns_.reserve(100);
+  class_type_address_insns_.reserve(100);
+  call_method_insns_.reserve(100);
   store_method_addr_used_ = false;
   if (kIsDebugBuild) {
     for (int i = 0; i < kX86Last; i++) {
@@ -977,7 +980,7 @@ void X86Mir2Lir::LoadMethodAddress(const MethodReference& target_method, InvokeT
                      static_cast<int>(target_method_id_ptr), target_method_idx,
                      WrapPointer(const_cast<DexFile*>(target_dex_file)), type);
   AppendLIR(move);
-  method_address_insns_.Insert(move);
+  method_address_insns_.push_back(move);
 }
 
 void X86Mir2Lir::LoadClassType(const DexFile& dex_file, uint32_t type_idx,
@@ -996,7 +999,7 @@ void X86Mir2Lir::LoadClassType(const DexFile& dex_file, uint32_t type_idx,
                      static_cast<int>(ptr), type_idx,
                      WrapPointer(const_cast<DexFile*>(&dex_file)));
   AppendLIR(move);
-  class_type_address_insns_.Insert(move);
+  class_type_address_insns_.push_back(move);
 }
 
 LIR *X86Mir2Lir::CallWithLinkerFixup(const MethodReference& target_method, InvokeType type) {
@@ -1014,7 +1017,7 @@ LIR *X86Mir2Lir::CallWithLinkerFixup(const MethodReference& target_method, Invok
   LIR *call = RawLIR(current_dalvik_offset_, kX86CallI, static_cast<int>(target_method_id_ptr),
                      target_method_idx, WrapPointer(const_cast<DexFile*>(target_dex_file)), type);
   AppendLIR(call);
-  call_method_insns_.Insert(call);
+  call_method_insns_.push_back(call);
   return call;
 }
 
@@ -1045,8 +1048,7 @@ void X86Mir2Lir::InstallLiteralPools() {
   }
 
   // Handle the fixups for methods.
-  for (uint32_t i = 0; i < method_address_insns_.Size(); i++) {
-      LIR* p = method_address_insns_.Get(i);
+  for (LIR* p : method_address_insns_) {
       DCHECK_EQ(p->opcode, kX86Mov32RI);
       uint32_t target_method_idx = p->operands[2];
       const DexFile* target_dex_file =
@@ -1062,8 +1064,7 @@ void X86Mir2Lir::InstallLiteralPools() {
   }
 
   // Handle the fixups for class types.
-  for (uint32_t i = 0; i < class_type_address_insns_.Size(); i++) {
-      LIR* p = class_type_address_insns_.Get(i);
+  for (LIR* p : class_type_address_insns_) {
       DCHECK_EQ(p->opcode, kX86Mov32RI);
 
       const DexFile* class_dex_file =
@@ -1078,8 +1079,7 @@ void X86Mir2Lir::InstallLiteralPools() {
   }
 
   // And now the PC-relative calls to methods.
-  for (uint32_t i = 0; i < call_method_insns_.Size(); i++) {
-      LIR* p = call_method_insns_.Get(i);
+  for (LIR* p : call_method_insns_) {
       DCHECK_EQ(p->opcode, kX86CallI);
       uint32_t target_method_idx = p->operands[1];
       const DexFile* target_dex_file =
@@ -1577,11 +1577,11 @@ void X86Mir2Lir::ReserveVectorRegisters(MIR* mir) {
     for (RegisterInfo *info = xp_reg_info->GetAliasChain();
                        info != nullptr;
                        info = info->GetAliasChain()) {
-      if (info->GetReg().IsSingle()) {
-        reg_pool_->sp_regs_.Delete(info);
-      } else {
-        reg_pool_->dp_regs_.Delete(info);
-      }
+      ArenaVector<RegisterInfo*>* regs =
+          info->GetReg().IsSingle() ? &reg_pool_->sp_regs_ : &reg_pool_->dp_regs_;
+      auto it = std::find(regs->begin(), regs->end(), info);
+      DCHECK(it != regs->end());
+      regs->erase(it);
     }
   }
 }
@@ -1595,9 +1595,9 @@ void X86Mir2Lir::ReturnVectorRegisters(MIR* mir) {
                        info != nullptr;
                        info = info->GetAliasChain()) {
       if (info->GetReg().IsSingle()) {
-        reg_pool_->sp_regs_.Insert(info);
+        reg_pool_->sp_regs_.push_back(info);
       } else {
-        reg_pool_->dp_regs_.Insert(info);
+        reg_pool_->dp_regs_.push_back(info);
       }
     }
   }

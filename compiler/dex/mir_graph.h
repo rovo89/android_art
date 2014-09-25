@@ -27,7 +27,6 @@
 #include "mir_field_info.h"
 #include "mir_method_info.h"
 #include "utils/arena_bit_vector.h"
-#include "utils/growable_array.h"
 #include "utils/arena_containers.h"
 #include "utils/scoped_arena_containers.h"
 #include "reg_location.h"
@@ -394,6 +393,17 @@ struct MIR {
 struct SuccessorBlockInfo;
 
 struct BasicBlock {
+  BasicBlock(BasicBlockId block_id, BBType type, ArenaAllocator* allocator)
+      : id(block_id),
+        dfs_id(), start_offset(), fall_through(), taken(), i_dom(), nesting_depth(),
+        block_type(type),
+        successor_block_list_type(kNotUsed),
+        visited(), hidden(), catch_entry(), explicit_throw(), conditional_branch(),
+        terminated_by_return(), dominates_return(), use_lvn(), first_mir_insn(),
+        last_mir_insn(), data_flow_info(), dominators(), i_dominated(), dom_frontier(),
+        predecessors(allocator->Adapter(kArenaAllocBBPredecessors)),
+        successor_blocks(allocator->Adapter(kArenaAllocSuccessor)) {
+  }
   BasicBlockId id;
   BasicBlockId dfs_id;
   NarrowDexOffset start_offset;     // Offset in code units.
@@ -417,8 +427,8 @@ struct BasicBlock {
   ArenaBitVector* dominators;
   ArenaBitVector* i_dominated;      // Set nodes being immediately dominated.
   ArenaBitVector* dom_frontier;     // Dominance frontier.
-  GrowableArray<BasicBlockId>* predecessors;
-  GrowableArray<SuccessorBlockInfo*>* successor_blocks;
+  ArenaVector<BasicBlockId> predecessors;
+  ArenaVector<SuccessorBlockInfo*> successor_blocks;
 
   void AppendMIR(MIR* mir);
   void AppendMIRList(MIR* first_list_mir, MIR* last_list_mir);
@@ -446,7 +456,7 @@ struct BasicBlock {
    * @brief Hide the BasicBlock.
    * @details Set it to kDalvikByteCode, set hidden to true, remove all MIRs,
    *          remove itself from any predecessor edges, remove itself from any
-   *          child's predecessor growable array.
+   *          child's predecessor array.
    */
   void Hide(CompilationUnit* c_unit);
 
@@ -461,7 +471,12 @@ struct BasicBlock {
   bool ReplaceChild(BasicBlockId old_bb, BasicBlockId new_bb);
 
   /**
-   * @brief Update the predecessor growable array from old_pred to new_pred.
+   * @brief Erase the predecessor old_pred.
+   */
+  void ErasePredecessor(BasicBlockId old_pred);
+
+  /**
+   * @brief Update the predecessor array from old_pred to new_pred.
    */
   void UpdatePredecessor(BasicBlockId old_pred, BasicBlockId new_pred);
 
@@ -512,7 +527,7 @@ class ChildBlockIterator {
   bool visited_fallthrough_;
   bool visited_taken_;
   bool have_successors_;
-  GrowableArray<SuccessorBlockInfo*>::Iterator successor_iter_;
+  ArenaVector<SuccessorBlockInfo*>::const_iterator successor_iter_;
 };
 
 /*
@@ -615,26 +630,27 @@ class MIRGraph {
   }
 
   BasicBlock* GetBasicBlock(unsigned int block_id) const {
-    return (block_id == NullBasicBlockId) ? NULL : block_list_.Get(block_id);
+    DCHECK_LT(block_id, block_list_.size());  // NOTE: NullBasicBlockId is 0.
+    return (block_id == NullBasicBlockId) ? NULL : block_list_[block_id];
   }
 
   size_t GetBasicBlockListCount() const {
-    return block_list_.Size();
+    return block_list_.size();
   }
 
-  GrowableArray<BasicBlock*>* GetBlockList() {
-    return &block_list_;
+  const ArenaVector<BasicBlock*>& GetBlockList() {
+    return block_list_;
   }
 
-  GrowableArray<BasicBlockId>* GetDfsOrder() {
+  const ArenaVector<BasicBlockId>& GetDfsOrder() {
     return dfs_order_;
   }
 
-  GrowableArray<BasicBlockId>* GetDfsPostOrder() {
+  const ArenaVector<BasicBlockId>& GetDfsPostOrder() {
     return dfs_post_order_;
   }
 
-  GrowableArray<BasicBlockId>* GetDomPostOrder() {
+  const ArenaVector<BasicBlockId>& GetDomPostOrder() {
     return dom_post_order_traversal_;
   }
 
@@ -681,20 +697,20 @@ class MIRGraph {
   void DoCacheFieldLoweringInfo();
 
   const MirIFieldLoweringInfo& GetIFieldLoweringInfo(MIR* mir) const {
-    DCHECK_LT(mir->meta.ifield_lowering_info, ifield_lowering_infos_.Size());
-    return ifield_lowering_infos_.GetRawStorage()[mir->meta.ifield_lowering_info];
+    DCHECK_LT(mir->meta.ifield_lowering_info, ifield_lowering_infos_.size());
+    return ifield_lowering_infos_[mir->meta.ifield_lowering_info];
   }
 
   const MirSFieldLoweringInfo& GetSFieldLoweringInfo(MIR* mir) const {
-    DCHECK_LT(mir->meta.sfield_lowering_info, sfield_lowering_infos_.Size());
-    return sfield_lowering_infos_.GetRawStorage()[mir->meta.sfield_lowering_info];
+    DCHECK_LT(mir->meta.sfield_lowering_info, sfield_lowering_infos_.size());
+    return sfield_lowering_infos_[mir->meta.sfield_lowering_info];
   }
 
   void DoCacheMethodLoweringInfo();
 
   const MirMethodLoweringInfo& GetMethodLoweringInfo(MIR* mir) {
-    DCHECK_LT(mir->meta.method_lowering_info, method_lowering_infos_.Size());
-    return method_lowering_infos_.GetRawStorage()[mir->meta.method_lowering_info];
+    DCHECK_LT(mir->meta.method_lowering_info, method_lowering_infos_.size());
+    return method_lowering_infos_[mir->meta.method_lowering_info];
   }
 
   void ComputeInlineIFieldLoweringInfo(uint16_t field_idx, MIR* invoke, MIR* iget_or_iput);
@@ -707,24 +723,24 @@ class MIRGraph {
 
   void BasicBlockOptimization();
 
-  GrowableArray<BasicBlockId>* GetTopologicalSortOrder() {
-    DCHECK(topological_order_ != nullptr);
+  const ArenaVector<BasicBlockId>& GetTopologicalSortOrder() {
+    DCHECK(!topological_order_.empty());
     return topological_order_;
   }
 
-  GrowableArray<BasicBlockId>* GetTopologicalSortOrderLoopEnds() {
-    DCHECK(topological_order_loop_ends_ != nullptr);
+  const ArenaVector<BasicBlockId>& GetTopologicalSortOrderLoopEnds() {
+    DCHECK(!topological_order_loop_ends_.empty());
     return topological_order_loop_ends_;
   }
 
-  GrowableArray<BasicBlockId>* GetTopologicalSortOrderIndexes() {
-    DCHECK(topological_order_indexes_ != nullptr);
+  const ArenaVector<BasicBlockId>& GetTopologicalSortOrderIndexes() {
+    DCHECK(!topological_order_indexes_.empty());
     return topological_order_indexes_;
   }
 
-  GrowableArray<std::pair<uint16_t, bool>>* GetTopologicalSortOrderLoopHeadStack() {
-    DCHECK(topological_order_loop_head_stack_ != nullptr);
-    return topological_order_loop_head_stack_;
+  ArenaVector<std::pair<uint16_t, bool>>* GetTopologicalSortOrderLoopHeadStack() {
+    DCHECK(!topological_order_.empty());  // Checking the main array, not the stack.
+    return &topological_order_loop_head_stack_;
   }
 
   bool IsConst(int32_t s_reg) const {
@@ -802,16 +818,19 @@ class MIRGraph {
     return num_reachable_blocks_;
   }
 
-  int GetUseCount(int sreg) const {
-    return use_counts_.Get(sreg);
+  uint32_t GetUseCount(int sreg) const {
+    DCHECK_LT(static_cast<size_t>(sreg), use_counts_.size());
+    return use_counts_[sreg];
   }
 
-  int GetRawUseCount(int sreg) const {
-    return raw_use_counts_.Get(sreg);
+  uint32_t GetRawUseCount(int sreg) const {
+    DCHECK_LT(static_cast<size_t>(sreg), raw_use_counts_.size());
+    return raw_use_counts_[sreg];
   }
 
   int GetSSASubscript(int ssa_reg) const {
-    return ssa_subscripts_->Get(ssa_reg);
+    DCHECK_LT(static_cast<size_t>(ssa_reg), ssa_subscripts_.size());
+    return ssa_subscripts_[ssa_reg];
   }
 
   RegLocation GetRawSrc(MIR* mir, int num) {
@@ -1180,9 +1199,9 @@ class MIRGraph {
 
   // Used for removing redudant suspend tests
   void AppendGenSuspendTestList(BasicBlock* bb) {
-    if (gen_suspend_test_list_.Size() == 0 ||
-        gen_suspend_test_list_.Get(gen_suspend_test_list_.Size() - 1) != bb) {
-      gen_suspend_test_list_.Insert(bb);
+    if (gen_suspend_test_list_.size() == 0 ||
+        gen_suspend_test_list_.back() != bb) {
+      gen_suspend_test_list_.push_back(bb);
     }
   }
 
@@ -1248,30 +1267,30 @@ class MIRGraph {
                               std::string* skip_message);
 
   CompilationUnit* const cu_;
-  GrowableArray<int>* ssa_base_vregs_;
-  GrowableArray<int>* ssa_subscripts_;
+  ArenaVector<int> ssa_base_vregs_;
+  ArenaVector<int> ssa_subscripts_;
   // Map original Dalvik virtual reg i to the current SSA name.
   int* vreg_to_ssa_map_;            // length == method->registers_size
   int* ssa_last_defs_;              // length == method->registers_size
   ArenaBitVector* is_constant_v_;   // length == num_ssa_reg
   int* constant_values_;            // length == num_ssa_reg
   // Use counts of ssa names.
-  GrowableArray<uint32_t> use_counts_;      // Weighted by nesting depth
-  GrowableArray<uint32_t> raw_use_counts_;  // Not weighted
+  ArenaVector<uint32_t> use_counts_;      // Weighted by nesting depth
+  ArenaVector<uint32_t> raw_use_counts_;  // Not weighted
   unsigned int num_reachable_blocks_;
   unsigned int max_num_reachable_blocks_;
-  GrowableArray<BasicBlockId>* dfs_order_;
-  GrowableArray<BasicBlockId>* dfs_post_order_;
-  GrowableArray<BasicBlockId>* dom_post_order_traversal_;
-  GrowableArray<BasicBlockId>* topological_order_;
+  ArenaVector<BasicBlockId> dfs_order_;
+  ArenaVector<BasicBlockId> dfs_post_order_;
+  ArenaVector<BasicBlockId> dom_post_order_traversal_;
+  ArenaVector<BasicBlockId> topological_order_;
   // Indexes in topological_order_ need to be only as big as the BasicBlockId.
   COMPILE_ASSERT(sizeof(BasicBlockId) == sizeof(uint16_t), assuming_16_bit_BasicBlockId);
   // For each loop head, remember the past-the-end index of the end of the loop. 0 if not loop head.
-  GrowableArray<uint16_t>* topological_order_loop_ends_;
+  ArenaVector<uint16_t> topological_order_loop_ends_;
   // Map BB ids to topological_order_ indexes. 0xffff if not included (hidden or null block).
-  GrowableArray<uint16_t>* topological_order_indexes_;
+  ArenaVector<uint16_t> topological_order_indexes_;
   // Stack of the loop head indexes and recalculation flags for RepeatingTopologicalSortIterator.
-  GrowableArray<std::pair<uint16_t, bool>>* topological_order_loop_head_stack_;
+  ArenaVector<std::pair<uint16_t, bool>> topological_order_loop_head_stack_;
   int* i_dom_list_;
   ArenaBitVector** def_block_matrix_;    // original num registers x num_blocks.
   std::unique_ptr<ScopedArenaAllocator> temp_scoped_alloc_;
@@ -1280,13 +1299,13 @@ class MIRGraph {
   ArenaBitVector* temp_bit_vector_;
   std::unique_ptr<GlobalValueNumbering> temp_gvn_;
   static const int kInvalidEntry = -1;
-  GrowableArray<BasicBlock*> block_list_;
+  ArenaVector<BasicBlock*> block_list_;
   ArenaBitVector* try_block_addr_;
   BasicBlock* entry_block_;
   BasicBlock* exit_block_;
   unsigned int num_blocks_;
   const DexFile::CodeItem* current_code_item_;
-  GrowableArray<uint16_t> dex_pc_to_block_map_;  // FindBlock lookup cache.
+  ArenaVector<uint16_t> dex_pc_to_block_map_;    // FindBlock lookup cache.
   ArenaVector<DexCompilationUnit*> m_units_;     // List of methods included in this graph
   typedef std::pair<int, int> MIRLocation;       // Insert point, (m_unit_ index, offset)
   ArenaVector<MIRLocation> method_stack_;        // Include stack
@@ -1310,11 +1329,11 @@ class MIRGraph {
   bool compiler_temps_committed_;          // Keeps track whether number of temps has been frozen (for example post frame size calculation).
   bool punt_to_interpreter_;               // Difficult or not worthwhile - just interpret.
   uint64_t merged_df_flags_;
-  GrowableArray<MirIFieldLoweringInfo> ifield_lowering_infos_;
-  GrowableArray<MirSFieldLoweringInfo> sfield_lowering_infos_;
-  GrowableArray<MirMethodLoweringInfo> method_lowering_infos_;
+  ArenaVector<MirIFieldLoweringInfo> ifield_lowering_infos_;
+  ArenaVector<MirSFieldLoweringInfo> sfield_lowering_infos_;
+  ArenaVector<MirMethodLoweringInfo> method_lowering_infos_;
   static const uint64_t oat_data_flow_attributes_[kMirOpLast];
-  GrowableArray<BasicBlock*> gen_suspend_test_list_;  // List of blocks containing suspend tests
+  ArenaVector<BasicBlock*> gen_suspend_test_list_;  // List of blocks containing suspend tests
 
   friend class ClassInitCheckEliminationTest;
   friend class GlobalValueNumberingTest;

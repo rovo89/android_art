@@ -530,10 +530,7 @@ void Mir2Lir::InstallLiteralPools() {
 
 /* Write the switch tables to the output stream */
 void Mir2Lir::InstallSwitchTables() {
-  GrowableArray<SwitchTable*>::Iterator iterator(&switch_tables_);
-  while (true) {
-    Mir2Lir::SwitchTable* tab_rec = iterator.Next();
-    if (tab_rec == NULL) break;
+  for (Mir2Lir::SwitchTable* tab_rec : switch_tables_) {
     AlignBuffer(code_buffer_, tab_rec->offset);
     /*
      * For Arm, our reference point is the address of the bx
@@ -590,10 +587,7 @@ void Mir2Lir::InstallSwitchTables() {
 
 /* Write the fill array dta to the output stream */
 void Mir2Lir::InstallFillArrayData() {
-  GrowableArray<FillArrayData*>::Iterator iterator(&fill_array_data_);
-  while (true) {
-    Mir2Lir::FillArrayData *tab_rec = iterator.Next();
-    if (tab_rec == NULL) break;
+  for (Mir2Lir::FillArrayData* tab_rec : fill_array_data_) {
     AlignBuffer(code_buffer_, tab_rec->offset);
     for (int i = 0; i < (tab_rec->size + 1) / 2; i++) {
       code_buffer_.push_back(tab_rec->table[i] & 0xFF);
@@ -801,10 +795,7 @@ int Mir2Lir::AssignLiteralOffset(CodeOffset offset) {
 }
 
 int Mir2Lir::AssignSwitchTablesOffset(CodeOffset offset) {
-  GrowableArray<SwitchTable*>::Iterator iterator(&switch_tables_);
-  while (true) {
-    Mir2Lir::SwitchTable* tab_rec = iterator.Next();
-    if (tab_rec == NULL) break;
+  for (Mir2Lir::SwitchTable* tab_rec : switch_tables_) {
     tab_rec->offset = offset;
     if (tab_rec->table[0] == Instruction::kSparseSwitchSignature) {
       offset += tab_rec->table[1] * (sizeof(int) * 2);
@@ -818,15 +809,12 @@ int Mir2Lir::AssignSwitchTablesOffset(CodeOffset offset) {
 }
 
 int Mir2Lir::AssignFillArrayDataOffset(CodeOffset offset) {
-  GrowableArray<FillArrayData*>::Iterator iterator(&fill_array_data_);
-  while (true) {
-    Mir2Lir::FillArrayData *tab_rec = iterator.Next();
-    if (tab_rec == NULL) break;
+  for (Mir2Lir::FillArrayData* tab_rec : fill_array_data_) {
     tab_rec->offset = offset;
     offset += tab_rec->size;
     // word align
     offset = RoundUp(offset, 4);
-    }
+  }
   return offset;
 }
 
@@ -878,10 +866,7 @@ void Mir2Lir::MarkSparseCaseLabels(Mir2Lir::SwitchTable* tab_rec) {
 }
 
 void Mir2Lir::ProcessSwitchTables() {
-  GrowableArray<SwitchTable*>::Iterator iterator(&switch_tables_);
-  while (true) {
-    Mir2Lir::SwitchTable *tab_rec = iterator.Next();
-    if (tab_rec == NULL) break;
+  for (Mir2Lir::SwitchTable* tab_rec : switch_tables_) {
     if (tab_rec->table[0] == Instruction::kPackedSwitchSignature) {
       MarkPackedCaseLabels(tab_rec);
     } else if (tab_rec->table[0] == Instruction::kSparseSwitchSignature) {
@@ -1006,18 +991,18 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       first_fixup_(NULL),
       cu_(cu),
       mir_graph_(mir_graph),
-      switch_tables_(arena, 4, kGrowableArraySwitchTables),
-      fill_array_data_(arena, 4, kGrowableArrayFillArrayData),
-      tempreg_info_(arena, 20, kGrowableArrayMisc),
-      reginfo_map_(arena, RegStorage::kMaxRegs, kGrowableArrayMisc),
-      pointer_storage_(arena, 128, kGrowableArrayMisc),
+      switch_tables_(arena->Adapter(kArenaAllocSwitchTable)),
+      fill_array_data_(arena->Adapter(kArenaAllocFillArrayData)),
+      tempreg_info_(arena->Adapter()),
+      reginfo_map_(arena->Adapter()),
+      pointer_storage_(arena->Adapter()),
       data_offset_(0),
       total_size_(0),
       block_label_list_(NULL),
       promotion_map_(NULL),
       current_dalvik_offset_(0),
       estimated_native_code_size_(0),
-      reg_pool_(NULL),
+      reg_pool_(nullptr),
       live_sreg_(0),
       core_vmap_table_(mir_graph->GetArena()->Adapter()),
       fp_vmap_table_(mir_graph->GetArena()->Adapter()),
@@ -1028,9 +1013,15 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       fp_spill_mask_(0),
       first_lir_insn_(NULL),
       last_lir_insn_(NULL),
-      slow_paths_(arena, 32, kGrowableArraySlowPaths),
+      slow_paths_(arena->Adapter(kArenaAllocSlowPaths)),
       mem_ref_type_(ResourceMask::kHeapRef),
       mask_cache_(arena) {
+  switch_tables_.reserve(4);
+  fill_array_data_.reserve(4);
+  tempreg_info_.reserve(20);
+  reginfo_map_.reserve(RegStorage::kMaxRegs);
+  pointer_storage_.reserve(128);
+  slow_paths_.reserve(32);
   // Reserve pointer id 0 for NULL.
   size_t null_idx = WrapPointer(NULL);
   DCHECK_EQ(null_idx, 0U);
@@ -1223,7 +1214,7 @@ LIR *Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStor
 }
 
 void Mir2Lir::AddSlowPath(LIRSlowPath* slowpath) {
-  slow_paths_.Insert(slowpath);
+  slow_paths_.push_back(slowpath);
   ResetDefTracking();
 }
 

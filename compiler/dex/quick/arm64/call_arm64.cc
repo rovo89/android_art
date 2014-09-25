@@ -55,7 +55,7 @@ void Arm64Mir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLoca
   tab_rec->vaddr = current_dalvik_offset_;
   uint32_t size = table[1];
   tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), kArenaAllocLIR));
-  switch_tables_.Insert(tab_rec);
+  switch_tables_.push_back(tab_rec);
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
@@ -108,7 +108,7 @@ void Arm64Mir2Lir::GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLoca
   uint32_t size = table[1];
   tab_rec->targets =
       static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), kArenaAllocLIR));
-  switch_tables_.Insert(tab_rec);
+  switch_tables_.push_back(tab_rec);
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
@@ -167,7 +167,7 @@ void Arm64Mir2Lir::GenFillArrayData(MIR* mir, DexOffset table_offset, RegLocatio
   uint32_t size = tab_rec->table[2] | ((static_cast<uint32_t>(tab_rec->table[3])) << 16);
   tab_rec->size = (size * width) + 8;
 
-  fill_array_data_.Insert(tab_rec);
+  fill_array_data_.push_back(tab_rec);
 
   // Making a call - use explicit registers
   FlushAllRegs();   /* Everything to home location */
