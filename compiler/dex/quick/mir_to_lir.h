@@ -138,6 +138,7 @@ struct LIR;
 struct RegisterInfo;
 class DexFileMethodInliner;
 class MIRGraph;
+class MirMethodLoweringInfo;
 class Mir2Lir;
 
 typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int,
@@ -909,6 +910,15 @@ class Mir2Lir : public Backend {
                                                             bool safepoint_pc);
     void GenInvoke(CallInfo* info);
     void GenInvokeNoInline(CallInfo* info);
+    virtual NextCallInsn GetNextSDCallInsn();
+
+    /*
+     * @brief Generate the actual call insn based on the method info.
+     * @param method_info the lowering info for the method call.
+     * @returns Call instruction
+     */
+    virtual LIR* GenCallInsn(const MirMethodLoweringInfo& method_info);
+
     virtual void FlushIns(RegLocation* ArgLocs, RegLocation rl_method);
     virtual int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
                              NextCallInsn next_call_insn,
@@ -1712,6 +1722,7 @@ class Mir2Lir : public Backend {
     ArenaVector<uint32_t> core_vmap_table_;
     ArenaVector<uint32_t> fp_vmap_table_;
     std::vector<uint8_t> native_gc_map_;
+    ArenaVector<LinkerPatch> patches_;
     int num_core_spills_;
     int num_fp_spills_;
     int frame_size_;

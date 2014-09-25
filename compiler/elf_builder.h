@@ -412,6 +412,7 @@ class ElfFileMemoryPiece : public ElfFilePiece<Elf_Word> {
 
 class CodeOutput {
  public:
+  virtual void SetCodeOffset(size_t offset) = 0;
   virtual bool Write(OutputStream* out) = 0;
   virtual ~CodeOutput() {}
 };
@@ -423,6 +424,7 @@ class ElfFileRodataPiece : public ElfFilePiece<Elf_Word> {
       output_(output) {}
 
   bool DoActualWrite(File* elf_file) OVERRIDE {
+    output_->SetCodeOffset(this->offset_);
     std::unique_ptr<BufferedOutputStream> output_stream(
         new BufferedOutputStream(new FileOutputStream(elf_file)));
     if (!output_->Write(output_stream.get())) {

@@ -24,6 +24,7 @@
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
 #include "mirror/array.h"
+#include "mirror/art_method.h"
 #include "mirror/string.h"
 #include "oat.h"
 #include "x86_lir.h"
@@ -1002,23 +1003,63 @@ void X86Mir2Lir::LoadClassType(const DexFile& dex_file, uint32_t type_idx,
   class_type_address_insns_.push_back(move);
 }
 
-LIR *X86Mir2Lir::CallWithLinkerFixup(const MethodReference& target_method, InvokeType type) {
+LIR* X86Mir2Lir::CallWithLinkerFixup(const MethodReference& target_method, InvokeType type) {
   /*
    * For x86, just generate a 32 bit call relative instruction, that will be filled
-   * in at 'link time'.  For now, put a unique value based on target to ensure that
-   * code deduplication works.
+   * in at 'link time'.
    */
   int target_method_idx = target_method.dex_method_index;
   const DexFile* target_dex_file = target_method.dex_file;
-  const DexFile::MethodId& target_method_id = target_dex_file->GetMethodId(target_method_idx);
-  uintptr_t target_method_id_ptr = reinterpret_cast<uintptr_t>(&target_method_id);
 
   // Generate the call instruction with the unique pointer and save index, dex_file, and type.
-  LIR *call = RawLIR(current_dalvik_offset_, kX86CallI, static_cast<int>(target_method_id_ptr),
+  // NOTE: Method deduplication takes linker patches into account, so we can just pass 0
+  // as a placeholder for the offset.
+  LIR* call = RawLIR(current_dalvik_offset_, kX86CallI, 0,
                      target_method_idx, WrapPointer(const_cast<DexFile*>(target_dex_file)), type);
   AppendLIR(call);
   call_method_insns_.push_back(call);
   return call;
+}
+
+static LIR* GenInvokeNoInlineCall(Mir2Lir* mir_to_lir, InvokeType type) {
+  QuickEntrypointEnum trampoline;
+  switch (type) {
+    case kInterface:
+      trampoline = kQuickInvokeInterfaceTrampolineWithAccessCheck;
+      break;
+    case kDirect:
+      trampoline = kQuickInvokeDirectTrampolineWithAccessCheck;
+      break;
+    case kStatic:
+      trampoline = kQuickInvokeStaticTrampolineWithAccessCheck;
+      break;
+    case kSuper:
+      trampoline = kQuickInvokeSuperTrampolineWithAccessCheck;
+      break;
+    case kVirtual:
+      trampoline = kQuickInvokeVirtualTrampolineWithAccessCheck;
+      break;
+    default:
+      LOG(FATAL) << "Unexpected invoke type";
+      trampoline = kQuickInvokeInterfaceTrampolineWithAccessCheck;
+  }
+  return mir_to_lir->InvokeTrampoline(kOpBlx, RegStorage::InvalidReg(), trampoline);
+}
+
+LIR* X86Mir2Lir::GenCallInsn(const MirMethodLoweringInfo& method_info) {
+  LIR* call_insn;
+  if (method_info.FastPath()) {
+    if (method_info.DirectCode() == static_cast<uintptr_t>(-1)) {
+      // We can have the linker fixup a call relative.
+      call_insn = CallWithLinkerFixup(method_info.GetTargetMethod(), method_info.GetSharpType());
+    } else {
+      call_insn = OpMem(kOpBlx, TargetReg(kArg0, kRef),
+                        mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
+    }
+  } else {
+    call_insn = GenInvokeNoInlineCall(this, method_info.GetSharpType());
+  }
+  return call_insn;
 }
 
 void X86Mir2Lir::InstallLiteralPools() {
@@ -1056,11 +1097,8 @@ void X86Mir2Lir::InstallLiteralPools() {
 
       // The offset to patch is the last 4 bytes of the instruction.
       int patch_offset = p->offset + p->flags.size - 4;
-      cu_->compiler_driver->AddMethodPatch(cu_->dex_file, cu_->class_def_idx,
-                                           cu_->method_idx, cu_->invoke_type,
-                                           target_method_idx, target_dex_file,
-                                           static_cast<InvokeType>(p->operands[4]),
-                                           patch_offset);
+      patches_.push_back(LinkerPatch::MethodPatch(patch_offset,
+                                                  target_dex_file, target_method_idx));
   }
 
   // Handle the fixups for class types.
@@ -1069,16 +1107,16 @@ void X86Mir2Lir::InstallLiteralPools() {
 
       const DexFile* class_dex_file =
         reinterpret_cast<const DexFile*>(UnwrapPointer(p->operands[3]));
-      uint32_t target_method_idx = p->operands[2];
+      uint32_t target_type_idx = p->operands[2];
 
       // The offset to patch is the last 4 bytes of the instruction.
       int patch_offset = p->offset + p->flags.size - 4;
-      cu_->compiler_driver->AddClassPatch(cu_->dex_file, cu_->class_def_idx,
-                                          cu_->method_idx, target_method_idx, class_dex_file,
-                                          patch_offset);
+      patches_.push_back(LinkerPatch::TypePatch(patch_offset,
+                                                class_dex_file, target_type_idx));
   }
 
   // And now the PC-relative calls to methods.
+  patches_.reserve(call_method_insns_.size());
   for (LIR* p : call_method_insns_) {
       DCHECK_EQ(p->opcode, kX86CallI);
       uint32_t target_method_idx = p->operands[1];
@@ -1087,11 +1125,8 @@ void X86Mir2Lir::InstallLiteralPools() {
 
       // The offset to patch is the last 4 bytes of the instruction.
       int patch_offset = p->offset + p->flags.size - 4;
-      cu_->compiler_driver->AddRelativeCodePatch(cu_->dex_file, cu_->class_def_idx,
-                                                 cu_->method_idx, cu_->invoke_type,
-                                                 target_method_idx, target_dex_file,
-                                                 static_cast<InvokeType>(p->operands[3]),
-                                                 patch_offset, -4 /* offset */);
+      patches_.push_back(LinkerPatch::RelativeCodePatch(patch_offset,
+                                                        target_dex_file, target_method_idx));
   }
 
   // And do the normal processing.

@@ -114,7 +114,6 @@ TEST_F(OatTest, WriteRead) {
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
   }
 
-  ScopedObjectAccess soa(Thread::Current());
   ScratchFile tmp;
   SafeMap<std::string, std::string> key_value_store;
   key_value_store.Put(OatHeader::kImageLocationKey, "lue.art");
@@ -123,6 +122,7 @@ TEST_F(OatTest, WriteRead) {
                        4096U,
                        0,
                        compiler_driver_.get(),
+                       nullptr,
                        &timings,
                        &key_value_store);
   bool success = compiler_driver_->WriteElf(GetTestAndroidRoot(),
@@ -152,6 +152,7 @@ TEST_F(OatTest, WriteRead) {
                                                                     &dex_file_checksum);
   ASSERT_TRUE(oat_dex_file != nullptr);
   CHECK_EQ(dex_file->GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
+  ScopedObjectAccess soa(Thread::Current());
   for (size_t i = 0; i < dex_file->NumClassDefs(); i++) {
     const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
     const byte* class_data = dex_file->GetClassData(class_def);

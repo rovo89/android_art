@@ -19,6 +19,8 @@
 #include "codegen_x86.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "gc/accounting/card_table.h"
+#include "mirror/art_method.h"
+#include "mirror/object_array-inl.h"
 #include "x86_lir.h"
 
 namespace art {
@@ -328,6 +330,60 @@ void X86Mir2Lir::GenImplicitNullCheck(RegStorage reg, int opt_flags) {
   // test eax,[arg1+0]
   NewLIR3(kX86Test32RM, rs_rAX.GetReg(), reg.GetReg(), 0);
   MarkPossibleNullPointerException(opt_flags);
+}
+
+/*
+ * Bit of a hack here - in the absence of a real scheduling pass,
+ * emit the next instruction in static & direct invoke sequences.
+ */
+static int X86NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
+                             int state, const MethodReference& target_method,
+                             uint32_t unused,
+                             uintptr_t direct_code, uintptr_t direct_method,
+                             InvokeType type) {
+  Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
+  if (direct_method != 0) {
+    switch (state) {
+    case 0:  // Get the current Method* [sets kArg0]
+      if (direct_method != static_cast<uintptr_t>(-1)) {
+        cg->LoadConstant(cg->TargetReg(kArg0, kRef), direct_method);
+      } else {
+        cg->LoadMethodAddress(target_method, type, kArg0);
+      }
+      break;
+    default:
+      return -1;
+    }
+  } else {
+    RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
+    switch (state) {
+    case 0:  // Get the current Method* [sets kArg0]
+      // TUNING: we can save a reg copy if Method* has been promoted.
+      cg->LoadCurrMethodDirect(arg0_ref);
+      break;
+    case 1:  // Get method->dex_cache_resolved_methods_
+      cg->LoadRefDisp(arg0_ref,
+                      mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
+                      arg0_ref,
+                      kNotVolatile);
+      break;
+    case 2:  // Grab target method*
+      CHECK_EQ(cu->dex_file, target_method.dex_file);
+      cg->LoadRefDisp(arg0_ref,
+                      mirror::ObjectArray<mirror::Object>::OffsetOfElement(
+                          target_method.dex_method_index).Int32Value(),
+                      arg0_ref,
+                      kNotVolatile);
+      break;
+    default:
+      return -1;
+    }
+  }
+  return state + 1;
+}
+
+NextCallInsn X86Mir2Lir::GetNextSDCallInsn() {
+  return X86NextSDCallInsn;
 }
 
 }  // namespace art

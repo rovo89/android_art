@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "arm/codegen_arm.h"
 #include "dex/compiler_ir.h"
 #include "dex/frontend.h"
 #include "dex/quick/dex_file_method_inliner.h"
@@ -27,7 +28,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string.h"
 #include "mir_to_lir-inl.h"
-#include "x86/codegen_x86.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 
@@ -493,15 +494,15 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                           uint32_t unused,
                           uintptr_t direct_code, uintptr_t direct_method,
                           InvokeType type) {
+  DCHECK(cu->instruction_set != kX86 && cu->instruction_set != kX86_64 &&
+         cu->instruction_set != kThumb2 && cu->instruction_set != kArm);
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   if (direct_code != 0 && direct_method != 0) {
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
       if (direct_code != static_cast<uintptr_t>(-1)) {
-        if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
-          cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
-        }
-      } else if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
+        cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
+      } else {
         cg->LoadCodeAddress(target_method, type, kInvokeTgt);
       }
       if (direct_method != static_cast<uintptr_t>(-1)) {
@@ -529,7 +530,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       if (direct_code != 0) {
         if (direct_code != static_cast<uintptr_t>(-1)) {
           cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
-        } else if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
+        } else {
           CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
           cg->LoadCodeAddress(target_method, type, kInvokeTgt);
         }
@@ -547,7 +548,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
         if (CommonCallCodeLoadCodePointerIntoInvokeTgt(info, &arg0_ref, cu, cg)) {
           break;                                    // kInvokeTgt := arg0_ref->entrypoint
         }
-      } else if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
+      } else {
         break;
       }
       // Intentional fallthrough for x86
@@ -1683,31 +1684,6 @@ void Mir2Lir::GenInvoke(CallInfo* info) {
   GenInvokeNoInline(info);
 }
 
-static LIR* GenInvokeNoInlineCall(Mir2Lir* mir_to_lir, InvokeType type) {
-  QuickEntrypointEnum trampoline;
-  switch (type) {
-    case kInterface:
-      trampoline = kQuickInvokeInterfaceTrampolineWithAccessCheck;
-      break;
-    case kDirect:
-      trampoline = kQuickInvokeDirectTrampolineWithAccessCheck;
-      break;
-    case kStatic:
-      trampoline = kQuickInvokeStaticTrampolineWithAccessCheck;
-      break;
-    case kSuper:
-      trampoline = kQuickInvokeSuperTrampolineWithAccessCheck;
-      break;
-    case kVirtual:
-      trampoline = kQuickInvokeVirtualTrampolineWithAccessCheck;
-      break;
-    default:
-      LOG(FATAL) << "Unexpected invoke type";
-      trampoline = kQuickInvokeInterfaceTrampolineWithAccessCheck;
-  }
-  return mir_to_lir->InvokeTrampoline(kOpBlx, RegStorage::InvalidReg(), trampoline);
-}
-
 void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
   int call_state = 0;
   LIR* null_ck;
@@ -1721,7 +1697,7 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
   cu_->compiler_driver->ProcessedInvoke(method_info.GetInvokeType(), method_info.StatsFlags());
   BeginInvoke(info);
   InvokeType original_type = static_cast<InvokeType>(method_info.GetInvokeType());
-  info->type = static_cast<InvokeType>(method_info.GetSharpType());
+  info->type = method_info.GetSharpType();
   bool fast_path = method_info.FastPath();
   bool skip_this;
   if (info->type == kInterface) {
@@ -1731,10 +1707,10 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
     if (fast_path) {
       p_null_ck = &null_ck;
     }
-    next_call_insn = fast_path ? NextSDCallInsn : NextDirectCallInsnSP;
+    next_call_insn = fast_path ? GetNextSDCallInsn() : NextDirectCallInsnSP;
     skip_this = false;
   } else if (info->type == kStatic) {
-    next_call_insn = fast_path ? NextSDCallInsn : NextStaticCallInsnSP;
+    next_call_insn = fast_path ? GetNextSDCallInsn() : NextStaticCallInsnSP;
     skip_this = false;
   } else if (info->type == kSuper) {
     DCHECK(!fast_path);  // Fast path is a direct call.
@@ -1762,25 +1738,9 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
     call_state = next_call_insn(cu_, info, call_state, target_method, method_info.VTableIndex(),
                                 method_info.DirectCode(), method_info.DirectMethod(), original_type);
   }
-  LIR* call_inst;
-  if (cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64) {
-    call_inst = OpReg(kOpBlx, TargetPtrReg(kInvokeTgt));
-  } else {
-    if (fast_path) {
-      if (method_info.DirectCode() == static_cast<uintptr_t>(-1)) {
-        // We can have the linker fixup a call relative.
-        call_inst =
-          reinterpret_cast<X86Mir2Lir*>(this)->CallWithLinkerFixup(target_method, info->type);
-      } else {
-        call_inst = OpMem(kOpBlx, TargetReg(kArg0, kRef),
-                          mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
-      }
-    } else {
-      call_inst = GenInvokeNoInlineCall(this, info->type);
-    }
-  }
+  LIR* call_insn = GenCallInsn(method_info);
   EndInvoke(info);
-  MarkSafepointPC(call_inst);
+  MarkSafepointPC(call_insn);
 
   ClobberCallerSave();
   if (info->result.location != kLocInvalid) {
@@ -1793,6 +1753,16 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
       StoreValue(info->result, ret_loc);
     }
   }
+}
+
+NextCallInsn Mir2Lir::GetNextSDCallInsn() {
+  return NextSDCallInsn;
+}
+
+LIR* Mir2Lir::GenCallInsn(const MirMethodLoweringInfo& method_info) {
+  DCHECK(cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64 &&
+         cu_->instruction_set != kThumb2 && cu_->instruction_set != kArm);
+  return OpReg(kOpBlx, TargetPtrReg(kInvokeTgt));
 }
 
 }  // namespace art
