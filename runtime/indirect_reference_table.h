@@ -125,16 +125,6 @@ static inline IndirectRefKind GetIndirectRefKind(IndirectRef iref) {
   return static_cast<IndirectRefKind>(reinterpret_cast<uintptr_t>(iref) & 0x03);
 }
 
-/*
- * Extended debugging structure.  We keep a parallel array of these, one
- * per slot in the table.
- */
-static const size_t kIRTPrevCount = 4;
-struct IndirectRefSlot {
-  uint32_t serial;
-  const mirror::Object* previous[kIRTPrevCount];
-};
-
 /* use as initial value for "cookie", and when table has only one segment */
 static const uint32_t IRT_FIRST_SEGMENT = 0;
 
@@ -201,9 +191,35 @@ union IRTSegmentState {
   } parts;
 };
 
+// Try to choose kIRTPrevCount so that sizeof(IrtEntry) is a power of 2.
+// Contains multiple entries but only one active one, this helps us detect use after free errors
+// since the serial stored in the indirect ref wont match.
+static const size_t kIRTPrevCount = kIsDebugBuild ? 7 : 3;
+class PACKED(4) IrtEntry {
+ public:
+  void Add(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    ++serial_;
+    if (serial_ == kIRTPrevCount) {
+      serial_ = 0;
+    }
+    references_[serial_] = GcRoot<mirror::Object>(obj);
+  }
+  GcRoot<mirror::Object>* GetReference() {
+    DCHECK_LT(serial_, kIRTPrevCount);
+    return &references_[serial_];
+  }
+  uint32_t GetSerial() const {
+    return serial_;
+  }
+
+ private:
+  uint32_t serial_;
+  GcRoot<mirror::Object> references_[kIRTPrevCount];
+};
+
 class IrtIterator {
  public:
-  explicit IrtIterator(GcRoot<mirror::Object>* table, size_t i, size_t capacity)
+  explicit IrtIterator(IrtEntry* table, size_t i, size_t capacity)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : table_(table), i_(i), capacity_(capacity) {
   }
@@ -215,7 +231,7 @@ class IrtIterator {
 
   mirror::Object** operator*() {
     // This does not have a read barrier as this is used to visit roots.
-    return table_[i_].AddressWithoutBarrier();
+    return table_[i_].GetReference()->AddressWithoutBarrier();
   }
 
   bool equals(const IrtIterator& rhs) const {
@@ -223,7 +239,7 @@ class IrtIterator {
   }
 
  private:
-  GcRoot<mirror::Object>* const table_;
+  IrtEntry* const table_;
   size_t i_;
   const size_t capacity_;
 };
@@ -316,9 +332,7 @@ class IndirectReferenceTable {
   }
 
  private:
-  /*
-   * Extract the table index from an indirect reference.
-   */
+  // Extract the table index from an indirect reference.
   static uint32_t ExtractIndex(IndirectRef iref) {
     uintptr_t uref = reinterpret_cast<uintptr_t>(iref);
     return (uref >> 2) & 0xffff;
@@ -330,23 +344,9 @@ class IndirectReferenceTable {
    */
   IndirectRef ToIndirectRef(uint32_t tableIndex) const {
     DCHECK_LT(tableIndex, 65536U);
-    uint32_t serialChunk = slot_data_[tableIndex].serial;
-    uintptr_t uref = serialChunk << 20 | (tableIndex << 2) | kind_;
+    uint32_t serialChunk = table_[tableIndex].GetSerial();
+    uintptr_t uref = (serialChunk << 20) | (tableIndex << 2) | kind_;
     return reinterpret_cast<IndirectRef>(uref);
-  }
-
-  /*
-   * Update extended debug info when an entry is added.
-   *
-   * We advance the serial number, invalidating any outstanding references to
-   * this slot.
-   */
-  void UpdateSlotAdd(const mirror::Object* obj, int slot) {
-    if (slot_data_ != NULL) {
-      IndirectRefSlot* pSlot = &slot_data_[slot];
-      pSlot->serial++;
-      pSlot->previous[pSlot->serial % kIRTPrevCount] = obj;
-    }
   }
 
   // Abort if check_jni is not enabled.
@@ -361,19 +361,13 @@ class IndirectReferenceTable {
 
   // Mem map where we store the indirect refs.
   std::unique_ptr<MemMap> table_mem_map_;
-  // Mem map where we store the extended debugging info.
-  std::unique_ptr<MemMap> slot_mem_map_;
   // bottom of the stack. Do not directly access the object references
   // in this as they are roots. Use Get() that has a read barrier.
-  GcRoot<mirror::Object>* table_;
+  IrtEntry* table_;
   /* bit mask, ORed into all irefs */
-  IndirectRefKind kind_;
-  /* extended debugging info */
-  IndirectRefSlot* slot_data_;
-  /* #of entries we have space for */
-  size_t alloc_entries_;
+  const IndirectRefKind kind_;
   /* max #of entries allowed */
-  size_t max_entries_;
+  const size_t max_entries_;
 };
 
 }  // namespace art
