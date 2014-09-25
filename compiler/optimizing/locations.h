@@ -387,6 +387,16 @@ class LocationSummary : public ArenaObject {
     return &live_registers_;
   }
 
+  bool InputOverlapsWithOutputOrTemp(uint32_t input, bool is_environment) const {
+    if (is_environment) return true;
+    Location location = Out();
+    // TODO: Add more policies.
+    if (input == 0 && location.IsUnallocated() && location.GetPolicy() == Location::kSameAsFirstInput) {
+      return false;
+    }
+    return true;
+  }
+
  private:
   GrowableArray<Location> inputs_;
   GrowableArray<Location> temps_;
