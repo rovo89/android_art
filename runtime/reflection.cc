@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "reflection.h"
+#include "reflection-inl.h"
 
 #include "class_linker.h"
 #include "common_throws.h"
@@ -565,7 +565,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   }
 
   // If method is not set to be accessible, verify it can be accessed by the caller.
-  if (!accessible && !VerifyAccess(receiver, declaring_class, m->GetAccessFlags())) {
+  if (!accessible && !VerifyAccess(soa.Self(), receiver, declaring_class, m->GetAccessFlags())) {
     ThrowIllegalAccessException(nullptr, StringPrintf("Cannot access method: %s",
                                                       PrettyMethod(m).c_str()).c_str());
     return nullptr;
@@ -615,84 +615,6 @@ bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c) {
     return false;
   }
   return true;
-}
-
-static std::string PrettyDescriptor(Primitive::Type type) {
-  return PrettyDescriptor(Primitive::Descriptor(type));
-}
-
-bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbox_for_result,
-                           Primitive::Type srcType, Primitive::Type dstType,
-                           const JValue& src, JValue* dst) {
-  DCHECK(srcType != Primitive::kPrimNot && dstType != Primitive::kPrimNot);
-  if (LIKELY(srcType == dstType)) {
-    dst->SetJ(src.GetJ());
-    return true;
-  }
-  switch (dstType) {
-  case Primitive::kPrimBoolean:  // Fall-through.
-  case Primitive::kPrimChar:  // Fall-through.
-  case Primitive::kPrimByte:
-    // Only expect assignment with source and destination of identical type.
-    break;
-  case Primitive::kPrimShort:
-    if (srcType == Primitive::kPrimByte) {
-      dst->SetS(src.GetI());
-      return true;
-    }
-    break;
-  case Primitive::kPrimInt:
-    if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
-        srcType == Primitive::kPrimShort) {
-      dst->SetI(src.GetI());
-      return true;
-    }
-    break;
-  case Primitive::kPrimLong:
-    if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
-        srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
-      dst->SetJ(src.GetI());
-      return true;
-    }
-    break;
-  case Primitive::kPrimFloat:
-    if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
-        srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
-      dst->SetF(src.GetI());
-      return true;
-    } else if (srcType == Primitive::kPrimLong) {
-      dst->SetF(src.GetJ());
-      return true;
-    }
-    break;
-  case Primitive::kPrimDouble:
-    if (srcType == Primitive::kPrimByte || srcType == Primitive::kPrimChar ||
-        srcType == Primitive::kPrimShort || srcType == Primitive::kPrimInt) {
-      dst->SetD(src.GetI());
-      return true;
-    } else if (srcType == Primitive::kPrimLong) {
-      dst->SetD(src.GetJ());
-      return true;
-    } else if (srcType == Primitive::kPrimFloat) {
-      dst->SetD(src.GetF());
-      return true;
-    }
-    break;
-  default:
-    break;
-  }
-  if (!unbox_for_result) {
-    ThrowIllegalArgumentException(throw_location,
-                                  StringPrintf("Invalid primitive conversion from %s to %s",
-                                               PrettyDescriptor(srcType).c_str(),
-                                               PrettyDescriptor(dstType).c_str()).c_str());
-  } else {
-    ThrowClassCastException(throw_location,
-                            StringPrintf("Couldn't convert result of type %s to %s",
-                                         PrettyDescriptor(srcType).c_str(),
-                                         PrettyDescriptor(dstType).c_str()).c_str());
-  }
-  return false;
 }
 
 mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
@@ -866,16 +788,18 @@ bool UnboxPrimitiveForResult(const ThrowLocation& throw_location, mirror::Object
   return UnboxPrimitive(&throw_location, o, dst_class, nullptr, unboxed_value);
 }
 
-bool VerifyAccess(mirror::Object* obj, mirror::Class* declaring_class, uint32_t access_flags) {
-  NthCallerVisitor visitor(Thread::Current(), 2);
+bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_class, uint32_t access_flags) {
+  if ((access_flags & kAccPublic) != 0) {
+    return true;
+  }
+  NthCallerVisitor visitor(self, 2);
   visitor.WalkStack();
   if (UNLIKELY(visitor.caller == nullptr)) {
     // The caller is an attached native thread.
-    return (access_flags & kAccPublic) != 0;
+    return false;
   }
   mirror::Class* caller_class = visitor.caller->GetDeclaringClass();
-
-  if (((access_flags & kAccPublic) != 0) || (caller_class == declaring_class)) {
+  if (caller_class == declaring_class) {
     return true;
   }
   if ((access_flags & kAccPrivate) != 0) {
@@ -889,10 +813,7 @@ bool VerifyAccess(mirror::Object* obj, mirror::Class* declaring_class, uint32_t 
       return true;
     }
   }
-  if (!declaring_class->IsInSamePackage(caller_class)) {
-    return false;
-  }
-  return true;
+  return declaring_class->IsInSamePackage(caller_class);
 }
 
 }  // namespace art
