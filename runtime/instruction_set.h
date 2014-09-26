@@ -56,6 +56,7 @@ static constexpr InstructionSet kRuntimeISA = kNone;
 static constexpr size_t kArmPointerSize = 4;
 static constexpr size_t kArm64PointerSize = 8;
 static constexpr size_t kMipsPointerSize = 4;
+static constexpr size_t kMips64PointerSize = 8;
 static constexpr size_t kX86PointerSize = 4;
 static constexpr size_t kX86_64PointerSize = 8;
 
@@ -93,6 +94,8 @@ static inline size_t GetInstructionSetPointerSize(InstructionSet isa) {
       return kX86_64PointerSize;
     case kMips:
       return kMipsPointerSize;
+    case kMips64:
+      return kMips64PointerSize;
     case kNone:
       LOG(FATAL) << "ISA kNone does not have pointer size.";
       return 0;
@@ -114,6 +117,7 @@ static inline bool Is64BitInstructionSet(InstructionSet isa) {
 
     case kArm64:
     case kX86_64:
+    case kMips64:
       return true;
 
     case kNone:
