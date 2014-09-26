@@ -2236,8 +2236,6 @@ void X86Mir2Lir::GenReduceVector(BasicBlock *bb, MIR *mir) {
   OpSize opsize = static_cast<OpSize>(mir->dalvikInsn.vC >> 16);
   RegLocation rl_dest = mir_graph_->GetDest(mir);
   RegStorage vector_src = RegStorage::Solo128(mir->dalvikInsn.vB);
-  int extract_index = mir->dalvikInsn.arg[0];
-  int extr_opcode = 0;
   RegLocation rl_result;
   bool is_wide = false;
 
@@ -2273,12 +2271,7 @@ void X86Mir2Lir::GenReduceVector(BasicBlock *bb, MIR *mir) {
      * 2-2) In 32-bit case, use movd twice to move to 32-bit GP pair.
      * 3) Store the result to the final destination.
      */
-    RegStorage rs_tmp_vector = Get128BitRegister(AllocTempDouble());
-    NewLIR2(kX86MovdqaRR, rs_tmp_vector.GetReg(), vector_src.GetReg());
-    NewLIR2(kX86PsrldqRI, rs_tmp_vector.GetReg(), 8);
-    NewLIR2(kX86PaddqRR, vector_src.GetReg(), rs_tmp_vector.GetReg());
-    FreeTemp(rs_tmp_vector);
-
+    NewLIR2(kX86PsrldqRI, vector_src.GetReg(), 8);
     rl_result = EvalLocWide(rl_dest, kCoreReg, true);
     if (cu_->target64) {
       DCHECK(!rl_result.reg.IsPair());
@@ -2291,16 +2284,21 @@ void X86Mir2Lir::GenReduceVector(BasicBlock *bb, MIR *mir) {
 
     StoreValueWide(rl_dest, rl_result);
   } else {
+    int extract_index = mir->dalvikInsn.arg[0];
+    int extr_opcode = 0;
+    rl_result = UpdateLocTyped(rl_dest, kCoreReg);
+
     // Handle the rest of integral types now.
     switch (opsize) {
       case k32:
-        rl_result = UpdateLocTyped(rl_dest, kCoreReg);
-        extr_opcode = (rl_result.location == kLocPhysReg) ? kX86PextrdMRI : kX86PextrdRRI;
+        extr_opcode = (rl_result.location == kLocPhysReg) ? kX86PextrdRRI : kX86PextrdMRI;
         break;
       case kSignedHalf:
       case kUnsignedHalf:
-        rl_result= UpdateLocTyped(rl_dest, kCoreReg);
-        extr_opcode = (rl_result.location == kLocPhysReg) ? kX86PextrwMRI : kX86PextrwRRI;
+        extr_opcode = (rl_result.location == kLocPhysReg) ? kX86PextrwRRI : kX86PextrwMRI;
+        break;
+      case kSignedByte:
+        extr_opcode = (rl_result.location == kLocPhysReg) ? kX86PextrbRRI : kX86PextrbMRI;
         break;
       default:
         LOG(FATAL) << "Unsupported vector reduce " << opsize;
@@ -2309,11 +2307,7 @@ void X86Mir2Lir::GenReduceVector(BasicBlock *bb, MIR *mir) {
 
     if (rl_result.location == kLocPhysReg) {
       NewLIR3(extr_opcode, rl_result.reg.GetReg(), vector_src.GetReg(), extract_index);
-      if (is_wide == true) {
-        StoreFinalValue(rl_dest, rl_result);
-      } else {
-        StoreFinalValueWide(rl_dest, rl_result);
-      }
+      StoreFinalValue(rl_dest, rl_result);
     } else {
       int displacement = SRegOffset(rl_result.s_reg_low);
       LIR *l = NewLIR3(extr_opcode, rs_rX86_SP.GetReg(), displacement, vector_src.GetReg());
@@ -2357,7 +2351,7 @@ void X86Mir2Lir::GenSetVector(BasicBlock *bb, MIR *mir) {
       break;
     case k64:
       op_shuffle = kX86PunpcklqdqRR;
-      op_mov = kX86MovqrxRR;
+      op_mov = kX86MovqxrRR;
       is_wide = true;
       break;
     case kSignedByte:
