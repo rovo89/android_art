@@ -24,15 +24,17 @@ art_path := $(LOCAL_PATH)
 
 include $(art_path)/build/Android.common_path.mk
 
-# following the example of build's dont_bother for clean targets
-ifneq (,$(filter clean-oat,$(MAKECMDGOALS)))
-art_dont_bother := true
+# Following the example of build's dont_bother for clean targets.
+art_done_bother := false
+ifneq (,$(filter clean-oat%,$(MAKECMDGOALS)))
+  art_dont_bother := true
 endif
-ifneq (,$(filter clean-oat-host,$(MAKECMDGOALS)))
-art_dont_bother := true
-endif
-ifneq (,$(filter clean-oat-target,$(MAKECMDGOALS)))
-art_dont_bother := true
+
+# Don't bother with tests unless there is a test-art* or build-art* target.
+art_test_bother := false
+$(info $(MAKECMDGOALS))
+ifneq (,$(filter test-art% build-art%,$(MAKECMDGOALS)))
+  art_test_bother := true
 endif
 
 .PHONY: clean-oat
@@ -130,6 +132,8 @@ endif
 
 ########################################################################
 # test rules
+
+ifeq ($(art_test_bother),true)
 
 # All the dependencies that must be built ahead of sync-ing them onto the target device.
 TEST_ART_TARGET_SYNC_DEPS :=
@@ -300,6 +304,8 @@ test-art-target-interpreter$(2ND_ART_PHONY_TEST_TARGET_SUFFIX): test-art-target-
 	$(hide) $(call ART_TEST_PREREQ_FINISHED,$@)
 endif
 
+endif  # art_test_bother
+
 ########################################################################
 # oat-target and oat-target-sync rules
 
@@ -452,3 +458,7 @@ use-art-verify-none:
 ########################################################################
 
 endif # !art_dont_bother
+
+# Clear locally used variables.
+art_dont_bother :=
+art_test_bother :=
