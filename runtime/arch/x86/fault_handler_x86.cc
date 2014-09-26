@@ -104,11 +104,17 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
   bool two_byte = false;
   uint32_t displacement_size = 0;
   uint32_t immediate_size = 0;
+  bool operand_size_prefix = false;
 
   // Prefixes.
   while (true) {
     bool prefix_present = false;
     switch (opcode) {
+      // Group 3
+      case 0x66:
+        operand_size_prefix = true;
+        // fallthrough
+
       // Group 1
       case 0xf0:
       case 0xf2:
@@ -121,9 +127,6 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
       case 0x26:
       case 0x64:
       case 0x65:
-
-      // Group 3
-      case 0x66:
 
       // Group 4
       case 0x67:
@@ -189,7 +192,7 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
       case 0x81:        // group 1, word immediate.
         modrm = *pc++;
         has_modrm = true;
-        immediate_size = 4;
+        immediate_size = operand_size_prefix ? 2 : 4;
         break;
 
       default:
