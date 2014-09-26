@@ -25,9 +25,10 @@
 #include <vector>
 
 #include "base/logging.h"
+#include "base/mutex.h"
 #include "globals.h"
 #include "instruction_set.h"
-#include "base/mutex.h"
+#include "primitive.h"
 
 #ifdef HAVE_ANDROID_OS
 #include "cutils/properties.h"
@@ -280,6 +281,7 @@ std::string PrettyDescriptor(mirror::String* descriptor)
 std::string PrettyDescriptor(const char* descriptor);
 std::string PrettyDescriptor(mirror::Class* klass)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+std::string PrettyDescriptor(Primitive::Type type);
 
 // Returns a human-readable signature for 'f'. Something like "a.b.C.f" or
 // "int a.b.C.f" (depending on the value of 'with_type').

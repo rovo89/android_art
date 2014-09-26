@@ -1376,4 +1376,8 @@ bool Exec(std::vector<std::string>& arg_vector, std::string* error_msg) {
   return true;
 }
 
+std::string PrettyDescriptor(Primitive::Type type) {
+  return PrettyDescriptor(Primitive::Descriptor(type));
+}
+
 }  // namespace art

@@ -42,9 +42,9 @@ bool UnboxPrimitiveForResult(const ThrowLocation& throw_location, mirror::Object
                              mirror::Class* dst_class, JValue* unboxed_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbox_for_result,
-                           Primitive::Type src_class, Primitive::Type dst_class,
-                           const JValue& src, JValue* dst)
+ALWAYS_INLINE bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbox_for_result,
+                                         Primitive::Type src_class, Primitive::Type dst_class,
+                                         const JValue& src, JValue* dst)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 JValue InvokeWithVarArgs(const ScopedObjectAccessAlreadyRunnable& soa, jobject obj, jmethodID mid,
@@ -74,7 +74,8 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject metho
 bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-bool VerifyAccess(mirror::Object* obj, mirror::Class* declaring_class, uint32_t access_flags)
+bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_class,
+                  uint32_t access_flags)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 }  // namespace art

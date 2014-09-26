@@ -47,8 +47,8 @@ class MANAGED ArtField FINAL : public Object {
     return sizeof(ArtField);
   }
 
-  static ArtField* FromReflectedField(const ScopedObjectAccessAlreadyRunnable& soa,
-                                      jobject jlr_field)
+  ALWAYS_INLINE static ArtField* FromReflectedField(const ScopedObjectAccessAlreadyRunnable& soa,
+                                                    jobject jlr_field)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Class* GetDeclaringClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

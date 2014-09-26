@@ -44,6 +44,18 @@ TEST_F(UtilsTest, PrettyDescriptor_ScalarReferences) {
   EXPECT_EQ("java.lang.String", PrettyDescriptor("Ljava/lang/String;"));
 }
 
+TEST_F(UtilsTest, PrettyDescriptor_Primitive) {
+  EXPECT_EQ("boolean", PrettyDescriptor(Primitive::kPrimBoolean));
+  EXPECT_EQ("byte", PrettyDescriptor(Primitive::kPrimByte));
+  EXPECT_EQ("char", PrettyDescriptor(Primitive::kPrimChar));
+  EXPECT_EQ("short", PrettyDescriptor(Primitive::kPrimShort));
+  EXPECT_EQ("int", PrettyDescriptor(Primitive::kPrimInt));
+  EXPECT_EQ("float", PrettyDescriptor(Primitive::kPrimFloat));
+  EXPECT_EQ("long", PrettyDescriptor(Primitive::kPrimLong));
+  EXPECT_EQ("double", PrettyDescriptor(Primitive::kPrimDouble));
+  EXPECT_EQ("void", PrettyDescriptor(Primitive::kPrimVoid));
+}
+
 TEST_F(UtilsTest, PrettyDescriptor_PrimitiveArrays) {
   EXPECT_EQ("boolean[]", PrettyDescriptor("[Z"));
   EXPECT_EQ("boolean[][]", PrettyDescriptor("[[Z"));
