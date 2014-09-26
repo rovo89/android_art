@@ -25,15 +25,14 @@ art_path := $(LOCAL_PATH)
 include $(art_path)/build/Android.common_path.mk
 
 # Following the example of build's dont_bother for clean targets.
-art_done_bother := false
+art_dont_bother := false
 ifneq (,$(filter clean-oat%,$(MAKECMDGOALS)))
   art_dont_bother := true
 endif
 
 # Don't bother with tests unless there is a test-art* or build-art* target.
 art_test_bother := false
-$(info $(MAKECMDGOALS))
-ifneq (,$(filter test-art% build-art%,$(MAKECMDGOALS)))
+ifneq (,$(filter %tests test-art% build-art%,$(MAKECMDGOALS)))
   art_test_bother := true
 endif
 
