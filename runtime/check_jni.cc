@@ -1914,7 +1914,7 @@ class CheckJNI {
   }
 
   static void CallStaticVoidMethodA(JNIEnv* env, jclass c, jmethodID mid, jvalue* vargs) {
-    CallMethodA(__FUNCTION__, env, c, nullptr, mid, vargs, Primitive::kPrimVoid, kStatic);
+    CallMethodA(__FUNCTION__, env, nullptr, c, mid, vargs, Primitive::kPrimVoid, kStatic);
   }
 
   static void CallVoidMethodV(JNIEnv* env, jobject obj, jmethodID mid, va_list vargs) {
