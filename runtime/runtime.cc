@@ -1000,14 +1000,18 @@ void Runtime::DumpLockHolders(std::ostream& os) {
   }
 }
 
-void Runtime::SetStatsEnabled(bool new_state, bool suspended) {
+void Runtime::SetStatsEnabled(bool new_state) {
+  Thread* self = Thread::Current();
+  MutexLock mu(self, *Locks::instrument_entrypoints_lock_);
   if (new_state == true) {
     GetStats()->Clear(~0);
     // TODO: wouldn't it make more sense to clear _all_ threads' stats?
-    Thread::Current()->GetStats()->Clear(~0);
-    GetInstrumentation()->InstrumentQuickAllocEntryPoints(suspended);
-  } else {
-    GetInstrumentation()->UninstrumentQuickAllocEntryPoints(suspended);
+    self->GetStats()->Clear(~0);
+    if (stats_enabled_ != new_state) {
+      GetInstrumentation()->InstrumentQuickAllocEntryPointsLocked();
+    }
+  } else if (stats_enabled_ != new_state) {
+    GetInstrumentation()->UninstrumentQuickAllocEntryPointsLocked();
   }
   stats_enabled_ = new_state;
 }
