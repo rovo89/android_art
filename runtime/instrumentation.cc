@@ -620,45 +620,52 @@ static void ResetQuickAllocEntryPointsForThread(Thread* thread, void* arg) {
   thread->ResetQuickAllocEntryPointsForThread();
 }
 
-void Instrumentation::SetEntrypointsInstrumented(bool instrumented, bool suspended) {
+void Instrumentation::SetEntrypointsInstrumented(bool instrumented) {
+  Thread* self = Thread::Current();
   Runtime* runtime = Runtime::Current();
   ThreadList* tl = runtime->GetThreadList();
-  if (suspended) {
-    Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
-  }
-  if (runtime->IsStarted() && !suspended) {
+  Locks::mutator_lock_->AssertNotHeld(self);
+  Locks::instrument_entrypoints_lock_->AssertHeld(self);
+  if (runtime->IsStarted()) {
     tl->SuspendAll();
   }
   {
-    MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
+    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
     SetQuickAllocEntryPointsInstrumented(instrumented);
     ResetQuickAllocEntryPoints();
   }
-  if (runtime->IsStarted() && !suspended) {
+  if (runtime->IsStarted()) {
     tl->ResumeAll();
   }
 }
 
-void Instrumentation::InstrumentQuickAllocEntryPoints(bool suspended) {
-  // TODO: the read of quick_alloc_entry_points_instrumentation_counter_ is racey and this code
-  //       should be guarded by a lock.
-  DCHECK_GE(quick_alloc_entry_points_instrumentation_counter_.LoadSequentiallyConsistent(), 0);
-  const bool enable_instrumentation =
-      quick_alloc_entry_points_instrumentation_counter_.FetchAndAddSequentiallyConsistent(1) == 0;
-  if (enable_instrumentation) {
-    SetEntrypointsInstrumented(true, suspended);
-  }
+void Instrumentation::InstrumentQuickAllocEntryPoints() {
+  MutexLock mu(Thread::Current(), *Locks::instrument_entrypoints_lock_);
+  InstrumentQuickAllocEntryPointsLocked();
 }
 
-void Instrumentation::UninstrumentQuickAllocEntryPoints(bool suspended) {
-  // TODO: the read of quick_alloc_entry_points_instrumentation_counter_ is racey and this code
-  //       should be guarded by a lock.
-  DCHECK_GT(quick_alloc_entry_points_instrumentation_counter_.LoadSequentiallyConsistent(), 0);
-  const bool disable_instrumentation =
-      quick_alloc_entry_points_instrumentation_counter_.FetchAndSubSequentiallyConsistent(1) == 1;
-  if (disable_instrumentation) {
-    SetEntrypointsInstrumented(false, suspended);
+void Instrumentation::UninstrumentQuickAllocEntryPoints() {
+  MutexLock mu(Thread::Current(), *Locks::instrument_entrypoints_lock_);
+  UninstrumentQuickAllocEntryPointsLocked();
+}
+
+void Instrumentation::InstrumentQuickAllocEntryPointsLocked() {
+  Locks::instrument_entrypoints_lock_->AssertHeld(Thread::Current());
+  if (quick_alloc_entry_points_instrumentation_counter_ == 0) {
+    SetEntrypointsInstrumented(true);
   }
+  ++quick_alloc_entry_points_instrumentation_counter_;
+  LOG(INFO) << "Counter: " << quick_alloc_entry_points_instrumentation_counter_;
+}
+
+void Instrumentation::UninstrumentQuickAllocEntryPointsLocked() {
+  Locks::instrument_entrypoints_lock_->AssertHeld(Thread::Current());
+  CHECK_GT(quick_alloc_entry_points_instrumentation_counter_, 0U);
+  --quick_alloc_entry_points_instrumentation_counter_;
+  if (quick_alloc_entry_points_instrumentation_counter_ == 0) {
+    SetEntrypointsInstrumented(false);
+  }
+  LOG(INFO) << "Counter: " << quick_alloc_entry_points_instrumentation_counter_;
 }
 
 void Instrumentation::ResetQuickAllocEntryPoints() {

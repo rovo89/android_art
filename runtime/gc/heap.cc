@@ -423,7 +423,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     }
   }
   if (running_on_valgrind_) {
-    Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints(false);
+    Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
   }
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() exiting";
