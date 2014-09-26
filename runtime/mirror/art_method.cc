@@ -105,9 +105,9 @@ void ArtMethod::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_class
 }
 
 size_t ArtMethod::NumArgRegisters(const StringPiece& shorty) {
-  CHECK_LE(1, shorty.length());
+  CHECK_LE(1U, shorty.length());
   uint32_t num_registers = 0;
-  for (int i = 1; i < shorty.length(); ++i) {
+  for (size_t i = 1; i < shorty.length(); ++i) {
     char ch = shorty[i];
     if (ch == 'D' || ch == 'J') {
       num_registers += 2;

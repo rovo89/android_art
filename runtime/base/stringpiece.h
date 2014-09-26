@@ -14,6 +14,14 @@
  * limitations under the License.
  */
 
+#ifndef ART_RUNTIME_BASE_STRINGPIECE_H_
+#define ART_RUNTIME_BASE_STRINGPIECE_H_
+
+#include <string.h>
+#include <string>
+
+namespace art {
+
 // A string-like object that points to a sized piece of memory.
 //
 // Functions or methods may use const StringPiece& parameters to accept either
@@ -21,74 +29,75 @@
 // a StringPiece.  The implicit conversion means that it is often appropriate
 // to include this .h file in other files rather than forward-declaring
 // StringPiece as would be appropriate for most other Google classes.
-//
-// Systematic usage of StringPiece is encouraged as it will reduce unnecessary
-// conversions from "const char*" to "string" and back again.
-
-#ifndef ART_RUNTIME_BASE_STRINGPIECE_H_
-#define ART_RUNTIME_BASE_STRINGPIECE_H_
-
-#include <string.h>
-#include <algorithm>
-#include <cstddef>
-#include <iosfwd>
-#include <string>
-
-namespace art {
-
 class StringPiece {
- private:
-  const char*   ptr_;
-  int           length_;
-
  public:
+  // standard STL container boilerplate
+  typedef char value_type;
+  typedef const char* pointer;
+  typedef const char& reference;
+  typedef const char& const_reference;
+  typedef size_t size_type;
+  typedef ptrdiff_t difference_type;
+  static constexpr size_type npos = size_type(-1);
+  typedef const char* const_iterator;
+  typedef const char* iterator;
+  typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+  typedef std::reverse_iterator<iterator> reverse_iterator;
+
   // We provide non-explicit singleton constructors so users can pass
   // in a "const char*" or a "string" wherever a "StringPiece" is
   // expected.
-  StringPiece() : ptr_(NULL), length_(0) { }
-  StringPiece(const char* str)  // NOLINT
-    : ptr_(str), length_((str == NULL) ? 0 : static_cast<int>(strlen(str))) { }
-  StringPiece(const std::string& str)  // NOLINT
-    : ptr_(str.data()), length_(static_cast<int>(str.size())) { }
-  StringPiece(const char* offset, int len) : ptr_(offset), length_(len) { }
+  StringPiece() : ptr_(nullptr), length_(0) { }
+  StringPiece(const char* str)  // NOLINT implicit constructor desired
+    : ptr_(str), length_((str == nullptr) ? 0 : strlen(str)) { }
+  StringPiece(const std::string& str)  // NOLINT implicit constructor desired
+    : ptr_(str.data()), length_(str.size()) { }
+  StringPiece(const char* offset, size_t len) : ptr_(offset), length_(len) { }
 
   // data() may return a pointer to a buffer with embedded NULs, and the
   // returned buffer may or may not be null terminated.  Therefore it is
   // typically a mistake to pass data() to a routine that expects a NUL
   // terminated string.
   const char* data() const { return ptr_; }
-  int size() const { return length_; }
-  int length() const { return length_; }
+  size_type size() const { return length_; }
+  size_type length() const { return length_; }
   bool empty() const { return length_ == 0; }
 
   void clear() {
-    ptr_ = NULL;
+    ptr_ = nullptr;
     length_ = 0;
   }
-  void set(const char* data, int len) {
+  void set(const char* data, size_type len) {
     ptr_ = data;
     length_ = len;
   }
   void set(const char* str) {
     ptr_ = str;
-    if (str != NULL)
-      length_ = static_cast<int>(strlen(str));
-    else
+    if (str != nullptr) {
+      length_ = strlen(str);
+    } else {
       length_ = 0;
+    }
   }
-  void set(const void* data, int len) {
+  void set(const void* data, size_type len) {
     ptr_ = reinterpret_cast<const char*>(data);
     length_ = len;
   }
 
-  char operator[](int i) const { return ptr_[i]; }
+#if defined(NDEBUG)
+  char operator[](size_type i) const {
+    return ptr_[i];
+  }
+#else
+  char operator[](size_type i) const;
+#endif
 
-  void remove_prefix(int n) {
+  void remove_prefix(size_type n) {
     ptr_ += n;
     length_ -= n;
   }
 
-  void remove_suffix(int n) {
+  void remove_suffix(size_type n) {
     length_ -= n;
   }
 
@@ -121,18 +130,6 @@ class StringPiece {
             (memcmp(ptr_ + (length_-x.length_), x.ptr_, x.length_) == 0));
   }
 
-  // standard STL container boilerplate
-  typedef char value_type;
-  typedef const char* pointer;
-  typedef const char& reference;
-  typedef const char& const_reference;
-  typedef size_t size_type;
-  typedef ptrdiff_t difference_type;
-  static const size_type npos;
-  typedef const char* const_iterator;
-  typedef const char* iterator;
-  typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
-  typedef std::reverse_iterator<iterator> reverse_iterator;
   iterator begin() const { return ptr_; }
   iterator end() const { return ptr_ + length_; }
   const_reverse_iterator rbegin() const {
@@ -141,11 +138,8 @@ class StringPiece {
   const_reverse_iterator rend() const {
     return const_reverse_iterator(ptr_);
   }
-  // STLS says return size_type, but Google says return int
-  int max_size() const { return length_; }
-  int capacity() const { return length_; }
 
-  int copy(char* buf, size_type n, size_type pos = 0) const;
+  size_type copy(char* buf, size_type n, size_type pos = 0) const;
 
   size_type find(const StringPiece& s, size_type pos = 0) const;
   size_type find(char c, size_type pos = 0) const;
@@ -153,13 +147,19 @@ class StringPiece {
   size_type rfind(char c, size_type pos = npos) const;
 
   StringPiece substr(size_type pos, size_type n = npos) const;
+
+ private:
+  // Pointer to char data, not necessarily zero terminated.
+  const char* ptr_;
+  // Length of data.
+  size_type   length_;
 };
 
 // This large function is defined inline so that in a fairly common case where
 // one of the arguments is a literal, the compiler can elide a lot of the
 // following comparisons.
 inline bool operator==(const StringPiece& x, const StringPiece& y) {
-  int len = x.size();
+  StringPiece::size_type len = x.size();
   if (len != y.size()) {
     return false;
   }
@@ -169,7 +169,7 @@ inline bool operator==(const StringPiece& x, const StringPiece& y) {
   if (p1 == p2) {
     return true;
   }
-  if (len <= 0) {
+  if (len == 0) {
     return true;
   }
 
