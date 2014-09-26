@@ -30,6 +30,7 @@ public class Main {
     }
 
     public static void main(String args[]) throws Exception {
+        b17630605();
         b17411468();
         b2296099Test();
         b2302318Test();
@@ -60,6 +61,18 @@ public class Main {
         atomicLong();
         LiveFlags.test();
         minDoubleWith3ConstsTest();
+    }
+
+    public static void b17630605() {
+      // b/17630605 - failure to properly handle min long immediates.
+      long a1 = 40455547223404749L;
+      long a2 = Long.MIN_VALUE;
+      long answer = a1 + a2;
+      if (answer == -9182916489631371059L) {
+          System.out.println("b17630605 passes");
+      } else {
+          System.out.println("b17630605 fails: " + answer);
+      }
     }
 
     public static void b17411468() {
