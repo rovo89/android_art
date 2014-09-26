@@ -151,7 +151,7 @@ namespace art {
 
 template <typename LHS, typename RHS>
 struct EagerEvaluator {
-  EagerEvaluator(LHS lhs, RHS rhs) : lhs(lhs), rhs(rhs) { }
+  EagerEvaluator(LHS l, RHS r) : lhs(l), rhs(r) { }
   LHS lhs;
   RHS rhs;
 };
@@ -163,9 +163,9 @@ struct EagerEvaluator {
 // protect you against combinations not explicitly listed below.
 #define EAGER_PTR_EVALUATOR(T1, T2) \
   template <> struct EagerEvaluator<T1, T2> { \
-    EagerEvaluator(T1 lhs, T2 rhs) \
-        : lhs(reinterpret_cast<const void*>(lhs)), \
-          rhs(reinterpret_cast<const void*>(rhs)) { } \
+    EagerEvaluator(T1 l, T2 r) \
+        : lhs(reinterpret_cast<const void*>(l)), \
+          rhs(reinterpret_cast<const void*>(r)) { } \
     const void* lhs; \
     const void* rhs; \
   }
