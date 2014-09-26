@@ -182,9 +182,13 @@ class Instrumentation {
     return interpreter_handler_table_;
   }
 
-  void InstrumentQuickAllocEntryPoints(bool suspended)
+  void InstrumentQuickAllocEntryPoints() LOCKS_EXCLUDED(Locks::instrument_entrypoints_lock_);
+  void UninstrumentQuickAllocEntryPoints() LOCKS_EXCLUDED(Locks::instrument_entrypoints_lock_);
+  void InstrumentQuickAllocEntryPointsLocked()
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::instrument_entrypoints_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::runtime_shutdown_lock_);
-  void UninstrumentQuickAllocEntryPoints(bool suspended)
+  void UninstrumentQuickAllocEntryPointsLocked()
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::instrument_entrypoints_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::runtime_shutdown_lock_);
   void ResetQuickAllocEntryPoints() EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_);
 
@@ -350,7 +354,7 @@ class Instrumentation {
 
   // No thread safety analysis to get around SetQuickAllocEntryPointsInstrumented requiring
   // exclusive access to mutator lock which you can't get if the runtime isn't started.
-  void SetEntrypointsInstrumented(bool instrumented, bool suspended) NO_THREAD_SAFETY_ANALYSIS;
+  void SetEntrypointsInstrumented(bool instrumented) NO_THREAD_SAFETY_ANALYSIS;
 
   void MethodEnterEventImpl(Thread* thread, mirror::Object* this_object,
                             mirror::ArtMethod* method, uint32_t dex_pc) const
@@ -455,8 +459,8 @@ class Instrumentation {
   InterpreterHandlerTable interpreter_handler_table_ GUARDED_BY(Locks::mutator_lock_);
 
   // Greater than 0 if quick alloc entry points instrumented.
-  // TODO: The access and changes to this is racy and should be guarded by a lock.
-  AtomicInteger quick_alloc_entry_points_instrumentation_counter_;
+  size_t quick_alloc_entry_points_instrumentation_counter_
+      GUARDED_BY(Locks::instrument_entrypoints_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(Instrumentation);
 };
