@@ -205,7 +205,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
   LiveInterval* current = instruction->GetLiveInterval();
   if (current == nullptr) return;
 
-  DCHECK(unhandled.IsEmpty() || current->StartsBefore(unhandled.Peek()));
+  DCHECK(unhandled.IsEmpty() || current->StartsBeforeOrAt(unhandled.Peek()));
   // Some instructions define their output in fixed register/stack slot. We need
   // to ensure we know these locations before doing register allocation. For a
   // given register, we create an interval that covers these locations. The register
@@ -228,7 +228,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
     // Split before first register use.
     size_t first_register_use = current->FirstRegisterUse();
     if (first_register_use != kNoLifetime) {
-      LiveInterval* split = Split(current, first_register_use - 1);
+      LiveInterval* split = Split(current, first_register_use);
       // Don't add direclty to `unhandled`, it needs to be sorted and the start
       // of this new interval might be after intervals already in the list.
       AddSorted(&unhandled, split);
@@ -236,7 +236,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
       // Nothing to do, we won't allocate a register for this value.
     }
   } else {
-    DCHECK(unhandled.IsEmpty() || current->StartsBefore(unhandled.Peek()));
+    DCHECK(unhandled.IsEmpty() || current->StartsBeforeOrAt(unhandled.Peek()));
     unhandled.Add(current);
   }
 }
@@ -586,7 +586,7 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
     // If the first use of that instruction is after the last use of the found
     // register, we split this interval just before its first register use.
     AllocateSpillSlotFor(current);
-    LiveInterval* split = Split(current, first_register_use - 1);
+    LiveInterval* split = Split(current, first_register_use);
     AddSorted(unhandled_, split);
     return false;
   } else {
@@ -977,7 +977,11 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
   }
 
   size_t from_position = from->GetLifetimeEnd() - 1;
-  size_t to_position = to->GetLifetimeStart();
+  // When an instructions dies at entry of another, and the latter is the beginning
+  // of a block, the register allocator ensures the former has a register
+  // at block->GetLifetimeStart() + 1. Since this is at a block boundary, it must
+  // must be handled in this method.
+  size_t to_position = to->GetLifetimeStart() + 1;
 
   LiveInterval* destination = nullptr;
   LiveInterval* source = nullptr;
