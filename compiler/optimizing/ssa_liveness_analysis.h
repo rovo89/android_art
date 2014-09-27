@@ -76,7 +76,7 @@ class LiveRange : public ArenaObject {
 
  private:
   size_t start_;
-  const size_t end_;
+  size_t end_;
   LiveRange* next_;
 
   friend class LiveInterval;
@@ -99,13 +99,16 @@ class UsePosition : public ArenaObject {
         is_environment_(is_environment),
         position_(position),
         next_(next) {
-    DCHECK(user->AsPhi() != nullptr || GetPosition() == user->GetLifetimePosition() + 1);
+    DCHECK(user->IsPhi()
+        || (GetPosition() == user->GetLifetimePosition() + 1)
+        || (GetPosition() == user->GetLifetimePosition()));
     DCHECK(next_ == nullptr || next->GetPosition() >= GetPosition());
   }
 
   size_t GetPosition() const { return position_; }
 
   UsePosition* GetNext() const { return next_; }
+  void SetNext(UsePosition* next) { next_ = next; }
 
   HInstruction* GetUser() const { return user_; }
 
@@ -122,7 +125,7 @@ class UsePosition : public ArenaObject {
   const size_t input_index_;
   const bool is_environment_;
   const size_t position_;
-  UsePosition* const next_;
+  UsePosition* next_;
 
   DISALLOW_COPY_AND_ASSIGN(UsePosition);
 };
@@ -174,11 +177,29 @@ class LiveInterval : public ArenaObject {
 
   void AddUse(HInstruction* instruction, size_t input_index, bool is_environment) {
     // Set the use within the instruction.
-    // TODO: Use the instruction's location to know whether the instruction can die
-    // at entry, or needs to say alive within the user.
-    size_t position = instruction->GetLifetimePosition() + 1;
+    size_t position = instruction->GetLifetimePosition();
+    if (instruction->GetLocations()->InputOverlapsWithOutputOrTemp(input_index, is_environment)) {
+      // If it overlaps, we need to make sure the user will not try to allocate a temp
+      // or its output to the same register.
+      ++position;
+    }
     size_t start_block_position = instruction->GetBlock()->GetLifetimeStart();
     size_t end_block_position = instruction->GetBlock()->GetLifetimeEnd();
+    if ((first_use_ != nullptr)
+        && (first_use_->GetUser() == instruction)
+        && (first_use_->GetPosition() < position)) {
+      // The user uses the instruction multiple times, and one use dies before the other.
+      // We update the use list so that the latter is first.
+      DCHECK(first_use_->GetPosition() + 1 == position);
+      UsePosition* new_use = new (allocator_) UsePosition(
+          instruction, input_index, is_environment, position, first_use_->GetNext());
+      first_use_->SetNext(new_use);
+      if (first_range_->GetEnd() == first_use_->GetPosition()) {
+        first_range_->end_ = position;
+      }
+      return;
+    }
+
     if (first_range_ == nullptr) {
       // First time we see a use of that interval.
       first_range_ = last_range_ = new (allocator_) LiveRange(start_block_position, position, nullptr);
@@ -198,7 +219,7 @@ class LiveInterval : public ArenaObject {
   }
 
   void AddPhiUse(HInstruction* instruction, size_t input_index, HBasicBlock* block) {
-    DCHECK(instruction->AsPhi() != nullptr);
+    DCHECK(instruction->IsPhi());
     first_use_ = new (allocator_) UsePosition(
         instruction, input_index, false, block->GetLifetimeEnd(), first_use_);
   }
@@ -339,7 +360,9 @@ class LiveInterval : public ArenaObject {
       if (use_position >= position && !use->GetIsEnvironment()) {
         Location location = use->GetUser()->GetLocations()->InAt(use->GetInputIndex());
         if (location.IsUnallocated() && location.GetPolicy() == Location::kRequiresRegister) {
-          return use_position;
+          // Return the lifetime just before the user, so that the interval has a register
+          // when entering the user.
+          return use->GetUser()->GetLifetimePosition() - 1;
         }
       }
       use = use->GetNext();
@@ -428,12 +451,12 @@ class LiveInterval : public ArenaObject {
     return nullptr;
   }
 
-  bool StartsBefore(LiveInterval* other) const {
+  bool StartsBeforeOrAt(LiveInterval* other) const {
     return GetStart() <= other->GetStart();
   }
 
   bool StartsAfter(LiveInterval* other) const {
-    return GetStart() >= other->GetStart();
+    return GetStart() > other->GetStart();
   }
 
   void Dump(std::ostream& stream) const {
