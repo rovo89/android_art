@@ -25,6 +25,9 @@
 #include "jvalue.h"
 #include "object-inl.h"
 #include "primitive.h"
+#include "thread-inl.h"
+#include "scoped_thread_state_change.h"
+#include "well_known_classes.h"
 
 namespace art {
 namespace mirror {
@@ -296,6 +299,14 @@ inline mirror::DexCache* ArtField::GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mu
 
 inline const DexFile* ArtField::GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return GetDexCache()->GetDexFile();
+}
+
+inline ArtField* ArtField::FromReflectedField(const ScopedObjectAccessAlreadyRunnable& soa,
+                                              jobject jlr_field) {
+  mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_reflect_Field_artField);
+  mirror::ArtField* field = f->GetObject(soa.Decode<mirror::Object*>(jlr_field))->AsArtField();
+  DCHECK(field != nullptr);
+  return field;
 }
 
 }  // namespace mirror
