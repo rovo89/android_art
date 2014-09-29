@@ -33,13 +33,24 @@ ALWAYS_INLINE inline static bool VerifyFieldAccess(Thread* self, mirror::ArtFiel
                                                    mirror::Object* obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (kIsSet && field->IsFinal()) {
-    ThrowIllegalAccessException(nullptr, StringPrintf("Cannot set final field: %s",
-                                                      PrettyField(field).c_str()).c_str());
+    ThrowIllegalAccessException(nullptr,
+            StringPrintf("Cannot set %s field %s of class %s",
+                PrettyJavaAccessFlags(field->GetAccessFlags()).c_str(),
+                PrettyField(field).c_str(),
+                field->GetDeclaringClass() == nullptr ? "null" :
+                    PrettyClass(field->GetDeclaringClass()).c_str()).c_str());
     return false;
   }
-  if (!VerifyAccess(self, obj, field->GetDeclaringClass(), field->GetAccessFlags())) {
-    ThrowIllegalAccessException(nullptr, StringPrintf("Cannot access field: %s",
-                                                      PrettyField(field).c_str()).c_str());
+  mirror::Class* calling_class = nullptr;
+  if (!VerifyAccess(self, obj, field->GetDeclaringClass(), field->GetAccessFlags(),
+                    &calling_class)) {
+    ThrowIllegalAccessException(nullptr,
+            StringPrintf("Class %s cannot access %s field %s of class %s",
+                calling_class == nullptr ? "null" : PrettyClass(calling_class).c_str(),
+                PrettyJavaAccessFlags(field->GetAccessFlags()).c_str(),
+                PrettyField(field).c_str(),
+                field->GetDeclaringClass() == nullptr ? "null" :
+                    PrettyClass(field->GetDeclaringClass()).c_str()).c_str());
     return false;
   }
   return true;
