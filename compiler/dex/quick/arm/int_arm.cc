@@ -377,7 +377,7 @@ LIR* ArmMir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_va
    * TODO: consider interspersing slowpaths in code following unconditional branches.
    */
   bool skip = ((target != NULL) && (target->opcode == kPseudoThrowTarget));
-  skip &= ((cu_->code_item->insns_size_in_code_units_ - current_dalvik_offset_) > 64);
+  skip &= ((mir_graph_->GetNumDalvikInsns() - current_dalvik_offset_) > 64);
   if (!skip && reg.Low8() && (check_value == 0)) {
     if (arm_cond == kArmCondEq || arm_cond == kArmCondNe) {
       branch = NewLIR2((arm_cond == kArmCondEq) ? kThumb2Cbz : kThumb2Cbnz,

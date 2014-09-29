@@ -319,7 +319,7 @@ void Mir2Lir::CodegenDump() {
   LOG(INFO) << "Dumping LIR insns for "
             << PrettyMethod(cu_->method_idx, *cu_->dex_file);
   LIR* lir_insn;
-  int insns_size = cu_->code_item->insns_size_in_code_units_;
+  int insns_size = mir_graph_->GetNumDalvikInsns();
 
   LOG(INFO) << "Regs (excluding ins) : " << mir_graph_->GetNumOfLocalCodeVRs();
   LOG(INFO) << "Ins          : " << mir_graph_->GetNumOfInVRs();

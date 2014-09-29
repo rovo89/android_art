@@ -58,7 +58,6 @@ struct CompilationUnit {
   jobject class_loader;                // compiling method's class loader.
   uint16_t class_def_idx;              // compiling method's defining class definition index.
   uint32_t method_idx;                 // compiling method's index into method_ids of DexFile.
-  const DexFile::CodeItem* code_item;  // compiling method's DexFile code_item.
   uint32_t access_flags;               // compiling method's access flags.
   InvokeType invoke_type;              // compiling method's invocation type.
   const char* shorty;                  // compiling method's shorty.

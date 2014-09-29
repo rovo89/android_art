@@ -708,7 +708,6 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     cu_->access_flags = access_flags;
     cu_->invoke_type = invoke_type;
     cu_->shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
-    cu_->code_item = current_code_item_;
   } else {
     UNIMPLEMENTED(FATAL) << "Nested inlining not implemented.";
     /*
@@ -1404,9 +1403,11 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
     opcode = insn.opcode;
   } else if (opcode == kMirOpNop) {
     str.append("[");
-    // Recover original opcode.
-    insn.opcode = Instruction::At(current_code_item_->insns_ + mir->offset)->Opcode();
-    opcode = insn.opcode;
+    if (mir->offset < current_code_item_->insns_size_in_code_units_) {
+      // Recover original opcode.
+      insn.opcode = Instruction::At(current_code_item_->insns_ + mir->offset)->Opcode();
+      opcode = insn.opcode;
+    }
     nop = true;
   }
   int defs = (ssa_rep != NULL) ? ssa_rep->num_defs : 0;
@@ -1698,6 +1699,33 @@ void MIRGraph::SSATransformationEnd() {
   temp_bit_vector_ = nullptr;
   DCHECK(temp_scoped_alloc_.get() != nullptr);
   temp_scoped_alloc_.reset();
+}
+
+size_t MIRGraph::GetNumDalvikInsns() const {
+  size_t cumulative_size = 0u;
+  bool counted_current_item = false;
+  const uint8_t size_for_null_code_item = 2u;
+
+  for (auto it : m_units_) {
+    const DexFile::CodeItem* code_item = it->GetCodeItem();
+    // Even if the code item is null, we still count non-zero value so that
+    // each m_unit is counted as having impact.
+    cumulative_size += (code_item == nullptr ?
+        size_for_null_code_item : code_item->insns_size_in_code_units_);
+    if (code_item == current_code_item_) {
+      counted_current_item = true;
+    }
+  }
+
+  // If the current code item was not counted yet, count it now.
+  // This can happen for example in unit tests where some fields like m_units_
+  // are not initialized.
+  if (counted_current_item == false) {
+    cumulative_size += (current_code_item_ == nullptr ?
+        size_for_null_code_item : current_code_item_->insns_size_in_code_units_);
+  }
+
+  return cumulative_size;
 }
 
 static BasicBlock* SelectTopologicalSortOrderFallBack(
