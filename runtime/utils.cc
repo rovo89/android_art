@@ -474,6 +474,35 @@ std::string PrettyClassAndClassLoader(mirror::Class* c) {
   return result;
 }
 
+std::string PrettyJavaAccessFlags(uint32_t access_flags) {
+  std::string result;
+  if ((access_flags & kAccPublic) != 0) {
+    result += "public ";
+  }
+  if ((access_flags & kAccProtected) != 0) {
+    result += "protected ";
+  }
+  if ((access_flags & kAccPrivate) != 0) {
+    result += "private ";
+  }
+  if ((access_flags & kAccFinal) != 0) {
+    result += "final ";
+  }
+  if ((access_flags & kAccStatic) != 0) {
+    result += "static ";
+  }
+  if ((access_flags & kAccTransient) != 0) {
+    result += "transient ";
+  }
+  if ((access_flags & kAccVolatile) != 0) {
+    result += "volatile ";
+  }
+  if ((access_flags & kAccSynchronized) != 0) {
+    result += "synchronized ";
+  }
+  return result;
+}
+
 std::string PrettySize(int64_t byte_count) {
   // The byte thresholds at which we display amounts.  A byte count is displayed
   // in unit U when kUnitThresholds[U] <= bytes < kUnitThresholds[U+1].

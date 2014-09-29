@@ -76,7 +76,7 @@ bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_class,
-                  uint32_t access_flags)
+                  uint32_t access_flags, mirror::Class** calling_class)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 }  // namespace art
