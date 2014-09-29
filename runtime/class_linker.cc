@@ -1179,7 +1179,7 @@ bool ClassLinker::VerifyOatChecksums(const OatFile* oat_file,
   uint32_t image_oat_checksum = 0;
   uintptr_t image_oat_data_begin = 0;
   int32_t image_patch_delta = 0;
-  if (instruction_set == Runtime::Current()->GetInstructionSet()) {
+  if (instruction_set == runtime->GetInstructionSet()) {
     const ImageHeader& image_header = image_space->GetImageHeader();
     image_oat_checksum = image_header.GetOatChecksum();
     image_oat_data_begin = reinterpret_cast<uintptr_t>(image_header.GetOatDataBegin());
