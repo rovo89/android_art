@@ -36,40 +36,6 @@ namespace art {
 
 class GlobalValueNumbering;
 
-enum InstructionAnalysisAttributePos {
-  kUninterestingOp = 0,
-  kArithmeticOp,
-  kFPOp,
-  kSingleOp,
-  kDoubleOp,
-  kIntOp,
-  kLongOp,
-  kBranchOp,
-  kInvokeOp,
-  kArrayOp,
-  kHeavyweightOp,
-  kSimpleConstOp,
-  kMoveOp,
-  kSwitch
-};
-
-#define AN_NONE (1 << kUninterestingOp)
-#define AN_MATH (1 << kArithmeticOp)
-#define AN_FP (1 << kFPOp)
-#define AN_LONG (1 << kLongOp)
-#define AN_INT (1 << kIntOp)
-#define AN_SINGLE (1 << kSingleOp)
-#define AN_DOUBLE (1 << kDoubleOp)
-#define AN_FLOATMATH (1 << kFPOp)
-#define AN_BRANCH (1 << kBranchOp)
-#define AN_INVOKE (1 << kInvokeOp)
-#define AN_ARRAYOP (1 << kArrayOp)
-#define AN_HEAVYWEIGHT (1 << kHeavyweightOp)
-#define AN_SIMPLECONST (1 << kSimpleConstOp)
-#define AN_MOVE (1 << kMoveOp)
-#define AN_SWITCH (1 << kSwitch)
-#define AN_COMPUTATIONAL (AN_MATH | AN_ARRAYOP | AN_MOVE | AN_SIMPLECONST)
-
 enum DataFlowAttributePos {
   kUA = 0,
   kUB,
@@ -1192,7 +1158,6 @@ class MIRGraph {
   ArenaSafeMap<unsigned int, unsigned int> block_id_map_;   // Block collapse lookup cache.
 
   static const char* extended_mir_op_names_[kMirOpLast - kMirOpFirst];
-  static const uint32_t analysis_attributes_[kMirOpLast];
 
   void HandleSSADef(int* defs, int dalvik_reg, int reg_index);
   bool InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed);
