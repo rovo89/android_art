@@ -263,7 +263,7 @@ RegLocation MipsMir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg1, int 
 }
 
 RegLocation MipsMir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
-                      RegLocation rl_src2, bool is_div, bool check_zero) {
+                      RegLocation rl_src2, bool is_div, int flags) {
   LOG(FATAL) << "Unexpected use of GenDivRem for Mips";
   return rl_dest;
 }
@@ -437,7 +437,7 @@ void MipsMir2Lir::GenSubLong(Instruction::Code opcode, RegLocation rl_dest,
 }
 
 void MipsMir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                                 RegLocation rl_src2) {
+                                 RegLocation rl_src2, int flags) {
   switch (opcode) {
     case Instruction::ADD_LONG:
     case Instruction::ADD_LONG_2ADDR:
@@ -456,7 +456,7 @@ void MipsMir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, 
   }
 
   // Fallback for all other ops.
-  Mir2Lir::GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
+  Mir2Lir::GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2, flags);
 }
 
 void MipsMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
@@ -628,15 +628,16 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
 }
 
 void MipsMir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                                    RegLocation rl_src1, RegLocation rl_shift) {
+                                    RegLocation rl_src1, RegLocation rl_shift, int flags) {
   // Default implementation is just to ignore the constant case.
   GenShiftOpLong(opcode, rl_dest, rl_src1, rl_shift);
 }
 
 void MipsMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
-                                    RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
+                                    RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
+                                    int flags) {
   // Default - bail to non-const handler.
-  GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
+  GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2, flags);
 }
 
 }  // namespace art

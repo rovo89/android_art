@@ -1501,7 +1501,7 @@ void Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
 
 
 void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
-                            RegLocation rl_src1, RegLocation rl_src2) {
+                            RegLocation rl_src1, RegLocation rl_src2, int flags) {
   DCHECK(cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64);
   OpKind op = kOpBkpt;
   bool is_div_rem = false;
@@ -1600,7 +1600,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
     if (cu_->instruction_set == kMips || cu_->instruction_set == kArm64) {
       rl_src1 = LoadValue(rl_src1, kCoreReg);
       rl_src2 = LoadValue(rl_src2, kCoreReg);
-      if (check_zero) {
+      if (check_zero && (flags & MIR_IGNORE_DIV_ZERO_CHECK) == 0) {
         GenDivZeroCheck(rl_src2.reg);
       }
       rl_result = GenDivRem(rl_dest, rl_src1.reg, rl_src2.reg, op == kOpDiv);
@@ -1611,7 +1611,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
         // calculate using a MUL and subtract.
         rl_src1 = LoadValue(rl_src1, kCoreReg);
         rl_src2 = LoadValue(rl_src2, kCoreReg);
-        if (check_zero) {
+        if (check_zero && (flags & MIR_IGNORE_DIV_ZERO_CHECK) == 0) {
           GenDivZeroCheck(rl_src2.reg);
         }
         rl_result = GenDivRem(rl_dest, rl_src1.reg, rl_src2.reg, op == kOpDiv);
@@ -1625,7 +1625,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       LoadValueDirectFixed(rl_src2, TargetReg(kArg1, kNotWide));
       RegStorage r_tgt = CallHelperSetup(kQuickIdivmod);
       LoadValueDirectFixed(rl_src1, TargetReg(kArg0, kNotWide));
-      if (check_zero) {
+      if (check_zero && (flags & MIR_IGNORE_DIV_ZERO_CHECK) == 0) {
         GenDivZeroCheck(TargetReg(kArg1, kNotWide));
       }
       // NOTE: callout here is not a safepoint.
@@ -1912,7 +1912,7 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
 }
 
 void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                             RegLocation rl_src1, RegLocation rl_src2) {
+                             RegLocation rl_src1, RegLocation rl_src2, int flags) {
   RegLocation rl_result;
   OpKind first_op = kOpBkpt;
   OpKind second_op = kOpBkpt;
@@ -1997,7 +1997,9 @@ void Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
       RegStorage r_tmp2 = TargetReg(kArg2, kWide);
       LoadValueDirectWideFixed(rl_src2, r_tmp2);
       RegStorage r_tgt = CallHelperSetup(target);
-      GenDivZeroCheckWide(r_tmp2);
+      if ((flags & MIR_IGNORE_DIV_ZERO_CHECK) == 0) {
+        GenDivZeroCheckWide(r_tmp2);
+      }
       LoadValueDirectWideFixed(rl_src1, r_tmp1);
       // NOTE: callout here is not a safepoint
       CallHelper(r_tgt, target, false /* not safepoint */);
