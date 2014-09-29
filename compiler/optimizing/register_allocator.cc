@@ -753,30 +753,31 @@ static bool IsValidDestination(Location destination) {
   return destination.IsRegister() || destination.IsStackSlot() || destination.IsDoubleStackSlot();
 }
 
-void RegisterAllocator::AddInputMoveFor(HInstruction* instruction,
+void RegisterAllocator::AddInputMoveFor(HInstruction* user,
                                         Location source,
                                         Location destination) const {
   DCHECK(IsValidDestination(destination));
   if (source.Equals(destination)) return;
 
-  DCHECK(instruction->AsPhi() == nullptr);
+  DCHECK(user->AsPhi() == nullptr);
 
-  HInstruction* previous = instruction->GetPrevious();
+  HInstruction* previous = user->GetPrevious();
   HParallelMove* move = nullptr;
   if (previous == nullptr
       || previous->AsParallelMove() == nullptr
       || !IsInputMove(previous)) {
     move = new (allocator_) HParallelMove(allocator_);
     move->SetLifetimePosition(kInputMoveLifetimePosition);
-    instruction->GetBlock()->InsertInstructionBefore(move, instruction);
+    user->GetBlock()->InsertInstructionBefore(move, user);
   } else {
     move = previous->AsParallelMove();
   }
   DCHECK(IsInputMove(move));
-  move->AddMove(new (allocator_) MoveOperands(source, destination));
+  move->AddMove(new (allocator_) MoveOperands(source, destination, nullptr));
 }
 
 void RegisterAllocator::InsertParallelMoveAt(size_t position,
+                                             HInstruction* instruction,
                                              Location source,
                                              Location destination) const {
   DCHECK(IsValidDestination(destination));
@@ -802,7 +803,7 @@ void RegisterAllocator::InsertParallelMoveAt(size_t position,
   } else {
     // Move must happen before the instruction.
     HInstruction* previous = at->GetPrevious();
-    if (previous != nullptr && previous->AsParallelMove() != nullptr) {
+    if (previous != nullptr && previous->IsParallelMove()) {
       // This is a parallel move for connecting siblings in a same block. We need to
       // differentiate it with moves for connecting blocks, and input moves.
       if (previous->GetLifetimePosition() != position) {
@@ -813,7 +814,15 @@ void RegisterAllocator::InsertParallelMoveAt(size_t position,
         previous = previous->GetPrevious();
       }
     }
-    if (previous == nullptr || previous->AsParallelMove() == nullptr) {
+    if (previous == nullptr
+        || !previous->IsParallelMove()
+        || previous->GetLifetimePosition() != position) {
+      // If the previous is a parallel move, then its position must be lower
+      // than the given `position`: it was added just after the non-parallel
+      // move instruction that precedes `instruction`.
+      DCHECK(previous == nullptr
+             || !previous->IsParallelMove()
+             || previous->GetLifetimePosition() < position);
       move = new (allocator_) HParallelMove(allocator_);
       move->SetLifetimePosition(position);
       at->GetBlock()->InsertInstructionBefore(move, at);
@@ -821,10 +830,11 @@ void RegisterAllocator::InsertParallelMoveAt(size_t position,
       move = previous->AsParallelMove();
     }
   }
-  move->AddMove(new (allocator_) MoveOperands(source, destination));
+  move->AddMove(new (allocator_) MoveOperands(source, destination, instruction));
 }
 
 void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
+                                                   HInstruction* instruction,
                                                    Location source,
                                                    Location destination) const {
   DCHECK(IsValidDestination(destination));
@@ -836,7 +846,7 @@ void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
   HParallelMove* move;
   // This is a parallel move for connecting blocks. We need to differentiate
   // it with moves for connecting siblings in a same block, and output moves.
-  if (previous == nullptr || previous->AsParallelMove() == nullptr
+  if (previous == nullptr || !previous->IsParallelMove()
       || previous->AsParallelMove()->GetLifetimePosition() != block->GetLifetimeEnd()) {
     move = new (allocator_) HParallelMove(allocator_);
     move->SetLifetimePosition(block->GetLifetimeEnd());
@@ -844,10 +854,11 @@ void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
   } else {
     move = previous->AsParallelMove();
   }
-  move->AddMove(new (allocator_) MoveOperands(source, destination));
+  move->AddMove(new (allocator_) MoveOperands(source, destination, instruction));
 }
 
 void RegisterAllocator::InsertParallelMoveAtEntryOf(HBasicBlock* block,
+                                                    HInstruction* instruction,
                                                     Location source,
                                                     Location destination) const {
   DCHECK(IsValidDestination(destination));
@@ -862,7 +873,7 @@ void RegisterAllocator::InsertParallelMoveAtEntryOf(HBasicBlock* block,
     move->SetLifetimePosition(block->GetLifetimeStart());
     block->InsertInstructionBefore(move, first);
   }
-  move->AddMove(new (allocator_) MoveOperands(source, destination));
+  move->AddMove(new (allocator_) MoveOperands(source, destination, instruction));
 }
 
 void RegisterAllocator::InsertMoveAfter(HInstruction* instruction,
@@ -872,7 +883,7 @@ void RegisterAllocator::InsertMoveAfter(HInstruction* instruction,
   if (source.Equals(destination)) return;
 
   if (instruction->AsPhi() != nullptr) {
-    InsertParallelMoveAtEntryOf(instruction->GetBlock(), source, destination);
+    InsertParallelMoveAtEntryOf(instruction->GetBlock(), instruction, source, destination);
     return;
   }
 
@@ -886,7 +897,7 @@ void RegisterAllocator::InsertMoveAfter(HInstruction* instruction,
     move->SetLifetimePosition(position);
     instruction->GetBlock()->InsertInstructionBefore(move, instruction->GetNext());
   }
-  move->AddMove(new (allocator_) MoveOperands(source, destination));
+  move->AddMove(new (allocator_) MoveOperands(source, destination, instruction));
 }
 
 void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
@@ -930,7 +941,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
         && next_sibling->HasRegister()
         && current->GetEnd() == next_sibling->GetStart()) {
       Location destination = ConvertToLocation(next_sibling);
-      InsertParallelMoveAt(current->GetEnd(), source, destination);
+      InsertParallelMoveAt(current->GetEnd(), interval->GetDefinedBy(), source, destination);
     }
 
     // At each safepoint, we record stack and register information.
@@ -1015,10 +1026,16 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
   // If `from` has only one successor, we can put the moves at the exit of it. Otherwise
   // we need to put the moves at the entry of `to`.
   if (from->GetSuccessors().Size() == 1) {
-    InsertParallelMoveAtExitOf(from, ConvertToLocation(source), ConvertToLocation(destination));
+    InsertParallelMoveAtExitOf(from,
+                               interval->GetParent()->GetDefinedBy(),
+                               ConvertToLocation(source),
+                               ConvertToLocation(destination));
   } else {
     DCHECK_EQ(to->GetPredecessors().Size(), 1u);
-    InsertParallelMoveAtEntryOf(to, ConvertToLocation(source), ConvertToLocation(destination));
+    InsertParallelMoveAtEntryOf(to,
+                                interval->GetParent()->GetDefinedBy(),
+                                ConvertToLocation(source),
+                                ConvertToLocation(destination));
   }
 }
 
@@ -1101,7 +1118,7 @@ void RegisterAllocator::Resolve() {
         Location source = FindLocationAt(input->GetLiveInterval(),
                                          predecessor->GetLastInstruction()->GetLifetimePosition());
         Location destination = ConvertToLocation(phi->GetLiveInterval());
-        InsertParallelMoveAtExitOf(predecessor, source, destination);
+        InsertParallelMoveAtExitOf(predecessor, nullptr, source, destination);
       }
     }
   }
