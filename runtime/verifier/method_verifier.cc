@@ -379,9 +379,30 @@ void MethodVerifier::FindLocksAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc,
   verifier.FindLocksAtDexPc();
 }
 
+static bool HasMonitorEnterInstructions(const DexFile::CodeItem* const code_item) {
+  const Instruction* inst = Instruction::At(code_item->insns_);
+
+  uint32_t insns_size = code_item->insns_size_in_code_units_;
+  for (uint32_t dex_pc = 0; dex_pc < insns_size;) {
+    if (inst->Opcode() == Instruction::MONITOR_ENTER) {
+      return true;
+    }
+
+    dex_pc += inst->SizeInCodeUnits();
+    inst = inst->Next();
+  }
+
+  return false;
+}
+
 void MethodVerifier::FindLocksAtDexPc() {
   CHECK(monitor_enter_dex_pcs_ != nullptr);
   CHECK(code_item_ != nullptr);  // This only makes sense for methods with code.
+
+  // Quick check whether there are any monitor_enter instructions at all.
+  if (!HasMonitorEnterInstructions(code_item_)) {
+    return;
+  }
 
   // Strictly speaking, we ought to be able to get away with doing a subset of the full method
   // verification. In practice, the phase we want relies on data structures set up by all the
