@@ -37,6 +37,7 @@ ReaderWriterMutex* Locks::breakpoint_lock_ = nullptr;
 ReaderWriterMutex* Locks::classlinker_classes_lock_ = nullptr;
 Mutex* Locks::deoptimization_lock_ = nullptr;
 ReaderWriterMutex* Locks::heap_bitmap_lock_ = nullptr;
+Mutex* Locks::instrument_entrypoints_lock_ = nullptr;
 Mutex* Locks::intern_table_lock_ = nullptr;
 Mutex* Locks::jni_libraries_lock_ = nullptr;
 Mutex* Locks::logging_lock_ = nullptr;
@@ -875,6 +876,10 @@ void Locks::Init() {
         exit(1); \
       } \
       current_lock_level = new_level;
+
+    UPDATE_CURRENT_LOCK_LEVEL(kInstrumentEntrypointsLock);
+    DCHECK(instrument_entrypoints_lock_ == nullptr);
+    instrument_entrypoints_lock_ = new Mutex("instrument entrypoint lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kMutatorLock);
     DCHECK(mutator_lock_ == nullptr);

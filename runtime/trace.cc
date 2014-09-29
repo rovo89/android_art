@@ -361,6 +361,10 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
   }
 
   Runtime* runtime = Runtime::Current();
+
+  // Enable count of allocs if specified in the flags.
+  bool enable_stats = false;
+
   runtime->GetThreadList()->SuspendAll();
 
   // Create Trace object.
@@ -369,13 +373,8 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
     if (the_trace_ != NULL) {
       LOG(ERROR) << "Trace already in progress, ignoring this request";
     } else {
+      enable_stats = (flags && kTraceCountAllocs) != 0;
       the_trace_ = new Trace(trace_file.release(), buffer_size, flags, sampling_enabled);
-
-      // Enable count of allocs if specified in the flags.
-      if ((flags && kTraceCountAllocs) != 0) {
-        runtime->SetStatsEnabled(true, true);
-      }
-
       if (sampling_enabled) {
         CHECK_PTHREAD_CALL(pthread_create, (&sampling_pthread_, NULL, &RunSamplingThread,
                                             reinterpret_cast<void*>(interval_us)),
@@ -391,9 +390,15 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
   }
 
   runtime->GetThreadList()->ResumeAll();
+
+  // Can't call this when holding the mutator lock.
+  if (enable_stats) {
+    runtime->SetStatsEnabled(true);
+  }
 }
 
 void Trace::Stop() {
+  bool stop_alloc_counting = false;
   Runtime* runtime = Runtime::Current();
   runtime->GetThreadList()->SuspendAll();
   Trace* the_trace = NULL;
@@ -409,6 +414,7 @@ void Trace::Stop() {
     }
   }
   if (the_trace != NULL) {
+    stop_alloc_counting = (the_trace->flags_ & kTraceCountAllocs) != 0;
     the_trace->FinishTracing();
 
     if (the_trace->sampling_enabled_) {
@@ -424,6 +430,11 @@ void Trace::Stop() {
     delete the_trace;
   }
   runtime->GetThreadList()->ResumeAll();
+
+  if (stop_alloc_counting) {
+    // Can be racy since SetStatsEnabled is not guarded by any locks.
+    Runtime::Current()->SetStatsEnabled(false);
+  }
 
   if (sampling_pthread != 0U) {
     CHECK_PTHREAD_CALL(pthread_join, (sampling_pthread, NULL), "sampling thread shutdown");
@@ -488,10 +499,6 @@ void Trace::FinishTracing() {
   uint64_t elapsed = MicroTime() - start_time_;
 
   size_t final_offset = cur_offset_.LoadRelaxed();
-
-  if ((flags_ & kTraceCountAllocs) != 0) {
-    Runtime::Current()->SetStatsEnabled(false, true);
-  }
 
   std::set<mirror::ArtMethod*> visited_methods;
   GetVisitedMethods(final_offset, &visited_methods);

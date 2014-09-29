@@ -100,6 +100,7 @@ enum LockLevel {
   kTraceLock,
   kHeapBitmapLock,
   kMutatorLock,
+  kInstrumentEntrypointsLock,
   kThreadListSuspendThreadLock,
   kZygoteCreationLock,
 
@@ -491,6 +492,9 @@ class Locks {
   // potential deadlock cycle.
   static Mutex* thread_list_suspend_thread_lock_;
 
+  // Guards allocation entrypoint instrumenting.
+  static Mutex* instrument_entrypoints_lock_ ACQUIRED_AFTER(thread_list_suspend_thread_lock_);
+
   // The mutator_lock_ is used to allow mutators to execute in a shared (reader) mode or to block
   // mutators by having an exclusive (writer) owner. In normal execution each mutator thread holds
   // a share on the mutator_lock_. The garbage collector may also execute with shared access but
@@ -549,7 +553,7 @@ class Locks {
   // else                                          |  .. running ..
   //   Goto x                                      |  .. running ..
   //  .. running ..                                |  .. running ..
-  static ReaderWriterMutex* mutator_lock_ ACQUIRED_AFTER(thread_list_suspend_thread_lock_);
+  static ReaderWriterMutex* mutator_lock_ ACQUIRED_AFTER(instrument_entrypoints_lock_);
 
   // Allow reader-writer mutual exclusion on the mark and live bitmaps of the heap.
   static ReaderWriterMutex* heap_bitmap_lock_ ACQUIRED_AFTER(mutator_lock_);

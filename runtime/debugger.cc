@@ -4453,7 +4453,7 @@ void Dbg::SetAllocTrackingEnabled(bool enable) {
       recent_allocation_records_ = new AllocRecord[alloc_record_max_];
       CHECK(recent_allocation_records_ != nullptr);
     }
-    Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints(false);
+    Runtime::Current()->GetInstrumentation()->InstrumentQuickAllocEntryPoints();
   } else {
     {
       ScopedObjectAccess soa(self);  // For type_cache_.Clear();
@@ -4469,7 +4469,7 @@ void Dbg::SetAllocTrackingEnabled(bool enable) {
       type_cache_.Clear();
     }
     // If an allocation comes in before we uninstrument, we will safely drop it on the floor.
-    Runtime::Current()->GetInstrumentation()->UninstrumentQuickAllocEntryPoints(false);
+    Runtime::Current()->GetInstrumentation()->UninstrumentQuickAllocEntryPoints();
   }
 }
 

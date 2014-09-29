@@ -389,7 +389,8 @@ class Runtime {
 
   void ResetStats(int kinds);
 
-  void SetStatsEnabled(bool new_state, bool suspended);
+  void SetStatsEnabled(bool new_state) LOCKS_EXCLUDED(Locks::instrument_entrypoints_lock_,
+                                                      Locks::mutator_lock_);
 
   enum class NativeBridgeAction {  // private
     kUnload,
