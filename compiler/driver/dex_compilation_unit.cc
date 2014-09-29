@@ -23,18 +23,6 @@
 
 namespace art {
 
-DexCompilationUnit::DexCompilationUnit(CompilationUnit* cu)
-    : cu_(cu),
-      class_loader_(cu->class_loader),
-      class_linker_(cu->class_linker),
-      dex_file_(cu->dex_file),
-      code_item_(cu->code_item),
-      class_def_idx_(cu->class_def_idx),
-      dex_method_idx_(cu->method_idx),
-      access_flags_(cu->access_flags),
-      verified_method_(cu_->compiler_driver->GetVerifiedMethod(cu->dex_file, cu->method_idx)) {
-}
-
 DexCompilationUnit::DexCompilationUnit(CompilationUnit* cu,
                                        jobject class_loader,
                                        ClassLinker* class_linker,

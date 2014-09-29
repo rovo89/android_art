@@ -29,7 +29,6 @@ CompilationUnit::CompilationUnit(ArenaPool* pool)
     class_loader(nullptr),
     class_def_idx(0),
     method_idx(0),
-    code_item(nullptr),
     access_flags(0),
     invoke_type(kDirect),
     shorty(nullptr),
