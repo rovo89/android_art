@@ -1963,7 +1963,7 @@ void MirConverter::MethodMIR2Bitcode() {
      if (::llvm::verifyFunction(*func_, ::llvm::PrintMessageAction)) {
        LOG(INFO) << "Bitcode verification FAILED for "
                  << PrettyMethod(cu_->method_idx, *cu_->dex_file)
-                 << " of size " << cu_->code_item->insns_size_in_code_units_;
+                 << " of size " << mir_graph_->GetNumDalvikInsns();
        cu_->enable_debug |= (1 << kDebugDumpBitcodeFile);
      }
   }

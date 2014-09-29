@@ -1066,7 +1066,7 @@ bool MIRGraph::EliminateClassInitChecksGate() {
   temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
 
   // Each insn we use here has at least 2 code units, offset/2 will be a unique index.
-  const size_t end = (cu_->code_item->insns_size_in_code_units_ + 1u) / 2u;
+  const size_t end = (GetNumDalvikInsns() + 1u) / 2u;
   temp_insn_data_ = static_cast<uint16_t*>(
       temp_scoped_alloc_->Alloc(end * sizeof(*temp_insn_data_), kArenaAllocGrowableArray));
 

@@ -1335,56 +1335,6 @@ void MIRGraph::CompilerInitializeSSAConversion() {
 }
 
 /*
- * This function will make a best guess at whether the invoke will
- * end up using Method*.  It isn't critical to get it exactly right,
- * and attempting to do would involve more complexity than it's
- * worth.
- */
-bool MIRGraph::InvokeUsesMethodStar(MIR* mir) {
-  InvokeType type;
-  Instruction::Code opcode = mir->dalvikInsn.opcode;
-  switch (opcode) {
-    case Instruction::INVOKE_STATIC:
-    case Instruction::INVOKE_STATIC_RANGE:
-      type = kStatic;
-      break;
-    case Instruction::INVOKE_DIRECT:
-    case Instruction::INVOKE_DIRECT_RANGE:
-      type = kDirect;
-      break;
-    case Instruction::INVOKE_VIRTUAL:
-    case Instruction::INVOKE_VIRTUAL_RANGE:
-      type = kVirtual;
-      break;
-    case Instruction::INVOKE_INTERFACE:
-    case Instruction::INVOKE_INTERFACE_RANGE:
-      return false;
-    case Instruction::INVOKE_SUPER_RANGE:
-    case Instruction::INVOKE_SUPER:
-      type = kSuper;
-      break;
-    default:
-      LOG(WARNING) << "Unexpected invoke op: " << opcode;
-      return false;
-  }
-  DexCompilationUnit m_unit(cu_);
-  MethodReference target_method(cu_->dex_file, mir->dalvikInsn.vB);
-  int vtable_idx;
-  uintptr_t direct_code;
-  uintptr_t direct_method;
-  uint32_t current_offset = static_cast<uint32_t>(current_offset_);
-  bool fast_path =
-      cu_->compiler_driver->ComputeInvokeInfo(&m_unit, current_offset,
-                                              false, true,
-                                              &type, &target_method,
-                                              &vtable_idx,
-                                              &direct_code, &direct_method) &&
-                                              !(cu_->enable_debug & (1 << kDebugSlowInvokePath));
-  return (((type == kDirect) || (type == kStatic)) &&
-          fast_path && ((direct_code == 0) || (direct_method == 0)));
-}
-
-/*
  * Count uses, weighting by loop nesting depth.  This code only
  * counts explicitly used s_regs.  A later phase will add implicit
  * counts for things such as Method*, null-checked references, etc.

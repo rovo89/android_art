@@ -260,7 +260,7 @@ class GlobalValueNumberingTest : public testing::Test {
     DexFile::CodeItem* code_item = static_cast<DexFile::CodeItem*>(
         cu_.arena.Alloc(sizeof(DexFile::CodeItem), kArenaAllocMisc));
     code_item->insns_size_in_code_units_ = 2u * count;
-    cu_.mir_graph->current_code_item_ = cu_.code_item = code_item;
+    cu_.mir_graph->current_code_item_ = code_item;
   }
 
   template <size_t count>
