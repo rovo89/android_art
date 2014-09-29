@@ -579,9 +579,12 @@ class MIRGraph {
     return num_blocks_;
   }
 
-  size_t GetNumDalvikInsns() const {
-    return cu_->code_item->insns_size_in_code_units_;
-  }
+  /**
+   * @brief Provides the total size in code units of all instructions in MIRGraph.
+   * @details Includes the sizes of all methods in compilation unit.
+   * @return Returns the cumulative sum of all insn sizes (in code units).
+   */
+  size_t GetNumDalvikInsns() const;
 
   ArenaBitVector* GetTryBlockAddr() const {
     return try_block_addr_;
@@ -1187,7 +1190,6 @@ class MIRGraph {
                       ArenaBitVector* live_in_v,
                       const MIR::DecodedInstruction& d_insn);
   bool DoSSAConversion(BasicBlock* bb);
-  bool InvokeUsesMethodStar(MIR* mir);
   int ParseInsn(const uint16_t* code_ptr, MIR::DecodedInstruction* decoded_instruction);
   bool ContentIsInsn(const uint16_t* code_ptr);
   BasicBlock* SplitBlock(DexOffset code_offset, BasicBlock* orig_block,
