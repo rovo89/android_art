@@ -183,8 +183,6 @@ class LiveInterval : public ArenaObject {
       // or its output to the same register.
       ++position;
     }
-    size_t start_block_position = instruction->GetBlock()->GetLifetimeStart();
-    size_t end_block_position = instruction->GetBlock()->GetLifetimeEnd();
     if ((first_use_ != nullptr)
         && (first_use_->GetUser() == instruction)
         && (first_use_->GetPosition() < position)) {
@@ -200,18 +198,25 @@ class LiveInterval : public ArenaObject {
       return;
     }
 
+    size_t start_block_position = instruction->GetBlock()->GetLifetimeStart();
     if (first_range_ == nullptr) {
       // First time we see a use of that interval.
-      first_range_ = last_range_ = new (allocator_) LiveRange(start_block_position, position, nullptr);
+      first_range_ = last_range_ = new (allocator_) LiveRange(
+          start_block_position, position, nullptr);
     } else if (first_range_->GetStart() == start_block_position) {
-      // There is a use later in the same block.
+      // There is a use later in the same block or in a following block.
+      // Note that in such a case, `AddRange` for the whole blocks has been called
+      // before arriving in this method, and this is the reason the start of
+      // `first_range_` is before the given `position`.
       DCHECK_LE(position, first_range_->GetEnd());
-    } else if (first_range_->GetStart() == end_block_position) {
-      // Last use is in the following block.
-      first_range_->start_ = start_block_position;
     } else {
       DCHECK(first_range_->GetStart() > position);
       // There is a hole in the interval. Create a new range.
+      // Note that the start of `first_range_` can be equal to `end`: two blocks
+      // having adjacent lifetime positions are not necessarily
+      // predecessor/successor. When two blocks are predecessor/successor, the
+      // liveness algorithm has called `AddRange` before arriving in this method,
+      // and the check line 205 would succeed.
       first_range_ = new (allocator_) LiveRange(start_block_position, position, first_range_);
     }
     first_use_ = new (allocator_) UsePosition(
