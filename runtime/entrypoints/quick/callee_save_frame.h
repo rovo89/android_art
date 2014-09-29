@@ -18,7 +18,9 @@
 #define ART_RUNTIME_ENTRYPOINTS_QUICK_CALLEE_SAVE_FRAME_H_
 
 #include "base/mutex.h"
+#include "gc_root-inl.h"
 #include "instruction_set.h"
+#include "runtime-inl.h"
 #include "thread-inl.h"
 
 // Specific frame size code is in architecture-specific files. We include this to compile-time

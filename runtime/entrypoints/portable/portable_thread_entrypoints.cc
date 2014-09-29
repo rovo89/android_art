@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "mirror/art_method-inl.h"
 #include "verifier/dex_gc_map.h"
 #include "stack.h"
 #include "thread-inl.h"
