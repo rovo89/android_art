@@ -1814,8 +1814,8 @@ class HSuspendCheck : public HTemplateInstruction<0> {
 
 class MoveOperands : public ArenaObject {
  public:
-  MoveOperands(Location source, Location destination)
-      : source_(source), destination_(destination) {}
+  MoveOperands(Location source, Location destination, HInstruction* instruction)
+      : source_(source), destination_(destination), instruction_(instruction) {}
 
   Location GetSource() const { return source_; }
   Location GetDestination() const { return destination_; }
@@ -1863,9 +1863,16 @@ class MoveOperands : public ArenaObject {
     return source_.IsInvalid();
   }
 
+  HInstruction* GetInstruction() const { return instruction_; }
+
  private:
   Location source_;
   Location destination_;
+  // The instruction this move is assocatied with. Null when this move is
+  // for moving an input in the expected locations of user (including a phi user).
+  // This is only used in debug mode, to ensure we do not connect interval siblings
+  // in the same parallel move.
+  HInstruction* instruction_;
 
   DISALLOW_COPY_AND_ASSIGN(MoveOperands);
 };
@@ -1878,6 +1885,12 @@ class HParallelMove : public HTemplateInstruction<0> {
       : HTemplateInstruction(SideEffects::None()), moves_(arena, kDefaultNumberOfMoves) {}
 
   void AddMove(MoveOperands* move) {
+    if (kIsDebugBuild && move->GetInstruction() != nullptr) {
+      for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
+        DCHECK_NE(moves_.Get(i)->GetInstruction(), move->GetInstruction())
+          << "Doing parallel moves for the same instruction.";
+      }
+    }
     moves_.Add(move);
   }
 

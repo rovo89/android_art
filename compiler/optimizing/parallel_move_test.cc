@@ -71,7 +71,8 @@ static HParallelMove* BuildParallelMove(ArenaAllocator* allocator,
   for (size_t i = 0; i < number_of_moves; ++i) {
     moves->AddMove(new (allocator) MoveOperands(
         Location::RegisterLocation(ManagedRegister(operands[i][0])),
-        Location::RegisterLocation(ManagedRegister(operands[i][1]))));
+        Location::RegisterLocation(ManagedRegister(operands[i][1])),
+        nullptr));
   }
   return moves;
 }
