@@ -108,11 +108,20 @@ class RegisterAllocator {
   void ConnectSplitSiblings(LiveInterval* interval, HBasicBlock* from, HBasicBlock* to) const;
 
   // Helper methods to insert parallel moves in the graph.
-  void InsertParallelMoveAtExitOf(HBasicBlock* block, Location source, Location destination) const;
-  void InsertParallelMoveAtEntryOf(HBasicBlock* block, Location source, Location destination) const;
+  void InsertParallelMoveAtExitOf(HBasicBlock* block,
+                                  HInstruction* instruction,
+                                  Location source,
+                                  Location destination) const;
+  void InsertParallelMoveAtEntryOf(HBasicBlock* block,
+                                   HInstruction* instruction,
+                                   Location source,
+                                   Location destination) const;
   void InsertMoveAfter(HInstruction* instruction, Location source, Location destination) const;
-  void AddInputMoveFor(HInstruction* instruction, Location source, Location destination) const;
-  void InsertParallelMoveAt(size_t position, Location source, Location destination) const;
+  void AddInputMoveFor(HInstruction* user, Location source, Location destination) const;
+  void InsertParallelMoveAt(size_t position,
+                            HInstruction* instruction,
+                            Location source,
+                            Location destination) const;
 
   // Helper methods.
   void AllocateRegistersInternal();
