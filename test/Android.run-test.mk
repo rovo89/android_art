@@ -157,6 +157,15 @@ endif
 
 TEST_ART_TIMING_SENSITIVE_RUN_TESTS :=
 
+TEST_ART_BROKEN_RUN_TESTS := \
+  004-ThreadStress
+
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES), \
+      $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES), $(TEST_ART_BROKEN_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+
+TEST_ART_BROKEN_RUN_TESTS :=
+
 # Note 116-nodex2oat is not broken per-se it just doesn't (and isn't meant to) work with --prebuild.
 TEST_ART_BROKEN_PREBUILD_RUN_TESTS := \
   116-nodex2oat
