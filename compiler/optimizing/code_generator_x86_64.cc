@@ -446,7 +446,7 @@ void LocationsBuilderX86_64::VisitIf(HIf* if_instr) {
   DCHECK(cond->IsCondition());
   HCondition* condition = cond->AsCondition();
   if (condition->NeedsMaterialization()) {
-    locations->SetInAt(0, Location::Any());
+    locations->SetInAt(0, Location::Any(), Location::kDiesAtEntry);
   }
 }
 
@@ -530,8 +530,8 @@ void InstructionCodeGeneratorX86_64::VisitStoreLocal(HStoreLocal* store) {
 void LocationsBuilderX86_64::VisitCondition(HCondition* comp) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(comp, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::Any());
+  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
+  locations->SetInAt(1, Location::Any(), Location::kDiesAtEntry);
   if (comp->NeedsMaterialization()) {
     locations->SetOut(Location::RequiresRegister());
   }
@@ -608,8 +608,8 @@ void InstructionCodeGeneratorX86_64::VisitGreaterThanOrEqual(HGreaterThanOrEqual
 void LocationsBuilderX86_64::VisitCompare(HCompare* compare) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
+  locations->SetInAt(1, Location::RequiresRegister(), Location::kDiesAtEntry);
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -970,6 +970,9 @@ void InstructionCodeGeneratorX86_64::VisitSub(HSub* sub) {
 void LocationsBuilderX86_64::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->AddTemp(X86_64CpuLocation(calling_convention.GetRegisterAt(0)));
+  locations->AddTemp(X86_64CpuLocation(calling_convention.GetRegisterAt(1)));
   locations->SetOut(X86_64CpuLocation(RAX));
 }
 
@@ -1031,10 +1034,13 @@ void InstructionCodeGeneratorX86_64::VisitPhi(HPhi* instruction) {
 void LocationsBuilderX86_64::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  // Temporary registers for the write barrier.
-  if (instruction->GetFieldType() == Primitive::kPrimNot) {
+  Primitive::Type field_type = instruction->GetFieldType();
+  bool is_object_type = field_type == Primitive::kPrimNot;
+  bool dies_at_entry = !is_object_type;
+  locations->SetInAt(0, Location::RequiresRegister(), dies_at_entry);
+  locations->SetInAt(1, Location::RequiresRegister(), dies_at_entry);
+  if (is_object_type) {
+    // Temporary registers for the write barrier.
     locations->AddTemp(Location::RequiresRegister());
     locations->AddTemp(Location::RequiresRegister());
   }
@@ -1088,7 +1094,7 @@ void InstructionCodeGeneratorX86_64::VisitInstanceFieldSet(HInstanceFieldSet* in
 void LocationsBuilderX86_64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -1167,8 +1173,9 @@ void InstructionCodeGeneratorX86_64::VisitNullCheck(HNullCheck* instruction) {
 void LocationsBuilderX86_64::VisitArrayGet(HArrayGet* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
+  locations->SetInAt(
+      1, Location::RegisterOrConstant(instruction->InputAt(1)), Location::kDiesAtEntry);
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -1272,9 +1279,10 @@ void LocationsBuilderX86_64::VisitArraySet(HArraySet* instruction) {
     locations->SetInAt(1, X86_64CpuLocation(calling_convention.GetRegisterAt(1)));
     locations->SetInAt(2, X86_64CpuLocation(calling_convention.GetRegisterAt(2)));
   } else {
-    locations->SetInAt(0, Location::RequiresRegister());
-    locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
-    locations->SetInAt(2, Location::RequiresRegister());
+    locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
+    locations->SetInAt(
+        1, Location::RegisterOrConstant(instruction->InputAt(1)), Location::kDiesAtEntry);
+    locations->SetInAt(2, Location::RequiresRegister(), Location::kDiesAtEntry);
   }
 }
 
@@ -1354,7 +1362,7 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
 void LocationsBuilderX86_64::VisitArrayLength(HArrayLength* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
   locations->SetOut(Location::RequiresRegister());
 }
 
