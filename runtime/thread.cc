@@ -1220,7 +1220,7 @@ void Thread::HandleUncaughtExceptions(ScopedObjectAccess& soa) {
 
   // Call the handler.
   tlsPtr_.jni_env->CallVoidMethod(handler.get(),
-      WellKnownClasses::java_lang_Thread$UncaughtExceptionHandler_uncaughtException,
+      WellKnownClasses::java_lang_Thread__UncaughtExceptionHandler_uncaughtException,
       peer.get(), exception.get());
 
   // If the handler threw, clear that exception too.

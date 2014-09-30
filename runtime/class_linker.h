@@ -673,7 +673,7 @@ class ClassLinker {
   std::vector<const DexFile*> boot_class_path_;
 
   mutable ReaderWriterMutex dex_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  std::vector<size_t> new_dex_cache_roots_ GUARDED_BY(dex_lock_);;
+  std::vector<size_t> new_dex_cache_roots_ GUARDED_BY(dex_lock_);
   std::vector<GcRoot<mirror::DexCache>> dex_caches_ GUARDED_BY(dex_lock_);
   std::vector<const OatFile*> oat_files_ GUARDED_BY(dex_lock_);
 

@@ -207,18 +207,18 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
   }
 
   if (has_modrm) {
-    uint8_t mod = (modrm >> 6) & 0b11;
+    uint8_t mod = (modrm >> 6) & 3U /* 0b11 */;
 
     // Check for SIB.
-    if (mod != 0b11 && (modrm & 0b111) == 4) {
+    if (mod != 3U /* 0b11 */ && (modrm & 7U /* 0b111 */) == 4) {
       ++pc;     // SIB
     }
 
     switch (mod) {
-      case 0b00: break;
-      case 0b01: displacement_size = 1; break;
-      case 0b10: displacement_size = 4; break;
-      case 0b11:
+      case 0U /* 0b00 */: break;
+      case 1U /* 0b01 */: displacement_size = 1; break;
+      case 2U /* 0b10 */: displacement_size = 4; break;
+      case 3U /* 0b11 */:
         break;
     }
   }

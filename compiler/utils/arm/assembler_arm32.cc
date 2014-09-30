@@ -955,11 +955,11 @@ void Arm32Assembler::EmitVPushPop(uint32_t reg, int nregs, bool push, bool dbl, 
   if (dbl) {
     // Encoded as D:Vd.
     D = (reg >> 4) & 1;
-    Vd = reg & 0b1111;
+    Vd = reg & 15U /* 0b1111 */;
   } else {
     // Encoded as Vd:D.
     D = reg & 1;
-    Vd = (reg >> 1) & 0b1111;
+    Vd = (reg >> 1) & 15U /* 0b1111 */;
   }
   int32_t encoding = B27 | B26 | B21 | B19 | B18 | B16 |
                     B11 | B9 |

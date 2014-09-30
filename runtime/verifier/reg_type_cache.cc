@@ -96,7 +96,7 @@ const RegType& RegTypeCache::FromDescriptor(mirror::ClassLoader* loader, const c
   } else {
     return Conflict();
   }
-};
+}
 
 const RegType& RegTypeCache::RegTypeFromPrimitiveType(Primitive::Type prim_type) const {
   DCHECK(RegTypeCache::primitive_initialized_);

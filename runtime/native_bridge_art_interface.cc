@@ -132,4 +132,4 @@ void UnloadNativeBridge() {
   android::UnloadNativeBridge();
 }
 
-};  // namespace art
+}  // namespace art

@@ -33,7 +33,7 @@
 namespace art {
 namespace arm64 {
 
-#define MEM_OP(x...)      vixl::MemOperand(x)
+#define MEM_OP(...)      vixl::MemOperand(__VA_ARGS__)
 
 enum LoadOperandType {
   kLoadSignedByte,
