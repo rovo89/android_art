@@ -22,77 +22,75 @@
 namespace art {
 
 /*
- * TODO(Arm64): the comments below are outdated.
- *
  * Runtime register usage conventions.
  *
- * r0-r3: Argument registers in both Dalvik and C/C++ conventions.
- *        However, for Dalvik->Dalvik calls we'll pass the target's Method*
- *        pointer in r0 as a hidden arg0. Otherwise used as codegen scratch
- *        registers.
- * r0-r1: As in C/C++ r0 is 32-bit return register and r0/r1 is 64-bit
- * r4   : (rA64_SUSPEND) is reserved (suspend check/debugger assist)
- * r5   : Callee save (promotion target)
- * r6   : Callee save (promotion target)
- * r7   : Callee save (promotion target)
- * r8   : Callee save (promotion target)
- * r9   : (rA64_SELF) is reserved (pointer to thread-local storage)
- * r10  : Callee save (promotion target)
- * r11  : Callee save (promotion target)
- * r12  : Scratch, may be trashed by linkage stubs
- * r13  : (sp) is reserved
- * r14  : (lr) is reserved
- * r15  : (pc) is reserved
+ * r0     : As in C/C++ w0 is 32-bit return register and x0 is 64-bit.
+ * r0-r7  : Argument registers in both Dalvik and C/C++ conventions.
+ *          However, for Dalvik->Dalvik calls we'll pass the target's Method*
+ *          pointer in x0 as a hidden arg0. Otherwise used as codegen scratch
+ *          registers.
+ * r8-r15 : Caller save registers (used as temporary registers).
+ * r16-r17: Also known as ip0-ip1, respectively. Used as scratch registers by
+ *          the linker, by the trampolines and other stubs (the backend uses
+ *          these as temporary registers).
+ * r18    : (rxSELF) is reserved (pointer to thread-local storage).
+ * r19    : (rwSUSPEND) is reserved (suspend check/debugger assist).
+ * r20-r29: Callee save registers (promotion targets).
+ * r30    : (lr) is reserved (the link register).
+ * rsp    : (sp) is reserved (the stack pointer).
+ * rzr    : (zr) is reserved (the zero register).
  *
- * 5 core temps that codegen can use (r0, r1, r2, r3, r12)
- * 7 core registers that can be used for promotion
+ * 18 core temps that codegen can use (r0-r17).
+ * 10 core registers that can be used for promotion.
  *
- * Floating pointer registers
- * s0-s31
- * d0-d15, where d0={s0,s1}, d1={s2,s3}, ... , d15={s30,s31}
+ * Floating-point registers
+ * v0-v31
  *
- * s16-s31 (d8-d15) preserved across C calls
- * s0-s15 (d0-d7) trashed across C calls
+ * v0     : s0 is return register for singles (32-bit) and d0 for doubles (64-bit).
+ *          This is analogous to the C/C++ (hard-float) calling convention.
+ * v0-v7  : Floating-point argument registers in both Dalvik and C/C++ conventions.
+ *          Also used as temporary and codegen scratch registers.
  *
- * s0-s15/d0-d7 used as codegen temp/scratch
- * s16-s31/d8-d31 can be used for promotion.
+ * v0-v7 and v16-v31 : trashed across C calls.
+ * v8-v15 : bottom 64-bits preserved across C calls (d8-d15 are preserved).
  *
- * Calling convention
- *     o On a call to a Dalvik method, pass target's Method* in r0
- *     o r1-r3 will be used for up to the first 3 words of arguments
- *     o Arguments past the first 3 words will be placed in appropriate
+ * v16-v31: Used as codegen temp/scratch.
+ * v8-v15 : Can be used for promotion.
+ *
+ * Calling convention (Hard-float)
+ *     o On a call to a Dalvik method, pass target's Method* in x0
+ *     o r1-r7, v0-v7 will be used for the first 7+8 arguments
+ *     o Arguments which cannot be put in registers are placed in appropriate
  *       out slots by the caller.
- *     o If a 64-bit argument would span the register/memory argument
- *       boundary, it will instead be fully passed in the frame.
  *     o Maintain a 16-byte stack alignment
  *
  *  Stack frame diagram (stack grows down, higher addresses at top):
  *
- * +------------------------+
- * | IN[ins-1]              |  {Note: resides in caller's frame}
- * |       .                |
- * | IN[0]                  |
- * | caller's Method*       |
- * +========================+  {Note: start of callee's frame}
- * | spill region           |  {variable sized - will include lr if non-leaf.}
- * +------------------------+
- * | ...filler word...      |  {Note: used as 2nd word of V[locals-1] if long]
- * +------------------------+
- * | V[locals-1]            |
- * | V[locals-2]            |
- * |      .                 |
- * |      .                 |
- * | V[1]                   |
- * | V[0]                   |
- * +------------------------+
- * |  0 to 3 words padding  |
- * +------------------------+
- * | OUT[outs-1]            |
- * | OUT[outs-2]            |
- * |       .                |
- * | OUT[0]                 |
- * | cur_method*            | <<== sp w/ 16-byte alignment
- * +========================+
+ * +--------------------------------------------+
+ * | IN[ins-1]                                  |  {Note: resides in caller's frame}
+ * |       .                                    |
+ * | IN[0]                                      |
+ * | caller's method (StackReference<ArtMethod>)|  {This is a compressed (4-bytes) reference}
+ * +============================================+  {Note: start of callee's frame}
+ * | spill region                               |  {variable sized - will include lr if non-leaf}
+ * +--------------------------------------------+
+ * |   ...filler word...                        |  {Note: used as 2nd word of V[locals-1] if long}
+ * +--------------------------------------------+
+ * | V[locals-1]                                |
+ * | V[locals-2]                                |
+ * |      .                                     |
+ * |      .                                     |
+ * | V[1]                                       |
+ * | V[0]                                       |
+ * +--------------------------------------------+
+ * |   0 to 3 words padding                     |
+ * +--------------------------------------------+
+ * | OUT[outs-1]                                |
+ * | OUT[outs-2]                                |
+ * |       .                                    |
+ * | OUT[0]                                     |
+ * | current method (StackReference<ArtMethod>) | <<== sp w/ 16-byte alignment
+ * +============================================+
  */
 
 // First FP callee save.
@@ -103,12 +101,12 @@ namespace art {
 #define A64_REG_IS_ZR(reg_num) ((reg_num) == rwzr || (reg_num) == rxzr)
 #define A64_REGSTORAGE_IS_SP_OR_ZR(rs) (((rs).GetRegNum() & 0x1f) == 0x1f)
 
-enum Arm64ResourceEncodingPos {
-  kArm64GPReg0   = 0,
-  kArm64RegLR    = 30,
-  kArm64RegSP    = 31,
-  kArm64FPReg0   = 32,
-  kArm64RegEnd   = 64,
+enum A64ResourceEncodingPos {
+  kA64GPReg0   = 0,
+  kA64RegLR    = 30,
+  kA64RegSP    = 31,
+  kA64FPReg0   = 32,
+  kA64RegEnd   = 64,
 };
 
 #define IS_SIGNED_IMM(size, value) \
@@ -186,15 +184,15 @@ constexpr RegStorage rs_wsp(RegStorage::kValid | rwsp);
 constexpr RegStorage rs_wLR(RegStorage::kValid | rwLR);
 
 // RegisterLocation templates return values (following the hard-float calling convention).
-const RegLocation arm_loc_c_return =
+const RegLocation a64_loc_c_return =
     {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, rs_w0, INVALID_SREG, INVALID_SREG};
-const RegLocation arm_loc_c_return_ref =
+const RegLocation a64_loc_c_return_ref =
     {kLocPhysReg, 0, 0, 0, 0, 0, 1, 0, 1, rs_x0, INVALID_SREG, INVALID_SREG};
-const RegLocation arm_loc_c_return_wide =
+const RegLocation a64_loc_c_return_wide =
     {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1, rs_x0, INVALID_SREG, INVALID_SREG};
-const RegLocation arm_loc_c_return_float =
+const RegLocation a64_loc_c_return_float =
     {kLocPhysReg, 0, 0, 0, 1, 0, 0, 0, 1, rs_f0, INVALID_SREG, INVALID_SREG};
-const RegLocation arm_loc_c_return_double =
+const RegLocation a64_loc_c_return_double =
     {kLocPhysReg, 1, 0, 0, 1, 0, 0, 0, 1, rs_d0, INVALID_SREG, INVALID_SREG};
 
 /**
@@ -228,7 +226,7 @@ enum A64RegExtEncodings {
  * assembler. Their corresponding EncodingMap positions will be defined in
  * assemble_arm64.cc.
  */
-enum ArmOpcode {
+enum A64Opcode {
   kA64First = 0,
   kA64Adc3rrr = kA64First,  // adc [00011010000] rm[20-16] [000000] rn[9-5] rd[4-0].
   kA64Add4RRdT,      // add [s001000100] imm_12[21-10] rn[9-5] rd[4-0].
@@ -375,22 +373,13 @@ enum ArmOpcode {
  */
 
 // Return the wide and no-wide variants of the given opcode.
-#define WIDE(op) ((ArmOpcode)((op) | kA64Wide))
-#define UNWIDE(op) ((ArmOpcode)((op) & ~kA64Wide))
+#define WIDE(op) ((A64Opcode)((op) | kA64Wide))
+#define UNWIDE(op) ((A64Opcode)((op) & ~kA64Wide))
 
 // Whether the given opcode is wide.
 #define IS_WIDE(op) (((op) & kA64Wide) != 0)
 
-/*
- * Floating point variants. These are just aliases of the macros above which we use for floating
- * point instructions, just for readibility reasons.
- * TODO(Arm64): should we remove these and use the original macros?
- */
-#define FWIDE WIDE
-#define FUNWIDE UNWIDE
-#define IS_FWIDE IS_WIDE
-
-enum ArmOpDmbOptions {
+enum A64OpDmbOptions {
   kSY = 0xf,
   kST = 0xe,
   kISH = 0xb,
@@ -401,7 +390,7 @@ enum ArmOpDmbOptions {
 };
 
 // Instruction assembly field_loc kind.
-enum ArmEncodingKind {
+enum A64EncodingKind {
   // All the formats below are encoded in the same way (as a kFmtBitBlt).
   // These are grouped together, for fast handling (e.g. "if (LIKELY(fmt <= kFmtBitBlt)) ...").
   kFmtRegW = 0,   // Word register (w) or wzr.
@@ -425,40 +414,21 @@ enum ArmEncodingKind {
 };
 
 // Struct used to define the snippet positions for each A64 opcode.
-struct ArmEncodingMap {
+struct A64EncodingMap {
   uint32_t wskeleton;
   uint32_t xskeleton;
   struct {
-    ArmEncodingKind kind;
+    A64EncodingKind kind;
     int end;         // end for kFmtBitBlt, 1-bit slice end for FP regs.
     int start;       // start for kFmtBitBlt, 4-bit slice end for FP regs.
   } field_loc[4];
-  ArmOpcode opcode;  // can be WIDE()-ned to indicate it has a wide variant.
+  A64Opcode opcode;  // can be WIDE()-ned to indicate it has a wide variant.
   uint64_t flags;
   const char* name;
   const char* fmt;
   int size;          // Note: size is in bytes.
   FixupKind fixup;
 };
-
-#if 0
-// TODO(Arm64): try the following alternative, which fits exactly in one cache line (64 bytes).
-struct ArmEncodingMap {
-  uint32_t wskeleton;
-  uint32_t xskeleton;
-  uint64_t flags;
-  const char* name;
-  const char* fmt;
-  struct {
-    uint8_t kind;
-    int8_t end;         // end for kFmtBitBlt, 1-bit slice end for FP regs.
-    int8_t start;       // start for kFmtBitBlt, 4-bit slice end for FP regs.
-  } field_loc[4];
-  uint32_t fixup;
-  uint32_t opcode;         // can be WIDE()-ned to indicate it has a wide variant.
-  uint32_t padding[3];
-};
-#endif
 
 }  // namespace art
 
