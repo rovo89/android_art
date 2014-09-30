@@ -525,7 +525,7 @@ const RegLocation bad_loc = {kLocDalvikFrame, 0, 0, 0, 0, 0, 0, 0, 0, RegStorage
 class MIRGraph {
  public:
   MIRGraph(CompilationUnit* cu, ArenaAllocator* arena);
-  ~MIRGraph();
+  virtual ~MIRGraph();
 
   /*
    * Examine the graph to determine whether it's worthwile to spend the time compiling
@@ -1147,6 +1147,7 @@ class MIRGraph {
   void ComputeDefBlockMatrix();
   void ComputeDominators();
   void CompilerInitializeSSAConversion();
+  virtual void InitializeBasicBlockDataFlow();
   void InsertPhiNodes();
   void DoDFSPreOrderSSARename(BasicBlock* block);
 

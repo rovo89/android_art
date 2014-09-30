@@ -1272,6 +1272,22 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
   return true;
 }
 
+void MIRGraph::InitializeBasicBlockDataFlow() {
+  /*
+   * Allocate the BasicBlockDataFlow structure for the entry and code blocks.
+   */
+  for (BasicBlock* bb : block_list_) {
+    if (bb->hidden == true) continue;
+    if (bb->block_type == kDalvikByteCode ||
+        bb->block_type == kEntryBlock ||
+        bb->block_type == kExitBlock) {
+      bb->data_flow_info =
+          static_cast<BasicBlockDataFlow*>(arena_->Alloc(sizeof(BasicBlockDataFlow),
+                                                         kArenaAllocDFInfo));
+      }
+  }
+}
+
 /* Setup the basic data structures for SSA conversion */
 void MIRGraph::CompilerInitializeSSAConversion() {
   size_t num_reg = GetNumOfCodeAndTempVRs();
@@ -1319,19 +1335,7 @@ void MIRGraph::CompilerInitializeSSAConversion() {
   // The MIR graph keeps track of the sreg for method pointer specially, so record that now.
   method_sreg_ = method_temp->s_reg_low;
 
-  /*
-   * Allocate the BasicBlockDataFlow structure for the entry and code blocks
-   */
-  for (BasicBlock* bb : block_list_) {
-    if (bb->hidden == true) continue;
-    if (bb->block_type == kDalvikByteCode ||
-        bb->block_type == kEntryBlock ||
-        bb->block_type == kExitBlock) {
-      bb->data_flow_info =
-          static_cast<BasicBlockDataFlow*>(arena_->Alloc(sizeof(BasicBlockDataFlow),
-                                                         kArenaAllocDFInfo));
-      }
-  }
+  InitializeBasicBlockDataFlow();
 }
 
 /*
