@@ -395,7 +395,7 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
                      RegLocation rl_src2, bool is_div);
 
   InToRegStorageMapping in_to_reg_storage_mapping_;
-  static const ArmEncodingMap EncodingMap[kA64Last];
+  static const A64EncodingMap EncodingMap[kA64Last];
 };
 
 }  // namespace art

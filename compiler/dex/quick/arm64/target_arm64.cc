@@ -84,23 +84,23 @@ static constexpr ArrayRef<const RegStorage> sp_temps(sp_temps_arr);
 static constexpr ArrayRef<const RegStorage> dp_temps(dp_temps_arr);
 
 RegLocation Arm64Mir2Lir::LocCReturn() {
-  return arm_loc_c_return;
+  return a64_loc_c_return;
 }
 
 RegLocation Arm64Mir2Lir::LocCReturnRef() {
-  return arm_loc_c_return_ref;
+  return a64_loc_c_return_ref;
 }
 
 RegLocation Arm64Mir2Lir::LocCReturnWide() {
-  return arm_loc_c_return_wide;
+  return a64_loc_c_return_wide;
 }
 
 RegLocation Arm64Mir2Lir::LocCReturnFloat() {
-  return arm_loc_c_return_float;
+  return a64_loc_c_return_float;
 }
 
 RegLocation Arm64Mir2Lir::LocCReturnDouble() {
-  return arm_loc_c_return_double;
+  return a64_loc_c_return_double;
 }
 
 // Return a target-dependent special register.
@@ -153,7 +153,7 @@ ResourceMask Arm64Mir2Lir::GetRegMaskCommon(const RegStorage& reg) const {
 
   return ResourceMask::Bit(
       // FP register starts at bit position 32.
-      (reg.IsFloat() ? kArm64FPReg0 : 0) + reg.GetRegNum());
+      (reg.IsFloat() ? kA64FPReg0 : 0) + reg.GetRegNum());
 }
 
 ResourceMask Arm64Mir2Lir::GetPCUseDefEncoding() const {
@@ -173,15 +173,15 @@ void Arm64Mir2Lir::SetupTargetResourceMasks(LIR* lir, uint64_t flags,
   // These flags are somewhat uncommon - bypass if we can.
   if ((flags & (REG_DEF_SP | REG_USE_SP | REG_DEF_LR)) != 0) {
     if (flags & REG_DEF_SP) {
-      def_mask->SetBit(kArm64RegSP);
+      def_mask->SetBit(kA64RegSP);
     }
 
     if (flags & REG_USE_SP) {
-      use_mask->SetBit(kArm64RegSP);
+      use_mask->SetBit(kA64RegSP);
     }
 
     if (flags & REG_DEF_LR) {
-      def_mask->SetBit(kArm64RegLR);
+      def_mask->SetBit(kA64RegLR);
     }
   }
 }
@@ -408,7 +408,7 @@ std::string Arm64Mir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned ch
              snprintf(tbuf, arraysize(tbuf), "d%d", operand & RegStorage::kRegNumMask);
              break;
            case 'f':
-             snprintf(tbuf, arraysize(tbuf), "%c%d", (IS_FWIDE(lir->opcode)) ? 'd' : 's',
+             snprintf(tbuf, arraysize(tbuf), "%c%d", (IS_WIDE(lir->opcode)) ? 'd' : 's',
                       operand & RegStorage::kRegNumMask);
              break;
            case 'l': {
@@ -534,7 +534,7 @@ void Arm64Mir2Lir::DumpResourceMask(LIR* arm_lir, const ResourceMask& mask, cons
     char num[8];
     int i;
 
-    for (i = 0; i < kArm64RegEnd; i++) {
+    for (i = 0; i < kA64RegEnd; i++) {
       if (mask.HasBit(i)) {
         snprintf(num, arraysize(num), "%d ", i);
         strcat(buf, num);
