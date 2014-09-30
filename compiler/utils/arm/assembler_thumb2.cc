@@ -740,7 +740,7 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond,
     case SUB: thumb_opcode = 13U /* 0b1101 */; break;
     case RSB: thumb_opcode = 14U /* 0b1110 */; break;
     case ADD: thumb_opcode =  8U /* 0b1000 */; break;
-    case ADC: thumb_opcode = 12U /* 0b1010 */; break;
+    case ADC: thumb_opcode = 10U /* 0b1010 */; break;
     case SBC: thumb_opcode = 11U /* 0b1011 */; break;
     case RSC: break;
     case TST: thumb_opcode =  0U /* 0b0000 */; set_cc = true; rd = PC; break;
