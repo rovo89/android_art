@@ -179,6 +179,7 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define WARN_UNUSED __attribute__((warn_unused_result))
 
 template<typename T> void UNUSED(const T&) {}
+#define UNREACHABLE  __builtin_unreachable
 
 // Annotalysis thread-safety analysis support.
 #if defined(__SUPPORT_TS_ANNOTATION__) || defined(__clang__)

@@ -187,8 +187,7 @@ int32_t Object::IdentityHashCode() const {
       }
     }
   }
-  LOG(FATAL) << "Unreachable";
-  return 0;
+  UNREACHABLE();
 }
 
 void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_value) {
