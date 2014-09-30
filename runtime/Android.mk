@@ -422,7 +422,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   include external/libcxx/libcxx.mk
   LOCAL_SHARED_LIBRARIES += libbacktrace_libc++
   ifeq ($$(art_target_or_host),target)
-    LOCAL_SHARED_LIBRARIES += libcutils libdl libselinux libutils libsigchain
+    LOCAL_SHARED_LIBRARIES += libcutils libdl libutils libsigchain
     LOCAL_STATIC_LIBRARIES := libziparchive libz
   else # host
     LOCAL_STATIC_LIBRARIES += libcutils libziparchive-host libz libutils
