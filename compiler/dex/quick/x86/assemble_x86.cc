@@ -580,7 +580,7 @@ static bool HasSib(const X86EncodingMap* entry) {
         case kX86CallA: return true;
         default: return false;
       }
-    case kPcRel: return true;
+    case kPcRel:
        switch (entry->opcode) {
          case kX86PcRelLoadRA: return true;
          default: return false;

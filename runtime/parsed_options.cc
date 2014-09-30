@@ -932,7 +932,7 @@ bool ParsedOptions::ParseDouble(const std::string& option, char after_char,
   }
   bool sane_val = true;
   double value;
-  if (false) {
+  if ((false)) {
     // TODO: this doesn't seem to work on the emulator.  b/15114595
     std::stringstream iss(substring);
     iss >> value;

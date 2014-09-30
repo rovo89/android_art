@@ -158,6 +158,7 @@ art_cflags := \
   -Wno-unused-parameter \
   -Wstrict-aliasing \
   -fstrict-aliasing \
+  -Wunreachable-code \
   -fvisibility=protected
 
 ART_TARGET_CLANG_CFLAGS :=
