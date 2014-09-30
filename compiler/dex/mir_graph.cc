@@ -1684,9 +1684,6 @@ void MIRGraph::SSATransformationStart() {
   temp_bit_vector_size_ = GetNumOfCodeAndTempVRs();
   temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
       temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapRegisterV);
-
-  // Update the maximum number of reachable blocks.
-  max_num_reachable_blocks_ = num_reachable_blocks_;
 }
 
 void MIRGraph::SSATransformationEnd() {
@@ -1699,6 +1696,9 @@ void MIRGraph::SSATransformationEnd() {
   temp_bit_vector_ = nullptr;
   DCHECK(temp_scoped_alloc_.get() != nullptr);
   temp_scoped_alloc_.reset();
+
+  // Update the maximum number of reachable blocks.
+  max_num_reachable_blocks_ = num_reachable_blocks_;
 }
 
 size_t MIRGraph::GetNumDalvikInsns() const {
