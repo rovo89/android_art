@@ -1992,6 +1992,9 @@ void X86_64Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base,
   X86_64ManagedRegister dest = mdest.AsX86_64();
   CHECK(dest.IsCpuRegister() && dest.IsCpuRegister());
   movq(dest.AsCpuRegister(), Address(base.AsX86_64().AsCpuRegister(), offs));
+  if (kPoisonHeapReferences) {
+    negl(dest.AsCpuRegister());
+  }
 }
 
 void X86_64Assembler::LoadRawPtr(ManagedRegister mdest, ManagedRegister base,
@@ -2276,4 +2279,3 @@ void X86_64ExceptionSlowPath::Emit(Assembler *sasm) {
 
 }  // namespace x86_64
 }  // namespace art
-

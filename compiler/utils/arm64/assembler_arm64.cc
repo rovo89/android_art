@@ -299,6 +299,10 @@ void Arm64Assembler::LoadRef(ManagedRegister m_dst, ManagedRegister m_base,
   CHECK(dst.IsCoreRegister() && base.IsCoreRegister());
   LoadWFromOffset(kLoadWord, dst.AsOverlappingCoreRegisterLow(), base.AsCoreRegister(),
                   offs.Int32Value());
+  if (kPoisonHeapReferences) {
+    WRegister ref_reg = dst.AsOverlappingCoreRegisterLow();
+    ___ Neg(reg_w(ref_reg), vixl::Operand(reg_w(ref_reg)));
+  }
 }
 
 void Arm64Assembler::LoadRawPtr(ManagedRegister m_dst, ManagedRegister m_base, Offset offs) {
