@@ -91,7 +91,7 @@ size_t Arm64Mir2Lir::GetLoadStoreSize(LIR* lir) {
   bool opcode_is_wide = IS_WIDE(lir->opcode);
   ArmOpcode opcode = UNWIDE(lir->opcode);
   DCHECK(!IsPseudoLirOp(opcode));
-  const ArmEncodingMap *encoder = &EncodingMap[opcode];
+  const ArmEncodingMap *encoder = GetEncoder(opcode);
   uint32_t bits = opcode_is_wide ? encoder->xskeleton : encoder->wskeleton;
   return (bits >> 30);
 }
@@ -617,11 +617,11 @@ LIR* Arm64Mir2Lir::OpRegRegShift(OpKind op, RegStorage r_dest_src1, RegStorage r
   }
 
   DCHECK(!IsPseudoLirOp(opcode));
-  if (EncodingMap[opcode].flags & IS_BINARY_OP) {
+  if (GetEncoder(opcode)->flags & IS_BINARY_OP) {
     DCHECK_EQ(shift, ENCODE_NO_SHIFT);
     return NewLIR2(opcode | wide, r_dest_src1.GetReg(), r_src2.GetReg());
-  } else if (EncodingMap[opcode].flags & IS_TERTIARY_OP) {
-    ArmEncodingKind kind = EncodingMap[opcode].field_loc[2].kind;
+  } else if (GetEncoder(opcode)->flags & IS_TERTIARY_OP) {
+    ArmEncodingKind kind = GetEncoder(opcode)->field_loc[2].kind;
     if (kind == kFmtShift) {
       return NewLIR3(opcode | wide, r_dest_src1.GetReg(), r_src2.GetReg(), shift);
     }
@@ -654,8 +654,8 @@ LIR* Arm64Mir2Lir::OpRegRegExtend(OpKind op, RegStorage r_dest_src1, RegStorage 
   }
 
   DCHECK(!IsPseudoLirOp(opcode));
-  if (EncodingMap[opcode].flags & IS_TERTIARY_OP) {
-    ArmEncodingKind kind = EncodingMap[opcode].field_loc[2].kind;
+  if (GetEncoder(opcode)->flags & IS_TERTIARY_OP) {
+    ArmEncodingKind kind = GetEncoder(opcode)->field_loc[2].kind;
     if (kind == kFmtExtend) {
       return NewLIR3(opcode | wide, r_dest_src1.GetReg(), r_src2.GetReg(),
                      EncodeExtend(ext, amount));
@@ -750,11 +750,11 @@ LIR* Arm64Mir2Lir::OpRegRegRegShift(OpKind op, RegStorage r_dest, RegStorage r_s
   ArmOpcode widened_opcode = r_dest.Is64Bit() ? WIDE(opcode) : opcode;
   CHECK_EQ(r_dest.Is64Bit(), r_src1.Is64Bit());
   CHECK_EQ(r_dest.Is64Bit(), r_src2.Is64Bit());
-  if (EncodingMap[opcode].flags & IS_QUAD_OP) {
+  if (GetEncoder(opcode)->flags & IS_QUAD_OP) {
     DCHECK(!IsExtendEncoding(shift));
     return NewLIR4(widened_opcode, r_dest.GetReg(), r_src1.GetReg(), r_src2.GetReg(), shift);
   } else {
-    DCHECK(EncodingMap[opcode].flags & IS_TERTIARY_OP);
+    DCHECK(GetEncoder(opcode)->flags & IS_TERTIARY_OP);
     DCHECK_EQ(shift, ENCODE_NO_SHIFT);
     return NewLIR3(widened_opcode, r_dest.GetReg(), r_src1.GetReg(), r_src2.GetReg());
   }
@@ -924,7 +924,7 @@ LIR* Arm64Mir2Lir::OpRegRegImm64(OpKind op, RegStorage r_dest, RegStorage r_src1
     r_scratch = AllocTemp();
     LoadConstant(r_scratch, value);
   }
-  if (EncodingMap[alt_opcode].flags & IS_QUAD_OP)
+  if (GetEncoder(alt_opcode)->flags & IS_QUAD_OP)
     res = NewLIR4(alt_opcode | wide, r_dest.GetReg(), r_src1.GetReg(), r_scratch.GetReg(), info);
   else
     res = NewLIR3(alt_opcode | wide, r_dest.GetReg(), r_src1.GetReg(), r_scratch.GetReg());
@@ -998,7 +998,7 @@ LIR* Arm64Mir2Lir::OpRegImm64(OpKind op, RegStorage r_dest_src1, int64_t value) 
   if (UNLIKELY(neg))
     opcode = neg_opcode;
 
-  if (EncodingMap[opcode].flags & IS_QUAD_OP)
+  if (GetEncoder(opcode)->flags & IS_QUAD_OP)
     return NewLIR4(opcode | wide, r_dest_src1.GetReg(), r_dest_src1.GetReg(), abs_value,
                    (shift) ? 1 : 0);
   else
@@ -1092,7 +1092,7 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
 
   if (UNLIKELY(expected_scale == 0)) {
     // This is a tertiary op (e.g. ldrb, ldrsb), it does not not support scale.
-    DCHECK_NE(EncodingMap[UNWIDE(opcode)].flags & IS_TERTIARY_OP, 0U);
+    DCHECK_NE(GetEncoder(UNWIDE(opcode))->flags & IS_TERTIARY_OP, 0U);
     DCHECK_EQ(scale, 0);
     load = NewLIR3(opcode, r_dest.GetReg(), r_base.GetReg(), r_index.GetReg());
   } else {
@@ -1173,7 +1173,7 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
 
   if (UNLIKELY(expected_scale == 0)) {
     // This is a tertiary op (e.g. strb), it does not not support scale.
-    DCHECK_NE(EncodingMap[UNWIDE(opcode)].flags & IS_TERTIARY_OP, 0U);
+    DCHECK_NE(GetEncoder(UNWIDE(opcode))->flags & IS_TERTIARY_OP, 0U);
     DCHECK_EQ(scale, 0);
     store = NewLIR3(opcode, r_src.GetReg(), r_base.GetReg(), r_index.GetReg());
   } else {

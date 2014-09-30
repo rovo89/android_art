@@ -462,6 +462,10 @@ const ArmEncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
                  kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtRegR, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
                  "mul", "!0r, !1r, !2r", kFixupNone),
+    ENCODING_MAP(WIDE(kA64Madd4rrrr), SF_VARIANTS(0x1b000000),
+                 kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtRegR, 14, 10,
+                 kFmtRegR, 20, 16, IS_QUAD_OP | REG_DEF0_USE123,
+                 "madd", "!0r, !1r, !3r, !2r", kFixupNone),
     ENCODING_MAP(WIDE(kA64Msub4rrrr), SF_VARIANTS(0x1b008000),
                  kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtRegR, 14, 10,
                  kFmtRegR, 20, 16, IS_QUAD_OP | REG_DEF0_USE123,
@@ -646,20 +650,33 @@ void Arm64Mir2Lir::InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir)
   }
 }
 
+const ArmEncodingMap* Arm64Mir2Lir::GetEncoder(int opcode) {
+  const ArmEncodingMap* encoder = &EncodingMap[opcode];
+  return encoder;
+}
+
 /* Nop, used for aligning code. Nop is an alias for hint #0. */
 #define PADDING_NOP (UINT32_C(0xd503201f))
+
+uint32_t Arm64Mir2Lir::ProcessMoreEncodings(const ArmEncodingMap *encoder,
+                                            int i, uint32_t operand) {
+  LOG(FATAL) << "Bad fmt:" << encoder->field_loc[i].kind;
+  uint32_t value = 0;
+  return value;
+}
 
 uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
   for (; lir != nullptr; lir = NEXT_LIR(lir)) {
     bool opcode_is_wide = IS_WIDE(lir->opcode);
     ArmOpcode opcode = UNWIDE(lir->opcode);
+    bool extendedOpcode = false;
 
     if (UNLIKELY(IsPseudoLirOp(opcode))) {
       continue;
     }
 
     if (LIKELY(!lir->flags.is_nop)) {
-      const ArmEncodingMap *encoder = &EncodingMap[opcode];
+      const ArmEncodingMap *encoder = GetEncoder(opcode);
 
       // Select the right variant of the skeleton.
       uint32_t bits = opcode_is_wide ? encoder->xskeleton : encoder->wskeleton;
@@ -788,8 +805,9 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
               bits |= value;
               break;
             default:
-              LOG(FATAL) << "Bad fmt for arg. " << i << " in " << encoder->name
-                         << " (" << kind << ")";
+              bits |= ProcessMoreEncodings(encoder, i, operand);
+              extendedOpcode = true;
+              break;
           }
         }
       }
@@ -903,7 +921,7 @@ void Arm64Mir2Lir::AssembleLIR() {
           break;
         }
         default:
-          LOG(FATAL) << "Unexpected case " << lir->flags.fixup;
+          LOG(FATAL) << "Unexpected case: opcode: " << lir->opcode << ", fixup: " << lir->flags.fixup;
       }
       prev_lir = lir;
       lir = lir->u.a.pcrel_next;
@@ -953,7 +971,7 @@ void Arm64Mir2Lir::AssembleLIR() {
 size_t Arm64Mir2Lir::GetInsnSize(LIR* lir) {
   ArmOpcode opcode = UNWIDE(lir->opcode);
   DCHECK(!IsPseudoLirOp(opcode));
-  return EncodingMap[opcode].size;
+  return GetEncoder(opcode)->size;
 }
 
 // Encode instruction bit pattern and assign offsets.
@@ -966,8 +984,8 @@ uint32_t Arm64Mir2Lir::LinkFixupInsns(LIR* head_lir, LIR* tail_lir, uint32_t off
     if (!lir->flags.is_nop) {
       if (lir->flags.fixup != kFixupNone) {
         if (!IsPseudoLirOp(opcode)) {
-          lir->flags.size = EncodingMap[opcode].size;
-          lir->flags.fixup = EncodingMap[opcode].fixup;
+          lir->flags.size = GetEncoder(opcode)->size;
+          lir->flags.fixup = GetEncoder(opcode)->fixup;
         } else {
           DCHECK_NE(static_cast<int>(opcode), kPseudoPseudoAlign4);
           lir->flags.size = 0;

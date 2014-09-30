@@ -194,7 +194,7 @@ class ArmMir2Lir FINAL : public Mir2Lir {
 
     LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) OVERRIDE;
     size_t GetInstructionOffset(LIR* lir);
-    void GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir);
+    void GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) OVERRIDE;
     void GenMoreMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) QC_WEAK;
     //void MachineSpecificPreprocessMIR(BasicBlock* bb, MIR* mir);
 

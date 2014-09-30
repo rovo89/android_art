@@ -258,13 +258,13 @@ class RegStorage {
   // Create a stand-alone RegStorage from the low 32bit of 64bit float solo.
   RegStorage GetLowFromFloatSolo64() const {
     DCHECK(IsFloat() && Is64BitSolo());
-    return RegStorage(k32BitSolo, ((reg_ & kRegNumMask)<<1) | kFloatingPoint);
+    return RegStorage(k32BitSolo, ((reg_ & kRegNumMask) << 1) | kFloatingPoint);
   }
 
   // Create a stand-alone RegStorage from the low 64bit of 128bit float solo.
   RegStorage GetLowFromFloatSolo128() const {
     DCHECK(IsFloat() && Is128BitSolo());
-    return RegStorage(k64BitSolo, ((reg_ & kRegNumMask)<<1) | kFloatingPoint);
+    return RegStorage(k64BitSolo, ((reg_ & kRegNumMask) << 1) | kFloatingPoint);
   }
 
   // Retrieve the most significant register of a pair.
@@ -288,13 +288,13 @@ class RegStorage {
   // Create a stand-alone RegStorage from the high 32bit of 64bit float solo.
   RegStorage GetHighFromFloatSolo64() const {
     DCHECK(IsFloat() && Is64BitSolo());
-    return RegStorage(k32BitSolo, (((reg_ & kRegNumMask)<<1) +1) | kFloatingPoint);
+    return RegStorage(k32BitSolo, (((reg_ & kRegNumMask) << 1) +1) | kFloatingPoint);
   }
 
   // Create a stand-alone RegStorage from the high 64bit of 128bit float solo.
   RegStorage GetHighFromFloatSolo128() const {
     DCHECK(IsFloat() && Is128BitSolo());
-    return RegStorage(k64BitSolo, (((reg_ & kRegNumMask)<<1) +1) | kFloatingPoint);
+    return RegStorage(k64BitSolo, (((reg_ & kRegNumMask) << 1) +1) | kFloatingPoint);
   }
 
   void SetHighReg(int reg) {
@@ -357,6 +357,11 @@ class RegStorage {
   // Create a floating point 64-bit solo.
   static RegStorage FloatSolo64(int reg_num) {
     return RegStorage(k64BitSolo, (reg_num & kRegNumMask) | kFloatingPoint);
+  }
+
+  // Create a floating point 128-bit solo.
+  static RegStorage FloatSolo128(int reg_num) {
+    return RegStorage(k128BitSolo, (reg_num & kRegNumMask) | kFloatingPoint);
   }
 
   static constexpr RegStorage InvalidReg() {

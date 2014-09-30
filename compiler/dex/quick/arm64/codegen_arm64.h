@@ -22,8 +22,14 @@
 
 #include <map>
 
-namespace art {
+#ifdef QC_STRONG
+#define QC_WEAK
+#else
+#define QC_WEAK __attribute__((weak))
+#endif
 
+namespace art {
+class QCArm64Mir2Lir;
 class Arm64Mir2Lir FINAL : public Mir2Lir {
  protected:
   // TODO: consolidate 64-bit target support.
@@ -259,7 +265,10 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
 
   LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) OVERRIDE;
 
- private:
+  virtual void GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) OVERRIDE;
+  void GenMoreMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) QC_WEAK;
+
+private:
   /**
    * @brief Given register xNN (dNN), returns register wNN (sNN).
    * @param reg #RegStorage containing a Solo64 input register (e.g. @c x1 or @c d2).
@@ -394,6 +403,18 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
 
   InToRegStorageMapping in_to_reg_storage_mapping_;
   static const ArmEncodingMap EncodingMap[kA64Last];
+
+private:
+  static uint32_t ProcessMoreEncodings(const ArmEncodingMap* encoder, int i, uint32_t operand) QC_WEAK;
+  static const ArmEncodingMap* GetEncoder(int opcode) QC_WEAK;
+
+  virtual void ApplyArchOptimizations(LIR* head_lir, LIR* tail_lir, BasicBlock* bb) QC_WEAK;
+
+  void CompilerPostInitializeRegAlloc() QC_WEAK;
+  void Arm64Mir2LirPostInit(Arm64Mir2Lir* mir_to_lir) QC_WEAK;
+
+  friend class QCArm64Mir2Lir;
+  QCArm64Mir2Lir* qcm2l;
 };
 
 }  // namespace art
