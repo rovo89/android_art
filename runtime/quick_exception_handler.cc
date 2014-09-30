@@ -230,7 +230,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
                                       reinterpret_cast<mirror::Object*>(GetVReg(m, reg, kind)));
           break;
         case kLongLoVReg:
-          if (GetVRegKind(reg + 1, kinds), kLongHiVReg) {
+          if (GetVRegKind(reg + 1, kinds) == kLongHiVReg) {
             // Treat it as a "long" register pair.
             new_frame->SetVRegLong(reg, GetVRegPair(m, reg, kLongLoVReg, kLongHiVReg));
           } else {
@@ -238,14 +238,14 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
           }
           break;
         case kLongHiVReg:
-          if (GetVRegKind(reg - 1, kinds), kLongLoVReg) {
+          if (GetVRegKind(reg - 1, kinds) == kLongLoVReg) {
             // Nothing to do: we treated it as a "long" register pair.
           } else {
             new_frame->SetVReg(reg, GetVReg(m, reg, kind));
           }
           break;
         case kDoubleLoVReg:
-          if (GetVRegKind(reg + 1, kinds), kDoubleHiVReg) {
+          if (GetVRegKind(reg + 1, kinds) == kDoubleHiVReg) {
             // Treat it as a "double" register pair.
             new_frame->SetVRegLong(reg, GetVRegPair(m, reg, kDoubleLoVReg, kDoubleHiVReg));
           } else {
@@ -253,7 +253,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
           }
           break;
         case kDoubleHiVReg:
-          if (GetVRegKind(reg - 1, kinds), kDoubleLoVReg) {
+          if (GetVRegKind(reg - 1, kinds) == kDoubleLoVReg) {
             // Nothing to do: we treated it as a "double" register pair.
           } else {
             new_frame->SetVReg(reg, GetVReg(m, reg, kind));
