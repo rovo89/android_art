@@ -36,7 +36,7 @@ class Object;
 class Reference;
 class Class;
 class ArtMethod;
-};  // namespace mirror
+}  // namespace mirror
 
 class PatchOat {
  public:

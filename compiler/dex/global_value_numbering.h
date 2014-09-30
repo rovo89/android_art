@@ -79,7 +79,7 @@ class GlobalValueNumbering {
   static uint64_t BuildKey(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier) {
     return (static_cast<uint64_t>(op) << 48 | static_cast<uint64_t>(operand1) << 32 |
             static_cast<uint64_t>(operand2) << 16 | static_cast<uint64_t>(modifier));
-  };
+  }
 
   // Look up a value in the global value map, adding a new entry if there was none before.
   uint16_t LookupValue(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier) {
@@ -93,7 +93,7 @@ class GlobalValueNumbering {
       global_value_map_.PutBefore(lb, key, res);
     }
     return res;
-  };
+  }
 
   // Check if the exact value is stored in the global value map.
   bool HasValue(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier,
@@ -105,7 +105,7 @@ class GlobalValueNumbering {
     uint64_t key = BuildKey(op, operand1, operand2, modifier);
     ValueMap::const_iterator it = global_value_map_.find(key);
     return (it != global_value_map_.end() && it->second == value);
-  };
+  }
 
   // FieldReference represents a unique resolved field.
   struct FieldReference {

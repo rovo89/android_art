@@ -130,7 +130,7 @@ uint32_t ShifterOperand::encodingThumb() const {
             return ROR << 4 | static_cast<uint32_t>(rm_);
           } else {
             uint32_t imm3 = immed_ >> 2;
-            uint32_t imm2 = immed_ & 0b11;
+            uint32_t imm2 = immed_ & 3U /* 0b11 */;
 
             return imm3 << 12 | imm2 << 6 | shift_ << 4 |
                 static_cast<uint32_t>(rm_);
@@ -229,8 +229,8 @@ uint32_t Address::encodingThumb(bool is_32bit) const {
       uint32_t PUW = am >> 21;   // Move down to bottom of word.
       PUW = (PUW >> 1) | (PUW & 1);   // Bits 3, 2 and 0.
       // If P is 0 then W must be 1 (Different from ARM).
-      if ((PUW & 0b100) == 0) {
-        PUW |= 0b1;
+      if ((PUW & 4U /* 0b100 */) == 0) {
+        PUW |= 1U /* 0b1 */;
       }
       encoding |= B11 | PUW << 8 | offset;
     } else {
@@ -267,17 +267,17 @@ uint32_t Address::encodingThumbLdrdStrd() const {
   uint32_t am = am_;
   // If P is 0 then W must be 1 (Different from ARM).
   uint32_t PU1W = am_ >> 21;   // Move down to bottom of word.
-  if ((PU1W & 0b1000) == 0) {
+  if ((PU1W & 8U /* 0b1000 */) == 0) {
     am |= 1 << 21;      // Set W bit.
   }
   if (offset_ < 0) {
     int32_t off = -offset_;
     CHECK_LT(off, 1024);
-    CHECK_EQ((off & 0b11), 0);    // Must be multiple of 4.
+    CHECK_EQ((off & 3 /* 0b11 */), 0);    // Must be multiple of 4.
     encoding = (am ^ (1 << kUShift)) | off >> 2;  // Flip U to adjust sign.
   } else {
     CHECK_LT(offset_, 1024);
-    CHECK_EQ((offset_ & 0b11), 0);    // Must be multiple of 4.
+    CHECK_EQ((offset_ & 3 /* 0b11 */), 0);    // Must be multiple of 4.
     encoding =  am | offset_ >> 2;
   }
   encoding |= static_cast<uint32_t>(rn_) << 16;
@@ -886,8 +886,8 @@ uint32_t ArmAssembler::ModifiedImmediate(uint32_t value) {
   /* Put it all together */
   uint32_t v = 8 + z_leading;
 
-  uint32_t i = (v & 0b10000) >> 4;
-  uint32_t imm3 = (v >> 1) & 0b111;
+  uint32_t i = (v & 16U /* 0b10000 */) >> 4;
+  uint32_t imm3 = (v >> 1) & 7U /* 0b111 */;
   uint32_t a = v & 1;
   return value | i << 26 | imm3 << 12 | a << 7;
 }

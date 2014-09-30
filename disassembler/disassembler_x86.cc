@@ -58,10 +58,10 @@ static const char* gReg64Names[] = {
 };
 
 // 64-bit opcode REX modifier.
-constexpr uint8_t REX_W = 0b1000;
-constexpr uint8_t REX_R = 0b0100;
-constexpr uint8_t REX_X = 0b0010;
-constexpr uint8_t REX_B = 0b0001;
+constexpr uint8_t REX_W = 8U /* 0b1000 */;
+constexpr uint8_t REX_R = 4U /* 0b0100 */;
+constexpr uint8_t REX_X = 2U /* 0b0010 */;
+constexpr uint8_t REX_B = 1U /* 0b0001 */;
 
 static void DumpReg0(std::ostream& os, uint8_t rex, size_t reg,
                      bool byte_operand, uint8_t size_override) {
@@ -767,7 +767,7 @@ DISASSEMBLER_ENTRY(cmp,
       case 0xB1: opcode << "cmpxchg"; has_modrm = true; store = true; break;
       case 0xB6: opcode << "movzxb"; has_modrm = true; load = true; byte_second_operand = true; break;
       case 0xB7: opcode << "movzxw"; has_modrm = true; load = true; break;
-      case 0xBE: opcode << "movsxb"; has_modrm = true; load = true; byte_second_operand = true; rex |= (rex == 0 ? 0 : 0b1000); break;
+      case 0xBE: opcode << "movsxb"; has_modrm = true; load = true; byte_second_operand = true; rex |= (rex == 0 ? 0 : REX_W); break;
       case 0xBF: opcode << "movsxw"; has_modrm = true; load = true; break;
       case 0xC3: opcode << "movnti"; store = true; has_modrm = true; break;
       case 0xC5:

@@ -388,11 +388,11 @@ static inline bool IsBackwardBranch(int32_t branch_offset) {
   EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, true, false);   \
   EXPLICIT_DO_INVOKE_TEMPLATE_DECL(_type, true, true);
 
-EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kStatic);      // invoke-static/range.
-EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kDirect);      // invoke-direct/range.
-EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kVirtual);     // invoke-virtual/range.
-EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kSuper);       // invoke-super/range.
-EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kInterface);   // invoke-interface/range.
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kStatic)      // invoke-static/range.
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kDirect)      // invoke-direct/range.
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kVirtual)     // invoke-virtual/range.
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kSuper)       // invoke-super/range.
+EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL(kInterface)   // invoke-interface/range.
 #undef EXPLICIT_DO_INVOKE_ALL_TEMPLATE_DECL
 #undef EXPLICIT_DO_INVOKE_TEMPLATE_DECL
 
