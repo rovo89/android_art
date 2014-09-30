@@ -55,4 +55,15 @@ Location Location::RegisterOrConstant(HInstruction* instruction) {
       : Location::RequiresRegister();
 }
 
+Location Location::ByteRegisterOrConstant(ManagedRegister reg, HInstruction* instruction) {
+  return instruction->IsConstant()
+      ? Location::ConstantLocation(instruction->AsConstant())
+      : Location::RegisterLocation(reg);
+}
+
+std::ostream& operator<<(std::ostream& os, const Location& location) {
+  os << location.DebugString();
+  return os;
+}
+
 }  // namespace art
