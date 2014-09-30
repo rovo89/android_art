@@ -35,6 +35,6 @@ void InitializeNativeBridge(JNIEnv* env, const char* instruction_set);
 
 void UnloadNativeBridge();
 
-};  // namespace art
+}  // namespace art
 
 #endif  // ART_RUNTIME_NATIVE_BRIDGE_ART_INTERFACE_H_

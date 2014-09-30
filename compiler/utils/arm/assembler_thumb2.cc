@@ -159,8 +159,8 @@ void Thumb2Assembler::mul(Register rd, Register rn, Register rm, Condition cond)
     Emit16(encoding);
   } else {
     // 32 bit.
-    uint32_t op1 = 0b000;
-    uint32_t op2 = 0b00;
+    uint32_t op1 = 0U /* 0b000 */;
+    uint32_t op2 = 0U /* 0b00 */;
     int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 | B24 |
         op1 << 20 |
         B15 | B14 | B13 | B12 |
@@ -176,8 +176,8 @@ void Thumb2Assembler::mul(Register rd, Register rn, Register rm, Condition cond)
 
 void Thumb2Assembler::mla(Register rd, Register rn, Register rm, Register ra,
                           Condition cond) {
-  uint32_t op1 = 0b000;
-  uint32_t op2 = 0b00;
+  uint32_t op1 = 0U /* 0b000 */;
+  uint32_t op2 = 0U /* 0b00 */;
   int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 | B24 |
       op1 << 20 |
       op2 << 4 |
@@ -192,8 +192,8 @@ void Thumb2Assembler::mla(Register rd, Register rn, Register rm, Register ra,
 
 void Thumb2Assembler::mls(Register rd, Register rn, Register rm, Register ra,
                           Condition cond) {
-  uint32_t op1 = 0b000;
-  uint32_t op2 = 0b01;
+  uint32_t op1 = 0U /* 0b000 */;
+  uint32_t op2 = 01 /* 0b01 */;
   int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 | B24 |
       op1 << 20 |
       op2 << 4 |
@@ -208,8 +208,8 @@ void Thumb2Assembler::mls(Register rd, Register rn, Register rm, Register ra,
 
 void Thumb2Assembler::umull(Register rd_lo, Register rd_hi, Register rn,
                             Register rm, Condition cond) {
-  uint32_t op1 = 0b010;
-  uint32_t op2 = 0b0000;
+  uint32_t op1 = 2U /* 0b010; */;
+  uint32_t op2 = 0U /* 0b0000 */;
   int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 | B24 | B23 |
       op1 << 20 |
       op2 << 4 |
@@ -223,8 +223,8 @@ void Thumb2Assembler::umull(Register rd_lo, Register rd_hi, Register rn,
 
 
 void Thumb2Assembler::sdiv(Register rd, Register rn, Register rm, Condition cond) {
-  uint32_t op1 = 0b001;
-  uint32_t op2 = 0b1111;
+  uint32_t op1 = 1U  /* 0b001 */;
+  uint32_t op2 = 15U /* 0b1111 */;
   int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 | B24 | B23 | B20 |
       op1 << 20 |
       op2 << 4 |
@@ -238,8 +238,8 @@ void Thumb2Assembler::sdiv(Register rd, Register rn, Register rm, Condition cond
 
 
 void Thumb2Assembler::udiv(Register rd, Register rn, Register rm, Condition cond) {
-  uint32_t op1 = 0b001;
-  uint32_t op2 = 0b1111;
+  uint32_t op1 = 1U  /* 0b001 */;
+  uint32_t op2 = 15U /* 0b1111 */;
   int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 | B24 | B23 | B21 | B20 |
       op1 << 20 |
       op2 << 4 |
@@ -733,29 +733,29 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond,
                                               Register rn,
                                               Register rd,
                                               const ShifterOperand& so) {
-  uint8_t thumb_opcode = 0b11111111;
+  uint8_t thumb_opcode = 255U /* 0b11111111 */;
   switch (opcode) {
-    case AND: thumb_opcode = 0b0000; break;
-    case EOR: thumb_opcode = 0b0100; break;
-    case SUB: thumb_opcode = 0b1101; break;
-    case RSB: thumb_opcode = 0b1110; break;
-    case ADD: thumb_opcode = 0b1000; break;
-    case ADC: thumb_opcode = 0b1010; break;
-    case SBC: thumb_opcode = 0b1011; break;
+    case AND: thumb_opcode =  0U /* 0b0000 */; break;
+    case EOR: thumb_opcode =  4U /* 0b0100 */; break;
+    case SUB: thumb_opcode = 13U /* 0b1101 */; break;
+    case RSB: thumb_opcode = 14U /* 0b1110 */; break;
+    case ADD: thumb_opcode =  8U /* 0b1000 */; break;
+    case ADC: thumb_opcode = 12U /* 0b1010 */; break;
+    case SBC: thumb_opcode = 11U /* 0b1011 */; break;
     case RSC: break;
-    case TST: thumb_opcode = 0b0000; set_cc = true; rd = PC; break;
-    case TEQ: thumb_opcode = 0b0100; set_cc = true; rd = PC; break;
-    case CMP: thumb_opcode = 0b1101; set_cc = true; rd = PC; break;
-    case CMN: thumb_opcode = 0b1000; set_cc = true; rd = PC; break;
-    case ORR: thumb_opcode = 0b0010; break;
-    case MOV: thumb_opcode = 0b0010; rn = PC; break;
-    case BIC: thumb_opcode = 0b0001; break;
-    case MVN: thumb_opcode = 0b0011; rn = PC; break;
+    case TST: thumb_opcode =  0U /* 0b0000 */; set_cc = true; rd = PC; break;
+    case TEQ: thumb_opcode =  4U /* 0b0100 */; set_cc = true; rd = PC; break;
+    case CMP: thumb_opcode = 13U /* 0b1101 */; set_cc = true; rd = PC; break;
+    case CMN: thumb_opcode =  8U /* 0b1000 */; set_cc = true; rd = PC; break;
+    case ORR: thumb_opcode =  2U /* 0b0010 */; break;
+    case MOV: thumb_opcode =  2U /* 0b0010 */; rn = PC; break;
+    case BIC: thumb_opcode =  1U /* 0b0001 */; break;
+    case MVN: thumb_opcode =  3U /* 0b0011 */; rn = PC; break;
     default:
       break;
   }
 
-  if (thumb_opcode == 0b11111111) {
+  if (thumb_opcode == 255U /* 0b11111111 */) {
     LOG(FATAL) << "Invalid thumb2 opcode " << opcode;
   }
 
@@ -764,14 +764,14 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond,
     // Check special cases.
     if ((opcode == SUB || opcode == ADD) && (so.GetImmediate() < (1u << 12))) {
       if (opcode == SUB) {
-        thumb_opcode = 0b0101;
+        thumb_opcode = 5U /* 0b0101 */;
       } else {
         thumb_opcode = 0;
       }
       uint32_t imm = so.GetImmediate();
 
       uint32_t i = (imm >> 11) & 1;
-      uint32_t imm3 = (imm >> 8) & 0b111;
+      uint32_t imm3 = (imm >> 8) & 7U /* 0b111 */;
       uint32_t imm8 = imm & 0xff;
 
       encoding = B31 | B30 | B29 | B28 | B25 |
@@ -817,9 +817,9 @@ void Thumb2Assembler::Emit16BitDataProcessing(Condition cond,
     Emit16BitAddSub(cond, opcode, set_cc, rn, rd, so);
     return;
   }
-  uint8_t thumb_opcode = 0b11111111;
+  uint8_t thumb_opcode = 255U /* 0b11111111 */;
   // Thumb1.
-  uint8_t dp_opcode = 0b01;
+  uint8_t dp_opcode = 1U /* 0b01 */;
   uint8_t opcode_shift = 6;
   uint8_t rd_shift = 0;
   uint8_t rn_shift = 3;
@@ -839,13 +839,13 @@ void Thumb2Assembler::Emit16BitDataProcessing(Condition cond,
     rn = so.GetRegister();
 
     switch (so.GetShift()) {
-    case LSL: thumb_opcode = 0b00; break;
-    case LSR: thumb_opcode = 0b01; break;
-    case ASR: thumb_opcode = 0b10; break;
+    case LSL: thumb_opcode = 0U /* 0b00 */; break;
+    case LSR: thumb_opcode = 1U /* 0b01 */; break;
+    case ASR: thumb_opcode = 2U /* 0b10 */; break;
     case ROR:
       // ROR doesn't allow immediates.
-      thumb_opcode = 0b111;
-      dp_opcode = 0b01;
+      thumb_opcode = 7U /* 0b111 */;
+      dp_opcode = 1U /* 0b01 */;
       opcode_shift = 6;
       use_immediate = false;
       break;
@@ -860,68 +860,68 @@ void Thumb2Assembler::Emit16BitDataProcessing(Condition cond,
     }
 
     switch (opcode) {
-      case AND: thumb_opcode = 0b0000; break;
-      case EOR: thumb_opcode = 0b0001; break;
+      case AND: thumb_opcode = 0U /* 0b0000 */; break;
+      case EOR: thumb_opcode = 1U /* 0b0001 */; break;
       case SUB: break;
-      case RSB: thumb_opcode = 0b1001; break;
+      case RSB: thumb_opcode = 9U /* 0b1001 */; break;
       case ADD: break;
-      case ADC: thumb_opcode = 0b0101; break;
-      case SBC: thumb_opcode = 0b0110; break;
+      case ADC: thumb_opcode = 5U /* 0b0101 */; break;
+      case SBC: thumb_opcode = 6U /* 0b0110 */; break;
       case RSC: break;
-      case TST: thumb_opcode = 0b1000; rn = so.GetRegister(); break;
+      case TST: thumb_opcode = 8U /* 0b1000 */; rn = so.GetRegister(); break;
       case TEQ: break;
       case CMP:
         if (use_immediate) {
           // T2 encoding.
            dp_opcode = 0;
            opcode_shift = 11;
-           thumb_opcode = 0b101;
+           thumb_opcode = 5U /* 0b101 */;
            rd_shift = 8;
            rn_shift = 8;
         } else {
-          thumb_opcode = 0b1010;
+          thumb_opcode = 10U /* 0b1010 */;
           rd = rn;
           rn = so.GetRegister();
         }
 
         break;
       case CMN: {
-        thumb_opcode = 0b1011;
+        thumb_opcode = 11U /* 0b1011 */;
         rd = rn;
         rn = so.GetRegister();
         break;
       }
-      case ORR: thumb_opcode = 0b1100; break;
+      case ORR: thumb_opcode = 12U /* 0b1100 */; break;
       case MOV:
         dp_opcode = 0;
         if (use_immediate) {
           // T2 encoding.
           opcode_shift = 11;
-          thumb_opcode = 0b100;
+          thumb_opcode = 4U /* 0b100 */;
           rd_shift = 8;
           rn_shift = 8;
         } else {
           rn = so.GetRegister();
           if (IsHighRegister(rn) || IsHighRegister(rd)) {
             // Special mov for high registers.
-            dp_opcode = 0b01;
+            dp_opcode = 1U /* 0b01 */;
             opcode_shift = 7;
             // Put the top bit of rd into the bottom bit of the opcode.
-            thumb_opcode = 0b0001100 | static_cast<uint32_t>(rd) >> 3;
-            rd = static_cast<Register>(static_cast<uint32_t>(rd) & 0b111);
+            thumb_opcode = 12U /* 0b0001100 */ | static_cast<uint32_t>(rd) >> 3;
+            rd = static_cast<Register>(static_cast<uint32_t>(rd) & 7U /* 0b111 */);
           } else {
             thumb_opcode = 0;
           }
         }
         break;
-      case BIC: thumb_opcode = 0b1110; break;
-      case MVN: thumb_opcode = 0b1111; rn = so.GetRegister(); break;
+      case BIC: thumb_opcode = 14U /* 0b1110 */; break;
+      case MVN: thumb_opcode = 15U /* 0b1111 */; rn = so.GetRegister(); break;
       default:
         break;
     }
   }
 
-  if (thumb_opcode == 0b11111111) {
+  if (thumb_opcode == 255U /* 0b11111111 */) {
     LOG(FATAL) << "Invalid thumb1 opcode " << opcode;
   }
 
@@ -962,17 +962,17 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond,
         Register rm = so.GetRegister();
         if (rn == rd) {
           // Can use T2 encoding (allows 4 bit registers)
-          dp_opcode = 0b01;
+          dp_opcode = 1U /* 0b01 */;
           opcode_shift = 10;
-          thumb_opcode = 0b0001;
+          thumb_opcode = 1U /* 0b0001 */;
           // Make Rn also contain the top bit of rd.
           rn = static_cast<Register>(static_cast<uint32_t>(rm) |
-                                     (static_cast<uint32_t>(rd) & 0b1000) << 1);
-          rd = static_cast<Register>(static_cast<uint32_t>(rd) & 0b111);
+                                     (static_cast<uint32_t>(rd) & 8U /* 0b1000 */) << 1);
+          rd = static_cast<Register>(static_cast<uint32_t>(rd) & 7U /* 0b111 */);
         } else {
           // T1.
           opcode_shift = 9;
-          thumb_opcode = 0b01100;
+          thumb_opcode = 12U /* 0b01100 */;
           immediate = static_cast<uint32_t>(so.GetRegister());
           use_immediate = true;
           immediate_shift = 6;
@@ -981,11 +981,11 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond,
         // Immediate.
         if (rd == SP && rn == SP) {
           // ADD sp, sp, #imm
-          dp_opcode = 0b10;
-          thumb_opcode = 0b11;
+          dp_opcode = 2U /* 0b10 */;
+          thumb_opcode = 3U /* 0b11 */;
           opcode_shift = 12;
           CHECK_LT(immediate, (1 << 9));
-          CHECK_EQ((immediate & 0b11), 0);
+          CHECK_EQ((immediate & 3 /* 0b11 */), 0);
 
           // Remove rd and rn from instruction by orring it with immed and clearing bits.
           rn = R0;
@@ -995,11 +995,11 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond,
           immediate >>= 2;
         } else if (rd != SP && rn == SP) {
           // ADD rd, SP, #imm
-          dp_opcode = 0b10;
-          thumb_opcode = 0b101;
+          dp_opcode = 2U /* 0b10 */;
+          thumb_opcode = 5U /* 0b101 */;
           opcode_shift = 11;
           CHECK_LT(immediate, (1 << 10));
-          CHECK_EQ((immediate & 0b11), 0);
+          CHECK_EQ((immediate & 3 /* 0b11 */), 0);
 
           // Remove rn from instruction.
           rn = R0;
@@ -1009,12 +1009,12 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond,
         } else if (rn != rd) {
           // Must use T1.
           opcode_shift = 9;
-          thumb_opcode = 0b01110;
+          thumb_opcode = 14U /* 0b01110 */;
           immediate_shift = 6;
         } else {
           // T2 encoding.
           opcode_shift = 11;
-          thumb_opcode = 0b110;
+          thumb_opcode = 6U /* 0b110 */;
           rd_shift = 8;
           rn_shift = 8;
         }
@@ -1025,18 +1025,18 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond,
       if (so.IsRegister()) {
          // T1.
          opcode_shift = 9;
-         thumb_opcode = 0b01101;
+         thumb_opcode = 13U /* 0b01101 */;
          immediate = static_cast<uint32_t>(so.GetRegister());
          use_immediate = true;
          immediate_shift = 6;
        } else {
          if (rd == SP && rn == SP) {
            // SUB sp, sp, #imm
-           dp_opcode = 0b10;
-           thumb_opcode = 0b1100001;
+           dp_opcode = 2U /* 0b10 */;
+           thumb_opcode = 0x61 /* 0b1100001 */;
            opcode_shift = 7;
            CHECK_LT(immediate, (1 << 9));
-           CHECK_EQ((immediate & 0b11), 0);
+           CHECK_EQ((immediate & 3 /* 0b11 */), 0);
 
            // Remove rd and rn from instruction by orring it with immed and clearing bits.
            rn = R0;
@@ -1047,12 +1047,12 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond,
          } else if (rn != rd) {
            // Must use T1.
            opcode_shift = 9;
-           thumb_opcode = 0b01111;
+           thumb_opcode = 15U /* 0b01111 */;
            immediate_shift = 6;
          } else {
            // T2 encoding.
            opcode_shift = 11;
-           thumb_opcode = 0b111;
+           thumb_opcode = 7U /* 0b111 */;
            rd_shift = 8;
            rn_shift = 8;
          }
@@ -1094,11 +1094,11 @@ void Thumb2Assembler::EmitShift(Register rd, Register rm, Shift shift, uint8_t a
   if (IsHighRegister(rd) || IsHighRegister(rm) || shift == ROR || shift == RRX) {
     uint16_t opcode = 0;
     switch (shift) {
-      case LSL: opcode = 0b00; break;
-      case LSR: opcode = 0b01; break;
-      case ASR: opcode = 0b10; break;
-      case ROR: opcode = 0b11; break;
-      case RRX: opcode = 0b11; amount = 0; break;
+      case LSL: opcode = 0U /* 0b00 */; break;
+      case LSR: opcode = 1U /* 0b01 */; break;
+      case ASR: opcode = 2U /* 0b10 */; break;
+      case ROR: opcode = 3U /* 0b11 */; break;
+      case RRX: opcode = 3U /* 0b11 */; amount = 0; break;
       default:
         LOG(FATAL) << "Unsupported thumb2 shift opcode";
     }
@@ -1106,7 +1106,7 @@ void Thumb2Assembler::EmitShift(Register rd, Register rm, Shift shift, uint8_t a
     int32_t encoding = B31 | B30 | B29 | B27 | B25 | B22 |
         0xf << 16 | (setcc ? B20 : 0);
     uint32_t imm3 = amount >> 2;
-    uint32_t imm2 = amount & 0b11;
+    uint32_t imm2 = amount & 3U /* 0b11 */;
     encoding |= imm3 << 12 | imm2 << 6 | static_cast<int16_t>(rm) |
         static_cast<int16_t>(rd) << 8 | opcode << 4;
     Emit32(encoding);
@@ -1114,9 +1114,9 @@ void Thumb2Assembler::EmitShift(Register rd, Register rm, Shift shift, uint8_t a
     // 16 bit shift
     uint16_t opcode = 0;
     switch (shift) {
-      case LSL: opcode = 0b00; break;
-      case LSR: opcode = 0b01; break;
-      case ASR: opcode = 0b10; break;
+      case LSL: opcode = 0U /* 0b00 */; break;
+      case LSR: opcode = 1U /* 0b01 */; break;
+      case ASR: opcode = 2U /* 0b10 */; break;
       default:
          LOG(FATAL) << "Unsupported thumb2 shift opcode";
     }
@@ -1136,10 +1136,10 @@ void Thumb2Assembler::EmitShift(Register rd, Register rn, Shift shift, Register 
   if (must_be_32bit) {
     uint16_t opcode = 0;
      switch (shift) {
-       case LSL: opcode = 0b00; break;
-       case LSR: opcode = 0b01; break;
-       case ASR: opcode = 0b10; break;
-       case ROR: opcode = 0b11; break;
+       case LSL: opcode = 0U /* 0b00 */; break;
+       case LSR: opcode = 1U /* 0b01 */; break;
+       case ASR: opcode = 2U /* 0b10 */; break;
+       case ROR: opcode = 3U /* 0b11 */; break;
        default:
          LOG(FATAL) << "Unsupported thumb2 shift opcode";
      }
@@ -1152,9 +1152,9 @@ void Thumb2Assembler::EmitShift(Register rd, Register rn, Shift shift, Register 
   } else {
     uint16_t opcode = 0;
     switch (shift) {
-      case LSL: opcode = 0b0010; break;
-      case LSR: opcode = 0b0011; break;
-      case ASR: opcode = 0b0100; break;
+      case LSL: opcode = 2U /* 0b0010 */; break;
+      case LSR: opcode = 3U /* 0b0011 */; break;
+      case ASR: opcode = 4U /* 0b0100 */; break;
       default:
          LOG(FATAL) << "Unsupported thumb2 shift opcode";
     }
@@ -1204,7 +1204,7 @@ void Thumb2Assembler::Branch::Emit(AssemblerBuffer* buffer) const {
     if (IsCompareAndBranch()) {
       offset -= 4;
       uint16_t i = (offset >> 6) & 1;
-      uint16_t imm5 = (offset >> 1) & 0b11111;
+      uint16_t imm5 = (offset >> 1) & 31U /* 0b11111 */;
       int16_t encoding = B15 | B13 | B12 |
             (type_ ==  kCompareAndBranchNonZero ? B11 : 0) |
             static_cast<uint32_t>(rn_) |
@@ -1304,15 +1304,15 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
       bool sp_relative = false;
 
       if (byte) {
-        opA = 0b0111;
+        opA = 7U /* 0b0111 */;
       } else if (half) {
-        opA = 0b1000;
+        opA = 8U /* 0b1000 */;
       } else {
         if (rn == SP) {
-          opA = 0b1001;
+          opA = 9U /* 0b1001 */;
           sp_relative = true;
         } else {
-          opA = 0b0110;
+          opA = 6U /* 0b0110 */;
         }
       }
       int16_t encoding = opA << 12 |
@@ -1322,7 +1322,7 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
       if (sp_relative) {
         // SP relative, 10 bit offset.
         CHECK_LT(offset, (1 << 10));
-        CHECK_EQ((offset & 0b11), 0);
+        CHECK_EQ((offset & 3 /* 0b11 */), 0);
         encoding |= rd << 8 | offset >> 2;
       } else {
         // No SP relative.  The offset is shifted right depending on
@@ -1335,12 +1335,12 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
         } else if (half) {
           // 6 bit offset, shifted by 1.
           CHECK_LT(offset, (1 << 6));
-          CHECK_EQ((offset & 0b1), 0);
+          CHECK_EQ((offset & 1 /* 0b1 */), 0);
           offset >>= 1;
         } else {
           // 7 bit offset, shifted by 2.
           CHECK_LT(offset, (1 << 7));
-          CHECK_EQ((offset & 0b11), 0);
+          CHECK_EQ((offset & 3 /* 0b11 */), 0);
           offset >>= 2;
         }
         encoding |= rn << 3 | offset  << 6;
@@ -1428,11 +1428,11 @@ void Thumb2Assembler::EmitMultiMemOp(Condition cond,
     switch (am) {
       case IA:
       case IA_W:
-        op = 0b01;
+        op = 1U /* 0b01 */;
         break;
       case DB:
       case DB_W:
-        op = 0b10;
+        op = 2U /* 0b10 */;
         break;
       case DA:
       case IB:
@@ -1534,9 +1534,9 @@ void Thumb2Assembler::movw(Register rd, uint16_t imm16, Condition cond) {
 
   if (must_be_32bit) {
     // Use encoding T3.
-    uint32_t imm4 = (imm16 >> 12) & 0b1111;
-    uint32_t i = (imm16 >> 11) & 0b1;
-    uint32_t imm3 = (imm16 >> 8) & 0b111;
+    uint32_t imm4 = (imm16 >> 12) & 15U /* 0b1111 */;
+    uint32_t i = (imm16 >> 11) & 1U /* 0b1 */;
+    uint32_t imm3 = (imm16 >> 8) & 7U /* 0b111 */;
     uint32_t imm8 = imm16 & 0xff;
     int32_t encoding = B31 | B30 | B29 | B28 |
                     B25 | B22 |
@@ -1557,9 +1557,9 @@ void Thumb2Assembler::movw(Register rd, uint16_t imm16, Condition cond) {
 void Thumb2Assembler::movt(Register rd, uint16_t imm16, Condition cond) {
   CheckCondition(cond);
   // Always 32 bits.
-  uint32_t imm4 = (imm16 >> 12) & 0b1111;
-  uint32_t i = (imm16 >> 11) & 0b1;
-  uint32_t imm3 = (imm16 >> 8) & 0b111;
+  uint32_t imm4 = (imm16 >> 12) & 15U /* 0b1111 */;
+  uint32_t i = (imm16 >> 11) & 1U /* 0b1 */;
+  uint32_t imm3 = (imm16 >> 8) & 7U /* 0b111 */;
   uint32_t imm8 = imm16 & 0xff;
   int32_t encoding = B31 | B30 | B29 | B28 |
                   B25 | B23 | B22 |
@@ -1638,9 +1638,9 @@ void Thumb2Assembler::clrex(Condition cond) {
 
 void Thumb2Assembler::nop(Condition cond) {
   CheckCondition(cond);
-  int16_t encoding = B15 | B13 | B12 |
+  uint16_t encoding = B15 | B13 | B12 |
       B11 | B10 | B9 | B8;
-  Emit16(encoding);
+  Emit16(static_cast<int16_t>(encoding));
 }
 
 
@@ -1840,17 +1840,17 @@ void Thumb2Assembler::EmitVPushPop(uint32_t reg, int nregs, bool push, bool dbl,
   if (dbl) {
     // Encoded as D:Vd.
     D = (reg >> 4) & 1;
-    Vd = reg & 0b1111;
+    Vd = reg & 15U /* 0b1111 */;
   } else {
     // Encoded as Vd:D.
     D = reg & 1;
-    Vd = (reg >> 1) & 0b1111;
+    Vd = (reg >> 1) & 15U /* 0b1111 */;
   }
   int32_t encoding = B27 | B26 | B21 | B19 | B18 | B16 |
                     B11 | B9 |
         (dbl ? B8 : 0) |
         (push ? B24 : (B23 | B20)) |
-        0b1110 << 28 |
+        14U /* 0b1110 */ << 28 |
         nregs << (dbl ? 1 : 0) |
         D << 22 |
         Vd << 12;
@@ -1992,7 +1992,7 @@ void Thumb2Assembler::it(Condition firstcond, ItState i1, ItState i2, ItState i3
       mask |= ToItMask(i3, firstcond0, 1);
       SetItCondition(i3, firstcond, 3);
       if (i3 != kItOmitted) {
-        mask |= 0b0001;
+        mask |= 1U /* 0b0001 */;
       }
     }
   }

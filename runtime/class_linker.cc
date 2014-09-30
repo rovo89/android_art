@@ -2116,7 +2116,7 @@ mirror::Class* ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlready
         hs.NewHandle(soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie));
     Handle<mirror::ArtField> dex_file_field =
         hs.NewHandle(
-            soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList$Element_dexFile));
+            soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile));
     mirror::Object* dex_path_list =
         soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList)->
         GetObject(class_loader.Get());

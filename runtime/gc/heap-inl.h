@@ -277,7 +277,7 @@ inline Heap::AllocationTimer::~AllocationTimer() {
       heap_->total_allocation_time_.FetchAndAddSequentiallyConsistent(allocation_end_time - allocation_start_time_);
     }
   }
-};
+}
 
 inline bool Heap::ShouldAllocLargeObject(mirror::Class* c, size_t byte_count) const {
   // We need to have a zygote space or else our newly allocated large object can end up in the

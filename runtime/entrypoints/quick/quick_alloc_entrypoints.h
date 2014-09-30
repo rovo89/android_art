@@ -17,14 +17,11 @@
 #ifndef ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ALLOC_ENTRYPOINTS_H_
 #define ART_RUNTIME_ENTRYPOINTS_QUICK_QUICK_ALLOC_ENTRYPOINTS_H_
 
-#include "gc/heap.h"
+#include "base/mutex.h"
+#include "gc/allocator_type.h"
 #include "quick_entrypoints.h"
 
 namespace art {
-
-namespace gc {
-enum AllocatorType;
-}  // namespace gc
 
 void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints);
 

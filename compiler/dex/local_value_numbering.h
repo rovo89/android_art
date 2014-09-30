@@ -122,19 +122,19 @@ class LocalValueNumbering {
 
   void SetOperandValue(uint16_t s_reg, uint16_t value) {
     SetOperandValueImpl(s_reg, value, &sreg_value_map_);
-  };
+  }
 
   uint16_t GetOperandValue(int s_reg) const {
     return GetOperandValueImpl(s_reg, &sreg_value_map_);
-  };
+  }
 
   void SetOperandValueWide(uint16_t s_reg, uint16_t value) {
     SetOperandValueImpl(s_reg, value, &sreg_wide_value_map_);
-  };
+  }
 
   uint16_t GetOperandValueWide(int s_reg) const {
     return GetOperandValueImpl(s_reg, &sreg_wide_value_map_);
-  };
+  }
 
   struct RangeCheckKey {
     uint16_t array;

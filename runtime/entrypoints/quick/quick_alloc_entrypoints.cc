@@ -216,10 +216,10 @@ void SetQuickAllocEntryPoints##suffix(QuickEntryPoints* qpoints, bool instrument
 
 // Generate the entrypoint functions.
 #if !defined(__APPLE__) || !defined(__LP64__)
-GENERATE_ENTRYPOINTS(_dlmalloc);
-GENERATE_ENTRYPOINTS(_rosalloc);
-GENERATE_ENTRYPOINTS(_bump_pointer);
-GENERATE_ENTRYPOINTS(_tlab);
+GENERATE_ENTRYPOINTS(_dlmalloc)
+GENERATE_ENTRYPOINTS(_rosalloc)
+GENERATE_ENTRYPOINTS(_bump_pointer)
+GENERATE_ENTRYPOINTS(_tlab)
 #endif
 
 static bool entry_points_instrumented = false;

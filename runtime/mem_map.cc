@@ -485,7 +485,7 @@ MemMap::MemMap(const std::string& name, byte* begin, size_t size, void* base_beg
     MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
     maps_.insert(std::pair<void*, MemMap*>(base_begin_, this));
   }
-};
+}
 
 MemMap* MemMap::RemapAtEnd(byte* new_end, const char* tail_name, int tail_prot,
                            std::string* error_msg) {
