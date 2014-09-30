@@ -189,6 +189,7 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
     }
 
     // Add a range that covers this block to all instructions live_in because of successors.
+    // Instructions defined in this block will have their start of the range adjusted.
     for (uint32_t idx : live_in->Indexes()) {
       HInstruction* current = instructions_from_ssa_index_.Get(idx);
       current->GetLiveInterval()->AddRange(block->GetLifetimeStart(), block->GetLifetimeEnd());

@@ -1018,6 +1018,8 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
     return;
   }
 
+  DCHECK(destination != nullptr && source != nullptr);
+
   if (!destination->HasRegister()) {
     // Values are eagerly spilled. Spill slot already contains appropriate value.
     return;
