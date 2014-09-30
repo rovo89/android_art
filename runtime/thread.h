@@ -679,7 +679,7 @@ class Thread {
   // Number of references allocated in handle scopes & JNI shadow frames on this thread.
   size_t NumStackReferences() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return NumHandleReferences() + NumJniShadowFrameReferences();
-  };
+  }
 
   // Is the given obj in this thread's stack indirect reference table?
   bool HandleScopeContains(jobject obj) const;

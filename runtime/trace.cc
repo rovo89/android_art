@@ -560,7 +560,7 @@ void Trace::DexPcMoved(Thread* thread, mirror::Object* this_object,
                        mirror::ArtMethod* method, uint32_t new_dex_pc) {
   // We're not recorded to listen to this kind of event, so complain.
   LOG(ERROR) << "Unexpected dex PC event in tracing " << PrettyMethod(method) << " " << new_dex_pc;
-};
+}
 
 void Trace::FieldRead(Thread* /*thread*/, mirror::Object* this_object,
                        mirror::ArtMethod* method, uint32_t dex_pc, mirror::ArtField* field)
