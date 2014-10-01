@@ -481,6 +481,8 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     LOCAL_MODULE_TARGET_ARCH := $$(ART_TARGET_SUPPORTED_ARCH)
   endif
 
+  LOCAL_NATIVE_COVERAGE := $(ART_COVERAGE)
+
   ifeq ($$(art_target_or_host),target)
     ifneq ($$(art_ndebug_or_debug),debug)
       # Leave the symbols in the shared library so that stack unwinders can
