@@ -1961,7 +1961,11 @@ class HGraphVisitor : public ValueObject {
   virtual void VisitInstruction(HInstruction* instruction) {}
   virtual void VisitBasicBlock(HBasicBlock* block);
 
+  // Visit the graph following basic block insertion order.
   void VisitInsertionOrder();
+
+  // Visit the graph following dominator tree reverse post-order.
+  void VisitReversePostOrder();
 
   HGraph* GetGraph() const { return graph_; }
 
