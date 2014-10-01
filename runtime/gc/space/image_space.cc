@@ -149,7 +149,8 @@ static bool GenerateImage(const std::string& image_filename, InstructionSet imag
   arg_vector.push_back(oat_file_option_string);
 
   Runtime::Current()->AddCurrentRuntimeFeaturesAsDex2OatArguments(&arg_vector);
-  CHECK_EQ(image_isa, kRuntimeISA) << "We should always be generating an image for the current isa.";
+  CHECK_EQ(image_isa, kRuntimeISA)
+      << "We should always be generating an image for the current isa.";
 
   int32_t base_offset = ChooseRelocationOffsetDelta(ART_BASE_ADDRESS_MIN_DELTA,
                                                     ART_BASE_ADDRESS_MAX_DELTA);
@@ -270,10 +271,10 @@ static bool RelocateImage(const char* image_location, const char* dest_filename,
   return Exec(argv, error_msg);
 }
 
-static ImageHeader* ReadSpecificImageHeaderOrDie(const char* filename) {
+static ImageHeader* ReadSpecificImageHeader(const char* filename, std::string* error_msg) {
   std::unique_ptr<ImageHeader> hdr(new ImageHeader);
   if (!ReadSpecificImageHeader(filename, hdr.get())) {
-    LOG(FATAL) << "Unable to read image header for " << filename;
+    *error_msg = StringPrintf("Unable to read image header for %s", filename);
     return nullptr;
   }
   return hdr.release();
@@ -281,6 +282,17 @@ static ImageHeader* ReadSpecificImageHeaderOrDie(const char* filename) {
 
 ImageHeader* ImageSpace::ReadImageHeaderOrDie(const char* image_location,
                                               const InstructionSet image_isa) {
+  std::string error_msg;
+  ImageHeader* image_header = ReadImageHeader(image_location, image_isa, &error_msg);
+  if (image_header == nullptr) {
+    LOG(FATAL) << error_msg;
+  }
+  return image_header;
+}
+
+ImageHeader* ImageSpace::ReadImageHeader(const char* image_location,
+                                         const InstructionSet image_isa,
+                                         std::string* error_msg) {
   std::string system_filename;
   bool has_system = false;
   std::string cache_filename;
@@ -294,33 +306,37 @@ ImageHeader* ImageSpace::ReadImageHeaderOrDie(const char* image_location,
         std::unique_ptr<ImageHeader> sys_hdr(new ImageHeader);
         std::unique_ptr<ImageHeader> cache_hdr(new ImageHeader);
         if (!ReadSpecificImageHeader(system_filename.c_str(), sys_hdr.get())) {
-          LOG(FATAL) << "Unable to read image header for " << image_location << " at "
-                     << system_filename;
+          *error_msg = StringPrintf("Unable to read image header for %s at %s",
+                                    image_location, system_filename.c_str());
           return nullptr;
         }
         if (!ReadSpecificImageHeader(cache_filename.c_str(), cache_hdr.get())) {
-          LOG(FATAL) << "Unable to read image header for " << image_location << " at "
-                     << cache_filename;
+          *error_msg = StringPrintf("Unable to read image header for %s at %s",
+                                    image_location, cache_filename.c_str());
           return nullptr;
         }
         if (sys_hdr->GetOatChecksum() != cache_hdr->GetOatChecksum()) {
-          LOG(FATAL) << "Unable to find a relocated version of image file " << image_location;
+          *error_msg = StringPrintf("Unable to find a relocated version of image file %s",
+                                    image_location);
           return nullptr;
         }
         return cache_hdr.release();
       } else if (!has_cache) {
-        LOG(FATAL) << "Unable to find a relocated version of image file " << image_location;
+        *error_msg = StringPrintf("Unable to find a relocated version of image file %s",
+                                  image_location);
         return nullptr;
       } else if (!has_system && has_cache) {
         // This can probably just use the cache one.
-        return ReadSpecificImageHeaderOrDie(cache_filename.c_str());
+        return ReadSpecificImageHeader(cache_filename.c_str(), error_msg);
       }
     } else {
       // We don't want to relocate, Just pick the appropriate one if we have it and return.
       if (has_system && has_cache) {
         // We want the cache if the checksum matches, otherwise the system.
-        std::unique_ptr<ImageHeader> system(ReadSpecificImageHeaderOrDie(system_filename.c_str()));
-        std::unique_ptr<ImageHeader> cache(ReadSpecificImageHeaderOrDie(cache_filename.c_str()));
+        std::unique_ptr<ImageHeader> system(ReadSpecificImageHeader(system_filename.c_str(),
+                                                                    error_msg));
+        std::unique_ptr<ImageHeader> cache(ReadSpecificImageHeader(cache_filename.c_str(),
+                                                                   error_msg));
         if (system.get() == nullptr ||
             (cache.get() != nullptr && cache->GetOatChecksum() == system->GetOatChecksum())) {
           return cache.release();
@@ -328,14 +344,14 @@ ImageHeader* ImageSpace::ReadImageHeaderOrDie(const char* image_location,
           return system.release();
         }
       } else if (has_system) {
-        return ReadSpecificImageHeaderOrDie(system_filename.c_str());
+        return ReadSpecificImageHeader(system_filename.c_str(), error_msg);
       } else if (has_cache) {
-        return ReadSpecificImageHeaderOrDie(cache_filename.c_str());
+        return ReadSpecificImageHeader(cache_filename.c_str(), error_msg);
       }
     }
   }
 
-  LOG(FATAL) << "Unable to find image file for: " << image_location;
+  *error_msg = StringPrintf("Unable to find image file for %s", image_location);
   return nullptr;
 }
 
@@ -563,12 +579,13 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
   CHECK_EQ(image_header.GetImageBegin(), map->Begin());
   DCHECK_EQ(0, memcmp(&image_header, map->Begin(), sizeof(ImageHeader)));
 
-  std::unique_ptr<MemMap> image_map(MemMap::MapFileAtAddress(nullptr, image_header.GetImageBitmapSize(),
-                                                       PROT_READ, MAP_PRIVATE,
-                                                       file->Fd(), image_header.GetBitmapOffset(),
-                                                       false,
-                                                       image_filename,
-                                                       error_msg));
+  std::unique_ptr<MemMap> image_map(
+      MemMap::MapFileAtAddress(nullptr, image_header.GetImageBitmapSize(),
+                               PROT_READ, MAP_PRIVATE,
+                               file->Fd(), image_header.GetBitmapOffset(),
+                               false,
+                               image_filename,
+                               error_msg));
   if (image_map.get() == nullptr) {
     *error_msg = StringPrintf("Failed to map image bitmap: %s", error_msg->c_str());
     return nullptr;
@@ -616,11 +633,14 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
   runtime->SetDefaultImt(down_cast<mirror::ObjectArray<mirror::ArtMethod>*>(default_imt));
 
   mirror::Object* callee_save_method = image_header.GetImageRoot(ImageHeader::kCalleeSaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method), Runtime::kSaveAll);
+  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method),
+                               Runtime::kSaveAll);
   callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsOnlySaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method), Runtime::kRefsOnly);
+  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method),
+                               Runtime::kRefsOnly);
   callee_save_method = image_header.GetImageRoot(ImageHeader::kRefsAndArgsSaveMethod);
-  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method), Runtime::kRefsAndArgs);
+  runtime->SetCalleeSaveMethod(down_cast<mirror::ArtMethod*>(callee_save_method),
+                               Runtime::kRefsAndArgs);
 
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "ImageSpace::Init exiting (" << PrettyDuration(NanoTime() - start_time)
