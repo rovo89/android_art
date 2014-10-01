@@ -1169,8 +1169,9 @@ uint16_t LocalValueNumbering::HandleIGet(MIR* mir, uint16_t opcode) {
   const MirFieldInfo& field_info = gvn_->GetMirGraph()->GetIFieldLoweringInfo(mir);
   uint16_t res;
   if (!field_info.IsResolved() || field_info.IsVolatile()) {
-    // Volatile fields always get a new memory version; field id is irrelevant.
     // Unresolved fields may be volatile, so handle them as such to be safe.
+    HandleInvokeOrClInitOrAcquireOp(mir);  // Volatile GETs have acquire semantics.
+    // Volatile fields always get a new memory version; field id is irrelevant.
     // Use result s_reg - will be unique.
     res = gvn_->LookupValue(kNoValue, mir->ssa_rep->defs[0], kNoValue, kNoValue);
   } else {
@@ -1269,14 +1270,16 @@ void LocalValueNumbering::HandleIPut(MIR* mir, uint16_t opcode) {
 
 uint16_t LocalValueNumbering::HandleSGet(MIR* mir, uint16_t opcode) {
   const MirSFieldLoweringInfo& field_info = gvn_->GetMirGraph()->GetSFieldLoweringInfo(mir);
-  if (!field_info.IsInitialized() && (mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0) {
-    // Class initialization can call arbitrary functions, we need to wipe aliasing values.
-    HandleInvokeOrClInit(mir);
+  if (!field_info.IsResolved() || field_info.IsVolatile() ||
+      (!field_info.IsInitialized() && (mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0)) {
+    // Volatile SGETs (and unresolved fields are potentially volatile) have acquire semantics
+    // and class initialization can call arbitrary functions, we need to wipe aliasing values.
+    HandleInvokeOrClInitOrAcquireOp(mir);
   }
   uint16_t res;
   if (!field_info.IsResolved() || field_info.IsVolatile()) {
-    // Volatile fields always get a new memory version; field id is irrelevant.
     // Unresolved fields may be volatile, so handle them as such to be safe.
+    // Volatile fields always get a new memory version; field id is irrelevant.
     // Use result s_reg - will be unique.
     res = gvn_->LookupValue(kNoValue, mir->ssa_rep->defs[0], kNoValue, kNoValue);
   } else {
@@ -1306,7 +1309,7 @@ void LocalValueNumbering::HandleSPut(MIR* mir, uint16_t opcode) {
   const MirSFieldLoweringInfo& field_info = gvn_->GetMirGraph()->GetSFieldLoweringInfo(mir);
   if (!field_info.IsInitialized() && (mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0) {
     // Class initialization can call arbitrary functions, we need to wipe aliasing values.
-    HandleInvokeOrClInit(mir);
+    HandleInvokeOrClInitOrAcquireOp(mir);
   }
   uint16_t type = opcode - Instruction::SPUT;
   if (!field_info.IsResolved()) {
@@ -1351,7 +1354,7 @@ void LocalValueNumbering::RemoveSFieldsForType(uint16_t type) {
   }
 }
 
-void LocalValueNumbering::HandleInvokeOrClInit(MIR* mir) {
+void LocalValueNumbering::HandleInvokeOrClInitOrAcquireOp(MIR* mir) {
   // Use mir->offset as modifier; without elaborate inlining, it will be unique.
   global_memory_version_ =
       gvn_->LookupValue(kInvokeMemoryVersionBumpOp, 0u, 0u, mir->offset);
@@ -1404,9 +1407,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
 
     case Instruction::MONITOR_ENTER:
       HandleNullCheck(mir, GetOperandValue(mir->ssa_rep->uses[0]));
-      // NOTE: Keeping all aliasing values intact. Programs that rely on loads/stores of the
-      // same non-volatile locations outside and inside a synchronized block being different
-      // contain races that we cannot fix.
+      HandleInvokeOrClInitOrAcquireOp(mir);  // Acquire operation.
       break;
 
     case Instruction::MONITOR_EXIT:
@@ -1468,7 +1469,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
           uint16_t reg = GetOperandValue(mir->ssa_rep->uses[i]);
           non_aliasing_refs_.erase(reg);
         }
-        HandleInvokeOrClInit(mir);
+        HandleInvokeOrClInitOrAcquireOp(mir);
       }
       break;
 
