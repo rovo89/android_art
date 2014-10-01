@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include "constant_folding.h"
+#include "constant_propagation.h"
 
 namespace art {
 
-void HConstantFolding::Run() {
+void ConstantPropagation::Run() {
   // Process basic blocks in reverse post-order in the dominator tree,
   // so that an instruction turned into a constant, used as input of
   // another instruction, may possibly be used to turn that second

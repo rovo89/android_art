@@ -61,7 +61,7 @@ class HGraphVisualizer : public ValueObject {
    * If this visualizer is enabled, emit the compilation information
    * in `output_`.
    */
-  void DumpGraph(const char* pass_name) const;
+  void DumpGraph(const char* pass_name);
 
  private:
   std::ostream* const output_;

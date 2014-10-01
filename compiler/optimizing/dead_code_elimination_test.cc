@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-#include "code_generator_x86.h"
 #include "dead_code_elimination.h"
+#include "pretty_printer.h"
 #include "graph_checker.h"
 #include "optimizing_unit_test.h"
-#include "pretty_printer.h"
 
 #include "gtest/gtest.h"
 
@@ -40,17 +39,16 @@ static void TestCode(const uint16_t* data,
   std::string actual_before = printer_before.str();
   ASSERT_EQ(actual_before, expected_before);
 
-  x86::CodeGeneratorX86 codegen(graph);
-  HGraphVisualizer visualizer(nullptr, graph, codegen, "");
-  HDeadCodeElimination(graph, visualizer).Run();
-  SSAChecker ssa_checker(&allocator, graph);
-  ssa_checker.VisitInsertionOrder();
-  ASSERT_TRUE(ssa_checker.IsValid());
+  DeadCodeElimination(graph).Run();
 
   StringPrettyPrinter printer_after(graph);
   printer_after.VisitInsertionOrder();
   std::string actual_after = printer_after.str();
   ASSERT_EQ(actual_after, expected_after);
+
+  SSAChecker ssa_checker(&allocator, graph);
+  ssa_checker.VisitInsertionOrder();
+  ASSERT_TRUE(ssa_checker.IsValid());
 }
 
 
@@ -96,7 +94,6 @@ TEST(DeadCodeElimination, AdditionAndConditionalJump) {
     "BasicBlock 5, pred: 1, succ: 3\n"
     "  21: Goto 3\n";
 
-  // Expected difference after dead code elimination.
   diff_t expected_diff = {
     { "  3: IntConstant [15, 22, 8]\n", "  3: IntConstant [22, 8]\n" },
     { "  22: Phi(3, 5) [15]\n",         "  22: Phi(3, 5)\n" },
@@ -167,7 +164,7 @@ TEST(DeadCodeElimination, AdditionsAndInconditionalJumps) {
     "BasicBlock 5, pred: 4\n"
     "  28: Exit\n";
 
-  // Expected difference after dead code elimination.
+  // Expected difference after constant propagation.
   diff_t expected_diff = {
     { "  13: IntConstant [14]\n", removed },
     { "  24: IntConstant [25]\n", removed },

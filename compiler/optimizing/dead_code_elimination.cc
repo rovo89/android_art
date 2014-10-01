@@ -20,7 +20,7 @@
 
 namespace art {
 
-void HDeadCodeElimination::Run() {
+void DeadCodeElimination::Run() {
   // Process basic blocks in post-order in the dominator tree, so that
   // a dead instruction depending on another dead instruction is
   // removed.
