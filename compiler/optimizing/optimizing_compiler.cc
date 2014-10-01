@@ -22,8 +22,6 @@
 #include "builder.h"
 #include "code_generator.h"
 #include "compiler.h"
-#include "constant_folding.h"
-#include "dead_code_elimination.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
 #include "graph_visualizer.h"
@@ -261,9 +259,6 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     graph->TransformToSSA();
     visualizer.DumpGraph("ssa");
     graph->FindNaturalLoops();
-
-    HDeadCodeElimination(graph, visualizer).Execute();
-    HConstantFolding(graph, visualizer).Execute();
 
     SsaRedundantPhiElimination(graph).Run();
     SsaDeadPhiElimination(graph).Run();
