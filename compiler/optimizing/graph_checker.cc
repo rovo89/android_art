@@ -264,19 +264,36 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
 void SSAChecker::VisitInstruction(HInstruction* instruction) {
   super_type::VisitInstruction(instruction);
 
-  // Ensure an instruction dominates all its uses (or in the present
-  // case, that all uses of an instruction (used as input) are
-  // dominated by its definition).
-  for (HInputIterator input_it(instruction); !input_it.Done();
-       input_it.Advance()) {
-    HInstruction* input = input_it.Current();
-    if (!input->Dominates(instruction)) {
+  // Ensure an instruction dominates all its uses.
+  for (HUseIterator<HInstruction> use_it(instruction->GetUses());
+       !use_it.Done(); use_it.Advance()) {
+    HInstruction* use = use_it.Current()->GetUser();
+    if (!use->IsPhi() && !instruction->Dominates(use)) {
       std::stringstream error;
-      error << "Instruction " << input->GetId()
-            << " in block " << input->GetBlock()->GetBlockId()
-            << " does not dominate use " << instruction->GetId()
-            << " in block " << current_block_->GetBlockId() << ".";
+      error << "Instruction " << instruction->GetId()
+            << " in block " << current_block_->GetBlockId()
+            << " does not dominate use " << use->GetId()
+            << " in block " << use->GetBlock()->GetBlockId() << ".";
       errors_.Insert(error.str());
+    }
+  }
+
+  // Ensure an instruction having an environment is dominated by the
+  // instructions contained in the environment.
+  HEnvironment* environment = instruction->GetEnvironment();
+  if (environment != nullptr) {
+    for (size_t i = 0, e = environment->Size(); i < e; ++i) {
+      HInstruction* env_instruction = environment->GetInstructionAt(i);
+      if (env_instruction != nullptr
+          && !env_instruction->Dominates(instruction)) {
+        std::stringstream error;
+        error << "Instruction " << env_instruction->GetId()
+              << " in environment of instruction " << instruction->GetId()
+              << " from block " << current_block_->GetBlockId()
+              << " does not dominate instruction " << instruction->GetId()
+              << ".";
+        errors_.Insert(error.str());
+      }
     }
   }
 }
