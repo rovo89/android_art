@@ -141,7 +141,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/oat_test.cc \
   compiler/optimizing/codegen_test.cc \
   compiler/optimizing/dead_code_elimination_test.cc \
-  compiler/optimizing/constant_folding_test.cc \
+  compiler/optimizing/constant_propagation_test.cc \
   compiler/optimizing/dominator_test.cc \
   compiler/optimizing/find_loops_test.cc \
   compiler/optimizing/graph_checker_test.cc \
