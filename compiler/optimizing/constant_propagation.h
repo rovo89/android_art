@@ -14,28 +14,30 @@
  * limitations under the License.
  */
 
-#include "optimization.h"
+#ifndef ART_COMPILER_OPTIMIZING_CONSTANT_PROPAGATION_H_
+#define ART_COMPILER_OPTIMIZING_CONSTANT_PROPAGATION_H_
 
-#include "graph_checker.h"
+#include "nodes.h"
 
 namespace art {
 
-void HOptimization::Execute() {
-  Run();
-  visualizer_.DumpGraph(pass_name_);
-  Check();
-}
+/**
+ * Optimization pass performing a simple constant propagation on the
+ * SSA form.
+ */
+class ConstantPropagation : public ValueObject {
+ public:
+  explicit ConstantPropagation(HGraph* graph)
+    : graph_(graph) {}
 
-void HOptimization::Check() {
-  if (kIsDebugBuild) {
-    if (is_in_ssa_form_) {
-      SSAChecker checker(graph_->GetArena(), graph_);
-      CheckInternal(&checker);
-    } else {
-      GraphChecker checker(graph_->GetArena(), graph_);
-      CheckInternal(&checker);
-    }
-  }
-}
+  void Run();
+
+ private:
+  HGraph* const graph_;
+
+  DISALLOW_COPY_AND_ASSIGN(ConstantPropagation);
+};
 
 }  // namespace art
+
+#endif  // ART_COMPILER_OPTIMIZING_CONSTANT_PROPAGATION_H_
