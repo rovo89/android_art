@@ -1127,37 +1127,51 @@ bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
   LoadValueDirectFixed(rl_src, rs_rAX);
   LoadWordDisp(rs_rAX, mirror::Array::LengthOffset().Int32Value(), rs_rAX);
   LIR* src_bad_len  = nullptr;
+  LIR* src_bad_off = nullptr;
   LIR* srcPos_negative  = nullptr;
   if (!rl_srcPos.is_const) {
     LoadValueDirectFixed(rl_srcPos, tmp_reg);
     srcPos_negative  = OpCmpImmBranch(kCondLt, tmp_reg, 0, nullptr);
-    OpRegReg(kOpAdd, tmp_reg, rs_rDX);
-    src_bad_len  = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
+    // src_pos < src_len
+    src_bad_off = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
+    // src_len - src_pos < copy_len
+    OpRegRegReg(kOpSub, tmp_reg, rs_rAX, tmp_reg);
+    src_bad_len = OpCmpBranch(kCondLt, tmp_reg, rs_rDX, nullptr);
   } else {
     int32_t pos_val = mir_graph_->ConstantValue(rl_srcPos.orig_sreg);
     if (pos_val == 0) {
       src_bad_len  = OpCmpBranch(kCondLt, rs_rAX, rs_rDX, nullptr);
     } else {
-      OpRegRegImm(kOpAdd, tmp_reg,  rs_rDX, pos_val);
-      src_bad_len  = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
+      // src_pos < src_len
+      src_bad_off = OpCmpImmBranch(kCondLt, rs_rAX, pos_val, nullptr);
+      // src_len - src_pos < copy_len
+      OpRegRegImm(kOpSub, tmp_reg, rs_rAX, pos_val);
+      src_bad_len = OpCmpBranch(kCondLt, tmp_reg, rs_rDX, nullptr);
     }
   }
   LIR* dstPos_negative = nullptr;
   LIR* dst_bad_len = nullptr;
+  LIR* dst_bad_off = nullptr;
   LoadValueDirectFixed(rl_dst, rs_rAX);
   LoadWordDisp(rs_rAX, mirror::Array::LengthOffset().Int32Value(), rs_rAX);
   if (!rl_dstPos.is_const) {
     LoadValueDirectFixed(rl_dstPos, tmp_reg);
     dstPos_negative = OpCmpImmBranch(kCondLt, tmp_reg, 0, nullptr);
-    OpRegRegReg(kOpAdd, tmp_reg, tmp_reg, rs_rDX);
-    dst_bad_len = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
+    // dst_pos < dst_len
+    dst_bad_off = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
+    // dst_len - dst_pos < copy_len
+    OpRegRegReg(kOpSub, tmp_reg, rs_rAX, tmp_reg);
+    dst_bad_len = OpCmpBranch(kCondLt, tmp_reg, rs_rDX, nullptr);
   } else {
     int32_t pos_val = mir_graph_->ConstantValue(rl_dstPos.orig_sreg);
     if (pos_val == 0) {
       dst_bad_len = OpCmpBranch(kCondLt, rs_rAX, rs_rDX, nullptr);
     } else {
-      OpRegRegImm(kOpAdd, tmp_reg,  rs_rDX, pos_val);
-      dst_bad_len = OpCmpBranch(kCondLt, rs_rAX, tmp_reg, nullptr);
+      // dst_pos < dst_len
+      dst_bad_off = OpCmpImmBranch(kCondLt, rs_rAX, pos_val, nullptr);
+      // dst_len - dst_pos < copy_len
+      OpRegRegImm(kOpSub, tmp_reg, rs_rAX, pos_val);
+      dst_bad_len = OpCmpBranch(kCondLt, tmp_reg, rs_rDX, nullptr);
     }
   }
   // Everything is checked now.
@@ -1201,11 +1215,15 @@ bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
   src_null_branch->target = check_failed;
   if (srcPos_negative != nullptr)
     srcPos_negative ->target = check_failed;
+  if (src_bad_off != nullptr)
+    src_bad_off->target = check_failed;
   if (src_bad_len != nullptr)
     src_bad_len->target = check_failed;
   dst_null_branch->target = check_failed;
   if (dstPos_negative != nullptr)
     dstPos_negative->target = check_failed;
+  if (dst_bad_off != nullptr)
+    dst_bad_off->target = check_failed;
   if (dst_bad_len != nullptr)
     dst_bad_len->target = check_failed;
   AddIntrinsicSlowPath(info, launchpad_branch, return_point);
