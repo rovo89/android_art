@@ -47,9 +47,16 @@ class ImageSpace : public MemMapSpace {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Reads the image header from the specified image location for the
-  // instruction set image_isa.
+  // instruction set image_isa or dies trying.
   static ImageHeader* ReadImageHeaderOrDie(const char* image_location,
                                            InstructionSet image_isa);
+
+  // Reads the image header from the specified image location for the
+  // instruction set image_isa. Returns nullptr on failure, with
+  // reason in error_msg.
+  static ImageHeader* ReadImageHeader(const char* image_location,
+                                      InstructionSet image_isa,
+                                      std::string* error_msg);
 
   // Give access to the OatFile.
   const OatFile* GetOatFile() const;
