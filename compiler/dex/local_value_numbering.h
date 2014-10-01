@@ -308,7 +308,7 @@ class LocalValueNumbering {
   uint16_t HandleSGet(MIR* mir, uint16_t opcode);
   void HandleSPut(MIR* mir, uint16_t opcode);
   void RemoveSFieldsForType(uint16_t type);
-  void HandleInvokeOrClInit(MIR* mir);
+  void HandleInvokeOrClInitOrAcquireOp(MIR* mir);
 
   bool SameMemoryVersion(const LocalValueNumbering& other) const;
 
