@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_OPTIMIZING_DEAD_CODE_ELIMINATION_H_
-#define ART_COMPILER_OPTIMIZING_DEAD_CODE_ELIMINATION_H_
+#ifndef ART_COMPILER_OPTIMIZING_CONSTANT_FOLDING_H_
+#define ART_COMPILER_OPTIMIZING_CONSTANT_FOLDING_H_
 
 #include "nodes.h"
 #include "optimization.h"
@@ -23,23 +23,26 @@
 namespace art {
 
 /**
- * Optimization pass performing dead code elimination (removal of
- * unused variables/instructions) on the SSA form.
+ * Optimization pass performing a simple constant-expression
+ * evaluation on the SSA form.
+ *
+ * This class is named art::HConstantFolding to avoid name
+ * clashes with the art::ConstantPropagation class defined in
+ * compiler/dex/post_opt_passes.h.
  */
-class HDeadCodeElimination : public HOptimization {
+class HConstantFolding : public HOptimization {
  public:
-  HDeadCodeElimination(HGraph* graph, const HGraphVisualizer& visualizer)
-      : HOptimization(graph, true, kDeadCodeEliminationPassName, visualizer) {}
+  HConstantFolding(HGraph* graph, const HGraphVisualizer& visualizer)
+      : HOptimization(graph, true, kConstantFoldingPassName, visualizer) {}
 
   virtual void Run() OVERRIDE;
 
-  static constexpr const char* kDeadCodeEliminationPassName =
-    "dead_code_elimination";
+  static constexpr const char* kConstantFoldingPassName = "constant_folding";
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(HDeadCodeElimination);
+  DISALLOW_COPY_AND_ASSIGN(HConstantFolding);
 };
 
 }  // namespace art
 
-#endif  // ART_COMPILER_OPTIMIZING_DEAD_CODE_ELIMINATION_H_
+#endif  // ART_COMPILER_OPTIMIZING_CONSTANT_FOLDING_H_
