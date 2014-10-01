@@ -1209,6 +1209,7 @@ bool X86Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
   if (dst_bad_len != nullptr)
     dst_bad_len->target = check_failed;
   AddIntrinsicSlowPath(info, launchpad_branch, return_point);
+  ClobberCallerSave();  // We must clobber everything because slow path will return here
   return true;
 }
 
@@ -1403,6 +1404,7 @@ bool X86Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
   if (slowpath_branch != nullptr) {
     LIR *return_point = NewLIR0(kPseudoTargetLabel);
     AddIntrinsicSlowPath(info, slowpath_branch, return_point);
+    ClobberCallerSave();  // We must clobber everything because slow path will return here
   }
 
   StoreValue(rl_dest, rl_return);
