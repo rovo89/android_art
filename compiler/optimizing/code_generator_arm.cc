@@ -657,18 +657,14 @@ void LocationsBuilderARM::VisitIf(HIf* if_instr) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(if_instr, LocationSummary::kNoCall);
   HInstruction* cond = if_instr->InputAt(0);
-  DCHECK(cond->IsCondition());
-  HCondition* condition = cond->AsCondition();
-  if (condition->NeedsMaterialization()) {
+  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
     locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
   }
 }
 
 void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
   HInstruction* cond = if_instr->InputAt(0);
-  DCHECK(cond->IsCondition());
-  HCondition* condition = cond->AsCondition();
-  if (condition->NeedsMaterialization()) {
+  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
     // Condition has been materialized, compare the output to 0
     DCHECK(if_instr->GetLocations()->InAt(0).IsRegister());
     __ cmp(if_instr->GetLocations()->InAt(0).AsArm().AsCoreRegister(),
@@ -677,7 +673,7 @@ void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
   } else {
     // Condition has not been materialized, use its inputs as the comparison and its
     // condition as the branch condition.
-    LocationSummary* locations = condition->GetLocations();
+    LocationSummary* locations = cond->GetLocations();
     if (locations->InAt(1).IsRegister()) {
       __ cmp(locations->InAt(0).AsArm().AsCoreRegister(),
              ShifterOperand(locations->InAt(1).AsArm().AsCoreRegister()));
@@ -694,7 +690,7 @@ void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
       }
     }
     __ b(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()),
-         ARMCondition(condition->GetCondition()));
+         ARMCondition(cond->AsCondition()->GetCondition()));
   }
 
   if (!codegen_->GoesToNextBlock(if_instr->GetBlock(), if_instr->IfFalseSuccessor())) {
