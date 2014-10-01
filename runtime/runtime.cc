@@ -684,6 +684,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   compiler_executable_ = options->compiler_executable_;
   compiler_options_ = options->compiler_options_;
   image_compiler_options_ = options->image_compiler_options_;
+  image_location_ = options->image_;
 
   max_spins_before_thin_lock_inflation_ = options->max_spins_before_thin_lock_inflation_;
 

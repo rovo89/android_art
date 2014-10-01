@@ -16,6 +16,7 @@
 
 #include <limits.h>
 
+#include "ScopedUtfChars.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"
 #include "debugger.h"
@@ -24,6 +25,8 @@
 #include "gc/allocator/dlmalloc.h"
 #include "gc/heap.h"
 #include "gc/space/dlmalloc_space.h"
+#include "gc/space/image_space.h"
+#include "instruction_set.h"
 #include "intern_table.h"
 #include "jni_internal.h"
 #include "mirror/art_method-inl.h"
@@ -90,7 +93,8 @@ static jobject VMRuntime_newUnpaddedArray(JNIEnv* env, jobject, jclass javaEleme
     return nullptr;
   }
   Runtime* runtime = Runtime::Current();
-  mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(soa.Self(), &element_class);
+  mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(soa.Self(),
+                                                                         &element_class);
   if (UNLIKELY(array_class == nullptr)) {
     return nullptr;
   }
@@ -518,6 +522,28 @@ static void VMRuntime_registerAppInfo(JNIEnv* env, jclass, jstring pkgName,
   env->ReleaseStringUTFChars(pkgName, pkgNameChars);
 }
 
+static jboolean VMRuntime_isBootClassPathOnDisk(JNIEnv* env, jclass, jstring java_instruction_set) {
+  ScopedUtfChars instruction_set(env, java_instruction_set);
+  if (instruction_set.c_str() == nullptr) {
+    return JNI_FALSE;
+  }
+  InstructionSet isa = GetInstructionSetFromString(instruction_set.c_str());
+  if (isa == kNone) {
+    ScopedLocalRef<jclass> iae(env, env->FindClass("java/lang/IllegalArgumentException"));
+    std::string message(StringPrintf("Instruction set %s is invalid.", instruction_set.c_str()));
+    env->ThrowNew(iae.get(), message.c_str());
+    return JNI_FALSE;
+  }
+  std::string error_msg;
+  std::unique_ptr<ImageHeader> image_header(gc::space::ImageSpace::ReadImageHeader(
+      Runtime::Current()->GetImageLocation().c_str(), isa, &error_msg));
+  return image_header.get() != nullptr;
+}
+
+static jstring VMRuntime_getCurrentInstructionSet(JNIEnv* env, jclass) {
+  return env->NewStringUTF(GetInstructionSetString(kRuntimeISA));
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, addressOf, "!(Ljava/lang/Object;)J"),
   NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
@@ -543,7 +569,10 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, is64Bit, "!()Z"),
   NATIVE_METHOD(VMRuntime, isCheckJniEnabled, "!()Z"),
   NATIVE_METHOD(VMRuntime, preloadDexCaches, "()V"),
-  NATIVE_METHOD(VMRuntime, registerAppInfo, "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"),
+  NATIVE_METHOD(VMRuntime, registerAppInfo,
+                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V"),
+  NATIVE_METHOD(VMRuntime, isBootClassPathOnDisk, "(Ljava/lang/String;)Z"),
+  NATIVE_METHOD(VMRuntime, getCurrentInstructionSet, "()Ljava/lang/String;"),
 };
 
 void register_dalvik_system_VMRuntime(JNIEnv* env) {

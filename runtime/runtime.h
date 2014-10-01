@@ -137,6 +137,10 @@ class Runtime {
     return image_compiler_options_;
   }
 
+  const std::string& GetImageLocation() const {
+    return image_location_;
+  }
+
   const ProfilerOptions& GetProfilerOptions() const {
     return profiler_options_;
   }
@@ -528,6 +532,7 @@ class Runtime {
   std::string patchoat_executable_;
   std::vector<std::string> compiler_options_;
   std::vector<std::string> image_compiler_options_;
+  std::string image_location_;
 
   std::string boot_class_path_string_;
   std::string class_path_string_;
