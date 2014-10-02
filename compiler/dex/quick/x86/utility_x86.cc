@@ -1113,20 +1113,18 @@ void X86Mir2Lir::AnalyzeInvokeStatic(int opcode, BasicBlock * bb, MIR *mir) {
   }
 
   uint32_t index = mir->dalvikInsn.vB;
-  if (!(mir->optimization_flags & MIR_INLINED)) {
-    DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
-    DexFileMethodInliner* method_inliner =
-      cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file);
-    InlineMethod method;
-    if (method_inliner->IsIntrinsic(index, &method)) {
-      switch (method.opcode) {
-        case kIntrinsicAbsDouble:
-        case kIntrinsicMinMaxDouble:
-          store_method_addr_ = true;
-          break;
-        default:
-          break;
-      }
+  DCHECK(cu_->compiler_driver->GetMethodInlinerMap() != nullptr);
+  DexFileMethodInliner* method_inliner =
+    cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file);
+  InlineMethod method;
+  if (method_inliner->IsIntrinsic(index, &method)) {
+    switch (method.opcode) {
+      case kIntrinsicAbsDouble:
+      case kIntrinsicMinMaxDouble:
+        store_method_addr_ = true;
+        break;
+      default:
+        break;
     }
   }
 }
