@@ -474,7 +474,6 @@ bool Arm64Mir2Lir::SmallLiteralDivRem64(Instruction::Code dalvik_opcode, bool is
       } else {
         reconstructed_imm = base + 1;
       }
-      DCHECK_EQ(reconstructed_imm, magic_table[lit].magic64) << " for literal " << lit;
     }
 
     // Load the magic constant in two instructions.
