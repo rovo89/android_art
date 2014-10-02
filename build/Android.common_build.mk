@@ -122,7 +122,7 @@ ifneq ($(WITHOUT_HOST_CLANG),true)
 endif
 
 # Clang on the target. Target builds use GCC by default.
-ART_TARGET_CLANG :=
+ART_TARGET_CLANG := false
 ART_TARGET_CLANG_arm :=
 ART_TARGET_CLANG_arm64 :=
 ART_TARGET_CLANG_mips :=
@@ -168,7 +168,7 @@ ART_TARGET_CLANG_CFLAGS_mips :=
 ART_TARGET_CLANG_CFLAGS_x86 :=
 ART_TARGET_CLANG_CFLAGS_x86_64 :=
 
-# these are necessary for Clang ARM64 ART builds
+# These are necessary for Clang ARM64 ART builds. TODO: remove.
 ART_TARGET_CLANG_CFLAGS_arm64  += \
   -Wno-implicit-exception-spec-mismatch \
   -DNVALGRIND \
@@ -235,6 +235,14 @@ ifndef LIBART_IMG_TARGET_MAX_BASE_ADDRESS_DELTA
 endif
 ART_TARGET_CFLAGS += -DART_BASE_ADDRESS_MIN_DELTA=$(LIBART_IMG_TARGET_MIN_BASE_ADDRESS_DELTA)
 ART_TARGET_CFLAGS += -DART_BASE_ADDRESS_MAX_DELTA=$(LIBART_IMG_TARGET_MAX_BASE_ADDRESS_DELTA)
+
+# Colorize clang compiler warnings.
+ifeq ($(ART_HOST_CLANG),true)
+  ART_HOST_CFLAGS += -fcolor-diagnostics
+endif
+ifeq ($(ART_TARGET_CLANG),true)
+  ART_TARGET_CFLAGS += -fcolor-diagnostics
+endif
 
 ART_TARGET_LDFLAGS :=
 ifeq ($(TARGET_CPU_SMP),true)
