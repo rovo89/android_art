@@ -568,8 +568,6 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
                                       const uint16_t* code_ptr, const uint16_t* code_end) {
   bool in_try_block = try_block_addr->IsBitSet(cur_offset);
   bool is_throw = (insn->dalvikInsn.opcode == Instruction::THROW);
-  bool build_all_edges =
-      (cu_->disable_opt & (1 << kSuppressExceptionEdges)) || is_throw || in_try_block;
 
   /* In try block */
   if (in_try_block) {
@@ -605,6 +603,8 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
     }
     in_try_block = (cur_block->successor_block_list_type != kNotUsed);
   }
+  bool build_all_edges =
+      (cu_->disable_opt & (1 << kSuppressExceptionEdges)) || is_throw || in_try_block;
   if (!in_try_block && build_all_edges) {
     BasicBlock* eh_block = CreateNewBB(kExceptionHandling);
     cur_block->taken = eh_block->id;
