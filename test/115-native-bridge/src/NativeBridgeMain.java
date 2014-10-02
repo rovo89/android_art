@@ -15,6 +15,7 @@
  */
 
 import java.lang.reflect.Method;
+import java.lang.System;
 
 // This is named Main as it is a copy of JniTest, so that we can re-use the native implementations
 // from libarttest.
@@ -29,6 +30,7 @@ class Main {
         testShortMethod();
         testBooleanMethod();
         testCharMethod();
+        testEnvironment();
     }
 
     public static native void testFindClassOnAttachedNativeThread();
@@ -146,6 +148,24 @@ class Main {
           throw new AssertionError();
         }
       }
+    }
+
+    private static void testEnvironment() {
+      String osArch = System.getProperty("os.arch");
+      if (!"os.arch".equals(osArch)) {
+        throw new AssertionError("unexpected value for os.arch: " + osArch);
+      }
+      // TODO: improve the build script to get these running as well.
+      // if (!"cpu_abi".equals(Build.CPU_ABI)) {
+      //   throw new AssertionError("unexpected value for cpu_abi");
+      // }
+      // if (!"cpu_abi2".equals(Build.CPU_ABI2)) {
+      //   throw new AssertionError("unexpected value for cpu_abi2");
+      // }
+      // String[] expectedSupportedAbis = {"supported1", "supported2", "supported3"};
+      // if (Arrays.equals(expectedSupportedAbis, Build.SUPPORTED_ABIS)) {
+      //   throw new AssertionError("unexpected value for supported_abis");
+      // }
     }
 }
 
