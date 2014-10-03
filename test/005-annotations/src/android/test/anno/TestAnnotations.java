@@ -149,26 +149,24 @@ public class TestAnnotations {
 
         testArrays();
         testArrayProblem();
-        //System.exit(0);
 
         System.out.println(
             "AnnoSimpleField " + AnnoSimpleField.class.isAnnotation() +
             ", SimplyNoted " + SimplyNoted.class.isAnnotation());
 
-        Class clazz;
-        clazz = SimplyNoted.class;
-        printAnnotations(clazz);
-        clazz = INoted.class;
-        printAnnotations(clazz);
-        clazz = SubNoted.class;
-        printAnnotations(clazz);
-        clazz = FullyNoted.class;
-        printAnnotations(clazz);
+        printAnnotations(SimplyNoted.class);
+        printAnnotations(INoted.class);
+        printAnnotations(SubNoted.class);
+        printAnnotations(FullyNoted.class);
 
-        Annotation anno;
+        try {
+            ClassWithInnerAnnotationClass.class.getDeclaredClasses();
+            throw new AssertionError();
+        } catch (NoClassDefFoundError expected) {
+        }
 
         // this is expected to be non-null
-        anno = SimplyNoted.class.getAnnotation(AnnoSimpleType.class);
+        Annotation anno = SimplyNoted.class.getAnnotation(AnnoSimpleType.class);
         System.out.println("SimplyNoted.get(AnnoSimpleType) = " + anno);
         // this is non-null if the @Inherited tag is present
         anno = SubNoted.class.getAnnotation(AnnoSimpleType.class);

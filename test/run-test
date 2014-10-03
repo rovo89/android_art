@@ -93,6 +93,7 @@ while true; do
     elif [ "x$1" = "x--jvm" ]; then
         target_mode="no"
         runtime="jvm"
+        prebuild_mode="no"
         NEED_DEX="false"
         shift
     elif [ "x$1" = "x-O" ]; then
