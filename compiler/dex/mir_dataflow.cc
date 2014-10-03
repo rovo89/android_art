@@ -1163,7 +1163,7 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
     if (!MIR::DecodedInstruction::IsPseudoMirOp(mir->dalvikInsn.opcode)) {
       int flags = mir->dalvikInsn.FlagsOf();
 
-      if ((flags & Instruction::kInvoke) != 0 && (mir->optimization_flags & MIR_INLINED) == 0) {
+      if ((flags & Instruction::kInvoke) != 0) {
         attributes_ &= ~METHOD_IS_LEAF;
       }
     }
