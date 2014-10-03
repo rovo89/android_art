@@ -1991,7 +1991,7 @@ void X86_64Assembler::LoadRef(ManagedRegister mdest, ManagedRegister base,
                            MemberOffset offs) {
   X86_64ManagedRegister dest = mdest.AsX86_64();
   CHECK(dest.IsCpuRegister() && dest.IsCpuRegister());
-  movq(dest.AsCpuRegister(), Address(base.AsX86_64().AsCpuRegister(), offs));
+  movl(dest.AsCpuRegister(), Address(base.AsX86_64().AsCpuRegister(), offs));
   if (kPoisonHeapReferences) {
     negl(dest.AsCpuRegister());
   }
