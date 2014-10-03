@@ -118,9 +118,11 @@ while true; do
         relocate="no"
         shift
     elif [ "x$1" = "x--prebuild" ]; then
+        run_args="${run_args} --prebuild"
         prebuild_mode="yes"
         shift;
     elif [ "x$1" = "x--no-prebuild" ]; then
+        run_args="${run_args} --no-prebuild"
         prebuild_mode="no"
         shift;
     elif [ "x$1" = "x--gcverify" ]; then
@@ -263,13 +265,6 @@ if [ "$target_mode" = "no" ]; then
         fi
     else
         RUN="${progdir}/etc/host-run-test-jar"
-        if [ "$prebuild_mode" = "yes" ]; then
-            run_args="${run_args} --prebuild"
-        fi
-    fi
-else
-    if [ "$prebuild_mode" = "yes" ]; then
-        RUN="${progdir}/etc/push-and-run-prebuilt-test-jar"
     fi
 fi
 
