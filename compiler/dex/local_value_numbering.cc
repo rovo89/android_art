@@ -1463,14 +1463,12 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
       // Intentional fall-through.
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_STATIC_RANGE:
-      if ((mir->optimization_flags & MIR_INLINED) == 0) {
-        // Make ref args aliasing.
-        for (size_t i = 0u, count = mir->ssa_rep->num_uses; i != count; ++i) {
-          uint16_t reg = GetOperandValue(mir->ssa_rep->uses[i]);
-          non_aliasing_refs_.erase(reg);
-        }
-        HandleInvokeOrClInitOrAcquireOp(mir);
+      // Make ref args aliasing.
+      for (size_t i = 0u, count = mir->ssa_rep->num_uses; i != count; ++i) {
+        uint16_t reg = GetOperandValue(mir->ssa_rep->uses[i]);
+        non_aliasing_refs_.erase(reg);
       }
+      HandleInvokeOrClInitOrAcquireOp(mir);
       break;
 
     case Instruction::MOVE_RESULT:

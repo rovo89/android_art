@@ -500,17 +500,11 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       break;
 
     case Instruction::MOVE_RESULT_WIDE:
-      if ((opt_flags & MIR_INLINED) != 0) {
-        break;  // Nop - combined w/ previous invoke.
-      }
       StoreValueWide(rl_dest, GetReturnWide(LocToRegClass(rl_dest)));
       break;
 
     case Instruction::MOVE_RESULT:
     case Instruction::MOVE_RESULT_OBJECT:
-      if ((opt_flags & MIR_INLINED) != 0) {
-        break;  // Nop - combined w/ previous invoke.
-      }
       StoreValue(rl_dest, GetReturn(LocToRegClass(rl_dest)));
       break;
 
@@ -867,7 +861,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
 
     case Instruction::INVOKE_STATIC_RANGE:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kStatic, true));
-      if (!kLeafOptimization && (opt_flags & MIR_INLINED) == 0) {
+      if (!kLeafOptimization) {
         // If the invocation is not inlined, we can assume there is already a
         // suspend check at the return site
         mir_graph_->AppendGenSuspendTestList(bb);
@@ -875,59 +869,59 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       break;
     case Instruction::INVOKE_STATIC:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kStatic, false));
-      if (!kLeafOptimization && (opt_flags & MIR_INLINED) == 0) {
+      if (!kLeafOptimization) {
         mir_graph_->AppendGenSuspendTestList(bb);
       }
       break;
 
     case Instruction::INVOKE_DIRECT:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kDirect, false));
-      if (!kLeafOptimization && (opt_flags & MIR_INLINED) == 0) {
+      if (!kLeafOptimization) {
         mir_graph_->AppendGenSuspendTestList(bb);
       }
       break;
     case Instruction::INVOKE_DIRECT_RANGE:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kDirect, true));
-      if (!kLeafOptimization && (opt_flags & MIR_INLINED) == 0) {
+      if (!kLeafOptimization) {
         mir_graph_->AppendGenSuspendTestList(bb);
       }
       break;
 
     case Instruction::INVOKE_VIRTUAL:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kVirtual, false));
-      if (!kLeafOptimization && (opt_flags & MIR_INLINED) == 0) {
+      if (!kLeafOptimization) {
         mir_graph_->AppendGenSuspendTestList(bb);
       }
       break;
     case Instruction::INVOKE_VIRTUAL_RANGE:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kVirtual, true));
-      if (!kLeafOptimization && (opt_flags & MIR_INLINED) == 0) {
+      if (!kLeafOptimization) {
         mir_graph_->AppendGenSuspendTestList(bb);
       }
       break;
 
     case Instruction::INVOKE_SUPER:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kSuper, false));
-      if (!kLeafOptimization && (opt_flags & MIR_INLINED) == 0) {
+      if (!kLeafOptimization) {
         mir_graph_->AppendGenSuspendTestList(bb);
       }
       break;
     case Instruction::INVOKE_SUPER_RANGE:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kSuper, true));
-      if (!kLeafOptimization && (opt_flags & MIR_INLINED) == 0) {
+      if (!kLeafOptimization) {
         mir_graph_->AppendGenSuspendTestList(bb);
       }
       break;
 
     case Instruction::INVOKE_INTERFACE:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kInterface, false));
-      if (!kLeafOptimization && (opt_flags & MIR_INLINED) == 0) {
+      if (!kLeafOptimization) {
         mir_graph_->AppendGenSuspendTestList(bb);
       }
       break;
     case Instruction::INVOKE_INTERFACE_RANGE:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kInterface, true));
-      if (!kLeafOptimization && (opt_flags & MIR_INLINED) == 0) {
+      if (!kLeafOptimization) {
         mir_graph_->AppendGenSuspendTestList(bb);
       }
       break;
