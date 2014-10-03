@@ -36,6 +36,8 @@
 
 namespace art {
 
+static constexpr uint64_t kLongWaitMs = 100;
+
 /*
  * Every Object has a monitor associated with it, but not every Object is actually locked.  Even
  * the ones that are locked do not need a full-fledged monitor until a) there is actual contention
@@ -250,6 +252,7 @@ void Monitor::Lock(Thread* self) {
     mirror::ArtMethod* owners_method = locking_method_;
     uint32_t owners_dex_pc = locking_dex_pc_;
     // Do this before releasing the lock so that we don't get deflated.
+    size_t num_waiters = num_waiters_;
     ++num_waiters_;
     monitor_lock_.Unlock(self);  // Let go of locks in order.
     self->SetMonitorEnterObject(GetObject());
@@ -271,6 +274,12 @@ void Monitor::Lock(Thread* self) {
             const char* owners_filename;
             uint32_t owners_line_number;
             TranslateLocation(owners_method, owners_dex_pc, &owners_filename, &owners_line_number);
+            if (wait_ms > kLongWaitMs && owners_method != nullptr) {
+              LOG(WARNING) << "Long monitor contention event with owner method="
+                  << PrettyMethod(owners_method) << " from " << owners_filename << ":"
+                  << owners_line_number << " waiters=" << num_waiters << " for "
+                  << PrettyDuration(MsToNs(wait_ms));
+            }
             LogContentionEvent(self, wait_ms, sample_percent, owners_filename, owners_line_number);
           }
         }
