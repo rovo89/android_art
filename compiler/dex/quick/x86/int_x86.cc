@@ -1155,7 +1155,7 @@ bool X86Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
     LockTemp(rs_r0);
 
     RegLocation rl_object = LoadValue(rl_src_obj, kRefReg);
-    RegLocation rl_new_value = LoadValue(rl_src_new_value);
+    RegLocation rl_new_value = LoadValue(rl_src_new_value, LocToRegClass(rl_src_new_value));
 
     if (is_object && !mir_graph_->IsConstantNullRef(rl_new_value)) {
       // Mark card for object assuming new value is stored.

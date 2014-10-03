@@ -1008,8 +1008,6 @@ class Mir2Lir : public Backend {
     }
     // Load Dalvik value with 32-bit memory storage.  If compressed object reference, decompress.
     virtual RegLocation LoadValue(RegLocation rl_src, RegisterClass op_kind);
-    // Same as above, but derive the target register class from the location record.
-    virtual RegLocation LoadValue(RegLocation rl_src);
     // Load Dalvik value with 64-bit memory storage.
     virtual RegLocation LoadValueWide(RegLocation rl_src, RegisterClass op_kind);
     // Load Dalvik value with 32-bit memory storage.  If compressed object reference, decompress.
