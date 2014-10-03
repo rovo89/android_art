@@ -566,7 +566,6 @@ bool DexFileMethodInliner::GenInline(MIRGraph* mir_graph, BasicBlock* bb, MIR* i
       break;
   }
   if (result) {
-    invoke->optimization_flags |= MIR_INLINED;
     // If the invoke has not been eliminated yet, check now whether we should do it.
     // This is done so that dataflow analysis does not get tripped up seeing nop invoke.
     if (static_cast<int>(invoke->dalvikInsn.opcode) != kMirOpNop) {
@@ -583,7 +582,6 @@ bool DexFileMethodInliner::GenInline(MIRGraph* mir_graph, BasicBlock* bb, MIR* i
       }
     }
     if (move_result != nullptr) {
-      move_result->optimization_flags |= MIR_INLINED;
       move_result->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
     }
   }
