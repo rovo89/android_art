@@ -845,7 +845,7 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
   RegLocation rl_object = LoadValue(rl_src_obj, kRefReg);
   RegLocation rl_new_value;
   if (!is_long) {
-    rl_new_value = LoadValue(rl_src_new_value);
+    rl_new_value = LoadValue(rl_src_new_value, LocToRegClass(rl_src_new_value));
   } else if (load_early) {
     rl_new_value = LoadValueWide(rl_src_new_value, kCoreReg);
   }
@@ -868,7 +868,7 @@ bool ArmMir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
 
   RegLocation rl_expected;
   if (!is_long) {
-    rl_expected = LoadValue(rl_src_expected);
+    rl_expected = LoadValue(rl_src_expected, LocToRegClass(rl_src_new_value));
   } else if (load_early) {
     rl_expected = LoadValueWide(rl_src_expected, kCoreReg);
   } else {
