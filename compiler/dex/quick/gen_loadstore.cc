@@ -166,10 +166,6 @@ RegLocation Mir2Lir::LoadValue(RegLocation rl_src, RegisterClass op_kind) {
   return rl_src;
 }
 
-RegLocation Mir2Lir::LoadValue(RegLocation rl_src) {
-  return LoadValue(rl_src, LocToRegClass(rl_src));
-}
-
 void Mir2Lir::StoreValue(RegLocation rl_dest, RegLocation rl_src) {
   /*
    * Sanity checking - should never try to store to the same
