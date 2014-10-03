@@ -553,6 +553,10 @@ inline Object* Class::Alloc(Thread* self, gc::AllocatorType allocator_type) {
                                                              allocator_type, VoidFunctor());
   if (add_finalizer && LIKELY(obj != nullptr)) {
     heap->AddFinalizerReference(self, &obj);
+    if (UNLIKELY(self->IsExceptionPending())) {
+      // Failed to allocate finalizer reference, it means that whole allocation failed
+      obj = nullptr;
+    }
   }
   return obj;
 }
