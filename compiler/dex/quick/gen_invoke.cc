@@ -1643,7 +1643,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
       FreeTemp(rl_temp_offset);
     }
   } else {
-    rl_value = LoadValue(rl_src_value);
+    rl_value = LoadValue(rl_src_value, LocToRegClass(rl_src_value));
     if (rl_value.ref) {
       StoreRefIndexed(rl_object.reg, rl_offset.reg, rl_value.reg, 0);
     } else {

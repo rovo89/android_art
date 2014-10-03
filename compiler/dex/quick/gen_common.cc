@@ -214,9 +214,8 @@ void Mir2Lir::ForceImplicitNullCheck(RegStorage reg, int opt_flags) {
 void Mir2Lir::GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
                                   RegLocation rl_src2, LIR* taken,
                                   LIR* fall_through) {
-  DCHECK(!rl_src1.fp);
-  DCHECK(!rl_src2.fp);
   ConditionCode cond;
+  RegisterClass reg_class = (rl_src1.ref || rl_src2.ref) ? kRefReg : kCoreReg;
   switch (opcode) {
     case Instruction::IF_EQ:
       cond = kCondEq;
@@ -249,7 +248,7 @@ void Mir2Lir::GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
     cond = FlipComparisonOrder(cond);
   }
 
-  rl_src1 = LoadValue(rl_src1);
+  rl_src1 = LoadValue(rl_src1, reg_class);
   // Is this really an immediate comparison?
   if (rl_src2.is_const) {
     // If it's already live in a register or not easily materialized, just keep going
@@ -273,15 +272,15 @@ void Mir2Lir::GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
     }
   }
 
-  rl_src2 = LoadValue(rl_src2);
+  rl_src2 = LoadValue(rl_src2, reg_class);
   OpCmpBranch(cond, rl_src1.reg, rl_src2.reg, taken);
 }
 
 void Mir2Lir::GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_src, LIR* taken,
                                       LIR* fall_through) {
   ConditionCode cond;
-  DCHECK(!rl_src.fp);
-  rl_src = LoadValue(rl_src);
+  RegisterClass reg_class = rl_src.ref ? kRefReg : kCoreReg;
+  rl_src = LoadValue(rl_src, reg_class);
   switch (opcode) {
     case Instruction::IF_EQZ:
       cond = kCondEq;
