@@ -526,7 +526,7 @@ $(foreach target, $(TARGET_TYPES), \
     $(call define-test-art-run-test-group,test-art-$(target)-run-test-$(test),$(ART_RUN_TEST_$(call name-to-var,$(target))_$(call name-to-var,$(test))_RULES)))))
 $(foreach target, $(TARGET_TYPES), \
   $(foreach address_size, $(ADDRESS_SIZES_$(call name-to-var,$(target))), $(eval \
-    $(call define-test-art-run-test-group,test-art-$(target)-run-test-$(address_size),$(ART_RUN_TEST_$(address_size)_RULES)))))
+    $(call define-test-art-run-test-group,test-art-$(target)-run-test$(address_size),$(ART_RUN_TEST_$(call name-to-var,$(target))_$(address_size)_RULES)))))
 
 # Clear variables now we're finished with them.
 $(foreach target, $(TARGET_TYPES), $(eval ART_RUN_TEST_$(call name-to-var,$(target))_RULES :=))
