@@ -748,7 +748,7 @@ static File* CreateOrOpen(const char* name, bool* created) {
     if (f.get() != nullptr) {
       if (fchmod(f->Fd(), 0644) != 0) {
         PLOG(ERROR) << "Unable to make " << name << " world readable";
-        unlink(name);
+        TEMP_FAILURE_RETRY(unlink(name));
         return nullptr;
       }
     }
@@ -1066,11 +1066,11 @@ static int patchoat(int argc, char **argv) {
     if (!success) {
       if (new_oat_out) {
         CHECK(!output_oat_filename.empty());
-        unlink(output_oat_filename.c_str());
+        TEMP_FAILURE_RETRY(unlink(output_oat_filename.c_str()));
       }
       if (new_image_out) {
         CHECK(!output_image_filename.empty());
-        unlink(output_image_filename.c_str());
+        TEMP_FAILURE_RETRY(unlink(output_image_filename.c_str()));
       }
     }
     if (dump_timings) {
