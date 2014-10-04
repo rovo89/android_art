@@ -39,6 +39,9 @@ while true; do
     elif [ "x$1" = "x--prebuild" ]; then
         PREBUILD="y"
         shift
+    elif [ "x$1" = "x--no-prebuild" ]; then
+        PREBUILD="n"
+        shift
     elif [ "x$1" = "x--no-dex2oat" ]; then
         DEX2OAT="-Xcompiler:${FALSE_BIN}"
         shift
