@@ -811,11 +811,12 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
 }
 
 static OatHeader* GetOatHeaderFromElf(ElfFile* elf) {
-  Elf32_Shdr* data_sec = elf->FindSectionByName(".rodata");
-  if (data_sec == nullptr) {
+  uint64_t data_sec_offset;
+  bool has_data_sec = elf->GetSectionOffsetAndSize(".rodata", &data_sec_offset, nullptr);
+  if (!has_data_sec) {
     return nullptr;
   }
-  return reinterpret_cast<OatHeader*>(elf->Begin() + data_sec->sh_offset);
+  return reinterpret_cast<OatHeader*>(elf->Begin() + data_sec_offset);
 }
 
 void ImageWriter::SetOatChecksumFromElfFile(File* elf_file) {
