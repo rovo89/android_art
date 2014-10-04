@@ -23,5 +23,6 @@ mkdir classes
 ${JAVAC} -d classes `find src -name '*.java'`
 
 # ...but not at run time.
-rm classes/android/test/anno/MissingAnnotation.class
+rm 'classes/android/test/anno/MissingAnnotation.class'
+rm 'classes/android/test/anno/ClassWithInnerAnnotationClass$MissingInnerAnnotationClass.class'
 ${DX} -JXmx256m --debug --dex --output=$TEST_NAME.jar classes
