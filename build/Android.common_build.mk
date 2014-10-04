@@ -122,7 +122,11 @@ ifneq ($(WITHOUT_HOST_CLANG),true)
 endif
 
 # Clang on the target. Target builds use GCC by default.
+ifneq ($(USE_CLANG_PLATFORM_BUILD),)
+ART_TARGET_CLANG := $(USE_CLANG_PLATFORM_BUILD)
+else
 ART_TARGET_CLANG := false
+endif
 ART_TARGET_CLANG_arm :=
 ART_TARGET_CLANG_arm64 :=
 ART_TARGET_CLANG_mips :=
