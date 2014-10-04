@@ -23,7 +23,7 @@
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "common_compiler_test.h"
-#include "elf_fixup.h"
+#include "elf_writer.h"
 #include "gc/space/image_space.h"
 #include "image_writer.h"
 #include "lock_word.h"
@@ -101,7 +101,7 @@ TEST_F(ImageTest, WriteRead) {
     bool success_image =
         writer.Write(image_file.GetFilename(), dup_oat->GetPath(), dup_oat->GetPath());
     ASSERT_TRUE(success_image);
-    bool success_fixup = ElfFixup::Fixup(dup_oat.get(), writer.GetOatDataBegin());
+    bool success_fixup = ElfWriter::Fixup(dup_oat.get(), writer.GetOatDataBegin());
     ASSERT_TRUE(success_fixup);
   }
 

@@ -44,8 +44,7 @@
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
-#include "elf_fixup.h"
-#include "elf_stripper.h"
+#include "elf_writer.h"
 #include "gc/space/image_space.h"
 #include "gc/space/space-inl.h"
 #include "image_writer.h"
@@ -472,7 +471,7 @@ class Dex2Oat {
       PLOG(ERROR) << "Failed to open ELF file: " << oat_filename;
       return false;
     }
-    if (!ElfFixup::Fixup(oat_file.get(), oat_data_begin)) {
+    if (!ElfWriter::Fixup(oat_file.get(), oat_data_begin)) {
       LOG(ERROR) << "Failed to fixup ELF file " << oat_file->GetPath();
       return false;
     }

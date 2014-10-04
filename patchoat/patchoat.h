@@ -76,12 +76,15 @@ class PatchOat {
 
   // Patches oat in place, modifying the oat_file given to the constructor.
   bool PatchElf();
-  bool PatchTextSection();
+  template <typename ElfFileImpl>
+  bool PatchElf(ElfFileImpl* oat_file);
+  template <typename ElfFileImpl>
+  bool PatchTextSection(ElfFileImpl* oat_file);
   // Templatized version to actually do the patching with the right sized offsets.
-  template <typename ptr_t> bool PatchTextSection(const Elf32_Shdr& patches_sec);
-  template <typename ptr_t> bool CheckOatFile(const Elf32_Shdr& patches_sec);
-  bool PatchOatHeader();
-  bool PatchSymbols(Elf32_Shdr* section);
+  template <typename ElfFileImpl, typename patch_loc_t> bool PatchTextSection(ElfFileImpl* oat_file);
+  template <typename ElfFileImpl, typename patch_loc_t> bool CheckOatFile(ElfFileImpl* oat_filec);
+  template <typename ElfFileImpl>
+  bool PatchOatHeader(ElfFileImpl* oat_file);
 
   bool PatchImage() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
