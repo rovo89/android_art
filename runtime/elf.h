@@ -1411,6 +1411,7 @@ struct Elf32_Sym {
 
 // BEGIN android-added for <elf.h> compat
 static inline unsigned char ELF32_ST_TYPE(unsigned char st_info) { return st_info & 0x0f; }
+static inline unsigned char ELF64_ST_TYPE(unsigned char st_info) { return st_info & 0x0f; }
 // END android-added for <elf.h> compat
 
 // Symbol table entries for ELF64.

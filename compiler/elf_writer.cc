@@ -30,8 +30,8 @@
 
 namespace art {
 
-uint32_t ElfWriter::GetOatDataAddress(ElfFile* elf_file) {
-  Elf32_Addr oatdata_address = elf_file->FindSymbolAddress(SHT_DYNSYM,
+uintptr_t ElfWriter::GetOatDataAddress(ElfFile* elf_file) {
+  uintptr_t oatdata_address = elf_file->FindSymbolAddress(SHT_DYNSYM,
                                                            "oatdata",
                                                            false);
   CHECK_NE(0U, oatdata_address);
@@ -49,6 +49,18 @@ void ElfWriter::GetOatElfInformation(File* file,
   CHECK_NE(0U, oat_loaded_size);
   oat_data_offset = GetOatDataAddress(elf_file.get());
   CHECK_NE(0U, oat_data_offset);
+}
+
+bool ElfWriter::Fixup(File* file, uintptr_t oat_data_begin) {
+  std::string error_msg;
+  std::unique_ptr<ElfFile> elf_file(ElfFile::Open(file, true, false, &error_msg));
+  CHECK(elf_file.get() != nullptr) << error_msg;
+
+  // Lookup "oatdata" symbol address.
+  uintptr_t oatdata_address = ElfWriter::GetOatDataAddress(elf_file.get());
+  uintptr_t base_address = oat_data_begin - oatdata_address;
+
+  return elf_file->Fixup(base_address);
 }
 
 }  // namespace art
