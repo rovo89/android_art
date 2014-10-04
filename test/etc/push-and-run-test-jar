@@ -9,6 +9,9 @@ msg() {
     fi
 }
 
+ARCHITECTURES_32="(arm|x86|mips|none)"
+ARCHITECTURES_64="(arm64|x86_64|none)"
+ARCHITECTURES_PATTERN="${ARCHITECTURES_32}"
 RELOCATE="y"
 GDB="n"
 DEBUGGER="n"
@@ -22,10 +25,12 @@ INVOKE_WITH=""
 FLAGS=""
 TARGET_SUFFIX="32"
 GDB_TARGET_SUFFIX=""
+COMPILE_FLAGS=""
 FALSE_BIN="/system/bin/false"
 PATCHOAT=""
 DEX2OAT=""
 HAVE_IMAGE="y"
+PREBUILD="y"
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -43,15 +48,7 @@ while true; do
         shift
         option="$1"
         FLAGS="${FLAGS} -Xcompiler-option $option"
-        shift
-    elif [ "x$1" = "x--no-image" ]; then
-        HAVE_IMAGE="n"
-        shift
-    elif [ "x$1" = "x--no-dex2oat" ]; then
-        DEX2OAT="-Xcompiler:${FALSE_BIN}"
-        shift
-    elif [ "x$1" = "x--no-patchoat" ]; then
-        PATCHOAT="-Xpatchoat:${FALSE_BIN}"
+        COMPILE_FLAGS="${COMPILE_FLAGS} $option"
         shift
     elif [ "x$1" = "x--runtime-option" ]; then
         shift
@@ -61,6 +58,28 @@ while true; do
     elif [ "x$1" = "x--boot" ]; then
         shift
         BOOT_OPT="$1"
+        BUILD_BOOT_OPT="--boot-image=${1#-Ximage:}"
+        shift
+    elif [ "x$1" = "x--no-dex2oat" ]; then
+        DEX2OAT="-Xcompiler:${FALSE_BIN}"
+        shift
+    elif [ "x$1" = "x--no-patchoat" ]; then
+        PATCHOAT="-Xpatchoat:${FALSE_BIN}"
+        shift
+    elif [ "x$1" = "x--relocate" ]; then
+        RELOCATE="y"
+        shift
+    elif [ "x$1" = "x--no-relocate" ]; then
+        RELOCATE="n"
+        shift
+    elif [ "x$1" = "x--prebuild" ]; then
+        PREBUILD="y"
+        shift
+    elif [ "x$1" = "x--no-prebuild" ]; then
+        PREBUILD="n"
+        shift
+    elif [ "x$1" = "x--no-image" ]; then
+        HAVE_IMAGE="n"
         shift
     elif [ "x$1" = "x--debug" ]; then
         DEBUGGER="y"
@@ -75,12 +94,6 @@ while true; do
         shift
     elif [ "x$1" = "x--dev" ]; then
         DEV_MODE="y"
-        shift
-    elif [ "x$1" = "x--relocate" ]; then
-        RELOCATE="y"
-        shift
-    elif [ "x$1" = "x--no-relocate" ]; then
-        RELOCATE="n"
         shift
     elif [ "x$1" = "x--interpreter" ]; then
         INTERPRETER="y"
@@ -109,6 +122,7 @@ while true; do
     elif [ "x$1" = "x--64" ]; then
         TARGET_SUFFIX="64"
         GDB_TARGET_SUFFIX="64"
+        ARCHITECTURES_PATTERN="${ARCHITECTURES_64}"
         shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
@@ -146,6 +160,12 @@ if [ "$HAVE_IMAGE" = "n" ]; then
     BOOT_OPT="-Ximage:/system/non-existant/core.art"
 fi
 
+ARCH=$(adb shell ls -F /data/dalvik-cache | grep -Ewo "${ARCHITECTURES_PATTERN}")
+if [ x"$ARCH" = "x" ]; then
+  echo "Unable to determine architecture"
+  exit 1
+fi
+
 if [ "$QUIET" = "n" ]; then
   adb shell rm -r $DEX_LOCATION
   adb shell mkdir -p $DEX_LOCATION
@@ -177,21 +197,66 @@ fi
 
 if [ "$INTERPRETER" = "y" ]; then
     INT_OPTS="-Xint"
+    COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=interpret-only"
 fi
 
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
 
 if [ "$RELOCATE" = "y" ]; then
-  RELOCATE_OPT="-Xrelocate"
-  FLAGS="${FLAGS} -Xcompiler-option --include-patch-information"
+    RELOCATE_OPT="-Xrelocate"
+    BUILD_RELOCATE_OPT="--runtime-arg -Xnorelocate"
+    COMPILE_FLAGS="${COMPILE_FLAGS} --include-patch-information"
+    FLAGS="${FLAGS} -Xcompiler-option --include-patch-information"
 else
-  RELOCATE_OPT="-Xnorelocate"
+    RELOCATE_OPT="-Xnorelocate"
+    BUILD_RELOCATE_OPT="--runtime-arg -Xnorelocate"
 fi
 
-cmdline="cd $DEX_LOCATION && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
-    $INVOKE_WITH $gdb /system/bin/dalvikvm$TARGET_SUFFIX $FLAGS $gdbargs -XXlib:$LIB $PATCHOAT $DEX2OAT $ZYGOTE $JNI_OPTS $RELOCATE_OPT $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main"
+# Create a script with the command. The command can get longer than the longest
+# allowed adb command and there is no way to get the exit status from a adb shell
+# command.
+cmdline="cd $DEX_LOCATION && \
+         export ANDROID_DATA=$DEX_LOCATION && \
+         export DEX_LOCATION=$DEX_LOCATION && "
+if [ "$PREBUILD" = "y" ]; then
+  cmdline+="mkdir -p $DEX_LOCATION/dalvik-cache/$ARCH/ && \
+            $INVOKE_WITH /system/bin/dex2oatd \
+                $COMPILE_FLAGS \
+                $BUILD_BOOT_OPT \
+                $BUILD_RELOCATE_OPT  \
+                --runtime-arg -classpath --runtime-arg $DEX_LOCATION/$TEST_NAME.jar \
+                --dex-file=$DEX_LOCATION/$TEST_NAME.jar \
+                --oat-file=$DEX_LOCATION/dalvik-cache/$ARCH/$(echo $DEX_LOCATION/$TEST_NAME.jar/classes.dex | cut -d/ -f 2- | sed "s:/:@:g") \
+                --instruction-set=$ARCH && "
+fi
+
+cmdline+="$INVOKE_WITH $gdb /system/bin/dalvikvm$TARGET_SUFFIX \
+            $FLAGS \
+            $gdbargs \
+            -XXlib:$LIB \
+            $PATCHOAT \
+            $DEX2OAT \
+            $ZYGOTE \
+            $JNI_OPTS \
+            $RELOCATE_OPT \
+            $INT_OPTS \
+            $DEBUGGER_OPTS \
+            $BOOT_OPT \
+            -cp $DEX_LOCATION/$TEST_NAME.jar Main"
+
+cmdfile=$(tempfile -p "cmd-" -s "-$TEST_NAME")
+echo "$cmdline" > $cmdfile
+
 if [ "$DEV_MODE" = "y" ]; then
-  echo $cmdline "$@"
+  echo $cmdline
 fi
 
-adb shell $cmdline "$@"
+if [ "$QUIET" = "n" ]; then
+  adb push $cmdfile $DEX_LOCATION/cmdline.sh
+else
+  adb push $cmdfile $DEX_LOCATION/cmdline.sh > /dev/null 2>&1
+fi
+
+adb shell sh $DEX_LOCATION/cmdline.sh
+
+rm -f $cmdfile
