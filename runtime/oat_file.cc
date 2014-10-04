@@ -47,9 +47,11 @@ OatFile* OatFile::OpenWithElfFile(ElfFile* elf_file,
                                   std::string* error_msg) {
   std::unique_ptr<OatFile> oat_file(new OatFile(location, false));
   oat_file->elf_file_.reset(elf_file);
-  Elf32_Shdr* hdr = elf_file->FindSectionByName(".rodata");
-  oat_file->begin_ = elf_file->Begin() + hdr->sh_offset;
-  oat_file->end_ = elf_file->Begin() + hdr->sh_size + hdr->sh_offset;
+  uint64_t offset, size;
+  bool has_section = elf_file->GetSectionOffsetAndSize(".rodata", &offset, &size);
+  CHECK(has_section);
+  oat_file->begin_ = elf_file->Begin() + offset;
+  oat_file->end_ = elf_file->Begin() + size + offset;
   return oat_file->Setup(error_msg) ? oat_file.release() : nullptr;
 }
 

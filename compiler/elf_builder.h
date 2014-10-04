@@ -1094,7 +1094,8 @@ class ElfBuilder FINAL {
     elf_header_.e_ident[EI_MAG1]       = ELFMAG1;
     elf_header_.e_ident[EI_MAG2]       = ELFMAG2;
     elf_header_.e_ident[EI_MAG3]       = ELFMAG3;
-    elf_header_.e_ident[EI_CLASS]      = ELFCLASS32;
+    elf_header_.e_ident[EI_CLASS]      = (sizeof(Elf_Addr) == sizeof(Elf32_Addr))
+                                         ? ELFCLASS32 : ELFCLASS64;;
     elf_header_.e_ident[EI_DATA]       = ELFDATA2LSB;
     elf_header_.e_ident[EI_VERSION]    = EV_CURRENT;
     elf_header_.e_ident[EI_OSABI]      = ELFOSABI_LINUX;
