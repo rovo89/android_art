@@ -41,7 +41,7 @@ fi
 
 export JAVA="java"
 export JAVAC="javac -g"
-export RUN="${progdir}/etc/push-and-run-test-jar"
+export RUN="${progdir}/etc/run-test-jar"
 export DEX_LOCATION=/data/run-test/${test_dir}
 export NEED_DEX="true"
 
@@ -89,6 +89,7 @@ while true; do
     if [ "x$1" = "x--host" ]; then
         target_mode="no"
         DEX_LOCATION=$tmp_dir
+        run_args="${run_args} --host"
         shift
     elif [ "x$1" = "x--jvm" ]; then
         target_mode="no"
@@ -264,8 +265,6 @@ if [ "$target_mode" = "no" ]; then
             echo "--prebuild with --jvm is unsupported";
             exit 1;
         fi
-    else
-        RUN="${progdir}/etc/host-run-test-jar"
     fi
 fi
 
@@ -291,12 +290,12 @@ if [ "$runtime" = "dalvik" ]; then
     fi
 elif [ "$runtime" = "art" ]; then
     if [ "$target_mode" = "no" ]; then
-	# ANDROID_BUILD_TOP and ANDROID_HOST_OUT are not set in a build environment.
+        # ANDROID_BUILD_TOP and ANDROID_HOST_OUT are not set in a build environment.
         if [ -z "$ANDROID_BUILD_TOP" ]; then
-	    export ANDROID_BUILD_TOP=$oldwd
+            export ANDROID_BUILD_TOP=$oldwd
         fi
         if [ -z "$ANDROID_HOST_OUT" ]; then
-	    export ANDROID_HOST_OUT=$ANDROID_BUILD_TOP/out/host/linux-x86
+            export ANDROID_HOST_OUT=$ANDROID_BUILD_TOP/out/host/linux-x86
         fi
         run_args="${run_args} --boot -Ximage:${ANDROID_HOST_OUT}/framework/core.art"
         run_args="${run_args} --runtime-option -Djava.library.path=${ANDROID_HOST_OUT}/lib${suffix64}"
