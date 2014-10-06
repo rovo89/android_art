@@ -529,10 +529,10 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
   }
 
   self->PushShadowFrame(shadow_frame);
-  ArtMethod* method = shadow_frame->GetMethod();
+  DCHECK_EQ(shadow_frame->GetMethod(), mh.Get());
   // Ensure static methods are initialized.
-  if (method->IsStatic()) {
-    mirror::Class* declaring_class = method->GetDeclaringClass();
+  if (mh.Get()->IsStatic()) {
+    mirror::Class* declaring_class = mh.Get()->GetDeclaringClass();
     if (UNLIKELY(!declaring_class->IsInitialized())) {
       StackHandleScope<1> hs(self);
       HandleWrapper<Class> h_declaring_class(hs.NewHandleWrapper(&declaring_class));
@@ -546,15 +546,15 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
     }
   }
 
-  if (LIKELY(!method->IsNative())) {
+  if (LIKELY(!mh.Get()->IsNative())) {
     result->SetJ(Execute(self, mh, code_item, *shadow_frame, JValue()).GetJ());
   } else {
     // We don't expect to be asked to interpret native code (which is entered via a JNI compiler
     // generated stub) except during testing and image writing.
     CHECK(!Runtime::Current()->IsStarted());
-    Object* receiver = method->IsStatic() ? nullptr : shadow_frame->GetVRegReference(0);
-    uint32_t* args = shadow_frame->GetVRegArgs(method->IsStatic() ? 0 : 1);
-    UnstartedRuntimeJni(self, method, receiver, args, result);
+    Object* receiver = mh.Get()->IsStatic() ? nullptr : shadow_frame->GetVRegReference(0);
+    uint32_t* args = shadow_frame->GetVRegArgs(mh.Get()->IsStatic() ? 0 : 1);
+    UnstartedRuntimeJni(self, mh.Get(), receiver, args, result);
   }
 
   self->PopShadowFrame();

@@ -569,9 +569,9 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
 
     // We need to do runtime check on reference assignment. We need to load the shorty
     // to get the exact type of each reference argument.
-    const DexFile::TypeList* params = method->GetParameterTypeList();
+    const DexFile::TypeList* params = mh.Get()->GetParameterTypeList();
     uint32_t shorty_len = 0;
-    const char* shorty = method->GetShorty(&shorty_len);
+    const char* shorty = mh.Get()->GetShorty(&shorty_len);
 
     // TODO: find a cleaner way to separate non-range and range information without duplicating code.
     uint32_t arg[5];  // only used in invoke-XXX.
@@ -585,7 +585,7 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
     // Handle receiver apart since it's not part of the shorty.
     size_t dest_reg = first_dest_reg;
     size_t arg_offset = 0;
-    if (!method->IsStatic()) {
+    if (!mh.Get()->IsStatic()) {
       size_t receiver_reg = is_range ? vregC : arg[0];
       new_shadow_frame->SetVRegReference(dest_reg, shadow_frame.GetVRegReference(receiver_reg));
       ++dest_reg;
@@ -609,7 +609,7 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
               self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
                                        "Ljava/lang/VirtualMachineError;",
                                        "Invoking %s with bad arg %d, type '%s' not instance of '%s'",
-                                       method->GetName(), shorty_pos,
+                                       mh.Get()->GetName(), shorty_pos,
                                        o->GetClass()->GetDescriptor(&temp1),
                                        arg_type->GetDescriptor(&temp2));
               return false;
@@ -658,15 +658,15 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
 
   // Do the call now.
   if (LIKELY(Runtime::Current()->IsStarted())) {
-    if (kIsDebugBuild && method->GetEntryPointFromInterpreter() == nullptr) {
-      LOG(FATAL) << "Attempt to invoke non-executable method: " << PrettyMethod(method);
+    if (kIsDebugBuild && mh.Get()->GetEntryPointFromInterpreter() == nullptr) {
+      LOG(FATAL) << "Attempt to invoke non-executable method: " << PrettyMethod(mh.Get());
     }
     if (kIsDebugBuild && Runtime::Current()->GetInstrumentation()->IsForcedInterpretOnly() &&
-        !method->IsNative() && !method->IsProxyMethod() &&
-        method->GetEntryPointFromInterpreter() == artInterpreterToCompiledCodeBridge) {
-      LOG(FATAL) << "Attempt to call compiled code when -Xint: " << PrettyMethod(method);
+        !mh.Get()->IsNative() && !mh.Get()->IsProxyMethod() &&
+        mh.Get()->GetEntryPointFromInterpreter() == artInterpreterToCompiledCodeBridge) {
+      LOG(FATAL) << "Attempt to call compiled code when -Xint: " << PrettyMethod(mh.Get());
     }
-    (method->GetEntryPointFromInterpreter())(self, mh, code_item, new_shadow_frame, result);
+    (mh.Get()->GetEntryPointFromInterpreter())(self, mh, code_item, new_shadow_frame, result);
   } else {
     UnstartedRuntimeInvoke(self, mh, code_item, new_shadow_frame, result, first_dest_reg);
   }
