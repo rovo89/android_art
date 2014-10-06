@@ -414,21 +414,24 @@ TEST(RegisterAllocatorTest, FreeUntil) {
   // Add an artifical range to cover the temps that will be put in the unhandled list.
   LiveInterval* unhandled = graph->GetEntryBlock()->GetFirstInstruction()->GetLiveInterval();
   unhandled->AddLoopRange(0, 60);
+  // For SSA value intervals, only an interval resulted from a split may intersect
+  // with inactive intervals.
+  unhandled = register_allocator.Split(unhandled, 5);
 
   // Add three temps holding the same register, and starting at different positions.
   // Put the one that should be picked in the middle of the inactive list to ensure
   // we do not depend on an order.
-  LiveInterval* interval = LiveInterval::MakeTempInterval(&allocator, Primitive::kPrimInt);
+  LiveInterval* interval = LiveInterval::MakeInterval(&allocator, Primitive::kPrimInt);
   interval->SetRegister(0);
   interval->AddRange(40, 50);
   register_allocator.inactive_.Add(interval);
 
-  interval = LiveInterval::MakeTempInterval(&allocator, Primitive::kPrimInt);
+  interval = LiveInterval::MakeInterval(&allocator, Primitive::kPrimInt);
   interval->SetRegister(0);
   interval->AddRange(20, 30);
   register_allocator.inactive_.Add(interval);
 
-  interval = LiveInterval::MakeTempInterval(&allocator, Primitive::kPrimInt);
+  interval = LiveInterval::MakeInterval(&allocator, Primitive::kPrimInt);
   interval->SetRegister(0);
   interval->AddRange(60, 70);
   register_allocator.inactive_.Add(interval);
@@ -438,7 +441,7 @@ TEST(RegisterAllocatorTest, FreeUntil) {
   register_allocator.processing_core_registers_ = true;
   register_allocator.unhandled_ = &register_allocator.unhandled_core_intervals_;
 
-  register_allocator.TryAllocateFreeReg(unhandled);
+  ASSERT_TRUE(register_allocator.TryAllocateFreeReg(unhandled));
 
   // Check that we have split the interval.
   ASSERT_EQ(1u, register_allocator.unhandled_->Size());
