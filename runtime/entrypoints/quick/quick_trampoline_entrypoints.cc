@@ -492,19 +492,18 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
     self->PushShadowFrame(shadow_frame);
     self->EndAssertNoThreadSuspension(old_cause);
 
-    if (method->IsStatic() && !method->GetDeclaringClass()->IsInitialized()) {
+    StackHandleScope<1> hs(self);
+    MethodHelper mh(hs.NewHandle(method));
+    if (mh.Get()->IsStatic() && !mh.Get()->GetDeclaringClass()->IsInitialized()) {
       // Ensure static method's class is initialized.
       StackHandleScope<1> hs(self);
-      Handle<mirror::Class> h_class(hs.NewHandle(method->GetDeclaringClass()));
+      Handle<mirror::Class> h_class(hs.NewHandle(mh.Get()->GetDeclaringClass()));
       if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
-        DCHECK(Thread::Current()->IsExceptionPending()) << PrettyMethod(method);
+        DCHECK(Thread::Current()->IsExceptionPending()) << PrettyMethod(mh.Get());
         self->PopManagedStackFragment(fragment);
         return 0;
       }
     }
-
-    StackHandleScope<1> hs(self);
-    MethodHelper mh(hs.NewHandle(method));
     JValue result = interpreter::EnterInterpreterFromStub(self, mh, code_item, *shadow_frame);
     // Pop transition.
     self->PopManagedStackFragment(fragment);
