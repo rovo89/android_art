@@ -1537,7 +1537,8 @@ std::string MIRGraph::GetSSANameWithConst(int ssa_reg, bool singles_only) {
     return GetSSAName(ssa_reg);
   }
   if (IsConst(reg_location_[ssa_reg])) {
-    if (!singles_only && reg_location_[ssa_reg].wide) {
+    if (!singles_only && reg_location_[ssa_reg].wide &&
+        !reg_location_[ssa_reg].high_word) {
       return StringPrintf("v%d_%d#0x%" PRIx64, SRegToVReg(ssa_reg), GetSSASubscript(ssa_reg),
                           ConstantValueWide(reg_location_[ssa_reg]));
     } else {
