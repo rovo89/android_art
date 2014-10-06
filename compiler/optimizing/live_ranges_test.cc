@@ -268,7 +268,7 @@ TEST(LiveRangesTest, Loop1) {
   range = interval->GetFirstRange();
   // Instruction is consumed by the if.
   ASSERT_EQ(14u, range->GetStart());
-  ASSERT_EQ(17u, range->GetEnd());
+  ASSERT_EQ(16u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
