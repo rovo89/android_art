@@ -57,6 +57,10 @@
 
 namespace art {
 
+// Consider turning this on when there is errors which could be related to JNI array copies such as
+// things not rendering correctly. E.g. b/16858794
+static constexpr bool kWarnJniAbort = false;
+
 // Section 12.3.2 of the JNI spec describes JNI class descriptors. They're
 // separated with slashes but aren't wrapped with "L;" like regular descriptors
 // (i.e. "a/b/C" rather than "La/b/C;"). Arrays of reference types are an
@@ -2376,10 +2380,13 @@ class JNI {
                             reinterpret_cast<void*>(elements), array_data);
         return;
       }
-    }
-    // Don't need to copy if we had a direct pointer.
-    if (mode != JNI_ABORT && is_copy) {
-      memcpy(array_data, elements, bytes);
+      if (mode != JNI_ABORT) {
+        memcpy(array_data, elements, bytes);
+      } else if (kWarnJniAbort && memcmp(array_data, elements, bytes) != 0) {
+        // Warn if we have JNI_ABORT and the arrays don't match since this is usually an error.
+        LOG(WARNING) << "Possible incorrect JNI_ABORT in Release*ArrayElements";
+        soa.Self()->DumpJavaStack(LOG(WARNING));
+      }
     }
     if (mode != JNI_COMMIT) {
       if (is_copy) {
