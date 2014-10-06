@@ -611,7 +611,7 @@ void LocationsBuilderARM::VisitIf(HIf* if_instr) {
   DCHECK(cond->IsCondition());
   HCondition* condition = cond->AsCondition();
   if (condition->NeedsMaterialization()) {
-    locations->SetInAt(0, Location::RequiresRegister());
+    locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
   }
 }
 
@@ -657,8 +657,8 @@ void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
 void LocationsBuilderARM::VisitCondition(HCondition* comp) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(comp, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(comp->InputAt(1)));
+  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
+  locations->SetInAt(1, Location::RegisterOrConstant(comp->InputAt(1)), Location::kDiesAtEntry);
   if (comp->NeedsMaterialization()) {
     locations->SetOut(Location::RequiresRegister());
   }
@@ -960,8 +960,9 @@ void LocationsBuilderARM::VisitAdd(HAdd* add) {
   switch (add->GetResultType()) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
-      locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RegisterOrConstant(add->InputAt(1)));
+      bool dies_at_entry = add->GetResultType() != Primitive::kPrimLong;
+      locations->SetInAt(0, Location::RequiresRegister(), dies_at_entry);
+      locations->SetInAt(1, Location::RegisterOrConstant(add->InputAt(1)), dies_at_entry);
       locations->SetOut(Location::RequiresRegister());
       break;
     }
@@ -1020,8 +1021,9 @@ void LocationsBuilderARM::VisitSub(HSub* sub) {
   switch (sub->GetResultType()) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
-      locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RegisterOrConstant(sub->InputAt(1)));
+      bool dies_at_entry = sub->GetResultType() != Primitive::kPrimLong;
+      locations->SetInAt(0, Location::RequiresRegister(), dies_at_entry);
+      locations->SetInAt(1, Location::RegisterOrConstant(sub->InputAt(1)), dies_at_entry);
       locations->SetOut(Location::RequiresRegister());
       break;
     }
@@ -1116,7 +1118,7 @@ void InstructionCodeGeneratorARM::VisitParameterValue(HParameterValue* instructi
 void LocationsBuilderARM::VisitNot(HNot* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -1129,8 +1131,8 @@ void InstructionCodeGeneratorARM::VisitNot(HNot* instruction) {
 void LocationsBuilderARM::VisitCompare(HCompare* compare) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
+  locations->SetInAt(1, Location::RequiresRegister(), Location::kDiesAtEntry);
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -1186,10 +1188,12 @@ void InstructionCodeGeneratorARM::VisitPhi(HPhi* instruction) {
 void LocationsBuilderARM::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
+  bool is_object_type = instruction->GetFieldType() == Primitive::kPrimNot;
+  bool dies_at_entry = !is_object_type;
+  locations->SetInAt(0, Location::RequiresRegister(), dies_at_entry);
+  locations->SetInAt(1, Location::RequiresRegister(), dies_at_entry);
   // Temporary registers for the write barrier.
-  if (instruction->GetFieldType() == Primitive::kPrimNot) {
+  if (is_object_type) {
     locations->AddTemp(Location::RequiresRegister());
     locations->AddTemp(Location::RequiresRegister());
   }
@@ -1246,7 +1250,7 @@ void InstructionCodeGeneratorARM::VisitInstanceFieldSet(HInstanceFieldSet* instr
 void LocationsBuilderARM::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -1328,8 +1332,9 @@ void InstructionCodeGeneratorARM::VisitNullCheck(HNullCheck* instruction) {
 void LocationsBuilderARM::VisitArrayGet(HArrayGet* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
+  locations->SetInAt(
+      1, Location::RegisterOrConstant(instruction->InputAt(1)), Location::kDiesAtEntry);
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -1439,9 +1444,10 @@ void LocationsBuilderARM::VisitArraySet(HArraySet* instruction) {
     locations->SetInAt(1, ArmCoreLocation(calling_convention.GetRegisterAt(1)));
     locations->SetInAt(2, ArmCoreLocation(calling_convention.GetRegisterAt(2)));
   } else {
-    locations->SetInAt(0, Location::RequiresRegister());
-    locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
-    locations->SetInAt(2, Location::RequiresRegister());
+    locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
+    locations->SetInAt(
+        1, Location::RegisterOrConstant(instruction->InputAt(1)), Location::kDiesAtEntry);
+    locations->SetInAt(2, Location::RequiresRegister(), Location::kDiesAtEntry);
   }
 }
 
@@ -1527,7 +1533,7 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
 void LocationsBuilderARM::VisitArrayLength(HArrayLength* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
   locations->SetOut(Location::RequiresRegister());
 }
 
@@ -1610,13 +1616,12 @@ void InstructionCodeGeneratorARM::GenerateSuspendCheck(HSuspendCheck* instructio
       new (GetGraph()->GetArena()) SuspendCheckSlowPathARM(instruction, successor);
   codegen_->AddSlowPath(slow_path);
 
-  __ AddConstant(R4, R4, -1);
-  __ cmp(R4, ShifterOperand(0));
+  __ subs(R4, R4, ShifterOperand(1));
   if (successor == nullptr) {
-    __ b(slow_path->GetEntryLabel(), LE);
+    __ b(slow_path->GetEntryLabel(), EQ);
     __ Bind(slow_path->GetReturnLabel());
   } else {
-    __ b(codegen_->GetLabelOf(successor), GT);
+    __ b(codegen_->GetLabelOf(successor), NE);
     __ b(slow_path->GetEntryLabel());
   }
 }

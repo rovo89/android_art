@@ -34,6 +34,8 @@ class HInstruction;
  */
 class Location : public ValueObject {
  public:
+  static constexpr bool kDiesAtEntry = true;
+
   enum Kind {
     kInvalid = 0,
     kConstant = 1,
@@ -312,7 +314,8 @@ class LocationSummary : public ArenaObject {
 
   LocationSummary(HInstruction* instruction, CallKind call_kind = kNoCall);
 
-  void SetInAt(uint32_t at, Location location) {
+  void SetInAt(uint32_t at, Location location, bool dies_at_entry = false) {
+    dies_at_entry_.Put(at, dies_at_entry);
     inputs_.Put(at, location);
   }
 
@@ -390,8 +393,10 @@ class LocationSummary : public ArenaObject {
   bool InputOverlapsWithOutputOrTemp(uint32_t input, bool is_environment) const {
     if (is_environment) return true;
     Location location = Out();
-    // TODO: Add more policies.
     if (input == 0 && location.IsUnallocated() && location.GetPolicy() == Location::kSameAsFirstInput) {
+      return false;
+    }
+    if (dies_at_entry_.Get(input)) {
       return false;
     }
     return true;
@@ -401,6 +406,7 @@ class LocationSummary : public ArenaObject {
   GrowableArray<Location> inputs_;
   GrowableArray<Location> temps_;
   GrowableArray<Location> environment_;
+  GrowableArray<bool> dies_at_entry_;
   Location output_;
   const CallKind call_kind_;
 
