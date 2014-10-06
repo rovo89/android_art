@@ -27,10 +27,11 @@ namespace art {
 static void TestCode(const uint16_t* data,
                      const std::string& expected_before,
                      const std::string& expected_after_cp,
-                     const std::string& expected_after_dce) {
+                     const std::string& expected_after_dce,
+                     Primitive::Type return_type = Primitive::kPrimInt) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraph* graph = CreateCFG(&allocator, data);
+  HGraph* graph = CreateCFG(&allocator, data, return_type);
   ASSERT_NE(graph, nullptr);
 
   graph->BuildDominatorTree();
@@ -279,7 +280,7 @@ TEST(ConstantPropagation, LongConstantFoldingOnAddition) {
   };
   std::string expected_after_dce = Patch(expected_after_cp, expected_dce_diff);
 
-  TestCode(data, expected_before, expected_after_cp, expected_after_dce);
+  TestCode(data, expected_before, expected_after_cp, expected_after_dce, Primitive::kPrimLong);
 }
 
 /**
@@ -330,7 +331,7 @@ TEST(ConstantPropagation, LongConstantFoldingOnSubtraction) {
   };
   std::string expected_after_dce = Patch(expected_after_cp, expected_dce_diff);
 
-  TestCode(data, expected_before, expected_after_cp, expected_after_dce);
+  TestCode(data, expected_before, expected_after_cp, expected_after_dce, Primitive::kPrimLong);
 }
 
 /**

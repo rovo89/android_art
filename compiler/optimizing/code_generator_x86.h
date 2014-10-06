@@ -32,11 +32,16 @@ class CodeGeneratorX86;
 static constexpr Register kParameterCoreRegisters[] = { ECX, EDX, EBX };
 static constexpr RegisterPair kParameterCorePairRegisters[] = { ECX_EDX, EDX_EBX };
 static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
+static constexpr XmmRegister kParameterFpuRegisters[] = { };
+static constexpr size_t kParameterFpuRegistersLength = 0;
 
-class InvokeDexCallingConvention : public CallingConvention<Register> {
+class InvokeDexCallingConvention : public CallingConvention<Register, XmmRegister> {
  public:
-  InvokeDexCallingConvention()
-      : CallingConvention(kParameterCoreRegisters, kParameterCoreRegistersLength) {}
+  InvokeDexCallingConvention() : CallingConvention(
+      kParameterCoreRegisters,
+      kParameterCoreRegistersLength,
+      kParameterFpuRegisters,
+      kParameterFpuRegistersLength) {}
 
   RegisterPair GetRegisterPairAt(size_t argument_index) {
     DCHECK_LT(argument_index + 1, GetNumberOfRegisters());
