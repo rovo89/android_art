@@ -752,51 +752,101 @@ bool MIRGraph::LayoutBlocks(BasicBlock* bb) {
 /* Combine any basic blocks terminated by instructions that we now know can't throw */
 void MIRGraph::CombineBlocks(struct BasicBlock* bb) {
   // Loop here to allow combining a sequence of blocks
-  while (true) {
-    // Check termination conditions
-    if ((bb->first_mir_insn == NULL)
-        || (bb->data_flow_info == NULL)
-        || (bb->block_type == kExceptionHandling)
-        || (bb->block_type == kExitBlock)
-        || (bb->block_type == kDead)
-        || (bb->taken == NullBasicBlockId)
-        || (GetBasicBlock(bb->taken)->block_type != kExceptionHandling)
-        || (bb->successor_block_list_type != kNotUsed)
-        || (static_cast<int>(bb->last_mir_insn->dalvikInsn.opcode) != kMirOpCheck)) {
+  while ((bb->block_type == kDalvikByteCode) &&
+      (bb->last_mir_insn != nullptr) &&
+      (static_cast<int>(bb->last_mir_insn->dalvikInsn.opcode) == kMirOpCheck)) {
+    MIR* mir = bb->last_mir_insn;
+    DCHECK(bb->first_mir_insn !=  nullptr);
+
+    // Grab the attributes from the paired opcode.
+    MIR* throw_insn = mir->meta.throw_insn;
+    uint64_t df_attributes = GetDataFlowAttributes(throw_insn);
+
+    // Don't combine if the throw_insn can still throw NPE.
+    if ((df_attributes & DF_HAS_NULL_CHKS) != 0 &&
+        (throw_insn->optimization_flags & MIR_IGNORE_NULL_CHECK) == 0) {
+      break;
+    }
+    // Now whitelist specific instructions.
+    bool ok = false;
+    if ((df_attributes & DF_IFIELD) != 0) {
+      // Combine only if fast, otherwise weird things can happen.
+      const MirIFieldLoweringInfo& field_info = GetIFieldLoweringInfo(throw_insn);
+      ok = (df_attributes & DF_DA)  ? field_info.FastPut() : field_info.FastGet();
+    } else if ((df_attributes & DF_SFIELD) != 0) {
+      // Combine only if fast, otherwise weird things can happen.
+      const MirSFieldLoweringInfo& field_info = GetSFieldLoweringInfo(throw_insn);
+      bool fast = ((df_attributes & DF_DA)  ? field_info.FastPut() : field_info.FastGet());
+      // Don't combine if the SGET/SPUT can call <clinit>().
+      bool clinit = !field_info.IsInitialized() &&
+          (throw_insn->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0;
+      ok = fast && !clinit;
+    } else if ((df_attributes & DF_HAS_RANGE_CHKS) != 0) {
+      // Only AGET/APUT have range checks. We have processed the AGET/APUT null check above.
+      DCHECK_NE(throw_insn->optimization_flags & MIR_IGNORE_NULL_CHECK, 0);
+      ok = ((throw_insn->optimization_flags & MIR_IGNORE_RANGE_CHECK) != 0);
+    } else if ((throw_insn->dalvikInsn.FlagsOf() & Instruction::kThrow) == 0) {
+      // We can encounter a non-throwing insn here thanks to inlining or other optimizations.
+      ok = true;
+    } else if (throw_insn->dalvikInsn.opcode == Instruction::ARRAY_LENGTH ||
+        throw_insn->dalvikInsn.opcode == Instruction::FILL_ARRAY_DATA ||
+        static_cast<int>(throw_insn->dalvikInsn.opcode) == kMirOpNullCheck) {
+      // No more checks for these (null check was processed above).
+      ok = true;
+    }
+    if (!ok) {
       break;
     }
 
-    // Test the kMirOpCheck instruction
-    MIR* mir = bb->last_mir_insn;
-    // Grab the attributes from the paired opcode
-    MIR* throw_insn = mir->meta.throw_insn;
-    uint64_t df_attributes = GetDataFlowAttributes(throw_insn);
-    bool can_combine = true;
-    if (df_attributes & DF_HAS_NULL_CHKS) {
-      can_combine &= ((throw_insn->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0);
-    }
-    if (df_attributes & DF_HAS_RANGE_CHKS) {
-      can_combine &= ((throw_insn->optimization_flags & MIR_IGNORE_RANGE_CHECK) != 0);
-    }
-    if (!can_combine) {
-      break;
-    }
     // OK - got one.  Combine
     BasicBlock* bb_next = GetBasicBlock(bb->fall_through);
     DCHECK(!bb_next->catch_entry);
-    DCHECK_EQ(Predecessors(bb_next), 1U);
-    // Overwrite the kOpCheck insn with the paired opcode
+    DCHECK_EQ(bb_next->predecessors.size(), 1u);
+    // Overwrite the kMirOpCheck insn with the paired opcode.
     DCHECK_EQ(bb_next->first_mir_insn, throw_insn);
     *bb->last_mir_insn = *throw_insn;
+    // And grab the rest of the instructions from bb_next.
+    bb->last_mir_insn = bb_next->last_mir_insn;
+    throw_insn->next = nullptr;
+    bb_next->last_mir_insn = throw_insn;
+    // Mark acquired instructions as belonging to bb.
+    for (MIR* insn = mir; insn != nullptr; insn = insn->next) {
+      insn->bb = bb->id;
+    }
+    // Before we overwrite successors, remove their predecessor links to bb.
+    bb_next->ErasePredecessor(bb->id);
+    if (bb->taken != NullBasicBlockId) {
+      DCHECK_EQ(bb->successor_block_list_type, kNotUsed);
+      BasicBlock* bb_taken = GetBasicBlock(bb->taken);
+      // bb->taken will be overwritten below.
+      DCHECK_EQ(bb_taken->block_type, kExceptionHandling);
+      DCHECK_EQ(bb_taken->predecessors.size(), 1u);
+      DCHECK_EQ(bb_taken->predecessors[0], bb->id);
+      bb_taken->predecessors.clear();
+      bb_taken->block_type = kDead;
+      DCHECK(bb_taken->data_flow_info == nullptr);
+    } else {
+      DCHECK_EQ(bb->successor_block_list_type, kCatch);
+      for (SuccessorBlockInfo* succ_info : bb->successor_blocks) {
+        if (succ_info->block != NullBasicBlockId) {
+          BasicBlock* succ_bb = GetBasicBlock(succ_info->block);
+          DCHECK(succ_bb->catch_entry);
+          succ_bb->ErasePredecessor(bb->id);
+          if (succ_bb->predecessors.empty()) {
+            succ_bb->KillUnreachable(this);
+          }
+        }
+      }
+    }
     // Use the successor info from the next block
     bb->successor_block_list_type = bb_next->successor_block_list_type;
     bb->successor_blocks.swap(bb_next->successor_blocks);  // Swap instead of copying.
+    bb_next->successor_block_list_type = kNotUsed;
     // Use the ending block linkage from the next block
     bb->fall_through = bb_next->fall_through;
-    GetBasicBlock(bb->taken)->block_type = kDead;  // Kill the unused exception block
+    bb_next->fall_through = NullBasicBlockId;
     bb->taken = bb_next->taken;
-    // Include the rest of the instructions
-    bb->last_mir_insn = bb_next->last_mir_insn;
+    bb_next->taken = NullBasicBlockId;
     /*
      * If lower-half of pair of blocks to combine contained
      * a return or a conditional branch or an explicit throw,
@@ -805,15 +855,30 @@ void MIRGraph::CombineBlocks(struct BasicBlock* bb) {
     bb->terminated_by_return = bb_next->terminated_by_return;
     bb->conditional_branch = bb_next->conditional_branch;
     bb->explicit_throw = bb_next->explicit_throw;
+    // Merge the use_lvn flag.
+    bb->use_lvn |= bb_next->use_lvn;
+
+    // Kill the unused block.
+    bb_next->data_flow_info = nullptr;
 
     /*
      * NOTE: we aren't updating all dataflow info here.  Should either make sure this pass
      * happens after uses of i_dominated, dom_frontier or update the dataflow info here.
+     * NOTE: GVN uses bb->data_flow_info->live_in_v which is unaffected by the block merge.
      */
 
-    // Kill bb_next and remap now-dead id to parent
+    // Kill bb_next and remap now-dead id to parent.
     bb_next->block_type = kDead;
+    bb_next->data_flow_info = nullptr;  // Must be null for dead blocks. (Relied on by the GVN.)
     block_id_map_.Overwrite(bb_next->id, bb->id);
+    // Update predecessors in children.
+    ChildBlockIterator iter(bb, this);
+    for (BasicBlock* child = iter.Next(); child != nullptr; child = iter.Next()) {
+      child->UpdatePredecessor(bb_next->id, bb->id);
+    }
+
+    // DFS orders are not up to date anymore.
+    dfs_orders_up_to_date_ = false;
 
     // Now, loop back and see if we can keep going
   }

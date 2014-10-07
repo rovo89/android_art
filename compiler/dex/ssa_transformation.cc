@@ -108,10 +108,11 @@ void MIRGraph::ComputeDFSOrders() {
     AllNodesIterator iter(this);
     for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
       if (!bb->visited) {
-        bb->Hide(cu_);
+        bb->Hide(this);
       }
     }
   }
+  dfs_orders_up_to_date_ = true;
 }
 
 /*
