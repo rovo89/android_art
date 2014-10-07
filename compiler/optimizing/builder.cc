@@ -102,28 +102,19 @@ bool HGraphBuilder::InitializeParameters(uint16_t number_of_parameters) {
 
   uint32_t pos = 1;
   for (int i = 0; i < number_of_parameters; i++) {
-    switch (shorty[pos++]) {
-      case 'F':
-      case 'D': {
-        return false;
-      }
-
-      default: {
-        // integer and reference parameters.
-        HParameterValue* parameter =
-            new (arena_) HParameterValue(parameter_index++, Primitive::GetType(shorty[pos - 1]));
-        entry_block_->AddInstruction(parameter);
-        HLocal* local = GetLocalAt(locals_index++);
-        // Store the parameter value in the local that the dex code will use
-        // to reference that parameter.
-        entry_block_->AddInstruction(new (arena_) HStoreLocal(local, parameter));
-        if (parameter->GetType() == Primitive::kPrimLong) {
-          i++;
-          locals_index++;
-          parameter_index++;
-        }
-        break;
-      }
+    HParameterValue* parameter =
+        new (arena_) HParameterValue(parameter_index++, Primitive::GetType(shorty[pos++]));
+    entry_block_->AddInstruction(parameter);
+    HLocal* local = GetLocalAt(locals_index++);
+    // Store the parameter value in the local that the dex code will use
+    // to reference that parameter.
+    entry_block_->AddInstruction(new (arena_) HStoreLocal(local, parameter));
+    bool is_wide = (parameter->GetType() == Primitive::kPrimLong)
+        || (parameter->GetType() == Primitive::kPrimDouble);
+    if (is_wide) {
+      i++;
+      locals_index++;
+      parameter_index++;
     }
   }
   return true;
@@ -402,10 +393,8 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   uint32_t argument_index = start_index;
   for (size_t i = start_index; i < number_of_vreg_arguments; i++, argument_index++) {
     Primitive::Type type = Primitive::GetType(descriptor[descriptor_index++]);
-    if (!IsTypeSupported(type)) {
-      return false;
-    }
-    if (!is_range && type == Primitive::kPrimLong && args[i] + 1 != args[i + 1]) {
+    bool is_wide = (type == Primitive::kPrimLong) || (type == Primitive::kPrimDouble);
+    if (!is_range && is_wide && args[i] + 1 != args[i + 1]) {
       LOG(WARNING) << "Non sequential register pair in " << dex_compilation_unit_->GetSymbol()
                    << " at " << dex_offset;
       // We do not implement non sequential register pair.
@@ -413,13 +402,9 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
     }
     HInstruction* arg = LoadLocal(is_range ? register_index + i : args[i], type);
     invoke->SetArgumentAt(argument_index, arg);
-    if (type == Primitive::kPrimLong) {
+    if (is_wide) {
       i++;
     }
-  }
-
-  if (!IsTypeSupported(return_type)) {
-    return false;
   }
 
   DCHECK_EQ(argument_index, number_of_arguments);
@@ -648,17 +633,22 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::RETURN: {
-      BuildReturn(instruction, Primitive::kPrimInt);
+      DCHECK_NE(return_type_, Primitive::kPrimNot);
+      DCHECK_NE(return_type_, Primitive::kPrimLong);
+      DCHECK_NE(return_type_, Primitive::kPrimDouble);
+      BuildReturn(instruction, return_type_);
       break;
     }
 
     case Instruction::RETURN_OBJECT: {
-      BuildReturn(instruction, Primitive::kPrimNot);
+      DCHECK(return_type_ == Primitive::kPrimNot);
+      BuildReturn(instruction, return_type_);
       break;
     }
 
     case Instruction::RETURN_WIDE: {
-      BuildReturn(instruction, Primitive::kPrimLong);
+      DCHECK(return_type_ == Primitive::kPrimDouble || return_type_ == Primitive::kPrimLong);
+      BuildReturn(instruction, return_type_);
       break;
     }
 
@@ -698,6 +688,16 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::ADD_DOUBLE: {
+      Binop_23x<HAdd>(instruction, Primitive::kPrimDouble);
+      break;
+    }
+
+    case Instruction::ADD_FLOAT: {
+      Binop_23x<HAdd>(instruction, Primitive::kPrimFloat);
+      break;
+    }
+
     case Instruction::SUB_INT: {
       Binop_23x<HSub>(instruction, Primitive::kPrimInt);
       break;
@@ -715,6 +715,16 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
 
     case Instruction::ADD_LONG_2ADDR: {
       Binop_12x<HAdd>(instruction, Primitive::kPrimLong);
+      break;
+    }
+
+    case Instruction::ADD_DOUBLE_2ADDR: {
+      Binop_12x<HAdd>(instruction, Primitive::kPrimDouble);
+      break;
+    }
+
+    case Instruction::ADD_FLOAT_2ADDR: {
+      Binop_12x<HAdd>(instruction, Primitive::kPrimFloat);
       break;
     }
 

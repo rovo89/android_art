@@ -51,12 +51,16 @@ static Location X86_64CpuLocation(Register reg) {
 static constexpr Register kRuntimeParameterCoreRegisters[] = { RDI, RSI, RDX };
 static constexpr size_t kRuntimeParameterCoreRegistersLength =
     arraysize(kRuntimeParameterCoreRegisters);
+static constexpr FloatRegister kRuntimeParameterFpuRegisters[] = { };
+static constexpr size_t kRuntimeParameterFpuRegistersLength = 0;
 
-class InvokeRuntimeCallingConvention : public CallingConvention<Register> {
+class InvokeRuntimeCallingConvention : public CallingConvention<Register, FloatRegister> {
  public:
   InvokeRuntimeCallingConvention()
       : CallingConvention(kRuntimeParameterCoreRegisters,
-                          kRuntimeParameterCoreRegistersLength) {}
+                          kRuntimeParameterCoreRegistersLength,
+                          kRuntimeParameterFpuRegisters,
+                          kRuntimeParameterFpuRegistersLength) {}
 
  private:
   DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
@@ -219,8 +223,11 @@ ManagedRegister CodeGeneratorX86_64::AllocateFreeRegister(Primitive::Type type,
     }
 
     case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble:
-      LOG(FATAL) << "Unimplemented register type " << type;
+    case Primitive::kPrimDouble: {
+      size_t reg = AllocateFreeRegisterInternal(
+          blocked_registers + kNumberOfCpuRegisters, kNumberOfFloatRegisters);
+      return X86_64ManagedRegister::FromXmmRegister(static_cast<FloatRegister>(reg));
+    }
 
     case Primitive::kPrimVoid:
       LOG(FATAL) << "Unreachable type " << type;
@@ -243,6 +250,12 @@ void CodeGeneratorX86_64::SetupBlockedRegisters(bool* blocked_registers) const {
   blocked_registers[R13] = true;
   blocked_registers[R14] = true;
   blocked_registers[R15] = true;
+
+  bool* blocked_xmm_registers = blocked_registers + kNumberOfCpuRegisters;
+  blocked_xmm_registers[XMM12] = true;
+  blocked_xmm_registers[XMM13] = true;
+  blocked_xmm_registers[XMM14] = true;
+  blocked_xmm_registers[XMM15] = true;
 }
 
 void CodeGeneratorX86_64::GenerateFrameEntry() {
@@ -291,16 +304,14 @@ void InstructionCodeGeneratorX86_64::LoadCurrentMethod(CpuRegister reg) {
 Location CodeGeneratorX86_64::GetStackLocation(HLoadLocal* load) const {
   switch (load->GetType()) {
     case Primitive::kPrimLong:
+    case Primitive::kPrimDouble:
       return Location::DoubleStackSlot(GetStackSlot(load->GetLocal()));
       break;
 
     case Primitive::kPrimInt:
     case Primitive::kPrimNot:
-      return Location::StackSlot(GetStackSlot(load->GetLocal()));
-
     case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble:
-      LOG(FATAL) << "Unimplemented type " << load->GetType();
+      return Location::StackSlot(GetStackSlot(load->GetLocal()));
 
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
@@ -321,15 +332,36 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
   if (destination.IsRegister()) {
     if (source.IsRegister()) {
       __ movq(destination.AsX86_64().AsCpuRegister(), source.AsX86_64().AsCpuRegister());
+    } else if (source.IsFpuRegister()) {
+      __ movd(destination.AsX86_64().AsCpuRegister(), source.AsX86_64().AsXmmRegister());
     } else if (source.IsStackSlot()) {
-      __ movl(destination.AsX86_64().AsCpuRegister(), Address(CpuRegister(RSP), source.GetStackIndex()));
+      __ movl(destination.AsX86_64().AsCpuRegister(),
+              Address(CpuRegister(RSP), source.GetStackIndex()));
     } else {
       DCHECK(source.IsDoubleStackSlot());
-      __ movq(destination.AsX86_64().AsCpuRegister(), Address(CpuRegister(RSP), source.GetStackIndex()));
+      __ movq(destination.AsX86_64().AsCpuRegister(),
+              Address(CpuRegister(RSP), source.GetStackIndex()));
+    }
+  } else if (destination.IsFpuRegister()) {
+    if (source.IsRegister()) {
+      __ movd(destination.AsX86_64().AsXmmRegister(), source.AsX86_64().AsCpuRegister());
+    } else if (source.IsFpuRegister()) {
+      __ movaps(destination.AsX86_64().AsXmmRegister(), source.AsX86_64().AsXmmRegister());
+    } else if (source.IsStackSlot()) {
+      __ movss(destination.AsX86_64().AsXmmRegister(),
+              Address(CpuRegister(RSP), source.GetStackIndex()));
+    } else {
+      DCHECK(source.IsDoubleStackSlot());
+      __ movsd(destination.AsX86_64().AsXmmRegister(),
+               Address(CpuRegister(RSP), source.GetStackIndex()));
     }
   } else if (destination.IsStackSlot()) {
     if (source.IsRegister()) {
-      __ movl(Address(CpuRegister(RSP), destination.GetStackIndex()), source.AsX86_64().AsCpuRegister());
+      __ movl(Address(CpuRegister(RSP), destination.GetStackIndex()),
+              source.AsX86_64().AsCpuRegister());
+    } else if (source.IsFpuRegister()) {
+      __ movss(Address(CpuRegister(RSP), destination.GetStackIndex()),
+               source.AsX86_64().AsXmmRegister());
     } else {
       DCHECK(source.IsStackSlot());
       __ movl(CpuRegister(TMP), Address(CpuRegister(RSP), source.GetStackIndex()));
@@ -338,7 +370,11 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
   } else {
     DCHECK(destination.IsDoubleStackSlot());
     if (source.IsRegister()) {
-      __ movq(Address(CpuRegister(RSP), destination.GetStackIndex()), source.AsX86_64().AsCpuRegister());
+      __ movq(Address(CpuRegister(RSP), destination.GetStackIndex()),
+              source.AsX86_64().AsCpuRegister());
+    } else if (source.IsFpuRegister()) {
+      __ movsd(Address(CpuRegister(RSP), destination.GetStackIndex()),
+               source.AsX86_64().AsXmmRegister());
     } else {
       DCHECK(source.IsDoubleStackSlot());
       __ movq(CpuRegister(TMP), Address(CpuRegister(RSP), source.GetStackIndex()));
@@ -373,15 +409,17 @@ void CodeGeneratorX86_64::Move(HInstruction* instruction,
       case Primitive::kPrimShort:
       case Primitive::kPrimInt:
       case Primitive::kPrimNot:
+      case Primitive::kPrimFloat:
         Move(location, Location::StackSlot(GetStackSlot(instruction->AsLoadLocal()->GetLocal())));
         break;
 
       case Primitive::kPrimLong:
+      case Primitive::kPrimDouble:
         Move(location, Location::DoubleStackSlot(GetStackSlot(instruction->AsLoadLocal()->GetLocal())));
         break;
 
       default:
-        LOG(FATAL) << "Unimplemented local type " << instruction->GetType();
+        LOG(FATAL) << "Unexpected local type " << instruction->GetType();
     }
   } else {
     DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
@@ -393,11 +431,13 @@ void CodeGeneratorX86_64::Move(HInstruction* instruction,
       case Primitive::kPrimInt:
       case Primitive::kPrimNot:
       case Primitive::kPrimLong:
+      case Primitive::kPrimFloat:
+      case Primitive::kPrimDouble:
         Move(location, instruction->GetLocations()->Out());
         break;
 
       default:
-        LOG(FATAL) << "Unimplemented type " << instruction->GetType();
+        LOG(FATAL) << "Unexpected type " << instruction->GetType();
     }
   }
 }
@@ -512,15 +552,17 @@ void LocationsBuilderX86_64::VisitStoreLocal(HStoreLocal* store) {
     case Primitive::kPrimShort:
     case Primitive::kPrimInt:
     case Primitive::kPrimNot:
+    case Primitive::kPrimFloat:
       locations->SetInAt(1, Location::StackSlot(codegen_->GetStackSlot(store->GetLocal())));
       break;
 
     case Primitive::kPrimLong:
+    case Primitive::kPrimDouble:
       locations->SetInAt(1, Location::DoubleStackSlot(codegen_->GetStackSlot(store->GetLocal())));
       break;
 
     default:
-      LOG(FATAL) << "Unimplemented local type " << store->InputAt(1)->GetType();
+      LOG(FATAL) << "Unexpected local type " << store->InputAt(1)->GetType();
   }
 }
 
@@ -679,8 +721,14 @@ void LocationsBuilderX86_64::VisitReturn(HReturn* ret) {
       locations->SetInAt(0, X86_64CpuLocation(RAX));
       break;
 
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      locations->SetInAt(0,
+          Location::FpuRegisterLocation(X86_64ManagedRegister::FromXmmRegister(XMM0)));
+      break;
+
     default:
-      LOG(FATAL) << "Unimplemented return type " << ret->InputAt(0)->GetType();
+      LOG(FATAL) << "Unexpected return type " << ret->InputAt(0)->GetType();
   }
 }
 
@@ -697,8 +745,14 @@ void InstructionCodeGeneratorX86_64::VisitReturn(HReturn* ret) {
         DCHECK_EQ(ret->GetLocations()->InAt(0).AsX86_64().AsCpuRegister().AsRegister(), RAX);
         break;
 
+      case Primitive::kPrimFloat:
+      case Primitive::kPrimDouble:
+        DCHECK_EQ(ret->GetLocations()->InAt(0).AsX86_64().AsXmmRegister().AsFloatRegister(),
+                  XMM0);
+        break;
+
       default:
-        LOG(FATAL) << "Unimplemented return type " << ret->InputAt(0)->GetType();
+        LOG(FATAL) << "Unexpected return type " << ret->InputAt(0)->GetType();
     }
   }
   codegen_->GenerateFrameExit();
@@ -734,10 +788,27 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
       }
     }
 
-    case Primitive::kPrimDouble:
-    case Primitive::kPrimFloat:
-      LOG(FATAL) << "Unimplemented parameter type " << type;
-      break;
+    case Primitive::kPrimFloat: {
+      uint32_t index = fp_index_++;
+      stack_index_++;
+      if (index < calling_convention.GetNumberOfFpuRegisters()) {
+        return Location::FpuRegisterLocation(X86_64ManagedRegister::FromXmmRegister(
+            calling_convention.GetFpuRegisterAt(index)));
+      } else {
+        return Location::StackSlot(calling_convention.GetStackOffsetOf(stack_index_ - 1));
+      }
+    }
+
+    case Primitive::kPrimDouble: {
+      uint32_t index = fp_index_++;
+      stack_index_ += 2;
+      if (index < calling_convention.GetNumberOfFpuRegisters()) {
+        return Location::FpuRegisterLocation(X86_64ManagedRegister::FromXmmRegister(
+            calling_convention.GetFpuRegisterAt(index)));
+      } else {
+        return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(stack_index_ - 2));
+      }
+    }
 
     case Primitive::kPrimVoid:
       LOG(FATAL) << "Unexpected parameter type " << type;
@@ -807,7 +878,8 @@ void LocationsBuilderX86_64::HandleInvoke(HInvoke* invoke) {
 
     case Primitive::kPrimDouble:
     case Primitive::kPrimFloat:
-      LOG(FATAL) << "Unimplemented return type " << invoke->GetType();
+      locations->SetOut(
+          Location::FpuRegisterLocation(X86_64ManagedRegister::FromXmmRegister(XMM0)));
       break;
   }
 }
@@ -845,6 +917,7 @@ void LocationsBuilderX86_64::VisitAdd(HAdd* add) {
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
+
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RequiresRegister());
@@ -852,52 +925,67 @@ void LocationsBuilderX86_64::VisitAdd(HAdd* add) {
       break;
     }
 
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-      LOG(FATAL) << "Unexpected add type " << add->GetResultType();
+    case Primitive::kPrimDouble:
+    case Primitive::kPrimFloat: {
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::Any());
+      locations->SetOut(Location::SameAsFirstInput());
       break;
+    }
 
     default:
-      LOG(FATAL) << "Unimplemented add type " << add->GetResultType();
+      LOG(FATAL) << "Unexpected add type " << add->GetResultType();
   }
 }
 
 void InstructionCodeGeneratorX86_64::VisitAdd(HAdd* add) {
   LocationSummary* locations = add->GetLocations();
-  DCHECK_EQ(locations->InAt(0).AsX86_64().AsCpuRegister().AsRegister(),
-            locations->Out().AsX86_64().AsCpuRegister().AsRegister());
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+
+  DCHECK(first.Equals(locations->Out()));
   switch (add->GetResultType()) {
     case Primitive::kPrimInt: {
-      if (locations->InAt(1).IsRegister()) {
-        __ addl(locations->InAt(0).AsX86_64().AsCpuRegister(),
-                locations->InAt(1).AsX86_64().AsCpuRegister());
-      } else if (locations->InAt(1).IsConstant()) {
-        HConstant* instruction = locations->InAt(1).GetConstant();
+      if (second.IsRegister()) {
+        __ addl(first.AsX86_64().AsCpuRegister(), second.AsX86_64().AsCpuRegister());
+      } else if (second.IsConstant()) {
+        HConstant* instruction = second.GetConstant();
         Immediate imm(instruction->AsIntConstant()->GetValue());
-        __ addl(locations->InAt(0).AsX86_64().AsCpuRegister(), imm);
+        __ addl(first.AsX86_64().AsCpuRegister(), imm);
       } else {
-        __ addl(locations->InAt(0).AsX86_64().AsCpuRegister(),
-                Address(CpuRegister(RSP), locations->InAt(1).GetStackIndex()));
+        __ addl(first.AsX86_64().AsCpuRegister(),
+                Address(CpuRegister(RSP), second.GetStackIndex()));
       }
       break;
     }
+
     case Primitive::kPrimLong: {
-      __ addq(locations->InAt(0).AsX86_64().AsCpuRegister(),
-              locations->InAt(1).AsX86_64().AsCpuRegister());
+      __ addq(first.AsX86_64().AsCpuRegister(), second.AsX86_64().AsCpuRegister());
       break;
     }
 
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-      LOG(FATAL) << "Unexpected add type " << add->GetResultType();
+    case Primitive::kPrimFloat: {
+      if (second.IsFpuRegister()) {
+        __ addss(first.AsX86_64().AsXmmRegister(), second.AsX86_64().AsXmmRegister());
+      } else {
+        __ addss(first.AsX86_64().AsXmmRegister(),
+                 Address(CpuRegister(RSP), second.GetStackIndex()));
+      }
       break;
+    }
+
+    case Primitive::kPrimDouble: {
+      if (second.IsFpuRegister()) {
+        __ addsd(first.AsX86_64().AsXmmRegister(), second.AsX86_64().AsXmmRegister());
+      } else {
+        __ addsd(first.AsX86_64().AsXmmRegister(),
+                 Address(CpuRegister(RSP), second.GetStackIndex()));
+      }
+      break;
+    }
 
     default:
-      LOG(FATAL) << "Unimplemented add type " << add->GetResultType();
+      LOG(FATAL) << "Unexpected add type " << add->GetResultType();
   }
 }
 
