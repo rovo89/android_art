@@ -243,6 +243,17 @@ void X86Assembler::movw(const Address& dst, Register src) {
 }
 
 
+void X86Assembler::movw(const Address& dst, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOperandSizeOverride();
+  EmitUint8(0xC7);
+  EmitOperand(0, dst);
+  CHECK(imm.is_int16());
+  EmitUint8(imm.value() & 0xFF);
+  EmitUint8(imm.value() >> 8);
+}
+
+
 void X86Assembler::leal(Register dst, const Address& src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x8D);

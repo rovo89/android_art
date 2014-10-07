@@ -1311,8 +1311,9 @@ void LocationsBuilderARM::VisitNullCheck(HNullCheck* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
-  // TODO: Have a normalization phase that makes this instruction never used.
-  locations->SetOut(Location::SameAsFirstInput());
+  if (instruction->HasUses()) {
+    locations->SetOut(Location::SameAsFirstInput());
+  }
 }
 
 void InstructionCodeGeneratorARM::VisitNullCheck(HNullCheck* instruction) {
@@ -1321,12 +1322,15 @@ void InstructionCodeGeneratorARM::VisitNullCheck(HNullCheck* instruction) {
 
   LocationSummary* locations = instruction->GetLocations();
   Location obj = locations->InAt(0);
-  DCHECK(obj.Equals(locations->Out()));
 
   if (obj.IsRegister()) {
     __ cmp(obj.AsArm().AsCoreRegister(), ShifterOperand(0));
+    __ b(slow_path->GetEntryLabel(), EQ);
+  } else {
+    DCHECK(obj.IsConstant()) << obj;
+    DCHECK_EQ(obj.GetConstant()->AsIntConstant()->GetValue(), 0);
+    __ b(slow_path->GetEntryLabel());
   }
-  __ b(slow_path->GetEntryLabel(), EQ);
 }
 
 void LocationsBuilderARM::VisitArrayGet(HArrayGet* instruction) {
@@ -1550,8 +1554,9 @@ void LocationsBuilderARM::VisitBoundsCheck(HBoundsCheck* instruction) {
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
-  // TODO: Have a normalization phase that makes this instruction never used.
-  locations->SetOut(Location::SameAsFirstInput());
+  if (instruction->HasUses()) {
+    locations->SetOut(Location::SameAsFirstInput());
+  }
 }
 
 void InstructionCodeGeneratorARM::VisitBoundsCheck(HBoundsCheck* instruction) {

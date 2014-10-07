@@ -37,6 +37,7 @@ class Immediate {
 
   bool is_int8() const { return IsInt(8, value_); }
   bool is_uint8() const { return IsUint(8, value_); }
+  bool is_int16() const { return IsInt(16, value_); }
   bool is_uint16() const { return IsUint(16, value_); }
 
  private:
@@ -251,6 +252,7 @@ class X86Assembler FINAL : public Assembler {
   void movsxw(Register dst, const Address& src);
   void movw(Register dst, const Address& src);
   void movw(const Address& dst, Register src);
+  void movw(const Address& dst, const Immediate& imm);
 
   void leal(Register dst, const Address& src);
 

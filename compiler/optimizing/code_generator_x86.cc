@@ -1302,8 +1302,9 @@ void LocationsBuilderX86::VisitNullCheck(HNullCheck* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::Any());
-  // TODO: Have a normalization phase that makes this instruction never used.
-  locations->SetOut(Location::SameAsFirstInput());
+  if (instruction->HasUses()) {
+    locations->SetOut(Location::SameAsFirstInput());
+  }
 }
 
 void InstructionCodeGeneratorX86::VisitNullCheck(HNullCheck* instruction) {
@@ -1312,13 +1313,16 @@ void InstructionCodeGeneratorX86::VisitNullCheck(HNullCheck* instruction) {
 
   LocationSummary* locations = instruction->GetLocations();
   Location obj = locations->InAt(0);
-  DCHECK(obj.Equals(locations->Out()));
 
   if (obj.IsRegister()) {
     __ cmpl(obj.AsX86().AsCpuRegister(), Immediate(0));
-  } else {
-    DCHECK(locations->InAt(0).IsStackSlot());
+  } else if (obj.IsStackSlot()) {
     __ cmpl(Address(ESP, obj.GetStackIndex()), Immediate(0));
+  } else {
+    DCHECK(obj.IsConstant()) << obj;
+    DCHECK_EQ(obj.GetConstant()->AsIntConstant()->GetValue(), 0);
+    __ jmp(slow_path->GetEntryLabel());
+    return;
   }
   __ j(kEqual, slow_path->GetEntryLabel());
 }
@@ -1443,9 +1447,10 @@ void LocationsBuilderX86::VisitArraySet(HArraySet* instruction) {
         1, Location::RegisterOrConstant(instruction->InputAt(1)), dies_at_entry);
     if (value_type == Primitive::kPrimBoolean || value_type == Primitive::kPrimByte) {
       // Ensure the value is in a byte register.
-      locations->SetInAt(2, X86CpuLocation(EAX), dies_at_entry);
+      locations->SetInAt(2, Location::ByteRegisterOrConstant(
+          X86ManagedRegister::FromCpuRegister(EAX), instruction->InputAt(2)), dies_at_entry);
     } else {
-      locations->SetInAt(2, Location::RequiresRegister(), dies_at_entry);
+      locations->SetInAt(2, Location::RegisterOrConstant(instruction->InputAt(2)), dies_at_entry);
     }
   }
 }
@@ -1454,18 +1459,29 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   Register obj = locations->InAt(0).AsX86().AsCpuRegister();
   Location index = locations->InAt(1);
+  Location value = locations->InAt(2);
   Primitive::Type value_type = instruction->GetComponentType();
 
   switch (value_type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(uint8_t)).Uint32Value();
-      ByteRegister value = locations->InAt(2).AsX86().AsByteRegister();
       if (index.IsConstant()) {
         size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1) + data_offset;
-        __ movb(Address(obj, offset), value);
+        if (value.IsRegister()) {
+          __ movb(Address(obj, offset), value.AsX86().AsByteRegister());
+        } else {
+          __ movb(Address(obj, offset),
+                  Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+        }
       } else {
-        __ movb(Address(obj, index.AsX86().AsCpuRegister(), TIMES_1, data_offset), value);
+        if (value.IsRegister()) {
+          __ movb(Address(obj, index.AsX86().AsCpuRegister(), TIMES_1, data_offset),
+                  value.AsX86().AsByteRegister());
+        } else {
+          __ movb(Address(obj, index.AsX86().AsCpuRegister(), TIMES_1, data_offset),
+                  Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+        }
       }
       break;
     }
@@ -1473,24 +1489,43 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
     case Primitive::kPrimShort:
     case Primitive::kPrimChar: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(uint16_t)).Uint32Value();
-      Register value = locations->InAt(2).AsX86().AsCpuRegister();
       if (index.IsConstant()) {
         size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_2) + data_offset;
-        __ movw(Address(obj, offset), value);
+        if (value.IsRegister()) {
+          __ movw(Address(obj, offset), value.AsX86().AsCpuRegister());
+        } else {
+          __ movw(Address(obj, offset),
+                  Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+        }
       } else {
-        __ movw(Address(obj, index.AsX86().AsCpuRegister(), TIMES_2, data_offset), value);
+        if (value.IsRegister()) {
+          __ movw(Address(obj, index.AsX86().AsCpuRegister(), TIMES_2, data_offset),
+                  value.AsX86().AsCpuRegister());
+        } else {
+          __ movw(Address(obj, index.AsX86().AsCpuRegister(), TIMES_2, data_offset),
+                  Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+        }
       }
       break;
     }
 
     case Primitive::kPrimInt: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
-      Register value = locations->InAt(2).AsX86().AsCpuRegister();
       if (index.IsConstant()) {
         size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-        __ movl(Address(obj, offset), value);
+        if (value.IsRegister()) {
+          __ movl(Address(obj, offset), value.AsX86().AsCpuRegister());
+        } else {
+          __ movl(Address(obj, offset), Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+        }
       } else {
-        __ movl(Address(obj, index.AsX86().AsCpuRegister(), TIMES_4, data_offset), value);
+        if (value.IsRegister()) {
+          __ movl(Address(obj, index.AsX86().AsCpuRegister(), TIMES_4, data_offset),
+                  value.AsX86().AsCpuRegister());
+        } else {
+          __ movl(Address(obj, index.AsX86().AsCpuRegister(), TIMES_4, data_offset),
+                  Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+        }
       }
       break;
     }
@@ -1504,16 +1539,29 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
 
     case Primitive::kPrimLong: {
       uint32_t data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Uint32Value();
-      X86ManagedRegister value = locations->InAt(2).AsX86();
       if (index.IsConstant()) {
         size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_8) + data_offset;
-        __ movl(Address(obj, offset), value.AsRegisterPairLow());
-        __ movl(Address(obj, offset + kX86WordSize), value.AsRegisterPairHigh());
+        if (value.IsRegister()) {
+          __ movl(Address(obj, offset), value.AsX86().AsRegisterPairLow());
+          __ movl(Address(obj, offset + kX86WordSize), value.AsX86().AsRegisterPairHigh());
+        } else {
+          int64_t val = value.GetConstant()->AsLongConstant()->GetValue();
+          __ movl(Address(obj, offset), Immediate(Low32Bits(val)));
+          __ movl(Address(obj, offset + kX86WordSize), Immediate(High32Bits(val)));
+        }
       } else {
-        __ movl(Address(obj, index.AsX86().AsCpuRegister(), TIMES_8, data_offset),
-                value.AsRegisterPairLow());
-        __ movl(Address(obj, index.AsX86().AsCpuRegister(), TIMES_8, data_offset + kX86WordSize),
-                value.AsRegisterPairHigh());
+        if (value.IsRegister()) {
+          __ movl(Address(obj, index.AsX86().AsCpuRegister(), TIMES_8, data_offset),
+                  value.AsX86().AsRegisterPairLow());
+          __ movl(Address(obj, index.AsX86().AsCpuRegister(), TIMES_8, data_offset + kX86WordSize),
+                  value.AsX86().AsRegisterPairHigh());
+        } else {
+          int64_t val = value.GetConstant()->AsLongConstant()->GetValue();
+          __ movl(Address(obj, index.AsX86().AsCpuRegister(), TIMES_8, data_offset),
+                  Immediate(Low32Bits(val)));
+          __ movl(Address(obj, index.AsX86().AsCpuRegister(), TIMES_8, data_offset + kX86WordSize),
+                  Immediate(High32Bits(val)));
+        }
       }
       break;
     }
@@ -1547,8 +1595,9 @@ void LocationsBuilderX86::VisitBoundsCheck(HBoundsCheck* instruction) {
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
-  // TODO: Have a normalization phase that makes this instruction never used.
-  locations->SetOut(Location::SameAsFirstInput());
+  if (instruction->HasUses()) {
+    locations->SetOut(Location::SameAsFirstInput());
+  }
 }
 
 void InstructionCodeGeneratorX86::VisitBoundsCheck(HBoundsCheck* instruction) {

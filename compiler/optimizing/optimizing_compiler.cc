@@ -28,6 +28,7 @@
 #include "gvn.h"
 #include "instruction_simplifier.h"
 #include "nodes.h"
+#include "prepare_for_register_allocation.h"
 #include "register_allocator.h"
 #include "ssa_phi_elimination.h"
 #include "ssa_liveness_analysis.h"
@@ -265,6 +266,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     InstructionSimplifier(graph).Run();
     GlobalValueNumberer(graph->GetArena(), graph).Run();
     visualizer.DumpGraph(kGVNPassName);
+    PrepareForRegisterAllocation(graph).Run();
 
     SsaLivenessAnalysis liveness(*graph, codegen);
     liveness.Analyze();
