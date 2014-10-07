@@ -96,6 +96,7 @@ while true; do
         runtime="jvm"
         prebuild_mode="no"
         NEED_DEX="false"
+        run_args="${run_args} --jvm"
         shift
     elif [ "x$1" = "x-O" ]; then
         lib="libart.so"
@@ -260,7 +261,6 @@ function guess_arch_name() {
 
 if [ "$target_mode" = "no" ]; then
     if [ "$runtime" = "jvm" ]; then
-        RUN="${progdir}/etc/reference-run-test-classes"
         if [ "$prebuild_mode" = "yes" ]; then
             echo "--prebuild with --jvm is unsupported";
             exit 1;

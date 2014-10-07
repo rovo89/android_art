@@ -31,6 +31,7 @@ PREBUILD="y"
 QUIET="n"
 RELOCATE="y"
 USE_GDB="n"
+USE_JVM="n"
 VERIFY="y"
 ZYGOTE=""
 MAIN=""
@@ -104,6 +105,9 @@ while true; do
     elif [ "x$1" = "x--interpreter" ]; then
         INTERPRETER="y"
         shift
+    elif [ "x$1" = "x--jvm" ]; then
+        USE_JVM="y"
+        shift
     elif [ "x$1" = "x--invoke-with" ]; then
         shift
         if [ "x$1" = "x" ]; then
@@ -160,18 +164,16 @@ if [ "$ZYGOTE" = "" ]; then
 
     if [ "$VERIFY" = "y" ]; then
         DEX_VERIFY=""
+        JVM_VERIFY_ARG="-Xverify:all"
         msg "Performing verification"
     else
         DEX_VERIFY="-Xverify:none"
+        JVM_VERIFY_ARG="-Xverify:none"
         msg "Skipping verification"
     fi
 fi
 
 msg "------------------------------"
-
-if [ "$HAVE_IMAGE" = "n" ]; then
-    BOOT_OPT="-Ximage:/system/non-existant/core.art"
-fi
 
 if [ "$DEBUGGER" = "y" ]; then
   # Use this instead for ddms and connect by running 'ddms':
@@ -186,6 +188,17 @@ if [ "$DEBUGGER" = "y" ]; then
   msg "    jdb -attach localhost:$PORT"
   DEBUGGER_OPTS="-agentlib:jdwp=transport=dt_socket,address=$PORT,server=y,suspend=y"
 fi
+
+if [ "$USE_JVM" = "y" ]; then
+  ${JAVA} ${DEBUGGER_OPTS} ${JVM_VERIFY_ARG} -classpath classes $MAIN "$@"
+  exit
+fi
+
+
+if [ "$HAVE_IMAGE" = "n" ]; then
+    BOOT_OPT="-Ximage:/system/non-existant/core.art"
+fi
+
 
 if [ "$USE_GDB" = "y" ]; then
   if [ "$HOST" = "n" ]; then
