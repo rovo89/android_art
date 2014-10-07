@@ -3227,9 +3227,16 @@ def CheckLanguage(filename, clean_lines, linenum, file_extension, include_state,
     # virtually indistinguishable from int(x) casts. Likewise, gMock's
     # MockCallback takes a template parameter of the form return_type(arg_type),
     # which looks much like the cast we're trying to detect.
+    # BEGIN android-added
+    # The C++ 2011 std::function class template exhibits a similar issue.
+    # END android-added
     if (match.group(1) is None and  # If new operator, then this isn't a cast
         not (Match(r'^\s*MOCK_(CONST_)?METHOD\d+(_T)?\(', line) or
-             Match(r'^\s*MockCallback<.*>', line))):
+             # BEGIN android-changed
+             # Match(r'^\s*MockCallback<.*>', line))):
+             Match(r'^\s*MockCallback<.*>', line) or
+             Match(r'^\s*std::function<.*>', line))):
+             # END android-changed
       # Try a bit harder to catch gmock lines: the only place where
       # something looks like an old-style cast is where we declare the
       # return type of the mocked method, and the only time when we
