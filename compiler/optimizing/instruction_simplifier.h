@@ -32,6 +32,7 @@ class InstructionSimplifier : public HGraphVisitor {
 
  private:
   virtual void VisitSuspendCheck(HSuspendCheck* check) OVERRIDE;
+  virtual void VisitEqual(HEqual* equal) OVERRIDE;
 };
 
 }  // namespace art
