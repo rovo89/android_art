@@ -795,7 +795,7 @@ void RegisterAllocator::InsertParallelMoveAt(size_t position,
     move = at->GetNext()->AsParallelMove();
     // This is a parallel move for connecting siblings in a same block. We need to
     // differentiate it with moves for connecting blocks, and input moves.
-    if (move == nullptr || move->GetLifetimePosition() != position) {
+    if (move == nullptr || IsInputMove(move) || move->GetLifetimePosition() > position) {
       move = new (allocator_) HParallelMove(allocator_);
       move->SetLifetimePosition(position);
       at->GetBlock()->InsertInstructionBefore(move, at->GetNext());
@@ -803,16 +803,11 @@ void RegisterAllocator::InsertParallelMoveAt(size_t position,
   } else {
     // Move must happen before the instruction.
     HInstruction* previous = at->GetPrevious();
-    if (previous != nullptr && previous->IsParallelMove()) {
+    if (previous != nullptr && previous->IsParallelMove() && IsInputMove(previous)) {
       // This is a parallel move for connecting siblings in a same block. We need to
-      // differentiate it with moves for connecting blocks, and input moves.
-      if (previous->GetLifetimePosition() != position) {
-        // If the previous instruction of the previous instruction is not a parallel
-        // move, we have to insert the new parallel move before the input or connecting
-        // block moves.
-        at = previous;
-        previous = previous->GetPrevious();
-      }
+      // differentiate it with input moves.
+      at = previous;
+      previous = previous->GetPrevious();
     }
     if (previous == nullptr
         || !previous->IsParallelMove()
