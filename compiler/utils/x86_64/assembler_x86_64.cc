@@ -298,7 +298,7 @@ void X86_64Assembler::movw(const Address& dst, const Immediate& imm) {
   EmitOptionalRex32(dst);
   EmitUint8(0xC7);
   EmitOperand(Register::RAX, dst);
-  CHECK(imm.is_int16());
+  CHECK(imm.is_uint16() || imm.is_int16());
   EmitUint8(imm.value() & 0xFF);
   EmitUint8(imm.value() >> 8);
 }
