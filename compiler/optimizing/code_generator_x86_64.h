@@ -28,13 +28,19 @@ namespace x86_64 {
 static constexpr size_t kX86_64WordSize = 8;
 
 static constexpr Register kParameterCoreRegisters[] = { RSI, RDX, RCX, R8, R9 };
+static constexpr FloatRegister kParameterFloatRegisters[] =
+    { XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7 };
 
 static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
+static constexpr size_t kParameterFloatRegistersLength = arraysize(kParameterFloatRegisters);
 
-class InvokeDexCallingConvention : public CallingConvention<Register> {
+class InvokeDexCallingConvention : public CallingConvention<Register, FloatRegister> {
  public:
-  InvokeDexCallingConvention()
-      : CallingConvention(kParameterCoreRegisters, kParameterCoreRegistersLength) {}
+  InvokeDexCallingConvention() : CallingConvention(
+      kParameterCoreRegisters,
+      kParameterCoreRegistersLength,
+      kParameterFloatRegisters,
+      kParameterFloatRegistersLength) {}
 
  private:
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConvention);
@@ -42,13 +48,17 @@ class InvokeDexCallingConvention : public CallingConvention<Register> {
 
 class InvokeDexCallingConventionVisitor {
  public:
-  InvokeDexCallingConventionVisitor() : gp_index_(0), stack_index_(0) {}
+  InvokeDexCallingConventionVisitor() : gp_index_(0), fp_index_(0), stack_index_(0) {}
 
   Location GetNextLocation(Primitive::Type type);
 
  private:
   InvokeDexCallingConvention calling_convention;
+  // The current index for cpu registers.
   uint32_t gp_index_;
+  // The current index for fpu registers.
+  uint32_t fp_index_;
+  // The current stack index.
   uint32_t stack_index_;
 
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);

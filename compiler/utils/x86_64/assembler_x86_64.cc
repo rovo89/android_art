@@ -312,6 +312,15 @@ void X86_64Assembler::leaq(CpuRegister dst, const Address& src) {
 }
 
 
+void X86_64Assembler::movaps(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(dst, src);
+  EmitUint8(0x0F);
+  EmitUint8(0x28);
+  EmitXmmRegisterOperand(src.LowBits(), dst);
+}
+
+
 void X86_64Assembler::movss(XmmRegister dst, const Address& src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xF3);

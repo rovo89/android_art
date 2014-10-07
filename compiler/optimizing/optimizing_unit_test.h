@@ -68,8 +68,10 @@ void RemoveSuspendChecks(HGraph* graph) {
 }
 
 // Create a control-flow graph from Dex instructions.
-inline HGraph* CreateCFG(ArenaAllocator* allocator, const uint16_t* data) {
-  HGraphBuilder builder(allocator);
+inline HGraph* CreateCFG(ArenaAllocator* allocator,
+                         const uint16_t* data,
+                         Primitive::Type return_type = Primitive::kPrimInt) {
+  HGraphBuilder builder(allocator, return_type);
   const DexFile::CodeItem* item =
     reinterpret_cast<const DexFile::CodeItem*>(data);
   HGraph* graph = builder.BuildGraph(*item);

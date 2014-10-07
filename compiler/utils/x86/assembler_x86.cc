@@ -277,6 +277,14 @@ void X86Assembler::setb(Condition condition, Register dst) {
 }
 
 
+void X86Assembler::movaps(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0x28);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
 void X86Assembler::movss(XmmRegister dst, const Address& src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xF3);

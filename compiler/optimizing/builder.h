@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_BUILDER_H_
 
 #include "dex_file.h"
+#include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
 #include "primitive.h"
@@ -32,9 +33,9 @@ class Instruction;
 class HGraphBuilder : public ValueObject {
  public:
   HGraphBuilder(ArenaAllocator* arena,
-                DexCompilationUnit* dex_compilation_unit = nullptr,
-                const DexFile* dex_file = nullptr,
-                CompilerDriver* driver = nullptr)
+                DexCompilationUnit* dex_compilation_unit,
+                const DexFile* dex_file,
+                CompilerDriver* driver)
       : arena_(arena),
         branch_targets_(arena, 0),
         locals_(arena, 0),
@@ -46,7 +47,24 @@ class HGraphBuilder : public ValueObject {
         constant1_(nullptr),
         dex_file_(dex_file),
         dex_compilation_unit_(dex_compilation_unit),
-        compiler_driver_(driver) {}
+        compiler_driver_(driver),
+        return_type_(Primitive::GetType(dex_compilation_unit_->GetShorty()[0])) {}
+
+  // Only for unit testing.
+  HGraphBuilder(ArenaAllocator* arena, Primitive::Type return_type = Primitive::kPrimInt)
+      : arena_(arena),
+        branch_targets_(arena, 0),
+        locals_(arena, 0),
+        entry_block_(nullptr),
+        exit_block_(nullptr),
+        current_block_(nullptr),
+        graph_(nullptr),
+        constant0_(nullptr),
+        constant1_(nullptr),
+        dex_file_(nullptr),
+        dex_compilation_unit_(nullptr),
+        compiler_driver_(nullptr),
+        return_type_(return_type) {}
 
   HGraph* BuildGraph(const DexFile::CodeItem& code);
 
@@ -128,6 +146,7 @@ class HGraphBuilder : public ValueObject {
   const DexFile* const dex_file_;
   DexCompilationUnit* const dex_compilation_unit_;
   CompilerDriver* const compiler_driver_;
+  const Primitive::Type return_type_;
 
   DISALLOW_COPY_AND_ASSIGN(HGraphBuilder);
 };
