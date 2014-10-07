@@ -158,6 +158,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       }
     }
     output_ << ")";
+    output_ << " (liveness: " << instruction->GetLifetimePosition() << ")";
   }
 
   void VisitInstruction(HInstruction* instruction) {
@@ -191,6 +192,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
           DumpLocation(locations->Out(), instruction->GetType());
         }
       }
+      output_ << " (liveness: " << instruction->GetLifetimePosition() << ")";
     }
   }
 

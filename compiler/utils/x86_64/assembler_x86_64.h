@@ -44,6 +44,7 @@ class Immediate {
 
   bool is_int8() const { return IsInt(8, value_); }
   bool is_uint8() const { return IsUint(8, value_); }
+  bool is_int16() const { return IsInt(16, value_); }
   bool is_uint16() const { return IsUint(16, value_); }
   bool is_int32() const {
     // This does not work on 32b machines: return IsInt(32, value_);
@@ -295,6 +296,7 @@ class X86_64Assembler FINAL : public Assembler {
   void movsxw(CpuRegister dst, const Address& src);
   void movw(CpuRegister dst, const Address& src);
   void movw(const Address& dst, CpuRegister src);
+  void movw(const Address& dst, const Immediate& imm);
 
   void leaq(CpuRegister dst, const Address& src);
 
