@@ -70,6 +70,15 @@ public class Main extends TestCase {
     chars[index] = 'd';
     assertEquals('d', chars[index]);
 
+    chars[0] = 65535;
+    assertEquals(65535, chars[0]);
+    // Do an update between the two max value updates, to avoid
+    // optimizing the second away.
+    chars[index] = 0;
+    assertEquals(0, chars[index]);
+    chars[index] = 65535;
+    assertEquals(65535, chars[index]);
+
     shorts[0] = -42;
     assertEquals(-42, shorts[0]);
     shorts[index] = -84;
@@ -86,7 +95,13 @@ public class Main extends TestCase {
     Object o2 = new Object();
     objects[index] = o2;
     assertEquals(o2, objects[index]);
+    // Longs are initially not supported in the linear scan register allocator
+    // on 32bits. So we call out a long helper to ensure this method gets
+    // optimized.
+    $opt$testLongWrites(longs, index);
+  }
 
+  public static void $opt$testLongWrites(long[] longs, int index) {
     long l = -21876876876876876L;
     longs[0] = l;
     assertEquals(l, longs[0]);
