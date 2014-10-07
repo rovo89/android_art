@@ -1235,6 +1235,7 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
       // Combine check and work halves of throwing instruction.
       MIR* work_half = mir->meta.throw_insn;
       mir->dalvikInsn.opcode = work_half->dalvikInsn.opcode;
+      mir->optimization_flags = work_half->optimization_flags;
       mir->meta = work_half->meta;  // Whatever the work_half had, we need to copy it.
       opcode = work_half->dalvikInsn.opcode;
       SSARepresentation* ssa_rep = work_half->ssa_rep;
