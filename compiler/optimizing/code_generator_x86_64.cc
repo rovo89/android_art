@@ -483,21 +483,17 @@ void LocationsBuilderX86_64::VisitIf(HIf* if_instr) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(if_instr, LocationSummary::kNoCall);
   HInstruction* cond = if_instr->InputAt(0);
-  DCHECK(cond->IsCondition());
-  HCondition* condition = cond->AsCondition();
-  if (condition->NeedsMaterialization()) {
+  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
     locations->SetInAt(0, Location::Any(), Location::kDiesAtEntry);
   }
 }
 
 void InstructionCodeGeneratorX86_64::VisitIf(HIf* if_instr) {
   HInstruction* cond = if_instr->InputAt(0);
-  DCHECK(cond->IsCondition());
-  HCondition* condition = cond->AsCondition();
-  if (condition->NeedsMaterialization()) {
+  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
     // Moves do not affect the eflags register, so if the condition is evaluated
     // just before the if, we don't need to evaluate it again.
-    if (!condition->IsBeforeWhenDisregardMoves(if_instr)) {
+    if (!cond->IsCondition() || !cond->AsCondition()->IsBeforeWhenDisregardMoves(if_instr)) {
       // Materialized condition, compare against 0.
       Location lhs = if_instr->GetLocations()->InAt(0);
       if (lhs.IsRegister()) {
@@ -508,8 +504,8 @@ void InstructionCodeGeneratorX86_64::VisitIf(HIf* if_instr) {
     }
     __ j(kNotEqual, codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
   } else {
-    Location lhs = condition->GetLocations()->InAt(0);
-    Location rhs = condition->GetLocations()->InAt(1);
+    Location lhs = cond->GetLocations()->InAt(0);
+    Location rhs = cond->GetLocations()->InAt(1);
     if (rhs.IsRegister()) {
       __ cmpl(lhs.AsX86_64().AsCpuRegister(), rhs.AsX86_64().AsCpuRegister());
     } else if (rhs.IsConstant()) {
@@ -518,7 +514,7 @@ void InstructionCodeGeneratorX86_64::VisitIf(HIf* if_instr) {
     } else {
       __ cmpl(lhs.AsX86_64().AsCpuRegister(), Address(CpuRegister(RSP), rhs.GetStackIndex()));
     }
-    __ j(X86_64Condition(condition->GetCondition()),
+    __ j(X86_64Condition(cond->AsCondition()->GetCondition()),
          codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
   }
   if (!codegen_->GoesToNextBlock(if_instr->GetBlock(), if_instr->IfFalseSuccessor())) {

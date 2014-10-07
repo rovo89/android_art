@@ -595,22 +595,18 @@ void LocationsBuilderX86::VisitIf(HIf* if_instr) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(if_instr, LocationSummary::kNoCall);
   HInstruction* cond = if_instr->InputAt(0);
-  DCHECK(cond->IsCondition());
-  HCondition* condition = cond->AsCondition();
-  if (condition->NeedsMaterialization()) {
+  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
     locations->SetInAt(0, Location::Any(), Location::kDiesAtEntry);
   }
 }
 
 void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
   HInstruction* cond = if_instr->InputAt(0);
-  DCHECK(cond->IsCondition());
-  HCondition* condition = cond->AsCondition();
-  if (condition->NeedsMaterialization()) {
+  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
     // Moves do not affect the eflags register, so if the condition is evaluated
     // just before the if, we don't need to evaluate it again.
-    if (!condition->IsBeforeWhenDisregardMoves(if_instr)) {
-      // Materialized condition, compare against 0
+    if (!cond->IsCondition() || !cond->AsCondition()->IsBeforeWhenDisregardMoves(if_instr)) {
+      // Materialized condition, compare against 0.
       Location lhs = if_instr->GetLocations()->InAt(0);
       if (lhs.IsRegister()) {
         __ cmpl(lhs.AsX86().AsCpuRegister(), Immediate(0));
@@ -620,8 +616,8 @@ void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
     }
     __ j(kNotEqual,  codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
   } else {
-    Location lhs = condition->GetLocations()->InAt(0);
-    Location rhs = condition->GetLocations()->InAt(1);
+    Location lhs = cond->GetLocations()->InAt(0);
+    Location rhs = cond->GetLocations()->InAt(1);
     // LHS is guaranteed to be in a register (see LocationsBuilderX86::VisitCondition).
     if (rhs.IsRegister()) {
       __ cmpl(lhs.AsX86().AsCpuRegister(), rhs.AsX86().AsCpuRegister());
@@ -632,7 +628,7 @@ void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
     } else {
       __ cmpl(lhs.AsX86().AsCpuRegister(), Address(ESP, rhs.GetStackIndex()));
     }
-    __ j(X86Condition(condition->GetCondition()),
+    __ j(X86Condition(cond->AsCondition()->GetCondition()),
          codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
   }
   if (!codegen_->GoesToNextBlock(if_instr->GetBlock(), if_instr->IfFalseSuccessor())) {

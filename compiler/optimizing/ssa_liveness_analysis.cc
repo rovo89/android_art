@@ -297,4 +297,136 @@ bool SsaLivenessAnalysis::UpdateLiveIn(const HBasicBlock& block) {
   return live_in->UnionIfNotIn(live_out, kill);
 }
 
+int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
+  if (GetParent() == this && defined_by_ != nullptr) {
+    // This is the first interval for the instruction. Try to find
+    // a register based on its definition.
+    DCHECK_EQ(defined_by_->GetLiveInterval(), this);
+    int hint = FindHintAtDefinition();
+    if (hint != kNoRegister && free_until[hint] > GetStart()) {
+      return hint;
+    }
+  }
+
+  UsePosition* use = first_use_;
+  size_t start = GetStart();
+  size_t end = GetEnd();
+  while (use != nullptr && use->GetPosition() <= end) {
+    size_t use_position = use->GetPosition();
+    if (use_position >= start && !use->GetIsEnvironment()) {
+      HInstruction* user = use->GetUser();
+      size_t input_index = use->GetInputIndex();
+      if (user->IsPhi()) {
+        // If the phi has a register, try to use the same.
+        Location phi_location = user->GetLiveInterval()->ToLocation();
+        if (phi_location.IsRegister() && free_until[phi_location.reg().RegId()] >= use_position) {
+          return phi_location.reg().RegId();
+        }
+        const GrowableArray<HBasicBlock*>& predecessors = user->GetBlock()->GetPredecessors();
+        // If the instruction dies at the phi assignment, we can try having the
+        // same register.
+        if (end == predecessors.Get(input_index)->GetLifetimeEnd()) {
+          for (size_t i = 0, e = user->InputCount(); i < e; ++i) {
+            if (i == input_index) {
+              continue;
+            }
+            HInstruction* input = user->InputAt(i);
+            Location location = input->GetLiveInterval()->GetLocationAt(
+                predecessors.Get(i)->GetLifetimeEnd() - 1);
+            if (location.IsRegister() && free_until[location.reg().RegId()] >= use_position) {
+              return location.reg().RegId();
+            }
+          }
+        }
+      } else {
+        // If the instruction is expected in a register, try to use it.
+        LocationSummary* locations = user->GetLocations();
+        Location expected = locations->InAt(use->GetInputIndex());
+        // We use the user's lifetime position - 1 (and not `use_position`) because the
+        // register is blocked at the beginning of the user.
+        size_t position = user->GetLifetimePosition() - 1;
+        if (expected.IsRegister() && free_until[expected.reg().RegId()] >= position) {
+          return expected.reg().RegId();
+        }
+      }
+    }
+    use = use->GetNext();
+  }
+
+  return kNoRegister;
+}
+
+int LiveInterval::FindHintAtDefinition() const {
+  if (defined_by_->IsPhi()) {
+    // Try to use the same register as one of the inputs.
+    const GrowableArray<HBasicBlock*>& predecessors = defined_by_->GetBlock()->GetPredecessors();
+    for (size_t i = 0, e = defined_by_->InputCount(); i < e; ++i) {
+      HInstruction* input = defined_by_->InputAt(i);
+      size_t end = predecessors.Get(i)->GetLifetimeEnd();
+      const LiveInterval& input_interval = input->GetLiveInterval()->GetIntervalAt(end - 1);
+      if (input_interval.GetEnd() == end) {
+        // If the input dies at the end of the predecessor, we know its register can
+        // be reused.
+        Location input_location = input_interval.ToLocation();
+        if (input_location.IsRegister()) {
+          return input_location.reg().RegId();
+        }
+      }
+    }
+  } else {
+    LocationSummary* locations = GetDefinedBy()->GetLocations();
+    Location out = locations->Out();
+    if (out.IsUnallocated() && out.GetPolicy() == Location::kSameAsFirstInput) {
+      // Try to use the same register as the first input.
+      const LiveInterval& input_interval =
+          GetDefinedBy()->InputAt(0)->GetLiveInterval()->GetIntervalAt(GetStart() - 1);
+      if (input_interval.GetEnd() == GetStart()) {
+        // If the input dies at the start of this instruction, we know its register can
+        // be reused.
+        Location location = input_interval.ToLocation();
+        if (location.IsRegister()) {
+          return location.reg().RegId();
+        }
+      }
+    }
+  }
+  return kNoRegister;
+}
+
+bool LiveInterval::NeedsTwoSpillSlots() const {
+  return type_ == Primitive::kPrimLong || type_ == Primitive::kPrimDouble;
+}
+
+Location LiveInterval::ToLocation() const {
+  if (HasRegister()) {
+    return Location::RegisterLocation(ManagedRegister(GetRegister()));
+  } else {
+    HInstruction* defined_by = GetParent()->GetDefinedBy();
+    if (defined_by->IsConstant()) {
+      return defined_by->GetLocations()->Out();
+    } else if (GetParent()->HasSpillSlot()) {
+      if (NeedsTwoSpillSlots()) {
+        return Location::DoubleStackSlot(GetParent()->GetSpillSlot());
+      } else {
+        return Location::StackSlot(GetParent()->GetSpillSlot());
+      }
+    } else {
+      return Location();
+    }
+  }
+}
+
+Location LiveInterval::GetLocationAt(size_t position) const {
+  return GetIntervalAt(position).ToLocation();
+}
+
+const LiveInterval& LiveInterval::GetIntervalAt(size_t position) const {
+  const LiveInterval* current = this;
+  while (!current->Covers(position)) {
+    current = current->GetNextSibling();
+    DCHECK(current != nullptr);
+  }
+  return *current;
+}
+
 }  // namespace art
