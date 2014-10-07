@@ -192,4 +192,4 @@ if [ "$DEV_MODE" = "y" ]; then
 fi
 
 cd $ANDROID_BUILD_TOP
-$mkdir_cmd && $prebuild_cmd && LD_PRELOAD=libsigchain.so $cmdline "$@"
+$mkdir_cmd && $prebuild_cmd && $cmdline "$@"

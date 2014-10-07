@@ -19,18 +19,14 @@
 
 #include <signal.h>
 
-namespace art {
+extern "C" void InitializeSignalChain();
 
-void InitializeSignalChain();
+extern "C" void ClaimSignalChain(int signal, struct sigaction* oldaction);
 
-void ClaimSignalChain(int signal, struct sigaction* oldaction);
+extern "C" void EnsureFrontOfChain(int signal, struct sigaction* expected_action);
 
-void EnsureFrontOfChain(int signal, struct sigaction* expected_action);
+extern "C" void UnclaimSignalChain(int signal);
 
-void UnclaimSignalChain(int signal);
-
-void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context);
-
-}   // namespace art
+extern "C" void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context);
 
 #endif  // ART_SIGCHAINLIB_SIGCHAIN_H_
