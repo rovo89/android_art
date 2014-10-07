@@ -25,6 +25,7 @@
 #include "ssa_liveness_analysis.h"
 #include "ssa_phi_elimination.h"
 #include "utils/arena_allocator.h"
+#include "utils/managed_register.h"
 
 #include "gtest/gtest.h"
 
@@ -418,17 +419,17 @@ TEST(RegisterAllocatorTest, FreeUntil) {
   // Add three temps holding the same register, and starting at different positions.
   // Put the one that should be picked in the middle of the inactive list to ensure
   // we do not depend on an order.
-  LiveInterval* interval = LiveInterval::MakeTempInterval(&allocator, nullptr, Primitive::kPrimInt);
+  LiveInterval* interval = LiveInterval::MakeTempInterval(&allocator, Primitive::kPrimInt);
   interval->SetRegister(0);
   interval->AddRange(40, 50);
   register_allocator.inactive_.Add(interval);
 
-  interval = LiveInterval::MakeTempInterval(&allocator, nullptr, Primitive::kPrimInt);
+  interval = LiveInterval::MakeTempInterval(&allocator, Primitive::kPrimInt);
   interval->SetRegister(0);
   interval->AddRange(20, 30);
   register_allocator.inactive_.Add(interval);
 
-  interval = LiveInterval::MakeTempInterval(&allocator, nullptr, Primitive::kPrimInt);
+  interval = LiveInterval::MakeTempInterval(&allocator, Primitive::kPrimInt);
   interval->SetRegister(0);
   interval->AddRange(60, 70);
   register_allocator.inactive_.Add(interval);
@@ -445,6 +446,252 @@ TEST(RegisterAllocatorTest, FreeUntil) {
   // Check that we know need to find a new register where the next interval
   // that uses the register starts.
   ASSERT_EQ(20u, register_allocator.unhandled_->Get(0)->GetStart());
+}
+
+static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
+                                  HPhi** phi,
+                                  HInstruction** input1,
+                                  HInstruction** input2) {
+  HGraph* graph = new (allocator) HGraph(allocator);
+  HBasicBlock* entry = new (allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+  HInstruction* parameter = new (allocator) HParameterValue(0, Primitive::kPrimNot);
+  entry->AddInstruction(parameter);
+
+  HBasicBlock* block = new (allocator) HBasicBlock(graph);
+  graph->AddBlock(block);
+  entry->AddSuccessor(block);
+
+  HInstruction* test = new (allocator) HInstanceFieldGet(
+      parameter, Primitive::kPrimBoolean, MemberOffset(22));
+  block->AddInstruction(test);
+  block->AddInstruction(new (allocator) HIf(test));
+  HBasicBlock* then = new (allocator) HBasicBlock(graph);
+  HBasicBlock* else_ = new (allocator) HBasicBlock(graph);
+  HBasicBlock* join = new (allocator) HBasicBlock(graph);
+  graph->AddBlock(then);
+  graph->AddBlock(else_);
+  graph->AddBlock(join);
+
+  block->AddSuccessor(then);
+  block->AddSuccessor(else_);
+  then->AddSuccessor(join);
+  else_->AddSuccessor(join);
+  then->AddInstruction(new (allocator) HGoto());
+  else_->AddInstruction(new (allocator) HGoto());
+
+  *phi = new (allocator) HPhi(allocator, 0, 0, Primitive::kPrimInt);
+  join->AddPhi(*phi);
+  *input1 = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt, MemberOffset(42));
+  *input2 = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt, MemberOffset(42));
+  then->AddInstruction(*input1);
+  else_->AddInstruction(*input2);
+  join->AddInstruction(new (allocator) HExit());
+  (*phi)->AddInput(*input1);
+  (*phi)->AddInput(*input2);
+
+  graph->BuildDominatorTree();
+  graph->FindNaturalLoops();
+  return graph;
+}
+
+TEST(RegisterAllocatorTest, PhiHint) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  HPhi *phi;
+  HInstruction *input1, *input2;
+
+  {
+    HGraph* graph = BuildIfElseWithPhi(&allocator, &phi, &input1, &input2);
+    x86::CodeGeneratorX86 codegen(graph);
+    SsaLivenessAnalysis liveness(*graph, &codegen);
+    liveness.Analyze();
+
+    // Check that the register allocator is deterministic.
+    RegisterAllocator register_allocator(&allocator, &codegen, liveness);
+    register_allocator.AllocateRegisters();
+
+    ASSERT_EQ(input1->GetLiveInterval()->GetRegister(), 0);
+    ASSERT_EQ(input2->GetLiveInterval()->GetRegister(), 0);
+    ASSERT_EQ(phi->GetLiveInterval()->GetRegister(), 0);
+  }
+
+  {
+    HGraph* graph = BuildIfElseWithPhi(&allocator, &phi, &input1, &input2);
+    x86::CodeGeneratorX86 codegen(graph);
+    SsaLivenessAnalysis liveness(*graph, &codegen);
+    liveness.Analyze();
+
+    // Set the phi to a specific register, and check that the inputs get allocated
+    // the same register.
+    phi->GetLocations()->SetOut(Location::RegisterLocation(ManagedRegister(2)));
+    RegisterAllocator register_allocator(&allocator, &codegen, liveness);
+    register_allocator.AllocateRegisters();
+
+    ASSERT_EQ(input1->GetLiveInterval()->GetRegister(), 2);
+    ASSERT_EQ(input2->GetLiveInterval()->GetRegister(), 2);
+    ASSERT_EQ(phi->GetLiveInterval()->GetRegister(), 2);
+  }
+
+  {
+    HGraph* graph = BuildIfElseWithPhi(&allocator, &phi, &input1, &input2);
+    x86::CodeGeneratorX86 codegen(graph);
+    SsaLivenessAnalysis liveness(*graph, &codegen);
+    liveness.Analyze();
+
+    // Set input1 to a specific register, and check that the phi and other input get allocated
+    // the same register.
+    input1->GetLocations()->SetOut(Location::RegisterLocation(ManagedRegister(2)));
+    RegisterAllocator register_allocator(&allocator, &codegen, liveness);
+    register_allocator.AllocateRegisters();
+
+    ASSERT_EQ(input1->GetLiveInterval()->GetRegister(), 2);
+    ASSERT_EQ(input2->GetLiveInterval()->GetRegister(), 2);
+    ASSERT_EQ(phi->GetLiveInterval()->GetRegister(), 2);
+  }
+
+  {
+    HGraph* graph = BuildIfElseWithPhi(&allocator, &phi, &input1, &input2);
+    x86::CodeGeneratorX86 codegen(graph);
+    SsaLivenessAnalysis liveness(*graph, &codegen);
+    liveness.Analyze();
+
+    // Set input2 to a specific register, and check that the phi and other input get allocated
+    // the same register.
+    input2->GetLocations()->SetOut(Location::RegisterLocation(ManagedRegister(2)));
+    RegisterAllocator register_allocator(&allocator, &codegen, liveness);
+    register_allocator.AllocateRegisters();
+
+    ASSERT_EQ(input1->GetLiveInterval()->GetRegister(), 2);
+    ASSERT_EQ(input2->GetLiveInterval()->GetRegister(), 2);
+    ASSERT_EQ(phi->GetLiveInterval()->GetRegister(), 2);
+  }
+}
+
+static HGraph* BuildFieldReturn(ArenaAllocator* allocator,
+                                HInstruction** field,
+                                HInstruction** ret) {
+  HGraph* graph = new (allocator) HGraph(allocator);
+  HBasicBlock* entry = new (allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+  HInstruction* parameter = new (allocator) HParameterValue(0, Primitive::kPrimNot);
+  entry->AddInstruction(parameter);
+
+  HBasicBlock* block = new (allocator) HBasicBlock(graph);
+  graph->AddBlock(block);
+  entry->AddSuccessor(block);
+
+  *field = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt, MemberOffset(42));
+  block->AddInstruction(*field);
+  *ret = new (allocator) HReturn(*field);
+  block->AddInstruction(*ret);
+
+  HBasicBlock* exit = new (allocator) HBasicBlock(graph);
+  graph->AddBlock(exit);
+  block->AddSuccessor(exit);
+  exit->AddInstruction(new (allocator) HExit());
+  return graph;
+}
+
+TEST(RegisterAllocatorTest, ExpectedInRegisterHint) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  HInstruction *field, *ret;
+
+  {
+    HGraph* graph = BuildFieldReturn(&allocator, &field, &ret);
+    x86::CodeGeneratorX86 codegen(graph);
+    SsaLivenessAnalysis liveness(*graph, &codegen);
+    liveness.Analyze();
+
+    RegisterAllocator register_allocator(&allocator, &codegen, liveness);
+    register_allocator.AllocateRegisters();
+
+    // Sanity check that in normal conditions, the register should be hinted to 0 (EAX).
+    ASSERT_EQ(field->GetLiveInterval()->GetRegister(), 0);
+  }
+
+  {
+    HGraph* graph = BuildFieldReturn(&allocator, &field, &ret);
+    x86::CodeGeneratorX86 codegen(graph);
+    SsaLivenessAnalysis liveness(*graph, &codegen);
+    liveness.Analyze();
+
+    // Check that the field gets put in the register expected by its use.
+    ret->GetLocations()->SetInAt(0, Location::RegisterLocation(ManagedRegister(2)));
+
+    RegisterAllocator register_allocator(&allocator, &codegen, liveness);
+    register_allocator.AllocateRegisters();
+
+    ASSERT_EQ(field->GetLiveInterval()->GetRegister(), 2);
+  }
+}
+
+static HGraph* BuildTwoAdds(ArenaAllocator* allocator,
+                            HInstruction** first_add,
+                            HInstruction** second_add) {
+  HGraph* graph = new (allocator) HGraph(allocator);
+  HBasicBlock* entry = new (allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+  HInstruction* parameter = new (allocator) HParameterValue(0, Primitive::kPrimInt);
+  HInstruction* constant1 = new (allocator) HIntConstant(0);
+  HInstruction* constant2 = new (allocator) HIntConstant(0);
+  entry->AddInstruction(parameter);
+  entry->AddInstruction(constant1);
+  entry->AddInstruction(constant2);
+
+  HBasicBlock* block = new (allocator) HBasicBlock(graph);
+  graph->AddBlock(block);
+  entry->AddSuccessor(block);
+
+  *first_add = new (allocator) HAdd(Primitive::kPrimInt, parameter, constant1);
+  block->AddInstruction(*first_add);
+  *second_add = new (allocator) HAdd(Primitive::kPrimInt, *first_add, constant2);
+  block->AddInstruction(*second_add);
+
+  block->AddInstruction(new (allocator) HExit());
+  return graph;
+}
+
+TEST(RegisterAllocatorTest, SameAsFirstInputHint) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  HInstruction *first_add, *second_add;
+
+  {
+    HGraph* graph = BuildTwoAdds(&allocator, &first_add, &second_add);
+    x86::CodeGeneratorX86 codegen(graph);
+    SsaLivenessAnalysis liveness(*graph, &codegen);
+    liveness.Analyze();
+
+    RegisterAllocator register_allocator(&allocator, &codegen, liveness);
+    register_allocator.AllocateRegisters();
+
+    // Sanity check that in normal conditions, the registers are the same.
+    ASSERT_EQ(first_add->GetLiveInterval()->GetRegister(), 1);
+    ASSERT_EQ(second_add->GetLiveInterval()->GetRegister(), 1);
+  }
+
+  {
+    HGraph* graph = BuildTwoAdds(&allocator, &first_add, &second_add);
+    x86::CodeGeneratorX86 codegen(graph);
+    SsaLivenessAnalysis liveness(*graph, &codegen);
+    liveness.Analyze();
+
+    // check that both adds get the same register.
+    first_add->InputAt(0)->GetLocations()->SetOut(Location::RegisterLocation(ManagedRegister(2)));
+    ASSERT_EQ(first_add->GetLocations()->Out().GetPolicy(), Location::kSameAsFirstInput);
+    ASSERT_EQ(second_add->GetLocations()->Out().GetPolicy(), Location::kSameAsFirstInput);
+
+    RegisterAllocator register_allocator(&allocator, &codegen, liveness);
+    register_allocator.AllocateRegisters();
+
+    ASSERT_EQ(first_add->GetLiveInterval()->GetRegister(), 2);
+    ASSERT_EQ(second_add->GetLiveInterval()->GetRegister(), 2);
+  }
 }
 
 }  // namespace art
