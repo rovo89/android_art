@@ -9,4 +9,6 @@ testSleepZero finished
 testSetName starting
 testSetName running
 testSetName finished
+testThreadPriorities starting
+testThreadPriorities finished
 thread test done

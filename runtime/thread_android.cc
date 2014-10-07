@@ -55,6 +55,13 @@ void Thread::SetNativePriority(int newPriority) {
   int newNice = kNiceValues[newPriority-1];
   pid_t tid = GetTid();
 
+  // TODO: b/18249098 The code below is broken. It uses getpriority() as a proxy for whether a
+  // thread is already in the SP_FOREGROUND cgroup. This is not necessarily true for background
+  // processes, where all threads are in the SP_BACKGROUND cgroup. This means that callers will
+  // have to call setPriority twice to do what they want :
+  //
+  //     Thread.setPriority(Thread.MIN_PRIORITY);  // no-op wrt to cgroups
+  //     Thread.setPriority(Thread.MAX_PRIORITY);  // will actually change cgroups.
   if (newNice >= ANDROID_PRIORITY_BACKGROUND) {
     set_sched_policy(tid, SP_BACKGROUND);
   } else if (getpriority(PRIO_PROCESS, tid) >= ANDROID_PRIORITY_BACKGROUND) {
