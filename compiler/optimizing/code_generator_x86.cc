@@ -1160,8 +1160,12 @@ void LocationsBuilderX86::VisitInstanceFieldSet(HInstanceFieldSet* instruction) 
   locations->SetInAt(0, Location::RequiresRegister());
   Primitive::Type field_type = instruction->GetFieldType();
   bool is_object_type = field_type == Primitive::kPrimNot;
-  bool dies_at_entry = !is_object_type;
-  if (field_type == Primitive::kPrimBoolean || field_type == Primitive::kPrimByte) {
+  bool is_byte_type = (field_type == Primitive::kPrimBoolean)
+      || (field_type == Primitive::kPrimByte);
+  // The register allocator does not support multiple
+  // inputs that die at entry with one in a specific register.
+  bool dies_at_entry = !is_object_type && !is_byte_type;
+  if (is_byte_type) {
     // Ensure the value is in a byte register.
     locations->SetInAt(1, X86CpuLocation(EAX), dies_at_entry);
   } else {
@@ -1440,12 +1444,16 @@ void LocationsBuilderX86::VisitArraySet(HArraySet* instruction) {
     locations->SetInAt(1, X86CpuLocation(calling_convention.GetRegisterAt(1)));
     locations->SetInAt(2, X86CpuLocation(calling_convention.GetRegisterAt(2)));
   } else {
+    bool is_byte_type = (value_type == Primitive::kPrimBoolean)
+        || (value_type == Primitive::kPrimByte);
     // We need the inputs to be different than the output in case of long operation.
-    bool dies_at_entry = value_type != Primitive::kPrimLong;
+    // In case of a byte operation, the register allocator does not support multiple
+    // inputs that die at entry with one in a specific register.
+    bool dies_at_entry = value_type != Primitive::kPrimLong && !is_byte_type;
     locations->SetInAt(0, Location::RequiresRegister(), dies_at_entry);
     locations->SetInAt(
         1, Location::RegisterOrConstant(instruction->InputAt(1)), dies_at_entry);
-    if (value_type == Primitive::kPrimBoolean || value_type == Primitive::kPrimByte) {
+    if (is_byte_type) {
       // Ensure the value is in a byte register.
       locations->SetInAt(2, Location::ByteRegisterOrConstant(
           X86ManagedRegister::FromCpuRegister(EAX), instruction->InputAt(2)), dies_at_entry);
