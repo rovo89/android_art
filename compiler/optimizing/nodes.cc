@@ -308,6 +308,14 @@ bool HBasicBlock::Dominates(HBasicBlock* other) const {
   return false;
 }
 
+static void UpdateInputsUsers(HInstruction* instruction) {
+  for (size_t i = 0, e = instruction->InputCount(); i < e; ++i) {
+    instruction->InputAt(i)->AddUseAt(instruction, i);
+  }
+  // Environment should be created later.
+  DCHECK(!instruction->HasEnvironment());
+}
+
 void HBasicBlock::InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor) {
   DCHECK(cursor->AsPhi() == nullptr);
   DCHECK(instruction->AsPhi() == nullptr);
@@ -325,6 +333,7 @@ void HBasicBlock::InsertInstructionBefore(HInstruction* instruction, HInstructio
   }
   instruction->SetBlock(this);
   instruction->SetId(GetGraph()->GetNextInstructionId());
+  UpdateInputsUsers(instruction);
 }
 
 void HBasicBlock::ReplaceAndRemoveInstructionWith(HInstruction* initial,
@@ -342,6 +351,7 @@ static void Add(HInstructionList* instruction_list,
   DCHECK_EQ(instruction->GetId(), -1);
   instruction->SetBlock(block);
   instruction->SetId(block->GetGraph()->GetNextInstructionId());
+  UpdateInputsUsers(instruction);
   instruction_list->AddInstruction(instruction);
 }
 
@@ -420,9 +430,6 @@ void HInstructionList::AddInstruction(HInstruction* instruction) {
     last_instruction_->next_ = instruction;
     instruction->previous_ = last_instruction_;
     last_instruction_ = instruction;
-  }
-  for (size_t i = 0; i < instruction->InputCount(); i++) {
-    instruction->InputAt(i)->AddUseAt(instruction, i);
   }
 }
 

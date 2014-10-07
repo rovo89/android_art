@@ -63,4 +63,55 @@ TEST(Node, RemoveInstruction) {
   ASSERT_FALSE(parameter->HasUses());
 }
 
+/**
+ * Test that inserting an instruction in the graph updates user lists.
+ */
+TEST(Node, InsertInstruction) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+
+  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+  HInstruction* parameter1 = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
+  HInstruction* parameter2 = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
+  entry->AddInstruction(parameter1);
+  entry->AddInstruction(parameter2);
+  entry->AddInstruction(new (&allocator) HExit());
+
+  ASSERT_FALSE(parameter1->HasUses());
+  ASSERT_EQ(parameter1->NumberOfUses(), 0u);
+
+  HInstruction* to_insert = new (&allocator) HNullCheck(parameter1, 0);
+  entry->InsertInstructionBefore(to_insert, parameter2);
+
+  ASSERT_TRUE(parameter1->HasUses());
+  ASSERT_EQ(parameter1->NumberOfUses(), 1u);
+}
+
+/**
+ * Test that adding an instruction in the graph updates user lists.
+ */
+TEST(Node, AddInstruction) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+
+  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+  HInstruction* parameter = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
+  entry->AddInstruction(parameter);
+
+  ASSERT_FALSE(parameter->HasUses());
+  ASSERT_EQ(parameter->NumberOfUses(), 0u);
+
+  HInstruction* to_add = new (&allocator) HNullCheck(parameter, 0);
+  entry->AddInstruction(to_add);
+
+  ASSERT_TRUE(parameter->HasUses());
+  ASSERT_EQ(parameter->NumberOfUses(), 1u);
+}
+
 }  // namespace art
