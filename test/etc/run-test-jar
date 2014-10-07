@@ -341,12 +341,9 @@ else
 
     if [ "$USE_GDB" = "y" ]; then
       # When running under gdb, we cannot do piping and grepping...
-      LD_PRELOAD=libsigchain.so $cmdline "$@"
+      $cmdline "$@"
     else
-      # If we are execing /bin/false we might not be on the same ISA as libsigchain.so
-      # ld.so will helpfully warn us of this. Unfortunately this messes up our error
-      # checking so we will just filter out the error with a grep.
-      LD_PRELOAD=libsigchain.so $cmdline "$@" 2>&1 | grep -v -E "^ERROR: ld\.so: object '.+\.so' from LD_PRELOAD cannot be preloaded.*: ignored\.$"
+      $cmdline "$@" 2>&1
       # Add extra detail if time out is enabled.
       if [ ${PIPESTATUS[0]} = 124 ] && [ "$TIME_OUT" = "y" ]; then
         echo -e "\e[91mTEST TIMED OUT!\e[0m" >&2
