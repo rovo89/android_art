@@ -248,7 +248,7 @@ void X86Assembler::movw(const Address& dst, const Immediate& imm) {
   EmitOperandSizeOverride();
   EmitUint8(0xC7);
   EmitOperand(0, dst);
-  CHECK(imm.is_int16());
+  CHECK(imm.is_uint16() || imm.is_int16());
   EmitUint8(imm.value() & 0xFF);
   EmitUint8(imm.value() >> 8);
 }
