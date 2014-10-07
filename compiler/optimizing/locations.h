@@ -39,31 +39,39 @@ class Location : public ValueObject {
   enum Kind {
     kInvalid = 0,
     kConstant = 1,
-    kStackSlot = 2,  // Word size slot.
+    kStackSlot = 2,  // 32bit stack slot.
     kDoubleStackSlot = 3,  // 64bit stack slot.
-    kRegister = 4,
+
+    kRegister = 4,  // Core register.
+
+    // We do not use the value 5 because it conflicts with kLocationConstantMask.
+    kDoNotUse = 5,
+
+    kFpuRegister = 6,  // Floating point processor.
+
     // On 32bits architectures, quick can pass a long where the
     // low bits are in the last parameter register, and the high
     // bits are in a stack slot. The kQuickParameter kind is for
     // handling this special case.
-    kQuickParameter = 6,
+    kQuickParameter = 7,
 
     // Unallocated location represents a location that is not fixed and can be
     // allocated by a register allocator.  Each unallocated location has
     // a policy that specifies what kind of location is suitable. Payload
     // contains register allocation policy.
-    kUnallocated = 7,
+    kUnallocated = 8,
   };
 
   Location() : value_(kInvalid) {
-    // Verify that non-tagged location kinds do not interfere with kConstantTag.
-    COMPILE_ASSERT((kInvalid & kLocationTagMask) != kConstant, TagError);
-    COMPILE_ASSERT((kUnallocated & kLocationTagMask) != kConstant, TagError);
-    COMPILE_ASSERT((kStackSlot & kLocationTagMask) != kConstant, TagError);
-    COMPILE_ASSERT((kDoubleStackSlot & kLocationTagMask) != kConstant, TagError);
-    COMPILE_ASSERT((kRegister & kLocationTagMask) != kConstant, TagError);
-    COMPILE_ASSERT((kQuickParameter & kLocationTagMask) != kConstant, TagError);
-    COMPILE_ASSERT((kConstant & kLocationTagMask) == kConstant, TagError);
+    // Verify that non-constant location kinds do not interfere with kConstant.
+    COMPILE_ASSERT((kInvalid & kLocationConstantMask) != kConstant, TagError);
+    COMPILE_ASSERT((kUnallocated & kLocationConstantMask) != kConstant, TagError);
+    COMPILE_ASSERT((kStackSlot & kLocationConstantMask) != kConstant, TagError);
+    COMPILE_ASSERT((kDoubleStackSlot & kLocationConstantMask) != kConstant, TagError);
+    COMPILE_ASSERT((kRegister & kLocationConstantMask) != kConstant, TagError);
+    COMPILE_ASSERT((kQuickParameter & kLocationConstantMask) != kConstant, TagError);
+    COMPILE_ASSERT((kFpuRegister & kLocationConstantMask) != kConstant, TagError);
+    COMPILE_ASSERT((kConstant & kLocationConstantMask) == kConstant, TagError);
 
     DCHECK(!IsValid());
   }
@@ -76,7 +84,7 @@ class Location : public ValueObject {
   }
 
   bool IsConstant() const {
-    return (value_ & kLocationTagMask) == kConstant;
+    return (value_ & kLocationConstantMask) == kConstant;
   }
 
   static Location ConstantLocation(HConstant* constant) {
@@ -86,7 +94,7 @@ class Location : public ValueObject {
 
   HConstant* GetConstant() const {
     DCHECK(IsConstant());
-    return reinterpret_cast<HConstant*>(value_ & ~kLocationTagMask);
+    return reinterpret_cast<HConstant*>(value_ & ~kLocationConstantMask);
   }
 
   bool IsValid() const {
@@ -107,12 +115,20 @@ class Location : public ValueObject {
     return Location(kRegister, reg.RegId());
   }
 
+  static Location FpuRegisterLocation(ManagedRegister reg) {
+    return Location(kFpuRegister, reg.RegId());
+  }
+
   bool IsRegister() const {
     return GetKind() == kRegister;
   }
 
+  bool IsFpuRegister() const {
+    return GetKind() == kFpuRegister;
+  }
+
   ManagedRegister reg() const {
-    DCHECK(IsRegister());
+    DCHECK(IsRegister() || IsFpuRegister());
     return static_cast<ManagedRegister>(GetPayload());
   }
 
@@ -192,7 +208,11 @@ class Location : public ValueObject {
       case kQuickParameter: return "Q";
       case kUnallocated: return "U";
       case kConstant: return "C";
+      case kFpuRegister: return "F";
+      case kDoNotUse:
+        LOG(FATAL) << "Should not use this location kind";
     }
+    UNREACHABLE();
     return "?";
   }
 
@@ -200,6 +220,7 @@ class Location : public ValueObject {
   enum Policy {
     kAny,
     kRequiresRegister,
+    kRequiresFpuRegister,
     kSameAsFirstInput,
   };
 
@@ -218,6 +239,10 @@ class Location : public ValueObject {
 
   static Location RequiresRegister() {
     return UnallocatedLocation(kRequiresRegister);
+  }
+
+  static Location RequiresFpuRegister() {
+    return UnallocatedLocation(kRequiresFpuRegister);
   }
 
   static Location RegisterOrConstant(HInstruction* instruction);
@@ -242,7 +267,7 @@ class Location : public ValueObject {
   // Number of bits required to encode Kind value.
   static constexpr uint32_t kBitsForKind = 4;
   static constexpr uint32_t kBitsForPayload = kWordSize * kBitsPerByte - kBitsForKind;
-  static constexpr uword kLocationTagMask = 0x3;
+  static constexpr uword kLocationConstantMask = 0x3;
 
   explicit Location(uword value) : value_(value) {}
 

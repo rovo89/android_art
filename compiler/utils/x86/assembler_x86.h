@@ -260,6 +260,7 @@ class X86Assembler FINAL : public Assembler {
 
   void setb(Condition condition, Register dst);
 
+  void movaps(XmmRegister dst, XmmRegister src);
   void movss(XmmRegister dst, const Address& src);
   void movss(const Address& dst, XmmRegister src);
   void movss(XmmRegister dst, XmmRegister src);

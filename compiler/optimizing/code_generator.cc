@@ -189,6 +189,9 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
       if (loc.GetPolicy() == Location::kRequiresRegister) {
         loc = Location::RegisterLocation(
             AllocateFreeRegister(input->GetType(), blocked_registers_));
+      } else if (loc.GetPolicy() == Location::kRequiresFpuRegister) {
+        loc = Location::FpuRegisterLocation(
+            AllocateFreeRegister(input->GetType(), blocked_registers_));
       } else {
         DCHECK_EQ(loc.GetPolicy(), Location::kAny);
         HLoadLocal* load = input->AsLoadLocal();
@@ -221,6 +224,10 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
       case Location::kAny:
       case Location::kRequiresRegister:
         result_location = Location::RegisterLocation(
+            AllocateFreeRegister(instruction->GetType(), blocked_registers_));
+        break;
+      case Location::kRequiresFpuRegister:
+        result_location = Location::FpuRegisterLocation(
             AllocateFreeRegister(instruction->GetType(), blocked_registers_));
         break;
       case Location::kSameAsFirstInput:

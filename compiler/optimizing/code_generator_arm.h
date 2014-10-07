@@ -32,11 +32,16 @@ static constexpr size_t kArmWordSize = 4;
 static constexpr Register kParameterCoreRegisters[] = { R1, R2, R3 };
 static constexpr RegisterPair kParameterCorePairRegisters[] = { R1_R2, R2_R3 };
 static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
+static constexpr DRegister kParameterFpuRegisters[] = { };
+static constexpr size_t kParameterFpuRegistersLength = 0;
 
-class InvokeDexCallingConvention : public CallingConvention<Register> {
+class InvokeDexCallingConvention : public CallingConvention<Register, DRegister> {
  public:
   InvokeDexCallingConvention()
-      : CallingConvention(kParameterCoreRegisters, kParameterCoreRegistersLength) {}
+      : CallingConvention(kParameterCoreRegisters,
+                          kParameterCoreRegistersLength,
+                          kParameterFpuRegisters,
+                          kParameterFpuRegistersLength) {}
 
   RegisterPair GetRegisterPairAt(size_t argument_index) {
     DCHECK_LT(argument_index + 1, GetNumberOfRegisters());

@@ -203,28 +203,42 @@ class CodeGenerator : public ArenaObject {
   DISALLOW_COPY_AND_ASSIGN(CodeGenerator);
 };
 
-template <typename T>
+template <typename C, typename F>
 class CallingConvention {
  public:
-  CallingConvention(const T* registers, int number_of_registers)
-      : registers_(registers), number_of_registers_(number_of_registers) {}
+  CallingConvention(const C* registers,
+                    size_t number_of_registers,
+                    const F* fpu_registers,
+                    size_t number_of_fpu_registers)
+      : registers_(registers),
+        number_of_registers_(number_of_registers),
+        fpu_registers_(fpu_registers),
+        number_of_fpu_registers_(number_of_fpu_registers) {}
 
   size_t GetNumberOfRegisters() const { return number_of_registers_; }
+  size_t GetNumberOfFpuRegisters() const { return number_of_fpu_registers_; }
 
-  T GetRegisterAt(size_t index) const {
+  C GetRegisterAt(size_t index) const {
     DCHECK_LT(index, number_of_registers_);
     return registers_[index];
   }
 
-  uint8_t GetStackOffsetOf(size_t index) const {
+  F GetFpuRegisterAt(size_t index) const {
+    DCHECK_LT(index, number_of_fpu_registers_);
+    return fpu_registers_[index];
+  }
+
+  size_t GetStackOffsetOf(size_t index) const {
     // We still reserve the space for parameters passed by registers.
     // Add one for the method pointer.
     return (index + 1) * kVRegSize;
   }
 
  private:
-  const T* registers_;
+  const C* registers_;
   const size_t number_of_registers_;
+  const F* fpu_registers_;
+  const size_t number_of_fpu_registers_;
 
   DISALLOW_COPY_AND_ASSIGN(CallingConvention);
 };
