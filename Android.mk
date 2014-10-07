@@ -329,9 +329,9 @@ else
 .PHONY: oat-target-$(1)
 oat-target-$(1): $$(OUT_OAT_FILE)
 
-$$(OUT_OAT_FILE): $(PRODUCT_OUT)/$(1) $(DEFAULT_DEX_PREOPT_BUILT_IMAGE) $(DEX2OATD_DEPENDENCY)
+$$(OUT_OAT_FILE): $(PRODUCT_OUT)/$(1) $(DEFAULT_DEX_PREOPT_BUILT_IMAGE) $(DEX2OAT_DEPENDENCY)
 	@mkdir -p $$(dir $$@)
-	$(DEX2OATD) --runtime-arg -Xms$(DEX2OAT_XMS) --runtime-arg -Xmx$(DEX2OAT_XMX) \
+	$(DEX2OAT) --runtime-arg -Xms$(DEX2OAT_XMS) --runtime-arg -Xmx$(DEX2OAT_XMX) \
 		--boot-image=$(DEFAULT_DEX_PREOPT_BUILT_IMAGE) --dex-file=$(PRODUCT_OUT)/$(1) \
 		--dex-location=/$(1) --oat-file=$$@ \
 		--instruction-set=$(DEX2OAT_TARGET_ARCH) \
