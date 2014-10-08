@@ -22,6 +22,7 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "dex_instruction.h"
 #include "gc/allocator_type.h"
 #include "invoke_type.h"
 #include "jvalue.h"
@@ -177,6 +178,9 @@ void CheckReferenceResult(mirror::Object* o, Thread* self)
 JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, const char* shorty,
                                     jobject rcvr_jobj, jobject interface_art_method_jobj,
                                     std::vector<jvalue>& args)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+bool FillArrayData(mirror::Object* obj, const Instruction::ArrayDataPayload* payload)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 // Entry point for deoptimization.

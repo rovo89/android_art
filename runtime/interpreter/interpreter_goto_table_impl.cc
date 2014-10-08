@@ -573,30 +573,14 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
 
   HANDLE_INSTRUCTION_START(FILL_ARRAY_DATA) {
     Object* obj = shadow_frame.GetVRegReference(inst->VRegA_31t(inst_data));
-    if (UNLIKELY(obj == NULL)) {
-      ThrowNullPointerException(NULL, "null array in FILL_ARRAY_DATA");
-      HANDLE_PENDING_EXCEPTION();
-    } else {
-      Array* array = obj->AsArray();
-      DCHECK(array->IsArrayInstance() && !array->IsObjectArray());
-      const uint16_t* payload_addr = reinterpret_cast<const uint16_t*>(inst) + inst->VRegB_31t();
-      const Instruction::ArrayDataPayload* payload =
-          reinterpret_cast<const Instruction::ArrayDataPayload*>(payload_addr);
-      if (UNLIKELY(static_cast<int32_t>(payload->element_count) > array->GetLength())) {
-        self->ThrowNewExceptionF(shadow_frame.GetCurrentLocationForThrow(),
-                                 "Ljava/lang/ArrayIndexOutOfBoundsException;",
-                                 "failed FILL_ARRAY_DATA; length=%d, index=%d",
-                                 array->GetLength(), payload->element_count);
-        HANDLE_PENDING_EXCEPTION();
-      } else {
-        if (transaction_active) {
-          RecordArrayElementsInTransaction(array, payload->element_count);
-        }
-        uint32_t size_in_bytes = payload->element_count * payload->element_width;
-        memcpy(array->GetRawData(payload->element_width, 0), payload->data, size_in_bytes);
-        ADVANCE(3);
-      }
+    const uint16_t* payload_addr = reinterpret_cast<const uint16_t*>(inst) + inst->VRegB_31t();
+    const Instruction::ArrayDataPayload* payload =
+        reinterpret_cast<const Instruction::ArrayDataPayload*>(payload_addr);
+    bool success = FillArrayData(obj, payload);
+    if (transaction_active && success) {
+      RecordArrayElementsInTransaction(obj->AsArray(), payload->element_count);
     }
+    POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 3);
   }
   HANDLE_INSTRUCTION_END();
 

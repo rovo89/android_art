@@ -832,6 +832,7 @@ class Mir2Lir : public Backend {
     void GenNewArray(uint32_t type_idx, RegLocation rl_dest,
                      RegLocation rl_src);
     void GenFilledNewArray(CallInfo* info);
+    void GenFillArrayData(MIR* mir, DexOffset table_offset, RegLocation rl_src);
     void GenSput(MIR* mir, RegLocation rl_src, OpSize size);
     // Get entrypoints are specific for types, size alone is not sufficient to safely infer
     // entrypoint.
@@ -1321,7 +1322,6 @@ class Mir2Lir : public Backend {
 
     virtual void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) = 0;
     virtual void GenExitSequence() = 0;
-    virtual void GenFillArrayData(MIR* mir, DexOffset table_offset, RegLocation rl_src) = 0;
     virtual void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double) = 0;
     virtual void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) = 0;
 
