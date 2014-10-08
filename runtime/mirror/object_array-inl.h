@@ -19,6 +19,7 @@
 
 #include "object_array.h"
 
+#include "array-inl.h"
 #include "base/stringprintf.h"
 #include "gc/heap.h"
 #include "mirror/art_field.h"
