@@ -21,7 +21,7 @@
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
 #include "entrypoints/quick/quick_entrypoints.h"
-#include "mirror/array.h"
+#include "mirror/array-inl.h"
 #include "utils.h"
 
 namespace art {

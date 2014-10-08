@@ -18,7 +18,7 @@
 
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/accounting/card_table.h"
-#include "mirror/array.h"
+#include "mirror/array-inl.h"
 #include "mirror/art_method.h"
 #include "mirror/class.h"
 #include "thread.h"

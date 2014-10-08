@@ -45,6 +45,14 @@ inline size_t Array::SizeOf() {
   return header_size + data_size;
 }
 
+inline MemberOffset Array::DataOffset(size_t component_size) {
+  DCHECK(IsPowerOfTwo(component_size)) << component_size;
+  size_t data_offset = RoundUp(OFFSETOF_MEMBER(Array, first_element_), component_size);
+  DCHECK_EQ(RoundUp(data_offset, component_size), data_offset)
+      << "Array data offset isn't aligned with component size";
+  return MemberOffset(data_offset);
+}
+
 template<VerifyObjectFlags kVerifyFlags>
 inline bool Array::CheckIsValidIndex(int32_t index) {
   if (UNLIKELY(static_cast<uint32_t>(index) >=

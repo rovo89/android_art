@@ -19,7 +19,6 @@
 
 #include "object_reference.h"
 #include "offsets.h"
-#include "runtime.h"
 #include "verify_object.h"
 
 namespace art {
