@@ -186,6 +186,10 @@ static MIR* FindPhi(BasicBlock* bb, int ssa_name) {
 }
 
 static SelectInstructionKind SelectKind(MIR* mir) {
+  // Work with the case when mir is nullptr.
+  if (mir == nullptr) {
+    return kSelectNone;
+  }
   switch (mir->dalvikInsn.opcode) {
     case Instruction::MOVE:
     case Instruction::MOVE_OBJECT:
