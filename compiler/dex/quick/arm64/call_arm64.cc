@@ -21,6 +21,8 @@
 #include "dex/quick/mir_to_lir-inl.h"
 #include "gc/accounting/card_table.h"
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "mirror/art_method.h"
+#include "mirror/object_array-inl.h"
 
 namespace art {
 
@@ -431,6 +433,119 @@ void Arm64Mir2Lir::GenExitSequence() {
 
 void Arm64Mir2Lir::GenSpecialExitSequence() {
   NewLIR0(kA64Ret);
+}
+
+static bool Arm64UseRelativeCall(CompilationUnit* cu, const MethodReference& target_method) {
+  // Always emit relative calls.
+  return true;
+}
+
+/*
+ * Bit of a hack here - in the absence of a real scheduling pass,
+ * emit the next instruction in static & direct invoke sequences.
+ */
+static int Arm64NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
+                               int state, const MethodReference& target_method,
+                               uint32_t unused,
+                               uintptr_t direct_code, uintptr_t direct_method,
+                               InvokeType type) {
+  Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
+  if (direct_code != 0 && direct_method != 0) {
+    switch (state) {
+    case 0:  // Get the current Method* [sets kArg0]
+      if (direct_code != static_cast<uintptr_t>(-1)) {
+        cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
+      } else if (Arm64UseRelativeCall(cu, target_method)) {
+        // Defer to linker patch.
+      } else {
+        cg->LoadCodeAddress(target_method, type, kInvokeTgt);
+      }
+      if (direct_method != static_cast<uintptr_t>(-1)) {
+        cg->LoadConstant(cg->TargetReg(kArg0, kRef), direct_method);
+      } else {
+        cg->LoadMethodAddress(target_method, type, kArg0);
+      }
+      break;
+    default:
+      return -1;
+    }
+  } else {
+    RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
+    switch (state) {
+    case 0:  // Get the current Method* [sets kArg0]
+      // TUNING: we can save a reg copy if Method* has been promoted.
+      cg->LoadCurrMethodDirect(arg0_ref);
+      break;
+    case 1:  // Get method->dex_cache_resolved_methods_
+      cg->LoadRefDisp(arg0_ref,
+                      mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
+                      arg0_ref,
+                      kNotVolatile);
+      // Set up direct code if known.
+      if (direct_code != 0) {
+        if (direct_code != static_cast<uintptr_t>(-1)) {
+          cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
+        } else if (Arm64UseRelativeCall(cu, target_method)) {
+          // Defer to linker patch.
+        } else {
+          CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
+          cg->LoadCodeAddress(target_method, type, kInvokeTgt);
+        }
+      }
+      break;
+    case 2:  // Grab target method*
+      CHECK_EQ(cu->dex_file, target_method.dex_file);
+      cg->LoadRefDisp(arg0_ref,
+                      mirror::ObjectArray<mirror::Object>::OffsetOfElement(
+                          target_method.dex_method_index).Int32Value(),
+                      arg0_ref,
+                      kNotVolatile);
+      break;
+    case 3:  // Grab the code from the method*
+      if (direct_code == 0) {
+        // kInvokeTgt := arg0_ref->entrypoint
+        cg->LoadWordDisp(arg0_ref,
+                         mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value(),
+                         cg->TargetPtrReg(kInvokeTgt));
+      }
+      break;
+    default:
+      return -1;
+    }
+  }
+  return state + 1;
+}
+
+NextCallInsn Arm64Mir2Lir::GetNextSDCallInsn() {
+  return Arm64NextSDCallInsn;
+}
+
+LIR* Arm64Mir2Lir::CallWithLinkerFixup(const MethodReference& target_method, InvokeType type) {
+  // For ARM64, just generate a relative BL instruction that will be filled in at 'link time'.
+  // If the target turns out to be too far, the linker will generate a thunk for dispatch.
+  int target_method_idx = target_method.dex_method_index;
+  const DexFile* target_dex_file = target_method.dex_file;
+
+  // Generate the call instruction and save index, dex_file, and type.
+  // NOTE: Method deduplication takes linker patches into account, so we can just pass 0
+  // as a placeholder for the offset.
+  LIR* call = RawLIR(current_dalvik_offset_, kA64Bl1t, 0,
+                     target_method_idx, WrapPointer(const_cast<DexFile*>(target_dex_file)), type);
+  AppendLIR(call);
+  call_method_insns_.push_back(call);
+  return call;
+}
+
+LIR* Arm64Mir2Lir::GenCallInsn(const MirMethodLoweringInfo& method_info) {
+  LIR* call_insn;
+  if (method_info.FastPath() && Arm64UseRelativeCall(cu_, method_info.GetTargetMethod()) &&
+      (method_info.GetSharpType() == kDirect || method_info.GetSharpType() == kStatic) &&
+      method_info.DirectCode() == static_cast<uintptr_t>(-1)) {
+    call_insn = CallWithLinkerFixup(method_info.GetTargetMethod(), method_info.GetSharpType());
+  } else {
+    call_insn = OpReg(kOpBlx, TargetPtrReg(kInvokeTgt));
+  }
+  return call_insn;
 }
 
 }  // namespace art
