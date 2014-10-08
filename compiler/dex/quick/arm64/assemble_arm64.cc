@@ -155,6 +155,10 @@ const A64EncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
                  kFmtRegX, 9, 5, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | REG_USE0 | IS_BRANCH,
                  "br", "!0x", kFixupNone),
+    ENCODING_MAP(kA64Bl1t, NO_VARIANTS(0x94000000),
+                 kFmtBitBlt, 25, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_DEF_LR | NEEDS_FIXUP,
+                 "bl", "!0T", kFixupLabel),
     ENCODING_MAP(kA64Brk1d, NO_VARIANTS(0xd4200000),
                  kFmtBitBlt, 20, 5, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH,
@@ -873,7 +877,7 @@ void Arm64Mir2Lir::AssembleLIR() {
               ((target_lir->flags.generation == lir->flags.generation) ? 0 : offset_adjustment);
           int32_t delta = target - pc;
           DCHECK_EQ(delta & 0x3, 0);
-          if (!IS_SIGNED_IMM19(delta >> 2)) {
+          if (!IS_SIGNED_IMM26(delta >> 2)) {
             LOG(FATAL) << "Invalid jump range in kFixupT1Branch";
           }
           lir->operands[0] = delta >> 2;
