@@ -593,10 +593,13 @@ void LocationsBuilderX86::VisitIf(HIf* if_instr) {
 
 void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
   HInstruction* cond = if_instr->InputAt(0);
-  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
-    // Moves do not affect the eflags register, so if the condition is evaluated
-    // just before the if, we don't need to evaluate it again.
-    if (!cond->IsCondition() || !cond->AsCondition()->IsBeforeWhenDisregardMoves(if_instr)) {
+  bool materialized = !cond->IsCondition() || cond->AsCondition()->NeedsMaterialization();
+  // Moves do not affect the eflags register, so if the condition is evaluated
+  // just before the if, we don't need to evaluate it again.
+  bool eflags_set = cond->IsCondition()
+      && cond->AsCondition()->IsBeforeWhenDisregardMoves(if_instr);
+  if (materialized) {
+    if (!eflags_set) {
       // Materialized condition, compare against 0.
       Location lhs = if_instr->GetLocations()->InAt(0);
       if (lhs.IsRegister()) {
@@ -604,8 +607,11 @@ void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
       } else {
         __ cmpl(Address(ESP, lhs.GetStackIndex()), Immediate(0));
       }
+      __ j(kNotEqual,  codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
+    } else {
+      __ j(X86Condition(cond->AsCondition()->GetCondition()),
+           codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
     }
-    __ j(kNotEqual,  codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
   } else {
     Location lhs = cond->GetLocations()->InAt(0);
     Location rhs = cond->GetLocations()->InAt(1);
