@@ -16,10 +16,11 @@ DALVIKVM="dalvikvm32"
 DEBUGGER="n"
 DEV_MODE="n"
 DEX2OAT=""
-GDB_SERVER="gdbserver"
 FALSE_BIN="/system/bin/false"
 FLAGS=""
 GDB=""
+GDB_ARGS=""
+GDB_SERVER="gdbserver"
 HAVE_IMAGE="y"
 HOST="n"
 INTERPRETER="n"
@@ -190,7 +191,6 @@ fi
 if [ "$USE_GDB" = "y" ]; then
   if [ "$HOST" = "n" ]; then
     GDB="$GDB_SERVER :5039"
-    GDB_ARGS="$DALVIKVM"
   else
     if [ `uname` = "Darwin" ]; then
         GDB=lldb
