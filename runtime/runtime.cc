@@ -91,7 +91,7 @@
 
 namespace art {
 
-static constexpr bool kEnableJavaStackTraceHandler = true;
+static constexpr bool kEnableJavaStackTraceHandler = false;
 const char* Runtime::kDefaultInstructionSetFeatures =
     STRINGIFY(ART_DEFAULT_INSTRUCTION_SET_FEATURES);
 Runtime* Runtime::instance_ = NULL;
