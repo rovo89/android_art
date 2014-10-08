@@ -647,7 +647,13 @@ bool ReaderWriterMutex::IsSharedHeld(const Thread* self) const {
 void ReaderWriterMutex::Dump(std::ostream& os) const {
   os << name_
       << " level=" << static_cast<int>(level_)
-      << " owner=" << GetExclusiveOwnerTid() << " ";
+      << " owner=" << GetExclusiveOwnerTid()
+#if ART_USE_FUTEXES
+      << " state=" << state_.LoadSequentiallyConsistent()
+      << " num_pending_writers=" << num_pending_writers_.LoadSequentiallyConsistent()
+      << " num_pending_readers=" << num_pending_readers_.LoadSequentiallyConsistent()
+#endif
+      << " ";
   DumpContention(os);
 }
 
