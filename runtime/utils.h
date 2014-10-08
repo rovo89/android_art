@@ -145,18 +145,6 @@ static inline uint32_t High32Bits(uint64_t value) {
   return static_cast<uint32_t>(value >> 32);
 }
 
-// A static if which determines whether to return type A or B based on the condition boolean.
-template <bool condition, typename A, typename B>
-struct TypeStaticIf {
-  typedef A type;
-};
-
-// Specialization to handle the false case.
-template <typename A, typename B>
-struct TypeStaticIf<false, A,  B> {
-  typedef B type;
-};
-
 // Type identity.
 template <typename T>
 struct TypeIdentity {
@@ -197,18 +185,6 @@ static inline T* AlignUp(T* x, uintptr_t n) WARN_UNUSED;
 template<typename T>
 static inline T* AlignUp(T* x, uintptr_t n) {
   return reinterpret_cast<T*>(RoundUp(reinterpret_cast<uintptr_t>(x), n));
-}
-
-// Implementation is from "Hacker's Delight" by Henry S. Warren, Jr.,
-// figure 3-3, page 48, where the function is called clp2.
-static inline uint32_t RoundUpToPowerOfTwo(uint32_t x) {
-  x = x - 1;
-  x = x | (x >> 1);
-  x = x | (x >> 2);
-  x = x | (x >> 4);
-  x = x | (x >> 8);
-  x = x | (x >> 16);
-  return x + 1;
 }
 
 template<typename T>
