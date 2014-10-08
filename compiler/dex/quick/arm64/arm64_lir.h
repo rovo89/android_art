@@ -117,6 +117,7 @@ enum A64ResourceEncodingPos {
 #define IS_SIGNED_IMM14(value) IS_SIGNED_IMM(14, value)
 #define IS_SIGNED_IMM19(value) IS_SIGNED_IMM(19, value)
 #define IS_SIGNED_IMM21(value) IS_SIGNED_IMM(21, value)
+#define IS_SIGNED_IMM26(value) IS_SIGNED_IMM(26, value)
 
 // Quick macro used to define the registers.
 #define A64_REGISTER_CODE_LIST(R) \
@@ -240,6 +241,7 @@ enum A64Opcode {
   kA64B2ct,          // b.cond [01010100] imm_19[23-5] [0] cond[3-0].
   kA64Blr1x,         // blr [1101011000111111000000] rn[9-5] [00000].
   kA64Br1x,          // br  [1101011000011111000000] rn[9-5] [00000].
+  kA64Bl1t,          // bl  [100101] imm26[25-0].
   kA64Brk1d,         // brk [11010100001] imm_16[20-5] [00000].
   kA64B1t,           // b   [00010100] offset_26[25-0].
   kA64Cbnz2rt,       // cbnz[00110101] imm_19[23-5] rt[4-0].

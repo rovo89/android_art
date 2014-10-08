@@ -330,7 +330,9 @@ class OatWriter {
   class RelativeCallPatcher;
   class NoRelativeCallPatcher;
   class X86RelativeCallPatcher;
+  class ArmBaseRelativeCallPatcher;
   class Thumb2RelativeCallPatcher;
+  class Arm64RelativeCallPatcher;
 
   std::unique_ptr<RelativeCallPatcher> relative_call_patcher_;
 
