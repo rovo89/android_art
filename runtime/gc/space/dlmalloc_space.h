@@ -44,7 +44,7 @@ class DlMallocSpace : public MallocSpace {
   // the caller should call Begin on the returned space to confirm the
   // request was granted.
   static DlMallocSpace* Create(const std::string& name, size_t initial_size, size_t growth_limit,
-                               size_t capacity, byte* requested_begin, bool can_move_objects);
+                               size_t capacity, uint8_t* requested_begin, bool can_move_objects);
 
   // Virtual to allow ValgrindMallocSpace to intercept.
   virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes, size_t* bytes_allocated,
@@ -108,7 +108,7 @@ class DlMallocSpace : public MallocSpace {
   void SetFootprintLimit(size_t limit) OVERRIDE;
 
   MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
-                              byte* begin, byte* end, byte* limit, size_t growth_limit,
+                              uint8_t* begin, uint8_t* end, uint8_t* limit, size_t growth_limit,
                               bool can_move_objects);
 
   uint64_t GetBytesAllocated() OVERRIDE;
@@ -128,8 +128,8 @@ class DlMallocSpace : public MallocSpace {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  protected:
-  DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, byte* begin, byte* end,
-                byte* limit, size_t growth_limit, bool can_move_objects, size_t starting_size,
+  DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, uint8_t* begin, uint8_t* end,
+                uint8_t* limit, size_t growth_limit, bool can_move_objects, size_t starting_size,
                 size_t initial_size);
 
  private:
@@ -144,7 +144,7 @@ class DlMallocSpace : public MallocSpace {
   static void* CreateMspace(void* base, size_t morecore_start, size_t initial_size);
 
   // The boundary tag overhead.
-  static const size_t kChunkOverhead = kWordSize;
+  static const size_t kChunkOverhead = sizeof(intptr_t);
 
   // Underlying malloc space.
   void* mspace_;

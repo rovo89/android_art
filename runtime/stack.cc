@@ -392,16 +392,16 @@ bool StackVisitor::SetFPR(uint32_t reg, uintptr_t value) {
 }
 
 uintptr_t StackVisitor::GetReturnPc() const {
-  byte* sp = reinterpret_cast<byte*>(GetCurrentQuickFrame());
+  uint8_t* sp = reinterpret_cast<uint8_t*>(GetCurrentQuickFrame());
   DCHECK(sp != NULL);
-  byte* pc_addr = sp + GetMethod()->GetReturnPcOffsetInBytes();
+  uint8_t* pc_addr = sp + GetMethod()->GetReturnPcOffsetInBytes();
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
 void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
-  byte* sp = reinterpret_cast<byte*>(GetCurrentQuickFrame());
+  uint8_t* sp = reinterpret_cast<uint8_t*>(GetCurrentQuickFrame());
   CHECK(sp != NULL);
-  byte* pc_addr = sp + GetMethod()->GetReturnPcOffsetInBytes();
+  uint8_t* pc_addr = sp + GetMethod()->GetReturnPcOffsetInBytes();
   *reinterpret_cast<uintptr_t*>(pc_addr) = new_ret_pc;
 }
 
@@ -544,7 +544,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
         size_t frame_size = method->GetFrameSizeInBytes();
         // Compute PC for next stack frame from return PC.
         size_t return_pc_offset = method->GetReturnPcOffsetInBytes(frame_size);
-        byte* return_pc_addr = reinterpret_cast<byte*>(cur_quick_frame_) + return_pc_offset;
+        uint8_t* return_pc_addr = reinterpret_cast<uint8_t*>(cur_quick_frame_) + return_pc_offset;
         uintptr_t return_pc = *reinterpret_cast<uintptr_t*>(return_pc_addr);
         if (UNLIKELY(exit_stubs_installed)) {
           // While profiling, the return pc is restored from the side stack, except when walking
@@ -574,7 +574,7 @@ void StackVisitor::WalkStack(bool include_transitions) {
           }
         }
         cur_quick_frame_pc_ = return_pc;
-        byte* next_frame = reinterpret_cast<byte*>(cur_quick_frame_) + frame_size;
+        uint8_t* next_frame = reinterpret_cast<uint8_t*>(cur_quick_frame_) + frame_size;
         cur_quick_frame_ = reinterpret_cast<StackReference<mirror::ArtMethod>*>(next_frame);
         cur_depth_++;
         method = cur_quick_frame_->AsMirrorPtr();

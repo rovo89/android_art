@@ -46,11 +46,11 @@ class ElfFileImpl {
     return *file_;
   }
 
-  byte* Begin() const {
+  uint8_t* Begin() const {
     return map_->Begin();
   }
 
-  byte* End() const {
+  uint8_t* End() const {
     return map_->End();
   }
 
@@ -71,7 +71,7 @@ class ElfFileImpl {
   Elf_Shdr* GetSectionNameStringSection() const;
 
   // Find .dynsym using .hash for more efficient lookup than FindSymbolAddress.
-  const byte* FindDynamicSymbolAddress(const std::string& symbol_name) const;
+  const uint8_t* FindDynamicSymbolAddress(const std::string& symbol_name) const;
 
   static bool IsSymbolSectionType(Elf_Word section_type);
   Elf_Word GetSymbolNum(Elf_Shdr&) const;
@@ -120,8 +120,8 @@ class ElfFileImpl {
 
   bool SetMap(MemMap* map, std::string* error_msg);
 
-  byte* GetProgramHeadersStart() const;
-  byte* GetSectionHeadersStart() const;
+  uint8_t* GetProgramHeadersStart() const;
+  uint8_t* GetSectionHeadersStart() const;
   Elf_Phdr& GetDynamicProgramHeader() const;
   Elf_Dyn* GetDynamicSectionStart() const;
   Elf_Sym* GetSymbolSectionStart(Elf_Word section_type) const;
@@ -137,7 +137,7 @@ class ElfFileImpl {
   typedef std::map<std::string, Elf_Sym*> SymbolTable;
   SymbolTable** GetSymbolTable(Elf_Word section_type);
 
-  bool ValidPointer(const byte* start) const;
+  bool ValidPointer(const uint8_t* start) const;
 
   const Elf_Sym* FindDynamicSymbol(const std::string& symbol_name) const;
 
@@ -145,10 +145,10 @@ class ElfFileImpl {
   bool CheckSectionsExist(std::string* error_msg) const;
 
   // Check that the link of the first section links to the second section.
-  bool CheckSectionsLinked(const byte* source, const byte* target) const;
+  bool CheckSectionsLinked(const uint8_t* source, const uint8_t* target) const;
 
   // Check whether the offset is in range, and set to target to Begin() + offset if OK.
-  bool CheckAndSet(Elf32_Off offset, const char* label, byte** target, std::string* error_msg);
+  bool CheckAndSet(Elf32_Off offset, const char* label, uint8_t** target, std::string* error_msg);
 
   // Find symbol in specified table, returning nullptr if it is not found.
   //
@@ -182,13 +182,13 @@ class ElfFileImpl {
 
   // Pointer to start of first PT_LOAD program segment after Load()
   // when program_header_only_ is true.
-  byte* base_address_;
+  uint8_t* base_address_;
 
   // The program header should always available but use GetProgramHeadersStart() to be sure.
-  byte* program_headers_start_;
+  uint8_t* program_headers_start_;
 
   // Conditionally available values. Use accessors to ensure they exist if they are required.
-  byte* section_headers_start_;
+  uint8_t* section_headers_start_;
   Elf_Phdr* dynamic_program_header_;
   Elf_Dyn* dynamic_section_start_;
   Elf_Sym* symtab_section_start_;
@@ -201,7 +201,7 @@ class ElfFileImpl {
   SymbolTable* dynsym_symbol_table_;
 
   // Support for GDB JIT
-  byte* jit_elf_image_;
+  uint8_t* jit_elf_image_;
   JITCodeEntry* jit_gdb_entry_;
   std::unique_ptr<ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
                   Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel,

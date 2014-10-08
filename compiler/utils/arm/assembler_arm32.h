@@ -273,7 +273,7 @@ class Arm32Assembler FINAL : public ArmAssembler {
                       Condition cond = AL) OVERRIDE;
 
 
-  static bool IsInstructionForExceptionHandling(uword pc);
+  static bool IsInstructionForExceptionHandling(uintptr_t pc);
 
   // Emit data (e.g. encoded instruction or immediate) to the
   // instruction stream.

@@ -214,7 +214,7 @@ class Arm64Assembler FINAL : public Assembler {
   void AddConstant(Register rd, Register rn, int32_t value, vixl::Condition cond = vixl::al);
 
   // Vixl assembler.
-  vixl::MacroAssembler* vixl_masm_;
+  vixl::MacroAssembler* const vixl_masm_;
 
   // List of exception blocks to generate at the end of the code cache.
   std::vector<Arm64Exception*> exception_blocks_;

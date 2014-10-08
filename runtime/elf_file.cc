@@ -43,7 +43,7 @@ extern "C" {
   struct JITCodeEntry {
     JITCodeEntry* next_;
     JITCodeEntry* prev_;
-    const byte *symfile_addr_;
+    const uint8_t *symfile_addr_;
     uint64_t symfile_size_;
   };
 
@@ -68,7 +68,7 @@ extern "C" {
 }
 
 
-static JITCodeEntry* CreateCodeEntry(const byte *symfile_addr,
+static JITCodeEntry* CreateCodeEntry(const uint8_t *symfile_addr,
                                      uintptr_t symfile_size) {
   JITCodeEntry* entry = new JITCodeEntry;
   entry->symfile_addr_ = symfile_addr;
@@ -264,7 +264,7 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     }
 
     if (!CheckAndSet(GetDynamicProgramHeader().p_offset, "dynamic section",
-                     reinterpret_cast<byte**>(&dynamic_section_start_), error_msg)) {
+                     reinterpret_cast<uint8_t**>(&dynamic_section_start_), error_msg)) {
       return false;
     }
 
@@ -279,14 +279,14 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
       switch (section_header->sh_type) {
         case SHT_SYMTAB: {
           if (!CheckAndSet(section_header->sh_offset, "symtab",
-                           reinterpret_cast<byte**>(&symtab_section_start_), error_msg)) {
+                           reinterpret_cast<uint8_t**>(&symtab_section_start_), error_msg)) {
             return false;
           }
           break;
         }
         case SHT_DYNSYM: {
           if (!CheckAndSet(section_header->sh_offset, "dynsym",
-                           reinterpret_cast<byte**>(&dynsym_section_start_), error_msg)) {
+                           reinterpret_cast<uint8_t**>(&dynsym_section_start_), error_msg)) {
             return false;
           }
           break;
@@ -298,7 +298,7 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
             const char* header_name = GetString(*shstrtab_section_header, section_header->sh_name);
             if (strncmp(".dynstr", header_name, 8) == 0) {
               if (!CheckAndSet(section_header->sh_offset, "dynstr",
-                               reinterpret_cast<byte**>(&dynstr_section_start_), error_msg)) {
+                               reinterpret_cast<uint8_t**>(&dynstr_section_start_), error_msg)) {
                 return false;
               }
             }
@@ -307,7 +307,7 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
             const char* header_name = GetString(*shstrtab_section_header, section_header->sh_name);
             if (strncmp(".strtab", header_name, 8) == 0) {
               if (!CheckAndSet(section_header->sh_offset, "strtab",
-                               reinterpret_cast<byte**>(&strtab_section_start_), error_msg)) {
+                               reinterpret_cast<uint8_t**>(&strtab_section_start_), error_msg)) {
                 return false;
               }
             }
@@ -315,7 +315,7 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
           break;
         }
         case SHT_DYNAMIC: {
-          if (reinterpret_cast<byte*>(dynamic_section_start_) !=
+          if (reinterpret_cast<uint8_t*>(dynamic_section_start_) !=
               Begin() + section_header->sh_offset) {
             LOG(WARNING) << "Failed to find matching SHT_DYNAMIC for PT_DYNAMIC in "
                          << file_->GetPath() << ": " << std::hex
@@ -327,7 +327,7 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
         }
         case SHT_HASH: {
           if (!CheckAndSet(section_header->sh_offset, "hash section",
-                           reinterpret_cast<byte**>(&hash_section_start_), error_msg)) {
+                           reinterpret_cast<uint8_t**>(&hash_section_start_), error_msg)) {
             return false;
           }
           break;
@@ -365,7 +365,7 @@ template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_
 bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
     ::CheckAndSet(Elf32_Off offset, const char* label,
-                  byte** target, std::string* error_msg) {
+                  uint8_t** target, std::string* error_msg) {
   if (Begin() + offset >= End()) {
     *error_msg = StringPrintf("Offset %d is out of range for %s in ELF file: '%s'", offset, label,
                               file_->GetPath().c_str());
@@ -380,7 +380,7 @@ template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
 bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
-    ::CheckSectionsLinked(const byte* source, const byte* target) const {
+    ::CheckSectionsLinked(const uint8_t* source, const uint8_t* target) const {
   // Only works in whole-program mode, as we need to iterate over the sections.
   // Note that we normally can't search by type, as duplicates are allowed for most section types.
   if (program_header_only_) {
@@ -449,8 +449,8 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     }
 
     // The symtab should link to the strtab.
-    if (!CheckSectionsLinked(reinterpret_cast<const byte*>(symtab_section_start_),
-                             reinterpret_cast<const byte*>(strtab_section_start_))) {
+    if (!CheckSectionsLinked(reinterpret_cast<const uint8_t*>(symtab_section_start_),
+                             reinterpret_cast<const uint8_t*>(strtab_section_start_))) {
       *error_msg = StringPrintf("Symtab is not linked to the strtab in ELF file: '%s'",
                                 file_->GetPath().c_str());
       return false;
@@ -475,8 +475,8 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
   }
 
   // And the hash section should be linking to the dynsym.
-  if (!CheckSectionsLinked(reinterpret_cast<const byte*>(hash_section_start_),
-                           reinterpret_cast<const byte*>(dynsym_section_start_))) {
+  if (!CheckSectionsLinked(reinterpret_cast<const uint8_t*>(hash_section_start_),
+                           reinterpret_cast<const uint8_t*>(dynsym_section_start_))) {
     *error_msg = StringPrintf("Hash section is not linked to the dynstr in ELF file: '%s'",
                               file_->GetPath().c_str());
     return false;
@@ -637,7 +637,7 @@ Elf_Ehdr& ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
 template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_Word,
           typename Elf_Sword, typename Elf_Addr, typename Elf_Sym, typename Elf_Rel,
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
-byte* ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
+uint8_t* ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
     ::GetProgramHeadersStart() const {
   CHECK(program_headers_start_ != nullptr);  // Header has been set in Setup. This is a sanity
@@ -648,7 +648,7 @@ byte* ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
 template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_Word,
           typename Elf_Sword, typename Elf_Addr, typename Elf_Sym, typename Elf_Rel,
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
-byte* ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
+uint8_t* ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
     ::GetSectionHeadersStart() const {
   CHECK(!program_header_only_);              // Only used in "full" mode.
@@ -813,7 +813,7 @@ Elf_Phdr* ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
     ::GetProgramHeader(Elf_Word i) const {
   CHECK_LT(i, GetProgramHeaderNum()) << file_->GetPath();  // Sanity check for caller.
-  byte* program_header = GetProgramHeadersStart() + (i * GetHeader().e_phentsize);
+  uint8_t* program_header = GetProgramHeadersStart() + (i * GetHeader().e_phentsize);
   if (program_header >= End()) {
     return nullptr;  // Failure condition.
   }
@@ -856,7 +856,7 @@ Elf_Shdr* ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
   if (i >= GetSectionHeaderNum()) {
     return nullptr;  // Failure condition.
   }
-  byte* section_header = GetSectionHeadersStart() + (i * GetHeader().e_shentsize);
+  uint8_t* section_header = GetSectionHeadersStart() + (i * GetHeader().e_shentsize);
   if (section_header >= End()) {
     return nullptr;  // Failure condition.
   }
@@ -907,7 +907,7 @@ Elf_Shdr* ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
 template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_Word,
           typename Elf_Sword, typename Elf_Addr, typename Elf_Sym, typename Elf_Rel,
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
-const byte* ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
+const uint8_t* ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
     ::FindDynamicSymbolAddress(const std::string& symbol_name) const {
   // Check that we have a hash section.
@@ -1133,8 +1133,8 @@ const char* ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
   if (i == 0) {
     return nullptr;
   }
-  byte* strings = Begin() + string_section.sh_offset;
-  byte* string = strings + i;
+  uint8_t* strings = Begin() + string_section.sh_offset;
+  uint8_t* string = strings + i;
   if (string >= End()) {
     return nullptr;
   }
@@ -1361,8 +1361,8 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     }
     size_t file_length = static_cast<size_t>(temp_file_length);
     if (!reserved) {
-      byte* reserve_base = ((program_header->p_vaddr != 0) ?
-                            reinterpret_cast<byte*>(program_header->p_vaddr) : nullptr);
+      uint8_t* reserve_base = ((program_header->p_vaddr != 0) ?
+                            reinterpret_cast<uint8_t*>(program_header->p_vaddr) : nullptr);
       std::string reservation_name("ElfFile reservation for ");
       reservation_name += file_->GetPath();
       std::unique_ptr<MemMap> reserve(MemMap::MapAnonymous(reservation_name.c_str(),
@@ -1384,7 +1384,7 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     if (program_header->p_memsz == 0) {
       continue;
     }
-    byte* p_vaddr = base_address_ + program_header->p_vaddr;
+    uint8_t* p_vaddr = base_address_ + program_header->p_vaddr;
     int prot = 0;
     if (executable && ((program_header->p_flags & PF_X) != 0)) {
       prot |= PROT_EXEC;
@@ -1431,7 +1431,7 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
   }
 
   // Now that we are done loading, .dynamic should be in memory to find .dynstr, .dynsym, .hash
-  byte* dsptr = base_address_ + GetDynamicProgramHeader().p_vaddr;
+  uint8_t* dsptr = base_address_ + GetDynamicProgramHeader().p_vaddr;
   if ((dsptr < Begin() || dsptr >= End()) && !ValidPointer(dsptr)) {
     *error_msg = StringPrintf("dynamic section address invalid in ELF file %s",
                               file_->GetPath().c_str());
@@ -1441,7 +1441,7 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
 
   for (Elf_Word i = 0; i < GetDynamicNum(); i++) {
     Elf_Dyn& elf_dyn = GetDynamic(i);
-    byte* d_ptr = base_address_ + elf_dyn.d_un.d_ptr;
+    uint8_t* d_ptr = base_address_ + elf_dyn.d_un.d_ptr;
     switch (elf_dyn.d_tag) {
       case DT_HASH: {
         if (!ValidPointer(d_ptr)) {
@@ -1500,7 +1500,7 @@ template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
 bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
-    ::ValidPointer(const byte* start) const {
+    ::ValidPointer(const uint8_t* start) const {
   for (size_t i = 0; i < segments_.size(); ++i) {
     const MemMap* segment = segments_[i];
     if (segment->Begin() <= start && start < segment->End()) {
@@ -1550,7 +1550,7 @@ struct PACKED(1) FDE32 {
 };
 
 static FDE32* NextFDE(FDE32* frame) {
-  byte* fde_bytes = reinterpret_cast<byte*>(frame);
+  uint8_t* fde_bytes = reinterpret_cast<uint8_t*>(frame);
   fde_bytes += frame->GetLength();
   return reinterpret_cast<FDE32*>(fde_bytes);
 }
@@ -1572,7 +1572,7 @@ struct PACKED(1) FDE64 {
 };
 
 static FDE64* NextFDE(FDE64* frame) {
-  byte* fde_bytes = reinterpret_cast<byte*>(frame);
+  uint8_t* fde_bytes = reinterpret_cast<uint8_t*>(frame);
   fde_bytes += frame->GetLength();
   return reinterpret_cast<FDE64*>(fde_bytes);
 }
@@ -1582,7 +1582,7 @@ static bool IsFDE(FDE64* frame) {
 }
 
 static bool FixupEHFrame(off_t base_address_delta,
-                           byte* eh_frame, size_t eh_frame_size) {
+                           uint8_t* eh_frame, size_t eh_frame_size) {
   if (*(reinterpret_cast<uint32_t*>(eh_frame)) == 0xffffffff) {
     FDE64* last_frame = reinterpret_cast<FDE64*>(eh_frame + eh_frame_size);
     FDE64* frame = NextFDE(reinterpret_cast<FDE64*>(eh_frame));
@@ -1787,8 +1787,8 @@ class DebugTag {
   ~DebugTag() {}
   // Creates a new tag and moves data pointer up to the start of the next one.
   // nullptr means error.
-  static DebugTag* Create(const byte** data_pointer) {
-    const byte* data = *data_pointer;
+  static DebugTag* Create(const uint8_t** data_pointer) {
+    const uint8_t* data = *data_pointer;
     uint32_t index = DecodeUnsignedLeb128(&data);
     std::unique_ptr<DebugTag> tag(new DebugTag(index));
     tag->size_ = static_cast<uint32_t>(
@@ -1867,7 +1867,7 @@ class DebugTag {
 class DebugAbbrev {
  public:
   ~DebugAbbrev() {}
-  static DebugAbbrev* Create(const byte* dbg_abbrev, size_t dbg_abbrev_size) {
+  static DebugAbbrev* Create(const uint8_t* dbg_abbrev, size_t dbg_abbrev_size) {
     std::unique_ptr<DebugAbbrev> abbrev(new DebugAbbrev(dbg_abbrev, dbg_abbrev + dbg_abbrev_size));
     if (!abbrev->ReadAtOffset(0)) {
       return nullptr;
@@ -1878,7 +1878,7 @@ class DebugAbbrev {
   bool ReadAtOffset(uint32_t abbrev_offset) {
     tags_.clear();
     tag_list_.clear();
-    const byte* dbg_abbrev = begin_ + abbrev_offset;
+    const uint8_t* dbg_abbrev = begin_ + abbrev_offset;
     while (dbg_abbrev < end_ && *dbg_abbrev != 0) {
       std::unique_ptr<DebugTag> tag(DebugTag::Create(&dbg_abbrev));
       if (tag.get() == nullptr) {
@@ -1891,7 +1891,7 @@ class DebugAbbrev {
     return true;
   }
 
-  DebugTag* ReadTag(const byte* entry) {
+  DebugTag* ReadTag(const uint8_t* entry) {
     uint32_t tag_num = DecodeUnsignedLeb128(&entry);
     auto it = tags_.find(tag_num);
     if (it == tags_.end()) {
@@ -1903,9 +1903,9 @@ class DebugAbbrev {
   }
 
  private:
-  DebugAbbrev(const byte* begin, const byte* end) : begin_(begin), end_(end) {}
-  const byte* begin_;
-  const byte* end_;
+  DebugAbbrev(const uint8_t* begin, const uint8_t* end) : begin_(begin), end_(end) {}
+  const uint8_t* begin_;
+  const uint8_t* end_;
   std::map<uint32_t, uint32_t> tags_;
   std::vector<std::unique_ptr<DebugTag>> tag_list_;
 };
@@ -1934,7 +1934,7 @@ class DebugInfoIterator {
     if (reinterpret_cast<DebugInfoHeader*>(current_entry_) >= next_cu_) {
       current_cu_ = next_cu_;
       next_cu_ = GetNextCu(current_cu_);
-      current_entry_ = reinterpret_cast<byte*>(current_cu_) + sizeof(DebugInfoHeader);
+      current_entry_ = reinterpret_cast<uint8_t*>(current_cu_) + sizeof(DebugInfoHeader);
       reread_abbrev = true;
     }
     if (current_entry_ >= last_entry_) {
@@ -1956,7 +1956,7 @@ class DebugInfoIterator {
   const DebugTag* GetCurrentTag() {
     return const_cast<DebugTag*>(current_tag_);
   }
-  byte* GetPointerToField(uint8_t dwarf_field) {
+  uint8_t* GetPointerToField(uint8_t dwarf_field) {
     if (current_tag_ == nullptr || current_entry_ == nullptr || current_entry_ >= last_entry_) {
       return nullptr;
     }
@@ -1972,7 +1972,7 @@ class DebugInfoIterator {
 
  private:
   static DebugInfoHeader* GetNextCu(DebugInfoHeader* hdr) {
-    byte* hdr_byte = reinterpret_cast<byte*>(hdr);
+    uint8_t* hdr_byte = reinterpret_cast<uint8_t*>(hdr);
     return reinterpret_cast<DebugInfoHeader*>(hdr_byte + sizeof(uint32_t) + hdr->unit_length);
   }
 
@@ -1980,14 +1980,14 @@ class DebugInfoIterator {
       : abbrev_(abbrev),
         current_cu_(header),
         next_cu_(GetNextCu(header)),
-        last_entry_(reinterpret_cast<byte*>(header) + frame_size),
-        current_entry_(reinterpret_cast<byte*>(header) + sizeof(DebugInfoHeader)),
+        last_entry_(reinterpret_cast<uint8_t*>(header) + frame_size),
+        current_entry_(reinterpret_cast<uint8_t*>(header) + sizeof(DebugInfoHeader)),
         current_tag_(abbrev_->ReadTag(current_entry_)) {}
   DebugAbbrev* abbrev_;
   DebugInfoHeader* current_cu_;
   DebugInfoHeader* next_cu_;
-  byte* last_entry_;
-  byte* current_entry_;
+  uint8_t* last_entry_;
+  uint8_t* current_entry_;
   DebugTag* current_tag_;
 };
 
@@ -2437,7 +2437,7 @@ ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only, std:
   if (map == nullptr && map->Size() != EI_NIDENT) {
     return nullptr;
   }
-  byte *header = map->Begin();
+  uint8_t* header = map->Begin();
   if (header[EI_CLASS] == ELFCLASS64) {
     ElfFileImpl64* elf_file_impl = ElfFileImpl64::Open(file, writable, program_header_only, error_msg);
     if (elf_file_impl == nullptr)
@@ -2468,7 +2468,7 @@ ElfFile* ElfFile::Open(File* file, int mmap_prot, int mmap_flags, std::string* e
   if (map == nullptr && map->Size() != EI_NIDENT) {
     return nullptr;
   }
-  byte *header = map->Begin();
+  uint8_t* header = map->Begin();
   if (header[EI_CLASS] == ELFCLASS64) {
     ElfFileImpl64* elf_file_impl = ElfFileImpl64::Open(file, mmap_prot, mmap_flags, error_msg);
     if (elf_file_impl == nullptr)
@@ -2501,7 +2501,7 @@ bool ElfFile::Load(bool executable, std::string* error_msg) {
   DELEGATE_TO_IMPL(Load, executable, error_msg);
 }
 
-const byte* ElfFile::FindDynamicSymbolAddress(const std::string& symbol_name) const {
+const uint8_t* ElfFile::FindDynamicSymbolAddress(const std::string& symbol_name) const {
   DELEGATE_TO_IMPL(FindDynamicSymbolAddress, symbol_name);
 }
 
@@ -2509,11 +2509,11 @@ size_t ElfFile::Size() const {
   DELEGATE_TO_IMPL(Size);
 }
 
-byte* ElfFile::Begin() const {
+uint8_t* ElfFile::Begin() const {
   DELEGATE_TO_IMPL(Begin);
 }
 
-byte* ElfFile::End() const {
+uint8_t* ElfFile::End() const {
   DELEGATE_TO_IMPL(End);
 }
 

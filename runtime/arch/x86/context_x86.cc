@@ -81,7 +81,7 @@ void X86Context::DoLongJump() {
     gprs[kNumberOfCpuRegisters - i - 1] = gprs_[i] != nullptr ? *gprs_[i] : X86Context::kBadGprBase + i;
   }
   // We want to load the stack pointer one slot below so that the ret will pop eip.
-  uintptr_t esp = gprs[kNumberOfCpuRegisters - ESP - 1] - kWordSize;
+  uintptr_t esp = gprs[kNumberOfCpuRegisters - ESP - 1] - sizeof(intptr_t);
   gprs[kNumberOfCpuRegisters] = esp;
   *(reinterpret_cast<uintptr_t*>(esp)) = eip_;
   __asm__ __volatile__(

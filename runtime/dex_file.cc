@@ -47,8 +47,8 @@
 
 namespace art {
 
-const byte DexFile::kDexMagic[] = { 'd', 'e', 'x', '\n' };
-const byte DexFile::kDexMagicVersion[] = { '0', '3', '5', '\0' };
+const uint8_t DexFile::kDexMagic[] = { 'd', 'e', 'x', '\n' };
+const uint8_t DexFile::kDexMagicVersion[] = { '0', '3', '5', '\0' };
 
 static int OpenAndReadMagic(const char* filename, uint32_t* magic, std::string* error_msg) {
   CHECK(magic != NULL);
@@ -323,7 +323,7 @@ bool DexFile::OpenFromZip(const ZipArchive& zip_archive, const std::string& loca
 }
 
 
-const DexFile* DexFile::OpenMemory(const byte* base,
+const DexFile* DexFile::OpenMemory(const uint8_t* base,
                                    size_t size,
                                    const std::string& location,
                                    uint32_t location_checksum,
@@ -337,7 +337,7 @@ const DexFile* DexFile::OpenMemory(const byte* base,
   }
 }
 
-DexFile::DexFile(const byte* base, size_t size,
+DexFile::DexFile(const uint8_t* base, size_t size,
                  const std::string& location,
                  uint32_t location_checksum,
                  MemMap* mem_map)
@@ -399,12 +399,12 @@ bool DexFile::CheckMagicAndVersion(std::string* error_msg) const {
   return true;
 }
 
-bool DexFile::IsMagicValid(const byte* magic) {
+bool DexFile::IsMagicValid(const uint8_t* magic) {
   return (memcmp(magic, kDexMagic, sizeof(kDexMagic)) == 0);
 }
 
-bool DexFile::IsVersionValid(const byte* magic) {
-  const byte* version = &magic[sizeof(kDexMagic)];
+bool DexFile::IsVersionValid(const uint8_t* magic) {
+  const uint8_t* version = &magic[sizeof(kDexMagic)];
   return (memcmp(version, kDexMagicVersion, sizeof(kDexMagicVersion)) == 0);
 }
 
@@ -754,7 +754,7 @@ int32_t DexFile::FindCatchHandlerOffset(const CodeItem &code_item, uint32_t addr
 
 void DexFile::DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
                                DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
-                               void* context, const byte* stream, LocalInfo* local_in_reg) const {
+                               void* context, const uint8_t* stream, LocalInfo* local_in_reg) const {
   uint32_t line = DecodeUnsignedLeb128(&stream);
   uint32_t parameters_size = DecodeUnsignedLeb128(&stream);
   uint16_t arg_reg = code_item->registers_size_ - code_item->ins_size_;
@@ -919,7 +919,7 @@ void DexFile::DecodeDebugInfo(const CodeItem* code_item, bool is_static, uint32_
                               DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
                               void* context) const {
   DCHECK(code_item != nullptr);
-  const byte* stream = GetDebugInfoStream(code_item);
+  const uint8_t* stream = GetDebugInfoStream(code_item);
   std::unique_ptr<LocalInfo[]> local_in_reg(local_cb != NULL ?
                                       new LocalInfo[code_item->registers_size_] :
                                       NULL);
@@ -1059,7 +1059,7 @@ void ClassDataItemIterator::ReadClassDataMethod() {
 }
 
 // Read a signed integer.  "zwidth" is the zero-based byte count.
-static int32_t ReadSignedInt(const byte* ptr, int zwidth) {
+static int32_t ReadSignedInt(const uint8_t* ptr, int zwidth) {
   int32_t val = 0;
   for (int i = zwidth; i >= 0; --i) {
     val = ((uint32_t)val >> 8) | (((int32_t)*ptr++) << 24);
@@ -1070,7 +1070,7 @@ static int32_t ReadSignedInt(const byte* ptr, int zwidth) {
 
 // Read an unsigned integer.  "zwidth" is the zero-based byte count,
 // "fill_on_right" indicates which side we want to zero-fill from.
-static uint32_t ReadUnsignedInt(const byte* ptr, int zwidth, bool fill_on_right) {
+static uint32_t ReadUnsignedInt(const uint8_t* ptr, int zwidth, bool fill_on_right) {
   uint32_t val = 0;
   if (!fill_on_right) {
     for (int i = zwidth; i >= 0; --i) {
@@ -1086,7 +1086,7 @@ static uint32_t ReadUnsignedInt(const byte* ptr, int zwidth, bool fill_on_right)
 }
 
 // Read a signed long.  "zwidth" is the zero-based byte count.
-static int64_t ReadSignedLong(const byte* ptr, int zwidth) {
+static int64_t ReadSignedLong(const uint8_t* ptr, int zwidth) {
   int64_t val = 0;
   for (int i = zwidth; i >= 0; --i) {
     val = ((uint64_t)val >> 8) | (((int64_t)*ptr++) << 56);
@@ -1097,7 +1097,7 @@ static int64_t ReadSignedLong(const byte* ptr, int zwidth) {
 
 // Read an unsigned long.  "zwidth" is the zero-based byte count,
 // "fill_on_right" indicates which side we want to zero-fill from.
-static uint64_t ReadUnsignedLong(const byte* ptr, int zwidth, bool fill_on_right) {
+static uint64_t ReadUnsignedLong(const uint8_t* ptr, int zwidth, bool fill_on_right) {
   uint64_t val = 0;
   if (!fill_on_right) {
     for (int i = zwidth; i >= 0; --i) {
@@ -1137,8 +1137,8 @@ void EncodedStaticFieldValueIterator::Next() {
   if (pos_ >= array_size_) {
     return;
   }
-  byte value_type = *ptr_++;
-  byte value_arg = value_type >> kEncodedValueArgShift;
+  uint8_t value_type = *ptr_++;
+  uint8_t value_arg = value_type >> kEncodedValueArgShift;
   size_t width = value_arg + 1;  // assume and correct later
   type_ = static_cast<ValueType>(value_type & kEncodedValueTypeMask);
   switch (type_) {
@@ -1266,7 +1266,7 @@ void CatchHandlerIterator::Init(const DexFile::CodeItem& code_item,
   }
 }
 
-void CatchHandlerIterator::Init(const byte* handler_data) {
+void CatchHandlerIterator::Init(const uint8_t* handler_data) {
   current_data_ = handler_data;
   remaining_count_ = DecodeSignedLeb128(&current_data_);
 

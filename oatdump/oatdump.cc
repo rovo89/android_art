@@ -219,7 +219,7 @@ class OatSymbolizer FINAL : public CodeOutput {
 
   void WalkOatClass(const OatFile::OatClass& oat_class, const DexFile& dex_file,
                     const DexFile::ClassDef& class_def, Callback callback) {
-    const byte* class_data = dex_file.GetClassData(class_def);
+    const uint8_t* class_data = dex_file.GetClassData(class_def);
     if (class_data == nullptr) {  // empty class such as a marker interface?
       return;
     }
@@ -482,8 +482,8 @@ class OatDumper {
   }
 
   size_t ComputeSize(const void* oat_data) {
-    if (reinterpret_cast<const byte*>(oat_data) < oat_file_.Begin() ||
-        reinterpret_cast<const byte*>(oat_data) > oat_file_.End()) {
+    if (reinterpret_cast<const uint8_t*>(oat_data) < oat_file_.Begin() ||
+        reinterpret_cast<const uint8_t*>(oat_data) > oat_file_.End()) {
       return 0;  // Address not in oat file
     }
     uintptr_t begin_offset = reinterpret_cast<uintptr_t>(oat_data) -
@@ -543,7 +543,7 @@ class OatDumper {
            class_def_index++) {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
         const OatFile::OatClass oat_class = oat_dex_file->GetOatClass(class_def_index);
-        const byte* class_data = dex_file->GetClassData(class_def);
+        const uint8_t* class_data = dex_file->GetClassData(class_def);
         if (class_data != nullptr) {
           ClassDataItemIterator it(*dex_file, class_data);
           SkipAllFields(it);
@@ -631,7 +631,7 @@ class OatDumper {
   bool DumpOatClass(std::ostream& os, const OatFile::OatClass& oat_class, const DexFile& dex_file,
                     const DexFile::ClassDef& class_def) {
     bool success = true;
-    const byte* class_data = dex_file.GetClassData(class_def);
+    const uint8_t* class_data = dex_file.GetClassData(class_def);
     if (class_data == nullptr) {  // empty class such as a marker interface?
       os << std::flush;
       return success;

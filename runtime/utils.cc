@@ -92,7 +92,7 @@ void GetThreadStack(pthread_t thread, void** stack_base, size_t* stack_size, siz
   // (On Mac OS 10.7, it's the end.)
   int stack_variable;
   if (stack_addr > &stack_variable) {
-    *stack_base = reinterpret_cast<byte*>(stack_addr) - *stack_size;
+    *stack_base = reinterpret_cast<uint8_t*>(stack_addr) - *stack_size;
   } else {
     *stack_base = stack_addr;
   }
@@ -1369,11 +1369,11 @@ bool IsZipMagic(uint32_t magic) {
 }
 
 bool IsDexMagic(uint32_t magic) {
-  return DexFile::IsMagicValid(reinterpret_cast<const byte*>(&magic));
+  return DexFile::IsMagicValid(reinterpret_cast<const uint8_t*>(&magic));
 }
 
 bool IsOatMagic(uint32_t magic) {
-  return (memcmp(reinterpret_cast<const byte*>(magic),
+  return (memcmp(reinterpret_cast<const uint8_t*>(magic),
                  OatHeader::kOatMagic,
                  sizeof(OatHeader::kOatMagic)) == 0);
 }

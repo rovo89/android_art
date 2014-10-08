@@ -51,11 +51,11 @@ class CardTable {
   static constexpr uint8_t kCardClean = 0x0;
   static constexpr uint8_t kCardDirty = 0x70;
 
-  static CardTable* Create(const byte* heap_begin, size_t heap_capacity);
+  static CardTable* Create(const uint8_t* heap_begin, size_t heap_capacity);
 
   // Set the card associated with the given address to GC_CARD_DIRTY.
   void MarkCard(const void *addr) {
-    byte* card_addr = CardFromAddr(addr);
+    uint8_t* card_addr = CardFromAddr(addr);
     *card_addr = kCardDirty;
   }
 
@@ -65,16 +65,16 @@ class CardTable {
   }
 
   // Return the state of the card at an address.
-  byte GetCard(const mirror::Object* obj) const {
+  uint8_t GetCard(const mirror::Object* obj) const {
     return *CardFromAddr(obj);
   }
 
   // Visit and clear cards within memory range, only visits dirty cards.
   template <typename Visitor>
   void VisitClear(const void* start, const void* end, const Visitor& visitor) {
-    byte* card_start = CardFromAddr(start);
-    byte* card_end = CardFromAddr(end);
-    for (byte* it = card_start; it != card_end; ++it) {
+    uint8_t* card_start = CardFromAddr(start);
+    uint8_t* card_end = CardFromAddr(end);
+    for (uint8_t* it = card_start; it != card_end; ++it) {
       if (*it == kCardDirty) {
         *it = kCardClean;
         visitor(it);
@@ -84,7 +84,7 @@ class CardTable {
 
   // Returns a value that when added to a heap address >> GC_CARD_SHIFT will address the appropriate
   // card table byte. For convenience this value is cached in every Thread
-  byte* GetBiasedBegin() const {
+  uint8_t* GetBiasedBegin() const {
     return biased_begin_;
   }
 
@@ -97,20 +97,20 @@ class CardTable {
    * us to know which cards got cleared.
    */
   template <typename Visitor, typename ModifiedVisitor>
-  void ModifyCardsAtomic(byte* scan_begin, byte* scan_end, const Visitor& visitor,
+  void ModifyCardsAtomic(uint8_t* scan_begin, uint8_t* scan_end, const Visitor& visitor,
                          const ModifiedVisitor& modified);
 
   // For every dirty at least minumum age between begin and end invoke the visitor with the
   // specified argument. Returns how many cards the visitor was run on.
   template <typename Visitor>
-  size_t Scan(SpaceBitmap<kObjectAlignment>* bitmap, byte* scan_begin, byte* scan_end,
+  size_t Scan(SpaceBitmap<kObjectAlignment>* bitmap, uint8_t* scan_begin, uint8_t* scan_end,
               const Visitor& visitor,
-              const byte minimum_age = kCardDirty) const
+              const uint8_t minimum_age = kCardDirty) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Assertion used to check the given address is covered by the card table
-  void CheckAddrIsInCardTable(const byte* addr) const;
+  void CheckAddrIsInCardTable(const uint8_t* addr) const;
 
   // Resets all of the bytes in the card table to clean.
   void ClearCardTable();
@@ -119,24 +119,24 @@ class CardTable {
   void ClearSpaceCards(space::ContinuousSpace* space);
 
   // Returns the first address in the heap which maps to this card.
-  void* AddrFromCard(const byte *card_addr) const ALWAYS_INLINE;
+  void* AddrFromCard(const uint8_t *card_addr) const ALWAYS_INLINE;
 
   // Returns the address of the relevant byte in the card table, given an address on the heap.
-  byte* CardFromAddr(const void *addr) const ALWAYS_INLINE;
+  uint8_t* CardFromAddr(const void *addr) const ALWAYS_INLINE;
 
   bool AddrIsInCardTable(const void* addr) const;
 
  private:
-  CardTable(MemMap* begin, byte* biased_begin, size_t offset);
+  CardTable(MemMap* begin, uint8_t* biased_begin, size_t offset);
 
   // Returns true iff the card table address is within the bounds of the card table.
-  bool IsValidCard(const byte* card_addr) const {
-    byte* begin = mem_map_->Begin() + offset_;
-    byte* end = mem_map_->End();
+  bool IsValidCard(const uint8_t* card_addr) const {
+    uint8_t* begin = mem_map_->Begin() + offset_;
+    uint8_t* end = mem_map_->End();
     return card_addr >= begin && card_addr < end;
   }
 
-  void CheckCardValid(byte* card) const ALWAYS_INLINE;
+  void CheckCardValid(uint8_t* card) const ALWAYS_INLINE;
 
   // Verifies that all gray objects are on a dirty card.
   void VerifyCardTable();
@@ -144,7 +144,7 @@ class CardTable {
   // Mmapped pages for the card table
   std::unique_ptr<MemMap> mem_map_;
   // Value used to compute card table addresses from object addresses, see GetBiasedBegin
-  byte* const biased_begin_;
+  uint8_t* const biased_begin_;
   // Card table doesn't begin at the beginning of the mem_map_, instead it is displaced by offset
   // to allow the byte value of biased_begin_ to equal GC_CARD_DIRTY
   const size_t offset_;

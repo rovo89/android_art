@@ -385,11 +385,11 @@ class MANAGED ArtMethod FINAL : public Object {
   size_t GetReturnPcOffsetInBytes(uint32_t frame_size_in_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_EQ(frame_size_in_bytes, GetFrameSizeInBytes());
-    return frame_size_in_bytes - kPointerSize;
+    return frame_size_in_bytes - sizeof(void*);
   }
 
   size_t GetHandleScopeOffsetInBytes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return kPointerSize;
+    return sizeof(void*);
   }
 
   void RegisterNative(Thread* self, const void* native_method, bool is_fast)

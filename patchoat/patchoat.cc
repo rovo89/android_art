@@ -385,7 +385,7 @@ mirror::Object* PatchOat::RelocatedAddressOf(mirror::Object* obj) {
   if (obj == nullptr) {
     return nullptr;
   } else {
-    return reinterpret_cast<mirror::Object*>(reinterpret_cast<byte*>(obj) + delta_);
+    return reinterpret_cast<mirror::Object*>(reinterpret_cast<uint8_t*>(obj) + delta_);
   }
 }
 
@@ -608,7 +608,7 @@ bool PatchOat::PatchTextSection(ElfFileImpl* oat_file) {
   patch_loc_t* patches_end = patches + (patches_sec->sh_size / sizeof(patch_loc_t));
   auto oat_text_sec = oat_file->FindSectionByName(".text");
   CHECK(oat_text_sec != nullptr);
-  byte* to_patch = oat_file->Begin() + oat_text_sec->sh_offset;
+  uint8_t* to_patch = oat_file->Begin() + oat_text_sec->sh_offset;
   uintptr_t to_patch_end = reinterpret_cast<uintptr_t>(to_patch) + oat_text_sec->sh_size;
 
   for (; patches < patches_end; patches++) {

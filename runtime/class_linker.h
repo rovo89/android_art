@@ -461,7 +461,7 @@ class ClassLinker {
   void LoadClass(Thread* self, const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
                  Handle<mirror::Class> klass, mirror::ClassLoader* class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void LoadClassMembers(Thread* self, const DexFile& dex_file, const byte* class_data,
+  void LoadClassMembers(Thread* self, const DexFile& dex_file, const uint8_t* class_data,
                         Handle<mirror::Class> klass, mirror::ClassLoader* class_loader,
                         const OatFile::OatClass* oat_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

@@ -35,7 +35,7 @@ inline uint32_t OatFile::OatMethod::GetOatQuickMethodHeaderOffset() const {
   if (method_header == nullptr) {
     return 0u;
   }
-  return reinterpret_cast<const byte*>(method_header) - begin_;
+  return reinterpret_cast<const uint8_t*>(method_header) - begin_;
 }
 
 inline uint32_t OatFile::OatMethod::GetQuickCodeSize() const {
@@ -51,7 +51,7 @@ inline uint32_t OatFile::OatMethod::GetQuickCodeSizeOffset() const {
   if (method_header == nullptr) {
     return 0u;
   }
-  return reinterpret_cast<const byte*>(&method_header->code_size_) - begin_;
+  return reinterpret_cast<const uint8_t*>(&method_header->code_size_) - begin_;
 }
 
 inline size_t OatFile::OatMethod::GetFrameSizeInBytes() const {
@@ -88,7 +88,7 @@ inline uint32_t OatFile::OatMethod::GetMappingTableOffsetOffset() const {
   if (method_header == nullptr) {
     return 0u;
   }
-  return reinterpret_cast<const byte*>(&method_header->mapping_table_offset_) - begin_;
+  return reinterpret_cast<const uint8_t*>(&method_header->mapping_table_offset_) - begin_;
 }
 
 inline uint32_t OatFile::OatMethod::GetVmapTableOffset() const {
@@ -101,7 +101,7 @@ inline uint32_t OatFile::OatMethod::GetVmapTableOffsetOffset() const {
   if (method_header == nullptr) {
     return 0u;
   }
-  return reinterpret_cast<const byte*>(&method_header->vmap_table_offset_) - begin_;
+  return reinterpret_cast<const uint8_t*>(&method_header->vmap_table_offset_) - begin_;
 }
 
 inline const uint8_t* OatFile::OatMethod::GetMappingTable() const {

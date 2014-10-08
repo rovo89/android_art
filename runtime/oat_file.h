@@ -48,7 +48,7 @@ class OatFile {
   // optionally be used to request where the file should be loaded.
   static OatFile* Open(const std::string& filename,
                        const std::string& location,
-                       byte* requested_base,
+                       uint8_t* requested_base,
                        bool executable,
                        std::string* error_msg);
 
@@ -148,7 +148,7 @@ class OatFile {
     uint32_t GetVmapTableOffsetOffset() const;
 
     // Create an OatMethod with offsets relative to the given base address
-    OatMethod(const byte* base, const uint32_t code_offset, const uint32_t gc_map_offset)
+    OatMethod(const uint8_t* base, const uint32_t code_offset, const uint32_t gc_map_offset)
       : begin_(base),
         code_offset_(code_offset),
         native_gc_map_offset_(gc_map_offset) {
@@ -170,7 +170,7 @@ class OatFile {
       return reinterpret_cast<T>(begin_ + offset);
     }
 
-    const byte* const begin_;
+    const uint8_t* const begin_;
 
     const uint32_t code_offset_;
     const uint32_t native_gc_map_offset_;
@@ -272,14 +272,14 @@ class OatFile {
                const std::string& dex_file_location,
                const std::string& canonical_dex_file_location,
                uint32_t dex_file_checksum,
-               const byte* dex_file_pointer,
+               const uint8_t* dex_file_pointer,
                const uint32_t* oat_class_offsets_pointer);
 
     const OatFile* const oat_file_;
     const std::string dex_file_location_;
     const std::string canonical_dex_file_location_;
     const uint32_t dex_file_location_checksum_;
-    const byte* const dex_file_pointer_;
+    const uint8_t* const dex_file_pointer_;
     const uint32_t* const oat_class_offsets_pointer_;
 
     friend class OatFile;
@@ -299,27 +299,27 @@ class OatFile {
     return End() - Begin();
   }
 
-  const byte* Begin() const;
-  const byte* End() const;
+  const uint8_t* Begin() const;
+  const uint8_t* End() const;
 
  private:
   static void CheckLocation(const std::string& location);
 
   static OatFile* OpenDlopen(const std::string& elf_filename,
                              const std::string& location,
-                             byte* requested_base,
+                             uint8_t* requested_base,
                              std::string* error_msg);
 
   static OatFile* OpenElfFile(File* file,
                               const std::string& location,
-                              byte* requested_base,
+                              uint8_t* requested_base,
                               bool writable,
                               bool executable,
                               std::string* error_msg);
 
   explicit OatFile(const std::string& filename, bool executable);
-  bool Dlopen(const std::string& elf_filename, byte* requested_base, std::string* error_msg);
-  bool ElfFileOpen(File* file, byte* requested_base, bool writable, bool executable,
+  bool Dlopen(const std::string& elf_filename, uint8_t* requested_base, std::string* error_msg);
+  bool ElfFileOpen(File* file, uint8_t* requested_base, bool writable, bool executable,
                    std::string* error_msg);
   bool Setup(std::string* error_msg);
 
@@ -329,10 +329,10 @@ class OatFile {
   const std::string location_;
 
   // Pointer to OatHeader.
-  const byte* begin_;
+  const uint8_t* begin_;
 
   // Pointer to end of oat region for bounds checking.
-  const byte* end_;
+  const uint8_t* end_;
 
   // Was this oat_file loaded executable?
   const bool is_executable_;

@@ -116,8 +116,8 @@ class Operand {
   }
 
  private:
-  byte length_;
-  byte encoding_[6];
+  uint8_t length_;
+  uint8_t encoding_[6];
 
   explicit Operand(Register reg) { SetModRM(3, reg); }
 
@@ -192,7 +192,7 @@ class Address : public Operand {
     }
   }
 
-  static Address Absolute(uword addr) {
+  static Address Absolute(uintptr_t addr) {
     Address result;
     result.SetModRM(0, EBP);
     result.SetDisp32(addr);

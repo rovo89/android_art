@@ -600,7 +600,7 @@ class ArmAssembler : public Assembler {
   virtual void Ror(Register rd, Register rm, Register rn, bool setcc = false,
                    Condition cond = AL) = 0;
 
-  static bool IsInstructionForExceptionHandling(uword pc);
+  static bool IsInstructionForExceptionHandling(uintptr_t pc);
 
   virtual void Bind(Label* label) = 0;
 

@@ -46,17 +46,17 @@ TEST(HandleScopeTest, Offsets) NO_THREAD_SAFETY_ANALYSIS {
   test_table.SetLink(reinterpret_cast<HandleScope*>(0x5678));
   test_table.SetNumberOfReferences(0x9ABC);
 
-  byte* table_base_ptr = reinterpret_cast<byte*>(&test_table);
+  uint8_t* table_base_ptr = reinterpret_cast<uint8_t*>(&test_table);
 
   {
     uintptr_t* link_ptr = reinterpret_cast<uintptr_t*>(table_base_ptr +
-        HandleScope::LinkOffset(kPointerSize));
+        HandleScope::LinkOffset(sizeof(void*)));
     EXPECT_EQ(*link_ptr, static_cast<size_t>(0x5678));
   }
 
   {
     uint32_t* num_ptr = reinterpret_cast<uint32_t*>(table_base_ptr +
-        HandleScope::NumberOfReferencesOffset(kPointerSize));
+        HandleScope::NumberOfReferencesOffset(sizeof(void*)));
     EXPECT_EQ(*num_ptr, static_cast<size_t>(0x9ABC));
   }
 
@@ -66,7 +66,7 @@ TEST(HandleScopeTest, Offsets) NO_THREAD_SAFETY_ANALYSIS {
     EXPECT_EQ(sizeof(StackReference<mirror::Object>), sizeof(uint32_t));
 
     uint32_t* ref_ptr = reinterpret_cast<uint32_t*>(table_base_ptr +
-        HandleScope::ReferencesOffset(kPointerSize));
+        HandleScope::ReferencesOffset(sizeof(void*)));
     EXPECT_EQ(*ref_ptr, static_cast<uint32_t>(0x1234));
   }
 }

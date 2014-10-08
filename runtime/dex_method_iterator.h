@@ -139,7 +139,7 @@ class DexMethodIterator {
   uint32_t dex_file_index_;
   uint32_t class_def_index_;
   const DexFile::ClassDef* class_def_;
-  const byte* class_data_;
+  const uint8_t* class_data_;
   std::unique_ptr<ClassDataItemIterator> it_;
   bool direct_method_;
 };

@@ -386,7 +386,7 @@ bool Address::CanHoldStoreOffsetThumb(StoreOperandType type, int offset) {
 void ArmAssembler::Pad(uint32_t bytes) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   for (uint32_t i = 0; i < bytes; ++i) {
-    buffer_.Emit<byte>(0);
+    buffer_.Emit<uint8_t>(0);
   }
 }
 

@@ -120,7 +120,7 @@ class CalculateObjectForwardingAddressVisitor {
 void MarkCompact::CalculateObjectForwardingAddresses() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   // The bump pointer in the space where the next forwarding address will be.
-  bump_pointer_ = reinterpret_cast<byte*>(space_->Begin());
+  bump_pointer_ = reinterpret_cast<uint8_t*>(space_->Begin());
   // Visit all the marked objects in the bitmap.
   CalculateObjectForwardingAddressVisitor visitor(this);
   objects_before_forwarding_->VisitMarkedRange(reinterpret_cast<uintptr_t>(space_->Begin()),

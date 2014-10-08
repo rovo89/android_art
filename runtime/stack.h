@@ -484,10 +484,10 @@ class StackVisitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Callee saves are held at the top of the frame
     DCHECK(GetMethod() != nullptr);
-    byte* save_addr =
-        reinterpret_cast<byte*>(cur_quick_frame_) + frame_size - ((num + 1) * kPointerSize);
+    uint8_t* save_addr =
+        reinterpret_cast<uint8_t*>(cur_quick_frame_) + frame_size - ((num + 1) * sizeof(void*));
 #if defined(__i386__) || defined(__x86_64__)
-    save_addr -= kPointerSize;  // account for return address
+    save_addr -= sizeof(void*);  // account for return address
 #endif
     return reinterpret_cast<uintptr_t*>(save_addr);
   }
@@ -557,7 +557,7 @@ class StackVisitor {
                         uint16_t vreg) const {
     int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg, kRuntimeISA);
     DCHECK_EQ(cur_quick_frame, GetCurrentQuickFrame());
-    byte* vreg_addr = reinterpret_cast<byte*>(cur_quick_frame) + offset;
+    uint8_t* vreg_addr = reinterpret_cast<uint8_t*>(cur_quick_frame) + offset;
     return reinterpret_cast<uint32_t*>(vreg_addr);
   }
 
