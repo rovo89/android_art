@@ -23,7 +23,7 @@
 #include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
-#include "mirror/array.h"
+#include "mirror/array-inl.h"
 #include "mirror/art_method.h"
 #include "mirror/string.h"
 #include "oat.h"
