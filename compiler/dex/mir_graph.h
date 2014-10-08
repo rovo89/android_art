@@ -338,7 +338,7 @@ struct MIR {
     uint32_t method_lowering_info;
   } meta;
 
-  explicit MIR():offset(0), optimization_flags(0), m_unit_index(0), bb(NullBasicBlockId),
+  explicit MIR() : offset(0), optimization_flags(0), m_unit_index(0), bb(NullBasicBlockId),
                  next(nullptr), ssa_rep(nullptr) {
     memset(&meta, 0, sizeof(meta));
   }
@@ -572,7 +572,7 @@ class MIRGraph {
    * @return Returns the raw table pointer.
    */
   const uint16_t* GetTable(MIR* mir, uint32_t table_offset) const {
-    return GetInsns(mir->m_unit_index) + mir->offset + table_offset;
+    return GetInsns(mir->m_unit_index) + mir->offset + static_cast<int32_t>(table_offset);
   }
 
   unsigned int GetNumBlocks() const {

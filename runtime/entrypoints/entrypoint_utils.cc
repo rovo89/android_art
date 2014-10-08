@@ -344,4 +344,28 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
     return zero;
   }
 }
+
+bool FillArrayData(mirror::Object* obj, const Instruction::ArrayDataPayload* payload) {
+  DCHECK_EQ(payload->ident, static_cast<uint16_t>(Instruction::kArrayDataSignature));
+  if (UNLIKELY(obj == nullptr)) {
+    ThrowNullPointerException(nullptr, "null array in FILL_ARRAY_DATA");
+    return false;
+  }
+  mirror::Array* array = obj->AsArray();
+  DCHECK(!array->IsObjectArray());
+  if (UNLIKELY(static_cast<int32_t>(payload->element_count) > array->GetLength())) {
+    Thread* self = Thread::Current();
+    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
+    self->ThrowNewExceptionF(throw_location,
+                             "Ljava/lang/ArrayIndexOutOfBoundsException;",
+                             "failed FILL_ARRAY_DATA; length=%d, index=%d",
+                             array->GetLength(), payload->element_count);
+    return false;
+  }
+  // Copy data from dex file to memory assuming both are little endian.
+  uint32_t size_in_bytes = payload->element_count * payload->element_width;
+  memcpy(array->GetRawData(payload->element_width, 0), payload->data, size_in_bytes);
+  return true;
+}
+
 }  // namespace art
