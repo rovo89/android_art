@@ -93,6 +93,7 @@ class HGraph : public ArenaObject {
 
   ArenaAllocator* GetArena() const { return arena_; }
   const GrowableArray<HBasicBlock*>& GetBlocks() const { return blocks_; }
+  HBasicBlock* GetBlock(size_t id) const { return blocks_.Get(id); }
 
   HBasicBlock* GetEntryBlock() const { return entry_block_; }
   HBasicBlock* GetExitBlock() const { return exit_block_; }
@@ -1143,8 +1144,12 @@ class HEqual : public HCondition {
   HEqual(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x == y; }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x == y; }
+  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+    return x == y ? 1 : 0;
+  }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+    return x == y ? 1 : 0;
+  }
 
   DECLARE_INSTRUCTION(Equal);
 
@@ -1161,8 +1166,12 @@ class HNotEqual : public HCondition {
   HNotEqual(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x != y; }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x != y; }
+  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+    return x != y ? 1 : 0;
+  }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+    return x != y ? 1 : 0;
+  }
 
   DECLARE_INSTRUCTION(NotEqual);
 
@@ -1179,8 +1188,12 @@ class HLessThan : public HCondition {
   HLessThan(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x < y; }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x < y; }
+  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+    return x < y ? 1 : 0;
+  }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+    return x < y ? 1 : 0;
+  }
 
   DECLARE_INSTRUCTION(LessThan);
 
@@ -1197,8 +1210,12 @@ class HLessThanOrEqual : public HCondition {
   HLessThanOrEqual(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x <= y; }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x <= y; }
+  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+    return x <= y ? 1 : 0;
+  }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+    return x <= y ? 1 : 0;
+  }
 
   DECLARE_INSTRUCTION(LessThanOrEqual);
 
@@ -1215,8 +1232,12 @@ class HGreaterThan : public HCondition {
   HGreaterThan(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x > y; }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x > y; }
+  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+    return x > y ? 1 : 0;
+  }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+    return x > y ? 1 : 0;
+  }
 
   DECLARE_INSTRUCTION(GreaterThan);
 
@@ -1233,8 +1254,12 @@ class HGreaterThanOrEqual : public HCondition {
   HGreaterThanOrEqual(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x >= y; }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x >= y; }
+  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+    return x >= y ? 1 : 0;
+  }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+    return x >= y ? 1 : 0;
+  }
 
   DECLARE_INSTRUCTION(GreaterThanOrEqual);
 
@@ -1257,13 +1282,13 @@ class HCompare : public HBinaryOperation {
     DCHECK_EQ(type, second->GetType());
   }
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const {
+  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
     return
       x == y ? 0 :
       x > y ? 1 :
       -1;
   }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const {
+  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
     return
       x == y ? 0 :
       x > y ? 1 :
@@ -1490,8 +1515,12 @@ class HAdd : public HBinaryOperation {
 
   virtual bool IsCommutative() { return true; }
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x + y; }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x + y; }
+  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+    return x + y;
+  }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+    return x + y;
+  }
 
   DECLARE_INSTRUCTION(Add);
 
@@ -1506,8 +1535,12 @@ class HSub : public HBinaryOperation {
 
   virtual bool IsCommutative() { return false; }
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x + y; }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x + y; }
+  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+    return x - y;
+  }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+    return x - y;
+  }
 
   DECLARE_INSTRUCTION(Sub);
 
