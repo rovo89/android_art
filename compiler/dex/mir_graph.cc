@@ -178,7 +178,7 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
                                  BasicBlock* orig_block, BasicBlock** immed_pred_block_p) {
   DCHECK_GT(code_offset, orig_block->start_offset);
   MIR* insn = orig_block->first_mir_insn;
-  MIR* prev = NULL;
+  MIR* prev = NULL;  // Will be set to instruction before split.
   while (insn) {
     if (insn->offset == code_offset) break;
     prev = insn;
@@ -187,6 +187,10 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
   if (insn == NULL) {
     LOG(FATAL) << "Break split failed";
   }
+  // Now insn is at the instruction where we want to split, namely
+  // insn will be the first instruction of the "bottom" block.
+  // Similarly, prev will be the last instruction of the "top" block
+
   BasicBlock* bottom_block = CreateNewBB(kDalvikByteCode);
 
   bottom_block->start_offset = code_offset;
@@ -259,7 +263,10 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
   DCHECK(static_cast<int>(insn->dalvikInsn.opcode) == kMirOpCheck ||
          !MIR::DecodedInstruction::IsPseudoMirOp(insn->dalvikInsn.opcode));
   DCHECK_EQ(dex_pc_to_block_map_[insn->offset], orig_block->id);
+  // Scan the "bottom" instructions, remapping them to the
+  // newly created "bottom" block.
   MIR* p = insn;
+  p->bb = bottom_block->id;
   dex_pc_to_block_map_[p->offset] = bottom_block->id;
   while (p != bottom_block->last_mir_insn) {
     p = p->next;
@@ -273,7 +280,11 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
      * the first in a BasicBlock, we can't hit it here.
      */
     if ((opcode == kMirOpCheck) || !MIR::DecodedInstruction::IsPseudoMirOp(opcode)) {
-      DCHECK_EQ(dex_pc_to_block_map_[p->offset], orig_block->id);
+      BasicBlockId mapped_id = dex_pc_to_block_map_[p->offset];
+      // At first glance the instructions should all be mapped to orig_block.
+      // However, multiple instructions may correspond to the same dex, hence an earlier
+      // instruction may have already moved the mapping for dex to bottom_block.
+      DCHECK((mapped_id == orig_block->id) || (mapped_id == bottom_block->id));
       dex_pc_to_block_map_[p->offset] = bottom_block->id;
     }
   }
