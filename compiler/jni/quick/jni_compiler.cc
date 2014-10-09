@@ -428,10 +428,6 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   // 17. Finalize code generation
   __ EmitSlowPaths();
   size_t cs = __ CodeSize();
-  if (instruction_set == kArm64) {
-    // Test that we do not exceed the buffer size.
-    CHECK(cs < arm64::kBufferSizeArm64);
-  }
   std::vector<uint8_t> managed_code(cs);
   MemoryRegion code(&managed_code[0], managed_code.size());
   __ FinalizeInstructions(code);
