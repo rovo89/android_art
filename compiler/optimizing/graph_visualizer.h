@@ -17,7 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_GRAPH_VISUALIZER_H_
 #define ART_COMPILER_OPTIMIZING_GRAPH_VISUALIZER_H_
 
-#include "utils/allocation.h"
+#include "base/value_object.h"
 
 namespace art {
 
