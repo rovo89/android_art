@@ -496,6 +496,27 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
   }
 }
 
+/*
+ * Array data table format:
+ *  ushort ident = 0x0300   magic value
+ *  ushort width            width of each element in the table
+ *  uint   size             number of elements in the table
+ *  ubyte  data[size*width] table of data values (may contain a single-byte
+ *                          padding at the end)
+ *
+ * Total size is 4+(width * size + 1)/2 16-bit code units.
+ */
+void Mir2Lir::GenFillArrayData(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
+  if (kIsDebugBuild) {
+    const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
+    const Instruction::ArrayDataPayload* payload =
+        reinterpret_cast<const Instruction::ArrayDataPayload*>(table);
+    CHECK_EQ(payload->ident, static_cast<uint16_t>(Instruction::kArrayDataSignature));
+  }
+  uint32_t table_offset_from_start = mir->offset + static_cast<int32_t>(table_offset);
+  CallRuntimeHelperImmRegLocation(kQuickHandleFillArrayData, table_offset_from_start, rl_src, true);
+}
+
 //
 // Slow path to ensure a class is initialized for sget/sput.
 //

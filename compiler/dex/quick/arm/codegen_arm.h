@@ -118,7 +118,6 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method);
     void GenExitSequence();
     void GenSpecialExitSequence();
-    void GenFillArrayData(MIR* mir, DexOffset table_offset, RegLocation rl_src);
     void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double);
     void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir);
     void GenSelect(BasicBlock* bb, MIR* mir);
