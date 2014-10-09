@@ -937,12 +937,6 @@ ENTRY art_quick_do_long_jump
 END art_quick_do_long_jump
 
     /*
-     * Entry from managed code that calls artHandleFillArrayDataFromCode and delivers exception on
-     * failure.
-     */
-TWO_ARG_REF_DOWNCALL art_quick_handle_fill_data, artHandleFillArrayDataFromCode, RETURN_IF_W0_IS_ZERO_OR_DELIVER
-
-    /*
      * Entry from managed code that calls artLockObjectFromCode, may block for GC. x0 holds the
      * possibly null object to lock.
      *
@@ -1246,6 +1240,12 @@ ENTRY \name
     \return
 END \name
 .endm
+
+    /*
+     * Entry from managed code that calls artHandleFillArrayDataFromCode and delivers exception on
+     * failure.
+     */
+TWO_ARG_REF_DOWNCALL art_quick_handle_fill_data, artHandleFillArrayDataFromCode, RETURN_IF_W0_IS_ZERO_OR_DELIVER
 
     /*
      * Entry from managed code when uninitialized static storage, this stub will run the class
