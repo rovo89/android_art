@@ -33,8 +33,6 @@ template<>
 const Pass* const PassDriver<PassDriverMEPostOpt>::g_passes[] = {
   GetPassInstance<InitializeData>(),
   GetPassInstance<ClearPhiInstructions>(),
-  GetPassInstance<CalculatePredecessors>(),
-  GetPassInstance<DFSOrders>(),
   GetPassInstance<BuildDomination>(),
   GetPassInstance<TopologicalSortOrders>(),
   GetPassInstance<DefBlockMatrix>(),
