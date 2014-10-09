@@ -1185,10 +1185,16 @@ int32_t Mir2Lir::LowestSetBit(uint64_t x) {
   return bit_posn;
 }
 
-bool Mir2Lir::BadOverlap(RegLocation rl_src, RegLocation rl_dest) {
+bool Mir2Lir::PartiallyIntersects(RegLocation rl_src, RegLocation rl_dest) {
   DCHECK(rl_src.wide);
   DCHECK(rl_dest.wide);
   return (abs(mir_graph_->SRegToVReg(rl_src.s_reg_low) - mir_graph_->SRegToVReg(rl_dest.s_reg_low)) == 1);
+}
+
+bool Mir2Lir::Intersects(RegLocation rl_src, RegLocation rl_dest) {
+  DCHECK(rl_src.wide);
+  DCHECK(rl_dest.wide);
+  return (abs(mir_graph_->SRegToVReg(rl_src.s_reg_low) - mir_graph_->SRegToVReg(rl_dest.s_reg_low)) <= 1);
 }
 
 LIR *Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,

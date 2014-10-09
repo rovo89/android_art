@@ -1487,7 +1487,18 @@ class Mir2Lir : public Backend {
      * is not usual for dx to generate, but it is legal (for now).  In a future rev of
      * dex, we'll want to make this case illegal.
      */
-    bool BadOverlap(RegLocation rl_op1, RegLocation rl_op2);
+    bool PartiallyIntersects(RegLocation rl_op1, RegLocation rl_op2);
+
+    /*
+     * @brief Do these SRs intersect?
+     * @param rl_op1 One RegLocation
+     * @param rl_op2 The other RegLocation
+     * @return 'true' if the VR pairs intersect
+     *
+     * Check to see if a result pair has misaligned overlap or
+     * full overlap with an operand pair.
+     */
+    bool Intersects(RegLocation rl_op1, RegLocation rl_op2);
 
     /*
      * @brief Force a location (in a register) into a temporary register
