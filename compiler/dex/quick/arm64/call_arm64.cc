@@ -149,41 +149,6 @@ void Arm64Mir2Lir::GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLoca
 }
 
 /*
- * Array data table format:
- *  ushort ident = 0x0300   magic value
- *  ushort width            width of each element in the table
- *  uint   size             number of elements in the table
- *  ubyte  data[size*width] table of data values (may contain a single-byte
- *                          padding at the end)
- *
- * Total size is 4+(width * size + 1)/2 16-bit code units.
- */
-void Arm64Mir2Lir::GenFillArrayData(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
-  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
-  // Add the table to the list - we'll process it later
-  FillArrayData *tab_rec =
-      static_cast<FillArrayData*>(arena_->Alloc(sizeof(FillArrayData), kArenaAllocData));
-  tab_rec->table = table;
-  tab_rec->vaddr = current_dalvik_offset_;
-  uint16_t width = tab_rec->table[1];
-  uint32_t size = tab_rec->table[2] | ((static_cast<uint32_t>(tab_rec->table[3])) << 16);
-  tab_rec->size = (size * width) + 8;
-
-  fill_array_data_.push_back(tab_rec);
-
-  // Making a call - use explicit registers
-  FlushAllRegs();   /* Everything to home location */
-  LoadValueDirectFixed(rl_src, rs_x0);
-  LoadWordDisp(rs_xSELF, QUICK_ENTRYPOINT_OFFSET(8, pHandleFillArrayData).Int32Value(),
-               rs_xLR);
-  // Materialize a pointer to the fill data image
-  NewLIR3(kA64Adr2xd, rx1, 0, WrapPointer(tab_rec));
-  ClobberCallerSave();
-  LIR* call_inst = OpReg(kOpBlx, rs_xLR);
-  MarkSafepointPC(call_inst);
-}
-
-/*
  * Handle unlocked -> thin locked transition inline or else call out to quick entrypoint. For more
  * details see monitor.cc.
  */
