@@ -18,9 +18,9 @@
 #define ART_COMPILER_OPTIMIZING_STACK_MAP_STREAM_H_
 
 #include "base/bit_vector.h"
+#include "base/value_object.h"
 #include "memory_region.h"
 #include "stack_map.h"
-#include "utils/allocation.h"
 #include "utils/growable_array.h"
 
 namespace art {

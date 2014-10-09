@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_ALLOCATION_H_
-#define ART_COMPILER_UTILS_ALLOCATION_H_
+#ifndef ART_COMPILER_UTILS_ARENA_OBJECT_H_
+#define ART_COMPILER_UTILS_ARENA_OBJECT_H_
 
 #include "arena_allocator.h"
 #include "base/logging.h"
@@ -34,17 +34,6 @@ class ArenaObject {
   }
 };
 
-class ValueObject {
- public:
-  void* operator new(size_t size) {
-    LOG(FATAL) << "UNREACHABLE";
-    abort();
-  }
-  void operator delete(void*, size_t) {
-    LOG(FATAL) << "UNREACHABLE";
-  }
-};
-
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_ALLOCATION_H_
+#endif  // ART_COMPILER_UTILS_ARENA_OBJECT_H_

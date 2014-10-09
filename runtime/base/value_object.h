@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 The Android Open Source Project
+ * Copyright (C) 2014 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,31 +14,24 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_FILE_OUTPUT_STREAM_H_
-#define ART_COMPILER_FILE_OUTPUT_STREAM_H_
+#ifndef ART_RUNTIME_BASE_VALUE_OBJECT_H_
+#define ART_RUNTIME_BASE_VALUE_OBJECT_H_
 
-#include "output_stream.h"
-
-#include "os.h"
+#include "base/logging.h"
 
 namespace art {
 
-class FileOutputStream FINAL : public OutputStream {
+class ValueObject {
  public:
-  explicit FileOutputStream(File* file);
-
-  virtual ~FileOutputStream() {}
-
-  virtual bool WriteFully(const void* buffer, size_t byte_count);
-
-  virtual off_t Seek(off_t offset, Whence whence);
-
- private:
-  File* const file_;
-
-  DISALLOW_COPY_AND_ASSIGN(FileOutputStream);
+  void* operator new(size_t size) {
+    LOG(FATAL) << "UNREACHABLE";
+    abort();
+  }
+  void operator delete(void*, size_t) {
+    LOG(FATAL) << "UNREACHABLE";
+  }
 };
 
 }  // namespace art
 
-#endif  // ART_COMPILER_FILE_OUTPUT_STREAM_H_
+#endif  // ART_RUNTIME_BASE_VALUE_OBJECT_H_
