@@ -137,20 +137,20 @@ class CodeLayout : public PassME {
 };
 
 /**
- * @class NullCheckEliminationAndTypeInference
- * @brief Null check elimination and type inference.
+ * @class NullCheckElimination
+ * @brief Null check elimination pass.
  */
-class NullCheckEliminationAndTypeInference : public PassME {
+class NullCheckElimination : public PassME {
  public:
-  NullCheckEliminationAndTypeInference()
-    : PassME("NCE_TypeInference", kRepeatingTopologicalSortTraversal, "4_post_nce_cfg") {
+  NullCheckElimination()
+    : PassME("NCE", kRepeatingTopologicalSortTraversal, "3_post_nce_cfg") {
   }
 
-  void Start(PassDataHolder* data) const {
+  bool Gate(const PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
-    c_unit->mir_graph->EliminateNullChecksAndInferTypesStart();
+    return c_unit->mir_graph->EliminateNullChecksGate();
   }
 
   bool Worker(PassDataHolder* data) const {
@@ -160,14 +160,35 @@ class NullCheckEliminationAndTypeInference : public PassME {
     DCHECK(c_unit != nullptr);
     BasicBlock* bb = pass_me_data_holder->bb;
     DCHECK(bb != nullptr);
-    return c_unit->mir_graph->EliminateNullChecksAndInferTypes(bb);
+    return c_unit->mir_graph->EliminateNullChecks(bb);
   }
 
   void End(PassDataHolder* data) const {
     DCHECK(data != nullptr);
     CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
-    c_unit->mir_graph->EliminateNullChecksAndInferTypesEnd();
+    c_unit->mir_graph->EliminateNullChecksEnd();
+  }
+};
+
+/**
+ * @class TypeInference
+ * @brief Type inference pass.
+ */
+class TypeInference : public PassME {
+ public:
+  TypeInference()
+    : PassME("TypeInference", kRepeatingTopologicalSortTraversal, "4_post_type_cfg") {
+  }
+
+  bool Worker(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
+    CompilationUnit* c_unit = pass_me_data_holder->c_unit;
+    DCHECK(c_unit != nullptr);
+    BasicBlock* bb = pass_me_data_holder->bb;
+    DCHECK(bb != nullptr);
+    return c_unit->mir_graph->InferTypes(bb);
   }
 };
 
