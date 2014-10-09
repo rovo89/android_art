@@ -940,16 +940,7 @@ END art_quick_do_long_jump
      * Entry from managed code that calls artHandleFillArrayDataFromCode and delivers exception on
      * failure.
      */
-    .extern artHandleFillArrayDataFromCode
-ENTRY art_quick_handle_fill_data
-    SETUP_REF_ONLY_CALLEE_SAVE_FRAME  // Save callee saves in case exception allocation triggers GC.
-    mov    x2, xSELF                       // Pass Thread::Current.
-    mov    x3, sp                          // Pass SP.
-    bl     artHandleFillArrayDataFromCode  // (Array*, const DexFile::Payload*, Thread*, SP)
-    RESTORE_REF_ONLY_CALLEE_SAVE_FRAME
-    RETURN_IF_RESULT_IS_ZERO
-    DELIVER_PENDING_EXCEPTION
-END art_quick_handle_fill_data
+TWO_ARG_REF_DOWNCALL art_quick_handle_fill_data, artHandleFillArrayDataFromCode, RETURN_IF_W0_IS_ZERO_OR_DELIVER
 
     /*
      * Entry from managed code that calls artLockObjectFromCode, may block for GC. x0 holds the

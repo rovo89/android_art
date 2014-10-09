@@ -545,9 +545,10 @@ END art_quick_invoke_stub
 ENTRY art_quick_handle_fill_data
     GENERATE_GLOBAL_POINTER
     SETUP_REF_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
-    move    $a2, rSELF                         # pass Thread::Current
-    jal     artHandleFillArrayDataFromCode     # (Array*, const DexFile::Payload*, Thread*, $sp)
-    move    $a3, $sp                           # pass $sp
+    lw     $a2, 64($sp)                   # pass referrer's Method*
+    move   $a3, rSELF                     # pass Thread::Current
+    jal    artHandleFillArrayDataFromCode # (payload offset, Array*, method, Thread*, $sp)
+    sw     $sp, 16($sp)                   # pass $sp
     RETURN_IF_ZERO
 END art_quick_handle_fill_data
 
