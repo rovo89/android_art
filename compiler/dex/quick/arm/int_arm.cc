@@ -1170,7 +1170,7 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
      * overlap with either operand and send that case to a runtime handler.
      */
     RegLocation rl_result;
-    if (BadOverlap(rl_src1, rl_dest) || (BadOverlap(rl_src2, rl_dest))) {
+    if (PartiallyIntersects(rl_src1, rl_dest) || (PartiallyIntersects(rl_src2, rl_dest))) {
       FlushAllRegs();
       CallRuntimeHelperRegLocationRegLocation(kQuickLmul, rl_src1, rl_src2, false);
       rl_result = GetReturnWide(kCoreReg);
@@ -1468,7 +1468,7 @@ void ArmMir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
     StoreValueWide(rl_dest, rl_src);
     return;
   }
-  if (BadOverlap(rl_src, rl_dest)) {
+  if (PartiallyIntersects(rl_src, rl_dest)) {
     GenShiftOpLong(opcode, rl_dest, rl_src, rl_shift);
     return;
   }
@@ -1547,7 +1547,7 @@ void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
       std::swap(rl_src1, rl_src2);
     }
   }
-  if (BadOverlap(rl_src1, rl_dest)) {
+  if (PartiallyIntersects(rl_src1, rl_dest)) {
     GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
     return;
   }
