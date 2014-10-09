@@ -316,7 +316,7 @@ endif
 #    {5: trace or no-trace}-{6: gcstress gcverify cms}-{7: forcecopy checkjni jni}-
 #    {8: no-image image}-{9: test name}{10: 32 or 64}
 define define-test-art-run-test
-  run_test_options := $(addprefix --runtime-option ,$(DALVIKVM_FLAGS))
+  run_test_options :=
   prereq_rule :=
   test_groups :=
   uc_host_or_target :=
