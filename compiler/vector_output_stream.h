@@ -25,21 +25,21 @@
 
 namespace art {
 
-class VectorOutputStream : public OutputStream {
+class VectorOutputStream FINAL : public OutputStream {
  public:
-  VectorOutputStream(const std::string& location, std::vector<uint8_t>& vector);
+  VectorOutputStream(const std::string& location, std::vector<uint8_t>* vector);
 
   virtual ~VectorOutputStream() {}
 
   bool WriteFully(const void* buffer, size_t byte_count) {
-    if (static_cast<size_t>(offset_) == vector_.size()) {
+    if (static_cast<size_t>(offset_) == vector_->size()) {
       const uint8_t* start = reinterpret_cast<const uint8_t*>(buffer);
-      vector_.insert(vector_.end(), &start[0], &start[byte_count]);
+      vector_->insert(vector_->end(), &start[0], &start[byte_count]);
       offset_ += byte_count;
     } else {
       off_t new_offset = offset_ + byte_count;
       EnsureCapacity(new_offset);
-      memcpy(&vector_[offset_], buffer, byte_count);
+      memcpy(&(*vector_)[offset_], buffer, byte_count);
       offset_ = new_offset;
     }
     return true;
@@ -49,13 +49,13 @@ class VectorOutputStream : public OutputStream {
 
  private:
   void EnsureCapacity(off_t new_offset) {
-    if (new_offset > static_cast<off_t>(vector_.size())) {
-      vector_.resize(new_offset);
+    if (new_offset > static_cast<off_t>(vector_->size())) {
+      vector_->resize(new_offset);
     }
   }
 
   off_t offset_;
-  std::vector<uint8_t>& vector_;
+  std::vector<uint8_t>* const vector_;
 
   DISALLOW_COPY_AND_ASSIGN(VectorOutputStream);
 };

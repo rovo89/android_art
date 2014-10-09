@@ -90,7 +90,7 @@ TEST_F(OutputStreamTest, Buffered) {
 
 TEST_F(OutputStreamTest, Vector) {
   std::vector<uint8_t> output;
-  VectorOutputStream output_stream("test vector output", output);
+  VectorOutputStream output_stream("test vector output", &output);
   SetOutputStream(output_stream);
   GenerateTestOutput();
   CheckTestOutput(output);
