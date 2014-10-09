@@ -165,20 +165,10 @@ class CodeGeneratorX86 : public CodeGenerator {
     return &assembler_;
   }
 
-  virtual size_t GetNumberOfRegisters() const OVERRIDE;
-  virtual void SetupBlockedRegisters(bool* blocked_registers) const OVERRIDE;
-  virtual Location AllocateFreeRegister(
-      Primitive::Type type, bool* blocked_registers) const OVERRIDE;
+  virtual void SetupBlockedRegisters() const OVERRIDE;
+  virtual Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
 
   virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
-
-  virtual size_t GetNumberOfCoreRegisters() const OVERRIDE {
-    return kNumberOfCpuRegisters;
-  }
-
-  virtual size_t GetNumberOfFloatingPointRegisters() const OVERRIDE {
-    return kNumberOfXmmRegisters;
-  }
 
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
