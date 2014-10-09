@@ -17,7 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_PARALLEL_MOVE_RESOLVER_H_
 #define ART_COMPILER_OPTIMIZING_PARALLEL_MOVE_RESOLVER_H_
 
-#include "utils/allocation.h"
+#include "base/value_object.h"
 #include "utils/growable_array.h"
 
 namespace art {

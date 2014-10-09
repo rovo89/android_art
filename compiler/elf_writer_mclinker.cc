@@ -82,7 +82,7 @@ bool ElfWriterMclinker::Write(OatWriter* oat_writer,
   }
 
   // Fill oat_contents.
-  VectorOutputStream output_stream("oat contents", oat_contents);
+  VectorOutputStream output_stream("oat contents", &oat_contents);
   oat_writer->SetOatDataOffset(oat_section->offset());
   CHECK(oat_writer->Write(&output_stream));
   CHECK_EQ(oat_writer->GetSize(), oat_contents.size());

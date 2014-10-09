@@ -195,7 +195,7 @@ std::vector<uint8_t>* ConstructCIEFrame(InstructionSet isa) {
   }
 }
 
-class OatWriterWrapper : public CodeOutput {
+class OatWriterWrapper FINAL : public CodeOutput {
  public:
   explicit OatWriterWrapper(OatWriter* oat_writer) : oat_writer_(oat_writer) {}
 
@@ -206,7 +206,7 @@ class OatWriterWrapper : public CodeOutput {
     return oat_writer_->Write(out);
   }
  private:
-  OatWriter* oat_writer_;
+  OatWriter* const oat_writer_;
 };
 
 template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
@@ -676,14 +676,14 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
   std::unique_ptr<std::vector<uint8_t>> cfi_info(
       ConstructCIEFrame(compiler_driver->GetInstructionSet()));
 
-  Elf_Addr text_section_address = builder->text_builder_.section_.sh_addr;
+  Elf_Addr text_section_address = builder->GetTextBuilder().GetSection()->sh_addr;
 
   // Iterate over the compiled methods.
   const std::vector<OatWriter::DebugInfo>& method_info = oat_writer->GetCFIMethodInfo();
-  ElfSymtabBuilder<Elf_Word, Elf_Sword, Elf_Addr,
-                   Elf_Sym, Elf_Shdr>* symtab = &builder->symtab_builder_;
+  ElfSymtabBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Sym, Elf_Shdr>* symtab =
+      builder->GetSymtabBuilder();
   for (auto it = method_info.begin(); it != method_info.end(); ++it) {
-    symtab->AddSymbol(it->method_name_, &builder->text_builder_, it->low_pc_, true,
+    symtab->AddSymbol(it->method_name_, &builder->GetTextBuilder(), it->low_pc_, true,
                       it->high_pc_ - it->low_pc_, STB_GLOBAL, STT_FUNC);
 
     // Include CFI for compiled method, if possible.
