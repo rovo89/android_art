@@ -32,9 +32,9 @@ class TestParallelMoveResolver : public ParallelMoveResolver {
       message_ << " ";
     }
     message_ << "("
-             << move->GetSource().reg().RegId()
+             << move->GetSource().reg()
              << " -> "
-             << move->GetDestination().reg().RegId()
+             << move->GetDestination().reg()
              << ")";
   }
 
@@ -44,9 +44,9 @@ class TestParallelMoveResolver : public ParallelMoveResolver {
       message_ << " ";
     }
     message_ << "("
-             << move->GetSource().reg().RegId()
+             << move->GetSource().reg()
              << " <-> "
-             << move->GetDestination().reg().RegId()
+             << move->GetDestination().reg()
              << ")";
   }
 
@@ -70,8 +70,8 @@ static HParallelMove* BuildParallelMove(ArenaAllocator* allocator,
   HParallelMove* moves = new (allocator) HParallelMove(allocator);
   for (size_t i = 0; i < number_of_moves; ++i) {
     moves->AddMove(new (allocator) MoveOperands(
-        Location::RegisterLocation(ManagedRegister(operands[i][0])),
-        Location::RegisterLocation(ManagedRegister(operands[i][1])),
+        Location::RegisterLocation(operands[i][0]),
+        Location::RegisterLocation(operands[i][1]),
         nullptr));
   }
   return moves;

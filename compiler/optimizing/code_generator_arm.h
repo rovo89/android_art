@@ -164,7 +164,7 @@ class CodeGeneratorARM : public CodeGenerator {
   }
 
   virtual void SetupBlockedRegisters(bool* blocked_registers) const OVERRIDE;
-  virtual ManagedRegister AllocateFreeRegister(
+  virtual Location AllocateFreeRegister(
       Primitive::Type type, bool* blocked_registers) const OVERRIDE;
   virtual size_t GetNumberOfRegisters() const OVERRIDE;
 
