@@ -742,12 +742,12 @@ void RegisterAllocator::AddInputMoveFor(HInstruction* user,
   DCHECK(IsValidDestination(destination));
   if (source.Equals(destination)) return;
 
-  DCHECK(user->AsPhi() == nullptr);
+  DCHECK(!user->IsPhi());
 
   HInstruction* previous = user->GetPrevious();
   HParallelMove* move = nullptr;
   if (previous == nullptr
-      || previous->AsParallelMove() == nullptr
+      || !previous->IsParallelMove()
       || !IsInputMove(previous)) {
     move = new (allocator_) HParallelMove(allocator_);
     move->SetLifetimePosition(kInputMoveLifetimePosition);
@@ -861,7 +861,7 @@ void RegisterAllocator::InsertMoveAfter(HInstruction* instruction,
   DCHECK(IsValidDestination(destination));
   if (source.Equals(destination)) return;
 
-  if (instruction->AsPhi() != nullptr) {
+  if (instruction->IsPhi()) {
     InsertParallelMoveAtEntryOf(instruction->GetBlock(), instruction, source, destination);
     return;
   }
@@ -1031,7 +1031,7 @@ void RegisterAllocator::Resolve() {
     LiveInterval* current = instruction->GetLiveInterval();
     LocationSummary* locations = instruction->GetLocations();
     Location location = locations->Out();
-    if (instruction->AsParameterValue() != nullptr) {
+    if (instruction->IsParameterValue()) {
       // Now that we know the frame size, adjust the parameter's location.
       if (location.IsStackSlot()) {
         location = Location::StackSlot(location.GetStackIndex() + codegen_->GetFrameSize());

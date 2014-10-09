@@ -378,14 +378,14 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
 void CodeGeneratorX86_64::Move(HInstruction* instruction,
                                Location location,
                                HInstruction* move_for) {
-  if (instruction->AsIntConstant() != nullptr) {
+  if (instruction->IsIntConstant()) {
     Immediate imm(instruction->AsIntConstant()->GetValue());
     if (location.IsRegister()) {
       __ movl(location.As<CpuRegister>(), imm);
     } else {
       __ movl(Address(CpuRegister(RSP), location.GetStackIndex()), imm);
     }
-  } else if (instruction->AsLongConstant() != nullptr) {
+  } else if (instruction->IsLongConstant()) {
     int64_t value = instruction->AsLongConstant()->GetValue();
     if (location.IsRegister()) {
       __ movq(location.As<CpuRegister>(), Immediate(value));
@@ -393,7 +393,7 @@ void CodeGeneratorX86_64::Move(HInstruction* instruction,
       __ movq(CpuRegister(TMP), Immediate(value));
       __ movq(Address(CpuRegister(RSP), location.GetStackIndex()), CpuRegister(TMP));
     }
-  } else if (instruction->AsLoadLocal() != nullptr) {
+  } else if (instruction->IsLoadLocal()) {
     switch (instruction->GetType()) {
       case Primitive::kPrimBoolean:
       case Primitive::kPrimByte:

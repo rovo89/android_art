@@ -317,8 +317,8 @@ static void UpdateInputsUsers(HInstruction* instruction) {
 }
 
 void HBasicBlock::InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor) {
-  DCHECK(cursor->AsPhi() == nullptr);
-  DCHECK(instruction->AsPhi() == nullptr);
+  DCHECK(!cursor->IsPhi());
+  DCHECK(!instruction->IsPhi());
   DCHECK_EQ(instruction->GetId(), -1);
   DCHECK_NE(cursor->GetId(), -1);
   DCHECK_EQ(cursor->GetBlock(), this);
