@@ -62,7 +62,7 @@ class Throwable;
 static constexpr bool kCheckFieldAssignments = false;
 
 // Size of Object.
-static constexpr uint32_t kObjectHeaderSize = kUseBrooksReadBarrier ? 16 : 8;
+static constexpr uint32_t kObjectHeaderSize = kUseBakerOrBrooksReadBarrier ? 16 : 8;
 
 // C++ mirror of java.lang.Object
 class MANAGED LOCKABLE Object {
