@@ -1022,9 +1022,10 @@ class MIRGraph {
   int SRegToVReg(int ssa_reg) const;
   void VerifyDataflow();
   void CheckForDominanceFrontier(BasicBlock* dom_bb, const BasicBlock* succ_bb);
-  void EliminateNullChecksAndInferTypesStart();
-  bool EliminateNullChecksAndInferTypes(BasicBlock* bb);
-  void EliminateNullChecksAndInferTypesEnd();
+  bool EliminateNullChecksGate();
+  bool EliminateNullChecks(BasicBlock* bb);
+  void EliminateNullChecksEnd();
+  bool InferTypes(BasicBlock* bb);
   bool EliminateClassInitChecksGate();
   bool EliminateClassInitChecks(BasicBlock* bb);
   void EliminateClassInitChecksEnd();
