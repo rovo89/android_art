@@ -124,7 +124,7 @@ bool MIRGraph::FillDefBlockMatrix(BasicBlock* bb) {
 
   for (uint32_t idx : bb->data_flow_info->def_v->Indexes()) {
     /* Block bb defines register idx */
-    def_block_matrix_[idx]->SetBit(bb->id);
+    temp_bit_matrix_[idx]->SetBit(bb->id);
   }
   return true;
 }
@@ -132,15 +132,17 @@ bool MIRGraph::FillDefBlockMatrix(BasicBlock* bb) {
 void MIRGraph::ComputeDefBlockMatrix() {
   int num_registers = GetNumOfCodeAndTempVRs();
   /* Allocate num_registers bit vector pointers */
-  def_block_matrix_ = static_cast<ArenaBitVector**>
-      (arena_->Alloc(sizeof(ArenaBitVector *) * num_registers,
-                     kArenaAllocDFInfo));
+  DCHECK(temp_scoped_alloc_ != nullptr);
+  DCHECK(temp_bit_matrix_ == nullptr);
+  temp_bit_matrix_ = static_cast<ArenaBitVector**>(
+      temp_scoped_alloc_->Alloc(sizeof(ArenaBitVector*) * num_registers, kArenaAllocDFInfo));
   int i;
 
   /* Initialize num_register vectors with num_blocks bits each */
   for (i = 0; i < num_registers; i++) {
-    def_block_matrix_[i] =
-        new (arena_) ArenaBitVector(arena_, GetNumBlocks(), false, kBitMapBMatrix);
+    temp_bit_matrix_[i] = new (temp_scoped_alloc_.get()) ArenaBitVector(arena_, GetNumBlocks(),
+                                                                        false, kBitMapBMatrix);
+    temp_bit_matrix_[i]->ClearAllBits();
   }
 
   AllNodesIterator iter(this);
@@ -159,7 +161,7 @@ void MIRGraph::ComputeDefBlockMatrix() {
   int num_regs = GetNumOfCodeVRs();
   int in_reg = GetFirstInVR();
   for (; in_reg < num_regs; in_reg++) {
-    def_block_matrix_[in_reg]->SetBit(GetEntryBlock()->id);
+    temp_bit_matrix_[in_reg]->SetBit(GetEntryBlock()->id);
   }
 }
 
@@ -478,7 +480,7 @@ void MIRGraph::InsertPhiNodes() {
 
   /* Iterate through each Dalvik register */
   for (dalvik_reg = GetNumOfCodeAndTempVRs() - 1; dalvik_reg >= 0; dalvik_reg--) {
-    input_blocks->Copy(def_block_matrix_[dalvik_reg]);
+    input_blocks->Copy(temp_bit_matrix_[dalvik_reg]);
     phi_blocks->ClearAllBits();
     do {
       // TUNING: When we repeat this, we could skip indexes from the previous pass.

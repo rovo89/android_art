@@ -198,9 +198,7 @@ struct BasicBlockDataFlow {
   ArenaBitVector* use_v;
   ArenaBitVector* def_v;
   ArenaBitVector* live_in_v;
-  ArenaBitVector* phi_v;
   int32_t* vreg_to_ssa_map_exit;
-  ArenaBitVector* ending_check_v;  // For null check and class init check elimination.
 };
 
 /*
@@ -1261,11 +1259,15 @@ class MIRGraph {
   // Stack of the loop head indexes and recalculation flags for RepeatingTopologicalSortIterator.
   ArenaVector<std::pair<uint16_t, bool>> topological_order_loop_head_stack_;
   int* i_dom_list_;
-  ArenaBitVector** def_block_matrix_;    // original num registers x num_blocks.
   std::unique_ptr<ScopedArenaAllocator> temp_scoped_alloc_;
   uint16_t* temp_insn_data_;
   uint32_t temp_bit_vector_size_;
   ArenaBitVector* temp_bit_vector_;
+  // temp_bit_matrix_ used as one of
+  //   - def_block_matrix: original num registers x num_blocks_,
+  //   - ending_null_check_matrix: num_blocks_ x original num registers,
+  //   - ending_clinit_check_matrix: num_blocks_ x unique class count.
+  ArenaBitVector** temp_bit_matrix_;
   std::unique_ptr<GlobalValueNumbering> temp_gvn_;
   static const int kInvalidEntry = -1;
   ArenaVector<BasicBlock*> block_list_;
