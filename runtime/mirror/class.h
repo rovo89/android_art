@@ -28,40 +28,6 @@
 #include "primitive.h"
 #include "read_barrier_option.h"
 
-/*
- * A magic value for refOffsets. Ignore the bits and walk the super
- * chain when this is the value.
- * [This is an unlikely "natural" value, since it would be 30 non-ref instance
- * fields followed by 2 ref instance fields.]
- */
-#define CLASS_WALK_SUPER 3U
-#define CLASS_BITS_PER_WORD (sizeof(uint32_t) * 8)
-#define CLASS_OFFSET_ALIGNMENT 4
-#define CLASS_HIGH_BIT (1U << (CLASS_BITS_PER_WORD - 1))
-/*
- * Given an offset, return the bit number which would encode that offset.
- * Local use only.
- */
-#define _CLASS_BIT_NUMBER_FROM_OFFSET(byteOffset) \
-    ((unsigned int)(byteOffset) / \
-     CLASS_OFFSET_ALIGNMENT)
-/*
- * Is the given offset too large to be encoded?
- */
-#define CLASS_CAN_ENCODE_OFFSET(byteOffset) \
-    (_CLASS_BIT_NUMBER_FROM_OFFSET(byteOffset) < CLASS_BITS_PER_WORD)
-/*
- * Return a single bit, encoding the offset.
- * Undefined if the offset is too large, as defined above.
- */
-#define CLASS_BIT_FROM_OFFSET(byteOffset) \
-    (CLASS_HIGH_BIT >> _CLASS_BIT_NUMBER_FROM_OFFSET(byteOffset))
-/*
- * Return an offset, given a bit number as returned from CLZ.
- */
-#define CLASS_OFFSET_FROM_CLZ(rshift) \
-    MemberOffset((static_cast<int>(rshift) * CLASS_OFFSET_ALIGNMENT))
-
 namespace art {
 
 struct ClassOffsets;
@@ -81,6 +47,12 @@ class IfTable;
 // C++ mirror of java.lang.Class
 class MANAGED Class FINAL : public Object {
  public:
+  // A magic value for reference_instance_offsets_. Ignore the bits and walk the super chain when
+  // this is the value.
+  // [This is an unlikely "natural" value, since it would be 30 non-ref instance fields followed by
+  // 2 ref instance fields.]
+  static constexpr uint32_t kClassWalkSuper = 0xC0000000;
+
   // Interface method table size. Increasing this value reduces the chance of two interface methods
   // colliding in the interface method table but increases the size of classes that implement
   // (non-marker) interfaces.
