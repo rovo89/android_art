@@ -123,9 +123,9 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
   void DumpLocation(Location location, Primitive::Type type) {
     if (location.IsRegister()) {
       if (type == Primitive::kPrimDouble || type == Primitive::kPrimFloat) {
-        codegen_.DumpFloatingPointRegister(output_, location.reg().RegId());
+        codegen_.DumpFloatingPointRegister(output_, location.reg());
       } else {
-        codegen_.DumpCoreRegister(output_, location.reg().RegId());
+        codegen_.DumpCoreRegister(output_, location.reg());
       }
     } else if (location.IsConstant()) {
       output_ << "constant";
