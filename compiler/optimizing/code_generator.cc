@@ -186,20 +186,16 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
     Location loc = locations->InAt(i);
     HInstruction* input = instruction->InputAt(i);
     if (loc.IsUnallocated()) {
-      if (loc.GetPolicy() == Location::kRequiresRegister) {
-        loc = Location::RegisterLocation(
-            AllocateFreeRegister(input->GetType(), blocked_registers_));
-      } else if (loc.GetPolicy() == Location::kRequiresFpuRegister) {
-        loc = Location::FpuRegisterLocation(
-            AllocateFreeRegister(input->GetType(), blocked_registers_));
+      if ((loc.GetPolicy() == Location::kRequiresRegister)
+          || (loc.GetPolicy() == Location::kRequiresFpuRegister)) {
+        loc = AllocateFreeRegister(input->GetType(), blocked_registers_);
       } else {
         DCHECK_EQ(loc.GetPolicy(), Location::kAny);
         HLoadLocal* load = input->AsLoadLocal();
         if (load != nullptr) {
           loc = GetStackLocation(load);
         } else {
-          loc = Location::RegisterLocation(
-              AllocateFreeRegister(input->GetType(), blocked_registers_));
+          loc = AllocateFreeRegister(input->GetType(), blocked_registers_);
         }
       }
       locations->SetInAt(i, loc);
@@ -213,8 +209,7 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
       DCHECK_EQ(loc.GetPolicy(), Location::kRequiresRegister);
       // TODO: Adjust handling of temps. We currently consider temps to use
       // core registers. They may also use floating point registers at some point.
-      loc = Location::RegisterLocation(static_cast<ManagedRegister>(
-          AllocateFreeRegister(Primitive::kPrimInt, blocked_registers_)));
+      loc = AllocateFreeRegister(Primitive::kPrimInt, blocked_registers_);
       locations->SetTempAt(i, loc);
     }
   }
@@ -223,12 +218,8 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
     switch (result_location.GetPolicy()) {
       case Location::kAny:
       case Location::kRequiresRegister:
-        result_location = Location::RegisterLocation(
-            AllocateFreeRegister(instruction->GetType(), blocked_registers_));
-        break;
       case Location::kRequiresFpuRegister:
-        result_location = Location::FpuRegisterLocation(
-            AllocateFreeRegister(instruction->GetType(), blocked_registers_));
+        result_location = AllocateFreeRegister(instruction->GetType(), blocked_registers_);
         break;
       case Location::kSameAsFirstInput:
         result_location = locations->InAt(0);
@@ -465,7 +456,7 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
       }
 
       case Location::kRegister : {
-        int id = location.reg().RegId();
+        int id = location.reg();
         stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInRegister, id);
         if (current->GetType() == Primitive::kPrimDouble
             || current->GetType() == Primitive::kPrimLong) {

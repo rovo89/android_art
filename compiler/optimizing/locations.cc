@@ -55,7 +55,7 @@ Location Location::RegisterOrConstant(HInstruction* instruction) {
       : Location::RequiresRegister();
 }
 
-Location Location::ByteRegisterOrConstant(ManagedRegister reg, HInstruction* instruction) {
+Location Location::ByteRegisterOrConstant(int reg, HInstruction* instruction) {
   return instruction->IsConstant()
       ? Location::ConstantLocation(instruction->AsConstant())
       : Location::RegisterLocation(reg);

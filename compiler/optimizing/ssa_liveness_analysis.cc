@@ -319,8 +319,8 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
       if (user->IsPhi()) {
         // If the phi has a register, try to use the same.
         Location phi_location = user->GetLiveInterval()->ToLocation();
-        if (phi_location.IsRegister() && free_until[phi_location.reg().RegId()] >= use_position) {
-          return phi_location.reg().RegId();
+        if (phi_location.IsRegister() && free_until[phi_location.reg()] >= use_position) {
+          return phi_location.reg();
         }
         const GrowableArray<HBasicBlock*>& predecessors = user->GetBlock()->GetPredecessors();
         // If the instruction dies at the phi assignment, we can try having the
@@ -333,8 +333,8 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
             HInstruction* input = user->InputAt(i);
             Location location = input->GetLiveInterval()->GetLocationAt(
                 predecessors.Get(i)->GetLifetimeEnd() - 1);
-            if (location.IsRegister() && free_until[location.reg().RegId()] >= use_position) {
-              return location.reg().RegId();
+            if (location.IsRegister() && free_until[location.reg()] >= use_position) {
+              return location.reg();
             }
           }
         }
@@ -345,8 +345,8 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
         // We use the user's lifetime position - 1 (and not `use_position`) because the
         // register is blocked at the beginning of the user.
         size_t position = user->GetLifetimePosition() - 1;
-        if (expected.IsRegister() && free_until[expected.reg().RegId()] >= position) {
-          return expected.reg().RegId();
+        if (expected.IsRegister() && free_until[expected.reg()] >= position) {
+          return expected.reg();
         }
       }
     }
@@ -369,7 +369,7 @@ int LiveInterval::FindHintAtDefinition() const {
         // be reused.
         Location input_location = input_interval.ToLocation();
         if (input_location.IsRegister()) {
-          return input_location.reg().RegId();
+          return input_location.reg();
         }
       }
     }
@@ -385,7 +385,7 @@ int LiveInterval::FindHintAtDefinition() const {
         // be reused.
         Location location = input_interval.ToLocation();
         if (location.IsRegister()) {
-          return location.reg().RegId();
+          return location.reg();
         }
       }
     }
@@ -399,7 +399,7 @@ bool LiveInterval::NeedsTwoSpillSlots() const {
 
 Location LiveInterval::ToLocation() const {
   if (HasRegister()) {
-    return Location::RegisterLocation(ManagedRegister(GetRegister()));
+    return Location::RegisterLocation(GetRegister());
   } else {
     HInstruction* defined_by = GetParent()->GetDefinedBy();
     if (defined_by->IsConstant()) {

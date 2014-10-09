@@ -167,7 +167,7 @@ class CodeGeneratorX86 : public CodeGenerator {
 
   virtual size_t GetNumberOfRegisters() const OVERRIDE;
   virtual void SetupBlockedRegisters(bool* blocked_registers) const OVERRIDE;
-  virtual ManagedRegister AllocateFreeRegister(
+  virtual Location AllocateFreeRegister(
       Primitive::Type type, bool* blocked_registers) const OVERRIDE;
 
   virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
