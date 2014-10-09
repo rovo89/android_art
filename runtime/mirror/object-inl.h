@@ -888,18 +888,18 @@ inline bool Object::CasFieldStrongSequentiallyConsistentObject(MemberOffset fiel
 
 template<bool kVisitClass, bool kIsStatic, typename Visitor>
 inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& visitor) {
-  if (!kIsStatic && LIKELY(ref_offsets != CLASS_WALK_SUPER)) {
-    if (!kVisitClass) {
-      // Mask out the class from the reference offsets.
-      ref_offsets ^= kWordHighBitMask;
+  if (!kIsStatic && (ref_offsets != mirror::Class::kClassWalkSuper)) {
+    // Instance fields and not the slow-path.
+    if (kVisitClass) {
+      visitor(this, ClassOffset(), kIsStatic);
     }
-    DCHECK_EQ(ClassOffset().Uint32Value(), 0U);
-    // Found a reference offset bitmap. Visit the specified offsets.
+    uint32_t field_offset = mirror::kObjectHeaderSize;
     while (ref_offsets != 0) {
-      size_t right_shift = CLZ(ref_offsets);
-      MemberOffset field_offset = CLASS_OFFSET_FROM_CLZ(right_shift);
-      visitor(this, field_offset, kIsStatic);
-      ref_offsets &= ~(CLASS_HIGH_BIT >> right_shift);
+      if ((ref_offsets & 1) != 0) {
+        visitor(this, MemberOffset(field_offset), kIsStatic);
+      }
+      ref_offsets >>= 1;
+      field_offset += sizeof(mirror::HeapReference<mirror::Object>);
     }
   } else {
     // There is no reference offset bitmap. In the non-static case, walk up the class
