@@ -136,10 +136,10 @@ class SetLengthToUsableSizeVisitor {
     // DCHECK(array->IsArrayInstance());
     int32_t length = (usable_size - header_size_) >> component_size_shift_;
     DCHECK_GE(length, minimum_length_);
-    byte* old_end = reinterpret_cast<byte*>(array->GetRawData(1U << component_size_shift_,
-                                                              minimum_length_));
-    byte* new_end = reinterpret_cast<byte*>(array->GetRawData(1U << component_size_shift_,
-                                                              length));
+    uint8_t* old_end = reinterpret_cast<uint8_t*>(array->GetRawData(1U << component_size_shift_,
+                                                                    minimum_length_));
+    uint8_t* new_end = reinterpret_cast<uint8_t*>(array->GetRawData(1U << component_size_shift_,
+                                                                    length));
     // Ensure space beyond original allocation is zeroed.
     memset(old_end, 0, new_end - old_end);
     array->SetLength(length);

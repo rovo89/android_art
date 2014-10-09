@@ -31,7 +31,7 @@ namespace art {
 class MemoryRegion {
  public:
   MemoryRegion() : pointer_(NULL), size_(0) {}
-  MemoryRegion(void* pointer, uword size) : pointer_(pointer), size_(size) {}
+  MemoryRegion(void* pointer, uintptr_t size) : pointer_(pointer), size_(size) {}
 
   void* pointer() const { return pointer_; }
   size_t size() const { return size_; }
@@ -41,8 +41,8 @@ class MemoryRegion {
     return OFFSETOF_MEMBER(MemoryRegion, pointer_);
   }
 
-  byte* start() const { return reinterpret_cast<byte*>(pointer_); }
-  byte* end() const { return start() + size_; }
+  uint8_t* start() const { return reinterpret_cast<uint8_t*>(pointer_); }
+  uint8_t* end() const { return start() + size_; }
 
   template<typename T> T Load(uintptr_t offset) const {
     return *ComputeInternalPointer<T>(offset);
@@ -98,11 +98,11 @@ class MemoryRegion {
 
   // Locate the bit with the given offset. Returns a pointer to the byte
   // containing the bit, and sets bit_mask to the bit within that byte.
-  byte* ComputeBitPointer(uintptr_t bit_offset, byte* bit_mask) const {
+  uint8_t* ComputeBitPointer(uintptr_t bit_offset, uint8_t* bit_mask) const {
     uintptr_t bit_remainder = (bit_offset & (kBitsPerByte - 1));
     *bit_mask = (1U << bit_remainder);
     uintptr_t byte_offset = (bit_offset >> kBitsPerByteLog2);
-    return ComputeInternalPointer<byte>(byte_offset);
+    return ComputeInternalPointer<uint8_t>(byte_offset);
   }
 
   void* pointer_;

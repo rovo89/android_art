@@ -39,10 +39,10 @@ mirror::Object* ValgrindMallocSpace<S, A>::AllocWithGrowth(Thread* self, size_t 
     return nullptr;
   }
   mirror::Object* result = reinterpret_cast<mirror::Object*>(
-      reinterpret_cast<byte*>(obj_with_rdz) + kValgrindRedZoneBytes);
+      reinterpret_cast<uint8_t*>(obj_with_rdz) + kValgrindRedZoneBytes);
   // Make redzones as no access.
   VALGRIND_MAKE_MEM_NOACCESS(obj_with_rdz, kValgrindRedZoneBytes);
-  VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<byte*>(result) + num_bytes, kValgrindRedZoneBytes);
+  VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<uint8_t*>(result) + num_bytes, kValgrindRedZoneBytes);
   return result;
 }
 
@@ -56,24 +56,24 @@ mirror::Object* ValgrindMallocSpace<S, A>::Alloc(Thread* self, size_t num_bytes,
     return nullptr;
   }
   mirror::Object* result = reinterpret_cast<mirror::Object*>(
-      reinterpret_cast<byte*>(obj_with_rdz) + kValgrindRedZoneBytes);
+      reinterpret_cast<uint8_t*>(obj_with_rdz) + kValgrindRedZoneBytes);
   // Make redzones as no access.
   VALGRIND_MAKE_MEM_NOACCESS(obj_with_rdz, kValgrindRedZoneBytes);
-  VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<byte*>(result) + num_bytes, kValgrindRedZoneBytes);
+  VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<uint8_t*>(result) + num_bytes, kValgrindRedZoneBytes);
   return result;
 }
 
 template <typename S, typename A>
 size_t ValgrindMallocSpace<S, A>::AllocationSize(mirror::Object* obj, size_t* usable_size) {
   size_t result = S::AllocationSize(reinterpret_cast<mirror::Object*>(
-      reinterpret_cast<byte*>(obj) - kValgrindRedZoneBytes), usable_size);
+      reinterpret_cast<uint8_t*>(obj) - kValgrindRedZoneBytes), usable_size);
   return result;
 }
 
 template <typename S, typename A>
 size_t ValgrindMallocSpace<S, A>::Free(Thread* self, mirror::Object* ptr) {
   void* obj_after_rdz = reinterpret_cast<void*>(ptr);
-  void* obj_with_rdz = reinterpret_cast<byte*>(obj_after_rdz) - kValgrindRedZoneBytes;
+  void* obj_with_rdz = reinterpret_cast<uint8_t*>(obj_after_rdz) - kValgrindRedZoneBytes;
   // Make redzones undefined.
   size_t usable_size = 0;
   AllocationSize(ptr, &usable_size);
@@ -93,8 +93,8 @@ size_t ValgrindMallocSpace<S, A>::FreeList(Thread* self, size_t num_ptrs, mirror
 
 template <typename S, typename A>
 ValgrindMallocSpace<S, A>::ValgrindMallocSpace(const std::string& name, MemMap* mem_map,
-                                               A allocator, byte* begin,
-                                               byte* end, byte* limit, size_t growth_limit,
+                                               A allocator, uint8_t* begin,
+                                               uint8_t* end, uint8_t* limit, size_t growth_limit,
                                                size_t initial_size,
                                                bool can_move_objects, size_t starting_size) :
     S(name, mem_map, allocator, begin, end, limit, growth_limit, can_move_objects, starting_size,

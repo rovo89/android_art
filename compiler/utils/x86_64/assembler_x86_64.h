@@ -227,7 +227,7 @@ class Address : public Operand {
   }
 
   // If no_rip is true then the Absolute address isn't RIP relative.
-  static Address Absolute(uword addr, bool no_rip = false) {
+  static Address Absolute(uintptr_t addr, bool no_rip = false) {
     Address result;
     if (no_rip) {
       result.SetModRM(0, CpuRegister(RSP));

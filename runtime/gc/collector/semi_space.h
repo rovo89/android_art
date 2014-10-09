@@ -228,7 +228,7 @@ class SemiSpace : public GarbageCollector {
 
   // Used for the generational mode. the end/top of the bump
   // pointer space at the end of the last collection.
-  byte* last_gc_to_space_end_;
+  uint8_t* last_gc_to_space_end_;
 
   // Used for the generational mode. During a collection, keeps track
   // of how many bytes of objects have been copied so far from the

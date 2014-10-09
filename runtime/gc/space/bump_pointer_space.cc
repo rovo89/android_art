@@ -25,7 +25,7 @@ namespace gc {
 namespace space {
 
 BumpPointerSpace* BumpPointerSpace::Create(const std::string& name, size_t capacity,
-                                           byte* requested_begin) {
+                                           uint8_t* requested_begin) {
   capacity = RoundUp(capacity, kPageSize);
   std::string error_msg;
   std::unique_ptr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), requested_begin, capacity,
@@ -42,7 +42,7 @@ BumpPointerSpace* BumpPointerSpace::CreateFromMemMap(const std::string& name, Me
   return new BumpPointerSpace(name, mem_map);
 }
 
-BumpPointerSpace::BumpPointerSpace(const std::string& name, byte* begin, byte* limit)
+BumpPointerSpace::BumpPointerSpace(const std::string& name, uint8_t* begin, uint8_t* limit)
     : ContinuousMemMapAllocSpace(name, nullptr, begin, begin, limit,
                                  kGcRetentionPolicyAlwaysCollect),
       growth_end_(limit),
@@ -134,12 +134,12 @@ void BumpPointerSpace::UpdateMainBlock() {
 }
 
 // Returns the start of the storage.
-byte* BumpPointerSpace::AllocBlock(size_t bytes) {
+uint8_t* BumpPointerSpace::AllocBlock(size_t bytes) {
   bytes = RoundUp(bytes, kAlignment);
   if (!num_blocks_) {
     UpdateMainBlock();
   }
-  byte* storage = reinterpret_cast<byte*>(
+  uint8_t* storage = reinterpret_cast<uint8_t*>(
       AllocNonvirtualWithoutAccounting(bytes + sizeof(BlockHeader)));
   if (LIKELY(storage != nullptr)) {
     BlockHeader* header = reinterpret_cast<BlockHeader*>(storage);
@@ -151,9 +151,9 @@ byte* BumpPointerSpace::AllocBlock(size_t bytes) {
 }
 
 void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
-  byte* pos = Begin();
-  byte* end = End();
-  byte* main_end = pos;
+  uint8_t* pos = Begin();
+  uint8_t* end = End();
+  uint8_t* main_end = pos;
   {
     MutexLock mu(Thread::Current(), block_lock_);
     // If we have 0 blocks then we need to update the main header since we have bump pointer style
@@ -179,7 +179,7 @@ void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
       return;
     } else {
       callback(obj, arg);
-      pos = reinterpret_cast<byte*>(GetNextObject(obj));
+      pos = reinterpret_cast<uint8_t*>(GetNextObject(obj));
     }
   }
   // Walk the other blocks (currently only TLABs).
@@ -189,7 +189,7 @@ void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
     pos += sizeof(BlockHeader);  // Skip the header so that we know where the objects
     mirror::Object* obj = reinterpret_cast<mirror::Object*>(pos);
     const mirror::Object* end = reinterpret_cast<const mirror::Object*>(pos + block_size);
-    CHECK_LE(reinterpret_cast<const byte*>(end), End());
+    CHECK_LE(reinterpret_cast<const uint8_t*>(end), End());
     // We don't know how many objects are allocated in the current block. When we hit a null class
     // assume its the end. TODO: Have a thread update the header when it flushes the block?
     while (obj < end && obj->GetClass() != nullptr) {
@@ -250,7 +250,7 @@ void BumpPointerSpace::RevokeThreadLocalBuffersLocked(Thread* thread) {
 bool BumpPointerSpace::AllocNewTlab(Thread* self, size_t bytes) {
   MutexLock mu(Thread::Current(), block_lock_);
   RevokeThreadLocalBuffersLocked(self);
-  byte* start = AllocBlock(bytes);
+  uint8_t* start = AllocBlock(bytes);
   if (start == nullptr) {
     return false;
   }

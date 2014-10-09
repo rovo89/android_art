@@ -23,8 +23,8 @@
 
 namespace art {
 
-const byte ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
-const byte ImageHeader::kImageVersion[] = { '0', '1', '0', '\0' };
+const uint8_t ImageHeader::kImageMagic[] = { 'a', 'r', 't', '\n' };
+const uint8_t ImageHeader::kImageVersion[] = { '0', '1', '0', '\0' };
 
 ImageHeader::ImageHeader(uint32_t image_begin,
                          uint32_t image_size,

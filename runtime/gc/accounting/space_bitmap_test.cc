@@ -30,7 +30,7 @@ namespace accounting {
 class SpaceBitmapTest : public CommonRuntimeTest {};
 
 TEST_F(SpaceBitmapTest, Init) {
-  byte* heap_begin = reinterpret_cast<byte*>(0x10000000);
+  uint8_t* heap_begin = reinterpret_cast<uint8_t*>(0x10000000);
   size_t heap_capacity = 16 * MB;
   std::unique_ptr<ContinuousSpaceBitmap> space_bitmap(
       ContinuousSpaceBitmap::Create("test bitmap", heap_begin, heap_capacity));
@@ -51,21 +51,21 @@ class BitmapVerify {
     EXPECT_EQ(bitmap_->Test(obj), ((reinterpret_cast<uintptr_t>(obj) & 0xF) != 0));
   }
 
-  ContinuousSpaceBitmap* bitmap_;
+  ContinuousSpaceBitmap* const bitmap_;
   const mirror::Object* begin_;
   const mirror::Object* end_;
 };
 
 TEST_F(SpaceBitmapTest, ScanRange) {
-  byte* heap_begin = reinterpret_cast<byte*>(0x10000000);
+  uint8_t* heap_begin = reinterpret_cast<uint8_t*>(0x10000000);
   size_t heap_capacity = 16 * MB;
 
   std::unique_ptr<ContinuousSpaceBitmap> space_bitmap(
       ContinuousSpaceBitmap::Create("test bitmap", heap_begin, heap_capacity));
   EXPECT_TRUE(space_bitmap.get() != NULL);
 
-  // Set all the odd bits in the first BitsPerWord * 3 to one.
-  for (size_t j = 0; j < kBitsPerWord * 3; ++j) {
+  // Set all the odd bits in the first BitsPerIntPtrT * 3 to one.
+  for (size_t j = 0; j < kBitsPerIntPtrT * 3; ++j) {
     const mirror::Object* obj =
         reinterpret_cast<mirror::Object*>(heap_begin + j * kObjectAlignment);
     if (reinterpret_cast<uintptr_t>(obj) & 0xF) {
@@ -76,10 +76,10 @@ TEST_F(SpaceBitmapTest, ScanRange) {
   // possible length up to a maximum of kBitsPerWord * 2 - 1 bits.
   // This handles all the cases, having runs which start and end on the same word, and different
   // words.
-  for (size_t i = 0; i < static_cast<size_t>(kBitsPerWord); ++i) {
+  for (size_t i = 0; i < static_cast<size_t>(kBitsPerIntPtrT); ++i) {
     mirror::Object* start =
         reinterpret_cast<mirror::Object*>(heap_begin + i * kObjectAlignment);
-    for (size_t j = 0; j < static_cast<size_t>(kBitsPerWord * 2); ++j) {
+    for (size_t j = 0; j < static_cast<size_t>(kBitsPerIntPtrT * 2); ++j) {
       mirror::Object* end =
           reinterpret_cast<mirror::Object*>(heap_begin + (i + j) * kObjectAlignment);
       BitmapVerify(space_bitmap.get(), start, end);
@@ -95,7 +95,7 @@ class SimpleCounter {
     (*count_)++;
   }
 
-  size_t* count_;
+  size_t* const count_;
 };
 
 class RandGen {
@@ -112,7 +112,7 @@ class RandGen {
 
 template <size_t kAlignment>
 void RunTest() NO_THREAD_SAFETY_ANALYSIS {
-  byte* heap_begin = reinterpret_cast<byte*>(0x10000000);
+  uint8_t* heap_begin = reinterpret_cast<uint8_t*>(0x10000000);
   size_t heap_capacity = 16 * MB;
 
   // Seed with 0x1234 for reproducability.

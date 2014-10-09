@@ -189,7 +189,7 @@ static bool CheckNonOverlapping(uintptr_t begin,
 // non-null, we check that pointer is the actual_ptr == expected_ptr,
 // and if not, report in error_msg what the conflict mapping was if
 // found, or a generic error in other cases.
-static bool CheckMapRequest(byte* expected_ptr, void* actual_ptr, size_t byte_count,
+static bool CheckMapRequest(uint8_t* expected_ptr, void* actual_ptr, size_t byte_count,
                             std::string* error_msg) {
   // Handled first by caller for more specific error messages.
   CHECK(actual_ptr != MAP_FAILED);
@@ -234,7 +234,7 @@ static bool CheckMapRequest(byte* expected_ptr, void* actual_ptr, size_t byte_co
   return false;
 }
 
-MemMap* MemMap::MapAnonymous(const char* name, byte* expected_ptr, size_t byte_count, int prot,
+MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byte_count, int prot,
                              bool low_4gb, std::string* error_msg) {
   if (byte_count == 0) {
     return new MemMap(name, nullptr, 0, nullptr, 0, prot, false);
@@ -377,11 +377,11 @@ MemMap* MemMap::MapAnonymous(const char* name, byte* expected_ptr, size_t byte_c
   if (!CheckMapRequest(expected_ptr, actual, page_aligned_byte_count, error_msg)) {
     return nullptr;
   }
-  return new MemMap(name, reinterpret_cast<byte*>(actual), byte_count, actual,
+  return new MemMap(name, reinterpret_cast<uint8_t*>(actual), byte_count, actual,
                     page_aligned_byte_count, prot, false);
 }
 
-MemMap* MemMap::MapFileAtAddress(byte* expected_ptr, size_t byte_count, int prot, int flags, int fd,
+MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr, size_t byte_count, int prot, int flags, int fd,
                                  off_t start, bool reuse, const char* filename,
                                  std::string* error_msg) {
   CHECK_NE(0, prot);
@@ -414,9 +414,9 @@ MemMap* MemMap::MapFileAtAddress(byte* expected_ptr, size_t byte_count, int prot
   size_t page_aligned_byte_count = RoundUp(byte_count + page_offset, kPageSize);
   // The 'expected_ptr' is modified (if specified, ie non-null) to be page aligned to the file but
   // not necessarily to virtual memory. mmap will page align 'expected' for us.
-  byte* page_aligned_expected = (expected_ptr == nullptr) ? nullptr : (expected_ptr - page_offset);
+  uint8_t* page_aligned_expected = (expected_ptr == nullptr) ? nullptr : (expected_ptr - page_offset);
 
-  byte* actual = reinterpret_cast<byte*>(mmap(page_aligned_expected,
+  uint8_t* actual = reinterpret_cast<uint8_t*>(mmap(page_aligned_expected,
                                               page_aligned_byte_count,
                                               prot,
                                               flags,
@@ -468,7 +468,7 @@ MemMap::~MemMap() {
   CHECK(found) << "MemMap not found";
 }
 
-MemMap::MemMap(const std::string& name, byte* begin, size_t size, void* base_begin,
+MemMap::MemMap(const std::string& name, uint8_t* begin, size_t size, void* base_begin,
                size_t base_size, int prot, bool reuse)
     : name_(name), begin_(begin), size_(size), base_begin_(base_begin), base_size_(base_size),
       prot_(prot), reuse_(reuse) {
@@ -487,27 +487,27 @@ MemMap::MemMap(const std::string& name, byte* begin, size_t size, void* base_beg
   }
 }
 
-MemMap* MemMap::RemapAtEnd(byte* new_end, const char* tail_name, int tail_prot,
+MemMap* MemMap::RemapAtEnd(uint8_t* new_end, const char* tail_name, int tail_prot,
                            std::string* error_msg) {
   DCHECK_GE(new_end, Begin());
   DCHECK_LE(new_end, End());
-  DCHECK_LE(begin_ + size_, reinterpret_cast<byte*>(base_begin_) + base_size_);
+  DCHECK_LE(begin_ + size_, reinterpret_cast<uint8_t*>(base_begin_) + base_size_);
   DCHECK(IsAligned<kPageSize>(begin_));
   DCHECK(IsAligned<kPageSize>(base_begin_));
-  DCHECK(IsAligned<kPageSize>(reinterpret_cast<byte*>(base_begin_) + base_size_));
+  DCHECK(IsAligned<kPageSize>(reinterpret_cast<uint8_t*>(base_begin_) + base_size_));
   DCHECK(IsAligned<kPageSize>(new_end));
-  byte* old_end = begin_ + size_;
-  byte* old_base_end = reinterpret_cast<byte*>(base_begin_) + base_size_;
-  byte* new_base_end = new_end;
+  uint8_t* old_end = begin_ + size_;
+  uint8_t* old_base_end = reinterpret_cast<uint8_t*>(base_begin_) + base_size_;
+  uint8_t* new_base_end = new_end;
   DCHECK_LE(new_base_end, old_base_end);
   if (new_base_end == old_base_end) {
     return new MemMap(tail_name, nullptr, 0, nullptr, 0, tail_prot, false);
   }
-  size_ = new_end - reinterpret_cast<byte*>(begin_);
-  base_size_ = new_base_end - reinterpret_cast<byte*>(base_begin_);
-  DCHECK_LE(begin_ + size_, reinterpret_cast<byte*>(base_begin_) + base_size_);
+  size_ = new_end - reinterpret_cast<uint8_t*>(begin_);
+  base_size_ = new_base_end - reinterpret_cast<uint8_t*>(base_begin_);
+  DCHECK_LE(begin_ + size_, reinterpret_cast<uint8_t*>(base_begin_) + base_size_);
   size_t tail_size = old_end - new_end;
-  byte* tail_base_begin = new_base_end;
+  uint8_t* tail_base_begin = new_base_end;
   size_t tail_base_size = old_base_end - new_base_end;
   DCHECK_EQ(tail_base_begin + tail_base_size, old_base_end);
   DCHECK(IsAligned<kPageSize>(tail_base_size));
@@ -543,7 +543,7 @@ MemMap* MemMap::RemapAtEnd(byte* new_end, const char* tail_name, int tail_prot,
   // calls. Otherwise, libc (or something else) might take this memory
   // region. Note this isn't perfect as there's no way to prevent
   // other threads to try to take this memory region here.
-  byte* actual = reinterpret_cast<byte*>(mmap(tail_base_begin, tail_base_size, tail_prot,
+  uint8_t* actual = reinterpret_cast<uint8_t*>(mmap(tail_base_begin, tail_base_size, tail_prot,
                                               flags, fd.get(), 0));
   if (actual == MAP_FAILED) {
     std::string maps;

@@ -68,7 +68,7 @@ OatFile* OatFile::OpenMemory(std::vector<uint8_t>& oat_contents,
 
 OatFile* OatFile::Open(const std::string& filename,
                        const std::string& location,
-                       byte* requested_base,
+                       uint8_t* requested_base,
                        bool executable,
                        std::string* error_msg) {
   CHECK(!filename.empty()) << location;
@@ -114,7 +114,7 @@ OatFile* OatFile::OpenReadable(File* file, const std::string& location, std::str
 
 OatFile* OatFile::OpenDlopen(const std::string& elf_filename,
                              const std::string& location,
-                             byte* requested_base,
+                             uint8_t* requested_base,
                              std::string* error_msg) {
   std::unique_ptr<OatFile> oat_file(new OatFile(location, true));
   bool success = oat_file->Dlopen(elf_filename, requested_base, error_msg);
@@ -126,7 +126,7 @@ OatFile* OatFile::OpenDlopen(const std::string& elf_filename,
 
 OatFile* OatFile::OpenElfFile(File* file,
                               const std::string& location,
-                              byte* requested_base,
+                              uint8_t* requested_base,
                               bool writable,
                               bool executable,
                               std::string* error_msg) {
@@ -153,7 +153,7 @@ OatFile::~OatFile() {
   }
 }
 
-bool OatFile::Dlopen(const std::string& elf_filename, byte* requested_base,
+bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
                      std::string* error_msg) {
   char* absolute_path = realpath(elf_filename.c_str(), NULL);
   if (absolute_path == NULL) {
@@ -166,7 +166,7 @@ bool OatFile::Dlopen(const std::string& elf_filename, byte* requested_base,
     *error_msg = StringPrintf("Failed to dlopen '%s': %s", elf_filename.c_str(), dlerror());
     return false;
   }
-  begin_ = reinterpret_cast<byte*>(dlsym(dlopen_handle_, "oatdata"));
+  begin_ = reinterpret_cast<uint8_t*>(dlsym(dlopen_handle_, "oatdata"));
   if (begin_ == NULL) {
     *error_msg = StringPrintf("Failed to find oatdata symbol in '%s': %s", elf_filename.c_str(),
                               dlerror());
@@ -179,7 +179,7 @@ bool OatFile::Dlopen(const std::string& elf_filename, byte* requested_base,
     ReadFileToString("/proc/self/maps", error_msg);
     return false;
   }
-  end_ = reinterpret_cast<byte*>(dlsym(dlopen_handle_, "oatlastword"));
+  end_ = reinterpret_cast<uint8_t*>(dlsym(dlopen_handle_, "oatlastword"));
   if (end_ == NULL) {
     *error_msg = StringPrintf("Failed to find oatlastword symbol in '%s': %s", elf_filename.c_str(),
                               dlerror());
@@ -190,7 +190,7 @@ bool OatFile::Dlopen(const std::string& elf_filename, byte* requested_base,
   return Setup(error_msg);
 }
 
-bool OatFile::ElfFileOpen(File* file, byte* requested_base, bool writable, bool executable,
+bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, bool writable, bool executable,
                           std::string* error_msg) {
   elf_file_.reset(ElfFile::Open(file, writable, true, error_msg));
   if (elf_file_.get() == nullptr) {
@@ -229,7 +229,7 @@ bool OatFile::Setup(std::string* error_msg) {
     *error_msg = StringPrintf("Invalid oat magic for '%s'", GetLocation().c_str());
     return false;
   }
-  const byte* oat = Begin();
+  const uint8_t* oat = Begin();
   oat += sizeof(OatHeader);
   if (oat > End()) {
     *error_msg = StringPrintf("In oat file '%s' found truncated OatHeader", GetLocation().c_str());
@@ -350,12 +350,12 @@ const OatHeader& OatFile::GetOatHeader() const {
   return *reinterpret_cast<const OatHeader*>(Begin());
 }
 
-const byte* OatFile::Begin() const {
+const uint8_t* OatFile::Begin() const {
   CHECK(begin_ != NULL);
   return begin_;
 }
 
-const byte* OatFile::End() const {
+const uint8_t* OatFile::End() const {
   CHECK(end_ != NULL);
   return end_;
 }
@@ -436,7 +436,7 @@ OatFile::OatDexFile::OatDexFile(const OatFile* oat_file,
                                 const std::string& dex_file_location,
                                 const std::string& canonical_dex_file_location,
                                 uint32_t dex_file_location_checksum,
-                                const byte* dex_file_pointer,
+                                const uint8_t* dex_file_pointer,
                                 const uint32_t* oat_class_offsets_pointer)
     : oat_file_(oat_file),
       dex_file_location_(dex_file_location),
@@ -463,26 +463,26 @@ uint32_t OatFile::OatDexFile::GetOatClassOffset(uint16_t class_def_index) const 
 OatFile::OatClass OatFile::OatDexFile::GetOatClass(uint16_t class_def_index) const {
   uint32_t oat_class_offset = GetOatClassOffset(class_def_index);
 
-  const byte* oat_class_pointer = oat_file_->Begin() + oat_class_offset;
+  const uint8_t* oat_class_pointer = oat_file_->Begin() + oat_class_offset;
   CHECK_LT(oat_class_pointer, oat_file_->End()) << oat_file_->GetLocation();
 
-  const byte* status_pointer = oat_class_pointer;
+  const uint8_t* status_pointer = oat_class_pointer;
   CHECK_LT(status_pointer, oat_file_->End()) << oat_file_->GetLocation();
   mirror::Class::Status status =
       static_cast<mirror::Class::Status>(*reinterpret_cast<const int16_t*>(status_pointer));
   CHECK_LT(status, mirror::Class::kStatusMax);
 
-  const byte* type_pointer = status_pointer + sizeof(uint16_t);
+  const uint8_t* type_pointer = status_pointer + sizeof(uint16_t);
   CHECK_LT(type_pointer, oat_file_->End()) << oat_file_->GetLocation();
   OatClassType type = static_cast<OatClassType>(*reinterpret_cast<const uint16_t*>(type_pointer));
   CHECK_LT(type, kOatClassMax);
 
-  const byte* after_type_pointer = type_pointer + sizeof(int16_t);
+  const uint8_t* after_type_pointer = type_pointer + sizeof(int16_t);
   CHECK_LE(after_type_pointer, oat_file_->End()) << oat_file_->GetLocation();
 
   uint32_t bitmap_size = 0;
-  const byte* bitmap_pointer = nullptr;
-  const byte* methods_pointer = nullptr;
+  const uint8_t* bitmap_pointer = nullptr;
+  const uint8_t* methods_pointer = nullptr;
   if (type != kOatClassNoneCompiled) {
     if (type == kOatClassSomeCompiled) {
       bitmap_size = static_cast<uint32_t>(*reinterpret_cast<const uint32_t*>(after_type_pointer));

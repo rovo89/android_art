@@ -47,7 +47,7 @@ TEST_F(InstructionSetTest, TestRoundTrip) {
 }
 
 TEST_F(InstructionSetTest, PointerSize) {
-  EXPECT_EQ(kPointerSize, GetInstructionSetPointerSize(kRuntimeISA));
+  EXPECT_EQ(sizeof(void*), GetInstructionSetPointerSize(kRuntimeISA));
 }
 
 }  // namespace art

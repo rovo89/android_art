@@ -246,27 +246,27 @@ class AllocSpace {
 class ContinuousSpace : public Space {
  public:
   // Address at which the space begins.
-  byte* Begin() const {
+  uint8_t* Begin() const {
     return begin_;
   }
 
   // Current address at which the space ends, which may vary as the space is filled.
-  byte* End() const {
+  uint8_t* End() const {
     return end_.LoadRelaxed();
   }
 
   // The end of the address range covered by the space.
-  byte* Limit() const {
+  uint8_t* Limit() const {
     return limit_;
   }
 
   // Change the end of the space. Be careful with use since changing the end of a space to an
   // invalid value may break the GC.
-  void SetEnd(byte* end) {
+  void SetEnd(uint8_t* end) {
     end_.StoreRelaxed(end);
   }
 
-  void SetLimit(byte* limit) {
+  void SetLimit(uint8_t* limit) {
     limit_ = limit;
   }
 
@@ -286,7 +286,7 @@ class ContinuousSpace : public Space {
   // Is object within this space? We check to see if the pointer is beyond the end first as
   // continuous spaces are iterated over from low to high.
   bool HasAddress(const mirror::Object* obj) const {
-    const byte* byte_ptr = reinterpret_cast<const byte*>(obj);
+    const uint8_t* byte_ptr = reinterpret_cast<const uint8_t*>(obj);
     return byte_ptr >= Begin() && byte_ptr < Limit();
   }
 
@@ -302,18 +302,18 @@ class ContinuousSpace : public Space {
 
  protected:
   ContinuousSpace(const std::string& name, GcRetentionPolicy gc_retention_policy,
-                  byte* begin, byte* end, byte* limit) :
+                  uint8_t* begin, uint8_t* end, uint8_t* limit) :
       Space(name, gc_retention_policy), begin_(begin), end_(end), limit_(limit) {
   }
 
   // The beginning of the storage for fast access.
-  byte* begin_;
+  uint8_t* begin_;
 
   // Current end of the space.
-  Atomic<byte*> end_;
+  Atomic<uint8_t*> end_;
 
   // Limit of the space.
-  byte* limit_;
+  uint8_t* limit_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ContinuousSpace);
@@ -369,7 +369,7 @@ class MemMapSpace : public ContinuousSpace {
   }
 
  protected:
-  MemMapSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end, byte* limit,
+  MemMapSpace(const std::string& name, MemMap* mem_map, uint8_t* begin, uint8_t* end, uint8_t* limit,
               GcRetentionPolicy gc_retention_policy)
       : ContinuousSpace(name, gc_retention_policy, begin, end, limit),
         mem_map_(mem_map) {
@@ -425,8 +425,8 @@ class ContinuousMemMapAllocSpace : public MemMapSpace, public AllocSpace {
   std::unique_ptr<accounting::ContinuousSpaceBitmap> mark_bitmap_;
   std::unique_ptr<accounting::ContinuousSpaceBitmap> temp_bitmap_;
 
-  ContinuousMemMapAllocSpace(const std::string& name, MemMap* mem_map, byte* begin,
-                             byte* end, byte* limit, GcRetentionPolicy gc_retention_policy)
+  ContinuousMemMapAllocSpace(const std::string& name, MemMap* mem_map, uint8_t* begin,
+                             uint8_t* end, uint8_t* limit, GcRetentionPolicy gc_retention_policy)
       : MemMapSpace(name, mem_map, begin, end, limit, gc_retention_policy) {
   }
 

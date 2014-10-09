@@ -36,7 +36,7 @@ inline ALWAYS_INLINE void* RosAlloc::Alloc(Thread* self, size_t size, size_t* by
   }
   // Check if the returned memory is really all zero.
   if (kCheckZeroMemory && m != nullptr) {
-    byte* bytes = reinterpret_cast<byte*>(m);
+    uint8_t* bytes = reinterpret_cast<uint8_t*>(m);
     for (size_t i = 0; i < size; ++i) {
       DCHECK_EQ(bytes[i], 0);
     }

@@ -41,7 +41,7 @@ inline mirror::Object* BumpPointerSpace::AllocThreadUnsafe(Thread* self, size_t 
                                                            size_t* usable_size) {
   Locks::mutator_lock_->AssertExclusiveHeld(self);
   num_bytes = RoundUp(num_bytes, kAlignment);
-  byte* end = end_.LoadRelaxed();
+  uint8_t* end = end_.LoadRelaxed();
   if (end + num_bytes > growth_end_) {
     return nullptr;
   }
@@ -59,8 +59,8 @@ inline mirror::Object* BumpPointerSpace::AllocThreadUnsafe(Thread* self, size_t 
 
 inline mirror::Object* BumpPointerSpace::AllocNonvirtualWithoutAccounting(size_t num_bytes) {
   DCHECK(IsAligned<kAlignment>(num_bytes));
-  byte* old_end;
-  byte* new_end;
+  uint8_t* old_end;
+  uint8_t* new_end;
   do {
     old_end = end_.LoadRelaxed();
     new_end = old_end + num_bytes;

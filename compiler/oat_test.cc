@@ -155,7 +155,7 @@ TEST_F(OatTest, WriteRead) {
   ScopedObjectAccess soa(Thread::Current());
   for (size_t i = 0; i < dex_file->NumClassDefs(); i++) {
     const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
-    const byte* class_data = dex_file->GetClassData(class_def);
+    const uint8_t* class_data = dex_file->GetClassData(class_def);
     size_t num_virtual_methods = 0;
     if (class_data != NULL) {
       ClassDataItemIterator it(*dex_file, class_data);

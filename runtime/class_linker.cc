@@ -2383,7 +2383,7 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor,
 
 uint32_t ClassLinker::SizeOfClassWithoutEmbeddedTables(const DexFile& dex_file,
                                                        const DexFile::ClassDef& dex_class_def) {
-  const byte* class_data = dex_file.GetClassData(dex_class_def);
+  const uint8_t* class_data = dex_file.GetClassData(dex_class_def);
   size_t num_ref = 0;
   size_t num_8 = 0;
   size_t num_16 = 0;
@@ -2438,7 +2438,7 @@ OatFile::OatClass ClassLinker::FindOatClass(const DexFile& dex_file, uint16_t cl
 static uint32_t GetOatMethodIndexFromMethodIndex(const DexFile& dex_file, uint16_t class_def_idx,
                                                  uint32_t method_idx) {
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(class_def_idx);
-  const byte* class_data = dex_file.GetClassData(class_def);
+  const uint8_t* class_data = dex_file.GetClassData(class_def);
   CHECK(class_data != nullptr);
   ClassDataItemIterator it(dex_file, class_data);
   // Skip fields
@@ -2644,7 +2644,7 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   const DexFile& dex_file = klass->GetDexFile();
   const DexFile::ClassDef* dex_class_def = klass->GetClassDef();
   CHECK(dex_class_def != nullptr);
-  const byte* class_data = dex_file.GetClassData(*dex_class_def);
+  const uint8_t* class_data = dex_file.GetClassData(*dex_class_def);
   // There should always be class data if there were direct methods.
   CHECK(class_data != nullptr) << PrettyDescriptor(klass);
   ClassDataItemIterator it(dex_file, class_data);
@@ -2805,7 +2805,7 @@ void ClassLinker::LoadClass(Thread* self, const DexFile& dex_file,
   klass->SetDexClassDefIndex(dex_file.GetIndexForClassDef(dex_class_def));
   klass->SetDexTypeIndex(dex_class_def.class_idx_);
 
-  const byte* class_data = dex_file.GetClassData(dex_class_def);
+  const uint8_t* class_data = dex_file.GetClassData(dex_class_def);
   if (class_data == nullptr) {
     return;  // no fields or methods - for example a marker interface
   }
@@ -2825,7 +2825,7 @@ void ClassLinker::LoadClass(Thread* self, const DexFile& dex_file,
 }
 
 void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
-                                   const byte* class_data,
+                                   const uint8_t* class_data,
                                    Handle<mirror::Class> klass,
                                    mirror::ClassLoader* class_loader,
                                    const OatFile::OatClass* oat_class) {
@@ -3785,7 +3785,7 @@ void ClassLinker::ResolveMethodExceptionHandlerTypes(const DexFile& dex_file,
   if (code_item->tries_size_ == 0) {
     return;  // nothing to process
   }
-  const byte* handlers_ptr = DexFile::GetCatchHandlerData(*code_item, 0);
+  const uint8_t* handlers_ptr = DexFile::GetCatchHandlerData(*code_item, 0);
   uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   for (uint32_t idx = 0; idx < handlers_size; idx++) {
@@ -4243,7 +4243,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(klass->GetDexCache()));
     EncodedStaticFieldValueIterator value_it(dex_file, &dex_cache, &class_loader,
                                              this, *dex_class_def);
-    const byte* class_data = dex_file.GetClassData(*dex_class_def);
+    const uint8_t* class_data = dex_file.GetClassData(*dex_class_def);
     ClassDataItemIterator field_it(dex_file, class_data);
     if (value_it.HasNext()) {
       DCHECK(field_it.HasNextStaticField());

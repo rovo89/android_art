@@ -55,7 +55,7 @@ void LargeObjectSpaceTest::LargeObjectTest() {
         ASSERT_EQ(allocation_size, los->AllocationSize(obj, nullptr));
         ASSERT_GE(allocation_size, request_size);
         // Fill in our magic value.
-        byte magic = (request_size & 0xFF) | 1;
+        uint8_t magic = (request_size & 0xFF) | 1;
         memset(obj, magic, request_size);
         requests.push_back(std::make_pair(obj, request_size));
       }
@@ -73,9 +73,9 @@ void LargeObjectSpaceTest::LargeObjectTest() {
         mirror::Object* obj = requests.back().first;
         size_t request_size = requests.back().second;
         requests.pop_back();
-        byte magic = (request_size & 0xFF) | 1;
+        uint8_t magic = (request_size & 0xFF) | 1;
         for (size_t k = 0; k < request_size; ++k) {
-          ASSERT_EQ(reinterpret_cast<const byte*>(obj)[k], magic);
+          ASSERT_EQ(reinterpret_cast<const uint8_t*>(obj)[k], magic);
         }
         ASSERT_GE(los->Free(Thread::Current(), obj), request_size);
       }
