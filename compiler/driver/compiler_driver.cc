@@ -627,7 +627,7 @@ static void ResolveExceptionsForMethod(MutableMethodHelper* mh,
   if (code_item->tries_size_ == 0) {
     return;  // nothing to process
   }
-  const byte* encoded_catch_handler_list = DexFile::GetCatchHandlerData(*code_item, 0);
+  const uint8_t* encoded_catch_handler_list = DexFile::GetCatchHandlerData(*code_item, 0);
   size_t num_encoded_catch_handlers = DecodeUnsignedLeb128(&encoded_catch_handler_list);
   for (size_t i = 0; i < num_encoded_catch_handlers; i++) {
     int32_t encoded_catch_handler_size = DecodeSignedLeb128(&encoded_catch_handler_list);
@@ -1505,7 +1505,7 @@ static void ResolveClassFieldsAndMethods(const ParallelCompilationManager* manag
   // Note the class_data pointer advances through the headers,
   // static fields, instance fields, direct methods, and virtual
   // methods.
-  const byte* class_data = dex_file.GetClassData(class_def);
+  const uint8_t* class_data = dex_file.GetClassData(class_def);
   if (class_data == nullptr) {
     // Empty class such as a marker interface.
     requires_constructor_barrier = false;
@@ -1882,7 +1882,7 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
   if (manager->GetCompiler()->verification_results_->IsClassRejected(ref)) {
     return;
   }
-  const byte* class_data = dex_file.GetClassData(class_def);
+  const uint8_t* class_data = dex_file.GetClassData(class_def);
   if (class_data == nullptr) {
     // empty class, probably a marker interface
     return;

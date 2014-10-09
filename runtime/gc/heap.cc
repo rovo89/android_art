@@ -199,7 +199,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   live_bitmap_.reset(new accounting::HeapBitmap(this));
   mark_bitmap_.reset(new accounting::HeapBitmap(this));
   // Requested begin for the alloc space, to follow the mapped image and oat files
-  byte* requested_alloc_space_begin = nullptr;
+  uint8_t* requested_alloc_space_begin = nullptr;
   if (!image_file_name.empty()) {
     std::string error_msg;
     space::ImageSpace* image_space = space::ImageSpace::Create(image_file_name.c_str(),
@@ -209,7 +209,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       AddSpace(image_space);
       // Oat files referenced by image files immediately follow them in memory, ensure alloc space
       // isn't going to get in the middle
-      byte* oat_file_end_addr = image_space->GetImageHeader().GetOatFileEnd();
+      uint8_t* oat_file_end_addr = image_space->GetImageHeader().GetOatFileEnd();
       CHECK_GT(oat_file_end_addr, image_space->End());
       requested_alloc_space_begin = AlignUp(oat_file_end_addr, kPageSize);
     } else {
@@ -245,7 +245,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   }
   std::unique_ptr<MemMap> main_mem_map_1;
   std::unique_ptr<MemMap> main_mem_map_2;
-  byte* request_begin = requested_alloc_space_begin;
+  uint8_t* request_begin = requested_alloc_space_begin;
   if (request_begin != nullptr && separate_non_moving_space) {
     request_begin += non_moving_space_capacity;
   }
@@ -259,7 +259,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
                              non_moving_space_capacity, PROT_READ | PROT_WRITE, true, &error_str));
     CHECK(non_moving_space_mem_map != nullptr) << error_str;
     // Try to reserve virtual memory at a lower address if we have a separate non moving space.
-    request_begin = reinterpret_cast<byte*>(300 * MB);
+    request_begin = reinterpret_cast<uint8_t*>(300 * MB);
   }
   // Attempt to create 2 mem maps at or after the requested begin.
   main_mem_map_1.reset(MapAnonymousPreferredAddress(kMemMapSpaceName[0], request_begin, capacity_,
@@ -350,8 +350,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // Compute heap capacity. Continuous spaces are sorted in order of Begin().
   CHECK(!continuous_spaces_.empty());
   // Relies on the spaces being sorted.
-  byte* heap_begin = continuous_spaces_.front()->Begin();
-  byte* heap_end = continuous_spaces_.back()->Limit();
+  uint8_t* heap_begin = continuous_spaces_.front()->Begin();
+  uint8_t* heap_end = continuous_spaces_.back()->Limit();
   size_t heap_capacity = heap_end - heap_begin;
   // Remove the main backup space since it slows down the GC to have unused extra spaces.
   if (main_space_backup_.get() != nullptr) {
@@ -433,7 +433,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   }
 }
 
-MemMap* Heap::MapAnonymousPreferredAddress(const char* name, byte* request_begin, size_t capacity,
+MemMap* Heap::MapAnonymousPreferredAddress(const char* name, uint8_t* request_begin, size_t capacity,
                                            int prot_flags, std::string* out_error_str) {
   while (true) {
     MemMap* map = MemMap::MapAnonymous(kMemMapSpaceName[0], request_begin, capacity,
@@ -2265,7 +2265,7 @@ class VerifyReferenceVisitor {
       accounting::CardTable* card_table = heap_->GetCardTable();
       accounting::ObjectStack* alloc_stack = heap_->allocation_stack_.get();
       accounting::ObjectStack* live_stack = heap_->live_stack_.get();
-      byte* card_addr = card_table->CardFromAddr(obj);
+      uint8_t* card_addr = card_table->CardFromAddr(obj);
       LOG(ERROR) << "Object " << obj << " references dead object " << ref << " at offset "
                  << offset << "\n card value = " << static_cast<int>(*card_addr);
       if (heap_->IsValidObjectAddress(obj->GetClass())) {
@@ -2295,7 +2295,7 @@ class VerifyReferenceVisitor {
                    << ") is not a valid heap address";
       }
 
-      card_table->CheckAddrIsInCardTable(reinterpret_cast<const byte*>(obj));
+      card_table->CheckAddrIsInCardTable(reinterpret_cast<const uint8_t*>(obj));
       void* cover_begin = card_table->AddrFromCard(card_addr);
       void* cover_end = reinterpret_cast<void*>(reinterpret_cast<size_t>(cover_begin) +
           accounting::CardTable::kCardSize);
@@ -2328,7 +2328,7 @@ class VerifyReferenceVisitor {
         }
         // Attempt to see if the card table missed the reference.
         ScanVisitor scan_visitor;
-        byte* byte_cover_begin = reinterpret_cast<byte*>(card_table->AddrFromCard(card_addr));
+        uint8_t* byte_cover_begin = reinterpret_cast<uint8_t*>(card_table->AddrFromCard(card_addr));
         card_table->Scan(bitmap, byte_cover_begin,
                          byte_cover_begin + accounting::CardTable::kCardSize, scan_visitor);
       }

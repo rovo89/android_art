@@ -526,7 +526,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
 }
 
 void ImageSpace::VerifyImageAllocations() {
-  byte* current = Begin() + RoundUp(sizeof(ImageHeader), kObjectAlignment);
+  uint8_t* current = Begin() + RoundUp(sizeof(ImageHeader), kObjectAlignment);
   while (current < End()) {
     DCHECK_ALIGNED(current, kObjectAlignment);
     mirror::Object* obj = reinterpret_cast<mirror::Object*>(current);
@@ -595,7 +595,7 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
                                        bitmap_index));
   std::unique_ptr<accounting::ContinuousSpaceBitmap> bitmap(
       accounting::ContinuousSpaceBitmap::CreateFromMemMap(bitmap_name, image_map.release(),
-                                                          reinterpret_cast<byte*>(map->Begin()),
+                                                          reinterpret_cast<uint8_t*>(map->Begin()),
                                                           map->Size()));
   if (bitmap.get() == nullptr) {
     *error_msg = StringPrintf("Could not create bitmap '%s'", bitmap_name.c_str());

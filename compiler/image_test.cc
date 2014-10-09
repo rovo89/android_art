@@ -163,8 +163,8 @@ TEST_F(ImageTest, WriteRead) {
 
   gc::space::ImageSpace* image_space = heap->GetImageSpace();
   image_space->VerifyImageAllocations();
-  byte* image_begin = image_space->Begin();
-  byte* image_end = image_space->End();
+  uint8_t* image_begin = image_space->Begin();
+  uint8_t* image_end = image_space->End();
   CHECK_EQ(requested_image_base, reinterpret_cast<uintptr_t>(image_begin));
   for (size_t i = 0; i < dex->NumClassDefs(); ++i) {
     const DexFile::ClassDef& class_def = dex->GetClassDef(i);
@@ -173,11 +173,11 @@ TEST_F(ImageTest, WriteRead) {
     EXPECT_TRUE(klass != nullptr) << descriptor;
     if (image_classes.find(descriptor) != image_classes.end()) {
       // Image classes should be located inside the image.
-      EXPECT_LT(image_begin, reinterpret_cast<byte*>(klass)) << descriptor;
-      EXPECT_LT(reinterpret_cast<byte*>(klass), image_end) << descriptor;
+      EXPECT_LT(image_begin, reinterpret_cast<uint8_t*>(klass)) << descriptor;
+      EXPECT_LT(reinterpret_cast<uint8_t*>(klass), image_end) << descriptor;
     } else {
-      EXPECT_TRUE(reinterpret_cast<byte*>(klass) >= image_end ||
-                  reinterpret_cast<byte*>(klass) < image_begin) << descriptor;
+      EXPECT_TRUE(reinterpret_cast<uint8_t*>(klass) >= image_end ||
+                  reinterpret_cast<uint8_t*>(klass) < image_begin) << descriptor;
     }
     EXPECT_TRUE(Monitor::IsValidLockWord(klass->GetLockWord(false)));
   }

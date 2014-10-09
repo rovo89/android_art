@@ -1291,7 +1291,7 @@ void X86Assembler::LoadDoubleConstant(XmmRegister dst, double value) {
   pushl(Immediate(High32Bits(constant)));
   pushl(Immediate(Low32Bits(constant)));
   movsd(dst, Address(ESP, 0));
-  addl(ESP, Immediate(2 * kWordSize));
+  addl(ESP, Immediate(2 * sizeof(intptr_t)));
 }
 
 
@@ -1303,7 +1303,7 @@ void X86Assembler::FloatNegate(XmmRegister f) {
     uint32_t d;
   } float_negate_constant __attribute__((aligned(16))) =
       { 0x80000000, 0x00000000, 0x80000000, 0x00000000 };
-  xorps(f, Address::Absolute(reinterpret_cast<uword>(&float_negate_constant)));
+  xorps(f, Address::Absolute(reinterpret_cast<uintptr_t>(&float_negate_constant)));
 }
 
 
@@ -1313,7 +1313,7 @@ void X86Assembler::DoubleNegate(XmmRegister d) {
     uint64_t b;
   } double_negate_constant __attribute__((aligned(16))) =
       {0x8000000000000000LL, 0x8000000000000000LL};
-  xorpd(d, Address::Absolute(reinterpret_cast<uword>(&double_negate_constant)));
+  xorpd(d, Address::Absolute(reinterpret_cast<uintptr_t>(&double_negate_constant)));
 }
 
 
@@ -1323,7 +1323,7 @@ void X86Assembler::DoubleAbs(XmmRegister reg) {
     uint64_t b;
   } double_abs_constant __attribute__((aligned(16))) =
       {0x7FFFFFFFFFFFFFFFLL, 0x7FFFFFFFFFFFFFFFLL};
-  andpd(reg, Address::Absolute(reinterpret_cast<uword>(&double_abs_constant)));
+  andpd(reg, Address::Absolute(reinterpret_cast<uintptr_t>(&double_abs_constant)));
 }
 
 

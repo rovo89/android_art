@@ -35,10 +35,10 @@ inline bool SpaceBitmap<kAlignment>::AtomicTestAndSet(const mirror::Object* obj)
   DCHECK_GE(addr, heap_begin_);
   const uintptr_t offset = addr - heap_begin_;
   const size_t index = OffsetToIndex(offset);
-  const uword mask = OffsetToMask(offset);
-  Atomic<uword>* atomic_entry = reinterpret_cast<Atomic<uword>*>(&bitmap_begin_[index]);
-  DCHECK_LT(index, bitmap_size_ / kWordSize) << " bitmap_size_ = " << bitmap_size_;
-  uword old_word;
+  const uintptr_t mask = OffsetToMask(offset);
+  Atomic<uintptr_t>* atomic_entry = reinterpret_cast<Atomic<uintptr_t>*>(&bitmap_begin_[index]);
+  DCHECK_LT(index, bitmap_size_ / sizeof(intptr_t)) << " bitmap_size_ = " << bitmap_size_;
+  uintptr_t old_word;
   do {
     old_word = atomic_entry->LoadRelaxed();
     // Fast path: The bit is already set.
@@ -82,8 +82,8 @@ inline void SpaceBitmap<kAlignment>::VisitMarkedRange(uintptr_t visit_begin, uin
   const uintptr_t index_start = OffsetToIndex(offset_start);
   const uintptr_t index_end = OffsetToIndex(offset_end);
 
-  const size_t bit_start = (offset_start / kAlignment) % kBitsPerWord;
-  const size_t bit_end = (offset_end / kAlignment) % kBitsPerWord;
+  const size_t bit_start = (offset_start / kAlignment) % kBitsPerIntPtrT;
+  const size_t bit_end = (offset_end / kAlignment) % kBitsPerIntPtrT;
 
   // Index(begin)  ...    Index(end)
   // [xxxxx???][........][????yyyy]
@@ -93,12 +93,12 @@ inline void SpaceBitmap<kAlignment>::VisitMarkedRange(uintptr_t visit_begin, uin
   //
 
   // Left edge.
-  uword left_edge = bitmap_begin_[index_start];
+  uintptr_t left_edge = bitmap_begin_[index_start];
   // Mark of lower bits that are not in range.
-  left_edge &= ~((static_cast<uword>(1) << bit_start) - 1);
+  left_edge &= ~((static_cast<uintptr_t>(1) << bit_start) - 1);
 
   // Right edge. Either unique, or left_edge.
-  uword right_edge;
+  uintptr_t right_edge;
 
   if (index_start < index_end) {
     // Left edge != right edge.
@@ -110,20 +110,20 @@ inline void SpaceBitmap<kAlignment>::VisitMarkedRange(uintptr_t visit_begin, uin
         const size_t shift = CTZ(left_edge);
         mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
         visitor(obj);
-        left_edge ^= (static_cast<uword>(1)) << shift;
+        left_edge ^= (static_cast<uintptr_t>(1)) << shift;
       } while (left_edge != 0);
     }
 
     // Traverse the middle, full part.
     for (size_t i = index_start + 1; i < index_end; ++i) {
-      uword w = bitmap_begin_[i];
+      uintptr_t w = bitmap_begin_[i];
       if (w != 0) {
         const uintptr_t ptr_base = IndexToOffset(i) + heap_begin_;
         do {
           const size_t shift = CTZ(w);
           mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
           visitor(obj);
-          w ^= (static_cast<uword>(1)) << shift;
+          w ^= (static_cast<uintptr_t>(1)) << shift;
         } while (w != 0);
       }
     }
@@ -142,14 +142,14 @@ inline void SpaceBitmap<kAlignment>::VisitMarkedRange(uintptr_t visit_begin, uin
   }
 
   // Right edge handling.
-  right_edge &= ((static_cast<uword>(1) << bit_end) - 1);
+  right_edge &= ((static_cast<uintptr_t>(1) << bit_end) - 1);
   if (right_edge != 0) {
     const uintptr_t ptr_base = IndexToOffset(index_end) + heap_begin_;
     do {
       const size_t shift = CTZ(right_edge);
       mirror::Object* obj = reinterpret_cast<mirror::Object*>(ptr_base + shift * kAlignment);
       visitor(obj);
-      right_edge ^= (static_cast<uword>(1)) << shift;
+      right_edge ^= (static_cast<uintptr_t>(1)) << shift;
     } while (right_edge != 0);
   }
 #endif
@@ -161,10 +161,10 @@ inline bool SpaceBitmap<kAlignment>::Modify(const mirror::Object* obj) {
   DCHECK_GE(addr, heap_begin_);
   const uintptr_t offset = addr - heap_begin_;
   const size_t index = OffsetToIndex(offset);
-  const uword mask = OffsetToMask(offset);
-  DCHECK_LT(index, bitmap_size_ / kWordSize) << " bitmap_size_ = " << bitmap_size_;
-  uword* address = &bitmap_begin_[index];
-  uword old_word = *address;
+  const uintptr_t mask = OffsetToMask(offset);
+  DCHECK_LT(index, bitmap_size_ / sizeof(intptr_t)) << " bitmap_size_ = " << bitmap_size_;
+  uintptr_t* address = &bitmap_begin_[index];
+  uintptr_t old_word = *address;
   if (kSetBit) {
     *address = old_word | mask;
   } else {

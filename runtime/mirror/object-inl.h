@@ -141,7 +141,7 @@ inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object*
 #ifdef USE_BAKER_OR_BROOKS_READ_BARRIER
   DCHECK(kUseBakerOrBrooksReadBarrier);
   MemberOffset offset = OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_);
-  byte* raw_addr = reinterpret_cast<byte*>(this) + offset.SizeValue();
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + offset.SizeValue();
   Atomic<uint32_t>* atomic_rb_ptr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
   HeapReference<Object> expected_ref(HeapReference<Object>::FromMirrorPtr(expected_rb_ptr));
   HeapReference<Object> new_ref(HeapReference<Object>::FromMirrorPtr(rb_ptr));
@@ -602,7 +602,7 @@ inline bool Object::CasFieldWeakSequentiallyConsistent32(MemberOffset field_offs
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);
   }
-  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   AtomicInteger* atomic_addr = reinterpret_cast<AtomicInteger*>(raw_addr);
 
   return atomic_addr->CompareExchangeWeakSequentiallyConsistent(old_value, new_value);
@@ -620,7 +620,7 @@ inline bool Object::CasFieldWeakRelaxed32(MemberOffset field_offset,
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);
   }
-  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   AtomicInteger* atomic_addr = reinterpret_cast<AtomicInteger*>(raw_addr);
 
   return atomic_addr->CompareExchangeWeakRelaxed(old_value, new_value);
@@ -638,7 +638,7 @@ inline bool Object::CasFieldStrongSequentiallyConsistent32(MemberOffset field_of
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);
   }
-  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   AtomicInteger* atomic_addr = reinterpret_cast<AtomicInteger*>(raw_addr);
 
   return atomic_addr->CompareExchangeStrongSequentiallyConsistent(old_value, new_value);
@@ -682,7 +682,7 @@ inline void Object::SetField64Volatile(MemberOffset field_offset, int64_t new_va
 
 template<typename kSize, bool kIsVolatile>
 inline void Object::SetField(MemberOffset field_offset, kSize new_value) {
-  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   kSize* addr = reinterpret_cast<kSize*>(raw_addr);
   if (kIsVolatile) {
     reinterpret_cast<Atomic<kSize>*>(addr)->StoreSequentiallyConsistent(new_value);
@@ -693,7 +693,7 @@ inline void Object::SetField(MemberOffset field_offset, kSize new_value) {
 
 template<typename kSize, bool kIsVolatile>
 inline kSize Object::GetField(MemberOffset field_offset) {
-  const byte* raw_addr = reinterpret_cast<const byte*>(this) + field_offset.Int32Value();
+  const uint8_t* raw_addr = reinterpret_cast<const uint8_t*>(this) + field_offset.Int32Value();
   const kSize* addr = reinterpret_cast<const kSize*>(raw_addr);
   if (kIsVolatile) {
     return reinterpret_cast<const Atomic<kSize>*>(addr)->LoadSequentiallyConsistent();
@@ -714,7 +714,7 @@ inline bool Object::CasFieldWeakSequentiallyConsistent64(MemberOffset field_offs
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);
   }
-  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   Atomic<int64_t>* atomic_addr = reinterpret_cast<Atomic<int64_t>*>(raw_addr);
   return atomic_addr->CompareExchangeWeakSequentiallyConsistent(old_value, new_value);
 }
@@ -731,7 +731,7 @@ inline bool Object::CasFieldStrongSequentiallyConsistent64(MemberOffset field_of
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);
   }
-  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   Atomic<int64_t>* atomic_addr = reinterpret_cast<Atomic<int64_t>*>(raw_addr);
   return atomic_addr->CompareExchangeStrongSequentiallyConsistent(old_value, new_value);
 }
@@ -742,7 +742,7 @@ inline T* Object::GetFieldObject(MemberOffset field_offset) {
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);
   }
-  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   HeapReference<T>* objref_addr = reinterpret_cast<HeapReference<T>*>(raw_addr);
   T* result = ReadBarrier::Barrier<T, kReadBarrierOption>(this, field_offset, objref_addr);
   if (kIsVolatile) {
@@ -782,7 +782,7 @@ inline void Object::SetFieldObjectWithoutWriteBarrier(MemberOffset field_offset,
   if (kVerifyFlags & kVerifyWrites) {
     VerifyObject(new_value);
   }
-  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   HeapReference<Object>* objref_addr = reinterpret_cast<HeapReference<Object>*>(raw_addr);
   if (kIsVolatile) {
     // TODO: Refactor to use a SequentiallyConsistent store instead.
@@ -818,7 +818,7 @@ inline HeapReference<Object>* Object::GetFieldObjectReferenceAddr(MemberOffset f
   if (kVerifyFlags & kVerifyThis) {
     VerifyObject(this);
   }
-  return reinterpret_cast<HeapReference<Object>*>(reinterpret_cast<byte*>(this) +
+  return reinterpret_cast<HeapReference<Object>*>(reinterpret_cast<uint8_t*>(this) +
       field_offset.Int32Value());
 }
 
@@ -842,7 +842,7 @@ inline bool Object::CasFieldWeakSequentiallyConsistentObject(MemberOffset field_
   }
   HeapReference<Object> old_ref(HeapReference<Object>::FromMirrorPtr(old_value));
   HeapReference<Object> new_ref(HeapReference<Object>::FromMirrorPtr(new_value));
-  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   Atomic<uint32_t>* atomic_addr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
 
   bool success = atomic_addr->CompareExchangeWeakSequentiallyConsistent(old_ref.reference_,
@@ -874,7 +874,7 @@ inline bool Object::CasFieldStrongSequentiallyConsistentObject(MemberOffset fiel
   }
   HeapReference<Object> old_ref(HeapReference<Object>::FromMirrorPtr(old_value));
   HeapReference<Object> new_ref(HeapReference<Object>::FromMirrorPtr(new_value));
-  byte* raw_addr = reinterpret_cast<byte*>(this) + field_offset.Int32Value();
+  uint8_t* raw_addr = reinterpret_cast<uint8_t*>(this) + field_offset.Int32Value();
   Atomic<uint32_t>* atomic_addr = reinterpret_cast<Atomic<uint32_t>*>(raw_addr);
 
   bool success = atomic_addr->CompareExchangeStrongSequentiallyConsistent(old_ref.reference_,

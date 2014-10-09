@@ -30,8 +30,8 @@
 
 namespace art {
 
-static byte* NewContents(size_t capacity) {
-  return new byte[capacity];
+static uint8_t* NewContents(size_t capacity) {
+  return new uint8_t[capacity];
 }
 
 
@@ -85,7 +85,7 @@ void AssemblerBuffer::ExtendCapacity() {
   size_t new_capacity = std::min(old_capacity * 2, old_capacity + 1 * MB);
 
   // Allocate the new data area and copy contents of the old one to it.
-  byte* new_contents = NewContents(new_capacity);
+  uint8_t* new_contents = NewContents(new_capacity);
   memmove(reinterpret_cast<void*>(new_contents),
           reinterpret_cast<void*>(contents_),
           old_size);

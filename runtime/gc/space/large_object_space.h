@@ -77,11 +77,11 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
     return false;
   }
   // Current address at which the space begins, which may vary as the space is filled.
-  byte* Begin() const {
+  uint8_t* Begin() const {
     return begin_;
   }
   // Current address at which the space ends, which may vary as the space is filled.
-  byte* End() const {
+  uint8_t* End() const {
     return end_;
   }
   // Current size of space
@@ -90,14 +90,14 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
   }
   // Return true if we contain the specified address.
   bool Contains(const mirror::Object* obj) const {
-    const byte* byte_obj = reinterpret_cast<const byte*>(obj);
+    const uint8_t* byte_obj = reinterpret_cast<const uint8_t*>(obj);
     return Begin() <= byte_obj && byte_obj < End();
   }
   void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  protected:
-  explicit LargeObjectSpace(const std::string& name, byte* begin, byte* end);
+  explicit LargeObjectSpace(const std::string& name, uint8_t* begin, uint8_t* end);
   static void SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg);
 
   // Approximate number of bytes which have been allocated into the space.
@@ -106,8 +106,8 @@ class LargeObjectSpace : public DiscontinuousSpace, public AllocSpace {
   uint64_t total_bytes_allocated_;
   uint64_t total_objects_allocated_;
   // Begin and end, may change as more large objects are allocated.
-  byte* begin_;
-  byte* end_;
+  uint8_t* begin_;
+  uint8_t* end_;
 
   friend class Space;
 
@@ -149,7 +149,7 @@ class FreeListSpace FINAL : public LargeObjectSpace {
   static constexpr size_t kAlignment = kPageSize;
 
   virtual ~FreeListSpace();
-  static FreeListSpace* Create(const std::string& name, byte* requested_begin, size_t capacity);
+  static FreeListSpace* Create(const std::string& name, uint8_t* requested_begin, size_t capacity);
   size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
   mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
@@ -159,7 +159,7 @@ class FreeListSpace FINAL : public LargeObjectSpace {
   void Dump(std::ostream& os) const;
 
  protected:
-  FreeListSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end);
+  FreeListSpace(const std::string& name, MemMap* mem_map, uint8_t* begin, uint8_t* end);
   size_t GetSlotIndexForAddress(uintptr_t address) const {
     DCHECK(Contains(reinterpret_cast<mirror::Object*>(address)));
     return (address - reinterpret_cast<uintptr_t>(Begin())) / kAlignment;

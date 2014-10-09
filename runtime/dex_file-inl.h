@@ -26,14 +26,14 @@
 namespace art {
 
 inline int32_t DexFile::GetStringLength(const StringId& string_id) const {
-  const byte* ptr = begin_ + string_id.string_data_off_;
+  const uint8_t* ptr = begin_ + string_id.string_data_off_;
   return DecodeUnsignedLeb128(&ptr);
 }
 
 inline const char* DexFile::GetStringDataAndUtf16Length(const StringId& string_id,
                                                         uint32_t* utf16_length) const {
   DCHECK(utf16_length != NULL) << GetLocation();
-  const byte* ptr = begin_ + string_id.string_data_off_;
+  const uint8_t* ptr = begin_ + string_id.string_data_off_;
   *utf16_length = DecodeUnsignedLeb128(&ptr);
   return reinterpret_cast<const char*>(ptr);
 }

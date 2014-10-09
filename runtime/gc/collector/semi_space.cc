@@ -437,15 +437,15 @@ static inline size_t CopyAvoidingDirtyingPages(void* dest, const void* src, size
     return 0;
   }
   size_t saved_bytes = 0;
-  byte* byte_dest = reinterpret_cast<byte*>(dest);
+  uint8_t* byte_dest = reinterpret_cast<uint8_t*>(dest);
   if (kIsDebugBuild) {
     for (size_t i = 0; i < size; ++i) {
       CHECK_EQ(byte_dest[i], 0U);
     }
   }
   // Process the start of the page. The page must already be dirty, don't bother with checking.
-  const byte* byte_src = reinterpret_cast<const byte*>(src);
-  const byte* limit = byte_src + size;
+  const uint8_t* byte_src = reinterpret_cast<const uint8_t*>(src);
+  const uint8_t* limit = byte_src + size;
   size_t page_remain = AlignUp(byte_dest, kPageSize) - byte_dest;
   // Copy the bytes until the start of the next page.
   memcpy(dest, src, page_remain);
@@ -481,7 +481,7 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
   const size_t object_size = obj->SizeOf();
   size_t bytes_allocated;
   mirror::Object* forward_address = nullptr;
-  if (generational_ && reinterpret_cast<byte*>(obj) < last_gc_to_space_end_) {
+  if (generational_ && reinterpret_cast<uint8_t*>(obj) < last_gc_to_space_end_) {
     // If it's allocated before the last GC (older), move
     // (pseudo-promote) it to the main free list space (as sort
     // of an old generation.)

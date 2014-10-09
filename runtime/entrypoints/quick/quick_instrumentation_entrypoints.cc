@@ -60,7 +60,7 @@ extern "C" TwoWordReturn artInstrumentationMethodExitFromCode(Thread* self,
   Runtime* runtime = Runtime::Current();
   sp->Assign(runtime->GetCalleeSaveMethod(Runtime::kRefsOnly));
   uint32_t return_pc_offset = GetCalleeSavePCOffset(kRuntimeISA, Runtime::kRefsOnly);
-  uintptr_t* return_pc = reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) +
+  uintptr_t* return_pc = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(sp) +
                                                       return_pc_offset);
   CHECK_EQ(*return_pc, 0U);
   self->SetTopOfStack(sp, 0);

@@ -36,7 +36,7 @@ namespace space {
 size_t MallocSpace::bitmap_index_ = 0;
 
 MallocSpace::MallocSpace(const std::string& name, MemMap* mem_map,
-                         byte* begin, byte* end, byte* limit, size_t growth_limit,
+                         uint8_t* begin, uint8_t* end, uint8_t* limit, size_t growth_limit,
                          bool create_bitmaps, bool can_move_objects, size_t starting_size,
                          size_t initial_size)
     : ContinuousMemMapAllocSpace(name, mem_map, begin, end, limit, kGcRetentionPolicyAlwaysCollect),
@@ -66,7 +66,7 @@ MallocSpace::MallocSpace(const std::string& name, MemMap* mem_map,
 }
 
 MemMap* MallocSpace::CreateMemMap(const std::string& name, size_t starting_size, size_t* initial_size,
-                                  size_t* growth_limit, size_t* capacity, byte* requested_begin) {
+                                  size_t* growth_limit, size_t* capacity, uint8_t* requested_begin) {
   // Sanity check arguments
   if (starting_size > *initial_size) {
     *initial_size = starting_size;
@@ -129,10 +129,10 @@ void MallocSpace::SetGrowthLimit(size_t growth_limit) {
 
 void* MallocSpace::MoreCore(intptr_t increment) {
   CheckMoreCoreForPrecondition();
-  byte* original_end = End();
+  uint8_t* original_end = End();
   if (increment != 0) {
     VLOG(heap) << "MallocSpace::MoreCore " << PrettySize(increment);
-    byte* new_end = original_end + increment;
+    uint8_t* new_end = original_end + increment;
     if (increment > 0) {
       // Should never be asked to increase the allocation beyond the capacity of the space. Enforced
       // by mspace_set_footprint_limit.
@@ -163,7 +163,7 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   // alloc space so that we won't mix thread local runs from different
   // alloc spaces.
   RevokeAllThreadLocalBuffers();
-  SetEnd(reinterpret_cast<byte*>(RoundUp(reinterpret_cast<uintptr_t>(End()), kPageSize)));
+  SetEnd(reinterpret_cast<uint8_t*>(RoundUp(reinterpret_cast<uintptr_t>(End()), kPageSize)));
   DCHECK(IsAligned<accounting::CardTable::kCardSize>(begin_));
   DCHECK(IsAligned<accounting::CardTable::kCardSize>(End()));
   DCHECK(IsAligned<kPageSize>(begin_));
@@ -194,7 +194,7 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   void* allocator = CreateAllocator(End(), starting_size_, initial_size_, capacity,
                                     low_memory_mode);
   // Protect memory beyond the initial size.
-  byte* end = mem_map->Begin() + starting_size_;
+  uint8_t* end = mem_map->Begin() + starting_size_;
   if (capacity > initial_size_) {
     CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size_, PROT_NONE), alloc_space_name);
   }

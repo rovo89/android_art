@@ -584,7 +584,7 @@ class Thread {
     return tlsPtr_.stack_size - (tlsPtr_.stack_end - tlsPtr_.stack_begin);
   }
 
-  byte* GetStackEndForInterpreter(bool implicit_overflow_check) const {
+  uint8_t* GetStackEndForInterpreter(bool implicit_overflow_check) const {
     if (implicit_overflow_check) {
       // The interpreter needs the extra overflow bytes that stack_end does
       // not include.
@@ -594,7 +594,7 @@ class Thread {
     }
   }
 
-  byte* GetStackEnd() const {
+  uint8_t* GetStackEnd() const {
     return tlsPtr_.stack_end;
   }
 
@@ -790,7 +790,7 @@ class Thread {
   size_t TlabSize() const;
   // Doesn't check that there is room.
   mirror::Object* AllocTlab(size_t bytes);
-  void SetTlab(byte* start, byte* end);
+  void SetTlab(uint8_t* start, uint8_t* end);
   bool HasTlab() const;
 
   // Remove the suspend trigger for this thread by making the suspend_trigger_ TLS value
@@ -1043,14 +1043,14 @@ class Thread {
     }
 
     // The biased card table, see CardTable for details.
-    byte* card_table;
+    uint8_t* card_table;
 
     // The pending exception or NULL.
     mirror::Throwable* exception;
 
     // The end of this thread's stack. This is the lowest safely-addressable address on the stack.
     // We leave extra space so there's room for the code that throws StackOverflowError.
-    byte* stack_end;
+    uint8_t* stack_end;
 
     // The top of the managed stack often manipulated directly by compiler generated code.
     ManagedStack managed_stack;
@@ -1073,7 +1073,7 @@ class Thread {
     jobject jpeer;
 
     // The "lowest addressable byte" of the stack.
-    byte* stack_begin;
+    uint8_t* stack_begin;
 
     // Size of the stack.
     size_t stack_size;
@@ -1137,9 +1137,9 @@ class Thread {
     QuickEntryPoints quick_entrypoints;
 
     // Thread-local allocation pointer.
-    byte* thread_local_start;
-    byte* thread_local_pos;
-    byte* thread_local_end;
+    uint8_t* thread_local_start;
+    uint8_t* thread_local_pos;
+    uint8_t* thread_local_end;
     size_t thread_local_objects;
 
     // There are RosAlloc::kNumThreadLocalSizeBrackets thread-local size brackets per thread.

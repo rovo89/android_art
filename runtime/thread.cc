@@ -235,7 +235,7 @@ static size_t FixStackSize(size_t stack_size) {
 }
 
 // Global variable to prevent the compiler optimizing away the page reads for the stack.
-byte dont_optimize_this;
+uint8_t dont_optimize_this;
 
 // Install a protected region in the stack.  This is used to trigger a SIGSEGV if a stack
 // overflow is detected.  It is located right below the stack_begin_.
@@ -249,9 +249,9 @@ byte dont_optimize_this;
 // this by reading every page from the stack bottom (highest address) to the stack top.
 // We then madvise this away.
 void Thread::InstallImplicitProtection() {
-  byte* pregion = tlsPtr_.stack_begin - kStackOverflowProtectedSize;
-  byte* stack_himem = tlsPtr_.stack_end;
-  byte* stack_top = reinterpret_cast<byte*>(reinterpret_cast<uintptr_t>(&stack_himem) &
+  uint8_t* pregion = tlsPtr_.stack_begin - kStackOverflowProtectedSize;
+  uint8_t* stack_himem = tlsPtr_.stack_end;
+  uint8_t* stack_top = reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(&stack_himem) &
       ~(kPageSize - 1));    // Page containing current top of stack.
 
   // First remove the protection on the protected region as will want to read and
@@ -265,7 +265,7 @@ void Thread::InstallImplicitProtection() {
   // a segv.
 
   // Read every page from the high address to the low.
-  for (byte* p = stack_top; p >= pregion; p -= kPageSize) {
+  for (uint8_t* p = stack_top; p >= pregion; p -= kPageSize) {
     dont_optimize_this = *p;
   }
 
@@ -496,7 +496,7 @@ void Thread::InitStackHwm() {
                                 PrettySize(read_stack_size).c_str(),
                                 PrettySize(read_guard_size).c_str());
 
-  tlsPtr_.stack_begin = reinterpret_cast<byte*>(read_stack_base);
+  tlsPtr_.stack_begin = reinterpret_cast<uint8_t*>(read_stack_base);
   tlsPtr_.stack_size = read_stack_size;
 
   // The minimum stack size we can cope with is the overflow reserved bytes (typically
@@ -2264,7 +2264,7 @@ void Thread::SetStackEndForStackOverflow() {
   }
 }
 
-void Thread::SetTlab(byte* start, byte* end) {
+void Thread::SetTlab(uint8_t* start, uint8_t* end) {
   DCHECK_LE(start, end);
   tlsPtr_.thread_local_start = start;
   tlsPtr_.thread_local_pos  = tlsPtr_.thread_local_start;

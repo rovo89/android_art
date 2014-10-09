@@ -95,7 +95,7 @@ class Location : public ValueObject {
 
   static Location ConstantLocation(HConstant* constant) {
     DCHECK(constant != nullptr);
-    return Location(kConstant | reinterpret_cast<uword>(constant));
+    return Location(kConstant | reinterpret_cast<uintptr_t>(constant));
   }
 
   HConstant* GetConstant() const {
@@ -170,7 +170,7 @@ class Location : public ValueObject {
   }
 
   static Location StackSlot(intptr_t stack_index) {
-    uword payload = EncodeStackIndex(stack_index);
+    uintptr_t payload = EncodeStackIndex(stack_index);
     Location loc(kStackSlot, payload);
     // Ensure that sign is preserved.
     DCHECK_EQ(loc.GetStackIndex(), stack_index);
@@ -182,7 +182,7 @@ class Location : public ValueObject {
   }
 
   static Location DoubleStackSlot(intptr_t stack_index) {
-    uword payload = EncodeStackIndex(stack_index);
+    uintptr_t payload = EncodeStackIndex(stack_index);
     Location loc(kDoubleStackSlot, payload);
     // Ensure that sign is preserved.
     DCHECK_EQ(loc.GetStackIndex(), stack_index);
@@ -288,27 +288,27 @@ class Location : public ValueObject {
     return PolicyField::Decode(GetPayload());
   }
 
-  uword GetEncoding() const {
+  uintptr_t GetEncoding() const {
     return GetPayload();
   }
 
  private:
   // Number of bits required to encode Kind value.
   static constexpr uint32_t kBitsForKind = 4;
-  static constexpr uint32_t kBitsForPayload = kWordSize * kBitsPerByte - kBitsForKind;
-  static constexpr uword kLocationConstantMask = 0x3;
+  static constexpr uint32_t kBitsForPayload = kBitsPerIntPtrT - kBitsForKind;
+  static constexpr uintptr_t kLocationConstantMask = 0x3;
 
-  explicit Location(uword value) : value_(value) {}
+  explicit Location(uintptr_t value) : value_(value) {}
 
-  Location(Kind kind, uword payload)
+  Location(Kind kind, uintptr_t payload)
       : value_(KindField::Encode(kind) | PayloadField::Encode(payload)) {}
 
-  uword GetPayload() const {
+  uintptr_t GetPayload() const {
     return PayloadField::Decode(value_);
   }
 
   typedef BitField<Kind, 0, kBitsForKind> KindField;
-  typedef BitField<uword, kBitsForKind, kBitsForPayload> PayloadField;
+  typedef BitField<uintptr_t, kBitsForKind, kBitsForPayload> PayloadField;
 
   // Layout for kUnallocated locations payload.
   typedef BitField<Policy, 0, 3> PolicyField;
@@ -320,7 +320,7 @@ class Location : public ValueObject {
   // Location either contains kind and payload fields or a tagged handle for
   // a constant locations. Values of enumeration Kind are selected in such a
   // way that none of them can be interpreted as a kConstant tag.
-  uword value_;
+  uintptr_t value_;
 };
 
 class RegisterSet : public ValueObject {

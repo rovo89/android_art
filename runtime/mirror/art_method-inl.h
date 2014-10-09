@@ -393,7 +393,7 @@ inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
 
     // Callee saves + handle scope + method ref + alignment
     size_t frame_size = RoundUp(callee_info.FrameSizeInBytes() + scope_size
-                                - kPointerSize  // callee-save frame stores a whole method pointer
+                                - sizeof(void*)  // callee-save frame stores a whole method pointer
                                 + sizeof(StackReference<mirror::ArtMethod>),
                                 kStackAlignment);
 

@@ -223,7 +223,7 @@ typedef uint16_t RegList;
 // Example: Test whether the instruction at ptr does set the condition code
 // bits.
 //
-// bool InstructionSetsConditionCodes(byte* ptr) {
+// bool InstructionSetsConditionCodes(uint8_t* ptr) {
 //   Instr* instr = Instr::At(ptr);
 //   int type = instr->TypeField();
 //   return ((type == 0) || (type == 1)) && instr->HasS();
@@ -435,7 +435,7 @@ class Instr {
   // reference to an instruction is to convert a pointer. There is no way
   // to allocate or create instances of class Instr.
   // Use the At(pc) function to create references to Instr.
-  static Instr* At(uword pc) { return reinterpret_cast<Instr*>(pc); }
+  static Instr* At(uintptr_t pc) { return reinterpret_cast<Instr*>(pc); }
   Instr* Next() { return this + kInstrSize; }
 
  private:

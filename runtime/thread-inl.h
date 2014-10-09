@@ -198,9 +198,9 @@ inline bool Thread::PushOnThreadLocalAllocationStack(mirror::Object* obj) {
   DCHECK_LE(tlsPtr_.thread_local_alloc_stack_top, tlsPtr_.thread_local_alloc_stack_end);
   if (tlsPtr_.thread_local_alloc_stack_top < tlsPtr_.thread_local_alloc_stack_end) {
     // There's room.
-    DCHECK_LE(reinterpret_cast<byte*>(tlsPtr_.thread_local_alloc_stack_top) +
+    DCHECK_LE(reinterpret_cast<uint8_t*>(tlsPtr_.thread_local_alloc_stack_top) +
                   sizeof(mirror::Object*),
-              reinterpret_cast<byte*>(tlsPtr_.thread_local_alloc_stack_end));
+              reinterpret_cast<uint8_t*>(tlsPtr_.thread_local_alloc_stack_end));
     DCHECK(*tlsPtr_.thread_local_alloc_stack_top == nullptr);
     *tlsPtr_.thread_local_alloc_stack_top = obj;
     ++tlsPtr_.thread_local_alloc_stack_top;
