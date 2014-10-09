@@ -55,7 +55,7 @@ constexpr uint8_t CardTable::kCardDirty;
  * byte is equal to GC_DIRTY_CARD. See CardTable::Create for details.
  */
 
-CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
+CardTable* CardTable::Create(const uint8_t* heap_begin, size_t heap_capacity) {
   /* Set up the card table */
   size_t capacity = heap_capacity / kCardSize;
   /* Allocate an extra 256 bytes to allow fixed low-byte of base */
@@ -68,13 +68,13 @@ CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
   // don't clear the card table to avoid unnecessary pages being allocated
   COMPILE_ASSERT(kCardClean == 0, card_clean_must_be_0);
 
-  byte* cardtable_begin = mem_map->Begin();
+  uint8_t* cardtable_begin = mem_map->Begin();
   CHECK(cardtable_begin != NULL);
 
   // We allocated up to a bytes worth of extra space to allow biased_begin's byte value to equal
   // kCardDirty, compute a offset value to make this the case
   size_t offset = 0;
-  byte* biased_begin = reinterpret_cast<byte*>(reinterpret_cast<uintptr_t>(cardtable_begin) -
+  uint8_t* biased_begin = reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(cardtable_begin) -
       (reinterpret_cast<uintptr_t>(heap_begin) >> kCardShift));
   uintptr_t biased_byte = reinterpret_cast<uintptr_t>(biased_begin) & 0xff;
   if (biased_byte != kCardDirty) {
@@ -86,14 +86,14 @@ CardTable* CardTable::Create(const byte* heap_begin, size_t heap_capacity) {
   return new CardTable(mem_map.release(), biased_begin, offset);
 }
 
-CardTable::CardTable(MemMap* mem_map, byte* biased_begin, size_t offset)
+CardTable::CardTable(MemMap* mem_map, uint8_t* biased_begin, size_t offset)
     : mem_map_(mem_map), biased_begin_(biased_begin), offset_(offset) {
 }
 
 void CardTable::ClearSpaceCards(space::ContinuousSpace* space) {
   // TODO: clear just the range of the table that has been modified
-  byte* card_start = CardFromAddr(space->Begin());
-  byte* card_end = CardFromAddr(space->End());  // Make sure to round up.
+  uint8_t* card_start = CardFromAddr(space->Begin());
+  uint8_t* card_end = CardFromAddr(space->End());  // Make sure to round up.
   memset(reinterpret_cast<void*>(card_start), kCardClean, card_end - card_start);
 }
 
@@ -106,10 +106,10 @@ bool CardTable::AddrIsInCardTable(const void* addr) const {
   return IsValidCard(biased_begin_ + ((uintptr_t)addr >> kCardShift));
 }
 
-void CardTable::CheckAddrIsInCardTable(const byte* addr) const {
-  byte* card_addr = biased_begin_ + ((uintptr_t)addr >> kCardShift);
-  byte* begin = mem_map_->Begin() + offset_;
-  byte* end = mem_map_->End();
+void CardTable::CheckAddrIsInCardTable(const uint8_t* addr) const {
+  uint8_t* card_addr = biased_begin_ + ((uintptr_t)addr >> kCardShift);
+  uint8_t* begin = mem_map_->Begin() + offset_;
+  uint8_t* end = mem_map_->End();
   CHECK(AddrIsInCardTable(addr))
       << "Card table " << this
       << " begin: " << reinterpret_cast<void*>(begin)

@@ -69,8 +69,8 @@ Object* Object::CopyObject(Thread* self, mirror::Object* dest, mirror::Object* s
                            size_t num_bytes) {
   // Copy instance data.  We assume memcpy copies by words.
   // TODO: expose and use move32.
-  byte* src_bytes = reinterpret_cast<byte*>(src);
-  byte* dst_bytes = reinterpret_cast<byte*>(dest);
+  uint8_t* src_bytes = reinterpret_cast<uint8_t*>(src);
+  uint8_t* dst_bytes = reinterpret_cast<uint8_t*>(dest);
   size_t offset = sizeof(Object);
   memcpy(dst_bytes + offset, src_bytes + offset, num_bytes - offset);
   if (kUseBakerOrBrooksReadBarrier) {

@@ -42,7 +42,7 @@ class RememberedSetCardVisitor {
   explicit RememberedSetCardVisitor(RememberedSet::CardSet* const dirty_cards)
       : dirty_cards_(dirty_cards) {}
 
-  void operator()(byte* card, byte expected_value, byte new_value) const {
+  void operator()(uint8_t* card, uint8_t expected_value, uint8_t new_value) const {
     if (expected_value == CardTable::kCardDirty) {
       dirty_cards_->insert(card);
     }
@@ -129,7 +129,7 @@ void RememberedSet::UpdateAndMarkReferences(MarkHeapReferenceCallback* callback,
                                          &contains_reference_to_target_space, arg);
   ContinuousSpaceBitmap* bitmap = space_->GetLiveBitmap();
   CardSet remove_card_set;
-  for (byte* const card_addr : dirty_cards_) {
+  for (uint8_t* const card_addr : dirty_cards_) {
     contains_reference_to_target_space = false;
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));
     DCHECK(space_->HasAddress(reinterpret_cast<mirror::Object*>(start)));
@@ -145,7 +145,7 @@ void RememberedSet::UpdateAndMarkReferences(MarkHeapReferenceCallback* callback,
 
   // Remove the cards that didn't contain a reference to the target
   // space from the dirty card set.
-  for (byte* const card_addr : remove_card_set) {
+  for (uint8_t* const card_addr : remove_card_set) {
     DCHECK(dirty_cards_.find(card_addr) != dirty_cards_.end());
     dirty_cards_.erase(card_addr);
   }
@@ -154,7 +154,7 @@ void RememberedSet::UpdateAndMarkReferences(MarkHeapReferenceCallback* callback,
 void RememberedSet::Dump(std::ostream& os) {
   CardTable* card_table = heap_->GetCardTable();
   os << "RememberedSet dirty cards: [";
-  for (const byte* card_addr : dirty_cards_) {
+  for (const uint8_t* card_addr : dirty_cards_) {
     auto start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));
     auto end = start + CardTable::kCardSize;
     os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << "\n";
@@ -164,8 +164,8 @@ void RememberedSet::Dump(std::ostream& os) {
 
 void RememberedSet::AssertAllDirtyCardsAreWithinSpace() const {
   CardTable* card_table = heap_->GetCardTable();
-  for (const byte* card_addr : dirty_cards_) {
-    auto start = reinterpret_cast<byte*>(card_table->AddrFromCard(card_addr));
+  for (const uint8_t* card_addr : dirty_cards_) {
+    auto start = reinterpret_cast<uint8_t*>(card_table->AddrFromCard(card_addr));
     auto end = start + CardTable::kCardSize;
     DCHECK_LE(space_->Begin(), start);
     DCHECK_LE(end, space_->Limit());

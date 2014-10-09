@@ -115,7 +115,7 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   void SetGrowthLimit(size_t growth_limit);
 
   virtual MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
-                                      byte* begin, byte* end, byte* limit, size_t growth_limit,
+                                      uint8_t* begin, uint8_t* end, uint8_t* limit, size_t growth_limit,
                                       bool can_move_objects) = 0;
 
   // Splits ourself into a zygote space and new malloc space which has our unused memory. When true,
@@ -138,12 +138,12 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
   }
 
  protected:
-  MallocSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end,
-              byte* limit, size_t growth_limit, bool create_bitmaps, bool can_move_objects,
+  MallocSpace(const std::string& name, MemMap* mem_map, uint8_t* begin, uint8_t* end,
+              uint8_t* limit, size_t growth_limit, bool create_bitmaps, bool can_move_objects,
               size_t starting_size, size_t initial_size);
 
   static MemMap* CreateMemMap(const std::string& name, size_t starting_size, size_t* initial_size,
-                              size_t* growth_limit, size_t* capacity, byte* requested_begin);
+                              size_t* growth_limit, size_t* capacity, uint8_t* requested_begin);
 
   // When true the low memory mode argument specifies that the heap wishes the created allocator to
   // be more aggressive in releasing unused pages.

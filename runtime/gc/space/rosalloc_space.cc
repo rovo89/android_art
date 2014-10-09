@@ -42,8 +42,8 @@ static constexpr bool kVerifyFreedBytes = false;
 // template class ValgrindMallocSpace<RosAllocSpace, allocator::RosAlloc*>;
 
 RosAllocSpace::RosAllocSpace(const std::string& name, MemMap* mem_map,
-                             art::gc::allocator::RosAlloc* rosalloc, byte* begin, byte* end,
-                             byte* limit, size_t growth_limit, bool can_move_objects,
+                             art::gc::allocator::RosAlloc* rosalloc, uint8_t* begin, uint8_t* end,
+                             uint8_t* limit, size_t growth_limit, bool can_move_objects,
                              size_t starting_size, size_t initial_size, bool low_memory_mode)
     : MallocSpace(name, mem_map, begin, end, limit, growth_limit, true, can_move_objects,
                   starting_size, initial_size),
@@ -64,13 +64,13 @@ RosAllocSpace* RosAllocSpace::CreateFromMemMap(MemMap* mem_map, const std::strin
   }
 
   // Protect memory beyond the starting size. MoreCore will add r/w permissions when necessory
-  byte* end = mem_map->Begin() + starting_size;
+  uint8_t* end = mem_map->Begin() + starting_size;
   if (capacity - starting_size > 0) {
     CHECK_MEMORY_CALL(mprotect, (end, capacity - starting_size, PROT_NONE), name);
   }
 
   // Everything is set so record in immutable structure and leave
-  byte* begin = mem_map->Begin();
+  uint8_t* begin = mem_map->Begin();
   // TODO: Fix RosAllocSpace to support valgrind. There is currently some issues with
   // AllocationSize caused by redzones. b/12944686
   if (false && Runtime::Current()->GetHeap()->RunningOnValgrind()) {
@@ -86,7 +86,7 @@ RosAllocSpace::~RosAllocSpace() {
 }
 
 RosAllocSpace* RosAllocSpace::Create(const std::string& name, size_t initial_size,
-                                     size_t growth_limit, size_t capacity, byte* requested_begin,
+                                     size_t growth_limit, size_t capacity, uint8_t* requested_begin,
                                      bool low_memory_mode, bool can_move_objects) {
   uint64_t start_time = 0;
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
@@ -164,7 +164,7 @@ mirror::Object* RosAllocSpace::AllocWithGrowth(Thread* self, size_t num_bytes,
 }
 
 MallocSpace* RosAllocSpace::CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
-                                           byte* begin, byte* end, byte* limit, size_t growth_limit,
+                                           uint8_t* begin, uint8_t* end, uint8_t* limit, size_t growth_limit,
                                            bool can_move_objects) {
   return new RosAllocSpace(name, mem_map, reinterpret_cast<allocator::RosAlloc*>(allocator),
                            begin, end, limit, growth_limit, can_move_objects, starting_size_,

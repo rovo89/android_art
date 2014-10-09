@@ -352,7 +352,7 @@ void MIRGraph::ProcessTryCatchBlocks() {
   }
 
   // Iterate over each of the handlers to enqueue the empty Catch blocks.
-  const byte* handlers_ptr = DexFile::GetCatchHandlerData(*current_code_item_, 0);
+  const uint8_t* handlers_ptr = DexFile::GetCatchHandlerData(*current_code_item_, 0);
   uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
   for (uint32_t idx = 0; idx < handlers_size; idx++) {
     CatchHandlerIterator iterator(handlers_ptr);

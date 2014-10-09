@@ -112,7 +112,7 @@ class MarkSweep : public GarbageCollector {
   virtual void BindBitmaps() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Builds a mark stack with objects on dirty cards and recursively mark until it empties.
-  void RecursiveMarkDirtyObjects(bool paused, byte minimum_age)
+  void RecursiveMarkDirtyObjects(bool paused, uint8_t minimum_age)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -257,7 +257,7 @@ class MarkSweep : public GarbageCollector {
   void PushOnMarkStack(mirror::Object* obj);
 
   // Blackens objects grayed during a garbage collection.
-  void ScanGrayObjects(bool paused, byte minimum_age)
+  void ScanGrayObjects(bool paused, uint8_t minimum_age)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

@@ -110,7 +110,7 @@ class SpaceTest : public CommonRuntimeTest {
   }
 
   typedef MallocSpace* (*CreateSpaceFn)(const std::string& name, size_t initial_size, size_t growth_limit,
-                                        size_t capacity, byte* requested_begin);
+                                        size_t capacity, uint8_t* requested_begin);
   void InitTestBody(CreateSpaceFn create_space);
   void ZygoteSpaceTestBody(CreateSpaceFn create_space);
   void AllocAndFreeTestBody(CreateSpaceFn create_space);

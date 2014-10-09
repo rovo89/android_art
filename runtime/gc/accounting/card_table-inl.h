@@ -27,9 +27,9 @@ namespace art {
 namespace gc {
 namespace accounting {
 
-static inline bool byte_cas(byte old_value, byte new_value, byte* address) {
+static inline bool byte_cas(uint8_t old_value, uint8_t new_value, uint8_t* address) {
 #if defined(__i386__) || defined(__x86_64__)
-  Atomic<byte>* byte_atomic = reinterpret_cast<Atomic<byte>*>(address);
+  Atomic<uint8_t>* byte_atomic = reinterpret_cast<Atomic<uint8_t>*>(address);
   return byte_atomic->CompareExchangeWeakRelaxed(old_value, new_value);
 #else
   // Little endian means most significant byte is on the left.
@@ -49,19 +49,19 @@ static inline bool byte_cas(byte old_value, byte new_value, byte* address) {
 }
 
 template <typename Visitor>
-inline size_t CardTable::Scan(ContinuousSpaceBitmap* bitmap, byte* scan_begin, byte* scan_end,
-                              const Visitor& visitor, const byte minimum_age) const {
-  DCHECK_GE(scan_begin, reinterpret_cast<byte*>(bitmap->HeapBegin()));
+inline size_t CardTable::Scan(ContinuousSpaceBitmap* bitmap, uint8_t* scan_begin, uint8_t* scan_end,
+                              const Visitor& visitor, const uint8_t minimum_age) const {
+  DCHECK_GE(scan_begin, reinterpret_cast<uint8_t*>(bitmap->HeapBegin()));
   // scan_end is the byte after the last byte we scan.
-  DCHECK_LE(scan_end, reinterpret_cast<byte*>(bitmap->HeapLimit()));
-  byte* card_cur = CardFromAddr(scan_begin);
-  byte* card_end = CardFromAddr(AlignUp(scan_end, kCardSize));
+  DCHECK_LE(scan_end, reinterpret_cast<uint8_t*>(bitmap->HeapLimit()));
+  uint8_t* card_cur = CardFromAddr(scan_begin);
+  uint8_t* card_end = CardFromAddr(AlignUp(scan_end, kCardSize));
   CheckCardValid(card_cur);
   CheckCardValid(card_end);
   size_t cards_scanned = 0;
 
   // Handle any unaligned cards at the start.
-  while (!IsAligned<sizeof(word)>(card_cur) && card_cur < card_end) {
+  while (!IsAligned<sizeof(intptr_t)>(card_cur) && card_cur < card_end) {
     if (*card_cur >= minimum_age) {
       uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(card_cur));
       bitmap->VisitMarkedRange(start, start + kCardSize, visitor);
@@ -70,7 +70,7 @@ inline size_t CardTable::Scan(ContinuousSpaceBitmap* bitmap, byte* scan_begin, b
     ++card_cur;
   }
 
-  byte* aligned_end = card_end -
+  uint8_t* aligned_end = card_end -
       (reinterpret_cast<uintptr_t>(card_end) & (sizeof(uintptr_t) - 1));
 
   uintptr_t* word_end = reinterpret_cast<uintptr_t*>(aligned_end);
@@ -85,14 +85,14 @@ inline size_t CardTable::Scan(ContinuousSpaceBitmap* bitmap, byte* scan_begin, b
 
     // Find the first dirty card.
     uintptr_t start_word = *word_cur;
-    uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(reinterpret_cast<byte*>(word_cur)));
+    uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(reinterpret_cast<uint8_t*>(word_cur)));
     // TODO: Investigate if processing continuous runs of dirty cards with a single bitmap visit is
     // more efficient.
     for (size_t i = 0; i < sizeof(uintptr_t); ++i) {
-      if (static_cast<byte>(start_word) >= minimum_age) {
-        auto* card = reinterpret_cast<byte*>(word_cur) + i;
-        DCHECK(*card == static_cast<byte>(start_word) || *card == kCardDirty)
-            << "card " << static_cast<size_t>(*card) << " word " << (start_word & 0xFF);
+      if (static_cast<uint8_t>(start_word) >= minimum_age) {
+        auto* card = reinterpret_cast<uint8_t*>(word_cur) + i;
+        DCHECK(*card == static_cast<uint8_t>(start_word) || *card == kCardDirty)
+            << "card " << static_cast<size_t>(*card) << " intptr_t " << (start_word & 0xFF);
         bitmap->VisitMarkedRange(start, start + kCardSize, visitor);
         ++cards_scanned;
       }
@@ -103,7 +103,7 @@ inline size_t CardTable::Scan(ContinuousSpaceBitmap* bitmap, byte* scan_begin, b
   exit_for:
 
   // Handle any unaligned cards at the end.
-  card_cur = reinterpret_cast<byte*>(word_end);
+  card_cur = reinterpret_cast<uint8_t*>(word_end);
   while (card_cur < card_end) {
     if (*card_cur >= minimum_age) {
       uintptr_t start = reinterpret_cast<uintptr_t>(AddrFromCard(card_cur));
@@ -125,16 +125,16 @@ inline size_t CardTable::Scan(ContinuousSpaceBitmap* bitmap, byte* scan_begin, b
  * us to know which cards got cleared.
  */
 template <typename Visitor, typename ModifiedVisitor>
-inline void CardTable::ModifyCardsAtomic(byte* scan_begin, byte* scan_end, const Visitor& visitor,
+inline void CardTable::ModifyCardsAtomic(uint8_t* scan_begin, uint8_t* scan_end, const Visitor& visitor,
                                          const ModifiedVisitor& modified) {
-  byte* card_cur = CardFromAddr(scan_begin);
-  byte* card_end = CardFromAddr(AlignUp(scan_end, kCardSize));
+  uint8_t* card_cur = CardFromAddr(scan_begin);
+  uint8_t* card_end = CardFromAddr(AlignUp(scan_end, kCardSize));
   CheckCardValid(card_cur);
   CheckCardValid(card_end);
 
   // Handle any unaligned cards at the start.
-  while (!IsAligned<sizeof(word)>(card_cur) && card_cur < card_end) {
-    byte expected, new_value;
+  while (!IsAligned<sizeof(intptr_t)>(card_cur) && card_cur < card_end) {
+    uint8_t expected, new_value;
     do {
       expected = *card_cur;
       new_value = visitor(expected);
@@ -146,9 +146,9 @@ inline void CardTable::ModifyCardsAtomic(byte* scan_begin, byte* scan_end, const
   }
 
   // Handle unaligned cards at the end.
-  while (!IsAligned<sizeof(word)>(card_end) && card_end > card_cur) {
+  while (!IsAligned<sizeof(intptr_t)>(card_end) && card_end > card_cur) {
     --card_end;
-    byte expected, new_value;
+    uint8_t expected, new_value;
     do {
       expected = *card_end;
       new_value = visitor(expected);
@@ -184,10 +184,10 @@ inline void CardTable::ModifyCardsAtomic(byte* scan_begin, byte* scan_end, const
       Atomic<uintptr_t>* atomic_word = reinterpret_cast<Atomic<uintptr_t>*>(word_cur);
       if (LIKELY(atomic_word->CompareExchangeWeakRelaxed(expected_word, new_word))) {
         for (size_t i = 0; i < sizeof(uintptr_t); ++i) {
-          const byte expected_byte = expected_bytes[i];
-          const byte new_byte = new_bytes[i];
+          const uint8_t expected_byte = expected_bytes[i];
+          const uint8_t new_byte = new_bytes[i];
           if (expected_byte != new_byte) {
-            modified(reinterpret_cast<byte*>(word_cur) + i, expected_byte, new_byte);
+            modified(reinterpret_cast<uint8_t*>(word_cur) + i, expected_byte, new_byte);
           }
         }
         break;
@@ -197,7 +197,7 @@ inline void CardTable::ModifyCardsAtomic(byte* scan_begin, byte* scan_end, const
   }
 }
 
-inline void* CardTable::AddrFromCard(const byte *card_addr) const {
+inline void* CardTable::AddrFromCard(const uint8_t *card_addr) const {
   DCHECK(IsValidCard(card_addr))
     << " card_addr: " << reinterpret_cast<const void*>(card_addr)
     << " begin: " << reinterpret_cast<void*>(mem_map_->Begin() + offset_)
@@ -206,15 +206,15 @@ inline void* CardTable::AddrFromCard(const byte *card_addr) const {
   return reinterpret_cast<void*>(offset << kCardShift);
 }
 
-inline byte* CardTable::CardFromAddr(const void *addr) const {
-  byte *card_addr = biased_begin_ + (reinterpret_cast<uintptr_t>(addr) >> kCardShift);
+inline uint8_t* CardTable::CardFromAddr(const void *addr) const {
+  uint8_t *card_addr = biased_begin_ + (reinterpret_cast<uintptr_t>(addr) >> kCardShift);
   // Sanity check the caller was asking for address covered by the card table
   DCHECK(IsValidCard(card_addr)) << "addr: " << addr
       << " card_addr: " << reinterpret_cast<void*>(card_addr);
   return card_addr;
 }
 
-inline void CardTable::CheckCardValid(byte* card) const {
+inline void CardTable::CheckCardValid(uint8_t* card) const {
   DCHECK(IsValidCard(card))
       << " card_addr: " << reinterpret_cast<const void*>(card)
       << " begin: " << reinterpret_cast<void*>(mem_map_->Begin() + offset_)

@@ -45,7 +45,7 @@ class ModUnionClearCardSetVisitor {
     : cleared_cards_(cleared_cards) {
   }
 
-  inline void operator()(byte* card, byte expected_value, byte new_value) const {
+  inline void operator()(uint8_t* card, uint8_t expected_value, uint8_t new_value) const {
     if (expected_value == CardTable::kCardDirty) {
       cleared_cards_->insert(card);
     }
@@ -57,17 +57,17 @@ class ModUnionClearCardSetVisitor {
 
 class ModUnionClearCardVisitor {
  public:
-  explicit ModUnionClearCardVisitor(std::vector<byte*>* cleared_cards)
+  explicit ModUnionClearCardVisitor(std::vector<uint8_t*>* cleared_cards)
     : cleared_cards_(cleared_cards) {
   }
 
-  void operator()(byte* card, byte expected_card, byte new_card) const {
+  void operator()(uint8_t* card, uint8_t expected_card, uint8_t new_card) const {
     if (expected_card == CardTable::kCardDirty) {
       cleared_cards_->push_back(card);
     }
   }
  private:
-  std::vector<byte*>* const cleared_cards_;
+  std::vector<uint8_t*>* const cleared_cards_;
 };
 
 class ModUnionUpdateObjectReferencesVisitor {
@@ -242,7 +242,7 @@ void ModUnionTableReferenceCache::Verify() {
   CardTable* card_table = heap_->GetCardTable();
   ContinuousSpaceBitmap* live_bitmap = space_->GetLiveBitmap();
   for (const auto& ref_pair : references_) {
-    const byte* card = ref_pair.first;
+    const uint8_t* card = ref_pair.first;
     if (*card == CardTable::kCardClean) {
       std::set<const Object*> reference_set;
       for (mirror::HeapReference<Object>* obj_ptr : ref_pair.second) {
@@ -258,14 +258,14 @@ void ModUnionTableReferenceCache::Verify() {
 void ModUnionTableReferenceCache::Dump(std::ostream& os) {
   CardTable* card_table = heap_->GetCardTable();
   os << "ModUnionTable cleared cards: [";
-  for (byte* card_addr : cleared_cards_) {
+  for (uint8_t* card_addr : cleared_cards_) {
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));
     uintptr_t end = start + CardTable::kCardSize;
     os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << ",";
   }
   os << "]\nModUnionTable references: [";
   for (const auto& ref_pair : references_) {
-    const byte* card_addr = ref_pair.first;
+    const uint8_t* card_addr = ref_pair.first;
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));
     uintptr_t end = start + CardTable::kCardSize;
     os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << "->{";
@@ -349,7 +349,7 @@ void ModUnionTableCardCache::UpdateAndMarkReferences(MarkHeapReferenceCallback* 
 void ModUnionTableCardCache::Dump(std::ostream& os) {
   CardTable* card_table = heap_->GetCardTable();
   os << "ModUnionTable dirty cards: [";
-  for (const byte* card_addr : cleared_cards_) {
+  for (const uint8_t* card_addr : cleared_cards_) {
     auto start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));
     auto end = start + CardTable::kCardSize;
     os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << "\n";
@@ -359,7 +359,7 @@ void ModUnionTableCardCache::Dump(std::ostream& os) {
 
 void ModUnionTableCardCache::SetCards() {
   CardTable* card_table = heap_->GetCardTable();
-  for (byte* addr = space_->Begin(); addr < AlignUp(space_->End(), CardTable::kCardSize);
+  for (uint8_t* addr = space_->Begin(); addr < AlignUp(space_->End(), CardTable::kCardSize);
        addr += CardTable::kCardSize) {
     cleared_cards_.insert(card_table->CardFromAddr(addr));
   }

@@ -133,7 +133,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                         bool allow_soft_failures,
                                                         std::string* error) {
   DCHECK(class_def != nullptr);
-  const byte* class_data = dex_file->GetClassData(*class_def);
+  const uint8_t* class_data = dex_file->GetClassData(*class_def);
   if (class_data == nullptr) {
     // empty class, probably a marker interface
     return kNoFailure;
@@ -659,7 +659,7 @@ bool MethodVerifier::ScanTryCatchBlocks() {
     }
   }
   // Iterate over each of the handlers to verify target addresses.
-  const byte* handlers_ptr = DexFile::GetCatchHandlerData(*code_item_, 0);
+  const uint8_t* handlers_ptr = DexFile::GetCatchHandlerData(*code_item_, 0);
   uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   for (uint32_t idx = 0; idx < handlers_size; idx++) {
@@ -3012,7 +3012,7 @@ const RegType& MethodVerifier::ResolveClassAndCheckAccess(uint32_t class_idx) {
 const RegType& MethodVerifier::GetCaughtExceptionType() {
   const RegType* common_super = nullptr;
   if (code_item_->tries_size_ != 0) {
-    const byte* handlers_ptr = DexFile::GetCatchHandlerData(*code_item_, 0);
+    const uint8_t* handlers_ptr = DexFile::GetCatchHandlerData(*code_item_, 0);
     uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
     for (uint32_t i = 0; i < handlers_size; i++) {
       CatchHandlerIterator iterator(handlers_ptr);

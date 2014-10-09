@@ -44,8 +44,8 @@ class PACKED(4) ImageHeader {
   bool IsValid() const;
   const char* GetMagic() const;
 
-  byte* GetImageBegin() const {
-    return reinterpret_cast<byte*>(image_begin_);
+  uint8_t* GetImageBegin() const {
+    return reinterpret_cast<uint8_t*>(image_begin_);
   }
 
   size_t GetImageSize() const {
@@ -68,20 +68,20 @@ class PACKED(4) ImageHeader {
     oat_checksum_ = oat_checksum;
   }
 
-  byte* GetOatFileBegin() const {
-    return reinterpret_cast<byte*>(oat_file_begin_);
+  uint8_t* GetOatFileBegin() const {
+    return reinterpret_cast<uint8_t*>(oat_file_begin_);
   }
 
-  byte* GetOatDataBegin() const {
-    return reinterpret_cast<byte*>(oat_data_begin_);
+  uint8_t* GetOatDataBegin() const {
+    return reinterpret_cast<uint8_t*>(oat_data_begin_);
   }
 
-  byte* GetOatDataEnd() const {
-    return reinterpret_cast<byte*>(oat_data_end_);
+  uint8_t* GetOatDataEnd() const {
+    return reinterpret_cast<uint8_t*>(oat_data_end_);
   }
 
-  byte* GetOatFileEnd() const {
-    return reinterpret_cast<byte*>(oat_file_end_);
+  uint8_t* GetOatFileEnd() const {
+    return reinterpret_cast<uint8_t*>(oat_file_end_);
   }
 
   off_t GetPatchDelta() const {
@@ -121,11 +121,11 @@ class PACKED(4) ImageHeader {
   void RelocateImage(off_t delta);
 
  private:
-  static const byte kImageMagic[4];
-  static const byte kImageVersion[4];
+  static const uint8_t kImageMagic[4];
+  static const uint8_t kImageVersion[4];
 
-  byte magic_[4];
-  byte version_[4];
+  uint8_t magic_[4];
+  uint8_t version_[4];
 
   // Required base address for mapping the image.
   uint32_t image_begin_;

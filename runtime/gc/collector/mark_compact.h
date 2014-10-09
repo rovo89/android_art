@@ -227,7 +227,7 @@ class MarkCompact : public GarbageCollector {
   std::string collector_name_;
 
   // The bump pointer in the space where the next forwarding address will be.
-  byte* bump_pointer_;
+  uint8_t* bump_pointer_;
   // How many live objects we have in the space.
   size_t live_objects_in_space_;
 

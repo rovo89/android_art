@@ -40,13 +40,13 @@ class ElfFile {
   // Load segments into memory based on PT_LOAD program headers
   bool Load(bool executable, std::string* error_msg);
 
-  const byte* FindDynamicSymbolAddress(const std::string& symbol_name) const;
+  const uint8_t* FindDynamicSymbolAddress(const std::string& symbol_name) const;
 
   size_t Size() const;
 
-  byte* Begin() const;
+  uint8_t* Begin() const;
 
-  byte* End() const;
+  uint8_t* End() const;
 
   const File& GetFile() const;
 

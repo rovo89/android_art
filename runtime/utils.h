@@ -108,23 +108,23 @@ static inline bool IsAlignedParam(T x, int n) {
   DCHECK(::art::IsAlignedParam(value, alignment)) << reinterpret_cast<const void*>(value)
 
 // Check whether an N-bit two's-complement representation can hold value.
-static inline bool IsInt(int N, word value) {
+static inline bool IsInt(int N, intptr_t value) {
   CHECK_LT(0, N);
-  CHECK_LT(N, kBitsPerWord);
-  word limit = static_cast<word>(1) << (N - 1);
+  CHECK_LT(N, kBitsPerIntPtrT);
+  intptr_t limit = static_cast<intptr_t>(1) << (N - 1);
   return (-limit <= value) && (value < limit);
 }
 
-static inline bool IsUint(int N, word value) {
+static inline bool IsUint(int N, intptr_t value) {
   CHECK_LT(0, N);
-  CHECK_LT(N, kBitsPerWord);
-  word limit = static_cast<word>(1) << N;
+  CHECK_LT(N, kBitsPerIntPtrT);
+  intptr_t limit = static_cast<intptr_t>(1) << N;
   return (0 <= value) && (value < limit);
 }
 
-static inline bool IsAbsoluteUint(int N, word value) {
+static inline bool IsAbsoluteUint(int N, intptr_t value) {
   CHECK_LT(0, N);
-  CHECK_LT(N, kBitsPerWord);
+  CHECK_LT(N, kBitsPerIntPtrT);
   if (value < 0) value = -value;
   return IsUint(N, value);
 }

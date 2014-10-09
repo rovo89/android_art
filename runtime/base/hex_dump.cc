@@ -35,7 +35,7 @@ void HexDump::Dump(std::ostream& os) const {
   static const char gHexDigit[] = "0123456789abcdef";
   const unsigned char* addr = reinterpret_cast<const unsigned char*>(address_);
   // 01234560: 00 11 22 33 44 55 66 77 88 99 aa bb cc dd ee ff  0123456789abcdef
-  char out[(kBitsPerWord / 4) + /* offset */
+  char out[(kBitsPerIntPtrT / 4) + /* offset */
            1 + /* colon */
            (16 * 3) + /* 16 hex digits and space */
            2 + /* white space */
@@ -49,7 +49,7 @@ void HexDump::Dump(std::ostream& os) const {
     offset = 0;
   }
   memset(out, ' ', sizeof(out)-1);
-  out[kBitsPerWord / 4] = ':';
+  out[kBitsPerIntPtrT / 4] = ':';
   out[sizeof(out)-1] = '\0';
 
   size_t byte_count = byte_count_;
@@ -58,11 +58,11 @@ void HexDump::Dump(std::ostream& os) const {
     size_t line_offset = offset & ~0x0f;
 
     char* hex = out;
-    char* asc = out + (kBitsPerWord / 4) + /* offset */ 1 + /* colon */
+    char* asc = out + (kBitsPerIntPtrT / 4) + /* offset */ 1 + /* colon */
         (16 * 3) + /* 16 hex digits and space */ 2 /* white space */;
 
-    for (int i = 0; i < (kBitsPerWord / 4); i++) {
-      *hex++ = gHexDigit[line_offset >> (kBitsPerWord - 4)];
+    for (int i = 0; i < (kBitsPerIntPtrT / 4); i++) {
+      *hex++ = gHexDigit[line_offset >> (kBitsPerIntPtrT - 4)];
       line_offset <<= 4;
     }
     hex++;

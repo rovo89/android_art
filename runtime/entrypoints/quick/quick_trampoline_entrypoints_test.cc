@@ -95,7 +95,7 @@ TEST_F(QuickTrampolineEntrypointsTest, PointerSize) {
 TEST_F(QuickTrampolineEntrypointsTest, ReturnPC) {
   // Ensure that the computation in callee_save_frame.h correct.
   // Note: we can only check against the kRuntimeISA, because the ArtMethod computation uses
-  // kPointerSize, which is wrong when the target bitwidth is not the same as the host's.
+  // sizeof(void*), which is wrong when the target bitwidth is not the same as the host's.
   CheckPCOffset(kRuntimeISA, Runtime::kRefsAndArgs,
                 GetCalleeSavePCOffset(kRuntimeISA, Runtime::kRefsAndArgs));
   CheckPCOffset(kRuntimeISA, Runtime::kRefsOnly,

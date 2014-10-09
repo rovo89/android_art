@@ -64,8 +64,8 @@ class PortableArgumentVisitor {
     caller_mh_(caller_mh),
     args_in_regs_(ComputeArgsInRegs(caller_mh)),
     num_params_(caller_mh.NumArgs()),
-    reg_args_(reinterpret_cast<byte*>(sp) + PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET),
-    stack_args_(reinterpret_cast<byte*>(sp) + PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE
+    reg_args_(reinterpret_cast<uint8_t*>(sp) + PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__R1_OFFSET),
+    stack_args_(reinterpret_cast<uint8_t*>(sp) + PORTABLE_CALLEE_SAVE_FRAME__REF_AND_ARGS__FRAME_SIZE
                 + PORTABLE_STACK_ARG_SKIP),
     cur_args_(reg_args_),
     cur_arg_index_(0),
@@ -88,8 +88,8 @@ class PortableArgumentVisitor {
     return caller_mh_.GetParamPrimitiveType(param_index_);
   }
 
-  byte* GetParamAddress() const {
-    return cur_args_ + (cur_arg_index_ * kPointerSize);
+  uint8_t* GetParamAddress() const {
+    return cur_args_ + (cur_arg_index_ * sizeof(void*));
   }
 
   void VisitArguments() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -137,9 +137,9 @@ class PortableArgumentVisitor {
   MethodHelper& caller_mh_;
   const size_t args_in_regs_;
   const size_t num_params_;
-  byte* const reg_args_;
-  byte* const stack_args_;
-  byte* cur_args_;
+  uint8_t* const reg_args_;
+  uint8_t* const stack_args_;
+  uint8_t* cur_args_;
   size_t cur_arg_index_;
   size_t param_index_;
 };

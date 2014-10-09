@@ -129,7 +129,7 @@ void X86_64Context::DoLongJump() {
   }
 
   // We want to load the stack pointer one slot below so that the ret will pop eip.
-  uintptr_t rsp = gprs[kNumberOfCpuRegisters - RSP - 1] - kWordSize;
+  uintptr_t rsp = gprs[kNumberOfCpuRegisters - RSP - 1] - sizeof(intptr_t);
   gprs[kNumberOfCpuRegisters] = rsp;
   *(reinterpret_cast<uintptr_t*>(rsp)) = rip_;
 

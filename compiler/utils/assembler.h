@@ -56,19 +56,19 @@ namespace x86_64 {
 
 class ExternalLabel {
  public:
-  ExternalLabel(const char* name, uword address)
+  ExternalLabel(const char* name, uintptr_t address)
       : name_(name), address_(address) {
     DCHECK(name != nullptr);
   }
 
   const char* name() const { return name_; }
-  uword address() const {
+  uintptr_t address() const {
     return address_;
   }
 
  private:
   const char* name_;
-  const uword address_;
+  const uintptr_t address_;
 };
 
 class Label {
@@ -84,12 +84,12 @@ class Label {
   // for unused labels.
   int Position() const {
     CHECK(!IsUnused());
-    return IsBound() ? -position_ - kPointerSize : position_ - kPointerSize;
+    return IsBound() ? -position_ - sizeof(void*) : position_ - sizeof(void*);
   }
 
   int LinkPosition() const {
     CHECK(IsLinked());
-    return position_ - kPointerSize;
+    return position_ - sizeof(void*);
   }
 
   bool IsBound() const { return position_ < 0; }
@@ -105,13 +105,13 @@ class Label {
 
   void BindTo(int position) {
     CHECK(!IsBound());
-    position_ = -position - kPointerSize;
+    position_ = -position - sizeof(void*);
     CHECK(IsBound());
   }
 
   void LinkTo(int position) {
     CHECK(!IsBound());
-    position_ = position + kPointerSize;
+    position_ = position + sizeof(void*);
     CHECK(IsLinked());
   }
 
@@ -236,7 +236,7 @@ class AssemblerBuffer {
     return cursor_ - contents_;
   }
 
-  byte* contents() const { return contents_; }
+  uint8_t* contents() const { return contents_; }
 
   // Copy the assembled instructions into the specified memory block
   // and apply all fixups.
@@ -316,9 +316,9 @@ class AssemblerBuffer {
   // for a single, fast space check per instruction.
   static const int kMinimumGap = 32;
 
-  byte* contents_;
-  byte* cursor_;
-  byte* limit_;
+  uint8_t* contents_;
+  uint8_t* cursor_;
+  uint8_t* limit_;
   AssemblerFixup* fixup_;
 #ifndef NDEBUG
   bool fixups_processed_;
@@ -327,8 +327,8 @@ class AssemblerBuffer {
   // Head of linked list of slow paths
   SlowPath* slow_path_;
 
-  byte* cursor() const { return cursor_; }
-  byte* limit() const { return limit_; }
+  uint8_t* cursor() const { return cursor_; }
+  uint8_t* limit() const { return limit_; }
   size_t Capacity() const {
     CHECK_GE(limit_, contents_);
     return (limit_ - contents_) + kMinimumGap;
@@ -340,7 +340,7 @@ class AssemblerBuffer {
 
   // Compute the limit based on the data area and the capacity. See
   // description of kMinimumGap for the reasoning behind the value.
-  static byte* ComputeLimit(byte* data, size_t capacity) {
+  static uint8_t* ComputeLimit(uint8_t* data, size_t capacity) {
     return data + capacity - kMinimumGap;
   }
 

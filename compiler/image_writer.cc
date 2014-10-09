@@ -559,10 +559,10 @@ void ImageWriter::CalculateNewObjectOffsets() {
 
 void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
   CHECK_NE(0U, oat_loaded_size);
-  const byte* oat_file_begin = GetOatFileBegin();
-  const byte* oat_file_end = oat_file_begin + oat_loaded_size;
+  const uint8_t* oat_file_begin = GetOatFileBegin();
+  const uint8_t* oat_file_end = oat_file_begin + oat_loaded_size;
   oat_data_begin_ = oat_file_begin + oat_data_offset;
-  const byte* oat_data_end = oat_data_begin_ + oat_file_->Size();
+  const uint8_t* oat_data_end = oat_data_begin_ + oat_file_->Size();
 
   // Return to write header at start of image with future location of image_roots. At this point,
   // image_end_ is the size of the image (excluding bitmaps).
@@ -604,8 +604,8 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* obj, void* arg) {
   ImageWriter* image_writer = reinterpret_cast<ImageWriter*>(arg);
   // see GetLocalAddress for similar computation
   size_t offset = image_writer->GetImageOffset(obj);
-  byte* dst = image_writer->image_->Begin() + offset;
-  const byte* src = reinterpret_cast<const byte*>(obj);
+  uint8_t* dst = image_writer->image_->Begin() + offset;
+  const uint8_t* src = reinterpret_cast<const uint8_t*>(obj);
   size_t n = obj->SizeOf();
   DCHECK_LT(offset + n, image_writer->image_->Size());
   memcpy(dst, src, n);
@@ -688,7 +688,7 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
   }
 }
 
-const byte* ImageWriter::GetQuickCode(mirror::ArtMethod* method, bool* quick_is_interpreted) {
+const uint8_t* ImageWriter::GetQuickCode(mirror::ArtMethod* method, bool* quick_is_interpreted) {
   DCHECK(!method->IsResolutionMethod() && !method->IsImtConflictMethod() &&
          !method->IsAbstract()) << PrettyMethod(method);
 
@@ -696,7 +696,7 @@ const byte* ImageWriter::GetQuickCode(mirror::ArtMethod* method, bool* quick_is_
   // trampoline.
 
   // Quick entrypoint:
-  const byte* quick_code = GetOatAddress(method->GetQuickOatCodeOffset());
+  const uint8_t* quick_code = GetOatAddress(method->GetQuickOatCodeOffset());
   *quick_is_interpreted = false;
   if (quick_code != nullptr &&
       (!method->IsStatic() || method->IsConstructor() || method->GetDeclaringClass()->IsInitialized())) {
@@ -718,7 +718,7 @@ const byte* ImageWriter::GetQuickCode(mirror::ArtMethod* method, bool* quick_is_
   return quick_code;
 }
 
-const byte* ImageWriter::GetQuickEntryPoint(mirror::ArtMethod* method) {
+const uint8_t* ImageWriter::GetQuickEntryPoint(mirror::ArtMethod* method) {
   // Calculate the quick entry point following the same logic as FixupMethod() below.
   // The resolution method has a special trampoline to call.
   if (UNLIKELY(method == Runtime::Current()->GetResolutionMethod())) {
@@ -757,14 +757,14 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
       copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(GetOatAddress(portable_to_interpreter_bridge_offset_));
       copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_to_interpreter_bridge_offset_));
       copy->SetEntryPointFromInterpreter<kVerifyNone>(reinterpret_cast<EntryPointFromInterpreter*>
-          (const_cast<byte*>(GetOatAddress(interpreter_to_interpreter_bridge_offset_))));
+          (const_cast<uint8_t*>(GetOatAddress(interpreter_to_interpreter_bridge_offset_))));
     } else {
       bool quick_is_interpreted;
-      const byte* quick_code = GetQuickCode(orig, &quick_is_interpreted);
+      const uint8_t* quick_code = GetQuickCode(orig, &quick_is_interpreted);
       copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(quick_code);
 
       // Portable entrypoint:
-      const byte* portable_code = GetOatAddress(orig->GetPortableOatCodeOffset());
+      const uint8_t* portable_code = GetOatAddress(orig->GetPortableOatCodeOffset());
       bool portable_is_interpreted = false;
       if (portable_code != nullptr &&
           (!orig->IsStatic() || orig->IsConstructor() || orig->GetDeclaringClass()->IsInitialized())) {
@@ -794,7 +794,7 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
       } else {
         // Normal (non-abstract non-native) methods have various tables to relocate.
         uint32_t native_gc_map_offset = orig->GetOatNativeGcMapOffset();
-        const byte* native_gc_map = GetOatAddress(native_gc_map_offset);
+        const uint8_t* native_gc_map = GetOatAddress(native_gc_map_offset);
         copy->SetNativeGcMap<kVerifyNone>(reinterpret_cast<const uint8_t*>(native_gc_map));
       }
 
@@ -805,7 +805,7 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
           : interpreter_to_compiled_code_bridge_offset_;
       copy->SetEntryPointFromInterpreter<kVerifyNone>(
           reinterpret_cast<EntryPointFromInterpreter*>(
-              const_cast<byte*>(GetOatAddress(interpreter_code))));
+              const_cast<uint8_t*>(GetOatAddress(interpreter_code))));
     }
   }
 }
