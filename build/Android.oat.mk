@@ -21,7 +21,7 @@
 # The main rules to build the default "boot" image are in
 # build/core/dex_preopt_libart.mk
 
-include art/build/Android.common_path.mk
+include art/build/Android.common_build.mk
 
 # Use dex2oat debug version for better error reporting
 # $(1): 2ND_ or undefined, 2ND_ for 32-bit host builds.
@@ -31,7 +31,7 @@ define create-core-oat-host-rules
 $$($(1)HOST_CORE_IMG_OUT): $$(HOST_CORE_DEX_LOCATIONS) $$(DEX2OAT_DEPENDENCY)
 	@echo "host dex2oat: $$@ ($$?)"
 	@mkdir -p $$(dir $$@)
-	$$(hide) $$(DEX2OAT) --runtime-arg -Xms$(DEX2OAT_IMAGE_XMS) --runtime-arg -Xmx$(DEX2OAT_IMAGE_XMX) \
+	$$(hide) $$(DEX2OAT) $$(DEX2OAT_FLAGS) --runtime-arg -Xms$(DEX2OAT_IMAGE_XMS) --runtime-arg -Xmx$(DEX2OAT_IMAGE_XMX) \
 	  --image-classes=$$(PRELOADED_CLASSES) $$(addprefix --dex-file=,$$(HOST_CORE_DEX_FILES)) \
 	  $$(addprefix --dex-location=,$$(HOST_CORE_DEX_LOCATIONS)) --oat-file=$$($(1)HOST_CORE_OAT_OUT) \
 	  --oat-location=$$($(1)HOST_CORE_OAT) --image=$$($(1)HOST_CORE_IMG_OUT) \
@@ -54,7 +54,7 @@ define create-core-oat-target-rules
 $$($(1)TARGET_CORE_IMG_OUT): $$($(1)TARGET_CORE_DEX_FILES) $$(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $$@ ($$?)"
 	@mkdir -p $$(dir $$@)
-	$$(hide) $$(DEX2OAT) --runtime-arg -Xms$(DEX2OAT_XMS) --runtime-arg -Xmx$(DEX2OAT_XMX) \
+	$$(hide) $$(DEX2OAT) $$(DEX2OAT_FLAGS) --runtime-arg -Xms$(DEX2OAT_XMS) --runtime-arg -Xmx$(DEX2OAT_XMX) \
 	  --image-classes=$$(PRELOADED_CLASSES) $$(addprefix --dex-file=,$$(TARGET_CORE_DEX_FILES)) \
 	  $$(addprefix --dex-location=,$$(TARGET_CORE_DEX_LOCATIONS)) --oat-file=$$($(1)TARGET_CORE_OAT_OUT) \
 	  --oat-location=$$($(1)TARGET_CORE_OAT) --image=$$($(1)TARGET_CORE_IMG_OUT) \
