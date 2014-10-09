@@ -5191,36 +5191,31 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
 void ClassLinker::CreateReferenceInstanceOffsets(Handle<mirror::Class> klass) {
   uint32_t reference_offsets = 0;
   mirror::Class* super_class = klass->GetSuperClass();
+  // Leave the reference offsets as 0 for mirror::Object (the class field is handled specially).
   if (super_class != nullptr) {
     reference_offsets = super_class->GetReferenceInstanceOffsets();
-    // If our superclass overflowed, we don't stand a chance.
-    if (reference_offsets == CLASS_WALK_SUPER) {
-      klass->SetReferenceInstanceOffsets(reference_offsets);
-      return;
-    }
-  }
-  CreateReferenceOffsets(klass, reference_offsets);
-}
-
-void ClassLinker::CreateReferenceOffsets(Handle<mirror::Class> klass,
-                                         uint32_t reference_offsets) {
-  size_t num_reference_fields = klass->NumReferenceInstanceFieldsDuringLinking();
-  mirror::ObjectArray<mirror::ArtField>* fields = klass->GetIFields();
-  // All of the fields that contain object references are guaranteed
-  // to be at the beginning of the fields list.
-  for (size_t i = 0; i < num_reference_fields; ++i) {
-    // Note that byte_offset is the offset from the beginning of
-    // object, not the offset into instance data
-    mirror::ArtField* field = fields->Get(i);
-    MemberOffset byte_offset = field->GetOffsetDuringLinking();
-    CHECK_EQ(byte_offset.Uint32Value() & (CLASS_OFFSET_ALIGNMENT - 1), 0U);
-    if (CLASS_CAN_ENCODE_OFFSET(byte_offset.Uint32Value())) {
-      uint32_t new_bit = CLASS_BIT_FROM_OFFSET(byte_offset.Uint32Value());
-      CHECK_NE(new_bit, 0U);
-      reference_offsets |= new_bit;
-    } else {
-      reference_offsets = CLASS_WALK_SUPER;
-      break;
+    // Compute reference offsets unless our superclass overflowed.
+    if (reference_offsets != mirror::Class::kClassWalkSuper) {
+      size_t num_reference_fields = klass->NumReferenceInstanceFieldsDuringLinking();
+      mirror::ObjectArray<mirror::ArtField>* fields = klass->GetIFields();
+      // All of the fields that contain object references are guaranteed
+      // to be at the beginning of the fields list.
+      for (size_t i = 0; i < num_reference_fields; ++i) {
+        // Note that byte_offset is the offset from the beginning of
+        // object, not the offset into instance data
+        mirror::ArtField* field = fields->Get(i);
+        MemberOffset byte_offset = field->GetOffsetDuringLinking();
+        uint32_t displaced_bitmap_position =
+            (byte_offset.Uint32Value() - mirror::kObjectHeaderSize) /
+            sizeof(mirror::HeapReference<mirror::Object>);
+        if (displaced_bitmap_position >= 32) {
+          // Can't encode offset so fall back on slow-path.
+          reference_offsets = mirror::Class::kClassWalkSuper;
+          break;
+        } else {
+          reference_offsets |= (1 << displaced_bitmap_position);
+        }
+      }
     }
   }
   klass->SetReferenceInstanceOffsets(reference_offsets);
