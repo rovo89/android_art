@@ -172,7 +172,7 @@ class MonitorPool {
   // To avoid race issues when resizing, we keep all the previous arrays.
   std::vector<uintptr_t*> old_chunk_arrays_ GUARDED_BY(Locks::allocated_monitor_ids_lock_);
 
-  typedef TrackingAllocator<byte, kAllocatorTagMonitorPool> Allocator;
+  typedef TrackingAllocator<uint8_t, kAllocatorTagMonitorPool> Allocator;
   Allocator allocator_;
 
   // Start of free list of monitors.

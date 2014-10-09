@@ -1208,7 +1208,7 @@ bool OatWriter::VisitDexMethods(DexMethodVisitor* visitor) {
         return false;
       }
       const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
-      const byte* class_data = dex_file->GetClassData(class_def);
+      const uint8_t* class_data = dex_file->GetClassData(class_def);
       if (class_data != NULL) {  // ie not an empty class, such as a marker interface
         ClassDataItemIterator it(*dex_file, class_data);
         while (it.HasNextStaticField()) {

@@ -464,7 +464,7 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
            class_def_index < dex_file->NumClassDefs();
            class_def_index++) {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(class_def_index);
-        const byte* class_data = dex_file->GetClassData(class_def);
+        const uint8_t* class_data = dex_file->GetClassData(class_def);
         if (class_data == NULL) {
           continue;
         }

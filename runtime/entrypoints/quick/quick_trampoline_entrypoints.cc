@@ -202,7 +202,7 @@ class QuickArgumentVisitor {
   static mirror::ArtMethod* GetCallingMethod(StackReference<mirror::ArtMethod>* sp)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(sp->AsMirrorPtr()->IsCalleeSaveMethod());
-    byte* previous_sp = reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize;
+    uint8_t* previous_sp = reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize;
     return reinterpret_cast<StackReference<mirror::ArtMethod>*>(previous_sp)->AsMirrorPtr();
   }
 
@@ -210,16 +210,16 @@ class QuickArgumentVisitor {
   static uintptr_t GetCallingPc(StackReference<mirror::ArtMethod>* sp)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(sp->AsMirrorPtr()->IsCalleeSaveMethod());
-    byte* lr = reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_LrOffset;
+    uint8_t* lr = reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_LrOffset;
     return *reinterpret_cast<uintptr_t*>(lr);
   }
 
   QuickArgumentVisitor(StackReference<mirror::ArtMethod>* sp, bool is_static, const char* shorty,
                        uint32_t shorty_len) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
           is_static_(is_static), shorty_(shorty), shorty_len_(shorty_len),
-          gpr_args_(reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset),
-          fpr_args_(reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset),
-          stack_args_(reinterpret_cast<byte*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize
+          gpr_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset),
+          fpr_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset),
+          stack_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize
                       + StackArgumentStartFromShorty(is_static, shorty, shorty_len)),
           gpr_index_(0), fpr_index_(0), stack_index_(0), cur_type_(Primitive::kPrimVoid),
           is_split_long_or_double_(false) {}
@@ -232,7 +232,7 @@ class QuickArgumentVisitor {
     return cur_type_;
   }
 
-  byte* GetParamAddress() const {
+  uint8_t* GetParamAddress() const {
     if (!kQuickSoftFloatAbi) {
       Primitive::Type type = GetParamPrimitiveType();
       if (UNLIKELY((type == Primitive::kPrimDouble) || (type == Primitive::kPrimFloat))) {
@@ -398,9 +398,9 @@ class QuickArgumentVisitor {
   const uint32_t shorty_len_;
 
  private:
-  byte* const gpr_args_;  // Address of GPR arguments in callee save frame.
-  byte* const fpr_args_;  // Address of FPR arguments in callee save frame.
-  byte* const stack_args_;  // Address of stack arguments in caller's frame.
+  uint8_t* const gpr_args_;  // Address of GPR arguments in callee save frame.
+  uint8_t* const fpr_args_;  // Address of FPR arguments in callee save frame.
+  uint8_t* const stack_args_;  // Address of stack arguments in caller's frame.
   uint32_t gpr_index_;  // Index into spilled GPRs.
   uint32_t fpr_index_;  // Index into spilled FPRs.
   uint32_t stack_index_;  // Index into arguments on the stack.
@@ -1286,7 +1286,7 @@ class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
     // We have to squeeze in the HandleScope, and relocate the method pointer.
 
     // "Free" the slot for the method.
-    sp8 += kPointerSize;  // In the callee-save frame we use a full pointer.
+    sp8 += sizeof(void*);  // In the callee-save frame we use a full pointer.
 
     // Under the callee saves put handle scope and new method stack reference.
     *handle_scope_entries = num_handle_scope_references_;
@@ -1868,7 +1868,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
 
     // Find the caller PC.
     constexpr size_t pc_offset = GetCalleeSavePCOffset(kRuntimeISA, Runtime::kRefsAndArgs);
-    uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(reinterpret_cast<byte*>(sp) + pc_offset);
+    uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(sp) + pc_offset);
 
     // Map the caller PC to a dex PC.
     uint32_t dex_pc = caller_method->ToDexPc(caller_pc);

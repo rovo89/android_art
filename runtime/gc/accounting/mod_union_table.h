@@ -50,8 +50,8 @@ class HeapBitmap;
 // cleared between GC phases, reducing the number of dirty cards that need to be scanned.
 class ModUnionTable {
  public:
-  typedef std::set<byte*, std::less<byte*>,
-                   TrackingAllocator<byte*, kAllocatorTagModUnionCardSet>> CardSet;
+  typedef std::set<uint8_t*, std::less<uint8_t*>,
+                   TrackingAllocator<uint8_t*, kAllocatorTagModUnionCardSet>> CardSet;
 
   explicit ModUnionTable(const std::string& name, Heap* heap, space::ContinuousSpace* space)
       : name_(name),
@@ -131,7 +131,7 @@ class ModUnionTableReferenceCache : public ModUnionTable {
   ModUnionTable::CardSet cleared_cards_;
 
   // Maps from dirty cards to their corresponding alloc space references.
-  AllocationTrackingSafeMap<const byte*, std::vector<mirror::HeapReference<mirror::Object>*>,
+  AllocationTrackingSafeMap<const uint8_t*, std::vector<mirror::HeapReference<mirror::Object>*>,
                             kAllocatorTagModUnionReferenceArray> references_;
 };
 

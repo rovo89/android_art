@@ -689,7 +689,7 @@ class CardScanTask : public MarkStackTask<false> {
  public:
   CardScanTask(ThreadPool* thread_pool, MarkSweep* mark_sweep,
                accounting::ContinuousSpaceBitmap* bitmap,
-               byte* begin, byte* end, byte minimum_age, size_t mark_stack_size,
+               uint8_t* begin, uint8_t* end, uint8_t minimum_age, size_t mark_stack_size,
                Object** mark_stack_obj)
       : MarkStackTask<false>(thread_pool, mark_sweep, mark_stack_size, mark_stack_obj),
         bitmap_(bitmap),
@@ -700,9 +700,9 @@ class CardScanTask : public MarkStackTask<false> {
 
  protected:
   accounting::ContinuousSpaceBitmap* const bitmap_;
-  byte* const begin_;
-  byte* const end_;
-  const byte minimum_age_;
+  uint8_t* const begin_;
+  uint8_t* const end_;
+  const uint8_t minimum_age_;
 
   virtual void Finalize() {
     delete this;
@@ -730,7 +730,7 @@ size_t MarkSweep::GetThreadCount(bool paused) const {
   }
 }
 
-void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
+void MarkSweep::ScanGrayObjects(bool paused, uint8_t minimum_age) {
   accounting::CardTable* card_table = GetHeap()->GetCardTable();
   ThreadPool* thread_pool = GetHeap()->GetThreadPool();
   size_t thread_count = GetThreadCount(paused);
@@ -754,8 +754,8 @@ void MarkSweep::ScanGrayObjects(bool paused, byte minimum_age) {
       if (space->GetMarkBitmap() == nullptr) {
         continue;
       }
-      byte* card_begin = space->Begin();
-      byte* card_end = space->End();
+      uint8_t* card_begin = space->Begin();
+      uint8_t* card_end = space->End();
       // Align up the end address. For example, the image space's end
       // may not be card-size-aligned.
       card_end = AlignUp(card_end, accounting::CardTable::kCardSize);
@@ -910,7 +910,7 @@ mirror::Object* MarkSweep::IsMarkedCallback(mirror::Object* object, void* arg) {
   return nullptr;
 }
 
-void MarkSweep::RecursiveMarkDirtyObjects(bool paused, byte minimum_age) {
+void MarkSweep::RecursiveMarkDirtyObjects(bool paused, uint8_t minimum_age) {
   ScanGrayObjects(paused, minimum_age);
   ProcessMarkStack(paused);
 }

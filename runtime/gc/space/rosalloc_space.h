@@ -39,7 +39,7 @@ class RosAllocSpace : public MallocSpace {
   // the caller should call Begin on the returned space to confirm the
   // request was granted.
   static RosAllocSpace* Create(const std::string& name, size_t initial_size, size_t growth_limit,
-                               size_t capacity, byte* requested_begin, bool low_memory_mode,
+                               size_t capacity, uint8_t* requested_begin, bool low_memory_mode,
                                bool can_move_objects);
   static RosAllocSpace* CreateFromMemMap(MemMap* mem_map, const std::string& name,
                                          size_t starting_size, size_t initial_size,
@@ -93,7 +93,7 @@ class RosAllocSpace : public MallocSpace {
   void Clear() OVERRIDE;
 
   MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
-                              byte* begin, byte* end, byte* limit, size_t growth_limit,
+                              uint8_t* begin, uint8_t* end, uint8_t* limit, size_t growth_limit,
                               bool can_move_objects) OVERRIDE;
 
   uint64_t GetBytesAllocated() OVERRIDE;
@@ -127,7 +127,7 @@ class RosAllocSpace : public MallocSpace {
 
  protected:
   RosAllocSpace(const std::string& name, MemMap* mem_map, allocator::RosAlloc* rosalloc,
-                byte* begin, byte* end, byte* limit, size_t growth_limit, bool can_move_objects,
+                uint8_t* begin, uint8_t* end, uint8_t* limit, size_t growth_limit, bool can_move_objects,
                 size_t starting_size, size_t initial_size, bool low_memory_mode);
 
  private:

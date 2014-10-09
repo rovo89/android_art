@@ -144,12 +144,12 @@ CommonCompilerTest::~CommonCompilerTest() {}
 
 OatFile::OatMethod CommonCompilerTest::CreateOatMethod(const void* code, const uint8_t* gc_map) {
   CHECK(code != nullptr);
-  const byte* base;
+  const uint8_t* base;
   uint32_t code_offset, gc_map_offset;
   if (gc_map == nullptr) {
-    base = reinterpret_cast<const byte*>(code);  // Base of data points at code.
-    base -= kPointerSize;  // Move backward so that code_offset != 0.
-    code_offset = kPointerSize;
+    base = reinterpret_cast<const uint8_t*>(code);  // Base of data points at code.
+    base -= sizeof(void*);  // Move backward so that code_offset != 0.
+    code_offset = sizeof(void*);
     gc_map_offset = 0;
   } else {
     // TODO: 64bit support.
@@ -398,7 +398,7 @@ void CommonCompilerTest::ReserveImageSpace() {
   // accidentally end up colliding with the fixed memory address when we need to load the image.
   std::string error_msg;
   image_reservation_.reset(MemMap::MapAnonymous("image reservation",
-                                                reinterpret_cast<byte*>(ART_BASE_ADDRESS),
+                                                reinterpret_cast<uint8_t*>(ART_BASE_ADDRESS),
                                                 (size_t)100 * 1024 * 1024,  // 100MB
                                                 PROT_NONE,
                                                 false /* no need for 4gb flag with fixed mmap*/,

@@ -50,10 +50,10 @@ class ZipArchive;
 // TODO: move all of the macro functionality into the DexCache class.
 class DexFile {
  public:
-  static const byte kDexMagic[];
-  static const byte kDexMagicVersion[];
-  static const size_t kSha1DigestSize = 20;
-  static const uint32_t kDexEndianConstant = 0x12345678;
+  static const uint8_t kDexMagic[];
+  static const uint8_t kDexMagicVersion[];
+  static constexpr size_t kSha1DigestSize = 20;
+  static constexpr uint32_t kDexEndianConstant = 0x12345678;
 
   // name of the DexFile entry within a zip archive
   static const char* kClassesDex;
@@ -440,10 +440,10 @@ class DexFile {
   uint32_t GetVersion() const;
 
   // Returns true if the byte string points to the magic value.
-  static bool IsMagicValid(const byte* magic);
+  static bool IsMagicValid(const uint8_t* magic);
 
   // Returns true if the byte string after the magic is the correct value.
-  static bool IsVersionValid(const byte* magic);
+  static bool IsVersionValid(const uint8_t* magic);
 
   // Returns the number of string identifiers in the .dex file.
   size_t NumStringIds() const {
@@ -658,13 +658,13 @@ class DexFile {
     if (class_def.interfaces_off_ == 0) {
         return NULL;
     } else {
-      const byte* addr = begin_ + class_def.interfaces_off_;
+      const uint8_t* addr = begin_ + class_def.interfaces_off_;
       return reinterpret_cast<const TypeList*>(addr);
     }
   }
 
   // Returns a pointer to the raw memory mapped class_data_item
-  const byte* GetClassData(const ClassDef& class_def) const {
+  const uint8_t* GetClassData(const ClassDef& class_def) const {
     if (class_def.class_data_off_ == 0) {
       return NULL;
     } else {
@@ -677,7 +677,7 @@ class DexFile {
     if (code_off == 0) {
       return NULL;  // native or abstract method
     } else {
-      const byte* addr = begin_ + code_off;
+      const uint8_t* addr = begin_ + code_off;
       return reinterpret_cast<const CodeItem*>(addr);
     }
   }
@@ -730,12 +730,12 @@ class DexFile {
     if (proto_id.parameters_off_ == 0) {
       return NULL;
     } else {
-      const byte* addr = begin_ + proto_id.parameters_off_;
+      const uint8_t* addr = begin_ + proto_id.parameters_off_;
       return reinterpret_cast<const TypeList*>(addr);
     }
   }
 
-  const byte* GetEncodedStaticFieldValuesArray(const ClassDef& class_def) const {
+  const uint8_t* GetEncodedStaticFieldValuesArray(const ClassDef& class_def) const {
     if (class_def.static_values_off_ == 0) {
       return 0;
     } else {
@@ -746,9 +746,9 @@ class DexFile {
   static const TryItem* GetTryItems(const CodeItem& code_item, uint32_t offset);
 
   // Get the base of the encoded data for the given DexCode.
-  static const byte* GetCatchHandlerData(const CodeItem& code_item, uint32_t offset) {
-    const byte* handler_data =
-        reinterpret_cast<const byte*>(GetTryItems(code_item, code_item.tries_size_));
+  static const uint8_t* GetCatchHandlerData(const CodeItem& code_item, uint32_t offset) {
+    const uint8_t* handler_data =
+        reinterpret_cast<const uint8_t*>(GetTryItems(code_item, code_item.tries_size_));
     return handler_data + offset;
   }
 
@@ -759,7 +759,7 @@ class DexFile {
   static int32_t FindCatchHandlerOffset(const CodeItem &code_item, uint32_t address);
 
   // Get the pointer to the start of the debugging data
-  const byte* GetDebugInfoStream(const CodeItem* code_item) const {
+  const uint8_t* GetDebugInfoStream(const CodeItem* code_item) const {
     if (code_item->debug_info_off_ == 0) {
       return NULL;
     } else {
@@ -862,7 +862,7 @@ class DexFile {
 
   bool DisableWrite() const;
 
-  const byte* Begin() const {
+  const uint8_t* Begin() const {
     return begin_;
   }
 
@@ -917,14 +917,14 @@ class DexFile {
                                    std::string* error_msg);
 
   // Opens a .dex file at the given address, optionally backed by a MemMap
-  static const DexFile* OpenMemory(const byte* dex_file,
+  static const DexFile* OpenMemory(const uint8_t* dex_file,
                                    size_t size,
                                    const std::string& location,
                                    uint32_t location_checksum,
                                    MemMap* mem_map,
                                    std::string* error_msg);
 
-  DexFile(const byte* base, size_t size,
+  DexFile(const uint8_t* base, size_t size,
           const std::string& location,
           uint32_t location_checksum,
           MemMap* mem_map);
@@ -937,7 +937,7 @@ class DexFile {
 
   void DecodeDebugInfo0(const CodeItem* code_item, bool is_static, uint32_t method_idx,
       DexDebugNewPositionCb position_cb, DexDebugNewLocalCb local_cb,
-      void* context, const byte* stream, LocalInfo* local_in_reg) const;
+      void* context, const uint8_t* stream, LocalInfo* local_in_reg) const;
 
   // Check whether a location denotes a multidex dex file. This is a very simple check: returns
   // whether the string contains the separator character.
@@ -945,7 +945,7 @@ class DexFile {
 
 
   // The base address of the memory mapping.
-  const byte* const begin_;
+  const uint8_t* const begin_;
 
   // The size of the underlying memory allocation in bytes.
   const size_t size_;
@@ -1059,7 +1059,7 @@ std::ostream& operator<<(std::ostream& os, const Signature& sig);
 // Iterate and decode class_data_item
 class ClassDataItemIterator {
  public:
-  ClassDataItemIterator(const DexFile& dex_file, const byte* raw_class_data_item)
+  ClassDataItemIterator(const DexFile& dex_file, const uint8_t* raw_class_data_item)
       : dex_file_(dex_file), pos_(0), ptr_pos_(raw_class_data_item), last_idx_(0) {
     ReadClassDataHeader();
     if (EndOfInstanceFieldsPos() > 0) {
@@ -1174,7 +1174,7 @@ class ClassDataItemIterator {
   uint32_t GetMethodCodeItemOffset() const {
     return method_.code_off_;
   }
-  const byte* EndDataPointer() const {
+  const uint8_t* EndDataPointer() const {
     CHECK(!HasNext());
     return ptr_pos_;
   }
@@ -1236,7 +1236,7 @@ class ClassDataItemIterator {
 
   const DexFile& dex_file_;
   size_t pos_;  // integral number of items passed
-  const byte* ptr_pos_;  // pointer into stream of class_data_item
+  const uint8_t* ptr_pos_;  // pointer into stream of class_data_item
   uint32_t last_idx_;  // last read field or method index to apply delta to
   DISALLOW_IMPLICIT_CONSTRUCTORS(ClassDataItemIterator);
 };
@@ -1275,8 +1275,8 @@ class EncodedStaticFieldValueIterator {
   };
 
  private:
-  static const byte kEncodedValueTypeMask = 0x1f;  // 0b11111
-  static const byte kEncodedValueArgShift = 5;
+  static constexpr uint8_t kEncodedValueTypeMask = 0x1f;  // 0b11111
+  static constexpr uint8_t kEncodedValueArgShift = 5;
 
   const DexFile& dex_file_;
   Handle<mirror::DexCache>* const dex_cache_;  // Dex cache to resolve literal objects.
@@ -1284,7 +1284,7 @@ class EncodedStaticFieldValueIterator {
   ClassLinker* linker_;  // Linker to resolve literal objects.
   size_t array_size_;  // Size of array.
   size_t pos_;  // Current position.
-  const byte* ptr_;  // Pointer into encoded data array.
+  const uint8_t* ptr_;  // Pointer into encoded data array.
   ValueType type_;  // Type of current encoded value.
   jvalue jval_;  // Value of current encoded value.
   DISALLOW_IMPLICIT_CONSTRUCTORS(EncodedStaticFieldValueIterator);
@@ -1298,7 +1298,7 @@ class CatchHandlerIterator {
     CatchHandlerIterator(const DexFile::CodeItem& code_item,
                          const DexFile::TryItem& try_item);
 
-    explicit CatchHandlerIterator(const byte* handler_data) {
+    explicit CatchHandlerIterator(const uint8_t* handler_data) {
       Init(handler_data);
     }
 
@@ -1313,20 +1313,20 @@ class CatchHandlerIterator {
       return remaining_count_ != -1 || catch_all_;
     }
     // End of this set of catch blocks, convenience method to locate next set of catch blocks
-    const byte* EndDataPointer() const {
+    const uint8_t* EndDataPointer() const {
       CHECK(!HasNext());
       return current_data_;
     }
 
   private:
     void Init(const DexFile::CodeItem& code_item, int32_t offset);
-    void Init(const byte* handler_data);
+    void Init(const uint8_t* handler_data);
 
     struct CatchHandlerItem {
       uint16_t type_idx_;  // type index of the caught exception type
       uint32_t address_;  // handler address
     } handler_;
-    const byte *current_data_;  // the current handler in dex file.
+    const uint8_t* current_data_;  // the current handler in dex file.
     int32_t remaining_count_;   // number of handlers not read.
     bool catch_all_;            // is there a handler that will catch all exceptions in case
                                 // that all typed handler does not match.

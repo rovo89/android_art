@@ -94,7 +94,7 @@ namespace space {
 
 class AgeCardVisitor {
  public:
-  byte operator()(byte card) const {
+  uint8_t operator()(uint8_t card) const {
     if (card == accounting::CardTable::kCardDirty) {
       return card - 1;
     } else {
@@ -625,7 +625,7 @@ class Heap {
   void FinishGC(Thread* self, collector::GcType gc_type) LOCKS_EXCLUDED(gc_complete_lock_);
 
   // Create a mem map with a preferred base address.
-  static MemMap* MapAnonymousPreferredAddress(const char* name, byte* request_begin,
+  static MemMap* MapAnonymousPreferredAddress(const char* name, uint8_t* request_begin,
                                               size_t capacity, int prot_flags,
                                               std::string* out_error_str);
 

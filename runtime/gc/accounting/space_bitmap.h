@@ -45,13 +45,13 @@ class SpaceBitmap {
 
   // Initialize a space bitmap so that it points to a bitmap large enough to cover a heap at
   // heap_begin of heap_capacity bytes, where objects are guaranteed to be kAlignment-aligned.
-  static SpaceBitmap* Create(const std::string& name, byte* heap_begin, size_t heap_capacity);
+  static SpaceBitmap* Create(const std::string& name, uint8_t* heap_begin, size_t heap_capacity);
 
   // Initialize a space bitmap using the provided mem_map as the live bits. Takes ownership of the
   // mem map. The address range covered starts at heap_begin and is of size equal to heap_capacity.
   // Objects are kAlignement-aligned.
   static SpaceBitmap* CreateFromMemMap(const std::string& name, MemMap* mem_map,
-                                       byte* heap_begin, size_t heap_capacity);
+                                       uint8_t* heap_begin, size_t heap_capacity);
 
   ~SpaceBitmap();
 
@@ -59,17 +59,17 @@ class SpaceBitmap {
   // <index> is the index of .bits that contains the bit representing
   //         <offset>.
   static constexpr size_t OffsetToIndex(size_t offset) {
-    return offset / kAlignment / kBitsPerWord;
+    return offset / kAlignment / kBitsPerIntPtrT;
   }
 
   template<typename T>
   static constexpr T IndexToOffset(T index) {
-    return static_cast<T>(index * kAlignment * kBitsPerWord);
+    return static_cast<T>(index * kAlignment * kBitsPerIntPtrT);
   }
 
   // Bits are packed in the obvious way.
-  static constexpr uword OffsetToMask(uintptr_t offset) {
-    return (static_cast<size_t>(1)) << ((offset / kAlignment) % kBitsPerWord);
+  static constexpr uintptr_t OffsetToMask(uintptr_t offset) {
+    return (static_cast<size_t>(1)) << ((offset / kAlignment) % kBitsPerIntPtrT);
   }
 
   bool Set(const mirror::Object* obj) ALWAYS_INLINE {
@@ -95,7 +95,7 @@ class SpaceBitmap {
     // bitmap.
     const uintptr_t offset = reinterpret_cast<uintptr_t>(obj) - heap_begin_;
     const size_t index = OffsetToIndex(offset);
-    return index < bitmap_size_ / kWordSize;
+    return index < bitmap_size_ / sizeof(intptr_t);
   }
 
   void VisitRange(uintptr_t base, uintptr_t max, ObjectCallback* callback, void* arg) const;
@@ -146,7 +146,7 @@ class SpaceBitmap {
   void CopyFrom(SpaceBitmap* source_bitmap);
 
   // Starting address of our internal storage.
-  uword* Begin() {
+  uintptr_t* Begin() {
     return bitmap_begin_;
   }
 
@@ -157,7 +157,7 @@ class SpaceBitmap {
 
   // Size in bytes of the memory that the bitmaps spans.
   uint64_t HeapSize() const {
-    return IndexToOffset<uint64_t>(Size() / kWordSize);
+    return IndexToOffset<uint64_t>(Size() / sizeof(intptr_t));
   }
 
   uintptr_t HeapBegin() const {
@@ -192,7 +192,7 @@ class SpaceBitmap {
  private:
   // TODO: heap_end_ is initialized so that the heap bitmap is empty, this doesn't require the -1,
   // however, we document that this is expected on heap_end_
-  SpaceBitmap(const std::string& name, MemMap* mem_map, uword* bitmap_begin, size_t bitmap_size,
+  SpaceBitmap(const std::string& name, MemMap* mem_map, uintptr_t* bitmap_begin, size_t bitmap_size,
               const void* heap_begin);
 
   // Helper function for computing bitmap size based on a 64 bit capacity.
@@ -214,7 +214,7 @@ class SpaceBitmap {
   std::unique_ptr<MemMap> mem_map_;
 
   // This bitmap itself, word sized for efficiency in scanning.
-  uword* const bitmap_begin_;
+  uintptr_t* const bitmap_begin_;
 
   // Size of this bitmap.
   size_t bitmap_size_;

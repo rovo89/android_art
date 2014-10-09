@@ -21,7 +21,7 @@ namespace gc {
 namespace space {
 
 MallocSpace* CreateRosAllocSpace(const std::string& name, size_t initial_size, size_t growth_limit,
-                                 size_t capacity, byte* requested_begin) {
+                                 size_t capacity, uint8_t* requested_begin) {
   return RosAllocSpace::Create(name, initial_size, growth_limit, capacity, requested_begin,
                                Runtime::Current()->GetHeap()->IsLowMemoryMode(), false);
 }

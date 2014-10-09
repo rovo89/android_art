@@ -38,7 +38,7 @@ namespace art {
 class ImageWriter {
  public:
   ImageWriter(const CompilerDriver& compiler_driver, uintptr_t image_begin)
-      : compiler_driver_(compiler_driver), image_begin_(reinterpret_cast<byte*>(image_begin)),
+      : compiler_driver_(compiler_driver), image_begin_(reinterpret_cast<uint8_t*>(image_begin)),
         image_end_(0), image_roots_address_(0), oat_file_(NULL),
         oat_data_begin_(NULL), interpreter_to_interpreter_bridge_offset_(0),
         interpreter_to_compiled_code_bridge_offset_(0), jni_dlsym_lookup_offset_(0),
@@ -65,7 +65,7 @@ class ImageWriter {
     return reinterpret_cast<mirror::Object*>(image_begin_ + GetImageOffset(object));
   }
 
-  byte* GetOatFileBegin() const {
+  uint8_t* GetOatFileBegin() const {
     return image_begin_ + RoundUp(image_end_, kPageSize);
   }
 
@@ -100,11 +100,11 @@ class ImageWriter {
   mirror::Object* GetLocalAddress(mirror::Object* object) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     size_t offset = GetImageOffset(object);
-    byte* dst = image_->Begin() + offset;
+    uint8_t* dst = image_->Begin() + offset;
     return reinterpret_cast<mirror::Object*>(dst);
   }
 
-  const byte* GetOatAddress(uint32_t offset) const {
+  const uint8_t* GetOatAddress(uint32_t offset) const {
 #if !defined(ART_USE_PORTABLE_COMPILER)
     // With Quick, code is within the OatFile, as there are all in one
     // .o ELF object. However with Portable, the code is always in
@@ -171,10 +171,10 @@ class ImageWriter {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get quick code for non-resolution/imt_conflict/abstract method.
-  const byte* GetQuickCode(mirror::ArtMethod* method, bool* quick_is_interpreted)
+  const uint8_t* GetQuickCode(mirror::ArtMethod* method, bool* quick_is_interpreted)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  const byte* GetQuickEntryPoint(mirror::ArtMethod* method)
+  const uint8_t* GetQuickEntryPoint(mirror::ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Patches references in OatFile to expect runtime addresses.
@@ -183,7 +183,7 @@ class ImageWriter {
   const CompilerDriver& compiler_driver_;
 
   // Beginning target image address for the output image.
-  byte* image_begin_;
+  uint8_t* image_begin_;
 
   // Offset to the free space in image_.
   size_t image_end_;
@@ -201,7 +201,7 @@ class ImageWriter {
   std::vector<std::pair<mirror::Object*, uint32_t>> saved_hashes_;
 
   // Beginning target oat address for the pointers from the output image to its oat file.
-  const byte* oat_data_begin_;
+  const uint8_t* oat_data_begin_;
 
   // Image bitmap which lets us know where the objects inside of the image reside.
   std::unique_ptr<gc::accounting::ContinuousSpaceBitmap> image_bitmap_;

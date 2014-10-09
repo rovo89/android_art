@@ -42,7 +42,7 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
   // Create a bump pointer space with the requested sizes. The requested base address is not
   // guaranteed to be granted, if it is required, the caller should call Begin on the returned
   // space to confirm the request was granted.
-  static BumpPointerSpace* Create(const std::string& name, size_t capacity, byte* requested_begin);
+  static BumpPointerSpace* Create(const std::string& name, size_t capacity, uint8_t* requested_begin);
   static BumpPointerSpace* CreateFromMemMap(const std::string& name, MemMap* mem_map);
 
   // Allocate num_bytes, returns nullptr if the space is full.
@@ -121,12 +121,12 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
   }
 
   bool Contains(const mirror::Object* obj) const {
-    const byte* byte_obj = reinterpret_cast<const byte*>(obj);
+    const uint8_t* byte_obj = reinterpret_cast<const uint8_t*>(obj);
     return byte_obj >= Begin() && byte_obj < End();
   }
 
   // TODO: Change this? Mainly used for compacting to a particular region of memory.
-  BumpPointerSpace(const std::string& name, byte* begin, byte* limit);
+  BumpPointerSpace(const std::string& name, uint8_t* begin, uint8_t* limit);
 
   // Return the object which comes after obj, while ensuring alignment.
   static mirror::Object* GetNextObject(mirror::Object* obj)
@@ -161,7 +161,7 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
   BumpPointerSpace(const std::string& name, MemMap* mem_map);
 
   // Allocate a raw block of bytes.
-  byte* AllocBlock(size_t bytes) EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
+  uint8_t* AllocBlock(size_t bytes) EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
   void RevokeThreadLocalBuffersLocked(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
 
   // The main block is an unbounded block where objects go when there are no other blocks. This
@@ -169,7 +169,7 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
   // allocation. The main block starts at the space Begin().
   void UpdateMainBlock() EXCLUSIVE_LOCKS_REQUIRED(block_lock_);
 
-  byte* growth_end_;
+  uint8_t* growth_end_;
   AtomicInteger objects_allocated_;  // Accumulated from revoked thread local regions.
   AtomicInteger bytes_allocated_;  // Accumulated from revoked thread local regions.
   Mutex block_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;

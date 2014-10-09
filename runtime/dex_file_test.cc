@@ -35,7 +35,7 @@ TEST_F(DexFileTest, Open) {
   ASSERT_TRUE(dex != NULL);
 }
 
-static const byte kBase64Map[256] = {
+static const uint8_t kBase64Map[256] = {
   255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
   255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
   255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
@@ -60,12 +60,12 @@ static const byte kBase64Map[256] = {
   255, 255, 255, 255
 };
 
-static inline byte* DecodeBase64(const char* src, size_t* dst_size) {
-  std::vector<byte> tmp;
+static inline uint8_t* DecodeBase64(const char* src, size_t* dst_size) {
+  std::vector<uint8_t> tmp;
   uint32_t t = 0, y = 0;
   int g = 3;
   for (size_t i = 0; src[i] != '\0'; ++i) {
-    byte c = kBase64Map[src[i] & 0xFF];
+    uint8_t c = kBase64Map[src[i] & 0xFF];
     if (c == 255) continue;
     // the final = symbols are read and used to trim the remaining bytes
     if (c == 254) {
@@ -96,7 +96,7 @@ static inline byte* DecodeBase64(const char* src, size_t* dst_size) {
     *dst_size = 0;
     return nullptr;
   }
-  std::unique_ptr<byte[]> dst(new byte[tmp.size()]);
+  std::unique_ptr<uint8_t[]> dst(new uint8_t[tmp.size()]);
   if (dst_size != nullptr) {
     *dst_size = tmp.size();
   } else {
@@ -137,7 +137,7 @@ static const DexFile* OpenDexFileBase64(const char* base64,
   // decode base64
   CHECK(base64 != NULL);
   size_t length;
-  std::unique_ptr<byte[]> dex_bytes(DecodeBase64(base64, &length));
+  std::unique_ptr<uint8_t[]> dex_bytes(DecodeBase64(base64, &length));
   CHECK(dex_bytes.get() != NULL);
 
   // write to provided file
@@ -229,7 +229,7 @@ TEST_F(DexFileTest, GetMethodSignature) {
   const DexFile::ClassDef& class_def = raw->GetClassDef(0);
   ASSERT_STREQ("LGetMethodSignature;", raw->GetClassDescriptor(class_def));
 
-  const byte* class_data = raw->GetClassData(class_def);
+  const uint8_t* class_data = raw->GetClassData(class_def);
   ASSERT_TRUE(class_data != NULL);
   ClassDataItemIterator it(*raw, class_data);
 

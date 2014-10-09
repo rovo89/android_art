@@ -56,7 +56,7 @@ TEST(HexDump, ShowActualAddresses) {
   std::ostringstream oss;
   oss << HexDump(&g16byte_aligned_number, 8, true, "");
   // Compare ignoring pointer.
-  EXPECT_STREQ(oss.str().c_str() + (kBitsPerWord / 4),
+  EXPECT_STREQ(oss.str().c_str() + (kBitsPerIntPtrT / 4),
                ": 68 67 66 65 64 63 62 61                          hgfedcba        ");
 }
 

@@ -47,7 +47,7 @@ class ValgrindMallocSpace FINAL : public BaseMallocSpaceType {
   }
 
   ValgrindMallocSpace(const std::string& name, MemMap* mem_map, AllocatorType allocator,
-                      byte* begin, byte* end, byte* limit, size_t growth_limit,
+                      uint8_t* begin, uint8_t* end, uint8_t* limit, size_t growth_limit,
                       size_t initial_size, bool can_move_objects, size_t starting_size);
   virtual ~ValgrindMallocSpace() {}
 

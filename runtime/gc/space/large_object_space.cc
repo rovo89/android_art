@@ -45,7 +45,7 @@ class ValgrindLargeObjectMapSpace FINAL : public LargeObjectMapSpace {
     mirror::Object* object_without_rdz = reinterpret_cast<mirror::Object*>(
         reinterpret_cast<uintptr_t>(obj) + kValgrindRedZoneBytes);
     VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<void*>(obj), kValgrindRedZoneBytes);
-    VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<byte*>(object_without_rdz) + num_bytes,
+    VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<uint8_t*>(object_without_rdz) + num_bytes,
                                kValgrindRedZoneBytes);
     if (usable_size != nullptr) {
       *usable_size = num_bytes;  // Since we have redzones, shrink the usable size.
@@ -84,7 +84,7 @@ void LargeObjectSpace::SwapBitmaps() {
   mark_bitmap_->SetName(temp_name);
 }
 
-LargeObjectSpace::LargeObjectSpace(const std::string& name, byte* begin, byte* end)
+LargeObjectSpace::LargeObjectSpace(const std::string& name, uint8_t* begin, uint8_t* end)
     : DiscontinuousSpace(name, kGcRetentionPolicyAlwaysCollect),
       num_bytes_allocated_(0), num_objects_allocated_(0), total_bytes_allocated_(0),
       total_objects_allocated_(0), begin_(begin), end_(end) {
@@ -122,8 +122,8 @@ mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
   mem_maps_.Put(obj, mem_map);
   const size_t allocation_size = mem_map->BaseSize();
   DCHECK(bytes_allocated != nullptr);
-  begin_ = std::min(begin_, reinterpret_cast<byte*>(obj));
-  byte* obj_end = reinterpret_cast<byte*>(obj) + allocation_size;
+  begin_ = std::min(begin_, reinterpret_cast<uint8_t*>(obj));
+  uint8_t* obj_end = reinterpret_cast<uint8_t*>(obj) + allocation_size;
   if (end_ == nullptr || obj_end > end_) {
     end_ = obj_end;
   }
@@ -283,7 +283,7 @@ inline bool FreeListSpace::SortByPrevFree::operator()(const AllocationInfo* a,
   return reinterpret_cast<uintptr_t>(a) < reinterpret_cast<uintptr_t>(b);
 }
 
-FreeListSpace* FreeListSpace::Create(const std::string& name, byte* requested_begin, size_t size) {
+FreeListSpace* FreeListSpace::Create(const std::string& name, uint8_t* requested_begin, size_t size) {
   CHECK_EQ(size % kAlignment, 0U);
   std::string error_msg;
   MemMap* mem_map = MemMap::MapAnonymous(name.c_str(), requested_begin, size,
@@ -292,7 +292,7 @@ FreeListSpace* FreeListSpace::Create(const std::string& name, byte* requested_be
   return new FreeListSpace(name, mem_map, mem_map->Begin(), mem_map->End());
 }
 
-FreeListSpace::FreeListSpace(const std::string& name, MemMap* mem_map, byte* begin, byte* end)
+FreeListSpace::FreeListSpace(const std::string& name, MemMap* mem_map, uint8_t* begin, uint8_t* end)
     : LargeObjectSpace(name, begin, end),
       mem_map_(mem_map),
       lock_("free list space lock", kAllocSpaceLock) {
@@ -319,8 +319,8 @@ void FreeListSpace::Walk(DlMallocSpace::WalkCallback callback, void* arg) {
   while (cur_info < end_info) {
     if (!cur_info->IsFree()) {
       size_t alloc_size = cur_info->ByteSize();
-      byte* byte_start = reinterpret_cast<byte*>(GetAddressForAllocationInfo(cur_info));
-      byte* byte_end = byte_start + alloc_size;
+      uint8_t* byte_start = reinterpret_cast<uint8_t*>(GetAddressForAllocationInfo(cur_info));
+      uint8_t* byte_end = byte_start + alloc_size;
       callback(byte_start, byte_end, alloc_size, arg);
       callback(nullptr, nullptr, 0, arg);
     }
