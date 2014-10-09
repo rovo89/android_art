@@ -825,18 +825,14 @@ bool MIRGraph::EliminateNullChecksGate() {
     return false;
   }
 
-  if (kIsDebugBuild) {
-    AllNodesIterator iter(this);
-    for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
-      CHECK(bb->data_flow_info == nullptr || bb->data_flow_info->ending_check_v == nullptr);
-    }
-  }
-
   DCHECK(temp_scoped_alloc_.get() == nullptr);
   temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
   temp_bit_vector_size_ = GetNumSSARegs();
   temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
-      temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapTempSSARegisterV);
+      temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapNullCheck);
+  temp_bit_matrix_ = static_cast<ArenaBitVector**>(
+      temp_scoped_alloc_->Alloc(sizeof(ArenaBitVector*) * GetNumBlocks(), kArenaAllocMisc));
+  std::fill_n(temp_bit_matrix_, GetNumBlocks(), nullptr);
   return true;
 }
 
@@ -865,8 +861,8 @@ bool MIRGraph::EliminateNullChecks(BasicBlock* bb) {
   } else if (bb->predecessors.size() == 1) {
     BasicBlock* pred_bb = GetBasicBlock(bb->predecessors[0]);
     // pred_bb must have already been processed at least once.
-    DCHECK(pred_bb->data_flow_info->ending_check_v != nullptr);
-    ssa_regs_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
+    DCHECK(temp_bit_matrix_[pred_bb->id] != nullptr);
+    ssa_regs_to_check->Copy(temp_bit_matrix_[pred_bb->id]);
     if (pred_bb->block_type == kDalvikByteCode) {
       // Check to see if predecessor had an explicit null-check.
       MIR* last_insn = pred_bb->last_mir_insn;
@@ -894,14 +890,14 @@ bool MIRGraph::EliminateNullChecks(BasicBlock* bb) {
       BasicBlock* pred_bb = GetBasicBlock(pred_id);
       DCHECK(pred_bb != nullptr);
       DCHECK(pred_bb->data_flow_info != nullptr);
-      if (pred_bb->data_flow_info->ending_check_v == nullptr) {
+      if (temp_bit_matrix_[pred_bb->id] == nullptr) {
         continue;
       }
       if (!copied_first) {
         copied_first = true;
-        ssa_regs_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
+        ssa_regs_to_check->Copy(temp_bit_matrix_[pred_bb->id]);
       } else {
-        ssa_regs_to_check->Union(pred_bb->data_flow_info->ending_check_v);
+        ssa_regs_to_check->Union(temp_bit_matrix_[pred_bb->id]);
       }
     }
     DCHECK(copied_first);  // At least one predecessor must have been processed before this bb.
@@ -1015,15 +1011,18 @@ bool MIRGraph::EliminateNullChecks(BasicBlock* bb) {
 
   // Did anything change?
   bool nce_changed = false;
-  if (bb->data_flow_info->ending_check_v == nullptr) {
+  ArenaBitVector* old_ending_ssa_regs_to_check = temp_bit_matrix_[bb->id];
+  if (old_ending_ssa_regs_to_check == nullptr) {
     DCHECK(temp_scoped_alloc_.get() != nullptr);
-    bb->data_flow_info->ending_check_v = new (temp_scoped_alloc_.get()) ArenaBitVector(
-        temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapNullCheck);
     nce_changed = ssa_regs_to_check->GetHighestBitSet() != -1;
-    bb->data_flow_info->ending_check_v->Copy(ssa_regs_to_check);
-  } else if (!ssa_regs_to_check->SameBitsSet(bb->data_flow_info->ending_check_v)) {
+    temp_bit_matrix_[bb->id] = ssa_regs_to_check;
+    // Create a new ssa_regs_to_check for next BB.
+    temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
+        temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapNullCheck);
+  } else if (!ssa_regs_to_check->SameBitsSet(old_ending_ssa_regs_to_check)) {
     nce_changed = true;
-    bb->data_flow_info->ending_check_v->Copy(ssa_regs_to_check);
+    temp_bit_matrix_[bb->id] = ssa_regs_to_check;
+    temp_bit_vector_ = old_ending_ssa_regs_to_check;  // Reuse for ssa_regs_to_check for next BB.
   }
   return nce_changed;
 }
@@ -1032,12 +1031,7 @@ void MIRGraph::EliminateNullChecksEnd() {
   // Clean up temporaries.
   temp_bit_vector_size_ = 0u;
   temp_bit_vector_ = nullptr;
-  AllNodesIterator iter(this);
-  for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
-    if (bb->data_flow_info != nullptr) {
-      bb->data_flow_info->ending_check_v = nullptr;
-    }
-  }
+  temp_bit_matrix_ = nullptr;
   DCHECK(temp_scoped_alloc_.get() != nullptr);
   temp_scoped_alloc_.reset();
 }
@@ -1065,13 +1059,6 @@ bool MIRGraph::EliminateClassInitChecksGate() {
   if ((cu_->disable_opt & (1 << kClassInitCheckElimination)) != 0 ||
       !cu_->mir_graph->HasStaticFieldAccess()) {
     return false;
-  }
-
-  if (kIsDebugBuild) {
-    AllNodesIterator iter(this);
-    for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
-      CHECK(bb->data_flow_info == nullptr || bb->data_flow_info->ending_check_v == nullptr);
-    }
   }
 
   DCHECK(temp_scoped_alloc_.get() == nullptr);
@@ -1147,6 +1134,9 @@ bool MIRGraph::EliminateClassInitChecksGate() {
   temp_bit_vector_size_ = unique_class_count;
   temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
       temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapClInitCheck);
+  temp_bit_matrix_ = static_cast<ArenaBitVector**>(
+      temp_scoped_alloc_->Alloc(sizeof(ArenaBitVector*) * GetNumBlocks(), kArenaAllocMisc));
+  std::fill_n(temp_bit_matrix_, GetNumBlocks(), nullptr);
   DCHECK_GT(temp_bit_vector_size_, 0u);
   return true;
 }
@@ -1156,7 +1146,7 @@ bool MIRGraph::EliminateClassInitChecksGate() {
  */
 bool MIRGraph::EliminateClassInitChecks(BasicBlock* bb) {
   DCHECK_EQ((cu_->disable_opt & (1 << kClassInitCheckElimination)), 0u);
-  if (bb->data_flow_info == NULL) {
+  if (bb->data_flow_info == nullptr) {
     return false;
   }
 
@@ -1172,8 +1162,8 @@ bool MIRGraph::EliminateClassInitChecks(BasicBlock* bb) {
     // pred_bb must have already been processed at least once.
     DCHECK(pred_bb != nullptr);
     DCHECK(pred_bb->data_flow_info != nullptr);
-    DCHECK(pred_bb->data_flow_info->ending_check_v != nullptr);
-    classes_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
+    DCHECK(temp_bit_matrix_[pred_bb->id] != nullptr);
+    classes_to_check->Copy(temp_bit_matrix_[pred_bb->id]);
   } else {
     // Starting state is union of all incoming arcs.
     bool copied_first = false;
@@ -1181,14 +1171,14 @@ bool MIRGraph::EliminateClassInitChecks(BasicBlock* bb) {
       BasicBlock* pred_bb = GetBasicBlock(pred_id);
       DCHECK(pred_bb != nullptr);
       DCHECK(pred_bb->data_flow_info != nullptr);
-      if (pred_bb->data_flow_info->ending_check_v == nullptr) {
+      if (temp_bit_matrix_[pred_bb->id] == nullptr) {
         continue;
       }
       if (!copied_first) {
         copied_first = true;
-        classes_to_check->Copy(pred_bb->data_flow_info->ending_check_v);
+        classes_to_check->Copy(temp_bit_matrix_[pred_bb->id]);
       } else {
-        classes_to_check->Union(pred_bb->data_flow_info->ending_check_v);
+        classes_to_check->Union(temp_bit_matrix_[pred_bb->id]);
       }
     }
     DCHECK(copied_first);  // At least one predecessor must have been processed before this bb.
@@ -1219,16 +1209,18 @@ bool MIRGraph::EliminateClassInitChecks(BasicBlock* bb) {
 
   // Did anything change?
   bool changed = false;
-  if (bb->data_flow_info->ending_check_v == nullptr) {
+  ArenaBitVector* old_ending_classes_to_check = temp_bit_matrix_[bb->id];
+  if (old_ending_classes_to_check == nullptr) {
     DCHECK(temp_scoped_alloc_.get() != nullptr);
-    DCHECK(bb->data_flow_info != nullptr);
-    bb->data_flow_info->ending_check_v = new (temp_scoped_alloc_.get()) ArenaBitVector(
-        temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapClInitCheck);
     changed = classes_to_check->GetHighestBitSet() != -1;
-    bb->data_flow_info->ending_check_v->Copy(classes_to_check);
-  } else if (!classes_to_check->Equal(bb->data_flow_info->ending_check_v)) {
+    temp_bit_matrix_[bb->id] = classes_to_check;
+    // Create a new classes_to_check for next BB.
+    temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
+        temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapClInitCheck);
+  } else if (!classes_to_check->Equal(old_ending_classes_to_check)) {
     changed = true;
-    bb->data_flow_info->ending_check_v->Copy(classes_to_check);
+    temp_bit_matrix_[bb->id] = classes_to_check;
+    temp_bit_vector_ = old_ending_classes_to_check;  // Reuse for classes_to_check for next BB.
   }
   return changed;
 }
@@ -1237,13 +1229,7 @@ void MIRGraph::EliminateClassInitChecksEnd() {
   // Clean up temporaries.
   temp_bit_vector_size_ = 0u;
   temp_bit_vector_ = nullptr;
-  AllNodesIterator iter(this);
-  for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
-    if (bb->data_flow_info != nullptr) {
-      bb->data_flow_info->ending_check_v = nullptr;
-    }
-  }
-
+  temp_bit_matrix_ = nullptr;
   DCHECK(temp_insn_data_ != nullptr);
   temp_insn_data_ = nullptr;
   DCHECK(temp_scoped_alloc_.get() != nullptr);
