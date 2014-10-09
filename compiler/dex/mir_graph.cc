@@ -94,11 +94,11 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       topological_order_indexes_(arena->Adapter(kArenaAllocTopologicalSortOrder)),
       topological_order_loop_head_stack_(arena->Adapter(kArenaAllocTopologicalSortOrder)),
       i_dom_list_(NULL),
-      def_block_matrix_(NULL),
       temp_scoped_alloc_(),
       temp_insn_data_(nullptr),
       temp_bit_vector_size_(0u),
       temp_bit_vector_(nullptr),
+      temp_bit_matrix_(nullptr),
       temp_gvn_(),
       block_list_(arena->Adapter(kArenaAllocBBList)),
       try_block_addr_(NULL),
@@ -1706,6 +1706,7 @@ void MIRGraph::SSATransformationEnd() {
 
   temp_bit_vector_size_ = 0u;
   temp_bit_vector_ = nullptr;
+  temp_bit_matrix_ = nullptr;  // Def block matrix.
   DCHECK(temp_scoped_alloc_.get() != nullptr);
   temp_scoped_alloc_.reset();
 
