@@ -20,7 +20,7 @@
 #include "locations.h"
 #include "offsets.h"
 #include "primitive.h"
-#include "utils/allocation.h"
+#include "utils/arena_object.h"
 #include "utils/arena_bit_vector.h"
 #include "utils/growable_array.h"
 

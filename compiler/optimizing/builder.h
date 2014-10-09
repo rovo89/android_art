@@ -22,7 +22,7 @@
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
 #include "primitive.h"
-#include "utils/allocation.h"
+#include "utils/arena_object.h"
 #include "utils/growable_array.h"
 #include "nodes.h"
 

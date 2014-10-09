@@ -20,8 +20,8 @@
 
 namespace art {
 
-VectorOutputStream::VectorOutputStream(const std::string& location, std::vector<uint8_t>& vector)
-  : OutputStream(location), offset_(vector.size()), vector_(vector) {}
+VectorOutputStream::VectorOutputStream(const std::string& location, std::vector<uint8_t>* vector)
+  : OutputStream(location), offset_(vector->size()), vector_(vector) {}
 
 off_t VectorOutputStream::Seek(off_t offset, Whence whence) {
   CHECK(whence == kSeekSet || whence == kSeekCurrent || whence == kSeekEnd) << whence;
@@ -36,7 +36,7 @@ off_t VectorOutputStream::Seek(off_t offset, Whence whence) {
       break;
     }
     case kSeekEnd: {
-      new_offset = vector_.size() + offset;
+      new_offset = vector_->size() + offset;
       break;
     }
   }
