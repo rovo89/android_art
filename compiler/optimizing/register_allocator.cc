@@ -95,7 +95,7 @@ void RegisterAllocator::BlockRegister(Location location,
                                       size_t start,
                                       size_t end,
                                       Primitive::Type type) {
-  int reg = location.reg().RegId();
+  int reg = location.reg();
   LiveInterval* interval = physical_register_intervals_.Get(reg);
   if (interval == nullptr) {
     interval = LiveInterval::MakeFixedInterval(allocator_, reg, type);
@@ -187,7 +187,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
   if (locations->WillCall()) {
     // Block all registers.
     for (size_t i = 0; i < codegen_->GetNumberOfCoreRegisters(); ++i) {
-      BlockRegister(Location::RegisterLocation(ManagedRegister(i)),
+      BlockRegister(Location::RegisterLocation(i),
                     position,
                     position + 1,
                     Primitive::kPrimInt);
@@ -216,7 +216,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
   if (output.IsRegister()) {
     // Shift the interval's start by one to account for the blocked register.
     current->SetFrom(position + 1);
-    current->SetRegister(output.reg().RegId());
+    current->SetRegister(output.reg());
     BlockRegister(output, position, position + 1, instruction->GetType());
   } else if (output.IsStackSlot() || output.IsDoubleStackSlot()) {
     current->SetSpillSlot(output.GetStackIndex());
@@ -884,7 +884,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
   if (current->HasSpillSlot() && current->HasRegister()) {
     // We spill eagerly, so move must be at definition.
     InsertMoveAfter(interval->GetDefinedBy(),
-                    Location::RegisterLocation(ManagedRegister(interval->GetRegister())),
+                    Location::RegisterLocation(interval->GetRegister()),
                     interval->NeedsTwoSpillSlots()
                         ? Location::DoubleStackSlot(interval->GetParent()->GetSpillSlot())
                         : Location::StackSlot(interval->GetParent()->GetSpillSlot()));
@@ -938,7 +938,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
         case Location::kRegister: {
           locations->AddLiveRegister(source);
           if (current->GetType() == Primitive::kPrimNot) {
-            locations->SetRegisterBit(source.reg().RegId());
+            locations->SetRegisterBit(source.reg());
           }
           break;
         }
@@ -1106,7 +1106,7 @@ void RegisterAllocator::Resolve() {
     }
     LocationSummary* locations = at->GetLocations();
     locations->SetTempAt(
-        temp_index++, Location::RegisterLocation(ManagedRegister(temp->GetRegister())));
+        temp_index++, Location::RegisterLocation(temp->GetRegister()));
   }
 }
 

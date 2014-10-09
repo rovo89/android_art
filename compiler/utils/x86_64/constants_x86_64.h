@@ -48,6 +48,7 @@ std::ostream& operator<<(std::ostream& os, const CpuRegister& reg);
 class XmmRegister {
  public:
   explicit XmmRegister(FloatRegister r) : reg_(r) {}
+  explicit XmmRegister(int r) : reg_(FloatRegister(r)) {}
   FloatRegister AsFloatRegister() const {
     return reg_;
   }

@@ -168,8 +168,8 @@ class CodeGenerator : public ArenaObject {
   void AllocateRegistersLocally(HInstruction* instruction) const;
 
   // Backend specific implementation for allocating a register.
-  virtual ManagedRegister AllocateFreeRegister(Primitive::Type type,
-                                               bool* blocked_registers) const = 0;
+  virtual Location AllocateFreeRegister(Primitive::Type type,
+                                        bool* blocked_registers) const = 0;
 
   // Raw implementation of allocating a register: loops over blocked_registers to find
   // the first available register.
