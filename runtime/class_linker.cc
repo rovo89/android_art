@@ -115,7 +115,17 @@ static void ThrowEarlierClassFailure(mirror::Class* c)
   }
 }
 
-static void WrapExceptionInInitializer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static void VlogClassInitializationFailure(Handle<mirror::Class> klass)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (VLOG_IS_ON(class_linker)) {
+    std::string temp;
+    LOG(INFO) << "Failed to initialize class " << klass->GetDescriptor(&temp) << " from "
+              << klass->GetLocation() << "\n" << Thread::Current()->GetException(nullptr)->Dump();
+  }
+}
+
+static void WrapExceptionInInitializer(Handle<mirror::Class> klass)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Thread* self = Thread::Current();
   JNIEnv* env = self->GetJniEnv();
 
@@ -132,6 +142,7 @@ static void WrapExceptionInInitializer() SHARED_LOCKS_REQUIRED(Locks::mutator_lo
     self->ThrowNewWrappedException(throw_location, "Ljava/lang/ExceptionInInitializerError;",
                                    nullptr);
   }
+  VlogClassInitializationFailure(klass);
 }
 
 static size_t Hash(const char* s) {
@@ -4151,6 +4162,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
     // Was the class already found to be erroneous? Done under the lock to match the JLS.
     if (klass->IsErroneous()) {
       ThrowEarlierClassFailure(klass.Get());
+      VlogClassInitializationFailure(klass);
       return false;
     }
 
@@ -4163,6 +4175,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
         // compile time.
         if (klass->IsErroneous()) {
           CHECK(self->IsExceptionPending());
+          VlogClassInitializationFailure(klass);
         } else {
           CHECK(Runtime::Current()->IsCompiler());
           CHECK_EQ(klass->GetStatus(), mirror::Class::kStatusRetryVerificationAtRuntime);
@@ -4181,6 +4194,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
     if (klass->GetStatus() == mirror::Class::kStatusInitializing) {
       // Could have got an exception during verification.
       if (self->IsExceptionPending()) {
+        VlogClassInitializationFailure(klass);
         return false;
       }
       // We caught somebody else in the act; was it us?
@@ -4277,7 +4291,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
     ObjectLock<mirror::Class> lock(self, klass);
 
     if (self->IsExceptionPending()) {
-      WrapExceptionInInitializer();
+      WrapExceptionInInitializer(klass);
       klass->SetStatus(mirror::Class::kStatusError, self);
       success = false;
     } else {
@@ -4311,9 +4325,9 @@ bool ClassLinker::WaitForInitializeClass(Handle<mirror::Class> klass, Thread* se
 
     // When we wake up, repeat the test for init-in-progress.  If
     // there's an exception pending (only possible if
-    // "interruptShouldThrow" was set), bail out.
+    // we were not using WaitIgnoringInterrupts), bail out.
     if (self->IsExceptionPending()) {
-      WrapExceptionInInitializer();
+      WrapExceptionInInitializer(klass);
       klass->SetStatus(mirror::Class::kStatusError, self);
       return false;
     }
@@ -4330,6 +4344,7 @@ bool ClassLinker::WaitForInitializeClass(Handle<mirror::Class> klass, Thread* se
       // different thread.  Synthesize one here.
       ThrowNoClassDefFoundError("<clinit> failed for class %s; see exception in other thread",
                                 PrettyDescriptor(klass.Get()).c_str());
+      VlogClassInitializationFailure(klass);
       return false;
     }
     if (klass->IsInitialized()) {
