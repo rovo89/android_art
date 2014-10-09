@@ -42,12 +42,12 @@ void Arm64Assembler::EmitSlowPaths() {
 }
 
 size_t Arm64Assembler::CodeSize() const {
-  return ___ SizeOfCodeGenerated();
+  return vixl_masm_->BufferCapacity() - vixl_masm_->RemainingBufferSpace();
 }
 
 void Arm64Assembler::FinalizeInstructions(const MemoryRegion& region) {
   // Copy the instructions from the buffer.
-  MemoryRegion from(reinterpret_cast<void*>(vixl_buf_), CodeSize());
+  MemoryRegion from(vixl_masm_->GetStartAddress<void*>(), CodeSize());
   region.CopyFrom(0, from);
 }
 
