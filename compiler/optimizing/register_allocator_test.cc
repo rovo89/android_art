@@ -25,7 +25,6 @@
 #include "ssa_liveness_analysis.h"
 #include "ssa_phi_elimination.h"
 #include "utils/arena_allocator.h"
-#include "utils/managed_register.h"
 
 #include "gtest/gtest.h"
 
@@ -525,7 +524,7 @@ TEST(RegisterAllocatorTest, PhiHint) {
 
     // Set the phi to a specific register, and check that the inputs get allocated
     // the same register.
-    phi->GetLocations()->SetOut(Location::RegisterLocation(ManagedRegister(2)));
+    phi->GetLocations()->SetOut(Location::RegisterLocation(2));
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
     register_allocator.AllocateRegisters();
 
@@ -542,7 +541,7 @@ TEST(RegisterAllocatorTest, PhiHint) {
 
     // Set input1 to a specific register, and check that the phi and other input get allocated
     // the same register.
-    input1->GetLocations()->SetOut(Location::RegisterLocation(ManagedRegister(2)));
+    input1->GetLocations()->SetOut(Location::RegisterLocation(2));
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
     register_allocator.AllocateRegisters();
 
@@ -559,7 +558,7 @@ TEST(RegisterAllocatorTest, PhiHint) {
 
     // Set input2 to a specific register, and check that the phi and other input get allocated
     // the same register.
-    input2->GetLocations()->SetOut(Location::RegisterLocation(ManagedRegister(2)));
+    input2->GetLocations()->SetOut(Location::RegisterLocation(2));
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
     register_allocator.AllocateRegisters();
 
@@ -620,7 +619,7 @@ TEST(RegisterAllocatorTest, ExpectedInRegisterHint) {
     liveness.Analyze();
 
     // Check that the field gets put in the register expected by its use.
-    ret->GetLocations()->SetInAt(0, Location::RegisterLocation(ManagedRegister(2)));
+    ret->GetLocations()->SetInAt(0, Location::RegisterLocation(2));
 
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
     register_allocator.AllocateRegisters();
@@ -682,7 +681,7 @@ TEST(RegisterAllocatorTest, SameAsFirstInputHint) {
     liveness.Analyze();
 
     // check that both adds get the same register.
-    first_add->InputAt(0)->GetLocations()->SetOut(Location::RegisterLocation(ManagedRegister(2)));
+    first_add->InputAt(0)->GetLocations()->SetOut(Location::RegisterLocation(2));
     ASSERT_EQ(first_add->GetLocations()->Out().GetPolicy(), Location::kSameAsFirstInput);
     ASSERT_EQ(second_add->GetLocations()->Out().GetPolicy(), Location::kSameAsFirstInput);
 

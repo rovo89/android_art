@@ -170,8 +170,7 @@ int ParallelMoveResolver::AllocateScratchRegister(int blocked,
   DCHECK_NE(blocked, if_scratch);
   int scratch = -1;
   for (int reg = 0; reg < register_count; ++reg) {
-    if ((blocked != reg) &&
-        IsScratchLocation(Location::RegisterLocation(ManagedRegister(reg)))) {
+    if ((blocked != reg) && IsScratchLocation(Location::RegisterLocation(reg))) {
       scratch = reg;
       break;
     }

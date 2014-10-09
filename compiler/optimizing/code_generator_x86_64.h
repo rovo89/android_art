@@ -186,7 +186,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   }
 
   virtual void SetupBlockedRegisters(bool* blocked_registers) const OVERRIDE;
-  virtual ManagedRegister AllocateFreeRegister(
+  virtual Location AllocateFreeRegister(
       Primitive::Type type, bool* blocked_registers) const OVERRIDE;
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
