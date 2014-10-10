@@ -177,6 +177,7 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 
 #define PURE __attribute__ ((__pure__))
 #define WARN_UNUSED __attribute__((warn_unused_result))
+#define NO_RETURN __attribute__((noreturn))
 
 template<typename T> void UNUSED(const T&) {}
 #define UNREACHABLE  __builtin_unreachable

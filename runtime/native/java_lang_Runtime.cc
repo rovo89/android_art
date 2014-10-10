@@ -37,6 +37,7 @@ static void Runtime_gc(JNIEnv*, jclass) {
   Runtime::Current()->GetHeap()->CollectGarbage(false);
 }
 
+static void Runtime_nativeExit(JNIEnv*, jclass, jint status) NO_RETURN;
 static void Runtime_nativeExit(JNIEnv*, jclass, jint status) {
   LOG(INFO) << "System.exit called, status: " << status;
   Runtime::Current()->CallExitHook(status);
