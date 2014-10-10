@@ -833,7 +833,7 @@ LIR* Arm64Mir2Lir::OpRegRegImm64(OpKind op, RegStorage r_dest, RegStorage r_src1
                      value);
     case kOpAdd:
       neg = !neg;
-      // Note: intentional fallthrough
+      FALLTHROUGH_INTENDED;
     case kOpSub:
       // Add and sub below read/write sp rather than xzr.
       if (abs_value < 0x1000) {

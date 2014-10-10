@@ -482,7 +482,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
 
     case Instruction::RETURN_OBJECT:
       DCHECK(rl_src[0].ref);
-      // Intentional fallthrough.
+      FALLTHROUGH_INTENDED;
     case Instruction::RETURN:
       if (!kLeafOptimization || !mir_graph_->MethodIsLeaf()) {
         GenSuspendTest(opt_flags);
@@ -1031,8 +1031,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
         GenArithImmOpLong(opcode, rl_dest, rl_src[0], rl_src[1]);
         break;
       }
-      // Note: intentional fallthrough.
-
+      FALLTHROUGH_INTENDED;
     case Instruction::MUL_LONG:
     case Instruction::DIV_LONG:
     case Instruction::REM_LONG:

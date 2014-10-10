@@ -113,7 +113,7 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
       // Group 3
       case 0x66:
         operand_size_prefix = true;
-        // fallthrough
+        FALLTHROUGH_INTENDED;
 
       // Group 1
       case 0xf0:
