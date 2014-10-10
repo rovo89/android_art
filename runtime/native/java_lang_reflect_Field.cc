@@ -268,6 +268,7 @@ static void SetFieldValue(ScopedFastNativeObjectAccess& soa, mirror::Object* o,
       break;
     }
     // Else fall through to report an error.
+    FALLTHROUGH_INTENDED;
   case Primitive::kPrimVoid:
     // Never okay.
     ThrowIllegalArgumentException(nullptr, StringPrintf("Not a primitive field: %s",

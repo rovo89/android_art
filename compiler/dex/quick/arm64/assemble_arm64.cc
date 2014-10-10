@@ -705,16 +705,16 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
               switch (kind) {
                 case kFmtRegX:
                   want_64_bit = true;
-                  // Intentional fall-through.
+                  FALLTHROUGH_INTENDED;
                 case kFmtRegW:
                   want_var_size = false;
-                  // Intentional fall-through.
+                  FALLTHROUGH_INTENDED;
                 case kFmtRegR:
                   want_zero = true;
                   break;
                 case kFmtRegXOrSp:
                   want_64_bit = true;
-                  // Intentional fall-through.
+                  FALLTHROUGH_INTENDED;
                 case kFmtRegWOrSp:
                   want_var_size = false;
                   break;
@@ -722,10 +722,10 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
                   break;
                 case kFmtRegD:
                   want_64_bit = true;
-                  // Intentional fall-through.
+                  FALLTHROUGH_INTENDED;
                 case kFmtRegS:
                   want_var_size = false;
-                  // Intentional fall-through.
+                  FALLTHROUGH_INTENDED;
                 case kFmtRegF:
                   want_float = true;
                   break;

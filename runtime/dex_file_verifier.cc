@@ -142,7 +142,7 @@ bool DexFileVerifier::CheckShortyDescriptorMatch(char shorty_char, const char* d
         ErrorStringPrintf("Invalid use of void");
         return false;
       }
-      // Intentional fallthrough.
+      FALLTHROUGH_INTENDED;
     case 'B':
     case 'C':
     case 'D':

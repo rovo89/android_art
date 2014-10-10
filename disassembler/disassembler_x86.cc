@@ -412,7 +412,7 @@ DISASSEMBLER_ENTRY(cmp,
         break;
       case 0x2E:
         opcode << "u";
-        // FALLTHROUGH
+        FALLTHROUGH_INTENDED;
       case 0x2F:
         if (prefix[2] == 0x66) {
           opcode << "comisd";

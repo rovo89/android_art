@@ -1460,7 +1460,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
         uint16_t reg = GetOperandValue(mir->ssa_rep->uses[0]);
         HandleNullCheck(mir, reg);
       }
-      // Intentional fall-through.
+      FALLTHROUGH_INTENDED;
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_STATIC_RANGE:
       // Make ref args aliasing.
@@ -1583,7 +1583,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
         uint16_t reg = GetOperandValue(mir->ssa_rep->uses[0]);
         HandleNullCheck(mir, reg);
       }
-      // Intentional fall-through.
+      FALLTHROUGH_INTENDED;
     case Instruction::NEG_INT:
     case Instruction::NOT_INT:
     case Instruction::NEG_FLOAT:
@@ -1609,7 +1609,6 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
         SetOperandValue(mir->ssa_rep->defs[0], res);
       }
       break;
-
 
     case Instruction::DOUBLE_TO_LONG:
     case Instruction::LONG_TO_DOUBLE:
@@ -1782,7 +1781,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
 
     case Instruction::APUT_OBJECT:
       HandlePutObject(mir);
-      // Intentional fall-through.
+      FALLTHROUGH_INTENDED;
     case Instruction::APUT:
     case Instruction::APUT_WIDE:
     case Instruction::APUT_BYTE:
@@ -1804,7 +1803,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
 
     case Instruction::IPUT_OBJECT:
       HandlePutObject(mir);
-      // Intentional fall-through.
+      FALLTHROUGH_INTENDED;
     case Instruction::IPUT:
     case Instruction::IPUT_WIDE:
     case Instruction::IPUT_BOOLEAN:
@@ -1826,7 +1825,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
 
     case Instruction::SPUT_OBJECT:
       HandlePutObject(mir);
-      // Intentional fall-through.
+      FALLTHROUGH_INTENDED;
     case Instruction::SPUT:
     case Instruction::SPUT_WIDE:
     case Instruction::SPUT_BOOLEAN:
