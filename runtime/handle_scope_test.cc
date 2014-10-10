@@ -25,7 +25,7 @@ namespace art {
 template<size_t kNumReferences>
 class NoThreadStackHandleScope : public HandleScope {
  public:
-  explicit NoThreadStackHandleScope() : HandleScope(kNumReferences) {
+  explicit NoThreadStackHandleScope(HandleScope* link) : HandleScope(link, kNumReferences) {
   }
   ~NoThreadStackHandleScope() {
   }
@@ -41,10 +41,8 @@ class NoThreadStackHandleScope : public HandleScope {
 TEST(HandleScopeTest, Offsets) NO_THREAD_SAFETY_ANALYSIS {
   // As the members of HandleScope are private, we cannot use OFFSETOF_MEMBER
   // here. So do the inverse: set some data, and access it through pointers created from the offsets.
-  NoThreadStackHandleScope<1> test_table;
+  NoThreadStackHandleScope<0x9ABC> test_table(reinterpret_cast<HandleScope*>(0x5678));
   test_table.SetReference(0, reinterpret_cast<mirror::Object*>(0x1234));
-  test_table.SetLink(reinterpret_cast<HandleScope*>(0x5678));
-  test_table.SetNumberOfReferences(0x9ABC);
 
   uint8_t* table_base_ptr = reinterpret_cast<uint8_t*>(&test_table);
 
