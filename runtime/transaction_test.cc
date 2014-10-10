@@ -147,12 +147,12 @@ TEST_F(TransactionTest, StaticFieldsTest) {
   mirror::ArtField* floatField = h_klass->FindDeclaredStaticField("floatField", "F");
   ASSERT_TRUE(floatField != nullptr);
   ASSERT_EQ(floatField->GetTypeAsPrimitiveType(), Primitive::kPrimFloat);
-  ASSERT_EQ(floatField->GetFloat(h_klass.Get()), static_cast<float>(0.0f));
+  ASSERT_FLOAT_EQ(floatField->GetFloat(h_klass.Get()), static_cast<float>(0.0f));
 
   mirror::ArtField* doubleField = h_klass->FindDeclaredStaticField("doubleField", "D");
   ASSERT_TRUE(doubleField != nullptr);
   ASSERT_EQ(doubleField->GetTypeAsPrimitiveType(), Primitive::kPrimDouble);
-  ASSERT_EQ(doubleField->GetDouble(h_klass.Get()), static_cast<double>(0.0));
+  ASSERT_DOUBLE_EQ(doubleField->GetDouble(h_klass.Get()), static_cast<double>(0.0));
 
   mirror::ArtField* objectField = h_klass->FindDeclaredStaticField("objectField",
                                                                       "Ljava/lang/Object;");
@@ -190,8 +190,8 @@ TEST_F(TransactionTest, StaticFieldsTest) {
   EXPECT_EQ(shortField->GetShort(h_klass.Get()), 0);
   EXPECT_EQ(intField->GetInt(h_klass.Get()), 0);
   EXPECT_EQ(longField->GetLong(h_klass.Get()), static_cast<int64_t>(0));
-  EXPECT_EQ(floatField->GetFloat(h_klass.Get()), static_cast<float>(0.0f));
-  EXPECT_EQ(doubleField->GetDouble(h_klass.Get()), static_cast<double>(0.0));
+  EXPECT_FLOAT_EQ(floatField->GetFloat(h_klass.Get()), static_cast<float>(0.0f));
+  EXPECT_DOUBLE_EQ(doubleField->GetDouble(h_klass.Get()), static_cast<double>(0.0));
   EXPECT_EQ(objectField->GetObject(h_klass.Get()), nullptr);
 }
 
@@ -246,12 +246,12 @@ TEST_F(TransactionTest, InstanceFieldsTest) {
   mirror::ArtField* floatField = h_klass->FindDeclaredInstanceField("floatField", "F");
   ASSERT_TRUE(floatField != nullptr);
   ASSERT_EQ(floatField->GetTypeAsPrimitiveType(), Primitive::kPrimFloat);
-  ASSERT_EQ(floatField->GetFloat(h_instance.Get()), static_cast<float>(0.0f));
+  ASSERT_FLOAT_EQ(floatField->GetFloat(h_instance.Get()), static_cast<float>(0.0f));
 
   mirror::ArtField* doubleField = h_klass->FindDeclaredInstanceField("doubleField", "D");
   ASSERT_TRUE(doubleField != nullptr);
   ASSERT_EQ(doubleField->GetTypeAsPrimitiveType(), Primitive::kPrimDouble);
-  ASSERT_EQ(doubleField->GetDouble(h_instance.Get()), static_cast<double>(0.0));
+  ASSERT_DOUBLE_EQ(doubleField->GetDouble(h_instance.Get()), static_cast<double>(0.0));
 
   mirror::ArtField* objectField = h_klass->FindDeclaredInstanceField("objectField",
                                                                         "Ljava/lang/Object;");
@@ -289,8 +289,8 @@ TEST_F(TransactionTest, InstanceFieldsTest) {
   EXPECT_EQ(shortField->GetShort(h_instance.Get()), 0);
   EXPECT_EQ(intField->GetInt(h_instance.Get()), 0);
   EXPECT_EQ(longField->GetLong(h_instance.Get()), static_cast<int64_t>(0));
-  EXPECT_EQ(floatField->GetFloat(h_instance.Get()), static_cast<float>(0.0f));
-  EXPECT_EQ(doubleField->GetDouble(h_instance.Get()), static_cast<double>(0.0));
+  EXPECT_FLOAT_EQ(floatField->GetFloat(h_instance.Get()), static_cast<float>(0.0f));
+  EXPECT_DOUBLE_EQ(doubleField->GetDouble(h_instance.Get()), static_cast<double>(0.0));
   EXPECT_EQ(objectField->GetObject(h_instance.Get()), nullptr);
 }
 
@@ -356,14 +356,14 @@ TEST_F(TransactionTest, StaticArrayFieldsTest) {
   mirror::FloatArray* floatArray = floatArrayField->GetObject(h_klass.Get())->AsFloatArray();
   ASSERT_TRUE(floatArray != nullptr);
   ASSERT_EQ(floatArray->GetLength(), 1);
-  ASSERT_EQ(floatArray->GetWithoutChecks(0), static_cast<float>(0.0f));
+  ASSERT_FLOAT_EQ(floatArray->GetWithoutChecks(0), static_cast<float>(0.0f));
 
   mirror::ArtField* doubleArrayField = h_klass->FindDeclaredStaticField("doubleArrayField", "[D");
   ASSERT_TRUE(doubleArrayField != nullptr);
   mirror::DoubleArray* doubleArray = doubleArrayField->GetObject(h_klass.Get())->AsDoubleArray();
   ASSERT_TRUE(doubleArray != nullptr);
   ASSERT_EQ(doubleArray->GetLength(), 1);
-  ASSERT_EQ(doubleArray->GetWithoutChecks(0), static_cast<double>(0.0f));
+  ASSERT_DOUBLE_EQ(doubleArray->GetWithoutChecks(0), static_cast<double>(0.0f));
 
   mirror::ArtField* objectArrayField = h_klass->FindDeclaredStaticField("objectArrayField",
                                                                            "[Ljava/lang/Object;");
@@ -404,8 +404,8 @@ TEST_F(TransactionTest, StaticArrayFieldsTest) {
   EXPECT_EQ(shortArray->GetWithoutChecks(0), 0);
   EXPECT_EQ(intArray->GetWithoutChecks(0), 0);
   EXPECT_EQ(longArray->GetWithoutChecks(0), static_cast<int64_t>(0));
-  EXPECT_EQ(floatArray->GetWithoutChecks(0), static_cast<float>(0.0f));
-  EXPECT_EQ(doubleArray->GetWithoutChecks(0), static_cast<double>(0.0f));
+  EXPECT_FLOAT_EQ(floatArray->GetWithoutChecks(0), static_cast<float>(0.0f));
+  EXPECT_DOUBLE_EQ(doubleArray->GetWithoutChecks(0), static_cast<double>(0.0f));
   EXPECT_EQ(objectArray->GetWithoutChecks(0), nullptr);
 }
 

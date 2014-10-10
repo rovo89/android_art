@@ -365,12 +365,12 @@ void JniCompilerTest::CompileAndRunDoubleDoubleMethodImpl() {
   EXPECT_EQ(0, gJava_MyClassNatives_fooDD_calls);
   jdouble result = env_->CallNonvirtualDoubleMethod(jobj_, jklass_, jmethod_,
                                                     99.0, 10.0);
-  EXPECT_EQ(99.0 - 10.0, result);
+  EXPECT_DOUBLE_EQ(99.0 - 10.0, result);
   EXPECT_EQ(1, gJava_MyClassNatives_fooDD_calls);
   jdouble a = 3.14159265358979323846;
   jdouble b = 0.69314718055994530942;
   result = env_->CallNonvirtualDoubleMethod(jobj_, jklass_, jmethod_, a, b);
-  EXPECT_EQ(a - b, result);
+  EXPECT_DOUBLE_EQ(a - b, result);
   EXPECT_EQ(2, gJava_MyClassNatives_fooDD_calls);
 
   gJava_MyClassNatives_fooDD_calls = 0;
@@ -513,13 +513,13 @@ void JniCompilerTest::CompileAndRunStaticDoubleDoubleMethodImpl() {
 
   EXPECT_EQ(0, gJava_MyClassNatives_fooSDD_calls);
   jdouble result = env_->CallStaticDoubleMethod(jklass_, jmethod_, 99.0, 10.0);
-  EXPECT_EQ(99.0 - 10.0, result);
+  EXPECT_DOUBLE_EQ(99.0 - 10.0, result);
   EXPECT_EQ(1, gJava_MyClassNatives_fooSDD_calls);
   jdouble a = 3.14159265358979323846;
   jdouble b = 0.69314718055994530942;
   result = env_->CallStaticDoubleMethod(jklass_, jmethod_, a, b);
-  EXPECT_EQ(a - b, result);
-  EXPECT_EQ(2, gJava_MyClassNatives_fooSDD_calls);
+  EXPECT_DOUBLE_EQ(a - b, result);
+  EXPECT_DOUBLE_EQ(2, gJava_MyClassNatives_fooSDD_calls);
 
   gJava_MyClassNatives_fooSDD_calls = 0;
 }
@@ -539,7 +539,7 @@ void JniCompilerTest::RunStaticLogDoubleMethodImpl() {
   SetUpForTest(true, "logD", "(D)D", reinterpret_cast<void*>(&Java_MyClassNatives_logD));
 
   jdouble result = env_->CallStaticDoubleMethod(jklass_, jmethod_, 2.0);
-  EXPECT_EQ(log(2.0), result);
+  EXPECT_DOUBLE_EQ(log(2.0), result);
 }
 
 JNI_TEST(RunStaticLogDoubleMethod)
@@ -553,7 +553,7 @@ void JniCompilerTest::RunStaticLogFloatMethodImpl() {
   SetUpForTest(true, "logF", "(F)F", reinterpret_cast<void*>(&Java_MyClassNatives_logF));
 
   jfloat result = env_->CallStaticFloatMethod(jklass_, jmethod_, 2.0);
-  EXPECT_EQ(logf(2.0), result);
+  EXPECT_FLOAT_EQ(logf(2.0), result);
 }
 
 JNI_TEST(RunStaticLogFloatMethod)
@@ -1047,11 +1047,11 @@ void JniCompilerTest::CompileAndRunFloatFloatMethodImpl() {
 
   jfloat result = env_->CallNonvirtualFloatMethod(jobj_, jklass_, jmethod_,
                                                     99.0F, 10.0F);
-  EXPECT_EQ(99.0F - 10.0F, result);
+  EXPECT_FLOAT_EQ(99.0F - 10.0F, result);
   jfloat a = 3.14159F;
   jfloat b = 0.69314F;
   result = env_->CallNonvirtualFloatMethod(jobj_, jklass_, jmethod_, a, b);
-  EXPECT_EQ(a - b, result);
+  EXPECT_FLOAT_EQ(a - b, result);
 }
 
 JNI_TEST(CompileAndRunFloatFloatMethod)

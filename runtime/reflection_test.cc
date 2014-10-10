@@ -193,19 +193,19 @@ class ReflectionTest : public CommonCompilerTest {
 
     args[0].d = 0.0;
     JValue result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(0.0, result.GetD());
+    EXPECT_DOUBLE_EQ(0.0, result.GetD());
 
     args[0].d = -1.0;
     result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(-1.0, result.GetD());
+    EXPECT_DOUBLE_EQ(-1.0, result.GetD());
 
     args[0].d = DBL_MAX;
     result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(DBL_MAX, result.GetD());
+    EXPECT_DOUBLE_EQ(DBL_MAX, result.GetD());
 
     args[0].d = DBL_MIN;
     result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(DBL_MIN, result.GetD());
+    EXPECT_DOUBLE_EQ(DBL_MIN, result.GetD());
   }
 
   void InvokeSumIntIntMethod(bool is_static) {
@@ -375,27 +375,27 @@ class ReflectionTest : public CommonCompilerTest {
     args[0].d = 0.0;
     args[1].d = 0.0;
     JValue result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(0.0, result.GetD());
+    EXPECT_DOUBLE_EQ(0.0, result.GetD());
 
     args[0].d = 1.0;
     args[1].d = 2.0;
     result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(3.0, result.GetD());
+    EXPECT_DOUBLE_EQ(3.0, result.GetD());
 
     args[0].d = 1.0;
     args[1].d = -2.0;
     result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(-1.0, result.GetD());
+    EXPECT_DOUBLE_EQ(-1.0, result.GetD());
 
     args[0].d = DBL_MAX;
     args[1].d = DBL_MIN;
     result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(1.7976931348623157e308, result.GetD());
+    EXPECT_DOUBLE_EQ(1.7976931348623157e308, result.GetD());
 
     args[0].d = DBL_MAX;
     args[1].d = DBL_MAX;
     result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(INFINITY, result.GetD());
+    EXPECT_DOUBLE_EQ(INFINITY, result.GetD());
   }
 
   void InvokeSumDoubleDoubleDoubleMethod(bool is_static) {
@@ -409,19 +409,19 @@ class ReflectionTest : public CommonCompilerTest {
     args[1].d = 0.0;
     args[2].d = 0.0;
     JValue result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(0.0, result.GetD());
+    EXPECT_DOUBLE_EQ(0.0, result.GetD());
 
     args[0].d = 1.0;
     args[1].d = 2.0;
     args[2].d = 3.0;
     result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(6.0, result.GetD());
+    EXPECT_DOUBLE_EQ(6.0, result.GetD());
 
     args[0].d = 1.0;
     args[1].d = -2.0;
     args[2].d = 3.0;
     result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(2.0, result.GetD());
+    EXPECT_DOUBLE_EQ(2.0, result.GetD());
   }
 
   void InvokeSumDoubleDoubleDoubleDoubleMethod(bool is_static) {
@@ -436,21 +436,21 @@ class ReflectionTest : public CommonCompilerTest {
     args[2].d = 0.0;
     args[3].d = 0.0;
     JValue result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(0.0, result.GetD());
+    EXPECT_DOUBLE_EQ(0.0, result.GetD());
 
     args[0].d = 1.0;
     args[1].d = 2.0;
     args[2].d = 3.0;
     args[3].d = 4.0;
     result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(10.0, result.GetD());
+    EXPECT_DOUBLE_EQ(10.0, result.GetD());
 
     args[0].d = 1.0;
     args[1].d = -2.0;
     args[2].d = 3.0;
     args[3].d = -4.0;
     result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(-2.0, result.GetD());
+    EXPECT_DOUBLE_EQ(-2.0, result.GetD());
   }
 
   void InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(bool is_static) {
@@ -466,7 +466,7 @@ class ReflectionTest : public CommonCompilerTest {
     args[3].d = 0.0;
     args[4].d = 0.0;
     JValue result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(0.0, result.GetD());
+    EXPECT_DOUBLE_EQ(0.0, result.GetD());
 
     args[0].d = 1.0;
     args[1].d = 2.0;
@@ -474,7 +474,7 @@ class ReflectionTest : public CommonCompilerTest {
     args[3].d = 4.0;
     args[4].d = 5.0;
     result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(15.0, result.GetD());
+    EXPECT_DOUBLE_EQ(15.0, result.GetD());
 
     args[0].d = 1.0;
     args[1].d = -2.0;
@@ -482,7 +482,7 @@ class ReflectionTest : public CommonCompilerTest {
     args[3].d = -4.0;
     args[4].d = 5.0;
     result = InvokeWithJValues(soa, receiver, soa.EncodeMethod(method), args);
-    EXPECT_EQ(3.0, result.GetD());
+    EXPECT_DOUBLE_EQ(3.0, result.GetD());
   }
 
   JavaVMExt* vm_;

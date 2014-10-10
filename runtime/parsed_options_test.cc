@@ -64,7 +64,7 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   EXPECT_EQ(2048U, parsed->heap_initial_size_);
   EXPECT_EQ(4 * KB, parsed->heap_maximum_size_);
   EXPECT_EQ(1 * MB, parsed->stack_size_);
-  EXPECT_EQ(0.75, parsed->heap_target_utilization_);
+  EXPECT_DOUBLE_EQ(0.75, parsed->heap_target_utilization_);
   EXPECT_TRUE(test_vfprintf == parsed->hook_vfprintf_);
   EXPECT_TRUE(test_exit == parsed->hook_exit_);
   EXPECT_TRUE(test_abort == parsed->hook_abort_);

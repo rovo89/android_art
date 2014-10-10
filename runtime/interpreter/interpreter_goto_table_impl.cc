@@ -662,6 +662,11 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   }
   HANDLE_INSTRUCTION_END();
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wfloat-equal"
+#endif
+
   HANDLE_INSTRUCTION_START(CMPL_FLOAT) {
     float val1 = shadow_frame.GetVRegFloat(inst->VRegB_23x());
     float val2 = shadow_frame.GetVRegFloat(inst->VRegC_23x());
@@ -725,6 +730,10 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     ADVANCE(2);
   }
   HANDLE_INSTRUCTION_END();
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
   HANDLE_INSTRUCTION_START(CMP_LONG) {
     int64_t val1 = shadow_frame.GetVRegLong(inst->VRegB_23x());
