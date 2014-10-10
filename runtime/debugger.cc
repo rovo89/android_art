@@ -4365,11 +4365,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
 
   Thread* self = Thread::Current();
 
-  // To allow the Walk/InspectAll() below to exclusively-lock the
-  // mutator lock, temporarily release the shared access to the
-  // mutator lock here by transitioning to the suspended state.
   Locks::mutator_lock_->AssertSharedHeld(self);
-  self->TransitionFromRunnableToSuspended(kSuspended);
 
   // Send a series of heap segment chunks.
   HeapChunkContext context((what == HPSG_WHAT_MERGED_OBJECTS), native);
@@ -4383,31 +4379,38 @@ void Dbg::DdmSendHeapSegments(bool native) {
     gc::Heap* heap = Runtime::Current()->GetHeap();
     for (const auto& space : heap->GetContinuousSpaces()) {
       if (space->IsDlMallocSpace()) {
+        ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
         // dlmalloc's chunk header is 2 * sizeof(size_t), but if the previous chunk is in use for an
         // allocation then the first sizeof(size_t) may belong to it.
         context.SetChunkOverhead(sizeof(size_t));
         space->AsDlMallocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
       } else if (space->IsRosAllocSpace()) {
         context.SetChunkOverhead(0);
-        space->AsRosAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+        // Need to acquire the mutator lock before the heap bitmap lock with exclusive access since
+        // RosAlloc's internal logic doesn't know to release and reacquire the heap bitmap lock.
+        self->TransitionFromRunnableToSuspended(kSuspended);
+        ThreadList* tl = Runtime::Current()->GetThreadList();
+        tl->SuspendAll();
+        {
+          ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
+          space->AsRosAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+        }
+        tl->ResumeAll();
+        self->TransitionFromSuspendedToRunnable();
       } else if (space->IsBumpPointerSpace()) {
+        ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
         context.SetChunkOverhead(0);
-        ReaderMutexLock mu(self, *Locks::mutator_lock_);
-        WriterMutexLock mu2(self, *Locks::heap_bitmap_lock_);
         space->AsBumpPointerSpace()->Walk(BumpPointerSpaceCallback, &context);
       } else {
         UNIMPLEMENTED(WARNING) << "Not counting objects in space " << *space;
       }
       context.ResetStartOfNextChunk();
     }
+    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     // Walk the large objects, these are not in the AllocSpace.
     context.SetChunkOverhead(0);
     heap->GetLargeObjectsSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
   }
-
-  // Shared-lock the mutator lock back.
-  self->TransitionFromSuspendedToRunnable();
-  Locks::mutator_lock_->AssertSharedHeld(self);
 
   // Finally, send a heap end chunk.
   Dbg::DdmSendChunk(native ? CHUNK_TYPE("NHEN") : CHUNK_TYPE("HPEN"), sizeof(heap_id), heap_id);
