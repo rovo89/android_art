@@ -907,12 +907,12 @@ TEST_F(ClassLinkerTest, StaticFields) {
 
   mirror::ArtField* s6 = mirror::Class::FindStaticField(soa.Self(), statics, "s6", "F");
   EXPECT_EQ(s6->GetTypeAsPrimitiveType(), Primitive::kPrimFloat);
-  EXPECT_EQ(0.5, s6->GetFloat(statics.Get()));
+  EXPECT_DOUBLE_EQ(0.5, s6->GetFloat(statics.Get()));
   s6->SetFloat<false>(statics.Get(), 0.75);
 
   mirror::ArtField* s7 = mirror::Class::FindStaticField(soa.Self(), statics, "s7", "D");
   EXPECT_EQ(s7->GetTypeAsPrimitiveType(), Primitive::kPrimDouble);
-  EXPECT_EQ(16777217, s7->GetDouble(statics.Get()));
+  EXPECT_DOUBLE_EQ(16777217.0, s7->GetDouble(statics.Get()));
   s7->SetDouble<false>(statics.Get(), 16777219);
 
   mirror::ArtField* s8 = mirror::Class::FindStaticField(soa.Self(), statics, "s8",
@@ -930,8 +930,8 @@ TEST_F(ClassLinkerTest, StaticFields) {
   EXPECT_EQ(-535, s3->GetShort(statics.Get()));
   EXPECT_EQ(2000000001, s4->GetInt(statics.Get()));
   EXPECT_EQ(INT64_C(0x34567890abcdef12), s5->GetLong(statics.Get()));
-  EXPECT_EQ(0.75, s6->GetFloat(statics.Get()));
-  EXPECT_EQ(16777219, s7->GetDouble(statics.Get()));
+  EXPECT_FLOAT_EQ(0.75, s6->GetFloat(statics.Get()));
+  EXPECT_DOUBLE_EQ(16777219.0, s7->GetDouble(statics.Get()));
   EXPECT_TRUE(s8->GetObject(statics.Get())->AsString()->Equals("robot"));
 }
 

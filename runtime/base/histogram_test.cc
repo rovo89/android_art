@@ -41,14 +41,14 @@ TEST(Histtest, MeanTest) {
     hist->AddValue(static_cast<uint64_t>(50));
   }
   mean = hist->Mean();
-  EXPECT_EQ(mean, 50);
+  EXPECT_DOUBLE_EQ(mean, 50.0);
   hist->Reset();
   hist->AddValue(9);
   hist->AddValue(17);
   hist->AddValue(28);
   hist->AddValue(28);
   mean = hist->Mean();
-  EXPECT_EQ(20.5, mean);
+  EXPECT_DOUBLE_EQ(20.5, mean);
 }
 
 TEST(Histtest, VarianceTest) {
@@ -60,7 +60,7 @@ TEST(Histtest, VarianceTest) {
   hist->AddValue(28);
   hist->AddValue(28);
   variance = hist->Variance();
-  EXPECT_EQ(64.25, variance);
+  EXPECT_DOUBLE_EQ(64.25, variance);
 }
 
 TEST(Histtest, Percentile) {
@@ -236,7 +236,7 @@ TEST(Histtest, CappingPercentiles) {
   }
   hist->CreateHistogram(&data);
   per_995 = hist->Percentile(0.995, data);
-  EXPECT_EQ(per_995, 0);
+  EXPECT_DOUBLE_EQ(per_995, 0.0);
   hist->Reset();
   for (size_t idx = 0; idx < 200; idx++) {
     for (uint64_t val = 1ull; val <= 4ull; val++) {
@@ -246,8 +246,8 @@ TEST(Histtest, CappingPercentiles) {
   hist->CreateHistogram(&data);
   per_005 = hist->Percentile(0.005, data);
   per_995 = hist->Percentile(0.995, data);
-  EXPECT_EQ(1, per_005);
-  EXPECT_EQ(4, per_995);
+  EXPECT_DOUBLE_EQ(1.0, per_005);
+  EXPECT_DOUBLE_EQ(4.0, per_995);
 }
 
 TEST(Histtest, SpikyValues) {

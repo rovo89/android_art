@@ -248,12 +248,6 @@ TEST_F(ObjectTest, PrimitiveArray_Byte_Alloc) {
 TEST_F(ObjectTest, PrimitiveArray_Char_Alloc) {
   TestPrimitiveArray<CharArray>(class_linker_);
 }
-TEST_F(ObjectTest, PrimitiveArray_Double_Alloc) {
-  TestPrimitiveArray<DoubleArray>(class_linker_);
-}
-TEST_F(ObjectTest, PrimitiveArray_Float_Alloc) {
-  TestPrimitiveArray<FloatArray>(class_linker_);
-}
 TEST_F(ObjectTest, PrimitiveArray_Int_Alloc) {
   TestPrimitiveArray<IntArray>(class_linker_);
 }
@@ -263,6 +257,67 @@ TEST_F(ObjectTest, PrimitiveArray_Long_Alloc) {
 TEST_F(ObjectTest, PrimitiveArray_Short_Alloc) {
   TestPrimitiveArray<ShortArray>(class_linker_);
 }
+
+TEST_F(ObjectTest, PrimitiveArray_Double_Alloc) {
+  typedef DoubleArray ArrayT;
+  ScopedObjectAccess soa(Thread::Current());
+  typedef typename ArrayT::ElementType T;
+
+  ArrayT* a = ArrayT::Alloc(soa.Self(), 2);
+  EXPECT_EQ(2, a->GetLength());
+  EXPECT_DOUBLE_EQ(0, a->Get(0));
+  EXPECT_DOUBLE_EQ(0, a->Get(1));
+  a->Set(0, T(123));
+  EXPECT_DOUBLE_EQ(T(123), a->Get(0));
+  EXPECT_DOUBLE_EQ(0, a->Get(1));
+  a->Set(1, T(321));
+  EXPECT_DOUBLE_EQ(T(123), a->Get(0));
+  EXPECT_DOUBLE_EQ(T(321), a->Get(1));
+
+  Class* aioobe = class_linker_->FindSystemClass(soa.Self(),
+                                                 "Ljava/lang/ArrayIndexOutOfBoundsException;");
+
+  EXPECT_DOUBLE_EQ(0, a->Get(-1));
+  EXPECT_TRUE(soa.Self()->IsExceptionPending());
+  EXPECT_EQ(aioobe, soa.Self()->GetException(NULL)->GetClass());
+  soa.Self()->ClearException();
+
+  EXPECT_DOUBLE_EQ(0, a->Get(2));
+  EXPECT_TRUE(soa.Self()->IsExceptionPending());
+  EXPECT_EQ(aioobe, soa.Self()->GetException(NULL)->GetClass());
+  soa.Self()->ClearException();
+}
+
+TEST_F(ObjectTest, PrimitiveArray_Float_Alloc) {
+  typedef FloatArray ArrayT;
+  ScopedObjectAccess soa(Thread::Current());
+  typedef typename ArrayT::ElementType T;
+
+  ArrayT* a = ArrayT::Alloc(soa.Self(), 2);
+  EXPECT_FLOAT_EQ(2, a->GetLength());
+  EXPECT_FLOAT_EQ(0, a->Get(0));
+  EXPECT_FLOAT_EQ(0, a->Get(1));
+  a->Set(0, T(123));
+  EXPECT_FLOAT_EQ(T(123), a->Get(0));
+  EXPECT_FLOAT_EQ(0, a->Get(1));
+  a->Set(1, T(321));
+  EXPECT_FLOAT_EQ(T(123), a->Get(0));
+  EXPECT_FLOAT_EQ(T(321), a->Get(1));
+
+  Class* aioobe = class_linker_->FindSystemClass(soa.Self(),
+                                                 "Ljava/lang/ArrayIndexOutOfBoundsException;");
+
+  EXPECT_FLOAT_EQ(0, a->Get(-1));
+  EXPECT_TRUE(soa.Self()->IsExceptionPending());
+  EXPECT_EQ(aioobe, soa.Self()->GetException(NULL)->GetClass());
+  soa.Self()->ClearException();
+
+  EXPECT_FLOAT_EQ(0, a->Get(2));
+  EXPECT_TRUE(soa.Self()->IsExceptionPending());
+  EXPECT_EQ(aioobe, soa.Self()->GetException(NULL)->GetClass());
+  soa.Self()->ClearException();
+}
+
 
 TEST_F(ObjectTest, CheckAndAllocArrayFromCode) {
   // pretend we are trying to call 'new char[3]' from String.toCharArray

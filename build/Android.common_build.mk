@@ -236,6 +236,9 @@ art_clang_cflags := -fcolor-diagnostics
 # Warn if switch fallthroughs aren't annotated.
 art_clang_cflags += -Wimplicit-fallthrough
 
+# Enable float equality warnings.
+art_clang_cflags += -Wfloat-equal
+
 ifeq ($(ART_HOST_CLANG),true)
   ART_HOST_CFLAGS += $(art_clang_cflags)
 endif

@@ -1527,14 +1527,14 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
   EXPECT_TRUE(vm_->SetCheckJniEnabled(old_check_jni));
 }
 
-#define EXPECT_STATIC_PRIMITIVE_FIELD(type, field_name, sig, value1, value2) \
+#define EXPECT_STATIC_PRIMITIVE_FIELD(expect_eq, type, field_name, sig, value1, value2) \
   do { \
     jfieldID fid = env_->GetStaticFieldID(c, field_name, sig); \
     EXPECT_NE(fid, nullptr); \
     env_->SetStatic ## type ## Field(c, fid, value1); \
-    EXPECT_EQ(value1, env_->GetStatic ## type ## Field(c, fid)); \
+    expect_eq(value1, env_->GetStatic ## type ## Field(c, fid)); \
     env_->SetStatic ## type ## Field(c, fid, value2); \
-    EXPECT_EQ(value2, env_->GetStatic ## type ## Field(c, fid)); \
+    expect_eq(value2, env_->GetStatic ## type ## Field(c, fid)); \
     \
     bool old_check_jni = vm_->SetCheckJniEnabled(false); \
     { \
@@ -1560,14 +1560,14 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
     EXPECT_TRUE(vm_->SetCheckJniEnabled(old_check_jni)); \
   } while (false)
 
-#define EXPECT_PRIMITIVE_FIELD(instance, type, field_name, sig, value1, value2) \
+#define EXPECT_PRIMITIVE_FIELD(expect_eq, instance, type, field_name, sig, value1, value2) \
   do { \
     jfieldID fid = env_->GetFieldID(c, field_name, sig); \
     EXPECT_NE(fid, nullptr); \
     env_->Set ## type ## Field(instance, fid, value1); \
-    EXPECT_EQ(value1, env_->Get ## type ## Field(instance, fid)); \
+    expect_eq(value1, env_->Get ## type ## Field(instance, fid)); \
     env_->Set ## type ## Field(instance, fid, value2); \
-    EXPECT_EQ(value2, env_->Get ## type ## Field(instance, fid)); \
+    expect_eq(value2, env_->Get ## type ## Field(instance, fid)); \
     \
     bool old_check_jni = vm_->SetCheckJniEnabled(false); \
     CheckJniAbortCatcher jni_abort_catcher; \
@@ -1604,23 +1604,23 @@ TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
   jobject o = env_->AllocObject(c);
   ASSERT_NE(o, nullptr);
 
-  EXPECT_STATIC_PRIMITIVE_FIELD(Boolean, "sZ", "Z", JNI_TRUE, JNI_FALSE);
-  EXPECT_STATIC_PRIMITIVE_FIELD(Byte, "sB", "B", 1, 2);
-  EXPECT_STATIC_PRIMITIVE_FIELD(Char, "sC", "C", 'a', 'b');
-  EXPECT_STATIC_PRIMITIVE_FIELD(Double, "sD", "D", 1.0, 2.0);
-  EXPECT_STATIC_PRIMITIVE_FIELD(Float, "sF", "F", 1.0, 2.0);
-  EXPECT_STATIC_PRIMITIVE_FIELD(Int, "sI", "I", 1, 2);
-  EXPECT_STATIC_PRIMITIVE_FIELD(Long, "sJ", "J", 1, 2);
-  EXPECT_STATIC_PRIMITIVE_FIELD(Short, "sS", "S", 1, 2);
+  EXPECT_STATIC_PRIMITIVE_FIELD(EXPECT_EQ, Boolean, "sZ", "Z", JNI_TRUE, JNI_FALSE);
+  EXPECT_STATIC_PRIMITIVE_FIELD(EXPECT_EQ, Byte, "sB", "B", 1, 2);
+  EXPECT_STATIC_PRIMITIVE_FIELD(EXPECT_EQ, Char, "sC", "C", 'a', 'b');
+  EXPECT_STATIC_PRIMITIVE_FIELD(EXPECT_DOUBLE_EQ, Double, "sD", "D", 1.0, 2.0);
+  EXPECT_STATIC_PRIMITIVE_FIELD(EXPECT_FLOAT_EQ, Float, "sF", "F", 1.0, 2.0);
+  EXPECT_STATIC_PRIMITIVE_FIELD(EXPECT_EQ, Int, "sI", "I", 1, 2);
+  EXPECT_STATIC_PRIMITIVE_FIELD(EXPECT_EQ, Long, "sJ", "J", 1, 2);
+  EXPECT_STATIC_PRIMITIVE_FIELD(EXPECT_EQ, Short, "sS", "S", 1, 2);
 
-  EXPECT_PRIMITIVE_FIELD(o, Boolean, "iZ", "Z", JNI_TRUE, JNI_FALSE);
-  EXPECT_PRIMITIVE_FIELD(o, Byte, "iB", "B", 1, 2);
-  EXPECT_PRIMITIVE_FIELD(o, Char, "iC", "C", 'a', 'b');
-  EXPECT_PRIMITIVE_FIELD(o, Double, "iD", "D", 1.0, 2.0);
-  EXPECT_PRIMITIVE_FIELD(o, Float, "iF", "F", 1.0, 2.0);
-  EXPECT_PRIMITIVE_FIELD(o, Int, "iI", "I", 1, 2);
-  EXPECT_PRIMITIVE_FIELD(o, Long, "iJ", "J", 1, 2);
-  EXPECT_PRIMITIVE_FIELD(o, Short, "iS", "S", 1, 2);
+  EXPECT_PRIMITIVE_FIELD(EXPECT_EQ, o, Boolean, "iZ", "Z", JNI_TRUE, JNI_FALSE);
+  EXPECT_PRIMITIVE_FIELD(EXPECT_EQ, o, Byte, "iB", "B", 1, 2);
+  EXPECT_PRIMITIVE_FIELD(EXPECT_EQ, o, Char, "iC", "C", 'a', 'b');
+  EXPECT_PRIMITIVE_FIELD(EXPECT_DOUBLE_EQ, o, Double, "iD", "D", 1.0, 2.0);
+  EXPECT_PRIMITIVE_FIELD(EXPECT_FLOAT_EQ, o, Float, "iF", "F", 1.0, 2.0);
+  EXPECT_PRIMITIVE_FIELD(EXPECT_EQ, o, Int, "iI", "I", 1, 2);
+  EXPECT_PRIMITIVE_FIELD(EXPECT_EQ, o, Long, "iJ", "J", 1, 2);
+  EXPECT_PRIMITIVE_FIELD(EXPECT_EQ, o, Short, "iS", "S", 1, 2);
 }
 
 TEST_F(JniInternalTest, GetObjectField_SetObjectField) {
