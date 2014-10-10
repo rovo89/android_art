@@ -51,7 +51,13 @@ ThreadList::~ThreadList() {
   // Detach the current thread if necessary. If we failed to start, there might not be any threads.
   // We need to detach the current thread here in case there's another thread waiting to join with
   // us.
-  if (Contains(Thread::Current())) {
+  bool contains = false;
+  {
+    Thread* self = Thread::Current();
+    MutexLock mu(self, *Locks::thread_list_lock_);
+    contains = Contains(self);
+  }
+  if (contains) {
     Runtime::Current()->DetachCurrentThread();
   }
 
