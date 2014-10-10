@@ -91,7 +91,7 @@ class LocationsBuilderARM : public HGraphVisitor {
   LocationsBuilderARM(HGraph* graph, CodeGeneratorARM* codegen)
       : HGraphVisitor(graph), codegen_(codegen) {}
 
-#define DECLARE_VISIT_INSTRUCTION(name)     \
+#define DECLARE_VISIT_INSTRUCTION(name, super)     \
   virtual void Visit##name(H##name* instr);
 
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
@@ -111,7 +111,7 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
  public:
   InstructionCodeGeneratorARM(HGraph* graph, CodeGeneratorARM* codegen);
 
-#define DECLARE_VISIT_INSTRUCTION(name)     \
+#define DECLARE_VISIT_INSTRUCTION(name, super)     \
   virtual void Visit##name(H##name* instr);
 
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)

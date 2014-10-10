@@ -26,15 +26,16 @@ namespace art {
  * For example it changes uses of null checks and bounds checks to the original
  * objects, to avoid creating a live range for these checks.
  */
-class PrepareForRegisterAllocation : public HGraphVisitor {
+class PrepareForRegisterAllocation : public HGraphDelegateVisitor {
  public:
-  explicit PrepareForRegisterAllocation(HGraph* graph) : HGraphVisitor(graph) {}
+  explicit PrepareForRegisterAllocation(HGraph* graph) : HGraphDelegateVisitor(graph) {}
 
   void Run();
 
  private:
   virtual void VisitNullCheck(HNullCheck* check) OVERRIDE;
   virtual void VisitBoundsCheck(HBoundsCheck* check) OVERRIDE;
+  virtual void VisitCondition(HCondition* condition) OVERRIDE;
 
   DISALLOW_COPY_AND_ASSIGN(PrepareForRegisterAllocation);
 };

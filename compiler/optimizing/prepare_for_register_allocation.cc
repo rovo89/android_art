@@ -37,4 +37,26 @@ void PrepareForRegisterAllocation::VisitBoundsCheck(HBoundsCheck* check) {
   check->ReplaceWith(check->InputAt(0));
 }
 
+void PrepareForRegisterAllocation::VisitCondition(HCondition* condition) {
+  bool needs_materialization = false;
+  if (!condition->HasOnlyOneUse()) {
+    needs_materialization = true;
+  } else {
+    HUseListNode<HInstruction>* uses = condition->GetUses();
+    HInstruction* user = uses->GetUser();
+    if (!user->IsIf()) {
+      needs_materialization = true;
+    } else {
+      // TODO: if there is no intervening instructions with side-effect between this condition
+      // and the If instruction, we should move the condition just before the If.
+      if (condition->GetNext() != user) {
+        needs_materialization = true;
+      }
+    }
+  }
+  if (!needs_materialization) {
+    condition->ClearNeedsMaterialization();
+  }
+}
+
 }  // namespace art
