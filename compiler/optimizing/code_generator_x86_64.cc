@@ -185,7 +185,7 @@ void CodeGeneratorX86_64::RestoreCoreRegister(Location stack_location, uint32_t 
 }
 
 CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph)
-      : CodeGenerator(graph, kNumberOfRegIds),
+      : CodeGenerator(graph, kNumberOfCpuRegisters, kNumberOfFloatRegisters, 0),
         location_builder_(graph, this),
         instruction_visitor_(graph, this),
         move_resolver_(graph->GetArena(), this) {}
@@ -200,8 +200,7 @@ InstructionCodeGeneratorX86_64::InstructionCodeGeneratorX86_64(HGraph* graph,
         assembler_(codegen->GetAssembler()),
         codegen_(codegen) {}
 
-Location CodeGeneratorX86_64::AllocateFreeRegister(Primitive::Type type,
-                                                   bool* blocked_registers) const {
+Location CodeGeneratorX86_64::AllocateFreeRegister(Primitive::Type type) const {
   switch (type) {
     case Primitive::kPrimLong:
     case Primitive::kPrimByte:
@@ -210,14 +209,13 @@ Location CodeGeneratorX86_64::AllocateFreeRegister(Primitive::Type type,
     case Primitive::kPrimShort:
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
-      size_t reg = AllocateFreeRegisterInternal(blocked_registers, kNumberOfCpuRegisters);
+      size_t reg = FindFreeEntry(blocked_core_registers_, kNumberOfCpuRegisters);
       return Location::RegisterLocation(reg);
     }
 
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
-      size_t reg = AllocateFreeRegisterInternal(
-          blocked_registers + kNumberOfCpuRegisters, kNumberOfFloatRegisters);
+      size_t reg = FindFreeEntry(blocked_fpu_registers_, kNumberOfFloatRegisters);
       return Location::FpuRegisterLocation(reg);
     }
 
@@ -228,26 +226,25 @@ Location CodeGeneratorX86_64::AllocateFreeRegister(Primitive::Type type,
   return Location();
 }
 
-void CodeGeneratorX86_64::SetupBlockedRegisters(bool* blocked_registers) const {
+void CodeGeneratorX86_64::SetupBlockedRegisters() const {
   // Stack register is always reserved.
-  blocked_registers[RSP] = true;
+  blocked_core_registers_[RSP] = true;
 
   // Block the register used as TMP.
-  blocked_registers[TMP] = true;
+  blocked_core_registers_[TMP] = true;
 
   // TODO: We currently don't use Quick's callee saved registers.
-  blocked_registers[RBX] = true;
-  blocked_registers[RBP] = true;
-  blocked_registers[R12] = true;
-  blocked_registers[R13] = true;
-  blocked_registers[R14] = true;
-  blocked_registers[R15] = true;
+  blocked_core_registers_[RBX] = true;
+  blocked_core_registers_[RBP] = true;
+  blocked_core_registers_[R12] = true;
+  blocked_core_registers_[R13] = true;
+  blocked_core_registers_[R14] = true;
+  blocked_core_registers_[R15] = true;
 
-  bool* blocked_xmm_registers = blocked_registers + kNumberOfCpuRegisters;
-  blocked_xmm_registers[XMM12] = true;
-  blocked_xmm_registers[XMM13] = true;
-  blocked_xmm_registers[XMM14] = true;
-  blocked_xmm_registers[XMM15] = true;
+  blocked_fpu_registers_[XMM12] = true;
+  blocked_fpu_registers_[XMM13] = true;
+  blocked_fpu_registers_[XMM14] = true;
+  blocked_fpu_registers_[XMM15] = true;
 }
 
 void CodeGeneratorX86_64::GenerateFrameEntry() {

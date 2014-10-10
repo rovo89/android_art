@@ -51,7 +51,11 @@ static const RegisterPairDescriptor kRegisterPairs[] = {
 };
 
 std::ostream& operator<<(std::ostream& os, const RegisterPair& reg) {
-  os << X86ManagedRegister::FromRegisterPair(reg);
+  if (reg == kNoRegisterPair) {
+    os << "kNoRegisterPair";
+  } else {
+    os << X86ManagedRegister::FromRegisterPair(reg);
+  }
   return os;
 }
 

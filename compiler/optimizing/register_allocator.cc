@@ -37,18 +37,18 @@ RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator,
         handled_(allocator, 0),
         active_(allocator, 0),
         inactive_(allocator, 0),
-        physical_register_intervals_(allocator, codegen->GetNumberOfRegisters()),
+        physical_register_intervals_(allocator, codegen->GetNumberOfCoreRegisters()),
         temp_intervals_(allocator, 4),
         spill_slots_(allocator, kDefaultNumberOfSpillSlots),
         safepoints_(allocator, 0),
         processing_core_registers_(false),
         number_of_registers_(-1),
         registers_array_(nullptr),
-        blocked_registers_(allocator->AllocArray<bool>(codegen->GetNumberOfRegisters())),
+        blocked_registers_(codegen->GetBlockedCoreRegisters()),
         reserved_out_slots_(0),
         maximum_number_of_live_registers_(0) {
-  codegen->SetupBlockedRegisters(blocked_registers_);
-  physical_register_intervals_.SetSize(codegen->GetNumberOfRegisters());
+  codegen->SetupBlockedRegisters();
+  physical_register_intervals_.SetSize(codegen->GetNumberOfCoreRegisters());
   // Always reserve for the current method and the graph's max out registers.
   // TODO: compute it instead.
   reserved_out_slots_ = 1 + codegen->GetGraph()->GetMaximumNumberOfOutVRegs();

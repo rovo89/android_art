@@ -173,21 +173,8 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 
-  virtual size_t GetNumberOfRegisters() const OVERRIDE {
-    return kNumberOfRegIds;
-  }
-
-  virtual size_t GetNumberOfCoreRegisters() const OVERRIDE {
-    return kNumberOfCpuRegisters;
-  }
-
-  virtual size_t GetNumberOfFloatingPointRegisters() const OVERRIDE {
-    return kNumberOfFloatRegisters;
-  }
-
-  virtual void SetupBlockedRegisters(bool* blocked_registers) const OVERRIDE;
-  virtual Location AllocateFreeRegister(
-      Primitive::Type type, bool* blocked_registers) const OVERRIDE;
+  virtual void SetupBlockedRegisters() const OVERRIDE;
+  virtual Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
 
