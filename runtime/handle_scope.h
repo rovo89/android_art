@@ -66,39 +66,28 @@ class PACKED(4) HandleScope {
     return link_;
   }
 
-  void SetLink(HandleScope* link) {
-    DCHECK_NE(this, link);
-    link_ = link;
-  }
-
-  // Sets the number_of_references_ field for constructing tables out of raw memory. Warning: will
-  // not resize anything.
-  void SetNumberOfReferences(uint32_t num_references) {
-    number_of_references_ = num_references;
-  }
-
-  mirror::Object* GetReference(size_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      ALWAYS_INLINE {
+  ALWAYS_INLINE mirror::Object* GetReference(size_t i) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_LT(i, number_of_references_);
-    return references_[i].AsMirrorPtr();
+    return GetReferences()[i].AsMirrorPtr();
   }
 
-  Handle<mirror::Object> GetHandle(size_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      ALWAYS_INLINE {
+  ALWAYS_INLINE Handle<mirror::Object> GetHandle(size_t i)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_LT(i, number_of_references_);
-    return Handle<mirror::Object>(&references_[i]);
+    return Handle<mirror::Object>(&GetReferences()[i]);
   }
 
-  MutableHandle<mirror::Object> GetMutableHandle(size_t i)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+  ALWAYS_INLINE MutableHandle<mirror::Object> GetMutableHandle(size_t i)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_LT(i, number_of_references_);
-    return MutableHandle<mirror::Object>(&references_[i]);
+    return MutableHandle<mirror::Object>(&GetReferences()[i]);
   }
 
-  void SetReference(size_t i, mirror::Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      ALWAYS_INLINE {
+  ALWAYS_INLINE void SetReference(size_t i, mirror::Object* object)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_LT(i, number_of_references_);
-    references_[i].Assign(object);
+    GetReferences()[i].Assign(object);
   }
 
   bool Contains(StackReference<mirror::Object>* handle_scope_entry) const {
@@ -106,39 +95,53 @@ class PACKED(4) HandleScope {
     // jni_compiler should have a jobject/jclass as a native method is
     // passed in a this pointer or a class
     DCHECK_GT(number_of_references_, 0U);
-    return &references_[0] <= handle_scope_entry &&
-        handle_scope_entry <= &references_[number_of_references_ - 1];
+    return &GetReferences()[0] <= handle_scope_entry &&
+        handle_scope_entry <= &GetReferences()[number_of_references_ - 1];
   }
 
-  // Offset of link within HandleScope, used by generated code
+  // Offset of link within HandleScope, used by generated code.
   static size_t LinkOffset(size_t pointer_size) {
     return 0;
   }
 
-  // Offset of length within handle scope, used by generated code
+  // Offset of length within handle scope, used by generated code.
   static size_t NumberOfReferencesOffset(size_t pointer_size) {
     return pointer_size;
   }
 
-  // Offset of link within handle scope, used by generated code
+  // Offset of link within handle scope, used by generated code.
   static size_t ReferencesOffset(size_t pointer_size) {
     return pointer_size + sizeof(number_of_references_);
   }
 
- protected:
-  explicit HandleScope(size_t number_of_references) :
-      link_(nullptr), number_of_references_(number_of_references) {
+  // Placement new creation.
+  static HandleScope* Create(void* storage, HandleScope* link, uint32_t num_references)
+      WARN_UNUSED {
+    return new (storage) HandleScope(link, num_references);
   }
 
-  HandleScope* link_;
-  uint32_t number_of_references_;
+ protected:
+  // Return backing storage used for references.
+  ALWAYS_INLINE StackReference<mirror::Object>* GetReferences() const {
+    uintptr_t address = reinterpret_cast<uintptr_t>(this) + ReferencesOffset(sizeof(void*));
+    return reinterpret_cast<StackReference<mirror::Object>*>(address);
+  }
 
-  // number_of_references_ are available if this is allocated and filled in by jni_compiler.
-  StackReference<mirror::Object> references_[0];
+  // Semi-hidden constructor. Construction expected by generated code and StackHandleScope.
+  explicit HandleScope(HandleScope* link, uint32_t num_references) :
+      link_(link), number_of_references_(num_references) {
+  }
+
+  // Link-list of handle scopes. The root is held by a Thread.
+  HandleScope* const link_;
+
+  // Number of handlerized references.
+  const uint32_t number_of_references_;
+
+  // Storage for references.
+  // StackReference<mirror::Object> references_[number_of_references_]
 
  private:
-  template<size_t kNumReferences> friend class StackHandleScope;
-
   DISALLOW_COPY_AND_ASSIGN(HandleScope);
 };
 
@@ -169,22 +172,22 @@ class PACKED(4) StackHandleScope FINAL : public HandleScope {
   // Currently unused, using this GetReference instead of the one in HandleScope is preferred to
   // avoid compiler optimizations incorrectly optimizing out of bound array accesses.
   // TODO: Remove this when it is un-necessary.
-  mirror::Object* GetReference(size_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      ALWAYS_INLINE {
-    DCHECK_LT(i, number_of_references_);
-    return references_storage_[i].AsMirrorPtr();
+  ALWAYS_INLINE mirror::Object* GetReference(size_t i) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK_LT(i, kNumReferences);
+    return GetReferences()[i].AsMirrorPtr();
   }
 
-  MutableHandle<mirror::Object> GetHandle(size_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      ALWAYS_INLINE {
-    DCHECK_LT(i, number_of_references_);
-    return MutableHandle<mirror::Object>(&references_storage_[i]);
+  ALWAYS_INLINE MutableHandle<mirror::Object> GetHandle(size_t i)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK_LT(i, kNumReferences);
+    return MutableHandle<mirror::Object>(&GetReferences()[i]);
   }
 
-  void SetReference(size_t i, mirror::Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      ALWAYS_INLINE {
-    DCHECK_LT(i, number_of_references_);
-    references_storage_[i].Assign(object);
+  ALWAYS_INLINE void SetReference(size_t i, mirror::Object* object)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK_LT(i, kNumReferences);
+    GetReferences()[i].Assign(object);
   }
 
   template<class T>
@@ -204,9 +207,8 @@ class PACKED(4) StackHandleScope FINAL : public HandleScope {
   }
 
  private:
-  // References_storage_ needs to be first so that it appears in the same location as
-  // HandleScope::references_.
-  StackReference<mirror::Object> references_storage_[kNumReferences];
+  // Reference storage needs to be first as expected by the HandleScope layout.
+  StackReference<mirror::Object> storage_[kNumReferences];
 
   // The thread that the stack handle scope is a linked list upon. The stack handle scope will
   // push and pop itself from this thread.

@@ -692,7 +692,7 @@ class Thread {
   }
 
   void PushHandleScope(HandleScope* handle_scope) {
-    handle_scope->SetLink(tlsPtr_.top_handle_scope);
+    DCHECK_EQ(handle_scope->GetLink(), tlsPtr_.top_handle_scope);
     tlsPtr_.top_handle_scope = handle_scope;
   }
 
