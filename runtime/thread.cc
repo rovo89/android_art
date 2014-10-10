@@ -978,10 +978,27 @@ static bool ShouldShowNativeStack(const Thread* thread)
 }
 
 void Thread::DumpJavaStack(std::ostream& os) const {
+  // Dumping the Java stack involves the verifier for locks. The verifier operates under the
+  // assumption that there is no exception pending on entry. Thus, stash any pending exception.
+  // TODO: Find a way to avoid const_cast.
+  StackHandleScope<1> scope(const_cast<Thread*>(this));
+  Handle<mirror::Throwable> exc;
+  ThrowLocation exc_location;
+  bool have_exception = false;
+  if (IsExceptionPending()) {
+    exc = scope.NewHandle(GetException(&exc_location));
+    const_cast<Thread*>(this)->ClearException();
+    have_exception = true;
+  }
+
   std::unique_ptr<Context> context(Context::Create());
   StackDumpVisitor dumper(os, const_cast<Thread*>(this), context.get(),
                           !tls32_.throwing_OutOfMemoryError);
   dumper.WalkStack();
+
+  if (have_exception) {
+    const_cast<Thread*>(this)->SetException(exc_location, exc.Get());
+  }
 }
 
 void Thread::DumpStack(std::ostream& os) const {
