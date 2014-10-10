@@ -981,12 +981,18 @@ void Thread::DumpJavaStack(std::ostream& os) const {
   // Dumping the Java stack involves the verifier for locks. The verifier operates under the
   // assumption that there is no exception pending on entry. Thus, stash any pending exception.
   // TODO: Find a way to avoid const_cast.
-  StackHandleScope<1> scope(const_cast<Thread*>(this));
+  StackHandleScope<3> scope(const_cast<Thread*>(this));
   Handle<mirror::Throwable> exc;
-  ThrowLocation exc_location;
+  Handle<mirror::Object> throw_location_this_object;
+  Handle<mirror::ArtMethod> throw_location_method;
+  uint32_t throw_location_dex_pc;
   bool have_exception = false;
   if (IsExceptionPending()) {
+    ThrowLocation exc_location;
     exc = scope.NewHandle(GetException(&exc_location));
+    throw_location_this_object = scope.NewHandle(exc_location.GetThis());
+    throw_location_method = scope.NewHandle(exc_location.GetMethod());
+    throw_location_dex_pc = exc_location.GetDexPc();
     const_cast<Thread*>(this)->ClearException();
     have_exception = true;
   }
@@ -997,6 +1003,9 @@ void Thread::DumpJavaStack(std::ostream& os) const {
   dumper.WalkStack();
 
   if (have_exception) {
+    ThrowLocation exc_location(throw_location_this_object.Get(),
+                               throw_location_method.Get(),
+                               throw_location_dex_pc);
     const_cast<Thread*>(this)->SetException(exc_location, exc.Get());
   }
 }
