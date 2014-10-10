@@ -494,7 +494,7 @@ LIR* ArmMir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, in
           (value <= 1020) && ((value & 0x3) == 0)) {
         return NewLIR3(kThumbAddPcRel, r_dest.GetReg(), r_src1.GetReg(), value >> 2);
       }
-      // Note: intentional fallthrough
+      FALLTHROUGH_INTENDED;
     case kOpSub:
       if (all_low_regs && ((abs_value & 0x7) == abs_value)) {
         if (op == kOpAdd)

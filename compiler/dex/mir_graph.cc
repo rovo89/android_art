@@ -391,7 +391,7 @@ bool MIRGraph::IsBadMonitorExitCatch(NarrowDexOffset monitor_exit_offset,
     switch (check_insn->Opcode()) {
       case Instruction::MOVE_WIDE:
         wide = true;
-        // Intentional fall-through.
+        FALLTHROUGH_INTENDED;
       case Instruction::MOVE_OBJECT:
       case Instruction::MOVE:
         dest = check_insn->VRegA_12x();
@@ -399,7 +399,7 @@ bool MIRGraph::IsBadMonitorExitCatch(NarrowDexOffset monitor_exit_offset,
 
       case Instruction::MOVE_WIDE_FROM16:
         wide = true;
-        // Intentional fall-through.
+        FALLTHROUGH_INTENDED;
       case Instruction::MOVE_OBJECT_FROM16:
       case Instruction::MOVE_FROM16:
         dest = check_insn->VRegA_22x();
@@ -407,7 +407,7 @@ bool MIRGraph::IsBadMonitorExitCatch(NarrowDexOffset monitor_exit_offset,
 
       case Instruction::MOVE_WIDE_16:
         wide = true;
-        // Intentional fall-through.
+        FALLTHROUGH_INTENDED;
       case Instruction::MOVE_OBJECT_16:
       case Instruction::MOVE_16:
         dest = check_insn->VRegA_32x();
@@ -417,7 +417,7 @@ bool MIRGraph::IsBadMonitorExitCatch(NarrowDexOffset monitor_exit_offset,
       case Instruction::GOTO_16:
       case Instruction::GOTO_32:
         check_insn = check_insn->RelativeAt(check_insn->GetTargetOffset());
-        // Intentional fall-through.
+        FALLTHROUGH_INTENDED;
       default:
         return check_insn->Opcode() == Instruction::MONITOR_EXIT &&
             check_insn->VRegA_11x() == monitor_reg;

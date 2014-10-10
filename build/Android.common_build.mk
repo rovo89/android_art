@@ -231,12 +231,19 @@ ART_TARGET_CFLAGS += -DART_BASE_ADDRESS_MIN_DELTA=$(LIBART_IMG_TARGET_MIN_BASE_A
 ART_TARGET_CFLAGS += -DART_BASE_ADDRESS_MAX_DELTA=$(LIBART_IMG_TARGET_MAX_BASE_ADDRESS_DELTA)
 
 # Colorize clang compiler warnings.
+art_clang_cflags := -fcolor-diagnostics
+
+# Warn if switch fallthroughs aren't annotated.
+art_clang_cflags += -Wimplicit-fallthrough
+
 ifeq ($(ART_HOST_CLANG),true)
-  ART_HOST_CFLAGS += -fcolor-diagnostics
+  ART_HOST_CFLAGS += $(art_clang_cflags)
 endif
 ifeq ($(ART_TARGET_CLANG),true)
-  ART_TARGET_CFLAGS += -fcolor-diagnostics
+  ART_TARGET_CFLAGS += $(art_clang_cflags)
 endif
+
+art_clang_cflags :=
 
 ART_TARGET_LDFLAGS :=
 ifeq ($(TARGET_CPU_SMP),true)

@@ -1785,7 +1785,7 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
     case Instruction::SUB_INT:
     case Instruction::SUB_INT_2ADDR:
       lit = -lit;
-      // Intended fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::ADD_INT:
     case Instruction::ADD_INT_2ADDR:
     case Instruction::ADD_INT_LIT8:

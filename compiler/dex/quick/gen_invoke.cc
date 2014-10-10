@@ -552,7 +552,8 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       } else {
         break;
       }
-      // Intentional fallthrough for x86
+      DCHECK(cu->instruction_set == kX86 || cu->instruction_set == kX86_64);
+      FALLTHROUGH_INTENDED;
     default:
       return -1;
     }
@@ -596,7 +597,8 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
       if (CommonCallCodeLoadCodePointerIntoInvokeTgt(info, nullptr, cu, cg)) {
         break;                                    // kInvokeTgt := kArg0->entrypoint
       }
-      // Intentional fallthrough for X86
+      DCHECK(cu->instruction_set == kX86 || cu->instruction_set == kX86_64);
+      FALLTHROUGH_INTENDED;
     default:
       return -1;
   }
@@ -641,7 +643,8 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
       if (CommonCallCodeLoadCodePointerIntoInvokeTgt(info, nullptr, cu, cg)) {
         break;                                    // kInvokeTgt := kArg0->entrypoint
       }
-      // Intentional fallthrough for X86
+      DCHECK(cu->instruction_set == kX86 || cu->instruction_set == kX86_64);
+      FALLTHROUGH_INTENDED;
     default:
       return -1;
   }
