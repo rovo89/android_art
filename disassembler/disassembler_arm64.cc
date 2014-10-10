@@ -27,15 +27,11 @@
 namespace art {
 namespace arm64 {
 
-static uint32_t ReadU32(const uint8_t* ptr) {
-  return *((const uint32_t*)ptr);
-}
-
 size_t DisassemblerArm64::Dump(std::ostream& os, const uint8_t* begin) {
-  uint32_t instruction = ReadU32(begin);
-  decoder.Decode(reinterpret_cast<vixl::Instruction*>(&instruction));
+  const vixl::Instruction* instr = reinterpret_cast<const vixl::Instruction*>(begin);
+  decoder.Decode(instr);
   os << FormatInstructionPointer(begin)
-     << StringPrintf(": %08x\t%s\n", instruction, disasm.GetOutput());
+     << StringPrintf(": %08x\t%s\n", instr->InstructionBits(), disasm.GetOutput());
   return vixl::kInstructionSize;
 }
 
