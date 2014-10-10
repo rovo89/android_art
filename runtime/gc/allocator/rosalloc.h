@@ -285,7 +285,7 @@ class RosAlloc {
 
   // Returns the byte size of the bracket size from the index.
   static size_t IndexToBracketSize(size_t idx) {
-    DCHECK(idx < kNumOfSizeBrackets);
+    DCHECK_LT(idx, kNumOfSizeBrackets);
     return bracketSizes[idx];
   }
   // Returns the index of the size bracket from the bracket size.
