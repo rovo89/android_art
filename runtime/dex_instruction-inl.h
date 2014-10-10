@@ -460,11 +460,21 @@ inline void Instruction::GetVarArgs(uint32_t arg[5], uint16_t inst_data) const {
    * copies of those.) Note that cases 5..2 fall through.
    */
   switch (count) {
-    case 5: arg[4] = InstA(inst_data);
-    case 4: arg[3] = (regList >> 12) & 0x0f;
-    case 3: arg[2] = (regList >> 8) & 0x0f;
-    case 2: arg[1] = (regList >> 4) & 0x0f;
-    case 1: arg[0] = regList & 0x0f; break;
+    case 5:
+      arg[4] = InstA(inst_data);
+      FALLTHROUGH_INTENDED;
+    case 4:
+      arg[3] = (regList >> 12) & 0x0f;
+      FALLTHROUGH_INTENDED;
+    case 3:
+      arg[2] = (regList >> 8) & 0x0f;
+      FALLTHROUGH_INTENDED;
+    case 2:
+      arg[1] = (regList >> 4) & 0x0f;
+      FALLTHROUGH_INTENDED;
+    case 1:
+      arg[0] = regList & 0x0f;
+      break;
     default:  // case 0
       break;  // Valid, but no need to do anything.
   }

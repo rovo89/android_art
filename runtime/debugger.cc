@@ -3504,6 +3504,7 @@ static char JdwpTagToShortyChar(JDWP::JdwpTag tag) {
   switch (tag) {
     default:
       LOG(FATAL) << "unknown JDWP tag: " << PrintableChar(tag);
+      UNREACHABLE();
 
     // Primitives.
     case JDWP::JT_BYTE:    return 'B';

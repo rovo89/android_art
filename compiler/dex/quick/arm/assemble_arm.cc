@@ -1265,7 +1265,7 @@ void ArmMir2Lir::AssembleLIR() {
           if (lir->operands[1] != rs_r15pc.GetReg()) {
             break;
           }
-          // NOTE: intentional fallthrough.
+          FALLTHROUGH_INTENDED;
         case kFixupLoad: {
           /*
            * PC-relative loads are mostly used to load immediates

@@ -1128,7 +1128,7 @@ class ScopedCheck {
           *errorKind = "continuation";
           return utf8;
         }
-        // Fall through to take care of the final byte.
+        FALLTHROUGH_INTENDED;  // Fall-through to take care of the final byte.
       case 0x0c:
       case 0x0d:
         // Bit pattern 110x, so there is one additional byte.

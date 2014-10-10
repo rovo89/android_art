@@ -407,11 +407,11 @@ uint64_t AdvSIMDExpand(uint32_t op, uint32_t cmode, uint32_t imm8) {
   }
   uint64_t imm = imm8;
   switch (cmode321) {
-    case 3: imm <<= 8;  // Fall through.
-    case 2: imm <<= 8;  // Fall through.
-    case 1: imm <<= 8;  // Fall through.
+    case 3: imm <<= 8; FALLTHROUGH_INTENDED;
+    case 2: imm <<= 8; FALLTHROUGH_INTENDED;
+    case 1: imm <<= 8; FALLTHROUGH_INTENDED;
     case 0: return static_cast<int64_t>((imm << 32) | imm);
-    case 5: imm <<= 8;  // Fall through.
+    case 5: imm <<= 8; FALLTHROUGH_INTENDED;
     case 4: return static_cast<int64_t>((imm << 48) | (imm << 32) | (imm << 16) | imm);
     case 6:
       imm = ((imm + 1u) << ((cmode & 1) != 0 ? 16 : 8)) - 1u;  // Add 8 or 16 ones.
@@ -1196,7 +1196,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               }
               break;
             }
-            // Else deliberate fall-through to B.
+            FALLTHROUGH_INTENDED;  // Else deliberate fall-through to B.
           case 1: case 3: {
             // B
             // |111|11|1|0000|000000|11|1 |1|1 |10000000000|
@@ -1597,6 +1597,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
           }
         }
       }
+      break;
     default:
       break;
   }

@@ -657,7 +657,8 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int 
         CHECK_EQ(is_array, false);
         CHECK_EQ(r_dest.IsFloat(), false);
         break;
-      }  // else fall-through to k32 case
+      }
+      FALLTHROUGH_INTENDED;  // else fall-through to k32 case
     case k32:
     case kSingle:
     case kReference:  // TODO: update for reference decompression on 64-bit targets.
@@ -791,7 +792,7 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
   switch (size) {
     case k64:
       consider_non_temporal = true;
-      // Fall through!
+      FALLTHROUGH_INTENDED;
     case kDouble:
       if (r_src.IsFloat()) {
         opcode = is_array ? kX86MovsdAR : kX86MovsdMR;
@@ -810,7 +811,8 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
         CHECK_EQ(r_src.IsFloat(), false);
         consider_non_temporal = true;
         break;
-      }  // else fall-through to k32 case
+      }
+      FALLTHROUGH_INTENDED;  // else fall-through to k32 case
     case k32:
     case kSingle:
     case kReference:
