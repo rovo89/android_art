@@ -176,7 +176,7 @@ void CodeGeneratorX86::RestoreCoreRegister(Location stack_location, uint32_t reg
 }
 
 CodeGeneratorX86::CodeGeneratorX86(HGraph* graph)
-    : CodeGenerator(graph, kNumberOfRegIds),
+    : CodeGenerator(graph, kNumberOfCpuRegisters, kNumberOfXmmRegisters, kNumberOfRegisterPairs),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this) {}
@@ -185,23 +185,14 @@ size_t CodeGeneratorX86::FrameEntrySpillSize() const {
   return kNumberOfPushedRegistersAtEntry * kX86WordSize;
 }
 
-static bool* GetBlockedRegisterPairs(bool* blocked_registers) {
-  return blocked_registers + kNumberOfAllocIds;
-}
-
-static bool* GetBlockedXmmRegisters(bool* blocked_registers) {
-  return blocked_registers + kNumberOfCpuRegisters;
-}
-
-Location CodeGeneratorX86::AllocateFreeRegister(Primitive::Type type, bool* blocked_registers) const {
+Location CodeGeneratorX86::AllocateFreeRegister(Primitive::Type type) const {
   switch (type) {
     case Primitive::kPrimLong: {
-      bool* blocked_register_pairs = GetBlockedRegisterPairs(blocked_registers);
-      size_t reg = AllocateFreeRegisterInternal(blocked_register_pairs, kNumberOfRegisterPairs);
+      size_t reg = FindFreeEntry(blocked_register_pairs_, kNumberOfRegisterPairs);
       X86ManagedRegister pair =
           X86ManagedRegister::FromRegisterPair(static_cast<RegisterPair>(reg));
-      blocked_registers[pair.AsRegisterPairLow()] = true;
-      blocked_registers[pair.AsRegisterPairHigh()] = true;
+      blocked_core_registers_[pair.AsRegisterPairLow()] = true;
+      blocked_core_registers_[pair.AsRegisterPairHigh()] = true;
       // Block all other register pairs that share a register with `pair`.
       for (int i = 0; i < kNumberOfRegisterPairs; i++) {
         X86ManagedRegister current =
@@ -210,7 +201,7 @@ Location CodeGeneratorX86::AllocateFreeRegister(Primitive::Type type, bool* bloc
             || current.AsRegisterPairLow() == pair.AsRegisterPairHigh()
             || current.AsRegisterPairHigh() == pair.AsRegisterPairLow()
             || current.AsRegisterPairHigh() == pair.AsRegisterPairHigh()) {
-          blocked_register_pairs[i] = true;
+          blocked_register_pairs_[i] = true;
         }
       }
       return Location::RegisterPairLocation(pair.AsRegisterPairLow(), pair.AsRegisterPairHigh());
@@ -223,14 +214,13 @@ Location CodeGeneratorX86::AllocateFreeRegister(Primitive::Type type, bool* bloc
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
       Register reg = static_cast<Register>(
-          AllocateFreeRegisterInternal(blocked_registers, kNumberOfCpuRegisters));
+          FindFreeEntry(blocked_core_registers_, kNumberOfCpuRegisters));
       // Block all register pairs that contain `reg`.
-      bool* blocked_register_pairs = GetBlockedRegisterPairs(blocked_registers);
       for (int i = 0; i < kNumberOfRegisterPairs; i++) {
         X86ManagedRegister current =
             X86ManagedRegister::FromRegisterPair(static_cast<RegisterPair>(i));
         if (current.AsRegisterPairLow() == reg || current.AsRegisterPairHigh() == reg) {
-          blocked_register_pairs[i] = true;
+          blocked_register_pairs_[i] = true;
         }
       }
       return Location::RegisterLocation(reg);
@@ -238,8 +228,8 @@ Location CodeGeneratorX86::AllocateFreeRegister(Primitive::Type type, bool* bloc
 
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
-      return Location::FpuRegisterLocation(AllocateFreeRegisterInternal(
-          GetBlockedXmmRegisters(blocked_registers), kNumberOfXmmRegisters));
+      return Location::FpuRegisterLocation(
+          FindFreeEntry(blocked_fpu_registers_, kNumberOfXmmRegisters));
     }
 
     case Primitive::kPrimVoid:
@@ -249,27 +239,21 @@ Location CodeGeneratorX86::AllocateFreeRegister(Primitive::Type type, bool* bloc
   return Location();
 }
 
-void CodeGeneratorX86::SetupBlockedRegisters(bool* blocked_registers) const {
-  bool* blocked_register_pairs = GetBlockedRegisterPairs(blocked_registers);
-
+void CodeGeneratorX86::SetupBlockedRegisters() const {
   // Don't allocate the dalvik style register pair passing.
-  blocked_register_pairs[ECX_EDX] = true;
+  blocked_register_pairs_[ECX_EDX] = true;
 
   // Stack register is always reserved.
-  blocked_registers[ESP] = true;
+  blocked_core_registers_[ESP] = true;
 
   // TODO: We currently don't use Quick's callee saved registers.
-  blocked_registers[EBP] = true;
-  blocked_registers[ESI] = true;
-  blocked_registers[EDI] = true;
-  blocked_register_pairs[EAX_EDI] = true;
-  blocked_register_pairs[EDX_EDI] = true;
-  blocked_register_pairs[ECX_EDI] = true;
-  blocked_register_pairs[EBX_EDI] = true;
-}
-
-size_t CodeGeneratorX86::GetNumberOfRegisters() const {
-  return kNumberOfRegIds;
+  blocked_core_registers_[EBP] = true;
+  blocked_core_registers_[ESI] = true;
+  blocked_core_registers_[EDI] = true;
+  blocked_register_pairs_[EAX_EDI] = true;
+  blocked_register_pairs_[EDX_EDI] = true;
+  blocked_register_pairs_[ECX_EDI] = true;
+  blocked_register_pairs_[EBX_EDI] = true;
 }
 
 InstructionCodeGeneratorX86::InstructionCodeGeneratorX86(HGraph* graph, CodeGeneratorX86* codegen)

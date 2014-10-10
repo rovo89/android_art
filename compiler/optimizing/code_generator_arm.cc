@@ -204,7 +204,7 @@ void CodeGeneratorARM::RestoreCoreRegister(Location stack_location, uint32_t reg
 }
 
 CodeGeneratorARM::CodeGeneratorARM(HGraph* graph)
-    : CodeGenerator(graph, kNumberOfRegIds),
+    : CodeGenerator(graph, kNumberOfCoreRegisters, kNumberOfDRegisters, kNumberOfRegisterPairs),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
@@ -214,24 +214,14 @@ size_t CodeGeneratorARM::FrameEntrySpillSize() const {
   return kNumberOfPushedRegistersAtEntry * kArmWordSize;
 }
 
-static bool* GetBlockedRegisterPairs(bool* blocked_registers) {
-  return blocked_registers + kNumberOfAllocIds;
-}
-
-static bool* GetBlockedDRegisters(bool* blocked_registers) {
-  return blocked_registers + kNumberOfCoreRegisters + kNumberOfSRegisters;
-}
-
-Location CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type,
-                                                bool* blocked_registers) const {
+Location CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type) const {
   switch (type) {
     case Primitive::kPrimLong: {
-      bool* blocked_register_pairs = GetBlockedRegisterPairs(blocked_registers);
-      size_t reg = AllocateFreeRegisterInternal(blocked_register_pairs, kNumberOfRegisterPairs);
+      size_t reg = FindFreeEntry(blocked_register_pairs_, kNumberOfRegisterPairs);
       ArmManagedRegister pair =
           ArmManagedRegister::FromRegisterPair(static_cast<RegisterPair>(reg));
-      blocked_registers[pair.AsRegisterPairLow()] = true;
-      blocked_registers[pair.AsRegisterPairHigh()] = true;
+      blocked_core_registers_[pair.AsRegisterPairLow()] = true;
+      blocked_core_registers_[pair.AsRegisterPairHigh()] = true;
        // Block all other register pairs that share a register with `pair`.
       for (int i = 0; i < kNumberOfRegisterPairs; i++) {
         ArmManagedRegister current =
@@ -240,7 +230,7 @@ Location CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type,
             || current.AsRegisterPairLow() == pair.AsRegisterPairHigh()
             || current.AsRegisterPairHigh() == pair.AsRegisterPairLow()
             || current.AsRegisterPairHigh() == pair.AsRegisterPairHigh()) {
-          blocked_register_pairs[i] = true;
+          blocked_register_pairs_[i] = true;
         }
       }
       return Location::RegisterPairLocation(pair.AsRegisterPairLow(), pair.AsRegisterPairHigh());
@@ -252,14 +242,13 @@ Location CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type,
     case Primitive::kPrimShort:
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
-      int reg = AllocateFreeRegisterInternal(blocked_registers, kNumberOfCoreRegisters);
+      int reg = FindFreeEntry(blocked_core_registers_, kNumberOfCoreRegisters);
       // Block all register pairs that contain `reg`.
-      bool* blocked_register_pairs = GetBlockedRegisterPairs(blocked_registers);
       for (int i = 0; i < kNumberOfRegisterPairs; i++) {
         ArmManagedRegister current =
             ArmManagedRegister::FromRegisterPair(static_cast<RegisterPair>(i));
         if (current.AsRegisterPairLow() == reg || current.AsRegisterPairHigh() == reg) {
-          blocked_register_pairs[i] = true;
+          blocked_register_pairs_[i] = true;
         }
       }
       return Location::RegisterLocation(reg);
@@ -267,7 +256,7 @@ Location CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type,
 
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
-      int reg = AllocateFreeRegisterInternal(GetBlockedDRegisters(blocked_registers), kNumberOfDRegisters);
+      int reg = FindFreeEntry(blocked_fpu_registers_, kNumberOfDRegisters);
       return Location::FpuRegisterLocation(reg);
     }
 
@@ -278,48 +267,41 @@ Location CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type,
   return Location();
 }
 
-void CodeGeneratorARM::SetupBlockedRegisters(bool* blocked_registers) const {
-  bool* blocked_register_pairs = GetBlockedRegisterPairs(blocked_registers);
-  bool* blocked_fpu_registers = GetBlockedDRegisters(blocked_registers);
-
+void CodeGeneratorARM::SetupBlockedRegisters() const {
   // Don't allocate the dalvik style register pair passing.
-  blocked_register_pairs[R1_R2] = true;
+  blocked_register_pairs_[R1_R2] = true;
 
   // Stack register, LR and PC are always reserved.
-  blocked_registers[SP] = true;
-  blocked_registers[LR] = true;
-  blocked_registers[PC] = true;
+  blocked_core_registers_[SP] = true;
+  blocked_core_registers_[LR] = true;
+  blocked_core_registers_[PC] = true;
 
   // Reserve R4 for suspend check.
-  blocked_registers[R4] = true;
-  blocked_register_pairs[R4_R5] = true;
+  blocked_core_registers_[R4] = true;
+  blocked_register_pairs_[R4_R5] = true;
 
   // Reserve thread register.
-  blocked_registers[TR] = true;
+  blocked_core_registers_[TR] = true;
 
   // Reserve temp register.
-  blocked_registers[IP] = true;
+  blocked_core_registers_[IP] = true;
 
   // TODO: We currently don't use Quick's callee saved registers.
   // We always save and restore R6 and R7 to make sure we can use three
   // register pairs for long operations.
-  blocked_registers[R5] = true;
-  blocked_registers[R8] = true;
-  blocked_registers[R10] = true;
-  blocked_registers[R11] = true;
+  blocked_core_registers_[R5] = true;
+  blocked_core_registers_[R8] = true;
+  blocked_core_registers_[R10] = true;
+  blocked_core_registers_[R11] = true;
 
-  blocked_fpu_registers[D8] = true;
-  blocked_fpu_registers[D9] = true;
-  blocked_fpu_registers[D10] = true;
-  blocked_fpu_registers[D11] = true;
-  blocked_fpu_registers[D12] = true;
-  blocked_fpu_registers[D13] = true;
-  blocked_fpu_registers[D14] = true;
-  blocked_fpu_registers[D15] = true;
-}
-
-size_t CodeGeneratorARM::GetNumberOfRegisters() const {
-  return kNumberOfRegIds;
+  blocked_fpu_registers_[D8] = true;
+  blocked_fpu_registers_[D9] = true;
+  blocked_fpu_registers_[D10] = true;
+  blocked_fpu_registers_[D11] = true;
+  blocked_fpu_registers_[D12] = true;
+  blocked_fpu_registers_[D13] = true;
+  blocked_fpu_registers_[D14] = true;
+  blocked_fpu_registers_[D15] = true;
 }
 
 InstructionCodeGeneratorARM::InstructionCodeGeneratorARM(HGraph* graph, CodeGeneratorARM* codegen)

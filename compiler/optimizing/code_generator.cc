@@ -102,14 +102,14 @@ void CodeGenerator::GenerateSlowPaths() {
   }
 }
 
-size_t CodeGenerator::AllocateFreeRegisterInternal(
-    bool* blocked_registers, size_t number_of_registers) const {
-  for (size_t regno = 0; regno < number_of_registers; regno++) {
-    if (!blocked_registers[regno]) {
-      blocked_registers[regno] = true;
-      return regno;
+size_t CodeGenerator::FindFreeEntry(bool* array, size_t length) {
+  for (size_t i = 0; i < length; ++i) {
+    if (!array[i]) {
+      array[i] = true;
+      return i;
     }
   }
+  LOG(FATAL) << "Could not find a register in baseline register allocator";
   return -1;
 }
 
@@ -156,17 +156,34 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
   LocationSummary* locations = instruction->GetLocations();
   if (locations == nullptr) return;
 
-  for (size_t i = 0, e = GetNumberOfRegisters(); i < e; ++i) {
-    blocked_registers_[i] = false;
+  for (size_t i = 0, e = GetNumberOfCoreRegisters(); i < e; ++i) {
+    blocked_core_registers_[i] = false;
+  }
+
+  for (size_t i = 0, e = GetNumberOfFloatingPointRegisters(); i < e; ++i) {
+    blocked_fpu_registers_[i] = false;
+  }
+
+  for (size_t i = 0, e = number_of_register_pairs_; i < e; ++i) {
+    blocked_register_pairs_[i] = false;
   }
 
   // Mark all fixed input, temp and output registers as used.
   for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
     Location loc = locations->InAt(i);
+    // The DCHECKS below check that a register is not specified twice in
+    // the summary.
     if (loc.IsRegister()) {
-      // Check that a register is not specified twice in the summary.
-      DCHECK(!blocked_registers_[loc.GetEncoding()]);
-      blocked_registers_[loc.GetEncoding()] = true;
+      DCHECK(!blocked_core_registers_[loc.reg()]);
+      blocked_core_registers_[loc.reg()] = true;
+    } else if (loc.IsFpuRegister()) {
+      DCHECK(!blocked_fpu_registers_[loc.reg()]);
+      blocked_fpu_registers_[loc.reg()] = true;
+    } else if (loc.IsRegisterPair()) {
+      DCHECK(!blocked_core_registers_[loc.AsRegisterPairLow<int>()]);
+      blocked_core_registers_[loc.AsRegisterPairLow<int>()] = true;
+      DCHECK(!blocked_core_registers_[loc.AsRegisterPairHigh<int>()]);
+      blocked_core_registers_[loc.AsRegisterPairHigh<int>()] = true;
     }
   }
 
@@ -174,12 +191,14 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
     Location loc = locations->GetTemp(i);
     if (loc.IsRegister()) {
       // Check that a register is not specified twice in the summary.
-      DCHECK(!blocked_registers_[loc.GetEncoding()]);
-      blocked_registers_[loc.GetEncoding()] = true;
+      DCHECK(!blocked_core_registers_[loc.reg()]);
+      blocked_core_registers_[loc.reg()] = true;
+    } else {
+      DCHECK_EQ(loc.GetPolicy(), Location::kRequiresRegister);
     }
   }
 
-  SetupBlockedRegisters(blocked_registers_);
+  SetupBlockedRegisters();
 
   // Allocate all unallocated input locations.
   for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
@@ -188,14 +207,14 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
     if (loc.IsUnallocated()) {
       if ((loc.GetPolicy() == Location::kRequiresRegister)
           || (loc.GetPolicy() == Location::kRequiresFpuRegister)) {
-        loc = AllocateFreeRegister(input->GetType(), blocked_registers_);
+        loc = AllocateFreeRegister(input->GetType());
       } else {
         DCHECK_EQ(loc.GetPolicy(), Location::kAny);
         HLoadLocal* load = input->AsLoadLocal();
         if (load != nullptr) {
           loc = GetStackLocation(load);
         } else {
-          loc = AllocateFreeRegister(input->GetType(), blocked_registers_);
+          loc = AllocateFreeRegister(input->GetType());
         }
       }
       locations->SetInAt(i, loc);
@@ -209,7 +228,7 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
       DCHECK_EQ(loc.GetPolicy(), Location::kRequiresRegister);
       // TODO: Adjust handling of temps. We currently consider temps to use
       // core registers. They may also use floating point registers at some point.
-      loc = AllocateFreeRegister(Primitive::kPrimInt, blocked_registers_);
+      loc = AllocateFreeRegister(Primitive::kPrimInt);
       locations->SetTempAt(i, loc);
     }
   }
@@ -219,7 +238,7 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
       case Location::kAny:
       case Location::kRequiresRegister:
       case Location::kRequiresFpuRegister:
-        result_location = AllocateFreeRegister(instruction->GetType(), blocked_registers_);
+        result_location = AllocateFreeRegister(instruction->GetType());
         break;
       case Location::kSameAsFirstInput:
         result_location = locations->InAt(0);
