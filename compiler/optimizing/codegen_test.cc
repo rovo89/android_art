@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <functional>
+
 #include "builder.h"
 #include "code_generator_arm.h"
 #include "code_generator_x86.h"
@@ -24,6 +26,9 @@
 #include "instruction_set.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
+#include "prepare_for_register_allocation.h"
+#include "register_allocator.h"
+#include "ssa_liveness_analysis.h"
 
 #include "gtest/gtest.h"
 
@@ -62,19 +67,11 @@ static void Run(const InternalCodeAllocator& allocator,
   }
   int32_t result = f();
   if (has_result) {
-    CHECK_EQ(result, expected);
+    ASSERT_EQ(result, expected);
   }
 }
 
-static void TestCode(const uint16_t* data, bool has_result = false, int32_t expected = 0) {
-  ArenaPool pool;
-  ArenaAllocator arena(&pool);
-  HGraphBuilder builder(&arena);
-  const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  HGraph* graph = builder.BuildGraph(*item);
-  // Remove suspend checks, they cannot be executed in this context.
-  RemoveSuspendChecks(graph);
-  ASSERT_NE(graph, nullptr);
+static void RunCodeBaseline(HGraph* graph, bool has_result, int32_t expected) {
   InternalCodeAllocator allocator;
 
   x86::CodeGeneratorX86 codegenX86(graph);
@@ -96,6 +93,51 @@ static void TestCode(const uint16_t* data, bool has_result = false, int32_t expe
   if (kRuntimeISA == kX86_64) {
     Run(allocator, codegenX86_64, has_result, expected);
   }
+}
+
+static void RunCodeOptimized(CodeGenerator* codegen,
+                             HGraph* graph,
+                             std::function<void(HGraph*)> hook_before_codegen,
+                             bool has_result,
+                             int32_t expected) {
+  SsaLivenessAnalysis liveness(*graph, codegen);
+  liveness.Analyze();
+
+  RegisterAllocator register_allocator(graph->GetArena(), codegen, liveness);
+  register_allocator.AllocateRegisters();
+  hook_before_codegen(graph);
+
+  InternalCodeAllocator allocator;
+  codegen->CompileOptimized(&allocator);
+  Run(allocator, *codegen, has_result, expected);
+}
+
+static void RunCodeOptimized(HGraph* graph,
+                             std::function<void(HGraph*)> hook_before_codegen,
+                             bool has_result,
+                             int32_t expected) {
+  if (kRuntimeISA == kX86) {
+    x86::CodeGeneratorX86 codegenX86(graph);
+    RunCodeOptimized(&codegenX86, graph, hook_before_codegen, has_result, expected);
+  } else if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
+    arm::CodeGeneratorARM codegenARM(graph);
+    RunCodeOptimized(&codegenARM, graph, hook_before_codegen, has_result, expected);
+  } else if (kRuntimeISA == kX86_64) {
+    x86_64::CodeGeneratorX86_64 codegenX86_64(graph);
+    RunCodeOptimized(&codegenX86_64, graph, hook_before_codegen, has_result, expected);
+  }
+}
+
+static void TestCode(const uint16_t* data, bool has_result = false, int32_t expected = 0) {
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
+  HGraphBuilder builder(&arena);
+  const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
+  HGraph* graph = builder.BuildGraph(*item);
+  // Remove suspend checks, they cannot be executed in this context.
+  RemoveSuspendChecks(graph);
+  ASSERT_NE(graph, nullptr);
+  RunCodeBaseline(graph, has_result, expected);
 }
 
 TEST(CodegenTest, ReturnVoid) {
@@ -254,6 +296,57 @@ TEST(CodegenTest, ReturnAdd4) {
     Instruction::RETURN);
 
   TestCode(data, true, 7);
+}
+
+TEST(CodegenTest, NonMaterializedCondition) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+
+  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+  entry->AddInstruction(new (&allocator) HGoto());
+
+  HBasicBlock* first_block = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(first_block);
+  entry->AddSuccessor(first_block);
+  HIntConstant* constant0 = new (&allocator) HIntConstant(0);
+  entry->AddInstruction(constant0);
+  HIntConstant* constant1 = new (&allocator) HIntConstant(1);
+  entry->AddInstruction(constant1);
+  HEqual* equal = new (&allocator) HEqual(constant0, constant0);
+  first_block->AddInstruction(equal);
+  first_block->AddInstruction(new (&allocator) HIf(equal));
+
+  HBasicBlock* then = new (&allocator) HBasicBlock(graph);
+  HBasicBlock* else_ = new (&allocator) HBasicBlock(graph);
+  HBasicBlock* exit = new (&allocator) HBasicBlock(graph);
+
+  graph->AddBlock(then);
+  graph->AddBlock(else_);
+  graph->AddBlock(exit);
+  first_block->AddSuccessor(then);
+  first_block->AddSuccessor(else_);
+  then->AddSuccessor(exit);
+  else_->AddSuccessor(exit);
+
+  exit->AddInstruction(new (&allocator) HExit());
+  then->AddInstruction(new (&allocator) HReturn(constant0));
+  else_->AddInstruction(new (&allocator) HReturn(constant1));
+
+  ASSERT_TRUE(equal->NeedsMaterialization());
+  graph->BuildDominatorTree();
+  PrepareForRegisterAllocation(graph).Run();
+  ASSERT_FALSE(equal->NeedsMaterialization());
+
+  auto hook_before_codegen = [](HGraph* graph) {
+    HBasicBlock* block = graph->GetEntryBlock()->GetSuccessors().Get(0);
+    HParallelMove* move = new (graph->GetArena()) HParallelMove(graph->GetArena());
+    block->InsertInstructionBefore(move, block->GetLastInstruction());
+  };
+
+  RunCodeOptimized(graph, hook_before_codegen, true, 0);
 }
 
 }  // namespace art

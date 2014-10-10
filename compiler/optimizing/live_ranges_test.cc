@@ -21,6 +21,7 @@
 #include "dex_instruction.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
+#include "prepare_for_register_allocation.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/arena_allocator.h"
 
@@ -38,6 +39,8 @@ static HGraph* BuildGraph(const uint16_t* data, ArenaAllocator* allocator) {
   graph->BuildDominatorTree();
   graph->TransformToSSA();
   graph->FindNaturalLoops();
+  // `Inline` conditions into ifs.
+  PrepareForRegisterAllocation(graph).Run();
   return graph;
 }
 

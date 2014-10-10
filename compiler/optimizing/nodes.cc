@@ -537,7 +537,7 @@ void HPhi::AddInput(HInstruction* input) {
   input->AddUseAt(this, inputs_.Size() - 1);
 }
 
-#define DEFINE_ACCEPT(name)                                                    \
+#define DEFINE_ACCEPT(name, super)                                             \
 void H##name::Accept(HGraphVisitor* visitor) {                                 \
   visitor->Visit##name(this);                                                  \
 }
@@ -573,24 +573,6 @@ HConstant* HBinaryOperation::TryStaticEvaluation(ArenaAllocator* allocator) cons
     return new(allocator) HLongConstant(value);
   }
   return nullptr;
-}
-
-bool HCondition::NeedsMaterialization() const {
-  if (!HasOnlyOneUse()) {
-    return true;
-  }
-  HUseListNode<HInstruction>* uses = GetUses();
-  HInstruction* user = uses->GetUser();
-  if (!user->IsIf()) {
-    return true;
-  }
-
-  // TODO: if there is no intervening instructions with side-effect between this condition
-  // and the If instruction, we should move the condition just before the If.
-  if (GetNext() != user) {
-    return true;
-  }
-  return false;
 }
 
 bool HCondition::IsBeforeWhenDisregardMoves(HIf* if_) const {
