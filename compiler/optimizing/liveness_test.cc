@@ -21,6 +21,7 @@
 #include "dex_instruction.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
+#include "prepare_for_register_allocation.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/arena_allocator.h"
 
@@ -50,6 +51,8 @@ static void TestCode(const uint16_t* data, const char* expected) {
   graph->BuildDominatorTree();
   graph->TransformToSSA();
   graph->FindNaturalLoops();
+  // `Inline` conditions into ifs.
+  PrepareForRegisterAllocation(graph).Run();
   x86::CodeGeneratorX86 codegen(graph);
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
