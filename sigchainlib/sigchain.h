@@ -21,6 +21,8 @@
 
 namespace art {
 
+void InitializeSignalChain();
+
 void ClaimSignalChain(int signal, struct sigaction* oldaction);
 
 void UnclaimSignalChain(int signal);
