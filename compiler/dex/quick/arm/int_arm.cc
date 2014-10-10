@@ -49,12 +49,13 @@ LIR* ArmMir2Lir::OpIT(ConditionCode ccode, const char* guide) {
   int cond_bit = code & 1;
   int alt_bit = cond_bit ^ 1;
 
-  // Note: case fallthroughs intentional
   switch (strlen(guide)) {
     case 3:
       mask1 = (guide[2] == 'T') ? cond_bit : alt_bit;
+      FALLTHROUGH_INTENDED;
     case 2:
       mask2 = (guide[1] == 'T') ? cond_bit : alt_bit;
+      FALLTHROUGH_INTENDED;
     case 1:
       mask3 = (guide[0] == 'T') ? cond_bit : alt_bit;
       break;
@@ -62,6 +63,7 @@ LIR* ArmMir2Lir::OpIT(ConditionCode ccode, const char* guide) {
       break;
     default:
       LOG(FATAL) << "OAT: bad case in OpIT";
+      UNREACHABLE();
   }
   mask = (mask3 << 3) | (mask2 << 2) | (mask1 << 1) |
        (1 << (3 - strlen(guide)));
@@ -77,12 +79,13 @@ void ArmMir2Lir::UpdateIT(LIR* it, const char* new_guide) {
   int cond_bit = code & 1;
   int alt_bit = cond_bit ^ 1;
 
-  // Note: case fallthroughs intentional
   switch (strlen(new_guide)) {
     case 3:
       mask1 = (new_guide[2] == 'T') ? cond_bit : alt_bit;
+      FALLTHROUGH_INTENDED;
     case 2:
       mask2 = (new_guide[1] == 'T') ? cond_bit : alt_bit;
+      FALLTHROUGH_INTENDED;
     case 1:
       mask3 = (new_guide[0] == 'T') ? cond_bit : alt_bit;
       break;
@@ -90,6 +93,7 @@ void ArmMir2Lir::UpdateIT(LIR* it, const char* new_guide) {
       break;
     default:
       LOG(FATAL) << "OAT: bad case in UpdateIT";
+      UNREACHABLE();
   }
   mask = (mask3 << 3) | (mask2 << 2) | (mask1 << 1) |
       (1 << (3 - strlen(new_guide)));

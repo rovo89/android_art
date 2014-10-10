@@ -465,6 +465,7 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
   switch (opcode) {
     case kMipsBal:
       LOG(FATAL) << "long branch and link unsupported";
+      UNREACHABLE();
     case kMipsB:
       unconditional = true;
       break;
@@ -478,6 +479,7 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
     case kMipsBnez: opcode = kMipsBeqz; break;
     default:
       LOG(FATAL) << "Unexpected branch kind " << opcode;
+      UNREACHABLE();
   }
   LIR* hop_target = NULL;
   if (!unconditional) {

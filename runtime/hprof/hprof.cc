@@ -719,9 +719,9 @@ static HprofBasicType SignatureToBasicTypeAndSize(const char* sig, size_t* sizeO
   case 'D': ret = hprof_basic_double;  size = 8; break;
   case 'B': ret = hprof_basic_byte;    size = 1; break;
   case 'S': ret = hprof_basic_short;   size = 2; break;
-  default: CHECK(false);
   case 'I': ret = hprof_basic_int;     size = 4; break;
   case 'J': ret = hprof_basic_long;    size = 8; break;
+  default: LOG(FATAL) << "UNREACHABLE"; UNREACHABLE();
   }
 
   if (sizeOut != NULL) {
@@ -742,9 +742,9 @@ static HprofBasicType PrimitiveToBasicTypeAndSize(Primitive::Type prim, size_t* 
   case Primitive::kPrimDouble:  ret = hprof_basic_double;  size = 8; break;
   case Primitive::kPrimByte:    ret = hprof_basic_byte;    size = 1; break;
   case Primitive::kPrimShort:   ret = hprof_basic_short;   size = 2; break;
-  default: CHECK(false);
   case Primitive::kPrimInt:     ret = hprof_basic_int;     size = 4; break;
   case Primitive::kPrimLong:    ret = hprof_basic_long;    size = 8; break;
+  default: LOG(FATAL) << "UNREACHABLE"; UNREACHABLE();
   }
 
   if (sizeOut != NULL) {

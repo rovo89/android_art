@@ -1288,9 +1288,10 @@ void InstructionCodeGeneratorARM::VisitInstanceFieldSet(HInstanceFieldSet* instr
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       LOG(FATAL) << "Unimplemented register type " << field_type;
-
+      UNREACHABLE();
     case Primitive::kPrimVoid:
       LOG(FATAL) << "Unreachable type " << field_type;
+      UNREACHABLE();
   }
 }
 
@@ -1348,9 +1349,10 @@ void InstructionCodeGeneratorARM::VisitInstanceFieldGet(HInstanceFieldGet* instr
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       LOG(FATAL) << "Unimplemented register type " << instruction->GetType();
-
+      UNREACHABLE();
     case Primitive::kPrimVoid:
       LOG(FATAL) << "Unreachable type " << instruction->GetType();
+      UNREACHABLE();
   }
 }
 
@@ -1478,9 +1480,10 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       LOG(FATAL) << "Unimplemented register type " << instruction->GetType();
-
+      UNREACHABLE();
     case Primitive::kPrimVoid:
       LOG(FATAL) << "Unreachable type " << instruction->GetType();
+      UNREACHABLE();
   }
 }
 
@@ -1575,9 +1578,10 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       LOG(FATAL) << "Unimplemented register type " << instruction->GetType();
-
+      UNREACHABLE();
     case Primitive::kPrimVoid:
       LOG(FATAL) << "Unreachable type " << instruction->GetType();
+      UNREACHABLE();
   }
 }
 

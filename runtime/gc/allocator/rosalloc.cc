@@ -507,13 +507,12 @@ size_t RosAlloc::FreeInternal(Thread* self, void* ptr) {
           --pm_idx;
           DCHECK_LT(pm_idx, capacity_ / kPageSize);
         } while (page_map_[pm_idx] != kPageMapRun);
-        // Fall-through.
+        FALLTHROUGH_INTENDED;
       case kPageMapRun:
         run = reinterpret_cast<Run*>(base_ + pm_idx * kPageSize);
         DCHECK_EQ(run->magic_num_, kMagicNum);
         break;
       case kPageMapReleased:
-        // Fall-through.
       case kPageMapEmpty:
         LOG(FATAL) << "Unreachable - page map type: " << page_map_[pm_idx];
         return 0;
@@ -2138,7 +2137,7 @@ size_t RosAlloc::ReleasePages() {
             break;
           }
         }
-        // Fall through.
+        FALLTHROUGH_INTENDED;
       }
       case kPageMapLargeObject:      // Fall through.
       case kPageMapLargeObjectPart:  // Fall through.

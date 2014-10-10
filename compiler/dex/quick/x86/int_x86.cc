@@ -2930,25 +2930,25 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       break;
     case Instruction::ADD_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::ADD_INT:
       op = kOpAdd;
       break;
     case Instruction::SUB_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::SUB_INT:
       op = kOpSub;
       break;
     case Instruction::MUL_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::MUL_INT:
       op = kOpMul;
       break;
     case Instruction::DIV_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::DIV_INT:
       op = kOpDiv;
       is_div_rem = true;
@@ -2956,46 +2956,46 @@ void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
     /* NOTE: returns in kArg1 */
     case Instruction::REM_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::REM_INT:
       op = kOpRem;
       is_div_rem = true;
       break;
     case Instruction::AND_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::AND_INT:
       op = kOpAnd;
       break;
     case Instruction::OR_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::OR_INT:
       op = kOpOr;
       break;
     case Instruction::XOR_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::XOR_INT:
       op = kOpXor;
       break;
     case Instruction::SHL_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::SHL_INT:
       shift_op = true;
       op = kOpLsl;
       break;
     case Instruction::SHR_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::SHR_INT:
       shift_op = true;
       op = kOpAsr;
       break;
     case Instruction::USHR_INT_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::USHR_INT:
       shift_op = true;
       op = kOpLsr;
@@ -3245,19 +3245,19 @@ void X86Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
   switch (opcode) {
     case Instruction::SHL_LONG_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::SHL_LONG:
       op = kOpLsl;
       break;
     case Instruction::SHR_LONG_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::SHR_LONG:
       op = kOpAsr;
       break;
     case Instruction::USHR_LONG_2ADDR:
       is_two_addr = true;
-      // Fallthrough
+      FALLTHROUGH_INTENDED;
     case Instruction::USHR_LONG:
       op = kOpLsr;
       break;
