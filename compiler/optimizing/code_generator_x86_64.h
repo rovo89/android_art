@@ -94,7 +94,7 @@ class LocationsBuilderX86_64 : public HGraphVisitor {
   LocationsBuilderX86_64(HGraph* graph, CodeGeneratorX86_64* codegen)
       : HGraphVisitor(graph), codegen_(codegen) {}
 
-#define DECLARE_VISIT_INSTRUCTION(name)     \
+#define DECLARE_VISIT_INSTRUCTION(name, super)     \
   virtual void Visit##name(H##name* instr);
 
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
@@ -114,7 +114,7 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
  public:
   InstructionCodeGeneratorX86_64(HGraph* graph, CodeGeneratorX86_64* codegen);
 
-#define DECLARE_VISIT_INSTRUCTION(name)     \
+#define DECLARE_VISIT_INSTRUCTION(name, super)     \
   virtual void Visit##name(H##name* instr);
 
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
