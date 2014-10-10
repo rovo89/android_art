@@ -204,7 +204,8 @@ TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
 # Tests that are broken with GC stress.
 TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
-  004-SignalTest
+  004-SignalTest \
+  114-ParallelGC
 
 ifneq (,$(filter gcstress,$(GC_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(PREBUILD_TYPES), \
