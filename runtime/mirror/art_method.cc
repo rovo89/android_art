@@ -442,13 +442,27 @@ QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
     return QuickMethodFrameInfo(kStackAlignment, 0u, 0u);
   }
   Runtime* runtime = Runtime::Current();
-  // For Proxy method we exclude direct method (there is only one direct method - constructor).
-  // Direct method is cloned from original java.lang.reflect.Proxy class together with code
-  // and as a result it is executed as usual quick compiled method without any stubs.
-  // So the frame info should be returned as it is a quick method not a stub.
-  if (UNLIKELY(IsAbstract()) || UNLIKELY(IsProxyMethod() && !IsDirect())) {
+
+  if (UNLIKELY(IsAbstract())) {
     return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
   }
+
+  // For Proxy method we add special handling for the direct method case  (there is only one
+  // direct method - constructor). Direct method is cloned from original
+  // java.lang.reflect.Proxy class together with code and as a result it is executed as usual
+  // quick compiled method without any stubs. So the frame info should be returned as it is a
+  // quick method not a stub. However, if instrumentation stubs are installed, the
+  // instrumentation->GetQuickCodeFor() returns the artQuickProxyInvokeHandler instead of an
+  // oat code pointer, thus we have to add a special case here.
+  if (UNLIKELY(IsProxyMethod())) {
+    if (IsDirect()) {
+      CHECK(IsConstructor());
+      return GetQuickFrameInfo(EntryPointToCodePointer(GetEntryPointFromQuickCompiledCode()));
+    } else {
+      return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
+    }
+  }
+
   if (UNLIKELY(IsRuntimeMethod())) {
     return runtime->GetRuntimeMethodFrameInfo(this);
   }
