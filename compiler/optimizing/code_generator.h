@@ -109,10 +109,10 @@ class CodeGenerator : public ArenaObject {
   void SetFrameSize(uint32_t size) { frame_size_ = size; }
   uint32_t GetCoreSpillMask() const { return core_spill_mask_; }
 
-  virtual size_t GetNumberOfCoreRegisters() const = 0;
-  virtual size_t GetNumberOfFloatingPointRegisters() const = 0;
-  virtual size_t GetNumberOfRegisters() const = 0;
-  virtual void SetupBlockedRegisters(bool* blocked_registers) const = 0;
+  size_t GetNumberOfCoreRegisters() const { return number_of_core_registers_; }
+  size_t GetNumberOfFloatingPointRegisters() const { return number_of_fpu_registers_; }
+  virtual void SetupBlockedRegisters() const = 0;
+
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const = 0;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const = 0;
   virtual InstructionSet GetInstructionSet() const = 0;
@@ -150,16 +150,26 @@ class CodeGenerator : public ArenaObject {
   // have not been written to.
   void ClearSpillSlotsFromLoopPhisInStackMap(HSuspendCheck* suspend_check) const;
 
+  bool* GetBlockedCoreRegisters() const { return blocked_core_registers_; }
+
  protected:
-  CodeGenerator(HGraph* graph, size_t number_of_registers)
+  CodeGenerator(HGraph* graph,
+                size_t number_of_core_registers,
+                size_t number_of_fpu_registers,
+                size_t number_of_register_pairs)
       : frame_size_(kUninitializedFrameSize),
         core_spill_mask_(0),
         first_register_slot_in_slow_path_(0),
+        blocked_core_registers_(graph->GetArena()->AllocArray<bool>(number_of_core_registers)),
+        blocked_fpu_registers_(graph->GetArena()->AllocArray<bool>(number_of_fpu_registers)),
+        blocked_register_pairs_(graph->GetArena()->AllocArray<bool>(number_of_register_pairs)),
+        number_of_core_registers_(number_of_core_registers),
+        number_of_fpu_registers_(number_of_fpu_registers),
+        number_of_register_pairs_(number_of_register_pairs),
         graph_(graph),
         block_labels_(graph->GetArena(), 0),
         pc_infos_(graph->GetArena(), 32),
         slow_paths_(graph->GetArena(), 8),
-        blocked_registers_(graph->GetArena()->AllocArray<bool>(number_of_registers)),
         is_leaf_(true),
         stack_map_stream_(graph->GetArena()) {}
   ~CodeGenerator() {}
@@ -168,12 +178,9 @@ class CodeGenerator : public ArenaObject {
   void AllocateRegistersLocally(HInstruction* instruction) const;
 
   // Backend specific implementation for allocating a register.
-  virtual Location AllocateFreeRegister(Primitive::Type type,
-                                        bool* blocked_registers) const = 0;
+  virtual Location AllocateFreeRegister(Primitive::Type type) const = 0;
 
-  // Raw implementation of allocating a register: loops over blocked_registers to find
-  // the first available register.
-  size_t AllocateFreeRegisterInternal(bool* blocked_registers, size_t number_of_registers) const;
+  static size_t FindFreeEntry(bool* array, size_t length);
 
   virtual Location GetStackLocation(HLoadLocal* load) const = 0;
 
@@ -181,6 +188,16 @@ class CodeGenerator : public ArenaObject {
   uint32_t frame_size_;
   uint32_t core_spill_mask_;
   uint32_t first_register_slot_in_slow_path_;
+
+  // Arrays used when doing register allocation to know which
+  // registers we can allocate. `SetupBlockedRegisters` updates the
+  // arrays.
+  bool* const blocked_core_registers_;
+  bool* const blocked_fpu_registers_;
+  bool* const blocked_register_pairs_;
+  size_t number_of_core_registers_;
+  size_t number_of_fpu_registers_;
+  size_t number_of_register_pairs_;
 
  private:
   void InitLocations(HInstruction* instruction);
@@ -192,9 +209,6 @@ class CodeGenerator : public ArenaObject {
   GrowableArray<Label> block_labels_;
   GrowableArray<PcInfo> pc_infos_;
   GrowableArray<SlowPathCode*> slow_paths_;
-
-  // Temporary data structure used when doing register allocation.
-  bool* const blocked_registers_;
 
   bool is_leaf_;
 
