@@ -55,6 +55,16 @@ if [ -z "$JASMIN" ]; then
   export JASMIN="jasmin"
 fi
 
+# If smali was not set by the environment variable, assume it is in the path.
+if [ -z "$SMALI" ]; then
+  export SMALI="smali"
+fi
+
+# If dexmerger was not set by the environment variable, assume it is in the path.
+if [ -z "$DXMERGER" ]; then
+  export DXMERGER="dexmerger"
+fi
+
 
 info="info.txt"
 build="build"
