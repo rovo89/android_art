@@ -177,10 +177,7 @@ class Runtime {
 
   // Aborts semi-cleanly. Used in the implementation of LOG(FATAL), which most
   // callers should prefer.
-  // This isn't marked ((noreturn)) because then gcc will merge multiple calls
-  // in a single function together. This reduces code size slightly, but means
-  // that the native stack trace we get may point at the wrong call site.
-  static void Abort() NO_RETURN LOCKS_EXCLUDED(Locks::abort_lock_);
+  [[noreturn]] static void Abort() LOCKS_EXCLUDED(Locks::abort_lock_);
 
   // Returns the "main" ThreadGroup, used when attaching user threads.
   jobject GetMainThreadGroup() const;
