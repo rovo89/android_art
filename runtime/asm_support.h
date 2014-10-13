@@ -21,7 +21,7 @@
 
 // Value loaded into rSUSPEND for quick. When this value is counted down to zero we do a suspend
 // check.
-#define SUSPEND_CHECK_INTERVAL (1000)
+#define SUSPEND_CHECK_INTERVAL (16)
 
 // Offsets within java.lang.Object.
 #define CLASS_OFFSET 0
