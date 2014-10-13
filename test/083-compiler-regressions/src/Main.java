@@ -39,6 +39,7 @@ public class Main {
         b13679511Test();
         b16177324TestWrapper();
         b16230771TestWrapper();
+        b17969907TestWrapper();
         largeFrameTest();
         largeFrameTestFloat();
         mulBy1Test();
@@ -987,6 +988,24 @@ public class Main {
           // The bug was a missing null check, so this would actually cause SIGSEGV.
           System.out.println("Unexpectedly retrieved value " + value + " in NPE catch handler");
         }
+      }
+    }
+
+    static void b17969907TestWrapper() {
+      try {
+        b17969907Test();
+        System.out.println("b17969907Test unexpectedly didn't throw NPE.");
+      } catch (NullPointerException expected) {
+        System.out.println("b17969907TestWrapper caught NPE as expected.");
+      }
+    }
+
+    public static void b17969907Test() {
+      Integer i = new Integer(1);
+      int sum = 0;
+      while (sum < 100) {
+        sum += i;
+        i = null;
       }
     }
 
