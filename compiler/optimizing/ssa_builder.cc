@@ -51,7 +51,7 @@ void SsaBuilder::BuildSsa() {
        !it.Done();
        it.Advance()) {
     HInstruction* current = it.Current();
-    if (current->AsLocal() != nullptr) {
+    if (current->IsLocal()) {
       current->GetBlock()->RemoveInstruction(current);
     }
   }

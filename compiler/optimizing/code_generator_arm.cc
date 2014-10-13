@@ -527,7 +527,7 @@ void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstr
     return;
   }
 
-  if (instruction->AsIntConstant() != nullptr) {
+  if (instruction->IsIntConstant()) {
     int32_t value = instruction->AsIntConstant()->GetValue();
     if (location.IsRegister()) {
       __ LoadImmediate(location.As<Register>(), value);
@@ -536,7 +536,7 @@ void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstr
       __ LoadImmediate(IP, value);
       __ StoreToOffset(kStoreWord, IP, SP, location.GetStackIndex());
     }
-  } else if (instruction->AsLongConstant() != nullptr) {
+  } else if (instruction->IsLongConstant()) {
     int64_t value = instruction->AsLongConstant()->GetValue();
     if (location.IsRegisterPair()) {
       __ LoadImmediate(location.AsRegisterPairLow<Register>(), Low32Bits(value));
@@ -548,7 +548,7 @@ void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstr
       __ LoadImmediate(IP, High32Bits(value));
       __ StoreToOffset(kStoreWord, IP, SP, location.GetHighStackIndex(kArmWordSize));
     }
-  } else if (instruction->AsLoadLocal() != nullptr) {
+  } else if (instruction->IsLoadLocal()) {
     uint32_t stack_slot = GetStackSlot(instruction->AsLoadLocal()->GetLocal());
     switch (instruction->GetType()) {
       case Primitive::kPrimBoolean:
@@ -1693,7 +1693,7 @@ void ParallelMoveResolverARM::EmitMove(size_t index) {
     }
   } else {
     DCHECK(source.IsConstant());
-    DCHECK(source.GetConstant()->AsIntConstant() != nullptr);
+    DCHECK(source.GetConstant()->IsIntConstant());
     int32_t value = source.GetConstant()->AsIntConstant()->GetValue();
     if (destination.IsRegister()) {
       __ LoadImmediate(destination.As<Register>(), value);
