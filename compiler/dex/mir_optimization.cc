@@ -929,7 +929,7 @@ bool MIRGraph::EliminateNullChecks(BasicBlock* bb) {
         mir->optimization_flags |= MIR_IGNORE_NULL_CHECK;
       } else {
         // Do the null check.
-        // Do not clear MIR_IGNORE_NULL_CHECK flag as it may be set by another optimization
+        mir->optimization_flags &= ~MIR_IGNORE_NULL_CHECK;
         // Mark s_reg as null-checked
         ssa_regs_to_check->ClearBit(src_sreg);
       }
