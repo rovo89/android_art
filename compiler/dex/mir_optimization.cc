@@ -929,6 +929,8 @@ bool MIRGraph::EliminateNullChecks(BasicBlock* bb) {
         mir->optimization_flags |= MIR_IGNORE_NULL_CHECK;
       } else {
         // Do the null check.
+        // TODO: Rewrite the pass to converge first before doing any modifications so that
+        // we don't lose the MIR_IGNORE_NULL_CHECK here if previously set by some other pass.
         mir->optimization_flags &= ~MIR_IGNORE_NULL_CHECK;
         // Mark s_reg as null-checked
         ssa_regs_to_check->ClearBit(src_sreg);
