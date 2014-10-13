@@ -132,6 +132,8 @@ class ScopedArenaAllocator
   uint8_t* mark_ptr_;
   uint8_t* mark_end_;
 
+  void DoReset();
+
   template <typename T>
   friend class ScopedArenaAllocatorAdapter;
 

@@ -115,10 +115,18 @@ ScopedArenaAllocator::ScopedArenaAllocator(ArenaStack* arena_stack)
 }
 
 ScopedArenaAllocator::~ScopedArenaAllocator() {
-  Reset();
+  DoReset();
 }
 
 void ScopedArenaAllocator::Reset() {
+  DoReset();
+  // If this allocator was Create()d, we need to move the arena_stack_->top_ptr_ past *this.
+  if (mark_ptr_ == reinterpret_cast<uint8_t*>(this)) {
+    arena_stack_->top_ptr_ = mark_ptr_ + RoundUp(sizeof(ScopedArenaAllocator), 8);
+  }
+}
+
+void ScopedArenaAllocator::DoReset() {
   DebugStackReference::CheckTop();
   DebugStackRefCounter::CheckNoRefs();
   arena_stack_->UpdatePeakStatsAndRestore(*this);
