@@ -183,7 +183,11 @@ class Robin extends Thread {
     }
 
     private String makeString(int val) {
-        return new String("Robin" + val);
+        try {
+            return new String("Robin" + val);
+        } catch (OutOfMemoryError e) {
+            return null;
+        }
     }
 }
 
@@ -302,7 +306,11 @@ class Deep extends Thread {
     }
 
     private String makeString(int val) {
-        return new String("Deep" + val);
+        try {
+            return new String("Deep" + val);
+        } catch (OutOfMemoryError e) {
+            return null;
+        }
     }
 }
 
@@ -319,13 +327,16 @@ class Large extends Thread {
         Main.startupDelay();
 
         while (!Main.quit) {
-            chunk = new byte[100000];
-            pretendToUse(chunk);
+            try {
+                chunk = new byte[100000];
+                pretendToUse(chunk);
 
-            count++;
-            if ((count % 500) == 0) {
-                Main.sleep(400);
-                sleepCount++;
+                count++;
+                if ((count % 500) == 0) {
+                    Main.sleep(400);
+                    sleepCount++;
+                }
+            } catch (OutOfMemoryError e) {
             }
         }
 
