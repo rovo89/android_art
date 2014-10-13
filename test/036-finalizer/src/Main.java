@@ -141,16 +141,17 @@ public class Main {
       }
     }
 
-    private static void runFinalizationTest() {
-      int count = 1024;
+    private static void allocFinalizableObjects(int count) {
       Object[] objs = new Object[count];
       for (int i = 0; i < count; ++i) {
         objs[i] = new FinalizeCounter(i);
       }
-      for (int i = 0; i < count; ++i) {
-        objs[i] = null;
-      }
-      System.gc();
+    }
+
+    private static void runFinalizationTest() {
+      int count = 1024;
+      allocFinalizableObjects(count);
+      Runtime.getRuntime().gc();
       System.runFinalization();
       System.out.println("Finalized " + FinalizeCounter.getCount() + " / "  + count);
     }
