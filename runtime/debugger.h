@@ -45,6 +45,7 @@ class Throwable;
 class AllocRecord;
 class ObjectRegistry;
 class ScopedObjectAccessUnchecked;
+class StackVisitor;
 class Thread;
 class ThrowLocation;
 
@@ -470,12 +471,10 @@ class Dbg {
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError GetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot,
-                                       JDWP::JdwpTag tag, uint8_t* buf, size_t expectedLen)
+  static JDWP::JdwpError GetLocalValues(JDWP::Request* request, JDWP::ExpandBuf* pReply)
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::JdwpError SetLocalValue(JDWP::ObjectId thread_id, JDWP::FrameId frame_id, int slot,
-                                       JDWP::JdwpTag tag, uint64_t value, size_t width)
+  static JDWP::JdwpError SetLocalValues(JDWP::Request* request)
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -636,6 +635,16 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
+  static JDWP::JdwpError GetLocalValue(const StackVisitor& visitor,
+                                       ScopedObjectAccessUnchecked& soa, int slot,
+                                       JDWP::JdwpTag tag, uint8_t* buf, size_t width)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static JDWP::JdwpError SetLocalValue(StackVisitor& visitor, int slot, JDWP::JdwpTag tag,
+                                       uint64_t value, size_t width)
+      LOCKS_EXCLUDED(Locks::thread_list_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   static void DdmBroadcast(bool connect) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStartOrStop(Thread*, uint32_t)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
