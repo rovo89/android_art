@@ -472,7 +472,11 @@ bool HInstructionList::FoundBefore(const HInstruction* instruction1,
   return true;
 }
 
-bool HInstruction::Dominates(HInstruction* other_instruction) const {
+bool HInstruction::StrictlyDominates(HInstruction* other_instruction) const {
+  if (other_instruction == this) {
+    // An instruction does not strictly dominate itself.
+    return false;
+  }
   HBasicBlock* block = GetBlock();
   HBasicBlock* other_block = other_instruction->GetBlock();
   if (block != other_block) {
