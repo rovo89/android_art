@@ -1979,7 +1979,7 @@ JDWP::JdwpError Dbg::GetThreadName(JDWP::ObjectId thread_id, std::string& name) 
 }
 
 JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* pReply) {
-  ScopedObjectAccess soa(Thread::Current());
+  ScopedObjectAccessUnchecked soa(Thread::Current());
   mirror::Object* thread_object = gRegistry->Get<mirror::Object*>(thread_id);
   if (thread_object == ObjectRegistry::kInvalidObject) {
     return JDWP::ERR_INVALID_OBJECT;
@@ -2010,24 +2010,51 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
   return error;
 }
 
-std::string Dbg::GetThreadGroupName(JDWP::ObjectId thread_group_id) {
-  ScopedObjectAccess soa(Thread::Current());
-  mirror::Object* thread_group = gRegistry->Get<mirror::Object*>(thread_group_id);
-  CHECK(thread_group != nullptr);
-  const char* old_cause = soa.Self()->StartAssertNoThreadSuspension("Debugger: GetThreadGroupName");
+static mirror::Object* DecodeThreadGroup(ScopedObjectAccessUnchecked& soa,
+                                         JDWP::ObjectId thread_group_id, JDWP::JdwpError* error)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  mirror::Object* thread_group = Dbg::GetObjectRegistry()->Get<mirror::Object*>(thread_group_id);
+  if (thread_group == nullptr || thread_group == ObjectRegistry::kInvalidObject) {
+    *error = JDWP::ERR_INVALID_OBJECT;
+    return nullptr;
+  }
   mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ThreadGroup);
   CHECK(c != nullptr);
+  if (!c->IsAssignableFrom(thread_group->GetClass())) {
+    // This is not a java.lang.ThreadGroup.
+    *error = JDWP::ERR_INVALID_THREAD_GROUP;
+    return nullptr;
+  }
+  *error = JDWP::ERR_NONE;
+  return thread_group;
+}
+
+JDWP::JdwpError Dbg::GetThreadGroupName(JDWP::ObjectId thread_group_id, JDWP::ExpandBuf* pReply) {
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  JDWP::JdwpError error;
+  mirror::Object* thread_group = DecodeThreadGroup(soa, thread_group_id, &error);
+  if (error != JDWP::ERR_NONE) {
+    return error;
+  }
+  const char* old_cause = soa.Self()->StartAssertNoThreadSuspension("Debugger: GetThreadGroupName");
+  mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ThreadGroup);
   mirror::ArtField* f = c->FindInstanceField("name", "Ljava/lang/String;");
   CHECK(f != NULL);
   mirror::String* s = reinterpret_cast<mirror::String*>(f->GetObject(thread_group));
   soa.Self()->EndAssertNoThreadSuspension(old_cause);
-  return s->ToModifiedUtf8();
+
+  std::string thread_group_name(s->ToModifiedUtf8());
+  expandBufAddUtf8String(pReply, thread_group_name);
+  return JDWP::ERR_NONE;
 }
 
-JDWP::ObjectId Dbg::GetThreadGroupParent(JDWP::ObjectId thread_group_id) {
+JDWP::JdwpError Dbg::GetThreadGroupParent(JDWP::ObjectId thread_group_id, JDWP::ExpandBuf* pReply) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  mirror::Object* thread_group = gRegistry->Get<mirror::Object*>(thread_group_id);
-  CHECK(thread_group != nullptr);
+  JDWP::JdwpError error;
+  mirror::Object* thread_group = DecodeThreadGroup(soa, thread_group_id, &error);
+  if (error != JDWP::ERR_NONE) {
+    return error;
+  }
   const char* old_cause = soa.Self()->StartAssertNoThreadSuspension("Debugger: GetThreadGroupParent");
   mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ThreadGroup);
   CHECK(c != nullptr);
@@ -2035,19 +2062,70 @@ JDWP::ObjectId Dbg::GetThreadGroupParent(JDWP::ObjectId thread_group_id) {
   CHECK(f != NULL);
   mirror::Object* parent = f->GetObject(thread_group);
   soa.Self()->EndAssertNoThreadSuspension(old_cause);
-  return gRegistry->Add(parent);
+
+  JDWP::ObjectId parent_group_id = gRegistry->Add(parent);
+  expandBufAddObjectId(pReply, parent_group_id);
+  return JDWP::ERR_NONE;
+}
+
+static void GetChildThreadGroups(ScopedObjectAccessUnchecked& soa, mirror::Object* thread_group,
+                                 std::vector<JDWP::ObjectId>* child_thread_group_ids)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  CHECK(thread_group != nullptr);
+
+  // Get the ArrayList<ThreadGroup> "groups" out of this thread group...
+  mirror::ArtField* groups_field = thread_group->GetClass()->FindInstanceField("groups", "Ljava/util/List;");
+  mirror::Object* groups_array_list = groups_field->GetObject(thread_group);
+
+  // Get the array and size out of the ArrayList<ThreadGroup>...
+  mirror::ArtField* array_field = groups_array_list->GetClass()->FindInstanceField("array", "[Ljava/lang/Object;");
+  mirror::ArtField* size_field = groups_array_list->GetClass()->FindInstanceField("size", "I");
+  mirror::ObjectArray<mirror::Object>* groups_array =
+      array_field->GetObject(groups_array_list)->AsObjectArray<mirror::Object>();
+  const int32_t size = size_field->GetInt(groups_array_list);
+
+  // Copy the first 'size' elements out of the array into the result.
+  ObjectRegistry* registry = Dbg::GetObjectRegistry();
+  for (int32_t i = 0; i < size; ++i) {
+    child_thread_group_ids->push_back(registry->Add(groups_array->Get(i)));
+  }
+}
+
+JDWP::JdwpError Dbg::GetThreadGroupChildren(JDWP::ObjectId thread_group_id,
+                                            JDWP::ExpandBuf* pReply) {
+  ScopedObjectAccessUnchecked soa(Thread::Current());
+  JDWP::JdwpError error;
+  mirror::Object* thread_group = DecodeThreadGroup(soa, thread_group_id, &error);
+  if (error != JDWP::ERR_NONE) {
+    return error;
+  }
+
+  // Add child threads.
+  {
+    std::vector<JDWP::ObjectId> child_thread_ids;
+    GetThreads(thread_group, &child_thread_ids);
+    expandBufAdd4BE(pReply, child_thread_ids.size());
+    for (JDWP::ObjectId child_thread_id : child_thread_ids) {
+      expandBufAddObjectId(pReply, child_thread_id);
+    }
+  }
+
+  // Add child thread groups.
+  {
+    std::vector<JDWP::ObjectId> child_thread_groups_ids;
+    GetChildThreadGroups(soa, thread_group, &child_thread_groups_ids);
+    expandBufAdd4BE(pReply, child_thread_groups_ids.size());
+    for (JDWP::ObjectId child_thread_group_id : child_thread_groups_ids) {
+      expandBufAddObjectId(pReply, child_thread_group_id);
+    }
+  }
+
+  return JDWP::ERR_NONE;
 }
 
 JDWP::ObjectId Dbg::GetSystemThreadGroupId() {
   ScopedObjectAccessUnchecked soa(Thread::Current());
   mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup);
-  mirror::Object* group = f->GetObject(f->GetDeclaringClass());
-  return gRegistry->Add(group);
-}
-
-JDWP::ObjectId Dbg::GetMainThreadGroupId() {
-  ScopedObjectAccess soa(Thread::Current());
-  mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup);
   mirror::Object* group = f->GetObject(f->GetDeclaringClass());
   return gRegistry->Add(group);
 }
@@ -2149,9 +2227,8 @@ static bool IsInDesiredThreadGroup(ScopedObjectAccessUnchecked& soa,
   return (group == desired_thread_group);
 }
 
-void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& thread_ids) {
+void Dbg::GetThreads(mirror::Object* thread_group, std::vector<JDWP::ObjectId>* thread_ids) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  mirror::Object* thread_group = gRegistry->Get<mirror::Object*>(thread_group_id);
   std::list<Thread*> all_threads_list;
   {
     MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
@@ -2178,34 +2255,12 @@ void Dbg::GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>
       continue;
     }
     if (IsInDesiredThreadGroup(soa, thread_group, peer)) {
-      thread_ids.push_back(gRegistry->Add(peer));
+      thread_ids->push_back(gRegistry->Add(peer));
     }
   }
 }
 
-void Dbg::GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& child_thread_group_ids) {
-  ScopedObjectAccess soa(Thread::Current());
-  mirror::Object* thread_group = gRegistry->Get<mirror::Object*>(thread_group_id);
-
-  // Get the ArrayList<ThreadGroup> "groups" out of this thread group...
-  mirror::ArtField* groups_field = thread_group->GetClass()->FindInstanceField("groups", "Ljava/util/List;");
-  mirror::Object* groups_array_list = groups_field->GetObject(thread_group);
-
-  // Get the array and size out of the ArrayList<ThreadGroup>...
-  mirror::ArtField* array_field = groups_array_list->GetClass()->FindInstanceField("array", "[Ljava/lang/Object;");
-  mirror::ArtField* size_field = groups_array_list->GetClass()->FindInstanceField("size", "I");
-  mirror::ObjectArray<mirror::Object>* groups_array =
-      array_field->GetObject(groups_array_list)->AsObjectArray<mirror::Object>();
-  const int32_t size = size_field->GetInt(groups_array_list);
-
-  // Copy the first 'size' elements out of the array into the result.
-  for (int32_t i = 0; i < size; ++i) {
-    child_thread_group_ids.push_back(gRegistry->Add(groups_array->Get(i)));
-  }
-}
-
-static int GetStackDepth(Thread* thread)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+static int GetStackDepth(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   struct CountStackDepthVisitor : public StackVisitor {
     explicit CountStackDepthVisitor(Thread* thread)
         : StackVisitor(thread, NULL), depth(0) {}

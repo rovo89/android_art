@@ -225,7 +225,7 @@ static JdwpError VM_ClassesBySignature(JdwpState*, Request& request, ExpandBuf* 
 static JdwpError VM_AllThreads(JdwpState*, Request&, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::vector<ObjectId> thread_ids;
-  Dbg::GetThreads(0, thread_ids);
+  Dbg::GetThreads(nullptr /* all thread groups */, &thread_ids);
 
   expandBufAdd4BE(pReply, thread_ids.size());
   for (uint32_t i = 0; i < thread_ids.size(); ++i) {
@@ -1150,10 +1150,7 @@ static JdwpError TR_DebugSuspendCount(JdwpState*, Request& request, ExpandBuf* p
 static JdwpError TGR_Name(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectId thread_group_id = request.ReadThreadGroupId();
-
-  expandBufAddUtf8String(pReply, Dbg::GetThreadGroupName(thread_group_id));
-
-  return ERR_NONE;
+  return Dbg::GetThreadGroupName(thread_group_id, pReply);
 }
 
 /*
@@ -1163,11 +1160,7 @@ static JdwpError TGR_Name(JdwpState*, Request& request, ExpandBuf* pReply)
 static JdwpError TGR_Parent(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectId thread_group_id = request.ReadThreadGroupId();
-
-  ObjectId parentGroup = Dbg::GetThreadGroupParent(thread_group_id);
-  expandBufAddObjectId(pReply, parentGroup);
-
-  return ERR_NONE;
+  return Dbg::GetThreadGroupParent(thread_group_id, pReply);
 }
 
 /*
@@ -1177,22 +1170,7 @@ static JdwpError TGR_Parent(JdwpState*, Request& request, ExpandBuf* pReply)
 static JdwpError TGR_Children(JdwpState*, Request& request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectId thread_group_id = request.ReadThreadGroupId();
-
-  std::vector<ObjectId> thread_ids;
-  Dbg::GetThreads(thread_group_id, thread_ids);
-  expandBufAdd4BE(pReply, thread_ids.size());
-  for (uint32_t i = 0; i < thread_ids.size(); ++i) {
-    expandBufAddObjectId(pReply, thread_ids[i]);
-  }
-
-  std::vector<ObjectId> child_thread_groups_ids;
-  Dbg::GetChildThreadGroups(thread_group_id, child_thread_groups_ids);
-  expandBufAdd4BE(pReply, child_thread_groups_ids.size());
-  for (uint32_t i = 0; i < child_thread_groups_ids.size(); ++i) {
-    expandBufAddObjectId(pReply, child_thread_groups_ids[i]);
-  }
-
-  return ERR_NONE;
+  return Dbg::GetThreadGroupChildren(thread_group_id, pReply);
 }
 
 /*

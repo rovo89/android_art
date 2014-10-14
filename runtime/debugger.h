@@ -415,13 +415,19 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_);
   static JDWP::JdwpError GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* pReply)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_);
-  static std::string GetThreadGroupName(JDWP::ObjectId thread_group_id);
-  static JDWP::ObjectId GetThreadGroupParent(JDWP::ObjectId thread_group_id)
+  static JDWP::JdwpError GetThreadGroupName(JDWP::ObjectId thread_group_id,
+                                            JDWP::ExpandBuf* pReply)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static JDWP::JdwpError GetThreadGroupParent(JDWP::ObjectId thread_group_id,
+                                              JDWP::ExpandBuf* pReply)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static JDWP::JdwpError GetThreadGroupChildren(JDWP::ObjectId thread_group_id,
+                                                JDWP::ExpandBuf* pReply)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static JDWP::ObjectId GetSystemThreadGroupId()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static JDWP::ObjectId GetMainThreadGroupId();
 
   static JDWP::JdwpThreadStatus ToJdwpThreadStatus(ThreadState state);
   static JDWP::JdwpError GetThreadStatus(JDWP::ObjectId thread_id,
@@ -436,10 +442,9 @@ class Dbg {
 
   // Fills 'thread_ids' with the threads in the given thread group. If thread_group_id == 0,
   // returns all threads.
-  static void GetThreads(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& thread_ids)
+  static void GetThreads(mirror::Object* thread_group, std::vector<JDWP::ObjectId>* thread_ids)
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void GetChildThreadGroups(JDWP::ObjectId thread_group_id, std::vector<JDWP::ObjectId>& child_thread_group_ids);
 
   static JDWP::JdwpError GetThreadFrameCount(JDWP::ObjectId thread_id, size_t& result)
       LOCKS_EXCLUDED(Locks::thread_list_lock_);
