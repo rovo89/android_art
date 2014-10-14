@@ -55,7 +55,13 @@ LOCAL_SRC_FILES := dalvikvm.cc ../sigchainlib/sigchain.cc
 LOCAL_CFLAGS := $(dalvikvm_cflags)
 LOCAL_C_INCLUDES := art/runtime
 LOCAL_SHARED_LIBRARIES := libnativehelper
-LOCAL_LDFLAGS := -ldl -lpthread -Wl,--export-dynamic
+LOCAL_LDFLAGS := -ldl -lpthread
+# Mac OS linker doesn't understand --export-dynamic.
+ifneq ($(HOST_OS),darwin)
+  LOCAL_LDFLAGS += -Wl,--export-dynamic
+else
+  LOCAL_LDFLAGS += -Wl,-export_dynamic
+endif
 LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.common.mk
 LOCAL_IS_HOST_MODULE := true
