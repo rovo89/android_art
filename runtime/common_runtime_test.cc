@@ -185,6 +185,8 @@ void CommonRuntimeTest::SetUp() {
   int mkdir_result = mkdir(dalvik_cache_.c_str(), 0700);
   ASSERT_EQ(mkdir_result, 0);
 
+  MemMap::Init();  // For LoadExpectSingleDexFile
+
   std::string error_msg;
   java_lang_dex_file_ = LoadExpectSingleDexFile(GetLibCoreDexFileName().c_str());
   boot_class_path_.push_back(java_lang_dex_file_);

@@ -129,13 +129,16 @@ TEST_F(ImageTest, WriteRead) {
   compiler_driver_.reset();
 
   // Tear down old runtime before making a new one, clearing out misc state.
+
+  // Remove the reservation of the memory for use to load the image.
+  // Need to do this before we reset the runtime.
+  UnreserveImageSpace();
+
   runtime_.reset();
   java_lang_dex_file_ = NULL;
 
+  MemMap::Init();
   std::unique_ptr<const DexFile> dex(LoadExpectSingleDexFile(GetLibCoreDexFileName().c_str()));
-
-  // Remove the reservation of the memory for use to load the image.
-  UnreserveImageSpace();
 
   RuntimeOptions options;
   std::string image("-Ximage:");

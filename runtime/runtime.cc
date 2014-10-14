@@ -196,6 +196,7 @@ Runtime::~Runtime() {
   Thread::Shutdown();
   QuasiAtomic::Shutdown();
   verifier::MethodVerifier::Shutdown();
+  MemMap::Shutdown();
   // TODO: acquire a static mutex on Runtime to avoid racing.
   CHECK(instance_ == nullptr || instance_ == this);
   instance_ = nullptr;
@@ -651,6 +652,8 @@ static size_t OpenDexFiles(const std::vector<std::string>& dex_filenames,
 
 bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) {
   CHECK_EQ(sysconf(_SC_PAGE_SIZE), kPageSize);
+
+  MemMap::Init();
 
   std::unique_ptr<ParsedOptions> options(ParsedOptions::Create(raw_options, ignore_unrecognized));
   if (options.get() == nullptr) {
