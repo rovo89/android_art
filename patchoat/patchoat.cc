@@ -758,6 +758,7 @@ static File* CreateOrOpen(const char* name, bool* created) {
 
 static int patchoat(int argc, char **argv) {
   InitLogging(argv);
+  MemMap::Init();
   const bool debug = kIsDebugBuild;
   orig_argc = argc;
   orig_argv = argv;
