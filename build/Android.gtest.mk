@@ -278,7 +278,7 @@ define define-art-gtest-rule-host
 
 .PHONY: $$(gtest_rule)
 $$(gtest_rule): $$(gtest_exe) $$(ART_GTEST_$(1)_HOST_DEPS) $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_TEST_HOST_GTEST_$(file)_DEX)) $$(gtest_deps)
-	$(hide) ($$(call ART_TEST_SKIP,$$@) && LD_PRELOAD=libsigchain$$(ART_HOST_SHLIB_EXTENSION) $$< && $$(call ART_TEST_PASSED,$$@)) \
+	$(hide) ($$(call ART_TEST_SKIP,$$@) && $$< && $$(call ART_TEST_PASSED,$$@)) \
 	  || $$(call ART_TEST_FAILED,$$@)
 
   ART_TEST_HOST_GTEST$$($(2)ART_PHONY_TEST_HOST_SUFFIX)_RULES += $$(gtest_rule)
@@ -326,7 +326,7 @@ define define-art-gtest
     LOCAL_MODULE_TAGS := tests
   endif
   LOCAL_CPP_EXTENSION := $$(ART_CPP_EXTENSION)
-  LOCAL_SRC_FILES := $$(art_gtest_filename)
+  LOCAL_SRC_FILES := $$(art_gtest_filename) sigchainlib/sigchain.cc
   LOCAL_C_INCLUDES += $$(ART_C_INCLUDES) art/runtime $$(art_gtest_extra_c_includes)
   LOCAL_SHARED_LIBRARIES += libartd $$(art_gtest_extra_shared_libraries) libart-gtest
 
