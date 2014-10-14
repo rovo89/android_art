@@ -404,6 +404,7 @@ void CommonCompilerTest::ReserveImageSpace() {
   // Reserve where the image will be loaded up front so that other parts of test set up don't
   // accidentally end up colliding with the fixed memory address when we need to load the image.
   std::string error_msg;
+  MemMap::Init();
   image_reservation_.reset(MemMap::MapAnonymous("image reservation",
                                                 reinterpret_cast<byte*>(ART_BASE_ADDRESS),
                                                 (size_t)100 * 1024 * 1024,  // 100MB

@@ -70,7 +70,7 @@ std::ostream& operator<<(std::ostream& os, const MemMap::Maps& mem_maps) {
   return os;
 }
 
-MemMap::Maps MemMap::maps_;
+MemMap::Maps* MemMap::maps_ = nullptr;
 
 #if USE_ART_LOW_4G_ALLOCATOR
 // Handling mem_map in 32b address range for 64b architectures that do not support MAP_32BIT.
@@ -461,11 +461,12 @@ MemMap::~MemMap() {
   // Remove it from maps_.
   MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
   bool found = false;
-  for (auto it = maps_.lower_bound(base_begin_), end = maps_.end();
+  DCHECK(maps_ != nullptr);
+  for (auto it = maps_->lower_bound(base_begin_), end = maps_->end();
        it != end && it->first == base_begin_; ++it) {
     if (it->second == this) {
       found = true;
-      maps_.erase(it);
+      maps_->erase(it);
       break;
     }
   }
@@ -487,7 +488,8 @@ MemMap::MemMap(const std::string& name, byte* begin, size_t size, void* base_beg
 
     // Add it to maps_.
     MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
-    maps_.insert(std::pair<void*, MemMap*>(base_begin_, this));
+    DCHECK(maps_ != nullptr);
+    maps_->insert(std::make_pair(base_begin_, this));
   }
 };
 
@@ -618,7 +620,7 @@ void MemMap::DumpMapsLocked(std::ostream& os) {
 
 bool MemMap::HasMemMap(MemMap* map) {
   void* base_begin = map->BaseBegin();
-  for (auto it = maps_.lower_bound(base_begin), end = maps_.end();
+  for (auto it = maps_->lower_bound(base_begin), end = maps_->end();
        it != end && it->first == base_begin; ++it) {
     if (it->second == map) {
       return true;
@@ -630,7 +632,8 @@ bool MemMap::HasMemMap(MemMap* map) {
 MemMap* MemMap::GetLargestMemMapAt(void* address) {
   size_t largest_size = 0;
   MemMap* largest_map = nullptr;
-  for (auto it = maps_.lower_bound(address), end = maps_.end();
+  DCHECK(maps_ != nullptr);
+  for (auto it = maps_->lower_bound(address), end = maps_->end();
        it != end && it->first == address; ++it) {
     MemMap* map = it->second;
     CHECK(map != nullptr);
@@ -640,6 +643,20 @@ MemMap* MemMap::GetLargestMemMapAt(void* address) {
     }
   }
   return largest_map;
+}
+
+void MemMap::Init() {
+  MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+  if (maps_ == nullptr) {
+    // dex2oat calls MemMap::Init twice since its needed before the runtime is created.
+    maps_ = new Maps;
+  }
+}
+
+void MemMap::Shutdown() {
+  MutexLock mu(Thread::Current(), *Locks::mem_maps_lock_);
+  delete maps_;
+  maps_ = nullptr;
 }
 
 std::ostream& operator<<(std::ostream& os, const MemMap& mem_map) {
