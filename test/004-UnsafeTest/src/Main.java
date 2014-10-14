@@ -25,14 +25,14 @@ public class Main {
   private static void check(int actual, int expected, String msg) {
     if (actual != expected) {
       System.out.println(msg + " : " + actual + " != " + expected);
-      System.exit(-1);
+      System.exit(1);
     }
   }
 
   private static void check(long actual, long expected, String msg) {
     if (actual != expected) {
       System.out.println(msg + " : " + actual + " != " + expected);
-      System.exit(-1);
+      System.exit(1);
     }
   }
 
