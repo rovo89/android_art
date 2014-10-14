@@ -2364,7 +2364,7 @@ void Dbg::SuspendVM() {
 }
 
 void Dbg::ResumeVM() {
-  Runtime::Current()->GetThreadList()->UndoDebuggerSuspensions();
+  Runtime::Current()->GetThreadList()->ResumeAllForDebugger();
 }
 
 JDWP::JdwpError Dbg::SuspendThread(JDWP::ObjectId thread_id, bool request_suspension) {
