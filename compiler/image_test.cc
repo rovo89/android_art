@@ -63,7 +63,7 @@ TEST_F(ImageTest, WriteRead) {
   ScratchFile oat_file(OS::CreateEmptyFile(oat_filename.c_str()));
 
   const uintptr_t requested_image_base = ART_BASE_ADDRESS;
-  ImageWriter writer(*compiler_driver_, requested_image_base);
+  std::unique_ptr<ImageWriter> writer(new ImageWriter(*compiler_driver_, requested_image_base));
   {
     {
       jobject class_loader = NULL;
@@ -83,8 +83,8 @@ TEST_F(ImageTest, WriteRead) {
       t.NewTiming("WriteElf");
       SafeMap<std::string, std::string> key_value_store;
       OatWriter oat_writer(class_linker->GetBootClassPath(), 0, 0, 0, compiler_driver_.get(),
-                           &writer, &timings, &key_value_store);
-      bool success = writer.PrepareImageAddressSpace() &&
+                           writer.get(), &timings, &key_value_store);
+      bool success = writer->PrepareImageAddressSpace() &&
           compiler_driver_->WriteElf(GetTestAndroidRoot(),
                                      !kIsTargetBuild,
                                      class_linker->GetBootClassPath(),
@@ -99,9 +99,9 @@ TEST_F(ImageTest, WriteRead) {
 
   {
     bool success_image =
-        writer.Write(image_file.GetFilename(), dup_oat->GetPath(), dup_oat->GetPath());
+        writer->Write(image_file.GetFilename(), dup_oat->GetPath(), dup_oat->GetPath());
     ASSERT_TRUE(success_image);
-    bool success_fixup = ElfWriter::Fixup(dup_oat.get(), writer.GetOatDataBegin());
+    bool success_fixup = ElfWriter::Fixup(dup_oat.get(), writer->GetOatDataBegin());
     ASSERT_TRUE(success_fixup);
   }
 
@@ -130,13 +130,17 @@ TEST_F(ImageTest, WriteRead) {
   compiler_driver_.reset();
 
   // Tear down old runtime before making a new one, clearing out misc state.
+
+  // Remove the reservation of the memory for use to load the image.
+  // Need to do this before we reset the runtime.
+  UnreserveImageSpace();
+  writer.reset(nullptr);
+
   runtime_.reset();
   java_lang_dex_file_ = NULL;
 
+  MemMap::Init();
   std::unique_ptr<const DexFile> dex(LoadExpectSingleDexFile(GetLibCoreDexFileName().c_str()));
-
-  // Remove the reservation of the memory for use to load the image.
-  UnreserveImageSpace();
 
   RuntimeOptions options;
   std::string image("-Ximage:");

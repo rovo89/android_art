@@ -74,6 +74,7 @@ Allocator* Allocator::GetNoopAllocator() {
 
 namespace TrackedAllocators {
 
+// These globals are safe since they don't have any non-trivial destructors.
 Atomic<size_t> g_bytes_used[kAllocatorTagCount];
 volatile size_t g_max_bytes_used[kAllocatorTagCount];
 Atomic<uint64_t> g_total_bytes_used[kAllocatorTagCount];
