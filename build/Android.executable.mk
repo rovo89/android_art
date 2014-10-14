@@ -54,7 +54,7 @@ define build-art-executable
   include $(CLEAR_VARS)
   LOCAL_CPP_EXTENSION := $(ART_CPP_EXTENSION)
   LOCAL_MODULE_TAGS := optional
-  LOCAL_SRC_FILES := $$(art_source)
+  LOCAL_SRC_FILES := $$(art_source) ../sigchainlib/sigchain.cc
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime $$(art_c_includes)
   LOCAL_SHARED_LIBRARIES += $$(art_shared_libraries)
 
@@ -65,9 +65,11 @@ define build-art-executable
   endif
 
   LOCAL_CFLAGS := $(ART_EXECUTABLES_CFLAGS)
+  LOCAL_LDFLAGS := -Wl,--version-script,art/sigchainlib/version-script.txt -Wl,--export-dynamic
   ifeq ($$(art_target_or_host),target)
   	$(call set-target-local-clang-vars)
   	$(call set-target-local-cflags-vars,$(6))
+    LOCAL_SHARED_LIBRARIES += libdl
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
@@ -76,7 +78,7 @@ define build-art-executable
     else
       LOCAL_CFLAGS += $(ART_HOST_NON_DEBUG_CFLAGS)
     endif
-    LOCAL_LDLIBS += -lpthread
+    LOCAL_LDLIBS += -lpthread -ldl
   endif
 
   ifeq ($$(art_ndebug_or_debug),ndebug)
