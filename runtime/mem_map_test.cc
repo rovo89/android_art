@@ -87,6 +87,10 @@ class MemMapTest : public testing::Test {
     delete m1;
   }
 
+  void CommonInit() {
+    MemMap::Init();
+  }
+
 #if defined(__LP64__) && !defined(__x86_64__)
   static uintptr_t GetLinearScanPos() {
     return MemMap::next_mem_pos_;
@@ -101,10 +105,10 @@ extern uintptr_t CreateStartPos(uint64_t input);
 #endif
 
 TEST_F(MemMapTest, Start) {
+  CommonInit();
   uintptr_t start = GetLinearScanPos();
   EXPECT_LE(64 * KB, start);
   EXPECT_LT(start, static_cast<uintptr_t>(ART_BASE_ADDRESS));
-
 #ifdef __BIONIC__
   // Test a couple of values. Make sure they are different.
   uintptr_t last = 0;
@@ -122,6 +126,7 @@ TEST_F(MemMapTest, Start) {
 #endif
 
 TEST_F(MemMapTest, MapAnonymousEmpty) {
+  CommonInit();
   std::string error_msg;
   std::unique_ptr<MemMap> map(MemMap::MapAnonymous("MapAnonymousEmpty",
                                              nullptr,
@@ -143,6 +148,7 @@ TEST_F(MemMapTest, MapAnonymousEmpty) {
 
 #ifdef __LP64__
 TEST_F(MemMapTest, MapAnonymousEmpty32bit) {
+  CommonInit();
   std::string error_msg;
   std::unique_ptr<MemMap> map(MemMap::MapAnonymous("MapAnonymousEmpty",
                                              nullptr,
@@ -157,6 +163,7 @@ TEST_F(MemMapTest, MapAnonymousEmpty32bit) {
 #endif
 
 TEST_F(MemMapTest, MapAnonymousExactAddr) {
+  CommonInit();
   std::string error_msg;
   // Map at an address that should work, which should succeed.
   std::unique_ptr<MemMap> map0(MemMap::MapAnonymous("MapAnonymous0",
@@ -200,6 +207,7 @@ TEST_F(MemMapTest, RemapAtEnd32bit) {
 #endif
 
 TEST_F(MemMapTest, MapAnonymousExactAddr32bitHighAddr) {
+  CommonInit();
   // This test may not work under valgrind.
   if (RUNNING_ON_VALGRIND == 0) {
     uintptr_t start_addr = ART_BASE_ADDRESS + 0x1000000;
@@ -217,6 +225,7 @@ TEST_F(MemMapTest, MapAnonymousExactAddr32bitHighAddr) {
 }
 
 TEST_F(MemMapTest, MapAnonymousOverflow) {
+  CommonInit();
   std::string error_msg;
   uintptr_t ptr = 0;
   ptr -= kPageSize;  // Now it's close to the top.
@@ -232,6 +241,7 @@ TEST_F(MemMapTest, MapAnonymousOverflow) {
 
 #ifdef __LP64__
 TEST_F(MemMapTest, MapAnonymousLow4GBExpectedTooHigh) {
+  CommonInit();
   std::string error_msg;
   std::unique_ptr<MemMap> map(MemMap::MapAnonymous("MapAnonymousLow4GBExpectedTooHigh",
                                              reinterpret_cast<uint8_t*>(UINT64_C(0x100000000)),
@@ -244,6 +254,7 @@ TEST_F(MemMapTest, MapAnonymousLow4GBExpectedTooHigh) {
 }
 
 TEST_F(MemMapTest, MapAnonymousLow4GBRangeTooHigh) {
+  CommonInit();
   std::string error_msg;
   std::unique_ptr<MemMap> map(MemMap::MapAnonymous("MapAnonymousLow4GBRangeTooHigh",
                                              reinterpret_cast<uint8_t*>(0xF0000000),
@@ -257,6 +268,7 @@ TEST_F(MemMapTest, MapAnonymousLow4GBRangeTooHigh) {
 #endif
 
 TEST_F(MemMapTest, CheckNoGaps) {
+  CommonInit();
   std::string error_msg;
   constexpr size_t kNumPages = 3;
   // Map a 3-page mem map.

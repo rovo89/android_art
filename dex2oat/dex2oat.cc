@@ -1262,6 +1262,7 @@ static int dex2oat(int argc, char** argv) {
 
   RuntimeOptions runtime_options;
   std::vector<const DexFile*> boot_class_path;
+  art::MemMap::Init();  // For ZipEntry::ExtractToMemMap.
   if (boot_image_option.empty()) {
     size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, boot_class_path);
     if (failure_count > 0) {
