@@ -52,6 +52,10 @@ class SsaBuilder : public HGraphVisitor {
   void VisitStoreLocal(HStoreLocal* store);
   void VisitInstruction(HInstruction* instruction);
 
+  static HInstruction* GetFloatOrDoubleEquivalent(HInstruction* user,
+                                                  HInstruction* instruction,
+                                                  Primitive::Type type);
+
  private:
   // Locals for the current block being visited.
   GrowableArray<HInstruction*>* current_locals_;

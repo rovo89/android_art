@@ -317,7 +317,7 @@ void X86_64Assembler::movaps(XmmRegister dst, XmmRegister src) {
   EmitOptionalRex32(dst, src);
   EmitUint8(0x0F);
   EmitUint8(0x28);
-  EmitXmmRegisterOperand(src.LowBits(), dst);
+  EmitXmmRegisterOperand(dst.LowBits(), src);
 }
 
 
@@ -354,7 +354,7 @@ void X86_64Assembler::movss(XmmRegister dst, XmmRegister src) {
 void X86_64Assembler::movd(XmmRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x66);
-  EmitOptionalRex32(dst, src);
+  EmitRex64(dst, src);
   EmitUint8(0x0F);
   EmitUint8(0x6E);
   EmitOperand(dst.LowBits(), Operand(src));
@@ -364,7 +364,7 @@ void X86_64Assembler::movd(XmmRegister dst, CpuRegister src) {
 void X86_64Assembler::movd(CpuRegister dst, XmmRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x66);
-  EmitOptionalRex32(src, dst);
+  EmitRex64(src, dst);
   EmitUint8(0x0F);
   EmitUint8(0x7E);
   EmitOperand(src.LowBits(), Operand(dst));
@@ -1745,6 +1745,10 @@ void X86_64Assembler::EmitRex64(CpuRegister reg) {
 }
 
 void X86_64Assembler::EmitRex64(CpuRegister dst, CpuRegister src) {
+  EmitOptionalRex(false, true, dst.NeedsRex(), false, src.NeedsRex());
+}
+
+void X86_64Assembler::EmitRex64(XmmRegister dst, CpuRegister src) {
   EmitOptionalRex(false, true, dst.NeedsRex(), false, src.NeedsRex());
 }
 

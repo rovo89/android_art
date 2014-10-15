@@ -134,6 +134,32 @@ TEST_F(AssemblerX86_64Test, XorqImm) {
   DriverStr(RepeatRI(&x86_64::X86_64Assembler::xorq, 4U, "xorq ${imm}, %{reg}"), "xorqi");
 }
 
+TEST_F(AssemblerX86_64Test, Movaps) {
+  GetAssembler()->movaps(x86_64::XmmRegister(x86_64::XMM0), x86_64::XmmRegister(x86_64::XMM8));
+  DriverStr("movaps %xmm8, %xmm0", "movaps");
+}
+
+TEST_F(AssemblerX86_64Test, Movd) {
+  GetAssembler()->movd(x86_64::XmmRegister(x86_64::XMM0), x86_64::CpuRegister(x86_64::R11));
+  GetAssembler()->movd(x86_64::XmmRegister(x86_64::XMM0), x86_64::CpuRegister(x86_64::RAX));
+  GetAssembler()->movd(x86_64::XmmRegister(x86_64::XMM8), x86_64::CpuRegister(x86_64::R11));
+  GetAssembler()->movd(x86_64::XmmRegister(x86_64::XMM8), x86_64::CpuRegister(x86_64::RAX));
+  GetAssembler()->movd(x86_64::CpuRegister(x86_64::R11), x86_64::XmmRegister(x86_64::XMM0));
+  GetAssembler()->movd(x86_64::CpuRegister(x86_64::RAX), x86_64::XmmRegister(x86_64::XMM0));
+  GetAssembler()->movd(x86_64::CpuRegister(x86_64::R11), x86_64::XmmRegister(x86_64::XMM8));
+  GetAssembler()->movd(x86_64::CpuRegister(x86_64::RAX), x86_64::XmmRegister(x86_64::XMM8));
+  const char* expected =
+    "movd %r11, %xmm0\n"
+    "movd %rax, %xmm0\n"
+    "movd %r11, %xmm8\n"
+    "movd %rax, %xmm8\n"
+    "movd %xmm0, %r11\n"
+    "movd %xmm0, %rax\n"
+    "movd %xmm8, %r11\n"
+    "movd %xmm8, %rax\n";
+  DriverStr(expected, "movd");
+}
+
 TEST_F(AssemblerX86_64Test, Movl) {
   GetAssembler()->movl(x86_64::CpuRegister(x86_64::R8), x86_64::CpuRegister(x86_64::R11));
   GetAssembler()->movl(x86_64::CpuRegister(x86_64::RAX), x86_64::CpuRegister(x86_64::R11));

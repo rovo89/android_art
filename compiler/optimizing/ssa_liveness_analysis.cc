@@ -319,7 +319,7 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
       if (user->IsPhi()) {
         // If the phi has a register, try to use the same.
         Location phi_location = user->GetLiveInterval()->ToLocation();
-        if (phi_location.IsRegister() && free_until[phi_location.reg()] >= use_position) {
+        if (SameRegisterKind(phi_location) && free_until[phi_location.reg()] >= use_position) {
           return phi_location.reg();
         }
         const GrowableArray<HBasicBlock*>& predecessors = user->GetBlock()->GetPredecessors();
@@ -345,7 +345,7 @@ int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
         // We use the user's lifetime position - 1 (and not `use_position`) because the
         // register is blocked at the beginning of the user.
         size_t position = user->GetLifetimePosition() - 1;
-        if (expected.IsRegister() && free_until[expected.reg()] >= position) {
+        if (SameRegisterKind(expected) && free_until[expected.reg()] >= position) {
           return expected.reg();
         }
       }
@@ -368,7 +368,7 @@ int LiveInterval::FindHintAtDefinition() const {
         // If the input dies at the end of the predecessor, we know its register can
         // be reused.
         Location input_location = input_interval.ToLocation();
-        if (input_location.IsRegister()) {
+        if (SameRegisterKind(input_location)) {
           return input_location.reg();
         }
       }
@@ -384,7 +384,7 @@ int LiveInterval::FindHintAtDefinition() const {
         // If the input dies at the start of this instruction, we know its register can
         // be reused.
         Location location = input_interval.ToLocation();
-        if (location.IsRegister()) {
+        if (SameRegisterKind(location)) {
           return location.reg();
         }
       }
@@ -393,13 +393,21 @@ int LiveInterval::FindHintAtDefinition() const {
   return kNoRegister;
 }
 
+bool LiveInterval::SameRegisterKind(Location other) const {
+  return IsFloatingPoint()
+      ? other.IsFpuRegister()
+      : other.IsRegister();
+}
+
 bool LiveInterval::NeedsTwoSpillSlots() const {
   return type_ == Primitive::kPrimLong || type_ == Primitive::kPrimDouble;
 }
 
 Location LiveInterval::ToLocation() const {
   if (HasRegister()) {
-    return Location::RegisterLocation(GetRegister());
+    return IsFloatingPoint()
+        ? Location::FpuRegisterLocation(GetRegister())
+        : Location::RegisterLocation(GetRegister());
   } else {
     HInstruction* defined_by = GetParent()->GetDefinedBy();
     if (defined_by->IsConstant()) {
