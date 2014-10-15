@@ -104,6 +104,8 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   static std::vector<mirror::ArtMethod*>* AllocStackTrace();
   // Clear and store an old stack trace for later use.
   static void FreeStackTrace(std::vector<mirror::ArtMethod*>* stack_trace);
+  // Save id and name of a thread before it exits.
+  static void StoreExitingThreadInfo(Thread* thread);
 
  private:
   explicit Trace(File* trace_file, int buffer_size, int flags, bool sampling_enabled);
@@ -165,6 +167,9 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
 
   // Did we overflow the buffer recording traces?
   bool overflow_;
+
+  // Map of thread ids and names that have already exited.
+  SafeMap<pid_t, std::string> exited_threads_;
 
   DISALLOW_COPY_AND_ASSIGN(Trace);
 };
