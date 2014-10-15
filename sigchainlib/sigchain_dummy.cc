@@ -57,3 +57,8 @@ extern "C" void InitializeSignalChain() {
   log("InitializeSignalChain is not exported by the main executable.");
   abort();
 }
+
+extern "C" void EnsureFrontOfChain(int signal, struct sigaction* expected_action) {
+  log("EnsureFrontOfChain is not exported by the main executable.");
+  abort();
+}
