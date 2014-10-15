@@ -2225,6 +2225,8 @@ static int oatdump(int argc, char** argv) {
     runtime.reset(StartRuntime(args.boot_image_location_,
                                args.image_location_,
                                args.instruction_set_));
+  } else {
+    MemMap::Init();
   }
 
   if (args.oat_filename_ != nullptr) {
