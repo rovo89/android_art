@@ -59,8 +59,6 @@ LOCAL_LDFLAGS := -ldl -lpthread
 # Mac OS linker doesn't understand --export-dynamic.
 ifneq ($(HOST_OS),darwin)
   LOCAL_LDFLAGS += -Wl,--export-dynamic
-else
-  LOCAL_LDFLAGS += -Wl,-export_dynamic
 endif
 LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.common.mk

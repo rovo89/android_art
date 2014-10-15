@@ -68,8 +68,6 @@ define build-art-executable
   # Mac OS linker doesn't understand --export-dynamic/--version-script.
   ifneq ($$(HOST_OS)-$$(art_target_or_host),darwin-host)
     LOCAL_LDFLAGS := -Wl,--version-script,art/sigchainlib/version-script.txt -Wl,--export-dynamic
-  else
-    LOCAL_LDFLAGS := -Wl,-export_dynamic
   endif
 
   ifeq ($$(art_target_or_host),target)
