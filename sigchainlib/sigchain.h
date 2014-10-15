@@ -25,6 +25,8 @@ void InitializeSignalChain();
 
 void ClaimSignalChain(int signal, struct sigaction* oldaction);
 
+void EnsureFrontOfChain(int signal, struct sigaction* expected_action);
+
 void UnclaimSignalChain(int signal);
 
 void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context);
