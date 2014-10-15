@@ -73,10 +73,10 @@ class JniCompilerTest : public CommonCompilerTest {
     }
     ASSERT_TRUE(method != nullptr) << method_name << " " << method_sig;
     if (check_generic_jni_) {
-      method->SetEntryPointFromQuickCompiledCode(class_linker_->GetQuickGenericJniTrampoline());
+      method->SetEntryPointFromQuickCompiledCode(class_linker_->GetRuntimeQuickGenericJniStub());
     } else {
-      if (method->GetEntryPointFromQuickCompiledCode() == nullptr ||
-          method->GetEntryPointFromQuickCompiledCode() == class_linker_->GetQuickGenericJniTrampoline()) {
+      const void* code = method->GetEntryPointFromQuickCompiledCode();
+      if (code == nullptr || class_linker_->IsQuickGenericJniStub(code)) {
         CompileMethod(method);
         ASSERT_TRUE(method->GetEntryPointFromQuickCompiledCode() != nullptr)
             << method_name << " " << method_sig;

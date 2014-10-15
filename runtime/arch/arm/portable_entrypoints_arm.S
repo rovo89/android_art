@@ -138,7 +138,7 @@ ENTRY art_portable_resolution_trampoline
 END art_portable_resolution_trampoline
 
     .extern artPortableToInterpreterBridge
-ENTRY_NO_HIDE art_portable_to_interpreter_bridge
+ENTRY art_portable_to_interpreter_bridge
     @ Fake callee save ref and args frame set up, note portable doesn't use callee save frames.
     @ TODO: just save the registers that are needed in artPortableToInterpreterBridge.
     push {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
@@ -165,3 +165,5 @@ ENTRY_NO_HIDE art_portable_to_interpreter_bridge
     .cfi_adjust_cfa_offset -48
     bx      lr                     @ return
 END art_portable_to_interpreter_bridge
+
+UNIMPLEMENTED art_portable_imt_conflict_trampoline

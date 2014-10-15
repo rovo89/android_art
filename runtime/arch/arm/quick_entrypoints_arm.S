@@ -919,7 +919,7 @@ END art_quick_resolution_trampoline
     /*
      * Called to do a generic JNI down-call
      */
-ENTRY_NO_HIDE art_quick_generic_jni_trampoline
+ENTRY art_quick_generic_jni_trampoline
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     str r0, [sp, #0]  // Store native ArtMethod* to bottom of stack.
 
@@ -1014,7 +1014,7 @@ ENTRY_NO_HIDE art_quick_generic_jni_trampoline
 END art_quick_generic_jni_trampoline
 
     .extern artQuickToInterpreterBridge
-ENTRY_NO_HIDE art_quick_to_interpreter_bridge
+ENTRY art_quick_to_interpreter_bridge
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     mov     r1, r9                 @ pass Thread::Current
     mov     r2, sp                 @ pass SP

@@ -1266,7 +1266,7 @@ END_FUNCTION art_quick_resolution_trampoline
     /*
      * Called to do a generic JNI down-call
      */
-DEFINE_FUNCTION_NO_HIDE art_quick_generic_jni_trampoline
+DEFINE_FUNCTION art_quick_generic_jni_trampoline
     // Save callee and GPR args, mixed together to agree with core spills bitmap.
     PUSH r15  // Callee save.
     PUSH r14  // Callee save.
@@ -1453,7 +1453,7 @@ END_FUNCTION art_quick_generic_jni_trampoline
      * RDI = method being called / to bridge to.
      * RSI, RDX, RCX, R8, R9 are arguments to that method.
      */
-DEFINE_FUNCTION_NO_HIDE art_quick_to_interpreter_bridge
+DEFINE_FUNCTION art_quick_to_interpreter_bridge
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // Set up frame and save arguments.
     movq %gs:THREAD_SELF_OFFSET, %rsi      // RSI := Thread::Current()
     movq %rsp, %rdx                        // RDX := sp

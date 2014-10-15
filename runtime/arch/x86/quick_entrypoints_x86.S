@@ -1140,7 +1140,7 @@ DEFINE_FUNCTION art_quick_resolution_trampoline
     DELIVER_PENDING_EXCEPTION
 END_FUNCTION art_quick_resolution_trampoline
 
-DEFINE_FUNCTION_NO_HIDE art_quick_generic_jni_trampoline
+DEFINE_FUNCTION art_quick_generic_jni_trampoline
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME
     // This also stores the native ArtMethod reference at the bottom of the stack.
 
@@ -1220,7 +1220,7 @@ DEFINE_FUNCTION_NO_HIDE art_quick_generic_jni_trampoline
     DELIVER_PENDING_EXCEPTION
 END_FUNCTION art_quick_generic_jni_trampoline
 
-DEFINE_FUNCTION_NO_HIDE art_quick_to_interpreter_bridge
+DEFINE_FUNCTION art_quick_to_interpreter_bridge
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // save frame
     mov %esp, %edx                // remember SP
     PUSH eax                      // alignment padding

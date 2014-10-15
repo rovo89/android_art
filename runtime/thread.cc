@@ -2108,7 +2108,7 @@ class ReferenceMapVisitor : public StackVisitor {
       if (m->IsOptimized()) {
         Runtime* runtime = Runtime::Current();
         const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(m);
-        uintptr_t native_pc_offset = m->NativePcOffset(GetCurrentQuickFramePc(), entry_point);
+        uintptr_t native_pc_offset = m->NativeQuickPcOffset(GetCurrentQuickFramePc(), entry_point);
         StackMap map = m->GetStackMap(native_pc_offset);
         MemoryRegion mask = map.GetStackMask();
         for (size_t i = 0; i < mask.size_in_bits(); ++i) {
@@ -2137,7 +2137,7 @@ class ReferenceMapVisitor : public StackVisitor {
         if (num_regs > 0) {
           Runtime* runtime = Runtime::Current();
           const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(m);
-          uintptr_t native_pc_offset = m->NativePcOffset(GetCurrentQuickFramePc(), entry_point);
+          uintptr_t native_pc_offset = m->NativeQuickPcOffset(GetCurrentQuickFramePc(), entry_point);
           const uint8_t* reg_bitmap = map.FindBitMap(native_pc_offset);
           DCHECK(reg_bitmap != nullptr);
           const void* code_pointer = mirror::ArtMethod::EntryPointToCodePointer(entry_point);

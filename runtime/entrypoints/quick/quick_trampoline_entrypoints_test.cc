@@ -55,9 +55,10 @@ class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
       NO_THREAD_SAFETY_ANALYSIS {
     mirror::ArtMethod* save_method = CreateCalleeSaveMethod(isa, type);
     QuickMethodFrameInfo frame_info = save_method->GetQuickFrameInfo();
-    EXPECT_EQ(save_method->GetReturnPcOffsetInBytes(), pc_offset) << "Expected and real pc offset"
-        " differs for " << type << " core spills=" << std::hex << frame_info.CoreSpillMask() <<
-        " fp spills=" << frame_info.FpSpillMask() << std::dec << " ISA " << isa;
+    EXPECT_EQ(save_method->GetReturnPcOffset().SizeValue(), pc_offset)
+        << "Expected and real pc offset differs for " << type
+        << " core spills=" << std::hex << frame_info.CoreSpillMask()
+        << " fp spills=" << frame_info.FpSpillMask() << std::dec << " ISA " << isa;
   }
 };
 

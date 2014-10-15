@@ -16,18 +16,12 @@
 
 #include "common_compiler_test.h"
 
-#if defined(__arm__)
-#include <sys/ucontext.h>
-#endif
-#include <fstream>
-
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "dex/quick_compiler_callbacks.h"
 #include "dex/verification_results.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "driver/compiler_driver.h"
-#include "entrypoints/entrypoint_utils.h"
 #include "interpreter/interpreter.h"
 #include "mirror/art_method.h"
 #include "mirror/dex_cache.h"
@@ -38,127 +32,8 @@
 
 namespace art {
 
-// Normally the ClassLinker supplies this.
-extern "C" void art_quick_generic_jni_trampoline(mirror::ArtMethod*);
-
-#if defined(__arm__)
-// A signal handler called when have an illegal instruction.  We record the fact in
-// a global boolean and then increment the PC in the signal context to return to
-// the next instruction.  We know the instruction is an sdiv (4 bytes long).
-static void baddivideinst(int signo, siginfo *si, void *data) {
-  UNUSED(signo);
-  UNUSED(si);
-  struct ucontext *uc = (struct ucontext *)data;
-  struct sigcontext *sc = &uc->uc_mcontext;
-  sc->arm_r0 = 0;     // set R0 to #0 to signal error
-  sc->arm_pc += 4;    // skip offending instruction
-}
-
-// This is in arch/arm/arm_sdiv.S.  It does the following:
-// mov r1,#1
-// sdiv r0,r1,r1
-// bx lr
-//
-// the result will be the value 1 if sdiv is supported.  If it is not supported
-// a SIGILL signal will be raised and the signal handler (baddivideinst) called.
-// The signal handler sets r0 to #0 and then increments pc beyond the failed instruction.
-// Thus if the instruction is not supported, the result of this function will be #0
-
-extern "C" bool CheckForARMSDIVInstruction();
-
-static InstructionSetFeatures GuessInstructionFeatures() {
-  InstructionSetFeatures f;
-
-  // Uncomment this for processing of /proc/cpuinfo.
-  if (false) {
-    // Look in /proc/cpuinfo for features we need.  Only use this when we can guarantee that
-    // the kernel puts the appropriate feature flags in here.  Sometimes it doesn't.
-    std::ifstream in("/proc/cpuinfo");
-    if (in) {
-      while (!in.eof()) {
-        std::string line;
-        std::getline(in, line);
-        if (!in.eof()) {
-          if (line.find("Features") != std::string::npos) {
-            if (line.find("idivt") != std::string::npos) {
-              f.SetHasDivideInstruction(true);
-            }
-          }
-        }
-        in.close();
-      }
-    } else {
-      LOG(INFO) << "Failed to open /proc/cpuinfo";
-    }
-  }
-
-  // See if have a sdiv instruction.  Register a signal handler and try to execute
-  // an sdiv instruction.  If we get a SIGILL then it's not supported.  We can't use
-  // the /proc/cpuinfo method for this because Krait devices don't always put the idivt
-  // feature in the list.
-  struct sigaction sa, osa;
-  sa.sa_flags = SA_ONSTACK | SA_RESTART | SA_SIGINFO;
-  sa.sa_sigaction = baddivideinst;
-  sigaction(SIGILL, &sa, &osa);
-
-  if (CheckForARMSDIVInstruction()) {
-    f.SetHasDivideInstruction(true);
-  }
-
-  // Restore the signal handler.
-  sigaction(SIGILL, &osa, nullptr);
-
-  // Other feature guesses in here.
-  return f;
-}
-#endif
-
-// Given a set of instruction features from the build, parse it.  The
-// input 'str' is a comma separated list of feature names.  Parse it and
-// return the InstructionSetFeatures object.
-static InstructionSetFeatures ParseFeatureList(std::string str) {
-  InstructionSetFeatures result;
-  typedef std::vector<std::string> FeatureList;
-  FeatureList features;
-  Split(str, ',', features);
-  for (FeatureList::iterator i = features.begin(); i != features.end(); i++) {
-    std::string feature = Trim(*i);
-    if (feature == "default") {
-      // Nothing to do.
-    } else if (feature == "div") {
-      // Supports divide instruction.
-      result.SetHasDivideInstruction(true);
-    } else if (feature == "nodiv") {
-      // Turn off support for divide instruction.
-      result.SetHasDivideInstruction(false);
-    } else {
-      LOG(FATAL) << "Unknown instruction set feature: '" << feature << "'";
-    }
-  }
-  // Others...
-  return result;
-}
-
 CommonCompilerTest::CommonCompilerTest() {}
 CommonCompilerTest::~CommonCompilerTest() {}
-
-OatFile::OatMethod CommonCompilerTest::CreateOatMethod(const void* code, const uint8_t* gc_map) {
-  CHECK(code != nullptr);
-  const uint8_t* base;
-  uint32_t code_offset, gc_map_offset;
-  if (gc_map == nullptr) {
-    base = reinterpret_cast<const uint8_t*>(code);  // Base of data points at code.
-    base -= sizeof(void*);  // Move backward so that code_offset != 0.
-    code_offset = sizeof(void*);
-    gc_map_offset = 0;
-  } else {
-    // TODO: 64bit support.
-    base = nullptr;  // Base of data in oat file, ie 0.
-    code_offset = PointerToLowMemUInt32(code);
-    gc_map_offset = PointerToLowMemUInt32(gc_map);
-  }
-  return OatFile::OatMethod(base, code_offset, gc_map_offset);
-}
 
 void CommonCompilerTest::MakeExecutable(mirror::ArtMethod* method) {
   CHECK(method != nullptr);
@@ -174,7 +49,8 @@ void CommonCompilerTest::MakeExecutable(mirror::ArtMethod* method) {
   if (compiled_method != nullptr) {
     const std::vector<uint8_t>* code = compiled_method->GetQuickCode();
     const void* code_ptr;
-    if (code != nullptr) {
+    bool is_portable = (code == nullptr);
+    if (!is_portable) {
       uint32_t code_size = code->size();
       CHECK_NE(0u, code_size);
       const std::vector<uint8_t>& vmap_table = compiled_method->GetVmapTable();
@@ -210,33 +86,11 @@ void CommonCompilerTest::MakeExecutable(mirror::ArtMethod* method) {
     const void* method_code = CompiledMethod::CodePointer(code_ptr,
                                                           compiled_method->GetInstructionSet());
     LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
-    OatFile::OatMethod oat_method = CreateOatMethod(method_code, nullptr);
-    oat_method.LinkMethod(method);
-    method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
+    class_linker_->SetEntryPointsToCompiledCode(method, method_code, is_portable);
   } else {
     // No code? You must mean to go into the interpreter.
     // Or the generic JNI...
-    if (!method->IsNative()) {
-      const void* method_code = kUsePortableCompiler ? GetPortableToInterpreterBridge()
-          : GetQuickToInterpreterBridge();
-      OatFile::OatMethod oat_method = CreateOatMethod(method_code, nullptr);
-      oat_method.LinkMethod(method);
-      method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
-    } else {
-      const void* method_code = reinterpret_cast<void*>(art_quick_generic_jni_trampoline);
-
-      OatFile::OatMethod oat_method = CreateOatMethod(method_code, nullptr);
-      oat_method.LinkMethod(method);
-      method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
-    }
-  }
-  // Create bridges to transition between different kinds of compiled bridge.
-  if (method->GetEntryPointFromPortableCompiledCode() == nullptr) {
-    method->SetEntryPointFromPortableCompiledCode(GetPortableToQuickBridge());
-  } else {
-    CHECK(method->GetEntryPointFromQuickCompiledCode() == nullptr);
-    method->SetEntryPointFromQuickCompiledCode(GetQuickToPortableBridge());
-    method->SetIsPortableCompiled();
+    class_linker_->SetEntryPointsToInterpreter(method);
   }
 }
 
@@ -282,19 +136,9 @@ void CommonCompilerTest::SetUp() {
   {
     ScopedObjectAccess soa(Thread::Current());
 
-    InstructionSet instruction_set = kRuntimeISA;
-
+    const InstructionSet instruction_set = kRuntimeISA;
     // Take the default set of instruction features from the build.
-    InstructionSetFeatures instruction_set_features =
-        ParseFeatureList(Runtime::GetDefaultInstructionSetFeatures());
-
-#if defined(__arm__)
-    InstructionSetFeatures runtime_features = GuessInstructionFeatures();
-
-    // for ARM, do a runtime check to make sure that the features we are passed from
-    // the build match the features we actually determine at runtime.
-    ASSERT_LE(instruction_set_features, runtime_features);
-#endif
+    instruction_set_features_.reset(InstructionSetFeatures::FromCppDefines());
 
     runtime_->SetInstructionSet(instruction_set);
     for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
@@ -313,7 +157,7 @@ void CommonCompilerTest::SetUp() {
                                               verification_results_.get(),
                                               method_inliner_map_.get(),
                                               compiler_kind, instruction_set,
-                                              instruction_set_features,
+                                              instruction_set_features_.get(),
                                               true, new std::set<std::string>,
                                               2, true, true, timer_.get()));
   }

@@ -22,6 +22,7 @@
 
 #include "base/logging.h"  // Logging is required for FATAL in the helper functions.
 #include "base/macros.h"
+#include "base/value_object.h"
 #include "globals.h"       // For KB.
 
 namespace art {
@@ -177,53 +178,163 @@ static inline size_t GetBytesPerFprSpillLocation(InstructionSet isa) {
 
 size_t GetStackOverflowReservedBytes(InstructionSet isa);
 
-enum InstructionFeatures {
-  kHwDiv  = 0x1,              // Supports hardware divide.
-  kHwLpae = 0x2,              // Supports Large Physical Address Extension.
-};
+class ArmInstructionSetFeatures;
 
-// This is a bitmask of supported features per architecture.
-class PACKED(4) InstructionSetFeatures {
+// Abstraction used to describe features of a different instruction sets.
+class InstructionSetFeatures {
  public:
-  InstructionSetFeatures() : mask_(0) {}
-  explicit InstructionSetFeatures(uint32_t mask) : mask_(mask) {}
+  // Process a CPU variant string for the given ISA and create an InstructionSetFeatures.
+  static const InstructionSetFeatures* FromVariant(InstructionSet isa,
+                                                   const std::string& variant,
+                                                   std::string* error_msg);
 
-  static InstructionSetFeatures GuessInstructionSetFeatures();
+  // Parse a string of the form "div,lpae" and create an InstructionSetFeatures.
+  static const InstructionSetFeatures* FromFeatureString(InstructionSet isa,
+                                                         const std::string& feature_list,
+                                                         std::string* error_msg);
 
-  bool HasDivideInstruction() const {
-      return (mask_ & kHwDiv) != 0;
-  }
+  // Parse a bitmap for the given isa and create an InstructionSetFeatures.
+  static const InstructionSetFeatures* FromBitmap(InstructionSet isa, uint32_t bitmap);
 
-  void SetHasDivideInstruction(bool v) {
-    mask_ = (mask_ & ~kHwDiv) | (v ? kHwDiv : 0);
-  }
+  // Turn C pre-processor #defines into the equivalent instruction set features for kRuntimeISA.
+  static const InstructionSetFeatures* FromCppDefines();
 
-  bool HasLpae() const {
-    return (mask_ & kHwLpae) != 0;
-  }
+  // Process /proc/cpuinfo and use kRuntimeISA to produce InstructionSetFeatures.
+  static const InstructionSetFeatures* FromCpuInfo();
 
-  void SetHasLpae(bool v) {
-    mask_ = (mask_ & ~kHwLpae) | (v ? kHwLpae : 0);
-  }
+  // Process the auxiliary vector AT_HWCAP entry and use kRuntimeISA to produce
+  // InstructionSetFeatures.
+  static const InstructionSetFeatures* FromHwcap();
 
-  std::string GetFeatureString() const;
+  // Use assembly tests of the current runtime (ie kRuntimeISA) to determine the
+  // InstructionSetFeatures. This works around kernel bugs in AT_HWCAP and /proc/cpuinfo.
+  static const InstructionSetFeatures* FromAssembly();
 
-  // Other features in here.
+  // Are these features the same as the other given features?
+  virtual bool Equals(const InstructionSetFeatures* other) const = 0;
 
-  bool operator==(const InstructionSetFeatures &peer) const {
-    return mask_ == peer.mask_;
-  }
+  // Return the ISA these features relate to.
+  virtual InstructionSet GetInstructionSet() const = 0;
 
-  bool operator!=(const InstructionSetFeatures &peer) const {
-    return mask_ != peer.mask_;
-  }
+  // Return a bitmap that represents the features. ISA specific.
+  virtual uint32_t AsBitmap() const = 0;
 
-  bool operator<=(const InstructionSetFeatures &peer) const {
-    return (mask_ & peer.mask_) == mask_;
-  }
+  // Return a string of the form "div,lpae" or "none".
+  virtual std::string GetFeatureString() const = 0;
+
+  // Down cast this ArmInstructionFeatures.
+  const ArmInstructionSetFeatures* AsArmInstructionSetFeatures() const;
+
+  virtual ~InstructionSetFeatures() {}
+
+ protected:
+  InstructionSetFeatures() {}
 
  private:
-  uint32_t mask_;
+  DISALLOW_COPY_AND_ASSIGN(InstructionSetFeatures);
+};
+std::ostream& operator<<(std::ostream& os, const InstructionSetFeatures& rhs);
+
+// Instruction set features relevant to the ARM architecture.
+class ArmInstructionSetFeatures FINAL : public InstructionSetFeatures {
+ public:
+  // Process a CPU variant string like "krait" or "cortex-a15" and create InstructionSetFeatures.
+  static const ArmInstructionSetFeatures* FromVariant(const std::string& variant,
+                                                      std::string* error_msg);
+
+  // Parse a string of the form "div,lpae" and create an InstructionSetFeatures.
+  static const ArmInstructionSetFeatures* FromFeatureString(const std::string& feature_list,
+                                                            std::string* error_msg);
+
+  // Parse a bitmap and create an InstructionSetFeatures.
+  static const ArmInstructionSetFeatures* FromBitmap(uint32_t bitmap);
+
+  // Turn C pre-processor #defines into the equivalent instruction set features.
+  static const ArmInstructionSetFeatures* FromCppDefines();
+
+  // Process /proc/cpuinfo and use kRuntimeISA to produce InstructionSetFeatures.
+  static const ArmInstructionSetFeatures* FromCpuInfo();
+
+  // Process the auxiliary vector AT_HWCAP entry and use kRuntimeISA to produce
+  // InstructionSetFeatures.
+  static const ArmInstructionSetFeatures* FromHwcap();
+
+  // Use assembly tests of the current runtime (ie kRuntimeISA) to determine the
+  // InstructionSetFeatures. This works around kernel bugs in AT_HWCAP and /proc/cpuinfo.
+  static const ArmInstructionSetFeatures* FromAssembly();
+
+  bool Equals(const InstructionSetFeatures* other) const OVERRIDE;
+
+  InstructionSet GetInstructionSet() const OVERRIDE {
+    return kArm;
+  }
+
+  uint32_t AsBitmap() const OVERRIDE;
+
+  // Return a string of the form "div,lpae" or "none".
+  std::string GetFeatureString() const OVERRIDE;
+
+  // Is the divide instruction feature enabled?
+  bool HasDivideInstruction() const {
+      return has_div_;
+  }
+
+  // Is the Large Physical Address Extension (LPAE) instruction feature enabled? When true code can
+  // be used that assumes double register loads and stores (ldrd, strd) don't tear.
+  bool HasLpae() const {
+    return has_lpae_;
+  }
+
+  virtual ~ArmInstructionSetFeatures() {}
+
+ private:
+  ArmInstructionSetFeatures(bool has_lpae, bool has_div)
+      : has_lpae_(has_lpae), has_div_(has_div) {
+  }
+
+  // Bitmap positions for encoding features as a bitmap.
+  enum {
+    kDivBitfield = 1,
+    kLpaeBitfield = 2,
+  };
+
+  const bool has_lpae_;
+  const bool has_div_;
+
+  DISALLOW_COPY_AND_ASSIGN(ArmInstructionSetFeatures);
+};
+
+// A class used for instruction set features on ISAs that don't yet have any features defined.
+class UnknownInstructionSetFeatures FINAL : public InstructionSetFeatures {
+ public:
+  static const UnknownInstructionSetFeatures* Unknown(InstructionSet isa) {
+    return new UnknownInstructionSetFeatures(isa);
+  }
+
+  bool Equals(const InstructionSetFeatures* other) const OVERRIDE {
+    return isa_ == other->GetInstructionSet();
+  }
+
+  InstructionSet GetInstructionSet() const OVERRIDE {
+    return isa_;
+  }
+
+  uint32_t AsBitmap() const OVERRIDE {
+    return 0;
+  }
+
+  std::string GetFeatureString() const OVERRIDE {
+    return "none";
+  }
+
+  virtual ~UnknownInstructionSetFeatures() {}
+
+ private:
+  explicit UnknownInstructionSetFeatures(InstructionSet isa) : isa_(isa) {}
+
+  const InstructionSet isa_;
+
+  DISALLOW_COPY_AND_ASSIGN(UnknownInstructionSetFeatures);
 };
 
 // The following definitions create return types for two word-sized entities that will be passed

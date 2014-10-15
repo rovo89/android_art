@@ -17,7 +17,6 @@
 #ifndef ART_COMPILER_OPTIMIZING_GVN_H_
 #define ART_COMPILER_OPTIMIZING_GVN_H_
 
-#include <gtest/gtest.h>
 #include "nodes.h"
 
 namespace art {
@@ -221,7 +220,7 @@ class GlobalValueNumberer : public ValueObject {
   // Mark visisted blocks. Only used for debugging.
   GrowableArray<bool> visited_;
 
-  FRIEND_TEST(GVNTest, LoopSideEffects);
+  ART_FRIEND_TEST(GVNTest, LoopSideEffects);
   DISALLOW_COPY_AND_ASSIGN(GlobalValueNumberer);
 };
 

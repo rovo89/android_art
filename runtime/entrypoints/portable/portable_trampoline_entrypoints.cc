@@ -19,6 +19,7 @@
 
 #include "dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils-inl.h"
+#include "entrypoints/runtime_asm_entrypoints.h"
 #include "interpreter/interpreter.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
@@ -222,7 +223,7 @@ extern "C" uint64_t artPortableToInterpreterBridge(mirror::ArtMethod* method, Th
       }
     }
 
-    JValue result = interpreter::EnterInterpreterFromStub(self, mh, code_item, *shadow_frame);
+    JValue result = interpreter::EnterInterpreterFromEntryPoint(self, &mh, code_item, shadow_frame);
     // Pop transition.
     self->PopManagedStackFragment(fragment);
     return result.GetJ();
@@ -323,7 +324,7 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::ArtMethod* called
   uint32_t dex_pc;
   mirror::ArtMethod* caller = self->GetCurrentMethod(&dex_pc);
 
-  ClassLinker* linker = Runtime::Current()->GetClassLinker();
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   InvokeType invoke_type;
   bool is_range;
   if (called->IsRuntimeMethod()) {
@@ -379,7 +380,7 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::ArtMethod* called
         is_range = true;
     }
     uint32_t dex_method_idx = (is_range) ? instr->VRegB_3rc() : instr->VRegB_35c();
-    called = linker->ResolveMethod(Thread::Current(), dex_method_idx, &caller, invoke_type);
+    called = class_linker->ResolveMethod(Thread::Current(), dex_method_idx, &caller, invoke_type);
     // Incompatible class change should have been handled in resolve method.
     CHECK(!called->CheckIncompatibleClassChange(invoke_type));
     // Refine called method based on receiver.
@@ -399,27 +400,27 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::ArtMethod* called
     // Ensure that the called method's class is initialized.
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> called_class(hs.NewHandle(called->GetDeclaringClass()));
-    linker->EnsureInitialized(self, called_class, true, true);
+    class_linker->EnsureInitialized(self, called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {
       code = called->GetEntryPointFromPortableCompiledCode();
       // TODO: remove this after we solve the link issue.
       if (code == nullptr) {
         bool have_portable_code;
-        code = linker->GetPortableOatCodeFor(called, &have_portable_code);
+        code = class_linker->GetPortableOatCodeFor(called, &have_portable_code);
       }
     } else if (called_class->IsInitializing()) {
       if (invoke_type == kStatic) {
         // Class is still initializing, go to oat and grab code (trampoline must be left in place
         // until class is initialized to stop races between threads).
         bool have_portable_code;
-        code = linker->GetPortableOatCodeFor(called, &have_portable_code);
+        code = class_linker->GetPortableOatCodeFor(called, &have_portable_code);
       } else {
         // No trampoline for non-static methods.
         code = called->GetEntryPointFromPortableCompiledCode();
         // TODO: remove this after we solve the link issue.
         if (code == nullptr) {
           bool have_portable_code;
-          code = linker->GetPortableOatCodeFor(called, &have_portable_code);
+          code = class_linker->GetPortableOatCodeFor(called, &have_portable_code);
         }
       }
     } else {
@@ -430,7 +431,7 @@ extern "C" const void* artPortableResolutionTrampoline(mirror::ArtMethod* called
     // Expect class to at least be initializing.
     DCHECK(called->GetDeclaringClass()->IsInitializing());
     // Don't want infinite recursion.
-    DCHECK(code != linker->GetPortableResolutionTrampoline());
+    DCHECK(!class_linker->IsPortableResolutionStub(code));
     // Set up entry into main method
     *called_addr = called;
   }
