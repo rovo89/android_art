@@ -30,6 +30,7 @@
 #include "base/stl_util.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
+#include "fault_handler.h"
 #include "gc_root.h"
 #include "gc/accounting/card_table-inl.h"
 #include "indirect_reference_table-inl.h"
@@ -3342,6 +3343,9 @@ bool JavaVMExt::LoadNativeLibrary(const std::string& path,
       version = (*jni_on_load)(this, nullptr);
     }
 
+    if (runtime->GetTargetSdkVersion() != 0 && runtime->GetTargetSdkVersion() <= 21) {
+      fault_manager.EnsureArtActionInFrontOfSignalChain();
+    }
     self->SetClassLoaderOverride(old_class_loader.Get());
 
     if (version == JNI_ERR) {
