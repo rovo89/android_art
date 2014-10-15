@@ -380,13 +380,13 @@ void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts
 
 // Splits a string using the given separator character into a vector of
 // strings. Empty strings will be omitted.
-void Split(const std::string& s, char separator, std::vector<std::string>& result);
+void Split(const std::string& s, char separator, std::vector<std::string>* result);
 
 // Trims whitespace off both ends of the given string.
-std::string Trim(std::string s);
+std::string Trim(const std::string& s);
 
 // Joins a vector of strings into a single string, using the given separator.
-template <typename StringT> std::string Join(std::vector<StringT>& strings, char separator);
+template <typename StringT> std::string Join(const std::vector<StringT>& strings, char separator);
 
 // Returns the calling thread's tid. (The C libraries don't expose this.)
 pid_t GetTid();

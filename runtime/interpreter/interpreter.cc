@@ -507,8 +507,9 @@ void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JVa
   ret_val->SetJ(value.GetJ());
 }
 
-JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
-                                ShadowFrame& shadow_frame) {
+JValue EnterInterpreterFromEntryPoint(Thread* self, MethodHelper* mh,
+                                      const DexFile::CodeItem* code_item,
+                                      ShadowFrame* shadow_frame) {
   DCHECK_EQ(self, Thread::Current());
   bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEndForInterpreter(implicit_check))) {
@@ -516,10 +517,10 @@ JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh, const DexFile::C
     return JValue();
   }
 
-  return Execute(self, mh, code_item, shadow_frame, JValue());
+  return Execute(self, *mh, code_item, *shadow_frame, JValue());
 }
 
-extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh,
+extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper* mh,
                                                   const DexFile::CodeItem* code_item,
                                                   ShadowFrame* shadow_frame, JValue* result) {
   bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
@@ -529,10 +530,10 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
   }
 
   self->PushShadowFrame(shadow_frame);
-  DCHECK_EQ(shadow_frame->GetMethod(), mh.Get());
+  DCHECK_EQ(shadow_frame->GetMethod(), mh->Get());
   // Ensure static methods are initialized.
-  if (mh.Get()->IsStatic()) {
-    mirror::Class* declaring_class = mh.Get()->GetDeclaringClass();
+  if (mh->Get()->IsStatic()) {
+    mirror::Class* declaring_class = mh->Get()->GetDeclaringClass();
     if (UNLIKELY(!declaring_class->IsInitialized())) {
       StackHandleScope<1> hs(self);
       HandleWrapper<Class> h_declaring_class(hs.NewHandleWrapper(&declaring_class));
@@ -546,15 +547,15 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh
     }
   }
 
-  if (LIKELY(!mh.Get()->IsNative())) {
-    result->SetJ(Execute(self, mh, code_item, *shadow_frame, JValue()).GetJ());
+  if (LIKELY(!mh->Get()->IsNative())) {
+    result->SetJ(Execute(self, *mh, code_item, *shadow_frame, JValue()).GetJ());
   } else {
     // We don't expect to be asked to interpret native code (which is entered via a JNI compiler
     // generated stub) except during testing and image writing.
     CHECK(!Runtime::Current()->IsStarted());
-    Object* receiver = mh.Get()->IsStatic() ? nullptr : shadow_frame->GetVRegReference(0);
-    uint32_t* args = shadow_frame->GetVRegArgs(mh.Get()->IsStatic() ? 0 : 1);
-    UnstartedRuntimeJni(self, mh.Get(), receiver, args, result);
+    Object* receiver = mh->Get()->IsStatic() ? nullptr : shadow_frame->GetVRegReference(0);
+    uint32_t* args = shadow_frame->GetVRegArgs(mh->Get()->IsStatic() ? 0 : 1);
+    UnstartedRuntimeJni(self, mh->Get(), receiver, args, result);
   }
 
   self->PopShadowFrame();

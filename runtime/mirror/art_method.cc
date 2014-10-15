@@ -23,6 +23,8 @@
 #include "class-inl.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
+#include "entrypoints/entrypoint_utils.h"
+#include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/card_table-inl.h"
 #include "interpreter/interpreter.h"
 #include "jni_internal.h"
@@ -203,7 +205,7 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
   return DexFile::kDexNoIndex;
 }
 
-uintptr_t ArtMethod::ToNativePc(const uint32_t dex_pc) {
+uintptr_t ArtMethod::ToNativeQuickPc(const uint32_t dex_pc) {
   const void* entry_point = GetQuickOatEntryPoint();
   MappingTable table(
       entry_point != nullptr ? GetMappingTable(EntryPointToCodePointer(entry_point)) : nullptr);
@@ -281,6 +283,36 @@ uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> excep
   return found_dex_pc;
 }
 
+void ArtMethod::AssertPcIsWithinQuickCode(uintptr_t pc) {
+  if (IsNative() || IsRuntimeMethod() || IsProxyMethod()) {
+    return;
+  }
+  if (pc == reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc())) {
+    return;
+  }
+  const void* code = GetEntryPointFromQuickCompiledCode();
+  if (code == GetQuickInstrumentationEntryPoint()) {
+    return;
+  }
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  if (class_linker->IsQuickToInterpreterBridge(code) ||
+      class_linker->IsQuickResolutionStub(code)) {
+    return;
+  }
+  /*
+   * During a stack walk, a return PC may point past-the-end of the code
+   * in the case that the last instruction is a call that isn't expected to
+   * return.  Thus, we check <= code + GetCodeSize().
+   *
+   * NOTE: For Thumb both pc and code are offset by 1 indicating the Thumb state.
+   */
+  CHECK(PcIsWithinQuickCode(pc))
+      << PrettyMethod(this)
+      << " pc=" << std::hex << pc
+      << " code=" << code
+      << " size=" << GetCodeSize();
+}
+
 bool ArtMethod::IsEntrypointInterpreter() {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   const void* oat_quick_code = class_linker->GetOatMethodQuickCodeFor(this);
@@ -293,6 +325,31 @@ bool ArtMethod::IsEntrypointInterpreter() {
         oat_portable_code != GetEntryPointFromPortableCompiledCode();
   }
 }
+
+const void* ArtMethod::GetQuickOatEntryPoint() {
+  if (IsPortableCompiled() || IsAbstract() || IsRuntimeMethod() || IsProxyMethod()) {
+    return nullptr;
+  }
+  Runtime* runtime = Runtime::Current();
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  const void* code = runtime->GetInstrumentation()->GetQuickCodeFor(this);
+  // On failure, instead of nullptr we get the quick-generic-jni-trampoline for native method
+  // indicating the generic JNI, or the quick-to-interpreter-bridge (but not the trampoline)
+  // for non-native methods.
+  if (class_linker->IsQuickToInterpreterBridge(code) ||
+      class_linker->IsQuickGenericJniStub(code)) {
+    return nullptr;
+  }
+  return code;
+}
+
+#ifndef NDEBUG
+uintptr_t ArtMethod::NativeQuickPcOffset(const uintptr_t pc, const void* quick_entry_point) {
+  CHECK_NE(quick_entry_point, GetQuickToInterpreterBridge());
+  CHECK_EQ(quick_entry_point, Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this));
+  return pc - reinterpret_cast<uintptr_t>(quick_entry_point);
+}
+#endif
 
 void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result,
                        const char* shorty) {
@@ -379,8 +436,53 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   self->PopManagedStackFragment(fragment);
 }
 
-void ArtMethod::RegisterNative(Thread* self, const void* native_method, bool is_fast) {
-  DCHECK(Thread::Current() == self);
+QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
+  if (UNLIKELY(IsPortableCompiled())) {
+    // Portable compiled dex bytecode or jni stub.
+    return QuickMethodFrameInfo(kStackAlignment, 0u, 0u);
+  }
+  Runtime* runtime = Runtime::Current();
+  // For Proxy method we exclude direct method (there is only one direct method - constructor).
+  // Direct method is cloned from original java.lang.reflect.Proxy class together with code
+  // and as a result it is executed as usual quick compiled method without any stubs.
+  // So the frame info should be returned as it is a quick method not a stub.
+  if (UNLIKELY(IsAbstract()) || UNLIKELY(IsProxyMethod() && !IsDirect())) {
+    return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
+  }
+  if (UNLIKELY(IsRuntimeMethod())) {
+    return runtime->GetRuntimeMethodFrameInfo(this);
+  }
+
+  const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(this);
+  ClassLinker* class_linker = runtime->GetClassLinker();
+  // On failure, instead of nullptr we get the quick-generic-jni-trampoline for native method
+  // indicating the generic JNI, or the quick-to-interpreter-bridge (but not the trampoline)
+  // for non-native methods. And we really shouldn't see a failure for non-native methods here.
+  DCHECK(!class_linker->IsQuickToInterpreterBridge(entry_point));
+
+  if (class_linker->IsQuickGenericJniStub(entry_point)) {
+    // Generic JNI frame.
+    DCHECK(IsNative());
+    StackHandleScope<1> hs(Thread::Current());
+    uint32_t handle_refs =
+        MethodHelper(hs.NewHandle(this)).GetNumberOfReferenceArgsWithoutReceiver() + 1;
+    size_t scope_size = HandleScope::SizeOf(handle_refs);
+    QuickMethodFrameInfo callee_info = runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
+
+    // Callee saves + handle scope + method ref + alignment
+    size_t frame_size = RoundUp(callee_info.FrameSizeInBytes() + scope_size
+                                - sizeof(void*)  // callee-save frame stores a whole method pointer
+                                + sizeof(StackReference<mirror::ArtMethod>),
+                                kStackAlignment);
+
+    return QuickMethodFrameInfo(frame_size, callee_info.CoreSpillMask(), callee_info.FpSpillMask());
+  }
+
+  const void* code_pointer = EntryPointToCodePointer(entry_point);
+  return GetQuickFrameInfo(code_pointer);
+}
+
+void ArtMethod::RegisterNative(const void* native_method, bool is_fast) {
   CHECK(IsNative()) << PrettyMethod(this);
   CHECK(!IsFastNative()) << PrettyMethod(this);
   CHECK(native_method != NULL) << PrettyMethod(this);
@@ -390,10 +492,10 @@ void ArtMethod::RegisterNative(Thread* self, const void* native_method, bool is_
   SetNativeMethod(native_method);
 }
 
-void ArtMethod::UnregisterNative(Thread* self) {
+void ArtMethod::UnregisterNative() {
   CHECK(IsNative() && !IsFastNative()) << PrettyMethod(this);
   // restore stub to lookup native pointer via dlsym
-  RegisterNative(self, GetJniDlsymLookupStub(), false);
+  RegisterNative(GetJniDlsymLookupStub(), false);
 }
 
 }  // namespace mirror

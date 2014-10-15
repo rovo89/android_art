@@ -396,8 +396,13 @@ class OatDumper {
     os << "INSTRUCTION SET:\n";
     os << oat_header.GetInstructionSet() << "\n\n";
 
-    os << "INSTRUCTION SET FEATURES:\n";
-    os << oat_header.GetInstructionSetFeatures().GetFeatureString() << "\n\n";
+    {
+      std::unique_ptr<const InstructionSetFeatures> features(
+          InstructionSetFeatures::FromBitmap(oat_header.GetInstructionSet(),
+                                             oat_header.GetInstructionSetFeaturesBitmap()));
+      os << "INSTRUCTION SET FEATURES:\n";
+      os << features->GetFeatureString() << "\n\n";
+    }
 
     os << "DEX FILE COUNT:\n";
     os << oat_header.GetDexFileCount() << "\n\n";
@@ -1493,7 +1498,7 @@ class ImageDumper {
   const void* GetQuickOatCodeBegin(mirror::ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const void* quick_code = m->GetEntryPointFromQuickCompiledCode();
-    if (quick_code == Runtime::Current()->GetClassLinker()->GetQuickResolutionTrampoline()) {
+    if (Runtime::Current()->GetClassLinker()->IsQuickResolutionStub(quick_code)) {
       quick_code = oat_dumper_->GetQuickOatCode(m);
     }
     if (oat_dumper_->GetInstructionSet() == kThumb2) {

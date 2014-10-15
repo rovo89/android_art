@@ -18,6 +18,7 @@
 
 #include "arch/context.h"
 #include "base/hex_dump.h"
+#include "entrypoints/runtime_asm_entrypoints.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object.h"
@@ -119,7 +120,7 @@ mirror::Object* StackVisitor::GetThisObject() const {
   } else if (m->IsNative()) {
     if (cur_quick_frame_ != nullptr) {
       HandleScope* hs = reinterpret_cast<HandleScope*>(
-          reinterpret_cast<char*>(cur_quick_frame_) + m->GetHandleScopeOffsetInBytes());
+          reinterpret_cast<char*>(cur_quick_frame_) + m->GetHandleScopeOffset().SizeValue());
       return hs->GetReference(0);
     } else {
       return cur_shadow_frame_->GetVRegReference(0);
@@ -143,7 +144,7 @@ mirror::Object* StackVisitor::GetThisObject() const {
 
 size_t StackVisitor::GetNativePcOffset() const {
   DCHECK(!IsShadowFrame());
-  return GetMethod()->NativePcOffset(cur_quick_frame_pc_);
+  return GetMethod()->NativeQuickPcOffset(cur_quick_frame_pc_);
 }
 
 bool StackVisitor::GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
@@ -394,14 +395,14 @@ bool StackVisitor::SetFPR(uint32_t reg, uintptr_t value) {
 uintptr_t StackVisitor::GetReturnPc() const {
   uint8_t* sp = reinterpret_cast<uint8_t*>(GetCurrentQuickFrame());
   DCHECK(sp != NULL);
-  uint8_t* pc_addr = sp + GetMethod()->GetReturnPcOffsetInBytes();
+  uint8_t* pc_addr = sp + GetMethod()->GetReturnPcOffset().SizeValue();
   return *reinterpret_cast<uintptr_t*>(pc_addr);
 }
 
 void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
   uint8_t* sp = reinterpret_cast<uint8_t*>(GetCurrentQuickFrame());
   CHECK(sp != NULL);
-  uint8_t* pc_addr = sp + GetMethod()->GetReturnPcOffsetInBytes();
+  uint8_t* pc_addr = sp + GetMethod()->GetReturnPcOffset().SizeValue();
   *reinterpret_cast<uintptr_t*>(pc_addr) = new_ret_pc;
 }
 
@@ -509,7 +510,7 @@ void StackVisitor::SanityCheckFrame() const {
       // const size_t kMaxExpectedFrameSize = (256 + 2 + 3 + 3) * sizeof(word);
       const size_t kMaxExpectedFrameSize = 2 * KB;
       CHECK_LE(frame_size, kMaxExpectedFrameSize);
-      size_t return_pc_offset = method->GetReturnPcOffsetInBytes();
+      size_t return_pc_offset = method->GetReturnPcOffset().SizeValue();
       CHECK_LT(return_pc_offset, frame_size);
     }
   }
@@ -543,13 +544,13 @@ void StackVisitor::WalkStack(bool include_transitions) {
         }
         size_t frame_size = method->GetFrameSizeInBytes();
         // Compute PC for next stack frame from return PC.
-        size_t return_pc_offset = method->GetReturnPcOffsetInBytes(frame_size);
+        size_t return_pc_offset = method->GetReturnPcOffset(frame_size).SizeValue();
         uint8_t* return_pc_addr = reinterpret_cast<uint8_t*>(cur_quick_frame_) + return_pc_offset;
         uintptr_t return_pc = *reinterpret_cast<uintptr_t*>(return_pc_addr);
         if (UNLIKELY(exit_stubs_installed)) {
           // While profiling, the return pc is restored from the side stack, except when walking
           // the stack for an exception where the side stack will be unwound in VisitFrame.
-          if (GetQuickInstrumentationExitPc() == return_pc) {
+          if (reinterpret_cast<uintptr_t>(GetQuickInstrumentationExitPc()) == return_pc) {
             const instrumentation::InstrumentationStackFrame& instrumentation_frame =
                 GetInstrumentationStackFrame(thread_, instrumentation_stack_depth);
             instrumentation_stack_depth++;

@@ -144,6 +144,9 @@ class Thread {
   // Reset internal state of child thread after fork.
   void InitAfterFork();
 
+  // Get the currently executing thread, frequently referred to as 'self'. This call has reasonably
+  // high cost and so we favor passing self around when possible.
+  // TODO: mark as PURE so the compiler may coalesce and remove?
   static Thread* Current();
 
   // On a runnable thread, check for pending thread suspension request and handle if pending.

@@ -617,7 +617,7 @@ bool Dbg::ParseJdwpOptions(const std::string& options) {
   VLOG(jdwp) << "ParseJdwpOptions: " << options;
 
   std::vector<std::string> pairs;
-  Split(options, ',', pairs);
+  Split(options, ',', &pairs);
 
   for (size_t i = 0; i < pairs.size(); ++i) {
     std::string::size_type equals = pairs[i].find('=');

@@ -963,7 +963,7 @@ bool IsValidDescriptor(const char* s) {
   return IsValidClassName<kDescriptor, '/'>(s);
 }
 
-void Split(const std::string& s, char separator, std::vector<std::string>& result) {
+void Split(const std::string& s, char separator, std::vector<std::string>* result) {
   const char* p = s.data();
   const char* end = p + s.size();
   while (p != end) {
@@ -974,12 +974,12 @@ void Split(const std::string& s, char separator, std::vector<std::string>& resul
       while (++p != end && *p != separator) {
         // Skip to the next occurrence of the separator.
       }
-      result.push_back(std::string(start, p - start));
+      result->push_back(std::string(start, p - start));
     }
   }
 }
 
-std::string Trim(std::string s) {
+std::string Trim(const std::string& s) {
   std::string result;
   unsigned int start_index = 0;
   unsigned int end_index = s.size() - 1;
@@ -1009,7 +1009,7 @@ std::string Trim(std::string s) {
 }
 
 template <typename StringT>
-std::string Join(std::vector<StringT>& strings, char separator) {
+std::string Join(const std::vector<StringT>& strings, char separator) {
   if (strings.empty()) {
     return "";
   }
@@ -1023,9 +1023,8 @@ std::string Join(std::vector<StringT>& strings, char separator) {
 }
 
 // Explicit instantiations.
-template std::string Join<std::string>(std::vector<std::string>& strings, char separator);
-template std::string Join<const char*>(std::vector<const char*>& strings, char separator);
-template std::string Join<char*>(std::vector<char*>& strings, char separator);
+template std::string Join<std::string>(const std::vector<std::string>& strings, char separator);
+template std::string Join<const char*>(const std::vector<const char*>& strings, char separator);
 
 bool StartsWith(const std::string& s, const char* prefix) {
   return s.compare(0, strlen(prefix), prefix) == 0;
@@ -1087,7 +1086,7 @@ void GetTaskStats(pid_t tid, char* state, int* utime, int* stime, int* task_cpu)
   stats = stats.substr(stats.find(')') + 2);
   // Extract the three fields we care about.
   std::vector<std::string> fields;
-  Split(stats, ' ', fields);
+  Split(stats, ' ', &fields);
   *state = fields[0][0];
   *utime = strtoull(fields[11].c_str(), NULL, 10);
   *stime = strtoull(fields[12].c_str(), NULL, 10);
@@ -1104,12 +1103,12 @@ std::string GetSchedulerGroupName(pid_t tid) {
     return "";
   }
   std::vector<std::string> cgroup_lines;
-  Split(cgroup_file, '\n', cgroup_lines);
+  Split(cgroup_file, '\n', &cgroup_lines);
   for (size_t i = 0; i < cgroup_lines.size(); ++i) {
     std::vector<std::string> cgroup_fields;
-    Split(cgroup_lines[i], ':', cgroup_fields);
+    Split(cgroup_lines[i], ':', &cgroup_fields);
     std::vector<std::string> cgroups;
-    Split(cgroup_fields[1], ',', cgroups);
+    Split(cgroup_fields[1], ',', &cgroups);
     for (size_t i = 0; i < cgroups.size(); ++i) {
       if (cgroups[i] == "cpu") {
         return cgroup_fields[2].substr(1);  // Skip the leading slash.
@@ -1154,7 +1153,7 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
         }
       } else if (current_method != nullptr &&
                  Locks::mutator_lock_->IsSharedHeld(Thread::Current()) &&
-                 current_method->IsWithinQuickCode(it->pc)) {
+                 current_method->PcIsWithinQuickCode(it->pc)) {
         const void* start_of_code = current_method->GetEntryPointFromQuickCompiledCode();
         os << JniLongName(current_method) << "+"
            << (it->pc - reinterpret_cast<uintptr_t>(start_of_code));
@@ -1189,7 +1188,7 @@ void DumpKernelStack(std::ostream& os, pid_t tid, const char* prefix, bool inclu
   }
 
   std::vector<std::string> kernel_stack_frames;
-  Split(kernel_stack, '\n', kernel_stack_frames);
+  Split(kernel_stack, '\n', &kernel_stack_frames);
   // We skip the last stack frame because it's always equivalent to "[<ffffffff>] 0xffffffff",
   // which looking at the source appears to be the kernel's way of saying "that's all, folks!".
   kernel_stack_frames.pop_back();

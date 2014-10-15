@@ -260,7 +260,7 @@ class StubTest : public CommonRuntimeTest {
           "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23",
           "d24", "d25", "d26", "d27", "d28", "d29", "d30", "d31",
           "memory");  // clobber.
-#elif defined(__x86_64__) && !defined(__APPLE__)
+#elif defined(__x86_64__) && !defined(__APPLE__) && defined(__clang__)
     // Note: Uses the native convention
     // TODO: Set the thread?
     __asm__ __volatile__(
@@ -485,7 +485,7 @@ class StubTest : public CommonRuntimeTest {
           "d16", "d17", "d18", "d19", "d20", "d21", "d22", "d23",
           "d24", "d25", "d26", "d27", "d28", "d29", "d30", "d31",
           "memory");  // clobber.
-#elif defined(__x86_64__) && !defined(__APPLE__)
+#elif defined(__x86_64__) && !defined(__APPLE__) && defined(__clang__)
     // Note: Uses the native convention
     // TODO: Set the thread?
     __asm__ __volatile__(

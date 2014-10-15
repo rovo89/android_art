@@ -93,8 +93,8 @@ endif
 #
 # Used to change the default GC. Valid values are CMS, SS, GSS. The default is CMS.
 #
-ART_DEFAULT_GC_TYPE ?= CMS
-ART_DEFAULT_GC_TYPE_CFLAGS := -DART_DEFAULT_GC_TYPE_IS_$(ART_DEFAULT_GC_TYPE)
+art_default_gc_type ?= CMS
+art_default_gc_type_cflags := -DART_DEFAULT_GC_TYPE_IS_$(art_default_gc_type)
 
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   LLVM_ROOT_PATH := external/llvm
@@ -131,30 +131,6 @@ define set-target-local-clang-vars
       endif)
 endef
 
-ART_CPP_EXTENSION := .cc
-
-ART_C_INCLUDES := \
-  external/gtest/include \
-  external/valgrind/main/include \
-  external/valgrind/main \
-  external/vixl/src \
-  external/zlib \
-  frameworks/compile/mclinker/include
-
-art_cflags := \
-  -fno-rtti \
-  -std=gnu++11 \
-  -ggdb3 \
-  -Wall \
-  -Werror \
-  -Wextra \
-  -Wno-sign-promo \
-  -Wno-unused-parameter \
-  -Wstrict-aliasing \
-  -fstrict-aliasing \
-  -Wunreachable-code \
-  -fvisibility=protected
-
 ART_TARGET_CLANG_CFLAGS :=
 ART_TARGET_CLANG_CFLAGS_arm :=
 ART_TARGET_CLANG_CFLAGS_arm64 :=
@@ -168,6 +144,58 @@ ART_TARGET_CLANG_CFLAGS_arm64  += \
   -DNVALGRIND \
   -Wno-unused-value
 
+# FIXME: upstream LLVM has a vectorizer bug that needs to be fixed
+ART_TARGET_CLANG_CFLAGS_arm64 += \
+  -fno-vectorize
+
+# Colorize clang compiler warnings.
+art_clang_cflags := -fcolor-diagnostics
+
+# Warn about thread safety violations with clang.
+art_clang_cflags += -Wthread-safety
+
+# Warn if switch fallthroughs aren't annotated.
+art_clang_cflags += -Wimplicit-fallthrough
+
+# Enable float equality warnings.
+art_clang_cflags += -Wfloat-equal
+
+ifeq ($(ART_HOST_CLANG),true)
+  ART_HOST_CFLAGS += $(art_clang_cflags)
+endif
+ifeq ($(ART_TARGET_CLANG),true)
+  ART_TARGET_CFLAGS += $(art_clang_cflags)
+endif
+
+# Clear local variable now its use has ended.
+art_clang_cflags :=
+
+ART_CPP_EXTENSION := .cc
+
+ART_C_INCLUDES := \
+  external/gtest/include \
+  external/valgrind/main/include \
+  external/valgrind/main \
+  external/vixl/src \
+  external/zlib \
+  frameworks/compile/mclinker/include
+
+# Base set of cflags used by all things ART.
+art_cflags := \
+  -fno-rtti \
+  -std=gnu++11 \
+  -ggdb3 \
+  -Wall \
+  -Werror \
+  -Wextra \
+  -Wno-sign-promo \
+  -Wno-unused-parameter \
+  -Wstrict-aliasing \
+  -fstrict-aliasing \
+  -Wunreachable-code \
+  -fvisibility=protected \
+  $(art_default_gc_type_cflags)
+
 ifeq ($(ART_SMALL_MODE),true)
   art_cflags += -DART_SMALL_MODE=1
 endif
@@ -176,14 +204,19 @@ ifeq ($(ART_SEA_IR_MODE),true)
   art_cflags += -DART_SEA_IR_MODE=1
 endif
 
+# Cflags for non-debug ART and ART tools.
 art_non_debug_cflags := \
   -O3
 
-art_host_non_debug_cflags := \
-  $(art_non_debug_cflags)
+# Cflags for debug ART and ART tools.
+art_debug_cflags := \
+  -O2 \
+  -DDYNAMIC_ANNOTATIONS_ENABLED=1 \
+  -UNDEBUG \
+  -fkeep-inline-functions
 
-art_target_non_debug_cflags := \
-  $(art_non_debug_cflags)
+art_host_non_debug_cflags := $(art_non_debug_cflags)
+art_target_non_debug_cflags := $(art_non_debug_cflags)
 
 ifeq ($(HOST_OS),linux)
   # Larger frame-size for host clang builds today
@@ -191,26 +224,21 @@ ifeq ($(HOST_OS),linux)
   art_target_non_debug_cflags += -Wframe-larger-than=1728
 endif
 
-# FIXME: upstream LLVM has a vectorizer bug that needs to be fixed
-ART_TARGET_CLANG_CFLAGS_arm64 += \
-  -fno-vectorize
-
-art_debug_cflags := \
-  -O2 \
-  -DDYNAMIC_ANNOTATIONS_ENABLED=1 \
-  -UNDEBUG
-
 ifndef LIBART_IMG_HOST_BASE_ADDRESS
   $(error LIBART_IMG_HOST_BASE_ADDRESS unset)
 endif
 ART_HOST_CFLAGS := $(art_cflags) -DANDROID_SMP=1 -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
 ART_HOST_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=default
-ART_HOST_CFLAGS += $(ART_DEFAULT_GC_TYPE_CFLAGS)
 
 ifndef LIBART_IMG_TARGET_BASE_ADDRESS
   $(error LIBART_IMG_TARGET_BASE_ADDRESS unset)
 endif
 ART_TARGET_CFLAGS := $(art_cflags) -DART_TARGET -DART_BASE_ADDRESS=$(LIBART_IMG_TARGET_BASE_ADDRESS)
+
+ART_HOST_NON_DEBUG_CFLAGS := $(art_host_non_debug_cflags)
+ART_TARGET_NON_DEBUG_CFLAGS := $(art_target_non_debug_cflags)
+ART_HOST_DEBUG_CFLAGS := $(art_debug_cflags)
+ART_TARGET_DEBUG_CFLAGS := $(art_debug_cflags)
 
 ifndef LIBART_IMG_HOST_MIN_BASE_ADDRESS_DELTA
   LIBART_IMG_HOST_MIN_BASE_ADDRESS_DELTA=-0x1000000
@@ -230,25 +258,6 @@ endif
 ART_TARGET_CFLAGS += -DART_BASE_ADDRESS_MIN_DELTA=$(LIBART_IMG_TARGET_MIN_BASE_ADDRESS_DELTA)
 ART_TARGET_CFLAGS += -DART_BASE_ADDRESS_MAX_DELTA=$(LIBART_IMG_TARGET_MAX_BASE_ADDRESS_DELTA)
 
-# Colorize clang compiler warnings.
-art_clang_cflags := -fcolor-diagnostics
-
-# Warn if switch fallthroughs aren't annotated.
-art_clang_cflags += -Wimplicit-fallthrough
-
-# Enable float equality warnings.
-art_clang_cflags += -Wfloat-equal
-
-ifeq ($(ART_HOST_CLANG),true)
-  ART_HOST_CFLAGS += $(art_clang_cflags)
-endif
-ifeq ($(ART_TARGET_CLANG),true)
-  ART_TARGET_CFLAGS += $(art_clang_cflags)
-endif
-
-art_clang_cflags :=
-
-ART_TARGET_LDFLAGS :=
 ifeq ($(TARGET_CPU_SMP),true)
   ART_TARGET_CFLAGS += -DANDROID_SMP=1
 else
@@ -260,60 +269,26 @@ else
     ART_TARGET_CFLAGS += -DANDROID_SMP=1
   endif
 endif
-ART_TARGET_CFLAGS += $(ART_DEFAULT_GC_TYPE_CFLAGS)
-
-# DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES is set in ../build/core/dex_preopt.mk based on
-# the TARGET_CPU_VARIANT
-ifeq ($(DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES),)
-$(error Required DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES is not set)
-endif
-ART_TARGET_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=$(DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES)
-
-# Enable thread-safety for GCC 4.6, and clang, but not for GCC 4.7 or later where this feature was
-# removed. Warn when -Wthread-safety is not used.
-ifneq ($(filter 4.6 4.6.%, $(TARGET_GCC_VERSION)),)
-  ART_TARGET_CFLAGS += -Wthread-safety
-else
-  # FIXME: add -Wthread-safety when the problem is fixed
-  ifeq ($(ART_TARGET_CLANG),true)
-    ART_TARGET_CFLAGS +=
-  else
-    # Warn if -Wthread-safety is not supported and not doing a top-level or 'mma' build.
-    ifneq ($(ONE_SHOT_MAKEFILE),)
-      # Enable target GCC 4.6 with: export TARGET_GCC_VERSION_EXP=4.6
-      $(info Using target GCC $(TARGET_GCC_VERSION) disables thread-safety checks.)
-    endif
-  endif
-endif
-# We compile with GCC 4.6 or clang on the host, both of which support -Wthread-safety.
-ART_HOST_CFLAGS += -Wthread-safety
 
 # To use oprofile_android --callgraph, uncomment this and recompile with "mmm art -B -j16"
 # ART_TARGET_CFLAGS += -fno-omit-frame-pointer -marm -mapcs
 
-# Addition CPU specific CFLAGS.
-ifeq ($(TARGET_ARCH),arm)
-  ifneq ($(filter cortex-a15, $(TARGET_CPU_VARIANT)),)
-    # Fake a ARM feature for LPAE support.
-    ART_TARGET_CFLAGS += -D__ARM_FEATURE_LPAE=1
-  endif
+# Clear locals now they've served their purpose.
+art_cflags :=
+art_debug_cflags :=
+art_non_debug_cflags :=
+art_host_non_debug_cflags :=
+art_target_non_debug_cflags :=
+art_default_gc_type :=
+art_default_gc_type_cflags :=
+
+ART_HOST_LDLIBS :=
+ifneq ($(ART_HOST_CLANG),true)
+  # GCC lacks libc++ assumed atomic operations, grab via libatomic.
+  ART_HOST_LDLIBS += -latomic
 endif
 
-ART_HOST_NON_DEBUG_CFLAGS := $(art_host_non_debug_cflags)
-ART_TARGET_NON_DEBUG_CFLAGS := $(art_target_non_debug_cflags)
-
-# TODO: move -fkeep-inline-functions to art_debug_cflags when target gcc > 4.4 (and -lsupc++)
-ART_HOST_DEBUG_CFLAGS := $(art_debug_cflags) -fkeep-inline-functions
-ART_HOST_DEBUG_LDLIBS := -lsupc++
-
-ifneq ($(HOST_OS),linux)
-  # Some Mac OS pthread header files are broken with -fkeep-inline-functions.
-  ART_HOST_DEBUG_CFLAGS := $(filter-out -fkeep-inline-functions,$(ART_HOST_DEBUG_CFLAGS))
-  # Mac OS doesn't have libsupc++.
-  ART_HOST_DEBUG_LDLIBS := $(filter-out -lsupc++,$(ART_HOST_DEBUG_LDLIBS))
-endif
-
-ART_TARGET_DEBUG_CFLAGS := $(art_debug_cflags)
+ART_TARGET_LDFLAGS :=
 
 # $(1): ndebug_or_debug
 define set-target-local-cflags-vars
@@ -337,6 +312,7 @@ define set-target-local-cflags-vars
   art_target_cflags_ndebug_or_debug :=
 endef
 
+# Support for disabling certain builds.
 ART_BUILD_TARGET := false
 ART_BUILD_HOST := false
 ART_BUILD_NDEBUG := false
@@ -357,13 +333,5 @@ ifeq ($(ART_BUILD_HOST_DEBUG),true)
   ART_BUILD_HOST := true
   ART_BUILD_DEBUG := true
 endif
-
-# Clear locally defined variables that aren't necessary in the rest of the build system.
-ART_DEFAULT_GC_TYPE :=
-ART_DEFAULT_GC_TYPE_CFLAGS :=
-art_cflags :=
-art_target_non_debug_cflags :=
-art_host_non_debug_cflags :=
-art_non_debug_cflags :=
 
 endif # ANDROID_COMMON_BUILD_MK

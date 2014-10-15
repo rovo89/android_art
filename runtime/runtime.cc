@@ -47,6 +47,7 @@
 #include "class_linker.h"
 #include "debugger.h"
 #include "elf_file.h"
+#include "entrypoints/runtime_asm_entrypoints.h"
 #include "fault_handler.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
@@ -92,10 +93,9 @@
 
 namespace art {
 
+// If a signal isn't handled properly, enable a handler that attempts to dump the Java stack.
 static constexpr bool kEnableJavaStackTraceHandler = false;
-const char* Runtime::kDefaultInstructionSetFeatures =
-    STRINGIFY(ART_DEFAULT_INSTRUCTION_SET_FEATURES);
-Runtime* Runtime::instance_ = NULL;
+Runtime* Runtime::instance_ = nullptr;
 
 Runtime::Runtime()
     : instruction_set_(kNone),
@@ -803,7 +803,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     }
   } else if (!IsCompiler() || !image_dex2oat_enabled_) {
     std::vector<std::string> dex_filenames;
-    Split(boot_class_path_string_, ':', dex_filenames);
+    Split(boot_class_path_string_, ':', &dex_filenames);
     std::vector<const DexFile*> boot_class_path;
     OpenDexFiles(dex_filenames, options->image_, boot_class_path);
     class_linker_->InitWithoutImage(boot_class_path);
@@ -1216,8 +1216,8 @@ mirror::ArtMethod* Runtime::CreateImtConflictMethod() {
     method->SetEntryPointFromPortableCompiledCode(nullptr);
     method->SetEntryPointFromQuickCompiledCode(nullptr);
   } else {
-    method->SetEntryPointFromPortableCompiledCode(class_linker->GetPortableImtConflictTrampoline());
-    method->SetEntryPointFromQuickCompiledCode(class_linker->GetQuickImtConflictTrampoline());
+    method->SetEntryPointFromPortableCompiledCode(GetPortableImtConflictStub());
+    method->SetEntryPointFromQuickCompiledCode(GetQuickImtConflictStub());
   }
   return method.Get();
 }
@@ -1236,8 +1236,8 @@ mirror::ArtMethod* Runtime::CreateResolutionMethod() {
     method->SetEntryPointFromPortableCompiledCode(nullptr);
     method->SetEntryPointFromQuickCompiledCode(nullptr);
   } else {
-    method->SetEntryPointFromPortableCompiledCode(class_linker->GetPortableResolutionTrampoline());
-    method->SetEntryPointFromQuickCompiledCode(class_linker->GetQuickResolutionTrampoline());
+    method->SetEntryPointFromPortableCompiledCode(GetPortableResolutionStub());
+    method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionStub());
   }
   return method.Get();
 }
@@ -1454,9 +1454,10 @@ void Runtime::AddCurrentRuntimeFeaturesAsDex2OatArguments(std::vector<std::strin
   instruction_set += GetInstructionSetString(kRuntimeISA);
   argv->push_back(instruction_set);
 
-  std::string features("--instruction-set-features=");
-  features += GetDefaultInstructionSetFeatures();
-  argv->push_back(features);
+  std::unique_ptr<const InstructionSetFeatures> features(InstructionSetFeatures::FromCppDefines());
+  std::string feature_string("--instruction-set-features=");
+  feature_string += features->GetFeatureString();
+  argv->push_back(feature_string);
 }
 
 void Runtime::UpdateProfilerState(int state) {

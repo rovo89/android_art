@@ -42,19 +42,20 @@ extern void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_fra
                                            JValue* ret_val)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-extern JValue EnterInterpreterFromStub(Thread* self, MethodHelper& mh,
-                                       const DexFile::CodeItem* code_item,
-                                       ShadowFrame& shadow_frame)
+extern JValue EnterInterpreterFromEntryPoint(Thread* self, MethodHelper* mh,
+                                             const DexFile::CodeItem* code_item,
+                                             ShadowFrame* shadow_frame)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh,
+
+}  // namespace interpreter
+
+extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper* mh,
                                                   const DexFile::CodeItem* code_item,
                                                   ShadowFrame* shadow_frame, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-}  // namespace interpreter
-
-extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
+extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper* mh,
                                                    const DexFile::CodeItem* code_item,
                                                    ShadowFrame* shadow_frame, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

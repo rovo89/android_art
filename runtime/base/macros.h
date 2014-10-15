@@ -63,6 +63,11 @@ struct CompileAssert {
 #define COMPILE_ASSERT(expr, msg) \
   typedef CompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1] // NOLINT
 
+// Declare a friend relationship in a class with a test. Used rather that FRIEND_TEST to avoid
+// globally importing gtest/gtest.h into the main ART header files.
+#define ART_FRIEND_TEST(test_set_name, individual_test)\
+friend class test_set_name##_##individual_test##_Test
+
 // DISALLOW_COPY_AND_ASSIGN disallows the copy and operator= functions.
 // It goes in the private: declarations in a class.
 #define DISALLOW_COPY_AND_ASSIGN(TypeName) \
