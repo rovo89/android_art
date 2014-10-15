@@ -608,13 +608,13 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     }
 
     case Instruction::AGET_WIDE:
-      GenArrayGet(opt_flags, k64, rl_src[0], rl_src[1], rl_dest, 3);
+      GenArrayGet(opt_flags, rl_dest.fp ? kDouble : k64, rl_src[0], rl_src[1], rl_dest, 3);
       break;
     case Instruction::AGET_OBJECT:
       GenArrayGet(opt_flags, kReference, rl_src[0], rl_src[1], rl_dest, 2);
       break;
     case Instruction::AGET:
-      GenArrayGet(opt_flags, k32, rl_src[0], rl_src[1], rl_dest, 2);
+      GenArrayGet(opt_flags, rl_dest.fp ? kSingle : k32, rl_src[0], rl_src[1], rl_dest, 2);
       break;
     case Instruction::AGET_BOOLEAN:
       GenArrayGet(opt_flags, kUnsignedByte, rl_src[0], rl_src[1], rl_dest, 0);
@@ -629,10 +629,10 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       GenArrayGet(opt_flags, kSignedHalf, rl_src[0], rl_src[1], rl_dest, 1);
       break;
     case Instruction::APUT_WIDE:
-      GenArrayPut(opt_flags, k64, rl_src[1], rl_src[2], rl_src[0], 3, false);
+      GenArrayPut(opt_flags, rl_src[0].fp ? kDouble : k64, rl_src[1], rl_src[2], rl_src[0], 3, false);
       break;
     case Instruction::APUT:
-      GenArrayPut(opt_flags, k32, rl_src[1], rl_src[2], rl_src[0], 2, false);
+      GenArrayPut(opt_flags, rl_src[0].fp ? kSingle : k32, rl_src[1], rl_src[2], rl_src[0], 2, false);
       break;
     case Instruction::APUT_OBJECT: {
       bool is_null = mir_graph_->IsConstantNullRef(rl_src[0]);
@@ -666,11 +666,19 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
 
     case Instruction::IGET_WIDE:
       // kPrimLong and kPrimDouble share the same entrypoints.
-      GenIGet(mir, opt_flags, k64, Primitive::kPrimLong, rl_dest, rl_src[0]);
+      if (rl_dest.fp) {
+        GenIGet(mir, opt_flags, kDouble, Primitive::kPrimDouble, rl_dest, rl_src[0]);
+      } else {
+        GenIGet(mir, opt_flags, k64, Primitive::kPrimLong, rl_dest, rl_src[0]);
+      }
       break;
 
     case Instruction::IGET:
-      GenIGet(mir, opt_flags, k32, Primitive::kPrimInt, rl_dest, rl_src[0]);
+      if (rl_dest.fp) {
+        GenIGet(mir, opt_flags, kSingle, Primitive::kPrimFloat, rl_dest, rl_src[0]);
+      } else {
+        GenIGet(mir, opt_flags, k32, Primitive::kPrimInt, rl_dest, rl_src[0]);
+      }
       break;
 
     case Instruction::IGET_CHAR:
@@ -690,7 +698,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       break;
 
     case Instruction::IPUT_WIDE:
-      GenIPut(mir, opt_flags, k64, rl_src[0], rl_src[1]);
+      GenIPut(mir, opt_flags, rl_src[0].fp ? kDouble : k64, rl_src[0], rl_src[1]);
       break;
 
     case Instruction::IPUT_OBJECT:
@@ -698,7 +706,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       break;
 
     case Instruction::IPUT:
-      GenIPut(mir, opt_flags, k32, rl_src[0], rl_src[1]);
+      GenIPut(mir, opt_flags, rl_src[0].fp ? kSingle : k32, rl_src[0], rl_src[1]);
       break;
 
     case Instruction::IPUT_BYTE:
@@ -719,7 +727,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       break;
 
     case Instruction::SGET:
-      GenSget(mir, rl_dest, k32, Primitive::kPrimInt);
+      GenSget(mir, rl_dest, rl_dest.fp ? kSingle : k32, Primitive::kPrimInt);
       break;
 
     case Instruction::SGET_CHAR:
@@ -740,7 +748,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
 
     case Instruction::SGET_WIDE:
       // kPrimLong and kPrimDouble share the same entrypoints.
-      GenSget(mir, rl_dest, k64, Primitive::kPrimLong);
+      GenSget(mir, rl_dest, rl_dest.fp ? kDouble : k64, Primitive::kPrimDouble);
       break;
 
     case Instruction::SPUT_OBJECT:
@@ -748,7 +756,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       break;
 
     case Instruction::SPUT:
-      GenSput(mir, rl_src[0], k32);
+      GenSput(mir, rl_src[0], rl_src[0].fp ? kSingle : k32);
       break;
 
     case Instruction::SPUT_BYTE:
@@ -766,7 +774,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
 
 
     case Instruction::SPUT_WIDE:
-      GenSput(mir, rl_src[0], k64);
+      GenSput(mir, rl_src[0], rl_src[0].fp ? kDouble : k64);
       break;
 
     case Instruction::INVOKE_STATIC_RANGE:
