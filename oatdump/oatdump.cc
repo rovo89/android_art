@@ -1757,6 +1757,7 @@ static int oatdump(int argc, char** argv) {
                                                                             dump_vmap,
                                                                             disassemble_code,
                                                                             absolute_addresses));
+  MemMap::Init();
   if (oat_filename != nullptr) {
     std::string error_msg;
     OatFile* oat_file =
