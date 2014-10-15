@@ -125,11 +125,20 @@ public class Main {
     }
 
     static class FinalizeCounter {
+      public static final int maxCount = 1024;
+      public static boolean finalized[] = new boolean[maxCount];
       private static Object finalizeLock = new Object();
       private static volatile int finalizeCount = 0;
       private int index;
       static int getCount() {
         return finalizeCount;
+      }
+      static void printNonFinalized() {
+        for (int i = 0; i < maxCount; ++i) {
+          if (!FinalizeCounter.finalized[i]) {
+            System.err.println("Element " + i + " was not finalized");
+          }
+        }
       }
       FinalizeCounter(int index) {
         this.index = index;
@@ -137,6 +146,7 @@ public class Main {
       protected void finalize() {
         synchronized(finalizeLock) {
           ++finalizeCount;
+          finalized[index] = true;
         }
       }
     }
@@ -149,11 +159,21 @@ public class Main {
     }
 
     private static void runFinalizationTest() {
-      int count = 1024;
-      allocFinalizableObjects(count);
+      allocFinalizableObjects(FinalizeCounter.maxCount);
       Runtime.getRuntime().gc();
       System.runFinalization();
-      System.out.println("Finalized " + FinalizeCounter.getCount() + " / "  + count);
+      System.out.println("Finalized " + FinalizeCounter.getCount() + " / "  + FinalizeCounter.maxCount);
+      if (FinalizeCounter.getCount() != FinalizeCounter.maxCount) {
+        // Print out all the finalized elements.
+        FinalizeCounter.printNonFinalized();
+        // Try to sleep for a couple seconds to see if the objects became finalized after.
+        try {
+          java.lang.Thread.sleep(2000);
+        } catch (InterruptedException e) {
+        }
+        System.out.println("After sleep finalized " + FinalizeCounter.getCount() + " / "  + FinalizeCounter.maxCount);
+        FinalizeCounter.printNonFinalized();
+      }
     }
 
     public static class FinalizerTest {
