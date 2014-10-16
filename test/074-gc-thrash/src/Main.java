@@ -255,54 +255,55 @@ class Deep extends Thread {
      * valid and invalid references on the stack.
      */
     private String dive(int depth, int iteration) {
-        String str0;
-        String str1;
-        String str2;
-        String str3;
-        String str4;
-        String str5;
-        String str6;
-        String str7;
-        String funStr;
+        try {
+            String str0;
+            String str1;
+            String str2;
+            String str3;
+            String str4;
+            String str5;
+            String str6;
+            String str7;
+            String funStr = "";
+            switch (iteration % 8) {
+                case 0:
+                    funStr = str0 = makeString(iteration);
+                    break;
+                case 1:
+                    funStr = str1 = makeString(iteration);
+                    break;
+                case 2:
+                    funStr = str2 = makeString(iteration);
+                    break;
+                case 3:
+                    funStr = str3 = makeString(iteration);
+                    break;
+                case 4:
+                    funStr = str4 = makeString(iteration);
+                    break;
+                case 5:
+                    funStr = str5 = makeString(iteration);
+                    break;
+                case 6:
+                    funStr = str6 = makeString(iteration);
+                    break;
+                case 7:
+                    funStr = str7 = makeString(iteration);
+                    break;
+            }
 
-        funStr = "";
-
-        switch (iteration % 8) {
-            case 0:
-                funStr = str0 = makeString(iteration);
-                break;
-            case 1:
-                funStr = str1 = makeString(iteration);
-                break;
-            case 2:
-                funStr = str2 = makeString(iteration);
-                break;
-            case 3:
-                funStr = str3 = makeString(iteration);
-                break;
-            case 4:
-                funStr = str4 = makeString(iteration);
-                break;
-            case 5:
-                funStr = str5 = makeString(iteration);
-                break;
-            case 6:
-                funStr = str6 = makeString(iteration);
-                break;
-            case 7:
-                funStr = str7 = makeString(iteration);
-                break;
+            strong[depth] = funStr;
+            weak[depth] = new WeakReference(funStr);
+            if (depth+1 < MAX_DEPTH)
+                dive(depth+1, iteration+1);
+            else
+                Main.sleep(100);
+            return funStr;
+        } catch (OutOfMemoryError e) {
+            // Silently ignore OOME since gc stress mode causes them to occur but shouldn't be a
+            // test failure.
         }
-
-        strong[depth] = funStr;
-        weak[depth] = new WeakReference(funStr);
-
-        if (depth+1 < MAX_DEPTH)
-            dive(depth+1, iteration+1);
-        else
-            Main.sleep(100);
-
-        return funStr;
+        return "";
     }
 
     private String makeString(int val) {
