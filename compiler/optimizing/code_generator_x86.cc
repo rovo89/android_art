@@ -577,42 +577,60 @@ void LocationsBuilderX86::VisitIf(HIf* if_instr) {
 
 void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
   HInstruction* cond = if_instr->InputAt(0);
-  bool materialized = !cond->IsCondition() || cond->AsCondition()->NeedsMaterialization();
-  // Moves do not affect the eflags register, so if the condition is evaluated
-  // just before the if, we don't need to evaluate it again.
-  bool eflags_set = cond->IsCondition()
-      && cond->AsCondition()->IsBeforeWhenDisregardMoves(if_instr);
-  if (materialized) {
-    if (!eflags_set) {
-      // Materialized condition, compare against 0.
-      Location lhs = if_instr->GetLocations()->InAt(0);
-      if (lhs.IsRegister()) {
-        __ cmpl(lhs.As<Register>(), Immediate(0));
-      } else {
-        __ cmpl(Address(ESP, lhs.GetStackIndex()), Immediate(0));
+  if (cond->IsIntConstant()) {
+    // Constant condition, statically compared against 1.
+    int32_t cond_value = cond->AsIntConstant()->GetValue();
+    if (cond_value == 1) {
+      if (!codegen_->GoesToNextBlock(if_instr->GetBlock(),
+                                     if_instr->IfTrueSuccessor())) {
+        __ jmp(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
       }
-      __ j(kNotEqual,  codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
+      return;
     } else {
+      DCHECK_EQ(cond_value, 0);
+    }
+  } else {
+    bool materialized =
+        !cond->IsCondition() || cond->AsCondition()->NeedsMaterialization();
+    // Moves do not affect the eflags register, so if the condition is
+    // evaluated just before the if, we don't need to evaluate it
+    // again.
+    bool eflags_set = cond->IsCondition()
+        && cond->AsCondition()->IsBeforeWhenDisregardMoves(if_instr);
+    if (materialized) {
+      if (!eflags_set) {
+        // Materialized condition, compare against 0.
+        Location lhs = if_instr->GetLocations()->InAt(0);
+        if (lhs.IsRegister()) {
+          __ cmpl(lhs.As<Register>(), Immediate(0));
+        } else {
+          __ cmpl(Address(ESP, lhs.GetStackIndex()), Immediate(0));
+        }
+        __ j(kNotEqual,  codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
+      } else {
+        __ j(X86Condition(cond->AsCondition()->GetCondition()),
+             codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
+      }
+    } else {
+      Location lhs = cond->GetLocations()->InAt(0);
+      Location rhs = cond->GetLocations()->InAt(1);
+      // LHS is guaranteed to be in a register (see
+      // LocationsBuilderX86::VisitCondition).
+      if (rhs.IsRegister()) {
+        __ cmpl(lhs.As<Register>(), rhs.As<Register>());
+      } else if (rhs.IsConstant()) {
+        HIntConstant* instruction = rhs.GetConstant()->AsIntConstant();
+        Immediate imm(instruction->AsIntConstant()->GetValue());
+        __ cmpl(lhs.As<Register>(), imm);
+      } else {
+        __ cmpl(lhs.As<Register>(), Address(ESP, rhs.GetStackIndex()));
+      }
       __ j(X86Condition(cond->AsCondition()->GetCondition()),
            codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
     }
-  } else {
-    Location lhs = cond->GetLocations()->InAt(0);
-    Location rhs = cond->GetLocations()->InAt(1);
-    // LHS is guaranteed to be in a register (see LocationsBuilderX86::VisitCondition).
-    if (rhs.IsRegister()) {
-      __ cmpl(lhs.As<Register>(), rhs.As<Register>());
-    } else if (rhs.IsConstant()) {
-      HIntConstant* instruction = rhs.GetConstant()->AsIntConstant();
-      Immediate imm(instruction->AsIntConstant()->GetValue());
-      __ cmpl(lhs.As<Register>(), imm);
-    } else {
-      __ cmpl(lhs.As<Register>(), Address(ESP, rhs.GetStackIndex()));
-    }
-    __ j(X86Condition(cond->AsCondition()->GetCondition()),
-         codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
   }
-  if (!codegen_->GoesToNextBlock(if_instr->GetBlock(), if_instr->IfFalseSuccessor())) {
+  if (!codegen_->GoesToNextBlock(if_instr->GetBlock(),
+                                 if_instr->IfFalseSuccessor())) {
     __ jmp(codegen_->GetLabelOf(if_instr->IfFalseSuccessor()));
   }
 }
@@ -747,6 +765,7 @@ void LocationsBuilderX86::VisitIntConstant(HIntConstant* constant) {
 }
 
 void InstructionCodeGeneratorX86::VisitIntConstant(HIntConstant* constant) {
+  // Will be generated at use site.
 }
 
 void LocationsBuilderX86::VisitLongConstant(HLongConstant* constant) {
