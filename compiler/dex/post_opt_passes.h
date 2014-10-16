@@ -91,6 +91,13 @@ class DFSOrders : public PassME {
   DFSOrders() : PassME("DFSOrders") {
   }
 
+  bool Gate(const PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    return !c_unit->mir_graph->DfsOrdersUpToDate();
+  }
+
   void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
     CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;

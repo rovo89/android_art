@@ -271,7 +271,8 @@ class BBCombine : public PassME {
     DCHECK(data != nullptr);
     CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
-    return ((c_unit->disable_opt & (1 << kSuppressExceptionEdges)) != 0);
+    return c_unit->mir_graph->HasTryCatchBlocks() ||
+        ((c_unit->disable_opt & (1 << kSuppressExceptionEdges)) != 0);
   }
 
   bool Worker(PassDataHolder* data) const;
