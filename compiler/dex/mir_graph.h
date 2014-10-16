@@ -49,17 +49,14 @@ enum DataFlowAttributePos {
   kFormat35c,
   kFormat3rc,
   kFormatExtended,       // Extended format for extended MIRs.
-  kNullCheckSrc0,        // Null check of uses[0].
-  kNullCheckSrc1,        // Null check of uses[1].
-  kNullCheckSrc2,        // Null check of uses[2].
+  kNullCheckA,           // Null check of A.
+  kNullCheckB,           // Null check of B.
   kNullCheckOut0,        // Null check out outgoing arg0.
   kDstNonNull,           // May assume dst is non-null.
   kRetNonNull,           // May assume retval is non-null.
   kNullTransferSrc0,     // Object copy src[0] -> dst.
   kNullTransferSrcN,     // Phi null check state transfer.
-  kRangeCheckSrc1,       // Range check of uses[1].
-  kRangeCheckSrc2,       // Range check of uses[2].
-  kRangeCheckSrc3,       // Range check of uses[3].
+  kRangeCheckC,          // Range check of C.
   kFPA,
   kFPB,
   kFPC,
@@ -88,17 +85,14 @@ enum DataFlowAttributePos {
 #define DF_FORMAT_35C           (UINT64_C(1) << kFormat35c)
 #define DF_FORMAT_3RC           (UINT64_C(1) << kFormat3rc)
 #define DF_FORMAT_EXTENDED      (UINT64_C(1) << kFormatExtended)
-#define DF_NULL_CHK_0           (UINT64_C(1) << kNullCheckSrc0)
-#define DF_NULL_CHK_1           (UINT64_C(1) << kNullCheckSrc1)
-#define DF_NULL_CHK_2           (UINT64_C(1) << kNullCheckSrc2)
+#define DF_NULL_CHK_A           (UINT64_C(1) << kNullCheckA)
+#define DF_NULL_CHK_B           (UINT64_C(1) << kNullCheckB)
 #define DF_NULL_CHK_OUT0        (UINT64_C(1) << kNullCheckOut0)
 #define DF_NON_NULL_DST         (UINT64_C(1) << kDstNonNull)
 #define DF_NON_NULL_RET         (UINT64_C(1) << kRetNonNull)
 #define DF_NULL_TRANSFER_0      (UINT64_C(1) << kNullTransferSrc0)
 #define DF_NULL_TRANSFER_N      (UINT64_C(1) << kNullTransferSrcN)
-#define DF_RANGE_CHK_1          (UINT64_C(1) << kRangeCheckSrc1)
-#define DF_RANGE_CHK_2          (UINT64_C(1) << kRangeCheckSrc2)
-#define DF_RANGE_CHK_3          (UINT64_C(1) << kRangeCheckSrc3)
+#define DF_RANGE_CHK_C          (UINT64_C(1) << kRangeCheckC)
 #define DF_FP_A                 (UINT64_C(1) << kFPA)
 #define DF_FP_B                 (UINT64_C(1) << kFPB)
 #define DF_FP_C                 (UINT64_C(1) << kFPC)
@@ -117,14 +111,11 @@ enum DataFlowAttributePos {
 
 #define DF_HAS_DEFS             (DF_DA)
 
-#define DF_HAS_NULL_CHKS        (DF_NULL_CHK_0 | \
-                                 DF_NULL_CHK_1 | \
-                                 DF_NULL_CHK_2 | \
+#define DF_HAS_NULL_CHKS        (DF_NULL_CHK_A | \
+                                 DF_NULL_CHK_B | \
                                  DF_NULL_CHK_OUT0)
 
-#define DF_HAS_RANGE_CHKS       (DF_RANGE_CHK_1 | \
-                                 DF_RANGE_CHK_2 | \
-                                 DF_RANGE_CHK_3)
+#define DF_HAS_RANGE_CHKS       (DF_RANGE_CHK_C)
 
 #define DF_HAS_NR_CHKS          (DF_HAS_NULL_CHKS | \
                                  DF_HAS_RANGE_CHKS)
@@ -132,9 +123,10 @@ enum DataFlowAttributePos {
 #define DF_A_IS_REG             (DF_UA | DF_DA)
 #define DF_B_IS_REG             (DF_UB)
 #define DF_C_IS_REG             (DF_UC)
-#define DF_IS_GETTER_OR_SETTER  (DF_IS_GETTER | DF_IS_SETTER)
 #define DF_USES_FP              (DF_FP_A | DF_FP_B | DF_FP_C)
 #define DF_NULL_TRANSFER        (DF_NULL_TRANSFER_0 | DF_NULL_TRANSFER_N)
+#define DF_IS_INVOKE            (DF_FORMAT_35C | DF_FORMAT_3RC)
+
 enum OatMethodAttributes {
   kIsLeaf,            // Method is leaf.
   kHasLoop,           // Method contains simple loop.
@@ -1307,7 +1299,9 @@ class MIRGraph {
   static const uint64_t oat_data_flow_attributes_[kMirOpLast];
   ArenaVector<BasicBlock*> gen_suspend_test_list_;  // List of blocks containing suspend tests
 
+  friend class MirOptimizationTest;
   friend class ClassInitCheckEliminationTest;
+  friend class NullCheckEliminationTest;
   friend class GlobalValueNumberingTest;
   friend class LocalValueNumberingTest;
   friend class TopologicalSortOrderTest;
