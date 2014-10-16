@@ -85,6 +85,9 @@ class Pass {
     // Unused parameter.
     UNUSED(data);
 
+    // Passes that do all their work in Start() or End() should not allow useless node iteration.
+    DCHECK(false) << "Unsupported default Worker() used for " << GetName();
+
     // BasicBlock did not change.
     return false;
   }
