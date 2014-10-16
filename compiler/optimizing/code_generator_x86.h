@@ -142,7 +142,7 @@ class CodeGeneratorX86 : public CodeGenerator {
 
   virtual void GenerateFrameEntry() OVERRIDE;
   virtual void GenerateFrameExit() OVERRIDE;
-  virtual void Bind(Label* label) OVERRIDE;
+  virtual void Bind(HBasicBlock* block) OVERRIDE;
   virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
   virtual void SaveCoreRegister(Location stack_location, uint32_t reg_id) OVERRIDE;
   virtual void RestoreCoreRegister(Location stack_location, uint32_t reg_id) OVERRIDE;
@@ -189,7 +189,17 @@ class CodeGeneratorX86 : public CodeGenerator {
   // Emit a write barrier.
   void MarkGCCard(Register temp, Register card, Register object, Register value);
 
+  Label* GetLabelOf(HBasicBlock* block) const {
+    return block_labels_.GetRawStorage() + block->GetBlockId();
+  }
+
+  virtual void Initialize() OVERRIDE {
+    block_labels_.SetSize(GetGraph()->GetBlocks().Size());
+  }
+
  private:
+  // Labels for each block that will be compiled.
+  GrowableArray<Label> block_labels_;
   LocationsBuilderX86 location_builder_;
   InstructionCodeGeneratorX86 instruction_visitor_;
   ParallelMoveResolverX86 move_resolver_;
