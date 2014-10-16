@@ -34,6 +34,7 @@
 #include "monitor.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
+#include "trace.h"
 #include "utils.h"
 #include "well_known_classes.h"
 
@@ -876,6 +877,9 @@ void ThreadList::Unregister(Thread* self) {
   // Any time-consuming destruction, plus anything that can call back into managed code or
   // suspend and so on, must happen at this point, and not in ~Thread.
   self->Destroy();
+
+  // If tracing, remember thread id and name before thread exits.
+  Trace::StoreExitingThreadInfo(self);
 
   uint32_t thin_lock_id = self->GetThreadId();
   while (self != nullptr) {
