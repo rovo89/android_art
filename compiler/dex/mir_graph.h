@@ -415,7 +415,12 @@ struct BasicBlock {
    *          remove itself from any predecessor edges, remove itself from any
    *          child's predecessor array.
    */
-  void Hide(CompilationUnit* c_unit);
+  void Hide(MIRGraph* mir_graph);
+
+  /**
+   *  @brief Kill the unreachable block and all blocks that become unreachable by killing this one.
+   */
+  void KillUnreachable(MIRGraph* mir_graph);
 
   /**
    * @brief Is ssa_reg the last SSA definition of that VR in the block?
@@ -1008,6 +1013,10 @@ class MIRGraph {
     return GetFirstSpecialTempVR() + max_available_special_compiler_temps_;
   }
 
+  bool HasTryCatchBlocks() const {
+    return current_code_item_->tries_size_ != 0;
+  }
+
   void DumpCheckStats();
   MIR* FindMoveResult(BasicBlock* bb, MIR* mir);
   int SRegToVReg(int ssa_reg) const;
@@ -1143,6 +1152,10 @@ class MIRGraph {
   void InsertPhiNodes();
   void DoDFSPreOrderSSARename(BasicBlock* block);
 
+  bool DfsOrdersUpToDate() const {
+    return dfs_orders_up_to_date_;
+  }
+
   /*
    * IsDebugBuild sanity check: keep track of the Dex PCs for catch entries so that later on
    * we can verify that all catch entries have native PC entries.
@@ -1239,6 +1252,7 @@ class MIRGraph {
   ArenaVector<uint32_t> raw_use_counts_;  // Not weighted
   unsigned int num_reachable_blocks_;
   unsigned int max_num_reachable_blocks_;
+  bool dfs_orders_up_to_date_;
   ArenaVector<BasicBlockId> dfs_order_;
   ArenaVector<BasicBlockId> dfs_post_order_;
   ArenaVector<BasicBlockId> dom_post_order_traversal_;
