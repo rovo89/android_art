@@ -86,6 +86,7 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       raw_use_counts_(arena->Adapter()),
       num_reachable_blocks_(0),
       max_num_reachable_blocks_(0),
+      dfs_orders_up_to_date_(false),
       dfs_order_(arena->Adapter(kArenaAllocDfsPreOrder)),
       dfs_post_order_(arena->Adapter(kArenaAllocDfsPostOrder)),
       dom_post_order_traversal_(arena->Adapter(kArenaAllocDomPostOrder)),
@@ -2224,7 +2225,7 @@ void BasicBlock::ResetOptimizationFlags(uint16_t reset_flags) {
   }
 }
 
-void BasicBlock::Hide(CompilationUnit* c_unit) {
+void BasicBlock::Hide(MIRGraph* mir_graph) {
   // First lets make it a dalvik bytecode block so it doesn't have any special meaning.
   block_type = kDalvikByteCode;
 
@@ -2239,7 +2240,6 @@ void BasicBlock::Hide(CompilationUnit* c_unit) {
   first_mir_insn = nullptr;
   last_mir_insn = nullptr;
 
-  MIRGraph* mir_graph = c_unit->mir_graph.get();
   for (BasicBlockId pred_id : predecessors) {
     BasicBlock* pred_bb = mir_graph->GetBasicBlock(pred_id);
     DCHECK(pred_bb != nullptr);
@@ -2260,6 +2260,48 @@ void BasicBlock::Hide(CompilationUnit* c_unit) {
   taken = NullBasicBlockId;
   fall_through = NullBasicBlockId;
   successor_block_list_type = kNotUsed;
+}
+
+/*
+ * Kill an unreachable block and all blocks that become unreachable by killing this one.
+ */
+void BasicBlock::KillUnreachable(MIRGraph* mir_graph) {
+  DCHECK(predecessors.empty());  // Unreachable.
+
+  // Mark as dead and hidden.
+  block_type = kDead;
+  hidden = true;
+
+  // Detach it from its MIRs so we don't generate code for them. Also detached MIRs
+  // are updated to know that they no longer have a parent.
+  for (MIR* mir = first_mir_insn; mir != nullptr; mir = mir->next) {
+    mir->bb = NullBasicBlockId;
+  }
+  first_mir_insn = nullptr;
+  last_mir_insn = nullptr;
+
+  data_flow_info = nullptr;
+
+  // Erase this bb from all children's predecessors and kill unreachable children.
+  ChildBlockIterator iter(this, mir_graph);
+  for (BasicBlock* succ_bb = iter.Next(); succ_bb != nullptr; succ_bb = iter.Next()) {
+    succ_bb->ErasePredecessor(id);
+    if (succ_bb->predecessors.empty()) {
+      succ_bb->KillUnreachable(mir_graph);
+    }
+  }
+
+  // Remove links to children.
+  fall_through = NullBasicBlockId;
+  taken = NullBasicBlockId;
+  successor_block_list_type = kNotUsed;
+
+  if (kIsDebugBuild) {
+    if (catch_entry) {
+      DCHECK_EQ(mir_graph->catches_.count(start_offset), 1u);
+      mir_graph->catches_.erase(start_offset);
+    }
+  }
 }
 
 bool BasicBlock::IsSSALiveOut(const CompilationUnit* c_unit, int ssa_reg) {
@@ -2333,17 +2375,34 @@ bool BasicBlock::ReplaceChild(BasicBlockId old_bb, BasicBlockId new_bb) {
 void BasicBlock::ErasePredecessor(BasicBlockId old_pred) {
   auto pos = std::find(predecessors.begin(), predecessors.end(), old_pred);
   DCHECK(pos != predecessors.end());
-  predecessors.erase(pos);
+  // It's faster to move the back() to *pos than erase(pos).
+  *pos = predecessors.back();
+  predecessors.pop_back();
+  size_t idx = std::distance(predecessors.begin(), pos);
+  for (MIR* mir = first_mir_insn; mir != nullptr; mir = mir->next) {
+    if (static_cast<int>(mir->dalvikInsn.opcode) != kMirOpPhi) {
+      break;
+    }
+    DCHECK_EQ(mir->ssa_rep->num_uses - 1u, predecessors.size());
+    DCHECK_EQ(mir->meta.phi_incoming[idx], old_pred);
+    mir->meta.phi_incoming[idx] = mir->meta.phi_incoming[predecessors.size()];
+    mir->ssa_rep->uses[idx] = mir->ssa_rep->uses[predecessors.size()];
+    mir->ssa_rep->num_uses = predecessors.size();
+  }
 }
 
 void BasicBlock::UpdatePredecessor(BasicBlockId old_pred, BasicBlockId new_pred) {
   DCHECK_NE(new_pred, NullBasicBlockId);
   auto pos = std::find(predecessors.begin(), predecessors.end(), old_pred);
-  if (pos != predecessors.end()) {
-    *pos = new_pred;
-  } else {
-    // If not found, add it.
-    predecessors.push_back(new_pred);
+  DCHECK(pos != predecessors.end());
+  *pos = new_pred;
+  size_t idx = std::distance(predecessors.begin(), pos);
+  for (MIR* mir = first_mir_insn; mir != nullptr; mir = mir->next) {
+    if (static_cast<int>(mir->dalvikInsn.opcode) != kMirOpPhi) {
+      break;
+    }
+    DCHECK_EQ(mir->meta.phi_incoming[idx], old_pred);
+    mir->meta.phi_incoming[idx] = new_pred;
   }
 }
 
