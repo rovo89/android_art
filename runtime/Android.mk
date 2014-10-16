@@ -346,6 +346,13 @@ define build-libart
   art_ndebug_or_debug := $(2)
 
   include $$(CLEAR_VARS)
+  # Clang assembler has problem with macros in asm_support_x86.S, http://b/17443165,
+  # on linux. Yet sdk on mac needs integrated assembler.
+  ifeq ($$(HOST_OS),darwin)
+    LOCAL_CLANG_ASFLAGS += -integrated-as
+  else
+    LOCAL_CLANG_ASFLAGS += -no-integrated-as
+  endif
   LOCAL_CPP_EXTENSION := $$(ART_CPP_EXTENSION)
   ifeq ($$(art_ndebug_or_debug),ndebug)
     LOCAL_MODULE := libart
