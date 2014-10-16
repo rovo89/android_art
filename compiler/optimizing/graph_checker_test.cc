@@ -51,7 +51,7 @@ static void TestCode(const uint16_t* data) {
   ASSERT_NE(graph, nullptr);
 
   GraphChecker graph_checker(&allocator, graph);
-  graph_checker.VisitInsertionOrder();
+  graph_checker.Run();
   ASSERT_TRUE(graph_checker.IsValid());
 }
 
@@ -65,7 +65,7 @@ static void TestCodeSSA(const uint16_t* data) {
   graph->TransformToSSA();
 
   SSAChecker ssa_checker(&allocator, graph);
-  ssa_checker.VisitInsertionOrder();
+  ssa_checker.Run();
   ASSERT_TRUE(ssa_checker.IsValid());
 }
 
@@ -113,13 +113,13 @@ TEST(GraphChecker, InconsistentPredecessorsAndSuccessors) {
 
   HGraph* graph = CreateSimpleCFG(&allocator);
   GraphChecker graph_checker(&allocator, graph);
-  graph_checker.VisitInsertionOrder();
+  graph_checker.Run();
   ASSERT_TRUE(graph_checker.IsValid());
 
   // Remove the entry block from the exit block's predecessors, to create an
   // inconsistent successor/predecessor relation.
   graph->GetExitBlock()->RemovePredecessor(graph->GetEntryBlock());
-  graph_checker.VisitInsertionOrder();
+  graph_checker.Run();
   ASSERT_FALSE(graph_checker.IsValid());
 }
 
@@ -131,7 +131,7 @@ TEST(GraphChecker, BlockEndingWithNonBranchInstruction) {
 
   HGraph* graph = CreateSimpleCFG(&allocator);
   GraphChecker graph_checker(&allocator, graph);
-  graph_checker.VisitInsertionOrder();
+  graph_checker.Run();
   ASSERT_TRUE(graph_checker.IsValid());
 
   // Remove the sole instruction of the exit block (composed of a
@@ -141,7 +141,7 @@ TEST(GraphChecker, BlockEndingWithNonBranchInstruction) {
   HInstruction* last_inst = exit_block->GetLastInstruction();
   exit_block->RemoveInstruction(last_inst);
 
-  graph_checker.VisitInsertionOrder();
+  graph_checker.Run();
   ASSERT_FALSE(graph_checker.IsValid());
 }
 

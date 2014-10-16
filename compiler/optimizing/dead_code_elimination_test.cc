@@ -47,7 +47,7 @@ static void TestCode(const uint16_t* data,
   ASSERT_EQ(actual_after, expected_after);
 
   SSAChecker ssa_checker(&allocator, graph);
-  ssa_checker.VisitInsertionOrder();
+  ssa_checker.Run();
   ASSERT_TRUE(ssa_checker.IsValid());
 }
 
