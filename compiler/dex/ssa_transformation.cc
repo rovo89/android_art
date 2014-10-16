@@ -66,8 +66,9 @@ void MIRGraph::MarkPreOrder(BasicBlock* block) {
 }
 
 void MIRGraph::RecordDFSOrders(BasicBlock* block) {
-  DCHECK(temp_scoped_alloc_.get() != nullptr);
-  ScopedArenaVector<BasicBlock*> succ(temp_scoped_alloc_->Adapter());
+  ScopedArenaAllocator allocator(&cu_->arena_stack);
+  ScopedArenaVector<BasicBlock*> succ(allocator.Adapter());
+  succ.reserve(GetNumBlocks());
   MarkPreOrder(block);
   succ.push_back(block);
   while (!succ.empty()) {

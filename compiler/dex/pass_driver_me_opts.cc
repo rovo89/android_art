@@ -20,6 +20,7 @@
 #include "dataflow_iterator.h"
 #include "dataflow_iterator-inl.h"
 #include "pass_driver_me_opts.h"
+#include "post_opt_passes.h"
 
 namespace art {
 
@@ -35,11 +36,13 @@ template<>
 const Pass* const PassDriver<PassDriverMEOpts>::g_passes[] = {
   GetPassInstance<CacheFieldLoweringInfo>(),
   GetPassInstance<CacheMethodLoweringInfo>(),
-  GetPassInstance<SpecialMethodInliner>(),
-  GetPassInstance<CodeLayout>(),
-  GetPassInstance<NullCheckElimination>(),
-  GetPassInstance<TypeInference>(),
+  GetPassInstance<CalculatePredecessors>(),
+  GetPassInstance<DFSOrders>(),
   GetPassInstance<ClassInitCheckElimination>(),
+  GetPassInstance<SpecialMethodInliner>(),
+  GetPassInstance<NullCheckElimination>(),
+  GetPassInstance<CodeLayout>(),
+  GetPassInstance<TypeInference>(),
   GetPassInstance<GlobalValueNumberingPass>(),
   GetPassInstance<BBCombine>(),
   GetPassInstance<BBOptimizations>(),
