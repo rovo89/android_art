@@ -30,7 +30,7 @@ namespace art {
  */
 class InitializeData : public PassME {
  public:
-  InitializeData() : PassME("InitializeData") {
+  InitializeData() : PassME("InitializeData", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const {
@@ -76,7 +76,7 @@ class ClearPhiInstructions : public PassME {
  */
 class CalculatePredecessors : public PassME {
  public:
-  CalculatePredecessors() : PassME("CalculatePredecessors") {
+  CalculatePredecessors() : PassME("CalculatePredecessors", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const;
@@ -88,7 +88,7 @@ class CalculatePredecessors : public PassME {
  */
 class DFSOrders : public PassME {
  public:
-  DFSOrders() : PassME("DFSOrders") {
+  DFSOrders() : PassME("DFSOrders", kNoNodes) {
   }
 
   bool Gate(const PassDataHolder* data) const {
@@ -112,7 +112,7 @@ class DFSOrders : public PassME {
  */
 class BuildDomination : public PassME {
  public:
-  BuildDomination() : PassME("BuildDomination") {
+  BuildDomination() : PassME("BuildDomination", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const {
@@ -140,7 +140,7 @@ class BuildDomination : public PassME {
  */
 class TopologicalSortOrders : public PassME {
  public:
-  TopologicalSortOrders() : PassME("TopologicalSortOrders") {
+  TopologicalSortOrders() : PassME("TopologicalSortOrders", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const {
@@ -157,7 +157,7 @@ class TopologicalSortOrders : public PassME {
  */
 class DefBlockMatrix : public PassME {
  public:
-  DefBlockMatrix() : PassME("DefBlockMatrix") {
+  DefBlockMatrix() : PassME("DefBlockMatrix", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const {
@@ -174,7 +174,7 @@ class DefBlockMatrix : public PassME {
  */
 class CreatePhiNodes : public PassME {
  public:
-  CreatePhiNodes() : PassME("CreatePhiNodes") {
+  CreatePhiNodes() : PassME("CreatePhiNodes", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const {
@@ -192,7 +192,7 @@ class CreatePhiNodes : public PassME {
 
 class ClearVisitedFlag : public PassME {
  public:
-  ClearVisitedFlag() : PassME("ClearVisitedFlag") {
+  ClearVisitedFlag() : PassME("ClearVisitedFlag", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const {
@@ -209,7 +209,7 @@ class ClearVisitedFlag : public PassME {
  */
 class SSAConversion : public PassME {
  public:
-  SSAConversion() : PassME("SSAConversion") {
+  SSAConversion() : PassME("SSAConversion", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const {
@@ -248,7 +248,7 @@ class PhiNodeOperands : public PassME {
  */
 class PerformInitRegLocations : public PassME {
  public:
-  PerformInitRegLocations() : PassME("PerformInitRegLocation") {
+  PerformInitRegLocations() : PassME("PerformInitRegLocation", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const {
@@ -293,7 +293,7 @@ class ConstantPropagation : public PassME {
  */
 class FreeData : public PassME {
  public:
-  FreeData() : PassME("FreeData") {
+  FreeData() : PassME("FreeData", kNoNodes) {
   }
 
   void End(PassDataHolder* data) const {
