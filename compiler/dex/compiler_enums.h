@@ -313,7 +313,8 @@ enum MIROptimizationFlagPositions {
   kMIRNullCheckOnly,
   kMIRIgnoreRangeCheck,
   kMIRRangeCheckOnly,
-  kMIRIgnoreClInitCheck,
+  kMIRClassIsInitialized,
+  kMIRClassIsInDexCache,
   kMirIgnoreDivZeroCheck,
   kMIRInlined,                        // Invoke is inlined (ie dead).
   kMIRInlinedPred,                    // Invoke is inlined via prediction.

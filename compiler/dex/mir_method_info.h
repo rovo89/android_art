@@ -123,8 +123,12 @@ class MirMethodLoweringInfo : public MirMethodInfo {
     return (flags_ & kFlagFastPath) != 0u;
   }
 
-  bool NeedsClassInitialization() const {
-    return (flags_ & kFlagNeedsClassInitialization) != 0u;
+  bool IsReferrersClass() const {
+    return (flags_ & kFlagIsReferrersClass) != 0;
+  }
+
+  bool IsClassInitialized() const {
+    return (flags_ & kFlagClassIsInitialized) != 0u;
   }
 
   InvokeType GetInvokeType() const {
@@ -162,12 +166,14 @@ class MirMethodLoweringInfo : public MirMethodInfo {
     kBitInvokeTypeEnd = kBitInvokeTypeBegin + 3,  // 3 bits for invoke type.
     kBitSharpTypeBegin,
     kBitSharpTypeEnd = kBitSharpTypeBegin + 3,  // 3 bits for sharp type.
-    kBitNeedsClassInitialization = kBitSharpTypeEnd,
-    kMethodLoweringInfoEnd
+    kBitIsReferrersClass = kBitSharpTypeEnd,
+    kBitClassIsInitialized,
+    kMethodLoweringInfoBitEnd
   };
-  COMPILE_ASSERT(kMethodLoweringInfoEnd <= 16, too_many_flags);
+  COMPILE_ASSERT(kMethodLoweringInfoBitEnd <= 16, too_many_flags);
   static constexpr uint16_t kFlagFastPath = 1u << kBitFastPath;
-  static constexpr uint16_t kFlagNeedsClassInitialization = 1u << kBitNeedsClassInitialization;
+  static constexpr uint16_t kFlagIsReferrersClass = 1u << kBitIsReferrersClass;
+  static constexpr uint16_t kFlagClassIsInitialized = 1u << kBitClassIsInitialized;
   static constexpr uint16_t kInvokeTypeMask = 7u;
   COMPILE_ASSERT((1u << (kBitInvokeTypeEnd - kBitInvokeTypeBegin)) - 1u == kInvokeTypeMask,
                  assert_invoke_type_bits_ok);
@@ -185,7 +191,7 @@ class MirMethodLoweringInfo : public MirMethodInfo {
   uint16_t vtable_idx_;
   int stats_flags_;
 
-  friend class ClassInitCheckEliminationTest;
+  friend class MirOptimizationTest;
 };
 
 }  // namespace art

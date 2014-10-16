@@ -114,7 +114,8 @@ class LocalValueNumberingTest : public testing::Test {
       MirSFieldLoweringInfo field_info(def->field_idx);
       // Mark even unresolved fields as initialized.
       field_info.flags_ = MirSFieldLoweringInfo::kFlagIsStatic |
-          MirSFieldLoweringInfo::kFlagIsInitialized;
+          MirSFieldLoweringInfo::kFlagClassIsInitialized;
+      // NOTE: MirSFieldLoweringInfo::kFlagClassIsInDexCache isn't used by LVN.
       if (def->declaring_dex_file != 0u) {
         field_info.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
         field_info.declaring_field_idx_ = def->declaring_field_idx;
@@ -172,7 +173,7 @@ class LocalValueNumberingTest : public testing::Test {
   void MakeSFieldUninitialized(uint32_t sfield_index) {
     CHECK_LT(sfield_index, cu_.mir_graph->sfield_lowering_infos_.size());
     cu_.mir_graph->sfield_lowering_infos_[sfield_index].flags_ &=
-        ~MirSFieldLoweringInfo::kFlagIsInitialized;
+        ~MirSFieldLoweringInfo::kFlagClassIsInitialized;
   }
 
   void PerformLVN() {

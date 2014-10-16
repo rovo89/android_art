@@ -36,10 +36,21 @@ class MirOptimizationTest : public testing::Test {
     BasicBlockId predecessors[kMaxPredecessors];
   };
 
+  struct MethodDef {
+    uint16_t method_idx;
+    uintptr_t declaring_dex_file;
+    uint16_t declaring_class_idx;
+    uint16_t declaring_method_idx;
+    InvokeType invoke_type;
+    InvokeType sharp_type;
+    bool is_referrers_class;
+    bool is_initialized;
+  };
+
   struct MIRDef {
     BasicBlockId bbid;
     Instruction::Code opcode;
-    uint32_t field_info;
+    uint32_t field_or_method_info;
     uint32_t vA;
     uint32_t vB;
     uint32_t vC;
@@ -67,6 +78,19 @@ class MirOptimizationTest : public testing::Test {
     4u, { p1, p2, p3, p4 }
 #define DEF_BB(type, succ, pred) \
     { type, succ, pred }
+
+#define DEF_SGET_SPUT(bb, opcode, vA, field_info) \
+    { bb, opcode, field_info, vA, 0u, 0u }
+#define DEF_IGET_IPUT(bb, opcode, vA, vB, field_info) \
+    { bb, opcode, field_info, vA, vB, 0u }
+#define DEF_AGET_APUT(bb, opcode, vA, vB, vC) \
+    { bb, opcode, 0u, vA, vB, vC }
+#define DEF_INVOKE(bb, opcode, vC, method_info) \
+    { bb, opcode, method_info, 0u, 0u, vC }
+#define DEF_OTHER1(bb, opcode, vA) \
+    { bb, opcode, 0u, vA, 0u, 0u }
+#define DEF_OTHER2(bb, opcode, vA, vB) \
+    { bb, opcode, 0u, vA, vB, 0u }
 
   void DoPrepareBasicBlocks(const BBDef* defs, size_t count) {
     cu_.mir_graph->block_id_map_.clear();
@@ -172,6 +196,35 @@ class MirOptimizationTest : public testing::Test {
     check_bb->successor_blocks.push_back(successor_block_info);
   }
 
+  void DoPrepareMethods(const MethodDef* defs, size_t count) {
+    cu_.mir_graph->method_lowering_infos_.clear();
+    cu_.mir_graph->method_lowering_infos_.reserve(count);
+    for (size_t i = 0u; i != count; ++i) {
+      const MethodDef* def = &defs[i];
+      MirMethodLoweringInfo method_info(def->method_idx, def->invoke_type);
+      if (def->declaring_dex_file != 0u) {
+        method_info.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
+        method_info.declaring_class_idx_ = def->declaring_class_idx;
+        method_info.declaring_method_idx_ = def->declaring_method_idx;
+      }
+      ASSERT_EQ(def->invoke_type != kStatic, def->sharp_type != kStatic);
+      method_info.flags_ =
+          ((def->invoke_type == kStatic) ? MirMethodLoweringInfo::kFlagIsStatic : 0u) |
+          MirMethodLoweringInfo::kFlagFastPath |
+          (static_cast<uint16_t>(def->invoke_type) << MirMethodLoweringInfo::kBitInvokeTypeBegin) |
+          (static_cast<uint16_t>(def->sharp_type) << MirMethodLoweringInfo::kBitSharpTypeBegin) |
+          ((def->is_referrers_class) ? MirMethodLoweringInfo::kFlagIsReferrersClass : 0u) |
+          ((def->is_initialized == kStatic) ? MirMethodLoweringInfo::kFlagClassIsInitialized : 0u);
+      ASSERT_EQ(def->declaring_dex_file != 0u, method_info.IsResolved());
+      cu_.mir_graph->method_lowering_infos_.push_back(method_info);
+    }
+  }
+
+  template <size_t count>
+  void PrepareMethods(const MethodDef (&defs)[count]) {
+    DoPrepareMethods(defs, count);
+  }
+
   void DoPrepareMIRs(const MIRDef* defs, size_t count) {
     mir_count_ = count;
     mirs_ = reinterpret_cast<MIR*>(cu_.arena.Alloc(sizeof(MIR) * count, kArenaAllocMIR));
@@ -184,11 +237,16 @@ class MirOptimizationTest : public testing::Test {
       BasicBlock* bb = cu_.mir_graph->block_list_[def->bbid];
       bb->AppendMIR(mir);
       if (def->opcode >= Instruction::SGET && def->opcode <= Instruction::SPUT_SHORT) {
-        ASSERT_LT(def->field_info, cu_.mir_graph->sfield_lowering_infos_.size());
-        mir->meta.sfield_lowering_info = def->field_info;
+        ASSERT_LT(def->field_or_method_info, cu_.mir_graph->sfield_lowering_infos_.size());
+        mir->meta.sfield_lowering_info = def->field_or_method_info;
       } else if (def->opcode >= Instruction::IGET && def->opcode <= Instruction::IPUT_SHORT) {
-        ASSERT_LT(def->field_info, cu_.mir_graph->ifield_lowering_infos_.size());
-        mir->meta.ifield_lowering_info = def->field_info;
+        ASSERT_LT(def->field_or_method_info, cu_.mir_graph->ifield_lowering_infos_.size());
+        mir->meta.ifield_lowering_info = def->field_or_method_info;
+      } else if (def->opcode >= Instruction::INVOKE_VIRTUAL &&
+          def->opcode < Instruction::INVOKE_INTERFACE_RANGE &&
+          def->opcode != Instruction::RETURN_VOID_BARRIER) {
+        ASSERT_LT(def->field_or_method_info, cu_.mir_graph->method_lowering_infos_.size());
+        mir->meta.method_lowering_info = def->field_or_method_info;
       }
       mir->dalvikInsn.vA = def->vA;
       mir->dalvikInsn.vB = def->vB;
@@ -251,7 +309,7 @@ class ClassInitCheckEliminationTest : public MirOptimizationTest {
         field_info.flags_ = MirSFieldLoweringInfo::kFlagIsStatic;
       }
       ASSERT_EQ(def->declaring_dex_file != 0u, field_info.IsResolved());
-      ASSERT_FALSE(field_info.IsInitialized());
+      ASSERT_FALSE(field_info.IsClassInitialized());
       cu_.mir_graph->sfield_lowering_infos_.push_back(field_info);
     }
   }
@@ -326,11 +384,12 @@ class NullCheckEliminationTest : public MirOptimizationTest {
 
   NullCheckEliminationTest()
       : MirOptimizationTest() {
+    static const MethodDef methods[] = {
+        { 0u, 1u, 0u, 0u, kDirect, kDirect, false, false },  // Dummy.
+    };
+    PrepareMethods(methods);
   }
 };
-
-#define DEF_SGET_SPUT_V0(bb, opcode, field_info) \
-    { bb, opcode, field_info, 0u, 0u, 0u }
 
 TEST_F(ClassInitCheckEliminationTest, SingleBlock) {
   static const SFieldDef sfields[] = {
@@ -342,17 +401,17 @@ TEST_F(ClassInitCheckEliminationTest, SingleBlock) {
       { 5u, 0u, 0u, 0u },  // Unresolved.
   };
   static const MIRDef mirs[] = {
-      DEF_SGET_SPUT_V0(3u, Instruction::SPUT, 5u),  // Unresolved.
-      DEF_SGET_SPUT_V0(3u, Instruction::SPUT, 0u),
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 1u),
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 2u),
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 5u),  // Unresolved.
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 0u),
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 1u),
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 2u),
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 5u),  // Unresolved.
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 3u),
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 4u),
+      DEF_SGET_SPUT(3u, Instruction::SPUT, 0u, 5u),  // Unresolved.
+      DEF_SGET_SPUT(3u, Instruction::SPUT, 0u, 0u),
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 1u),
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 2u),
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 5u),  // Unresolved.
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 0u),
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 1u),
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 2u),
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 5u),  // Unresolved.
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 3u),
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 4u),
   };
   static const bool expected_ignore_clinit_check[] = {
       false, false, false, false, true, true, true, true, true, false, true
@@ -365,7 +424,50 @@ TEST_F(ClassInitCheckEliminationTest, SingleBlock) {
   ASSERT_EQ(arraysize(expected_ignore_clinit_check), mir_count_);
   for (size_t i = 0u; i != arraysize(mirs); ++i) {
     EXPECT_EQ(expected_ignore_clinit_check[i],
-              (mirs_[i].optimization_flags & MIR_IGNORE_CLINIT_CHECK) != 0) << i;
+              (mirs_[i].optimization_flags & MIR_CLASS_IS_INITIALIZED) != 0) << i;
+    EXPECT_EQ(expected_ignore_clinit_check[i],
+              (mirs_[i].optimization_flags & MIR_CLASS_IS_IN_DEX_CACHE) != 0) << i;
+  }
+}
+
+TEST_F(ClassInitCheckEliminationTest, SingleBlockWithInvokes) {
+  static const SFieldDef sfields[] = {
+      { 0u, 1u, 0u, 0u },
+      { 1u, 1u, 1u, 1u },
+      { 2u, 1u, 2u, 2u },
+  };
+  static const MethodDef methods[] = {
+      { 0u, 1u, 0u, 0u, kStatic, kStatic, false, false },
+      { 1u, 1u, 1u, 1u, kStatic, kStatic, false, false },
+      { 2u, 1u, 2u, 2u, kStatic, kStatic, false, false },
+  };
+  static const MIRDef mirs[] = {
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 0u),
+      DEF_INVOKE(3u, Instruction::INVOKE_STATIC, 0u /* dummy */, 0u),
+      DEF_INVOKE(3u, Instruction::INVOKE_STATIC, 0u /* dummy */, 1u),
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 1u),
+      DEF_INVOKE(3u, Instruction::INVOKE_STATIC, 0u /* dummy */, 2u),
+      DEF_INVOKE(3u, Instruction::INVOKE_STATIC, 0u /* dummy */, 2u),
+  };
+  static const bool expected_class_initialized[] = {
+      false, true, false, true, false, true
+  };
+  static const bool expected_class_in_dex_cache[] = {
+      false, false, false, false, false, false
+  };
+
+  PrepareSFields(sfields);
+  PrepareMethods(methods);
+  PrepareSingleBlock();
+  PrepareMIRs(mirs);
+  PerformClassInitCheckElimination();
+  ASSERT_EQ(arraysize(expected_class_initialized), mir_count_);
+  ASSERT_EQ(arraysize(expected_class_in_dex_cache), mir_count_);
+  for (size_t i = 0u; i != arraysize(mirs); ++i) {
+    EXPECT_EQ(expected_class_initialized[i],
+              (mirs_[i].optimization_flags & MIR_CLASS_IS_INITIALIZED) != 0) << i;
+    EXPECT_EQ(expected_class_in_dex_cache[i],
+              (mirs_[i].optimization_flags & MIR_CLASS_IS_IN_DEX_CACHE) != 0) << i;
   }
 }
 
@@ -385,32 +487,32 @@ TEST_F(ClassInitCheckEliminationTest, Diamond) {
   };
   static const MIRDef mirs[] = {
       // NOTE: MIRs here are ordered by unique tests. They will be put into appropriate blocks.
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 10u),  // Unresolved.
-      DEF_SGET_SPUT_V0(3u, Instruction::SPUT, 10u),  // Unresolved.
-      DEF_SGET_SPUT_V0(3u, Instruction::SPUT, 0u),
-      DEF_SGET_SPUT_V0(6u, Instruction::SGET, 0u),  // Eliminated (BB #3 dominates #6).
-      DEF_SGET_SPUT_V0(4u, Instruction::SPUT, 1u),
-      DEF_SGET_SPUT_V0(6u, Instruction::SGET, 1u),  // Not eliminated (BB #4 doesn't dominate #6).
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 2u),
-      DEF_SGET_SPUT_V0(4u, Instruction::SGET, 2u),  // Eliminated (BB #3 dominates #4).
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 3u),
-      DEF_SGET_SPUT_V0(5u, Instruction::SGET, 3u),  // Eliminated (BB #3 dominates #5).
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 4u),
-      DEF_SGET_SPUT_V0(6u, Instruction::SGET, 4u),  // Eliminated (BB #3 dominates #6).
-      DEF_SGET_SPUT_V0(4u, Instruction::SGET, 5u),
-      DEF_SGET_SPUT_V0(6u, Instruction::SGET, 5u),  // Not eliminated (BB #4 doesn't dominate #6).
-      DEF_SGET_SPUT_V0(5u, Instruction::SGET, 6u),
-      DEF_SGET_SPUT_V0(6u, Instruction::SGET, 6u),  // Not eliminated (BB #5 doesn't dominate #6).
-      DEF_SGET_SPUT_V0(4u, Instruction::SGET, 7u),
-      DEF_SGET_SPUT_V0(5u, Instruction::SGET, 7u),
-      DEF_SGET_SPUT_V0(6u, Instruction::SGET, 7u),  // Eliminated (initialized in both #3 and #4).
-      DEF_SGET_SPUT_V0(4u, Instruction::SGET, 8u),
-      DEF_SGET_SPUT_V0(5u, Instruction::SGET, 9u),
-      DEF_SGET_SPUT_V0(6u, Instruction::SGET, 8u),  // Eliminated (with sfield[9] in BB #5).
-      DEF_SGET_SPUT_V0(6u, Instruction::SPUT, 9u),  // Eliminated (with sfield[8] in BB #4).
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 10u),  // Unresolved.
+      DEF_SGET_SPUT(3u, Instruction::SPUT, 0u, 10u),  // Unresolved.
+      DEF_SGET_SPUT(3u, Instruction::SPUT, 0u, 0u),
+      DEF_SGET_SPUT(6u, Instruction::SGET, 0u, 0u),  // Eliminated (BB #3 dominates #6).
+      DEF_SGET_SPUT(4u, Instruction::SPUT, 0u, 1u),
+      DEF_SGET_SPUT(6u, Instruction::SGET, 0u, 1u),  // Not eliminated (BB #4 doesn't dominate #6).
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 2u),
+      DEF_SGET_SPUT(4u, Instruction::SGET, 0u, 2u),  // Eliminated (BB #3 dominates #4).
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 3u),
+      DEF_SGET_SPUT(5u, Instruction::SGET, 0u, 3u),  // Eliminated (BB #3 dominates #5).
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 4u),
+      DEF_SGET_SPUT(6u, Instruction::SGET, 0u, 4u),  // Eliminated (BB #3 dominates #6).
+      DEF_SGET_SPUT(4u, Instruction::SGET, 0u, 5u),
+      DEF_SGET_SPUT(6u, Instruction::SGET, 0u, 5u),  // Not eliminated (BB #4 doesn't dominate #6).
+      DEF_SGET_SPUT(5u, Instruction::SGET, 0u, 6u),
+      DEF_SGET_SPUT(6u, Instruction::SGET, 0u, 6u),  // Not eliminated (BB #5 doesn't dominate #6).
+      DEF_SGET_SPUT(4u, Instruction::SGET, 0u, 7u),
+      DEF_SGET_SPUT(5u, Instruction::SGET, 0u, 7u),
+      DEF_SGET_SPUT(6u, Instruction::SGET, 0u, 7u),  // Eliminated (initialized in both #3 and #4).
+      DEF_SGET_SPUT(4u, Instruction::SGET, 0u, 8u),
+      DEF_SGET_SPUT(5u, Instruction::SGET, 0u, 9u),
+      DEF_SGET_SPUT(6u, Instruction::SGET, 0u, 8u),  // Eliminated (with sfield[9] in BB #5).
+      DEF_SGET_SPUT(6u, Instruction::SPUT, 0u, 9u),  // Eliminated (with sfield[8] in BB #4).
   };
   static const bool expected_ignore_clinit_check[] = {
-      false, true,          // Unresolved: sfield[10], method[2]
+      false, true,          // Unresolved: sfield[10]
       false, true,          // sfield[0]
       false, false,         // sfield[1]
       false, true,          // sfield[2]
@@ -429,7 +531,70 @@ TEST_F(ClassInitCheckEliminationTest, Diamond) {
   ASSERT_EQ(arraysize(expected_ignore_clinit_check), mir_count_);
   for (size_t i = 0u; i != arraysize(mirs); ++i) {
     EXPECT_EQ(expected_ignore_clinit_check[i],
-              (mirs_[i].optimization_flags & MIR_IGNORE_CLINIT_CHECK) != 0) << i;
+              (mirs_[i].optimization_flags & MIR_CLASS_IS_INITIALIZED) != 0) << i;
+    EXPECT_EQ(expected_ignore_clinit_check[i],
+              (mirs_[i].optimization_flags & MIR_CLASS_IS_IN_DEX_CACHE) != 0) << i;
+  }
+}
+
+TEST_F(ClassInitCheckEliminationTest, DiamondWithInvokes) {
+  static const SFieldDef sfields[] = {
+      { 0u, 1u, 0u, 0u },
+      { 1u, 1u, 1u, 1u },
+      { 2u, 1u, 2u, 2u },
+      { 3u, 1u, 3u, 3u },
+      { 4u, 1u, 4u, 4u },
+  };
+  static const MethodDef methods[] = {
+      { 0u, 1u, 0u, 0u, kStatic, kStatic, false, false },
+      { 1u, 1u, 1u, 1u, kStatic, kStatic, false, false },
+      { 2u, 1u, 2u, 2u, kStatic, kStatic, false, false },
+      { 3u, 1u, 3u, 3u, kStatic, kStatic, false, false },
+      { 4u, 1u, 4u, 4u, kStatic, kStatic, false, false },
+  };
+  static const MIRDef mirs[] = {
+      // NOTE: MIRs here are ordered by unique tests. They will be put into appropriate blocks.
+      DEF_SGET_SPUT(3u, Instruction::SPUT, 0u, 0u),
+      DEF_INVOKE(6u, Instruction::INVOKE_STATIC, 0u /* dummy */, 0u),
+      DEF_INVOKE(3u, Instruction::INVOKE_STATIC, 0u /* dummy */, 1u),
+      DEF_SGET_SPUT(6u, Instruction::SPUT, 0u, 1u),
+      DEF_SGET_SPUT(4u, Instruction::SGET, 0u, 2u),
+      DEF_INVOKE(5u, Instruction::INVOKE_STATIC, 0u /* dummy */, 2u),
+      DEF_SGET_SPUT(6u, Instruction::SPUT, 0u, 2u),
+      DEF_INVOKE(4u, Instruction::INVOKE_STATIC, 0u /* dummy */, 3u),
+      DEF_SGET_SPUT(5u, Instruction::SPUT, 0u, 3u),
+      DEF_SGET_SPUT(6u, Instruction::SGET, 0u, 3u),
+      DEF_SGET_SPUT(4u, Instruction::SPUT, 0u, 4u),
+      DEF_SGET_SPUT(5u, Instruction::SGET, 0u, 4u),
+      DEF_INVOKE(6u, Instruction::INVOKE_STATIC, 0u /* dummy */, 4u),
+  };
+  static const bool expected_class_initialized[] = {
+      false, true,    // BB #3 SPUT, BB#6 INVOKE_STATIC
+      false, true,    // BB #3 INVOKE_STATIC, BB#6 SPUT
+      false, false, true,   // BB #4 SGET, BB #5 INVOKE_STATIC, BB #6 SPUT
+      false, false, true,   // BB #4 INVOKE_STATIC, BB #5 SPUT, BB #6 SGET
+      false, false, true,   // BB #4 SPUT, BB #5 SGET, BB #6 INVOKE_STATIC
+  };
+  static const bool expected_class_in_dex_cache[] = {
+      false, false,   // BB #3 SPUT, BB#6 INVOKE_STATIC
+      false, false,   // BB #3 INVOKE_STATIC, BB#6 SPUT
+      false, false, false,  // BB #4 SGET, BB #5 INVOKE_STATIC, BB #6 SPUT
+      false, false, false,  // BB #4 INVOKE_STATIC, BB #5 SPUT, BB #6 SGET
+      false, false, false,  // BB #4 SPUT, BB #5 SGET, BB #6 INVOKE_STATIC
+  };
+
+  PrepareSFields(sfields);
+  PrepareMethods(methods);
+  PrepareDiamond();
+  PrepareMIRs(mirs);
+  PerformClassInitCheckElimination();
+  ASSERT_EQ(arraysize(expected_class_initialized), mir_count_);
+  ASSERT_EQ(arraysize(expected_class_in_dex_cache), mir_count_);
+  for (size_t i = 0u; i != arraysize(mirs); ++i) {
+    EXPECT_EQ(expected_class_initialized[i],
+              (mirs_[i].optimization_flags & MIR_CLASS_IS_INITIALIZED) != 0) << i;
+    EXPECT_EQ(expected_class_in_dex_cache[i],
+              (mirs_[i].optimization_flags & MIR_CLASS_IS_IN_DEX_CACHE) != 0) << i;
   }
 }
 
@@ -437,15 +602,18 @@ TEST_F(ClassInitCheckEliminationTest, Loop) {
   static const SFieldDef sfields[] = {
       { 0u, 1u, 0u, 0u },
       { 1u, 1u, 1u, 1u },
+      { 2u, 1u, 2u, 2u },
   };
   static const MIRDef mirs[] = {
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 0u),
-      DEF_SGET_SPUT_V0(4u, Instruction::SGET, 1u),
-      DEF_SGET_SPUT_V0(5u, Instruction::SGET, 0u),  // Eliminated.
-      DEF_SGET_SPUT_V0(5u, Instruction::SGET, 1u),  // Eliminated.
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 0u),
+      DEF_SGET_SPUT(4u, Instruction::SGET, 0u, 0u),  // Eliminated.
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 1u),
+      DEF_SGET_SPUT(5u, Instruction::SGET, 0u, 1u),  // Eliminated.
+      DEF_SGET_SPUT(4u, Instruction::SGET, 0u, 2u),
+      DEF_SGET_SPUT(5u, Instruction::SGET, 0u, 2u),  // Eliminated.
   };
   static const bool expected_ignore_clinit_check[] = {
-      false, false, true, true
+      false, true, false, true, false, true,
   };
 
   PrepareSFields(sfields);
@@ -455,7 +623,49 @@ TEST_F(ClassInitCheckEliminationTest, Loop) {
   ASSERT_EQ(arraysize(expected_ignore_clinit_check), mir_count_);
   for (size_t i = 0u; i != arraysize(mirs); ++i) {
     EXPECT_EQ(expected_ignore_clinit_check[i],
-              (mirs_[i].optimization_flags & MIR_IGNORE_CLINIT_CHECK) != 0) << i;
+              (mirs_[i].optimization_flags & MIR_CLASS_IS_INITIALIZED) != 0) << i;
+    EXPECT_EQ(expected_ignore_clinit_check[i],
+              (mirs_[i].optimization_flags & MIR_CLASS_IS_IN_DEX_CACHE) != 0) << i;
+  }
+}
+
+TEST_F(ClassInitCheckEliminationTest, LoopWithInvokes) {
+  static const SFieldDef sfields[] = {
+      { 0u, 1u, 0u, 0u },
+  };
+  static const MethodDef methods[] = {
+      { 0u, 1u, 0u, 0u, kStatic, kStatic, false, false },
+      { 1u, 1u, 1u, 1u, kStatic, kStatic, false, false },
+      { 2u, 1u, 2u, 2u, kStatic, kStatic, false, false },
+  };
+  static const MIRDef mirs[] = {
+      DEF_INVOKE(3u, Instruction::INVOKE_STATIC, 0u /* dummy */, 0u),
+      DEF_INVOKE(4u, Instruction::INVOKE_STATIC, 0u /* dummy */, 0u),
+      DEF_INVOKE(3u, Instruction::INVOKE_STATIC, 0u /* dummy */, 1u),
+      DEF_INVOKE(5u, Instruction::INVOKE_STATIC, 0u /* dummy */, 1u),
+      DEF_INVOKE(4u, Instruction::INVOKE_STATIC, 0u /* dummy */, 2u),
+      DEF_INVOKE(5u, Instruction::INVOKE_STATIC, 0u /* dummy */, 2u),
+      DEF_SGET_SPUT(5u, Instruction::SGET, 0u, 0u),
+  };
+  static const bool expected_class_initialized[] = {
+      false, true, false, true, false, true, true,
+  };
+  static const bool expected_class_in_dex_cache[] = {
+      false, false, false, false, false, false, false,
+  };
+
+  PrepareSFields(sfields);
+  PrepareMethods(methods);
+  PrepareLoop();
+  PrepareMIRs(mirs);
+  PerformClassInitCheckElimination();
+  ASSERT_EQ(arraysize(expected_class_initialized), mir_count_);
+  ASSERT_EQ(arraysize(expected_class_in_dex_cache), mir_count_);
+  for (size_t i = 0u; i != arraysize(mirs); ++i) {
+    EXPECT_EQ(expected_class_initialized[i],
+              (mirs_[i].optimization_flags & MIR_CLASS_IS_INITIALIZED) != 0) << i;
+    EXPECT_EQ(expected_class_in_dex_cache[i],
+              (mirs_[i].optimization_flags & MIR_CLASS_IS_IN_DEX_CACHE) != 0) << i;
   }
 }
 
@@ -467,16 +677,16 @@ TEST_F(ClassInitCheckEliminationTest, Catch) {
       { 3u, 1u, 3u, 3u },
   };
   static const MIRDef mirs[] = {
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 0u),  // Before the exception edge.
-      DEF_SGET_SPUT_V0(3u, Instruction::SGET, 1u),  // Before the exception edge.
-      DEF_SGET_SPUT_V0(4u, Instruction::SGET, 2u),  // After the exception edge.
-      DEF_SGET_SPUT_V0(4u, Instruction::SGET, 3u),  // After the exception edge.
-      DEF_SGET_SPUT_V0(5u, Instruction::SGET, 0u),  // In catch handler; clinit check eliminated.
-      DEF_SGET_SPUT_V0(5u, Instruction::SGET, 2u),  // In catch handler; clinit check not eliminated.
-      DEF_SGET_SPUT_V0(6u, Instruction::SGET, 0u),  // Class init check eliminated.
-      DEF_SGET_SPUT_V0(6u, Instruction::SGET, 1u),  // Class init check eliminated.
-      DEF_SGET_SPUT_V0(6u, Instruction::SGET, 2u),  // Class init check eliminated.
-      DEF_SGET_SPUT_V0(6u, Instruction::SGET, 3u),  // Class init check not eliminated.
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 0u),  // Before the exception edge.
+      DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 1u),  // Before the exception edge.
+      DEF_SGET_SPUT(4u, Instruction::SGET, 0u, 2u),  // After the exception edge.
+      DEF_SGET_SPUT(4u, Instruction::SGET, 0u, 3u),  // After the exception edge.
+      DEF_SGET_SPUT(5u, Instruction::SGET, 0u, 0u),  // In catch handler; eliminated.
+      DEF_SGET_SPUT(5u, Instruction::SGET, 0u, 2u),  // In catch handler; not eliminated.
+      DEF_SGET_SPUT(6u, Instruction::SGET, 0u, 0u),  // Class init check eliminated.
+      DEF_SGET_SPUT(6u, Instruction::SGET, 0u, 1u),  // Class init check eliminated.
+      DEF_SGET_SPUT(6u, Instruction::SGET, 0u, 2u),  // Class init check eliminated.
+      DEF_SGET_SPUT(6u, Instruction::SGET, 0u, 3u),  // Class init check not eliminated.
   };
   static const bool expected_ignore_clinit_check[] = {
       false, false, false, false, true, false, true, true, true, false
@@ -489,20 +699,11 @@ TEST_F(ClassInitCheckEliminationTest, Catch) {
   ASSERT_EQ(arraysize(expected_ignore_clinit_check), mir_count_);
   for (size_t i = 0u; i != arraysize(mirs); ++i) {
     EXPECT_EQ(expected_ignore_clinit_check[i],
-              (mirs_[i].optimization_flags & MIR_IGNORE_CLINIT_CHECK) != 0) << i;
+              (mirs_[i].optimization_flags & MIR_CLASS_IS_INITIALIZED) != 0) << i;
+    EXPECT_EQ(expected_ignore_clinit_check[i],
+              (mirs_[i].optimization_flags & MIR_CLASS_IS_IN_DEX_CACHE) != 0) << i;
   }
 }
-
-#define DEF_IGET_IPUT(bb, opcode, vA, vB, field_info) \
-    { bb, opcode, field_info, vA, vB, 0u }
-#define DEF_AGET_APUT(bb, opcode, vA, vB, vC) \
-    { bb, opcode, 0u, vA, vB, vC }
-#define DEF_INVOKE(bb, opcode, vC) \
-    { bb, opcode, 0u, 0u, 0u, vC }
-#define DEF_OTHER1(bb, opcode, vA) \
-    { bb, opcode, 0u, vA, 0u, 0u }
-#define DEF_OTHER2(bb, opcode, vA, vB) \
-    { bb, opcode, 0u, vA, vB, 0u }
 
 TEST_F(NullCheckEliminationTest, SingleBlock) {
   static const IFieldDef ifields[] = {
@@ -525,10 +726,10 @@ TEST_F(NullCheckEliminationTest, SingleBlock) {
       DEF_IGET_IPUT(3u, Instruction::IPUT, 11u, 105u, 1u),
       DEF_IGET_IPUT(3u, Instruction::IPUT, 12u, 106u, 0u),
       DEF_IGET_IPUT(3u, Instruction::IGET, 13u, 106u, 1u),
-      DEF_INVOKE(3u, Instruction::INVOKE_DIRECT, 107),
+      DEF_INVOKE(3u, Instruction::INVOKE_DIRECT, 107, 0u /* dummy */),
       DEF_IGET_IPUT(3u, Instruction::IGET, 15u, 107u, 1u),
       DEF_IGET_IPUT(3u, Instruction::IGET, 16u, 108u, 0u),
-      DEF_INVOKE(3u, Instruction::INVOKE_DIRECT, 108),
+      DEF_INVOKE(3u, Instruction::INVOKE_DIRECT, 108, 0u /* dummy */),
       DEF_AGET_APUT(3u, Instruction::AGET, 18u, 109u, 110u),
       DEF_AGET_APUT(3u, Instruction::APUT, 19u, 109u, 111u),
       DEF_OTHER2(3u, Instruction::ARRAY_LENGTH, 20u, 112u),
@@ -583,7 +784,7 @@ TEST_F(NullCheckEliminationTest, Diamond) {
       DEF_IGET_IPUT(6u, Instruction::IPUT, 7u, 103u, 1u),  // Not eliminated (going through BB #5).
       DEF_IGET_IPUT(5u, Instruction::IGET, 8u, 104u, 1u),
       DEF_IGET_IPUT(6u, Instruction::IGET, 9u, 104u, 0u),  // Not eliminated (going through BB #4).
-      DEF_INVOKE(4u, Instruction::INVOKE_DIRECT, 105u),
+      DEF_INVOKE(4u, Instruction::INVOKE_DIRECT, 105u, 0u /* dummy */),
       DEF_IGET_IPUT(5u, Instruction::IGET, 11u, 105u, 1u),
       DEF_IGET_IPUT(6u, Instruction::IPUT, 12u, 105u, 0u),  // Eliminated.
       DEF_IGET_IPUT(3u, Instruction::IGET_OBJECT, 13u, 106u, 2u),
