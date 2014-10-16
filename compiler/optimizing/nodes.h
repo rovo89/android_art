@@ -650,6 +650,7 @@ class HInstruction : public ArenaObject {
 
   virtual bool NeedsEnvironment() const { return false; }
   virtual bool IsControlFlow() const { return false; }
+  virtual bool CanThrow() const { return false; }
   bool HasSideEffects() const { return side_effects_.HasSideEffects(); }
 
   void AddUseAt(HInstruction* user, size_t index) {
@@ -1642,6 +1643,8 @@ class HNullCheck : public HExpression<1> {
 
   virtual bool NeedsEnvironment() const { return true; }
 
+  virtual bool CanThrow() const { return true; }
+
   uint32_t GetDexPc() const { return dex_pc_; }
 
   DECLARE_INSTRUCTION(NullCheck);
@@ -1801,6 +1804,8 @@ class HBoundsCheck : public HExpression<2> {
   virtual bool InstructionDataEquals(HInstruction* other) const { return true; }
 
   virtual bool NeedsEnvironment() const { return true; }
+
+  virtual bool CanThrow() const { return true; }
 
   uint32_t GetDexPc() const { return dex_pc_; }
 
