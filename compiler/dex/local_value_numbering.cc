@@ -1448,6 +1448,10 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
       }
       break;
 
+    case kMirOpNullCheck:
+      HandleNullCheck(mir, GetOperandValue(mir->ssa_rep->uses[0]));
+      break;
+
     case Instruction::INVOKE_DIRECT:
     case Instruction::INVOKE_DIRECT_RANGE:
     case Instruction::INVOKE_VIRTUAL:
