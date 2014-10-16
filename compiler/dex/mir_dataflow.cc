@@ -1403,7 +1403,7 @@ bool MIRGraph::VerifyPredInfo(BasicBlock* bb) {
       GetBlockName(bb, block_name1);
       GetBlockName(pred_bb, block_name2);
       DumpCFG("/sdcard/cfg/", false);
-      LOG(FATAL) << "Successor " << block_name1 << "not found from "
+      LOG(FATAL) << "Successor " << block_name1 << " not found from "
                  << block_name2;
     }
   }
