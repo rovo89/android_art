@@ -35,7 +35,10 @@ void DeadCodeElimination::Run() {
     for (i.Advance(); !i.Done(); i.Advance()) {
       HInstruction* inst = i.Current();
       DCHECK(!inst->IsControlFlow());
-      if (!inst->HasSideEffects() && !inst->HasUses() && !inst->IsSuspendCheck()) {
+      if (!inst->HasSideEffects()
+          && !inst->CanThrow()
+          && !inst->IsSuspendCheck()
+          && !inst->HasUses()) {
         block->RemoveInstruction(inst);
       }
     }
