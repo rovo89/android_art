@@ -24,13 +24,13 @@
 #include "memory_region.h"
 #include "nodes.h"
 #include "stack_map_stream.h"
-#include "utils/assembler.h"
 
 namespace art {
 
 static size_t constexpr kVRegSize = 4;
 static size_t constexpr kUninitializedFrameSize = 0;
 
+class Assembler;
 class CodeGenerator;
 class DexCompilationUnit;
 class SrcMap;
@@ -53,18 +53,12 @@ struct PcInfo {
 
 class SlowPathCode : public ArenaObject {
  public:
-  SlowPathCode() : entry_label_(), exit_label_() {}
+  SlowPathCode() {}
   virtual ~SlowPathCode() {}
-
-  Label* GetEntryLabel() { return &entry_label_; }
-  Label* GetExitLabel() { return &exit_label_; }
 
   virtual void EmitNativeCode(CodeGenerator* codegen) = 0;
 
  private:
-  Label entry_label_;
-  Label exit_label_;
-
   DISALLOW_COPY_AND_ASSIGN(SlowPathCode);
 };
 
@@ -80,7 +74,6 @@ class CodeGenerator : public ArenaObject {
 
   HGraph* GetGraph() const { return graph_; }
 
-  Label* GetLabelOf(HBasicBlock* block) const;
   bool GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) const;
 
   size_t GetStackSlotOfParameter(HParameterValue* parameter) const {
@@ -90,9 +83,10 @@ class CodeGenerator : public ArenaObject {
         + parameter->GetIndex() * kVRegSize;
   }
 
+  virtual void Initialize() = 0;
   virtual void GenerateFrameEntry() = 0;
   virtual void GenerateFrameExit() = 0;
-  virtual void Bind(Label* label) = 0;
+  virtual void Bind(HBasicBlock* block) = 0;
   virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) = 0;
   virtual HGraphVisitor* GetLocationBuilder() = 0;
   virtual HGraphVisitor* GetInstructionVisitor() = 0;
@@ -167,7 +161,6 @@ class CodeGenerator : public ArenaObject {
         number_of_fpu_registers_(number_of_fpu_registers),
         number_of_register_pairs_(number_of_register_pairs),
         graph_(graph),
-        block_labels_(graph->GetArena(), 0),
         pc_infos_(graph->GetArena(), 32),
         slow_paths_(graph->GetArena(), 8),
         is_leaf_(true),
@@ -205,8 +198,6 @@ class CodeGenerator : public ArenaObject {
 
   HGraph* const graph_;
 
-  // Labels for each block that will be compiled.
-  GrowableArray<Label> block_labels_;
   GrowableArray<PcInfo> pc_infos_;
   GrowableArray<SlowPathCode*> slow_paths_;
 
