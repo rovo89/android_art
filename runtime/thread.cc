@@ -94,8 +94,8 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
 void Thread::InitTlsEntryPoints() {
   // Insert a placeholder so we can easily tell if we call an unimplemented entry point.
   uintptr_t* begin = reinterpret_cast<uintptr_t*>(&tlsPtr_.interpreter_entrypoints);
-  uintptr_t* end = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(begin) +
-                                                sizeof(tlsPtr_.quick_entrypoints));
+  uintptr_t* end = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(&tlsPtr_.quick_entrypoints) +
+      sizeof(tlsPtr_.quick_entrypoints));
   for (uintptr_t* it = begin; it != end; ++it) {
     *it = reinterpret_cast<uintptr_t>(UnimplementedEntryPoint);
   }
