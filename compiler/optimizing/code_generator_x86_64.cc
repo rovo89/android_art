@@ -60,7 +60,21 @@ class InvokeRuntimeCallingConvention : public CallingConvention<Register, FloatR
 
 #define __ reinterpret_cast<X86_64Assembler*>(codegen->GetAssembler())->
 
-class NullCheckSlowPathX86_64 : public SlowPathCode {
+class SlowPathCodeX86_64 : public SlowPathCode {
+ public:
+  SlowPathCodeX86_64() : entry_label_(), exit_label_() {}
+
+  Label* GetEntryLabel() { return &entry_label_; }
+  Label* GetExitLabel() { return &exit_label_; }
+
+ private:
+  Label entry_label_;
+  Label exit_label_;
+
+  DISALLOW_COPY_AND_ASSIGN(SlowPathCodeX86_64);
+};
+
+class NullCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
  public:
   explicit NullCheckSlowPathX86_64(HNullCheck* instruction) : instruction_(instruction) {}
 
@@ -76,7 +90,7 @@ class NullCheckSlowPathX86_64 : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathX86_64);
 };
 
-class StackOverflowCheckSlowPathX86_64 : public SlowPathCode {
+class StackOverflowCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
  public:
   StackOverflowCheckSlowPathX86_64() {}
 
@@ -92,12 +106,13 @@ class StackOverflowCheckSlowPathX86_64 : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(StackOverflowCheckSlowPathX86_64);
 };
 
-class SuspendCheckSlowPathX86_64 : public SlowPathCode {
+class SuspendCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
  public:
   explicit SuspendCheckSlowPathX86_64(HSuspendCheck* instruction, HBasicBlock* successor)
       : instruction_(instruction), successor_(successor) {}
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    CodeGeneratorX86_64* x64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
     __ Bind(GetEntryLabel());
     codegen->SaveLiveRegisters(instruction_->GetLocations());
     __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pTestSuspend), true));
@@ -106,7 +121,7 @@ class SuspendCheckSlowPathX86_64 : public SlowPathCode {
     if (successor_ == nullptr) {
       __ jmp(GetReturnLabel());
     } else {
-      __ jmp(codegen->GetLabelOf(successor_));
+      __ jmp(x64_codegen->GetLabelOf(successor_));
     }
   }
 
@@ -123,7 +138,7 @@ class SuspendCheckSlowPathX86_64 : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(SuspendCheckSlowPathX86_64);
 };
 
-class BoundsCheckSlowPathX86_64 : public SlowPathCode {
+class BoundsCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
  public:
   BoundsCheckSlowPathX86_64(HBoundsCheck* instruction,
                             Location index_location,
@@ -133,7 +148,7 @@ class BoundsCheckSlowPathX86_64 : public SlowPathCode {
         length_location_(length_location) {}
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    CodeGeneratorX86_64* x64_codegen = reinterpret_cast<CodeGeneratorX86_64*>(codegen);
+    CodeGeneratorX86_64* x64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
     __ Bind(GetEntryLabel());
     InvokeRuntimeCallingConvention calling_convention;
     x64_codegen->Move(Location::RegisterLocation(calling_convention.GetRegisterAt(0)), index_location_);
@@ -186,6 +201,7 @@ void CodeGeneratorX86_64::RestoreCoreRegister(Location stack_location, uint32_t 
 
 CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph)
       : CodeGenerator(graph, kNumberOfCpuRegisters, kNumberOfFloatRegisters, 0),
+        block_labels_(graph->GetArena(), 0),
         location_builder_(graph, this),
         instruction_visitor_(graph, this),
         move_resolver_(graph->GetArena(), this) {}
@@ -266,7 +282,7 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
           Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86_64WordSize));
 
   if (!skip_overflow_check && kExplicitStackOverflowCheck) {
-    SlowPathCode* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathX86_64();
+    SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathX86_64();
     AddSlowPath(slow_path);
 
     __ gs()->cmpq(CpuRegister(RSP),
@@ -282,8 +298,8 @@ void CodeGeneratorX86_64::GenerateFrameExit() {
           Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86_64WordSize));
 }
 
-void CodeGeneratorX86_64::Bind(Label* label) {
-  __ Bind(label);
+void CodeGeneratorX86_64::Bind(HBasicBlock* block) {
+  __ Bind(GetLabelOf(block));
 }
 
 void InstructionCodeGeneratorX86_64::LoadCurrentMethod(CpuRegister reg) {
@@ -1233,7 +1249,7 @@ void LocationsBuilderX86_64::VisitNullCheck(HNullCheck* instruction) {
 }
 
 void InstructionCodeGeneratorX86_64::VisitNullCheck(HNullCheck* instruction) {
-  SlowPathCode* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathX86_64(instruction);
+  SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathX86_64(instruction);
   codegen_->AddSlowPath(slow_path);
 
   LocationSummary* locations = instruction->GetLocations();
@@ -1505,7 +1521,7 @@ void LocationsBuilderX86_64::VisitBoundsCheck(HBoundsCheck* instruction) {
 
 void InstructionCodeGeneratorX86_64::VisitBoundsCheck(HBoundsCheck* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  SlowPathCode* slow_path = new (GetGraph()->GetArena()) BoundsCheckSlowPathX86_64(
+  SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) BoundsCheckSlowPathX86_64(
       instruction, locations->InAt(0), locations->InAt(1));
   codegen_->AddSlowPath(slow_path);
 

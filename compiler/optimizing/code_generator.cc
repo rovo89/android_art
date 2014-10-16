@@ -36,7 +36,7 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
   const GrowableArray<HBasicBlock*>& blocks = GetGraph()->GetBlocks();
   DCHECK(blocks.Get(0) == GetGraph()->GetEntryBlock());
   DCHECK(GoesToNextBlock(GetGraph()->GetEntryBlock(), blocks.Get(1)));
-  block_labels_.SetSize(blocks.Size());
+  Initialize();
 
   DCHECK_EQ(frame_size_, kUninitializedFrameSize);
   if (!is_leaf) {
@@ -54,7 +54,7 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
   HGraphVisitor* instruction_visitor = GetInstructionVisitor();
   for (size_t i = 0, e = blocks.Size(); i < e; ++i) {
     HBasicBlock* block = blocks.Get(i);
-    Bind(GetLabelOf(block));
+    Bind(block);
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       current->Accept(location_builder);
@@ -76,13 +76,13 @@ void CodeGenerator::CompileOptimized(CodeAllocator* allocator) {
   const GrowableArray<HBasicBlock*>& blocks = GetGraph()->GetBlocks();
   DCHECK(blocks.Get(0) == GetGraph()->GetEntryBlock());
   DCHECK(GoesToNextBlock(GetGraph()->GetEntryBlock(), blocks.Get(1)));
-  block_labels_.SetSize(blocks.Size());
+  Initialize();
 
   GenerateFrameEntry();
   HGraphVisitor* instruction_visitor = GetInstructionVisitor();
   for (size_t i = 0, e = blocks.Size(); i < e; ++i) {
     HBasicBlock* block = blocks.Get(i);
-    Bind(GetLabelOf(block));
+    Bind(block);
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       current->Accept(instruction_visitor);
@@ -271,10 +271,6 @@ void CodeGenerator::InitLocations(HInstruction* instruction) {
 bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) const {
   // We currently iterate over the block in insertion order.
   return current->GetBlockId() + 1 == next->GetBlockId();
-}
-
-Label* CodeGenerator::GetLabelOf(HBasicBlock* block) const {
-  return block_labels_.GetRawStorage() + block->GetBlockId();
 }
 
 CodeGenerator* CodeGenerator::Create(ArenaAllocator* allocator,

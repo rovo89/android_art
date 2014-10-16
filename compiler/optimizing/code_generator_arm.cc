@@ -60,7 +60,21 @@ class InvokeRuntimeCallingConvention : public CallingConvention<Register, DRegis
 
 #define __ reinterpret_cast<ArmAssembler*>(codegen->GetAssembler())->
 
-class NullCheckSlowPathARM : public SlowPathCode {
+class SlowPathCodeARM : public SlowPathCode {
+ public:
+  SlowPathCodeARM() : entry_label_(), exit_label_() {}
+
+  Label* GetEntryLabel() { return &entry_label_; }
+  Label* GetExitLabel() { return &exit_label_; }
+
+ private:
+  Label entry_label_;
+  Label exit_label_;
+
+  DISALLOW_COPY_AND_ASSIGN(SlowPathCodeARM);
+};
+
+class NullCheckSlowPathARM : public SlowPathCodeARM {
  public:
   explicit NullCheckSlowPathARM(HNullCheck* instruction) : instruction_(instruction) {}
 
@@ -77,7 +91,7 @@ class NullCheckSlowPathARM : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathARM);
 };
 
-class StackOverflowCheckSlowPathARM : public SlowPathCode {
+class StackOverflowCheckSlowPathARM : public SlowPathCodeARM {
  public:
   StackOverflowCheckSlowPathARM() {}
 
@@ -91,12 +105,13 @@ class StackOverflowCheckSlowPathARM : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(StackOverflowCheckSlowPathARM);
 };
 
-class SuspendCheckSlowPathARM : public SlowPathCode {
+class SuspendCheckSlowPathARM : public SlowPathCodeARM {
  public:
   explicit SuspendCheckSlowPathARM(HSuspendCheck* instruction, HBasicBlock* successor)
       : instruction_(instruction), successor_(successor) {}
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
     codegen->SaveLiveRegisters(instruction_->GetLocations());
     int32_t offset = QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pTestSuspend).Int32Value();
@@ -107,7 +122,7 @@ class SuspendCheckSlowPathARM : public SlowPathCode {
     if (successor_ == nullptr) {
       __ b(GetReturnLabel());
     } else {
-      __ b(codegen->GetLabelOf(successor_));
+      __ b(arm_codegen->GetLabelOf(successor_));
     }
   }
 
@@ -127,7 +142,7 @@ class SuspendCheckSlowPathARM : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(SuspendCheckSlowPathARM);
 };
 
-class BoundsCheckSlowPathARM : public SlowPathCode {
+class BoundsCheckSlowPathARM : public SlowPathCodeARM {
  public:
   BoundsCheckSlowPathARM(HBoundsCheck* instruction,
                          Location index_location,
@@ -137,7 +152,7 @@ class BoundsCheckSlowPathARM : public SlowPathCode {
         length_location_(length_location) {}
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    CodeGeneratorARM* arm_codegen = reinterpret_cast<CodeGeneratorARM*>(codegen);
+    CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
     InvokeRuntimeCallingConvention calling_convention;
     arm_codegen->Move32(Location::RegisterLocation(calling_convention.GetRegisterAt(0)), index_location_);
@@ -205,6 +220,7 @@ void CodeGeneratorARM::RestoreCoreRegister(Location stack_location, uint32_t reg
 
 CodeGeneratorARM::CodeGeneratorARM(HGraph* graph)
     : CodeGenerator(graph, kNumberOfCoreRegisters, kNumberOfDRegisters, kNumberOfRegisterPairs),
+      block_labels_(graph->GetArena(), 0),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
@@ -313,7 +329,7 @@ void CodeGeneratorARM::GenerateFrameEntry() {
   bool skip_overflow_check = IsLeafMethod() && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kArm);
   if (!skip_overflow_check) {
     if (kExplicitStackOverflowCheck) {
-      SlowPathCode* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathARM();
+      SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathARM();
       AddSlowPath(slow_path);
 
       __ LoadFromOffset(kLoadWord, IP, TR, Thread::StackEndOffset<kArmWordSize>().Int32Value());
@@ -339,8 +355,8 @@ void CodeGeneratorARM::GenerateFrameExit() {
   __ PopList(1 << PC | 1 << R6 | 1 << R7);
 }
 
-void CodeGeneratorARM::Bind(Label* label) {
-  __ Bind(label);
+void CodeGeneratorARM::Bind(HBasicBlock* block) {
+  __ Bind(GetLabelOf(block));
 }
 
 Location CodeGeneratorARM::GetStackLocation(HLoadLocal* load) const {
@@ -1349,7 +1365,7 @@ void LocationsBuilderARM::VisitNullCheck(HNullCheck* instruction) {
 }
 
 void InstructionCodeGeneratorARM::VisitNullCheck(HNullCheck* instruction) {
-  SlowPathCode* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathARM(instruction);
+  SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathARM(instruction);
   codegen_->AddSlowPath(slow_path);
 
   LocationSummary* locations = instruction->GetLocations();
@@ -1595,7 +1611,7 @@ void LocationsBuilderARM::VisitBoundsCheck(HBoundsCheck* instruction) {
 
 void InstructionCodeGeneratorARM::VisitBoundsCheck(HBoundsCheck* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  SlowPathCode* slow_path = new (GetGraph()->GetArena()) BoundsCheckSlowPathARM(
+  SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) BoundsCheckSlowPathARM(
       instruction, locations->InAt(0), locations->InAt(1));
   codegen_->AddSlowPath(slow_path);
 
