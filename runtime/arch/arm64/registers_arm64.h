@@ -23,7 +23,7 @@ namespace art {
 namespace arm64 {
 
 // Values for GP XRegisters - 64bit registers.
-enum Register {
+enum XRegister {
   X0  =  0,
   X1  =  1,
   X2  =  2,
@@ -58,7 +58,7 @@ enum Register {
   SP  = 31,      // SP and XZR are encoded in instructions using the register
   XZR = 32,      // code `31`, the context deciding which is used. We use a
                  // different enum value to distinguish between the two.
-  kNumberOfCoreRegisters = 33,
+  kNumberOfXRegisters = 33,
   // Aliases.
   TR  = X18,     // ART Thread Register - Managed Runtime (Caller Saved Reg)
   ETR = X21,     // ART Thread Register - External Calls  (Callee Saved Reg)
@@ -68,7 +68,7 @@ enum Register {
   LR  = X30,
   kNoRegister = -1,
 };
-std::ostream& operator<<(std::ostream& os, const Register& rhs);
+std::ostream& operator<<(std::ostream& os, const XRegister& rhs);
 
 // Values for GP WRegisters - 32bit registers.
 enum WRegister {

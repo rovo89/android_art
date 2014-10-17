@@ -47,12 +47,12 @@ class Arm64Context : public Context {
   }
 
   uintptr_t* GetGPRAddress(uint32_t reg) OVERRIDE {
-    DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCoreRegisters));
+    DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfXRegisters));
     return gprs_[reg];
   }
 
   bool GetGPR(uint32_t reg, uintptr_t* val) OVERRIDE {
-    DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCoreRegisters));
+    DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfXRegisters));
     if (gprs_[reg] == nullptr) {
       return false;
     } else {
@@ -82,7 +82,7 @@ class Arm64Context : public Context {
 
  private:
   // Pointers to register locations, initialized to NULL or the specific registers below.
-  uintptr_t* gprs_[kNumberOfCoreRegisters];
+  uintptr_t* gprs_[kNumberOfXRegisters];
   uint64_t * fprs_[kNumberOfDRegisters];
   // Hold values for sp and pc if they are not located within a stack frame.
   uintptr_t sp_, pc_;
