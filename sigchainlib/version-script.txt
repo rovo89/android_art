@@ -4,6 +4,7 @@ global:
   UnclaimSignalChain;
   InvokeUserSignalHandler;
   InitializeSignalChain;
+  EnsureFrontOfChain;
   sigaction;
   signal;
   sigprocmask;
