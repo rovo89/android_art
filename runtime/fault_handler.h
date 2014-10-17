@@ -40,6 +40,7 @@ class FaultManager {
 
   void Init();
   void Shutdown();
+  void EnsureArtActionInFrontOfSignalChain();
 
   void HandleFault(int sig, siginfo_t* info, void* context);
   void HandleNestedSignal(int sig, siginfo_t* info, void* context);
@@ -120,7 +121,6 @@ class JavaStackTraceHandler FINAL : public FaultHandler {
  private:
   DISALLOW_COPY_AND_ASSIGN(JavaStackTraceHandler);
 };
-
 
 // Statically allocated so the the signal handler can Get access to it.
 extern FaultManager fault_manager;
