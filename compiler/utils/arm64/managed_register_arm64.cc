@@ -42,22 +42,14 @@ namespace arm64 {
 // 63__________0 D[n]
 bool Arm64ManagedRegister::Overlaps(const Arm64ManagedRegister& other) const {
   if (IsNoRegister() || other.IsNoRegister()) return false;
-  if ((IsGPRegister() && other.IsGPRegister()) ||
-      (IsFPRegister() && other.IsFPRegister())) {
-    return (RegNo() == other.RegNo());
-  }
-  return false;
+  return (IsGPRegister() == other.IsGPRegister()) && (RegNo() == other.RegNo());
 }
 
 int Arm64ManagedRegister::RegNo() const {
   CHECK(!IsNoRegister());
   int no;
   if (IsCoreRegister()) {
-    if (IsZeroRegister()) {
-      no = static_cast<int>(X31);
-    } else {
-      no = static_cast<int>(AsCoreRegister());
-    }
+    no = static_cast<int>(AsCoreRegister());
   } else if (IsWRegister()) {
     no = static_cast<int>(AsWRegister());
   } else if (IsDRegister()) {
