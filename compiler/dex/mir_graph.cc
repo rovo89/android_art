@@ -94,6 +94,7 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       topological_order_loop_ends_(arena->Adapter(kArenaAllocTopologicalSortOrder)),
       topological_order_indexes_(arena->Adapter(kArenaAllocTopologicalSortOrder)),
       topological_order_loop_head_stack_(arena->Adapter(kArenaAllocTopologicalSortOrder)),
+      max_nested_loops_(0u),
       i_dom_list_(NULL),
       temp_scoped_alloc_(),
       temp_insn_data_(nullptr),
@@ -1976,6 +1977,7 @@ void MIRGraph::ComputeTopologicalSortOrder() {
   // Prepare the loop head stack for iteration.
   topological_order_loop_head_stack_.clear();
   topological_order_loop_head_stack_.reserve(max_nested_loops);
+  max_nested_loops_ = max_nested_loops;
 }
 
 bool BasicBlock::IsExceptionBlock() const {
