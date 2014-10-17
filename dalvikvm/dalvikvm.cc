@@ -152,7 +152,7 @@ static int dalvikvm(int argc, char** argv) {
   }
 
   if (curr_opt > option_count) {
-    fprintf(stderr, "curr_opt(%d) >= option_count(%d)\n", curr_opt, option_count);
+    fprintf(stderr, "curr_opt(%d) > option_count(%d)\n", curr_opt, option_count);
     abort();
     return EXIT_FAILURE;
   }
