@@ -150,8 +150,7 @@ void CommonCompilerTest::SetUp() {
     }
 
     // TODO: make selectable
-    Compiler::Kind compiler_kind
-    = (kUsePortableCompiler) ? Compiler::kPortable : Compiler::kQuick;
+    Compiler::Kind compiler_kind = kUsePortableCompiler ? Compiler::kPortable : Compiler::kQuick;
     timer_.reset(new CumulativeLogger("Compilation times"));
     compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
                                               verification_results_.get(),
@@ -159,7 +158,7 @@ void CommonCompilerTest::SetUp() {
                                               compiler_kind, instruction_set,
                                               instruction_set_features_.get(),
                                               true, new std::set<std::string>,
-                                              2, true, true, timer_.get()));
+                                              2, true, true, timer_.get(), ""));
   }
   // We typically don't generate an image in unit tests, disable this optimization by default.
   compiler_driver_->SetSupportBootImageFixup(false);
