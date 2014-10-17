@@ -920,6 +920,10 @@ bool CompilerDriver::CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_i
   if (resolved_class == nullptr) {
     return false;
   }
+  if (GetCompilerOptions().GetCompilePic()) {
+    // Do not allow a direct class pointer to be used when compiling for position-independent
+    return false;
+  }
   *out_is_finalizable = resolved_class->IsFinalizable();
   const bool compiling_boot = Runtime::Current()->GetHeap()->IsCompilingBoot();
   const bool support_boot_image_fixup = GetSupportBootImageFixup();
@@ -1112,7 +1116,7 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
 
 void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType sharp_type,
                                                    bool no_guarantee_of_dex_cache_entry,
-                                                   mirror::Class* referrer_class,
+                                                   const mirror::Class* referrer_class,
                                                    mirror::ArtMethod* method,
                                                    int* stats_flags,
                                                    MethodReference* target_method,
@@ -1124,7 +1128,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   // invoked, so this can be passed to the out-of-line runtime support code.
   *direct_code = 0;
   *direct_method = 0;
-  bool use_dex_cache = false;
+  bool use_dex_cache = GetCompilerOptions().GetCompilePic();  // Off by default
   const bool compiling_boot = Runtime::Current()->GetHeap()->IsCompilingBoot();
   // TODO This is somewhat hacky. We should refactor all of this invoke codepath.
   const bool force_relocations = (compiling_boot ||
@@ -1139,7 +1143,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       return;
     }
     // TODO: support patching on all architectures.
-    use_dex_cache = force_relocations && !support_boot_image_fixup_;
+    use_dex_cache = use_dex_cache || (force_relocations && !support_boot_image_fixup_);
   }
   bool method_code_in_boot = (method->GetDeclaringClass()->GetClassLoader() == nullptr);
   if (!use_dex_cache) {
@@ -2002,6 +2006,10 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
         ++non_relative_linker_patch_count;
       }
     }
+    bool compile_pic = GetCompilerOptions().GetCompilePic();  // Off by default
+    // When compiling with PIC, there should be zero non-relative linker patches
+    CHECK(!compile_pic || non_relative_linker_patch_count == 0u);
+
     MethodReference ref(&dex_file, method_idx);
     DCHECK(GetCompiledMethod(ref) == nullptr) << PrettyMethod(method_idx, dex_file);
     {

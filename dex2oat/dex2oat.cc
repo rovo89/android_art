@@ -848,6 +848,7 @@ static int dex2oat(int argc, char** argv) {
       ? Compiler::kPortable
       : Compiler::kQuick;
   const char* compiler_filter_string = nullptr;
+  bool compile_pic = false;
   int huge_method_threshold = CompilerOptions::kDefaultHugeMethodThreshold;
   int large_method_threshold = CompilerOptions::kDefaultLargeMethodThreshold;
   int small_method_threshold = CompilerOptions::kDefaultSmallMethodThreshold;
@@ -975,6 +976,8 @@ static int dex2oat(int argc, char** argv) {
       }
     } else if (option.starts_with("--compiler-filter=")) {
       compiler_filter_string = option.substr(strlen("--compiler-filter=")).data();
+    } else if (option == "--compile-pic") {
+      compile_pic = true;
     } else if (option.starts_with("--huge-method-max=")) {
       const char* threshold = option.substr(strlen("--huge-method-max=")).data();
       if (!ParseInt(threshold, &huge_method_threshold)) {
@@ -1225,7 +1228,8 @@ static int dex2oat(int argc, char** argv) {
                                                                         include_debug_symbols,
                                                                         implicit_null_checks,
                                                                         implicit_so_checks,
-                                                                        implicit_suspend_checks
+                                                                        implicit_suspend_checks,
+                                                                        compile_pic
 #ifdef ART_SEA_IR_MODE
                                                                         , compiler_options.sea_ir_ =
                                                                               true;
