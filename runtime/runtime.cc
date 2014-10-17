@@ -915,7 +915,7 @@ void Runtime::InitNativeMethods() {
   {
     std::string mapped_name(StringPrintf(OS_SHARED_LIB_FORMAT_STR, "javacore"));
     std::string reason;
-    if (!instance_->java_vm_->LoadNativeLibrary(env, mapped_name, nullptr, &reason)) {
+    if (!java_vm_->LoadNativeLibrary(env, mapped_name, nullptr, &reason)) {
       LOG(FATAL) << "LoadNativeLibrary failed for \"" << mapped_name << "\": " << reason;
     }
   }
