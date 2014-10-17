@@ -27,6 +27,7 @@
 #include "base/scoped_flock.h"
 #include "base/stringpiece.h"
 #include "base/stringprintf.h"
+#include "base/unix_file/fd_file.h"
 #include "elf_utils.h"
 #include "elf_file.h"
 #include "elf_file_impl.h"
@@ -513,7 +514,7 @@ bool PatchOat::PatchOatHeader(ElfFileImpl* oat_file) {
 }
 
 bool PatchOat::PatchElf() {
-  if (oat_file_->is_elf64_)
+  if (oat_file_->Is64Bit())
     return PatchElf<ElfFileImpl64>(oat_file_->GetImpl64());
   else
     return PatchElf<ElfFileImpl32>(oat_file_->GetImpl32());
@@ -531,13 +532,12 @@ bool PatchOat::PatchElf(ElfFileImpl* oat_file) {
   }
 
   bool need_fixup = false;
-  for (unsigned int i = 0; i < oat_file->GetProgramHeaderNum(); i++) {
+  for (unsigned int i = 0; i < oat_file->GetProgramHeaderNum(); ++i) {
     auto hdr = oat_file->GetProgramHeader(i);
-    if (hdr->p_vaddr != 0 && hdr->p_vaddr != hdr->p_offset) {
+    if ((hdr->p_vaddr != 0 && hdr->p_vaddr != hdr->p_offset) ||
+        (hdr->p_paddr != 0 && hdr->p_paddr != hdr->p_offset)) {
       need_fixup = true;
-    }
-    if (hdr->p_paddr != 0 && hdr->p_paddr != hdr->p_offset) {
-      need_fixup = true;
+      break;
     }
   }
   if (!need_fixup) {
@@ -801,7 +801,7 @@ static int patchoat(int argc, char **argv) {
   bool dump_timings = kIsDebugBuild;
   bool lock_output = true;
 
-  for (int i = 0; i < argc; i++) {
+  for (int i = 0; i < argc; ++i) {
     const StringPiece option(argv[i]);
     const bool log_options = false;
     if (log_options) {

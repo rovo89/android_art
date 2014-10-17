@@ -166,7 +166,7 @@ const std::vector<uint8_t>* CreateTrampoline64(InstructionSet isa, EntryPointCal
       return x86_64::CreateTrampoline(offset);
     default:
       LOG(FATAL) << "Unexpected InstructionSet: " << isa;
-      return nullptr;
+      UNREACHABLE();
   }
 }
 
@@ -182,7 +182,7 @@ const std::vector<uint8_t>* CreateTrampoline32(InstructionSet isa, EntryPointCal
       return x86::CreateTrampoline(offset);
     default:
       LOG(FATAL) << "Unexpected InstructionSet: " << isa;
-      return nullptr;
+      UNREACHABLE();
   }
 }
 
