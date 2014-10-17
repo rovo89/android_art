@@ -97,7 +97,7 @@ TEST(Arm64ManagedRegister, CoreRegister) {
   EXPECT_TRUE(!reg.IsWRegister());
   EXPECT_TRUE(!reg.IsDRegister());
   EXPECT_TRUE(!reg.IsSRegister());
-  EXPECT_TRUE(reg.Overlaps(wreg));
+  EXPECT_TRUE(!reg.Overlaps(wreg));
   EXPECT_EQ(SP, reg.AsCoreRegister());
 }
 
@@ -160,8 +160,7 @@ TEST(Arm64ManagedRegister, WRegister) {
   EXPECT_TRUE(reg.IsWRegister());
   EXPECT_TRUE(!reg.IsDRegister());
   EXPECT_TRUE(!reg.IsSRegister());
-  EXPECT_TRUE(reg.Overlaps(xreg));
-  EXPECT_EQ(W31, reg.AsWRegister());
+  EXPECT_TRUE(!reg.Overlaps(xreg));
 }
 
 // D Register test.
@@ -294,20 +293,9 @@ TEST(Arm64ManagedRegister, Equals) {
   EXPECT_TRUE(!reg_X1.Equals(Arm64ManagedRegister::FromDRegister(D1)));
   EXPECT_TRUE(!reg_X1.Equals(Arm64ManagedRegister::FromSRegister(S1)));
 
-  Arm64ManagedRegister reg_X31 = Arm64ManagedRegister::FromCoreRegister(X31);
-  EXPECT_TRUE(!reg_X31.Equals(Arm64ManagedRegister::NoRegister()));
-  EXPECT_TRUE(reg_X31.Equals(Arm64ManagedRegister::FromCoreRegister(SP)));
-  EXPECT_TRUE(!reg_X31.Equals(Arm64ManagedRegister::FromCoreRegister(XZR)));
-  EXPECT_TRUE(!reg_X31.Equals(Arm64ManagedRegister::FromWRegister(W31)));
-  EXPECT_TRUE(!reg_X31.Equals(Arm64ManagedRegister::FromWRegister(WZR)));
-  EXPECT_TRUE(!reg_X31.Equals(Arm64ManagedRegister::FromSRegister(S0)));
-  EXPECT_TRUE(!reg_X31.Equals(Arm64ManagedRegister::FromDRegister(D0)));
-
   Arm64ManagedRegister reg_SP = Arm64ManagedRegister::FromCoreRegister(SP);
   EXPECT_TRUE(!reg_SP.Equals(Arm64ManagedRegister::NoRegister()));
-  EXPECT_TRUE(reg_SP.Equals(Arm64ManagedRegister::FromCoreRegister(X31)));
   EXPECT_TRUE(!reg_SP.Equals(Arm64ManagedRegister::FromCoreRegister(XZR)));
-  EXPECT_TRUE(!reg_SP.Equals(Arm64ManagedRegister::FromWRegister(W31)));
   EXPECT_TRUE(!reg_SP.Equals(Arm64ManagedRegister::FromSRegister(S0)));
   EXPECT_TRUE(!reg_SP.Equals(Arm64ManagedRegister::FromDRegister(D0)));
 
@@ -452,17 +440,13 @@ TEST(Arm64ManagedRegister, Overlaps) {
 
   reg = Arm64ManagedRegister::FromCoreRegister(XZR);
   reg_o = Arm64ManagedRegister::FromWRegister(WZR);
-  EXPECT_TRUE(reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X31)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X1)));
-  EXPECT_TRUE(reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(SP)));
-  EXPECT_TRUE(reg.Overlaps(Arm64ManagedRegister::FromWRegister(W31)));
+  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(SP)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W1)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W12)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W19)));
-  EXPECT_EQ(X31, reg_o.AsOverlappingWRegisterCore());
-  EXPECT_EQ(SP, reg_o.AsOverlappingWRegisterCore());
-  EXPECT_NE(XZR, reg_o.AsOverlappingWRegisterCore());
-  EXPECT_EQ(W31, reg.AsOverlappingCoreRegisterLow());
+  EXPECT_NE(SP, reg_o.AsOverlappingWRegisterCore());
+  EXPECT_EQ(XZR, reg_o.AsOverlappingWRegisterCore());
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromSRegister(S0)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromSRegister(S1)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromSRegister(S2)));
@@ -476,15 +460,11 @@ TEST(Arm64ManagedRegister, Overlaps) {
 
   reg = Arm64ManagedRegister::FromCoreRegister(SP);
   reg_o = Arm64ManagedRegister::FromWRegister(WZR);
-  EXPECT_TRUE(reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X31)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X1)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X15)));
-  EXPECT_TRUE(reg.Overlaps(Arm64ManagedRegister::FromWRegister(WZR)));
+  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(WZR)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W1)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W12)));
-  EXPECT_TRUE(reg.Overlaps(Arm64ManagedRegister::FromWRegister(W31)));
-  EXPECT_EQ(X31, reg_o.AsOverlappingWRegisterCore());
-  EXPECT_EQ(W31, reg.AsOverlappingCoreRegisterLow());
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromSRegister(S0)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromSRegister(S1)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromSRegister(S2)));
@@ -503,7 +483,7 @@ TEST(Arm64ManagedRegister, Overlaps) {
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X15)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(WZR)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W12)));
-  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W31)));
+  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W30)));
   EXPECT_EQ(W1, reg_o.AsOverlappingCoreRegisterLow());
   EXPECT_EQ(X1, reg.AsOverlappingWRegisterCore());
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromSRegister(S0)));
@@ -524,7 +504,7 @@ TEST(Arm64ManagedRegister, Overlaps) {
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X15)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(WZR)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W12)));
-  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W31)));
+  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W30)));
   EXPECT_EQ(W21, reg_o.AsOverlappingCoreRegisterLow());
   EXPECT_EQ(X21, reg.AsOverlappingWRegisterCore());
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromSRegister(S0)));
@@ -541,13 +521,13 @@ TEST(Arm64ManagedRegister, Overlaps) {
 
   reg = Arm64ManagedRegister::FromSRegister(S1);
   reg_o = Arm64ManagedRegister::FromDRegister(D1);
-  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X31)));
+  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X30)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X1)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X15)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(WZR)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W1)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W12)));
-  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W31)));
+  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W30)));
   EXPECT_EQ(S1, reg_o.AsOverlappingDRegisterLow());
   EXPECT_EQ(D1, reg.AsOverlappingSRegisterD());
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromSRegister(S0)));
@@ -564,13 +544,13 @@ TEST(Arm64ManagedRegister, Overlaps) {
 
   reg = Arm64ManagedRegister::FromSRegister(S15);
   reg_o = Arm64ManagedRegister::FromDRegister(D15);
-  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X31)));
+  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X30)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X1)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X15)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(WZR)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W1)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W12)));
-  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W31)));
+  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W30)));
   EXPECT_EQ(S15, reg_o.AsOverlappingDRegisterLow());
   EXPECT_EQ(D15, reg.AsOverlappingSRegisterD());
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromSRegister(S0)));
@@ -587,13 +567,13 @@ TEST(Arm64ManagedRegister, Overlaps) {
 
   reg = Arm64ManagedRegister::FromDRegister(D15);
   reg_o = Arm64ManagedRegister::FromSRegister(S15);
-  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X31)));
+  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X30)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X1)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromCoreRegister(X15)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(WZR)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W1)));
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W12)));
-  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W31)));
+  EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromWRegister(W30)));
   EXPECT_EQ(S15, reg.AsOverlappingDRegisterLow());
   EXPECT_EQ(D15, reg_o.AsOverlappingSRegisterD());
   EXPECT_TRUE(!reg.Overlaps(Arm64ManagedRegister::FromSRegister(S0)));
@@ -642,9 +622,6 @@ TEST(Arm64ManagedRegister, VixlRegisters) {
   EXPECT_TRUE(vixl::x28.Is(Arm64Assembler::reg_x(X28)));
   EXPECT_TRUE(vixl::x29.Is(Arm64Assembler::reg_x(X29)));
   EXPECT_TRUE(vixl::x30.Is(Arm64Assembler::reg_x(X30)));
-  // FIXME: Take a look here.
-  EXPECT_TRUE(vixl::sp.Is(Arm64Assembler::reg_x(X31)));
-  EXPECT_TRUE(!vixl::x31.Is(Arm64Assembler::reg_x(X31)));
 
   EXPECT_TRUE(vixl::x18.Is(Arm64Assembler::reg_x(TR)));
   EXPECT_TRUE(vixl::ip0.Is(Arm64Assembler::reg_x(IP0)));
@@ -686,8 +663,9 @@ TEST(Arm64ManagedRegister, VixlRegisters) {
   EXPECT_TRUE(vixl::w28.Is(Arm64Assembler::reg_w(W28)));
   EXPECT_TRUE(vixl::w29.Is(Arm64Assembler::reg_w(W29)));
   EXPECT_TRUE(vixl::w30.Is(Arm64Assembler::reg_w(W30)));
-  EXPECT_TRUE(vixl::w31.Is(Arm64Assembler::reg_w(W31)));
+  EXPECT_TRUE(vixl::w31.Is(Arm64Assembler::reg_w(WZR)));
   EXPECT_TRUE(vixl::wzr.Is(Arm64Assembler::reg_w(WZR)));
+  EXPECT_TRUE(vixl::wsp.Is(Arm64Assembler::reg_w(WSP)));
 
   // D Registers.
   EXPECT_TRUE(vixl::d0.Is(Arm64Assembler::reg_d(D0)));
