@@ -52,7 +52,7 @@ void Arm64Assembler::FinalizeInstructions(const MemoryRegion& region) {
 }
 
 void Arm64Assembler::GetCurrentThread(ManagedRegister tr) {
-  ___ Mov(reg_x(tr.AsArm64().AsCoreRegister()), reg_x(ETR));
+  ___ Mov(reg_x(tr.AsArm64().AsXRegister()), reg_x(ETR));
 }
 
 void Arm64Assembler::GetCurrentThread(FrameOffset offset, ManagedRegister /* scratch */) {
@@ -71,11 +71,11 @@ void Arm64Assembler::DecreaseFrameSize(size_t adjust) {
   AddConstant(SP, adjust);
 }
 
-void Arm64Assembler::AddConstant(Register rd, int32_t value, Condition cond) {
+void Arm64Assembler::AddConstant(XRegister rd, int32_t value, Condition cond) {
   AddConstant(rd, rd, value, cond);
 }
 
-void Arm64Assembler::AddConstant(Register rd, Register rn, int32_t value,
+void Arm64Assembler::AddConstant(XRegister rd, XRegister rn, int32_t value,
                                  Condition cond) {
   if ((cond == al) || (cond == nv)) {
     // VIXL macro-assembler handles all variants.
@@ -92,7 +92,7 @@ void Arm64Assembler::AddConstant(Register rd, Register rn, int32_t value,
 }
 
 void Arm64Assembler::StoreWToOffset(StoreOperandType type, WRegister source,
-                                    Register base, int32_t offset) {
+                                    XRegister base, int32_t offset) {
   switch (type) {
     case kStoreByte:
       ___ Strb(reg_w(source), MEM_OP(reg_x(base), offset));
@@ -108,16 +108,16 @@ void Arm64Assembler::StoreWToOffset(StoreOperandType type, WRegister source,
   }
 }
 
-void Arm64Assembler::StoreToOffset(Register source, Register base, int32_t offset) {
+void Arm64Assembler::StoreToOffset(XRegister source, XRegister base, int32_t offset) {
   CHECK_NE(source, SP);
   ___ Str(reg_x(source), MEM_OP(reg_x(base), offset));
 }
 
-void Arm64Assembler::StoreSToOffset(SRegister source, Register base, int32_t offset) {
+void Arm64Assembler::StoreSToOffset(SRegister source, XRegister base, int32_t offset) {
   ___ Str(reg_s(source), MEM_OP(reg_x(base), offset));
 }
 
-void Arm64Assembler::StoreDToOffset(DRegister source, Register base, int32_t offset) {
+void Arm64Assembler::StoreDToOffset(DRegister source, XRegister base, int32_t offset) {
   ___ Str(reg_d(source), MEM_OP(reg_x(base), offset));
 }
 
@@ -128,9 +128,9 @@ void Arm64Assembler::Store(FrameOffset offs, ManagedRegister m_src, size_t size)
   } else if (src.IsWRegister()) {
     CHECK_EQ(4u, size);
     StoreWToOffset(kStoreWord, src.AsWRegister(), SP, offs.Int32Value());
-  } else if (src.IsCoreRegister()) {
+  } else if (src.IsXRegister()) {
     CHECK_EQ(8u, size);
-    StoreToOffset(src.AsCoreRegister(), SP, offs.Int32Value());
+    StoreToOffset(src.AsXRegister(), SP, offs.Int32Value());
   } else if (src.IsSRegister()) {
     StoreSToOffset(src.AsSRegister(), SP, offs.Int32Value());
   } else {
@@ -141,41 +141,41 @@ void Arm64Assembler::Store(FrameOffset offs, ManagedRegister m_src, size_t size)
 
 void Arm64Assembler::StoreRef(FrameOffset offs, ManagedRegister m_src) {
   Arm64ManagedRegister src = m_src.AsArm64();
-  CHECK(src.IsCoreRegister()) << src;
-  StoreWToOffset(kStoreWord, src.AsOverlappingCoreRegisterLow(), SP,
+  CHECK(src.IsXRegister()) << src;
+  StoreWToOffset(kStoreWord, src.AsOverlappingWRegister(), SP,
                  offs.Int32Value());
 }
 
 void Arm64Assembler::StoreRawPtr(FrameOffset offs, ManagedRegister m_src) {
   Arm64ManagedRegister src = m_src.AsArm64();
-  CHECK(src.IsCoreRegister()) << src;
-  StoreToOffset(src.AsCoreRegister(), SP, offs.Int32Value());
+  CHECK(src.IsXRegister()) << src;
+  StoreToOffset(src.AsXRegister(), SP, offs.Int32Value());
 }
 
 void Arm64Assembler::StoreImmediateToFrame(FrameOffset offs, uint32_t imm,
                                            ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  CHECK(scratch.IsCoreRegister()) << scratch;
-  LoadImmediate(scratch.AsCoreRegister(), imm);
-  StoreWToOffset(kStoreWord, scratch.AsOverlappingCoreRegisterLow(), SP,
+  CHECK(scratch.IsXRegister()) << scratch;
+  LoadImmediate(scratch.AsXRegister(), imm);
+  StoreWToOffset(kStoreWord, scratch.AsOverlappingWRegister(), SP,
                  offs.Int32Value());
 }
 
 void Arm64Assembler::StoreImmediateToThread64(ThreadOffset<8> offs, uint32_t imm,
                                             ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  CHECK(scratch.IsCoreRegister()) << scratch;
-  LoadImmediate(scratch.AsCoreRegister(), imm);
-  StoreToOffset(scratch.AsCoreRegister(), ETR, offs.Int32Value());
+  CHECK(scratch.IsXRegister()) << scratch;
+  LoadImmediate(scratch.AsXRegister(), imm);
+  StoreToOffset(scratch.AsXRegister(), ETR, offs.Int32Value());
 }
 
 void Arm64Assembler::StoreStackOffsetToThread64(ThreadOffset<8> tr_offs,
                                               FrameOffset fr_offs,
                                               ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  CHECK(scratch.IsCoreRegister()) << scratch;
-  AddConstant(scratch.AsCoreRegister(), SP, fr_offs.Int32Value());
-  StoreToOffset(scratch.AsCoreRegister(), ETR, tr_offs.Int32Value());
+  CHECK(scratch.IsXRegister()) << scratch;
+  AddConstant(scratch.AsXRegister(), SP, fr_offs.Int32Value());
+  StoreToOffset(scratch.AsXRegister(), ETR, tr_offs.Int32Value());
 }
 
 void Arm64Assembler::StoreStackPointerToThread64(ThreadOffset<8> tr_offs) {
@@ -189,13 +189,13 @@ void Arm64Assembler::StoreSpanning(FrameOffset dest_off, ManagedRegister m_sourc
                                    FrameOffset in_off, ManagedRegister m_scratch) {
   Arm64ManagedRegister source = m_source.AsArm64();
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  StoreToOffset(source.AsCoreRegister(), SP, dest_off.Int32Value());
-  LoadFromOffset(scratch.AsCoreRegister(), SP, in_off.Int32Value());
-  StoreToOffset(scratch.AsCoreRegister(), SP, dest_off.Int32Value() + 8);
+  StoreToOffset(source.AsXRegister(), SP, dest_off.Int32Value());
+  LoadFromOffset(scratch.AsXRegister(), SP, in_off.Int32Value());
+  StoreToOffset(scratch.AsXRegister(), SP, dest_off.Int32Value() + 8);
 }
 
 // Load routines.
-void Arm64Assembler::LoadImmediate(Register dest, int32_t value,
+void Arm64Assembler::LoadImmediate(XRegister dest, int32_t value,
                                    Condition cond) {
   if ((cond == al) || (cond == nv)) {
     ___ Mov(reg_x(dest), value);
@@ -215,7 +215,7 @@ void Arm64Assembler::LoadImmediate(Register dest, int32_t value,
 }
 
 void Arm64Assembler::LoadWFromOffset(LoadOperandType type, WRegister dest,
-                                     Register base, int32_t offset) {
+                                     XRegister base, int32_t offset) {
   switch (type) {
     case kLoadSignedByte:
       ___ Ldrsb(reg_w(dest), MEM_OP(reg_x(base), offset));
@@ -239,36 +239,36 @@ void Arm64Assembler::LoadWFromOffset(LoadOperandType type, WRegister dest,
 
 // Note: We can extend this member by adding load type info - see
 // sign extended A64 load variants.
-void Arm64Assembler::LoadFromOffset(Register dest, Register base,
+void Arm64Assembler::LoadFromOffset(XRegister dest, XRegister base,
                                     int32_t offset) {
   CHECK_NE(dest, SP);
   ___ Ldr(reg_x(dest), MEM_OP(reg_x(base), offset));
 }
 
-void Arm64Assembler::LoadSFromOffset(SRegister dest, Register base,
+void Arm64Assembler::LoadSFromOffset(SRegister dest, XRegister base,
                                      int32_t offset) {
   ___ Ldr(reg_s(dest), MEM_OP(reg_x(base), offset));
 }
 
-void Arm64Assembler::LoadDFromOffset(DRegister dest, Register base,
+void Arm64Assembler::LoadDFromOffset(DRegister dest, XRegister base,
                                      int32_t offset) {
   ___ Ldr(reg_d(dest), MEM_OP(reg_x(base), offset));
 }
 
-void Arm64Assembler::Load(Arm64ManagedRegister dest, Register base,
+void Arm64Assembler::Load(Arm64ManagedRegister dest, XRegister base,
                           int32_t offset, size_t size) {
   if (dest.IsNoRegister()) {
     CHECK_EQ(0u, size) << dest;
   } else if (dest.IsWRegister()) {
     CHECK_EQ(4u, size) << dest;
     ___ Ldr(reg_w(dest.AsWRegister()), MEM_OP(reg_x(base), offset));
-  } else if (dest.IsCoreRegister()) {
-    CHECK_NE(dest.AsCoreRegister(), SP) << dest;
+  } else if (dest.IsXRegister()) {
+    CHECK_NE(dest.AsXRegister(), SP) << dest;
     if (size == 4u) {
-      ___ Ldr(reg_w(dest.AsOverlappingCoreRegisterLow()), MEM_OP(reg_x(base), offset));
+      ___ Ldr(reg_w(dest.AsOverlappingWRegister()), MEM_OP(reg_x(base), offset));
     } else {
       CHECK_EQ(8u, size) << dest;
-      ___ Ldr(reg_x(dest.AsCoreRegister()), MEM_OP(reg_x(base), offset));
+      ___ Ldr(reg_x(dest.AsXRegister()), MEM_OP(reg_x(base), offset));
     }
   } else if (dest.IsSRegister()) {
     ___ Ldr(reg_s(dest.AsSRegister()), MEM_OP(reg_x(base), offset));
@@ -288,19 +288,19 @@ void Arm64Assembler::LoadFromThread64(ManagedRegister m_dst, ThreadOffset<8> src
 
 void Arm64Assembler::LoadRef(ManagedRegister m_dst, FrameOffset offs) {
   Arm64ManagedRegister dst = m_dst.AsArm64();
-  CHECK(dst.IsCoreRegister()) << dst;
-  LoadWFromOffset(kLoadWord, dst.AsOverlappingCoreRegisterLow(), SP, offs.Int32Value());
+  CHECK(dst.IsXRegister()) << dst;
+  LoadWFromOffset(kLoadWord, dst.AsOverlappingWRegister(), SP, offs.Int32Value());
 }
 
 void Arm64Assembler::LoadRef(ManagedRegister m_dst, ManagedRegister m_base,
                              MemberOffset offs) {
   Arm64ManagedRegister dst = m_dst.AsArm64();
   Arm64ManagedRegister base = m_base.AsArm64();
-  CHECK(dst.IsCoreRegister() && base.IsCoreRegister());
-  LoadWFromOffset(kLoadWord, dst.AsOverlappingCoreRegisterLow(), base.AsCoreRegister(),
+  CHECK(dst.IsXRegister() && base.IsXRegister());
+  LoadWFromOffset(kLoadWord, dst.AsOverlappingWRegister(), base.AsXRegister(),
                   offs.Int32Value());
   if (kPoisonHeapReferences) {
-    WRegister ref_reg = dst.AsOverlappingCoreRegisterLow();
+    WRegister ref_reg = dst.AsOverlappingWRegister();
     ___ Neg(reg_w(ref_reg), vixl::Operand(reg_w(ref_reg)));
   }
 }
@@ -308,17 +308,17 @@ void Arm64Assembler::LoadRef(ManagedRegister m_dst, ManagedRegister m_base,
 void Arm64Assembler::LoadRawPtr(ManagedRegister m_dst, ManagedRegister m_base, Offset offs) {
   Arm64ManagedRegister dst = m_dst.AsArm64();
   Arm64ManagedRegister base = m_base.AsArm64();
-  CHECK(dst.IsCoreRegister() && base.IsCoreRegister());
+  CHECK(dst.IsXRegister() && base.IsXRegister());
   // Remove dst and base form the temp list - higher level API uses IP1, IP0.
   vixl::UseScratchRegisterScope temps(vixl_masm_);
-  temps.Exclude(reg_x(dst.AsCoreRegister()), reg_x(base.AsCoreRegister()));
-  ___ Ldr(reg_x(dst.AsCoreRegister()), MEM_OP(reg_x(base.AsCoreRegister()), offs.Int32Value()));
+  temps.Exclude(reg_x(dst.AsXRegister()), reg_x(base.AsXRegister()));
+  ___ Ldr(reg_x(dst.AsXRegister()), MEM_OP(reg_x(base.AsXRegister()), offs.Int32Value()));
 }
 
 void Arm64Assembler::LoadRawPtrFromThread64(ManagedRegister m_dst, ThreadOffset<8> offs) {
   Arm64ManagedRegister dst = m_dst.AsArm64();
-  CHECK(dst.IsCoreRegister()) << dst;
-  LoadFromOffset(dst.AsCoreRegister(), ETR, offs.Int32Value());
+  CHECK(dst.IsXRegister()) << dst;
+  LoadFromOffset(dst.AsXRegister(), ETR, offs.Int32Value());
 }
 
 // Copying routines.
@@ -326,15 +326,15 @@ void Arm64Assembler::Move(ManagedRegister m_dst, ManagedRegister m_src, size_t s
   Arm64ManagedRegister dst = m_dst.AsArm64();
   Arm64ManagedRegister src = m_src.AsArm64();
   if (!dst.Equals(src)) {
-    if (dst.IsCoreRegister()) {
+    if (dst.IsXRegister()) {
       if (size == 4) {
         CHECK(src.IsWRegister());
-        ___ Mov(reg_x(dst.AsCoreRegister()), reg_w(src.AsWRegister()));
+        ___ Mov(reg_x(dst.AsXRegister()), reg_w(src.AsWRegister()));
       } else {
-        if (src.IsCoreRegister()) {
-          ___ Mov(reg_x(dst.AsCoreRegister()), reg_x(src.AsCoreRegister()));
+        if (src.IsXRegister()) {
+          ___ Mov(reg_x(dst.AsXRegister()), reg_x(src.AsXRegister()));
         } else {
-          ___ Mov(reg_x(dst.AsCoreRegister()), reg_w(src.AsWRegister()));
+          ___ Mov(reg_x(dst.AsXRegister()), reg_w(src.AsWRegister()));
         }
       }
     } else if (dst.IsWRegister()) {
@@ -355,41 +355,41 @@ void Arm64Assembler::CopyRawPtrFromThread64(FrameOffset fr_offs,
                                           ThreadOffset<8> tr_offs,
                                           ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  CHECK(scratch.IsCoreRegister()) << scratch;
-  LoadFromOffset(scratch.AsCoreRegister(), ETR, tr_offs.Int32Value());
-  StoreToOffset(scratch.AsCoreRegister(), SP, fr_offs.Int32Value());
+  CHECK(scratch.IsXRegister()) << scratch;
+  LoadFromOffset(scratch.AsXRegister(), ETR, tr_offs.Int32Value());
+  StoreToOffset(scratch.AsXRegister(), SP, fr_offs.Int32Value());
 }
 
 void Arm64Assembler::CopyRawPtrToThread64(ThreadOffset<8> tr_offs,
                                         FrameOffset fr_offs,
                                         ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  CHECK(scratch.IsCoreRegister()) << scratch;
-  LoadFromOffset(scratch.AsCoreRegister(), SP, fr_offs.Int32Value());
-  StoreToOffset(scratch.AsCoreRegister(), ETR, tr_offs.Int32Value());
+  CHECK(scratch.IsXRegister()) << scratch;
+  LoadFromOffset(scratch.AsXRegister(), SP, fr_offs.Int32Value());
+  StoreToOffset(scratch.AsXRegister(), ETR, tr_offs.Int32Value());
 }
 
 void Arm64Assembler::CopyRef(FrameOffset dest, FrameOffset src,
                              ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  CHECK(scratch.IsCoreRegister()) << scratch;
-  LoadWFromOffset(kLoadWord, scratch.AsOverlappingCoreRegisterLow(),
+  CHECK(scratch.IsXRegister()) << scratch;
+  LoadWFromOffset(kLoadWord, scratch.AsOverlappingWRegister(),
                   SP, src.Int32Value());
-  StoreWToOffset(kStoreWord, scratch.AsOverlappingCoreRegisterLow(),
+  StoreWToOffset(kStoreWord, scratch.AsOverlappingWRegister(),
                  SP, dest.Int32Value());
 }
 
 void Arm64Assembler::Copy(FrameOffset dest, FrameOffset src,
                           ManagedRegister m_scratch, size_t size) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  CHECK(scratch.IsCoreRegister()) << scratch;
+  CHECK(scratch.IsXRegister()) << scratch;
   CHECK(size == 4 || size == 8) << size;
   if (size == 4) {
-    LoadWFromOffset(kLoadWord, scratch.AsOverlappingCoreRegisterLow(), SP, src.Int32Value());
-    StoreWToOffset(kStoreWord, scratch.AsOverlappingCoreRegisterLow(), SP, dest.Int32Value());
+    LoadWFromOffset(kLoadWord, scratch.AsOverlappingWRegister(), SP, src.Int32Value());
+    StoreWToOffset(kStoreWord, scratch.AsOverlappingWRegister(), SP, dest.Int32Value());
   } else if (size == 8) {
-    LoadFromOffset(scratch.AsCoreRegister(), SP, src.Int32Value());
-    StoreToOffset(scratch.AsCoreRegister(), SP, dest.Int32Value());
+    LoadFromOffset(scratch.AsXRegister(), SP, src.Int32Value());
+    StoreToOffset(scratch.AsXRegister(), SP, dest.Int32Value());
   } else {
     UNIMPLEMENTED(FATAL) << "We only support Copy() of size 4 and 8";
   }
@@ -399,16 +399,16 @@ void Arm64Assembler::Copy(FrameOffset dest, ManagedRegister src_base, Offset src
                           ManagedRegister m_scratch, size_t size) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   Arm64ManagedRegister base = src_base.AsArm64();
-  CHECK(base.IsCoreRegister()) << base;
-  CHECK(scratch.IsCoreRegister() || scratch.IsWRegister()) << scratch;
+  CHECK(base.IsXRegister()) << base;
+  CHECK(scratch.IsXRegister() || scratch.IsWRegister()) << scratch;
   CHECK(size == 4 || size == 8) << size;
   if (size == 4) {
-    LoadWFromOffset(kLoadWord, scratch.AsWRegister(), base.AsCoreRegister(),
+    LoadWFromOffset(kLoadWord, scratch.AsWRegister(), base.AsXRegister(),
                    src_offset.Int32Value());
     StoreWToOffset(kStoreWord, scratch.AsWRegister(), SP, dest.Int32Value());
   } else if (size == 8) {
-    LoadFromOffset(scratch.AsCoreRegister(), base.AsCoreRegister(), src_offset.Int32Value());
-    StoreToOffset(scratch.AsCoreRegister(), SP, dest.Int32Value());
+    LoadFromOffset(scratch.AsXRegister(), base.AsXRegister(), src_offset.Int32Value());
+    StoreToOffset(scratch.AsXRegister(), SP, dest.Int32Value());
   } else {
     UNIMPLEMENTED(FATAL) << "We only support Copy() of size 4 and 8";
   }
@@ -418,16 +418,16 @@ void Arm64Assembler::Copy(ManagedRegister m_dest_base, Offset dest_offs, FrameOf
                           ManagedRegister m_scratch, size_t size) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   Arm64ManagedRegister base = m_dest_base.AsArm64();
-  CHECK(base.IsCoreRegister()) << base;
-  CHECK(scratch.IsCoreRegister() || scratch.IsWRegister()) << scratch;
+  CHECK(base.IsXRegister()) << base;
+  CHECK(scratch.IsXRegister() || scratch.IsWRegister()) << scratch;
   CHECK(size == 4 || size == 8) << size;
   if (size == 4) {
     LoadWFromOffset(kLoadWord, scratch.AsWRegister(), SP, src.Int32Value());
-    StoreWToOffset(kStoreWord, scratch.AsWRegister(), base.AsCoreRegister(),
+    StoreWToOffset(kStoreWord, scratch.AsWRegister(), base.AsXRegister(),
                    dest_offs.Int32Value());
   } else if (size == 8) {
-    LoadFromOffset(scratch.AsCoreRegister(), SP, src.Int32Value());
-    StoreToOffset(scratch.AsCoreRegister(), base.AsCoreRegister(), dest_offs.Int32Value());
+    LoadFromOffset(scratch.AsXRegister(), SP, src.Int32Value());
+    StoreToOffset(scratch.AsXRegister(), base.AsXRegister(), dest_offs.Int32Value());
   } else {
     UNIMPLEMENTED(FATAL) << "We only support Copy() of size 4 and 8";
   }
@@ -444,25 +444,25 @@ void Arm64Assembler::Copy(ManagedRegister m_dest, Offset dest_offset,
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   Arm64ManagedRegister src = m_src.AsArm64();
   Arm64ManagedRegister dest = m_dest.AsArm64();
-  CHECK(dest.IsCoreRegister()) << dest;
-  CHECK(src.IsCoreRegister()) << src;
-  CHECK(scratch.IsCoreRegister() || scratch.IsWRegister()) << scratch;
+  CHECK(dest.IsXRegister()) << dest;
+  CHECK(src.IsXRegister()) << src;
+  CHECK(scratch.IsXRegister() || scratch.IsWRegister()) << scratch;
   CHECK(size == 4 || size == 8) << size;
   if (size == 4) {
     if (scratch.IsWRegister()) {
-      LoadWFromOffset(kLoadWord, scratch.AsWRegister(), src.AsCoreRegister(),
+      LoadWFromOffset(kLoadWord, scratch.AsWRegister(), src.AsXRegister(),
                     src_offset.Int32Value());
-      StoreWToOffset(kStoreWord, scratch.AsWRegister(), dest.AsCoreRegister(),
+      StoreWToOffset(kStoreWord, scratch.AsWRegister(), dest.AsXRegister(),
                    dest_offset.Int32Value());
     } else {
-      LoadWFromOffset(kLoadWord, scratch.AsOverlappingCoreRegisterLow(), src.AsCoreRegister(),
+      LoadWFromOffset(kLoadWord, scratch.AsOverlappingWRegister(), src.AsXRegister(),
                     src_offset.Int32Value());
-      StoreWToOffset(kStoreWord, scratch.AsOverlappingCoreRegisterLow(), dest.AsCoreRegister(),
+      StoreWToOffset(kStoreWord, scratch.AsOverlappingWRegister(), dest.AsXRegister(),
                    dest_offset.Int32Value());
     }
   } else if (size == 8) {
-    LoadFromOffset(scratch.AsCoreRegister(), src.AsCoreRegister(), src_offset.Int32Value());
-    StoreToOffset(scratch.AsCoreRegister(), dest.AsCoreRegister(), dest_offset.Int32Value());
+    LoadFromOffset(scratch.AsXRegister(), src.AsXRegister(), src_offset.Int32Value());
+    StoreToOffset(scratch.AsXRegister(), dest.AsXRegister(), dest_offset.Int32Value());
   } else {
     UNIMPLEMENTED(FATAL) << "We only support Copy() of size 4 and 8";
   }
@@ -514,31 +514,31 @@ void Arm64Assembler::VerifyObject(FrameOffset /*src*/, bool /*could_be_null*/) {
 void Arm64Assembler::Call(ManagedRegister m_base, Offset offs, ManagedRegister m_scratch) {
   Arm64ManagedRegister base = m_base.AsArm64();
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  CHECK(base.IsCoreRegister()) << base;
-  CHECK(scratch.IsCoreRegister()) << scratch;
-  LoadFromOffset(scratch.AsCoreRegister(), base.AsCoreRegister(), offs.Int32Value());
-  ___ Blr(reg_x(scratch.AsCoreRegister()));
+  CHECK(base.IsXRegister()) << base;
+  CHECK(scratch.IsXRegister()) << scratch;
+  LoadFromOffset(scratch.AsXRegister(), base.AsXRegister(), offs.Int32Value());
+  ___ Blr(reg_x(scratch.AsXRegister()));
 }
 
 void Arm64Assembler::JumpTo(ManagedRegister m_base, Offset offs, ManagedRegister m_scratch) {
   Arm64ManagedRegister base = m_base.AsArm64();
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  CHECK(base.IsCoreRegister()) << base;
-  CHECK(scratch.IsCoreRegister()) << scratch;
+  CHECK(base.IsXRegister()) << base;
+  CHECK(scratch.IsXRegister()) << scratch;
   // Remove base and scratch form the temp list - higher level API uses IP1, IP0.
   vixl::UseScratchRegisterScope temps(vixl_masm_);
-  temps.Exclude(reg_x(base.AsCoreRegister()), reg_x(scratch.AsCoreRegister()));
-  ___ Ldr(reg_x(scratch.AsCoreRegister()), MEM_OP(reg_x(base.AsCoreRegister()), offs.Int32Value()));
-  ___ Br(reg_x(scratch.AsCoreRegister()));
+  temps.Exclude(reg_x(base.AsXRegister()), reg_x(scratch.AsXRegister()));
+  ___ Ldr(reg_x(scratch.AsXRegister()), MEM_OP(reg_x(base.AsXRegister()), offs.Int32Value()));
+  ___ Br(reg_x(scratch.AsXRegister()));
 }
 
 void Arm64Assembler::Call(FrameOffset base, Offset offs, ManagedRegister m_scratch) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  CHECK(scratch.IsCoreRegister()) << scratch;
+  CHECK(scratch.IsXRegister()) << scratch;
   // Call *(*(SP + base) + offset)
-  LoadWFromOffset(kLoadWord, scratch.AsOverlappingCoreRegisterLow(), SP, base.Int32Value());
-  LoadFromOffset(scratch.AsCoreRegister(), scratch.AsCoreRegister(), offs.Int32Value());
-  ___ Blr(reg_x(scratch.AsCoreRegister()));
+  LoadWFromOffset(kLoadWord, scratch.AsOverlappingWRegister(), SP, base.Int32Value());
+  LoadFromOffset(scratch.AsXRegister(), scratch.AsXRegister(), offs.Int32Value());
+  ___ Blr(reg_x(scratch.AsXRegister()));
 }
 
 void Arm64Assembler::CallFromThread64(ThreadOffset<8> /*offset*/, ManagedRegister /*scratch*/) {
@@ -550,59 +550,59 @@ void Arm64Assembler::CreateHandleScopeEntry(ManagedRegister m_out_reg, FrameOffs
   Arm64ManagedRegister out_reg = m_out_reg.AsArm64();
   Arm64ManagedRegister in_reg = m_in_reg.AsArm64();
   // For now we only hold stale handle scope entries in x registers.
-  CHECK(in_reg.IsNoRegister() || in_reg.IsCoreRegister()) << in_reg;
-  CHECK(out_reg.IsCoreRegister()) << out_reg;
+  CHECK(in_reg.IsNoRegister() || in_reg.IsXRegister()) << in_reg;
+  CHECK(out_reg.IsXRegister()) << out_reg;
   if (null_allowed) {
     // Null values get a handle scope entry value of 0.  Otherwise, the handle scope entry is
     // the address in the handle scope holding the reference.
     // e.g. out_reg = (handle == 0) ? 0 : (SP+handle_offset)
     if (in_reg.IsNoRegister()) {
-      LoadWFromOffset(kLoadWord, out_reg.AsOverlappingCoreRegisterLow(), SP,
+      LoadWFromOffset(kLoadWord, out_reg.AsOverlappingWRegister(), SP,
                       handle_scope_offs.Int32Value());
       in_reg = out_reg;
     }
-    ___ Cmp(reg_w(in_reg.AsOverlappingCoreRegisterLow()), 0);
+    ___ Cmp(reg_w(in_reg.AsOverlappingWRegister()), 0);
     if (!out_reg.Equals(in_reg)) {
-      LoadImmediate(out_reg.AsCoreRegister(), 0, eq);
+      LoadImmediate(out_reg.AsXRegister(), 0, eq);
     }
-    AddConstant(out_reg.AsCoreRegister(), SP, handle_scope_offs.Int32Value(), ne);
+    AddConstant(out_reg.AsXRegister(), SP, handle_scope_offs.Int32Value(), ne);
   } else {
-    AddConstant(out_reg.AsCoreRegister(), SP, handle_scope_offs.Int32Value(), al);
+    AddConstant(out_reg.AsXRegister(), SP, handle_scope_offs.Int32Value(), al);
   }
 }
 
 void Arm64Assembler::CreateHandleScopeEntry(FrameOffset out_off, FrameOffset handle_scope_offset,
                                      ManagedRegister m_scratch, bool null_allowed) {
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
-  CHECK(scratch.IsCoreRegister()) << scratch;
+  CHECK(scratch.IsXRegister()) << scratch;
   if (null_allowed) {
-    LoadWFromOffset(kLoadWord, scratch.AsOverlappingCoreRegisterLow(), SP,
+    LoadWFromOffset(kLoadWord, scratch.AsOverlappingWRegister(), SP,
                     handle_scope_offset.Int32Value());
     // Null values get a handle scope entry value of 0.  Otherwise, the handle scope entry is
     // the address in the handle scope holding the reference.
     // e.g. scratch = (scratch == 0) ? 0 : (SP+handle_scope_offset)
-    ___ Cmp(reg_w(scratch.AsOverlappingCoreRegisterLow()), 0);
+    ___ Cmp(reg_w(scratch.AsOverlappingWRegister()), 0);
     // Move this logic in add constants with flags.
-    AddConstant(scratch.AsCoreRegister(), SP, handle_scope_offset.Int32Value(), ne);
+    AddConstant(scratch.AsXRegister(), SP, handle_scope_offset.Int32Value(), ne);
   } else {
-    AddConstant(scratch.AsCoreRegister(), SP, handle_scope_offset.Int32Value(), al);
+    AddConstant(scratch.AsXRegister(), SP, handle_scope_offset.Int32Value(), al);
   }
-  StoreToOffset(scratch.AsCoreRegister(), SP, out_off.Int32Value());
+  StoreToOffset(scratch.AsXRegister(), SP, out_off.Int32Value());
 }
 
 void Arm64Assembler::LoadReferenceFromHandleScope(ManagedRegister m_out_reg,
                                            ManagedRegister m_in_reg) {
   Arm64ManagedRegister out_reg = m_out_reg.AsArm64();
   Arm64ManagedRegister in_reg = m_in_reg.AsArm64();
-  CHECK(out_reg.IsCoreRegister()) << out_reg;
-  CHECK(in_reg.IsCoreRegister()) << in_reg;
+  CHECK(out_reg.IsXRegister()) << out_reg;
+  CHECK(in_reg.IsXRegister()) << in_reg;
   vixl::Label exit;
   if (!out_reg.Equals(in_reg)) {
     // FIXME: Who sets the flags here?
-    LoadImmediate(out_reg.AsCoreRegister(), 0, eq);
+    LoadImmediate(out_reg.AsXRegister(), 0, eq);
   }
-  ___ Cbz(reg_x(in_reg.AsCoreRegister()), &exit);
-  LoadFromOffset(out_reg.AsCoreRegister(), in_reg.AsCoreRegister(), 0);
+  ___ Cbz(reg_x(in_reg.AsXRegister()), &exit);
+  LoadFromOffset(out_reg.AsXRegister(), in_reg.AsXRegister(), 0);
   ___ Bind(&exit);
 }
 
@@ -611,13 +611,13 @@ void Arm64Assembler::ExceptionPoll(ManagedRegister m_scratch, size_t stack_adjus
   Arm64ManagedRegister scratch = m_scratch.AsArm64();
   Arm64Exception *current_exception = new Arm64Exception(scratch, stack_adjust);
   exception_blocks_.push_back(current_exception);
-  LoadFromOffset(scratch.AsCoreRegister(), ETR, Thread::ExceptionOffset<8>().Int32Value());
-  ___ Cbnz(reg_x(scratch.AsCoreRegister()), current_exception->Entry());
+  LoadFromOffset(scratch.AsXRegister(), ETR, Thread::ExceptionOffset<8>().Int32Value());
+  ___ Cbnz(reg_x(scratch.AsXRegister()), current_exception->Entry());
 }
 
 void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {
   vixl::UseScratchRegisterScope temps(vixl_masm_);
-  temps.Exclude(reg_x(exception->scratch_.AsCoreRegister()));
+  temps.Exclude(reg_x(exception->scratch_.AsXRegister()));
   vixl::Register temp = temps.AcquireX();
 
   // Bind exception poll entry.
@@ -627,7 +627,7 @@ void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {
   }
   // Pass exception object as argument.
   // Don't care about preserving X0 as this won't return.
-  ___ Mov(reg_x(X0), reg_x(exception->scratch_.AsCoreRegister()));
+  ___ Mov(reg_x(X0), reg_x(exception->scratch_.AsXRegister()));
   ___ Ldr(temp, MEM_OP(reg_x(ETR), QUICK_ENTRYPOINT_OFFSET(8, pDeliverException).Int32Value()));
 
   // Move ETR(Callee saved) back to TR(Caller saved) reg. We use ETR on calls
@@ -646,7 +646,7 @@ void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                         const std::vector<ManagedRegister>& callee_save_regs,
                         const ManagedRegisterEntrySpills& entry_spills) {
   CHECK_ALIGNED(frame_size, kStackAlignment);
-  CHECK(X0 == method_reg.AsArm64().AsCoreRegister());
+  CHECK(X0 == method_reg.AsArm64().AsXRegister());
 
   // TODO: *create APCS FP - end of FP chain;
   //       *add support for saving a different set of callee regs.
@@ -700,8 +700,8 @@ void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
       // only increment stack offset.
       ManagedRegisterSpill spill = entry_spills.at(i);
       offset += spill.getSize();
-    } else if (reg.IsCoreRegister()) {
-      StoreToOffset(reg.AsCoreRegister(), SP, offset);
+    } else if (reg.IsXRegister()) {
+      StoreToOffset(reg.AsXRegister(), SP, offset);
       offset += 8;
     } else if (reg.IsWRegister()) {
       StoreWToOffset(kStoreWord, reg.AsWRegister(), SP, offset);

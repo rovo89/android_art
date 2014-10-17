@@ -62,23 +62,23 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
 
   switch (abi) {
     case kInterpreterAbi:  // Thread* is first argument (X0) in interpreter ABI.
-      __ JumpTo(Arm64ManagedRegister::FromCoreRegister(X0), Offset(offset.Int32Value()),
-          Arm64ManagedRegister::FromCoreRegister(IP1));
+      __ JumpTo(Arm64ManagedRegister::FromXRegister(X0), Offset(offset.Int32Value()),
+          Arm64ManagedRegister::FromXRegister(IP1));
 
       break;
     case kJniAbi:  // Load via Thread* held in JNIEnv* in first argument (X0).
-      __ LoadRawPtr(Arm64ManagedRegister::FromCoreRegister(IP1),
-                      Arm64ManagedRegister::FromCoreRegister(X0),
+      __ LoadRawPtr(Arm64ManagedRegister::FromXRegister(IP1),
+                      Arm64ManagedRegister::FromXRegister(X0),
                       Offset(JNIEnvExt::SelfOffset().Int32Value()));
 
-      __ JumpTo(Arm64ManagedRegister::FromCoreRegister(IP1), Offset(offset.Int32Value()),
-                Arm64ManagedRegister::FromCoreRegister(IP0));
+      __ JumpTo(Arm64ManagedRegister::FromXRegister(IP1), Offset(offset.Int32Value()),
+                Arm64ManagedRegister::FromXRegister(IP0));
 
       break;
     case kPortableAbi:  // X18 holds Thread*.
     case kQuickAbi:  // Fall-through.
-      __ JumpTo(Arm64ManagedRegister::FromCoreRegister(TR), Offset(offset.Int32Value()),
-                Arm64ManagedRegister::FromCoreRegister(IP0));
+      __ JumpTo(Arm64ManagedRegister::FromXRegister(TR), Offset(offset.Int32Value()),
+                Arm64ManagedRegister::FromXRegister(IP0));
 
       break;
   }
