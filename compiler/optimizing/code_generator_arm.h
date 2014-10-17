@@ -164,12 +164,16 @@ class CodeGeneratorARM : public CodeGenerator {
   }
 
   virtual void SetupBlockedRegisters() const OVERRIDE;
+
   virtual Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
 
   virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
+
+  // Blocks all register pairs made out of blocked core registers.
+  void UpdateBlockedPairRegisters() const;
 
   ParallelMoveResolverARM* GetMoveResolver() {
     return &move_resolver_;
