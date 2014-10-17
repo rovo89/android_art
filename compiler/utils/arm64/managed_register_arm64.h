@@ -24,29 +24,29 @@
 namespace art {
 namespace arm64 {
 
-const int kNumberOfCoreRegIds = kNumberOfCoreRegisters;
+const int kNumberOfXRegIds = kNumberOfXRegisters;
 const int kNumberOfWRegIds = kNumberOfWRegisters;
 const int kNumberOfDRegIds = kNumberOfDRegisters;
 const int kNumberOfSRegIds = kNumberOfSRegisters;
 
-const int kNumberOfRegIds = kNumberOfCoreRegIds + kNumberOfWRegIds +
+const int kNumberOfRegIds = kNumberOfXRegIds + kNumberOfWRegIds +
   kNumberOfDRegIds + kNumberOfSRegIds;
 
 // Register ids map:
-//  [0..X[  core registers 64bit (enum Register)
+//  [0..X[  core registers 64bit (enum XRegister)
 //  [X..W[  core registers 32bit (enum WRegister)
 //  [W..D[  double precision VFP registers (enum DRegister)
 //  [D..S[  single precision VFP registers (enum SRegister)
 //
 // where:
-//  X = kNumberOfCoreRegIds
+//  X = kNumberOfXRegIds
 //  W = X + kNumberOfWRegIds
 //  D = W + kNumberOfDRegIds
 //  S = D + kNumberOfSRegIds
 //
 // An instance of class 'ManagedRegister' represents a single Arm64
 // register. A register can be one of the following:
-//  * core register 64bit context (enum Register)
+//  * core register 64bit context (enum XRegister)
 //  * core register 32bit context (enum WRegister)
 //  * VFP double precision register (enum DRegister)
 //  * VFP single precision register (enum SRegister)
@@ -55,76 +55,74 @@ const int kNumberOfRegIds = kNumberOfCoreRegIds + kNumberOfWRegIds +
 
 class Arm64ManagedRegister : public ManagedRegister {
  public:
-  Register AsCoreRegister() const {
-    CHECK(IsCoreRegister());
-    return static_cast<Register>(id_);
+  XRegister AsXRegister() const {
+    CHECK(IsXRegister());
+    return static_cast<XRegister>(id_);
   }
 
   WRegister AsWRegister() const {
     CHECK(IsWRegister());
-    return static_cast<WRegister>(id_ - kNumberOfCoreRegIds);
+    return static_cast<WRegister>(id_ - kNumberOfXRegIds);
   }
 
   DRegister AsDRegister() const {
     CHECK(IsDRegister());
-    return static_cast<DRegister>(id_ - kNumberOfCoreRegIds - kNumberOfWRegIds);
+    return static_cast<DRegister>(id_ - kNumberOfXRegIds - kNumberOfWRegIds);
   }
 
   SRegister AsSRegister() const {
     CHECK(IsSRegister());
-    return static_cast<SRegister>(id_ - kNumberOfCoreRegIds - kNumberOfWRegIds -
+    return static_cast<SRegister>(id_ - kNumberOfXRegIds - kNumberOfWRegIds -
                                   kNumberOfDRegIds);
   }
 
-  WRegister AsOverlappingCoreRegisterLow() const {
+  WRegister AsOverlappingWRegister() const {
     CHECK(IsValidManagedRegister());
     if (IsZeroRegister()) return WZR;
-    return static_cast<WRegister>(AsCoreRegister());
+    return static_cast<WRegister>(AsXRegister());
   }
 
-  // FIXME: Find better naming.
-  Register AsOverlappingWRegisterCore() const {
+  XRegister AsOverlappingXRegister() const {
     CHECK(IsValidManagedRegister());
-    return static_cast<Register>(AsWRegister());
+    return static_cast<XRegister>(AsWRegister());
   }
 
-  SRegister AsOverlappingDRegisterLow() const {
+  SRegister AsOverlappingSRegister() const {
     CHECK(IsValidManagedRegister());
     return static_cast<SRegister>(AsDRegister());
   }
 
-  // FIXME: Find better naming.
-  DRegister AsOverlappingSRegisterD() const {
+  DRegister AsOverlappingDRegister() const {
     CHECK(IsValidManagedRegister());
     return static_cast<DRegister>(AsSRegister());
   }
 
-  bool IsCoreRegister() const {
+  bool IsXRegister() const {
     CHECK(IsValidManagedRegister());
-    return (0 <= id_) && (id_ < kNumberOfCoreRegIds);
+    return (0 <= id_) && (id_ < kNumberOfXRegIds);
   }
 
   bool IsWRegister() const {
     CHECK(IsValidManagedRegister());
-    const int test = id_ - kNumberOfCoreRegIds;
+    const int test = id_ - kNumberOfXRegIds;
     return (0 <= test) && (test < kNumberOfWRegIds);
   }
 
   bool IsDRegister() const {
     CHECK(IsValidManagedRegister());
-    const int test = id_ - (kNumberOfCoreRegIds + kNumberOfWRegIds);
+    const int test = id_ - (kNumberOfXRegIds + kNumberOfWRegIds);
     return (0 <= test) && (test < kNumberOfDRegIds);
   }
 
   bool IsSRegister() const {
     CHECK(IsValidManagedRegister());
-    const int test = id_ - (kNumberOfCoreRegIds + kNumberOfWRegIds +
+    const int test = id_ - (kNumberOfXRegIds + kNumberOfWRegIds +
                             kNumberOfDRegIds);
     return (0 <= test) && (test < kNumberOfSRegIds);
   }
 
   bool IsGPRegister() const {
-    return IsCoreRegister() || IsWRegister();
+    return IsXRegister() || IsWRegister();
   }
 
   bool IsFPRegister() const {
@@ -134,7 +132,7 @@ class Arm64ManagedRegister : public ManagedRegister {
   bool IsSameType(Arm64ManagedRegister test) const {
     CHECK(IsValidManagedRegister() && test.IsValidManagedRegister());
     return
-      (IsCoreRegister() && test.IsCoreRegister()) ||
+      (IsXRegister() && test.IsXRegister()) ||
       (IsWRegister() && test.IsWRegister()) ||
       (IsDRegister() && test.IsDRegister()) ||
       (IsSRegister() && test.IsSRegister());
@@ -147,29 +145,29 @@ class Arm64ManagedRegister : public ManagedRegister {
 
   void Print(std::ostream& os) const;
 
-  static Arm64ManagedRegister FromCoreRegister(Register r) {
+  static Arm64ManagedRegister FromXRegister(XRegister r) {
     CHECK_NE(r, kNoRegister);
     return FromRegId(r);
   }
 
   static Arm64ManagedRegister FromWRegister(WRegister r) {
     CHECK_NE(r, kNoWRegister);
-    return FromRegId(r + kNumberOfCoreRegIds);
+    return FromRegId(r + kNumberOfXRegIds);
   }
 
   static Arm64ManagedRegister FromDRegister(DRegister r) {
     CHECK_NE(r, kNoDRegister);
-    return FromRegId(r + (kNumberOfCoreRegIds + kNumberOfWRegIds));
+    return FromRegId(r + (kNumberOfXRegIds + kNumberOfWRegIds));
   }
 
   static Arm64ManagedRegister FromSRegister(SRegister r) {
     CHECK_NE(r, kNoSRegister);
-    return FromRegId(r + (kNumberOfCoreRegIds + kNumberOfWRegIds +
+    return FromRegId(r + (kNumberOfXRegIds + kNumberOfWRegIds +
                           kNumberOfDRegIds));
   }
 
   // Returns the X register overlapping W register r.
-  static Arm64ManagedRegister FromWRegisterCore(WRegister r) {
+  static Arm64ManagedRegister FromWRegisterX(WRegister r) {
     CHECK_NE(r, kNoWRegister);
     return FromRegId(r);
   }
@@ -177,7 +175,7 @@ class Arm64ManagedRegister : public ManagedRegister {
   // Return the D register overlapping S register r.
   static Arm64ManagedRegister FromSRegisterD(SRegister r) {
     CHECK_NE(r, kNoSRegister);
-    return FromRegId(r + (kNumberOfCoreRegIds + kNumberOfWRegIds));
+    return FromRegId(r + (kNumberOfXRegIds + kNumberOfWRegIds));
   }
 
  private:
@@ -186,11 +184,11 @@ class Arm64ManagedRegister : public ManagedRegister {
   }
 
   bool IsStackPointer() const {
-    return IsCoreRegister() && (id_ == SP);
+    return IsXRegister() && (id_ == SP);
   }
 
   bool IsZeroRegister() const {
-    return IsCoreRegister() && (id_ == XZR);
+    return IsXRegister() && (id_ == XZR);
   }
 
   int RegId() const {

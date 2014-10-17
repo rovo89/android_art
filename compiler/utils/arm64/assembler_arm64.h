@@ -173,7 +173,7 @@ class Arm64Assembler FINAL : public Assembler {
 
  private:
   static vixl::Register reg_x(int code) {
-    CHECK(code < kNumberOfCoreRegisters) << code;
+    CHECK(code < kNumberOfXRegisters) << code;
     if (code == SP) {
       return vixl::sp;
     } else if (code == XZR) {
@@ -183,6 +183,7 @@ class Arm64Assembler FINAL : public Assembler {
   }
 
   static vixl::Register reg_w(int code) {
+    CHECK(code < kNumberOfWRegisters) << code;
     if (code == WSP) {
       return vixl::wsp;
     } else if (code == WZR) {
@@ -203,20 +204,20 @@ class Arm64Assembler FINAL : public Assembler {
   void EmitExceptionPoll(Arm64Exception *exception);
 
   void StoreWToOffset(StoreOperandType type, WRegister source,
-                      Register base, int32_t offset);
-  void StoreToOffset(Register source, Register base, int32_t offset);
-  void StoreSToOffset(SRegister source, Register base, int32_t offset);
-  void StoreDToOffset(DRegister source, Register base, int32_t offset);
+                      XRegister base, int32_t offset);
+  void StoreToOffset(XRegister source, XRegister base, int32_t offset);
+  void StoreSToOffset(SRegister source, XRegister base, int32_t offset);
+  void StoreDToOffset(DRegister source, XRegister base, int32_t offset);
 
-  void LoadImmediate(Register dest, int32_t value, vixl::Condition cond = vixl::al);
-  void Load(Arm64ManagedRegister dst, Register src, int32_t src_offset, size_t size);
+  void LoadImmediate(XRegister dest, int32_t value, vixl::Condition cond = vixl::al);
+  void Load(Arm64ManagedRegister dst, XRegister src, int32_t src_offset, size_t size);
   void LoadWFromOffset(LoadOperandType type, WRegister dest,
-                      Register base, int32_t offset);
-  void LoadFromOffset(Register dest, Register base, int32_t offset);
-  void LoadSFromOffset(SRegister dest, Register base, int32_t offset);
-  void LoadDFromOffset(DRegister dest, Register base, int32_t offset);
-  void AddConstant(Register rd, int32_t value, vixl::Condition cond = vixl::al);
-  void AddConstant(Register rd, Register rn, int32_t value, vixl::Condition cond = vixl::al);
+                      XRegister base, int32_t offset);
+  void LoadFromOffset(XRegister dest, XRegister base, int32_t offset);
+  void LoadSFromOffset(SRegister dest, XRegister base, int32_t offset);
+  void LoadDFromOffset(DRegister dest, XRegister base, int32_t offset);
+  void AddConstant(XRegister rd, int32_t value, vixl::Condition cond = vixl::al);
+  void AddConstant(XRegister rd, XRegister rn, int32_t value, vixl::Condition cond = vixl::al);
 
   // Vixl assembler.
   vixl::MacroAssembler* const vixl_masm_;
