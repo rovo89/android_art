@@ -34,6 +34,8 @@
 
 namespace art {
 
+typedef int (*SigActionFnPtr)(int, const struct sigaction*, struct sigaction*);
+
 class SignalAction {
  public:
   SignalAction() : claimed_(false) {
@@ -138,6 +140,21 @@ void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context) {
   }
 }
 
+void EnsureFrontOfChain(int signal, struct sigaction* expected_action) {
+  CheckSignalValid(signal);
+  // Read the current action without looking at the chain, it should be the expected action.
+  SigActionFnPtr linked_sigaction = reinterpret_cast<SigActionFnPtr>(linked_sigaction_sym);
+  struct sigaction current_action;
+  linked_sigaction(signal, nullptr, &current_action);
+  // If the sigactions don't match then we put the current action on the chain and make ourself as
+  // the main action.
+  if (current_action.sa_sigaction != expected_action->sa_sigaction) {
+    log("Warning: Unexpected sigaction action found %p\n", current_action.sa_sigaction);
+    user_sigactions[signal].Claim(current_action);
+    linked_sigaction(signal, expected_action, nullptr);
+  }
+}
+
 extern "C" {
 // These functions are C linkage since they replace the functions in libc.
 
@@ -171,9 +188,7 @@ int sigaction(int signal, const struct sigaction* new_action, struct sigaction* 
     log("Unable to find next sigaction in signal chain");
     abort();
   }
-
-  typedef int (*SigAction)(int, const struct sigaction*, struct sigaction*);
-  SigAction linked_sigaction = reinterpret_cast<SigAction>(linked_sigaction_sym);
+  SigActionFnPtr linked_sigaction = reinterpret_cast<SigActionFnPtr>(linked_sigaction_sym);
   return linked_sigaction(signal, new_action, old_action);
 }
 
