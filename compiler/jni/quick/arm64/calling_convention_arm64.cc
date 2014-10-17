@@ -21,7 +21,7 @@
 namespace art {
 namespace arm64 {
 
-static const Register kCoreArgumentRegisters[] = {
+static const XRegister kXArgumentRegisters[] = {
   X0, X1, X2, X3, X4, X5, X6, X7
 };
 
@@ -39,11 +39,11 @@ static const SRegister kSArgumentRegisters[] = {
 
 // Calling convention
 ManagedRegister Arm64ManagedRuntimeCallingConvention::InterproceduralScratchRegister() {
-  return Arm64ManagedRegister::FromCoreRegister(X20);  // saved on entry restored on exit
+  return Arm64ManagedRegister::FromXRegister(X20);  // saved on entry restored on exit
 }
 
 ManagedRegister Arm64JniCallingConvention::InterproceduralScratchRegister() {
-  return Arm64ManagedRegister::FromCoreRegister(X20);  // saved on entry restored on exit
+  return Arm64ManagedRegister::FromXRegister(X20);  // saved on entry restored on exit
 }
 
 static ManagedRegister ReturnRegisterForShorty(const char* shorty) {
@@ -52,7 +52,7 @@ static ManagedRegister ReturnRegisterForShorty(const char* shorty) {
   } else if (shorty[0] == 'D') {
     return Arm64ManagedRegister::FromDRegister(D0);
   } else if (shorty[0] == 'J') {
-    return Arm64ManagedRegister::FromCoreRegister(X0);
+    return Arm64ManagedRegister::FromXRegister(X0);
   } else if (shorty[0] == 'V') {
     return Arm64ManagedRegister::NoRegister();
   } else {
@@ -75,7 +75,7 @@ ManagedRegister Arm64JniCallingConvention::IntReturnRegister() {
 // Managed runtime calling convention
 
 ManagedRegister Arm64ManagedRuntimeCallingConvention::MethodRegister() {
-  return Arm64ManagedRegister::FromCoreRegister(X0);
+  return Arm64ManagedRegister::FromXRegister(X0);
 }
 
 bool Arm64ManagedRuntimeCallingConvention::IsCurrentParamInRegister() {
@@ -129,7 +129,7 @@ const ManagedRegisterEntrySpills& Arm64ManagedRuntimeCallingConvention::EntrySpi
       } else {  // GP regs.
         if (gp_reg_index < 8) {
           if (IsCurrentParamALong() && (!IsCurrentParamAReference())) {
-            entry_spills_.push_back(Arm64ManagedRegister::FromCoreRegister(kCoreArgumentRegisters[gp_reg_index]));
+            entry_spills_.push_back(Arm64ManagedRegister::FromXRegister(kXArgumentRegisters[gp_reg_index]));
           } else {
             entry_spills_.push_back(Arm64ManagedRegister::FromWRegister(kWArgumentRegisters[gp_reg_index]));
           }
@@ -154,17 +154,17 @@ Arm64JniCallingConvention::Arm64JniCallingConvention(bool is_static, bool is_syn
     : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
   // TODO: Ugly hard code...
   // Should generate these according to the spill mask automatically.
-  callee_save_regs_.push_back(Arm64ManagedRegister::FromCoreRegister(X20));
-  callee_save_regs_.push_back(Arm64ManagedRegister::FromCoreRegister(X21));
-  callee_save_regs_.push_back(Arm64ManagedRegister::FromCoreRegister(X22));
-  callee_save_regs_.push_back(Arm64ManagedRegister::FromCoreRegister(X23));
-  callee_save_regs_.push_back(Arm64ManagedRegister::FromCoreRegister(X24));
-  callee_save_regs_.push_back(Arm64ManagedRegister::FromCoreRegister(X25));
-  callee_save_regs_.push_back(Arm64ManagedRegister::FromCoreRegister(X26));
-  callee_save_regs_.push_back(Arm64ManagedRegister::FromCoreRegister(X27));
-  callee_save_regs_.push_back(Arm64ManagedRegister::FromCoreRegister(X28));
-  callee_save_regs_.push_back(Arm64ManagedRegister::FromCoreRegister(X29));
-  callee_save_regs_.push_back(Arm64ManagedRegister::FromCoreRegister(X30));
+  callee_save_regs_.push_back(Arm64ManagedRegister::FromXRegister(X20));
+  callee_save_regs_.push_back(Arm64ManagedRegister::FromXRegister(X21));
+  callee_save_regs_.push_back(Arm64ManagedRegister::FromXRegister(X22));
+  callee_save_regs_.push_back(Arm64ManagedRegister::FromXRegister(X23));
+  callee_save_regs_.push_back(Arm64ManagedRegister::FromXRegister(X24));
+  callee_save_regs_.push_back(Arm64ManagedRegister::FromXRegister(X25));
+  callee_save_regs_.push_back(Arm64ManagedRegister::FromXRegister(X26));
+  callee_save_regs_.push_back(Arm64ManagedRegister::FromXRegister(X27));
+  callee_save_regs_.push_back(Arm64ManagedRegister::FromXRegister(X28));
+  callee_save_regs_.push_back(Arm64ManagedRegister::FromXRegister(X29));
+  callee_save_regs_.push_back(Arm64ManagedRegister::FromXRegister(X30));
 }
 
 uint32_t Arm64JniCallingConvention::CoreSpillMask() const {
@@ -232,7 +232,7 @@ ManagedRegister Arm64JniCallingConvention::CurrentParamRegister() {
     int gp_reg = itr_args_ - itr_float_and_doubles_;
     CHECK_LT(static_cast<unsigned int>(gp_reg), 8u);
     if (IsCurrentParamALong() || IsCurrentParamAReference() || IsCurrentParamJniEnv())  {
-      return Arm64ManagedRegister::FromCoreRegister(kCoreArgumentRegisters[gp_reg]);
+      return Arm64ManagedRegister::FromXRegister(kXArgumentRegisters[gp_reg]);
     } else {
       return Arm64ManagedRegister::FromWRegister(kWArgumentRegisters[gp_reg]);
     }
