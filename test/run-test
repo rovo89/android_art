@@ -171,6 +171,11 @@ while true; do
         option="$1"
         run_args="${run_args} --runtime-option $option"
         shift
+    elif [ "x$1" = "x--gdb-arg" ]; then
+        shift
+        gdb_arg="$1"
+        run_args="${run_args} --gdb-arg $gdb_arg"
+        shift
     elif [ "x$1" = "x--debug" ]; then
         run_args="${run_args} --debug"
         shift
