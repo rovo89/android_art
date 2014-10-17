@@ -51,7 +51,7 @@ $(eval $(call create-core-oat-host-rules,2ND_))
 endif
 
 define create-core-oat-target-rules
-$$($(1)TARGET_CORE_IMG_OUT): $$($(1)TARGET_CORE_DEX_FILES) $$(DEX2OAT_DEPENDENCY)
+$$($(1)TARGET_CORE_IMG_OUT): $$(TARGET_CORE_DEX_FILES) $$(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $$@ ($$?)"
 	@mkdir -p $$(dir $$@)
 	$$(hide) $$(DEX2OAT) $$(DEX2OAT_FLAGS) --runtime-arg -Xms$(DEX2OAT_XMS) --runtime-arg -Xmx$(DEX2OAT_XMX) \
