@@ -192,12 +192,13 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
       mirror::Class* result = class_linker->DefineClass(soa.Self(), descriptor.c_str(),
                                                         class_loader, *dex_file, *dex_class_def);
       if (result != nullptr) {
-        VLOG(class_linker) << "DexFile_defineClassNative returning " << result;
+        VLOG(class_linker) << "DexFile_defineClassNative returning " << result
+                           << " for " << class_name.c_str();
         return soa.AddLocalReference<jclass>(result);
       }
     }
   }
-  VLOG(class_linker) << "Failed to find dex_class_def";
+  VLOG(class_linker) << "Failed to find dex_class_def " << class_name.c_str();
   return nullptr;
 }
 
