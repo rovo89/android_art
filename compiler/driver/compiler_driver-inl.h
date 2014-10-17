@@ -243,8 +243,14 @@ inline int CompilerDriver::IsFastInvoke(
     CHECK(referrer_class->GetDexCache()->GetResolvedMethod(target_method->dex_method_index) ==
         resolved_method) << PrettyMethod(resolved_method);
     int stats_flags = kFlagMethodResolved;
-    GetCodeAndMethodForDirectCall(invoke_type, kDirect, false, referrer_class, resolved_method,
-                                  &stats_flags, target_method, direct_code, direct_method);
+    GetCodeAndMethodForDirectCall(/*out*/invoke_type,
+                                  kDirect,  // Sharp type
+                                  false,    // The dex cache is guaranteed to be available
+                                  referrer_class, resolved_method,
+                                  /*out*/&stats_flags,
+                                  target_method,
+                                  /*out*/direct_code,
+                                  /*out*/direct_method);
     DCHECK_NE(*invoke_type, kSuper) << PrettyMethod(resolved_method);
     if (*invoke_type == kDirect) {
       stats_flags |= kFlagsMethodResolvedVirtualMadeDirect;
@@ -273,8 +279,14 @@ inline int CompilerDriver::IsFastInvoke(
     CHECK(called_method != NULL);
     CHECK(!called_method->IsAbstract());
     int stats_flags = kFlagMethodResolved;
-    GetCodeAndMethodForDirectCall(invoke_type, kDirect, true, referrer_class, called_method,
-                                  &stats_flags, target_method, direct_code, direct_method);
+    GetCodeAndMethodForDirectCall(/*out*/invoke_type,
+                                  kDirect,  // Sharp type
+                                  true,     // The dex cache may not be available
+                                  referrer_class, called_method,
+                                  /*out*/&stats_flags,
+                                  target_method,
+                                  /*out*/direct_code,
+                                  /*out*/direct_method);
     DCHECK_NE(*invoke_type, kSuper);
     if (*invoke_type == kDirect) {
       stats_flags |= kFlagsMethodResolvedPreciseTypeDevirtualization;
@@ -289,8 +301,14 @@ inline int CompilerDriver::IsFastInvoke(
 
   // Sharpening failed so generate a regular resolved method dispatch.
   int stats_flags = kFlagMethodResolved;
-  GetCodeAndMethodForDirectCall(invoke_type, *invoke_type, false, referrer_class, resolved_method,
-                                &stats_flags, target_method, direct_code, direct_method);
+  GetCodeAndMethodForDirectCall(/*out*/invoke_type,
+                                *invoke_type,  // Sharp type
+                                false,         // The dex cache is guaranteed to be available
+                                referrer_class, resolved_method,
+                                /*out*/&stats_flags,
+                                target_method,
+                                /*out*/direct_code,
+                                /*out*/direct_method);
   return stats_flags;
 }
 
