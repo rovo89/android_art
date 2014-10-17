@@ -27,7 +27,7 @@ class CompilerOptions {
     kSpace,               // Maximize space savings.
     kBalanced,            // Try to get the best performance return on compilation investment.
     kSpeed,               // Maximize runtime performance.
-    kEverything           // Force compilation (Note: excludes compilaton of class initializers).
+    kEverything,          // Force compilation (Note: excludes compilaton of class initializers).
   };
 
   // Guide heuristics to determine whether to compile method if profile data not available.
@@ -58,7 +58,8 @@ class CompilerOptions {
     include_debug_symbols_(kDefaultIncludeDebugSymbols),
     implicit_null_checks_(false),
     implicit_so_checks_(false),
-    implicit_suspend_checks_(false)
+    implicit_suspend_checks_(false),
+    compile_pic_(false)
 #ifdef ART_SEA_IR_MODE
     , sea_ir_mode_(false)
 #endif
@@ -76,7 +77,8 @@ class CompilerOptions {
                   bool include_debug_symbols,
                   bool implicit_null_checks,
                   bool implicit_so_checks,
-                  bool implicit_suspend_checks
+                  bool implicit_suspend_checks,
+                  bool compile_pic
 #ifdef ART_SEA_IR_MODE
                   , bool sea_ir_mode
 #endif
@@ -93,7 +95,8 @@ class CompilerOptions {
     include_debug_symbols_(include_debug_symbols),
     implicit_null_checks_(implicit_null_checks),
     implicit_so_checks_(implicit_so_checks),
-    implicit_suspend_checks_(implicit_suspend_checks)
+    implicit_suspend_checks_(implicit_suspend_checks),
+    compile_pic_(compile_pic)
 #ifdef ART_SEA_IR_MODE
     , sea_ir_mode_(sea_ir_mode)
 #endif
@@ -196,6 +199,11 @@ class CompilerOptions {
     return include_patch_information_;
   }
 
+  // Should the code be compiled as position independent?
+  bool GetCompilePic() const {
+    return compile_pic_;
+  }
+
  private:
   CompilerFilter compiler_filter_;
   size_t huge_method_threshold_;
@@ -211,6 +219,7 @@ class CompilerOptions {
   bool implicit_null_checks_;
   bool implicit_so_checks_;
   bool implicit_suspend_checks_;
+  bool compile_pic_;
 #ifdef ART_SEA_IR_MODE
   bool sea_ir_mode_;
 #endif
