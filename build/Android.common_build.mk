@@ -212,8 +212,7 @@ art_non_debug_cflags := \
 art_debug_cflags := \
   -O2 \
   -DDYNAMIC_ANNOTATIONS_ENABLED=1 \
-  -UNDEBUG \
-  -fkeep-inline-functions
+  -UNDEBUG
 
 art_host_non_debug_cflags := $(art_non_debug_cflags)
 art_target_non_debug_cflags := $(art_non_debug_cflags)
