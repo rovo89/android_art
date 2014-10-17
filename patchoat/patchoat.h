@@ -52,7 +52,8 @@ class PatchOat {
  private:
   // Takes ownership only of the ElfFile. All other pointers are only borrowed.
   PatchOat(ElfFile* oat_file, off_t delta, TimingLogger* timings)
-      : oat_file_(oat_file), delta_(delta), timings_(timings) {}
+      : oat_file_(oat_file), image_(nullptr), bitmap_(nullptr), heap_(nullptr), delta_(delta),
+        timings_(timings) {}
   PatchOat(MemMap* image, gc::accounting::ContinuousSpaceBitmap* bitmap,
            MemMap* heap, off_t delta, TimingLogger* timings)
       : image_(image), bitmap_(bitmap), heap_(heap),
@@ -106,21 +107,22 @@ class PatchOat {
     void operator() (mirror::Class* cls, mirror::Reference* ref) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
   private:
-    PatchOat* patcher_;
-    mirror::Object* copy_;
+    PatchOat* const patcher_;
+    mirror::Object* const copy_;
   };
 
   // The elf file we are patching.
   std::unique_ptr<ElfFile> oat_file_;
   // A mmap of the image we are patching. This is modified.
-  const MemMap* image_;
+  const MemMap* const image_;
+  // The bitmap over the image within the heap we are patching. This is not modified.
+  gc::accounting::ContinuousSpaceBitmap* const bitmap_;
   // The heap we are patching. This is not modified.
-  gc::accounting::ContinuousSpaceBitmap* bitmap_;
-  // The heap we are patching. This is not modified.
-  const MemMap* heap_;
+  const MemMap* const heap_;
   // The amount we are changing the offset by.
-  off_t delta_;
-  TimingLogger* timings_;
+  const off_t delta_;
+  // Timing splits.
+  TimingLogger* const timings_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(PatchOat);
 };

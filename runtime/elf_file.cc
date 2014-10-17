@@ -23,7 +23,10 @@
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "base/stl_util.h"
+#include "base/unix_file/fd_file.h"
 #include "dwarf.h"
+#include "elf_file_impl.h"
+#include "elf_utils.h"
 #include "leb128.h"
 #include "utils.h"
 #include "instruction_set.h"
@@ -1661,7 +1664,7 @@ struct PACKED(1) DebugLineHeader {
   }
 };
 
-class DebugLineInstructionIterator {
+class DebugLineInstructionIterator FINAL {
  public:
   static DebugLineInstructionIterator* Create(DebugLineHeader* header, size_t section_size) {
     std::unique_ptr<DebugLineInstructionIterator> line_iter(
@@ -1688,11 +1691,11 @@ class DebugLineInstructionIterator {
     }
   }
 
-  uint8_t* GetInstruction() {
+  uint8_t* GetInstruction() const {
     return current_instruction_;
   }
 
-  bool IsExtendedOpcode() {
+  bool IsExtendedOpcode() const {
     return header_->IsExtendedOpcode(current_instruction_);
   }
 
@@ -1719,8 +1722,8 @@ class DebugLineInstructionIterator {
     : header_(header), last_instruction_(reinterpret_cast<uint8_t*>(header) + size),
       current_instruction_(header->GetDebugLineData()) {}
 
-  DebugLineHeader* header_;
-  uint8_t* last_instruction_;
+  DebugLineHeader* const header_;
+  uint8_t* const last_instruction_;
   uint8_t* current_instruction_;
 };
 
@@ -1781,9 +1784,8 @@ static int32_t FormLength(uint32_t att) {
   }
 }
 
-class DebugTag {
+class DebugTag FINAL {
  public:
-  const uint32_t index_;
   ~DebugTag() {}
   // Creates a new tag and moves data pointer up to the start of the next one.
   // nullptr means error.
@@ -1820,12 +1822,16 @@ class DebugTag {
     return size_;
   }
 
-  bool HasChild() {
+  bool HasChild() const {
     return has_child_;
   }
 
-  uint32_t GetTagNumber() {
+  uint32_t GetTagNumber() const {
     return tag_;
+  }
+
+  uint32_t GetIndex() const {
+    return index_;
   }
 
   // Gets the offset of a particular attribute in this tag structure.
@@ -1857,6 +1863,8 @@ class DebugTag {
     size_map_.insert(std::pair<uint32_t, uint32_t>(type, attr_size));
     size_ += attr_size;
   }
+
+  const uint32_t index_;
   std::map<uint32_t, uint32_t> off_map_;
   std::map<uint32_t, uint32_t> size_map_;
   uint32_t size_;
@@ -1884,7 +1892,7 @@ class DebugAbbrev {
       if (tag.get() == nullptr) {
         return false;
       } else {
-        tags_.insert(std::pair<uint32_t, uint32_t>(tag->index_, tag_list_.size()));
+        tags_.insert(std::pair<uint32_t, uint32_t>(tag->GetIndex(), tag_list_.size()));
         tag_list_.push_back(std::move(tag));
       }
     }
@@ -1904,8 +1912,8 @@ class DebugAbbrev {
 
  private:
   DebugAbbrev(const uint8_t* begin, const uint8_t* end) : begin_(begin), end_(end) {}
-  const uint8_t* begin_;
-  const uint8_t* end_;
+  const uint8_t* const begin_;
+  const uint8_t* const end_;
   std::map<uint32_t, uint32_t> tags_;
   std::vector<std::unique_ptr<DebugTag>> tag_list_;
 };
@@ -1983,10 +1991,10 @@ class DebugInfoIterator {
         last_entry_(reinterpret_cast<uint8_t*>(header) + frame_size),
         current_entry_(reinterpret_cast<uint8_t*>(header) + sizeof(DebugInfoHeader)),
         current_tag_(abbrev_->ReadTag(current_entry_)) {}
-  DebugAbbrev* abbrev_;
+  DebugAbbrev* const abbrev_;
   DebugInfoHeader* current_cu_;
   DebugInfoHeader* next_cu_;
-  uint8_t* last_entry_;
+  uint8_t* const last_entry_;
   uint8_t* current_entry_;
   DebugTag* current_tag_;
 };
@@ -2406,24 +2414,15 @@ template class ElfFileImpl<Elf32_Ehdr, Elf32_Phdr, Elf32_Shdr, Elf32_Word,
 template class ElfFileImpl<Elf64_Ehdr, Elf64_Phdr, Elf64_Shdr, Elf64_Word,
     Elf64_Sword, Elf64_Addr, Elf64_Sym, Elf64_Rel, Elf64_Rela, Elf64_Dyn, Elf64_Off>;
 
-ElfFile::ElfFile(ElfFileImpl32* elf32) : is_elf64_(false) {
-  CHECK_NE(elf32, static_cast<ElfFileImpl32*>(nullptr));
-  elf_.elf32_ = elf32;
+ElfFile::ElfFile(ElfFileImpl32* elf32) : elf32_(elf32), elf64_(nullptr) {
 }
 
-ElfFile::ElfFile(ElfFileImpl64* elf64) : is_elf64_(true) {
-  CHECK_NE(elf64, static_cast<ElfFileImpl64*>(nullptr));
-  elf_.elf64_ = elf64;
+ElfFile::ElfFile(ElfFileImpl64* elf64) : elf32_(nullptr), elf64_(elf64) {
 }
 
 ElfFile::~ElfFile() {
-  if (is_elf64_) {
-    CHECK_NE(elf_.elf64_, static_cast<ElfFileImpl64*>(nullptr));
-    delete elf_.elf64_;
-  } else {
-    CHECK_NE(elf_.elf32_, static_cast<ElfFileImpl32*>(nullptr));
-    delete elf_.elf32_;
-  }
+  // Should never have 32 and 64-bit impls.
+  CHECK_NE(elf32_.get() == nullptr, elf64_.get() == nullptr);
 }
 
 ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only, std::string* error_msg) {
@@ -2445,8 +2444,9 @@ ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only, std:
     return new ElfFile(elf_file_impl);
   } else if (header[EI_CLASS] == ELFCLASS32) {
     ElfFileImpl32* elf_file_impl = ElfFileImpl32::Open(file, writable, program_header_only, error_msg);
-    if (elf_file_impl == nullptr)
+    if (elf_file_impl == nullptr) {
       return nullptr;
+    }
     return new ElfFile(elf_file_impl);
   } else {
     *error_msg = StringPrintf("Failed to find expected EI_CLASS value %d or %d in %s, found %d",
@@ -2471,13 +2471,15 @@ ElfFile* ElfFile::Open(File* file, int mmap_prot, int mmap_flags, std::string* e
   uint8_t* header = map->Begin();
   if (header[EI_CLASS] == ELFCLASS64) {
     ElfFileImpl64* elf_file_impl = ElfFileImpl64::Open(file, mmap_prot, mmap_flags, error_msg);
-    if (elf_file_impl == nullptr)
+    if (elf_file_impl == nullptr) {
       return nullptr;
+    }
     return new ElfFile(elf_file_impl);
   } else if (header[EI_CLASS] == ELFCLASS32) {
     ElfFileImpl32* elf_file_impl = ElfFileImpl32::Open(file, mmap_prot, mmap_flags, error_msg);
-    if (elf_file_impl == nullptr)
+    if (elf_file_impl == nullptr) {
       return nullptr;
+    }
     return new ElfFile(elf_file_impl);
   } else {
     *error_msg = StringPrintf("Failed to find expected EI_CLASS value %d or %d in %s, found %d",
@@ -2489,12 +2491,11 @@ ElfFile* ElfFile::Open(File* file, int mmap_prot, int mmap_flags, std::string* e
 }
 
 #define DELEGATE_TO_IMPL(func, ...) \
-  if (is_elf64_) { \
-    CHECK_NE(elf_.elf64_, static_cast<ElfFileImpl64*>(nullptr)); \
-    return elf_.elf64_->func(__VA_ARGS__); \
+  if (elf64_.get() != nullptr) { \
+    return elf64_->func(__VA_ARGS__); \
   } else { \
-    CHECK_NE(elf_.elf32_, static_cast<ElfFileImpl32*>(nullptr)); \
-    return elf_.elf32_->func(__VA_ARGS__); \
+    DCHECK(elf32_.get() != nullptr); \
+    return elf32_->func(__VA_ARGS__); \
   }
 
 bool ElfFile::Load(bool executable, std::string* error_msg) {
@@ -2522,29 +2523,31 @@ const File& ElfFile::GetFile() const {
 }
 
 bool ElfFile::GetSectionOffsetAndSize(const char* section_name, uint64_t* offset, uint64_t* size) {
-  if (is_elf64_) {
-    CHECK_NE(elf_.elf64_, static_cast<ElfFileImpl64*>(nullptr));
+  if (elf32_.get() == nullptr) {
+    CHECK(elf64_.get() != nullptr);
 
-    Elf64_Shdr *shdr = elf_.elf64_->FindSectionByName(section_name);
-    if (shdr == nullptr)
+    Elf64_Shdr *shdr = elf64_->FindSectionByName(section_name);
+    if (shdr == nullptr) {
       return false;
-
-    if (offset != nullptr)
+    }
+    if (offset != nullptr) {
       *offset = shdr->sh_offset;
-    if (size != nullptr)
+    }
+    if (size != nullptr) {
       *size = shdr->sh_size;
+    }
     return true;
   } else {
-    CHECK_NE(elf_.elf32_, static_cast<ElfFileImpl32*>(nullptr));
-
-    Elf32_Shdr *shdr = elf_.elf32_->FindSectionByName(section_name);
-    if (shdr == nullptr)
+    Elf32_Shdr *shdr = elf32_->FindSectionByName(section_name);
+    if (shdr == nullptr) {
       return false;
-
-    if (offset != nullptr)
+    }
+    if (offset != nullptr) {
       *offset = shdr->sh_offset;
-    if (size != nullptr)
+    }
+    if (size != nullptr) {
       *size = shdr->sh_size;
+    }
     return true;
   }
 }
@@ -2565,26 +2568,14 @@ bool ElfFile::Strip(File* file, std::string* error_msg) {
     return false;
   }
 
-  if (elf_file->is_elf64_)
-    return elf_file->elf_.elf64_->Strip(error_msg);
+  if (elf_file->elf64_.get() != nullptr)
+    return elf_file->elf64_->Strip(error_msg);
   else
-    return elf_file->elf_.elf32_->Strip(error_msg);
+    return elf_file->elf32_->Strip(error_msg);
 }
 
 bool ElfFile::Fixup(uintptr_t base_address) {
   DELEGATE_TO_IMPL(Fixup, base_address);
-}
-
-ElfFileImpl32* ElfFile::GetImpl32() const {
-  CHECK(!is_elf64_);
-  CHECK_NE(elf_.elf32_, static_cast<ElfFileImpl32*>(nullptr));
-  return elf_.elf32_;
-}
-
-ElfFileImpl64* ElfFile::GetImpl64() const {
-  CHECK(is_elf64_);
-  CHECK_NE(elf_.elf64_, static_cast<ElfFileImpl64*>(nullptr));
-  return elf_.elf64_;
 }
 
 }  // namespace art
