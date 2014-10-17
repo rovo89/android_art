@@ -221,7 +221,12 @@ TEST_F(InstructionSetTest, FeaturesFromSystemPropertyString) {
 }
 #endif
 
+#if defined(__arm__)
+TEST_F(InstructionSetTest, DISABLED_FeaturesFromCpuInfo) {
+  LOG(WARNING) << "Test disabled due to buggy ARM kernels";
+#else
 TEST_F(InstructionSetTest, FeaturesFromCpuInfo) {
+#endif
   // Take the default set of instruction features from the build.
   std::unique_ptr<const InstructionSetFeatures> instruction_set_features(
       InstructionSetFeatures::FromCppDefines());
@@ -234,7 +239,12 @@ TEST_F(InstructionSetTest, FeaturesFromCpuInfo) {
       << "\nFeatures from build: " << *instruction_set_features.get();
 }
 
+#if defined(__arm__)
+TEST_F(InstructionSetTest, DISABLED_FeaturesFromHwcap) {
+  LOG(WARNING) << "Test disabled due to buggy ARM kernels";
+#else
 TEST_F(InstructionSetTest, FeaturesFromHwcap) {
+#endif
   // Take the default set of instruction features from the build.
   std::unique_ptr<const InstructionSetFeatures> instruction_set_features(
       InstructionSetFeatures::FromCppDefines());
@@ -248,7 +258,12 @@ TEST_F(InstructionSetTest, FeaturesFromHwcap) {
 }
 
 
+#if defined(__arm__)
+TEST_F(InstructionSetTest, DISABLED_FeaturesFromAssembly) {
+  LOG(WARNING) << "Test disabled due to buggy ARM kernels";
+#else
 TEST_F(InstructionSetTest, FeaturesFromAssembly) {
+#endif
   // Take the default set of instruction features from the build.
   std::unique_ptr<const InstructionSetFeatures> instruction_set_features(
       InstructionSetFeatures::FromCppDefines());
