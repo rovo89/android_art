@@ -333,7 +333,9 @@ namespace art {
        * @param mir_graph The MIRGraph considered.
        */
       explicit TopologicalSortIterator(MIRGraph* mir_graph)
-          : DataflowIterator(mir_graph, 0, mir_graph->GetTopologicalSortOrder().size()) {
+          : DataflowIterator(mir_graph, 0, mir_graph->GetTopologicalSortOrder().size()),
+            loop_ends_(&mir_graph->GetTopologicalSortOrderLoopEnds()),
+            loop_head_stack_(mir_graph_->GetTopologicalSortOrderLoopHeadStack()) {
         // Extra setup for TopologicalSortIterator.
         idx_ = start_idx_;
         block_id_list_ = &mir_graph->GetTopologicalSortOrder();
@@ -344,44 +346,11 @@ namespace art {
        * @param had_change did the user of the iteration change the previous BasicBlock.
        * @return the next BasicBlock following the iteration order, 0 if finished.
        */
-      virtual BasicBlock* Next(bool had_change = false) {
-        // Update changed: if had_changed is true, we remember it for the whole iteration.
-        changed_ |= had_change;
+      virtual BasicBlock* Next(bool had_change = false) OVERRIDE;
 
-        return ForwardSingleNext();
-      }
-  };
-
-  /**
-   * @class RepeatingTopologicalSortIterator
-   * @brief Used to perform a Topological Sort Iteration of a MIRGraph.
-   * @details If there is a change during an iteration, the iteration starts over at the end of the
-   *          iteration.
-   */
-  class RepeatingTopologicalSortIterator : public DataflowIterator {
-    public:
-     /**
-      * @brief The constructor, using all of the reachable blocks of the MIRGraph.
-      * @param mir_graph The MIRGraph considered.
-      */
-     explicit RepeatingTopologicalSortIterator(MIRGraph* mir_graph)
-         : DataflowIterator(mir_graph, 0, mir_graph->GetTopologicalSortOrder().size()) {
-       // Extra setup for RepeatingTopologicalSortIterator.
-       idx_ = start_idx_;
-       block_id_list_ = &mir_graph->GetTopologicalSortOrder();
-     }
-
-     /**
-      * @brief Get the next BasicBlock depending on iteration order.
-      * @param had_change did the user of the iteration change the previous BasicBlock.
-      * @return the next BasicBlock following the iteration order, 0 if finished.
-      */
-     virtual BasicBlock* Next(bool had_change = false) {
-       // Update changed: if had_changed is true, we remember it for the whole iteration.
-       changed_ |= had_change;
-
-       return ForwardRepeatNext();
-     }
+    private:
+     const ArenaVector<BasicBlockId>* const loop_ends_;
+     ArenaVector<std::pair<uint16_t, bool>>* const loop_head_stack_;
   };
 
   /**

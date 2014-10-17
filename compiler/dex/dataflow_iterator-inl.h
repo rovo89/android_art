@@ -115,6 +115,30 @@ inline BasicBlock* AllNodesIterator::Next(bool had_change) {
   return res;
 }
 
+inline BasicBlock* TopologicalSortIterator::Next(bool had_change) {
+  // Update changed: if had_changed is true, we remember it for the whole iteration.
+  changed_ |= had_change;
+
+  while (loop_head_stack_->size() != 0u &&
+      (*loop_ends_)[loop_head_stack_->back().first] == idx_) {
+    loop_head_stack_->pop_back();
+  }
+
+  if (idx_ == end_idx_) {
+    return nullptr;
+  }
+
+  // Get next block and return it.
+  BasicBlockId idx = idx_;
+  idx_ += 1;
+  BasicBlock* bb = mir_graph_->GetBasicBlock((*block_id_list_)[idx]);
+  DCHECK(bb != nullptr);
+  if ((*loop_ends_)[idx] != 0u) {
+    loop_head_stack_->push_back(std::make_pair(idx, false));  // Not recalculating.
+  }
+  return bb;
+}
+
 inline BasicBlock* LoopRepeatingTopologicalSortIterator::Next(bool had_change) {
   if (idx_ != 0) {
     // Mark last processed block visited.

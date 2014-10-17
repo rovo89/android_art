@@ -1413,8 +1413,8 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::MONITOR_EXIT:
       HandleNullCheck(mir, GetOperandValue(mir->ssa_rep->uses[0]));
       // If we're running GVN and CanModify(), uneliminated null check indicates bytecode error.
-      if ((gvn_->GetCompilationUnit()->disable_opt & (1u << kGlobalValueNumbering)) == 0u &&
-          gvn_->CanModify() && (mir->optimization_flags & MIR_IGNORE_NULL_CHECK) == 0) {
+      if ((mir->optimization_flags & MIR_IGNORE_NULL_CHECK) == 0 &&
+          gvn_->work_lvn_ != nullptr && gvn_->CanModify()) {
         LOG(WARNING) << "Bytecode error: MONITOR_EXIT is still null checked at 0x" << std::hex
             << mir->offset << " in " << PrettyMethod(gvn_->cu_->method_idx, *gvn_->cu_->dex_file);
       }

@@ -708,6 +708,10 @@ class MIRGraph {
     return &topological_order_loop_head_stack_;
   }
 
+  size_t GetMaxNestedLoops() const {
+    return max_nested_loops_;
+  }
+
   bool IsConst(int32_t s_reg) const {
     return is_constant_v_->IsBitSet(s_reg);
   }
@@ -1265,6 +1269,7 @@ class MIRGraph {
   ArenaVector<uint16_t> topological_order_indexes_;
   // Stack of the loop head indexes and recalculation flags for RepeatingTopologicalSortIterator.
   ArenaVector<std::pair<uint16_t, bool>> topological_order_loop_head_stack_;
+  size_t max_nested_loops_;
   int* i_dom_list_;
   std::unique_ptr<ScopedArenaAllocator> temp_scoped_alloc_;
   uint16_t* temp_insn_data_;
