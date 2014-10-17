@@ -21,6 +21,7 @@
 
 #include "base/logging.h"
 #include "base/macros.h"
+#include "base/value_object.h"
 #include "globals.h"
 
 namespace art {
@@ -28,9 +29,9 @@ namespace art {
 // Memory regions are useful for accessing memory with bounds check in
 // debug mode. They can be safely passed by value and do not assume ownership
 // of the region.
-class MemoryRegion {
+class MemoryRegion FINAL : public ValueObject {
  public:
-  MemoryRegion() : pointer_(NULL), size_(0) {}
+  MemoryRegion() : pointer_(nullptr), size_(0) {}
   MemoryRegion(void* pointer, uintptr_t size) : pointer_(pointer), size_(size) {}
 
   void* pointer() const { return pointer_; }

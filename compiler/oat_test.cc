@@ -44,11 +44,11 @@ class OatTest : public CommonCompilerTest {
         compiler_driver_->GetCompiledMethod(MethodReference(dex_file,
                                                             method->GetDexMethodIndex()));
 
-    if (compiled_method == NULL) {
-      EXPECT_TRUE(oat_method.GetQuickCode() == NULL) << PrettyMethod(method) << " "
-                                                     << oat_method.GetQuickCode();
-      EXPECT_TRUE(oat_method.GetPortableCode() == NULL) << PrettyMethod(method) << " "
-                                                        << oat_method.GetPortableCode();
+    if (compiled_method == nullptr) {
+      EXPECT_TRUE(oat_method.GetQuickCode() == nullptr) << PrettyMethod(method) << " "
+                                                        << oat_method.GetQuickCode();
+      EXPECT_TRUE(oat_method.GetPortableCode() == nullptr) << PrettyMethod(method) << " "
+                                                           << oat_method.GetPortableCode();
       EXPECT_EQ(oat_method.GetFrameSizeInBytes(), 0U);
       EXPECT_EQ(oat_method.GetCoreSpillMask(), 0U);
       EXPECT_EQ(oat_method.GetFpSpillMask(), 0U);
@@ -109,9 +109,9 @@ TEST_F(OatTest, WriteRead) {
                                             verification_results_.get(),
                                             method_inliner_map_.get(),
                                             compiler_kind, insn_set,
-                                            insn_features.get(), false, NULL, 2, true, true,
-                                            timer_.get()));
-  jobject class_loader = NULL;
+                                            insn_features.get(), false, nullptr, 2, true, true,
+                                            timer_.get(), ""));
+  jobject class_loader = nullptr;
   if (kCompile) {
     TimingLogger timings("OatTest::WriteRead", false, false);
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
@@ -138,8 +138,8 @@ TEST_F(OatTest, WriteRead) {
   if (kCompile) {  // OatWriter strips the code, regenerate to compare
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
   }
-  std::unique_ptr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), NULL, false,
-                                            &error_msg));
+  std::unique_ptr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), nullptr,
+                                                  false, &error_msg));
   ASSERT_TRUE(oat_file.get() != nullptr) << error_msg;
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_TRUE(oat_header.IsValid());
@@ -159,7 +159,7 @@ TEST_F(OatTest, WriteRead) {
     const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
     const uint8_t* class_data = dex_file->GetClassData(class_def);
     size_t num_virtual_methods = 0;
-    if (class_data != NULL) {
+    if (class_data != nullptr) {
       ClassDataItemIterator it(*dex_file, class_data);
       num_virtual_methods = it.NumVirtualMethods();
     }

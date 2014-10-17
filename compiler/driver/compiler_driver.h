@@ -91,7 +91,7 @@ class CompilerDriver {
                           const InstructionSetFeatures* instruction_set_features,
                           bool image, std::set<std::string>* image_classes,
                           size_t thread_count, bool dump_stats, bool dump_passes,
-                          CumulativeLogger* timer, std::string profile_file = "");
+                          CumulativeLogger* timer, const std::string& profile_file);
 
   ~CompilerDriver();
 

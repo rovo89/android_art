@@ -67,11 +67,11 @@
 // Patching section type
 #define SHT_OAT_PATCH        SHT_LOUSER
 
-inline void SetBindingAndType(Elf32_Sym* sym, unsigned char b, unsigned char t) {
+static inline void SetBindingAndType(Elf32_Sym* sym, unsigned char b, unsigned char t) {
   sym->st_info = (b << 4) + (t & 0x0f);
 }
 
-inline bool IsDynamicSectionPointer(Elf32_Word d_tag, Elf32_Word e_machine) {
+static inline bool IsDynamicSectionPointer(Elf32_Word d_tag, Elf32_Word e_machine) {
   switch (d_tag) {
     // case 1: well known d_tag values that imply Elf32_Dyn.d_un contains an address in d_ptr
     case DT_PLTGOT:
