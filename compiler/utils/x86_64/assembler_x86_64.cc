@@ -1238,6 +1238,34 @@ void X86_64Assembler::imull(CpuRegister reg, const Address& address) {
 }
 
 
+void X86_64Assembler::imulq(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst, src);
+  EmitUint8(0x0F);
+  EmitUint8(0xAF);
+  EmitRegisterOperand(dst.LowBits(), src.LowBits());
+}
+
+
+void X86_64Assembler::imulq(CpuRegister reg, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());  // imulq only supports 32b immediate.
+  EmitRex64(reg);
+  EmitUint8(0x69);
+  EmitOperand(reg.LowBits(), Operand(reg));
+  EmitImmediate(imm);
+}
+
+
+void X86_64Assembler::imulq(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg, address);
+  EmitUint8(0x0F);
+  EmitUint8(0xAF);
+  EmitOperand(reg.LowBits(), address);
+}
+
+
 void X86_64Assembler::imull(CpuRegister reg) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(reg);
@@ -1268,7 +1296,6 @@ void X86_64Assembler::mull(const Address& address) {
   EmitUint8(0xF7);
   EmitOperand(4, address);
 }
-
 
 
 void X86_64Assembler::shll(CpuRegister reg, const Immediate& imm) {

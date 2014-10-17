@@ -349,4 +349,49 @@ TEST(CodegenTest, NonMaterializedCondition) {
   RunCodeOptimized(graph, hook_before_codegen, true, 0);
 }
 
+#define MUL_TEST(TYPE, TEST_NAME)                     \
+  TEST(CodegenTest, Return ## TEST_NAME) {            \
+    const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(  \
+      Instruction::CONST_4 | 3 << 12 | 0,             \
+      Instruction::CONST_4 | 4 << 12 | 1 << 8,        \
+      Instruction::MUL_ ## TYPE, 1 << 8 | 0,          \
+      Instruction::RETURN);                           \
+                                                      \
+    TestCode(data, true, 12);                         \
+  }                                                   \
+                                                      \
+  TEST(CodegenTest, Return ## TEST_NAME ## 2addr) {   \
+    const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(  \
+      Instruction::CONST_4 | 3 << 12 | 0,             \
+      Instruction::CONST_4 | 4 << 12 | 1 << 8,        \
+      Instruction::MUL_ ## TYPE ## _2ADDR | 1 << 12,  \
+      Instruction::RETURN);                           \
+                                                      \
+    TestCode(data, true, 12);                         \
+  }
+
+MUL_TEST(INT, MulInt);
+MUL_TEST(LONG, MulLong);
+// MUL_TEST(FLOAT, Float);
+// MUL_TEST(DOUBLE, Double);
+
+TEST(CodegenTest, ReturnMulIntLit8) {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 4 << 12 | 0 << 8,
+    Instruction::MUL_INT_LIT8, 3 << 8 | 0,
+    Instruction::RETURN);
+
+  TestCode(data, true, 12);
+}
+
+TEST(CodegenTest, ReturnMulIntLit16) {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 4 << 12 | 0 << 8,
+    Instruction::MUL_INT_LIT16, 3,
+    Instruction::RETURN);
+
+  TestCode(data, true, 12);
+}
+
+
 }  // namespace art
