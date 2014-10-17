@@ -178,7 +178,7 @@ class NullCheckElimination : public PassME {
 class TypeInference : public PassME {
  public:
   TypeInference()
-    : PassME("TypeInference", kRepeatingTopologicalSortTraversal, "4_post_type_cfg") {
+    : PassME("TypeInference", kRepeatingPreOrderDFSTraversal, "4_post_type_cfg") {
   }
 
   bool Worker(PassDataHolder* data) const {

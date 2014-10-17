@@ -284,8 +284,8 @@ class GlobalValueNumberingTest : public testing::Test {
     cu_.mir_graph->ComputeTopologicalSortOrder();
     cu_.mir_graph->SSATransformationEnd();
     ASSERT_TRUE(gvn_ == nullptr);
-    gvn_.reset(new (allocator_.get()) GlobalValueNumbering(&cu_, allocator_.get()));
-    ASSERT_FALSE(gvn_->CanModify());
+    gvn_.reset(new (allocator_.get()) GlobalValueNumbering(&cu_, allocator_.get(),
+                                                           GlobalValueNumbering::kModeGvn));
     value_names_.resize(mir_count_, 0xffffu);
     IteratorType iterator(cu_.mir_graph.get());
     bool change = false;
@@ -304,8 +304,7 @@ class GlobalValueNumberingTest : public testing::Test {
   void PerformGVNCodeModifications() {
     ASSERT_TRUE(gvn_ != nullptr);
     ASSERT_TRUE(gvn_->Good());
-    ASSERT_FALSE(gvn_->CanModify());
-    gvn_->AllowModifications();
+    gvn_->StartPostProcessing();
     TopologicalSortIterator iterator(cu_.mir_graph.get());
     for (BasicBlock* bb = iterator.Next(); bb != nullptr; bb = iterator.Next()) {
       LocalValueNumbering* lvn = gvn_->PrepareBasicBlock(bb);

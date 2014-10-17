@@ -67,9 +67,6 @@ class PassDriverME: public PassDriver<PassDriverType> {
       case kTopologicalSortTraversal:
         DoWalkBasicBlocks<TopologicalSortIterator>(&pass_me_data_holder_, me_pass);
         break;
-      case kRepeatingTopologicalSortTraversal:
-        DoWalkBasicBlocks<RepeatingTopologicalSortIterator>(&pass_me_data_holder_, me_pass);
-        break;
       case kLoopRepeatingTopologicalSortTraversal:
         DoWalkBasicBlocks<LoopRepeatingTopologicalSortIterator>(&pass_me_data_holder_, me_pass);
         break;

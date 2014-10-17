@@ -195,9 +195,9 @@ class LocalValueNumberingTest : public testing::Test {
         value_names_() {
     cu_.mir_graph.reset(new MIRGraph(&cu_, &cu_.arena));
     allocator_.reset(ScopedArenaAllocator::Create(&cu_.arena_stack));
-    gvn_.reset(new (allocator_.get()) GlobalValueNumbering(&cu_, allocator_.get()));
+    gvn_.reset(new (allocator_.get()) GlobalValueNumbering(&cu_, allocator_.get(),
+                                                           GlobalValueNumbering::kModeLvn));
     lvn_.reset(new (allocator_.get()) LocalValueNumbering(gvn_.get(), 0u, allocator_.get()));
-    gvn_->AllowModifications();
   }
 
   ArenaPool pool_;
