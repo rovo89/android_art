@@ -837,7 +837,7 @@ static int dex2oat(int argc, char** argv) {
   InstructionSet instruction_set = kRuntimeISA;
   std::string error_msg;
   std::unique_ptr<const InstructionSetFeatures> instruction_set_features(
-      InstructionSetFeatures::FromFeatureString(instruction_set, "default", &error_msg));
+      InstructionSetFeatures::FromFeatureString(kNone, "default", &error_msg));
   CHECK(instruction_set_features.get() != nullptr) << error_msg;
 
   // Profile file to use
@@ -1150,6 +1150,13 @@ static int dex2oat(int argc, char** argv) {
     oat_unstripped += oat_symbols;
   } else {
     oat_unstripped += oat_filename;
+  }
+
+  // If no instruction set feature was given, use the default one for the target
+  // instruction set.
+  if (instruction_set_features->GetInstructionSet() == kNone) {
+    instruction_set_features.reset(
+      InstructionSetFeatures::FromFeatureString(instruction_set, "default", &error_msg));
   }
 
   if (compiler_filter_string == nullptr) {
