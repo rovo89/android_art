@@ -95,16 +95,29 @@ FaultManager::FaultManager() : initialized_(false) {
 FaultManager::~FaultManager() {
 }
 
+static void SetUpArtAction(struct sigaction* action) {
+  action->sa_sigaction = art_fault_handler;
+  sigemptyset(&action->sa_mask);
+  action->sa_flags = SA_SIGINFO | SA_ONSTACK;
+#if !defined(__APPLE__) && !defined(__mips__)
+  action->sa_restorer = nullptr;
+#endif
+}
+
+void FaultManager::EnsureArtActionInFrontOfSignalChain() {
+  if (initialized_) {
+    struct sigaction action;
+    SetUpArtAction(&action);
+    EnsureFrontOfChain(SIGSEGV, &action);
+  } else {
+    LOG(WARNING) << "Can't call " << __FUNCTION__ << " due to unitialized fault manager";
+  }
+}
 
 void FaultManager::Init() {
   CHECK(!initialized_);
   struct sigaction action;
-  action.sa_sigaction = art_fault_handler;
-  sigemptyset(&action.sa_mask);
-  action.sa_flags = SA_SIGINFO | SA_ONSTACK;
-#if !defined(__APPLE__) && !defined(__mips__)
-  action.sa_restorer = nullptr;
-#endif
+  SetUpArtAction(&action);
 
   // Set our signal handler now.
   int e = sigaction(SIGSEGV, &action, &oldaction_);
@@ -138,7 +151,6 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
   //
   // If malloc calls abort, it will be holding its lock.
   // If the handler tries to call malloc, it will deadlock.
-
   VLOG(signals) << "Handling fault";
   if (IsInGeneratedCode(info, context, true)) {
     VLOG(signals) << "in generated code, looking for handler";
