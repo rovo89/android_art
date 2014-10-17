@@ -30,6 +30,7 @@
 #include "base/stl_util.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
+#include "fault_handler.h"
 #include "gc_root.h"
 #include "gc/accounting/card_table-inl.h"
 #include "indirect_reference_table-inl.h"

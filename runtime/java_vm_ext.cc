@@ -21,6 +21,7 @@
 #include "base/mutex.h"
 #include "base/stl_util.h"
 #include "check_jni.h"
+#include "fault_handler.h"
 #include "indirect_reference_table-inl.h"
 #include "mirror/art_method.h"
 #include "mirror/class-inl.h"
@@ -687,6 +688,10 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject 
     typedef int (*JNI_OnLoadFn)(JavaVM*, void*);
     JNI_OnLoadFn jni_on_load = reinterpret_cast<JNI_OnLoadFn>(sym);
     int version = (*jni_on_load)(this, nullptr);
+
+    if (runtime_->GetTargetSdkVersion() != 0 && runtime_->GetTargetSdkVersion() <= 21) {
+      fault_manager.EnsureArtActionInFrontOfSignalChain();
+    }
 
     self->SetClassLoaderOverride(old_class_loader.get());
 
