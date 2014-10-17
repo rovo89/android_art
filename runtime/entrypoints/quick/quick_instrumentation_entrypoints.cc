@@ -15,6 +15,7 @@
  */
 
 #include "callee_save_frame.h"
+#include "entrypoints/runtime_asm_entrypoints.h"
 #include "instruction_set.h"
 #include "instrumentation.h"
 #include "mirror/art_method-inl.h"
@@ -38,8 +39,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::ArtMethod* 
   } else {
     result = instrumentation->GetQuickCodeFor(method);
   }
-  DCHECK((result != Runtime::Current()->GetClassLinker()->GetQuickToInterpreterBridgeTrampoline())
-         || !Runtime::Current()->GetHeap()->HasImageSpace());
+  DCHECK(!Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(result));
   bool interpreter_entry = (result == GetQuickToInterpreterBridge());
   instrumentation->PushInstrumentationStackFrame(self, method->IsStatic() ? nullptr : this_object,
                                                  method, lr, interpreter_entry);

@@ -32,7 +32,6 @@
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
 #include "globals.h"
-#include "gtest/gtest.h"
 #include "instruction_set.h"
 #include "jni.h"
 #include "object_callbacks.h"

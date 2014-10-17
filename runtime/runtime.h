@@ -483,10 +483,6 @@ class Runtime {
     return target_sdk_version_;
   }
 
-  static const char* GetDefaultInstructionSetFeatures() {
-    return kDefaultInstructionSetFeatures;
-  }
-
  private:
   static void InitPlatformSignalHandlers();
 
@@ -505,8 +501,6 @@ class Runtime {
 
   // A pointer to the active runtime or NULL.
   static Runtime* instance_;
-
-  static const char* kDefaultInstructionSetFeatures;
 
   // NOTE: these must match the gc::ProcessState values as they come directly from the framework.
   static constexpr int kProfileForground = 0;

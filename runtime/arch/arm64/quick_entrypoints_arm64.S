@@ -1438,7 +1438,7 @@ END art_quick_resolution_trampoline
     /*
      * Called to do a generic JNI down-call
      */
-ENTRY_NO_HIDE art_quick_generic_jni_trampoline
+ENTRY art_quick_generic_jni_trampoline
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL
     str x0, [sp, #0]  // Store native ArtMethod* to bottom of stack.
 
@@ -1534,7 +1534,7 @@ END art_quick_generic_jni_trampoline
  * x0 = method being called/to bridge to.
  * x1..x7, d0..d7 = arguments to that method.
  */
-ENTRY_NO_HIDE art_quick_to_interpreter_bridge
+ENTRY art_quick_to_interpreter_bridge
     SETUP_REF_AND_ARGS_CALLEE_SAVE_FRAME   // Set up frame and save arguments.
 
     //  x0 will contain mirror::ArtMethod* method.

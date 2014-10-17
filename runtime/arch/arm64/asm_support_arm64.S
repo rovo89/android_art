@@ -52,15 +52,6 @@
     .cfi_startproc
 .endm
 
-.macro ENTRY_NO_HIDE name
-    .type \name, #function
-    .global \name
-    /* Cache alignment for function entry */
-    .balign 16
-\name:
-    .cfi_startproc
-.endm
-
 .macro END name
     .cfi_endproc
     .size \name, .-\name
@@ -68,12 +59,6 @@
 
 .macro UNIMPLEMENTED name
     ENTRY \name
-    brk 0
-    END \name
-.endm
-
-.macro UNIMPLEMENTED_NO_HIDE name
-    ENTRY_NO_HIDE \name
     brk 0
     END \name
 .endm

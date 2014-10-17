@@ -205,7 +205,7 @@ static gc::CollectorType ParseCollectorType(const std::string& option) {
 
 bool ParsedOptions::ParseXGcOption(const std::string& option) {
   std::vector<std::string> gc_options;
-  Split(option.substr(strlen("-Xgc:")), ',', gc_options);
+  Split(option.substr(strlen("-Xgc:")), ',', &gc_options);
   for (const std::string& gc_option : gc_options) {
     gc::CollectorType collector_type = ParseCollectorType(gc_option);
     if (collector_type != gc::kCollectorTypeNone) {
@@ -501,7 +501,7 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
       is_explicit_gc_disabled_ = true;
     } else if (StartsWith(option, "-verbose:")) {
       std::vector<std::string> verbose_options;
-      Split(option.substr(strlen("-verbose:")), ',', verbose_options);
+      Split(option.substr(strlen("-verbose:")), ',', &verbose_options);
       for (size_t i = 0; i < verbose_options.size(); ++i) {
         if (verbose_options[i] == "class") {
           gLogVerbosity.class_linker = true;
@@ -536,7 +536,7 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
       }
     } else if (StartsWith(option, "-verbose-methods:")) {
       gLogVerbosity.compiler = false;
-      Split(option.substr(strlen("-verbose-methods:")), ',', gVerboseMethods);
+      Split(option.substr(strlen("-verbose-methods:")), ',', &gVerboseMethods);
     } else if (StartsWith(option, "-Xlockprofthreshold:")) {
       if (!ParseUnsignedInteger(option, ':', &lock_profiling_threshold_)) {
         return false;

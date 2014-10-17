@@ -217,10 +217,7 @@ LOCAL_SRC_FILES := runtime/common_runtime_test.cc compiler/common_compiler_test.
 LOCAL_C_INCLUDES := $(ART_C_INCLUDES) art/runtime art/compiler
 LOCAL_SHARED_LIBRARIES := libartd libartd-compiler
 LOCAL_STATIC_LIBRARIES := libcutils
-ifneq ($(WITHOUT_HOST_CLANG),true)
-  # GCC host compiled tests fail with this linked, presumably due to destructors that run.
-  LOCAL_STATIC_LIBRARIES += libgtest_libc++_host
-endif
+LOCAL_STATIC_LIBRARIES += libgtest_libc++_host
 LOCAL_LDLIBS += -ldl -lpthread
 LOCAL_MULTILIB := both
 LOCAL_CLANG := $(ART_HOST_CLANG)
@@ -264,7 +261,7 @@ $$(gtest_rule): test-art-target-sync
 	  && (adb pull $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID /tmp/ \
 	      && $$(call ART_TEST_PASSED,$$@)) \
 	  || $$(call ART_TEST_FAILED,$$@))
-	$(hide) rm /tmp/$$@-$$$$PPID
+	$(hide) rm -f /tmp/$$@-$$$$PPID
 
   ART_TEST_TARGET_GTEST$($(2)ART_PHONY_TEST_TARGET_SUFFIX)_RULES += $$(gtest_rule)
   ART_TEST_TARGET_GTEST_RULES += $$(gtest_rule)
@@ -377,7 +374,7 @@ test-art-target-gtest-$$(art_gtest_name): $$(ART_TEST_TARGET_GTEST_$$(art_gtest_
     LOCAL_CFLAGS += $$(ART_HOST_CFLAGS) $$(ART_HOST_DEBUG_CFLAGS)
     LOCAL_SHARED_LIBRARIES += libicuuc-host libicui18n-host libnativehelper libz-host
     LOCAL_STATIC_LIBRARIES += libcutils libvixl
-    LOCAL_LDLIBS += -lpthread -ldl
+    LOCAL_LDLIBS := $(ART_HOST_LDLIBS) -lpthread -ldl
     LOCAL_IS_HOST_MODULE := true
     LOCAL_MULTILIB := both
     LOCAL_MODULE_STEM_32 := $$(art_gtest_name)32

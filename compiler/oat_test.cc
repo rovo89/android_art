@@ -95,7 +95,10 @@ TEST_F(OatTest, WriteRead) {
       : Compiler::kQuick;
   InstructionSet insn_set = kIsTargetBuild ? kThumb2 : kX86;
 
-  InstructionSetFeatures insn_features;
+  std::string error_msg;
+  std::unique_ptr<const InstructionSetFeatures> insn_features(
+      InstructionSetFeatures::FromFeatureString(insn_set, "default", &error_msg));
+  ASSERT_TRUE(insn_features.get() != nullptr) << error_msg;
   compiler_options_.reset(new CompilerOptions);
   verification_results_.reset(new VerificationResults(compiler_options_.get()));
   method_inliner_map_.reset(new DexFileToMethodInlinerMap);
@@ -106,7 +109,7 @@ TEST_F(OatTest, WriteRead) {
                                             verification_results_.get(),
                                             method_inliner_map_.get(),
                                             compiler_kind, insn_set,
-                                            insn_features, false, NULL, 2, true, true,
+                                            insn_features.get(), false, NULL, 2, true, true,
                                             timer_.get()));
   jobject class_loader = NULL;
   if (kCompile) {
@@ -135,7 +138,6 @@ TEST_F(OatTest, WriteRead) {
   if (kCompile) {  // OatWriter strips the code, regenerate to compare
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
   }
-  std::string error_msg;
   std::unique_ptr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), NULL, false,
                                             &error_msg));
   ASSERT_TRUE(oat_file.get() != nullptr) << error_msg;
@@ -193,13 +195,16 @@ TEST_F(OatTest, OatHeaderSizeCheck) {
 }
 
 TEST_F(OatTest, OatHeaderIsValid) {
-    InstructionSet instruction_set = kX86;
-    InstructionSetFeatures instruction_set_features;
+    InstructionSet insn_set = kX86;
+    std::string error_msg;
+    std::unique_ptr<const InstructionSetFeatures> insn_features(
+        InstructionSetFeatures::FromFeatureString(insn_set, "default", &error_msg));
+    ASSERT_TRUE(insn_features.get() != nullptr) << error_msg;
     std::vector<const DexFile*> dex_files;
     uint32_t image_file_location_oat_checksum = 0;
     uint32_t image_file_location_oat_begin = 0;
-    std::unique_ptr<OatHeader> oat_header(OatHeader::Create(instruction_set,
-                                                            instruction_set_features,
+    std::unique_ptr<OatHeader> oat_header(OatHeader::Create(insn_set,
+                                                            insn_features.get(),
                                                             &dex_files,
                                                             image_file_location_oat_checksum,
                                                             image_file_location_oat_begin,

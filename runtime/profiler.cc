@@ -16,9 +16,11 @@
 
 #include "profiler.h"
 
-#include <fstream>
-#include <sys/uio.h>
 #include <sys/file.h>
+#include <sys/stat.h>
+#include <sys/uio.h>
+
+#include <fstream>
 
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
@@ -742,7 +744,7 @@ void ProfileSampleResults::ReadPrevious(int fd, ProfileDataType type) {
     return;
   }
   std::vector<std::string> summary_info;
-  Split(line, '/', summary_info);
+  Split(line, '/', &summary_info);
   if (summary_info.size() != 3) {
     // Bad summary info.  It should be count/nullcount/bootcount
     return;
@@ -757,7 +759,7 @@ void ProfileSampleResults::ReadPrevious(int fd, ProfileDataType type) {
       break;
     }
     std::vector<std::string> info;
-    Split(line, '/', info);
+    Split(line, '/', &info);
     if (info.size() != 3 && info.size() != 4) {
       // Malformed.
       break;
@@ -770,10 +772,10 @@ void ProfileSampleResults::ReadPrevious(int fd, ProfileDataType type) {
       context_map = new PreviousContextMap();
       std::string context_counts_str = info[3].substr(1, info[3].size() - 2);
       std::vector<std::string> context_count_pairs;
-      Split(context_counts_str, '#', context_count_pairs);
+      Split(context_counts_str, '#', &context_count_pairs);
       for (uint32_t i = 0; i < context_count_pairs.size(); ++i) {
         std::vector<std::string> context_count;
-        Split(context_count_pairs[i], ':', context_count);
+        Split(context_count_pairs[i], ':', &context_count);
         if (context_count.size() == 2) {
           // Handles the situtation when the profile file doesn't contain context information.
           uint32_t dexpc = strtoul(context_count[0].c_str(), nullptr, 10);
@@ -819,7 +821,7 @@ bool ProfileFile::LoadFile(const std::string& fileName) {
     return false;
   }
   std::vector<std::string> summary_info;
-  Split(line, '/', summary_info);
+  Split(line, '/', &summary_info);
   if (summary_info.size() != 3) {
     // Bad summary info.  It should be total/null/boot.
     return false;
@@ -837,7 +839,7 @@ bool ProfileFile::LoadFile(const std::string& fileName) {
       break;
     }
     std::vector<std::string> info;
-    Split(line, '/', info);
+    Split(line, '/', &info);
     if (info.size() != 3 && info.size() != 4) {
       // Malformed.
       return false;

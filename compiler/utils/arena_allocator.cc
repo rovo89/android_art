@@ -15,6 +15,7 @@
  */
 
 #include <algorithm>
+#include <iomanip>
 #include <numeric>
 
 #include "arena_allocator.h"

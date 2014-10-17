@@ -39,7 +39,7 @@ static size_t ComputeOatHeaderSize(const SafeMap<std::string, std::string>* vari
 }
 
 OatHeader* OatHeader::Create(InstructionSet instruction_set,
-                             const InstructionSetFeatures& instruction_set_features,
+                             const InstructionSetFeatures* instruction_set_features,
                              const std::vector<const DexFile*>* dex_files,
                              uint32_t image_file_location_oat_checksum,
                              uint32_t image_file_location_oat_data_begin,
@@ -60,7 +60,7 @@ OatHeader* OatHeader::Create(InstructionSet instruction_set,
 }
 
 OatHeader::OatHeader(InstructionSet instruction_set,
-                     const InstructionSetFeatures& instruction_set_features,
+                     const InstructionSetFeatures* instruction_set_features,
                      const std::vector<const DexFile*>* dex_files,
                      uint32_t image_file_location_oat_checksum,
                      uint32_t image_file_location_oat_data_begin,
@@ -76,8 +76,8 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   instruction_set_ = instruction_set;
   UpdateChecksum(&instruction_set_, sizeof(instruction_set_));
 
-  instruction_set_features_ = instruction_set_features;
-  UpdateChecksum(&instruction_set_features_, sizeof(instruction_set_features_));
+  instruction_set_features_bitmap_ = instruction_set_features->AsBitmap();
+  UpdateChecksum(&instruction_set_features_bitmap_, sizeof(instruction_set_features_bitmap_));
 
   dex_file_count_ = dex_files->size();
   UpdateChecksum(&dex_file_count_, sizeof(dex_file_count_));
@@ -149,9 +149,9 @@ InstructionSet OatHeader::GetInstructionSet() const {
   return instruction_set_;
 }
 
-const InstructionSetFeatures& OatHeader::GetInstructionSetFeatures() const {
+uint32_t OatHeader::GetInstructionSetFeaturesBitmap() const {
   CHECK(IsValid());
-  return instruction_set_features_;
+  return instruction_set_features_bitmap_;
 }
 
 uint32_t OatHeader::GetExecutableOffset() const {

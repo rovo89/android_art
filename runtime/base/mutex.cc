@@ -83,18 +83,25 @@ static bool ComputeRelativeTimeSpec(timespec* result_ts, const timespec& lhs, co
 }
 #endif
 
-class ScopedAllMutexesLock {
+class ScopedAllMutexesLock FINAL {
  public:
   explicit ScopedAllMutexesLock(const BaseMutex* mutex) : mutex_(mutex) {
     while (!gAllMutexData->all_mutexes_guard.CompareExchangeWeakAcquire(0, mutex)) {
       NanoSleep(100);
     }
   }
+
   ~ScopedAllMutexesLock() {
+#if !defined(__clang__)
+    // TODO: remove this workaround target GCC/libc++/bionic bug "invalid failure memory model".
+    while (!gAllMutexData->all_mutexes_guard.CompareExchangeWeakSequentiallyConsistent(mutex_, 0)) {
+#else
     while (!gAllMutexData->all_mutexes_guard.CompareExchangeWeakRelease(mutex_, 0)) {
+#endif
       NanoSleep(100);
     }
   }
+
  private:
   const BaseMutex* const mutex_;
 };

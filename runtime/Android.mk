@@ -218,11 +218,11 @@ LIBART_TARGET_SRC_FILES := \
 LIBART_TARGET_SRC_FILES_arm := \
   arch/arm/context_arm.cc.arm \
   arch/arm/entrypoints_init_arm.cc \
+  arch/arm/instruction_set_features_arm.S \
   arch/arm/jni_entrypoints_arm.S \
   arch/arm/memcmp16_arm.S \
   arch/arm/portable_entrypoints_arm.S \
   arch/arm/quick_entrypoints_arm.S \
-  arch/arm/arm_sdiv.S \
   arch/arm/thread_arm.cc \
   arch/arm/fault_handler_arm.cc
 
@@ -317,7 +317,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   thread_state.h \
   verifier/method_verifier.h
 
-LIBART_CFLAGS :=
+LIBART_CFLAGS := -DBUILDING_LIBART=1
 ifeq ($(ART_USE_PORTABLE_COMPILER),true)
   LIBART_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
@@ -326,6 +326,29 @@ ifeq ($(MALLOC_IMPL),dlmalloc)
   LIBART_CFLAGS += -DUSE_DLMALLOC
 else
   LIBART_CFLAGS += -DUSE_JEMALLOC
+endif
+
+# Default dex2oat instruction set features.
+LIBART_HOST_DEFAULT_INSTRUCTION_SET_FEATURES := default
+LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := default
+2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := default
+ifeq ($(DEX2OAT_TARGET_ARCH),arm)
+  ifneq (,$(filter $(DEX2OAT_TARGET_CPU_VARIANT),cortex-a15 krait denver))
+    LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := lpae,div
+  else
+    ifneq (,$(filter $(DEX2OAT_TARGET_CPU_VARIANT),cortex-a7))
+      LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := div
+    endif
+  endif
+endif
+ifeq ($(2ND_DEX2OAT_TARGET_ARCH),arm)
+  ifneq (,$(filter $(DEX2OAT_TARGET_CPU_VARIANT),cortex-a15 krait denver))
+    2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := lpae,div
+  else
+    ifneq (,$(filter $(DEX2OAT_TARGET_CPU_VARIANT),cortex-a7))
+      2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES := div
+    endif
+  endif
 endif
 
 # $(1): target or host
@@ -393,6 +416,9 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   ifeq ($$(art_target_or_host),target)
     $$(eval $$(call set-target-local-clang-vars))
     $$(eval $$(call set-target-local-cflags-vars,$(2)))
+    LOCAL_CFLAGS_$(DEX2OAT_TARGET_ARCH) += -DART_DEFAULT_INSTRUCTION_SET_FEATURES="$(LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES)"
+    LOCAL_CFLAGS_$(2ND_DEX2OAT_TARGET_ARCH) += -DART_DEFAULT_INSTRUCTION_SET_FEATURES="$(2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES)"
+
     # TODO: Loop with ifeq, ART_TARGET_CLANG
     ifneq ($$(ART_TARGET_CLANG_$$(TARGET_ARCH)),true)
       LOCAL_SRC_FILES_$$(TARGET_ARCH) += $$(LIBART_GCC_ONLY_SRC_FILES)
@@ -401,18 +427,25 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
       LOCAL_SRC_FILES_$$(TARGET_2ND_ARCH) += $$(LIBART_GCC_ONLY_SRC_FILES)
     endif
   else # host
-    LOCAL_CLANG := $$(ART_HOST_CLANG)
-    ifeq ($$(ART_HOST_CLANG),false)
+    ifneq ($$(ART_HOST_CLANG),true)
+      # Add files only built with GCC on the host.
       LOCAL_SRC_FILES += $$(LIBART_GCC_ONLY_SRC_FILES)
     endif
+    LOCAL_CLANG := $$(ART_HOST_CLANG)
+    LOCAL_LDLIBS := $$(ART_HOST_LDLIBS)
+    LOCAL_LDLIBS += -ldl -lpthread
+    ifeq ($$(HOST_OS),linux)
+      LOCAL_LDLIBS += -lrt
+    endif
     LOCAL_CFLAGS += $$(ART_HOST_CFLAGS)
+    LOCAL_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES="$(LIBART_HOST_DEFAULT_INSTRUCTION_SET_FEATURES)"
+
     ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_CFLAGS += $$(ART_HOST_DEBUG_CFLAGS)
-      LOCAL_LDLIBS += $$(ART_HOST_DEBUG_LDLIBS)
-      LOCAL_STATIC_LIBRARIES := libgtest_host
     else
       LOCAL_CFLAGS += $$(ART_HOST_NON_DEBUG_CFLAGS)
     endif
+    LOCAL_MULTILIB := both
   endif
 
   LOCAL_C_INCLUDES += $$(ART_C_INCLUDES)
@@ -427,11 +460,6 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   else # host
     LOCAL_STATIC_LIBRARIES += libcutils libziparchive-host libz libutils
     LOCAL_SHARED_LIBRARIES += libsigchain
-    LOCAL_LDLIBS += -ldl -lpthread
-    ifeq ($$(HOST_OS),linux)
-      LOCAL_LDLIBS += -lrt
-    endif
-    LOCAL_MULTILIB := both
   endif
   ifeq ($$(ART_USE_PORTABLE_COMPILER),true)
     include $$(LLVM_GEN_INTRINSICS_MK)
@@ -488,6 +516,9 @@ endif
 LOCAL_PATH :=
 LIBART_COMMON_SRC_FILES :=
 LIBART_GCC_ONLY_SRC_FILES :=
+LIBART_HOST_DEFAULT_INSTRUCTION_SET_FEATURES :=
+LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES :=
+2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES :=
 LIBART_TARGET_LDFLAGS :=
 LIBART_HOST_LDFLAGS :=
 LIBART_TARGET_SRC_FILES :=

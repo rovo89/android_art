@@ -329,7 +329,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
                                DexFileToMethodInlinerMap* method_inliner_map,
                                Compiler::Kind compiler_kind,
                                InstructionSet instruction_set,
-                               InstructionSetFeatures instruction_set_features,
+                               const InstructionSetFeatures* instruction_set_features,
                                bool image, std::set<std::string>* image_classes, size_t thread_count,
                                bool dump_stats, bool dump_passes, CumulativeLogger* timer,
                                std::string profile_file)

@@ -32,6 +32,7 @@
 #include "compiler_callbacks.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc_root-inl.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap.h"
@@ -236,44 +237,6 @@ static void ShuffleForward(const size_t num_fields, size_t* current_field_idx,
   }
 }
 
-const char* ClassLinker::class_roots_descriptors_[] = {
-  "Ljava/lang/Class;",
-  "Ljava/lang/Object;",
-  "[Ljava/lang/Class;",
-  "[Ljava/lang/Object;",
-  "Ljava/lang/String;",
-  "Ljava/lang/DexCache;",
-  "Ljava/lang/ref/Reference;",
-  "Ljava/lang/reflect/ArtField;",
-  "Ljava/lang/reflect/ArtMethod;",
-  "Ljava/lang/reflect/Proxy;",
-  "[Ljava/lang/String;",
-  "[Ljava/lang/reflect/ArtField;",
-  "[Ljava/lang/reflect/ArtMethod;",
-  "Ljava/lang/ClassLoader;",
-  "Ljava/lang/Throwable;",
-  "Ljava/lang/ClassNotFoundException;",
-  "Ljava/lang/StackTraceElement;",
-  "Z",
-  "B",
-  "C",
-  "D",
-  "F",
-  "I",
-  "J",
-  "S",
-  "V",
-  "[Z",
-  "[B",
-  "[C",
-  "[D",
-  "[F",
-  "[I",
-  "[J",
-  "[S",
-  "[Ljava/lang/StackTraceElement;",
-};
-
 ClassLinker::ClassLinker(InternTable* intern_table)
     // dex_lock_ is recursive as it may be used in stack dumping.
     : dex_lock_("ClassLinker dex lock", kDefaultMutexLevel),
@@ -292,15 +255,8 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       quick_imt_conflict_trampoline_(nullptr),
       quick_generic_jni_trampoline_(nullptr),
       quick_to_interpreter_bridge_trampoline_(nullptr) {
-  CHECK_EQ(arraysize(class_roots_descriptors_), size_t(kClassRootsMax));
   memset(find_array_class_cache_, 0, kFindArrayCacheSize * sizeof(mirror::Class*));
 }
-
-// To set a value for generic JNI. May be necessary in compiler tests.
-extern "C" void art_quick_generic_jni_trampoline(mirror::ArtMethod*);
-extern "C" void art_quick_resolution_trampoline(mirror::ArtMethod*);
-extern "C" void art_quick_imt_conflict_trampoline(mirror::ArtMethod*);
-extern "C" void art_quick_to_interpreter_bridge(mirror::ArtMethod*);
 
 void ClassLinker::InitWithoutImage(const std::vector<const DexFile*>& boot_class_path) {
   VLOG(startup) << "ClassLinker::Init";
@@ -482,12 +438,12 @@ void ClassLinker::InitWithoutImage(const std::vector<const DexFile*>& boot_class
 
   // Set up GenericJNI entrypoint. That is mainly a hack for common_compiler_test.h so that
   // we do not need friend classes or a publicly exposed setter.
-  quick_generic_jni_trampoline_ = reinterpret_cast<void*>(art_quick_generic_jni_trampoline);
+  quick_generic_jni_trampoline_ = GetQuickGenericJniStub();
   if (!runtime->IsCompiler()) {
     // We need to set up the generic trampolines since we don't have an image.
-    quick_resolution_trampoline_ = reinterpret_cast<void*>(art_quick_resolution_trampoline);
-    quick_imt_conflict_trampoline_ = reinterpret_cast<void*>(art_quick_imt_conflict_trampoline);
-    quick_to_interpreter_bridge_trampoline_ = reinterpret_cast<void*>(art_quick_to_interpreter_bridge);
+    quick_resolution_trampoline_ = GetQuickResolutionStub();
+    quick_imt_conflict_trampoline_ = GetQuickImtConflictStub();
+    quick_to_interpreter_bridge_trampoline_ = GetQuickToInterpreterBridge();
   }
 
   // Object, String and DexCache need to be rerun through FindSystemClass to finish init
@@ -571,15 +527,15 @@ void ClassLinker::InitWithoutImage(const std::vector<const DexFile*>& boot_class
   CHECK_EQ(java_lang_reflect_ArtField.Get(), Art_field_class);
 
   mirror::Class* String_array_class =
-      FindSystemClass(self, class_roots_descriptors_[kJavaLangStringArrayClass]);
+      FindSystemClass(self, GetClassRootDescriptor(kJavaLangStringArrayClass));
   CHECK_EQ(object_array_string.Get(), String_array_class);
 
   mirror::Class* Art_method_array_class =
-      FindSystemClass(self, class_roots_descriptors_[kJavaLangReflectArtMethodArrayClass]);
+      FindSystemClass(self, GetClassRootDescriptor(kJavaLangReflectArtMethodArrayClass));
   CHECK_EQ(object_array_art_method.Get(), Art_method_array_class);
 
   mirror::Class* Art_field_array_class =
-      FindSystemClass(self, class_roots_descriptors_[kJavaLangReflectArtFieldArrayClass]);
+      FindSystemClass(self, GetClassRootDescriptor(kJavaLangReflectArtFieldArrayClass));
   CHECK_EQ(object_array_art_field.Get(), Art_field_array_class);
 
   // End of special init trickery, subsequent classes may be loaded via FindSystemClass.
@@ -1666,7 +1622,7 @@ static void InitFromImageInterpretOnlyCallback(mirror::Object* obj, void* arg)
   if (obj->IsArtMethod()) {
     mirror::ArtMethod* method = obj->AsArtMethod();
     if (!method->IsNative()) {
-      method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
+      method->SetEntryPointFromInterpreter(artInterpreterToInterpreterBridge);
       if (method != Runtime::Current()->GetResolutionMethod()) {
         method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
         method->SetEntryPointFromPortableCompiledCode(GetPortableToInterpreterBridge());
@@ -2535,7 +2491,7 @@ const void* ClassLinker::GetQuickOatCodeFor(mirror::ArtMethod* method) {
   if (result == nullptr) {
     if (method->IsNative()) {
       // No code and native? Use generic trampoline.
-      result = GetQuickGenericJniTrampoline();
+      result = GetQuickGenericJniStub();
     } else if (method->IsPortableCompiled()) {
       // No code? Do we expect portable code?
       result = GetQuickToPortableBridge();
@@ -2689,7 +2645,7 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
       // Use interpreter entry point.
       // Check whether the method is native, in which case it's generic JNI.
       if (quick_code == nullptr && portable_code == nullptr && method->IsNative()) {
-        quick_code = GetQuickGenericJniTrampoline();
+        quick_code = GetQuickGenericJniStub();
         portable_code = GetPortableToQuickBridge();
       } else {
         portable_code = GetPortableToInterpreterBridge();
@@ -2715,7 +2671,8 @@ void ClassLinker::LinkCode(Handle<mirror::ArtMethod> method,
                            const OatFile::OatClass* oat_class,
                            const DexFile& dex_file, uint32_t dex_method_index,
                            uint32_t method_index) {
-  if (Runtime::Current()->IsCompiler()) {
+  Runtime* runtime = Runtime::Current();
+  if (runtime->IsCompiler()) {
     // The following code only applies to a non-compiler runtime.
     return;
   }
@@ -2734,7 +2691,7 @@ void ClassLinker::LinkCode(Handle<mirror::ArtMethod> method,
                                             method->GetEntryPointFromQuickCompiledCode(),
                                             method->GetEntryPointFromPortableCompiledCode());
   if (enter_interpreter && !method->IsNative()) {
-    method->SetEntryPointFromInterpreter(interpreter::artInterpreterToInterpreterBridge);
+    method->SetEntryPointFromInterpreter(artInterpreterToInterpreterBridge);
   } else {
     method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
   }
@@ -2750,15 +2707,15 @@ void ClassLinker::LinkCode(Handle<mirror::ArtMethod> method,
     // For static methods excluding the class initializer, install the trampoline.
     // It will be replaced by the proper entry point by ClassLinker::FixupStaticTrampolines
     // after initializing class (see ClassLinker::InitializeClass method).
-    method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionTrampoline());
-    method->SetEntryPointFromPortableCompiledCode(GetPortableResolutionTrampoline());
+    method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionStub());
+    method->SetEntryPointFromPortableCompiledCode(GetPortableResolutionStub());
   } else if (enter_interpreter) {
     if (!method->IsNative()) {
       // Set entry point from compiled code if there's no code or in interpreter only mode.
       method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
       method->SetEntryPointFromPortableCompiledCode(GetPortableToInterpreterBridge());
     } else {
-      method->SetEntryPointFromQuickCompiledCode(GetQuickGenericJniTrampoline());
+      method->SetEntryPointFromQuickCompiledCode(GetQuickGenericJniStub());
       method->SetEntryPointFromPortableCompiledCode(GetPortableToQuickBridge());
     }
   } else if (method->GetEntryPointFromPortableCompiledCode() != nullptr) {
@@ -2772,18 +2729,18 @@ void ClassLinker::LinkCode(Handle<mirror::ArtMethod> method,
 
   if (method->IsNative()) {
     // Unregistering restores the dlsym lookup stub.
-    method->UnregisterNative(Thread::Current());
+    method->UnregisterNative();
 
     if (enter_interpreter) {
-      // We have a native method here without code. Then it should have either the GenericJni
-      // trampoline as entrypoint (non-static), or the Resolution trampoline (static).
-      DCHECK(method->GetEntryPointFromQuickCompiledCode() == GetQuickResolutionTrampoline()
-          || method->GetEntryPointFromQuickCompiledCode() == GetQuickGenericJniTrampoline());
+      // We have a native method here without code. Then it should have either the generic JNI
+      // trampoline as entrypoint (non-static), or the resolution trampoline (static).
+      // TODO: this doesn't handle all the cases where trampolines may be installed.
+      const void* entry_point = method->GetEntryPointFromQuickCompiledCode();
+      DCHECK(IsQuickGenericJniStub(entry_point) || IsQuickResolutionStub(entry_point));
     }
   }
 
   // Allow instrumentation its chance to hijack code.
-  Runtime* runtime = Runtime::Current();
   runtime->GetInstrumentation()->UpdateMethodsCode(method.Get(),
                                                    method->GetEntryPointFromQuickCompiledCode(),
                                                    method->GetEntryPointFromPortableCompiledCode(),
@@ -3224,13 +3181,13 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
       new_class.Assign(GetClassRoot(kClassArrayClass));
     } else if (strcmp(descriptor, "[Ljava/lang/Object;") == 0) {
       new_class.Assign(GetClassRoot(kObjectArrayClass));
-    } else if (strcmp(descriptor, class_roots_descriptors_[kJavaLangStringArrayClass]) == 0) {
+    } else if (strcmp(descriptor, GetClassRootDescriptor(kJavaLangStringArrayClass)) == 0) {
       new_class.Assign(GetClassRoot(kJavaLangStringArrayClass));
     } else if (strcmp(descriptor,
-                      class_roots_descriptors_[kJavaLangReflectArtMethodArrayClass]) == 0) {
+                      GetClassRootDescriptor(kJavaLangReflectArtMethodArrayClass)) == 0) {
       new_class.Assign(GetClassRoot(kJavaLangReflectArtMethodArrayClass));
     } else if (strcmp(descriptor,
-                      class_roots_descriptors_[kJavaLangReflectArtFieldArrayClass]) == 0) {
+                      GetClassRootDescriptor(kJavaLangReflectArtFieldArrayClass)) == 0) {
       new_class.Assign(GetClassRoot(kJavaLangReflectArtFieldArrayClass));
     } else if (strcmp(descriptor, "[C") == 0) {
       new_class.Assign(GetClassRoot(kCharArrayClass));
@@ -5546,6 +5503,84 @@ void ClassLinker::DumpAllClasses(int flags) {
   }
 }
 
+static OatFile::OatMethod CreateOatMethod(const void* code, const uint8_t* gc_map,
+                                          bool is_portable) {
+  CHECK_EQ(kUsePortableCompiler, is_portable);
+  CHECK(code != nullptr);
+  const uint8_t* base;
+  uint32_t code_offset, gc_map_offset;
+  if (gc_map == nullptr) {
+    base = reinterpret_cast<const uint8_t*>(code);  // Base of data points at code.
+    base -= sizeof(void*);  // Move backward so that code_offset != 0.
+    code_offset = sizeof(void*);
+    gc_map_offset = 0;
+  } else {
+    // TODO: 64bit support.
+    base = nullptr;  // Base of data in oat file, ie 0.
+    code_offset = PointerToLowMemUInt32(code);
+    gc_map_offset = PointerToLowMemUInt32(gc_map);
+  }
+  return OatFile::OatMethod(base, code_offset, gc_map_offset);
+}
+
+bool ClassLinker::IsPortableResolutionStub(const void* entry_point) const {
+  return (entry_point == GetPortableResolutionStub()) ||
+      (portable_resolution_trampoline_ == entry_point);
+}
+
+bool ClassLinker::IsQuickResolutionStub(const void* entry_point) const {
+  return (entry_point == GetQuickResolutionStub()) ||
+      (quick_resolution_trampoline_ == entry_point);
+}
+
+bool ClassLinker::IsPortableToInterpreterBridge(const void* entry_point) const {
+  return (entry_point == GetPortableToInterpreterBridge());
+  // TODO: portable_to_interpreter_bridge_trampoline_ == entry_point;
+}
+
+bool ClassLinker::IsQuickToInterpreterBridge(const void* entry_point) const {
+  return (entry_point == GetQuickToInterpreterBridge()) ||
+      (quick_to_interpreter_bridge_trampoline_ == entry_point);
+}
+
+bool ClassLinker::IsQuickGenericJniStub(const void* entry_point) const {
+  return (entry_point == GetQuickGenericJniStub()) ||
+      (quick_generic_jni_trampoline_ == entry_point);
+}
+
+const void* ClassLinker::GetRuntimeQuickGenericJniStub() const {
+  return GetQuickGenericJniStub();
+}
+
+void ClassLinker::SetEntryPointsToCompiledCode(mirror::ArtMethod* method, const void* method_code,
+                                               bool is_portable) const {
+  OatFile::OatMethod oat_method = CreateOatMethod(method_code, nullptr, is_portable);
+  oat_method.LinkMethod(method);
+  method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
+  // Create bridges to transition between different kinds of compiled bridge.
+  if (method->GetEntryPointFromPortableCompiledCode() == nullptr) {
+    method->SetEntryPointFromPortableCompiledCode(GetPortableToQuickBridge());
+  } else {
+    CHECK(method->GetEntryPointFromQuickCompiledCode() == nullptr);
+    method->SetEntryPointFromQuickCompiledCode(GetQuickToPortableBridge());
+    method->SetIsPortableCompiled();
+  }
+}
+
+void ClassLinker::SetEntryPointsToInterpreter(mirror::ArtMethod* method) const {
+  if (!method->IsNative()) {
+    method->SetEntryPointFromInterpreter(artInterpreterToInterpreterBridge);
+    method->SetEntryPointFromPortableCompiledCode(GetPortableToInterpreterBridge());
+    method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
+  } else {
+    const void* quick_method_code = GetQuickGenericJniStub();
+    OatFile::OatMethod oat_method = CreateOatMethod(quick_method_code, nullptr, false);
+    oat_method.LinkMethod(method);
+    method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
+    method->SetEntryPointFromPortableCompiledCode(GetPortableToQuickBridge());
+  }
+}
+
 void ClassLinker::DumpForSigQuit(std::ostream& os) {
   Thread* self = Thread::Current();
   if (dex_cache_image_class_lookup_required_) {
@@ -5582,6 +5617,52 @@ void ClassLinker::SetClassRoot(ClassRoot class_root, mirror::Class* klass) {
   DCHECK(class_roots != nullptr);
   DCHECK(class_roots->Get(class_root) == nullptr);
   class_roots->Set<false>(class_root, klass);
+}
+
+const char* ClassLinker::GetClassRootDescriptor(ClassRoot class_root) {
+  static const char* class_roots_descriptors[] = {
+    "Ljava/lang/Class;",
+    "Ljava/lang/Object;",
+    "[Ljava/lang/Class;",
+    "[Ljava/lang/Object;",
+    "Ljava/lang/String;",
+    "Ljava/lang/DexCache;",
+    "Ljava/lang/ref/Reference;",
+    "Ljava/lang/reflect/ArtField;",
+    "Ljava/lang/reflect/ArtMethod;",
+    "Ljava/lang/reflect/Proxy;",
+    "[Ljava/lang/String;",
+    "[Ljava/lang/reflect/ArtField;",
+    "[Ljava/lang/reflect/ArtMethod;",
+    "Ljava/lang/ClassLoader;",
+    "Ljava/lang/Throwable;",
+    "Ljava/lang/ClassNotFoundException;",
+    "Ljava/lang/StackTraceElement;",
+    "Z",
+    "B",
+    "C",
+    "D",
+    "F",
+    "I",
+    "J",
+    "S",
+    "V",
+    "[Z",
+    "[B",
+    "[C",
+    "[D",
+    "[F",
+    "[I",
+    "[J",
+    "[S",
+    "[Ljava/lang/StackTraceElement;",
+  };
+  COMPILE_ASSERT(arraysize(class_roots_descriptors) == size_t(kClassRootsMax),
+                 mismatch_between_class_descriptors_and_class_root_enum);
+
+  const char* descriptor = class_roots_descriptors[class_root];
+  CHECK(descriptor != nullptr);
+  return descriptor;
 }
 
 }  // namespace art
