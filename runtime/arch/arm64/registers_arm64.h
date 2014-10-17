@@ -55,17 +55,17 @@ enum Register {
   X28 = 28,
   X29 = 29,
   X30 = 30,
-  X31 = 31,
-  TR  = 18,     // ART Thread Register - Managed Runtime (Caller Saved Reg)
-  ETR = 21,     // ART Thread Register - External Calls  (Callee Saved Reg)
-  IP0 = 16,     // Used as scratch by VIXL.
-  IP1 = 17,     // Used as scratch by ART JNI Assembler.
-  FP  = 29,
-  LR  = 30,
-  SP  = 31,     // SP is X31 and overlaps with XRZ but we encode it as a
-                // special register, due to the different instruction semantics.
-  XZR = 32,
+  SP  = 31,      // SP and XZR are encoded in instructions using the register
+  XZR = 32,      // code `31`, the context deciding which is used. We use a
+                 // different enum value to distinguish between the two.
   kNumberOfCoreRegisters = 33,
+  // Aliases.
+  TR  = X18,     // ART Thread Register - Managed Runtime (Caller Saved Reg)
+  ETR = X21,     // ART Thread Register - External Calls  (Callee Saved Reg)
+  IP0 = X16,     // Used as scratch by VIXL.
+  IP1 = X17,     // Used as scratch by ART JNI Assembler.
+  FP  = X29,
+  LR  = X30,
   kNoRegister = -1,
 };
 std::ostream& operator<<(std::ostream& os, const Register& rhs);
@@ -103,9 +103,9 @@ enum WRegister {
   W28 = 28,
   W29 = 29,
   W30 = 30,
-  W31 = 31,
-  WZR = 31,
-  kNumberOfWRegisters = 32,
+  WSP = 31,
+  WZR = 32,
+  kNumberOfWRegisters = 33,
   kNoWRegister = -1,
 };
 std::ostream& operator<<(std::ostream& os, const WRegister& rhs);
