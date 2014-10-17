@@ -28,7 +28,18 @@ class MirFieldInfo;
 
 class GlobalValueNumbering {
  public:
-  GlobalValueNumbering(CompilationUnit* cu, ScopedArenaAllocator* allocator);
+  enum Mode {
+    kModeGvn,
+    kModeGvnPostProcessing,
+    kModeLvn
+  };
+
+  static bool Skip(CompilationUnit* cu) {
+    return (cu->disable_opt & (1u << kGlobalValueNumbering)) != 0u ||
+        cu->mir_graph->GetMaxNestedLoops() > kMaxAllowedNestedLoops;
+  }
+
+  GlobalValueNumbering(CompilationUnit* cu, ScopedArenaAllocator* allocator, Mode mode);
   ~GlobalValueNumbering();
 
   // Prepare LVN for the basic block.
@@ -44,13 +55,13 @@ class GlobalValueNumbering {
   }
 
   // Allow modifications.
-  void AllowModifications() {
+  void StartPostProcessing() {
     DCHECK(Good());
-    modifications_allowed_ = true;
+    DCHECK_EQ(mode_, kModeGvn);
+    mode_ = kModeGvnPostProcessing;
   }
 
   bool CanModify() const {
-    // TODO: DCHECK(Good()), see AllowModifications() and NewValueName().
     return modifications_allowed_ && Good();
   }
 
@@ -67,8 +78,7 @@ class GlobalValueNumbering {
 
   // Allocate a new value name.
   uint16_t NewValueName() {
-    // TODO: No new values should be needed once we allow modifications.
-    // DCHECK(!modifications_allowed_);
+    DCHECK_NE(mode_, kModeGvnPostProcessing);
     ++last_value_;
     return last_value_;
   }
@@ -208,6 +218,9 @@ class GlobalValueNumbering {
   MIRGraph* mir_graph_;
   ScopedArenaAllocator* const allocator_;
 
+  // The maximum number of nested loops that we accept for GVN.
+  static constexpr size_t kMaxAllowedNestedLoops = 6u;
+
   // The number of BBs that we need to process grows exponentially with the number
   // of nested loops. Don't allow excessive processing for too many nested loops or
   // otherwise expensive methods.
@@ -224,6 +237,9 @@ class GlobalValueNumbering {
   // modifications to settle the value names. Afterwards, we allow modifications and rerun
   // LVN once for each BasicBlock.
   bool modifications_allowed_;
+
+  // Specifies the mode of operation.
+  Mode mode_;
 
   ValueMap global_value_map_;
   FieldIndexMap field_index_map_;

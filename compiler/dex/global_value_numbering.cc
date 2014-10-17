@@ -20,14 +20,16 @@
 
 namespace art {
 
-GlobalValueNumbering::GlobalValueNumbering(CompilationUnit* cu, ScopedArenaAllocator* allocator)
+GlobalValueNumbering::GlobalValueNumbering(CompilationUnit* cu, ScopedArenaAllocator* allocator,
+                                           Mode mode)
     : cu_(cu),
       mir_graph_(cu->mir_graph.get()),
       allocator_(allocator),
       bbs_processed_(0u),
       max_bbs_to_process_(kMaxBbsToProcessMultiplyFactor * mir_graph_->GetNumReachableBlocks()),
       last_value_(0u),
-      modifications_allowed_(false),
+      modifications_allowed_(true),
+      mode_(mode),
       global_value_map_(std::less<uint64_t>(), allocator->Adapter()),
       field_index_map_(FieldReferenceComparator(), allocator->Adapter()),
       field_index_reverse_map_(allocator->Adapter()),
@@ -48,19 +50,19 @@ LocalValueNumbering* GlobalValueNumbering::PrepareBasicBlock(BasicBlock* bb,
   if (UNLIKELY(!Good())) {
     return nullptr;
   }
-  if (UNLIKELY(bb->data_flow_info == nullptr)) {
-    return nullptr;
-  }
-  if (UNLIKELY(bb->block_type == kExitBlock)) {
+  if (bb->block_type != kDalvikByteCode && bb->block_type != kEntryBlock) {
     DCHECK(bb->first_mir_insn == nullptr);
     return nullptr;
   }
-  if (UNLIKELY(bbs_processed_ == max_bbs_to_process_)) {
+  if (mode_ == kModeGvn && UNLIKELY(bbs_processed_ == max_bbs_to_process_)) {
     // If we're still trying to converge, stop now. Otherwise, proceed to apply optimizations.
-    if (!modifications_allowed_) {
-      last_value_ = kNoValue;  // Make bad.
-      return nullptr;
-    }
+    last_value_ = kNoValue;  // Make bad.
+    return nullptr;
+  }
+  if (mode_ == kModeGvnPostProcessing &&
+    mir_graph_->GetTopologicalSortOrderLoopHeadStack()->empty()) {
+    // Modifications outside loops are performed during the main phase.
+    return nullptr;
   }
   if (allocator == nullptr) {
     allocator = allocator_;
@@ -74,6 +76,7 @@ LocalValueNumbering* GlobalValueNumbering::PrepareBasicBlock(BasicBlock* bb,
       uint16_t value_name = work_lvn_->GetSRegValueName(this_reg);
       work_lvn_->SetValueNameNullChecked(value_name);
     }
+    DCHECK(bb->first_mir_insn == nullptr);  // modifications_allowed_ is irrelevant.
   } else {
     // To avoid repeated allocation on the ArenaStack, reuse a single vector kept as a member.
     DCHECK(merge_lvns_.empty());
@@ -83,19 +86,18 @@ LocalValueNumbering* GlobalValueNumbering::PrepareBasicBlock(BasicBlock* bb,
     // topological order, or we're recalculating a loop head and need to merge all incoming
     // LVNs. When we're not at a loop head (including having an empty loop head stack) all
     // predecessors should be preceding blocks and we shall merge all of them anyway.
-    //
-    // If we're running the modification phase of the full GVN, the loop head stack will be
-    // empty and we need to merge all incoming LVNs. If we're running just a simple LVN,
-    // the loop head stack will also be empty and there will be nothing to merge anyway.
     bool use_all_predecessors = true;
     uint16_t loop_head_idx = 0u;  // Used only if !use_all_predecessors.
-    if (mir_graph_->GetTopologicalSortOrderLoopHeadStack()->size() != 0) {
+    if (mode_ == kModeGvn && mir_graph_->GetTopologicalSortOrderLoopHeadStack()->size() != 0) {
       // Full GVN inside a loop, see if we're at the loop head for the first time.
+      modifications_allowed_ = false;
       auto top = mir_graph_->GetTopologicalSortOrderLoopHeadStack()->back();
       loop_head_idx = top.first;
       bool recalculating = top.second;
       use_all_predecessors = recalculating ||
           loop_head_idx != mir_graph_->GetTopologicalSortOrderIndexes()[bb->id];
+    } else {
+      modifications_allowed_ = true;
     }
     for (BasicBlockId pred_id : bb->predecessors) {
       DCHECK_NE(pred_id, NullBasicBlockId);
