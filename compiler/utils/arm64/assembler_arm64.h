@@ -183,6 +183,11 @@ class Arm64Assembler FINAL : public Assembler {
   }
 
   static vixl::Register reg_w(int code) {
+    if (code == WSP) {
+      return vixl::wsp;
+    } else if (code == WZR) {
+      return vixl::wzr;
+    }
     return vixl::Register::WRegFromCode(code);
   }
 
