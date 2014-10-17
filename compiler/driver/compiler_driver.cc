@@ -332,7 +332,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
                                const InstructionSetFeatures* instruction_set_features,
                                bool image, std::set<std::string>* image_classes, size_t thread_count,
                                bool dump_stats, bool dump_passes, CumulativeLogger* timer,
-                               std::string profile_file)
+                               const std::string& profile_file)
     : profile_present_(false), compiler_options_(compiler_options),
       verification_results_(verification_results),
       method_inliner_map_(method_inliner_map),

@@ -43,6 +43,7 @@
 #include "arch/x86/registers_x86.h"
 #include "arch/x86_64/quick_method_frame_info_x86_64.h"
 #include "arch/x86_64/registers_x86_64.h"
+#include "base/unix_file/fd_file.h"
 #include "atomic.h"
 #include "class_linker.h"
 #include "debugger.h"
