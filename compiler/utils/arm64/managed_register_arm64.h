@@ -78,7 +78,7 @@ class Arm64ManagedRegister : public ManagedRegister {
 
   WRegister AsOverlappingCoreRegisterLow() const {
     CHECK(IsValidManagedRegister());
-    if (IsZeroRegister()) return W31;
+    if (IsZeroRegister()) return WZR;
     return static_cast<WRegister>(AsCoreRegister());
   }
 
