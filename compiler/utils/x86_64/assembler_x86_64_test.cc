@@ -112,6 +112,9 @@ TEST_F(AssemblerX86_64Test, AddqImm) {
   DriverStr(RepeatRI(&x86_64::X86_64Assembler::addq, 4U, "addq ${imm}, %{reg}"), "addqi");
 }
 
+TEST_F(AssemblerX86_64Test, ImulqRegs) {
+  DriverStr(RepeatRR(&x86_64::X86_64Assembler::imulq, "imulq %{reg2}, %{reg1}"), "imulq");
+}
 
 TEST_F(AssemblerX86_64Test, SubqRegs) {
   DriverStr(RepeatRR(&x86_64::X86_64Assembler::subq, "subq %{reg2}, %{reg1}"), "subq");

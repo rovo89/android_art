@@ -502,11 +502,12 @@ class HBasicBlock : public ArenaObject {
   M(NullCheck, Instruction)                                             \
   M(Temporary, Instruction)                                             \
   M(SuspendCheck, Instruction)                                          \
+  M(Mul, BinaryOperation)                                               \
 
 #define FOR_EACH_INSTRUCTION(M)                                         \
   FOR_EACH_CONCRETE_INSTRUCTION(M)                                      \
   M(Constant, Instruction)                                              \
-  M(BinaryOperation, Instruction) \
+  M(BinaryOperation, Instruction)                                       \
   M(Invoke, Instruction)
 
 #define FORWARD_DECLARATION(type, super) class H##type;
@@ -1554,6 +1555,22 @@ class HSub : public HBinaryOperation {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HSub);
+};
+
+class HMul : public HBinaryOperation {
+ public:
+  HMul(Primitive::Type result_type, HInstruction* left, HInstruction* right)
+      : HBinaryOperation(result_type, left, right) {}
+
+  virtual bool IsCommutative() { return true; }
+
+  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x * y; }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x * y; }
+
+  DECLARE_INSTRUCTION(Mul);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HMul);
 };
 
 // The value of a parameter in this method. Its location depends on
