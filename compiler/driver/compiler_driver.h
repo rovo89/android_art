@@ -400,11 +400,12 @@ class CompilerDriver {
 
  public:  // TODO make private or eliminate.
   // Compute constant code and method pointers when possible.
-  void GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType sharp_type,
+  void GetCodeAndMethodForDirectCall(/*out*/InvokeType* type,
+                                     InvokeType sharp_type,
                                      bool no_guarantee_of_dex_cache_entry,
-                                     mirror::Class* referrer_class,
+                                     const mirror::Class* referrer_class,
                                      mirror::ArtMethod* method,
-                                     int* stats_flags,
+                                     /*out*/int* stats_flags,
                                      MethodReference* target_method,
                                      uintptr_t* direct_code, uintptr_t* direct_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
