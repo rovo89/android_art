@@ -68,7 +68,7 @@ struct CompilationUnit {
   InstructionSet instruction_set;
   bool target64;
 
-  InstructionSetFeatures GetInstructionSetFeatures() {
+  const InstructionSetFeatures* GetInstructionSetFeatures() {
     return compiler_driver->GetInstructionSetFeatures();
   }
 

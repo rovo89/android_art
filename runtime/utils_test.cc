@@ -241,62 +241,62 @@ TEST_F(UtilsTest, Split) {
   expected.clear();
 
   actual.clear();
-  Split("", ':', actual);
+  Split("", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split(":", ':', actual);
+  Split(":", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   expected.clear();
   expected.push_back("foo");
 
   actual.clear();
-  Split(":foo", ':', actual);
+  Split(":foo", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split("foo:", ':', actual);
+  Split("foo:", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split(":foo:", ':', actual);
+  Split(":foo:", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   expected.push_back("bar");
 
   actual.clear();
-  Split("foo:bar", ':', actual);
+  Split("foo:bar", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split(":foo:bar", ':', actual);
+  Split(":foo:bar", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split("foo:bar:", ':', actual);
+  Split("foo:bar:", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split(":foo:bar:", ':', actual);
+  Split(":foo:bar:", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   expected.push_back("baz");
 
   actual.clear();
-  Split("foo:bar:baz", ':', actual);
+  Split("foo:bar:baz", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split(":foo:bar:baz", ':', actual);
+  Split(":foo:bar:baz", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split("foo:bar:baz:", ':', actual);
+  Split("foo:bar:baz:", ':', &actual);
   EXPECT_EQ(expected, actual);
 
   actual.clear();
-  Split(":foo:bar:baz:", ':', actual);
+  Split(":foo:bar:baz:", ':', &actual);
   EXPECT_EQ(expected, actual);
 }
 

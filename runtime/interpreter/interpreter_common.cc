@@ -506,7 +506,7 @@ void UnexpectedOpcode(const Instruction* inst, MethodHelper& mh) {
   exit(0);  // Unreachable, keep GCC happy.
 }
 
-static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
+static void UnstartedRuntimeInvoke(Thread* self, MethodHelper* mh,
                                    const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame,
                                    JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -666,9 +666,9 @@ bool DoCall(ArtMethod* method, Thread* self, ShadowFrame& shadow_frame,
         mh.Get()->GetEntryPointFromInterpreter() == artInterpreterToCompiledCodeBridge) {
       LOG(FATAL) << "Attempt to call compiled code when -Xint: " << PrettyMethod(mh.Get());
     }
-    (mh.Get()->GetEntryPointFromInterpreter())(self, mh, code_item, new_shadow_frame, result);
+    (mh.Get()->GetEntryPointFromInterpreter())(self, &mh, code_item, new_shadow_frame, result);
   } else {
-    UnstartedRuntimeInvoke(self, mh, code_item, new_shadow_frame, result, first_dest_reg);
+    UnstartedRuntimeInvoke(self, &mh, code_item, new_shadow_frame, result, first_dest_reg);
   }
   return !self->IsExceptionPending();
 }
@@ -809,7 +809,7 @@ static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> class
   result->SetL(found);
 }
 
-static void UnstartedRuntimeInvoke(Thread* self, MethodHelper& mh,
+static void UnstartedRuntimeInvoke(Thread* self, MethodHelper* mh,
                                    const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame,
                                    JValue* result, size_t arg_offset) {
   // In a runtime that's not started we intercept certain methods to avoid complicated dependency

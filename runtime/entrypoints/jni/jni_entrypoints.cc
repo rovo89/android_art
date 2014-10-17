@@ -45,7 +45,7 @@ extern "C" void* artFindNativeMethod(Thread* self) {
     return NULL;
   } else {
     // Register so that future calls don't come here
-    method->RegisterNative(self, native_code, false);
+    method->RegisterNative(native_code, false);
     return native_code;
   }
 }

@@ -63,6 +63,7 @@ define build-libart-disassembler
   	$(call set-target-local-cflags-vars,$(2))
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
+    LOCAL_LDLIBS := $(ART_HOST_LDLIBS)
     LOCAL_CFLAGS += $(ART_HOST_CFLAGS)
     ifeq ($$(art_ndebug_or_debug),debug)
       LOCAL_CFLAGS += $(ART_HOST_DEBUG_CFLAGS)

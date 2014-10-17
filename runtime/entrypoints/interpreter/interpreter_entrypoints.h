@@ -33,10 +33,10 @@ class Thread;
 
 // Pointers to functions that are called by interpreter trampolines via thread-local storage.
 struct PACKED(4) InterpreterEntryPoints {
-  void (*pInterpreterToInterpreterBridge)(Thread* self, MethodHelper& mh,
+  void (*pInterpreterToInterpreterBridge)(Thread* self, MethodHelper* mh,
                                           const DexFile::CodeItem* code_item,
                                           ShadowFrame* shadow_frame, JValue* result);
-  void (*pInterpreterToCompiledCodeBridge)(Thread* self, MethodHelper& mh,
+  void (*pInterpreterToCompiledCodeBridge)(Thread* self, MethodHelper* mh,
                                            const DexFile::CodeItem* code_item,
                                            ShadowFrame* shadow_frame, JValue* result);
 };

@@ -22,7 +22,7 @@ namespace art {
 #define CHECK_REGS_CONTAIN_REFS(native_pc_offset, ...) do { \
   int t[] = {__VA_ARGS__}; \
   int t_size = sizeof(t) / sizeof(*t); \
-  CheckReferences(t, t_size, m->NativePcOffset(m->ToNativePc(native_pc_offset))); \
+  CheckReferences(t, t_size, m->NativeQuickPcOffset(m->ToNativeQuickPc(native_pc_offset))); \
 } while (false);
 
 struct ReferenceMap2Visitor : public CheckReferenceMapVisitor {
