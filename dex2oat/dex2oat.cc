@@ -251,13 +251,23 @@ class Dex2Oat {
                      const CompilerOptions& compiler_options,
                      Compiler::Kind compiler_kind,
                      InstructionSet instruction_set,
-                     InstructionSetFeatures instruction_set_features,
+                     const InstructionSetFeatures* instruction_set_features,
                      VerificationResults* verification_results,
                      DexFileToMethodInlinerMap* method_inliner_map,
                      size_t thread_count)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_) {
     CHECK(verification_results != nullptr);
     CHECK(method_inliner_map != nullptr);
+    if (instruction_set == kRuntimeISA) {
+      std::unique_ptr<const InstructionSetFeatures> runtime_features(
+          InstructionSetFeatures::FromCppDefines());
+      if (!instruction_set_features->Equals(runtime_features.get())) {
+        LOG(WARNING) << "Mismatch between dex2oat instruction set features ("
+            << *instruction_set_features << ") and those of dex2oat executable ("
+            << *runtime_features <<") for the command line:\n"
+            << CommandLine();
+      }
+    }
     std::unique_ptr<Dex2Oat> dex2oat(new Dex2Oat(&compiler_options,
                                                  compiler_kind,
                                                  instruction_set,
@@ -482,7 +492,7 @@ class Dex2Oat {
   explicit Dex2Oat(const CompilerOptions* compiler_options,
                    Compiler::Kind compiler_kind,
                    InstructionSet instruction_set,
-                   InstructionSetFeatures instruction_set_features,
+                   const InstructionSetFeatures* instruction_set_features,
                    VerificationResults* verification_results,
                    DexFileToMethodInlinerMap* method_inliner_map,
                    size_t thread_count)
@@ -527,7 +537,7 @@ class Dex2Oat {
   static void OpenClassPathFiles(const std::string& class_path,
                                  std::vector<const DexFile*>& dex_files) {
     std::vector<std::string> parsed;
-    Split(class_path, ':', parsed);
+    Split(class_path, ':', &parsed);
     // Take Locks::mutator_lock_ so that lock ordering on the ClassLinker::dex_lock_ is maintained.
     ScopedObjectAccess soa(Thread::Current());
     for (size_t i = 0; i < parsed.size(); ++i) {
@@ -556,7 +566,7 @@ class Dex2Oat {
   const Compiler::Kind compiler_kind_;
 
   const InstructionSet instruction_set_;
-  const InstructionSetFeatures instruction_set_features_;
+  const InstructionSetFeatures* const instruction_set_features_;
 
   VerificationResults* const verification_results_;
   DexFileToMethodInlinerMap* const method_inliner_map_;
@@ -728,38 +738,6 @@ class WatchDog {
 const unsigned int WatchDog::kWatchDogWarningSeconds;
 const unsigned int WatchDog::kWatchDogTimeoutSeconds;
 
-// Given a set of instruction features from the build, parse it.  The
-// input 'str' is a comma separated list of feature names.  Parse it and
-// return the InstructionSetFeatures object.
-static InstructionSetFeatures ParseFeatureList(std::string str) {
-  InstructionSetFeatures result;
-  typedef std::vector<std::string> FeatureList;
-  FeatureList features;
-  Split(str, ',', features);
-  for (FeatureList::iterator i = features.begin(); i != features.end(); i++) {
-    std::string feature = Trim(*i);
-    if (feature == "default") {
-      // Nothing to do.
-    } else if (feature == "div") {
-      // Supports divide instruction.
-       result.SetHasDivideInstruction(true);
-    } else if (feature == "nodiv") {
-      // Turn off support for divide instruction.
-      result.SetHasDivideInstruction(false);
-    } else if (feature == "lpae") {
-      // Supports Large Physical Address Extension.
-      result.SetHasLpae(true);
-    } else if (feature == "nolpae") {
-      // Turn off support for Large Physical Address Extension.
-      result.SetHasLpae(false);
-    } else {
-      Usage("Unknown instruction set feature: '%s'", feature.c_str());
-    }
-  }
-  // others...
-  return result;
-}
-
 void ParseStringAfterChar(const std::string& s, char c, std::string* parsed_value) {
   std::string::size_type colon = s.find(c);
   if (colon == std::string::npos) {
@@ -854,11 +832,12 @@ static int dex2oat(int argc, char** argv) {
   int tiny_method_threshold = CompilerOptions::kDefaultTinyMethodThreshold;
   int num_dex_methods_threshold = CompilerOptions::kDefaultNumDexMethodsThreshold;
 
-  // Take the default set of instruction features from the build.
-  InstructionSetFeatures instruction_set_features =
-      ParseFeatureList(Runtime::GetDefaultInstructionSetFeatures());
-
+  // Initialize ISA and ISA features to default values.
   InstructionSet instruction_set = kRuntimeISA;
+  std::string error_msg;
+  std::unique_ptr<const InstructionSetFeatures> instruction_set_features(
+      InstructionSetFeatures::FromFeatureString(instruction_set, "default", &error_msg));
+  CHECK(instruction_set_features.get() != nullptr) << error_msg;
 
   // Profile file to use
   std::string profile_file;
@@ -961,9 +940,20 @@ static int dex2oat(int argc, char** argv) {
       } else if (instruction_set_str == "x86_64") {
         instruction_set = kX86_64;
       }
+    } else if (option.starts_with("--instruction-set-variant=")) {
+      StringPiece str = option.substr(strlen("--instruction-set-variant=")).data();
+      instruction_set_features.reset(
+          InstructionSetFeatures::FromVariant(instruction_set, str.as_string(), &error_msg));
+      if (instruction_set_features.get() == nullptr) {
+        Usage("%s", error_msg.c_str());
+      }
     } else if (option.starts_with("--instruction-set-features=")) {
       StringPiece str = option.substr(strlen("--instruction-set-features=")).data();
-      instruction_set_features = ParseFeatureList(str.as_string());
+      instruction_set_features.reset(
+          InstructionSetFeatures::FromFeatureString(instruction_set, str.as_string(), &error_msg));
+      if (instruction_set_features.get() == nullptr) {
+        Usage("%s", error_msg.c_str());
+      }
     } else if (option.starts_with("--compiler-backend=")) {
       StringPiece backend_str = option.substr(strlen("--compiler-backend=")).data();
       if (backend_str == "Quick") {
@@ -1283,8 +1273,7 @@ static int dex2oat(int argc, char** argv) {
   QuickCompilerCallbacks callbacks(verification_results.get(), &method_inliner_map);
   runtime_options.push_back(std::make_pair("compilercallbacks", &callbacks));
   runtime_options.push_back(
-      std::make_pair("imageinstructionset",
-                     reinterpret_cast<const void*>(GetInstructionSetString(instruction_set))));
+      std::make_pair("imageinstructionset", GetInstructionSetString(instruction_set)));
 
   Dex2Oat* p_dex2oat;
   if (!Dex2Oat::Create(&p_dex2oat,
@@ -1292,7 +1281,7 @@ static int dex2oat(int argc, char** argv) {
                        *compiler_options,
                        compiler_kind,
                        instruction_set,
-                       instruction_set_features,
+                       instruction_set_features.get(),
                        verification_results.get(),
                        &method_inliner_map,
                        thread_count)) {

@@ -135,16 +135,6 @@ VAR(c_name, 0):
     CFI_DEF_CFA(esp, 4)
 END_MACRO
 
-MACRO1(DEFINE_FUNCTION_NO_HIDE, c_name)
-    FUNCTION_TYPE(\c_name, 0)
-    .globl VAR(c_name, 0)
-    ALIGN_FUNCTION_ENTRY
-VAR(c_name, 0):
-    CFI_STARTPROC
-    // Ensure we get a sane starting CFA.
-    CFI_DEF_CFA(esp, 4)
-END_MACRO
-
 MACRO1(END_FUNCTION, c_name)
     CFI_ENDPROC
     SIZE(\c_name, 0)

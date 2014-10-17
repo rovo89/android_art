@@ -131,3 +131,4 @@ END art_portable_invoke_stub
 
 UNIMPLEMENTED art_portable_resolution_trampoline
 UNIMPLEMENTED art_portable_to_interpreter_bridge
+UNIMPLEMENTED art_portable_imt_conflict_trampoline

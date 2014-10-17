@@ -118,7 +118,7 @@ static bool GenerateImage(const std::string& image_filename, InstructionSet imag
                           std::string* error_msg) {
   const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
   std::vector<std::string> boot_class_path;
-  Split(boot_class_path_string, ':', boot_class_path);
+  Split(boot_class_path_string, ':', &boot_class_path);
   if (boot_class_path.empty()) {
     *error_msg = "Failed to generate image because no boot class path specified";
     return false;

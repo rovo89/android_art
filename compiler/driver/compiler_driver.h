@@ -88,7 +88,7 @@ class CompilerDriver {
                           DexFileToMethodInlinerMap* method_inliner_map,
                           Compiler::Kind compiler_kind,
                           InstructionSet instruction_set,
-                          InstructionSetFeatures instruction_set_features,
+                          const InstructionSetFeatures* instruction_set_features,
                           bool image, std::set<std::string>* image_classes,
                           size_t thread_count, bool dump_stats, bool dump_passes,
                           CumulativeLogger* timer, std::string profile_file = "");
@@ -115,7 +115,7 @@ class CompilerDriver {
     return instruction_set_;
   }
 
-  InstructionSetFeatures GetInstructionSetFeatures() const {
+  const InstructionSetFeatures* GetInstructionSetFeatures() const {
     return instruction_set_features_;
   }
 
@@ -475,7 +475,7 @@ class CompilerDriver {
   std::unique_ptr<Compiler> compiler_;
 
   const InstructionSet instruction_set_;
-  const InstructionSetFeatures instruction_set_features_;
+  const InstructionSetFeatures* const instruction_set_features_;
 
   // All class references that require
   mutable ReaderWriterMutex freezing_constructor_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;

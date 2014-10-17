@@ -19,6 +19,7 @@
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
 #include "entrypoints/entrypoint_utils-inl.h"
+#include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/card_table-inl.h"
 #include "instruction_set.h"
 #include "interpreter/interpreter.h"
@@ -504,7 +505,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
         return 0;
       }
     }
-    JValue result = interpreter::EnterInterpreterFromStub(self, mh, code_item, *shadow_frame);
+    JValue result = interpreter::EnterInterpreterFromEntryPoint(self, &mh, code_item, shadow_frame);
     // Pop transition.
     self->PopManagedStackFragment(fragment);
     // No need to restore the args since the method has already been run by the interpreter.

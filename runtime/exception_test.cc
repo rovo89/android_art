@@ -175,7 +175,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
     fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
     fake_stack.push_back(0);
     fake_stack.push_back(0);
-    fake_stack.push_back(method_f_->ToNativePc(dex_pc));  // return pc
+    fake_stack.push_back(method_f_->ToNativeQuickPc(dex_pc));  // return pc
 
     // Create/push fake 16byte stack frame for method f
     fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
@@ -194,7 +194,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
     // Set up thread to appear as if we called out of method_g_ at pc dex 3
     thread->SetTopOfStack(
         reinterpret_cast<StackReference<mirror::ArtMethod>*>(&fake_stack[0]),
-        method_g_->ToNativePc(dex_pc));  // return pc
+        method_g_->ToNativeQuickPc(dex_pc));  // return pc
   } else {
     // Create/push fake 20-byte shadow frame for method g
     fake_stack.push_back(0);

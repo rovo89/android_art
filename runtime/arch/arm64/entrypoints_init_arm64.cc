@@ -20,16 +20,10 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "entrypoints/math_entrypoints.h"
+#include "entrypoints/runtime_asm_entrypoints.h"
+#include "interpreter/interpreter.h"
 
 namespace art {
-
-// Interpreter entrypoints.
-extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper& mh,
-                                                 const DexFile::CodeItem* code_item,
-                                                 ShadowFrame* shadow_frame, JValue* result);
-extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
-                                           const DexFile::CodeItem* code_item,
-                                           ShadowFrame* shadow_frame, JValue* result);
 
 // Portable entrypoints.
 extern "C" void art_portable_resolution_trampoline(mirror::ArtMethod*);

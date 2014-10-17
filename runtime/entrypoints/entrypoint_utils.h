@@ -183,59 +183,6 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
 bool FillArrayData(mirror::Object* obj, const Instruction::ArrayDataPayload* payload)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-// Entry point for deoptimization.
-extern "C" void art_quick_deoptimize();
-static inline uintptr_t GetQuickDeoptimizationEntryPoint() {
-  return reinterpret_cast<uintptr_t>(art_quick_deoptimize);
-}
-
-// Return address of instrumentation stub.
-extern "C" void art_quick_instrumentation_entry(void*);
-static inline void* GetQuickInstrumentationEntryPoint() {
-  return reinterpret_cast<void*>(art_quick_instrumentation_entry);
-}
-
-// The return_pc of instrumentation exit stub.
-extern "C" void art_quick_instrumentation_exit();
-static inline uintptr_t GetQuickInstrumentationExitPc() {
-  return reinterpret_cast<uintptr_t>(art_quick_instrumentation_exit);
-}
-
-extern "C" void art_portable_to_interpreter_bridge(mirror::ArtMethod*);
-static inline const void* GetPortableToInterpreterBridge() {
-  return reinterpret_cast<void*>(art_portable_to_interpreter_bridge);
-}
-
-static inline const void* GetPortableToQuickBridge() {
-  // TODO: portable to quick bridge. Bug: 8196384
-  return GetPortableToInterpreterBridge();
-}
-
-extern "C" void art_quick_to_interpreter_bridge(mirror::ArtMethod*);
-static inline const void* GetQuickToInterpreterBridge() {
-  return reinterpret_cast<void*>(art_quick_to_interpreter_bridge);
-}
-
-static inline const void* GetQuickToPortableBridge() {
-  // TODO: quick to portable bridge. Bug: 8196384
-  return GetQuickToInterpreterBridge();
-}
-
-extern "C" void art_portable_proxy_invoke_handler();
-static inline const void* GetPortableProxyInvokeHandler() {
-  return reinterpret_cast<void*>(art_portable_proxy_invoke_handler);
-}
-
-extern "C" void art_quick_proxy_invoke_handler();
-static inline const void* GetQuickProxyInvokeHandler() {
-  return reinterpret_cast<void*>(art_quick_proxy_invoke_handler);
-}
-
-extern "C" void* art_jni_dlsym_lookup_stub(JNIEnv*, jobject);
-static inline void* GetJniDlsymLookupStub() {
-  return reinterpret_cast<void*>(art_jni_dlsym_lookup_stub);
-}
-
 template <typename INT_TYPE, typename FLOAT_TYPE>
 static inline INT_TYPE art_float_to_integral(FLOAT_TYPE f);
 

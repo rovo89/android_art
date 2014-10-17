@@ -2145,7 +2145,7 @@ class JNI {
 
       VLOG(jni) << "[Registering JNI native method " << PrettyMethod(m) << "]";
 
-      m->RegisterNative(soa.Self(), fnPtr, is_fast);
+      m->RegisterNative(fnPtr, is_fast);
     }
     return JNI_OK;
   }
@@ -2161,14 +2161,14 @@ class JNI {
     for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
       mirror::ArtMethod* m = c->GetDirectMethod(i);
       if (m->IsNative()) {
-        m->UnregisterNative(soa.Self());
+        m->UnregisterNative();
         unregistered_count++;
       }
     }
     for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
       mirror::ArtMethod* m = c->GetVirtualMethod(i);
       if (m->IsNative()) {
-        m->UnregisterNative(soa.Self());
+        m->UnregisterNative();
         unregistered_count++;
       }
     }

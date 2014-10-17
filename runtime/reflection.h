@@ -65,7 +65,7 @@ JValue InvokeVirtualOrInterfaceWithVarArgs(const ScopedObjectAccessAlreadyRunnab
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 void InvokeWithShadowFrame(Thread* self, ShadowFrame* shadow_frame, uint16_t arg_offset,
-                           MethodHelper& mh, JValue* result)
+                           MethodHelper* mh, JValue* result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject method, jobject receiver,

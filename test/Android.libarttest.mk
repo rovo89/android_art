@@ -69,7 +69,7 @@ define build-libarttest
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
     LOCAL_STATIC_LIBRARIES := libcutils
-    LOCAL_LDLIBS += -ldl -lpthread
+    LOCAL_LDLIBS := $(ART_HOST_LDLIBS) -ldl -lpthread
     ifeq ($(HOST_OS),linux)
       LOCAL_LDLIBS += -lrt
     endif

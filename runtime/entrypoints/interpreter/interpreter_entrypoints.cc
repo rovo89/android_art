@@ -25,7 +25,7 @@
 namespace art {
 
 // TODO: Make the MethodHelper here be compaction safe.
-extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& mh,
+extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper* mh,
                                                    const DexFile::CodeItem* code_item,
                                                    ShadowFrame* shadow_frame, JValue* result) {
   mirror::ArtMethod* method = shadow_frame->GetMethod();
@@ -54,7 +54,7 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, MethodHelper& m
   } else {
     method->Invoke(self, shadow_frame->GetVRegArgs(arg_offset),
                    (shadow_frame->NumberOfVRegs() - arg_offset) * sizeof(uint32_t),
-                   result, mh.GetShorty());
+                   result, mh->GetShorty());
   }
 }
 

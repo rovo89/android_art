@@ -21,8 +21,6 @@
 #include "primitive.h"
 #include "utils/growable_array.h"
 
-#include "gtest/gtest.h"
-
 namespace art {
 
 class CodeGenerator;
@@ -189,7 +187,7 @@ class RegisterAllocator {
   // The maximum live registers at safepoints.
   size_t maximum_number_of_live_registers_;
 
-  FRIEND_TEST(RegisterAllocatorTest, FreeUntil);
+  ART_FRIEND_TEST(RegisterAllocatorTest, FreeUntil);
 
   DISALLOW_COPY_AND_ASSIGN(RegisterAllocator);
 };
