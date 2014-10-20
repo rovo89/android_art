@@ -53,6 +53,12 @@ while true; do
   elif [ "$1" = "--64" ]; then
     DALVIKVM=dalvikvm64
     shift
+  elif [ "$1" = "--perf" ]; then
+    PERF="record"
+    shift
+  elif [ "$1" = "--perf-report" ]; then
+    PERF="report"
+    shift
   elif expr "$1" : "--" >/dev/null 2>&1; then
     echo "unknown option: $1" 1>&2
     exit 1
@@ -68,6 +74,11 @@ ANDROID_DATA=$PWD/android-data$$
 LIBDIR=$(find_libdir)
 LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBDIR
 
+
+if [ z"$PERF" != z ]; then
+  invoke_with="perf record -o $ANDROID_DATA/perf.data -e cycles:u $invoke_with"
+fi
+
 mkdir -p $ANDROID_DATA/dalvik-cache/{arm,arm64,x86,x86_64}
 ANDROID_DATA=$ANDROID_DATA \
   ANDROID_ROOT=$ANDROID_ROOT \
@@ -75,7 +86,18 @@ ANDROID_DATA=$ANDROID_DATA \
   $invoke_with $ANDROID_ROOT/bin/$DALVIKVM $lib \
     -XXlib:$LIBART \
     -Ximage:$ANDROID_ROOT/framework/core.art \
-     "$@"
+    -Xcompiler-option --include-debug-symbols \
+    "$@"
+
 EXIT_STATUS=$?
-rm -rf $ANDROID_DATA
+
+if [ z"$PERF" != z ]; then
+  if [ z"$PERF" = zreport ]; then
+    perf report -i $ANDROID_DATA/perf.data
+  fi
+  echo "Perf data saved in: $ANDROID_DATA/perf.data"
+else
+  rm -rf $ANDROID_DATA
+fi
+
 exit $EXIT_STATUS
