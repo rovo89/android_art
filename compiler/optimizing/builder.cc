@@ -267,6 +267,13 @@ HBasicBlock* HGraphBuilder::FindBlockStartingAt(int32_t index) const {
 }
 
 template<typename T>
+void HGraphBuilder::Unop_12x(const Instruction& instruction, Primitive::Type type) {
+  HInstruction* first = LoadLocal(instruction.VRegB(), type);
+  current_block_->AddInstruction(new (arena_) T(type, first));
+  UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+}
+
+template<typename T>
 void HGraphBuilder::Binop_23x(const Instruction& instruction, Primitive::Type type) {
   HInstruction* first = LoadLocal(instruction.VRegB(), type);
   HInstruction* second = LoadLocal(instruction.VRegC(), type);
@@ -675,6 +682,11 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
                        number_of_vreg_arguments, true, nullptr, register_index)) {
         return false;
       }
+      break;
+    }
+
+    case Instruction::NEG_INT: {
+      Unop_12x<HNeg>(instruction, Primitive::kPrimInt);
       break;
     }
 
