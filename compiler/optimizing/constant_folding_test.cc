@@ -72,6 +72,61 @@ static void TestCode(const uint16_t* data,
 
 
 /**
+ * Tiny three-register program exercising int constant folding on negation.
+ *
+ *                              16-bit
+ *                              offset
+ *                              ------
+ *     v0 <- 1                  0.      const/4 v0, #+1
+ *     v1 <- -v0                1.      neg-int v0, v1
+ *     return v1                2.      return v1
+ */
+TEST(ConstantFolding, IntConstantFoldingNegation) {
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 0 << 8 | 1 << 12,
+    Instruction::NEG_INT | 1 << 8 | 0 << 12,
+    Instruction::RETURN | 1 << 8);
+
+  std::string expected_before =
+      "BasicBlock 0, succ: 1\n"
+      "  2: IntConstant [5]\n"
+      "  10: SuspendCheck\n"
+      "  11: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 2\n"
+      "  5: Neg(2) [8]\n"
+      "  8: Return(5)\n"
+      "BasicBlock 2, pred: 1\n"
+      "  9: Exit\n";
+
+  // Expected difference after constant folding.
+  diff_t expected_cf_diff = {
+    { "  2: IntConstant [5]\n", "  2: IntConstant\n" },
+    { "  5: Neg(2) [8]\n",      "  12: IntConstant [8]\n" },
+    { "  8: Return(5)\n",       "  8: Return(12)\n" }
+  };
+  std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
+
+  // Check the value of the computed constant.
+  auto check_after_cf = [](HGraph* graph) {
+    HInstruction* inst = graph->GetBlock(1)->GetFirstInstruction();
+    ASSERT_TRUE(inst->IsIntConstant());
+    ASSERT_EQ(inst->AsIntConstant()->GetValue(), -1);
+  };
+
+  // Expected difference after dead code elimination.
+  diff_t expected_dce_diff = {
+    { "  2: IntConstant\n", removed },
+  };
+  std::string expected_after_dce = Patch(expected_after_cf, expected_dce_diff);
+
+  TestCode(data,
+           expected_before,
+           expected_after_cf,
+           expected_after_dce,
+           check_after_cf);
+}
+
+/**
  * Tiny three-register program exercising int constant folding on addition.
  *
  *                              16-bit
