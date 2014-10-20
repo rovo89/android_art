@@ -264,7 +264,7 @@ void* RosAlloc::AllocPages(Thread* self, size_t num_pages, uint8_t page_map_type
       }
       break;
     default:
-      LOG(FATAL) << "Unreachable - page map type: " << page_map_type;
+      LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(page_map_type);
       break;
     }
     if (kIsDebugBuild) {
@@ -499,7 +499,7 @@ size_t RosAlloc::FreeInternal(Thread* self, void* ptr) {
       case kPageMapLargeObject:
         return FreePages(self, ptr, false);
       case kPageMapLargeObjectPart:
-        LOG(FATAL) << "Unreachable - page map type: " << page_map_[pm_idx];
+        LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(page_map_[pm_idx]);
         return 0;
       case kPageMapRunPart: {
         // Find the beginning of the run.
@@ -514,11 +514,11 @@ size_t RosAlloc::FreeInternal(Thread* self, void* ptr) {
         break;
       case kPageMapReleased:
       case kPageMapEmpty:
-        LOG(FATAL) << "Unreachable - page map type: " << page_map_[pm_idx];
+        LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(page_map_[pm_idx]);
         return 0;
       }
       default:
-        LOG(FATAL) << "Unreachable - page map type: " << page_map_[pm_idx];
+        LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(page_map_[pm_idx]);
         return 0;
     }
   }
@@ -1189,7 +1189,7 @@ size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
         freed_bytes += FreePages(self, ptr, false);
         continue;
       } else {
-        LOG(FATAL) << "Unreachable - page map type: " << page_map_entry;
+        LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(page_map_entry);
       }
     } else {
       // Read the page map entries with a lock.
@@ -1215,7 +1215,7 @@ size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
         freed_bytes += FreePages(self, ptr, false);
         continue;
       } else {
-        LOG(FATAL) << "Unreachable - page map type: " << page_map_entry;
+        LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(page_map_entry);
       }
     }
     DCHECK(run != nullptr);
@@ -1477,7 +1477,7 @@ size_t RosAlloc::UsableSize(void* ptr) {
       return IndexToBracketSize(idx);
     }
     default: {
-      LOG(FATAL) << "Unreachable - page map type: " << page_map_[pm_idx];
+      LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(page_map_[pm_idx]);
       break;
     }
   }
@@ -1593,7 +1593,7 @@ void RosAlloc::InspectAll(void (*handler)(void* start, void* end, size_t used_by
         break;
       }
       case kPageMapLargeObjectPart:
-        LOG(FATAL) << "Unreachable - page map type: " << pm;
+        LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(pm);
         break;
       case kPageMapRun: {
         // The start of a run.
@@ -1613,10 +1613,10 @@ void RosAlloc::InspectAll(void (*handler)(void* start, void* end, size_t used_by
         break;
       }
       case kPageMapRunPart:
-        LOG(FATAL) << "Unreachable - page map type: " << pm;
+        LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(pm);
         break;
       default:
-        LOG(FATAL) << "Unreachable - page map type: " << pm;
+        LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(pm);
         break;
     }
   }
@@ -1929,7 +1929,7 @@ void RosAlloc::Verify() {
           break;
         }
         case kPageMapLargeObjectPart:
-          LOG(FATAL) << "Unreachable - page map type: " << pm << std::endl << DumpPageMap();
+          LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(pm) << std::endl << DumpPageMap();
           break;
         case kPageMapRun: {
           // The start of a run.
@@ -1957,7 +1957,7 @@ void RosAlloc::Verify() {
         case kPageMapRunPart:
           // Fall-through.
         default:
-          LOG(FATAL) << "Unreachable - page map type: " << pm << std::endl << DumpPageMap();
+          LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(pm) << std::endl << DumpPageMap();
           break;
       }
     }
@@ -2146,7 +2146,7 @@ size_t RosAlloc::ReleasePages() {
         ++i;
         break;  // Skip.
       default:
-        LOG(FATAL) << "Unreachable - page map type: " << pm;
+        LOG(FATAL) << "Unreachable - page map type: " << static_cast<int>(pm);
         break;
     }
   }
