@@ -507,6 +507,7 @@ class HBasicBlock : public ArenaObject {
   M(Neg, UnaryOperation)                                                \
   M(FloatConstant, Constant)                                            \
   M(DoubleConstant, Constant)                                           \
+  M(NewArray, Instruction)                                              \
 
 #define FOR_EACH_INSTRUCTION(M)                                         \
   FOR_EACH_CONCRETE_INSTRUCTION(M)                                      \
@@ -1606,6 +1607,30 @@ class HNeg : public HUnaryOperation {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HNeg);
+};
+
+class HNewArray : public HExpression<1> {
+ public:
+  HNewArray(HInstruction* length, uint32_t dex_pc, uint16_t type_index)
+      : HExpression(Primitive::kPrimNot, SideEffects::None()),
+        dex_pc_(dex_pc),
+        type_index_(type_index) {
+    SetRawInputAt(0, length);
+  }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+  uint16_t GetTypeIndex() const { return type_index_; }
+
+  // Calls runtime so needs an environment.
+  virtual bool NeedsEnvironment() const { return true; }
+
+  DECLARE_INSTRUCTION(NewArray);
+
+ private:
+  const uint32_t dex_pc_;
+  const uint16_t type_index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HNewArray);
 };
 
 class HAdd : public HBinaryOperation {

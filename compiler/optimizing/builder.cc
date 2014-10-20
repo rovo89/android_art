@@ -171,6 +171,7 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
 
   const uint16_t* code_ptr = code_item.insns_;
   const uint16_t* code_end = code_item.insns_ + code_item.insns_size_in_code_units_;
+  code_start_ = code_ptr;
 
   // Setup the graph with the entry block and exit block.
   graph_ = new (arena_) HGraph(arena_);
@@ -416,6 +417,7 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
 
   DCHECK_EQ(argument_index, number_of_arguments);
   current_block_->AddInstruction(invoke);
+  latest_result_ = invoke;
   return true;
 }
 
@@ -500,6 +502,62 @@ void HGraphBuilder::BuildArrayAccess(const Instruction& instruction,
   } else {
     current_block_->AddInstruction(new (arena_) HArrayGet(object, index, anticipated_type));
     UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
+  }
+}
+
+void HGraphBuilder::BuildFilledNewArray(uint32_t dex_offset,
+                                        uint32_t type_index,
+                                        uint32_t number_of_vreg_arguments,
+                                        bool is_range,
+                                        uint32_t* args,
+                                        uint32_t register_index) {
+  HInstruction* length = GetIntConstant(number_of_vreg_arguments);
+  HInstruction* object = new (arena_) HNewArray(length, dex_offset, type_index);
+  current_block_->AddInstruction(object);
+
+  const char* descriptor = dex_file_->StringByTypeIdx(type_index);
+  DCHECK_EQ(descriptor[0], '[') << descriptor;
+  char primitive = descriptor[1];
+  DCHECK(primitive == 'I'
+      || primitive == 'L'
+      || primitive == '[') << descriptor;
+  bool is_reference_array = (primitive == 'L') || (primitive == '[');
+  Primitive::Type type = is_reference_array ? Primitive::kPrimNot : Primitive::kPrimInt;
+
+  Temporaries temps(graph_, 1);
+  temps.Add(object);
+  for (size_t i = 0; i < number_of_vreg_arguments; ++i) {
+    HInstruction* value = LoadLocal(is_range ? register_index + i : args[i], type);
+    HInstruction* index = GetIntConstant(i);
+    current_block_->AddInstruction(
+        new (arena_) HArraySet(object, index, value, type, dex_offset));
+  }
+  latest_result_ = object;
+}
+
+template <typename T>
+void HGraphBuilder::BuildFillArrayData(HInstruction* object,
+                                       const T* data,
+                                       uint32_t element_count,
+                                       Primitive::Type anticipated_type,
+                                       uint32_t dex_offset) {
+  for (uint32_t i = 0; i < element_count; ++i) {
+    HInstruction* index = GetIntConstant(i);
+    HInstruction* value = GetIntConstant(data[i]);
+    current_block_->AddInstruction(new (arena_) HArraySet(
+      object, index, value, anticipated_type, dex_offset));
+  }
+}
+
+void HGraphBuilder::BuildFillWideArrayData(HInstruction* object,
+                                           const uint64_t* data,
+                                           uint32_t element_count,
+                                           uint32_t dex_offset) {
+  for (uint32_t i = 0; i < element_count; ++i) {
+    HInstruction* index = GetIntConstant(i);
+    HInstruction* value = GetLongConstant(data[i]);
+    current_block_->AddInstruction(new (arena_) HArraySet(
+      object, index, value, Primitive::kPrimLong, dex_offset));
   }
 }
 
@@ -807,10 +865,88 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::NEW_ARRAY: {
+      HInstruction* length = LoadLocal(instruction.VRegB_22c(), Primitive::kPrimInt);
+      current_block_->AddInstruction(
+          new (arena_) HNewArray(length, dex_offset, instruction.VRegC_22c()));
+      UpdateLocal(instruction.VRegA_22c(), current_block_->GetLastInstruction());
+      break;
+    }
+
+    case Instruction::FILLED_NEW_ARRAY: {
+      uint32_t number_of_vreg_arguments = instruction.VRegA_35c();
+      uint32_t type_index = instruction.VRegB_35c();
+      uint32_t args[5];
+      instruction.GetVarArgs(args);
+      BuildFilledNewArray(dex_offset, type_index, number_of_vreg_arguments, false, args, 0);
+      break;
+    }
+
+    case Instruction::FILLED_NEW_ARRAY_RANGE: {
+      uint32_t number_of_vreg_arguments = instruction.VRegA_3rc();
+      uint32_t type_index = instruction.VRegB_3rc();
+      uint32_t register_index = instruction.VRegC_3rc();
+      BuildFilledNewArray(
+          dex_offset, type_index, number_of_vreg_arguments, true, nullptr, register_index);
+      break;
+    }
+
+    case Instruction::FILL_ARRAY_DATA: {
+      Temporaries temps(graph_, 1);
+      HInstruction* array = LoadLocal(instruction.VRegA_31t(), Primitive::kPrimNot);
+      HNullCheck* null_check = new (arena_) HNullCheck(array, dex_offset);
+      current_block_->AddInstruction(null_check);
+      temps.Add(null_check);
+
+      HInstruction* length = new (arena_) HArrayLength(null_check);
+      current_block_->AddInstruction(length);
+
+      int32_t payload_offset = instruction.VRegB_31t() + dex_offset;
+      const Instruction::ArrayDataPayload* payload =
+          reinterpret_cast<const Instruction::ArrayDataPayload*>(code_start_ + payload_offset);
+      const uint8_t* data = payload->data;
+      uint32_t element_count = payload->element_count;
+
+      // Implementation of this DEX instruction seems to be that the bounds check is
+      // done before doing any stores.
+      HInstruction* last_index = GetIntConstant(payload->element_count - 1);
+      current_block_->AddInstruction(new (arena_) HBoundsCheck(last_index, length, dex_offset));
+
+      switch (payload->element_width) {
+        case 1:
+          BuildFillArrayData(null_check, data, element_count, Primitive::kPrimByte, dex_offset);
+          break;
+        case 2:
+          BuildFillArrayData(null_check,
+                             reinterpret_cast<const uint16_t*>(data),
+                             element_count,
+                             Primitive::kPrimShort,
+                             dex_offset);
+          break;
+        case 4:
+          BuildFillArrayData(null_check,
+                             reinterpret_cast<const uint32_t*>(data),
+                             element_count,
+                             Primitive::kPrimInt,
+                             dex_offset);
+          break;
+        case 8:
+          BuildFillWideArrayData(null_check,
+                                 reinterpret_cast<const uint64_t*>(data),
+                                 element_count,
+                                 dex_offset);
+          break;
+        default:
+          LOG(FATAL) << "Unknown element width for " << payload->element_width;
+      }
+      break;
+    }
+
     case Instruction::MOVE_RESULT:
     case Instruction::MOVE_RESULT_WIDE:
     case Instruction::MOVE_RESULT_OBJECT:
-      UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+      UpdateLocal(instruction.VRegA(), latest_result_);
+      latest_result_ = nullptr;
       break;
 
     case Instruction::CMP_LONG: {
