@@ -309,7 +309,7 @@ HGraphVisualizer::HGraphVisualizer(std::ostream* output,
   printer.EndTag("compilation");
 }
 
-void HGraphVisualizer::DumpGraph(const char* pass_name) {
+void HGraphVisualizer::DumpGraph(const char* pass_name) const {
   if (!is_enabled_) {
     return;
   }
