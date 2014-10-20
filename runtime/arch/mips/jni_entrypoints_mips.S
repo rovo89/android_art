@@ -24,7 +24,6 @@
      */
     .extern artFindNativeMethod
 ENTRY art_jni_dlsym_lookup_stub
-    GENERATE_GLOBAL_POINTER
     addiu $sp, $sp, -32          # leave room for $a0, $a1, $a2, $a3, and $ra
     .cfi_adjust_cfa_offset 32
     sw     $ra, 16($sp)

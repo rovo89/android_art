@@ -43,7 +43,7 @@ class ExceptionTest : public CommonRuntimeTest {
     Handle<mirror::ClassLoader> class_loader(
         hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("ExceptionHandle"))));
     my_klass_ = class_linker_->FindClass(soa.Self(), "LExceptionHandle;", class_loader);
-    ASSERT_TRUE(my_klass_ != NULL);
+    ASSERT_TRUE(my_klass_ != nullptr);
     Handle<mirror::Class> klass(hs.NewHandle(my_klass_));
     class_linker_->EnsureInitialized(soa.Self(), klass, true, true);
     my_klass_ = klass.Get();
@@ -93,12 +93,12 @@ class ExceptionTest : public CommonRuntimeTest {
     const uint8_t* code_ptr = &fake_header_code_and_maps_[mapping_table_offset];
 
     method_f_ = my_klass_->FindVirtualMethod("f", "()I");
-    ASSERT_TRUE(method_f_ != NULL);
+    ASSERT_TRUE(method_f_ != nullptr);
     method_f_->SetEntryPointFromQuickCompiledCode(code_ptr);
     method_f_->SetNativeGcMap(&fake_gc_map_[0]);
 
     method_g_ = my_klass_->FindVirtualMethod("g", "(I)V");
-    ASSERT_TRUE(method_g_ != NULL);
+    ASSERT_TRUE(method_g_ != nullptr);
     method_g_->SetEntryPointFromQuickCompiledCode(code_ptr);
     method_g_->SetNativeGcMap(&fake_gc_map_[0]);
   }
@@ -122,7 +122,7 @@ TEST_F(ExceptionTest, FindCatchHandler) {
   ScopedObjectAccess soa(Thread::Current());
   const DexFile::CodeItem* code_item = dex_->GetCodeItem(method_f_->GetCodeItemOffset());
 
-  ASSERT_TRUE(code_item != NULL);
+  ASSERT_TRUE(code_item != nullptr);
 
   ASSERT_EQ(2u, code_item->tries_size_);
   ASSERT_NE(0u, code_item->insns_size_in_code_units_);
@@ -163,13 +163,29 @@ TEST_F(ExceptionTest, StackTraceElement) {
   ScopedObjectAccess soa(env);
 
   std::vector<uintptr_t> fake_stack;
+  Runtime* r = Runtime::Current();
+  r->SetInstructionSet(kRuntimeISA);
+  mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod(Runtime::kSaveAll);
+  r->SetCalleeSaveMethod(save_method, Runtime::kSaveAll);
+  QuickMethodFrameInfo frame_info = save_method->GetQuickFrameInfo();
+
   ASSERT_EQ(kStackAlignment, 16U);
   // ASSERT_EQ(sizeof(uintptr_t), sizeof(uint32_t));
 
+
   if (!kUsePortableCompiler) {
-    // Create two fake stack frames with mapping data created in SetUp. We map offset 3 in the code
-    // to dex pc 3.
+    // Create three fake stack frames with mapping data created in SetUp. We map offset 3 in the
+    // code to dex pc 3.
     const uint32_t dex_pc = 3;
+
+    // Create the stack frame for the callee save method, expected by the runtime.
+    fake_stack.push_back(reinterpret_cast<uintptr_t>(save_method));
+    for (size_t i = 0; i < frame_info.FrameSizeInBytes() - 2 * sizeof(uintptr_t);
+         i += sizeof(uintptr_t)) {
+      fake_stack.push_back(0);
+    }
+
+    fake_stack.push_back(method_g_->ToNativeQuickPc(dex_pc));  // return pc
 
     // Create/push fake 16byte stack frame for method g
     fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
@@ -183,7 +199,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
     fake_stack.push_back(0);
     fake_stack.push_back(0xEBAD6070);  // return pc
 
-    // Pull Method* of NULL to terminate the trace
+    // Push Method* of NULL to terminate the trace
     fake_stack.push_back(0);
 
     // Push null values which will become null incoming arguments.
@@ -192,9 +208,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
     fake_stack.push_back(0);
 
     // Set up thread to appear as if we called out of method_g_ at pc dex 3
-    thread->SetTopOfStack(
-        reinterpret_cast<StackReference<mirror::ArtMethod>*>(&fake_stack[0]),
-        method_g_->ToNativeQuickPc(dex_pc));  // return pc
+    thread->SetTopOfStack(reinterpret_cast<StackReference<mirror::ArtMethod>*>(&fake_stack[0]));
   } else {
     // Create/push fake 20-byte shadow frame for method g
     fake_stack.push_back(0);
@@ -215,33 +229,35 @@ TEST_F(ExceptionTest, StackTraceElement) {
   }
 
   jobject internal = thread->CreateInternalStackTrace<false>(soa);
-  ASSERT_TRUE(internal != NULL);
+  ASSERT_TRUE(internal != nullptr);
   jobjectArray ste_array = Thread::InternalStackTraceToStackTraceElementArray(soa, internal);
-  ASSERT_TRUE(ste_array != NULL);
+  ASSERT_TRUE(ste_array != nullptr);
   mirror::ObjectArray<mirror::StackTraceElement>* trace_array =
       soa.Decode<mirror::ObjectArray<mirror::StackTraceElement>*>(ste_array);
 
-  ASSERT_TRUE(trace_array != NULL);
-  ASSERT_TRUE(trace_array->Get(0) != NULL);
+  ASSERT_TRUE(trace_array != nullptr);
+  ASSERT_TRUE(trace_array->Get(0) != nullptr);
   EXPECT_STREQ("ExceptionHandle",
                trace_array->Get(0)->GetDeclaringClass()->ToModifiedUtf8().c_str());
-  EXPECT_STREQ("ExceptionHandle.java", trace_array->Get(0)->GetFileName()->ToModifiedUtf8().c_str());
+  EXPECT_STREQ("ExceptionHandle.java",
+               trace_array->Get(0)->GetFileName()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("g", trace_array->Get(0)->GetMethodName()->ToModifiedUtf8().c_str());
   EXPECT_EQ(37, trace_array->Get(0)->GetLineNumber());
 
-  ASSERT_TRUE(trace_array->Get(1) != NULL);
+  ASSERT_TRUE(trace_array->Get(1) != nullptr);
   EXPECT_STREQ("ExceptionHandle",
                trace_array->Get(1)->GetDeclaringClass()->ToModifiedUtf8().c_str());
-  EXPECT_STREQ("ExceptionHandle.java", trace_array->Get(1)->GetFileName()->ToModifiedUtf8().c_str());
+  EXPECT_STREQ("ExceptionHandle.java",
+               trace_array->Get(1)->GetFileName()->ToModifiedUtf8().c_str());
   EXPECT_STREQ("f", trace_array->Get(1)->GetMethodName()->ToModifiedUtf8().c_str());
   EXPECT_EQ(22, trace_array->Get(1)->GetLineNumber());
 
-#if !defined(ART_USE_PORTABLE_COMPILER)
-  thread->SetTopOfStack(NULL, 0);  // Disarm the assertion that no code is running when we detach.
-#else
-  thread->PopShadowFrame();
-  thread->PopShadowFrame();
-#endif
+  if (!kUsePortableCompiler) {
+    thread->SetTopOfStack(nullptr);  // Disarm the assertion that no code is running when we detach.
+  } else {
+    thread->PopShadowFrame();
+    thread->PopShadowFrame();
+  }
 }
 
 }  // namespace art

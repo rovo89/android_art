@@ -176,12 +176,8 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   // 4. Write out the end of the quick frames.
   if (is_64_bit_target) {
     __ StoreStackPointerToThread64(Thread::TopOfManagedStackOffset<8>());
-    __ StoreImmediateToThread64(Thread::TopOfManagedStackPcOffset<8>(), 0,
-                              mr_conv->InterproceduralScratchRegister());
   } else {
     __ StoreStackPointerToThread32(Thread::TopOfManagedStackOffset<4>());
-    __ StoreImmediateToThread32(Thread::TopOfManagedStackPcOffset<4>(), 0,
-                              mr_conv->InterproceduralScratchRegister());
   }
 
   // 5. Move frame down to allow space for out going args.

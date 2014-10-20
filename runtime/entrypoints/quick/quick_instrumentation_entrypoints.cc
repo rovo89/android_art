@@ -28,10 +28,9 @@ namespace art {
 extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::ArtMethod* method,
                                                              mirror::Object* this_object,
                                                              Thread* self,
-                                                             StackReference<mirror::ArtMethod>* sp,
                                                              uintptr_t lr)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
+  ScopedQuickEntrypointChecks sqec(self);
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   const void* result;
   if (instrumentation->IsDeoptimized(method)) {
@@ -52,23 +51,19 @@ extern "C" TwoWordReturn artInstrumentationMethodExitFromCode(Thread* self,
                                                               uint64_t gpr_result,
                                                               uint64_t fpr_result)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  // TODO: use FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly) not the hand inlined below.
-  //       We use the hand inline version to ensure the return_pc is assigned before verifying the
-  //       stack.
-  // Be aware the store below may well stomp on an incoming argument.
-  Locks::mutator_lock_->AssertSharedHeld(self);
-  Runtime* runtime = Runtime::Current();
-  sp->Assign(runtime->GetCalleeSaveMethod(Runtime::kRefsOnly));
-  uint32_t return_pc_offset = GetCalleeSavePCOffset(kRuntimeISA, Runtime::kRefsOnly);
+  // Compute address of return PC and sanity check that it currently holds 0.
+  uint32_t return_pc_offset = GetCalleeSaveReturnPcOffset(kRuntimeISA, Runtime::kRefsOnly);
   uintptr_t* return_pc = reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(sp) +
                                                       return_pc_offset);
   CHECK_EQ(*return_pc, 0U);
-  self->SetTopOfStack(sp, 0);
-  self->VerifyStack();
+
+  // Pop the frame filling in the return pc. The low half of the return value is 0 when
+  // deoptimization shouldn't be performed with the high-half having the return address. When
+  // deoptimization should be performed the low half is zero and the high-half the address of the
+  // deoptimization entry point.
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   TwoWordReturn return_or_deoptimize_pc = instrumentation->PopInstrumentationStackFrame(
       self, return_pc, gpr_result, fpr_result);
-  self->VerifyStack();
   return return_or_deoptimize_pc;
 }
 

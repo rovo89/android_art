@@ -19,18 +19,8 @@
 
 #include "asm_support.h"
 
-// Offset of field Thread::tls32_.state_and_flags verified in InitCpu
-#define THREAD_FLAGS_OFFSET 0
-// Offset of field Thread::tlsPtr_.card_table verified in InitCpu
-#define THREAD_CARD_TABLE_OFFSET 120
-// Offset of field Thread::tlsPtr_.exception verified in InitCpu
-#define THREAD_EXCEPTION_OFFSET 124
-
 #define FRAME_SIZE_SAVE_ALL_CALLEE_SAVE 64
 #define FRAME_SIZE_REFS_ONLY_CALLEE_SAVE 64
 #define FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE 64
-
-// Expected size of a heap reference
-#define HEAP_REFERENCE_SIZE 4
 
 #endif  // ART_RUNTIME_ARCH_MIPS_ASM_SUPPORT_MIPS_H_

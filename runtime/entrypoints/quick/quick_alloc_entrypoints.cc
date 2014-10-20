@@ -32,6 +32,7 @@ extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
     uint32_t type_idx, mirror::ArtMethod* method, Thread* self, \
     StackReference<mirror::ArtMethod>* sp) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
+  ScopedQuickEntrypointChecks sqec(self); \
   if (kUseTlabFastPath && !instrumented_bool && allocator_type == gc::kAllocatorTypeTLAB) { \
     mirror::Class* klass = method->GetDexCacheResolvedType<false>(type_idx); \
     if (LIKELY(klass != nullptr && klass->IsInitialized() && !klass->IsFinalizable())) { \
@@ -53,13 +54,12 @@ extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
       } \
     } \
   } \
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
   return AllocObjectFromCode<false, instrumented_bool>(type_idx, method, self, allocator_type); \
 } \
 extern "C" mirror::Object* artAllocObjectFromCodeResolved##suffix##suffix2( \
-    mirror::Class* klass, mirror::ArtMethod* method, Thread* self, \
-    StackReference<mirror::ArtMethod>* sp) \
+    mirror::Class* klass, mirror::ArtMethod* method, Thread* self) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
+  ScopedQuickEntrypointChecks sqec(self); \
   if (kUseTlabFastPath && !instrumented_bool && allocator_type == gc::kAllocatorTypeTLAB) { \
     if (LIKELY(klass->IsInitialized())) { \
       size_t byte_count = klass->GetObjectSize(); \
@@ -80,13 +80,12 @@ extern "C" mirror::Object* artAllocObjectFromCodeResolved##suffix##suffix2( \
       } \
     } \
   } \
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
   return AllocObjectFromCodeResolved<instrumented_bool>(klass, method, self, allocator_type); \
 } \
 extern "C" mirror::Object* artAllocObjectFromCodeInitialized##suffix##suffix2( \
-    mirror::Class* klass, mirror::ArtMethod* method, Thread* self, \
-    StackReference<mirror::ArtMethod>* sp) \
+    mirror::Class* klass, mirror::ArtMethod* method, Thread* self) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
+  ScopedQuickEntrypointChecks sqec(self); \
   if (kUseTlabFastPath && !instrumented_bool && allocator_type == gc::kAllocatorTypeTLAB) { \
     size_t byte_count = klass->GetObjectSize(); \
     byte_count = RoundUp(byte_count, gc::space::BumpPointerSpace::kAlignment); \
@@ -105,45 +104,39 @@ extern "C" mirror::Object* artAllocObjectFromCodeInitialized##suffix##suffix2( \
       return obj; \
     } \
   } \
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
   return AllocObjectFromCodeInitialized<instrumented_bool>(klass, method, self, allocator_type); \
 } \
 extern "C" mirror::Object* artAllocObjectFromCodeWithAccessCheck##suffix##suffix2( \
-    uint32_t type_idx, mirror::ArtMethod* method, Thread* self, \
-    StackReference<mirror::ArtMethod>* sp) \
+    uint32_t type_idx, mirror::ArtMethod* method, Thread* self) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
+  ScopedQuickEntrypointChecks sqec(self); \
   return AllocObjectFromCode<true, instrumented_bool>(type_idx, method, self, allocator_type); \
 } \
 extern "C" mirror::Array* artAllocArrayFromCode##suffix##suffix2( \
-    uint32_t type_idx, mirror::ArtMethod* method, int32_t component_count, Thread* self, \
-    StackReference<mirror::ArtMethod>* sp) \
+    uint32_t type_idx, mirror::ArtMethod* method, int32_t component_count, Thread* self) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
+  ScopedQuickEntrypointChecks sqec(self); \
   return AllocArrayFromCode<false, instrumented_bool>(type_idx, method, component_count, self, \
                                                       allocator_type); \
 } \
 extern "C" mirror::Array* artAllocArrayFromCodeResolved##suffix##suffix2( \
-    mirror::Class* klass, mirror::ArtMethod* method, int32_t component_count, Thread* self, \
-    StackReference<mirror::ArtMethod>* sp) \
+    mirror::Class* klass, mirror::ArtMethod* method, int32_t component_count, Thread* self) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
+  ScopedQuickEntrypointChecks sqec(self); \
   return AllocArrayFromCodeResolved<false, instrumented_bool>(klass, method, component_count, self, \
                                                               allocator_type); \
 } \
 extern "C" mirror::Array* artAllocArrayFromCodeWithAccessCheck##suffix##suffix2( \
-    uint32_t type_idx, mirror::ArtMethod* method, int32_t component_count, Thread* self, \
-    StackReference<mirror::ArtMethod>* sp) \
+    uint32_t type_idx, mirror::ArtMethod* method, int32_t component_count, Thread* self) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
+  ScopedQuickEntrypointChecks sqec(self); \
   return AllocArrayFromCode<true, instrumented_bool>(type_idx, method, component_count, self, \
                                                      allocator_type); \
 } \
 extern "C" mirror::Array* artCheckAndAllocArrayFromCode##suffix##suffix2( \
-    uint32_t type_idx, mirror::ArtMethod* method, int32_t component_count, Thread* self, \
-    StackReference<mirror::ArtMethod>* sp) \
+    uint32_t type_idx, mirror::ArtMethod* method, int32_t component_count, Thread* self) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
+  ScopedQuickEntrypointChecks sqec(self); \
   if (!instrumented_bool) { \
     return CheckAndAllocArrayFromCode(type_idx, method, component_count, self, false, allocator_type); \
   } else { \
@@ -151,10 +144,9 @@ extern "C" mirror::Array* artCheckAndAllocArrayFromCode##suffix##suffix2( \
   } \
 } \
 extern "C" mirror::Array* artCheckAndAllocArrayFromCodeWithAccessCheck##suffix##suffix2( \
-    uint32_t type_idx, mirror::ArtMethod* method, int32_t component_count, Thread* self, \
-    StackReference<mirror::ArtMethod>* sp) \
+    uint32_t type_idx, mirror::ArtMethod* method, int32_t component_count, Thread* self) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsOnly); \
+  ScopedQuickEntrypointChecks sqec(self); \
   if (!instrumented_bool) { \
     return CheckAndAllocArrayFromCode(type_idx, method, component_count, self, true, allocator_type); \
   } else { \
