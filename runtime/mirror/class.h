@@ -27,6 +27,7 @@
 #include "object_callbacks.h"
 #include "primitive.h"
 #include "read_barrier_option.h"
+#include "utils.h"
 
 namespace art {
 
@@ -840,7 +841,7 @@ class MANAGED Class FINAL : public Object {
 
   // Returns the number of static fields containing reference types.
   uint32_t NumReferenceStaticFields() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(IsResolved() || IsErroneous());
+    DCHECK(IsResolved() || IsErroneous()) << PrettyClass(this) << " status=" << GetStatus();
     return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_));
   }
 
