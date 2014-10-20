@@ -164,10 +164,14 @@ VAR(name, 0):
     SIZE(\name, 0)
 END_MACRO
 
-MACRO0(SETUP_GOT_NOSAVE)
+MACRO1(SETUP_GOT_NOSAVE, got_reg)
 #ifndef __APPLE__
-    call __x86.get_pc_thunk.bx
-    addl $_GLOBAL_OFFSET_TABLE_, %ebx
+    .ifc RAW_VAR(got_reg, 0), ebx
+      call __x86.get_pc_thunk.bx
+      addl $_GLOBAL_OFFSET_TABLE_, %ebx
+    .else
+      .error "Unknown GOT register \got_reg"
+    .endif
 #endif
 END_MACRO
 

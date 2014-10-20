@@ -80,26 +80,6 @@ TEST_F(ObjectTest, Constants) {
   EXPECT_EQ(kObjectHeaderSize, sizeof(Object));
 }
 
-// Keep the assembly code constats in sync.
-TEST_F(ObjectTest, AsmConstants) {
-  EXPECT_EQ(CLASS_OFFSET, Object::ClassOffset().Int32Value());
-  EXPECT_EQ(LOCK_WORD_OFFSET, Object::MonitorOffset().Int32Value());
-
-  EXPECT_EQ(CLASS_COMPONENT_TYPE_OFFSET, Class::ComponentTypeOffset().Int32Value());
-
-  EXPECT_EQ(ARRAY_LENGTH_OFFSET, Array::LengthOffset().Int32Value());
-  EXPECT_EQ(OBJECT_ARRAY_DATA_OFFSET, Array::DataOffset(sizeof(HeapReference<Object>)).Int32Value());
-
-  EXPECT_EQ(STRING_VALUE_OFFSET, String::ValueOffset().Int32Value());
-  EXPECT_EQ(STRING_COUNT_OFFSET, String::CountOffset().Int32Value());
-  EXPECT_EQ(STRING_OFFSET_OFFSET, String::OffsetOffset().Int32Value());
-  EXPECT_EQ(STRING_DATA_OFFSET, Array::DataOffset(sizeof(uint16_t)).Int32Value());
-
-  EXPECT_EQ(METHOD_DEX_CACHE_METHODS_OFFSET, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
-  EXPECT_EQ(METHOD_PORTABLE_CODE_OFFSET, ArtMethod::EntryPointFromPortableCompiledCodeOffset().Int32Value());
-  EXPECT_EQ(METHOD_QUICK_CODE_OFFSET, ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
-}
-
 TEST_F(ObjectTest, IsInSamePackage) {
   // Matches
   EXPECT_TRUE(Class::IsInSamePackage("Ljava/lang/Object;", "Ljava/lang/Class;"));
