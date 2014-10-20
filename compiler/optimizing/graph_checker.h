@@ -19,15 +19,19 @@
 
 #include "nodes.h"
 
+#include <ostream>
+
 namespace art {
 
 // A control-flow graph visitor performing various checks.
 class GraphChecker : public HGraphVisitor {
  public:
-  GraphChecker(ArenaAllocator* allocator, HGraph* graph)
+  GraphChecker(ArenaAllocator* allocator, HGraph* graph,
+               const char* dump_prefix = "art::GraphChecker: ")
     : HGraphVisitor(graph),
       allocator_(allocator),
-      errors_(allocator, 0) {}
+      errors_(allocator, 0),
+      dump_prefix_(dump_prefix) {}
 
   // Check the whole graph (in insertion order).
   virtual void Run() { VisitInsertionOrder(); }
@@ -48,6 +52,13 @@ class GraphChecker : public HGraphVisitor {
     return errors_;
   }
 
+  // Print detected errors on output stream `os`.
+  void Dump(std::ostream& os) {
+    for (size_t i = 0, e = errors_.Size(); i < e; ++i) {
+      os << dump_prefix_ << errors_.Get(i) << std::endl;
+    }
+  }
+
  protected:
   ArenaAllocator* const allocator_;
   // The block currently visited.
@@ -56,6 +67,9 @@ class GraphChecker : public HGraphVisitor {
   GrowableArray<std::string> errors_;
 
  private:
+  // String displayed before dumped errors.
+  const char* dump_prefix_;
+
   DISALLOW_COPY_AND_ASSIGN(GraphChecker);
 };
 
@@ -66,7 +80,7 @@ class SSAChecker : public GraphChecker {
   typedef GraphChecker super_type;
 
   SSAChecker(ArenaAllocator* allocator, HGraph* graph)
-    : GraphChecker(allocator, graph) {}
+    : GraphChecker(allocator, graph, "art::SSAChecker: ") {}
 
   // Check the whole graph (in reverse post-order).
   virtual void Run() {
