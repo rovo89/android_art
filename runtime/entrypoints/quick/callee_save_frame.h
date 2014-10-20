@@ -18,9 +18,8 @@
 #define ART_RUNTIME_ENTRYPOINTS_QUICK_CALLEE_SAVE_FRAME_H_
 
 #include "base/mutex.h"
-#include "gc_root-inl.h"
 #include "instruction_set.h"
-#include "runtime-inl.h"
+#include "runtime.h"
 #include "thread-inl.h"
 
 // Specific frame size code is in architecture-specific files. We include this to compile-time
@@ -36,16 +35,41 @@ namespace mirror {
 class ArtMethod;
 }  // namespace mirror
 
-// Place a special frame at the TOS that will save the callee saves for the given type.
-static inline void FinishCalleeSaveFrameSetup(Thread* self, StackReference<mirror::ArtMethod>* sp,
-                                              Runtime::CalleeSaveType type)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  // Be aware the store below may well stomp on an incoming argument.
-  Locks::mutator_lock_->AssertSharedHeld(self);
-  sp->Assign(Runtime::Current()->GetCalleeSaveMethod(type));
-  self->SetTopOfStack(sp, 0);
-  self->VerifyStack();
-}
+class ScopedQuickEntrypointChecks {
+ public:
+  explicit ScopedQuickEntrypointChecks(Thread *self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : self_(self) {
+    if (kIsDebugBuild) {
+      TestsOnEntry();
+    }
+  }
+
+  explicit ScopedQuickEntrypointChecks() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : self_(kIsDebugBuild ? Thread::Current() : nullptr) {
+    if (kIsDebugBuild) {
+      TestsOnEntry();
+    }
+  }
+
+  ~ScopedQuickEntrypointChecks() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (kIsDebugBuild) {
+      TestsOnExit();
+    }
+  }
+
+ private:
+  void TestsOnEntry() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Locks::mutator_lock_->AssertSharedHeld(self_);
+    self_->VerifyStack();
+  }
+
+  void TestsOnExit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Locks::mutator_lock_->AssertSharedHeld(self_);
+    self_->VerifyStack();
+  }
+
+  Thread* const self_;
+};
 
 static constexpr size_t GetCalleeSaveFrameSize(InstructionSet isa, Runtime::CalleeSaveType type) {
   // constexpr must be a return statement.
@@ -71,7 +95,8 @@ static constexpr size_t GetConstExprPointerSize(InstructionSet isa) {
 }
 
 // Note: this specialized statement is sanity-checked in the quick-trampoline gtest.
-static constexpr size_t GetCalleeSavePCOffset(InstructionSet isa, Runtime::CalleeSaveType type) {
+static constexpr size_t GetCalleeSaveReturnPcOffset(InstructionSet isa,
+                                                    Runtime::CalleeSaveType type) {
   return GetCalleeSaveFrameSize(isa, type) - GetConstExprPointerSize(isa);
 }
 

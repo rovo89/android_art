@@ -466,7 +466,7 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Ensure we don't get thread suspension until the object arguments are safely in the shadow
   // frame.
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
+  ScopedQuickEntrypointChecks sqec(self);
 
   if (method->IsAbstract()) {
     ThrowAbstractMethodError(method);
@@ -593,7 +593,6 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
       self->StartAssertNoThreadSuspension("Adding to IRT proxy object arguments");
   // Register the top of the managed stack, making stack crawlable.
   DCHECK_EQ(sp->AsMirrorPtr(), proxy_method) << PrettyMethod(proxy_method);
-  self->SetTopOfStack(sp, 0);
   DCHECK_EQ(proxy_method->GetFrameSizeInBytes(),
             Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs)->GetFrameSizeInBytes())
       << PrettyMethod(proxy_method);
@@ -678,7 +677,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
                                                     Thread* self,
                                                     StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
+  ScopedQuickEntrypointChecks sqec(self);
   // Start new JNI local reference state
   JNIEnvExt* env = self->GetJniEnv();
   ScopedObjectAccessUnchecked soa(env);
@@ -1216,6 +1215,7 @@ class ComputeNativeCallFrameSize {
       Primitive::Type cur_type_ = Primitive::GetType(shorty[i]);
       switch (cur_type_) {
         case Primitive::kPrimNot:
+          // TODO: fix abuse of mirror types.
           sm.AdvanceHandleScope(
               reinterpret_cast<mirror::Object*>(0x12345678));
           break;
@@ -1609,13 +1609,13 @@ extern "C" TwoWordReturn artQuickGenericJniTrampoline(Thread* self,
   uint32_t shorty_len = 0;
   const char* shorty = called->GetShorty(&shorty_len);
 
-  // Run the visitor.
+  // Run the visitor and update sp.
   BuildGenericJniFrameVisitor visitor(self, called->IsStatic(), shorty, shorty_len, &sp);
   visitor.VisitArguments();
   visitor.FinalizeHandleScope(self);
 
   // Fix up managed-stack things in Thread.
-  self->SetTopOfStack(sp, 0);
+  self->SetTopOfStack(sp);
 
   self->VerifyStack();
 
@@ -1744,10 +1744,11 @@ template<InvokeType type, bool access_check>
 static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_object,
                                      mirror::ArtMethod* caller_method,
                                      Thread* self, StackReference<mirror::ArtMethod>* sp) {
+  ScopedQuickEntrypointChecks sqec(self);
+  DCHECK_EQ(sp->AsMirrorPtr(), Runtime::Current()->GetCalleeSaveMethod(Runtime::kRefsAndArgs));
   mirror::ArtMethod* method = FindMethodFast(method_idx, this_object, caller_method, access_check,
                                              type);
   if (UNLIKELY(method == nullptr)) {
-    FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
     const DexFile* dex_file = caller_method->GetDeclaringClass()->GetDexCache()->GetDexFile();
     uint32_t shorty_len;
     const char* shorty = dex_file->GetMethodShorty(dex_file->GetMethodId(method_idx), &shorty_len);
@@ -1852,21 +1853,20 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
                                                       Thread* self,
                                                       StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ScopedQuickEntrypointChecks sqec(self);
   mirror::ArtMethod* method;
   if (LIKELY(interface_method->GetDexMethodIndex() != DexFile::kDexNoIndex)) {
     method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method);
     if (UNLIKELY(method == NULL)) {
-      FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
       ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(interface_method, this_object,
                                                                  caller_method);
       return GetTwoWordFailureValue();  // Failure.
     }
   } else {
-    FinishCalleeSaveFrameSetup(self, sp, Runtime::kRefsAndArgs);
     DCHECK(interface_method == Runtime::Current()->GetResolutionMethod());
 
     // Find the caller PC.
-    constexpr size_t pc_offset = GetCalleeSavePCOffset(kRuntimeISA, Runtime::kRefsAndArgs);
+    constexpr size_t pc_offset = GetCalleeSaveReturnPcOffset(kRuntimeISA, Runtime::kRefsAndArgs);
     uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(sp) + pc_offset);
 
     // Map the caller PC to a dex PC.

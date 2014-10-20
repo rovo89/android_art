@@ -53,7 +53,7 @@ ENTRY art_portable_invoke_stub
     mov    ip, #0                          @ set ip to 0
     str    ip, [sp]                        @ store NULL for method* at bottom of frame
     add    sp, #16                         @ first 4 args are not passed on stack for portable
-    ldr    ip, [r0, #METHOD_PORTABLE_CODE_OFFSET]  @ get pointer to the code
+    ldr    ip, [r0, #MIRROR_ART_METHOD_PORTABLE_CODE_OFFSET]  @ get pointer to the code
     blx    ip                              @ call the method
     mov    sp, r11                         @ restore the stack pointer
     ldr    ip, [sp, #24]                   @ load the result pointer

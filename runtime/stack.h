@@ -360,7 +360,7 @@ class ShadowFrame {
 class PACKED(4) ManagedStack {
  public:
   ManagedStack()
-      : link_(NULL), top_shadow_frame_(NULL), top_quick_frame_(NULL), top_quick_frame_pc_(0) {}
+      : top_quick_frame_(nullptr), link_(nullptr), top_shadow_frame_(nullptr) {}
 
   void PushManagedStackFragment(ManagedStack* fragment) {
     // Copy this top fragment into given fragment.
@@ -386,29 +386,16 @@ class PACKED(4) ManagedStack {
   }
 
   void SetTopQuickFrame(StackReference<mirror::ArtMethod>* top) {
-    DCHECK(top_shadow_frame_ == NULL);
+    DCHECK(top_shadow_frame_ == nullptr);
     top_quick_frame_ = top;
-  }
-
-  uintptr_t GetTopQuickFramePc() const {
-    return top_quick_frame_pc_;
-  }
-
-  void SetTopQuickFramePc(uintptr_t pc) {
-    DCHECK(top_shadow_frame_ == NULL);
-    top_quick_frame_pc_ = pc;
   }
 
   static size_t TopQuickFrameOffset() {
     return OFFSETOF_MEMBER(ManagedStack, top_quick_frame_);
   }
 
-  static size_t TopQuickFramePcOffset() {
-    return OFFSETOF_MEMBER(ManagedStack, top_quick_frame_pc_);
-  }
-
   ShadowFrame* PushShadowFrame(ShadowFrame* new_top_frame) {
-    DCHECK(top_quick_frame_ == NULL);
+    DCHECK(top_quick_frame_ == nullptr);
     ShadowFrame* old_frame = top_shadow_frame_;
     top_shadow_frame_ = new_top_frame;
     new_top_frame->SetLink(old_frame);
@@ -416,8 +403,8 @@ class PACKED(4) ManagedStack {
   }
 
   ShadowFrame* PopShadowFrame() {
-    DCHECK(top_quick_frame_ == NULL);
-    CHECK(top_shadow_frame_ != NULL);
+    DCHECK(top_quick_frame_ == nullptr);
+    CHECK(top_shadow_frame_ != nullptr);
     ShadowFrame* frame = top_shadow_frame_;
     top_shadow_frame_ = frame->GetLink();
     return frame;
@@ -428,7 +415,7 @@ class PACKED(4) ManagedStack {
   }
 
   void SetTopShadowFrame(ShadowFrame* top) {
-    DCHECK(top_quick_frame_ == NULL);
+    DCHECK(top_quick_frame_ == nullptr);
     top_shadow_frame_ = top;
   }
 
@@ -441,10 +428,9 @@ class PACKED(4) ManagedStack {
   bool ShadowFramesContain(StackReference<mirror::Object>* shadow_frame_entry) const;
 
  private:
+  StackReference<mirror::ArtMethod>* top_quick_frame_;
   ManagedStack* link_;
   ShadowFrame* top_shadow_frame_;
-  StackReference<mirror::ArtMethod>* top_quick_frame_;
-  uintptr_t top_quick_frame_pc_;
 };
 
 class StackVisitor {
