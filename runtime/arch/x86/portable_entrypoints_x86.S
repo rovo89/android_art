@@ -37,7 +37,7 @@ DEFINE_FUNCTION art_portable_invoke_stub
     andl LITERAL(0xFFFFFFF0), %ebx    // align frame size to 16 bytes
     subl LITERAL(12), %ebx        // remove space for return address, ebx, and ebp
     subl %ebx, %esp               // reserve stack space for argument array
-    SETUP_GOT_NOSAVE              // reset ebx to GOT table
+    SETUP_GOT_NOSAVE ebx          // reset ebx to GOT table
     lea  4(%esp), %eax            // use stack pointer + method ptr as dest for memcpy
     pushl 20(%ebp)                // push size of region to memcpy
     pushl 16(%ebp)                // push arg array as source of memcpy
@@ -46,7 +46,7 @@ DEFINE_FUNCTION art_portable_invoke_stub
     addl LITERAL(12), %esp        // pop arguments to memcpy
     mov 12(%ebp), %eax            // move method pointer into eax
     mov %eax, (%esp)              // push method pointer onto stack
-    call *METHOD_PORTABLE_CODE_OFFSET(%eax) // call the method
+    call *MIRROR_ART_METHOD_PORTABLE_CODE_OFFSET(%eax) // call the method
     mov %ebp, %esp                // restore stack pointer
     POP ebx                       // pop ebx
     POP ebp                       // pop ebp

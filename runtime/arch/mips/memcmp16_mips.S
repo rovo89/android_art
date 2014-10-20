@@ -20,7 +20,7 @@
 #include "asm_support_mips.S"
 
 // u4 __memcmp16(const u2*, const u2*, size_t);
-ENTRY __memcmp16
+ENTRY_NO_GP __memcmp16
   li  $t0,0
   li  $t1,0
   beqz  $a2,done   /* 0 length string */

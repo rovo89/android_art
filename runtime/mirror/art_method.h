@@ -334,7 +334,9 @@ class MANAGED ArtMethod FINAL : public Object {
 
   ALWAYS_INLINE static const void* EntryPointToCodePointer(const void* entry_point) {
     uintptr_t code = reinterpret_cast<uintptr_t>(entry_point);
-    code &= ~0x1;  // TODO: Make this Thumb2 specific.
+    // TODO: Make this Thumb2 specific. It is benign on other architectures as code is always at
+    //       least 2 byte aligned.
+    code &= ~0x1;
     return reinterpret_cast<const void*>(code);
   }
 

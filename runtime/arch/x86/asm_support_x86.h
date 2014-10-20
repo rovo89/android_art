@@ -19,20 +19,8 @@
 
 #include "asm_support.h"
 
-// Offset of field Thread::self_ verified in InitCpu
-#define THREAD_SELF_OFFSET 156
-// Offset of field Thread::card_table_ verified in InitCpu
-#define THREAD_CARD_TABLE_OFFSET 120
-// Offset of field Thread::exception_ verified in InitCpu
-#define THREAD_EXCEPTION_OFFSET 124
-// Offset of field Thread::thin_lock_thread_id_ verified in InitCpu
-#define THREAD_ID_OFFSET 12
-
 #define FRAME_SIZE_SAVE_ALL_CALLEE_SAVE 32
 #define FRAME_SIZE_REFS_ONLY_CALLEE_SAVE 32
 #define FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE 32
-
-// Expected size of a heap reference
-#define HEAP_REFERENCE_SIZE 4
 
 #endif  // ART_RUNTIME_ARCH_X86_ASM_SUPPORT_X86_H_
