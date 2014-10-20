@@ -268,7 +268,7 @@ void SSAChecker::VisitInstruction(HInstruction* instruction) {
   for (HUseIterator<HInstruction> use_it(instruction->GetUses());
        !use_it.Done(); use_it.Advance()) {
     HInstruction* use = use_it.Current()->GetUser();
-    if (!use->IsPhi() && !instruction->Dominates(use)) {
+    if (!use->IsPhi() && !instruction->StrictlyDominates(use)) {
       std::stringstream error;
       error << "Instruction " << instruction->GetId()
             << " in block " << current_block_->GetBlockId()
@@ -285,7 +285,7 @@ void SSAChecker::VisitInstruction(HInstruction* instruction) {
     for (size_t i = 0, e = environment->Size(); i < e; ++i) {
       HInstruction* env_instruction = environment->GetInstructionAt(i);
       if (env_instruction != nullptr
-          && !env_instruction->Dominates(instruction)) {
+          && !env_instruction->StrictlyDominates(instruction)) {
         std::stringstream error;
         error << "Instruction " << env_instruction->GetId()
               << " in environment of instruction " << instruction->GetId()
