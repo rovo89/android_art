@@ -506,14 +506,14 @@ class MethodVerifier {
   // Lookup static field and fail for resolution violations
   mirror::ArtField* GetStaticField(int field_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Perform verification of an iget or sget instruction.
-  void VerifyISGet(const Instruction* inst, RegType& insn_type,
-                   bool is_primitive, bool is_static)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Perform verification of an iput or sput instruction.
-  void VerifyISPut(const Instruction* inst, RegType& insn_type,
-                   bool is_primitive, bool is_static)
+  // Perform verification of an iget/sget/iput/sput instruction.
+  enum class FieldAccessType {  // private
+    kAccGet,
+    kAccPut
+  };
+  template <FieldAccessType kAccType>
+  void VerifyISFieldAccess(const Instruction* inst, RegType& insn_type,
+                           bool is_primitive, bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns the access field of a quick field access (iget/iput-quick) or nullptr
@@ -521,14 +521,8 @@ class MethodVerifier {
   mirror::ArtField* GetQuickFieldAccess(const Instruction* inst, RegisterLine* reg_line)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Perform verification of an iget-quick instruction.
-  void VerifyIGetQuick(const Instruction* inst, RegType& insn_type,
-                       bool is_primitive)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Perform verification of an iput-quick instruction.
-  void VerifyIPutQuick(const Instruction* inst, RegType& insn_type,
-                       bool is_primitive)
+  template <FieldAccessType kAccType>
+  void VerifyQuickFieldAccess(const Instruction* inst, RegType& insn_type, bool is_primitive)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolves a class based on an index and performs access checks to ensure the referrer can
