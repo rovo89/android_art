@@ -80,8 +80,10 @@ class ParallelMoveResolverX86_64 : public ParallelMoveResolver {
 
  private:
   void Exchange32(CpuRegister reg, int mem);
+  void Exchange32(XmmRegister reg, int mem);
   void Exchange32(int mem1, int mem2);
   void Exchange64(CpuRegister reg, int mem);
+  void Exchange64(XmmRegister reg, int mem);
   void Exchange64(int mem1, int mem2);
 
   CodeGeneratorX86_64* const codegen_;
@@ -146,8 +148,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   virtual void GenerateFrameExit() OVERRIDE;
   virtual void Bind(HBasicBlock* block) OVERRIDE;
   virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
-  virtual void SaveCoreRegister(Location stack_location, uint32_t reg_id) OVERRIDE;
-  virtual void RestoreCoreRegister(Location stack_location, uint32_t reg_id) OVERRIDE;
+  virtual size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  virtual size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  virtual size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  virtual size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
 
   virtual size_t GetWordSize() const OVERRIDE {
     return kX86_64WordSize;

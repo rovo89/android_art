@@ -473,9 +473,19 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
       case Location::kRegister : {
         int id = location.reg();
         stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInRegister, id);
-        if (current->GetType() == Primitive::kPrimDouble
-            || current->GetType() == Primitive::kPrimLong) {
+        if (current->GetType() == Primitive::kPrimLong) {
           stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInRegister, id);
+          ++i;
+          DCHECK_LT(i, environment_size);
+        }
+        break;
+      }
+
+      case Location::kFpuRegister : {
+        int id = location.reg();
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInFpuRegister, id);
+        if (current->GetType() == Primitive::kPrimDouble) {
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInFpuRegister, id);
           ++i;
           DCHECK_LT(i, environment_size);
         }
@@ -488,46 +498,38 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
   }
 }
 
-size_t CodeGenerator::GetStackOffsetOfSavedRegister(size_t index) {
-  return first_register_slot_in_slow_path_ + index * GetWordSize();
-}
-
 void CodeGenerator::SaveLiveRegisters(LocationSummary* locations) {
   RegisterSet* register_set = locations->GetLiveRegisters();
-  uint32_t count = 0;
+  size_t stack_offset = first_register_slot_in_slow_path_;
   for (size_t i = 0, e = GetNumberOfCoreRegisters(); i < e; ++i) {
     if (register_set->ContainsCoreRegister(i)) {
-      size_t stack_offset = GetStackOffsetOfSavedRegister(count);
-      ++count;
-      SaveCoreRegister(Location::StackSlot(stack_offset), i);
       // If the register holds an object, update the stack mask.
       if (locations->RegisterContainsObject(i)) {
         locations->SetStackBit(stack_offset / kVRegSize);
       }
+      stack_offset += SaveCoreRegister(stack_offset, i);
     }
   }
 
   for (size_t i = 0, e = GetNumberOfFloatingPointRegisters(); i < e; ++i) {
     if (register_set->ContainsFloatingPointRegister(i)) {
-      LOG(FATAL) << "Unimplemented";
+      stack_offset += SaveFloatingPointRegister(stack_offset, i);
     }
   }
 }
 
 void CodeGenerator::RestoreLiveRegisters(LocationSummary* locations) {
   RegisterSet* register_set = locations->GetLiveRegisters();
-  uint32_t count = 0;
+  size_t stack_offset = first_register_slot_in_slow_path_;
   for (size_t i = 0, e = GetNumberOfCoreRegisters(); i < e; ++i) {
     if (register_set->ContainsCoreRegister(i)) {
-      size_t stack_offset = GetStackOffsetOfSavedRegister(count);
-      ++count;
-      RestoreCoreRegister(Location::StackSlot(stack_offset), i);
+      stack_offset += RestoreCoreRegister(stack_offset, i);
     }
   }
 
   for (size_t i = 0, e = GetNumberOfFloatingPointRegisters(); i < e; ++i) {
     if (register_set->ContainsFloatingPointRegister(i)) {
-      LOG(FATAL) << "Unimplemented";
+      stack_offset += RestoreFloatingPointRegister(stack_offset, i);
     }
   }
 }

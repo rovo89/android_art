@@ -666,6 +666,7 @@ class X86_64Assembler FINAL : public Assembler {
   void EmitRex64(CpuRegister reg);
   void EmitRex64(CpuRegister dst, CpuRegister src);
   void EmitRex64(CpuRegister dst, const Operand& operand);
+  void EmitRex64(XmmRegister dst, CpuRegister src);
 
   // Emit a REX prefix to normalize byte registers plus necessary register bit encodings.
   void EmitOptionalByteRegNormalizingRex32(CpuRegister dst, CpuRegister src);
@@ -692,7 +693,7 @@ inline void X86_64Assembler::EmitInt64(int64_t value) {
 inline void X86_64Assembler::EmitRegisterOperand(uint8_t rm, uint8_t reg) {
   CHECK_GE(rm, 0);
   CHECK_LT(rm, 8);
-  buffer_.Emit<uint8_t>(0xC0 + (rm << 3) + reg);
+  buffer_.Emit<uint8_t>((0xC0 | (reg & 7)) + (rm << 3));
 }
 
 inline void X86_64Assembler::EmitXmmRegisterOperand(uint8_t rm, XmmRegister reg) {

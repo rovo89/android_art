@@ -88,6 +88,7 @@ class DexRegisterMap {
     kNone,
     kInStack,
     kInRegister,
+    kInFpuRegister,
     kConstant
   };
 

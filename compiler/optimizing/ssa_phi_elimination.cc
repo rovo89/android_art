@@ -24,18 +24,13 @@ void SsaDeadPhiElimination::Run() {
     HBasicBlock* block = it.Current();
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HPhi* phi = it.Current()->AsPhi();
-      if (phi->HasEnvironmentUses()) {
-        // TODO: Do we want to keep that phi alive?
-        worklist_.Add(phi);
-        phi->SetLive();
-        continue;
-      }
       for (HUseIterator<HInstruction> it(phi->GetUses()); !it.Done(); it.Advance()) {
         HUseListNode<HInstruction>* current = it.Current();
         HInstruction* user = current->GetUser();
         if (!user->IsPhi()) {
           worklist_.Add(phi);
           phi->SetLive();
+          break;
         } else {
           phi->SetDead();
         }
@@ -74,6 +69,14 @@ void SsaDeadPhiElimination::Run() {
             // Just put itself as an input. The phi will be removed in this loop anyway.
             user->SetRawInputAt(user_node->GetIndex(), user);
             current->RemoveUser(user, user_node->GetIndex());
+          }
+        }
+        if (current->HasEnvironmentUses()) {
+          for (HUseIterator<HEnvironment> it(current->GetEnvUses()); !it.Done(); it.Advance()) {
+            HUseListNode<HEnvironment>* user_node = it.Current();
+            HEnvironment* user = user_node->GetUser();
+            user->SetRawEnvAt(user_node->GetIndex(), nullptr);
+            current->RemoveEnvironmentUser(user, user_node->GetIndex());
           }
         }
         block->RemovePhi(current->AsPhi());
