@@ -485,7 +485,7 @@ define define-test-art-run-test
     endif
   endif
   # $(10) is the test name
-  test_groups += ART_RUN_TEST_$$(uc_host_or_target)_$(call name-to-var,$(9))_RULES
+  test_groups += ART_RUN_TEST_$$(uc_host_or_target)_$(call name-to-var,$(10))_RULES
   ifeq ($(11),64)
     test_groups += ART_RUN_TEST_$$(uc_host_or_target)_64_RULES
     run_test_options += --64
