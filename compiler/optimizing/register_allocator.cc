@@ -260,10 +260,10 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
 
   // If needed, add interval to the list of unhandled intervals.
   if (current->HasSpillSlot() || instruction->IsConstant()) {
-    // Split before first register use.
+    // Split just before first register use.
     size_t first_register_use = current->FirstRegisterUse();
     if (first_register_use != kNoLifetime) {
-      LiveInterval* split = Split(current, first_register_use);
+      LiveInterval* split = Split(current, first_register_use - 1);
       // Don't add direclty to `unhandled`, it needs to be sorted and the start
       // of this new interval might be after intervals already in the list.
       AddSorted(&unhandled, split);
@@ -436,6 +436,7 @@ void RegisterAllocator::LinearScan() {
     // (1) Remove interval with the lowest start position from unhandled.
     LiveInterval* current = unhandled_->Pop();
     DCHECK(!current->IsFixed() && !current->HasSpillSlot());
+    DCHECK(unhandled_->IsEmpty() || unhandled_->Peek()->GetStart() >= current->GetStart());
     size_t position = current->GetStart();
 
     // (2) Remove currently active intervals that are dead at this position.
@@ -635,7 +636,9 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
     // If the first use of that instruction is after the last use of the found
     // register, we split this interval just before its first register use.
     AllocateSpillSlotFor(current);
-    LiveInterval* split = Split(current, first_register_use);
+    LiveInterval* split = Split(current, first_register_use - 1);
+    DCHECK_NE(current, split) << "There is not enough registers available for "
+      << split->GetParent()->GetDefinedBy()->DebugName();
     AddSorted(unhandled_, split);
     return false;
   } else {
@@ -679,6 +682,7 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
 }
 
 void RegisterAllocator::AddSorted(GrowableArray<LiveInterval*>* array, LiveInterval* interval) {
+  DCHECK(!interval->IsFixed() && !interval->HasSpillSlot());
   size_t insert_at = 0;
   for (size_t i = array->Size(); i > 0; --i) {
     LiveInterval* current = array->Get(i - 1);

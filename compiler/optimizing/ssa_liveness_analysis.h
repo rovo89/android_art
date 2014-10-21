@@ -370,14 +370,12 @@ class LiveInterval : public ArenaObject {
     size_t end = GetEnd();
     while (use != nullptr && use->GetPosition() <= end) {
       size_t use_position = use->GetPosition();
-      if (use_position >= position && !use->GetIsEnvironment()) {
+      if (use_position > position && !use->GetIsEnvironment()) {
         Location location = use->GetUser()->GetLocations()->InAt(use->GetInputIndex());
         if (location.IsUnallocated()
             && (location.GetPolicy() == Location::kRequiresRegister
                 || location.GetPolicy() == Location::kRequiresFpuRegister)) {
-          // Return the lifetime just before the user, so that the interval has a register
-          // when entering the user.
-          return use->GetUser()->GetLifetimePosition() - 1;
+          return use_position;
         }
       }
       use = use->GetNext();
