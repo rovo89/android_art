@@ -95,6 +95,9 @@ class HGraphBuilder : public ValueObject {
   bool InitializeParameters(uint16_t number_of_parameters);
 
   template<typename T>
+  void Unop_12x(const Instruction& instruction, Primitive::Type type);
+
+  template<typename T>
   void Binop_23x(const Instruction& instruction, Primitive::Type type);
 
   template<typename T>
