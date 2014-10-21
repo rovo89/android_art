@@ -1101,6 +1101,15 @@ class HUnaryOperation : public HExpression<1> {
   virtual bool CanBeMoved() const { return true; }
   virtual bool InstructionDataEquals(HInstruction* other) const { return true; }
 
+  // Try to statically evaluate `operation` and return a HConstant
+  // containing the result of this evaluation.  If `operation` cannot
+  // be evaluated as a constant, return nullptr.
+  HConstant* TryStaticEvaluation() const;
+
+  // Apply this operation to `x`.
+  virtual int32_t Evaluate(int32_t x) const = 0;
+  virtual int64_t Evaluate(int64_t x) const = 0;
+
   DECLARE_INSTRUCTION(UnaryOperation);
 
  private:
@@ -1125,10 +1134,10 @@ class HBinaryOperation : public HExpression<2> {
   virtual bool CanBeMoved() const { return true; }
   virtual bool InstructionDataEquals(HInstruction* other) const { return true; }
 
-  // Try to statically evaluate `operation` and return an HConstant
+  // Try to statically evaluate `operation` and return a HConstant
   // containing the result of this evaluation.  If `operation` cannot
   // be evaluated as a constant, return nullptr.
-  HConstant* TryStaticEvaluation(ArenaAllocator* allocator) const;
+  HConstant* TryStaticEvaluation() const;
 
   // Apply this operation to `x` and `y`.
   virtual int32_t Evaluate(int32_t x, int32_t y) const = 0;
@@ -1543,6 +1552,9 @@ class HNeg : public HUnaryOperation {
  public:
   explicit HNeg(Primitive::Type result_type, HInstruction* input)
       : HUnaryOperation(result_type, input) {}
+
+  virtual int32_t Evaluate(int32_t x) const OVERRIDE { return -x; }
+  virtual int64_t Evaluate(int64_t x) const OVERRIDE { return -x; }
 
   DECLARE_INSTRUCTION(Neg);
 
