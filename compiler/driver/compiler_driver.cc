@@ -1955,6 +1955,19 @@ void CompilerDriver::CompileDexFile(jobject class_loader, const DexFile& dex_fil
   context.ForAll(0, dex_file.NumClassDefs(), CompilerDriver::CompileClass, thread_count_);
 }
 
+// Does the runtime for the InstructionSet provide an implementation returned by
+// GetQuickGenericJniStub allowing down calls that aren't compiled using a JNI compiler?
+static bool InstructionSetHasGenericJniStub(InstructionSet isa) {
+  switch (isa) {
+    case kArm:
+    case kArm64:
+    case kThumb2:
+    case kX86:
+    case kX86_64: return true;
+    default: return false;
+  }
+}
+
 void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                                    InvokeType invoke_type, uint16_t class_def_idx,
                                    uint32_t method_idx, jobject class_loader,
@@ -1966,13 +1979,14 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   if ((access_flags & kAccNative) != 0) {
     // Are we interpreting only and have support for generic JNI down calls?
     if (!compiler_options_->IsCompilationEnabled() &&
-        (instruction_set_ == kX86_64 || instruction_set_ == kArm64)) {
+        InstructionSetHasGenericJniStub(instruction_set_)) {
       // Leaving this empty will trigger the generic JNI version
     } else {
       compiled_method = compiler_->JniCompile(access_flags, method_idx, dex_file);
       CHECK(compiled_method != nullptr);
     }
   } else if ((access_flags & kAccAbstract) != 0) {
+    // Abstract methods don't have code.
   } else {
     MethodReference method_ref(&dex_file, method_idx);
     bool compile = verification_results_->IsCandidateForCompilation(method_ref, access_flags);
