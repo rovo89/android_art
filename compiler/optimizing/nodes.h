@@ -503,10 +503,12 @@ class HBasicBlock : public ArenaObject {
   M(Temporary, Instruction)                                             \
   M(SuspendCheck, Instruction)                                          \
   M(Mul, BinaryOperation)                                               \
+  M(Neg, UnaryOperation)
 
 #define FOR_EACH_INSTRUCTION(M)                                         \
   FOR_EACH_CONCRETE_INSTRUCTION(M)                                      \
   M(Constant, Instruction)                                              \
+  M(UnaryOperation, Instruction)                                        \
   M(BinaryOperation, Instruction)                                       \
   M(Invoke, Instruction)
 
@@ -1086,6 +1088,25 @@ class HIf : public HTemplateInstruction<1> {
   DISALLOW_COPY_AND_ASSIGN(HIf);
 };
 
+class HUnaryOperation : public HExpression<1> {
+ public:
+  HUnaryOperation(Primitive::Type result_type, HInstruction* input)
+      : HExpression(result_type, SideEffects::None()) {
+    SetRawInputAt(0, input);
+  }
+
+  HInstruction* GetInput() const { return InputAt(0); }
+  Primitive::Type GetResultType() const { return GetType(); }
+
+  virtual bool CanBeMoved() const { return true; }
+  virtual bool InstructionDataEquals(HInstruction* other) const { return true; }
+
+  DECLARE_INSTRUCTION(UnaryOperation);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HUnaryOperation);
+};
+
 class HBinaryOperation : public HExpression<2> {
  public:
   HBinaryOperation(Primitive::Type result_type,
@@ -1516,6 +1537,17 @@ class HNewInstance : public HExpression<0> {
   const uint16_t type_index_;
 
   DISALLOW_COPY_AND_ASSIGN(HNewInstance);
+};
+
+class HNeg : public HUnaryOperation {
+ public:
+  explicit HNeg(Primitive::Type result_type, HInstruction* input)
+      : HUnaryOperation(result_type, input) {}
+
+  DECLARE_INSTRUCTION(Neg);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HNeg);
 };
 
 class HAdd : public HBinaryOperation {
