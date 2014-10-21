@@ -218,6 +218,9 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
     current->SetFrom(position + 1);
     current->SetRegister(output.reg());
     BlockRegister(output, position, position + 1, instruction->GetType());
+  } else if (!locations->OutputOverlapsWithInputs()) {
+    // Shift the interval's start by one to not interfere with the inputs.
+    current->SetFrom(position + 1);
   } else if (output.IsStackSlot() || output.IsDoubleStackSlot()) {
     current->SetSpillSlot(output.GetStackIndex());
   }
@@ -723,15 +726,6 @@ void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
   parent->SetSpillSlot((slot + reserved_out_slots_) * kVRegSize);
 }
 
-// We create a special marker for inputs moves to differentiate them from
-// moves created during resolution. They must be different instructions
-// because the input moves work on the assumption that the interval moves
-// have been executed.
-static constexpr size_t kInputMoveLifetimePosition = 0;
-static bool IsInputMove(HInstruction* instruction) {
-  return instruction->GetLifetimePosition() == kInputMoveLifetimePosition;
-}
-
 static bool IsValidDestination(Location destination) {
   return destination.IsRegister() || destination.IsStackSlot() || destination.IsDoubleStackSlot();
 }
@@ -748,14 +742,14 @@ void RegisterAllocator::AddInputMoveFor(HInstruction* user,
   HParallelMove* move = nullptr;
   if (previous == nullptr
       || !previous->IsParallelMove()
-      || !IsInputMove(previous)) {
+      || previous->GetLifetimePosition() < user->GetLifetimePosition()) {
     move = new (allocator_) HParallelMove(allocator_);
-    move->SetLifetimePosition(kInputMoveLifetimePosition);
+    move->SetLifetimePosition(user->GetLifetimePosition());
     user->GetBlock()->InsertInstructionBefore(move, user);
   } else {
     move = previous->AsParallelMove();
   }
-  DCHECK(IsInputMove(move));
+  DCHECK_EQ(move->GetLifetimePosition(), user->GetLifetimePosition());
   move->AddMove(new (allocator_) MoveOperands(source, destination, nullptr));
 }
 
@@ -778,7 +772,7 @@ void RegisterAllocator::InsertParallelMoveAt(size_t position,
     move = at->GetNext()->AsParallelMove();
     // This is a parallel move for connecting siblings in a same block. We need to
     // differentiate it with moves for connecting blocks, and input moves.
-    if (move == nullptr || IsInputMove(move) || move->GetLifetimePosition() > position) {
+    if (move == nullptr || move->GetLifetimePosition() > position) {
       move = new (allocator_) HParallelMove(allocator_);
       move->SetLifetimePosition(position);
       at->GetBlock()->InsertInstructionBefore(move, at->GetNext());
@@ -786,12 +780,6 @@ void RegisterAllocator::InsertParallelMoveAt(size_t position,
   } else {
     // Move must happen before the instruction.
     HInstruction* previous = at->GetPrevious();
-    if (previous != nullptr && previous->IsParallelMove() && IsInputMove(previous)) {
-      // This is a parallel move for connecting siblings in a same block. We need to
-      // differentiate it with input moves.
-      at = previous;
-      previous = previous->GetPrevious();
-    }
     if (previous == nullptr
         || !previous->IsParallelMove()
         || previous->GetLifetimePosition() != position) {

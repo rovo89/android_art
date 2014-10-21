@@ -73,7 +73,7 @@ TEST(LiveRangesTest, CFG1) {
   LiveRange* range = interval->GetFirstRange();
   ASSERT_EQ(2u, range->GetStart());
   // Last use is the return instruction.
-  ASSERT_EQ(9u, range->GetEnd());
+  ASSERT_EQ(8u, range->GetEnd());
   HBasicBlock* block = graph->GetBlocks().Get(1);
   ASSERT_TRUE(block->GetLastInstruction()->IsReturn());
   ASSERT_EQ(8u, block->GetLastInstruction()->GetLifetimePosition());
@@ -119,7 +119,7 @@ TEST(LiveRangesTest, CFG2) {
   LiveRange* range = interval->GetFirstRange();
   ASSERT_EQ(2u, range->GetStart());
   // Last use is the return instruction.
-  ASSERT_EQ(23u, range->GetEnd());
+  ASSERT_EQ(22u, range->GetEnd());
   HBasicBlock* block = graph->GetBlocks().Get(3);
   ASSERT_TRUE(block->GetLastInstruction()->IsReturn());
   ASSERT_EQ(22u, block->GetLastInstruction()->GetLifetimePosition());
@@ -193,7 +193,7 @@ TEST(LiveRangesTest, CFG3) {
   range = interval->GetFirstRange();
   ASSERT_EQ(22u, liveness.GetInstructionFromSsaIndex(2)->GetLifetimePosition());
   ASSERT_EQ(22u, range->GetStart());
-  ASSERT_EQ(25u, range->GetEnd());
+  ASSERT_EQ(24u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
@@ -263,7 +263,7 @@ TEST(LiveRangesTest, Loop1) {
   range = interval->GetFirstRange();
   // The instruction is live until the return instruction after the loop.
   ASSERT_EQ(6u, range->GetStart());
-  ASSERT_EQ(27u, range->GetEnd());
+  ASSERT_EQ(26u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the phi.
@@ -271,7 +271,7 @@ TEST(LiveRangesTest, Loop1) {
   range = interval->GetFirstRange();
   // Instruction is consumed by the if.
   ASSERT_EQ(14u, range->GetStart());
-  ASSERT_EQ(16u, range->GetEnd());
+  ASSERT_EQ(17u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 }
 
@@ -338,7 +338,7 @@ TEST(LiveRangesTest, Loop2) {
   range = range->GetNext();
   ASSERT_TRUE(range != nullptr);
   ASSERT_EQ(24u, range->GetStart());
-  ASSERT_EQ(27u, range->GetEnd());
+  ASSERT_EQ(26u, range->GetEnd());
 
   // Test for the add instruction.
   HAdd* add = liveness.GetInstructionFromSsaIndex(2)->AsAdd();
@@ -410,7 +410,7 @@ TEST(LiveRangesTest, CFG4) {
   interval = liveness.GetInstructionFromSsaIndex(1)->GetLiveInterval();
   range = interval->GetFirstRange();
   ASSERT_EQ(4u, range->GetStart());
-  ASSERT_EQ(29u, range->GetEnd());
+  ASSERT_EQ(28u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the first add.
