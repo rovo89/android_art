@@ -332,9 +332,10 @@ define define-art-gtest
     LOCAL_MODULE_TAGS := tests
   endif
   LOCAL_CPP_EXTENSION := $$(ART_CPP_EXTENSION)
-  LOCAL_SRC_FILES := $$(art_gtest_filename) sigchainlib/sigchain.cc
+  LOCAL_SRC_FILES := $$(art_gtest_filename)
   LOCAL_C_INCLUDES += $$(ART_C_INCLUDES) art/runtime $$(art_gtest_extra_c_includes)
   LOCAL_SHARED_LIBRARIES += libartd $$(art_gtest_extra_shared_libraries) libart-gtest
+  LOCAL_WHOLE_STATIC_LIBRARIES += libsigchain
 
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
