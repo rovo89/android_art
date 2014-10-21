@@ -656,7 +656,7 @@ void LocationsBuilderARM::VisitIf(HIf* if_instr) {
       new (GetGraph()->GetArena()) LocationSummary(if_instr, LocationSummary::kNoCall);
   HInstruction* cond = if_instr->InputAt(0);
   if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
-    locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
+    locations->SetInAt(0, Location::RequiresRegister());
   }
 }
 
@@ -715,10 +715,10 @@ void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
 void LocationsBuilderARM::VisitCondition(HCondition* comp) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(comp, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
-  locations->SetInAt(1, Location::RegisterOrConstant(comp->InputAt(1)), Location::kDiesAtEntry);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(comp->InputAt(1)));
   if (comp->NeedsMaterialization()) {
-    locations->SetOut(Location::RequiresRegister());
+    locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
   }
 }
 
@@ -1022,10 +1022,10 @@ void LocationsBuilderARM::VisitAdd(HAdd* add) {
   switch (add->GetResultType()) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
-      bool dies_at_entry = add->GetResultType() != Primitive::kPrimLong;
-      locations->SetInAt(0, Location::RequiresRegister(), dies_at_entry);
-      locations->SetInAt(1, Location::RegisterOrConstant(add->InputAt(1)), dies_at_entry);
-      locations->SetOut(Location::RequiresRegister());
+      bool output_overlaps = (add->GetResultType() == Primitive::kPrimLong);
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(add->InputAt(1)));
+      locations->SetOut(Location::RequiresRegister(), output_overlaps);
       break;
     }
 
@@ -1088,10 +1088,10 @@ void LocationsBuilderARM::VisitSub(HSub* sub) {
   switch (sub->GetResultType()) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
-      bool dies_at_entry = sub->GetResultType() != Primitive::kPrimLong;
-      locations->SetInAt(0, Location::RequiresRegister(), dies_at_entry);
-      locations->SetInAt(1, Location::RegisterOrConstant(sub->InputAt(1)), dies_at_entry);
-      locations->SetOut(Location::RequiresRegister());
+      bool output_overlaps = (sub->GetResultType() == Primitive::kPrimLong);
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(sub->InputAt(1)));
+      locations->SetOut(Location::RequiresRegister(), output_overlaps);
       break;
     }
 
@@ -1150,9 +1150,9 @@ void LocationsBuilderARM::VisitMul(HMul* mul) {
   switch (mul->GetResultType()) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong:  {
-      locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
-      locations->SetInAt(1, Location::RequiresRegister(), Location::kDiesAtEntry);
-      locations->SetOut(Location::RequiresRegister());
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
     }
 
@@ -1261,8 +1261,8 @@ void InstructionCodeGeneratorARM::VisitParameterValue(HParameterValue* instructi
 void LocationsBuilderARM::VisitNot(HNot* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
-  locations->SetOut(Location::RequiresRegister());
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
 void InstructionCodeGeneratorARM::VisitNot(HNot* instruction) {
@@ -1274,9 +1274,9 @@ void InstructionCodeGeneratorARM::VisitNot(HNot* instruction) {
 void LocationsBuilderARM::VisitCompare(HCompare* compare) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
-  locations->SetInAt(1, Location::RequiresRegister(), Location::kDiesAtEntry);
-  locations->SetOut(Location::RequiresRegister());
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
 void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
@@ -1332,9 +1332,8 @@ void LocationsBuilderARM::VisitInstanceFieldSet(HInstanceFieldSet* instruction) 
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   bool is_object_type = instruction->GetFieldType() == Primitive::kPrimNot;
-  bool dies_at_entry = !is_object_type;
-  locations->SetInAt(0, Location::RequiresRegister(), dies_at_entry);
-  locations->SetInAt(1, Location::RequiresRegister(), dies_at_entry);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
   // Temporary registers for the write barrier.
   if (is_object_type) {
     locations->AddTemp(Location::RequiresRegister());
@@ -1394,8 +1393,8 @@ void InstructionCodeGeneratorARM::VisitInstanceFieldSet(HInstanceFieldSet* instr
 void LocationsBuilderARM::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
-  locations->SetOut(Location::RequiresRegister());
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
 void InstructionCodeGeneratorARM::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
@@ -1481,10 +1480,9 @@ void InstructionCodeGeneratorARM::VisitNullCheck(HNullCheck* instruction) {
 void LocationsBuilderARM::VisitArrayGet(HArrayGet* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
-  locations->SetInAt(
-      1, Location::RegisterOrConstant(instruction->InputAt(1)), Location::kDiesAtEntry);
-  locations->SetOut(Location::RequiresRegister());
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
 void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
@@ -1594,10 +1592,9 @@ void LocationsBuilderARM::VisitArraySet(HArraySet* instruction) {
     locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
     locations->SetInAt(2, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
   } else {
-    locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
-    locations->SetInAt(
-        1, Location::RegisterOrConstant(instruction->InputAt(1)), Location::kDiesAtEntry);
-    locations->SetInAt(2, Location::RequiresRegister(), Location::kDiesAtEntry);
+    locations->SetInAt(0, Location::RequiresRegister());
+    locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+    locations->SetInAt(2, Location::RequiresRegister());
   }
 }
 
@@ -1684,8 +1681,8 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
 void LocationsBuilderARM::VisitArrayLength(HArrayLength* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister(), Location::kDiesAtEntry);
-  locations->SetOut(Location::RequiresRegister());
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
 void InstructionCodeGeneratorARM::VisitArrayLength(HArrayLength* instruction) {

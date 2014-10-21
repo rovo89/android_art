@@ -188,10 +188,14 @@ class LiveInterval : public ArenaObject {
         && (first_use_->GetPosition() < position)) {
       // The user uses the instruction multiple times, and one use dies before the other.
       // We update the use list so that the latter is first.
+      UsePosition* cursor = first_use_;
+      while ((cursor->GetNext() != nullptr) && (cursor->GetNext()->GetPosition() < position)) {
+        cursor = cursor->GetNext();
+      }
       DCHECK(first_use_->GetPosition() + 1 == position);
       UsePosition* new_use = new (allocator_) UsePosition(
-          instruction, input_index, is_environment, position, first_use_->GetNext());
-      first_use_->SetNext(new_use);
+          instruction, input_index, is_environment, position, cursor->GetNext());
+      cursor->SetNext(new_use);
       if (first_range_->GetEnd() == first_use_->GetPosition()) {
         first_range_->end_ = position;
       }
