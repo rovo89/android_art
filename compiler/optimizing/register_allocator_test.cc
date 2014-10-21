@@ -348,14 +348,14 @@ TEST(RegisterAllocatorTest, FirstRegisterUse) {
   // Split at the next instruction.
   interval = interval->SplitAt(first_add->GetLifetimePosition() + 2);
   // The user of the split is the last add.
-  ASSERT_EQ(interval->FirstRegisterUse(), last_add->GetLifetimePosition() - 1);
+  ASSERT_EQ(interval->FirstRegisterUse(), last_add->GetLifetimePosition());
 
   // Split before the last add.
   LiveInterval* new_interval = interval->SplitAt(last_add->GetLifetimePosition() - 1);
   // Ensure the current interval has no register use...
   ASSERT_EQ(interval->FirstRegisterUse(), kNoLifetime);
   // And the new interval has it for the last add.
-  ASSERT_EQ(new_interval->FirstRegisterUse(), last_add->GetLifetimePosition() - 1);
+  ASSERT_EQ(new_interval->FirstRegisterUse(), last_add->GetLifetimePosition());
 }
 
 TEST(RegisterAllocatorTest, DeadPhi) {
