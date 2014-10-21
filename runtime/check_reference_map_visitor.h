@@ -84,8 +84,12 @@ class CheckReferenceMapVisitor : public StackVisitor {
         case DexRegisterMap::kInRegister:
           CHECK_NE(register_mask & dex_register_map.GetValue(reg), 0u);
           break;
+        case DexRegisterMap::kInFpuRegister:
+          // In Fpu register, should not be a reference.
+          CHECK(false);
+          break;
         case DexRegisterMap::kConstant:
-          CHECK_EQ(dex_register_map.GetValue(0), 0);
+          CHECK_EQ(dex_register_map.GetValue(reg), 0);
           break;
       }
     }

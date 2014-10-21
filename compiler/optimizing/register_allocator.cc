@@ -37,18 +37,21 @@ RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator,
         handled_(allocator, 0),
         active_(allocator, 0),
         inactive_(allocator, 0),
-        physical_register_intervals_(allocator, codegen->GetNumberOfCoreRegisters()),
+        physical_core_register_intervals_(allocator, codegen->GetNumberOfCoreRegisters()),
+        physical_fp_register_intervals_(allocator, codegen->GetNumberOfFloatingPointRegisters()),
         temp_intervals_(allocator, 4),
         spill_slots_(allocator, kDefaultNumberOfSpillSlots),
         safepoints_(allocator, 0),
         processing_core_registers_(false),
         number_of_registers_(-1),
         registers_array_(nullptr),
-        blocked_registers_(codegen->GetBlockedCoreRegisters()),
+        blocked_core_registers_(codegen->GetBlockedCoreRegisters()),
+        blocked_fp_registers_(codegen->GetBlockedFloatingPointRegisters()),
         reserved_out_slots_(0),
         maximum_number_of_live_registers_(0) {
   codegen->SetupBlockedRegisters();
-  physical_register_intervals_.SetSize(codegen->GetNumberOfCoreRegisters());
+  physical_core_register_intervals_.SetSize(codegen->GetNumberOfCoreRegisters());
+  physical_fp_register_intervals_.SetSize(codegen->GetNumberOfFloatingPointRegisters());
   // Always reserve for the current method and the graph's max out registers.
   // TODO: compute it instead.
   reserved_out_slots_ = 1 + codegen->GetGraph()->GetMaximumNumberOfOutVRegs();
@@ -65,8 +68,10 @@ bool RegisterAllocator::CanAllocateRegistersFor(const HGraph& graph,
          it.Advance()) {
       HInstruction* current = it.Current();
       if (current->GetType() == Primitive::kPrimLong && instruction_set != kX86_64) return false;
-      if (current->GetType() == Primitive::kPrimFloat) return false;
-      if (current->GetType() == Primitive::kPrimDouble) return false;
+      if ((current->GetType() == Primitive::kPrimFloat || current->GetType() == Primitive::kPrimDouble)
+          && instruction_set != kX86_64) {
+        return false;
+      }
     }
   }
   return true;
@@ -93,14 +98,22 @@ void RegisterAllocator::AllocateRegisters() {
 
 void RegisterAllocator::BlockRegister(Location location,
                                       size_t start,
-                                      size_t end,
-                                      Primitive::Type type) {
+                                      size_t end) {
   int reg = location.reg();
-  LiveInterval* interval = physical_register_intervals_.Get(reg);
+  DCHECK(location.IsRegister() || location.IsFpuRegister());
+  LiveInterval* interval = location.IsRegister()
+      ? physical_core_register_intervals_.Get(reg)
+      : physical_fp_register_intervals_.Get(reg);
+  Primitive::Type type = location.IsRegister()
+      ? Primitive::kPrimInt
+      : Primitive::kPrimDouble;
   if (interval == nullptr) {
     interval = LiveInterval::MakeFixedInterval(allocator_, reg, type);
-    physical_register_intervals_.Put(reg, interval);
-    inactive_.Add(interval);
+    if (location.IsRegister()) {
+      physical_core_register_intervals_.Put(reg, interval);
+    } else {
+      physical_fp_register_intervals_.Put(reg, interval);
+    }
   }
   DCHECK(interval->GetRegister() == reg);
   interval->AddRange(start, end);
@@ -123,7 +136,16 @@ void RegisterAllocator::AllocateRegistersInternal() {
   registers_array_ = allocator_->AllocArray<size_t>(number_of_registers_);
   processing_core_registers_ = true;
   unhandled_ = &unhandled_core_intervals_;
+  for (size_t i = 0, e = physical_core_register_intervals_.Size(); i < e; ++i) {
+    LiveInterval* fixed = physical_core_register_intervals_.Get(i);
+    if (fixed != nullptr) {
+      inactive_.Add(fixed);
+    }
+  }
   LinearScan();
+
+  size_t saved_maximum_number_of_live_registers = maximum_number_of_live_registers_;
+  maximum_number_of_live_registers_ = 0;
 
   inactive_.Reset();
   active_.Reset();
@@ -133,9 +155,14 @@ void RegisterAllocator::AllocateRegistersInternal() {
   registers_array_ = allocator_->AllocArray<size_t>(number_of_registers_);
   processing_core_registers_ = false;
   unhandled_ = &unhandled_fp_intervals_;
-  // TODO: Enable FP register allocation.
-  DCHECK(unhandled_->IsEmpty());
+  for (size_t i = 0, e = physical_fp_register_intervals_.Size(); i < e; ++i) {
+    LiveInterval* fixed = physical_fp_register_intervals_.Get(i);
+    if (fixed != nullptr) {
+      inactive_.Add(fixed);
+    }
+  }
   LinearScan();
+  maximum_number_of_live_registers_ += saved_maximum_number_of_live_registers;
 }
 
 void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
@@ -148,8 +175,9 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
   for (size_t i = 0; i < locations->GetTempCount(); ++i) {
     Location temp = locations->GetTemp(i);
     if (temp.IsRegister()) {
-      BlockRegister(temp, position, position + 1, Primitive::kPrimInt);
+      BlockRegister(temp, position, position + 1);
     } else {
+      DCHECK(temp.IsUnallocated());
       LiveInterval* interval = LiveInterval::MakeTempInterval(allocator_, Primitive::kPrimInt);
       temp_intervals_.Add(interval);
       interval->AddRange(position, position + 1);
@@ -159,10 +187,6 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
 
   bool core_register = (instruction->GetType() != Primitive::kPrimDouble)
       && (instruction->GetType() != Primitive::kPrimFloat);
-
-  GrowableArray<LiveInterval*>& unhandled = core_register
-      ? unhandled_core_intervals_
-      : unhandled_fp_intervals_;
 
   if (locations->CanCall()) {
     if (!instruction->IsSuspendCheck()) {
@@ -180,7 +204,8 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
       // maximum before updating locations.
       LiveInterval* interval = LiveInterval::MakeSlowPathInterval(allocator_, instruction);
       interval->AddRange(position, position + 1);
-      unhandled.Add(interval);
+      unhandled_core_intervals_.Add(interval);
+      unhandled_fp_intervals_.Add(interval);
     }
   }
 
@@ -189,20 +214,28 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
     for (size_t i = 0; i < codegen_->GetNumberOfCoreRegisters(); ++i) {
       BlockRegister(Location::RegisterLocation(i),
                     position,
-                    position + 1,
-                    Primitive::kPrimInt);
+                    position + 1);
+    }
+    for (size_t i = 0; i < codegen_->GetNumberOfFloatingPointRegisters(); ++i) {
+      BlockRegister(Location::FpuRegisterLocation(i),
+                    position,
+                    position + 1);
     }
   }
 
   for (size_t i = 0; i < instruction->InputCount(); ++i) {
     Location input = locations->InAt(i);
-    if (input.IsRegister()) {
-      BlockRegister(input, position, position + 1, instruction->InputAt(i)->GetType());
+    if (input.IsRegister() || input.IsFpuRegister()) {
+      BlockRegister(input, position, position + 1);
     }
   }
 
   LiveInterval* current = instruction->GetLiveInterval();
   if (current == nullptr) return;
+
+  GrowableArray<LiveInterval*>& unhandled = core_register
+      ? unhandled_core_intervals_
+      : unhandled_fp_intervals_;
 
   DCHECK(unhandled.IsEmpty() || current->StartsBeforeOrAt(unhandled.Peek()));
   // Some instructions define their output in fixed register/stack slot. We need
@@ -213,11 +246,11 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
   //
   // The backwards walking ensures the ranges are ordered on increasing start positions.
   Location output = locations->Out();
-  if (output.IsRegister()) {
+  if (output.IsRegister() || output.IsFpuRegister()) {
     // Shift the interval's start by one to account for the blocked register.
     current->SetFrom(position + 1);
     current->SetRegister(output.reg());
-    BlockRegister(output, position, position + 1, instruction->GetType());
+    BlockRegister(output, position, position + 1);
   } else if (!locations->OutputOverlapsWithInputs()) {
     // Shift the interval's start by one to not interfere with the inputs.
     current->SetFrom(position + 1);
@@ -281,10 +314,19 @@ bool RegisterAllocator::ValidateInternal(bool log_fatal_on_failure) const {
     }
   }
 
-  for (size_t i = 0, e = physical_register_intervals_.Size(); i < e; ++i) {
-    LiveInterval* fixed = physical_register_intervals_.Get(i);
-    if (fixed != nullptr && ShouldProcess(processing_core_registers_, fixed)) {
-      intervals.Add(fixed);
+  if (processing_core_registers_) {
+    for (size_t i = 0, e = physical_core_register_intervals_.Size(); i < e; ++i) {
+      LiveInterval* fixed = physical_core_register_intervals_.Get(i);
+      if (fixed != nullptr) {
+        intervals.Add(fixed);
+      }
+    }
+  } else {
+    for (size_t i = 0, e = physical_fp_register_intervals_.Size(); i < e; ++i) {
+      LiveInterval* fixed = physical_fp_register_intervals_.Get(i);
+      if (fixed != nullptr) {
+        intervals.Add(fixed);
+      }
     }
   }
 
@@ -377,10 +419,10 @@ void RegisterAllocator::DumpInterval(std::ostream& stream, LiveInterval* interva
   interval->Dump(stream);
   stream << ": ";
   if (interval->HasRegister()) {
-    if (processing_core_registers_) {
-      codegen_->DumpCoreRegister(stream, interval->GetRegister());
-    } else {
+    if (interval->IsFloatingPoint()) {
       codegen_->DumpFloatingPointRegister(stream, interval->GetRegister());
+    } else {
+      codegen_->DumpCoreRegister(stream, interval->GetRegister());
     }
   } else {
     stream << "spilled";
@@ -522,10 +564,9 @@ bool RegisterAllocator::TryAllocateFreeReg(LiveInterval* current) {
 }
 
 bool RegisterAllocator::IsBlocked(int reg) const {
-  // TODO: This only works for core registers and needs to be adjusted for
-  // floating point registers.
-  DCHECK(processing_core_registers_);
-  return blocked_registers_[reg];
+  return processing_core_registers_
+      ? blocked_core_registers_[reg]
+      : blocked_fp_registers_[reg];
 }
 
 // Find the register that is used the last, and spill the interval
@@ -727,7 +768,10 @@ void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
 }
 
 static bool IsValidDestination(Location destination) {
-  return destination.IsRegister() || destination.IsStackSlot() || destination.IsDoubleStackSlot();
+  return destination.IsRegister()
+      || destination.IsFpuRegister()
+      || destination.IsStackSlot()
+      || destination.IsDoubleStackSlot();
 }
 
 void RegisterAllocator::AddInputMoveFor(HInstruction* user,
@@ -877,7 +921,9 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
   if (current->HasSpillSlot() && current->HasRegister()) {
     // We spill eagerly, so move must be at definition.
     InsertMoveAfter(interval->GetDefinedBy(),
-                    Location::RegisterLocation(interval->GetRegister()),
+                    interval->IsFloatingPoint()
+                        ? Location::FpuRegisterLocation(interval->GetRegister())
+                        : Location::RegisterLocation(interval->GetRegister()),
                     interval->NeedsTwoSpillSlots()
                         ? Location::DoubleStackSlot(interval->GetParent()->GetSpillSlot())
                         : Location::StackSlot(interval->GetParent()->GetSpillSlot()));
@@ -933,6 +979,10 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
           if (current->GetType() == Primitive::kPrimNot) {
             locations->SetRegisterBit(source.reg());
           }
+          break;
+        }
+        case Location::kFpuRegister: {
+          locations->AddLiveRegister(source);
           break;
         }
         case Location::kStackSlot:  // Fall-through
@@ -1098,6 +1148,7 @@ void RegisterAllocator::Resolve() {
       current = at;
     }
     LocationSummary* locations = at->GetLocations();
+    DCHECK(temp->GetType() == Primitive::kPrimInt);
     locations->SetTempAt(
         temp_index++, Location::RegisterLocation(temp->GetRegister()));
   }

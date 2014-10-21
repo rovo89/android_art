@@ -120,13 +120,11 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     output_<< std::endl;
   }
 
-  void DumpLocation(Location location, Primitive::Type type) {
+  void DumpLocation(Location location) {
     if (location.IsRegister()) {
-      if (type == Primitive::kPrimDouble || type == Primitive::kPrimFloat) {
-        codegen_.DumpFloatingPointRegister(output_, location.reg());
-      } else {
-        codegen_.DumpCoreRegister(output_, location.reg());
-      }
+      codegen_.DumpCoreRegister(output_, location.reg());
+    } else if (location.IsFpuRegister()) {
+      codegen_.DumpFloatingPointRegister(output_, location.reg());
     } else if (location.IsConstant()) {
       output_ << "constant";
       HConstant* constant = location.GetConstant();
@@ -150,9 +148,9 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     output_ << " (";
     for (size_t i = 0, e = instruction->NumMoves(); i < e; ++i) {
       MoveOperands* move = instruction->MoveOperandsAt(i);
-      DumpLocation(move->GetSource(), Primitive::kPrimInt);
+      DumpLocation(move->GetSource());
       output_ << " -> ";
-      DumpLocation(move->GetDestination(), Primitive::kPrimInt);
+      DumpLocation(move->GetDestination());
       if (i + 1 != e) {
         output_ << ", ";
       }
@@ -183,13 +181,13 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       if (locations != nullptr) {
         output_ << " ( ";
         for (size_t i = 0; i < instruction->InputCount(); ++i) {
-          DumpLocation(locations->InAt(i), instruction->InputAt(i)->GetType());
+          DumpLocation(locations->InAt(i));
           output_ << " ";
         }
         output_ << ")";
         if (locations->Out().IsValid()) {
           output_ << " -> ";
-          DumpLocation(locations->Out(), instruction->GetType());
+          DumpLocation(locations->Out());
         }
       }
       output_ << " (liveness: " << instruction->GetLifetimePosition() << ")";

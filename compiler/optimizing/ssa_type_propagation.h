@@ -34,6 +34,7 @@ class SsaTypePropagation : public ValueObject {
   void ProcessWorklist();
   void AddToWorklist(HPhi* phi);
   void AddDependentInstructionsToWorklist(HPhi* phi);
+  bool UpdateType(HPhi* phi);
 
   HGraph* const graph_;
   GrowableArray<HPhi*> worklist_;
