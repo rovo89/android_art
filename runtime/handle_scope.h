@@ -150,7 +150,7 @@ class HandleWrapper : public Handle<T> {
   }
 
  private:
-  T** obj_;
+  T** const obj_;
 };
 
 // Scoped handle storage of a fixed size that is usually stack allocated.
@@ -160,31 +160,10 @@ class PACKED(4) StackHandleScope FINAL : public HandleScope {
   explicit StackHandleScope(Thread* self);
   ~StackHandleScope();
 
-  // Currently unused, using this GetReference instead of the one in HandleScope is preferred to
-  // avoid compiler optimizations incorrectly optimizing out of bound array accesses.
-  // TODO: Remove this when it is un-necessary.
-  mirror::Object* GetReference(size_t i) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      ALWAYS_INLINE {
-    DCHECK_LT(i, number_of_references_);
-    return references_storage_[i].AsMirrorPtr();
-  }
-
-  Handle<mirror::Object> GetHandle(size_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      ALWAYS_INLINE {
-    DCHECK_LT(i, number_of_references_);
-    return Handle<mirror::Object>(&references_storage_[i]);
-  }
-
-  void SetReference(size_t i, mirror::Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      ALWAYS_INLINE {
-    DCHECK_LT(i, number_of_references_);
-    references_storage_[i].Assign(object);
-  }
-
   template<class T>
   Handle<T> NewHandle(T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetReference(pos_, object);
-    Handle<T> h(GetHandle(pos_));
+    Handle<T> h(GetHandle<T>(pos_));
     pos_++;
     return h;
   }
@@ -192,14 +171,26 @@ class PACKED(4) StackHandleScope FINAL : public HandleScope {
   template<class T>
   HandleWrapper<T> NewHandleWrapper(T** object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     SetReference(pos_, *object);
-    Handle<T> h(GetHandle(pos_));
+    Handle<T> h(GetHandle<T>(pos_));
     pos_++;
     return HandleWrapper<T>(object, h);
   }
 
  private:
-  // References_storage_ needs to be first so that it appears in the same location as
-  // HandleScope::references_.
+  template<class T>
+  ALWAYS_INLINE Handle<T> GetHandle(size_t i)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK_LT(i, kNumReferences);
+    return Handle<T>(&references_storage_[i]);
+  }
+
+  ALWAYS_INLINE void SetReference(size_t i, mirror::Object* object)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK_LT(i, kNumReferences);
+    references_storage_[i].Assign(object);
+  }
+
+  // Reference storage needs to be first as expected by the HandleScope layout.
   StackReference<mirror::Object> references_storage_[kNumReferences];
 
   // The thread that the stack handle scope is a linked list upon. The stack handle scope will

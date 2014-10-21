@@ -58,7 +58,7 @@ class ConstHandle {
   }
 
   ALWAYS_INLINE T* Get() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return reference_->AsMirrorPtr();
+    return down_cast<T*>(reference_->AsMirrorPtr());
   }
 
   ALWAYS_INLINE jobject ToJObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -70,24 +70,24 @@ class ConstHandle {
   }
 
  protected:
-  StackReference<T>* reference_;
-
   template<typename S>
   explicit ConstHandle(StackReference<S>* reference)
-      : reference_(reinterpret_cast<StackReference<T>*>(reference)) {
+      : reference_(reference) {
   }
   template<typename S>
   explicit ConstHandle(const ConstHandle<S>& handle)
-      : reference_(reinterpret_cast<StackReference<T>*>(handle.reference_)) {
+      : reference_(handle.reference_) {
   }
 
-  StackReference<T>* GetReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+  StackReference<mirror::Object>* GetReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
     return reference_;
   }
-  ALWAYS_INLINE const StackReference<T>* GetReference() const
+  ALWAYS_INLINE const StackReference<mirror::Object>* GetReference() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return reference_;
   }
+
+  StackReference<mirror::Object>* reference_;
 
  private:
   friend class BuildGenericJniFrameVisitor;
@@ -120,8 +120,8 @@ class Handle : public ConstHandle<T> {
   }
 
   ALWAYS_INLINE T* Assign(T* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    StackReference<T>* ref = ConstHandle<T>::GetReference();
-    T* const old = ref->AsMirrorPtr();
+    StackReference<mirror::Object>* ref = Handle<T>::GetReference();
+    T* old = down_cast<T*>(ref->AsMirrorPtr());
     ref->Assign(reference);
     return old;
   }
@@ -131,7 +131,6 @@ class Handle : public ConstHandle<T> {
       : ConstHandle<T>(handle) {
   }
 
- protected:
   template<typename S>
   explicit Handle(StackReference<S>* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : ConstHandle<T>(reference) {
@@ -152,7 +151,7 @@ class NullHandle : public Handle<T> {
   }
 
  private:
-  StackReference<T> null_ref_;
+  StackReference<mirror::Object> null_ref_;
 };
 
 }  // namespace art
