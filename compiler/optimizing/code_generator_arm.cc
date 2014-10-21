@@ -1219,15 +1219,16 @@ void LocationsBuilderARM::VisitMul(HMul* mul) {
       break;
     }
 
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-      LOG(FATAL) << "Unexpected mul type " << mul->GetResultType();
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresFpuRegister());
       break;
+    }
 
     default:
-      LOG(FATAL) << "Unimplemented mul type " << mul->GetResultType();
+      LOG(FATAL) << "Unexpected mul type " << mul->GetResultType();
   }
 }
 
@@ -1271,15 +1272,21 @@ void InstructionCodeGeneratorARM::VisitMul(HMul* mul) {
       __ add(out_hi, out_hi, ShifterOperand(IP));
       break;
     }
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-      LOG(FATAL) << "Unexpected mul type " << mul->GetResultType();
+
+    case Primitive::kPrimFloat: {
+      __ vmuls(FromDToLowS(out.As<DRegister>()),
+               FromDToLowS(first.As<DRegister>()),
+               FromDToLowS(second.As<DRegister>()));
       break;
+    }
+
+    case Primitive::kPrimDouble: {
+      __ vmuld(out.As<DRegister>(), first.As<DRegister>(), second.As<DRegister>());
+      break;
+    }
 
     default:
-      LOG(FATAL) << "Unimplemented mul type " << mul->GetResultType();
+      LOG(FATAL) << "Unexpected mul type " << mul->GetResultType();
   }
 }
 
