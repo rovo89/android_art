@@ -172,9 +172,6 @@ Runtime::~Runtime() {
     BackgroundMethodSamplingProfiler::Shutdown();
   }
 
-  // Shutdown the fault manager if it was initialized.
-  fault_manager.Shutdown();
-
   Trace::Shutdown();
 
   // Make sure to let the GC complete if it is running.
@@ -187,6 +184,10 @@ Runtime::~Runtime() {
 
   // Make sure all other non-daemon threads have terminated, and all daemon threads are suspended.
   delete thread_list_;
+
+  // Shutdown the fault manager if it was initialized.
+  fault_manager.Shutdown();
+
   delete monitor_list_;
   delete monitor_pool_;
   delete class_linker_;
