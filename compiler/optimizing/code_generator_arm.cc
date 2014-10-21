@@ -1016,6 +1016,47 @@ void InstructionCodeGeneratorARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
+void LocationsBuilderARM::VisitNeg(HNeg* neg) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(neg, LocationSummary::kNoCall);
+  switch (neg->GetResultType()) {
+    case Primitive::kPrimInt:
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister());
+      break;
+
+    case Primitive::kPrimLong:
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      LOG(FATAL) << "Not yet implemented neg type " << neg->GetResultType();
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected neg type " << neg->GetResultType();
+  }
+}
+
+void InstructionCodeGeneratorARM::VisitNeg(HNeg* neg) {
+  LocationSummary* locations = neg->GetLocations();
+  Location out = locations->Out();
+  Location in = locations->InAt(0);
+  switch (neg->GetResultType()) {
+    case Primitive::kPrimInt:
+      DCHECK(in.IsRegister());
+      __ rsbs(out.As<Register>(), in.As<Register>(), ShifterOperand(0));
+      break;
+
+    case Primitive::kPrimLong:
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      LOG(FATAL) << "Not yet implemented neg type " << neg->GetResultType();
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected neg type " << neg->GetResultType();
+  }
+}
+
 void LocationsBuilderARM::VisitAdd(HAdd* add) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(add, LocationSummary::kNoCall);
