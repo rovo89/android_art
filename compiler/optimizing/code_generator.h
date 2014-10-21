@@ -110,8 +110,18 @@ class CodeGenerator : public ArenaObject {
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const = 0;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const = 0;
   virtual InstructionSet GetInstructionSet() const = 0;
-  virtual void SaveCoreRegister(Location stack_location, uint32_t reg_id) = 0;
-  virtual void RestoreCoreRegister(Location stack_location, uint32_t reg_id) = 0;
+  // Saves the register in the stack. Returns the size taken on stack.
+  virtual size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) = 0;
+  // Restores the register from the stack. Returns the size taken on stack.
+  virtual size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) = 0;
+  virtual size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) {
+    LOG(FATAL) << "Unimplemented";
+    return 0u;
+  }
+  virtual size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) {
+    LOG(FATAL) << "Unimplemented";
+    return 0u;
+  }
 
   void RecordPcInfo(HInstruction* instruction, uint32_t dex_pc);
 
@@ -145,6 +155,7 @@ class CodeGenerator : public ArenaObject {
   void ClearSpillSlotsFromLoopPhisInStackMap(HSuspendCheck* suspend_check) const;
 
   bool* GetBlockedCoreRegisters() const { return blocked_core_registers_; }
+  bool* GetBlockedFloatingPointRegisters() const { return blocked_fpu_registers_; }
 
  protected:
   CodeGenerator(HGraph* graph,

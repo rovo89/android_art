@@ -358,6 +358,10 @@ class LiveInterval : public ArenaObject {
              || (location.GetPolicy() == Location::kSameAsFirstInput
                  && locations->InAt(0).GetPolicy() == Location::kRequiresRegister)) {
           return position;
+        } else if ((location.GetPolicy() == Location::kRequiresFpuRegister)
+                   || (location.GetPolicy() == Location::kSameAsFirstInput
+                       && locations->InAt(0).GetPolicy() == Location::kRequiresFpuRegister)) {
+          return position;
         }
       }
     }
@@ -368,7 +372,9 @@ class LiveInterval : public ArenaObject {
       size_t use_position = use->GetPosition();
       if (use_position >= position && !use->GetIsEnvironment()) {
         Location location = use->GetUser()->GetLocations()->InAt(use->GetInputIndex());
-        if (location.IsUnallocated() && location.GetPolicy() == Location::kRequiresRegister) {
+        if (location.IsUnallocated()
+            && (location.GetPolicy() == Location::kRequiresRegister
+                || location.GetPolicy() == Location::kRequiresFpuRegister)) {
           // Return the lifetime just before the user, so that the interval has a register
           // when entering the user.
           return use->GetUser()->GetLifetimePosition() - 1;
@@ -502,6 +508,10 @@ class LiveInterval : public ArenaObject {
   // slots for spilling.
   bool NeedsTwoSpillSlots() const;
 
+  bool IsFloatingPoint() const {
+    return type_ == Primitive::kPrimFloat || type_ == Primitive::kPrimDouble;
+  }
+
   // Converts the location of the interval to a `Location` object.
   Location ToLocation() const;
 
@@ -512,6 +522,9 @@ class LiveInterval : public ArenaObject {
   const LiveInterval& GetIntervalAt(size_t position) const;
 
   bool IsTemp() const { return is_temp_; }
+
+  // Returns whether `other` and `this` share the same kind of register.
+  bool SameRegisterKind(Location other) const;
 
  private:
   ArenaAllocator* const allocator_;

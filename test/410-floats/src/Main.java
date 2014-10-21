@@ -17,9 +17,10 @@
 public class Main {
   public static void main(String[] args) {
     assertEquals(4.2f, returnFloat());
-    float[] a = new float[1];
+    float[] a = new float[2];
     a[0] = 42.2f;
-    assertEquals(42.2f, returnFloat(a));
+    a[1] = 3.2f;
+    assertEquals(45.4f, returnFloat(a));
 
     assertEquals(4.4, returnDouble());
     double[] b = new double[1];
@@ -36,6 +37,9 @@ public class Main {
     assertEquals(3.1, invokeTakeADouble(3.1));
     assertEquals(12.7, invokeTakeThreeDouble(3.1, 4.4, 5.2));
     assertEquals(12.7f, invokeTakeThreeFloat(3.1f, 4.4f, 5.2f));
+
+    testArrayOperations(new float[2], 0, 1.2f, 3.4f);
+    testArrayOperations(new double[2], 0, 4.1, 7.6);
   }
 
   public static float invokeReturnFloat() {
@@ -51,7 +55,7 @@ public class Main {
   }
 
   public static float returnFloat(float[] a) {
-    return a[0];
+    return a[0] + a[1];
   }
 
   public static double returnDouble() {
@@ -92,6 +96,34 @@ public class Main {
 
   public static float invokeTakeThreeFloat(float a, float b, float c) {
     return takeThreeFloat(a, b, c);
+  }
+
+  // Test simple operations on a float array to ensure the register allocator works
+  // properly.
+  public static void testArrayOperations(float[] a, int index, float value1, float value2) {
+    a[0] = value1;
+    a[1] = value2;
+    assertEquals(value1 + value2, a[0] + a[1]);
+    a[0] = 0.0f;
+    a[1] = 0.0f;
+    assertEquals(0.0f, a[0] + a[1]);
+    a[index] = value1;
+    a[index + 1] = value2;
+    assertEquals(value1 + value2, a[0] + a[1]);
+  }
+
+  // Test simple operations on a double array to ensure the register allocator works
+  // properly.
+  public static void testArrayOperations(double[] a, int index, double value1, double value2) {
+    a[0] = value1;
+    a[1] = value2;
+    assertEquals(value1 + value2, a[0] + a[1]);
+    a[0] = 0.0;
+    a[1] = 0.0;
+    assertEquals(0.0, a[0] + a[1]);
+    a[index] = value1;
+    a[index + 1] = value2;
+    assertEquals(value1 + value2, a[0] + a[1]);
   }
 
   public static void assertEquals(float expected, float actual) {

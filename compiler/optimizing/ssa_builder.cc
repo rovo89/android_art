@@ -129,8 +129,112 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
   }
 }
 
+/**
+ * Constants in the Dex format are not typed. So the builder types them as
+ * integers, but when doing the SSA form, we might realize the constant
+ * is used for floating point operations. We create a floating-point equivalent
+ * constant to make the operations correctly typed.
+ */
+static HFloatConstant* GetFloatEquivalent(HIntConstant* constant) {
+  // We place the floating point constant next to this constant.
+  HFloatConstant* result = constant->GetNext()->AsFloatConstant();
+  if (result == nullptr) {
+    HGraph* graph = constant->GetBlock()->GetGraph();
+    ArenaAllocator* allocator = graph->GetArena();
+    result = new (allocator) HFloatConstant(bit_cast<int32_t, float>(constant->GetValue()));
+    constant->GetBlock()->InsertInstructionBefore(result, constant->GetNext());
+  } else {
+    // If there is already a constant with the expected type, we know it is
+    // the floating point equivalent of this constant.
+    DCHECK_EQ((bit_cast<float, int32_t>(result->GetValue())), constant->GetValue());
+  }
+  return result;
+}
+
+/**
+ * Wide constants in the Dex format are not typed. So the builder types them as
+ * longs, but when doing the SSA form, we might realize the constant
+ * is used for floating point operations. We create a floating-point equivalent
+ * constant to make the operations correctly typed.
+ */
+static HDoubleConstant* GetDoubleEquivalent(HLongConstant* constant) {
+  // We place the floating point constant next to this constant.
+  HDoubleConstant* result = constant->GetNext()->AsDoubleConstant();
+  if (result == nullptr) {
+    HGraph* graph = constant->GetBlock()->GetGraph();
+    ArenaAllocator* allocator = graph->GetArena();
+    result = new (allocator) HDoubleConstant(bit_cast<int64_t, double>(constant->GetValue()));
+    constant->GetBlock()->InsertInstructionBefore(result, constant->GetNext());
+  } else {
+    // If there is already a constant with the expected type, we know it is
+    // the floating point equivalent of this constant.
+    DCHECK_EQ((bit_cast<double, int64_t>(result->GetValue())), constant->GetValue());
+  }
+  return result;
+}
+
+/**
+ * Because of Dex format, we might end up having the same phi being
+ * used for non floating point operations and floating point operations. Because
+ * we want the graph to be correctly typed (and thereafter avoid moves between
+ * floating point registers and core registers), we need to create a copy of the
+ * phi with a floating point type.
+ */
+static HPhi* GetFloatOrDoubleEquivalentOfPhi(HPhi* phi, Primitive::Type type) {
+  // We place the floating point phi next to this phi.
+  HInstruction* next = phi->GetNext();
+  if (next == nullptr
+      || (next->GetType() != Primitive::kPrimDouble && next->GetType() != Primitive::kPrimFloat)) {
+    ArenaAllocator* allocator = phi->GetBlock()->GetGraph()->GetArena();
+    HPhi* new_phi = new (allocator) HPhi(allocator, phi->GetRegNumber(), phi->InputCount(), type);
+    for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
+      // Copy the inputs. Note that the graph may not be correctly typed by doing this copy,
+      // but the type propagation phase will fix it.
+      new_phi->SetRawInputAt(i, phi->InputAt(i));
+    }
+    phi->GetBlock()->InsertPhiAfter(new_phi, phi);
+    return new_phi;
+  } else {
+    // If there is already a phi with the expected type, we know it is the floating
+    // point equivalent of this phi.
+    DCHECK_EQ(next->AsPhi()->GetRegNumber(), phi->GetRegNumber());
+    return next->AsPhi();
+  }
+}
+
+HInstruction* SsaBuilder::GetFloatOrDoubleEquivalent(HInstruction* user,
+                                                     HInstruction* value,
+                                                     Primitive::Type type) {
+  if (value->IsArrayGet()) {
+    // The verifier has checked that values in arrays cannot be used for both
+    // floating point and non-floating point operations. It is therefore safe to just
+    // change the type of the operation.
+    value->AsArrayGet()->SetType(type);
+    return value;
+  } else if (value->IsLongConstant()) {
+    return GetDoubleEquivalent(value->AsLongConstant());
+  } else if (value->IsIntConstant()) {
+    return GetFloatEquivalent(value->AsIntConstant());
+  } else if (value->IsPhi()) {
+    return GetFloatOrDoubleEquivalentOfPhi(value->AsPhi(), type);
+  } else {
+    // For other instructions, we assume the verifier has checked that the dex format is correctly
+    // typed and the value in a dex register will not be used for both floating point and
+    // non-floating point operations. So the only reason an instruction would want a floating
+    // point equivalent is for an unused phi that will be removed by the dead phi elimination phase.
+    DCHECK(user->IsPhi());
+    return value;
+  }
+}
+
 void SsaBuilder::VisitLoadLocal(HLoadLocal* load) {
-  load->ReplaceWith(current_locals_->Get(load->GetLocal()->GetRegNumber()));
+  HInstruction* value = current_locals_->Get(load->GetLocal()->GetRegNumber());
+  if (load->GetType() != value->GetType()
+      && (load->GetType() == Primitive::kPrimFloat || load->GetType() == Primitive::kPrimDouble)) {
+    // If the operation requests a specific type, we make sure its input is of that type.
+    value = GetFloatOrDoubleEquivalent(load, value, load->GetType());
+  }
+  load->ReplaceWith(value);
   load->GetBlock()->RemoveInstruction(load);
 }
 

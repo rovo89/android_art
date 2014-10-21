@@ -182,12 +182,14 @@ void CodeGeneratorX86::DumpFloatingPointRegister(std::ostream& stream, int reg) 
   stream << X86ManagedRegister::FromXmmRegister(XmmRegister(reg));
 }
 
-void CodeGeneratorX86::SaveCoreRegister(Location stack_location, uint32_t reg_id) {
-  __ movl(Address(ESP, stack_location.GetStackIndex()), static_cast<Register>(reg_id));
+size_t CodeGeneratorX86::SaveCoreRegister(size_t stack_index, uint32_t reg_id) {
+  __ movl(Address(ESP, stack_index), static_cast<Register>(reg_id));
+  return kX86WordSize;
 }
 
-void CodeGeneratorX86::RestoreCoreRegister(Location stack_location, uint32_t reg_id) {
-  __ movl(static_cast<Register>(reg_id), Address(ESP, stack_location.GetStackIndex()));
+size_t CodeGeneratorX86::RestoreCoreRegister(size_t stack_index, uint32_t reg_id) {
+  __ movl(static_cast<Register>(reg_id), Address(ESP, stack_index));
+  return kX86WordSize;
 }
 
 CodeGeneratorX86::CodeGeneratorX86(HGraph* graph)
@@ -792,6 +794,26 @@ void LocationsBuilderX86::VisitLongConstant(HLongConstant* constant) {
 }
 
 void InstructionCodeGeneratorX86::VisitLongConstant(HLongConstant* constant) {
+  // Will be generated at use site.
+}
+
+void LocationsBuilderX86::VisitFloatConstant(HFloatConstant* constant) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(constant, LocationSummary::kNoCall);
+  locations->SetOut(Location::ConstantLocation(constant));
+}
+
+void InstructionCodeGeneratorX86::VisitFloatConstant(HFloatConstant* constant) {
+  // Will be generated at use site.
+}
+
+void LocationsBuilderX86::VisitDoubleConstant(HDoubleConstant* constant) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(constant, LocationSummary::kNoCall);
+  locations->SetOut(Location::ConstantLocation(constant));
+}
+
+void InstructionCodeGeneratorX86::VisitDoubleConstant(HDoubleConstant* constant) {
   // Will be generated at use site.
 }
 

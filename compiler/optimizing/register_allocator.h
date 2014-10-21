@@ -94,7 +94,7 @@ class RegisterAllocator {
   bool IsBlocked(int reg) const;
 
   // Update the interval for the register in `location` to cover [start, end).
-  void BlockRegister(Location location, size_t start, size_t end, Primitive::Type type);
+  void BlockRegister(Location location, size_t start, size_t end);
 
   // Allocate a spill slot for the given interval.
   void AllocateSpillSlotFor(LiveInterval* interval);
@@ -156,7 +156,8 @@ class RegisterAllocator {
 
   // Fixed intervals for physical registers. Such intervals cover the positions
   // where an instruction requires a specific register.
-  GrowableArray<LiveInterval*> physical_register_intervals_;
+  GrowableArray<LiveInterval*> physical_core_register_intervals_;
+  GrowableArray<LiveInterval*> physical_fp_register_intervals_;
 
   // Intervals for temporaries. Such intervals cover the positions
   // where an instruction requires a temporary.
@@ -179,7 +180,8 @@ class RegisterAllocator {
   size_t* registers_array_;
 
   // Blocked registers, as decided by the code generator.
-  bool* const blocked_registers_;
+  bool* const blocked_core_registers_;
+  bool* const blocked_fp_registers_;
 
   // Slots reserved for out arguments.
   size_t reserved_out_slots_;

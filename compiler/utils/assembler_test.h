@@ -373,7 +373,7 @@ class AssemblerTest : public testing::Test {
         }
       } else {
         // This will output the assembly.
-        EXPECT_EQ(*data, *res.code) << "Outputs (and disassembly) not identical.";
+        EXPECT_EQ(*res.code, *data) << "Outputs (and disassembly) not identical.";
       }
     }
   }
