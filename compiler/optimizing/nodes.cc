@@ -572,15 +572,26 @@ void HGraphVisitor::VisitBasicBlock(HBasicBlock* block) {
   }
 }
 
-HConstant* HBinaryOperation::TryStaticEvaluation(ArenaAllocator* allocator) const {
+HConstant* HUnaryOperation::TryStaticEvaluation() const {
+  if (GetInput()->IsIntConstant()) {
+    int32_t value = Evaluate(GetInput()->AsIntConstant()->GetValue());
+    return new(GetBlock()->GetGraph()->GetArena()) HIntConstant(value);
+  } else if (GetInput()->IsLongConstant()) {
+    LOG(FATAL) << "Static evaluation of long unary operations is not yet implemented.";
+    return nullptr;
+  }
+  return nullptr;
+}
+
+HConstant* HBinaryOperation::TryStaticEvaluation() const {
   if (GetLeft()->IsIntConstant() && GetRight()->IsIntConstant()) {
     int32_t value = Evaluate(GetLeft()->AsIntConstant()->GetValue(),
                              GetRight()->AsIntConstant()->GetValue());
-    return new(allocator) HIntConstant(value);
+    return new(GetBlock()->GetGraph()->GetArena()) HIntConstant(value);
   } else if (GetLeft()->IsLongConstant() && GetRight()->IsLongConstant()) {
     int64_t value = Evaluate(GetLeft()->AsLongConstant()->GetValue(),
                              GetRight()->AsLongConstant()->GetValue());
-    return new(allocator) HLongConstant(value);
+    return new(GetBlock()->GetGraph()->GetArena()) HLongConstant(value);
   }
   return nullptr;
 }
