@@ -850,14 +850,14 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   // Pre-allocate an OutOfMemoryError for the double-OOME case.
   self->ThrowNewException(ThrowLocation(), "Ljava/lang/OutOfMemoryError;",
                           "OutOfMemoryError thrown while trying to throw OutOfMemoryError; "
-                          "no stack available");
+                          "no stack trace available");
   pre_allocated_OutOfMemoryError_ = GcRoot<mirror::Throwable>(self->GetException(NULL));
   self->ClearException();
 
   // Pre-allocate a NoClassDefFoundError for the common case of failing to find a system class
   // ahead of checking the application's class loader.
   self->ThrowNewException(ThrowLocation(), "Ljava/lang/NoClassDefFoundError;",
-                          "Class not found using the boot class loader; no stack available");
+                          "Class not found using the boot class loader; no stack trace available");
   pre_allocated_NoClassDefFoundError_ = GcRoot<mirror::Throwable>(self->GetException(NULL));
   self->ClearException();
 
