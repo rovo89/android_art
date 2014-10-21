@@ -526,9 +526,9 @@ else
         "./${run}" $run_args "$@" >"$output" 2>&1
     else
         cp "$build_output" "$output"
-        echo "Failed to build in tmpdir=${tmp_dir} from oldwd=${oldwd} and cwd=`pwd`"
-        echo "Non-canonical tmpdir was ${noncanonical_tmp_dir}"
-        echo "build exit status: $build_exit" >>"$output"
+        echo "Failed to build in tmpdir=${tmp_dir} from oldwd=${oldwd} and cwd=`pwd`" >> "$output"
+        echo "Non-canonical tmpdir was ${noncanonical_tmp_dir}" >> "$output"
+        echo "build exit status: $build_exit" >> "$output"
     fi
     ./$check_cmd "$expected" "$output"
     if [ "$?" = "0" ]; then
