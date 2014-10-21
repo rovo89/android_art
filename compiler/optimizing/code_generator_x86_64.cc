@@ -1831,7 +1831,7 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
     } else if (destination.IsFpuRegister()) {
       __ movsd(destination.As<XmmRegister>(), Address(CpuRegister(RSP), source.GetStackIndex()));
     } else {
-      DCHECK(destination.IsDoubleStackSlot());
+      DCHECK(destination.IsDoubleStackSlot()) << destination;
       __ movq(CpuRegister(TMP), Address(CpuRegister(RSP), source.GetStackIndex()));
       __ movq(Address(CpuRegister(RSP), destination.GetStackIndex()), CpuRegister(TMP));
     }
