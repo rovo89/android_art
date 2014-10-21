@@ -159,7 +159,7 @@ class HandleWrapper : public MutableHandle<T> {
   }
 
  private:
-  T** obj_;
+  T** const obj_;
 };
 
 // Scoped handle storage of a fixed size that is usually stack allocated.
@@ -169,19 +169,28 @@ class PACKED(4) StackHandleScope FINAL : public HandleScope {
   explicit StackHandleScope(Thread* self);
   ~StackHandleScope();
 
-  // Currently unused, using this GetReference instead of the one in HandleScope is preferred to
-  // avoid compiler optimizations incorrectly optimizing out of bound array accesses.
-  // TODO: Remove this when it is un-necessary.
-  ALWAYS_INLINE mirror::Object* GetReference(size_t i) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK_LT(i, kNumReferences);
-    return GetReferences()[i].AsMirrorPtr();
+  template<class T>
+  MutableHandle<T> NewHandle(T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SetReference(pos_, object);
+    MutableHandle<T> h(GetHandle<T>(pos_));
+    pos_++;
+    return h;
   }
 
-  ALWAYS_INLINE MutableHandle<mirror::Object> GetHandle(size_t i)
+  template<class T>
+  HandleWrapper<T> NewHandleWrapper(T** object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SetReference(pos_, *object);
+    MutableHandle<T> h(GetHandle<T>(pos_));
+    pos_++;
+    return HandleWrapper<T>(object, h);
+  }
+
+ private:
+  template<class T>
+  ALWAYS_INLINE MutableHandle<T> GetHandle(size_t i)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_LT(i, kNumReferences);
-    return MutableHandle<mirror::Object>(&GetReferences()[i]);
+    return MutableHandle<T>(&GetReferences()[i]);
   }
 
   ALWAYS_INLINE void SetReference(size_t i, mirror::Object* object)
@@ -190,23 +199,6 @@ class PACKED(4) StackHandleScope FINAL : public HandleScope {
     GetReferences()[i].Assign(object);
   }
 
-  template<class T>
-  MutableHandle<T> NewHandle(T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    SetReference(pos_, object);
-    MutableHandle<T> h(GetHandle(pos_));
-    pos_++;
-    return h;
-  }
-
-  template<class T>
-  HandleWrapper<T> NewHandleWrapper(T** object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    SetReference(pos_, *object);
-    MutableHandle<T> h(GetHandle(pos_));
-    pos_++;
-    return HandleWrapper<T>(object, h);
-  }
-
- private:
   // Reference storage needs to be first as expected by the HandleScope layout.
   StackReference<mirror::Object> storage_[kNumReferences];
 
