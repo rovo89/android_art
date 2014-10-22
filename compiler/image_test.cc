@@ -98,7 +98,7 @@ TEST_F(ImageTest, WriteRead) {
   {
     ImageWriter writer(*compiler_driver_.get());
     bool success_image = writer.Write(image_file.GetFilename(), requested_image_base,
-                                      dup_oat->GetPath(), dup_oat->GetPath());
+                                      dup_oat->GetPath(), dup_oat->GetPath(), /*compile_pic*/false);
     ASSERT_TRUE(success_image);
     bool success_fixup = ElfFixup::Fixup(dup_oat.get(), writer.GetOatDataBegin());
     ASSERT_TRUE(success_fixup);
@@ -210,7 +210,8 @@ TEST_F(ImageTest, ImageHeaderIsValid) {
                              oat_file_begin,
                              oat_data_begin,
                              oat_data_end,
-                             oat_file_end);
+                             oat_file_end,
+                             /*compile_pic*/false);
     ASSERT_TRUE(image_header.IsValid());
 
     char* magic = const_cast<char*>(image_header.GetMagic());

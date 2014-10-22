@@ -470,6 +470,12 @@ size_t OatHeader::GetHeaderSize() const {
   return sizeof(OatHeader) + key_value_store_size_;
 }
 
+bool OatHeader::IsPic() const {
+  const char* pic_string = GetStoreValueByKey(OatHeader::kPicKey);
+  static const char kTrue[] = "true";
+  return (pic_string != nullptr && strncmp(pic_string, kTrue, sizeof(kTrue)) == 0);
+}
+
 void OatHeader::Flatten(const SafeMap<std::string, std::string>* key_value_store) {
   char* data_ptr = reinterpret_cast<char*>(&key_value_store_);
   if (key_value_store != nullptr) {
