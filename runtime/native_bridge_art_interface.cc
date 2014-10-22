@@ -119,7 +119,6 @@ void PreInitializeNativeBridge(std::string dir) {
 #ifndef __APPLE__  // Mac OS does not support CLONE_NEWNS.
   if (unshare(CLONE_NEWNS) == -1) {
     LOG(WARNING) << "Could not create mount namespace.";
-    return;
   }
   android::PreInitializeNativeBridge(dir.c_str(), GetInstructionSetString(kRuntimeISA));
 #endif
