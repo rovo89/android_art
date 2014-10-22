@@ -602,7 +602,11 @@ HConstant* HUnaryOperation::TryStaticEvaluation() const {
     int32_t value = Evaluate(GetInput()->AsIntConstant()->GetValue());
     return new(GetBlock()->GetGraph()->GetArena()) HIntConstant(value);
   } else if (GetInput()->IsLongConstant()) {
-    LOG(FATAL) << "Static evaluation of long unary operations is not yet implemented.";
+    // TODO: Implement static evaluation of long unary operations.
+    //
+    // Do not exit with a fatal condition here.  Instead, simply
+    // return `nullptr' to notify the caller that this instruction
+    // cannot (yet) be statically evaluated.
     return nullptr;
   }
   return nullptr;
