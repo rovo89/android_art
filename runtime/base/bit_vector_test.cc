@@ -141,4 +141,30 @@ TEST(BitVector, SetInitialBits) {
   EXPECT_EQ(64u, bv.NumSetBits());
 }
 
+TEST(BitVector, UnionIfNotIn) {
+  {
+    BitVector first(2, true, Allocator::GetMallocAllocator());
+    BitVector second(5, true, Allocator::GetMallocAllocator());
+    BitVector third(5, true, Allocator::GetMallocAllocator());
+
+    second.SetBit(64);
+    third.SetBit(64);
+    bool changed = first.UnionIfNotIn(&second, &third);
+    EXPECT_EQ(0u, first.NumSetBits());
+    EXPECT_FALSE(changed);
+  }
+
+  {
+    BitVector first(2, true, Allocator::GetMallocAllocator());
+    BitVector second(5, true, Allocator::GetMallocAllocator());
+    BitVector third(5, true, Allocator::GetMallocAllocator());
+
+    second.SetBit(64);
+    bool changed = first.UnionIfNotIn(&second, &third);
+    EXPECT_EQ(1u, first.NumSetBits());
+    EXPECT_TRUE(changed);
+    EXPECT_TRUE(first.IsBitSet(64));
+  }
+}
+
 }  // namespace art
