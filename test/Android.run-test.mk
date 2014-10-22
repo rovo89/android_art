@@ -66,11 +66,6 @@ TEST_ART_RUN_TEST_BUILD_RULES :=
 ########################################################################
 # General rules to build and run a run-test.
 
-# Test rule names or of the form:
-# test-art-{1: host or target}-run-test-{2: prebuild no-prebuild no-dex2oat}-
-#    {3: interpreter default optimizing}-{4: relocate no-relocate relocate-no-patchoat}-
-#    {5: trace or no-trace}-{6: gcstress gcverify cms}-{7: forcecopy checkjni jni}-
-#    {8: no-image or image}-{9: test name}{10: 32 or 64}
 TARGET_TYPES := host target
 PREBUILD_TYPES := prebuild
 ifeq ($(ART_TEST_RUN_TEST_NO_PREBUILD),true)
@@ -360,7 +355,7 @@ ART_TEST_HOST_RUN_TEST_DEPENDENCIES += \
 endif
 
 # Create a rule to build and run a tests following the form:
-# test-art-{1: host or target}-run-test-{2:debug ndebug}-{3: prebuild no-prebuild no-dex2oat}-
+# test-art-{1: host or target}-run-test-{2: debug ndebug}-{3: prebuild no-prebuild no-dex2oat}-
 #    {4: interpreter default optimizing}-{5: relocate no-relocate relocate-no-patchoat}-
 #    {6: trace or no-trace}-{7: gcstress gcverify cms}-{8: forcecopy checkjni jni}-
 #    {9: no-image image}-{10: test name}{11: 32 or 64}
