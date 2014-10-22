@@ -147,6 +147,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/image_test.cc \
   compiler/jni/jni_compiler_test.cc \
   compiler/oat_test.cc \
+  compiler/optimizing/bounds_check_elimination_test.cc \
   compiler/optimizing/codegen_test.cc \
   compiler/optimizing/dead_code_elimination_test.cc \
   compiler/optimizing/constant_folding_test.cc \
