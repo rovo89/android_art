@@ -25,6 +25,8 @@ namespace art {
 
 class GlobalValueNumberingTest : public testing::Test {
  protected:
+  static constexpr uint16_t kNoValue = GlobalValueNumbering::kNoValue;
+
   struct IFieldDef {
     uint16_t field_idx;
     uintptr_t declaring_dex_file;
@@ -125,6 +127,8 @@ class GlobalValueNumberingTest : public testing::Test {
     { bb, opcode, 0u, 0u, 1, { reg }, 0, { } }
 #define DEF_MOVE(bb, opcode, reg, src) \
     { bb, opcode, 0u, 0u, 1, { src }, 1, { reg } }
+#define DEF_MOVE_WIDE(bb, opcode, reg, src) \
+    { bb, opcode, 0u, 0u, 2, { src, src + 1 }, 2, { reg, reg + 1 } }
 #define DEF_PHI2(bb, reg, src1, src2) \
     { bb, static_cast<Instruction::Code>(kMirOpPhi), 0, 0u, 2u, { src1, src2 }, 1, { reg } }
 
@@ -341,6 +345,8 @@ class GlobalValueNumberingTest : public testing::Test {
       cu_.mir_graph->ssa_base_vregs_.push_back(i);
       cu_.mir_graph->ssa_subscripts_.push_back(0);
     }
+    // Set shorty for a void-returning method without arguments.
+    cu_.shorty = "V";
   }
 
   static constexpr size_t kMaxSsaRegs = 16384u;
@@ -355,6 +361,8 @@ class GlobalValueNumberingTest : public testing::Test {
   std::vector<uint16_t> value_names_;
   ArenaBitVector* live_in_v_;
 };
+
+constexpr uint16_t GlobalValueNumberingTest::kNoValue;
 
 class GlobalValueNumberingTestDiamond : public GlobalValueNumberingTest {
  public:
@@ -979,6 +987,92 @@ TEST_F(GlobalValueNumberingTestDiamond, Phi) {
   EXPECT_EQ(value_names_[18], value_names_[19]);
   EXPECT_EQ(value_names_[18], value_names_[20]);
   EXPECT_EQ(value_names_[18], value_names_[21]);
+}
+
+TEST_F(GlobalValueNumberingTestDiamond, PhiWide) {
+  static const MIRDef mirs[] = {
+      DEF_CONST_WIDE(3, Instruction::CONST_WIDE, 0u, 1000),
+      DEF_CONST_WIDE(4, Instruction::CONST_WIDE, 2u, 2000),
+      DEF_CONST_WIDE(5, Instruction::CONST_WIDE, 4u, 3000),
+      DEF_MOVE_WIDE(4, Instruction::MOVE_WIDE, 6u, 0u),
+      DEF_MOVE_WIDE(4, Instruction::MOVE_WIDE, 8u, 2u),
+      DEF_MOVE_WIDE(5, Instruction::MOVE_WIDE, 10u, 0u),
+      DEF_MOVE_WIDE(5, Instruction::MOVE_WIDE, 12u, 4u),
+      DEF_PHI2(6, 14u, 6u, 10u),    // Same as CONST_WIDE 0u (1000).
+      DEF_PHI2(6, 15u, 7u, 11u),    // Same as CONST_WIDE 0u (1000), high word.
+      DEF_PHI2(6, 16u, 6u,  0u),    // Same as CONST_WIDE 0u (1000).
+      DEF_PHI2(6, 17u, 7u,  1u),    // Same as CONST_WIDE 0u (1000), high word.
+      DEF_PHI2(6, 18u, 0u, 10u),    // Same as CONST_WIDE 0u (1000).
+      DEF_PHI2(6, 19u, 1u, 11u),    // Same as CONST_WIDE 0u (1000), high word.
+      DEF_PHI2(6, 20u, 8u, 10u),    // Merge 2u (2000) and 0u (1000).
+      DEF_PHI2(6, 21u, 9u, 11u),    // Merge 2u (2000) and 0u (1000), high word.
+      DEF_PHI2(6, 22u, 2u, 10u),    // Merge 2u (2000) and 0u (1000).
+      DEF_PHI2(6, 23u, 3u, 11u),    // Merge 2u (2000) and 0u (1000), high word.
+      DEF_PHI2(6, 24u, 8u,  0u),    // Merge 2u (2000) and 0u (1000).
+      DEF_PHI2(6, 25u, 9u,  1u),    // Merge 2u (2000) and 0u (1000), high word.
+      DEF_PHI2(6, 26u, 2u,  0u),    // Merge 2u (2000) and 0u (1000).
+      DEF_PHI2(6, 27u, 5u,  1u),    // Merge 2u (2000) and 0u (1000), high word.
+      DEF_PHI2(6, 28u, 6u, 12u),    // Merge 0u (1000) and 4u (3000).
+      DEF_PHI2(6, 29u, 7u, 13u),    // Merge 0u (1000) and 4u (3000), high word.
+      DEF_PHI2(6, 30u, 0u, 12u),    // Merge 0u (1000) and 4u (3000).
+      DEF_PHI2(6, 31u, 1u, 13u),    // Merge 0u (1000) and 4u (3000), high word.
+      DEF_PHI2(6, 32u, 6u,  4u),    // Merge 0u (1000) and 4u (3000).
+      DEF_PHI2(6, 33u, 7u,  5u),    // Merge 0u (1000) and 4u (3000), high word.
+      DEF_PHI2(6, 34u, 0u,  4u),    // Merge 0u (1000) and 4u (3000).
+      DEF_PHI2(6, 35u, 1u,  5u),    // Merge 0u (1000) and 4u (3000), high word.
+      DEF_PHI2(6, 36u, 8u, 12u),    // Merge 2u (2000) and 4u (3000).
+      DEF_PHI2(6, 37u, 9u, 13u),    // Merge 2u (2000) and 4u (3000), high word.
+      DEF_PHI2(6, 38u, 2u, 12u),    // Merge 2u (2000) and 4u (3000).
+      DEF_PHI2(6, 39u, 3u, 13u),    // Merge 2u (2000) and 4u (3000), high word.
+      DEF_PHI2(6, 40u, 8u,  4u),    // Merge 2u (2000) and 4u (3000).
+      DEF_PHI2(6, 41u, 9u,  5u),    // Merge 2u (2000) and 4u (3000), high word.
+      DEF_PHI2(6, 42u, 2u,  4u),    // Merge 2u (2000) and 4u (3000).
+      DEF_PHI2(6, 43u, 3u,  5u),    // Merge 2u (2000) and 4u (3000), high word.
+  };
+
+  PrepareMIRs(mirs);
+  PerformGVN();
+  ASSERT_EQ(arraysize(mirs), value_names_.size());
+  EXPECT_EQ(value_names_[0], value_names_[7]);
+  EXPECT_EQ(value_names_[0], value_names_[9]);
+  EXPECT_EQ(value_names_[0], value_names_[11]);
+  EXPECT_NE(value_names_[13], value_names_[0]);
+  EXPECT_NE(value_names_[13], value_names_[1]);
+  EXPECT_NE(value_names_[13], value_names_[2]);
+  EXPECT_EQ(value_names_[13], value_names_[15]);
+  EXPECT_EQ(value_names_[13], value_names_[17]);
+  EXPECT_EQ(value_names_[13], value_names_[19]);
+  EXPECT_NE(value_names_[21], value_names_[0]);
+  EXPECT_NE(value_names_[21], value_names_[1]);
+  EXPECT_NE(value_names_[21], value_names_[2]);
+  EXPECT_NE(value_names_[21], value_names_[13]);
+  EXPECT_EQ(value_names_[21], value_names_[23]);
+  EXPECT_EQ(value_names_[21], value_names_[25]);
+  EXPECT_EQ(value_names_[21], value_names_[27]);
+  EXPECT_NE(value_names_[29], value_names_[0]);
+  EXPECT_NE(value_names_[29], value_names_[1]);
+  EXPECT_NE(value_names_[29], value_names_[2]);
+  EXPECT_NE(value_names_[29], value_names_[13]);
+  EXPECT_NE(value_names_[29], value_names_[21]);
+  EXPECT_EQ(value_names_[29], value_names_[31]);
+  EXPECT_EQ(value_names_[29], value_names_[33]);
+  EXPECT_EQ(value_names_[29], value_names_[35]);
+  // High words should get kNoValue.
+  EXPECT_EQ(value_names_[8], kNoValue);
+  EXPECT_EQ(value_names_[10], kNoValue);
+  EXPECT_EQ(value_names_[12], kNoValue);
+  EXPECT_EQ(value_names_[14], kNoValue);
+  EXPECT_EQ(value_names_[16], kNoValue);
+  EXPECT_EQ(value_names_[18], kNoValue);
+  EXPECT_EQ(value_names_[20], kNoValue);
+  EXPECT_EQ(value_names_[22], kNoValue);
+  EXPECT_EQ(value_names_[24], kNoValue);
+  EXPECT_EQ(value_names_[26], kNoValue);
+  EXPECT_EQ(value_names_[28], kNoValue);
+  EXPECT_EQ(value_names_[30], kNoValue);
+  EXPECT_EQ(value_names_[32], kNoValue);
+  EXPECT_EQ(value_names_[34], kNoValue);
+  EXPECT_EQ(value_names_[36], kNoValue);
 }
 
 TEST_F(GlobalValueNumberingTestLoop, NonAliasingIFields) {

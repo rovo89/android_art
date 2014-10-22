@@ -70,12 +70,7 @@ LocalValueNumbering* GlobalValueNumbering::PrepareBasicBlock(BasicBlock* bb,
   DCHECK(work_lvn_.get() == nullptr);
   work_lvn_.reset(new (allocator) LocalValueNumbering(this, bb->id, allocator));
   if (bb->block_type == kEntryBlock) {
-    if ((cu_->access_flags & kAccStatic) == 0) {
-      // If non-static method, mark "this" as non-null
-      int this_reg = cu_->mir_graph->GetFirstInVR();
-      uint16_t value_name = work_lvn_->GetSRegValueName(this_reg);
-      work_lvn_->SetValueNameNullChecked(value_name);
-    }
+    work_lvn_->PrepareEntryBlock();
     DCHECK(bb->first_mir_insn == nullptr);  // modifications_allowed_ is irrelevant.
   } else {
     // To avoid repeated allocation on the ArenaStack, reuse a single vector kept as a member.
@@ -127,12 +122,6 @@ LocalValueNumbering* GlobalValueNumbering::PrepareBasicBlock(BasicBlock* bb,
     CHECK(!merge_lvns_.empty());
     if (merge_lvns_.size() == 1u) {
       work_lvn_->MergeOne(*merge_lvns_[0], merge_type);
-      BasicBlock* pred_bb = mir_graph_->GetBasicBlock(merge_lvns_[0]->Id());
-      if (HasNullCheckLastInsn(pred_bb, bb->id)) {
-        int s_reg = pred_bb->last_mir_insn->ssa_rep->uses[0];
-        uint16_t value_name = merge_lvns_[0]->GetSRegValueName(s_reg);
-        work_lvn_->SetValueNameNullChecked(value_name);
-      }
     } else {
       work_lvn_->Merge(merge_type);
     }
