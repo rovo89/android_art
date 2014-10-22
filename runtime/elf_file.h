@@ -40,7 +40,8 @@ extern "C" {
 // ELFObjectFile.
 class ElfFile {
  public:
-  static ElfFile* Open(File* file, bool writable, bool program_header_only, std::string* error_msg);
+  static ElfFile* Open(File* file, bool writable, bool program_header_only, std::string* error_msg,
+                       uint8_t* requested_base = nullptr);  // TODO: move arg to before error_msg.
   // Open with specific mmap flags, Always maps in the whole file, not just the
   // program header sections.
   static ElfFile* Open(File* file, int mmap_prot, int mmap_flags, std::string* error_msg);
@@ -52,10 +53,12 @@ class ElfFile {
     return *file_;
   }
 
+  // The start of the memory map address range for this ELF file.
   byte* Begin() const {
     return map_->Begin();
   }
 
+  // The end of the memory map address range for this ELF file.
   byte* End() const {
     return map_->End();
   }
@@ -109,7 +112,7 @@ class ElfFile {
   bool Load(bool executable, std::string* error_msg);
 
  private:
-  ElfFile(File* file, bool writable, bool program_header_only);
+  ElfFile(File* file, bool writable, bool program_header_only, uint8_t* requested_base);
 
   bool Setup(int prot, int flags, std::string* error_msg);
 
@@ -200,6 +203,9 @@ class ElfFile {
   JITCodeEntry* jit_gdb_entry_;
   std::unique_ptr<ElfFile> gdb_file_mapping_;
   void GdbJITSupport();
+
+  // When not-null, override the base vaddr we memory map LOAD segments into.
+  uint8_t* requested_base_;
 };
 
 }  // namespace art

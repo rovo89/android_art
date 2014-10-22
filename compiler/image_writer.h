@@ -24,6 +24,7 @@
 #include <set>
 #include <string>
 
+#include "base/macros.h"
 #include "driver/compiler_driver.h"
 #include "mem_map.h"
 #include "oat_file.h"
@@ -35,21 +36,23 @@
 namespace art {
 
 // Write a Space built during compilation for use during execution.
-class ImageWriter {
+class ImageWriter FINAL {
  public:
   explicit ImageWriter(const CompilerDriver& compiler_driver)
       : compiler_driver_(compiler_driver), oat_file_(NULL), image_end_(0), image_begin_(NULL),
         oat_data_begin_(NULL), interpreter_to_interpreter_bridge_offset_(0),
         interpreter_to_compiled_code_bridge_offset_(0), portable_imt_conflict_trampoline_offset_(0),
         portable_resolution_trampoline_offset_(0), quick_generic_jni_trampoline_offset_(0),
-        quick_imt_conflict_trampoline_offset_(0), quick_resolution_trampoline_offset_(0) {}
+        quick_imt_conflict_trampoline_offset_(0), quick_resolution_trampoline_offset_(0),
+        compile_pic_(false) {}
 
   ~ImageWriter() {}
 
   bool Write(const std::string& image_filename,
              uintptr_t image_begin,
              const std::string& oat_filename,
-             const std::string& oat_location)
+             const std::string& oat_location,
+             bool compile_pic)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   uintptr_t GetOatDataBegin() {
@@ -97,8 +100,8 @@ class ImageWriter {
     // different .o ELF objects.
     DCHECK_LT(offset, oat_file_->Size());
 #endif
-    if (offset == 0) {
-      return NULL;
+    if (offset == 0u) {
+      return nullptr;
     }
     return oat_data_begin_ + offset;
   }
@@ -199,6 +202,7 @@ class ImageWriter {
   uint32_t quick_imt_conflict_trampoline_offset_;
   uint32_t quick_resolution_trampoline_offset_;
   uint32_t quick_to_interpreter_bridge_offset_;
+  bool compile_pic_;
 
   friend class FixupVisitor;
   friend class FixupClassVisitor;

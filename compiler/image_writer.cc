@@ -71,11 +71,13 @@ namespace art {
 bool ImageWriter::Write(const std::string& image_filename,
                         uintptr_t image_begin,
                         const std::string& oat_filename,
-                        const std::string& oat_location) {
+                        const std::string& oat_location,
+                        bool compile_pic) {
   CHECK(!image_filename.empty());
 
   CHECK_NE(image_begin, 0U);
   image_begin_ = reinterpret_cast<byte*>(image_begin);
+  compile_pic_ = compile_pic;
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
@@ -571,7 +573,8 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
                            PointerToLowMemUInt32(oat_file_begin),
                            PointerToLowMemUInt32(oat_data_begin_),
                            PointerToLowMemUInt32(oat_data_end),
-                           PointerToLowMemUInt32(oat_file_end));
+                           PointerToLowMemUInt32(oat_file_end),
+                           compile_pic_);
   memcpy(image_->Begin(), &image_header, sizeof(image_header));
 
   // Note that image_end_ is left at end of used space

@@ -984,6 +984,8 @@ class ImageDumper {
 
     os << "PATCH DELTA:" << image_header_.GetPatchDelta() << "\n\n";
 
+    os << "COMPILE PIC: " << (image_header_.CompilePic() ? "yes" : "no") << "\n\n";
+
     {
       os << "ROOTS: " << reinterpret_cast<void*>(image_header_.GetImageRoots()) << "\n";
       Indenter indent1_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
@@ -1034,7 +1036,7 @@ class ImageDumper {
     std::string error_msg;
     const OatFile* oat_file = class_linker->FindOpenedOatFileFromOatLocation(oat_location);
     if (oat_file == nullptr) {
-      oat_file = OatFile::Open(oat_location, oat_location, nullptr, false, &error_msg);
+      oat_file = OatFile::Open(oat_location, oat_location, nullptr, nullptr, false, &error_msg);
       if (oat_file == nullptr) {
         os << "NOT FOUND: " << error_msg << "\n";
         return false;
@@ -1762,7 +1764,7 @@ static int oatdump(int argc, char** argv) {
   if (oat_filename != nullptr) {
     std::string error_msg;
     OatFile* oat_file =
-        OatFile::Open(oat_filename, oat_filename, nullptr, false, &error_msg);
+        OatFile::Open(oat_filename, oat_filename, nullptr, nullptr, false, &error_msg);
     if (oat_file == nullptr) {
       fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
       return EXIT_FAILURE;

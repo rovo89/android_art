@@ -44,7 +44,7 @@ bool ElfPatcher::Patch(const CompilerDriver* driver, ElfFile* elf_file,
   const OatFile* oat_file = class_linker->FindOpenedOatFileFromOatLocation(oat_location);
   if (oat_file == nullptr) {
     CHECK(Runtime::Current()->IsCompiler());
-    oat_file = OatFile::Open(oat_location, oat_location, NULL, false, error_msg);
+    oat_file = OatFile::Open(oat_location, oat_location, nullptr, nullptr, false, error_msg);
     if (oat_file == nullptr) {
       *error_msg = StringPrintf("Unable to find or open oat file at '%s': %s", oat_location.c_str(),
                                 error_msg->c_str());

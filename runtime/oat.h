@@ -104,6 +104,7 @@ class PACKED(4) OatHeader {
   bool GetStoreKeyValuePairByIndex(size_t index, const char** key, const char** value) const;
 
   size_t GetHeaderSize() const;
+  bool IsPic() const;
 
  private:
   OatHeader(InstructionSet instruction_set,
