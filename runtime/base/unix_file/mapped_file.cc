@@ -42,7 +42,7 @@ bool MappedFile::MapReadOnly() {
   struct stat st;
   int result = TEMP_FAILURE_RETRY(fstat(Fd(), &st));
   if (result == -1) {
-    PLOG(WARNING) << "Failed to stat file '" << GetPath() << "'";
+    PLOG(::art::WARNING) << "Failed to stat file '" << GetPath() << "'";
     return false;
   }
   file_size_ = st.st_size;
@@ -50,8 +50,8 @@ bool MappedFile::MapReadOnly() {
     mapped_file_ = mmap(NULL, file_size_, PROT_READ, MAP_PRIVATE, Fd(), 0);
   } while (mapped_file_ == MAP_FAILED && errno == EINTR);
   if (mapped_file_ == MAP_FAILED) {
-    PLOG(WARNING) << "Failed to mmap file '" << GetPath() << "' of size "
-                  << file_size_ << " bytes to memory";
+    PLOG(::art::WARNING) << "Failed to mmap file '" << GetPath() << "' of size "
+        << file_size_ << " bytes to memory";
     return false;
   }
   map_mode_ = kMapReadOnly;
@@ -67,8 +67,7 @@ bool MappedFile::MapReadWrite(int64_t file_size) {
   int result = TEMP_FAILURE_RETRY(ftruncate(Fd(), file_size));
 #endif
   if (result == -1) {
-    PLOG(ERROR) << "Failed to truncate file '" << GetPath()
-                << "' to size " << file_size;
+    PLOG(::art::ERROR) << "Failed to truncate file '" << GetPath() << "' to size " << file_size;
     return false;
   }
   file_size_ = file_size;
@@ -77,7 +76,7 @@ bool MappedFile::MapReadWrite(int64_t file_size) {
         mmap(NULL, file_size_, PROT_READ | PROT_WRITE, MAP_SHARED, Fd(), 0);
   } while (mapped_file_ == MAP_FAILED && errno == EINTR);
   if (mapped_file_ == MAP_FAILED) {
-    PLOG(WARNING) << "Failed to mmap file '" << GetPath() << "' of size "
+    PLOG(::art::WARNING) << "Failed to mmap file '" << GetPath() << "' of size "
                   << file_size_ << " bytes to memory";
     return false;
   }
@@ -89,8 +88,7 @@ bool MappedFile::Unmap() {
   CHECK(IsMapped());
   int result = TEMP_FAILURE_RETRY(munmap(mapped_file_, file_size_));
   if (result == -1) {
-    PLOG(WARNING) << "Failed unmap file '" << GetPath() << "' of size "
-                  << file_size_;
+    PLOG(::art::WARNING) << "Failed unmap file '" << GetPath() << "' of size " << file_size_;
     return false;
   } else {
     mapped_file_ = NULL;

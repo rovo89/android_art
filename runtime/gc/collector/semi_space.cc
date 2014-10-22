@@ -16,9 +16,10 @@
 
 #include "semi_space-inl.h"
 
+#include <climits>
 #include <functional>
 #include <numeric>
-#include <climits>
+#include <sstream>
 #include <vector>
 
 #include "base/logging.h"

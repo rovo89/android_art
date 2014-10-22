@@ -16,6 +16,8 @@
 
 #include "bit_vector.h"
 
+#include <sstream>
+
 #include "allocator.h"
 #include "bit_vector-inl.h"
 

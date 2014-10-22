@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 
+#include "base/dumpable.h"
 #include "base/scoped_flock.h"
 #include "base/stringpiece.h"
 #include "base/stringprintf.h"

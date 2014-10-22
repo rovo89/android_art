@@ -23,7 +23,9 @@
 #include <string.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+
 #include <memory>
+#include <sstream>
 
 #include "base/logging.h"
 #include "base/stringprintf.h"

@@ -16,6 +16,8 @@
 
 #include "parsed_options.h"
 
+#include <sstream>
+
 #ifdef HAVE_ANDROID_OS
 #include "cutils/properties.h"
 #endif
@@ -534,9 +536,6 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
           return false;
         }
       }
-    } else if (StartsWith(option, "-verbose-methods:")) {
-      gLogVerbosity.compiler = false;
-      Split(option.substr(strlen("-verbose-methods:")), ',', &gVerboseMethods);
     } else if (StartsWith(option, "-Xlockprofthreshold:")) {
       if (!ParseUnsignedInteger(option, ':', &lock_profiling_threshold_)) {
         return false;

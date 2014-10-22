@@ -32,13 +32,12 @@ static constexpr bool kUseSignalHandler = false;
 
 struct sigaction old_action;
 void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context) {
-  static bool handlingUnexpectedSignal = false;
-  if (handlingUnexpectedSignal) {
-    LogMessageData data(__FILE__, __LINE__, INTERNAL_FATAL, -1);
-    LogMessage::LogLine(data, "HandleUnexpectedSignal reentered\n");
+  static bool handling_unexpected_signal = false;
+  if (handling_unexpected_signal) {
+    LogMessage::LogLine(__FILE__, __LINE__, INTERNAL_FATAL, "HandleUnexpectedSignal reentered\n");
     _exit(1);
   }
-  handlingUnexpectedSignal = true;
+  handling_unexpected_signal = true;
   gAborting++;  // set before taking any locks
   MutexLock mu(Thread::Current(), *Locks::unexpected_signal_lock_);
 
