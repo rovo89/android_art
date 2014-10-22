@@ -123,7 +123,7 @@ struct JdwpAdbState : public JdwpNetStateBase {
 bool InitAdbTransport(JdwpState* state, const JdwpOptions*) {
   VLOG(jdwp) << "ADB transport startup";
   state->netState = new JdwpAdbState(state);
-  return (state->netState != NULL);
+  return (state->netState != nullptr);
 }
 
 /*
@@ -145,7 +145,7 @@ int JdwpAdbState::ReceiveClientFd() {
   iov.iov_len        = 1;
 
   msghdr msg;
-  msg.msg_name       = NULL;
+  msg.msg_name       = nullptr;
   msg.msg_namelen    = 0;
   msg.msg_iov        = &iov;
   msg.msg_iovlen     = 1;
@@ -352,7 +352,7 @@ bool JdwpAdbState::ProcessIncoming() {
        * re-issue the select.  We're currently using #2, as it's more
        * reliable than #1 and generally better than #3.  Wastes two fds.
        */
-      selCount = select(maxfd+1, &readfds, NULL, NULL, NULL);
+      selCount = select(maxfd + 1, &readfds, nullptr, nullptr, nullptr);
       if (selCount < 0) {
         if (errno == EINTR) {
           continue;
