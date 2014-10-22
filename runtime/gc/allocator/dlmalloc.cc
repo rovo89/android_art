@@ -39,11 +39,11 @@ static void art_heap_usage_error(const char* function, void* p);
 
 
 static void art_heap_corruption(const char* function) {
-  LOG(FATAL) << "Corrupt heap detected in: " << function;
+  LOG(::art::FATAL) << "Corrupt heap detected in: " << function;
 }
 
 static void art_heap_usage_error(const char* function, void* p) {
-  LOG(FATAL) << "Incorrect use of function '" << function << "' argument " << p << " not expected";
+  LOG(::art::FATAL) << "Incorrect use of function '" << function << "' argument " << p << " not expected";
 }
 
 #include "globals.h"
@@ -63,7 +63,7 @@ extern "C" void DlmallocMadviseCallback(void* start, void* end, size_t used_byte
     int rc = madvise(start, length, MADV_DONTNEED);
     if (UNLIKELY(rc != 0)) {
       errno = rc;
-      PLOG(FATAL) << "madvise failed during heap trimming";
+      PLOG(::art::FATAL) << "madvise failed during heap trimming";
     }
     size_t* reclaimed = reinterpret_cast<size_t*>(arg);
     *reclaimed += length;

@@ -17,7 +17,7 @@
 #ifndef ART_RUNTIME_NATIVE_SCOPED_FAST_NATIVE_OBJECT_ACCESS_H_
 #define ART_RUNTIME_NATIVE_SCOPED_FAST_NATIVE_OBJECT_ACCESS_H_
 
-#include "mirror/art_method.h"
+#include "mirror/art_method-inl.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {

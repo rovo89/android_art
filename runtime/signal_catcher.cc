@@ -25,6 +25,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <sstream>
+
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "gc/heap.h"

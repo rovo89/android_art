@@ -21,6 +21,9 @@
 #include <sys/utsname.h>
 #include <inttypes.h>
 
+#include <sstream>
+
+#include "base/dumpable.h"
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "base/stringprintf.h"
@@ -32,13 +35,13 @@ namespace art {
 static constexpr bool kDumpHeapObjectOnSigsevg = false;
 
 struct Backtrace {
-  void Dump(std::ostream& os) {
+  void Dump(std::ostream& os) const {
     DumpNativeStack(os, GetTid(), "\t");
   }
 };
 
 struct OsInfo {
-  void Dump(std::ostream& os) {
+  void Dump(std::ostream& os) const {
     utsname info;
     uname(&info);
     // Linux 2.6.38.8-gg784 (x86_64)
@@ -132,9 +135,11 @@ static const char* GetSignalCodeName(int signal_number, int signal_code) {
 }
 
 struct UContext {
-  explicit UContext(void* raw_context) : context(reinterpret_cast<ucontext_t*>(raw_context)->uc_mcontext) {}
+  explicit UContext(void* raw_context) :
+      context(reinterpret_cast<ucontext_t*>(raw_context)->uc_mcontext) {
+  }
 
-  void Dump(std::ostream& os) {
+  void Dump(std::ostream& os) const {
     // TODO: support non-x86 hosts (not urgent because this code doesn't run on targets).
 #if defined(__APPLE__) && defined(__i386__)
     DumpRegister32(os, "eax", context->__ss.__eax);
@@ -228,15 +233,15 @@ struct UContext {
 #endif
   }
 
-  void DumpRegister32(std::ostream& os, const char* name, uint32_t value) {
+  void DumpRegister32(std::ostream& os, const char* name, uint32_t value) const {
     os << StringPrintf(" %6s: 0x%08x", name, value);
   }
 
-  void DumpRegister64(std::ostream& os, const char* name, uint64_t value) {
+  void DumpRegister64(std::ostream& os, const char* name, uint64_t value) const {
     os << StringPrintf(" %6s: 0x%016" PRIx64, name, value);
   }
 
-  void DumpX86Flags(std::ostream& os, uint32_t flags) {
+  void DumpX86Flags(std::ostream& os, uint32_t flags) const {
     os << " [";
     if ((flags & (1 << 0)) != 0) {
       os << " CF";
@@ -274,8 +279,7 @@ struct UContext {
 void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context) {
   static bool handlingUnexpectedSignal = false;
   if (handlingUnexpectedSignal) {
-    LogMessageData data(__FILE__, __LINE__, INTERNAL_FATAL, -1);
-    LogMessage::LogLine(data, "HandleUnexpectedSignal reentered\n");
+    LogMessage::LogLine(__FILE__, __LINE__, INTERNAL_FATAL, "HandleUnexpectedSignal reentered\n");
     _exit(1);
   }
   handlingUnexpectedSignal = true;

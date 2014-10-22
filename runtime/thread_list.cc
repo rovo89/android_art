@@ -25,6 +25,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <sstream>
+
 #include "base/mutex.h"
 #include "base/mutex-inl.h"
 #include "base/timing_logger.h"
@@ -480,17 +482,18 @@ void ThreadList::Resume(Thread* thread, bool for_debugger) {
   VLOG(threads) << "Resume(" << reinterpret_cast<void*>(thread) << ") complete";
 }
 
-static void ThreadSuspendByPeerWarning(Thread* self, int level, const char* message, jobject peer) {
+static void ThreadSuspendByPeerWarning(Thread* self, LogSeverity severity, const char* message,
+                                       jobject peer) {
   JNIEnvExt* env = self->GetJniEnv();
   ScopedLocalRef<jstring>
       scoped_name_string(env, (jstring)env->GetObjectField(peer,
                                                           WellKnownClasses::java_lang_Thread_name));
   ScopedUtfChars scoped_name_chars(env, scoped_name_string.get());
   if (scoped_name_chars.c_str() == NULL) {
-      LOG(level) << message << ": " << peer;
+      LOG(severity) << message << ": " << peer;
       env->ExceptionClear();
   } else {
-      LOG(level) << message << ": " << peer << ":" << scoped_name_chars.c_str();
+      LOG(severity) << message << ": " << peer << ":" << scoped_name_chars.c_str();
   }
 }
 
@@ -562,8 +565,9 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
   }
 }
 
-static void ThreadSuspendByThreadIdWarning(int level, const char* message, uint32_t thread_id) {
-  LOG(level) << StringPrintf("%s: %d", message, thread_id);
+static void ThreadSuspendByThreadIdWarning(LogSeverity severity, const char* message,
+                                           uint32_t thread_id) {
+  LOG(severity) << StringPrintf("%s: %d", message, thread_id);
 }
 
 Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspension,

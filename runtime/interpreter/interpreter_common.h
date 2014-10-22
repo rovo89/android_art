@@ -21,6 +21,8 @@
 
 #include <math.h>
 
+#include <sstream>
+
 #include "base/logging.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"
