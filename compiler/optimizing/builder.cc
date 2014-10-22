@@ -748,6 +748,11 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::NOT_INT: {
+      Unop_12x<HNot>(instruction, Primitive::kPrimInt);
+      break;
+    }
+
     case Instruction::ADD_INT: {
       Binop_23x<HAdd>(instruction, Primitive::kPrimInt);
       break;
