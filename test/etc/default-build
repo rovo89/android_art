@@ -26,7 +26,12 @@ fi
 
 if [ ${NEED_DEX} = "true" ]; then
   ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 classes
-  zip $TEST_NAME.jar classes.dex
+fi
+
+if [ -r smali ]; then
+  # Compile Smali classes
+  ${SMALI} -JXmx256m --output smali_classes.dex `find smali -name '*.smali'`
+  ${DXMERGER} classes.dex classes.dex smali_classes.dex
 fi
 
 if [ -r src-ex ]; then
@@ -43,3 +48,5 @@ if [ -r src-ex ]; then
     mv classes-1.dex classes.dex
   fi
 fi
+
+zip $TEST_NAME.jar classes.dex

@@ -283,6 +283,18 @@ endif
 
 TEST_ART_BROKEN_NDEBUG_TESTS :=
 
+# Known broken tests for the default compiler (Quick).
+TEST_ART_BROKEN_DEFAULT_RUN_TESTS := \
+  412-new-array
+
+ifneq (,$(filter default,$(COMPILER_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      defaut,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),$(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
+
 # Clear variables ahead of appending to them when defining tests.
 $(foreach target, $(TARGET_TYPES), $(eval ART_RUN_TEST_$(call name-to-var,$(target))_RULES :=))
 $(foreach target, $(TARGET_TYPES), \

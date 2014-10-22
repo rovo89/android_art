@@ -48,7 +48,9 @@ class HGraphBuilder : public ValueObject {
         dex_file_(dex_file),
         dex_compilation_unit_(dex_compilation_unit),
         compiler_driver_(driver),
-        return_type_(Primitive::GetType(dex_compilation_unit_->GetShorty()[0])) {}
+        return_type_(Primitive::GetType(dex_compilation_unit_->GetShorty()[0])),
+        code_start_(nullptr),
+        latest_result_(nullptr) {}
 
   // Only for unit testing.
   HGraphBuilder(ArenaAllocator* arena, Primitive::Type return_type = Primitive::kPrimInt)
@@ -64,7 +66,9 @@ class HGraphBuilder : public ValueObject {
         dex_file_(nullptr),
         dex_compilation_unit_(nullptr),
         compiler_driver_(nullptr),
-        return_type_(return_type) {}
+        return_type_(return_type),
+        code_start_(nullptr),
+        latest_result_(nullptr) {}
 
   HGraph* BuildGraph(const DexFile::CodeItem& code);
 
@@ -129,6 +133,31 @@ class HGraphBuilder : public ValueObject {
                    uint32_t* args,
                    uint32_t register_index);
 
+  // Builds a new array node and the instructions that fill it.
+  void BuildFilledNewArray(uint32_t dex_offset,
+                           uint32_t type_index,
+                           uint32_t number_of_vreg_arguments,
+                           bool is_range,
+                           uint32_t* args,
+                           uint32_t register_index);
+
+  // Fills the given object with data as specified in the fill-array-data
+  // instruction. Currently only used for non-reference and non-floating point
+  // arrays.
+  template <typename T>
+  void BuildFillArrayData(HInstruction* object,
+                          const T* data,
+                          uint32_t element_count,
+                          Primitive::Type anticipated_type,
+                          uint32_t dex_offset);
+
+  // Fills the given object with data as specified in the fill-array-data
+  // instruction. The data must be for long and double arrays.
+  void BuildFillWideArrayData(HInstruction* object,
+                              const uint64_t* data,
+                              uint32_t element_count,
+                              uint32_t dex_offset);
+
   ArenaAllocator* const arena_;
 
   // A list of the size of the dex code holding block information for
@@ -150,6 +179,14 @@ class HGraphBuilder : public ValueObject {
   DexCompilationUnit* const dex_compilation_unit_;
   CompilerDriver* const compiler_driver_;
   const Primitive::Type return_type_;
+
+  // The pointer in the dex file where the instructions of the code item
+  // being currently compiled start.
+  const uint16_t* code_start_;
+
+  // The last invoke or fill-new-array being built. Only to be
+  // used by move-result instructions.
+  HInstruction* latest_result_;
 
   DISALLOW_COPY_AND_ASSIGN(HGraphBuilder);
 };

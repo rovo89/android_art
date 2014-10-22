@@ -491,17 +491,23 @@ void CodeGeneratorX86::Move(HInstruction* instruction, Location location, HInstr
     Immediate imm(instruction->AsIntConstant()->GetValue());
     if (location.IsRegister()) {
       __ movl(location.As<Register>(), imm);
-    } else {
+    } else if (location.IsStackSlot()) {
       __ movl(Address(ESP, location.GetStackIndex()), imm);
+    } else {
+      DCHECK(location.IsConstant());
+      DCHECK_EQ(location.GetConstant(), instruction);
     }
   } else if (instruction->IsLongConstant()) {
     int64_t value = instruction->AsLongConstant()->GetValue();
     if (location.IsRegister()) {
       __ movl(location.AsRegisterPairLow<Register>(), Immediate(Low32Bits(value)));
       __ movl(location.AsRegisterPairHigh<Register>(), Immediate(High32Bits(value)));
-    } else {
+    } else if (location.IsDoubleStackSlot()) {
       __ movl(Address(ESP, location.GetStackIndex()), Immediate(Low32Bits(value)));
       __ movl(Address(ESP, location.GetHighStackIndex(kX86WordSize)), Immediate(High32Bits(value)));
+    } else {
+      DCHECK(location.IsConstant());
+      DCHECK_EQ(location.GetConstant(), instruction);
     }
   } else if (instruction->IsLoadLocal()) {
     int slot = GetStackSlot(instruction->AsLoadLocal()->GetLocal());
@@ -1305,6 +1311,28 @@ void InstructionCodeGeneratorX86::VisitNewInstance(HNewInstance* instruction) {
 
   __ fs()->call(
       Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAllocObjectWithAccessCheck)));
+
+  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+  DCHECK(!codegen_->IsLeafMethod());
+}
+
+void LocationsBuilderX86::VisitNewArray(HNewArray* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
+  locations->SetOut(Location::RegisterLocation(EAX));
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+}
+
+void InstructionCodeGeneratorX86::VisitNewArray(HNewArray* instruction) {
+  InvokeRuntimeCallingConvention calling_convention;
+  LoadCurrentMethod(calling_convention.GetRegisterAt(1));
+  __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction->GetTypeIndex()));
+
+  __ fs()->call(
+      Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAllocArrayWithAccessCheck)));
 
   codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
   DCHECK(!codegen_->IsLeafMethod());

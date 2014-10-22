@@ -407,16 +407,22 @@ void CodeGeneratorX86_64::Move(HInstruction* instruction,
     Immediate imm(instruction->AsIntConstant()->GetValue());
     if (location.IsRegister()) {
       __ movl(location.As<CpuRegister>(), imm);
-    } else {
+    } else if (location.IsStackSlot()) {
       __ movl(Address(CpuRegister(RSP), location.GetStackIndex()), imm);
+    } else {
+      DCHECK(location.IsConstant());
+      DCHECK_EQ(location.GetConstant(), instruction);
     }
   } else if (instruction->IsLongConstant()) {
     int64_t value = instruction->AsLongConstant()->GetValue();
     if (location.IsRegister()) {
       __ movq(location.As<CpuRegister>(), Immediate(value));
-    } else {
+    } else if (location.IsDoubleStackSlot()) {
       __ movq(CpuRegister(TMP), Immediate(value));
       __ movq(Address(CpuRegister(RSP), location.GetStackIndex()), CpuRegister(TMP));
+    } else {
+      DCHECK(location.IsConstant());
+      DCHECK_EQ(location.GetConstant(), instruction);
     }
   } else if (instruction->IsLoadLocal()) {
     switch (instruction->GetType()) {
@@ -1224,6 +1230,28 @@ void InstructionCodeGeneratorX86_64::VisitNewInstance(HNewInstance* instruction)
 
   __ gs()->call(Address::Absolute(
       QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pAllocObjectWithAccessCheck), true));
+
+  DCHECK(!codegen_->IsLeafMethod());
+  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+}
+
+void LocationsBuilderX86_64::VisitNewArray(HNewArray* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetOut(Location::RegisterLocation(RAX));
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+}
+
+void InstructionCodeGeneratorX86_64::VisitNewArray(HNewArray* instruction) {
+  InvokeRuntimeCallingConvention calling_convention;
+  LoadCurrentMethod(CpuRegister(calling_convention.GetRegisterAt(1)));
+  __ movq(CpuRegister(calling_convention.GetRegisterAt(0)), Immediate(instruction->GetTypeIndex()));
+
+  __ gs()->call(Address::Absolute(
+      QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pAllocArrayWithAccessCheck), true));
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
