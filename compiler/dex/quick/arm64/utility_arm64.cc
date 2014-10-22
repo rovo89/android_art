@@ -345,7 +345,7 @@ bool Arm64Mir2Lir::InexpensiveConstantInt(int32_t value, Instruction::Code opcod
   case Instruction::SUB_INT_2ADDR:
     // The code below is consistent with the implementation of OpRegRegImm().
     {
-      int32_t abs_value = std::abs(value);
+      uint32_t abs_value = (value == INT_MIN) ? value : std::abs(value);
       if (abs_value < 0x1000) {
         return true;
       } else if ((abs_value & UINT64_C(0xfff)) == 0 && ((abs_value >> 12) < 0x1000)) {
@@ -805,7 +805,7 @@ LIR* Arm64Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, 
 LIR* Arm64Mir2Lir::OpRegRegImm64(OpKind op, RegStorage r_dest, RegStorage r_src1, int64_t value) {
   LIR* res;
   bool neg = (value < 0);
-  int64_t abs_value = (neg) ? -value : value;
+  uint64_t abs_value = (neg & !(value == LLONG_MIN)) ? -value : value;
   A64Opcode opcode = kA64Brk1d;
   A64Opcode alt_opcode = kA64Brk1d;
   bool is_logical = false;
@@ -938,7 +938,7 @@ LIR* Arm64Mir2Lir::OpRegImm64(OpKind op, RegStorage r_dest_src1, int64_t value) 
   A64Opcode neg_opcode = kA64Brk1d;
   bool shift;
   bool neg = (value < 0);
-  uint64_t abs_value = (neg) ? -value : value;
+  uint64_t abs_value = (neg & !(value == LLONG_MIN)) ? -value : value;
 
   if (LIKELY(abs_value < 0x1000)) {
     // abs_value is a 12-bit immediate.
