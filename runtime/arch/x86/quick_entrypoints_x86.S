@@ -30,7 +30,7 @@ MACRO2(SETUP_SAVE_ALL_CALLEE_SAVE_FRAME, got_reg, temp_reg)
     CFI_ADJUST_CFA_OFFSET(12)
     SETUP_GOT_NOSAVE RAW_VAR(got_reg, 0)
     // Load Runtime::instance_ from GOT.
-    movl _ZN3art7Runtime9instance_E@GOT(REG_VAR(got_reg, 0)), REG_VAR(temp_reg, 1)
+    movl SYMBOL(_ZN3art7Runtime9instance_E)@GOT(REG_VAR(got_reg, 0)), REG_VAR(temp_reg, 1)
     movl (REG_VAR(temp_reg, 1)), REG_VAR(temp_reg, 1)
     // Push save all callee-save method.
     pushl RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET(REG_VAR(temp_reg, 1))
@@ -56,7 +56,7 @@ MACRO2(SETUP_REFS_ONLY_CALLEE_SAVE_FRAME, got_reg, temp_reg)
     CFI_ADJUST_CFA_OFFSET(12)
     SETUP_GOT_NOSAVE VAR(got_reg, 0)
     // Load Runtime::instance_ from GOT.
-    movl _ZN3art7Runtime9instance_E@GOT(REG_VAR(got_reg, 0)), REG_VAR(temp_reg, 1)
+    movl SYMBOL(_ZN3art7Runtime9instance_E)@GOT(REG_VAR(got_reg, 0)), REG_VAR(temp_reg, 1)
     movl (REG_VAR(temp_reg, 1)), REG_VAR(temp_reg, 1)
     // Push save all callee-save method.
     pushl RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET(REG_VAR(temp_reg, 1))
@@ -92,7 +92,7 @@ MACRO2(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME, got_reg, temp_reg)
     PUSH ecx
     SETUP_GOT_NOSAVE VAR(got_reg, 0)
     // Load Runtime::instance_ from GOT.
-    movl _ZN3art7Runtime9instance_E@GOT(REG_VAR(got_reg, 0)), REG_VAR(temp_reg, 1)
+    movl SYMBOL(_ZN3art7Runtime9instance_E)@GOT(REG_VAR(got_reg, 0)), REG_VAR(temp_reg, 1)
     movl (REG_VAR(temp_reg, 1)), REG_VAR(temp_reg, 1)
     // Push save all callee-save method.
     pushl RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET(REG_VAR(temp_reg, 1))
@@ -446,7 +446,7 @@ MACRO3(THREE_ARG_REF_DOWNCALL, c_name, cxx_name, return_macro)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME ebx, ebx  // save ref containing registers for GC
     // Outgoing argument set up
     mov FRAME_SIZE_REFS_ONLY_CALLEE_SAVE(%esp), %ebx  // get referrer
-    subl LITERAL(12), %esp         // alignment padding
+    subl MACRO_LITERAL(12), %esp  // alignment padding
     CFI_ADJUST_CFA_OFFSET(12)
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
