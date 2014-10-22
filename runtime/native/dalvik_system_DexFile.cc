@@ -288,9 +288,11 @@ static const jbyte kDexoptNeeded = 2;
 
 template <const bool kVerboseLogging, const bool kReasonLogging>
 static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* filename,
-                                   InstructionSet target_instruction_set) {
+                                   InstructionSet target_instruction_set,
+                                   bool* oat_is_pic) {
   std::string error_msg;
   std::unique_ptr<const OatFile> oat_file(OatFile::Open(oat_filename, oat_filename, nullptr,
+                                                        nullptr,
                                                         false, &error_msg));
   if (oat_file.get() == nullptr) {
     if (kReasonLogging) {
@@ -300,6 +302,11 @@ static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* 
     error_msg.clear();
     return kDexoptNeeded;
   }
+
+  // Pass-up the information about if this is PIC.
+  // TODO: Refactor this function to be less complicated.
+  *oat_is_pic = oat_file->IsPic();
+
   bool should_relocate_if_possible = Runtime::Current()->ShouldRelocate();
   uint32_t location_checksum = 0;
   const art::OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename, nullptr,
@@ -527,10 +534,16 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
   // Lets try the cache first (since we want to load from there since thats where the relocated
   // versions will be).
   if (have_cache_filename && !force_system_only) {
+    bool oat_is_pic;
     // We can use the dalvik-cache if we find a good file.
     dalvik_cache_decision =
         IsDexOptNeededForFile<kVerboseLogging, kReasonLogging>(cache_filename, filename,
-                                                               target_instruction_set);
+                                                               target_instruction_set, &oat_is_pic);
+
+    // Apps that are compiled with --compile-pic never need to be patchoat-d
+    if (oat_is_pic && dalvik_cache_decision == kPatchoatNeeded) {
+      dalvik_cache_decision = kUpToDate;
+    }
     // We will only return DexOptNeeded if both the cache and system return it.
     if (dalvik_cache_decision != kDexoptNeeded && !require_system_version) {
       CHECK(!(dalvik_cache_decision == kPatchoatNeeded && !should_relocate_if_possible))
@@ -540,11 +553,17 @@ static jbyte IsDexOptNeededInternal(JNIEnv* env, const char* filename,
     // We couldn't find one thats easy. We should now try the system.
   }
 
+  bool oat_is_pic;
   jbyte system_decision =
       IsDexOptNeededForFile<kVerboseLogging, kReasonLogging>(odex_filename, filename,
-                                                             target_instruction_set);
+                                                             target_instruction_set, &oat_is_pic);
   CHECK(!(system_decision == kPatchoatNeeded && !should_relocate_if_possible))
       << "May not return PatchoatNeeded when patching is disabled.";
+
+  // Apps that are compiled with --compile-pic never need to be patchoat-d
+  if (oat_is_pic && system_decision == kPatchoatNeeded) {
+    system_decision = kUpToDate;
+  }
 
   if (require_system_version && system_decision == kPatchoatNeeded
                              && dalvik_cache_decision == kUpToDate) {

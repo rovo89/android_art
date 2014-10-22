@@ -49,6 +49,7 @@ class OatFile {
   static OatFile* Open(const std::string& filename,
                        const std::string& location,
                        uint8_t* requested_base,
+                       uint8_t* oat_file_begin,
                        bool executable,
                        std::string* error_msg);
 
@@ -315,13 +316,16 @@ class OatFile {
   static OatFile* OpenElfFile(File* file,
                               const std::string& location,
                               uint8_t* requested_base,
+                              uint8_t* oat_file_begin,  // Override base if not null
                               bool writable,
                               bool executable,
                               std::string* error_msg);
 
   explicit OatFile(const std::string& filename, bool executable);
   bool Dlopen(const std::string& elf_filename, uint8_t* requested_base, std::string* error_msg);
-  bool ElfFileOpen(File* file, uint8_t* requested_base, bool writable, bool executable,
+  bool ElfFileOpen(File* file, uint8_t* requested_base,
+                   uint8_t* oat_file_begin,  // Override where the file is loaded to if not null
+                   bool writable, bool executable,
                    std::string* error_msg);
   bool Setup(std::string* error_msg);
 
