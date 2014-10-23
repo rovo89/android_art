@@ -450,7 +450,6 @@ class X86_64Assembler FINAL : public Assembler {
   void shrq(CpuRegister reg, const Immediate& imm);
 
   void negl(CpuRegister reg);
-  void negq(CpuRegister reg);
   void notl(CpuRegister reg);
 
   void enter(const Immediate& imm);
