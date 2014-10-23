@@ -2153,6 +2153,13 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   } else {
     LOG(FATAL) << "Invalid current allocator " << current_allocator_;
   }
+  if (IsGcConcurrent()) {
+    // Disable concurrent GC check so that we don't have spammy JNI requests.
+    // This gets recalculated in GrowForUtilization. It is important that it is disabled /
+    // calculated in the same thread so that there aren't any races that can cause it to become
+    // permanantly disabled. b/17942071
+    concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
+  }
   CHECK(collector != nullptr)
       << "Could not find garbage collector with collector_type="
       << static_cast<size_t>(collector_type_) << " and gc_type=" << gc_type;
@@ -2960,9 +2967,6 @@ void Heap::RequestConcurrentGC(Thread* self) {
       self->IsHandlingStackOverflow()) {
     return;
   }
-  // We already have a request pending, no reason to start more until we update
-  // concurrent_start_bytes_.
-  concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
   JNIEnv* env = self->GetJniEnv();
   DCHECK(WellKnownClasses::java_lang_Daemons != nullptr);
   DCHECK(WellKnownClasses::java_lang_Daemons_requestGC != nullptr);
