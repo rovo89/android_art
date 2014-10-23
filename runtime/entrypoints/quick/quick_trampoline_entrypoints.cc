@@ -949,7 +949,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
 
   virtual ~BuildNativeCallFrameStateMachine() {}
 
-  bool HavePointerGpr() {
+  bool HavePointerGpr() const {
     return gpr_index_ > 0;
   }
 
@@ -964,7 +964,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
     }
   }
 
-  bool HaveHandleScopeGpr() {
+  bool HaveHandleScopeGpr() const {
     return gpr_index_ > 0;
   }
 
@@ -980,7 +980,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
     }
   }
 
-  bool HaveIntGpr() {
+  bool HaveIntGpr() const {
     return gpr_index_ > 0;
   }
 
@@ -995,17 +995,17 @@ template<class T> class BuildNativeCallFrameStateMachine {
     }
   }
 
-  bool HaveLongGpr() {
+  bool HaveLongGpr() const {
     return gpr_index_ >= kRegistersNeededForLong + (LongGprNeedsPadding() ? 1 : 0);
   }
 
-  bool LongGprNeedsPadding() {
+  bool LongGprNeedsPadding() const {
     return kRegistersNeededForLong > 1 &&     // only pad when using multiple registers
         kAlignLongOnStack &&                  // and when it needs alignment
         (gpr_index_ & 1) == 1;                // counter is odd, see constructor
   }
 
-  bool LongStackNeedsPadding() {
+  bool LongStackNeedsPadding() const {
     return kRegistersNeededForLong > 1 &&     // only pad when using multiple registers
         kAlignLongOnStack &&                  // and when it needs 8B alignment
         (stack_entries_ & 1) == 1;            // counter is odd
@@ -1041,7 +1041,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
     }
   }
 
-  bool HaveFloatFpr() {
+  bool HaveFloatFpr() const {
     return fpr_index_ > 0;
   }
 
@@ -1076,17 +1076,17 @@ template<class T> class BuildNativeCallFrameStateMachine {
     }
   }
 
-  bool HaveDoubleFpr() {
+  bool HaveDoubleFpr() const {
     return fpr_index_ >= kRegistersNeededForDouble + (DoubleFprNeedsPadding() ? 1 : 0);
   }
 
-  bool DoubleFprNeedsPadding() {
+  bool DoubleFprNeedsPadding() const {
     return kRegistersNeededForDouble > 1 &&     // only pad when using multiple registers
         kAlignDoubleOnStack &&                  // and when it needs alignment
         (fpr_index_ & 1) == 1;                  // counter is odd, see constructor
   }
 
-  bool DoubleStackNeedsPadding() {
+  bool DoubleStackNeedsPadding() const {
     return kRegistersNeededForDouble > 1 &&     // only pad when using multiple registers
         kAlignDoubleOnStack &&                  // and when it needs 8B alignment
         (stack_entries_ & 1) == 1;              // counter is odd
@@ -1121,15 +1121,15 @@ template<class T> class BuildNativeCallFrameStateMachine {
     }
   }
 
-  uint32_t getStackEntries() {
+  uint32_t GetStackEntries() const {
     return stack_entries_;
   }
 
-  uint32_t getNumberOfUsedGprs() {
+  uint32_t GetNumberOfUsedGprs() const {
     return kNumNativeGprArgs - gpr_index_;
   }
 
-  uint32_t getNumberOfUsedFprs() {
+  uint32_t GetNumberOfUsedFprs() const {
     return kNumNativeFprArgs - fpr_index_;
   }
 
@@ -1154,7 +1154,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
   uint32_t fpr_index_;      // Number of free FPRs
   uint32_t stack_entries_;  // Stack entries are in multiples of 32b, as floats are usually not
                             // extended
-  T* delegate_;             // What Push implementation gets called
+  T* const delegate_;             // What Push implementation gets called
 };
 
 // Computes the sizes of register stacks and call stack area. Handling of references can be extended
@@ -1168,18 +1168,19 @@ class ComputeNativeCallFrameSize {
 
   virtual ~ComputeNativeCallFrameSize() {}
 
-  uint32_t GetStackSize() {
+  uint32_t GetStackSize() const {
     return num_stack_entries_ * sizeof(uintptr_t);
   }
 
-  uint8_t* LayoutCallStack(uint8_t* sp8) {
+  uint8_t* LayoutCallStack(uint8_t* sp8) const {
     sp8 -= GetStackSize();
     // Align by kStackAlignment.
     sp8 = reinterpret_cast<uint8_t*>(RoundDown(reinterpret_cast<uintptr_t>(sp8), kStackAlignment));
     return sp8;
   }
 
-  uint8_t* LayoutCallRegisterStacks(uint8_t* sp8, uintptr_t** start_gpr, uint32_t** start_fpr) {
+  uint8_t* LayoutCallRegisterStacks(uint8_t* sp8, uintptr_t** start_gpr, uint32_t** start_fpr)
+      const {
     // Assumption is OK right now, as we have soft-float arm
     size_t fregs = BuildNativeCallFrameStateMachine<ComputeNativeCallFrameSize>::kNumNativeFprArgs;
     sp8 -= fregs * sizeof(uintptr_t);
@@ -1191,7 +1192,7 @@ class ComputeNativeCallFrameSize {
   }
 
   uint8_t* LayoutNativeCall(uint8_t* sp8, uintptr_t** start_stack, uintptr_t** start_gpr,
-                            uint32_t** start_fpr) {
+                            uint32_t** start_fpr) const {
     // Native call stack.
     sp8 = LayoutCallStack(sp8);
     *start_stack = reinterpret_cast<uintptr_t*>(sp8);
@@ -1241,7 +1242,7 @@ class ComputeNativeCallFrameSize {
       }
     }
 
-    num_stack_entries_ = sm.getStackEntries();
+    num_stack_entries_ = sm.GetStackEntries();
   }
 
   void PushGpr(uintptr_t /* val */) {
@@ -1311,7 +1312,7 @@ class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
   }
 
   // Adds space for the cookie. Note: may leave stack unaligned.
-  void LayoutCookie(uint8_t** sp) {
+  void LayoutCookie(uint8_t** sp) const {
     // Reference cookie and padding
     *sp -= 8;
   }
@@ -1458,11 +1459,11 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
     return handle_scope_->GetHandle(0).GetReference();
   }
 
-  jobject GetFirstHandleScopeJObject() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  jobject GetFirstHandleScopeJObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return handle_scope_->GetHandle(0).ToJObject();
   }
 
-  void* GetBottomOfUsedArea() {
+  void* GetBottomOfUsedArea() const {
     return bottom_of_used_area_;
   }
 
