@@ -36,6 +36,7 @@ template<class T> class Handle;
 template<class T> class Handle;
 class Signature;
 class StringPiece;
+template<size_t kNumReferences> class PACKED(4) StackHandleScope;
 
 namespace mirror {
 
@@ -196,46 +197,46 @@ class MANAGED Class FINAL : public Object {
   }
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  uint32_t GetAccessFlags() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE uint32_t GetAccessFlags() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetAccessFlags(uint32_t new_access_flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if the class is an interface.
-  bool IsInterface() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE bool IsInterface() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccInterface) != 0;
   }
 
   // Returns true if the class is declared public.
-  bool IsPublic() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE bool IsPublic() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccPublic) != 0;
   }
 
   // Returns true if the class is declared final.
-  bool IsFinal() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE bool IsFinal() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccFinal) != 0;
   }
 
-  bool IsFinalizable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE bool IsFinalizable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccClassIsFinalizable) != 0;
   }
 
-  void SetFinalizable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE void SetFinalizable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t flags = GetField32(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
     SetAccessFlags(flags | kAccClassIsFinalizable);
   }
 
   // Returns true if the class is abstract.
-  bool IsAbstract() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE bool IsAbstract() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccAbstract) != 0;
   }
 
   // Returns true if the class is an annotation.
-  bool IsAnnotation() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE bool IsAnnotation() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccAnnotation) != 0;
   }
 
   // Returns true if the class is synthetic.
-  bool IsSynthetic() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE bool IsSynthetic() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (GetAccessFlags() & kAccSynthetic) != 0;
   }
 
@@ -592,7 +593,7 @@ class MANAGED Class FINAL : public Object {
   // downcast would be necessary. Similarly for interfaces, a class that implements (or an interface
   // that extends) another can be assigned to its parent, but not vice-versa. All Classes may assign
   // to themselves. Classes for primitive types may not assign to each other.
-  inline bool IsAssignableFrom(Class* src) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE bool IsAssignableFrom(Class* src) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(src != NULL);
     if (this == src) {
       // Can always assign to things of the same type.
@@ -609,7 +610,7 @@ class MANAGED Class FINAL : public Object {
     }
   }
 
-  Class* GetSuperClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE Class* GetSuperClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetSuperClass(Class *new_super_class) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Super class is assigned once, except during class linker initialization.
@@ -648,12 +649,13 @@ class MANAGED Class FINAL : public Object {
 
   void SetDexCache(DexCache* new_dex_cache) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ObjectArray<ArtMethod>* GetDirectMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE ObjectArray<ArtMethod>* GetDirectMethods()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetDirectMethods(ObjectArray<ArtMethod>* new_direct_methods)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ArtMethod* GetDirectMethod(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE ArtMethod* GetDirectMethod(int32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetDirectMethod(uint32_t i, ArtMethod* f)  // TODO: uint16_t
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -662,13 +664,14 @@ class MANAGED Class FINAL : public Object {
   uint32_t NumDirectMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ObjectArray<ArtMethod>* GetVirtualMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE ObjectArray<ArtMethod>* GetVirtualMethods()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetVirtualMethods(ObjectArray<ArtMethod>* new_virtual_methods)
+  ALWAYS_INLINE void SetVirtualMethods(ObjectArray<ArtMethod>* new_virtual_methods)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns the number of non-inherited virtual methods.
-  uint32_t NumVirtualMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE uint32_t NumVirtualMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ArtMethod* GetVirtualMethod(uint32_t i) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -678,22 +681,16 @@ class MANAGED Class FINAL : public Object {
   void SetVirtualMethod(uint32_t i, ArtMethod* f)  // TODO: uint16_t
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ObjectArray<ArtMethod>* GetVTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE ObjectArray<ArtMethod>* GetVTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ObjectArray<ArtMethod>* GetVTableDuringLinking() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE ObjectArray<ArtMethod>* GetVTableDuringLinking()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetVTable(ObjectArray<ArtMethod>* new_vtable)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static MemberOffset VTableOffset() {
     return OFFSET_OF_OBJECT_MEMBER(Class, vtable_);
-  }
-
-  void SetImTable(ObjectArray<ArtMethod>* new_imtable)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  static MemberOffset ImTableOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(Class, imtable_);
   }
 
   static MemberOffset EmbeddedImTableOffset() {
@@ -705,7 +702,7 @@ class MANAGED Class FINAL : public Object {
   }
 
   static MemberOffset EmbeddedVTableOffset() {
-    return MemberOffset(sizeof(Class) + kImtSize * sizeof(mirror::Class::ImTableEntry) + sizeof(int32_t));
+    return MemberOffset(sizeof(Class) + kImtSize * sizeof(ImTableEntry) + sizeof(int32_t));
   }
 
   bool ShouldHaveEmbeddedImtAndVTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -730,7 +727,8 @@ class MANAGED Class FINAL : public Object {
 
   void SetEmbeddedVTableEntry(uint32_t i, ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void PopulateEmbeddedImtAndVTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PopulateEmbeddedImtAndVTable(StackHandleScope<kImtSize>* imt_handle_scope)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Given a method implemented by this class but potentially from a super class, return the
   // specific implementation method for this class.
@@ -798,11 +796,11 @@ class MANAGED Class FINAL : public Object {
 
   ArtMethod* FindClassInitializer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  int32_t GetIfTableCount() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE int32_t GetIfTableCount() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  IfTable* GetIfTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE IfTable* GetIfTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetIfTable(IfTable* new_iftable) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE void SetIfTable(IfTable* new_iftable) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get instance fields of the class (See also GetSFields).
   ObjectArray<ArtField>* GetIFields() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -970,7 +968,7 @@ class MANAGED Class FINAL : public Object {
 
   const DexFile::ClassDef* GetClassDef() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uint32_t NumDirectInterfaces() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE uint32_t NumDirectInterfaces() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint16_t GetDirectInterfaceTypeIdx(uint32_t idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -990,7 +988,7 @@ class MANAGED Class FINAL : public Object {
   void AssertInitializedOrInitializingInThread(Thread* self)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Class* CopyOf(Thread* self, int32_t new_length)
+  Class* CopyOf(Thread* self, int32_t new_length, StackHandleScope<kImtSize>* imt_handle_scope)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // For proxy class only.
@@ -1038,8 +1036,6 @@ class MANAGED Class FINAL : public Object {
   bool IsAssignableFromArray(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void CheckObjectAlloc() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  ObjectArray<ArtMethod>* GetImTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // defining class loader, or NULL for the "bootstrap" system loader
   HeapReference<ClassLoader> class_loader_;

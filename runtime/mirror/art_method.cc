@@ -91,21 +91,6 @@ void ArtMethod::ResetClass() {
   java_lang_reflect_ArtMethod_ = GcRoot<Class>(nullptr);
 }
 
-void ArtMethod::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_strings_),
-                        new_dex_cache_strings);
-}
-
-void ArtMethod::SetDexCacheResolvedMethods(ObjectArray<ArtMethod>* new_dex_cache_methods) {
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_methods_),
-                        new_dex_cache_methods);
-}
-
-void ArtMethod::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_classes) {
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_),
-                        new_dex_cache_classes);
-}
-
 size_t ArtMethod::NumArgRegisters(const StringPiece& shorty) {
   CHECK_LE(1U, shorty.length());
   uint32_t num_registers = 0;
