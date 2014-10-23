@@ -1043,11 +1043,13 @@ void LocationsBuilderARM::VisitNeg(HNeg* neg) {
       new (GetGraph()->GetArena()) LocationSummary(neg, LocationSummary::kNoCall);
   switch (neg->GetResultType()) {
     case Primitive::kPrimInt:
+    case Primitive::kPrimLong: {
+      bool output_overlaps = (neg->GetResultType() == Primitive::kPrimLong);
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetOut(Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), output_overlaps);
       break;
+    }
 
-    case Primitive::kPrimLong:
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       LOG(FATAL) << "Not yet implemented neg type " << neg->GetResultType();
@@ -1069,6 +1071,26 @@ void InstructionCodeGeneratorARM::VisitNeg(HNeg* neg) {
       break;
 
     case Primitive::kPrimLong:
+      DCHECK(in.IsRegisterPair());
+      // out.lo = 0 - in.lo (and update the carry/borrow (C) flag)
+      __ rsbs(out.AsRegisterPairLow<Register>(),
+              in.AsRegisterPairLow<Register>(),
+              ShifterOperand(0));
+      // We cannot emit an RSC (Reverse Subtract with Carry)
+      // instruction here, as it does not exist in the Thumb-2
+      // instruction set.  We use the following approach
+      // using SBC and SUB instead.
+      //
+      // out.hi = -C
+      __ sbc(out.AsRegisterPairHigh<Register>(),
+             out.AsRegisterPairHigh<Register>(),
+             ShifterOperand(out.AsRegisterPairHigh<Register>()));
+      // out.hi = out.hi - in.hi
+      __ sub(out.AsRegisterPairHigh<Register>(),
+             out.AsRegisterPairHigh<Register>(),
+             ShifterOperand(in.AsRegisterPairHigh<Register>()));
+      break;
+
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       LOG(FATAL) << "Not yet implemented neg type " << neg->GetResultType();
