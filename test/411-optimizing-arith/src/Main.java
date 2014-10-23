@@ -52,8 +52,6 @@ public class Main {
     expectEquals(36L, $opt$Mul(-12L, -3L));
     expectEquals(33L, $opt$Mul(1L, 3L) * 11);
     expectEquals(240518168583L, $opt$Mul(34359738369L, 7L)); // (2^35 + 1) * 7
-
-    $opt$InplaceNegOne(1);
   }
 
   public static void neg() {
@@ -75,6 +73,8 @@ public class Main {
     //   Overflow occurs in this case, but no exception is thrown.
     //   For all integer values x, -x equals (~x)+1.''
     expectEquals(-2147483648, $opt$Neg(-2147483648)); // -(2^31)
+
+    $opt$InplaceNegOne(1);
   }
 
   public static void $opt$InplaceNegOne(int a) {
