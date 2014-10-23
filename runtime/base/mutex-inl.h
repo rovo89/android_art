@@ -21,11 +21,8 @@
 
 #include "mutex.h"
 
-#define ATRACE_TAG ATRACE_TAG_DALVIK
-
-#include "cutils/trace.h"
-
 #include "base/stringprintf.h"
+#include "base/value_object.h"
 #include "runtime.h"
 #include "thread.h"
 
@@ -43,35 +40,6 @@ static inline int futex(volatile int *uaddr, int op, int val, const struct times
   return syscall(SYS_futex, uaddr, op, val, timeout, uaddr2, val3);
 }
 #endif  // ART_USE_FUTEXES
-
-class ScopedContentionRecorder {
- public:
-  ScopedContentionRecorder(BaseMutex* mutex, uint64_t blocked_tid, uint64_t owner_tid)
-      : mutex_(kLogLockContentions ? mutex : NULL),
-        blocked_tid_(kLogLockContentions ? blocked_tid : 0),
-        owner_tid_(kLogLockContentions ? owner_tid : 0),
-        start_nano_time_(kLogLockContentions ? NanoTime() : 0) {
-    if (ATRACE_ENABLED()) {
-      std::string msg = StringPrintf("Lock contention on %s (owner tid: %" PRIu64 ")",
-                                     mutex->GetName(), owner_tid);
-      ATRACE_BEGIN(msg.c_str());
-    }
-  }
-
-  ~ScopedContentionRecorder() {
-    ATRACE_END();
-    if (kLogLockContentions) {
-      uint64_t end_nano_time = NanoTime();
-      mutex_->RecordContention(blocked_tid_, owner_tid_, end_nano_time - start_nano_time_);
-    }
-  }
-
- private:
-  BaseMutex* const mutex_;
-  const uint64_t blocked_tid_;
-  const uint64_t owner_tid_;
-  const uint64_t start_nano_time_;
-};
 
 static inline uint64_t SafeGetTid(const Thread* self) {
   if (self != NULL) {
@@ -158,15 +126,7 @@ inline void ReaderWriterMutex::SharedLock(Thread* self) {
       // Add as an extra reader.
       done = state_.CompareExchangeWeakAcquire(cur_state, cur_state + 1);
     } else {
-      // Owner holds it exclusively, hang up.
-      ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
-      ++num_pending_readers_;
-      if (futex(state_.Address(), FUTEX_WAIT, cur_state, NULL, NULL, 0) != 0) {
-        if (errno != EAGAIN) {
-          PLOG(FATAL) << "futex wait failed for " << name_;
-        }
-      }
-      --num_pending_readers_;
+      HandleSharedLockContention(self, cur_state);
     }
   } while (!done);
 #else

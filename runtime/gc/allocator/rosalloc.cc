@@ -1144,7 +1144,7 @@ static constexpr bool kReadPageMapEntryWithoutLockInBulkFree = true;
 
 size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
   size_t freed_bytes = 0;
-  if (false) {
+  if ((false)) {
     // Used only to test Free() as GC uses only BulkFree().
     for (size_t i = 0; i < num_ptrs; ++i) {
       freed_bytes += FreeInternal(self, ptrs[i]);

@@ -29,7 +29,7 @@
 namespace art {
 namespace x86 {
 
-class Immediate {
+class Immediate : public ValueObject {
  public:
   explicit Immediate(int32_t value) : value_(value) {}
 
@@ -47,7 +47,7 @@ class Immediate {
 };
 
 
-class Operand {
+class Operand : public ValueObject {
  public:
   uint8_t mod() const {
     return (encoding_at(0) >> 6) & 3;
@@ -129,8 +129,6 @@ class Operand {
   }
 
   friend class X86Assembler;
-
-  DISALLOW_COPY_AND_ASSIGN(Operand);
 };
 
 
@@ -168,7 +166,6 @@ class Address : public Operand {
     }
   }
 
-
   Address(Register index, ScaleFactor scale, int32_t disp) {
     CHECK_NE(index, ESP);  // Illegal addressing mode.
     SetModRM(0, ESP);
@@ -205,14 +202,12 @@ class Address : public Operand {
 
  private:
   Address() {}
-
-  DISALLOW_COPY_AND_ASSIGN(Address);
 };
 
 
 class X86Assembler FINAL : public Assembler {
  public:
-  explicit X86Assembler() {}
+  explicit X86Assembler() : cfi_cfa_offset_(0), cfi_pc_(0) {}
   virtual ~X86Assembler() {}
 
   /*

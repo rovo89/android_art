@@ -16,7 +16,7 @@
 
 #include "disassembler_mips.h"
 
-#include <iostream>
+#include <ostream>
 #include <sstream>
 
 #include "base/logging.h"

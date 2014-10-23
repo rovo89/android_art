@@ -18,7 +18,7 @@
 
 #include <inttypes.h>
 
-#include <iostream>
+#include <ostream>
 #include <sstream>
 
 #include "base/logging.h"

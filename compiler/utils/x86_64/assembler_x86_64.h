@@ -36,7 +36,7 @@ namespace x86_64 {
 //
 // Note: As we support cross-compilation, the value type must be int64_t. Please be aware of
 // conversion rules in expressions regarding negation, especially size_t on 32b.
-class Immediate {
+class Immediate : public ValueObject {
  public:
   explicit Immediate(int64_t value) : value_(value) {}
 
@@ -54,12 +54,10 @@ class Immediate {
 
  private:
   const int64_t value_;
-
-  DISALLOW_COPY_AND_ASSIGN(Immediate);
 };
 
 
-class Operand {
+class Operand : public ValueObject {
  public:
   uint8_t mod() const {
     return (encoding_at(0) >> 6) & 3;
@@ -157,8 +155,6 @@ class Operand {
   }
 
   friend class X86_64Assembler;
-
-  DISALLOW_COPY_AND_ASSIGN(Operand);
 };
 
 
@@ -247,8 +243,6 @@ class Address : public Operand {
 
  private:
   Address() {}
-
-  DISALLOW_COPY_AND_ASSIGN(Address);
 };
 
 

@@ -126,7 +126,7 @@ IndirectRef IndirectReferenceTable::Add(uint32_t cookie, mirror::Object* obj) {
   }
   table_[index].Add(obj);
   result = ToIndirectRef(index);
-  if (false) {
+  if ((false)) {
     LOG(INFO) << "+++ added at " << ExtractIndex(result) << " top=" << segment_state_.parts.topIndex
               << " holes=" << segment_state_.parts.numHoles;
   }
@@ -193,7 +193,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
     int numHoles = segment_state_.parts.numHoles - prevState.parts.numHoles;
     if (numHoles != 0) {
       while (--topIndex > bottomIndex && numHoles != 0) {
-        if (false) {
+        if ((false)) {
           LOG(INFO) << "+++ checking for hole at " << topIndex - 1
                     << " (cookie=" << cookie << ") val="
                     << table_[topIndex - 1].GetReference()->Read<kWithoutReadBarrier>();
@@ -201,7 +201,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
         if (!table_[topIndex - 1].GetReference()->IsNull()) {
           break;
         }
-        if (false) {
+        if ((false)) {
           LOG(INFO) << "+++ ate hole at " << (topIndex - 1);
         }
         numHoles--;
@@ -210,7 +210,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
       segment_state_.parts.topIndex = topIndex;
     } else {
       segment_state_.parts.topIndex = topIndex-1;
-      if (false) {
+      if ((false)) {
         LOG(INFO) << "+++ ate last entry " << topIndex - 1;
       }
     }
@@ -228,7 +228,7 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
 
     *table_[idx].GetReference() = GcRoot<mirror::Object>(nullptr);
     segment_state_.parts.numHoles++;
-    if (false) {
+    if ((false)) {
       LOG(INFO) << "+++ left hole at " << idx << ", holes=" << segment_state_.parts.numHoles;
     }
   }

@@ -21,6 +21,9 @@
 #include <climits>
 #include <vector>
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+#include "cutils/trace.h"
+
 #include "base/bounded_fifo.h"
 #include "base/logging.h"
 #include "base/macros.h"
