@@ -71,6 +71,10 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   bool HandleEasyDivRem64(Instruction::Code dalvik_opcode, bool is_div,
                           RegLocation rl_src, RegLocation rl_dest, int64_t lit);
   bool EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
+  void GenMultiplyByConstantFloat(RegLocation rl_dest, RegLocation rl_src1,
+                                  int32_t constant) OVERRIDE;
+  void GenMultiplyByConstantDouble(RegLocation rl_dest, RegLocation rl_src1,
+                                   int64_t constant) OVERRIDE;
   LIR* CheckSuspendUsingLoad() OVERRIDE;
   RegStorage LoadHelper(QuickEntrypointEnum trampoline) OVERRIDE;
   LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,

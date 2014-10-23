@@ -122,6 +122,20 @@ void X86Mir2Lir::GenArithOpDouble(Instruction::Code opcode,
   StoreValueWide(rl_dest, rl_result);
 }
 
+void X86Mir2Lir::GenMultiplyByConstantFloat(RegLocation rl_dest, RegLocation rl_src1,
+                                            int32_t constant) {
+  // TODO: need x86 implementation.
+  UNUSED(rl_dest, rl_src1, constant);
+  LOG(FATAL) << "Unimplemented GenMultiplyByConstantFloat in x86";
+}
+
+void X86Mir2Lir::GenMultiplyByConstantDouble(RegLocation rl_dest, RegLocation rl_src1,
+                                             int64_t constant) {
+  // TODO: need x86 implementation.
+  UNUSED(rl_dest, rl_src1, constant);
+  LOG(FATAL) << "Unimplemented GenMultiplyByConstantDouble in x86";
+}
+
 void X86Mir2Lir::GenLongToFP(RegLocation rl_dest, RegLocation rl_src, bool is_double) {
   // Compute offsets to the source and destination VRs on stack
   int src_v_reg_offset = SRegOffset(rl_src.s_reg_low);
