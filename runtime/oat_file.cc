@@ -70,7 +70,7 @@ OatFile* OatFile::Open(const std::string& filename,
                        bool executable,
                        std::string* error_msg) {
   CHECK(!filename.empty()) << location;
-  CheckLocation(filename);
+  CheckLocation(location);
   std::unique_ptr<OatFile> ret;
   if (kUsePortableCompiler && executable) {
     // If we are using PORTABLE, use dlopen to deal with relocations.
@@ -597,6 +597,12 @@ void OatFile::OatMethod::LinkMethod(mirror::ArtMethod* method) const {
 #endif
   method->SetEntryPointFromQuickCompiledCode(GetQuickCode());
   method->SetNativeGcMap(GetNativeGcMap());
+}
+
+bool OatFile::IsPic() const {
+  const char* pic_string = GetOatHeader().GetStoreValueByKey(OatHeader::kPicKey);
+  return (pic_string != nullptr && strncmp(pic_string, "true", 5) == 0);
+  // TODO: Check against oat_patches. b/18144996
 }
 
 }  // namespace art
