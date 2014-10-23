@@ -32,6 +32,7 @@ class BlockInfo : public ArenaObject {
         live_in_(allocator, number_of_ssa_values, false),
         live_out_(allocator, number_of_ssa_values, false),
         kill_(allocator, number_of_ssa_values, false) {
+    UNUSED(block_);
     live_in_.ClearAllBits();
     live_out_.ClearAllBits();
     kill_.ClearAllBits();

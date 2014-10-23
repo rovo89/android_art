@@ -24,7 +24,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
-#include <iostream>
 #include <iterator>
 #include <sys/stat.h>
 
@@ -118,9 +117,8 @@ class AssemblerTest : public testing::Test {
     std::vector<int64_t> imms = CreateImmediateValues(imm_bytes);
     for (auto reg : registers) {
       for (int64_t imm : imms) {
-        Imm* new_imm = CreateImmediate(imm);
-        (assembler_.get()->*f)(*reg, *new_imm);
-        delete new_imm;
+        Imm new_imm = CreateImmediate(imm);
+        (assembler_.get()->*f)(*reg, new_imm);
         std::string base = fmt;
 
         size_t reg_index = base.find("{reg}");
@@ -154,9 +152,8 @@ class AssemblerTest : public testing::Test {
     std::string str;
     std::vector<int64_t> imms = CreateImmediateValues(imm_bytes);
     for (int64_t imm : imms) {
-      Imm* new_imm = CreateImmediate(imm);
-      (assembler_.get()->*f)(*new_imm);
-      delete new_imm;
+      Imm new_imm = CreateImmediate(imm);
+      (assembler_.get()->*f)(new_imm);
       std::string base = fmt;
 
       size_t imm_index = base.find("{imm}");
@@ -333,7 +330,7 @@ class AssemblerTest : public testing::Test {
   }
 
   // Create an immediate from the specific value.
-  virtual Imm* CreateImmediate(int64_t imm_value) = 0;
+  virtual Imm CreateImmediate(int64_t imm_value) = 0;
 
  private:
   // Driver() assembles and compares the results. If the results are not equal and we have a

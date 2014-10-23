@@ -58,8 +58,7 @@ define build-libarttest
   ifeq ($$(art_target_or_host),target)
     $(call set-target-local-clang-vars)
     $(call set-target-local-cflags-vars,debug)
-    LOCAL_SHARED_LIBRARIES += libdl libcutils
-    LOCAL_STATIC_LIBRARIES := libgtest
+    LOCAL_SHARED_LIBRARIES += libdl
     LOCAL_MULTILIB := both
     LOCAL_MODULE_PATH_32 := $(ART_TARGET_TEST_OUT)/$(ART_TARGET_ARCH_32)
     LOCAL_MODULE_PATH_64 := $(ART_TARGET_TEST_OUT)/$(ART_TARGET_ARCH_64)
@@ -68,11 +67,7 @@ define build-libarttest
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
-    LOCAL_STATIC_LIBRARIES := libcutils
     LOCAL_LDLIBS := $(ART_HOST_LDLIBS) -ldl -lpthread
-    ifeq ($(HOST_OS),linux)
-      LOCAL_LDLIBS += -lrt
-    endif
     LOCAL_IS_HOST_MODULE := true
     LOCAL_MULTILIB := both
     include $(BUILD_HOST_SHARED_LIBRARY)

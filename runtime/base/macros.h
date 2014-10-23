@@ -68,21 +68,27 @@ struct CompileAssert {
 #define ART_FRIEND_TEST(test_set_name, individual_test)\
 friend class test_set_name##_##individual_test##_Test
 
-// DISALLOW_COPY_AND_ASSIGN disallows the copy and operator= functions.
-// It goes in the private: declarations in a class.
+// DISALLOW_COPY_AND_ASSIGN disallows the copy and operator= functions. It goes in the private:
+// declarations in a class.
 #define DISALLOW_COPY_AND_ASSIGN(TypeName) \
-  TypeName(const TypeName&);               \
-  void operator=(const TypeName&)
+  TypeName(const TypeName&) = delete;  \
+  void operator=(const TypeName&) = delete
 
-// A macro to disallow all the implicit constructors, namely the
-// default constructor, copy constructor and operator= functions.
+// A macro to disallow all the implicit constructors, namely the default constructor, copy
+// constructor and operator= functions.
 //
-// This should be used in the private: declarations for a class
-// that wants to prevent anyone from instantiating it. This is
-// especially useful for classes containing only static methods.
+// This should be used in the private: declarations for a class that wants to prevent anyone from
+// instantiating it. This is especially useful for classes containing only static methods.
 #define DISALLOW_IMPLICIT_CONSTRUCTORS(TypeName) \
-  TypeName();                                    \
+  TypeName() = delete;  \
   DISALLOW_COPY_AND_ASSIGN(TypeName)
+
+// A macro to disallow new and delete operators for a class. It goes in the private: declarations.
+#define DISALLOW_ALLOCATION() \
+  public: \
+    ALWAYS_INLINE void operator delete(void*, size_t) { UNREACHABLE(); } \
+  private: \
+    void* operator new(size_t) = delete
 
 // The arraysize(arr) macro returns the # of elements in an array arr.
 // The expression is a compile-time constant, and therefore can be

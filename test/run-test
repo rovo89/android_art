@@ -469,9 +469,6 @@ if echo "$test_dir" | grep 089; then
   file_size_limit=5120
 elif echo "$test_dir" | grep 083; then
   file_size_limit=5120
-elif echo "$test_dir" | grep 115; then
-# Native bridge test copies libarttest.so into its directory, which needs 2MB already.
-  file_size_limit=5120
 fi
 if ! ulimit -S "$file_size_limit"; then
    echo "ulimit file size setting failed"

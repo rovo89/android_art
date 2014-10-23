@@ -19,8 +19,12 @@
 #include <errno.h>
 #include <sys/time.h>
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+#include "cutils/trace.h"
+
 #include "atomic.h"
 #include "base/logging.h"
+#include "base/value_object.h"
 #include "mutex-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
@@ -104,6 +108,36 @@ class ScopedAllMutexesLock FINAL {
 
  private:
   const BaseMutex* const mutex_;
+};
+
+// Scoped class that generates events at the beginning and end of lock contention.
+class ScopedContentionRecorder FINAL : public ValueObject {
+ public:
+  ScopedContentionRecorder(BaseMutex* mutex, uint64_t blocked_tid, uint64_t owner_tid)
+      : mutex_(kLogLockContentions ? mutex : NULL),
+        blocked_tid_(kLogLockContentions ? blocked_tid : 0),
+        owner_tid_(kLogLockContentions ? owner_tid : 0),
+        start_nano_time_(kLogLockContentions ? NanoTime() : 0) {
+    if (ATRACE_ENABLED()) {
+      std::string msg = StringPrintf("Lock contention on %s (owner tid: %" PRIu64 ")",
+                                     mutex->GetName(), owner_tid);
+      ATRACE_BEGIN(msg.c_str());
+    }
+  }
+
+  ~ScopedContentionRecorder() {
+    ATRACE_END();
+    if (kLogLockContentions) {
+      uint64_t end_nano_time = NanoTime();
+      mutex_->RecordContention(blocked_tid_, owner_tid_, end_nano_time - start_nano_time_);
+    }
+  }
+
+ private:
+  BaseMutex* const mutex_;
+  const uint64_t blocked_tid_;
+  const uint64_t owner_tid_;
+  const uint64_t start_nano_time_;
 };
 
 BaseMutex::BaseMutex(const char* name, LockLevel level) : level_(level), name_(name) {
@@ -611,6 +645,18 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
   return true;
 }
 #endif
+
+void ReaderWriterMutex::HandleSharedLockContention(Thread* self, int32_t cur_state) {
+  // Owner holds it exclusively, hang up.
+  ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
+  ++num_pending_readers_;
+  if (futex(state_.Address(), FUTEX_WAIT, cur_state, NULL, NULL, 0) != 0) {
+    if (errno != EAGAIN) {
+      PLOG(FATAL) << "futex wait failed for " << name_;
+    }
+  }
+  --num_pending_readers_;
+}
 
 bool ReaderWriterMutex::SharedTryLock(Thread* self) {
   DCHECK(self == NULL || self == Thread::Current());

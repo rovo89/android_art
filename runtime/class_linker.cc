@@ -17,6 +17,7 @@
 #include "class_linker.h"
 
 #include <deque>
+#include <iostream>
 #include <memory>
 #include <queue>
 #include <string>
@@ -5110,7 +5111,7 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
     bool seen_non_ref = false;
     for (size_t i = 0; i < num_fields; i++) {
       mirror::ArtField* field = fields->Get(i);
-      if (false) {  // enable to debug field layout
+      if ((false)) {  // enable to debug field layout
         LOG(INFO) << "LinkFields: " << (is_static ? "static" : "instance")
                     << " class=" << PrettyClass(klass.Get())
                     << " field=" << PrettyField(field)
