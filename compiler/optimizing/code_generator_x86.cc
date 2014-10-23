@@ -1056,16 +1056,13 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
   LocationSummary* locations = add->GetLocations();
   Location first = locations->InAt(0);
   Location second = locations->InAt(1);
-
+  DCHECK(first.Equals(locations->Out()));
   switch (add->GetResultType()) {
     case Primitive::kPrimInt: {
-      DCHECK_EQ(first.As<Register>(), locations->Out().As<Register>());
       if (second.IsRegister()) {
         __ addl(first.As<Register>(), second.As<Register>());
       } else if (second.IsConstant()) {
-        HConstant* instruction = second.GetConstant();
-        Immediate imm(instruction->AsIntConstant()->GetValue());
-        __ addl(first.As<Register>(), imm);
+        __ addl(first.As<Register>(), Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
       } else {
         __ addl(first.As<Register>(), Address(ESP, second.GetStackIndex()));
       }
@@ -1073,10 +1070,6 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
     }
 
     case Primitive::kPrimLong: {
-      DCHECK_EQ(first.AsRegisterPairLow<Register>(),
-                locations->Out().AsRegisterPairLow<Register>());
-      DCHECK_EQ(first.AsRegisterPairHigh<Register>(),
-                locations->Out().AsRegisterPairHigh<Register>());
       if (second.IsRegister()) {
         __ addl(first.AsRegisterPairLow<Register>(), second.AsRegisterPairLow<Register>());
         __ adcl(first.AsRegisterPairHigh<Register>(), second.AsRegisterPairHigh<Register>());
@@ -1122,16 +1115,16 @@ void LocationsBuilderX86::VisitSub(HSub* sub) {
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
-
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-      LOG(FATAL) << "Unexpected sub type " << sub->GetResultType();
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetOut(Location::SameAsFirstInput());
       break;
+    }
 
     default:
-      LOG(FATAL) << "Unimplemented sub type " << sub->GetResultType();
+      LOG(FATAL) << "Unexpected sub type " << sub->GetResultType();
   }
 }
 
@@ -1139,52 +1132,43 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
   LocationSummary* locations = sub->GetLocations();
   Location first = locations->InAt(0);
   Location second = locations->InAt(1);
+  DCHECK(first.Equals(locations->Out()));
   switch (sub->GetResultType()) {
     case Primitive::kPrimInt: {
-      DCHECK_EQ(first.As<Register>(),
-                locations->Out().As<Register>());
       if (second.IsRegister()) {
-        __ subl(first.As<Register>(),
-                second.As<Register>());
+        __ subl(first.As<Register>(), second.As<Register>());
       } else if (second.IsConstant()) {
-        HConstant* instruction = second.GetConstant();
-        Immediate imm(instruction->AsIntConstant()->GetValue());
-        __ subl(first.As<Register>(), imm);
+        __ subl(first.As<Register>(), Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
       } else {
-        __ subl(first.As<Register>(),
-                Address(ESP, second.GetStackIndex()));
+        __ subl(first.As<Register>(), Address(ESP, second.GetStackIndex()));
       }
       break;
     }
 
     case Primitive::kPrimLong: {
-      DCHECK_EQ(first.AsRegisterPairLow<Register>(),
-                locations->Out().AsRegisterPairLow<Register>());
-      DCHECK_EQ(first.AsRegisterPairHigh<Register>(),
-                locations->Out().AsRegisterPairHigh<Register>());
       if (second.IsRegister()) {
-        __ subl(first.AsRegisterPairLow<Register>(),
-                second.AsRegisterPairLow<Register>());
-        __ sbbl(first.AsRegisterPairHigh<Register>(),
-                second.AsRegisterPairHigh<Register>());
+        __ subl(first.AsRegisterPairLow<Register>(), second.AsRegisterPairLow<Register>());
+        __ sbbl(first.AsRegisterPairHigh<Register>(), second.AsRegisterPairHigh<Register>());
       } else {
-        __ subl(first.AsRegisterPairLow<Register>(),
-                Address(ESP, second.GetStackIndex()));
+        __ subl(first.AsRegisterPairLow<Register>(), Address(ESP, second.GetStackIndex()));
         __ sbbl(first.AsRegisterPairHigh<Register>(),
                 Address(ESP, second.GetHighStackIndex(kX86WordSize)));
       }
       break;
     }
 
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-      LOG(FATAL) << "Unexpected sub type " << sub->GetResultType();
+    case Primitive::kPrimFloat: {
+      __ subss(first.As<XmmRegister>(), second.As<XmmRegister>());
       break;
+    }
+
+    case Primitive::kPrimDouble: {
+      __ subsd(first.As<XmmRegister>(), second.As<XmmRegister>());
+      break;
+    }
 
     default:
-      LOG(FATAL) << "Unimplemented sub type " << sub->GetResultType();
+      LOG(FATAL) << "Unexpected sub type " << sub->GetResultType();
   }
 }
 
