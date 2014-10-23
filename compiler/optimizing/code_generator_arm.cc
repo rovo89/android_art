@@ -1065,7 +1065,7 @@ void InstructionCodeGeneratorARM::VisitNeg(HNeg* neg) {
   switch (neg->GetResultType()) {
     case Primitive::kPrimInt:
       DCHECK(in.IsRegister());
-      __ rsbs(out.As<Register>(), in.As<Register>(), ShifterOperand(0));
+      __ rsb(out.As<Register>(), in.As<Register>(), ShifterOperand(0));
       break;
 
     case Primitive::kPrimLong:
