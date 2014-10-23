@@ -442,6 +442,15 @@ void ArmMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
     bool src_fp = r_src.IsFloat();
     DCHECK(r_dest.Is64Bit());
     DCHECK(r_src.Is64Bit());
+    // Note: If the register is get by register allocator, it should never be a pair.
+    // But some functions in mir_2_lir assume 64-bit registers are 32-bit register pairs.
+    // TODO: Rework Mir2Lir::LoadArg() and Mir2Lir::LoadArgDirect().
+    if (dest_fp && r_dest.IsPair()) {
+      r_dest = As64BitFloatReg(r_dest);
+    }
+    if (src_fp && r_src.IsPair()) {
+      r_src = As64BitFloatReg(r_src);
+    }
     if (dest_fp) {
       if (src_fp) {
         OpRegCopy(r_dest, r_src);

@@ -21,6 +21,22 @@
 namespace art {
 namespace arm {
 
+// Used by hard float.
+static const Register kHFCoreArgumentRegisters[] = {
+  R0, R1, R2, R3
+};
+
+static const SRegister kHFSArgumentRegisters[] = {
+  S0, S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, S12, S13, S14, S15
+};
+
+static const DRegister kHFDArgumentRegisters[] = {
+  D0, D1, D2, D3, D4, D5, D6, D7
+};
+
+COMPILE_ASSERT(arraysize(kHFDArgumentRegisters) * 2 == arraysize(kHFSArgumentRegisters),
+    ks_d_argument_registers_mismatch);
+
 // Calling convention
 
 ManagedRegister ArmManagedRuntimeCallingConvention::InterproceduralScratchRegister() {
@@ -31,26 +47,43 @@ ManagedRegister ArmJniCallingConvention::InterproceduralScratchRegister() {
   return ArmManagedRegister::FromCoreRegister(IP);  // R12
 }
 
-static ManagedRegister ReturnRegisterForShorty(const char* shorty) {
-  if (shorty[0] == 'F') {
-    return ArmManagedRegister::FromCoreRegister(R0);
-  } else if (shorty[0] == 'D') {
-    return ArmManagedRegister::FromRegisterPair(R0_R1);
-  } else if (shorty[0] == 'J') {
-    return ArmManagedRegister::FromRegisterPair(R0_R1);
-  } else if (shorty[0] == 'V') {
-    return ArmManagedRegister::NoRegister();
+ManagedRegister ArmManagedRuntimeCallingConvention::ReturnRegister() {
+  if (kArm32QuickCodeUseSoftFloat) {
+    switch (GetShorty()[0]) {
+    case 'V':
+      return ArmManagedRegister::NoRegister();
+    case 'D':
+    case 'J':
+      return ArmManagedRegister::FromRegisterPair(R0_R1);
+    default:
+      return ArmManagedRegister::FromCoreRegister(R0);
+    }
   } else {
-    return ArmManagedRegister::FromCoreRegister(R0);
+    switch (GetShorty()[0]) {
+    case 'V':
+      return ArmManagedRegister::NoRegister();
+    case 'D':
+      return ArmManagedRegister::FromDRegister(D0);
+    case 'F':
+      return ArmManagedRegister::FromSRegister(S0);
+    case 'J':
+      return ArmManagedRegister::FromRegisterPair(R0_R1);
+    default:
+      return ArmManagedRegister::FromCoreRegister(R0);
+    }
   }
 }
 
-ManagedRegister ArmManagedRuntimeCallingConvention::ReturnRegister() {
-  return ReturnRegisterForShorty(GetShorty());
-}
-
 ManagedRegister ArmJniCallingConvention::ReturnRegister() {
-  return ReturnRegisterForShorty(GetShorty());
+  switch (GetShorty()[0]) {
+  case 'V':
+    return ArmManagedRegister::NoRegister();
+  case 'D':
+  case 'J':
+    return ArmManagedRegister::FromRegisterPair(R0_R1);
+  default:
+    return ArmManagedRegister::FromCoreRegister(R0);
+  }
 }
 
 ManagedRegister ArmJniCallingConvention::IntReturnRegister() {
@@ -88,15 +121,68 @@ FrameOffset ArmManagedRuntimeCallingConvention::CurrentParamStackOffset() {
 const ManagedRegisterEntrySpills& ArmManagedRuntimeCallingConvention::EntrySpills() {
   // We spill the argument registers on ARM to free them up for scratch use, we then assume
   // all arguments are on the stack.
-  if (entry_spills_.size() == 0) {
-    size_t num_spills = NumArgs() + NumLongOrDoubleArgs();
-    if (num_spills > 0) {
-      entry_spills_.push_back(ArmManagedRegister::FromCoreRegister(R1));
-      if (num_spills > 1) {
-        entry_spills_.push_back(ArmManagedRegister::FromCoreRegister(R2));
-        if (num_spills > 2) {
-          entry_spills_.push_back(ArmManagedRegister::FromCoreRegister(R3));
+  if (kArm32QuickCodeUseSoftFloat) {
+    if (entry_spills_.size() == 0) {
+      size_t num_spills = NumArgs() + NumLongOrDoubleArgs();
+      if (num_spills > 0) {
+        entry_spills_.push_back(ArmManagedRegister::FromCoreRegister(R1));
+        if (num_spills > 1) {
+          entry_spills_.push_back(ArmManagedRegister::FromCoreRegister(R2));
+          if (num_spills > 2) {
+            entry_spills_.push_back(ArmManagedRegister::FromCoreRegister(R3));
+          }
         }
+      }
+    }
+  } else {
+    if ((entry_spills_.size() == 0) && (NumArgs() > 0)) {
+      uint32_t gpr_index = 1;  // R0 ~ R3. Reserve r0 for ArtMethod*.
+      uint32_t fpr_index = 0;  // S0 ~ S15.
+      uint32_t fpr_double_index = 0;  // D0 ~ D7.
+
+      ResetIterator(FrameOffset(0));
+      while (HasNext()) {
+        if (IsCurrentParamAFloatOrDouble()) {
+          if (IsCurrentParamADouble()) {  // Double.
+            // Double should not overlap with float.
+            fpr_double_index = (std::max(fpr_double_index * 2, RoundUp(fpr_index, 2))) / 2;
+            if (fpr_double_index < arraysize(kHFDArgumentRegisters)) {
+              entry_spills_.push_back(
+                  ArmManagedRegister::FromDRegister(kHFDArgumentRegisters[fpr_double_index++]));
+            } else {
+              entry_spills_.push_back(ManagedRegister::NoRegister(), 8);
+            }
+          } else {  // Float.
+            // Float should not overlap with double.
+            if (fpr_index % 2 == 0) {
+              fpr_index = std::max(fpr_double_index * 2, fpr_index);
+            }
+            if (fpr_index < arraysize(kHFSArgumentRegisters)) {
+              entry_spills_.push_back(
+                  ArmManagedRegister::FromSRegister(kHFSArgumentRegisters[fpr_index++]));
+            } else {
+              entry_spills_.push_back(ManagedRegister::NoRegister(), 4);
+            }
+          }
+        } else {
+          // FIXME: Pointer this returns as both reference and long.
+          if (IsCurrentParamALong() && !IsCurrentParamAReference()) {  // Long.
+            if (gpr_index < arraysize(kHFCoreArgumentRegisters)) {
+              entry_spills_.push_back(
+                  ArmManagedRegister::FromCoreRegister(kHFCoreArgumentRegisters[gpr_index++]));
+            } else {
+              entry_spills_.push_back(ManagedRegister::NoRegister(), 4);
+            }
+          }
+          // High part of long or 32-bit argument.
+          if (gpr_index < arraysize(kHFCoreArgumentRegisters)) {
+            entry_spills_.push_back(
+                ArmManagedRegister::FromCoreRegister(kHFCoreArgumentRegisters[gpr_index++]));
+          } else {
+            entry_spills_.push_back(ManagedRegister::NoRegister(), 4);
+          }
+        }
+        Next();
       }
     }
   }
