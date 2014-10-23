@@ -782,7 +782,7 @@ void ParseDouble(const std::string& option, char after_char,
   *parsed_value = value;
 }
 
-static int dex2oat(int argc, char** argv) {
+static void b13564922() {
 #if defined(__linux__) && defined(__arm__)
   int major, minor;
   struct utsname uts;
@@ -800,6 +800,10 @@ static int dex2oat(int argc, char** argv) {
     }
   }
 #endif
+}
+
+static int dex2oat(int argc, char** argv) {
+  b13564922();
 
   original_argc = argc;
   original_argv = argv;
@@ -1386,17 +1390,20 @@ static int dex2oat(int argc, char** argv) {
       new SafeMap<std::string, std::string>());
 
   // Insert some compiler things.
-  std::ostringstream oss;
-  for (int i = 0; i < argc; ++i) {
-    if (i > 0) {
-      oss << ' ';
+  {
+    std::ostringstream oss;
+    for (int i = 0; i < argc; ++i) {
+      if (i > 0) {
+        oss << ' ';
+      }
+      oss << argv[i];
     }
-    oss << argv[i];
+    key_value_store->Put(OatHeader::kDex2OatCmdLineKey, oss.str());
+    oss.str("");  // Reset.
+    oss << kRuntimeISA;
+    key_value_store->Put(OatHeader::kDex2OatHostKey, oss.str());
+    key_value_store->Put(OatHeader::kPicKey, compile_pic ? "true" : "false");
   }
-  key_value_store->Put(OatHeader::kDex2OatCmdLineKey, oss.str());
-  oss.str("");  // Reset.
-  oss << kRuntimeISA;
-  key_value_store->Put(OatHeader::kDex2OatHostKey, oss.str());
 
   std::unique_ptr<const CompilerDriver> compiler(dex2oat->CreateOatFile(boot_image_option,
                                                                         android_root,
