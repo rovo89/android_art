@@ -135,8 +135,8 @@ static void TestCode(const uint16_t* data, bool has_result = false, int32_t expe
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   HGraph* graph = builder.BuildGraph(*item);
   // Remove suspend checks, they cannot be executed in this context.
-  RemoveSuspendChecks(graph);
   ASSERT_NE(graph, nullptr);
+  RemoveSuspendChecks(graph);
   RunCodeBaseline(graph, has_result, expected);
 }
 
