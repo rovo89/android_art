@@ -550,7 +550,7 @@ void HGraphBuilder::BuildFillArrayData(HInstruction* object,
 }
 
 void HGraphBuilder::BuildFillWideArrayData(HInstruction* object,
-                                           const uint64_t* data,
+                                           const int64_t* data,
                                            uint32_t element_count,
                                            uint32_t dex_offset) {
   for (uint32_t i = 0; i < element_count; ++i) {
@@ -964,25 +964,29 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
 
       switch (payload->element_width) {
         case 1:
-          BuildFillArrayData(null_check, data, element_count, Primitive::kPrimByte, dex_offset);
+          BuildFillArrayData(null_check,
+                             reinterpret_cast<const int8_t*>(data),
+                             element_count,
+                             Primitive::kPrimByte,
+                             dex_offset);
           break;
         case 2:
           BuildFillArrayData(null_check,
-                             reinterpret_cast<const uint16_t*>(data),
+                             reinterpret_cast<const int16_t*>(data),
                              element_count,
                              Primitive::kPrimShort,
                              dex_offset);
           break;
         case 4:
           BuildFillArrayData(null_check,
-                             reinterpret_cast<const uint32_t*>(data),
+                             reinterpret_cast<const int32_t*>(data),
                              element_count,
                              Primitive::kPrimInt,
                              dex_offset);
           break;
         case 8:
           BuildFillWideArrayData(null_check,
-                                 reinterpret_cast<const uint64_t*>(data),
+                                 reinterpret_cast<const int64_t*>(data),
                                  element_count,
                                  dex_offset);
           break;
