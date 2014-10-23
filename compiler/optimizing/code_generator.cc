@@ -17,6 +17,7 @@
 #include "code_generator.h"
 
 #include "code_generator_arm.h"
+#include "code_generator_arm64.h"
 #include "code_generator_x86.h"
 #include "code_generator_x86_64.h"
 #include "compiled_method.h"
@@ -280,6 +281,9 @@ CodeGenerator* CodeGenerator::Create(ArenaAllocator* allocator,
     case kArm:
     case kThumb2: {
       return new (allocator) arm::CodeGeneratorARM(graph);
+    }
+    case kArm64: {
+      return new (allocator) arm64::CodeGeneratorARM64(graph);
     }
     case kMips:
       return nullptr;
