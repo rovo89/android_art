@@ -20,6 +20,7 @@
 #include "base/casts.h"
 #include "base/logging.h"
 #include "base/macros.h"
+#include "base/value_object.h"
 #include "stack.h"
 
 namespace art {
@@ -33,7 +34,7 @@ template<class T> class Handle;
 // a wrap pointer. Handles are generally allocated within HandleScopes. Handle is a super-class
 // of MutableHandle and doesn't support assignment operations.
 template<class T>
-class Handle {
+class Handle : public ValueObject {
  public:
   Handle() : reference_(nullptr) {
   }
@@ -58,7 +59,7 @@ class Handle {
   }
 
   ALWAYS_INLINE T* Get() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return reference_->AsMirrorPtr();
+    return down_cast<T*>(reference_->AsMirrorPtr());
   }
 
   ALWAYS_INLINE jobject ToJObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -70,24 +71,24 @@ class Handle {
   }
 
  protected:
-  StackReference<T>* reference_;
-
   template<typename S>
   explicit Handle(StackReference<S>* reference)
-      : reference_(reinterpret_cast<StackReference<T>*>(reference)) {
+      : reference_(reference) {
   }
   template<typename S>
   explicit Handle(const Handle<S>& handle)
-      : reference_(reinterpret_cast<StackReference<T>*>(handle.reference_)) {
+      : reference_(handle.reference_) {
   }
 
-  StackReference<T>* GetReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
+  StackReference<mirror::Object>* GetReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) ALWAYS_INLINE {
     return reference_;
   }
-  ALWAYS_INLINE const StackReference<T>* GetReference() const
+  ALWAYS_INLINE const StackReference<mirror::Object>* GetReference() const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return reference_;
   }
+
+  StackReference<mirror::Object>* reference_;
 
  private:
   friend class BuildGenericJniFrameVisitor;
@@ -121,8 +122,8 @@ class MutableHandle : public Handle<T> {
   }
 
   ALWAYS_INLINE T* Assign(T* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    StackReference<T>* ref = Handle<T>::GetReference();
-    T* const old = ref->AsMirrorPtr();
+    StackReference<mirror::Object>* ref = Handle<T>::GetReference();
+    T* old = down_cast<T*>(ref->AsMirrorPtr());
     ref->Assign(reference);
     return old;
   }
@@ -132,7 +133,6 @@ class MutableHandle : public Handle<T> {
       : Handle<T>(handle) {
   }
 
- protected:
   template<typename S>
   explicit MutableHandle(StackReference<S>* reference) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : Handle<T>(reference) {
@@ -153,7 +153,7 @@ class NullHandle : public Handle<T> {
   }
 
  private:
-  StackReference<T> null_ref_;
+  StackReference<mirror::Object> null_ref_;
 };
 
 }  // namespace art
