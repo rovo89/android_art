@@ -793,6 +793,16 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::MUL_FLOAT: {
+      Binop_23x<HMul>(instruction, Primitive::kPrimFloat);
+      break;
+    }
+
+    case Instruction::MUL_DOUBLE: {
+      Binop_23x<HMul>(instruction, Primitive::kPrimDouble);
+      break;
+    }
+
     case Instruction::ADD_LONG_2ADDR: {
       Binop_12x<HAdd>(instruction, Primitive::kPrimLong);
       break;
@@ -825,6 +835,16 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
 
     case Instruction::MUL_LONG_2ADDR: {
       Binop_12x<HMul>(instruction, Primitive::kPrimLong);
+      break;
+    }
+
+    case Instruction::MUL_FLOAT_2ADDR: {
+      Binop_12x<HMul>(instruction, Primitive::kPrimFloat);
+      break;
+    }
+
+    case Instruction::MUL_DOUBLE_2ADDR: {
+      Binop_12x<HMul>(instruction, Primitive::kPrimDouble);
       break;
     }
 
