@@ -112,7 +112,8 @@ inline uint32_t Class::NumVirtualMethods() {
 
 template<VerifyObjectFlags kVerifyFlags>
 inline ArtMethod* Class::GetVirtualMethod(uint32_t i) {
-  DCHECK(IsResolved<kVerifyFlags>() || IsErroneous<kVerifyFlags>());
+  DCHECK(IsResolved<kVerifyFlags>() || IsErroneous<kVerifyFlags>())
+      << PrettyClass(this) << " status=" << GetStatus();
   return GetVirtualMethods()->Get(i);
 }
 
@@ -615,12 +616,11 @@ inline uint32_t Class::ComputeClassSize(bool has_embedded_tables,
 
 template <bool kVisitClass, typename Visitor>
 inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor) {
-  // Visit the static fields first so that we don't overwrite the SFields / IFields instance
-  // fields.
   VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
-  if (!IsTemp()) {
+  if (!IsTemp() && IsResolved()) {
     // Temp classes don't ever populate imt/vtable or static fields and they are not even
-    // allocated with the right size for those.
+    // allocated with the right size for those. Also, unresolved classes don't have fields
+    // linked yet.
     VisitStaticFieldsReferences<kVisitClass>(this, visitor);
     if (ShouldHaveEmbeddedImtAndVTable()) {
       VisitEmbeddedImtAndVTable(visitor);
