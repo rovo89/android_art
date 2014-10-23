@@ -976,11 +976,11 @@ void LocationsBuilderX86_64::VisitNeg(HNeg* neg) {
       new (GetGraph()->GetArena()) LocationSummary(neg, LocationSummary::kNoCall);
   switch (neg->GetResultType()) {
     case Primitive::kPrimInt:
-    case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetOut(Location::SameAsFirstInput());
       break;
 
+    case Primitive::kPrimLong:
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       LOG(FATAL) << "Not yet implemented neg type " << neg->GetResultType();
@@ -1002,10 +1002,6 @@ void InstructionCodeGeneratorX86_64::VisitNeg(HNeg* neg) {
       break;
 
     case Primitive::kPrimLong:
-      DCHECK(in.IsRegister());
-      __ negq(out.As<CpuRegister>());
-      break;
-
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       LOG(FATAL) << "Not yet implemented neg type " << neg->GetResultType();
