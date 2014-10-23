@@ -24,6 +24,19 @@
 
 namespace art {
 
+class MethodProtoHelper {
+ public:
+  ALWAYS_INLINE MethodProtoHelper(mirror::ArtMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE bool HasSameNameAndSignature(const MethodProtoHelper& other) const;
+
+ private:
+  const DexFile* dex_file_;
+  const DexFile::MethodId* mid_;
+  const char* name_;
+  uint32_t name_len_;
+};
+
 class MethodHelper {
  public:
   explicit MethodHelper(Handle<mirror::ArtMethod> m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)

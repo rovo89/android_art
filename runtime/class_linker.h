@@ -51,6 +51,7 @@ class InternTable;
 template<class T> class ObjectLock;
 class ScopedObjectAccessAlreadyRunnable;
 template<class T> class Handle;
+template<size_t kNumReferences> class PACKED(4) StackHandleScope;
 
 typedef bool (ClassVisitor)(mirror::Class* c, void* arg);
 
@@ -513,14 +514,16 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkMethods(Thread* self, Handle<mirror::Class> klass,
-                   Handle<mirror::ObjectArray<mirror::Class>> interfaces)
+                   Handle<mirror::ObjectArray<mirror::Class>> interfaces,
+                   StackHandleScope<mirror::Class::kImtSize>* out_imt)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool LinkInterfaceMethods(Handle<mirror::Class> klass,
-                            Handle<mirror::ObjectArray<mirror::Class>> interfaces)
+  bool LinkInterfaceMethods(Thread* const self, Handle<mirror::Class> klass,
+                            Handle<mirror::ObjectArray<mirror::Class>> interfaces,
+                            StackHandleScope<mirror::Class::kImtSize>* out_imt)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool LinkStaticFields(Handle<mirror::Class> klass, size_t* class_size)
@@ -734,7 +737,8 @@ class ClassLinker {
   };
   GcRoot<mirror::ObjectArray<mirror::Class>> class_roots_;
 
-  mirror::Class* GetClassRoot(ClassRoot class_root) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE mirror::Class* GetClassRoot(ClassRoot class_root)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetClassRoot(ClassRoot class_root, mirror::Class* klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

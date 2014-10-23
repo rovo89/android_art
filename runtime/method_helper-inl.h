@@ -74,6 +74,23 @@ inline mirror::String* MethodHelper::ResolveString(uint32_t string_idx) {
   return s;
 }
 
+inline MethodProtoHelper::MethodProtoHelper(mirror::ArtMethod* method) {
+  method = method->GetInterfaceMethodIfProxy();
+  dex_file_ = method->GetDexFile();
+  mid_ = &dex_file_->GetMethodId(method->GetDexMethodIndex());
+  name_ = dex_file_->StringDataAndUtf16LengthByIdx(mid_->name_idx_, &name_len_);
+}
+
+inline bool MethodProtoHelper::HasSameNameAndSignature(const MethodProtoHelper& other) const {
+  if (name_len_ != other.name_len_ || strcmp(name_, other.name_) != 0) {
+    return false;
+  }
+  if (dex_file_ == other.dex_file_) {
+    return mid_->name_idx_ == other.mid_->name_idx_ && mid_->proto_idx_ == other.mid_->proto_idx_;
+  }
+  return dex_file_->GetMethodSignature(*mid_) == other.dex_file_->GetMethodSignature(*other.mid_);
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_METHOD_HELPER_INL_H_

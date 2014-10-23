@@ -329,6 +329,14 @@ inline bool ArtMethod::IsImtConflictMethod() {
   return result;
 }
 
+
+inline bool ArtMethod::IsImtUnimplementedMethod() {
+  bool result = this == Runtime::Current()->GetImtUnimplementedMethod();
+  // Check that if we do think it is phony it looks like the imt unimplemented method.
+  DCHECK(!result || IsRuntimeMethod());
+  return result;
+}
+
 inline uintptr_t ArtMethod::NativePcOffset(const uintptr_t pc) {
   const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
   return pc - reinterpret_cast<uintptr_t>(code);
@@ -399,7 +407,7 @@ inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo(const void* code_pointe
 }
 
 inline const DexFile* ArtMethod::GetDexFile() {
-  return GetInterfaceMethodIfProxy()->GetDeclaringClass()->GetDexCache()->GetDexFile();
+  return GetDexCache()->GetDexFile();
 }
 
 inline const char* ArtMethod::GetDeclaringClassDescriptor() {
@@ -529,6 +537,21 @@ inline ArtMethod* ArtMethod::GetInterfaceMethodIfProxy() {
   DCHECK_EQ(interface_method,
             Runtime::Current()->GetClassLinker()->FindMethodForProxy(klass, this));
   return interface_method;
+}
+
+inline void ArtMethod::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {
+  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_strings_),
+                        new_dex_cache_strings);
+}
+
+inline void ArtMethod::SetDexCacheResolvedMethods(ObjectArray<ArtMethod>* new_dex_cache_methods) {
+  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_methods_),
+                        new_dex_cache_methods);
+}
+
+inline void ArtMethod::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cache_classes) {
+  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_),
+                        new_dex_cache_classes);
 }
 
 }  // namespace mirror

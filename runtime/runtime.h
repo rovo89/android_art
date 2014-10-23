@@ -310,6 +310,7 @@ class Runtime {
 
   // Returns a special method that calls into a trampoline for runtime imt conflicts.
   mirror::ArtMethod* GetImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::ArtMethod* GetImtUnimplementedMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool HasImtConflictMethod() const {
     return !imt_conflict_method_.IsNull();
@@ -317,6 +318,9 @@ class Runtime {
 
   void SetImtConflictMethod(mirror::ArtMethod* method) {
     imt_conflict_method_ = GcRoot<mirror::ArtMethod>(method);
+  }
+  void SetImtUnimplementedMethod(mirror::ArtMethod* method) {
+    imt_unimplemented_method_ = GcRoot<mirror::ArtMethod>(method);
   }
 
   mirror::ArtMethod* CreateImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -515,6 +519,9 @@ class Runtime {
   GcRoot<mirror::Throwable> pre_allocated_NoClassDefFoundError_;
   GcRoot<mirror::ArtMethod> resolution_method_;
   GcRoot<mirror::ArtMethod> imt_conflict_method_;
+  // Unresolved method has the same behavior as the conflict method, it is used by the class linker
+  // for differentiating between unfilled imt slots vs conflict slots in superclasses.
+  GcRoot<mirror::ArtMethod> imt_unimplemented_method_;
   GcRoot<mirror::ObjectArray<mirror::ArtMethod>> default_imt_;
 
   InstructionSet instruction_set_;
