@@ -17,6 +17,7 @@
 # Set up prog to be the path of this script, including following symlinks,
 # and set up progdir to be the fully-qualified pathname of its directory.
 prog="$0"
+args="$@"
 while [ -h "${prog}" ]; do
     newProg=`/bin/ls -ld "${prog}"`
     newProg=`expr "${newProg}" : ".* -> \(.*\)$"`
@@ -528,6 +529,7 @@ else
         cp "$build_output" "$output"
         echo "Failed to build in tmpdir=${tmp_dir} from oldwd=${oldwd} and cwd=`pwd`" >> "$output"
         echo "Non-canonical tmpdir was ${noncanonical_tmp_dir}" >> "$output"
+        echo "Args: ${args}" >> "output"
         echo "build exit status: $build_exit" >> "$output"
     fi
     ./$check_cmd "$expected" "$output"

@@ -15,6 +15,6 @@
 # limitations under the License.
 
 # Strip build error debug messages, as they are environment-specific.
-sed -e '/^Failed to build/d' -e '/^Non-canonical tmpdir/d' "$2" > "$2.tmp"
+sed -e '/^Failed to build/d' -e '/^Non-canonical tmpdir/d' -e '/^Args:/d' "$2" > "$2.tmp"
 
 diff --strip-trailing-cr -q "$1" "$2.tmp" >/dev/null
