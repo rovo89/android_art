@@ -1356,18 +1356,34 @@ void LocationsBuilderX86::VisitParameterValue(HParameterValue* instruction) {
 void InstructionCodeGeneratorX86::VisitParameterValue(HParameterValue* instruction) {
 }
 
-void LocationsBuilderX86::VisitNot(HNot* instruction) {
+void LocationsBuilderX86::VisitNot(HNot* not_) {
   LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+      new (GetGraph()->GetArena()) LocationSummary(not_, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::SameAsFirstInput());
 }
 
-void InstructionCodeGeneratorX86::VisitNot(HNot* instruction) {
-  LocationSummary* locations = instruction->GetLocations();
+void InstructionCodeGeneratorX86::VisitNot(HNot* not_) {
+  LocationSummary* locations = not_->GetLocations();
+  DCHECK_EQ(locations->InAt(0).As<Register>(), locations->Out().As<Register>());
   Location out = locations->Out();
   DCHECK_EQ(locations->InAt(0).As<Register>(), out.As<Register>());
-  __ xorl(out.As<Register>(), Immediate(1));
+  switch (not_->InputAt(0)->GetType()) {
+    case Primitive::kPrimBoolean:
+      __ xorl(out.As<Register>(), Immediate(1));
+      break;
+
+    case Primitive::kPrimInt:
+      __ notl(out.As<Register>());
+      break;
+
+    case Primitive::kPrimLong:
+      LOG(FATAL) << "Not yet implemented type for not operation " << not_->GetResultType();
+      break;
+
+    default:
+      LOG(FATAL) << "Unimplemented type for not operation " << not_->GetResultType();
+  }
 }
 
 void LocationsBuilderX86::VisitCompare(HCompare* compare) {

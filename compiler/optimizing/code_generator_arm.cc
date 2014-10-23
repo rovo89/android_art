@@ -1351,17 +1351,33 @@ void InstructionCodeGeneratorARM::VisitParameterValue(HParameterValue* instructi
   // Nothing to do, the parameter is already at its location.
 }
 
-void LocationsBuilderARM::VisitNot(HNot* instruction) {
+void LocationsBuilderARM::VisitNot(HNot* not_) {
   LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+      new (GetGraph()->GetArena()) LocationSummary(not_, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
-void InstructionCodeGeneratorARM::VisitNot(HNot* instruction) {
-  LocationSummary* locations = instruction->GetLocations();
-  __ eor(locations->Out().As<Register>(),
-         locations->InAt(0).As<Register>(), ShifterOperand(1));
+void InstructionCodeGeneratorARM::VisitNot(HNot* not_) {
+  LocationSummary* locations = not_->GetLocations();
+  Location out = locations->Out();
+  Location in = locations->InAt(0);
+  switch (not_->InputAt(0)->GetType()) {
+    case Primitive::kPrimBoolean:
+      __ eor(out.As<Register>(), in.As<Register>(), ShifterOperand(1));
+      break;
+
+    case Primitive::kPrimInt:
+      __ mvn(out.As<Register>(), ShifterOperand(in.As<Register>()));
+      break;
+
+    case Primitive::kPrimLong:
+      LOG(FATAL) << "Not yet implemented type for not operation " << not_->GetResultType();
+      break;
+
+    default:
+      LOG(FATAL) << "Unimplemented type for not operation " << not_->GetResultType();
+  }
 }
 
 void LocationsBuilderARM::VisitCompare(HCompare* compare) {
