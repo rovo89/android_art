@@ -1305,6 +1305,29 @@ void InstructionCodeGeneratorARM::VisitNewInstance(HNewInstance* instruction) {
   DCHECK(!codegen_->IsLeafMethod());
 }
 
+void LocationsBuilderARM::VisitNewArray(HNewArray* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetOut(Location::RegisterLocation(R0));
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+}
+
+void InstructionCodeGeneratorARM::VisitNewArray(HNewArray* instruction) {
+  InvokeRuntimeCallingConvention calling_convention;
+  LoadCurrentMethod(calling_convention.GetRegisterAt(1));
+  __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex());
+
+  int32_t offset = QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pAllocArrayWithAccessCheck).Int32Value();
+  __ LoadFromOffset(kLoadWord, LR, TR, offset);
+  __ blx(LR);
+
+  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+  DCHECK(!codegen_->IsLeafMethod());
+}
+
 void LocationsBuilderARM::VisitParameterValue(HParameterValue* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
