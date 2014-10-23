@@ -1345,11 +1345,11 @@ const OatFile* ClassLinker::OpenOatFileFromDexLocation(const std::string& dex_lo
   bool odex_checksum_verified = false;
   bool have_system_odex = false;
   {
-    // There is a high probability that these both these oat files map similar/the same address
+    // There is a high probability that both these oat files map similar/the same address
     // spaces so we must scope them like this so they each gets its turn.
     std::unique_ptr<OatFile> odex_oat_file(OatFile::Open(odex_filename, odex_filename, nullptr,
                                                          executable, &odex_error_msg));
-    if (odex_oat_file.get() != nullptr && CheckOatFile(odex_oat_file.get(), isa,
+    if (odex_oat_file.get() != nullptr && CheckOatFile(runtime, odex_oat_file.get(), isa,
                                                        &odex_checksum_verified,
                                                        &odex_error_msg)) {
       return odex_oat_file.release();
@@ -1371,7 +1371,7 @@ const OatFile* ClassLinker::OpenOatFileFromDexLocation(const std::string& dex_lo
   if (have_dalvik_cache) {
     std::unique_ptr<OatFile> cache_oat_file(OatFile::Open(cache_filename, cache_filename, nullptr,
                                                           executable, &cache_error_msg));
-    if (cache_oat_file.get() != nullptr && CheckOatFile(cache_oat_file.get(), isa,
+    if (cache_oat_file.get() != nullptr && CheckOatFile(runtime, cache_oat_file.get(), isa,
                                                         &cache_checksum_verified,
                                                         &cache_error_msg)) {
       return cache_oat_file.release();
@@ -1465,13 +1465,15 @@ const OatFile* ClassLinker::PatchAndRetrieveOat(const std::string& input_oat,
                                                 const std::string& image_location,
                                                 InstructionSet isa,
                                                 std::string* error_msg) {
-  if (!Runtime::Current()->GetHeap()->HasImageSpace()) {
+  Runtime* runtime = Runtime::Current();
+  DCHECK(runtime != nullptr);
+  if (!runtime->GetHeap()->HasImageSpace()) {
     // We don't have an image space so there is no point in trying to patchoat.
     LOG(WARNING) << "Patching of oat file '" << input_oat << "' not attempted because we are "
                  << "running without an image. Attempting to use oat file for interpretation.";
     return GetInterpretedOnlyOat(input_oat, isa, error_msg);
   }
-  if (!Runtime::Current()->IsDex2OatEnabled()) {
+  if (!runtime->IsDex2OatEnabled()) {
     // We don't have dex2oat so we can assume we don't have patchoat either. We should just use the
     // input_oat but make sure we only do interpretation on it's dex files.
     LOG(WARNING) << "Patching of oat file '" << input_oat << "' not attempted due to dex2oat being "
@@ -1479,7 +1481,7 @@ const OatFile* ClassLinker::PatchAndRetrieveOat(const std::string& input_oat,
     return GetInterpretedOnlyOat(input_oat, isa, error_msg);
   }
   Locks::mutator_lock_->AssertNotHeld(Thread::Current());  // Avoid starving GC.
-  std::string patchoat(Runtime::Current()->GetPatchoatExecutable());
+  std::string patchoat(runtime->GetPatchoatExecutable());
 
   std::string isa_arg("--instruction-set=");
   isa_arg += GetInstructionSetString(isa);
@@ -1502,9 +1504,10 @@ const OatFile* ClassLinker::PatchAndRetrieveOat(const std::string& input_oat,
   bool success = Exec(argv, error_msg);
   if (success) {
     std::unique_ptr<OatFile> output(OatFile::Open(output_oat, output_oat, nullptr,
-                                                  !Runtime::Current()->IsCompiler(), error_msg));
+                                                  !runtime->IsCompiler(), error_msg));
     bool checksum_verified = false;
-    if (output.get() != nullptr && CheckOatFile(output.get(), isa, &checksum_verified, error_msg)) {
+    if (output.get() != nullptr && CheckOatFile(runtime, output.get(), isa, &checksum_verified,
+                                                error_msg)) {
       return output.release();
     } else if (output.get() != nullptr) {
       *error_msg = StringPrintf("Patching of oat file '%s' succeeded "
@@ -1515,7 +1518,7 @@ const OatFile* ClassLinker::PatchAndRetrieveOat(const std::string& input_oat,
                                 "but was unable to open output file '%s': %s",
                                 input_oat.c_str(), output_oat.c_str(), error_msg->c_str());
     }
-  } else if (!Runtime::Current()->IsCompiler()) {
+  } else if (!runtime->IsCompiler()) {
     // patchoat failed which means we probably don't have enough room to place the output oat file,
     // instead of failing we should just run the interpreter from the dex files in the input oat.
     LOG(WARNING) << "Patching of oat file '" << input_oat << "' failed. Attempting to use oat file "
@@ -1529,27 +1532,9 @@ const OatFile* ClassLinker::PatchAndRetrieveOat(const std::string& input_oat,
   return nullptr;
 }
 
-int32_t ClassLinker::GetRequiredDelta(const OatFile* oat_file, InstructionSet isa) {
-  Runtime* runtime = Runtime::Current();
-  int32_t real_patch_delta;
-  const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
-  CHECK(image_space != nullptr);
-  if (isa == Runtime::Current()->GetInstructionSet()) {
-    const ImageHeader& image_header = image_space->GetImageHeader();
-    real_patch_delta = image_header.GetPatchDelta();
-  } else {
-    std::unique_ptr<ImageHeader> image_header(gc::space::ImageSpace::ReadImageHeaderOrDie(
-        image_space->GetImageLocation().c_str(), isa));
-    real_patch_delta = image_header->GetPatchDelta();
-  }
-  const OatHeader& oat_header = oat_file->GetOatHeader();
-  return real_patch_delta - oat_header.GetImagePatchDelta();
-}
-
-bool ClassLinker::CheckOatFile(const OatFile* oat_file, InstructionSet isa,
+bool ClassLinker::CheckOatFile(const Runtime* runtime, const OatFile* oat_file, InstructionSet isa,
                                bool* checksum_verified,
                                std::string* error_msg) {
-  Runtime* runtime = Runtime::Current();
   const gc::space::ImageSpace* image_space = runtime->GetHeap()->GetImageSpace();
   if (image_space == nullptr) {
     *error_msg = "No image space present";
@@ -1581,19 +1566,30 @@ bool ClassLinker::CheckOatFile(const OatFile* oat_file, InstructionSet isa,
                   real_image_checksum, oat_image_checksum);
   }
 
-  void* oat_image_oat_offset =
-      reinterpret_cast<void*>(oat_header.GetImageFileLocationOatDataBegin());
-  bool offset_verified = oat_image_oat_offset == real_image_oat_offset;
-  if (!offset_verified) {
-    StringAppendF(&compound_msg, " Oat Image oat offset incorrect (expected 0x%p, received 0x%p)",
-                  real_image_oat_offset, oat_image_oat_offset);
-  }
+  bool offset_verified;
+  bool patch_delta_verified;
 
-  int32_t oat_patch_delta = oat_header.GetImagePatchDelta();
-  bool patch_delta_verified = oat_patch_delta == real_patch_delta;
-  if (!patch_delta_verified) {
-    StringAppendF(&compound_msg, " Oat image patch delta incorrect (expected 0x%x, received 0x%x)",
-                  real_patch_delta, oat_patch_delta);
+  if (!oat_file->IsPic()) {
+    // If an oat file is not PIC, we need to check that the image is at the expected location and
+    // patched in the same way.
+    void* oat_image_oat_offset =
+        reinterpret_cast<void*>(oat_header.GetImageFileLocationOatDataBegin());
+    offset_verified = oat_image_oat_offset == real_image_oat_offset;
+    if (!offset_verified) {
+      StringAppendF(&compound_msg, " Oat Image oat offset incorrect (expected 0x%p, received 0x%p)",
+                    real_image_oat_offset, oat_image_oat_offset);
+    }
+
+    int32_t oat_patch_delta = oat_header.GetImagePatchDelta();
+    patch_delta_verified = oat_patch_delta == real_patch_delta;
+    if (!patch_delta_verified) {
+      StringAppendF(&compound_msg, " Oat image patch delta incorrect (expected 0x%x, "
+                    "received 0x%x)", real_patch_delta, oat_patch_delta);
+    }
+  } else {
+    // If an oat file is PIC, we ignore offset and patching delta.
+    offset_verified = true;
+    patch_delta_verified = true;
   }
 
   bool ret = (*checksum_verified && offset_verified && patch_delta_verified);

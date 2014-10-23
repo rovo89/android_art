@@ -72,6 +72,8 @@ class OatFile {
     return is_executable_;
   }
 
+  bool IsPic() const;
+
   ElfFile* GetElfFile() const {
     CHECK_NE(reinterpret_cast<uintptr_t>(elf_file_.get()), reinterpret_cast<uintptr_t>(nullptr))
         << "Cannot get an elf file from " << GetLocation();
