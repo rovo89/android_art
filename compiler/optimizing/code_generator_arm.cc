@@ -1411,7 +1411,10 @@ void InstructionCodeGeneratorARM::VisitNot(HNot* not_) {
       break;
 
     case Primitive::kPrimLong:
-      LOG(FATAL) << "Not yet implemented type for not operation " << not_->GetResultType();
+      __ mvn(out.AsRegisterPairLow<Register>(),
+             ShifterOperand(in.AsRegisterPairLow<Register>()));
+      __ mvn(out.AsRegisterPairHigh<Register>(),
+             ShifterOperand(in.AsRegisterPairHigh<Register>()));
       break;
 
     default:
