@@ -118,9 +118,7 @@ class RegisterLine {
 
   void FillWithGarbage() {
     memset(&line_, 0xf1, num_regs_ * sizeof(uint16_t));
-    while (!monitors_.empty()) {
-      monitors_.pop_back();
-    }
+    monitors_.clear();
     reg_to_lock_depths_.clear();
   }
 
