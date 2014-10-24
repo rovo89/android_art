@@ -24,6 +24,8 @@ public class Main extends TestCase {
   public static void main(String[] args) throws Exception {
     $opt$TestAllocations();
     $opt$TestWithInitializations();
+    $opt$TestNegativeValueNewByteArray();
+    $opt$TestNegativeValueNewCharArray();
     testSmaliFilledNewArray();
     testSmaliFillArrayData();
     testSmaliVerifyError();
@@ -107,6 +109,24 @@ public class Main extends TestCase {
     assertEquals(2, i.length);
     assertEquals(obj1, i[0]);
     assertEquals(obj2, i[1]);
+  }
+
+  static void $opt$TestNegativeValueNewByteArray() {
+    // Use an array initializer to hint the use of filled-new-array.
+    byte[] a = { (byte)0xa0, (byte)0xa1, (byte)0xa2, (byte)0xa3,
+                 (byte)0xa4, (byte)0xa5, (byte)0xa6, (byte)0xa7 };
+    for (int i = 0; i < a.length; i++) {
+      assertEquals((byte)0xa0 + i, a[i]);
+    }
+  }
+
+  static void $opt$TestNegativeValueNewCharArray() {
+    // Use an array initializer to hint the use of filled-new-array.
+    char[] a = { (char)0xa000, (char)0xa001, (char)0xa002, (char)0xa003,
+                 (char)0xa004, (char)0xa005, (char)0xa006, (char)0xa007 };
+    for (int i = 0; i < a.length; i++) {
+      assertEquals((char)0xa000 + i, a[i]);
+    }
   }
 
   public static void testSmaliFilledNewArray() throws Exception {
