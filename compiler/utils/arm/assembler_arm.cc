@@ -417,9 +417,23 @@ void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   StoreToOffset(kStoreWord, R0, SP, 0);
 
   // Write out entry spills.
+  int32_t offset = frame_size + sizeof(StackReference<mirror::ArtMethod>);
   for (size_t i = 0; i < entry_spills.size(); ++i) {
-    Register reg = entry_spills.at(i).AsArm().AsCoreRegister();
-    StoreToOffset(kStoreWord, reg, SP, frame_size + kFramePointerSize + (i * kFramePointerSize));
+    ArmManagedRegister reg = entry_spills.at(i).AsArm();
+    if (reg.IsNoRegister()) {
+      // only increment stack offset.
+      ManagedRegisterSpill spill = entry_spills.at(i);
+      offset += spill.getSize();
+    } else if (reg.IsCoreRegister()) {
+      StoreToOffset(kStoreWord, reg.AsCoreRegister(), SP, offset);
+      offset += 4;
+    } else if (reg.IsSRegister()) {
+      StoreSToOffset(reg.AsSRegister(), SP, offset);
+      offset += 4;
+    } else if (reg.IsDRegister()) {
+      StoreDToOffset(reg.AsDRegister(), SP, offset);
+      offset += 8;
+    }
   }
 }
 

@@ -222,6 +222,7 @@ LIBART_TARGET_SRC_FILES_arm := \
   arch/arm/memcmp16_arm.S \
   arch/arm/portable_entrypoints_arm.S \
   arch/arm/quick_entrypoints_arm.S \
+  arch/arm/quick_entrypoints_cc_arm.cc \
   arch/arm/thread_arm.cc \
   arch/arm/fault_handler_arm.cc
 
