@@ -646,6 +646,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
 }
 #endif
 
+#if ART_USE_FUTEXES
 void ReaderWriterMutex::HandleSharedLockContention(Thread* self, int32_t cur_state) {
   // Owner holds it exclusively, hang up.
   ScopedContentionRecorder scr(this, GetExclusiveOwnerTid(), SafeGetTid(self));
@@ -657,6 +658,7 @@ void ReaderWriterMutex::HandleSharedLockContention(Thread* self, int32_t cur_sta
   }
   --num_pending_readers_;
 }
+#endif
 
 bool ReaderWriterMutex::SharedTryLock(Thread* self) {
   DCHECK(self == NULL || self == Thread::Current());
@@ -726,7 +728,7 @@ ConditionVariable::ConditionVariable(const char* name, Mutex& guard)
   CHECK_MUTEX_CALL(pthread_condattr_init, (&cond_attrs));
 #if !defined(__APPLE__)
   // Apple doesn't have CLOCK_MONOTONIC or pthread_condattr_setclock.
-  CHECK_MUTEX_CALL(pthread_condattr_setclock(&cond_attrs, CLOCK_MONOTONIC));
+  CHECK_MUTEX_CALL(pthread_condattr_setclock, (&cond_attrs, CLOCK_MONOTONIC));
 #endif
   CHECK_MUTEX_CALL(pthread_cond_init, (&cond_, &cond_attrs));
 #endif
