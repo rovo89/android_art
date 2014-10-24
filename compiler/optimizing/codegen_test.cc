@@ -260,6 +260,31 @@ TEST(CodegenTest, ReturnIf2) {
   TestCode(data, true, 0);
 }
 
+// Exercise bit-wise (one's complement) not-int instruction.
+#define NOT_INT_TEST(TEST_NAME, INPUT, EXPECTED_OUTPUT) \
+TEST(CodegenTest, TEST_NAME) {                          \
+  const int32_t input = INPUT;                          \
+  const uint16_t input_lo = input & 0x0000FFFF;         \
+  const uint16_t input_hi = input >> 16;                \
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(      \
+      Instruction::CONST | 0 << 8, input_lo, input_hi,  \
+      Instruction::NOT_INT | 1 << 8 | 0 << 12 ,         \
+      Instruction::RETURN | 1 << 8);                    \
+                                                        \
+  TestCode(data, true, EXPECTED_OUTPUT);                \
+}
+
+NOT_INT_TEST(ReturnNotIntMinus2, -2, 1)
+NOT_INT_TEST(ReturnNotIntMinus1, -1, 0)
+NOT_INT_TEST(ReturnNotInt0, 0, -1)
+NOT_INT_TEST(ReturnNotInt1, 1, -2)
+NOT_INT_TEST(ReturnNotIntINT_MIN, -2147483648, 2147483647)  // (2^31) - 1
+NOT_INT_TEST(ReturnNotIntINT_MINPlus1, -2147483647, 2147483646)  // (2^31) - 2
+NOT_INT_TEST(ReturnNotIntINT_MAXMinus1, 2147483646, -2147483647)  // -(2^31) - 1
+NOT_INT_TEST(ReturnNotIntINT_MAX, 2147483647, -2147483648)  // -(2^31)
+
+#undef NOT_INT_TEST
+
 TEST(CodegenTest, ReturnAdd1) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 3 << 12 | 0,
