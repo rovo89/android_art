@@ -30,6 +30,7 @@
 #include <sys/utsname.h>
 #endif
 
+#include "base/dumpable.h"
 #include "base/stl_util.h"
 #include "base/stringpiece.h"
 #include "base/timing_logger.h"
@@ -832,6 +833,7 @@ static int dex2oat(int argc, char** argv) {
   int small_method_threshold = CompilerOptions::kDefaultSmallMethodThreshold;
   int tiny_method_threshold = CompilerOptions::kDefaultTinyMethodThreshold;
   int num_dex_methods_threshold = CompilerOptions::kDefaultNumDexMethodsThreshold;
+  std::vector<std::string> verbose_methods;
 
   // Initialize ISA and ISA features to default values.
   InstructionSet instruction_set = kRuntimeISA;
@@ -1058,6 +1060,11 @@ static int dex2oat(int argc, char** argv) {
       include_patch_information = true;
     } else if (option == "--no-include-patch-information") {
       include_patch_information = false;
+    } else if (option.starts_with("--verbose-methods=")) {
+      // TODO: rather than switch off compiler logging, make all VLOG(compiler) messages conditional
+      //       on having verbost methods.
+      gLogVerbosity.compiler = false;
+      Split(option.substr(strlen("--verbose-methods=")).ToString(), ',', &verbose_methods);
     } else {
       Usage("Unknown argument %s", option.data());
     }
@@ -1213,24 +1220,25 @@ static int dex2oat(int argc, char** argv) {
     PassDriverMEOpts::PrintPassOptions();
   }
 
-  std::unique_ptr<CompilerOptions> compiler_options(new CompilerOptions(compiler_filter,
-                                                                        huge_method_threshold,
-                                                                        large_method_threshold,
-                                                                        small_method_threshold,
-                                                                        tiny_method_threshold,
-                                                                        num_dex_methods_threshold,
-                                                                        generate_gdb_information,
-                                                                        include_patch_information,
-                                                                        top_k_profile_threshold,
-                                                                        include_debug_symbols,
-                                                                        implicit_null_checks,
-                                                                        implicit_so_checks,
-                                                                        implicit_suspend_checks,
-                                                                        compile_pic
+  std::unique_ptr<CompilerOptions> compiler_options(
+      new CompilerOptions(compiler_filter,
+                          huge_method_threshold,
+                          large_method_threshold,
+                          small_method_threshold,
+                          tiny_method_threshold,
+                          num_dex_methods_threshold,
+                          generate_gdb_information,
+                          include_patch_information,
+                          top_k_profile_threshold,
+                          include_debug_symbols,
+                          implicit_null_checks,
+                          implicit_so_checks,
+                          implicit_suspend_checks,
+                          compile_pic,
 #ifdef ART_SEA_IR_MODE
-                                                                        , compiler_options.sea_ir_ =
-                                                                              true;
+                          true,
 #endif
+                          verbose_methods.empty() ? nullptr : &verbose_methods
   ));  // NOLINT(whitespace/parens)
 
   // Done with usage checks, enable watchdog if requested

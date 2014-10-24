@@ -18,12 +18,15 @@
 
 #include <sys/uio.h>
 
+#include <sstream>
+
 #include "arch/context.h"
 #include "atomic.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc_root-inl.h"
@@ -34,9 +37,6 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "nth_caller_visitor.h"
-#if !defined(ART_USE_PORTABLE_COMPILER)
-#include "entrypoints/quick/quick_entrypoints.h"
-#endif
 #include "os.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"

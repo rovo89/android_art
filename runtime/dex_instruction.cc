@@ -19,6 +19,7 @@
 #include <inttypes.h>
 
 #include <iomanip>
+#include <sstream>
 
 #include "base/stringprintf.h"
 #include "dex_file-inl.h"

@@ -24,6 +24,7 @@
 
 #include <map>
 #include <list>
+#include <sstream>
 #include <vector>
 
 namespace art {

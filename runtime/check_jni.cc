@@ -20,6 +20,7 @@
 #include <zlib.h>
 
 #include "base/logging.h"
+#include "base/to_str.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"

@@ -2706,7 +2706,7 @@ std::ostream& operator<<(std::ostream& os, const jobjectRefType& rhs) {
     os << "JNIWeakGlobalRefType";
     return os;
   default:
-    LOG(FATAL) << "jobjectRefType[" << static_cast<int>(rhs) << "]";
-    return os;
+    LOG(::art::FATAL) << "jobjectRefType[" << static_cast<int>(rhs) << "]";
+    UNREACHABLE();
   }
 }
