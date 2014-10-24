@@ -1325,8 +1325,9 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
               // Throw OOM by default.
               break;
             default: {
-              LOG(FATAL) << "Unimplemented homogeneous space compaction result "
-                         << static_cast<size_t>(result);
+              UNIMPLEMENTED(FATAL) << "homogeneous space compaction result: "
+                  << static_cast<size_t>(result);
+              UNREACHABLE();
             }
           }
           // Always print that we ran homogeneous space compation since this can cause jank.
@@ -1761,7 +1762,8 @@ void Heap::ChangeCollector(CollectorType collector_type) {
         break;
       }
       default: {
-        LOG(FATAL) << "Unimplemented";
+        UNIMPLEMENTED(FATAL);
+        UNREACHABLE();
       }
     }
     if (IsGcConcurrent()) {

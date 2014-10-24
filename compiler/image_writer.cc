@@ -206,7 +206,7 @@ void ImageWriter::SetImageOffset(mirror::Object* object, size_t offset) {
       break;
     default:
       LOG(FATAL) << "Unreachable.";
-      break;
+      UNREACHABLE();
   }
   object->SetLockWord(LockWord::FromForwardingAddress(offset), false);
   DCHECK(IsImageOffsetAssigned(object));

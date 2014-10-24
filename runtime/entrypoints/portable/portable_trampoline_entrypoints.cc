@@ -172,7 +172,7 @@ class BuildPortableShadowFrameVisitor : public PortableArgumentVisitor {
         break;
       case Primitive::kPrimVoid:
         LOG(FATAL) << "UNREACHABLE";
-        break;
+        UNREACHABLE();
     }
     ++cur_reg_;
   }
@@ -261,8 +261,7 @@ class BuildPortableArgumentVisitor : public PortableArgumentVisitor {
         break;
       case Primitive::kPrimVoid:
         LOG(FATAL) << "UNREACHABLE";
-        val.j = 0;
-        break;
+        UNREACHABLE();
     }
     args_.push_back(val);
   }

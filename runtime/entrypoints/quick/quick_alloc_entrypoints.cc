@@ -248,7 +248,8 @@ void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints) {
     }
 #endif
     default: {
-      LOG(FATAL) << "Unimplemented";
+      UNIMPLEMENTED(FATAL);
+      UNREACHABLE();
     }
   }
 }

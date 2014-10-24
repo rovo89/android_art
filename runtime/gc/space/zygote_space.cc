@@ -58,7 +58,8 @@ ZygoteSpace* ZygoteSpace::Create(const std::string& name, MemMap* mem_map,
 }
 
 void ZygoteSpace::Clear() {
-  LOG(FATAL) << "Unimplemented";
+  UNIMPLEMENTED(FATAL);
+  UNREACHABLE();
 }
 
 ZygoteSpace::ZygoteSpace(const std::string& name, MemMap* mem_map, size_t objects_allocated)
