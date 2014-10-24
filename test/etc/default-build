@@ -20,7 +20,7 @@ set -e
 mkdir classes
 ${JAVAC} -d classes `find src -name '*.java'`
 
-if [ -r src2 ]; then
+if [ -d src2 ]; then
   ${JAVAC} -d classes `find src2 -name '*.java'`
 fi
 
@@ -28,13 +28,13 @@ if [ ${NEED_DEX} = "true" ]; then
   ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 classes
 fi
 
-if [ -r smali ]; then
+if [ -d smali ]; then
   # Compile Smali classes
   ${SMALI} -JXmx256m --output smali_classes.dex `find smali -name '*.smali'`
   ${DXMERGER} classes.dex classes.dex smali_classes.dex
 fi
 
-if [ -r src-ex ]; then
+if [ -d src-ex ]; then
   mkdir classes-ex
   ${JAVAC} -d classes-ex -cp classes `find src-ex -name '*.java'`
   if [ ${NEED_DEX} = "true" ]; then
