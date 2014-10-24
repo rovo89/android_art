@@ -37,7 +37,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
       CHECK_EQ(GetDexPc(), DexFile::kDexNoIndex);
     }
 
-    if (!m || m->IsNative() || m->IsRuntimeMethod() || IsShadowFrame()) {
+    if (m == nullptr || m->IsNative() || m->IsRuntimeMethod() || IsShadowFrame()) {
       return true;
     }
 

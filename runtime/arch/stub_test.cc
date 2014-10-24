@@ -1148,7 +1148,7 @@ TEST_F(StubTest, AllocObjectArray) {
   // For some reason this does not work, as the type_idx is artificial and outside what the
   // resolved types of c_obj allow...
 
-  if (false) {
+  if ((false)) {
     // Use an arbitrary method from c to use as referrer
     size_t result = Invoke3(static_cast<size_t>(c->GetDexTypeIndex()),    // type_idx
                             reinterpret_cast<size_t>(c_obj->GetVirtualMethod(0)),  // arbitrary

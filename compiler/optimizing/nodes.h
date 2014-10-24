@@ -2123,7 +2123,7 @@ class HGraphVisitor : public ValueObject {
 #undef DECLARE_VISIT_INSTRUCTION
 
  private:
-  HGraph* graph_;
+  HGraph* const graph_;
 
   DISALLOW_COPY_AND_ASSIGN(HGraphVisitor);
 };

@@ -503,7 +503,6 @@ class CompilerDriver {
   std::unique_ptr<std::set<std::string>> image_classes_;
 
   size_t thread_count_;
-  uint64_t start_ns_;
 
   class AOTCompilationStats;
   std::unique_ptr<AOTCompilationStats> stats_;
@@ -515,8 +514,6 @@ class CompilerDriver {
 
   typedef void (*CompilerCallbackFn)(CompilerDriver& driver);
   typedef MutexLock* (*CompilerMutexLockFn)(CompilerDriver& driver);
-
-  void* compiler_library_;
 
   typedef void (*DexToDexCompilerFn)(CompilerDriver& driver,
                                      const DexFile::CodeItem* code_item,
@@ -532,13 +529,6 @@ class CompilerDriver {
 
   // Arena pool used by the compiler.
   ArenaPool arena_pool_;
-
-  typedef void (*CompilerEnableAutoElfLoadingFn)(CompilerDriver& driver);
-  CompilerEnableAutoElfLoadingFn compiler_enable_auto_elf_loading_;
-
-  typedef const void* (*CompilerGetMethodCodeAddrFn)
-      (const CompilerDriver& driver, const CompiledMethod* cm, const mirror::ArtMethod* method);
-  CompilerGetMethodCodeAddrFn compiler_get_method_code_addr_;
 
   bool support_boot_image_fixup_;
 

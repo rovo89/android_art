@@ -360,6 +360,9 @@ class LOCKABLE ReaderWriterMutex : public BaseMutex {
   virtual void Dump(std::ostream& os) const;
 
  private:
+  // Out-of-inline path for handling contention for a SharedLock.
+  void HandleSharedLockContention(Thread* self, int32_t cur_state);
+
 #if ART_USE_FUTEXES
   // -1 implies held exclusive, +ve shared held by state_ many owners.
   AtomicInteger state_;

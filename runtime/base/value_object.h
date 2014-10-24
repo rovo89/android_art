@@ -17,19 +17,13 @@
 #ifndef ART_RUNTIME_BASE_VALUE_OBJECT_H_
 #define ART_RUNTIME_BASE_VALUE_OBJECT_H_
 
-#include "base/logging.h"
+#include "base/macros.h"
 
 namespace art {
 
 class ValueObject {
- public:
-  void* operator new(size_t size) {
-    LOG(FATAL) << "UNREACHABLE";
-    abort();
-  }
-  void operator delete(void*, size_t) {
-    LOG(FATAL) << "UNREACHABLE";
-  }
+ private:
+  DISALLOW_ALLOCATION();
 };
 
 }  // namespace art

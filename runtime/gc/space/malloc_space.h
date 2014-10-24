@@ -19,7 +19,7 @@
 
 #include "space.h"
 
-#include <iostream>
+#include <ostream>
 #include <valgrind.h>
 #include <memcheck/memcheck.h>
 

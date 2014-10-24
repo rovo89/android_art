@@ -17,6 +17,9 @@
 
 #include "rosalloc_space-inl.h"
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+#include "cutils/trace.h"
+
 #include "gc/accounting/card_table.h"
 #include "gc/accounting/space_bitmap-inl.h"
 #include "gc/heap.h"
@@ -73,8 +76,9 @@ RosAllocSpace* RosAllocSpace::CreateFromMemMap(MemMap* mem_map, const std::strin
   uint8_t* begin = mem_map->Begin();
   // TODO: Fix RosAllocSpace to support valgrind. There is currently some issues with
   // AllocationSize caused by redzones. b/12944686
-  if (false && Runtime::Current()->GetHeap()->RunningOnValgrind()) {
-    LOG(FATAL) << "Unimplemented";
+  if (Runtime::Current()->RunningOnValgrind()) {
+    UNIMPLEMENTED(FATAL);
+    UNREACHABLE();
   } else {
     return new RosAllocSpace(name, mem_map, rosalloc, begin, end, begin + capacity, growth_limit,
                              can_move_objects, starting_size, initial_size, low_memory_mode);
