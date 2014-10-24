@@ -147,6 +147,7 @@ enum OatMethodAttributes {
 #define MIR_IGNORE_RANGE_CHECK          (1 << kMIRIgnoreRangeCheck)
 #define MIR_RANGE_CHECK_ONLY            (1 << kMIRRangeCheckOnly)
 #define MIR_IGNORE_CLINIT_CHECK         (1 << kMIRIgnoreClInitCheck)
+#define MIR_IGNORE_DIV_ZERO_CHECK       (1 << kMirIgnoreDivZeroCheck)
 #define MIR_INLINED                     (1 << kMIRInlined)
 #define MIR_INLINED_PRED                (1 << kMIRInlinedPred)
 #define MIR_CALLEE                      (1 << kMIRCallee)
