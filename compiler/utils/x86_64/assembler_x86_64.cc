@@ -1222,7 +1222,7 @@ void X86_64Assembler::imull(CpuRegister dst, CpuRegister src) {
 
 void X86_64Assembler::imull(CpuRegister reg, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitOptionalRex32(reg);
+  EmitOptionalRex32(reg, reg);
   EmitUint8(0x69);
   EmitOperand(reg.LowBits(), Operand(reg));
   EmitImmediate(imm);
