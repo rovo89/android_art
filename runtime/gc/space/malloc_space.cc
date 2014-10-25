@@ -198,7 +198,7 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   if (capacity > initial_size_) {
     CHECK_MEMORY_CALL(mprotect, (end, capacity - initial_size_, PROT_NONE), alloc_space_name);
   }
-  *out_malloc_space = CreateInstance(alloc_space_name, mem_map.release(), allocator, End(), end,
+  *out_malloc_space = CreateInstance(mem_map.release(), alloc_space_name, allocator, End(), end,
                                      limit_, growth_limit, CanMoveObjects());
   SetLimit(End());
   live_bitmap_->SetHeapLimit(reinterpret_cast<uintptr_t>(End()));
