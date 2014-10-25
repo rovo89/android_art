@@ -768,8 +768,8 @@ LIR* Arm64Mir2Lir::OpRegRegRegExtend(OpKind op, RegStorage r_dest, RegStorage r_
       opcode = kA64Sub4RRre;
       break;
     default:
-      LOG(FATAL) << "Unimplemented opcode: " << op;
-      break;
+      UNIMPLEMENTED(FATAL) << "Unimplemented opcode: " << op;
+      UNREACHABLE();
   }
   A64Opcode widened_opcode = r_dest.Is64Bit() ? WIDE(opcode) : opcode;
 

@@ -499,11 +499,8 @@ static inline mirror::ArtField* FindFieldFast(uint32_t field_idx,
     case StaticPrimitiveRead:    is_primitive = true;  is_set = false; is_static = true;  break;
     case StaticPrimitiveWrite:   is_primitive = true;  is_set = true;  is_static = true;  break;
     default:
-      LOG(FATAL) << "UNREACHABLE";  // Assignment below to avoid GCC warnings.
-      is_primitive = true;
-      is_set = true;
-      is_static = true;
-      break;
+      LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
   }
   if (UNLIKELY(resolved_field->IsStatic() != is_static)) {
     // Incompatible class change.

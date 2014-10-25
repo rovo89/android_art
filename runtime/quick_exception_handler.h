@@ -40,6 +40,7 @@ class QuickExceptionHandler {
 
   ~QuickExceptionHandler() {
     LOG(FATAL) << "UNREACHABLE";  // Expected to take long jump.
+    UNREACHABLE();
   }
 
   void FindCatch(const ThrowLocation& throw_location, mirror::Throwable* exception,
