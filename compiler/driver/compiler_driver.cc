@@ -1094,11 +1094,17 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
   if (resolved_field != nullptr && referrer_class != nullptr) {
     *is_volatile = IsFieldVolatile(resolved_field);
     std::pair<bool, bool> fast_path = IsFastStaticField(
-        dex_cache, referrer_class, resolved_field, field_idx, field_offset,
-        storage_index, is_referrers_class, is_initialized);
+        dex_cache, referrer_class, resolved_field, field_idx, storage_index);
     result = is_put ? fast_path.second : fast_path.first;
   }
-  if (!result) {
+  if (result) {
+    *field_offset = GetFieldOffset(resolved_field);
+    *is_referrers_class = IsStaticFieldInReferrerClass(referrer_class, resolved_field);
+    // *is_referrers_class == true implies no worrying about class initialization.
+    *is_initialized = (*is_referrers_class) ||
+        (IsStaticFieldsClassInitialized(referrer_class, resolved_field) &&
+         CanAssumeTypeIsPresentInDexCache(*mUnit->GetDexFile(), *storage_index));
+  } else {
     // Conservative defaults.
     *is_volatile = true;
     *field_offset = MemberOffset(static_cast<size_t>(-1));
