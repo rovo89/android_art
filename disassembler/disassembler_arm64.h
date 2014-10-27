@@ -25,9 +25,35 @@
 namespace art {
 namespace arm64 {
 
+class CustomDisassembler FINAL : public vixl::Disassembler {
+ public:
+  explicit CustomDisassembler(bool read_literals) :
+      vixl::Disassembler(), read_literals_(read_literals) {}
+
+  // Use register aliases in the disassembly.
+  virtual void AppendRegisterNameToOutput(const vixl::Instruction* instr,
+                                          const vixl::CPURegister& reg) OVERRIDE;
+
+  // Improve the disassembly of literal load instructions.
+  virtual void VisitLoadLiteral(const vixl::Instruction* instr) OVERRIDE;
+
+ private:
+  // Indicate if the disassembler should read data loaded from literal pools.
+  // This should only be enabled if reading the target of literal loads is safe.
+  // Here are possible outputs when the option is on or off:
+  // read_literals_ | disassembly
+  //           true | 0x72681558: 1c000acb  ldr s11, pc+344 (addr 0x726816b0)
+  //          false | 0x72681558: 1c000acb  ldr s11, pc+344 (addr 0x726816b0) (3.40282e+38)
+  const bool read_literals_;
+};
+
 class DisassemblerArm64 FINAL : public Disassembler {
  public:
-  explicit DisassemblerArm64(DisassemblerOptions* options) : Disassembler(options) {
+  // TODO: Update this code once VIXL provides the ability to map code addresses
+  // to disassemble as a different address (the way FormatInstructionPointer()
+  // does).
+  explicit DisassemblerArm64(DisassemblerOptions* options) :
+      Disassembler(options), disasm(options->can_read_literals_) {
     decoder.AppendVisitor(&disasm);
   }
 
@@ -36,7 +62,7 @@ class DisassemblerArm64 FINAL : public Disassembler {
 
  private:
   vixl::Decoder decoder;
-  vixl::Disassembler disasm;
+  CustomDisassembler disasm;
 
   DISALLOW_COPY_AND_ASSIGN(DisassemblerArm64);
 };

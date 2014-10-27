@@ -374,7 +374,8 @@ class OatDumper {
       options_(options),
       disassembler_(Disassembler::Create(oat_file_.GetOatHeader().GetInstructionSet(),
                                          new DisassemblerOptions(options_->absolute_addresses_,
-                                                                 oat_file.Begin()))) {
+                                                                 oat_file.Begin(),
+                                                                 true /* can_read_litals_ */))) {
     CHECK(options_->class_loader_ != nullptr);
     AddAllOffsets();
   }

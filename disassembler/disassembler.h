@@ -34,8 +34,14 @@ class DisassemblerOptions {
   // Base addess for calculating relative code offsets when absolute_addresses_ is false.
   const uint8_t* const base_address_;
 
-  DisassemblerOptions(bool absolute_addresses, const uint8_t* base_address)
-      : absolute_addresses_(absolute_addresses), base_address_(base_address) {}
+  // If set, the disassembler is allowed to look at load targets in literal
+  // pools.
+  const bool can_read_literals_;
+
+  DisassemblerOptions(bool absolute_addresses, const uint8_t* base_address,
+                      bool can_read_literals)
+      : absolute_addresses_(absolute_addresses), base_address_(base_address),
+        can_read_literals_(can_read_literals) {}
 
  private:
   DISALLOW_COPY_AND_ASSIGN(DisassemblerOptions);
