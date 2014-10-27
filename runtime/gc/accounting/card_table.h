@@ -54,9 +54,8 @@ class CardTable {
   static CardTable* Create(const uint8_t* heap_begin, size_t heap_capacity);
 
   // Set the card associated with the given address to GC_CARD_DIRTY.
-  void MarkCard(const void *addr) {
-    uint8_t* card_addr = CardFromAddr(addr);
-    *card_addr = kCardDirty;
+  ALWAYS_INLINE void MarkCard(const void *addr) {
+    *CardFromAddr(addr) = kCardDirty;
   }
 
   // Is the object on a dirty card?

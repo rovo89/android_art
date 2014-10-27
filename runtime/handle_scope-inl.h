@@ -25,13 +25,13 @@
 namespace art {
 
 template<size_t kNumReferences>
-inline StackHandleScope<kNumReferences>::StackHandleScope(Thread* self)
+inline StackHandleScope<kNumReferences>::StackHandleScope(Thread* self, mirror::Object* fill_value)
     : HandleScope(self->GetTopHandleScope(), kNumReferences), self_(self), pos_(0) {
   COMPILE_ASSERT(kNumReferences >= 1, stack_handle_scope_must_contain_at_least_1_reference);
   // TODO: Figure out how to use a compile assert.
   CHECK_EQ(&storage_[0], GetReferences());
   for (size_t i = 0; i < kNumReferences; ++i) {
-    SetReference(i, nullptr);
+    SetReference(i, fill_value);
   }
   self_->PushHandleScope(this);
 }

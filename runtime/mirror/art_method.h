@@ -65,7 +65,7 @@ class MANAGED ArtMethod FINAL : public Object {
     return MemberOffset(OFFSETOF_MEMBER(ArtMethod, declaring_class_));
   }
 
-  uint32_t GetAccessFlags() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE uint32_t GetAccessFlags() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetAccessFlags(uint32_t new_access_flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Not called within a transaction.
@@ -203,7 +203,7 @@ class MANAGED ArtMethod FINAL : public Object {
   // Number of 32bit registers that would be required to hold all the arguments
   static size_t NumArgRegisters(const StringPiece& shorty);
 
-  uint32_t GetDexMethodIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE uint32_t GetDexMethodIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetDexMethodIndex(uint32_t new_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Not called within a transaction.
@@ -226,11 +226,11 @@ class MANAGED ArtMethod FINAL : public Object {
     return OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_);
   }
 
-  ArtMethod* GetDexCacheResolvedMethod(uint16_t method_idx)
+  ALWAYS_INLINE ArtMethod* GetDexCacheResolvedMethod(uint16_t method_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetDexCacheResolvedMethod(uint16_t method_idx, ArtMethod* new_method)
+  ALWAYS_INLINE void SetDexCacheResolvedMethod(uint16_t method_idx, ArtMethod* new_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetDexCacheResolvedMethods(ObjectArray<ArtMethod>* new_dex_cache_methods)
+  ALWAYS_INLINE void SetDexCacheResolvedMethods(ObjectArray<ArtMethod>* new_dex_cache_methods)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool HasDexCacheResolvedMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool HasSameDexCacheResolvedMethods(ArtMethod* other) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -432,6 +432,8 @@ class MANAGED ArtMethod FINAL : public Object {
 
   bool IsImtConflictMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  bool IsImtUnimplementedMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   uintptr_t NativeQuickPcOffset(const uintptr_t pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 #ifdef NDEBUG
   uintptr_t NativeQuickPcOffset(const uintptr_t pc, const void* quick_entry_point)
@@ -564,9 +566,11 @@ class MANAGED ArtMethod FINAL : public Object {
   static GcRoot<Class> java_lang_reflect_ArtMethod_;
 
  private:
-  ObjectArray<ArtMethod>* GetDexCacheResolvedMethods() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE ObjectArray<ArtMethod>* GetDexCacheResolvedMethods()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ObjectArray<Class>* GetDexCacheResolvedTypes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE ObjectArray<Class>* GetDexCacheResolvedTypes()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   friend struct art::ArtMethodOffsets;  // for verifying offset information
   DISALLOW_IMPLICIT_CONSTRUCTORS(ArtMethod);

@@ -112,6 +112,7 @@ static void usage() {
 const char* image_roots_descriptions_[] = {
   "kResolutionMethod",
   "kImtConflictMethod",
+  "kImtUnimplementedMethod",
   "kDefaultImt",
   "kCalleeSaveMethod",
   "kRefsOnlySaveMethod",
@@ -1615,7 +1616,7 @@ class ImageDumper {
         }
       } else if (method->IsAbstract() || method->IsCalleeSaveMethod() ||
           method->IsResolutionMethod() || method->IsImtConflictMethod() ||
-          method->IsClassInitializer()) {
+          method->IsImtUnimplementedMethod() || method->IsClassInitializer()) {
         DCHECK(method->GetNativeGcMap() == nullptr) << PrettyMethod(method);
         DCHECK(method->GetMappingTable() == nullptr) << PrettyMethod(method);
       } else {
