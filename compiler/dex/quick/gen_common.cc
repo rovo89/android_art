@@ -2212,43 +2212,53 @@ void Mir2Lir::GenConstWide(RegLocation rl_dest, int64_t value) {
 }
 
 void Mir2Lir::GenSmallPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
+  BasicBlock* bb = mir_graph_->GetBasicBlock(mir->bb);
+  DCHECK(bb != nullptr);
+  ArenaVector<SuccessorBlockInfo*>::const_iterator succ_bb_iter = bb->successor_blocks.cbegin();
   const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   const uint16_t entries = table[1];
   // Chained cmp-and-branch.
   const int32_t* as_int32 = reinterpret_cast<const int32_t*>(&table[2]);
   int32_t starting_key = as_int32[0];
-  const int32_t* targets = &as_int32[1];
   rl_src = LoadValue(rl_src, kCoreReg);
   int i = 0;
-  for (; i < entries; i++) {
+  for (; i < entries; ++i, ++succ_bb_iter) {
     if (!InexpensiveConstantInt(starting_key + i, Instruction::Code::IF_EQ)) {
       // Switch to using a temp and add.
       break;
     }
-    BasicBlock* case_block =
-        mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
-    OpCmpImmBranch(kCondEq, rl_src.reg, starting_key + i, &block_label_list_[case_block->id]);
+    SuccessorBlockInfo* successor_block_info = *succ_bb_iter;
+    DCHECK(successor_block_info != nullptr);
+    int case_block_id = successor_block_info->block;
+    DCHECK_EQ(starting_key + i, successor_block_info->key);
+    OpCmpImmBranch(kCondEq, rl_src.reg, starting_key + i, &block_label_list_[case_block_id]);
   }
   if (i < entries) {
     // The rest do not seem to be inexpensive. Try to allocate a temp and use add.
     RegStorage key_temp = AllocTypedTemp(false, kCoreReg, false);
     if (key_temp.Valid()) {
       LoadConstantNoClobber(key_temp, starting_key + i);
-      for (; i < entries - 1; i++) {
-        BasicBlock* case_block =
-            mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
-        OpCmpBranch(kCondEq, rl_src.reg, key_temp, &block_label_list_[case_block->id]);
+      for (; i < entries - 1; ++i, ++succ_bb_iter) {
+        SuccessorBlockInfo* successor_block_info = *succ_bb_iter;
+        DCHECK(successor_block_info != nullptr);
+        int case_block_id = successor_block_info->block;
+        DCHECK_EQ(starting_key + i, successor_block_info->key);
+        OpCmpBranch(kCondEq, rl_src.reg, key_temp, &block_label_list_[case_block_id]);
         OpRegImm(kOpAdd, key_temp, 1);  // Increment key.
       }
-      BasicBlock* case_block =
-          mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
-      OpCmpBranch(kCondEq, rl_src.reg, key_temp, &block_label_list_[case_block->id]);
+      SuccessorBlockInfo* successor_block_info = *succ_bb_iter;
+      DCHECK(successor_block_info != nullptr);
+      int case_block_id = successor_block_info->block;
+      DCHECK_EQ(starting_key + i, successor_block_info->key);
+      OpCmpBranch(kCondEq, rl_src.reg, key_temp, &block_label_list_[case_block_id]);
     } else {
       // No free temp, just finish the old loop.
-      for (; i < entries; i++) {
-        BasicBlock* case_block =
-            mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
-        OpCmpImmBranch(kCondEq, rl_src.reg, starting_key + i, &block_label_list_[case_block->id]);
+      for (; i < entries; ++i, ++succ_bb_iter) {
+        SuccessorBlockInfo* successor_block_info = *succ_bb_iter;
+        DCHECK(successor_block_info != nullptr);
+        int case_block_id = successor_block_info->block;
+        DCHECK_EQ(starting_key + i, successor_block_info->key);
+        OpCmpImmBranch(kCondEq, rl_src.reg, starting_key + i, &block_label_list_[case_block_id]);
       }
     }
   }
@@ -2257,7 +2267,7 @@ void Mir2Lir::GenSmallPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation
 void Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
   const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   if (cu_->verbose) {
-    DumpSparseSwitchTable(table);
+    DumpPackedSwitchTable(table);
   }
 
   const uint16_t entries = table[1];
@@ -2270,18 +2280,20 @@ void Mir2Lir::GenPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_s
 }
 
 void Mir2Lir::GenSmallSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
+  BasicBlock* bb = mir_graph_->GetBasicBlock(mir->bb);
+  DCHECK(bb != nullptr);
   const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
   const uint16_t entries = table[1];
   // Chained cmp-and-branch.
-  const int32_t* keys = reinterpret_cast<const int32_t*>(&table[2]);
-  const int32_t* targets = &keys[entries];
   rl_src = LoadValue(rl_src, kCoreReg);
-  for (int i = 0; i < entries; i++) {
-    int key = keys[i];
-    BasicBlock* case_block =
-        mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
-    OpCmpImmBranch(kCondEq, rl_src.reg, key, &block_label_list_[case_block->id]);
+  int i = 0;
+  for (SuccessorBlockInfo* successor_block_info : bb->successor_blocks) {
+    int case_block_id = successor_block_info->block;
+    int key = successor_block_info->key;
+    OpCmpImmBranch(kCondEq, rl_src.reg, key, &block_label_list_[case_block_id]);
+    i++;
   }
+  DCHECK_EQ(i, entries);
 }
 
 void Mir2Lir::GenSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {

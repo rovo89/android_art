@@ -30,20 +30,85 @@ namespace art {
  * pairs.
  */
 void X86Mir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
-  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
+  GenSmallSparseSwitch(mir, table_offset, rl_src);
+}
+
+/*
+ * We override InsertCaseLabel, because the first parameter represents
+ * a basic block id, instead of a dex offset.
+ */
+LIR* X86Mir2Lir::InsertCaseLabel(DexOffset bbid, int keyVal) {
+  LIR* boundary_lir = &block_label_list_[bbid];
+  LIR* res = boundary_lir;
   if (cu_->verbose) {
-    DumpSparseSwitchTable(table);
+    // Only pay the expense if we're pretty-printing.
+    LIR* new_label = static_cast<LIR*>(arena_->Alloc(sizeof(LIR), kArenaAllocLIR));
+    BasicBlock* bb = mir_graph_->GetBasicBlock(bbid);
+    DCHECK(bb != nullptr);
+    new_label->dalvik_offset = bb->start_offset;;
+    new_label->opcode = kPseudoCaseLabel;
+    new_label->operands[0] = keyVal;
+    new_label->flags.fixup = kFixupLabel;
+    DCHECK(!new_label->flags.use_def_invalid);
+    new_label->u.m.def_mask = &kEncodeAll;
+    InsertLIRAfter(boundary_lir, new_label);
+    res = new_label;
   }
+  return res;
+}
+
+void X86Mir2Lir::MarkPackedCaseLabels(Mir2Lir::SwitchTable* tab_rec) {
+  const uint16_t* table = tab_rec->table;
+  const int32_t *targets = reinterpret_cast<const int32_t*>(&table[4]);
   int entries = table[1];
-  const int32_t* keys = reinterpret_cast<const int32_t*>(&table[2]);
-  const int32_t* targets = &keys[entries];
-  rl_src = LoadValue(rl_src, kCoreReg);
+  int low_key = s4FromSwitchData(&table[2]);
   for (int i = 0; i < entries; i++) {
-    int key = keys[i];
-    BasicBlock* case_block =
-        mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
-    OpCmpImmBranch(kCondEq, rl_src.reg, key, &block_label_list_[case_block->id]);
+    // The value at targets[i] is a basic block id, instead of a dex offset.
+    tab_rec->targets[i] = InsertCaseLabel(targets[i], i + low_key);
   }
+}
+
+/*
+ * We convert and create a new packed switch table that stores
+ * basic block ids to targets[] by examining successor blocks.
+ * Note that the original packed switch table stores dex offsets to targets[].
+ */
+const uint16_t* X86Mir2Lir::ConvertPackedSwitchTable(MIR* mir, const uint16_t* table) {
+  /*
+   * The original packed switch data format:
+   *  ushort ident = 0x0100  magic value
+   *  ushort size            number of entries in the table
+   *  int first_key          first (and lowest) switch case value
+   *  int targets[size]      branch targets, relative to switch opcode
+   *
+   * Total size is (4+size*2) 16-bit code units.
+   *
+   * Note that the new packed switch data format is the same as the original
+   * format, except that targets[] are basic block ids.
+   *
+   */
+  BasicBlock* bb = mir_graph_->GetBasicBlock(mir->bb);
+  DCHECK(bb != nullptr);
+  // Get the number of entries.
+  int entries = table[1];
+  const int32_t* as_int32 = reinterpret_cast<const int32_t*>(&table[2]);
+  int32_t starting_key = as_int32[0];
+  // Create a new table.
+  int size = sizeof(uint16_t) * (4 + entries * 2);
+  uint16_t* new_table = reinterpret_cast<uint16_t*>(arena_->Alloc(size, kArenaAllocMisc));
+  // Copy ident, size, and first_key to the new table.
+  memcpy(new_table, table, sizeof(uint16_t) * 4);
+  // Get the new targets.
+  int32_t* new_targets = reinterpret_cast<int32_t*>(&new_table[4]);
+  // Find out targets for each entry.
+  int i = 0;
+  for (SuccessorBlockInfo* successor_block_info : bb->successor_blocks) {
+    DCHECK_EQ(starting_key + i, successor_block_info->key);
+    // Save target basic block id.
+    new_targets[i++] = successor_block_info->block;
+  }
+  DCHECK_EQ(i, entries);
+  return new_table;
 }
 
 /*
@@ -63,10 +128,8 @@ void X86Mir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocat
  * done:
  */
 void X86Mir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {
-  const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
-  if (cu_->verbose) {
-    DumpPackedSwitchTable(table);
-  }
+  const uint16_t* old_table = mir_graph_->GetTable(mir, table_offset);
+  const uint16_t* table = ConvertPackedSwitchTable(mir, old_table);
   // Add the table to the list - we'll process it later
   SwitchTable* tab_rec =
       static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable), kArenaAllocData));
