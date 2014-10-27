@@ -215,7 +215,10 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   }
 
   // Do not attempt to compile on architectures we do not support.
-  if (instruction_set != kX86 && instruction_set != kX86_64 && instruction_set != kThumb2) {
+  if (instruction_set != kArm64 &&
+      instruction_set != kThumb2 &&
+      instruction_set != kX86 &&
+      instruction_set != kX86_64) {
     return nullptr;
   }
 
