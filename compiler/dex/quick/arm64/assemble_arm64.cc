@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-#include "arm64_lir.h"
 #include "codegen_arm64.h"
+
+#include "arch/arm64/instruction_set_features_arm64.h"
+#include "arm64_lir.h"
 #include "dex/quick/mir_to_lir-inl.h"
 
 namespace art {
@@ -468,13 +470,17 @@ const A64EncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
                  "mul", "!0r, !1r, !2r", kFixupNone),
     ENCODING_MAP(WIDE(kA64Msub4rrrr), SF_VARIANTS(0x1b008000),
-                 kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtRegR, 14, 10,
-                 kFmtRegR, 20, 16, IS_QUAD_OP | REG_DEF0_USE123,
-                 "msub", "!0r, !1r, !3r, !2r", kFixupNone),
+                 kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtRegR, 20, 16,
+                 kFmtRegR, 14, 10, IS_QUAD_OP | REG_DEF0_USE123 | NEEDS_FIXUP,
+                 "msub", "!0r, !1r, !2r, !3r", kFixupA53Erratum835769),
     ENCODING_MAP(WIDE(kA64Neg3rro), SF_VARIANTS(0x4b0003e0),
                  kFmtRegR, 4, 0, kFmtRegR, 20, 16, kFmtShift, -1, -1,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1,
                  "neg", "!0r, !1r!2o", kFixupNone),
+    ENCODING_MAP(kA64Nop0, NO_VARIANTS(0xd503201f),
+                 kFmtUnused, -1, -1, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, NO_OPERAND,
+                 "nop", "", kFixupNone),
     ENCODING_MAP(WIDE(kA64Orr3Rrl), SF_VARIANTS(0x32000000),
                  kFmtRegROrSp, 4, 0, kFmtRegR, 9, 5, kFmtBitBlt, 22, 10,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1,
@@ -523,10 +529,10 @@ const A64EncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
                  kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtRegR, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
                  "sdiv", "!0r, !1r, !2r", kFixupNone),
-    ENCODING_MAP(WIDE(kA64Smaddl4xwwx), NO_VARIANTS(0x9b200000),
+    ENCODING_MAP(kA64Smull3xww, NO_VARIANTS(0x9b207c00),
                  kFmtRegX, 4, 0, kFmtRegW, 9, 5, kFmtRegW, 20, 16,
-                 kFmtRegX, 14, 10, IS_QUAD_OP | REG_DEF0_USE123,
-                 "smaddl", "!0x, !1w, !2w, !3x", kFixupNone),
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 "smull", "!0x, !1w, !2w", kFixupNone),
     ENCODING_MAP(kA64Smulh3xxx, NO_VARIANTS(0x9b407c00),
                  kFmtRegX, 4, 0, kFmtRegX, 9, 5, kFmtRegX, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
@@ -988,6 +994,30 @@ void Arm64Mir2Lir::AssembleLIR() {
           lir->operands[1] = delta;
           break;
         }
+        case kFixupA53Erratum835769:
+          // Avoid emitting code that could trigger Cortex A53's erratum 835769.
+          // This fixup should be carried out for all multiply-accumulate instructions: madd, msub,
+          // smaddl, smsubl, umaddl and umsubl.
+          if (cu_->GetInstructionSetFeatures()->AsArm64InstructionSetFeatures()
+              ->NeedFixCortexA53_835769()) {
+            // Check that this is a 64-bit multiply-accumulate.
+            if (IS_WIDE(lir->opcode)) {
+              uint64_t prev_insn_flags = EncodingMap[UNWIDE(lir->prev->opcode)].flags;
+              // Check that the instruction preceding the multiply-accumulate is a load or store.
+              if ((prev_insn_flags & IS_LOAD) != 0 || (prev_insn_flags & IS_STORE) != 0) {
+                // insert a NOP between the load/store and the multiply-accumulate.
+                LIR* new_lir = RawLIR(lir->dalvik_offset, kA64Nop0, 0, 0, 0, 0, 0, NULL);
+                new_lir->offset = lir->offset;
+                new_lir->flags.fixup = kFixupNone;
+                new_lir->flags.size = EncodingMap[kA64Nop0].size;
+                InsertLIRBefore(lir, new_lir);
+                lir->offset += new_lir->flags.size;
+                offset_adjustment += new_lir->flags.size;
+                res = kRetryAll;
+              }
+            }
+          }
+          break;
         default:
           LOG(FATAL) << "Unexpected case " << lir->flags.fixup;
       }

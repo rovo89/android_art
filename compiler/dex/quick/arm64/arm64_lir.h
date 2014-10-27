@@ -320,6 +320,7 @@ enum A64Opcode {
   kA64Mul3rrr,       // mul [00011011000] rm[20-16] [011111] rn[9-5] rd[4-0].
   kA64Msub4rrrr,     // msub[s0011011000] rm[20-16] [1] ra[14-10] rn[9-5] rd[4-0].
   kA64Neg3rro,       // neg alias of "sub arg0, rzr, arg1, arg2".
+  kA64Nop0,          // nop alias of "hint #0" [11010101000000110010000000011111].
   kA64Orr3Rrl,       // orr [s01100100] N[22] imm_r[21-16] imm_s[15-10] rn[9-5] rd[4-0].
   kA64Orr4rrro,      // orr [s0101010] shift[23-22] [0] rm[20-16] imm_6[15-10] rn[9-5] rd[4-0].
   kA64Ret,           // ret [11010110010111110000001111000000].
@@ -332,7 +333,7 @@ enum A64Opcode {
   kA64Scvtf2fw,      // scvtf  [000111100s100010000000] rn[9-5] rd[4-0].
   kA64Scvtf2fx,      // scvtf  [100111100s100010000000] rn[9-5] rd[4-0].
   kA64Sdiv3rrr,      // sdiv[s0011010110] rm[20-16] [000011] rn[9-5] rd[4-0].
-  kA64Smaddl4xwwx,   // smaddl [10011011001] rm[20-16] [0] ra[14-10] rn[9-5] rd[4-0].
+  kA64Smull3xww,     // smull [10011011001] rm[20-16] [011111] rn[9-5] rd[4-0].
   kA64Smulh3xxx,     // smulh [10011011010] rm[20-16] [011111] rn[9-5] rd[4-0].
   kA64Stp4ffXD,      // stp [0s10110100] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
   kA64Stp4rrXD,      // stp [s010100100] imm_7[21-15] rt2[14-10] rn[9-5] rt[4-0].
