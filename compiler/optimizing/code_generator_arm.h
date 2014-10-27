@@ -32,10 +32,11 @@ static constexpr size_t kArmWordSize = 4;
 static constexpr Register kParameterCoreRegisters[] = { R1, R2, R3 };
 static constexpr RegisterPair kParameterCorePairRegisters[] = { R1_R2, R2_R3 };
 static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
-static constexpr DRegister kParameterFpuRegisters[] = { };
-static constexpr size_t kParameterFpuRegistersLength = 0;
+static constexpr SRegister kParameterFpuRegisters[] =
+    { S0, S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, S12, S13, S14, S15 };
+static constexpr size_t kParameterFpuRegistersLength = arraysize(kParameterFpuRegisters);
 
-class InvokeDexCallingConvention : public CallingConvention<Register, DRegister> {
+class InvokeDexCallingConvention : public CallingConvention<Register, SRegister> {
  public:
   InvokeDexCallingConvention()
       : CallingConvention(kParameterCoreRegisters,
@@ -54,13 +55,18 @@ class InvokeDexCallingConvention : public CallingConvention<Register, DRegister>
 
 class InvokeDexCallingConventionVisitor {
  public:
-  InvokeDexCallingConventionVisitor() : gp_index_(0) {}
+  InvokeDexCallingConventionVisitor()
+      : gp_index_(0), float_index_(0), double_index_(0), stack_index_(0) {}
 
   Location GetNextLocation(Primitive::Type type);
+  Location GetReturnLocation(Primitive::Type type);
 
  private:
   InvokeDexCallingConvention calling_convention;
   uint32_t gp_index_;
+  uint32_t float_index_;
+  uint32_t double_index_;
+  uint32_t stack_index_;
 
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
 };

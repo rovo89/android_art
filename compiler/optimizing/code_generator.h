@@ -185,6 +185,7 @@ class CodeGenerator : public ArenaObject {
   virtual Location AllocateFreeRegister(Primitive::Type type) const = 0;
 
   static size_t FindFreeEntry(bool* array, size_t length);
+  static size_t FindTwoFreeConsecutiveEntries(bool* array, size_t length);
 
   virtual Location GetStackLocation(HLoadLocal* load) const = 0;
 

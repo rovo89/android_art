@@ -111,6 +111,20 @@ size_t CodeGenerator::FindFreeEntry(bool* array, size_t length) {
     }
   }
   LOG(FATAL) << "Could not find a register in baseline register allocator";
+  UNREACHABLE();
+  return -1;
+}
+
+size_t CodeGenerator::FindTwoFreeConsecutiveEntries(bool* array, size_t length) {
+  for (size_t i = 0; i < length - 1; ++i) {
+    if (!array[i] && !array[i + 1]) {
+      array[i] = true;
+      array[i + 1] = true;
+      return i;
+    }
+  }
+  LOG(FATAL) << "Could not find a register in baseline register allocator";
+  UNREACHABLE();
   return -1;
 }
 
@@ -180,6 +194,11 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
     } else if (loc.IsFpuRegister()) {
       DCHECK(!blocked_fpu_registers_[loc.reg()]);
       blocked_fpu_registers_[loc.reg()] = true;
+    } else if (loc.IsFpuRegisterPair()) {
+      DCHECK(!blocked_fpu_registers_[loc.AsFpuRegisterPairLow<int>()]);
+      blocked_fpu_registers_[loc.AsFpuRegisterPairLow<int>()] = true;
+      DCHECK(!blocked_fpu_registers_[loc.AsFpuRegisterPairHigh<int>()]);
+      blocked_fpu_registers_[loc.AsFpuRegisterPairHigh<int>()] = true;
     } else if (loc.IsRegisterPair()) {
       DCHECK(!blocked_core_registers_[loc.AsRegisterPairLow<int>()]);
       blocked_core_registers_[loc.AsRegisterPairLow<int>()] = true;
