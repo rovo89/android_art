@@ -26,7 +26,7 @@ namespace art {
 // Mirror libnativebridge interface. Done to have the ART callbacks out of line, and not require
 // the system/core header file in other files.
 
-void LoadNativeBridge(std::string& native_bridge_library_filename);
+bool LoadNativeBridge(std::string& native_bridge_library_filename);
 
 // This is mostly for testing purposes, as in a full system this is called by Zygote code.
 void PreInitializeNativeBridge(std::string dir);
