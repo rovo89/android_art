@@ -113,19 +113,19 @@ inline uint32_t Class::NumVirtualMethods() {
 template<VerifyObjectFlags kVerifyFlags>
 inline ArtMethod* Class::GetVirtualMethod(uint32_t i) {
   DCHECK(IsResolved<kVerifyFlags>() || IsErroneous<kVerifyFlags>());
-  return GetVirtualMethods()->Get(i);
+  return GetVirtualMethods()->GetWithoutChecks(i);
 }
 
 inline ArtMethod* Class::GetVirtualMethodDuringLinking(uint32_t i) {
   DCHECK(IsLoaded() || IsErroneous());
-  return GetVirtualMethods()->Get(i);
+  return GetVirtualMethods()->GetWithoutChecks(i);
 }
 
 inline void Class::SetVirtualMethod(uint32_t i, ArtMethod* f)  // TODO: uint16_t
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ObjectArray<ArtMethod>* virtual_methods =
       GetFieldObject<ObjectArray<ArtMethod>>(OFFSET_OF_OBJECT_MEMBER(Class, virtual_methods_));
-  virtual_methods->Set<false>(i, f);
+  virtual_methods->SetWithoutChecks<false>(i, f);
 }
 
 inline ObjectArray<ArtMethod>* Class::GetVTable() {
@@ -142,14 +142,6 @@ inline void Class::SetVTable(ObjectArray<ArtMethod>* new_vtable) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, vtable_), new_vtable);
 }
 
-inline ObjectArray<ArtMethod>* Class::GetImTable() {
-  return GetFieldObject<ObjectArray<ArtMethod>>(OFFSET_OF_OBJECT_MEMBER(Class, imtable_));
-}
-
-inline void Class::SetImTable(ObjectArray<ArtMethod>* new_imtable) {
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, imtable_), new_imtable);
-}
-
 inline ArtMethod* Class::GetEmbeddedImTableEntry(uint32_t i) {
   uint32_t offset = EmbeddedImTableOffset().Uint32Value() + i * sizeof(ImTableEntry);
   return GetFieldObject<mirror::ArtMethod>(MemberOffset(offset));
@@ -158,7 +150,6 @@ inline ArtMethod* Class::GetEmbeddedImTableEntry(uint32_t i) {
 inline void Class::SetEmbeddedImTableEntry(uint32_t i, ArtMethod* method) {
   uint32_t offset = EmbeddedImTableOffset().Uint32Value() + i * sizeof(ImTableEntry);
   SetFieldObject<false>(MemberOffset(offset), method);
-  CHECK(method == GetImTable()->Get(i));
 }
 
 inline bool Class::HasVTable() {
@@ -730,6 +721,24 @@ inline void Class::SetAccessFlags(uint32_t new_access_flags) {
     SetField32<true>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags);
   } else {
     SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_), new_access_flags);
+  }
+}
+
+inline uint32_t Class::NumDirectInterfaces() {
+  if (IsPrimitive()) {
+    return 0;
+  } else if (IsArrayClass()) {
+    return 2;
+  } else if (IsProxyClass()) {
+    mirror::ObjectArray<mirror::Class>* interfaces = GetInterfaces();
+    return interfaces != nullptr ? interfaces->GetLength() : 0;
+  } else {
+    const DexFile::TypeList* interfaces = GetInterfaceTypeList();
+    if (interfaces == nullptr) {
+      return 0;
+    } else {
+      return interfaces->Size();
+    }
   }
 }
 

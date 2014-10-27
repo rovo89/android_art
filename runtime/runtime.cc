@@ -1156,6 +1156,9 @@ void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
   if (HasImtConflictMethod()) {
     imt_conflict_method_.VisitRoot(callback, arg, 0, kRootVMInternal);
   }
+  if (!imt_unimplemented_method_.IsNull()) {
+    imt_unimplemented_method_.VisitRoot(callback, arg, 0, kRootVMInternal);
+  }
   if (HasDefaultImt()) {
     default_imt_.VisitRoot(callback, arg, 0, kRootVMInternal);
   }

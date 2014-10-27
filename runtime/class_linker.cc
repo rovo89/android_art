@@ -372,6 +372,7 @@ void ClassLinker::InitWithoutImage(const std::vector<const DexFile*>& boot_class
   Runtime* runtime = Runtime::Current();
   runtime->SetResolutionMethod(runtime->CreateResolutionMethod());
   runtime->SetImtConflictMethod(runtime->CreateImtConflictMethod());
+  runtime->SetImtUnimplementedMethod(runtime->CreateImtConflictMethod());
   runtime->SetDefaultImt(runtime->CreateDefaultImt(this));
 
   // Set up GenericJNI entrypoint. That is mainly a hack for common_compiler_test.h so that
@@ -3142,7 +3143,11 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
   new_class->SetPrimitiveType(Primitive::kPrimNot);
   new_class->SetClassLoader(component_type->GetClassLoader());
   new_class->SetStatus(mirror::Class::kStatusLoaded, self);
-  new_class->PopulateEmbeddedImtAndVTable();
+  {
+    StackHandleScope<mirror::Class::kImtSize> hs(self,
+                                                 Runtime::Current()->GetImtUnimplementedMethod());
+    new_class->PopulateEmbeddedImtAndVTable(&hs);
+  }
   new_class->SetStatus(mirror::Class::kStatusInitialized, self);
   // don't need to set new_class->SetObjectSize(..)
   // because Object::SizeOf delegates to Array::SizeOf
@@ -4371,7 +4376,9 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
   if (!LinkSuperClass(klass)) {
     return false;
   }
-  if (!LinkMethods(self, klass, interfaces)) {
+  StackHandleScope<mirror::Class::kImtSize> imt_handle_scope(
+      self, Runtime::Current()->GetImtUnimplementedMethod());
+  if (!LinkMethods(self, klass, interfaces, &imt_handle_scope)) {
     return false;
   }
   if (!LinkInstanceFields(klass)) {
@@ -4391,7 +4398,7 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
     CHECK_EQ(klass->GetClassSize(), class_size) << PrettyDescriptor(klass.Get());
 
     if (klass->ShouldHaveEmbeddedImtAndVTable()) {
-      klass->PopulateEmbeddedImtAndVTable();
+      klass->PopulateEmbeddedImtAndVTable(&imt_handle_scope);
     }
 
     // This will notify waiters on klass that saw the not yet resolved
@@ -4401,7 +4408,7 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
   } else {
     CHECK(!klass->IsResolved());
     // Retire the temporary class and create the correctly sized resolved class.
-    *new_class = klass->CopyOf(self, class_size);
+    *new_class = klass->CopyOf(self, class_size, &imt_handle_scope);
     if (UNLIKELY(*new_class == nullptr)) {
       CHECK(self->IsExceptionPending());  // Expect an OOME.
       klass->SetStatus(mirror::Class::kStatusError, self);
@@ -4535,7 +4542,8 @@ bool ClassLinker::LinkSuperClass(Handle<mirror::Class> klass) {
 
 // Populate the class vtable and itable. Compute return type indices.
 bool ClassLinker::LinkMethods(Thread* self, Handle<mirror::Class> klass,
-                              Handle<mirror::ObjectArray<mirror::Class>> interfaces) {
+                              Handle<mirror::ObjectArray<mirror::Class>> interfaces,
+                              StackHandleScope<mirror::Class::kImtSize>* out_imt) {
   if (klass->IsInterface()) {
     // No vtable.
     size_t count = klass->NumVirtualMethods();
@@ -4546,22 +4554,19 @@ bool ClassLinker::LinkMethods(Thread* self, Handle<mirror::Class> klass,
     for (size_t i = 0; i < count; ++i) {
       klass->GetVirtualMethodDuringLinking(i)->SetMethodIndex(i);
     }
-    // Link interface method tables
-    return LinkInterfaceMethods(klass, interfaces);
-  } else {
-    // Link virtual and interface method tables
-    return LinkVirtualMethods(self, klass) && LinkInterfaceMethods(klass, interfaces);
+  } else if (!LinkVirtualMethods(self, klass)) {  // Link virtual methods first.
+    return false;
   }
-  return true;
+  return LinkInterfaceMethods(self, klass, interfaces, out_imt);  // Link interface method last.
 }
 
 bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) {
+  const size_t num_virtual_methods = klass->NumVirtualMethods();
   if (klass->HasSuperClass()) {
-    uint32_t max_count = klass->NumVirtualMethods() +
-        klass->GetSuperClass()->GetVTableLength();
-    size_t actual_count = klass->GetSuperClass()->GetVTableLength();
-    CHECK_LE(actual_count, max_count);
-    StackHandleScope<4> hs(self);
+    const size_t super_vtable_length = klass->GetSuperClass()->GetVTableLength();
+    const size_t max_count = num_virtual_methods + super_vtable_length;
+    size_t actual_count = super_vtable_length;
+    StackHandleScope<2> hs(self);
     Handle<mirror::Class> super_class(hs.NewHandle(klass->GetSuperClass()));
     Handle<mirror::ObjectArray<mirror::ArtMethod>> vtable;
     if (super_class->ShouldHaveEmbeddedImtAndVTable()) {
@@ -4570,9 +4575,8 @@ bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) 
         CHECK(self->IsExceptionPending());  // OOME.
         return false;
       }
-      int len = super_class->GetVTableLength();
-      for (int i = 0; i < len; i++) {
-        vtable->Set<false>(i, super_class->GetVTableEntry(i));
+      for (size_t i = 0; i < super_vtable_length; i++) {
+        vtable->SetWithoutChecks<false>(i, super_class->GetEmbeddedVTableEntry(i));
       }
     } else {
       CHECK(super_class->GetVTable() != nullptr) << PrettyClass(super_class.Get());
@@ -4584,16 +4588,14 @@ bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) 
     }
 
     // See if any of our virtual methods override the superclass.
-    MethodHelper local_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
-    MethodHelper super_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
-    for (size_t i = 0; i < klass->NumVirtualMethods(); ++i) {
+    for (size_t i = 0; i < num_virtual_methods; ++i) {
       mirror::ArtMethod* local_method = klass->GetVirtualMethodDuringLinking(i);
-      local_mh.ChangeMethod(local_method);
+      MethodProtoHelper local_helper(local_method);
       size_t j = 0;
       for (; j < actual_count; ++j) {
-        mirror::ArtMethod* super_method = vtable->Get(j);
-        super_mh.ChangeMethod(super_method);
-        if (local_mh.HasSameNameAndSignature(&super_mh)) {
+        mirror::ArtMethod* super_method = vtable->GetWithoutChecks(j);
+        MethodProtoHelper super_helper(super_method);
+        if (local_helper.HasSameNameAndSignature(super_helper)) {
           if (klass->CanAccessMember(super_method->GetDeclaringClass(),
                                      super_method->GetAccessFlags())) {
             if (super_method->IsFinal()) {
@@ -4602,21 +4604,20 @@ bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) 
                                 super_method->GetDeclaringClassDescriptor());
               return false;
             }
-            vtable->Set<false>(j, local_method);
+            vtable->SetWithoutChecks<false>(j, local_method);
             local_method->SetMethodIndex(j);
             break;
-          } else {
-            LOG(WARNING) << "Before Android 4.1, method " << PrettyMethod(local_method)
-                         << " would have incorrectly overridden the package-private method in "
-                         << PrettyDescriptor(super_method->GetDeclaringClassDescriptor());
           }
+          LOG(WARNING) << "Before Android 4.1, method " << PrettyMethod(local_method)
+                       << " would have incorrectly overridden the package-private method in "
+                       << PrettyDescriptor(super_method->GetDeclaringClassDescriptor());
         }
       }
       if (j == actual_count) {
         // Not overriding, append.
-        vtable->Set<false>(actual_count, local_method);
+        vtable->SetWithoutChecks<false>(actual_count, local_method);
         local_method->SetMethodIndex(actual_count);
-        actual_count += 1;
+        ++actual_count;
       }
     }
     if (!IsUint(16, actual_count)) {
@@ -4635,73 +4636,77 @@ bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) 
     klass->SetVTable(vtable.Get());
   } else {
     CHECK_EQ(klass.Get(), GetClassRoot(kJavaLangObject));
-    uint32_t num_virtual_methods = klass->NumVirtualMethods();
     if (!IsUint(16, num_virtual_methods)) {
-      ThrowClassFormatError(klass.Get(), "Too many methods: %d", num_virtual_methods);
+      ThrowClassFormatError(klass.Get(), "Too many methods: %d",
+                            static_cast<int>(num_virtual_methods));
       return false;
     }
-    StackHandleScope<1> hs(self);
-    Handle<mirror::ObjectArray<mirror::ArtMethod>>
-        vtable(hs.NewHandle(AllocArtMethodArray(self, num_virtual_methods)));
-    if (UNLIKELY(vtable.Get() == nullptr)) {
+    mirror::ObjectArray<mirror::ArtMethod>* vtable = AllocArtMethodArray(self, num_virtual_methods);
+    if (UNLIKELY(vtable == nullptr)) {
       CHECK(self->IsExceptionPending());  // OOME.
       return false;
     }
     for (size_t i = 0; i < num_virtual_methods; ++i) {
       mirror::ArtMethod* virtual_method = klass->GetVirtualMethodDuringLinking(i);
-      vtable->Set<false>(i, virtual_method);
+      vtable->SetWithoutChecks<false>(i, virtual_method);
       virtual_method->SetMethodIndex(i & 0xFFFF);
     }
-    klass->SetVTable(vtable.Get());
+    klass->SetVTable(vtable);
   }
   return true;
 }
 
-bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
-                                       Handle<mirror::ObjectArray<mirror::Class>> interfaces) {
-  Thread* const self = Thread::Current();
+bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass,
+                                       Handle<mirror::ObjectArray<mirror::Class>> interfaces,
+                                       StackHandleScope<mirror::Class::kImtSize>* out_imt) {
+  static constexpr size_t kInterfaceCacheSize = 8;
+  StackHandleScope<2 + kInterfaceCacheSize> hs(self);
   Runtime* const runtime = Runtime::Current();
-  // Set the imt table to be all conflicts by default.
-  klass->SetImTable(runtime->GetDefaultImt());
-  size_t super_ifcount;
-  if (klass->HasSuperClass()) {
-    super_ifcount = klass->GetSuperClass()->GetIfTableCount();
-  } else {
-    super_ifcount = 0;
-  }
-  uint32_t num_interfaces =
-      interfaces.Get() == nullptr ? klass->NumDirectInterfaces() : interfaces->GetLength();
-  size_t ifcount = super_ifcount + num_interfaces;
-  for (size_t i = 0; i < num_interfaces; i++) {
-    mirror::Class* interface =
-        interfaces.Get() == nullptr ? mirror::Class::GetDirectInterface(self, klass, i) :
-            interfaces->Get(i);
-    ifcount += interface->GetIfTableCount();
-  }
-  if (ifcount == 0) {
-    // Class implements no interfaces.
-    DCHECK_EQ(klass->GetIfTableCount(), 0);
-    DCHECK(klass->GetIfTable() == nullptr);
-    return true;
-  }
-  if (ifcount == super_ifcount) {
+  const bool has_superclass = klass->HasSuperClass();
+  const size_t super_ifcount = has_superclass ? klass->GetSuperClass()->GetIfTableCount() : 0U;
+  const bool have_interfaces = interfaces.Get() != nullptr;
+  const size_t num_interfaces =
+      have_interfaces ? interfaces->GetLength() : klass->NumDirectInterfaces();
+  if (num_interfaces == 0) {
+    if (super_ifcount == 0) {
+      // Class implements no interfaces.
+      DCHECK_EQ(klass->GetIfTableCount(), 0);
+      DCHECK(klass->GetIfTable() == nullptr);
+      return true;
+    }
     // Class implements same interfaces as parent, are any of these not marker interfaces?
     bool has_non_marker_interface = false;
     mirror::IfTable* super_iftable = klass->GetSuperClass()->GetIfTable();
-    for (size_t i = 0; i < ifcount; ++i) {
+    for (size_t i = 0; i < super_ifcount; ++i) {
       if (super_iftable->GetMethodArrayCount(i) > 0) {
         has_non_marker_interface = true;
         break;
       }
     }
+    // Class just inherits marker interfaces from parent so recycle parent's iftable.
     if (!has_non_marker_interface) {
-      // Class just inherits marker interfaces from parent so recycle parent's iftable.
       klass->SetIfTable(super_iftable);
       return true;
     }
   }
-  StackHandleScope<4> hs(self);
-  Handle<mirror::IfTable> iftable(hs.NewHandle(AllocIfTable(self, ifcount)));
+  size_t ifcount = super_ifcount + num_interfaces;
+  for (size_t i = 0; i < num_interfaces; i++) {
+    mirror::Class* interface = have_interfaces ?
+        interfaces->GetWithoutChecks(i) : mirror::Class::GetDirectInterface(self, klass, i);
+    DCHECK(interface != nullptr);
+    if (i < kInterfaceCacheSize) {
+      hs.NewHandle(interface);
+    }
+    if (UNLIKELY(!interface->IsInterface())) {
+      std::string temp;
+      ThrowIncompatibleClassChangeError(klass.Get(), "Class %s implements non-interface class %s",
+                                        PrettyDescriptor(klass.Get()).c_str(),
+                                        PrettyDescriptor(interface->GetDescriptor(&temp)).c_str());
+      return false;
+    }
+    ifcount += interface->GetIfTableCount();
+  }
+  Handle<mirror::IfTable> iftable = hs.NewHandle(AllocIfTable(self, ifcount));
   if (UNLIKELY(iftable.Get() == nullptr)) {
     CHECK(self->IsExceptionPending());  // OOME.
     return false;
@@ -4716,16 +4721,12 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
   // Flatten the interface inheritance hierarchy.
   size_t idx = super_ifcount;
   for (size_t i = 0; i < num_interfaces; i++) {
-    mirror::Class* interface =
-        interfaces.Get() == nullptr ? mirror::Class::GetDirectInterface(self, klass, i) :
-            interfaces->Get(i);
-    DCHECK(interface != nullptr);
-    if (!interface->IsInterface()) {
-      std::string temp;
-      ThrowIncompatibleClassChangeError(klass.Get(), "Class %s implements non-interface class %s",
-                                        PrettyDescriptor(klass.Get()).c_str(),
-                                        PrettyDescriptor(interface->GetDescriptor(&temp)).c_str());
-      return false;
+    mirror::Class* interface;
+    if (i < kInterfaceCacheSize) {
+      interface = hs.GetReference(i)->AsClass();
+    } else {
+      interface = have_interfaces ? interfaces->Get(i) :
+          mirror::Class::GetDirectInterface(self, klass, i);
     }
     // Check if interface is already in iftable
     bool duplicate = false;
@@ -4758,6 +4759,7 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
   }
   // Shrink iftable in case duplicates were found
   if (idx < ifcount) {
+    DCHECK_NE(num_interfaces, 0U);
     iftable.Assign(down_cast<mirror::IfTable*>(iftable->CopyOf(self, idx * mirror::IfTable::kMax)));
     if (UNLIKELY(iftable.Get() == nullptr)) {
       CHECK(self->IsExceptionPending());  // OOME.
@@ -4765,41 +4767,93 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
     }
     ifcount = idx;
   } else {
-    CHECK_EQ(idx, ifcount);
+    DCHECK_EQ(idx, ifcount);
   }
   klass->SetIfTable(iftable.Get());
-
   // If we're an interface, we don't need the vtable pointers, so we're done.
   if (klass->IsInterface()) {
     return true;
   }
-  // Allocate imtable
-  bool imtable_changed = false;
-  Handle<mirror::ObjectArray<mirror::ArtMethod>> imtable(
-      hs.NewHandle(AllocArtMethodArray(self, mirror::Class::kImtSize)));
-  if (UNLIKELY(imtable.Get() == nullptr)) {
-    CHECK(self->IsExceptionPending());  // OOME.
-    return false;
-  }
-  MethodHelper interface_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
-  MethodHelper vtable_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
+  Handle<mirror::ObjectArray<mirror::ArtMethod>> vtable(
+      hs.NewHandle(klass->GetVTableDuringLinking()));
   std::vector<mirror::ArtMethod*> miranda_list;
+  // Copy the IMT from the super class if possible.
+  bool extend_super_iftable = false;
+  if (has_superclass) {
+    mirror::Class* super_class = klass->GetSuperClass();
+    extend_super_iftable = true;
+    if (super_class->ShouldHaveEmbeddedImtAndVTable()) {
+      for (size_t i = 0; i < mirror::Class::kImtSize; ++i) {
+        out_imt->SetReference(i, super_class->GetEmbeddedImTableEntry(i));
+      }
+    } else {
+      // No imt in the super class, need to reconstruct from the iftable.
+      mirror::IfTable* if_table = super_class->GetIfTable();
+      mirror::ArtMethod* conflict_method = runtime->GetImtConflictMethod();
+      const size_t length = super_class->GetIfTableCount();
+      for (size_t i = 0; i < length; ++i) {
+        mirror::Class* interface = iftable->GetInterface(i);
+        const size_t num_virtuals = interface->NumVirtualMethods();
+        const size_t method_array_count = if_table->GetMethodArrayCount(i);
+        DCHECK_EQ(num_virtuals, method_array_count);
+        if (method_array_count == 0) {
+          continue;
+        }
+        mirror::ObjectArray<mirror::ArtMethod>* method_array = if_table->GetMethodArray(i);
+        for (size_t j = 0; j < num_virtuals; ++j) {
+          mirror::ArtMethod* method = method_array->GetWithoutChecks(j);
+          if (method->IsMiranda()) {
+            continue;
+          }
+          mirror::ArtMethod* interface_method = interface->GetVirtualMethod(j);
+          uint32_t imt_index = interface_method->GetDexMethodIndex() % mirror::Class::kImtSize;
+          mirror::ArtMethod* imt_ref = out_imt->GetReference(imt_index)->AsArtMethod();
+          if (imt_ref == runtime->GetImtUnimplementedMethod()) {
+            out_imt->SetReference(imt_index, method);
+          } else if (imt_ref != conflict_method) {
+            out_imt->SetReference(imt_index, conflict_method);
+          }
+        }
+      }
+    }
+  }
   for (size_t i = 0; i < ifcount; ++i) {
     size_t num_methods = iftable->GetInterface(i)->NumVirtualMethods();
     if (num_methods > 0) {
       StackHandleScope<2> hs(self);
-      Handle<mirror::ObjectArray<mirror::ArtMethod>>
-          method_array(hs.NewHandle(AllocArtMethodArray(self, num_methods)));
+      const bool is_super = i < super_ifcount;
+      const bool super_interface = is_super && extend_super_iftable;
+      Handle<mirror::ObjectArray<mirror::ArtMethod>> method_array;
+      Handle<mirror::ObjectArray<mirror::ArtMethod>> input_array;
+      if (super_interface) {
+        mirror::IfTable* if_table = klass->GetSuperClass()->GetIfTable();
+        DCHECK(if_table != nullptr);
+        DCHECK(if_table->GetMethodArray(i) != nullptr);
+        // If we are working on a super interface, try extending the existing method array.
+        method_array = hs.NewHandle(if_table->GetMethodArray(i)->Clone(self)->
+            AsObjectArray<mirror::ArtMethod>());
+        // We are overwriting a super class interface, try to only virtual methods instead of the
+        // whole vtable.
+        input_array = hs.NewHandle(klass->GetVirtualMethods());
+      } else {
+        method_array = hs.NewHandle(AllocArtMethodArray(self, num_methods));
+        // A new interface, we need the whole vtable incase a new interface method is implemented
+        // in the whole superclass.
+        input_array = vtable;
+      }
       if (UNLIKELY(method_array.Get() == nullptr)) {
         CHECK(self->IsExceptionPending());  // OOME.
         return false;
       }
       iftable->SetMethodArray(i, method_array.Get());
-      Handle<mirror::ObjectArray<mirror::ArtMethod>> vtable(
-          hs.NewHandle(klass->GetVTableDuringLinking()));
+      if (input_array.Get() == nullptr) {
+        // If the added virtual methods is empty, do nothing.
+        DCHECK(super_interface);
+        continue;
+      }
       for (size_t j = 0; j < num_methods; ++j) {
         mirror::ArtMethod* interface_method = iftable->GetInterface(i)->GetVirtualMethod(j);
-        interface_mh.ChangeMethod(interface_method);
+        MethodProtoHelper interface_helper(interface_method);
         int32_t k;
         // For each method listed in the interface's method list, find the
         // matching method in our class's method list.  We want to favor the
@@ -4809,10 +4863,10 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
         // it -- otherwise it would use the same vtable slot.  In .dex files
         // those don't end up in the virtual method table, so it shouldn't
         // matter which direction we go.  We walk it backward anyway.)
-        for (k = vtable->GetLength() - 1; k >= 0; --k) {
-          mirror::ArtMethod* vtable_method = vtable->Get(k);
-          vtable_mh.ChangeMethod(vtable_method);
-          if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
+        for (k = input_array->GetLength() - 1; k >= 0; --k) {
+          mirror::ArtMethod* vtable_method = input_array->GetWithoutChecks(k);
+          MethodProtoHelper vtable_helper(vtable_method);
+          if (interface_helper.HasSameNameAndSignature(vtable_helper)) {
             if (!vtable_method->IsAbstract() && !vtable_method->IsPublic()) {
               ThrowIllegalAccessError(
                   klass.Get(),
@@ -4821,52 +4875,48 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
                   PrettyMethod(interface_method).c_str());
               return false;
             }
-            method_array->Set<false>(j, vtable_method);
+            method_array->SetWithoutChecks<false>(j, vtable_method);
             // Place method in imt if entry is empty, place conflict otherwise.
             uint32_t imt_index = interface_method->GetDexMethodIndex() % mirror::Class::kImtSize;
-            if (imtable->Get(imt_index) == nullptr) {
-              imtable->Set<false>(imt_index, vtable_method);
-              imtable_changed = true;
-            } else {
-              imtable->Set<false>(imt_index, runtime->GetImtConflictMethod());
+            mirror::ArtMethod* imt_ref = out_imt->GetReference(imt_index)->AsArtMethod();
+            mirror::ArtMethod* conflict_method = runtime->GetImtConflictMethod();
+            if (imt_ref == runtime->GetImtUnimplementedMethod()) {
+              out_imt->SetReference(imt_index, vtable_method);
+            } else if (imt_ref != conflict_method) {
+              // If we are not a conflict and we have the same signature and name as the imt entry,
+              // it must be that we overwrote a superclass vtable entry.
+              if (MethodProtoHelper(imt_ref).HasSameNameAndSignature(vtable_helper)) {
+                out_imt->SetReference(imt_index, vtable_method);
+              } else {
+                out_imt->SetReference(imt_index, conflict_method);
+              }
             }
             break;
           }
         }
-        if (k < 0) {
-          StackHandleScope<1> hs(self);
-          auto miranda_method = hs.NewHandle<mirror::ArtMethod>(nullptr);
+        if (k < 0 && !super_interface) {
+          mirror::ArtMethod* miranda_method = nullptr;
           for (mirror::ArtMethod* mir_method : miranda_list) {
-            vtable_mh.ChangeMethod(mir_method);
-            if (interface_mh.HasSameNameAndSignature(&vtable_mh)) {
-              miranda_method.Assign(mir_method);
+            MethodProtoHelper vtable_helper(mir_method);
+            if (interface_helper.HasSameNameAndSignature(vtable_helper)) {
+              miranda_method = mir_method;
               break;
             }
           }
-          if (miranda_method.Get() == nullptr) {
+          if (miranda_method == nullptr) {
             // Point the interface table at a phantom slot.
-            miranda_method.Assign(down_cast<mirror::ArtMethod*>(interface_method->Clone(self)));
-            if (UNLIKELY(miranda_method.Get() == nullptr)) {
+            miranda_method = down_cast<mirror::ArtMethod*>(interface_method->Clone(self));
+            if (UNLIKELY(miranda_method == nullptr)) {
               CHECK(self->IsExceptionPending());  // OOME.
               return false;
             }
             // TODO: If a methods move then the miranda_list may hold stale references.
-            miranda_list.push_back(miranda_method.Get());
+            miranda_list.push_back(miranda_method);
           }
-          method_array->Set<false>(j, miranda_method.Get());
+          method_array->SetWithoutChecks<false>(j, miranda_method);
         }
       }
     }
-  }
-  if (imtable_changed) {
-    // Fill in empty entries in interface method table with conflict.
-    mirror::ArtMethod* imt_conflict_method = runtime->GetImtConflictMethod();
-    for (size_t i = 0; i < mirror::Class::kImtSize; i++) {
-      if (imtable->Get(i) == nullptr) {
-        imtable->Set<false>(i, imt_conflict_method);
-      }
-    }
-    klass->SetImTable(imtable.Get());
   }
   if (!miranda_list.empty()) {
     int old_method_count = klass->NumVirtualMethods();
@@ -4883,10 +4933,6 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
     }
     klass->SetVirtualMethods(virtuals);
 
-    StackHandleScope<1> hs(self);
-    Handle<mirror::ObjectArray<mirror::ArtMethod>> vtable(
-        hs.NewHandle(klass->GetVTableDuringLinking()));
-    CHECK(vtable.Get() != nullptr);
     int old_vtable_count = vtable->GetLength();
     int new_vtable_count = old_vtable_count + miranda_list.size();
     vtable.Assign(vtable->CopyOf(self, new_vtable_count));
@@ -4900,18 +4946,18 @@ bool ClassLinker::LinkInterfaceMethods(Handle<mirror::Class> klass,
       method->SetAccessFlags(method->GetAccessFlags() | kAccMiranda);
       method->SetMethodIndex(0xFFFF & (old_vtable_count + i));
       klass->SetVirtualMethod(old_method_count + i, method);
-      vtable->Set<false>(old_vtable_count + i, method);
+      vtable->SetWithoutChecks<false>(old_vtable_count + i, method);
     }
     // TODO: do not assign to the vtable field until it is fully constructed.
     klass->SetVTable(vtable.Get());
   }
 
-  mirror::ObjectArray<mirror::ArtMethod>* vtable = klass->GetVTableDuringLinking();
-  for (int i = 0; i < vtable->GetLength(); ++i) {
-    CHECK(vtable->Get(i) != nullptr);
+  if (kIsDebugBuild) {
+    mirror::ObjectArray<mirror::ArtMethod>* vtable = klass->GetVTableDuringLinking();
+    for (int i = 0; i < vtable->GetLength(); ++i) {
+      CHECK(vtable->GetWithoutChecks(i) != nullptr);
+    }
   }
-
-//  klass->DumpClass(std::cerr, Class::kDumpClassFullDetail);
 
   return true;
 }
