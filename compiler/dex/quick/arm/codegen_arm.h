@@ -87,15 +87,15 @@ class ArmMir2Lir FINAL : public Mir2Lir {
 
     // Required for target - Dalvik-level generators.
     void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                        RegLocation rl_src2) OVERRIDE;
+                        RegLocation rl_src2, int flags) OVERRIDE;
     void GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                           RegLocation rl_src1, RegLocation rl_src2);
+                           RegLocation rl_src1, RegLocation rl_src2, int flags);
     void GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
                      RegLocation rl_index, RegLocation rl_dest, int scale);
     void GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array, RegLocation rl_index,
                      RegLocation rl_src, int scale, bool card_mark);
     void GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                           RegLocation rl_src1, RegLocation rl_shift);
+                           RegLocation rl_src1, RegLocation rl_shift, int flags);
     void GenArithOpDouble(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                           RegLocation rl_src2);
     void GenArithOpFloat(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
@@ -224,8 +224,8 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     void InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir);
     void AssignDataOffsets();
     RegLocation GenDivRem(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
-                          bool is_div, bool check_zero);
-    RegLocation GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit, bool is_div);
+                          bool is_div, int flags) OVERRIDE;
+    RegLocation GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit, bool is_div) OVERRIDE;
     typedef struct {
       OpKind op;
       uint32_t shift;

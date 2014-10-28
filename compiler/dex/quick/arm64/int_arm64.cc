@@ -613,7 +613,7 @@ RegLocation Arm64Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg1, int
 }
 
 RegLocation Arm64Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
-                                    RegLocation rl_src2, bool is_div, bool check_zero) {
+                                    RegLocation rl_src2, bool is_div, int flags) {
   LOG(FATAL) << "Unexpected use of GenDivRem for Arm64";
   return rl_dest;
 }
@@ -1019,7 +1019,7 @@ void Arm64Mir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src) {
 }
 
 void Arm64Mir2Lir::GenDivRemLong(Instruction::Code opcode, RegLocation rl_dest,
-                                 RegLocation rl_src1, RegLocation rl_src2, bool is_div) {
+                                 RegLocation rl_src1, RegLocation rl_src2, bool is_div, int flags) {
   if (rl_src2.is_const) {
     DCHECK(rl_src2.wide);
     int64_t lit = mir_graph_->ConstantValueWide(rl_src2);
@@ -1031,7 +1031,9 @@ void Arm64Mir2Lir::GenDivRemLong(Instruction::Code opcode, RegLocation rl_dest,
   RegLocation rl_result;
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
-  GenDivZeroCheck(rl_src2.reg);
+  if ((flags & MIR_IGNORE_DIV_ZERO_CHECK) == 0) {
+    GenDivZeroCheck(rl_src2.reg);
+  }
   rl_result = GenDivRem(rl_dest, rl_src1.reg, rl_src2.reg, is_div);
   StoreValueWide(rl_dest, rl_result);
 }
@@ -1066,7 +1068,7 @@ void Arm64Mir2Lir::GenNotLong(RegLocation rl_dest, RegLocation rl_src) {
 }
 
 void Arm64Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                                  RegLocation rl_src1, RegLocation rl_src2) {
+                                  RegLocation rl_src1, RegLocation rl_src2, int flags) {
   switch (opcode) {
     case Instruction::NOT_LONG:
       GenNotLong(rl_dest, rl_src2);
@@ -1085,11 +1087,11 @@ void Arm64Mir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
       return;
     case Instruction::DIV_LONG:
     case Instruction::DIV_LONG_2ADDR:
-      GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ true);
+      GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ true, flags);
       return;
     case Instruction::REM_LONG:
     case Instruction::REM_LONG_2ADDR:
-      GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ false);
+      GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ false, flags);
       return;
     case Instruction::AND_LONG_2ADDR:
     case Instruction::AND_LONG:
@@ -1311,7 +1313,8 @@ void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
 }
 
 void Arm64Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
-                                     RegLocation rl_dest, RegLocation rl_src, RegLocation rl_shift) {
+                                     RegLocation rl_dest, RegLocation rl_src, RegLocation rl_shift,
+                                     int flags) {
   OpKind op = kOpBkpt;
   // Per spec, we only care about low 6 bits of shift amount.
   int shift_amount = mir_graph_->ConstantValue(rl_shift) & 0x3f;
@@ -1343,7 +1346,7 @@ void Arm64Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
 }
 
 void Arm64Mir2Lir::GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
-                                     RegLocation rl_src1, RegLocation rl_src2) {
+                                     RegLocation rl_src1, RegLocation rl_src2, int flags) {
   OpKind op = kOpBkpt;
   switch (opcode) {
     case Instruction::ADD_LONG:
@@ -1372,7 +1375,7 @@ void Arm64Mir2Lir::GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_de
 
   if (op == kOpSub) {
     if (!rl_src2.is_const) {
-      return GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
+      return GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2, flags);
     }
   } else {
     // Associativity.
