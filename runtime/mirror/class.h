@@ -1147,11 +1147,11 @@ class MANAGED Class FINAL : public Object {
 
   // The following data exist in real class objects.
   // Embedded Imtable, for class object that's not an interface, fixed size.
-  ImTableEntry embedded_imtable_[0];
+  // ImTableEntry embedded_imtable_[0];
   // Embedded Vtable, for class object that's not an interface, variable size.
-  VTableEntry embedded_vtable_[0];
+  // VTableEntry embedded_vtable_[0];
   // Static fields, variable size.
-  uint32_t fields_[0];
+  // uint32_t fields_[0];
 
   // java.lang.Class
   static GcRoot<Class> java_lang_Class_;
