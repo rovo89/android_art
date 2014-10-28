@@ -23,6 +23,7 @@
 #include "jni.h"
 #include "stdio.h"
 #include "unistd.h"
+#include "sys/stat.h"
 
 #include "nativebridge/native_bridge.h"
 
@@ -208,7 +209,13 @@ static NativeBridgeMethod* find_native_bridge_method(const char *name) {
 
 // NativeBridgeCallbacks implementations
 extern "C" bool native_bridge_initialize(const android::NativeBridgeRuntimeCallbacks* art_cbs,
-                                         const char* private_dir, const char* isa) {
+                                         const char* app_code_cache_dir, const char* isa) {
+  struct stat st;
+  if ((app_code_cache_dir != nullptr)
+      && (stat(app_code_cache_dir, &st) == 0)
+      && S_ISDIR(st.st_mode)) {
+    printf("Code cache exists: '%s'.\n", app_code_cache_dir);
+  }
   if (art_cbs != nullptr) {
     gNativeBridgeArtCallbacks = art_cbs;
     printf("Native bridge initialized.\n");
