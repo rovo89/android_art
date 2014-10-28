@@ -171,7 +171,7 @@ inline bool ArtMethod::CheckIncompatibleClassChange(InvokeType type) {
     }
     default:
       LOG(FATAL) << "Unreachable - invocation type: " << type;
-      return true;
+      UNREACHABLE();
   }
 }
 
@@ -223,9 +223,7 @@ inline const uint8_t* ArtMethod::GetVmapTable() {
 }
 
 inline const uint8_t* ArtMethod::GetVmapTable(const void* code_pointer) {
-  if (IsOptimized()) {
-    LOG(FATAL) << "Unimplemented vmap table for optimized compiler";
-  }
+  CHECK(!IsOptimized()) << "Unimplemented vmap table for optimized compiler";
   DCHECK(code_pointer != nullptr);
   DCHECK(code_pointer == GetQuickOatCodePointer());
   uint32_t offset =

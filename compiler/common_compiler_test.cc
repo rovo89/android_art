@@ -111,7 +111,7 @@ void CommonCompilerTest::MakeExecutable(const void* code_start, size_t code_leng
 #else
   // Only warn if not Intel as Intel doesn't have cache flush instructions.
 #if !defined(__i386__) && !defined(__x86_64__)
-  LOG(WARNING) << "UNIMPLEMENTED: cache flush";
+  UNIMPLEMENTED(WARNING) << "cache flush";
 #endif
 #endif
 }

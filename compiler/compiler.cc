@@ -75,8 +75,8 @@ Compiler* Compiler::Create(CompilerDriver* driver, Compiler::Kind kind) {
 
     default:
       LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
   }
-  return nullptr;
 }
 
 }  // namespace art

@@ -201,8 +201,8 @@ void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
 }
 
 accounting::ContinuousSpaceBitmap::SweepCallback* BumpPointerSpace::GetSweepCallback() {
-  LOG(FATAL) << "Unimplemented";
-  return nullptr;
+  UNIMPLEMENTED(FATAL);
+  UNREACHABLE();
 }
 
 uint64_t BumpPointerSpace::GetBytesAllocated() {

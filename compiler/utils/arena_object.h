@@ -31,6 +31,7 @@ class ArenaObject {
 
   void operator delete(void*, size_t) {
     LOG(FATAL) << "UNREACHABLE";
+    UNREACHABLE();
   }
 };
 

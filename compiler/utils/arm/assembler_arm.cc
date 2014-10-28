@@ -324,7 +324,7 @@ bool Address::CanHoldLoadOffsetArm(LoadOperandType type, int offset) {
       return IsAbsoluteUint(10, offset);  // VFP addressing mode.
     default:
       LOG(FATAL) << "UNREACHABLE";
-      return false;
+      UNREACHABLE();
   }
 }
 
@@ -342,7 +342,7 @@ bool Address::CanHoldStoreOffsetArm(StoreOperandType type, int offset) {
       return IsAbsoluteUint(10, offset);  // VFP addressing mode.
     default:
       LOG(FATAL) << "UNREACHABLE";
-      return false;
+      UNREACHABLE();
   }
 }
 
@@ -359,9 +359,9 @@ bool Address::CanHoldLoadOffsetThumb(LoadOperandType type, int offset) {
       return IsAbsoluteUint(10, offset);  // VFP addressing mode.
     case kLoadWordPair:
       return IsAbsoluteUint(10, offset);
-  default:
+    default:
       LOG(FATAL) << "UNREACHABLE";
-      return false;
+      UNREACHABLE();
   }
 }
 
@@ -377,9 +377,9 @@ bool Address::CanHoldStoreOffsetThumb(StoreOperandType type, int offset) {
       return IsAbsoluteUint(10, offset);  // VFP addressing mode.
     case kStoreWordPair:
       return IsAbsoluteUint(10, offset);
-  default:
+    default:
       LOG(FATAL) << "UNREACHABLE";
-      return false;
+      UNREACHABLE();
   }
 }
 

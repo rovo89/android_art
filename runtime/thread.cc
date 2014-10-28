@@ -1971,6 +1971,7 @@ void Thread::QuickDeliverException() {
   exception_handler.UpdateInstrumentationStack();
   exception_handler.DoLongJump();
   LOG(FATAL) << "UNREACHABLE";
+  UNREACHABLE();
 }
 
 Context* Thread::GetLongJumpContext() {

@@ -80,6 +80,7 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
+      UNREACHABLE();
   }
   return true;
 }
@@ -153,6 +154,7 @@ bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t in
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
+      UNREACHABLE();
   }
   return true;
 }
@@ -195,7 +197,7 @@ static JValue GetFieldValue(const ShadowFrame& shadow_frame, uint32_t vreg)
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
-      break;
+      UNREACHABLE();
   }
   return field_value;
 }
@@ -285,6 +287,7 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
     }
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
+      UNREACHABLE();
   }
   return true;
 }
@@ -369,6 +372,7 @@ bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint1
       break;
     default:
       LOG(FATAL) << "Unreachable: " << field_type;
+      UNREACHABLE();
   }
   return true;
 }

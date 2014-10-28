@@ -886,7 +886,7 @@ uint32_t Monitor::GetLockOwnerThreadId(mirror::Object* obj) {
     }
     default: {
       LOG(FATAL) << "Unreachable";
-      return ThreadList::kInvalidThreadId;
+      UNREACHABLE();
     }
   }
 }
@@ -1041,7 +1041,7 @@ bool Monitor::IsValidLockWord(LockWord lock_word) {
       return true;
     default:
       LOG(FATAL) << "Unreachable";
-      return false;
+      UNREACHABLE();
   }
 }
 

@@ -298,6 +298,7 @@ void JniCompiler::CreateFunction(const std::string& func_name) {
     case 'D': ret_type =  irb_.getJDoubleTy(); break;
     case 'L': ret_type =  irb_.getJObjectTy(); break;
     default: LOG(FATAL)  << "Unreachable: unexpected return type in shorty " << shorty;
+      UNREACHABLE();
   }
   // Get argument type
   std::vector< ::llvm::Type*> args_type;

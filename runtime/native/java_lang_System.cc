@@ -93,7 +93,7 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
     switch (dstComponentPrimitiveType) {
       case Primitive::kPrimVoid:
         LOG(FATAL) << "Unreachable, cannot have arrays of type void";
-        return;
+        UNREACHABLE();
       case Primitive::kPrimBoolean:
       case Primitive::kPrimByte:
         DCHECK_EQ(Primitive::ComponentSize(dstComponentPrimitiveType), 1U);
@@ -122,7 +122,7 @@ static void System_arraycopy(JNIEnv* env, jclass, jobject javaSrc, jint srcPos, 
       }
       default:
         LOG(FATAL) << "Unknown array type: " << PrettyTypeOf(srcArray);
-        return;
+        UNREACHABLE();
     }
   }
   // If one of the arrays holds a primitive type the other array must hold the exact same type.
