@@ -331,7 +331,7 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         break;
       case Instruction::CONST_STRING: {
         PREAMBLE();
-        String* s = ResolveString(self, mh,  inst->VRegB_21c());
+        String* s = ResolveString(self, shadow_frame,  inst->VRegB_21c());
         if (UNLIKELY(s == NULL)) {
           HANDLE_PENDING_EXCEPTION();
         } else {
@@ -342,7 +342,7 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
       }
       case Instruction::CONST_STRING_JUMBO: {
         PREAMBLE();
-        String* s = ResolveString(self, mh,  inst->VRegB_31c());
+        String* s = ResolveString(self, shadow_frame,  inst->VRegB_31c());
         if (UNLIKELY(s == NULL)) {
           HANDLE_PENDING_EXCEPTION();
         } else {

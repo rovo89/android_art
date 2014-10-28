@@ -115,8 +115,6 @@ class MethodHelperT {
   mirror::Class* GetClassFromTypeIdx(uint16_t type_idx, bool resolve = true)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::String* ResolveString(uint32_t string_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   uint32_t FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
