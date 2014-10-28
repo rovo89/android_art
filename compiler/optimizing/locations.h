@@ -47,24 +47,26 @@ class Location : public ValueObject {
     // We do not use the value 5 because it conflicts with kLocationConstantMask.
     kDoNotUse5 = 5,
 
-    kFpuRegister = 6,  // Floating point processor.
+    kFpuRegister = 6,  // Float register.
 
-    kRegisterPair = 7,
+    kRegisterPair = 7,  // Long register.
+
+    kFpuRegisterPair = 8,  // Double register.
+
+    // We do not use the value 9 because it conflicts with kLocationConstantMask.
+    kDoNotUse9 = 9,
 
     // On 32bits architectures, quick can pass a long where the
     // low bits are in the last parameter register, and the high
     // bits are in a stack slot. The kQuickParameter kind is for
     // handling this special case.
-    kQuickParameter = 8,
-
-    // We do not use the value 9 because it conflicts with kLocationConstantMask.
-    kDoNotUse9 = 9,
+    kQuickParameter = 10,
 
     // Unallocated location represents a location that is not fixed and can be
     // allocated by a register allocator.  Each unallocated location has
     // a policy that specifies what kind of location is suitable. Payload
     // contains register allocation policy.
-    kUnallocated = 10,
+    kUnallocated = 11,
   };
 
   Location() : value_(kInvalid) {
@@ -77,6 +79,7 @@ class Location : public ValueObject {
     COMPILE_ASSERT((kQuickParameter & kLocationConstantMask) != kConstant, TagError);
     COMPILE_ASSERT((kFpuRegister & kLocationConstantMask) != kConstant, TagError);
     COMPILE_ASSERT((kRegisterPair & kLocationConstantMask) != kConstant, TagError);
+    COMPILE_ASSERT((kFpuRegisterPair & kLocationConstantMask) != kConstant, TagError);
     COMPILE_ASSERT((kConstant & kLocationConstantMask) == kConstant, TagError);
 
     DCHECK(!IsValid());
@@ -129,6 +132,10 @@ class Location : public ValueObject {
     return Location(kRegisterPair, low << 16 | high);
   }
 
+  static Location FpuRegisterPairLocation(int low, int high) {
+    return Location(kFpuRegisterPair, low << 16 | high);
+  }
+
   bool IsRegister() const {
     return GetKind() == kRegister;
   }
@@ -139,6 +146,10 @@ class Location : public ValueObject {
 
   bool IsRegisterPair() const {
     return GetKind() == kRegisterPair;
+  }
+
+  bool IsFpuRegisterPair() const {
+    return GetKind() == kFpuRegisterPair;
   }
 
   int reg() const {
@@ -160,6 +171,18 @@ class Location : public ValueObject {
   template <typename T>
   T AsRegisterPairHigh() const {
     DCHECK(IsRegisterPair());
+    return static_cast<T>(GetPayload() & 0xFFFF);
+  }
+
+  template <typename T>
+  T AsFpuRegisterPairLow() const {
+    DCHECK(IsFpuRegisterPair());
+    return static_cast<T>(GetPayload() >> 16);
+  }
+
+  template <typename T>
+  T AsFpuRegisterPairHigh() const {
+    DCHECK(IsFpuRegisterPair());
     return static_cast<T>(GetPayload() & 0xFFFF);
   }
 
@@ -237,6 +260,7 @@ class Location : public ValueObject {
       case kConstant: return "C";
       case kFpuRegister: return "F";
       case kRegisterPair: return "RP";
+      case kFpuRegisterPair: return "FP";
       case kDoNotUse5:  // fall-through
       case kDoNotUse9:
         LOG(FATAL) << "Should not use this location kind";
