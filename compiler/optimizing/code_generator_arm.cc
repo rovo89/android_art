@@ -272,7 +272,8 @@ Location CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type) const {
     }
 
     case Primitive::kPrimDouble: {
-      int reg = FindTwoFreeConsecutiveEntries(blocked_fpu_registers_, kNumberOfSRegisters);
+      int reg = FindTwoFreeConsecutiveAlignedEntries(blocked_fpu_registers_, kNumberOfSRegisters);
+      DCHECK_EQ(reg % 2, 0);
       return Location::FpuRegisterPairLocation(reg, reg + 1);
     }
 
@@ -317,6 +318,14 @@ void CodeGeneratorARM::SetupBlockedRegisters() const {
   blocked_fpu_registers_[S21] = true;
   blocked_fpu_registers_[S22] = true;
   blocked_fpu_registers_[S23] = true;
+  blocked_fpu_registers_[S24] = true;
+  blocked_fpu_registers_[S25] = true;
+  blocked_fpu_registers_[S26] = true;
+  blocked_fpu_registers_[S27] = true;
+  blocked_fpu_registers_[S28] = true;
+  blocked_fpu_registers_[S29] = true;
+  blocked_fpu_registers_[S30] = true;
+  blocked_fpu_registers_[S31] = true;
 
   UpdateBlockedPairRegisters();
 }

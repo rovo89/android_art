@@ -115,8 +115,8 @@ size_t CodeGenerator::FindFreeEntry(bool* array, size_t length) {
   return -1;
 }
 
-size_t CodeGenerator::FindTwoFreeConsecutiveEntries(bool* array, size_t length) {
-  for (size_t i = 0; i < length - 1; ++i) {
+size_t CodeGenerator::FindTwoFreeConsecutiveAlignedEntries(bool* array, size_t length) {
+  for (size_t i = 0; i < length - 1; i += 2) {
     if (!array[i] && !array[i + 1]) {
       array[i] = true;
       array[i + 1] = true;
