@@ -34,7 +34,7 @@ class Arm64Context : public Context {
 
   void Reset() OVERRIDE;
 
-  void FillCalleeSaves(const StackVisitor& fr) OVERRIDE;
+  void FillCalleeSaves(const StackVisitor& fr) OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetSP(uintptr_t new_sp) OVERRIDE {
     bool success = SetGPR(SP, new_sp);
