@@ -186,6 +186,15 @@ TEST_F(AssemblerX86_64Test, Movw) {
   DriverStr(expected, "movw");
 }
 
+TEST_F(AssemblerX86_64Test, IMulImmediate) {
+  GetAssembler()->imull(x86_64::CpuRegister(x86_64::RAX), x86_64::Immediate(0x40000));
+  GetAssembler()->imull(x86_64::CpuRegister(x86_64::R8), x86_64::Immediate(0x40000));
+  const char* expected =
+    "imull $0x40000,%eax,%eax\n"
+    "imull $0x40000,%r8d,%r8d\n";
+  DriverStr(expected, "imul");
+}
+
 
 std::string setcc_test_fn(x86_64::X86_64Assembler* assembler) {
   // From Condition
