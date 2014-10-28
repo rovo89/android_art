@@ -4149,13 +4149,28 @@ bool ClassLinker::InitializeClass(Handle<mirror::Class> klass, bool can_init_sta
     }
   }
 
-  if (klass->NumStaticFields() > 0) {
+  const size_t num_static_fields = klass->NumStaticFields();
+  if (num_static_fields > 0) {
     const DexFile::ClassDef* dex_class_def = klass->GetClassDef();
     CHECK(dex_class_def != nullptr);
     const DexFile& dex_file = klass->GetDexFile();
     StackHandleScope<2> hs(self);
     Handle<mirror::ClassLoader> class_loader(hs.NewHandle(klass->GetClassLoader()));
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(klass->GetDexCache()));
+
+    // Eagerly fill in static fields so that the we don't have to do as many expensive
+    // Class::FindStaticField in ResolveField.
+    for (size_t i = 0; i < num_static_fields; ++i) {
+      mirror::ArtField* field = klass->GetStaticField(i);
+      const uint32_t field_idx = field->GetDexFieldIndex();
+      mirror::ArtField* resolved_field = dex_cache->GetResolvedField(field_idx);
+      if (resolved_field == nullptr) {
+        dex_cache->SetResolvedField(field_idx, field);
+      } else if (kIsDebugBuild) {
+        CHECK_EQ(field, resolved_field);
+      }
+    }
+
     EncodedStaticFieldValueIterator it(dex_file, &dex_cache, &class_loader,
                                        this, *dex_class_def);
     if (it.HasNext()) {
