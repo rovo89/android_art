@@ -64,6 +64,7 @@ struct WellKnownClasses {
   static jclass java_lang_ThreadGroup;
   static jclass java_lang_Thread__UncaughtExceptionHandler;
   static jclass java_lang_Throwable;
+  static jclass java_util_ArrayList;
   static jclass java_util_Collections;
   static jclass java_nio_DirectByteBuffer;
   static jclass libcore_util_EmptyArray;
@@ -111,8 +112,10 @@ struct WellKnownClasses {
   static jfieldID java_lang_Thread_priority;
   static jfieldID java_lang_Thread_uncaughtHandler;
   static jfieldID java_lang_Thread_nativePeer;
+  static jfieldID java_lang_ThreadGroup_groups;
   static jfieldID java_lang_ThreadGroup_mainThreadGroup;
   static jfieldID java_lang_ThreadGroup_name;
+  static jfieldID java_lang_ThreadGroup_parent;
   static jfieldID java_lang_ThreadGroup_systemThreadGroup;
   static jfieldID java_lang_Throwable_cause;
   static jfieldID java_lang_Throwable_detailMessage;
@@ -121,6 +124,8 @@ struct WellKnownClasses {
   static jfieldID java_lang_Throwable_suppressedExceptions;
   static jfieldID java_nio_DirectByteBuffer_capacity;
   static jfieldID java_nio_DirectByteBuffer_effectiveDirectAddress;
+  static jfieldID java_util_ArrayList_array;
+  static jfieldID java_util_ArrayList_size;
   static jfieldID java_util_Collections_EMPTY_LIST;
   static jfieldID libcore_util_EmptyArray_STACK_TRACE_ELEMENT;
   static jfieldID org_apache_harmony_dalvik_ddmc_Chunk_data;
