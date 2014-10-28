@@ -87,6 +87,23 @@ PcToRegisterLineTable::~PcToRegisterLineTable() {
   }
 }
 
+// Note: returns true on failure.
+ALWAYS_INLINE static inline bool FailOrAbort(MethodVerifier* verifier, bool condition,
+                                             const char* error_msg, uint32_t work_insn_idx) {
+  if (kIsDebugBuild) {
+    // In a debug build, abort if the error condition is wrong.
+    DCHECK(condition) << error_msg << work_insn_idx;
+  } else {
+    // In a non-debug build, just fail the class.
+    if (!condition) {
+      verifier->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << error_msg << work_insn_idx;
+      return true;
+    }
+  }
+
+  return false;
+}
+
 MethodVerifier::FailureKind MethodVerifier::VerifyClass(mirror::Class* klass,
                                                         bool allow_soft_failures,
                                                         std::string* error) {
@@ -1951,7 +1968,11 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         while (0 != instance_of_idx && !insn_flags_[instance_of_idx].IsOpcode()) {
           instance_of_idx--;
         }
-        CHECK(insn_flags_[instance_of_idx].IsOpcode());
+        if (FailOrAbort(this, insn_flags_[instance_of_idx].IsOpcode(),
+                        "Unable to get previous instruction of if-eqz/if-nez for work index ",
+                        work_insn_idx_)) {
+          break;
+        }
       } else {
         break;
       }
@@ -2009,7 +2030,11 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
             while (0 != move_idx && !insn_flags_[move_idx].IsOpcode()) {
               move_idx--;
             }
-            CHECK(insn_flags_[move_idx].IsOpcode());
+            if (FailOrAbort(this, insn_flags_[move_idx].IsOpcode(),
+                            "Unable to get previous instruction of if-eqz/if-nez for work index ",
+                            work_insn_idx_)) {
+              break;
+            }
             const Instruction* move_inst = Instruction::At(code_item_->insns_ + move_idx);
             switch (move_inst->Opcode()) {
               case Instruction::MOVE_OBJECT:
@@ -2982,7 +3007,12 @@ RegType& MethodVerifier::GetCaughtExceptionType() {
               // odd case, but nothing to do
             } else {
               common_super = &common_super->Merge(exception, &reg_types_);
-              CHECK(reg_types_.JavaLangThrowable(false).IsAssignableFrom(*common_super));
+              if (FailOrAbort(this,
+                              reg_types_.JavaLangThrowable(false).IsAssignableFrom(*common_super),
+                              "java.lang.Throwable is not assignable-from common_super at ",
+                              work_insn_idx_)) {
+                break;
+              }
             }
           }
         }
@@ -3308,17 +3338,32 @@ mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst
   if (klass->IsInterface()) {
     // Derive Object.class from Class.class.getSuperclass().
     mirror::Class* object_klass = klass->GetClass()->GetSuperClass();
-    CHECK(object_klass->IsObjectClass());
+    if (FailOrAbort(this, object_klass->IsObjectClass(),
+                    "Failed to find Object class in quickened invoke receiver",
+                    work_insn_idx_)) {
+      return nullptr;
+    }
     dispatch_class = object_klass;
   } else {
     dispatch_class = klass;
   }
-  CHECK(dispatch_class->HasVTable()) << PrettyDescriptor(dispatch_class);
+  if (FailOrAbort(this, dispatch_class->HasVTable(),
+                  "Receiver class has no vtable for quickened invoke at ",
+                  work_insn_idx_)) {
+    return nullptr;
+  }
   uint16_t vtable_index = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
-  CHECK_LT(static_cast<int32_t>(vtable_index), dispatch_class->GetVTableLength())
-      << PrettyDescriptor(klass);
+  if (FailOrAbort(this, static_cast<int32_t>(vtable_index) < dispatch_class->GetVTableLength(),
+                  "Receiver class has not enough vtable slots for quickened invoke at ",
+                  work_insn_idx_)) {
+    return nullptr;
+  }
   mirror::ArtMethod* res_method = dispatch_class->GetVTableEntry(vtable_index);
-  CHECK(!Thread::Current()->IsExceptionPending());
+  if (FailOrAbort(this, !Thread::Current()->IsExceptionPending(),
+                  "Unexpected exception pending for quickened invoke at ",
+                  work_insn_idx_)) {
+    return nullptr;
+  }
   return res_method;
 }
 
@@ -3331,7 +3376,14 @@ mirror::ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instructio
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer method from " << inst->Name();
     return nullptr;
   }
-  CHECK(!res_method->IsDirect() && !res_method->IsStatic());
+  if (FailOrAbort(this, !res_method->IsDirect(), "Quick-invoked method is direct at ",
+                  work_insn_idx_)) {
+    return nullptr;
+  }
+  if (FailOrAbort(this, !res_method->IsStatic(), "Quick-invoked method is static at ",
+                  work_insn_idx_)) {
+    return nullptr;
+  }
 
   // We use vAA as our expected arg count, rather than res_method->insSize, because we need to
   // match the call to the signature. Also, we might be calling through an abstract method
