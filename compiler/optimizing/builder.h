@@ -154,7 +154,7 @@ class HGraphBuilder : public ValueObject {
   // Fills the given object with data as specified in the fill-array-data
   // instruction. The data must be for long and double arrays.
   void BuildFillWideArrayData(HInstruction* object,
-                              const uint64_t* data,
+                              const int64_t* data,
                               uint32_t element_count,
                               uint32_t dex_offset);
 
