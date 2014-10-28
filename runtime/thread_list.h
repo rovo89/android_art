@@ -104,6 +104,11 @@ class ThreadList {
   void SuspendSelfForDebugger()
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_);
 
+  // Resume all threads
+  void ResumeAllForDebugger()
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
+
   void UndoDebuggerSuspensions()
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
