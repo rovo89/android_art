@@ -527,11 +527,15 @@ inline mirror::DexCache* ArtMethod::GetDexCache() {
   return GetInterfaceMethodIfProxy()->GetDeclaringClass()->GetDexCache();
 }
 
+inline bool ArtMethod::IsProxyMethod() {
+  return GetDeclaringClass()->IsProxyClass();
+}
+
 inline ArtMethod* ArtMethod::GetInterfaceMethodIfProxy() {
-  mirror::Class* klass = GetDeclaringClass();
-  if (LIKELY(!klass->IsProxyClass())) {
+  if (LIKELY(!IsProxyMethod())) {
     return this;
   }
+  mirror::Class* klass = GetDeclaringClass();
   mirror::ArtMethod* interface_method = GetDexCacheResolvedMethods()->Get(GetDexMethodIndex());
   DCHECK(interface_method != nullptr);
   DCHECK_EQ(interface_method,
