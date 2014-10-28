@@ -246,7 +246,9 @@ class Dbg {
    */
   static int64_t LastDebuggerActivity();
 
-  static void UndoDebuggerSuspensions();
+  static void UndoDebuggerSuspensions()
+    LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                   Locks::thread_suspend_count_lock_);
 
   /*
    * Class, Object, Array
@@ -459,7 +461,9 @@ class Dbg {
   static void SuspendVM()
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
-  static void ResumeVM();
+  static void ResumeVM()
+      LOCKS_EXCLUDED(Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
   static JDWP::JdwpError SuspendThread(JDWP::ObjectId thread_id, bool request_suspension = true)
       LOCKS_EXCLUDED(Locks::mutator_lock_,
                      Locks::thread_list_lock_,

@@ -666,6 +666,7 @@ void ThreadList::SuspendAllForDebugger() {
     {
       MutexLock mu(self, *Locks::thread_suspend_count_lock_);
       // Update global suspend all state for attaching threads.
+      DCHECK_GE(suspend_all_count_, debug_suspend_all_count_);
       ++suspend_all_count_;
       ++debug_suspend_all_count_;
       // Increment everybody's suspend count (except our own).
@@ -755,6 +756,55 @@ void ThreadList::SuspendSelfForDebugger() {
   }
 
   VLOG(threads) << *self << " self-reviving (debugger)";
+}
+
+void ThreadList::ResumeAllForDebugger() {
+  Thread* self = Thread::Current();
+  Thread* debug_thread = Dbg::GetDebugThread();
+  bool needs_resume = false;
+
+  VLOG(threads) << *self << " ResumeAllForDebugger starting...";
+
+  // Threads can't resume if we exclusively hold the mutator lock.
+  Locks::mutator_lock_->AssertNotExclusiveHeld(self);
+
+  {
+    MutexLock mu(self, *Locks::thread_list_lock_);
+    {
+      MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+      // Update global suspend all state for attaching threads.
+      DCHECK_GE(suspend_all_count_, debug_suspend_all_count_);
+      needs_resume = (debug_suspend_all_count_ > 0);
+      if (needs_resume) {
+        --suspend_all_count_;
+        --debug_suspend_all_count_;
+        // Decrement everybody's suspend count (except our own).
+        for (const auto& thread : list_) {
+          if (thread == self || thread == debug_thread) {
+            continue;
+          }
+          if (thread->GetDebugSuspendCount() == 0) {
+            // This thread may have been individually resumed with ThreadReference.Resume.
+            continue;
+          }
+          VLOG(threads) << "requesting thread resume: " << *thread;
+          thread->ModifySuspendCount(self, -1, true);
+        }
+      } else {
+        // We've been asked to resume all threads without being asked to
+        // suspend them all before. Let's print a warning.
+        LOG(WARNING) << "Debugger attempted to resume all threads without "
+                     << "having suspended them all before.";
+      }
+    }
+  }
+
+  if (needs_resume) {
+    MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+    Thread::resume_cond_->Broadcast(self);
+  }
+
+  VLOG(threads) << *self << " ResumeAllForDebugger complete";
 }
 
 void ThreadList::UndoDebuggerSuspensions() {
