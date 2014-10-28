@@ -645,14 +645,16 @@ class Runtime {
   bool implicit_so_checks_;         // StackOverflow checks are implicit.
   bool implicit_suspend_checks_;    // Thread suspension checks are implicit.
 
-  // The filename to the native bridge library. If this is not empty the native bridge will be
-  // initialized and loaded from the given file (initialized and available). An empty value means
-  // that there's no native bridge (initialized but not available).
+  // Whether or not a native bridge has been loaded.
   //
   // The native bridge allows running native code compiled for a foreign ISA. The way it works is,
   // if standard dlopen fails to load native library associated with native activity, it calls to
   // the native bridge to load it and then gets the trampoline for the entry to native activity.
-  std::string native_bridge_library_filename_;
+  //
+  // The option 'native_bridge_library_filename' specifies the name of the native bridge.
+  // When non-empty the native bridge will be loaded from the given file. An empty value means
+  // that there's no native bridge.
+  bool is_native_bridge_loaded_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };

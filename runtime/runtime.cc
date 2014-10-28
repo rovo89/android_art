@@ -147,10 +147,14 @@ Runtime::Runtime()
       target_sdk_version_(0),
       implicit_null_checks_(false),
       implicit_so_checks_(false),
-      implicit_suspend_checks_(false) {
+      implicit_suspend_checks_(false),
+      is_native_bridge_loaded_(false) {
 }
 
 Runtime::~Runtime() {
+  if (is_native_bridge_loaded_) {
+    UnloadNativeBridge();
+  }
   if (dump_gc_performance_on_shutdown_) {
     // This can't be called from the Heap destructor below because it
     // could call RosAlloc::InspectAll() which needs the thread_list
@@ -434,12 +438,11 @@ bool Runtime::Start() {
       return false;
     }
   } else {
-    bool have_native_bridge = !native_bridge_library_filename_.empty();
-    if (have_native_bridge) {
+    if (is_native_bridge_loaded_) {
       PreInitializeNativeBridge(".");
     }
-    DidForkFromZygote(self->GetJniEnv(), have_native_bridge ? NativeBridgeAction::kInitialize :
-        NativeBridgeAction::kUnload, GetInstructionSetString(kRuntimeISA));
+    DidForkFromZygote(self->GetJniEnv(), NativeBridgeAction::kInitialize,
+                      GetInstructionSetString(kRuntimeISA));
   }
 
   StartDaemonThreads();
@@ -518,14 +521,17 @@ bool Runtime::InitZygote() {
 void Runtime::DidForkFromZygote(JNIEnv* env, NativeBridgeAction action, const char* isa) {
   is_zygote_ = false;
 
-  switch (action) {
-    case NativeBridgeAction::kUnload:
-      UnloadNativeBridge();
-      break;
+  if (is_native_bridge_loaded_) {
+    switch (action) {
+      case NativeBridgeAction::kUnload:
+        UnloadNativeBridge();
+        is_native_bridge_loaded_ = false;
+        break;
 
-    case NativeBridgeAction::kInitialize:
-      InitializeNativeBridge(env, isa);
-      break;
+      case NativeBridgeAction::kInitialize:
+        InitializeNativeBridge(env, isa);
+        break;
+    }
   }
 
   // Create the thread pool.
@@ -882,8 +888,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   // Runtime::Start():
   //   DidForkFromZygote(kInitialize) -> try to initialize any native bridge given.
   //   No-op wrt native bridge.
-  native_bridge_library_filename_ = options->native_bridge_library_filename_;
-  LoadNativeBridge(native_bridge_library_filename_);
+  is_native_bridge_loaded_ = LoadNativeBridge(options->native_bridge_library_filename_);
 
   VLOG(startup) << "Runtime::Init exiting";
   return true;
