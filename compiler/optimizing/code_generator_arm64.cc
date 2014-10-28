@@ -535,6 +535,7 @@ InstructionCodeGeneratorARM64::InstructionCodeGeneratorARM64(HGraph* graph,
   M(ArrayGet)                                              \
   M(ArraySet)                                              \
   M(DoubleConstant)                                        \
+  M(Div)                                                   \
   M(FloatConstant)                                         \
   M(Mul)                                                   \
   M(Neg)                                                   \
