@@ -35,6 +35,7 @@ class PACKED(4) OatHeader {
   static constexpr const char* kImageLocationKey = "image-location";
   static constexpr const char* kDex2OatCmdLineKey = "dex2oat-cmdline";
   static constexpr const char* kDex2OatHostKey = "dex2oat-host";
+  static constexpr const char* kPicKey = "pic";
 
   static OatHeader* Create(InstructionSet instruction_set,
                            const InstructionSetFeatures* instruction_set_features,
