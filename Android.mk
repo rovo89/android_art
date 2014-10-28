@@ -137,10 +137,17 @@ include $(art_path)/test/Android.run-test.mk
 
 # Sync test files to the target, depends upon all things that must be pushed to the target.
 .PHONY: test-art-target-sync
+ifeq ($(ART_TEST_ANDROID_ROOT),)
 test-art-target-sync: $(TEST_ART_TARGET_SYNC_DEPS)
 	adb root
 	adb wait-for-device remount
 	adb sync
+else
+test-art-target-sync: $(TEST_ART_TARGET_SYNC_DEPS)
+	adb root
+	adb wait-for-device push $(ANDROID_PRODUCT_OUT)/system $(ART_TEST_ANDROID_ROOT)
+	adb push $(ANDROID_PRODUCT_OUT)/data /data
+endif
 
 # Undefine variable now its served its purpose.
 TEST_ART_TARGET_SYNC_DEPS :=
