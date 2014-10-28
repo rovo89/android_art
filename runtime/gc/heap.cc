@@ -437,7 +437,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
 MemMap* Heap::MapAnonymousPreferredAddress(const char* name, uint8_t* request_begin, size_t capacity,
                                            int prot_flags, std::string* out_error_str) {
   while (true) {
-    MemMap* map = MemMap::MapAnonymous(kMemMapSpaceName[0], request_begin, capacity,
+    MemMap* map = MemMap::MapAnonymous(name, request_begin, capacity,
                                        PROT_READ | PROT_WRITE, true, out_error_str);
     if (map != nullptr || request_begin == nullptr) {
       return map;
