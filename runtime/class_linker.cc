@@ -4610,6 +4610,49 @@ bool ClassLinker::LinkMethods(Thread* self, Handle<mirror::Class> klass,
   return LinkInterfaceMethods(self, klass, interfaces, out_imt);  // Link interface method last.
 }
 
+// Comparator for name and signature of a method, used in finding overriding methods. Implementation
+// avoids the use of handles, if it didn't then rather than compare dex files we could compare dex
+// caches in the implementation below.
+class MethodNameAndSignatureComparator FINAL : public ValueObject {
+ public:
+  explicit MethodNameAndSignatureComparator(mirror::ArtMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
+      dex_file_(method->GetDexFile()), mid_(&dex_file_->GetMethodId(method->GetDexMethodIndex())),
+      name_(nullptr), name_len_(0) {
+    DCHECK(!method->IsProxyMethod())  << PrettyMethod(method);
+  }
+
+  bool HasSameNameAndSignature(mirror::ArtMethod* other)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(!other->IsProxyMethod()) << PrettyMethod(other);
+    const DexFile* other_dex_file = other->GetDexFile();
+    const DexFile::MethodId& other_mid = other_dex_file->GetMethodId(other->GetDexMethodIndex());
+    if (dex_file_ == other_dex_file) {
+      return mid_->name_idx_ == other_mid.name_idx_ && mid_->proto_idx_ == other_mid.proto_idx_;
+    }
+    if (name_ == nullptr) {
+      name_ = dex_file_->StringDataAndUtf16LengthByIdx(mid_->name_idx_, &name_len_);
+    }
+    uint32_t other_name_len;
+    const char* other_name = other_dex_file->StringDataAndUtf16LengthByIdx(other_mid.name_idx_,
+                                                                           &other_name_len);
+    if (name_len_ != other_name_len || strcmp(name_, other_name) != 0) {
+      return false;
+    }
+    return dex_file_->GetMethodSignature(*mid_) == other_dex_file->GetMethodSignature(other_mid);
+  }
+
+ private:
+  // Dex file for the method to compare against.
+  const DexFile* const dex_file_;
+  // MethodId for the method to compare against.
+  const DexFile::MethodId* const mid_;
+  // Lazily computed name from the dex file's strings.
+  const char* name_;
+  // Lazily computed name length.
+  uint32_t name_len_;
+};
+
 bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) {
   const size_t num_virtual_methods = klass->NumVirtualMethods();
   if (klass->HasSuperClass()) {
@@ -4640,12 +4683,15 @@ bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) 
     // See if any of our virtual methods override the superclass.
     for (size_t i = 0; i < num_virtual_methods; ++i) {
       mirror::ArtMethod* local_method = klass->GetVirtualMethodDuringLinking(i);
-      MethodProtoHelper local_helper(local_method);
+      MethodNameAndSignatureComparator
+          virtual_method_name_comparator(local_method->GetInterfaceMethodIfProxy());
       size_t j = 0;
       for (; j < actual_count; ++j) {
         mirror::ArtMethod* super_method = vtable->GetWithoutChecks(j);
-        MethodProtoHelper super_helper(super_method);
-        if (local_helper.HasSameNameAndSignature(super_helper)) {
+        if (super_method->GetDeclaringClass() == klass.Get()) {
+          continue;  // A previously overridden method.
+        }
+        if (virtual_method_name_comparator.HasSameNameAndSignature(super_method)) {
           if (klass->CanAccessMember(super_method->GetDeclaringClass(),
                                      super_method->GetAccessFlags())) {
             if (super_method->IsFinal()) {
@@ -4903,7 +4949,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
       }
       for (size_t j = 0; j < num_methods; ++j) {
         mirror::ArtMethod* interface_method = iftable->GetInterface(i)->GetVirtualMethod(j);
-        MethodProtoHelper interface_helper(interface_method);
+        MethodNameAndSignatureComparator interface_name_comparator(interface_method);
         int32_t k;
         // For each method listed in the interface's method list, find the
         // matching method in our class's method list.  We want to favor the
@@ -4915,8 +4961,10 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
         // matter which direction we go.  We walk it backward anyway.)
         for (k = input_array->GetLength() - 1; k >= 0; --k) {
           mirror::ArtMethod* vtable_method = input_array->GetWithoutChecks(k);
-          MethodProtoHelper vtable_helper(vtable_method);
-          if (interface_helper.HasSameNameAndSignature(vtable_helper)) {
+          mirror::ArtMethod* vtable_method_for_name_comparison =
+              vtable_method->GetInterfaceMethodIfProxy();
+          if (interface_name_comparator.HasSameNameAndSignature(
+                  vtable_method_for_name_comparison)) {
             if (!vtable_method->IsAbstract() && !vtable_method->IsPublic()) {
               ThrowIllegalAccessError(
                   klass.Get(),
@@ -4935,7 +4983,10 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
             } else if (imt_ref != conflict_method) {
               // If we are not a conflict and we have the same signature and name as the imt entry,
               // it must be that we overwrote a superclass vtable entry.
-              if (MethodProtoHelper(imt_ref).HasSameNameAndSignature(vtable_helper)) {
+              MethodNameAndSignatureComparator
+                  imt_ref_name_comparator(imt_ref->GetInterfaceMethodIfProxy());
+              if (imt_ref_name_comparator.HasSameNameAndSignature(
+                      vtable_method_for_name_comparison)) {
                 out_imt->SetReference(imt_index, vtable_method);
               } else {
                 out_imt->SetReference(imt_index, conflict_method);
@@ -4948,8 +4999,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
           mirror::ArtMethod* miranda_method = nullptr;
           for (size_t l = 0; l < miranda_list_size; ++l) {
             mirror::ArtMethod* mir_method = miranda_list->Get(l);
-            MethodProtoHelper vtable_helper(mir_method);
-            if (interface_helper.HasSameNameAndSignature(vtable_helper)) {
+            if (interface_name_comparator.HasSameNameAndSignature(mir_method)) {
               miranda_method = mir_method;
               break;
             }
