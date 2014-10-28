@@ -120,6 +120,12 @@ class PACKED(4) HandleScope {
   }
 
  protected:
+  // Return backing storage used for references.
+  ALWAYS_INLINE StackReference<mirror::Object>* GetReferences() const {
+    uintptr_t address = reinterpret_cast<uintptr_t>(this) + ReferencesOffset(sizeof(void*));
+    return reinterpret_cast<StackReference<mirror::Object>*>(address);
+  }
+
   explicit HandleScope(size_t number_of_references) :
       link_(nullptr), number_of_references_(number_of_references) {
   }
@@ -180,7 +186,7 @@ class PACKED(4) StackHandleScope FINAL : public HandleScope {
   ALWAYS_INLINE void SetReference(size_t i, mirror::Object* object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_LT(i, kNumReferences);
-    references_storage_[i].Assign(object);
+    GetReferences()[i].Assign(object);
   }
 
  private:
@@ -188,7 +194,7 @@ class PACKED(4) StackHandleScope FINAL : public HandleScope {
   ALWAYS_INLINE Handle<T> GetHandle(size_t i)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK_LT(i, kNumReferences);
-    return Handle<T>(&references_storage_[i]);
+    return Handle<T>(&GetReferences()[i]);
   }
 
   // Reference storage needs to be first as expected by the HandleScope layout.
