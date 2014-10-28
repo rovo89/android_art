@@ -173,8 +173,12 @@ class MirSFieldLoweringInfo : public MirFieldInfo {
     return (flags_ & kFlagIsReferrersClass) != 0u;
   }
 
-  bool IsInitialized() const {
-    return (flags_ & kFlagIsInitialized) != 0u;
+  bool IsClassInitialized() const {
+    return (flags_ & kFlagClassIsInitialized) != 0u;
+  }
+
+  bool IsClassInDexCache() const {
+    return (flags_ & kFlagClassIsInDexCache) != 0u;
   }
 
   MemberOffset FieldOffset() const {
@@ -190,14 +194,16 @@ class MirSFieldLoweringInfo : public MirFieldInfo {
     kBitFastGet = kFieldInfoBitEnd,
     kBitFastPut,
     kBitIsReferrersClass,
-    kBitIsInitialized,
+    kBitClassIsInitialized,
+    kBitClassIsInDexCache,
     kSFieldLoweringInfoBitEnd
   };
   COMPILE_ASSERT(kSFieldLoweringInfoBitEnd <= 16, too_many_flags);
   static constexpr uint16_t kFlagFastGet = 1u << kBitFastGet;
   static constexpr uint16_t kFlagFastPut = 1u << kBitFastPut;
   static constexpr uint16_t kFlagIsReferrersClass = 1u << kBitIsReferrersClass;
-  static constexpr uint16_t kFlagIsInitialized = 1u << kBitIsInitialized;
+  static constexpr uint16_t kFlagClassIsInitialized = 1u << kBitClassIsInitialized;
+  static constexpr uint16_t kFlagClassIsInDexCache = 1u << kBitClassIsInDexCache;
 
   // The member offset of the field, 0u if unresolved.
   MemberOffset field_offset_;
