@@ -19,9 +19,9 @@
 
 #include "asm_support.h"
 
-#define FRAME_SIZE_SAVE_ALL_CALLEE_SAVE 176
+#define FRAME_SIZE_SAVE_ALL_CALLEE_SAVE 112
 #define FRAME_SIZE_REFS_ONLY_CALLEE_SAVE 32
-#define FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE 48
+#define FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE 112
 
 // Flag for enabling R4 optimization in arm runtime
 #define ARM_R4_SUSPEND_FLAG

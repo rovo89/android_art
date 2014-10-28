@@ -97,6 +97,23 @@ void ArmContext::SmashCallerSaves() {
   gprs_[R1] = const_cast<uint32_t*>(&gZero);
   gprs_[R2] = nullptr;
   gprs_[R3] = nullptr;
+
+  fprs_[S0] = nullptr;
+  fprs_[S1] = nullptr;
+  fprs_[S2] = nullptr;
+  fprs_[S3] = nullptr;
+  fprs_[S4] = nullptr;
+  fprs_[S5] = nullptr;
+  fprs_[S6] = nullptr;
+  fprs_[S7] = nullptr;
+  fprs_[S8] = nullptr;
+  fprs_[S9] = nullptr;
+  fprs_[S10] = nullptr;
+  fprs_[S11] = nullptr;
+  fprs_[S12] = nullptr;
+  fprs_[S13] = nullptr;
+  fprs_[S14] = nullptr;
+  fprs_[S15] = nullptr;
 }
 
 extern "C" void art_quick_do_long_jump(uint32_t*, uint32_t*);

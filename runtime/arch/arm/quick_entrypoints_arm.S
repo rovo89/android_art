@@ -40,10 +40,10 @@
     .cfi_rel_offset r10, 24
     .cfi_rel_offset r11, 28
     .cfi_rel_offset lr, 32
-    vpush {s0-s31}                                @ 32 words (128 bytes) of floats.
-    .pad #128
-    .cfi_adjust_cfa_offset 128
-    sub sp, #12                                   @ 3 words of space, bottom word will hold Method*.
+    vpush {s16-s31}                               @ 16 words (64 bytes) of floats.
+    .pad #64
+    .cfi_adjust_cfa_offset 64
+    sub sp, #12                                   @ 3 words of space, bottom word will hold Method*
     .pad #12
     .cfi_adjust_cfa_offset 12
     RUNTIME_CURRENT1 \rTemp1, \rTemp2             @ Load Runtime::Current into rTemp1.
@@ -53,7 +53,7 @@
     str sp, [r9, #THREAD_TOP_QUICK_FRAME_OFFSET]  @ Place sp in Thread::Current()->top_quick_frame.
 
      // Ugly compile-time check, but we only have the preprocessor.
-#if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVE != 36 + 128 + 12)
+#if (FRAME_SIZE_SAVE_ALL_CALLEE_SAVE != 36 + 64 + 12)
 #error "SAVE_ALL_CALLEE_SAVE_FRAME(ARM) size not as expected."
 #endif
 .endm
@@ -101,15 +101,7 @@
 .endm
 
 .macro RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
-    add sp, #4               @ bottom word holds Method*
-    pop {r5-r8, r10-r11, lr} @ 7 words of callee saves
-    .cfi_restore r5
-    .cfi_restore r6
-    .cfi_restore r7
-    .cfi_restore r8
-    .cfi_restore r10
-    .cfi_restore r11
-    .cfi_adjust_cfa_offset -FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
     bx  lr                   @ return
 .endm
 
@@ -117,9 +109,10 @@
      * Macro that sets up the callee save frame to conform with
      * Runtime::CreateCalleeSaveMethod(kRefsAndArgs).
      */
-.macro SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME rTemp1, rTemp2
-    push {r1-r3, r5-r8, r10-r11, lr}   @ 10 words of callee saves
+.macro SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_REGISTERS_ONLY
+    push {r1-r3, r5-r8, r10-r11, lr}   @ 10 words of callee saves and args.
     .save {r1-r3, r5-r8, r10-r11, lr}
+    .cfi_adjust_cfa_offset 40
     .cfi_rel_offset r1, 0
     .cfi_rel_offset r2, 4
     .cfi_rel_offset r3, 8
@@ -130,47 +123,39 @@
     .cfi_rel_offset r10, 28
     .cfi_rel_offset r11, 32
     .cfi_rel_offset lr, 36
-    .cfi_adjust_cfa_offset 40
+    vpush {s0-s15}                     @ 16 words of float args.
+    .pad #64
+    .cfi_adjust_cfa_offset 64
     sub sp, #8                         @ 2 words of space, bottom word will hold Method*
     .pad #8
     .cfi_adjust_cfa_offset 8
+    // Ugly compile-time check, but we only have the preprocessor.
+#if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 40 + 64 + 8)
+#error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(ARM) size not as expected."
+#endif
+.endm
+
+.macro SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME rTemp1, rTemp2
+    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_REGISTERS_ONLY
     RUNTIME_CURRENT3 \rTemp1, \rTemp2  @ Load Runtime::Current into rTemp1.
     THIS_LOAD_REQUIRES_READ_BARRIER
      @ rTemp1 is kRefsAndArgs Method*.
     ldr \rTemp1, [\rTemp1, #RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET]
     str \rTemp1, [sp, #0]                         @ Place Method* at bottom of stack.
     str sp, [r9, #THREAD_TOP_QUICK_FRAME_OFFSET]  @ Place sp in Thread::Current()->top_quick_frame.
-
-    // Ugly compile-time check, but we only have the preprocessor.
-#if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 40 + 8)
-#error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(ARM) size not as expected."
-#endif
 .endm
 
 .macro SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_R0
-    push {r1-r3, r5-r8, r10-r11, lr}   @ 10 words of callee saves
-    .save {r1-r3, r5-r8, r10-r11, lr}
-    .cfi_rel_offset r1, 0
-    .cfi_rel_offset r2, 4
-    .cfi_rel_offset r3, 8
-    .cfi_rel_offset r5, 12
-    .cfi_rel_offset r6, 16
-    .cfi_rel_offset r7, 20
-    .cfi_rel_offset r8, 24
-    .cfi_rel_offset r10, 28
-    .cfi_rel_offset r11, 32
-    .cfi_rel_offset lr, 36
-    .cfi_adjust_cfa_offset 40
-    sub sp, #8                         @ 2 words of space, bottom word will hold Method*
-    .pad #8
-    .cfi_adjust_cfa_offset 8
-
+    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_REGISTERS_ONLY
     str r0, [sp, #0]                   @ Store ArtMethod* to bottom of stack.
     str sp, [r9, #THREAD_TOP_QUICK_FRAME_OFFSET]  @ Place sp in Thread::Current()->top_quick_frame.
 .endm
 
 .macro RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     add  sp, #8                      @ rewind sp
+    .cfi_adjust_cfa_offset -8
+    vpop {s0-s15}
+    .cfi_adjust_cfa_offset -64
     pop {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
     .cfi_restore r1
     .cfi_restore r2
@@ -181,7 +166,7 @@
     .cfi_restore r8
     .cfi_restore r10
     .cfi_restore r11
-    .cfi_adjust_cfa_offset -48
+    .cfi_adjust_cfa_offset -40
 .endm
 
 
@@ -373,60 +358,91 @@ INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvoke
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
     /*
-     * Quick invocation stub.
+     * Quick invocation stub internal.
      * On entry:
      *   r0 = method pointer
      *   r1 = argument array or NULL for no argument methods
      *   r2 = size of argument array in bytes
      *   r3 = (managed) thread pointer
      *   [sp] = JValue* result
-     *   [sp + 4] = shorty
+     *   [sp + 4] = result_in_float
+     *   [sp + 8] = core register argument array
+     *   [sp + 12] = fp register argument array
+     *  +-------------------------+
+     *  | uint32_t* fp_reg_args   |
+     *  | uint32_t* core_reg_args |
+     *  |   result_in_float       | <- Caller frame
+     *  |   Jvalue* result        |
+     *  +-------------------------+
+     *  |          lr             |
+     *  |          r11            |
+     *  |          r9             |
+     *  |          r4             | <- r11
+     *  +-------------------------+
+     *  | uint32_t out[n-1]       |
+     *  |    :      :             |        Outs
+     *  | uint32_t out[0]         |
+     *  | StackRef<ArtMethod>     | <- SP  value=null
+     *  +-------------------------+
      */
-ENTRY art_quick_invoke_stub
-    push   {r0, r4, r5, r9, r11, lr}       @ spill regs
-    .save  {r0, r4, r5, r9, r11, lr}
-    .pad #24
-    .cfi_adjust_cfa_offset 24
-    .cfi_rel_offset r0, 0
-    .cfi_rel_offset r4, 4
-    .cfi_rel_offset r5, 8
-    .cfi_rel_offset r9, 12
-    .cfi_rel_offset r11, 16
-    .cfi_rel_offset lr, 20
+ENTRY art_quick_invoke_stub_internal
+    push   {r4, r9, r11, lr}               @ spill regs
+    .save  {r4, r9, r11, lr}
+    .pad #16
+    .cfi_adjust_cfa_offset 16
+    .cfi_rel_offset r4, 0
+    .cfi_rel_offset r9, 4
+    .cfi_rel_offset r11, 8
+    .cfi_rel_offset lr, 12
     mov    r11, sp                         @ save the stack pointer
     .cfi_def_cfa_register r11
+
     mov    r9, r3                          @ move managed thread pointer into r9
+
+    add    r4, r2, #4                      @ create space for method pointer in frame
+    sub    r4, sp, r4                      @ reserve & align *stack* to 16 bytes: native calling
+    and    r4, #0xFFFFFFF0                 @ convention only aligns to 8B, so we have to ensure ART
+    mov    sp, r4                          @ 16B alignment ourselves.
+
+    mov    r4, r0                          @ save method*
+    add    r0, sp, #4                      @ pass stack pointer + method ptr as dest for memcpy
+    bl     memcpy                          @ memcpy (dest, src, bytes)
+    mov    ip, #0                          @ set ip to 0
+    str    ip, [sp]                        @ store NULL for method* at bottom of frame
+
+    ldr    ip, [r11, #28]                  @ load fp register argument array pointer
+    vldm   ip, {s0-s15}                    @ copy s0 - s15
+
+    ldr    ip, [r11, #24]                  @ load core register argument array pointer
+    mov    r0, r4                          @ restore method*
+    add    ip, ip, #4                      @ skip r0
+    ldm    ip, {r1-r3}                     @ copy r1 - r3
+
 #ifdef ARM_R4_SUSPEND_FLAG
     mov    r4, #SUSPEND_CHECK_INTERVAL     @ reset r4 to suspend check interval
 #endif
-    add    r5, r2, #4                      @ create space for method pointer in frame
 
-    sub    r5, sp, r5                      @ reserve & align *stack* to 16 bytes: native calling
-    and    r5, #0xFFFFFFF0                 @ convention only aligns to 8B, so we have to ensure ART
-    mov    sp, r5                          @ 16B alignment ourselves.
-
-    add    r0, sp, #4                      @ pass stack pointer + method ptr as dest for memcpy
-    bl     memcpy                          @ memcpy (dest, src, bytes)
-    ldr    r0, [r11]                       @ restore method*
-    ldr    r1, [sp, #4]                    @ copy arg value for r1
-    ldr    r2, [sp, #8]                    @ copy arg value for r2
-    ldr    r3, [sp, #12]                   @ copy arg value for r3
-    mov    ip, #0                          @ set ip to 0
-    str    ip, [sp]                        @ store NULL for method* at bottom of frame
     ldr    ip, [r0, #MIRROR_ART_METHOD_QUICK_CODE_OFFSET]  @ get pointer to the code
     blx    ip                              @ call the method
+
     mov    sp, r11                         @ restore the stack pointer
-    ldr    ip, [sp, #24]                   @ load the result pointer
-    strd   r0, [ip]                        @ store r0/r1 into result pointer
-    pop    {r0, r4, r5, r9, r11, lr}       @ restore spill regs
-    .cfi_restore r0
+    .cfi_def_cfa_register sp
+
+    ldr    r4, [sp, #20]                   @ load result_is_float
+    ldr    r9, [sp, #16]                   @ load the result pointer
+    cmp    r4, #0
+    ite    eq
+    strdeq r0, [r9]                        @ store r0/r1 into result pointer
+    vstrne d0, [r9]                        @ store s0-s1/d0 into result pointer
+
+    pop    {r4, r9, r11, lr}               @ restore spill regs
     .cfi_restore r4
-    .cfi_restore r5
     .cfi_restore r9
+    .cfi_restore r11
     .cfi_restore lr
-    .cfi_adjust_cfa_offset -24
+    .cfi_adjust_cfa_offset -16
     bx     lr
-END art_quick_invoke_stub
+END art_quick_invoke_stub_internal
 
     /*
      * On entry r0 is uint32_t* gprs_ and r1 is uint32_t* fprs_
@@ -869,13 +885,14 @@ ENTRY art_quick_proxy_invoke_handler
     mov     r3, sp                 @ pass SP
     blx     artQuickProxyInvokeHandler  @ (Method* proxy method, receiver, Thread*, SP)
     ldr     r2, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
-    add     sp, #16                @ skip r1-r3, 4 bytes padding.
-    .cfi_adjust_cfa_offset -16
-    cbnz    r2, 1f                 @ success if no exception is pending
+    // Tear down the callee-save frame. Skip arg registers.
+    add     sp, #(FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE - FRAME_SIZE_REFS_ONLY_CALLEE_SAVE)
+    .cfi_adjust_cfa_offset -(FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE - FRAME_SIZE_REFS_ONLY_CALLEE_SAVE)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+    cbnz    r2, 1f                 @ success if no exception is pending
+    vmov    d0, r0, r1             @ store into fpr, for when it's a fpr return...
     bx      lr                     @ return on success
 1:
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
     DELIVER_PENDING_EXCEPTION
 END art_quick_proxy_invoke_handler
 
@@ -977,20 +994,13 @@ ENTRY art_quick_generic_jni_trampoline
     ldr r2, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     cbnz r2, .Lexception_in_native
 
-    // Tear down the callee-save frame.
-    add  sp, #12                      @ rewind sp
-    // Do not pop r0 and r1, they contain the return value.
-    pop {r2-r3, r5-r8, r10-r11, lr}  @ 9 words of callee saves
-    .cfi_restore r2
-    .cfi_restore r3
-    .cfi_restore r5
-    .cfi_restore r6
-    .cfi_restore r7
-    .cfi_restore r8
-    .cfi_restore r10
-    .cfi_restore r11
-    .cfi_adjust_cfa_offset -48
+    // Tear down the callee-save frame. Skip arg registers.
+    add     sp, #FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE-FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
+    .cfi_adjust_cfa_offset -(FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE-FRAME_SIZE_REFS_ONLY_CALLEE_SAVE)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
 
+    // store into fpr, for when it's a fpr return...
+    vmov d0, r0, r1
     bx lr      // ret
 
 .Lentry_error:
@@ -1010,11 +1020,13 @@ ENTRY art_quick_to_interpreter_bridge
     mov     r2, sp                 @ pass SP
     blx     artQuickToInterpreterBridge    @ (Method* method, Thread*, SP)
     ldr     r2, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
-    add     sp, #16                @ skip r1-r3, 4 bytes padding.
-    .cfi_adjust_cfa_offset -16
+    // Tear down the callee-save frame. Skip arg registers.
+    add     sp, #(FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE - FRAME_SIZE_REFS_ONLY_CALLEE_SAVE)
+    .cfi_adjust_cfa_offset -(FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE - FRAME_SIZE_REFS_ONLY_CALLEE_SAVE)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
     cbnz    r2, 1f                 @ success if no exception is pending
-    bx    lr                       @ return on success
+    vmov    d0, r0, r1             @ store into fpr, for when it's a fpr return...
+    bx      lr                     @ return on success
 1:
     DELIVER_PENDING_EXCEPTION
 END art_quick_to_interpreter_bridge
@@ -1435,3 +1447,54 @@ ENTRY art_quick_string_compareto
 .Ldone:
     pop   {r4, r7-r12, pc}
 END art_quick_string_compareto
+
+    /* Assembly routines used to handle ABI differences. */
+
+    /* double fmod(double a, double b) */
+    .extern fmod
+ENTRY art_quick_fmod
+    push  {lr}
+    .cfi_adjust_cfa_offset 4
+    .cfi_rel_offset lr, 0
+    sub   sp, #4
+    .cfi_adjust_cfa_offset 4
+    vmov  r0, r1, d0
+    vmov  r2, r3, d1
+    bl    fmod
+    vmov  d0, r0, r1
+    add   sp, #4
+    .cfi_adjust_cfa_offset -4
+    pop   {pc}
+    .cfi_adjust_cfa_offset -4
+END art_quick_fmod
+
+    /* float fmodf(float a, float b) */
+     .extern fmodf
+ENTRY art_quick_fmodf
+    push  {lr}
+    .cfi_adjust_cfa_offset 4
+    .cfi_rel_offset lr, 0
+    sub   sp, #4
+    .cfi_adjust_cfa_offset 4
+    vmov  r0, r1, d0
+    bl    fmodf
+    vmov  s0, r0
+    add   sp, #4
+    .cfi_adjust_cfa_offset -4
+    pop   {pc}
+    .cfi_adjust_cfa_offset -4
+END art_quick_fmod
+
+    /* int64_t art_d2l(double d) */
+    .extern art_d2l
+ENTRY art_quick_d2l
+    vmov  r0, r1, d0
+    b     art_d2l
+END art_quick_d2l
+
+    /* int64_t art_f2l(float f) */
+    .extern art_f2l
+ENTRY art_quick_f2l
+    vmov  r0, s0
+    b     art_f2l
+END art_quick_f2l

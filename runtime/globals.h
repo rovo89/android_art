@@ -112,6 +112,8 @@ static constexpr TraceClockSource kDefaultTraceClockSource = kTraceClockSourceWa
 
 static constexpr bool kDefaultMustRelocate = true;
 
+static constexpr bool kArm32QuickCodeUseSoftFloat = false;
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_GLOBALS_H_
