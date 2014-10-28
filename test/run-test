@@ -95,6 +95,7 @@ always_clean="no"
 have_dex2oat="yes"
 have_patchoat="yes"
 have_image="yes"
+image_suffix=""
 
 while true; do
     if [ "x$1" = "x--host" ]; then
@@ -174,6 +175,11 @@ while true; do
         shift
     elif [ "x$1" = "x--interpreter" ]; then
         run_args="${run_args} --interpreter"
+        image_suffix="-interpreter"
+        shift
+    elif [ "x$1" = "x--optimizing" ]; then
+        run_args="${run_args} -Xcompiler-option --compiler-backend=Optimizing"
+        image_suffix="-optimizing"
         shift
     elif [ "x$1" = "x--no-verify" ]; then
         run_args="${run_args} --no-verify"
@@ -308,12 +314,12 @@ elif [ "$runtime" = "art" ]; then
         if [ -z "$ANDROID_HOST_OUT" ]; then
             export ANDROID_HOST_OUT=$ANDROID_BUILD_TOP/out/host/linux-x86
         fi
-        run_args="${run_args} --boot -Ximage:${ANDROID_HOST_OUT}/framework/core.art"
+        run_args="${run_args} --boot -Ximage:${ANDROID_HOST_OUT}/framework/core${image_suffix}.art"
         run_args="${run_args} --runtime-option -Djava.library.path=${ANDROID_HOST_OUT}/lib${suffix64}"
     else
         guess_arch_name
         run_args="${run_args} --runtime-option -Djava.library.path=/data/art-test/${target_arch_name}"
-        run_args="${run_args} --boot -Ximage:/data/art-test/core.art"
+        run_args="${run_args} --boot -Ximage:/data/art-test/core${image_suffix}.art"
     fi
     if [ "$relocate" = "yes" ]; then
       run_args="${run_args} --relocate"
@@ -391,6 +397,7 @@ if [ "$usage" = "yes" ]; then
         echo "    --gdb                Run under gdb; incompatible with some tests."
         echo "    --build-only         Build test files only (off by default)."
         echo "    --interpreter        Enable interpreter only mode (off by default)."
+        echo "    --optimizing         Enable optimizing compiler (off by default)."
         echo "    --no-verify          Turn off verification (on by default)."
         echo "    --no-optimize        Turn off optimization (on by default)."
         echo "    --no-precise         Turn off precise GC (on by default)."
