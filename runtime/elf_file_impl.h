@@ -36,7 +36,8 @@ template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
 class ElfFileImpl {
  public:
-  static ElfFileImpl* Open(File* file, bool writable, bool program_header_only, std::string* error_msg);
+  static ElfFileImpl* Open(File* file, bool writable, bool program_header_only,
+                           std::string* error_msg, uint8_t* requested_base = nullptr);
   static ElfFileImpl* Open(File* file, int mmap_prot, int mmap_flags, std::string* error_msg);
   ~ElfFileImpl();
 
@@ -112,7 +113,7 @@ class ElfFileImpl {
   bool Strip(std::string* error_msg);
 
  private:
-  ElfFileImpl(File* file, bool writable, bool program_header_only);
+  ElfFileImpl(File* file, bool writable, bool program_header_only, uint8_t* requested_base);
 
   bool Setup(int prot, int flags, std::string* error_msg);
 
@@ -205,6 +206,9 @@ class ElfFileImpl {
                   Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel,
                   Elf_Rela, Elf_Dyn, Elf_Off>> gdb_file_mapping_;
   void GdbJITSupport();
+
+  // Override the 'base' p_vaddr in the first LOAD segment with this value (if non-null).
+  uint8_t* requested_base_;
 
   DISALLOW_COPY_AND_ASSIGN(ElfFileImpl);
 };

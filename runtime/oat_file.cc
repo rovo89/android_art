@@ -69,6 +69,7 @@ OatFile* OatFile::OpenMemory(std::vector<uint8_t>& oat_contents,
 OatFile* OatFile::Open(const std::string& filename,
                        const std::string& location,
                        uint8_t* requested_base,
+                       uint8_t* oat_file_begin,
                        bool executable,
                        std::string* error_msg) {
   CHECK(!filename.empty()) << location;
@@ -93,7 +94,8 @@ OatFile* OatFile::Open(const std::string& filename,
       *error_msg = StringPrintf("Failed to open oat filename for reading: %s", strerror(errno));
       return nullptr;
     }
-    ret.reset(OpenElfFile(file.get(), location, requested_base, false, executable, error_msg));
+    ret.reset(OpenElfFile(file.get(), location, requested_base, oat_file_begin, false, executable,
+                          error_msg));
 
     // It would be nice to unlink here. But we might have opened the file created by the
     // ScopedLock, which we better not delete to avoid races. TODO: Investigate how to fix the API
@@ -104,12 +106,12 @@ OatFile* OatFile::Open(const std::string& filename,
 
 OatFile* OatFile::OpenWritable(File* file, const std::string& location, std::string* error_msg) {
   CheckLocation(location);
-  return OpenElfFile(file, location, NULL, true, false, error_msg);
+  return OpenElfFile(file, location, nullptr, nullptr, true, false, error_msg);
 }
 
 OatFile* OatFile::OpenReadable(File* file, const std::string& location, std::string* error_msg) {
   CheckLocation(location);
-  return OpenElfFile(file, location, NULL, false, false, error_msg);
+  return OpenElfFile(file, location, nullptr, nullptr, false, false, error_msg);
 }
 
 OatFile* OatFile::OpenDlopen(const std::string& elf_filename,
@@ -127,11 +129,13 @@ OatFile* OatFile::OpenDlopen(const std::string& elf_filename,
 OatFile* OatFile::OpenElfFile(File* file,
                               const std::string& location,
                               uint8_t* requested_base,
+                              uint8_t* oat_file_begin,
                               bool writable,
                               bool executable,
                               std::string* error_msg) {
   std::unique_ptr<OatFile> oat_file(new OatFile(location, executable));
-  bool success = oat_file->ElfFileOpen(file, requested_base, writable, executable, error_msg);
+  bool success = oat_file->ElfFileOpen(file, requested_base, oat_file_begin, writable, executable,
+                                       error_msg);
   if (!success) {
     CHECK(!error_msg->empty());
     return nullptr;
@@ -190,9 +194,12 @@ bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
   return Setup(error_msg);
 }
 
-bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, bool writable, bool executable,
+bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file_begin,
+                          bool writable, bool executable,
                           std::string* error_msg) {
-  elf_file_.reset(ElfFile::Open(file, writable, true, error_msg));
+  // TODO: rename requested_base to oat_data_begin
+  elf_file_.reset(ElfFile::Open(file, writable, /*program_header_only*/true, error_msg,
+                                oat_file_begin));
   if (elf_file_.get() == nullptr) {
     DCHECK(!error_msg->empty());
     return false;
@@ -593,8 +600,7 @@ void OatFile::OatMethod::LinkMethod(mirror::ArtMethod* method) const {
 }
 
 bool OatFile::IsPic() const {
-  const char* pic_string = GetOatHeader().GetStoreValueByKey(OatHeader::kPicKey);
-  return (pic_string != nullptr && strncmp(pic_string, "true", 5) == 0);
+  return GetOatHeader().IsPic();
   // TODO: Check against oat_patches. b/18144996
 }
 

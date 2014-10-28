@@ -24,6 +24,7 @@
 #include <set>
 #include <string>
 
+#include "base/macros.h"
 #include "driver/compiler_driver.h"
 #include "mem_map.h"
 #include "oat_file.h"
@@ -35,17 +36,18 @@
 namespace art {
 
 // Write a Space built during compilation for use during execution.
-class ImageWriter {
+class ImageWriter FINAL {
  public:
-  ImageWriter(const CompilerDriver& compiler_driver, uintptr_t image_begin)
+  ImageWriter(const CompilerDriver& compiler_driver, uintptr_t image_begin,
+              bool compile_pic)
       : compiler_driver_(compiler_driver), image_begin_(reinterpret_cast<uint8_t*>(image_begin)),
-        image_end_(0), image_roots_address_(0), oat_file_(NULL),
-        oat_data_begin_(NULL), interpreter_to_interpreter_bridge_offset_(0),
+        image_end_(0), image_roots_address_(0), oat_file_(nullptr),
+        oat_data_begin_(nullptr), interpreter_to_interpreter_bridge_offset_(0),
         interpreter_to_compiled_code_bridge_offset_(0), jni_dlsym_lookup_offset_(0),
         portable_imt_conflict_trampoline_offset_(0), portable_resolution_trampoline_offset_(0),
         portable_to_interpreter_bridge_offset_(0), quick_generic_jni_trampoline_offset_(0),
         quick_imt_conflict_trampoline_offset_(0), quick_resolution_trampoline_offset_(0),
-        quick_to_interpreter_bridge_offset_(0) {
+        quick_to_interpreter_bridge_offset_(0), compile_pic_(compile_pic) {
     CHECK_NE(image_begin, 0U);
   }
 
@@ -59,8 +61,8 @@ class ImageWriter {
 
   mirror::Object* GetImageAddress(mirror::Object* object) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (object == NULL) {
-      return NULL;
+    if (object == nullptr) {
+      return nullptr;
     }
     return reinterpret_cast<mirror::Object*>(image_begin_ + GetImageOffset(object));
   }
@@ -111,8 +113,8 @@ class ImageWriter {
     // different .o ELF objects.
     DCHECK_LT(offset, oat_file_->Size());
 #endif
-    if (offset == 0) {
-      return NULL;
+    if (offset == 0u) {
+      return nullptr;
     }
     return oat_data_begin_ + offset;
   }
@@ -217,6 +219,7 @@ class ImageWriter {
   uint32_t quick_imt_conflict_trampoline_offset_;
   uint32_t quick_resolution_trampoline_offset_;
   uint32_t quick_to_interpreter_bridge_offset_;
+  const bool compile_pic_;
 
   friend class FixupVisitor;
   friend class FixupClassVisitor;
