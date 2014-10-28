@@ -96,6 +96,7 @@ have_dex2oat="yes"
 have_patchoat="yes"
 have_image="yes"
 image_suffix=""
+pic_image_suffix=""
 
 while true; do
     if [ "x$1" = "x--host" ]; then
@@ -125,6 +126,12 @@ while true; do
         shift
     elif [ "x$1" = "x--no-image" ]; then
         have_image="no"
+        shift
+    elif [ "x$1" = "x--pic-image" ]; then
+        pic_image_suffix="-pic"
+        shift
+    elif [ "x$1" = "x--pic-test" ]; then
+        run_args="${run_args} --pic-test"
         shift
     elif [ "x$1" = "x--relocate" ]; then
         relocate="yes"
@@ -314,12 +321,12 @@ elif [ "$runtime" = "art" ]; then
         if [ -z "$ANDROID_HOST_OUT" ]; then
             export ANDROID_HOST_OUT=$ANDROID_BUILD_TOP/out/host/linux-x86
         fi
-        run_args="${run_args} --boot -Ximage:${ANDROID_HOST_OUT}/framework/core${image_suffix}.art"
+        run_args="${run_args} --boot -Ximage:${ANDROID_HOST_OUT}/framework/core${image_suffix}${pic_image_suffix}.art"
         run_args="${run_args} --runtime-option -Djava.library.path=${ANDROID_HOST_OUT}/lib${suffix64}"
     else
         guess_arch_name
         run_args="${run_args} --runtime-option -Djava.library.path=/data/art-test/${target_arch_name}"
-        run_args="${run_args} --boot -Ximage:/data/art-test/core${image_suffix}.art"
+        run_args="${run_args} --boot -Ximage:/data/art-test/core${image_suffix}${pic_image_suffix}.art"
     fi
     if [ "$relocate" = "yes" ]; then
       run_args="${run_args} --relocate"
