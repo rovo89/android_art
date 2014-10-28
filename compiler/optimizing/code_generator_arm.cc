@@ -1157,53 +1157,60 @@ void LocationsBuilderARM::VisitSub(HSub* sub) {
       locations->SetOut(Location::RequiresRegister(), output_overlaps);
       break;
     }
-
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-      LOG(FATAL) << "Unexpected sub type " << sub->GetResultType();
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresFpuRegister());
       break;
-
+    }
     default:
-      LOG(FATAL) << "Unimplemented sub type " << sub->GetResultType();
+      LOG(FATAL) << "Unexpected sub type " << sub->GetResultType();
   }
 }
 
 void InstructionCodeGeneratorARM::VisitSub(HSub* sub) {
   LocationSummary* locations = sub->GetLocations();
+  Location out = locations->Out();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
   switch (sub->GetResultType()) {
     case Primitive::kPrimInt: {
-      if (locations->InAt(1).IsRegister()) {
-        __ sub(locations->Out().As<Register>(),
-               locations->InAt(0).As<Register>(),
-               ShifterOperand(locations->InAt(1).As<Register>()));
+      if (second.IsRegister()) {
+        __ sub(out.As<Register>(), first.As<Register>(), ShifterOperand(second.As<Register>()));
       } else {
-        __ AddConstant(locations->Out().As<Register>(),
-                       locations->InAt(0).As<Register>(),
-                       -locations->InAt(1).GetConstant()->AsIntConstant()->GetValue());
+        __ AddConstant(out.As<Register>(),
+                       first.As<Register>(),
+                       -second.GetConstant()->AsIntConstant()->GetValue());
       }
       break;
     }
 
-    case Primitive::kPrimLong:
-      __ subs(locations->Out().AsRegisterPairLow<Register>(),
-              locations->InAt(0).AsRegisterPairLow<Register>(),
-              ShifterOperand(locations->InAt(1).AsRegisterPairLow<Register>()));
-      __ sbc(locations->Out().AsRegisterPairHigh<Register>(),
-             locations->InAt(0).AsRegisterPairHigh<Register>(),
-             ShifterOperand(locations->InAt(1).AsRegisterPairHigh<Register>()));
+    case Primitive::kPrimLong: {
+      __ subs(out.AsRegisterPairLow<Register>(),
+              first.AsRegisterPairLow<Register>(),
+              ShifterOperand(second.AsRegisterPairLow<Register>()));
+      __ sbc(out.AsRegisterPairHigh<Register>(),
+             first.AsRegisterPairHigh<Register>(),
+             ShifterOperand(second.AsRegisterPairHigh<Register>()));
       break;
+    }
 
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-      LOG(FATAL) << "Unexpected sub type " << sub->GetResultType();
+    case Primitive::kPrimFloat: {
+      __ vsubs(FromDToLowS(out.As<DRegister>()),
+               FromDToLowS(first.As<DRegister>()),
+               FromDToLowS(second.As<DRegister>()));
       break;
+    }
+
+    case Primitive::kPrimDouble: {
+      __ vsubd(out.As<DRegister>(), first.As<DRegister>(), second.As<DRegister>());
+      break;
+    }
+
 
     default:
-      LOG(FATAL) << "Unimplemented sub type " << sub->GetResultType();
+      LOG(FATAL) << "Unexpected sub type " << sub->GetResultType();
   }
 }
 
