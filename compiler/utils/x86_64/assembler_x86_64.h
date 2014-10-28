@@ -451,7 +451,9 @@ class X86_64Assembler FINAL : public Assembler {
 
   void negl(CpuRegister reg);
   void negq(CpuRegister reg);
+
   void notl(CpuRegister reg);
+  void notq(CpuRegister reg);
 
   void enter(const Immediate& imm);
   void leave();
