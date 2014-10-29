@@ -218,17 +218,14 @@ void CheckReferenceResult(mirror::Object* o, Thread* self) {
   if (o == nullptr) {
     return;
   }
-  mirror::ArtMethod* m = self->GetCurrentMethod(nullptr);
   // Make sure that the result is an instance of the type this method was expected to return.
-  StackHandleScope<1> hs(self);
-  Handle<mirror::ArtMethod> h_m(hs.NewHandle(m));
-  mirror::Class* return_type = MethodHelper(h_m).GetReturnType();
+  mirror::Class* return_type = self->GetCurrentMethod(nullptr)->GetReturnType();
 
   if (!o->InstanceOf(return_type)) {
     Runtime::Current()->GetJavaVM()->JniAbortF(nullptr,
                                                "attempt to return an instance of %s from %s",
                                                PrettyTypeOf(o).c_str(),
-                                               PrettyMethod(h_m.Get()).c_str());
+                                               PrettyMethod(self->GetCurrentMethod(nullptr)).c_str());
   }
 }
 
@@ -283,20 +280,19 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
       return zero;
     } else {
       StackHandleScope<1> hs(soa.Self());
-      MethodHelper mh_interface_method(
+      Handle<mirror::ArtMethod> h_interface_method(
           hs.NewHandle(soa.Decode<mirror::ArtMethod*>(interface_method_jobj)));
       // This can cause thread suspension.
-      mirror::Class* result_type = mh_interface_method.GetReturnType();
+      mirror::Class* result_type = h_interface_method->GetReturnType();
       mirror::Object* result_ref = soa.Decode<mirror::Object*>(result);
       mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
       mirror::ArtMethod* proxy_method;
-      if (mh_interface_method.GetMethod()->GetDeclaringClass()->IsInterface()) {
-        proxy_method = rcvr->GetClass()->FindVirtualMethodForInterface(
-            mh_interface_method.GetMethod());
+      if (h_interface_method->GetDeclaringClass()->IsInterface()) {
+        proxy_method = rcvr->GetClass()->FindVirtualMethodForInterface(h_interface_method.Get());
       } else {
         // Proxy dispatch to a method defined in Object.
-        DCHECK(mh_interface_method.GetMethod()->GetDeclaringClass()->IsObjectClass());
-        proxy_method = mh_interface_method.GetMethod();
+        DCHECK(h_interface_method->GetDeclaringClass()->IsObjectClass());
+        proxy_method = h_interface_method.Get();
       }
       ThrowLocation throw_location(rcvr, proxy_method, -1);
       JValue result_unboxed;

@@ -39,10 +39,14 @@ mirror::String* MethodHelperT<HandleKind>::GetNameAsString(Thread* self) {
 
 template <template <class T> class HandleKind>
 template <template <class T2> class HandleKind2>
-bool MethodHelperT<HandleKind>::HasSameSignatureWithDifferentClassLoaders(
+bool MethodHelperT<HandleKind>::HasSameSignatureWithDifferentClassLoaders(Thread* self,
     MethodHelperT<HandleKind2>* other) {
-  if (UNLIKELY(GetReturnType() != other->GetReturnType())) {
-    return false;
+  {
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Class> return_type(hs.NewHandle(GetMethod()->GetReturnType()));
+    if (UNLIKELY(other->GetMethod()->GetReturnType() != return_type.Get())) {
+      return false;
+    }
   }
   const DexFile::TypeList* types = method_->GetParameterTypeList();
   const DexFile::TypeList* other_types = other->method_->GetParameterTypeList();
@@ -158,19 +162,19 @@ uint32_t MethodHelperT<MutableHandle>::FindDexMethodIndexInOtherDexFile(
     const DexFile& other_dexfile, uint32_t name_and_signature_idx);
 
 template
-bool MethodHelperT<Handle>::HasSameSignatureWithDifferentClassLoaders<Handle>(
+bool MethodHelperT<Handle>::HasSameSignatureWithDifferentClassLoaders<Handle>(Thread* self,
     MethodHelperT<Handle>* other);
 
 template
-bool MethodHelperT<Handle>::HasSameSignatureWithDifferentClassLoaders<MutableHandle>(
+bool MethodHelperT<Handle>::HasSameSignatureWithDifferentClassLoaders<MutableHandle>(Thread* self,
     MethodHelperT<MutableHandle>* other);
 
 template
-bool MethodHelperT<MutableHandle>::HasSameSignatureWithDifferentClassLoaders<Handle>(
+bool MethodHelperT<MutableHandle>::HasSameSignatureWithDifferentClassLoaders<Handle>(Thread* self,
     MethodHelperT<Handle>* other);
 
 template
 bool MethodHelperT<MutableHandle>::HasSameSignatureWithDifferentClassLoaders<MutableHandle>(
-    MethodHelperT<MutableHandle>* other);
+    Thread* self, MethodHelperT<MutableHandle>* other);
 
 }  // namespace art
