@@ -484,6 +484,8 @@ class MANAGED ArtMethod FINAL : public Object {
 
   ALWAYS_INLINE const char* GetName() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  mirror::String* GetNameAsString(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const DexFile::CodeItem* GetCodeItem() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsResolvedTypeIdx(uint16_t type_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -515,7 +517,7 @@ class MANAGED ArtMethod FINAL : public Object {
 
   ALWAYS_INLINE ArtMethod* GetInterfaceMethodIfProxy() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
- protected:
+ private:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
   // The class we are a part of.
   HeapReference<Class> declaring_class_;

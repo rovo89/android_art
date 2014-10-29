@@ -40,8 +40,6 @@ class MethodHelperT {
     return method_.Get();
   }
 
-  mirror::String* GetNameAsString(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   const char* GetShorty() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const char* result = shorty_;
     if (result == nullptr) {
