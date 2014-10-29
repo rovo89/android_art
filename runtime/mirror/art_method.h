@@ -178,6 +178,9 @@ class MANAGED ArtMethod FINAL : public Object {
 
   uint16_t GetMethodIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Doesn't do erroneous / unresolved class checks.
+  uint16_t GetMethodIndexDuringLinking() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   size_t GetVtableIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetMethodIndex();
   }
