@@ -980,6 +980,8 @@ static int dex2oat(int argc, char** argv) {
         compiler_kind = Compiler::kOptimizing;
       } else if (backend_str == "Portable") {
         compiler_kind = Compiler::kPortable;
+      } else {
+        Usage("Unknown compiler backend: %s", backend_str.data());
       }
     } else if (option.starts_with("--compiler-filter=")) {
       compiler_filter_string = option.substr(strlen("--compiler-filter=")).data();
