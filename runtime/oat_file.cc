@@ -302,7 +302,7 @@ bool OatFile::Setup(std::string* error_msg) {
     oat += sizeof(dex_file_offset);
     if (UNLIKELY(oat > End())) {
       *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' truncated "
-                                " after dex file offsets", GetLocation().c_str(), i,
+                                "after dex file offsets", GetLocation().c_str(), i,
                                 dex_file_location.c_str());
       return false;
     }
@@ -310,13 +310,13 @@ bool OatFile::Setup(std::string* error_msg) {
     const uint8_t* dex_file_pointer = Begin() + dex_file_offset;
     if (UNLIKELY(!DexFile::IsMagicValid(dex_file_pointer))) {
       *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with invalid "
-                                " dex file magic '%s'", GetLocation().c_str(), i,
+                                "dex file magic '%s'", GetLocation().c_str(), i,
                                 dex_file_location.c_str(), dex_file_pointer);
       return false;
     }
     if (UNLIKELY(!DexFile::IsVersionValid(dex_file_pointer))) {
       *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with invalid "
-                                " dex file version '%s'", GetLocation().c_str(), i,
+                                "dex file version '%s'", GetLocation().c_str(), i,
                                 dex_file_location.c_str(), dex_file_pointer);
       return false;
     }
@@ -326,7 +326,7 @@ bool OatFile::Setup(std::string* error_msg) {
     oat += (sizeof(*methods_offsets_pointer) * header->class_defs_size_);
     if (UNLIKELY(oat > End())) {
       *error_msg = StringPrintf("In oat file '%s' found OatDexFile #%zd for '%s' with truncated "
-                                " method offsets", GetLocation().c_str(), i,
+                                "method offsets", GetLocation().c_str(), i,
                                 dex_file_location.c_str());
       return false;
     }
