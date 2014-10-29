@@ -331,6 +331,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   411-optimizing-arith \
   412-new-array \
   413-regalloc-regression \
+  414-static-fields \
   414-optimizing-arith-sub \
   415-optimizing-arith-neg \
   417-optimizing-arith-div \
@@ -344,6 +345,18 @@ ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
 endif
 
 TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS :=
+
+# Known broken tests for the optimizing compiler.
+TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS := \
+  099-vmdebug \ # b/18098594
+
+ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS :=
 
 
 # Clear variables ahead of appending to them when defining tests.

@@ -37,6 +37,10 @@ void PrepareForRegisterAllocation::VisitBoundsCheck(HBoundsCheck* check) {
   check->ReplaceWith(check->InputAt(0));
 }
 
+void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
+  check->ReplaceWith(check->InputAt(0));
+}
+
 void PrepareForRegisterAllocation::VisitCondition(HCondition* condition) {
   bool needs_materialization = false;
   if (!condition->HasOnlyOneUse()) {

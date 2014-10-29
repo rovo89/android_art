@@ -118,7 +118,12 @@ class HGraphBuilder : public ValueObject {
 
   void BuildReturn(const Instruction& instruction, Primitive::Type type);
 
-  bool BuildFieldAccess(const Instruction& instruction, uint32_t dex_offset, bool is_get);
+  // Builds an instance field access node and returns whether the instruction is supported.
+  bool BuildInstanceFieldAccess(const Instruction& instruction, uint32_t dex_offset, bool is_put);
+
+  // Builds a static field access node and returns whether the instruction is supported.
+  bool BuildStaticFieldAccess(const Instruction& instruction, uint32_t dex_offset, bool is_put);
+
   void BuildArrayAccess(const Instruction& instruction,
                         uint32_t dex_offset,
                         bool is_get,
