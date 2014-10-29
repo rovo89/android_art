@@ -1,5 +1,4 @@
 /*
- *
  * Copyright (C) 2014 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -421,9 +420,9 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   return true;
 }
 
-bool HGraphBuilder::BuildFieldAccess(const Instruction& instruction,
-                                     uint32_t dex_offset,
-                                     bool is_put) {
+bool HGraphBuilder::BuildInstanceFieldAccess(const Instruction& instruction,
+                                             uint32_t dex_offset,
+                                             bool is_put) {
   uint32_t source_or_dest_reg = instruction.VRegA_22c();
   uint32_t obj_reg = instruction.VRegB_22c();
   uint16_t field_index = instruction.VRegC_22c();
@@ -464,6 +463,67 @@ bool HGraphBuilder::BuildFieldAccess(const Instruction& instruction,
         field_type,
         resolved_field->GetOffset()));
 
+    UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
+  }
+  return true;
+}
+
+
+
+bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
+                                           uint32_t dex_offset,
+                                           bool is_put) {
+  uint32_t source_or_dest_reg = instruction.VRegA_21c();
+  uint16_t field_index = instruction.VRegB_21c();
+
+  uint32_t storage_index;
+  bool is_referrers_class;
+  bool is_initialized;
+  bool is_volatile;
+  MemberOffset field_offset(0u);
+  Primitive::Type field_type;
+
+  bool fast_path = compiler_driver_->ComputeStaticFieldInfo(field_index,
+                                                            dex_compilation_unit_,
+                                                            is_put,
+                                                            &field_offset,
+                                                            &storage_index,
+                                                            &is_referrers_class,
+                                                            &is_volatile,
+                                                            &is_initialized,
+                                                            &field_type);
+  if (!fast_path) {
+    return false;
+  }
+
+  if (is_volatile) {
+    return false;
+  }
+
+  if (!IsTypeSupported(field_type)) {
+    return false;
+  }
+
+  HLoadClass* constant = new (arena_) HLoadClass(
+      storage_index, is_referrers_class, is_initialized, dex_offset);
+  current_block_->AddInstruction(constant);
+
+  HInstruction* cls = constant;
+  if (constant->NeedsInitialization()) {
+    cls = new (arena_) HClinitCheck(constant, dex_offset);
+    current_block_->AddInstruction(cls);
+  }
+
+  if (is_put) {
+    // We need to keep the class alive before loading the value.
+    Temporaries temps(graph_, 1);
+    temps.Add(cls);
+    HInstruction* value = LoadLocal(source_or_dest_reg, field_type);
+    DCHECK_EQ(value->GetType(), field_type);
+    current_block_->AddInstruction(
+        new (arena_) HStaticFieldSet(cls, value, field_type, field_offset));
+  } else {
+    current_block_->AddInstruction(new (arena_) HStaticFieldGet(cls, field_type, field_offset));
     UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
   }
   return true;
@@ -1043,7 +1103,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::IGET_BYTE:
     case Instruction::IGET_CHAR:
     case Instruction::IGET_SHORT: {
-      if (!BuildFieldAccess(instruction, dex_offset, false)) {
+      if (!BuildInstanceFieldAccess(instruction, dex_offset, false)) {
         return false;
       }
       break;
@@ -1056,7 +1116,33 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::IPUT_BYTE:
     case Instruction::IPUT_CHAR:
     case Instruction::IPUT_SHORT: {
-      if (!BuildFieldAccess(instruction, dex_offset, true)) {
+      if (!BuildInstanceFieldAccess(instruction, dex_offset, true)) {
+        return false;
+      }
+      break;
+    }
+
+    case Instruction::SGET:
+    case Instruction::SGET_WIDE:
+    case Instruction::SGET_OBJECT:
+    case Instruction::SGET_BOOLEAN:
+    case Instruction::SGET_BYTE:
+    case Instruction::SGET_CHAR:
+    case Instruction::SGET_SHORT: {
+      if (!BuildStaticFieldAccess(instruction, dex_offset, false)) {
+        return false;
+      }
+      break;
+    }
+
+    case Instruction::SPUT:
+    case Instruction::SPUT_WIDE:
+    case Instruction::SPUT_OBJECT:
+    case Instruction::SPUT_BOOLEAN:
+    case Instruction::SPUT_BYTE:
+    case Instruction::SPUT_CHAR:
+    case Instruction::SPUT_SHORT: {
+      if (!BuildStaticFieldAccess(instruction, dex_offset, true)) {
         return false;
       }
       break;
