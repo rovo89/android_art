@@ -531,7 +531,7 @@ else
         max_name_length=$(getconf NAME_MAX ${tmp_dir})
         echo "Max filename (NAME_MAX): ${max_name_length}" >> "$output"
         max_path_length=$(getconf PATH_MAX ${tmp_dir})
-        echo "Max pathlength (PATH_MAX): ${max_path_lenght}" >> "$output"
+        echo "Max pathlength (PATH_MAX): ${max_path_length}" >> "$output"
     fi
     ./$check_cmd "$expected" "$output"
     if [ "$?" = "0" ]; then
