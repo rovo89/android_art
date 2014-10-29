@@ -72,10 +72,6 @@ class ObjectRegistry {
     return reinterpret_cast<T>(InternalGet(id));
   }
 
-  bool Contains(mirror::Object* o) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return Contains(o, nullptr);
-  }
-
   void Clear() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void DisableCollection(JDWP::ObjectId id)
@@ -113,9 +109,6 @@ class ObjectRegistry {
   void Promote(ObjectRegistryEntry& entry)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
-
-  bool Contains(mirror::Object* o, ObjectRegistryEntry** out_entry)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
 
   bool ContainsLocked(Thread* self, mirror::Object* o, int32_t identity_hash_code,
                       ObjectRegistryEntry** out_entry)

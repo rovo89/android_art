@@ -16,6 +16,7 @@
 
 #include "object_registry.h"
 
+#include "handle_scope-inl.h"
 #include "mirror/class.h"
 #include "scoped_thread_state_change.h"
 
@@ -48,12 +49,17 @@ JDWP::ObjectId ObjectRegistry::InternalAdd(mirror::Object* o) {
     return 0;
   }
 
+  Thread* const self = Thread::Current();
+  StackHandleScope<1> hs(self);
+  Handle<mirror::Object> obj_h(hs.NewHandle(o));
+
   // Call IdentityHashCode here to avoid a lock level violation between lock_ and monitor_lock.
-  int32_t identity_hash_code = o->IdentityHashCode();
-  ScopedObjectAccessUnchecked soa(Thread::Current());
+  int32_t identity_hash_code = obj_h->IdentityHashCode();
+
+  ScopedObjectAccessUnchecked soa(self);
   MutexLock mu(soa.Self(), lock_);
   ObjectRegistryEntry* entry = nullptr;
-  if (ContainsLocked(soa.Self(), o, identity_hash_code, &entry)) {
+  if (ContainsLocked(soa.Self(), obj_h.Get(), identity_hash_code, &entry)) {
     // This object was already in our map.
     ++entry->reference_count;
   } else {
@@ -68,7 +74,7 @@ JDWP::ObjectId ObjectRegistry::InternalAdd(mirror::Object* o) {
     // This object isn't in the registry yet, so add it.
     JNIEnv* env = soa.Env();
 
-    jobject local_reference = soa.AddLocalReference<jobject>(o);
+    jobject local_reference = soa.AddLocalReference<jobject>(obj_h.Get());
 
     entry->jni_reference_type = JNIWeakGlobalRefType;
     entry->jni_reference = env->NewWeakGlobalRef(local_reference);
@@ -80,17 +86,6 @@ JDWP::ObjectId ObjectRegistry::InternalAdd(mirror::Object* o) {
     env->DeleteLocalRef(local_reference);
   }
   return entry->id;
-}
-
-bool ObjectRegistry::Contains(mirror::Object* o, ObjectRegistryEntry** out_entry) {
-  if (o == nullptr) {
-    return false;
-  }
-  // Call IdentityHashCode here to avoid a lock level violation between lock_ and monitor_lock.
-  int32_t identity_hash_code = o->IdentityHashCode();
-  Thread* self = Thread::Current();
-  MutexLock mu(self, lock_);
-  return ContainsLocked(self, o, identity_hash_code, out_entry);
 }
 
 bool ObjectRegistry::ContainsLocked(Thread* self, mirror::Object* o, int32_t identity_hash_code,
