@@ -233,6 +233,7 @@ class CompilerDriver {
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsFieldVolatile(mirror::ArtField* field) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  MemberOffset GetFieldOffset(mirror::ArtField* field) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can we fast-path an IGET/IPUT access to an instance field? If yes, compute the field offset.
   std::pair<bool, bool> IsFastInstanceField(
@@ -240,13 +241,20 @@ class CompilerDriver {
       mirror::ArtField* resolved_field, uint16_t field_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Can we fast-path an SGET/SPUT access to a static field? If yes, compute the field offset,
-  // the type index of the declaring class in the referrer's dex file and whether the declaring
-  // class is the referrer's class or at least can be assumed to be initialized.
+  // Can we fast-path an SGET/SPUT access to a static field? If yes, compute the type index
+  // of the declaring class in the referrer's dex file.
   std::pair<bool, bool> IsFastStaticField(
       mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-      mirror::ArtField* resolved_field, uint16_t field_idx, MemberOffset* field_offset,
-      uint32_t* storage_index, bool* is_referrers_class, bool* is_initialized)
+      mirror::ArtField* resolved_field, uint16_t field_idx, uint32_t* storage_index)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Is static field's in referrer's class?
+  bool IsStaticFieldInReferrerClass(mirror::Class* referrer_class, mirror::ArtField* resolved_field)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Is static field's class initialized?
+  bool IsStaticFieldsClassInitialized(mirror::Class* referrer_class,
+                                      mirror::ArtField* resolved_field)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a method. Returns nullptr on failure, including incompatible class change.
@@ -277,8 +285,10 @@ class CompilerDriver {
       uintptr_t* direct_code, uintptr_t* direct_method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Does invokation of the resolved method need class initialization?
-  bool NeedsClassInitialization(mirror::Class* referrer_class, mirror::ArtMethod* resolved_method)
+  // Is method's class initialized for an invoke?
+  // For static invokes to determine whether we need to consider potential call to <clinit>().
+  // For non-static invokes, assuming a non-null reference, the class is always initialized.
+  bool IsMethodsClassInitialized(mirror::Class* referrer_class, mirror::ArtMethod* resolved_method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ProcessedInstanceField(bool resolved);

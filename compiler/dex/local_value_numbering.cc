@@ -1314,7 +1314,8 @@ void LocalValueNumbering::HandleIPut(MIR* mir, uint16_t opcode) {
 uint16_t LocalValueNumbering::HandleSGet(MIR* mir, uint16_t opcode) {
   const MirSFieldLoweringInfo& field_info = gvn_->GetMirGraph()->GetSFieldLoweringInfo(mir);
   if (!field_info.IsResolved() || field_info.IsVolatile() ||
-      (!field_info.IsInitialized() && (mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0)) {
+      (!field_info.IsClassInitialized() &&
+       (mir->optimization_flags & MIR_CLASS_IS_INITIALIZED) == 0)) {
     // Volatile SGETs (and unresolved fields are potentially volatile) have acquire semantics
     // and class initialization can call arbitrary functions, we need to wipe aliasing values.
     HandleInvokeOrClInitOrAcquireOp(mir);
@@ -1350,7 +1351,8 @@ uint16_t LocalValueNumbering::HandleSGet(MIR* mir, uint16_t opcode) {
 
 void LocalValueNumbering::HandleSPut(MIR* mir, uint16_t opcode) {
   const MirSFieldLoweringInfo& field_info = gvn_->GetMirGraph()->GetSFieldLoweringInfo(mir);
-  if (!field_info.IsInitialized() && (mir->optimization_flags & MIR_IGNORE_CLINIT_CHECK) == 0) {
+  if (!field_info.IsClassInitialized() &&
+      (mir->optimization_flags & MIR_CLASS_IS_INITIALIZED) == 0) {
     // Class initialization can call arbitrary functions, we need to wipe aliasing values.
     HandleInvokeOrClInitOrAcquireOp(mir);
   }

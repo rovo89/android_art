@@ -76,14 +76,16 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     int fast_path_flags = compiler_driver->IsFastInvoke(
         soa, dex_cache, class_loader, mUnit, referrer_class.Get(), resolved_method, &invoke_type,
         &target_method, devirt_target, &it->direct_code_, &it->direct_method_);
-    bool needs_clinit =
-        compiler_driver->NeedsClassInitialization(referrer_class.Get(), resolved_method);
+    bool is_referrers_class = (referrer_class.Get() == resolved_method->GetDeclaringClass());
+    bool is_class_initialized =
+        compiler_driver->IsMethodsClassInitialized(referrer_class.Get(), resolved_method);
     uint16_t other_flags = it->flags_ &
-        ~(kFlagFastPath | kFlagNeedsClassInitialization | (kInvokeTypeMask << kBitSharpTypeBegin));
+        ~(kFlagFastPath | kFlagClassIsInitialized | (kInvokeTypeMask << kBitSharpTypeBegin));
     it->flags_ = other_flags |
         (fast_path_flags != 0 ? kFlagFastPath : 0u) |
         (static_cast<uint16_t>(invoke_type) << kBitSharpTypeBegin) |
-        (needs_clinit ? kFlagNeedsClassInitialization : 0u);
+        (is_referrers_class ? kFlagIsReferrersClass : 0u) |
+        (is_class_initialized ? kFlagClassIsInitialized : 0u);
     it->target_dex_file_ = target_method.dex_file;
     it->target_method_idx_ = target_method.dex_method_index;
     it->stats_flags_ = fast_path_flags;
