@@ -468,46 +468,47 @@ class HBasicBlock : public ArenaObject {
 
 #define FOR_EACH_CONCRETE_INSTRUCTION(M)                                \
   M(Add, BinaryOperation)                                               \
+  M(ArrayGet, Instruction)                                              \
+  M(ArrayLength, Instruction)                                           \
+  M(ArraySet, Instruction)                                              \
+  M(BoundsCheck, Instruction)                                           \
+  M(Compare, BinaryOperation)                                           \
   M(Condition, BinaryOperation)                                         \
+  M(Div, BinaryOperation)                                               \
+  M(DoubleConstant, Constant)                                           \
   M(Equal, Condition)                                                   \
-  M(NotEqual, Condition)                                                \
-  M(LessThan, Condition)                                                \
-  M(LessThanOrEqual, Condition)                                         \
+  M(Exit, Instruction)                                                  \
+  M(FloatConstant, Constant)                                            \
+  M(Goto, Instruction)                                                  \
   M(GreaterThan, Condition)                                             \
   M(GreaterThanOrEqual, Condition)                                      \
-  M(Exit, Instruction)                                                  \
-  M(Goto, Instruction)                                                  \
   M(If, Instruction)                                                    \
+  M(InstanceFieldGet, Instruction)                                      \
+  M(InstanceFieldSet, Instruction)                                      \
   M(IntConstant, Constant)                                              \
   M(InvokeStatic, Invoke)                                               \
   M(InvokeVirtual, Invoke)                                              \
+  M(LessThan, Condition)                                                \
+  M(LessThanOrEqual, Condition)                                         \
   M(LoadLocal, Instruction)                                             \
   M(Local, Instruction)                                                 \
   M(LongConstant, Constant)                                             \
+  M(Mul, BinaryOperation)                                               \
+  M(Neg, UnaryOperation)                                                \
+  M(NewArray, Instruction)                                              \
   M(NewInstance, Instruction)                                           \
   M(Not, UnaryOperation)                                                \
-  M(ParameterValue, Instruction)                                        \
+  M(NotEqual, Condition)                                                \
+  M(NullCheck, Instruction)                                             \
   M(ParallelMove, Instruction)                                          \
+  M(ParameterValue, Instruction)                                        \
   M(Phi, Instruction)                                                   \
   M(Return, Instruction)                                                \
   M(ReturnVoid, Instruction)                                            \
   M(StoreLocal, Instruction)                                            \
   M(Sub, BinaryOperation)                                               \
-  M(Compare, BinaryOperation)                                           \
-  M(InstanceFieldGet, Instruction)                                      \
-  M(InstanceFieldSet, Instruction)                                      \
-  M(ArrayGet, Instruction)                                              \
-  M(ArraySet, Instruction)                                              \
-  M(ArrayLength, Instruction)                                           \
-  M(BoundsCheck, Instruction)                                           \
-  M(NullCheck, Instruction)                                             \
-  M(Temporary, Instruction)                                             \
   M(SuspendCheck, Instruction)                                          \
-  M(Mul, BinaryOperation)                                               \
-  M(Neg, UnaryOperation)                                                \
-  M(FloatConstant, Constant)                                            \
-  M(DoubleConstant, Constant)                                           \
-  M(NewArray, Instruction)                                              \
+  M(Temporary, Instruction)                                             \
 
 #define FOR_EACH_INSTRUCTION(M)                                         \
   FOR_EACH_CONCRETE_INSTRUCTION(M)                                      \
@@ -1658,8 +1659,6 @@ class HSub : public HBinaryOperation {
   HSub(Primitive::Type result_type, HInstruction* left, HInstruction* right)
       : HBinaryOperation(result_type, left, right) {}
 
-  virtual bool IsCommutative() { return false; }
-
   virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
     return x - y;
   }
@@ -1687,6 +1686,20 @@ class HMul : public HBinaryOperation {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HMul);
+};
+
+class HDiv : public HBinaryOperation {
+ public:
+  HDiv(Primitive::Type result_type, HInstruction* left, HInstruction* right)
+      : HBinaryOperation(result_type, left, right) {}
+
+  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x / y; }
+  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x / y; }
+
+  DECLARE_INSTRUCTION(Div);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HDiv);
 };
 
 // The value of a parameter in this method. Its location depends on

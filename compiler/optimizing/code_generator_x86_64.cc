@@ -1218,6 +1218,56 @@ void InstructionCodeGeneratorX86_64::VisitMul(HMul* mul) {
   }
 }
 
+void LocationsBuilderX86_64::VisitDiv(HDiv* div) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(div, LocationSummary::kNoCall);
+  switch (div->GetResultType()) {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimLong: {
+      LOG(FATAL) << "Not implemented div type" << div->GetResultType();
+      break;
+    }
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetOut(Location::SameAsFirstInput());
+      break;
+    }
+
+    default:
+      LOG(FATAL) << "Unexpected div type " << div->GetResultType();
+  }
+}
+
+void InstructionCodeGeneratorX86_64::VisitDiv(HDiv* div) {
+  LocationSummary* locations = div->GetLocations();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+  DCHECK(first.Equals(locations->Out()));
+
+  switch (div->GetResultType()) {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimLong: {
+      LOG(FATAL) << "Not implemented div type" << div->GetResultType();
+      break;
+    }
+
+    case Primitive::kPrimFloat: {
+      __ divss(first.As<XmmRegister>(), second.As<XmmRegister>());
+      break;
+    }
+
+    case Primitive::kPrimDouble: {
+      __ divsd(first.As<XmmRegister>(), second.As<XmmRegister>());
+      break;
+    }
+
+    default:
+      LOG(FATAL) << "Unexpected div type " << div->GetResultType();
+  }
+}
+
 void LocationsBuilderX86_64::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
