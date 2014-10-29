@@ -50,8 +50,8 @@ namespace mirror {
 template<class T> class Handle;
 class InternTable;
 template<class T> class ObjectLock;
+class Runtime;
 class ScopedObjectAccessAlreadyRunnable;
-template<class T> class Handle;
 template<size_t kNumReferences> class PACKED(4) StackHandleScope;
 
 typedef bool (ClassVisitor)(mirror::Class* c, void* arg);
@@ -631,9 +631,8 @@ class ClassLinker {
                                      std::string* error_msg)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  bool CheckOatFile(const OatFile* oat_file, InstructionSet isa,
+  bool CheckOatFile(const Runtime* runtime, const OatFile* oat_file, InstructionSet isa,
                     bool* checksum_verified, std::string* error_msg);
-  int32_t GetRequiredDelta(const OatFile* oat_file, InstructionSet isa);
 
   // Note: will not register the oat file.
   const OatFile* FindOatFileInOatLocationForDexFile(const char* dex_location,
