@@ -233,9 +233,7 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         const size_t ref_idx = inst->VRegA_11x(inst_data);
         Object* obj_result = shadow_frame.GetVRegReference(ref_idx);
         if (do_assignability_check && obj_result != NULL) {
-          StackHandleScope<1> hs(self);
-          MethodHelper mhs(hs.NewHandle(shadow_frame.GetMethod()));
-          Class* return_type = mhs.GetReturnType();
+          Class* return_type = shadow_frame.GetMethod()->GetReturnType();
           // Re-load since it might have moved.
           obj_result = shadow_frame.GetVRegReference(ref_idx);
           if (return_type == NULL) {

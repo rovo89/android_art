@@ -321,9 +321,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
     const uint8_t vreg_index = inst->VRegA_11x(inst_data);
     Object* obj_result = shadow_frame.GetVRegReference(vreg_index);
     if (do_assignability_check && obj_result != NULL) {
-      StackHandleScope<1> hs(self);
-      MethodHelper mh(hs.NewHandle(shadow_frame.GetMethod()));
-      Class* return_type = mh.GetReturnType();
+      Class* return_type = shadow_frame.GetMethod()->GetReturnType();
       obj_result = shadow_frame.GetVRegReference(vreg_index);
       if (return_type == NULL) {
         // Return the pending exception.

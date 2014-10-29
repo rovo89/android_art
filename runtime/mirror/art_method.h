@@ -505,6 +505,10 @@ class MANAGED ArtMethod FINAL : public Object {
   const char* GetTypeDescriptorFromTypeIdx(uint16_t type_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // May cause thread suspension due to GetClassFromTypeIdx calling ResolveType this caused a large
+  // number of bugs at call sites.
+  mirror::Class* GetReturnType(bool resolve = true) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   mirror::ClassLoader* GetClassLoader() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

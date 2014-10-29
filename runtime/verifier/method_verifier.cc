@@ -2256,8 +2256,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       if (called_method != nullptr) {
         StackHandleScope<1> hs(self_);
         Handle<mirror::ArtMethod> h_called_method(hs.NewHandle(called_method));
-        MethodHelper mh(h_called_method);
-        mirror::Class* return_type_class = mh.GetReturnType(can_load_classes_);
+        mirror::Class* return_type_class = h_called_method->GetReturnType(can_load_classes_);
         if (return_type_class != nullptr) {
           return_type = &reg_types_.FromClass(h_called_method->GetReturnTypeDescriptor(),
                                               return_type_class,
@@ -2301,8 +2300,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         return_type_descriptor = called_method->GetReturnTypeDescriptor();
         StackHandleScope<1> hs(self_);
         Handle<mirror::ArtMethod> h_called_method(hs.NewHandle(called_method));
-        MethodHelper mh(h_called_method);
-        mirror::Class* return_type_class = mh.GetReturnType(can_load_classes_);
+        mirror::Class* return_type_class = h_called_method->GetReturnType(can_load_classes_);
         if (return_type_class != nullptr) {
           return_type = &reg_types_.FromClass(return_type_descriptor,
                                               return_type_class,
@@ -4112,9 +4110,7 @@ InstructionFlags* MethodVerifier::CurrentInsnFlags() {
 const RegType& MethodVerifier::GetMethodReturnType() {
   if (return_type_ == nullptr) {
     if (mirror_method_.Get() != nullptr) {
-      StackHandleScope<1> hs(self_);
-      mirror::Class* return_type_class =
-          MethodHelper(hs.NewHandle(mirror_method_.Get())).GetReturnType(can_load_classes_);
+      mirror::Class* return_type_class = mirror_method_->GetReturnType(can_load_classes_);
       if (return_type_class != nullptr) {
         return_type_ = &reg_types_.FromClass(mirror_method_->GetReturnTypeDescriptor(),
                                              return_type_class,

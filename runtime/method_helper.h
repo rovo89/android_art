@@ -72,10 +72,6 @@ class MethodHelperT {
     return refs;
   }
 
-  // May cause thread suspension due to GetClassFromTypeIdx calling ResolveType this caused a large
-  // number of bugs at call sites.
-  mirror::Class* GetReturnType(bool resolve = true) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   size_t NumArgs() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // "1 +" because the first in Args is the receiver.
     // "- 1" because we don't count the return type.
@@ -109,7 +105,7 @@ class MethodHelperT {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template <template <class T> class HandleKind2>
-  bool HasSameSignatureWithDifferentClassLoaders(MethodHelperT<HandleKind2>* other)
+  bool HasSameSignatureWithDifferentClassLoaders(Thread* self, MethodHelperT<HandleKind2>* other)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Class* GetClassFromTypeIdx(uint16_t type_idx, bool resolve = true)
