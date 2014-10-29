@@ -44,14 +44,6 @@ class LocalValueNumbering {
 
   bool Equals(const LocalValueNumbering& other) const;
 
-  uint16_t GetSRegValueName(uint16_t s_reg) const {
-    return GetOperandValue(s_reg);
-  }
-
-  void SetValueNameNullChecked(uint16_t value_name) {
-    null_checked_.insert(value_name);
-  }
-
   bool IsValueNullChecked(uint16_t value_name) const {
     return null_checked_.find(value_name) != null_checked_.end();
   }
@@ -73,6 +65,7 @@ class LocalValueNumbering {
 
   void MergeOne(const LocalValueNumbering& other, MergeType merge_type);
   void Merge(MergeType merge_type);  // Merge gvn_->merge_lvns_.
+  void PrepareEntryBlock();
 
   uint16_t GetValueNumber(MIR* mir);
 
@@ -121,18 +114,22 @@ class LocalValueNumbering {
   }
 
   void SetOperandValue(uint16_t s_reg, uint16_t value) {
+    DCHECK_EQ(sreg_wide_value_map_.count(s_reg), 0u);
     SetOperandValueImpl(s_reg, value, &sreg_value_map_);
   }
 
   uint16_t GetOperandValue(int s_reg) const {
+    DCHECK_EQ(sreg_wide_value_map_.count(s_reg), 0u);
     return GetOperandValueImpl(s_reg, &sreg_value_map_);
   }
 
   void SetOperandValueWide(uint16_t s_reg, uint16_t value) {
+    DCHECK_EQ(sreg_value_map_.count(s_reg), 0u);
     SetOperandValueImpl(s_reg, value, &sreg_wide_value_map_);
   }
 
   uint16_t GetOperandValueWide(int s_reg) const {
+    DCHECK_EQ(sreg_value_map_.count(s_reg), 0u);
     return GetOperandValueImpl(s_reg, &sreg_wide_value_map_);
   }
 
@@ -300,6 +297,7 @@ class LocalValueNumbering {
   void HandleRangeCheck(MIR* mir, uint16_t array, uint16_t index);
   void HandlePutObject(MIR* mir);
   void HandleEscapingRef(uint16_t base);
+  void HandleInvokeArgs(const MIR* mir, const LocalValueNumbering* mir_lvn);
   uint16_t HandlePhi(MIR* mir);
   uint16_t HandleAGet(MIR* mir, uint16_t opcode);
   void HandleAPut(MIR* mir, uint16_t opcode);
