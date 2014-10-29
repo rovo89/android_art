@@ -115,6 +115,18 @@ static void RealPruneDexCache(const std::string& cache_dir_path) {
   CHECK_EQ(0, TEMP_FAILURE_RETRY(closedir(cache_dir))) << "Unable to close directory.";
 }
 
+static void RemoveImageFiles(const std::string& image_filename, std::string* error_msg) {
+  if (TEMP_FAILURE_RETRY(unlink(image_filename.c_str())) != 0) {
+    *error_msg = StringPrintf("Failed to remove image file after previous error: %s",
+                              error_msg->c_str());
+  }
+  std::string oat_filename(ImageHeader::GetOatLocationFromImageLocation(image_filename));
+  if (TEMP_FAILURE_RETRY(unlink(oat_filename.c_str())) != 0) {
+    *error_msg = StringPrintf("Failed to remove oat file after previous error: %s",
+                              error_msg->c_str());
+  }
+}
+
 static bool GenerateImage(const std::string& image_filename, InstructionSet image_isa,
                           std::string* error_msg) {
   const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
@@ -144,9 +156,7 @@ static bool GenerateImage(const std::string& image_filename, InstructionSet imag
   }
 
   std::string oat_file_option_string("--oat-file=");
-  oat_file_option_string += image_filename;
-  oat_file_option_string.erase(oat_file_option_string.size() - 3);
-  oat_file_option_string += "oat";
+  oat_file_option_string += ImageHeader::GetOatLocationFromImageLocation(image_filename);
   arg_vector.push_back(oat_file_option_string);
 
   Runtime::Current()->AddCurrentRuntimeFeaturesAsDex2OatArguments(&arg_vector);
@@ -435,6 +445,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
             *error_msg = StringPrintf("Unable to relocate image '%s' from '%s' to '%s': %s",
                                       image_location, system_filename.c_str(),
                                       cache_filename.c_str(), reason.c_str());
+            RemoveImageFiles(cache_filename, error_msg);
             return nullptr;
           }
         }
@@ -509,6 +520,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
   } else if (!GenerateImage(cache_filename, image_isa, error_msg)) {
     *error_msg = StringPrintf("Failed to generate image '%s': %s",
                               cache_filename.c_str(), error_msg->c_str());
+    RemoveImageFiles(cache_filename, error_msg);
     return nullptr;
   } else {
     // Note that we must not use the file descriptor associated with

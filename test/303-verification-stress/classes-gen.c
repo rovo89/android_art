@@ -26,11 +26,11 @@ static int createFiles(int count, int array_size)
 
         fprintf(fp, "public class Test%03d {\n", i);
         fprintf(fp, "    static String[] array = new String[%d];\n", array_size);
-        fprintf(fp, "    static {\n", array_size);
+        fprintf(fp, "    static {\n");
         for (k = 0; k < array_size; k++) {
             fprintf(fp, "        array[%d] = \"string_%04d\";\n", k, k);
         }
-        fprintf(fp, "    }\n", array_size);
+        fprintf(fp, "    }\n");
         fprintf(fp, "}\n");
         fclose(fp);
     }

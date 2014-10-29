@@ -18,7 +18,7 @@
 set -e
 
 # Write out a bunch of interface source files.
-gcc -o iface-gen iface-gen.c
+gcc -Wall -Werror -o iface-gen iface-gen.c
 ./iface-gen
 
 mkdir classes

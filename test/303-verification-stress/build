@@ -18,7 +18,7 @@
 set -e
 
 # Write out a bunch of source files.
-gcc -o classes-gen classes-gen.c
+gcc -Wall -Werror -o classes-gen classes-gen.c
 ./classes-gen
 
 mkdir classes
