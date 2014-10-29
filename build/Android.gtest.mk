@@ -240,6 +240,7 @@ ART_TEST_TARGET_GTEST_RULES :=
 # Define a make rule for a target device gtest.
 # $(1): gtest name - the name of the test we're building such as leb128_test.
 # $(2): 2ND_ or undefined - used to differentiate between the primary and secondary architecture.
+# $(3): LD_LIBRARY_PATH or undefined - used in case libartd.so is not in /system/lib/
 define define-art-gtest-rule-target
   gtest_rule := test-art-target-gtest-$(1)$$($(2)ART_PHONY_TEST_TARGET_SUFFIX)
 
@@ -257,7 +258,8 @@ $$(gtest_rule): test-art-target-sync
 	$(hide) adb shell rm $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID
 	$(hide) adb shell chmod 755 $(ART_TARGET_NATIVETEST_DIR)/$(TARGET_$(2)ARCH)/$(1)
 	$(hide) $$(call ART_TEST_SKIP,$$@) && \
-	  (adb shell "$(ART_TARGET_NATIVETEST_DIR)/$(TARGET_$(2)ARCH)/$(1) && touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID" \
+	  (adb shell "LD_LIBRARY_PATH=$(3) \
+	    $(ART_TARGET_NATIVETEST_DIR)/$(TARGET_$(2)ARCH)/$(1) && touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID" \
 	  && (adb pull $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID /tmp/ \
 	      && $$(call ART_TEST_PASSED,$$@)) \
 	  || $$(call ART_TEST_FAILED,$$@))
@@ -356,12 +358,22 @@ define define-art-gtest
     LOCAL_MODULE_PATH_64 := $$(ART_TARGET_NATIVETEST_OUT)/$$(ART_TARGET_ARCH_64)
     LOCAL_MULTILIB := both
     include $$(BUILD_EXECUTABLE)
+    library_path :=
+    2nd_library_path :=
+    ifneq ($$(ART_TEST_ANDROID_ROOT),)
+      ifdef TARGET_2ND_ARCH
+        2nd_library_path := $$(ART_TEST_ANDROID_ROOT)/lib
+        library_path := $$(ART_TEST_ANDROID_ROOT)/lib64
+      else
+        library_path := $$(ART_TEST_ANDROID_ROOT)/lib
+      endif
+    endif
 
     ART_TEST_TARGET_GTEST_$$(art_gtest_name)_RULES :=
     ifdef TARGET_2ND_ARCH
-      $$(eval $$(call define-art-gtest-rule-target,$$(art_gtest_name),2ND_))
+      $$(eval $$(call define-art-gtest-rule-target,$$(art_gtest_name),2ND_,$$(2nd_library_path)))
     endif
-    $$(eval $$(call define-art-gtest-rule-target,$$(art_gtest_name),))
+    $$(eval $$(call define-art-gtest-rule-target,$$(art_gtest_name),,$$(library_path)))
 
     # A rule to run the different architecture versions of the gtest.
 .PHONY: test-art-target-gtest-$$(art_gtest_name)
