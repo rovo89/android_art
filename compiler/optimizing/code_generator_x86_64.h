@@ -123,8 +123,6 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
 
 #undef DECLARE_VISIT_INSTRUCTION
 
-  void LoadCurrentMethod(CpuRegister reg);
-
   X86_64Assembler* GetAssembler() const { return assembler_; }
 
  private:
@@ -191,6 +189,8 @@ class CodeGeneratorX86_64 : public CodeGenerator {
 
   // Helper method to move a value between two locations.
   void Move(Location destination, Location source);
+
+  void LoadCurrentMethod(CpuRegister reg);
 
   Label* GetLabelOf(HBasicBlock* block) const {
     return block_labels_.GetRawStorage() + block->GetBlockId();

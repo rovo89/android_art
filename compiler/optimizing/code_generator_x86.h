@@ -119,8 +119,6 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
 
 #undef DECLARE_VISIT_INSTRUCTION
 
-  void LoadCurrentMethod(Register reg);
-
   X86Assembler* GetAssembler() const { return assembler_; }
 
  private:
@@ -192,6 +190,8 @@ class CodeGeneratorX86 : public CodeGenerator {
 
   // Emit a write barrier.
   void MarkGCCard(Register temp, Register card, Register object, Register value);
+
+  void LoadCurrentMethod(Register reg);
 
   Label* GetLabelOf(HBasicBlock* block) const {
     return block_labels_.GetRawStorage() + block->GetBlockId();

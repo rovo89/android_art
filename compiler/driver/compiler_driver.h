@@ -311,7 +311,8 @@ class CompilerDriver {
   // field is within the referrer (which can avoid checking class initialization).
   bool ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
                               MemberOffset* field_offset, uint32_t* storage_index,
-                              bool* is_referrers_class, bool* is_volatile, bool* is_initialized)
+                              bool* is_referrers_class, bool* is_volatile, bool* is_initialized,
+                              Primitive::Type* type)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Can we fastpath a interface, super class or virtual method call? Computes method's vtable

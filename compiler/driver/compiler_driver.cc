@@ -1071,7 +1071,8 @@ bool CompilerDriver::ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompi
 bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
                                             bool is_put, MemberOffset* field_offset,
                                             uint32_t* storage_index, bool* is_referrers_class,
-                                            bool* is_volatile, bool* is_initialized) {
+                                            bool* is_volatile, bool* is_initialized,
+                                            Primitive::Type* type) {
   ScopedObjectAccess soa(Thread::Current());
   // Try to resolve the field and compiling method's class.
   mirror::ArtField* resolved_field;
@@ -1104,6 +1105,7 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
     *is_initialized = (*is_referrers_class) ||
         (IsStaticFieldsClassInitialized(referrer_class, resolved_field) &&
          CanAssumeTypeIsPresentInDexCache(*mUnit->GetDexFile(), *storage_index));
+    *type = resolved_field->GetTypeAsPrimitiveType();
   } else {
     // Conservative defaults.
     *is_volatile = true;
@@ -1111,6 +1113,7 @@ bool CompilerDriver::ComputeStaticFieldInfo(uint32_t field_idx, const DexCompila
     *storage_index = -1;
     *is_referrers_class = false;
     *is_initialized = false;
+    *type = Primitive::kPrimVoid;
   }
   ProcessedStaticField(result, *is_referrers_class);
   return result;

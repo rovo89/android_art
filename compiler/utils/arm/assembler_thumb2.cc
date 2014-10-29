@@ -2521,9 +2521,14 @@ void Thumb2Assembler::StoreDToOffset(DRegister reg,
 
 void Thumb2Assembler::MemoryBarrier(ManagedRegister mscratch) {
   CHECK_EQ(mscratch.AsArm().AsCoreRegister(), R12);
+  dmb(SY);
+}
+
+
+void Thumb2Assembler::dmb(DmbOptions flavor) {
 #if ANDROID_SMP != 0
-  int32_t encoding = 0xf3bf8f5f;  // dmb in T1 encoding.
-  Emit32(encoding);
+  int32_t encoding = 0xf3bf8f50;  // dmb in T1 encoding.
+  Emit32(encoding | flavor);
 #endif
 }
 

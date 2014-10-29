@@ -523,6 +523,9 @@ class ArmAssembler : public Assembler {
   virtual void blx(Register rm, Condition cond = AL) = 0;
   virtual void bx(Register rm, Condition cond = AL) = 0;
 
+  // Memory barriers.
+  virtual void dmb(DmbOptions flavor) = 0;
+
   void Pad(uint32_t bytes);
 
   // Macros.
