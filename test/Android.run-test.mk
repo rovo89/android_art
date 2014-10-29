@@ -371,8 +371,9 @@ $(foreach target, $(TARGET_TYPES), \
   $(foreach run_type, $(RUN_TYPES), \
     $(eval ART_RUN_TEST_$(call name-to-var,$(target))_$(call name-to-var,$(run_type))_RULES :=)))
 
-# We need dex2oat and dalvikvm on the target as well as the core image.
-TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_EXECUTABLES) $(TARGET_CORE_IMG_OUT) $(2ND_TARGET_CORE_IMG_OUT)
+# We need dex2oat and dalvikvm on the target as well as the core images (all images as we sync
+# only once).
+TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_EXECUTABLES) $(TARGET_CORE_IMG_OUTS)
 
 # Also need libarttest.
 TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttest.so
@@ -386,20 +387,19 @@ ifdef TARGET_2ND_ARCH
 TEST_ART_TARGET_SYNC_DEPS += $(ART_TARGET_TEST_OUT)/$(TARGET_2ND_ARCH)/libnativebridgetest.so
 endif
 
-# All tests require the host executables and the core images.
+# All tests require the host executables. The tests also depend on the core images, but on
+# specific version depending on the compiler.
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES := \
   $(ART_HOST_EXECUTABLES) \
   $(ART_HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) \
   $(ART_HOST_OUT_SHARED_LIBRARIES)/libnativebridgetest$(ART_HOST_SHLIB_EXTENSION) \
-  $(ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION) \
-  $(HOST_CORE_IMG_OUT)
+  $(ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
 
 ifneq ($(HOST_PREFER_32_BIT),true)
 ART_TEST_HOST_RUN_TEST_DEPENDENCIES += \
   $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libarttest$(ART_HOST_SHLIB_EXTENSION) \
   $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libnativebridgetest$(ART_HOST_SHLIB_EXTENSION) \
-  $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION) \
-  $(2ND_HOST_CORE_IMG_OUT)
+  $(2ND_ART_HOST_OUT_SHARED_LIBRARIES)/libjavacore$(ART_HOST_SHLIB_EXTENSION)
 endif
 
 # Create a rule to build and run a tests following the form:
@@ -457,7 +457,7 @@ define define-test-art-run-test
   endif
   ifeq ($(4),optimizing)
     test_groups += ART_RUN_TEST_$$(uc_host_or_target)_OPTIMIZING_RULES
-    run_test_options += -Xcompiler-option --compiler-backend=Optimizing
+    run_test_options += --optimizing
   else
     ifeq ($(4),interpreter)
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_INTERPRETER_RULES
@@ -470,6 +470,13 @@ define define-test-art-run-test
       endif
     endif
   endif
+  # Add the core dependency.
+  ifeq ($(1),host)
+    prereq_rule += $(HOST_CORE_IMAGE_$(4)_$(11))
+  else
+    prereq_rule += $(TARGET_CORE_IMAGE_$(4)_$(11))
+  endif
+
   ifeq ($(5),relocate)
     test_groups += ART_RUN_TEST_$$(uc_host_or_target)_RELOCATE_RULES
     run_test_options += --relocate
