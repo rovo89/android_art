@@ -237,6 +237,11 @@ ART_TEST_TARGET_GTEST$(ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_GTEST$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_GTEST_RULES :=
 
+ART_GTEST_TARGET_ANDROID_ROOT := '/system'
+ifneq ($(ART_TEST_ANDROID_ROOT),)
+  ART_GTEST_TARGET_ANDROID_ROOT := $(ART_TEST_ANDROID_ROOT)
+endif
+
 # Define a make rule for a target device gtest.
 # $(1): gtest name - the name of the test we're building such as leb128_test.
 # $(2): 2ND_ or undefined - used to differentiate between the primary and secondary architecture.
@@ -258,7 +263,7 @@ $$(gtest_rule): test-art-target-sync
 	$(hide) adb shell rm $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID
 	$(hide) adb shell chmod 755 $(ART_TARGET_NATIVETEST_DIR)/$(TARGET_$(2)ARCH)/$(1)
 	$(hide) $$(call ART_TEST_SKIP,$$@) && \
-	  (adb shell "LD_LIBRARY_PATH=$(3) \
+	  (adb shell "LD_LIBRARY_PATH=$(3) ANDROID_ROOT=$(ART_GTEST_TARGET_ANDROID_ROOT) \
 	    $(ART_TARGET_NATIVETEST_DIR)/$(TARGET_$(2)ARCH)/$(1) && touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID" \
 	  && (adb pull $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID /tmp/ \
 	      && $$(call ART_TEST_PASSED,$$@)) \
@@ -421,6 +426,8 @@ valgrind-test-art-host-gtest-$$(art_gtest_name): $$(ART_TEST_HOST_VALGRIND_GTEST
   art_gtest_extra_c_includes :=
   art_gtest_extra_shared_libraries :=
   art_gtest_name :=
+  library_path :=
+  2nd_library_path :=
 endef  # define-art-gtest
 
 ifeq ($(ART_BUILD_TARGET),true)
@@ -512,6 +519,7 @@ ART_TEST_HOST_VALGRIND_GTEST_RULES :=
 ART_TEST_TARGET_GTEST$(ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_GTEST$(2ND_ART_PHONY_TEST_TARGET_SUFFIX)_RULES :=
 ART_TEST_TARGET_GTEST_RULES :=
+ART_GTEST_TARGET_ANDROID_ROOT :=
 ART_GTEST_class_linker_test_DEX_DEPS :=
 ART_GTEST_compiler_driver_test_DEX_DEPS :=
 ART_GTEST_dex_file_test_DEX_DEPS :=
