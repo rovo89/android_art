@@ -1043,11 +1043,13 @@ void LocationsBuilderARM::VisitNeg(HNeg* neg) {
       new (GetGraph()->GetArena()) LocationSummary(neg, LocationSummary::kNoCall);
   switch (neg->GetResultType()) {
     case Primitive::kPrimInt:
+    case Primitive::kPrimLong: {
+      bool output_overlaps = (neg->GetResultType() == Primitive::kPrimLong);
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetOut(Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), output_overlaps);
       break;
+    }
 
-    case Primitive::kPrimLong:
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       LOG(FATAL) << "Not yet implemented neg type " << neg->GetResultType();
@@ -1069,6 +1071,15 @@ void InstructionCodeGeneratorARM::VisitNeg(HNeg* neg) {
       break;
 
     case Primitive::kPrimLong:
+      DCHECK(in.IsRegisterPair());
+      __ rsbs(out.AsRegisterPairLow<Register>(),
+              in.AsRegisterPairLow<Register>(),
+              ShifterOperand(0));
+      __ rsc(out.AsRegisterPairHigh<Register>(),
+             in.AsRegisterPairHigh<Register>(),
+             ShifterOperand(0));
+      break;
+
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       LOG(FATAL) << "Not yet implemented neg type " << neg->GetResultType();
