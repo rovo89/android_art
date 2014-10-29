@@ -320,7 +320,12 @@ void BitVector::EnsureSize(uint32_t idx) {
     memcpy(new_storage, storage_, storage_size_ * kWordBytes);
     // Zero out the new storage words.
     memset(&new_storage[storage_size_], 0, (new_size - storage_size_) * kWordBytes);
-    // TOTO: collect stats on space wasted because of resize.
+    // TODO: collect stats on space wasted because of resize.
+
+    // Free old storage.
+    allocator_->Free(storage_);
+
+    // Set fields.
     storage_ = new_storage;
     storage_size_ = new_size;
   }
