@@ -4051,13 +4051,10 @@ static void CheckProxyMethod(Handle<mirror::ArtMethod> method,
   CHECK(prototype->HasSameDexCacheResolvedTypes(method.Get()));
   CHECK_EQ(prototype->GetDexMethodIndex(), method->GetDexMethodIndex());
 
-  StackHandleScope<2> hs(Thread::Current());
-  MethodHelper mh(hs.NewHandle(method.Get()));
-  MethodHelper mh2(hs.NewHandle(prototype.Get()));
   CHECK_STREQ(method->GetName(), prototype->GetName());
   CHECK_STREQ(method->GetShorty(), prototype->GetShorty());
   // More complex sanity - via dex cache
-  CHECK_EQ(mh.GetReturnType(), mh2.GetReturnType());
+  CHECK_EQ(method->GetInterfaceMethodIfProxy()->GetReturnType(), prototype->GetReturnType());
 }
 
 static bool CanWeInitializeClass(mirror::Class* klass, bool can_init_statics,
@@ -4322,7 +4319,8 @@ bool ClassLinker::ValidateSuperClassDescriptors(Handle<mirror::Class> klass) {
     return true;
   }
   // Begin with the methods local to the superclass.
-  StackHandleScope<2> hs(Thread::Current());
+  Thread* self = Thread::Current();
+  StackHandleScope<2> hs(self);
   MutableMethodHelper mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
   MutableMethodHelper super_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
   if (klass->HasSuperClass() &&
@@ -4331,7 +4329,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(Handle<mirror::Class> klass) {
       mh.ChangeMethod(klass->GetVTableEntry(i));
       super_mh.ChangeMethod(klass->GetSuperClass()->GetVTableEntry(i));
       if (mh.GetMethod() != super_mh.GetMethod() &&
-          !mh.HasSameSignatureWithDifferentClassLoaders(&super_mh)) {
+          !mh.HasSameSignatureWithDifferentClassLoaders(self, &super_mh)) {
         ThrowLinkageError(klass.Get(),
                           "Class %s method %s resolves differently in superclass %s",
                           PrettyDescriptor(klass.Get()).c_str(),
@@ -4348,7 +4346,7 @@ bool ClassLinker::ValidateSuperClassDescriptors(Handle<mirror::Class> klass) {
         mh.ChangeMethod(klass->GetIfTable()->GetMethodArray(i)->GetWithoutChecks(j));
         super_mh.ChangeMethod(klass->GetIfTable()->GetInterface(i)->GetVirtualMethod(j));
         if (mh.GetMethod() != super_mh.GetMethod() &&
-            !mh.HasSameSignatureWithDifferentClassLoaders(&super_mh)) {
+            !mh.HasSameSignatureWithDifferentClassLoaders(self, &super_mh)) {
           ThrowLinkageError(klass.Get(),
                             "Class %s method %s resolves differently in interface %s",
                             PrettyDescriptor(klass.Get()).c_str(),
