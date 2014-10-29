@@ -187,7 +187,7 @@ bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint1
 
 // Handles string resolution for const-string and const-string-jumbo instructions. Also ensures the
 // java.lang.String class is initialized.
-static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t string_idx)
+static inline String* ResolveString(Thread* self, ShadowFrame& shadow_frame, uint32_t string_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CHECK(!kMovingMethods);
   Class* java_lang_string_class = String::GetJavaLangString();
@@ -200,7 +200,15 @@ static inline String* ResolveString(Thread* self, MethodHelper& mh, uint32_t str
       return nullptr;
     }
   }
-  return mh.ResolveString(string_idx);
+  mirror::ArtMethod* method = shadow_frame.GetMethod();
+  mirror::String* s = method->GetDexCacheStrings()->Get(string_idx);
+  if (UNLIKELY(s == nullptr)) {
+    StackHandleScope<1> hs(self);
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
+    s = Runtime::Current()->GetClassLinker()->ResolveString(*method->GetDexFile(), string_idx,
+                                                            dex_cache);
+  }
+  return s;
 }
 
 // Handles div-int, div-int/2addr, div-int/li16 and div-int/lit8 instructions.
