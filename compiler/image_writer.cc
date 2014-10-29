@@ -580,7 +580,8 @@ void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
                                     PointerToLowMemUInt32(oat_file_begin),
                                     PointerToLowMemUInt32(oat_data_begin_),
                                     PointerToLowMemUInt32(oat_data_end),
-                                    PointerToLowMemUInt32(oat_file_end));
+                                    PointerToLowMemUInt32(oat_file_end),
+                                    compile_pic_);
 }
 
 

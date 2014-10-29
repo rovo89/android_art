@@ -139,7 +139,7 @@ TEST_F(OatTest, WriteRead) {
     compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
   }
   std::unique_ptr<OatFile> oat_file(OatFile::Open(tmp.GetFilename(), tmp.GetFilename(), nullptr,
-                                                  false, &error_msg));
+                                                  nullptr, false, &error_msg));
   ASSERT_TRUE(oat_file.get() != nullptr) << error_msg;
   const OatHeader& oat_header = oat_file->GetOatHeader();
   ASSERT_TRUE(oat_header.IsValid());
