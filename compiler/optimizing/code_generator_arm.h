@@ -125,7 +125,6 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
 #undef DECLARE_VISIT_INSTRUCTION
 
   ArmAssembler* GetAssembler() const { return assembler_; }
-  void LoadCurrentMethod(Register reg);
 
  private:
   // Generate code for the given suspend check. If not null, `successor`
@@ -193,6 +192,12 @@ class CodeGeneratorARM : public CodeGenerator {
   void Move32(Location destination, Location source);
   // Helper method to move a 64bits value between two locations.
   void Move64(Location destination, Location source);
+
+  // Load current method into `reg`.
+  void LoadCurrentMethod(Register reg);
+
+  // Generate code to invoke a runtime entry point.
+  void InvokeRuntime(int32_t offset, HInstruction* instruction, uint32_t dex_pc);
 
   // Emit a write barrier.
   void MarkGCCard(Register temp, Register card, Register object, Register value);

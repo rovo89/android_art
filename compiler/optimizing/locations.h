@@ -360,6 +360,15 @@ class RegisterSet : public ValueObject {
     }
   }
 
+  void Remove(Location loc) {
+    if (loc.IsRegister()) {
+      core_registers_ &= ~(1 << loc.reg());
+    } else {
+      DCHECK(loc.IsFpuRegister());
+      floating_point_registers_ &= ~(1 << loc.reg());
+    }
+  }
+
   bool ContainsCoreRegister(uint32_t id) {
     return Contains(core_registers_, id);
   }

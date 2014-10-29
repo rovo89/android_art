@@ -228,6 +228,8 @@ class Arm32Assembler FINAL : public ArmAssembler {
   void CompareAndBranchIfZero(Register r, Label* label) OVERRIDE;
   void CompareAndBranchIfNonZero(Register r, Label* label) OVERRIDE;
 
+  // Memory barriers.
+  void dmb(DmbOptions flavor) OVERRIDE;
 
   // Macros.
   // Add signed constant value to rd. May clobber IP.
