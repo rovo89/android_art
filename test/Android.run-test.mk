@@ -601,6 +601,9 @@ define define-test-art-run-test
   run_test_rule_name := test-art-$(1)-run-test-$(2)-$(3)-$(4)-$(5)-$(6)-$(7)-$(8)-$(9)-$(10)-$(11)$(12)
   run_test_options := --output-path $(ART_HOST_TEST_DIR)/run-test-output/$$(run_test_rule_name) \
       $$(run_test_options)
+  ifneq ($(ART_TEST_ANDROID_ROOT),)
+    run_test_options := --android-root $(ART_TEST_ANDROID_ROOT) $$(run_test_options)
+  endif
 $$(run_test_rule_name): PRIVATE_RUN_TEST_OPTIONS := $$(run_test_options)
 .PHONY: $$(run_test_rule_name)
 $$(run_test_rule_name): $(DX) $(HOST_OUT_EXECUTABLES)/jasmin $(HOST_OUT_EXECUTABLES)/smali $(HOST_OUT_EXECUTABLES)/dexmerger $$(prereq_rule)

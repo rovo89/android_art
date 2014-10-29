@@ -8,9 +8,11 @@ msg() {
     fi
 }
 
+ANDROID_ROOT="/system"
 ARCHITECTURES_32="(arm|x86|mips|none)"
 ARCHITECTURES_64="(arm64|x86_64|none)"
 ARCHITECTURES_PATTERN="${ARCHITECTURES_32}"
+BOOT_IMAGE=""
 COMPILE_FLAGS=""
 DALVIKVM="dalvikvm32"
 DEBUGGER="n"
@@ -26,6 +28,8 @@ HOST="n"
 INTERPRETER="n"
 INVOKE_WITH=""
 ISA=x86
+LIBRARY_DIRECTORY="lib"
+MAIN=""
 OPTIMIZE="y"
 PATCHOAT=""
 PREBUILD="y"
@@ -35,7 +39,6 @@ USE_GDB="n"
 USE_JVM="n"
 VERIFY="y"
 ZYGOTE=""
-MAIN=""
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -62,8 +65,7 @@ while true; do
         shift
     elif [ "x$1" = "x--boot" ]; then
         shift
-        DALVIKVM_BOOT_OPT="$1"
-        DEX2OAT_BOOT_OPT="--boot-image=${1#-Ximage:}"
+        BOOT_IMAGE="$1"
         shift
     elif [ "x$1" = "x--no-dex2oat" ]; then
         DEX2OAT="-Xcompiler:${FALSE_BIN}"
@@ -127,6 +129,10 @@ while true; do
     elif [ "x$1" = "x--no-optimize" ]; then
         OPTIMIZE="n"
         shift
+    elif [ "x$1" = "x--android-root" ]; then
+        shift
+        ANDROID_ROOT="$1"
+        shift
     elif [ "x$1" = "x--" ]; then
         shift
         break
@@ -134,6 +140,7 @@ while true; do
         ISA="x86_64"
         GDB_SERVER="gdbserver64"
         DALVIKVM="dalvikvm64"
+        LIBRARY_DIRECTORY="lib64"
         ARCHITECTURES_PATTERN="${ARCHITECTURES_64}"
         shift
     elif [ "x$1" = "x--pic-test" ]; then
@@ -201,7 +208,11 @@ fi
 
 
 if [ "$HAVE_IMAGE" = "n" ]; then
-    BOOT_OPT="-Ximage:/system/non-existant/core.art"
+    DALVIKVM_BOOT_OPT="-Ximage:/system/non-existant/core.art"
+    DEX2OAT_BOOT_OPT="--boot-image=/system/non-existant/core.art"
+else
+    DALVIKVM_BOOT_OPT="-Ximage:${BOOT_IMAGE}"
+    DEX2OAT_BOOT_OPT="--boot-image=${BOOT_IMAGE}"
 fi
 
 
@@ -258,7 +269,7 @@ dex2oat_cmdline="true"
 mkdir_cmdline="mkdir -p ${DEX_LOCATION}/dalvik-cache/$ISA"
 
 if [ "$PREBUILD" = "y" ]; then
-  dex2oat_cmdline="$INVOKE_WITH dex2oatd \
+  dex2oat_cmdline="$INVOKE_WITH $ANDROID_ROOT/bin/dex2oatd \
                       $COMPILE_FLAGS \
                       $DEX2OAT_BOOT_OPT \
                       --dex-file=$DEX_LOCATION/$TEST_NAME.jar \
@@ -266,7 +277,7 @@ if [ "$PREBUILD" = "y" ]; then
                       --instruction-set=$ISA"
 fi
 
-dalvikvm_cmdline="$INVOKE_WITH $GDB $DALVIKVM \
+dalvikvm_cmdline="$INVOKE_WITH $GDB $ANDROID_ROOT/bin/$DALVIKVM \
                   $GDB_ARGS \
                   $FLAGS \
                   -XXlib:$LIB \
@@ -301,6 +312,8 @@ if [ "$HOST" = "n" ]; then
     cmdline="cd $DEX_LOCATION && \
              export ANDROID_DATA=$DEX_LOCATION && \
              export DEX_LOCATION=$DEX_LOCATION && \
+             export ANDROID_ROOT=$ANDROID_ROOT && \
+             export LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBRARY_DIRECTORY && \
              $mkdir_cmdline && \
              $dex2oat_cmdline && \
              $dalvikvm_cmdline"
