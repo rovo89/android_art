@@ -632,8 +632,8 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   }
 
   // Box if necessary and return.
-  return soa.AddLocalReference<jobject>(BoxPrimitive(mh.GetReturnType()->GetPrimitiveType(),
-                                                     result));
+  return soa.AddLocalReference<jobject>(
+      BoxPrimitive(Primitive::GetType(mh.GetMethod()->GetReturnTypeDescriptor()[0]), result));
 }
 
 bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c) {

@@ -467,6 +467,20 @@ inline void ArtMethod::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cach
                         new_dex_cache_classes);
 }
 
+inline mirror::Class* ArtMethod::GetReturnType(bool resolve) {
+  DCHECK(!IsProxyMethod());
+  const DexFile* dex_file = GetDexFile();
+  const DexFile::MethodId& method_id = dex_file->GetMethodId(GetDexMethodIndex());
+  const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
+  uint16_t return_type_idx = proto_id.return_type_idx_;
+  mirror::Class* type = GetDexCacheResolvedType(return_type_idx);
+  if (type == nullptr && resolve) {
+    type = Runtime::Current()->GetClassLinker()->ResolveType(return_type_idx, this);
+    CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
+  }
+  return type;
+}
+
 }  // namespace mirror
 }  // namespace art
 
