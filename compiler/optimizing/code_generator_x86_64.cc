@@ -1299,7 +1299,7 @@ void InstructionCodeGeneratorX86_64::VisitNot(HNot* not_) {
       break;
 
     case Primitive::kPrimLong:
-      LOG(FATAL) << "Not yet implemented type for not operation " << not_->GetResultType();
+      __ notq(out.As<CpuRegister>());
       break;
 
     default:
