@@ -63,6 +63,12 @@ ART_TEST_INTERPRETER ?= $(ART_TEST_FULL)
 # Do you want optimizing compiler tests run?
 ART_TEST_OPTIMIZING ?= $(ART_TEST_FULL)
 
+# Do we want to test a PIC-compiled core image?
+ART_TEST_PIC_IMAGE ?= $(ART_TEST_FULL)
+
+# Do we want to test PIC-compiled tests ("apps")?
+ART_TEST_PIC_TEST ?= $(ART_TEST_FULL)
+
 # Do you want tracing tests run?
 ART_TEST_TRACE ?= $(ART_TEST_FULL)
 
