@@ -69,6 +69,7 @@ enum DataFlowAttributePos {
   kUsesMethodStar,       // Implicit use of Method*.
   kUsesIField,           // Accesses an instance field (IGET/IPUT).
   kUsesSField,           // Accesses a static field (SGET/SPUT).
+  kCanInitializeClass,   // Can trigger class initialization (SGET/SPUT/INVOKE_STATIC).
   kDoLVN,                // Worth computing local value numbers.
 };
 
@@ -105,6 +106,7 @@ enum DataFlowAttributePos {
 #define DF_UMS                  (UINT64_C(1) << kUsesMethodStar)
 #define DF_IFIELD               (UINT64_C(1) << kUsesIField)
 #define DF_SFIELD               (UINT64_C(1) << kUsesSField)
+#define DF_CLINIT               (UINT64_C(1) << kCanInitializeClass)
 #define DF_LVN                  (UINT64_C(1) << kDoLVN)
 
 #define DF_HAS_USES             (DF_UA | DF_UB | DF_UC)
@@ -146,7 +148,8 @@ enum OatMethodAttributes {
 #define MIR_NULL_CHECK_ONLY             (1 << kMIRNullCheckOnly)
 #define MIR_IGNORE_RANGE_CHECK          (1 << kMIRIgnoreRangeCheck)
 #define MIR_RANGE_CHECK_ONLY            (1 << kMIRRangeCheckOnly)
-#define MIR_IGNORE_CLINIT_CHECK         (1 << kMIRIgnoreClInitCheck)
+#define MIR_CLASS_IS_INITIALIZED        (1 << kMIRClassIsInitialized)
+#define MIR_CLASS_IS_IN_DEX_CACHE       (1 << kMIRClassIsInDexCache)
 #define MIR_IGNORE_DIV_ZERO_CHECK       (1 << kMirIgnoreDivZeroCheck)
 #define MIR_INLINED                     (1 << kMIRInlined)
 #define MIR_INLINED_PRED                (1 << kMIRInlinedPred)
