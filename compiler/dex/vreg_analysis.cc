@@ -378,7 +378,20 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
         changed |= SetWide(defs[1]);
         changed |= SetHigh(defs[1]);
       }
+
+      bool has_ins = (GetNumOfInVRs() > 0);
+
       for (int i = 0; i < ssa_rep->num_uses; i++) {
+        if (has_ins && IsInVReg(uses[i])) {
+          // NB: The SSA name for the first def of an in-reg will be the same as
+          // the reg's actual name.
+          if (!reg_location_[uses[i]].fp && defined_fp) {
+            // If we were about to infer that this first def of an in-reg is a float
+            // when it wasn't previously (because float/int is set during SSA initialization),
+            // do not allow this to happen.
+            continue;
+          }
+        }
         changed |= SetFp(uses[i], defined_fp);
         changed |= SetCore(uses[i], defined_core);
         changed |= SetRef(uses[i], defined_ref);
