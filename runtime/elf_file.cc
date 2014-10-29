@@ -115,7 +115,7 @@ template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_
           typename Elf_Rela, typename Elf_Dyn, typename Elf_Off>
 ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
-    ::ElfFileImpl(File* file, bool writable, bool program_header_only)
+    ::ElfFileImpl(File* file, bool writable, bool program_header_only, uint8_t* requested_base)
   : file_(file),
     writable_(writable),
     program_header_only_(program_header_only),
@@ -133,7 +133,8 @@ ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     symtab_symbol_table_(nullptr),
     dynsym_symbol_table_(nullptr),
     jit_elf_image_(nullptr),
-    jit_gdb_entry_(nullptr) {
+    jit_gdb_entry_(nullptr),
+    requested_base_(requested_base) {
   CHECK(file != nullptr);
 }
 
@@ -145,12 +146,12 @@ ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
     ::Open(File* file, bool writable, bool program_header_only,
-           std::string* error_msg) {
+           std::string* error_msg, uint8_t* requested_base) {
   std::unique_ptr<ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>>
     elf_file(new ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
                  Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
-                 (file, writable, program_header_only));
+                 (file, writable, program_header_only, requested_base));
   int prot;
   int flags;
   if (writable) {
@@ -178,7 +179,8 @@ ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>>
     elf_file(new ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
                  Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
-                 (file, (prot & PROT_WRITE) == PROT_WRITE, false));
+                 (file, (prot & PROT_WRITE) == PROT_WRITE, /*program_header_only*/false,
+                 /*requested_base*/nullptr));
   if (!elf_file->Setup(prot, flags, error_msg)) {
     return nullptr;
   }
@@ -919,6 +921,8 @@ const uint8_t* ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
   }
   const Elf_Sym* sym = FindDynamicSymbol(symbol_name);
   if (sym != nullptr) {
+    // TODO: we need to change this to calculate base_address_ in ::Open,
+    // otherwise it will be wrongly 0 if ::Load has not yet been called.
     return base_address_ + sym->st_value;
   } else {
     return nullptr;
@@ -1364,12 +1368,16 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     }
     size_t file_length = static_cast<size_t>(temp_file_length);
     if (!reserved) {
-      uint8_t* reserve_base = ((program_header->p_vaddr != 0) ?
-                            reinterpret_cast<uint8_t*>(program_header->p_vaddr) : nullptr);
+      uint8_t* reserve_base = reinterpret_cast<uint8_t*>(program_header->p_vaddr);
+      uint8_t* reserve_base_override = reserve_base;
+      // Override the base (e.g. when compiling with --compile-pic)
+      if (requested_base_ != nullptr) {
+        reserve_base_override = requested_base_;
+      }
       std::string reservation_name("ElfFile reservation for ");
       reservation_name += file_->GetPath();
       std::unique_ptr<MemMap> reserve(MemMap::MapAnonymous(reservation_name.c_str(),
-                                                           reserve_base,
+                                                           reserve_base_override,
                                                            GetLoadedSize(), PROT_NONE, false,
                                                            error_msg));
       if (reserve.get() == nullptr) {
@@ -1378,9 +1386,15 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
         return false;
       }
       reserved = true;
-      if (reserve_base == nullptr) {
-        base_address_ = reserve->Begin();
-      }
+
+      // Base address is the difference of actual mapped location and the p_vaddr
+      base_address_ = reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(reserve->Begin())
+                       - reinterpret_cast<uintptr_t>(reserve_base));
+      // By adding the p_vaddr of a section/symbol to base_address_ we will always get the
+      // dynamic memory address of where that object is actually mapped
+      //
+      // TODO: base_address_ needs to be calculated in ::Open, otherwise
+      // FindDynamicSymbolAddress returns the wrong values until Load is called.
       segments_.push_back(reserve.release());
     }
     // empty segment, nothing to map
@@ -2425,7 +2439,8 @@ ElfFile::~ElfFile() {
   CHECK_NE(elf32_.get() == nullptr, elf64_.get() == nullptr);
 }
 
-ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only, std::string* error_msg) {
+ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only, std::string* error_msg,
+                       uint8_t* requested_base) {
   if (file->GetLength() < EI_NIDENT) {
     *error_msg = StringPrintf("File %s is too short to be a valid ELF file",
                               file->GetPath().c_str());
@@ -2438,12 +2453,14 @@ ElfFile* ElfFile::Open(File* file, bool writable, bool program_header_only, std:
   }
   uint8_t* header = map->Begin();
   if (header[EI_CLASS] == ELFCLASS64) {
-    ElfFileImpl64* elf_file_impl = ElfFileImpl64::Open(file, writable, program_header_only, error_msg);
+    ElfFileImpl64* elf_file_impl = ElfFileImpl64::Open(file, writable, program_header_only,
+                                                       error_msg, requested_base);
     if (elf_file_impl == nullptr)
       return nullptr;
     return new ElfFile(elf_file_impl);
   } else if (header[EI_CLASS] == ELFCLASS32) {
-    ElfFileImpl32* elf_file_impl = ElfFileImpl32::Open(file, writable, program_header_only, error_msg);
+    ElfFileImpl32* elf_file_impl = ElfFileImpl32::Open(file, writable, program_header_only,
+                                                       error_msg, requested_base);
     if (elf_file_impl == nullptr) {
       return nullptr;
     }

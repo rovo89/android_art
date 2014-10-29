@@ -28,7 +28,7 @@ namespace art {
 // header of image files written by ImageWriter, read and validated by Space.
 class PACKED(4) ImageHeader {
  public:
-  ImageHeader() {}
+  ImageHeader() : compile_pic_(0) {}
 
   ImageHeader(uint32_t image_begin,
               uint32_t image_size_,
@@ -39,7 +39,8 @@ class PACKED(4) ImageHeader {
               uint32_t oat_file_begin,
               uint32_t oat_data_begin,
               uint32_t oat_data_end,
-              uint32_t oat_file_end);
+              uint32_t oat_file_end,
+              bool compile_pic_);
 
   bool IsValid() const;
   const char* GetMagic() const;
@@ -121,6 +122,10 @@ class PACKED(4) ImageHeader {
 
   void RelocateImage(off_t delta);
 
+  bool CompilePic() const {
+    return compile_pic_ != 0;
+  }
+
  private:
   static const uint8_t kImageMagic[4];
   static const uint8_t kImageVersion[4];
@@ -161,6 +166,9 @@ class PACKED(4) ImageHeader {
 
   // Absolute address of an Object[] of objects needed to reinitialize from an image.
   uint32_t image_roots_;
+
+  // Boolean (0 or 1) to denote if the image was compiled with --compile-pic option
+  const uint32_t compile_pic_;
 
   friend class ImageWriter;
 };

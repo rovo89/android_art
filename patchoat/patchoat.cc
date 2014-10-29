@@ -74,7 +74,7 @@ static bool LocationToFilename(const std::string& location, InstructionSet isa,
   bool has_system = false;
   bool has_cache = false;
   // image_location = /system/framework/boot.art
-  // system_image_location = /system/framework/<image_isa>/boot.art
+  // system_image_filename = /system/framework/<image_isa>/boot.art
   std::string system_filename(GetSystemImageFilename(location.c_str(), isa));
   if (OS::FileExists(system_filename.c_str())) {
     has_system = true;
@@ -133,6 +133,7 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
                << " for location " << image_location;
     return false;
   }
+
   int64_t image_len = input_image->GetLength();
   if (image_len < 0) {
     LOG(ERROR) << "Error while getting image length";
@@ -144,6 +145,10 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
     LOG(ERROR) << "Unable to read image header from image file " << input_image->GetPath();
     return false;
   }
+
+  /*bool is_image_pic = */IsImagePic(image_header, input_image->GetPath());
+  // Nothing special to do right now since the image always needs to get patched.
+  // Perhaps in some far-off future we may have images with relative addresses that are true-PIC.
 
   // Set up the runtime
   RuntimeOptions options;
@@ -189,9 +194,11 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
   return true;
 }
 
-bool PatchOat::Patch(const File* input_oat, const std::string& image_location, off_t delta,
+bool PatchOat::Patch(File* input_oat, const std::string& image_location, off_t delta,
                      File* output_oat, File* output_image, InstructionSet isa,
-                     TimingLogger* timings) {
+                     TimingLogger* timings,
+                     bool output_oat_opened_from_fd,
+                     bool new_oat_out) {
   CHECK(Runtime::Current() == nullptr);
   CHECK(output_image != nullptr);
   CHECK_GE(output_image->Fd(), 0);
@@ -234,6 +241,10 @@ bool PatchOat::Patch(const File* input_oat, const std::string& image_location, o
     LOG(ERROR) << "Unable to read image header from image file " << input_image->GetPath();
   }
 
+  /*bool is_image_pic = */IsImagePic(image_header, input_image->GetPath());
+  // Nothing special to do right now since the image always needs to get patched.
+  // Perhaps in some far-off future we may have images with relative addresses that are true-PIC.
+
   // Set up the runtime
   RuntimeOptions options;
   NoopCompilerCallbacks callbacks;
@@ -263,17 +274,37 @@ bool PatchOat::Patch(const File* input_oat, const std::string& image_location, o
   }
   gc::space::ImageSpace* ispc = Runtime::Current()->GetHeap()->GetImageSpace();
 
-  std::unique_ptr<ElfFile> elf(ElfFile::Open(const_cast<File*>(input_oat),
+  std::unique_ptr<ElfFile> elf(ElfFile::Open(input_oat,
                                              PROT_READ | PROT_WRITE, MAP_PRIVATE, &error_msg));
   if (elf.get() == nullptr) {
     LOG(ERROR) << "unable to open oat file " << input_oat->GetPath() << " : " << error_msg;
     return false;
   }
 
+  bool skip_patching_oat = false;
+  MaybePic is_oat_pic = IsOatPic(elf.get());
+  if (is_oat_pic >= ERROR_FIRST) {
+    // Error logged by IsOatPic
+    return false;
+  } else if (is_oat_pic == PIC) {
+    // Do not need to do ELF-file patching. Create a symlink and skip the ELF patching.
+    if (!ReplaceOatFileWithSymlink(input_oat->GetPath(),
+                                   output_oat->GetPath(),
+                                   output_oat_opened_from_fd,
+                                   new_oat_out)) {
+      // Errors already logged by above call.
+      return false;
+    }
+    // Don't patch the OAT, since we just symlinked it. Image still needs patching.
+    skip_patching_oat = true;
+  } else {
+    CHECK(is_oat_pic == NOT_PIC);
+  }
+
   PatchOat p(elf.release(), image.release(), ispc->GetLiveBitmap(), ispc->GetMemMap(),
              delta, timings);
   t.NewTiming("Patching files");
-  if (!p.PatchElf()) {
+  if (!skip_patching_oat && !p.PatchElf()) {
     LOG(ERROR) << "Failed to patch oat file " << input_oat->GetPath();
     return false;
   }
@@ -283,10 +314,12 @@ bool PatchOat::Patch(const File* input_oat, const std::string& image_location, o
   }
 
   t.NewTiming("Writing files");
-  if (!p.WriteElf(output_oat)) {
+  if (!skip_patching_oat && !p.WriteElf(output_oat)) {
+    LOG(ERROR) << "Failed to write oat file " << input_oat->GetPath();
     return false;
   }
   if (!p.WriteImage(output_image)) {
+    LOG(ERROR) << "Failed to write image file " << input_image->GetPath();
     return false;
   }
   return true;
@@ -324,6 +357,83 @@ bool PatchOat::WriteImage(File* out) {
     LOG(ERROR) << "Writing to image file " << out->GetPath() << " failed.";
     return false;
   }
+}
+
+bool PatchOat::IsImagePic(const ImageHeader& image_header, const std::string& image_path) {
+  if (!image_header.CompilePic()) {
+    if (kIsDebugBuild) {
+      LOG(INFO) << "image at location " << image_path << " was *not* compiled pic";
+    }
+    return false;
+  }
+
+  if (kIsDebugBuild) {
+    LOG(INFO) << "image at location " << image_path << " was compiled PIC";
+  }
+
+  return true;
+}
+
+PatchOat::MaybePic PatchOat::IsOatPic(const ElfFile* oat_in) {
+  if (oat_in == nullptr) {
+    LOG(ERROR) << "No ELF input oat fie available";
+    return ERROR_OAT_FILE;
+  }
+
+  const std::string& file_path = oat_in->GetFile().GetPath();
+
+  const OatHeader* oat_header = GetOatHeader(oat_in);
+  if (oat_header == nullptr) {
+    LOG(ERROR) << "Failed to find oat header in oat file " << file_path;
+    return ERROR_OAT_FILE;
+  }
+
+  if (!oat_header->IsValid()) {
+    LOG(ERROR) << "Elf file " << file_path << " has an invalid oat header";
+    return ERROR_OAT_FILE;
+  }
+
+  bool is_pic = oat_header->IsPic();
+  if (kIsDebugBuild) {
+    LOG(INFO) << "Oat file at " << file_path << " is " << (is_pic ? "PIC" : "not pic");
+  }
+
+  return is_pic ? PIC : NOT_PIC;
+}
+
+bool PatchOat::ReplaceOatFileWithSymlink(const std::string& input_oat_filename,
+                                         const std::string& output_oat_filename,
+                                         bool output_oat_opened_from_fd,
+                                         bool new_oat_out) {
+  // Need a file when we are PIC, since we symlink over it. Refusing to symlink into FD.
+  if (output_oat_opened_from_fd) {
+    // TODO: installd uses --output-oat-fd. Should we change class linking logic for PIC?
+    LOG(ERROR) << "No output oat filename specified, needs filename for when we are PIC";
+    return false;
+  }
+
+  // Image was PIC. Create symlink where the oat is supposed to go.
+  if (!new_oat_out) {
+    LOG(ERROR) << "Oat file " << output_oat_filename << " already exists, refusing to overwrite";
+    return false;
+  }
+
+  // Delete the original file, since we won't need it.
+  TEMP_FAILURE_RETRY(unlink(output_oat_filename.c_str()));
+
+  // Create a symlink from the old oat to the new oat
+  if (symlink(input_oat_filename.c_str(), output_oat_filename.c_str()) < 0) {
+    int err = errno;
+    LOG(ERROR) << "Failed to create symlink at " << output_oat_filename
+               << " error(" << err << "): " << strerror(err);
+    return false;
+  }
+
+  if (kIsDebugBuild) {
+    LOG(INFO) << "Created symlink " << output_oat_filename << " -> " << input_oat_filename;
+  }
+
+  return true;
 }
 
 bool PatchOat::PatchImage() {
@@ -391,6 +501,25 @@ mirror::Object* PatchOat::RelocatedAddressOf(mirror::Object* obj) {
   }
 }
 
+const OatHeader* PatchOat::GetOatHeader(const ElfFile* elf_file) {
+  if (elf_file->Is64Bit()) {
+    return GetOatHeader<ElfFileImpl64>(elf_file->GetImpl64());
+  } else {
+    return GetOatHeader<ElfFileImpl32>(elf_file->GetImpl32());
+  }
+}
+
+template <typename ElfFileImpl>
+const OatHeader* PatchOat::GetOatHeader(const ElfFileImpl* elf_file) {
+  auto rodata_sec = elf_file->FindSectionByName(".rodata");
+  if (rodata_sec == nullptr) {
+    return nullptr;
+  }
+
+  OatHeader* oat_header = reinterpret_cast<OatHeader*>(elf_file->Begin() + rodata_sec->sh_offset);
+  return oat_header;
+}
+
 // Called by BitmapCallback
 void PatchOat::VisitObject(mirror::Object* object) {
   mirror::Object* copy = RelocatedCopyOf(object);
@@ -442,7 +571,8 @@ void PatchOat::FixupMethod(mirror::ArtMethod* object, mirror::ArtMethod* copy) {
   }
 }
 
-bool PatchOat::Patch(File* input_oat, off_t delta, File* output_oat, TimingLogger* timings) {
+bool PatchOat::Patch(File* input_oat, off_t delta, File* output_oat, TimingLogger* timings,
+                     bool output_oat_opened_from_fd, bool new_oat_out) {
   CHECK(input_oat != nullptr);
   CHECK(output_oat != nullptr);
   CHECK_GE(input_oat->Fd(), 0);
@@ -450,11 +580,26 @@ bool PatchOat::Patch(File* input_oat, off_t delta, File* output_oat, TimingLogge
   TimingLogger::ScopedTiming t("Setup Oat File Patching", timings);
 
   std::string error_msg;
-  std::unique_ptr<ElfFile> elf(ElfFile::Open(const_cast<File*>(input_oat),
+  std::unique_ptr<ElfFile> elf(ElfFile::Open(input_oat,
                                              PROT_READ | PROT_WRITE, MAP_PRIVATE, &error_msg));
   if (elf.get() == nullptr) {
     LOG(ERROR) << "unable to open oat file " << input_oat->GetPath() << " : " << error_msg;
     return false;
+  }
+
+  MaybePic is_oat_pic = IsOatPic(elf.get());
+  if (is_oat_pic >= ERROR_FIRST) {
+    // Error logged by IsOatPic
+    return false;
+  } else if (is_oat_pic == PIC) {
+    // Do not need to do ELF-file patching. Create a symlink and skip the rest.
+    // Any errors will be logged by the function call.
+    return ReplaceOatFileWithSymlink(input_oat->GetPath(),
+                                     output_oat->GetPath(),
+                                     output_oat_opened_from_fd,
+                                     new_oat_out);
+  } else {
+    CHECK(is_oat_pic == NOT_PIC);
   }
 
   PatchOat p(elf.release(), delta, timings);
@@ -1043,11 +1188,17 @@ static int patchoat(int argc, char **argv) {
         input_oat_filename = "input-oat-file";
       }
       input_oat.reset(new File(input_oat_fd, input_oat_filename));
+      if (input_oat == nullptr) {
+        // Unlikely, but ensure exhaustive logging in non-0 exit code case
+        LOG(ERROR) << "Failed to open input oat file by its FD" << input_oat_fd;
+      }
     } else {
       CHECK(!input_oat_filename.empty());
       input_oat.reset(OS::OpenFileForReading(input_oat_filename.c_str()));
-      if (input_oat.get() == nullptr) {
-        LOG(ERROR) << "Could not open input oat file: " << strerror(errno);
+      if (input_oat == nullptr) {
+        int err = errno;
+        LOG(ERROR) << "Failed to open input oat file " << input_oat_filename
+                   << ": " << strerror(err) << "(" << err << ")";
       }
     }
 
@@ -1056,12 +1207,22 @@ static int patchoat(int argc, char **argv) {
         output_oat_filename = "output-oat-file";
       }
       output_oat.reset(new File(output_oat_fd, output_oat_filename));
+      if (output_oat == nullptr) {
+        // Unlikely, but ensure exhaustive logging in non-0 exit code case
+        LOG(ERROR) << "Failed to open output oat file by its FD" << output_oat_fd;
+      }
     } else {
       CHECK(!output_oat_filename.empty());
       output_oat.reset(CreateOrOpen(output_oat_filename.c_str(), &new_oat_out));
+      if (output_oat == nullptr) {
+        int err = errno;
+        LOG(ERROR) << "Failed to open output oat file " << output_oat_filename
+                   << ": " << strerror(err) << "(" << err << ")";
+      }
     }
   }
 
+  // TODO: get rid of this.
   auto cleanup = [&output_image_filename, &output_oat_filename,
                   &new_oat_out, &new_image_out, &timings, &dump_timings](bool success) {
     timings.EndTiming();
@@ -1078,14 +1239,29 @@ static int patchoat(int argc, char **argv) {
     if (dump_timings) {
       LOG(INFO) << Dumpable<TimingLogger>(timings);
     }
+
+    if (kIsDebugBuild) {
+      LOG(INFO) << "Cleaning up.. success? " << success;
+    }
   };
 
-  if ((have_oat_files && (input_oat.get() == nullptr || output_oat.get() == nullptr)) ||
-      (have_image_files && output_image.get() == nullptr)) {
+  if (have_oat_files && (input_oat.get() == nullptr || output_oat.get() == nullptr)) {
+    LOG(ERROR) << "Failed to open input/output oat files";
+    cleanup(false);
+    return EXIT_FAILURE;
+  } else if (have_image_files && output_image.get() == nullptr) {
+    LOG(ERROR) << "Failed to open output image file";
     cleanup(false);
     return EXIT_FAILURE;
   }
 
+  if (debug) {
+    LOG(INFO) << "moving offset by " << base_delta
+              << " (0x" << std::hex << base_delta << ") bytes or "
+              << std::dec << (base_delta/kPageSize) << " pages.";
+  }
+
+  // TODO: is it going to be promatic to unlink a file that was flock-ed?
   ScopedFlock output_oat_lock;
   if (lock_output) {
     std::string error_msg;
@@ -1096,24 +1272,28 @@ static int patchoat(int argc, char **argv) {
     }
   }
 
-  if (debug) {
-    LOG(INFO) << "moving offset by " << base_delta
-              << " (0x" << std::hex << base_delta << ") bytes or "
-              << std::dec << (base_delta/kPageSize) << " pages.";
-  }
-
   bool ret;
   if (have_image_files && have_oat_files) {
     TimingLogger::ScopedTiming pt("patch image and oat", &timings);
     ret = PatchOat::Patch(input_oat.get(), input_image_location, base_delta,
-                          output_oat.get(), output_image.get(), isa, &timings);
+                          output_oat.get(), output_image.get(), isa, &timings,
+                          output_oat_fd >= 0,  // was it opened from FD?
+                          new_oat_out);
   } else if (have_oat_files) {
     TimingLogger::ScopedTiming pt("patch oat", &timings);
-    ret = PatchOat::Patch(input_oat.get(), base_delta, output_oat.get(), &timings);
-  } else {
+    ret = PatchOat::Patch(input_oat.get(), base_delta, output_oat.get(), &timings,
+                          output_oat_fd >= 0,  // was it opened from FD?
+                          new_oat_out);
+  } else if (have_image_files) {
     TimingLogger::ScopedTiming pt("patch image", &timings);
-    CHECK(have_image_files);
     ret = PatchOat::Patch(input_image_location, base_delta, output_image.get(), isa, &timings);
+  } else {
+    CHECK(false);
+    ret = true;
+  }
+
+  if (kIsDebugBuild) {
+    LOG(INFO) << "Exiting with return ... " << ret;
   }
   cleanup(ret);
   return (ret) ? EXIT_SUCCESS : EXIT_FAILURE;
