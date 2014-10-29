@@ -31,8 +31,9 @@ namespace art {
 
 namespace arm {
 
-static SRegister FromDToLowS(DRegister reg) {
-  return static_cast<SRegister>(reg * 2);
+static DRegister FromLowSToD(SRegister reg) {
+  DCHECK_EQ(reg % 2, 0);
+  return static_cast<DRegister>(reg / 2);
 }
 
 static constexpr bool kExplicitStackOverflowCheck = false;
@@ -43,10 +44,10 @@ static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kRuntimeParameterCoreRegisters[] = { R0, R1, R2 };
 static constexpr size_t kRuntimeParameterCoreRegistersLength =
     arraysize(kRuntimeParameterCoreRegisters);
-static constexpr DRegister kRuntimeParameterFpuRegisters[] = { };
+static constexpr SRegister kRuntimeParameterFpuRegisters[] = { };
 static constexpr size_t kRuntimeParameterFpuRegistersLength = 0;
 
-class InvokeRuntimeCallingConvention : public CallingConvention<Register, DRegister> {
+class InvokeRuntimeCallingConvention : public CallingConvention<Register, SRegister> {
  public:
   InvokeRuntimeCallingConvention()
       : CallingConvention(kRuntimeParameterCoreRegisters,
@@ -207,7 +208,7 @@ void CodeGeneratorARM::DumpCoreRegister(std::ostream& stream, int reg) const {
 }
 
 void CodeGeneratorARM::DumpFloatingPointRegister(std::ostream& stream, int reg) const {
-  stream << ArmManagedRegister::FromDRegister(DRegister(reg));
+  stream << ArmManagedRegister::FromSRegister(SRegister(reg));
 }
 
 size_t CodeGeneratorARM::SaveCoreRegister(size_t stack_index, uint32_t reg_id) {
@@ -221,7 +222,7 @@ size_t CodeGeneratorARM::RestoreCoreRegister(size_t stack_index, uint32_t reg_id
 }
 
 CodeGeneratorARM::CodeGeneratorARM(HGraph* graph)
-    : CodeGenerator(graph, kNumberOfCoreRegisters, kNumberOfDRegisters, kNumberOfRegisterPairs),
+    : CodeGenerator(graph, kNumberOfCoreRegisters, kNumberOfSRegisters, kNumberOfRegisterPairs),
       block_labels_(graph->GetArena(), 0),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
@@ -265,10 +266,14 @@ Location CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type) const {
       return Location::RegisterLocation(reg);
     }
 
-    case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble: {
-      int reg = FindFreeEntry(blocked_fpu_registers_, kNumberOfDRegisters);
+    case Primitive::kPrimFloat: {
+      int reg = FindFreeEntry(blocked_fpu_registers_, kNumberOfSRegisters);
       return Location::FpuRegisterLocation(reg);
+    }
+
+    case Primitive::kPrimDouble: {
+      int reg = FindTwoFreeConsecutiveEntries(blocked_fpu_registers_, kNumberOfSRegisters);
+      return Location::FpuRegisterPairLocation(reg, reg + 1);
     }
 
     case Primitive::kPrimVoid:
@@ -304,14 +309,14 @@ void CodeGeneratorARM::SetupBlockedRegisters() const {
   blocked_core_registers_[R10] = true;
   blocked_core_registers_[R11] = true;
 
-  blocked_fpu_registers_[D8] = true;
-  blocked_fpu_registers_[D9] = true;
-  blocked_fpu_registers_[D10] = true;
-  blocked_fpu_registers_[D11] = true;
-  blocked_fpu_registers_[D12] = true;
-  blocked_fpu_registers_[D13] = true;
-  blocked_fpu_registers_[D14] = true;
-  blocked_fpu_registers_[D15] = true;
+  blocked_fpu_registers_[S16] = true;
+  blocked_fpu_registers_[S17] = true;
+  blocked_fpu_registers_[S18] = true;
+  blocked_fpu_registers_[S19] = true;
+  blocked_fpu_registers_[S20] = true;
+  blocked_fpu_registers_[S21] = true;
+  blocked_fpu_registers_[S22] = true;
+  blocked_fpu_registers_[S23] = true;
 
   UpdateBlockedPairRegisters();
 }
@@ -397,28 +402,56 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
     case Primitive::kPrimInt:
-    case Primitive::kPrimFloat:
     case Primitive::kPrimNot: {
       uint32_t index = gp_index_++;
+      uint32_t stack_index = stack_index_++;
       if (index < calling_convention.GetNumberOfRegisters()) {
         return Location::RegisterLocation(calling_convention.GetRegisterAt(index));
       } else {
-        return Location::StackSlot(calling_convention.GetStackOffsetOf(index));
+        return Location::StackSlot(calling_convention.GetStackOffsetOf(stack_index));
       }
     }
 
-    case Primitive::kPrimLong:
-    case Primitive::kPrimDouble: {
+    case Primitive::kPrimLong: {
       uint32_t index = gp_index_;
+      uint32_t stack_index = stack_index_;
       gp_index_ += 2;
+      stack_index_ += 2;
       if (index + 1 < calling_convention.GetNumberOfRegisters()) {
         ArmManagedRegister pair = ArmManagedRegister::FromRegisterPair(
             calling_convention.GetRegisterPairAt(index));
         return Location::RegisterPairLocation(pair.AsRegisterPairLow(), pair.AsRegisterPairHigh());
       } else if (index + 1 == calling_convention.GetNumberOfRegisters()) {
-        return Location::QuickParameter(index);
+        return Location::QuickParameter(stack_index);
       } else {
-        return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(index));
+        return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(stack_index));
+      }
+    }
+
+    case Primitive::kPrimFloat: {
+      uint32_t stack_index = stack_index_++;
+      if (float_index_ % 2 == 0) {
+        float_index_ = std::max(double_index_, float_index_);
+      }
+      if (float_index_ < calling_convention.GetNumberOfFpuRegisters()) {
+        return Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(float_index_++));
+      } else {
+        return Location::StackSlot(calling_convention.GetStackOffsetOf(stack_index));
+      }
+    }
+
+    case Primitive::kPrimDouble: {
+      double_index_ = std::max(double_index_, RoundUp(float_index_, 2));
+      uint32_t stack_index = stack_index_;
+      stack_index_ += 2;
+      if (double_index_ + 1 < calling_convention.GetNumberOfFpuRegisters()) {
+        uint32_t index = double_index_;
+        double_index_ += 2;
+        return Location::FpuRegisterPairLocation(
+          calling_convention.GetFpuRegisterAt(index),
+          calling_convention.GetFpuRegisterAt(index + 1));
+      } else {
+        return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(stack_index));
       }
     }
 
@@ -426,6 +459,36 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
       LOG(FATAL) << "Unexpected parameter type " << type;
       break;
   }
+  return Location();
+}
+
+Location InvokeDexCallingConventionVisitor::GetReturnLocation(Primitive::Type type) {
+  switch (type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot: {
+      return Location::RegisterLocation(R0);
+    }
+
+    case Primitive::kPrimFloat: {
+      return Location::FpuRegisterLocation(S0);
+    }
+
+    case Primitive::kPrimLong: {
+      return Location::RegisterPairLocation(R0, R1);
+    }
+
+    case Primitive::kPrimDouble: {
+      return Location::FpuRegisterPairLocation(S0, S1);
+    }
+
+    case Primitive::kPrimVoid:
+      return Location();
+  }
+  UNREACHABLE();
   return Location();
 }
 
@@ -437,24 +500,24 @@ void CodeGeneratorARM::Move32(Location destination, Location source) {
     if (source.IsRegister()) {
       __ Mov(destination.As<Register>(), source.As<Register>());
     } else if (source.IsFpuRegister()) {
-      __ vmovrs(destination.As<Register>(), FromDToLowS(source.As<DRegister>()));
+      __ vmovrs(destination.As<Register>(), source.As<SRegister>());
     } else {
       __ LoadFromOffset(kLoadWord, destination.As<Register>(), SP, source.GetStackIndex());
     }
   } else if (destination.IsFpuRegister()) {
     if (source.IsRegister()) {
-      __ vmovsr(FromDToLowS(destination.As<DRegister>()), source.As<Register>());
+      __ vmovsr(destination.As<SRegister>(), source.As<Register>());
     } else if (source.IsFpuRegister()) {
-      __ vmovs(FromDToLowS(destination.As<DRegister>()), FromDToLowS(source.As<DRegister>()));
+      __ vmovs(destination.As<SRegister>(), source.As<SRegister>());
     } else {
-      __ vldrs(FromDToLowS(destination.As<DRegister>()), Address(SP, source.GetStackIndex()));
+      __ LoadSFromOffset(destination.As<SRegister>(), SP, source.GetStackIndex());
     }
   } else {
     DCHECK(destination.IsStackSlot());
     if (source.IsRegister()) {
       __ StoreToOffset(kStoreWord, source.As<Register>(), SP, destination.GetStackIndex());
     } else if (source.IsFpuRegister()) {
-      __ vstrs(FromDToLowS(source.As<DRegister>()), Address(SP, destination.GetStackIndex()));
+      __ StoreSToOffset(source.As<SRegister>(), SP, destination.GetStackIndex());
     } else {
       DCHECK(source.IsStackSlot());
       __ LoadFromOffset(kLoadWord, IP, SP, source.GetStackIndex());
@@ -472,7 +535,7 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
       __ Mov(destination.AsRegisterPairLow<Register>(), source.AsRegisterPairLow<Register>());
       __ Mov(destination.AsRegisterPairHigh<Register>(), source.AsRegisterPairHigh<Register>());
     } else if (source.IsFpuRegister()) {
-      LOG(FATAL) << "Unimplemented";
+      UNIMPLEMENTED(FATAL);
     } else if (source.IsQuickParameter()) {
       uint32_t argument_index = source.GetQuickParameterIndex();
       InvokeDexCallingConvention calling_convention;
@@ -491,11 +554,13 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
                           SP, source.GetStackIndex());
       }
     }
-  } else if (destination.IsFpuRegister()) {
+  } else if (destination.IsFpuRegisterPair()) {
     if (source.IsDoubleStackSlot()) {
-      __ vldrd(destination.As<DRegister>(), Address(SP, source.GetStackIndex()));
+      __ LoadDFromOffset(FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>()),
+                         SP,
+                         source.GetStackIndex());
     } else {
-      LOG(FATAL) << "Unimplemented";
+      UNIMPLEMENTED(FATAL);
     }
   } else if (destination.IsQuickParameter()) {
     InvokeDexCallingConvention calling_convention;
@@ -506,10 +571,11 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
       __ StoreToOffset(kStoreWord, source.AsRegisterPairHigh<Register>(),
              SP, calling_convention.GetStackOffsetOf(argument_index + 1));
     } else if (source.IsFpuRegister()) {
-      LOG(FATAL) << "Unimplemented";
+      UNIMPLEMENTED(FATAL);
     } else {
       DCHECK(source.IsDoubleStackSlot());
-      __ LoadFromOffset(kLoadWord, calling_convention.GetRegisterAt(argument_index), SP, source.GetStackIndex());
+      __ LoadFromOffset(
+          kLoadWord, calling_convention.GetRegisterAt(argument_index), SP, source.GetStackIndex());
       __ LoadFromOffset(kLoadWord, R0, SP, source.GetHighStackIndex(kArmWordSize));
       __ StoreToOffset(kStoreWord, R0, SP, calling_convention.GetStackOffsetOf(argument_index + 1));
     }
@@ -532,8 +598,10 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
       __ LoadFromOffset(kLoadWord, R0,
              SP, calling_convention.GetStackOffsetOf(argument_index + 1) + GetFrameSize());
       __ StoreToOffset(kStoreWord, R0, SP, destination.GetHighStackIndex(kArmWordSize));
-    } else if (source.IsFpuRegister()) {
-      __ vstrd(source.As<DRegister>(), Address(SP, destination.GetStackIndex()));
+    } else if (source.IsFpuRegisterPair()) {
+      __ StoreDToOffset(FromLowSToD(source.AsFpuRegisterPairLow<SRegister>()),
+                        SP,
+                        destination.GetStackIndex());
     } else {
       DCHECK(source.IsDoubleStackSlot());
       __ LoadFromOffset(kLoadWord, IP, SP, source.GetStackIndex());
@@ -892,50 +960,10 @@ void InstructionCodeGeneratorARM::VisitReturnVoid(HReturnVoid* ret) {
 void LocationsBuilderARM::VisitReturn(HReturn* ret) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(ret, LocationSummary::kNoCall);
-  switch (ret->InputAt(0)->GetType()) {
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot:
-    case Primitive::kPrimFloat:
-      locations->SetInAt(0, Location::RegisterLocation(R0));
-      break;
-
-    case Primitive::kPrimLong:
-    case Primitive::kPrimDouble:
-      locations->SetInAt(0, Location::RegisterPairLocation(R0, R1));
-      break;
-
-    default:
-      LOG(FATAL) << "Unimplemented return type " << ret->InputAt(0)->GetType();
-  }
+  locations->SetInAt(0, parameter_visitor_.GetReturnLocation(ret->InputAt(0)->GetType()));
 }
 
 void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
-  if (kIsDebugBuild) {
-    switch (ret->InputAt(0)->GetType()) {
-      case Primitive::kPrimBoolean:
-      case Primitive::kPrimByte:
-      case Primitive::kPrimChar:
-      case Primitive::kPrimShort:
-      case Primitive::kPrimInt:
-      case Primitive::kPrimNot:
-      case Primitive::kPrimFloat:
-        DCHECK_EQ(ret->GetLocations()->InAt(0).As<Register>(), R0);
-        break;
-
-      case Primitive::kPrimLong:
-      case Primitive::kPrimDouble:
-        DCHECK_EQ(ret->GetLocations()->InAt(0).AsRegisterPairLow<Register>(), R0);
-        DCHECK_EQ(ret->GetLocations()->InAt(0).AsRegisterPairHigh<Register>(), R1);
-        break;
-
-      default:
-        LOG(FATAL) << "Unimplemented return type " << ret->InputAt(0)->GetType();
-    }
-  }
   codegen_->GenerateFrameExit();
 }
 
@@ -991,25 +1019,7 @@ void LocationsBuilderARM::HandleInvoke(HInvoke* invoke) {
     locations->SetInAt(i, calling_convention_visitor.GetNextLocation(input->GetType()));
   }
 
-  switch (invoke->GetType()) {
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot:
-    case Primitive::kPrimFloat:
-      locations->SetOut(Location::RegisterLocation(R0));
-      break;
-
-    case Primitive::kPrimLong:
-    case Primitive::kPrimDouble:
-      locations->SetOut(Location::RegisterPairLocation(R0, R1));
-      break;
-
-    case Primitive::kPrimVoid:
-      break;
-  }
+  locations->SetOut(calling_convention_visitor.GetReturnLocation(invoke->GetType()));
 }
 
 
@@ -1153,13 +1163,13 @@ void InstructionCodeGeneratorARM::VisitAdd(HAdd* add) {
       break;
 
     case Primitive::kPrimFloat:
-      __ vadds(FromDToLowS(out.As<DRegister>()),
-               FromDToLowS(first.As<DRegister>()),
-               FromDToLowS(second.As<DRegister>()));
+      __ vadds(out.As<SRegister>(), first.As<SRegister>(), second.As<SRegister>());
       break;
 
     case Primitive::kPrimDouble:
-      __ vaddd(out.As<DRegister>(), first.As<DRegister>(), second.As<DRegister>());
+      __ vaddd(FromLowSToD(out.AsFpuRegisterPairLow<SRegister>()),
+               FromLowSToD(first.AsFpuRegisterPairLow<SRegister>()),
+               FromLowSToD(second.AsFpuRegisterPairLow<SRegister>()));
       break;
 
     default:
@@ -1219,14 +1229,14 @@ void InstructionCodeGeneratorARM::VisitSub(HSub* sub) {
     }
 
     case Primitive::kPrimFloat: {
-      __ vsubs(FromDToLowS(out.As<DRegister>()),
-               FromDToLowS(first.As<DRegister>()),
-               FromDToLowS(second.As<DRegister>()));
+      __ vsubs(out.As<SRegister>(), first.As<SRegister>(), second.As<SRegister>());
       break;
     }
 
     case Primitive::kPrimDouble: {
-      __ vsubd(out.As<DRegister>(), first.As<DRegister>(), second.As<DRegister>());
+      __ vsubd(FromLowSToD(out.AsFpuRegisterPairLow<SRegister>()),
+               FromLowSToD(first.AsFpuRegisterPairLow<SRegister>()),
+               FromLowSToD(second.AsFpuRegisterPairLow<SRegister>()));
       break;
     }
 
@@ -1303,14 +1313,14 @@ void InstructionCodeGeneratorARM::VisitMul(HMul* mul) {
     }
 
     case Primitive::kPrimFloat: {
-      __ vmuls(FromDToLowS(out.As<DRegister>()),
-               FromDToLowS(first.As<DRegister>()),
-               FromDToLowS(second.As<DRegister>()));
+      __ vmuls(out.As<SRegister>(), first.As<SRegister>(), second.As<SRegister>());
       break;
     }
 
     case Primitive::kPrimDouble: {
-      __ vmuld(out.As<DRegister>(), first.As<DRegister>(), second.As<DRegister>());
+      __ vmuld(FromLowSToD(out.AsFpuRegisterPairLow<SRegister>()),
+               FromLowSToD(first.AsFpuRegisterPairLow<SRegister>()),
+               FromLowSToD(second.AsFpuRegisterPairLow<SRegister>()));
       break;
     }
 
