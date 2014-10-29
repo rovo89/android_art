@@ -526,8 +526,12 @@ else
         cp "$build_output" "$output"
         echo "Failed to build in tmpdir=${tmp_dir} from oldwd=${oldwd} and cwd=`pwd`" >> "$output"
         echo "Non-canonical tmpdir was ${noncanonical_tmp_dir}" >> "$output"
-        echo "Args: ${args}" >> "output"
+        echo "Args: ${args}" >> "$output"
         echo "build exit status: $build_exit" >> "$output"
+        echo "Max filename (NAME_MAX):" >> "$output"
+        getconf NAME_MAX ${tmp_dir} >> "$output"
+        echo "Max pathlength (PATH_MAX):" >> "$output"
+        getconf PATH_MAX ${tmp_dir} >> "$output"
     fi
     ./$check_cmd "$expected" "$output"
     if [ "$?" = "0" ]; then
