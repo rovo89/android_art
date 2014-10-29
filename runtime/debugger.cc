@@ -2017,7 +2017,7 @@ JDWP::JdwpError Dbg::GetThreadGroup(JDWP::ObjectId thread_id, JDWP::ExpandBuf* p
   } else if (error == JDWP::ERR_NONE) {
     mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_Thread);
     CHECK(c != nullptr);
-    mirror::ArtField* f = c->FindInstanceField("group", "Ljava/lang/ThreadGroup;");
+    mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_Thread_group);
     CHECK(f != nullptr);
     mirror::Object* group = f->GetObject(thread_object);
     CHECK(group != nullptr);
@@ -2058,8 +2058,7 @@ JDWP::JdwpError Dbg::GetThreadGroupName(JDWP::ObjectId thread_group_id, JDWP::Ex
     return error;
   }
   ScopedAssertNoThreadSuspension ants(soa.Self(), "Debugger: GetThreadGroupName");
-  mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ThreadGroup);
-  mirror::ArtField* f = c->FindInstanceField("name", "Ljava/lang/String;");
+  mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_name);
   CHECK(f != nullptr);
   mirror::String* s = reinterpret_cast<mirror::String*>(f->GetObject(thread_group));
 
@@ -2078,9 +2077,7 @@ JDWP::JdwpError Dbg::GetThreadGroupParent(JDWP::ObjectId thread_group_id, JDWP::
   mirror::Object* parent;
   {
     ScopedAssertNoThreadSuspension ants(soa.Self(), "Debugger: GetThreadGroupParent");
-    mirror::Class* c = soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_ThreadGroup);
-    CHECK(c != nullptr);
-    mirror::ArtField* f = c->FindInstanceField("parent", "Ljava/lang/ThreadGroup;");
+    mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_parent);
     CHECK(f != nullptr);
     parent = f->GetObject(thread_group);
   }
@@ -2095,12 +2092,20 @@ static void GetChildThreadGroups(ScopedObjectAccessUnchecked& soa, mirror::Objec
   CHECK(thread_group != nullptr);
 
   // Get the ArrayList<ThreadGroup> "groups" out of this thread group...
-  mirror::ArtField* groups_field = thread_group->GetClass()->FindInstanceField("groups", "Ljava/util/List;");
+  mirror::ArtField* groups_field = soa.DecodeField(WellKnownClasses::java_lang_ThreadGroup_groups);
   mirror::Object* groups_array_list = groups_field->GetObject(thread_group);
+  {
+    // The "groups" field is declared as a java.util.List: check it really is
+    // an instance of java.util.ArrayList.
+    CHECK(groups_array_list != nullptr);
+    mirror::Class* java_util_ArrayList_class =
+        soa.Decode<mirror::Class*>(WellKnownClasses::java_util_ArrayList);
+    CHECK(groups_array_list->InstanceOf(java_util_ArrayList_class));
+  }
 
   // Get the array and size out of the ArrayList<ThreadGroup>...
-  mirror::ArtField* array_field = groups_array_list->GetClass()->FindInstanceField("array", "[Ljava/lang/Object;");
-  mirror::ArtField* size_field = groups_array_list->GetClass()->FindInstanceField("size", "I");
+  mirror::ArtField* array_field = soa.DecodeField(WellKnownClasses::java_util_ArrayList_array);
+  mirror::ArtField* size_field = soa.DecodeField(WellKnownClasses::java_util_ArrayList_size);
   mirror::ObjectArray<mirror::Object>* groups_array =
       array_field->GetObject(groups_array_list)->AsObjectArray<mirror::Object>();
   const int32_t size = size_field->GetInt(groups_array_list);
