@@ -290,6 +290,44 @@ endif
 
 TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
 
+# Known broken tests for the arm64 optimizing compiler backend.
+TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
+  003-omnibus-opcodes \
+  006-args \
+  011-array-copy \
+  018-stack-overflow \
+  036-finalizer \
+  044-proxy \
+  070-nio-buffer \
+  072-precise-gc \
+  082-inline-execute \
+  083-compiler-regressions \
+  093-serialization \
+  096-array-copy-concurrent-gc \
+  100-reflect2 \
+  106-exceptions2 \
+  107-int-math2 \
+  121-modifiers \
+  122-npe \
+  123-compiler-regressions-mt \
+  405-optimizing-long-allocator \
+  407-arrays \
+  410-floats \
+  411-optimizing-arith \
+  412-new-array \
+  413-regalloc-regression \
+  700-LoadArgRegs \
+  800-smali
+
+ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
+      optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS),64)
+endif
+
+TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS :=
+
+
 # Clear variables ahead of appending to them when defining tests.
 $(foreach target, $(TARGET_TYPES), $(eval ART_RUN_TEST_$(call name-to-var,$(target))_RULES :=))
 $(foreach target, $(TARGET_TYPES), \
