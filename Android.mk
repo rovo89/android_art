@@ -23,6 +23,7 @@ art_path := $(LOCAL_PATH)
 #
 
 include $(art_path)/build/Android.common_path.mk
+include $(art_path)/build/Android.oat.mk
 
 # Following the example of build's dont_bother for clean targets.
 art_dont_bother := false
@@ -41,20 +42,14 @@ clean-oat: clean-oat-host clean-oat-target
 
 .PHONY: clean-oat-host
 clean-oat-host:
-	rm -f $(HOST_CORE_IMG_OUT)
-	rm -f $(HOST_CORE_OAT_OUT)
+	rm -f $(HOST_CORE_IMG_OUTS)
+	rm -f $(HOST_CORE_OAT_OUTS)
 	rm -f $(HOST_OUT_JAVA_LIBRARIES)/$(ART_HOST_ARCH)/*.odex
 ifneq ($(HOST_PREFER_32_BIT),true)
-	rm -f $(2ND_HOST_CORE_IMG_OUT)
-	rm -f $(2ND_HOST_CORE_OAT_OUT)
 	rm -f $(HOST_OUT_JAVA_LIBRARIES)/$(2ND_ART_HOST_ARCH)/*.odex
 endif
-	rm -f $(TARGET_CORE_IMG_OUT)
-	rm -f $(TARGET_CORE_OAT_OUT)
-ifdef TARGET_2ND_ARCH
-	rm -f $(2ND_TARGET_CORE_IMG_OUT)
-	rm -f $(2ND_TARGET_CORE_OAT_OUT)
-endif
+	rm -f $(TARGET_CORE_IMG_OUTS)
+	rm -f $(TARGET_CORE_OAT_OUTS)
 	rm -rf $(DEXPREOPT_PRODUCT_DIR_FULL_PATH)
 	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*.odex
 	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*/*.oat
@@ -109,7 +104,6 @@ include $(art_path)/oatdump/Android.mk
 include $(art_path)/patchoat/Android.mk
 include $(art_path)/dalvikvm/Android.mk
 include $(art_path)/tools/Android.mk
-include $(art_path)/build/Android.oat.mk
 include $(art_path)/sigchainlib/Android.mk
 
 
@@ -365,10 +359,10 @@ oat-target-sync: oat-target
 build-art: build-art-host build-art-target
 
 .PHONY: build-art-host
-build-art-host:   $(HOST_OUT_EXECUTABLES)/art $(ART_HOST_DEPENDENCIES) $(HOST_CORE_IMG_OUT) $(2ND_HOST_CORE_IMG_OUT)
+build-art-host:   $(HOST_OUT_EXECUTABLES)/art $(ART_HOST_DEPENDENCIES) $(HOST_CORE_IMG_OUTS)
 
 .PHONY: build-art-target
-build-art-target: $(TARGET_OUT_EXECUTABLES)/art $(ART_TARGET_DEPENDENCIES) $(TARGET_CORE_IMG_OUT) $(2ND_TARGET_CORE_IMG_OUT)
+build-art-target: $(TARGET_OUT_EXECUTABLES)/art $(ART_TARGET_DEPENDENCIES) $(TARGET_CORE_IMG_OUTS)
 
 ########################################################################
 # targets to switch back and forth from libdvm to libart

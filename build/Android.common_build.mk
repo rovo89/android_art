@@ -84,13 +84,6 @@ ART_USE_PORTABLE_COMPILER := true
 endif
 
 #
-# Used to enable optimizing compiler
-#
-ifeq ($(ART_USE_OPTIMIZING_COMPILER),true)
-DEX2OAT_FLAGS := --compiler-backend=Optimizing
-endif
-
-#
 # Used to change the default GC. Valid values are CMS, SS, GSS. The default is CMS.
 #
 art_default_gc_type ?= CMS

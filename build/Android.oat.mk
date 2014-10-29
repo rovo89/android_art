@@ -24,73 +24,138 @@
 include art/build/Android.common_build.mk
 
 # Use dex2oat debug version for better error reporting
-# $(1): 2ND_ or undefined, 2ND_ for 32-bit host builds.
+# $(1): compiler
+# $(2): 2ND_ or undefined, 2ND_ for 32-bit host builds.
 # NB depending on HOST_CORE_DEX_LOCATIONS so we are sure to have the dex files in frameworks for
 # run-test --no-image
 define create-core-oat-host-rules
-$$($(1)HOST_CORE_IMG_OUT): $$(HOST_CORE_DEX_LOCATIONS) $$(DEX2OAT_DEPENDENCY)
+  core_compile_options :=
+  core_image_name :=
+  core_oat_name :=
+  core_infix :=
+
+  ifeq ($(1),optimizing)
+    core_compile_options += --compiler-backend=optimizing
+    core_infix := -optimizing
+  endif
+  ifeq ($(1),interpreter)
+    core_compile_options += --compiler-filter=interpret-only
+    core_infix := -interpreter
+  endif
+  ifeq ($(1),default)
+    # Default has no infix, no compile options.
+  endif
+  ifneq ($(filter-out default interpreter optimizing,$(1)),)
+    #Technically this test is not precise, but hopefully good enough.
+    $$(error found $(1) expected default, interpreter or optimizing)
+  endif
+  core_image_name := $($(2)HOST_CORE_IMG_OUT_BASE)$$(core_infix)$(CORE_IMG_SUFFIX)
+  core_oat_name := $($(2)HOST_CORE_OAT_OUT_BASE)$$(core_infix)$(CORE_OAT_SUFFIX)
+
+  # Using the bitness suffix makes it easier to add as a dependency for the run-test mk.
+  ifeq ($(2),)
+    HOST_CORE_IMAGE_$(1)_64 := $$(core_image_name)
+  else
+    HOST_CORE_IMAGE_$(1)_32 := $$(core_image_name)
+  endif
+  HOST_CORE_IMG_OUTS += $$(core_image_name)
+  HOST_CORE_OAT_OUTS += $$(core_oat_name)
+
+$$(core_image_name): PRIVATE_CORE_COMPILE_OPTIONS := $$(core_compile_options)
+$$(core_image_name): PRIVATE_CORE_IMG_NAME := $$(core_image_name)
+$$(core_image_name): PRIVATE_CORE_OAT_NAME := $$(core_oat_name)
+$$(core_image_name): $$(HOST_CORE_DEX_LOCATIONS) $$(DEX2OAT_DEPENDENCY)
 	@echo "host dex2oat: $$@ ($$?)"
 	@mkdir -p $$(dir $$@)
-	$$(hide) $$(DEX2OAT) $$(DEX2OAT_FLAGS) --runtime-arg -Xms$(DEX2OAT_IMAGE_XMS) --runtime-arg -Xmx$(DEX2OAT_IMAGE_XMX) \
+	$$(hide) $$(DEX2OAT) --runtime-arg -Xms$(DEX2OAT_IMAGE_XMS) --runtime-arg -Xmx$(DEX2OAT_IMAGE_XMX) \
 	  --image-classes=$$(PRELOADED_CLASSES) $$(addprefix --dex-file=,$$(HOST_CORE_DEX_FILES)) \
-	  $$(addprefix --dex-location=,$$(HOST_CORE_DEX_LOCATIONS)) --oat-file=$$($(1)HOST_CORE_OAT_OUT) \
-	  --oat-location=$$($(1)HOST_CORE_OAT) --image=$$($(1)HOST_CORE_IMG_OUT) \
-	  --base=$$(LIBART_IMG_HOST_BASE_ADDRESS) --instruction-set=$$($(1)ART_HOST_ARCH) \
-	  --instruction-set-features=$$($(1)HOST_INSTRUCTION_SET_FEATURES) \
-	  --host --android-root=$$(HOST_OUT) --include-patch-information
+	  $$(addprefix --dex-location=,$$(HOST_CORE_DEX_LOCATIONS)) --oat-file=$$(PRIVATE_CORE_OAT_NAME) \
+	  --oat-location=$$(PRIVATE_CORE_OAT_NAME) --image=$$(PRIVATE_CORE_IMG_NAME) \
+	  --base=$$(LIBART_IMG_HOST_BASE_ADDRESS) --instruction-set=$$($(2)ART_HOST_ARCH) \
+	  --instruction-set-features=$$($(2)HOST_INSTRUCTION_SET_FEATURES) \
+	  --host --android-root=$$(HOST_OUT) --include-patch-information \
+	  $$(PRIVATE_CORE_COMPILE_OPTIONS)
 
-# This "renaming" eases declaration in art/Android.mk
-HOST_CORE_IMG_OUT$($(1)ART_PHONY_TEST_HOST_SUFFIX) := $($(1)HOST_CORE_IMG_OUT)
+$$(core_oat_name): $$(core_image_name)
 
-$$($(1)HOST_CORE_OAT_OUT): $$($(1)HOST_CORE_IMG_OUT)
+  # Clean up locally used variables.
+  core_compile_options :=
+  core_image_name :=
+  core_oat_name :=
+  core_infix :=
 endef  # create-core-oat-host-rules
 
-$(eval $(call create-core-oat-host-rules,))
+$(eval $(call create-core-oat-host-rules,default,))
+$(eval $(call create-core-oat-host-rules,optimizing,))
+$(eval $(call create-core-oat-host-rules,interpreter,))
 ifneq ($(HOST_PREFER_32_BIT),true)
-$(eval $(call create-core-oat-host-rules,2ND_))
+$(eval $(call create-core-oat-host-rules,default,2ND_))
+$(eval $(call create-core-oat-host-rules,optimizing,2ND_))
+$(eval $(call create-core-oat-host-rules,interpreter,2ND_))
 endif
 
 define create-core-oat-target-rules
-$$($(1)TARGET_CORE_IMG_OUT): $$(TARGET_CORE_DEX_FILES) $$(DEX2OAT_DEPENDENCY)
+  core_compile_options :=
+  core_image_name :=
+  core_oat_name :=
+  core_infix :=
+
+  ifeq ($(1),optimizing)
+    core_compile_options += --compiler-backend=optimizing
+    core_infix := -optimizing
+  endif
+  ifeq ($(1),interpreter)
+    core_compile_options += --compiler-filter=interpret-only
+    core_infix := -interpreter
+  endif
+  ifeq ($(1),default)
+    # Default has no infix, no compile options.
+  endif
+  ifneq ($(filter-out default interpreter optimizing,$(1)),)
+    #Technically this test is not precise, but hopefully good enough.
+    $$(error found $(1) expected default, interpreter or optimizing)
+  endif
+  core_image_name := $($(2)TARGET_CORE_IMG_OUT_BASE)$$(core_infix)$(CORE_IMG_SUFFIX)
+  core_oat_name := $($(2)TARGET_CORE_OAT_OUT_BASE)$$(core_infix)$(CORE_OAT_SUFFIX)
+
+  # Using the bitness suffix makes it easier to add as a dependency for the run-test mk.
+  ifeq ($(2),)
+    TARGET_CORE_IMAGE_$(1)_64 := $$(core_image_name)
+  else
+    TARGET_CORE_IMAGE_$(1)_32 := $$(core_image_name)
+  endif
+  TARGET_CORE_IMG_OUTS += $$(core_image_name)
+  TARGET_CORE_OAT_OUTS += $$(core_oat_name)
+
+$$(core_image_name): PRIVATE_CORE_COMPILE_OPTIONS := $$(core_compile_options)
+$$(core_image_name): PRIVATE_CORE_IMG_NAME := $$(core_image_name)
+$$(core_image_name): PRIVATE_CORE_OAT_NAME := $$(core_oat_name)
+$$(core_image_name): $$(TARGET_CORE_DEX_FILES) $$(DEX2OAT_DEPENDENCY)
 	@echo "target dex2oat: $$@ ($$?)"
 	@mkdir -p $$(dir $$@)
-	$$(hide) $$(DEX2OAT) $$(DEX2OAT_FLAGS) --runtime-arg -Xms$(DEX2OAT_XMS) --runtime-arg -Xmx$(DEX2OAT_XMX) \
+	$$(hide) $$(DEX2OAT) --runtime-arg -Xms$(DEX2OAT_XMS) --runtime-arg -Xmx$(DEX2OAT_XMX) \
 	  --image-classes=$$(PRELOADED_CLASSES) $$(addprefix --dex-file=,$$(TARGET_CORE_DEX_FILES)) \
-	  $$(addprefix --dex-location=,$$(TARGET_CORE_DEX_LOCATIONS)) --oat-file=$$($(1)TARGET_CORE_OAT_OUT) \
-	  --oat-location=$$($(1)TARGET_CORE_OAT) --image=$$($(1)TARGET_CORE_IMG_OUT) \
-	  --base=$$(LIBART_IMG_TARGET_BASE_ADDRESS) --instruction-set=$$($(1)TARGET_ARCH) \
-	  --instruction-set-features=$$($(1)TARGET_INSTRUCTION_SET_FEATURES) \
-	  --android-root=$$(PRODUCT_OUT)/system --include-patch-information
+	  $$(addprefix --dex-location=,$$(TARGET_CORE_DEX_LOCATIONS)) --oat-file=$$(PRIVATE_CORE_OAT_NAME) \
+	  --oat-location=$$(PRIVATE_CORE_OAT_NAME) --image=$$(PRIVATE_CORE_IMG_NAME) \
+	  --base=$$(LIBART_IMG_TARGET_BASE_ADDRESS) --instruction-set=$$($(2)TARGET_ARCH) \
+	  --instruction-set-features=$$($(2)TARGET_INSTRUCTION_SET_FEATURES) \
+	  --android-root=$$(PRODUCT_OUT)/system --include-patch-information \
+	  $$(PRIVATE_CORE_COMPILE_OPTIONS)
 
-# This "renaming" eases declaration in art/Android.mk
-TARGET_CORE_IMG_OUT$($(1)ART_PHONY_TEST_TARGET_SUFFIX) := $($(1)TARGET_CORE_IMG_OUT)
+$$(core_oat_name): $$(core_image_name)
 
-$$($(1)TARGET_CORE_OAT_OUT): $$($(1)TARGET_CORE_IMG_OUT)
+  # Clean up locally used variables.
+  core_compile_options :=
+  core_image_name :=
+  core_oat_name :=
+  core_infix :=
 endef  # create-core-oat-target-rules
 
 ifdef TARGET_2ND_ARCH
-$(eval $(call create-core-oat-target-rules,2ND_))
+$(eval $(call create-core-oat-target-rules,default,2ND_))
+$(eval $(call create-core-oat-target-rules,optimizing,2ND_))
+$(eval $(call create-core-oat-target-rules,interpreter,2ND_))
 endif
-$(eval $(call create-core-oat-target-rules,))
-
-
-ifeq ($(ART_BUILD_HOST),true)
-include $(CLEAR_VARS)
-LOCAL_MODULE := core.art-host
-LOCAL_MODULE_TAGS := optional
-LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
-LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.oat.mk
-LOCAL_ADDITIONAL_DEPENDENCIES += $(HOST_CORE_IMG_OUT)
-include $(BUILD_PHONY_PACKAGE)
-endif # ART_BUILD_HOST
-
-# If we aren't building the host toolchain, skip building the target core.art.
-ifeq ($(ART_BUILD_TARGET),true)
-include $(CLEAR_VARS)
-LOCAL_MODULE := core.art
-LOCAL_MODULE_TAGS := optional
-LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common.mk
-LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.oat.mk
-LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_CORE_IMG_OUT)
-include $(BUILD_PHONY_PACKAGE)
-endif # ART_BUILD_TARGET
+$(eval $(call create-core-oat-target-rules,default,))
+$(eval $(call create-core-oat-target-rules,optimizing,))
+$(eval $(call create-core-oat-target-rules,interpreter,))
