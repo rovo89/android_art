@@ -77,23 +77,17 @@ extern "C" void art_quick_handle_fill_data(void*, void*);
 extern "C" void art_quick_lock_object(void*);
 extern "C" void art_quick_unlock_object(void*);
 
-// Math entrypoints.
-extern int32_t CmpgDouble(double a, double b);
-extern int32_t CmplDouble(double a, double b);
-extern int32_t CmpgFloat(float a, float b);
-extern int32_t CmplFloat(float a, float b);
-
-// Math conversions.
-extern "C" int32_t __aeabi_f2iz(float op1);        // FLOAT_TO_INT
-extern "C" int32_t __aeabi_d2iz(double op1);       // DOUBLE_TO_INT
-extern "C" float __aeabi_l2f(int64_t op1);         // LONG_TO_FLOAT
-extern "C" double __aeabi_l2d(int64_t op1);        // LONG_TO_DOUBLE
-
+// Used by soft float.
 // Single-precision FP arithmetics.
-extern "C" float fmodf(float a, float b);          // REM_FLOAT[_2ADDR]
-
+extern "C" float fmodf(float a, float b);              // REM_FLOAT[_2ADDR]
 // Double-precision FP arithmetics.
-extern "C" double fmod(double a, double b);         // REM_DOUBLE[_2ADDR]
+extern "C" double fmod(double a, double b);            // REM_DOUBLE[_2ADDR]
+
+// Used by hard float.
+extern "C" int64_t art_quick_f2l(float f);             // FLOAT_TO_LONG
+extern "C" int64_t art_quick_d2l(double d);            // DOUBLE_TO_LONG
+extern "C" float art_quick_fmodf(float a, float b);    // REM_FLOAT[_2ADDR]
+extern "C" double art_quick_fmod(double a, double b);  // REM_DOUBLE[_2ADDR]
 
 // Integer arithmetics.
 extern "C" int __aeabi_idivmod(int32_t, int32_t);  // [DIV|REM]_INT[_2ADDR|_LIT8|_LIT16]
@@ -205,25 +199,24 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pUnlockObject = art_quick_unlock_object;
 
   // Math
-  qpoints->pCmpgDouble = CmpgDouble;
-  qpoints->pCmpgFloat = CmpgFloat;
-  qpoints->pCmplDouble = CmplDouble;
-  qpoints->pCmplFloat = CmplFloat;
-  qpoints->pFmod = fmod;
-  qpoints->pL2d = __aeabi_l2d;
-  qpoints->pFmodf = fmodf;
-  qpoints->pL2f = __aeabi_l2f;
-  qpoints->pD2iz = __aeabi_d2iz;
-  qpoints->pF2iz = __aeabi_f2iz;
   qpoints->pIdivmod = __aeabi_idivmod;
-  qpoints->pD2l = art_d2l;
-  qpoints->pF2l = art_f2l;
   qpoints->pLdiv = __aeabi_ldivmod;
   qpoints->pLmod = __aeabi_ldivmod;  // result returned in r2:r3
   qpoints->pLmul = art_quick_mul_long;
   qpoints->pShlLong = art_quick_shl_long;
   qpoints->pShrLong = art_quick_shr_long;
   qpoints->pUshrLong = art_quick_ushr_long;
+  if (kArm32QuickCodeUseSoftFloat) {
+    qpoints->pFmod = fmod;
+    qpoints->pFmodf = fmodf;
+    qpoints->pD2l = art_d2l;
+    qpoints->pF2l = art_f2l;
+  } else {
+    qpoints->pFmod = art_quick_fmod;
+    qpoints->pFmodf = art_quick_fmodf;
+    qpoints->pD2l = art_quick_d2l;
+    qpoints->pF2l = art_quick_f2l;
+  }
 
   // Intrinsics
   qpoints->pIndexOf = art_quick_indexof;
