@@ -78,6 +78,9 @@ ART_TEST_JNI_FORCECOPY ?= $(ART_TEST_FULL)
 # Do you want run-tests with relocation disabled run?
 ART_TEST_RUN_TEST_NO_RELOCATE ?= $(ART_TEST_FULL)
 
+# Do you want run-tests with prebuilding?
+ART_TEST_RUN_TEST_PREBUILD ?= true
+
 # Do you want run-tests with no prebuilding enabled run?
 ART_TEST_RUN_TEST_NO_PREBUILD ?= $(ART_TEST_FULL)
 
@@ -95,6 +98,9 @@ ART_TEST_RUN_TEST_DEBUG ?= true
 
 # Do you want run-tests with libart.so?
 ART_TEST_RUN_TEST_NDEBUG ?= $(ART_TEST_FULL)
+
+# Do you want run-tests with the host/target's second arch?
+ART_TEST_RUN_TEST_2ND_ARCH ?= true
 
 # Do you want failed tests to have their artifacts cleaned up?
 ART_TEST_RUN_TEST_ALWAYS_CLEAN ?= true
