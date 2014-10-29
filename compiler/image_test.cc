@@ -63,7 +63,9 @@ TEST_F(ImageTest, WriteRead) {
   ScratchFile oat_file(OS::CreateEmptyFile(oat_filename.c_str()));
 
   const uintptr_t requested_image_base = ART_BASE_ADDRESS;
-  std::unique_ptr<ImageWriter> writer(new ImageWriter(*compiler_driver_, requested_image_base));
+  std::unique_ptr<ImageWriter> writer(new ImageWriter(*compiler_driver_, requested_image_base,
+                                                      /*compile_pic*/false));
+  // TODO: compile_pic should be a test argument.
   {
     {
       jobject class_loader = NULL;
@@ -212,7 +214,8 @@ TEST_F(ImageTest, ImageHeaderIsValid) {
                              oat_file_begin,
                              oat_data_begin,
                              oat_data_end,
-                             oat_file_end);
+                             oat_file_end,
+                             /*compile_pic*/false);
     ASSERT_TRUE(image_header.IsValid());
 
     char* magic = const_cast<char*>(image_header.GetMagic());

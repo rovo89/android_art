@@ -657,7 +657,10 @@ OatFile* ImageSpace::OpenOatFile(const char* image_path, std::string* error_msg)
   const ImageHeader& image_header = GetImageHeader();
   std::string oat_filename = ImageHeader::GetOatLocationFromImageLocation(image_path);
 
+  CHECK(image_header.GetOatDataBegin() != nullptr);
+
   OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, image_header.GetOatDataBegin(),
+                                    image_header.GetOatFileBegin(),
                                     !Runtime::Current()->IsCompiler(), error_msg);
   if (oat_file == NULL) {
     *error_msg = StringPrintf("Failed to open oat file '%s' referenced from image %s: %s",
@@ -673,7 +676,7 @@ OatFile* ImageSpace::OpenOatFile(const char* image_path, std::string* error_msg)
   }
   int32_t image_patch_delta = image_header.GetPatchDelta();
   int32_t oat_patch_delta = oat_file->GetOatHeader().GetImagePatchDelta();
-  if (oat_patch_delta != image_patch_delta) {
+  if (oat_patch_delta != image_patch_delta && !image_header.CompilePic()) {
     // We should have already relocated by this point. Bail out.
     *error_msg = StringPrintf("Failed to match oat file patch delta %d to expected patch delta %d "
                               "in image %s", oat_patch_delta, image_patch_delta, GetName());
