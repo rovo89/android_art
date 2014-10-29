@@ -84,6 +84,7 @@ while true; do
         shift
     elif [ "x$1" = "x--host" ]; then
         HOST="y"
+        ANDROID_ROOT="$ANDROID_HOST_OUT"
         shift
     elif [ "x$1" = "x--no-prebuild" ]; then
         PREBUILD="n"
@@ -342,7 +343,7 @@ else
         export ANDROID_LOG_TAGS='*:s'
     fi
     export ANDROID_DATA="$DEX_LOCATION"
-    export ANDROID_ROOT="${ANDROID_HOST_OUT}"
+    export ANDROID_ROOT="${ANDROID_ROOT}"
     export LD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
     export DYLD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
     export PATH="$PATH:${ANDROID_ROOT}/bin"
