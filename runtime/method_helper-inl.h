@@ -67,19 +67,6 @@ inline mirror::Class* MethodHelperT<HandleKind>::GetReturnType(bool resolve) {
   return GetClassFromTypeIdx(return_type_idx, resolve);
 }
 
-template <template <class T> class HandleKind>
-inline mirror::String* MethodHelperT<HandleKind>::ResolveString(uint32_t string_idx) {
-  mirror::ArtMethod* method = GetMethod();
-  mirror::String* s = method->GetDexCacheStrings()->Get(string_idx);
-  if (UNLIKELY(s == nullptr)) {
-    StackHandleScope<1> hs(Thread::Current());
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
-    s = Runtime::Current()->GetClassLinker()->ResolveString(*method->GetDexFile(), string_idx,
-                                                            dex_cache);
-  }
-  return s;
-}
-
 }  // namespace art
 
 #endif  // ART_RUNTIME_METHOD_HELPER_INL_H_

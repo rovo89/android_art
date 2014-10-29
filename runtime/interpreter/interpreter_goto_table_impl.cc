@@ -420,7 +420,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(CONST_STRING) {
-    String* s = ResolveString(self, mh, inst->VRegB_21c());
+    String* s = ResolveString(self, shadow_frame, inst->VRegB_21c());
     if (UNLIKELY(s == NULL)) {
       HANDLE_PENDING_EXCEPTION();
     } else {
@@ -431,7 +431,7 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(CONST_STRING_JUMBO) {
-    String* s = ResolveString(self, mh, inst->VRegB_31c());
+    String* s = ResolveString(self, shadow_frame, inst->VRegB_31c());
     if (UNLIKELY(s == NULL)) {
       HANDLE_PENDING_EXCEPTION();
     } else {
