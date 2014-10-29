@@ -1344,9 +1344,10 @@ void MIRGraph::DisassembleExtendedInstr(const MIR* mir, std::string* decoded_mir
           decoded_mir->append(", ");
           decoded_mir->append(GetSSANameWithConst(ssa_rep->defs[1], false));
         }
-        decoded_mir->append(StringPrintf(" = vect%d", mir->dalvikInsn.vB));
+        decoded_mir->append(StringPrintf(" = vect%d (extr_idx:%d)", mir->dalvikInsn.vB, mir->dalvikInsn.arg[0]));
       } else {
-        decoded_mir->append(StringPrintf(" v%d = vect%d", mir->dalvikInsn.vA, mir->dalvikInsn.vB));
+        decoded_mir->append(StringPrintf(" v%d = vect%d (extr_idx:%d)", mir->dalvikInsn.vA,
+                                         mir->dalvikInsn.vB, mir->dalvikInsn.arg[0]));
       }
       FillTypeSizeString(mir->dalvikInsn.vC, decoded_mir);
       break;
