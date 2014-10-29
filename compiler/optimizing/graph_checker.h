@@ -53,7 +53,7 @@ class GraphChecker : public HGraphVisitor {
   }
 
   // Print detected errors on output stream `os`.
-  void Dump(std::ostream& os) {
+  void Dump(std::ostream& os) const {
     for (size_t i = 0, e = errors_.Size(); i < e; ++i) {
       os << dump_prefix_ << errors_.Get(i) << std::endl;
     }
@@ -68,7 +68,7 @@ class GraphChecker : public HGraphVisitor {
 
  private:
   // String displayed before dumped errors.
-  const char* dump_prefix_;
+  const char* const dump_prefix_;
 
   DISALLOW_COPY_AND_ASSIGN(GraphChecker);
 };

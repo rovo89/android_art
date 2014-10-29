@@ -209,7 +209,6 @@ LIBART_HOST_LDFLAGS :=
 
 LIBART_TARGET_SRC_FILES := \
   $(LIBART_COMMON_SRC_FILES) \
-  base/logging_android.cc \
   jdwp/jdwp_adb.cc \
   monitor_android.cc \
   runtime_android.cc \
@@ -282,7 +281,6 @@ endif # TARGET_ARCH != mips64
 
 LIBART_HOST_SRC_FILES := \
   $(LIBART_COMMON_SRC_FILES) \
-  base/logging_linux.cc \
   monitor_linux.cc \
   runtime_linux.cc \
   thread_linux.cc
@@ -477,7 +475,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     endif
   endif
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
-#  LOCAL_ADDITIONAL_DEPENDENCIES += $$(LOCAL_PATH)/Android.mk
+  LOCAL_ADDITIONAL_DEPENDENCIES += $$(LOCAL_PATH)/Android.mk
 
   ifeq ($$(art_target_or_host),target)
     LOCAL_MODULE_TARGET_ARCH := $$(ART_TARGET_SUPPORTED_ARCH)

@@ -24,6 +24,8 @@
 
 #include "base/logging.h"
 
+namespace art {
+
 // Architecture dependent flags for the ELF header.
 #define EF_ARM_EABI_VER5 0x05000000
 #define EF_MIPS_ABI_O32 0x00001000
@@ -162,5 +164,7 @@ static inline bool IsDynamicSectionPointer(Elf32_Word d_tag, Elf32_Word e_machin
     }
   }
 }
+
+}  // namespace art
 
 #endif  // ART_RUNTIME_ELF_UTILS_H_

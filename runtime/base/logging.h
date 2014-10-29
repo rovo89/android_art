@@ -17,29 +17,113 @@
 #ifndef ART_RUNTIME_BASE_LOGGING_H_
 #define ART_RUNTIME_BASE_LOGGING_H_
 
-#include <cerrno>
-#include <cstring>
-#include <iostream>  // NOLINT
+#include <iostream>
 #include <memory>
-#include <sstream>
-#include <signal.h>
-#include <vector>
 
 #include "base/macros.h"
-#include "log_severity.h"
 
+namespace art {
+
+enum LogSeverity {
+  VERBOSE,
+  DEBUG,
+  INFO,
+  WARNING,
+  ERROR,
+  FATAL,
+  INTERNAL_FATAL,  // For Runtime::Abort.
+};
+
+// The members of this struct are the valid arguments to VLOG and VLOG_IS_ON in code,
+// and the "-verbose:" command line argument.
+struct LogVerbosity {
+  bool class_linker;  // Enabled with "-verbose:class".
+  bool compiler;
+  bool gc;
+  bool heap;
+  bool jdwp;
+  bool jni;
+  bool monitor;
+  bool profiler;
+  bool signals;
+  bool startup;
+  bool third_party_jni;  // Enabled with "-verbose:third-party-jni".
+  bool threads;
+  bool verifier;
+};
+
+// Global log verbosity setting, initialized by InitLogging.
+extern LogVerbosity gLogVerbosity;
+
+// 0 if not abort, non-zero if an abort is in progress. Used on fatal exit to prevents recursive
+// aborts. Global declaration allows us to disable some error checking to ensure fatal shutdown
+// makes forward progress.
+extern unsigned int gAborting;
+
+// Configure logging based on ANDROID_LOG_TAGS environment variable.
+// We need to parse a string that looks like
+//
+//      *:v jdwp:d dalvikvm:d dalvikvm-gc:i dalvikvmi:i
+//
+// The tag (or '*' for the global level) comes first, followed by a colon
+// and a letter indicating the minimum priority level we're expected to log.
+// This can be used to reveal or conceal logs with specific tags.
+extern void InitLogging(char* argv[]);
+
+// Returns the command line used to invoke the current tool or nullptr if InitLogging hasn't been
+// performed.
+extern const char* GetCmdLine();
+
+// The command used to start the ART runtime, such as "/system/bin/dalvikvm". If InitLogging hasn't
+// been performed then just returns "art"
+extern const char* ProgramInvocationName();
+
+// A short version of the command used to start the ART runtime, such as "dalvikvm". If InitLogging
+// hasn't been performed then just returns "art"
+extern const char* ProgramInvocationShortName();
+
+// Logs a message to logcat on Android otherwise to stderr. If the severity is FATAL it also causes
+// an abort. For example: LOG(FATAL) << "We didn't expect to reach here";
+#define LOG(severity) ::art::LogMessage(__FILE__, __LINE__, severity, -1).stream()
+
+// A variant of LOG that also logs the current errno value. To be used when library calls fail.
+#define PLOG(severity) ::art::LogMessage(__FILE__, __LINE__, severity, errno).stream()
+
+// Marker that code is yet to be implemented.
+#define UNIMPLEMENTED(level) LOG(level) << __PRETTY_FUNCTION__ << " unimplemented "
+
+// Is verbose logging enabled for the given module? Where the module is defined in LogVerbosity.
+#define VLOG_IS_ON(module) UNLIKELY(::art::gLogVerbosity.module)
+
+// Variant of LOG that logs when verbose logging is enabled for a module. For example,
+// VLOG(jni) << "A JNI operation was performed";
+#define VLOG(module) \
+  if (VLOG_IS_ON(module)) \
+    ::art::LogMessage(__FILE__, __LINE__, INFO, -1).stream()
+
+// Return the stream associated with logging for the given module.
+#define VLOG_STREAM(module) ::art::LogMessage(__FILE__, __LINE__, INFO, -1).stream()
+
+// Check whether condition x holds and LOG(FATAL) if not. The value of the expression x is only
+// evaluated once. Extra logging can be appended using << after. For example,
+// CHECK(false == true) results in a log message of "Check failed: false == true".
 #define CHECK(x) \
   if (UNLIKELY(!(x))) \
-    ::art::LogMessage(__FILE__, __LINE__, FATAL, -1).stream() \
+    ::art::LogMessage(__FILE__, __LINE__, ::art::FATAL, -1).stream() \
         << "Check failed: " #x << " "
 
+// Helper for CHECK_xx(x,y) macros.
 #define CHECK_OP(LHS, RHS, OP) \
   for (auto _values = ::art::MakeEagerEvaluator(LHS, RHS); \
        UNLIKELY(!(_values.lhs OP _values.rhs)); /* empty */) \
-    ::art::LogMessage(__FILE__, __LINE__, FATAL, -1).stream() \
+    ::art::LogMessage(__FILE__, __LINE__, ::art::FATAL, -1).stream() \
         << "Check failed: " << #LHS << " " << #OP << " " << #RHS \
         << " (" #LHS "=" << _values.lhs << ", " #RHS "=" << _values.rhs << ") "
 
+
+// Check whether a condition holds between x and y, LOG(FATAL) if not. The value of the expressions
+// x and y is evaluated once. Extra logging can be appended using << after. For example,
+// CHECK_NE(0 == 1, false) results in "Check failed: false != false (0==1=false, false=false) ".
 #define CHECK_EQ(x, y) CHECK_OP(x, y, ==)
 #define CHECK_NE(x, y) CHECK_OP(x, y, !=)
 #define CHECK_LE(x, y) CHECK_OP(x, y, <=)
@@ -47,22 +131,25 @@
 #define CHECK_GE(x, y) CHECK_OP(x, y, >=)
 #define CHECK_GT(x, y) CHECK_OP(x, y, >)
 
+// Helper for CHECK_STRxx(s1,s2) macros.
 #define CHECK_STROP(s1, s2, sense) \
   if (UNLIKELY((strcmp(s1, s2) == 0) != sense)) \
-    LOG(FATAL) << "Check failed: " \
-               << "\"" << s1 << "\"" \
-               << (sense ? " == " : " != ") \
-               << "\"" << s2 << "\""
+    LOG(::art::FATAL) << "Check failed: " \
+        << "\"" << s1 << "\"" \
+        << (sense ? " == " : " != ") \
+        << "\"" << s2 << "\""
 
+// Check for string (const char*) equality between s1 and s2, LOG(FATAL) if not.
 #define CHECK_STREQ(s1, s2) CHECK_STROP(s1, s2, true)
 #define CHECK_STRNE(s1, s2) CHECK_STROP(s1, s2, false)
 
+// Perform the pthread function call(args), LOG(FATAL) on error.
 #define CHECK_PTHREAD_CALL(call, args, what) \
   do { \
     int rc = call args; \
     if (rc != 0) { \
       errno = rc; \
-      PLOG(FATAL) << # call << " failed for " << what; \
+      PLOG(::art::FATAL) << # call << " failed for " << what; \
     } \
   } while (false)
 
@@ -74,81 +161,34 @@
 //          n / 2;
 //    }
 #define CHECK_CONSTEXPR(x, out, dummy) \
-  (UNLIKELY(!(x))) ? (LOG(FATAL) << "Check failed: " << #x out, dummy) :
+  (UNLIKELY(!(x))) ? (LOG(::art::FATAL) << "Check failed: " << #x out, dummy) :
 
-#ifndef NDEBUG
 
-#define DCHECK(x) CHECK(x)
-#define DCHECK_EQ(x, y) CHECK_EQ(x, y)
-#define DCHECK_NE(x, y) CHECK_NE(x, y)
-#define DCHECK_LE(x, y) CHECK_LE(x, y)
-#define DCHECK_LT(x, y) CHECK_LT(x, y)
-#define DCHECK_GE(x, y) CHECK_GE(x, y)
-#define DCHECK_GT(x, y) CHECK_GT(x, y)
-#define DCHECK_STREQ(s1, s2) CHECK_STREQ(s1, s2)
-#define DCHECK_STRNE(s1, s2) CHECK_STRNE(s1, s2)
-#define DCHECK_CONSTEXPR(x, out, dummy) CHECK_CONSTEXPR(x, out, dummy)
-
-#else  // NDEBUG
-
-#define DCHECK(condition) \
-  while (false) \
-    CHECK(condition)
-
-#define DCHECK_EQ(val1, val2) \
-  while (false) \
-    CHECK_EQ(val1, val2)
-
-#define DCHECK_NE(val1, val2) \
-  while (false) \
-    CHECK_NE(val1, val2)
-
-#define DCHECK_LE(val1, val2) \
-  while (false) \
-    CHECK_LE(val1, val2)
-
-#define DCHECK_LT(val1, val2) \
-  while (false) \
-    CHECK_LT(val1, val2)
-
-#define DCHECK_GE(val1, val2) \
-  while (false) \
-    CHECK_GE(val1, val2)
-
-#define DCHECK_GT(val1, val2) \
-  while (false) \
-    CHECK_GT(val1, val2)
-
-#define DCHECK_STREQ(str1, str2) \
-  while (false) \
-    CHECK_STREQ(str1, str2)
-
-#define DCHECK_STRNE(str1, str2) \
-  while (false) \
-    CHECK_STRNE(str1, str2)
-
-#define DCHECK_CONSTEXPR(x, out, dummy) \
-  (false && (x)) ? (dummy) :
-
+// DCHECKs are debug variants of CHECKs only enabled in debug builds. Generally CHECK should be
+// used unless profiling identifies a CHECK as being in performance critical code.
+#if defined(NDEBUG)
+static constexpr bool kEnableDChecks = false;
+#else
+static constexpr bool kEnableDChecks = true;
 #endif
 
-#define LOG(severity) ::art::LogMessage(__FILE__, __LINE__, severity, -1).stream()
-#define PLOG(severity) ::art::LogMessage(__FILE__, __LINE__, severity, errno).stream()
+#define DCHECK(x) if (::art::kEnableDChecks) CHECK(x)
+#define DCHECK_EQ(x, y) if (::art::kEnableDChecks) CHECK_EQ(x, y)
+#define DCHECK_NE(x, y) if (::art::kEnableDChecks) CHECK_NE(x, y)
+#define DCHECK_LE(x, y) if (::art::kEnableDChecks) CHECK_LE(x, y)
+#define DCHECK_LT(x, y) if (::art::kEnableDChecks) CHECK_LT(x, y)
+#define DCHECK_GE(x, y) if (::art::kEnableDChecks) CHECK_GE(x, y)
+#define DCHECK_GT(x, y) if (::art::kEnableDChecks) CHECK_GT(x, y)
+#define DCHECK_STREQ(s1, s2) if (::art::kEnableDChecks) CHECK_STREQ(s1, s2)
+#define DCHECK_STRNE(s1, s2) if (::art::kEnableDChecks) CHECK_STRNE(s1, s2)
+#if defined(NDEBUG)
+#define DCHECK_CONSTEXPR(x, out, dummy)
+#else
+#define DCHECK_CONSTEXPR(x, out, dummy) CHECK_CONSTEXPR(x, out, dummy)
+#endif
 
-#define LG LOG(INFO)
-
-#define UNIMPLEMENTED(level) LOG(level) << __PRETTY_FUNCTION__ << " unimplemented "
-
-#define VLOG_IS_ON(module) UNLIKELY(::art::gLogVerbosity.module)
-#define VLOG(module) if (VLOG_IS_ON(module)) ::art::LogMessage(__FILE__, __LINE__, INFO, -1).stream()
-#define VLOG_STREAM(module) ::art::LogMessage(__FILE__, __LINE__, INFO, -1).stream()
-
-//
-// Implementation details beyond this point.
-//
-
-namespace art {
-
+// Temporary class created to evaluate the LHS and RHS, used with MakeEagerEvaluator to infer the
+// types of LHS and RHS.
 template <typename LHS, typename RHS>
 struct EagerEvaluator {
   EagerEvaluator(LHS l, RHS r) : lhs(l), rhs(r) { }
@@ -156,10 +196,14 @@ struct EagerEvaluator {
   RHS rhs;
 };
 
-// We want char*s to be treated as pointers, not strings. If you want them treated like strings,
-// you'd need to use CHECK_STREQ and CHECK_STRNE anyway to compare the characters rather than their
-// addresses. We could express this more succinctly with std::remove_const, but this is quick and
-// easy to understand, and works before we have C++0x. We rely on signed/unsigned warnings to
+// Helper function for CHECK_xx.
+template <typename LHS, typename RHS>
+static inline EagerEvaluator<LHS, RHS> MakeEagerEvaluator(LHS lhs, RHS rhs) {
+  return EagerEvaluator<LHS, RHS>(lhs, rhs);
+}
+
+// Explicitly instantiate EagerEvalue for pointers so that char*s aren't treated as strings. To
+// compare strings use CHECK_STREQ and CHECK_STRNE. We rely on signed/unsigned warnings to
 // protect you against combinations not explicitly listed below.
 #define EAGER_PTR_EVALUATOR(T1, T2) \
   template <> struct EagerEvaluator<T1, T2> { \
@@ -182,152 +226,29 @@ EAGER_PTR_EVALUATOR(const signed char*, signed char*);
 EAGER_PTR_EVALUATOR(signed char*, const signed char*);
 EAGER_PTR_EVALUATOR(signed char*, signed char*);
 
-template <typename LHS, typename RHS>
-EagerEvaluator<LHS, RHS> MakeEagerEvaluator(LHS lhs, RHS rhs) {
-  return EagerEvaluator<LHS, RHS>(lhs, rhs);
-}
+// Data for the log message, not stored in LogMessage to avoid increasing the stack size.
+class LogMessageData;
 
-// This indirection greatly reduces the stack impact of having
-// lots of checks/logging in a function.
-struct LogMessageData {
- public:
-  LogMessageData(const char* file, int line, LogSeverity severity, int error);
-  std::ostringstream buffer;
-  const char* const file;
-  const int line_number;
-  const LogSeverity severity;
-  const int error;
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(LogMessageData);
-};
-
+// A LogMessage is a temporarily scoped object used by LOG and the unlikely part of a CHECK. The
+// destructor will abort if the severity is FATAL.
 class LogMessage {
  public:
-  LogMessage(const char* file, int line, LogSeverity severity, int error)
-    : data_(new LogMessageData(file, line, severity, error)) {
-  }
+  LogMessage(const char* file, unsigned int line, LogSeverity severity, int error);
 
   ~LogMessage();  // TODO: enable LOCKS_EXCLUDED(Locks::logging_lock_).
 
-  std::ostream& stream() {
-    return data_->buffer;
-  }
+  // Returns the stream associated with the message, the LogMessage performs output when it goes
+  // out of scope.
+  std::ostream& stream();
+
+  // The routine that performs the actual logging.
+  static void LogLine(const char* file, unsigned int line, LogSeverity severity, const char* msg);
 
  private:
-  static void LogLine(const LogMessageData& data, const char*);
-
   const std::unique_ptr<LogMessageData> data_;
 
-  friend void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context);
-  friend class Mutex;
   DISALLOW_COPY_AND_ASSIGN(LogMessage);
 };
-
-// A convenience to allow any class with a "Dump(std::ostream& os)" member function
-// but without an operator<< to be used as if it had an operator<<. Use like this:
-//
-//   os << Dumpable<MyType>(my_type_instance);
-//
-template<typename T>
-class Dumpable {
- public:
-  explicit Dumpable(T& value) : value_(value) {
-  }
-
-  void Dump(std::ostream& os) const {
-    value_.Dump(os);
-  }
-
- private:
-  T& value_;
-
-  DISALLOW_COPY_AND_ASSIGN(Dumpable);
-};
-
-template<typename T>
-std::ostream& operator<<(std::ostream& os, const Dumpable<T>& rhs) {
-  rhs.Dump(os);
-  return os;
-}
-
-template<typename T>
-class ConstDumpable {
- public:
-  explicit ConstDumpable(const T& value) : value_(value) {
-  }
-
-  void Dump(std::ostream& os) const {
-    value_.Dump(os);
-  }
-
- private:
-  const T& value_;
-
-  DISALLOW_COPY_AND_ASSIGN(ConstDumpable);
-};
-
-template<typename T>
-std::ostream& operator<<(std::ostream& os, const ConstDumpable<T>& rhs) {
-  rhs.Dump(os);
-  return os;
-}
-
-// Helps you use operator<< in a const char*-like context such as our various 'F' methods with
-// format strings.
-template<typename T>
-class ToStr {
- public:
-  explicit ToStr(const T& value) {
-    std::ostringstream os;
-    os << value;
-    s_ = os.str();
-  }
-
-  const char* c_str() const {
-    return s_.c_str();
-  }
-
-  const std::string& str() const {
-    return s_;
-  }
-
- private:
-  std::string s_;
-  DISALLOW_COPY_AND_ASSIGN(ToStr);
-};
-
-// The members of this struct are the valid arguments to VLOG and VLOG_IS_ON in code,
-// and the "-verbose:" command line argument.
-struct LogVerbosity {
-  bool class_linker;  // Enabled with "-verbose:class".
-  bool compiler;
-  bool gc;
-  bool heap;
-  bool jdwp;
-  bool jni;
-  bool monitor;
-  bool profiler;
-  bool signals;
-  bool startup;
-  bool third_party_jni;  // Enabled with "-verbose:third-party-jni".
-  bool threads;
-  bool verifier;
-};
-
-extern LogVerbosity gLogVerbosity;
-
-extern std::vector<std::string> gVerboseMethods;
-
-// Used on fatal exit. Prevents recursive aborts. Allows us to disable
-// some error checking to ensure fatal shutdown makes forward progress.
-extern unsigned int gAborting;
-
-extern void InitLogging(char* argv[]);
-
-extern const char* GetCmdLine();
-extern const char* ProgramInvocationName();
-extern const char* ProgramInvocationShortName();
 
 }  // namespace art
 

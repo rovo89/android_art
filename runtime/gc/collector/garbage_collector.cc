@@ -18,6 +18,7 @@
 
 #include "garbage_collector.h"
 
+#include "base/dumpable.h"
 #include "base/histogram-inl.h"
 #include "base/logging.h"
 #include "base/mutex-inl.h"
@@ -188,7 +189,7 @@ void GarbageCollector::DumpPerformanceInfo(std::ostream& os) {
   if (iterations == 0) {
     return;
   }
-  os << ConstDumpable<CumulativeLogger>(logger);
+  os << Dumpable<CumulativeLogger>(logger);
   const uint64_t total_ns = logger.GetTotalNs();
   double seconds = NsToMs(logger.GetTotalNs()) / 1000.0;
   const uint64_t freed_bytes = GetTotalFreedBytes();

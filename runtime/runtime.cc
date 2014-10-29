@@ -45,6 +45,7 @@
 #include "arch/x86_64/registers_x86_64.h"
 #include "asm_support.h"
 #include "atomic.h"
+#include "base/dumpable.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "debugger.h"
@@ -208,7 +209,7 @@ Runtime::~Runtime() {
 }
 
 struct AbortState {
-  void Dump(std::ostream& os) {
+  void Dump(std::ostream& os) const {
     if (gAborting > 1) {
       os << "Runtime aborting --- recursively, so no thread-specific detail!\n";
       return;
@@ -239,7 +240,7 @@ struct AbortState {
   }
 
   // No thread-safety analysis as we do explicitly test for holding the mutator lock.
-  void DumpThread(std::ostream& os, Thread* self) NO_THREAD_SAFETY_ANALYSIS {
+  void DumpThread(std::ostream& os, Thread* self) const NO_THREAD_SAFETY_ANALYSIS {
     DCHECK(Locks::mutator_lock_->IsExclusiveHeld(self) || Locks::mutator_lock_->IsSharedHeld(self));
     self->Dump(os);
     if (self->IsExceptionPending()) {
@@ -251,7 +252,7 @@ struct AbortState {
     }
   }
 
-  void DumpAllThreads(std::ostream& os, Thread* self) {
+  void DumpAllThreads(std::ostream& os, Thread* self) const {
     Runtime* runtime = Runtime::Current();
     if (runtime != nullptr) {
       ThreadList* thread_list = runtime->GetThreadList();

@@ -15,6 +15,7 @@
  */
 
 #include "entrypoints/entrypoint_utils-inl.h"
+#include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 #include "thread-inl.h"
 #include "verify_object-inl.h"

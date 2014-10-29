@@ -21,6 +21,7 @@
 
 #include <random>
 
+#include "base/macros.h"
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "base/scoped_flock.h"

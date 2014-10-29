@@ -19,6 +19,7 @@
 #include <cstdint>
 
 #include "backend.h"
+#include "base/dumpable.h"
 #include "compiler.h"
 #include "compiler_internals.h"
 #include "driver/compiler_driver.h"
@@ -134,15 +135,8 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
         (cu.enable_debug & (1 << kDebugVerbose));
   }
 
-  if (gVerboseMethods.size() != 0) {
-    cu.verbose = false;
-    for (size_t i = 0; i < gVerboseMethods.size(); ++i) {
-      if (PrettyMethod(method_idx, dex_file).find(gVerboseMethods[i])
-          != std::string::npos) {
-        cu.verbose = true;
-        break;
-      }
-    }
+  if (driver.GetCompilerOptions().HasVerboseMethods()) {
+    cu.verbose = driver.GetCompilerOptions().IsVerboseMethod(PrettyMethod(method_idx, dex_file));
   }
 
   if (cu.verbose) {

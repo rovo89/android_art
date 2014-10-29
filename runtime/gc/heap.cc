@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "base/allocator.h"
+#include "base/dumpable.h"
 #include "base/histogram-inl.h"
 #include "base/stl_util.h"
 #include "common_throws.h"
@@ -2185,7 +2186,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
               << percent_free << "% free, " << PrettySize(current_heap_size) << "/"
               << PrettySize(total_memory) << ", " << "paused " << pause_string.str()
               << " total " << PrettyDuration((duration / 1000) * 1000);
-    VLOG(heap) << ConstDumpable<TimingLogger>(*current_gc_iteration_.GetTimings());
+    VLOG(heap) << Dumpable<TimingLogger>(*current_gc_iteration_.GetTimings());
   }
   FinishGC(self, gc_type);
   // Inform DDMS that a GC completed.

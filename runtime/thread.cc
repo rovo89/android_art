@@ -29,9 +29,11 @@
 #include <cerrno>
 #include <iostream>
 #include <list>
+#include <sstream>
 
 #include "arch/context.h"
 #include "base/mutex.h"
+#include "base/to_str.h"
 #include "class_linker-inl.h"
 #include "class_linker.h"
 #include "debugger.h"
