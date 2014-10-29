@@ -127,6 +127,10 @@ class PACKED(4) HandleScope {
     return reinterpret_cast<StackReference<mirror::Object>*>(address);
   }
 
+  explicit HandleScope(size_t number_of_references) :
+      link_(nullptr), number_of_references_(number_of_references) {
+  }
+
   // Semi-hidden constructor. Construction expected by generated code and StackHandleScope.
   explicit HandleScope(HandleScope* link, uint32_t num_references) :
       link_(link), number_of_references_(num_references) {
