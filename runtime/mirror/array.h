@@ -49,7 +49,7 @@ class MANAGED Array : public Object {
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   size_t SizeOf() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  int32_t GetLength() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ALWAYS_INLINE int32_t GetLength() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Array, length_));
   }
 
@@ -82,7 +82,7 @@ class MANAGED Array : public Object {
   // Returns true if the index is valid. If not, throws an ArrayIndexOutOfBoundsException and
   // returns false.
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  bool CheckIsValidIndex(int32_t index) ALWAYS_INLINE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ALWAYS_INLINE bool CheckIsValidIndex(int32_t index) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  protected:
   void ThrowArrayStoreException(Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
