@@ -24,6 +24,7 @@
 
 #include "base/logging.h"
 #include "base/mutex.h"  // For Locks::mutator_lock_.
+#include "base/value_object.h"
 #include "globals.h"
 #include "invoke_type.h"
 #include "jni.h"
@@ -1027,7 +1028,7 @@ class DexFileParameterIterator {
 };
 
 // Abstract the signature of a method.
-class Signature {
+class Signature : public ValueObject {
  public:
   std::string ToString() const;
 
