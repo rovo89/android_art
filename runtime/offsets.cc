@@ -16,7 +16,7 @@
 
 #include "offsets.h"
 
-#include <iostream>  // NOLINT
+#include <ostream>
 
 namespace art {
 

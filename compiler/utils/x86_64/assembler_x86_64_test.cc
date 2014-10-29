@@ -72,8 +72,8 @@ class AssemblerX86_64Test : public AssemblerTest<x86_64::X86_64Assembler, x86_64
     return registers_;
   }
 
-  x86_64::Immediate* CreateImmediate(int64_t imm_value) OVERRIDE {
-    return new x86_64::Immediate(imm_value);
+  x86_64::Immediate CreateImmediate(int64_t imm_value) OVERRIDE {
+    return x86_64::Immediate(imm_value);
   }
 
  private:

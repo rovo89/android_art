@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+
 #ifdef HAVE_ANDROID_OS
 #include <android/log.h>
 #else
 #include <stdarg.h>
 #include <iostream>
 #endif
-
-#include <stdlib.h>
 
 #include "sigchain.h"
 

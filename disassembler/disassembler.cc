@@ -16,7 +16,7 @@
 
 #include "disassembler.h"
 
-#include <iostream>
+#include <ostream>
 
 #include "base/logging.h"
 #include "base/stringprintf.h"

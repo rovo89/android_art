@@ -16,7 +16,6 @@
 
 #include "dex_instruction_visitor.h"
 
-#include <iostream>
 #include <memory>
 
 #include "gtest/gtest.h"

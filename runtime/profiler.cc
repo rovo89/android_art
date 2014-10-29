@@ -97,7 +97,7 @@ static void GetSample(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(Locks::mu
   switch (profile_options.GetProfileType()) {
     case kProfilerMethod: {
       mirror::ArtMethod* method = thread->GetCurrentMethod(nullptr);
-      if (false && method == nullptr) {
+      if ((false) && method == nullptr) {
         LOG(INFO) << "No current method available";
         std::ostringstream os;
         thread->Dump(os);

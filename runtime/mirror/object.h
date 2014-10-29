@@ -478,6 +478,7 @@ class MANAGED LOCKABLE Object {
   friend struct art::ObjectOffsets;  // for verifying offset information
   friend class CopyObjectVisitor;  // for CopyObject().
   friend class CopyClassVisitor;   // for CopyObject().
+  DISALLOW_ALLOCATION();
   DISALLOW_IMPLICIT_CONSTRUCTORS(Object);
 };
 
