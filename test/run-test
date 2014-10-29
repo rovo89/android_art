@@ -97,6 +97,7 @@ have_patchoat="yes"
 have_image="yes"
 image_suffix=""
 pic_image_suffix=""
+android_root="/system"
 
 while true; do
     if [ "x$1" = "x--host" ]; then
@@ -223,6 +224,16 @@ while true; do
             break
         fi
         shift
+    elif [ "x$1" = "x--android-root" ]; then
+        shift
+        if [ "x$1" = "x" ]; then
+            echo "$0 missing argument to --android-root" 1>&2
+            usage="yes"
+            break
+        fi
+        android_root="$1"
+        run_args="${run_args} --android-root $1"
+        shift
     elif [ "x$1" = "x--update" ]; then
         update_mode="yes"
         shift
@@ -321,12 +332,12 @@ elif [ "$runtime" = "art" ]; then
         if [ -z "$ANDROID_HOST_OUT" ]; then
             export ANDROID_HOST_OUT=$ANDROID_BUILD_TOP/out/host/linux-x86
         fi
-        run_args="${run_args} --boot -Ximage:${ANDROID_HOST_OUT}/framework/core${image_suffix}${pic_image_suffix}.art"
+        run_args="${run_args} --boot ${ANDROID_HOST_OUT}/framework/core${image_suffix}${pic_image_suffix}.art"
         run_args="${run_args} --runtime-option -Djava.library.path=${ANDROID_HOST_OUT}/lib${suffix64}"
     else
         guess_arch_name
         run_args="${run_args} --runtime-option -Djava.library.path=/data/art-test/${target_arch_name}"
-        run_args="${run_args} --boot -Ximage:/data/art-test/core${image_suffix}${pic_image_suffix}.art"
+        run_args="${run_args} --boot /data/art-test/core${image_suffix}${pic_image_suffix}.art"
     fi
     if [ "$relocate" = "yes" ]; then
       run_args="${run_args} --relocate"
@@ -344,7 +355,7 @@ if [ "$have_image" = "no" ]; then
         framework="${ANDROID_HOST_OUT}/framework"
         bpath_suffix="-hostdex"
     else
-        framework="/system/framework"
+        framework="${android_root}/framework"
         bpath_suffix=""
     fi
     # TODO If the target was compiled WITH_DEXPREOPT=true then these tests will
@@ -397,40 +408,41 @@ if [ "$usage" = "yes" ]; then
         echo '  Omitting the test name or specifying "-" will use the' \
              "current directory."
         echo "  Runtime Options:"
-        echo "    -O                   Run non-debug rather than debug build (off by default)."
-        echo "    -Xcompiler-option    Pass an option to the compiler."
-        echo "    --runtime-option     Pass an option to the runtime."
-        echo "    --debug              Wait for a debugger to attach."
-        echo "    --gdb                Run under gdb; incompatible with some tests."
-        echo "    --build-only         Build test files only (off by default)."
-        echo "    --interpreter        Enable interpreter only mode (off by default)."
-        echo "    --optimizing         Enable optimizing compiler (off by default)."
-        echo "    --no-verify          Turn off verification (on by default)."
-        echo "    --no-optimize        Turn off optimization (on by default)."
-        echo "    --no-precise         Turn off precise GC (on by default)."
-        echo "    --zygote             Spawn the process from the Zygote." \
+        echo "    -O                    Run non-debug rather than debug build (off by default)."
+        echo "    -Xcompiler-option     Pass an option to the compiler."
+        echo "    --runtime-option      Pass an option to the runtime."
+        echo "    --debug               Wait for a debugger to attach."
+        echo "    --gdb                 Run under gdb; incompatible with some tests."
+        echo "    --build-only          Build test files only (off by default)."
+        echo "    --interpreter         Enable interpreter only mode (off by default)."
+        echo "    --optimizing          Enable optimizing compiler (off by default)."
+        echo "    --no-verify           Turn off verification (on by default)."
+        echo "    --no-optimize         Turn off optimization (on by default)."
+        echo "    --no-precise          Turn off precise GC (on by default)."
+        echo "    --zygote              Spawn the process from the Zygote." \
              "If used, then the"
-        echo "                         other runtime options are ignored."
-        echo "    --no-dex2oat         Run as though dex2oat was failing."
-        echo "    --no-patchoat        Run as though patchoat was failing."
-        echo "    --prebuild           Run dex2oat on the files before starting test. (default)"
-        echo "    --no-prebuild        Do not run dex2oat on the files before starting"
-        echo "                         the test."
-        echo "    --relocate           Force the use of relocating in the test, making"
-        echo "                         the image and oat files be relocated to a random"
-        echo "                         address before running. (default)"
-        echo "    --no-relocate        Force the use of no relocating in the test"
-        echo "    --host               Use the host-mode virtual machine."
-        echo "    --invoke-with        Pass --invoke-with option to runtime."
-        echo "    --dalvik             Use Dalvik (off by default)."
-        echo "    --jvm                Use a host-local RI virtual machine."
-        echo "    --output-path [path] Location where to store the build" \
+        echo "                          other runtime options are ignored."
+        echo "    --no-dex2oat          Run as though dex2oat was failing."
+        echo "    --no-patchoat         Run as though patchoat was failing."
+        echo "    --prebuild            Run dex2oat on the files before starting test. (default)"
+        echo "    --no-prebuild         Do not run dex2oat on the files before starting"
+        echo "                          the test."
+        echo "    --relocate            Force the use of relocating in the test, making"
+        echo "                          the image and oat files be relocated to a random"
+        echo "                          address before running. (default)"
+        echo "    --no-relocate         Force the use of no relocating in the test"
+        echo "    --host                Use the host-mode virtual machine."
+        echo "    --invoke-with         Pass --invoke-with option to runtime."
+        echo "    --dalvik              Use Dalvik (off by default)."
+        echo "    --jvm                 Use a host-local RI virtual machine."
+        echo "    --output-path [path]  Location where to store the build" \
              "files."
-        echo "    --64                 Run the test in 64-bit mode"
-        echo "    --trace              Run with method tracing"
-        echo "    --gcstress           Run with gc stress testing"
-        echo "    --gcverify           Run with gc verification"
-        echo "    --always-clean       Delete the test files even if the test fails."
+        echo "    --64                  Run the test in 64-bit mode"
+        echo "    --trace               Run with method tracing"
+        echo "    --gcstress            Run with gc stress testing"
+        echo "    --gcverify            Run with gc verification"
+        echo "    --always-clean        Delete the test files even if the test fails."
+        echo "    --android-root [path] The path on target for the android root. (/system by default)."
     ) 1>&2
     exit 1
 fi
