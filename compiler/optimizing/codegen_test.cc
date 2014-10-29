@@ -18,6 +18,7 @@
 
 #include "builder.h"
 #include "code_generator_arm.h"
+#include "code_generator_arm64.h"
 #include "code_generator_x86.h"
 #include "code_generator_x86_64.h"
 #include "common_compiler_test.h"
@@ -92,6 +93,12 @@ static void RunCodeBaseline(HGraph* graph, bool has_result, int32_t expected) {
   codegenX86_64.CompileBaseline(&allocator, true);
   if (kRuntimeISA == kX86_64) {
     Run(allocator, codegenX86_64, has_result, expected);
+  }
+
+  arm64::CodeGeneratorARM64 codegenARM64(graph);
+  codegenARM64.CompileBaseline(&allocator, true);
+  if (kRuntimeISA == kArm64) {
+    Run(allocator, codegenARM64, has_result, expected);
   }
 }
 
@@ -395,10 +402,16 @@ TEST(CodegenTest, NonMaterializedCondition) {
     TestCode(data, true, 12);                         \
   }
 
+#if !defined(__aarch64__)
 MUL_TEST(INT, MulInt);
 MUL_TEST(LONG, MulLong);
+#endif
 
+#if defined(__aarch64__)
+TEST(CodegenTest, DISABLED_ReturnMulIntLit8) {
+#else
 TEST(CodegenTest, ReturnMulIntLit8) {
+#endif
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 4 << 12 | 0 << 8,
     Instruction::MUL_INT_LIT8, 3 << 8 | 0,
@@ -407,7 +420,11 @@ TEST(CodegenTest, ReturnMulIntLit8) {
   TestCode(data, true, 12);
 }
 
+#if defined(__aarch64__)
+TEST(CodegenTest, DISABLED_ReturnMulIntLit16) {
+#else
 TEST(CodegenTest, ReturnMulIntLit16) {
+#endif
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 4 << 12 | 0 << 8,
     Instruction::MUL_INT_LIT16, 3,

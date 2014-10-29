@@ -88,6 +88,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/builder.cc \
 	optimizing/code_generator.cc \
 	optimizing/code_generator_arm.cc \
+	optimizing/code_generator_arm64.cc \
 	optimizing/code_generator_x86.cc \
 	optimizing/code_generator_x86_64.cc \
 	optimizing/constant_folding.cc \
