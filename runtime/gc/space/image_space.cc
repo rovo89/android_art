@@ -497,7 +497,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
     if (relocated_version_used) {
       LOG(FATAL) << "Attempted to use relocated version of " << image_location << " "
                  << "at " << cache_filename << " generated from " << system_filename << " "
-                 << "but image failed to load: " << error_msg;
+                 << "but image failed to load: " << *error_msg;
       return nullptr;
     } else if (is_system) {
       *error_msg = StringPrintf("Failed to load /system image '%s': %s",
