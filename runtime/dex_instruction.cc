@@ -113,7 +113,7 @@ size_t Instruction::SizeInCodeUnitsComplexOpcode() const {
         return 1;  // NOP.
       } else {
         LOG(FATAL) << "Unreachable: " << DumpString(nullptr);
-        return 0;
+        UNREACHABLE();
       }
   }
 }

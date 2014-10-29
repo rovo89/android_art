@@ -286,7 +286,7 @@ class CodeInfo {
       }
     }
     LOG(FATAL) << "Unreachable";
-    return StackMap(MemoryRegion());
+    UNREACHABLE();
   }
 
   StackMap GetStackMapForNativePcOffset(uint32_t native_pc_offset) {
@@ -298,7 +298,7 @@ class CodeInfo {
       }
     }
     LOG(FATAL) << "Unreachable";
-    return StackMap(MemoryRegion());
+    UNREACHABLE();
   }
 
  private:

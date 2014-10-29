@@ -127,7 +127,8 @@ mirror::Object* StackVisitor::GetThisObject() const {
     }
   } else if (m->IsOptimized()) {
     // TODO: Implement, currently only used for exceptions when jdwp is enabled.
-    LOG(WARNING) << "StackVisitor::GetThisObject is unimplemented with the optimizing compiler";
+    UNIMPLEMENTED(WARNING)
+        << "StackVisitor::GetThisObject is unimplemented with the optimizing compiler";
     return nullptr;
   } else {
     const DexFile::CodeItem* code_item = m->GetCodeItem();

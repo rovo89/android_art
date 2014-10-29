@@ -35,8 +35,8 @@ const char* PrettyCause(GcCause cause) {
     case kGcCauseTrim: return "HeapTrim";
     default:
       LOG(FATAL) << "Unreachable";
+      UNREACHABLE();
   }
-  return "";
 }
 
 std::ostream& operator<<(std::ostream& os, const GcCause& gc_cause) {

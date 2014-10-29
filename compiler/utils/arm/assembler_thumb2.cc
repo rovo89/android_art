@@ -2406,6 +2406,7 @@ void Thumb2Assembler::LoadFromOffset(LoadOperandType type,
       break;
     default:
       LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
   }
 }
 
@@ -2477,6 +2478,7 @@ void Thumb2Assembler::StoreToOffset(StoreOperandType type,
       break;
     default:
       LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
   }
 }
 

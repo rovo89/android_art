@@ -326,6 +326,7 @@ static void PreloadDexCachesResolveMethod(Handle<mirror::DexCache> dex_cache, ui
       break;
     default:
       LOG(FATAL) << "Unreachable - invocation type: " << invoke_type;
+      UNREACHABLE();
   }
   if (method == NULL) {
     return;

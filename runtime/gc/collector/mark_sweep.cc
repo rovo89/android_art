@@ -813,6 +813,7 @@ void MarkSweep::ScanGrayObjects(bool paused, uint8_t minimum_age) {
           break;
         default:
           LOG(FATAL) << "Unreachable";
+          UNREACHABLE();
         }
         TimingLogger::ScopedTiming t(name, GetTimings());
         ScanObjectVisitor visitor(this);

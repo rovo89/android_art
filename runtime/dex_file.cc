@@ -1182,13 +1182,14 @@ void EncodedStaticFieldValueIterator::Next() {
   case kArray:
   case kAnnotation:
     UNIMPLEMENTED(FATAL) << ": type " << type_;
-    break;
+    UNREACHABLE();
   case kNull:
     jval_.l = NULL;
     width = 0;
     break;
   default:
     LOG(FATAL) << "Unreached";
+    UNREACHABLE();
   }
   ptr_ += width;
 }
