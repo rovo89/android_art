@@ -4711,8 +4711,7 @@ bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) 
 bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass,
                                        Handle<mirror::ObjectArray<mirror::Class>> interfaces,
                                        StackHandleScope<mirror::Class::kImtSize>* out_imt) {
-  static constexpr size_t kInterfaceCacheSize = 8;
-  StackHandleScope<3 + kInterfaceCacheSize> hs(self);
+  StackHandleScope<3> hs(self);
   Runtime* const runtime = Runtime::Current();
   const bool has_superclass = klass->HasSuperClass();
   const size_t super_ifcount = has_superclass ? klass->GetSuperClass()->GetIfTableCount() : 0U;
@@ -4746,9 +4745,6 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
     mirror::Class* interface = have_interfaces ?
         interfaces->GetWithoutChecks(i) : mirror::Class::GetDirectInterface(self, klass, i);
     DCHECK(interface != nullptr);
-    if (i < kInterfaceCacheSize) {
-      hs.NewHandle(interface);
-    }
     if (UNLIKELY(!interface->IsInterface())) {
       std::string temp;
       ThrowIncompatibleClassChangeError(klass.Get(), "Class %s implements non-interface class %s",
@@ -4774,13 +4770,8 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
   // Flatten the interface inheritance hierarchy.
   size_t idx = super_ifcount;
   for (size_t i = 0; i < num_interfaces; i++) {
-    mirror::Class* interface;
-    if (i < kInterfaceCacheSize) {
-      interface = hs.GetReference(i)->AsClass();
-    } else {
-      interface = have_interfaces ? interfaces->Get(i) :
-          mirror::Class::GetDirectInterface(self, klass, i);
-    }
+    mirror::Class* interface = have_interfaces ? interfaces->Get(i) :
+        mirror::Class::GetDirectInterface(self, klass, i);
     // Check if interface is already in iftable
     bool duplicate = false;
     for (size_t j = 0; j < idx; j++) {
