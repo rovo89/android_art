@@ -114,18 +114,6 @@ static void RealPruneDexCache(const std::string& cache_dir_path) {
   CHECK_EQ(0, TEMP_FAILURE_RETRY(closedir(cache_dir))) << "Unable to close directory.";
 }
 
-static void RemoveImageFiles(const std::string& image_filename, std::string* error_msg) {
-  if (TEMP_FAILURE_RETRY(unlink(image_filename.c_str())) != 0) {
-    *error_msg = StringPrintf("Failed to remove image file after previous error: %s",
-                              error_msg->c_str());
-  }
-  std::string oat_filename(ImageHeader::GetOatLocationFromImageLocation(image_filename));
-  if (TEMP_FAILURE_RETRY(unlink(oat_filename.c_str())) != 0) {
-    *error_msg = StringPrintf("Failed to remove oat file after previous error: %s",
-                              error_msg->c_str());
-  }
-}
-
 static bool GenerateImage(const std::string& image_filename, InstructionSet image_isa,
                           std::string* error_msg) {
   const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
@@ -444,7 +432,11 @@ ImageSpace* ImageSpace::Create(const char* image_location,
             *error_msg = StringPrintf("Unable to relocate image '%s' from '%s' to '%s': %s",
                                       image_location, system_filename.c_str(),
                                       cache_filename.c_str(), reason.c_str());
-            RemoveImageFiles(cache_filename, error_msg);
+            // We failed to create files, remove any possibly garbage output.
+            // Since ImageCreationAllowed was true above, we are the zygote
+            // and therefore the only process expected to generate these for
+            // the device.
+            PruneDexCache(image_isa);
             return nullptr;
           }
         }
@@ -491,19 +483,23 @@ ImageSpace* ImageSpace::Create(const char* image_location,
       return space;
     }
 
-    // If the /system file exists, it should be up-to-date, don't try to generate it. Same if it is
-    // a relocated copy from something in /system (i.e. checksum's match).
-    // Otherwise, log a warning and fall through to GenerateImage.
     if (relocated_version_used) {
-      LOG(FATAL) << "Attempted to use relocated version of " << image_location << " "
-                 << "at " << cache_filename << " generated from " << system_filename << " "
-                 << "but image failed to load: " << *error_msg;
+      // Something is wrong with the relocated copy (even though checksums match). Cleanup.
+      // This can happen if the .oat is corrupt, since the above only checks the .art checksums.
+      // TODO: Check the oat file validity earlier.
+      *error_msg = StringPrintf("Attempted to use relocated version of %s at %s generated from %s "
+                                "but image failed to load: %s",
+                                image_location, cache_filename.c_str(), system_filename.c_str(),
+                                error_msg->c_str());
+      PruneDexCache(image_isa);
       return nullptr;
     } else if (is_system) {
+      // If the /system file exists, it should be up-to-date, don't try to generate it.
       *error_msg = StringPrintf("Failed to load /system image '%s': %s",
                                 image_filename->c_str(), error_msg->c_str());
       return nullptr;
     } else {
+      // Otherwise, log a warning and fall through to GenerateImage.
       LOG(WARNING) << *error_msg;
     }
   }
@@ -519,7 +515,11 @@ ImageSpace* ImageSpace::Create(const char* image_location,
   } else if (!GenerateImage(cache_filename, image_isa, error_msg)) {
     *error_msg = StringPrintf("Failed to generate image '%s': %s",
                               cache_filename.c_str(), error_msg->c_str());
-    RemoveImageFiles(cache_filename, error_msg);
+    // We failed to create files, remove any possibly garbage output.
+    // Since ImageCreationAllowed was true above, we are the zygote
+    // and therefore the only process expected to generate these for
+    // the device.
+    PruneDexCache(image_isa);
     return nullptr;
   } else {
     // Note that we must not use the file descriptor associated with
