@@ -39,33 +39,33 @@ std::ostream& operator<<(std::ostream& os, const Space& space) {
 }
 
 DlMallocSpace* Space::AsDlMallocSpace() {
-  LOG(FATAL) << "Unreachable";
-  return nullptr;
+  UNIMPLEMENTED(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
 RosAllocSpace* Space::AsRosAllocSpace() {
-  LOG(FATAL) << "Unreachable";
-  return nullptr;
+  UNIMPLEMENTED(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
 ZygoteSpace* Space::AsZygoteSpace() {
-  LOG(FATAL) << "Unreachable";
-  return nullptr;
+  UNIMPLEMENTED(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
 BumpPointerSpace* Space::AsBumpPointerSpace() {
-  LOG(FATAL) << "Unreachable";
-  return nullptr;
+  UNIMPLEMENTED(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
 AllocSpace* Space::AsAllocSpace() {
-  LOG(FATAL) << "Unimplemented";
-  return nullptr;
+  UNIMPLEMENTED(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
 ContinuousMemMapAllocSpace* Space::AsContinuousMemMapAllocSpace() {
-  LOG(FATAL) << "Unimplemented";
-  return nullptr;
+  UNIMPLEMENTED(FATAL) << "Unreachable";
+  UNREACHABLE();
 }
 
 DiscontinuousSpace::DiscontinuousSpace(const std::string& name,

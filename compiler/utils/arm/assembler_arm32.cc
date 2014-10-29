@@ -1356,6 +1356,7 @@ void Arm32Assembler::LoadFromOffset(LoadOperandType type,
       break;
     default:
       LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
   }
 }
 
@@ -1427,6 +1428,7 @@ void Arm32Assembler::StoreToOffset(StoreOperandType type,
       break;
     default:
       LOG(FATAL) << "UNREACHABLE";
+      UNREACHABLE();
   }
 }
 

@@ -325,7 +325,7 @@ template<bool do_access_check, bool transaction_active>
 JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
                        ShadowFrame& shadow_frame, JValue result_register) {
   LOG(FATAL) << "UNREACHABLE";
-  exit(0);
+  UNREACHABLE();
 }
 // Explicit definitions of ExecuteGotoImpl.
 template<> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)

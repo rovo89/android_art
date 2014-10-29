@@ -5284,6 +5284,7 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file, uint32_t 
       break;
     default:
       LOG(FATAL) << "Unreachable - invocation type: " << type;
+      UNREACHABLE();
   }
   if (resolved == nullptr) {
     // Search by name, which works across dex files.

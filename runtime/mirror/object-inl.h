@@ -121,7 +121,7 @@ inline Object* Object::GetReadBarrierPointer() {
       OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_));
 #else
   LOG(FATAL) << "Unreachable";
-  return nullptr;
+  UNREACHABLE();
 #endif
 }
 
@@ -134,6 +134,7 @@ inline void Object::SetReadBarrierPointer(Object* rb_ptr) {
       OFFSET_OF_OBJECT_MEMBER(Object, x_rb_ptr_), rb_ptr);
 #else
   LOG(FATAL) << "Unreachable";
+  UNREACHABLE();
 #endif
 }
 
@@ -156,7 +157,7 @@ inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object*
   return true;
 #else
   LOG(FATAL) << "Unreachable";
-  return false;
+  UNREACHABLE();
 #endif
 }
 
@@ -166,13 +167,12 @@ inline void Object::AssertReadBarrierPointer() const {
     DCHECK(obj->GetReadBarrierPointer() == nullptr)
         << "Bad Baker pointer: obj=" << reinterpret_cast<void*>(obj)
         << " ptr=" << reinterpret_cast<void*>(obj->GetReadBarrierPointer());
-  } else if (kUseBrooksReadBarrier) {
+  } else {
+    CHECK(kUseBrooksReadBarrier);
     Object* obj = const_cast<Object*>(this);
     DCHECK_EQ(obj, obj->GetReadBarrierPointer())
         << "Bad Brooks pointer: obj=" << reinterpret_cast<void*>(obj)
         << " ptr=" << reinterpret_cast<void*>(obj->GetReadBarrierPointer());
-  } else {
-    LOG(FATAL) << "Unreachable";
   }
 }
 

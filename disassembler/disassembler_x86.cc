@@ -508,7 +508,7 @@ DISASSEMBLER_ENTRY(cmp,
           case 0x5D: opcode << "min"; break;
           case 0x5E: opcode << "div"; break;
           case 0x5F: opcode << "max"; break;
-          default: LOG(FATAL) << "Unreachable";
+          default: LOG(FATAL) << "Unreachable"; UNREACHABLE();
         }
         if (prefix[2] == 0x66) {
           opcode << "pd";
@@ -1239,7 +1239,7 @@ DISASSEMBLER_ENTRY(cmp,
     case 0xF2: prefixed_opcode << "repne "; break;
     case 0xF3: prefixed_opcode << "repe "; break;
     case 0: break;
-    default: LOG(FATAL) << "Unreachable";
+    default: LOG(FATAL) << "Unreachable"; UNREACHABLE();
   }
   prefixed_opcode << opcode.str();
   os << FormatInstructionPointer(begin_instr)

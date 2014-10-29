@@ -486,7 +486,7 @@ void BuildQuickShadowFrameVisitor::Visit() {
       break;
     case Primitive::kPrimVoid:
       LOG(FATAL) << "UNREACHABLE";
-      break;
+      UNREACHABLE();
   }
   ++cur_reg_;
 }
@@ -594,8 +594,7 @@ void BuildQuickArgumentVisitor::Visit() {
       break;
     case Primitive::kPrimVoid:
       LOG(FATAL) << "UNREACHABLE";
-      val.j = 0;
-      break;
+      UNREACHABLE();
   }
   args_->push_back(val);
 }
@@ -1587,7 +1586,7 @@ void BuildGenericJniFrameVisitor::Visit() {
       break;
     case Primitive::kPrimVoid:
       LOG(FATAL) << "UNREACHABLE";
-      break;
+      UNREACHABLE();
   }
 }
 
