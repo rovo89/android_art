@@ -1340,6 +1340,13 @@ void X86_64Assembler::negl(CpuRegister reg) {
   EmitOperand(3, Operand(reg));
 }
 
+void X86_64Assembler::negq(CpuRegister reg) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(reg);
+  EmitUint8(0xF7);
+  EmitOperand(3, Operand(reg));
+}
+
 
 void X86_64Assembler::notl(CpuRegister reg) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);

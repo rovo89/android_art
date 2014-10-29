@@ -990,11 +990,11 @@ void LocationsBuilderX86::VisitNeg(HNeg* neg) {
       new (GetGraph()->GetArena()) LocationSummary(neg, LocationSummary::kNoCall);
   switch (neg->GetResultType()) {
     case Primitive::kPrimInt:
+    case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetOut(Location::SameAsFirstInput());
       break;
 
-    case Primitive::kPrimLong:
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       LOG(FATAL) << "Not yet implemented neg type " << neg->GetResultType();
@@ -1016,6 +1016,17 @@ void InstructionCodeGeneratorX86::VisitNeg(HNeg* neg) {
       break;
 
     case Primitive::kPrimLong:
+      DCHECK(in.IsRegisterPair());
+      __ negl(out.AsRegisterPairLow<Register>());
+      // Negation is similar to subtraction from zero.  The least
+      // significant byte triggers a borrow when it is different from
+      // zero; to take it into account, add 1 to the most significant
+      // byte if the carry flag (CF) is set to 1 after the first NEGL
+      // operation.
+      __ adcl(out.AsRegisterPairHigh<Register>(), Immediate(0));
+      __ negl(out.AsRegisterPairHigh<Register>());
+      break;
+
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       LOG(FATAL) << "Not yet implemented neg type " << neg->GetResultType();
