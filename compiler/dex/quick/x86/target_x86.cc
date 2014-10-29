@@ -2166,7 +2166,7 @@ void X86Mir2Lir::GenAddReduceVector(BasicBlock *bb, MIR *mir) {
       NewLIR2(kX86MovdrxRR, temp_loc.reg.GetHighReg(), vector_src.GetReg());
     }
 
-    GenArithOpLong(Instruction::ADD_LONG_2ADDR, rl_dest, temp_loc, temp_loc);
+    GenArithOpLong(Instruction::ADD_LONG_2ADDR, rl_dest, temp_loc, temp_loc, mir->optimization_flags);
   } else if (opsize == kSignedByte || opsize == kUnsignedByte) {
     RegStorage rs_tmp = Get128BitRegister(AllocTempDouble());
     NewLIR2(kX86PxorRR, rs_tmp.GetReg(), rs_tmp.GetReg());

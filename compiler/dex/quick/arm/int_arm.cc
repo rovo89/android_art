@@ -678,7 +678,7 @@ bool ArmMir2Lir::EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) 
 }
 
 RegLocation ArmMir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
-                      RegLocation rl_src2, bool is_div, bool check_zero) {
+                      RegLocation rl_src2, bool is_div, int flags) {
   LOG(FATAL) << "Unexpected use of GenDivRem for Arm";
   return rl_dest;
 }
@@ -1264,7 +1264,7 @@ void ArmMir2Lir::GenMulLong(Instruction::Code opcode, RegLocation rl_dest,
 }
 
 void ArmMir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
-                                RegLocation rl_src2) {
+                                RegLocation rl_src2, int flags) {
   switch (opcode) {
     case Instruction::MUL_LONG:
     case Instruction::MUL_LONG_2ADDR:
@@ -1279,7 +1279,7 @@ void ArmMir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, R
   }
 
   // Fallback for all other ops.
-  Mir2Lir::GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
+  Mir2Lir::GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2, flags);
 }
 
 /*
@@ -1464,7 +1464,8 @@ void ArmMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
 
 
 void ArmMir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
-                                   RegLocation rl_dest, RegLocation rl_src, RegLocation rl_shift) {
+                                   RegLocation rl_dest, RegLocation rl_src, RegLocation rl_shift,
+                                   int flags) {
   rl_src = LoadValueWide(rl_src, kCoreReg);
   // Per spec, we only care about low 6 bits of shift amount.
   int shift_amount = mir_graph_->ConstantValue(rl_shift) & 0x3f;
@@ -1537,11 +1538,12 @@ void ArmMir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
 }
 
 void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
-                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
+                                   RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
+                                   int flags) {
   if ((opcode == Instruction::SUB_LONG_2ADDR) || (opcode == Instruction::SUB_LONG)) {
     if (!rl_src2.is_const) {
       // Don't bother with special handling for subtract from immediate.
-      GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
+      GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2, flags);
       return;
     }
   } else {
@@ -1552,7 +1554,7 @@ void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
     }
   }
   if (PartiallyIntersects(rl_src1, rl_dest)) {
-    GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
+    GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2, flags);
     return;
   }
   DCHECK(rl_src2.is_const);
@@ -1569,7 +1571,7 @@ void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
     case Instruction::SUB_LONG:
     case Instruction::SUB_LONG_2ADDR:
       if ((mod_imm_lo < 0) || (mod_imm_hi < 0)) {
-        GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2);
+        GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2, flags);
         return;
       }
       break;
