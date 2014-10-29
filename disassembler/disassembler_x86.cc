@@ -16,13 +16,14 @@
 
 #include "disassembler_x86.h"
 
-#include <iostream>
+#include <inttypes.h>
+
+#include <ostream>
 #include <sstream>
 
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "thread.h"
-#include <inttypes.h>
 
 namespace art {
 namespace x86 {

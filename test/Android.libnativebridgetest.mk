@@ -51,7 +51,7 @@ define build-libnativebridgetest
   ifeq ($$(art_target_or_host),target)
     $(call set-target-local-clang-vars)
     $(call set-target-local-cflags-vars,debug)
-    LOCAL_SHARED_LIBRARIES += libdl libcutils
+    LOCAL_SHARED_LIBRARIES += libdl
     LOCAL_STATIC_LIBRARIES := libgtest
     LOCAL_MULTILIB := both
     LOCAL_MODULE_PATH_32 := $(ART_TARGET_TEST_OUT)/$(ART_TARGET_ARCH_32)

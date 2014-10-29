@@ -300,7 +300,7 @@ class InstrumentationStackVisitor : public StackVisitor {
   InstrumentationStackVisitor(Thread* self, bool is_deoptimization, size_t frame_depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(self, nullptr),
-        self_(self), frame_depth_(frame_depth),
+        frame_depth_(frame_depth),
         instrumentation_frames_to_pop_(0) {
     CHECK_NE(frame_depth_, kInvalidFrameDepth);
   }
@@ -324,7 +324,6 @@ class InstrumentationStackVisitor : public StackVisitor {
   }
 
  private:
-  Thread* const self_;
   const size_t frame_depth_;
   size_t instrumentation_frames_to_pop_;
 

@@ -133,7 +133,7 @@ void SignalCatcher::HandleSigQuit() {
 
   runtime->DumpForSigQuit(os);
 
-  if (false) {
+  if ((false)) {
     std::string maps;
     if (ReadFileToString("/proc/self/maps", &maps)) {
       os << "/proc/self/maps:\n" << maps;

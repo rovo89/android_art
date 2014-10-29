@@ -17,7 +17,8 @@
 #ifndef ART_RUNTIME_OFFSETS_H_
 #define ART_RUNTIME_OFFSETS_H_
 
-#include <iostream>  // NOLINT
+#include <ostream>
+
 #include "globals.h"
 
 namespace art {

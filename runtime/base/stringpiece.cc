@@ -16,7 +16,7 @@
 
 #include "stringpiece.h"
 
-#include <iostream>
+#include <ostream>
 #include <utility>
 
 #include "logging.h"

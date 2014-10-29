@@ -4116,7 +4116,6 @@ class HeapChunkContext {
   HeapChunkContext(bool merge, bool native)
       : buf_(16384 - 16),
         type_(0),
-        merge_(merge),
         chunk_overhead_(0) {
     Reset();
     if (native) {
@@ -4327,7 +4326,6 @@ class HeapChunkContext {
   void* startOfNextMemoryChunk_;
   size_t totalAllocationUnits_;
   uint32_t type_;
-  bool merge_;
   bool needHeader_;
   size_t chunk_overhead_;
 
@@ -4678,7 +4676,7 @@ static const char* GetMethodSourceFile(mirror::ArtMethod* method)
  * between the contents of these tables.
  */
 jbyteArray Dbg::GetRecentAllocations() {
-  if (false) {
+  if ((false)) {
     DumpRecentAllocations();
   }
 

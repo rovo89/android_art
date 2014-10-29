@@ -30,6 +30,9 @@
 #include <sys/utsname.h>
 #endif
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+#include "cutils/trace.h"
+
 #include "base/dumpable.h"
 #include "base/stl_util.h"
 #include "base/stringpiece.h"
@@ -1238,8 +1241,7 @@ static int dex2oat(int argc, char** argv) {
 #ifdef ART_SEA_IR_MODE
                           true,
 #endif
-                          verbose_methods.empty() ? nullptr : &verbose_methods
-  ));  // NOLINT(whitespace/parens)
+                          verbose_methods.empty() ? nullptr : &verbose_methods));
 
   // Done with usage checks, enable watchdog if requested
   WatchDog watch_dog(watch_dog_enabled);

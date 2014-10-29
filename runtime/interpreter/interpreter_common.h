@@ -21,6 +21,7 @@
 
 #include <math.h>
 
+#include <iostream>
 #include <sstream>
 
 #include "base/logging.h"

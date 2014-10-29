@@ -601,9 +601,6 @@ class Heap {
   void RemoveRememberedSet(space::Space* space);
 
   bool IsCompilingBoot() const;
-  bool RunningOnValgrind() const {
-    return running_on_valgrind_;
-  }
   bool HasImageSpace() const;
 
   ReferenceProcessor* GetReferenceProcessor() {

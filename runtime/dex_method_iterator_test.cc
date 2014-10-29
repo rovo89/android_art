@@ -38,7 +38,7 @@ TEST_F(DexMethodIteratorTest, Basic) {
     const DexFile& dex_file = it.GetDexFile();
     InvokeType invoke_type = it.GetInvokeType();
     uint32_t method_idx = it.GetMemberIndex();
-    if (false) {
+    if ((false)) {
       LOG(INFO) << invoke_type << " " << PrettyMethod(method_idx, dex_file);
     }
     it.Next();
