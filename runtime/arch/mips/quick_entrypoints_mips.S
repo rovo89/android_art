@@ -65,9 +65,10 @@
     .cfi_rel_offset 16, 20
     # 1 word for alignment, 4 open words for args $a0-$a3, bottom will hold Method*
 
-    ld $t0, _ZN3art7Runtime9instance_E
+    lw $t0, %got(_ZN3art7Runtime9instance_E)($gp)
+    lw $t0, 0($t0)
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ld $t0, RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET($t0)
+    lw $t0, RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET($t0)
     sw $t0, 0($sp)                                # Place Method* at bottom of stack.
     sw $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
 .endm
@@ -107,9 +108,10 @@
     .cfi_rel_offset 18, 28
     # 3 words for alignment and extra args, 4 open words for args $a0-$a3, bottom will hold Method*
 
-    ld $t0, _ZN3art7Runtime9instance_E
+    lw $t0, %got(_ZN3art7Runtime9instance_E)($gp)
+    lw $t0, 0($t0)
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ld $t0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET($t0)
+    lw $t0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET($t0)
     sw $t0, 0($sp)                                # Place Method* at bottom of stack.
     sw $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
 .endm
@@ -201,9 +203,10 @@
     .cfi_rel_offset 5, 4
     # bottom will hold Method*
 
-    ld $t0, _ZN3art7Runtime9instance_E
+    lw $t0, %got(_ZN3art7Runtime9instance_E)($gp)
+    lw $t0, 0($t0)
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ld $t0, RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET($t0)
+    lw $t0, RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET($t0)
     sw $t0, 0($sp)                                # Place Method* at bottom of stack.
     sw $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
 .endm
