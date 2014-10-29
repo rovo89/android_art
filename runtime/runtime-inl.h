@@ -59,6 +59,11 @@ inline mirror::ArtMethod* Runtime::GetImtConflictMethod() {
   return imt_conflict_method_.Read();
 }
 
+inline mirror::ArtMethod* Runtime::GetImtUnimplementedMethod() {
+  CHECK(!imt_unimplemented_method_.IsNull());
+  return imt_unimplemented_method_.Read();
+}
+
 inline mirror::ObjectArray<mirror::ArtMethod>* Runtime::GetDefaultImt()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CHECK(HasDefaultImt());
