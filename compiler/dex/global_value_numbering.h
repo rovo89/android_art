@@ -105,6 +105,19 @@ class GlobalValueNumbering {
     return res;
   }
 
+  // Look up a value in the global value map, don't add a new entry if there was none before.
+  uint16_t FindValue(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier) {
+    uint16_t res;
+    uint64_t key = BuildKey(op, operand1, operand2, modifier);
+    ValueMap::iterator lb = global_value_map_.lower_bound(key);
+    if (lb != global_value_map_.end() && lb->first == key) {
+      res = lb->second;
+    } else {
+      res = kNoValue;
+    }
+    return res;
+  }
+
   // Check if the exact value is stored in the global value map.
   bool HasValue(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier,
                 uint16_t value) const {
@@ -253,6 +266,7 @@ class GlobalValueNumbering {
   ScopedArenaVector<const LocalValueNumbering*> merge_lvns_;  // Not owning.
 
   friend class LocalValueNumbering;
+  friend class GlobalValueNumberingTest;
 
   DISALLOW_COPY_AND_ASSIGN(GlobalValueNumbering);
 };
