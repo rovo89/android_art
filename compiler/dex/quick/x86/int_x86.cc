@@ -858,6 +858,11 @@ bool X86Mir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
     RegLocation rl_dest = InlineTargetWide(info);
     int res_vreg, src1_vreg, src2_vreg;
 
+    if (rl_dest.s_reg_low == INVALID_SREG) {
+      // Result is unused, the code is dead. Inlining successful, no code generated.
+      return true;
+    }
+
     /*
      * If the result register is the same as the second element, then we
      * need to be careful. The reason is that the first copy will
