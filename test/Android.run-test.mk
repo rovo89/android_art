@@ -325,6 +325,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   413-regalloc-regression \
   414-optimizing-arith-sub \
   415-optimizing-arith-neg \
+  417-optimizing-arith-div \
   700-LoadArgRegs \
   800-smali
 
