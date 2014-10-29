@@ -57,16 +57,6 @@ inline mirror::Class* MethodHelperT<HandleKind>::GetClassFromTypeIdx(uint16_t ty
   return type;
 }
 
-template <template <class T> class HandleKind>
-inline mirror::Class* MethodHelperT<HandleKind>::GetReturnType(bool resolve) {
-  mirror::ArtMethod* method = GetMethod();
-  const DexFile* dex_file = method->GetDexFile();
-  const DexFile::MethodId& method_id = dex_file->GetMethodId(method->GetDexMethodIndex());
-  const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
-  uint16_t return_type_idx = proto_id.return_type_idx_;
-  return GetClassFromTypeIdx(return_type_idx, resolve);
-}
-
 }  // namespace art
 
 #endif  // ART_RUNTIME_METHOD_HELPER_INL_H_
