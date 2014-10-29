@@ -26,18 +26,6 @@
 namespace art {
 
 template <template <class T> class HandleKind>
-mirror::String* MethodHelperT<HandleKind>::GetNameAsString(Thread* self) {
-  const DexFile* dex_file = method_->GetDexFile();
-  mirror::ArtMethod* method = method_->GetInterfaceMethodIfProxy();
-  uint32_t dex_method_idx = method->GetDexMethodIndex();
-  const DexFile::MethodId& method_id = dex_file->GetMethodId(dex_method_idx);
-  StackHandleScope<1> hs(self);
-  Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
-  return Runtime::Current()->GetClassLinker()->ResolveString(*dex_file, method_id.name_idx_,
-                                                             dex_cache);
-}
-
-template <template <class T> class HandleKind>
 template <template <class T2> class HandleKind2>
 bool MethodHelperT<HandleKind>::HasSameSignatureWithDifferentClassLoaders(Thread* self,
     MethodHelperT<HandleKind2>* other) {
@@ -144,10 +132,6 @@ uint32_t MethodHelperT<HandleKind>::FindDexMethodIndexInOtherDexFile(
 }
 
 // Instantiate methods.
-template mirror::String* MethodHelperT<Handle>::GetNameAsString(Thread* self);
-
-template mirror::String* MethodHelperT<MutableHandle>::GetNameAsString(Thread* self);
-
 template
 uint32_t MethodHelperT<Handle>::FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile);
 template

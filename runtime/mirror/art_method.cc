@@ -67,6 +67,17 @@ void ArtMethod::VisitRoots(RootCallback* callback, void* arg) {
   }
 }
 
+mirror::String* ArtMethod::GetNameAsString(Thread* self) {
+  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
+  const DexFile* dex_file = method->GetDexFile();
+  uint32_t dex_method_idx = method->GetDexMethodIndex();
+  const DexFile::MethodId& method_id = dex_file->GetMethodId(dex_method_idx);
+  StackHandleScope<1> hs(self);
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
+  return Runtime::Current()->GetClassLinker()->ResolveString(*dex_file, method_id.name_idx_,
+                                                             dex_cache);
+}
+
 InvokeType ArtMethod::GetInvokeType() {
   // TODO: kSuper?
   if (GetDeclaringClass()->IsInterface()) {

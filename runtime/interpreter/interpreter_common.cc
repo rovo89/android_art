@@ -891,9 +891,8 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper* mh,
     Object* obj = shadow_frame->GetVRegReference(arg_offset);
     result->SetI(obj->IdentityHashCode());
   } else if (name == "java.lang.String java.lang.reflect.ArtMethod.getMethodName(java.lang.reflect.ArtMethod)") {
-    StackHandleScope<1> hs(self);
-    MethodHelper mh(hs.NewHandle(shadow_frame->GetVRegReference(arg_offset)->AsArtMethod()));
-    result->SetL(mh.GetNameAsString(self));
+    mirror::ArtMethod* method = shadow_frame->GetVRegReference(arg_offset)->AsArtMethod();
+    result->SetL(method->GetNameAsString(self));
   } else if (name == "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)" ||
              name == "void java.lang.System.arraycopy(char[], int, char[], int, int)") {
     // Special case array copying without initializing System.
