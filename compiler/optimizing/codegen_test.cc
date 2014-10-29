@@ -16,6 +16,7 @@
 
 #include <functional>
 
+#include "base/macros.h"
 #include "builder.h"
 #include "code_generator_arm.h"
 #include "code_generator_arm64.h"
@@ -433,5 +434,121 @@ TEST(CodegenTest, ReturnMulIntLit16) {
   TestCode(data, true, 12);
 }
 
+TEST(CodegenTest, MaterializedCondition1) {
+  // Check that condition are materialized correctly. A materialized condition
+  // should yield `1` if it evaluated to true, and `0` otherwise.
+  // We force the materialization of comparisons for different combinations of
+  // inputs and check the results.
+
+  int lhs[] = {1, 2, -1, 2, 0xabc};
+  int rhs[] = {2, 1, 2, -1, 0xabc};
+
+  for (size_t i = 0; i < arraysize(lhs); i++) {
+    ArenaPool pool;
+    ArenaAllocator allocator(&pool);
+    HGraph* graph = new (&allocator) HGraph(&allocator);
+
+    HBasicBlock* entry_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(entry_block);
+    graph->SetEntryBlock(entry_block);
+    entry_block->AddInstruction(new (&allocator) HGoto());
+    HBasicBlock* code_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(code_block);
+    HBasicBlock* exit_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(exit_block);
+    exit_block->AddInstruction(new (&allocator) HExit());
+
+    entry_block->AddSuccessor(code_block);
+    code_block->AddSuccessor(exit_block);
+    graph->SetExitBlock(exit_block);
+
+    HIntConstant cst_lhs(lhs[i]);
+    code_block->AddInstruction(&cst_lhs);
+    HIntConstant cst_rhs(rhs[i]);
+    code_block->AddInstruction(&cst_rhs);
+    HLessThan cmp_lt(&cst_lhs, &cst_rhs);
+    code_block->AddInstruction(&cmp_lt);
+    HReturn ret(&cmp_lt);
+    code_block->AddInstruction(&ret);
+
+    auto hook_before_codegen = [](HGraph* graph) {
+      HBasicBlock* block = graph->GetEntryBlock()->GetSuccessors().Get(0);
+      HParallelMove* move = new (graph->GetArena()) HParallelMove(graph->GetArena());
+      block->InsertInstructionBefore(move, block->GetLastInstruction());
+    };
+
+    RunCodeOptimized(graph, hook_before_codegen, true, lhs[i] < rhs[i]);
+  }
+}
+
+TEST(CodegenTest, MaterializedCondition2) {
+  // Check that HIf correctly interprets a materialized condition.
+  // We force the materialization of comparisons for different combinations of
+  // inputs. An HIf takes the materialized combination as input and returns a
+  // value that we verify.
+
+  int lhs[] = {1, 2, -1, 2, 0xabc};
+  int rhs[] = {2, 1, 2, -1, 0xabc};
+
+
+  for (size_t i = 0; i < arraysize(lhs); i++) {
+    ArenaPool pool;
+    ArenaAllocator allocator(&pool);
+    HGraph* graph = new (&allocator) HGraph(&allocator);
+
+    HBasicBlock* entry_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(entry_block);
+    graph->SetEntryBlock(entry_block);
+    entry_block->AddInstruction(new (&allocator) HGoto());
+
+    HBasicBlock* if_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(if_block);
+    HBasicBlock* if_true_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(if_true_block);
+    HBasicBlock* if_false_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(if_false_block);
+    HBasicBlock* exit_block = new (&allocator) HBasicBlock(graph);
+    graph->AddBlock(exit_block);
+    exit_block->AddInstruction(new (&allocator) HExit());
+
+    graph->SetEntryBlock(entry_block);
+    entry_block->AddSuccessor(if_block);
+    if_block->AddSuccessor(if_true_block);
+    if_block->AddSuccessor(if_false_block);
+    if_true_block->AddSuccessor(exit_block);
+    if_false_block->AddSuccessor(exit_block);
+    graph->SetExitBlock(exit_block);
+
+    HIntConstant cst_lhs(lhs[i]);
+    if_block->AddInstruction(&cst_lhs);
+    HIntConstant cst_rhs(rhs[i]);
+    if_block->AddInstruction(&cst_rhs);
+    HLessThan cmp_lt(&cst_lhs, &cst_rhs);
+    if_block->AddInstruction(&cmp_lt);
+    // We insert a temporary to separate the HIf from the HLessThan and force
+    // the materialization of the condition.
+    HTemporary force_materialization(0);
+    if_block->AddInstruction(&force_materialization);
+    HIf if_lt(&cmp_lt);
+    if_block->AddInstruction(&if_lt);
+
+    HIntConstant cst_lt(1);
+    if_true_block->AddInstruction(&cst_lt);
+    HReturn ret_lt(&cst_lt);
+    if_true_block->AddInstruction(&ret_lt);
+    HIntConstant cst_ge(0);
+    if_false_block->AddInstruction(&cst_ge);
+    HReturn ret_ge(&cst_ge);
+    if_false_block->AddInstruction(&ret_ge);
+
+    auto hook_before_codegen = [](HGraph* graph) {
+      HBasicBlock* block = graph->GetEntryBlock()->GetSuccessors().Get(0);
+      HParallelMove* move = new (graph->GetArena()) HParallelMove(graph->GetArena());
+      block->InsertInstructionBefore(move, block->GetLastInstruction());
+    };
+
+    RunCodeOptimized(graph, hook_before_codegen, true, lhs[i] < rhs[i]);
+  }
+}
 
 }  // namespace art
