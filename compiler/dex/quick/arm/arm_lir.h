@@ -297,19 +297,20 @@ constexpr RegStorage rs_dr30(RegStorage::kValid | dr30);
 constexpr RegStorage rs_dr31(RegStorage::kValid | dr31);
 #endif
 
-// RegisterLocation templates return values (r0, or r0/r1).
-const RegLocation arm_loc_c_return
-    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1,
-     RegStorage(RegStorage::k32BitSolo, r0), INVALID_SREG, INVALID_SREG};
-const RegLocation arm_loc_c_return_wide
+// RegisterLocation templates return values (r0, r0/r1, s0, or d0).
+// Note: The return locations are shared between quick code and quick helper. This follows quick
+// ABI. Quick helper assembly routine needs to handle the ABI differences.
+const RegLocation arm_loc_c_return =
+    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1, rs_r0, INVALID_SREG, INVALID_SREG};
+const RegLocation arm_loc_c_return_wide =
     {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
-     RegStorage(RegStorage::k64BitPair, r0, r1), INVALID_SREG, INVALID_SREG};
-const RegLocation arm_loc_c_return_float
-    {kLocPhysReg, 0, 0, 0, 0, 0, 0, 0, 1,
-     RegStorage(RegStorage::k32BitSolo, r0), INVALID_SREG, INVALID_SREG};
-const RegLocation arm_loc_c_return_double
-    {kLocPhysReg, 1, 0, 0, 0, 0, 0, 0, 1,
-     RegStorage(RegStorage::k64BitPair, r0, r1), INVALID_SREG, INVALID_SREG};
+     RegStorage::MakeRegPair(rs_r0, rs_r1), INVALID_SREG, INVALID_SREG};
+const RegLocation arm_loc_c_return_float = kArm32QuickCodeUseSoftFloat
+    ? arm_loc_c_return
+    : RegLocation({kLocPhysReg, 0, 0, 0, 1, 0, 0, 0, 1, rs_fr0, INVALID_SREG, INVALID_SREG});
+const RegLocation arm_loc_c_return_double = kArm32QuickCodeUseSoftFloat
+    ? arm_loc_c_return_wide
+    : RegLocation({kLocPhysReg, 1, 0, 0, 1, 0, 0, 0, 1, rs_dr0, INVALID_SREG, INVALID_SREG});
 
 enum ArmShiftEncodings {
   kArmLsl = 0x0,

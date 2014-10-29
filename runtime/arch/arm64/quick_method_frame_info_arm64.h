@@ -54,7 +54,7 @@ static constexpr uint32_t kArm64CalleeSaveFpArgSpills =
     (1 << art::arm64::D0) | (1 << art::arm64::D1) | (1 << art::arm64::D2) |
     (1 << art::arm64::D3) | (1 << art::arm64::D4) | (1 << art::arm64::D5) |
     (1 << art::arm64::D6) | (1 << art::arm64::D7);
-static constexpr uint32_t kArm64FpAllSpills =
+static constexpr uint32_t kArm64CalleeSaveFpAllSpills =
     (1 << art::arm64::D8)  | (1 << art::arm64::D9)  | (1 << art::arm64::D10) |
     (1 << art::arm64::D11)  | (1 << art::arm64::D12)  | (1 << art::arm64::D13) |
     (1 << art::arm64::D14)  | (1 << art::arm64::D15);
@@ -68,7 +68,7 @@ constexpr uint32_t Arm64CalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
 constexpr uint32_t Arm64CalleeSaveFpSpills(Runtime::CalleeSaveType type) {
   return kArm64CalleeSaveFpAlwaysSpills | kArm64CalleeSaveFpRefSpills |
       (type == Runtime::kRefsAndArgs ? kArm64CalleeSaveFpArgSpills: 0) |
-      (type == Runtime::kSaveAll ? kArm64FpAllSpills : 0);
+      (type == Runtime::kSaveAll ? kArm64CalleeSaveFpAllSpills : 0);
 }
 
 constexpr uint32_t Arm64CalleeSaveFrameSize(Runtime::CalleeSaveType type) {
