@@ -18,6 +18,8 @@
 
 #include <stdlib.h>
 
+#include <sstream>
+
 #include "base/logging.h"
 #include "mirror/class.h"
 #include "ScopedLocalRef.h"

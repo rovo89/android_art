@@ -14,25 +14,37 @@
  * limitations under the License.
  */
 
-#include "logging.h"
+#ifndef ART_RUNTIME_BASE_TO_STR_H_
+#define ART_RUNTIME_BASE_TO_STR_H_
 
-#include <sys/types.h>
-#include <unistd.h>
-
-#include <cstdio>
-#include <cstring>
-#include <iostream>
-
-#include "base/stringprintf.h"
-#include "utils.h"
+#include <sstream>
 
 namespace art {
 
-void LogMessage::LogLine(const LogMessageData& data, const char* message) {
-  char severity = "VDIWEFF"[data.severity];
-  fprintf(stderr, "%s %c %5d %5d %s:%d] %s\n",
-          ProgramInvocationShortName(), severity, getpid(), ::art::GetTid(),
-          data.file, data.line_number, message);
-}
+// Helps you use operator<< in a const char*-like context such as our various 'F' methods with
+// format strings.
+template<typename T>
+class ToStr {
+ public:
+  explicit ToStr(const T& value) {
+    std::ostringstream os;
+    os << value;
+    s_ = os.str();
+  }
+
+  const char* c_str() const {
+    return s_.c_str();
+  }
+
+  const std::string& str() const {
+    return s_;
+  }
+
+ private:
+  std::string s_;
+  DISALLOW_COPY_AND_ASSIGN(ToStr);
+};
 
 }  // namespace art
+
+#endif  // ART_RUNTIME_BASE_TO_STR_H_

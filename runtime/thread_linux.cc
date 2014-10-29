@@ -16,6 +16,8 @@
 
 #include "thread.h"
 
+#include <signal.h>
+
 namespace art {
 
 void Thread::SetNativePriority(int) {

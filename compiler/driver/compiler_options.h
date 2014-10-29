@@ -17,9 +17,14 @@
 #ifndef ART_COMPILER_DRIVER_COMPILER_OPTIONS_H_
 #define ART_COMPILER_DRIVER_COMPILER_OPTIONS_H_
 
+#include <string>
+#include <vector>
+
+#include "base/macros.h"
+
 namespace art {
 
-class CompilerOptions {
+class CompilerOptions FINAL {
  public:
   enum CompilerFilter {
     kVerifyNone,          // Skip verification and compile nothing except JNI stubs.
@@ -60,11 +65,12 @@ class CompilerOptions {
     implicit_null_checks_(false),
     implicit_so_checks_(false),
     implicit_suspend_checks_(false),
-    compile_pic_(false)
+    compile_pic_(false),
 #ifdef ART_SEA_IR_MODE
-    , sea_ir_mode_(false)
+    sea_ir_mode_(false),
 #endif
-    {}
+    verbose_methods_(nullptr) {
+  }
 
   CompilerOptions(CompilerFilter compiler_filter,
                   size_t huge_method_threshold,
@@ -79,10 +85,11 @@ class CompilerOptions {
                   bool implicit_null_checks,
                   bool implicit_so_checks,
                   bool implicit_suspend_checks,
-                  bool compile_pic
+                  bool compile_pic,
 #ifdef ART_SEA_IR_MODE
-                  , bool sea_ir_mode
+                  bool sea_ir_mode,
 #endif
+                  const std::vector<std::string>* verbose_methods
                   ) :  // NOLINT(whitespace/parens)
     compiler_filter_(compiler_filter),
     huge_method_threshold_(huge_method_threshold),
@@ -97,11 +104,12 @@ class CompilerOptions {
     implicit_null_checks_(implicit_null_checks),
     implicit_so_checks_(implicit_so_checks),
     implicit_suspend_checks_(implicit_suspend_checks),
-    compile_pic_(compile_pic)
+    compile_pic_(compile_pic),
 #ifdef ART_SEA_IR_MODE
-    , sea_ir_mode_(sea_ir_mode)
+    sea_ir_mode_(sea_ir_mode),
 #endif
-    {}
+    verbose_methods_(verbose_methods) {
+  }
 
   CompilerFilter GetCompilerFilter() const {
     return compiler_filter_;
@@ -168,28 +176,18 @@ class CompilerOptions {
     return implicit_null_checks_;
   }
 
-  void SetImplicitNullChecks(bool new_val) {
-    implicit_null_checks_ = new_val;
-  }
-
   bool GetImplicitStackOverflowChecks() const {
     return implicit_so_checks_;
-  }
-
-  void SetImplicitStackOverflowChecks(bool new_val) {
-    implicit_so_checks_ = new_val;
   }
 
   bool GetImplicitSuspendChecks() const {
     return implicit_suspend_checks_;
   }
 
-  void SetImplicitSuspendChecks(bool new_val) {
-    implicit_suspend_checks_ = new_val;
-  }
-
 #ifdef ART_SEA_IR_MODE
-  bool GetSeaIrMode();
+  bool GetSeaIrMode() const {
+    return sea_ir_mode_;
+  }
 #endif
 
   bool GetGenerateGDBInformation() const {
@@ -205,25 +203,44 @@ class CompilerOptions {
     return compile_pic_;
   }
 
+  bool HasVerboseMethods() const {
+    return verbose_methods_ != nullptr && !verbose_methods_->empty();
+  }
+
+  bool IsVerboseMethod(const std::string& pretty_method) const {
+    for (const std::string& cur_method : *verbose_methods_) {
+      if (pretty_method.find(cur_method) != std::string::npos) {
+        return true;
+      }
+    }
+    return false;
+  }
+
  private:
   CompilerFilter compiler_filter_;
-  size_t huge_method_threshold_;
-  size_t large_method_threshold_;
-  size_t small_method_threshold_;
-  size_t tiny_method_threshold_;
-  size_t num_dex_methods_threshold_;
-  bool generate_gdb_information_;
-  bool include_patch_information_;
+  const size_t huge_method_threshold_;
+  const size_t large_method_threshold_;
+  const size_t small_method_threshold_;
+  const size_t tiny_method_threshold_;
+  const size_t num_dex_methods_threshold_;
+  const bool generate_gdb_information_;
+  const bool include_patch_information_;
   // When using a profile file only the top K% of the profiled samples will be compiled.
-  double top_k_profile_threshold_;
-  bool include_debug_symbols_;
-  bool implicit_null_checks_;
-  bool implicit_so_checks_;
-  bool implicit_suspend_checks_;
-  bool compile_pic_;
+  const double top_k_profile_threshold_;
+  const bool include_debug_symbols_;
+  const bool implicit_null_checks_;
+  const bool implicit_so_checks_;
+  const bool implicit_suspend_checks_;
+  const bool compile_pic_;
+
 #ifdef ART_SEA_IR_MODE
-  bool sea_ir_mode_;
+  const bool sea_ir_mode_;
 #endif
+
+  // Vector of methods to have verbose output enabled for.
+  const std::vector<std::string>* const verbose_methods_;
+
+  DISALLOW_COPY_AND_ASSIGN(CompilerOptions);
 };
 
 }  // namespace art

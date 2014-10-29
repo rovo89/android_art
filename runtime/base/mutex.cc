@@ -428,9 +428,9 @@ void Mutex::ExclusiveUnlock(Thread* self) {
         if (this != Locks::logging_lock_) {
           LOG(FATAL) << "Unexpected state_ in unlock " << cur_state << " for " << name_;
         } else {
-          LogMessageData data(__FILE__, __LINE__, INTERNAL_FATAL, -1);
-          LogMessage::LogLine(data, StringPrintf("Unexpected state_ %d in unlock for %s",
-                                                 cur_state, name_).c_str());
+          LogMessage::LogLine(__FILE__, __LINE__, INTERNAL_FATAL,
+                              StringPrintf("Unexpected state_ %d in unlock for %s",
+                                           cur_state, name_).c_str());
           _exit(1);
         }
       }

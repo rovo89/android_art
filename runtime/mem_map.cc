@@ -15,11 +15,12 @@
  */
 
 #include "mem_map.h"
-#include "thread-inl.h"
 
-#include <inttypes.h>
 #include <backtrace/BacktraceMap.h>
+#include <inttypes.h>
+
 #include <memory>
+#include <sstream>
 
 // See CreateStartPos below.
 #ifdef __BIONIC__
@@ -28,6 +29,7 @@
 
 #include "base/stringprintf.h"
 #include "ScopedFd.h"
+#include "thread-inl.h"
 #include "utils.h"
 
 #define USE_ASHMEM 1

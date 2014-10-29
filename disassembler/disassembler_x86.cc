@@ -17,6 +17,7 @@
 #include "disassembler_x86.h"
 
 #include <iostream>
+#include <sstream>
 
 #include "base/logging.h"
 #include "base/stringprintf.h"

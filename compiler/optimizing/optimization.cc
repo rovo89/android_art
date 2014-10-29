@@ -16,6 +16,7 @@
 
 #include "optimization.h"
 
+#include "base/dumpable.h"
 #include "graph_checker.h"
 
 namespace art {

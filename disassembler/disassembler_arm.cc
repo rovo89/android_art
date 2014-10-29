@@ -19,6 +19,7 @@
 #include <inttypes.h>
 
 #include <iostream>
+#include <sstream>
 
 #include "base/logging.h"
 #include "base/stringprintf.h"

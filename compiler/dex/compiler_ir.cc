@@ -16,6 +16,7 @@
 
 #include "compiler_ir.h"
 
+#include "base/dumpable.h"
 #include "backend.h"
 #include "frontend.h"
 #include "mir_graph.h"

@@ -18,6 +18,7 @@
 
 #include <dlfcn.h>
 
+#include "base/dumpable.h"
 #include "base/mutex.h"
 #include "base/stl_util.h"
 #include "check_jni.h"
