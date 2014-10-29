@@ -134,8 +134,8 @@ static void TestCode(const uint16_t* data, bool has_result = false, int32_t expe
   HGraphBuilder builder(&arena);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   HGraph* graph = builder.BuildGraph(*item);
-  // Remove suspend checks, they cannot be executed in this context.
   ASSERT_NE(graph, nullptr);
+  // Remove suspend checks, they cannot be executed in this context.
   RemoveSuspendChecks(graph);
   RunCodeBaseline(graph, has_result, expected);
 }
@@ -397,8 +397,6 @@ TEST(CodegenTest, NonMaterializedCondition) {
 
 MUL_TEST(INT, MulInt);
 MUL_TEST(LONG, MulLong);
-// MUL_TEST(FLOAT, Float);
-// MUL_TEST(DOUBLE, Double);
 
 TEST(CodegenTest, ReturnMulIntLit8) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
