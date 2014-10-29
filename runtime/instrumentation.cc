@@ -633,7 +633,6 @@ void Instrumentation::InstrumentQuickAllocEntryPointsLocked() {
     SetEntrypointsInstrumented(true);
   }
   ++quick_alloc_entry_points_instrumentation_counter_;
-  LOG(INFO) << "Counter: " << quick_alloc_entry_points_instrumentation_counter_;
 }
 
 void Instrumentation::UninstrumentQuickAllocEntryPointsLocked() {
@@ -643,7 +642,6 @@ void Instrumentation::UninstrumentQuickAllocEntryPointsLocked() {
   if (quick_alloc_entry_points_instrumentation_counter_ == 0) {
     SetEntrypointsInstrumented(false);
   }
-  LOG(INFO) << "Counter: " << quick_alloc_entry_points_instrumentation_counter_;
 }
 
 void Instrumentation::ResetQuickAllocEntryPoints() {
