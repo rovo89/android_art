@@ -485,7 +485,7 @@ class HBasicBlock : public ArenaObject {
   M(Local, Instruction)                                                 \
   M(LongConstant, Constant)                                             \
   M(NewInstance, Instruction)                                           \
-  M(Not, Instruction)                                                   \
+  M(Not, UnaryOperation)                                                \
   M(ParameterValue, Instruction)                                        \
   M(ParallelMove, Instruction)                                          \
   M(Phi, Instruction)                                                   \
@@ -1708,14 +1708,16 @@ class HParameterValue : public HExpression<0> {
   DISALLOW_COPY_AND_ASSIGN(HParameterValue);
 };
 
-class HNot : public HExpression<1> {
+class HNot : public HUnaryOperation {
  public:
-  explicit HNot(HInstruction* input) : HExpression(Primitive::kPrimBoolean, SideEffects::None()) {
-    SetRawInputAt(0, input);
-  }
+  explicit HNot(Primitive::Type result_type, HInstruction* input)
+      : HUnaryOperation(result_type, input) {}
 
   virtual bool CanBeMoved() const { return true; }
   virtual bool InstructionDataEquals(HInstruction* other) const { return true; }
+
+  virtual int32_t Evaluate(int32_t x) const OVERRIDE { return ~x; }
+  virtual int64_t Evaluate(int64_t x) const OVERRIDE { return ~x; }
 
   DECLARE_INSTRUCTION(Not);
 
