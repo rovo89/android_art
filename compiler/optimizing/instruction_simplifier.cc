@@ -50,7 +50,7 @@ void InstructionSimplifier::VisitEqual(HEqual* equal) {
       // Replace (bool_value == 0) with !bool_value
       DCHECK_EQ(input2->AsIntConstant()->GetValue(), 0);
       equal->GetBlock()->ReplaceAndRemoveInstructionWith(
-          equal, new (GetGraph()->GetArena()) HNot(input1));
+          equal, new (GetGraph()->GetArena()) HNot(Primitive::kPrimBoolean, input1));
     }
   }
 }
