@@ -37,7 +37,7 @@ define create-core-oat-host-rules
   core_pic_infix :=
 
   ifeq ($(1),optimizing)
-    core_compile_options += --compiler-backend=optimizing
+    core_compile_options += --compiler-backend=Optimizing
     core_infix := -optimizing
   endif
   ifeq ($(1),interpreter)
@@ -125,7 +125,7 @@ define create-core-oat-target-rules
   core_pic_infix :=
 
   ifeq ($(1),optimizing)
-    core_compile_options += --compiler-backend=optimizing
+    core_compile_options += --compiler-backend=Optimizing
     core_infix := -optimizing
   endif
   ifeq ($(1),interpreter)
