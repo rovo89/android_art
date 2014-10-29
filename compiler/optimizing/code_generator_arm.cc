@@ -1128,7 +1128,7 @@ void LocationsBuilderARM::VisitAdd(HAdd* add) {
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
       locations->SetInAt(1, Location::RequiresFpuRegister());
-      locations->SetOut(Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
       break;
     }
 
@@ -1193,7 +1193,7 @@ void LocationsBuilderARM::VisitSub(HSub* sub) {
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
       locations->SetInAt(1, Location::RequiresFpuRegister());
-      locations->SetOut(Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
       break;
     }
     default:
@@ -1262,7 +1262,7 @@ void LocationsBuilderARM::VisitMul(HMul* mul) {
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
       locations->SetInAt(1, Location::RequiresFpuRegister());
-      locations->SetOut(Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
       break;
     }
 
@@ -1326,6 +1326,58 @@ void InstructionCodeGeneratorARM::VisitMul(HMul* mul) {
 
     default:
       LOG(FATAL) << "Unexpected mul type " << mul->GetResultType();
+  }
+}
+
+void LocationsBuilderARM::VisitDiv(HDiv* div) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(div, LocationSummary::kNoCall);
+  switch (div->GetResultType()) {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimLong: {
+      LOG(FATAL) << "Not implemented div type" << div->GetResultType();
+      break;
+    }
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
+      break;
+    }
+
+    default:
+      LOG(FATAL) << "Unexpected div type " << div->GetResultType();
+  }
+}
+
+void InstructionCodeGeneratorARM::VisitDiv(HDiv* div) {
+  LocationSummary* locations = div->GetLocations();
+  Location out = locations->Out();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+
+  switch (div->GetResultType()) {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimLong: {
+      LOG(FATAL) << "Not implemented div type" << div->GetResultType();
+      break;
+    }
+
+    case Primitive::kPrimFloat: {
+      __ vdivs(out.As<SRegister>(), first.As<SRegister>(), second.As<SRegister>());
+      break;
+    }
+
+    case Primitive::kPrimDouble: {
+      __ vdivd(FromLowSToD(out.AsFpuRegisterPairLow<SRegister>()),
+               FromLowSToD(first.AsFpuRegisterPairLow<SRegister>()),
+               FromLowSToD(second.AsFpuRegisterPairLow<SRegister>()));
+      break;
+    }
+
+    default:
+      LOG(FATAL) << "Unexpected div type " << div->GetResultType();
   }
 }
 
