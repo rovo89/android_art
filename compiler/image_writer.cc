@@ -454,6 +454,8 @@ ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
       ObjectArray<Object>::Alloc(self, object_array_class.Get(), ImageHeader::kImageRootsMax)));
   image_roots->Set<false>(ImageHeader::kResolutionMethod, runtime->GetResolutionMethod());
   image_roots->Set<false>(ImageHeader::kImtConflictMethod, runtime->GetImtConflictMethod());
+  image_roots->Set<false>(ImageHeader::kImtUnimplementedMethod,
+                          runtime->GetImtUnimplementedMethod());
   image_roots->Set<false>(ImageHeader::kDefaultImt, runtime->GetDefaultImt());
   image_roots->Set<false>(ImageHeader::kCalleeSaveMethod,
                           runtime->GetCalleeSaveMethod(Runtime::kSaveAll));
@@ -690,7 +692,7 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
 
 const uint8_t* ImageWriter::GetQuickCode(mirror::ArtMethod* method, bool* quick_is_interpreted) {
   DCHECK(!method->IsResolutionMethod() && !method->IsImtConflictMethod() &&
-         !method->IsAbstract()) << PrettyMethod(method);
+         !method->IsImtUnimplementedMethod() && !method->IsAbstract()) << PrettyMethod(method);
 
   // Use original code if it exists. Otherwise, set the code pointer to the resolution
   // trampoline.
@@ -721,9 +723,11 @@ const uint8_t* ImageWriter::GetQuickCode(mirror::ArtMethod* method, bool* quick_
 const uint8_t* ImageWriter::GetQuickEntryPoint(mirror::ArtMethod* method) {
   // Calculate the quick entry point following the same logic as FixupMethod() below.
   // The resolution method has a special trampoline to call.
-  if (UNLIKELY(method == Runtime::Current()->GetResolutionMethod())) {
+  Runtime* runtime = Runtime::Current();
+  if (UNLIKELY(method == runtime->GetResolutionMethod())) {
     return GetOatAddress(quick_resolution_trampoline_offset_);
-  } else if (UNLIKELY(method == Runtime::Current()->GetImtConflictMethod())) {
+  } else if (UNLIKELY(method == runtime->GetImtConflictMethod() ||
+                      method == runtime->GetImtUnimplementedMethod())) {
     return GetOatAddress(quick_imt_conflict_trampoline_offset_);
   } else {
     // We assume all methods have code. If they don't currently then we set them to the use the
@@ -743,10 +747,12 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
   // oat_begin_
 
   // The resolution method has a special trampoline to call.
-  if (UNLIKELY(orig == Runtime::Current()->GetResolutionMethod())) {
+  Runtime* runtime = Runtime::Current();
+  if (UNLIKELY(orig == runtime->GetResolutionMethod())) {
     copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(GetOatAddress(portable_resolution_trampoline_offset_));
     copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_resolution_trampoline_offset_));
-  } else if (UNLIKELY(orig == Runtime::Current()->GetImtConflictMethod())) {
+  } else if (UNLIKELY(orig == runtime->GetImtConflictMethod() ||
+                      orig == runtime->GetImtUnimplementedMethod())) {
     copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(GetOatAddress(portable_imt_conflict_trampoline_offset_));
     copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_imt_conflict_trampoline_offset_));
   } else {

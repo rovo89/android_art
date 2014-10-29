@@ -105,6 +105,7 @@ class PACKED(4) ImageHeader {
   enum ImageRoot {
     kResolutionMethod,
     kImtConflictMethod,
+    kImtUnimplementedMethod,
     kDefaultImt,
     kCalleeSaveMethod,
     kRefsOnlySaveMethod,
