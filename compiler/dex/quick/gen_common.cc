@@ -2156,25 +2156,25 @@ void Mir2Lir::GenSmallPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation
   const uint16_t entries = table[1];
   // Chained cmp-and-branch.
   const int32_t* as_int32 = reinterpret_cast<const int32_t*>(&table[2]);
-  int32_t current_key = as_int32[0];
+  int32_t starting_key = as_int32[0];
   const int32_t* targets = &as_int32[1];
   rl_src = LoadValue(rl_src, kCoreReg);
   int i = 0;
-  for (; i < entries; i++, current_key++) {
-    if (!InexpensiveConstantInt(current_key, Instruction::Code::IF_EQ)) {
+  for (; i < entries; i++) {
+    if (!InexpensiveConstantInt(starting_key + i, Instruction::Code::IF_EQ)) {
       // Switch to using a temp and add.
       break;
     }
     BasicBlock* case_block =
         mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
-    OpCmpImmBranch(kCondEq, rl_src.reg, current_key, &block_label_list_[case_block->id]);
+    OpCmpImmBranch(kCondEq, rl_src.reg, starting_key + i, &block_label_list_[case_block->id]);
   }
   if (i < entries) {
     // The rest do not seem to be inexpensive. Try to allocate a temp and use add.
     RegStorage key_temp = AllocTypedTemp(false, kCoreReg, false);
     if (key_temp.Valid()) {
-      LoadConstantNoClobber(key_temp, current_key);
-      for (; i < entries - 1; i++, current_key++) {
+      LoadConstantNoClobber(key_temp, starting_key + i);
+      for (; i < entries - 1; i++) {
         BasicBlock* case_block =
             mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
         OpCmpBranch(kCondEq, rl_src.reg, key_temp, &block_label_list_[case_block->id]);
@@ -2185,10 +2185,10 @@ void Mir2Lir::GenSmallPackedSwitch(MIR* mir, DexOffset table_offset, RegLocation
       OpCmpBranch(kCondEq, rl_src.reg, key_temp, &block_label_list_[case_block->id]);
     } else {
       // No free temp, just finish the old loop.
-      for (; i < entries; i++, current_key++) {
+      for (; i < entries; i++) {
         BasicBlock* case_block =
             mir_graph_->FindBlock(current_dalvik_offset_ + targets[i]);
-        OpCmpImmBranch(kCondEq, rl_src.reg, current_key, &block_label_list_[case_block->id]);
+        OpCmpImmBranch(kCondEq, rl_src.reg, starting_key + i, &block_label_list_[case_block->id]);
       }
     }
   }
