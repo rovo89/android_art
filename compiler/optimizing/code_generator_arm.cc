@@ -196,6 +196,37 @@ class ClinitCheckSlowPathARM : public SlowPathCodeARM {
   DISALLOW_COPY_AND_ASSIGN(ClinitCheckSlowPathARM);
 };
 
+class LoadStringSlowPathARM : public SlowPathCodeARM {
+ public:
+  explicit LoadStringSlowPathARM(HLoadString* instruction) : instruction_(instruction) {}
+
+  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
+    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
+
+    CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
+    __ Bind(GetEntryLabel());
+    codegen->SaveLiveRegisters(locations);
+
+    InvokeRuntimeCallingConvention calling_convention;
+    arm_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(0));
+    __ LoadImmediate(calling_convention.GetRegisterAt(1), instruction_->GetStringIndex());
+    arm_codegen->InvokeRuntime(
+        QUICK_ENTRY_POINT(pResolveString), instruction_, instruction_->GetDexPc());
+    arm_codegen->Move32(locations->Out(), Location::RegisterLocation(R0));
+
+    codegen->RestoreLiveRegisters(locations);
+    __ b(GetExitLabel());
+  }
+
+ private:
+  HLoadString* const instruction_;
+
+  DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathARM);
+};
+
+#undef __
+
 #undef __
 #define __ reinterpret_cast<ArmAssembler*>(GetAssembler())->
 
@@ -2259,6 +2290,26 @@ void InstructionCodeGeneratorARM::VisitStaticFieldSet(HStaticFieldSet* instructi
       LOG(FATAL) << "Unreachable type " << field_type;
       UNREACHABLE();
   }
+}
+
+void LocationsBuilderARM::VisitLoadString(HLoadString* load) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kCallOnSlowPath);
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
+  SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathARM(load);
+  codegen_->AddSlowPath(slow_path);
+
+  Register out = load->GetLocations()->Out().As<Register>();
+  codegen_->LoadCurrentMethod(out);
+  __ LoadFromOffset(
+      kLoadWord, out, out, mirror::ArtMethod::DexCacheStringsOffset().Int32Value());
+  __ LoadFromOffset(kLoadWord, out, out, CodeGenerator::GetCacheOffset(load->GetStringIndex()));
+  __ cmp(out, ShifterOperand(0));
+  __ b(slow_path->GetEntryLabel(), EQ);
+  __ Bind(slow_path->GetExitLabel());
 }
 
 }  // namespace arm

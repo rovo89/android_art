@@ -226,6 +226,10 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     return nullptr;
   }
 
+  if (Compiler::IsPathologicalCase(*code_item, method_idx, dex_file)) {
+    return nullptr;
+  }
+
   DexCompilationUnit dex_compilation_unit(
     nullptr, class_loader, art::Runtime::Current()->GetClassLinker(), dex_file, code_item,
     class_def_idx, method_idx, access_flags,
