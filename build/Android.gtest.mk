@@ -64,6 +64,7 @@ ART_GTEST_elf_writer_test_TARGET_DEPS := $(TARGET_CORE_IMAGE_default_no-pic_64) 
 ART_GTEST_jni_internal_test_TARGET_DEPS := $(TARGET_CORE_DEX_FILES)
 ART_GTEST_proxy_test_TARGET_DEPS := $(TARGET_CORE_DEX_FILES)
 ART_GTEST_proxy_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
+ART_GTEST_dex_method_iterator_test_TARGET_DEPS := $(TARGET_CORE_JARS)
 
 # The path for which all the source files are relative, not actually the current directory.
 LOCAL_PATH := art
@@ -255,7 +256,8 @@ define define-art-gtest-rule-target
     $$(ART_GTEST_$(1)_TARGET_DEPS) \
     $(foreach file,$(ART_GTEST_$(1)_DEX_DEPS),$(ART_TEST_TARGET_GTEST_$(file)_DEX)) \
     $$(ART_TARGET_NATIVETEST_OUT)/$$(TARGET_$(2)ARCH)/$(1) \
-    $$($(2)TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so
+    $$($(2)TARGET_OUT_SHARED_LIBRARIES)/libjavacore.so \
+    $$(TARGET_OUT_JAVA_LIBRARIES)/core-libart.jar
 
 .PHONY: $$(gtest_rule)
 $$(gtest_rule): test-art-target-sync
