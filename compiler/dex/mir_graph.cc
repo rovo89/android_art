@@ -258,8 +258,6 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
   DCHECK(insn != orig_block->first_mir_insn);
   DCHECK(insn == bottom_block->first_mir_insn);
   DCHECK_EQ(insn->offset, bottom_block->start_offset);
-  DCHECK(static_cast<int>(insn->dalvikInsn.opcode) == kMirOpCheck ||
-         !MIR::DecodedInstruction::IsPseudoMirOp(insn->dalvikInsn.opcode));
   DCHECK_EQ(dex_pc_to_block_map_[insn->offset], orig_block->id);
   // Scan the "bottom" instructions, remapping them to the
   // newly created "bottom" block.

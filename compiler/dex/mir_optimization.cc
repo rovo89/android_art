@@ -801,17 +801,18 @@ void MIRGraph::CombineBlocks(class BasicBlock* bb) {
     BasicBlock* bb_next = GetBasicBlock(bb->fall_through);
     DCHECK(!bb_next->catch_entry);
     DCHECK_EQ(bb_next->predecessors.size(), 1u);
-    // Overwrite the kMirOpCheck insn with the paired opcode.
+
+    // Now move instructions from bb_next to bb. Start off with doing a sanity check
+    // that kMirOpCheck's throw instruction is first one in the bb_next.
     DCHECK_EQ(bb_next->first_mir_insn, throw_insn);
-    *bb->last_mir_insn = *throw_insn;
-    // And grab the rest of the instructions from bb_next.
-    bb->last_mir_insn = bb_next->last_mir_insn;
-    throw_insn->next = nullptr;
-    bb_next->last_mir_insn = throw_insn;
-    // Mark acquired instructions as belonging to bb.
-    for (MIR* insn = mir; insn != nullptr; insn = insn->next) {
-      insn->bb = bb->id;
-    }
+    // Now move all instructions (throw instruction to last one) from bb_next to bb.
+    MIR* last_to_move = bb_next->last_mir_insn;
+    bb_next->RemoveMIRList(throw_insn, last_to_move);
+    bb->InsertMIRListAfter(bb->last_mir_insn, throw_insn, last_to_move);
+    // The kMirOpCheck instruction is not needed anymore.
+    mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+    bb->RemoveMIR(mir);
+
     // Before we overwrite successors, remove their predecessor links to bb.
     bb_next->ErasePredecessor(bb->id);
     if (bb->taken != NullBasicBlockId) {
@@ -891,7 +892,7 @@ bool MIRGraph::EliminateNullChecksGate() {
 
   DCHECK(temp_scoped_alloc_.get() == nullptr);
   temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
-  temp_.nce.num_vregs = GetNumOfCodeVRs();
+  temp_.nce.num_vregs = GetNumOfCodeAndTempVRs();
   temp_.nce.work_vregs_to_check = new (temp_scoped_alloc_.get()) ArenaBitVector(
       temp_scoped_alloc_.get(), temp_.nce.num_vregs, false, kBitMapNullCheck);
   temp_.nce.ending_vregs_to_check_matrix = static_cast<ArenaBitVector**>(
@@ -979,7 +980,10 @@ bool MIRGraph::EliminateNullChecks(BasicBlock* bb) {
   for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     uint64_t df_attributes = GetDataFlowAttributes(mir);
 
-    DCHECK_EQ(df_attributes & DF_NULL_TRANSFER_N, 0u);  // No Phis yet.
+    if ((df_attributes & DF_NULL_TRANSFER_N) != 0u) {
+      // The algorithm was written in a phi agnostic way.
+      continue;
+    }
 
     // Might need a null check?
     if (df_attributes & DF_HAS_NULL_CHKS) {
