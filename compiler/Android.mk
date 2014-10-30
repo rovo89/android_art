@@ -233,9 +233,6 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     endif
   endif
 
-  # TODO: clean up the compilers and remove this.
-  LOCAL_CFLAGS += -Wno-unused-parameter
-
   ifeq ($(ART_USE_PORTABLE_COMPILER),true)
     LOCAL_SHARED_LIBRARIES += libLLVM
     LOCAL_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
