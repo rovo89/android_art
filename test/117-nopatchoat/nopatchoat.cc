@@ -24,18 +24,41 @@ namespace art {
 
 class NoPatchoatTest {
  public:
-  static bool hasExecutableOat(jclass cls) {
+  static const OatFile::OatDexFile* getOatDexFile(jclass cls) {
     ScopedObjectAccess soa(Thread::Current());
     mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
     const DexFile& dex_file = klass->GetDexFile();
+
     const OatFile::OatDexFile* oat_dex_file =
         Runtime::Current()->GetClassLinker()->FindOpenedOatDexFileForDexFile(dex_file);
+
+    return oat_dex_file;
+  }
+
+  static bool hasExecutableOat(jclass cls) {
+    const OatFile::OatDexFile* oat_dex_file = getOatDexFile(cls);
+
     return oat_dex_file != nullptr && oat_dex_file->GetOatFile()->IsExecutable();
+  }
+
+  static bool isPic(jclass cls) {
+    const OatFile::OatDexFile* oat_dex_file = getOatDexFile(cls);
+
+    if (oat_dex_file == nullptr) {
+      return false;
+    }
+
+    const OatFile* oat_file = oat_dex_file->GetOatFile();
+    return oat_file->IsPic();
   }
 };
 
 extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasExecutableOat(JNIEnv*, jclass cls) {
   return NoPatchoatTest::hasExecutableOat(cls);
+}
+
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isPic(JNIEnv*, jclass cls) {
+  return NoPatchoatTest::isPic(cls);
 }
 
 }  // namespace art
