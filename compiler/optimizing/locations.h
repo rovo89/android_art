@@ -228,13 +228,18 @@ class Location : public ValueObject {
     return GetPayload() - kStackIndexBias + word_size;
   }
 
-  static Location QuickParameter(uint32_t parameter_index) {
-    return Location(kQuickParameter, parameter_index);
+  static Location QuickParameter(uint16_t register_index, uint16_t stack_index) {
+    return Location(kQuickParameter, register_index << 16 | stack_index);
   }
 
-  uint32_t GetQuickParameterIndex() const {
+  uint32_t GetQuickParameterRegisterIndex() const {
     DCHECK(IsQuickParameter());
-    return GetPayload();
+    return GetPayload() >> 16;
+  }
+
+  uint32_t GetQuickParameterStackIndex() const {
+    DCHECK(IsQuickParameter());
+    return GetPayload() & 0xFFFF;
   }
 
   bool IsQuickParameter() const {
