@@ -26,6 +26,7 @@ FLAGS=""
 TARGET_SUFFIX="32"
 GDB_TARGET_SUFFIX=""
 COMPILE_FLAGS=""
+SECONDARY_DEX=""
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -103,6 +104,9 @@ while true; do
         TARGET_SUFFIX="64"
         GDB_TARGET_SUFFIX="64"
         ARCHITECTURES_PATTERN="${ARCHITECTURES_64}"
+        shift
+    elif [ "x$1" = "x--secondary" ]; then
+        SECONDARY_DEX=":$DEX_LOCATION/$TEST_NAME-ex.jar"
         shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
@@ -194,7 +198,7 @@ fi
 cmdline="cd $DEX_LOCATION && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
     mkdir -p $DEX_LOCATION/dalvik-cache/$ARCH/ && \
     $INVOKE_WITH /system/bin/dex2oatd $COMPILE_FLAGS $BUILD_BOOT_OPT $BUILD_RELOCATE_OPT  --runtime-arg -classpath --runtime-arg $DEX_LOCATION/$TEST_NAME.jar --dex-file=$DEX_LOCATION/$TEST_NAME.jar --oat-file=$DEX_LOCATION/dalvik-cache/$ARCH/$(echo $DEX_LOCATION/$TEST_NAME.jar/classes.dex | cut -d/ -f 2- | sed "s:/:@:g") --instruction-set=$ARCH && \
-    $INVOKE_WITH $gdb /system/bin/dalvikvm$TARGET_SUFFIX $FLAGS $gdbargs -XXlib:$LIB $ZYGOTE $JNI_OPTS $RELOCATE_OPT $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main $@"
+    $INVOKE_WITH $gdb /system/bin/dalvikvm$TARGET_SUFFIX $FLAGS $gdbargs -XXlib:$LIB $ZYGOTE $JNI_OPTS $RELOCATE_OPT $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar$SECONDARY_DEX Main $@"
 cmdfile=$(tempfile -p "cmd-" -s "-$TEST_NAME")
 echo "$cmdline" > $cmdfile
 
