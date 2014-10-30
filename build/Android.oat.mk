@@ -126,7 +126,7 @@ define create-core-oat-target-rules
   core_pic_infix :=
 
   ifeq ($(1),optimizing)
-    core_compile_options += --compiler-backend=Optimizing
+    core_compile_options += --compiler-backend=Quick
     core_infix := -optimizing
   endif
   ifeq ($(1),interpreter)
