@@ -15,6 +15,7 @@
  */
 
 #include "interpreter_common.h"
+#include "safe_math.h"
 
 namespace art {
 namespace interpreter {
@@ -1495,25 +1496,26 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
                              static_cast<int16_t>(shadow_frame.GetVReg(inst->VRegB_12x(inst_data))));
         inst = inst->Next_1xx();
         break;
-      case Instruction::ADD_INT:
+      case Instruction::ADD_INT: {
         PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_23x(inst_data),
-                             shadow_frame.GetVReg(inst->VRegB_23x()) +
-                             shadow_frame.GetVReg(inst->VRegC_23x()));
+                             SafeAdd(shadow_frame.GetVReg(inst->VRegB_23x()),
+                                     shadow_frame.GetVReg(inst->VRegC_23x())));
         inst = inst->Next_2xx();
         break;
+      }
       case Instruction::SUB_INT:
         PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_23x(inst_data),
-                             shadow_frame.GetVReg(inst->VRegB_23x()) -
-                             shadow_frame.GetVReg(inst->VRegC_23x()));
+                             SafeSub(shadow_frame.GetVReg(inst->VRegB_23x()),
+                                     shadow_frame.GetVReg(inst->VRegC_23x())));
         inst = inst->Next_2xx();
         break;
       case Instruction::MUL_INT:
         PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_23x(inst_data),
-                             shadow_frame.GetVReg(inst->VRegB_23x()) *
-                             shadow_frame.GetVReg(inst->VRegC_23x()));
+                             SafeMul(shadow_frame.GetVReg(inst->VRegB_23x()),
+                                     shadow_frame.GetVReg(inst->VRegC_23x())));
         inst = inst->Next_2xx();
         break;
       case Instruction::DIV_INT: {
@@ -1577,29 +1579,29 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
       case Instruction::ADD_LONG:
         PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_23x(inst_data),
-                                 shadow_frame.GetVRegLong(inst->VRegB_23x()) +
-                                 shadow_frame.GetVRegLong(inst->VRegC_23x()));
+                                 SafeAdd(shadow_frame.GetVRegLong(inst->VRegB_23x()),
+                                         shadow_frame.GetVRegLong(inst->VRegC_23x())));
         inst = inst->Next_2xx();
         break;
       case Instruction::SUB_LONG:
         PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_23x(inst_data),
-                                 shadow_frame.GetVRegLong(inst->VRegB_23x()) -
-                                 shadow_frame.GetVRegLong(inst->VRegC_23x()));
+                                 SafeSub(shadow_frame.GetVRegLong(inst->VRegB_23x()),
+                                         shadow_frame.GetVRegLong(inst->VRegC_23x())));
         inst = inst->Next_2xx();
         break;
       case Instruction::MUL_LONG:
         PREAMBLE();
         shadow_frame.SetVRegLong(inst->VRegA_23x(inst_data),
-                                 shadow_frame.GetVRegLong(inst->VRegB_23x()) *
-                                 shadow_frame.GetVRegLong(inst->VRegC_23x()));
+                                 SafeMul(shadow_frame.GetVRegLong(inst->VRegB_23x()),
+                                         shadow_frame.GetVRegLong(inst->VRegC_23x())));
         inst = inst->Next_2xx();
         break;
       case Instruction::DIV_LONG:
         PREAMBLE();
         DoLongDivide(shadow_frame, inst->VRegA_23x(inst_data),
                      shadow_frame.GetVRegLong(inst->VRegB_23x()),
-                    shadow_frame.GetVRegLong(inst->VRegC_23x()));
+                     shadow_frame.GetVRegLong(inst->VRegC_23x()));
         POSSIBLY_HANDLE_PENDING_EXCEPTION(self->IsExceptionPending(), Next_2xx);
         break;
       case Instruction::REM_LONG:
@@ -1724,9 +1726,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
       case Instruction::ADD_INT_2ADDR: {
         PREAMBLE();
         uint4_t vregA = inst->VRegA_12x(inst_data);
-        shadow_frame.SetVReg(vregA,
-                             shadow_frame.GetVReg(vregA) +
-                             shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
+        shadow_frame.SetVReg(vregA, SafeAdd(shadow_frame.GetVReg(vregA),
+                                            shadow_frame.GetVReg(inst->VRegB_12x(inst_data))));
         inst = inst->Next_1xx();
         break;
       }
@@ -1734,8 +1735,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         PREAMBLE();
         uint4_t vregA = inst->VRegA_12x(inst_data);
         shadow_frame.SetVReg(vregA,
-                             shadow_frame.GetVReg(vregA) -
-                             shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
+                             SafeSub(shadow_frame.GetVReg(vregA),
+                                     shadow_frame.GetVReg(inst->VRegB_12x(inst_data))));
         inst = inst->Next_1xx();
         break;
       }
@@ -1743,8 +1744,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         PREAMBLE();
         uint4_t vregA = inst->VRegA_12x(inst_data);
         shadow_frame.SetVReg(vregA,
-                             shadow_frame.GetVReg(vregA) *
-                             shadow_frame.GetVReg(inst->VRegB_12x(inst_data)));
+                             SafeMul(shadow_frame.GetVReg(vregA),
+                                     shadow_frame.GetVReg(inst->VRegB_12x(inst_data))));
         inst = inst->Next_1xx();
         break;
       }
@@ -1822,8 +1823,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         PREAMBLE();
         uint4_t vregA = inst->VRegA_12x(inst_data);
         shadow_frame.SetVRegLong(vregA,
-                                 shadow_frame.GetVRegLong(vregA) +
-                                 shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
+                                 SafeAdd(shadow_frame.GetVRegLong(vregA),
+                                         shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data))));
         inst = inst->Next_1xx();
         break;
       }
@@ -1831,8 +1832,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         PREAMBLE();
         uint4_t vregA = inst->VRegA_12x(inst_data);
         shadow_frame.SetVRegLong(vregA,
-                                 shadow_frame.GetVRegLong(vregA) -
-                                 shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
+                                 SafeSub(shadow_frame.GetVRegLong(vregA),
+                                         shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data))));
         inst = inst->Next_1xx();
         break;
       }
@@ -1840,8 +1841,8 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
         PREAMBLE();
         uint4_t vregA = inst->VRegA_12x(inst_data);
         shadow_frame.SetVRegLong(vregA,
-                                 shadow_frame.GetVRegLong(vregA) *
-                                 shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data)));
+                                 SafeMul(shadow_frame.GetVRegLong(vregA),
+                                         shadow_frame.GetVRegLong(inst->VRegB_12x(inst_data))));
         inst = inst->Next_1xx();
         break;
       }
@@ -2008,22 +2009,22 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
       case Instruction::ADD_INT_LIT16:
         PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22s(inst_data),
-                             shadow_frame.GetVReg(inst->VRegB_22s(inst_data)) +
-                             inst->VRegC_22s());
+                             SafeAdd(shadow_frame.GetVReg(inst->VRegB_22s(inst_data)),
+                                     inst->VRegC_22s()));
         inst = inst->Next_2xx();
         break;
-      case Instruction::RSUB_INT:
+      case Instruction::RSUB_INT_LIT16:
         PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22s(inst_data),
-                             inst->VRegC_22s() -
-                             shadow_frame.GetVReg(inst->VRegB_22s(inst_data)));
+                             SafeSub(inst->VRegC_22s(),
+                                     shadow_frame.GetVReg(inst->VRegB_22s(inst_data))));
         inst = inst->Next_2xx();
         break;
       case Instruction::MUL_INT_LIT16:
         PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22s(inst_data),
-                             shadow_frame.GetVReg(inst->VRegB_22s(inst_data)) *
-                             inst->VRegC_22s());
+                             SafeMul(shadow_frame.GetVReg(inst->VRegB_22s(inst_data)),
+                                     inst->VRegC_22s()));
         inst = inst->Next_2xx();
         break;
       case Instruction::DIV_INT_LIT16: {
@@ -2064,22 +2065,19 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
       case Instruction::ADD_INT_LIT8:
         PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22b(inst_data),
-                             shadow_frame.GetVReg(inst->VRegB_22b()) +
-                             inst->VRegC_22b());
+                             SafeAdd(shadow_frame.GetVReg(inst->VRegB_22b()), inst->VRegC_22b()));
         inst = inst->Next_2xx();
         break;
       case Instruction::RSUB_INT_LIT8:
         PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22b(inst_data),
-                             inst->VRegC_22b() -
-                             shadow_frame.GetVReg(inst->VRegB_22b()));
+                             SafeSub(inst->VRegC_22b(), shadow_frame.GetVReg(inst->VRegB_22b())));
         inst = inst->Next_2xx();
         break;
       case Instruction::MUL_INT_LIT8:
         PREAMBLE();
         shadow_frame.SetVReg(inst->VRegA_22b(inst_data),
-                             shadow_frame.GetVReg(inst->VRegB_22b()) *
-                             inst->VRegC_22b());
+                             SafeMul(shadow_frame.GetVReg(inst->VRegB_22b()), inst->VRegC_22b()));
         inst = inst->Next_2xx();
         break;
       case Instruction::DIV_INT_LIT8: {
