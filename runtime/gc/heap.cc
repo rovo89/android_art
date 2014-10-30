@@ -1017,6 +1017,8 @@ void Heap::Trim() {
   // We never move things in the native heap, so we can finish the GC at this point.
   FinishGC(self, collector::kGcTypeNone);
   size_t native_reclaimed = 0;
+
+#ifdef HAVE_ANDROID_OS
   // Only trim the native heap if we don't care about pauses.
   if (!CareAboutPauseTimes()) {
 #if defined(USE_DLMALLOC)
@@ -1029,6 +1031,7 @@ void Heap::Trim() {
     UNIMPLEMENTED(WARNING) << "Add trimming support";
 #endif
   }
+#endif  // HAVE_ANDROID_OS
   uint64_t end_ns = NanoTime();
   VLOG(heap) << "Heap trim of managed (duration=" << PrettyDuration(gc_heap_end_ns - start_ns)
       << ", advised=" << PrettySize(managed_reclaimed) << ") and native (duration="
