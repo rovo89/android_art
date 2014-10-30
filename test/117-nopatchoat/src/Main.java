@@ -16,9 +16,14 @@
 
 public class Main {
   public static void main(String[] args) {
+    boolean executable_correct = (isPic() ?
+                                  hasExecutableOat() == true :
+                                  hasExecutableOat() == isDex2OatEnabled());
+
     System.out.println(
         "dex2oat & patchoat are " + ((isDex2OatEnabled()) ? "enabled" : "disabled") +
-        ", has oat is " + hasOat() + ", has executable oat is " + hasExecutableOat() + ".");
+        ", has oat is " + hasOat() + ", has executable oat is " + (
+        executable_correct ? "expected" : "not expected") + ".");
 
     if (!hasOat() && isDex2OatEnabled()) {
       throw new Error("Application with dex2oat enabled runs without an oat file");
@@ -41,6 +46,8 @@ public class Main {
   }
 
   private native static boolean isDex2OatEnabled();
+
+  private native static boolean isPic();
 
   private native static boolean hasOat();
 

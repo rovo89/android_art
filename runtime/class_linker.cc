@@ -1098,9 +1098,13 @@ bool ClassLinker::VerifyOatChecksums(const OatFile* oat_file,
     image_patch_delta = image_header->GetPatchDelta();
   }
   const OatHeader& oat_header = oat_file->GetOatHeader();
-  bool ret = ((oat_header.GetImageFileLocationOatChecksum() == image_oat_checksum)
-              && (oat_header.GetImagePatchDelta() == image_patch_delta)
-              && (oat_header.GetImageFileLocationOatDataBegin() == image_oat_data_begin));
+  bool ret = (oat_header.GetImageFileLocationOatChecksum() == image_oat_checksum);
+
+  // If the oat file is PIC, it doesn't care if/how image was relocated. Ignore these checks.
+  if (!oat_file->IsPic()) {
+    ret = ret && (oat_header.GetImagePatchDelta() == image_patch_delta)
+              && (oat_header.GetImageFileLocationOatDataBegin() == image_oat_data_begin);
+  }
   if (!ret) {
     *error_msg = StringPrintf("oat file '%s' mismatch (0x%x, %d, %d) with (0x%x, %" PRIdPTR ", %d)",
                               oat_file->GetLocation().c_str(),
