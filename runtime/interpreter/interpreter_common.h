@@ -216,7 +216,7 @@ static inline String* ResolveString(Thread* self, ShadowFrame& shadow_frame, uin
 static inline bool DoIntDivide(ShadowFrame& shadow_frame, size_t result_reg,
                                int32_t dividend, int32_t divisor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const int32_t kMinInt = std::numeric_limits<int32_t>::min();
+  constexpr int32_t kMinInt = std::numeric_limits<int32_t>::min();
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero();
     return false;
@@ -234,7 +234,7 @@ static inline bool DoIntDivide(ShadowFrame& shadow_frame, size_t result_reg,
 static inline bool DoIntRemainder(ShadowFrame& shadow_frame, size_t result_reg,
                                   int32_t dividend, int32_t divisor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const int32_t kMinInt = std::numeric_limits<int32_t>::min();
+  constexpr int32_t kMinInt = std::numeric_limits<int32_t>::min();
   if (UNLIKELY(divisor == 0)) {
     ThrowArithmeticExceptionDivideByZero();
     return false;
