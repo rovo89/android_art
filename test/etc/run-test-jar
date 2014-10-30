@@ -210,10 +210,8 @@ fi
 
 if [ "$HAVE_IMAGE" = "n" ]; then
     DALVIKVM_BOOT_OPT="-Ximage:/system/non-existant/core.art"
-    DEX2OAT_BOOT_OPT="--boot-image=/system/non-existant/core.art"
 else
     DALVIKVM_BOOT_OPT="-Ximage:${BOOT_IMAGE}"
-    DEX2OAT_BOOT_OPT="--boot-image=${BOOT_IMAGE}"
 fi
 
 
@@ -272,7 +270,7 @@ mkdir_cmdline="mkdir -p ${DEX_LOCATION}/dalvik-cache/$ISA"
 if [ "$PREBUILD" = "y" ]; then
   dex2oat_cmdline="$INVOKE_WITH $ANDROID_ROOT/bin/dex2oatd \
                       $COMPILE_FLAGS \
-                      $DEX2OAT_BOOT_OPT \
+                      --boot-image=${BOOT_IMAGE} \
                       --dex-file=$DEX_LOCATION/$TEST_NAME.jar \
                       --oat-file=$DEX_LOCATION/dalvik-cache/$ISA/$(echo $DEX_LOCATION/$TEST_NAME.jar/classes.dex | cut -d/ -f 2- | sed "s:/:@:g") \
                       --instruction-set=$ISA"
