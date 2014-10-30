@@ -538,7 +538,6 @@ InstructionCodeGeneratorARM64::InstructionCodeGeneratorARM64(HGraph* graph,
   M(DoubleConstant)                                        \
   M(Div)                                                   \
   M(FloatConstant)                                         \
-  M(Mul)                                                   \
   M(LoadClass)                                             \
   M(Neg)                                                   \
   M(NewArray)                                              \
@@ -984,6 +983,44 @@ void LocationsBuilderARM64::VisitLongConstant(HLongConstant* constant) {
 
 void InstructionCodeGeneratorARM64::VisitLongConstant(HLongConstant* constant) {
   // Will be generated at use site.
+}
+
+void LocationsBuilderARM64::VisitMul(HMul* mul) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(mul, LocationSummary::kNoCall);
+  switch (mul->GetResultType()) {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimLong:
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister());
+      break;
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      LOG(FATAL) << "Unimplemented mul type " << mul->GetResultType();
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected mul type " << mul->GetResultType();
+  }
+}
+
+void InstructionCodeGeneratorARM64::VisitMul(HMul* mul) {
+  switch (mul->GetResultType()) {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimLong:
+      __ Mul(OutputRegister(mul), InputRegisterAt(mul, 0), InputRegisterAt(mul, 1));
+      break;
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+      LOG(FATAL) << "Unimplemented mul type " << mul->GetResultType();
+      break;
+
+    default:
+      LOG(FATAL) << "Unexpected mul type " << mul->GetResultType();
+  }
 }
 
 void LocationsBuilderARM64::VisitNewInstance(HNewInstance* instruction) {

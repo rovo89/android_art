@@ -37,7 +37,8 @@ define create-core-oat-host-rules
   core_pic_infix :=
 
   ifeq ($(1),optimizing)
-    core_compile_options += --compiler-backend=Optimizing
+    # TODO: Use optimizing once all backends can compile a boot image.
+    core_compile_options += --compiler-backend=Quick
     core_infix := -optimizing
   endif
   ifeq ($(1),interpreter)
