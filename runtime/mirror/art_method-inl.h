@@ -69,6 +69,10 @@ inline uint16_t ArtMethod::GetMethodIndex() {
   return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_index_));
 }
 
+inline uint16_t ArtMethod::GetMethodIndexDuringLinking() {
+  return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, method_index_));
+}
+
 inline uint32_t ArtMethod::GetDexMethodIndex() {
 #ifdef ART_SEA_IR_MODE
   // TODO: Re-add this check for (PORTABLE + SMALL + ) SEA IR when PORTABLE IS fixed!

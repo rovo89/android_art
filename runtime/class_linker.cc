@@ -4166,8 +4166,8 @@ bool ClassLinker::InitializeClass(Handle<mirror::Class> klass, bool can_init_sta
       mirror::ArtField* resolved_field = dex_cache->GetResolvedField(field_idx);
       if (resolved_field == nullptr) {
         dex_cache->SetResolvedField(field_idx, field);
-      } else if (kIsDebugBuild) {
-        CHECK_EQ(field, resolved_field);
+      } else {
+        DCHECK_EQ(field, resolved_field);
       }
     }
 
@@ -4584,7 +4584,14 @@ class MethodNameAndSignatureComparator FINAL {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
       dex_file_(method->GetDexFile()), mid_(&dex_file_->GetMethodId(method->GetDexMethodIndex())),
       name_(nullptr), name_len_(0) {
-    DCHECK(!method->IsProxyMethod())  << PrettyMethod(method);
+    DCHECK(!method->IsProxyMethod()) << PrettyMethod(method);
+  }
+
+  const char* GetName() {
+    if (name_ == nullptr) {
+      name_ = dex_file_->StringDataAndUtf16LengthByIdx(mid_->name_idx_, &name_len_);
+    }
+    return name_;
   }
 
   bool HasSameNameAndSignature(mirror::ArtMethod* other)
@@ -4595,9 +4602,7 @@ class MethodNameAndSignatureComparator FINAL {
     if (dex_file_ == other_dex_file) {
       return mid_->name_idx_ == other_mid.name_idx_ && mid_->proto_idx_ == other_mid.proto_idx_;
     }
-    if (name_ == nullptr) {
-      name_ = dex_file_->StringDataAndUtf16LengthByIdx(mid_->name_idx_, &name_len_);
-    }
+    GetName();  // Only used to make sure its calculated.
     uint32_t other_name_len;
     const char* other_name = other_dex_file->StringDataAndUtf16LengthByIdx(other_mid.name_idx_,
                                                                            &other_name_len);
@@ -4618,12 +4623,72 @@ class MethodNameAndSignatureComparator FINAL {
   uint32_t name_len_;
 };
 
+class LinkVirtualHashTable {
+ public:
+  LinkVirtualHashTable(Handle<mirror::Class> klass, size_t hash_size, uint32_t* hash_table)
+     : klass_(klass), hash_size_(hash_size), hash_table_(hash_table) {
+    std::fill(hash_table_, hash_table_ + hash_size_, invalid_index_);
+  }
+  void Add(uint32_t virtual_method_index) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::ArtMethod* local_method = klass_->GetVirtualMethodDuringLinking(virtual_method_index);
+    const char* name = local_method->GetName();
+    uint32_t hash = Hash(name);
+    uint32_t index = hash % hash_size_;
+    // Linear probe until we have an empty slot.
+    while (hash_table_[index] != invalid_index_) {
+      if (++index == hash_size_) {
+        index = 0;
+      }
+    }
+    hash_table_[index] = virtual_method_index;
+  }
+  uint32_t FindAndRemove(MethodNameAndSignatureComparator* comparator)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    const char* name = comparator->GetName();
+    uint32_t hash = Hash(name);
+    size_t index = hash % hash_size_;
+    while (true) {
+      const uint32_t value = hash_table_[index];
+      // Since linear probe makes continuous blocks, hitting an invalid index means we are done
+      // the block and can safely assume not found.
+      if (value == invalid_index_) {
+        break;
+      }
+      if (value != removed_index_) {  // This signifies not already overriden.
+        mirror::ArtMethod* virtual_method =
+            klass_->GetVirtualMethodDuringLinking(value);
+        if (comparator->HasSameNameAndSignature(virtual_method->GetInterfaceMethodIfProxy())) {
+          hash_table_[index] = removed_index_;
+          return value;
+        }
+      }
+      if (++index == hash_size_) {
+        index = 0;
+      }
+    }
+    return GetNotFoundIndex();
+  }
+  static uint32_t GetNotFoundIndex() {
+    return invalid_index_;
+  }
+
+ private:
+  static const uint32_t invalid_index_;
+  static const uint32_t removed_index_;
+
+  Handle<mirror::Class> klass_;
+  const size_t hash_size_;
+  uint32_t* const hash_table_;
+};
+
+const uint32_t LinkVirtualHashTable::invalid_index_ = std::numeric_limits<uint32_t>::max();
+const uint32_t LinkVirtualHashTable::removed_index_ = std::numeric_limits<uint32_t>::max() - 1;
+
 bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) {
   const size_t num_virtual_methods = klass->NumVirtualMethods();
   if (klass->HasSuperClass()) {
     const size_t super_vtable_length = klass->GetSuperClass()->GetVTableLength();
     const size_t max_count = num_virtual_methods + super_vtable_length;
-    size_t actual_count = super_vtable_length;
     StackHandleScope<2> hs(self);
     Handle<mirror::Class> super_class(hs.NewHandle(klass->GetSuperClass()));
     Handle<mirror::ObjectArray<mirror::ArtMethod>> vtable;
@@ -4636,50 +4701,87 @@ bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) 
       for (size_t i = 0; i < super_vtable_length; i++) {
         vtable->SetWithoutChecks<false>(i, super_class->GetEmbeddedVTableEntry(i));
       }
+      if (num_virtual_methods == 0) {
+        klass->SetVTable(vtable.Get());
+        return true;
+      }
     } else {
-      CHECK(super_class->GetVTable() != nullptr) << PrettyClass(super_class.Get());
-      vtable = hs.NewHandle(super_class->GetVTable()->CopyOf(self, max_count));
+      mirror::ObjectArray<mirror::ArtMethod>* super_vtable = super_class->GetVTable();
+      CHECK(super_vtable != nullptr) << PrettyClass(super_class.Get());
+      if (num_virtual_methods == 0) {
+        klass->SetVTable(super_vtable);
+        return true;
+      }
+      vtable = hs.NewHandle(super_vtable->CopyOf(self, max_count));
       if (UNLIKELY(vtable.Get() == nullptr)) {
         CHECK(self->IsExceptionPending());  // OOME.
         return false;
       }
     }
-
-    // See if any of our virtual methods override the superclass.
+    // How the algorithm works:
+    // 1. Populate hash table by adding num_virtual_methods from klass. The values in the hash
+    // table are: invalid_index for unused slots, index super_vtable_length + i for a virtual
+    // method which has not been matched to a vtable method, and j if the virtual method at the
+    // index overrode the super virtual method at index j.
+    // 2. Loop through super virtual methods, if they overwrite, update hash table to j
+    // (j < super_vtable_length) to avoid redundant checks. (TODO maybe use this info for reducing
+    // the need for the initial vtable which we later shrink back down).
+    // 3. Add non overridden methods to the end of the vtable.
+    static constexpr size_t kMaxStackHash = 250;
+    const size_t hash_table_size = num_virtual_methods * 3;
+    uint32_t* hash_table_ptr;
+    std::unique_ptr<uint32_t[]> hash_heap_storage;
+    if (hash_table_size <= kMaxStackHash) {
+      hash_table_ptr = reinterpret_cast<uint32_t*>(
+          alloca(hash_table_size * sizeof(*hash_table_ptr)));
+    } else {
+      hash_heap_storage.reset(new uint32_t[hash_table_size]);
+      hash_table_ptr = hash_heap_storage.get();
+    }
+    LinkVirtualHashTable hash_table(klass, hash_table_size, hash_table_ptr);
+    // Add virtual methods to the hash table.
     for (size_t i = 0; i < num_virtual_methods; ++i) {
-      mirror::ArtMethod* local_method = klass->GetVirtualMethodDuringLinking(i);
-      MethodNameAndSignatureComparator
-          virtual_method_name_comparator(local_method->GetInterfaceMethodIfProxy());
-      size_t j = 0;
-      for (; j < actual_count; ++j) {
-        mirror::ArtMethod* super_method = vtable->GetWithoutChecks(j);
-        if (super_method->GetDeclaringClass() == klass.Get()) {
-          continue;  // A previously overridden method.
-        }
-        if (virtual_method_name_comparator.HasSameNameAndSignature(super_method)) {
-          if (klass->CanAccessMember(super_method->GetDeclaringClass(),
-                                     super_method->GetAccessFlags())) {
-            if (super_method->IsFinal()) {
-              ThrowLinkageError(klass.Get(), "Method %s overrides final method in class %s",
-                                PrettyMethod(local_method).c_str(),
-                                super_method->GetDeclaringClassDescriptor());
-              return false;
-            }
-            vtable->SetWithoutChecks<false>(j, local_method);
-            local_method->SetMethodIndex(j);
-            break;
+      hash_table.Add(i);
+    }
+    // Loop through each super vtable method and see if they are overriden by a method we added to
+    // the hash table.
+    for (size_t j = 0; j < super_vtable_length; ++j) {
+      // Search the hash table to see if we are overidden by any method.
+      mirror::ArtMethod* super_method = vtable->GetWithoutChecks(j);
+      MethodNameAndSignatureComparator super_method_name_comparator(
+          super_method->GetInterfaceMethodIfProxy());
+      uint32_t hash_index = hash_table.FindAndRemove(&super_method_name_comparator);
+      if (hash_index != hash_table.GetNotFoundIndex()) {
+        mirror::ArtMethod* virtual_method = klass->GetVirtualMethodDuringLinking(hash_index);
+        if (klass->CanAccessMember(super_method->GetDeclaringClass(),
+                                   super_method->GetAccessFlags())) {
+          if (super_method->IsFinal()) {
+            ThrowLinkageError(klass.Get(), "Method %s overrides final method in class %s",
+                              PrettyMethod(virtual_method).c_str(),
+                              super_method->GetDeclaringClassDescriptor());
+            return false;
           }
-          LOG(WARNING) << "Before Android 4.1, method " << PrettyMethod(local_method)
+          vtable->SetWithoutChecks<false>(j, virtual_method);
+          virtual_method->SetMethodIndex(j);
+        } else {
+          LOG(WARNING) << "Before Android 4.1, method " << PrettyMethod(virtual_method)
                        << " would have incorrectly overridden the package-private method in "
                        << PrettyDescriptor(super_method->GetDeclaringClassDescriptor());
         }
       }
-      if (j == actual_count) {
-        // Not overriding, append.
-        vtable->SetWithoutChecks<false>(actual_count, local_method);
-        local_method->SetMethodIndex(actual_count);
-        ++actual_count;
+    }
+    // Add the non overridden methods at the end.
+    size_t actual_count = super_vtable_length;
+    for (size_t i = 0; i < num_virtual_methods; ++i) {
+      mirror::ArtMethod* local_method = klass->GetVirtualMethodDuringLinking(i);
+      size_t method_idx = local_method->GetMethodIndexDuringLinking();
+      if (method_idx < super_vtable_length &&
+          local_method == vtable->GetWithoutChecks(method_idx)) {
+        continue;
       }
+      vtable->SetWithoutChecks<false>(actual_count, local_method);
+      local_method->SetMethodIndex(actual_count);
+      ++actual_count;
     }
     if (!IsUint(16, actual_count)) {
       ThrowClassFormatError(klass.Get(), "Too many methods defined on class: %zd", actual_count);
@@ -4905,7 +5007,8 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
       }
       for (size_t j = 0; j < num_methods; ++j) {
         mirror::ArtMethod* interface_method = iftable->GetInterface(i)->GetVirtualMethod(j);
-        MethodNameAndSignatureComparator interface_name_comparator(interface_method);
+        MethodNameAndSignatureComparator interface_name_comparator(
+            interface_method->GetInterfaceMethodIfProxy());
         int32_t k;
         // For each method listed in the interface's method list, find the
         // matching method in our class's method list.  We want to favor the
@@ -4920,7 +5023,7 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
           mirror::ArtMethod* vtable_method_for_name_comparison =
               vtable_method->GetInterfaceMethodIfProxy();
           if (interface_name_comparator.HasSameNameAndSignature(
-                  vtable_method_for_name_comparison)) {
+              vtable_method_for_name_comparison)) {
             if (!vtable_method->IsAbstract() && !vtable_method->IsPublic()) {
               ThrowIllegalAccessError(
                   klass.Get(),
@@ -4939,10 +5042,10 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
             } else if (imt_ref != conflict_method) {
               // If we are not a conflict and we have the same signature and name as the imt entry,
               // it must be that we overwrote a superclass vtable entry.
-              MethodNameAndSignatureComparator
-                  imt_ref_name_comparator(imt_ref->GetInterfaceMethodIfProxy());
+              MethodNameAndSignatureComparator imt_ref_name_comparator(
+                  imt_ref->GetInterfaceMethodIfProxy());
               if (imt_ref_name_comparator.HasSameNameAndSignature(
-                      vtable_method_for_name_comparison)) {
+                  vtable_method_for_name_comparison)) {
                 out_imt->SetReference(imt_index, vtable_method);
               } else {
                 out_imt->SetReference(imt_index, conflict_method);
@@ -4954,7 +5057,8 @@ bool ClassLinker::LinkInterfaceMethods(Thread* self, Handle<mirror::Class> klass
         if (k < 0 && !super_interface) {
           mirror::ArtMethod* miranda_method = nullptr;
           for (mirror::ArtMethod* mir_method : miranda_list) {
-            if (interface_name_comparator.HasSameNameAndSignature(mir_method)) {
+            if (interface_name_comparator.HasSameNameAndSignature(
+                mir_method->GetInterfaceMethodIfProxy())) {
               miranda_method = mir_method;
               break;
             }
