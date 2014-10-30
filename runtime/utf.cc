@@ -70,27 +70,27 @@ void ConvertUtf16ToModifiedUtf8(char* utf8_out, const uint16_t* utf16_in, size_t
 
 int32_t ComputeUtf16Hash(mirror::CharArray* chars, int32_t offset,
                          size_t char_count) {
-  int32_t hash = 0;
+  uint32_t hash = 0;
   for (size_t i = 0; i < char_count; i++) {
     hash = hash * 31 + chars->Get(offset + i);
   }
-  return hash;
+  return static_cast<int32_t>(hash);
 }
 
 int32_t ComputeUtf16Hash(const uint16_t* chars, size_t char_count) {
-  int32_t hash = 0;
+  uint32_t hash = 0;
   while (char_count--) {
     hash = hash * 31 + *chars++;
   }
-  return hash;
+  return static_cast<int32_t>(hash);
 }
 
 int32_t ComputeUtf8Hash(const char* chars) {
-  int32_t hash = 0;
+  uint32_t hash = 0;
   while (*chars != '\0') {
     hash = hash * 31 + GetUtf16FromUtf8(&chars);
   }
-  return hash;
+  return static_cast<int32_t>(hash);
 }
 
 int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8_1, const uint16_t* utf8_2) {
