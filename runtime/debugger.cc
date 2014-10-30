@@ -4373,7 +4373,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
   // Send a series of heap segment chunks.
   HeapChunkContext context((what == HPSG_WHAT_MERGED_OBJECTS), native);
   if (native) {
-#ifdef USE_DLMALLOC
+#if defined(HAVE_ANDROID_OS) && defined(USE_DLMALLOC)
     dlmalloc_inspect_all(HeapChunkContext::HeapChunkCallback, &context);
 #else
     UNIMPLEMENTED(WARNING) << "Native heap inspection is only supported with dlmalloc";

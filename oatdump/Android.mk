@@ -25,14 +25,14 @@ ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
   $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libcutils libart-disassembler libart-compiler,art/disassembler art/compiler,target,ndebug))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libcutils libartd-disassembler libart-compiler,art/disassembler art/compiler,target,debug))
+  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libcutils libartd-disassembler libartd-compiler,art/disassembler art/compiler,target,debug))
 endif
 
 ifeq ($(ART_BUILD_HOST_NDEBUG),true)
   $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libart-disassembler libart-compiler,art/disassembler art/compiler,host,ndebug))
 endif
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libartd-disassembler libart-compiler,art/disassembler art/compiler,host,debug))
+  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libartd-disassembler libartd-compiler,art/disassembler art/compiler,host,debug))
 endif
 
 ########################################################################

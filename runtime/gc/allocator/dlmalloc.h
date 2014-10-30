@@ -30,10 +30,12 @@
 
 #include "../../bionic/libc/upstream-dlmalloc/malloc.h"
 
+#ifdef HAVE_ANDROID_OS
 // Define dlmalloc routines from bionic that cannot be included directly because of redefining
 // symbols from the include above.
 extern "C" void dlmalloc_inspect_all(void(*handler)(void*, void *, size_t, void*), void* arg);
 extern "C" int  dlmalloc_trim(size_t);
+#endif
 
 // Callback for dlmalloc_inspect_all or mspace_inspect_all that will madvise(2) unused
 // pages back to the kernel.
