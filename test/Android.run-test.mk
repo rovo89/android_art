@@ -554,6 +554,12 @@ define define-test-art-run-test
   ifeq ($(9),no-image)
     test_groups += ART_RUN_TEST_$$(uc_host_or_target)_NO_IMAGE_RULES
     run_test_options += --no-image
+    # Add the core dependency. This is required for pre-building.
+    ifeq ($(1),host)
+      prereq_rule += $(HOST_CORE_IMAGE_$(4)_no-pic_$(12))
+    else
+      prereq_rule += $(TARGET_CORE_IMAGE_$(4)_no-pic_$(12))
+    endif
   else
     ifeq ($(9),image)
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_IMAGE_RULES
