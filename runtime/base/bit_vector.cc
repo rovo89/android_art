@@ -16,6 +16,7 @@
 
 #include "bit_vector.h"
 
+#include <limits>
 #include <sstream>
 
 #include "allocator.h"
@@ -218,13 +219,13 @@ void BitVector::SetInitialBits(uint32_t num_bits) {
   uint32_t idx;
   // We can set every storage element with -1.
   for (idx = 0; idx < WordIndex(num_bits); idx++) {
-    storage_[idx] = -1;
+    storage_[idx] = std::numeric_limits<uint32_t>::max();
   }
 
   // Handle the potentially last few bits.
   uint32_t rem_num_bits = num_bits & 0x1f;
   if (rem_num_bits != 0) {
-    storage_[idx] = (1 << rem_num_bits) - 1;
+    storage_[idx] = (1U << rem_num_bits) - 1;
     ++idx;
   }
 
