@@ -446,7 +446,7 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
             calling_convention.GetRegisterPairAt(index));
         return Location::RegisterPairLocation(pair.AsRegisterPairLow(), pair.AsRegisterPairHigh());
       } else if (index + 1 == calling_convention.GetNumberOfRegisters()) {
-        return Location::QuickParameter(stack_index);
+        return Location::QuickParameter(index, stack_index);
       } else {
         return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(stack_index));
       }
@@ -561,12 +561,13 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
     } else if (source.IsFpuRegister()) {
       UNIMPLEMENTED(FATAL);
     } else if (source.IsQuickParameter()) {
-      uint32_t argument_index = source.GetQuickParameterIndex();
+      uint16_t register_index = source.GetQuickParameterRegisterIndex();
+      uint16_t stack_index = source.GetQuickParameterStackIndex();
       InvokeDexCallingConvention calling_convention;
       __ Mov(destination.AsRegisterPairLow<Register>(),
-             calling_convention.GetRegisterAt(argument_index));
+             calling_convention.GetRegisterAt(register_index));
       __ LoadFromOffset(kLoadWord, destination.AsRegisterPairHigh<Register>(),
-             SP, calling_convention.GetStackOffsetOf(argument_index + 1) + GetFrameSize());
+             SP, calling_convention.GetStackOffsetOf(stack_index + 1) + GetFrameSize());
     } else {
       DCHECK(source.IsDoubleStackSlot());
       if (destination.AsRegisterPairLow<Register>() == R1) {
@@ -588,20 +589,21 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
     }
   } else if (destination.IsQuickParameter()) {
     InvokeDexCallingConvention calling_convention;
-    uint32_t argument_index = destination.GetQuickParameterIndex();
+    uint16_t register_index = destination.GetQuickParameterRegisterIndex();
+    uint16_t stack_index = destination.GetQuickParameterStackIndex();
     if (source.IsRegisterPair()) {
-      __ Mov(calling_convention.GetRegisterAt(argument_index),
+      __ Mov(calling_convention.GetRegisterAt(register_index),
              source.AsRegisterPairLow<Register>());
       __ StoreToOffset(kStoreWord, source.AsRegisterPairHigh<Register>(),
-             SP, calling_convention.GetStackOffsetOf(argument_index + 1));
+             SP, calling_convention.GetStackOffsetOf(stack_index + 1));
     } else if (source.IsFpuRegister()) {
       UNIMPLEMENTED(FATAL);
     } else {
       DCHECK(source.IsDoubleStackSlot());
       __ LoadFromOffset(
-          kLoadWord, calling_convention.GetRegisterAt(argument_index), SP, source.GetStackIndex());
+          kLoadWord, calling_convention.GetRegisterAt(register_index), SP, source.GetStackIndex());
       __ LoadFromOffset(kLoadWord, R0, SP, source.GetHighStackIndex(kArmWordSize));
-      __ StoreToOffset(kStoreWord, R0, SP, calling_convention.GetStackOffsetOf(argument_index + 1));
+      __ StoreToOffset(kStoreWord, R0, SP, calling_convention.GetStackOffsetOf(stack_index + 1));
     }
   } else {
     DCHECK(destination.IsDoubleStackSlot());
@@ -616,11 +618,12 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
       }
     } else if (source.IsQuickParameter()) {
       InvokeDexCallingConvention calling_convention;
-      uint32_t argument_index = source.GetQuickParameterIndex();
-      __ StoreToOffset(kStoreWord, calling_convention.GetRegisterAt(argument_index),
+      uint16_t register_index = source.GetQuickParameterRegisterIndex();
+      uint16_t stack_index = source.GetQuickParameterStackIndex();
+      __ StoreToOffset(kStoreWord, calling_convention.GetRegisterAt(register_index),
              SP, destination.GetStackIndex());
       __ LoadFromOffset(kLoadWord, R0,
-             SP, calling_convention.GetStackOffsetOf(argument_index + 1) + GetFrameSize());
+             SP, calling_convention.GetStackOffsetOf(stack_index + 1) + GetFrameSize());
       __ StoreToOffset(kStoreWord, R0, SP, destination.GetHighStackIndex(kArmWordSize));
     } else if (source.IsFpuRegisterPair()) {
       __ StoreDToOffset(FromLowSToD(source.AsFpuRegisterPairLow<SRegister>()),

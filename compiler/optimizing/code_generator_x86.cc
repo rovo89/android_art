@@ -393,7 +393,9 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
             calling_convention.GetRegisterPairAt(index));
         return Location::RegisterPairLocation(pair.AsRegisterPairLow(), pair.AsRegisterPairHigh());
       } else if (index + 1 == calling_convention.GetNumberOfRegisters()) {
-        return Location::QuickParameter(index);
+        // On X86, the register index and stack index of a quick parameter is the same, since
+        // we are passing floating pointer values in core registers.
+        return Location::QuickParameter(index, index);
       } else {
         return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(index));
       }
@@ -453,12 +455,13 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
     } else if (source.IsFpuRegister()) {
       LOG(FATAL) << "Unimplemented";
     } else if (source.IsQuickParameter()) {
-      uint32_t argument_index = source.GetQuickParameterIndex();
+      uint16_t register_index = source.GetQuickParameterRegisterIndex();
+      uint16_t stack_index = source.GetQuickParameterStackIndex();
       InvokeDexCallingConvention calling_convention;
       __ movl(destination.AsRegisterPairLow<Register>(),
-              calling_convention.GetRegisterAt(argument_index));
+              calling_convention.GetRegisterAt(register_index));
       __ movl(destination.AsRegisterPairHigh<Register>(), Address(ESP,
-          calling_convention.GetStackOffsetOf(argument_index + 1) + GetFrameSize()));
+          calling_convention.GetStackOffsetOf(stack_index + 1) + GetFrameSize()));
     } else {
       DCHECK(source.IsDoubleStackSlot());
       __ movl(destination.AsRegisterPairLow<Register>(), Address(ESP, source.GetStackIndex()));
@@ -467,19 +470,20 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
     }
   } else if (destination.IsQuickParameter()) {
     InvokeDexCallingConvention calling_convention;
-    uint32_t argument_index = destination.GetQuickParameterIndex();
+    uint16_t register_index = destination.GetQuickParameterRegisterIndex();
+    uint16_t stack_index = destination.GetQuickParameterStackIndex();
     if (source.IsRegister()) {
-      __ movl(calling_convention.GetRegisterAt(argument_index), source.AsRegisterPairLow<Register>());
-      __ movl(Address(ESP, calling_convention.GetStackOffsetOf(argument_index + 1)),
+      __ movl(calling_convention.GetRegisterAt(register_index), source.AsRegisterPairLow<Register>());
+      __ movl(Address(ESP, calling_convention.GetStackOffsetOf(stack_index + 1)),
               source.AsRegisterPairHigh<Register>());
     } else if (source.IsFpuRegister()) {
       LOG(FATAL) << "Unimplemented";
     } else {
       DCHECK(source.IsDoubleStackSlot());
-      __ movl(calling_convention.GetRegisterAt(argument_index),
+      __ movl(calling_convention.GetRegisterAt(register_index),
               Address(ESP, source.GetStackIndex()));
       __ pushl(Address(ESP, source.GetHighStackIndex(kX86WordSize)));
-      __ popl(Address(ESP, calling_convention.GetStackOffsetOf(argument_index + 1)));
+      __ popl(Address(ESP, calling_convention.GetStackOffsetOf(stack_index + 1)));
     }
   } else if (destination.IsFpuRegister()) {
     if (source.IsDoubleStackSlot()) {
@@ -495,10 +499,11 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
               source.AsRegisterPairHigh<Register>());
     } else if (source.IsQuickParameter()) {
       InvokeDexCallingConvention calling_convention;
-      uint32_t argument_index = source.GetQuickParameterIndex();
+      uint16_t register_index = source.GetQuickParameterRegisterIndex();
+      uint16_t stack_index = source.GetQuickParameterStackIndex();
       __ movl(Address(ESP, destination.GetStackIndex()),
-              calling_convention.GetRegisterAt(argument_index));
-      DCHECK_EQ(calling_convention.GetStackOffsetOf(argument_index + 1) + GetFrameSize(),
+              calling_convention.GetRegisterAt(register_index));
+      DCHECK_EQ(calling_convention.GetStackOffsetOf(stack_index + 1) + GetFrameSize(),
                 static_cast<size_t>(destination.GetHighStackIndex(kX86WordSize)));
     } else if (source.IsFpuRegister()) {
       __ movsd(Address(ESP, destination.GetStackIndex()), source.As<XmmRegister>());
