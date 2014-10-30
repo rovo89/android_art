@@ -686,6 +686,13 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
     symtab->AddSymbol(it->method_name_, &builder->GetTextBuilder(), it->low_pc_, true,
                       it->high_pc_ - it->low_pc_, STB_GLOBAL, STT_FUNC);
 
+    // Conforming to aaelf, add $t mapping symbol to indicate start of a sequence of thumb2
+    // instructions, so that disassembler tools can correctly disassemble.
+    if (it->compiled_method_->GetInstructionSet() == kThumb2) {
+      symtab->AddSymbol("$t", &builder->GetTextBuilder(), it->low_pc_ & ~1, true,
+                        0, STB_LOCAL, STT_NOTYPE);
+    }
+
     // Include CFI for compiled method, if possible.
     if (cfi_info.get() != nullptr) {
       DCHECK(it->compiled_method_ != nullptr);
