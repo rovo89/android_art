@@ -408,11 +408,7 @@ MUL_TEST(INT, MulInt);
 MUL_TEST(LONG, MulLong);
 #endif
 
-#if defined(__aarch64__)
-TEST(CodegenTest, DISABLED_ReturnMulIntLit8) {
-#else
 TEST(CodegenTest, ReturnMulIntLit8) {
-#endif
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 4 << 12 | 0 << 8,
     Instruction::MUL_INT_LIT8, 3 << 8 | 0,
@@ -421,11 +417,7 @@ TEST(CodegenTest, ReturnMulIntLit8) {
   TestCode(data, true, 12);
 }
 
-#if defined(__aarch64__)
-TEST(CodegenTest, DISABLED_ReturnMulIntLit16) {
-#else
 TEST(CodegenTest, ReturnMulIntLit16) {
-#endif
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 4 << 12 | 0 << 8,
     Instruction::MUL_INT_LIT16, 3,
