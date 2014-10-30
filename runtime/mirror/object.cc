@@ -135,11 +135,11 @@ Object* Object::Clone(Thread* self) {
   return copy;
 }
 
-int32_t Object::GenerateIdentityHashCode() {
-  static AtomicInteger seed(987654321 + std::time(nullptr));
-  int32_t expected_value, new_value;
+uint32_t Object::GenerateIdentityHashCode() {
+  static Atomic<uint32_t> seed(987654321U + std::time(nullptr));
+  uint32_t expected_value, new_value;
   do {
-    expected_value = static_cast<uint32_t>(seed.LoadRelaxed());
+    expected_value = seed.LoadRelaxed();
     new_value = expected_value * 1103515245 + 12345;
   } while ((expected_value & LockWord::kHashMask) == 0 ||
       !seed.CompareExchangeWeakRelaxed(expected_value, new_value));
