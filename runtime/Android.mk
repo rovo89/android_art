@@ -457,15 +457,21 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_C_INCLUDES += $$(ART_C_INCLUDES)
   LOCAL_C_INCLUDES += art/sigchainlib
 
-  LOCAL_SHARED_LIBRARIES += liblog libnativehelper libnativebridge
+  LOCAL_SHARED_LIBRARIES := libnativehelper libnativebridge libsigchain
   include external/libcxx/libcxx.mk
   LOCAL_SHARED_LIBRARIES += libbacktrace_libc++
   ifeq ($$(art_target_or_host),target)
-    LOCAL_SHARED_LIBRARIES += libcutils libdl libutils libsigchain
+    LOCAL_SHARED_LIBRARIES += libdl
+    # ZipArchive support, the order matters here to get all symbols.
     LOCAL_STATIC_LIBRARIES := libziparchive libz
+    # For android::FileMap used by libziparchive.
+    LOCAL_SHARED_LIBRARIES += libutils
+    # For liblog, atrace, properties, ashmem, set_sched_policy and socket_peer_is_trusted.
+    LOCAL_SHARED_LIBRARIES += libcutils
   else # host
-    LOCAL_STATIC_LIBRARIES += libcutils libziparchive-host libz libutils
-    LOCAL_SHARED_LIBRARIES += libsigchain
+    LOCAL_SHARED_LIBRARIES += libziparchive-host
+    # For ashmem_create_region.
+    LOCAL_STATIC_LIBRARIES += libcutils
   endif
   ifeq ($$(ART_USE_PORTABLE_COMPILER),true)
     include $$(LLVM_GEN_INTRINSICS_MK)
