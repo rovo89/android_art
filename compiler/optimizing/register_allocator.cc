@@ -266,15 +266,17 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
     size_t first_register_use = current->FirstRegisterUse();
     if (first_register_use != kNoLifetime) {
       LiveInterval* split = Split(current, first_register_use - 1);
-      // Don't add direclty to `unhandled`, it needs to be sorted and the start
+      // Don't add directly to `unhandled`, it needs to be sorted and the start
       // of this new interval might be after intervals already in the list.
       AddSorted(&unhandled, split);
     } else {
       // Nothing to do, we won't allocate a register for this value.
     }
   } else {
-    DCHECK(unhandled.IsEmpty() || current->StartsBeforeOrAt(unhandled.Peek()));
-    unhandled.Add(current);
+    // Don't add directly to `unhandled`, temp or safepoint intervals
+    // for this instruction may have been added, and those can be
+    // processed first.
+    AddSorted(&unhandled, current);
   }
 }
 
@@ -973,7 +975,14 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
       HInstruction* safepoint = safepoints_.Get(i);
       size_t position = safepoint->GetLifetimePosition();
       LocationSummary* locations = safepoint->GetLocations();
-      if (!current->Covers(position)) continue;
+      if (!current->Covers(position)) {
+        continue;
+      }
+      if (interval->GetStart() == position) {
+        // The safepoint is for this instruction, so the location of the instruction
+        // does not need to be saved.
+        continue;
+      }
 
       if ((current->GetType() == Primitive::kPrimNot) && current->GetParent()->HasSpillSlot()) {
         locations->SetStackBit(current->GetParent()->GetSpillSlot() / kVRegSize);

@@ -122,6 +122,12 @@ class Compiler {
     return nullptr;
   }
 
+  // Returns whether the method to compile is such a pathological case that
+  // it's not worth compiling.
+  static bool IsPathologicalCase(const DexFile::CodeItem& code_item,
+                                 uint32_t method_idx,
+                                 const DexFile& dex_file);
+
  protected:
   explicit Compiler(CompilerDriver* driver, uint64_t warning) :
       driver_(driver), maximum_compilation_time_before_warning_(warning) {

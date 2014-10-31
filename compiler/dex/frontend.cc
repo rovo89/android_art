@@ -84,21 +84,8 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
                                      jobject class_loader, const DexFile& dex_file,
                                      void* llvm_compilation_unit) {
   VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
-  /*
-   * Skip compilation for pathologically large methods - either by instruction count or num vregs.
-   * Dalvik uses 16-bit uints for instruction and register counts.  We'll limit to a quarter
-   * of that, which also guarantees we cannot overflow our 16-bit internal SSA name space.
-   */
-  if (code_item->insns_size_in_code_units_ >= UINT16_MAX / 4) {
-    LOG(INFO) << "Method exceeds compiler instruction limit: "
-              << code_item->insns_size_in_code_units_
-              << " in " << PrettyMethod(method_idx, dex_file);
-    return NULL;
-  }
-  if (code_item->registers_size_ >= UINT16_MAX / 4) {
-    LOG(INFO) << "Method exceeds compiler virtual register limit: "
-              << code_item->registers_size_ << " in " << PrettyMethod(method_idx, dex_file);
-    return NULL;
+  if (Compiler::IsPathologicalCase(*code_item, method_idx, dex_file)) {
+    return nullptr;
   }
 
   if (!driver.GetCompilerOptions().IsCompilationEnabled()) {
