@@ -307,48 +307,104 @@ TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
 
 # Known broken tests for the arm64 optimizing compiler backend.
 TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
+  001-HelloWorld \
   003-omnibus-opcodes \
+  004-InterfaceTest \
   004-JniTest \
+  004-StackWalk \
   006-args \
   007-count10 \
   011-array-copy \
+  013-math2 \
+  016-intern \
+  017-float \
   018-stack-overflow \
+  020-string \
+  022-interface \
+  023-many-interfaces \
+  026-access \
   028-array-write \
+  030-bad-finalizer \
+  031-class-attributes \
+  032-concrete-sub \
   036-finalizer \
+  037-inherit \
+  038-inner-null \
+  043-privates \
   044-proxy \
+  045-reflect-array \
+  046-reflect \
+  047-returns \
+  049-show-object \
+  050-sync-test \
+  051-thread \
+  052-verifier-fun \
+  054-uncaught \
+  056-const-string-jumbo \
+  061-out-of-memory \
+  063-process-manager \
   067-preemptive-unpark \
+  068-classloader \
+  069-field-type \
   070-nio-buffer \
+  071-dexfile \
   072-precise-gc \
+  074-gc-thrash \
+  076-boolean-put \
+  077-method-override \
+  079-phantom \
   080-oom-throw \
   082-inline-execute \
   083-compiler-regressions \
   084-class-init \
   085-old-style-inner-class \
+  086-null-super \
+  087-gc-after-link \
+  090-loop-formation \
+  092-locale \
   093-serialization \
+  094-pattern \
   096-array-copy-concurrent-gc \
+  097-duplicate-method \
   098-ddmc \
   100-reflect2 \
+  102-concurrent-gc \
+  103-string-append \
+  105-invoke \
   106-exceptions2 \
   107-int-math2 \
+  109-suspend-check \
   110-field-access \
+  112-double-math \
+  113-multidex \
+  117-nopatchoat \
   121-modifiers \
   122-npe \
   123-compiler-regressions-mt \
+  124-missing-classes \
+  125-gc-and-classloading \
+  300-package-override \
   301-abstract-protected \
+  303-verification-stress \
+  401-optimizing-compiler \
+  403-optimizing-long \
   405-optimizing-long-allocator \
+  406-fields \
   407-arrays \
+  409-materialized-condition \
   410-floats \
   411-optimizing-arith \
   412-new-array \
   413-regalloc-regression \
-  414-static-fields \
   414-optimizing-arith-sub \
+  414-static-fields \
   415-optimizing-arith-neg \
   416-optimizing-arith-not \
   417-optimizing-arith-div \
   418-const-string \
   419-long-parameter \
   700-LoadArgRegs \
+  701-easy-div-rem \
   702-LargeBranchOffset \
   800-smali
 
