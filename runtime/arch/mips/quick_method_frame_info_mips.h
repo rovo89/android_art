@@ -40,8 +40,7 @@ constexpr uint32_t MipsCalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
 
 constexpr uint32_t MipsCalleeSaveFrameSize(Runtime::CalleeSaveType type) {
   return RoundUp((POPCOUNT(MipsCalleeSaveCoreSpills(type)) /* gprs */ +
-                  (type == Runtime::kRefsAndArgs ? 0 : 3) + 1 /* Method* */) *
-                 kMipsPointerSize, kStackAlignment);
+                  1 /* Method* */) * kMipsPointerSize, kStackAlignment);
 }
 
 constexpr QuickMethodFrameInfo MipsCalleeSaveMethodFrameInfo(Runtime::CalleeSaveType type) {

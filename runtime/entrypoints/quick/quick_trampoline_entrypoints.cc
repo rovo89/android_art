@@ -926,17 +926,16 @@ template<class T> class BuildNativeCallFrameStateMachine {
   static constexpr bool kAlignLongOnStack = false;
   static constexpr bool kAlignDoubleOnStack = false;
 #elif defined(__mips__)
-  // TODO: These are all dummy values!
   static constexpr bool kNativeSoftFloatAbi = true;  // This is a hard float ABI.
-  static constexpr size_t kNumNativeGprArgs = 0;  // 6 arguments passed in GPRs.
-  static constexpr size_t kNumNativeFprArgs = 0;  // 8 arguments passed in FPRs.
+  static constexpr size_t kNumNativeGprArgs = 4;  // 4 arguments passed in GPRs.
+  static constexpr size_t kNumNativeFprArgs = 0;  // 0 arguments passed in FPRs.
 
   static constexpr size_t kRegistersNeededForLong = 2;
   static constexpr size_t kRegistersNeededForDouble = 2;
   static constexpr bool kMultiRegistersAligned = true;
   static constexpr bool kMultiRegistersWidened = true;
-  static constexpr bool kAlignLongOnStack = false;
-  static constexpr bool kAlignDoubleOnStack = false;
+  static constexpr bool kAlignLongOnStack = true;
+  static constexpr bool kAlignDoubleOnStack = true;
 #elif defined(__i386__)
   // TODO: Check these!
   static constexpr bool kNativeSoftFloatAbi = false;  // Not using int registers for fp
