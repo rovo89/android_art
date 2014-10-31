@@ -346,6 +346,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   415-optimizing-arith-neg \
   416-optimizing-arith-not \
   417-optimizing-arith-div \
+  418-const-string \
   419-long-parameter \
   700-LoadArgRegs \
   702-LargeBranchOffset \

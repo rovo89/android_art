@@ -196,6 +196,36 @@ class ClinitCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
   DISALLOW_COPY_AND_ASSIGN(ClinitCheckSlowPathX86_64);
 };
 
+class LoadStringSlowPathX86_64 : public SlowPathCodeX86_64 {
+ public:
+  explicit LoadStringSlowPathX86_64(HLoadString* instruction) : instruction_(instruction) {}
+
+  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
+    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
+
+    CodeGeneratorX86_64* x64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
+    __ Bind(GetEntryLabel());
+    codegen->SaveLiveRegisters(locations);
+
+    InvokeRuntimeCallingConvention calling_convention;
+    x64_codegen->LoadCurrentMethod(CpuRegister(calling_convention.GetRegisterAt(0)));
+    __ movl(CpuRegister(calling_convention.GetRegisterAt(1)),
+            Immediate(instruction_->GetStringIndex()));
+    __ gs()->call(Address::Absolute(
+        QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pResolveString), true));
+    codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
+    x64_codegen->Move(locations->Out(), Location::RegisterLocation(RAX));
+    codegen->RestoreLiveRegisters(locations);
+    __ jmp(GetExitLabel());
+  }
+
+ private:
+  HLoadString* const instruction_;
+
+  DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathX86_64);
+};
+
 #undef __
 #define __ reinterpret_cast<X86_64Assembler*>(GetAssembler())->
 
@@ -2268,6 +2298,25 @@ void InstructionCodeGeneratorX86_64::VisitStaticFieldSet(HStaticFieldSet* instru
       LOG(FATAL) << "Unreachable type " << field_type;
       UNREACHABLE();
   }
+}
+
+void LocationsBuilderX86_64::VisitLoadString(HLoadString* load) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kCallOnSlowPath);
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
+  SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) LoadStringSlowPathX86_64(load);
+  codegen_->AddSlowPath(slow_path);
+
+  CpuRegister out = load->GetLocations()->Out().As<CpuRegister>();
+  codegen_->LoadCurrentMethod(CpuRegister(out));
+  __ movl(out, Address(out, mirror::ArtMethod::DexCacheStringsOffset().Int32Value()));
+  __ movl(out, Address(out, CodeGenerator::GetCacheOffset(load->GetStringIndex())));
+  __ testl(out, out);
+  __ j(kEqual, slow_path->GetEntryLabel());
+  __ Bind(slow_path->GetExitLabel());
 }
 
 }  // namespace x86_64

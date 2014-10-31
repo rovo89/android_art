@@ -489,10 +489,11 @@ class HBasicBlock : public ArenaObject {
   M(IntConstant, Constant)                                              \
   M(InvokeStatic, Invoke)                                               \
   M(InvokeVirtual, Invoke)                                              \
-  M(LoadClass, Instruction)                                             \
   M(LessThan, Condition)                                                \
   M(LessThanOrEqual, Condition)                                         \
+  M(LoadClass, Instruction)                                             \
   M(LoadLocal, Instruction)                                             \
+  M(LoadString, Instruction)                                            \
   M(Local, Instruction)                                                 \
   M(LongConstant, Constant)                                             \
   M(Mul, BinaryOperation)                                               \
@@ -2022,7 +2023,8 @@ class HSuspendCheck : public HTemplateInstruction<0> {
 };
 
 // TODO: Make this class handle the case the load is null (dex cache
-// is null).
+// is null). This will be required when using it for other things than
+// initialization check.
 /**
  * Instruction to load a Class object.
  */
@@ -2062,6 +2064,34 @@ class HLoadClass : public HExpression<0> {
   const uint32_t dex_pc_;
 
   DISALLOW_COPY_AND_ASSIGN(HLoadClass);
+};
+
+class HLoadString : public HExpression<0> {
+ public:
+  HLoadString(uint32_t string_index, uint32_t dex_pc)
+      : HExpression(Primitive::kPrimNot, SideEffects::None()),
+        string_index_(string_index),
+        dex_pc_(dex_pc) {}
+
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+    return other->AsLoadString()->string_index_ == string_index_;
+  }
+
+  size_t ComputeHashCode() const OVERRIDE { return string_index_; }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+  uint32_t GetStringIndex() const { return string_index_; }
+
+  // TODO: Can we deopt or debug when we resolve a string?
+  bool NeedsEnvironment() const OVERRIDE { return false; }
+
+  DECLARE_INSTRUCTION(LoadString);
+
+ private:
+  const uint32_t string_index_;
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HLoadString);
 };
 
 // TODO: Pass this check to HInvokeStatic nodes.
