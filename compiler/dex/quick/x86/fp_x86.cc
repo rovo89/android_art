@@ -169,8 +169,7 @@ void X86Mir2Lir::GenLongToFP(RegLocation rl_dest, RegLocation rl_src, bool is_do
    * If the result's location is in memory, then we do not need to do anything
    * more since the fstp has already placed the correct value in memory.
    */
-  RegLocation rl_result = is_double ? UpdateLocWideTyped(rl_dest, kFPReg) :
-      UpdateLocTyped(rl_dest, kFPReg);
+  RegLocation rl_result = is_double ? UpdateLocWideTyped(rl_dest) : UpdateLocTyped(rl_dest);
   if (rl_result.location == kLocPhysReg) {
     /*
      * We already know that the result is in a physical register but do not know if it is the
@@ -431,8 +430,7 @@ void X86Mir2Lir::GenRemFP(RegLocation rl_dest, RegLocation rl_src1, RegLocation 
    * If the result's location is in memory, then we do not need to do anything
    * more since the fstp has already placed the correct value in memory.
    */
-  RegLocation rl_result = is_double ? UpdateLocWideTyped(rl_dest, kFPReg) :
-      UpdateLocTyped(rl_dest, kFPReg);
+  RegLocation rl_result = is_double ? UpdateLocWideTyped(rl_dest) : UpdateLocTyped(rl_dest);
   if (rl_result.location == kLocPhysReg) {
     rl_result = EvalLoc(rl_dest, kFPReg, true);
     if (is_double) {

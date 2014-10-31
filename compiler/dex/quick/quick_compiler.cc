@@ -625,6 +625,7 @@ bool QuickCompiler::WriteElf(art::File* file,
 }
 
 Backend* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const {
+  UNUSED(compilation_unit);
   Mir2Lir* mir_to_lir = nullptr;
   switch (cu->instruction_set) {
     case kThumb2:

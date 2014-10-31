@@ -105,17 +105,17 @@ void Mir2Lir::MarkSafepointPCAfter(LIR* after) {
 void Mir2Lir::UnlinkLIR(LIR* lir) {
   if (UNLIKELY(lir == first_lir_insn_)) {
     first_lir_insn_ = lir->next;
-    if (lir->next != NULL) {
-      lir->next->prev = NULL;
+    if (lir->next != nullptr) {
+      lir->next->prev = nullptr;
     } else {
-      DCHECK(lir->next == NULL);
+      DCHECK(lir->next == nullptr);
       DCHECK(lir == last_lir_insn_);
-      last_lir_insn_ = NULL;
+      last_lir_insn_ = nullptr;
     }
   } else if (lir == last_lir_insn_) {
     last_lir_insn_ = lir->prev;
-    lir->prev->next = NULL;
-  } else if ((lir->prev != NULL) && (lir->next != NULL)) {
+    lir->prev->next = nullptr;
+  } else if ((lir->prev != nullptr) && (lir->next != nullptr)) {
     lir->prev->next = lir->next;
     lir->next->prev = lir->prev;
   }
@@ -334,10 +334,10 @@ void Mir2Lir::CodegenDump() {
             << static_cast<float>(total_size_) / static_cast<float>(insns_size * 2);
   DumpPromotionMap();
   UpdateLIROffsets();
-  for (lir_insn = first_lir_insn_; lir_insn != NULL; lir_insn = lir_insn->next) {
+  for (lir_insn = first_lir_insn_; lir_insn != nullptr; lir_insn = lir_insn->next) {
     DumpLIRInsn(lir_insn, 0);
   }
-  for (lir_insn = literal_list_; lir_insn != NULL; lir_insn = lir_insn->next) {
+  for (lir_insn = literal_list_; lir_insn != nullptr; lir_insn = lir_insn->next) {
     LOG(INFO) << StringPrintf("%x (%04x): .word (%#x)", lir_insn->offset, lir_insn->offset,
                               lir_insn->operands[0]);
   }
@@ -368,13 +368,13 @@ LIR* Mir2Lir::ScanLiteralPool(LIR* data_target, int value, unsigned int delta) {
       return data_target;
     data_target = data_target->next;
   }
-  return NULL;
+  return nullptr;
 }
 
 /* Search the existing constants in the literal pool for an exact wide match */
 LIR* Mir2Lir::ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi) {
   bool lo_match = false;
-  LIR* lo_target = NULL;
+  LIR* lo_target = nullptr;
   while (data_target) {
     if (lo_match && (data_target->operands[0] == val_hi)) {
       // Record high word in case we need to expand this later.
@@ -388,7 +388,7 @@ LIR* Mir2Lir::ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi) {
     }
     data_target = data_target->next;
   }
-  return NULL;
+  return nullptr;
 }
 
 /* Search the existing constants in the literal pool for an exact method match */
@@ -431,7 +431,7 @@ LIR* Mir2Lir::AddWordData(LIR* *constant_list_p, int value) {
     estimated_native_code_size_ += sizeof(value);
     return new_value;
   }
-  return NULL;
+  return nullptr;
 }
 
 /* Add a 64-bit constant to the constant pool or mixed with code */
@@ -469,14 +469,14 @@ static void AlignBuffer(std::vector<uint8_t>&buf, size_t offset) {
 void Mir2Lir::InstallLiteralPools() {
   AlignBuffer(code_buffer_, data_offset_);
   LIR* data_lir = literal_list_;
-  while (data_lir != NULL) {
+  while (data_lir != nullptr) {
     Push32(code_buffer_, data_lir->operands[0]);
     data_lir = NEXT_LIR(data_lir);
   }
   // TODO: patches_.reserve() as needed.
   // Push code and method literals, record offsets for the compiler to patch.
   data_lir = code_literal_list_;
-  while (data_lir != NULL) {
+  while (data_lir != nullptr) {
     uint32_t target_method_idx = data_lir->operands[0];
     const DexFile* target_dex_file =
         reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
@@ -486,7 +486,7 @@ void Mir2Lir::InstallLiteralPools() {
     data_lir = NEXT_LIR(data_lir);
   }
   data_lir = method_literal_list_;
-  while (data_lir != NULL) {
+  while (data_lir != nullptr) {
     uint32_t target_method_idx = data_lir->operands[0];
     const DexFile* target_dex_file =
         reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
@@ -497,7 +497,7 @@ void Mir2Lir::InstallLiteralPools() {
   }
   // Push class literals.
   data_lir = class_literal_list_;
-  while (data_lir != NULL) {
+  while (data_lir != nullptr) {
     uint32_t target_type_idx = data_lir->operands[0];
     const DexFile* class_dex_file =
       reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
@@ -577,7 +577,7 @@ void Mir2Lir::InstallFillArrayData() {
 }
 
 static int AssignLiteralOffsetCommon(LIR* lir, CodeOffset offset) {
-  for (; lir != NULL; lir = lir->next) {
+  for (; lir != nullptr; lir = lir->next) {
     lir->offset = offset;
     offset += 4;
   }
@@ -588,7 +588,7 @@ static int AssignLiteralPointerOffsetCommon(LIR* lir, CodeOffset offset,
                                             unsigned int element_size) {
   // Align to natural pointer size.
   offset = RoundUp(offset, element_size);
-  for (; lir != NULL; lir = lir->next) {
+  for (; lir != nullptr; lir = lir->next) {
     lir->offset = offset;
     offset += element_size;
   }
@@ -642,7 +642,7 @@ void Mir2Lir::CreateMappingTables() {
   uint32_t dex2pc_entries = 0u;
   uint32_t dex2pc_offset = 0u;
   uint32_t dex2pc_dalvik_offset = 0u;
-  for (LIR* tgt_lir = first_lir_insn_; tgt_lir != NULL; tgt_lir = NEXT_LIR(tgt_lir)) {
+  for (LIR* tgt_lir = first_lir_insn_; tgt_lir != nullptr; tgt_lir = NEXT_LIR(tgt_lir)) {
     pc2dex_src_entries++;
     if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoSafepointPC)) {
       pc2dex_entries += 1;
@@ -682,7 +682,7 @@ void Mir2Lir::CreateMappingTables() {
   pc2dex_dalvik_offset = 0u;
   dex2pc_offset = 0u;
   dex2pc_dalvik_offset = 0u;
-  for (LIR* tgt_lir = first_lir_insn_; tgt_lir != NULL; tgt_lir = NEXT_LIR(tgt_lir)) {
+  for (LIR* tgt_lir = first_lir_insn_; tgt_lir != nullptr; tgt_lir = NEXT_LIR(tgt_lir)) {
     if (generate_src_map && !tgt_lir->flags.is_nop) {
       src_mapping_table_.push_back(SrcMapElem({tgt_lir->offset,
               static_cast<int32_t>(tgt_lir->dalvik_offset)}));
@@ -717,7 +717,7 @@ void Mir2Lir::CreateMappingTables() {
     CHECK_EQ(table.PcToDexSize(), pc2dex_entries);
     auto it = table.PcToDexBegin();
     auto it2 = table.DexToPcBegin();
-    for (LIR* tgt_lir = first_lir_insn_; tgt_lir != NULL; tgt_lir = NEXT_LIR(tgt_lir)) {
+    for (LIR* tgt_lir = first_lir_insn_; tgt_lir != nullptr; tgt_lir = NEXT_LIR(tgt_lir)) {
       if (!tgt_lir->flags.is_nop && (tgt_lir->opcode == kPseudoSafepointPC)) {
         CHECK_EQ(tgt_lir->offset, it.NativePcOffset());
         CHECK_EQ(tgt_lir->dalvik_offset, it.DexPc());
@@ -758,7 +758,7 @@ void Mir2Lir::CreateNativeGcMap() {
     uint32_t native_offset = it.NativePcOffset();
     uint32_t dex_pc = it.DexPc();
     const uint8_t* references = dex_gc_map.FindBitMap(dex_pc, false);
-    CHECK(references != NULL) << "Missing ref for dex pc 0x" << std::hex << dex_pc <<
+    CHECK(references != nullptr) << "Missing ref for dex pc 0x" << std::hex << dex_pc <<
         ": " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
     native_gc_map_builder.AddEntry(native_offset, references);
   }
@@ -904,6 +904,7 @@ void Mir2Lir::DumpPackedSwitchTable(const uint16_t* table) {
 
 /* Set up special LIR to mark a Dalvik byte-code instruction start for pretty printing */
 void Mir2Lir::MarkBoundary(DexOffset offset, const char* inst_str) {
+  UNUSED(offset);
   // NOTE: only used for debug listings.
   NewLIR1(kPseudoDalvikByteCodeBoundary, WrapPointer(ArenaStrdup(inst_str)));
 }
@@ -925,7 +926,7 @@ bool Mir2Lir::EvaluateBranch(Instruction::Code opcode, int32_t src1, int32_t src
     case Instruction::IF_LEZ: is_taken = (src1 <= 0); break;
     default:
       LOG(FATAL) << "Unexpected opcode " << opcode;
-      is_taken = false;
+      UNREACHABLE();
   }
   return is_taken;
 }
@@ -941,8 +942,8 @@ ConditionCode Mir2Lir::FlipComparisonOrder(ConditionCode before) {
     case kCondLe: res = kCondGe; break;
     case kCondGe: res = kCondLe; break;
     default:
-      res = static_cast<ConditionCode>(0);
       LOG(FATAL) << "Unexpected ccode " << before;
+      UNREACHABLE();
   }
   return res;
 }
@@ -957,8 +958,8 @@ ConditionCode Mir2Lir::NegateComparison(ConditionCode before) {
     case kCondLe: res = kCondGt; break;
     case kCondGe: res = kCondLt; break;
     default:
-      res = static_cast<ConditionCode>(0);
       LOG(FATAL) << "Unexpected ccode " << before;
+      UNREACHABLE();
   }
   return res;
 }
@@ -966,11 +967,11 @@ ConditionCode Mir2Lir::NegateComparison(ConditionCode before) {
 // TODO: move to mir_to_lir.cc
 Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Backend(arena),
-      literal_list_(NULL),
-      method_literal_list_(NULL),
-      class_literal_list_(NULL),
-      code_literal_list_(NULL),
-      first_fixup_(NULL),
+      literal_list_(nullptr),
+      method_literal_list_(nullptr),
+      class_literal_list_(nullptr),
+      code_literal_list_(nullptr),
+      first_fixup_(nullptr),
       cu_(cu),
       mir_graph_(mir_graph),
       switch_tables_(arena->Adapter(kArenaAllocSwitchTable)),
@@ -980,8 +981,8 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       pointer_storage_(arena->Adapter()),
       data_offset_(0),
       total_size_(0),
-      block_label_list_(NULL),
-      promotion_map_(NULL),
+      block_label_list_(nullptr),
+      promotion_map_(nullptr),
       current_dalvik_offset_(0),
       estimated_native_code_size_(0),
       reg_pool_(nullptr),
@@ -994,8 +995,8 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       frame_size_(0),
       core_spill_mask_(0),
       fp_spill_mask_(0),
-      first_lir_insn_(NULL),
-      last_lir_insn_(NULL),
+      first_lir_insn_(nullptr),
+      last_lir_insn_(nullptr),
       slow_paths_(arena->Adapter(kArenaAllocSlowPaths)),
       mem_ref_type_(ResourceMask::kHeapRef),
       mask_cache_(arena) {
@@ -1005,8 +1006,8 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
   reginfo_map_.reserve(RegStorage::kMaxRegs);
   pointer_storage_.reserve(128);
   slow_paths_.reserve(32);
-  // Reserve pointer id 0 for NULL.
-  size_t null_idx = WrapPointer(NULL);
+  // Reserve pointer id 0 for nullptr.
+  size_t null_idx = WrapPointer(nullptr);
   DCHECK_EQ(null_idx, 0U);
 }
 
@@ -1126,14 +1127,14 @@ int Mir2Lir::ComputeFrameSize() {
  * unit
  */
 void Mir2Lir::AppendLIR(LIR* lir) {
-  if (first_lir_insn_ == NULL) {
-    DCHECK(last_lir_insn_ == NULL);
+  if (first_lir_insn_ == nullptr) {
+    DCHECK(last_lir_insn_ == nullptr);
     last_lir_insn_ = first_lir_insn_ = lir;
-    lir->prev = lir->next = NULL;
+    lir->prev = lir->next = nullptr;
   } else {
     last_lir_insn_->next = lir;
     lir->prev = last_lir_insn_;
-    lir->next = NULL;
+    lir->next = nullptr;
     last_lir_insn_ = lir;
   }
 }
@@ -1145,7 +1146,7 @@ void Mir2Lir::AppendLIR(LIR* lir) {
  * prev_lir <-> new_lir <-> current_lir
  */
 void Mir2Lir::InsertLIRBefore(LIR* current_lir, LIR* new_lir) {
-  DCHECK(current_lir->prev != NULL);
+  DCHECK(current_lir->prev != nullptr);
   LIR *prev_lir = current_lir->prev;
 
   prev_lir->next = new_lir;
@@ -1216,7 +1217,7 @@ void Mir2Lir::AddSlowPath(LIRSlowPath* slowpath) {
 void Mir2Lir::LoadCodeAddress(const MethodReference& target_method, InvokeType type,
                               SpecialTargetRegister symbolic_reg) {
   LIR* data_target = ScanLiteralPoolMethod(code_literal_list_, target_method);
-  if (data_target == NULL) {
+  if (data_target == nullptr) {
     data_target = AddWordData(&code_literal_list_, target_method.dex_method_index);
     data_target->operands[1] = WrapPointer(const_cast<DexFile*>(target_method.dex_file));
     // NOTE: The invoke type doesn't contribute to the literal identity. In fact, we can have
@@ -1233,7 +1234,7 @@ void Mir2Lir::LoadCodeAddress(const MethodReference& target_method, InvokeType t
 void Mir2Lir::LoadMethodAddress(const MethodReference& target_method, InvokeType type,
                                 SpecialTargetRegister symbolic_reg) {
   LIR* data_target = ScanLiteralPoolMethod(method_literal_list_, target_method);
-  if (data_target == NULL) {
+  if (data_target == nullptr) {
     data_target = AddWordData(&method_literal_list_, target_method.dex_method_index);
     data_target->operands[1] = WrapPointer(const_cast<DexFile*>(target_method.dex_file));
     // NOTE: The invoke type doesn't contribute to the literal identity. In fact, we can have
@@ -1291,7 +1292,9 @@ RegLocation Mir2Lir::NarrowRegLoc(RegLocation loc) {
 }
 
 void Mir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
+  UNUSED(bb, mir);
   LOG(FATAL) << "Unknown MIR opcode not supported on this architecture";
+  UNREACHABLE();
 }
 
 }  // namespace art

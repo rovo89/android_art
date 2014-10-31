@@ -81,6 +81,7 @@ static inline size_t ComputeArraySize(Thread* self, Class* array_class, int32_t 
   // 64-bit. No overflow as component_count is 32-bit and the maximum
   // component size is 8.
   DCHECK_LE((1U << component_size_shift), 8U);
+  UNUSED(self);
 #else
   // 32-bit.
   DCHECK_NE(header_size, 0U);

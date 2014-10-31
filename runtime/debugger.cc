@@ -231,7 +231,7 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
   virtual ~DebugInstrumentationListener() {}
 
   void MethodEntered(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
-                     uint32_t dex_pc)
+                     uint32_t dex_pc ATTRIBUTE_UNUSED)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (method->IsNative()) {
       // TODO: post location events is a suspension point and native method entry stubs aren't.
@@ -254,6 +254,7 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
                     uint32_t dex_pc)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // We're not recorded to listen to this kind of event, so complain.
+    UNUSED(thread, this_object, method, dex_pc);
     LOG(ERROR) << "Unexpected method unwind event in debugger " << PrettyMethod(method)
                << " " << dex_pc;
   }
@@ -267,16 +268,18 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
   void FieldRead(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
                  uint32_t dex_pc, mirror::ArtField* field)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    UNUSED(thread);
     Dbg::PostFieldAccessEvent(method, dex_pc, this_object, field);
   }
 
-  void FieldWritten(Thread* thread, mirror::Object* this_object, mirror::ArtMethod* method,
-                    uint32_t dex_pc, mirror::ArtField* field, const JValue& field_value)
+  void FieldWritten(Thread* thread ATTRIBUTE_UNUSED, mirror::Object* this_object,
+                    mirror::ArtMethod* method, uint32_t dex_pc, mirror::ArtField* field,
+                    const JValue& field_value)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Dbg::PostFieldModificationEvent(method, dex_pc, this_object, field, &field_value);
   }
 
-  void ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
+  void ExceptionCaught(Thread* thread ATTRIBUTE_UNUSED, const ThrowLocation& throw_location,
                        mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
                        mirror::Throwable* exception_object)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

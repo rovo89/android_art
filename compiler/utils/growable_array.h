@@ -19,26 +19,20 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include "arena_allocator.h"
+
+#include "arena_object.h"
 
 namespace art {
-
-// Type of growable list for memory tuning.
-enum OatListKind {
-  kGrowableArrayMisc = 0,
-  kGNumListKinds
-};
 
 // Deprecated
 // TODO: Replace all uses with ArenaVector<T>.
 template<typename T>
-class GrowableArray {
+class GrowableArray : public ArenaObject<kArenaAllocGrowableArray> {
   public:
-    GrowableArray(ArenaAllocator* arena, size_t init_length, OatListKind kind = kGrowableArrayMisc)
+    GrowableArray(ArenaAllocator* arena, size_t init_length)
       : arena_(arena),
         num_allocated_(init_length),
-        num_used_(0),
-        kind_(kind) {
+        num_used_(0) {
       elem_list_ = static_cast<T*>(arena_->Alloc(sizeof(T) * init_length,
                                                  kArenaAllocGrowableArray));
     }
@@ -152,16 +146,10 @@ class GrowableArray {
 
     T* GetRawStorage() const { return elem_list_; }
 
-    static void* operator new(size_t size, ArenaAllocator* arena) {
-      return arena->Alloc(sizeof(GrowableArray<T>), kArenaAllocGrowableArray);
-    }
-    static void operator delete(void* p) {}  // Nop.
-
   private:
     ArenaAllocator* const arena_;
     size_t num_allocated_;
     size_t num_used_;
-    OatListKind kind_;
     T* elem_list_;
 };
 

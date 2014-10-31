@@ -140,12 +140,15 @@ class ScopedArenaAllocatorAdapter
   const_pointer address(const_reference x) const { return &x; }
 
   pointer allocate(size_type n, ScopedArenaAllocatorAdapter<void>::pointer hint = nullptr) {
+    UNUSED(hint);
     DCHECK_LE(n, max_size());
     DebugStackIndirectTopRef::CheckTop();
     return reinterpret_cast<T*>(arena_stack_->Alloc(n * sizeof(T),
                                                     ArenaAllocatorAdapterKind::Kind()));
   }
   void deallocate(pointer p, size_type n) {
+    UNUSED(p);
+    UNUSED(n);
     DebugStackIndirectTopRef::CheckTop();
   }
 

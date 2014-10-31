@@ -373,18 +373,21 @@ LIR* ArmMir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2) 
 }
 
 LIR* ArmMir2Lir::OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset, MoveType move_type) {
+  UNUSED(r_dest, r_base, offset, move_type);
   UNIMPLEMENTED(FATAL);
-  return nullptr;
+  UNREACHABLE();
 }
 
 LIR* ArmMir2Lir::OpMovMemReg(RegStorage r_base, int offset, RegStorage r_src, MoveType move_type) {
+  UNUSED(r_base, offset, r_src, move_type);
   UNIMPLEMENTED(FATAL);
-  return nullptr;
+  UNREACHABLE();
 }
 
 LIR* ArmMir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, RegStorage r_dest, RegStorage r_src) {
+  UNUSED(op, cc, r_dest, r_src);
   LOG(FATAL) << "Unexpected use of OpCondRegReg for Arm";
-  return NULL;
+  UNREACHABLE();
 }
 
 LIR* ArmMir2Lir::OpRegRegRegShift(OpKind op, RegStorage r_dest, RegStorage r_src1,
@@ -1167,11 +1170,13 @@ LIR* ArmMir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
 }
 
 LIR* ArmMir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
+  UNUSED(op, r_base, disp);
   LOG(FATAL) << "Unexpected use of OpMem for Arm";
-  return NULL;
+  UNREACHABLE();
 }
 
 LIR* ArmMir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) {
+  UNUSED(trampoline);  // The address of the trampoline is already loaded into r_tgt.
   return OpReg(op, r_tgt);
 }
 

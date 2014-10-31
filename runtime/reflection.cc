@@ -219,8 +219,7 @@ class ArgArray {
                      PrettyDescriptor(found_descriptor).c_str()).c_str());
   }
 
-  bool BuildArgArrayFromObjectArray(const ScopedObjectAccessAlreadyRunnable& soa,
-                                    mirror::Object* receiver,
+  bool BuildArgArrayFromObjectArray(mirror::Object* receiver,
                                     mirror::ObjectArray<mirror::Object>* args, MethodHelper& mh)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const DexFile::TypeList* classes = mh.GetMethod()->GetParameterTypeList();
@@ -613,7 +612,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   ArgArray arg_array(shorty, shorty_len);
   StackHandleScope<1> hs(soa.Self());
   MethodHelper mh(hs.NewHandle(m));
-  if (!arg_array.BuildArgArrayFromObjectArray(soa, receiver, objects, mh)) {
+  if (!arg_array.BuildArgArrayFromObjectArray(receiver, objects, mh)) {
     CHECK(soa.Self()->IsExceptionPending());
     return nullptr;
   }

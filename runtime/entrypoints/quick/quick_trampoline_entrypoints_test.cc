@@ -34,7 +34,7 @@ class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
     t->TransitionFromSuspendedToRunnable();  // So we can create callee-save methods.
 
     r->SetInstructionSet(isa);
-    mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod(type);
+    mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod();
     r->SetCalleeSaveMethod(save_method, type);
 
     t->TransitionFromRunnableToSuspended(ThreadState::kNative);  // So we can shut down.

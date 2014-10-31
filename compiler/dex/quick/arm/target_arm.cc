@@ -559,11 +559,10 @@ ArmMir2Lir::ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator*
   call_method_insns_.reserve(100);
   // Sanity check - make sure encoding map lines up.
   for (int i = 0; i < kArmLast; i++) {
-    if (ArmMir2Lir::EncodingMap[i].opcode != i) {
-      LOG(FATAL) << "Encoding order for " << ArmMir2Lir::EncodingMap[i].name
-                 << " is wrong: expecting " << i << ", seeing "
-                 << static_cast<int>(ArmMir2Lir::EncodingMap[i].opcode);
-    }
+    DCHECK_EQ(ArmMir2Lir::EncodingMap[i].opcode, i)
+        << "Encoding order for " << ArmMir2Lir::EncodingMap[i].name
+        << " is wrong: expecting " << i << ", seeing "
+        << static_cast<int>(ArmMir2Lir::EncodingMap[i].opcode);
   }
 }
 

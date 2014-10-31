@@ -72,6 +72,16 @@ bool X86Context::SetGPR(uint32_t reg, uintptr_t value) {
   }
 }
 
+bool X86Context::GetFPR(uint32_t reg ATTRIBUTE_UNUSED, uintptr_t* val ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "Floating-point registers are all caller save in X86";
+  UNREACHABLE();
+}
+
+bool X86Context::SetFPR(uint32_t reg ATTRIBUTE_UNUSED, uintptr_t value ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "Floating-point registers are all caller save in X86";
+  UNREACHABLE();
+}
+
 void X86Context::DoLongJump() {
 #if defined(__i386__)
   // Array of GPR values, filled from the context backward for the long jump pop. We add a slot at

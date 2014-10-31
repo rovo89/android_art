@@ -101,7 +101,7 @@ COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicUnsafePut], UnsafePut_must_not_be_s
 COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicSystemArrayCopyCharArray],
                SystemArrayCopyCharArray_must_be_static);
 
-MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke, MIR* move_return) {
+MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke) {
   MIR* insn = mir_graph->NewMIR();
   insn->offset = invoke->offset;
   insn->optimization_flags = MIR_CALLEE;
@@ -555,11 +555,11 @@ bool DexFileMethodInliner::GenInline(MIRGraph* mir_graph, BasicBlock* bb, MIR* i
       break;
     case kInlineOpIGet:
       move_result = mir_graph->FindMoveResult(bb, invoke);
-      result = GenInlineIGet(mir_graph, bb, invoke, move_result, method, method_idx);
+      result = GenInlineIGet(mir_graph, bb, invoke, move_result, method);
       break;
     case kInlineOpIPut:
       move_result = mir_graph->FindMoveResult(bb, invoke);
-      result = GenInlineIPut(mir_graph, bb, invoke, move_result, method, method_idx);
+      result = GenInlineIPut(mir_graph, bb, invoke, move_result, method);
       break;
     default:
       LOG(FATAL) << "Unexpected inline op: " << method.opcode;
@@ -737,7 +737,7 @@ bool DexFileMethodInliner::GenInlineConst(MIRGraph* mir_graph, BasicBlock* bb, M
              method.d.data == 0u));
 
   // Insert the CONST instruction.
-  MIR* insn = AllocReplacementMIR(mir_graph, invoke, move_result);
+  MIR* insn = AllocReplacementMIR(mir_graph, invoke);
   insn->dalvikInsn.opcode = Instruction::CONST;
   insn->dalvikInsn.vA = move_result->dalvikInsn.vA;
   insn->dalvikInsn.vB = method.d.data;
@@ -775,7 +775,7 @@ bool DexFileMethodInliner::GenInlineReturnArg(MIRGraph* mir_graph, BasicBlock* b
   }
 
   // Insert the move instruction
-  MIR* insn = AllocReplacementMIR(mir_graph, invoke, move_result);
+  MIR* insn = AllocReplacementMIR(mir_graph, invoke);
   insn->dalvikInsn.opcode = opcode;
   insn->dalvikInsn.vA = move_result->dalvikInsn.vA;
   insn->dalvikInsn.vB = arg;
@@ -784,8 +784,7 @@ bool DexFileMethodInliner::GenInlineReturnArg(MIRGraph* mir_graph, BasicBlock* b
 }
 
 bool DexFileMethodInliner::GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
-                                         MIR* move_result, const InlineMethod& method,
-                                         uint32_t method_idx) {
+                                         MIR* move_result, const InlineMethod& method) {
   CompilationUnit* cu = mir_graph->GetCurrentDexCompilationUnit()->GetCompilationUnit();
   if (cu->enable_debug & (1 << kDebugSlowFieldPath)) {
     return false;
@@ -819,7 +818,7 @@ bool DexFileMethodInliner::GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MI
     invoke->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
   }
 
-  MIR* insn = AllocReplacementMIR(mir_graph, invoke, move_result);
+  MIR* insn = AllocReplacementMIR(mir_graph, invoke);
   insn->offset = invoke->offset;
   insn->dalvikInsn.opcode = opcode;
   insn->dalvikInsn.vA = move_result->dalvikInsn.vA;
@@ -836,8 +835,7 @@ bool DexFileMethodInliner::GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MI
 }
 
 bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
-                                         MIR* move_result, const InlineMethod& method,
-                                         uint32_t method_idx) {
+                                         MIR* move_result, const InlineMethod& method) {
   CompilationUnit* cu = mir_graph->GetCurrentDexCompilationUnit()->GetCompilationUnit();
   if (cu->enable_debug & (1 << kDebugSlowFieldPath)) {
     return false;
@@ -881,7 +879,7 @@ bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MI
     invoke->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
   }
 
-  MIR* insn = AllocReplacementMIR(mir_graph, invoke, move_result);
+  MIR* insn = AllocReplacementMIR(mir_graph, invoke);
   insn->dalvikInsn.opcode = opcode;
   insn->dalvikInsn.vA = src_reg;
   insn->dalvikInsn.vB = object_reg;
@@ -895,7 +893,7 @@ bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MI
   bb->InsertMIRAfter(invoke, insn);
 
   if (move_result != nullptr) {
-    MIR* move = AllocReplacementMIR(mir_graph, invoke, move_result);
+    MIR* move = AllocReplacementMIR(mir_graph, invoke);
     move->offset = move_result->offset;
     if (move_result->dalvikInsn.opcode == Instruction::MOVE_RESULT) {
       move->dalvikInsn.opcode = Instruction::MOVE_FROM16;

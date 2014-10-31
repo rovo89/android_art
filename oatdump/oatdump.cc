@@ -263,10 +263,13 @@ class OatSymbolizer FINAL : public CodeOutput {
                       method_access_flags);
   }
 
-  void RegisterForDedup(const DexFile::ClassDef& class_def, uint32_t class_method_index,
-                        const OatFile::OatMethod& oat_method, const DexFile& dex_file,
-                        uint32_t dex_method_idx, const DexFile::CodeItem* code_item,
-                        uint32_t method_access_flags) {
+  void RegisterForDedup(const DexFile::ClassDef& class_def ATTRIBUTE_UNUSED,
+                        uint32_t class_method_index ATTRIBUTE_UNUSED,
+                        const OatFile::OatMethod& oat_method,
+                        const DexFile& dex_file ATTRIBUTE_UNUSED,
+                        uint32_t dex_method_idx ATTRIBUTE_UNUSED,
+                        const DexFile::CodeItem* code_item ATTRIBUTE_UNUSED,
+                        uint32_t method_access_flags ATTRIBUTE_UNUSED) {
     state_[oat_method.GetCodeOffset()]++;
   }
 
@@ -294,10 +297,13 @@ class OatSymbolizer FINAL : public CodeOutput {
     return DedupState::kDeduplicatedFirst;
   }
 
-  void AddSymbol(const DexFile::ClassDef& class_def, uint32_t class_method_index,
-                 const OatFile::OatMethod& oat_method, const DexFile& dex_file,
-                 uint32_t dex_method_idx, const DexFile::CodeItem* code_item,
-                 uint32_t method_access_flags) {
+  void AddSymbol(const DexFile::ClassDef& class_def ATTRIBUTE_UNUSED,
+                 uint32_t class_method_index ATTRIBUTE_UNUSED,
+                 const OatFile::OatMethod& oat_method,
+                 const DexFile& dex_file,
+                 uint32_t dex_method_idx,
+                 const DexFile::CodeItem* code_item ATTRIBUTE_UNUSED,
+                 uint32_t method_access_flags ATTRIBUTE_UNUSED) {
     DedupState dedup = IsDuplicated(oat_method.GetCodeOffset());
     if (dedup != DedupState::kDeduplicatedOther) {
       std::string pretty_name = PrettyMethod(dex_method_idx, dex_file, true);
@@ -316,7 +322,7 @@ class OatSymbolizer FINAL : public CodeOutput {
   }
 
   // Set oat data offset. Required by ElfBuilder/CodeOutput.
-  void SetCodeOffset(size_t offset) {
+  void SetCodeOffset(size_t offset ATTRIBUTE_UNUSED) {
     // Nothing to do.
   }
 

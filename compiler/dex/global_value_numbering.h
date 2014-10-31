@@ -19,14 +19,14 @@
 
 #include "base/macros.h"
 #include "compiler_internals.h"
-#include "utils/scoped_arena_containers.h"
+#include "utils/arena_object.h"
 
 namespace art {
 
 class LocalValueNumbering;
 class MirFieldInfo;
 
-class GlobalValueNumbering {
+class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
  public:
   enum Mode {
     kModeGvn,
@@ -55,33 +55,17 @@ class GlobalValueNumbering {
   }
 
   // Allow modifications.
-  void StartPostProcessing() {
-    DCHECK(Good());
-    DCHECK_EQ(mode_, kModeGvn);
-    mode_ = kModeGvnPostProcessing;
-  }
+  void StartPostProcessing();
 
   bool CanModify() const {
     return modifications_allowed_ && Good();
   }
 
-  // GlobalValueNumbering should be allocated on the ArenaStack (or the native stack).
-  static void* operator new(size_t size, ScopedArenaAllocator* allocator) {
-    return allocator->Alloc(sizeof(GlobalValueNumbering), kArenaAllocMisc);
-  }
-
-  // Allow delete-expression to destroy a GlobalValueNumbering object without deallocation.
-  static void operator delete(void* ptr) { UNUSED(ptr); }
-
  private:
   static constexpr uint16_t kNoValue = 0xffffu;
 
   // Allocate a new value name.
-  uint16_t NewValueName() {
-    DCHECK_NE(mode_, kModeGvnPostProcessing);
-    ++last_value_;
-    return last_value_;
-  }
+  uint16_t NewValueName();
 
   // Key is concatenation of opcode, operand1, operand2 and modifier, value is value name.
   typedef ScopedArenaSafeMap<uint64_t, uint16_t> ValueMap;
@@ -228,7 +212,7 @@ class GlobalValueNumbering {
   }
 
   CompilationUnit* const cu_;
-  MIRGraph* mir_graph_;
+  MIRGraph* const mir_graph_;
   ScopedArenaAllocator* const allocator_;
 
   // The maximum number of nested loops that we accept for GVN.
@@ -270,6 +254,19 @@ class GlobalValueNumbering {
 
   DISALLOW_COPY_AND_ASSIGN(GlobalValueNumbering);
 };
+std::ostream& operator<<(std::ostream& os, const GlobalValueNumbering::Mode& rhs);
+
+inline  void GlobalValueNumbering::StartPostProcessing() {
+  DCHECK(Good());
+  DCHECK_EQ(mode_, kModeGvn);
+  mode_ = kModeGvnPostProcessing;
+}
+
+inline uint16_t GlobalValueNumbering::NewValueName() {
+  DCHECK_NE(mode_, kModeGvnPostProcessing);
+  ++last_value_;
+  return last_value_;
+}
 
 }  // namespace art
 

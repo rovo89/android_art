@@ -19,11 +19,13 @@
 
 #include <string>
 
-#include "base/macros.h"
+#include "compiler_ir.h"
+#include "base/logging.h"
+
 namespace art {
 
 // Forward declarations.
-struct BasicBlock;
+class BasicBlock;
 struct CompilationUnit;
 class Pass;
 
@@ -81,15 +83,10 @@ class Pass {
    * @param data the object containing data necessary for the pass.
    * @return whether or not there is a change when walking the BasicBlock
    */
-  virtual bool Worker(PassDataHolder* data) const {
-    // Unused parameter.
-    UNUSED(data);
-
+  virtual bool Worker(PassDataHolder* data ATTRIBUTE_UNUSED) const {
     // Passes that do all their work in Start() or End() should not allow useless node iteration.
-    DCHECK(false) << "Unsupported default Worker() used for " << GetName();
-
-    // BasicBlock did not change.
-    return false;
+    LOG(FATAL) << "Unsupported default Worker() used for " << GetName();
+    UNREACHABLE();
   }
 
   static void BasePrintMessage(CompilationUnit* c_unit, const char* pass_name, const char* message, ...) {

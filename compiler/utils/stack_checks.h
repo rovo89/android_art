@@ -35,6 +35,7 @@ static constexpr size_t kSmallFrameSize = 1 * KB;
 //
 // A frame is considered large when it's above kLargeFrameSize.
 static inline bool FrameNeedsStackCheck(size_t size, InstructionSet isa) {
+  UNUSED(isa);
   return size >= kLargeFrameSize;
 }
 

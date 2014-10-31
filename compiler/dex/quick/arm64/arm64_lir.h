@@ -127,7 +127,7 @@ enum A64ResourceEncodingPos {
   R(24) R(25) R(26) R(27) R(28) R(29) R(30) R(31)
 
 // Registers (integer) values.
-enum A64NativeRegisterPool {
+enum A64NativeRegisterPool {  // private marker to avoid generate-operator-out.py from processing.
 #  define A64_DEFINE_REGISTERS(nr) \
     rw##nr = RegStorage::k32BitSolo | RegStorage::kCoreRegister | nr, \
     rx##nr = RegStorage::k64BitSolo | RegStorage::kCoreRegister | nr, \
@@ -362,9 +362,10 @@ enum A64Opcode {
   kA64Tbz3rht,       // tbz imm_6_b5[31] [0110110] imm_6_b40[23-19] imm_14[18-5] rt[4-0].
   kA64Ubfm4rrdd,     // ubfm[s10100110] N[22] imm_r[21-16] imm_s[15-10] rn[9-5] rd[4-0].
   kA64Last,
-  kA64NotWide = 0,   // Flag used to select the first instruction variant.
-  kA64Wide = 0x1000  // Flag used to select the second instruction variant.
+  kA64NotWide = kA64First,  // 0 - Flag used to select the first instruction variant.
+  kA64Wide = 0x1000         // Flag used to select the second instruction variant.
 };
+std::ostream& operator<<(std::ostream& os, const A64Opcode& rhs);
 
 /*
  * The A64 instruction set provides two variants for many instructions. For example, "mov wN, wM"
@@ -414,6 +415,7 @@ enum A64EncodingKind {
   kFmtExtend,     // Register extend, 9-bit at [23..21, 15..10].
   kFmtSkip,       // Unused field, but continue to next.
 };
+std::ostream& operator<<(std::ostream& os, const A64EncodingKind & rhs);
 
 // Struct used to define the snippet positions for each A64 opcode.
 struct A64EncodingMap {

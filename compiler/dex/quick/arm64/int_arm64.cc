@@ -32,11 +32,13 @@ LIR* Arm64Mir2Lir::OpCmpBranch(ConditionCode cond, RegStorage src1, RegStorage s
 }
 
 LIR* Arm64Mir2Lir::OpIT(ConditionCode ccode, const char* guide) {
+  UNUSED(ccode, guide);
   LOG(FATAL) << "Unexpected use of OpIT for Arm64";
-  return NULL;
+  UNREACHABLE();
 }
 
 void Arm64Mir2Lir::OpEndIT(LIR* it) {
+  UNUSED(it);
   LOG(FATAL) << "Unexpected use of OpEndIT for Arm64";
 }
 
@@ -174,13 +176,14 @@ void Arm64Mir2Lir::GenSelect(int32_t true_val, int32_t false_val, ConditionCode 
 
 void Arm64Mir2Lir::GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
                                     int32_t true_val, int32_t false_val, RegStorage rs_dest,
-                                    int dest_reg_class) {
+                                    RegisterClass dest_reg_class) {
   DCHECK(rs_dest.Valid());
   OpRegReg(kOpCmp, left_op, right_op);
   GenSelect(true_val, false_val, code, rs_dest, dest_reg_class);
 }
 
 void Arm64Mir2Lir::GenSelect(BasicBlock* bb, MIR* mir) {
+  UNUSED(bb);
   RegLocation rl_src = mir_graph_->GetSrc(mir, 0);
   rl_src = LoadValue(rl_src, rl_src.ref ? kRefReg : kCoreReg);
   // rl_src may be aliased with rl_result/rl_dest, so do compare early.
@@ -406,6 +409,7 @@ static const MagicTable magic_table[] = {
 // Integer division by constant via reciprocal multiply (Hacker's Delight, 10-4)
 bool Arm64Mir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_div,
                                       RegLocation rl_src, RegLocation rl_dest, int lit) {
+  UNUSED(dalvik_opcode);
   if ((lit < 0) || (lit >= static_cast<int>(arraysize(magic_table)))) {
     return false;
   }
@@ -450,6 +454,7 @@ bool Arm64Mir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_d
 
 bool Arm64Mir2Lir::SmallLiteralDivRem64(Instruction::Code dalvik_opcode, bool is_div,
                                         RegLocation rl_src, RegLocation rl_dest, int64_t lit) {
+  UNUSED(dalvik_opcode);
   if ((lit < 0) || (lit >= static_cast<int>(arraysize(magic_table)))) {
     return false;
   }
@@ -590,13 +595,16 @@ bool Arm64Mir2Lir::HandleEasyDivRem64(Instruction::Code dalvik_opcode, bool is_d
 }
 
 bool Arm64Mir2Lir::EasyMultiply(RegLocation rl_src, RegLocation rl_dest, int lit) {
+  UNUSED(rl_src, rl_dest, lit);
   LOG(FATAL) << "Unexpected use of EasyMultiply for Arm64";
-  return false;
+  UNREACHABLE();
 }
 
-RegLocation Arm64Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit, bool is_div) {
+RegLocation Arm64Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit,
+                                       bool is_div) {
+  UNUSED(rl_dest, rl_src1, lit, is_div);
   LOG(FATAL) << "Unexpected use of GenDivRemLit for Arm64";
-  return rl_dest;
+  UNREACHABLE();
 }
 
 RegLocation Arm64Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg1, int lit, bool is_div) {
@@ -615,8 +623,9 @@ RegLocation Arm64Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg1, int
 
 RegLocation Arm64Mir2Lir::GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
                                     RegLocation rl_src2, bool is_div, int flags) {
+  UNUSED(rl_dest, rl_src1, rl_src2, is_div, flags);
   LOG(FATAL) << "Unexpected use of GenDivRem for Arm64";
-  return rl_dest;
+  UNREACHABLE();
 }
 
 RegLocation Arm64Mir2Lir::GenDivRem(RegLocation rl_dest, RegStorage r_src1, RegStorage r_src2,
@@ -929,25 +938,27 @@ LIR* Arm64Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
 }
 
 LIR* Arm64Mir2Lir::OpVldm(RegStorage r_base, int count) {
+  UNUSED(r_base, count);
   LOG(FATAL) << "Unexpected use of OpVldm for Arm64";
-  return NULL;
+  UNREACHABLE();
 }
 
 LIR* Arm64Mir2Lir::OpVstm(RegStorage r_base, int count) {
+  UNUSED(r_base, count);
   LOG(FATAL) << "Unexpected use of OpVstm for Arm64";
-  return NULL;
+  UNREACHABLE();
 }
 
 void Arm64Mir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
-                                               RegLocation rl_result, int lit,
-                                               int first_bit, int second_bit) {
+                                                 RegLocation rl_result, int lit ATTRIBUTE_UNUSED,
+                                                 int first_bit, int second_bit) {
   OpRegRegRegShift(kOpAdd, rl_result.reg, rl_src.reg, rl_src.reg, EncodeShift(kA64Lsl, second_bit - first_bit));
   if (first_bit != 0) {
     OpRegRegImm(kOpLsl, rl_result.reg, rl_result.reg, first_bit);
   }
 }
 
-void Arm64Mir2Lir::GenDivZeroCheckWide(RegStorage reg) {
+void Arm64Mir2Lir::GenDivZeroCheckWide(RegStorage reg ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "Unexpected use of GenDivZero for Arm64";
 }
 
@@ -1311,7 +1322,7 @@ void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
 
 void Arm64Mir2Lir::GenShiftImmOpLong(Instruction::Code opcode,
                                      RegLocation rl_dest, RegLocation rl_src, RegLocation rl_shift,
-                                     int flags) {
+                                     int flags ATTRIBUTE_UNUSED) {
   OpKind op = kOpBkpt;
   // Per spec, we only care about low 6 bits of shift amount.
   int shift_amount = mir_graph_->ConstantValue(rl_shift) & 0x3f;
@@ -1467,8 +1478,8 @@ static void SpillFPRegs(Arm64Mir2Lir* m2l, RegStorage base, int offset, uint32_t
   }
 }
 
-static int SpillRegsPreSub(Arm64Mir2Lir* m2l, RegStorage base, uint32_t core_reg_mask,
-                           uint32_t fp_reg_mask, int frame_size) {
+static int SpillRegsPreSub(Arm64Mir2Lir* m2l, uint32_t core_reg_mask, uint32_t fp_reg_mask,
+                           int frame_size) {
   m2l->OpRegRegImm(kOpSub, rs_sp, rs_sp, frame_size);
 
   int core_count = POPCOUNT(core_reg_mask);
@@ -1490,7 +1501,7 @@ static int SpillRegsPreSub(Arm64Mir2Lir* m2l, RegStorage base, uint32_t core_reg
 }
 
 static int SpillRegsPreIndexed(Arm64Mir2Lir* m2l, RegStorage base, uint32_t core_reg_mask,
-                               uint32_t fp_reg_mask, int frame_size) {
+                               uint32_t fp_reg_mask) {
   // Otherwise, spill both core and fp regs at the same time.
   // The very first instruction will be an stp with pre-indexed address, moving the stack pointer
   // down. From then on, we fill upwards. This will generate overall the same number of instructions
@@ -1613,9 +1624,9 @@ int Arm64Mir2Lir::SpillRegs(RegStorage base, uint32_t core_reg_mask, uint32_t fp
   // This case is also optimal when we have an odd number of core spills, and an even (non-zero)
   // number of fp spills.
   if ((RoundUp(frame_size, 8) / 8 <= 63)) {
-    return SpillRegsPreSub(this, base, core_reg_mask, fp_reg_mask, frame_size);
+    return SpillRegsPreSub(this, core_reg_mask, fp_reg_mask, frame_size);
   } else {
-    return SpillRegsPreIndexed(this, base, core_reg_mask, fp_reg_mask, frame_size);
+    return SpillRegsPreIndexed(this, base, core_reg_mask, fp_reg_mask);
   }
 }
 
@@ -1653,6 +1664,7 @@ static void UnSpillFPRegs(Arm64Mir2Lir* m2l, RegStorage base, int offset, uint32
 
 void Arm64Mir2Lir::UnspillRegs(RegStorage base, uint32_t core_reg_mask, uint32_t fp_reg_mask,
                                int frame_size) {
+  DCHECK(base == rs_sp);
   // Restore saves and drop stack frame.
   // 2 versions:
   //

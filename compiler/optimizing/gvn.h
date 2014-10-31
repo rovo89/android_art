@@ -25,7 +25,7 @@ namespace art {
  * A node in the collision list of a ValueSet. Encodes the instruction,
  * the hash code, and the next node in the collision list.
  */
-class ValueSetNode : public ArenaObject {
+class ValueSetNode : public ArenaObject<kArenaAllocMisc> {
  public:
   ValueSetNode(HInstruction* instruction, size_t hash_code, ValueSetNode* next)
       : instruction_(instruction), hash_code_(hash_code), next_(next) {}
@@ -52,7 +52,7 @@ class ValueSetNode : public ArenaObject {
  * if there is one in the set. In GVN, we would say those instructions have the
  * same "number".
  */
-class ValueSet : public ArenaObject {
+class ValueSet : public ArenaObject<kArenaAllocMisc> {
  public:
   explicit ValueSet(ArenaAllocator* allocator)
       : allocator_(allocator), number_of_entries_(0), collisions_(nullptr) {

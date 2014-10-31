@@ -54,14 +54,16 @@ LIR* X86Mir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
 }
 
 bool X86Mir2Lir::InexpensiveConstantInt(int32_t value) {
+  UNUSED(value);
   return true;
 }
 
 bool X86Mir2Lir::InexpensiveConstantFloat(int32_t value) {
-  return false;
+  return value == 0;
 }
 
 bool X86Mir2Lir::InexpensiveConstantLong(int64_t value) {
+  UNUSED(value);
   return true;
 }
 
@@ -934,13 +936,14 @@ LIR* X86Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
 
 LIR* X86Mir2Lir::OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,
                                    int offset, int check_value, LIR* target, LIR** compare) {
-    LIR* inst = NewLIR3(IS_SIMM8(check_value) ? kX86Cmp32MI8 : kX86Cmp32MI, base_reg.GetReg(),
-            offset, check_value);
-    if (compare != nullptr) {
-        *compare = inst;
-    }
-    LIR* branch = OpCondBranch(cond, target);
-    return branch;
+  UNUSED(temp_reg);  // Comparison performed directly with memory.
+  LIR* inst = NewLIR3(IS_SIMM8(check_value) ? kX86Cmp32MI8 : kX86Cmp32MI, base_reg.GetReg(),
+      offset, check_value);
+  if (compare != nullptr) {
+    *compare = inst;
+  }
+  LIR* branch = OpCondBranch(cond, target);
+  return branch;
 }
 
 void X86Mir2Lir::AnalyzeMIR() {
@@ -965,13 +968,13 @@ void X86Mir2Lir::AnalyzeMIR() {
   }
 }
 
-void X86Mir2Lir::AnalyzeBB(BasicBlock * bb) {
+void X86Mir2Lir::AnalyzeBB(BasicBlock* bb) {
   if (bb->block_type == kDead) {
     // Ignore dead blocks
     return;
   }
 
-  for (MIR *mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     int opcode = mir->dalvikInsn.opcode;
     if (MIR::DecodedInstruction::IsPseudoMirOp(opcode)) {
       AnalyzeExtendedMIR(opcode, bb, mir);
@@ -982,7 +985,7 @@ void X86Mir2Lir::AnalyzeBB(BasicBlock * bb) {
 }
 
 
-void X86Mir2Lir::AnalyzeExtendedMIR(int opcode, BasicBlock * bb, MIR *mir) {
+void X86Mir2Lir::AnalyzeExtendedMIR(int opcode, BasicBlock* bb, MIR* mir) {
   switch (opcode) {
     // Instructions referencing doubles.
     case kMirOpFusedCmplDouble:
@@ -1009,7 +1012,7 @@ void X86Mir2Lir::AnalyzeExtendedMIR(int opcode, BasicBlock * bb, MIR *mir) {
   }
 }
 
-void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock * bb, MIR *mir) {
+void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock* bb, MIR* mir) {
   // Looking for
   // - Do we need a pointer to the code (used for packed switches and double lits)?
 
@@ -1046,7 +1049,8 @@ void X86Mir2Lir::AnalyzeMIR(int opcode, BasicBlock * bb, MIR *mir) {
   }
 }
 
-void X86Mir2Lir::AnalyzeFPInstruction(int opcode, BasicBlock * bb, MIR *mir) {
+void X86Mir2Lir::AnalyzeFPInstruction(int opcode, BasicBlock* bb, MIR* mir) {
+  UNUSED(bb);
   // Look at all the uses, and see if they are double constants.
   uint64_t attrs = MIRGraph::GetDataFlowAttributes(static_cast<Instruction::Code>(opcode));
   int next_sreg = 0;
@@ -1080,7 +1084,7 @@ void X86Mir2Lir::AnalyzeDoubleUse(RegLocation use) {
   }
 }
 
-RegLocation X86Mir2Lir::UpdateLocTyped(RegLocation loc, int reg_class) {
+RegLocation X86Mir2Lir::UpdateLocTyped(RegLocation loc) {
   loc = UpdateLoc(loc);
   if ((loc.location == kLocPhysReg) && (loc.fp != loc.reg.IsFloat())) {
     if (GetRegInfo(loc.reg)->IsTemp()) {
@@ -1094,7 +1098,7 @@ RegLocation X86Mir2Lir::UpdateLocTyped(RegLocation loc, int reg_class) {
   return loc;
 }
 
-RegLocation X86Mir2Lir::UpdateLocWideTyped(RegLocation loc, int reg_class) {
+RegLocation X86Mir2Lir::UpdateLocWideTyped(RegLocation loc) {
   loc = UpdateLocWide(loc);
   if ((loc.location == kLocPhysReg) && (loc.fp != loc.reg.IsFloat())) {
     if (GetRegInfo(loc.reg)->IsTemp()) {
@@ -1108,7 +1112,8 @@ RegLocation X86Mir2Lir::UpdateLocWideTyped(RegLocation loc, int reg_class) {
   return loc;
 }
 
-void X86Mir2Lir::AnalyzeInvokeStatic(int opcode, BasicBlock * bb, MIR *mir) {
+void X86Mir2Lir::AnalyzeInvokeStatic(int opcode, BasicBlock* bb, MIR* mir) {
+  UNUSED(opcode, bb);
   // For now this is only actual for x86-32.
   if (cu_->target64) {
     return;
@@ -1132,6 +1137,7 @@ void X86Mir2Lir::AnalyzeInvokeStatic(int opcode, BasicBlock * bb, MIR *mir) {
 }
 
 LIR* X86Mir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) {
+  UNUSED(r_tgt);  // Call to absolute memory location doesn't need a temporary target register.
   if (cu_->target64) {
     return OpThreadMem(op, GetThreadOffset<8>(trampoline));
   } else {

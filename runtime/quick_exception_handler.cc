@@ -297,7 +297,7 @@ void QuickExceptionHandler::DeoptimizeStack() {
 // Unwinds all instrumentation stack frame prior to catch handler or upcall.
 class InstrumentationStackVisitor : public StackVisitor {
  public:
-  InstrumentationStackVisitor(Thread* self, bool is_deoptimization, size_t frame_depth)
+  InstrumentationStackVisitor(Thread* self, size_t frame_depth)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : StackVisitor(self, nullptr),
         frame_depth_(frame_depth),
@@ -332,7 +332,7 @@ class InstrumentationStackVisitor : public StackVisitor {
 
 void QuickExceptionHandler::UpdateInstrumentationStack() {
   if (method_tracing_active_) {
-    InstrumentationStackVisitor visitor(self_, is_deoptimization_, handler_frame_depth_);
+    InstrumentationStackVisitor visitor(self_, handler_frame_depth_);
     visitor.WalkStack(true);
 
     size_t instrumentation_frames_to_pop = visitor.GetInstrumentationFramesToPop();

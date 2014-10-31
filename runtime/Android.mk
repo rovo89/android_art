@@ -31,7 +31,6 @@ LIBART_COMMON_SRC_FILES := \
   base/stringprintf.cc \
   base/timing_logger.cc \
   base/unix_file/fd_file.cc \
-  base/unix_file/mapped_file.cc \
   base/unix_file/null_file.cc \
   base/unix_file/random_access_file_utils.cc \
   base/unix_file/string_file.cc \
@@ -296,12 +295,16 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   arch/x86_64/registers_x86_64.h \
   base/allocator.h \
   base/mutex.h \
+  debugger.h \
   dex_file.h \
   dex_instruction.h \
+  gc/allocator/rosalloc.h \
   gc/collector/gc_type.h \
+  gc/allocator_type.h \
   gc/collector_type.h \
   gc/space/space.h \
   gc/heap.h \
+  instrumentation.h \
   indirect_reference_table.h \
   instruction_set.h \
   invoke_type.h \
@@ -311,7 +314,10 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   mirror/class.h \
   oat.h \
   object_callbacks.h \
+  profiler_options.h \
   quick/inline_method_analyser.h \
+  runtime.h \
+  stack.h \
   thread.h \
   thread_state.h \
   verifier/method_verifier.h

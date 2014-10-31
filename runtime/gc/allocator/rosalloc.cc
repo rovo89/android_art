@@ -1851,7 +1851,8 @@ void RosAlloc::Initialize() {
   dedicated_full_run_->SetIsThreadLocal(true);
 }
 
-void RosAlloc::BytesAllocatedCallback(void* start, void* end, size_t used_bytes, void* arg) {
+void RosAlloc::BytesAllocatedCallback(void* start ATTRIBUTE_UNUSED, void* end ATTRIBUTE_UNUSED,
+                                      size_t used_bytes, void* arg) {
   if (used_bytes == 0) {
     return;
   }
@@ -1859,7 +1860,8 @@ void RosAlloc::BytesAllocatedCallback(void* start, void* end, size_t used_bytes,
   *bytes_allocated += used_bytes;
 }
 
-void RosAlloc::ObjectsAllocatedCallback(void* start, void* end, size_t used_bytes, void* arg) {
+void RosAlloc::ObjectsAllocatedCallback(void* start ATTRIBUTE_UNUSED, void* end ATTRIBUTE_UNUSED,
+                                        size_t used_bytes, void* arg) {
   if (used_bytes == 0) {
     return;
   }

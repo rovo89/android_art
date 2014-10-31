@@ -53,6 +53,7 @@ class MonitorPool {
 
   static void ReleaseMonitor(Thread* self, Monitor* monitor) {
 #ifndef __LP64__
+    UNUSED(self);
     delete monitor;
 #else
     GetMonitorPool()->ReleaseMonitorToPool(self, monitor);
@@ -61,6 +62,7 @@ class MonitorPool {
 
   static void ReleaseMonitors(Thread* self, MonitorList::Monitors* monitors) {
 #ifndef __LP64__
+    UNUSED(self);
     STLDeleteElements(monitors);
 #else
     GetMonitorPool()->ReleaseMonitorsToPool(self, monitors);
@@ -85,6 +87,7 @@ class MonitorPool {
 
   static MonitorId ComputeMonitorId(Monitor* mon, Thread* self) {
 #ifndef __LP64__
+    UNUSED(self);
     return MonitorIdFromMonitor(mon);
 #else
     return GetMonitorPool()->ComputeMonitorIdInPool(mon, self);

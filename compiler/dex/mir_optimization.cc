@@ -16,12 +16,11 @@
 
 #include "base/bit_vector-inl.h"
 #include "compiler_internals.h"
+#include "dataflow_iterator-inl.h"
 #include "global_value_numbering.h"
 #include "local_value_numbering.h"
-#include "dataflow_iterator-inl.h"
-#include "dex/global_value_numbering.h"
-#include "dex/quick/dex_file_method_inliner.h"
-#include "dex/quick/dex_file_to_method_inliner_map.h"
+#include "quick/dex_file_method_inliner.h"
+#include "quick/dex_file_to_method_inliner_map.h"
 #include "stack.h"
 #include "utils/scoped_arena_containers.h"
 
@@ -660,7 +659,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
 }
 
 /* Collect stats on number of checks removed */
-void MIRGraph::CountChecks(struct BasicBlock* bb) {
+void MIRGraph::CountChecks(class BasicBlock* bb) {
   if (bb->data_flow_info != NULL) {
     for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
       if (mir->ssa_rep == NULL) {
@@ -750,7 +749,7 @@ bool MIRGraph::LayoutBlocks(BasicBlock* bb) {
 }
 
 /* Combine any basic blocks terminated by instructions that we now know can't throw */
-void MIRGraph::CombineBlocks(struct BasicBlock* bb) {
+void MIRGraph::CombineBlocks(class BasicBlock* bb) {
   // Loop here to allow combining a sequence of blocks
   while ((bb->block_type == kDalvikByteCode) &&
       (bb->last_mir_insn != nullptr) &&
@@ -1510,7 +1509,7 @@ void MIRGraph::DumpCheckStats() {
   }
 }
 
-bool MIRGraph::BuildExtendedBBList(struct BasicBlock* bb) {
+bool MIRGraph::BuildExtendedBBList(class BasicBlock* bb) {
   if (bb->visited) return false;
   if (!((bb->block_type == kEntryBlock) || (bb->block_type == kDalvikByteCode)
       || (bb->block_type == kExitBlock))) {

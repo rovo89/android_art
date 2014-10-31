@@ -431,9 +431,8 @@ const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromHwcap() {
 // A signal handler called by a fault for an illegal instruction.  We record the fact in r0
 // and then increment the PC in the signal context to return to the next instruction.  We know the
 // instruction is an sdiv (4 bytes long).
-static void bad_divide_inst_handle(int signo, siginfo_t* si, void* data) {
-  UNUSED(signo);
-  UNUSED(si);
+static void bad_divide_inst_handle(int signo ATTRIBUTE_UNUSED, siginfo_t* si ATTRIBUTE_UNUSED,
+                                   void* data) {
 #if defined(__arm__)
   struct ucontext *uc = (struct ucontext *)data;
   struct sigcontext *sc = &uc->uc_mcontext;

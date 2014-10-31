@@ -313,25 +313,6 @@ constexpr RegStorage rs_xr13(RegStorage::kValid | xr13);
 constexpr RegStorage rs_xr14(RegStorage::kValid | xr14);
 constexpr RegStorage rs_xr15(RegStorage::kValid | xr15);
 
-extern X86NativeRegisterPool rX86_ARG0;
-extern X86NativeRegisterPool rX86_ARG1;
-extern X86NativeRegisterPool rX86_ARG2;
-extern X86NativeRegisterPool rX86_ARG3;
-extern X86NativeRegisterPool rX86_ARG4;
-extern X86NativeRegisterPool rX86_ARG5;
-extern X86NativeRegisterPool rX86_FARG0;
-extern X86NativeRegisterPool rX86_FARG1;
-extern X86NativeRegisterPool rX86_FARG2;
-extern X86NativeRegisterPool rX86_FARG3;
-extern X86NativeRegisterPool rX86_FARG4;
-extern X86NativeRegisterPool rX86_FARG5;
-extern X86NativeRegisterPool rX86_FARG6;
-extern X86NativeRegisterPool rX86_FARG7;
-extern X86NativeRegisterPool rX86_RET0;
-extern X86NativeRegisterPool rX86_RET1;
-extern X86NativeRegisterPool rX86_INVOKE_TGT;
-extern X86NativeRegisterPool rX86_COUNT;
-
 extern RegStorage rs_rX86_ARG0;
 extern RegStorage rs_rX86_ARG1;
 extern RegStorage rs_rX86_ARG2;
@@ -674,6 +655,7 @@ enum X86OpCode {
   kX86RepneScasw,       // repne scasw
   kX86Last
 };
+std::ostream& operator<<(std::ostream& os, const X86OpCode& rhs);
 
 /* Instruction assembly field_loc kind */
 enum X86EncodingKind {

@@ -290,9 +290,10 @@ void X86Mir2Lir::GenImplicitNullCheck(RegStorage reg, int opt_flags) {
  */
 static int X86NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                              int state, const MethodReference& target_method,
-                             uint32_t unused,
+                             uint32_t,
                              uintptr_t direct_code, uintptr_t direct_method,
                              InvokeType type) {
+  UNUSED(info, direct_code);
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   if (direct_method != 0) {
     switch (state) {

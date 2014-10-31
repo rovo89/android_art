@@ -741,7 +741,7 @@ void ParsedOptions::Abort() {
 }
 
 void ParsedOptions::UsageMessageV(FILE* stream, const char* fmt, va_list ap) {
-  hook_vfprintf_(stderr, fmt, ap);
+  hook_vfprintf_(stream, fmt, ap);
 }
 
 void ParsedOptions::UsageMessage(FILE* stream, const char* fmt, ...) {
