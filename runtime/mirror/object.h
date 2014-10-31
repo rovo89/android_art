@@ -451,7 +451,7 @@ class MANAGED LOCKABLE Object {
   }
 
   // Generate an identity hash code.
-  static int32_t GenerateIdentityHashCode();
+  static uint32_t GenerateIdentityHashCode();
 
   // A utility function that copies an object in a read barrier and
   // write barrier-aware way. This is internally used by Clone() and
