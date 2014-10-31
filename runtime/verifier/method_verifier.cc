@@ -2650,7 +2650,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
                                          reg_types_.DoubleLo(), reg_types_.DoubleHi());
       break;
     case Instruction::ADD_INT_LIT16:
-    case Instruction::RSUB_INT:
+    case Instruction::RSUB_INT_LIT16:
     case Instruction::MUL_INT_LIT16:
     case Instruction::DIV_INT_LIT16:
     case Instruction::REM_INT_LIT16:

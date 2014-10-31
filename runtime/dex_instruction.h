@@ -88,6 +88,7 @@ class Instruction {
     DEX_INSTRUCTION_LIST(INSTRUCTION_ENUM)
 #undef DEX_INSTRUCTION_LIST
 #undef INSTRUCTION_ENUM
+    RSUB_INT_LIT16 = RSUB_INT,
   };
 
   enum Format {
