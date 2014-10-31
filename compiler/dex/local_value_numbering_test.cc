@@ -15,6 +15,7 @@
  */
 
 #include "compiler_internals.h"
+#include "dex/mir_field_info.h"
 #include "global_value_numbering.h"
 #include "local_value_numbering.h"
 #include "gtest/gtest.h"
@@ -28,6 +29,7 @@ class LocalValueNumberingTest : public testing::Test {
     uintptr_t declaring_dex_file;
     uint16_t declaring_field_idx;
     bool is_volatile;
+    DexMemAccessType type;
   };
 
   struct SFieldDef {
@@ -35,6 +37,7 @@ class LocalValueNumberingTest : public testing::Test {
     uintptr_t declaring_dex_file;
     uint16_t declaring_field_idx;
     bool is_volatile;
+    DexMemAccessType type;
   };
 
   struct MIRDef {
@@ -90,12 +93,11 @@ class LocalValueNumberingTest : public testing::Test {
     cu_.mir_graph->ifield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const IFieldDef* def = &defs[i];
-      MirIFieldLoweringInfo field_info(def->field_idx);
+      MirIFieldLoweringInfo field_info(def->field_idx, def->type);
       if (def->declaring_dex_file != 0u) {
         field_info.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
         field_info.declaring_field_idx_ = def->declaring_field_idx;
-        field_info.flags_ = 0u |  // Without kFlagIsStatic.
-            (def->is_volatile ? MirIFieldLoweringInfo::kFlagIsVolatile : 0u);
+        field_info.flags_ &= ~(def->is_volatile ? 0u : MirSFieldLoweringInfo::kFlagIsVolatile);
       }
       cu_.mir_graph->ifield_lowering_infos_.push_back(field_info);
     }
@@ -111,15 +113,14 @@ class LocalValueNumberingTest : public testing::Test {
     cu_.mir_graph->sfield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const SFieldDef* def = &defs[i];
-      MirSFieldLoweringInfo field_info(def->field_idx);
+      MirSFieldLoweringInfo field_info(def->field_idx, def->type);
       // Mark even unresolved fields as initialized.
-      field_info.flags_ = MirSFieldLoweringInfo::kFlagIsStatic |
-          MirSFieldLoweringInfo::kFlagClassIsInitialized;
+      field_info.flags_ |= MirSFieldLoweringInfo::kFlagClassIsInitialized;
       // NOTE: MirSFieldLoweringInfo::kFlagClassIsInDexCache isn't used by LVN.
       if (def->declaring_dex_file != 0u) {
         field_info.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
         field_info.declaring_field_idx_ = def->declaring_field_idx;
-        field_info.flags_ |= (def->is_volatile ? MirSFieldLoweringInfo::kFlagIsVolatile : 0u);
+        field_info.flags_ &= ~(def->is_volatile ? 0u : MirSFieldLoweringInfo::kFlagIsVolatile);
       }
       cu_.mir_graph->sfield_lowering_infos_.push_back(field_info);
     }
@@ -140,12 +141,16 @@ class LocalValueNumberingTest : public testing::Test {
       mir->dalvikInsn.opcode = def->opcode;
       mir->dalvikInsn.vB = static_cast<int32_t>(def->value);
       mir->dalvikInsn.vB_wide = def->value;
-      if (def->opcode >= Instruction::IGET && def->opcode <= Instruction::IPUT_SHORT) {
+      if (IsInstructionIGetOrIPut(def->opcode)) {
         ASSERT_LT(def->field_info, cu_.mir_graph->ifield_lowering_infos_.size());
         mir->meta.ifield_lowering_info = def->field_info;
-      } else if (def->opcode >= Instruction::SGET && def->opcode <= Instruction::SPUT_SHORT) {
+        ASSERT_EQ(cu_.mir_graph->ifield_lowering_infos_[def->field_info].MemAccessType(),
+                  IGetOrIPutMemAccessType(def->opcode));
+      } else if (IsInstructionSGetOrSPut(def->opcode)) {
         ASSERT_LT(def->field_info, cu_.mir_graph->sfield_lowering_infos_.size());
         mir->meta.sfield_lowering_info = def->field_info;
+        ASSERT_EQ(cu_.mir_graph->sfield_lowering_infos_[def->field_info].MemAccessType(),
+                  SGetOrSPutMemAccessType(def->opcode));
       }
       mir->ssa_rep = &ssa_reps_[i];
       mir->ssa_rep->num_uses = def->num_uses;
@@ -177,6 +182,13 @@ class LocalValueNumberingTest : public testing::Test {
   }
 
   void PerformLVN() {
+    cu_.mir_graph->temp_.gvn.ifield_ids_ =  GlobalValueNumbering::PrepareGvnFieldIds(
+        allocator_.get(), cu_.mir_graph->ifield_lowering_infos_);
+    cu_.mir_graph->temp_.gvn.sfield_ids_ =  GlobalValueNumbering::PrepareGvnFieldIds(
+        allocator_.get(), cu_.mir_graph->sfield_lowering_infos_);
+    gvn_.reset(new (allocator_.get()) GlobalValueNumbering(&cu_, allocator_.get(),
+                                                           GlobalValueNumbering::kModeLvn));
+    lvn_.reset(new (allocator_.get()) LocalValueNumbering(gvn_.get(), 0u, allocator_.get()));
     value_names_.resize(mir_count_);
     for (size_t i = 0; i != mir_count_; ++i) {
       value_names_[i] =  lvn_->GetValueNumber(&mirs_[i]);
@@ -196,9 +208,6 @@ class LocalValueNumberingTest : public testing::Test {
         value_names_() {
     cu_.mir_graph.reset(new MIRGraph(&cu_, &cu_.arena));
     allocator_.reset(ScopedArenaAllocator::Create(&cu_.arena_stack));
-    gvn_.reset(new (allocator_.get()) GlobalValueNumbering(&cu_, allocator_.get(),
-                                                           GlobalValueNumbering::kModeLvn));
-    lvn_.reset(new (allocator_.get()) LocalValueNumbering(gvn_.get(), 0u, allocator_.get()));
   }
 
   ArenaPool pool_;
@@ -214,7 +223,7 @@ class LocalValueNumberingTest : public testing::Test {
 
 TEST_F(LocalValueNumberingTest, IGetIGetInvokeIGet) {
   static const IFieldDef ifields[] = {
-      { 1u, 1u, 1u, false },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_IGET(Instruction::IGET, 0u, 10u, 0u),
@@ -237,8 +246,8 @@ TEST_F(LocalValueNumberingTest, IGetIGetInvokeIGet) {
 
 TEST_F(LocalValueNumberingTest, IGetIPutIGetIGetIGet) {
   static const IFieldDef ifields[] = {
-      { 1u, 1u, 1u, false },
-      { 2u, 1u, 2u, false },
+      { 1u, 1u, 1u, false, kDexMemAccessObject },
+      { 2u, 1u, 2u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_IGET(Instruction::IGET_OBJECT, 0u, 10u, 0u),
@@ -262,7 +271,7 @@ TEST_F(LocalValueNumberingTest, IGetIPutIGetIGetIGet) {
 
 TEST_F(LocalValueNumberingTest, UniquePreserve1) {
   static const IFieldDef ifields[] = {
-      { 1u, 1u, 1u, false },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_UNIQUE_REF(Instruction::NEW_INSTANCE, 10u),
@@ -284,7 +293,7 @@ TEST_F(LocalValueNumberingTest, UniquePreserve1) {
 
 TEST_F(LocalValueNumberingTest, UniquePreserve2) {
   static const IFieldDef ifields[] = {
-      { 1u, 1u, 1u, false },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_UNIQUE_REF(Instruction::NEW_INSTANCE, 11u),
@@ -306,7 +315,7 @@ TEST_F(LocalValueNumberingTest, UniquePreserve2) {
 
 TEST_F(LocalValueNumberingTest, UniquePreserveAndEscape) {
   static const IFieldDef ifields[] = {
-      { 1u, 1u, 1u, false },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_UNIQUE_REF(Instruction::NEW_INSTANCE, 10u),
@@ -331,8 +340,8 @@ TEST_F(LocalValueNumberingTest, UniquePreserveAndEscape) {
 
 TEST_F(LocalValueNumberingTest, Volatile) {
   static const IFieldDef ifields[] = {
-      { 1u, 1u, 1u, false },
-      { 2u, 1u, 2u, true },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
+      { 2u, 1u, 2u, true, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_IGET(Instruction::IGET, 0u, 10u, 1u),  // Volatile.
@@ -358,9 +367,9 @@ TEST_F(LocalValueNumberingTest, Volatile) {
 
 TEST_F(LocalValueNumberingTest, UnresolvedIField) {
   static const IFieldDef ifields[] = {
-      { 1u, 1u, 1u, false },  // Resolved field #1.
-      { 2u, 1u, 2u, false },  // Resolved field #2.
-      { 3u, 0u, 0u, false },  // Unresolved field.
+      { 1u, 1u, 1u, false, kDexMemAccessWord },  // Resolved field #1.
+      { 2u, 1u, 2u, false, kDexMemAccessWide },  // Resolved field #2.
+      { 3u, 0u, 0u, false, kDexMemAccessWord },  // Unresolved field.
   };
   static const MIRDef mirs[] = {
       DEF_UNIQUE_REF(Instruction::NEW_INSTANCE, 20u),
@@ -407,9 +416,9 @@ TEST_F(LocalValueNumberingTest, UnresolvedIField) {
 
 TEST_F(LocalValueNumberingTest, UnresolvedSField) {
   static const SFieldDef sfields[] = {
-      { 1u, 1u, 1u, false },  // Resolved field #1.
-      { 2u, 1u, 2u, false },  // Resolved field #2.
-      { 3u, 0u, 0u, false },  // Unresolved field.
+      { 1u, 1u, 1u, false, kDexMemAccessWord },  // Resolved field #1.
+      { 2u, 1u, 2u, false, kDexMemAccessWide },  // Resolved field #2.
+      { 3u, 0u, 0u, false, kDexMemAccessWord },  // Unresolved field.
   };
   static const MIRDef mirs[] = {
       DEF_SGET(Instruction::SGET, 0u, 0u),            // Resolved field #1.
@@ -438,11 +447,11 @@ TEST_F(LocalValueNumberingTest, UnresolvedSField) {
 
 TEST_F(LocalValueNumberingTest, UninitializedSField) {
   static const IFieldDef ifields[] = {
-      { 1u, 1u, 1u, false },  // Resolved field #1.
+      { 1u, 1u, 1u, false, kDexMemAccessWord },  // Resolved field #1.
   };
   static const SFieldDef sfields[] = {
-      { 1u, 1u, 1u, false },  // Resolved field #1.
-      { 2u, 1u, 2u, false },  // Resolved field #2; uninitialized.
+      { 1u, 1u, 1u, false, kDexMemAccessWord },  // Resolved field #1.
+      { 2u, 1u, 2u, false, kDexMemAccessWord },  // Resolved field #2; uninitialized.
   };
   static const MIRDef mirs[] = {
       DEF_UNIQUE_REF(Instruction::NEW_INSTANCE, 200u),
@@ -487,11 +496,11 @@ TEST_F(LocalValueNumberingTest, ConstString) {
 
 TEST_F(LocalValueNumberingTest, SameValueInDifferentMemoryLocations) {
   static const IFieldDef ifields[] = {
-      { 1u, 1u, 1u, false },
-      { 2u, 1u, 2u, false },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
+      { 2u, 1u, 2u, false, kDexMemAccessWord },
   };
   static const SFieldDef sfields[] = {
-      { 3u, 1u, 3u, false },
+      { 3u, 1u, 3u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_UNIQUE_REF(Instruction::NEW_ARRAY, 201u),
@@ -551,12 +560,12 @@ TEST_F(LocalValueNumberingTest, UniqueArrayAliasing) {
 
 TEST_F(LocalValueNumberingTest, EscapingRefs) {
   static const IFieldDef ifields[] = {
-      { 1u, 1u, 1u, false },  // Field #1.
-      { 2u, 1u, 2u, false },  // Field #2.
-      { 3u, 1u, 3u, false },  // Reference field for storing escaping refs.
-      { 4u, 1u, 4u, false },  // Wide.
-      { 5u, 0u, 0u, false },  // Unresolved field, int.
-      { 6u, 0u, 0u, false },  // Unresolved field, wide.
+      { 1u, 1u, 1u, false, kDexMemAccessWord },    // Field #1.
+      { 2u, 1u, 2u, false, kDexMemAccessWord },    // Field #2.
+      { 3u, 1u, 3u, false, kDexMemAccessObject },  // For storing escaping refs.
+      { 4u, 1u, 4u, false, kDexMemAccessWide },    // Wide.
+      { 5u, 0u, 0u, false, kDexMemAccessWord },    // Unresolved field, int.
+      { 6u, 0u, 0u, false, kDexMemAccessWide },    // Unresolved field, wide.
   };
   static const MIRDef mirs[] = {
       DEF_UNIQUE_REF(Instruction::NEW_INSTANCE, 20u),
@@ -634,11 +643,11 @@ TEST_F(LocalValueNumberingTest, EscapingArrayRefs) {
 
 TEST_F(LocalValueNumberingTest, StoringSameValueKeepsMemoryVersion) {
   static const IFieldDef ifields[] = {
-      { 1u, 1u, 1u, false },
-      { 2u, 1u, 2u, false },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
+      { 2u, 1u, 2u, false, kDexMemAccessWord },
   };
   static const SFieldDef sfields[] = {
-      { 2u, 1u, 2u, false },
+      { 2u, 1u, 2u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_IGET(Instruction::IGET, 0u, 30u, 0u),
@@ -716,8 +725,8 @@ TEST_F(LocalValueNumberingTest, FilledNewArrayTracking) {
 
 TEST_F(LocalValueNumberingTest, ClInitOnSget) {
   static const SFieldDef sfields[] = {
-      { 0u, 1u, 0u, false },
-      { 1u, 2u, 1u, false },
+      { 0u, 1u, 0u, false, kDexMemAccessObject },
+      { 1u, 2u, 1u, false, kDexMemAccessObject },
   };
   static const MIRDef mirs[] = {
       DEF_SGET(Instruction::SGET_OBJECT, 0u, 0u),

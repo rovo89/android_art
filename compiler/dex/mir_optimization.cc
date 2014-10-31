@@ -19,6 +19,7 @@
 #include "dataflow_iterator-inl.h"
 #include "global_value_numbering.h"
 #include "local_value_numbering.h"
+#include "mir_field_info.h"
 #include "quick/dex_file_method_inliner.h"
 #include "quick/dex_file_to_method_inliner_map.h"
 #include "stack.h"
@@ -216,10 +217,6 @@ static constexpr ConditionCode kIfCcZConditionCodes[] = {
 
 static_assert(arraysize(kIfCcZConditionCodes) == Instruction::IF_LEZ - Instruction::IF_EQZ + 1,
               "if_ccz_ccodes_size1");
-
-static constexpr bool IsInstructionIfCcZ(Instruction::Code opcode) {
-  return Instruction::IF_EQZ <= opcode && opcode <= Instruction::IF_LEZ;
-}
 
 static constexpr ConditionCode ConditionCodeForIfCcZ(Instruction::Code opcode) {
   return kIfCcZConditionCodes[opcode - Instruction::IF_EQZ];
@@ -1159,8 +1156,7 @@ bool MIRGraph::EliminateClassInitChecksGate() {
     for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
       if (bb->block_type == kDalvikByteCode) {
         for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
-          if (mir->dalvikInsn.opcode >= Instruction::SGET &&
-              mir->dalvikInsn.opcode <= Instruction::SPUT_SHORT) {
+          if (IsInstructionSGetOrSPut(mir->dalvikInsn.opcode)) {
             const MirSFieldLoweringInfo& field_info = GetSFieldLoweringInfo(mir);
             if (!field_info.IsReferrersClass()) {
               DCHECK_LT(class_to_index_map.size(), 0xffffu);
@@ -1176,8 +1172,7 @@ bool MIRGraph::EliminateClassInitChecksGate() {
               // Using offset/2 for index into temp_.cice.indexes.
               temp_.cice.indexes[mir->offset / 2u] = index;
             }
-          } else if (mir->dalvikInsn.opcode == Instruction::INVOKE_STATIC ||
-              mir->dalvikInsn.opcode == Instruction::INVOKE_STATIC_RANGE) {
+          } else if (IsInstructionInvokeStatic(mir->dalvikInsn.opcode)) {
             const MirMethodLoweringInfo& method_info = GetMethodLoweringInfo(mir);
             DCHECK(method_info.IsStatic());
             if (method_info.FastPath() && !method_info.IsReferrersClass()) {
@@ -1261,12 +1256,10 @@ bool MIRGraph::EliminateClassInitChecks(BasicBlock* bb) {
       // NOTE: index != 0xffff does not guarantee that this is an SGET/SPUT/INVOKE_STATIC.
       // Dex instructions with width 1 can have the same offset/2.
 
-      if (mir->dalvikInsn.opcode >= Instruction::SGET &&
-          mir->dalvikInsn.opcode <= Instruction::SPUT_SHORT) {
+      if (IsInstructionSGetOrSPut(mir->dalvikInsn.opcode)) {
         check_initialization = true;
         check_dex_cache = true;
-      } else if (mir->dalvikInsn.opcode == Instruction::INVOKE_STATIC ||
-               mir->dalvikInsn.opcode == Instruction::INVOKE_STATIC_RANGE) {
+      } else if (IsInstructionInvokeStatic(mir->dalvikInsn.opcode)) {
         check_initialization = true;
         // NOTE: INVOKE_STATIC doesn't guarantee that the type will be in the dex cache.
       }
@@ -1333,6 +1326,10 @@ bool MIRGraph::ApplyGlobalValueNumberingGate() {
 
   DCHECK(temp_scoped_alloc_ == nullptr);
   temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
+  temp_.gvn.ifield_ids_ =
+      GlobalValueNumbering::PrepareGvnFieldIds(temp_scoped_alloc_.get(), ifield_lowering_infos_);
+  temp_.gvn.sfield_ids_ =
+      GlobalValueNumbering::PrepareGvnFieldIds(temp_scoped_alloc_.get(), sfield_lowering_infos_);
   DCHECK(temp_.gvn.gvn == nullptr);
   temp_.gvn.gvn = new (temp_scoped_alloc_.get()) GlobalValueNumbering(
       cu_, temp_scoped_alloc_.get(), GlobalValueNumbering::kModeGvn);
@@ -1378,6 +1375,8 @@ void MIRGraph::ApplyGlobalValueNumberingEnd() {
 
   delete temp_.gvn.gvn;
   temp_.gvn.gvn = nullptr;
+  temp_.gvn.ifield_ids_ = nullptr;
+  temp_.gvn.sfield_ids_ = nullptr;
   DCHECK(temp_scoped_alloc_ != nullptr);
   temp_scoped_alloc_.reset();
 }
@@ -1396,7 +1395,8 @@ void MIRGraph::ComputeInlineIFieldLoweringInfo(uint16_t field_idx, MIR* invoke, 
       cu_, cu_->class_loader, cu_->class_linker, *target.dex_file,
       nullptr /* code_item not used */, 0u /* class_def_idx not used */, target.dex_method_index,
       0u /* access_flags not used */, nullptr /* verified_method not used */);
-  MirIFieldLoweringInfo inlined_field_info(field_idx);
+  DexMemAccessType type = IGetOrIPutMemAccessType(iget_or_iput->dalvikInsn.opcode);
+  MirIFieldLoweringInfo inlined_field_info(field_idx, type);
   MirIFieldLoweringInfo::Resolve(cu_->compiler_driver, &inlined_unit, &inlined_field_info, 1u);
   DCHECK(inlined_field_info.IsResolved());
 
@@ -1544,6 +1544,14 @@ bool MIRGraph::BuildExtendedBBList(class BasicBlock* bb) {
 }
 
 void MIRGraph::BasicBlockOptimization() {
+  if ((cu_->disable_opt & (1 << kLocalValueNumbering)) == 0) {
+    temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
+    temp_.gvn.ifield_ids_ =
+        GlobalValueNumbering::PrepareGvnFieldIds(temp_scoped_alloc_.get(), ifield_lowering_infos_);
+    temp_.gvn.sfield_ids_ =
+        GlobalValueNumbering::PrepareGvnFieldIds(temp_scoped_alloc_.get(), sfield_lowering_infos_);
+  }
+
   if ((cu_->disable_opt & (1 << kSuppressExceptionEdges)) != 0) {
     ClearAllVisitedFlags();
     PreOrderDfsIterator iter2(this);
@@ -1560,6 +1568,11 @@ void MIRGraph::BasicBlockOptimization() {
       BasicBlockOpt(bb);
     }
   }
+
+  // Clean up after LVN.
+  temp_.gvn.ifield_ids_ = nullptr;
+  temp_.gvn.sfield_ids_ = nullptr;
+  temp_scoped_alloc_.reset();
 }
 
 }  // namespace art

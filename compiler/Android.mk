@@ -180,7 +180,8 @@ LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
   driver/compiler_options.h \
   image_writer.h \
   optimizing/locations.h \
-  utils/arm/constants_arm.h
+  utils/arm/constants_arm.h \
+  utils/dex_instruction_utils.h
 
 # $(1): target or host
 # $(2): ndebug or debug

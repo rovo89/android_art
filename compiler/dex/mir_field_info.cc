@@ -35,7 +35,7 @@ void MirIFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     DCHECK(field_infos != nullptr);
     DCHECK_NE(count, 0u);
     for (auto it = field_infos, end = field_infos + count; it != end; ++it) {
-      MirIFieldLoweringInfo unresolved(it->field_idx_);
+      MirIFieldLoweringInfo unresolved(it->field_idx_, it->MemAccessType());
       DCHECK_EQ(memcmp(&unresolved, &*it, sizeof(*it)), 0);
     }
   }
@@ -66,6 +66,7 @@ void MirIFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     std::pair<bool, bool> fast_path = compiler_driver->IsFastInstanceField(
         dex_cache.Get(), referrer_class.Get(), resolved_field, field_idx);
     it->flags_ = 0u |  // Without kFlagIsStatic.
+        (it->flags_ & (kMemAccessTypeMask << kBitMemAccessTypeBegin)) |
         (is_volatile ? kFlagIsVolatile : 0u) |
         (fast_path.first ? kFlagFastGet : 0u) |
         (fast_path.second ? kFlagFastPut : 0u);
@@ -79,7 +80,7 @@ void MirSFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     DCHECK(field_infos != nullptr);
     DCHECK_NE(count, 0u);
     for (auto it = field_infos, end = field_infos + count; it != end; ++it) {
-      MirSFieldLoweringInfo unresolved(it->field_idx_);
+      MirSFieldLoweringInfo unresolved(it->field_idx_, it->MemAccessType());
       // In 64-bit builds, there's padding after storage_index_, don't include it in memcmp.
       size_t size = OFFSETOF_MEMBER(MirSFieldLoweringInfo, storage_index_) +
           sizeof(it->storage_index_);
@@ -114,6 +115,7 @@ void MirSFieldLoweringInfo::Resolve(CompilerDriver* compiler_driver,
     std::pair<bool, bool> fast_path = compiler_driver->IsFastStaticField(
         dex_cache.Get(), referrer_class, resolved_field, field_idx, &it->storage_index_);
     uint16_t flags = kFlagIsStatic |
+        (it->flags_ & (kMemAccessTypeMask << kBitMemAccessTypeBegin)) |
         (is_volatile ? kFlagIsVolatile : 0u) |
         (fast_path.first ? kFlagFastGet : 0u) |
         (fast_path.second ? kFlagFastPut : 0u);

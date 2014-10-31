@@ -39,6 +39,12 @@ class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
         cu->mir_graph->GetMaxNestedLoops() > kMaxAllowedNestedLoops;
   }
 
+  // Instance and static field id map is held by MIRGraph to avoid multiple recalculations
+  // when doing LVN.
+  template <typename Container>  // Container of MirIFieldLoweringInfo or MirSFieldLoweringInfo.
+  static uint16_t* PrepareGvnFieldIds(ScopedArenaAllocator* allocator,
+                                      const Container& field_infos);
+
   GlobalValueNumbering(CompilationUnit* cu, ScopedArenaAllocator* allocator, Mode mode);
   ~GlobalValueNumbering();
 
@@ -114,34 +120,24 @@ class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
     return (it != global_value_map_.end() && it->second == value);
   }
 
-  // FieldReference represents a unique resolved field.
-  struct FieldReference {
-    const DexFile* dex_file;
-    uint16_t field_idx;
-    uint16_t type;  // See comments for LocalValueNumbering::kFieldTypeCount.
-  };
+  // Get an instance field id.
+  uint16_t GetIFieldId(MIR* mir) {
+    return GetMirGraph()->GetGvnIFieldId(mir);
+  }
 
-  struct FieldReferenceComparator {
-    bool operator()(const FieldReference& lhs, const FieldReference& rhs) const {
-      if (lhs.field_idx != rhs.field_idx) {
-        return lhs.field_idx < rhs.field_idx;
-      }
-      // If the field_idx and dex_file match, the type must also match.
-      DCHECK(lhs.dex_file != rhs.dex_file || lhs.type == rhs.type);
-      return lhs.dex_file < rhs.dex_file;
-    }
-  };
+  // Get a static field id.
+  uint16_t GetSFieldId(MIR* mir) {
+    return GetMirGraph()->GetGvnSFieldId(mir);
+  }
 
-  // Maps field key to field id for resolved fields.
-  typedef ScopedArenaSafeMap<FieldReference, uint32_t, FieldReferenceComparator> FieldIndexMap;
+  // Get an instance field type based on field id.
+  uint16_t GetIFieldType(uint16_t field_id) {
+    return static_cast<uint16_t>(GetMirGraph()->GetIFieldLoweringInfo(field_id).MemAccessType());
+  }
 
-  // Get a field id.
-  uint16_t GetFieldId(const MirFieldInfo& field_info, uint16_t type);
-
-  // Get a field type based on field id.
-  uint16_t GetFieldType(uint16_t field_id) {
-    DCHECK_LT(field_id, field_index_reverse_map_.size());
-    return field_index_reverse_map_[field_id]->first.type;
+  // Get a static field type based on field id.
+  uint16_t GetSFieldType(uint16_t field_id) {
+    return static_cast<uint16_t>(GetMirGraph()->GetSFieldLoweringInfo(field_id).MemAccessType());
   }
 
   struct ArrayLocation {
@@ -239,8 +235,6 @@ class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
   Mode mode_;
 
   ValueMap global_value_map_;
-  FieldIndexMap field_index_map_;
-  ScopedArenaVector<const FieldIndexMap::value_type*> field_index_reverse_map_;
   ArrayLocationMap array_location_map_;
   ScopedArenaVector<const ArrayLocationMap::value_type*> array_location_reverse_map_;
   RefSetIdMap ref_set_map_;
@@ -266,6 +260,32 @@ inline uint16_t GlobalValueNumbering::NewValueName() {
   DCHECK_NE(mode_, kModeGvnPostProcessing);
   ++last_value_;
   return last_value_;
+}
+
+template <typename Container>  // Container of MirIFieldLoweringInfo or MirSFieldLoweringInfo.
+uint16_t* GlobalValueNumbering::PrepareGvnFieldIds(ScopedArenaAllocator* allocator,
+                                                   const Container& field_infos) {
+  size_t size = field_infos.size();
+  uint16_t* field_ids = reinterpret_cast<uint16_t*>(allocator->Alloc(size * sizeof(uint16_t),
+                                                                     kArenaAllocMisc));
+  for (size_t i = 0u; i != size; ++i) {
+    size_t idx = i;
+    const MirFieldInfo& cur_info = field_infos[i];
+    if (cur_info.IsResolved()) {
+      for (size_t j = 0; j != i; ++j) {
+        const MirFieldInfo& prev_info = field_infos[j];
+        if (prev_info.IsResolved() &&
+            prev_info.DeclaringDexFile() == cur_info.DeclaringDexFile() &&
+            prev_info.DeclaringFieldIndex() == cur_info.DeclaringFieldIndex()) {
+          DCHECK_EQ(cur_info.MemAccessType(), prev_info.MemAccessType());
+          idx = j;
+          break;
+        }
+      }
+    }
+    field_ids[i] = idx;
+  }
+  return field_ids;
 }
 
 }  // namespace art
