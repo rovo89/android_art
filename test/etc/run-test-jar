@@ -305,6 +305,14 @@ if [ "$HOST" = "n" ]; then
       adb push $TEST_NAME-ex.jar $DEX_LOCATION >/dev/null 2>&1
     fi
 
+    LD_LIBRARY_PATH=
+    if [ "$ANDROID_ROOT" != "/system" ]; then
+      # Current default installation is dalvikvm 64bits and dex2oat 32bits,
+      # so we can only use LD_LIBRARY_PATH when testing on a local
+      # installation.
+      LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBRARY_DIRECTORY
+    fi
+
     # Create a script with the command. The command can get longer than the longest
     # allowed adb command and there is no way to get the exit status from a adb shell
     # command.
@@ -312,7 +320,7 @@ if [ "$HOST" = "n" ]; then
              export ANDROID_DATA=$DEX_LOCATION && \
              export DEX_LOCATION=$DEX_LOCATION && \
              export ANDROID_ROOT=$ANDROID_ROOT && \
-             export LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBRARY_DIRECTORY && \
+             export LD_LIBRARY_PATH=$LD_LIBRARY_PATH && \
              $mkdir_cmdline && \
              $dex2oat_cmdline && \
              $dalvikvm_cmdline"
