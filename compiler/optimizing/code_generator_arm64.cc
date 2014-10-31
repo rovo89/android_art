@@ -539,6 +539,7 @@ InstructionCodeGeneratorARM64::InstructionCodeGeneratorARM64(HGraph* graph,
   M(Div)                                                   \
   M(FloatConstant)                                         \
   M(LoadClass)                                             \
+  M(LoadString)                                            \
   M(Neg)                                                   \
   M(NewArray)                                              \
   M(ParallelMove)                                          \
