@@ -17,6 +17,7 @@
 #include "image_space.h"
 
 #include <dirent.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
 
 #include <random>
@@ -375,6 +376,41 @@ static bool ImageCreationAllowed(bool is_global_cache, std::string* error_msg) {
   return false;
 }
 
+static constexpr uint64_t kLowSpaceValue = 50 * MB;
+static constexpr uint64_t kTmpFsSentinelValue = 384 * MB;
+
+// Read the free space of the cache partition and make a decision whether to keep the generated
+// image. This is to try to mitigate situations where the system might run out of space later.
+static bool CheckSpace(const std::string& cache_filename, std::string* error_msg) {
+  // Using statvfs vs statvfs64 because of b/18207376, and it is enough for all practical purposes.
+  struct statvfs buf;
+
+  int res = TEMP_FAILURE_RETRY(statvfs(cache_filename.c_str(), &buf));
+  if (res != 0) {
+    // Could not stat. Conservatively tell the system to delete the image.
+    *error_msg = "Could not stat the filesystem, assuming low-memory situation.";
+    return false;
+  }
+
+  uint64_t fs_overall_size = buf.f_bsize * static_cast<uint64_t>(buf.f_blocks);
+  // Zygote is privileged, but other things are not. Use bavail.
+  uint64_t fs_free_size = buf.f_bsize * static_cast<uint64_t>(buf.f_bavail);
+
+  // Take the overall size as an indicator for a tmpfs, which is being used for the decryption
+  // environment. We do not want to fail quickening the boot image there, as it is beneficial
+  // for time-to-UI.
+  if (fs_overall_size > kTmpFsSentinelValue) {
+    if (fs_free_size < kLowSpaceValue) {
+      *error_msg = StringPrintf("Low-memory situation: only %4.2f megabytes available after image"
+                                " generation, need at least %" PRIu64 ".",
+                                static_cast<double>(fs_free_size) / MB,
+                                kLowSpaceValue / MB);
+      return false;
+    }
+  }
+  return true;
+}
+
 ImageSpace* ImageSpace::Create(const char* image_location,
                                const InstructionSet image_isa,
                                std::string* error_msg) {
@@ -522,6 +558,13 @@ ImageSpace* ImageSpace::Create(const char* image_location,
     PruneDexCache(image_isa);
     return nullptr;
   } else {
+    // Check whether there is enough space left over after we have generated the image.
+    if (!CheckSpace(cache_filename, error_msg)) {
+      // No. Delete the generated image and try to run out of the dex files.
+      PruneDexCache(image_isa);
+      return nullptr;
+    }
+
     // Note that we must not use the file descriptor associated with
     // ScopedFlock::GetFile to Init the image file. We want the file
     // descriptor (and the associated exclusive lock) to be released when
