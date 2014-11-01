@@ -26,6 +26,7 @@ BUILD_BOOT_OPT=""
 SECONDARY_DEX=""
 exe="${ANDROID_HOST_OUT}/bin/dalvikvm32"
 main="Main"
+DEX_VERIFY=""
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -158,7 +159,12 @@ fi
 
 if [ "$INTERPRETER" = "y" ]; then
     INT_OPTS="-Xint"
-    COMPILER_FLAGS="${COMPILER_FLAGS} --compiler-filter=interpret-only"
+    if [ "$VERIFY" = "y" ] ; then
+      COMPILER_FLAGS="${COMPILER_FLAGS} --compiler-filter=interpret-only"
+    else
+      COMPILER_FLAGS="${COMPILER_FLAGS} --compiler-filter=verify-none"
+      DEX_VERIFY="${DEX_VERIFY} -Xverify:none"
+    fi
 fi
 
 if [ "$RELOCATE" = "y" ]; then
@@ -184,7 +190,7 @@ else
 fi
 
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
-cmdline="$INVOKE_WITH $gdb $exe $gdbargs -XXlib:$LIB $JNI_OPTS $FLAGS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar$SECONDARY_DEX $main"
+cmdline="$INVOKE_WITH $gdb $exe $gdbargs -XXlib:$LIB $DEX_VERIFY $JNI_OPTS $FLAGS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar$SECONDARY_DEX $main"
 if [ "$DEV_MODE" = "y" ]; then
   if [ "$PREBUILD" = "y" ]; then
     echo "$mkdir_cmd && $prebuild_cmd && $cmdline"

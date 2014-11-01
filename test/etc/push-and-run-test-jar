@@ -23,6 +23,7 @@ FLAGS=""
 TARGET_SUFFIX="32"
 GDB_TARGET_SUFFIX=""
 SECONDARY_DEX=""
+DEX_VERIFY=""
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -123,7 +124,6 @@ if [ "$ZYGOTE" = "" ]; then
     fi
 
     if [ "$VERIFY" = "y" ]; then
-        DEX_VERIFY=""
         msg "Performing verification"
     else
         DEX_VERIFY="-Xverify:none"
@@ -164,6 +164,12 @@ fi
 
 if [ "$INTERPRETER" = "y" ]; then
     INT_OPTS="-Xint"
+    if [ "$VERIFY" = "y" ] ; then
+      COMPILER_FLAGS="${COMPILER_FLAGS} --compiler-filter=interpret-only"
+    else
+      COMPILER_FLAGS="${COMPILER_FLAGS} --compiler-filter=verify-none"
+      DEX_VERIFY="${DEX_VERIFY} -Xverify:none"
+    fi
 fi
 
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
@@ -176,7 +182,7 @@ else
 fi
 
 cmdline="cd $DEX_LOCATION && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
-    $INVOKE_WITH $gdb /system/bin/dalvikvm$TARGET_SUFFIX $FLAGS $gdbargs -XXlib:$LIB $ZYGOTE $JNI_OPTS $RELOCATE_OPT $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar$SECONDARY_DEX Main"
+    $INVOKE_WITH $gdb /system/bin/dalvikvm$TARGET_SUFFIX $FLAGS $DEX_VERIFY $gdbargs -XXlib:$LIB $ZYGOTE $JNI_OPTS $RELOCATE_OPT $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar$SECONDARY_DEX Main"
 if [ "$DEV_MODE" = "y" ]; then
   echo $cmdline "$@"
 fi

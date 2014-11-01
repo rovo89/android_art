@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-class MirandaClass2 extends MirandaAbstract {
-    public boolean inInterface() {
-        return true;
-    }
+/**
+ * Miranda testing.
+ */
+public interface MirandaInterface2 {
 
-    public int inInterface2() {
-        return 28;
-    }
+    public boolean inInterface();
+
+    public int inInterface2();
+
 }
