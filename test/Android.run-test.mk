@@ -404,6 +404,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   417-optimizing-arith-div \
   418-const-string \
   419-long-parameter \
+  420-const-class \
   700-LoadArgRegs \
   701-easy-div-rem \
   702-LargeBranchOffset \

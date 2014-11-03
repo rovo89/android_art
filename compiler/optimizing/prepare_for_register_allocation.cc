@@ -38,7 +38,14 @@ void PrepareForRegisterAllocation::VisitBoundsCheck(HBoundsCheck* check) {
 }
 
 void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
-  check->ReplaceWith(check->InputAt(0));
+  HLoadClass* cls = check->GetLoadClass();
+  check->ReplaceWith(cls);
+  if (check->GetPrevious() == cls) {
+    // Pass the initialization duty to the `HLoadClass` instruction,
+    // and remove the instruction from the graph.
+    cls->SetMustGenerateClinitCheck();
+    check->GetBlock()->RemoveInstruction(check);
+  }
 }
 
 void PrepareForRegisterAllocation::VisitCondition(HCondition* condition) {
