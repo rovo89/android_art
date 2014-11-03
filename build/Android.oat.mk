@@ -196,7 +196,7 @@ $$(core_image_name): $$(TARGET_CORE_DEX_FILES) $$(core_dex2oat_dependency)
 	  --base=$$(LIBART_IMG_TARGET_BASE_ADDRESS) --instruction-set=$$($(3)TARGET_ARCH) \
 	  --instruction-set-features=$$($(3)TARGET_INSTRUCTION_SET_FEATURES) \
 	  --android-root=$$(PRODUCT_OUT)/system --include-patch-information \
-	  $$(PRIVATE_CORE_COMPILE_OPTIONS)
+	  $$(PRIVATE_CORE_COMPILE_OPTIONS) || (rm $$(PRIVATE_CORE_OAT_NAME); exit 1)
 
 $$(core_oat_name): $$(core_image_name)
 
