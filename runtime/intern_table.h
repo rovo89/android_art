@@ -26,6 +26,12 @@
 
 namespace art {
 
+namespace gc {
+namespace space {
+class ImageSpace;
+}  // namespace space
+}  // namespace gc
+
 enum VisitRootFlags : uint8_t;
 
 namespace mirror {
@@ -66,9 +72,12 @@ class InternTable {
 
   bool ContainsWeak(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  size_t Size() const;
-  size_t StrongSize() const;
-  size_t WeakSize() const;
+  // Total number of interned strings.
+  size_t Size() const LOCKS_EXCLUDED(Locks::intern_table_lock_);
+  // Total number of weakly live interned strings.
+  size_t StrongSize() const LOCKS_EXCLUDED(Locks::intern_table_lock_);
+  // Total number of strongly live interned strings.
+  size_t WeakSize() const LOCKS_EXCLUDED(Locks::intern_table_lock_);
 
   void VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -78,6 +87,14 @@ class InternTable {
   void DisallowNewInterns() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AllowNewInterns() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Adds all of the resolved image strings from the image space into the intern table. The
+  // advantage of doing this is preventing expensive DexFile::FindStringId calls.
+  void AddImageStringsToTable(gc::space::ImageSpace* image_space)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::intern_table_lock_);
+  // Copy the post zygote tables to pre zygote to save memory by preventing dirty pages.
+  void SwapPostZygoteWithPreZygote()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::intern_table_lock_);
+
  private:
   class StringHashEquals {
    public:
@@ -85,22 +102,60 @@ class InternTable {
     bool operator()(const GcRoot<mirror::String>& a, const GcRoot<mirror::String>& b)
         NO_THREAD_SAFETY_ANALYSIS;
   };
-  typedef std::unordered_set<GcRoot<mirror::String>, StringHashEquals, StringHashEquals,
-      TrackingAllocator<GcRoot<mirror::String>, kAllocatorTagInternTable>> Table;
+
+  // Table which holds pre zygote and post zygote interned strings. There is one instance for
+  // weak interns and strong interns.
+  class Table {
+   public:
+    mirror::String* Find(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+    void Insert(mirror::String* s) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+    void Remove(mirror::String* s)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+    void VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+    void SweepWeaks(IsMarkedCallback* callback, void* arg)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+    void SwapPostZygoteWithPreZygote() EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+    size_t Size() const EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_) {
+      return pre_zygote_table_.size() + post_zygote_table_.size();
+    }
+
+   private:
+    typedef std::unordered_set<GcRoot<mirror::String>, StringHashEquals, StringHashEquals,
+        TrackingAllocator<GcRoot<mirror::String>, kAllocatorTagInternTable>> UnorderedSet;
+
+    void SweepWeaks(UnorderedSet* set, IsMarkedCallback* callback, void* arg)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+        EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
+
+    // We call SwapPostZygoteWithPreZygote when we create the zygote to reduce private dirty pages
+    // caused by modifying the zygote intern table hash table. The pre zygote table are the
+    // interned strings which were interned before we created the zygote space. Post zygote is self
+    // explanatory.
+    UnorderedSet pre_zygote_table_;
+    UnorderedSet post_zygote_table_;
+  };
 
   mirror::String* Insert(mirror::String* s, bool is_strong)
       LOCKS_EXCLUDED(Locks::intern_table_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::String* LookupStrong(mirror::String* s)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   mirror::String* LookupWeak(mirror::String* s)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::String* Lookup(Table* table, mirror::String* s)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   mirror::String* InsertStrong(mirror::String* s)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   mirror::String* InsertWeak(mirror::String* s)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   void RemoveStrong(mirror::String* s)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
@@ -108,14 +163,16 @@ class InternTable {
   void RemoveWeak(mirror::String* s)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-  void Remove(Table* table, mirror::String* s)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
 
   // Transaction rollback access.
+  mirror::String* LookupStringFromImage(mirror::String* s)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   mirror::String* InsertStrongFromTransaction(mirror::String* s)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   mirror::String* InsertWeakFromTransaction(mirror::String* s)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   void RemoveStrongFromTransaction(mirror::String* s)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
@@ -125,6 +182,7 @@ class InternTable {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
   friend class Transaction;
 
+  bool image_added_to_intern_table_ GUARDED_BY(Locks::intern_table_lock_);
   bool log_new_roots_ GUARDED_BY(Locks::intern_table_lock_);
   bool allow_new_interns_ GUARDED_BY(Locks::intern_table_lock_);
   ConditionVariable new_intern_condition_ GUARDED_BY(Locks::intern_table_lock_);
