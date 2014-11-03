@@ -131,7 +131,7 @@ define create-core-oat-target-rules
   core_dex2oat_dependency := $(DEX2OAT_DEPENDENCY)
 
   ifeq ($(1),optimizing)
-    ifeq ($(3)TARGET_ARCH,arm64)
+    ifeq ($($(3)TARGET_ARCH),arm64)
       # TODO: Enable image generation on arm64 once the backend
       # is on par with other architectures.
       core_compile_options += --compiler-backend=Quick
