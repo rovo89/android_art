@@ -19,11 +19,8 @@
 #include "context_arm64.h"
 
 #include "mirror/art_method-inl.h"
-#include "mirror/object-inl.h"
 #include "quick/quick_method_frame_info.h"
-#include "stack.h"
-#include "thread.h"
-
+#include "utils.h"
 
 namespace art {
 namespace arm64 {
