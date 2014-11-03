@@ -412,8 +412,13 @@ bool Runtime::Start() {
 
   started_ = true;
 
+  if (IsZygote()) {
+    ScopedObjectAccess soa(self);
+    Runtime::Current()->GetInternTable()->AddImageStringsToTable(heap_->GetImageSpace());
+  }
+
   if (!IsImageDex2OatEnabled() || !Runtime::Current()->GetHeap()->HasImageSpace()) {
-    ScopedObjectAccess soa(Thread::Current());
+    ScopedObjectAccess soa(self);
     StackHandleScope<1> hs(soa.Self());
     auto klass(hs.NewHandle<mirror::Class>(mirror::Class::GetJavaLangClass()));
     class_linker_->EnsureInitialized(soa.Self(), klass, true, true);

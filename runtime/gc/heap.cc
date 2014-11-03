@@ -54,6 +54,7 @@
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "heap-inl.h"
 #include "image.h"
+#include "intern_table.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/object.h"
@@ -1897,6 +1898,7 @@ void Heap::PreZygoteFork() {
     LOG(WARNING) << __FUNCTION__ << " called when we already have a zygote space.";
     return;
   }
+  Runtime::Current()->GetInternTable()->SwapPostZygoteWithPreZygote();
   VLOG(heap) << "Starting PreZygoteFork";
   // Trim the pages at the end of the non moving space.
   non_moving_space_->Trim();
