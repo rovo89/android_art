@@ -35,10 +35,13 @@ define create-core-oat-host-rules
   core_oat_name :=
   core_infix :=
   core_pic_infix :=
+  core_dex2oat_dependency := $(DEX2OAT_DEPENDENCY)
 
   ifeq ($(1),optimizing)
-    # TODO: Use optimizing once all backends can compile a boot image.
-    core_compile_options += --compiler-backend=Quick
+    core_compile_options += --compiler-backend=Optimizing
+    # With the optimizing compiler, we want to rerun dex2oat whenever there is
+    # a dex2oat change to catch regressions early.
+    core_dex2oat_dependency := $(DEX2OAT)
     core_infix := -optimizing
   endif
   ifeq ($(1),interpreter)
@@ -80,7 +83,7 @@ define create-core-oat-host-rules
 $$(core_image_name): PRIVATE_CORE_COMPILE_OPTIONS := $$(core_compile_options)
 $$(core_image_name): PRIVATE_CORE_IMG_NAME := $$(core_image_name)
 $$(core_image_name): PRIVATE_CORE_OAT_NAME := $$(core_oat_name)
-$$(core_image_name): $$(HOST_CORE_DEX_LOCATIONS) $$(DEX2OAT_DEPENDENCY)
+$$(core_image_name): $$(HOST_CORE_DEX_LOCATIONS) $$(core_dex2oat_dependency)
 	@echo "host dex2oat: $$@ ($$?)"
 	@mkdir -p $$(dir $$@)
 	$$(hide) $$(DEX2OAT) --runtime-arg -Xms$(DEX2OAT_IMAGE_XMS) --runtime-arg -Xmx$(DEX2OAT_IMAGE_XMX) \
@@ -95,6 +98,7 @@ $$(core_image_name): $$(HOST_CORE_DEX_LOCATIONS) $$(DEX2OAT_DEPENDENCY)
 $$(core_oat_name): $$(core_image_name)
 
   # Clean up locally used variables.
+  core_dex2oat_dependency :=
   core_compile_options :=
   core_image_name :=
   core_oat_name :=
@@ -124,9 +128,19 @@ define create-core-oat-target-rules
   core_oat_name :=
   core_infix :=
   core_pic_infix :=
+  core_dex2oat_dependency := $(DEX2OAT_DEPENDENCY)
 
   ifeq ($(1),optimizing)
-    core_compile_options += --compiler-backend=Quick
+    ifeq ($(3)TARGET_ARCH,arm64)
+      # TODO: Enable image generation on arm64 once the backend
+      # is on par with other architectures.
+      core_compile_options += --compiler-backend=Quick
+    else
+      core_compile_options += --compiler-backend=Optimizing
+      # With the optimizing compiler, we want to rerun dex2oat whenever there is
+      # a dex2oat change to catch regressions early.
+      core_dex2oat_dependency := $(DEX2OAT)
+    endif
     core_infix := -optimizing
   endif
   ifeq ($(1),interpreter)
@@ -172,7 +186,7 @@ define create-core-oat-target-rules
 $$(core_image_name): PRIVATE_CORE_COMPILE_OPTIONS := $$(core_compile_options)
 $$(core_image_name): PRIVATE_CORE_IMG_NAME := $$(core_image_name)
 $$(core_image_name): PRIVATE_CORE_OAT_NAME := $$(core_oat_name)
-$$(core_image_name): $$(TARGET_CORE_DEX_FILES) $$(DEX2OAT_DEPENDENCY)
+$$(core_image_name): $$(TARGET_CORE_DEX_FILES) $$(core_dex2oat_dependency)
 	@echo "target dex2oat: $$@ ($$?)"
 	@mkdir -p $$(dir $$@)
 	$$(hide) $$(DEX2OAT) --runtime-arg -Xms$(DEX2OAT_XMS) --runtime-arg -Xmx$(DEX2OAT_XMX) \
@@ -187,6 +201,7 @@ $$(core_image_name): $$(TARGET_CORE_DEX_FILES) $$(DEX2OAT_DEPENDENCY)
 $$(core_oat_name): $$(core_image_name)
 
   # Clean up locally used variables.
+  core_dex2oat_dependency :=
   core_compile_options :=
   core_image_name :=
   core_oat_name :=
