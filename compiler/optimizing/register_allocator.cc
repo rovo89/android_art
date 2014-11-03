@@ -253,9 +253,6 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
     current->SetFrom(position + 1);
     current->SetRegister(output.reg());
     BlockRegister(output, position, position + 1);
-  } else if (!locations->OutputOverlapsWithInputs()) {
-    // Shift the interval's start by one to not interfere with the inputs.
-    current->SetFrom(position + 1);
   } else if (output.IsStackSlot() || output.IsDoubleStackSlot()) {
     current->SetSpillSlot(output.GetStackIndex());
   }
