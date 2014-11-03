@@ -101,7 +101,7 @@ inline void RegisterFree(AllocatorTag tag, size_t bytes) {
 
 // Tracking allocator for use with STL types, tracks how much memory is used.
 template<class T, AllocatorTag kTag>
-class TrackingAllocatorImpl {
+class TrackingAllocatorImpl : public std::allocator<T> {
  public:
   typedef typename std::allocator<T>::value_type value_type;
   typedef typename std::allocator<T>::size_type size_type;
