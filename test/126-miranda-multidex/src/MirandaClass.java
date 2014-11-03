@@ -14,12 +14,39 @@
  * limitations under the License.
  */
 
-class MirandaClass2 extends MirandaAbstract {
+/**
+ * Miranda testing.
+ */
+public class MirandaClass extends MirandaAbstract {
+
+    public MirandaClass() {}
+
     public boolean inInterface() {
         return true;
     }
 
     public int inInterface2() {
-        return 28;
+        return 27;
+    }
+
+    public boolean inAbstract() {
+        return false;
+    }
+
+    // Better not hit any of these...
+    public void inInterfaceDummy1() {
+        System.out.println("inInterfaceDummy1");
+    }
+    public void inInterfaceDummy2() {
+        System.out.println("inInterfaceDummy2");
+    }
+    public void inInterfaceDummy3() {
+        System.out.println("inInterfaceDummy3");
+    }
+    public void inInterfaceDummy4() {
+        System.out.println("inInterfaceDummy4");
+    }
+    public void inInterfaceDummy5() {
+        System.out.println("inInterfaceDummy5");
     }
 }

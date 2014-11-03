@@ -21,6 +21,8 @@ public abstract class MirandaAbstract implements MirandaInterface, MirandaInterf
 {
     protected MirandaAbstract() { }
 
+    // These will be miranda methods, as the interfaces define them, but they are not
+    // implemented in this abstract class:
     //public abstract boolean inInterface();
     //public abstract int inInterface2();
 
