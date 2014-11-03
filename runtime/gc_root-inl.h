@@ -25,13 +25,8 @@ namespace art {
 
 template<class MirrorType>
 template<ReadBarrierOption kReadBarrierOption>
-inline MirrorType* GcRoot<MirrorType>::Read() {
+inline MirrorType* GcRoot<MirrorType>::Read() const {
   return ReadBarrier::BarrierForRoot<MirrorType, kReadBarrierOption>(&root_);
-}
-
-template<class MirrorType>
-inline void GcRoot<MirrorType>::Assign(MirrorType* value) {
-  root_ = value;
 }
 
 }  // namespace art
