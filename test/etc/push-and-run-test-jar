@@ -22,6 +22,7 @@ INVOKE_WITH=""
 FLAGS=""
 TARGET_SUFFIX="32"
 GDB_TARGET_SUFFIX=""
+SECONDARY_DEX=""
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -96,6 +97,9 @@ while true; do
     elif [ "x$1" = "x--64" ]; then
         TARGET_SUFFIX="64"
         GDB_TARGET_SUFFIX="64"
+        shift
+    elif [ "x$1" = "x--secondary" ]; then
+        SECONDARY_DEX=":$DEX_LOCATION/$TEST_NAME-ex.jar"
         shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
@@ -172,7 +176,7 @@ else
 fi
 
 cmdline="cd $DEX_LOCATION && export ANDROID_DATA=$DEX_LOCATION && export DEX_LOCATION=$DEX_LOCATION && \
-    $INVOKE_WITH $gdb /system/bin/dalvikvm$TARGET_SUFFIX $FLAGS $gdbargs -XXlib:$LIB $ZYGOTE $JNI_OPTS $RELOCATE_OPT $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar Main"
+    $INVOKE_WITH $gdb /system/bin/dalvikvm$TARGET_SUFFIX $FLAGS $gdbargs -XXlib:$LIB $ZYGOTE $JNI_OPTS $RELOCATE_OPT $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar$SECONDARY_DEX Main"
 if [ "$DEV_MODE" = "y" ]; then
   echo $cmdline "$@"
 fi

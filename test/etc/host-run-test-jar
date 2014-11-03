@@ -23,6 +23,7 @@ QUIET="n"
 FLAGS=""
 COMPILER_FLAGS=""
 BUILD_BOOT_OPT=""
+SECONDARY_DEX=""
 exe="${ANDROID_HOST_OUT}/bin/dalvikvm32"
 main="Main"
 
@@ -90,6 +91,9 @@ while true; do
         shift
     elif [ "x$1" = "x--relocate" ]; then
         RELOCATE="y"
+        shift
+    elif [ "x$1" = "x--secondary" ]; then
+        SECONDARY_DEX=":$DEX_LOCATION/$TEST_NAME-ex.jar"
         shift
     elif [ "x$1" = "x-Xcompiler-option" ]; then
         shift
@@ -180,7 +184,7 @@ else
 fi
 
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
-cmdline="$INVOKE_WITH $gdb $exe $gdbargs -XXlib:$LIB $JNI_OPTS $FLAGS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar $main"
+cmdline="$INVOKE_WITH $gdb $exe $gdbargs -XXlib:$LIB $JNI_OPTS $FLAGS $INT_OPTS $DEBUGGER_OPTS $BOOT_OPT -cp $DEX_LOCATION/$TEST_NAME.jar$SECONDARY_DEX $main"
 if [ "$DEV_MODE" = "y" ]; then
   if [ "$PREBUILD" = "y" ]; then
     echo "$mkdir_cmd && $prebuild_cmd && $cmdline"
