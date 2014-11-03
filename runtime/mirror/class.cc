@@ -490,8 +490,9 @@ ArtMethod* Class::FindDeclaredVirtualMethod(const DexCache* dex_cache, uint32_t 
     for (size_t i = 0; i < NumVirtualMethods(); ++i) {
       ArtMethod* method = GetVirtualMethod(i);
       if (method->GetDexMethodIndex() == dex_method_idx &&
-          // A miranda method may have a different DexCache.
-          method->GetDexCache() == dex_cache) {
+          // A miranda method may have a different DexCache and is always created by linking,
+          // never *declared* in the class.
+          !method->IsMiranda()) {
         return method;
       }
     }
