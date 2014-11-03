@@ -33,12 +33,14 @@ public class Main {
         System.out.println("  inInterface:  " + mira.inInterface());
         System.out.println("  inInterface2: " + mira.inInterface2());
         System.out.println("  inAbstract:   " + mira.inAbstract());
+        mira.callMiranda();
 
         MirandaAbstract mira2 = new MirandaClass2();
         System.out.println("MirandaAbstract / MirandaClass2:");
         System.out.println("  inInterface:  " + mira2.inInterface());
         System.out.println("  inInterface2: " + mira2.inInterface2());
         System.out.println("  inAbstract:   " + mira2.inAbstract());
+        mira2.callMiranda();
 
         System.out.println("Test getting miranda method via reflection:");
         try {

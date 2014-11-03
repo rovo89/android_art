@@ -39,6 +39,7 @@ USE_GDB="n"
 USE_JVM="n"
 VERIFY="y"
 ZYGOTE=""
+DEX_VERIFY=""
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -176,7 +177,6 @@ if [ "$ZYGOTE" = "" ]; then
     fi
 
     if [ "$VERIFY" = "y" ]; then
-        DEX_VERIFY=""
         JVM_VERIFY_ARG="-Xverify:all"
         msg "Performing verification"
     else
@@ -234,7 +234,12 @@ fi
 
 if [ "$INTERPRETER" = "y" ]; then
     INT_OPTS="-Xint"
-    COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=interpret-only"
+    if [ "$VERIFY" = "y" ] ; then
+      COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=interpret-only"
+    else
+      COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=verify-none"
+      DEX_VERIFY="${DEX_VERIFY} -Xverify:none"
+    fi
 fi
 
 JNI_OPTS="-Xjnigreflimit:512 -Xcheck:jni"
@@ -279,6 +284,7 @@ fi
 dalvikvm_cmdline="$INVOKE_WITH $GDB $ANDROID_ROOT/bin/$DALVIKVM \
                   $GDB_ARGS \
                   $FLAGS \
+                  $DEX_VERIFY \
                   -XXlib:$LIB \
                   $PATCHOAT \
                   $DEX2OAT \
