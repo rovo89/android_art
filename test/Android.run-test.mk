@@ -383,6 +383,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   123-compiler-regressions-mt \
   124-missing-classes \
   125-gc-and-classloading \
+  126-miranda-multidex \
   300-package-override \
   301-abstract-protected \
   303-verification-stress \
