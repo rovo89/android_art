@@ -73,7 +73,7 @@ class LLVMInfo {
     std::unique_ptr<art::llvm::IRBuilder> ir_builder_;
 };
 
-struct BasicBlock;
+class BasicBlock;
 struct CallInfo;
 struct CompilationUnit;
 struct MIR;

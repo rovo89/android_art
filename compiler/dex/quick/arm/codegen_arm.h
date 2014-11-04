@@ -196,7 +196,7 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     void GenSelect(BasicBlock* bb, MIR* mir);
     void GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
                           int32_t true_val, int32_t false_val, RegStorage rs_dest,
-                          int dest_reg_class) OVERRIDE;
+                          RegisterClass dest_reg_class) OVERRIDE;
     bool GenMemBarrier(MemBarrierKind barrier_kind);
     void GenMonitorEnter(int opt_flags, RegLocation rl_src);
     void GenMonitorExit(int opt_flags, RegLocation rl_src);
@@ -251,10 +251,10 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     RegStorage AllocPreservedDouble(int s_reg);
     RegStorage AllocPreservedSingle(int s_reg);
 
-    bool WideGPRsAreAliases() OVERRIDE {
+    bool WideGPRsAreAliases() const OVERRIDE {
       return false;  // Wide GPRs are formed by pairing.
     }
-    bool WideFPRsAreAliases() OVERRIDE {
+    bool WideFPRsAreAliases() const OVERRIDE {
       return false;  // Wide FPRs are formed by pairing.
     }
 

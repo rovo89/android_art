@@ -58,22 +58,22 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/quick/x86/target_x86.cc \
 	dex/quick/x86/utility_x86.cc \
 	dex/dex_to_dex_compiler.cc \
-	dex/mir_dataflow.cc \
-	dex/mir_field_info.cc \
-	dex/mir_method_info.cc \
-	dex/mir_optimization.cc \
 	dex/bb_optimizations.cc \
 	dex/compiler_ir.cc \
+	dex/frontend.cc \
+	dex/mir_analysis.cc \
+	dex/mir_dataflow.cc \
+	dex/mir_field_info.cc \
+	dex/mir_graph.cc \
+	dex/mir_method_info.cc \
+	dex/mir_optimization.cc \
 	dex/post_opt_passes.cc \
 	dex/pass_driver_me_opts.cc \
 	dex/pass_driver_me_post_opt.cc \
-	dex/frontend.cc \
-	dex/mir_graph.cc \
-	dex/mir_analysis.cc \
+	dex/ssa_transformation.cc \
 	dex/verified_method.cc \
 	dex/verification_results.cc \
 	dex/vreg_analysis.cc \
-	dex/ssa_transformation.cc \
 	dex/quick_compiler_callbacks.cc \
 	driver/compiler_driver.cc \
 	driver/dex_compilation_unit.cc \
@@ -133,6 +133,7 @@ LIBART_COMPILER_SRC_FILES := \
 	file_output_stream.cc \
 	image_writer.cc \
 	oat_writer.cc \
+	output_stream.cc \
 	vector_output_stream.cc
 
 ifeq ($(ART_SEA_IR_MODE),true)
@@ -168,7 +169,17 @@ LIBART_COMPILER_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
 endif
 
 LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
-	dex/compiler_enums.h
+  dex/quick/arm/arm_lir.h \
+  dex/quick/arm64/arm64_lir.h \
+  dex/quick/mips/mips_lir.h \
+  dex/quick/resource_mask.h \
+  dex/compiler_enums.h \
+  dex/global_value_numbering.h \
+  dex/pass_me.h \
+  driver/compiler_driver.h \
+  driver/compiler_options.h \
+  optimizing/locations.h \
+  utils/arm/constants_arm.h
 
 # $(1): target or host
 # $(2): ndebug or debug

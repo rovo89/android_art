@@ -152,6 +152,8 @@ void Thumb2Assembler::mvns(Register rd, const ShifterOperand& so, Condition cond
 
 
 void Thumb2Assembler::mul(Register rd, Register rn, Register rm, Condition cond) {
+  CheckCondition(cond);
+
   if (rd == rm && !IsHighRegister(rd) && !IsHighRegister(rn) && !force_32bit_) {
     // 16 bit.
     int16_t encoding = B14 | B9 | B8 | B6 |
@@ -176,6 +178,8 @@ void Thumb2Assembler::mul(Register rd, Register rn, Register rm, Condition cond)
 
 void Thumb2Assembler::mla(Register rd, Register rn, Register rm, Register ra,
                           Condition cond) {
+  CheckCondition(cond);
+
   uint32_t op1 = 0U /* 0b000 */;
   uint32_t op2 = 0U /* 0b00 */;
   int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 | B24 |
@@ -192,6 +196,8 @@ void Thumb2Assembler::mla(Register rd, Register rn, Register rm, Register ra,
 
 void Thumb2Assembler::mls(Register rd, Register rn, Register rm, Register ra,
                           Condition cond) {
+  CheckCondition(cond);
+
   uint32_t op1 = 0U /* 0b000 */;
   uint32_t op2 = 01 /* 0b01 */;
   int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 | B24 |
@@ -208,6 +214,8 @@ void Thumb2Assembler::mls(Register rd, Register rn, Register rm, Register ra,
 
 void Thumb2Assembler::umull(Register rd_lo, Register rd_hi, Register rn,
                             Register rm, Condition cond) {
+  CheckCondition(cond);
+
   uint32_t op1 = 2U /* 0b010; */;
   uint32_t op2 = 0U /* 0b0000 */;
   int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 | B24 | B23 |
@@ -223,6 +231,8 @@ void Thumb2Assembler::umull(Register rd_lo, Register rd_hi, Register rn,
 
 
 void Thumb2Assembler::sdiv(Register rd, Register rn, Register rm, Condition cond) {
+  CheckCondition(cond);
+
   uint32_t op1 = 1U  /* 0b001 */;
   uint32_t op2 = 15U /* 0b1111 */;
   int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 | B24 | B23 | B20 |
@@ -238,6 +248,8 @@ void Thumb2Assembler::sdiv(Register rd, Register rn, Register rm, Condition cond
 
 
 void Thumb2Assembler::udiv(Register rd, Register rn, Register rm, Condition cond) {
+  CheckCondition(cond);
+
   uint32_t op1 = 1U  /* 0b001 */;
   uint32_t op2 = 15U /* 0b1111 */;
   int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 | B24 | B23 | B21 | B20 |
@@ -293,6 +305,7 @@ void Thumb2Assembler::ldrsh(Register rd, const Address& ad, Condition cond) {
 
 
 void Thumb2Assembler::ldrd(Register rd, const Address& ad, Condition cond) {
+  CheckCondition(cond);
   CHECK_EQ(rd % 2, 0);
   // This is different from other loads.  The encoding is like ARM.
   int32_t encoding = B31 | B30 | B29 | B27 | B22 | B20 |
@@ -304,6 +317,7 @@ void Thumb2Assembler::ldrd(Register rd, const Address& ad, Condition cond) {
 
 
 void Thumb2Assembler::strd(Register rd, const Address& ad, Condition cond) {
+  CheckCondition(cond);
   CHECK_EQ(rd % 2, 0);
   // This is different from other loads.  The encoding is like ARM.
   int32_t encoding = B31 | B30 | B29 | B27 | B22 |
@@ -609,9 +623,9 @@ void Thumb2Assembler::Emit16(int16_t value) {
 }
 
 
-bool Thumb2Assembler::Is32BitDataProcessing(Condition cond,
+bool Thumb2Assembler::Is32BitDataProcessing(Condition cond ATTRIBUTE_UNUSED,
                                             Opcode opcode,
-                                            int set_cc,
+                                            bool set_cc ATTRIBUTE_UNUSED,
                                             Register rn,
                                             Register rd,
                                             const ShifterOperand& so) {
@@ -727,9 +741,9 @@ bool Thumb2Assembler::Is32BitDataProcessing(Condition cond,
 }
 
 
-void Thumb2Assembler::Emit32BitDataProcessing(Condition cond,
+void Thumb2Assembler::Emit32BitDataProcessing(Condition cond ATTRIBUTE_UNUSED,
                                               Opcode opcode,
-                                              int set_cc,
+                                              bool set_cc,
                                               Register rn,
                                               Register rd,
                                               const ShifterOperand& so) {
@@ -789,7 +803,7 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond,
       }
       encoding = B31 | B30 | B29 | B28 |
           thumb_opcode << 21 |
-          set_cc << 20 |
+          (set_cc ? 1 : 0) << 20 |
           rn << 16 |
           rd << 8 |
           imm;
@@ -798,7 +812,7 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond,
      // Register (possibly shifted)
      encoding = B31 | B30 | B29 | B27 | B25 |
          thumb_opcode << 21 |
-         set_cc << 20 |
+         (set_cc ? 1 : 0) << 20 |
          rn << 16 |
          rd << 8 |
          so.encodingThumb();
@@ -809,7 +823,7 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond,
 
 void Thumb2Assembler::Emit16BitDataProcessing(Condition cond,
                                               Opcode opcode,
-                                              int set_cc,
+                                              bool set_cc,
                                               Register rn,
                                               Register rd,
                                               const ShifterOperand& so) {
@@ -936,9 +950,9 @@ void Thumb2Assembler::Emit16BitDataProcessing(Condition cond,
 
 
 // ADD and SUB are complex enough to warrant their own emitter.
-void Thumb2Assembler::Emit16BitAddSub(Condition cond,
+void Thumb2Assembler::Emit16BitAddSub(Condition cond ATTRIBUTE_UNUSED,
                                       Opcode opcode,
-                                      int set_cc,
+                                      bool set_cc ATTRIBUTE_UNUSED,
                                       Register rn,
                                       Register rd,
                                       const ShifterOperand& so) {
@@ -1075,7 +1089,7 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond,
 
 void Thumb2Assembler::EmitDataProcessing(Condition cond,
                                          Opcode opcode,
-                                         int set_cc,
+                                         bool set_cc,
                                          Register rn,
                                          Register rd,
                                          const ShifterOperand& so) {
@@ -1405,7 +1419,7 @@ void Thumb2Assembler::EmitLoadStore(Condition cond,
 
 
 void Thumb2Assembler::EmitMultiMemOp(Condition cond,
-                                     BlockAddressMode am,
+                                     BlockAddressMode bam,
                                      bool load,
                                      Register base,
                                      RegList regs) {
@@ -1417,7 +1431,7 @@ void Thumb2Assembler::EmitMultiMemOp(Condition cond,
     must_be_32bit = true;
   }
 
-  uint32_t w_bit = am == IA_W || am == DB_W || am == DA_W || am == IB_W;
+  bool w_bit = bam == IA_W || bam == DB_W || bam == DA_W || bam == IB_W;
   // 16 bit always uses writeback.
   if (!w_bit) {
     must_be_32bit = true;
@@ -1425,7 +1439,7 @@ void Thumb2Assembler::EmitMultiMemOp(Condition cond,
 
   if (must_be_32bit) {
     uint32_t op = 0;
-    switch (am) {
+    switch (bam) {
       case IA:
       case IA_W:
         op = 1U /* 0b01 */;
@@ -1438,7 +1452,7 @@ void Thumb2Assembler::EmitMultiMemOp(Condition cond,
       case IB:
       case DA_W:
       case IB_W:
-        LOG(FATAL) << "LDM/STM mode not supported on thumb: " << am;
+        LOG(FATAL) << "LDM/STM mode not supported on thumb: " << bam;
     }
     if (load) {
       // Cannot have SP in the list.
@@ -2353,7 +2367,6 @@ void Thumb2Assembler::AddConstantSetFlags(Register rd, Register rn, int32_t valu
     }
   }
 }
-
 
 void Thumb2Assembler::LoadImmediate(Register rd, int32_t value, Condition cond) {
   ShifterOperand shifter_op;

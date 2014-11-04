@@ -33,6 +33,7 @@
 #include "utils/array_ref.h"
 #include "utils/arena_allocator.h"
 #include "utils/arena_containers.h"
+#include "utils/arena_object.h"
 #include "utils/stack_checks.h"
 
 namespace art {
@@ -129,11 +130,11 @@ namespace art {
 #define INVALID_SREG (-1)
 #endif
 
-struct BasicBlock;
+class BasicBlock;
 struct CallInfo;
 struct CompilationUnit;
 struct InlineMethod;
-struct MIR;
+class MIR;
 struct LIR;
 struct RegisterInfo;
 class DexFileMethodInliner;
@@ -501,12 +502,11 @@ class Mir2Lir : public Backend {
     // has completed.
     //
 
-    class LIRSlowPath {
+    class LIRSlowPath : public ArenaObject<kArenaAllocSlowPaths> {
      public:
       LIRSlowPath(Mir2Lir* m2l, const DexOffset dexpc, LIR* fromfast,
                   LIR* cont = nullptr) :
         m2l_(m2l), cu_(m2l->cu_), current_dex_pc_(dexpc), fromfast_(fromfast), cont_(cont) {
-          m2l->StartSlowPath(this);
       }
       virtual ~LIRSlowPath() {}
       virtual void Compile() = 0;
@@ -694,11 +694,6 @@ class Mir2Lir : public Backend {
     void MarkPackedCaseLabels(Mir2Lir::SwitchTable* tab_rec);
     void MarkSparseCaseLabels(Mir2Lir::SwitchTable* tab_rec);
 
-    virtual void StartSlowPath(LIRSlowPath* slowpath) {}
-    virtual void BeginInvoke(CallInfo* info) {}
-    virtual void EndInvoke(CallInfo* info) {}
-
-
     // Handle bookkeeping to convert a wide RegLocation to a narrow RegLocation.  No code generated.
     virtual RegLocation NarrowRegLoc(RegLocation loc);
 
@@ -822,10 +817,9 @@ class Mir2Lir : public Backend {
     LIR* GenNullCheck(RegStorage m_reg, int opt_flags);
     LIR* GenExplicitNullCheck(RegStorage m_reg, int opt_flags);
     virtual void GenImplicitNullCheck(RegStorage reg, int opt_flags);
-    void GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
-                             RegLocation rl_src2, LIR* taken, LIR* fall_through);
-    void GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_src,
-                                 LIR* taken, LIR* fall_through);
+    void GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1, RegLocation rl_src2,
+                             LIR* taken);
+    void GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_src, LIR* taken);
     virtual void GenIntToLong(RegLocation rl_dest, RegLocation rl_src);
     void GenIntNarrowing(Instruction::Code opcode, RegLocation rl_dest,
                          RegLocation rl_src);
@@ -1350,7 +1344,7 @@ class Mir2Lir : public Backend {
      */
     virtual void GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
                                   int32_t true_val, int32_t false_val, RegStorage rs_dest,
-                                  int dest_reg_class) = 0;
+                                  RegisterClass dest_reg_class) = 0;
 
     /**
      * @brief Used to generate a memory barrier in an architecture specific way.
@@ -1452,6 +1446,7 @@ class Mir2Lir : public Backend {
     virtual bool InexpensiveConstantLong(int64_t value) = 0;
     virtual bool InexpensiveConstantDouble(int64_t value) = 0;
     virtual bool InexpensiveConstantInt(int32_t value, Instruction::Code opcode) {
+      UNUSED(opcode);
       return InexpensiveConstantInt(value);
     }
 
@@ -1642,12 +1637,12 @@ class Mir2Lir : public Backend {
     /**
      * Returns true iff wide GPRs are just different views on the same physical register.
      */
-    virtual bool WideGPRsAreAliases() = 0;
+    virtual bool WideGPRsAreAliases() const = 0;
 
     /**
      * Returns true iff wide FPRs are just different views on the same physical register.
      */
-    virtual bool WideFPRsAreAliases() = 0;
+    virtual bool WideFPRsAreAliases() const = 0;
 
 
     enum class WidenessCheck {  // private

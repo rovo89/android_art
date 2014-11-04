@@ -85,7 +85,7 @@ class CommonRuntimeTest : public testing::Test {
   virtual void SetUp();
 
   // Allow subclases such as CommonCompilerTest to add extra options.
-  virtual void SetUpRuntimeOptions(RuntimeOptions* options) {}
+  virtual void SetUpRuntimeOptions(RuntimeOptions* options ATTRIBUTE_UNUSED) {}
 
   void ClearDirectory(const char* dirpath);
 

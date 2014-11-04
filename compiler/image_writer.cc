@@ -265,7 +265,7 @@ bool ImageWriter::ComputeLazyFieldsForClassesVisitor(Class* c, void* /*arg*/) {
   return true;
 }
 
-void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg) {
+void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg ATTRIBUTE_UNUSED) {
   if (!obj->GetClass()->IsStringClass()) {
     return;
   }
@@ -661,7 +661,8 @@ class FixupClassVisitor FINAL : public FixupVisitor {
     }
   }
 
-  void operator()(mirror::Class* /*klass*/, mirror::Reference* ref) const
+  void operator()(mirror::Class* klass ATTRIBUTE_UNUSED,
+                  mirror::Reference* ref ATTRIBUTE_UNUSED) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     LOG(FATAL) << "Reference not expected here.";

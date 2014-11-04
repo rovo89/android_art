@@ -220,7 +220,7 @@ static void UnsafeLogFatalForThreadSuspendAllTimeout() {
 // individual thread requires polling. delay_us is the requested sleep and total_delay_us
 // accumulates the total time spent sleeping for timeouts. The first sleep is just a yield,
 // subsequently sleeps increase delay_us from 1ms to 500ms by doubling.
-static void ThreadSuspendSleep(Thread* self, useconds_t* delay_us, useconds_t* total_delay_us) {
+static void ThreadSuspendSleep(useconds_t* delay_us, useconds_t* total_delay_us) {
   useconds_t new_delay_us = (*delay_us) * 2;
   CHECK_GE(new_delay_us, *delay_us);
   if (new_delay_us < 500000) {  // Don't allow sleeping to be more than 0.5s.
@@ -285,7 +285,7 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
       useconds_t total_delay_us = 0;
       do {
         useconds_t delay_us = 100;
-        ThreadSuspendSleep(self, &delay_us, &total_delay_us);
+        ThreadSuspendSleep(&delay_us, &total_delay_us);
       } while (!thread->IsSuspended());
       // Shouldn't need to wait for longer than 1000 microseconds.
       constexpr useconds_t kLongWaitThresholdUS = 1000;
@@ -561,7 +561,7 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
       // Release locks and come out of runnable state.
     }
     VLOG(threads) << "SuspendThreadByPeer sleeping to allow thread chance to suspend";
-    ThreadSuspendSleep(self, &delay_us, &total_delay_us);
+    ThreadSuspendSleep(&delay_us, &total_delay_us);
   }
 }
 
@@ -639,7 +639,7 @@ Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspe
       // Release locks and come out of runnable state.
     }
     VLOG(threads) << "SuspendThreadByThreadId sleeping to allow thread chance to suspend";
-    ThreadSuspendSleep(self, &delay_us, &total_delay_us);
+    ThreadSuspendSleep(&delay_us, &total_delay_us);
   }
 }
 

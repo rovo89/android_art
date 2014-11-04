@@ -547,6 +547,11 @@ ENCODING_MAP(Cmp, IS_LOAD, 0, 0,
   { kX86RepneScasw,    kNullary, NO_OPERAND | REG_USEA | REG_USEC | SETS_CCODES, { 0x66, 0xF2, 0xAF, 0, 0, 0, 0, 0, false }, "RepNE ScasW", "" },
 };
 
+std::ostream& operator<<(std::ostream& os, const X86OpCode& rhs) {
+  os << X86Mir2Lir::EncodingMap[rhs].name;
+  return os;
+}
+
 static bool NeedsRex(int32_t raw_reg) {
   return RegStorage::RegNum(raw_reg) > 7;
 }
@@ -1631,6 +1636,7 @@ void X86Mir2Lir::EmitUnimplemented(const X86EncodingMap* entry, LIR* lir) {
  * sequence or request that the trace be shortened and retried.
  */
 AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
+  UNUSED(start_addr);
   LIR *lir;
   AssemblerStatus res = kSuccess;  // Assume success
 

@@ -647,4 +647,16 @@ bool HInstruction::Equals(HInstruction* other) const {
   return true;
 }
 
+std::ostream& operator<<(std::ostream& os, const HInstruction::InstructionKind& rhs) {
+#define DECLARE_CASE(type, super) case HInstruction::k##type: os << #type; break;
+  switch (rhs) {
+    FOR_EACH_INSTRUCTION(DECLARE_CASE)
+    default:
+      os << "Unknown instruction kind " << static_cast<int>(rhs);
+      break;
+  }
+#undef DECLARE_CASE
+  return os;
+}
+
 }  // namespace art

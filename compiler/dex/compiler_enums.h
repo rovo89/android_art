@@ -28,6 +28,7 @@ enum RegisterClass {
   kRefReg,
   kAnyReg,
 };
+std::ostream& operator<<(std::ostream& os, const RegisterClass& rhs);
 
 enum BitsUsed {
   kSize32Bits,
@@ -82,6 +83,7 @@ enum RegLocationType {
   kLocCompilerTemp,
   kLocInvalid
 };
+std::ostream& operator<<(std::ostream& os, const RegLocationType& rhs);
 
 enum BBType {
   kNullBlock,
@@ -91,6 +93,7 @@ enum BBType {
   kExceptionHandling,
   kDead,
 };
+std::ostream& operator<<(std::ostream& os, const BBType& code);
 
 // Shared pseudo opcodes - must be < 0.
 enum LIRPseudoOpcode {
@@ -111,6 +114,7 @@ enum LIRPseudoOpcode {
   kPseudoEHBlockLabel = -2,
   kPseudoNormalBlockLabel = -1,
 };
+std::ostream& operator<<(std::ostream& os, const LIRPseudoOpcode& rhs);
 
 enum ExtendedMIROpcode {
   kMirOpFirst = kNumPackedOpcodes,
@@ -334,6 +338,7 @@ enum BlockListType {
   kPackedSwitch,
   kSparseSwitch,
 };
+std::ostream& operator<<(std::ostream& os, const BlockListType& rhs);
 
 enum AssemblerStatus {
   kSuccess,

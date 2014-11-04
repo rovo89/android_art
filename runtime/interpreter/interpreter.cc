@@ -315,6 +315,10 @@ enum InterpreterImplKind {
   kSwitchImpl,            // Switch-based interpreter implementation.
   kComputedGotoImplKind   // Computed-goto-based interpreter implementation.
 };
+std::ostream& operator<<(std::ostream& os, const InterpreterImplKind& rhs) {
+  os << ((rhs == kSwitchImpl) ? "Switch-based interpreter" : "Computed-goto-based interpreter");
+  return os;
+}
 
 #if !defined(__clang__)
 static constexpr InterpreterImplKind kInterpreterImplKind = kComputedGotoImplKind;
@@ -322,8 +326,7 @@ static constexpr InterpreterImplKind kInterpreterImplKind = kComputedGotoImplKin
 // Clang 3.4 fails to build the goto interpreter implementation.
 static constexpr InterpreterImplKind kInterpreterImplKind = kSwitchImpl;
 template<bool do_access_check, bool transaction_active>
-JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
-                       ShadowFrame& shadow_frame, JValue result_register) {
+JValue ExecuteGotoImpl(Thread*, MethodHelper&, const DexFile::CodeItem*, ShadowFrame&, JValue) {
   LOG(FATAL) << "UNREACHABLE";
   UNREACHABLE();
 }

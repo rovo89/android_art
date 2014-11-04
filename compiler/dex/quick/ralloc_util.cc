@@ -316,16 +316,16 @@ RegStorage Mir2Lir::AllocPreservedFpReg(int s_reg) {
 
 // TODO: this is Thumb2 only.  Remove when DoPromotion refactored.
 RegStorage Mir2Lir::AllocPreservedDouble(int s_reg) {
-  RegStorage res;
+  UNUSED(s_reg);
   UNIMPLEMENTED(FATAL) << "Unexpected use of AllocPreservedDouble";
-  return res;
+  UNREACHABLE();
 }
 
 // TODO: this is Thumb2 only.  Remove when DoPromotion refactored.
 RegStorage Mir2Lir::AllocPreservedSingle(int s_reg) {
-  RegStorage res;
+  UNUSED(s_reg);
   UNIMPLEMENTED(FATAL) << "Unexpected use of AllocPreservedSingle";
-  return res;
+  UNREACHABLE();
 }
 
 
@@ -1392,6 +1392,7 @@ int Mir2Lir::GetSRegHi(int lowSreg) {
 }
 
 bool Mir2Lir::LiveOut(int s_reg) {
+  UNUSED(s_reg);
   // For now.
   return true;
 }

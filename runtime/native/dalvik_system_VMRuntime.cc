@@ -166,13 +166,13 @@ static jstring VMRuntime_vmInstructionSet(JNIEnv* env, jobject) {
   return env->NewStringUTF(isa_string);
 }
 
-static jboolean VMRuntime_is64Bit(JNIEnv* env, jobject) {
+static jboolean VMRuntime_is64Bit(JNIEnv*, jobject) {
   bool is64BitMode = (sizeof(void*) == sizeof(uint64_t));
   return is64BitMode ? JNI_TRUE : JNI_FALSE;
 }
 
 static jboolean VMRuntime_isCheckJniEnabled(JNIEnv* env, jobject) {
-  return Runtime::Current()->GetJavaVM()->IsCheckJniEnabled() ? JNI_TRUE : JNI_FALSE;
+  return down_cast<JNIEnvExt*>(env)->vm->IsCheckJniEnabled() ? JNI_TRUE : JNI_FALSE;
 }
 
 static void VMRuntime_setTargetSdkVersionNative(JNIEnv*, jobject, jint target_sdk_version) {
@@ -201,9 +201,10 @@ static void VMRuntime_registerNativeFree(JNIEnv* env, jobject, jint bytes) {
   Runtime::Current()->GetHeap()->RegisterNativeFree(env, static_cast<size_t>(bytes));
 }
 
-static void VMRuntime_updateProcessState(JNIEnv* env, jobject, jint process_state) {
-  Runtime::Current()->GetHeap()->UpdateProcessState(static_cast<gc::ProcessState>(process_state));
-  Runtime::Current()->UpdateProfilerState(process_state);
+static void VMRuntime_updateProcessState(JNIEnv*, jobject, jint process_state) {
+  Runtime* runtime = Runtime::Current();
+  runtime->GetHeap()->UpdateProcessState(static_cast<gc::ProcessState>(process_state));
+  runtime->UpdateProfilerState(process_state);
 }
 
 static void VMRuntime_trimHeap(JNIEnv*, jobject) {
@@ -514,8 +515,9 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
  * for ART.
  */
 static void VMRuntime_registerAppInfo(JNIEnv* env, jclass, jstring pkgName,
-                                      jstring appDir, jstring procName) {
-  const char *pkgNameChars = env->GetStringUTFChars(pkgName, NULL);
+                                      jstring appDir ATTRIBUTE_UNUSED,
+                                      jstring procName ATTRIBUTE_UNUSED) {
+  const char *pkgNameChars = env->GetStringUTFChars(pkgName, nullptr);
   std::string profileFile = StringPrintf("/data/dalvik-cache/profiles/%s", pkgNameChars);
 
   Runtime::Current()->StartProfiler(profileFile.c_str());

@@ -100,8 +100,7 @@ static jlong ZygoteHooks_nativePreFork(JNIEnv* env, jclass) {
   runtime->PreZygoteFork();
 
   // Grab thread before fork potentially makes Thread::pthread_key_self_ unusable.
-  Thread* self = Thread::Current();
-  return reinterpret_cast<jlong>(self);
+  return reinterpret_cast<jlong>(ThreadForEnv(env));
 }
 
 static void ZygoteHooks_nativePostForkChild(JNIEnv* env, jclass, jlong token, jint debug_flags,

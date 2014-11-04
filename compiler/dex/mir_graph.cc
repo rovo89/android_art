@@ -302,28 +302,28 @@ BasicBlock* MIRGraph::SplitBlock(DexOffset code_offset,
  * (by the caller)
  * Utilizes a map for fast lookup of the typical cases.
  */
-BasicBlock* MIRGraph::FindBlock(DexOffset code_offset, bool split, bool create,
+BasicBlock* MIRGraph::FindBlock(DexOffset code_offset, bool create,
                                 BasicBlock** immed_pred_block_p) {
   if (code_offset >= current_code_item_->insns_size_in_code_units_) {
-    return NULL;
+    return nullptr;
   }
 
   int block_id = dex_pc_to_block_map_[code_offset];
   BasicBlock* bb = GetBasicBlock(block_id);
 
-  if ((bb != NULL) && (bb->start_offset == code_offset)) {
+  if ((bb != nullptr) && (bb->start_offset == code_offset)) {
     // Does this containing block start with the desired instruction?
     return bb;
   }
 
   // No direct hit.
   if (!create) {
-    return NULL;
+    return nullptr;
   }
 
-  if (bb != NULL) {
+  if (bb != nullptr) {
     // The target exists somewhere in an existing block.
-    return SplitBlock(code_offset, bb, bb == *immed_pred_block_p ?  immed_pred_block_p : NULL);
+    return SplitBlock(code_offset, bb, bb == *immed_pred_block_p ?  immed_pred_block_p : nullptr);
   }
 
   // Create a new block.
@@ -360,8 +360,7 @@ void MIRGraph::ProcessTryCatchBlocks() {
     CatchHandlerIterator iterator(handlers_ptr);
     for (; iterator.HasNext(); iterator.Next()) {
       uint32_t address = iterator.GetHandlerAddress();
-      FindBlock(address, false /* split */, true /*create*/,
-                /* immed_pred_block_p */ NULL);
+      FindBlock(address, true /*create*/, /* immed_pred_block_p */ nullptr);
     }
     handlers_ptr = iterator.EndDataPointer();
   }
@@ -466,7 +465,7 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffs
       LOG(FATAL) << "Unexpected opcode(" << insn->dalvikInsn.opcode << ") with kBranch set";
   }
   CountBranch(target);
-  BasicBlock* taken_block = FindBlock(target, /* split */ true, /* create */ true,
+  BasicBlock* taken_block = FindBlock(target, /* create */ true,
                                       /* immed_pred_block_p */ &cur_block);
   cur_block->taken = taken_block->id;
   taken_block->predecessors.push_back(cur_block->id);
@@ -474,19 +473,6 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffs
   /* Always terminate the current block for conditional branches */
   if (flags & Instruction::kContinue) {
     BasicBlock* fallthrough_block = FindBlock(cur_offset +  width,
-                                             /*
-                                              * If the method is processed
-                                              * in sequential order from the
-                                              * beginning, we don't need to
-                                              * specify split for continue
-                                              * blocks. However, this
-                                              * routine can be called by
-                                              * compileLoop, which starts
-                                              * parsing the method from an
-                                              * arbitrary address in the
-                                              * method body.
-                                              */
-                                             true,
                                              /* create */
                                              true,
                                              /* immed_pred_block_p */
@@ -494,8 +480,7 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffs
     cur_block->fall_through = fallthrough_block->id;
     fallthrough_block->predecessors.push_back(cur_block->id);
   } else if (code_ptr < code_end) {
-    FindBlock(cur_offset + width, /* split */ false, /* create */ true,
-                /* immed_pred_block_p */ NULL);
+    FindBlock(cur_offset + width, /* create */ true, /* immed_pred_block_p */ nullptr);
   }
   return cur_block;
 }
@@ -503,6 +488,7 @@ BasicBlock* MIRGraph::ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffs
 /* Process instructions with the kSwitch flag */
 BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset,
                                        int width, int flags) {
+  UNUSED(flags);
   const uint16_t* switch_data =
       reinterpret_cast<const uint16_t*>(GetCurrentInsns() + cur_offset + insn->dalvikInsn.vB);
   int size;
@@ -554,8 +540,8 @@ BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffs
   cur_block->successor_blocks.reserve(size);
 
   for (i = 0; i < size; i++) {
-    BasicBlock* case_block = FindBlock(cur_offset + target_table[i], /* split */ true,
-                                      /* create */ true, /* immed_pred_block_p */ &cur_block);
+    BasicBlock* case_block = FindBlock(cur_offset + target_table[i],  /* create */ true,
+                                       /* immed_pred_block_p */ &cur_block);
     SuccessorBlockInfo* successor_block_info =
         static_cast<SuccessorBlockInfo*>(arena_->Alloc(sizeof(SuccessorBlockInfo),
                                                        kArenaAllocSuccessor));
@@ -568,8 +554,8 @@ BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffs
   }
 
   /* Fall-through case */
-  BasicBlock* fallthrough_block = FindBlock(cur_offset +  width, /* split */ false,
-                                            /* create */ true, /* immed_pred_block_p */ NULL);
+  BasicBlock* fallthrough_block = FindBlock(cur_offset +  width, /* create */ true,
+                                            /* immed_pred_block_p */ nullptr);
   cur_block->fall_through = fallthrough_block->id;
   fallthrough_block->predecessors.push_back(cur_block->id);
   return cur_block;
@@ -579,6 +565,7 @@ BasicBlock* MIRGraph::ProcessCanSwitch(BasicBlock* cur_block, MIR* insn, DexOffs
 BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset,
                                       int width, int flags, ArenaBitVector* try_block_addr,
                                       const uint16_t* code_ptr, const uint16_t* code_end) {
+  UNUSED(flags);
   bool in_try_block = try_block_addr->IsBitSet(cur_offset);
   bool is_throw = (insn->dalvikInsn.opcode == Instruction::THROW);
 
@@ -593,8 +580,8 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
     }
 
     for (; iterator.HasNext(); iterator.Next()) {
-      BasicBlock* catch_block = FindBlock(iterator.GetHandlerAddress(), false /* split*/,
-                                         false /* creat */, NULL  /* immed_pred_block_p */);
+      BasicBlock* catch_block = FindBlock(iterator.GetHandlerAddress(), false /* create */,
+                                          nullptr /* immed_pred_block_p */);
       if (insn->dalvikInsn.opcode == Instruction::MONITOR_EXIT &&
           IsBadMonitorExitCatch(insn->offset, catch_block->start_offset)) {
         // Don't allow monitor-exit to catch its own exception, http://b/15745363 .
@@ -629,8 +616,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
     cur_block->explicit_throw = true;
     if (code_ptr < code_end) {
       // Force creation of new block following THROW via side-effect.
-      FindBlock(cur_offset + width, /* split */ false, /* create */ true,
-                /* immed_pred_block_p */ NULL);
+      FindBlock(cur_offset + width, /* create */ true, /* immed_pred_block_p */ nullptr);
     }
     if (!in_try_block) {
        // Don't split a THROW that can't rethrow - we're done.
@@ -813,8 +799,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
          * Create a fallthrough block for real instructions
          * (incl. NOP).
          */
-         FindBlock(current_offset_ + width, /* split */ false, /* create */ true,
-                   /* immed_pred_block_p */ NULL);
+         FindBlock(current_offset_ + width, /* create */ true, /* immed_pred_block_p */ nullptr);
       }
     } else if (flags & Instruction::kThrow) {
       cur_block = ProcessCanThrow(cur_block, insn, current_offset_, width, flags, try_block_addr_,
@@ -837,8 +822,8 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
       }
     }
     current_offset_ += width;
-    BasicBlock* next_block = FindBlock(current_offset_, /* split */ false, /* create */
-                                      false, /* immed_pred_block_p */ NULL);
+    BasicBlock* next_block = FindBlock(current_offset_, /* create */ false,
+                                       /* immed_pred_block_p */ nullptr);
     if (next_block) {
       /*
        * The next instruction could be the target of a previously parsed

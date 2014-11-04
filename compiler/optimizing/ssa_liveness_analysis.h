@@ -25,7 +25,7 @@ class CodeGenerator;
 
 static constexpr int kNoRegister = -1;
 
-class BlockInfo : public ArenaObject {
+class BlockInfo : public ArenaObject<kArenaAllocMisc> {
  public:
   BlockInfo(ArenaAllocator* allocator, const HBasicBlock& block, size_t number_of_ssa_values)
       : block_(block),
@@ -53,7 +53,7 @@ class BlockInfo : public ArenaObject {
  * A live range contains the start and end of a range where an instruction or a temporary
  * is live.
  */
-class LiveRange : public ArenaObject {
+class LiveRange FINAL : public ArenaObject<kArenaAllocMisc> {
  public:
   LiveRange(size_t start, size_t end, LiveRange* next) : start_(start), end_(end), next_(next) {
     DCHECK_LT(start, end);
@@ -64,16 +64,16 @@ class LiveRange : public ArenaObject {
   size_t GetEnd() const { return end_; }
   LiveRange* GetNext() const { return next_; }
 
-  bool IntersectsWith(const LiveRange& other) {
+  bool IntersectsWith(const LiveRange& other) const {
     return (start_ >= other.start_ && start_ < other.end_)
         || (other.start_ >= start_ && other.start_ < end_);
   }
 
-  bool IsBefore(const LiveRange& other) {
+  bool IsBefore(const LiveRange& other) const {
     return end_ <= other.start_;
   }
 
-  void Dump(std::ostream& stream) {
+  void Dump(std::ostream& stream) const {
     stream << "[" << start_ << ", " << end_ << ")";
   }
 
@@ -90,7 +90,7 @@ class LiveRange : public ArenaObject {
 /**
  * A use position represents a live interval use at a given position.
  */
-class UsePosition : public ArenaObject {
+class UsePosition : public ArenaObject<kArenaAllocMisc> {
  public:
   UsePosition(HInstruction* user,
               size_t input_index,
@@ -137,7 +137,7 @@ class UsePosition : public ArenaObject {
  * An interval is a list of disjoint live ranges where an instruction is live.
  * Each instruction that has uses gets an interval.
  */
-class LiveInterval : public ArenaObject {
+class LiveInterval : public ArenaObject<kArenaAllocMisc> {
  public:
   static LiveInterval* MakeInterval(ArenaAllocator* allocator,
                                     Primitive::Type type,

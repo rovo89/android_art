@@ -100,7 +100,7 @@ class PACKED(4) HandleScope {
   }
 
   // Offset of link within HandleScope, used by generated code.
-  static size_t LinkOffset(size_t pointer_size) {
+  static size_t LinkOffset(size_t pointer_size ATTRIBUTE_UNUSED) {
     return 0;
   }
 

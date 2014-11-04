@@ -144,7 +144,7 @@ void Transaction::RecordWeakStringRemoval(mirror::String* s) {
   LogInternedString(log);
 }
 
-void Transaction::LogInternedString(InternStringLog& log) {
+void Transaction::LogInternedString(const InternStringLog& log) {
   Locks::intern_table_lock_->AssertExclusiveHeld(Thread::Current());
   MutexLock mu(Thread::Current(), log_lock_);
   intern_string_logs_.push_front(log);
@@ -384,7 +384,7 @@ void Transaction::ObjectLog::UndoFieldWrite(mirror::Object* obj, MemberOffset fi
       }
       break;
     default:
-      LOG(FATAL) << "Unknown value kind " << field_value.kind;
+      LOG(FATAL) << "Unknown value kind " << static_cast<int>(field_value.kind);
       break;
   }
 }
@@ -406,38 +406,38 @@ void Transaction::ObjectLog::VisitRoots(RootCallback* callback, void* arg) {
 void Transaction::InternStringLog::Undo(InternTable* intern_table) {
   DCHECK(intern_table != nullptr);
   switch (string_op_) {
-      case InternStringLog::kInsert: {
-        switch (string_kind_) {
-          case InternStringLog::kStrongString:
-            intern_table->RemoveStrongFromTransaction(str_);
-            break;
-          case InternStringLog::kWeakString:
-            intern_table->RemoveWeakFromTransaction(str_);
-            break;
-          default:
-            LOG(FATAL) << "Unknown interned string kind";
-            break;
-        }
-        break;
+    case InternStringLog::kInsert: {
+      switch (string_kind_) {
+        case InternStringLog::kStrongString:
+          intern_table->RemoveStrongFromTransaction(str_);
+          break;
+        case InternStringLog::kWeakString:
+          intern_table->RemoveWeakFromTransaction(str_);
+          break;
+        default:
+          LOG(FATAL) << "Unknown interned string kind";
+          break;
       }
-      case InternStringLog::kRemove: {
-        switch (string_kind_) {
-          case InternStringLog::kStrongString:
-            intern_table->InsertStrongFromTransaction(str_);
-            break;
-          case InternStringLog::kWeakString:
-            intern_table->InsertWeakFromTransaction(str_);
-            break;
-          default:
-            LOG(FATAL) << "Unknown interned string kind";
-            break;
-        }
-        break;
-      }
-      default:
-        LOG(FATAL) << "Unknown interned string op";
-        break;
+      break;
     }
+    case InternStringLog::kRemove: {
+      switch (string_kind_) {
+        case InternStringLog::kStrongString:
+          intern_table->InsertStrongFromTransaction(str_);
+          break;
+        case InternStringLog::kWeakString:
+          intern_table->InsertWeakFromTransaction(str_);
+          break;
+        default:
+          LOG(FATAL) << "Unknown interned string kind";
+          break;
+      }
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unknown interned string op";
+      break;
+  }
 }
 
 void Transaction::InternStringLog::VisitRoots(RootCallback* callback, void* arg) {

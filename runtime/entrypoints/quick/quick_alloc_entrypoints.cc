@@ -29,8 +29,7 @@ static constexpr bool kUseTlabFastPath = true;
 
 #define GENERATE_ENTRYPOINTS_FOR_ALLOCATOR_INST(suffix, suffix2, instrumented_bool, allocator_type) \
 extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
-    uint32_t type_idx, mirror::ArtMethod* method, Thread* self, \
-    StackReference<mirror::ArtMethod>* sp) \
+    uint32_t type_idx, mirror::ArtMethod* method, Thread* self) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
   ScopedQuickEntrypointChecks sqec(self); \
   if (kUseTlabFastPath && !instrumented_bool && allocator_type == gc::kAllocatorTypeTLAB) { \
@@ -59,6 +58,7 @@ extern "C" mirror::Object* artAllocObjectFromCode ##suffix##suffix2( \
 extern "C" mirror::Object* artAllocObjectFromCodeResolved##suffix##suffix2( \
     mirror::Class* klass, mirror::ArtMethod* method, Thread* self) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
+  UNUSED(method); \
   ScopedQuickEntrypointChecks sqec(self); \
   if (kUseTlabFastPath && !instrumented_bool && allocator_type == gc::kAllocatorTypeTLAB) { \
     if (LIKELY(klass->IsInitialized())) { \
@@ -80,11 +80,12 @@ extern "C" mirror::Object* artAllocObjectFromCodeResolved##suffix##suffix2( \
       } \
     } \
   } \
-  return AllocObjectFromCodeResolved<instrumented_bool>(klass, method, self, allocator_type); \
+  return AllocObjectFromCodeResolved<instrumented_bool>(klass, self, allocator_type); \
 } \
 extern "C" mirror::Object* artAllocObjectFromCodeInitialized##suffix##suffix2( \
     mirror::Class* klass, mirror::ArtMethod* method, Thread* self) \
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) { \
+  UNUSED(method); \
   ScopedQuickEntrypointChecks sqec(self); \
   if (kUseTlabFastPath && !instrumented_bool && allocator_type == gc::kAllocatorTypeTLAB) { \
     size_t byte_count = klass->GetObjectSize(); \
@@ -104,7 +105,7 @@ extern "C" mirror::Object* artAllocObjectFromCodeInitialized##suffix##suffix2( \
       return obj; \
     } \
   } \
-  return AllocObjectFromCodeInitialized<instrumented_bool>(klass, method, self, allocator_type); \
+  return AllocObjectFromCodeInitialized<instrumented_bool>(klass, self, allocator_type); \
 } \
 extern "C" mirror::Object* artAllocObjectFromCodeWithAccessCheck##suffix##suffix2( \
     uint32_t type_idx, mirror::ArtMethod* method, Thread* self) \

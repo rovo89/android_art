@@ -411,7 +411,6 @@ class Dex2Oat {
                      const std::string& android_root,
                      bool is_host,
                      File* oat_file,
-                     const std::string& oat_location,
                      TimingLogger* timings,
                      SafeMap<std::string, std::string>* key_value_store) {
     CHECK(key_value_store != nullptr);
@@ -535,7 +534,7 @@ class Dex2Oat {
     for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
       Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
       if (!runtime->HasCalleeSaveMethod(type)) {
-        runtime->SetCalleeSaveMethod(runtime->CreateCalleeSaveMethod(type), type);
+        runtime->SetCalleeSaveMethod(runtime->CreateCalleeSaveMethod(), type);
       }
     }
     runtime->GetClassLinker()->FixupDexCaches(runtime->GetResolutionMethod());
@@ -1462,7 +1461,6 @@ static int dex2oat(int argc, char** argv) {
                               android_root,
                               is_host,
                               oat_file.get(),
-                              oat_location,
                               &timings,
                               key_value_store.get())) {
     LOG(ERROR) << "Failed to create oat file: " << oat_location;

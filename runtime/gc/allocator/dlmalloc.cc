@@ -43,7 +43,8 @@ static void art_heap_corruption(const char* function) {
 }
 
 static void art_heap_usage_error(const char* function, void* p) {
-  LOG(::art::FATAL) << "Incorrect use of function '" << function << "' argument " << p << " not expected";
+  LOG(::art::FATAL) << "Incorrect use of function '" << function << "' argument " << p
+      << " not expected";
 }
 
 #include "globals.h"
@@ -70,7 +71,9 @@ extern "C" void DlmallocMadviseCallback(void* start, void* end, size_t used_byte
   }
 }
 
-extern "C" void DlmallocBytesAllocatedCallback(void* start, void* end, size_t used_bytes, void* arg) {
+extern "C" void DlmallocBytesAllocatedCallback(void* start ATTRIBUTE_UNUSED,
+                                               void* end ATTRIBUTE_UNUSED, size_t used_bytes,
+                                               void* arg) {
   if (used_bytes == 0) {
     return;
   }
@@ -78,7 +81,10 @@ extern "C" void DlmallocBytesAllocatedCallback(void* start, void* end, size_t us
   *bytes_allocated += used_bytes + sizeof(size_t);
 }
 
-extern "C" void DlmallocObjectsAllocatedCallback(void* start, void* end, size_t used_bytes, void* arg) {
+extern "C" void DlmallocObjectsAllocatedCallback(void* start, void* end, size_t used_bytes,
+                                                 void* arg) {
+  UNUSED(start);
+  UNUSED(end);
   if (used_bytes == 0) {
     return;
   }

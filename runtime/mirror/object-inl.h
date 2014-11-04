@@ -135,6 +135,7 @@ inline void Object::SetReadBarrierPointer(Object* rb_ptr) {
 #else
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
+  UNUSED(rb_ptr);
 #endif
 }
 
@@ -156,6 +157,7 @@ inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object*
   DCHECK_EQ(new_ref.reference_, atomic_rb_ptr->LoadRelaxed());
   return true;
 #else
+  UNUSED(expected_rb_ptr, rb_ptr);
   LOG(FATAL) << "Unreachable";
   UNREACHABLE();
 #endif
