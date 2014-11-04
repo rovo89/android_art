@@ -115,7 +115,7 @@ void SsaLivenessAnalysis::NumberInstructions() {
         instructions_from_ssa_index_.Add(current);
         current->SetSsaIndex(ssa_index++);
         current->SetLiveInterval(
-            new (graph_.GetArena()) LiveInterval(graph_.GetArena(), current->GetType(), current));
+            LiveInterval::MakeInterval(graph_.GetArena(), current->GetType(), current));
       }
       current->SetLifetimePosition(lifetime_position);
     }
@@ -132,7 +132,7 @@ void SsaLivenessAnalysis::NumberInstructions() {
         instructions_from_ssa_index_.Add(current);
         current->SetSsaIndex(ssa_index++);
         current->SetLiveInterval(
-            new (graph_.GetArena()) LiveInterval(graph_.GetArena(), current->GetType(), current));
+            LiveInterval::MakeInterval(graph_.GetArena(), current->GetType(), current));
       }
       instructions_from_lifetime_position_.Add(current);
       current->SetLifetimePosition(lifetime_position);
