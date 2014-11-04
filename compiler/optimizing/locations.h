@@ -71,16 +71,16 @@ class Location : public ValueObject {
 
   Location() : value_(kInvalid) {
     // Verify that non-constant location kinds do not interfere with kConstant.
-    COMPILE_ASSERT((kInvalid & kLocationConstantMask) != kConstant, TagError);
-    COMPILE_ASSERT((kUnallocated & kLocationConstantMask) != kConstant, TagError);
-    COMPILE_ASSERT((kStackSlot & kLocationConstantMask) != kConstant, TagError);
-    COMPILE_ASSERT((kDoubleStackSlot & kLocationConstantMask) != kConstant, TagError);
-    COMPILE_ASSERT((kRegister & kLocationConstantMask) != kConstant, TagError);
-    COMPILE_ASSERT((kQuickParameter & kLocationConstantMask) != kConstant, TagError);
-    COMPILE_ASSERT((kFpuRegister & kLocationConstantMask) != kConstant, TagError);
-    COMPILE_ASSERT((kRegisterPair & kLocationConstantMask) != kConstant, TagError);
-    COMPILE_ASSERT((kFpuRegisterPair & kLocationConstantMask) != kConstant, TagError);
-    COMPILE_ASSERT((kConstant & kLocationConstantMask) == kConstant, TagError);
+    static_assert((kInvalid & kLocationConstantMask) != kConstant, "TagError");
+    static_assert((kUnallocated & kLocationConstantMask) != kConstant, "TagError");
+    static_assert((kStackSlot & kLocationConstantMask) != kConstant, "TagError");
+    static_assert((kDoubleStackSlot & kLocationConstantMask) != kConstant, "TagError");
+    static_assert((kRegister & kLocationConstantMask) != kConstant, "TagError");
+    static_assert((kQuickParameter & kLocationConstantMask) != kConstant, "TagError");
+    static_assert((kFpuRegister & kLocationConstantMask) != kConstant, "TagError");
+    static_assert((kRegisterPair & kLocationConstantMask) != kConstant, "TagError");
+    static_assert((kFpuRegisterPair & kLocationConstantMask) != kConstant, "TagError");
+    static_assert((kConstant & kLocationConstantMask) == kConstant, "TagError");
 
     DCHECK(!IsValid());
   }

@@ -114,7 +114,7 @@ void ArenaAllocatorStatsImpl<kCount>::Dump(std::ostream& os, const Arena* first,
        << num_allocations << ", avg size: " << bytes_allocated / num_allocations << "\n";
   }
   os << "===== Allocation by kind\n";
-  COMPILE_ASSERT(arraysize(kAllocNames) == kNumArenaAllocKinds, check_arraysize_kAllocNames);
+  static_assert(arraysize(kAllocNames) == kNumArenaAllocKinds, "arraysize of kAllocNames");
   for (int i = 0; i < kNumArenaAllocKinds; i++) {
       os << kAllocNames[i] << std::setw(10) << alloc_stats_[i] << "\n";
   }
