@@ -232,13 +232,14 @@ class QuickArgumentVisitor {
               + sizeof(StackReference<mirror::ArtMethod>)),  // Skip StackReference<ArtMethod>.
           gpr_index_(0), fpr_index_(0), fpr_double_index_(0), stack_index_(0),
           cur_type_(Primitive::kPrimVoid), is_split_long_or_double_(false) {
-    COMPILE_ASSERT(kQuickSoftFloatAbi == (kNumQuickFprArgs == 0), knum_of_quick_fpr_arg_unexpected);
-    COMPILE_ASSERT(!(kQuickSoftFloatAbi && kQuickDoubleRegAlignedFloatBackFilled),
-        kdouble_align_unexpected);
+    static_assert(kQuickSoftFloatAbi == (kNumQuickFprArgs == 0),
+                  "Number of Quick FPR arguments unexpected");
+    static_assert(!(kQuickSoftFloatAbi && kQuickDoubleRegAlignedFloatBackFilled),
+                  "Double alignment unexpected");
     // For register alignment, we want to assume that counters(fpr_double_index_) are even if the
     // next register is even.
-    COMPILE_ASSERT(!kQuickDoubleRegAlignedFloatBackFilled || kNumQuickFprArgs % 2 == 0,
-        knum_quick_fpr_args_not_even);
+    static_assert(!kQuickDoubleRegAlignedFloatBackFilled || kNumQuickFprArgs % 2 == 0,
+                  "Number of Quick FPR arguments not even");
   }
 
   virtual ~QuickArgumentVisitor() {}
@@ -965,8 +966,8 @@ template<class T> class BuildNativeCallFrameStateMachine {
         delegate_(delegate) {
     // For register alignment, we want to assume that counters (gpr_index_, fpr_index_) are even iff
     // the next register is even; counting down is just to make the compiler happy...
-    COMPILE_ASSERT(kNumNativeGprArgs % 2 == 0U, knum_native_gpr_args_not_even);
-    COMPILE_ASSERT(kNumNativeFprArgs % 2 == 0U, knum_native_fpr_args_not_even);
+    static_assert(kNumNativeGprArgs % 2 == 0U, "Number of native GPR arguments not even");
+    static_assert(kNumNativeFprArgs % 2 == 0U, "Number of native FPR arguments not even");
   }
 
   virtual ~BuildNativeCallFrameStateMachine() {}

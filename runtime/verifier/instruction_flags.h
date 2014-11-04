@@ -130,7 +130,8 @@ class InstructionFlags FINAL {
   uint8_t flags_;
 };
 
-COMPILE_ASSERT(sizeof(InstructionFlags) == sizeof(uint8_t), err);
+static_assert(sizeof(InstructionFlags) == sizeof(uint8_t),
+              "Size of InstructionFlags not equal to uint8_t");
 
 }  // namespace verifier
 }  // namespace art

@@ -206,10 +206,10 @@ class DexFile {
     // (class or interface). These are all in the lower 16b and do not contain runtime flags.
     uint32_t GetJavaAccessFlags() const {
       // Make sure that none of our runtime-only flags are set.
-      COMPILE_ASSERT((kAccValidClassFlags & kAccJavaFlagsMask) == kAccValidClassFlags,
-                     valid_class_flags_not_subset_of_java_flags);
-      COMPILE_ASSERT((kAccValidInterfaceFlags & kAccJavaFlagsMask) == kAccValidInterfaceFlags,
-                     valid_interface_flags_not_subset_of_java_flags);
+      static_assert((kAccValidClassFlags & kAccJavaFlagsMask) == kAccValidClassFlags,
+                    "Valid class flags not a subset of Java flags");
+      static_assert((kAccValidInterfaceFlags & kAccJavaFlagsMask) == kAccValidInterfaceFlags,
+                    "Valid interface flags not a subset of Java flags");
 
       if ((access_flags_ & kAccInterface) != 0) {
         // Interface.

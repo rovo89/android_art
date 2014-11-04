@@ -84,7 +84,7 @@ static constexpr bool IsPowerOfTwo(T x) {
 
 template<int n, typename T>
 static inline bool IsAligned(T x) {
-  COMPILE_ASSERT((n & (n - 1)) == 0, n_not_power_of_two);
+  static_assert((n & (n - 1)) == 0, "n is not a power of two");
   return (x & (n - 1)) == 0;
 }
 
@@ -222,7 +222,7 @@ static inline bool NeedsEscaping(uint16_t ch) {
 // of V >= size of U (compile-time checked).
 template<typename U, typename V>
 static inline V bit_cast(U in) {
-  COMPILE_ASSERT(sizeof(U) <= sizeof(V), size_of_u_not_le_size_of_v);
+  static_assert(sizeof(U) <= sizeof(V), "Size of U not <= size of V");
   union {
     U u;
     V v;

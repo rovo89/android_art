@@ -186,8 +186,8 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
     size_t unused_;  // Ensures alignment of kAlignment.
   };
 
-  COMPILE_ASSERT(sizeof(BlockHeader) % kAlignment == 0,
-                 continuous_block_must_be_kAlignment_aligned);
+  static_assert(sizeof(BlockHeader) % kAlignment == 0,
+                "continuous block must be kAlignment aligned");
 
   friend class collector::MarkSweep;
   DISALLOW_COPY_AND_ASSIGN(BumpPointerSpace);

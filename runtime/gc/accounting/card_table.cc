@@ -66,7 +66,7 @@ CardTable* CardTable::Create(const uint8_t* heap_begin, size_t heap_capacity) {
   CHECK(mem_map.get() != NULL) << "couldn't allocate card table: " << error_msg;
   // All zeros is the correct initial value; all clean. Anonymous mmaps are initialized to zero, we
   // don't clear the card table to avoid unnecessary pages being allocated
-  COMPILE_ASSERT(kCardClean == 0, card_clean_must_be_0);
+  static_assert(kCardClean == 0, "kCardClean must be 0");
 
   uint8_t* cardtable_begin = mem_map->Begin();
   CHECK(cardtable_begin != NULL);
@@ -98,7 +98,7 @@ void CardTable::ClearSpaceCards(space::ContinuousSpace* space) {
 }
 
 void CardTable::ClearCardTable() {
-  COMPILE_ASSERT(kCardClean == 0, clean_card_must_be_0);
+  static_assert(kCardClean == 0, "kCardClean must be 0");
   mem_map_->MadviseDontNeedAndZero();
 }
 
