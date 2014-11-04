@@ -84,13 +84,13 @@ struct JdwpAdbState : public JdwpNetStateBase {
     shutting_down_ = true;
 
     int control_sock = this->control_sock_;
-    int clientSock = this->clientSock;
+    int local_clientSock = this->clientSock;
 
     /* clear these out so it doesn't wake up and try to reuse them */
     this->control_sock_ = this->clientSock = -1;
 
-    if (clientSock != -1) {
-      shutdown(clientSock, SHUT_RDWR);
+    if (local_clientSock != -1) {
+      shutdown(local_clientSock, SHUT_RDWR);
     }
 
     if (control_sock != -1) {

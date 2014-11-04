@@ -22,10 +22,10 @@ void SsaDeadPhiElimination::Run() {
   // Add to the worklist phis referenced by non-phi instructions.
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-      HPhi* phi = it.Current()->AsPhi();
-      for (HUseIterator<HInstruction> it(phi->GetUses()); !it.Done(); it.Advance()) {
-        HUseListNode<HInstruction>* current = it.Current();
+    for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+      HPhi* phi = inst_it.Current()->AsPhi();
+      for (HUseIterator<HInstruction> use_it(phi->GetUses()); !use_it.Done(); use_it.Advance()) {
+        HUseListNode<HInstruction>* current = use_it.Current();
         HInstruction* user = current->GetUser();
         if (!user->IsPhi()) {
           worklist_.Add(phi);
@@ -61,8 +61,9 @@ void SsaDeadPhiElimination::Run() {
       next = current->GetNext();
       if (current->AsPhi()->IsDead()) {
         if (current->HasUses()) {
-          for (HUseIterator<HInstruction> it(current->GetUses()); !it.Done(); it.Advance()) {
-            HUseListNode<HInstruction>* user_node = it.Current();
+          for (HUseIterator<HInstruction> use_it(current->GetUses()); !use_it.Done();
+               use_it.Advance()) {
+            HUseListNode<HInstruction>* user_node = use_it.Current();
             HInstruction* user = user_node->GetUser();
             DCHECK(user->IsLoopHeaderPhi());
             DCHECK(user->AsPhi()->IsDead());
@@ -72,8 +73,9 @@ void SsaDeadPhiElimination::Run() {
           }
         }
         if (current->HasEnvironmentUses()) {
-          for (HUseIterator<HEnvironment> it(current->GetEnvUses()); !it.Done(); it.Advance()) {
-            HUseListNode<HEnvironment>* user_node = it.Current();
+          for (HUseIterator<HEnvironment> use_it(current->GetEnvUses()); !use_it.Done();
+               use_it.Advance()) {
+            HUseListNode<HEnvironment>* user_node = use_it.Current();
             HEnvironment* user = user_node->GetUser();
             user->SetRawEnvAt(user_node->GetIndex(), nullptr);
             current->RemoveEnvironmentUser(user, user_node->GetIndex());
@@ -90,8 +92,8 @@ void SsaRedundantPhiElimination::Run() {
   // Add all phis in the worklist.
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-      worklist_.Add(it.Current()->AsPhi());
+    for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+      worklist_.Add(inst_it.Current()->AsPhi());
     }
   }
 

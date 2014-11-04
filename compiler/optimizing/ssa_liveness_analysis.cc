@@ -107,8 +107,8 @@ void SsaLivenessAnalysis::NumberInstructions() {
     HBasicBlock* block = it.Current();
     block->SetLifetimeStart(lifetime_position);
 
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-      HInstruction* current = it.Current();
+    for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+      HInstruction* current = inst_it.Current();
       current->Accept(location_builder);
       LocationSummary* locations = current->GetLocations();
       if (locations != nullptr && locations->Out().IsValid()) {
@@ -124,8 +124,9 @@ void SsaLivenessAnalysis::NumberInstructions() {
     // Add a null marker to notify we are starting a block.
     instructions_from_lifetime_position_.Add(nullptr);
 
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-      HInstruction* current = it.Current();
+    for (HInstructionIterator inst_it(block->GetInstructions()); !inst_it.Done();
+         inst_it.Advance()) {
+      HInstruction* current = inst_it.Current();
       current->Accept(codegen_->GetLocationBuilder());
       LocationSummary* locations = current->GetLocations();
       if (locations != nullptr && locations->Out().IsValid()) {
@@ -178,8 +179,8 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
       HBasicBlock* successor = block->GetSuccessors().Get(i);
       live_in->Union(GetLiveInSet(*successor));
       size_t phi_input_index = successor->GetPredecessorIndexOf(block);
-      for (HInstructionIterator it(successor->GetPhis()); !it.Done(); it.Advance()) {
-        HInstruction* phi = it.Current();
+      for (HInstructionIterator inst_it(successor->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+        HInstruction* phi = inst_it.Current();
         HInstruction* input = phi->InputAt(phi_input_index);
         input->GetLiveInterval()->AddPhiUse(phi, phi_input_index, block);
         // A phi input whose last user is the phi dies at the end of the predecessor block,
@@ -195,8 +196,9 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
       current->GetLiveInterval()->AddRange(block->GetLifetimeStart(), block->GetLifetimeEnd());
     }
 
-    for (HBackwardInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-      HInstruction* current = it.Current();
+    for (HBackwardInstructionIterator back_it(block->GetInstructions()); !back_it.Done();
+         back_it.Advance()) {
+      HInstruction* current = back_it.Current();
       if (current->HasSsaIndex()) {
         // Kill the instruction and shorten its interval.
         kill->SetBit(current->GetSsaIndex());
@@ -230,8 +232,8 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
     }
 
     // Kill phis defined in this block.
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-      HInstruction* current = it.Current();
+    for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+      HInstruction* current = inst_it.Current();
       if (current->HasSsaIndex()) {
         kill->SetBit(current->GetSsaIndex());
         live_in->ClearBit(current->GetSsaIndex());

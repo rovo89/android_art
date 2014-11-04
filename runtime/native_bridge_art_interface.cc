@@ -25,7 +25,7 @@
 
 namespace art {
 
-const char* GetMethodShorty(JNIEnv* env, jmethodID mid) {
+static const char* GetMethodShorty(JNIEnv* env, jmethodID mid) {
   ScopedObjectAccess soa(env);
   StackHandleScope<1> scope(soa.Self());
   mirror::ArtMethod* m = soa.DecodeMethod(mid);
@@ -33,7 +33,7 @@ const char* GetMethodShorty(JNIEnv* env, jmethodID mid) {
   return mh.GetShorty();
 }
 
-uint32_t GetNativeMethodCount(JNIEnv* env, jclass clazz) {
+static uint32_t GetNativeMethodCount(JNIEnv* env, jclass clazz) {
   if (clazz == nullptr)
     return 0;
 
@@ -56,8 +56,8 @@ uint32_t GetNativeMethodCount(JNIEnv* env, jclass clazz) {
   return native_method_count;
 }
 
-uint32_t GetNativeMethods(JNIEnv* env, jclass clazz, JNINativeMethod* methods,
-                          uint32_t method_count) {
+static uint32_t GetNativeMethods(JNIEnv* env, jclass clazz, JNINativeMethod* methods,
+                                 uint32_t method_count) {
   if ((clazz == nullptr) || (methods == nullptr)) {
     return 0;
   }
@@ -121,6 +121,8 @@ void PreInitializeNativeBridge(std::string dir) {
     LOG(WARNING) << "Could not create mount namespace.";
   }
   android::PreInitializeNativeBridge(dir.c_str(), GetInstructionSetString(kRuntimeISA));
+#else
+  UNUSED(dir);
 #endif
 }
 

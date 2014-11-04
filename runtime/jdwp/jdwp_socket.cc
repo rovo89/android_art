@@ -170,20 +170,20 @@ static JdwpSocketState* SocketStartup(JdwpState* state, uint16_t port, bool prob
  * for an open port.)
  */
 void JdwpSocketState::Shutdown() {
-  int listenSock = this->listenSock;
-  int clientSock = this->clientSock;
+  int local_listenSock = this->listenSock;
+  int local_clientSock = this->clientSock;
 
   /* clear these out so it doesn't wake up and try to reuse them */
   this->listenSock = this->clientSock = -1;
 
   /* "shutdown" dislodges blocking read() and accept() calls */
-  if (listenSock != -1) {
-    shutdown(listenSock, SHUT_RDWR);
-    close(listenSock);
+  if (local_listenSock != -1) {
+    shutdown(local_listenSock, SHUT_RDWR);
+    close(local_listenSock);
   }
-  if (clientSock != -1) {
-    shutdown(clientSock, SHUT_RDWR);
-    close(clientSock);
+  if (local_clientSock != -1) {
+    shutdown(local_clientSock, SHUT_RDWR);
+    close(local_clientSock);
   }
 
   WakePipe();

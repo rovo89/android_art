@@ -341,8 +341,7 @@ static void CommonWaitSetup(MonitorTest* test, ClassLinker* class_linker, uint64
 
   // Wake the watchdog.
   {
-    Thread* self = Thread::Current();
-    ScopedObjectAccess soa(self);
+    ScopedObjectAccess soa(Thread::Current());
 
     test->watchdog_object_.Get()->MonitorEnter(self);     // Lock the object.
     test->watchdog_object_.Get()->NotifyAll(self);        // Wake up waiting parties.

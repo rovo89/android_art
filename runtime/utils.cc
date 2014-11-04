@@ -1109,8 +1109,8 @@ std::string GetSchedulerGroupName(pid_t tid) {
     Split(cgroup_lines[i], ':', &cgroup_fields);
     std::vector<std::string> cgroups;
     Split(cgroup_fields[1], ',', &cgroups);
-    for (size_t i = 0; i < cgroups.size(); ++i) {
-      if (cgroups[i] == "cpu") {
+    for (size_t j = 0; j < cgroups.size(); ++j) {
+      if (cgroups[j] == "cpu") {
         return cgroup_fields[2].substr(1);  // Skip the leading slash.
       }
     }

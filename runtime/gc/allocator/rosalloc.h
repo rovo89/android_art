@@ -616,6 +616,10 @@ class RosAlloc {
 };
 std::ostream& operator<<(std::ostream& os, const RosAlloc::PageMapKind& rhs);
 
+// Callback from rosalloc when it needs to increase the footprint. Must be implemented somewhere
+// else (currently rosalloc_space.cc).
+void* ArtRosAllocMoreCore(allocator::RosAlloc* rosalloc, intptr_t increment);
+
 }  // namespace allocator
 }  // namespace gc
 }  // namespace art

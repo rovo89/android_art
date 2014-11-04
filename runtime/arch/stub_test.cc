@@ -732,17 +732,17 @@ static void TestUnlockObject(StubTest* test) NO_THREAD_SAFETY_ANALYSIS {
         EXPECT_EQ(LockWord::LockState::kFatLocked, iter_state);
       }
     } else {
-      bool lock;  // Whether to lock or unlock in this step.
+      bool take_lock;  // Whether to lock or unlock in this step.
       if (counts[index] == 0) {
-        lock = true;
+        take_lock = true;
       } else if (counts[index] == kThinLockLoops) {
-        lock = false;
+        take_lock = false;
       } else {
         // Randomly.
-        lock = r.next() % 2 == 0;
+        take_lock = r.next() % 2 == 0;
       }
 
-      if (lock) {
+      if (take_lock) {
         test->Invoke3(reinterpret_cast<size_t>(objects[index].Get()), 0U, 0U, art_quick_lock_object,
                       self);
         counts[index]++;
@@ -1779,8 +1779,8 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
     Handle<mirror::ObjectArray<mirror::ArtField>> fields(hs.NewHandle(c.Get()->GetSFields()));
     int32_t num_fields = fields->GetLength();
     for (int32_t i = 0; i < num_fields; ++i) {
-      StackHandleScope<1> hs(self);
-      Handle<mirror::ArtField> f(hs.NewHandle(fields->Get(i)));
+      StackHandleScope<1> hs2(self);
+      Handle<mirror::ArtField> f(hs2.NewHandle(fields->Get(i)));
 
       Primitive::Type type = f->GetTypeAsPrimitiveType();
       switch (type) {
@@ -1834,8 +1834,8 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
     Handle<mirror::ObjectArray<mirror::ArtField>> fields(hs.NewHandle(c.Get()->GetIFields()));
     int32_t num_fields = fields->GetLength();
     for (int32_t i = 0; i < num_fields; ++i) {
-      StackHandleScope<1> hs(self);
-      Handle<mirror::ArtField> f(hs.NewHandle(fields->Get(i)));
+      StackHandleScope<1> hs2(self);
+      Handle<mirror::ArtField> f(hs2.NewHandle(fields->Get(i)));
 
       Primitive::Type type = f->GetTypeAsPrimitiveType();
       switch (type) {

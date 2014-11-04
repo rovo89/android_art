@@ -40,9 +40,9 @@ inline bool HeapBitmap::Test(const mirror::Object* obj) {
   if (LIKELY(bitmap != nullptr)) {
     return bitmap->Test(obj);
   }
-  for (const auto& bitmap : large_object_bitmaps_) {
-    if (LIKELY(bitmap->HasAddress(obj))) {
-      return bitmap->Test(obj);
+  for (const auto& lo_bitmap : large_object_bitmaps_) {
+    if (LIKELY(lo_bitmap->HasAddress(obj))) {
+      return lo_bitmap->Test(obj);
     }
   }
   LOG(FATAL) << "Invalid object " << obj;
@@ -55,9 +55,9 @@ inline void HeapBitmap::Clear(const mirror::Object* obj) {
     bitmap->Clear(obj);
     return;
   }
-  for (const auto& bitmap : large_object_bitmaps_) {
-    if (LIKELY(bitmap->HasAddress(obj))) {
-      bitmap->Clear(obj);
+  for (const auto& lo_bitmap : large_object_bitmaps_) {
+    if (LIKELY(lo_bitmap->HasAddress(obj))) {
+      lo_bitmap->Clear(obj);
     }
   }
   LOG(FATAL) << "Invalid object " << obj;
@@ -70,9 +70,9 @@ inline bool HeapBitmap::Set(const mirror::Object* obj, const LargeObjectSetVisit
     return bitmap->Set(obj);
   }
   visitor(obj);
-  for (const auto& bitmap : large_object_bitmaps_) {
-    if (LIKELY(bitmap->HasAddress(obj))) {
-      return bitmap->Set(obj);
+  for (const auto& lo_bitmap : large_object_bitmaps_) {
+    if (LIKELY(lo_bitmap->HasAddress(obj))) {
+      return lo_bitmap->Set(obj);
     }
   }
   LOG(FATAL) << "Invalid object " << obj;
@@ -87,9 +87,9 @@ inline bool HeapBitmap::AtomicTestAndSet(const mirror::Object* obj,
     return bitmap->AtomicTestAndSet(obj);
   }
   visitor(obj);
-  for (const auto& bitmap : large_object_bitmaps_) {
-    if (LIKELY(bitmap->HasAddress(obj))) {
-      return bitmap->AtomicTestAndSet(obj);
+  for (const auto& lo_bitmap : large_object_bitmaps_) {
+    if (LIKELY(lo_bitmap->HasAddress(obj))) {
+      return lo_bitmap->AtomicTestAndSet(obj);
     }
   }
   LOG(FATAL) << "Invalid object " << obj;

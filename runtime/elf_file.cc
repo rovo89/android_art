@@ -60,6 +60,7 @@ extern "C" {
   // GDB will place breakpoint into this function.
   // To prevent GCC from inlining or removing it we place noinline attribute
   // and inline assembler statement inside.
+  void __attribute__((noinline)) __jit_debug_register_code();
   void __attribute__((noinline)) __jit_debug_register_code() {
     __asm__("");
   }
@@ -2396,22 +2397,22 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Shdr* sh = GetSectionHeader(i);
     CHECK(sh != nullptr);
     if (sh->sh_type == SHT_REL) {
-      for (uint32_t i = 0; i < GetRelNum(*sh); i++) {
-        Elf_Rel& rel = GetRel(*sh, i);
+      for (uint32_t j = 0; j < GetRelNum(*sh); j++) {
+        Elf_Rel& rel = GetRel(*sh, j);
         if (DEBUG_FIXUP) {
           LOG(INFO) << StringPrintf("In %s moving Elf_Rel[%d] from 0x%" PRIx64 " to 0x%" PRIx64,
-                                    GetFile().GetPath().c_str(), i,
+                                    GetFile().GetPath().c_str(), j,
                                     static_cast<uint64_t>(rel.r_offset),
                                     static_cast<uint64_t>(rel.r_offset + base_address));
         }
         rel.r_offset += base_address;
       }
     } else if (sh->sh_type == SHT_RELA) {
-      for (uint32_t i = 0; i < GetRelaNum(*sh); i++) {
-        Elf_Rela& rela = GetRela(*sh, i);
+      for (uint32_t j = 0; j < GetRelaNum(*sh); j++) {
+        Elf_Rela& rela = GetRela(*sh, j);
         if (DEBUG_FIXUP) {
           LOG(INFO) << StringPrintf("In %s moving Elf_Rela[%d] from 0x%" PRIx64 " to 0x%" PRIx64,
-                                    GetFile().GetPath().c_str(), i,
+                                    GetFile().GetPath().c_str(), j,
                                     static_cast<uint64_t>(rela.r_offset),
                                     static_cast<uint64_t>(rela.r_offset + base_address));
         }

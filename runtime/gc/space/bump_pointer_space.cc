@@ -188,11 +188,11 @@ void BumpPointerSpace::Walk(ObjectCallback* callback, void* arg) {
     size_t block_size = header->size_;
     pos += sizeof(BlockHeader);  // Skip the header so that we know where the objects
     mirror::Object* obj = reinterpret_cast<mirror::Object*>(pos);
-    const mirror::Object* end = reinterpret_cast<const mirror::Object*>(pos + block_size);
-    CHECK_LE(reinterpret_cast<const uint8_t*>(end), End());
+    const mirror::Object* end_obj = reinterpret_cast<const mirror::Object*>(pos + block_size);
+    CHECK_LE(reinterpret_cast<const uint8_t*>(end_obj), End());
     // We don't know how many objects are allocated in the current block. When we hit a null class
     // assume its the end. TODO: Have a thread update the header when it flushes the block?
-    while (obj < end && obj->GetClass() != nullptr) {
+    while (obj < end_obj && obj->GetClass() != nullptr) {
       callback(obj, arg);
       obj = GetNextObject(obj);
     }

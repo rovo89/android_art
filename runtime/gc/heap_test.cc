@@ -48,8 +48,8 @@ TEST_F(HeapTest, GarbageCollectClassLinkerInit) {
     Handle<mirror::Class> c(
         hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "[Ljava/lang/Object;")));
     for (size_t i = 0; i < 1024; ++i) {
-      StackHandleScope<1> hs(soa.Self());
-      Handle<mirror::ObjectArray<mirror::Object>> array(hs.NewHandle(
+      StackHandleScope<1> hs2(soa.Self());
+      Handle<mirror::ObjectArray<mirror::Object>> array(hs2.NewHandle(
           mirror::ObjectArray<mirror::Object>::Alloc(soa.Self(), c.Get(), 2048)));
       for (size_t j = 0; j < 2048; ++j) {
         mirror::String* string = mirror::String::AllocFromModifiedUtf8(soa.Self(), "hello, world!");

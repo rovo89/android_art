@@ -28,7 +28,12 @@
 #endif
 
 #include "base/stringprintf.h"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include "ScopedFd.h"
+#pragma GCC diagnostic pop
+
 #include "thread-inl.h"
 #include "utils.h"
 

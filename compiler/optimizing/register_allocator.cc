@@ -126,11 +126,12 @@ void RegisterAllocator::AllocateRegistersInternal() {
   // is the one with the lowest start position.
   for (HLinearPostOrderIterator it(liveness_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
-    for (HBackwardInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-      ProcessInstruction(it.Current());
+    for (HBackwardInstructionIterator back_it(block->GetInstructions()); !back_it.Done();
+         back_it.Advance()) {
+      ProcessInstruction(back_it.Current());
     }
-    for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-      ProcessInstruction(it.Current());
+    for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+      ProcessInstruction(inst_it.Current());
     }
   }
 
@@ -1201,8 +1202,8 @@ void RegisterAllocator::Resolve() {
   // Resolve phi inputs. Order does not matter.
   for (HLinearOrderIterator it(liveness_); !it.Done(); it.Advance()) {
     HBasicBlock* current = it.Current();
-    for (HInstructionIterator it(current->GetPhis()); !it.Done(); it.Advance()) {
-      HInstruction* phi = it.Current();
+    for (HInstructionIterator inst_it(current->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+      HInstruction* phi = inst_it.Current();
       for (size_t i = 0, e = current->GetPredecessors().Size(); i < e; ++i) {
         HBasicBlock* predecessor = current->GetPredecessors().Get(i);
         DCHECK_EQ(predecessor->GetSuccessors().Size(), 1u);
