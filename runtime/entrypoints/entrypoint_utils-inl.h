@@ -541,8 +541,7 @@ static inline mirror::ArtMethod* FindMethodFast(uint32_t method_idx,
                                                 mirror::Object* this_object,
                                                 mirror::ArtMethod* referrer,
                                                 bool access_check, InvokeType type) {
-  bool is_direct = type == kStatic || type == kDirect;
-  if (UNLIKELY(this_object == NULL && !is_direct)) {
+  if (UNLIKELY(this_object == NULL && type != kStatic)) {
     return NULL;
   }
   mirror::ArtMethod* resolved_method =
@@ -567,7 +566,7 @@ static inline mirror::ArtMethod* FindMethodFast(uint32_t method_idx,
   }
   if (type == kInterface) {  // Most common form of slow path dispatch.
     return this_object->GetClass()->FindVirtualMethodForInterface(resolved_method);
-  } else if (is_direct) {
+  } else if (type == kStatic || type == kDirect) {
     return resolved_method;
   } else if (type == kSuper) {
     return referrer->GetDeclaringClass()->GetSuperClass()
