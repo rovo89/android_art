@@ -32,7 +32,7 @@ class ArchTest : public CommonRuntimeTest {
     t->TransitionFromSuspendedToRunnable();  // So we can create callee-save methods.
 
     r->SetInstructionSet(isa);
-    mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod(type);
+    mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod();
     r->SetCalleeSaveMethod(save_method, type);
     QuickMethodFrameInfo frame_info = save_method->GetQuickFrameInfo();
     EXPECT_EQ(frame_info.FrameSizeInBytes(), save_size) << "Expected and real size differs for "

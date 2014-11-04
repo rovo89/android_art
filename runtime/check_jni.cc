@@ -512,7 +512,7 @@ class ScopedCheck {
     return true;
   }
 
-  bool CheckReferenceKind(IndirectRefKind expected_kind, JavaVMExt* vm, Thread* self, jobject obj) {
+  bool CheckReferenceKind(IndirectRefKind expected_kind, Thread* self, jobject obj) {
     IndirectRefKind found_kind;
     if (expected_kind == kLocal) {
       found_kind = GetIndirectRefKind(obj);
@@ -2398,7 +2398,7 @@ class CheckJNI {
       }
       if (sc.Check(soa, false, "L", &result)) {
         DCHECK_EQ(IsSameObject(env, obj, result.L), JNI_TRUE);
-        DCHECK(sc.CheckReferenceKind(kind, soa.Vm(), soa.Self(), result.L));
+        DCHECK(sc.CheckReferenceKind(kind, soa.Self(), result.L));
         return result.L;
       }
     }
@@ -2410,7 +2410,7 @@ class CheckJNI {
     ScopedCheck sc(kFlag_ExcepOkay, function_name);
     JniValueType args[2] = {{.E = env}, {.L = obj}};
     sc.Check(soa, true, "EL", args);
-    if (sc.CheckReferenceKind(kind, soa.Vm(), soa.Self(), obj)) {
+    if (sc.CheckReferenceKind(kind, soa.Self(), obj)) {
       JniValueType result;
       switch (kind) {
         case kGlobal:
@@ -3116,7 +3116,7 @@ class CheckJNI {
   static jarray NewPrimitiveArray(const char* function_name, JNIEnv* env, jsize length,
                                   Primitive::Type type) {
     ScopedObjectAccess soa(env);
-    ScopedCheck sc(kFlag_Default, __FUNCTION__);
+    ScopedCheck sc(kFlag_Default, function_name);
     JniValueType args[2] = {{.E = env}, {.z = length}};
     if (sc.Check(soa, true, "Ez", args)) {
       JniValueType result;

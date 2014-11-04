@@ -229,7 +229,7 @@ class QuickArgumentVisitor {
           gpr_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset),
           fpr_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset),
           stack_args_(reinterpret_cast<uint8_t*>(sp) + kQuickCalleeSaveFrame_RefAndArgs_FrameSize
-                      + StackArgumentStartFromShorty(is_static, shorty, shorty_len)),
+              + sizeof(StackReference<mirror::ArtMethod>)),  // Skip StackReference<ArtMethod>.
           gpr_index_(0), fpr_index_(0), fpr_double_index_(0), stack_index_(0),
           cur_type_(Primitive::kPrimVoid), is_split_long_or_double_(false) {
     COMPILE_ASSERT(kQuickSoftFloatAbi == (kNumQuickFprArgs == 0), knum_of_quick_fpr_arg_unexpected);
@@ -407,13 +407,6 @@ class QuickArgumentVisitor {
           LOG(FATAL) << "Unexpected type: " << cur_type_ << " in " << shorty_;
       }
     }
-  }
-
- private:
-  static size_t StackArgumentStartFromShorty(bool is_static, const char* shorty,
-                                             uint32_t shorty_len) {
-    // 'stack_args_' points to the first method's argument
-    return sizeof(StackReference<mirror::ArtMethod>);  // Skip StackReference<ArtMethod>.
   }
 
  protected:
@@ -1234,7 +1227,9 @@ class ComputeNativeCallFrameSize {
   }
 
   virtual void WalkHeader(BuildNativeCallFrameStateMachine<ComputeNativeCallFrameSize>* sm)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {}
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    UNUSED(sm);
+  }
 
   void Walk(const char* shorty, uint32_t shorty_len) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     BuildNativeCallFrameStateMachine<ComputeNativeCallFrameSize> sm(this);
@@ -1366,8 +1361,7 @@ class ComputeGenericJniFrameSize FINAL : public ComputeNativeCallFrameSize {
 
   // WARNING: After this, *sp won't be pointing to the method anymore!
   uint8_t* ComputeLayout(Thread* self, StackReference<mirror::ArtMethod>** m,
-                         bool is_static, const char* shorty, uint32_t shorty_len,
-                         HandleScope** handle_scope,
+                         const char* shorty, uint32_t shorty_len, HandleScope** handle_scope,
                          uintptr_t** start_stack, uintptr_t** start_gpr, uint32_t** start_fpr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Walk(shorty, shorty_len);
@@ -1441,9 +1435,9 @@ class FillNativeCall {
     cur_stack_arg_++;
   }
 
-  virtual uintptr_t PushHandle(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  virtual uintptr_t PushHandle(mirror::Object*) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     LOG(FATAL) << "(Non-JNI) Native call does not use handles.";
-    return 0U;
+    UNREACHABLE();
   }
 
  private:
@@ -1464,7 +1458,7 @@ class BuildGenericJniFrameVisitor FINAL : public QuickArgumentVisitor {
     uintptr_t* start_gpr_reg;
     uint32_t* start_fpr_reg;
     uintptr_t* start_stack_arg;
-    bottom_of_used_area_ = fsc.ComputeLayout(self, sp, is_static, shorty, shorty_len,
+    bottom_of_used_area_ = fsc.ComputeLayout(self, sp, shorty, shorty_len,
                                              &handle_scope_,
                                              &start_stack_arg,
                                              &start_gpr_reg, &start_fpr_reg);

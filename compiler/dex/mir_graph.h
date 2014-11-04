@@ -228,7 +228,8 @@ struct SSARepresentation {
  * The Midlevel Intermediate Representation node, which may be largely considered a
  * wrapper around a Dalvik byte code.
  */
-struct MIR {
+class MIR : public ArenaObject<kArenaAllocMIR> {
+ public:
   /*
    * TODO: remove embedded DecodedInstruction to save space, keeping only opcode.  Recover
    * additional fields on as-needed basis.  Question: how to support MIR Pseudo-ops; probably
@@ -344,16 +345,12 @@ struct MIR {
 
   MIR* Copy(CompilationUnit *c_unit);
   MIR* Copy(MIRGraph* mir_Graph);
-
-  static void* operator new(size_t size, ArenaAllocator* arena) {
-    return arena->Alloc(sizeof(MIR), kArenaAllocMIR);
-  }
-  static void operator delete(void* p) {}  // Nop.
 };
 
 struct SuccessorBlockInfo;
 
-struct BasicBlock {
+class BasicBlock : public DeletableArenaObject<kArenaAllocBB> {
+ public:
   BasicBlock(BasicBlockId block_id, BBType type, ArenaAllocator* allocator)
       : id(block_id),
         dfs_id(), start_offset(), fall_through(), taken(), i_dom(), nesting_depth(),
@@ -457,10 +454,8 @@ struct BasicBlock {
   MIR* GetNextUnconditionalMir(MIRGraph* mir_graph, MIR* current);
   bool IsExceptionBlock() const;
 
-  static void* operator new(size_t size, ArenaAllocator* arena) {
-    return arena->Alloc(sizeof(BasicBlock), kArenaAllocBB);
-  }
-  static void operator delete(void* p) {}  // Nop.
+ private:
+  DISALLOW_COPY_AND_ASSIGN(BasicBlock);
 };
 
 /*
@@ -548,7 +543,7 @@ class MIRGraph {
 
   /* Find existing block */
   BasicBlock* FindBlock(DexOffset code_offset) {
-    return FindBlock(code_offset, false, false, NULL);
+    return FindBlock(code_offset, false, NULL);
   }
 
   const uint16_t* GetCurrentInsns() const {
@@ -627,7 +622,7 @@ class MIRGraph {
     return def_count_;
   }
 
-  ArenaAllocator* GetArena() {
+  ArenaAllocator* GetArena() const {
     return arena_;
   }
 
@@ -1135,7 +1130,7 @@ class MIRGraph {
    * @brief Count the uses in the BasicBlock
    * @param bb the BasicBlock
    */
-  void CountUses(struct BasicBlock* bb);
+  void CountUses(class BasicBlock* bb);
 
   static uint64_t GetDataFlowAttributes(Instruction::Code opcode);
   static uint64_t GetDataFlowAttributes(MIR* mir);
@@ -1208,8 +1203,7 @@ class MIRGraph {
   bool ContentIsInsn(const uint16_t* code_ptr);
   BasicBlock* SplitBlock(DexOffset code_offset, BasicBlock* orig_block,
                          BasicBlock** immed_pred_block_p);
-  BasicBlock* FindBlock(DexOffset code_offset, bool split, bool create,
-                        BasicBlock** immed_pred_block_p);
+  BasicBlock* FindBlock(DexOffset code_offset, bool create, BasicBlock** immed_pred_block_p);
   void ProcessTryCatchBlocks();
   bool IsBadMonitorExitCatch(NarrowDexOffset monitor_exit_offset, NarrowDexOffset catch_offset);
   BasicBlock* ProcessCanBranch(BasicBlock* cur_block, MIR* insn, DexOffset cur_offset, int width,
@@ -1233,7 +1227,7 @@ class MIRGraph {
   void ComputeDomPostOrderTraversal(BasicBlock* bb);
   int GetSSAUseCount(int s_reg);
   bool BasicBlockOpt(BasicBlock* bb);
-  bool BuildExtendedBBList(struct BasicBlock* bb);
+  bool BuildExtendedBBList(class BasicBlock* bb);
   bool FillDefBlockMatrix(BasicBlock* bb);
   void InitializeDominationInfo(BasicBlock* bb);
   bool ComputeblockIDom(BasicBlock* bb);
@@ -1305,7 +1299,7 @@ class MIRGraph {
   int method_sreg_;
   unsigned int attributes_;
   Checkstats* checkstats_;
-  ArenaAllocator* arena_;
+  ArenaAllocator* const arena_;
   int backward_branches_;
   int forward_branches_;
   size_t num_non_special_compiler_temps_;  // Keeps track of allocated non-special compiler temps. These are VRs that are in compiler temp region on stack.

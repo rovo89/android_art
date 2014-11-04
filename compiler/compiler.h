@@ -115,6 +115,7 @@ class Compiler {
    */
   virtual std::vector<uint8_t>* GetCallFrameInformationInitialization(const CompilerDriver& driver)
       const {
+    UNUSED(driver);
     return nullptr;
   }
 

@@ -51,7 +51,7 @@ struct PcInfo {
   uintptr_t native_pc;
 };
 
-class SlowPathCode : public ArenaObject {
+class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
  public:
   SlowPathCode() {}
   virtual ~SlowPathCode() {}
@@ -62,7 +62,7 @@ class SlowPathCode : public ArenaObject {
   DISALLOW_COPY_AND_ASSIGN(SlowPathCode);
 };
 
-class CodeGenerator : public ArenaObject {
+class CodeGenerator : public ArenaObject<kArenaAllocMisc> {
  public:
   // Compiles the graph to executable instructions. Returns whether the compilation
   // succeeded.
@@ -115,12 +115,14 @@ class CodeGenerator : public ArenaObject {
   // Restores the register from the stack. Returns the size taken on stack.
   virtual size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) = 0;
   virtual size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) {
-    LOG(FATAL) << "Unimplemented";
-    return 0u;
+    UNUSED(stack_index, reg_id);
+    UNIMPLEMENTED(FATAL);
+    UNREACHABLE();
   }
   virtual size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) {
-    LOG(FATAL) << "Unimplemented";
-    return 0u;
+    UNUSED(stack_index, reg_id);
+    UNIMPLEMENTED(FATAL);
+    UNREACHABLE();
   }
 
   void RecordPcInfo(HInstruction* instruction, uint32_t dex_pc);

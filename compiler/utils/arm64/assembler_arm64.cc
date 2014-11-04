@@ -474,7 +474,7 @@ void Arm64Assembler::Copy(FrameOffset /*dst*/, Offset /*dest_offset*/,
   UNIMPLEMENTED(FATAL) << "Unimplemented Copy() variant";
 }
 
-void Arm64Assembler::MemoryBarrier(ManagedRegister m_scratch) {
+void Arm64Assembler::MemoryBarrier(ManagedRegister m_scratch ATTRIBUTE_UNUSED) {
   // TODO: Should we check that m_scratch is IP? - see arm.
 #if ANDROID_SMP != 0
   ___ Dmb(vixl::InnerShareable, vixl::BarrierAll);

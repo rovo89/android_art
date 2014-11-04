@@ -475,9 +475,9 @@ static bool ArmUseRelativeCall(CompilationUnit* cu, const MethodReference& targe
  * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.
  */
-static int ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info,
+static int ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info ATTRIBUTE_UNUSED,
                              int state, const MethodReference& target_method,
-                             uint32_t unused,
+                             uint32_t unused_idx ATTRIBUTE_UNUSED,
                              uintptr_t direct_code, uintptr_t direct_method,
                              InvokeType type) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());

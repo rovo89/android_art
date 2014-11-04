@@ -109,7 +109,7 @@ enum ArmResourceEncodingPos {
   kArmRegEnd   = 48,
 };
 
-enum ArmNativeRegisterPool {
+enum ArmNativeRegisterPool {  // private marker to avoid generate-operator-out.py from processing.
   r0           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  0,
   r1           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  1,
   r2           = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  2,
@@ -546,6 +546,7 @@ enum ArmOpcode {
   kThumb2StrdI8,     // strd rt, rt2, [rn +-/1024].
   kArmLast,
 };
+std::ostream& operator<<(std::ostream& os, const ArmOpcode& rhs);
 
 enum ArmOpDmbOptions {
   kSY = 0xf,
@@ -577,6 +578,7 @@ enum ArmEncodingKind {
   kFmtOff24,       // 24-bit Thumb2 unconditional branch encoding.
   kFmtSkip,        // Unused field, but continue to next.
 };
+std::ostream& operator<<(std::ostream& os, const ArmEncodingKind& rhs);
 
 // Struct used to define the snippet positions for each Thumb opcode.
 struct ArmEncodingMap {

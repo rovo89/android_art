@@ -142,7 +142,7 @@ enum MipsResourceEncodingPos {
 // This bit determines how the CPU access FP registers.
 #define FR_BIT   0
 
-enum MipsNativeRegisterPool {
+enum MipsNativeRegisterPool {  // private marker to avoid generate-operator-out.py from processing.
   rZERO = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  0,
   rAT   = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  1,
   rV0   = RegStorage::k32BitSolo | RegStorage::kCoreRegister |  2,
@@ -408,9 +408,7 @@ enum MipsOpCode {
   kMipsBnez,  // bnez s,o [000101] s[25..21] [00000] o[15..0].
   kMipsBne,   // bne s,t,o [000101] s[25..21] t[20..16] o[15..0].
   kMipsDiv,   // div s,t [000000] s[25..21] t[20..16] [0000000000011010].
-#if __mips_isa_rev >= 2
   kMipsExt,   // ext t,s,p,z [011111] s[25..21] t[20..16] z[15..11] p[10..6] [000000].
-#endif
   kMipsJal,   // jal t [000011] t[25..0].
   kMipsJalr,  // jalr d,s [000000] s[25..21] [00000] d[15..11] hint[10..6] [001001].
   kMipsJr,    // jr s [000000] s[25..21] [0000000000] hint[10..6] [001000].
@@ -433,10 +431,8 @@ enum MipsOpCode {
   kMipsOri,   // ori t,s,imm16 [001001] s[25..21] t[20..16] imm16[15..0].
   kMipsPref,  // pref h,o(b) [101011] b[25..21] h[20..16] o[15..0].
   kMipsSb,    // sb t,o(b) [101000] b[25..21] t[20..16] o[15..0].
-#if __mips_isa_rev >= 2
   kMipsSeb,   // seb d,t [01111100000] t[20..16] d[15..11] [10000100000].
   kMipsSeh,   // seh d,t [01111100000] t[20..16] d[15..11] [11000100000].
-#endif
   kMipsSh,    // sh t,o(b) [101001] b[25..21] t[20..16] o[15..0].
   kMipsSll,   // sll d,t,a [00000000000] t[20..16] d[15..11] a[10..6] [000000].
   kMipsSllv,  // sllv d,t,s [000000] s[25..21] t[20..16] d[15..11] [00000000100].
@@ -481,15 +477,17 @@ enum MipsOpCode {
   kMipsUndefined,  // undefined [011001xxxxxxxxxxxxxxxx].
   kMipsLast
 };
+std::ostream& operator<<(std::ostream& os, const MipsOpCode& rhs);
 
 // Instruction assembly field_loc kind.
 enum MipsEncodingKind {
   kFmtUnused,
-  kFmtBitBlt,    /* Bit string using end/start */
-  kFmtDfp,       /* Double FP reg */
-  kFmtSfp,       /* Single FP reg */
-  kFmtBlt5_2,    /* Same 5-bit field to 2 locations */
+  kFmtBitBlt,    // Bit string using end/start.
+  kFmtDfp,       // Double FP reg.
+  kFmtSfp,       // Single FP reg
+  kFmtBlt5_2,    // Same 5-bit field to 2 locations.
 };
+std::ostream& operator<<(std::ostream& os, const MipsEncodingKind& rhs);
 
 // Struct used to define the snippet positions for each MIPS opcode.
 struct MipsEncodingMap {

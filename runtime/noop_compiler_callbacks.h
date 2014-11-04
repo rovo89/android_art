@@ -26,11 +26,11 @@ class NoopCompilerCallbacks FINAL : public CompilerCallbacks {
   NoopCompilerCallbacks() {}
   ~NoopCompilerCallbacks() {}
 
-  bool MethodVerified(verifier::MethodVerifier* verifier) OVERRIDE {
+  bool MethodVerified(verifier::MethodVerifier* verifier ATTRIBUTE_UNUSED) OVERRIDE {
     return true;
   }
 
-  void ClassRejected(ClassReference ref) OVERRIDE {}
+  void ClassRejected(ClassReference ref ATTRIBUTE_UNUSED) OVERRIDE {}
 
   // This is only used by compilers which need to be able to run without relocation even when it
   // would normally be enabled. For example the patchoat executable, and dex2oat --image, both need

@@ -222,8 +222,7 @@ class ClassLinker {
                                    InvokeType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::ArtMethod* GetResolvedMethod(uint32_t method_idx, mirror::ArtMethod* referrer,
-                                       InvokeType type)
+  mirror::ArtMethod* GetResolvedMethod(uint32_t method_idx, mirror::ArtMethod* referrer)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::ArtMethod* ResolveMethod(Thread* self, uint32_t method_idx, mirror::ArtMethod** referrer,
                                    InvokeType type)
@@ -506,8 +505,7 @@ class ClassLinker {
                  Handle<mirror::Class> klass, mirror::ClassLoader* class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void LoadClassMembers(Thread* self, const DexFile& dex_file, const uint8_t* class_data,
-                        Handle<mirror::Class> klass, mirror::ClassLoader* class_loader,
-                        const OatFile::OatClass* oat_class)
+                        Handle<mirror::Class> klass, const OatFile::OatClass* oat_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void LoadField(const DexFile& dex_file, const ClassDataItemIterator& it,
@@ -581,7 +579,7 @@ class ClassLinker {
   bool LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_static, size_t* class_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void LinkCode(Handle<mirror::ArtMethod> method, const OatFile::OatClass* oat_class,
-                const DexFile& dex_file, uint32_t dex_method_index, uint32_t method_index)
+                uint32_t class_def_method_index)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void CreateReferenceInstanceOffsets(Handle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

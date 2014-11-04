@@ -530,7 +530,7 @@ JNI_TEST(CompileAndRunStaticDoubleDoubleMethod)
 // point return value would be in xmm0. We use log, to somehow ensure
 // the compiler will use the floating point stack.
 
-jdouble Java_MyClassNatives_logD(JNIEnv* env, jclass klass, jdouble x) {
+jdouble Java_MyClassNatives_logD(JNIEnv*, jclass, jdouble x) {
   return log(x);
 }
 
@@ -544,7 +544,7 @@ void JniCompilerTest::RunStaticLogDoubleMethodImpl() {
 
 JNI_TEST(RunStaticLogDoubleMethod)
 
-jfloat Java_MyClassNatives_logF(JNIEnv* env, jclass klass, jfloat x) {
+jfloat Java_MyClassNatives_logF(JNIEnv*, jclass, jfloat x) {
   return logf(x);
 }
 
@@ -558,15 +558,15 @@ void JniCompilerTest::RunStaticLogFloatMethodImpl() {
 
 JNI_TEST(RunStaticLogFloatMethod)
 
-jboolean Java_MyClassNatives_returnTrue(JNIEnv* env, jclass klass) {
+jboolean Java_MyClassNatives_returnTrue(JNIEnv*, jclass) {
   return JNI_TRUE;
 }
 
-jboolean Java_MyClassNatives_returnFalse(JNIEnv* env, jclass klass) {
+jboolean Java_MyClassNatives_returnFalse(JNIEnv*, jclass) {
   return JNI_FALSE;
 }
 
-jint Java_MyClassNatives_returnInt(JNIEnv* env, jclass klass) {
+jint Java_MyClassNatives_returnInt(JNIEnv*, jclass) {
   return 42;
 }
 
@@ -1056,7 +1056,10 @@ void JniCompilerTest::CompileAndRunFloatFloatMethodImpl() {
 
 JNI_TEST(CompileAndRunFloatFloatMethod)
 
-void Java_MyClassNatives_checkParameterAlign(JNIEnv* env, jobject thisObj, jint i1, jlong l1) {
+void Java_MyClassNatives_checkParameterAlign(JNIEnv* env ATTRIBUTE_UNUSED,
+                                             jobject thisObj ATTRIBUTE_UNUSED,
+                                             jint i1 ATTRIBUTE_UNUSED,
+                                             jlong l1 ATTRIBUTE_UNUSED) {
 //  EXPECT_EQ(kNative, Thread::Current()->GetState());
 //  EXPECT_EQ(Thread::Current()->GetJniEnv(), env);
 //  EXPECT_TRUE(thisObj != nullptr);
@@ -1520,7 +1523,7 @@ void JniCompilerTest::WithoutImplementationImpl() {
 
 JNI_TEST(WithoutImplementation)
 
-void Java_MyClassNatives_stackArgsIntsFirst(JNIEnv* env, jclass klass, jint i1, jint i2, jint i3,
+void Java_MyClassNatives_stackArgsIntsFirst(JNIEnv*, jclass, jint i1, jint i2, jint i3,
                                             jint i4, jint i5, jint i6, jint i7, jint i8, jint i9,
                                             jint i10, jfloat f1, jfloat f2, jfloat f3, jfloat f4,
                                             jfloat f5, jfloat f6, jfloat f7, jfloat f8, jfloat f9,
@@ -1591,7 +1594,7 @@ void JniCompilerTest::StackArgsIntsFirstImpl() {
 
 JNI_TEST(StackArgsIntsFirst)
 
-void Java_MyClassNatives_stackArgsFloatsFirst(JNIEnv* env, jclass klass, jfloat f1, jfloat f2,
+void Java_MyClassNatives_stackArgsFloatsFirst(JNIEnv*, jclass, jfloat f1, jfloat f2,
                                               jfloat f3, jfloat f4, jfloat f5, jfloat f6, jfloat f7,
                                               jfloat f8, jfloat f9, jfloat f10, jint i1, jint i2,
                                               jint i3, jint i4, jint i5, jint i6, jint i7, jint i8,
@@ -1662,7 +1665,7 @@ void JniCompilerTest::StackArgsFloatsFirstImpl() {
 
 JNI_TEST(StackArgsFloatsFirst)
 
-void Java_MyClassNatives_stackArgsMixed(JNIEnv* env, jclass klass, jint i1, jfloat f1, jint i2,
+void Java_MyClassNatives_stackArgsMixed(JNIEnv*, jclass, jint i1, jfloat f1, jint i2,
                                         jfloat f2, jint i3, jfloat f3, jint i4, jfloat f4, jint i5,
                                         jfloat f5, jint i6, jfloat f6, jint i7, jfloat f7, jint i8,
                                         jfloat f8, jint i9, jfloat f9, jint i10, jfloat f10) {

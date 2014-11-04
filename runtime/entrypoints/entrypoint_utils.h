@@ -47,7 +47,6 @@ ALWAYS_INLINE static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
                                                             Thread* self, bool* slow_path)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-// TODO: Fix no thread safety analysis when annotalysis is smarter.
 ALWAYS_INLINE static inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::Class* klass,
                                                                                Thread* self, bool* slow_path)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -66,7 +65,6 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCode(uint32_t type_id
 // Given the context of a calling Method and a resolved class, create an instance.
 template <bool kInstrumented>
 ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeResolved(mirror::Class* klass,
-                                                                        mirror::ArtMethod* method,
                                                                         Thread* self,
                                                                         gc::AllocatorType allocator_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -74,7 +72,6 @@ ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeResolved(mirror::
 // Given the context of a calling Method and an initialized class, create an instance.
 template <bool kInstrumented>
 ALWAYS_INLINE static inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Class* klass,
-                                                                           mirror::ArtMethod* method,
                                                                            Thread* self,
                                                                            gc::AllocatorType allocator_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

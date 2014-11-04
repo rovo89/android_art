@@ -70,16 +70,18 @@ class OatWriter::NoRelativeCallPatcher FINAL : public RelativeCallPatcher {
  public:
   NoRelativeCallPatcher() { }
 
-  uint32_t ReserveSpace(uint32_t offset, const CompiledMethod* compiled_method) OVERRIDE {
+  uint32_t ReserveSpace(uint32_t offset,
+                        const CompiledMethod* compiled_method ATTRIBUTE_UNUSED) OVERRIDE {
     return offset;  // No space reserved; no patches expected.
   }
 
-  uint32_t WriteThunks(OutputStream* out, uint32_t offset) OVERRIDE {
+  uint32_t WriteThunks(OutputStream* out ATTRIBUTE_UNUSED, uint32_t offset) OVERRIDE {
     return offset;  // No thunks added; no patches expected.
   }
 
-  void Patch(std::vector<uint8_t>* code, uint32_t literal_offset, uint32_t patch_offset,
-             uint32_t target_offset) OVERRIDE {
+  void Patch(std::vector<uint8_t>* code ATTRIBUTE_UNUSED, uint32_t literal_offset ATTRIBUTE_UNUSED,
+             uint32_t patch_offset ATTRIBUTE_UNUSED,
+             uint32_t target_offset ATTRIBUTE_UNUSED) OVERRIDE {
     LOG(FATAL) << "Unexpected relative patch.";
   }
 
@@ -91,11 +93,12 @@ class OatWriter::X86RelativeCallPatcher FINAL : public RelativeCallPatcher {
  public:
   X86RelativeCallPatcher() { }
 
-  uint32_t ReserveSpace(uint32_t offset, const CompiledMethod* compiled_method) OVERRIDE {
+  uint32_t ReserveSpace(uint32_t offset,
+                        const CompiledMethod* compiled_method ATTRIBUTE_UNUSED) OVERRIDE {
     return offset;  // No space reserved; no limit on relative call distance.
   }
 
-  uint32_t WriteThunks(OutputStream* out, uint32_t offset) OVERRIDE {
+  uint32_t WriteThunks(OutputStream* out ATTRIBUTE_UNUSED, uint32_t offset) OVERRIDE {
     return offset;  // No thunks added; no limit on relative call distance.
   }
 
@@ -648,7 +651,7 @@ class OatWriter::InitOatClassesMethodVisitor : public DexMethodVisitor {
     return true;
   }
 
-  bool VisitMethod(size_t class_def_method_index, const ClassDataItemIterator& it) {
+  bool VisitMethod(size_t class_def_method_index ATTRIBUTE_UNUSED, const ClassDataItemIterator& it) {
     // Fill in the compiled_methods_ array for methods that have a
     // CompiledMethod. We track the number of non-null entries in
     // num_non_null_compiled_methods_ since we only want to allocate
@@ -860,7 +863,7 @@ class OatWriter::InitMapMethodVisitor : public OatDexMethodVisitor {
     : OatDexMethodVisitor(writer, offset) {
   }
 
-  bool VisitMethod(size_t class_def_method_index, const ClassDataItemIterator& it)
+  bool VisitMethod(size_t class_def_method_index, const ClassDataItemIterator& it ATTRIBUTE_UNUSED)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     OatClass* oat_class = writer_->oat_classes_[oat_class_index_];
     CompiledMethod* compiled_method = oat_class->GetCompiledMethod(class_def_method_index);

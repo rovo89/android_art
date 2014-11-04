@@ -29,7 +29,9 @@ class ConcurrentCopying : public GarbageCollector {
                              const std::string& name_prefix = "")
       : GarbageCollector(heap,
                          name_prefix + (name_prefix.empty() ? "" : " ") +
-                         "concurrent copying + mark sweep") {}
+                         "concurrent copying + mark sweep") {
+    UNUSED(generational);
+  }
 
   ~ConcurrentCopying() {}
 

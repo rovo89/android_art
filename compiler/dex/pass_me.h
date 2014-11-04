@@ -23,7 +23,7 @@
 namespace art {
 
 // Forward declarations.
-struct BasicBlock;
+class BasicBlock;
 struct CompilationUnit;
 class Pass;
 
@@ -32,10 +32,11 @@ class Pass;
  * @details Each enum should be a power of 2 to be correctly used.
  */
 enum OptimizationFlag {
-  kOptimizationBasicBlockChange = 1,  /**< @brief Has there been a change to a BasicBlock? */
-  kOptimizationDefUsesChange = 2,     /**< @brief Has there been a change to a def-use? */
-  kLoopStructureChange = 4,           /**< @brief Has there been a loop structural change? */
+  kOptimizationBasicBlockChange = 1,  /// @brief Has there been a change to a BasicBlock?
+  kOptimizationDefUsesChange = 2,     /// @brief Has there been a change to a def-use?
+  kLoopStructureChange = 4,           /// @brief Has there been a loop structural change?
 };
+std::ostream& operator<<(std::ostream& os, const OptimizationFlag& rhs);
 
 // Data holder class.
 class PassMEDataHolder: public PassDataHolder {
@@ -47,24 +48,25 @@ class PassMEDataHolder: public PassDataHolder {
 };
 
 enum DataFlowAnalysisMode {
-  kAllNodes = 0,                           /**< @brief All nodes. */
-  kPreOrderDFSTraversal,                   /**< @brief Depth-First-Search / Pre-Order. */
-  kRepeatingPreOrderDFSTraversal,          /**< @brief Depth-First-Search / Repeating Pre-Order. */
-  kReversePostOrderDFSTraversal,           /**< @brief Depth-First-Search / Reverse Post-Order. */
-  kRepeatingPostOrderDFSTraversal,         /**< @brief Depth-First-Search / Repeating Post-Order. */
-  kRepeatingReversePostOrderDFSTraversal,  /**< @brief Depth-First-Search / Repeating Reverse Post-Order. */
-  kPostOrderDOMTraversal,                  /**< @brief Dominator tree / Post-Order. */
-  kTopologicalSortTraversal,               /**< @brief Topological Order traversal. */
-  kLoopRepeatingTopologicalSortTraversal,  /**< @brief Loop-repeating Topological Order traversal. */
-  kNoNodes,                                /**< @brief Skip BasicBlock traversal. */
+  kAllNodes = 0,                           /// @brief All nodes.
+  kPreOrderDFSTraversal,                   /// @brief Depth-First-Search / Pre-Order.
+  kRepeatingPreOrderDFSTraversal,          /// @brief Depth-First-Search / Repeating Pre-Order.
+  kReversePostOrderDFSTraversal,           /// @brief Depth-First-Search / Reverse Post-Order.
+  kRepeatingPostOrderDFSTraversal,         /// @brief Depth-First-Search / Repeating Post-Order.
+  kRepeatingReversePostOrderDFSTraversal,  /// @brief Depth-First-Search / Repeating Reverse Post-Order.
+  kPostOrderDOMTraversal,                  /// @brief Dominator tree / Post-Order.
+  kTopologicalSortTraversal,               /// @brief Topological Order traversal.
+  kLoopRepeatingTopologicalSortTraversal,  /// @brief Loop-repeating Topological Order traversal.
+  kNoNodes,                                /// @brief Skip BasicBlock traversal.
 };
+std::ostream& operator<<(std::ostream& os, const DataFlowAnalysisMode& rhs);
 
 /**
  * @class Pass
  * @brief Pass is the Pass structure for the optimizations.
  * @details The following structure has the different optimization passes that we are going to do.
  */
-class PassME: public Pass {
+class PassME : public Pass {
  public:
   explicit PassME(const char* name, DataFlowAnalysisMode type = kAllNodes,
           unsigned int flags = 0u, const char* dump = "")

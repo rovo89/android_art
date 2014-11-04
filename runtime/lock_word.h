@@ -52,7 +52,7 @@ class Monitor;
  */
 class LockWord {
  public:
-  enum {
+  enum SizeShiftsAndMasks {  // private marker to avoid generate-operator-out.py from processing.
     // Number of bits to encode the state, currently just fat or thin/unlocked or hash code.
     kStateSize = 2,
     // Number of bits to encode the thin lock owner.

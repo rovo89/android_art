@@ -231,7 +231,7 @@ static uint32_t GetInstructionSize(const uint8_t* pc) {
   return pc - startpc;
 }
 
-void FaultManager::HandleNestedSignal(int sig, siginfo_t* info, void* context) {
+void FaultManager::HandleNestedSignal(int, siginfo_t*, void* context) {
   // For the Intel architectures we need to go to an assembly language
   // stub.  This is because the 32 bit call to longjmp is much different
   // from the 64 bit ABI call and pushing things onto the stack inside this
@@ -284,7 +284,7 @@ void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
   *out_return_pc = reinterpret_cast<uintptr_t>(pc + instr_size);
 }
 
-bool NullPointerHandler::Action(int sig, siginfo_t* info, void* context) {
+bool NullPointerHandler::Action(int, siginfo_t*, void* context) {
   struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
   uint8_t* pc = reinterpret_cast<uint8_t*>(uc->CTX_EIP);
   uint8_t* sp = reinterpret_cast<uint8_t*>(uc->CTX_ESP);
@@ -324,7 +324,7 @@ bool NullPointerHandler::Action(int sig, siginfo_t* info, void* context) {
 // The offset from fs is Thread::ThreadSuspendTriggerOffset().
 // To check for a suspend check, we examine the instructions that caused
 // the fault.
-bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
+bool SuspensionHandler::Action(int, siginfo_t*, void* context) {
   // These are the instructions to check for.  The first one is the mov eax, fs:[xxx]
   // where xxx is the offset of the suspend trigger.
 #if defined(__x86_64__)
@@ -398,7 +398,7 @@ bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
 // This is done before any frame is established in the method.  The return
 // address for the previous method is on the stack at ESP.
 
-bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
+bool StackOverflowHandler::Action(int, siginfo_t* info, void* context) {
   struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
   uintptr_t sp = static_cast<uintptr_t>(uc->CTX_ESP);
 

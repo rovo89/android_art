@@ -2673,8 +2673,7 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
 
 void ClassLinker::LinkCode(Handle<mirror::ArtMethod> method,
                            const OatFile::OatClass* oat_class,
-                           const DexFile& dex_file, uint32_t dex_method_index,
-                           uint32_t method_index) {
+                           uint32_t class_def_method_index) {
   Runtime* runtime = Runtime::Current();
   if (runtime->IsCompiler()) {
     // The following code only applies to a non-compiler runtime.
@@ -2686,7 +2685,7 @@ void ClassLinker::LinkCode(Handle<mirror::ArtMethod> method,
   if (oat_class != nullptr) {
     // Every kind of method should at least get an invoke stub from the oat_method.
     // non-abstract methods also get their code pointers.
-    const OatFile::OatMethod oat_method = oat_class->GetOatMethod(method_index);
+    const OatFile::OatMethod oat_method = oat_class->GetOatMethod(class_def_method_index);
     oat_method.LinkMethod(method.Get());
   }
 
@@ -2788,18 +2787,17 @@ void ClassLinker::LoadClass(Thread* self, const DexFile& dex_file,
     OatFile::OatClass oat_class = FindOatClass(dex_file, klass->GetDexClassDefIndex(),
                                                &has_oat_class);
     if (has_oat_class) {
-      LoadClassMembers(self, dex_file, class_data, klass, class_loader, &oat_class);
+      LoadClassMembers(self, dex_file, class_data, klass, &oat_class);
     }
   }
   if (!has_oat_class) {
-    LoadClassMembers(self, dex_file, class_data, klass, class_loader, nullptr);
+    LoadClassMembers(self, dex_file, class_data, klass, nullptr);
   }
 }
 
 void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
                                    const uint8_t* class_data,
                                    Handle<mirror::Class> klass,
-                                   mirror::ClassLoader* class_loader,
                                    const OatFile::OatClass* oat_class) {
   // Load fields.
   ClassDataItemIterator it(dex_file, class_data);
@@ -2876,7 +2874,7 @@ void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
       return;
     }
     klass->SetDirectMethod(i, method.Get());
-    LinkCode(method, oat_class, dex_file, it.GetMemberIndex(), class_def_method_index);
+    LinkCode(method, oat_class, class_def_method_index);
     uint32_t it_method_index = it.GetMemberIndex();
     if (last_dex_method_index == it_method_index) {
       // duplicate case
@@ -2898,7 +2896,7 @@ void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
     }
     klass->SetVirtualMethod(i, method.Get());
     DCHECK_EQ(class_def_method_index, it.NumDirectMethods() + i);
-    LinkCode(method, oat_class, dex_file, it.GetMemberIndex(), class_def_method_index);
+    LinkCode(method, oat_class, class_def_method_index);
     class_def_method_index++;
   }
   DCHECK(!it.HasNext());

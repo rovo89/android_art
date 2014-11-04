@@ -622,8 +622,7 @@ class Heap {
 
   // Create a mem map with a preferred base address.
   static MemMap* MapAnonymousPreferredAddress(const char* name, uint8_t* request_begin,
-                                              size_t capacity, int prot_flags,
-                                              std::string* out_error_str);
+                                              size_t capacity, std::string* out_error_str);
 
   bool SupportHSpaceCompaction() const {
     // Returns true if we can do hspace compaction

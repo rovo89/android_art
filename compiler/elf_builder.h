@@ -494,7 +494,7 @@ class ElfFileOatTextPiece FINAL : public ElfFilePiece<Elf_Word> {
       output_(output) {}
 
  protected:
-  bool DoActualWrite(File* elf_file) OVERRIDE {
+  bool DoActualWrite(File* elf_file ATTRIBUTE_UNUSED) OVERRIDE {
     // All data is written by the ElfFileRodataPiece right now, as the oat writer writes in one
     // piece. This is for future flexibility.
     UNUSED(output_);

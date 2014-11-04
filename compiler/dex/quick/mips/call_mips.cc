@@ -24,9 +24,9 @@
 
 namespace art {
 
-bool MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir,
-                                 const InlineMethod& special) {
+bool MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special) {
   // TODO
+  UNUSED(bb, mir, special);
   return false;
 }
 

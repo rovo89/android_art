@@ -26,6 +26,7 @@ enum ProfileDataType {
   kProfilerMethod,          // Method only
   kProfilerBoundedStack,    // Methods with Dex PC on top of the stack
 };
+std::ostream& operator<<(std::ostream& os, const ProfileDataType& rhs);
 
 class ProfilerOptions {
  public:

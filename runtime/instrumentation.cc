@@ -595,6 +595,7 @@ void Instrumentation::ConfigureStubs(bool require_entry_exit_stubs, bool require
 }
 
 static void ResetQuickAllocEntryPointsForThread(Thread* thread, void* arg) {
+  UNUSED(arg);
   thread->ResetQuickAllocEntryPointsForThread();
 }
 

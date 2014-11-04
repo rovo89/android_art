@@ -473,8 +473,7 @@ static void CommonCallCodeLoadClassIntoArg0(const CallInfo* info, Mir2Lir* cg) {
   cg->MarkPossibleNullPointerException(info->opt_flags);
 }
 
-static bool CommonCallCodeLoadCodePointerIntoInvokeTgt(const CallInfo* info,
-                                                       const RegStorage* alt_from,
+static bool CommonCallCodeLoadCodePointerIntoInvokeTgt(const RegStorage* alt_from,
                                                        const CompilationUnit* cu, Mir2Lir* cg) {
   if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
     // Get the compiled code address [use *alt_from or kArg0, set kInvokeTgt]
@@ -492,9 +491,10 @@ static bool CommonCallCodeLoadCodePointerIntoInvokeTgt(const CallInfo* info,
  */
 static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                           int state, const MethodReference& target_method,
-                          uint32_t unused,
+                          uint32_t,
                           uintptr_t direct_code, uintptr_t direct_method,
                           InvokeType type) {
+  UNUSED(info);
   DCHECK(cu->instruction_set != kX86 && cu->instruction_set != kX86_64 &&
          cu->instruction_set != kThumb2 && cu->instruction_set != kArm &&
          cu->instruction_set != kArm64);
@@ -547,7 +547,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       break;
     case 3:  // Grab the code from the method*
       if (direct_code == 0) {
-        if (CommonCallCodeLoadCodePointerIntoInvokeTgt(info, &arg0_ref, cu, cg)) {
+        if (CommonCallCodeLoadCodePointerIntoInvokeTgt(&arg0_ref, cu, cg)) {
           break;                                    // kInvokeTgt := arg0_ref->entrypoint
         }
       } else {
@@ -571,8 +571,9 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
  */
 static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
                          int state, const MethodReference& target_method,
-                         uint32_t method_idx, uintptr_t unused, uintptr_t unused2,
-                         InvokeType unused3) {
+                         uint32_t method_idx, uintptr_t, uintptr_t,
+                         InvokeType) {
+  UNUSED(target_method);
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   /*
    * This is the fast path in which the target virtual method is
@@ -595,7 +596,7 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
       break;
     }
     case 3:
-      if (CommonCallCodeLoadCodePointerIntoInvokeTgt(info, nullptr, cu, cg)) {
+      if (CommonCallCodeLoadCodePointerIntoInvokeTgt(nullptr, cu, cg)) {
         break;                                    // kInvokeTgt := kArg0->entrypoint
       }
       DCHECK(cu->instruction_set == kX86 || cu->instruction_set == kX86_64);
@@ -614,8 +615,7 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
  */
 static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
                                  const MethodReference& target_method,
-                                 uint32_t method_idx, uintptr_t unused,
-                                 uintptr_t direct_method, InvokeType unused2) {
+                                 uint32_t method_idx, uintptr_t, uintptr_t, InvokeType) {
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
 
   switch (state) {
@@ -641,7 +641,7 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
       break;
     }
     case 4:
-      if (CommonCallCodeLoadCodePointerIntoInvokeTgt(info, nullptr, cu, cg)) {
+      if (CommonCallCodeLoadCodePointerIntoInvokeTgt(nullptr, cu, cg)) {
         break;                                    // kInvokeTgt := kArg0->entrypoint
       }
       DCHECK(cu->instruction_set == kX86 || cu->instruction_set == kX86_64);
@@ -655,8 +655,8 @@ static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
 static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info,
                             QuickEntrypointEnum trampoline, int state,
                             const MethodReference& target_method, uint32_t method_idx) {
+  UNUSED(info, method_idx);
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
-
 
   /*
    * This handles the case in which the base method is not fully
@@ -684,32 +684,28 @@ static int NextInvokeInsnSP(CompilationUnit* cu, CallInfo* info,
 static int NextStaticCallInsnSP(CompilationUnit* cu, CallInfo* info,
                                 int state,
                                 const MethodReference& target_method,
-                                uint32_t unused, uintptr_t unused2,
-                                uintptr_t unused3, InvokeType unused4) {
+                                uint32_t, uintptr_t, uintptr_t, InvokeType) {
   return NextInvokeInsnSP(cu, info, kQuickInvokeStaticTrampolineWithAccessCheck, state,
                           target_method, 0);
 }
 
 static int NextDirectCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                                 const MethodReference& target_method,
-                                uint32_t unused, uintptr_t unused2,
-                                uintptr_t unused3, InvokeType unused4) {
+                                uint32_t, uintptr_t, uintptr_t, InvokeType) {
   return NextInvokeInsnSP(cu, info, kQuickInvokeDirectTrampolineWithAccessCheck, state,
                           target_method, 0);
 }
 
 static int NextSuperCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                                const MethodReference& target_method,
-                               uint32_t unused, uintptr_t unused2,
-                               uintptr_t unused3, InvokeType unused4) {
+                               uint32_t, uintptr_t, uintptr_t, InvokeType) {
   return NextInvokeInsnSP(cu, info, kQuickInvokeSuperTrampolineWithAccessCheck, state,
                           target_method, 0);
 }
 
 static int NextVCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
                            const MethodReference& target_method,
-                           uint32_t unused, uintptr_t unused2,
-                           uintptr_t unused3, InvokeType unused4) {
+                           uint32_t, uintptr_t, uintptr_t, InvokeType) {
   return NextInvokeInsnSP(cu, info, kQuickInvokeVirtualTrampolineWithAccessCheck, state,
                           target_method, 0);
 }
@@ -717,8 +713,7 @@ static int NextVCallInsnSP(CompilationUnit* cu, CallInfo* info, int state,
 static int NextInterfaceCallInsnWithAccessCheck(CompilationUnit* cu,
                                                 CallInfo* info, int state,
                                                 const MethodReference& target_method,
-                                                uint32_t unused, uintptr_t unused2,
-                                                uintptr_t unused3, InvokeType unused4) {
+                                                uint32_t, uintptr_t, uintptr_t, InvokeType) {
   return NextInvokeInsnSP(cu, info, kQuickInvokeInterfaceTrampolineWithAccessCheck, state,
                           target_method, 0);
 }
@@ -1400,28 +1395,34 @@ bool Mir2Lir::GenInlinedAbsLong(CallInfo* info) {
 }
 
 bool Mir2Lir::GenInlinedReverseBits(CallInfo* info, OpSize size) {
-  // Currently implemented only for ARM64
+  // Currently implemented only for ARM64.
+  UNUSED(info, size);
   return false;
 }
 
 bool Mir2Lir::GenInlinedMinMaxFP(CallInfo* info, bool is_min, bool is_double) {
-  // Currently implemented only for ARM64
+  // Currently implemented only for ARM64.
+  UNUSED(info, is_min, is_double);
   return false;
 }
 
 bool Mir2Lir::GenInlinedCeil(CallInfo* info) {
+  UNUSED(info);
   return false;
 }
 
 bool Mir2Lir::GenInlinedFloor(CallInfo* info) {
+  UNUSED(info);
   return false;
 }
 
 bool Mir2Lir::GenInlinedRint(CallInfo* info) {
+  UNUSED(info);
   return false;
 }
 
 bool Mir2Lir::GenInlinedRound(CallInfo* info, bool is_double) {
+  UNUSED(info, is_double);
   return false;
 }
 
@@ -1448,6 +1449,7 @@ bool Mir2Lir::GenInlinedDoubleCvt(CallInfo* info) {
 }
 
 bool Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
+  UNUSED(info);
   return false;
 }
 
@@ -1690,7 +1692,6 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
 
   const MirMethodLoweringInfo& method_info = mir_graph_->GetMethodLoweringInfo(info->mir);
   cu_->compiler_driver->ProcessedInvoke(method_info.GetInvokeType(), method_info.StatsFlags());
-  BeginInvoke(info);
   InvokeType original_type = static_cast<InvokeType>(method_info.GetInvokeType());
   info->type = method_info.GetSharpType();
   bool fast_path = method_info.FastPath();
@@ -1734,7 +1735,6 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
                                 method_info.DirectCode(), method_info.DirectMethod(), original_type);
   }
   LIR* call_insn = GenCallInsn(method_info);
-  EndInvoke(info);
   MarkSafepointPC(call_insn);
 
   ClobberCallerSave();
@@ -1755,6 +1755,7 @@ NextCallInsn Mir2Lir::GetNextSDCallInsn() {
 }
 
 LIR* Mir2Lir::GenCallInsn(const MirMethodLoweringInfo& method_info) {
+  UNUSED(method_info);
   DCHECK(cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64 &&
          cu_->instruction_set != kThumb2 && cu_->instruction_set != kArm &&
          cu_->instruction_set != kArm64);

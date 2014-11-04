@@ -55,8 +55,8 @@ namespace mirror {
   class Throwable;
 }  // namespace mirror
 namespace verifier {
-class MethodVerifier;
-}
+  class MethodVerifier;
+}  // namespace verifier
 class ClassLinker;
 class DexFile;
 class InternTable;
@@ -379,8 +379,7 @@ class Runtime {
 
   void SetCalleeSaveMethod(mirror::ArtMethod* method, CalleeSaveType type);
 
-  mirror::ArtMethod* CreateCalleeSaveMethod(CalleeSaveType type)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::ArtMethod* CreateCalleeSaveMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   int32_t GetStat(int kind);
 
@@ -655,6 +654,7 @@ class Runtime {
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
+std::ostream& operator<<(std::ostream& os, const Runtime::CalleeSaveType& rhs);
 
 }  // namespace art
 

@@ -589,11 +589,10 @@ Arm64Mir2Lir::Arm64Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAlloca
       call_method_insns_(arena->Adapter()) {
   // Sanity check - make sure encoding map lines up.
   for (int i = 0; i < kA64Last; i++) {
-    if (UNWIDE(Arm64Mir2Lir::EncodingMap[i].opcode) != i) {
-      LOG(FATAL) << "Encoding order for " << Arm64Mir2Lir::EncodingMap[i].name
-                 << " is wrong: expecting " << i << ", seeing "
-                 << static_cast<int>(Arm64Mir2Lir::EncodingMap[i].opcode);
-    }
+    DCHECK_EQ(UNWIDE(Arm64Mir2Lir::EncodingMap[i].opcode), i)
+        << "Encoding order for " << Arm64Mir2Lir::EncodingMap[i].name
+        << " is wrong: expecting " << i << ", seeing "
+        << static_cast<int>(Arm64Mir2Lir::EncodingMap[i].opcode);
   }
 }
 

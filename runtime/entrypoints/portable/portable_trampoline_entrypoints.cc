@@ -121,6 +121,7 @@ class PortableArgumentVisitor {
  private:
   static size_t ComputeArgsInRegs(MethodHelper& mh) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if (defined(__i386__))
+    UNUSED(mh);
     return 0;
 #else
     size_t args_in_regs = 0;

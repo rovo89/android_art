@@ -30,11 +30,11 @@ class MallocAllocator FINAL : public Allocator {
   explicit MallocAllocator() {}
   ~MallocAllocator() {}
 
-  virtual void* Alloc(size_t size) {
+  void* Alloc(size_t size) {
     return calloc(sizeof(uint8_t), size);
   }
 
-  virtual void Free(void* p) {
+  void Free(void* p) {
     free(p);
   }
 
@@ -49,13 +49,15 @@ class NoopAllocator FINAL : public Allocator {
   explicit NoopAllocator() {}
   ~NoopAllocator() {}
 
-  virtual void* Alloc(size_t size) {
+  void* Alloc(size_t size) {
+    UNUSED(size);
     LOG(FATAL) << "NoopAllocator::Alloc should not be called";
-    return NULL;
+    UNREACHABLE();
   }
 
-  virtual void Free(void* p) {
+  void Free(void* p) {
     // Noop.
+    UNUSED(p);
   }
 
  private:

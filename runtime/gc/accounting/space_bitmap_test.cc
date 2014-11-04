@@ -91,7 +91,7 @@ class SimpleCounter {
  public:
   explicit SimpleCounter(size_t* counter) : count_(counter) {}
 
-  void operator()(mirror::Object* obj) const {
+  void operator()(mirror::Object* obj ATTRIBUTE_UNUSED) const {
     (*count_)++;
   }
 

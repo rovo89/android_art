@@ -1126,6 +1126,7 @@ static JdwpError TR_CurrentContendedMonitor(JdwpState*, Request* request, Expand
 
 static JdwpError TR_Interrupt(JdwpState*, Request* request, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  UNUSED(reply);
   ObjectId thread_id = request->ReadThreadId();
   return Dbg::Interrupt(thread_id);
 }
