@@ -77,7 +77,7 @@ template <class Dest, class Source>
 inline Dest bit_cast(const Source& source) {
   // Compile time assertion: sizeof(Dest) == sizeof(Source)
   // A compile error here means your Dest and Source have different sizes.
-  COMPILE_ASSERT(sizeof(Dest) == sizeof(Source), verify_sizes_are_equal);
+  static_assert(sizeof(Dest) == sizeof(Source), "sizes should be equal");
   Dest dest;
   memcpy(&dest, &source, sizeof(dest));
   return dest;

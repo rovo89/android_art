@@ -5863,8 +5863,8 @@ const char* ClassLinker::GetClassRootDescriptor(ClassRoot class_root) {
     "[S",
     "[Ljava/lang/StackTraceElement;",
   };
-  COMPILE_ASSERT(arraysize(class_roots_descriptors) == size_t(kClassRootsMax),
-                 mismatch_between_class_descriptors_and_class_root_enum);
+  static_assert(arraysize(class_roots_descriptors) == size_t(kClassRootsMax),
+                "Mismatch between class descriptors and class-root enum");
 
   const char* descriptor = class_roots_descriptors[class_root];
   CHECK(descriptor != nullptr);
