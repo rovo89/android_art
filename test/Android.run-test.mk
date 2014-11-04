@@ -312,6 +312,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   004-InterfaceTest \
   004-JniTest \
   004-StackWalk \
+  004-UnsafeTest \
   006-args \
   007-count10 \
   011-array-copy \
