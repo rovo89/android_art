@@ -26,6 +26,8 @@
 
 #include "sigchain.h"
 
+#define ATTRIBUTE_UNUSED __attribute__((__unused__))
+
 static void log(const char* format, ...) {
   char buf[256];
   va_list ap;
@@ -39,17 +41,20 @@ static void log(const char* format, ...) {
   va_end(ap);
 }
 
-extern "C" void ClaimSignalChain(int signal, struct sigaction* oldaction) {
+extern "C" void ClaimSignalChain(int signal ATTRIBUTE_UNUSED,
+                                 struct sigaction* oldaction ATTRIBUTE_UNUSED) {
   log("ClaimSignalChain is not exported by the main executable.");
   abort();
 }
 
-extern "C" void UnclaimSignalChain(int signal) {
+extern "C" void UnclaimSignalChain(int signal ATTRIBUTE_UNUSED) {
   log("UnclaimSignalChain is not exported by the main executable.");
   abort();
 }
 
-extern "C" void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context) {
+extern "C" void InvokeUserSignalHandler(int sig ATTRIBUTE_UNUSED,
+                                        siginfo_t* info ATTRIBUTE_UNUSED,
+                                        void* context ATTRIBUTE_UNUSED) {
   log("InvokeUserSignalHandler is not exported by the main executable.");
   abort();
 }
@@ -59,7 +64,8 @@ extern "C" void InitializeSignalChain() {
   abort();
 }
 
-extern "C" void EnsureFrontOfChain(int signal, struct sigaction* expected_action) {
+extern "C" void EnsureFrontOfChain(int signal ATTRIBUTE_UNUSED,
+                                   struct sigaction* expected_action ATTRIBUTE_UNUSED) {
   log("EnsureFrontOfChain is not exported by the main executable.");
   abort();
 }
