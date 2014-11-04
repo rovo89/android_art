@@ -157,32 +157,6 @@ class SuspendCheckSlowPathX86 : public SlowPathCodeX86 {
   DISALLOW_COPY_AND_ASSIGN(SuspendCheckSlowPathX86);
 };
 
-class ClinitCheckSlowPathX86 : public SlowPathCodeX86 {
- public:
-  explicit ClinitCheckSlowPathX86(HClinitCheck* instruction) : instruction_(instruction) {}
-
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
-    __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(instruction_->GetLocations());
-
-    HLoadClass* cls = instruction_->GetLoadClass();
-    InvokeRuntimeCallingConvention calling_convention;
-    __ movl(calling_convention.GetRegisterAt(0), Immediate(cls->GetTypeIndex()));
-    x86_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
-    __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pInitializeStaticStorage)));
-    codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
-    x86_codegen->Move32(instruction_->GetLocations()->InAt(0), Location::RegisterLocation(EAX));
-    codegen->RestoreLiveRegisters(instruction_->GetLocations());
-    __ jmp(GetExitLabel());
-  }
-
- private:
-  HClinitCheck* const instruction_;
-
-  DISALLOW_COPY_AND_ASSIGN(ClinitCheckSlowPathX86);
-};
-
 class LoadStringSlowPathX86 : public SlowPathCodeX86 {
  public:
   explicit LoadStringSlowPathX86(HLoadString* instruction) : instruction_(instruction) {}
@@ -210,6 +184,56 @@ class LoadStringSlowPathX86 : public SlowPathCodeX86 {
   HLoadString* const instruction_;
 
   DISALLOW_COPY_AND_ASSIGN(LoadStringSlowPathX86);
+};
+
+class LoadClassSlowPathX86 : public SlowPathCodeX86 {
+ public:
+  LoadClassSlowPathX86(HLoadClass* cls,
+                       HInstruction* at,
+                       uint32_t dex_pc,
+                       bool do_clinit)
+      : cls_(cls), at_(at), dex_pc_(dex_pc), do_clinit_(do_clinit) {
+    DCHECK(at->IsLoadClass() || at->IsClinitCheck());
+  }
+
+  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = at_->GetLocations();
+    CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
+    __ Bind(GetEntryLabel());
+    codegen->SaveLiveRegisters(locations);
+
+    InvokeRuntimeCallingConvention calling_convention;
+    __ movl(calling_convention.GetRegisterAt(0), Immediate(cls_->GetTypeIndex()));
+    x86_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
+    __ fs()->call(Address::Absolute(do_clinit_
+        ? QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pInitializeStaticStorage)
+        : QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pInitializeType)));
+    codegen->RecordPcInfo(at_, dex_pc_);
+
+    // Move the class to the desired location.
+    if (locations->Out().IsValid()) {
+      DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
+      x86_codegen->Move32(locations->Out(), Location::RegisterLocation(EAX));
+    }
+    codegen->RestoreLiveRegisters(locations);
+    __ jmp(GetExitLabel());
+  }
+
+ private:
+  // The class this slow path will load.
+  HLoadClass* const cls_;
+
+  // The instruction where this slow path is happening.
+  // (Might be the load class or an initialization check).
+  HInstruction* const at_;
+
+  // The dex PC of `at_`.
+  const uint32_t dex_pc_;
+
+  // Whether to initialize the class.
+  const bool do_clinit_;
+
+  DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathX86);
 };
 
 #undef __
@@ -2181,20 +2205,37 @@ void ParallelMoveResolverX86::RestoreScratch(int reg) {
 }
 
 void LocationsBuilderX86::VisitLoadClass(HLoadClass* cls) {
+  LocationSummary::CallKind call_kind = cls->CanCallRuntime()
+      ? LocationSummary::kCallOnSlowPath
+      : LocationSummary::kNoCall;
   LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(cls, LocationSummary::kNoCall);
+      new (GetGraph()->GetArena()) LocationSummary(cls, call_kind);
   locations->SetOut(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorX86::VisitLoadClass(HLoadClass* cls) {
   Register out = cls->GetLocations()->Out().As<Register>();
   if (cls->IsReferrersClass()) {
+    DCHECK(!cls->CanCallRuntime());
+    DCHECK(!cls->MustGenerateClinitCheck());
     codegen_->LoadCurrentMethod(out);
     __ movl(out, Address(out, mirror::ArtMethod::DeclaringClassOffset().Int32Value()));
   } else {
+    DCHECK(cls->CanCallRuntime());
     codegen_->LoadCurrentMethod(out);
     __ movl(out, Address(out, mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value()));
     __ movl(out, Address(out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex())));
+
+    SlowPathCodeX86* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86(
+        cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
+    codegen_->AddSlowPath(slow_path);
+    __ testl(out, out);
+    __ j(kEqual, slow_path->GetEntryLabel());
+    if (cls->MustGenerateClinitCheck()) {
+      GenerateClassInitializationCheck(slow_path, out);
+    } else {
+      __ Bind(slow_path->GetExitLabel());
+    }
   }
 }
 
@@ -2208,17 +2249,15 @@ void LocationsBuilderX86::VisitClinitCheck(HClinitCheck* check) {
 }
 
 void InstructionCodeGeneratorX86::VisitClinitCheck(HClinitCheck* check) {
-  SlowPathCodeX86* slow_path = new (GetGraph()->GetArena()) ClinitCheckSlowPathX86(check);
+  // We assume the class to not be null.
+  SlowPathCodeX86* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86(
+      check->GetLoadClass(), check, check->GetDexPc(), true);
   codegen_->AddSlowPath(slow_path);
+  GenerateClassInitializationCheck(slow_path, check->GetLocations()->InAt(0).As<Register>());
+}
 
-  LocationSummary* locations = check->GetLocations();
-  // We remove the class as a live register, we know it's null or unused in the slow path.
-  RegisterSet* register_set = locations->GetLiveRegisters();
-  register_set->Remove(locations->InAt(0));
-
-  Register class_reg = locations->InAt(0).As<Register>();
-  __ testl(class_reg, class_reg);
-  __ j(kEqual, slow_path->GetEntryLabel());
+void InstructionCodeGeneratorX86::GenerateClassInitializationCheck(
+    SlowPathCodeX86* slow_path, Register class_reg) {
   __ cmpl(Address(class_reg,  mirror::Class::StatusOffset().Int32Value()),
           Immediate(mirror::Class::kStatusInitialized));
   __ j(kLess, slow_path->GetEntryLabel());

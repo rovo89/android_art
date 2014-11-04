@@ -26,6 +26,7 @@ namespace art {
 namespace arm {
 
 class CodeGeneratorARM;
+class SlowPathCodeARM;
 
 static constexpr size_t kArmWordSize = 4;
 
@@ -131,6 +132,7 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
   // is the block to branch to if the suspend check is not needed, and after
   // the suspend call.
   void GenerateSuspendCheck(HSuspendCheck* check, HBasicBlock* successor);
+  void GenerateClassInitializationCheck(SlowPathCodeARM* slow_path, Register class_reg);
 
   ArmAssembler* const assembler_;
   CodeGeneratorARM* const codegen_;
