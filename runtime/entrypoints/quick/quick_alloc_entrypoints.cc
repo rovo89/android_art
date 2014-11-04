@@ -231,21 +231,21 @@ void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints) {
   switch (entry_points_allocator) {
     case gc::kAllocatorTypeDlMalloc: {
       SetQuickAllocEntryPoints_dlmalloc(qpoints, entry_points_instrumented);
-      break;
+      return;
     }
     case gc::kAllocatorTypeRosAlloc: {
       SetQuickAllocEntryPoints_rosalloc(qpoints, entry_points_instrumented);
-      break;
+      return;
     }
     case gc::kAllocatorTypeBumpPointer: {
       CHECK(kMovingCollector);
       SetQuickAllocEntryPoints_bump_pointer(qpoints, entry_points_instrumented);
-      break;
+      return;
     }
     case gc::kAllocatorTypeTLAB: {
       CHECK(kMovingCollector);
       SetQuickAllocEntryPoints_tlab(qpoints, entry_points_instrumented);
-      break;
+      return;
     }
     default:
       break;
