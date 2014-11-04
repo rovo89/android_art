@@ -33,16 +33,16 @@ constexpr ResourceMask kNoRegMasks[] = {
     ResourceMask::Bit(ResourceMask::kCCode),
 };
 // The 127-bit is the same as CLZ(masks_[1]) for a ResourceMask with only that bit set.
-COMPILE_ASSERT(kNoRegMasks[127-ResourceMask::kHeapRef].Equals(
-    kEncodeHeapRef), check_kNoRegMasks_heap_ref_index);
-COMPILE_ASSERT(kNoRegMasks[127-ResourceMask::kLiteral].Equals(
-    kEncodeLiteral), check_kNoRegMasks_literal_index);
-COMPILE_ASSERT(kNoRegMasks[127-ResourceMask::kDalvikReg].Equals(
-    kEncodeDalvikReg), check_kNoRegMasks_dalvik_reg_index);
-COMPILE_ASSERT(kNoRegMasks[127-ResourceMask::kFPStatus].Equals(
-    ResourceMask::Bit(ResourceMask::kFPStatus)), check_kNoRegMasks_fp_status_index);
-COMPILE_ASSERT(kNoRegMasks[127-ResourceMask::kCCode].Equals(
-    ResourceMask::Bit(ResourceMask::kCCode)), check_kNoRegMasks_ccode_index);
+static_assert(kNoRegMasks[127-ResourceMask::kHeapRef].Equals(
+    kEncodeHeapRef), "kNoRegMasks heap ref index unexpected");
+static_assert(kNoRegMasks[127-ResourceMask::kLiteral].Equals(
+    kEncodeLiteral), "kNoRegMasks literal index unexpected");
+static_assert(kNoRegMasks[127-ResourceMask::kDalvikReg].Equals(
+    kEncodeDalvikReg), "kNoRegMasks dalvik reg index unexpected");
+static_assert(kNoRegMasks[127-ResourceMask::kFPStatus].Equals(
+    ResourceMask::Bit(ResourceMask::kFPStatus)), "kNoRegMasks fp status index unexpected");
+static_assert(kNoRegMasks[127-ResourceMask::kCCode].Equals(
+    ResourceMask::Bit(ResourceMask::kCCode)), "kNoRegMasks ccode index unexpected");
 
 template <size_t special_bit>
 constexpr ResourceMask OneRegOneSpecial(size_t reg) {
@@ -74,19 +74,19 @@ constexpr size_t SingleRegMaskIndex(size_t main_index, size_t sub_index) {
 }
 
 // The 127-bit is the same as CLZ(masks_[1]) for a ResourceMask with only that bit set.
-COMPILE_ASSERT(kSingleRegMasks[SingleRegMaskIndex(127-ResourceMask::kHeapRef, 0)].Equals(
-    OneRegOneSpecial<ResourceMask::kHeapRef>(0)), check_kSingleRegMasks_heap_ref_index);
-COMPILE_ASSERT(kSingleRegMasks[SingleRegMaskIndex(127-ResourceMask::kLiteral, 0)].Equals(
-    OneRegOneSpecial<ResourceMask::kLiteral>(0)), check_kSingleRegMasks_literal_index);
-COMPILE_ASSERT(kSingleRegMasks[SingleRegMaskIndex(127-ResourceMask::kDalvikReg, 0)].Equals(
-    OneRegOneSpecial<ResourceMask::kDalvikReg>(0)), check_kSingleRegMasks_dalvik_reg_index);
-COMPILE_ASSERT(kSingleRegMasks[SingleRegMaskIndex(127-ResourceMask::kFPStatus, 0)].Equals(
-    OneRegOneSpecial<ResourceMask::kFPStatus>(0)), check_kSingleRegMasks_fp_status_index);
-COMPILE_ASSERT(kSingleRegMasks[SingleRegMaskIndex(127-ResourceMask::kCCode, 0)].Equals(
-    OneRegOneSpecial<ResourceMask::kCCode>(0)), check_kSingleRegMasks_ccode_index);
+static_assert(kSingleRegMasks[SingleRegMaskIndex(127-ResourceMask::kHeapRef, 0)].Equals(
+    OneRegOneSpecial<ResourceMask::kHeapRef>(0)), "kSingleRegMasks heap ref index unexpected");
+static_assert(kSingleRegMasks[SingleRegMaskIndex(127-ResourceMask::kLiteral, 0)].Equals(
+    OneRegOneSpecial<ResourceMask::kLiteral>(0)), "kSingleRegMasks literal index  unexpected");
+static_assert(kSingleRegMasks[SingleRegMaskIndex(127-ResourceMask::kDalvikReg, 0)].Equals(
+    OneRegOneSpecial<ResourceMask::kDalvikReg>(0)), "kSingleRegMasks dalvik reg index unexpected");
+static_assert(kSingleRegMasks[SingleRegMaskIndex(127-ResourceMask::kFPStatus, 0)].Equals(
+    OneRegOneSpecial<ResourceMask::kFPStatus>(0)), "kSingleRegMasks fp status index unexpected");
+static_assert(kSingleRegMasks[SingleRegMaskIndex(127-ResourceMask::kCCode, 0)].Equals(
+    OneRegOneSpecial<ResourceMask::kCCode>(0)), "kSingleRegMasks ccode index unexpected");
 
 // NOTE: arraysize(kNoRegMasks) multiplied by 32 due to the gcc bug workaround, see above.
-COMPILE_ASSERT(arraysize(kSingleRegMasks) == arraysize(kNoRegMasks) * 32, check_arraysizes);
+static_assert(arraysize(kSingleRegMasks) == arraysize(kNoRegMasks) * 32, "arraysizes unexpected");
 
 constexpr ResourceMask kTwoRegsMasks[] = {
 #define TWO(a, b) ResourceMask::Bit(a).Union(ResourceMask::Bit(b))
@@ -115,7 +115,7 @@ constexpr ResourceMask kTwoRegsMasks[] = {
         TWO(8, 15), TWO(9, 15), TWO(10, 15), TWO(11, 15), TWO(12, 15), TWO(13, 15), TWO(14, 15),
 #undef TWO
 };
-COMPILE_ASSERT(arraysize(kTwoRegsMasks) ==  16 * 15 / 2, check_arraysize_kTwoRegsMasks);
+static_assert(arraysize(kTwoRegsMasks) ==  16 * 15 / 2, "arraysize of kTwoRegsMasks unexpected");
 
 constexpr size_t TwoRegsIndex(size_t higher, size_t lower) {
   return (higher * (higher - 1)) / 2u + lower;
@@ -136,7 +136,7 @@ constexpr bool CheckTwoRegsMaskTable(size_t lines) {
       (CheckTwoRegsMaskLine(lines - 1) && CheckTwoRegsMaskTable(lines - 1u));
 }
 
-COMPILE_ASSERT(CheckTwoRegsMaskTable(16), check_two_regs_masks_table);
+static_assert(CheckTwoRegsMaskTable(16), "two regs masks table check failed");
 
 }  // anonymous namespace
 

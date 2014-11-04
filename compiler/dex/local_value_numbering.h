@@ -353,7 +353,7 @@ class LocalValueNumbering {
   GlobalValueNumbering* gvn_;
 
   // We're using the block id as a 16-bit operand value for some lookups.
-  COMPILE_ASSERT(sizeof(BasicBlockId) == sizeof(uint16_t), BasicBlockId_must_be_16_bit);
+  static_assert(sizeof(BasicBlockId) == sizeof(uint16_t), "BasicBlockId must be 16 bit");
   BasicBlockId id_;
 
   SregValueMap sreg_value_map_;

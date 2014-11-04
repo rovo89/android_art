@@ -78,14 +78,14 @@ class QuickCompiler : public Compiler {
   DISALLOW_COPY_AND_ASSIGN(QuickCompiler);
 };
 
-COMPILE_ASSERT(0U == static_cast<size_t>(kNone), kNone_not_0);
-COMPILE_ASSERT(1U == static_cast<size_t>(kArm), kArm_not_1);
-COMPILE_ASSERT(2U == static_cast<size_t>(kArm64), kArm64_not_2);
-COMPILE_ASSERT(3U == static_cast<size_t>(kThumb2), kThumb2_not_3);
-COMPILE_ASSERT(4U == static_cast<size_t>(kX86), kX86_not_4);
-COMPILE_ASSERT(5U == static_cast<size_t>(kX86_64), kX86_64_not_5);
-COMPILE_ASSERT(6U == static_cast<size_t>(kMips), kMips_not_6);
-COMPILE_ASSERT(7U == static_cast<size_t>(kMips64), kMips64_not_7);
+static_assert(0U == static_cast<size_t>(kNone),   "kNone not 0");
+static_assert(1U == static_cast<size_t>(kArm),    "kArm not 1");
+static_assert(2U == static_cast<size_t>(kArm64),  "kArm64 not 2");
+static_assert(3U == static_cast<size_t>(kThumb2), "kThumb2 not 3");
+static_assert(4U == static_cast<size_t>(kX86),    "kX86 not 4");
+static_assert(5U == static_cast<size_t>(kX86_64), "kX86_64 not 5");
+static_assert(6U == static_cast<size_t>(kMips),   "kMips not 6");
+static_assert(7U == static_cast<size_t>(kMips64), "kMips64 not 7");
 
 // Additional disabled optimizations (over generally disabled) per instruction set.
 static constexpr uint32_t kDisabledOptimizationsPerISA[] = {
@@ -118,7 +118,8 @@ static constexpr uint32_t kDisabledOptimizationsPerISA[] = {
     // 7 = kMips64.
     ~0U
 };
-COMPILE_ASSERT(sizeof(kDisabledOptimizationsPerISA) == 8 * sizeof(uint32_t), kDisabledOpts_unexp);
+static_assert(sizeof(kDisabledOptimizationsPerISA) == 8 * sizeof(uint32_t),
+              "kDisabledOpts unexpected");
 
 // Supported shorty types per instruction set. nullptr means that all are available.
 // Z : boolean
@@ -149,7 +150,7 @@ static const char* kSupportedTypes[] = {
     // 7 = kMips64.
     ""
 };
-COMPILE_ASSERT(sizeof(kSupportedTypes) == 8 * sizeof(char*), kSupportedTypes_unexp);
+static_assert(sizeof(kSupportedTypes) == 8 * sizeof(char*), "kSupportedTypes unexpected");
 
 static int kAllOpcodes[] = {
     Instruction::NOP,
@@ -460,7 +461,7 @@ static const int* kUnsupportedOpcodes[] = {
     // 7 = kMips64.
     kAllOpcodes
 };
-COMPILE_ASSERT(sizeof(kUnsupportedOpcodes) == 8 * sizeof(int*), kUnsupportedOpcodes_unexp);
+static_assert(sizeof(kUnsupportedOpcodes) == 8 * sizeof(int*), "kUnsupportedOpcodes unexpected");
 
 // Size of the arrays stored above.
 static const size_t kUnsupportedOpcodesSize[] = {
@@ -481,8 +482,8 @@ static const size_t kUnsupportedOpcodesSize[] = {
     // 7 = kMips64.
     arraysize(kAllOpcodes),
 };
-COMPILE_ASSERT(sizeof(kUnsupportedOpcodesSize) == 8 * sizeof(size_t),
-               kUnsupportedOpcodesSize_unexp);
+static_assert(sizeof(kUnsupportedOpcodesSize) == 8 * sizeof(size_t),
+              "kUnsupportedOpcodesSize unexpected");
 
 // The maximum amount of Dalvik register in a method for which we will start compiling. Tries to
 // avoid an abort when we need to manage more SSA registers than we can.

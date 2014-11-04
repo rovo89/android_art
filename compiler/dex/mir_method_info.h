@@ -60,7 +60,7 @@ class MirMethodInfo {
     kBitIsStatic = 0,
     kMethodInfoBitEnd
   };
-  COMPILE_ASSERT(kMethodInfoBitEnd <= 16, too_many_flags);
+  static_assert(kMethodInfoBitEnd <= 16, "Too many flags");
   static constexpr uint16_t kFlagIsStatic = 1u << kBitIsStatic;
 
   MirMethodInfo(uint16_t method_idx, uint16_t flags)
@@ -170,15 +170,15 @@ class MirMethodLoweringInfo : public MirMethodInfo {
     kBitClassIsInitialized,
     kMethodLoweringInfoBitEnd
   };
-  COMPILE_ASSERT(kMethodLoweringInfoBitEnd <= 16, too_many_flags);
+  static_assert(kMethodLoweringInfoBitEnd <= 16, "Too many flags");
   static constexpr uint16_t kFlagFastPath = 1u << kBitFastPath;
   static constexpr uint16_t kFlagIsReferrersClass = 1u << kBitIsReferrersClass;
   static constexpr uint16_t kFlagClassIsInitialized = 1u << kBitClassIsInitialized;
   static constexpr uint16_t kInvokeTypeMask = 7u;
-  COMPILE_ASSERT((1u << (kBitInvokeTypeEnd - kBitInvokeTypeBegin)) - 1u == kInvokeTypeMask,
-                 assert_invoke_type_bits_ok);
-  COMPILE_ASSERT((1u << (kBitSharpTypeEnd - kBitSharpTypeBegin)) - 1u == kInvokeTypeMask,
-                 assert_sharp_type_bits_ok);
+  static_assert((1u << (kBitInvokeTypeEnd - kBitInvokeTypeBegin)) - 1u == kInvokeTypeMask,
+                "assert invoke type bits failed");
+  static_assert((1u << (kBitSharpTypeEnd - kBitSharpTypeBegin)) - 1u == kInvokeTypeMask,
+                "assert sharp type bits failed");
 
   uintptr_t direct_code_;
   uintptr_t direct_method_;

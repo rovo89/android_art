@@ -215,8 +215,8 @@ static constexpr ConditionCode kIfCcZConditionCodes[] = {
     kCondEq, kCondNe, kCondLt, kCondGe, kCondGt, kCondLe
 };
 
-COMPILE_ASSERT(arraysize(kIfCcZConditionCodes) == Instruction::IF_LEZ - Instruction::IF_EQZ + 1,
-               if_ccz_ccodes_size1);
+static_assert(arraysize(kIfCcZConditionCodes) == Instruction::IF_LEZ - Instruction::IF_EQZ + 1,
+              "if_ccz_ccodes_size1");
 
 static constexpr bool IsInstructionIfCcZ(Instruction::Code opcode) {
   return Instruction::IF_EQZ <= opcode && opcode <= Instruction::IF_LEZ;
@@ -226,12 +226,12 @@ static constexpr ConditionCode ConditionCodeForIfCcZ(Instruction::Code opcode) {
   return kIfCcZConditionCodes[opcode - Instruction::IF_EQZ];
 }
 
-COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_EQZ) == kCondEq, check_if_eqz_ccode);
-COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_NEZ) == kCondNe, check_if_nez_ccode);
-COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_LTZ) == kCondLt, check_if_ltz_ccode);
-COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_GEZ) == kCondGe, check_if_gez_ccode);
-COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_GTZ) == kCondGt, check_if_gtz_ccode);
-COMPILE_ASSERT(ConditionCodeForIfCcZ(Instruction::IF_LEZ) == kCondLe, check_if_lez_ccode);
+static_assert(ConditionCodeForIfCcZ(Instruction::IF_EQZ) == kCondEq, "if_eqz ccode");
+static_assert(ConditionCodeForIfCcZ(Instruction::IF_NEZ) == kCondNe, "if_nez ccode");
+static_assert(ConditionCodeForIfCcZ(Instruction::IF_LTZ) == kCondLt, "if_ltz ccode");
+static_assert(ConditionCodeForIfCcZ(Instruction::IF_GEZ) == kCondGe, "if_gez ccode");
+static_assert(ConditionCodeForIfCcZ(Instruction::IF_GTZ) == kCondGt, "if_gtz ccode");
+static_assert(ConditionCodeForIfCcZ(Instruction::IF_LEZ) == kCondLe, "if_lez ccode");
 
 int MIRGraph::GetSSAUseCount(int s_reg) {
   DCHECK_LT(static_cast<size_t>(s_reg), ssa_subscripts_.size());
@@ -1087,7 +1087,7 @@ void MIRGraph::EliminateNullChecksEnd() {
   for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
     for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
       constexpr int kMarkToIgnoreNullCheckShift = kMIRMark - kMIRIgnoreNullCheck;
-      COMPILE_ASSERT(kMarkToIgnoreNullCheckShift > 0, check_valid_shift_right);
+      static_assert(kMarkToIgnoreNullCheckShift > 0, "Not a valid right-shift");
       uint16_t mirMarkAdjustedToIgnoreNullCheck =
           (mir->optimization_flags & MIR_MARK) >> kMarkToIgnoreNullCheckShift;
       mir->optimization_flags |= mirMarkAdjustedToIgnoreNullCheck;
