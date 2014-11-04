@@ -139,26 +139,11 @@ class UsePosition : public ArenaObject {
  */
 class LiveInterval : public ArenaObject {
  public:
-  LiveInterval(ArenaAllocator* allocator,
-               Primitive::Type type,
-               HInstruction* defined_by = nullptr,
-               bool is_fixed = false,
-               int reg = kNoRegister,
-               bool is_temp = false,
-               bool is_slow_path_safepoint = false)
-      : allocator_(allocator),
-        first_range_(nullptr),
-        last_range_(nullptr),
-        first_use_(nullptr),
-        type_(type),
-        next_sibling_(nullptr),
-        parent_(this),
-        register_(reg),
-        spill_slot_(kNoSpillSlot),
-        is_fixed_(is_fixed),
-        is_temp_(is_temp),
-        is_slow_path_safepoint_(is_slow_path_safepoint),
-        defined_by_(defined_by) {}
+  static LiveInterval* MakeInterval(ArenaAllocator* allocator,
+                                    Primitive::Type type,
+                                    HInstruction* instruction = nullptr) {
+    return new (allocator) LiveInterval(allocator, type, instruction);
+  }
 
   static LiveInterval* MakeSlowPathInterval(ArenaAllocator* allocator, HInstruction* instruction) {
     return new (allocator) LiveInterval(
@@ -174,7 +159,10 @@ class LiveInterval : public ArenaObject {
   }
 
   bool IsFixed() const { return is_fixed_; }
+  bool IsTemp() const { return is_temp_; }
   bool IsSlowPathSafepoint() const { return is_slow_path_safepoint_; }
+  // This interval is the result of a split.
+  bool IsSplit() const { return parent_ != this; }
 
   void AddUse(HInstruction* instruction, size_t input_index, bool is_environment) {
     // Set the use within the instruction.
@@ -489,6 +477,7 @@ class LiveInterval : public ArenaObject {
       } while ((use = use->GetNext()) != nullptr);
     }
     stream << "}";
+    stream << " is_fixed: " << is_fixed_ << ", is_split: " << IsSplit();
   }
 
   LiveInterval* GetNextSibling() const { return next_sibling_; }
@@ -520,12 +509,31 @@ class LiveInterval : public ArenaObject {
   // Finds the interval that covers `position`.
   const LiveInterval& GetIntervalAt(size_t position) const;
 
-  bool IsTemp() const { return is_temp_; }
-
   // Returns whether `other` and `this` share the same kind of register.
   bool SameRegisterKind(Location other) const;
 
  private:
+  LiveInterval(ArenaAllocator* allocator,
+               Primitive::Type type,
+               HInstruction* defined_by = nullptr,
+               bool is_fixed = false,
+               int reg = kNoRegister,
+               bool is_temp = false,
+               bool is_slow_path_safepoint = false)
+      : allocator_(allocator),
+        first_range_(nullptr),
+        last_range_(nullptr),
+        first_use_(nullptr),
+        type_(type),
+        next_sibling_(nullptr),
+        parent_(this),
+        register_(reg),
+        spill_slot_(kNoSpillSlot),
+        is_fixed_(is_fixed),
+        is_temp_(is_temp),
+        is_slow_path_safepoint_(is_slow_path_safepoint),
+        defined_by_(defined_by) {}
+
   ArenaAllocator* const allocator_;
 
   // Ranges of this interval. We need a quick access to the last range to test
