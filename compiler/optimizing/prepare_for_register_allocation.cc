@@ -34,6 +34,10 @@ void PrepareForRegisterAllocation::VisitNullCheck(HNullCheck* check) {
   check->ReplaceWith(check->InputAt(0));
 }
 
+void PrepareForRegisterAllocation::VisitDivZeroCheck(HDivZeroCheck* check) {
+  check->ReplaceWith(check->InputAt(0));
+}
+
 void PrepareForRegisterAllocation::VisitBoundsCheck(HBoundsCheck* check) {
   check->ReplaceWith(check->InputAt(0));
 }

@@ -92,6 +92,22 @@ class NullCheckSlowPathARM : public SlowPathCodeARM {
   DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathARM);
 };
 
+class DivZeroCheckSlowPathARM : public SlowPathCodeARM {
+ public:
+  explicit DivZeroCheckSlowPathARM(HDivZeroCheck* instruction) : instruction_(instruction) {}
+
+  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
+    __ Bind(GetEntryLabel());
+    arm_codegen->InvokeRuntime(
+        QUICK_ENTRY_POINT(pThrowDivZero), instruction_, instruction_->GetDexPc());
+  }
+
+ private:
+  HDivZeroCheck* const instruction_;
+  DISALLOW_COPY_AND_ASSIGN(DivZeroCheckSlowPathARM);
+};
+
 class StackOverflowCheckSlowPathARM : public SlowPathCodeARM {
  public:
   StackOverflowCheckSlowPathARM() {}
@@ -785,6 +801,7 @@ void CodeGeneratorARM::InvokeRuntime(int32_t entry_point_offset,
   DCHECK(instruction->IsSuspendCheck()
       || instruction->IsBoundsCheck()
       || instruction->IsNullCheck()
+      || instruction->IsDivZeroCheck()
       || !IsLeafMethod());
 }
 
@@ -1533,7 +1550,12 @@ void LocationsBuilderARM::VisitDiv(HDiv* div) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(div, LocationSummary::kNoCall);
   switch (div->GetResultType()) {
-    case Primitive::kPrimInt:
+    case Primitive::kPrimInt: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+    }
     case Primitive::kPrimLong: {
       LOG(FATAL) << "Not implemented div type" << div->GetResultType();
       break;
@@ -1558,7 +1580,11 @@ void InstructionCodeGeneratorARM::VisitDiv(HDiv* div) {
   Location second = locations->InAt(1);
 
   switch (div->GetResultType()) {
-    case Primitive::kPrimInt:
+    case Primitive::kPrimInt: {
+      __ sdiv(out.As<Register>(), first.As<Register>(), second.As<Register>());
+      break;
+    }
+
     case Primitive::kPrimLong: {
       LOG(FATAL) << "Not implemented div type" << div->GetResultType();
       break;
@@ -1579,6 +1605,27 @@ void InstructionCodeGeneratorARM::VisitDiv(HDiv* div) {
     default:
       LOG(FATAL) << "Unexpected div type " << div->GetResultType();
   }
+}
+
+void LocationsBuilderARM::VisitDivZeroCheck(HDivZeroCheck* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  if (instruction->HasUses()) {
+    locations->SetOut(Location::SameAsFirstInput());
+  }
+}
+
+void InstructionCodeGeneratorARM::VisitDivZeroCheck(HDivZeroCheck* instruction) {
+  SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) DivZeroCheckSlowPathARM(instruction);
+  codegen_->AddSlowPath(slow_path);
+
+  LocationSummary* locations = instruction->GetLocations();
+  Location value = locations->InAt(0);
+
+  DCHECK(value.IsRegister()) << value;
+  __ cmp(value.As<Register>(), ShifterOperand(0));
+  __ b(slow_path->GetEntryLabel(), EQ);
 }
 
 void LocationsBuilderARM::VisitNewInstance(HNewInstance* instruction) {

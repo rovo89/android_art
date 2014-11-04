@@ -696,4 +696,45 @@ TEST(RegisterAllocatorTest, SameAsFirstInputHint) {
   }
 }
 
+static HGraph* BuildDiv(ArenaAllocator* allocator,
+                        HInstruction** div) {
+  HGraph* graph = new (allocator) HGraph(allocator);
+  HBasicBlock* entry = new (allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+  HInstruction* first = new (allocator) HParameterValue(0, Primitive::kPrimInt);
+  HInstruction* second = new (allocator) HParameterValue(0, Primitive::kPrimInt);
+  entry->AddInstruction(first);
+  entry->AddInstruction(second);
+
+  HBasicBlock* block = new (allocator) HBasicBlock(graph);
+  graph->AddBlock(block);
+  entry->AddSuccessor(block);
+
+  *div = new (allocator) HDiv(Primitive::kPrimInt, first, second);
+  block->AddInstruction(*div);
+
+  block->AddInstruction(new (allocator) HExit());
+  return graph;
+}
+
+TEST(RegisterAllocatorTest, ExpectedExactInRegisterAndSameOutputHint) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  HInstruction *div;
+
+  {
+    HGraph* graph = BuildDiv(&allocator, &div);
+    x86::CodeGeneratorX86 codegen(graph);
+    SsaLivenessAnalysis liveness(*graph, &codegen);
+    liveness.Analyze();
+
+    RegisterAllocator register_allocator(&allocator, &codegen, liveness);
+    register_allocator.AllocateRegisters();
+
+    // div on x86 requires its first input in eax and the output be the same as the first input.
+    ASSERT_EQ(div->GetLiveInterval()->GetRegister(), 0);
+  }
+}
+
 }  // namespace art

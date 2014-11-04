@@ -537,6 +537,27 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   return true;
 }
 
+void HGraphBuilder::BuildCheckedDiv(const Instruction& instruction,
+                                    uint32_t dex_offset,
+                                    Primitive::Type type,
+                                    bool second_is_lit) {
+  DCHECK(type == Primitive::kPrimInt);
+
+  HInstruction* first = LoadLocal(instruction.VRegB(), type);
+  HInstruction* second = second_is_lit
+      ? GetIntConstant(instruction.VRegC())
+      : LoadLocal(instruction.VRegC(), type);
+  if (!second->IsIntConstant() || (second->AsIntConstant()->GetValue() == 0)) {
+    second = new (arena_) HDivZeroCheck(second, dex_offset);
+    Temporaries temps(graph_, 1);
+    current_block_->AddInstruction(second);
+    temps.Add(current_block_->GetLastInstruction());
+  }
+
+  current_block_->AddInstruction(new (arena_) HDiv(type, first, second));
+  UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+}
+
 void HGraphBuilder::BuildArrayAccess(const Instruction& instruction,
                                      uint32_t dex_offset,
                                      bool is_put,
@@ -614,6 +635,60 @@ void HGraphBuilder::BuildFillArrayData(HInstruction* object,
     HInstruction* value = GetIntConstant(data[i]);
     current_block_->AddInstruction(new (arena_) HArraySet(
       object, index, value, anticipated_type, dex_offset));
+  }
+}
+
+void HGraphBuilder::BuildFillArrayData(const Instruction& instruction, uint32_t dex_offset) {
+  Temporaries temps(graph_, 1);
+  HInstruction* array = LoadLocal(instruction.VRegA_31t(), Primitive::kPrimNot);
+  HNullCheck* null_check = new (arena_) HNullCheck(array, dex_offset);
+  current_block_->AddInstruction(null_check);
+  temps.Add(null_check);
+
+  HInstruction* length = new (arena_) HArrayLength(null_check);
+  current_block_->AddInstruction(length);
+
+  int32_t payload_offset = instruction.VRegB_31t() + dex_offset;
+  const Instruction::ArrayDataPayload* payload =
+      reinterpret_cast<const Instruction::ArrayDataPayload*>(code_start_ + payload_offset);
+  const uint8_t* data = payload->data;
+  uint32_t element_count = payload->element_count;
+
+  // Implementation of this DEX instruction seems to be that the bounds check is
+  // done before doing any stores.
+  HInstruction* last_index = GetIntConstant(payload->element_count - 1);
+  current_block_->AddInstruction(new (arena_) HBoundsCheck(last_index, length, dex_offset));
+
+  switch (payload->element_width) {
+    case 1:
+      BuildFillArrayData(null_check,
+                         reinterpret_cast<const int8_t*>(data),
+                         element_count,
+                         Primitive::kPrimByte,
+                         dex_offset);
+      break;
+    case 2:
+      BuildFillArrayData(null_check,
+                         reinterpret_cast<const int16_t*>(data),
+                         element_count,
+                         Primitive::kPrimShort,
+                         dex_offset);
+      break;
+    case 4:
+      BuildFillArrayData(null_check,
+                         reinterpret_cast<const int32_t*>(data),
+                         element_count,
+                         Primitive::kPrimInt,
+                         dex_offset);
+      break;
+    case 8:
+      BuildFillWideArrayData(null_check,
+                             reinterpret_cast<const int64_t*>(data),
+                             element_count,
+                             dex_offset);
+      break;
+    default:
+      LOG(FATAL) << "Unknown element width for " << payload->element_width;
   }
 }
 
@@ -901,6 +976,11 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::DIV_INT: {
+      BuildCheckedDiv(instruction, dex_offset, Primitive::kPrimInt, false);
+      break;
+    }
+
     case Instruction::DIV_FLOAT: {
       Binop_23x<HDiv>(instruction, Primitive::kPrimFloat);
       break;
@@ -966,6 +1046,11 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::DIV_INT_2ADDR: {
+      BuildCheckedDiv(instruction, dex_offset, Primitive::kPrimInt, false);
+      break;
+    }
+
     case Instruction::DIV_FLOAT_2ADDR: {
       Binop_12x<HDiv>(instruction, Primitive::kPrimFloat);
       break;
@@ -1006,6 +1091,12 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::DIV_INT_LIT16:
+    case Instruction::DIV_INT_LIT8: {
+      BuildCheckedDiv(instruction, dex_offset, Primitive::kPrimInt, true);
+      break;
+    }
+
     case Instruction::NEW_INSTANCE: {
       current_block_->AddInstruction(
           new (arena_) HNewInstance(dex_offset, instruction.VRegB_21c()));
@@ -1040,57 +1131,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::FILL_ARRAY_DATA: {
-      Temporaries temps(graph_, 1);
-      HInstruction* array = LoadLocal(instruction.VRegA_31t(), Primitive::kPrimNot);
-      HNullCheck* null_check = new (arena_) HNullCheck(array, dex_offset);
-      current_block_->AddInstruction(null_check);
-      temps.Add(null_check);
-
-      HInstruction* length = new (arena_) HArrayLength(null_check);
-      current_block_->AddInstruction(length);
-
-      int32_t payload_offset = instruction.VRegB_31t() + dex_offset;
-      const Instruction::ArrayDataPayload* payload =
-          reinterpret_cast<const Instruction::ArrayDataPayload*>(code_start_ + payload_offset);
-      const uint8_t* data = payload->data;
-      uint32_t element_count = payload->element_count;
-
-      // Implementation of this DEX instruction seems to be that the bounds check is
-      // done before doing any stores.
-      HInstruction* last_index = GetIntConstant(payload->element_count - 1);
-      current_block_->AddInstruction(new (arena_) HBoundsCheck(last_index, length, dex_offset));
-
-      switch (payload->element_width) {
-        case 1:
-          BuildFillArrayData(null_check,
-                             reinterpret_cast<const int8_t*>(data),
-                             element_count,
-                             Primitive::kPrimByte,
-                             dex_offset);
-          break;
-        case 2:
-          BuildFillArrayData(null_check,
-                             reinterpret_cast<const int16_t*>(data),
-                             element_count,
-                             Primitive::kPrimShort,
-                             dex_offset);
-          break;
-        case 4:
-          BuildFillArrayData(null_check,
-                             reinterpret_cast<const int32_t*>(data),
-                             element_count,
-                             Primitive::kPrimInt,
-                             dex_offset);
-          break;
-        case 8:
-          BuildFillWideArrayData(null_check,
-                                 reinterpret_cast<const int64_t*>(data),
-                                 element_count,
-                                 dex_offset);
-          break;
-        default:
-          LOG(FATAL) << "Unknown element width for " << payload->element_width;
-      }
+      BuildFillArrayData(instruction, dex_offset);
       break;
     }
 
