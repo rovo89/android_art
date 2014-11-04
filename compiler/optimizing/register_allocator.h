@@ -126,6 +126,7 @@ class RegisterAllocator {
   void ProcessInstruction(HInstruction* instruction);
   bool ValidateInternal(bool log_fatal_on_failure) const;
   void DumpInterval(std::ostream& stream, LiveInterval* interval) const;
+  void DumpAllIntervals(std::ostream& stream) const;
 
   ArenaAllocator* const allocator_;
   CodeGenerator* const codegen_;
