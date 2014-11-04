@@ -119,7 +119,7 @@ class TrackingAllocatorImpl {
 
   // Used internally by STL data structures.
   TrackingAllocatorImpl() throw() {
-    COMPILE_ASSERT(kTag < kAllocatorTagCount, must_be_less_than_count);
+    static_assert(kTag < kAllocatorTagCount, "kTag must be less than kAllocatorTagCount");
   }
 
   // Enables an allocator for objects of one type to allocate storage for objects of another type.

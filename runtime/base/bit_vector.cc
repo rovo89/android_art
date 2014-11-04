@@ -41,8 +41,8 @@ BitVector::BitVector(uint32_t start_bits,
     storage_size_(storage_size),
     allocator_(allocator),
     expandable_(expandable) {
-  COMPILE_ASSERT(sizeof(*storage_) == kWordBytes, check_word_bytes);
-  COMPILE_ASSERT(sizeof(*storage_) * 8u == kWordBits, check_word_bits);
+  static_assert(sizeof(*storage_) == kWordBytes, "word bytes");
+  static_assert(sizeof(*storage_) * 8u == kWordBits, "word bits");
   if (storage_ == nullptr) {
     storage_size_ = BitsToWords(start_bits);
     storage_ = static_cast<uint32_t*>(allocator_->Alloc(storage_size_ * kWordBytes));
