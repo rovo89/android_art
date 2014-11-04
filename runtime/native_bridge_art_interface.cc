@@ -19,6 +19,7 @@
 #include "nativebridge/native_bridge.h"
 
 #include "base/logging.h"
+#include "base/macros.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "scoped_thread_state_change.h"
@@ -121,6 +122,8 @@ void PreInitializeNativeBridge(std::string dir) {
     LOG(WARNING) << "Could not create mount namespace.";
   }
   android::PreInitializeNativeBridge(dir.c_str(), GetInstructionSetString(kRuntimeISA));
+#else
+  UNUSED(dir);
 #endif
 }
 
