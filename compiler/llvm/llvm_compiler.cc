@@ -16,6 +16,7 @@
 
 #include "llvm_compiler.h"
 
+#include "base/macros.h"
 #ifdef ART_USE_PORTABLE_COMPILER
 #include "compiler.h"
 #include "compiler_llvm.h"
@@ -152,9 +153,10 @@ class LLVMCompiler FINAL : public Compiler {
 
 Compiler* CreateLLVMCompiler(CompilerDriver* driver) {
 #ifdef ART_USE_PORTABLE_COMPILER
-      return new llvm::LLVMCompiler(driver);
+  return new llvm::LLVMCompiler(driver);
 #else
-      return nullptr;
+  UNUSED(driver);
+  return nullptr;
 #endif
 }
 

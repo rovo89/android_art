@@ -50,8 +50,8 @@ class TestParallelMoveResolver : public ParallelMoveResolver {
              << ")";
   }
 
-  virtual void SpillScratch(int reg) {}
-  virtual void RestoreScratch(int reg) {}
+  virtual void SpillScratch(int reg ATTRIBUTE_UNUSED) {}
+  virtual void RestoreScratch(int reg ATTRIBUTE_UNUSED) {}
 
   std::string GetMessage() const {
     return  message_.str();

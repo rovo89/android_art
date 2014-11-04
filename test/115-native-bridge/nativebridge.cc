@@ -18,13 +18,14 @@
 
 #include <algorithm>
 #include <dlfcn.h>
+#include <jni.h>
 #include <vector>
 
-#include "jni.h"
 #include "stdio.h"
 #include "unistd.h"
 #include "sys/stat.h"
 
+#include "base/macros.h"
 #include "nativebridge/native_bridge.h"
 
 struct NativeBridgeMethod {
@@ -209,7 +210,8 @@ static NativeBridgeMethod* find_native_bridge_method(const char *name) {
 
 // NativeBridgeCallbacks implementations
 extern "C" bool native_bridge_initialize(const android::NativeBridgeRuntimeCallbacks* art_cbs,
-                                         const char* app_code_cache_dir, const char* isa) {
+                                         const char* app_code_cache_dir,
+                                         const char* isa ATTRIBUTE_UNUSED) {
   struct stat st;
   if ((app_code_cache_dir != nullptr)
       && (stat(app_code_cache_dir, &st) == 0)
@@ -248,7 +250,7 @@ extern "C" void* native_bridge_loadLibrary(const char* libpath, int flag) {
 }
 
 extern "C" void* native_bridge_getTrampoline(void* handle, const char* name, const char* shorty,
-                                             uint32_t len) {
+                                             uint32_t len ATTRIBUTE_UNUSED) {
   printf("Getting trampoline for %s with shorty %s.\n", name, shorty);
 
   // The name here is actually the JNI name, so we can directly do the lookup.

@@ -82,7 +82,7 @@ class ArenaAllocatorStatsImpl<false> {
   ArenaAllocatorStatsImpl& operator = (const ArenaAllocatorStatsImpl& other) = delete;
 
   void Copy(const ArenaAllocatorStatsImpl& other) { UNUSED(other); }
-  void RecordAlloc(size_t bytes, ArenaAllocKind kind) { UNUSED(bytes); UNUSED(kind); }
+  void RecordAlloc(size_t bytes, ArenaAllocKind kind) { UNUSED(bytes, kind); }
   size_t NumAllocations() const { return 0u; }
   size_t BytesAllocated() const { return 0u; }
   void Dump(std::ostream& os, const Arena* first, ssize_t lost_bytes_adjustment) const {

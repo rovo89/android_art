@@ -114,6 +114,7 @@ class TrackingAllocatorImpl {
   // Used internally by STL data structures.
   template <class U>
   TrackingAllocatorImpl(const TrackingAllocatorImpl<U, kTag>& alloc) throw() {
+    UNUSED(alloc);
   }
 
   // Used internally by STL data structures.
@@ -129,6 +130,7 @@ class TrackingAllocatorImpl {
   };
 
   pointer allocate(size_type n, const_pointer hint = 0) {
+    UNUSED(hint);
     const size_t size = n * sizeof(T);
     TrackedAllocators::RegisterAllocation(GetTag(), size);
     return reinterpret_cast<pointer>(malloc(size));

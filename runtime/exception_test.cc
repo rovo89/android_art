@@ -165,7 +165,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   std::vector<uintptr_t> fake_stack;
   Runtime* r = Runtime::Current();
   r->SetInstructionSet(kRuntimeISA);
-  mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod(Runtime::kSaveAll);
+  mirror::ArtMethod* save_method = r->CreateCalleeSaveMethod();
   r->SetCalleeSaveMethod(save_method, Runtime::kSaveAll);
   QuickMethodFrameInfo frame_info = save_method->GetQuickFrameInfo();
 

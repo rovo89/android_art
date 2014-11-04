@@ -32,6 +32,7 @@ class CountObjectsAllocated {
       : objects_allocated_(objects_allocated) {}
 
   void operator()(mirror::Object* obj) const {
+    UNUSED(obj);
     ++*objects_allocated_;
   }
 
@@ -76,30 +77,29 @@ void ZygoteSpace::Dump(std::ostream& os) const {
       << ",name=\"" << GetName() << "\"]";
 }
 
-mirror::Object* ZygoteSpace::Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                                   size_t* usable_size) {
+mirror::Object* ZygoteSpace::Alloc(Thread*, size_t, size_t*, size_t*) {
   UNIMPLEMENTED(FATAL);
-  return nullptr;
+  UNREACHABLE();
 }
 
-size_t ZygoteSpace::AllocationSize(mirror::Object* obj, size_t* usable_size) {
+size_t ZygoteSpace::AllocationSize(mirror::Object*, size_t*) {
   UNIMPLEMENTED(FATAL);
-  return 0;
+  UNREACHABLE();
 }
 
-size_t ZygoteSpace::Free(Thread* self, mirror::Object* ptr) {
+size_t ZygoteSpace::Free(Thread*, mirror::Object*) {
   UNIMPLEMENTED(FATAL);
-  return 0;
+  UNREACHABLE();
 }
 
-size_t ZygoteSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) {
+size_t ZygoteSpace::FreeList(Thread*, size_t, mirror::Object**) {
   UNIMPLEMENTED(FATAL);
-  return 0;
+  UNREACHABLE();
 }
 
-void ZygoteSpace::LogFragmentationAllocFailure(std::ostream& /*os*/,
-                                               size_t /*failed_alloc_bytes*/) {
+void ZygoteSpace::LogFragmentationAllocFailure(std::ostream&, size_t) {
   UNIMPLEMENTED(FATAL);
+  UNREACHABLE();
 }
 
 void ZygoteSpace::SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* arg) {

@@ -62,15 +62,9 @@ class X86Context : public Context {
 
   bool SetGPR(uint32_t reg, uintptr_t value) OVERRIDE;
 
-  bool GetFPR(uint32_t reg, uintptr_t* val) OVERRIDE {
-    LOG(FATAL) << "Floating-point registers are all caller save in X86";
-    return false;
-  }
+  bool GetFPR(uint32_t reg, uintptr_t* val) OVERRIDE;
 
-  bool SetFPR(uint32_t reg, uintptr_t value) OVERRIDE {
-    LOG(FATAL) << "Floating-point registers are all caller save in X86";
-    return false;
-  }
+  bool SetFPR(uint32_t reg, uintptr_t value) OVERRIDE;
 
   void SmashCallerSaves() OVERRIDE;
   void DoLongJump() OVERRIDE;

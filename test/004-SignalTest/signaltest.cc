@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
+#include <jni.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/ucontext.h>
 #include <unistd.h>
 
-#include "jni.h"
-
-#include <sys/ucontext.h>
+#include "base/macros.h"
 
 static int signal_count;
 static const int kMaxSignal = 2;
@@ -47,7 +47,8 @@ static const int kMaxSignal = 2;
 #endif
 #endif
 
-static void signalhandler(int sig, siginfo_t* info, void* context) {
+static void signalhandler(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+                          void* context) {
   printf("signal caught\n");
   ++signal_count;
   if (signal_count > kMaxSignal) {

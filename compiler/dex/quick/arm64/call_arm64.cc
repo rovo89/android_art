@@ -401,6 +401,7 @@ void Arm64Mir2Lir::GenSpecialExitSequence() {
 }
 
 static bool Arm64UseRelativeCall(CompilationUnit* cu, const MethodReference& target_method) {
+  UNUSED(cu, target_method);
   // Always emit relative calls.
   return true;
 }
@@ -411,9 +412,10 @@ static bool Arm64UseRelativeCall(CompilationUnit* cu, const MethodReference& tar
  */
 static int Arm64NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
                                int state, const MethodReference& target_method,
-                               uint32_t unused,
+                               uint32_t unused_idx,
                                uintptr_t direct_code, uintptr_t direct_method,
                                InvokeType type) {
+  UNUSED(info, unused_idx);
   Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
   if (direct_code != 0 && direct_method != 0) {
     switch (state) {

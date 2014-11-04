@@ -213,6 +213,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
                                                uint32_t method_idx,
                                                jobject class_loader,
                                                const DexFile& dex_file) const {
+  UNUSED(invoke_type);
   total_compiled_methods_++;
   InstructionSet instruction_set = GetCompilerDriver()->GetInstructionSet();
   // Always use the thumb2 assembler: some runtime functionality (like implicit stack

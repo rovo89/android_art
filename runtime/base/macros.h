@@ -189,7 +189,19 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define PURE __attribute__ ((__pure__))
 #define WARN_UNUSED __attribute__((warn_unused_result))
 
-template<typename T> void UNUSED(const T&) {}
+// A deprecated function to call to create a false use of the parameter, for example:
+//   int foo(int x) { UNUSED(x); return 10; }
+// to avoid compiler warnings. Going forward we prefer ATTRIBUTE_UNUSED.
+template<typename... T> void UNUSED(const T&...) {}
+
+// An attribute to place on a parameter to a function, for example:
+//   int foo(int x ATTRIBUTE_UNUSED) { return 10; }
+// to avoid compiler warnings.
+#define ATTRIBUTE_UNUSED __attribute__((__unused__))
+
+// Define that a position within code is unreachable, for example:
+//   int foo () { LOG(FATAL) << "Don't call me"; UNREACHABLE(); }
+// without the UNREACHABLE a return statement would be necessary.
 #define UNREACHABLE  __builtin_unreachable
 
 // The FALLTHROUGH_INTENDED macro can be used to annotate implicit fall-through

@@ -17,6 +17,7 @@
 #include "object_registry.h"
 
 #include "handle_scope-inl.h"
+#include "jni_internal.h"
 #include "mirror/class.h"
 #include "scoped_thread_state_change.h"
 

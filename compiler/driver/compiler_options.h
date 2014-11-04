@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "base/macros.h"
+#include "globals.h"
 
 namespace art {
 
@@ -242,6 +243,7 @@ class CompilerOptions FINAL {
 
   DISALLOW_COPY_AND_ASSIGN(CompilerOptions);
 };
+std::ostream& operator<<(std::ostream& os, const CompilerOptions::CompilerFilter& rhs);
 
 }  // namespace art
 

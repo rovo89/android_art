@@ -314,6 +314,7 @@ static void MSpaceChunkCallback(void* start, void* end, size_t used_bytes, void*
 }
 
 void DlMallocSpace::LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) {
+  UNUSED(failed_alloc_bytes);
   Thread* self = Thread::Current();
   size_t max_contiguous_allocation = 0;
   // To allow the Walk/InspectAll() to exclusively-lock the mutator

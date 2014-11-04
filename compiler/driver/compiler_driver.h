@@ -75,6 +75,7 @@ enum DexToDexCompilationLevel {
   kRequired,              // Dex-to-dex compilation required for correctness.
   kOptimize               // Perform required transformation and peep-hole optimizations.
 };
+std::ostream& operator<<(std::ostream& os, const DexToDexCompilationLevel& rhs);
 
 class CompilerDriver {
  public:

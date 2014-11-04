@@ -106,6 +106,8 @@ bool VerificationResults::IsCandidateForCompilation(MethodReference& method_ref,
   if (use_sea) {
     return true;
   }
+#else
+  UNUSED(method_ref);
 #endif
   if (!compiler_options_->IsCompilationEnabled()) {
     return false;

@@ -306,7 +306,7 @@ static int GetNumFastHalfWords(uint64_t value) {
 // algorithm will give it a low priority for promotion, even when it is referenced many times in
 // the code.
 
-bool Arm64Mir2Lir::InexpensiveConstantInt(int32_t value) {
+bool Arm64Mir2Lir::InexpensiveConstantInt(int32_t value ATTRIBUTE_UNUSED) {
   // A 32-bit int can always be loaded with 2 instructions (and without using the literal pool).
   // We therefore return true and give it a low priority for promotion.
   return true;
@@ -673,19 +673,24 @@ LIR* Arm64Mir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2
   }
 }
 
-LIR* Arm64Mir2Lir::OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset, MoveType move_type) {
+LIR* Arm64Mir2Lir::OpMovRegMem(RegStorage r_dest, RegStorage r_base, int offset,
+                               MoveType move_type) {
+  UNUSED(r_dest, r_base, offset, move_type);
   UNIMPLEMENTED(FATAL);
-  return nullptr;
+  UNREACHABLE();
 }
 
-LIR* Arm64Mir2Lir::OpMovMemReg(RegStorage r_base, int offset, RegStorage r_src, MoveType move_type) {
+LIR* Arm64Mir2Lir::OpMovMemReg(RegStorage r_base, int offset, RegStorage r_src,
+                               MoveType move_type) {
+  UNUSED(r_base, offset, r_src, move_type);
   UNIMPLEMENTED(FATAL);
   return nullptr;
 }
 
 LIR* Arm64Mir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, RegStorage r_dest, RegStorage r_src) {
+  UNUSED(op, cc, r_dest, r_src);
   LOG(FATAL) << "Unexpected use of OpCondRegReg for Arm64";
-  return NULL;
+  UNREACHABLE();
 }
 
 LIR* Arm64Mir2Lir::OpRegRegRegShift(OpKind op, RegStorage r_dest, RegStorage r_src1,
@@ -1386,16 +1391,20 @@ LIR* Arm64Mir2Lir::StoreRefDisp(RegStorage r_base, int displacement, RegStorage 
 }
 
 LIR* Arm64Mir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
+  UNUSED(r_dest, r_src);
   LOG(FATAL) << "Unexpected use of OpFpRegCopy for Arm64";
-  return NULL;
+  UNREACHABLE();
 }
 
 LIR* Arm64Mir2Lir::OpMem(OpKind op, RegStorage r_base, int disp) {
+  UNUSED(op, r_base, disp);
   LOG(FATAL) << "Unexpected use of OpMem for Arm64";
-  return NULL;
+  UNREACHABLE();
 }
 
-LIR* Arm64Mir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) {
+LIR* Arm64Mir2Lir::InvokeTrampoline(OpKind op, RegStorage r_tgt,
+                                    QuickEntrypointEnum trampoline ATTRIBUTE_UNUSED) {
+  // The address of the trampoline is already loaded into r_tgt.
   return OpReg(op, r_tgt);
 }
 

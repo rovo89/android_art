@@ -27,9 +27,7 @@ template <typename MirrorType, ReadBarrierOption kReadBarrierOption>
 inline MirrorType* ReadBarrier::Barrier(
     mirror::Object* obj, MemberOffset offset, mirror::HeapReference<MirrorType>* ref_addr) {
   // Unused for now.
-  UNUSED(obj);
-  UNUSED(offset);
-  UNUSED(ref_addr);
+  UNUSED(obj, offset, ref_addr);
   const bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
   if (with_read_barrier && kUseBakerReadBarrier) {
     // To be implemented.

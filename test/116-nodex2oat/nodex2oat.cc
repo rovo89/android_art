@@ -38,7 +38,7 @@ extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasOat(JNIEnv*, jclass cls) {
   return NoDex2OatTest::hasOat(cls);
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isDex2OatEnabled(JNIEnv*, jclass cls) {
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isDex2OatEnabled(JNIEnv*, jclass) {
   return Runtime::Current()->IsDex2OatEnabled();
 }
 

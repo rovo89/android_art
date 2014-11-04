@@ -107,7 +107,8 @@ class LocalValueNumbering::AliasingIFieldVersions {
 
 class LocalValueNumbering::NonAliasingArrayVersions {
  public:
-  static uint16_t StartMemoryVersion(GlobalValueNumbering* gvn, const LocalValueNumbering* lvn,
+  static uint16_t StartMemoryVersion(GlobalValueNumbering* gvn,
+                                     const LocalValueNumbering* lvn ATTRIBUTE_UNUSED,
                                      uint16_t array) {
     return gvn->LookupValue(kNonAliasingArrayStartVersionOp, array, kNoValue, kNoValue);
   }
@@ -129,8 +130,9 @@ class LocalValueNumbering::NonAliasingArrayVersions {
         gvn, lvn, &lvn->non_aliasing_array_value_map_, array, index);
   }
 
-  static bool HasNewBaseVersion(GlobalValueNumbering* gvn, const LocalValueNumbering* lvn,
-                                uint16_t array) {
+  static bool HasNewBaseVersion(GlobalValueNumbering* gvn ATTRIBUTE_UNUSED,
+                                const LocalValueNumbering* lvn ATTRIBUTE_UNUSED,
+                                uint16_t array ATTRIBUTE_UNUSED) {
     return false;  // Not affected by global_memory_version_.
   }
 
@@ -164,8 +166,9 @@ class LocalValueNumbering::AliasingArrayVersions {
     return gvn->LookupValue(kAliasingArrayOp, type, location, memory_version);
   }
 
-  static uint16_t LookupMergeValue(GlobalValueNumbering* gvn, const LocalValueNumbering* lvn,
-                                   uint16_t type, uint16_t location) {
+  static uint16_t LookupMergeValue(GlobalValueNumbering* gvn ATTRIBUTE_UNUSED,
+                                   const LocalValueNumbering* lvn,
+                                   uint16_t type ATTRIBUTE_UNUSED, uint16_t location) {
     // If the location is non-aliasing in lvn, use the non-aliasing value.
     uint16_t array = gvn->GetArrayLocationBase(location);
     if (lvn->IsNonAliasingArray(array, type)) {
@@ -176,8 +179,11 @@ class LocalValueNumbering::AliasingArrayVersions {
         gvn, lvn, &lvn->aliasing_array_value_map_, type, location);
   }
 
-  static bool HasNewBaseVersion(GlobalValueNumbering* gvn, const LocalValueNumbering* lvn,
-                                uint16_t type) {
+  static bool HasNewBaseVersion(GlobalValueNumbering* gvn ATTRIBUTE_UNUSED,
+                                const LocalValueNumbering* lvn,
+                                uint16_t type ATTRIBUTE_UNUSED) {
+    UNUSED(gvn);
+    UNUSED(type);
     return lvn->global_memory_version_ == lvn->merge_new_memory_version_;
   }
 

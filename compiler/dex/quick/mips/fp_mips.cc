@@ -207,8 +207,8 @@ void MipsMir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
   StoreValue(rl_dest, rl_result);
 }
 
-void MipsMir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir,
-                                bool gt_bias, bool is_double) {
+void MipsMir2Lir::GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double) {
+  UNUSED(bb, mir, gt_bias, is_double);
   UNIMPLEMENTED(FATAL) << "Need codegen for fused fp cmp branch";
 }
 
@@ -230,7 +230,8 @@ void MipsMir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
 }
 
 bool MipsMir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
-  // TODO: need Mips implementation
+  // TODO: need Mips implementation.
+  UNUSED(info, is_min, is_long);
   return false;
 }
 

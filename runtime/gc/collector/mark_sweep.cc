@@ -658,6 +658,7 @@ class MarkStackTask : public Task {
   // Scans all of the objects
   virtual void Run(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    UNUSED(self);
     ScanObjectParallelVisitor visitor(this);
     // TODO: Tune this.
     static const size_t kFifoSize = 4;

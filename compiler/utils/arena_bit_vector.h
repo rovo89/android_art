@@ -17,11 +17,13 @@
 #ifndef ART_COMPILER_UTILS_ARENA_BIT_VECTOR_H_
 #define ART_COMPILER_UTILS_ARENA_BIT_VECTOR_H_
 
+#include "arena_object.h"
 #include "base/bit_vector.h"
-#include "utils/arena_allocator.h"
-#include "utils/scoped_arena_allocator.h"
 
 namespace art {
+
+class ArenaAllocator;
+class ScopedArenaAllocator;
 
 // Type of growable bitmap for memory tuning.
 enum OatBitMapKind {
@@ -50,7 +52,7 @@ std::ostream& operator<<(std::ostream& os, const OatBitMapKind& kind);
 /*
  * A BitVector implementation that uses Arena allocation.
  */
-class ArenaBitVector : public BitVector {
+class ArenaBitVector : public BitVector, public ArenaObject<kArenaAllocGrowableBitMap> {
  public:
   ArenaBitVector(ArenaAllocator* arena, uint32_t start_bits, bool expandable,
                  OatBitMapKind kind = kBitMapMisc);
@@ -58,16 +60,10 @@ class ArenaBitVector : public BitVector {
                  OatBitMapKind kind = kBitMapMisc);
   ~ArenaBitVector() {}
 
-  static void* operator new(size_t size, ArenaAllocator* arena) {
-    return arena->Alloc(sizeof(ArenaBitVector), kArenaAllocGrowableBitMap);
-  }
-  static void* operator new(size_t size, ScopedArenaAllocator* arena) {
-    return arena->Alloc(sizeof(ArenaBitVector), kArenaAllocGrowableBitMap);
-  }
-  static void operator delete(void* p) {}  // Nop.
-
  private:
   const OatBitMapKind kind_;      // for memory use tuning. TODO: currently unused.
+
+  DISALLOW_COPY_AND_ASSIGN(ArenaBitVector);
 };
 
 

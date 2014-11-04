@@ -222,9 +222,9 @@ template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
           typename Elf_Phdr, typename Elf_Shdr>
 bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
   Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr>::Write(OatWriter* oat_writer,
-                           const std::vector<const DexFile*>& dex_files_unused,
-                           const std::string& android_root_unused,
-                           bool is_host_unused) {
+                           const std::vector<const DexFile*>& dex_files_unused ATTRIBUTE_UNUSED,
+                           const std::string& android_root_unused ATTRIBUTE_UNUSED,
+                           bool is_host_unused ATTRIBUTE_UNUSED) {
   constexpr bool debug = false;
   const OatHeader& oat_header = oat_writer->GetOatHeader();
   Elf_Word oat_data_size = oat_header.GetExecutableOffset();

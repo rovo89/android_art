@@ -238,6 +238,9 @@ static bool CheckMapRequest(uint8_t* expected_ptr, void* actual_ptr, size_t byte
 
 MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byte_count, int prot,
                              bool low_4gb, std::string* error_msg) {
+#ifndef __LP64__
+  UNUSED(low_4gb);
+#endif
   if (byte_count == 0) {
     return new MemMap(name, nullptr, 0, nullptr, 0, prot, false);
   }

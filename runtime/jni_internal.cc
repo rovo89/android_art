@@ -1750,6 +1750,7 @@ class JNI {
   }
 
   static void ReleaseStringCritical(JNIEnv* env, jstring java_string, const jchar* chars) {
+    UNUSED(chars);
     CHECK_NON_NULL_ARGUMENT_RETURN_VOID(java_string);
     ScopedObjectAccess soa(env);
     gc::Heap* heap = Runtime::Current()->GetHeap();
@@ -1778,7 +1779,7 @@ class JNI {
     return bytes;
   }
 
-  static void ReleaseStringUTFChars(JNIEnv* env, jstring, const char* chars) {
+  static void ReleaseStringUTFChars(JNIEnv*, jstring, const char* chars) {
     delete[] chars;
   }
 

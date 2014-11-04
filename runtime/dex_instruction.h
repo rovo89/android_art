@@ -35,7 +35,7 @@ enum {
 class Instruction {
  public:
   // NOP-encoded switch-statement signatures.
-  enum {
+  enum Signatures {
     kPackedSwitchSignature = 0x0100,
     kSparseSwitchSignature = 0x0200,
     kArrayDataSignature = 0x0300,
@@ -79,10 +79,7 @@ class Instruction {
     DISALLOW_COPY_AND_ASSIGN(ArrayDataPayload);
   };
 
-  // TODO: the code layout below is deliberate to avoid this enum being picked up by
-  //       generate-operator-out.py.
-  enum Code
-  {  // NOLINT(whitespace/braces)
+  enum Code {  // private marker to avoid generate-operator-out.py from processing.
 #define INSTRUCTION_ENUM(opcode, cname, p, f, r, i, a, v) cname = opcode,
 #include "dex_instruction_list.h"
     DEX_INSTRUCTION_LIST(INSTRUCTION_ENUM)

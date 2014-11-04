@@ -17,9 +17,7 @@
 #ifndef ART_COMPILER_OUTPUT_STREAM_H_
 #define ART_COMPILER_OUTPUT_STREAM_H_
 
-#include <stdint.h>
-#include <sys/types.h>
-
+#include <ostream>
 #include <string>
 
 #include "base/macros.h"
@@ -31,6 +29,7 @@ enum Whence {
   kSeekCurrent = SEEK_CUR,
   kSeekEnd = SEEK_END,
 };
+std::ostream& operator<<(std::ostream& os, const Whence& rhs);
 
 class OutputStream {
  public:
