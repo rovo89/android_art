@@ -170,30 +170,55 @@ class BoundsCheckSlowPathARM : public SlowPathCodeARM {
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathARM);
 };
 
-class ClinitCheckSlowPathARM : public SlowPathCodeARM {
+class LoadClassSlowPathARM : public SlowPathCodeARM {
  public:
-  explicit ClinitCheckSlowPathARM(HClinitCheck* instruction) : instruction_(instruction) {}
+  LoadClassSlowPathARM(HLoadClass* cls,
+                       HInstruction* at,
+                       uint32_t dex_pc,
+                       bool do_clinit)
+      : cls_(cls), at_(at), dex_pc_(dex_pc), do_clinit_(do_clinit) {
+    DCHECK(at->IsLoadClass() || at->IsClinitCheck());
+  }
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = at_->GetLocations();
+
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(instruction_->GetLocations());
+    codegen->SaveLiveRegisters(locations);
 
-    HLoadClass* cls = instruction_->GetLoadClass();
     InvokeRuntimeCallingConvention calling_convention;
-    __ LoadImmediate(calling_convention.GetRegisterAt(0), cls->GetTypeIndex());
+    __ LoadImmediate(calling_convention.GetRegisterAt(0), cls_->GetTypeIndex());
     arm_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
-    arm_codegen->InvokeRuntime(
-        QUICK_ENTRY_POINT(pInitializeStaticStorage), instruction_, instruction_->GetDexPc());
-    arm_codegen->Move32(instruction_->GetLocations()->InAt(0), Location::RegisterLocation(R0));
-    codegen->RestoreLiveRegisters(instruction_->GetLocations());
+    int32_t entry_point_offset = do_clinit_
+        ? QUICK_ENTRY_POINT(pInitializeStaticStorage)
+        : QUICK_ENTRY_POINT(pInitializeType);
+    arm_codegen->InvokeRuntime(entry_point_offset, at_, dex_pc_);
+
+    // Move the class to the desired location.
+    if (locations->Out().IsValid()) {
+      DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
+      arm_codegen->Move32(locations->Out(), Location::RegisterLocation(R0));
+    }
+    codegen->RestoreLiveRegisters(locations);
     __ b(GetExitLabel());
   }
 
  private:
-  HClinitCheck* const instruction_;
+  // The class this slow path will load.
+  HLoadClass* const cls_;
 
-  DISALLOW_COPY_AND_ASSIGN(ClinitCheckSlowPathARM);
+  // The instruction where this slow path is happening.
+  // (Might be the load class or an initialization check).
+  HInstruction* const at_;
+
+  // The dex PC of `at_`.
+  const uint32_t dex_pc_;
+
+  // Whether to initialize the class.
+  const bool do_clinit_;
+
+  DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathARM);
 };
 
 class LoadStringSlowPathARM : public SlowPathCodeARM {
@@ -2143,21 +2168,38 @@ void ParallelMoveResolverARM::RestoreScratch(int reg) {
 }
 
 void LocationsBuilderARM::VisitLoadClass(HLoadClass* cls) {
+  LocationSummary::CallKind call_kind = cls->CanCallRuntime()
+      ? LocationSummary::kCallOnSlowPath
+      : LocationSummary::kNoCall;
   LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(cls, LocationSummary::kNoCall);
+      new (GetGraph()->GetArena()) LocationSummary(cls, call_kind);
   locations->SetOut(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorARM::VisitLoadClass(HLoadClass* cls) {
   Register out = cls->GetLocations()->Out().As<Register>();
   if (cls->IsReferrersClass()) {
+    DCHECK(!cls->CanCallRuntime());
+    DCHECK(!cls->MustGenerateClinitCheck());
     codegen_->LoadCurrentMethod(out);
     __ LoadFromOffset(kLoadWord, out, out, mirror::ArtMethod::DeclaringClassOffset().Int32Value());
   } else {
+    DCHECK(cls->CanCallRuntime());
     codegen_->LoadCurrentMethod(out);
     __ LoadFromOffset(
         kLoadWord, out, out, mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value());
     __ LoadFromOffset(kLoadWord, out, out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex()));
+
+    SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathARM(
+        cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
+    codegen_->AddSlowPath(slow_path);
+    __ cmp(out, ShifterOperand(0));
+    __ b(slow_path->GetEntryLabel(), EQ);
+    if (cls->MustGenerateClinitCheck()) {
+      GenerateClassInitializationCheck(slow_path, out);
+    } else {
+      __ Bind(slow_path->GetExitLabel());
+    }
   }
 }
 
@@ -2171,17 +2213,15 @@ void LocationsBuilderARM::VisitClinitCheck(HClinitCheck* check) {
 }
 
 void InstructionCodeGeneratorARM::VisitClinitCheck(HClinitCheck* check) {
-  SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) ClinitCheckSlowPathARM(check);
+  // We assume the class is not null.
+  SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathARM(
+      check->GetLoadClass(), check, check->GetDexPc(), true);
   codegen_->AddSlowPath(slow_path);
+  GenerateClassInitializationCheck(slow_path, check->GetLocations()->InAt(0).As<Register>());
+}
 
-  LocationSummary* locations = check->GetLocations();
-  // We remove the class as a live register, we know it's null or unused in the slow path.
-  RegisterSet* register_set = locations->GetLiveRegisters();
-  register_set->Remove(locations->InAt(0));
-
-  Register class_reg = locations->InAt(0).As<Register>();
-  __ cmp(class_reg, ShifterOperand(0));
-  __ b(slow_path->GetEntryLabel(), EQ);
+void InstructionCodeGeneratorARM::GenerateClassInitializationCheck(
+    SlowPathCodeARM* slow_path, Register class_reg) {
   __ LoadFromOffset(kLoadWord, IP, class_reg, mirror::Class::StatusOffset().Int32Value());
   __ cmp(IP, ShifterOperand(mirror::Class::kStatusInitialized));
   __ b(slow_path->GetEntryLabel(), LT);

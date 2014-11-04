@@ -65,6 +65,7 @@ class InvokeDexCallingConventionVisitor {
 };
 
 class CodeGeneratorX86_64;
+class SlowPathCodeX86_64;
 
 class ParallelMoveResolverX86_64 : public ParallelMoveResolver {
  public:
@@ -130,6 +131,7 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   // is the block to branch to if the suspend check is not needed, and after
   // the suspend call.
   void GenerateSuspendCheck(HSuspendCheck* instruction, HBasicBlock* successor);
+  void GenerateClassInitializationCheck(SlowPathCodeX86_64* slow_path, CpuRegister class_reg);
 
   X86_64Assembler* const assembler_;
   CodeGeneratorX86_64* const codegen_;
