@@ -28,6 +28,7 @@ namespace x86 {
 static constexpr size_t kX86WordSize = 4;
 
 class CodeGeneratorX86;
+class SlowPathCodeX86;
 
 static constexpr Register kParameterCoreRegisters[] = { ECX, EDX, EBX };
 static constexpr RegisterPair kParameterCorePairRegisters[] = { ECX_EDX, EDX_EBX };
@@ -126,6 +127,7 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
   // is the block to branch to if the suspend check is not needed, and after
   // the suspend call.
   void GenerateSuspendCheck(HSuspendCheck* check, HBasicBlock* successor);
+  void GenerateClassInitializationCheck(SlowPathCodeX86* slow_path, Register class_reg);
 
   X86Assembler* const assembler_;
   CodeGeneratorX86* const codegen_;

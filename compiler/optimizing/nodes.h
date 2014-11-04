@@ -2052,9 +2052,6 @@ class HSuspendCheck : public HTemplateInstruction<0> {
   DISALLOW_COPY_AND_ASSIGN(HSuspendCheck);
 };
 
-// TODO: Make this class handle the case the load is null (dex cache
-// is null). This will be required when using it for other things than
-// initialization check.
 /**
  * Instruction to load a Class object.
  */
@@ -2062,13 +2059,14 @@ class HLoadClass : public HExpression<0> {
  public:
   HLoadClass(uint16_t type_index,
              bool is_referrers_class,
-             bool is_initialized,
              uint32_t dex_pc)
       : HExpression(Primitive::kPrimNot, SideEffects::None()),
         type_index_(type_index),
         is_referrers_class_(is_referrers_class),
-        is_initialized_(is_initialized),
-        dex_pc_(dex_pc) {}
+        dex_pc_(dex_pc),
+        generate_clinit_check_(false) {}
+
+  bool CanBeMoved() const OVERRIDE { return true; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     return other->AsLoadClass()->type_index_ == type_index_;
@@ -2078,20 +2076,35 @@ class HLoadClass : public HExpression<0> {
 
   uint32_t GetDexPc() const { return dex_pc_; }
   uint16_t GetTypeIndex() const { return type_index_; }
+  bool IsReferrersClass() const { return is_referrers_class_; }
 
-  bool NeedsInitialization() const {
-    return !is_initialized_ && !is_referrers_class_;
+  bool NeedsEnvironment() const OVERRIDE {
+    // Will call runtime and load the class if the class is not loaded yet.
+    // TODO: finer grain decision.
+    return !is_referrers_class_;
   }
 
-  bool IsReferrersClass() const { return is_referrers_class_; }
+  bool MustGenerateClinitCheck() const {
+    return generate_clinit_check_;
+  }
+
+  void SetMustGenerateClinitCheck() {
+    generate_clinit_check_ = true;
+  }
+
+  bool CanCallRuntime() const {
+    return MustGenerateClinitCheck() || !is_referrers_class_;
+  }
 
   DECLARE_INSTRUCTION(LoadClass);
 
  private:
   const uint16_t type_index_;
   const bool is_referrers_class_;
-  const bool is_initialized_;
   const uint32_t dex_pc_;
+  // Whether this instruction must generate the initialization check.
+  // Used for code generation.
+  bool generate_clinit_check_;
 
   DISALLOW_COPY_AND_ASSIGN(HLoadClass);
 };
@@ -2102,6 +2115,8 @@ class HLoadString : public HExpression<0> {
       : HExpression(Primitive::kPrimNot, SideEffects::None()),
         string_index_(string_index),
         dex_pc_(dex_pc) {}
+
+  bool CanBeMoved() const OVERRIDE { return true; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     return other->AsLoadString()->string_index_ == string_index_;
@@ -2134,6 +2149,12 @@ class HClinitCheck : public HExpression<1> {
       : HExpression(Primitive::kPrimNot, SideEffects::All()),
         dex_pc_(dex_pc) {
     SetRawInputAt(0, constant);
+  }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+    UNUSED(other);
+    return true;
   }
 
   bool NeedsEnvironment() const OVERRIDE {
