@@ -119,6 +119,7 @@ extern void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints);
 void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
                      PortableEntryPoints* ppoints, QuickEntryPoints* qpoints) {
 #if defined(__APPLE__)
+  UNUSED(ipoints, jpoints, ppoints, qpoints);
   UNIMPLEMENTED(FATAL);
 #else
   // Interpreter
