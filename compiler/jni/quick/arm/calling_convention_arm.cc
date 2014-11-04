@@ -34,8 +34,8 @@ static const DRegister kHFDArgumentRegisters[] = {
   D0, D1, D2, D3, D4, D5, D6, D7
 };
 
-COMPILE_ASSERT(arraysize(kHFDArgumentRegisters) * 2 == arraysize(kHFSArgumentRegisters),
-    ks_d_argument_registers_mismatch);
+static_assert(arraysize(kHFDArgumentRegisters) * 2 == arraysize(kHFSArgumentRegisters),
+    "ks d argument registers mismatch");
 
 // Calling convention
 

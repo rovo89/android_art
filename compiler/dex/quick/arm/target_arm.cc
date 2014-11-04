@@ -903,8 +903,8 @@ RegStorage ArmMir2Lir::InToRegStorageArmMapper::GetNextReg(bool is_double_or_flo
   const RegStorage fpArgMappingToPhysicalReg[] =
       {rs_fr0, rs_fr1, rs_fr2, rs_fr3, rs_fr4, rs_fr5, rs_fr6, rs_fr7,
        rs_fr8, rs_fr9, rs_fr10, rs_fr11, rs_fr12, rs_fr13, rs_fr14, rs_fr15};
-  const uint32_t fpArgMappingToPhysicalRegSize = arraysize(fpArgMappingToPhysicalReg);
-  COMPILE_ASSERT(fpArgMappingToPhysicalRegSize % 2 == 0, knum_of_fp_arg_regs_not_even);
+  constexpr uint32_t fpArgMappingToPhysicalRegSize = arraysize(fpArgMappingToPhysicalReg);
+  static_assert(fpArgMappingToPhysicalRegSize % 2 == 0, "Number of FP Arg regs is not even");
 
   if (kArm32QuickCodeUseSoftFloat) {
     is_double_or_float = false;  // Regard double as long, float as int.
