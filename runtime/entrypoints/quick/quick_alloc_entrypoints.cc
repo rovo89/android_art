@@ -227,8 +227,8 @@ void SetQuickAllocEntryPointsInstrumented(bool instrumented) {
 }
 
 void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints) {
-  switch (entry_points_allocator) {
 #if !defined(__APPLE__) || !defined(__LP64__)
+  switch (entry_points_allocator) {
     case gc::kAllocatorTypeDlMalloc: {
       SetQuickAllocEntryPoints_dlmalloc(qpoints, entry_points_instrumented);
       break;
@@ -247,12 +247,14 @@ void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints) {
       SetQuickAllocEntryPoints_tlab(qpoints, entry_points_instrumented);
       break;
     }
-#endif
-    default: {
-      UNIMPLEMENTED(FATAL);
-      UNREACHABLE();
-    }
+    default:
+      break;
   }
+#else
+  UNUSED(qpoints);
+#endif
+  UNIMPLEMENTED(FATAL);
+  UNREACHABLE();
 }
 
 }  // namespace art
