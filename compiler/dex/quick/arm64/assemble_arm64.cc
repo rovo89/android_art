@@ -779,8 +779,8 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
             // and zr. This means that these two registers do not need any special treatment, as
             // their bottom 5 bits are correctly set to 31 == 0b11111, which is the right
             // value for encoding both sp and zr.
-            COMPILE_ASSERT((rxzr & 0x1f) == 0x1f, rzr_register_number_must_be_31);
-            COMPILE_ASSERT((rsp & 0x1f) == 0x1f, rsp_register_number_must_be_31);
+            static_assert((rxzr & 0x1f) == 0x1f, "rzr register number must be 31");
+            static_assert((rsp & 0x1f) == 0x1f, "rsp register number must be 31");
           }
 
           value = (operand << encoder->field_loc[i].start) &

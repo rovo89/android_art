@@ -768,8 +768,8 @@ void Mir2Lir::CreateNativeGcMap() {
 int Mir2Lir::AssignLiteralOffset(CodeOffset offset) {
   offset = AssignLiteralOffsetCommon(literal_list_, offset);
   constexpr unsigned int ptr_size = sizeof(uint32_t);
-  COMPILE_ASSERT(ptr_size >= sizeof(mirror::HeapReference<mirror::Object>),
-                 ptr_size_cannot_hold_a_heap_reference);
+  static_assert(ptr_size >= sizeof(mirror::HeapReference<mirror::Object>),
+                "Pointer size cannot hold a heap reference");
   offset = AssignLiteralPointerOffsetCommon(code_literal_list_, offset, ptr_size);
   offset = AssignLiteralPointerOffsetCommon(method_literal_list_, offset, ptr_size);
   offset = AssignLiteralPointerOffsetCommon(class_literal_list_, offset, ptr_size);
