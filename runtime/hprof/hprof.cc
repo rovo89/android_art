@@ -637,8 +637,8 @@ class Hprof {
     // U4: size of identifiers.  We're using addresses as IDs and our heap references are stored
     // as uint32_t.
     // Note of warning: hprof-conv hard-codes the size of identifiers to 4.
-    COMPILE_ASSERT(sizeof(mirror::HeapReference<mirror::Object>) == sizeof(uint32_t),
-      UnexpectedHeapReferenceSize);
+    static_assert(sizeof(mirror::HeapReference<mirror::Object>) == sizeof(uint32_t),
+                  "Unexpected HeapReference size");
     U4_TO_BUF_BE(buf, 0, sizeof(uint32_t));
     fwrite(buf, 1, sizeof(uint32_t), header_fp_);
 

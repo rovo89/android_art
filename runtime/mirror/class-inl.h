@@ -279,7 +279,7 @@ inline bool Class::ResolvedFieldAccessTest(Class* access_to, ArtField* field,
 template <bool throw_on_failure, bool use_referrers_cache, InvokeType throw_invoke_type>
 inline bool Class::ResolvedMethodAccessTest(Class* access_to, ArtMethod* method,
                                             uint32_t method_idx, DexCache* dex_cache) {
-  COMPILE_ASSERT(throw_on_failure || throw_invoke_type == kStatic, non_default_throw_invoke_type);
+  static_assert(throw_on_failure || throw_invoke_type == kStatic, "Non-default throw invoke type");
   DCHECK_EQ(use_referrers_cache, dex_cache == nullptr);
   if (UNLIKELY(!this->CanAccess(access_to))) {
     // The referrer class can't access the method's declaring class but may still be able

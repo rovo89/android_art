@@ -927,7 +927,7 @@ class Thread {
     // See http://gcc.gnu.org/bugzilla/show_bug.cgi?id=47409
     DISALLOW_COPY_AND_ASSIGN(StateAndFlags);
   };
-  COMPILE_ASSERT(sizeof(StateAndFlags) == sizeof(int32_t), weird_state_and_flags_size);
+  static_assert(sizeof(StateAndFlags) == sizeof(int32_t), "Weird state_and_flags size");
 
   static void ThreadExitCallback(void* arg);
 
@@ -963,8 +963,8 @@ class Thread {
     }
 
     union StateAndFlags state_and_flags;
-    COMPILE_ASSERT(sizeof(union StateAndFlags) == sizeof(int32_t),
-                   sizeof_state_and_flags_and_int32_are_different);
+    static_assert(sizeof(union StateAndFlags) == sizeof(int32_t),
+                  "Size of state_and_flags and int32 are different");
 
     // A non-zero value is used to tell the current thread to enter a safe point
     // at the next poll.

@@ -435,7 +435,7 @@ class SCOPED_LOCKABLE MutexLock {
   DISALLOW_COPY_AND_ASSIGN(MutexLock);
 };
 // Catch bug where variable name is omitted. "MutexLock (lock);" instead of "MutexLock mu(lock)".
-#define MutexLock(x) COMPILE_ASSERT(0, mutex_lock_declaration_missing_variable_name)
+#define MutexLock(x) static_assert(0, "MutexLock declaration missing variable name")
 
 // Scoped locker/unlocker for a ReaderWriterMutex that acquires read access to mu upon
 // construction and releases it upon destruction.
@@ -457,7 +457,7 @@ class SCOPED_LOCKABLE ReaderMutexLock {
 };
 // Catch bug where variable name is omitted. "ReaderMutexLock (lock);" instead of
 // "ReaderMutexLock mu(lock)".
-#define ReaderMutexLock(x) COMPILE_ASSERT(0, reader_mutex_lock_declaration_missing_variable_name)
+#define ReaderMutexLock(x) static_assert(0, "ReaderMutexLock declaration missing variable name")
 
 // Scoped locker/unlocker for a ReaderWriterMutex that acquires write access to mu upon
 // construction and releases it upon destruction.
@@ -479,7 +479,7 @@ class SCOPED_LOCKABLE WriterMutexLock {
 };
 // Catch bug where variable name is omitted. "WriterMutexLock (lock);" instead of
 // "WriterMutexLock mu(lock)".
-#define WriterMutexLock(x) COMPILE_ASSERT(0, writer_mutex_lock_declaration_missing_variable_name)
+#define WriterMutexLock(x) static_assert(0, "WriterMutexLock declaration missing variable name")
 
 // Global mutexes corresponding to the levels above.
 class Locks {
