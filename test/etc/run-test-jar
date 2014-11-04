@@ -35,6 +35,7 @@ PATCHOAT=""
 PREBUILD="y"
 QUIET="n"
 RELOCATE="y"
+SECONDARY_DEX=""
 USE_GDB="n"
 USE_JVM="n"
 VERIFY="y"
@@ -92,6 +93,9 @@ while true; do
         shift
     elif [ "x$1" = "x--no-image" ]; then
         HAVE_IMAGE="n"
+        shift
+    elif [ "x$1" = "x--secondary" ]; then
+        SECONDARY_DEX=":$DEX_LOCATION/$TEST_NAME-ex.jar"
         shift
     elif [ "x$1" = "x--debug" ]; then
         DEBUGGER="y"
@@ -293,7 +297,7 @@ dalvikvm_cmdline="$INVOKE_WITH $GDB $ANDROID_ROOT/bin/$DALVIKVM \
                   $INT_OPTS \
                   $DEBUGGER_OPTS \
                   $DALVIKVM_BOOT_OPT \
-                  -cp $DEX_LOCATION/$TEST_NAME.jar $MAIN"
+                  -cp $DEX_LOCATION/$TEST_NAME.jar$SECONDARY_DEX $MAIN"
 
 
 if [ "$HOST" = "n" ]; then
