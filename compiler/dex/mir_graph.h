@@ -1260,7 +1260,7 @@ class MIRGraph {
   ArenaVector<BasicBlockId> dom_post_order_traversal_;
   ArenaVector<BasicBlockId> topological_order_;
   // Indexes in topological_order_ need to be only as big as the BasicBlockId.
-  COMPILE_ASSERT(sizeof(BasicBlockId) == sizeof(uint16_t), assuming_16_bit_BasicBlockId);
+  static_assert(sizeof(BasicBlockId) == sizeof(uint16_t), "Assuming 16 bit BasicBlockId");
   // For each loop head, remember the past-the-end index of the end of the loop. 0 if not loop head.
   ArenaVector<uint16_t> topological_order_loop_ends_;
   // Map BB ids to topological_order_ indexes. 0xffff if not included (hidden or null block).

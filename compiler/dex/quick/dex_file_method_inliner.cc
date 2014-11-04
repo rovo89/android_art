@@ -68,38 +68,39 @@ static constexpr bool kIntrinsicIsStatic[] = {
     false,  // kIntrinsicUnsafePut
     true,   // kIntrinsicSystemArrayCopyCharArray
 };
-COMPILE_ASSERT(arraysize(kIntrinsicIsStatic) == kInlineOpNop, check_arraysize_kIntrinsicIsStatic);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicDoubleCvt], DoubleCvt_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicFloatCvt], FloatCvt_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicReverseBits], ReverseBits_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicReverseBytes], ReverseBytes_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicAbsInt], AbsInt_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicAbsLong], AbsLong_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicAbsFloat], AbsFloat_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicAbsDouble], AbsDouble_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxInt], MinMaxInt_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxLong], MinMaxLong_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxFloat], MinMaxFloat_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicMinMaxDouble], MinMaxDouble_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicSqrt], Sqrt_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicCeil], Ceil_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicFloor], Floor_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicRint], Rint_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicRoundFloat], RoundFloat_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicRoundDouble], RoundDouble_must_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicReferenceGetReferent], Get_must_not_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCharAt], CharAt_must_not_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCompareTo], CompareTo_must_not_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicIsEmptyOrLength], IsEmptyOrLength_must_not_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicIndexOf], IndexOf_must_not_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicCurrentThread], CurrentThread_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicPeek], Peek_must_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicPoke], Poke_must_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicCas], Cas_must_not_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicUnsafeGet], UnsafeGet_must_not_be_static);
-COMPILE_ASSERT(!kIntrinsicIsStatic[kIntrinsicUnsafePut], UnsafePut_must_not_be_static);
-COMPILE_ASSERT(kIntrinsicIsStatic[kIntrinsicSystemArrayCopyCharArray],
-               SystemArrayCopyCharArray_must_be_static);
+static_assert(arraysize(kIntrinsicIsStatic) == kInlineOpNop,
+              "arraysize of kIntrinsicIsStatic unexpected");
+static_assert(kIntrinsicIsStatic[kIntrinsicDoubleCvt], "DoubleCvt must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicFloatCvt], "FloatCvt must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicReverseBits], "ReverseBits must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicReverseBytes], "ReverseBytes must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicAbsInt], "AbsInt must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicAbsLong], "AbsLong must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicAbsFloat], "AbsFloat must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicAbsDouble], "AbsDouble must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxInt], "MinMaxInt must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxLong], "MinMaxLong_must_be_static");
+static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxFloat], "MinMaxFloat_must_be_static");
+static_assert(kIntrinsicIsStatic[kIntrinsicMinMaxDouble], "MinMaxDouble_must_be_static");
+static_assert(kIntrinsicIsStatic[kIntrinsicSqrt], "Sqrt must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicCeil], "Ceil must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicFloor], "Floor must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicRint], "Rint must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicRoundFloat], "RoundFloat must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicRoundDouble], "RoundDouble must be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicReferenceGetReferent], "Get must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicCharAt], "CharAt must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicCompareTo], "CompareTo must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicIsEmptyOrLength], "IsEmptyOrLength must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicIndexOf], "IndexOf must not be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicCurrentThread], "CurrentThread must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicPeek], "Peek must be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicPoke], "Poke must be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicCas], "Cas must not be static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafeGet], "UnsafeGet_must_not_be_static");
+static_assert(!kIntrinsicIsStatic[kIntrinsicUnsafePut], "UnsafePut must not be static");
+static_assert(kIntrinsicIsStatic[kIntrinsicSystemArrayCopyCharArray],
+              "SystemArrayCopyCharArray must be static");
 
 MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke) {
   MIR* insn = mir_graph->NewMIR();
@@ -395,12 +396,15 @@ const DexFileMethodInliner::IntrinsicDef DexFileMethodInliner::kIntrinsicMethods
 DexFileMethodInliner::DexFileMethodInliner()
     : lock_("DexFileMethodInliner lock", kDexFileMethodInlinerLock),
       dex_file_(NULL) {
-  COMPILE_ASSERT(kClassCacheFirst == 0, kClassCacheFirst_not_0);
-  COMPILE_ASSERT(arraysize(kClassCacheNames) == kClassCacheLast, bad_arraysize_kClassCacheNames);
-  COMPILE_ASSERT(kNameCacheFirst == 0, kNameCacheFirst_not_0);
-  COMPILE_ASSERT(arraysize(kNameCacheNames) == kNameCacheLast, bad_arraysize_kNameCacheNames);
-  COMPILE_ASSERT(kProtoCacheFirst == 0, kProtoCacheFirst_not_0);
-  COMPILE_ASSERT(arraysize(kProtoCacheDefs) == kProtoCacheLast, bad_arraysize_kProtoCacheNames);
+  static_assert(kClassCacheFirst == 0, "kClassCacheFirst not 0");
+  static_assert(arraysize(kClassCacheNames) == kClassCacheLast,
+                "bad arraysize for kClassCacheNames");
+  static_assert(kNameCacheFirst == 0, "kNameCacheFirst not 0");
+  static_assert(arraysize(kNameCacheNames) == kNameCacheLast,
+                "bad arraysize for kNameCacheNames");
+  static_assert(kProtoCacheFirst == 0, "kProtoCacheFirst not 0");
+  static_assert(arraysize(kProtoCacheDefs) == kProtoCacheLast,
+                "bad arraysize kProtoCacheNames");
 }
 
 DexFileMethodInliner::~DexFileMethodInliner() {

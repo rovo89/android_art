@@ -130,7 +130,7 @@ class MirIFieldLoweringInfo : public MirFieldInfo {
     kBitFastPut,
     kIFieldLoweringInfoBitEnd
   };
-  COMPILE_ASSERT(kIFieldLoweringInfoBitEnd <= 16, too_many_flags);
+  static_assert(kIFieldLoweringInfoBitEnd <= 16, "Too many flags");
   static constexpr uint16_t kFlagFastGet = 1u << kBitFastGet;
   static constexpr uint16_t kFlagFastPut = 1u << kBitFastPut;
 
@@ -198,7 +198,7 @@ class MirSFieldLoweringInfo : public MirFieldInfo {
     kBitClassIsInDexCache,
     kSFieldLoweringInfoBitEnd
   };
-  COMPILE_ASSERT(kSFieldLoweringInfoBitEnd <= 16, too_many_flags);
+  static_assert(kSFieldLoweringInfoBitEnd <= 16, "Too many flags");
   static constexpr uint16_t kFlagFastGet = 1u << kBitFastGet;
   static constexpr uint16_t kFlagFastPut = 1u << kBitFastPut;
   static constexpr uint16_t kFlagIsReferrersClass = 1u << kBitIsReferrersClass;
