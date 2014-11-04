@@ -213,8 +213,8 @@ static const android_LogPriority kLogSeverityToAndroidLogPriority[] = {
   ANDROID_LOG_VERBOSE, ANDROID_LOG_DEBUG, ANDROID_LOG_INFO, ANDROID_LOG_WARN,
   ANDROID_LOG_ERROR, ANDROID_LOG_FATAL, ANDROID_LOG_FATAL
 };
-COMPILE_ASSERT(arraysize(kLogSeverityToAndroidLogPriority) == INTERNAL_FATAL + 1,
-               mismatch_in_size_of_kLogSeverityToAndroidLogPriority_and_values_in_LogSeverity);
+static_assert(arraysize(kLogSeverityToAndroidLogPriority) == INTERNAL_FATAL + 1,
+              "Mismatch in size of kLogSeverityToAndroidLogPriority and values in LogSeverity");
 #endif
 
 void LogMessage::LogLine(const char* file, unsigned int line, LogSeverity log_severity,

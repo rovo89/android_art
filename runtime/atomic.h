@@ -293,17 +293,17 @@ class PACKED(sizeof(T)) Atomic : public std::atomic<T> {
 
 typedef Atomic<int32_t> AtomicInteger;
 
-COMPILE_ASSERT(sizeof(AtomicInteger) == sizeof(int32_t), weird_atomic_int_size);
-COMPILE_ASSERT(alignof(AtomicInteger) == alignof(int32_t),
-               atomic_int_alignment_differs_from_that_of_underlying_type);
-COMPILE_ASSERT(sizeof(Atomic<int64_t>) == sizeof(int64_t), weird_atomic_int64_size);
+static_assert(sizeof(AtomicInteger) == sizeof(int32_t), "Weird AtomicInteger size");
+static_assert(alignof(AtomicInteger) == alignof(int32_t),
+              "AtomicInteger alignment differs from that of underlyingtype");
+static_assert(sizeof(Atomic<int64_t>) == sizeof(int64_t), "Weird Atomic<int64> size");
 
 // Assert the alignment of 64-bit integers is 64-bit. This isn't true on certain 32-bit
 // architectures (e.g. x86-32) but we know that 64-bit integers here are arranged to be 8-byte
 // aligned.
 #if defined(__LP64__)
-  COMPILE_ASSERT(alignof(Atomic<int64_t>) == alignof(int64_t),
-                 atomic_int64_alignment_differs_from_that_of_underlying_type);
+  static_assert(alignof(Atomic<int64_t>) == alignof(int64_t),
+                "Atomic<int64> alignment differs from that of underlying type");
 #endif
 
 }  // namespace art
