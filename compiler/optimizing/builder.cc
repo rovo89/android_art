@@ -505,11 +505,11 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   }
 
   HLoadClass* constant = new (arena_) HLoadClass(
-      storage_index, is_referrers_class, is_initialized, dex_offset);
+      storage_index, is_referrers_class, dex_offset);
   current_block_->AddInstruction(constant);
 
   HInstruction* cls = constant;
-  if (constant->NeedsInitialization()) {
+  if (!is_initialized) {
     cls = new (arena_) HClinitCheck(constant, dex_offset);
     current_block_->AddInstruction(cls);
   }
@@ -1182,6 +1182,23 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::CONST_STRING_JUMBO: {
       current_block_->AddInstruction(new (arena_) HLoadString(instruction.VRegB_31c(), dex_offset));
       UpdateLocal(instruction.VRegA_31c(), current_block_->GetLastInstruction());
+      break;
+    }
+
+    case Instruction::CONST_CLASS: {
+      uint16_t type_index = instruction.VRegB_21c();
+      bool type_known_final;
+      bool type_known_abstract;
+      bool is_referrers_class;
+      bool can_access = compiler_driver_->CanAccessTypeWithoutChecks(
+          dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index,
+          &type_known_final, &type_known_abstract, &is_referrers_class);
+      if (!can_access) {
+        return false;
+      }
+      current_block_->AddInstruction(
+          new (arena_) HLoadClass(instruction.VRegB_21c(), is_referrers_class, dex_offset));
+      UpdateLocal(instruction.VRegA_21c(), current_block_->GetLastInstruction());
       break;
     }
 

@@ -168,32 +168,56 @@ class BoundsCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathX86_64);
 };
 
-class ClinitCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
+class LoadClassSlowPathX86_64 : public SlowPathCodeX86_64 {
  public:
-  explicit ClinitCheckSlowPathX86_64(HClinitCheck* instruction) : instruction_(instruction) {}
+  LoadClassSlowPathX86_64(HLoadClass* cls,
+                          HInstruction* at,
+                          uint32_t dex_pc,
+                          bool do_clinit)
+      : cls_(cls), at_(at), dex_pc_(dex_pc), do_clinit_(do_clinit) {
+    DCHECK(at->IsLoadClass() || at->IsClinitCheck());
+  }
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = at_->GetLocations();
     CodeGeneratorX86_64* x64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
     __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(instruction_->GetLocations());
 
-    HLoadClass* cls = instruction_->GetLoadClass();
+    codegen->SaveLiveRegisters(locations);
+
     InvokeRuntimeCallingConvention calling_convention;
-    __ movl(CpuRegister(calling_convention.GetRegisterAt(0)), Immediate(cls->GetTypeIndex()));
+    __ movl(CpuRegister(calling_convention.GetRegisterAt(0)), Immediate(cls_->GetTypeIndex()));
     x64_codegen->LoadCurrentMethod(CpuRegister(calling_convention.GetRegisterAt(1)));
-    __ gs()->call(Address::Absolute(
-        QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pInitializeStaticStorage), true));
+    __ gs()->call(Address::Absolute((do_clinit_
+          ? QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pInitializeStaticStorage)
+          : QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pInitializeType)) , true));
+    codegen->RecordPcInfo(at_, dex_pc_);
 
-    codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
-    x64_codegen->Move(instruction_->GetLocations()->InAt(0), Location::RegisterLocation(RAX));
-    codegen->RestoreLiveRegisters(instruction_->GetLocations());
+    // Move the class to the desired location.
+    if (locations->Out().IsValid()) {
+      DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
+      x64_codegen->Move(locations->Out(), Location::RegisterLocation(RAX));
+    }
+
+    codegen->RestoreLiveRegisters(locations);
     __ jmp(GetExitLabel());
   }
 
  private:
-  HClinitCheck* const instruction_;
+  // The class this slow path will load.
+  HLoadClass* const cls_;
 
-  DISALLOW_COPY_AND_ASSIGN(ClinitCheckSlowPathX86_64);
+  // The instruction where this slow path is happening.
+  // (Might be the load class or an initialization check).
+  HInstruction* const at_;
+
+  // The dex PC of `at_`.
+  const uint32_t dex_pc_;
+
+  // Whether to initialize the class.
+  const bool do_clinit_;
+
+  DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathX86_64);
 };
 
 class LoadStringSlowPathX86_64 : public SlowPathCodeX86_64 {
@@ -2151,21 +2175,46 @@ void ParallelMoveResolverX86_64::RestoreScratch(int reg) {
   __ popq(CpuRegister(reg));
 }
 
+void InstructionCodeGeneratorX86_64::GenerateClassInitializationCheck(
+    SlowPathCodeX86_64* slow_path, CpuRegister class_reg) {
+  __ cmpl(Address(class_reg,  mirror::Class::StatusOffset().Int32Value()),
+          Immediate(mirror::Class::kStatusInitialized));
+  __ j(kLess, slow_path->GetEntryLabel());
+  __ Bind(slow_path->GetExitLabel());
+  // No need for memory fence, thanks to the X86_64 memory model.
+}
+
 void LocationsBuilderX86_64::VisitLoadClass(HLoadClass* cls) {
+  LocationSummary::CallKind call_kind = cls->CanCallRuntime()
+      ? LocationSummary::kCallOnSlowPath
+      : LocationSummary::kNoCall;
   LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(cls, LocationSummary::kNoCall);
+      new (GetGraph()->GetArena()) LocationSummary(cls, call_kind);
   locations->SetOut(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorX86_64::VisitLoadClass(HLoadClass* cls) {
   CpuRegister out = cls->GetLocations()->Out().As<CpuRegister>();
   if (cls->IsReferrersClass()) {
+    DCHECK(!cls->CanCallRuntime());
+    DCHECK(!cls->MustGenerateClinitCheck());
     codegen_->LoadCurrentMethod(out);
     __ movl(out, Address(out, mirror::ArtMethod::DeclaringClassOffset().Int32Value()));
   } else {
+    DCHECK(cls->CanCallRuntime());
     codegen_->LoadCurrentMethod(out);
     __ movl(out, Address(out, mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value()));
     __ movl(out, Address(out, CodeGenerator::GetCacheOffset(cls->GetTypeIndex())));
+    SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86_64(
+        cls, cls, cls->GetDexPc(), cls->MustGenerateClinitCheck());
+    codegen_->AddSlowPath(slow_path);
+    __ testl(out, out);
+    __ j(kEqual, slow_path->GetEntryLabel());
+    if (cls->MustGenerateClinitCheck()) {
+      GenerateClassInitializationCheck(slow_path, out);
+    } else {
+      __ Bind(slow_path->GetExitLabel());
+    }
   }
 }
 
@@ -2179,22 +2228,11 @@ void LocationsBuilderX86_64::VisitClinitCheck(HClinitCheck* check) {
 }
 
 void InstructionCodeGeneratorX86_64::VisitClinitCheck(HClinitCheck* check) {
-  SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) ClinitCheckSlowPathX86_64(check);
+  // We assume the class to not be null.
+  SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86_64(
+      check->GetLoadClass(), check, check->GetDexPc(), true);
   codegen_->AddSlowPath(slow_path);
-
-  LocationSummary* locations = check->GetLocations();
-  // We remove the class as a live register, we know it's null or unused in the slow path.
-  RegisterSet* register_set = locations->GetLiveRegisters();
-  register_set->Remove(locations->InAt(0));
-
-  CpuRegister class_reg = locations->InAt(0).As<CpuRegister>();
-  __ testl(class_reg, class_reg);
-  __ j(kEqual, slow_path->GetEntryLabel());
-  __ cmpl(Address(class_reg,  mirror::Class::StatusOffset().Int32Value()),
-          Immediate(mirror::Class::kStatusInitialized));
-  __ j(kLess, slow_path->GetEntryLabel());
-  __ Bind(slow_path->GetExitLabel());
-  // No need for memory fence, thanks to the X86_64 memory model.
+  GenerateClassInitializationCheck(slow_path, check->GetLocations()->InAt(0).As<CpuRegister>());
 }
 
 void LocationsBuilderX86_64::VisitStaticFieldGet(HStaticFieldGet* instruction) {
