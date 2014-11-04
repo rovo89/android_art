@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "base/logging.h"
+#include "base/value_object.h"
 #include "dex/reg_storage.h"
 
 namespace art {
@@ -113,10 +114,7 @@ class ResourceMask {
     return (masks_[0] & other.masks_[0]) != 0u || (masks_[1] & other.masks_[1]) != 0u;
   }
 
-  void SetBit(size_t bit) {
-    DCHECK_LE(bit, kHighestCommonResource);
-    masks_[bit / 64u] |= UINT64_C(1) << (bit & 63u);
-  }
+  void SetBit(size_t bit);
 
   constexpr bool HasBit(size_t bit) const {
     return (masks_[bit / 64u] & (UINT64_C(1) << (bit & 63u))) != 0u;
@@ -139,6 +137,12 @@ class ResourceMask {
 
   friend class ResourceMaskCache;
 };
+std::ostream& operator<<(std::ostream& os, const ResourceMask::ResourceBit& rhs);
+
+inline void ResourceMask::SetBit(size_t bit) {
+  DCHECK_LE(bit, kHighestCommonResource);
+  masks_[bit / 64u] |= UINT64_C(1) << (bit & 63u);
+}
 
 constexpr ResourceMask kEncodeNone = ResourceMask::NoBits();
 constexpr ResourceMask kEncodeAll = ResourceMask::AllBits();

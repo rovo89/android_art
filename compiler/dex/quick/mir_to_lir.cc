@@ -647,7 +647,6 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::IF_GT:
     case Instruction::IF_LE: {
       LIR* taken = &label_list[bb->taken];
-      LIR* fall_through = &label_list[bb->fall_through];
       // Result known at compile time?
       if (rl_src[0].is_const && rl_src[1].is_const) {
         bool is_taken = EvaluateBranch(opcode, mir_graph_->ConstantValue(rl_src[0].orig_sreg),
@@ -664,7 +663,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
              !mir_graph_->HasSuspendTestBetween(bb, bb->fall_through))) {
           GenSuspendTest(opt_flags);
         }
-        GenCompareAndBranch(opcode, rl_src[0], rl_src[1], taken, fall_through);
+        GenCompareAndBranch(opcode, rl_src[0], rl_src[1], taken);
       }
       break;
       }
@@ -676,7 +675,6 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::IF_GTZ:
     case Instruction::IF_LEZ: {
       LIR* taken = &label_list[bb->taken];
-      LIR* fall_through = &label_list[bb->fall_through];
       // Result known at compile time?
       if (rl_src[0].is_const) {
         bool is_taken = EvaluateBranch(opcode, mir_graph_->ConstantValue(rl_src[0].orig_sreg), 0);
@@ -692,7 +690,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
              !mir_graph_->HasSuspendTestBetween(bb, bb->fall_through))) {
           GenSuspendTest(opt_flags);
         }
-        GenCompareZeroAndBranch(opcode, rl_src[0], taken, fall_through);
+        GenCompareZeroAndBranch(opcode, rl_src[0], taken);
       }
       break;
       }
@@ -1377,8 +1375,9 @@ void Mir2Lir::CheckRegLocationImpl(RegLocation rl, bool fail, bool report) const
 }
 
 size_t Mir2Lir::GetInstructionOffset(LIR* lir) {
-  UNIMPLEMENTED(FATAL) << "Unsuppored GetInstructionOffset()";
-  return 0;
+  UNUSED(lir);
+  UNIMPLEMENTED(FATAL) << "Unsupported GetInstructionOffset()";
+  UNREACHABLE();
 }
 
 }  // namespace art

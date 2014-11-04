@@ -159,7 +159,11 @@ size_t LargeObjectMapSpace::AllocationSize(mirror::Object* obj, size_t* usable_s
   MutexLock mu(Thread::Current(), lock_);
   auto found = mem_maps_.find(obj);
   CHECK(found != mem_maps_.end()) << "Attempted to get size of a large object which is not live";
-  return found->second->BaseSize();
+  size_t alloc_size = found->second->BaseSize();
+  if (usable_size != nullptr) {
+    *usable_size = alloc_size;
+  }
+  return alloc_size;
 }
 
 size_t LargeObjectSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) {

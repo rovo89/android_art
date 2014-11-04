@@ -188,7 +188,7 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   void GenSelect(BasicBlock* bb, MIR* mir) OVERRIDE;
   void GenSelectConst32(RegStorage left_op, RegStorage right_op, ConditionCode code,
                         int32_t true_val, int32_t false_val, RegStorage rs_dest,
-                        int dest_reg_class) OVERRIDE;
+                        RegisterClass dest_reg_class) OVERRIDE;
 
   bool GenMemBarrier(MemBarrierKind barrier_kind) OVERRIDE;
   void GenMonitorEnter(int opt_flags, RegLocation rl_src) OVERRIDE;
@@ -249,10 +249,10 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
                          uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
                          bool skip_this) OVERRIDE;
 
-  bool WideGPRsAreAliases() OVERRIDE {
+  bool WideGPRsAreAliases() const OVERRIDE {
     return true;  // 64b architecture.
   }
-  bool WideFPRsAreAliases() OVERRIDE {
+  bool WideFPRsAreAliases() const OVERRIDE {
     return true;  // 64b architecture.
   }
 

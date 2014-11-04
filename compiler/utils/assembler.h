@@ -366,7 +366,7 @@ class Assembler {
   }
 
   // TODO: Implement with disassembler.
-  virtual void Comment(const char* format, ...) { }
+  virtual void Comment(const char* format, ...) { UNUSED(format); }
 
   // Emit code that will create an activation on the stack
   virtual void BuildFrame(size_t frame_size, ManagedRegister method_reg,

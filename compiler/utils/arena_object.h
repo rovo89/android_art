@@ -19,19 +19,46 @@
 
 #include "arena_allocator.h"
 #include "base/logging.h"
+#include "scoped_arena_allocator.h"
 
 namespace art {
 
+// Parent for arena allocated objects giving appropriate new and delete operators.
+template<enum ArenaAllocKind kAllocKind>
 class ArenaObject {
  public:
   // Allocate a new ArenaObject of 'size' bytes in the Arena.
   void* operator new(size_t size, ArenaAllocator* allocator) {
-    return allocator->Alloc(size, kArenaAllocMisc);
+    return allocator->Alloc(size, kAllocKind);
+  }
+
+  static void* operator new(size_t size, ScopedArenaAllocator* arena) {
+    return arena->Alloc(size, kAllocKind);
   }
 
   void operator delete(void*, size_t) {
     LOG(FATAL) << "UNREACHABLE";
     UNREACHABLE();
+  }
+};
+
+
+// Parent for arena allocated objects that get deleted, gives appropriate new and delete operators.
+// Currently this is used by the quick compiler for debug reference counting arena allocations.
+template<enum ArenaAllocKind kAllocKind>
+class DeletableArenaObject {
+ public:
+  // Allocate a new ArenaObject of 'size' bytes in the Arena.
+  void* operator new(size_t size, ArenaAllocator* allocator) {
+    return allocator->Alloc(size, kAllocKind);
+  }
+
+  static void* operator new(size_t size, ScopedArenaAllocator* arena) {
+    return arena->Alloc(size, kAllocKind);
+  }
+
+  void operator delete(void*, size_t) {
+    // Nop.
   }
 };
 

@@ -103,13 +103,13 @@ struct InstrumentationListener {
 class Instrumentation {
  public:
   enum InstrumentationEvent {
-    kMethodEntered =   1 << 0,
-    kMethodExited =    1 << 1,
-    kMethodUnwind =    1 << 2,
-    kDexPcMoved =      1 << 3,
-    kFieldRead =       1 << 4,
-    kFieldWritten =    1 << 5,
-    kExceptionCaught = 1 << 6,
+    kMethodEntered   = 1,  // 1 << 0
+    kMethodExited    = 2,  // 1 << 1
+    kMethodUnwind    = 4,  // 1 << 2
+    kDexPcMoved      = 8,  // 1 << 3
+    kFieldRead       = 16,  // 1 << 4,
+    kFieldWritten    = 32,  // 1 << 5
+    kExceptionCaught = 64,  // 1 << 6
   };
 
   Instrumentation();
@@ -464,6 +464,7 @@ class Instrumentation {
 
   DISALLOW_COPY_AND_ASSIGN(Instrumentation);
 };
+std::ostream& operator<<(std::ostream& os, const Instrumentation::InstrumentationEvent& rhs);
 
 // An element in the instrumentation side stack maintained in art::Thread.
 struct InstrumentationStackFrame {

@@ -1303,7 +1303,6 @@ void Arm32Assembler::AddConstantSetFlags(Register rd, Register rn, int32_t value
   }
 }
 
-
 void Arm32Assembler::LoadImmediate(Register rd, int32_t value, Condition cond) {
   ShifterOperand shifter_op;
   if (ShifterOperand::CanHoldArm(value, &shifter_op)) {
@@ -1483,12 +1482,12 @@ void Arm32Assembler::dmb(DmbOptions flavor) {
 }
 
 
-void Arm32Assembler::cbz(Register rn, Label* target) {
+void Arm32Assembler::cbz(Register rn ATTRIBUTE_UNUSED, Label* target ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "cbz is not supported on ARM32";
 }
 
 
-void Arm32Assembler::cbnz(Register rn, Label* target) {
+void Arm32Assembler::cbnz(Register rn ATTRIBUTE_UNUSED, Label* target ATTRIBUTE_UNUSED) {
   LOG(FATAL) << "cbnz is not supported on ARM32";
 }
 

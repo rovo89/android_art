@@ -467,15 +467,12 @@ class VoidFunctor {
 
   template <typename A, typename B>
   inline void operator() (A a, B b) const {
-    UNUSED(a);
-    UNUSED(b);
+    UNUSED(a, b);
   }
 
   template <typename A, typename B, typename C>
   inline void operator() (A a, B b, C c) const {
-    UNUSED(a);
-    UNUSED(b);
-    UNUSED(c);
+    UNUSED(a, b, c);
   }
 };
 

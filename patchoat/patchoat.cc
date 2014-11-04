@@ -466,14 +466,15 @@ bool PatchOat::InHeap(mirror::Object* o) {
 }
 
 void PatchOat::PatchVisitor::operator() (mirror::Object* obj, MemberOffset off,
-                                         bool is_static_unused) const {
+                                         bool is_static_unused ATTRIBUTE_UNUSED) const {
   mirror::Object* referent = obj->GetFieldObject<mirror::Object, kVerifyNone>(off);
   DCHECK(patcher_->InHeap(referent)) << "Referent is not in the heap.";
   mirror::Object* moved_object = patcher_->RelocatedAddressOf(referent);
   copy_->SetFieldObjectWithoutWriteBarrier<false, true, kVerifyNone>(off, moved_object);
 }
 
-void PatchOat::PatchVisitor::operator() (mirror::Class* cls, mirror::Reference* ref) const {
+void PatchOat::PatchVisitor::operator() (mirror::Class* cls ATTRIBUTE_UNUSED,
+                                         mirror::Reference* ref) const {
   MemberOffset off = mirror::Reference::ReferentOffset();
   mirror::Object* referent = ref->GetReferent();
   DCHECK(patcher_->InHeap(referent)) << "Referent is not in the heap.";

@@ -1343,7 +1343,7 @@ void MIRGraph::CompilerInitializeSSAConversion() {
  * counts explicitly used s_regs.  A later phase will add implicit
  * counts for things such as Method*, null-checked references, etc.
  */
-void MIRGraph::CountUses(struct BasicBlock* bb) {
+void MIRGraph::CountUses(class BasicBlock* bb) {
   if (bb->block_type != kDalvikByteCode) {
     return;
   }

@@ -351,6 +351,8 @@ class Location : public ValueObject {
   // way that none of them can be interpreted as a kConstant tag.
   uintptr_t value_;
 };
+std::ostream& operator<<(std::ostream& os, const Location::Kind& rhs);
+std::ostream& operator<<(std::ostream& os, const Location::Policy& rhs);
 
 class RegisterSet : public ValueObject {
  public:
@@ -401,7 +403,7 @@ class RegisterSet : public ValueObject {
  * The intent is to have the code for generating the instruction independent of
  * register allocation. A register allocator just has to provide a LocationSummary.
  */
-class LocationSummary : public ArenaObject {
+class LocationSummary : public ArenaObject<kArenaAllocMisc> {
  public:
   enum CallKind {
     kNoCall,

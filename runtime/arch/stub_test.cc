@@ -41,7 +41,7 @@ class StubTest : public CommonRuntimeTest {
       for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
         Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
         if (!runtime_->HasCalleeSaveMethod(type)) {
-          runtime_->SetCalleeSaveMethod(runtime_->CreateCalleeSaveMethod(type), type);
+          runtime_->SetCalleeSaveMethod(runtime_->CreateCalleeSaveMethod(), type);
         }
       }
     }
@@ -527,18 +527,6 @@ class StubTest : public CommonRuntimeTest {
     uint32_t upper = static_cast<uint32_t>((arg1 >> 32) & 0xFFFFFFFF);
 
     return Invoke3WithReferrer(arg0, lower, upper, code, self, referrer);
-#endif
-  }
-
-  // Method with 32b arg0, 32b arg1, 64b arg2
-  size_t Invoke3UUWithReferrer(uint32_t arg0, uint32_t arg1, uint64_t arg2, uintptr_t code,
-                               Thread* self, mirror::ArtMethod* referrer) {
-#if (defined(__x86_64__) && !defined(__APPLE__)) || defined(__aarch64__)
-    // Just pass through.
-    return Invoke3WithReferrer(arg0, arg1, arg2, code, self, referrer);
-#else
-    // TODO: Needs 4-param invoke.
-    return 0;
 #endif
   }
 
@@ -1303,8 +1291,8 @@ TEST_F(StubTest, StringCompareTo) {
 }
 
 
-static void GetSetBooleanStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
-                           mirror::ArtMethod* referrer, StubTest* test)
+static void GetSetBooleanStatic(Handle<mirror::ArtField>* f, Thread* self,
+                                mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   constexpr size_t num_values = 5;
@@ -1332,8 +1320,8 @@ static void GetSetBooleanStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtF
   std::cout << "Skipping set_boolean_static as I don't know how to do that on " << kRuntimeISA << std::endl;
 #endif
 }
-static void GetSetByteStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
-                           mirror::ArtMethod* referrer, StubTest* test)
+static void GetSetByteStatic(Handle<mirror::ArtField>* f, Thread* self,
+                             mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   int8_t values[] = { -128, -64, 0, 64, 127 };
@@ -1362,7 +1350,7 @@ static void GetSetByteStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
 
 
 static void GetSetBooleanInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f,
-                             Thread* self, mirror::ArtMethod* referrer, StubTest* test)
+                                  Thread* self, mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   uint8_t values[] = { 0, true, 2, 128, 0xFF };
@@ -1427,8 +1415,8 @@ static void GetSetByteInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtFi
 #endif
 }
 
-static void GetSetCharStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
-                           mirror::ArtMethod* referrer, StubTest* test)
+static void GetSetCharStatic(Handle<mirror::ArtField>* f, Thread* self, mirror::ArtMethod* referrer,
+                             StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   uint16_t values[] = { 0, 1, 2, 255, 32768, 0xFFFF };
@@ -1455,8 +1443,8 @@ static void GetSetCharStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
   std::cout << "Skipping set_char_static as I don't know how to do that on " << kRuntimeISA << std::endl;
 #endif
 }
-static void GetSetShortStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
-                           mirror::ArtMethod* referrer, StubTest* test)
+static void GetSetShortStatic(Handle<mirror::ArtField>* f, Thread* self,
+                              mirror::ArtMethod* referrer, StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   int16_t values[] = { -0x7FFF, -32768, 0, 255, 32767, 0x7FFE };
@@ -1549,8 +1537,8 @@ static void GetSetShortInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtF
 #endif
 }
 
-static void GetSet32Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
-                           mirror::ArtMethod* referrer, StubTest* test)
+static void GetSet32Static(Handle<mirror::ArtField>* f, Thread* self, mirror::ArtMethod* referrer,
+                           StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   uint32_t values[] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF };
@@ -1637,8 +1625,8 @@ static void set_and_check_static(uint32_t f_idx, mirror::Object* val, Thread* se
 }
 #endif
 
-static void GetSetObjStatic(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
-                            mirror::ArtMethod* referrer, StubTest* test)
+static void GetSetObjStatic(Handle<mirror::ArtField>* f, Thread* self, mirror::ArtMethod* referrer,
+                            StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   set_and_check_static((*f)->GetDexFieldIndex(), nullptr, self, referrer, test);
@@ -1702,8 +1690,8 @@ static void GetSetObjInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtFie
 
 // TODO: Complete these tests for 32b architectures.
 
-static void GetSet64Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>* f, Thread* self,
-                           mirror::ArtMethod* referrer, StubTest* test)
+static void GetSet64Static(Handle<mirror::ArtField>* f, Thread* self, mirror::ArtMethod* referrer,
+                           StubTest* test)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if (defined(__x86_64__) && !defined(__APPLE__)) || defined(__aarch64__)
   uint64_t values[] = { 0, 1, 2, 255, 32768, 1000000, 0xFFFFFFFF, 0xFFFFFFFFFFFF };
@@ -1724,6 +1712,7 @@ static void GetSet64Static(Handle<mirror::Object>* obj, Handle<mirror::ArtField>
     EXPECT_EQ(res, values[i]) << "Iteration " << i;
   }
 #else
+  UNUSED(f, self, referrer, test);
   LOG(INFO) << "Skipping set64static as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping set64static as I don't know how to do that on " << kRuntimeISA << std::endl;
@@ -1760,6 +1749,7 @@ static void GetSet64Instance(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
     EXPECT_EQ(res, static_cast<int64_t>(res2));
   }
 #else
+  UNUSED(obj, f, self, referrer, test);
   LOG(INFO) << "Skipping set64instance as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping set64instance as I don't know how to do that on " << kRuntimeISA << std::endl;
@@ -1796,40 +1786,40 @@ static void TestFields(Thread* self, StubTest* test, Primitive::Type test_type) 
       switch (type) {
         case Primitive::Type::kPrimBoolean:
           if (test_type == type) {
-            GetSetBooleanStatic(&obj, &f, self, m.Get(), test);
+            GetSetBooleanStatic(&f, self, m.Get(), test);
           }
           break;
         case Primitive::Type::kPrimByte:
           if (test_type == type) {
-            GetSetByteStatic(&obj, &f, self, m.Get(), test);
+            GetSetByteStatic(&f, self, m.Get(), test);
           }
           break;
         case Primitive::Type::kPrimChar:
           if (test_type == type) {
-            GetSetCharStatic(&obj, &f, self, m.Get(), test);
+            GetSetCharStatic(&f, self, m.Get(), test);
           }
           break;
         case Primitive::Type::kPrimShort:
           if (test_type == type) {
-            GetSetShortStatic(&obj, &f, self, m.Get(), test);
+            GetSetShortStatic(&f, self, m.Get(), test);
           }
           break;
         case Primitive::Type::kPrimInt:
           if (test_type == type) {
-            GetSet32Static(&obj, &f, self, m.Get(), test);
+            GetSet32Static(&f, self, m.Get(), test);
           }
           break;
 
         case Primitive::Type::kPrimLong:
           if (test_type == type) {
-            GetSet64Static(&obj, &f, self, m.Get(), test);
+            GetSet64Static(&f, self, m.Get(), test);
           }
           break;
 
         case Primitive::Type::kPrimNot:
           // Don't try array.
           if (test_type == type && f->GetTypeDescriptor()[0] != '[') {
-            GetSetObjStatic(&obj, &f, self, m.Get(), test);
+            GetSetObjStatic(&f, self, m.Get(), test);
           }
           break;
 

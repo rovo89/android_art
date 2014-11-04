@@ -180,11 +180,15 @@ class CodeGeneratorARM64 : public CodeGenerator {
   virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 
   virtual size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE {
+    UNUSED(stack_index);
+    UNUSED(reg_id);
     UNIMPLEMENTED(INFO) << "TODO: SaveCoreRegister";
     return 0;
   }
 
   virtual size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE {
+    UNUSED(stack_index);
+    UNUSED(reg_id);
     UNIMPLEMENTED(INFO) << "TODO: RestoreCoreRegister";
     return 0;
   }

@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_THREAD_STATE_H_
 #define ART_RUNTIME_THREAD_STATE_H_
 
+#include <ostream>
+
 namespace art {
 
 enum ThreadState {
@@ -43,6 +45,7 @@ enum ThreadState {
   kNative,                          // RUNNABLE       TS_RUNNING   running in a JNI native method
   kSuspended,                       // RUNNABLE       TS_RUNNING   suspended by GC or debugger
 };
+std::ostream& operator<<(std::ostream& os, const ThreadState& rhs);
 
 }  // namespace art
 

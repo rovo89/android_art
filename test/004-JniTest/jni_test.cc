@@ -172,7 +172,7 @@ extern "C" void JNICALL Java_Main_testZeroLengthByteBuffers(JNIEnv* env, jclass)
 constexpr size_t kByteReturnSize = 7;
 jbyte byte_returns[kByteReturnSize] = { 0, 1, 2, 127, -1, -2, -128 };
 
-extern "C" jbyte JNICALL Java_Main_byteMethod(JNIEnv* env, jclass klass, jbyte b1, jbyte b2,
+extern "C" jbyte JNICALL Java_Main_byteMethod(JNIEnv*, jclass, jbyte b1, jbyte b2,
                                               jbyte b3, jbyte b4, jbyte b5, jbyte b6,
                                               jbyte b7, jbyte b8, jbyte b9, jbyte b10) {
   // We use b1 to drive the output.
@@ -197,7 +197,7 @@ jshort short_returns[kShortReturnSize] = { 0, 1, 2, 127, 32767, -1, -2, -128,
     static_cast<jshort>(0x8000) };
 // The weird static_cast is because short int is only guaranteed down to -32767, not Java's -32768.
 
-extern "C" jshort JNICALL Java_Main_shortMethod(JNIEnv* env, jclass klass, jshort s1, jshort s2,
+extern "C" jshort JNICALL Java_Main_shortMethod(JNIEnv*, jclass, jshort s1, jshort s2,
                                                 jshort s3, jshort s4, jshort s5, jshort s6,
                                                 jshort s7, jshort s8, jshort s9, jshort s10) {
   // We use s1 to drive the output.
@@ -217,7 +217,7 @@ extern "C" jshort JNICALL Java_Main_shortMethod(JNIEnv* env, jclass klass, jshor
   return short_returns[s1];
 }
 
-extern "C" jboolean JNICALL Java_Main_booleanMethod(JNIEnv* env, jclass klass, jboolean b1,
+extern "C" jboolean JNICALL Java_Main_booleanMethod(JNIEnv*, jclass, jboolean b1,
                                                     jboolean b2, jboolean b3, jboolean b4,
                                                     jboolean b5, jboolean b6, jboolean b7,
                                                     jboolean b8, jboolean b9, jboolean b10) {
@@ -239,7 +239,7 @@ extern "C" jboolean JNICALL Java_Main_booleanMethod(JNIEnv* env, jclass klass, j
 constexpr size_t kCharReturnSize = 8;
 jchar char_returns[kCharReturnSize] = { 0, 1, 2, 127, 255, 256, 15000, 34000 };
 
-extern "C" jchar JNICALL Java_Main_charMethod(JNIEnv* env, jclass klacc, jchar c1, jchar c2,
+extern "C" jchar JNICALL Java_Main_charMethod(JNIEnv*, jclass, jchar c1, jchar c2,
                                               jchar c3, jchar c4, jchar c5, jchar c6, jchar c7,
                                               jchar c8, jchar c9, jchar c10) {
   // We use c1 to drive the output.
@@ -312,7 +312,7 @@ static void testShallowGetCallingClassLoader(JNIEnv* env) {
 }
 
 // http://b/16867274
-extern "C" JNIEXPORT void JNICALL Java_Main_nativeTestShallowGetCallingClassLoader(JNIEnv* env,
+extern "C" JNIEXPORT void JNICALL Java_Main_nativeTestShallowGetCallingClassLoader(JNIEnv*,
                                                                                    jclass) {
   PthreadHelper(&testShallowGetCallingClassLoader);
 }
@@ -350,7 +350,7 @@ static void testShallowGetStackClass2(JNIEnv* env) {
   // ourselves.
 }
 
-extern "C" JNIEXPORT void JNICALL Java_Main_nativeTestShallowGetStackClass2(JNIEnv* env, jclass) {
+extern "C" JNIEXPORT void JNICALL Java_Main_nativeTestShallowGetStackClass2(JNIEnv*, jclass) {
   PthreadHelper(&testShallowGetStackClass2);
 }
 

@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "base/logging.h"
+#include "base/value_object.h"
 #include "constants_arm.h"
 #include "utils/arm/managed_register_arm.h"
 #include "utils/assembler.h"
@@ -179,8 +180,12 @@ enum BlockAddressMode {
   DB_W         = (8|0|1) << 21,  // decrement before with writeback to base
   IB_W         = (8|4|1) << 21   // increment before with writeback to base
 };
+inline std::ostream& operator<<(std::ostream& os, const BlockAddressMode& rhs) {
+  os << static_cast<int>(rhs);
+  return os;
+}
 
-class Address {
+class Address : public ValueObject {
  public:
   // Memory operand addressing mode (in ARM encoding form.  For others we need
   // to adjust)
@@ -260,13 +265,17 @@ class Address {
   }
 
  private:
-  Register rn_;
-  Register rm_;
-  int32_t offset_;      // Used as shift amount for register offset.
-  Mode am_;
-  bool is_immed_offset_;
-  Shift shift_;
+  const Register rn_;
+  const Register rm_;
+  const int32_t offset_;      // Used as shift amount for register offset.
+  const Mode am_;
+  const bool is_immed_offset_;
+  const Shift shift_;
 };
+inline std::ostream& operator<<(std::ostream& os, const Address::Mode& rhs) {
+  os << static_cast<int>(rhs);
+  return os;
+}
 
 // Instruction encoding bits.
 enum {
@@ -344,10 +353,6 @@ constexpr uint32_t kInvalidModifiedImmediate = -1;
 
 extern const char* kRegisterNames[];
 extern const char* kConditionNames[];
-extern std::ostream& operator<<(std::ostream& os, const Register& rhs);
-extern std::ostream& operator<<(std::ostream& os, const SRegister& rhs);
-extern std::ostream& operator<<(std::ostream& os, const DRegister& rhs);
-extern std::ostream& operator<<(std::ostream& os, const Condition& rhs);
 
 // This is an abstract ARM assembler.  Subclasses provide assemblers for the individual
 // instruction sets (ARM32, Thumb2, etc.)
@@ -448,8 +453,10 @@ class ArmAssembler : public Assembler {
   virtual void bkpt(uint16_t imm16) = 0;
   virtual void svc(uint32_t imm24) = 0;
 
-  virtual void it(Condition firstcond, ItState i1 = kItOmitted,
-                  ItState i2 = kItOmitted, ItState i3 = kItOmitted) {
+  virtual void it(Condition firstcond ATTRIBUTE_UNUSED,
+                  ItState i1 ATTRIBUTE_UNUSED = kItOmitted,
+                  ItState i2 ATTRIBUTE_UNUSED = kItOmitted,
+                  ItState i3 ATTRIBUTE_UNUSED = kItOmitted) {
     // Ignored if not supported.
   }
 
@@ -537,14 +544,9 @@ class ArmAssembler : public Assembler {
                            Condition cond = AL) = 0;
   virtual void AddConstantSetFlags(Register rd, Register rn, int32_t value,
                                    Condition cond = AL) = 0;
-  virtual void AddConstantWithCarry(Register rd, Register rn, int32_t value,
-                                    Condition cond = AL) = 0;
 
   // Load and Store. May clobber IP.
   virtual void LoadImmediate(Register rd, int32_t value, Condition cond = AL) = 0;
-  virtual void LoadSImmediate(SRegister sd, float value, Condition cond = AL) = 0;
-  virtual void LoadDImmediate(DRegister dd, double value,
-                              Register scratch, Condition cond = AL) = 0;
   virtual void MarkExceptionHandler(Label* label) = 0;
   virtual void LoadFromOffset(LoadOperandType type,
                               Register reg,

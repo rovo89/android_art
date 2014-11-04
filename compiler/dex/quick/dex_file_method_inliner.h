@@ -31,9 +31,9 @@ namespace verifier {
 class MethodVerifier;
 }  // namespace verifier
 
-struct BasicBlock;
+class BasicBlock;
 struct CallInfo;
-struct MIR;
+class MIR;
 class MIRGraph;
 class Mir2Lir;
 
@@ -315,9 +315,9 @@ class DexFileMethodInliner {
     static bool GenInlineReturnArg(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
                                    MIR* move_result, const InlineMethod& method);
     static bool GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
-                              MIR* move_result, const InlineMethod& method, uint32_t method_idx);
+                              MIR* move_result, const InlineMethod& method);
     static bool GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MIR* invoke,
-                              MIR* move_result, const InlineMethod& method, uint32_t method_idx);
+                              MIR* move_result, const InlineMethod& method);
 
     ReaderWriterMutex lock_;
     /*

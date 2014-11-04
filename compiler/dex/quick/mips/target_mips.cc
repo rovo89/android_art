@@ -421,6 +421,7 @@ void MipsMir2Lir::FreeCallTemps() {
 }
 
 bool MipsMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
+  UNUSED(barrier_kind);
 #if ANDROID_SMP != 0
   NewLIR1(kMipsSync, 0 /* Only stype currently supported */);
   return true;
@@ -574,11 +575,10 @@ RegisterClass MipsMir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volati
 MipsMir2Lir::MipsMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Mir2Lir(cu, mir_graph, arena) {
   for (int i = 0; i < kMipsLast; i++) {
-    if (MipsMir2Lir::EncodingMap[i].opcode != i) {
-      LOG(FATAL) << "Encoding order for " << MipsMir2Lir::EncodingMap[i].name
-                 << " is wrong: expecting " << i << ", seeing "
-                 << static_cast<int>(MipsMir2Lir::EncodingMap[i].opcode);
-    }
+    DCHECK_EQ(MipsMir2Lir::EncodingMap[i].opcode, i)
+        << "Encoding order for " << MipsMir2Lir::EncodingMap[i].name
+        << " is wrong: expecting " << i << ", seeing "
+        << static_cast<int>(MipsMir2Lir::EncodingMap[i].opcode);
   }
 }
 

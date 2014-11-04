@@ -19,6 +19,7 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "base/value_object.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "primitive.h"
@@ -35,7 +36,7 @@ class String;
 }
 class InternTable;
 
-class Transaction {
+class Transaction FINAL {
  public:
   Transaction();
   ~Transaction();
@@ -92,7 +93,7 @@ class Transaction {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
-  class ObjectLog {
+  class ObjectLog : public ValueObject {
    public:
     void LogBooleanValue(MemberOffset offset, uint8_t value, bool is_volatile);
     void LogByteValue(MemberOffset offset, int8_t value, bool is_volatile);
@@ -119,7 +120,7 @@ class Transaction {
       k64Bits,
       kReference
     };
-    struct FieldValue {
+    struct FieldValue : public ValueObject {
       // TODO use JValue instead ?
       uint64_t value;
       FieldValueKind kind;
@@ -134,7 +135,7 @@ class Transaction {
     std::map<uint32_t, FieldValue> field_values_;
   };
 
-  class ArrayLog {
+  class ArrayLog : public ValueObject {
    public:
     void LogValue(size_t index, uint64_t value);
 
@@ -153,7 +154,7 @@ class Transaction {
     std::map<size_t, uint64_t> array_values_;
   };
 
-  class InternStringLog {
+  class InternStringLog : public ValueObject {
    public:
     enum StringKind {
       kStrongString,
@@ -175,11 +176,11 @@ class Transaction {
 
    private:
     mirror::String* str_;
-    StringKind string_kind_;
-    StringOp string_op_;
+    const StringKind string_kind_;
+    const StringOp string_op_;
   };
 
-  void LogInternedString(InternStringLog& log)
+  void LogInternedString(const InternStringLog& log)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_)
       LOCKS_EXCLUDED(log_lock_);
 

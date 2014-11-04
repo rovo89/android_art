@@ -34,11 +34,11 @@ class NoDex2OatTest {
   }
 };
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasImage(JNIEnv*, jclass cls) {
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_hasImage(JNIEnv*, jclass) {
   return Runtime::Current()->GetHeap()->HasImageSpace();
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_isImageDex2OatEnabled(JNIEnv*, jclass cls) {
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_isImageDex2OatEnabled(JNIEnv*, jclass) {
   return Runtime::Current()->IsImageDex2OatEnabled();
 }
 

@@ -66,7 +66,7 @@ template <>
 class ArenaAllocatorAdapterKindImpl<false> {
  public:
   // Not tracking allocations, ignore the supplied kind and arbitrarily provide kArenaAllocSTL.
-  explicit ArenaAllocatorAdapterKindImpl(ArenaAllocKind kind) { }
+  explicit ArenaAllocatorAdapterKindImpl(ArenaAllocKind kind) { UNUSED(kind); }
   ArenaAllocatorAdapterKindImpl& operator=(const ArenaAllocatorAdapterKindImpl& other) = default;
   ArenaAllocKind Kind() { return kArenaAllocSTL; }
 };
@@ -159,11 +159,13 @@ class ArenaAllocatorAdapter : private DebugStackReference, private ArenaAllocato
   const_pointer address(const_reference x) const { return &x; }
 
   pointer allocate(size_type n, ArenaAllocatorAdapter<void>::pointer hint = nullptr) {
+    UNUSED(hint);
     DCHECK_LE(n, max_size());
     return reinterpret_cast<T*>(arena_allocator_->Alloc(n * sizeof(T),
                                                         ArenaAllocatorAdapterKind::Kind()));
   }
   void deallocate(pointer p, size_type n) {
+    UNUSED(p, n);
   }
 
   void construct(pointer p, const_reference val) {

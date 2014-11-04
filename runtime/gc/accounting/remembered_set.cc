@@ -43,6 +43,7 @@ class RememberedSetCardVisitor {
       : dirty_cards_(dirty_cards) {}
 
   void operator()(uint8_t* card, uint8_t expected_value, uint8_t new_value) const {
+    UNUSED(new_value);
     if (expected_value == CardTable::kCardDirty) {
       dirty_cards_->insert(card);
     }

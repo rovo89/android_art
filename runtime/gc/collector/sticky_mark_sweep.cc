@@ -58,6 +58,7 @@ void StickyMarkSweep::MarkReachableObjects() {
 }
 
 void StickyMarkSweep::Sweep(bool swap_bitmaps) {
+  UNUSED(swap_bitmaps);
   SweepArray(GetHeap()->GetLiveStack(), false);
 }
 

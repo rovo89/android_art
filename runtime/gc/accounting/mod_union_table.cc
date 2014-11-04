@@ -46,6 +46,7 @@ class ModUnionClearCardSetVisitor {
   }
 
   inline void operator()(uint8_t* card, uint8_t expected_value, uint8_t new_value) const {
+    UNUSED(new_value);
     if (expected_value == CardTable::kCardDirty) {
       cleared_cards_->insert(card);
     }
@@ -62,6 +63,7 @@ class ModUnionClearCardVisitor {
   }
 
   void operator()(uint8_t* card, uint8_t expected_card, uint8_t new_card) const {
+    UNUSED(new_card);
     if (expected_card == CardTable::kCardDirty) {
       cleared_cards_->push_back(card);
     }

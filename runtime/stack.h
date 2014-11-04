@@ -53,6 +53,7 @@ enum VRegKind {
   kImpreciseConstant,
   kUndefined,
 };
+std::ostream& operator<<(std::ostream& os, const VRegKind& rhs);
 
 // A reference from the shadow stack to a MirrorType object within the Java heap.
 template<class MirrorType>
@@ -336,9 +337,7 @@ class ShadowFrame {
   }
 
 #if defined(ART_USE_PORTABLE_COMPILER)
-  enum ShadowFrameFlag {
-    kHasReferenceArray = 1ul << 31
-  };
+  constexpr uint32_t kHasReferenceArray = 1ul << 31;
   // TODO: make const in the portable case.
   uint32_t number_of_vregs_;
 #else
@@ -633,6 +632,7 @@ class StackVisitor {
   }
 
   static int GetOutVROffset(uint16_t out_num, InstructionSet isa) {
+    UNUSED(isa);
     // According to stack model, the first out is above the Method referernce.
     return sizeof(StackReference<mirror::ArtMethod>) + (out_num * sizeof(uint32_t));
   }

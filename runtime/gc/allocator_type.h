@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_GC_ALLOCATOR_TYPE_H_
 #define ART_RUNTIME_GC_ALLOCATOR_TYPE_H_
 
+#include <ostream>
+
 namespace art {
 namespace gc {
 
@@ -29,6 +31,7 @@ enum AllocatorType {
   kAllocatorTypeNonMoving,  // Special allocator for non moving objects, doesn't have entrypoints.
   kAllocatorTypeLOS,  // Large object space, also doesn't have entrypoints.
 };
+std::ostream& operator<<(std::ostream& os, const AllocatorType& rhs);
 
 }  // namespace gc
 }  // namespace art

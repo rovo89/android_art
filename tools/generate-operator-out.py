@@ -39,6 +39,7 @@ def Confused(filename, line_number, line):
 def ProcessFile(filename):
   lines = codecs.open(filename, 'r', 'utf8', 'replace').read().split('\n')
   in_enum = False
+  is_enum_private = False
   is_enum_class = False
   line_number = 0
   
@@ -57,15 +58,16 @@ def ProcessFile(filename):
         
         # Except when it's private
         if m.group(3) is not None:
-          continue
-        
-        is_enum_class = m.group(1) is not None
-        enum_name = m.group(2)
-        if len(enclosing_classes) > 0:
-          enum_name = '::'.join(enclosing_classes) + '::' + enum_name
-        _ENUMS[enum_name] = []
-        _NAMESPACES[enum_name] = '::'.join(namespaces)
-        _ENUM_CLASSES[enum_name] = is_enum_class
+          is_enum_private = True
+        else:
+          is_enum_private = False
+          is_enum_class = m.group(1) is not None
+          enum_name = m.group(2)
+          if len(enclosing_classes) > 0:
+            enum_name = '::'.join(enclosing_classes) + '::' + enum_name
+          _ENUMS[enum_name] = []
+          _NAMESPACES[enum_name] = '::'.join(namespaces)
+          _ENUM_CLASSES[enum_name] = is_enum_class
         in_enum = True
         continue
 
@@ -80,11 +82,11 @@ def ProcessFile(filename):
         continue
 
       # Is this the start or end of an enclosing class or struct?
-      m = re.compile(r'^(?:class|struct)(?: MANAGED)? (\S+).* \{').search(raw_line)
+      m = re.compile(r'^\s*(?:class|struct)(?: MANAGED)?(?: PACKED\([0-9]\))? (\S+).* \{').search(raw_line)
       if m:
         enclosing_classes.append(m.group(1))
         continue
-      m = re.compile(r'^\};').search(raw_line)
+      m = re.compile(r'^\s*\}( .*)?;').search(raw_line)
       if m:
         enclosing_classes = enclosing_classes[0:len(enclosing_classes) - 1]
         continue
@@ -97,6 +99,9 @@ def ProcessFile(filename):
       if not in_enum:
         Confused(filename, line_number, raw_line)
       in_enum = False
+      continue
+
+    if is_enum_private:
       continue
 
     # The only useful thing in comments is the <<alternate text>> syntax for
@@ -146,6 +151,7 @@ def ProcessFile(filename):
 
     # There shouldn't be anything left.
     if len(rest):
+      sys.stderr.write('%s\n' % (rest))
       Confused(filename, line_number, raw_line)
 
     if len(enclosing_classes) > 0:

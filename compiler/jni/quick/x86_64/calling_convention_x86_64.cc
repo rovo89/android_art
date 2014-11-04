@@ -38,6 +38,7 @@ ManagedRegister X86_64JniCallingConvention::ReturnScratchRegister() const {
 }
 
 static ManagedRegister ReturnRegisterForShorty(const char* shorty, bool jni) {
+  UNUSED(jni);
   if (shorty[0] == 'F' || shorty[0] == 'D') {
     return X86_64ManagedRegister::FromXmmRegister(XMM0);
   } else if (shorty[0] == 'J') {

@@ -35,7 +35,6 @@
 
 namespace art {
 
-// TODO: Fix no thread safety analysis when GCC can handle template specialization.
 template <const bool kAccessCheck>
 ALWAYS_INLINE
 static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
@@ -90,7 +89,6 @@ static inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
   return klass;
 }
 
-// TODO: Fix no thread safety analysis when annotalysis is smarter.
 ALWAYS_INLINE
 static inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::Class* klass,
                                                                  Thread* self,
@@ -120,7 +118,6 @@ static inline mirror::Class* CheckClassInitializedForObjectAlloc(mirror::Class* 
 // cannot be resolved, throw an error. If it can, use it to create an instance.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-// TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
 template <bool kAccessCheck, bool kInstrumented>
 ALWAYS_INLINE
 static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx,
@@ -140,11 +137,9 @@ static inline mirror::Object* AllocObjectFromCode(uint32_t type_idx,
 }
 
 // Given the context of a calling Method and a resolved class, create an instance.
-// TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
 template <bool kInstrumented>
 ALWAYS_INLINE
 static inline mirror::Object* AllocObjectFromCodeResolved(mirror::Class* klass,
-                                                          mirror::ArtMethod* method,
                                                           Thread* self,
                                                           gc::AllocatorType allocator_type) {
   DCHECK(klass != nullptr);
@@ -163,11 +158,9 @@ static inline mirror::Object* AllocObjectFromCodeResolved(mirror::Class* klass,
 }
 
 // Given the context of a calling Method and an initialized class, create an instance.
-// TODO: Fix NO_THREAD_SAFETY_ANALYSIS when GCC is smarter.
 template <bool kInstrumented>
 ALWAYS_INLINE
 static inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Class* klass,
-                                                             mirror::ArtMethod* method,
                                                              Thread* self,
                                                              gc::AllocatorType allocator_type) {
   DCHECK(klass != nullptr);
@@ -176,7 +169,6 @@ static inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Class* klas
 }
 
 
-// TODO: Fix no thread safety analysis when GCC can handle template specialization.
 template <bool kAccessCheck>
 ALWAYS_INLINE
 static inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
@@ -213,7 +205,6 @@ static inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
 // it cannot be resolved, throw an error. If it can, use it to create an array.
 // When verification/compiler hasn't been able to verify access, optionally perform an access
 // check.
-// TODO: Fix no thread safety analysis when GCC can handle template specialization.
 template <bool kAccessCheck, bool kInstrumented>
 ALWAYS_INLINE
 static inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
@@ -362,7 +353,7 @@ static inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx,
                                                     mirror::Object** this_object,
                                                     mirror::ArtMethod** referrer, Thread* self) {
   ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
-  mirror::ArtMethod* resolved_method = class_linker->GetResolvedMethod(method_idx, *referrer, type);
+  mirror::ArtMethod* resolved_method = class_linker->GetResolvedMethod(method_idx, *referrer);
   if (resolved_method == nullptr) {
     StackHandleScope<1> hs(self);
     mirror::Object* null_this = nullptr;

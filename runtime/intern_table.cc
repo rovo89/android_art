@@ -355,7 +355,8 @@ void InternTable::Table::Insert(mirror::String* s) {
   post_zygote_table_.insert(GcRoot<mirror::String>(s));
 }
 
-void InternTable::Table::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
+void InternTable::Table::VisitRoots(RootCallback* callback, void* arg,
+                                    VisitRootFlags flags ATTRIBUTE_UNUSED) {
   for (auto& intern : pre_zygote_table_) {
     const_cast<GcRoot<mirror::String>&>(intern).VisitRoot(callback, arg, 0, kRootInternedString);
   }

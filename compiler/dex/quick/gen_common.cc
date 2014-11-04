@@ -212,8 +212,7 @@ void Mir2Lir::ForceImplicitNullCheck(RegStorage reg, int opt_flags) {
 }
 
 void Mir2Lir::GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
-                                  RegLocation rl_src2, LIR* taken,
-                                  LIR* fall_through) {
+                                  RegLocation rl_src2, LIR* taken) {
   ConditionCode cond;
   RegisterClass reg_class = (rl_src1.ref || rl_src2.ref) ? kRefReg : kCoreReg;
   switch (opcode) {
@@ -276,8 +275,7 @@ void Mir2Lir::GenCompareAndBranch(Instruction::Code opcode, RegLocation rl_src1,
   OpCmpBranch(cond, rl_src1.reg, rl_src2.reg, taken);
 }
 
-void Mir2Lir::GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_src, LIR* taken,
-                                      LIR* fall_through) {
+void Mir2Lir::GenCompareZeroAndBranch(Instruction::Code opcode, RegLocation rl_src, LIR* taken) {
   ConditionCode cond;
   RegisterClass reg_class = rl_src.ref ? kRefReg : kCoreReg;
   rl_src = LoadValue(rl_src, reg_class);
@@ -2134,12 +2132,14 @@ void Mir2Lir::GenSuspendTestAndBranch(int opt_flags, LIR* target) {
 
 /* Call out to helper assembly routine that will null check obj and then lock it. */
 void Mir2Lir::GenMonitorEnter(int opt_flags, RegLocation rl_src) {
+  UNUSED(opt_flags);  // TODO: avoid null check with specialized non-null helper.
   FlushAllRegs();
   CallRuntimeHelperRegLocation(kQuickLockObject, rl_src, true);
 }
 
 /* Call out to helper assembly routine that will null check obj and then unlock it. */
 void Mir2Lir::GenMonitorExit(int opt_flags, RegLocation rl_src) {
+  UNUSED(opt_flags);  // TODO: avoid null check with specialized non-null helper.
   FlushAllRegs();
   CallRuntimeHelperRegLocation(kQuickUnlockObject, rl_src, true);
 }

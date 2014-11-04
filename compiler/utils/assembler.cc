@@ -125,77 +125,91 @@ Assembler* Assembler::Create(InstructionSet instruction_set) {
   }
 }
 
-void Assembler::StoreImmediateToThread32(ThreadOffset<4> dest, uint32_t imm,
-                                         ManagedRegister scratch) {
+void Assembler::StoreImmediateToThread32(ThreadOffset<4> dest ATTRIBUTE_UNUSED,
+                                         uint32_t imm ATTRIBUTE_UNUSED,
+                                         ManagedRegister scratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::StoreImmediateToThread64(ThreadOffset<8> dest, uint32_t imm,
-                                         ManagedRegister scratch) {
+void Assembler::StoreImmediateToThread64(ThreadOffset<8> dest ATTRIBUTE_UNUSED,
+                                         uint32_t imm ATTRIBUTE_UNUSED,
+                                         ManagedRegister scratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::StoreStackOffsetToThread32(ThreadOffset<4> thr_offs,
-                                           FrameOffset fr_offs,
-                                           ManagedRegister scratch) {
+void Assembler::StoreStackOffsetToThread32(ThreadOffset<4> thr_offs ATTRIBUTE_UNUSED,
+                                           FrameOffset fr_offs ATTRIBUTE_UNUSED,
+                                           ManagedRegister scratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::StoreStackOffsetToThread64(ThreadOffset<8> thr_offs,
-                                           FrameOffset fr_offs,
-                                           ManagedRegister scratch) {
+void Assembler::StoreStackOffsetToThread64(ThreadOffset<8> thr_offs ATTRIBUTE_UNUSED,
+                                           FrameOffset fr_offs ATTRIBUTE_UNUSED,
+                                           ManagedRegister scratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::StoreStackPointerToThread32(ThreadOffset<4> thr_offs) {
+void Assembler::StoreStackPointerToThread32(ThreadOffset<4> thr_offs ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::StoreStackPointerToThread64(ThreadOffset<8> thr_offs) {
+void Assembler::StoreStackPointerToThread64(ThreadOffset<8> thr_offs ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::LoadFromThread32(ManagedRegister dest, ThreadOffset<4> src, size_t size) {
+void Assembler::LoadFromThread32(ManagedRegister dest ATTRIBUTE_UNUSED,
+                                 ThreadOffset<4> src ATTRIBUTE_UNUSED,
+                                 size_t size ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::LoadFromThread64(ManagedRegister dest, ThreadOffset<8> src, size_t size) {
+void Assembler::LoadFromThread64(ManagedRegister dest ATTRIBUTE_UNUSED,
+                                 ThreadOffset<8> src ATTRIBUTE_UNUSED,
+                                 size_t size ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::LoadRawPtrFromThread32(ManagedRegister dest, ThreadOffset<4> offs) {
+void Assembler::LoadRawPtrFromThread32(ManagedRegister dest ATTRIBUTE_UNUSED,
+                                       ThreadOffset<4> offs ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::LoadRawPtrFromThread64(ManagedRegister dest, ThreadOffset<8> offs) {
+void Assembler::LoadRawPtrFromThread64(ManagedRegister dest ATTRIBUTE_UNUSED,
+                                       ThreadOffset<8> offs ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::CopyRawPtrFromThread32(FrameOffset fr_offs, ThreadOffset<4> thr_offs,
-                                       ManagedRegister scratch) {
+void Assembler::CopyRawPtrFromThread32(FrameOffset fr_offs ATTRIBUTE_UNUSED,
+                                       ThreadOffset<4> thr_offs ATTRIBUTE_UNUSED,
+                                       ManagedRegister scratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::CopyRawPtrFromThread64(FrameOffset fr_offs, ThreadOffset<8> thr_offs,
-                                       ManagedRegister scratch) {
+void Assembler::CopyRawPtrFromThread64(FrameOffset fr_offs ATTRIBUTE_UNUSED,
+                                       ThreadOffset<8> thr_offs ATTRIBUTE_UNUSED,
+                                       ManagedRegister scratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::CopyRawPtrToThread32(ThreadOffset<4> thr_offs, FrameOffset fr_offs,
-                                     ManagedRegister scratch) {
+void Assembler::CopyRawPtrToThread32(ThreadOffset<4> thr_offs ATTRIBUTE_UNUSED,
+                                     FrameOffset fr_offs ATTRIBUTE_UNUSED,
+                                     ManagedRegister scratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::CopyRawPtrToThread64(ThreadOffset<8> thr_offs, FrameOffset fr_offs,
-                                     ManagedRegister scratch) {
+void Assembler::CopyRawPtrToThread64(ThreadOffset<8> thr_offs ATTRIBUTE_UNUSED,
+                                     FrameOffset fr_offs ATTRIBUTE_UNUSED,
+                                     ManagedRegister scratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::CallFromThread32(ThreadOffset<4> offset, ManagedRegister scratch) {
+void Assembler::CallFromThread32(ThreadOffset<4> offset ATTRIBUTE_UNUSED,
+                                 ManagedRegister scratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 
-void Assembler::CallFromThread64(ThreadOffset<8> offset, ManagedRegister scratch) {
+void Assembler::CallFromThread64(ThreadOffset<8> offset ATTRIBUTE_UNUSED,
+                                 ManagedRegister scratch ATTRIBUTE_UNUSED) {
   UNIMPLEMENTED(FATAL);
 }
 

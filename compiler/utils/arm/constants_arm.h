@@ -38,15 +38,6 @@ namespace arm {
 // Constants for specific fields are defined in their respective named enums.
 // General constants are in an anonymous enum in class Instr.
 
-
-// We support both VFPv3-D16 and VFPv3-D32 profiles, but currently only one at
-// a time, so that compile time optimizations can be applied.
-// Warning: VFPv3-D32 is untested.
-#define VFPv3_D16
-#if defined(VFPv3_D16) == defined(VFPv3_D32)
-#error "Exactly one of VFPv3_D16 or VFPv3_D32 can be defined at a time."
-#endif
-
 // 4 bits option for the dmb instruction.
 // Order and values follows those of the ARM Architecture Reference Manual.
 enum DmbOptions {
@@ -66,26 +57,23 @@ enum ScaleFactor {
 };
 
 // Values for double-precision floating point registers.
-enum DRegister {
-  D0  =  0,
-  D1  =  1,
-  D2  =  2,
-  D3  =  3,
-  D4  =  4,
-  D5  =  5,
-  D6  =  6,
-  D7  =  7,
-  D8  =  8,
-  D9  =  9,
+enum DRegister {  // private marker to avoid generate-operator-out.py from processing.
+  D0  = 0,
+  D1  = 1,
+  D2  = 2,
+  D3  = 3,
+  D4  = 4,
+  D5  = 5,
+  D6  = 6,
+  D7  = 7,
+  D8  = 8,
+  D9  = 9,
   D10 = 10,
   D11 = 11,
   D12 = 12,
   D13 = 13,
   D14 = 14,
   D15 = 15,
-#ifdef VFPv3_D16
-  kNumberOfDRegisters = 16,
-#else
   D16 = 16,
   D17 = 17,
   D18 = 18,
@@ -103,7 +91,6 @@ enum DRegister {
   D30 = 30,
   D31 = 31,
   kNumberOfDRegisters = 32,
-#endif
   kNumberOfOverlappingDRegisters = 16,
   kNoDRegister = -1,
 };
@@ -111,18 +98,18 @@ std::ostream& operator<<(std::ostream& os, const DRegister& rhs);
 
 
 // Values for the condition field as defined in section A3.2.
-enum Condition {
+enum Condition {  // private marker to avoid generate-operator-out.py from processing.
   kNoCondition = -1,
-  EQ =  0,  // equal
-  NE =  1,  // not equal
-  CS =  2,  // carry set/unsigned higher or same
-  CC =  3,  // carry clear/unsigned lower
-  MI =  4,  // minus/negative
-  PL =  5,  // plus/positive or zero
-  VS =  6,  // overflow
-  VC =  7,  // no overflow
-  HI =  8,  // unsigned higher
-  LS =  9,  // unsigned lower or same
+  EQ = 0,   // equal
+  NE = 1,   // not equal
+  CS = 2,   // carry set/unsigned higher or same
+  CC = 3,   // carry clear/unsigned lower
+  MI = 4,   // minus/negative
+  PL = 5,   // plus/positive or zero
+  VS = 6,   // overflow
+  VC = 7,   // no overflow
+  HI = 8,   // unsigned higher
+  LS = 9,   // unsigned lower or same
   GE = 10,  // signed greater than or equal
   LT = 11,  // signed less than
   GT = 12,  // signed greater than
@@ -138,16 +125,16 @@ std::ostream& operator<<(std::ostream& os, const Condition& rhs);
 // as defined in section A3.4
 enum Opcode {
   kNoOperand = -1,
-  AND =  0,  // Logical AND
-  EOR =  1,  // Logical Exclusive OR
-  SUB =  2,  // Subtract
-  RSB =  3,  // Reverse Subtract
-  ADD =  4,  // Add
-  ADC =  5,  // Add with Carry
-  SBC =  6,  // Subtract with Carry
-  RSC =  7,  // Reverse Subtract with Carry
-  TST =  8,  // Test
-  TEQ =  9,  // Test Equivalence
+  AND = 0,   // Logical AND
+  EOR = 1,   // Logical Exclusive OR
+  SUB = 2,   // Subtract
+  RSB = 3,   // Reverse Subtract
+  ADD = 4,   // Add
+  ADC = 5,   // Add with Carry
+  SBC = 6,   // Subtract with Carry
+  RSC = 7,   // Reverse Subtract with Carry
+  TST = 8,   // Test
+  TEQ = 9,   // Test Equivalence
   CMP = 10,  // Compare
   CMN = 11,  // Compare Negated
   ORR = 12,  // Logical (inclusive) OR
@@ -156,7 +143,7 @@ enum Opcode {
   MVN = 15,  // Move Not
   kMaxOperand = 16
 };
-
+std::ostream& operator<<(std::ostream& os, const Opcode& rhs);
 
 // Shifter types for Data-processing operands as defined in section A5.1.2.
 enum Shift {
@@ -168,11 +155,11 @@ enum Shift {
   RRX = 4,  // Rotate right with extend.
   kMaxShift
 };
-
+std::ostream& operator<<(std::ostream& os, const Shift& rhs);
 
 // Constants used for the decoding or encoding of the individual fields of
 // instructions. Based on the "Figure 3-1 ARM instruction set summary".
-enum InstructionFields {
+enum InstructionFields {  // private marker to avoid generate-operator-out.py from processing.
   kConditionShift = 28,
   kConditionBits = 4,
   kTypeShift = 25,

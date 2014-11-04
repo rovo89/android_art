@@ -189,6 +189,7 @@ class DeoptimizationRequest {
   // Method for selective deoptimization.
   jmethodID method_;
 };
+std::ostream& operator<<(std::ostream& os, const DeoptimizationRequest::Kind& rhs);
 
 class Dbg {
  public:
@@ -493,7 +494,7 @@ class Dbg {
   /*
    * Debugger notification
    */
-  enum {
+  enum EventFlag {
     kBreakpoint     = 0x01,
     kSingleStep     = 0x02,
     kMethodEntry    = 0x04,

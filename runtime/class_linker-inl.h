@@ -105,8 +105,7 @@ inline mirror::Class* ClassLinker::ResolveType(uint16_t type_idx, mirror::ArtFie
 }
 
 inline mirror::ArtMethod* ClassLinker::GetResolvedMethod(uint32_t method_idx,
-                                                         mirror::ArtMethod* referrer,
-                                                         InvokeType type) {
+                                                         mirror::ArtMethod* referrer) {
   mirror::ArtMethod* resolved_method = referrer->GetDexCacheResolvedMethod(method_idx);
   if (resolved_method == nullptr || resolved_method->IsRuntimeMethod()) {
     return nullptr;
@@ -117,7 +116,7 @@ inline mirror::ArtMethod* ClassLinker::GetResolvedMethod(uint32_t method_idx,
 inline mirror::ArtMethod* ClassLinker::ResolveMethod(Thread* self, uint32_t method_idx,
                                                      mirror::ArtMethod** referrer,
                                                      InvokeType type) {
-  mirror::ArtMethod* resolved_method = GetResolvedMethod(method_idx, *referrer, type);
+  mirror::ArtMethod* resolved_method = GetResolvedMethod(method_idx, *referrer);
   if (LIKELY(resolved_method != nullptr)) {
     return resolved_method;
   }
