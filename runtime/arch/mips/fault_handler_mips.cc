@@ -29,23 +29,29 @@
 
 namespace art {
 
-void FaultManager::HandleNestedSignal(int sig, siginfo_t* info, void* context) {
+void FaultManager::HandleNestedSignal(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+                                      void* context ATTRIBUTE_UNUSED) {
 }
 
-void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
-                                             mirror::ArtMethod** out_method,
-                                             uintptr_t* out_return_pc, uintptr_t* out_sp) {
+void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo ATTRIBUTE_UNUSED,
+                                             void* context ATTRIBUTE_UNUSED,
+                                             mirror::ArtMethod** out_method ATTRIBUTE_UNUSED,
+                                             uintptr_t* out_return_pc ATTRIBUTE_UNUSED,
+                                             uintptr_t* out_sp ATTRIBUTE_UNUSED) {
 }
 
-bool NullPointerHandler::Action(int sig, siginfo_t* info, void* context) {
+bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+                                void* context ATTRIBUTE_UNUSED) {
   return false;
 }
 
-bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
+bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+                               void* context ATTRIBUTE_UNUSED) {
   return false;
 }
 
-bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
+bool StackOverflowHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+                                  void* context ATTRIBUTE_UNUSED) {
   return false;
 }
 }       // namespace art

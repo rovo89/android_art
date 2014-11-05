@@ -37,7 +37,8 @@ extern "C" void art_quick_implicit_suspend();
 
 namespace art {
 
-void FaultManager::HandleNestedSignal(int sig, siginfo_t* info, void* context) {
+void FaultManager::HandleNestedSignal(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+                                      void* context) {
   // To match the case used in ARM we return directly to the longjmp function
   // rather than through a trivial assembly language stub.
 
@@ -51,7 +52,7 @@ void FaultManager::HandleNestedSignal(int sig, siginfo_t* info, void* context) {
   sc->pc = reinterpret_cast<uintptr_t>(longjmp);
 }
 
-void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
+void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo ATTRIBUTE_UNUSED, void* context,
                                              mirror::ArtMethod** out_method,
                                              uintptr_t* out_return_pc, uintptr_t* out_sp) {
   struct ucontext *uc = reinterpret_cast<struct ucontext *>(context);
@@ -82,7 +83,8 @@ void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
   *out_return_pc = sc->pc + 4;
 }
 
-bool NullPointerHandler::Action(int sig, siginfo_t* info, void* context) {
+bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+                                void* context) {
   // The code that looks for the catch location needs to know the value of the
   // PC at the point of call.  For Null checks we insert a GC map that is immediately after
   // the load/store instruction that might cause the fault.
@@ -105,7 +107,8 @@ bool NullPointerHandler::Action(int sig, siginfo_t* info, void* context) {
 // The offset from r18 is Thread::ThreadSuspendTriggerOffset().
 // To check for a suspend check, we examine the instructions that caused
 // the fault (at PC-4 and PC).
-bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
+bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+                               void* context) {
   // These are the instructions to check for.  The first one is the ldr x0,[r18,#xxx]
   // where xxx is the offset of the suspend trigger.
   uint32_t checkinst1 = 0xf9400240 | (Thread::ThreadSuspendTriggerOffset<8>().Int32Value() << 7);
@@ -155,7 +158,8 @@ bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
   return false;
 }
 
-bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
+bool StackOverflowHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+                                  void* context) {
   struct ucontext *uc = reinterpret_cast<struct ucontext *>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
   VLOG(signals) << "stack overflow handler with sp at " << std::hex << &uc;
