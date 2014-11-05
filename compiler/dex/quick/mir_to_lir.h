@@ -319,13 +319,10 @@ class Mir2Lir : public Backend {
      * Working plan is, for all targets, to follow mechanism 1 for 64-bit core registers, and
      * mechanism 2 for aliased float registers and x86 vector registers.
      */
-    class RegisterInfo {
+    class RegisterInfo : public ArenaObject<kArenaAllocRegAlloc> {
      public:
       RegisterInfo(RegStorage r, const ResourceMask& mask = kEncodeAll);
       ~RegisterInfo() {}
-      static void* operator new(size_t size, ArenaAllocator* arena) {
-        return arena->Alloc(size, kArenaAllocRegAlloc);
-      }
 
       static const uint32_t k32SoloStorageMask     = 0x00000001;
       static const uint32_t kLowSingleStorageMask  = 0x00000001;
@@ -421,7 +418,7 @@ class Mir2Lir : public Backend {
       RegisterInfo* alias_chain_;  // Chain of aliased registers.
     };
 
-    class RegisterPool {
+    class RegisterPool : public DeletableArenaObject<kArenaAllocRegAlloc> {
      public:
       RegisterPool(Mir2Lir* m2l, ArenaAllocator* arena,
                    const ArrayRef<const RegStorage>& core_regs,
@@ -435,10 +432,6 @@ class Mir2Lir : public Backend {
                    const ArrayRef<const RegStorage>& sp_temps,
                    const ArrayRef<const RegStorage>& dp_temps);
       ~RegisterPool() {}
-      static void* operator new(size_t size, ArenaAllocator* arena) {
-        return arena->Alloc(size, kArenaAllocRegAlloc);
-      }
-      static void operator delete(void* ptr) { UNUSED(ptr); }
       void ResetNextTemp() {
         next_core_reg_ = 0;
         next_sp_reg_ = 0;
@@ -510,10 +503,6 @@ class Mir2Lir : public Backend {
       }
       virtual ~LIRSlowPath() {}
       virtual void Compile() = 0;
-
-      static void* operator new(size_t size, ArenaAllocator* arena) {
-        return arena->Alloc(size, kArenaAllocData);
-      }
 
       LIR *GetContinuationLabel() {
         return cont_;
