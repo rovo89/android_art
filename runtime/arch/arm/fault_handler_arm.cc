@@ -47,7 +47,8 @@ static uint32_t GetInstructionSize(uint8_t* pc) {
   return instr_size;
 }
 
-void FaultManager::HandleNestedSignal(int sig, siginfo_t* info, void* context) {
+void FaultManager::HandleNestedSignal(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+                                      void* context) {
   // Note that in this handler we set up the registers and return to
   // longjmp directly rather than going through an assembly language stub.  The
   // reason for this is that longjmp is (currently) in ARM mode and that would
@@ -64,7 +65,7 @@ void FaultManager::HandleNestedSignal(int sig, siginfo_t* info, void* context) {
   VLOG(signals) << "longjmp address: " << reinterpret_cast<void*>(sc->arm_pc);
 }
 
-void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
+void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo ATTRIBUTE_UNUSED, void* context,
                                              mirror::ArtMethod** out_method,
                                              uintptr_t* out_return_pc, uintptr_t* out_sp) {
   struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
@@ -100,7 +101,8 @@ void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
   *out_return_pc = (sc->arm_pc + instr_size) | 1;
 }
 
-bool NullPointerHandler::Action(int sig, siginfo_t* info, void* context) {
+bool NullPointerHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+                                void* context) {
   // The code that looks for the catch location needs to know the value of the
   // ARM PC at the point of call.  For Null checks we insert a GC map that is immediately after
   // the load/store instruction that might cause the fault.  However the mapping table has
@@ -127,7 +129,8 @@ bool NullPointerHandler::Action(int sig, siginfo_t* info, void* context) {
 // The offset from r9 is Thread::ThreadSuspendTriggerOffset().
 // To check for a suspend check, we examine the instructions that caused
 // the fault (at PC-4 and PC).
-bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
+bool SuspensionHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+                               void* context) {
   // These are the instructions to check for.  The first one is the ldr r0,[r9,#xxx]
   // where xxx is the offset of the suspend trigger.
   uint32_t checkinst1 = 0xf8d90000 + Thread::ThreadSuspendTriggerOffset<4>().Int32Value();
@@ -196,7 +199,8 @@ bool SuspensionHandler::Action(int sig, siginfo_t* info, void* context) {
 // If we determine this is a stack overflow we need to move the stack pointer
 // to the overflow region below the protected region.
 
-bool StackOverflowHandler::Action(int sig, siginfo_t* info, void* context) {
+bool StackOverflowHandler::Action(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UNUSED,
+                                  void* context) {
   struct ucontext* uc = reinterpret_cast<struct ucontext*>(context);
   struct sigcontext *sc = reinterpret_cast<struct sigcontext*>(&uc->uc_mcontext);
   VLOG(signals) << "stack overflow handler with sp at " << std::hex << &uc;
