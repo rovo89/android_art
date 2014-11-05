@@ -1193,7 +1193,6 @@ class ScopedAssertNoThreadSuspension {
 };
 
 std::ostream& operator<<(std::ostream& os, const Thread& thread);
-std::ostream& operator<<(std::ostream& os, const ThreadState& state);
 
 }  // namespace art
 

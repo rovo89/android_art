@@ -1586,7 +1586,6 @@ void LocationsBuilderARM::VisitCompare(HCompare* compare) {
 }
 
 void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
-  Label greater, done;
   LocationSummary* locations = compare->GetLocations();
   switch (compare->InputAt(0)->GetType()) {
     case Primitive::kPrimLong: {

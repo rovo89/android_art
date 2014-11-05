@@ -837,10 +837,11 @@ void Thread::DumpState(std::ostream& os) const {
 }
 
 struct StackDumpVisitor : public StackVisitor {
-  StackDumpVisitor(std::ostream& os, Thread* thread, Context* context, bool can_allocate)
+  StackDumpVisitor(std::ostream& os_in, Thread* thread_in, Context* context, bool can_allocate_in)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(thread, context), os(os), thread(thread), can_allocate(can_allocate),
-        last_method(nullptr), last_line_number(0), repetition_count(0), frame_count(0) {
+      : StackVisitor(thread_in, context), os(os_in), thread(thread_in),
+        can_allocate(can_allocate_in), last_method(nullptr), last_line_number(0),
+        repetition_count(0), frame_count(0) {
   }
 
   virtual ~StackDumpVisitor() {
@@ -2151,7 +2152,6 @@ class ReferenceMapVisitor : public StackVisitor {
           const VmapTable vmap_table(m->GetVmapTable(code_pointer));
           QuickMethodFrameInfo frame_info = m->GetQuickFrameInfo(code_pointer);
           // For all dex registers in the bitmap
-          StackReference<mirror::ArtMethod>* cur_quick_frame = GetCurrentQuickFrame();
           DCHECK(cur_quick_frame != nullptr);
           for (size_t reg = 0; reg < num_regs; ++reg) {
             // Does this register hold a reference?

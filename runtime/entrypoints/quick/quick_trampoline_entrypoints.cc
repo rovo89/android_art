@@ -521,8 +521,8 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
     MethodHelper mh(hs.NewHandle(method));
     if (mh.Get()->IsStatic() && !mh.Get()->GetDeclaringClass()->IsInitialized()) {
       // Ensure static method's class is initialized.
-      StackHandleScope<1> hs(self);
-      Handle<mirror::Class> h_class(hs.NewHandle(mh.Get()->GetDeclaringClass()));
+      StackHandleScope<1> hs2(self);
+      Handle<mirror::Class> h_class(hs2.NewHandle(mh.Get()->GetDeclaringClass()));
       if (!Runtime::Current()->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
         DCHECK(Thread::Current()->IsExceptionPending()) << PrettyMethod(mh.Get());
         self->PopManagedStackFragment(fragment);

@@ -787,9 +787,9 @@ void LocalValueNumbering::MergeAliasingValues(const typename Map::value_type& en
   if (same_version) {
     // Find the first non-null values.
     for (const LocalValueNumbering* lvn : gvn_->merge_lvns_) {
-      auto it = (lvn->*map_ptr).find(key);
-      if (it != (lvn->*map_ptr).end()) {
-        cmp_values = &it->second;
+      auto value = (lvn->*map_ptr).find(key);
+      if (value != (lvn->*map_ptr).end()) {
+        cmp_values = &value->second;
         break;
       }
     }
@@ -799,21 +799,21 @@ void LocalValueNumbering::MergeAliasingValues(const typename Map::value_type& en
     // field version and the values' memory_version_before_stores, last_stored_value
     // and store_loc_set are identical.
     for (const LocalValueNumbering* lvn : gvn_->merge_lvns_) {
-      auto it = (lvn->*map_ptr).find(key);
-      if (it == (lvn->*map_ptr).end()) {
+      auto value = (lvn->*map_ptr).find(key);
+      if (value == (lvn->*map_ptr).end()) {
         if (cmp_values->memory_version_before_stores != kNoValue) {
           same_version = false;
           break;
         }
-      } else if (cmp_values->last_stored_value != it->second.last_stored_value ||
-          cmp_values->memory_version_before_stores != it->second.memory_version_before_stores ||
-          cmp_values->store_loc_set != it->second.store_loc_set) {
+      } else if (cmp_values->last_stored_value != value->second.last_stored_value ||
+          cmp_values->memory_version_before_stores != value->second.memory_version_before_stores ||
+          cmp_values->store_loc_set != value->second.store_loc_set) {
         same_version = false;
         break;
-      } else if (it->second.last_load_memory_version != kNoValue) {
+      } else if (value->second.last_load_memory_version != kNoValue) {
         DCHECK(load_memory_version_for_same_version == kNoValue ||
-               load_memory_version_for_same_version == it->second.last_load_memory_version);
-        load_memory_version_for_same_version = it->second.last_load_memory_version;
+               load_memory_version_for_same_version == value->second.last_load_memory_version);
+        load_memory_version_for_same_version = value->second.last_load_memory_version;
       }
     }
   }
@@ -828,12 +828,12 @@ void LocalValueNumbering::MergeAliasingValues(const typename Map::value_type& en
     if (!cmp_values->load_value_map.empty()) {
       my_values->load_value_map = cmp_values->load_value_map;
       for (const LocalValueNumbering* lvn : gvn_->merge_lvns_) {
-        auto it = (lvn->*map_ptr).find(key);
-        if (it == (lvn->*map_ptr).end() || it->second.load_value_map.empty()) {
+        auto value = (lvn->*map_ptr).find(key);
+        if (value == (lvn->*map_ptr).end() || value->second.load_value_map.empty()) {
           my_values->load_value_map.clear();
           break;
         }
-        InPlaceIntersectMaps(&my_values->load_value_map, it->second.load_value_map);
+        InPlaceIntersectMaps(&my_values->load_value_map, value->second.load_value_map);
         if (my_values->load_value_map.empty()) {
           break;
         }
@@ -847,20 +847,20 @@ void LocalValueNumbering::MergeAliasingValues(const typename Map::value_type& en
     // Calculate the locations that have been either read from or written to in each incoming LVN.
     bool first_lvn = true;
     for (const LocalValueNumbering* lvn : gvn_->merge_lvns_) {
-      auto it = (lvn->*map_ptr).find(key);
-      if (it == (lvn->*map_ptr).end()) {
+      auto value = (lvn->*map_ptr).find(key);
+      if (value == (lvn->*map_ptr).end()) {
         my_values->load_value_map.clear();
         break;
       }
       if (first_lvn) {
         first_lvn = false;
         // Copy the first LVN's locations. Values will be overwritten later.
-        my_values->load_value_map = it->second.load_value_map;
-        for (uint16_t location : it->second.store_loc_set) {
+        my_values->load_value_map = value->second.load_value_map;
+        for (uint16_t location : value->second.store_loc_set) {
           my_values->load_value_map.Put(location, 0u);
         }
       } else {
-        IntersectAliasingValueLocations(my_values, &it->second);
+        IntersectAliasingValueLocations(my_values, &value->second);
       }
     }
     // Calculate merged values for the intersection.

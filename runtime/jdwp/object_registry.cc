@@ -214,10 +214,10 @@ void ObjectRegistry::DisposeObject(JDWP::ObjectId id, uint32_t reference_count) 
     // Erase the object from the maps. Note object may be null if it's
     // a weak ref and the GC has cleared it.
     int32_t hash_code = entry->identity_hash_code;
-    for (auto it = object_to_entry_.lower_bound(hash_code), end = object_to_entry_.end();
-         it != end && it->first == hash_code; ++it) {
-      if (entry == it->second) {
-        object_to_entry_.erase(it);
+    for (auto inner_it = object_to_entry_.lower_bound(hash_code), end = object_to_entry_.end();
+         inner_it != end && inner_it->first == hash_code; ++inner_it) {
+      if (entry == inner_it->second) {
+        object_to_entry_.erase(inner_it);
         break;
       }
     }

@@ -69,6 +69,31 @@
 #include "mirror/throwable.h"
 #include "monitor.h"
 #include "native_bridge_art_interface.h"
+#include "native/dalvik_system_DexFile.h"
+#include "native/dalvik_system_VMDebug.h"
+#include "native/dalvik_system_VMRuntime.h"
+#include "native/dalvik_system_VMStack.h"
+#include "native/dalvik_system_ZygoteHooks.h"
+#include "native/java_lang_Class.h"
+#include "native/java_lang_DexCache.h"
+#include "native/java_lang_Object.h"
+#include "native/java_lang_ref_FinalizerReference.h"
+#include "native/java_lang_reflect_Array.h"
+#include "native/java_lang_reflect_Constructor.h"
+#include "native/java_lang_reflect_Field.h"
+#include "native/java_lang_reflect_Method.h"
+#include "native/java_lang_reflect_Proxy.h"
+#include "native/java_lang_ref_Reference.h"
+#include "native/java_lang_Runtime.h"
+#include "native/java_lang_String.h"
+#include "native/java_lang_System.h"
+#include "native/java_lang_Thread.h"
+#include "native/java_lang_Throwable.h"
+#include "native/java_lang_VMClassLoader.h"
+#include "native/java_util_concurrent_atomic_AtomicLong.h"
+#include "native/org_apache_harmony_dalvik_ddmc_DdmServer.h"
+#include "native/org_apache_harmony_dalvik_ddmc_DdmVmInternal.h"
+#include "native/sun_misc_Unsafe.h"
 #include "parsed_options.h"
 #include "oat_file.h"
 #include "os.h"
@@ -344,7 +369,7 @@ bool Runtime::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
   return true;
 }
 
-jobject CreateSystemClassLoader() {
+static jobject CreateSystemClassLoader() {
   if (Runtime::Current()->UseCompileTimeClassPath()) {
     return NULL;
   }
@@ -388,9 +413,9 @@ std::string Runtime::GetPatchoatExecutable() const {
   if (!patchoat_executable_.empty()) {
     return patchoat_executable_;
   }
-  std::string patchoat_executable_(GetAndroidRoot());
-  patchoat_executable_ += (kIsDebugBuild ? "/bin/patchoatd" : "/bin/patchoat");
-  return patchoat_executable_;
+  std::string patchoat_executable(GetAndroidRoot());
+  patchoat_executable += (kIsDebugBuild ? "/bin/patchoatd" : "/bin/patchoat");
+  return patchoat_executable;
 }
 
 std::string Runtime::GetCompilerExecutable() const {
@@ -969,34 +994,31 @@ jobject Runtime::GetSystemClassLoader() const {
 }
 
 void Runtime::RegisterRuntimeNativeMethods(JNIEnv* env) {
-#define REGISTER(FN) extern void FN(JNIEnv*); FN(env)
-  // Register Throwable first so that registration of other native methods can throw exceptions
-  REGISTER(register_java_lang_Throwable);
-  REGISTER(register_dalvik_system_DexFile);
-  REGISTER(register_dalvik_system_VMDebug);
-  REGISTER(register_dalvik_system_VMRuntime);
-  REGISTER(register_dalvik_system_VMStack);
-  REGISTER(register_dalvik_system_ZygoteHooks);
-  REGISTER(register_java_lang_Class);
-  REGISTER(register_java_lang_DexCache);
-  REGISTER(register_java_lang_Object);
-  REGISTER(register_java_lang_Runtime);
-  REGISTER(register_java_lang_String);
-  REGISTER(register_java_lang_System);
-  REGISTER(register_java_lang_Thread);
-  REGISTER(register_java_lang_VMClassLoader);
-  REGISTER(register_java_lang_ref_FinalizerReference);
-  REGISTER(register_java_lang_ref_Reference);
-  REGISTER(register_java_lang_reflect_Array);
-  REGISTER(register_java_lang_reflect_Constructor);
-  REGISTER(register_java_lang_reflect_Field);
-  REGISTER(register_java_lang_reflect_Method);
-  REGISTER(register_java_lang_reflect_Proxy);
-  REGISTER(register_java_util_concurrent_atomic_AtomicLong);
-  REGISTER(register_org_apache_harmony_dalvik_ddmc_DdmServer);
-  REGISTER(register_org_apache_harmony_dalvik_ddmc_DdmVmInternal);
-  REGISTER(register_sun_misc_Unsafe);
-#undef REGISTER
+  register_dalvik_system_DexFile(env);
+  register_dalvik_system_VMDebug(env);
+  register_dalvik_system_VMRuntime(env);
+  register_dalvik_system_VMStack(env);
+  register_dalvik_system_ZygoteHooks(env);
+  register_java_lang_Class(env);
+  register_java_lang_DexCache(env);
+  register_java_lang_Object(env);
+  register_java_lang_ref_FinalizerReference(env);
+  register_java_lang_reflect_Array(env);
+  register_java_lang_reflect_Constructor(env);
+  register_java_lang_reflect_Field(env);
+  register_java_lang_reflect_Method(env);
+  register_java_lang_reflect_Proxy(env);
+  register_java_lang_ref_Reference(env);
+  register_java_lang_Runtime(env);
+  register_java_lang_String(env);
+  register_java_lang_System(env);
+  register_java_lang_Thread(env);
+  register_java_lang_Throwable(env);
+  register_java_lang_VMClassLoader(env);
+  register_java_util_concurrent_atomic_AtomicLong(env);
+  register_org_apache_harmony_dalvik_ddmc_DdmServer(env);
+  register_org_apache_harmony_dalvik_ddmc_DdmVmInternal(env);
+  register_sun_misc_Unsafe(env);
 }
 
 void Runtime::DumpForSigQuit(std::ostream& os) {

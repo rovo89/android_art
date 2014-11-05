@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "sun_misc_Unsafe.h"
+
 #include "gc/accounting/card_table-inl.h"
 #include "jni_internal.h"
 #include "mirror/array.h"

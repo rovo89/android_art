@@ -409,8 +409,8 @@ void StackVisitor::SetReturnPc(uintptr_t new_ret_pc) {
 
 size_t StackVisitor::ComputeNumFrames(Thread* thread) {
   struct NumFramesVisitor : public StackVisitor {
-    explicit NumFramesVisitor(Thread* thread)
-        : StackVisitor(thread, NULL), frames(0) {}
+    explicit NumFramesVisitor(Thread* thread_in)
+        : StackVisitor(thread_in, NULL), frames(0) {}
 
     bool VisitFrame() OVERRIDE {
       frames++;
@@ -461,8 +461,8 @@ bool StackVisitor::GetNextMethodAndDexPc(mirror::ArtMethod** next_method, uint32
 
 void StackVisitor::DescribeStack(Thread* thread) {
   struct DescribeStackVisitor : public StackVisitor {
-    explicit DescribeStackVisitor(Thread* thread)
-        : StackVisitor(thread, NULL) {}
+    explicit DescribeStackVisitor(Thread* thread_in)
+        : StackVisitor(thread_in, NULL) {}
 
     bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       LOG(INFO) << "Frame Id=" << GetFrameId() << " " << DescribeLocation();

@@ -41,6 +41,9 @@ static void log(const char* format, ...) {
   va_end(ap);
 }
 
+namespace art {
+
+
 extern "C" void ClaimSignalChain(int signal ATTRIBUTE_UNUSED,
                                  struct sigaction* oldaction ATTRIBUTE_UNUSED) {
   log("ClaimSignalChain is not exported by the main executable.");
@@ -69,3 +72,5 @@ extern "C" void EnsureFrontOfChain(int signal ATTRIBUTE_UNUSED,
   log("EnsureFrontOfChain is not exported by the main executable.");
   abort();
 }
+
+}  // namespace art

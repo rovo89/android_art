@@ -138,7 +138,7 @@ static bool NeedsFullDeoptimization(JdwpEventKind eventKind) {
     }
 }
 
-uint32_t GetInstrumentationEventFor(JdwpEventKind eventKind) {
+static uint32_t GetInstrumentationEventFor(JdwpEventKind eventKind) {
   switch (eventKind) {
     case EK_BREAKPOINT:
     case EK_SINGLE_STEP:

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "java_lang_Class.h"
+
 #include "class_linker.h"
 #include "dex_file-inl.h"
 #include "jni_internal.h"

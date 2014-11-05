@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "java_util_concurrent_atomic_AtomicLong.h"
+
 #include "atomic.h"
 #include "jni_internal.h"
 

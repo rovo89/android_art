@@ -23,8 +23,9 @@ void PrepareForRegisterAllocation::Run() {
   for (HReversePostOrderIterator it(*GetGraph()); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     // No need to visit the phis.
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-      it.Current()->Accept(this);
+    for (HInstructionIterator inst_it(block->GetInstructions()); !inst_it.Done();
+         inst_it.Advance()) {
+      inst_it.Current()->Accept(this);
     }
   }
 }

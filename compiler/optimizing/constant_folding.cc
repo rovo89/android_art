@@ -28,9 +28,9 @@ void HConstantFolding::Run() {
     // Traverse this block's instructions in (forward) order and
     // replace the ones that can be statically evaluated by a
     // compile-time counterpart.
-    for (HInstructionIterator it(block->GetInstructions());
-         !it.Done(); it.Advance()) {
-      HInstruction* inst = it.Current();
+    for (HInstructionIterator inst_it(block->GetInstructions());
+         !inst_it.Done(); inst_it.Advance()) {
+      HInstruction* inst = inst_it.Current();
       if (inst->IsBinaryOperation()) {
         // Constant folding: replace `op(a, b)' with a constant at
         // compile time if `a' and `b' are both constants.

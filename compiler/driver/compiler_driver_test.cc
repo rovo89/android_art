@@ -86,11 +86,11 @@ class CompilerDriverTest : public CommonCompilerTest {
           hs.NewHandle(soa.Decode<mirror::ClassLoader*>(class_loader)));
       mirror::Class* c = class_linker->FindClass(soa.Self(), descriptor, loader);
       CHECK(c != NULL);
-      for (size_t i = 0; i < c->NumDirectMethods(); i++) {
-        MakeExecutable(c->GetDirectMethod(i));
+      for (size_t j = 0; j < c->NumDirectMethods(); j++) {
+        MakeExecutable(c->GetDirectMethod(j));
       }
-      for (size_t i = 0; i < c->NumVirtualMethods(); i++) {
-        MakeExecutable(c->GetVirtualMethod(i));
+      for (size_t j = 0; j < c->NumVirtualMethods(); j++) {
+        MakeExecutable(c->GetVirtualMethod(j));
       }
     }
   }

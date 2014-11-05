@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "java_lang_reflect_Constructor.h"
+
 #include "class_linker.h"
 #include "jni_internal.h"
 #include "mirror/art_method.h"

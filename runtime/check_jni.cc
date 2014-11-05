@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "jni_internal.h"
+#include "check_jni.h"
 
 #include <sys/mman.h>
 #include <zlib.h>
@@ -27,6 +27,7 @@
 #include "field_helper.h"
 #include "gc/space/space.h"
 #include "java_vm_ext.h"
+#include "jni_internal.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"

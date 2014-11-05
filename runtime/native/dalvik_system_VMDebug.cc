@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "dalvik_system_VMDebug.h"
+
 #include <string.h>
 #include <unistd.h>
 

@@ -1146,7 +1146,7 @@ void Dbg::GetClassList(std::vector<JDWP::RefTypeId>* classes) {
   // the primitive types).
   // Returns a newly-allocated buffer full of RefTypeId values.
   struct ClassListCreator {
-    explicit ClassListCreator(std::vector<JDWP::RefTypeId>* classes) : classes(classes) {
+    explicit ClassListCreator(std::vector<JDWP::RefTypeId>* classes_in) : classes(classes_in) {
     }
 
     static bool Visit(mirror::Class* c, void* arg) {
@@ -1386,7 +1386,6 @@ JDWP::JdwpError Dbg::SetArrayElements(JDWP::ObjectId array_id, int offset, int c
     mirror::ObjectArray<mirror::Object>* oa = dst->AsObjectArray<mirror::Object>();
     for (int i = 0; i < count; ++i) {
       JDWP::ObjectId id = request->ReadObjectId();
-      JDWP::JdwpError error;
       mirror::Object* o = gRegistry->Get<mirror::Object*>(id, &error);
       if (error != JDWP::ERR_NONE) {
         return error;
@@ -2291,8 +2290,8 @@ void Dbg::GetThreads(mirror::Object* thread_group, std::vector<JDWP::ObjectId>* 
 
 static int GetStackDepth(Thread* thread) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   struct CountStackDepthVisitor : public StackVisitor {
-    explicit CountStackDepthVisitor(Thread* thread)
-        : StackVisitor(thread, nullptr), depth(0) {}
+    explicit CountStackDepthVisitor(Thread* thread_in)
+        : StackVisitor(thread_in, nullptr), depth(0) {}
 
     // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
     // annotalysis.
@@ -2330,10 +2329,11 @@ JDWP::JdwpError Dbg::GetThreadFrames(JDWP::ObjectId thread_id, size_t start_fram
                                      size_t frame_count, JDWP::ExpandBuf* buf) {
   class GetFrameVisitor : public StackVisitor {
    public:
-    GetFrameVisitor(Thread* thread, size_t start_frame, size_t frame_count, JDWP::ExpandBuf* buf)
+    GetFrameVisitor(Thread* thread, size_t start_frame_in, size_t frame_count_in,
+                    JDWP::ExpandBuf* buf_in)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         : StackVisitor(thread, nullptr), depth_(0),
-          start_frame_(start_frame), frame_count_(frame_count), buf_(buf) {
+          start_frame_(start_frame_in), frame_count_(frame_count_in), buf_(buf_in) {
       expandBufAdd4BE(buf_, frame_count_);
     }
 
@@ -2453,9 +2453,9 @@ void Dbg::SuspendSelf() {
 }
 
 struct GetThisVisitor : public StackVisitor {
-  GetThisVisitor(Thread* thread, Context* context, JDWP::FrameId frame_id)
+  GetThisVisitor(Thread* thread, Context* context, JDWP::FrameId frame_id_in)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(thread, context), this_object(nullptr), frame_id(frame_id) {}
+      : StackVisitor(thread, context), this_object(nullptr), frame_id(frame_id_in) {}
 
   // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
   // annotalysis.
@@ -3421,15 +3421,15 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
   //
 
   struct DebugCallbackContext {
-    explicit DebugCallbackContext(SingleStepControl* single_step_control, int32_t line_number,
+    explicit DebugCallbackContext(SingleStepControl* single_step_control_cb, int32_t line_number_cb,
                                   const DexFile::CodeItem* code_item)
-      : single_step_control_(single_step_control), line_number_(line_number), code_item_(code_item),
-        last_pc_valid(false), last_pc(0) {
+      : single_step_control_(single_step_control_cb), line_number_(line_number_cb),
+        code_item_(code_item), last_pc_valid(false), last_pc(0) {
     }
 
-    static bool Callback(void* raw_context, uint32_t address, uint32_t line_number) {
+    static bool Callback(void* raw_context, uint32_t address, uint32_t line_number_cb) {
       DebugCallbackContext* context = reinterpret_cast<DebugCallbackContext*>(raw_context);
-      if (static_cast<int32_t>(line_number) == context->line_number_) {
+      if (static_cast<int32_t>(line_number_cb) == context->line_number_) {
         if (!context->last_pc_valid) {
           // Everything from this address until the next line change is ours.
           context->last_pc = address;
@@ -4484,9 +4484,9 @@ void Dbg::SetAllocTrackingEnabled(bool enable) {
 }
 
 struct AllocRecordStackVisitor : public StackVisitor {
-  AllocRecordStackVisitor(Thread* thread, AllocRecord* record)
+  AllocRecordStackVisitor(Thread* thread, AllocRecord* record_in)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-      : StackVisitor(thread, nullptr), record(record), depth(0) {}
+      : StackVisitor(thread, nullptr), record(record_in), depth(0) {}
 
   // TODO: Enable annotalysis. We know lock is held in constructor, but abstraction confuses
   // annotalysis.

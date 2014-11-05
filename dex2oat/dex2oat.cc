@@ -1065,8 +1065,8 @@ static int dex2oat(int argc, char** argv) {
     } else if (option == "--print-all-passes") {
       PassDriverMEOpts::SetPrintAllPasses();
     } else if (option.starts_with("--dump-cfg-passes=")) {
-      std::string dump_passes = option.substr(strlen("--dump-cfg-passes=")).data();
-      PassDriverMEOpts::SetDumpPassList(dump_passes);
+      std::string dump_passes_string = option.substr(strlen("--dump-cfg-passes=")).data();
+      PassDriverMEOpts::SetDumpPassList(dump_passes_string);
     } else if (option == "--print-pass-options") {
       print_pass_options = true;
     } else if (option.starts_with("--pass-options=")) {
@@ -1337,7 +1337,6 @@ static int dex2oat(int argc, char** argv) {
   // If --image-classes was specified, calculate the full list of classes to include in the image
   std::unique_ptr<std::set<std::string>> image_classes(nullptr);
   if (image_classes_filename != nullptr) {
-    std::string error_msg;
     if (image_classes_zip_filename != nullptr) {
       image_classes.reset(dex2oat->ReadImageClassesFromZip(image_classes_zip_filename,
                                                            image_classes_filename,
@@ -1360,7 +1359,6 @@ static int dex2oat(int argc, char** argv) {
   } else {
     if (dex_filenames.empty()) {
       ATRACE_BEGIN("Opening zip archive from file descriptor");
-      std::string error_msg;
       std::unique_ptr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(zip_fd, zip_location.c_str(),
                                                                &error_msg));
       if (zip_archive.get() == nullptr) {

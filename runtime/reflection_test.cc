@@ -115,8 +115,8 @@ class ReflectionTest : public CommonCompilerTest {
       *receiver = nullptr;
     } else {
       // Ensure class is initialized before allocating object
-      StackHandleScope<1> hs(self);
-      Handle<mirror::Class> h_class(hs.NewHandle(c));
+      StackHandleScope<1> hs2(self);
+      Handle<mirror::Class> h_class(hs2.NewHandle(c));
       bool initialized = class_linker_->EnsureInitialized(self, h_class, true, true);
       CHECK(initialized);
       *receiver = c->AllocObject(self);

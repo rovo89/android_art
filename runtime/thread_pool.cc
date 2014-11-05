@@ -89,8 +89,9 @@ ThreadPool::ThreadPool(const char* name, size_t num_threads)
     max_active_workers_(num_threads) {
   Thread* self = Thread::Current();
   while (GetThreadCount() < num_threads) {
-    const std::string name = StringPrintf("%s worker thread %zu", name_.c_str(), GetThreadCount());
-    threads_.push_back(new ThreadPoolWorker(this, name, ThreadPoolWorker::kDefaultStackSize));
+    const std::string worker_name = StringPrintf("%s worker thread %zu", name_.c_str(),
+                                                 GetThreadCount());
+    threads_.push_back(new ThreadPoolWorker(this, worker_name, ThreadPoolWorker::kDefaultStackSize));
   }
   // Wait for all of the threads to attach.
   creation_barier_.Wait(self);
@@ -279,8 +280,9 @@ WorkStealingThreadPool::WorkStealingThreadPool(const char* name, size_t num_thre
       work_steal_lock_("work stealing lock"),
       steal_index_(0) {
   while (GetThreadCount() < num_threads) {
-    const std::string name = StringPrintf("Work stealing worker %zu", GetThreadCount());
-    threads_.push_back(new WorkStealingWorker(this, name, ThreadPoolWorker::kDefaultStackSize));
+    const std::string worker_name = StringPrintf("Work stealing worker %zu", GetThreadCount());
+    threads_.push_back(new WorkStealingWorker(this, worker_name,
+                                              ThreadPoolWorker::kDefaultStackSize));
   }
 }
 

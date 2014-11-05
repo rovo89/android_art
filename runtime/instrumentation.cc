@@ -177,8 +177,9 @@ void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
 static void InstrumentationInstallStack(Thread* thread, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   struct InstallStackVisitor : public StackVisitor {
-    InstallStackVisitor(Thread* thread, Context* context, uintptr_t instrumentation_exit_pc)
-        : StackVisitor(thread, context),  instrumentation_stack_(thread->GetInstrumentationStack()),
+    InstallStackVisitor(Thread* thread_in, Context* context, uintptr_t instrumentation_exit_pc)
+        : StackVisitor(thread_in, context),
+          instrumentation_stack_(thread_in->GetInstrumentationStack()),
           instrumentation_exit_pc_(instrumentation_exit_pc),
           reached_existing_instrumentation_frames_(false), instrumentation_stack_depth_(0),
           last_return_pc_(0) {
@@ -316,12 +317,12 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
 static void InstrumentationRestoreStack(Thread* thread, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   struct RestoreStackVisitor : public StackVisitor {
-    RestoreStackVisitor(Thread* thread, uintptr_t instrumentation_exit_pc,
+    RestoreStackVisitor(Thread* thread_in, uintptr_t instrumentation_exit_pc,
                         Instrumentation* instrumentation)
-        : StackVisitor(thread, NULL), thread_(thread),
+        : StackVisitor(thread_in, NULL), thread_(thread_in),
           instrumentation_exit_pc_(instrumentation_exit_pc),
           instrumentation_(instrumentation),
-          instrumentation_stack_(thread->GetInstrumentationStack()),
+          instrumentation_stack_(thread_in->GetInstrumentationStack()),
           frames_removed_(0) {}
 
     virtual bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
