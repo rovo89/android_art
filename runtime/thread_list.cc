@@ -241,7 +241,7 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
   Locks::mutator_lock_->AssertNotExclusiveHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
   Locks::thread_suspend_count_lock_->AssertNotHeld(self);
-  if (kDebugLocking) {
+  if (kDebugLocking && gAborting == 0) {
     CHECK_NE(self->GetState(), kRunnable);
   }
 
