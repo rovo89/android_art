@@ -97,7 +97,7 @@ namespace art {
 // First FP callee save.
 #define ARM_FP_CALLEE_SAVE_BASE 16
 // Flag for using R4 to do suspend check
-#define ARM_R4_SUSPEND_FLAG
+// #define ARM_R4_SUSPEND_FLAG
 
 enum ArmResourceEncodingPos {
   kArmGPReg0   = 0,
