@@ -113,6 +113,32 @@ void ArmMir2Lir::GenArithOpDouble(Instruction::Code opcode,
   StoreValueWide(rl_dest, rl_result);
 }
 
+void ArmMir2Lir::GenMultiplyByConstantFloat(RegLocation rl_dest, RegLocation rl_src1,
+                                            int32_t constant) {
+  RegLocation rl_result;
+  RegStorage r_tmp = AllocTempSingle();
+  LoadConstantNoClobber(r_tmp, constant);
+  rl_src1 = LoadValue(rl_src1, kFPReg);
+  rl_result = EvalLoc(rl_dest, kFPReg, true);
+  NewLIR3(kThumb2Vmuls, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), r_tmp.GetReg());
+  StoreValue(rl_dest, rl_result);
+}
+
+void ArmMir2Lir::GenMultiplyByConstantDouble(RegLocation rl_dest, RegLocation rl_src1,
+                                             int64_t constant) {
+  RegLocation rl_result;
+  RegStorage r_tmp = AllocTempDouble();
+  DCHECK(r_tmp.IsDouble());
+  LoadConstantWide(r_tmp, constant);
+  rl_src1 = LoadValueWide(rl_src1, kFPReg);
+  DCHECK(rl_src1.wide);
+  rl_result = EvalLocWide(rl_dest, kFPReg, true);
+  DCHECK(rl_dest.wide);
+  DCHECK(rl_result.wide);
+  NewLIR3(kThumb2Vmuld, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), r_tmp.GetReg());
+  StoreValueWide(rl_dest, rl_result);
+}
+
 void ArmMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src) {
   int op = kThumbBkpt;
   int src_reg;
