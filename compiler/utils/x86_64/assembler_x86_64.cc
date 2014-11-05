@@ -351,6 +351,22 @@ void X86_64Assembler::movss(XmmRegister dst, XmmRegister src) {
 }
 
 
+void X86_64Assembler::movsxd(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst);
+  EmitUint8(0x63);
+  EmitRegisterOperand(dst.LowBits(), src.LowBits());
+}
+
+
+void X86_64Assembler::movsxd(CpuRegister dst, const Address& src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst);
+  EmitUint8(0x63);
+  EmitOperand(dst.LowBits(), src);
+}
+
+
 void X86_64Assembler::movd(XmmRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x66);

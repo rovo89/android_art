@@ -300,6 +300,9 @@ class X86_64Assembler FINAL : public Assembler {
   void movss(const Address& dst, XmmRegister src);
   void movss(XmmRegister dst, XmmRegister src);
 
+  void movsxd(CpuRegister dst, CpuRegister src);
+  void movsxd(CpuRegister dst, const Address& src);
+
   void movd(XmmRegister dst, CpuRegister src);
   void movd(CpuRegister dst, XmmRegister src);
 
