@@ -95,7 +95,7 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
   InstructionCodeGeneratorARM64(HGraph* graph, CodeGeneratorARM64* codegen);
 
 #define DECLARE_VISIT_INSTRUCTION(name, super) \
-  virtual void Visit##name(H##name* instr);
+  void Visit##name(H##name* instr) OVERRIDE;
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 #undef DECLARE_VISIT_INSTRUCTION
 
@@ -118,7 +118,7 @@ class LocationsBuilderARM64 : public HGraphVisitor {
       : HGraphVisitor(graph), codegen_(codegen) {}
 
 #define DECLARE_VISIT_INSTRUCTION(name, super) \
-  virtual void Visit##name(H##name* instr);
+  void Visit##name(H##name* instr) OVERRIDE;
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 #undef DECLARE_VISIT_INSTRUCTION
 
@@ -135,10 +135,10 @@ class LocationsBuilderARM64 : public HGraphVisitor {
 class CodeGeneratorARM64 : public CodeGenerator {
  public:
   explicit CodeGeneratorARM64(HGraph* graph);
-  virtual ~CodeGeneratorARM64() { }
+  virtual ~CodeGeneratorARM64() {}
 
-  virtual void GenerateFrameEntry() OVERRIDE;
-  virtual void GenerateFrameExit() OVERRIDE;
+  void GenerateFrameEntry() OVERRIDE;
+  void GenerateFrameExit() OVERRIDE;
 
   static const vixl::CPURegList& GetFramePreservedRegisters() {
     static const vixl::CPURegList frame_preserved_regs =
@@ -149,44 +149,49 @@ class CodeGeneratorARM64 : public CodeGenerator {
     return GetFramePreservedRegisters().TotalSizeInBytes();
   }
 
-  virtual void Bind(HBasicBlock* block) OVERRIDE;
+  void Bind(HBasicBlock* block) OVERRIDE;
 
   vixl::Label* GetLabelOf(HBasicBlock* block) const {
     return block_labels_ + block->GetBlockId();
   }
 
-  virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
+  void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
 
-  virtual size_t GetWordSize() const OVERRIDE {
+  size_t GetWordSize() const OVERRIDE {
     return kArm64WordSize;
   }
 
-  virtual size_t FrameEntrySpillSize() const OVERRIDE;
+  uintptr_t GetAddressOf(HBasicBlock* block ATTRIBUTE_UNUSED) const OVERRIDE {
+    UNIMPLEMENTED(INFO) << "TODO: GetAddressOf";
+    return 0u;
+  }
 
-  virtual HGraphVisitor* GetLocationBuilder() OVERRIDE { return &location_builder_; }
-  virtual HGraphVisitor* GetInstructionVisitor() OVERRIDE { return &instruction_visitor_; }
-  virtual Arm64Assembler* GetAssembler() OVERRIDE { return &assembler_; }
+  size_t FrameEntrySpillSize() const OVERRIDE;
+
+  HGraphVisitor* GetLocationBuilder() OVERRIDE { return &location_builder_; }
+  HGraphVisitor* GetInstructionVisitor() OVERRIDE { return &instruction_visitor_; }
+  Arm64Assembler* GetAssembler() OVERRIDE { return &assembler_; }
 
   // Emit a write barrier.
   void MarkGCCard(vixl::Register object, vixl::Register value);
 
   // Register allocation.
 
-  virtual void SetupBlockedRegisters() const OVERRIDE;
+  void SetupBlockedRegisters() const OVERRIDE;
   // AllocateFreeRegister() is only used when allocating registers locally
   // during CompileBaseline().
-  virtual Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
+  Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
 
-  virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
+  Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 
-  virtual size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE {
+  size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE {
     UNUSED(stack_index);
     UNUSED(reg_id);
     UNIMPLEMENTED(INFO) << "TODO: SaveCoreRegister";
     return 0;
   }
 
-  virtual size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE {
+  size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE {
     UNUSED(stack_index);
     UNUSED(reg_id);
     UNIMPLEMENTED(INFO) << "TODO: RestoreCoreRegister";
@@ -205,16 +210,16 @@ class CodeGeneratorARM64 : public CodeGenerator {
       kNumberOfAllocatableCoreRegisters + kNumberOfAllocatableFloatingPointRegisters;
   static constexpr int kNumberOfAllocatableRegisterPairs = 0;
 
-  virtual void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
-  virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
+  void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
+  void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
 
-  virtual InstructionSet GetInstructionSet() const OVERRIDE {
+  InstructionSet GetInstructionSet() const OVERRIDE {
     return InstructionSet::kArm64;
   }
 
   void MoveHelper(Location destination, Location source, Primitive::Type type);
 
-  virtual void Initialize() OVERRIDE {
+  void Initialize() OVERRIDE {
     HGraph* graph = GetGraph();
     int length = graph->GetBlocks().Size();
     block_labels_ = graph->GetArena()->AllocArray<vixl::Label>(length);

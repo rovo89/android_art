@@ -72,10 +72,10 @@ class ParallelMoveResolverX86_64 : public ParallelMoveResolver {
   ParallelMoveResolverX86_64(ArenaAllocator* allocator, CodeGeneratorX86_64* codegen)
       : ParallelMoveResolver(allocator), codegen_(codegen) {}
 
-  virtual void EmitMove(size_t index) OVERRIDE;
-  virtual void EmitSwap(size_t index) OVERRIDE;
-  virtual void SpillScratch(int reg) OVERRIDE;
-  virtual void RestoreScratch(int reg) OVERRIDE;
+  void EmitMove(size_t index) OVERRIDE;
+  void EmitSwap(size_t index) OVERRIDE;
+  void SpillScratch(int reg) OVERRIDE;
+  void RestoreScratch(int reg) OVERRIDE;
 
   X86_64Assembler* GetAssembler() const;
 
@@ -98,7 +98,7 @@ class LocationsBuilderX86_64 : public HGraphVisitor {
       : HGraphVisitor(graph), codegen_(codegen) {}
 
 #define DECLARE_VISIT_INSTRUCTION(name, super)     \
-  virtual void Visit##name(H##name* instr);
+  void Visit##name(H##name* instr) OVERRIDE;
 
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
@@ -118,7 +118,7 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   InstructionCodeGeneratorX86_64(HGraph* graph, CodeGeneratorX86_64* codegen);
 
 #define DECLARE_VISIT_INSTRUCTION(name, super)     \
-  virtual void Visit##name(H##name* instr);
+  void Visit##name(H##name* instr) OVERRIDE;
 
   FOR_EACH_CONCRETE_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 
@@ -144,30 +144,30 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   explicit CodeGeneratorX86_64(HGraph* graph);
   virtual ~CodeGeneratorX86_64() {}
 
-  virtual void GenerateFrameEntry() OVERRIDE;
-  virtual void GenerateFrameExit() OVERRIDE;
-  virtual void Bind(HBasicBlock* block) OVERRIDE;
-  virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
-  virtual size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
-  virtual size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
-  virtual size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
-  virtual size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  void GenerateFrameEntry() OVERRIDE;
+  void GenerateFrameExit() OVERRIDE;
+  void Bind(HBasicBlock* block) OVERRIDE;
+  void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
+  size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
 
-  virtual size_t GetWordSize() const OVERRIDE {
+  size_t GetWordSize() const OVERRIDE {
     return kX86_64WordSize;
   }
 
-  virtual size_t FrameEntrySpillSize() const OVERRIDE;
+  size_t FrameEntrySpillSize() const OVERRIDE;
 
-  virtual HGraphVisitor* GetLocationBuilder() OVERRIDE {
+  HGraphVisitor* GetLocationBuilder() OVERRIDE {
     return &location_builder_;
   }
 
-  virtual HGraphVisitor* GetInstructionVisitor() OVERRIDE {
+  HGraphVisitor* GetInstructionVisitor() OVERRIDE {
     return &instruction_visitor_;
   }
 
-  virtual X86_64Assembler* GetAssembler() OVERRIDE {
+  X86_64Assembler* GetAssembler() OVERRIDE {
     return &assembler_;
   }
 
@@ -175,14 +175,18 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return &move_resolver_;
   }
 
-  virtual Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
+  uintptr_t GetAddressOf(HBasicBlock* block) const OVERRIDE {
+    return GetLabelOf(block)->Position();
+  }
 
-  virtual void SetupBlockedRegisters() const OVERRIDE;
-  virtual Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
-  virtual void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
-  virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
+  Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 
-  virtual InstructionSet GetInstructionSet() const OVERRIDE {
+  void SetupBlockedRegisters() const OVERRIDE;
+  Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
+  void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
+  void DumpFloatingPointRegister(std::ostream& stream, int reg) const OVERRIDE;
+
+  InstructionSet GetInstructionSet() const OVERRIDE {
     return InstructionSet::kX86_64;
   }
 
@@ -198,7 +202,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return block_labels_.GetRawStorage() + block->GetBlockId();
   }
 
-  virtual void Initialize() OVERRIDE {
+  void Initialize() OVERRIDE {
     block_labels_.SetSize(GetGraph()->GetBlocks().Size());
   }
 
