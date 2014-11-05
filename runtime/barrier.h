@@ -50,7 +50,7 @@ class Barrier {
   // Counter, when this reaches 0 all people blocked on the barrier are signalled.
   int count_ GUARDED_BY(lock_);
 
-  Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  Mutex lock_ ACQUIRED_AFTER(Locks::abort_lock_);
   ConditionVariable condition_ GUARDED_BY(lock_);
 };
 
