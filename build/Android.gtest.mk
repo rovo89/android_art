@@ -64,7 +64,7 @@ ART_GTEST_elf_writer_test_TARGET_DEPS := $(TARGET_CORE_IMAGE_default_no-pic_64) 
 ART_GTEST_jni_internal_test_TARGET_DEPS := $(TARGET_CORE_DEX_FILES)
 ART_GTEST_proxy_test_TARGET_DEPS := $(TARGET_CORE_DEX_FILES)
 ART_GTEST_proxy_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
-ART_GTEST_dex_method_iterator_test_TARGET_DEPS := $(TARGET_CORE_JARS)
+ART_GTEST_dex_method_iterator_test_TARGET_DEPS := $(TARGET_CORE_DEX_FILES)
 
 # The path for which all the source files are relative, not actually the current directory.
 LOCAL_PATH := art
