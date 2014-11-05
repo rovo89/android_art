@@ -167,33 +167,33 @@ class StackMapStream : public ValueObject {
       }
 
       // Set the register map.
-      MemoryRegion region = dex_register_maps_region.Subregion(
+      MemoryRegion register_region = dex_register_maps_region.Subregion(
           next_dex_register_map_offset,
           DexRegisterMap::kFixedSize + entry.num_dex_registers * DexRegisterMap::SingleEntrySize());
-      next_dex_register_map_offset += region.size();
-      DexRegisterMap dex_register_map(region);
-      stack_map.SetDexRegisterMapOffset(region.start() - memory_start);
+      next_dex_register_map_offset += register_region.size();
+      DexRegisterMap dex_register_map(register_region);
+      stack_map.SetDexRegisterMapOffset(register_region.start() - memory_start);
 
-      for (size_t i = 0; i < entry.num_dex_registers; ++i) {
+      for (size_t j = 0; j < entry.num_dex_registers; ++j) {
         DexRegisterEntry register_entry =
-            dex_register_maps_.Get(i + entry.dex_register_maps_start_index);
-        dex_register_map.SetRegisterInfo(i, register_entry.kind, register_entry.value);
+            dex_register_maps_.Get(j + entry.dex_register_maps_start_index);
+        dex_register_map.SetRegisterInfo(j, register_entry.kind, register_entry.value);
       }
 
       // Set the inlining info.
       if (entry.inlining_depth != 0) {
-        MemoryRegion region = inline_infos_region.Subregion(
+        MemoryRegion inline_region = inline_infos_region.Subregion(
             next_inline_info_offset,
             InlineInfo::kFixedSize + entry.inlining_depth * InlineInfo::SingleEntrySize());
-        next_inline_info_offset += region.size();
-        InlineInfo inline_info(region);
+        next_inline_info_offset += inline_region.size();
+        InlineInfo inline_info(inline_region);
 
-        stack_map.SetInlineDescriptorOffset(region.start() - memory_start);
+        stack_map.SetInlineDescriptorOffset(inline_region.start() - memory_start);
 
         inline_info.SetDepth(entry.inlining_depth);
-        for (size_t i = 0; i < entry.inlining_depth; ++i) {
-          InlineInfoEntry inline_entry = inline_infos_.Get(i + entry.inline_infos_start_index);
-          inline_info.SetMethodReferenceIndexAtDepth(i, inline_entry.method_index);
+        for (size_t j = 0; j < entry.inlining_depth; ++j) {
+          InlineInfoEntry inline_entry = inline_infos_.Get(j + entry.inline_infos_start_index);
+          inline_info.SetMethodReferenceIndexAtDepth(j, inline_entry.method_index);
         }
       } else {
         stack_map.SetInlineDescriptorOffset(InlineInfo::kNoInlineInfo);

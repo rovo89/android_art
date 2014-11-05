@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "dalvik_system_ZygoteHooks.h"
+
 #include <stdlib.h>
 
 #include "debugger.h"

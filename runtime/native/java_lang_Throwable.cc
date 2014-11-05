@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "java_lang_Throwable.h"
+
 #include "jni_internal.h"
 #include "scoped_fast_native_object_access.h"
 #include "thread.h"

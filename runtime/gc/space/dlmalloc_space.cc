@@ -213,27 +213,6 @@ size_t DlMallocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
   }
 }
 
-// Callback from dlmalloc when it needs to increase the footprint
-extern "C" void* art_heap_morecore(void* mspace, intptr_t increment) {
-  Heap* heap = Runtime::Current()->GetHeap();
-  DlMallocSpace* dlmalloc_space = heap->GetDlMallocSpace();
-  // Support for multiple DlMalloc provided by a slow path.
-  if (UNLIKELY(dlmalloc_space == nullptr || dlmalloc_space->GetMspace() != mspace)) {
-    dlmalloc_space = nullptr;
-    for (space::ContinuousSpace* space : heap->GetContinuousSpaces()) {
-      if (space->IsDlMallocSpace()) {
-        DlMallocSpace* cur_dlmalloc_space = space->AsDlMallocSpace();
-        if (cur_dlmalloc_space->GetMspace() == mspace) {
-          dlmalloc_space = cur_dlmalloc_space;
-          break;
-        }
-      }
-    }
-    CHECK(dlmalloc_space != nullptr) << "Couldn't find DlmMallocSpace with mspace=" << mspace;
-  }
-  return dlmalloc_space->MoreCore(increment);
-}
-
 size_t DlMallocSpace::Trim() {
   MutexLock mu(Thread::Current(), lock_);
   // Trim to release memory at the end of the space.
@@ -330,5 +309,31 @@ void DlMallocSpace::LogFragmentationAllocFailure(std::ostream& os, size_t failed
 }
 
 }  // namespace space
+
+namespace allocator {
+
+// Implement the dlmalloc morecore callback.
+void* ArtDlMallocMoreCore(void* mspace, intptr_t increment) {
+  Heap* heap = Runtime::Current()->GetHeap();
+  ::art::gc::space::DlMallocSpace* dlmalloc_space = heap->GetDlMallocSpace();
+  // Support for multiple DlMalloc provided by a slow path.
+  if (UNLIKELY(dlmalloc_space == nullptr || dlmalloc_space->GetMspace() != mspace)) {
+    dlmalloc_space = nullptr;
+    for (space::ContinuousSpace* space : heap->GetContinuousSpaces()) {
+      if (space->IsDlMallocSpace()) {
+        ::art::gc::space::DlMallocSpace* cur_dlmalloc_space = space->AsDlMallocSpace();
+        if (cur_dlmalloc_space->GetMspace() == mspace) {
+          dlmalloc_space = cur_dlmalloc_space;
+          break;
+        }
+      }
+    }
+    CHECK(dlmalloc_space != nullptr) << "Couldn't find DlmMallocSpace with mspace=" << mspace;
+  }
+  return dlmalloc_space->MoreCore(increment);
+}
+
+}  // namespace allocator
+
 }  // namespace gc
 }  // namespace art

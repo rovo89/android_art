@@ -38,7 +38,7 @@ namespace x86_64 {
 // conversion rules in expressions regarding negation, especially size_t on 32b.
 class Immediate : public ValueObject {
  public:
-  explicit Immediate(int64_t value) : value_(value) {}
+  explicit Immediate(int64_t value_in) : value_(value_in) {}
 
   int64_t value() const { return value_; }
 
@@ -105,26 +105,26 @@ class Operand : public ValueObject {
   // Operand can be sub classed (e.g: Address).
   Operand() : rex_(0), length_(0) { }
 
-  void SetModRM(uint8_t mod, CpuRegister rm) {
-    CHECK_EQ(mod & ~3, 0);
-    if (rm.NeedsRex()) {
+  void SetModRM(uint8_t mod_in, CpuRegister rm_in) {
+    CHECK_EQ(mod_in & ~3, 0);
+    if (rm_in.NeedsRex()) {
       rex_ |= 0x41;  // REX.000B
     }
-    encoding_[0] = (mod << 6) | rm.LowBits();
+    encoding_[0] = (mod_in << 6) | rm_in.LowBits();
     length_ = 1;
   }
 
-  void SetSIB(ScaleFactor scale, CpuRegister index, CpuRegister base) {
+  void SetSIB(ScaleFactor scale_in, CpuRegister index_in, CpuRegister base_in) {
     CHECK_EQ(length_, 1);
-    CHECK_EQ(scale & ~3, 0);
-    if (base.NeedsRex()) {
+    CHECK_EQ(scale_in & ~3, 0);
+    if (base_in.NeedsRex()) {
       rex_ |= 0x41;  // REX.000B
     }
-    if (index.NeedsRex()) {
+    if (index_in.NeedsRex()) {
       rex_ |= 0x42;  // REX.00X0
     }
-    encoding_[1] = (scale << 6) | (static_cast<uint8_t>(index.LowBits()) << 3) |
-        static_cast<uint8_t>(base.LowBits());
+    encoding_[1] = (scale_in << 6) | (static_cast<uint8_t>(index_in.LowBits()) << 3) |
+        static_cast<uint8_t>(base_in.LowBits());
     length_ = 2;
   }
 
@@ -148,10 +148,10 @@ class Operand : public ValueObject {
   explicit Operand(CpuRegister reg) : rex_(0), length_(0) { SetModRM(3, reg); }
 
   // Get the operand encoding byte at the given index.
-  uint8_t encoding_at(int index) const {
-    CHECK_GE(index, 0);
-    CHECK_LT(index, length_);
-    return encoding_[index];
+  uint8_t encoding_at(int index_in) const {
+    CHECK_GE(index_in, 0);
+    CHECK_LT(index_in, length_);
+    return encoding_[index_in];
   }
 
   friend class X86_64Assembler;
@@ -160,64 +160,64 @@ class Operand : public ValueObject {
 
 class Address : public Operand {
  public:
-  Address(CpuRegister base, int32_t disp) {
-    Init(base, disp);
+  Address(CpuRegister base_in, int32_t disp) {
+    Init(base_in, disp);
   }
 
-  Address(CpuRegister base, Offset disp) {
-    Init(base, disp.Int32Value());
+  Address(CpuRegister base_in, Offset disp) {
+    Init(base_in, disp.Int32Value());
   }
 
-  Address(CpuRegister base, FrameOffset disp) {
-    CHECK_EQ(base.AsRegister(), RSP);
+  Address(CpuRegister base_in, FrameOffset disp) {
+    CHECK_EQ(base_in.AsRegister(), RSP);
     Init(CpuRegister(RSP), disp.Int32Value());
   }
 
-  Address(CpuRegister base, MemberOffset disp) {
-    Init(base, disp.Int32Value());
+  Address(CpuRegister base_in, MemberOffset disp) {
+    Init(base_in, disp.Int32Value());
   }
 
-  void Init(CpuRegister base, int32_t disp) {
-    if (disp == 0 && base.AsRegister() != RBP) {
-      SetModRM(0, base);
-      if (base.AsRegister() == RSP) {
-        SetSIB(TIMES_1, CpuRegister(RSP), base);
+  void Init(CpuRegister base_in, int32_t disp) {
+    if (disp == 0 && base_in.AsRegister() != RBP) {
+      SetModRM(0, base_in);
+      if (base_in.AsRegister() == RSP) {
+        SetSIB(TIMES_1, CpuRegister(RSP), base_in);
       }
     } else if (disp >= -128 && disp <= 127) {
-      SetModRM(1, base);
-      if (base.AsRegister() == RSP) {
-        SetSIB(TIMES_1, CpuRegister(RSP), base);
+      SetModRM(1, base_in);
+      if (base_in.AsRegister() == RSP) {
+        SetSIB(TIMES_1, CpuRegister(RSP), base_in);
       }
       SetDisp8(disp);
     } else {
-      SetModRM(2, base);
-      if (base.AsRegister() == RSP) {
-        SetSIB(TIMES_1, CpuRegister(RSP), base);
+      SetModRM(2, base_in);
+      if (base_in.AsRegister() == RSP) {
+        SetSIB(TIMES_1, CpuRegister(RSP), base_in);
       }
       SetDisp32(disp);
     }
   }
 
 
-  Address(CpuRegister index, ScaleFactor scale, int32_t disp) {
-    CHECK_NE(index.AsRegister(), RSP);  // Illegal addressing mode.
+  Address(CpuRegister index_in, ScaleFactor scale_in, int32_t disp) {
+    CHECK_NE(index_in.AsRegister(), RSP);  // Illegal addressing mode.
     SetModRM(0, CpuRegister(RSP));
-    SetSIB(scale, index, CpuRegister(RBP));
+    SetSIB(scale_in, index_in, CpuRegister(RBP));
     SetDisp32(disp);
   }
 
-  Address(CpuRegister base, CpuRegister index, ScaleFactor scale, int32_t disp) {
-    CHECK_NE(index.AsRegister(), RSP);  // Illegal addressing mode.
-    if (disp == 0 && base.AsRegister() != RBP) {
+  Address(CpuRegister base_in, CpuRegister index_in, ScaleFactor scale_in, int32_t disp) {
+    CHECK_NE(index_in.AsRegister(), RSP);  // Illegal addressing mode.
+    if (disp == 0 && base_in.AsRegister() != RBP) {
       SetModRM(0, CpuRegister(RSP));
-      SetSIB(scale, index, base);
+      SetSIB(scale_in, index_in, base_in);
     } else if (disp >= -128 && disp <= 127) {
       SetModRM(1, CpuRegister(RSP));
-      SetSIB(scale, index, base);
+      SetSIB(scale_in, index_in, base_in);
       SetDisp8(disp);
     } else {
       SetModRM(2, CpuRegister(RSP));
-      SetSIB(scale, index, base);
+      SetSIB(scale_in, index_in, base_in);
       SetDisp32(disp);
     }
   }

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "dalvik_system_VMStack.h"
+
 #include "jni_internal.h"
 #include "nth_caller_visitor.h"
 #include "mirror/art_method-inl.h"
@@ -87,8 +89,10 @@ static jobject VMStack_getCallingClassLoader(JNIEnv* env, jclass) {
 static jobject VMStack_getClosestUserClassLoader(JNIEnv* env, jclass, jobject javaBootstrap,
                                                  jobject javaSystem) {
   struct ClosestUserClassLoaderVisitor : public StackVisitor {
-    ClosestUserClassLoaderVisitor(Thread* thread, mirror::Object* bootstrap, mirror::Object* system)
-      : StackVisitor(thread, NULL), bootstrap(bootstrap), system(system), class_loader(NULL) {}
+    ClosestUserClassLoaderVisitor(Thread* thread, mirror::Object* bootstrap_in,
+                                  mirror::Object* system_in)
+      : StackVisitor(thread, NULL), bootstrap(bootstrap_in), system(system_in),
+        class_loader(NULL) {}
 
     bool VisitFrame() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
       DCHECK(class_loader == NULL);

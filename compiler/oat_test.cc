@@ -113,8 +113,8 @@ TEST_F(OatTest, WriteRead) {
                                             timer_.get(), ""));
   jobject class_loader = nullptr;
   if (kCompile) {
-    TimingLogger timings("OatTest::WriteRead", false, false);
-    compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings);
+    TimingLogger timings2("OatTest::WriteRead", false, false);
+    compiler_driver_->CompileAll(class_loader, class_linker->GetBootClassPath(), &timings2);
   }
 
   ScratchFile tmp;
@@ -174,12 +174,12 @@ TEST_F(OatTest, WriteRead) {
              oat_class.GetType()) << descriptor;
 
     size_t method_index = 0;
-    for (size_t i = 0; i < klass->NumDirectMethods(); i++, method_index++) {
-      CheckMethod(klass->GetDirectMethod(i),
+    for (size_t j = 0; j < klass->NumDirectMethods(); j++, method_index++) {
+      CheckMethod(klass->GetDirectMethod(j),
                   oat_class.GetOatMethod(method_index), dex_file);
     }
-    for (size_t i = 0; i < num_virtual_methods; i++, method_index++) {
-      CheckMethod(klass->GetVirtualMethod(i),
+    for (size_t j = 0; j < num_virtual_methods; j++, method_index++) {
+      CheckMethod(klass->GetVirtualMethod(j),
                   oat_class.GetOatMethod(method_index), dex_file);
     }
   }

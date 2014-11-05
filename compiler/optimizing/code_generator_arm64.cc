@@ -760,16 +760,16 @@ void InstructionCodeGeneratorARM64::VisitIf(HIf* if_instr) {
     // the comparison and its condition as the branch condition.
     Register lhs = InputRegisterAt(condition, 0);
     Operand rhs = InputOperandAt(condition, 1);
-    Condition cond = ARM64Condition(condition->GetCondition());
-    if ((cond == eq || cond == ne) && rhs.IsImmediate() && (rhs.immediate() == 0)) {
-      if (cond == eq) {
+    Condition arm64_cond = ARM64Condition(condition->GetCondition());
+    if ((arm64_cond == eq || arm64_cond == ne) && rhs.IsImmediate() && (rhs.immediate() == 0)) {
+      if (arm64_cond == eq) {
         __ Cbz(lhs, true_target);
       } else {
         __ Cbnz(lhs, true_target);
       }
     } else {
       __ Cmp(lhs, rhs);
-      __ B(cond, true_target);
+      __ B(arm64_cond, true_target);
     }
   }
 

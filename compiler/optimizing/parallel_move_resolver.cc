@@ -130,13 +130,13 @@ void ParallelMoveResolver::PerformMove(size_t index) {
     // this move's source or destination needs to have their source
     // changed to reflect the state of affairs after the swap.
     Location source = move->GetSource();
-    Location destination = move->GetDestination();
+    Location swap_destination = move->GetDestination();
     move->Eliminate();
     for (size_t i = 0; i < moves_.Size(); ++i) {
       const MoveOperands& other_move = *moves_.Get(i);
       if (other_move.Blocks(source)) {
-        moves_.Get(i)->SetSource(destination);
-      } else if (other_move.Blocks(destination)) {
+        moves_.Get(i)->SetSource(swap_destination);
+      } else if (other_move.Blocks(swap_destination)) {
         moves_.Get(i)->SetSource(source);
       }
     }

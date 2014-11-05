@@ -109,8 +109,8 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
         HPhi* phi = new (GetGraph()->GetArena()) HPhi(
             GetGraph()->GetArena(), local, block->GetPredecessors().Size(), Primitive::kPrimVoid);
         for (size_t i = 0; i < block->GetPredecessors().Size(); i++) {
-          HInstruction* value = ValueOfLocal(block->GetPredecessors().Get(i), local);
-          phi->SetRawInputAt(i, value);
+          HInstruction* pred_value = ValueOfLocal(block->GetPredecessors().Get(i), local);
+          phi->SetRawInputAt(i, pred_value);
         }
         block->AddPhi(phi);
         value = phi;

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "java_lang_DexCache.h"
+
 #include "dex_file.h"
 #include "jni_internal.h"
 #include "mirror/dex_cache.h"

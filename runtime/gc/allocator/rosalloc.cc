@@ -31,8 +31,6 @@ namespace art {
 namespace gc {
 namespace allocator {
 
-extern "C" void* art_heap_rosalloc_morecore(RosAlloc* rosalloc, intptr_t increment);
-
 static constexpr bool kUsePrefetchDuringAllocRun = true;
 static constexpr bool kPrefetchNewRunDataByZeroing = false;
 static constexpr size_t kPrefetchStride = 64;
@@ -179,7 +177,7 @@ void* RosAlloc::AllocPages(Thread* self, size_t num_pages, uint8_t page_map_type
       page_map_size_ = new_num_of_pages;
       DCHECK_LE(page_map_size_, max_page_map_size_);
       free_page_run_size_map_.resize(new_num_of_pages);
-      art_heap_rosalloc_morecore(this, increment);
+      ArtRosAllocMoreCore(this, increment);
       if (last_free_page_run_size > 0) {
         // There was a free page run at the end. Expand its size.
         DCHECK_EQ(last_free_page_run_size, last_free_page_run->ByteSize(this));
@@ -745,7 +743,7 @@ size_t RosAlloc::FreeFromRun(Thread* self, void* ptr, Run* run) {
   const size_t idx = run->size_bracket_idx_;
   const size_t bracket_size = bracketSizes[idx];
   bool run_was_full = false;
-  MutexLock mu(self, *size_bracket_locks_[idx]);
+  MutexLock brackets_mu(self, *size_bracket_locks_[idx]);
   if (kIsDebugBuild) {
     run_was_full = run->IsFull();
   }
@@ -785,7 +783,7 @@ size_t RosAlloc::FreeFromRun(Thread* self, void* ptr, Run* run) {
     DCHECK(full_runs_[idx].find(run) == full_runs_[idx].end());
     run->ZeroHeader();
     {
-      MutexLock mu(self, lock_);
+      MutexLock lock_mu(self, lock_);
       FreePages(self, run, true);
     }
   } else {
@@ -1243,7 +1241,7 @@ size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
     run->to_be_bulk_freed_ = false;
 #endif
     size_t idx = run->size_bracket_idx_;
-    MutexLock mu(self, *size_bracket_locks_[idx]);
+    MutexLock brackets_mu(self, *size_bracket_locks_[idx]);
     if (run->IsThreadLocal()) {
       DCHECK_LT(run->size_bracket_idx_, kNumThreadLocalSizeBrackets);
       DCHECK(non_full_runs_[idx].find(run) == non_full_runs_[idx].end());
@@ -1303,7 +1301,7 @@ size_t RosAlloc::BulkFree(Thread* self, void** ptrs, size_t num_ptrs) {
         }
         if (!run_was_current) {
           run->ZeroHeader();
-          MutexLock mu(self, lock_);
+          MutexLock lock_mu(self, lock_);
           FreePages(self, run, true);
         }
       } else {
@@ -1521,7 +1519,7 @@ bool RosAlloc::Trim() {
     page_map_size_ = new_num_of_pages;
     free_page_run_size_map_.resize(new_num_of_pages);
     DCHECK_EQ(free_page_run_size_map_.size(), new_num_of_pages);
-    art_heap_rosalloc_morecore(this, -(static_cast<intptr_t>(decrement)));
+    ArtRosAllocMoreCore(this, -(static_cast<intptr_t>(decrement)));
     if (kTraceRosAlloc) {
       LOG(INFO) << "RosAlloc::Trim() : decreased the footprint from "
                 << footprint_ << " to " << new_footprint;
@@ -1737,14 +1735,14 @@ void RosAlloc::AssertThreadLocalRunsAreRevoked(Thread* thread) {
 void RosAlloc::AssertAllThreadLocalRunsAreRevoked() {
   if (kIsDebugBuild) {
     Thread* self = Thread::Current();
-    MutexLock mu(self, *Locks::runtime_shutdown_lock_);
-    MutexLock mu2(self, *Locks::thread_list_lock_);
+    MutexLock shutdown_mu(self, *Locks::runtime_shutdown_lock_);
+    MutexLock thread_list_mu(self, *Locks::thread_list_lock_);
     std::list<Thread*> thread_list = Runtime::Current()->GetThreadList()->GetList();
     for (Thread* t : thread_list) {
       AssertThreadLocalRunsAreRevoked(t);
     }
     for (size_t idx = 0; idx < kNumThreadLocalSizeBrackets; ++idx) {
-      MutexLock mu(self, *size_bracket_locks_[idx]);
+      MutexLock brackets_mu(self, *size_bracket_locks_[idx]);
       CHECK_EQ(current_runs_[idx], dedicated_full_run_);
     }
   }
@@ -1873,11 +1871,11 @@ void RosAlloc::Verify() {
   Thread* self = Thread::Current();
   CHECK(Locks::mutator_lock_->IsExclusiveHeld(self))
       << "The mutator locks isn't exclusively locked at " << __PRETTY_FUNCTION__;
-  MutexLock mu(self, *Locks::thread_list_lock_);
+  MutexLock thread_list_mu(self, *Locks::thread_list_lock_);
   ReaderMutexLock wmu(self, bulk_free_lock_);
   std::vector<Run*> runs;
   {
-    MutexLock mu(self, lock_);
+    MutexLock lock_mu(self, lock_);
     size_t pm_end = page_map_size_;
     size_t i = 0;
     while (i < pm_end) {
@@ -1968,7 +1966,7 @@ void RosAlloc::Verify() {
   std::list<Thread*> threads = Runtime::Current()->GetThreadList()->GetList();
   for (Thread* thread : threads) {
     for (size_t i = 0; i < kNumThreadLocalSizeBrackets; ++i) {
-      MutexLock mu(self, *size_bracket_locks_[i]);
+      MutexLock brackets_mu(self, *size_bracket_locks_[i]);
       Run* thread_local_run = reinterpret_cast<Run*>(thread->GetRosAllocRun(i));
       CHECK(thread_local_run != nullptr);
       CHECK(thread_local_run->IsThreadLocal());
@@ -1977,7 +1975,7 @@ void RosAlloc::Verify() {
     }
   }
   for (size_t i = 0; i < kNumOfSizeBrackets; i++) {
-    MutexLock mu(self, *size_bracket_locks_[i]);
+    MutexLock brackets_mu(self, *size_bracket_locks_[i]);
     Run* current_run = current_runs_[i];
     CHECK(current_run != nullptr);
     if (current_run != dedicated_full_run_) {

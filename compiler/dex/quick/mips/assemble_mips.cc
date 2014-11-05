@@ -696,12 +696,12 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(CodeOffset start_addr) {
     // TUNING: replace with proper delay slot handling
     if (encoder->size == 8) {
       DCHECK(!IsPseudoLirOp(lir->opcode));
-      const MipsEncodingMap *encoder = &EncodingMap[kMipsNop];
-      uint32_t bits = encoder->skeleton;
-      code_buffer_.push_back(bits & 0xff);
-      code_buffer_.push_back((bits >> 8) & 0xff);
-      code_buffer_.push_back((bits >> 16) & 0xff);
-      code_buffer_.push_back((bits >> 24) & 0xff);
+      const MipsEncodingMap *encoder2 = &EncodingMap[kMipsNop];
+      uint32_t bits2 = encoder2->skeleton;
+      code_buffer_.push_back(bits2 & 0xff);
+      code_buffer_.push_back((bits2 >> 8) & 0xff);
+      code_buffer_.push_back((bits2 >> 16) & 0xff);
+      code_buffer_.push_back((bits2 >> 24) & 0xff);
     }
   }
   return res;

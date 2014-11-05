@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "java_lang_VMClassLoader.h"
+
 #include "class_linker.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"

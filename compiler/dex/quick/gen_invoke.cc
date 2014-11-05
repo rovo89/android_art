@@ -44,8 +44,8 @@ typedef mirror::ObjectArray<mirror::Object> ObjArray;
 void Mir2Lir::AddIntrinsicSlowPath(CallInfo* info, LIR* branch, LIR* resume) {
   class IntrinsicSlowPathPath : public Mir2Lir::LIRSlowPath {
    public:
-    IntrinsicSlowPathPath(Mir2Lir* m2l, CallInfo* info, LIR* branch, LIR* resume = nullptr)
-        : LIRSlowPath(m2l, info->offset, branch, resume), info_(info) {
+    IntrinsicSlowPathPath(Mir2Lir* m2l, CallInfo* info_in, LIR* branch_in, LIR* resume_in)
+        : LIRSlowPath(m2l, info_in->offset, branch_in, resume_in), info_(info_in) {
     }
 
     void Compile() {
@@ -790,13 +790,13 @@ int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
         if (rl_arg.reg.IsPair()) {
           reg = rl_arg.reg.GetHigh();
         } else {
-          RegisterInfo* info = GetRegInfo(rl_arg.reg);
-          info = info->FindMatchingView(RegisterInfo::kHighSingleStorageMask);
-          if (info == nullptr) {
+          RegisterInfo* reg_info = GetRegInfo(rl_arg.reg);
+          reg_info = reg_info->FindMatchingView(RegisterInfo::kHighSingleStorageMask);
+          if (reg_info == nullptr) {
             // NOTE: For hard float convention we won't split arguments across reg/mem.
             UNIMPLEMENTED(FATAL) << "Needs hard float api.";
           }
-          reg = info->GetReg();
+          reg = reg_info->GetReg();
         }
       } else {
         // kArg2 & rArg3 can safely be used here

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "org_apache_harmony_dalvik_ddmc_DdmServer.h"
+
 #include "base/logging.h"
 #include "debugger.h"
 #include "jni_internal.h"

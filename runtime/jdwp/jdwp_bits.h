@@ -68,7 +68,7 @@ static inline void AppendUtf16BE(std::vector<uint8_t>& bytes, const uint16_t* ch
 
 // @deprecated
 static inline void Set1(uint8_t* buf, uint8_t val) {
-  *buf = (uint8_t)(val);
+  *buf = val;
 }
 
 // @deprecated
