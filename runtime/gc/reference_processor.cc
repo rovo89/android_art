@@ -143,7 +143,7 @@ void ReferenceProcessor::ProcessReferences(bool concurrent, TimingLogger* timing
   soft_reference_queue_.ClearWhiteReferences(&cleared_references_, is_marked_callback, arg);
   weak_reference_queue_.ClearWhiteReferences(&cleared_references_, is_marked_callback, arg);
   {
-    TimingLogger::ScopedTiming t(concurrent ? "EnqueueFinalizerReferences" :
+    TimingLogger::ScopedTiming t2(concurrent ? "EnqueueFinalizerReferences" :
         "(Paused)EnqueueFinalizerReferences", timings);
     if (concurrent) {
       StartPreservingReferences(self);

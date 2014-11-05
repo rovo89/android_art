@@ -464,7 +464,6 @@ LIR* ArmMir2Lir::OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1, Re
 }
 
 LIR* ArmMir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, int value) {
-  LIR* res;
   bool neg = (value < 0);
   int32_t abs_value = (neg) ? -value : value;
   ArmOpcode opcode = kThumbBkpt;
@@ -590,6 +589,7 @@ LIR* ArmMir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, in
   } else {
     RegStorage r_scratch = AllocTemp();
     LoadConstant(r_scratch, value);
+    LIR* res;
     if (EncodingMap[alt_opcode].flags & IS_QUAD_OP)
       res = NewLIR4(alt_opcode, r_dest.GetReg(), r_src1.GetReg(), r_scratch.GetReg(), 0);
     else

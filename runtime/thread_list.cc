@@ -515,7 +515,7 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
       // than request thread suspension, to avoid potential cycles in threads requesting each other
       // suspend.
       ScopedObjectAccess soa(self);
-      MutexLock mu(self, *Locks::thread_list_lock_);
+      MutexLock thread_list_mu(self, *Locks::thread_list_lock_);
       thread = Thread::FromManagedThread(soa, peer);
       if (thread == nullptr) {
         ThreadSuspendByPeerWarning(self, WARNING, "No such thread for suspend", peer);
@@ -528,7 +528,7 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
       }
       VLOG(threads) << "SuspendThreadByPeer found thread: " << *thread;
       {
-        MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+        MutexLock suspend_count_mu(self, *Locks::thread_suspend_count_lock_);
         if (request_suspension) {
           thread->ModifySuspendCount(self, +1, debug_suspension);
           request_suspension = false;
@@ -588,7 +588,7 @@ Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspe
       // than request thread suspension, to avoid potential cycles in threads requesting each other
       // suspend.
       ScopedObjectAccess soa(self);
-      MutexLock mu(self, *Locks::thread_list_lock_);
+      MutexLock thread_list_mu(self, *Locks::thread_list_lock_);
       Thread* thread = nullptr;
       for (const auto& it : list_) {
         if (it->GetThreadId() == thread_id) {
@@ -606,7 +606,7 @@ Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspe
       VLOG(threads) << "SuspendThreadByThreadId found thread: " << *thread;
       DCHECK(Contains(thread));
       {
-        MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+        MutexLock suspend_count_mu(self, *Locks::thread_suspend_count_lock_);
         if (suspended_thread == nullptr) {
           thread->ModifySuspendCount(self, +1, debug_suspension);
           suspended_thread = thread;
@@ -662,9 +662,9 @@ void ThreadList::SuspendAllForDebugger() {
   VLOG(threads) << *self << " SuspendAllForDebugger starting...";
 
   {
-    MutexLock mu(self, *Locks::thread_list_lock_);
+    MutexLock thread_list_mu(self, *Locks::thread_list_lock_);
     {
-      MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+      MutexLock suspend_count_mu(self, *Locks::thread_suspend_count_lock_);
       // Update global suspend all state for attaching threads.
       DCHECK_GE(suspend_all_count_, debug_suspend_all_count_);
       ++suspend_all_count_;
@@ -769,9 +769,9 @@ void ThreadList::ResumeAllForDebugger() {
   Locks::mutator_lock_->AssertNotExclusiveHeld(self);
 
   {
-    MutexLock mu(self, *Locks::thread_list_lock_);
+    MutexLock thread_list_mu(self, *Locks::thread_list_lock_);
     {
-      MutexLock mu(self, *Locks::thread_suspend_count_lock_);
+      MutexLock suspend_count_mu(self, *Locks::thread_suspend_count_lock_);
       // Update global suspend all state for attaching threads.
       DCHECK_GE(suspend_all_count_, debug_suspend_all_count_);
       needs_resume = (debug_suspend_all_count_ > 0);

@@ -374,8 +374,8 @@ struct CheckOffset {
 
 template <typename T>
 struct CheckOffsets {
-  CheckOffsets(bool is_static, const char* class_descriptor)
-      : is_static(is_static), class_descriptor(class_descriptor) {}
+  CheckOffsets(bool is_static_in, const char* class_descriptor_in)
+      : is_static(is_static_in), class_descriptor(class_descriptor_in) {}
   bool is_static;
   std::string class_descriptor;
   std::vector<CheckOffset> offsets;

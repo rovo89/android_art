@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_GC_ALLOCATOR_DLMALLOC_H_
 #define ART_RUNTIME_GC_ALLOCATOR_DLMALLOC_H_
 
+#include <cstdint>
+
 // Configure dlmalloc for mspaces.
 // Avoid a collision with one used in llvm.
 #undef HAVE_MMAP
@@ -28,7 +30,10 @@
 #define ONLY_MSPACES 1
 #define MALLOC_INSPECT_ALL 1
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wredundant-decls"
 #include "../../bionic/libc/upstream-dlmalloc/malloc.h"
+#pragma GCC diagnostic pop
 
 #ifdef HAVE_ANDROID_OS
 // Define dlmalloc routines from bionic that cannot be included directly because of redefining
@@ -46,5 +51,17 @@ extern "C" void DlmallocMadviseCallback(void* start, void* end, size_t used_byte
 // respectively.
 extern "C" void DlmallocBytesAllocatedCallback(void* start, void* end, size_t used_bytes, void* arg);
 extern "C" void DlmallocObjectsAllocatedCallback(void* start, void* end, size_t used_bytes, void* arg);
+
+namespace art {
+namespace gc {
+namespace allocator {
+
+// Callback from dlmalloc when it needs to increase the footprint. Must be implemented somewhere
+// else (currently dlmalloc_space.cc).
+void* ArtDlMallocMoreCore(void* mspace, intptr_t increment);
+
+}  // namespace allocator
+}  // namespace gc
+}  // namespace art
 
 #endif  // ART_RUNTIME_GC_ALLOCATOR_DLMALLOC_H_

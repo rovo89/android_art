@@ -39,13 +39,17 @@
 #include "mirror/string.h"
 #include "os.h"
 #include "safe_map.h"
-#include "ScopedFd.h"
 #include "handle_scope-inl.h"
 #include "thread.h"
 #include "utf-inl.h"
 #include "utils.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
+#include "ScopedFd.h"
+#pragma GCC diagnostic pop
 
 namespace art {
 
@@ -454,8 +458,8 @@ const DexFile::ClassDef* DexFile::FindClassDef(const char* descriptor) const {
     index = new Index(num_class_defs);
     for (uint32_t i = 0; i < num_class_defs;  ++i) {
       const ClassDef& class_def = GetClassDef(i);
-      const char* descriptor = GetClassDescriptor(class_def);
-      index->insert(std::make_pair(descriptor, &class_def));
+      const char* class_descriptor = GetClassDescriptor(class_def);
+      index->insert(std::make_pair(class_descriptor, &class_def));
     }
     // Sanity check the index still doesn't exist, only 1 thread should build it.
     CHECK(class_def_index_.LoadSequentiallyConsistent() == nullptr);

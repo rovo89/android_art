@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "dalvik_system_DexFile.h"
+
 #include <algorithm>
 #include <set>
 #include <fcntl.h>
@@ -43,12 +45,16 @@
 #include "profiler.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
-#include "ScopedFd.h"
 #include "ScopedLocalRef.h"
 #include "ScopedUtfChars.h"
 #include "utils.h"
 #include "well_known_classes.h"
 #include "zip_archive.h"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
+#include "ScopedFd.h"
+#pragma GCC diagnostic pop
 
 namespace art {
 

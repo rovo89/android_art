@@ -56,9 +56,9 @@ namespace x86_64 {
 
 class ExternalLabel {
  public:
-  ExternalLabel(const char* name, uintptr_t address)
-      : name_(name), address_(address) {
-    DCHECK(name != nullptr);
+  ExternalLabel(const char* name_in, uintptr_t address_in)
+      : name_(name_in), address_(address_in) {
+    DCHECK(name_in != nullptr);
   }
 
   const char* name() const { return name_; }
@@ -140,10 +140,10 @@ class AssemblerFixup {
   int position_;
 
   AssemblerFixup* previous() const { return previous_; }
-  void set_previous(AssemblerFixup* previous) { previous_ = previous; }
+  void set_previous(AssemblerFixup* previous_in) { previous_ = previous_in; }
 
   int position() const { return position_; }
-  void set_position(int position) { position_ = position; }
+  void set_position(int position_in) { position_ = position_in; }
 
   friend class AssemblerBuffer;
 };

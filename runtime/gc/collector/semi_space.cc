@@ -224,7 +224,7 @@ void SemiSpace::MarkingPhase() {
   // Need to do this before the checkpoint since we don't want any threads to add references to
   // the live stack during the recursive mark.
   if (kUseThreadLocalAllocationStack) {
-    TimingLogger::ScopedTiming t("RevokeAllThreadLocalAllocationStacks", GetTimings());
+    TimingLogger::ScopedTiming t2("RevokeAllThreadLocalAllocationStacks", GetTimings());
     heap_->RevokeAllThreadLocalAllocationStacks(self_);
   }
   heap_->SwapStacks(self_);
@@ -368,7 +368,7 @@ void SemiSpace::MarkReachableObjects() {
   CHECK_EQ(is_large_object_space_immune_, collect_from_space_only_);
   space::LargeObjectSpace* los = GetHeap()->GetLargeObjectsSpace();
   if (is_large_object_space_immune_ && los != nullptr) {
-    TimingLogger::ScopedTiming t("VisitLargeObjects", GetTimings());
+    TimingLogger::ScopedTiming t2("VisitLargeObjects", GetTimings());
     DCHECK(collect_from_space_only_);
     // Delay copying the live set to the marked set until here from
     // BindBitmaps() as the large objects on the allocation stack may

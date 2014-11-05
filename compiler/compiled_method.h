@@ -162,7 +162,7 @@ class SrcMap FINAL : public std::vector<SrcMapElem> {
       }
       this->resize(i + 1);
 
-      for (size_t i = size(); --i >= 1; ) {
+      for (i = size(); --i >= 1; ) {
         (*this)[i].from_ -= (*this)[i-1].from_;
         (*this)[i].to_ -= (*this)[i-1].to_;
       }

@@ -156,15 +156,36 @@ art_clang_cflags += -Wimplicit-fallthrough
 # Enable float equality warnings.
 art_clang_cflags += -Wfloat-equal
 
+# Enable warning of converting ints to void*.
+art_clang_cflags += -Wint-to-void-pointer-cast
+
+# GCC-only warnings.
+art_gcc_cflags := -Wunused-but-set-parameter
+# Suggest const: too many false positives, but good for a trial run.
+#                  -Wsuggest-attribute=const
+# Useless casts: too many, as we need to be 32/64 agnostic, but the compiler knows.
+#                  -Wuseless-cast
+# Zero-as-null: Have to convert all NULL and "diagnostic ignore" all includes like libnativehelper
+# that are still stuck pre-C++11.
+#                  -Wzero-as-null-pointer-constant \
+# Suggest final: Have to move to a more recent GCC.
+#                  -Wsuggest-final-types
+
+
 ifeq ($(ART_HOST_CLANG),true)
   ART_HOST_CFLAGS += $(art_clang_cflags)
+else
+  ART_HOST_CFLAGS += $(art_gcc_cflags)
 endif
 ifeq ($(ART_TARGET_CLANG),true)
   ART_TARGET_CFLAGS += $(art_clang_cflags)
+else
+  ART_TARGET_CFLAGS += $(art_gcc_cflags)
 endif
 
-# Clear local variable now its use has ended.
+# Clear local variables now their use has ended.
 art_clang_cflags :=
+art_gcc_cflags :=
 
 ART_CPP_EXTENSION := .cc
 
@@ -187,8 +208,15 @@ art_cflags := \
   -Wstrict-aliasing \
   -fstrict-aliasing \
   -Wunreachable-code \
+  -Wno-conversion-null \
+  -Wredundant-decls \
+  -Wshadow \
   -fvisibility=protected \
   $(art_default_gc_type_cflags)
+
+# Missing declarations: too many at the moment, as we use "extern" quite a bit.
+#  -Wmissing-declarations \
+
 
 ifeq ($(ART_SMALL_MODE),true)
   art_cflags += -DART_SMALL_MODE=1

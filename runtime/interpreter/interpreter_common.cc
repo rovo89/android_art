@@ -855,12 +855,12 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper* mh,
     // Special managed code cut-out to allow field lookup in a un-started runtime that'd fail
     // going the reflective Dex way.
     Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
-    String* name = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
+    String* name2 = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
     ArtField* found = NULL;
     ObjectArray<ArtField>* fields = klass->GetIFields();
     for (int32_t i = 0; i < fields->GetLength() && found == NULL; ++i) {
       ArtField* f = fields->Get(i);
-      if (name->Equals(f->GetName())) {
+      if (name2->Equals(f->GetName())) {
         found = f;
       }
     }
@@ -868,14 +868,14 @@ static void UnstartedRuntimeInvoke(Thread* self, MethodHelper* mh,
       fields = klass->GetSFields();
       for (int32_t i = 0; i < fields->GetLength() && found == NULL; ++i) {
         ArtField* f = fields->Get(i);
-        if (name->Equals(f->GetName())) {
+        if (name2->Equals(f->GetName())) {
           found = f;
         }
       }
     }
     CHECK(found != NULL)
       << "Failed to find field in Class.getDeclaredField in un-started runtime. name="
-      << name->ToModifiedUtf8() << " class=" << PrettyDescriptor(klass);
+      << name2->ToModifiedUtf8() << " class=" << PrettyDescriptor(klass);
     // TODO: getDeclaredField calls GetType once the field is found to ensure a
     //       NoClassDefFoundError is thrown if the field's type cannot be resolved.
     Class* jlr_Field = self->DecodeJObject(WellKnownClasses::java_lang_reflect_Field)->AsClass();

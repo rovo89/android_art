@@ -228,15 +228,6 @@ size_t RosAllocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
   return bytes_freed;
 }
 
-// Callback from rosalloc when it needs to increase the footprint
-extern "C" void* art_heap_rosalloc_morecore(allocator::RosAlloc* rosalloc, intptr_t increment) {
-  Heap* heap = Runtime::Current()->GetHeap();
-  RosAllocSpace* rosalloc_space = heap->GetRosAllocSpace(rosalloc);
-  DCHECK(rosalloc_space != nullptr);
-  DCHECK_EQ(rosalloc_space->GetRosAlloc(), rosalloc);
-  return rosalloc_space->MoreCore(increment);
-}
-
 size_t RosAllocSpace::Trim() {
   VLOG(heap) << "RosAllocSpace::Trim() ";
   {
@@ -367,5 +358,19 @@ void RosAllocSpace::Clear() {
 }
 
 }  // namespace space
+
+namespace allocator {
+
+// Callback from rosalloc when it needs to increase the footprint.
+void* ArtRosAllocMoreCore(allocator::RosAlloc* rosalloc, intptr_t increment) {
+  Heap* heap = Runtime::Current()->GetHeap();
+  art::gc::space::RosAllocSpace* rosalloc_space = heap->GetRosAllocSpace(rosalloc);
+  DCHECK(rosalloc_space != nullptr);
+  DCHECK_EQ(rosalloc_space->GetRosAlloc(), rosalloc);
+  return rosalloc_space->MoreCore(increment);
+}
+
+}  // namespace allocator
+
 }  // namespace gc
 }  // namespace art

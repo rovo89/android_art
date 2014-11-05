@@ -34,13 +34,13 @@ inline uint32_t LockWord::ThinLockCount() const {
 
 inline Monitor* LockWord::FatLockMonitor() const {
   DCHECK_EQ(GetState(), kFatLocked);
-  MonitorId mon_id = static_cast<MonitorId>(value_ & ~(kStateMask << kStateShift));
+  MonitorId mon_id = value_ & ~(kStateMask << kStateShift);
   return MonitorPool::MonitorFromMonitorId(mon_id);
 }
 
 inline size_t LockWord::ForwardingAddress() const {
   DCHECK_EQ(GetState(), kForwardingAddress);
-  return static_cast<size_t>(value_ << kStateSize);
+  return value_ << kStateSize;
 }
 
 inline LockWord::LockWord() : value_(0) {

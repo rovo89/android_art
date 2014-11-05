@@ -1294,9 +1294,9 @@ size_t OatWriter::InitOatClasses(size_t offset) {
   // Update oat_dex_files_.
   auto oat_class_it = oat_classes_.begin();
   for (OatDexFile* oat_dex_file : oat_dex_files_) {
-    for (uint32_t& offset : oat_dex_file->methods_offsets_) {
+    for (uint32_t& method_offset : oat_dex_file->methods_offsets_) {
       DCHECK(oat_class_it != oat_classes_.end());
-      offset = (*oat_class_it)->offset_;
+      method_offset = (*oat_class_it)->offset_;
       ++oat_class_it;
     }
     oat_dex_file->UpdateChecksum(oat_header_);

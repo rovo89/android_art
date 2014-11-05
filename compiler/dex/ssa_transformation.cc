@@ -539,8 +539,7 @@ bool MIRGraph::InsertPhiNodeOperands(BasicBlock* bb) {
     for (BasicBlockId pred_id : bb->predecessors) {
       BasicBlock* pred_bb = GetBasicBlock(pred_id);
       DCHECK(pred_bb != nullptr);
-      int ssa_reg = pred_bb->data_flow_info->vreg_to_ssa_map_exit[v_reg];
-      uses[idx] = ssa_reg;
+      uses[idx] = pred_bb->data_flow_info->vreg_to_ssa_map_exit[v_reg];
       incoming[idx] = pred_id;
       idx++;
     }

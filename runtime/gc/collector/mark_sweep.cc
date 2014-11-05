@@ -667,10 +667,10 @@ class MarkStackTask : public Task {
       Object* obj = nullptr;
       if (kUseMarkStackPrefetch) {
         while (mark_stack_pos_ != 0 && prefetch_fifo.size() < kFifoSize) {
-          Object* obj = mark_stack_[--mark_stack_pos_];
-          DCHECK(obj != nullptr);
-          __builtin_prefetch(obj);
-          prefetch_fifo.push_back(obj);
+          Object* mark_stack_obj = mark_stack_[--mark_stack_pos_];
+          DCHECK(mark_stack_obj != nullptr);
+          __builtin_prefetch(mark_stack_obj);
+          prefetch_fifo.push_back(mark_stack_obj);
         }
         if (UNLIKELY(prefetch_fifo.empty())) {
           break;
@@ -928,7 +928,7 @@ void MarkSweep::ReMarkRoots() {
                                                           kVisitRootFlagStopLoggingNewRoots |
                                                           kVisitRootFlagClearRootLog));
   if (kVerifyRootsMarked) {
-    TimingLogger::ScopedTiming t("(Paused)VerifyRoots", GetTimings());
+    TimingLogger::ScopedTiming t2("(Paused)VerifyRoots", GetTimings());
     Runtime::Current()->VisitRoots(VerifyRootMarked, this);
   }
 }
@@ -1057,7 +1057,7 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
         // if needed.
         if (!mark_bitmap->Test(obj)) {
           if (chunk_free_pos >= kSweepArrayChunkFreeSize) {
-            TimingLogger::ScopedTiming t("FreeList", GetTimings());
+            TimingLogger::ScopedTiming t2("FreeList", GetTimings());
             freed.objects += chunk_free_pos;
             freed.bytes += alloc_space->FreeList(self, chunk_free_pos, chunk_free_buffer);
             chunk_free_pos = 0;
@@ -1069,7 +1069,7 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
       }
     }
     if (chunk_free_pos > 0) {
-      TimingLogger::ScopedTiming t("FreeList", GetTimings());
+      TimingLogger::ScopedTiming t2("FreeList", GetTimings());
       freed.objects += chunk_free_pos;
       freed.bytes += alloc_space->FreeList(self, chunk_free_pos, chunk_free_buffer);
       chunk_free_pos = 0;
@@ -1099,10 +1099,10 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
     }
   }
   {
-    TimingLogger::ScopedTiming t("RecordFree", GetTimings());
+    TimingLogger::ScopedTiming t2("RecordFree", GetTimings());
     RecordFree(freed);
     RecordFreeLOS(freed_los);
-    t.NewTiming("ResetStack");
+    t2.NewTiming("ResetStack");
     allocations->Reset();
   }
   sweep_array_free_buffer_mem_map_->MadviseDontNeedAndZero();
@@ -1218,10 +1218,10 @@ void MarkSweep::ProcessMarkStack(bool paused) {
       Object* obj = NULL;
       if (kUseMarkStackPrefetch) {
         while (!mark_stack_->IsEmpty() && prefetch_fifo.size() < kFifoSize) {
-          Object* obj = mark_stack_->PopBack();
-          DCHECK(obj != NULL);
-          __builtin_prefetch(obj);
-          prefetch_fifo.push_back(obj);
+          Object* mark_stack_obj = mark_stack_->PopBack();
+          DCHECK(mark_stack_obj != NULL);
+          __builtin_prefetch(mark_stack_obj);
+          prefetch_fifo.push_back(mark_stack_obj);
         }
         if (prefetch_fifo.empty()) {
           break;

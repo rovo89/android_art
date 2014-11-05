@@ -2703,7 +2703,7 @@ int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
         bool src_is_8b_aligned = (current_src_offset & 0x7) == 0;
         bool dest_is_8b_aligned = (current_dest_offset & 0x7) == 0;
 
-        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+        ScopedMemRefType mem_ref_type2(this, ResourceMask::kDalvikReg);
         if (src_is_16b_aligned) {
           ld1 = OpMovRegMem(temp, rs_rX86_SP, current_src_offset, kMovA128FP);
         } else if (src_is_8b_aligned) {

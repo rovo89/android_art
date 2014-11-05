@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "java_lang_Runtime.h"
+
 #include <dlfcn.h>
 #include <limits.h>
 #include <unistd.h>

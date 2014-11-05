@@ -370,7 +370,8 @@ static inline constexpr TwoWordReturn GetTwoWordFailureValue() {
 
 // Use the lower 32b for the method pointer and the upper 32b for the code pointer.
 static inline TwoWordReturn GetTwoWordSuccessValue(uintptr_t hi, uintptr_t lo) {
-  uint32_t lo32 = static_cast<uint32_t>(lo);
+  static_assert(sizeof(uint32_t) == sizeof(uintptr_t), "Unexpected size difference");
+  uint32_t lo32 = lo;
   uint64_t hi64 = static_cast<uint64_t>(hi);
   return ((hi64 << 32) | lo32);
 }

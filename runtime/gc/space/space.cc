@@ -133,8 +133,8 @@ void ContinuousMemMapAllocSpace::SwapBitmaps() {
   mark_bitmap_->SetName(temp_name);
 }
 
-AllocSpace::SweepCallbackContext::SweepCallbackContext(bool swap_bitmaps, space::Space* space)
-    : swap_bitmaps(swap_bitmaps), space(space), self(Thread::Current()) {
+AllocSpace::SweepCallbackContext::SweepCallbackContext(bool swap_bitmaps_in, space::Space* space_in)
+    : swap_bitmaps(swap_bitmaps_in), space(space_in), self(Thread::Current()) {
 }
 
 }  // namespace space

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "java_lang_String.h"
+
 #include "common_throws.h"
 #include "jni_internal.h"
 #include "mirror/string-inl.h"

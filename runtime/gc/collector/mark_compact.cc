@@ -239,7 +239,7 @@ void MarkCompact::UpdateAndMarkModUnion() {
       accounting::ModUnionTable* table = heap_->FindModUnionTableFromSpace(space);
       if (table != nullptr) {
         // TODO: Improve naming.
-        TimingLogger::ScopedTiming t(
+        TimingLogger::ScopedTiming t2(
             space->IsZygoteSpace() ? "UpdateAndMarkZygoteModUnionTable" :
                                      "UpdateAndMarkImageModUnionTable", GetTimings());
         table->UpdateAndMarkReferences(MarkHeapReferenceCallback, this);
@@ -348,7 +348,7 @@ void MarkCompact::UpdateReferences() {
     accounting::ModUnionTable* table = heap_->FindModUnionTableFromSpace(space);
     if (table != nullptr) {
       // TODO: Improve naming.
-      TimingLogger::ScopedTiming t(
+      TimingLogger::ScopedTiming t2(
           space->IsZygoteSpace() ? "UpdateZygoteModUnionTableReferences" :
                                    "UpdateImageModUnionTableReferences",
                                    GetTimings());
@@ -538,7 +538,7 @@ void MarkCompact::Sweep(bool swap_bitmaps) {
       if (!ShouldSweepSpace(alloc_space)) {
         continue;
       }
-      TimingLogger::ScopedTiming t(
+      TimingLogger::ScopedTiming t2(
           alloc_space->IsZygoteSpace() ? "SweepZygoteSpace" : "SweepAllocSpace", GetTimings());
       RecordFree(alloc_space->Sweep(swap_bitmaps));
     }
