@@ -2391,7 +2391,7 @@ void Thumb2Assembler::LoadFromOffset(LoadOperandType type,
                                      int32_t offset,
                                      Condition cond) {
   if (!Address::CanHoldLoadOffsetThumb(type, offset)) {
-    CHECK(base != IP);
+    CHECK_NE(base, IP);
     LoadImmediate(IP, offset, cond);
     add(IP, IP, ShifterOperand(base), cond);
     base = IP;
@@ -2467,12 +2467,26 @@ void Thumb2Assembler::StoreToOffset(StoreOperandType type,
                                     Register base,
                                     int32_t offset,
                                     Condition cond) {
+  Register tmp_reg = kNoRegister;
   if (!Address::CanHoldStoreOffsetThumb(type, offset)) {
-    CHECK(reg != IP);
-    CHECK(base != IP);
-    LoadImmediate(IP, offset, cond);
-    add(IP, IP, ShifterOperand(base), cond);
-    base = IP;
+    CHECK_NE(base, IP);
+    if (reg != IP) {
+      tmp_reg = IP;
+    } else {
+      // Be careful not to use IP twice (for `reg` and to build the
+      // Address object used by the store instruction(s) below).
+      // Instead, save R5 on the stack (or R6 if R5 is not available),
+      // use it as secondary temporary register, and restore it after
+      // the store instruction has been emitted.
+      tmp_reg = base != R5 ? R5 : R6;
+      Push(tmp_reg);
+      if (base == SP) {
+        offset += kRegisterSize;
+      }
+    }
+    LoadImmediate(tmp_reg, offset, cond);
+    add(tmp_reg, tmp_reg, ShifterOperand(base), cond);
+    base = tmp_reg;
     offset = 0;
   }
   CHECK(Address::CanHoldStoreOffsetThumb(type, offset));
@@ -2492,6 +2506,10 @@ void Thumb2Assembler::StoreToOffset(StoreOperandType type,
     default:
       LOG(FATAL) << "UNREACHABLE";
       UNREACHABLE();
+  }
+  if (tmp_reg != kNoRegister && tmp_reg != IP) {
+    DCHECK(tmp_reg == R5 || tmp_reg == R6);
+    Pop(tmp_reg);
   }
 }
 
