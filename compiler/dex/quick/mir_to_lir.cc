@@ -1052,28 +1052,36 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       }
       break;
 
+    case Instruction::DIV_FLOAT:
+    case Instruction::DIV_FLOAT_2ADDR:
+      if (HandleEasyFloatingPointDiv(rl_dest, rl_src[0], rl_src[1])) {
+        break;
+      }
+      FALLTHROUGH_INTENDED;
     case Instruction::ADD_FLOAT:
     case Instruction::SUB_FLOAT:
     case Instruction::MUL_FLOAT:
-    case Instruction::DIV_FLOAT:
     case Instruction::REM_FLOAT:
     case Instruction::ADD_FLOAT_2ADDR:
     case Instruction::SUB_FLOAT_2ADDR:
     case Instruction::MUL_FLOAT_2ADDR:
-    case Instruction::DIV_FLOAT_2ADDR:
     case Instruction::REM_FLOAT_2ADDR:
       GenArithOpFloat(opcode, rl_dest, rl_src[0], rl_src[1]);
       break;
 
+    case Instruction::DIV_DOUBLE:
+    case Instruction::DIV_DOUBLE_2ADDR:
+      if (HandleEasyFloatingPointDiv(rl_dest, rl_src[0], rl_src[1])) {
+        break;
+      }
+      FALLTHROUGH_INTENDED;
     case Instruction::ADD_DOUBLE:
     case Instruction::SUB_DOUBLE:
     case Instruction::MUL_DOUBLE:
-    case Instruction::DIV_DOUBLE:
     case Instruction::REM_DOUBLE:
     case Instruction::ADD_DOUBLE_2ADDR:
     case Instruction::SUB_DOUBLE_2ADDR:
     case Instruction::MUL_DOUBLE_2ADDR:
-    case Instruction::DIV_DOUBLE_2ADDR:
     case Instruction::REM_DOUBLE_2ADDR:
       GenArithOpDouble(opcode, rl_dest, rl_src[0], rl_src[1]);
       break;

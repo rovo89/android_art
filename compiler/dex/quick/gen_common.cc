@@ -1785,6 +1785,34 @@ bool Mir2Lir::HandleEasyMultiply(RegLocation rl_src, RegLocation rl_dest, int li
   return true;
 }
 
+// Returns true if it generates instructions.
+bool Mir2Lir::HandleEasyFloatingPointDiv(RegLocation rl_dest, RegLocation rl_src1,
+                                         RegLocation rl_src2) {
+  if (!rl_src2.is_const ||
+      ((cu_->instruction_set != kThumb2) && (cu_->instruction_set != kArm64))) {
+    return false;
+  }
+
+  if (!rl_src2.wide) {
+    int32_t divisor = mir_graph_->ConstantValue(rl_src2);
+    if (CanDivideByReciprocalMultiplyFloat(divisor)) {
+      // Generate multiply by reciprocal instead of div.
+      float recip = 1.0f/bit_cast<int32_t, float>(divisor);
+      GenMultiplyByConstantFloat(rl_dest, rl_src1, bit_cast<float, int32_t>(recip));
+      return true;
+    }
+  } else {
+    int64_t divisor = mir_graph_->ConstantValueWide(rl_src2);
+    if (CanDivideByReciprocalMultiplyDouble(divisor)) {
+      // Generate multiply by reciprocal instead of div.
+      double recip = 1.0/bit_cast<double, int64_t>(divisor);
+      GenMultiplyByConstantDouble(rl_dest, rl_src1, bit_cast<double, int64_t>(recip));
+      return true;
+    }
+  }
+  return false;
+}
+
 void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src,
                                int lit) {
   RegLocation rl_result;
