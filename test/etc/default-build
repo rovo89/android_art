@@ -49,4 +49,6 @@ if [ -d src-ex ]; then
   fi
 fi
 
-zip $TEST_NAME.jar classes.dex
+if [ ${NEED_DEX} = "true" ]; then
+  zip $TEST_NAME.jar classes.dex
+fi
