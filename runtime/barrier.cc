@@ -23,7 +23,7 @@ namespace art {
 
 Barrier::Barrier(int count)
     : count_(count),
-      lock_("GC barrier lock"),
+      lock_("GC barrier lock", kThreadSuspendCountLock),
       condition_("GC barrier condition", lock_) {
 }
 

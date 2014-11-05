@@ -78,7 +78,9 @@ inline ThreadState Thread::SetState(ThreadState new_state) {
 
 inline void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
   if (kIsDebugBuild) {
-    CHECK_EQ(0u, tls32_.no_thread_suspension) << tlsPtr_.last_no_thread_suspension_cause;
+    if (gAborting == 0) {
+      CHECK_EQ(0u, tls32_.no_thread_suspension) << tlsPtr_.last_no_thread_suspension_cause;
+    }
     if (check_locks) {
       bool bad_mutexes_held = false;
       for (int i = kLockLevelCount - 1; i >= 0; --i) {
@@ -92,7 +94,9 @@ inline void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
           }
         }
       }
-      CHECK(!bad_mutexes_held);
+      if (gAborting == 0) {
+        CHECK(!bad_mutexes_held);
+      }
     }
   }
 }
