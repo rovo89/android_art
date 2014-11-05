@@ -301,11 +301,11 @@ uint32_t Address::vencoding() const {
   CHECK(IsAbsoluteUint(10, offset));  // In the range -1020 to +1020.
   CHECK_ALIGNED(offset, 2);  // Multiple of 4.
   CHECK((am_ == Offset) || (am_ == NegOffset));
-  uint32_t vencoding = (encoding & (0xf << kRnShift)) | (offset >> 2);
+  uint32_t vencoding_value = (encoding & (0xf << kRnShift)) | (offset >> 2);
   if (am_ == Offset) {
-    vencoding |= 1 << 23;
+    vencoding_value |= 1 << 23;
   }
-  return vencoding;
+  return vencoding_value;
 }
 
 

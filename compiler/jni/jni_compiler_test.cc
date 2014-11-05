@@ -785,9 +785,9 @@ jint Java_MyClassNatives_nativeUpCall(JNIEnv* env, jobject thisObj, jint i) {
     EXPECT_EQ(11, trace_array->GetLength());
 
     // Check stack trace entries have expected values
-    for (int32_t i = 0; i < trace_array->GetLength(); ++i) {
-      EXPECT_EQ(-2, trace_array->Get(i)->GetLineNumber());
-      mirror::StackTraceElement* ste = trace_array->Get(i);
+    for (int32_t j = 0; j < trace_array->GetLength(); ++j) {
+      EXPECT_EQ(-2, trace_array->Get(j)->GetLineNumber());
+      mirror::StackTraceElement* ste = trace_array->Get(j);
       EXPECT_STREQ("MyClassNatives.java", ste->GetFileName()->ToModifiedUtf8().c_str());
       EXPECT_STREQ("MyClassNatives", ste->GetDeclaringClass()->ToModifiedUtf8().c_str());
       EXPECT_STREQ("fooI", ste->GetMethodName()->ToModifiedUtf8().c_str());

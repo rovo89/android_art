@@ -28,9 +28,9 @@ static constexpr size_t kMonitorsMax = 4096;  // Arbitrary sanity check.
 
 static constexpr size_t kLocalsInitial = 64;  // Arbitrary.
 
-JNIEnvExt::JNIEnvExt(Thread* self, JavaVMExt* vm)
-    : self(self),
-      vm(vm),
+JNIEnvExt::JNIEnvExt(Thread* self_in, JavaVMExt* vm_in)
+    : self(self_in),
+      vm(vm_in),
       local_ref_cookie(IRT_FIRST_SEGMENT),
       locals(kLocalsInitial, kLocalsMax, kLocal),
       check_jni(false),

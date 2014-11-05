@@ -928,14 +928,13 @@ void Arm64Mir2Lir::AssembleLIR() {
           // Check if branch offset can be encoded in tbz/tbnz.
           if (!IS_SIGNED_IMM14(delta >> 2)) {
             DexOffset dalvik_offset = lir->dalvik_offset;
-            int16_t opcode = lir->opcode;
-            LIR* target = lir->target;
+            LIR* targetLIR = lir->target;
             // "tbz/tbnz Rt, #imm, label" -> "tst Rt, #(1<<imm)".
             offset_adjustment -= lir->flags.size;
-            int32_t imm = EncodeLogicalImmediate(IS_WIDE(opcode), 1 << lir->operands[1]);
-            DCHECK_NE(imm, -1);
+            int32_t encodedImm = EncodeLogicalImmediate(IS_WIDE(opcode), 1 << lir->operands[1]);
+            DCHECK_NE(encodedImm, -1);
             lir->opcode = IS_WIDE(opcode) ? WIDE(kA64Tst2rl) : kA64Tst2rl;
-            lir->operands[1] = imm;
+            lir->operands[1] = encodedImm;
             lir->target = nullptr;
             lir->flags.fixup = EncodingMap[kA64Tst2rl].fixup;
             lir->flags.size = EncodingMap[kA64Tst2rl].size;
@@ -944,7 +943,7 @@ void Arm64Mir2Lir::AssembleLIR() {
             opcode = UNWIDE(opcode);
             DCHECK(opcode == kA64Tbz3rht || opcode == kA64Tbnz3rht);
             LIR* new_lir = RawLIR(dalvik_offset, kA64B2ct,
-                opcode == kA64Tbz3rht ? kArmCondEq : kArmCondNe, 0, 0, 0, 0, target);
+                opcode == kA64Tbz3rht ? kArmCondEq : kArmCondNe, 0, 0, 0, 0, targetLIR);
             InsertLIRAfter(lir, new_lir);
             new_lir->offset = lir->offset + lir->flags.size;
             new_lir->flags.generation = generation;

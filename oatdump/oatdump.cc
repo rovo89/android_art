@@ -1296,26 +1296,26 @@ class ImageDumper {
           std::ostream indent2_os(&indent2_filter);
           mirror::ObjectArray<mirror::Object>* image_root_object_array
               = image_root_object->AsObjectArray<mirror::Object>();
-          for (int i = 0; i < image_root_object_array->GetLength(); i++) {
-            mirror::Object* value = image_root_object_array->Get(i);
+          for (int j = 0; j < image_root_object_array->GetLength(); j++) {
+            mirror::Object* value = image_root_object_array->Get(j);
             size_t run = 0;
-            for (int32_t j = i + 1; j < image_root_object_array->GetLength(); j++) {
-              if (value == image_root_object_array->Get(j)) {
+            for (int32_t k = j + 1; k < image_root_object_array->GetLength(); k++) {
+              if (value == image_root_object_array->Get(k)) {
                 run++;
               } else {
                 break;
               }
             }
             if (run == 0) {
-              indent2_os << StringPrintf("%d: ", i);
+              indent2_os << StringPrintf("%d: ", j);
             } else {
-              indent2_os << StringPrintf("%d to %zd: ", i, i + run);
-              i = i + run;
+              indent2_os << StringPrintf("%d to %zd: ", j, j + run);
+              j = j + run;
             }
             if (value != nullptr) {
               PrettyObjectValue(indent2_os, value->GetClass(), value);
             } else {
-              indent2_os << i << ": null\n";
+              indent2_os << j << ": null\n";
             }
           }
         }
@@ -1747,20 +1747,20 @@ class ImageDumper {
           dex_instruction_bytes(0) {}
 
     struct SizeAndCount {
-      SizeAndCount(size_t bytes, size_t count) : bytes(bytes), count(count) {}
+      SizeAndCount(size_t bytes_in, size_t count_in) : bytes(bytes_in), count(count_in) {}
       size_t bytes;
       size_t count;
     };
     typedef SafeMap<std::string, SizeAndCount> SizeAndCountTable;
     SizeAndCountTable sizes_and_counts;
 
-    void Update(const char* descriptor, size_t object_bytes) {
+    void Update(const char* descriptor, size_t object_bytes_in) {
       SizeAndCountTable::iterator it = sizes_and_counts.find(descriptor);
       if (it != sizes_and_counts.end()) {
-        it->second.bytes += object_bytes;
+        it->second.bytes += object_bytes_in;
         it->second.count += 1;
       } else {
-        sizes_and_counts.Put(descriptor, SizeAndCount(object_bytes, 1));
+        sizes_and_counts.Put(descriptor, SizeAndCount(object_bytes_in, 1));
       }
     }
 

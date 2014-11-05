@@ -125,8 +125,10 @@ static const char* kThumbReverseOperations[] = {
 };
 
 struct ArmRegister {
-  explicit ArmRegister(uint32_t r) : r(r) { CHECK_LE(r, 15U); }
-  ArmRegister(uint32_t instruction, uint32_t at_bit) : r((instruction >> at_bit) & 0xf) { CHECK_LE(r, 15U); }
+  explicit ArmRegister(uint32_t r_in) : r(r_in) { CHECK_LE(r_in, 15U); }
+  ArmRegister(uint32_t instruction, uint32_t at_bit) : r((instruction >> at_bit) & 0xf) {
+    CHECK_LE(r, 15U);
+  }
   uint32_t r;
 };
 std::ostream& operator<<(std::ostream& os, const ArmRegister& r) {
@@ -390,51 +392,12 @@ uint32_t VFPExpand32(uint32_t imm8) {
   return (bit_a << 31) | ((1 << 30) - (bit_b << 25)) | (slice << 19);
 }
 
-uint64_t VFPExpand64(uint32_t imm8) {
+static uint64_t VFPExpand64(uint32_t imm8) {
   CHECK_EQ(imm8 & 0xffu, imm8);
   uint64_t bit_a = (imm8 >> 7) & 1;
   uint64_t bit_b = (imm8 >> 6) & 1;
   uint64_t slice = imm8 & 0x3f;
   return (bit_a << 31) | ((UINT64_C(1) << 62) - (bit_b << 54)) | (slice << 48);
-}
-
-uint64_t AdvSIMDExpand(uint32_t op, uint32_t cmode, uint32_t imm8) {
-  CHECK_EQ(op & 1, op);
-  CHECK_EQ(cmode & 0xf, cmode);
-  CHECK_EQ(imm8 & 0xff, imm8);
-  int32_t cmode321 = cmode >> 1;
-  if (imm8 == 0 && cmode321 != 0 && cmode321 != 4 && cmode321 != 7) {
-    return INT64_C(0x00000000deadbeef);  // UNPREDICTABLE
-  }
-  uint64_t imm = imm8;
-  switch (cmode321) {
-    case 3: imm <<= 8; FALLTHROUGH_INTENDED;
-    case 2: imm <<= 8; FALLTHROUGH_INTENDED;
-    case 1: imm <<= 8; FALLTHROUGH_INTENDED;
-    case 0: return static_cast<int64_t>((imm << 32) | imm);
-    case 5: imm <<= 8; FALLTHROUGH_INTENDED;
-    case 4: return static_cast<int64_t>((imm << 48) | (imm << 32) | (imm << 16) | imm);
-    case 6:
-      imm = ((imm + 1u) << ((cmode & 1) != 0 ? 16 : 8)) - 1u;  // Add 8 or 16 ones.
-      return static_cast<int64_t>((imm << 32) | imm);
-    default:
-      CHECK_EQ(cmode321, 7);
-      if ((cmode & 1) == 0 && op == 0) {
-        imm = (imm << 8) | imm;
-        return static_cast<int64_t>((imm << 48) | (imm << 32) | (imm << 16) | imm);
-      } else if ((cmode & 1) == 0 && op != 0) {
-        for (int i = 1; i != 8; ++i) {
-          imm |= ((imm >> i) & UINT64_C(1)) << (i * 8);
-        }
-        imm = imm & ~UINT64_C(0xfe);
-        return static_cast<int64_t>((imm << 8) - imm);
-      } else if ((cmode & 1) != 0 && op == 0) {
-        imm = static_cast<uint32_t>(VFPExpand32(imm8));
-        return static_cast<int64_t>((imm << 32) | imm);
-      } else {
-        return INT64_C(0xdeadbeef00000000);  // UNDEFINED
-      }
-  }
 }
 
 size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) {
@@ -1359,8 +1322,6 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
                   }
                 } else {
                   // STR Rt, [Rn, Rm, LSL #imm2] - 111 11 000 010 0 nnnn tttt 000000iimmmm
-                  ArmRegister Rn(instr, 16);
-                  ArmRegister Rt(instr, 12);
                   ArmRegister Rm(instr, 0);
                   uint32_t imm2 = (instr >> 4) & 3;
                   opcode << "str.w";

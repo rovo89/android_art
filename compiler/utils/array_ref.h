@@ -73,8 +73,8 @@ class ArrayRef {
     : array_(array), size_(size) {
   }
 
-  constexpr ArrayRef(T* array, size_t size)
-      : array_(array), size_(size) {
+  constexpr ArrayRef(T* array_in, size_t size_in)
+      : array_(array_in), size_(size_in) {
   }
 
   template <typename Alloc>

@@ -21,7 +21,6 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "entrypoints/math_entrypoints.h"
-#include "entrypoints/runtime_asm_entrypoints.h"
 #include "interpreter/interpreter.h"
 
 namespace art {
@@ -124,8 +123,11 @@ extern "C" void art_quick_throw_no_such_method(int32_t method_idx);
 extern "C" void art_quick_throw_null_pointer_exception();
 extern "C" void art_quick_throw_stack_overflow(void*);
 
-// Generic JNI downcall
+// Generic JNI downcall.
 extern "C" void art_quick_generic_jni_trampoline(mirror::ArtMethod*);
+
+// JNI resolution.
+extern "C" void* art_jni_dlsym_lookup_stub(JNIEnv*, jobject);
 
 void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
                      PortableEntryPoints* ppoints, QuickEntryPoints* qpoints) {

@@ -504,35 +504,35 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
     } else if (StartsWith(option, "-verbose:")) {
       std::vector<std::string> verbose_options;
       Split(option.substr(strlen("-verbose:")), ',', &verbose_options);
-      for (size_t i = 0; i < verbose_options.size(); ++i) {
-        if (verbose_options[i] == "class") {
+      for (size_t j = 0; j < verbose_options.size(); ++j) {
+        if (verbose_options[j] == "class") {
           gLogVerbosity.class_linker = true;
-        } else if (verbose_options[i] == "compiler") {
+        } else if (verbose_options[j] == "compiler") {
           gLogVerbosity.compiler = true;
-        } else if (verbose_options[i] == "gc") {
+        } else if (verbose_options[j] == "gc") {
           gLogVerbosity.gc = true;
-        } else if (verbose_options[i] == "heap") {
+        } else if (verbose_options[j] == "heap") {
           gLogVerbosity.heap = true;
-        } else if (verbose_options[i] == "jdwp") {
+        } else if (verbose_options[j] == "jdwp") {
           gLogVerbosity.jdwp = true;
-        } else if (verbose_options[i] == "jni") {
+        } else if (verbose_options[j] == "jni") {
           gLogVerbosity.jni = true;
-        } else if (verbose_options[i] == "monitor") {
+        } else if (verbose_options[j] == "monitor") {
           gLogVerbosity.monitor = true;
-        } else if (verbose_options[i] == "profiler") {
+        } else if (verbose_options[j] == "profiler") {
           gLogVerbosity.profiler = true;
-        } else if (verbose_options[i] == "signals") {
+        } else if (verbose_options[j] == "signals") {
           gLogVerbosity.signals = true;
-        } else if (verbose_options[i] == "startup") {
+        } else if (verbose_options[j] == "startup") {
           gLogVerbosity.startup = true;
-        } else if (verbose_options[i] == "third-party-jni") {
+        } else if (verbose_options[j] == "third-party-jni") {
           gLogVerbosity.third_party_jni = true;
-        } else if (verbose_options[i] == "threads") {
+        } else if (verbose_options[j] == "threads") {
           gLogVerbosity.threads = true;
-        } else if (verbose_options[i] == "verifier") {
+        } else if (verbose_options[j] == "verifier") {
           gLogVerbosity.verifier = true;
         } else {
-          Usage("Unknown -verbose option %s\n", verbose_options[i].c_str());
+          Usage("Unknown -verbose option %s\n", verbose_options[j].c_str());
           return false;
         }
       }

@@ -718,9 +718,9 @@ void CompilerDriver::LoadImageClasses(TimingLogger* timings)
     for (const std::pair<uint16_t, const DexFile*>& exception_type : unresolved_exception_types) {
       uint16_t exception_type_idx = exception_type.first;
       const DexFile* dex_file = exception_type.second;
-      StackHandleScope<2> hs(self);
-      Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(*dex_file)));
-      Handle<mirror::Class> klass(hs.NewHandle(
+      StackHandleScope<2> hs2(self);
+      Handle<mirror::DexCache> dex_cache(hs2.NewHandle(class_linker->FindDexCache(*dex_file)));
+      Handle<mirror::Class> klass(hs2.NewHandle(
           class_linker->ResolveType(*dex_file, exception_type_idx, dex_cache,
                                     NullHandle<mirror::ClassLoader>())));
       if (klass.Get() == nullptr) {
@@ -757,13 +757,13 @@ static void MaybeAddToImageClasses(Handle<mirror::Class> c, std::set<std::string
     }
     VLOG(compiler) << "Adding " << descriptor << " to image classes";
     for (size_t i = 0; i < klass->NumDirectInterfaces(); ++i) {
-      StackHandleScope<1> hs(self);
-      MaybeAddToImageClasses(hs.NewHandle(mirror::Class::GetDirectInterface(self, klass, i)),
+      StackHandleScope<1> hs2(self);
+      MaybeAddToImageClasses(hs2.NewHandle(mirror::Class::GetDirectInterface(self, klass, i)),
                              image_classes);
     }
     if (klass->IsArrayClass()) {
-      StackHandleScope<1> hs(self);
-      MaybeAddToImageClasses(hs.NewHandle(klass->GetComponentType()), image_classes);
+      StackHandleScope<1> hs2(self);
+      MaybeAddToImageClasses(hs2.NewHandle(klass->GetComponentType()), image_classes);
     }
     klass.Assign(klass->GetSuperClass());
   }

@@ -67,8 +67,8 @@ class StringPiece {
     ptr_ = nullptr;
     length_ = 0;
   }
-  void set(const char* data, size_type len) {
-    ptr_ = data;
+  void set(const char* data_in, size_type len) {
+    ptr_ = data_in;
     length_ = len;
   }
   void set(const char* str) {
@@ -79,8 +79,8 @@ class StringPiece {
       length_ = 0;
     }
   }
-  void set(const void* data, size_type len) {
-    ptr_ = reinterpret_cast<const char*>(data);
+  void set(const void* data_in, size_type len) {
+    ptr_ = reinterpret_cast<const char*>(data_in);
     length_ = len;
   }
 

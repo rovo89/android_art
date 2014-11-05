@@ -599,8 +599,8 @@ void Heap::DumpObject(std::ostream& stream, mirror::Object* obj) {
       }
     }
     // Unprotect all the spaces.
-    for (const auto& space : continuous_spaces_) {
-      mprotect(space->Begin(), space->Capacity(), PROT_READ | PROT_WRITE);
+    for (const auto& con_space : continuous_spaces_) {
+      mprotect(con_space->Begin(), con_space->Capacity(), PROT_READ | PROT_WRITE);
     }
     stream << "Object " << obj;
     if (space != nullptr) {
@@ -1266,12 +1266,12 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
       continue;
     }
     // Attempt to run the collector, if we succeed, re-try the allocation.
-    const bool gc_ran =
+    const bool plan_gc_ran =
         CollectGarbageInternal(gc_type, kGcCauseForAlloc, false) != collector::kGcTypeNone;
     if (was_default_allocator && allocator != GetCurrentAllocator()) {
       return nullptr;
     }
-    if (gc_ran) {
+    if (plan_gc_ran) {
       // Did we free sufficient memory for the allocation to succeed?
       mirror::Object* ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated,
                                                        usable_size);
@@ -1532,7 +1532,7 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
   {
-    ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
+    ScopedThreadStateChange tsc2(self, kWaitingForGcToComplete);
     MutexLock mu(self, *gc_complete_lock_);
     // Ensure there is only one GC at a time.
     WaitForGcToCompleteLocked(kGcCauseHomogeneousSpaceCompact, self);
@@ -1604,7 +1604,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
   // compacting_gc_disable_count_, this should rarely occurs).
   for (;;) {
     {
-      ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
+      ScopedThreadStateChange tsc2(self, kWaitingForGcToComplete);
       MutexLock mu(self, *gc_complete_lock_);
       // Ensure there is only one GC at a time.
       WaitForGcToCompleteLocked(kGcCauseCollectorTransition, self);
@@ -2079,7 +2079,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   bool compacting_gc;
   {
     gc_complete_lock_->AssertNotHeld(self);
-    ScopedThreadStateChange tsc(self, kWaitingForGcToComplete);
+    ScopedThreadStateChange tsc2(self, kWaitingForGcToComplete);
     MutexLock mu(self, *gc_complete_lock_);
     // Ensure there is only one GC at a time.
     WaitForGcToCompleteLocked(gc_cause, self);
@@ -2646,15 +2646,15 @@ void Heap::ProcessCards(TimingLogger* timings, bool use_rem_sets) {
     if (table != nullptr) {
       const char* name = space->IsZygoteSpace() ? "ZygoteModUnionClearCards" :
           "ImageModUnionClearCards";
-      TimingLogger::ScopedTiming t(name, timings);
+      TimingLogger::ScopedTiming t2(name, timings);
       table->ClearCards();
     } else if (use_rem_sets && rem_set != nullptr) {
       DCHECK(collector::SemiSpace::kUseRememberedSet && collector_type_ == kCollectorTypeGSS)
           << static_cast<int>(collector_type_);
-      TimingLogger::ScopedTiming t("AllocSpaceRemSetClearCards", timings);
+      TimingLogger::ScopedTiming t2("AllocSpaceRemSetClearCards", timings);
       rem_set->ClearCards();
     } else if (space->GetType() != space::kSpaceTypeBumpPointerSpace) {
-      TimingLogger::ScopedTiming t("AllocSpaceClearCards", timings);
+      TimingLogger::ScopedTiming t2("AllocSpaceClearCards", timings);
       // No mod union table for the AllocSpace. Age the cards so that the GC knows that these cards
       // were dirty before the GC started.
       // TODO: Need to use atomic for the case where aged(cleaning thread) -> dirty(other thread)
@@ -2676,7 +2676,7 @@ void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
   TimingLogger* const timings = current_gc_iteration_.GetTimings();
   TimingLogger::ScopedTiming t(__FUNCTION__, timings);
   if (verify_pre_gc_heap_) {
-    TimingLogger::ScopedTiming t("(Paused)PreGcVerifyHeapReferences", timings);
+    TimingLogger::ScopedTiming t2("(Paused)PreGcVerifyHeapReferences", timings);
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     size_t failures = VerifyHeapReferences();
     if (failures > 0) {
@@ -2686,7 +2686,7 @@ void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
   }
   // Check that all objects which reference things in the live stack are on dirty cards.
   if (verify_missing_card_marks_) {
-    TimingLogger::ScopedTiming t("(Paused)PreGcVerifyMissingCardMarks", timings);
+    TimingLogger::ScopedTiming t2("(Paused)PreGcVerifyMissingCardMarks", timings);
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     SwapStacks(self);
     // Sort the live stack so that we can quickly binary search it later.
@@ -2695,7 +2695,7 @@ void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
     SwapStacks(self);
   }
   if (verify_mod_union_table_) {
-    TimingLogger::ScopedTiming t("(Paused)PreGcVerifyModUnionTables", timings);
+    TimingLogger::ScopedTiming t2("(Paused)PreGcVerifyModUnionTables", timings);
     ReaderMutexLock reader_lock(self, *Locks::heap_bitmap_lock_);
     for (const auto& table_pair : mod_union_tables_) {
       accounting::ModUnionTable* mod_union_table = table_pair.second;
@@ -2727,7 +2727,7 @@ void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
   // Called before sweeping occurs since we want to make sure we are not going so reclaim any
   // reachable objects.
   if (verify_pre_sweeping_heap_) {
-    TimingLogger::ScopedTiming t("(Paused)PostSweepingVerifyHeapReferences", timings);
+    TimingLogger::ScopedTiming t2("(Paused)PostSweepingVerifyHeapReferences", timings);
     CHECK_NE(self->GetState(), kRunnable);
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     // Swapping bound bitmaps does nothing.
@@ -2760,7 +2760,7 @@ void Heap::PostGcVerificationPaused(collector::GarbageCollector* gc) {
     RosAllocVerification(timings, "(Paused)PostGcRosAllocVerification");
   }
   if (verify_post_gc_heap_) {
-    TimingLogger::ScopedTiming t("(Paused)PostGcVerifyHeapReferences", timings);
+    TimingLogger::ScopedTiming t2("(Paused)PostGcVerifyHeapReferences", timings);
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     size_t failures = VerifyHeapReferences();
     if (failures > 0) {

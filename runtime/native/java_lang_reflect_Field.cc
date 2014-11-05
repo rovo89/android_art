@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "java_lang_reflect_Field.h"
+
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"

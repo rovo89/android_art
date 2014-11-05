@@ -628,8 +628,8 @@ ArtField* Class::FindStaticField(Thread* self, Handle<Class> klass, const String
     HandleWrapper<mirror::Class> h_k(hs.NewHandleWrapper(&k));
     // Is this field in any of this class' interfaces?
     for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
-      StackHandleScope<1> hs(self);
-      Handle<mirror::Class> interface(hs.NewHandle(GetDirectInterface(self, h_k, i)));
+      StackHandleScope<1> hs2(self);
+      Handle<mirror::Class> interface(hs2.NewHandle(GetDirectInterface(self, h_k, i)));
       f = FindStaticField(self, interface, name, type);
       if (f != nullptr) {
         return f;
@@ -652,8 +652,8 @@ ArtField* Class::FindStaticField(Thread* self, Handle<Class> klass, const DexCac
     HandleWrapper<mirror::Class> h_k(hs.NewHandleWrapper(&k));
     // Is this field in any of this class' interfaces?
     for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
-      StackHandleScope<1> hs(self);
-      Handle<mirror::Class> interface(hs.NewHandle(GetDirectInterface(self, h_k, i)));
+      StackHandleScope<1> hs2(self);
+      Handle<mirror::Class> interface(hs2.NewHandle(GetDirectInterface(self, h_k, i)));
       f = FindStaticField(self, interface, dex_cache, dex_field_idx);
       if (f != nullptr) {
         return f;
@@ -680,8 +680,8 @@ ArtField* Class::FindField(Thread* self, Handle<Class> klass, const StringPiece&
     StackHandleScope<1> hs(self);
     HandleWrapper<mirror::Class> h_k(hs.NewHandleWrapper(&k));
     for (uint32_t i = 0; i < h_k->NumDirectInterfaces(); ++i) {
-      StackHandleScope<1> hs(self);
-      Handle<mirror::Class> interface(hs.NewHandle(GetDirectInterface(self, h_k, i)));
+      StackHandleScope<1> hs2(self);
+      Handle<mirror::Class> interface(hs2.NewHandle(GetDirectInterface(self, h_k, i)));
       f = interface->FindStaticField(self, interface, name, type);
       if (f != nullptr) {
         return f;

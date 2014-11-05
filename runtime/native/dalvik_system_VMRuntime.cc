@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "dalvik_system_VMRuntime.h"
+
 #include <limits.h>
 
 #include "ScopedUtfChars.h"
@@ -38,7 +40,11 @@
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "thread_list.h"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include "toStringArray.h"
+#pragma GCC diagnostic pop
 
 namespace art {
 
@@ -386,26 +392,26 @@ static void PreloadDexCachesStatsFilled(DexCacheStats* filled)
     const DexFile* dex_file = boot_class_path[i];
     CHECK(dex_file != NULL);
     mirror::DexCache* dex_cache = linker->FindDexCache(*dex_file);
-    for (size_t i = 0; i < dex_cache->NumStrings(); i++) {
-      mirror::String* string = dex_cache->GetResolvedString(i);
+    for (size_t j = 0; j < dex_cache->NumStrings(); j++) {
+      mirror::String* string = dex_cache->GetResolvedString(j);
       if (string != NULL) {
         filled->num_strings++;
       }
     }
-    for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
-      mirror::Class* klass = dex_cache->GetResolvedType(i);
+    for (size_t j = 0; j < dex_cache->NumResolvedTypes(); j++) {
+      mirror::Class* klass = dex_cache->GetResolvedType(j);
       if (klass != NULL) {
         filled->num_types++;
       }
     }
-    for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
-      mirror::ArtField* field = dex_cache->GetResolvedField(i);
+    for (size_t j = 0; j < dex_cache->NumResolvedFields(); j++) {
+      mirror::ArtField* field = dex_cache->GetResolvedField(j);
       if (field != NULL) {
         filled->num_fields++;
       }
     }
-    for (size_t i = 0; i < dex_cache->NumResolvedMethods(); i++) {
-      mirror::ArtMethod* method = dex_cache->GetResolvedMethod(i);
+    for (size_t j = 0; j < dex_cache->NumResolvedMethods(); j++) {
+      mirror::ArtMethod* method = dex_cache->GetResolvedMethod(j);
       if (method != NULL) {
         filled->num_methods++;
       }
@@ -450,14 +456,14 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(linker->FindDexCache(*dex_file)));
 
     if (kPreloadDexCachesStrings) {
-      for (size_t i = 0; i < dex_cache->NumStrings(); i++) {
-        PreloadDexCachesResolveString(dex_cache, i, strings);
+      for (size_t j = 0; j < dex_cache->NumStrings(); j++) {
+        PreloadDexCachesResolveString(dex_cache, j, strings);
       }
     }
 
     if (kPreloadDexCachesTypes) {
-      for (size_t i = 0; i < dex_cache->NumResolvedTypes(); i++) {
-        PreloadDexCachesResolveType(soa.Self(), dex_cache.Get(), i);
+      for (size_t j = 0; j < dex_cache->NumResolvedTypes(); j++) {
+        PreloadDexCachesResolveType(soa.Self(), dex_cache.Get(), j);
       }
     }
 

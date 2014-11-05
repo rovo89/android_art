@@ -543,7 +543,7 @@ void Monitor::Notify(Thread* self) {
     thread->SetWaitNext(nullptr);
 
     // Check to see if the thread is still waiting.
-    MutexLock mu(self, *thread->GetWaitMutex());
+    MutexLock wait_mu(self, *thread->GetWaitMutex());
     if (thread->GetWaitMonitor() != nullptr) {
       thread->GetWaitConditionVariable()->Signal(self);
       return;
@@ -992,12 +992,12 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
   for (size_t i = 0; i < monitor_enter_dex_pcs.size(); ++i) {
     // The verifier works in terms of the dex pcs of the monitor-enter instructions.
     // We want the registers used by those instructions (so we can read the values out of them).
-    uint32_t dex_pc = monitor_enter_dex_pcs[i];
-    uint16_t monitor_enter_instruction = code_item->insns_[dex_pc];
+    uint32_t monitor_dex_pc = monitor_enter_dex_pcs[i];
+    uint16_t monitor_enter_instruction = code_item->insns_[monitor_dex_pc];
 
     // Quick sanity check.
     if ((monitor_enter_instruction & 0xff) != Instruction::MONITOR_ENTER) {
-      LOG(FATAL) << "expected monitor-enter @" << dex_pc << "; was "
+      LOG(FATAL) << "expected monitor-enter @" << monitor_dex_pc << "; was "
                  << reinterpret_cast<void*>(monitor_enter_instruction);
     }
 

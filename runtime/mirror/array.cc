@@ -58,8 +58,8 @@ static Array* RecursiveCreateMultiArray(Thread* self,
   if (current_dimension + 1 < dimensions->GetLength()) {
     // Create a new sub-array in every element of the array.
     for (int32_t i = 0; i < array_length; i++) {
-      StackHandleScope<1> hs(self);
-      Handle<mirror::Class> h_component_type(hs.NewHandle(array_class->GetComponentType()));
+      StackHandleScope<1> hs2(self);
+      Handle<mirror::Class> h_component_type(hs2.NewHandle(array_class->GetComponentType()));
       Array* sub_array = RecursiveCreateMultiArray(self, h_component_type,
                                                    current_dimension + 1, dimensions);
       if (UNLIKELY(sub_array == nullptr)) {

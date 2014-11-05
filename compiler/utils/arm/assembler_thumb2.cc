@@ -2121,8 +2121,8 @@ void Thumb2Assembler::Bind(Label* label) {
         branch->ResetSize(Branch::k16Bit);
 
         // Now add a compare instruction in the place the branch was.
-        int16_t cmp = B13 | B11 | static_cast<int16_t>(branch->GetRegister()) << 8;
-        buffer_.Store<int16_t>(branch_location, cmp);
+        buffer_.Store<int16_t>(branch_location,
+                               B13 | B11 | static_cast<int16_t>(branch->GetRegister()) << 8);
 
         // Since have moved made a hole in the code we need to reload the
         // current pc.

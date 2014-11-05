@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "java_lang_reflect_Array.h"
+
 #include "class_linker-inl.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"

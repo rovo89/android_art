@@ -1191,11 +1191,6 @@ std::ostream& MethodVerifier::DumpFailures(std::ostream& os) {
   return os;
 }
 
-extern "C" void MethodVerifierGdbDump(MethodVerifier* v)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  v->Dump(std::cerr);
-}
-
 void MethodVerifier::Dump(std::ostream& os) {
   if (code_item_ == nullptr) {
     os << "Native method\n";

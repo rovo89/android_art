@@ -192,9 +192,9 @@ mirror::String* InternTable::LookupStringFromImage(mirror::String* s)
     const DexFile::StringId* string_id = dex_file->FindStringId(utf8.c_str());
     if (string_id != NULL) {
       uint32_t string_idx = dex_file->GetIndexForStringId(*string_id);
-      mirror::String* image = dex_cache->GetResolvedString(string_idx);
-      if (image != NULL) {
-        return image;
+      mirror::String* image_string = dex_cache->GetResolvedString(string_idx);
+      if (image_string != NULL) {
+        return image_string;
       }
     }
   }

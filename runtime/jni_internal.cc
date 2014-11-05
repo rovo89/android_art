@@ -196,8 +196,8 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     // Failed to find type from the signature of the field.
     DCHECK(soa.Self()->IsExceptionPending());
     ThrowLocation throw_location;
-    StackHandleScope<1> hs(soa.Self());
-    Handle<mirror::Throwable> cause(hs.NewHandle(soa.Self()->GetException(&throw_location)));
+    StackHandleScope<1> hs2(soa.Self());
+    Handle<mirror::Throwable> cause(hs2.NewHandle(soa.Self()->GetException(&throw_location)));
     soa.Self()->ClearException();
     std::string temp;
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",

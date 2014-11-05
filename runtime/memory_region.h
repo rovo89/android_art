@@ -32,7 +32,7 @@ namespace art {
 class MemoryRegion FINAL : public ValueObject {
  public:
   MemoryRegion() : pointer_(nullptr), size_(0) {}
-  MemoryRegion(void* pointer, uintptr_t size) : pointer_(pointer), size_(size) {}
+  MemoryRegion(void* pointer_in, uintptr_t size_in) : pointer_(pointer_in), size_(size_in) {}
 
   void* pointer() const { return pointer_; }
   size_t size() const { return size_; }
@@ -78,10 +78,10 @@ class MemoryRegion FINAL : public ValueObject {
   void CopyFrom(size_t offset, const MemoryRegion& from) const;
 
   // Compute a sub memory region based on an existing one.
-  MemoryRegion Subregion(uintptr_t offset, uintptr_t size) const {
-    CHECK_GE(this->size(), size);
-    CHECK_LE(offset,  this->size() - size);
-    return MemoryRegion(reinterpret_cast<void*>(start() + offset), size);
+  MemoryRegion Subregion(uintptr_t offset, uintptr_t size_in) const {
+    CHECK_GE(this->size(), size_in);
+    CHECK_LE(offset,  this->size() - size_in);
+    return MemoryRegion(reinterpret_cast<void*>(start() + offset), size_in);
   }
 
   // Compute an extended memory region based on an existing one.

@@ -315,7 +315,7 @@ enum InterpreterImplKind {
   kSwitchImpl,            // Switch-based interpreter implementation.
   kComputedGotoImplKind   // Computed-goto-based interpreter implementation.
 };
-std::ostream& operator<<(std::ostream& os, const InterpreterImplKind& rhs) {
+static std::ostream& operator<<(std::ostream& os, const InterpreterImplKind& rhs) {
   os << ((rhs == kSwitchImpl) ? "Switch-based interpreter" : "Computed-goto-based interpreter");
   return os;
 }

@@ -27,8 +27,13 @@
 #include "utils/assembler.h"
 #include "offsets.h"
 #include "utils.h"
+
+// TODO: make vixl clean wrt -Wshadow.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include "a64/macro-assembler-a64.h"
 #include "a64/disasm-a64.h"
+#pragma GCC diagnostic pop
 
 namespace art {
 namespace arm64 {
