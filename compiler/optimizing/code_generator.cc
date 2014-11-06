@@ -356,12 +356,13 @@ void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data, SrcMap* src_ma
   int32_t pc2dex_dalvik_offset = 0;
   uint32_t dex2pc_data_size = 0u;
   uint32_t dex2pc_entries = 0u;
+  uint32_t dex2pc_offset = 0u;
+  int32_t dex2pc_dalvik_offset = 0;
 
   if (src_map != nullptr) {
     src_map->reserve(pc2dex_entries);
   }
 
-  // We currently only have pc2dex entries.
   for (size_t i = 0; i < pc2dex_entries; i++) {
     struct PcInfo pc_info = pc_infos_.Get(i);
     pc2dex_data_size += UnsignedLeb128Size(pc_info.native_pc - pc2dex_offset);
@@ -373,6 +374,19 @@ void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data, SrcMap* src_ma
     }
   }
 
+  // Walk over the blocks and find which ones correspond to catch block entries.
+  for (size_t i = 0; i < graph_->GetBlocks().Size(); ++i) {
+    HBasicBlock* block = graph_->GetBlocks().Get(i);
+    if (block->IsCatchBlock()) {
+      intptr_t native_pc = GetAddressOf(block);
+      ++dex2pc_entries;
+      dex2pc_data_size += UnsignedLeb128Size(native_pc - dex2pc_offset);
+      dex2pc_data_size += SignedLeb128Size(block->GetDexPc() - dex2pc_dalvik_offset);
+      dex2pc_offset = native_pc;
+      dex2pc_dalvik_offset = block->GetDexPc();
+    }
+  }
+
   uint32_t total_entries = pc2dex_entries + dex2pc_entries;
   uint32_t hdr_data_size = UnsignedLeb128Size(total_entries) + UnsignedLeb128Size(pc2dex_entries);
   uint32_t data_size = hdr_data_size + pc2dex_data_size + dex2pc_data_size;
@@ -380,6 +394,7 @@ void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data, SrcMap* src_ma
 
   uint8_t* data_ptr = &(*data)[0];
   uint8_t* write_pos = data_ptr;
+
   write_pos = EncodeUnsignedLeb128(write_pos, total_entries);
   write_pos = EncodeUnsignedLeb128(write_pos, pc2dex_entries);
   DCHECK_EQ(static_cast<size_t>(write_pos - data_ptr), hdr_data_size);
@@ -387,6 +402,9 @@ void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data, SrcMap* src_ma
 
   pc2dex_offset = 0u;
   pc2dex_dalvik_offset = 0u;
+  dex2pc_offset = 0u;
+  dex2pc_dalvik_offset = 0u;
+
   for (size_t i = 0; i < pc2dex_entries; i++) {
     struct PcInfo pc_info = pc_infos_.Get(i);
     DCHECK(pc2dex_offset <= pc_info.native_pc);
@@ -395,6 +413,19 @@ void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data, SrcMap* src_ma
     pc2dex_offset = pc_info.native_pc;
     pc2dex_dalvik_offset = pc_info.dex_pc;
   }
+
+  for (size_t i = 0; i < graph_->GetBlocks().Size(); ++i) {
+    HBasicBlock* block = graph_->GetBlocks().Get(i);
+    if (block->IsCatchBlock()) {
+      intptr_t native_pc = GetAddressOf(block);
+      write_pos2 = EncodeUnsignedLeb128(write_pos2, native_pc - dex2pc_offset);
+      write_pos2 = EncodeSignedLeb128(write_pos2, block->GetDexPc() - dex2pc_dalvik_offset);
+      dex2pc_offset = native_pc;
+      dex2pc_dalvik_offset = block->GetDexPc();
+    }
+  }
+
+
   DCHECK_EQ(static_cast<size_t>(write_pos - data_ptr), hdr_data_size + pc2dex_data_size);
   DCHECK_EQ(static_cast<size_t>(write_pos2 - data_ptr), data_size);
 
@@ -410,6 +441,14 @@ void CodeGenerator::BuildMappingTable(std::vector<uint8_t>* data, SrcMap* src_ma
       CHECK_EQ(pc_info.native_pc, it.NativePcOffset());
       CHECK_EQ(pc_info.dex_pc, it.DexPc());
       ++it;
+    }
+    for (size_t i = 0; i < graph_->GetBlocks().Size(); ++i) {
+      HBasicBlock* block = graph_->GetBlocks().Get(i);
+      if (block->IsCatchBlock()) {
+        CHECK_EQ(GetAddressOf(block), it2.NativePcOffset());
+        CHECK_EQ(block->GetDexPc(), it2.DexPc());
+        ++it2;
+      }
     }
     CHECK(it == table.PcToDexEnd());
     CHECK(it2 == table.DexToPcEnd());

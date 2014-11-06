@@ -292,7 +292,8 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
         block_id_(-1),
         dex_pc_(dex_pc),
         lifetime_start_(kNoLifetime),
-        lifetime_end_(kNoLifetime) {}
+        lifetime_end_(kNoLifetime),
+        is_catch_block_(false) {}
 
   const GrowableArray<HBasicBlock*>& GetPredecessors() const {
     return predecessors_;
@@ -450,6 +451,9 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
 
   uint32_t GetDexPc() const { return dex_pc_; }
 
+  bool IsCatchBlock() const { return is_catch_block_; }
+  void SetIsCatchBlock() { is_catch_block_ = true; }
+
  private:
   HGraph* const graph_;
   GrowableArray<HBasicBlock*> predecessors_;
@@ -464,6 +468,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   const uint32_t dex_pc_;
   size_t lifetime_start_;
   size_t lifetime_end_;
+  bool is_catch_block_;
 
   DISALLOW_COPY_AND_ASSIGN(HBasicBlock);
 };
@@ -495,6 +500,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(LessThan, Condition)                                                \
   M(LessThanOrEqual, Condition)                                         \
   M(LoadClass, Instruction)                                             \
+  M(LoadException, Instruction)                                         \
   M(LoadLocal, Instruction)                                             \
   M(LoadString, Instruction)                                            \
   M(Local, Instruction)                                                 \
@@ -517,6 +523,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(Sub, BinaryOperation)                                               \
   M(SuspendCheck, Instruction)                                          \
   M(Temporary, Instruction)                                             \
+  M(Throw, Instruction)                                                 \
   M(TypeConversion, Instruction)                                        \
 
 #define FOR_EACH_INSTRUCTION(M)                                         \
@@ -1052,7 +1059,7 @@ class HReturn : public HTemplateInstruction<1> {
 };
 
 // The exit instruction is the only instruction of the exit block.
-// Instructions aborting the method (HTrow and HReturn) must branch to the
+// Instructions aborting the method (HThrow and HReturn) must branch to the
 // exit block.
 class HExit : public HTemplateInstruction<0> {
  public:
@@ -1071,7 +1078,7 @@ class HGoto : public HTemplateInstruction<0> {
  public:
   HGoto() : HTemplateInstruction(SideEffects::None()) {}
 
-  virtual bool IsControlFlow() const { return true; }
+  bool IsControlFlow() const OVERRIDE { return true; }
 
   HBasicBlock* GetSuccessor() const {
     return GetBlock()->GetSuccessors().Get(0);
@@ -1092,7 +1099,7 @@ class HIf : public HTemplateInstruction<1> {
     SetRawInputAt(0, input);
   }
 
-  virtual bool IsControlFlow() const { return true; }
+  bool IsControlFlow() const OVERRIDE { return true; }
 
   HBasicBlock* IfTrueSuccessor() const {
     return GetBlock()->GetSuccessors().Get(0);
@@ -2282,6 +2289,38 @@ class HStaticFieldSet : public HTemplateInstruction<2> {
   const FieldInfo field_info_;
 
   DISALLOW_COPY_AND_ASSIGN(HStaticFieldSet);
+};
+
+// Implement the move-exception DEX instruction.
+class HLoadException : public HExpression<0> {
+ public:
+  HLoadException() : HExpression(Primitive::kPrimNot, SideEffects::None()) {}
+
+  DECLARE_INSTRUCTION(LoadException);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HLoadException);
+};
+
+class HThrow : public HTemplateInstruction<1> {
+ public:
+  HThrow(HInstruction* exception, uint32_t dex_pc)
+      : HTemplateInstruction(SideEffects::None()), dex_pc_(dex_pc) {
+    SetRawInputAt(0, exception);
+  }
+
+  bool IsControlFlow() const OVERRIDE { return true; }
+
+  bool NeedsEnvironment() const OVERRIDE { return true; }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(Throw);
+
+ private:
+  uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HThrow);
 };
 
 class MoveOperands : public ArenaObject<kArenaAllocMisc> {

@@ -2549,5 +2549,31 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+void LocationsBuilderX86_64::VisitLoadException(HLoadException* load) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorX86_64::VisitLoadException(HLoadException* load) {
+  Address address = Address::Absolute(
+      Thread::ExceptionOffset<kX86_64WordSize>().Int32Value(), true);
+  __ gs()->movl(load->GetLocations()->Out().As<CpuRegister>(), address);
+  __ gs()->movl(address, Immediate(0));
+}
+
+void LocationsBuilderX86_64::VisitThrow(HThrow* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+}
+
+void InstructionCodeGeneratorX86_64::VisitThrow(HThrow* instruction) {
+  __ gs()->call(
+        Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pDeliverException), true));
+  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+}
+
 }  // namespace x86_64
 }  // namespace art
