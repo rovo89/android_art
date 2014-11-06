@@ -65,7 +65,7 @@ ARM_ENTRY __memcmp16
 
 
         /* save registers */
-0:      stmfd       sp!, {r4, lr}
+0:      push        {r4, lr}
         .cfi_def_cfa_offset 8
         .cfi_rel_offset r4, 0
         .cfi_rel_offset lr, 4
@@ -79,7 +79,7 @@ ARM_ENTRY __memcmp16
         sub         r2, r2, #1
         subs        r0, r0, ip
         /* restore registers and return */
-        ldmnefd     sp!, {r4, lr}
+        popne       {r4, lr}
         bxne        lr
 
 
@@ -110,25 +110,25 @@ ARM_ENTRY __memcmp16
         eors        r0, r0, ip
         ldreq       r0, [r3], #4
         ldreq       ip, [r1, #4]!
-        eoreqs      r0, r0, lr
+        eorseq      r0, r0, lr
         ldreq       r0, [r3], #4
         ldreq       lr, [r1, #4]!
-        eoreqs      r0, r0, ip
+        eorseq      r0, r0, ip
         ldreq       r0, [r3], #4
         ldreq       ip, [r1, #4]!
-        eoreqs      r0, r0, lr
+        eorseq      r0, r0, lr
         ldreq       r0, [r3], #4
         ldreq       lr, [r1, #4]!
-        eoreqs      r0, r0, ip
+        eorseq      r0, r0, ip
         ldreq       r0, [r3], #4
         ldreq       ip, [r1, #4]!
-        eoreqs      r0, r0, lr
+        eorseq      r0, r0, lr
         ldreq       r0, [r3], #4
         ldreq       lr, [r1, #4]!
-        eoreqs      r0, r0, ip
+        eorseq      r0, r0, ip
         ldreq       r0, [r3], #4
         ldreq       ip, [r1, #4]!
-        eoreqs      r0, r0, lr
+        eorseq      r0, r0, lr
         bne         2f
         subs        r2, r2, #16
         bhs         0b
@@ -150,18 +150,24 @@ ARM_ENTRY __memcmp16
         bne         8f
         /* restore registers and return */
         mov         r0, #0
-        ldmfd       sp!, {r4, lr}
+        pop         {r4, lr}
+        .cfi_restore r4
+        .cfi_restore lr
+        .cfi_adjust_cfa_offset -8
         bx          lr
 
 2:      /* the last 2 words are different, restart them */
         ldrh        r0, [r3, #-4]
         ldrh        ip, [r1, #-4]
         subs        r0, r0, ip
-        ldreqh      r0, [r3, #-2]
-        ldreqh      ip, [r1, #-2]
-        subeqs      r0, r0, ip
+        ldrheq      r0, [r3, #-2]
+        ldrheq      ip, [r1, #-2]
+        subseq      r0, r0, ip
         /* restore registers and return */
-        ldmfd       sp!, {r4, lr}
+        pop         {r4, lr}
+        .cfi_restore r4
+        .cfi_restore lr
+        .cfi_adjust_cfa_offset -8
         bx          lr
 
         /* process the last few words */
@@ -173,7 +179,10 @@ ARM_ENTRY __memcmp16
         bne         8b
 
 9:      /* restore registers and return */
-        ldmfd       sp!, {r4, lr}
+        pop         {r4, lr}
+        .cfi_restore r4
+        .cfi_restore lr
+        .cfi_adjust_cfa_offset -8
         bx          lr
 
 
@@ -196,17 +205,17 @@ ARM_ENTRY __memcmp16
         ldreq       lr, [r1], #4
         ldreq       r0, [r3], #4
         orreq       ip, ip, lr, lsl #16
-        eoreqs      r0, r0, ip
+        eorseq      r0, r0, ip
         moveq       ip, lr, lsr #16
         ldreq       lr, [r1], #4
         ldreq       r0, [r3], #4
         orreq       ip, ip, lr, lsl #16
-        eoreqs      r0, r0, ip
+        eorseq      r0, r0, ip
         moveq       ip, lr, lsr #16
         ldreq       lr, [r1], #4
         ldreq       r0, [r3], #4
         orreq       ip, ip, lr, lsl #16
-        eoreqs      r0, r0, ip
+        eorseq      r0, r0, ip
         bne         7f
         subs        r2, r2, #8
         bhs         6b
