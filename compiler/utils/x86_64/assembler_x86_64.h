@@ -687,7 +687,11 @@ inline void X86_64Assembler::EmitInt32(int32_t value) {
 }
 
 inline void X86_64Assembler::EmitInt64(int64_t value) {
-  buffer_.Emit<int64_t>(value);
+  // Write this 64-bit value as two 32-bit words for alignment reasons
+  // (this is essentially when running on ARM, which does not allow
+  // 64-bit unaligned accesses).  We assume little-endianness here.
+  EmitInt32(Low32Bits(value));
+  EmitInt32(High32Bits(value));
 }
 
 inline void X86_64Assembler::EmitRegisterOperand(uint8_t rm, uint8_t reg) {
