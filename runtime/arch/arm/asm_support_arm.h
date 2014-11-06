@@ -24,6 +24,6 @@
 #define FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE 112
 
 // Flag for enabling R4 optimization in arm runtime
-#define ARM_R4_SUSPEND_FLAG
+// #define ARM_R4_SUSPEND_FLAG
 
 #endif  // ART_RUNTIME_ARCH_ARM_ASM_SUPPORT_ARM_H_
