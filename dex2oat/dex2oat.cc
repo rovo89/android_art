@@ -1275,6 +1275,7 @@ static int dex2oat(int argc, char** argv) {
                        &method_inliner_map,
                        thread_count)) {
     LOG(ERROR) << "Failed to create dex2oat";
+    timings.EndTiming();
     return EXIT_FAILURE;
   }
   std::unique_ptr<Dex2Oat> dex2oat(p_dex2oat);
@@ -1303,6 +1304,7 @@ static int dex2oat(int argc, char** argv) {
     if (image_classes.get() == nullptr) {
       LOG(ERROR) << "Failed to create list of image classes from '" << image_classes_filename <<
           "': " << error_msg;
+      timings.EndTiming();
       return EXIT_FAILURE;
     }
   } else if (image) {
@@ -1321,11 +1323,13 @@ static int dex2oat(int argc, char** argv) {
       if (zip_archive.get() == nullptr) {
         LOG(ERROR) << "Failed to open zip from file descriptor for '" << zip_location << "': "
             << error_msg;
+        timings.EndTiming();
         return EXIT_FAILURE;
       }
       if (!DexFile::OpenFromZip(*zip_archive.get(), zip_location, &error_msg, &dex_files)) {
         LOG(ERROR) << "Failed to open dex from file descriptor for zip file '" << zip_location
             << "': " << error_msg;
+        timings.EndTiming();
         return EXIT_FAILURE;
       }
       ATRACE_END();
@@ -1333,6 +1337,7 @@ static int dex2oat(int argc, char** argv) {
       size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, dex_files);
       if (failure_count > 0) {
         LOG(ERROR) << "Failed to open some dex files: " << failure_count;
+        timings.EndTiming();
         return EXIT_FAILURE;
       }
     }
@@ -1411,6 +1416,7 @@ static int dex2oat(int argc, char** argv) {
                                                                         key_value_store.get()));
   if (compiler.get() == nullptr) {
     LOG(ERROR) << "Failed to create oat file: " << oat_location;
+    timings.EndTiming();
     return EXIT_FAILURE;
   }
 
@@ -1474,6 +1480,7 @@ static int dex2oat(int argc, char** argv) {
                                                            oat_location,
                                                            *compiler.get());
     if (!image_creation_success) {
+      timings.EndTiming();
       return EXIT_FAILURE;
     }
     VLOG(compiler) << "Image written successfully: " << image_filename;
