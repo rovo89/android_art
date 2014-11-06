@@ -540,12 +540,14 @@ InstructionCodeGeneratorARM64::InstructionCodeGeneratorARM64(HGraph* graph,
   M(DivZeroCheck)                                          \
   M(FloatConstant)                                         \
   M(LoadClass)                                             \
+  M(LoadException)                                         \
   M(LoadString)                                            \
   M(Neg)                                                   \
   M(NewArray)                                              \
   M(ParallelMove)                                          \
   M(StaticFieldGet)                                        \
   M(StaticFieldSet)                                        \
+  M(Throw)                                                 \
   M(TypeConversion)                                        \
 
 #define UNIMPLEMENTED_INSTRUCTION_BREAK_CODE(name) name##UnimplementedInstructionBreakCode

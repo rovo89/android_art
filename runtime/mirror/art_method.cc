@@ -197,7 +197,7 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
   return DexFile::kDexNoIndex;
 }
 
-uintptr_t ArtMethod::ToNativeQuickPc(const uint32_t dex_pc) {
+uintptr_t ArtMethod::ToNativeQuickPc(const uint32_t dex_pc, bool abort_on_failure) {
   const void* entry_point = GetQuickOatEntryPoint();
   MappingTable table(
       entry_point != nullptr ? GetMappingTable(EntryPointToCodePointer(entry_point)) : nullptr);
@@ -219,9 +219,11 @@ uintptr_t ArtMethod::ToNativeQuickPc(const uint32_t dex_pc) {
       return reinterpret_cast<uintptr_t>(entry_point) + cur.NativePcOffset();
     }
   }
-  LOG(FATAL) << "Failed to find native offset for dex pc 0x" << std::hex << dex_pc
-             << " in " << PrettyMethod(this);
-  return 0;
+  if (abort_on_failure) {
+    LOG(FATAL) << "Failed to find native offset for dex pc 0x" << std::hex << dex_pc
+               << " in " << PrettyMethod(this);
+  }
+  return UINTPTR_MAX;
 }
 
 uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> exception_type,
