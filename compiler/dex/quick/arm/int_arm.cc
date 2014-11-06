@@ -1102,7 +1102,7 @@ LIR* ArmMir2Lir::OpTestSuspend(LIR* target) {
 #else
   RegStorage t_reg = AllocTemp();
   LoadBaseDisp(rs_rARM_SELF, Thread::ThreadFlagsOffset<4>().Int32Value(),
-    t_reg, kUnsignedHalf);
+    t_reg, kUnsignedHalf, kNotVolatile);
   LIR* cmp_branch = OpCmpImmBranch((target == NULL) ? kCondNe : kCondEq, t_reg,
     0, target);
   FreeTemp(t_reg);
