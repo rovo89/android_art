@@ -122,7 +122,7 @@ class HGraphBuilder : public ValueObject {
 
   void BuildCheckedDiv(uint16_t out_reg,
                        uint16_t first_reg,
-                       uint16_t second_reg,
+                       int32_t second_reg,  // can be a constant
                        uint32_t dex_offset,
                        Primitive::Type type,
                        bool second_is_lit);
