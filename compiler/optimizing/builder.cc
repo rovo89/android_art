@@ -273,6 +273,14 @@ void HGraphBuilder::Unop_12x(const Instruction& instruction, Primitive::Type typ
   UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
 }
 
+void HGraphBuilder::Conversion_12x(const Instruction& instruction,
+                                   Primitive::Type input_type,
+                                   Primitive::Type result_type) {
+  HInstruction* first = LoadLocal(instruction.VRegB(), input_type);
+  current_block_->AddInstruction(new (arena_) HTypeConversion(result_type, first));
+  UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+}
+
 template<typename T>
 void HGraphBuilder::Binop_23x(const Instruction& instruction, Primitive::Type type) {
   HInstruction* first = LoadLocal(instruction.VRegB(), type);
@@ -820,6 +828,11 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
 
     case Instruction::NOT_LONG: {
       Unop_12x<HNot>(instruction, Primitive::kPrimLong);
+      break;
+    }
+
+    case Instruction::INT_TO_LONG: {
+      Conversion_12x(instruction, Primitive::kPrimInt, Primitive::kPrimLong);
       break;
     }
 
