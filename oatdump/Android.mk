@@ -28,13 +28,6 @@ ifeq ($(ART_BUILD_TARGET_DEBUG),true)
   $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libcutils libartd-disassembler,art/disassembler,target,debug))
 endif
 
-ifeq ($(ART_BUILD_HOST_NDEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libart-disassembler,art/disassembler,host,ndebug))
-endif
-ifeq ($(ART_BUILD_HOST_DEBUG),true)
-  $(eval $(call build-art-executable,oatdump,$(OATDUMP_SRC_FILES),libartd-disassembler,art/disassembler,host,debug))
-endif
-
 ########################################################################
 # oatdump targets
 
