@@ -206,6 +206,11 @@ static bool IsInstructionSetSupported(InstructionSet instruction_set) {
       || instruction_set == kX86_64;
 }
 
+static bool CanOptimize(const DexFile::CodeItem& code_item) {
+  // TODO: We currently cannot optimize methods with try/catch.
+  return code_item.tries_size_ == 0;
+}
+
 CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_item,
                                                uint32_t access_flags,
                                                InvokeType invoke_type,
@@ -264,7 +269,9 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
 
   CodeVectorAllocator allocator;
 
-  if (run_optimizations_ && RegisterAllocator::CanAllocateRegistersFor(*graph, instruction_set)) {
+  if (run_optimizations_
+      && CanOptimize(*code_item)
+      && RegisterAllocator::CanAllocateRegistersFor(*graph, instruction_set)) {
     optimized_compiled_methods_++;
     graph->BuildDominatorTree();
     graph->TransformToSSA();
@@ -315,17 +322,19 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     unoptimized_compiled_methods_++;
     codegen->CompileBaseline(&allocator);
 
-    // Run these phases to get some test coverage.
-    graph->BuildDominatorTree();
-    graph->TransformToSSA();
-    visualizer.DumpGraph("ssa");
-    graph->FindNaturalLoops();
-    SsaRedundantPhiElimination(graph).Run();
-    SsaDeadPhiElimination(graph).Run();
-    GlobalValueNumberer(graph->GetArena(), graph).Run();
-    SsaLivenessAnalysis liveness(*graph, codegen);
-    liveness.Analyze();
-    visualizer.DumpGraph(kLivenessPassName);
+    if (CanOptimize(*code_item)) {
+      // Run these phases to get some test coverage.
+      graph->BuildDominatorTree();
+      graph->TransformToSSA();
+      visualizer.DumpGraph("ssa");
+      graph->FindNaturalLoops();
+      SsaRedundantPhiElimination(graph).Run();
+      SsaDeadPhiElimination(graph).Run();
+      GlobalValueNumberer(graph->GetArena(), graph).Run();
+      SsaLivenessAnalysis liveness(*graph, codegen);
+      liveness.Analyze();
+      visualizer.DumpGraph(kLivenessPassName);
+    }
 
     std::vector<uint8_t> mapping_table;
     SrcMap src_mapping_table;
