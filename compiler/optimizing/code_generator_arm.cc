@@ -2509,5 +2509,31 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+void LocationsBuilderARM::VisitLoadException(HLoadException* load) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(load, LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorARM::VisitLoadException(HLoadException* load) {
+  Register out = load->GetLocations()->Out().As<Register>();
+  int32_t offset = Thread::ExceptionOffset<kArmWordSize>().Int32Value();
+  __ LoadFromOffset(kLoadWord, out, TR, offset);
+  __ LoadImmediate(IP, 0);
+  __ StoreToOffset(kStoreWord, IP, TR, offset);
+}
+
+void LocationsBuilderARM::VisitThrow(HThrow* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+}
+
+void InstructionCodeGeneratorARM::VisitThrow(HThrow* instruction) {
+  codegen_->InvokeRuntime(
+      QUICK_ENTRY_POINT(pDeliverException), instruction, instruction->GetDexPc());
+}
+
 }  // namespace arm
 }  // namespace art

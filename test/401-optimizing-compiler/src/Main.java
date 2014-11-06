@@ -94,6 +94,14 @@ public class Main {
       exception = e;
     }
 
+    // Test that we do NPE checks on array length.
+    exception = null;
+    try {
+      $opt$ArrayLengthOfNull(null);
+    } catch (NullPointerException e) {
+      exception = e;
+    }
+
     if (exception == null) {
       throw new Error("Missing NullPointerException");
     }
@@ -216,6 +224,10 @@ public class Main {
 
   public int virtualMethod() {
     return 42;
+  }
+
+  public static int $opt$ArrayLengthOfNull(int[] array) {
+    return array.length;
   }
 
   Object o;

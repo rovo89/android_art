@@ -119,13 +119,6 @@ bool HGraphBuilder::InitializeParameters(uint16_t number_of_parameters) {
   return true;
 }
 
-static bool CanHandleCodeItem(const DexFile::CodeItem& code_item) {
-  if (code_item.tries_size_ > 0) {
-    return false;
-  }
-  return true;
-}
-
 template<typename T>
 void HGraphBuilder::If_22t(const Instruction& instruction, uint32_t dex_offset) {
   int32_t target_offset = instruction.GetTargetOffset();
@@ -164,10 +157,6 @@ void HGraphBuilder::If_21t(const Instruction& instruction, uint32_t dex_offset) 
 }
 
 HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
-  if (!CanHandleCodeItem(code_item)) {
-    return nullptr;
-  }
-
   const uint16_t* code_ptr = code_item.insns_;
   const uint16_t* code_end = code_item.insns_ + code_item.insns_size_in_code_units_;
   code_start_ = code_ptr;
@@ -186,6 +175,25 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
   // To avoid splitting blocks, we compute ahead of time the instructions that
   // start a new block, and create these blocks.
   ComputeBranchTargets(code_ptr, code_end);
+
+  // Also create blocks for catch handlers.
+  if (code_item.tries_size_ != 0) {
+    const uint8_t* handlers_ptr = DexFile::GetCatchHandlerData(code_item, 0);
+    uint32_t handlers_size = DecodeUnsignedLeb128(&handlers_ptr);
+    for (uint32_t idx = 0; idx < handlers_size; ++idx) {
+      CatchHandlerIterator iterator(handlers_ptr);
+      for (; iterator.HasNext(); iterator.Next()) {
+        uint32_t address = iterator.GetHandlerAddress();
+        HBasicBlock* block = FindBlockStartingAt(address);
+        if (block == nullptr) {
+          block = new (arena_) HBasicBlock(graph_, address);
+          branch_targets_.Put(address, block);
+        }
+        block->SetIsCatchBlock();
+      }
+      handlers_ptr = iterator.EndDataPointer();
+    }
+  }
 
   if (!InitializeParameters(code_item.ins_size_)) {
     return nullptr;
@@ -1217,6 +1225,10 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
 
     case Instruction::ARRAY_LENGTH: {
       HInstruction* object = LoadLocal(instruction.VRegB_12x(), Primitive::kPrimNot);
+      // No need for a temporary for the null check, it is the only input of the following
+      // instruction.
+      object = new (arena_) HNullCheck(object, dex_offset);
+      current_block_->AddInstruction(object);
       current_block_->AddInstruction(new (arena_) HArrayLength(object));
       UpdateLocal(instruction.VRegA_12x(), current_block_->GetLastInstruction());
       break;
@@ -1248,6 +1260,23 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       current_block_->AddInstruction(
           new (arena_) HLoadClass(instruction.VRegB_21c(), is_referrers_class, dex_offset));
       UpdateLocal(instruction.VRegA_21c(), current_block_->GetLastInstruction());
+      break;
+    }
+
+    case Instruction::MOVE_EXCEPTION: {
+      current_block_->AddInstruction(new (arena_) HLoadException());
+      UpdateLocal(instruction.VRegA_11x(), current_block_->GetLastInstruction());
+      break;
+    }
+
+    case Instruction::THROW: {
+      HInstruction* exception = LoadLocal(instruction.VRegA_11x(), Primitive::kPrimNot);
+      current_block_->AddInstruction(new (arena_) HThrow(exception, dex_offset));
+      // A throw instruction must branch to the exit block.
+      current_block_->AddSuccessor(exit_block_);
+      // We finished building this block. Set the current block to null to avoid
+      // adding dead instructions to it.
+      current_block_ = nullptr;
       break;
     }
 

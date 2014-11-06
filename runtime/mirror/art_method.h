@@ -453,7 +453,8 @@ class MANAGED ArtMethod FINAL : public Object {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Converts a dex PC to a native PC.
-  uintptr_t ToNativeQuickPc(const uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  uintptr_t ToNativeQuickPc(const uint32_t dex_pc, bool abort_on_failure = true)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Find the catch block for the given exception type and dex_pc. When a catch block is found,
   // indicates whether the found catch block is responsible for clearing the exception or whether

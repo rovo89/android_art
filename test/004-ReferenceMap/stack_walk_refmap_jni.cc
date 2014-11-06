@@ -19,10 +19,13 @@
 
 namespace art {
 
-#define CHECK_REGS_CONTAIN_REFS(native_pc_offset, ...) do { \
+#define CHECK_REGS_CONTAIN_REFS(dex_pc, abort_if_not_found, ...) do { \
   int t[] = {__VA_ARGS__}; \
   int t_size = sizeof(t) / sizeof(*t); \
-  CheckReferences(t, t_size, m->NativeQuickPcOffset(m->ToNativeQuickPc(native_pc_offset))); \
+  uintptr_t native_quick_pc = m->ToNativeQuickPc(dex_pc, abort_if_not_found); \
+  if (native_quick_pc != UINTPTR_MAX) { \
+    CheckReferences(t, t_size, m->NativeQuickPcOffset(native_quick_pc)); \
+  } \
 } while (false);
 
 struct ReferenceMap2Visitor : public CheckReferenceMapVisitor {
@@ -40,31 +43,33 @@ struct ReferenceMap2Visitor : public CheckReferenceMapVisitor {
     // we know the Dex registers with live reference values. Assert that what we
     // find is what is expected.
     if (m_name.compare("f") == 0) {
-      CHECK_REGS_CONTAIN_REFS(0x03U, 8);  // v8: this
-      CHECK_REGS_CONTAIN_REFS(0x06U, 8, 1);  // v8: this, v1: x
-      CHECK_REGS_CONTAIN_REFS(0x08U, 8, 3, 1);  // v8: this, v3: y, v1: x
-      CHECK_REGS_CONTAIN_REFS(0x0cU, 8, 3, 1);  // v8: this, v3: y, v1: x
-      CHECK_REGS_CONTAIN_REFS(0x0eU, 8, 3, 1);  // v8: this, v3: y, v1: x
-      CHECK_REGS_CONTAIN_REFS(0x10U, 8, 3, 1);  // v8: this, v3: y, v1: x
+      CHECK_REGS_CONTAIN_REFS(0x03U, true, 8);  // v8: this
+      CHECK_REGS_CONTAIN_REFS(0x06U, true, 8, 1);  // v8: this, v1: x
+      CHECK_REGS_CONTAIN_REFS(0x08U, true, 8, 3, 1);  // v8: this, v3: y, v1: x
+      CHECK_REGS_CONTAIN_REFS(0x0cU, true, 8, 3, 1);  // v8: this, v3: y, v1: x
+      CHECK_REGS_CONTAIN_REFS(0x0eU, true, 8, 3, 1);  // v8: this, v3: y, v1: x
+      CHECK_REGS_CONTAIN_REFS(0x10U, true, 8, 3, 1);  // v8: this, v3: y, v1: x
       // v2 is added because of the instruction at DexPC 0024. Object merges with 0 is Object. See:
       //   0024: move-object v3, v2
       //   0025: goto 0013
       // Detaled dex instructions for ReferenceMap.java are at the end of this function.
       // CHECK_REGS_CONTAIN_REFS(8, 3, 2, 1);  // v8: this, v3: y, v2: y, v1: x
-      // We eliminate the non-live registers at a return, so only v3 is live:
-      CHECK_REGS_CONTAIN_REFS(0x13U);  // v3: y
-      CHECK_REGS_CONTAIN_REFS(0x18U, 8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
-      CHECK_REGS_CONTAIN_REFS(0x1aU, 8, 5, 2, 1, 0);  // v8: this, v5: x[1], v2: y, v1: x, v0: ex
-      CHECK_REGS_CONTAIN_REFS(0x1dU, 8, 5, 2, 1, 0);  // v8: this, v5: x[1], v2: y, v1: x, v0: ex
+      // We eliminate the non-live registers at a return, so only v3 is live.
+      // Note that it is OK for a compiler to not have a dex map at this dex PC because
+      // a return is not a safepoint.
+      CHECK_REGS_CONTAIN_REFS(0x13U, false);  // v3: y
+      CHECK_REGS_CONTAIN_REFS(0x18U, true, 8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
+      CHECK_REGS_CONTAIN_REFS(0x1aU, true, 8, 5, 2, 1, 0);  // v8: this, v5: x[1], v2: y, v1: x, v0: ex
+      CHECK_REGS_CONTAIN_REFS(0x1dU, true, 8, 5, 2, 1, 0);  // v8: this, v5: x[1], v2: y, v1: x, v0: ex
       // v5 is removed from the root set because there is a "merge" operation.
       // See 0015: if-nez v2, 001f.
-      CHECK_REGS_CONTAIN_REFS(0x1fU, 8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
-      CHECK_REGS_CONTAIN_REFS(0x21U, 8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
-      CHECK_REGS_CONTAIN_REFS(0x27U, 8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
-      CHECK_REGS_CONTAIN_REFS(0x29U, 8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
-      CHECK_REGS_CONTAIN_REFS(0x2cU, 8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
-      CHECK_REGS_CONTAIN_REFS(0x2fU, 8, 4, 3, 2, 1);  // v8: this, v4: ex, v3: y, v2: y, v1: x
-      CHECK_REGS_CONTAIN_REFS(0x32U, 8, 3, 2, 1, 0);  // v8: this, v3: y, v2: y, v1: x, v0: ex
+      CHECK_REGS_CONTAIN_REFS(0x1fU, true, 8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
+      CHECK_REGS_CONTAIN_REFS(0x21U, true, 8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
+      CHECK_REGS_CONTAIN_REFS(0x27U, true, 8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
+      CHECK_REGS_CONTAIN_REFS(0x29U, true, 8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
+      CHECK_REGS_CONTAIN_REFS(0x2cU, true, 8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
+      CHECK_REGS_CONTAIN_REFS(0x2fU, true, 8, 4, 3, 2, 1);  // v8: this, v4: ex, v3: y, v2: y, v1: x
+      CHECK_REGS_CONTAIN_REFS(0x32U, true, 8, 3, 2, 1, 0);  // v8: this, v3: y, v2: y, v1: x, v0: ex
     }
 
     return true;
