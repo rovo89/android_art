@@ -257,7 +257,13 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
   //
   // The backwards walking ensures the ranges are ordered on increasing start positions.
   Location output = locations->Out();
-  if (output.IsRegister() || output.IsFpuRegister()) {
+  if (output.IsUnallocated() && output.GetPolicy() == Location::kSameAsFirstInput) {
+    Location first = locations->InAt(0);
+    if (first.IsRegister() || first.IsFpuRegister()) {
+      current->SetFrom(position + 1);
+      current->SetRegister(first.reg());
+    }
+  } else if (output.IsRegister() || output.IsFpuRegister()) {
     // Shift the interval's start by one to account for the blocked register.
     current->SetFrom(position + 1);
     current->SetRegister(output.reg());
@@ -1172,7 +1178,11 @@ void RegisterAllocator::Resolve() {
 
     if (location.IsUnallocated()) {
       if (location.GetPolicy() == Location::kSameAsFirstInput) {
-        locations->SetInAt(0, source);
+        if (locations->InAt(0).IsUnallocated()) {
+          locations->SetInAt(0, source);
+        } else {
+          DCHECK(locations->InAt(0).Equals(source));
+        }
       }
       locations->SetOut(source);
     } else {
