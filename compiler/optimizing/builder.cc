@@ -1046,11 +1046,6 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
-    case Instruction::DIV_INT_2ADDR: {
-      BuildCheckedDiv(instruction, dex_offset, Primitive::kPrimInt, false);
-      break;
-    }
-
     case Instruction::DIV_FLOAT_2ADDR: {
       Binop_12x<HDiv>(instruction, Primitive::kPrimFloat);
       break;
