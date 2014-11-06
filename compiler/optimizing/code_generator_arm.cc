@@ -373,9 +373,6 @@ void CodeGeneratorARM::SetupBlockedRegisters() const {
   blocked_core_registers_[LR] = true;
   blocked_core_registers_[PC] = true;
 
-  // Reserve R4 for suspend check.
-  blocked_core_registers_[R4] = true;
-
   // Reserve thread register.
   blocked_core_registers_[TR] = true;
 
@@ -385,6 +382,7 @@ void CodeGeneratorARM::SetupBlockedRegisters() const {
   // TODO: We currently don't use Quick's callee saved registers.
   // We always save and restore R6 and R7 to make sure we can use three
   // register pairs for long operations.
+  blocked_core_registers_[R4] = true;
   blocked_core_registers_[R5] = true;
   blocked_core_registers_[R8] = true;
   blocked_core_registers_[R10] = true;
@@ -2157,12 +2155,15 @@ void InstructionCodeGeneratorARM::GenerateSuspendCheck(HSuspendCheck* instructio
       new (GetGraph()->GetArena()) SuspendCheckSlowPathARM(instruction, successor);
   codegen_->AddSlowPath(slow_path);
 
-  __ subs(R4, R4, ShifterOperand(1));
+  __ LoadFromOffset(
+      kLoadUnsignedHalfword, IP, TR, Thread::ThreadFlagsOffset<kArmWordSize>().Int32Value());
+  __ cmp(IP, ShifterOperand(0));
+  // TODO: Figure out the branch offsets and use cbz/cbnz.
   if (successor == nullptr) {
-    __ b(slow_path->GetEntryLabel(), EQ);
+    __ b(slow_path->GetEntryLabel(), NE);
     __ Bind(slow_path->GetReturnLabel());
   } else {
-    __ b(codegen_->GetLabelOf(successor), NE);
+    __ b(codegen_->GetLabelOf(successor), EQ);
     __ b(slow_path->GetEntryLabel());
   }
 }
