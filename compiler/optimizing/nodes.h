@@ -516,6 +516,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(Sub, BinaryOperation)                                               \
   M(SuspendCheck, Instruction)                                          \
   M(Temporary, Instruction)                                             \
+  M(TypeConversion, Instruction)                                        \
 
 #define FOR_EACH_INSTRUCTION(M)                                         \
   FOR_EACH_CONCRETE_INSTRUCTION(M)                                      \
@@ -1759,6 +1760,28 @@ class HNot : public HUnaryOperation {
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HNot);
+};
+
+class HTypeConversion : public HExpression<1> {
+ public:
+  // Instantiate a type conversion of `input` to `result_type`.
+  HTypeConversion(Primitive::Type result_type, HInstruction* input)
+      : HExpression(result_type, SideEffects::None()) {
+    SetRawInputAt(0, input);
+    DCHECK_NE(input->GetType(), result_type);
+  }
+
+  HInstruction* GetInput() const { return InputAt(0); }
+  Primitive::Type GetInputType() const { return GetInput()->GetType(); }
+  Primitive::Type GetResultType() const { return GetType(); }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* /* other */) const OVERRIDE { return true; }
+
+  DECLARE_INSTRUCTION(TypeConversion);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HTypeConversion);
 };
 
 class HPhi : public HInstruction {

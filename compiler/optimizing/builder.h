@@ -116,6 +116,10 @@ class HGraphBuilder : public ValueObject {
   template<typename T> void If_21t(const Instruction& instruction, uint32_t dex_offset);
   template<typename T> void If_22t(const Instruction& instruction, uint32_t dex_offset);
 
+  void Conversion_12x(const Instruction& instruction,
+                      Primitive::Type input_type,
+                      Primitive::Type result_type);
+
   void BuildReturn(const Instruction& instruction, Primitive::Type type);
 
   // Builds an instance field access node and returns whether the instruction is supported.
