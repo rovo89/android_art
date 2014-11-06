@@ -552,4 +552,18 @@ TEST(CodegenTest, ReturnDivIntLit8) {
   TestCode(data, true, 1);
 }
 
+#if defined(__aarch64__)
+TEST(CodegenTest, DISABLED_ReturnDivInt2Addr) {
+#else
+TEST(CodegenTest, ReturnDivInt2Addr) {
+#endif
+  const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
+    Instruction::CONST_4 | 4 << 12 | 0,
+    Instruction::CONST_4 | 2 << 12 | 1 << 8,
+    Instruction::DIV_INT_2ADDR | 1 << 12,
+    Instruction::RETURN);
+
+  TestCode(data, true, 2);
+}
+
 }  // namespace art

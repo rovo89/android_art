@@ -537,16 +537,16 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   return true;
 }
 
-void HGraphBuilder::BuildCheckedDiv(const Instruction& instruction,
+void HGraphBuilder::BuildCheckedDiv(uint16_t out_reg,
+                                    uint16_t first_reg,
+                                    uint16_t second_reg,
                                     uint32_t dex_offset,
                                     Primitive::Type type,
                                     bool second_is_lit) {
   DCHECK(type == Primitive::kPrimInt);
 
-  HInstruction* first = LoadLocal(instruction.VRegB(), type);
-  HInstruction* second = second_is_lit
-      ? GetIntConstant(instruction.VRegC())
-      : LoadLocal(instruction.VRegC(), type);
+  HInstruction* first = LoadLocal(first_reg, type);
+  HInstruction* second = second_is_lit ? GetIntConstant(second_reg) : LoadLocal(second_reg, type);
   if (!second->IsIntConstant() || (second->AsIntConstant()->GetValue() == 0)) {
     second = new (arena_) HDivZeroCheck(second, dex_offset);
     Temporaries temps(graph_, 1);
@@ -555,7 +555,7 @@ void HGraphBuilder::BuildCheckedDiv(const Instruction& instruction,
   }
 
   current_block_->AddInstruction(new (arena_) HDiv(type, first, second));
-  UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+  UpdateLocal(out_reg, current_block_->GetLastInstruction());
 }
 
 void HGraphBuilder::BuildArrayAccess(const Instruction& instruction,
@@ -977,7 +977,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::DIV_INT: {
-      BuildCheckedDiv(instruction, dex_offset, Primitive::kPrimInt, false);
+      BuildCheckedDiv(instruction.VRegA(), instruction.VRegB(), instruction.VRegC(),
+                      dex_offset, Primitive::kPrimInt, false);
       break;
     }
 
@@ -1046,6 +1047,12 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::DIV_INT_2ADDR: {
+      BuildCheckedDiv(instruction.VRegA(), instruction.VRegA(), instruction.VRegB(),
+                      dex_offset, Primitive::kPrimInt, false);
+      break;
+    }
+
     case Instruction::DIV_FLOAT_2ADDR: {
       Binop_12x<HDiv>(instruction, Primitive::kPrimFloat);
       break;
@@ -1088,7 +1095,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
 
     case Instruction::DIV_INT_LIT16:
     case Instruction::DIV_INT_LIT8: {
-      BuildCheckedDiv(instruction, dex_offset, Primitive::kPrimInt, true);
+      BuildCheckedDiv(instruction.VRegA(), instruction.VRegB(), instruction.VRegC(),
+                      dex_offset, Primitive::kPrimInt, true);
       break;
     }
 
