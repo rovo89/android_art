@@ -332,9 +332,6 @@ TEST(ConstantFolding, IntConstantFoldingOnSubtraction) {
            check_after_cf);
 }
 
-#define SIX_REGISTERS_CODE_ITEM(...)                                     \
-    { 6, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
-
 /**
  * Tiny three-register-pair program exercising long constant folding
  * on addition.
