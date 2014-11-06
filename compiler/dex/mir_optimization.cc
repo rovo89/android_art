@@ -771,11 +771,11 @@ void MIRGraph::CombineBlocks(class BasicBlock* bb) {
     if ((df_attributes & DF_IFIELD) != 0) {
       // Combine only if fast, otherwise weird things can happen.
       const MirIFieldLoweringInfo& field_info = GetIFieldLoweringInfo(throw_insn);
-      ok = (df_attributes & DF_DA)  ? field_info.FastPut() : field_info.FastGet();
+      ok = (df_attributes & DF_DA)  ? field_info.FastGet() : field_info.FastPut();
     } else if ((df_attributes & DF_SFIELD) != 0) {
       // Combine only if fast, otherwise weird things can happen.
       const MirSFieldLoweringInfo& field_info = GetSFieldLoweringInfo(throw_insn);
-      bool fast = ((df_attributes & DF_DA)  ? field_info.FastPut() : field_info.FastGet());
+      bool fast = ((df_attributes & DF_DA)  ? field_info.FastGet() : field_info.FastPut());
       // Don't combine if the SGET/SPUT can call <clinit>().
       bool clinit = !field_info.IsClassInitialized() &&
           (throw_insn->optimization_flags & MIR_CLASS_IS_INITIALIZED) == 0;
