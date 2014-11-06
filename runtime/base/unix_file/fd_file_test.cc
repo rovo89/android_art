@@ -24,7 +24,7 @@ namespace unix_file {
 class FdFileTest : public RandomAccessFileTest {
  protected:
   virtual RandomAccessFile* MakeTestFile() {
-    return new FdFile(fileno(tmpfile()));
+    return new FdFile(fileno(tmpfile()), false);
   }
 };
 
@@ -53,6 +53,7 @@ TEST_F(FdFileTest, OpenClose) {
   ASSERT_TRUE(file.Open(good_path, O_CREAT | O_WRONLY));
   EXPECT_GE(file.Fd(), 0);
   EXPECT_TRUE(file.IsOpened());
+  EXPECT_EQ(0, file.Flush());
   EXPECT_EQ(0, file.Close());
   EXPECT_EQ(-1, file.Fd());
   EXPECT_FALSE(file.IsOpened());
@@ -60,7 +61,7 @@ TEST_F(FdFileTest, OpenClose) {
   EXPECT_GE(file.Fd(), 0);
   EXPECT_TRUE(file.IsOpened());
 
-  file.Close();
+  ASSERT_EQ(file.Close(), 0);
   ASSERT_EQ(unlink(good_path.c_str()), 0);
 }
 

@@ -895,6 +895,20 @@ static File* CreateOrOpen(const char* name, bool* created) {
   }
 }
 
+// Either try to close the file (close=true), or erase it.
+static bool FinishFile(File* file, bool close) {
+  if (close) {
+    if (file->FlushCloseOrErase() != 0) {
+      PLOG(ERROR) << "Failed to flush and close file.";
+      return false;
+    }
+    return true;
+  } else {
+    file->Erase();
+    return false;
+  }
+}
+
 static int patchoat(int argc, char **argv) {
   InitLogging(argv);
   MemMap::Init();
@@ -1166,7 +1180,7 @@ static int patchoat(int argc, char **argv) {
       if (output_image_filename.empty()) {
         output_image_filename = "output-image-file";
       }
-      output_image.reset(new File(output_image_fd, output_image_filename));
+      output_image.reset(new File(output_image_fd, output_image_filename, true));
     } else {
       CHECK(!output_image_filename.empty());
       output_image.reset(CreateOrOpen(output_image_filename.c_str(), &new_image_out));
@@ -1180,7 +1194,7 @@ static int patchoat(int argc, char **argv) {
       if (input_oat_filename.empty()) {
         input_oat_filename = "input-oat-file";
       }
-      input_oat.reset(new File(input_oat_fd, input_oat_filename));
+      input_oat.reset(new File(input_oat_fd, input_oat_filename, false));
       if (input_oat == nullptr) {
         // Unlikely, but ensure exhaustive logging in non-0 exit code case
         LOG(ERROR) << "Failed to open input oat file by its FD" << input_oat_fd;
@@ -1199,7 +1213,7 @@ static int patchoat(int argc, char **argv) {
       if (output_oat_filename.empty()) {
         output_oat_filename = "output-oat-file";
       }
-      output_oat.reset(new File(output_oat_fd, output_oat_filename));
+      output_oat.reset(new File(output_oat_fd, output_oat_filename, true));
       if (output_oat == nullptr) {
         // Unlikely, but ensure exhaustive logging in non-0 exit code case
         LOG(ERROR) << "Failed to open output oat file by its FD" << output_oat_fd;
@@ -1272,14 +1286,20 @@ static int patchoat(int argc, char **argv) {
                           output_oat.get(), output_image.get(), isa, &timings,
                           output_oat_fd >= 0,  // was it opened from FD?
                           new_oat_out);
+    // The order here doesn't matter. If the first one is successfully saved and the second one
+    // erased, ImageSpace will still detect a problem and not use the files.
+    ret = ret && FinishFile(output_image.get(), ret);
+    ret = ret && FinishFile(output_oat.get(), ret);
   } else if (have_oat_files) {
     TimingLogger::ScopedTiming pt("patch oat", &timings);
     ret = PatchOat::Patch(input_oat.get(), base_delta, output_oat.get(), &timings,
                           output_oat_fd >= 0,  // was it opened from FD?
                           new_oat_out);
+    ret = ret && FinishFile(output_oat.get(), ret);
   } else if (have_image_files) {
     TimingLogger::ScopedTiming pt("patch image", &timings);
     ret = PatchOat::Patch(input_image_location, base_delta, output_image.get(), isa, &timings);
+    ret = ret && FinishFile(output_image.get(), ret);
   } else {
     CHECK(false);
     ret = true;

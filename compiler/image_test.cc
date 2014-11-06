@@ -102,13 +102,16 @@ TEST_F(ImageTest, WriteRead) {
     ASSERT_TRUE(success_image);
     bool success_fixup = ElfFixup::Fixup(dup_oat.get(), writer.GetOatDataBegin());
     ASSERT_TRUE(success_fixup);
+
+    ASSERT_EQ(dup_oat->FlushCloseOrErase(), 0) << "Could not flush and close oat file "
+                                               << oat_file.GetFilename();
   }
 
   {
     std::unique_ptr<File> file(OS::OpenFileForReading(image_file.GetFilename().c_str()));
     ASSERT_TRUE(file.get() != NULL);
     ImageHeader image_header;
-    file->ReadFully(&image_header, sizeof(image_header));
+    ASSERT_EQ(file->ReadFully(&image_header, sizeof(image_header)), true);
     ASSERT_TRUE(image_header.IsValid());
     ASSERT_GE(image_header.GetImageBitmapOffset(), sizeof(image_header));
     ASSERT_NE(0U, image_header.GetImageBitmapSize());

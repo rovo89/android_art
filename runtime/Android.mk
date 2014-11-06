@@ -295,6 +295,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   arch/x86_64/registers_x86_64.h \
   base/allocator.h \
   base/mutex.h \
+  base/unix_file/fd_file.h \
   dex_file.h \
   dex_instruction.h \
   gc/collector/gc_type.h \
