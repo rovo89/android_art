@@ -1776,7 +1776,7 @@ class HTypeConversion : public HExpression<1> {
   Primitive::Type GetResultType() const { return GetType(); }
 
   bool CanBeMoved() const OVERRIDE { return true; }
-  bool InstructionDataEquals(HInstruction* /* other */) const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE { return true; }
 
   DECLARE_INSTRUCTION(TypeConversion);
 

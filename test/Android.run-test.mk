@@ -308,6 +308,7 @@ TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
 # Known broken tests for the arm64 optimizing compiler backend.
 TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   001-HelloWorld \
+  002-sleep \
   003-omnibus-opcodes \
   004-InterfaceTest \
   004-JniTest \
