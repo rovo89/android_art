@@ -409,6 +409,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   700-LoadArgRegs \
   701-easy-div-rem \
   702-LargeBranchOffset \
+  707-floating-point-div \
   800-smali
 
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
