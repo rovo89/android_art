@@ -17,8 +17,8 @@
 #ifndef ART_RUNTIME_ENTRYPOINTS_QUICK_CALLEE_SAVE_FRAME_H_
 #define ART_RUNTIME_ENTRYPOINTS_QUICK_CALLEE_SAVE_FRAME_H_
 
+#include "arch/instruction_set.h"
 #include "base/mutex.h"
-#include "instruction_set.h"
 #include "runtime.h"
 #include "thread-inl.h"
 

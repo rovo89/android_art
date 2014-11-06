@@ -15,10 +15,12 @@
  */
 
 #include "oat.h"
-#include "utils.h"
 
 #include <string.h>
 #include <zlib.h>
+
+#include "arch/instruction_set_features.h"
+#include "utils.h"
 
 namespace art {
 

@@ -26,11 +26,11 @@
 #include <utility>
 #include <vector>
 
+#include "arch/instruction_set.h"
 #include "base/allocator.h"
 #include "compiler_callbacks.h"
 #include "gc_root.h"
 #include "instrumentation.h"
-#include "instruction_set.h"
 #include "jobject_comparator.h"
 #include "object_callbacks.h"
 #include "offsets.h"

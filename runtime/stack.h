@@ -20,8 +20,8 @@
 #include <stdint.h>
 #include <string>
 
+#include "arch/instruction_set.h"
 #include "dex_file.h"
-#include "instruction_set.h"
 #include "mirror/object_reference.h"
 #include "throw_location.h"
 #include "utils.h"

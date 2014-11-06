@@ -16,6 +16,7 @@
 
 #include "common_compiler_test.h"
 
+#include "arch/instruction_set_features.h"
 #include "class_linker.h"
 #include "compiled_method.h"
 #include "dex/quick_compiler_callbacks.h"

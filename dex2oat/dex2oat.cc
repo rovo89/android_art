@@ -31,8 +31,9 @@
 #endif
 
 #define ATRACE_TAG ATRACE_TAG_DALVIK
-#include "cutils/trace.h"
+#include <cutils/trace.h>
 
+#include "arch/instruction_set_features.h"
 #include "base/dumpable.h"
 #include "base/stl_util.h"
 #include "base/stringpiece.h"
@@ -577,11 +578,18 @@ class Dex2Oat FINAL {
         }
       } else if (option.starts_with("--instruction-set-features=")) {
         StringPiece str = option.substr(strlen("--instruction-set-features=")).data();
-        instruction_set_features_.reset(
-            InstructionSetFeatures::FromFeatureString(instruction_set_, str.as_string(),
-                                                      &error_msg));
         if (instruction_set_features_.get() == nullptr) {
-          Usage("%s", error_msg.c_str());
+          instruction_set_features_.reset(
+              InstructionSetFeatures::FromVariant(instruction_set_, "default", &error_msg));
+          if (instruction_set_features_.get() == nullptr) {
+            Usage("Problem initializing default instruction set features variant: %s",
+                  error_msg.c_str());
+          }
+        }
+        instruction_set_features_.reset(
+            instruction_set_features_->AddFeaturesFromString(str.as_string(), &error_msg));
+        if (instruction_set_features_.get() == nullptr) {
+          Usage("Error parsing '%s': %s", option.data(), error_msg.c_str());
         }
       } else if (option.starts_with("--compiler-backend=")) {
         StringPiece backend_str = option.substr(strlen("--compiler-backend=")).data();
@@ -802,7 +810,11 @@ class Dex2Oat FINAL {
     // instruction set.
     if (instruction_set_features_.get() == nullptr) {
       instruction_set_features_.reset(
-          InstructionSetFeatures::FromFeatureString(instruction_set_, "default", &error_msg));
+          InstructionSetFeatures::FromVariant(instruction_set_, "default", &error_msg));
+      if (instruction_set_features_.get() == nullptr) {
+        Usage("Problem initializing default instruction set features variant: %s",
+              error_msg.c_str());
+      }
     }
 
     if (instruction_set_ == kRuntimeISA) {
