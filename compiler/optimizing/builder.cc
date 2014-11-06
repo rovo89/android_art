@@ -547,7 +547,7 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
 
 void HGraphBuilder::BuildCheckedDiv(uint16_t out_reg,
                                     uint16_t first_reg,
-                                    uint16_t second_reg,
+                                    int32_t second_reg,
                                     uint32_t dex_offset,
                                     Primitive::Type type,
                                     bool second_is_lit) {
