@@ -31,6 +31,7 @@
 #include "prepare_for_register_allocation.h"
 #include "register_allocator.h"
 #include "ssa_liveness_analysis.h"
+#include "utils.h"
 
 #include "gtest/gtest.h"
 
@@ -56,24 +57,26 @@ class InternalCodeAllocator : public CodeAllocator {
   DISALLOW_COPY_AND_ASSIGN(InternalCodeAllocator);
 };
 
+template <typename Expected>
 static void Run(const InternalCodeAllocator& allocator,
                 const CodeGenerator& codegen,
                 bool has_result,
-                int32_t expected) {
-  typedef int32_t (*fptr)();
+                Expected expected) {
+  typedef Expected (*fptr)();
   CommonCompilerTest::MakeExecutable(allocator.GetMemory(), allocator.GetSize());
   fptr f = reinterpret_cast<fptr>(allocator.GetMemory());
   if (codegen.GetInstructionSet() == kThumb2) {
     // For thumb we need the bottom bit set.
     f = reinterpret_cast<fptr>(reinterpret_cast<uintptr_t>(f) + 1);
   }
-  int32_t result = f();
+  Expected result = f();
   if (has_result) {
     ASSERT_EQ(result, expected);
   }
 }
 
-static void RunCodeBaseline(HGraph* graph, bool has_result, int32_t expected) {
+template <typename Expected>
+static void RunCodeBaseline(HGraph* graph, bool has_result, Expected expected) {
   InternalCodeAllocator allocator;
 
   x86::CodeGeneratorX86 codegenX86(graph);
@@ -103,11 +106,12 @@ static void RunCodeBaseline(HGraph* graph, bool has_result, int32_t expected) {
   }
 }
 
+template <typename Expected>
 static void RunCodeOptimized(CodeGenerator* codegen,
                              HGraph* graph,
                              std::function<void(HGraph*)> hook_before_codegen,
                              bool has_result,
-                             int32_t expected) {
+                             Expected expected) {
   SsaLivenessAnalysis liveness(*graph, codegen);
   liveness.Analyze();
 
@@ -120,10 +124,11 @@ static void RunCodeOptimized(CodeGenerator* codegen,
   Run(allocator, *codegen, has_result, expected);
 }
 
+template <typename Expected>
 static void RunCodeOptimized(HGraph* graph,
                              std::function<void(HGraph*)> hook_before_codegen,
                              bool has_result,
-                             int32_t expected) {
+                             Expected expected) {
   if (kRuntimeISA == kX86) {
     x86::CodeGeneratorX86 codegenX86(graph);
     RunCodeOptimized(&codegenX86, graph, hook_before_codegen, has_result, expected);
@@ -140,6 +145,18 @@ static void TestCode(const uint16_t* data, bool has_result = false, int32_t expe
   ArenaPool pool;
   ArenaAllocator arena(&pool);
   HGraphBuilder builder(&arena);
+  const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
+  HGraph* graph = builder.BuildGraph(*item);
+  ASSERT_NE(graph, nullptr);
+  // Remove suspend checks, they cannot be executed in this context.
+  RemoveSuspendChecks(graph);
+  RunCodeBaseline(graph, has_result, expected);
+}
+
+static void TestCodeLong(const uint16_t* data, bool has_result, int64_t expected) {
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
+  HGraphBuilder builder(&arena, Primitive::kPrimLong);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   HGraph* graph = builder.BuildGraph(*item);
   ASSERT_NE(graph, nullptr);
@@ -272,8 +289,8 @@ TEST(CodegenTest, ReturnIf2) {
 #define NOT_INT_TEST(TEST_NAME, INPUT, EXPECTED_OUTPUT) \
 TEST(CodegenTest, TEST_NAME) {                          \
   const int32_t input = INPUT;                          \
-  const uint16_t input_lo = input & 0x0000FFFF;         \
-  const uint16_t input_hi = input >> 16;                \
+  const uint16_t input_lo = Low16Bits(input);           \
+  const uint16_t input_hi = High16Bits(input);          \
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(      \
       Instruction::CONST | 0 << 8, input_lo, input_hi,  \
       Instruction::NOT_INT | 1 << 8 | 0 << 12 ,         \
@@ -286,12 +303,64 @@ NOT_INT_TEST(ReturnNotIntMinus2, -2, 1)
 NOT_INT_TEST(ReturnNotIntMinus1, -1, 0)
 NOT_INT_TEST(ReturnNotInt0, 0, -1)
 NOT_INT_TEST(ReturnNotInt1, 1, -2)
-NOT_INT_TEST(ReturnNotIntINT_MIN, -2147483648, 2147483647)  // (2^31) - 1
-NOT_INT_TEST(ReturnNotIntINT_MINPlus1, -2147483647, 2147483646)  // (2^31) - 2
-NOT_INT_TEST(ReturnNotIntINT_MAXMinus1, 2147483646, -2147483647)  // -(2^31) - 1
-NOT_INT_TEST(ReturnNotIntINT_MAX, 2147483647, -2147483648)  // -(2^31)
+NOT_INT_TEST(ReturnNotIntINT32_MIN, -2147483648, 2147483647)  // (2^31) - 1
+NOT_INT_TEST(ReturnNotIntINT32_MINPlus1, -2147483647, 2147483646)  // (2^31) - 2
+NOT_INT_TEST(ReturnNotIntINT32_MAXMinus1, 2147483646, -2147483647)  // -(2^31) - 1
+NOT_INT_TEST(ReturnNotIntINT32_MAX, 2147483647, -2147483648)  // -(2^31)
 
 #undef NOT_INT_TEST
+
+// Exercise bit-wise (one's complement) not-long instruction.
+#define NOT_LONG_TEST(TEST_NAME, INPUT, EXPECTED_OUTPUT)                 \
+TEST(CodegenTest, TEST_NAME) {                                           \
+  const int64_t input = INPUT;                                           \
+  const uint16_t word0 = Low16Bits(Low32Bits(input));   /* LSW. */       \
+  const uint16_t word1 = High16Bits(Low32Bits(input));                   \
+  const uint16_t word2 = Low16Bits(High32Bits(input));                   \
+  const uint16_t word3 = High16Bits(High32Bits(input)); /* MSW. */       \
+  const uint16_t data[] = FOUR_REGISTERS_CODE_ITEM(                      \
+      Instruction::CONST_WIDE | 0 << 8, word0, word1, word2, word3,      \
+      Instruction::NOT_LONG | 2 << 8 | 0 << 12,                          \
+      Instruction::RETURN_WIDE | 2 << 8);                                \
+                                                                         \
+  TestCodeLong(data, true, EXPECTED_OUTPUT);                             \
+}
+
+NOT_LONG_TEST(ReturnNotLongMinus2, INT64_C(-2), INT64_C(1))
+NOT_LONG_TEST(ReturnNotLongMinus1, INT64_C(-1), INT64_C(0))
+NOT_LONG_TEST(ReturnNotLong0, INT64_C(0), INT64_C(-1))
+NOT_LONG_TEST(ReturnNotLong1, INT64_C(1), INT64_C(-2))
+
+NOT_LONG_TEST(ReturnNotLongINT32_MIN,
+              INT64_C(-2147483648),
+              INT64_C(2147483647))  // (2^31) - 1
+NOT_LONG_TEST(ReturnNotLongINT32_MINPlus1,
+              INT64_C(-2147483647),
+              INT64_C(2147483646))  // (2^31) - 2
+NOT_LONG_TEST(ReturnNotLongINT32_MAXMinus1,
+              INT64_C(2147483646),
+              INT64_C(-2147483647))  // -(2^31) - 1
+NOT_LONG_TEST(ReturnNotLongINT32_MAX,
+              INT64_C(2147483647),
+              INT64_C(-2147483648))  // -(2^31)
+
+// Note that the C++ compiler won't accept
+// INT64_C(-9223372036854775808) (that is, INT64_MIN) as a valid
+// int64_t literal, so we use INT64_C(-9223372036854775807)-1 instead.
+NOT_LONG_TEST(ReturnNotINT64_MIN,
+              INT64_C(-9223372036854775807)-1,
+              INT64_C(9223372036854775807));  // (2^63) - 1
+NOT_LONG_TEST(ReturnNotINT64_MINPlus1,
+              INT64_C(-9223372036854775807),
+              INT64_C(9223372036854775806));  // (2^63) - 2
+NOT_LONG_TEST(ReturnNotLongINT64_MAXMinus1,
+              INT64_C(9223372036854775806),
+              INT64_C(-9223372036854775807));  // -(2^63) - 1
+NOT_LONG_TEST(ReturnNotLongINT64_MAX,
+              INT64_C(9223372036854775807),
+              INT64_C(-9223372036854775807)-1);  // -(2^63)
+
+#undef NOT_LONG_TEST
 
 TEST(CodegenTest, ReturnAdd1) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
