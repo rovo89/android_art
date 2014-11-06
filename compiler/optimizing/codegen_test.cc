@@ -543,4 +543,13 @@ TEST(CodegenTest, MaterializedCondition2) {
   }
 }
 
+TEST(CodegenTest, ReturnDivIntLit8) {
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 4 << 12 | 0 << 8,
+    Instruction::DIV_INT_LIT8, 3 << 8 | 0,
+    Instruction::RETURN);
+
+  TestCode(data, true, 1);
+}
+
 }  // namespace art
