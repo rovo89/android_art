@@ -18,6 +18,12 @@
 // it does compile the method.
 public class Main {
 
+  public static void expectEquals(int expected, int result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
   public static void expectEquals(float expected, float result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);
@@ -60,13 +66,49 @@ public class Main {
     }
   }
 
+  public static void expectDivisionByZero(int value) {
+    try {
+      $opt$Div(value, 0);
+      throw new Error("Expected RuntimeException when dividing by 0");
+    } catch (java.lang.RuntimeException e) {
+    }
+    try {
+      $opt$DivZero(value);
+      throw new Error("Expected RuntimeException when dividing by 0");
+    } catch (java.lang.RuntimeException e) {
+    }
+  }
   public static void main(String[] args) {
     div();
   }
 
   public static void div() {
+    divInt();
     divFloat();
     divDouble();
+  }
+
+  private static void divInt() {
+    expectEquals(2, $opt$DivLit(6));
+    expectEquals(2, $opt$Div(6, 3));
+    expectEquals(6, $opt$Div(6, 1));
+    expectEquals(-2, $opt$Div(6, -3));
+    expectEquals(1, $opt$Div(4, 3));
+    expectEquals(-1, $opt$Div(4, -3));
+    expectEquals(5, $opt$Div(23, 4));
+    expectEquals(-5, $opt$Div(-23, 4));
+
+    expectEquals(-Integer.MAX_VALUE, $opt$Div(Integer.MAX_VALUE, -1));
+    expectEquals(Integer.MIN_VALUE, $opt$Div(Integer.MIN_VALUE, -1)); // overflow
+    expectEquals(-1073741824, $opt$Div(Integer.MIN_VALUE, 2));
+
+    expectEquals(0, $opt$Div(0, Integer.MAX_VALUE));
+    expectEquals(0, $opt$Div(0, Integer.MIN_VALUE));
+
+    expectDivisionByZero(0);
+    expectDivisionByZero(1);
+    expectDivisionByZero(Integer.MAX_VALUE);
+    expectDivisionByZero(Integer.MIN_VALUE);
   }
 
   private static void divFloat() {
@@ -125,6 +167,19 @@ public class Main {
     expectEquals(Float.NEGATIVE_INFINITY, $opt$Div(-3D, 0D));
     expectEquals(Float.POSITIVE_INFINITY, $opt$Div(Float.MAX_VALUE, Float.MIN_VALUE));
     expectEquals(Float.NEGATIVE_INFINITY, $opt$Div(-Float.MAX_VALUE, Float.MIN_VALUE));
+  }
+
+  static int $opt$Div(int a, int b) {
+    return a / b;
+  }
+
+  static int $opt$DivZero(int a) {
+    return a / 0;
+  }
+
+  // Division by literals != 0 should not generate checks.
+  static int $opt$DivLit(int a) {
+    return a / 3;
   }
 
   static float $opt$Div(float a, float b) {

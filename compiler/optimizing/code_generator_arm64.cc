@@ -537,6 +537,7 @@ InstructionCodeGeneratorARM64::InstructionCodeGeneratorARM64(HGraph* graph,
   M(ClinitCheck)                                           \
   M(DoubleConstant)                                        \
   M(Div)                                                   \
+  M(DivZeroCheck)                                          \
   M(FloatConstant)                                         \
   M(LoadClass)                                             \
   M(LoadString)                                            \

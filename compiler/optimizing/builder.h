@@ -120,6 +120,11 @@ class HGraphBuilder : public ValueObject {
                       Primitive::Type input_type,
                       Primitive::Type result_type);
 
+  void BuildCheckedDiv(const Instruction& instruction,
+                       uint32_t dex_offset,
+                       Primitive::Type type,
+                       bool second_is_lit);
+
   void BuildReturn(const Instruction& instruction, Primitive::Type type);
 
   // Builds an instance field access node and returns whether the instruction is supported.
@@ -149,6 +154,8 @@ class HGraphBuilder : public ValueObject {
                            bool is_range,
                            uint32_t* args,
                            uint32_t register_index);
+
+  void BuildFillArrayData(const Instruction& instruction, uint32_t dex_offset);
 
   // Fills the given object with data as specified in the fill-array-data
   // instruction. Currently only used for non-reference and non-floating point
