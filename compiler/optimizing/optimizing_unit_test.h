@@ -30,17 +30,17 @@ namespace art {
 #define NUM_INSTRUCTIONS(...)  \
   (sizeof((uint16_t[]) {__VA_ARGS__}) /sizeof(uint16_t))
 
-#define ZERO_REGISTER_CODE_ITEM(...)                                       \
-    { 0, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
+#define N_REGISTERS_CODE_ITEM(NUM_REGS, ...)                            \
+    { NUM_REGS, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
 
-#define ONE_REGISTER_CODE_ITEM(...)                                        \
-    { 1, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
+#define ZERO_REGISTER_CODE_ITEM(...)   N_REGISTERS_CODE_ITEM(0, __VA_ARGS__)
+#define ONE_REGISTER_CODE_ITEM(...)    N_REGISTERS_CODE_ITEM(1, __VA_ARGS__)
+#define TWO_REGISTERS_CODE_ITEM(...)   N_REGISTERS_CODE_ITEM(2, __VA_ARGS__)
+#define THREE_REGISTERS_CODE_ITEM(...) N_REGISTERS_CODE_ITEM(3, __VA_ARGS__)
+#define FOUR_REGISTERS_CODE_ITEM(...)  N_REGISTERS_CODE_ITEM(4, __VA_ARGS__)
+#define FIVE_REGISTERS_CODE_ITEM(...)  N_REGISTERS_CODE_ITEM(5, __VA_ARGS__)
+#define SIX_REGISTERS_CODE_ITEM(...)   N_REGISTERS_CODE_ITEM(6, __VA_ARGS__)
 
-#define TWO_REGISTERS_CODE_ITEM(...)                                       \
-    { 2, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
-
-#define THREE_REGISTERS_CODE_ITEM(...)                                     \
-    { 3, 0, 0, 0, 0, 0, NUM_INSTRUCTIONS(__VA_ARGS__), 0, __VA_ARGS__ }
 
 LiveInterval* BuildInterval(const size_t ranges[][2],
                             size_t number_of_ranges,
