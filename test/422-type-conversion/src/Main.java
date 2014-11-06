@@ -25,7 +25,31 @@ public class Main {
   }
 
   public static void main(String[] args) {
+    byteToLong();
+    shortToLong();
     intToLong();
+  }
+
+  private static void byteToLong() {
+    assertEquals(1L, $opt$ByteToLong((byte)1));
+    assertEquals(0L, $opt$ByteToLong((byte)0));
+    assertEquals(-1L, $opt$ByteToLong((byte)-1));
+    assertEquals(51L, $opt$ByteToLong((byte)51));
+    assertEquals(-51L, $opt$ByteToLong((byte)-51));
+    assertEquals(127L, $opt$ByteToLong((byte)127));  // (2^7) - 1
+    assertEquals(-127L, $opt$ByteToLong((byte)-127));  // -(2^7) - 1
+    assertEquals(-128L, $opt$ByteToLong((byte)-128));  // -(2^7)
+  }
+
+  private static void shortToLong() {
+    assertEquals(1L, $opt$ShortToLong((short)1));
+    assertEquals(0L, $opt$ShortToLong((short)0));
+    assertEquals(-1L, $opt$ShortToLong((short)-1));
+    assertEquals(51L, $opt$ShortToLong((short)51));
+    assertEquals(-51L, $opt$ShortToLong((short)-51));
+    assertEquals(32767L, $opt$ShortToLong((short)32767));  // (2^15) - 1
+    assertEquals(-32767L, $opt$ShortToLong((short)-32767));  // -(2^15) - 1
+    assertEquals(-32768L, $opt$ShortToLong((short)-32768));  // -(2^15)
   }
 
   private static void intToLong() {
@@ -39,7 +63,18 @@ public class Main {
     assertEquals(-2147483648L, $opt$IntToLong(-2147483648));  // -(2^31)
   }
 
-  static long $opt$IntToLong(int a){
+  static long $opt$ByteToLong(byte a) {
+    // Translates to an int-to-long Dex instruction.
+    return a;
+  }
+
+  static long $opt$ShortToLong(short a) {
+    // Translates to an int-to-long Dex instruction.
+    return a;
+  }
+
+  static long $opt$IntToLong(int a) {
+    // Translates to an int-to-long Dex instruction.
     return a;
   }
 }
