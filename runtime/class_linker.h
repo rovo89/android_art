@@ -117,9 +117,10 @@ class ClassLinker {
                            Handle<mirror::ClassLoader> class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Find a class in the path class loader, loading it if necessary.
+  // Find a class in the path class loader, loading it if necessary. Hash function is supposed to
+  // be ComputeModifiedUtf8Hash(descriptor).
   mirror::Class* FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
-                                            Thread* self, const char* descriptor,
+                                            Thread* self, const char* descriptor, size_t hash,
                                             Handle<mirror::ClassLoader> class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -138,14 +139,14 @@ class ClassLinker {
   }
 
   // Define a new a class based on a ClassDef from a DexFile
-  mirror::Class* DefineClass(Thread* self, const char* descriptor,
+  mirror::Class* DefineClass(Thread* self, const char* descriptor, size_t hash,
                              Handle<mirror::ClassLoader> class_loader,
                              const DexFile& dex_file, const DexFile::ClassDef& dex_class_def)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Finds a class by its descriptor, returning NULL if it isn't wasn't loaded
   // by the given 'class_loader'.
-  mirror::Class* LookupClass(Thread* self, const char* descriptor,
+  mirror::Class* LookupClass(Thread* self, const char* descriptor, size_t hash,
                              mirror::ClassLoader* class_loader)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -499,7 +500,7 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 
-  mirror::Class* CreateArrayClass(Thread* self, const char* descriptor,
+  mirror::Class* CreateArrayClass(Thread* self, const char* descriptor, size_t hash,
                                   Handle<mirror::ClassLoader> class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

@@ -36,14 +36,16 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
   }
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
   std::string descriptor(DotToDescriptor(name.c_str()));
-  mirror::Class* c = cl->LookupClass(soa.Self(), descriptor.c_str(), loader);
+  const size_t descriptor_hash = ComputeModifiedUtf8Hash(descriptor.c_str());
+  mirror::Class* c = cl->LookupClass(soa.Self(), descriptor.c_str(), descriptor_hash, loader);
   if (c != nullptr && c->IsResolved()) {
     return soa.AddLocalReference<jclass>(c);
   }
   if (loader != nullptr) {
     // Try the common case.
     StackHandleScope<1> hs(soa.Self());
-    c = cl->FindClassInPathClassLoader(soa, soa.Self(), descriptor.c_str(), hs.NewHandle(loader));
+    c = cl->FindClassInPathClassLoader(soa, soa.Self(), descriptor.c_str(), descriptor_hash,
+                                       hs.NewHandle(loader));
     if (c != nullptr) {
       return soa.AddLocalReference<jclass>(c);
     }
