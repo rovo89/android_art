@@ -64,10 +64,6 @@ class Temporaries : public ValueObject {
   size_t index_;
 };
 
-static bool IsTypeSupported(Primitive::Type type) {
-  return type != Primitive::kPrimFloat && type != Primitive::kPrimDouble;
-}
-
 void HGraphBuilder::InitializeLocals(uint16_t count) {
   graph_->SetNumberOfVRegs(count);
   locals_.SetSize(count);
@@ -78,10 +74,10 @@ void HGraphBuilder::InitializeLocals(uint16_t count) {
   }
 }
 
-bool HGraphBuilder::InitializeParameters(uint16_t number_of_parameters) {
+void HGraphBuilder::InitializeParameters(uint16_t number_of_parameters) {
   // dex_compilation_unit_ is null only when unit testing.
   if (dex_compilation_unit_ == nullptr) {
-    return true;
+    return;
   }
 
   graph_->SetNumberOfInVRegs(number_of_parameters);
@@ -116,7 +112,6 @@ bool HGraphBuilder::InitializeParameters(uint16_t number_of_parameters) {
       parameter_index++;
     }
   }
-  return true;
 }
 
 template<typename T>
@@ -195,9 +190,7 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
     }
   }
 
-  if (!InitializeParameters(code_item.ins_size_)) {
-    return nullptr;
-  }
+  InitializeParameters(code_item.ins_size_);
 
   size_t dex_offset = 0;
   while (code_ptr < code_end) {
@@ -456,9 +449,6 @@ bool HGraphBuilder::BuildInstanceFieldAccess(const Instruction& instruction,
   }
 
   Primitive::Type field_type = resolved_field->GetTypeAsPrimitiveType();
-  if (!IsTypeSupported(field_type)) {
-    return false;
-  }
 
   HInstruction* object = LoadLocal(obj_reg, Primitive::kPrimNot);
   current_block_->AddInstruction(new (arena_) HNullCheck(object, dex_offset));
@@ -516,10 +506,6 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
     return false;
   }
 
-  if (!IsTypeSupported(field_type)) {
-    return false;
-  }
-
   HLoadClass* constant = new (arena_) HLoadClass(
       storage_index, is_referrers_class, dex_offset);
   current_block_->AddInstruction(constant);
@@ -573,8 +559,6 @@ void HGraphBuilder::BuildArrayAccess(const Instruction& instruction,
   uint8_t source_or_dest_reg = instruction.VRegA_23x();
   uint8_t array_reg = instruction.VRegB_23x();
   uint8_t index_reg = instruction.VRegC_23x();
-
-  DCHECK(IsTypeSupported(anticipated_type));
 
   // We need one temporary for the null check, one for the index, and one for the length.
   Temporaries temps(graph_, 3);
