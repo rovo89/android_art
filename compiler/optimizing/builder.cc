@@ -381,20 +381,28 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   const size_t number_of_arguments = strlen(descriptor) - (is_instance_call ? 0 : 1);
 
   HInvoke* invoke = nullptr;
-  if (invoke_type == kVirtual) {
+  if (invoke_type == kVirtual || invoke_type == kInterface) {
     MethodReference target_method(dex_file_, method_idx);
     uintptr_t direct_code;
     uintptr_t direct_method;
-    int vtable_index;
+    int table_index;
+    InvokeType optimized_invoke_type = invoke_type;
     // TODO: Add devirtualization support.
     compiler_driver_->ComputeInvokeInfo(dex_compilation_unit_, dex_offset, true, true,
-                                        &invoke_type, &target_method, &vtable_index,
+                                        &optimized_invoke_type, &target_method, &table_index,
                                         &direct_code, &direct_method);
-    if (vtable_index == -1) {
+    if (table_index == -1) {
       return false;
     }
-    invoke = new (arena_) HInvokeVirtual(
-        arena_, number_of_arguments, return_type, dex_offset, vtable_index);
+
+    if (invoke_type == kVirtual) {
+      invoke = new (arena_) HInvokeVirtual(
+          arena_, number_of_arguments, return_type, dex_offset, table_index);
+    } else {
+      DCHECK_EQ(invoke_type, kInterface);
+      invoke = new (arena_) HInvokeInterface(
+          arena_, number_of_arguments, return_type, dex_offset, method_idx, table_index);
+    }
   } else {
     // Treat invoke-direct like static calls for now.
     invoke = new (arena_) HInvokeStatic(
@@ -870,7 +878,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
 
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_DIRECT:
-    case Instruction::INVOKE_VIRTUAL: {
+    case Instruction::INVOKE_VIRTUAL:
+    case Instruction::INVOKE_INTERFACE: {
       uint32_t method_idx = instruction.VRegB_35c();
       uint32_t number_of_vreg_arguments = instruction.VRegA_35c();
       uint32_t args[5];
@@ -883,7 +892,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
 
     case Instruction::INVOKE_STATIC_RANGE:
     case Instruction::INVOKE_DIRECT_RANGE:
-    case Instruction::INVOKE_VIRTUAL_RANGE: {
+    case Instruction::INVOKE_VIRTUAL_RANGE:
+    case Instruction::INVOKE_INTERFACE_RANGE: {
       uint32_t method_idx = instruction.VRegB_3rc();
       uint32_t number_of_vreg_arguments = instruction.VRegA_3rc();
       uint32_t register_index = instruction.VRegC();

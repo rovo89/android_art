@@ -1031,10 +1031,6 @@ void InstructionCodeGeneratorX86_64::VisitInvokeStatic(HInvokeStatic* invoke) {
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
-void LocationsBuilderX86_64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
-  HandleInvoke(invoke);
-}
-
 void LocationsBuilderX86_64::HandleInvoke(HInvoke* invoke) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
@@ -1067,6 +1063,10 @@ void LocationsBuilderX86_64::HandleInvoke(HInvoke* invoke) {
   }
 }
 
+void LocationsBuilderX86_64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
+  HandleInvoke(invoke);
+}
+
 void InstructionCodeGeneratorX86_64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   CpuRegister temp = invoke->GetLocations()->GetTemp(0).As<CpuRegister>();
   size_t method_offset = mirror::Class::EmbeddedVTableOffset().SizeValue() +
@@ -1082,6 +1082,41 @@ void InstructionCodeGeneratorX86_64::VisitInvokeVirtual(HInvokeVirtual* invoke) 
     __ movl(temp, Address(receiver.As<CpuRegister>(), class_offset));
   }
   // temp = temp->GetMethodAt(method_offset);
+  __ movl(temp, Address(temp, method_offset));
+  // call temp->GetEntryPoint();
+  __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().SizeValue()));
+
+  DCHECK(!codegen_->IsLeafMethod());
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+}
+
+void LocationsBuilderX86_64::VisitInvokeInterface(HInvokeInterface* invoke) {
+  HandleInvoke(invoke);
+  // Add the hidden argument.
+  invoke->GetLocations()->AddTemp(Location::RegisterLocation(RAX));
+}
+
+void InstructionCodeGeneratorX86_64::VisitInvokeInterface(HInvokeInterface* invoke) {
+  // TODO: b/18116999, our IMTs can miss an IncompatibleClassChangeError.
+  CpuRegister temp = invoke->GetLocations()->GetTemp(0).As<CpuRegister>();
+  uint32_t method_offset = mirror::Class::EmbeddedImTableOffset().Uint32Value() +
+          (invoke->GetImtIndex() % mirror::Class::kImtSize) * sizeof(mirror::Class::ImTableEntry);
+  LocationSummary* locations = invoke->GetLocations();
+  Location receiver = locations->InAt(0);
+  size_t class_offset = mirror::Object::ClassOffset().SizeValue();
+
+  // Set the hidden argument.
+  __ movq(invoke->GetLocations()->GetTemp(1).As<CpuRegister>(),
+          Immediate(invoke->GetDexMethodIndex()));
+
+  // temp = object->GetClass();
+  if (receiver.IsStackSlot()) {
+    __ movl(temp, Address(CpuRegister(RSP), receiver.GetStackIndex()));
+    __ movl(temp, Address(temp, class_offset));
+  } else {
+    __ movl(temp, Address(receiver.As<CpuRegister>(), class_offset));
+  }
+  // temp = temp->GetImtEntryAt(method_offset);
   __ movl(temp, Address(temp, method_offset));
   // call temp->GetEntryPoint();
   __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().SizeValue()));

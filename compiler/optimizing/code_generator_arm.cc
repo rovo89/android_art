@@ -1131,10 +1131,6 @@ void InstructionCodeGeneratorARM::VisitInvokeStatic(HInvokeStatic* invoke) {
   DCHECK(!codegen_->IsLeafMethod());
 }
 
-void LocationsBuilderARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
-  HandleInvoke(invoke);
-}
-
 void LocationsBuilderARM::HandleInvoke(HInvoke* invoke) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(invoke, LocationSummary::kCall);
@@ -1149,6 +1145,9 @@ void LocationsBuilderARM::HandleInvoke(HInvoke* invoke) {
   locations->SetOut(calling_convention_visitor.GetReturnLocation(invoke->GetType()));
 }
 
+void LocationsBuilderARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
+  HandleInvoke(invoke);
+}
 
 void InstructionCodeGeneratorARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   Register temp = invoke->GetLocations()->GetTemp(0).As<Register>();
@@ -1165,6 +1164,42 @@ void InstructionCodeGeneratorARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
     __ LoadFromOffset(kLoadWord, temp, receiver.As<Register>(), class_offset);
   }
   // temp = temp->GetMethodAt(method_offset);
+  uint32_t entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value();
+  __ LoadFromOffset(kLoadWord, temp, temp, method_offset);
+  // LR = temp->GetEntryPoint();
+  __ LoadFromOffset(kLoadWord, LR, temp, entry_point);
+  // LR();
+  __ blx(LR);
+  DCHECK(!codegen_->IsLeafMethod());
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+}
+
+void LocationsBuilderARM::VisitInvokeInterface(HInvokeInterface* invoke) {
+  HandleInvoke(invoke);
+  // Add the hidden argument.
+  invoke->GetLocations()->AddTemp(Location::RegisterLocation(R12));
+}
+
+void InstructionCodeGeneratorARM::VisitInvokeInterface(HInvokeInterface* invoke) {
+  // TODO: b/18116999, our IMTs can miss an IncompatibleClassChangeError.
+  Register temp = invoke->GetLocations()->GetTemp(0).As<Register>();
+  uint32_t method_offset = mirror::Class::EmbeddedImTableOffset().Uint32Value() +
+          (invoke->GetImtIndex() % mirror::Class::kImtSize) * sizeof(mirror::Class::ImTableEntry);
+  LocationSummary* locations = invoke->GetLocations();
+  Location receiver = locations->InAt(0);
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+
+  // Set the hidden argument.
+  __ LoadImmediate(invoke->GetLocations()->GetTemp(1).As<Register>(), invoke->GetDexMethodIndex());
+
+  // temp = object->GetClass();
+  if (receiver.IsStackSlot()) {
+    __ LoadFromOffset(kLoadWord, temp, SP, receiver.GetStackIndex());
+    __ LoadFromOffset(kLoadWord, temp, temp, class_offset);
+  } else {
+    __ LoadFromOffset(kLoadWord, temp, receiver.As<Register>(), class_offset);
+  }
+  // temp = temp->GetImtEntryAt(method_offset);
   uint32_t entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value();
   __ LoadFromOffset(kLoadWord, temp, temp, method_offset);
   // LR = temp->GetEntryPoint();

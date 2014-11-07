@@ -216,10 +216,14 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
 
   for (size_t i = 0, e = locations->GetTempCount(); i < e; ++i) {
     Location loc = locations->GetTemp(i);
+    // The DCHECKS below check that a register is not specified twice in
+    // the summary.
     if (loc.IsRegister()) {
-      // Check that a register is not specified twice in the summary.
       DCHECK(!blocked_core_registers_[loc.reg()]);
       blocked_core_registers_[loc.reg()] = true;
+    } else if (loc.IsFpuRegister()) {
+      DCHECK(!blocked_fpu_registers_[loc.reg()]);
+      blocked_fpu_registers_[loc.reg()] = true;
     } else {
       DCHECK_EQ(loc.GetPolicy(), Location::kRequiresRegister);
     }

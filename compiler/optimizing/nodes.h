@@ -495,6 +495,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(InstanceFieldGet, Instruction)                                      \
   M(InstanceFieldSet, Instruction)                                      \
   M(IntConstant, Constant)                                              \
+  M(InvokeInterface, Invoke)                                            \
   M(InvokeStatic, Invoke)                                               \
   M(InvokeVirtual, Invoke)                                              \
   M(LessThan, Condition)                                                \
@@ -1601,6 +1602,30 @@ class HInvokeVirtual : public HInvoke {
   const uint32_t vtable_index_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeVirtual);
+};
+
+class HInvokeInterface : public HInvoke {
+ public:
+  HInvokeInterface(ArenaAllocator* arena,
+                   uint32_t number_of_arguments,
+                   Primitive::Type return_type,
+                   uint32_t dex_pc,
+                   uint32_t dex_method_index,
+                   uint32_t imt_index)
+      : HInvoke(arena, number_of_arguments, return_type, dex_pc),
+        dex_method_index_(dex_method_index),
+        imt_index_(imt_index) {}
+
+  uint32_t GetImtIndex() const { return imt_index_; }
+  uint32_t GetDexMethodIndex() const { return dex_method_index_; }
+
+  DECLARE_INSTRUCTION(InvokeInterface);
+
+ private:
+  const uint32_t dex_method_index_;
+  const uint32_t imt_index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HInvokeInterface);
 };
 
 class HNewInstance : public HExpression<0> {

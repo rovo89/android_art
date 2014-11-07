@@ -1104,6 +1104,41 @@ void InstructionCodeGeneratorX86::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
+void LocationsBuilderX86::VisitInvokeInterface(HInvokeInterface* invoke) {
+  HandleInvoke(invoke);
+  // Add the hidden argument.
+  invoke->GetLocations()->AddTemp(Location::FpuRegisterLocation(XMM0));
+}
+
+void InstructionCodeGeneratorX86::VisitInvokeInterface(HInvokeInterface* invoke) {
+  // TODO: b/18116999, our IMTs can miss an IncompatibleClassChangeError.
+  Register temp = invoke->GetLocations()->GetTemp(0).As<Register>();
+  uint32_t method_offset = mirror::Class::EmbeddedImTableOffset().Uint32Value() +
+          (invoke->GetImtIndex() % mirror::Class::kImtSize) * sizeof(mirror::Class::ImTableEntry);
+  LocationSummary* locations = invoke->GetLocations();
+  Location receiver = locations->InAt(0);
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+
+  // Set the hidden argument.
+  __ movl(temp, Immediate(invoke->GetDexMethodIndex()));
+  __ movd(invoke->GetLocations()->GetTemp(1).As<XmmRegister>(), temp);
+
+  // temp = object->GetClass();
+  if (receiver.IsStackSlot()) {
+    __ movl(temp, Address(ESP, receiver.GetStackIndex()));
+    __ movl(temp, Address(temp, class_offset));
+  } else {
+    __ movl(temp, Address(receiver.As<Register>(), class_offset));
+  }
+  // temp = temp->GetImtEntryAt(method_offset);
+  __ movl(temp, Address(temp, method_offset));
+  // call temp->GetEntryPoint();
+  __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value()));
+
+  DCHECK(!codegen_->IsLeafMethod());
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+}
+
 void LocationsBuilderX86::VisitNeg(HNeg* neg) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(neg, LocationSummary::kNoCall);

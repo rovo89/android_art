@@ -539,6 +539,7 @@ InstructionCodeGeneratorARM64::InstructionCodeGeneratorARM64(HGraph* graph,
   M(Div)                                                   \
   M(DivZeroCheck)                                          \
   M(FloatConstant)                                         \
+  M(InvokeInterface)                                       \
   M(LoadClass)                                             \
   M(LoadException)                                         \
   M(LoadString)                                            \
