@@ -440,6 +440,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   420-const-class \
   421-exceptions \
   421-large-frame \
+  422-instanceof \
   422-type-conversion \
   700-LoadArgRegs \
   701-easy-div-rem \
