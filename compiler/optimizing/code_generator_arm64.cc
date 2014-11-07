@@ -413,7 +413,9 @@ void CodeGeneratorARM64::Move(HInstruction* instruction,
       __ Mov(temp, value);
       __ Str(temp, StackOperandFrom(location));
     }
-
+  } else if (instruction->IsTemporary()) {
+    Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
+    MoveHelper(location, temp_location, type);
   } else if (instruction->IsLoadLocal()) {
     uint32_t stack_slot = GetStackSlot(instruction->AsLoadLocal()->GetLocal());
     switch (type) {
