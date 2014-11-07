@@ -279,6 +279,7 @@ TEST_ART_BROKEN_NDEBUG_TESTS := \
   004-SignalTest \
   004-StackWalk \
   004-UnsafeTest \
+  051-thread \
   115-native-bridge \
   116-nodex2oat \
   117-nopatchoat \
