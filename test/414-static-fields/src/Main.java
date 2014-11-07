@@ -59,6 +59,8 @@ public class Main extends TestCase {
     assertEquals(0, sI);
     assertEquals(0, sJ);
     assertEquals(0, sS);
+    assertEquals(0.0f, sF);
+    assertEquals(0.0, sD);
     assertNull(sObject);
 
     long longValue = -1122198787987987987L;
@@ -70,6 +72,8 @@ public class Main extends TestCase {
     sJ = longValue;
     sS = 68;
     sObject = o;
+    sF = 2.3f;
+    sD = 5.3;
 
     assertEquals(true, sZ);
     assertEquals(-2, sB);
@@ -78,6 +82,8 @@ public class Main extends TestCase {
     assertEquals(longValue, sJ);
     assertEquals(68, sS);
     assertEquals(o, sObject);
+    assertEquals(2.3f, sF);
+    assertEquals(5.3, sD);
   }
 
   static boolean sZ;

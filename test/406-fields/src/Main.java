@@ -30,6 +30,8 @@ public class Main extends TestCase {
     assertEquals(0, fields.iI);
     assertEquals(0, fields.iJ);
     assertEquals(0, fields.iS);
+    assertEquals(0.0f, fields.iF);
+    assertEquals(0.0, fields.iD);
     assertNull(fields.iObject);
 
     long longValue = -1122198787987987987L;
@@ -40,6 +42,8 @@ public class Main extends TestCase {
     fields.iJ = longValue;
     fields.iS = 68;
     fields.iObject = fields;
+    fields.iF = 2.3f;
+    fields.iD = 5.3;
 
     assertEquals(true, fields.iZ);
     assertEquals(-2, fields.iB);
@@ -48,6 +52,8 @@ public class Main extends TestCase {
     assertEquals(longValue, fields.iJ);
     assertEquals(68, fields.iS);
     assertEquals(fields, fields.iObject);
+    assertEquals(2.3f, fields.iF);
+    assertEquals(5.3, fields.iD);
   }
 
   static class AllFields {
