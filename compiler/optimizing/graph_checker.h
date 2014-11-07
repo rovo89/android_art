@@ -30,7 +30,6 @@ class GraphChecker : public HGraphVisitor {
                const char* dump_prefix = "art::GraphChecker: ")
     : HGraphVisitor(graph),
       allocator_(allocator),
-      errors_(allocator, 0),
       dump_prefix_(dump_prefix) {}
 
   // Check the whole graph (in insertion order).
@@ -44,18 +43,18 @@ class GraphChecker : public HGraphVisitor {
 
   // Was the last visit of the graph valid?
   bool IsValid() const {
-    return errors_.IsEmpty();
+    return errors_.empty();
   }
 
   // Get the list of detected errors.
-  const GrowableArray<std::string>& GetErrors() const {
+  const std::vector<std::string>& GetErrors() const {
     return errors_;
   }
 
   // Print detected errors on output stream `os`.
   void Dump(std::ostream& os) const {
-    for (size_t i = 0, e = errors_.Size(); i < e; ++i) {
-      os << dump_prefix_ << errors_.Get(i) << std::endl;
+    for (size_t i = 0, e = errors_.size(); i < e; ++i) {
+      os << dump_prefix_ << errors_[i] << std::endl;
     }
   }
 
@@ -64,7 +63,7 @@ class GraphChecker : public HGraphVisitor {
   // The block currently visited.
   HBasicBlock* current_block_ = nullptr;
   // Errors encountered while checking the graph.
-  GrowableArray<std::string> errors_;
+  std::vector<std::string> errors_;
 
  private:
   // String displayed before dumped errors.
