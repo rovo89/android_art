@@ -2088,6 +2088,8 @@ class HTemporary : public HTemplateInstruction<0> {
 
   size_t GetIndex() const { return index_; }
 
+  Primitive::Type GetType() const OVERRIDE { return GetPrevious()->GetType(); }
+
   DECLARE_INSTRUCTION(Temporary);
 
  private:

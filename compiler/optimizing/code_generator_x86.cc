@@ -623,6 +623,9 @@ void CodeGeneratorX86::Move(HInstruction* instruction, Location location, HInstr
       DCHECK(location.IsConstant());
       DCHECK_EQ(location.GetConstant(), instruction);
     }
+  } else if (instruction->IsTemporary()) {
+    Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
+    Move32(location, temp_location);
   } else if (instruction->IsLoadLocal()) {
     int slot = GetStackSlot(instruction->AsLoadLocal()->GetLocal());
     switch (instruction->GetType()) {
