@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "base/allocator.h"
+#include "base/hash_set.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "dex_file.h"
@@ -101,7 +102,7 @@ class ClassLinker {
 
   // Finds a class by its descriptor, returning NULL if it isn't wasn't loaded
   // by the given 'class_loader'.
-  mirror::Class* LookupClass(const char* descriptor, const mirror::ClassLoader* class_loader)
+  mirror::Class* LookupClass(const char* descriptor, mirror::ClassLoader* class_loader)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -114,7 +115,7 @@ class ClassLinker {
 
   // General class unloading is not supported, this is used to prune
   // unwanted classes during image writing.
-  bool RemoveClass(const char* descriptor, const mirror::ClassLoader* class_loader)
+  bool RemoveClass(const char* descriptor, mirror::ClassLoader* class_loader)
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -403,6 +404,17 @@ class ClassLinker {
     return class_roots;
   }
 
+  // Move all of the image classes into the class table for faster lookups.
+  void MoveImageClassesToClassTable()
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // Move the class table to the pre-zygote table to reduce memory usage. This works by ensuring
+  // that no more classes are ever added to the pre zygote table which makes it that the pages
+  // always remain shared dirty instead of private dirty.
+  void MoveClassTableToPreZygote()
+      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   bool FindOatMethodFor(mirror::ArtMethod* method, OatFile::OatMethod* oat_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -645,7 +657,7 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Class* LookupClassFromTableLocked(const char* descriptor,
-                                            const mirror::ClassLoader* class_loader,
+                                            mirror::ClassLoader* class_loader,
                                             size_t hash)
       SHARED_LOCKS_REQUIRED(Locks::classlinker_classes_lock_, Locks::mutator_lock_);
 
@@ -653,9 +665,6 @@ class ClassLinker {
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void MoveImageClassesToClassTable() LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
-      LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::Class* LookupClassFromImage(const char* descriptor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -678,15 +687,43 @@ class ClassLinker {
   std::vector<GcRoot<mirror::DexCache>> dex_caches_ GUARDED_BY(dex_lock_);
   std::vector<const OatFile*> oat_files_ GUARDED_BY(dex_lock_);
 
+  class ClassDescriptorHashEquals {
+   public:
+    // Same class loader and descriptor.
+    std::size_t operator()(const GcRoot<mirror::Class>& root) const NO_THREAD_SAFETY_ANALYSIS;
+    bool operator()(const GcRoot<mirror::Class>& a, const GcRoot<mirror::Class>& b)
+        NO_THREAD_SAFETY_ANALYSIS;
+    // Same class loader and descriptor.
+    std::size_t operator()(const std::pair<const char*, mirror::ClassLoader*>& element) const
+        NO_THREAD_SAFETY_ANALYSIS;
+    bool operator()(const GcRoot<mirror::Class>& a,
+                    const std::pair<const char*, mirror::ClassLoader*>& b)
+        NO_THREAD_SAFETY_ANALYSIS;
+    // Same descriptor.
+    bool operator()(const GcRoot<mirror::Class>& a, const char* descriptor)
+        NO_THREAD_SAFETY_ANALYSIS;
+    std::size_t operator()(const char* descriptor) const NO_THREAD_SAFETY_ANALYSIS;
+  };
+  class GcRootEmptyFn {
+   public:
+    void MakeEmpty(GcRoot<mirror::Class>& item) const {
+      item = GcRoot<mirror::Class>();
+    }
+    bool IsEmpty(const GcRoot<mirror::Class>& item) const {
+      return item.IsNull();
+    }
+  };
 
-  // multimap from a string hash code of a class descriptor to
-  // mirror::Class* instances. Results should be compared for a matching
-  // Class::descriptor_ and Class::class_loader_.
-  typedef AllocationTrackingMultiMap<size_t, GcRoot<mirror::Class>, kAllocatorTagClassTable> Table;
+  // hash set which hashes class descriptor, and compares descriptors nad class loaders. Results
+  // should be compared for a matching Class descriptor and class loader.
+  typedef HashSet<GcRoot<mirror::Class>, GcRootEmptyFn, ClassDescriptorHashEquals,
+      ClassDescriptorHashEquals, TrackingAllocator<GcRoot<mirror::Class>, kAllocatorTagClassTable>>
+      Table;
   // This contains strong roots. To enable concurrent root scanning of
   // the class table, be careful to use a read barrier when accessing this.
   Table class_table_ GUARDED_BY(Locks::classlinker_classes_lock_);
-  std::vector<std::pair<size_t, GcRoot<mirror::Class>>> new_class_roots_;
+  Table pre_zygote_class_table_ GUARDED_BY(Locks::classlinker_classes_lock_);
+  std::vector<GcRoot<mirror::Class>> new_class_roots_;
 
   // Do we need to search dex caches to find image classes?
   bool dex_cache_image_class_lookup_required_;

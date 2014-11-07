@@ -1910,6 +1910,7 @@ void Heap::PreZygoteFork() {
     return;
   }
   Runtime::Current()->GetInternTable()->SwapPostZygoteWithPreZygote();
+  Runtime::Current()->GetClassLinker()->MoveClassTableToPreZygote();
   VLOG(heap) << "Starting PreZygoteFork";
   // Trim the pages at the end of the non moving space.
   non_moving_space_->Trim();

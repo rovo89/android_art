@@ -321,7 +321,8 @@ void ImageWriter::PruneNonImageClasses() {
 
   // Remove the undesired classes from the class roots.
   for (const std::string& it : non_image_classes) {
-    class_linker->RemoveClass(it.c_str(), NULL);
+    bool result = class_linker->RemoveClass(it.c_str(), NULL);
+    DCHECK(result);
   }
 
   // Clear references to removed classes from the DexCaches.
