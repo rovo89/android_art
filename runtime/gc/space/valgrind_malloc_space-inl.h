@@ -21,68 +21,165 @@
 
 #include <memcheck/memcheck.h>
 
+#include "valgrind_settings.h"
+
 namespace art {
 namespace gc {
 namespace space {
 
-// Number of bytes to use as a red zone (rdz). A red zone of this size will be placed before and
-// after each allocation. 8 bytes provides long/double alignment.
-static constexpr size_t kValgrindRedZoneBytes = 8;
+namespace valgrind_details {
 
-template <typename S, typename A>
-mirror::Object* ValgrindMallocSpace<S, A>::AllocWithGrowth(Thread* self, size_t num_bytes,
-                                                           size_t* bytes_allocated,
-                                                           size_t* usable_size) {
+template <size_t kValgrindRedZoneBytes, bool kUseObjSizeForUsable>
+inline mirror::Object* AdjustForValgrind(void* obj_with_rdz, size_t num_bytes,
+                                         size_t bytes_allocated, size_t usable_size,
+                                         size_t* bytes_allocated_out, size_t* usable_size_out) {
+  if (bytes_allocated_out != nullptr) {
+    *bytes_allocated_out = bytes_allocated;
+  }
+
+  // This cuts over-provision and is a trade-off between testing the over-provisioning code paths
+  // vs checking overflows in the regular paths.
+  if (usable_size_out != nullptr) {
+    if (kUseObjSizeForUsable) {
+      *usable_size_out = num_bytes;
+    } else {
+      *usable_size_out = usable_size - 2 * kValgrindRedZoneBytes;
+    }
+  }
+
+  // Left redzone.
+  VALGRIND_MAKE_MEM_NOACCESS(obj_with_rdz, kValgrindRedZoneBytes);
+
+  // Make requested memory readable.
+  // (If the allocator assumes memory is zeroed out, we might get UNDEFINED warnings, so make
+  //  everything DEFINED initially.)
+  mirror::Object* result = reinterpret_cast<mirror::Object*>(
+      reinterpret_cast<uint8_t*>(obj_with_rdz) + kValgrindRedZoneBytes);
+  VALGRIND_MAKE_MEM_DEFINED(result, num_bytes);
+
+  // Right redzone. Assumes that if bytes_allocated > usable_size, then the difference is
+  // management data at the upper end, and for simplicity we will not protect that.
+  // At the moment, this fits RosAlloc (no management data in a slot, usable_size == alloc_size)
+  // and DlMalloc (allocation_size = (usable_size == num_bytes) + 4, 4 is management)
+  VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<uint8_t*>(result) + num_bytes,
+                             usable_size - (num_bytes + kValgrindRedZoneBytes));
+
+  return result;
+}
+
+inline size_t GetObjSizeNoThreadSafety(mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS {
+  return obj->SizeOf<kVerifyNone>();
+}
+
+}  // namespace valgrind_details
+
+template <typename S,
+          size_t kValgrindRedZoneBytes,
+          bool kAdjustForRedzoneInAllocSize,
+          bool kUseObjSizeForUsable>
+mirror::Object*
+ValgrindMallocSpace<S,
+                    kValgrindRedZoneBytes,
+                    kAdjustForRedzoneInAllocSize,
+                    kUseObjSizeForUsable>::AllocWithGrowth(
+    Thread* self, size_t num_bytes, size_t* bytes_allocated_out, size_t* usable_size_out) {
+  size_t bytes_allocated;
+  size_t usable_size;
   void* obj_with_rdz = S::AllocWithGrowth(self, num_bytes + 2 * kValgrindRedZoneBytes,
-                                          bytes_allocated, usable_size);
+                                          &bytes_allocated, &usable_size);
   if (obj_with_rdz == nullptr) {
     return nullptr;
   }
-  mirror::Object* result = reinterpret_cast<mirror::Object*>(
-      reinterpret_cast<uint8_t*>(obj_with_rdz) + kValgrindRedZoneBytes);
-  // Make redzones as no access.
-  VALGRIND_MAKE_MEM_NOACCESS(obj_with_rdz, kValgrindRedZoneBytes);
-  VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<uint8_t*>(result) + num_bytes, kValgrindRedZoneBytes);
-  return result;
+
+  return valgrind_details::AdjustForValgrind<kValgrindRedZoneBytes,
+                                             kUseObjSizeForUsable>(obj_with_rdz, num_bytes,
+                                                                   bytes_allocated, usable_size,
+                                                                   bytes_allocated_out,
+                                                                   usable_size_out);
 }
 
-template <typename S, typename A>
-mirror::Object* ValgrindMallocSpace<S, A>::Alloc(Thread* self, size_t num_bytes,
-                                                 size_t* bytes_allocated,
-                                                 size_t* usable_size) {
-  void* obj_with_rdz = S::Alloc(self, num_bytes + 2 * kValgrindRedZoneBytes, bytes_allocated,
-                                usable_size);
+template <typename S,
+          size_t kValgrindRedZoneBytes,
+          bool kAdjustForRedzoneInAllocSize,
+          bool kUseObjSizeForUsable>
+mirror::Object* ValgrindMallocSpace<S,
+                                    kValgrindRedZoneBytes,
+                                    kAdjustForRedzoneInAllocSize,
+                                    kUseObjSizeForUsable>::Alloc(
+    Thread* self, size_t num_bytes, size_t* bytes_allocated_out, size_t* usable_size_out) {
+  size_t bytes_allocated;
+  size_t usable_size;
+  void* obj_with_rdz = S::Alloc(self, num_bytes + 2 * kValgrindRedZoneBytes,
+                                &bytes_allocated, &usable_size);
   if (obj_with_rdz == nullptr) {
     return nullptr;
   }
-  mirror::Object* result = reinterpret_cast<mirror::Object*>(
-      reinterpret_cast<uint8_t*>(obj_with_rdz) + kValgrindRedZoneBytes);
-  // Make redzones as no access.
-  VALGRIND_MAKE_MEM_NOACCESS(obj_with_rdz, kValgrindRedZoneBytes);
-  VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<uint8_t*>(result) + num_bytes, kValgrindRedZoneBytes);
-  return result;
+
+  return valgrind_details::AdjustForValgrind<kValgrindRedZoneBytes,
+                                             kUseObjSizeForUsable>(obj_with_rdz, num_bytes,
+                                                                   bytes_allocated, usable_size,
+                                                                   bytes_allocated_out,
+                                                                   usable_size_out);
 }
 
-template <typename S, typename A>
-size_t ValgrindMallocSpace<S, A>::AllocationSize(mirror::Object* obj, size_t* usable_size) {
+template <typename S,
+          size_t kValgrindRedZoneBytes,
+          bool kAdjustForRedzoneInAllocSize,
+          bool kUseObjSizeForUsable>
+size_t ValgrindMallocSpace<S,
+                           kValgrindRedZoneBytes,
+                           kAdjustForRedzoneInAllocSize,
+                           kUseObjSizeForUsable>::AllocationSize(
+    mirror::Object* obj, size_t* usable_size) {
   size_t result = S::AllocationSize(reinterpret_cast<mirror::Object*>(
-      reinterpret_cast<uint8_t*>(obj) - kValgrindRedZoneBytes), usable_size);
+      reinterpret_cast<uint8_t*>(obj) - (kAdjustForRedzoneInAllocSize ? kValgrindRedZoneBytes : 0)),
+      usable_size);
+  if (usable_size != nullptr) {
+    if (kUseObjSizeForUsable) {
+      *usable_size = valgrind_details::GetObjSizeNoThreadSafety(obj);
+    } else {
+      *usable_size = *usable_size - 2 * kValgrindRedZoneBytes;
+    }
+  }
   return result;
 }
 
-template <typename S, typename A>
-size_t ValgrindMallocSpace<S, A>::Free(Thread* self, mirror::Object* ptr) {
+template <typename S,
+          size_t kValgrindRedZoneBytes,
+          bool kAdjustForRedzoneInAllocSize,
+          bool kUseObjSizeForUsable>
+size_t ValgrindMallocSpace<S,
+                           kValgrindRedZoneBytes,
+                           kAdjustForRedzoneInAllocSize,
+                           kUseObjSizeForUsable>::Free(
+    Thread* self, mirror::Object* ptr) {
   void* obj_after_rdz = reinterpret_cast<void*>(ptr);
-  void* obj_with_rdz = reinterpret_cast<uint8_t*>(obj_after_rdz) - kValgrindRedZoneBytes;
+  uint8_t* obj_with_rdz = reinterpret_cast<uint8_t*>(obj_after_rdz) - kValgrindRedZoneBytes;
   // Make redzones undefined.
-  size_t usable_size = 0;
-  AllocationSize(ptr, &usable_size);
-  VALGRIND_MAKE_MEM_UNDEFINED(obj_with_rdz, usable_size);
+  size_t usable_size;
+  size_t allocation_size = AllocationSize(ptr, &usable_size);
+
+  // Unprotect the allocation.
+  // Use the obj-size-for-usable flag to determine whether usable_size is the more important one,
+  // e.g., whether there's data in the allocation_size (and usable_size can't be trusted).
+  if (kUseObjSizeForUsable) {
+    VALGRIND_MAKE_MEM_UNDEFINED(obj_with_rdz, allocation_size);
+  } else {
+    VALGRIND_MAKE_MEM_UNDEFINED(obj_with_rdz, usable_size + 2 * kValgrindRedZoneBytes);
+  }
+
   return S::Free(self, reinterpret_cast<mirror::Object*>(obj_with_rdz));
 }
 
-template <typename S, typename A>
-size_t ValgrindMallocSpace<S, A>::FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) {
+template <typename S,
+          size_t kValgrindRedZoneBytes,
+          bool kAdjustForRedzoneInAllocSize,
+          bool kUseObjSizeForUsable>
+size_t ValgrindMallocSpace<S,
+                           kValgrindRedZoneBytes,
+                           kAdjustForRedzoneInAllocSize,
+                           kUseObjSizeForUsable>::FreeList(
+    Thread* self, size_t num_ptrs, mirror::Object** ptrs) {
   size_t freed = 0;
   for (size_t i = 0; i < num_ptrs; i++) {
     freed += Free(self, ptrs[i]);
@@ -91,15 +188,18 @@ size_t ValgrindMallocSpace<S, A>::FreeList(Thread* self, size_t num_ptrs, mirror
   return freed;
 }
 
-template <typename S, typename A>
-ValgrindMallocSpace<S, A>::ValgrindMallocSpace(const std::string& name, MemMap* mem_map,
-                                               A allocator, uint8_t* begin,
-                                               uint8_t* end, uint8_t* limit, size_t growth_limit,
-                                               size_t initial_size,
-                                               bool can_move_objects, size_t starting_size) :
-    S(name, mem_map, allocator, begin, end, limit, growth_limit, can_move_objects, starting_size,
-      initial_size) {
-  VALGRIND_MAKE_MEM_UNDEFINED(mem_map->Begin() + initial_size, mem_map->Size() - initial_size);
+template <typename S,
+          size_t kValgrindRedZoneBytes,
+          bool kAdjustForRedzoneInAllocSize,
+          bool kUseObjSizeForUsable>
+template <typename... Params>
+ValgrindMallocSpace<S,
+                    kValgrindRedZoneBytes,
+                    kAdjustForRedzoneInAllocSize,
+                    kUseObjSizeForUsable>::ValgrindMallocSpace(
+    MemMap* mem_map, size_t initial_size, Params... params) : S(mem_map, initial_size, params...) {
+  VALGRIND_MAKE_MEM_UNDEFINED(mem_map->Begin() + initial_size,
+                              mem_map->Size() - initial_size);
 }
 
 }  // namespace space

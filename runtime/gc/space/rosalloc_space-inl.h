@@ -18,6 +18,7 @@
 #define ART_RUNTIME_GC_SPACE_ROSALLOC_SPACE_INL_H_
 
 #include "gc/allocator/rosalloc-inl.h"
+#include "gc/space/valgrind_settings.h"
 #include "rosalloc_space.h"
 #include "thread.h"
 
@@ -26,13 +27,19 @@ namespace gc {
 namespace space {
 
 inline size_t RosAllocSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size) {
-  void* obj_ptr = const_cast<void*>(reinterpret_cast<const void*>(obj));
   // obj is a valid object. Use its class in the header to get the size.
   // Don't use verification since the object may be dead if we are sweeping.
   size_t size = obj->SizeOf<kVerifyNone>();
+  bool running_on_valgrind = RUNNING_ON_VALGRIND != 0;
+  if (running_on_valgrind) {
+    size += 2 * kDefaultValgrindRedZoneBytes;
+  }
   size_t size_by_size = rosalloc_->UsableSize(size);
   if (kIsDebugBuild) {
-    size_t size_by_ptr = rosalloc_->UsableSize(obj_ptr);
+    // On valgrind, the red zone has an impact...
+    const uint8_t* obj_ptr = reinterpret_cast<const uint8_t*>(obj);
+    size_t size_by_ptr = rosalloc_->UsableSize(
+        obj_ptr - (running_on_valgrind ? kDefaultValgrindRedZoneBytes : 0));
     if (size_by_size != size_by_ptr) {
       LOG(INFO) << "Found a bad sized obj of size " << size
                 << " at " << std::hex << reinterpret_cast<intptr_t>(obj_ptr) << std::dec

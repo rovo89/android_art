@@ -92,7 +92,7 @@ class RosAllocSpace : public MallocSpace {
 
   void Clear() OVERRIDE;
 
-  MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
+  MallocSpace* CreateInstance(MemMap* mem_map, const std::string& name, void* allocator,
                               uint8_t* begin, uint8_t* end, uint8_t* limit, size_t growth_limit,
                               bool can_move_objects) OVERRIDE;
 
@@ -126,9 +126,10 @@ class RosAllocSpace : public MallocSpace {
   }
 
  protected:
-  RosAllocSpace(const std::string& name, MemMap* mem_map, allocator::RosAlloc* rosalloc,
-                uint8_t* begin, uint8_t* end, uint8_t* limit, size_t growth_limit, bool can_move_objects,
-                size_t starting_size, size_t initial_size, bool low_memory_mode);
+  RosAllocSpace(MemMap* mem_map, size_t initial_size, const std::string& name,
+                allocator::RosAlloc* rosalloc, uint8_t* begin, uint8_t* end, uint8_t* limit,
+                size_t growth_limit, bool can_move_objects, size_t starting_size,
+                bool low_memory_mode);
 
  private:
   template<bool kThreadSafe = true>
@@ -137,10 +138,12 @@ class RosAllocSpace : public MallocSpace {
 
   void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size,
                         size_t maximum_size, bool low_memory_mode) OVERRIDE {
-    return CreateRosAlloc(base, morecore_start, initial_size, maximum_size, low_memory_mode);
+    return CreateRosAlloc(base, morecore_start, initial_size, maximum_size, low_memory_mode,
+                          RUNNING_ON_VALGRIND != 0);
   }
   static allocator::RosAlloc* CreateRosAlloc(void* base, size_t morecore_start, size_t initial_size,
-                                             size_t maximum_size, bool low_memory_mode);
+                                             size_t maximum_size, bool low_memory_mode,
+                                             bool running_on_valgrind);
 
   void InspectAllRosAlloc(void (*callback)(void *start, void *end, size_t num_bytes, void* callback_arg),
                           void* arg, bool do_null_callback_at_end)
