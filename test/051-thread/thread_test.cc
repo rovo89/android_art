@@ -14,16 +14,20 @@
  * limitations under the License.
  */
 
+#include "base/macros.h"
 #include "jni.h"
 #include "thread-inl.h"
 
 namespace art {
 
-extern "C" JNIEXPORT jint JNICALL Java_Main_getNativePriority(JNIEnv* env, jclass) {
+extern "C" JNIEXPORT jint JNICALL Java_Main_getNativePriority(JNIEnv* env,
+                                                              jclass clazz ATTRIBUTE_UNUSED) {
   return ThreadForEnv(env)->GetNativePriority();
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_Main_supportsThreadPriorities(JNIEnv* env, jclass) {
+extern "C" JNIEXPORT jboolean JNICALL Java_Main_supportsThreadPriorities(
+    JNIEnv* env ATTRIBUTE_UNUSED,
+    jclass clazz ATTRIBUTE_UNUSED) {
 #if defined(HAVE_ANDROID_OS)
   return JNI_TRUE;
 #else
