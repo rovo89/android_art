@@ -53,7 +53,7 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
             << " lists " << block_count_in_p_successors
             << " occurrences of block " << block->GetBlockId()
             << " in its successors.";
-      errors_.Insert(error.str());
+      errors_.push_back(error.str());
     }
   }
 
@@ -83,7 +83,7 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
             << " lists " << block_count_in_s_predecessors
             << " occurrences of block " << block->GetBlockId()
             << " in its predecessors.";
-      errors_.Insert(error.str());
+      errors_.push_back(error.str());
     }
   }
 
@@ -93,7 +93,7 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
     std::stringstream error;
     error  << "Block " << block->GetBlockId()
            << " does not end with a branch instruction.";
-    errors_.Insert(error.str());
+    errors_.push_back(error.str());
   }
 
   // Visit this block's list of phis.
@@ -103,7 +103,7 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
       std::stringstream error;
       error << "Block " << current_block_->GetBlockId()
             << " has a non-phi in its phi list.";
-      errors_.Insert(error.str());
+      errors_.push_back(error.str());
     }
     it.Current()->Accept(this);
   }
@@ -116,7 +116,7 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
       std::stringstream error;
       error << "Block " << current_block_->GetBlockId()
             << " has a phi in its non-phi list.";
-      errors_.Insert(error.str());
+      errors_.push_back(error.str());
     }
     it.Current()->Accept(this);
   }
@@ -139,7 +139,7 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
     } else {
       error << " not associated with any block.";
     }
-    errors_.Insert(error.str());
+    errors_.push_back(error.str());
   }
 
   // Ensure the inputs of `instruction` are defined in a block of the graph.
@@ -154,7 +154,7 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
       error << "Input " << input->GetId()
             << " of instruction " << instruction->GetId()
             << " is not defined in a basic block of the control-flow graph.";
-      errors_.Insert(error.str());
+      errors_.push_back(error.str());
     }
   }
 
@@ -170,7 +170,7 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
       error << "User " << use->GetId()
             << " of instruction " << instruction->GetId()
             << " is not defined in a basic block of the control-flow graph.";
-      errors_.Insert(error.str());
+      errors_.push_back(error.str());
     }
   }
 }
@@ -188,7 +188,7 @@ void SSAChecker::VisitBasicBlock(HBasicBlock* block) {
         std::stringstream error;
         error << "Critical edge between blocks " << block->GetBlockId()
               << " and "  << successor->GetBlockId() << ".";
-        errors_.Insert(error.str());
+        errors_.push_back(error.str());
       }
     }
   }
@@ -207,7 +207,7 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
     std::stringstream error;
     error << "Loop pre-header is not the first predecessor of the loop header "
           << id << ".";
-    errors_.Insert(error.str());
+    errors_.push_back(error.str());
   }
 
   // Ensure the loop header has only two predecessors and that only the
@@ -215,25 +215,25 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
   if (loop_header->GetPredecessors().Size() < 2) {
     std::stringstream error;
     error << "Loop header " << id << " has less than two predecessors.";
-    errors_.Insert(error.str());
+    errors_.push_back(error.str());
   } else if (loop_header->GetPredecessors().Size() > 2) {
     std::stringstream error;
     error << "Loop header " << id << " has more than two predecessors.";
-    errors_.Insert(error.str());
+    errors_.push_back(error.str());
   } else {
     HLoopInformation* loop_information = loop_header->GetLoopInformation();
     HBasicBlock* first_predecessor = loop_header->GetPredecessors().Get(0);
     if (loop_information->IsBackEdge(first_predecessor)) {
       std::stringstream error;
       error << "First predecessor of loop header " << id << " is a back edge.";
-      errors_.Insert(error.str());
+      errors_.push_back(error.str());
     }
     HBasicBlock* second_predecessor = loop_header->GetPredecessors().Get(1);
     if (!loop_information->IsBackEdge(second_predecessor)) {
       std::stringstream error;
       error << "Second predecessor of loop header " << id
             << " is not a back edge.";
-      errors_.Insert(error.str());
+      errors_.push_back(error.str());
     }
   }
 
@@ -244,7 +244,7 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
       std::stringstream error;
       error << "Loop defined by header " << id << " has "
             << num_back_edges << " back edge(s).";
-      errors_.Insert(error.str());
+      errors_.push_back(error.str());
   }
 
   // Ensure all blocks in the loop are dominated by the loop header.
@@ -256,7 +256,7 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
       std::stringstream error;
       error << "Loop block " << loop_block->GetBlockId()
             << " not dominated by loop header " << id;
-      errors_.Insert(error.str());
+      errors_.push_back(error.str());
     }
   }
 }
@@ -274,7 +274,7 @@ void SSAChecker::VisitInstruction(HInstruction* instruction) {
             << " in block " << current_block_->GetBlockId()
             << " does not dominate use " << use->GetId()
             << " in block " << use->GetBlock()->GetBlockId() << ".";
-      errors_.Insert(error.str());
+      errors_.push_back(error.str());
     }
   }
 
@@ -292,7 +292,7 @@ void SSAChecker::VisitInstruction(HInstruction* instruction) {
               << " from block " << current_block_->GetBlockId()
               << " does not dominate instruction " << instruction->GetId()
               << ".";
-        errors_.Insert(error.str());
+        errors_.push_back(error.str());
       }
     }
   }
@@ -307,7 +307,7 @@ void SSAChecker::VisitPhi(HPhi* phi) {
       error << "Loop phi " << phi->GetId()
             << " in block " << phi->GetBlock()->GetBlockId()
             << " is its own first input.";
-      errors_.Insert(error.str());
+      errors_.push_back(error.str());
   }
 
   // Ensure the number of phi inputs is the same as the number of
@@ -321,7 +321,7 @@ void SSAChecker::VisitPhi(HPhi* phi) {
           << " has " << phi->InputCount() << " inputs, but block "
           << phi->GetBlock()->GetBlockId() << " has "
           << predecessors.Size() << " predecessors.";
-    errors_.Insert(error.str());
+    errors_.push_back(error.str());
   } else {
     // Ensure phi input at index I either comes from the Ith
     // predecessor or from a block that dominates this predecessor.
@@ -336,7 +336,7 @@ void SSAChecker::VisitPhi(HPhi* phi) {
               << " from block " << phi->GetBlock()->GetBlockId()
               << " is not defined in predecessor number " << i
               << " nor in a block dominating it.";
-        errors_.Insert(error.str());
+        errors_.push_back(error.str());
       }
     }
   }
