@@ -93,10 +93,7 @@ class HGraphBuilder : public ValueObject {
   void UpdateLocal(int register_index, HInstruction* instruction) const;
   HInstruction* LoadLocal(int register_index, Primitive::Type type) const;
   void PotentiallyAddSuspendCheck(int32_t target_offset, uint32_t dex_offset);
-
-  // Temporarily returns whether the compiler supports the parameters
-  // of the method.
-  bool InitializeParameters(uint16_t number_of_parameters);
+  void InitializeParameters(uint16_t number_of_parameters);
 
   template<typename T>
   void Unop_12x(const Instruction& instruction, Primitive::Type type);

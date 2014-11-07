@@ -1692,25 +1692,27 @@ void LocationsBuilderX86_64::VisitInstanceFieldSet(HInstanceFieldSet* instructio
 void InstructionCodeGeneratorX86_64::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   CpuRegister obj = locations->InAt(0).As<CpuRegister>();
-  CpuRegister value = locations->InAt(1).As<CpuRegister>();
   size_t offset = instruction->GetFieldOffset().SizeValue();
   Primitive::Type field_type = instruction->GetFieldType();
 
   switch (field_type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte: {
+      CpuRegister value = locations->InAt(1).As<CpuRegister>();
       __ movb(Address(obj, offset), value);
       break;
     }
 
     case Primitive::kPrimShort:
     case Primitive::kPrimChar: {
+      CpuRegister value = locations->InAt(1).As<CpuRegister>();
       __ movw(Address(obj, offset), value);
       break;
     }
 
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
+      CpuRegister value = locations->InAt(1).As<CpuRegister>();
       __ movl(Address(obj, offset), value);
       if (field_type == Primitive::kPrimNot) {
         CpuRegister temp = locations->GetTemp(0).As<CpuRegister>();
@@ -1721,14 +1723,23 @@ void InstructionCodeGeneratorX86_64::VisitInstanceFieldSet(HInstanceFieldSet* in
     }
 
     case Primitive::kPrimLong: {
+      CpuRegister value = locations->InAt(1).As<CpuRegister>();
       __ movq(Address(obj, offset), value);
       break;
     }
 
-    case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble:
-      LOG(FATAL) << "Unimplemented register type " << field_type;
-      UNREACHABLE();
+    case Primitive::kPrimFloat: {
+      XmmRegister value = locations->InAt(1).As<XmmRegister>();
+      __ movss(Address(obj, offset), value);
+      break;
+    }
+
+    case Primitive::kPrimDouble: {
+      XmmRegister value = locations->InAt(1).As<XmmRegister>();
+      __ movsd(Address(obj, offset), value);
+      break;
+    }
+
     case Primitive::kPrimVoid:
       LOG(FATAL) << "Unreachable type " << field_type;
       UNREACHABLE();
@@ -1745,45 +1756,58 @@ void LocationsBuilderX86_64::VisitInstanceFieldGet(HInstanceFieldGet* instructio
 void InstructionCodeGeneratorX86_64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   CpuRegister obj = locations->InAt(0).As<CpuRegister>();
-  CpuRegister out = locations->Out().As<CpuRegister>();
   size_t offset = instruction->GetFieldOffset().SizeValue();
 
   switch (instruction->GetType()) {
     case Primitive::kPrimBoolean: {
+      CpuRegister out = locations->Out().As<CpuRegister>();
       __ movzxb(out, Address(obj, offset));
       break;
     }
 
     case Primitive::kPrimByte: {
+      CpuRegister out = locations->Out().As<CpuRegister>();
       __ movsxb(out, Address(obj, offset));
       break;
     }
 
     case Primitive::kPrimShort: {
+      CpuRegister out = locations->Out().As<CpuRegister>();
       __ movsxw(out, Address(obj, offset));
       break;
     }
 
     case Primitive::kPrimChar: {
+      CpuRegister out = locations->Out().As<CpuRegister>();
       __ movzxw(out, Address(obj, offset));
       break;
     }
 
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
+      CpuRegister out = locations->Out().As<CpuRegister>();
       __ movl(out, Address(obj, offset));
       break;
     }
 
     case Primitive::kPrimLong: {
+      CpuRegister out = locations->Out().As<CpuRegister>();
       __ movq(out, Address(obj, offset));
       break;
     }
 
-    case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble:
-      LOG(FATAL) << "Unimplemented register type " << instruction->GetType();
-      UNREACHABLE();
+    case Primitive::kPrimFloat: {
+      XmmRegister out = locations->Out().As<XmmRegister>();
+      __ movss(out, Address(obj, offset));
+      break;
+    }
+
+    case Primitive::kPrimDouble: {
+      XmmRegister out = locations->Out().As<XmmRegister>();
+      __ movsd(out, Address(obj, offset));
+      break;
+    }
+
     case Primitive::kPrimVoid:
       LOG(FATAL) << "Unreachable type " << instruction->GetType();
       UNREACHABLE();
@@ -2460,45 +2484,58 @@ void LocationsBuilderX86_64::VisitStaticFieldGet(HStaticFieldGet* instruction) {
 void InstructionCodeGeneratorX86_64::VisitStaticFieldGet(HStaticFieldGet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   CpuRegister cls = locations->InAt(0).As<CpuRegister>();
-  CpuRegister out = locations->Out().As<CpuRegister>();
   size_t offset = instruction->GetFieldOffset().SizeValue();
 
   switch (instruction->GetType()) {
     case Primitive::kPrimBoolean: {
+      CpuRegister out = locations->Out().As<CpuRegister>();
       __ movzxb(out, Address(cls, offset));
       break;
     }
 
     case Primitive::kPrimByte: {
+      CpuRegister out = locations->Out().As<CpuRegister>();
       __ movsxb(out, Address(cls, offset));
       break;
     }
 
     case Primitive::kPrimShort: {
+      CpuRegister out = locations->Out().As<CpuRegister>();
       __ movsxw(out, Address(cls, offset));
       break;
     }
 
     case Primitive::kPrimChar: {
+      CpuRegister out = locations->Out().As<CpuRegister>();
       __ movzxw(out, Address(cls, offset));
       break;
     }
 
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
+      CpuRegister out = locations->Out().As<CpuRegister>();
       __ movl(out, Address(cls, offset));
       break;
     }
 
     case Primitive::kPrimLong: {
+      CpuRegister out = locations->Out().As<CpuRegister>();
       __ movq(out, Address(cls, offset));
       break;
     }
 
-    case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble:
-      LOG(FATAL) << "Unimplemented register type " << instruction->GetType();
-      UNREACHABLE();
+    case Primitive::kPrimFloat: {
+      XmmRegister out = locations->Out().As<XmmRegister>();
+      __ movss(out, Address(cls, offset));
+      break;
+    }
+
+    case Primitive::kPrimDouble: {
+      XmmRegister out = locations->Out().As<XmmRegister>();
+      __ movsd(out, Address(cls, offset));
+      break;
+    }
+
     case Primitive::kPrimVoid:
       LOG(FATAL) << "Unreachable type " << instruction->GetType();
       UNREACHABLE();
@@ -2522,25 +2559,27 @@ void LocationsBuilderX86_64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
 void InstructionCodeGeneratorX86_64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   CpuRegister cls = locations->InAt(0).As<CpuRegister>();
-  CpuRegister value = locations->InAt(1).As<CpuRegister>();
   size_t offset = instruction->GetFieldOffset().SizeValue();
   Primitive::Type field_type = instruction->GetFieldType();
 
   switch (field_type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte: {
+      CpuRegister value = locations->InAt(1).As<CpuRegister>();
       __ movb(Address(cls, offset), value);
       break;
     }
 
     case Primitive::kPrimShort:
     case Primitive::kPrimChar: {
+      CpuRegister value = locations->InAt(1).As<CpuRegister>();
       __ movw(Address(cls, offset), value);
       break;
     }
 
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
+      CpuRegister value = locations->InAt(1).As<CpuRegister>();
       __ movl(Address(cls, offset), value);
       if (field_type == Primitive::kPrimNot) {
         CpuRegister temp = locations->GetTemp(0).As<CpuRegister>();
@@ -2551,14 +2590,23 @@ void InstructionCodeGeneratorX86_64::VisitStaticFieldSet(HStaticFieldSet* instru
     }
 
     case Primitive::kPrimLong: {
+      CpuRegister value = locations->InAt(1).As<CpuRegister>();
       __ movq(Address(cls, offset), value);
       break;
     }
 
-    case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble:
-      LOG(FATAL) << "Unimplemented register type " << field_type;
-      UNREACHABLE();
+    case Primitive::kPrimFloat: {
+      XmmRegister value = locations->InAt(1).As<XmmRegister>();
+      __ movss(Address(cls, offset), value);
+      break;
+    }
+
+    case Primitive::kPrimDouble: {
+      XmmRegister value = locations->InAt(1).As<XmmRegister>();
+      __ movsd(Address(cls, offset), value);
+      break;
+    }
+
     case Primitive::kPrimVoid:
       LOG(FATAL) << "Unreachable type " << field_type;
       UNREACHABLE();
