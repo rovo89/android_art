@@ -45,6 +45,7 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
 #include "mirror/throwable.h"
+#include "nativebridge/native_bridge.h"
 #include "parsed_options.h"
 #include "reflection.h"
 #include "runtime.h"
