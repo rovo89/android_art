@@ -1260,7 +1260,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
         return false;
       }
       current_block_->AddInstruction(
-          new (arena_) HLoadClass(instruction.VRegB_21c(), is_referrers_class, dex_offset));
+          new (arena_) HLoadClass(type_index, is_referrers_class, dex_offset));
       UpdateLocal(instruction.VRegA_21c(), current_block_->GetLastInstruction());
       break;
     }
@@ -1279,6 +1279,29 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       // We finished building this block. Set the current block to null to avoid
       // adding dead instructions to it.
       current_block_ = nullptr;
+      break;
+    }
+
+    case Instruction::INSTANCE_OF: {
+      uint16_t type_index = instruction.VRegC_22c();
+      bool type_known_final;
+      bool type_known_abstract;
+      bool is_referrers_class;
+      bool can_access = compiler_driver_->CanAccessTypeWithoutChecks(
+          dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index,
+          &type_known_final, &type_known_abstract, &is_referrers_class);
+      if (!can_access) {
+        return false;
+      }
+      HInstruction* object = LoadLocal(instruction.VRegB_22c(), Primitive::kPrimNot);
+      HLoadClass* cls = new (arena_) HLoadClass(type_index, is_referrers_class, dex_offset);
+      current_block_->AddInstruction(cls);
+      // The class needs a temporary before being used by the type check.
+      Temporaries temps(graph_, 1);
+      temps.Add(cls);
+      current_block_->AddInstruction(
+          new (arena_) HTypeCheck(object, cls, type_known_final, dex_offset));
+      UpdateLocal(instruction.VRegA_22c(), current_block_->GetLastInstruction());
       break;
     }
 

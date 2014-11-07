@@ -241,10 +241,12 @@ class LoadClassSlowPathX86 : public SlowPathCodeX86 {
     codegen->RecordPcInfo(at_, dex_pc_);
 
     // Move the class to the desired location.
-    if (locations->Out().IsValid()) {
-      DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
-      x86_codegen->Move32(locations->Out(), Location::RegisterLocation(EAX));
+    Location out = locations->Out();
+    if (out.IsValid()) {
+      DCHECK(out.IsRegister() && !locations->GetLiveRegisters()->ContainsCoreRegister(out.reg()));
+      x86_codegen->Move32(out, Location::RegisterLocation(EAX));
     }
+
     codegen->RestoreLiveRegisters(locations);
     __ jmp(GetExitLabel());
   }
@@ -264,6 +266,49 @@ class LoadClassSlowPathX86 : public SlowPathCodeX86 {
   const bool do_clinit_;
 
   DISALLOW_COPY_AND_ASSIGN(LoadClassSlowPathX86);
+};
+
+class TypeCheckSlowPathX86 : public SlowPathCodeX86 {
+ public:
+  TypeCheckSlowPathX86(HTypeCheck* instruction, Location object_class)
+      : instruction_(instruction),
+        object_class_(object_class) {}
+
+  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
+    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
+
+    CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
+    __ Bind(GetEntryLabel());
+    codegen->SaveLiveRegisters(locations);
+
+    // We're moving two locations to locations that could overlap, so we need a parallel
+    // move resolver.
+    InvokeRuntimeCallingConvention calling_convention;
+    MoveOperands move1(locations->InAt(1),
+                       Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+                       nullptr);
+    MoveOperands move2(object_class_,
+                       Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
+                       nullptr);
+    HParallelMove parallel_move(codegen->GetGraph()->GetArena());
+    parallel_move.AddMove(&move1);
+    parallel_move.AddMove(&move2);
+    x86_codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
+
+    __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pInstanceofNonTrivial)));
+    codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
+    x86_codegen->Move32(locations->Out(), Location::RegisterLocation(EAX));
+    codegen->RestoreLiveRegisters(locations);
+
+    __ jmp(GetExitLabel());
+  }
+
+ private:
+  HTypeCheck* const instruction_;
+  const Location object_class_;
+
+  DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathX86);
 };
 
 #undef __
@@ -2669,6 +2714,61 @@ void LocationsBuilderX86::VisitThrow(HThrow* instruction) {
 void InstructionCodeGeneratorX86::VisitThrow(HThrow* instruction) {
   __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pDeliverException)));
   codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+}
+
+void LocationsBuilderX86::VisitTypeCheck(HTypeCheck* instruction) {
+  LocationSummary::CallKind call_kind = instruction->IsClassFinal()
+      ? LocationSummary::kNoCall
+      : LocationSummary::kCallOnSlowPath;
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::Any());
+  locations->SetOut(Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorX86::VisitTypeCheck(HTypeCheck* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  Register obj = locations->InAt(0).As<Register>();
+  Location cls = locations->InAt(1);
+  Register out = locations->Out().As<Register>();
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+  Label done, zero;
+  SlowPathCodeX86* slow_path = nullptr;
+
+  // Return 0 if `obj` is null.
+  // TODO: avoid this check if we know obj is not null.
+  __ testl(obj, obj);
+  __ j(kEqual, &zero);
+  __ movl(out, Address(obj, class_offset));
+  // Compare the class of `obj` with `cls`.
+  if (cls.IsRegister()) {
+    __ cmpl(out, cls.As<Register>());
+  } else {
+    DCHECK(cls.IsStackSlot()) << cls;
+    __ cmpl(out, Address(ESP, cls.GetStackIndex()));
+  }
+
+  if (instruction->IsClassFinal()) {
+    // Classes must be equal for the instanceof to succeed.
+    __ j(kNotEqual, &zero);
+    __ movl(out, Immediate(1));
+    __ jmp(&done);
+  } else {
+    // If the classes are not equal, we go into a slow path.
+    DCHECK(locations->OnlyCallsOnSlowPath());
+    slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathX86(
+        instruction, Location::RegisterLocation(out));
+    codegen_->AddSlowPath(slow_path);
+    __ j(kNotEqual, slow_path->GetEntryLabel());
+    __ movl(out, Immediate(1));
+    __ jmp(&done);
+  }
+  __ Bind(&zero);
+  __ movl(out, Immediate(0));
+  if (slow_path != nullptr) {
+    __ Bind(slow_path->GetExitLabel());
+  }
+  __ Bind(&done);
 }
 
 }  // namespace x86
