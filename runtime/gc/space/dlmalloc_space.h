@@ -107,7 +107,7 @@ class DlMallocSpace : public MallocSpace {
   // allocations fail we GC before increasing the footprint limit and allowing the mspace to grow.
   void SetFootprintLimit(size_t limit) OVERRIDE;
 
-  MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
+  MallocSpace* CreateInstance(MemMap* mem_map, const std::string& name, void* allocator,
                               uint8_t* begin, uint8_t* end, uint8_t* limit, size_t growth_limit,
                               bool can_move_objects);
 
@@ -128,9 +128,9 @@ class DlMallocSpace : public MallocSpace {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  protected:
-  DlMallocSpace(const std::string& name, MemMap* mem_map, void* mspace, uint8_t* begin, uint8_t* end,
-                uint8_t* limit, size_t growth_limit, bool can_move_objects, size_t starting_size,
-                size_t initial_size);
+  DlMallocSpace(MemMap* mem_map, size_t initial_size, const std::string& name, void* mspace,
+                uint8_t* begin, uint8_t* end, uint8_t* limit, size_t growth_limit,
+                bool can_move_objects, size_t starting_size);
 
  private:
   mirror::Object* AllocWithoutGrowthLocked(Thread* self, size_t num_bytes, size_t* bytes_allocated,
