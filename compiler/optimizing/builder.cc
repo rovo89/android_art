@@ -775,8 +775,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
-    // TODO: these instructions are also used to move floating point values, so what is
-    // the type (int or float)?
+    // Note that the SSA building will refine the types.
     case Instruction::MOVE:
     case Instruction::MOVE_FROM16:
     case Instruction::MOVE_16: {
@@ -785,8 +784,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
-    // TODO: these instructions are also used to move floating point values, so what is
-    // the type (long or double)?
+    // Note that the SSA building will refine the types.
     case Instruction::MOVE_WIDE:
     case Instruction::MOVE_WIDE_FROM16:
     case Instruction::MOVE_WIDE_16: {
@@ -859,7 +857,8 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       uint32_t number_of_vreg_arguments = instruction.VRegA_35c();
       uint32_t args[5];
       instruction.GetVarArgs(args);
-      if (!BuildInvoke(instruction, dex_offset, method_idx, number_of_vreg_arguments, false, args, -1)) {
+      if (!BuildInvoke(instruction, dex_offset, method_idx,
+                       number_of_vreg_arguments, false, args, -1)) {
         return false;
       }
       break;
@@ -1309,7 +1308,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       return false;
   }
   return true;
-}
+}  // NOLINT(readability/fn_size)
 
 HIntConstant* HGraphBuilder::GetIntConstant0() {
   if (constant0_ != nullptr) {
