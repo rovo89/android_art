@@ -249,7 +249,7 @@ class RosAlloc {
     // Dump the run metadata for debugging.
     std::string Dump();
     // Verify for debugging.
-    void Verify(Thread* self, RosAlloc* rosalloc)
+    void Verify(Thread* self, RosAlloc* rosalloc, bool running_on_valgrind)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_lock_);
 
@@ -360,13 +360,14 @@ class RosAlloc {
   // Returns the page map index from an address. Requires that the
   // address is page size aligned.
   size_t ToPageMapIndex(const void* addr) const {
-    DCHECK(base_ <= addr && addr < base_ + capacity_);
+    DCHECK_LE(base_, addr);
+    DCHECK_LT(addr, base_ + capacity_);
     size_t byte_offset = reinterpret_cast<const uint8_t*>(addr) - base_;
     DCHECK_EQ(byte_offset % static_cast<size_t>(kPageSize), static_cast<size_t>(0));
     return byte_offset / kPageSize;
   }
   // Returns the page map index from an address with rounding.
-  size_t RoundDownToPageMapIndex(void* addr) const {
+  size_t RoundDownToPageMapIndex(const void* addr) const {
     DCHECK(base_ <= addr && addr < reinterpret_cast<uint8_t*>(base_) + capacity_);
     return (reinterpret_cast<uintptr_t>(addr) - reinterpret_cast<uintptr_t>(base_)) / kPageSize;
   }
@@ -377,6 +378,10 @@ class RosAlloc {
 
   // If true, check that the returned memory is actually zero.
   static constexpr bool kCheckZeroMemory = kIsDebugBuild;
+  // Valgrind protects memory, so do not check memory when running under valgrind. In a normal
+  // build with kCheckZeroMemory the whole test should be optimized away.
+  // TODO: Unprotect before checks.
+  ALWAYS_INLINE bool ShouldCheckZeroMemory();
 
   // If true, log verbose details of operations.
   static constexpr bool kTraceRosAlloc = false;
@@ -485,6 +490,9 @@ class RosAlloc {
   // greater than or equal to this value, release pages.
   const size_t page_release_size_threshold_;
 
+  // Whether this allocator is running under Valgrind.
+  bool running_on_valgrind_;
+
   // The base address of the memory region that's managed by this allocator.
   uint8_t* Begin() { return base_; }
   // The end address of the memory region that's managed by this allocator.
@@ -537,6 +545,7 @@ class RosAlloc {
  public:
   RosAlloc(void* base, size_t capacity, size_t max_capacity,
            PageReleaseMode page_release_mode,
+           bool running_on_valgrind,
            size_t page_release_size_threshold = kDefaultPageReleaseSizeThreshold);
   ~RosAlloc();
 
@@ -551,7 +560,7 @@ class RosAlloc {
       LOCKS_EXCLUDED(bulk_free_lock_);
 
   // Returns the size of the allocated slot for a given allocated memory chunk.
-  size_t UsableSize(void* ptr);
+  size_t UsableSize(const void* ptr);
   // Returns the size of the allocated slot for a given size.
   size_t UsableSize(size_t bytes) {
     if (UNLIKELY(bytes > kLargeSizeThreshold)) {

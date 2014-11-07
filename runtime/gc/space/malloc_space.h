@@ -114,9 +114,9 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
 
   void SetGrowthLimit(size_t growth_limit);
 
-  virtual MallocSpace* CreateInstance(const std::string& name, MemMap* mem_map, void* allocator,
-                                      uint8_t* begin, uint8_t* end, uint8_t* limit, size_t growth_limit,
-                                      bool can_move_objects) = 0;
+  virtual MallocSpace* CreateInstance(MemMap* mem_map, const std::string& name, void* allocator,
+                                      uint8_t* begin, uint8_t* end, uint8_t* limit,
+                                      size_t growth_limit, bool can_move_objects) = 0;
 
   // Splits ourself into a zygote space and new malloc space which has our unused memory. When true,
   // the low memory mode argument specifies that the heap wishes the created space to be more
