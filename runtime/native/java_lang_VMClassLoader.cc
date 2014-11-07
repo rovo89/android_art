@@ -28,26 +28,28 @@ static jclass VMClassLoader_findLoadedClass(JNIEnv* env, jclass, jobject javaLoa
   ScopedFastNativeObjectAccess soa(env);
   mirror::ClassLoader* loader = soa.Decode<mirror::ClassLoader*>(javaLoader);
   ScopedUtfChars name(env, javaName);
-  if (name.c_str() == NULL) {
-    return NULL;
+  if (name.c_str() == nullptr) {
+    return nullptr;
   }
   ClassLinker* cl = Runtime::Current()->GetClassLinker();
   std::string descriptor(DotToDescriptor(name.c_str()));
-  mirror::Class* c = cl->LookupClass(descriptor.c_str(), loader);
-  if (c != NULL && c->IsResolved()) {
+  const size_t descriptor_hash = ComputeModifiedUtf8Hash(descriptor.c_str());
+  mirror::Class* c = cl->LookupClass(descriptor.c_str(), descriptor_hash, loader);
+  if (c != nullptr && c->IsResolved()) {
     return soa.AddLocalReference<jclass>(c);
   }
   if (loader != nullptr) {
     // Try the common case.
     StackHandleScope<1> hs(soa.Self());
-    c = cl->FindClassInPathClassLoader(soa, soa.Self(), descriptor.c_str(), hs.NewHandle(loader));
+    c = cl->FindClassInPathClassLoader(soa, soa.Self(), descriptor.c_str(), descriptor_hash,
+                                       hs.NewHandle(loader));
     if (c != nullptr) {
       return soa.AddLocalReference<jclass>(c);
     }
   }
   // Class wasn't resolved so it may be erroneous or not yet ready, force the caller to go into
   // the regular loadClass code.
-  return NULL;
+  return nullptr;
 }
 
 static jint VMClassLoader_getBootClassPathSize(JNIEnv*, jclass) {

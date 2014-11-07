@@ -179,9 +179,9 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
     return NULL;
   }
   const std::string descriptor(DotToDescriptor(class_name.c_str()));
-
+  const size_t hash(ComputeModifiedUtf8Hash(descriptor.c_str()));
   for (const DexFile* dex_file : *dex_files) {
-    const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor.c_str());
+    const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor.c_str(), hash);
     if (dex_class_def != nullptr) {
       ScopedObjectAccess soa(env);
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -189,8 +189,8 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
       StackHandleScope<1> hs(soa.Self());
       Handle<mirror::ClassLoader> class_loader(
           hs.NewHandle(soa.Decode<mirror::ClassLoader*>(javaLoader)));
-      mirror::Class* result = class_linker->DefineClass(descriptor.c_str(), class_loader, *dex_file,
-                                                        *dex_class_def);
+      mirror::Class* result = class_linker->DefineClass(soa.Self(), descriptor.c_str(), hash,
+                                                        class_loader, *dex_file, *dex_class_def);
       if (result != nullptr) {
         VLOG(class_linker) << "DexFile_defineClassNative returning " << result;
         return soa.AddLocalReference<jclass>(result);

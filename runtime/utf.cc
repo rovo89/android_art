@@ -85,10 +85,10 @@ int32_t ComputeUtf16Hash(const uint16_t* chars, size_t char_count) {
   return hash;
 }
 
-int32_t ComputeUtf8Hash(const char* chars) {
-  int32_t hash = 0;
+size_t ComputeModifiedUtf8Hash(const char* chars) {
+  size_t hash = 0;
   while (*chars != '\0') {
-    hash = hash * 31 + GetUtf16FromUtf8(&chars);
+    hash = hash * 31 + *chars++;
   }
   return hash;
 }
