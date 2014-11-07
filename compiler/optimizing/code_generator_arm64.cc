@@ -550,6 +550,7 @@ InstructionCodeGeneratorARM64::InstructionCodeGeneratorARM64(HGraph* graph,
   M(StaticFieldGet)                                        \
   M(StaticFieldSet)                                        \
   M(Throw)                                                 \
+  M(TypeCheck)                                             \
   M(TypeConversion)                                        \
 
 #define UNIMPLEMENTED_INSTRUCTION_BREAK_CODE(name) name##UnimplementedInstructionBreakCode
