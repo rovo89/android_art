@@ -20,6 +20,7 @@
 #include <unordered_set>
 
 #include "base/allocator.h"
+#include "base/hash_set.h"
 #include "base/mutex.h"
 #include "gc_root.h"
 #include "object_callbacks.h"
@@ -98,9 +99,18 @@ class InternTable {
  private:
   class StringHashEquals {
    public:
-    std::size_t operator()(const GcRoot<mirror::String>& root) NO_THREAD_SAFETY_ANALYSIS;
-    bool operator()(const GcRoot<mirror::String>& a, const GcRoot<mirror::String>& b)
+    std::size_t operator()(const GcRoot<mirror::String>& root) const NO_THREAD_SAFETY_ANALYSIS;
+    bool operator()(const GcRoot<mirror::String>& a, const GcRoot<mirror::String>& b) const
         NO_THREAD_SAFETY_ANALYSIS;
+  };
+  class GcRootEmptyFn {
+   public:
+    void MakeEmpty(GcRoot<mirror::String>& item) const {
+      item = GcRoot<mirror::String>();
+    }
+    bool IsEmpty(const GcRoot<mirror::String>& item) const {
+      return item.IsNull();
+    }
   };
 
   // Table which holds pre zygote and post zygote interned strings. There is one instance for
@@ -114,19 +124,17 @@ class InternTable {
     void Remove(mirror::String* s)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-    void VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags)
+    void VisitRoots(RootCallback* callback, void* arg)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
     void SweepWeaks(IsMarkedCallback* callback, void* arg)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
         EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
     void SwapPostZygoteWithPreZygote() EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
-    size_t Size() const EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_) {
-      return pre_zygote_table_.size() + post_zygote_table_.size();
-    }
+    size_t Size() const EXCLUSIVE_LOCKS_REQUIRED(Locks::intern_table_lock_);
 
    private:
-    typedef std::unordered_set<GcRoot<mirror::String>, StringHashEquals, StringHashEquals,
+    typedef HashSet<GcRoot<mirror::String>, GcRootEmptyFn, StringHashEquals, StringHashEquals,
         TrackingAllocator<GcRoot<mirror::String>, kAllocatorTagInternTable>> UnorderedSet;
 
     void SweepWeaks(UnorderedSet* set, IsMarkedCallback* callback, void* arg)
@@ -141,6 +149,7 @@ class InternTable {
     UnorderedSet post_zygote_table_;
   };
 
+  // Insert if non null, otherwise return nullptr.
   mirror::String* Insert(mirror::String* s, bool is_strong)
       LOCKS_EXCLUDED(Locks::intern_table_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
