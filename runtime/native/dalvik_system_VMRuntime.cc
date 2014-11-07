@@ -262,7 +262,7 @@ static void PreloadDexCachesResolveType(Thread* self, mirror::DexCache* dex_cach
   if (class_name[1] == '\0') {
     klass = linker->FindPrimitiveClass(class_name[0]);
   } else {
-    klass = linker->LookupClass(self, class_name, NULL);
+    klass = linker->LookupClass(self, class_name, ComputeModifiedUtf8Hash(class_name), NULL);
   }
   if (klass == NULL) {
     return;
