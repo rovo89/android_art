@@ -32,8 +32,9 @@
 #ifndef SYS_futex
 #define SYS_futex __NR_futex
 #endif
-#define CHECK_MUTEX_CALL(call, args) CHECK_PTHREAD_CALL(call, args, name_)
 #endif  // ART_USE_FUTEXES
+
+#define CHECK_MUTEX_CALL(call, args) CHECK_PTHREAD_CALL(call, args, name_)
 
 namespace art {
 
