@@ -281,16 +281,22 @@ void CodeGenerator::InitLocations(HInstruction* instruction) {
       HInstruction* previous = instruction->GetPrevious();
       Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
       Move(previous, temp_location, instruction);
-      previous->GetLocations()->SetOut(temp_location);
     }
     return;
   }
   AllocateRegistersLocally(instruction);
   for (size_t i = 0, e = instruction->InputCount(); i < e; ++i) {
     Location location = instruction->GetLocations()->InAt(i);
+    HInstruction* input = instruction->InputAt(i);
     if (location.IsValid()) {
       // Move the input to the desired location.
-      Move(instruction->InputAt(i), location, instruction);
+      if (input->GetNext()->IsTemporary()) {
+        // If the input was stored in a temporary, use that temporary to
+        // perform the move.
+        Move(input->GetNext(), location, instruction);
+      } else {
+        Move(input, location, instruction);
+      }
     }
   }
 }

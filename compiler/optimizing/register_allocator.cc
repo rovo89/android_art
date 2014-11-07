@@ -1164,11 +1164,11 @@ void RegisterAllocator::Resolve() {
       if (location.IsStackSlot()) {
         location = Location::StackSlot(location.GetStackIndex() + codegen_->GetFrameSize());
         current->SetSpillSlot(location.GetStackIndex());
-        locations->SetOut(location);
+        locations->UpdateOut(location);
       } else if (location.IsDoubleStackSlot()) {
         location = Location::DoubleStackSlot(location.GetStackIndex() + codegen_->GetFrameSize());
         current->SetSpillSlot(location.GetStackIndex());
-        locations->SetOut(location);
+        locations->UpdateOut(location);
       } else if (current->HasSpillSlot()) {
         current->SetSpillSlot(current->GetSpillSlot() + codegen_->GetFrameSize());
       }
