@@ -520,8 +520,9 @@ class OatDumper {
         LOG(WARNING) << "Failed to open dex file '" << oat_dex_file->GetDexFileLocation()
             << "': " << error_msg;
       } else {
+        const char* descriptor = m->GetDeclaringClassDescriptor();
         const DexFile::ClassDef* class_def =
-            dex_file->FindClassDef(m->GetDeclaringClassDescriptor());
+            dex_file->FindClassDef(descriptor, ComputeModifiedUtf8Hash(descriptor));
         if (class_def != nullptr) {
           uint16_t class_def_index = dex_file->GetIndexForClassDef(*class_def);
           const OatFile::OatClass oat_class = oat_dex_file->GetOatClass(class_def_index);
