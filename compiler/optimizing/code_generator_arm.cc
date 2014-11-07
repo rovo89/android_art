@@ -766,6 +766,9 @@ void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstr
       default:
         LOG(FATAL) << "Unexpected type " << instruction->GetType();
     }
+  } else if (instruction->IsTemporary()) {
+    Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
+    Move32(location, temp_location);
   } else {
     DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
     switch (instruction->GetType()) {
