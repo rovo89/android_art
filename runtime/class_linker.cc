@@ -128,15 +128,6 @@ static void WrapExceptionInInitializer() SHARED_LOCKS_REQUIRED(Locks::mutator_lo
   }
 }
 
-static size_t Hash(const char* s) {
-  // This is the java.lang.String hashcode for convenience, not interoperability.
-  size_t hash = 0;
-  for (; *s != '\0'; ++s) {
-    hash = hash * 31 + *s;
-  }
-  return hash;
-}
-
 const char* ClassLinker::class_roots_descriptors_[] = {
   "Ljava/lang/Class;",
   "Ljava/lang/Object;",
@@ -1956,7 +1947,8 @@ mirror::Class* ClassLinker::EnsureResolved(Thread* self, const char* descriptor,
     }
     CHECK(h_class->IsRetired());
     // Get the updated class from class table.
-    klass = LookupClass(descriptor, h_class.Get()->GetClassLoader());
+    klass = LookupClass(descriptor, ComputeModifiedUtf8Hash(descriptor),
+                        h_class.Get()->GetClassLoader());
   }
 
   // Wait for the class if it has not already been linked.
@@ -1990,21 +1982,19 @@ typedef std::pair<const DexFile*, const DexFile::ClassDef*> ClassPathEntry;
 
 // Search a collection of DexFiles for a descriptor
 ClassPathEntry FindInClassPath(const char* descriptor,
-                               const std::vector<const DexFile*>& class_path) {
-  for (size_t i = 0; i != class_path.size(); ++i) {
-    const DexFile* dex_file = class_path[i];
-    const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
+                               size_t hash, const std::vector<const DexFile*>& class_path) {
+  for (const DexFile* dex_file : class_path) {
+    const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor, hash);
     if (dex_class_def != nullptr) {
       return ClassPathEntry(dex_file, dex_class_def);
     }
   }
-  // TODO: remove reinterpret_cast when issue with -std=gnu++0x host issue resolved
-  return ClassPathEntry(static_cast<const DexFile*>(nullptr),
-                        static_cast<const DexFile::ClassDef*>(nullptr));
+  return ClassPathEntry(nullptr, nullptr);
 }
 
 mirror::Class* ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlreadyRunnable& soa,
                                                        Thread* self, const char* descriptor,
+                                                       size_t hash,
                                                        Handle<mirror::ClassLoader> class_loader) {
   if (class_loader->GetClass() !=
       soa.Decode<mirror::Class*>(WellKnownClasses::dalvik_system_PathClassLoader) ||
@@ -2012,14 +2002,14 @@ mirror::Class* ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlready
           soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_BootClassLoader)) {
     return nullptr;
   }
-  ClassPathEntry pair = FindInClassPath(descriptor, boot_class_path_);
+  ClassPathEntry pair = FindInClassPath(descriptor, hash, boot_class_path_);
   // Check if this would be found in the parent boot class loader.
   if (pair.second != nullptr) {
-    mirror::Class* klass = LookupClass(descriptor, nullptr);
+    mirror::Class* klass = LookupClass(descriptor, hash, nullptr);
     if (klass != nullptr) {
       return EnsureResolved(self, descriptor, klass);
     }
-    klass = DefineClass(descriptor, NullHandle<mirror::ClassLoader>(), *pair.first,
+    klass = DefineClass(self, descriptor, hash, NullHandle<mirror::ClassLoader>(), *pair.first,
                         *pair.second);
     if (klass != nullptr) {
       return klass;
@@ -2067,11 +2057,11 @@ mirror::Class* ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlready
               break;
             }
             for (const DexFile* dex_file : *dex_files) {
-              const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor);
+              const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor, hash);
               if (dex_class_def != nullptr) {
                 RegisterDexFile(*dex_file);
-                mirror::Class* klass =
-                    DefineClass(descriptor, class_loader, *dex_file, *dex_class_def);
+                mirror::Class* klass = DefineClass(self, descriptor, hash, class_loader, *dex_file,
+                                                   *dex_class_def);
                 if (klass == nullptr) {
                   CHECK(self->IsExceptionPending()) << descriptor;
                   self->ClearException();
@@ -2098,19 +2088,21 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
     // for primitive classes that aren't backed by dex files.
     return FindPrimitiveClass(descriptor[0]);
   }
+  const size_t hash = ComputeModifiedUtf8Hash(descriptor);
   // Find the class in the loaded classes table.
-  mirror::Class* klass = LookupClass(descriptor, class_loader.Get());
+  mirror::Class* klass = LookupClass(descriptor, hash, class_loader.Get());
   if (klass != nullptr) {
     return EnsureResolved(self, descriptor, klass);
   }
   // Class is not yet loaded.
   if (descriptor[0] == '[') {
-    return CreateArrayClass(self, descriptor, class_loader);
+    return CreateArrayClass(self, descriptor, hash, class_loader);
   } else if (class_loader.Get() == nullptr) {
     // The boot class loader, search the boot class path.
-    ClassPathEntry pair = FindInClassPath(descriptor, boot_class_path_);
+    ClassPathEntry pair = FindInClassPath(descriptor, hash, boot_class_path_);
     if (pair.second != nullptr) {
-      return DefineClass(descriptor, NullHandle<mirror::ClassLoader>(), *pair.first, *pair.second);
+      return DefineClass(self, descriptor, hash, NullHandle<mirror::ClassLoader>(), *pair.first,
+                         *pair.second);
     } else {
       // The boot class loader is searched ahead of the application class loader, failures are
       // expected and will be wrapped in a ClassNotFoundException. Use the pre-allocated error to
@@ -2122,16 +2114,17 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
   } else if (Runtime::Current()->UseCompileTimeClassPath()) {
     // First try with the bootstrap class loader.
     if (class_loader.Get() != nullptr) {
-      klass = LookupClass(descriptor, nullptr);
+      klass = LookupClass(descriptor, hash, nullptr);
       if (klass != nullptr) {
         return EnsureResolved(self, descriptor, klass);
       }
     }
     // If the lookup failed search the boot class path. We don't perform a recursive call to avoid
     // a NoClassDefFoundError being allocated.
-    ClassPathEntry pair = FindInClassPath(descriptor, boot_class_path_);
+    ClassPathEntry pair = FindInClassPath(descriptor, hash, boot_class_path_);
     if (pair.second != nullptr) {
-      return DefineClass(descriptor, NullHandle<mirror::ClassLoader>(), *pair.first, *pair.second);
+      return DefineClass(self, descriptor, hash, NullHandle<mirror::ClassLoader>(), *pair.first,
+                         *pair.second);
     }
     // Next try the compile time class path.
     const std::vector<const DexFile*>* class_path;
@@ -2141,13 +2134,13 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
                                             soa.AddLocalReference<jobject>(class_loader.Get()));
       class_path = &Runtime::Current()->GetCompileTimeClassPath(jclass_loader.get());
     }
-    pair = FindInClassPath(descriptor, *class_path);
+    pair = FindInClassPath(descriptor, hash, *class_path);
     if (pair.second != nullptr) {
-      return DefineClass(descriptor, class_loader, *pair.first, *pair.second);
+      return DefineClass(self, descriptor, hash, class_loader, *pair.first, *pair.second);
     }
   } else {
     ScopedObjectAccessUnchecked soa(self);
-    mirror::Class* klass = FindClassInPathClassLoader(soa, self, descriptor, class_loader);
+    mirror::Class* klass = FindClassInPathClassLoader(soa, self, descriptor, hash, class_loader);
     if (klass != nullptr) {
       return klass;
     }
@@ -2186,14 +2179,12 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
   return nullptr;
 }
 
-mirror::Class* ClassLinker::DefineClass(const char* descriptor,
+mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, size_t hash,
                                         Handle<mirror::ClassLoader> class_loader,
                                         const DexFile& dex_file,
                                         const DexFile::ClassDef& dex_class_def) {
-  Thread* self = Thread::Current();
   StackHandleScope<3> hs(self);
   auto klass = hs.NewHandle<mirror::Class>(nullptr);
-  bool should_allocate = false;
 
   // Load the class from the dex file.
   if (UNLIKELY(!init_done_)) {
@@ -2212,14 +2203,10 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
       klass.Assign(GetClassRoot(kJavaLangReflectArtField));
     } else if (strcmp(descriptor, "Ljava/lang/reflect/ArtMethod;") == 0) {
       klass.Assign(GetClassRoot(kJavaLangReflectArtMethod));
-    } else {
-      should_allocate = true;
     }
-  } else {
-    should_allocate = true;
   }
 
-  if (should_allocate) {
+  if (klass.Get() == nullptr) {
     // Allocate a class with the status of not ready.
     // Interface object should get the right size here. Regular class will
     // figure out the right size later and be replaced with one of the right
@@ -2244,7 +2231,7 @@ mirror::Class* ClassLinker::DefineClass(const char* descriptor,
   klass->SetClinitThreadId(self->GetTid());
 
   // Add the newly loaded class to the loaded classes table.
-  mirror::Class* existing = InsertClass(descriptor, klass.Get(), Hash(descriptor));
+  mirror::Class* existing = InsertClass(descriptor, klass.Get(), hash);
   if (existing != nullptr) {
     // We failed to insert because we raced with another thread. Calling EnsureResolved may cause
     // this thread to block.
@@ -3039,7 +3026,8 @@ mirror::Class* ClassLinker::InitializePrimitiveClass(mirror::Class* primitive_cl
   primitive_class->SetPrimitiveType(type);
   primitive_class->SetStatus(mirror::Class::kStatusInitialized, self);
   const char* descriptor = Primitive::Descriptor(type);
-  mirror::Class* existing = InsertClass(descriptor, primitive_class, Hash(descriptor));
+  mirror::Class* existing = InsertClass(descriptor, primitive_class,
+                                        ComputeModifiedUtf8Hash(descriptor));
   CHECK(existing == nullptr) << "InitPrimitiveClass(" << type << ") failed";
   return primitive_class;
 }
@@ -3057,7 +3045,7 @@ mirror::Class* ClassLinker::InitializePrimitiveClass(mirror::Class* primitive_cl
 // array class; that always comes from the base element class.
 //
 // Returns nullptr with an exception raised on failure.
-mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descriptor,
+mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descriptor, size_t hash,
                                              Handle<mirror::ClassLoader> class_loader) {
   // Identify the underlying component type
   CHECK_EQ('[', descriptor[0]);
@@ -3066,7 +3054,8 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
   if (component_type.Get() == nullptr) {
     DCHECK(self->IsExceptionPending());
     // We need to accept erroneous classes as component types.
-    component_type.Assign(LookupClass(descriptor + 1, class_loader.Get()));
+    const size_t component_hash = ComputeModifiedUtf8Hash(descriptor + 1);
+    component_type.Assign(LookupClass(descriptor + 1, component_hash, class_loader.Get()));
     if (component_type.Get() == nullptr) {
       DCHECK(self->IsExceptionPending());
       return nullptr;
@@ -3096,7 +3085,7 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
   // class to the hash table --- necessary because of possible races with
   // other threads.)
   if (class_loader.Get() != component_type->GetClassLoader()) {
-    mirror::Class* new_class = LookupClass(descriptor, component_type->GetClassLoader());
+    mirror::Class* new_class = LookupClass(descriptor, hash, component_type->GetClassLoader());
     if (new_class != nullptr) {
       return new_class;
     }
@@ -3185,7 +3174,7 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
 
   new_class->SetAccessFlags(access_flags);
 
-  mirror::Class* existing = InsertClass(descriptor, new_class.Get(), Hash(descriptor));
+  mirror::Class* existing = InsertClass(descriptor, new_class.Get(), hash);
   if (existing == nullptr) {
     return new_class.Get();
   }
@@ -3262,20 +3251,17 @@ mirror::Class* ClassLinker::InsertClass(const char* descriptor, mirror::Class* k
 mirror::Class* ClassLinker::UpdateClass(const char* descriptor, mirror::Class* klass,
                                         size_t hash) {
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
-  mirror::Class* existing =
-      LookupClassFromTableLocked(descriptor, klass->GetClassLoader(), hash);
-
-  if (existing == nullptr) {
+  auto existing_it = class_table_.FindWithHash(std::make_pair(descriptor, klass->GetClassLoader()),
+                                               hash);
+  if (existing_it == class_table_.end()) {
     CHECK(klass->IsProxyClass());
     return nullptr;
   }
 
+  mirror::Class* existing = existing_it->Read();
   CHECK_NE(existing, klass) << descriptor;
   CHECK(!existing->IsResolved()) << descriptor;
   CHECK_EQ(klass->GetStatus(), mirror::Class::kStatusResolving) << descriptor;
-
-  auto it = class_table_.Find(descriptor);
-  CHECK(it != class_table_.end());
 
   CHECK(!klass->IsTemp()) << descriptor;
   if (kIsDebugBuild && klass->GetClassLoader() == nullptr &&
@@ -3290,7 +3276,7 @@ mirror::Class* ClassLinker::UpdateClass(const char* descriptor, mirror::Class* k
   VerifyObject(klass);
 
   // Update the element in the hash set.
-  *it = GcRoot<mirror::Class>(klass);
+  *existing_it = GcRoot<mirror::Class>(klass);
   if (log_new_class_table_roots_) {
     new_class_roots_.push_back(GcRoot<mirror::Class>(klass));
   }
@@ -3314,8 +3300,8 @@ bool ClassLinker::RemoveClass(const char* descriptor, mirror::ClassLoader* class
   return false;
 }
 
-mirror::Class* ClassLinker::LookupClass(const char* descriptor, mirror::ClassLoader* class_loader) {
-  size_t hash = Hash(descriptor);
+mirror::Class* ClassLinker::LookupClass(const char* descriptor, size_t hash,
+                                        mirror::ClassLoader* class_loader) {
   {
     ReaderMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
     mirror::Class* result = LookupClassFromTableLocked(descriptor, class_loader, hash);
@@ -3383,7 +3369,7 @@ void ClassLinker::MoveImageClassesToClassTable() {
       if (klass != nullptr) {
         DCHECK(klass->GetClassLoader() == nullptr);
         const char* descriptor = klass->GetDescriptor(&temp);
-        size_t hash = Hash(descriptor);
+        size_t hash = ComputeModifiedUtf8Hash(descriptor);
         mirror::Class* existing = LookupClassFromTableLocked(descriptor, nullptr, hash);
         if (existing != nullptr) {
           CHECK_EQ(existing, klass) << PrettyClassAndClassLoader(existing) << " != "
@@ -3890,7 +3876,8 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     CHECK_EQ(klass.Get()->GetThrows(),
              soa.Decode<mirror::ObjectArray<mirror::ObjectArray<mirror::Class>>*>(throws));
   }
-  mirror::Class* existing = InsertClass(descriptor.c_str(), klass.Get(), Hash(descriptor.c_str()));
+  mirror::Class* existing = InsertClass(descriptor.c_str(), klass.Get(),
+                                        ComputeModifiedUtf8Hash(descriptor.c_str()));
   CHECK(existing == nullptr);
   return klass.Get();
 }
@@ -4450,7 +4437,8 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
 
     FixupTemporaryDeclaringClass(klass.Get(), new_class_h.Get());
 
-    mirror::Class* existing = UpdateClass(descriptor, new_class_h.Get(), Hash(descriptor));
+    mirror::Class* existing = UpdateClass(descriptor, new_class_h.Get(),
+                                          ComputeModifiedUtf8Hash(descriptor));
     CHECK(existing == nullptr || existing == klass.Get());
 
     // This will notify waiters on temp class that saw the not yet resolved class in the
@@ -4645,7 +4633,7 @@ class LinkVirtualHashTable {
   void Add(uint32_t virtual_method_index) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* local_method = klass_->GetVirtualMethodDuringLinking(virtual_method_index);
     const char* name = local_method->GetName();
-    uint32_t hash = Hash(name);
+    uint32_t hash = ComputeModifiedUtf8Hash(name);
     uint32_t index = hash % hash_size_;
     // Linear probe until we have an empty slot.
     while (hash_table_[index] != invalid_index_) {
@@ -4658,7 +4646,7 @@ class LinkVirtualHashTable {
   uint32_t FindAndRemove(MethodNameAndSignatureComparator* comparator)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const char* name = comparator->GetName();
-    uint32_t hash = Hash(name);
+    uint32_t hash = ComputeModifiedUtf8Hash(name);
     size_t index = hash % hash_size_;
     while (true) {
       const uint32_t value = hash_table_[index];
@@ -5732,7 +5720,7 @@ void ClassLinker::SetClassRoot(ClassRoot class_root, mirror::Class* klass) {
 std::size_t ClassLinker::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::Class>& root)
     const {
   std::string temp;
-  return Hash(root.Read()->GetDescriptor(&temp));
+  return ComputeModifiedUtf8Hash(root.Read()->GetDescriptor(&temp));
 }
 
 bool ClassLinker::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::Class>& a,
@@ -5746,7 +5734,7 @@ bool ClassLinker::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::Cla
 
 std::size_t ClassLinker::ClassDescriptorHashEquals::operator()(
     const std::pair<const char*, mirror::ClassLoader*>& element) const {
-  return Hash(element.first);
+  return ComputeModifiedUtf8Hash(element.first);
 }
 
 bool ClassLinker::ClassDescriptorHashEquals::operator()(
@@ -5763,7 +5751,7 @@ bool ClassLinker::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::Cla
 }
 
 std::size_t ClassLinker::ClassDescriptorHashEquals::operator()(const char* descriptor) const {
-  return Hash(descriptor);
+  return ComputeModifiedUtf8Hash(descriptor);
 }
 
 }  // namespace art

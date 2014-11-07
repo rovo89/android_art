@@ -22,6 +22,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "base/hash_map.h"
 #include "base/logging.h"
 #include "base/mutex.h"  // For Locks::mutator_lock_.
 #include "globals.h"
@@ -648,8 +649,9 @@ class DexFile {
     return StringByTypeIdx(class_def.class_idx_);
   }
 
-  // Looks up a class definition by its class descriptor.
-  const ClassDef* FindClassDef(const char* descriptor) const;
+  // Looks up a class definition by its class descriptor. Hash must be
+  // ComputeModifiedUtf8Hash(descriptor).
+  const ClassDef* FindClassDef(const char* descriptor, size_t hash) const;
 
   // Looks up a class definition by its type index.
   const ClassDef* FindClassDef(uint16_t type_idx) const;
@@ -985,17 +987,30 @@ class DexFile {
   // Number of misses finding a class def from a descriptor.
   mutable Atomic<uint32_t> find_class_def_misses_;
 
+  struct UTF16EmptyFn {
+    void MakeEmpty(std::pair<const char*, const ClassDef*>& pair) const {
+      pair.first = nullptr;
+      pair.second = nullptr;
+    }
+    bool IsEmpty(const std::pair<const char*, const ClassDef*>& pair) const {
+      if (pair.first == nullptr) {
+        DCHECK(pair.second == nullptr);
+        return true;
+      }
+      return false;
+    }
+  };
   struct UTF16HashCmp {
     // Hash function.
     size_t operator()(const char* key) const {
-      return ComputeUtf8Hash(key);
+      return ComputeModifiedUtf8Hash(key);
     }
     // std::equal function.
     bool operator()(const char* a, const char* b) const {
       return CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(a, b) == 0;
     }
   };
-  typedef std::unordered_map<const char*, const ClassDef*, UTF16HashCmp, UTF16HashCmp> Index;
+  typedef HashMap<const char*, const ClassDef*, UTF16EmptyFn, UTF16HashCmp, UTF16HashCmp> Index;
   mutable Atomic<Index*> class_def_index_;
   mutable Mutex build_class_def_index_mutex_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 };

@@ -413,11 +413,12 @@ uint32_t DexFile::GetVersion() const {
   return atoi(version);
 }
 
-const DexFile::ClassDef* DexFile::FindClassDef(const char* descriptor) const {
+const DexFile::ClassDef* DexFile::FindClassDef(const char* descriptor, size_t hash) const {
+  DCHECK_EQ(ComputeModifiedUtf8Hash(descriptor), hash);
   // If we have an index lookup the descriptor via that as its constant time to search.
   Index* index = class_def_index_.LoadSequentiallyConsistent();
   if (index != nullptr) {
-    auto it = index->find(descriptor);
+    auto it = index->FindWithHash(descriptor, hash);
     return (it == index->end()) ? nullptr : it->second;
   }
   // Fast path for rate no class defs case.
@@ -449,11 +450,11 @@ const DexFile::ClassDef* DexFile::FindClassDef(const char* descriptor) const {
     MutexLock mu(Thread::Current(), build_class_def_index_mutex_);
     // Are we the first ones building the index?
     if (class_def_index_.LoadSequentiallyConsistent() == nullptr) {
-      index = new Index(num_class_defs);
+      index = new Index;
       for (uint32_t i = 0; i < num_class_defs;  ++i) {
         const ClassDef& class_def = GetClassDef(i);
         const char* descriptor = GetClassDescriptor(class_def);
-        index->insert(std::make_pair(descriptor, &class_def));
+        index->Insert(std::make_pair(descriptor, &class_def));
       }
       class_def_index_.StoreSequentiallyConsistent(index);
     }

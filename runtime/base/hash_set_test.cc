@@ -22,12 +22,11 @@
 #include <unordered_set>
 
 #include "common_runtime_test.h"
-#include "utils.h"
+#include "hash_map.h"
 
 namespace art {
 
-class IsEmptyFnString {
- public:
+struct IsEmptyFnString {
   void MakeEmpty(std::string& item) const {
     item.clear();
   }
@@ -45,7 +44,7 @@ class HashSetTest : public CommonRuntimeTest {
     for (size_t i = 0; i < len; ++i) {
       oss << static_cast<char>('A' + PRand() % 64);
     }
-    COMPILE_ASSERT(' ' < 'A', must_be_less_than_a);
+    static_assert(' ' < 'A', "space must be less than a");
     oss << " " << unique_number_++;  // Relies on ' ' < 'A'
     return oss.str();
   }
@@ -198,6 +197,27 @@ TEST_F(HashSetTest, TestStress) {
       }
     }
   }
+}
+
+struct IsEmptyStringPair {
+  void MakeEmpty(std::pair<std::string, int>& pair) const {
+    pair.first.clear();
+  }
+  bool IsEmpty(const std::pair<std::string, int>& pair) const {
+    return pair.first.empty();
+  }
+};
+
+TEST_F(HashSetTest, TestHashMap) {
+  HashMap<std::string, int, IsEmptyStringPair> hash_map;
+  hash_map.Insert(std::make_pair(std::string("abcd"), 123));
+  hash_map.Insert(std::make_pair(std::string("abcd"), 124));
+  hash_map.Insert(std::make_pair(std::string("bags"), 444));
+  auto it = hash_map.Find(std::string("abcd"));
+  ASSERT_EQ(it->second, 123);
+  hash_map.Erase(it);
+  it = hash_map.Find(std::string("abcd"));
+  ASSERT_EQ(it->second, 124);
 }
 
 }  // namespace art
