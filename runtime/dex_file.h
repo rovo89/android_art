@@ -43,6 +43,7 @@ namespace mirror {
 }  // namespace mirror
 class ClassLinker;
 class MemMap;
+class OatFile;
 class Signature;
 template<class T> class Handle;
 class StringPiece;
@@ -390,8 +391,9 @@ class DexFile {
   static const DexFile* Open(const uint8_t* base, size_t size,
                              const std::string& location,
                              uint32_t location_checksum,
+                             const OatFile* oat_file,
                              std::string* error_msg) {
-    return OpenMemory(base, size, location, location_checksum, NULL, error_msg);
+    return OpenMemory(base, size, location, location_checksum, NULL, oat_file, error_msg);
   }
 
   // Open all classesXXX.dex files from a zip archive.
@@ -889,6 +891,10 @@ class DexFile {
   //     the dex_location where it's file name part has been made canonical.
   static std::string GetDexCanonicalLocation(const char* dex_location);
 
+  const OatFile* GetOatFile() const {
+    return oat_file_;
+  }
+
  private:
   // Opens a .dex file
   static const DexFile* OpenFile(int fd, const char* location, bool verify, std::string* error_msg);
@@ -924,12 +930,14 @@ class DexFile {
                                    const std::string& location,
                                    uint32_t location_checksum,
                                    MemMap* mem_map,
+                                   const OatFile* oat_file,
                                    std::string* error_msg);
 
   DexFile(const byte* base, size_t size,
           const std::string& location,
           uint32_t location_checksum,
-          MemMap* mem_map);
+          MemMap* mem_map,
+          const OatFile* oat_file);
 
   // Top-level initializer that calls other Init methods.
   bool Init(std::string* error_msg);
@@ -1013,6 +1021,10 @@ class DexFile {
   typedef HashMap<const char*, const ClassDef*, UTF16EmptyFn, UTF16HashCmp, UTF16HashCmp> Index;
   mutable Atomic<Index*> class_def_index_;
   mutable Mutex build_class_def_index_mutex_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+
+  // The oat file this dex file was loaded from. May be null in case the dex file is not coming
+  // from an oat file, e.g., directly from an apk.
+  const OatFile* oat_file_;
 };
 std::ostream& operator<<(std::ostream& os, const DexFile& dex_file);
 
