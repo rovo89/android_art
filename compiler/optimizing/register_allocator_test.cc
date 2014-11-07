@@ -622,7 +622,8 @@ TEST(RegisterAllocatorTest, ExpectedInRegisterHint) {
     liveness.Analyze();
 
     // Check that the field gets put in the register expected by its use.
-    ret->GetLocations()->SetInAt(0, Location::RegisterLocation(2));
+    // Don't use SetInAt because we are overriding an already allocated location.
+    ret->GetLocations()->inputs_.Put(0, Location::RegisterLocation(2));
 
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
     register_allocator.AllocateRegisters();
@@ -684,7 +685,8 @@ TEST(RegisterAllocatorTest, SameAsFirstInputHint) {
     liveness.Analyze();
 
     // check that both adds get the same register.
-    first_add->InputAt(0)->GetLocations()->SetOut(Location::RegisterLocation(2));
+    // Don't use SetOutput because output is already allocated.
+    first_add->InputAt(0)->GetLocations()->output_ = Location::RegisterLocation(2);
     ASSERT_EQ(first_add->GetLocations()->Out().GetPolicy(), Location::kSameAsFirstInput);
     ASSERT_EQ(second_add->GetLocations()->Out().GetPolicy(), Location::kSameAsFirstInput);
 

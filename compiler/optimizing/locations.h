@@ -417,6 +417,7 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
   LocationSummary(HInstruction* instruction, CallKind call_kind = kNoCall);
 
   void SetInAt(uint32_t at, Location location) {
+    DCHECK(inputs_.Get(at).IsUnallocated() || inputs_.Get(at).IsInvalid());
     inputs_.Put(at, location);
   }
 
@@ -429,8 +430,17 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
   }
 
   void SetOut(Location location, bool overlaps = true) {
+    DCHECK(output_.IsUnallocated() || output_.IsInvalid());
     output_overlaps_ = overlaps;
-    output_ = Location(location);
+    output_ = location;
+  }
+
+  void UpdateOut(Location location) {
+    // The only reason for updating an output is for parameters where
+    // we only know the exact stack slot after doing full register
+    // allocation.
+    DCHECK(output_.IsStackSlot() || output_.IsDoubleStackSlot());
+    output_ = location;
   }
 
   void AddTemp(Location location) {
@@ -442,6 +452,7 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
   }
 
   void SetTempAt(uint32_t at, Location location) {
+    DCHECK(temps_.Get(at).IsUnallocated() || temps_.Get(at).IsInvalid());
     temps_.Put(at, location);
   }
 
@@ -528,6 +539,8 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
   // Registers that are in use at this position.
   RegisterSet live_registers_;
 
+  ART_FRIEND_TEST(RegisterAllocatorTest, ExpectedInRegisterHint);
+  ART_FRIEND_TEST(RegisterAllocatorTest, SameAsFirstInputHint);
   DISALLOW_COPY_AND_ASSIGN(LocationSummary);
 };
 

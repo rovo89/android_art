@@ -559,6 +559,9 @@ void CodeGeneratorX86_64::Move(HInstruction* instruction,
       default:
         LOG(FATAL) << "Unexpected local type " << instruction->GetType();
     }
+  } else if (instruction->IsTemporary()) {
+    Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
+    Move(location, temp_location);
   } else {
     DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
     switch (instruction->GetType()) {
