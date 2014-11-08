@@ -159,7 +159,6 @@ size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) 
   const uint8_t* begin_instr = instr;
   bool have_prefixes = true;
   uint8_t prefix[4] = {0, 0, 0, 0};
-  const char** modrm_opcodes = NULL;
   do {
     switch (*instr) {
         // Group 1 - lock and repeat prefixes:
@@ -197,6 +196,7 @@ size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) 
   if (rex != 0) {
     instr++;
   }
+  const char** modrm_opcodes = nullptr;
   bool has_modrm = false;
   bool reg_is_opcode = false;
   size_t immediate_bytes = 0;
@@ -205,7 +205,9 @@ size_t DisassemblerX86::DumpInstruction(std::ostream& os, const uint8_t* instr) 
   bool store = false;  // stores to memory (ie rm is on the left)
   bool load = false;  // loads from memory (ie rm is on the right)
   bool byte_operand = false;  // true when the opcode is dealing with byte operands
-  bool byte_second_operand = false;  // true when the source operand is a byte register but the target register isn't (ie movsxb/movzxb).
+  // true when the source operand is a byte register but the target register isn't
+  // (ie movsxb/movzxb).
+  bool byte_second_operand = false;
   bool target_specific = false;  // register name depends on target (64 vs 32 bits).
   bool ax = false;  // implicit use of ax
   bool cx = false;  // implicit use of cx
@@ -629,7 +631,9 @@ DISASSEMBLER_ENTRY(cmp,
         } else {
           dst_reg_file = MMX;
         }
-        static const char* x71_opcodes[] = {"unknown-71", "unknown-71", "psrlw", "unknown-71", "psraw", "unknown-71", "psllw", "unknown-71"};
+        static const char* x71_opcodes[] = {
+            "unknown-71", "unknown-71", "psrlw", "unknown-71",
+            "psraw",      "unknown-71", "psllw", "unknown-71"};
         modrm_opcodes = x71_opcodes;
         reg_is_opcode = true;
         has_modrm = true;
@@ -643,7 +647,9 @@ DISASSEMBLER_ENTRY(cmp,
         } else {
           dst_reg_file = MMX;
         }
-        static const char* x72_opcodes[] = {"unknown-72", "unknown-72", "psrld", "unknown-72", "psrad", "unknown-72", "pslld", "unknown-72"};
+        static const char* x72_opcodes[] = {
+            "unknown-72", "unknown-72", "psrld", "unknown-72",
+            "psrad",      "unknown-72", "pslld", "unknown-72"};
         modrm_opcodes = x72_opcodes;
         reg_is_opcode = true;
         has_modrm = true;
@@ -657,7 +663,9 @@ DISASSEMBLER_ENTRY(cmp,
         } else {
           dst_reg_file = MMX;
         }
-        static const char* x73_opcodes[] = {"unknown-73", "unknown-73", "psrlq", "psrldq", "unknown-73", "unknown-73", "psllq", "unknown-73"};
+        static const char* x73_opcodes[] = {
+            "unknown-73", "unknown-73", "psrlq", "psrldq",
+            "unknown-73", "unknown-73", "psllq", "unknown-73"};
         modrm_opcodes = x73_opcodes;
         reg_is_opcode = true;
         has_modrm = true;
@@ -698,7 +706,7 @@ DISASSEMBLER_ENTRY(cmp,
       case 0x90: case 0x91: case 0x92: case 0x93: case 0x94: case 0x95: case 0x96: case 0x97:
       case 0x98: case 0x99: case 0x9A: case 0x9B: case 0x9C: case 0x9D: case 0x9E: case 0x9F:
         opcode << "set" << condition_codes[*instr & 0xF];
-        modrm_opcodes = NULL;
+        modrm_opcodes = nullptr;
         reg_is_opcode = true;
         has_modrm = true;
         store = true;
@@ -730,7 +738,9 @@ DISASSEMBLER_ENTRY(cmp,
       case 0xAE:
         if (prefix[0] == 0xF3) {
           prefix[0] = 0;  // clear prefix now it's served its purpose as part of the opcode
-          static const char* xAE_opcodes[] = {"rdfsbase", "rdgsbase", "wrfsbase", "wrgsbase", "unknown-AE", "unknown-AE", "unknown-AE", "unknown-AE"};
+          static const char* xAE_opcodes[] = {
+              "rdfsbase",   "rdgsbase",   "wrfsbase",   "wrgsbase",
+              "unknown-AE", "unknown-AE", "unknown-AE", "unknown-AE"};
           modrm_opcodes = xAE_opcodes;
           reg_is_opcode = true;
           has_modrm = true;
@@ -757,7 +767,9 @@ DISASSEMBLER_ENTRY(cmp,
               break;
           }
         } else {
-          static const char* xAE_opcodes[] = {"unknown-AE", "unknown-AE", "unknown-AE", "unknown-AE", "unknown-AE", "lfence", "mfence", "sfence"};
+          static const char* xAE_opcodes[] = {
+              "unknown-AE", "unknown-AE", "unknown-AE", "unknown-AE",
+              "unknown-AE", "lfence",     "mfence",     "sfence"};
           modrm_opcodes = xAE_opcodes;
           reg_is_opcode = true;
           has_modrm = true;
@@ -765,13 +777,44 @@ DISASSEMBLER_ENTRY(cmp,
           no_ops = true;
         }
         break;
-      case 0xAF: opcode << "imul"; has_modrm = true; load = true; break;
-      case 0xB1: opcode << "cmpxchg"; has_modrm = true; store = true; break;
-      case 0xB6: opcode << "movzxb"; has_modrm = true; load = true; byte_second_operand = true; break;
-      case 0xB7: opcode << "movzxw"; has_modrm = true; load = true; break;
-      case 0xBE: opcode << "movsxb"; has_modrm = true; load = true; byte_second_operand = true; rex |= (rex == 0 ? 0 : REX_W); break;
-      case 0xBF: opcode << "movsxw"; has_modrm = true; load = true; break;
-      case 0xC3: opcode << "movnti"; store = true; has_modrm = true; break;
+      case 0xAF:
+        opcode << "imul";
+        has_modrm = true;
+        load = true;
+        break;
+      case 0xB1:
+        opcode << "cmpxchg";
+        has_modrm = true;
+        store = true;
+        break;
+      case 0xB6:
+        opcode << "movzxb";
+        has_modrm = true;
+        load = true;
+        byte_second_operand = true;
+        break;
+      case 0xB7:
+        opcode << "movzxw";
+        has_modrm = true;
+        load = true;
+        break;
+      case 0xBE:
+        opcode << "movsxb";
+        has_modrm = true;
+        load = true;
+        byte_second_operand = true;
+        rex |= (rex == 0 ? 0 : REX_W);
+        break;
+      case 0xBF:
+        opcode << "movsxw";
+        has_modrm = true;
+        load = true;
+        break;
+      case 0xC3:
+        opcode << "movnti";
+        store = true;
+        has_modrm = true;
+        break;
       case 0xC5:
         if (prefix[2] == 0x66) {
           opcode << "pextrw";
@@ -797,7 +840,9 @@ DISASSEMBLER_ENTRY(cmp,
         immediate_bytes = 1;
         break;
       case 0xC7:
-        static const char* x0FxC7_opcodes[] = { "unknown-0f-c7", "cmpxchg8b", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7" };
+        static const char* x0FxC7_opcodes[] = {
+            "unknown-0f-c7", "cmpxchg8b",     "unknown-0f-c7", "unknown-0f-c7",
+            "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7", "unknown-0f-c7"};
         modrm_opcodes = x0FxC7_opcodes;
         has_modrm = true;
         reg_is_opcode = true;
@@ -973,7 +1018,9 @@ DISASSEMBLER_ENTRY(cmp,
     break;
   case 0xC3: opcode << "ret"; break;
   case 0xC6:
-    static const char* c6_opcodes[] = {"mov", "unknown-c6", "unknown-c6", "unknown-c6", "unknown-c6", "unknown-c6", "unknown-c6", "unknown-c6"};
+    static const char* c6_opcodes[] = {"mov",        "unknown-c6", "unknown-c6",
+                                       "unknown-c6", "unknown-c6", "unknown-c6",
+                                       "unknown-c6", "unknown-c6"};
     modrm_opcodes = c6_opcodes;
     store = true;
     immediate_bytes = 1;
@@ -982,7 +1029,9 @@ DISASSEMBLER_ENTRY(cmp,
     byte_operand = true;
     break;
   case 0xC7:
-    static const char* c7_opcodes[] = {"mov", "unknown-c7", "unknown-c7", "unknown-c7", "unknown-c7", "unknown-c7", "unknown-c7", "unknown-c7"};
+    static const char* c7_opcodes[] = {"mov",        "unknown-c7", "unknown-c7",
+                                       "unknown-c7", "unknown-c7", "unknown-c7",
+                                       "unknown-c7", "unknown-c7"};
     modrm_opcodes = c7_opcodes;
     store = true;
     immediate_bytes = 4;
@@ -1012,21 +1061,27 @@ DISASSEMBLER_ENTRY(cmp,
     }
     break;
   case 0xDB:
-    static const char* db_opcodes[] = {"fildl", "unknown-db", "unknown-db", "unknown-db", "unknown-db", "unknown-db", "unknown-db", "unknown-db"};
+    static const char* db_opcodes[] = {"fildl",      "unknown-db", "unknown-db",
+                                       "unknown-db", "unknown-db", "unknown-db",
+                                       "unknown-db", "unknown-db"};
     modrm_opcodes = db_opcodes;
     load = true;
     has_modrm = true;
     reg_is_opcode = true;
     break;
   case 0xDD:
-    static const char* dd_opcodes[] = {"fldl", "fisttp", "fstl", "fstpl", "frstor", "unknown-dd", "fnsave", "fnstsw"};
+    static const char* dd_opcodes[] = {"fldl",   "fisttp", "fstl",
+                                       "fstpl",  "frstor", "unknown-dd",
+                                       "fnsave", "fnstsw"};
     modrm_opcodes = dd_opcodes;
     store = true;
     has_modrm = true;
     reg_is_opcode = true;
     break;
   case 0xDF:
-    static const char* df_opcodes[] = {"fild", "unknown-df", "unknown-df", "unknown-df", "unknown-df", "fildll", "unknown-df", "unknown-df"};
+    static const char* df_opcodes[] = {"fild",       "unknown-df", "unknown-df",
+                                       "unknown-df", "unknown-df", "fildll",
+                                       "unknown-df", "unknown-df"};
     modrm_opcodes = df_opcodes;
     load = true;
     has_modrm = true;
@@ -1038,7 +1093,10 @@ DISASSEMBLER_ENTRY(cmp,
   case 0xEB: opcode << "jmp"; branch_bytes = 1; break;
   case 0xF5: opcode << "cmc"; break;
   case 0xF6: case 0xF7:
-    static const char* f7_opcodes[] = {"test", "unknown-f7", "not", "neg", "mul edx:eax, eax *", "imul edx:eax, eax *", "div edx:eax, edx:eax /", "idiv edx:eax, edx:eax /"};
+    static const char* f7_opcodes[] = {
+        "test", "unknown-f7", "not", "neg", "mul edx:eax, eax *",
+        "imul edx:eax, eax *", "div edx:eax, edx:eax /",
+        "idiv edx:eax, edx:eax /"};
     modrm_opcodes = f7_opcodes;
     has_modrm = true;
     reg_is_opcode = true;
@@ -1047,7 +1105,9 @@ DISASSEMBLER_ENTRY(cmp,
     break;
   case 0xFF:
     {
-      static const char* ff_opcodes[] = {"inc", "dec", "call", "call", "jmp", "jmp", "push", "unknown-ff"};
+      static const char* ff_opcodes[] = {
+          "inc", "dec", "call", "call",
+          "jmp", "jmp", "push", "unknown-ff"};
       modrm_opcodes = ff_opcodes;
       has_modrm = true;
       reg_is_opcode = true;
@@ -1148,7 +1208,7 @@ DISASSEMBLER_ENTRY(cmp,
       }
     }
 
-    if (reg_is_opcode && modrm_opcodes != NULL) {
+    if (reg_is_opcode && modrm_opcodes != nullptr) {
       opcode << modrm_opcodes[reg_or_opcode];
     }
 
