@@ -53,14 +53,14 @@ dump-oat-core: dump-oat-core-host dump-oat-core-target
 
 .PHONY: dump-oat-core-host
 ifeq ($(ART_BUILD_HOST),true)
-dump-oat-core-host: $(HOST_CORE_IMG_OUT) $(OATDUMP)
+dump-oat-core-host: $(HOST_CORE_IMG_OUTS) $(OATDUMP)
 	$(OATDUMP) --image=$(HOST_CORE_IMG_LOCATION) --output=$(ART_DUMP_OAT_PATH)/core.host.oatdump.txt
 	@echo Output in $(ART_DUMP_OAT_PATH)/core.host.oatdump.txt
 endif
 
 .PHONY: dump-oat-core-target
 ifeq ($(ART_BUILD_TARGET),true)
-dump-oat-core-target: $(TARGET_CORE_IMG_OUT) $(OATDUMP)
+dump-oat-core-target: $(TARGET_CORE_IMAGE_default_no-pic_32) $(OATDUMP)
 	$(OATDUMP) --image=$(TARGET_CORE_IMG_LOCATION) \
 	  --output=$(ART_DUMP_OAT_PATH)/core.target.oatdump.txt --instruction-set=$(TARGET_ARCH)
 	@echo Output in $(ART_DUMP_OAT_PATH)/core.target.oatdump.txt
