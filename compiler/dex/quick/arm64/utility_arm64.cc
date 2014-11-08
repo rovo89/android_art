@@ -1266,7 +1266,7 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
 
   // TODO: in future may need to differentiate Dalvik accesses w/ spills
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
-    DCHECK(r_base == rs_sp);
+    DCHECK_EQ(r_base, rs_sp);
     AnnotateDalvikRegAccess(load, displacement >> 2, true /* is_load */, r_dest.Is64Bit());
   }
   return load;
@@ -1357,7 +1357,7 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
 
   // TODO: In future, may need to differentiate Dalvik & spill accesses.
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
-    DCHECK(r_base == rs_sp);
+    DCHECK_EQ(r_base, rs_sp);
     AnnotateDalvikRegAccess(store, displacement >> 2, false /* is_load */, r_src.Is64Bit());
   }
   return store;

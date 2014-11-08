@@ -234,7 +234,7 @@ constexpr RegStorage rs_r3q(RegStorage::kValid | r3q);
 constexpr RegStorage rs_rBX = rs_r3;
 constexpr RegStorage rs_rX86_SP_64(RegStorage::kValid | r4sp_64);
 constexpr RegStorage rs_rX86_SP_32(RegStorage::kValid | r4sp_32);
-extern RegStorage rs_rX86_SP;
+static_assert(rs_rX86_SP_64.GetRegNum() == rs_rX86_SP_32.GetRegNum(), "Unexpected mismatch");
 constexpr RegStorage rs_r5(RegStorage::kValid | r5);
 constexpr RegStorage rs_r5q(RegStorage::kValid | r5q);
 constexpr RegStorage rs_rBP = rs_r5;
@@ -313,24 +313,8 @@ constexpr RegStorage rs_xr13(RegStorage::kValid | xr13);
 constexpr RegStorage rs_xr14(RegStorage::kValid | xr14);
 constexpr RegStorage rs_xr15(RegStorage::kValid | xr15);
 
-extern RegStorage rs_rX86_ARG0;
-extern RegStorage rs_rX86_ARG1;
-extern RegStorage rs_rX86_ARG2;
-extern RegStorage rs_rX86_ARG3;
-extern RegStorage rs_rX86_ARG4;
-extern RegStorage rs_rX86_ARG5;
-extern RegStorage rs_rX86_FARG0;
-extern RegStorage rs_rX86_FARG1;
-extern RegStorage rs_rX86_FARG2;
-extern RegStorage rs_rX86_FARG3;
-extern RegStorage rs_rX86_FARG4;
-extern RegStorage rs_rX86_FARG5;
-extern RegStorage rs_rX86_FARG6;
-extern RegStorage rs_rX86_FARG7;
-extern RegStorage rs_rX86_RET0;
-extern RegStorage rs_rX86_RET1;
-extern RegStorage rs_rX86_INVOKE_TGT;
-extern RegStorage rs_rX86_COUNT;
+constexpr RegStorage rs_rX86_RET0 = rs_rAX;
+constexpr RegStorage rs_rX86_RET1 = rs_rDX;
 
 // RegisterLocation templates return values (r_V0, or r_V0/r_V1).
 const RegLocation x86_loc_c_return
