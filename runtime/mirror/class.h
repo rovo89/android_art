@@ -1073,9 +1073,6 @@ class MANAGED Class FINAL : public Object {
   // methods for the methods in the interface.
   HeapReference<IfTable> iftable_;
 
-  // Interface method table (imt), for quick "invoke-interface".
-  HeapReference<ObjectArray<ArtMethod>> imtable_;
-
   // Descriptor for the class such as "java.lang.Class" or "[C". Lazily initialized by ComputeName
   HeapReference<String> name_;
 
