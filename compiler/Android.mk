@@ -258,7 +258,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libcutils libvixl
-    ifeq ($(BOARD_USES_QCOM_HARDWARE),true)
+    ifeq ($(TARGET_HAVE_QC_PERF),true)
       LOCAL_WHOLE_STATIC_LIBRARIES += libqc-art-compiler
     endif
     include $(BUILD_SHARED_LIBRARY)
