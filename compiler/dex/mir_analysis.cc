@@ -1112,14 +1112,11 @@ bool MIRGraph::SkipCompilation(std::string* skip_message) {
     return true;
   }
 
-  if (!compiler_options.IsCompilationEnabled()) {
-    *skip_message = "Compilation disabled";
-    return true;
-  }
+  DCHECK(compiler_options.IsCompilationEnabled());
 
   // Set up compilation cutoffs based on current filter mode.
-  size_t small_cutoff = 0;
-  size_t default_cutoff = 0;
+  size_t small_cutoff;
+  size_t default_cutoff;
   switch (compiler_filter) {
     case CompilerOptions::kBalanced:
       small_cutoff = compiler_options.GetSmallMethodThreshold();
@@ -1136,6 +1133,7 @@ bool MIRGraph::SkipCompilation(std::string* skip_message) {
       break;
     default:
       LOG(FATAL) << "Unexpected compiler_filter_: " << compiler_filter;
+      UNREACHABLE();
   }
 
   // If size < cutoff, assume we'll compile - but allow removal.

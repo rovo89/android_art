@@ -88,9 +88,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
     return nullptr;
   }
 
-  if (!driver.GetCompilerOptions().IsCompilationEnabled()) {
-    return nullptr;
-  }
+  DCHECK(driver.GetCompilerOptions().IsCompilationEnabled());
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   CompilationUnit cu(driver.GetArenaPool());
