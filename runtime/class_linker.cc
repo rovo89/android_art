@@ -620,8 +620,9 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
   }
   boot_image_option += heap->GetImageSpace()->GetImageLocation();
 
+  std::string odex_filename(DexFilenameToOdexFilename(dex_filename, kRuntimeISA));
   std::string dex_file_option("--dex-file=");
-  dex_file_option += dex_filename;
+  dex_file_option += OS::FileExists(odex_filename.c_str()) ? odex_filename : dex_filename;
 
   std::string oat_fd_option("--oat-fd=");
   StringAppendF(&oat_fd_option, "%d", oat_fd);
@@ -778,8 +779,8 @@ static bool LoadMultiDexFilesFromOatFile(const OatFile* oat_file,
       break;  // Not found, done.
     }
 
-    // Checksum test. Test must succeed when generated.
-    success = !generated;
+    // Checksum test.
+    success = true;
     if (next_location_checksum_pointer != nullptr) {
       success = next_location_checksum == oat_dex_file->GetDexFileLocationChecksum();
     }
@@ -926,8 +927,13 @@ bool ClassLinker::OpenDexFilesFromOat(const char* dex_location, const char* oat_
 
   // Need a checksum, fail else.
   if (!have_checksum) {
-    error_msgs->push_back(checksum_error_msg);
-    return false;
+    std::string odex_filename(DexFilenameToOdexFilename(dex_location, kRuntimeISA));
+    if (OS::FileExists(odex_filename.c_str())) {
+      error_msgs->clear();
+    } else {
+      error_msgs->push_back(checksum_error_msg);
+      return false;
+    }
   }
 
   // Look in cache location if no oat_location is given.
@@ -1016,6 +1022,11 @@ const OatFile* ClassLinker::FindOatFileInOatLocationForDexFile(const char* dex_l
                                 " found %d", oat_location, expected_patch_delta, actual_patch_delta);
       return nullptr;
     }
+  }
+
+  if (!oat_file->GetOatHeader().IsXposedOatVersionValid()) {
+    *error_msg = StringPrintf("Failed to find oat file at '%s' with expected Xposed oat version", oat_location);
+    return nullptr;
   }
 
   const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location,
@@ -1554,6 +1565,11 @@ bool ClassLinker::CheckOatFile(const Runtime* runtime, const OatFile* oat_file, 
     // If an oat file is PIC, we ignore offset and patching delta.
     offset_verified = true;
     patch_delta_verified = true;
+  }
+
+  if (!oat_header.IsXposedOatVersionValid()) {
+    compound_msg += " Oat Image Xposed oat version invalid";
+    *checksum_verified = false;
   }
 
   bool ret = (*checksum_verified && offset_verified && patch_delta_verified);
