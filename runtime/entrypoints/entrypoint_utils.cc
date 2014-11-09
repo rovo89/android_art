@@ -343,4 +343,76 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
     return zero;
   }
 }
+
+JValue InvokeXposedHandleHookedMethod(ScopedObjectAccessAlreadyRunnable& soa, const char* shorty,
+                                    jobject rcvr_jobj, jmethodID method,
+                                    std::vector<jvalue>& args) {
+  // Build argument array possibly triggering GC.
+  soa.Self()->AssertThreadSuspensionIsAllowable();
+  jobjectArray args_jobj = NULL;
+  const JValue zero;
+  int32_t target_sdk_version = Runtime::Current()->GetTargetSdkVersion();
+  // Do not create empty arrays unless needed to maintain Dalvik bug compatibility.
+  if (args.size() > 0 || (target_sdk_version > 0 && target_sdk_version <= 21)) {
+    args_jobj = soa.Env()->NewObjectArray(args.size(), WellKnownClasses::java_lang_Object, NULL);
+    if (args_jobj == NULL) {
+      CHECK(soa.Self()->IsExceptionPending());
+      return zero;
+    }
+    for (size_t i = 0; i < args.size(); ++i) {
+      if (shorty[i + 1] == 'L') {
+        jobject val = args.at(i).l;
+        soa.Env()->SetObjectArrayElement(args_jobj, i, val);
+      } else {
+        JValue jv;
+        jv.SetJ(args.at(i).j);
+        mirror::Object* val = BoxPrimitive(Primitive::GetType(shorty[i + 1]), jv);
+        if (val == NULL) {
+          CHECK(soa.Self()->IsExceptionPending());
+          return zero;
+        }
+        soa.Decode<mirror::ObjectArray<mirror::Object>* >(args_jobj)->Set<false>(i, val);
+      }
+    }
+  }
+
+  XposedHookInfo* hookInfo = soa.DecodeMethod(method)->GetXposedHookInfo();
+
+  // Call XposedBridge.handleHookedMethod(Member method, int originalMethodId, Object additionalInfoObj,
+  //                                      Object thisObject, Object[] args)
+  jvalue invocation_args[5];
+  invocation_args[0].l = hookInfo->reflectedMethod;
+  invocation_args[1].i = 0;
+  invocation_args[2].l = hookInfo->additionalInfo;
+  invocation_args[3].l = rcvr_jobj;
+  invocation_args[4].l = args_jobj;
+  jobject result =
+      soa.Env()->CallStaticObjectMethodA(mirror::ArtMethod::xposed_callback_class,
+                                         mirror::ArtMethod::xposed_callback_method,
+                                         invocation_args);
+
+
+  // Unbox the result if necessary and return it.
+  if (UNLIKELY(soa.Self()->IsExceptionPending())) {
+    return zero;
+  } else {
+    if (shorty[0] == 'V' || (shorty[0] == 'L' && result == NULL)) {
+      return zero;
+    }
+    StackHandleScope<1> hs(soa.Self());
+    MethodHelper mh_method(hs.NewHandle(soa.DecodeMethod(method)));
+    // This can cause thread suspension.
+    mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
+    ThrowLocation throw_location(rcvr, mh_method.GetMethod(), -1);
+    mirror::Object* result_ref = soa.Decode<mirror::Object*>(result);
+    mirror::Class* result_type = mh_method.GetReturnType();
+    JValue result_unboxed;
+    if (!UnboxPrimitiveForResult(throw_location, result_ref, result_type, &result_unboxed)) {
+      DCHECK(soa.Self()->IsExceptionPending());
+      return zero;
+    }
+    return result_unboxed;
+  }
+}
+
 }  // namespace art
