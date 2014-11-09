@@ -299,6 +299,13 @@ static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* 
     error_msg.clear();
     return kDexoptNeeded;
   }
+  if (!oat_file->GetOatHeader().IsXposedOatVersionValid()) {
+    if (kReasonLogging) {
+      LOG(INFO) << "DexFile_isDexOptNeeded file " << oat_filename
+                << " needs to be recompiled with Xposed for " << filename;
+    }
+    return kDexoptNeeded;
+  }
   bool should_relocate_if_possible = Runtime::Current()->ShouldRelocate();
   uint32_t location_checksum = 0;
   const art::OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(filename, nullptr,
