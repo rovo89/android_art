@@ -47,6 +47,9 @@ extern "C" void art_quick_invoke_static_stub(ArtMethod*, uint32_t*, uint32_t, Th
                                              const char*);
 #endif
 
+jclass ArtMethod::xposed_callback_class = nullptr;
+jmethodID ArtMethod::xposed_callback_method = nullptr;
+
 ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
                                           jobject jlr_method) {
   auto* abstract_method = soa.Decode<mirror::AbstractMethod*>(jlr_method);
