@@ -164,16 +164,20 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
    * expanding the frame or flushing.  This leaves the utility
    * code with no spare temps.
    */
-  LockTemp(rs_rX86_ARG0);
-  LockTemp(rs_rX86_ARG1);
-  LockTemp(rs_rX86_ARG2);
+  const RegStorage arg0 = TargetReg32(kArg0);
+  const RegStorage arg1 = TargetReg32(kArg1);
+  const RegStorage arg2 = TargetReg32(kArg2);
+  LockTemp(arg0);
+  LockTemp(arg1);
+  LockTemp(arg2);
 
   /*
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  InstructionSet isa =  cu_->target64 ? kX86_64 : kX86;
+  const InstructionSet isa =  cu_->target64 ? kX86_64 : kX86;
   bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !FrameNeedsStackCheck(frame_size_, isa);
+  const RegStorage rs_rSP = cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32;
 
   // If we doing an implicit stack overflow check, perform the load immediately
   // before the stack pointer is decremented and anything is saved.
@@ -182,12 +186,12 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     // Implicit stack overflow check.
     // test eax,[esp + -overflow]
     int overflow = GetStackOverflowReservedBytes(isa);
-    NewLIR3(kX86Test32RM, rs_rAX.GetReg(), rs_rX86_SP.GetReg(), -overflow);
+    NewLIR3(kX86Test32RM, rs_rAX.GetReg(), rs_rSP.GetReg(), -overflow);
     MarkPossibleStackOverflowException();
   }
 
   /* Build frame, return address already on stack */
-  stack_decrement_ = OpRegImm(kOpSub, rs_rX86_SP, frame_size_ -
+  stack_decrement_ = OpRegImm(kOpSub, rs_rSP, frame_size_ -
                               GetInstructionSetPointerSize(cu_->instruction_set));
 
   NewLIR0(kPseudoMethodEntry);
@@ -204,7 +208,8 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
         m2l_->ResetRegPool();
         m2l_->ResetDefTracking();
         GenerateTargetLabel(kPseudoThrowTarget);
-        m2l_->OpRegImm(kOpAdd, rs_rX86_SP, sp_displace_);
+        const RegStorage local_rs_rSP = cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32;
+        m2l_->OpRegImm(kOpAdd, local_rs_rSP, sp_displace_);
         m2l_->ClobberCallerSave();
         // Assumes codegen and target are in thumb2 mode.
         m2l_->CallHelper(RegStorage::InvalidReg(), kQuickThrowStackOverflow,
@@ -225,9 +230,9 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
       // may have moved us outside of the reserved area at the end of the stack.
       // cmp rs_rX86_SP, fs:[stack_end_]; jcc throw_slowpath
       if (cu_->target64) {
-        OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<8>());
+        OpRegThreadMem(kOpCmp, rs_rX86_SP_64, Thread::StackEndOffset<8>());
       } else {
-        OpRegThreadMem(kOpCmp, rs_rX86_SP, Thread::StackEndOffset<4>());
+        OpRegThreadMem(kOpCmp, rs_rX86_SP_32, Thread::StackEndOffset<4>());
       }
       LIR* branch = OpCondBranch(kCondUlt, nullptr);
       AddSlowPath(
@@ -245,13 +250,13 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     setup_method_address_[0] = NewLIR1(kX86StartOfMethod, method_start.GetReg());
     int displacement = SRegOffset(base_of_code_->s_reg_low);
     // Native pointer - must be natural word size.
-    setup_method_address_[1] = StoreBaseDisp(rs_rX86_SP, displacement, method_start,
+    setup_method_address_[1] = StoreBaseDisp(rs_rSP, displacement, method_start,
                                              cu_->target64 ? k64 : k32, kNotVolatile);
   }
 
-  FreeTemp(rs_rX86_ARG0);
-  FreeTemp(rs_rX86_ARG1);
-  FreeTemp(rs_rX86_ARG2);
+  FreeTemp(arg0);
+  FreeTemp(arg1);
+  FreeTemp(arg2);
 }
 
 void X86Mir2Lir::GenExitSequence() {
@@ -266,7 +271,9 @@ void X86Mir2Lir::GenExitSequence() {
   UnSpillCoreRegs();
   UnSpillFPRegs();
   /* Remove frame except for return address */
-  stack_increment_ = OpRegImm(kOpAdd, rs_rX86_SP, frame_size_ - GetInstructionSetPointerSize(cu_->instruction_set));
+  const RegStorage rs_rSP = cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32;
+  stack_increment_ = OpRegImm(kOpAdd, rs_rSP,
+                              frame_size_ - GetInstructionSetPointerSize(cu_->instruction_set));
   NewLIR0(kX86Ret);
 }
 
