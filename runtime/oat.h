@@ -48,6 +48,8 @@ class PACKED(4) OatHeader {
                            uint32_t image_file_location_oat_data_begin,
                            const SafeMap<std::string, std::string>* variable_data);
 
+  static OatHeader* FromFile(const std::string& filename, std::string* error_msg);
+
   bool IsValid() const;
   bool IsXposedOatVersionValid() const;
   const char* GetMagic() const;
@@ -113,6 +115,8 @@ class PACKED(4) OatHeader {
   bool IsPic() const;
 
  private:
+  OatHeader() {}
+
   OatHeader(InstructionSet instruction_set,
             const InstructionSetFeatures& instruction_set_features,
             const std::vector<const DexFile*>* dex_files,
