@@ -128,6 +128,12 @@ bool OatHeader::IsValid() const {
   return true;
 }
 
+bool OatHeader::IsXposedOatVersionValid() const {
+  CHECK(IsValid());
+  const char* version = GetStoreValueByKey(OatHeader::kXposedOatVersionKey);
+  return version != nullptr && strcmp(version, kXposedOatCurrentVersion) == 0;
+}
+
 const char* OatHeader::GetMagic() const {
   CHECK(IsValid());
   return reinterpret_cast<const char*>(magic_);

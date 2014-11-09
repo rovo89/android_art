@@ -38,6 +38,8 @@ class PACKED(4) OatHeader {
   static constexpr const char* kPicKey = "pic";
 
   static constexpr const char* kOriginalOatChecksumKey = "original-oat-checksum";
+  static constexpr const char* kXposedOatVersionKey = "xposed-oat-version";
+  static constexpr const char* kXposedOatCurrentVersion = "1";
 
   static OatHeader* Create(InstructionSet instruction_set,
                            const InstructionSetFeatures& instruction_set_features,
@@ -47,6 +49,7 @@ class PACKED(4) OatHeader {
                            const SafeMap<std::string, std::string>* variable_data);
 
   bool IsValid() const;
+  bool IsXposedOatVersionValid() const;
   const char* GetMagic() const;
   uint32_t GetChecksum() const;
   uint32_t GetOriginalChecksum(bool fallback) const;
