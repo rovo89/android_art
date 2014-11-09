@@ -587,7 +587,9 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
                                                Thread* self, StackReference<mirror::ArtMethod>* sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(proxy_method->IsProxyMethod()) << PrettyMethod(proxy_method);
-  DCHECK(receiver->GetClass()->IsProxyClass()) << PrettyMethod(proxy_method);
+  const bool is_xposed = proxy_method->IsXposedHookedMethod();
+  const bool is_static = proxy_method->IsStatic();
+  DCHECK(is_xposed || receiver->GetClass()->IsProxyClass()) << PrettyMethod(proxy_method);
   // Ensure we don't get thread suspension until the object arguments are safely in jobjects.
   const char* old_cause =
       self->StartAssertNoThreadSuspension("Adding to IRT proxy object arguments");
@@ -603,20 +605,30 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
   ScopedObjectAccessUnchecked soa(env);
   ScopedJniEnvLocalRefState env_state(env);
   // Create local ref. copies of proxy method and the receiver.
-  jobject rcvr_jobj = soa.AddLocalReference<jobject>(receiver);
+  jobject rcvr_jobj = is_static ? nullptr : soa.AddLocalReference<jobject>(receiver);
 
   // Placing arguments into args vector and remove the receiver.
   mirror::ArtMethod* non_proxy_method = proxy_method->GetInterfaceMethodIfProxy();
-  CHECK(!non_proxy_method->IsStatic()) << PrettyMethod(proxy_method) << " "
-                                       << PrettyMethod(non_proxy_method);
+  CHECK(is_xposed || !non_proxy_method->IsStatic()) << PrettyMethod(proxy_method) << " "
+                                                    << PrettyMethod(non_proxy_method);
   std::vector<jvalue> args;
   uint32_t shorty_len = 0;
   const char* shorty = proxy_method->GetShorty(&shorty_len);
-  BuildQuickArgumentVisitor local_ref_visitor(sp, false, shorty, shorty_len, &soa, &args);
+  BuildQuickArgumentVisitor local_ref_visitor(sp, is_static, shorty, shorty_len, &soa, &args);
 
   local_ref_visitor.VisitArguments();
   DCHECK_GT(args.size(), 0U) << PrettyMethod(proxy_method);
-  args.erase(args.begin());
+  if (!is_static) {
+    args.erase(args.begin());
+  }
+
+  if (is_xposed) {
+    jmethodID proxy_methodid = soa.EncodeMethod(proxy_method);
+    self->EndAssertNoThreadSuspension(old_cause);
+    JValue result = InvokeXposedHandleHookedMethod(soa, shorty, rcvr_jobj, proxy_methodid, args);
+    local_ref_visitor.FixupReferences();
+    return result.GetJ();
+  }
 
   // Convert proxy method into expected interface method.
   mirror::ArtMethod* interface_method = proxy_method->FindOverriddenMethod();
