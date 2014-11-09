@@ -677,7 +677,7 @@ size_t X86Mir2Lir::ComputeSize(const X86EncodingMap* entry, int32_t raw_reg, int
     ++size;  // modrm
   }
   if (!modrm_is_reg_reg) {
-    if (has_sib || LowRegisterBits(raw_base) == rs_rX86_SP.GetRegNum()
+    if (has_sib || (LowRegisterBits(raw_base) == rs_rX86_SP_32.GetRegNum())
         || (cu_->target64 && entry->skeleton.prefix1 == THREAD_PREFIX)) {
       // SP requires a SIB byte.
       // GS access also needs a SIB byte for absolute adressing in 64-bit mode.
@@ -1010,9 +1010,9 @@ void X86Mir2Lir::EmitDisp(uint8_t base, int32_t disp) {
 void X86Mir2Lir::EmitModrmThread(uint8_t reg_or_opcode) {
   if (cu_->target64) {
     // Absolute adressing for GS access.
-    uint8_t modrm = (0 << 6) | (reg_or_opcode << 3) | rs_rX86_SP.GetRegNum();
+    uint8_t modrm = (0 << 6) | (reg_or_opcode << 3) | rs_rX86_SP_32.GetRegNum();
     code_buffer_.push_back(modrm);
-    uint8_t sib = (0/*TIMES_1*/ << 6) | (rs_rX86_SP.GetRegNum() << 3) | rs_rBP.GetRegNum();
+    uint8_t sib = (0/*TIMES_1*/ << 6) | (rs_rX86_SP_32.GetRegNum() << 3) | rs_rBP.GetRegNum();
     code_buffer_.push_back(sib);
   } else {
     uint8_t modrm = (0 << 6) | (reg_or_opcode << 3) | rs_rBP.GetRegNum();
@@ -1025,9 +1025,9 @@ void X86Mir2Lir::EmitModrmDisp(uint8_t reg_or_opcode, uint8_t base, int32_t disp
   DCHECK_LT(base, 8);
   uint8_t modrm = (ModrmForDisp(base, disp) << 6) | (reg_or_opcode << 3) | base;
   code_buffer_.push_back(modrm);
-  if (base == rs_rX86_SP.GetRegNum()) {
+  if (base == rs_rX86_SP_32.GetRegNum()) {
     // Special SIB for SP base
-    code_buffer_.push_back(0 << 6 | rs_rX86_SP.GetRegNum() << 3 | rs_rX86_SP.GetRegNum());
+    code_buffer_.push_back(0 << 6 | rs_rX86_SP_32.GetRegNum() << 3 | rs_rX86_SP_32.GetRegNum());
   }
   EmitDisp(base, disp);
 }
@@ -1036,7 +1036,7 @@ void X86Mir2Lir::EmitModrmSibDisp(uint8_t reg_or_opcode, uint8_t base, uint8_t i
                                   int scale, int32_t disp) {
   DCHECK_LT(RegStorage::RegNum(reg_or_opcode), 8);
   uint8_t modrm = (ModrmForDisp(base, disp) << 6) | RegStorage::RegNum(reg_or_opcode) << 3 |
-      rs_rX86_SP.GetRegNum();
+      rs_rX86_SP_32.GetRegNum();
   code_buffer_.push_back(modrm);
   DCHECK_LT(scale, 4);
   DCHECK_LT(RegStorage::RegNum(index), 8);
@@ -1584,7 +1584,7 @@ void X86Mir2Lir::EmitPcRel(const X86EncodingMap* entry, int32_t raw_reg, int32_t
     DCHECK_EQ(0, entry->skeleton.extra_opcode1);
     DCHECK_EQ(0, entry->skeleton.extra_opcode2);
     uint8_t low_reg = LowRegisterBits(raw_reg);
-    uint8_t modrm = (2 << 6) | (low_reg << 3) | rs_rX86_SP.GetRegNum();
+    uint8_t modrm = (2 << 6) | (low_reg << 3) | rs_rX86_SP_32.GetRegNum();
     code_buffer_.push_back(modrm);
     DCHECK_LT(scale, 4);
     uint8_t low_base_or_table = LowRegisterBits(raw_base_or_table);

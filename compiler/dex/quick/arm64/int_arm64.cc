@@ -1663,7 +1663,7 @@ static void UnSpillFPRegs(Arm64Mir2Lir* m2l, RegStorage base, int offset, uint32
 
 void Arm64Mir2Lir::UnspillRegs(RegStorage base, uint32_t core_reg_mask, uint32_t fp_reg_mask,
                                int frame_size) {
-  DCHECK(base == rs_sp);
+  DCHECK_EQ(base, rs_sp);
   // Restore saves and drop stack frame.
   // 2 versions:
   //
