@@ -230,7 +230,7 @@ LIR* X86Mir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2) 
         // TODO: there are several instances of this check.  A utility function perhaps?
         // TODO: Similar to Arm's reg < 8 check.  Perhaps add attribute checks to RegStorage?
         // Use shifts instead of a byte operand if the source can't be byte accessed.
-        if (r_src2.GetRegNum() >= rs_rX86_SP.GetRegNum()) {
+        if (r_src2.GetRegNum() >= rs_rX86_SP_32.GetRegNum()) {
           NewLIR2(is64Bit ? kX86Mov64RR : kX86Mov32RR, r_dest_src1.GetReg(), r_src2.GetReg());
           NewLIR2(is64Bit ? kX86Sal64RI : kX86Sal32RI, r_dest_src1.GetReg(), is64Bit ? 56 : 24);
           return NewLIR2(is64Bit ? kX86Sar64RI : kX86Sar32RI, r_dest_src1.GetReg(),
@@ -385,7 +385,7 @@ LIR* X86Mir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegStorage r_base, int o
   }
   LIR *l = NewLIR3(opcode, r_dest.GetReg(), r_base.GetReg(), offset);
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
-    DCHECK(r_base == rs_rX86_SP);
+    DCHECK_EQ(r_base, cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32);
     AnnotateDalvikRegAccess(l, offset >> 2, true /* is_load */, false /* is_64bit */);
   }
   return l;
@@ -411,7 +411,7 @@ LIR* X86Mir2Lir::OpMemReg(OpKind op, RegLocation rl_dest, int r_value) {
       LOG(FATAL) << "Bad case in OpMemReg " << op;
       break;
   }
-  LIR *l = NewLIR3(opcode, rs_rX86_SP.GetReg(), displacement, r_value);
+  LIR *l = NewLIR3(opcode, rs_rX86_SP_32.GetReg(), displacement, r_value);
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
     AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, is64Bit /* is_64bit */);
     AnnotateDalvikRegAccess(l, displacement >> 2, false /* is_load */, is64Bit /* is_64bit */);
@@ -437,7 +437,7 @@ LIR* X86Mir2Lir::OpRegMem(OpKind op, RegStorage r_dest, RegLocation rl_value) {
       LOG(FATAL) << "Bad case in OpRegMem " << op;
       break;
   }
-  LIR *l = NewLIR3(opcode, r_dest.GetReg(), rs_rX86_SP.GetReg(), displacement);
+  LIR *l = NewLIR3(opcode, r_dest.GetReg(), rs_rX86_SP_32.GetReg(), displacement);
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
     AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, is64Bit /* is_64bit */);
   }
@@ -514,7 +514,7 @@ LIR* X86Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src, int
                      r_src.GetReg() /* index */, value /* scale */, 0 /* disp */);
     } else if (op == kOpAdd) {  // lea add special case
       return NewLIR5(r_dest.Is64Bit() ? kX86Lea64RA : kX86Lea32RA, r_dest.GetReg(),
-                     r_src.GetReg() /* base */, rs_rX86_SP.GetReg()/*r4sib_no_index*/ /* index */,
+                     r_src.GetReg() /* base */, rs_rX86_SP_32.GetReg()/*r4sib_no_index*/ /* index */,
                      0 /* scale */, value /* disp */);
     }
     OpRegCopy(r_dest, r_src);
@@ -705,7 +705,7 @@ LIR* X86Mir2Lir::LoadBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int 
       }
     }
     if (mem_ref_type_ == ResourceMask::kDalvikReg) {
-      DCHECK(r_base == rs_rX86_SP);
+      DCHECK_EQ(r_base, cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32);
       AnnotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                               true /* is_load */, is64bit);
       if (pair) {
@@ -870,7 +870,7 @@ LIR* X86Mir2Lir::StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int
       store2 = NewLIR3(opcode, r_base.GetReg(), displacement + HIWORD_OFFSET, r_src.GetHighReg());
     }
     if (mem_ref_type_ == ResourceMask::kDalvikReg) {
-      DCHECK(r_base == rs_rX86_SP);
+      DCHECK_EQ(r_base, cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32);
       AnnotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
                               false /* is_load */, is64bit);
       if (pair) {

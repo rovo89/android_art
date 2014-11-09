@@ -38,6 +38,7 @@ enum BitsUsed {
   kSize512Bits,
   kSize1024Bits,
 };
+std::ostream& operator<<(std::ostream& os, const BitsUsed& rhs);
 
 enum SpecialTargetRegister {
   kSelf,            // Thread pointer.
@@ -76,6 +77,7 @@ enum SpecialTargetRegister {
   kHiddenFpArg,
   kCount
 };
+std::ostream& operator<<(std::ostream& os, const SpecialTargetRegister& code);
 
 enum RegLocationType {
   kLocDalvikFrame = 0,  // Normal Dalvik register
@@ -344,6 +346,7 @@ enum AssemblerStatus {
   kSuccess,
   kRetryAll,
 };
+std::ostream& operator<<(std::ostream& os, const AssemblerStatus& rhs);
 
 enum OpSize {
   kWord,            // Natural word size of target (32/64).
@@ -357,7 +360,6 @@ enum OpSize {
   kUnsignedByte,
   kSignedByte,
 };
-
 std::ostream& operator<<(std::ostream& os, const OpSize& kind);
 
 enum OpKind {
@@ -399,6 +401,7 @@ enum OpKind {
   kOpBx,
   kOpInvalid,
 };
+std::ostream& operator<<(std::ostream& os, const OpKind& rhs);
 
 enum MoveType {
   kMov8GP,      // Move 8-bit general purpose register.
@@ -415,8 +418,7 @@ enum MoveType {
   kMovLo128FP,  // Move low 64-bits of 128-bit FP register.
   kMovHi128FP,  // Move high 64-bits of 128-bit FP register.
 };
-
-std::ostream& operator<<(std::ostream& os, const OpKind& kind);
+std::ostream& operator<<(std::ostream& os, const MoveType& kind);
 
 enum ConditionCode {
   kCondEq,  // equal
@@ -438,7 +440,6 @@ enum ConditionCode {
   kCondAl,  // always
   kCondNv,  // never
 };
-
 std::ostream& operator<<(std::ostream& os, const ConditionCode& kind);
 
 // Target specific condition encodings
@@ -460,7 +461,6 @@ enum ArmConditionCode {
   kArmCondAl = 0xe,  // 1110
   kArmCondNv = 0xf,  // 1111
 };
-
 std::ostream& operator<<(std::ostream& os, const ArmConditionCode& kind);
 
 enum X86ConditionCode {
@@ -508,7 +508,6 @@ enum X86ConditionCode {
   kX86CondNle = 0xf,    // not-less-than
   kX86CondG   = kX86CondNle,  // greater
 };
-
 std::ostream& operator<<(std::ostream& os, const X86ConditionCode& kind);
 
 enum DividePattern {
@@ -517,7 +516,6 @@ enum DividePattern {
   Divide5,
   Divide7,
 };
-
 std::ostream& operator<<(std::ostream& os, const DividePattern& pattern);
 
 /**
@@ -543,7 +541,6 @@ enum MemBarrierKind {
   kAnyAny,
   kNTStoreStore,
 };
-
 std::ostream& operator<<(std::ostream& os, const MemBarrierKind& kind);
 
 enum OpFeatureFlags {
@@ -600,6 +597,7 @@ enum OpFeatureFlags {
   kDefHi,
   kDefLo
 };
+std::ostream& operator<<(std::ostream& os, const OpFeatureFlags& rhs);
 
 enum SelectInstructionKind {
   kSelectNone,
@@ -607,7 +605,6 @@ enum SelectInstructionKind {
   kSelectMove,
   kSelectGoto
 };
-
 std::ostream& operator<<(std::ostream& os, const SelectInstructionKind& kind);
 
 // LIR fixup kinds for Arm
@@ -629,14 +626,12 @@ enum FixupKind {
   kFixupMovImmHST,   // kThumb2MovImm16HST.
   kFixupAlign4,      // Align to 4-byte boundary.
 };
-
 std::ostream& operator<<(std::ostream& os, const FixupKind& kind);
 
 enum VolatileKind {
   kNotVolatile,      // Load/Store is not volatile
   kVolatile          // Load/Store is volatile
 };
-
 std::ostream& operator<<(std::ostream& os, const VolatileKind& kind);
 
 enum WideKind {
@@ -644,7 +639,6 @@ enum WideKind {
   kWide,         // Wide view
   kRef           // Ref width
 };
-
 std::ostream& operator<<(std::ostream& os, const WideKind& kind);
 
 }  // namespace art

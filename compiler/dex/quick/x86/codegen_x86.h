@@ -389,7 +389,7 @@ class X86Mir2Lir : public Mir2Lir {
   LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) OVERRIDE;
 
  protected:
-  RegStorage TargetReg32(SpecialTargetRegister reg);
+  RegStorage TargetReg32(SpecialTargetRegister reg) const;
   // Casting of RegStorage
   RegStorage As32BitReg(RegStorage reg) {
     DCHECK(!reg.IsPair());
@@ -432,7 +432,7 @@ class X86Mir2Lir : public Mir2Lir {
   LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
                             RegStorage r_src, OpSize size, int opt_flags = 0);
 
-  RegStorage GetCoreArgMappingToPhysicalReg(int core_arg_num);
+  RegStorage GetCoreArgMappingToPhysicalReg(int core_arg_num) const;
 
   int AssignInsnOffsets();
   void AssignOffsets();
@@ -530,7 +530,7 @@ class X86Mir2Lir : public Mir2Lir {
    * @brief Check if a register is byte addressable.
    * @returns true if a register is byte addressable.
    */
-  bool IsByteRegister(RegStorage reg);
+  bool IsByteRegister(RegStorage reg) const;
 
   void GenDivRemLongLit(RegLocation rl_dest, RegLocation rl_src, int64_t imm, bool is_div);
 
