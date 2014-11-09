@@ -18,6 +18,7 @@
 
 #include "base/stl_util.h"
 #include "common_runtime_test.h"
+#include "oat_file.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
 
@@ -29,9 +30,9 @@ class DexMethodIteratorTest : public CommonRuntimeTest {
 TEST_F(DexMethodIteratorTest, Basic) {
   ScopedObjectAccess soa(Thread::Current());
   std::vector<const DexFile*> dex_files;
-  const char* jars[] = { "core-libart", "conscrypt", "okhttp", "core-junit", "bouncycastle" };
-  for (size_t i = 0; i < 5; ++i) {
-    dex_files.push_back(LoadExpectSingleDexFile(GetDexFileName(jars[i]).c_str()));
+  CHECK_NE(boot_class_path_.size(), 0U);
+  for (size_t i = 0; i < boot_class_path_.size(); ++i) {
+    dex_files.push_back(boot_class_path_[i]);
   }
   DexMethodIterator it(dex_files);
   while (it.HasNext()) {
@@ -43,7 +44,6 @@ TEST_F(DexMethodIteratorTest, Basic) {
     }
     it.Next();
   }
-  STLDeleteElements(&dex_files);
 }
 
 }  // namespace art
