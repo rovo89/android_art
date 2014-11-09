@@ -352,7 +352,7 @@ MethodVerifier::MethodVerifier(const DexFile* dex_file, Handle<mirror::DexCache>
       need_precise_constants_(need_precise_constants),
       has_check_casts_(false),
       has_virtual_or_interface_invokes_(false),
-      verify_to_dump_(verify_to_dump) {
+      verify_to_dump_(verify_to_dump || Runtime::Current()->IsRecompiling()) {
   Runtime::Current()->AddMethodVerifier(this);
   DCHECK(class_def != nullptr);
 }

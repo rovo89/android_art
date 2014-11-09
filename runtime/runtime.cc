@@ -100,6 +100,7 @@ Runtime* Runtime::instance_ = NULL;
 Runtime::Runtime()
     : instruction_set_(kNone),
       compiler_callbacks_(nullptr),
+      is_recompiling_(false),
       is_zygote_(false),
       must_relocate_(false),
       is_concurrent_gc_enabled_(true),
