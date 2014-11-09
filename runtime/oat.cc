@@ -138,6 +138,18 @@ uint32_t OatHeader::GetChecksum() const {
   return adler32_checksum_;
 }
 
+uint32_t OatHeader::GetOriginalChecksum(bool fallback) const {
+  CHECK(IsValid());
+  const char* value = GetStoreValueByKey(OatHeader::kOriginalOatChecksumKey);
+  if (value != nullptr) {
+    uint32_t checksum = strtoul(value, nullptr, 0);
+    if (checksum != 0) {
+      return checksum;
+    }
+  }
+  return fallback ? adler32_checksum_ : 0;
+}
+
 void OatHeader::UpdateChecksum(const void* data, size_t length) {
   DCHECK(IsValid());
   const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data);

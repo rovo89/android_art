@@ -755,7 +755,7 @@ bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_of
       result = false;
       break;
   }
-  if (inst->GetVerifyIsRuntimeOnly() && Runtime::Current()->IsCompiler() && !verify_to_dump_) {
+  if (inst->GetVerifyIsRuntimeOnly() && Runtime::Current()->IsCompiler() && !Runtime::Current()->IsRecompiling() && !verify_to_dump_) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "opcode only expected at runtime " << inst->Name();
     result = false;
   }

@@ -94,6 +94,14 @@ class Runtime {
     return compiler_callbacks_ != nullptr;
   }
 
+  bool IsRecompiling() const {
+    return is_recompiling_;
+  }
+
+  void SetRecompiling(bool new_value) {
+    is_recompiling_ = new_value;
+  }
+
   bool CanRelocate() const {
     return !IsCompiler() || compiler_callbacks_->IsRelocationPossible();
   }
@@ -521,6 +529,7 @@ class Runtime {
   QuickMethodFrameInfo callee_save_method_frame_infos_[kLastCalleeSaveType];
 
   CompilerCallbacks* compiler_callbacks_;
+  bool is_recompiling_;
   bool is_zygote_;
   bool must_relocate_;
   bool is_concurrent_gc_enabled_;
