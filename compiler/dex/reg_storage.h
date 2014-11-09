@@ -339,6 +339,9 @@ class RegStorage : public ValueObject {
  private:
   uint16_t reg_;
 };
+static inline std::ostream& operator<<(std::ostream& o, const RegStorage& rhs) {
+  return o << rhs.GetRawBits();  // TODO: better output.
+}
 
 }  // namespace art
 
