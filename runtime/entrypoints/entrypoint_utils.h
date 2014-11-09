@@ -181,6 +181,11 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
                                     std::vector<jvalue>& args)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+JValue InvokeXposedHandleHookedMethod(ScopedObjectAccessAlreadyRunnable& soa, const char* shorty,
+                                    jobject rcvr_jobj, jmethodID method,
+                                    std::vector<jvalue>& args)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
 // Entry point for deoptimization.
 extern "C" void art_quick_deoptimize();
 static inline uintptr_t GetQuickDeoptimizationEntryPoint() {

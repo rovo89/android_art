@@ -48,6 +48,8 @@ extern "C" void art_quick_invoke_static_stub(ArtMethod*, uint32_t*, uint32_t, Th
 
 // TODO: get global references for these
 GcRoot<Class> ArtMethod::java_lang_reflect_ArtMethod_;
+jclass ArtMethod::xposed_callback_class = NULL;
+jmethodID ArtMethod::xposed_callback_method = NULL;
 
 ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnable& soa,
                                           jobject jlr_method) {
