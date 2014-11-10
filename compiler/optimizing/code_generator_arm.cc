@@ -1338,6 +1338,7 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
           // int-to-long conversion.
           locations->SetInAt(0, Location::RequiresRegister());
           locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
@@ -1380,6 +1381,7 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
           // int-to-long conversion.
           DCHECK(out.IsRegisterPair());
           DCHECK(in.IsRegister());
