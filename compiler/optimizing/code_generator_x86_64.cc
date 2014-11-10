@@ -1264,6 +1264,7 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
           // int-to-long conversion.
           // TODO: We would benefit from a (to-be-implemented)
           // Location::RegisterOrStackSlot requirement for this input.
@@ -1309,6 +1310,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
           // int-to-long conversion.
           DCHECK(in.IsRegister());
           __ movsxd(out.As<CpuRegister>(), in.As<CpuRegister>());
