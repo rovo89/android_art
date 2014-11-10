@@ -81,6 +81,7 @@ bool ImageWriter::Write(const std::string& image_filename,
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
 
+  target_ptr_size_ = InstructionSetPointerSize(compiler_driver_.GetInstructionSet());
   std::unique_ptr<File> oat_file(OS::OpenFileReadWrite(oat_filename.c_str()));
   if (oat_file.get() == NULL) {
     LOG(ERROR) << "Failed to open oat file " << oat_filename << " for " << oat_location;
@@ -212,7 +213,14 @@ void ImageWriter::SetImageOffset(mirror::Object* object, size_t offset) {
 void ImageWriter::AssignImageOffset(mirror::Object* object) {
   DCHECK(object != nullptr);
   SetImageOffset(object, image_end_);
-  image_end_ += RoundUp(object->SizeOf(), 8);  // 64-bit alignment
+  size_t object_size;
+  if (object->IsArtMethod()) {
+    // Methods are sized based on the target pointer size.
+    object_size = mirror::ArtMethod::InstanceSize(target_ptr_size_);
+  } else {
+    object_size = object->SizeOf();
+  }
+  image_end_ += RoundUp(object_size, 8);  // 64-bit alignment
   DCHECK_LT(image_end_, image_->Size());
 }
 
@@ -609,7 +617,14 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* obj, void* arg) {
   size_t offset = image_writer->GetImageOffset(obj);
   byte* dst = image_writer->image_->Begin() + offset;
   const byte* src = reinterpret_cast<const byte*>(obj);
-  size_t n = obj->SizeOf();
+  size_t n;
+  if (obj->IsArtMethod()) {
+    // Size without pointer fields since we don't want to overrun the buffer if target art method
+    // is 32 bits but source is 64 bits.
+    n = mirror::ArtMethod::SizeWithoutPointerFields();
+  } else {
+    n = obj->SizeOf();
+  }
   DCHECK_LT(offset + n, image_writer->image_->Size());
   memcpy(dst, src, n);
   Object* copy = reinterpret_cast<Object*>(dst);
@@ -688,6 +703,10 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
   }
   if (orig->IsArtMethod<kVerifyNone>()) {
     FixupMethod(orig->AsArtMethod<kVerifyNone>(), down_cast<ArtMethod*>(copy));
+  } else if (orig->IsClass() && orig->AsClass()->IsArtMethodClass()) {
+    // Set the right size for the target.
+    size_t size = mirror::ArtMethod::InstanceSize(target_ptr_size_);
+    down_cast<mirror::Class*>(copy)->SetObjectSizeWithoutChecks(size);
   }
 }
 
@@ -746,42 +765,63 @@ const byte* ImageWriter::GetQuickEntryPoint(mirror::ArtMethod* method) {
 void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
   // OatWriter replaces the code_ with an offset value. Here we re-adjust to a pointer relative to
   // oat_begin_
+  // For 64 bit targets we need to repack the current runtime pointer sized fields to the right
+  // locations.
+  // Copy all of the fields from the runtime methods to the target methods first since we did a
+  // bytewise copy earlier.
+#if defined(ART_USE_PORTABLE_COMPILER)
+  copy->SetEntryPointFromPortableCompiledCodePtrSize<kVerifyNone>(
+      orig->GetEntryPointFromPortableCompiledCode(), target_ptr_size_);
+#endif
+  copy->SetEntryPointFromInterpreterPtrSize<kVerifyNone>(orig->GetEntryPointFromInterpreter(),
+                                                         target_ptr_size_);
+  copy->SetEntryPointFromJniPtrSize<kVerifyNone>(orig->GetEntryPointFromJni(), target_ptr_size_);
+  copy->SetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(
+      orig->GetEntryPointFromQuickCompiledCode(), target_ptr_size_);
+  copy->SetNativeGcMapPtrSize<kVerifyNone>(orig->GetNativeGcMap(), target_ptr_size_);
 
   // The resolution method has a special trampoline to call.
   Runtime* runtime = Runtime::Current();
   if (UNLIKELY(orig == runtime->GetResolutionMethod())) {
 #if defined(ART_USE_PORTABLE_COMPILER)
-    copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(GetOatAddress(portable_resolution_trampoline_offset_));
+    copy->SetEntryPointFromPortableCompiledCodePtrSize<kVerifyNone>(
+        GetOatAddress(portable_resolution_trampoline_offset_), target_ptr_size_);
 #endif
-    copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_resolution_trampoline_offset_));
+    copy->SetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(
+        GetOatAddress(quick_resolution_trampoline_offset_), target_ptr_size_);
   } else if (UNLIKELY(orig == runtime->GetImtConflictMethod() ||
                       orig == runtime->GetImtUnimplementedMethod())) {
 #if defined(ART_USE_PORTABLE_COMPILER)
-    copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(GetOatAddress(portable_imt_conflict_trampoline_offset_));
+    copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(
+        GetOatAddress(portable_imt_conflict_trampoline_offset_), target_ptr_size_);
 #endif
-    copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_imt_conflict_trampoline_offset_));
+    copy->SetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(
+        GetOatAddress(quick_imt_conflict_trampoline_offset_), target_ptr_size_);
   } else {
     // We assume all methods have code. If they don't currently then we set them to the use the
     // resolution trampoline. Abstract methods never have code and so we need to make sure their
     // use results in an AbstractMethodError. We use the interpreter to achieve this.
     if (UNLIKELY(orig->IsAbstract())) {
 #if defined(ART_USE_PORTABLE_COMPILER)
-      copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(GetOatAddress(portable_to_interpreter_bridge_offset_));
+      copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(
+          GetOatAddress(portable_to_interpreter_bridge_offset_), target_ptr_size_);
 #endif
-      copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(GetOatAddress(quick_to_interpreter_bridge_offset_));
-      copy->SetEntryPointFromInterpreter<kVerifyNone>(reinterpret_cast<EntryPointFromInterpreter*>
-          (const_cast<byte*>(GetOatAddress(interpreter_to_interpreter_bridge_offset_))));
+      copy->SetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(
+          GetOatAddress(quick_to_interpreter_bridge_offset_), target_ptr_size_);
+      copy->SetEntryPointFromInterpreterPtrSize<kVerifyNone>(
+          reinterpret_cast<EntryPointFromInterpreter*>(const_cast<byte*>(
+              GetOatAddress(interpreter_to_interpreter_bridge_offset_))), target_ptr_size_);
     } else {
       bool quick_is_interpreted;
       const byte* quick_code = GetQuickCode(orig, &quick_is_interpreted);
-      copy->SetEntryPointFromQuickCompiledCode<kVerifyNone>(quick_code);
+      copy->SetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(quick_code, target_ptr_size_);
 
       // Portable entrypoint:
       bool portable_is_interpreted = false;
 #if defined(ART_USE_PORTABLE_COMPILER)
       const byte* portable_code = GetOatAddress(orig->GetPortableOatCodeOffset());
-      if (portable_code != nullptr &&
-          (!orig->IsStatic() || orig->IsConstructor() || orig->GetDeclaringClass()->IsInitialized())) {
+      if (portable_code != nullptr && (!orig->IsStatic() || orig->IsConstructor() ||
+          orig->GetDeclaringClass()->IsInitialized())) {
         // We have code for a non-static or initialized method, just use the code.
       } else if (portable_code == nullptr && orig->IsNative() &&
           (!orig->IsStatic() || orig->GetDeclaringClass()->IsInitialized())) {
@@ -798,18 +838,20 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
         // initialization.
         portable_code = GetOatAddress(portable_resolution_trampoline_offset_);
       }
-      copy->SetEntryPointFromPortableCompiledCode<kVerifyNone>(portable_code);
+      copy->SetEntryPointFromPortableCompiledCodePtrSize<kVerifyNone>(
+          portable_code, target_ptr_size_);
 #endif
       // JNI entrypoint:
       if (orig->IsNative()) {
         // The native method's pointer is set to a stub to lookup via dlsym.
         // Note this is not the code_ pointer, that is handled above.
-        copy->SetNativeMethod<kVerifyNone>(GetOatAddress(jni_dlsym_lookup_offset_));
+        copy->SetEntryPointFromJniPtrSize<kVerifyNone>(GetOatAddress(jni_dlsym_lookup_offset_),
+                                                       target_ptr_size_);
       } else {
         // Normal (non-abstract non-native) methods have various tables to relocate.
         uint32_t native_gc_map_offset = orig->GetOatNativeGcMapOffset();
-        const byte* native_gc_map = GetOatAddress(native_gc_map_offset);
-        copy->SetNativeGcMap<kVerifyNone>(reinterpret_cast<const uint8_t*>(native_gc_map));
+        const uint8_t* native_gc_map = GetOatAddress(native_gc_map_offset);
+        copy->SetNativeGcMapPtrSize<kVerifyNone>(native_gc_map, target_ptr_size_);
       }
 
       // Interpreter entrypoint:
@@ -817,9 +859,11 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
       uint32_t interpreter_code = (quick_is_interpreted && portable_is_interpreted)
           ? interpreter_to_interpreter_bridge_offset_
           : interpreter_to_compiled_code_bridge_offset_;
-      copy->SetEntryPointFromInterpreter<kVerifyNone>(
+      EntryPointFromInterpreter* interpreter_entrypoint =
           reinterpret_cast<EntryPointFromInterpreter*>(
-              const_cast<byte*>(GetOatAddress(interpreter_code))));
+              const_cast<byte*>(GetOatAddress(interpreter_code)));
+      copy->SetEntryPointFromInterpreterPtrSize<kVerifyNone>(
+          interpreter_entrypoint, target_ptr_size_);
     }
   }
 }

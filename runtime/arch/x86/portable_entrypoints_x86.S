@@ -46,7 +46,7 @@ DEFINE_FUNCTION art_portable_invoke_stub
     addl LITERAL(12), %esp        // pop arguments to memcpy
     mov 12(%ebp), %eax            // move method pointer into eax
     mov %eax, (%esp)              // push method pointer onto stack
-    call *METHOD_PORTABLE_CODE_OFFSET(%eax) // call the method
+    call *METHOD_PORTABLE_CODE_OFFSET_32(%eax) // call the method
     mov %ebp, %esp                // restore stack pointer
     POP ebx                       // pop ebx
     POP ebp                       // pop ebp

@@ -322,7 +322,7 @@ ENTRY art_quick_invoke_stub
     ldr    r3, [sp, #12]                   @ copy arg value for r3
     mov    ip, #0                          @ set ip to 0
     str    ip, [sp]                        @ store NULL for method* at bottom of frame
-    ldr    ip, [r0, #METHOD_QUICK_CODE_OFFSET]  @ get pointer to the code
+    ldr    ip, [r0, #METHOD_QUICK_CODE_OFFSET_32]  @ get pointer to the code
     blx    ip                              @ call the method
     mov    sp, r11                         @ restore the stack pointer
     ldr    ip, [sp, #24]                   @ load the result pointer

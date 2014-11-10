@@ -854,8 +854,8 @@ void InstructionCodeGeneratorARM::VisitInvokeStatic(HInvokeStatic* invoke) {
   // temp = temp[index_in_cache]
   __ ldr(temp, Address(temp, index_in_cache));
   // LR = temp[offset_of_quick_compiled_code]
-  __ ldr(LR, Address(temp,
-                     mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value()));
+  __ ldr(LR, Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+      kArmPointerSize).Int32Value()));
   // LR()
   __ blx(LR);
 

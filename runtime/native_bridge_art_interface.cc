@@ -71,7 +71,7 @@ uint32_t GetNativeMethods(JNIEnv* env, jclass clazz, JNINativeMethod* methods,
       if (count < method_count) {
         methods[count].name = m->GetName();
         methods[count].signature = m->GetShorty();
-        methods[count].fnPtr = const_cast<void*>(m->GetNativeMethod());
+        methods[count].fnPtr = m->GetEntryPointFromJni();
         count++;
       } else {
         LOG(WARNING) << "Output native method array too small. Skipping " << PrettyMethod(m);
@@ -84,7 +84,7 @@ uint32_t GetNativeMethods(JNIEnv* env, jclass clazz, JNINativeMethod* methods,
       if (count < method_count) {
         methods[count].name = m->GetName();
         methods[count].signature = m->GetShorty();
-        methods[count].fnPtr = const_cast<void*>(m->GetNativeMethod());
+        methods[count].fnPtr = m->GetEntryPointFromJni();
         count++;
       } else {
         LOG(WARNING) << "Output native method array too small. Skipping " << PrettyMethod(m);

@@ -60,15 +60,16 @@ class PatchOat {
  private:
   // Takes ownership only of the ElfFile. All other pointers are only borrowed.
   PatchOat(ElfFile* oat_file, off_t delta, TimingLogger* timings)
-      : oat_file_(oat_file), delta_(delta), timings_(timings) {}
-  PatchOat(MemMap* image, gc::accounting::ContinuousSpaceBitmap* bitmap,
+      : oat_file_(oat_file), delta_(delta), isa_(kNone), timings_(timings) {}
+  PatchOat(InstructionSet isa, MemMap* image, gc::accounting::ContinuousSpaceBitmap* bitmap,
            MemMap* heap, off_t delta, TimingLogger* timings)
       : image_(image), bitmap_(bitmap), heap_(heap),
-        delta_(delta), timings_(timings) {}
-  PatchOat(ElfFile* oat_file, MemMap* image, gc::accounting::ContinuousSpaceBitmap* bitmap,
-           MemMap* heap, off_t delta, TimingLogger* timings)
+        delta_(delta), isa_(isa), timings_(timings) {}
+  PatchOat(InstructionSet isa, ElfFile* oat_file, MemMap* image,
+           gc::accounting::ContinuousSpaceBitmap* bitmap, MemMap* heap, off_t delta,
+           TimingLogger* timings)
       : oat_file_(oat_file), image_(image), bitmap_(bitmap), heap_(heap),
-        delta_(delta), timings_(timings) {}
+        delta_(delta), isa_(isa), timings_(timings) {}
   ~PatchOat() {}
 
   // Was the .art image at image_path made with --compile-pic ?
@@ -147,6 +148,9 @@ class PatchOat {
   const MemMap* heap_;
   // The amount we are changing the offset by.
   off_t delta_;
+  // Active instruction set, used to know the entrypoint size.
+  const InstructionSet isa_;
+
   TimingLogger* timings_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(PatchOat);

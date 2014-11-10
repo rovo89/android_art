@@ -738,7 +738,8 @@ void InstructionCodeGeneratorX86_64::VisitInvokeStatic(HInvokeStatic* invoke) {
   // temp = temp[index_in_cache]
   __ movl(temp, Address(temp, index_in_cache));
   // (temp + offset_of_quick_compiled_code)()
-  __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().SizeValue()));
+  __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+                  kX86_64PointerSize).SizeValue()));
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke->GetDexPc());

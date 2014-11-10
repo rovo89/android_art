@@ -551,7 +551,7 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
 .macro INVOKE_STUB_CALL_AND_RETURN
 
     // load method-> METHOD_QUICK_CODE_OFFSET
-    ldr x9, [x0 , #METHOD_QUICK_CODE_OFFSET]
+    ldr x9, [x0 , #METHOD_QUICK_CODE_OFFSET_64]
     // Branch to method.
     blr x9
 

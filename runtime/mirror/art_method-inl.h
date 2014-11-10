@@ -352,12 +352,6 @@ inline uintptr_t ArtMethod::NativePcOffset(const uintptr_t pc, const void* quick
   return pc - reinterpret_cast<uintptr_t>(quick_entry_point);
 }
 
-template<VerifyObjectFlags kVerifyFlags>
-inline void ArtMethod::SetNativeMethod(const void* native_method) {
-  SetFieldPtr<false, true, kVerifyFlags>(
-      OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_), native_method);
-}
-
 inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
   if (UNLIKELY(IsPortableCompiled())) {
     // Portable compiled dex bytecode or jni stub.
@@ -561,6 +555,13 @@ inline void ArtMethod::SetDexCacheResolvedTypes(ObjectArray<Class>* new_dex_cach
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_types_),
                         new_dex_cache_classes);
 }
+
+inline void ArtMethod::CheckObjectSizeEqualsMirrorSize() {
+  // Using the default, check the class object size to make sure it matches the size of the
+  // object.
+  DCHECK_EQ(GetClass()->GetObjectSize(), sizeof(*this));
+}
+
 
 }  // namespace mirror
 }  // namespace art
