@@ -353,7 +353,7 @@ void X86_64Assembler::movss(XmmRegister dst, XmmRegister src) {
 
 void X86_64Assembler::movsxd(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitRex64(dst);
+  EmitRex64(dst, src);
   EmitUint8(0x63);
   EmitRegisterOperand(dst.LowBits(), src.LowBits());
 }

@@ -173,6 +173,14 @@ class HGraphBuilder : public ValueObject {
                               uint32_t element_count,
                               uint32_t dex_offset);
 
+  // Builds a `HInstanceOf`, or a `HCheckCast` instruction.
+  // Returns whether we succeeded in building the instruction.
+  bool BuildTypeCheck(const Instruction& instruction,
+                      uint8_t destination,
+                      uint8_t reference,
+                      uint16_t type_index,
+                      uint32_t dex_offset);
+
   ArenaAllocator* const arena_;
 
   // A list of the size of the dex code holding block information for
