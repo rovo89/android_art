@@ -395,6 +395,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   101-fibonacci \
   102-concurrent-gc \
   103-string-append \
+  104-growth-limit \
   105-invoke \
   106-exceptions2 \
   107-int-math2 \
