@@ -71,17 +71,19 @@ static int32_t ChooseRelocationOffsetDelta(int32_t min_delta, int32_t max_delta)
 }
 
 // We are relocating or generating the core image. We should get rid of everything. It is all
-// out-of-date. We also don't really care if this fails since it is just a convienence.
+// out-of-date. We also don't really care if this fails since it is just a convenience.
 // Adapted from prune_dex_cache(const char* subdir) in frameworks/native/cmds/installd/commands.c
 // Note this should only be used during first boot.
 static void RealPruneDexCache(const std::string& cache_dir_path);
+
 static void PruneDexCache(InstructionSet isa) {
   CHECK_NE(isa, kNone);
-  // Prune the base /data/dalvik-cache
+  // Prune the base /data/dalvik-cache.
   RealPruneDexCache(GetDalvikCacheOrDie(".", false));
-  // prune /data/dalvik-cache/<isa>
+  // Prune /data/dalvik-cache/<isa>.
   RealPruneDexCache(GetDalvikCacheOrDie(GetInstructionSetString(isa), false));
 }
+
 static void RealPruneDexCache(const std::string& cache_dir_path) {
   if (!OS::DirectoryExists(cache_dir_path.c_str())) {
     return;
@@ -97,8 +99,8 @@ static void RealPruneDexCache(const std::string& cache_dir_path) {
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
       continue;
     }
-    // We only want to delete regular files.
-    if (de->d_type != DT_REG) {
+    // We only want to delete regular files and symbolic links.
+    if (de->d_type != DT_REG && de->d_type != DT_LNK) {
       if (de->d_type != DT_DIR) {
         // We do expect some directories (namely the <isa> for pruning the base dalvik-cache).
         LOG(WARNING) << "Unexpected file type of " << std::hex << de->d_type << " encountered.";
