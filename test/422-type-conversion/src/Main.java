@@ -26,6 +26,7 @@ public class Main {
 
   public static void main(String[] args) {
     byteToLong();
+    charToLong();
     shortToLong();
     intToLong();
   }
@@ -63,18 +64,25 @@ public class Main {
     assertEquals(-2147483648L, $opt$IntToLong(-2147483648));  // -(2^31)
   }
 
-  static long $opt$ByteToLong(byte a) {
-    // Translates to an int-to-long Dex instruction.
-    return a;
+  private static void charToLong() {
+    assertEquals(1L, $opt$CharToLong((char)1));
+    assertEquals(0L, $opt$CharToLong((char)0));
+    assertEquals(51L, $opt$CharToLong((char)51));
+    assertEquals(32767L, $opt$CharToLong((char)32767));  // (2^15) - 1
+    assertEquals(65535L, $opt$CharToLong((char)65535));  // (2^16) - 1
+
+    assertEquals(0L, $opt$CharToLong('\u0000'));
+    assertEquals(65535L, $opt$CharToLong('\uFFFF'));  // (2^16) - 1
+
+    assertEquals(65535L, $opt$CharToLong((char)-1));
+    assertEquals(65485L, $opt$CharToLong((char)-51));
+    assertEquals(32769L, $opt$CharToLong((char)-32767));  // -(2^15) - 1
+    assertEquals(32768L, $opt$CharToLong((char)-32768));  // -(2^15)
   }
 
-  static long $opt$ShortToLong(short a) {
-    // Translates to an int-to-long Dex instruction.
-    return a;
-  }
-
-  static long $opt$IntToLong(int a) {
-    // Translates to an int-to-long Dex instruction.
-    return a;
-  }
+  // All these methods produce an int-to-long Dex instruction.
+  static long $opt$ByteToLong(byte a) { return a; }
+  static long $opt$ShortToLong(short a) { return a; }
+  static long $opt$IntToLong(int a) { return a; }
+  static long $opt$CharToLong(int a) { return a; }
 }
