@@ -185,10 +185,11 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
   // Create synthesized intervals for temporaries.
   for (size_t i = 0; i < locations->GetTempCount(); ++i) {
     Location temp = locations->GetTemp(i);
-    if (temp.IsRegister()) {
+    if (temp.IsRegister() || temp.IsFpuRegister()) {
       BlockRegister(temp, position, position + 1);
     } else {
       DCHECK(temp.IsUnallocated());
+      DCHECK(temp.GetPolicy() == Location::kRequiresRegister);
       LiveInterval* interval = LiveInterval::MakeTempInterval(allocator_, Primitive::kPrimInt);
       temp_intervals_.Add(interval);
       interval->AddRange(position, position + 1);
