@@ -200,10 +200,11 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
   for (Class* cur = c; cur != NULL; cur = cur->GetSuperClass()) {
     ObjectArray<ArtField>* fields = cur->GetIFields();
     if (fields != NULL) {
-      size_t num_ref_ifields = cur->NumReferenceInstanceFields();
-      for (size_t i = 0; i < num_ref_ifields; ++i) {
+      size_t num_ifields = fields->GetLength();
+      for (size_t i = 0; i < num_ifields; ++i) {
         ArtField* field = fields->Get(i);
         if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
+          CHECK_NE(field->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
           StackHandleScope<1> hs(Thread::Current());
           FieldHelper fh(hs.NewHandle(field));
           CHECK(fh.GetType()->IsAssignableFrom(new_value->GetClass()));
@@ -219,10 +220,11 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
   if (IsClass()) {
     ObjectArray<ArtField>* fields = AsClass()->GetSFields();
     if (fields != NULL) {
-      size_t num_ref_sfields = AsClass()->NumReferenceStaticFields();
-      for (size_t i = 0; i < num_ref_sfields; ++i) {
+      size_t num_sfields = fields->GetLength();
+      for (size_t i = 0; i < num_sfields; ++i) {
         ArtField* field = fields->Get(i);
         if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
+          CHECK_NE(field->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
           StackHandleScope<1> hs(Thread::Current());
           FieldHelper fh(hs.NewHandle(field));
           CHECK(fh.GetType()->IsAssignableFrom(new_value->GetClass()));

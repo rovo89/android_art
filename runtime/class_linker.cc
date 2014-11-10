@@ -185,15 +185,13 @@ static void AddFieldGap(uint32_t gap_start, uint32_t gap_end, FieldGaps* gaps) {
 }
 // Shuffle fields forward, making use of gaps whenever possible.
 template<int n>
-static void ShuffleForward(const size_t num_fields, size_t* current_field_idx,
+static void ShuffleForward(size_t* current_field_idx,
                            MemberOffset* field_offset,
-                           mirror::ObjectArray<mirror::ArtField>* fields,
                            std::deque<mirror::ArtField*>* grouped_and_sorted_fields,
                            FieldGaps* gaps)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(current_field_idx != nullptr);
   DCHECK(grouped_and_sorted_fields != nullptr);
-  DCHECK(fields != nullptr || (num_fields == 0 && grouped_and_sorted_fields->empty()));
   DCHECK(gaps != nullptr);
   DCHECK(field_offset != nullptr);
 
@@ -211,7 +209,6 @@ static void ShuffleForward(const size_t num_fields, size_t* current_field_idx,
     }
     CHECK(type != Primitive::kPrimNot) << PrettyField(field);  // should be primitive types
     grouped_and_sorted_fields->pop_front();
-    fields->Set<false>(*current_field_idx, field);
     if (!gaps->empty() && gaps->top().size >= n) {
       FieldGap gap = gaps->top();
       gaps->pop();
@@ -5231,13 +5228,7 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
   // Initialize field_offset
   MemberOffset field_offset(0);
   if (is_static) {
-    uint32_t base = sizeof(mirror::Class);  // Static fields come after the class.
-    if (klass->ShouldHaveEmbeddedImtAndVTable()) {
-      // Static fields come after the embedded tables.
-      base = mirror::Class::ComputeClassSize(true, klass->GetVTableDuringLinking()->GetLength(),
-                                             0, 0, 0, 0, 0);
-    }
-    field_offset = MemberOffset(base);
+    field_offset = klass->GetFirstReferenceStaticFieldOffsetDuringLinking();
   } else {
     mirror::Class* super_class = klass->GetSuperClass();
     if (super_class != nullptr) {
@@ -5274,28 +5265,25 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
     if (isPrimitive) {
       break;  // past last reference, move on to the next phase
     }
-    if (UNLIKELY(!IsAligned<4>(field_offset.Uint32Value()))) {
+    if (UNLIKELY(!IsAligned<sizeof(mirror::HeapReference<mirror::Object>)>(
+        field_offset.Uint32Value()))) {
       MemberOffset old_offset = field_offset;
       field_offset = MemberOffset(RoundUp(field_offset.Uint32Value(), 4));
       AddFieldGap(old_offset.Uint32Value(), field_offset.Uint32Value(), &gaps);
     }
-    DCHECK(IsAligned<4>(field_offset.Uint32Value()));
+    DCHECK(IsAligned<sizeof(mirror::HeapReference<mirror::Object>)>(field_offset.Uint32Value()));
     grouped_and_sorted_fields.pop_front();
     num_reference_fields++;
-    fields->Set<false>(current_field, field);
     field->SetOffset(field_offset);
-    field_offset = MemberOffset(field_offset.Uint32Value() + sizeof(uint32_t));
+    field_offset = MemberOffset(field_offset.Uint32Value() +
+                                sizeof(mirror::HeapReference<mirror::Object>));
   }
   // Gaps are stored as a max heap which means that we must shuffle from largest to smallest
   // otherwise we could end up with suboptimal gap fills.
-  ShuffleForward<8>(num_fields, &current_field, &field_offset,
-                    fields, &grouped_and_sorted_fields, &gaps);
-  ShuffleForward<4>(num_fields, &current_field, &field_offset,
-                    fields, &grouped_and_sorted_fields, &gaps);
-  ShuffleForward<2>(num_fields, &current_field, &field_offset,
-                    fields, &grouped_and_sorted_fields, &gaps);
-  ShuffleForward<1>(num_fields, &current_field, &field_offset,
-                    fields, &grouped_and_sorted_fields, &gaps);
+  ShuffleForward<8>(&current_field, &field_offset, &grouped_and_sorted_fields, &gaps);
+  ShuffleForward<4>(&current_field, &field_offset, &grouped_and_sorted_fields, &gaps);
+  ShuffleForward<2>(&current_field, &field_offset, &grouped_and_sorted_fields, &gaps);
+  ShuffleForward<1>(&current_field, &field_offset, &grouped_and_sorted_fields, &gaps);
   CHECK(grouped_and_sorted_fields.empty()) << "Missed " << grouped_and_sorted_fields.size() <<
       " fields.";
   self->EndAssertNoThreadSuspension(old_no_suspend_cause);
@@ -5307,39 +5295,6 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
     CHECK_EQ(num_reference_fields, num_fields) << PrettyClass(klass.Get());
     CHECK_STREQ(fields->Get(num_fields - 1)->GetName(), "referent") << PrettyClass(klass.Get());
     --num_reference_fields;
-  }
-
-  if (kIsDebugBuild) {
-    // Make sure that all reference fields appear before
-    // non-reference fields, and all double-wide fields are aligned.
-    bool seen_non_ref = false;
-    for (size_t i = 0; i < num_fields; i++) {
-      mirror::ArtField* field = fields->Get(i);
-      if ((false)) {  // enable to debug field layout
-        LOG(INFO) << "LinkFields: " << (is_static ? "static" : "instance")
-                    << " class=" << PrettyClass(klass.Get())
-                    << " field=" << PrettyField(field)
-                    << " offset="
-                    << field->GetField32(mirror::ArtField::OffsetOffset());
-      }
-      Primitive::Type type = field->GetTypeAsPrimitiveType();
-      bool is_primitive = type != Primitive::kPrimNot;
-      if (klass->DescriptorEquals("Ljava/lang/ref/Reference;") &&
-          strcmp("referent", field->GetName()) == 0) {
-        is_primitive = true;  // We lied above, so we have to expect a lie here.
-      }
-      if (is_primitive) {
-        if (!seen_non_ref) {
-          seen_non_ref = true;
-          DCHECK_EQ(num_reference_fields, i) << PrettyField(field);
-        }
-      } else {
-        DCHECK(!seen_non_ref) << PrettyField(field);
-      }
-    }
-    if (!seen_non_ref) {
-      DCHECK_EQ(num_fields, num_reference_fields) << PrettyClass(klass.Get());
-    }
   }
 
   size_t size = field_offset.Uint32Value();
@@ -5360,11 +5315,59 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
       klass->SetObjectSize(size);
     }
   }
+
+  if (kIsDebugBuild) {
+    // Make sure that the fields array is ordered by name but all reference
+    // offsets are at the beginning as far as alignment allows.
+    MemberOffset start_ref_offset = is_static
+        ? klass->GetFirstReferenceStaticFieldOffsetDuringLinking()
+        : klass->GetFirstReferenceInstanceFieldOffset();
+    MemberOffset end_ref_offset(start_ref_offset.Uint32Value() +
+                                num_reference_fields *
+                                    sizeof(mirror::HeapReference<mirror::Object>));
+    MemberOffset current_ref_offset = start_ref_offset;
+    for (size_t i = 0; i < num_fields; i++) {
+      mirror::ArtField* field = fields->Get(i);
+      if ((false)) {  // enable to debug field layout
+        LOG(INFO) << "LinkFields: " << (is_static ? "static" : "instance")
+                    << " class=" << PrettyClass(klass.Get())
+                    << " field=" << PrettyField(field)
+                    << " offset="
+                    << field->GetField32(mirror::ArtField::OffsetOffset());
+      }
+      if (i != 0) {
+        mirror::ArtField* prev_field = fields->Get(i - 1u);
+        CHECK_LT(strcmp(prev_field->GetName(), field->GetName()), 0);
+      }
+      Primitive::Type type = field->GetTypeAsPrimitiveType();
+      bool is_primitive = type != Primitive::kPrimNot;
+      if (klass->DescriptorEquals("Ljava/lang/ref/Reference;") &&
+          strcmp("referent", field->GetName()) == 0) {
+        is_primitive = true;  // We lied above, so we have to expect a lie here.
+      }
+      MemberOffset offset = field->GetOffsetDuringLinking();
+      if (is_primitive) {
+        if (offset.Uint32Value() < end_ref_offset.Uint32Value()) {
+          // Shuffled before references.
+          size_t type_size = Primitive::ComponentSize(type);
+          CHECK_LT(type_size, sizeof(mirror::HeapReference<mirror::Object>));
+          CHECK_LT(offset.Uint32Value(), start_ref_offset.Uint32Value());
+          CHECK_LE(offset.Uint32Value() + type_size, start_ref_offset.Uint32Value());
+          CHECK(!IsAligned<sizeof(mirror::HeapReference<mirror::Object>)>(offset.Uint32Value()));
+        }
+      } else {
+        CHECK_EQ(current_ref_offset.Uint32Value(), offset.Uint32Value());
+        current_ref_offset = MemberOffset(current_ref_offset.Uint32Value() +
+                                          sizeof(mirror::HeapReference<mirror::Object>));
+      }
+    }
+    CHECK_EQ(current_ref_offset.Uint32Value(), end_ref_offset.Uint32Value());
+  }
+
   return true;
 }
 
-//  Set the bitmap of reference offsets, refOffsets, from the ifields
-//  list.
+//  Set the bitmap of reference instance field offsets.
 void ClassLinker::CreateReferenceInstanceOffsets(Handle<mirror::Class> klass) {
   uint32_t reference_offsets = 0;
   mirror::Class* super_class = klass->GetSuperClass();
@@ -5374,23 +5377,18 @@ void ClassLinker::CreateReferenceInstanceOffsets(Handle<mirror::Class> klass) {
     // Compute reference offsets unless our superclass overflowed.
     if (reference_offsets != mirror::Class::kClassWalkSuper) {
       size_t num_reference_fields = klass->NumReferenceInstanceFieldsDuringLinking();
-      mirror::ObjectArray<mirror::ArtField>* fields = klass->GetIFields();
-      // All of the fields that contain object references are guaranteed
-      // to be at the beginning of the fields list.
-      for (size_t i = 0; i < num_reference_fields; ++i) {
-        // Note that byte_offset is the offset from the beginning of
-        // object, not the offset into instance data
-        mirror::ArtField* field = fields->Get(i);
-        MemberOffset byte_offset = field->GetOffsetDuringLinking();
-        uint32_t displaced_bitmap_position =
-            (byte_offset.Uint32Value() - mirror::kObjectHeaderSize) /
+      if (num_reference_fields != 0u) {
+        // All of the fields that contain object references are guaranteed be grouped in memory
+        // starting at an appropriately aligned address after super class object data.
+        uint32_t start_offset = RoundUp(super_class->GetObjectSize(),
+                                        sizeof(mirror::HeapReference<mirror::Object>));
+        uint32_t start_bit = (start_offset - mirror::kObjectHeaderSize) /
             sizeof(mirror::HeapReference<mirror::Object>);
-        if (displaced_bitmap_position >= 32) {
-          // Can't encode offset so fall back on slow-path.
+        if (start_bit + num_reference_fields > 32) {
           reference_offsets = mirror::Class::kClassWalkSuper;
-          break;
         } else {
-          reference_offsets |= (1 << displaced_bitmap_position);
+          reference_offsets |= (0xffffffffu << start_bit) &
+                               (0xffffffffu >> (32 - (start_bit + num_reference_fields)));
         }
       }
     }
