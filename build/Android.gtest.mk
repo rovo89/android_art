@@ -372,7 +372,11 @@ define define-art-gtest
         2nd_library_path := $$(ART_TEST_ANDROID_ROOT)/lib
         library_path := $$(ART_TEST_ANDROID_ROOT)/lib64
       else
-        library_path := $$(ART_TEST_ANDROID_ROOT)/lib
+        ifneq ($(filter %64,$(TARGET_ARCH)),)
+          library_path := $$(ART_TEST_ANDROID_ROOT)/lib64
+        else
+          library_path := $$(ART_TEST_ANDROID_ROOT)/lib
+        endif
       endif
     endif
 
