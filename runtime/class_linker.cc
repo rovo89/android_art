@@ -5170,13 +5170,7 @@ bool ClassLinker::LinkFields(Handle<mirror::Class> klass, bool is_static, size_t
   // Initialize field_offset
   MemberOffset field_offset(0);
   if (is_static) {
-    uint32_t base = sizeof(mirror::Class);  // Static fields come after the class.
-    if (klass->ShouldHaveEmbeddedImtAndVTable()) {
-      // Static fields come after the embedded tables.
-      base = mirror::Class::ComputeClassSize(true, klass->GetVTableDuringLinking()->GetLength(),
-                                             0, 0, 0);
-    }
-    field_offset = MemberOffset(base);
+    field_offset = klass->GetFirstReferenceStaticFieldOffsetDuringLinking();
   } else {
     mirror::Class* super_class = klass->GetSuperClass();
     if (super_class != nullptr) {
@@ -5211,9 +5205,9 @@ bool ClassLinker::LinkFields(Handle<mirror::Class> klass, bool is_static, size_t
     }
     grouped_and_sorted_fields.pop_front();
     num_reference_fields++;
-    fields->Set<false>(current_field, field);
     field->SetOffset(field_offset);
-    field_offset = MemberOffset(field_offset.Uint32Value() + sizeof(uint32_t));
+    field_offset = MemberOffset(field_offset.Uint32Value() +
+                                sizeof(mirror::HeapReference<mirror::Object>));
   }
 
   // Now we want to pack all of the double-wide fields together.  If
@@ -5227,14 +5221,15 @@ bool ClassLinker::LinkFields(Handle<mirror::Class> klass, bool is_static, size_t
       if (type == Primitive::kPrimLong || type == Primitive::kPrimDouble) {
         continue;
       }
-      fields->Set<false>(current_field++, field);
+      current_field++;
       field->SetOffset(field_offset);
       // drop the consumed field
       grouped_and_sorted_fields.erase(grouped_and_sorted_fields.begin() + i);
       break;
     }
     // whether we found a 32-bit field for padding or not, we advance
-    field_offset = MemberOffset(field_offset.Uint32Value() + sizeof(uint32_t));
+    field_offset = MemberOffset(field_offset.Uint32Value() +
+                                sizeof(mirror::HeapReference<mirror::Object>));
   }
 
   // Alignment is good, shuffle any double-wide fields forward, and
@@ -5246,7 +5241,6 @@ bool ClassLinker::LinkFields(Handle<mirror::Class> klass, bool is_static, size_t
     grouped_and_sorted_fields.pop_front();
     Primitive::Type type = field->GetTypeAsPrimitiveType();
     CHECK(type != Primitive::kPrimNot) << PrettyField(field);  // should be primitive types
-    fields->Set<false>(current_field, field);
     field->SetOffset(field_offset);
     field_offset = MemberOffset(field_offset.Uint32Value() +
                                 ((type == Primitive::kPrimLong || type == Primitive::kPrimDouble)
@@ -5262,39 +5256,6 @@ bool ClassLinker::LinkFields(Handle<mirror::Class> klass, bool is_static, size_t
     CHECK_EQ(num_reference_fields, num_fields) << PrettyClass(klass.Get());
     CHECK_STREQ(fields->Get(num_fields - 1)->GetName(), "referent") << PrettyClass(klass.Get());
     --num_reference_fields;
-  }
-
-  if (kIsDebugBuild) {
-    // Make sure that all reference fields appear before
-    // non-reference fields, and all double-wide fields are aligned.
-    bool seen_non_ref = false;
-    for (size_t i = 0; i < num_fields; i++) {
-      mirror::ArtField* field = fields->Get(i);
-      if (false) {  // enable to debug field layout
-        LOG(INFO) << "LinkFields: " << (is_static ? "static" : "instance")
-                    << " class=" << PrettyClass(klass.Get())
-                    << " field=" << PrettyField(field)
-                    << " offset="
-                    << field->GetField32(MemberOffset(mirror::ArtField::OffsetOffset()));
-      }
-      Primitive::Type type = field->GetTypeAsPrimitiveType();
-      bool is_primitive = type != Primitive::kPrimNot;
-      if (klass->DescriptorEquals("Ljava/lang/ref/Reference;") &&
-          strcmp("referent", field->GetName()) == 0) {
-        is_primitive = true;  // We lied above, so we have to expect a lie here.
-      }
-      if (is_primitive) {
-        if (!seen_non_ref) {
-          seen_non_ref = true;
-          DCHECK_EQ(num_reference_fields, i) << PrettyField(field);
-        }
-      } else {
-        DCHECK(!seen_non_ref) << PrettyField(field);
-      }
-    }
-    if (!seen_non_ref) {
-      DCHECK_EQ(num_fields, num_reference_fields) << PrettyClass(klass.Get());
-    }
   }
 
   size_t size = field_offset.Uint32Value();
@@ -5315,11 +5276,59 @@ bool ClassLinker::LinkFields(Handle<mirror::Class> klass, bool is_static, size_t
       klass->SetObjectSize(size);
     }
   }
+
+  if (kIsDebugBuild) {
+    // Make sure that the fields array is ordered by name but all reference
+    // offsets are at the beginning as far as alignment allows.
+    MemberOffset start_ref_offset = is_static
+        ? klass->GetFirstReferenceStaticFieldOffsetDuringLinking()
+        : klass->GetFirstReferenceInstanceFieldOffset();
+    MemberOffset end_ref_offset(start_ref_offset.Uint32Value() +
+                                num_reference_fields *
+                                    sizeof(mirror::HeapReference<mirror::Object>));
+    MemberOffset current_ref_offset = start_ref_offset;
+    for (size_t i = 0; i < num_fields; i++) {
+      mirror::ArtField* field = fields->Get(i);
+      if (false) {  // enable to debug field layout
+        LOG(INFO) << "LinkFields: " << (is_static ? "static" : "instance")
+                    << " class=" << PrettyClass(klass.Get())
+                    << " field=" << PrettyField(field)
+                    << " offset="
+                    << field->GetField32(MemberOffset(mirror::ArtField::OffsetOffset()));
+      }
+      if (i != 0) {
+        mirror::ArtField* prev_field = fields->Get(i - 1u);
+        CHECK_LT(strcmp(prev_field->GetName(), field->GetName()), 0);
+      }
+      Primitive::Type type = field->GetTypeAsPrimitiveType();
+      bool is_primitive = type != Primitive::kPrimNot;
+      if (klass->DescriptorEquals("Ljava/lang/ref/Reference;") &&
+          strcmp("referent", field->GetName()) == 0) {
+        is_primitive = true;  // We lied above, so we have to expect a lie here.
+      }
+      MemberOffset offset = field->GetOffsetDuringLinking();
+      if (is_primitive) {
+        if (offset.Uint32Value() < end_ref_offset.Uint32Value()) {
+          // Shuffled before references.
+          size_t type_size = Primitive::ComponentSize(type);
+          CHECK_LT(type_size, sizeof(mirror::HeapReference<mirror::Object>));
+          CHECK_LT(offset.Uint32Value(), start_ref_offset.Uint32Value());
+          CHECK_LE(offset.Uint32Value() + type_size, start_ref_offset.Uint32Value());
+          CHECK(!IsAligned<sizeof(mirror::HeapReference<mirror::Object>)>(offset.Uint32Value()));
+        }
+      } else {
+        CHECK_EQ(current_ref_offset.Uint32Value(), offset.Uint32Value());
+        current_ref_offset = MemberOffset(current_ref_offset.Uint32Value() +
+                                          sizeof(mirror::HeapReference<mirror::Object>));
+      }
+    }
+    CHECK_EQ(current_ref_offset.Uint32Value(), end_ref_offset.Uint32Value());
+  }
+
   return true;
 }
 
-//  Set the bitmap of reference offsets, refOffsets, from the ifields
-//  list.
+//  Set the bitmap of reference instance field offsets.
 void ClassLinker::CreateReferenceInstanceOffsets(Handle<mirror::Class> klass) {
   uint32_t reference_offsets = 0;
   mirror::Class* super_class = klass->GetSuperClass();
@@ -5343,23 +5352,24 @@ void ClassLinker::CreateReferenceOffsets(Handle<mirror::Class> klass, bool is_st
   size_t num_reference_fields =
       is_static ? klass->NumReferenceStaticFieldsDuringLinking()
                 : klass->NumReferenceInstanceFieldsDuringLinking();
-  mirror::ObjectArray<mirror::ArtField>* fields =
-      is_static ? klass->GetSFields() : klass->GetIFields();
-  // All of the fields that contain object references are guaranteed
-  // to be at the beginning of the fields list.
-  for (size_t i = 0; i < num_reference_fields; ++i) {
-    // Note that byte_offset is the offset from the beginning of
-    // object, not the offset into instance data
-    mirror::ArtField* field = fields->Get(i);
-    MemberOffset byte_offset = field->GetOffsetDuringLinking();
-    CHECK_EQ(byte_offset.Uint32Value() & (CLASS_OFFSET_ALIGNMENT - 1), 0U);
-    if (CLASS_CAN_ENCODE_OFFSET(byte_offset.Uint32Value())) {
-      uint32_t new_bit = CLASS_BIT_FROM_OFFSET(byte_offset.Uint32Value());
-      CHECK_NE(new_bit, 0U);
-      reference_offsets |= new_bit;
-    } else {
+  if (num_reference_fields != 0u) {
+    // All of the fields that contain object references are guaranteed be grouped in memory
+    // starting at an appropriately aligned address after super class object data for instances
+    // and after the basic class data for classes.
+    uint32_t start_offset =
+        !is_static
+        ? klass->GetFirstReferenceInstanceFieldOffset().Uint32Value()
+        // Can't use klass->GetFirstReferenceStaticFieldOffset() yet.
+        : klass->ShouldHaveEmbeddedImtAndVTable()
+          ? mirror::Class::ComputeClassSize(
+              true, klass->GetVTableDuringLinking()->GetLength(), 0, 0, 0)
+          : sizeof(mirror::Class);
+    uint32_t start_bit = start_offset / sizeof(mirror::HeapReference<mirror::Object>);
+    if (start_bit + num_reference_fields > 32) {
       reference_offsets = CLASS_WALK_SUPER;
-      break;
+    } else {
+      reference_offsets |= (0xffffffffu >> start_bit) &
+                           (0xffffffffu << (32 - (start_bit + num_reference_fields)));
     }
   }
   // Update fields in klass
