@@ -390,10 +390,12 @@ class X86_64Assembler FINAL : public Assembler {
   void cmpq(CpuRegister reg0, CpuRegister reg1);
   void cmpq(CpuRegister reg0, const Immediate& imm);
   void cmpq(CpuRegister reg0, const Address& address);
+  void cmpq(const Address& address, const Immediate& imm);
 
   void testl(CpuRegister reg1, CpuRegister reg2);
   void testl(CpuRegister reg, const Immediate& imm);
 
+  void testq(CpuRegister reg1, CpuRegister reg2);
   void testq(CpuRegister reg, const Address& address);
 
   void andl(CpuRegister dst, const Immediate& imm);
@@ -432,8 +434,10 @@ class X86_64Assembler FINAL : public Assembler {
   void subq(CpuRegister dst, const Address& address);
 
   void cdq();
+  void cqo();
 
   void idivl(CpuRegister reg);
+  void idivq(CpuRegister reg);
 
   void imull(CpuRegister dst, CpuRegister src);
   void imull(CpuRegister reg, const Immediate& imm);
@@ -669,7 +673,9 @@ class X86_64Assembler FINAL : public Assembler {
   void EmitOptionalRex32(XmmRegister dst, const Operand& operand);
 
   // Emit a REX.W prefix plus necessary register bit encodings.
+  void EmitRex64();
   void EmitRex64(CpuRegister reg);
+  void EmitRex64(const Operand& operand);
   void EmitRex64(CpuRegister dst, CpuRegister src);
   void EmitRex64(CpuRegister dst, const Operand& operand);
   void EmitRex64(XmmRegister dst, CpuRegister src);

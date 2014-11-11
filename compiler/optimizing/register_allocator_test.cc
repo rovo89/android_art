@@ -713,7 +713,7 @@ static HGraph* BuildDiv(ArenaAllocator* allocator,
   graph->AddBlock(block);
   entry->AddSuccessor(block);
 
-  *div = new (allocator) HDiv(Primitive::kPrimInt, first, second);
+  *div = new (allocator) HDiv(Primitive::kPrimInt, first, second, 0);  // don't care about dex_pc.
   block->AddInstruction(*div);
 
   block->AddInstruction(new (allocator) HExit());

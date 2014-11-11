@@ -108,16 +108,23 @@ class DivZeroCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
 
 class DivMinusOneSlowPathX86_64 : public SlowPathCodeX86_64 {
  public:
-  explicit DivMinusOneSlowPathX86_64(Register reg) : reg_(reg) {}
+  explicit DivMinusOneSlowPathX86_64(Register reg, Primitive::Type type)
+      : reg_(reg), type_(type) {}
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
-    __ negl(CpuRegister(reg_));
+    if (type_ == Primitive::kPrimInt) {
+      __ negl(CpuRegister(reg_));
+    } else {
+      DCHECK_EQ(Primitive::kPrimLong, type_);
+      __ negq(CpuRegister(reg_));
+    }
     __ jmp(GetExitLabel());
   }
 
  private:
-  Register reg_;
+  const Register reg_;
+  const Primitive::Type type_;
   DISALLOW_COPY_AND_ASSIGN(DivMinusOneSlowPathX86_64);
 };
 
@@ -1611,7 +1618,8 @@ void LocationsBuilderX86_64::VisitDiv(HDiv* div) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(div, LocationSummary::kNoCall);
   switch (div->GetResultType()) {
-    case Primitive::kPrimInt: {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RegisterLocation(RAX));
       locations->SetInAt(1, Location::RequiresRegister());
       locations->SetOut(Location::SameAsFirstInput());
@@ -1619,10 +1627,7 @@ void LocationsBuilderX86_64::VisitDiv(HDiv* div) {
       locations->AddTemp(Location::RegisterLocation(RDX));
       break;
     }
-    case Primitive::kPrimLong: {
-      LOG(FATAL) << "Not implemented div type" << div->GetResultType();
-      break;
-    }
+
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
@@ -1642,35 +1647,39 @@ void InstructionCodeGeneratorX86_64::VisitDiv(HDiv* div) {
   Location second = locations->InAt(1);
   DCHECK(first.Equals(locations->Out()));
 
-  switch (div->GetResultType()) {
-    case Primitive::kPrimInt: {
+  Primitive::Type type = div->GetResultType();
+  switch (type) {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimLong: {
       CpuRegister first_reg = first.As<CpuRegister>();
       CpuRegister second_reg = second.As<CpuRegister>();
       DCHECK_EQ(RAX,  first_reg.AsRegister());
       DCHECK_EQ(RDX, locations->GetTemp(0).As<CpuRegister>().AsRegister());
 
       SlowPathCodeX86_64* slow_path =
-          new (GetGraph()->GetArena()) DivMinusOneSlowPathX86_64(first_reg.AsRegister());
+          new (GetGraph()->GetArena()) DivMinusOneSlowPathX86_64(first_reg.AsRegister(), type);
       codegen_->AddSlowPath(slow_path);
 
-      // 0x80000000/-1 triggers an arithmetic exception!
-      // Dividing by -1 is actually negation and -0x800000000 = 0x80000000 so
-      // it's safe to just use negl instead of more complex comparisons.
+      // 0x80000000(00000000)/-1 triggers an arithmetic exception!
+      // Dividing by -1 is actually negation and -0x800000000(00000000) = 0x80000000(00000000)
+      // so it's safe to just use negl instead of more complex comparisons.
 
       __ cmpl(second_reg, Immediate(-1));
       __ j(kEqual, slow_path->GetEntryLabel());
 
-      // edx:eax <- sign-extended of eax
-      __ cdq();
-      // eax = quotient, edx = remainder
-      __ idivl(second_reg);
+      if (type == Primitive::kPrimInt) {
+        // edx:eax <- sign-extended of eax
+        __ cdq();
+        // eax = quotient, edx = remainder
+        __ idivl(second_reg);
+      } else {
+        // rdx:rax <- sign-extended of rax
+        __ cqo();
+        // rax = quotient, rdx = remainder
+        __ idivq(second_reg);
+      }
 
       __ Bind(slow_path->GetExitLabel());
-      break;
-    }
-
-    case Primitive::kPrimLong: {
-      LOG(FATAL) << "Not implemented div type" << div->GetResultType();
       break;
     }
 
@@ -1706,18 +1715,40 @@ void InstructionCodeGeneratorX86_64::VisitDivZeroCheck(HDivZeroCheck* instructio
   LocationSummary* locations = instruction->GetLocations();
   Location value = locations->InAt(0);
 
-  if (value.IsRegister()) {
-    __ testl(value.As<CpuRegister>(), value.As<CpuRegister>());
-  } else if (value.IsStackSlot()) {
-    __ cmpl(Address(CpuRegister(RSP), value.GetStackIndex()), Immediate(0));
-  } else {
-    DCHECK(value.IsConstant()) << value;
-    if (value.GetConstant()->AsIntConstant()->GetValue() == 0) {
-      __ jmp(slow_path->GetEntryLabel());
+  switch (instruction->GetType()) {
+    case Primitive::kPrimInt: {
+      if (value.IsRegister()) {
+        __ testl(value.As<CpuRegister>(), value.As<CpuRegister>());
+        __ j(kEqual, slow_path->GetEntryLabel());
+      } else if (value.IsStackSlot()) {
+        __ cmpl(Address(CpuRegister(RSP), value.GetStackIndex()), Immediate(0));
+        __ j(kEqual, slow_path->GetEntryLabel());
+      } else {
+        DCHECK(value.IsConstant()) << value;
+        if (value.GetConstant()->AsIntConstant()->GetValue() == 0) {
+        __ jmp(slow_path->GetEntryLabel());
+        }
+      }
+      break;
     }
-    return;
+    case Primitive::kPrimLong: {
+      if (value.IsRegister()) {
+        __ testq(value.As<CpuRegister>(), value.As<CpuRegister>());
+        __ j(kEqual, slow_path->GetEntryLabel());
+      } else if (value.IsDoubleStackSlot()) {
+        __ cmpq(Address(CpuRegister(RSP), value.GetStackIndex()), Immediate(0));
+        __ j(kEqual, slow_path->GetEntryLabel());
+      } else {
+        DCHECK(value.IsConstant()) << value;
+        if (value.GetConstant()->AsLongConstant()->GetValue() == 0) {
+        __ jmp(slow_path->GetEntryLabel());
+        }
+      }
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected type for HDivZeroCheck " << instruction->GetType();
   }
-  __ j(kEqual, slow_path->GetEntryLabel());
 }
 
 void LocationsBuilderX86_64::VisitNewInstance(HNewInstance* instruction) {
