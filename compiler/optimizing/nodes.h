@@ -2114,7 +2114,11 @@ class HTemporary : public HTemplateInstruction<0> {
 
   size_t GetIndex() const { return index_; }
 
-  Primitive::Type GetType() const OVERRIDE { return GetPrevious()->GetType(); }
+  Primitive::Type GetType() const OVERRIDE {
+    // The previous instruction is the one that will be stored in the temporary location.
+    DCHECK(GetPrevious() != nullptr);
+    return GetPrevious()->GetType();
+  }
 
   DECLARE_INSTRUCTION(Temporary);
 
