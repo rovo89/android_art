@@ -917,9 +917,10 @@ THREE_ARG_REF_DOWNCALL art_quick_set_obj_instance, artSetObjInstanceFromCode, RE
 
 // Call artSet64InstanceFromCode with 4 word size arguments and the referrer.
 DEFINE_FUNCTION art_quick_set64_instance
+    movd %ebx, %xmm0
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME ebx, ebx  // save ref containing registers for GC
+    movd %xmm0, %ebx
     // Outgoing argument set up
-    mov FRAME_SIZE_REFS_ONLY_CALLEE_SAVE(%esp), %ebx  // get referrer
     subl LITERAL(8), %esp         // alignment padding
     CFI_ADJUST_CFA_OFFSET(8)
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
