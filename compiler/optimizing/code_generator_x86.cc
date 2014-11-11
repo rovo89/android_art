@@ -22,6 +22,7 @@
 #include "mirror/art_method.h"
 #include "mirror/class.h"
 #include "thread.h"
+#include "utils.h"
 #include "utils/assembler.h"
 #include "utils/stack_checks.h"
 #include "utils/x86/assembler_x86.h"
@@ -1261,6 +1262,26 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
   switch (result_type) {
+    case Primitive::kPrimInt:
+      switch (input_type) {
+        case Primitive::kPrimLong:
+          // long-to-int conversion.
+          locations->SetInAt(0, Location::Any());
+          locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+          break;
+
+        case Primitive::kPrimFloat:
+        case Primitive::kPrimDouble:
+          LOG(FATAL) << "Type conversion from " << input_type
+                     << " to " << result_type << " not yet implemented";
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      }
+      break;
+
     case Primitive::kPrimLong:
       switch (input_type) {
         case Primitive::kPrimByte:
@@ -1284,7 +1305,6 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
       }
       break;
 
-    case Primitive::kPrimInt:
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       LOG(FATAL) << "Type conversion from " << input_type
@@ -1304,6 +1324,34 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
   switch (result_type) {
+    case Primitive::kPrimInt:
+      switch (input_type) {
+        case Primitive::kPrimLong:
+          // long-to-int conversion.
+          if (in.IsRegisterPair()) {
+            __ movl(out.As<Register>(), in.AsRegisterPairLow<Register>());
+          } else if (in.IsDoubleStackSlot()) {
+            __ movl(out.As<Register>(), Address(ESP, in.GetStackIndex()));
+          } else {
+            DCHECK(in.IsConstant());
+            DCHECK(in.GetConstant()->IsLongConstant());
+            __ movl(out.As<Register>(),
+                    Immediate(Low32Bits(in.GetConstant()->AsLongConstant()->GetValue())));
+          }
+          break;
+
+        case Primitive::kPrimFloat:
+        case Primitive::kPrimDouble:
+          LOG(FATAL) << "Type conversion from " << input_type
+                     << " to " << result_type << " not yet implemented";
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      }
+      break;
+
     case Primitive::kPrimLong:
       switch (input_type) {
         case Primitive::kPrimByte:
@@ -1329,7 +1377,6 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
       }
       break;
 
-    case Primitive::kPrimInt:
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       LOG(FATAL) << "Type conversion from " << input_type
