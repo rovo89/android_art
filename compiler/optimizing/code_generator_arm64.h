@@ -216,8 +216,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
     return InstructionSet::kArm64;
   }
 
-  void MoveHelper(Location destination, Location source, Primitive::Type type);
-
   void Initialize() OVERRIDE {
     HGraph* graph = GetGraph();
     int length = graph->GetBlocks().Size();
@@ -226,6 +224,11 @@ class CodeGeneratorARM64 : public CodeGenerator {
       new(block_labels_ + i) vixl::Label();
     }
   }
+
+  // Code generation helpers.
+  void MoveHelper(Location destination, Location source, Primitive::Type type);
+  void Load(Primitive::Type type, vixl::Register dst, const vixl::MemOperand& src);
+  void Store(Primitive::Type type, vixl::Register rt, const vixl::MemOperand& dst);
 
  private:
   // Labels for each block that will be compiled.
