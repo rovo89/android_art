@@ -417,10 +417,10 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
   RegLocation rl_src[3];
   RegLocation rl_dest = mir_graph_->GetBadLoc();
   RegLocation rl_result = mir_graph_->GetBadLoc();
-  Instruction::Code opcode = mir->dalvikInsn.opcode;
-  int opt_flags = mir->optimization_flags;
-  uint32_t vB = mir->dalvikInsn.vB;
-  uint32_t vC = mir->dalvikInsn.vC;
+  const Instruction::Code opcode = mir->dalvikInsn.opcode;
+  const int opt_flags = mir->optimization_flags;
+  const uint32_t vB = mir->dalvikInsn.vB;
+  const uint32_t vC = mir->dalvikInsn.vC;
   DCHECK(CheckCorePoolSanity()) << PrettyMethod(cu_->method_idx, *cu_->dex_file) << " @ 0x:"
                                 << std::hex << current_dalvik_offset_;
 
@@ -572,7 +572,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       GenThrow(rl_src[0]);
       break;
 
-    case Instruction::ARRAY_LENGTH:
+    case Instruction::ARRAY_LENGTH: {
       int len_offset;
       len_offset = mirror::Array::LengthOffset().Int32Value();
       rl_src[0] = LoadValue(rl_src[0], kRefReg);
@@ -582,7 +582,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       MarkPossibleNullPointerException(opt_flags);
       StoreValue(rl_dest, rl_result);
       break;
-
+    }
     case Instruction::CONST_STRING:
     case Instruction::CONST_STRING_JUMBO:
       GenConstString(vB, rl_dest);
@@ -666,8 +666,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
         GenCompareAndBranch(opcode, rl_src[0], rl_src[1], taken);
       }
       break;
-      }
-
+    }
     case Instruction::IF_EQZ:
     case Instruction::IF_NEZ:
     case Instruction::IF_LTZ:
@@ -693,7 +692,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
         GenCompareZeroAndBranch(opcode, rl_src[0], taken);
       }
       break;
-      }
+    }
 
     case Instruction::AGET_WIDE:
       GenArrayGet(opt_flags, k64, rl_src[0], rl_src[1], rl_dest, 3);
