@@ -508,6 +508,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(LoadString, Instruction)                                            \
   M(Local, Instruction)                                                 \
   M(LongConstant, Constant)                                             \
+  M(MonitorOperation, Instruction)                                      \
   M(Mul, BinaryOperation)                                               \
   M(Neg, UnaryOperation)                                                \
   M(NewArray, Instruction)                                              \
@@ -2429,6 +2430,36 @@ class HCheckCast : public HTemplateInstruction<2> {
   const uint32_t dex_pc_;
 
   DISALLOW_COPY_AND_ASSIGN(HCheckCast);
+};
+
+class HMonitorOperation : public HTemplateInstruction<1> {
+ public:
+  enum OperationKind {
+    kEnter,
+    kExit,
+  };
+
+  HMonitorOperation(HInstruction* object, OperationKind kind, uint32_t dex_pc)
+    : HTemplateInstruction(SideEffects::None()), kind_(kind), dex_pc_(dex_pc) {
+    SetRawInputAt(0, object);
+  }
+
+  // Instruction may throw a Java exception, so we need an environment.
+  bool NeedsEnvironment() const OVERRIDE { return true; }
+  bool CanThrow() const OVERRIDE { return true; }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  bool IsEnter() const { return kind_ == kEnter; }
+
+  DECLARE_INSTRUCTION(MonitorOperation);
+
+ protected:
+  const OperationKind kind_;
+  const uint32_t dex_pc_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HMonitorOperation);
 };
 
 
