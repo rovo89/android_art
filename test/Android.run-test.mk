@@ -295,7 +295,8 @@ endif
 TEST_ART_BROKEN_NDEBUG_TESTS :=
 
 # Known broken tests for the default compiler (Quick).
-TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
+TEST_ART_BROKEN_DEFAULT_RUN_TESTS := \
+  412-new-array
 
 ifneq (,$(filter default,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
