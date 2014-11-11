@@ -362,23 +362,6 @@ NOT_LONG_TEST(ReturnNotLongINT64_MAX,
 
 #undef NOT_LONG_TEST
 
-TEST(CodegenTest, IntToLongOfLongToInt) {
-  const int64_t input = INT64_C(4294967296);             // 2^32
-  const uint16_t word0 = Low16Bits(Low32Bits(input));    // LSW.
-  const uint16_t word1 = High16Bits(Low32Bits(input));
-  const uint16_t word2 = Low16Bits(High32Bits(input));
-  const uint16_t word3 = High16Bits(High32Bits(input));  // MSW.
-  const uint16_t data[] = FIVE_REGISTERS_CODE_ITEM(
-      Instruction::CONST_WIDE | 0 << 8, word0, word1, word2, word3,
-      Instruction::CONST_WIDE | 2 << 8, 1, 0, 0, 0,
-      Instruction::ADD_LONG | 0, 0 << 8 | 2,             // v0 <- 2^32 + 1
-      Instruction::LONG_TO_INT | 4 << 8 | 0 << 12,
-      Instruction::INT_TO_LONG | 2 << 8 | 4 << 12,
-      Instruction::RETURN_WIDE | 2 << 8);
-
-  TestCodeLong(data, true, 1);
-}
-
 TEST(CodegenTest, ReturnAdd1) {
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 3 << 12 | 0,
