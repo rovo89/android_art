@@ -431,6 +431,11 @@ void Thread::CreatePeer(const char* name, bool as_daemon, jobject thread_group) 
     thread_group = runtime->GetMainThreadGroup();
   }
   ScopedLocalRef<jobject> thread_name(env, env->NewStringUTF(name));
+  // Add missing null check in case of OOM b/18297817
+  if (thread_name.get() == nullptr) {
+    CHECK(IsExceptionPending());
+    return;
+  }
   jint thread_priority = GetNativePriority();
   jboolean thread_is_daemon = as_daemon;
 
