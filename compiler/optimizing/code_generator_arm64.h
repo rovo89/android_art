@@ -45,10 +45,13 @@ const vixl::Register wSuspend = vixl::w19;  // Suspend Register
 const vixl::Register xSuspend = vixl::x19;
 
 const vixl::CPURegList vixl_reserved_core_registers(vixl::ip0, vixl::ip1);
+const vixl::CPURegList vixl_reserved_fp_registers(vixl::d31);
 const vixl::CPURegList runtime_reserved_core_registers(tr, xSuspend, vixl::lr);
 const vixl::CPURegList quick_callee_saved_registers(vixl::CPURegister::kRegister,
                                                     vixl::kXRegSize,
                                                     kArm64CalleeSaveRefSpills);
+
+Location ARM64ReturnLocation(Primitive::Type return_type);
 
 class InvokeDexCallingConvention : public CallingConvention<vixl::Register, vixl::FPRegister> {
  public:
@@ -59,11 +62,7 @@ class InvokeDexCallingConvention : public CallingConvention<vixl::Register, vixl
                           kParameterFPRegistersLength) {}
 
   Location GetReturnLocation(Primitive::Type return_type) {
-    DCHECK_NE(return_type, Primitive::kPrimVoid);
-    if (return_type == Primitive::kPrimFloat || return_type == Primitive::kPrimDouble) {
-      LOG(FATAL) << "Unimplemented return type " << return_type;
-    }
-    return Location::RegisterLocation(X0);
+    return ARM64ReturnLocation(return_type);
   }
 
 
@@ -73,7 +72,7 @@ class InvokeDexCallingConvention : public CallingConvention<vixl::Register, vixl
 
 class InvokeDexCallingConventionVisitor {
  public:
-  InvokeDexCallingConventionVisitor() : gp_index_(0), stack_index_(0) {}
+  InvokeDexCallingConventionVisitor() : gp_index_(0), fp_index_(0), stack_index_(0) {}
 
   Location GetNextLocation(Primitive::Type type);
   Location GetReturnLocation(Primitive::Type return_type) {
@@ -84,6 +83,8 @@ class InvokeDexCallingConventionVisitor {
   InvokeDexCallingConvention calling_convention;
   // The current index for core registers.
   uint32_t gp_index_;
+  // The current index for floating-point registers.
+  uint32_t fp_index_;
   // The current stack index.
   uint32_t stack_index_;
 
@@ -204,10 +205,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
   // (xzr, wzr), or make for poor allocatable registers (sp alignment
   // requirements, etc.). This also facilitates our task as all other registers
   // can easily be mapped via to or from their type and index or code.
-  static const int kNumberOfAllocatableCoreRegisters = vixl::kNumberOfRegisters - 1;
-  static const int kNumberOfAllocatableFloatingPointRegisters = vixl::kNumberOfFPRegisters;
-  static const int kNumberOfAllocatableRegisters =
-      kNumberOfAllocatableCoreRegisters + kNumberOfAllocatableFloatingPointRegisters;
+  static const int kNumberOfAllocatableRegisters = vixl::kNumberOfRegisters - 1;
+  static const int kNumberOfAllocatableFPRegisters = vixl::kNumberOfFPRegisters;
   static constexpr int kNumberOfAllocatableRegisterPairs = 0;
 
   void DumpCoreRegister(std::ostream& stream, int reg) const OVERRIDE;
