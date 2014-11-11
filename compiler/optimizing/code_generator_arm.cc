@@ -824,7 +824,12 @@ void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstr
     }
   } else if (instruction->IsTemporary()) {
     Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
-    Move32(location, temp_location);
+    if (temp_location.IsStackSlot()) {
+      Move32(location, temp_location);
+    } else {
+      DCHECK(temp_location.IsDoubleStackSlot());
+      Move64(location, temp_location);
+    }
   } else {
     DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
     switch (instruction->GetType()) {

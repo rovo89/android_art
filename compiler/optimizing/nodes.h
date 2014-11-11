@@ -90,7 +90,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
         maximum_number_of_out_vregs_(0),
         number_of_vregs_(0),
         number_of_in_vregs_(0),
-        number_of_temporaries_(0),
+        temporaries_vreg_slots_(0),
         current_instruction_id_(0) {}
 
   ArenaAllocator* GetArena() const { return arena_; }
@@ -129,12 +129,12 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
     maximum_number_of_out_vregs_ = std::max(new_value, maximum_number_of_out_vregs_);
   }
 
-  void UpdateNumberOfTemporaries(size_t count) {
-    number_of_temporaries_ = std::max(count, number_of_temporaries_);
+  void UpdateTemporariesVRegSlots(size_t slots) {
+    temporaries_vreg_slots_ = std::max(slots, temporaries_vreg_slots_);
   }
 
-  size_t GetNumberOfTemporaries() const {
-    return number_of_temporaries_;
+  size_t GetTemporariesVRegSlots() const {
+    return temporaries_vreg_slots_;
   }
 
   void SetNumberOfVRegs(uint16_t number_of_vregs) {
@@ -192,8 +192,8 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   // The number of virtual registers used by parameters of this method.
   uint16_t number_of_in_vregs_;
 
-  // The number of temporaries that will be needed for the baseline compiler.
-  size_t number_of_temporaries_;
+  // Number of vreg size slots that the temporaries use (used in baseline compiler).
+  size_t temporaries_vreg_slots_;
 
   // The current id to assign to a newly added instruction. See HInstruction.id_.
   int current_instruction_id_;
@@ -2158,8 +2158,8 @@ class HBoundsCheck : public HExpression<2> {
  * Some DEX instructions are folded into multiple HInstructions that need
  * to stay live until the last HInstruction. This class
  * is used as a marker for the baseline compiler to ensure its preceding
- * HInstruction stays live. `index` is the temporary number that is used
- * for knowing the stack offset where to store the instruction.
+ * HInstruction stays live. `index` represents the stack location index of the
+ * instruction (the actual offset is computed as index * vreg_size).
  */
 class HTemporary : public HTemplateInstruction<0> {
  public:
