@@ -120,6 +120,7 @@ void X86_64Assembler::movq(CpuRegister dst, const Immediate& imm) {
 
 
 void X86_64Assembler::movl(CpuRegister dst, const Immediate& imm) {
+  CHECK(imm.is_int32());
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(dst);
   EmitUint8(0xB8 + dst.LowBits());
