@@ -330,7 +330,8 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
                                Compiler::Kind compiler_kind,
                                InstructionSet instruction_set,
                                InstructionSetFeatures instruction_set_features,
-                               bool image, std::set<std::string>* image_classes, size_t thread_count,
+                               bool image, std::set<std::string>* image_classes,
+                               std::set<std::string>* compiled_classes, size_t thread_count,
                                bool dump_stats, bool dump_passes, CumulativeLogger* timer,
                                std::string profile_file)
     : profile_present_(false), compiler_options_(compiler_options),
@@ -344,6 +345,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
       compiled_methods_lock_("compiled method lock"),
       image_(image),
       image_classes_(image_classes),
+      classes_to_compile_(compiled_classes),
       thread_count_(thread_count),
       start_ns_(0),
       stats_(new AOTCompilationStats),
@@ -585,7 +587,7 @@ void CompilerDriver::CompileOne(mirror::ArtMethod* method, TimingLogger* timings
                                                                class_def);
   }
   CompileMethod(code_item, access_flags, invoke_type, class_def_idx, method_idx, jclass_loader,
-                *dex_file, dex_to_dex_compilation_level);
+                *dex_file, dex_to_dex_compilation_level, true);
 
   self->GetJniEnv()->DeleteGlobalRef(jclass_loader);
 
@@ -625,6 +627,17 @@ bool CompilerDriver::IsImageClass(const char* descriptor) const {
     return true;
   } else {
     return image_classes_->find(descriptor) != image_classes_->end();
+  }
+}
+
+bool CompilerDriver::IsClassToCompile(const char* descriptor) const {
+  if (!IsImage()) {
+    return true;
+  } else {
+    if (classes_to_compile_ == nullptr) {
+      return true;
+    }
+    return classes_to_compile_->find(descriptor) != classes_to_compile_->end();
   }
 }
 
@@ -1956,6 +1969,10 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
     it.Next();
   }
   CompilerDriver* driver = manager->GetCompiler();
+
+  bool compilation_enabled = driver->IsClassToCompile(
+      dex_file.StringByTypeIdx(class_def.class_idx_));
+
   // Compile direct methods
   int64_t previous_direct_method_idx = -1;
   while (it.HasNextDirectMethod()) {
@@ -1969,7 +1986,8 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
     previous_direct_method_idx = method_idx;
     driver->CompileMethod(it.GetMethodCodeItem(), it.GetMethodAccessFlags(),
                           it.GetMethodInvokeType(class_def), class_def_index,
-                          method_idx, jclass_loader, dex_file, dex_to_dex_compilation_level);
+                          method_idx, jclass_loader, dex_file, dex_to_dex_compilation_level,
+                          compilation_enabled);
     it.Next();
   }
   // Compile virtual methods
@@ -1985,7 +2003,8 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
     previous_virtual_method_idx = method_idx;
     driver->CompileMethod(it.GetMethodCodeItem(), it.GetMethodAccessFlags(),
                           it.GetMethodInvokeType(class_def), class_def_index,
-                          method_idx, jclass_loader, dex_file, dex_to_dex_compilation_level);
+                          method_idx, jclass_loader, dex_file, dex_to_dex_compilation_level,
+                          compilation_enabled);
     it.Next();
   }
   DCHECK(!it.HasNext());
@@ -2004,7 +2023,8 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
                                    InvokeType invoke_type, uint16_t class_def_idx,
                                    uint32_t method_idx, jobject class_loader,
                                    const DexFile& dex_file,
-                                   DexToDexCompilationLevel dex_to_dex_compilation_level) {
+                                   DexToDexCompilationLevel dex_to_dex_compilation_level,
+                                   bool compilation_enabled) {
   CompiledMethod* compiled_method = nullptr;
   uint64_t start_ns = kTimeCompileMethod ? NanoTime() : 0;
 
@@ -2020,7 +2040,8 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
     MethodReference method_ref(&dex_file, method_idx);
-    bool compile = verification_results_->IsCandidateForCompilation(method_ref, access_flags);
+    bool compile = compilation_enabled &&
+                   verification_results_->IsCandidateForCompilation(method_ref, access_flags);
     if (compile) {
       // NOTE: if compiler declines to compile this method, it will return nullptr.
       compiled_method = compiler_->Compile(code_item, access_flags, invoke_type, class_def_idx,
