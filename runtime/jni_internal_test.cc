@@ -1170,7 +1170,15 @@ TEST_F(JniInternalTest, NewObjectArrayWithInitialValue) {
 }
 
 TEST_F(JniInternalTest, GetArrayLength) {
-  // Already tested in NewObjectArray/NewPrimitiveArray.
+  // Already tested in NewObjectArray/NewPrimitiveArray except for NULL.
+  CheckJniAbortCatcher jni_abort_catcher;
+  bool old_check_jni = vm_->SetCheckJniEnabled(false);
+  EXPECT_EQ(0, env_->GetArrayLength(nullptr));
+  jni_abort_catcher.Check("java_array == null");
+  EXPECT_FALSE(vm_->SetCheckJniEnabled(true));
+  EXPECT_EQ(JNI_ERR, env_->GetArrayLength(nullptr));
+  jni_abort_catcher.Check("jarray was NULL");
+  EXPECT_TRUE(vm_->SetCheckJniEnabled(old_check_jni));
 }
 
 TEST_F(JniInternalTest, GetObjectClass) {
