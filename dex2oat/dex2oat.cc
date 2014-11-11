@@ -353,6 +353,7 @@ class Dex2Oat {
                                       const std::string& bitcode_filename,
                                       bool image,
                                       std::unique_ptr<std::set<std::string>>& image_classes,
+                                      std::unique_ptr<std::set<std::string>>& compiled_classes,
                                       bool dump_stats,
                                       bool dump_passes,
                                       TimingLogger& timings,
@@ -387,6 +388,7 @@ class Dex2Oat {
                                                               instruction_set_features_,
                                                               image,
                                                               image_classes.release(),
+                                                              compiled_classes.release(),
                                                               thread_count_,
                                                               dump_stats,
                                                               dump_passes,
@@ -840,6 +842,8 @@ static int dex2oat(int argc, char** argv) {
   std::string bitcode_filename;
   const char* image_classes_zip_filename = nullptr;
   const char* image_classes_filename = nullptr;
+  const char* compiled_classes_zip_filename = nullptr;
+  const char* compiled_classes_filename = nullptr;
   std::string image_filename;
   std::string boot_image_filename;
   uintptr_t image_base = 0;
@@ -939,6 +943,10 @@ static int dex2oat(int argc, char** argv) {
       image_classes_filename = option.substr(strlen("--image-classes=")).data();
     } else if (option.starts_with("--image-classes-zip=")) {
       image_classes_zip_filename = option.substr(strlen("--image-classes-zip=")).data();
+    } else if (option.starts_with("--compiled-classes=")) {
+      compiled_classes_filename = option.substr(strlen("--compiled-classes=")).data();
+    } else if (option.starts_with("--compiled-classes-zip=")) {
+      compiled_classes_zip_filename = option.substr(strlen("--compiled-classes-zip=")).data();
     } else if (option.starts_with("--base=")) {
       const char* image_base_str = option.substr(strlen("--base=")).data();
       char* end;
@@ -1118,6 +1126,18 @@ static int dex2oat(int argc, char** argv) {
 
   if (image_classes_zip_filename != nullptr && image_classes_filename == nullptr) {
     Usage("--image-classes-zip should be used with --image-classes");
+  }
+
+  if (compiled_classes_filename != nullptr && !image) {
+    Usage("--compiled-classes should only be used with --image");
+  }
+
+  if (compiled_classes_filename != nullptr && !boot_image_option.empty()) {
+    Usage("--compiled-classes should not be used with --boot-image");
+  }
+
+  if (compiled_classes_zip_filename != nullptr && compiled_classes_filename == nullptr) {
+    Usage("--compiled-classes-zip should be used with --compiled-classes");
   }
 
   if (dex_filenames.empty() && zip_fd == -1) {
@@ -1326,6 +1346,27 @@ static int dex2oat(int argc, char** argv) {
   } else if (image) {
     image_classes.reset(new std::set<std::string>);
   }
+  // If --compiled-classes was specified, calculate the full list of classes to compile in the
+  // image.
+  std::unique_ptr<std::set<std::string>> compiled_classes(nullptr);
+  if (compiled_classes_filename != nullptr) {
+    std::string error_msg;
+    if (compiled_classes_zip_filename != nullptr) {
+      compiled_classes.reset(dex2oat->ReadImageClassesFromZip(compiled_classes_zip_filename,
+                                                              compiled_classes_filename,
+                                                              &error_msg));
+    } else {
+      compiled_classes.reset(dex2oat->ReadImageClassesFromFile(compiled_classes_filename));
+    }
+    if (compiled_classes.get() == nullptr) {
+      LOG(ERROR) << "Failed to create list of compiled classes from '" << compiled_classes_filename
+                 << "': " << error_msg;
+      timings.EndTiming();
+      return EXIT_FAILURE;
+    }
+  } else if (image) {
+    compiled_classes.reset(nullptr);  // By default compile everything.
+  }
 
   std::vector<const DexFile*> dex_files;
   if (boot_image_option.empty()) {
@@ -1427,6 +1468,7 @@ static int dex2oat(int argc, char** argv) {
                                                                         bitcode_filename,
                                                                         image,
                                                                         image_classes,
+                                                                        compiled_classes,
                                                                         dump_stats,
                                                                         dump_passes,
                                                                         timings,

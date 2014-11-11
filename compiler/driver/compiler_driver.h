@@ -104,6 +104,7 @@ class CompilerDriver {
                           InstructionSet instruction_set,
                           InstructionSetFeatures instruction_set_features,
                           bool image, std::set<std::string>* image_classes,
+                          std::set<std::string>* compiled_classes,
                           size_t thread_count, bool dump_stats, bool dump_passes,
                           CumulativeLogger* timer, std::string profile_file = "");
 
@@ -588,6 +589,9 @@ class CompilerDriver {
   // Checks if class specified by type_idx is one of the image_classes_
   bool IsImageClass(const char* descriptor) const;
 
+  // Checks if the provided class should be compiled, i.e., is in classes_to_compile_.
+  bool IsClassToCompile(const char* descriptor) const;
+
   void RecordClassStatus(ClassReference ref, mirror::Class::Status status)
       LOCKS_EXCLUDED(compiled_classes_lock_);
 
@@ -696,7 +700,8 @@ class CompilerDriver {
   void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                      InvokeType invoke_type, uint16_t class_def_idx, uint32_t method_idx,
                      jobject class_loader, const DexFile& dex_file,
-                     DexToDexCompilationLevel dex_to_dex_compilation_level)
+                     DexToDexCompilationLevel dex_to_dex_compilation_level,
+                     bool compilation_enabled)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
   static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
@@ -735,6 +740,11 @@ class CompilerDriver {
   // the image. Note if image_classes_ is nullptr, all classes are
   // included in the image.
   std::unique_ptr<std::set<std::string>> image_classes_;
+
+  // If image_ is true, specifies the classes that will be compiled in
+  // the image. Note if classes_to_compile_ is nullptr, all classes are
+  // included in the image.
+  std::unique_ptr<std::set<std::string>> classes_to_compile_;
 
   size_t thread_count_;
   uint64_t start_ns_;
