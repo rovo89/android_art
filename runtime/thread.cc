@@ -158,7 +158,7 @@ void* Thread::CreateCallback(void* arg) {
     // Check that if we got here we cannot be shutting down (as shutdown should never have started
     // while threads are being born).
     CHECK(!runtime->IsShuttingDownLocked());
-    self->Init(runtime->GetThreadList(), runtime->GetJavaVM());
+    CHECK(self->Init(runtime->GetThreadList(), runtime->GetJavaVM()));
     Runtime::Current()->EndThreadBirth();
   }
   {
@@ -348,40 +348,46 @@ void Thread::CreateNativeThread(JNIEnv* env, jobject java_peer, size_t stack_siz
   }
 }
 
-void Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm) {
+bool Thread::Init(ThreadList* thread_list, JavaVMExt* java_vm) {
   // This function does all the initialization that must be run by the native thread it applies to.
   // (When we create a new thread from managed code, we allocate the Thread* in Thread::Create so
   // we can handshake with the corresponding native thread when it's ready.) Check this native
   // thread hasn't been through here already...
   CHECK(Thread::Current() == nullptr);
+
+  // Set pthread_self_ ahead of pthread_setspecific, that makes Thread::Current function, this
+  // avoids pthread_self_ ever being invalid when discovered from Thread::Current().
+  tlsPtr_.pthread_self = pthread_self();
+  CHECK(is_started_);
+
   SetUpAlternateSignalStack();
+  if (!InitStackHwm()) {
+    return false;
+  }
   InitCpu();
   InitTlsEntryPoints();
   RemoveSuspendTrigger();
   InitCardTable();
   InitTid();
-  // Set pthread_self_ ahead of pthread_setspecific, that makes Thread::Current function, this
-  // avoids pthread_self_ ever being invalid when discovered from Thread::Current().
-  tlsPtr_.pthread_self = pthread_self();
-  CHECK(is_started_);
+
   CHECK_PTHREAD_CALL(pthread_setspecific, (Thread::pthread_key_self_, this), "attach self");
   DCHECK_EQ(Thread::Current(), this);
 
   tls32_.thin_lock_thread_id = thread_list->AllocThreadId(this);
-  InitStackHwm();
 
   tlsPtr_.jni_env = new JNIEnvExt(this, java_vm);
   thread_list->Register(this);
+  return true;
 }
 
 Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_group,
                        bool create_peer) {
-  Thread* self;
   Runtime* runtime = Runtime::Current();
   if (runtime == nullptr) {
     LOG(ERROR) << "Thread attaching to non-existent runtime: " << thread_name;
     return nullptr;
   }
+  Thread* self;
   {
     MutexLock mu(nullptr, *Locks::runtime_shutdown_lock_);
     if (runtime->IsShuttingDownLocked()) {
@@ -390,8 +396,12 @@ Thread* Thread::Attach(const char* thread_name, bool as_daemon, jobject thread_g
     } else {
       Runtime::Current()->StartThreadBirth();
       self = new Thread(as_daemon);
-      self->Init(runtime->GetThreadList(), runtime->GetJavaVM());
+      bool init_success = self->Init(runtime->GetThreadList(), runtime->GetJavaVM());
       Runtime::Current()->EndThreadBirth();
+      if (!init_success) {
+        delete self;
+        return nullptr;
+      }
     }
   }
 
@@ -499,7 +509,7 @@ void Thread::SetThreadName(const char* name) {
   Dbg::DdmSendThreadNotification(this, CHUNK_TYPE("THNM"));
 }
 
-void Thread::InitStackHwm() {
+bool Thread::InitStackHwm() {
   void* read_stack_base;
   size_t read_stack_size;
   size_t read_guard_size;
@@ -521,8 +531,10 @@ void Thread::InitStackHwm() {
   uint32_t min_stack = GetStackOverflowReservedBytes(kRuntimeISA) + kStackOverflowProtectedSize
     + 4 * KB;
   if (read_stack_size <= min_stack) {
-    LOG(FATAL) << "Attempt to attach a thread with a too-small stack (" << read_stack_size
-               << " bytes)";
+    // Note, as we know the stack is small, avoid operations that could use a lot of stack.
+    LogMessage::LogLineLowStack(__PRETTY_FUNCTION__, __LINE__, ERROR,
+                                "Attempt to attach a thread with a too-small stack");
+    return false;
   }
 
   // Set stack_end_ to the bottom of the stack saving space of stack overflows
@@ -547,6 +559,8 @@ void Thread::InitStackHwm() {
   // Sanity check.
   int stack_variable;
   CHECK_GT(&stack_variable, reinterpret_cast<void*>(tlsPtr_.stack_end));
+
+  return true;
 }
 
 void Thread::ShortDump(std::ostream& os) const {
@@ -1047,7 +1061,8 @@ void Thread::Startup() {
   }
 
   // Allocate a TLS slot.
-  CHECK_PTHREAD_CALL(pthread_key_create, (&Thread::pthread_key_self_, Thread::ThreadExitCallback), "self key");
+  CHECK_PTHREAD_CALL(pthread_key_create, (&Thread::pthread_key_self_, Thread::ThreadExitCallback),
+                     "self key");
 
   // Double-check the TLS slot allocation.
   if (pthread_getspecific(pthread_key_self_) != nullptr) {
