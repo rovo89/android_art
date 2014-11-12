@@ -5202,17 +5202,22 @@ struct LinkFieldsComparator {
     Primitive::Type type1 = field1->GetTypeAsPrimitiveType();
     Primitive::Type type2 = field2->GetTypeAsPrimitiveType();
     if (type1 != type2) {
-      bool is_primitive1 = type1 != Primitive::kPrimNot;
-      bool is_primitive2 = type2 != Primitive::kPrimNot;
-      if (type1 != type2) {
-        if (is_primitive1 && is_primitive2) {
-          // Larger primitive types go first.
-          return Primitive::ComponentSize(type1) > Primitive::ComponentSize(type2);
-        } else {
-          // Reference always goes first.
-          return !is_primitive1;
-        }
+      if (type1 == Primitive::kPrimNot) {
+        // Reference always goes first.
+        return true;
       }
+      if (type2 == Primitive::kPrimNot) {
+        // Reference always goes first.
+        return false;
+      }
+      size_t size1 = Primitive::ComponentSize(type1);
+      size_t size2 = Primitive::ComponentSize(type2);
+      if (size1 != size2) {
+        // Larger primitive types go first.
+        return size1 > size2;
+      }
+      // Primitive types differ but sizes match. Arbitrarily order by primitive type.
+      return type1 < type2;
     }
     // same basic group? then sort by string.
     return strcmp(field1->GetName(), field2->GetName()) < 0;
