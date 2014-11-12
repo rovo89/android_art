@@ -105,9 +105,10 @@ class LocationsBuilderARM : public HGraphVisitor {
 
 #undef DECLARE_VISIT_INSTRUCTION
 
-  void HandleInvoke(HInvoke* invoke);
-
  private:
+  void HandleInvoke(HInvoke* invoke);
+  void HandleBitwiseOperation(HBinaryOperation* operation);
+
   CodeGeneratorARM* const codegen_;
   InvokeDexCallingConventionVisitor parameter_visitor_;
 
@@ -133,6 +134,7 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
   // the suspend call.
   void GenerateSuspendCheck(HSuspendCheck* check, HBasicBlock* successor);
   void GenerateClassInitializationCheck(SlowPathCodeARM* slow_path, Register class_reg);
+  void HandleBitwiseOperation(HBinaryOperation* operation);
 
   ArmAssembler* const assembler_;
   CodeGeneratorARM* const codegen_;

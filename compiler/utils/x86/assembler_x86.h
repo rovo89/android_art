@@ -350,12 +350,15 @@ class X86Assembler FINAL : public Assembler {
 
   void andl(Register dst, const Immediate& imm);
   void andl(Register dst, Register src);
+  void andl(Register dst, const Address& address);
 
   void orl(Register dst, const Immediate& imm);
   void orl(Register dst, Register src);
+  void orl(Register dst, const Address& address);
 
   void xorl(Register dst, Register src);
   void xorl(Register dst, const Immediate& imm);
+  void xorl(Register dst, const Address& address);
 
   void addl(Register dst, Register src);
   void addl(Register reg, const Immediate& imm);

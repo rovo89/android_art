@@ -475,6 +475,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
 
 #define FOR_EACH_CONCRETE_INSTRUCTION(M)                                \
   M(Add, BinaryOperation)                                               \
+  M(And, BinaryOperation)                                               \
   M(ArrayGet, Instruction)                                              \
   M(ArrayLength, Instruction)                                           \
   M(ArraySet, Instruction)                                              \
@@ -516,6 +517,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(Not, UnaryOperation)                                                \
   M(NotEqual, Condition)                                                \
   M(NullCheck, Instruction)                                             \
+  M(Or, BinaryOperation)                                                \
   M(ParallelMove, Instruction)                                          \
   M(ParameterValue, Instruction)                                        \
   M(Phi, Instruction)                                                   \
@@ -529,6 +531,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(Temporary, Instruction)                                             \
   M(Throw, Instruction)                                                 \
   M(TypeConversion, Instruction)                                        \
+  M(Xor, BinaryOperation)                                               \
 
 #define FOR_EACH_INSTRUCTION(M)                                         \
   FOR_EACH_CONCRETE_INSTRUCTION(M)                                      \
@@ -1789,6 +1792,54 @@ class HDivZeroCheck : public HExpression<1> {
   const uint32_t dex_pc_;
 
   DISALLOW_COPY_AND_ASSIGN(HDivZeroCheck);
+};
+
+class HAnd : public HBinaryOperation {
+ public:
+  HAnd(Primitive::Type result_type, HInstruction* left, HInstruction* right)
+      : HBinaryOperation(result_type, left, right) {}
+
+  bool IsCommutative() OVERRIDE { return true; }
+
+  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE { return x & y; }
+  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE { return x & y; }
+
+  DECLARE_INSTRUCTION(And);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HAnd);
+};
+
+class HOr : public HBinaryOperation {
+ public:
+  HOr(Primitive::Type result_type, HInstruction* left, HInstruction* right)
+      : HBinaryOperation(result_type, left, right) {}
+
+  bool IsCommutative() OVERRIDE { return true; }
+
+  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE { return x | y; }
+  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE { return x | y; }
+
+  DECLARE_INSTRUCTION(Or);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HOr);
+};
+
+class HXor : public HBinaryOperation {
+ public:
+  HXor(Primitive::Type result_type, HInstruction* left, HInstruction* right)
+      : HBinaryOperation(result_type, left, right) {}
+
+  bool IsCommutative() OVERRIDE { return true; }
+
+  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE { return x ^ y; }
+  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE { return x ^ y; }
+
+  DECLARE_INSTRUCTION(Xor);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HXor);
 };
 
 // The value of a parameter in this method. Its location depends on
