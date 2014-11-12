@@ -51,6 +51,7 @@ public class Main {
         testCases.add(new TestCase("b/17790197", "B17790197", "getInt", null, null, 100));
         testCases.add(new TestCase("FloatBadArgReg", "FloatBadArgReg", "getInt",
             new Object[]{100}, null, 100));
+        testCases.add(new TestCase("negLong", "negLong", "negLong", null, null, 122142L));
     }
 
     public void runTests() {
