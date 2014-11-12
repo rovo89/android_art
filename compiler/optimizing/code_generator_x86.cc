@@ -1448,7 +1448,7 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
     }
 
     case Primitive::kPrimLong: {
-      if (second.IsRegister()) {
+      if (second.IsRegisterPair()) {
         __ addl(first.AsRegisterPairLow<Register>(), second.AsRegisterPairLow<Register>());
         __ adcl(first.AsRegisterPairHigh<Register>(), second.AsRegisterPairHigh<Register>());
       } else {
@@ -1524,7 +1524,7 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
     }
 
     case Primitive::kPrimLong: {
-      if (second.IsRegister()) {
+      if (second.IsRegisterPair()) {
         __ subl(first.AsRegisterPairLow<Register>(), second.AsRegisterPairLow<Register>());
         __ sbbl(first.AsRegisterPairHigh<Register>(), second.AsRegisterPairHigh<Register>());
       } else {
@@ -2917,6 +2917,100 @@ void InstructionCodeGeneratorX86::VisitMonitorOperation(HMonitorOperation* instr
         ? QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pLockObject)
         : QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pUnlockObject)));
   codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+}
+
+void LocationsBuilderX86::VisitAnd(HAnd* instruction) { HandleBitwiseOperation(instruction); }
+void LocationsBuilderX86::VisitOr(HOr* instruction) { HandleBitwiseOperation(instruction); }
+void LocationsBuilderX86::VisitXor(HXor* instruction) { HandleBitwiseOperation(instruction); }
+
+void LocationsBuilderX86::HandleBitwiseOperation(HBinaryOperation* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  DCHECK(instruction->GetResultType() == Primitive::kPrimInt
+         || instruction->GetResultType() == Primitive::kPrimLong);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::Any());
+  locations->SetOut(Location::SameAsFirstInput());
+}
+
+void InstructionCodeGeneratorX86::VisitAnd(HAnd* instruction) {
+  HandleBitwiseOperation(instruction);
+}
+
+void InstructionCodeGeneratorX86::VisitOr(HOr* instruction) {
+  HandleBitwiseOperation(instruction);
+}
+
+void InstructionCodeGeneratorX86::VisitXor(HXor* instruction) {
+  HandleBitwiseOperation(instruction);
+}
+
+void InstructionCodeGeneratorX86::HandleBitwiseOperation(HBinaryOperation* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+  DCHECK(first.Equals(locations->Out()));
+
+  if (instruction->GetResultType() == Primitive::kPrimInt) {
+    if (second.IsRegister()) {
+      if (instruction->IsAnd()) {
+        __ andl(first.As<Register>(), second.As<Register>());
+      } else if (instruction->IsOr()) {
+        __ orl(first.As<Register>(), second.As<Register>());
+      } else {
+        DCHECK(instruction->IsXor());
+        __ xorl(first.As<Register>(), second.As<Register>());
+      }
+    } else if (second.IsConstant()) {
+      if (instruction->IsAnd()) {
+        __ andl(first.As<Register>(), Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
+      } else if (instruction->IsOr()) {
+        __ orl(first.As<Register>(), Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
+      } else {
+        DCHECK(instruction->IsXor());
+        __ xorl(first.As<Register>(), Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
+      }
+    } else {
+      if (instruction->IsAnd()) {
+        __ andl(first.As<Register>(), Address(ESP, second.GetStackIndex()));
+      } else if (instruction->IsOr()) {
+        __ orl(first.As<Register>(), Address(ESP, second.GetStackIndex()));
+      } else {
+        DCHECK(instruction->IsXor());
+        __ xorl(first.As<Register>(), Address(ESP, second.GetStackIndex()));
+      }
+    }
+  } else {
+    DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimLong);
+    if (second.IsRegisterPair()) {
+      if (instruction->IsAnd()) {
+        __ andl(first.AsRegisterPairLow<Register>(), second.AsRegisterPairLow<Register>());
+        __ andl(first.AsRegisterPairHigh<Register>(), second.AsRegisterPairHigh<Register>());
+      } else if (instruction->IsOr()) {
+        __ orl(first.AsRegisterPairLow<Register>(), second.AsRegisterPairLow<Register>());
+        __ orl(first.AsRegisterPairHigh<Register>(), second.AsRegisterPairHigh<Register>());
+      } else {
+        DCHECK(instruction->IsXor());
+        __ xorl(first.AsRegisterPairLow<Register>(), second.AsRegisterPairLow<Register>());
+        __ xorl(first.AsRegisterPairHigh<Register>(), second.AsRegisterPairHigh<Register>());
+      }
+    } else {
+      if (instruction->IsAnd()) {
+        __ andl(first.AsRegisterPairLow<Register>(), Address(ESP, second.GetStackIndex()));
+        __ andl(first.AsRegisterPairHigh<Register>(),
+                Address(ESP, second.GetHighStackIndex(kX86WordSize)));
+      } else if (instruction->IsOr()) {
+        __ orl(first.AsRegisterPairLow<Register>(), Address(ESP, second.GetStackIndex()));
+        __ orl(first.AsRegisterPairHigh<Register>(),
+                Address(ESP, second.GetHighStackIndex(kX86WordSize)));
+      } else {
+        DCHECK(instruction->IsXor());
+        __ xorl(first.AsRegisterPairLow<Register>(), Address(ESP, second.GetStackIndex()));
+        __ xorl(first.AsRegisterPairHigh<Register>(),
+                Address(ESP, second.GetHighStackIndex(kX86WordSize)));
+      }
+    }
+  }
 }
 
 }  // namespace x86

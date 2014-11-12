@@ -101,7 +101,7 @@ public class Main {
     expectEquals(0L, $opt$Mul(3L, 0L));
     expectEquals(-3L, $opt$Mul(1L, -3L));
     expectEquals(36L, $opt$Mul(-12L, -3L));
-    expectEquals(33L, $opt$Mul(1L, 3L) * 11F);
+    expectEquals(33L, $opt$Mul(1L, 3L) * 11L);
     expectEquals(240518168583L, $opt$Mul(34359738369L, 7L)); // (2^35 + 1) * 7
   }
 

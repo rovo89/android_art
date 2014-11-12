@@ -398,12 +398,18 @@ class X86_64Assembler FINAL : public Assembler {
 
   void andl(CpuRegister dst, const Immediate& imm);
   void andl(CpuRegister dst, CpuRegister src);
+  void andl(CpuRegister reg, const Address& address);
   void andq(CpuRegister dst, const Immediate& imm);
+  void andq(CpuRegister dst, CpuRegister src);
 
   void orl(CpuRegister dst, const Immediate& imm);
   void orl(CpuRegister dst, CpuRegister src);
+  void orl(CpuRegister reg, const Address& address);
+  void orq(CpuRegister dst, CpuRegister src);
 
   void xorl(CpuRegister dst, CpuRegister src);
+  void xorl(CpuRegister dst, const Immediate& imm);
+  void xorl(CpuRegister reg, const Address& address);
   void xorq(CpuRegister dst, const Immediate& imm);
   void xorq(CpuRegister dst, CpuRegister src);
 
