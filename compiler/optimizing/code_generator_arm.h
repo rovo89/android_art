@@ -186,7 +186,7 @@ class CodeGeneratorARM : public CodeGenerator {
   // Blocks all register pairs made out of blocked core registers.
   void UpdateBlockedPairRegisters() const;
 
-  ParallelMoveResolverARM* GetMoveResolver() {
+  ParallelMoveResolverARM* GetMoveResolver() OVERRIDE {
     return &move_resolver_;
   }
 

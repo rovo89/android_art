@@ -169,11 +169,14 @@ class BoundsCheckSlowPathARM : public SlowPathCodeARM {
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
+    // We're moving two locations to locations that could overlap, so we need a parallel
+    // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
-    arm_codegen->Move32(
-        Location::RegisterLocation(calling_convention.GetRegisterAt(0)), index_location_);
-    arm_codegen->Move32(
-        Location::RegisterLocation(calling_convention.GetRegisterAt(1)), length_location_);
+    codegen->EmitParallelMoves(
+        index_location_,
+        Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+        length_location_,
+        Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
     arm_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pThrowArrayBounds), instruction_, instruction_->GetDexPc());
   }
@@ -290,16 +293,11 @@ class TypeCheckSlowPathARM : public SlowPathCodeARM {
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
-    MoveOperands move1(class_to_check_,
-                       Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
-                       nullptr);
-    MoveOperands move2(object_class_,
-                       Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
-                       nullptr);
-    HParallelMove parallel_move(codegen->GetGraph()->GetArena());
-    parallel_move.AddMove(&move1);
-    parallel_move.AddMove(&move2);
-    arm_codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
+    codegen->EmitParallelMoves(
+        class_to_check_,
+        Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+        object_class_,
+        Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
 
     if (instruction_->IsInstanceOf()) {
       arm_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pInstanceofNonTrivial), instruction_, dex_pc_);

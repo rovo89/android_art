@@ -171,7 +171,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return &assembler_;
   }
 
-  ParallelMoveResolverX86_64* GetMoveResolver() {
+  ParallelMoveResolverX86_64* GetMoveResolver() OVERRIDE {
     return &move_resolver_;
   }
 
