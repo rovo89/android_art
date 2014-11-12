@@ -51,6 +51,7 @@ class SsaBuilder : public HGraphVisitor {
   void VisitLoadLocal(HLoadLocal* load);
   void VisitStoreLocal(HStoreLocal* store);
   void VisitInstruction(HInstruction* instruction);
+  void VisitTemporary(HTemporary* instruction);
 
   static HInstruction* GetFloatOrDoubleEquivalent(HInstruction* user,
                                                   HInstruction* instruction,
