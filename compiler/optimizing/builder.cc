@@ -704,6 +704,38 @@ void HGraphBuilder::BuildFillWideArrayData(HInstruction* object,
   }
 }
 
+bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
+                                   uint8_t destination,
+                                   uint8_t reference,
+                                   uint16_t type_index,
+                                   uint32_t dex_offset) {
+  bool type_known_final;
+  bool type_known_abstract;
+  bool is_referrers_class;
+  bool can_access = compiler_driver_->CanAccessTypeWithoutChecks(
+      dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index,
+      &type_known_final, &type_known_abstract, &is_referrers_class);
+  if (!can_access) {
+    return false;
+  }
+  HInstruction* object = LoadLocal(reference, Primitive::kPrimNot);
+  HLoadClass* cls = new (arena_) HLoadClass(type_index, is_referrers_class, dex_offset);
+  current_block_->AddInstruction(cls);
+  // The class needs a temporary before being used by the type check.
+  Temporaries temps(graph_, 1);
+  temps.Add(cls);
+  if (instruction.Opcode() == Instruction::INSTANCE_OF) {
+    current_block_->AddInstruction(
+        new (arena_) HInstanceOf(object, cls, type_known_final, dex_offset));
+    UpdateLocal(destination, current_block_->GetLastInstruction());
+  } else {
+    DCHECK_EQ(instruction.Opcode(), Instruction::CHECK_CAST);
+    current_block_->AddInstruction(
+        new (arena_) HCheckCast(object, cls, type_known_final, dex_offset));
+  }
+  return true;
+}
+
 void HGraphBuilder::PotentiallyAddSuspendCheck(int32_t target_offset, uint32_t dex_offset) {
   if (target_offset <= 0) {
     // Unconditionnally add a suspend check to backward branches. We can remove
@@ -1292,25 +1324,21 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::INSTANCE_OF: {
+      uint8_t destination = instruction.VRegA_22c();
+      uint8_t reference = instruction.VRegB_22c();
       uint16_t type_index = instruction.VRegC_22c();
-      bool type_known_final;
-      bool type_known_abstract;
-      bool is_referrers_class;
-      bool can_access = compiler_driver_->CanAccessTypeWithoutChecks(
-          dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index,
-          &type_known_final, &type_known_abstract, &is_referrers_class);
-      if (!can_access) {
+      if (!BuildTypeCheck(instruction, destination, reference, type_index, dex_offset)) {
         return false;
       }
-      HInstruction* object = LoadLocal(instruction.VRegB_22c(), Primitive::kPrimNot);
-      HLoadClass* cls = new (arena_) HLoadClass(type_index, is_referrers_class, dex_offset);
-      current_block_->AddInstruction(cls);
-      // The class needs a temporary before being used by the type check.
-      Temporaries temps(graph_, 1);
-      temps.Add(cls);
-      current_block_->AddInstruction(
-          new (arena_) HTypeCheck(object, cls, type_known_final, dex_offset));
-      UpdateLocal(instruction.VRegA_22c(), current_block_->GetLastInstruction());
+      break;
+    }
+
+    case Instruction::CHECK_CAST: {
+      uint8_t reference = instruction.VRegA_21c();
+      uint16_t type_index = instruction.VRegB_21c();
+      if (!BuildTypeCheck(instruction, -1, reference, type_index, dex_offset)) {
+        return false;
+      }
       break;
     }
 

@@ -269,13 +269,19 @@ class LoadStringSlowPathARM : public SlowPathCodeARM {
 
 class TypeCheckSlowPathARM : public SlowPathCodeARM {
  public:
-  explicit TypeCheckSlowPathARM(HTypeCheck* instruction, Location object_class)
+  TypeCheckSlowPathARM(HInstruction* instruction,
+                       Location class_to_check,
+                       Location object_class,
+                       uint32_t dex_pc)
       : instruction_(instruction),
-        object_class_(object_class) {}
+        class_to_check_(class_to_check),
+        object_class_(object_class),
+        dex_pc_(dex_pc) {}
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
-    DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
+    DCHECK(instruction_->IsCheckCast()
+           || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
 
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
@@ -284,7 +290,7 @@ class TypeCheckSlowPathARM : public SlowPathCodeARM {
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
-    MoveOperands move1(locations->InAt(1),
+    MoveOperands move1(class_to_check_,
                        Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
                        nullptr);
     MoveOperands move2(object_class_,
@@ -295,17 +301,23 @@ class TypeCheckSlowPathARM : public SlowPathCodeARM {
     parallel_move.AddMove(&move2);
     arm_codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
 
-    arm_codegen->InvokeRuntime(
-        QUICK_ENTRY_POINT(pInstanceofNonTrivial), instruction_, instruction_->GetDexPc());
-    arm_codegen->Move32(locations->Out(), Location::RegisterLocation(R0));
+    if (instruction_->IsInstanceOf()) {
+      arm_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pInstanceofNonTrivial), instruction_, dex_pc_);
+      arm_codegen->Move32(locations->Out(), Location::RegisterLocation(R0));
+    } else {
+      DCHECK(instruction_->IsCheckCast());
+      arm_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast), instruction_, dex_pc_);
+    }
 
     codegen->RestoreLiveRegisters(locations);
     __ b(GetExitLabel());
   }
 
  private:
-  HTypeCheck* const instruction_;
+  HInstruction* const instruction_;
+  const Location class_to_check_;
   const Location object_class_;
+  uint32_t dex_pc_;
 
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathARM);
 };
@@ -2658,7 +2670,7 @@ void InstructionCodeGeneratorARM::VisitThrow(HThrow* instruction) {
       QUICK_ENTRY_POINT(pDeliverException), instruction, instruction->GetDexPc());
 }
 
-void LocationsBuilderARM::VisitTypeCheck(HTypeCheck* instruction) {
+void LocationsBuilderARM::VisitInstanceOf(HInstanceOf* instruction) {
   LocationSummary::CallKind call_kind = instruction->IsClassFinal()
       ? LocationSummary::kNoCall
       : LocationSummary::kCallOnSlowPath;
@@ -2668,7 +2680,7 @@ void LocationsBuilderARM::VisitTypeCheck(HTypeCheck* instruction) {
   locations->SetOut(Location::RequiresRegister());
 }
 
-void InstructionCodeGeneratorARM::VisitTypeCheck(HTypeCheck* instruction) {
+void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
   LocationSummary* locations = instruction->GetLocations();
   Register obj = locations->InAt(0).As<Register>();
   Register cls = locations->InAt(1).As<Register>();
@@ -2693,7 +2705,7 @@ void InstructionCodeGeneratorARM::VisitTypeCheck(HTypeCheck* instruction) {
     // If the classes are not equal, we go into a slow path.
     DCHECK(locations->OnlyCallsOnSlowPath());
     slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathARM(
-        instruction, Location::RegisterLocation(out));
+        instruction, locations->InAt(1), locations->Out(), instruction->GetDexPc());
     codegen_->AddSlowPath(slow_path);
     __ b(slow_path->GetEntryLabel(), NE);
     __ LoadImmediate(out, 1);
@@ -2705,6 +2717,35 @@ void InstructionCodeGeneratorARM::VisitTypeCheck(HTypeCheck* instruction) {
     __ Bind(slow_path->GetExitLabel());
   }
   __ Bind(&done);
+}
+
+void LocationsBuilderARM::VisitCheckCast(HCheckCast* instruction) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
+      instruction, LocationSummary::kCallOnSlowPath);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  Register obj = locations->InAt(0).As<Register>();
+  Register cls = locations->InAt(1).As<Register>();
+  Register temp = locations->GetTemp(0).As<Register>();
+  uint32_t class_offset = mirror::Object::ClassOffset().Int32Value();
+
+  SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathARM(
+      instruction, locations->InAt(1), locations->GetTemp(0), instruction->GetDexPc());
+  codegen_->AddSlowPath(slow_path);
+
+  // TODO: avoid this check if we know obj is not null.
+  __ cmp(obj, ShifterOperand(0));
+  __ b(slow_path->GetExitLabel(), EQ);
+  // Compare the class of `obj` with `cls`.
+  __ LoadFromOffset(kLoadWord, temp, obj, class_offset);
+  __ cmp(temp, ShifterOperand(cls));
+  __ b(slow_path->GetEntryLabel(), NE);
+  __ Bind(slow_path->GetExitLabel());
 }
 
 }  // namespace arm
