@@ -2809,5 +2809,78 @@ void InstructionCodeGeneratorARM::VisitMonitorOperation(HMonitorOperation* instr
       instruction->GetDexPc());
 }
 
+void LocationsBuilderARM::VisitAnd(HAnd* instruction) { HandleBitwiseOperation(instruction); }
+void LocationsBuilderARM::VisitOr(HOr* instruction) { HandleBitwiseOperation(instruction); }
+void LocationsBuilderARM::VisitXor(HXor* instruction) { HandleBitwiseOperation(instruction); }
+
+void LocationsBuilderARM::HandleBitwiseOperation(HBinaryOperation* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  DCHECK(instruction->GetResultType() == Primitive::kPrimInt
+         || instruction->GetResultType() == Primitive::kPrimLong);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(1, Location::RequiresRegister());
+  bool output_overlaps = (instruction->GetResultType() == Primitive::kPrimLong);
+  locations->SetOut(Location::RequiresRegister(), output_overlaps);
+}
+
+void InstructionCodeGeneratorARM::VisitAnd(HAnd* instruction) {
+  HandleBitwiseOperation(instruction);
+}
+
+void InstructionCodeGeneratorARM::VisitOr(HOr* instruction) {
+  HandleBitwiseOperation(instruction);
+}
+
+void InstructionCodeGeneratorARM::VisitXor(HXor* instruction) {
+  HandleBitwiseOperation(instruction);
+}
+
+void InstructionCodeGeneratorARM::HandleBitwiseOperation(HBinaryOperation* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+
+  if (instruction->GetResultType() == Primitive::kPrimInt) {
+    Register first = locations->InAt(0).As<Register>();
+    Register second = locations->InAt(1).As<Register>();
+    Register out = locations->Out().As<Register>();
+    if (instruction->IsAnd()) {
+      __ and_(out, first, ShifterOperand(second));
+    } else if (instruction->IsOr()) {
+      __ orr(out, first, ShifterOperand(second));
+    } else {
+      DCHECK(instruction->IsXor());
+      __ eor(out, first, ShifterOperand(second));
+    }
+  } else {
+    DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimLong);
+    Location first = locations->InAt(0);
+    Location second = locations->InAt(1);
+    Location out = locations->Out();
+    if (instruction->IsAnd()) {
+      __ and_(out.AsRegisterPairLow<Register>(),
+              first.AsRegisterPairLow<Register>(),
+              ShifterOperand(second.AsRegisterPairLow<Register>()));
+      __ and_(out.AsRegisterPairHigh<Register>(),
+              first.AsRegisterPairHigh<Register>(),
+              ShifterOperand(second.AsRegisterPairHigh<Register>()));
+    } else if (instruction->IsOr()) {
+      __ orr(out.AsRegisterPairLow<Register>(),
+             first.AsRegisterPairLow<Register>(),
+             ShifterOperand(second.AsRegisterPairLow<Register>()));
+      __ orr(out.AsRegisterPairHigh<Register>(),
+             first.AsRegisterPairHigh<Register>(),
+             ShifterOperand(second.AsRegisterPairHigh<Register>()));
+    } else {
+      DCHECK(instruction->IsXor());
+      __ eor(out.AsRegisterPairLow<Register>(),
+             first.AsRegisterPairLow<Register>(),
+             ShifterOperand(second.AsRegisterPairLow<Register>()));
+      __ eor(out.AsRegisterPairHigh<Register>(),
+             first.AsRegisterPairHigh<Register>(),
+             ShifterOperand(second.AsRegisterPairHigh<Register>()));
+    }
+  }
+}
+
 }  // namespace arm
 }  // namespace art

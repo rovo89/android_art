@@ -1047,6 +1047,36 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::AND_INT: {
+      Binop_23x<HAnd>(instruction, Primitive::kPrimInt);
+      break;
+    }
+
+    case Instruction::AND_LONG: {
+      Binop_23x<HAnd>(instruction, Primitive::kPrimLong);
+      break;
+    }
+
+    case Instruction::OR_INT: {
+      Binop_23x<HOr>(instruction, Primitive::kPrimInt);
+      break;
+    }
+
+    case Instruction::OR_LONG: {
+      Binop_23x<HOr>(instruction, Primitive::kPrimLong);
+      break;
+    }
+
+    case Instruction::XOR_INT: {
+      Binop_23x<HXor>(instruction, Primitive::kPrimInt);
+      break;
+    }
+
+    case Instruction::XOR_LONG: {
+      Binop_23x<HXor>(instruction, Primitive::kPrimLong);
+      break;
+    }
+
     case Instruction::ADD_LONG_2ADDR: {
       Binop_12x<HAdd>(instruction, Primitive::kPrimLong);
       break;
@@ -1118,8 +1148,53 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::AND_INT_2ADDR: {
+      Binop_12x<HAnd>(instruction, Primitive::kPrimInt);
+      break;
+    }
+
+    case Instruction::AND_LONG_2ADDR: {
+      Binop_12x<HAnd>(instruction, Primitive::kPrimLong);
+      break;
+    }
+
+    case Instruction::OR_INT_2ADDR: {
+      Binop_12x<HOr>(instruction, Primitive::kPrimInt);
+      break;
+    }
+
+    case Instruction::OR_LONG_2ADDR: {
+      Binop_12x<HOr>(instruction, Primitive::kPrimLong);
+      break;
+    }
+
+    case Instruction::XOR_INT_2ADDR: {
+      Binop_12x<HXor>(instruction, Primitive::kPrimInt);
+      break;
+    }
+
+    case Instruction::XOR_LONG_2ADDR: {
+      Binop_12x<HXor>(instruction, Primitive::kPrimLong);
+      break;
+    }
+
     case Instruction::ADD_INT_LIT16: {
       Binop_22s<HAdd>(instruction, false);
+      break;
+    }
+
+    case Instruction::AND_INT_LIT16: {
+      Binop_22s<HAnd>(instruction, false);
+      break;
+    }
+
+    case Instruction::OR_INT_LIT16: {
+      Binop_22s<HOr>(instruction, false);
+      break;
+    }
+
+    case Instruction::XOR_INT_LIT16: {
+      Binop_22s<HXor>(instruction, false);
       break;
     }
 
@@ -1135,6 +1210,21 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
 
     case Instruction::ADD_INT_LIT8: {
       Binop_22b<HAdd>(instruction, false);
+      break;
+    }
+
+    case Instruction::AND_INT_LIT8: {
+      Binop_22b<HAnd>(instruction, false);
+      break;
+    }
+
+    case Instruction::OR_INT_LIT8: {
+      Binop_22b<HOr>(instruction, false);
+      break;
+    }
+
+    case Instruction::XOR_INT_LIT8: {
+      Binop_22b<HXor>(instruction, false);
       break;
     }
 

@@ -2910,5 +2910,86 @@ void InstructionCodeGeneratorX86_64::VisitMonitorOperation(HMonitorOperation* in
   codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
 }
 
+void LocationsBuilderX86_64::VisitAnd(HAnd* instruction) { HandleBitwiseOperation(instruction); }
+void LocationsBuilderX86_64::VisitOr(HOr* instruction) { HandleBitwiseOperation(instruction); }
+void LocationsBuilderX86_64::VisitXor(HXor* instruction) { HandleBitwiseOperation(instruction); }
+
+void LocationsBuilderX86_64::HandleBitwiseOperation(HBinaryOperation* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
+  DCHECK(instruction->GetResultType() == Primitive::kPrimInt
+         || instruction->GetResultType() == Primitive::kPrimLong);
+  locations->SetInAt(0, Location::RequiresRegister());
+  if (instruction->GetType() == Primitive::kPrimInt) {
+    locations->SetInAt(1, Location::Any());
+  } else {
+    // Request a register to avoid loading a 64bits constant.
+    locations->SetInAt(1, Location::RequiresRegister());
+  }
+  locations->SetOut(Location::SameAsFirstInput());
+}
+
+void InstructionCodeGeneratorX86_64::VisitAnd(HAnd* instruction) {
+  HandleBitwiseOperation(instruction);
+}
+
+void InstructionCodeGeneratorX86_64::VisitOr(HOr* instruction) {
+  HandleBitwiseOperation(instruction);
+}
+
+void InstructionCodeGeneratorX86_64::VisitXor(HXor* instruction) {
+  HandleBitwiseOperation(instruction);
+}
+
+void InstructionCodeGeneratorX86_64::HandleBitwiseOperation(HBinaryOperation* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+  DCHECK(first.Equals(locations->Out()));
+
+  if (instruction->GetResultType() == Primitive::kPrimInt) {
+    if (second.IsRegister()) {
+      if (instruction->IsAnd()) {
+        __ andl(first.As<CpuRegister>(), second.As<CpuRegister>());
+      } else if (instruction->IsOr()) {
+        __ orl(first.As<CpuRegister>(), second.As<CpuRegister>());
+      } else {
+        DCHECK(instruction->IsXor());
+        __ xorl(first.As<CpuRegister>(), second.As<CpuRegister>());
+      }
+    } else if (second.IsConstant()) {
+      Immediate imm(second.GetConstant()->AsIntConstant()->GetValue());
+      if (instruction->IsAnd()) {
+        __ andl(first.As<CpuRegister>(), imm);
+      } else if (instruction->IsOr()) {
+        __ orl(first.As<CpuRegister>(), imm);
+      } else {
+        DCHECK(instruction->IsXor());
+        __ xorl(first.As<CpuRegister>(), imm);
+      }
+    } else {
+      Address address(CpuRegister(RSP), second.GetStackIndex());
+      if (instruction->IsAnd()) {
+        __ andl(first.As<CpuRegister>(), address);
+      } else if (instruction->IsOr()) {
+        __ orl(first.As<CpuRegister>(), address);
+      } else {
+        DCHECK(instruction->IsXor());
+        __ xorl(first.As<CpuRegister>(), address);
+      }
+    }
+  } else {
+    DCHECK_EQ(instruction->GetResultType(), Primitive::kPrimLong);
+    if (instruction->IsAnd()) {
+      __ andq(first.As<CpuRegister>(), second.As<CpuRegister>());
+    } else if (instruction->IsOr()) {
+      __ orq(first.As<CpuRegister>(), second.As<CpuRegister>());
+    } else {
+      DCHECK(instruction->IsXor());
+      __ xorq(first.As<CpuRegister>(), second.As<CpuRegister>());
+    }
+  }
+}
+
 }  // namespace x86_64
 }  // namespace art
