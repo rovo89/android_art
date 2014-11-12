@@ -465,7 +465,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
 
   LOCAL_SHARED_LIBRARIES := libnativehelper libnativebridge libsigchain
   include external/libcxx/libcxx.mk
-  LOCAL_SHARED_LIBRARIES += libbacktrace_libc++
+  LOCAL_SHARED_LIBRARIES += libbacktrace
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libdl
     # ZipArchive support, the order matters here to get all symbols.
