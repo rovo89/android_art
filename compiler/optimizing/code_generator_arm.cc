@@ -2795,5 +2795,19 @@ void InstructionCodeGeneratorARM::VisitCheckCast(HCheckCast* instruction) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+void LocationsBuilderARM::VisitMonitorOperation(HMonitorOperation* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+}
+
+void InstructionCodeGeneratorARM::VisitMonitorOperation(HMonitorOperation* instruction) {
+  codegen_->InvokeRuntime(instruction->IsEnter()
+        ? QUICK_ENTRY_POINT(pLockObject) : QUICK_ENTRY_POINT(pUnlockObject),
+      instruction,
+      instruction->GetDexPc());
+}
+
 }  // namespace arm
 }  // namespace art
