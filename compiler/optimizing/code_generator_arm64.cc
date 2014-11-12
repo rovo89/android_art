@@ -639,6 +639,7 @@ InstructionCodeGeneratorARM64::InstructionCodeGeneratorARM64(HGraph* graph,
   M(LoadClass)                                             \
   M(LoadException)                                         \
   M(LoadString)                                            \
+  M(MonitorOperation)                                      \
   M(ParallelMove)                                          \
   M(StaticFieldGet)                                        \
   M(StaticFieldSet)                                        \
