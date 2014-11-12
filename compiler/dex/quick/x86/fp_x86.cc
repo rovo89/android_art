@@ -584,16 +584,16 @@ void X86Mir2Lir::GenNegFloat(RegLocation rl_dest, RegLocation rl_src) {
 void X86Mir2Lir::GenNegDouble(RegLocation rl_dest, RegLocation rl_src) {
   RegLocation rl_result;
   rl_src = LoadValueWide(rl_src, kCoreReg);
-  rl_result = EvalLocWide(rl_dest, kCoreReg, true);
   if (cu_->target64) {
+    rl_result = EvalLocWide(rl_dest, kCoreReg, true);
     OpRegCopy(rl_result.reg, rl_src.reg);
     // Flip sign bit.
     NewLIR2(kX86Rol64RI, rl_result.reg.GetReg(), 1);
     NewLIR2(kX86Xor64RI, rl_result.reg.GetReg(), 1);
     NewLIR2(kX86Ror64RI, rl_result.reg.GetReg(), 1);
   } else {
-    OpRegRegImm(kOpAdd, rl_result.reg.GetHigh(), rl_src.reg.GetHigh(), 0x80000000);
-    OpRegCopy(rl_result.reg, rl_src.reg);
+    rl_result = ForceTempWide(rl_src);
+    OpRegRegImm(kOpAdd, rl_result.reg.GetHigh(), rl_result.reg.GetHigh(), 0x80000000);
   }
   StoreValueWide(rl_dest, rl_result);
 }
