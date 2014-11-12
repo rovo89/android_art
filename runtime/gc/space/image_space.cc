@@ -74,17 +74,17 @@ static int32_t ChooseRelocationOffsetDelta(int32_t min_delta, int32_t max_delta)
 // out-of-date. We also don't really care if this fails since it is just a convenience.
 // Adapted from prune_dex_cache(const char* subdir) in frameworks/native/cmds/installd/commands.c
 // Note this should only be used during first boot.
-static void RealPruneDexCache(const std::string& cache_dir_path);
+static void RealPruneDalvikCache(const std::string& cache_dir_path);
 
-static void PruneDexCache(InstructionSet isa) {
+static void PruneDalvikCache(InstructionSet isa) {
   CHECK_NE(isa, kNone);
   // Prune the base /data/dalvik-cache.
-  RealPruneDexCache(GetDalvikCacheOrDie(".", false));
+  RealPruneDalvikCache(GetDalvikCacheOrDie(".", false));
   // Prune /data/dalvik-cache/<isa>.
-  RealPruneDexCache(GetDalvikCacheOrDie(GetInstructionSetString(isa), false));
+  RealPruneDalvikCache(GetDalvikCacheOrDie(GetInstructionSetString(isa), false));
 }
 
-static void RealPruneDexCache(const std::string& cache_dir_path) {
+static void RealPruneDalvikCache(const std::string& cache_dir_path) {
   if (!OS::DirectoryExists(cache_dir_path.c_str())) {
     return;
   }
@@ -118,6 +118,23 @@ static void RealPruneDexCache(const std::string& cache_dir_path) {
   CHECK_EQ(0, TEMP_FAILURE_RETRY(closedir(cache_dir))) << "Unable to close directory.";
 }
 
+// We write out an empty file to the zygote's ISA specific cache dir at the start of
+// every zygote boot and delete it when the boot completes. If we find a file already
+// present, it usually means the boot didn't complete. We wipe the entire dalvik
+// cache if that's the case.
+static void MarkZygoteStart(const InstructionSet isa) {
+  const std::string isa_subdir = GetDalvikCacheOrDie(GetInstructionSetString(isa), false);
+  const std::string boot_marker = isa_subdir + "/.booting";
+
+  if (OS::FileExists(boot_marker.c_str())) {
+    LOG(WARNING) << "Incomplete boot detected. Pruning dalvik cache";
+    RealPruneDalvikCache(isa_subdir);
+  }
+
+  VLOG(startup) << "Creating boot start marker: " << boot_marker;
+  std::unique_ptr<File> f(OS::CreateEmptyFile(boot_marker.c_str()));
+}
+
 static bool GenerateImage(const std::string& image_filename, InstructionSet image_isa,
                           std::string* error_msg) {
   const std::string boot_class_path_string(Runtime::Current()->GetBootClassPathString());
@@ -130,7 +147,7 @@ static bool GenerateImage(const std::string& image_filename, InstructionSet imag
   // We should clean up so we are more likely to have room for the image.
   if (Runtime::Current()->IsZygote()) {
     LOG(INFO) << "Pruning dalvik-cache since we are generating an image and will need to recompile";
-    PruneDexCache(image_isa);
+    PruneDalvikCache(image_isa);
   }
 
   std::vector<std::string> arg_vector;
@@ -232,7 +249,7 @@ static bool RelocateImage(const char* image_location, const char* dest_filename,
   // We should clean up so we are more likely to have room for the image.
   if (Runtime::Current()->IsZygote()) {
     LOG(INFO) << "Pruning dalvik-cache since we are relocating an image and will need to recompile";
-    PruneDexCache(isa);
+    PruneDalvikCache(isa);
   }
 
   std::string patchoat(Runtime::Current()->GetPatchoatExecutable());
@@ -427,6 +444,10 @@ ImageSpace* ImageSpace::Create(const char* image_location,
                                              &has_system, &cache_filename, &dalvik_cache_exists,
                                              &has_cache, &is_global_cache);
 
+  if (Runtime::Current()->IsZygote()) {
+    MarkZygoteStart(image_isa);
+  }
+
   ImageSpace* space;
   bool relocate = Runtime::Current()->ShouldRelocate();
   bool can_compile = Runtime::Current()->IsImageDex2OatEnabled();
@@ -475,7 +496,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
             // Since ImageCreationAllowed was true above, we are the zygote
             // and therefore the only process expected to generate these for
             // the device.
-            PruneDexCache(image_isa);
+            PruneDalvikCache(image_isa);
             return nullptr;
           }
         }
@@ -530,7 +551,7 @@ ImageSpace* ImageSpace::Create(const char* image_location,
                                 "but image failed to load: %s",
                                 image_location, cache_filename.c_str(), system_filename.c_str(),
                                 error_msg->c_str());
-      PruneDexCache(image_isa);
+      PruneDalvikCache(image_isa);
       return nullptr;
     } else if (is_system) {
       // If the /system file exists, it should be up-to-date, don't try to generate it.
@@ -558,13 +579,13 @@ ImageSpace* ImageSpace::Create(const char* image_location,
     // Since ImageCreationAllowed was true above, we are the zygote
     // and therefore the only process expected to generate these for
     // the device.
-    PruneDexCache(image_isa);
+    PruneDalvikCache(image_isa);
     return nullptr;
   } else {
     // Check whether there is enough space left over after we have generated the image.
     if (!CheckSpace(cache_filename, error_msg)) {
       // No. Delete the generated image and try to run out of the dex files.
-      PruneDexCache(image_isa);
+      PruneDalvikCache(image_isa);
       return nullptr;
     }
 
