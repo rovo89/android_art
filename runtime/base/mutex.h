@@ -101,7 +101,6 @@ enum LockLevel {
   kHeapBitmapLock,
   kMutatorLock,
   kInstrumentEntrypointsLock,
-  kThreadListSuspendThreadLock,
   kZygoteCreationLock,
 
   kLockLevelCount  // Must come last.
@@ -486,17 +485,8 @@ class Locks {
  public:
   static void Init();
 
-  // There's a potential race for two threads to try to suspend each other and for both of them
-  // to succeed and get blocked becoming runnable. This lock ensures that only one thread is
-  // requesting suspension of another at any time. As the the thread list suspend thread logic
-  // transitions to runnable, if the current thread were tried to be suspended then this thread
-  // would block holding this lock until it could safely request thread suspension of the other
-  // thread without that thread having a suspension request against this thread. This avoids a
-  // potential deadlock cycle.
-  static Mutex* thread_list_suspend_thread_lock_;
-
   // Guards allocation entrypoint instrumenting.
-  static Mutex* instrument_entrypoints_lock_ ACQUIRED_AFTER(thread_list_suspend_thread_lock_);
+  static Mutex* instrument_entrypoints_lock_;
 
   // The mutator_lock_ is used to allow mutators to execute in a shared (reader) mode or to block
   // mutators by having an exclusive (writer) owner. In normal execution each mutator thread holds
