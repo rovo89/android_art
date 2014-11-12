@@ -236,4 +236,28 @@ void LogMessage::LogLine(const char* file, unsigned int line, LogSeverity log_se
 #endif
 }
 
+void LogMessage::LogLineLowStack(const char* file, unsigned int line, LogSeverity log_severity,
+                                 const char* message) {
+#ifdef HAVE_ANDROID_OS
+  // TODO: be more conservative on stack usage here.
+  LogLine(file, line, log_severity, message);
+#else
+  static const char* log_characters = "VDIWEFF";
+  CHECK_EQ(strlen(log_characters), INTERNAL_FATAL + 1U);
+
+  const char* program_name = ProgramInvocationShortName();
+  write(STDERR_FILENO, program_name, strlen(program_name));
+  write(STDERR_FILENO, " ", 1);
+  write(STDERR_FILENO, &log_characters[log_severity], 1);
+  write(STDERR_FILENO, " ", 1);
+  // TODO: pid and tid.
+  write(STDERR_FILENO, file, strlen(file));
+  // TODO: line.
+  UNUSED(line);
+  write(STDERR_FILENO, "] ", 2);
+  write(STDERR_FILENO, message, strlen(message));
+  write(STDERR_FILENO, "\n", 1);
+#endif
+}
+
 }  // namespace art

@@ -2019,14 +2019,4 @@ TEST_F(JniInternalTest, MonitorEnterExit) {
   }
 }
 
-TEST_F(JniInternalTest, DetachCurrentThread) {
-  CleanUpJniEnv();  // cleanup now so TearDown won't have junk from wrong JNIEnv
-  jint ok = vm_->DetachCurrentThread();
-  EXPECT_EQ(JNI_OK, ok);
-
-  jint err = vm_->DetachCurrentThread();
-  EXPECT_EQ(JNI_ERR, err);
-  vm_->AttachCurrentThread(&env_, nullptr);  // need attached thread for CommonRuntimeTest::TearDown
-}
-
 }  // namespace art

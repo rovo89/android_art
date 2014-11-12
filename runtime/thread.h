@@ -893,14 +893,14 @@ class Thread {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void RemoveFromThreadGroup(ScopedObjectAccess& soa) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Init(ThreadList*, JavaVMExt*) EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_);
+  bool Init(ThreadList*, JavaVMExt*) EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_);
   void InitCardTable();
   void InitCpu();
   void CleanupCpu();
   void InitTlsEntryPoints();
   void InitTid();
   void InitPthreadKeySelf();
-  void InitStackHwm();
+  bool InitStackHwm();
 
   void SetUpAlternateSignalStack();
   void TearDownAlternateSignalStack();

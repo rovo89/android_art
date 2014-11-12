@@ -795,13 +795,13 @@ extern "C" jint JNI_CreateJavaVM(JavaVM** p_vm, JNIEnv** p_env, void* vm_args) {
   return JNI_OK;
 }
 
-extern "C" jint JNI_GetCreatedJavaVMs(JavaVM** vms, jsize, jsize* vm_count) {
+extern "C" jint JNI_GetCreatedJavaVMs(JavaVM** vms_buf, jsize buf_len, jsize* vm_count) {
   Runtime* runtime = Runtime::Current();
-  if (runtime == nullptr) {
+  if (runtime == nullptr || buf_len == 0) {
     *vm_count = 0;
   } else {
     *vm_count = 1;
-    vms[0] = runtime->GetJavaVM();
+    vms_buf[0] = runtime->GetJavaVM();
   }
   return JNI_OK;
 }
