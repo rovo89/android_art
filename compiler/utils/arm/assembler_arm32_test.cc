@@ -22,7 +22,7 @@
 namespace art {
 
 class AssemblerArm32Test : public AssemblerTest<arm::Arm32Assembler,
-                                                arm::Register,
+                                                arm::Register, arm::SRegister,
                                                 uint32_t> {
  protected:
   std::string GetArchitectureString() OVERRIDE {

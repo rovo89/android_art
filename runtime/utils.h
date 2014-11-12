@@ -115,6 +115,20 @@ static inline bool IsInt(int N, intptr_t value) {
   return (-limit <= value) && (value < limit);
 }
 
+static inline bool IsInt32(int N, int32_t value) {
+  CHECK_LT(0, N);
+  CHECK_LT(static_cast<size_t>(N), 8 * sizeof(int32_t));
+  int32_t limit = static_cast<int32_t>(1) << (N - 1);
+  return (-limit <= value) && (value < limit);
+}
+
+static inline bool IsInt64(int N, int64_t value) {
+  CHECK_LT(0, N);
+  CHECK_LT(static_cast<size_t>(N), 8 * sizeof(int64_t));
+  int64_t limit = static_cast<int64_t>(1) << (N - 1);
+  return (-limit <= value) && (value < limit);
+}
+
 static inline bool IsUint(int N, intptr_t value) {
   CHECK_LT(0, N);
   CHECK_LT(N, kBitsPerIntPtrT);
