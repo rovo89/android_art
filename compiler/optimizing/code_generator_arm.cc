@@ -1918,11 +1918,12 @@ void InstructionCodeGeneratorARM::VisitPhi(HPhi* instruction) {
 void LocationsBuilderARM::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  bool is_object_type = instruction->GetFieldType() == Primitive::kPrimNot;
+  bool needs_write_barrier =
+      CodeGenerator::StoreNeedsWriteBarrier(instruction->GetFieldType(), instruction->GetValue());
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   // Temporary registers for the write barrier.
-  if (is_object_type) {
+  if (needs_write_barrier) {
     locations->AddTemp(Location::RequiresRegister());
     locations->AddTemp(Location::RequiresRegister());
   }
@@ -1953,7 +1954,7 @@ void InstructionCodeGeneratorARM::VisitInstanceFieldSet(HInstanceFieldSet* instr
     case Primitive::kPrimNot: {
       Register value = locations->InAt(1).As<Register>();
       __ StoreToOffset(kStoreWord, value, obj, offset);
-      if (field_type == Primitive::kPrimNot) {
+      if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->GetValue())) {
         Register temp = locations->GetTemp(0).As<Register>();
         Register card = locations->GetTemp(1).As<Register>();
         codegen_->MarkGCCard(temp, card, obj, value);
@@ -2186,10 +2187,14 @@ void InstructionCodeGeneratorARM::VisitArrayGet(HArrayGet* instruction) {
 
 void LocationsBuilderARM::VisitArraySet(HArraySet* instruction) {
   Primitive::Type value_type = instruction->GetComponentType();
-  bool is_object = value_type == Primitive::kPrimNot;
+
+  bool needs_write_barrier =
+      CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
+  bool needs_runtime_call = instruction->NeedsTypeCheck();
+
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
-      instruction, is_object ? LocationSummary::kCall : LocationSummary::kNoCall);
-  if (is_object) {
+      instruction, needs_runtime_call ? LocationSummary::kCall : LocationSummary::kNoCall);
+  if (needs_runtime_call) {
     InvokeRuntimeCallingConvention calling_convention;
     locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
     locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
@@ -2198,6 +2203,12 @@ void LocationsBuilderARM::VisitArraySet(HArraySet* instruction) {
     locations->SetInAt(0, Location::RequiresRegister());
     locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
     locations->SetInAt(2, Location::RequiresRegister());
+
+    if (needs_write_barrier) {
+      // Temporary registers for the write barrier.
+      locations->AddTemp(Location::RequiresRegister());
+      locations->AddTemp(Location::RequiresRegister());
+    }
   }
 }
 
@@ -2206,6 +2217,9 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
   Register obj = locations->InAt(0).As<Register>();
   Location index = locations->InAt(1);
   Primitive::Type value_type = instruction->GetComponentType();
+  bool needs_runtime_call = locations->WillCall();
+  bool needs_write_barrier =
+      CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
 
   switch (value_type) {
     case Primitive::kPrimBoolean:
@@ -2236,21 +2250,29 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
       break;
     }
 
-    case Primitive::kPrimInt: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
-      Register value = locations->InAt(2).As<Register>();
-      if (index.IsConstant()) {
-        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-        __ StoreToOffset(kStoreWord, value, obj, offset);
-      } else {
-        __ add(IP, obj, ShifterOperand(index.As<Register>(), LSL, TIMES_4));
-        __ StoreToOffset(kStoreWord, value, IP, data_offset);
-      }
-      break;
-    }
-
+    case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
-      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pAputObject), instruction, instruction->GetDexPc());
+      if (!needs_runtime_call) {
+        uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
+        Register value = locations->InAt(2).As<Register>();
+        if (index.IsConstant()) {
+          size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+          __ StoreToOffset(kStoreWord, value, obj, offset);
+        } else {
+          DCHECK(index.IsRegister()) << index;
+          __ add(IP, obj, ShifterOperand(index.As<Register>(), LSL, TIMES_4));
+          __ StoreToOffset(kStoreWord, value, IP, data_offset);
+        }
+        if (needs_write_barrier) {
+          DCHECK_EQ(value_type, Primitive::kPrimNot);
+          Register temp = locations->GetTemp(0).As<Register>();
+          Register card = locations->GetTemp(1).As<Register>();
+          codegen_->MarkGCCard(temp, card, obj, value);
+        }
+      } else {
+        DCHECK_EQ(value_type, Primitive::kPrimNot);
+        codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pAputObject), instruction, instruction->GetDexPc());
+      }
       break;
     }
 
@@ -2602,11 +2624,12 @@ void InstructionCodeGeneratorARM::VisitStaticFieldGet(HStaticFieldGet* instructi
 void LocationsBuilderARM::VisitStaticFieldSet(HStaticFieldSet* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  bool is_object_type = instruction->GetFieldType() == Primitive::kPrimNot;
+  bool needs_write_barrier =
+      CodeGenerator::StoreNeedsWriteBarrier(instruction->GetFieldType(), instruction->GetValue());
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   // Temporary registers for the write barrier.
-  if (is_object_type) {
+  if (needs_write_barrier) {
     locations->AddTemp(Location::RequiresRegister());
     locations->AddTemp(Location::RequiresRegister());
   }
@@ -2637,7 +2660,7 @@ void InstructionCodeGeneratorARM::VisitStaticFieldSet(HStaticFieldSet* instructi
     case Primitive::kPrimNot: {
       Register value = locations->InAt(1).As<Register>();
       __ StoreToOffset(kStoreWord, value, cls, offset);
-      if (field_type == Primitive::kPrimNot) {
+      if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->GetValue())) {
         Register temp = locations->GetTemp(0).As<Register>();
         Register card = locations->GetTemp(1).As<Register>();
         codegen_->MarkGCCard(temp, card, cls, value);

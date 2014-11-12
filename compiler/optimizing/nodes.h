@@ -2030,6 +2030,8 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
   MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
   Primitive::Type GetFieldType() const { return field_info_.GetFieldType(); }
 
+  HInstruction* GetValue() const { return InputAt(1); }
+
   DECLARE_INSTRUCTION(InstanceFieldSet);
 
  private:
@@ -2046,12 +2048,15 @@ class HArrayGet : public HExpression<2> {
     SetRawInputAt(1, index);
   }
 
-  virtual bool CanBeMoved() const { return true; }
-  virtual bool InstructionDataEquals(HInstruction* other) const {
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     UNUSED(other);
     return true;
   }
   void SetType(Primitive::Type type) { type_ = type; }
+
+  HInstruction* GetArray() const { return InputAt(0); }
+  HInstruction* GetIndex() const { return InputAt(1); }
 
   DECLARE_INSTRUCTION(ArrayGet);
 
@@ -2068,20 +2073,29 @@ class HArraySet : public HTemplateInstruction<3> {
             uint32_t dex_pc)
       : HTemplateInstruction(SideEffects::ChangesSomething()),
         dex_pc_(dex_pc),
-        expected_component_type_(expected_component_type) {
+        expected_component_type_(expected_component_type),
+        needs_type_check_(value->GetType() == Primitive::kPrimNot) {
     SetRawInputAt(0, array);
     SetRawInputAt(1, index);
     SetRawInputAt(2, value);
   }
 
-  virtual bool NeedsEnvironment() const {
+  bool NeedsEnvironment() const {
     // We currently always call a runtime method to catch array store
     // exceptions.
-    return InputAt(2)->GetType() == Primitive::kPrimNot;
+    return needs_type_check_;
   }
+
+  void ClearNeedsTypeCheck() {
+    needs_type_check_ = false;
+  }
+
+  bool NeedsTypeCheck() const { return needs_type_check_; }
 
   uint32_t GetDexPc() const { return dex_pc_; }
 
+  HInstruction* GetArray() const { return InputAt(0); }
+  HInstruction* GetIndex() const { return InputAt(1); }
   HInstruction* GetValue() const { return InputAt(2); }
 
   Primitive::Type GetComponentType() const {
@@ -2100,6 +2114,7 @@ class HArraySet : public HTemplateInstruction<3> {
  private:
   const uint32_t dex_pc_;
   const Primitive::Type expected_component_type_;
+  bool needs_type_check_;
 
   DISALLOW_COPY_AND_ASSIGN(HArraySet);
 };
@@ -2367,6 +2382,8 @@ class HStaticFieldSet : public HTemplateInstruction<2> {
 
   MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
   Primitive::Type GetFieldType() const { return field_info_.GetFieldType(); }
+
+  HInstruction* GetValue() const { return InputAt(1); }
 
   DECLARE_INSTRUCTION(StaticFieldSet);
 

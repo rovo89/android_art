@@ -168,6 +168,15 @@ class CodeGenerator : public ArenaObject<kArenaAllocMisc> {
 
   void EmitParallelMoves(Location from1, Location to1, Location from2, Location to2);
 
+  static bool StoreNeedsWriteBarrier(Primitive::Type type, HInstruction* value) {
+    if (kIsDebugBuild) {
+      if (type == Primitive::kPrimNot && value->IsIntConstant()) {
+        CHECK(value->AsIntConstant()->GetValue() == 0);
+      }
+    }
+    return type == Primitive::kPrimNot && !value->IsIntConstant();
+  }
+
  protected:
   CodeGenerator(HGraph* graph,
                 size_t number_of_core_registers,

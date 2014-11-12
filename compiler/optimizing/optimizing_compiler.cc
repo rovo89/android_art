@@ -286,6 +286,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     InstructionSimplifier(graph).Run();
     GlobalValueNumberer(graph->GetArena(), graph).Run();
     visualizer.DumpGraph(kGVNPassName);
+    InstructionSimplifier(graph).Run();
     PrepareForRegisterAllocation(graph).Run();
 
     SsaLivenessAnalysis liveness(*graph, codegen);
