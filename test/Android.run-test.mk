@@ -321,6 +321,8 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   006-args \
   007-count10 \
   008-exceptions \
+  009-instanceof \
+  010-instance \
   011-array-copy \
   013-math2 \
   016-intern \
@@ -332,6 +334,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   022-interface \
   023-many-interfaces \
   024-illegal-access \
+  025-access-controller \
   026-access \
   028-array-write \
   029-assert \
@@ -339,6 +342,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   031-class-attributes \
   032-concrete-sub \
   033-class-init-deadlock \
+  034-call-null \
   035-enum \
   036-finalizer \
   037-inherit \
@@ -358,7 +362,9 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   054-uncaught \
   055-enum-performance \
   056-const-string-jumbo \
+  058-enum-order \
   061-out-of-memory \
+  062-character-encodings \
   063-process-manager \
   064-field-access \
   065-mismatched-implements \
@@ -399,11 +405,13 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   105-invoke \
   106-exceptions2 \
   107-int-math2 \
+  108-check-cast \
   109-suspend-check \
   110-field-access \
   111-unresolvable-exception \
   112-double-math \
   113-multidex \
+  114-ParallelGC \
   117-nopatchoat \
   118-noimage-dex2oat \
   119-noimage-patchoat \
@@ -419,6 +427,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   300-package-override \
   301-abstract-protected \
   303-verification-stress \
+  304-method-tracing \
   401-optimizing-compiler \
   402-optimizing-control-flow \
   403-optimizing-long \
