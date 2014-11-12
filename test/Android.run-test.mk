@@ -313,6 +313,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   003-omnibus-opcodes \
   004-InterfaceTest \
   004-JniTest \
+  004-NativeAllocations \
   004-ReferenceMap \
   004-SignalTest \
   004-StackWalk \
@@ -415,6 +416,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   117-nopatchoat \
   118-noimage-dex2oat \
   119-noimage-patchoat \
+  120-hashcode \
   121-modifiers \
   121-simple-suspend-check \
   122-npe \
@@ -454,6 +456,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   422-type-conversion \
   423-invoke-interface \
   424-checkcast \
+  426-monitor \
   700-LoadArgRegs \
   701-easy-div-rem \
   702-LargeBranchOffset \
