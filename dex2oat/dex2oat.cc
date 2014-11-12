@@ -583,6 +583,7 @@ class Dex2Oat FINAL {
           compiler_kind_ = Compiler::kQuick;
         } else if (backend_str == "Optimizing") {
           compiler_kind_ = Compiler::kOptimizing;
+          compile_pic = true;
         } else if (backend_str == "Portable") {
           compiler_kind_ = Compiler::kPortable;
         } else {
