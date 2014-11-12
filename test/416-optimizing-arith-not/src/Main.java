@@ -40,10 +40,10 @@ public class Main {
     expectEquals(0, smaliNotInt(-1));
     expectEquals(-1, smaliNotInt(0));
     expectEquals(-2, smaliNotInt(1));
-    expectEquals(2147483647, smaliNotInt(-2147483648));  // (2^31) - 1
-    expectEquals(2147483646, smaliNotInt(-2147483647));  // (2^31) - 2
-    expectEquals(-2147483647, smaliNotInt(2147483646));  // -(2^31) - 1
-    expectEquals(-2147483648, smaliNotInt(2147483647));  // -(2^31)
+    expectEquals(2147483647, smaliNotInt(-2147483648));  // -(2^31)
+    expectEquals(2147483646, smaliNotInt(-2147483647));  // -(2^31 - 1)
+    expectEquals(-2147483647, smaliNotInt(2147483646));  // 2^31 - 2
+    expectEquals(-2147483648, smaliNotInt(2147483647));  // 2^31 - 1
   }
 
   private static void notLong() throws Exception {
@@ -51,14 +51,14 @@ public class Main {
     expectEquals(0L, smaliNotLong(-1L));
     expectEquals(-1L, smaliNotLong(0L));
     expectEquals(-2L, smaliNotLong(1L));
-    expectEquals(2147483647L, smaliNotLong(-2147483648L));  // (2^31) - 1
-    expectEquals(2147483646L, smaliNotLong(-2147483647L));  // (2^31) - 2
-    expectEquals(-2147483647L, smaliNotLong(2147483646L));  // -(2^31) - 1
-    expectEquals(-2147483648L, smaliNotLong(2147483647L));  // -(2^31)
-    expectEquals(9223372036854775807L, smaliNotLong(-9223372036854775808L));  // (2^63) - 1
-    expectEquals(9223372036854775806L, smaliNotLong(-9223372036854775807L));  // (2^63) - 2
-    expectEquals(-9223372036854775807L, smaliNotLong(9223372036854775806L));  // -(2^63) - 1
-    expectEquals(-9223372036854775808L, smaliNotLong(9223372036854775807L));  // -(2^63)
+    expectEquals(2147483647L, smaliNotLong(-2147483648L));  // -(2^31)
+    expectEquals(2147483646L, smaliNotLong(-2147483647L));  // -(2^31 - 1)
+    expectEquals(-2147483647L, smaliNotLong(2147483646L));  // 2^31 - 2
+    expectEquals(-2147483648L, smaliNotLong(2147483647L));  // 2^31 - 1
+    expectEquals(9223372036854775807L, smaliNotLong(-9223372036854775808L));  // -(2^63)
+    expectEquals(9223372036854775806L, smaliNotLong(-9223372036854775807L));  // -(2^63 - 1)
+    expectEquals(-9223372036854775807L, smaliNotLong(9223372036854775806L));  // 2^63 - 2
+    expectEquals(-9223372036854775808L, smaliNotLong(9223372036854775807L));  // 2^63 - 1
   }
 
   // Wrappers around methods located in file not.smali.
