@@ -873,6 +873,13 @@ void X86Assembler::andl(Register dst, Register src) {
 }
 
 
+void X86Assembler::andl(Register reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x23);
+  EmitOperand(reg, address);
+}
+
+
 void X86Assembler::andl(Register dst, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitComplex(4, Operand(dst), imm);
@@ -883,6 +890,13 @@ void X86Assembler::orl(Register dst, Register src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0B);
   EmitOperand(dst, Operand(src));
+}
+
+
+void X86Assembler::orl(Register reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0B);
+  EmitOperand(reg, address);
 }
 
 
@@ -898,10 +912,19 @@ void X86Assembler::xorl(Register dst, Register src) {
   EmitOperand(dst, Operand(src));
 }
 
+
+void X86Assembler::xorl(Register reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x33);
+  EmitOperand(reg, address);
+}
+
+
 void X86Assembler::xorl(Register dst, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitComplex(6, Operand(dst), imm);
 }
+
 
 void X86Assembler::addl(Register reg, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);

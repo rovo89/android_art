@@ -1014,6 +1014,14 @@ void X86_64Assembler::andl(CpuRegister dst, CpuRegister src) {
 }
 
 
+void X86_64Assembler::andl(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(reg, address);
+  EmitUint8(0x23);
+  EmitOperand(reg.LowBits(), address);
+}
+
+
 void X86_64Assembler::andl(CpuRegister dst, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(dst);
@@ -1029,11 +1037,27 @@ void X86_64Assembler::andq(CpuRegister reg, const Immediate& imm) {
 }
 
 
+void X86_64Assembler::andq(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst, src);
+  EmitUint8(0x23);
+  EmitOperand(dst.LowBits(), Operand(src));
+}
+
+
 void X86_64Assembler::orl(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(dst, src);
   EmitUint8(0x0B);
   EmitOperand(dst.LowBits(), Operand(src));
+}
+
+
+void X86_64Assembler::orl(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(reg, address);
+  EmitUint8(0x0B);
+  EmitOperand(reg.LowBits(), address);
 }
 
 
@@ -1044,11 +1068,34 @@ void X86_64Assembler::orl(CpuRegister dst, const Immediate& imm) {
 }
 
 
+void X86_64Assembler::orq(CpuRegister dst, CpuRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitRex64(dst, src);
+  EmitUint8(0x0B);
+  EmitOperand(dst.LowBits(), Operand(src));
+}
+
+
 void X86_64Assembler::xorl(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(dst, src);
   EmitUint8(0x33);
   EmitOperand(dst.LowBits(), Operand(src));
+}
+
+
+void X86_64Assembler::xorl(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(reg, address);
+  EmitUint8(0x33);
+  EmitOperand(reg.LowBits(), address);
+}
+
+
+void X86_64Assembler::xorl(CpuRegister dst, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(dst);
+  EmitComplex(6, Operand(dst), imm);
 }
 
 
