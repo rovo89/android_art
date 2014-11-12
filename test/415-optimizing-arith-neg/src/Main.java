@@ -71,8 +71,8 @@ public class Main {
     assertEquals(0, $opt$NegInt(0));
     assertEquals(51, $opt$NegInt(-51));
     assertEquals(-51, $opt$NegInt(51));
-    assertEquals(2147483647, $opt$NegInt(-2147483647));  // (2^31 - 1)
-    assertEquals(-2147483647, $opt$NegInt(2147483647));  // -(2^31 - 1)
+    assertEquals(2147483647, $opt$NegInt(-2147483647));  // -(2^31 - 1)
+    assertEquals(-2147483647, $opt$NegInt(2147483647));  // 2^31 - 1
     // From the Java 7 SE Edition specification:
     // http://docs.oracle.com/javase/specs/jls/se7/html/jls-15.html#jls-15.15.4
     //
@@ -98,13 +98,13 @@ public class Main {
     assertEquals(51L, $opt$NegLong(-51L));
     assertEquals(-51L, $opt$NegLong(51L));
 
-    assertEquals(2147483647L, $opt$NegLong(-2147483647L));  // (2^31 - 1)
-    assertEquals(-2147483647L, $opt$NegLong(2147483647L));  // -(2^31 - 1)
-    assertEquals(2147483648L, $opt$NegLong(-2147483648L));  // 2^31
-    assertEquals(-2147483648L, $opt$NegLong(2147483648L));  // -(2^31)
+    assertEquals(2147483647L, $opt$NegLong(-2147483647L));  // -(2^31 - 1)
+    assertEquals(-2147483647L, $opt$NegLong(2147483647L));  // (2^31 - 1)
+    assertEquals(2147483648L, $opt$NegLong(-2147483648L));  // -(2^31)
+    assertEquals(-2147483648L, $opt$NegLong(2147483648L));  // 2^31
 
-    assertEquals(9223372036854775807L, $opt$NegLong(-9223372036854775807L));  // (2^63 - 1)
-    assertEquals(-9223372036854775807L, $opt$NegLong(9223372036854775807L));  // -(2^63 - 1)
+    assertEquals(9223372036854775807L, $opt$NegLong(-9223372036854775807L));  // -(2^63 - 1)
+    assertEquals(-9223372036854775807L, $opt$NegLong(9223372036854775807L));  // 2^63 - 1
     // See remark regarding the negation of the maximum negative
     // (long) value in negInt().
     assertEquals(-9223372036854775808L, $opt$NegLong(-9223372036854775808L)); // -(2^63)
