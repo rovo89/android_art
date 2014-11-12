@@ -479,6 +479,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(ArrayLength, Instruction)                                           \
   M(ArraySet, Instruction)                                              \
   M(BoundsCheck, Instruction)                                           \
+  M(CheckCast, Instruction)                                             \
   M(ClinitCheck, Instruction)                                           \
   M(Compare, BinaryOperation)                                           \
   M(Condition, BinaryOperation)                                         \
@@ -494,6 +495,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(If, Instruction)                                                    \
   M(InstanceFieldGet, Instruction)                                      \
   M(InstanceFieldSet, Instruction)                                      \
+  M(InstanceOf, Instruction)                                            \
   M(IntConstant, Constant)                                              \
   M(InvokeInterface, Invoke)                                            \
   M(InvokeStatic, Invoke)                                               \
@@ -525,7 +527,6 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(SuspendCheck, Instruction)                                          \
   M(Temporary, Instruction)                                             \
   M(Throw, Instruction)                                                 \
-  M(TypeCheck, Instruction)                                             \
   M(TypeConversion, Instruction)                                        \
 
 #define FOR_EACH_INSTRUCTION(M)                                         \
@@ -2351,12 +2352,12 @@ class HThrow : public HTemplateInstruction<1> {
   DISALLOW_COPY_AND_ASSIGN(HThrow);
 };
 
-class HTypeCheck : public HExpression<2> {
+class HInstanceOf : public HExpression<2> {
  public:
-  explicit HTypeCheck(HInstruction* object,
-                      HLoadClass* constant,
-                      bool class_is_final,
-                      uint32_t dex_pc)
+  HInstanceOf(HInstruction* object,
+              HLoadClass* constant,
+              bool class_is_final,
+              uint32_t dex_pc)
       : HExpression(Primitive::kPrimBoolean, SideEffects::None()),
         class_is_final_(class_is_final),
         dex_pc_(dex_pc) {
@@ -2366,13 +2367,11 @@ class HTypeCheck : public HExpression<2> {
 
   bool CanBeMoved() const OVERRIDE { return true; }
 
-  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
-    UNUSED(other);
+  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
 
   bool NeedsEnvironment() const OVERRIDE {
-    // TODO: Can we debug when doing a runtime instanceof check?
     return false;
   }
 
@@ -2380,13 +2379,52 @@ class HTypeCheck : public HExpression<2> {
 
   bool IsClassFinal() const { return class_is_final_; }
 
-  DECLARE_INSTRUCTION(TypeCheck);
+  DECLARE_INSTRUCTION(InstanceOf);
 
  private:
   const bool class_is_final_;
   const uint32_t dex_pc_;
 
-  DISALLOW_COPY_AND_ASSIGN(HTypeCheck);
+  DISALLOW_COPY_AND_ASSIGN(HInstanceOf);
+};
+
+class HCheckCast : public HTemplateInstruction<2> {
+ public:
+  HCheckCast(HInstruction* object,
+             HLoadClass* constant,
+             bool class_is_final,
+             uint32_t dex_pc)
+      : HTemplateInstruction(SideEffects::None()),
+        class_is_final_(class_is_final),
+        dex_pc_(dex_pc) {
+    SetRawInputAt(0, object);
+    SetRawInputAt(1, constant);
+  }
+
+  bool CanBeMoved() const OVERRIDE { return true; }
+
+  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+    return true;
+  }
+
+  bool NeedsEnvironment() const OVERRIDE {
+    // Instruction may throw a CheckCastError.
+    return true;
+  }
+
+  bool CanThrow() const OVERRIDE { return true; }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  bool IsClassFinal() const { return class_is_final_; }
+
+  DECLARE_INSTRUCTION(CheckCast);
+
+ private:
+  const bool class_is_final_;
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HCheckCast);
 };
 
 

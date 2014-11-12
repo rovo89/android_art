@@ -444,6 +444,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   422-instanceof \
   422-type-conversion \
   423-invoke-interface \
+  424-checkcast \
   700-LoadArgRegs \
   701-easy-div-rem \
   702-LargeBranchOffset \
