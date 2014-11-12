@@ -38,7 +38,7 @@
 // impacts where samples will occur. Reducing the count as much as possible improves profiler
 // accuracy in tools like traceview.
 // TODO: get a compiler that can do a proper job of loop optimization and remove this.
-#define SUSPEND_CHECK_INTERVAL 1000
+#define SUSPEND_CHECK_INTERVAL 96
 #endif
 
 #if defined(__cplusplus)
