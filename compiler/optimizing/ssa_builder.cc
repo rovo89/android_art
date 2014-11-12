@@ -253,4 +253,9 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
   instruction->SetEnvironment(environment);
 }
 
+void SsaBuilder::VisitTemporary(HTemporary* temp) {
+  // Temporaries are only used by the baseline register allocator.
+  temp->GetBlock()->RemoveInstruction(temp);
+}
+
 }  // namespace art
