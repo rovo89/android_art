@@ -1354,6 +1354,22 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::MONITOR_ENTER: {
+      current_block_->AddInstruction(new (arena_) HMonitorOperation(
+          LoadLocal(instruction.VRegA_11x(), Primitive::kPrimNot),
+          HMonitorOperation::kEnter,
+          dex_offset));
+      break;
+    }
+
+    case Instruction::MONITOR_EXIT: {
+      current_block_->AddInstruction(new (arena_) HMonitorOperation(
+          LoadLocal(instruction.VRegA_11x(), Primitive::kPrimNot),
+          HMonitorOperation::kExit,
+          dex_offset));
+      break;
+    }
+
     default:
       return false;
   }

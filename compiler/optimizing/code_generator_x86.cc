@@ -2905,5 +2905,19 @@ void InstructionCodeGeneratorX86::VisitCheckCast(HCheckCast* instruction) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+void LocationsBuilderX86::VisitMonitorOperation(HMonitorOperation* instruction) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+}
+
+void InstructionCodeGeneratorX86::VisitMonitorOperation(HMonitorOperation* instruction) {
+  __ fs()->call(Address::Absolute(instruction->IsEnter()
+        ? QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pLockObject)
+        : QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pUnlockObject)));
+  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+}
+
 }  // namespace x86
 }  // namespace art
