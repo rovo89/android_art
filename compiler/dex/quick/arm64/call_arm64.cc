@@ -51,16 +51,13 @@ namespace art {
  */
 void Arm64Mir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src) {
   const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
-  if (cu_->verbose) {
-    DumpSparseSwitchTable(table);
-  }
   // Add the table to the list - we'll process it later
   SwitchTable *tab_rec =
       static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable), kArenaAllocData));
+  tab_rec->switch_mir = mir;
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   uint32_t size = table[1];
-  tab_rec->targets = static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), kArenaAllocLIR));
   switch_tables_.push_back(tab_rec);
 
   // Get the switch value
@@ -103,17 +100,13 @@ void Arm64Mir2Lir::GenLargeSparseSwitch(MIR* mir, uint32_t table_offset, RegLoca
 
 void Arm64Mir2Lir::GenLargePackedSwitch(MIR* mir, uint32_t table_offset, RegLocation rl_src) {
   const uint16_t* table = mir_graph_->GetTable(mir, table_offset);
-  if (cu_->verbose) {
-    DumpPackedSwitchTable(table);
-  }
   // Add the table to the list - we'll process it later
   SwitchTable *tab_rec =
       static_cast<SwitchTable*>(arena_->Alloc(sizeof(SwitchTable),  kArenaAllocData));
+  tab_rec->switch_mir = mir;
   tab_rec->table = table;
   tab_rec->vaddr = current_dalvik_offset_;
   uint32_t size = table[1];
-  tab_rec->targets =
-      static_cast<LIR**>(arena_->Alloc(size * sizeof(LIR*), kArenaAllocLIR));
   switch_tables_.push_back(tab_rec);
 
   // Get the switch value
