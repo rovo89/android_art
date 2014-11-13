@@ -78,18 +78,33 @@ public class Main {
     } catch (java.lang.RuntimeException e) {
     }
   }
+
+  public static void expectDivisionByZero(long value) {
+    try {
+      $opt$Div(value, 0L);
+      throw new Error("Expected RuntimeException when dividing by 0");
+    } catch (java.lang.RuntimeException e) {
+    }
+    try {
+      $opt$DivZero(value);
+      throw new Error("Expected RuntimeException when dividing by 0");
+    } catch (java.lang.RuntimeException e) {
+    }
+  }
+
   public static void main(String[] args) {
     div();
   }
 
   public static void div() {
     divInt();
+    divLong();
     divFloat();
     divDouble();
   }
 
   private static void divInt() {
-    expectEquals(2, $opt$DivLit(6));
+    expectEquals(2, $opt$DivConst(6));
     expectEquals(2, $opt$Div(6, 3));
     expectEquals(6, $opt$Div(6, 1));
     expectEquals(-2, $opt$Div(6, -3));
@@ -109,6 +124,35 @@ public class Main {
     expectDivisionByZero(1);
     expectDivisionByZero(Integer.MAX_VALUE);
     expectDivisionByZero(Integer.MIN_VALUE);
+  }
+
+  private static void divLong() {
+    expectEquals(2L, $opt$DivConst(6L));
+    expectEquals(2L, $opt$Div(6L, 3L));
+    expectEquals(6L, $opt$Div(6L, 1L));
+    expectEquals(-2L, $opt$Div(6L, -3L));
+    expectEquals(1L, $opt$Div(4L, 3L));
+    expectEquals(-1L, $opt$Div(4L, -3L));
+    expectEquals(5L, $opt$Div(23L, 4L));
+    expectEquals(-5L, $opt$Div(-23L, 4L));
+
+    expectEquals(-Integer.MAX_VALUE, $opt$Div(Integer.MAX_VALUE, -1L));
+    expectEquals(2147483648L, $opt$Div(Integer.MIN_VALUE, -1L));
+    expectEquals(-1073741824L, $opt$Div(Integer.MIN_VALUE, 2L));
+
+    expectEquals(-Long.MAX_VALUE, $opt$Div(Long.MAX_VALUE, -1L));
+    expectEquals(Long.MIN_VALUE, $opt$Div(Long.MIN_VALUE, -1L)); // overflow
+
+    expectEquals(11111111111111L, $opt$Div(33333333333333L, 3L));
+    expectEquals(3L, $opt$Div(33333333333333L, 11111111111111L));
+
+    expectEquals(0L, $opt$Div(0L, Long.MAX_VALUE));
+    expectEquals(0L, $opt$Div(0L, Long.MIN_VALUE));
+
+    expectDivisionByZero(0L);
+    expectDivisionByZero(1L);
+    expectDivisionByZero(Long.MAX_VALUE);
+    expectDivisionByZero(Long.MIN_VALUE);
   }
 
   private static void divFloat() {
@@ -178,8 +222,20 @@ public class Main {
   }
 
   // Division by literals != 0 should not generate checks.
-  static int $opt$DivLit(int a) {
+  static int $opt$DivConst(int a) {
     return a / 3;
+  }
+
+  static long $opt$DivConst(long a) {
+    return a / 3L;
+  }
+
+  static long $opt$Div(long a, long b) {
+    return a / b;
+  }
+
+  static long $opt$DivZero(long a) {
+    return a / 0L;
   }
 
   static float $opt$Div(float a, float b) {
