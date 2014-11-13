@@ -38,12 +38,7 @@ static jobject GetThreadStack(const ScopedFastNativeObjectAccess& soa, jobject p
     soa.Self()->TransitionFromRunnableToSuspended(kNative);
     ThreadList* thread_list = Runtime::Current()->GetThreadList();
     bool timed_out;
-    Thread* thread;
-    {
-      // Take suspend thread lock to avoid races with threads trying to suspend this one.
-      MutexLock mu(soa.Self(), *Locks::thread_list_suspend_thread_lock_);
-      thread = thread_list->SuspendThreadByPeer(peer, true, false, &timed_out);
-    }
+    Thread* thread = thread_list->SuspendThreadByPeer(peer, true, false, &timed_out);
     if (thread != nullptr) {
       // Must be runnable to create returned array.
       CHECK_EQ(soa.Self()->TransitionFromSuspendedToRunnable(), kNative);
