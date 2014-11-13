@@ -33,6 +33,7 @@ static size_t constexpr kUninitializedFrameSize = 0;
 class Assembler;
 class CodeGenerator;
 class DexCompilationUnit;
+class ParallelMoveResolver;
 class SrcMap;
 
 class CodeAllocator {
@@ -165,6 +166,8 @@ class CodeGenerator : public ArenaObject<kArenaAllocMisc> {
   // of the architecture.
   static size_t GetCacheOffset(uint32_t index);
 
+  void EmitParallelMoves(Location from1, Location to1, Location from2, Location to2);
+
  protected:
   CodeGenerator(HGraph* graph,
                 size_t number_of_core_registers,
@@ -196,6 +199,8 @@ class CodeGenerator : public ArenaObject<kArenaAllocMisc> {
   static size_t FindTwoFreeConsecutiveAlignedEntries(bool* array, size_t length);
 
   virtual Location GetStackLocation(HLoadLocal* load) const = 0;
+
+  virtual ParallelMoveResolver* GetMoveResolver() = 0;
 
   // Frame size required for this method.
   uint32_t frame_size_;
