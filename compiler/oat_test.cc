@@ -109,8 +109,8 @@ TEST_F(OatTest, WriteRead) {
                                             verification_results_.get(),
                                             method_inliner_map_.get(),
                                             compiler_kind, insn_set,
-                                            insn_features.get(), false, nullptr, 2, true, true,
-                                            timer_.get(), ""));
+                                            insn_features.get(), false, nullptr, nullptr, 2, true,
+                                            true, timer_.get(), ""));
   jobject class_loader = nullptr;
   if (kCompile) {
     TimingLogger timings2("OatTest::WriteRead", false, false);

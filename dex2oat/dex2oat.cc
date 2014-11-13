@@ -430,6 +430,8 @@ class Dex2Oat FINAL {
       image_base_(0U),
       image_classes_zip_filename_(nullptr),
       image_classes_filename_(nullptr),
+      compiled_classes_zip_filename_(nullptr),
+      compiled_classes_filename_(nullptr),
       image_(false),
       is_host_(false),
       dump_stats_(false),
@@ -540,6 +542,10 @@ class Dex2Oat FINAL {
         image_classes_filename_ = option.substr(strlen("--image-classes=")).data();
       } else if (option.starts_with("--image-classes-zip=")) {
         image_classes_zip_filename_ = option.substr(strlen("--image-classes-zip=")).data();
+      } else if (option.starts_with("--compiled-classes=")) {
+        compiled_classes_filename_ = option.substr(strlen("--compiled-classes=")).data();
+      } else if (option.starts_with("--compiled-classes-zip=")) {
+        compiled_classes_zip_filename_ = option.substr(strlen("--compiled-classes-zip=")).data();
       } else if (option.starts_with("--base=")) {
         const char* image_base_str = option.substr(strlen("--base=")).data();
         char* end;
@@ -741,6 +747,18 @@ class Dex2Oat FINAL {
 
     if (image_classes_zip_filename_ != nullptr && image_classes_filename_ == nullptr) {
       Usage("--image-classes-zip should be used with --image-classes");
+    }
+
+    if (compiled_classes_filename_ != nullptr && !image_) {
+      Usage("--compiled-classes should only be used with --image");
+    }
+
+    if (compiled_classes_filename_ != nullptr && !boot_image_option_.empty()) {
+      Usage("--compiled-classes should not be used with --boot-image");
+    }
+
+    if (compiled_classes_zip_filename_ != nullptr && compiled_classes_filename_ == nullptr) {
+      Usage("--compiled-classes-zip should be used with --compiled-classes");
     }
 
     if (dex_filenames_.empty() && zip_fd_ == -1) {
@@ -986,6 +1004,25 @@ class Dex2Oat FINAL {
     } else if (image_) {
       image_classes_.reset(new std::set<std::string>);
     }
+    // If --compiled-classes was specified, calculate the full list of classes to compile in the
+    // image.
+    if (compiled_classes_filename_ != nullptr) {
+      std::string error_msg;
+      if (compiled_classes_zip_filename_ != nullptr) {
+        compiled_classes_.reset(ReadImageClassesFromZip(compiled_classes_zip_filename_,
+                                                        compiled_classes_filename_,
+                                                        &error_msg));
+      } else {
+        compiled_classes_.reset(ReadImageClassesFromFile(compiled_classes_filename_));
+      }
+      if (compiled_classes_.get() == nullptr) {
+        LOG(ERROR) << "Failed to create list of compiled classes from '"
+                   << compiled_classes_filename_ << "': " << error_msg;
+        return false;
+      }
+    } else if (image_) {
+      compiled_classes_.reset(nullptr);  // By default compile everything.
+    }
 
     if (boot_image_option_.empty()) {
       dex_files_ = Runtime::Current()->GetClassLinker()->GetBootClassPath();
@@ -1089,6 +1126,7 @@ class Dex2Oat FINAL {
                                      instruction_set_features_.get(),
                                      image_,
                                      image_classes_.release(),
+                                     compiled_classes_.release(),
                                      thread_count_,
                                      dump_stats_,
                                      dump_passes_,
@@ -1514,7 +1552,10 @@ class Dex2Oat FINAL {
   uintptr_t image_base_;
   const char* image_classes_zip_filename_;
   const char* image_classes_filename_;
+  const char* compiled_classes_zip_filename_;
+  const char* compiled_classes_filename_;
   std::unique_ptr<std::set<std::string>> image_classes_;
+  std::unique_ptr<std::set<std::string>> compiled_classes_;
   bool image_;
   std::unique_ptr<ImageWriter> image_writer_;
   bool is_host_;
