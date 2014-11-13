@@ -295,10 +295,30 @@ void HGraphBuilder::Binop_23x(const Instruction& instruction, Primitive::Type ty
 }
 
 template<typename T>
+void HGraphBuilder::Binop_23x(const Instruction& instruction,
+                              Primitive::Type type,
+                              uint32_t dex_pc) {
+  HInstruction* first = LoadLocal(instruction.VRegB(), type);
+  HInstruction* second = LoadLocal(instruction.VRegC(), type);
+  current_block_->AddInstruction(new (arena_) T(type, first, second, dex_pc));
+  UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+}
+
+template<typename T>
 void HGraphBuilder::Binop_12x(const Instruction& instruction, Primitive::Type type) {
   HInstruction* first = LoadLocal(instruction.VRegA(), type);
   HInstruction* second = LoadLocal(instruction.VRegB(), type);
   current_block_->AddInstruction(new (arena_) T(type, first, second));
+  UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+}
+
+template<typename T>
+void HGraphBuilder::Binop_12x(const Instruction& instruction,
+                              Primitive::Type type,
+                              uint32_t dex_pc) {
+  HInstruction* first = LoadLocal(instruction.VRegA(), type);
+  HInstruction* second = LoadLocal(instruction.VRegB(), type);
+  current_block_->AddInstruction(new (arena_) T(type, first, second, dex_pc));
   UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
 }
 
@@ -548,25 +568,37 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   return true;
 }
 
-void HGraphBuilder::BuildCheckedDiv(uint16_t out_reg,
-                                    uint16_t first_reg,
-                                    int32_t second_reg,
-                                    uint32_t dex_offset,
+void HGraphBuilder::BuildCheckedDiv(uint16_t out_vreg,
+                                    uint16_t first_vreg,
+                                    int64_t second_vreg_or_constant,
+                                    uint32_t dex_pc,
                                     Primitive::Type type,
-                                    bool second_is_lit) {
-  DCHECK(type == Primitive::kPrimInt);
+                                    bool second_is_constant) {
+  DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
 
-  HInstruction* first = LoadLocal(first_reg, type);
-  HInstruction* second = second_is_lit ? GetIntConstant(second_reg) : LoadLocal(second_reg, type);
-  if (!second->IsIntConstant() || (second->AsIntConstant()->GetValue() == 0)) {
-    second = new (arena_) HDivZeroCheck(second, dex_offset);
+  HInstruction* first = LoadLocal(first_vreg, type);
+  HInstruction* second = nullptr;
+  if (second_is_constant) {
+    if (type == Primitive::kPrimInt) {
+      second = GetIntConstant(second_vreg_or_constant);
+    } else {
+      second = GetLongConstant(second_vreg_or_constant);
+    }
+  } else {
+    second = LoadLocal(second_vreg_or_constant, type);
+  }
+
+  if (!second_is_constant
+      || (type == Primitive::kPrimInt && second->AsIntConstant()->GetValue() == 0)
+      || (type == Primitive::kPrimLong && second->AsLongConstant()->GetValue() == 0)) {
+    second = new (arena_) HDivZeroCheck(second, dex_pc);
     Temporaries temps(graph_);
     current_block_->AddInstruction(second);
     temps.Add(current_block_->GetLastInstruction());
   }
 
-  current_block_->AddInstruction(new (arena_) HDiv(type, first, second));
-  UpdateLocal(out_reg, current_block_->GetLastInstruction());
+  current_block_->AddInstruction(new (arena_) HDiv(type, first, second, dex_pc));
+  UpdateLocal(out_vreg, current_block_->GetLastInstruction());
 }
 
 void HGraphBuilder::BuildArrayAccess(const Instruction& instruction,
@@ -1041,13 +1073,19 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::DIV_LONG: {
+      BuildCheckedDiv(instruction.VRegA(), instruction.VRegB(), instruction.VRegC(),
+                      dex_offset, Primitive::kPrimLong, false);
+      break;
+    }
+
     case Instruction::DIV_FLOAT: {
-      Binop_23x<HDiv>(instruction, Primitive::kPrimFloat);
+      Binop_23x<HDiv>(instruction, Primitive::kPrimFloat, dex_offset);
       break;
     }
 
     case Instruction::DIV_DOUBLE: {
-      Binop_23x<HDiv>(instruction, Primitive::kPrimDouble);
+      Binop_23x<HDiv>(instruction, Primitive::kPrimDouble, dex_offset);
       break;
     }
 
@@ -1142,13 +1180,19 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::DIV_LONG_2ADDR: {
+      BuildCheckedDiv(instruction.VRegA(), instruction.VRegA(), instruction.VRegB(),
+                      dex_offset, Primitive::kPrimLong, false);
+      break;
+    }
+
     case Instruction::DIV_FLOAT_2ADDR: {
-      Binop_12x<HDiv>(instruction, Primitive::kPrimFloat);
+      Binop_12x<HDiv>(instruction, Primitive::kPrimFloat, dex_offset);
       break;
     }
 
     case Instruction::DIV_DOUBLE_2ADDR: {
-      Binop_12x<HDiv>(instruction, Primitive::kPrimDouble);
+      Binop_12x<HDiv>(instruction, Primitive::kPrimDouble, dex_offset);
       break;
     }
 
