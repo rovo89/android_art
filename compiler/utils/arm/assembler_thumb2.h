@@ -118,6 +118,8 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void sdiv(Register rd, Register rn, Register rm, Condition cond = AL) OVERRIDE;
   void udiv(Register rd, Register rn, Register rm, Condition cond = AL) OVERRIDE;
 
+  void sbfx(Register rd, Register rn, uint32_t lsb, uint32_t width, Condition cond = AL) OVERRIDE;
+
   // Load/store instructions.
   void ldr(Register rd, const Address& ad, Condition cond = AL) OVERRIDE;
   void str(Register rd, const Address& ad, Condition cond = AL) OVERRIDE;
