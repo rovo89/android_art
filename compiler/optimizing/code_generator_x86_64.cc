@@ -179,13 +179,15 @@ class BoundsCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
         length_location_(length_location) {}
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    CodeGeneratorX86_64* x64_codegen = down_cast<CodeGeneratorX86_64*>(codegen);
     __ Bind(GetEntryLabel());
+    // We're moving two locations to locations that could overlap, so we need a parallel
+    // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
-    x64_codegen->Move(
-        Location::RegisterLocation(calling_convention.GetRegisterAt(0)), index_location_);
-    x64_codegen->Move(
-        Location::RegisterLocation(calling_convention.GetRegisterAt(1)), length_location_);
+    codegen->EmitParallelMoves(
+        index_location_,
+        Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+        length_location_,
+        Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
     __ gs()->call(Address::Absolute(
         QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pThrowArrayBounds), true));
     codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
@@ -305,16 +307,11 @@ class TypeCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
-    MoveOperands move1(class_to_check_,
-                       Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
-                       nullptr);
-    MoveOperands move2(object_class_,
-                       Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
-                       nullptr);
-    HParallelMove parallel_move(codegen->GetGraph()->GetArena());
-    parallel_move.AddMove(&move1);
-    parallel_move.AddMove(&move2);
-    x64_codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
+    codegen->EmitParallelMoves(
+        class_to_check_,
+        Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+        object_class_,
+        Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
 
     if (instruction_->IsInstanceOf()) {
       __ gs()->call(

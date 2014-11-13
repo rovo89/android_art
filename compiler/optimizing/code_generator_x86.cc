@@ -140,9 +140,14 @@ class BoundsCheckSlowPathX86 : public SlowPathCodeX86 {
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
     __ Bind(GetEntryLabel());
+    // We're moving two locations to locations that could overlap, so we need a parallel
+    // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
-    x86_codegen->Move32(Location::RegisterLocation(calling_convention.GetRegisterAt(0)), index_location_);
-    x86_codegen->Move32(Location::RegisterLocation(calling_convention.GetRegisterAt(1)), length_location_);
+    x86_codegen->EmitParallelMoves(
+        index_location_,
+        Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+        length_location_,
+        Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
     __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pThrowArrayBounds)));
     codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
   }
@@ -291,16 +296,11 @@ class TypeCheckSlowPathX86 : public SlowPathCodeX86 {
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
     InvokeRuntimeCallingConvention calling_convention;
-    MoveOperands move1(class_to_check_,
-                       Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
-                       nullptr);
-    MoveOperands move2(object_class_,
-                       Location::RegisterLocation(calling_convention.GetRegisterAt(1)),
-                       nullptr);
-    HParallelMove parallel_move(codegen->GetGraph()->GetArena());
-    parallel_move.AddMove(&move1);
-    parallel_move.AddMove(&move2);
-    x86_codegen->GetMoveResolver()->EmitNativeCode(&parallel_move);
+    x86_codegen->EmitParallelMoves(
+        class_to_check_,
+        Location::RegisterLocation(calling_convention.GetRegisterAt(0)),
+        object_class_,
+        Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
 
     if (instruction_->IsInstanceOf()) {
       __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pInstanceofNonTrivial)));

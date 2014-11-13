@@ -230,6 +230,11 @@ class CodeGeneratorARM64 : public CodeGenerator {
   void Load(Primitive::Type type, vixl::Register dst, const vixl::MemOperand& src);
   void Store(Primitive::Type type, vixl::Register rt, const vixl::MemOperand& dst);
 
+  ParallelMoveResolver* GetMoveResolver() OVERRIDE {
+    UNIMPLEMENTED(INFO) << "TODO: MoveResolver";
+    return nullptr;
+  }
+
  private:
   // Labels for each block that will be compiled.
   vixl::Label* block_labels_;
