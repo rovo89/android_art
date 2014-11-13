@@ -107,6 +107,10 @@ static void usage() {
           "  --no-disassemble may be used to disable disassembly.\n"
           "      Example: --no-disassemble\n"
           "\n");
+  fprintf(stderr,
+          "  --method-filter=<method name>: only dumps methods that contain the filter.\n"
+          "      Example: --method-filter=foo\n"
+          "\n");
 }
 
 const char* image_roots_descriptions_[] = {
@@ -356,12 +360,14 @@ class OatDumperOptions {
                    bool dump_vmap,
                    bool disassemble_code,
                    bool absolute_addresses,
+                   const char* method_filter,
                    Handle<mirror::ClassLoader>* class_loader)
     : dump_raw_mapping_table_(dump_raw_mapping_table),
       dump_raw_gc_map_(dump_raw_gc_map),
       dump_vmap_(dump_vmap),
       disassemble_code_(disassemble_code),
       absolute_addresses_(absolute_addresses),
+      method_filter_(method_filter),
       class_loader_(class_loader) {}
 
   const bool dump_raw_mapping_table_;
@@ -369,6 +375,7 @@ class OatDumperOptions {
   const bool dump_vmap_;
   const bool disassemble_code_;
   const bool absolute_addresses_;
+  const char* const method_filter_;
   Handle<mirror::ClassLoader>* class_loader_;
 };
 
@@ -686,8 +693,13 @@ class OatDumper {
                      uint32_t dex_method_idx, const DexFile::CodeItem* code_item,
                      uint32_t method_access_flags) {
     bool success = true;
+    std::string pretty_method = PrettyMethod(dex_method_idx, dex_file, true);
+    if (pretty_method.find(options_->method_filter_) == std::string::npos) {
+      return success;
+    }
+
     os << StringPrintf("%d: %s (dex_method_idx=%d)\n",
-                       class_method_index, PrettyMethod(dex_method_idx, dex_file, true).c_str(),
+                       class_method_index, pretty_method.c_str(),
                        dex_method_idx);
     Indenter indent1_filter(os.rdbuf(), kIndentChar, kIndentBy1Count);
     std::unique_ptr<std::ostream> indent1_os(new std::ostream(&indent1_filter));
@@ -2179,6 +2191,8 @@ struct OatdumpArgs {
       } else if (option.starts_with("--symbolize=")) {
         oat_filename_ = option.substr(strlen("--symbolize=")).data();
         symbolize_ = true;
+      } else if (option.starts_with("--method-filter=")) {
+        method_filter_ = option.substr(strlen("--method-filter=")).data();
       } else {
         fprintf(stderr, "Unknown argument %s\n", option.data());
         usage();
@@ -2200,6 +2214,7 @@ struct OatdumpArgs {
   }
 
   const char* oat_filename_ = nullptr;
+  const char* method_filter_ = "";
   const char* image_location_ = nullptr;
   const char* boot_image_location_ = nullptr;
   InstructionSet instruction_set_ = kRuntimeISA;
@@ -2231,6 +2246,7 @@ static int oatdump(int argc, char** argv) {
       args.dump_vmap_,
       args.disassemble_code_,
       absolute_addresses,
+      args.method_filter_,
       nullptr));
 
   std::unique_ptr<Runtime> runtime;
