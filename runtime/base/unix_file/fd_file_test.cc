@@ -76,4 +76,38 @@ TEST_F(FdFileTest, ReadFullyEmptyFile) {
   EXPECT_FALSE(file.ReadFully(&buffer, 4));
 }
 
+template <size_t Size>
+static void NullTerminateCharArray(char (&array)[Size]) {
+  array[Size - 1] = '\0';
+}
+
+TEST_F(FdFileTest, ReadFullyWithOffset) {
+  // New scratch file, zero-length.
+  art::ScratchFile tmp;
+  FdFile file;
+  ASSERT_TRUE(file.Open(tmp.GetFilename(), O_RDWR));
+  EXPECT_GE(file.Fd(), 0);
+  EXPECT_TRUE(file.IsOpened());
+
+  char ignore_prefix[20] = {'a', };
+  NullTerminateCharArray(ignore_prefix);
+  char read_suffix[10] = {'b', };
+  NullTerminateCharArray(read_suffix);
+
+  off_t offset = 0;
+  // Write scratch data to file that we can read back into.
+  EXPECT_TRUE(file.Write(ignore_prefix, sizeof(ignore_prefix), offset));
+  offset += sizeof(ignore_prefix);
+  EXPECT_TRUE(file.Write(read_suffix, sizeof(read_suffix), offset));
+
+  ASSERT_EQ(file.Flush(), 0);
+
+  // Reading at an offset should only produce 'bbbb...', since we ignore the 'aaa...' prefix.
+  char buffer[sizeof(read_suffix)];
+  EXPECT_TRUE(file.PreadFully(buffer, sizeof(read_suffix), offset));
+  EXPECT_STREQ(&read_suffix[0], &buffer[0]);
+
+  ASSERT_EQ(file.Close(), 0);
+}
+
 }  // namespace unix_file
