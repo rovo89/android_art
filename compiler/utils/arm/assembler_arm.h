@@ -421,6 +421,9 @@ class ArmAssembler : public Assembler {
   virtual void sdiv(Register rd, Register rn, Register rm, Condition cond = AL) = 0;
   virtual void udiv(Register rd, Register rn, Register rm, Condition cond = AL) = 0;
 
+  virtual void sbfx(Register rd, Register rn, uint32_t lsb, uint32_t width,
+                    Condition cond = AL) = 0;
+
   // Load/store instructions.
   virtual void ldr(Register rd, const Address& ad, Condition cond = AL) = 0;
   virtual void str(Register rd, const Address& ad, Condition cond = AL) = 0;
