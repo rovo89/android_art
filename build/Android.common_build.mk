@@ -173,7 +173,9 @@ art_gcc_cflags := -Wunused-but-set-parameter
 
 
 ifeq ($(ART_HOST_CLANG),true)
-  ART_HOST_CFLAGS += $(art_clang_cflags)
+  # Bug: 15446488. We don't omit the frame pointer to work around
+  # clang/libunwind bugs that cause SEGVs in run-test-004-ThreadStress.
+  ART_HOST_CFLAGS += $(art_clang_cflags) -fno-omit-frame-pointer
 else
   ART_HOST_CFLAGS += $(art_gcc_cflags)
 endif

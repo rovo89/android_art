@@ -85,7 +85,7 @@ inline void Thread::AssertThreadSuspensionIsAllowable(bool check_locks) const {
       bool bad_mutexes_held = false;
       for (int i = kLockLevelCount - 1; i >= 0; --i) {
         // We expect no locks except the mutator_lock_ or thread list suspend thread lock.
-        if (i != kMutatorLock && i != kThreadListSuspendThreadLock) {
+        if (i != kMutatorLock) {
           BaseMutex* held_mutex = GetHeldMutex(static_cast<LockLevel>(i));
           if (held_mutex != NULL) {
             LOG(ERROR) << "holding \"" << held_mutex->GetName()
