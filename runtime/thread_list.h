@@ -68,7 +68,6 @@ class ThreadList {
   // is set to true.
   Thread* SuspendThreadByPeer(jobject peer, bool request_suspension, bool debug_suspension,
                               bool* timed_out)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_suspend_thread_lock_)
       LOCKS_EXCLUDED(Locks::mutator_lock_,
                      Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
@@ -78,7 +77,6 @@ class ThreadList {
   // the thread terminating. Note that as thread ids are recycled this may not suspend the expected
   // thread, that may be terminating. If the suspension times out then *timeout is set to true.
   Thread* SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspension, bool* timed_out)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_list_suspend_thread_lock_)
       LOCKS_EXCLUDED(Locks::mutator_lock_,
                      Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
