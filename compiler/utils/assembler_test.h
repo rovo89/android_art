@@ -394,10 +394,19 @@ class AssemblerTest : public testing::Test {
 
     std::vector<std::string> args;
 
+    // Encaspulate the whole command line in a single string passed to
+    // the shell, so that GetAssemblerCommand() may contain arguments
+    // in addition to the program name.
     args.push_back(GetAssemblerCommand());
     args.push_back("-o");
     args.push_back(to_file);
     args.push_back(from_file);
+    std::string cmd = Join(args, ' ');
+
+    args.clear();
+    args.push_back("/bin/sh");
+    args.push_back("-c");
+    args.push_back(cmd);
 
     return Exec(args, error_msg);
   }
@@ -414,6 +423,9 @@ class AssemblerTest : public testing::Test {
     std::string error_msg;
     std::vector<std::string> args;
 
+    // Encaspulate the whole command line in a single string passed to
+    // the shell, so that GetObjdumpCommand() may contain arguments
+    // in addition to the program name.
     args.push_back(GetObjdumpCommand());
     args.push_back(file);
     args.push_back(">");
@@ -490,6 +502,9 @@ class AssemblerTest : public testing::Test {
   bool DisassembleBinary(std::string file, std::string* error_msg) {
     std::vector<std::string> args;
 
+    // Encaspulate the whole command line in a single string passed to
+    // the shell, so that GetDisassembleCommand() may contain arguments
+    // in addition to the program name.
     args.push_back(GetDisassembleCommand());
     args.push_back(file);
     args.push_back("| sed -n \'/<.data>/,$p\' | sed -e \'s/.*://\'");
