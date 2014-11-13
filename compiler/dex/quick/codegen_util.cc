@@ -990,7 +990,8 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       last_lir_insn_(nullptr),
       slow_paths_(arena->Adapter(kArenaAllocSlowPaths)),
       mem_ref_type_(ResourceMask::kHeapRef),
-      mask_cache_(arena) {
+      mask_cache_(arena),
+      in_to_reg_storage_mapping_(arena) {
   switch_tables_.reserve(4);
   fill_array_data_.reserve(4);
   tempreg_info_.reserve(20);

@@ -26,16 +26,6 @@ namespace art {
 
 class ArmMir2Lir FINAL : public Mir2Lir {
  protected:
-  // TODO: Consolidate hard float target support.
-  // InToRegStorageMapper and InToRegStorageMapping can be shared with all backends.
-  // Base class used to get RegStorage for next argument.
-  class InToRegStorageMapper {
-   public:
-    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide) = 0;
-    virtual ~InToRegStorageMapper() {
-    }
-  };
-
   // Inherited class for ARM backend.
   class InToRegStorageArmMapper FINAL : public InToRegStorageMapper {
    public:
@@ -43,45 +33,25 @@ class ArmMir2Lir FINAL : public Mir2Lir {
         : cur_core_reg_(0), cur_fp_reg_(0), cur_fp_double_reg_(0) {
     }
 
-    virtual ~InToRegStorageArmMapper() {
-    }
+    RegStorage GetNextReg(ShortyArg arg) OVERRIDE;
 
-    RegStorage GetNextReg(bool is_double_or_float, bool is_wide) OVERRIDE;
+    virtual void Reset() OVERRIDE {
+      cur_core_reg_ = 0;
+      cur_fp_reg_ = 0;
+      cur_fp_double_reg_ = 0;
+    }
 
    private:
-    uint32_t cur_core_reg_;
-    uint32_t cur_fp_reg_;
-    uint32_t cur_fp_double_reg_;
+    size_t cur_core_reg_;
+    size_t cur_fp_reg_;
+    size_t cur_fp_double_reg_;
   };
 
-  // Class to map argument to RegStorage. The mapping object is initialized by a mapper.
-  class InToRegStorageMapping FINAL {
-   public:
-    InToRegStorageMapping()
-        : max_mapped_in_(0), is_there_stack_mapped_(false), initialized_(false) {
-    }
-
-    int GetMaxMappedIn() const {
-      return max_mapped_in_;
-    }
-
-    bool IsThereStackMapped() const {
-      return is_there_stack_mapped_;
-    }
-
-    bool IsInitialized() const {
-      return initialized_;
-    }
-
-    void Initialize(RegLocation* arg_locs, int count, InToRegStorageMapper* mapper);
-    RegStorage Get(int in_position) const;
-
-   private:
-    std::map<int, RegStorage> mapping_;
-    int max_mapped_in_;
-    bool is_there_stack_mapped_;
-    bool initialized_;
-  };
+  InToRegStorageArmMapper in_to_reg_storage_arm_mapper_;
+  InToRegStorageMapper* GetResetedInToRegStorageMapper() OVERRIDE {
+    in_to_reg_storage_arm_mapper_.Reset();
+    return &in_to_reg_storage_arm_mapper_;
+  }
 
   public:
     ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
@@ -127,7 +97,6 @@ class ArmMir2Lir FINAL : public Mir2Lir {
       }
     }
 
-    RegStorage GetArgMappingToPhysicalReg(int arg_num) OVERRIDE;
     RegLocation GetReturnAlt() OVERRIDE;
     RegLocation GetReturnWideAlt() OVERRIDE;
     RegLocation LocCReturn() OVERRIDE;
@@ -289,19 +258,6 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) OVERRIDE;
     size_t GetInstructionOffset(LIR* lir);
 
-    int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
-                             NextCallInsn next_call_insn,
-                             const MethodReference& target_method,
-                             uint32_t vtable_idx,
-                             uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
-                             bool skip_this) OVERRIDE;
-    int GenDalvikArgsRange(CallInfo* info, int call_state, LIR** pcrLabel,
-                           NextCallInsn next_call_insn,
-                           const MethodReference& target_method,
-                           uint32_t vtable_idx,
-                           uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
-                           bool skip_this) OVERRIDE;
-
   private:
     void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
     void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
@@ -360,7 +316,7 @@ class ArmMir2Lir FINAL : public Mir2Lir {
                                      RegStorage::FloatSolo32(reg_num * 2 + 1));
     }
 
-    InToRegStorageMapping in_to_reg_storage_mapping_;
+    int GenDalvikArgsBulkCopy(CallInfo* info, int first, int count) OVERRIDE;
 };
 
 }  // namespace art

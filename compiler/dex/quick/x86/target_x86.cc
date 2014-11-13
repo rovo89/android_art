@@ -808,6 +808,7 @@ RegisterClass X86Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatil
 
 X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Mir2Lir(cu, mir_graph, arena),
+      in_to_reg_storage_x86_64_mapper_(this), in_to_reg_storage_x86_mapper_(this),
       base_of_code_(nullptr), store_method_addr_(false), store_method_addr_used_(false),
       method_address_insns_(arena->Adapter()),
       class_type_address_insns_(arena->Adapter()),
@@ -2396,451 +2397,44 @@ LIR* X86Mir2Lir::AddVectorLiteral(int32_t* constants) {
 }
 
 // ------------ ABI support: mapping of args to physical registers -------------
-RegStorage X86Mir2Lir::InToRegStorageX86_64Mapper::GetNextReg(bool is_double_or_float, bool is_wide,
-                                                              bool is_ref) {
+RegStorage X86Mir2Lir::InToRegStorageX86_64Mapper::GetNextReg(ShortyArg arg) {
   const SpecialTargetRegister coreArgMappingToPhysicalReg[] = {kArg1, kArg2, kArg3, kArg4, kArg5};
-  const int coreArgMappingToPhysicalRegSize = sizeof(coreArgMappingToPhysicalReg) /
-      sizeof(SpecialTargetRegister);
+  const size_t coreArgMappingToPhysicalRegSize = arraysize(coreArgMappingToPhysicalReg);
   const SpecialTargetRegister fpArgMappingToPhysicalReg[] = {kFArg0, kFArg1, kFArg2, kFArg3,
                                                              kFArg4, kFArg5, kFArg6, kFArg7};
-  const int fpArgMappingToPhysicalRegSize = sizeof(fpArgMappingToPhysicalReg) /
-      sizeof(SpecialTargetRegister);
+  const size_t fpArgMappingToPhysicalRegSize = arraysize(fpArgMappingToPhysicalReg);
 
-  if (is_double_or_float) {
+  if (arg.IsFP()) {
     if (cur_fp_reg_ < fpArgMappingToPhysicalRegSize) {
-      return ml_->TargetReg(fpArgMappingToPhysicalReg[cur_fp_reg_++], is_wide ? kWide : kNotWide);
+      return m2l_->TargetReg(fpArgMappingToPhysicalReg[cur_fp_reg_++],
+                             arg.IsWide() ? kWide : kNotWide);
     }
   } else {
     if (cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
-      return ml_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++],
-                            is_ref ? kRef : (is_wide ? kWide : kNotWide));
+      return m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++],
+                             arg.IsRef() ? kRef : (arg.IsWide() ? kWide : kNotWide));
     }
   }
   return RegStorage::InvalidReg();
 }
 
-RegStorage X86Mir2Lir::InToRegStorageMapping::Get(int in_position) {
-  DCHECK(IsInitialized());
-  auto res = mapping_.find(in_position);
-  return res != mapping_.end() ? res->second : RegStorage::InvalidReg();
-}
+RegStorage X86Mir2Lir::InToRegStorageX86Mapper::GetNextReg(ShortyArg arg) {
+  const SpecialTargetRegister coreArgMappingToPhysicalReg[] = {kArg1, kArg2, kArg3};
+  const size_t coreArgMappingToPhysicalRegSize = arraysize(coreArgMappingToPhysicalReg);
 
-void X86Mir2Lir::InToRegStorageMapping::Initialize(RegLocation* arg_locs, int count,
-                                                   InToRegStorageMapper* mapper) {
-  DCHECK(mapper != nullptr);
-  max_mapped_in_ = -1;
-  is_there_stack_mapped_ = false;
-  for (int in_position = 0; in_position < count; in_position++) {
-     RegStorage reg = mapper->GetNextReg(arg_locs[in_position].fp,
-             arg_locs[in_position].wide, arg_locs[in_position].ref);
-     if (reg.Valid()) {
-       mapping_[in_position] = reg;
-       max_mapped_in_ = std::max(max_mapped_in_, in_position);
-       if (arg_locs[in_position].wide) {
-         // We covered 2 args, so skip the next one
-         in_position++;
-       }
-     } else {
-       is_there_stack_mapped_ = true;
-     }
+  RegStorage result = RegStorage::InvalidReg();
+  if (cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
+    result = m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++],
+                          arg.IsRef() ? kRef : kNotWide);
+    if (arg.IsWide() && cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
+      result = RegStorage::MakeRegPair(
+          result, m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++], kNotWide));
+    }
   }
-  initialized_ = true;
-}
-
-RegStorage X86Mir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
-  if (!cu_->target64) {
-    return GetCoreArgMappingToPhysicalReg(arg_num);
-  }
-
-  if (!in_to_reg_storage_mapping_.IsInitialized()) {
-    int start_vreg = cu_->mir_graph->GetFirstInVR();
-    RegLocation* arg_locs = &mir_graph_->reg_location_[start_vreg];
-
-    InToRegStorageX86_64Mapper mapper(this);
-    in_to_reg_storage_mapping_.Initialize(arg_locs, mir_graph_->GetNumOfInVRs(), &mapper);
-  }
-  return in_to_reg_storage_mapping_.Get(arg_num);
-}
-
-RegStorage X86Mir2Lir::GetCoreArgMappingToPhysicalReg(int core_arg_num) const {
-  // For the 32-bit internal ABI, the first 3 arguments are passed in registers.
-  // Not used for 64-bit, TODO: Move X86_32 to the same framework
-  switch (core_arg_num) {
-    case 0: return TargetReg32(kArg1);
-    case 1: return TargetReg32(kArg2);
-    case 2: return TargetReg32(kArg3);
-    default: return RegStorage::InvalidReg();
-  }
+  return result;
 }
 
 // ---------End of ABI support: mapping of args to physical registers -------------
-
-/*
- * If there are any ins passed in registers that have not been promoted
- * to a callee-save register, flush them to the frame.  Perform initial
- * assignment of promoted arguments.
- *
- * ArgLocs is an array of location records describing the incoming arguments
- * with one location record per word of argument.
- */
-void X86Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
-  if (!cu_->target64) return Mir2Lir::FlushIns(ArgLocs, rl_method);
-  /*
-   * Dummy up a RegLocation for the incoming Method*
-   * It will attempt to keep kArg0 live (or copy it to home location
-   * if promoted).
-   */
-
-  RegLocation rl_src = rl_method;
-  rl_src.location = kLocPhysReg;
-  rl_src.reg = TargetReg(kArg0, kRef);
-  rl_src.home = false;
-  MarkLive(rl_src);
-  StoreValue(rl_method, rl_src);
-  // If Method* has been promoted, explicitly flush
-  if (rl_method.location == kLocPhysReg) {
-    const RegStorage rs_rSP = cu_->target64 ? rs_rX86_SP_64 : rs_rX86_SP_32;
-    StoreRefDisp(rs_rSP, 0, As32BitReg(TargetReg(kArg0, kRef)), kNotVolatile);
-  }
-
-  if (mir_graph_->GetNumOfInVRs() == 0) {
-    return;
-  }
-
-  int start_vreg = cu_->mir_graph->GetFirstInVR();
-  /*
-   * Copy incoming arguments to their proper home locations.
-   * NOTE: an older version of dx had an issue in which
-   * it would reuse static method argument registers.
-   * This could result in the same Dalvik virtual register
-   * being promoted to both core and fp regs. To account for this,
-   * we only copy to the corresponding promoted physical register
-   * if it matches the type of the SSA name for the incoming
-   * argument.  It is also possible that long and double arguments
-   * end up half-promoted.  In those cases, we must flush the promoted
-   * half to memory as well.
-   */
-  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-  for (uint32_t i = 0; i < mir_graph_->GetNumOfInVRs(); i++) {
-    // get reg corresponding to input
-    RegStorage reg = GetArgMappingToPhysicalReg(i);
-
-    RegLocation* t_loc = &ArgLocs[i];
-    if (reg.Valid()) {
-      // If arriving in register.
-
-      // We have already updated the arg location with promoted info
-      // so we can be based on it.
-      if (t_loc->location == kLocPhysReg) {
-        // Just copy it.
-        OpRegCopy(t_loc->reg, reg);
-      } else {
-        // Needs flush.
-        if (t_loc->ref) {
-          StoreRefDisp(rs_rX86_SP_64, SRegOffset(start_vreg + i), reg, kNotVolatile);
-        } else {
-          StoreBaseDisp(rs_rX86_SP_64, SRegOffset(start_vreg + i), reg, t_loc->wide ? k64 : k32,
-                        kNotVolatile);
-        }
-      }
-    } else {
-      // If arriving in frame & promoted.
-      if (t_loc->location == kLocPhysReg) {
-        if (t_loc->ref) {
-          LoadRefDisp(rs_rX86_SP_64, SRegOffset(start_vreg + i), t_loc->reg, kNotVolatile);
-        } else {
-          LoadBaseDisp(rs_rX86_SP_64, SRegOffset(start_vreg + i), t_loc->reg,
-                       t_loc->wide ? k64 : k32, kNotVolatile);
-        }
-      }
-    }
-    if (t_loc->wide) {
-      // Increment i to skip the next one.
-      i++;
-    }
-  }
-}
-
-/*
- * Load up to 5 arguments, the first three of which will be in
- * kArg1 .. kArg3.  On entry kArg0 contains the current method pointer,
- * and as part of the load sequence, it must be replaced with
- * the target method pointer.  Note, this may also be called
- * for "range" variants if the number of arguments is 5 or fewer.
- */
-int X86Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
-                                  int call_state, LIR** pcrLabel, NextCallInsn next_call_insn,
-                                  const MethodReference& target_method,
-                                  uint32_t vtable_idx, uintptr_t direct_code,
-                                  uintptr_t direct_method, InvokeType type, bool skip_this) {
-  if (!cu_->target64) {
-    return Mir2Lir::GenDalvikArgsNoRange(info,
-                                         call_state, pcrLabel, next_call_insn,
-                                         target_method,
-                                         vtable_idx, direct_code,
-                                         direct_method, type, skip_this);
-  }
-  return GenDalvikArgsRange(info,
-                            call_state, pcrLabel, next_call_insn,
-                            target_method,
-                            vtable_idx, direct_code,
-                            direct_method, type, skip_this);
-}
-
-/*
- * May have 0+ arguments (also used for jumbo).  Note that
- * source virtual registers may be in physical registers, so may
- * need to be flushed to home location before copying.  This
- * applies to arg3 and above (see below).
- *
- * Two general strategies:
- *    If < 20 arguments
- *       Pass args 3-18 using vldm/vstm block copy
- *       Pass arg0, arg1 & arg2 in kArg1-kArg3
- *    If 20+ arguments
- *       Pass args arg19+ using memcpy block copy
- *       Pass arg0, arg1 & arg2 in kArg1-kArg3
- *
- */
-int X86Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
-                                LIR** pcrLabel, NextCallInsn next_call_insn,
-                                const MethodReference& target_method,
-                                uint32_t vtable_idx, uintptr_t direct_code, uintptr_t direct_method,
-                                InvokeType type, bool skip_this) {
-  if (!cu_->target64) {
-    return Mir2Lir::GenDalvikArgsRange(info, call_state,
-                                pcrLabel, next_call_insn,
-                                target_method,
-                                vtable_idx, direct_code, direct_method,
-                                type, skip_this);
-  }
-
-  /* If no arguments, just return */
-  if (info->num_arg_words == 0)
-    return call_state;
-
-  const int start_index = skip_this ? 1 : 0;
-
-  InToRegStorageX86_64Mapper mapper(this);
-  InToRegStorageMapping in_to_reg_storage_mapping;
-  in_to_reg_storage_mapping.Initialize(info->args, info->num_arg_words, &mapper);
-  const int last_mapped_in = in_to_reg_storage_mapping.GetMaxMappedIn();
-  const int size_of_the_last_mapped = last_mapped_in == -1 ? 1 :
-          info->args[last_mapped_in].wide ? 2 : 1;
-  int regs_left_to_pass_via_stack = info->num_arg_words - (last_mapped_in + size_of_the_last_mapped);
-
-  // Fisrt of all, check whether it make sense to use bulk copying
-  // Optimization is aplicable only for range case
-  // TODO: make a constant instead of 2
-  if (info->is_range && regs_left_to_pass_via_stack >= 2) {
-    // Scan the rest of the args - if in phys_reg flush to memory
-    for (int next_arg = last_mapped_in + size_of_the_last_mapped; next_arg < info->num_arg_words;) {
-      RegLocation loc = info->args[next_arg];
-      if (loc.wide) {
-        loc = UpdateLocWide(loc);
-        if (loc.location == kLocPhysReg) {
-          ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          StoreBaseDisp(rs_rX86_SP_64, SRegOffset(loc.s_reg_low), loc.reg, k64, kNotVolatile);
-        }
-        next_arg += 2;
-      } else {
-        loc = UpdateLoc(loc);
-        if (loc.location == kLocPhysReg) {
-          ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          StoreBaseDisp(rs_rX86_SP_64, SRegOffset(loc.s_reg_low), loc.reg, k32, kNotVolatile);
-        }
-        next_arg++;
-      }
-    }
-
-    // The rest can be copied together
-    int start_offset = SRegOffset(info->args[last_mapped_in + size_of_the_last_mapped].s_reg_low);
-    int outs_offset = StackVisitor::GetOutVROffset(last_mapped_in + size_of_the_last_mapped,
-                                                   cu_->instruction_set);
-
-    int current_src_offset = start_offset;
-    int current_dest_offset = outs_offset;
-
-    // Only davik regs are accessed in this loop; no next_call_insn() calls.
-    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-    while (regs_left_to_pass_via_stack > 0) {
-      // This is based on the knowledge that the stack itself is 16-byte aligned.
-      bool src_is_16b_aligned = (current_src_offset & 0xF) == 0;
-      bool dest_is_16b_aligned = (current_dest_offset & 0xF) == 0;
-      size_t bytes_to_move;
-
-      /*
-       * The amount to move defaults to 32-bit. If there are 4 registers left to move, then do a
-       * a 128-bit move because we won't get the chance to try to aligned. If there are more than
-       * 4 registers left to move, consider doing a 128-bit only if either src or dest are aligned.
-       * We do this because we could potentially do a smaller move to align.
-       */
-      if (regs_left_to_pass_via_stack == 4 ||
-          (regs_left_to_pass_via_stack > 4 && (src_is_16b_aligned || dest_is_16b_aligned))) {
-        // Moving 128-bits via xmm register.
-        bytes_to_move = sizeof(uint32_t) * 4;
-
-        // Allocate a free xmm temp. Since we are working through the calling sequence,
-        // we expect to have an xmm temporary available.  AllocTempDouble will abort if
-        // there are no free registers.
-        RegStorage temp = AllocTempDouble();
-
-        LIR* ld1 = nullptr;
-        LIR* ld2 = nullptr;
-        LIR* st1 = nullptr;
-        LIR* st2 = nullptr;
-
-        /*
-         * The logic is similar for both loads and stores. If we have 16-byte alignment,
-         * do an aligned move. If we have 8-byte alignment, then do the move in two
-         * parts. This approach prevents possible cache line splits. Finally, fall back
-         * to doing an unaligned move. In most cases we likely won't split the cache
-         * line but we cannot prove it and thus take a conservative approach.
-         */
-        bool src_is_8b_aligned = (current_src_offset & 0x7) == 0;
-        bool dest_is_8b_aligned = (current_dest_offset & 0x7) == 0;
-
-        ScopedMemRefType mem_ref_type2(this, ResourceMask::kDalvikReg);
-        if (src_is_16b_aligned) {
-          ld1 = OpMovRegMem(temp, rs_rX86_SP_64, current_src_offset, kMovA128FP);
-        } else if (src_is_8b_aligned) {
-          ld1 = OpMovRegMem(temp, rs_rX86_SP_64, current_src_offset, kMovLo128FP);
-          ld2 = OpMovRegMem(temp, rs_rX86_SP_64, current_src_offset + (bytes_to_move >> 1),
-                            kMovHi128FP);
-        } else {
-          ld1 = OpMovRegMem(temp, rs_rX86_SP_64, current_src_offset, kMovU128FP);
-        }
-
-        if (dest_is_16b_aligned) {
-          st1 = OpMovMemReg(rs_rX86_SP_64, current_dest_offset, temp, kMovA128FP);
-        } else if (dest_is_8b_aligned) {
-          st1 = OpMovMemReg(rs_rX86_SP_64, current_dest_offset, temp, kMovLo128FP);
-          st2 = OpMovMemReg(rs_rX86_SP_64, current_dest_offset + (bytes_to_move >> 1),
-                            temp, kMovHi128FP);
-        } else {
-          st1 = OpMovMemReg(rs_rX86_SP_64, current_dest_offset, temp, kMovU128FP);
-        }
-
-        // TODO If we could keep track of aliasing information for memory accesses that are wider
-        // than 64-bit, we wouldn't need to set up a barrier.
-        if (ld1 != nullptr) {
-          if (ld2 != nullptr) {
-            // For 64-bit load we can actually set up the aliasing information.
-            AnnotateDalvikRegAccess(ld1, current_src_offset >> 2, true, true);
-            AnnotateDalvikRegAccess(ld2, (current_src_offset + (bytes_to_move >> 1)) >> 2, true, true);
-          } else {
-            // Set barrier for 128-bit load.
-            ld1->u.m.def_mask = &kEncodeAll;
-          }
-        }
-        if (st1 != nullptr) {
-          if (st2 != nullptr) {
-            // For 64-bit store we can actually set up the aliasing information.
-            AnnotateDalvikRegAccess(st1, current_dest_offset >> 2, false, true);
-            AnnotateDalvikRegAccess(st2, (current_dest_offset + (bytes_to_move >> 1)) >> 2, false, true);
-          } else {
-            // Set barrier for 128-bit store.
-            st1->u.m.def_mask = &kEncodeAll;
-          }
-        }
-
-        // Free the temporary used for the data movement.
-        FreeTemp(temp);
-      } else {
-        // Moving 32-bits via general purpose register.
-        bytes_to_move = sizeof(uint32_t);
-
-        // Instead of allocating a new temp, simply reuse one of the registers being used
-        // for argument passing.
-        RegStorage temp = TargetReg(kArg3, kNotWide);
-
-        // Now load the argument VR and store to the outs.
-        Load32Disp(rs_rX86_SP_64, current_src_offset, temp);
-        Store32Disp(rs_rX86_SP_64, current_dest_offset, temp);
-      }
-
-      current_src_offset += bytes_to_move;
-      current_dest_offset += bytes_to_move;
-      regs_left_to_pass_via_stack -= (bytes_to_move >> 2);
-    }
-    DCHECK_EQ(regs_left_to_pass_via_stack, 0);
-  }
-
-  // Now handle rest not registers if they are
-  if (in_to_reg_storage_mapping.IsThereStackMapped()) {
-    RegStorage regSingle = TargetReg(kArg2, kNotWide);
-    RegStorage regWide = TargetReg(kArg3, kWide);
-    for (int i = start_index;
-         i < last_mapped_in + size_of_the_last_mapped + regs_left_to_pass_via_stack; i++) {
-      RegLocation rl_arg = info->args[i];
-      rl_arg = UpdateRawLoc(rl_arg);
-      RegStorage reg = in_to_reg_storage_mapping.Get(i);
-      if (!reg.Valid()) {
-        int out_offset = StackVisitor::GetOutVROffset(i, cu_->instruction_set);
-
-        {
-          ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          if (rl_arg.wide) {
-            if (rl_arg.location == kLocPhysReg) {
-              StoreBaseDisp(rs_rX86_SP_64, out_offset, rl_arg.reg, k64, kNotVolatile);
-            } else {
-              LoadValueDirectWideFixed(rl_arg, regWide);
-              StoreBaseDisp(rs_rX86_SP_64, out_offset, regWide, k64, kNotVolatile);
-            }
-          } else {
-            if (rl_arg.location == kLocPhysReg) {
-              StoreBaseDisp(rs_rX86_SP_64, out_offset, rl_arg.reg, k32, kNotVolatile);
-            } else {
-              LoadValueDirectFixed(rl_arg, regSingle);
-              StoreBaseDisp(rs_rX86_SP_64, out_offset, regSingle, k32, kNotVolatile);
-            }
-          }
-        }
-        call_state = next_call_insn(cu_, info, call_state, target_method,
-                                    vtable_idx, direct_code, direct_method, type);
-      }
-      if (rl_arg.wide) {
-        i++;
-      }
-    }
-  }
-
-  // Finish with mapped registers
-  for (int i = start_index; i <= last_mapped_in; i++) {
-    RegLocation rl_arg = info->args[i];
-    rl_arg = UpdateRawLoc(rl_arg);
-    RegStorage reg = in_to_reg_storage_mapping.Get(i);
-    if (reg.Valid()) {
-      if (rl_arg.wide) {
-        LoadValueDirectWideFixed(rl_arg, reg);
-      } else {
-        LoadValueDirectFixed(rl_arg, reg);
-      }
-      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                               direct_code, direct_method, type);
-    }
-    if (rl_arg.wide) {
-      i++;
-    }
-  }
-
-  call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                           direct_code, direct_method, type);
-  if (pcrLabel) {
-    if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitNullChecks()) {
-      *pcrLabel = GenExplicitNullCheck(TargetReg(kArg1, kRef), info->opt_flags);
-    } else {
-      *pcrLabel = nullptr;
-      // In lieu of generating a check for kArg1 being null, we need to
-      // perform a load when doing implicit checks.
-      RegStorage tmp = AllocTemp();
-      Load32Disp(TargetReg(kArg1, kRef), 0, tmp);
-      MarkPossibleNullPointerException(info->opt_flags);
-      FreeTemp(tmp);
-    }
-  }
-  return call_state;
-}
 
 bool X86Mir2Lir::GenInlinedCharAt(CallInfo* info) {
   // Location of reference to data array
@@ -2967,6 +2561,124 @@ X86Mir2Lir::ExplicitTempRegisterLock::~ExplicitTempRegisterLock() {
   for (auto it : temp_regs_) {
     mir_to_lir_->FreeTemp(it);
   }
+}
+
+int X86Mir2Lir::GenDalvikArgsBulkCopy(CallInfo* info, int first, int count) {
+  if (count < 4) {
+    // It does not make sense to use this utility if we have no chance to use
+    // 128-bit move.
+    return count;
+  }
+  GenDalvikArgsFlushPromoted(info, first);
+
+  // The rest can be copied together
+  int current_src_offset = SRegOffset(info->args[first].s_reg_low);
+  int current_dest_offset = StackVisitor::GetOutVROffset(first, cu_->instruction_set);
+
+  // Only davik regs are accessed in this loop; no next_call_insn() calls.
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+  while (count > 0) {
+    // This is based on the knowledge that the stack itself is 16-byte aligned.
+    bool src_is_16b_aligned = (current_src_offset & 0xF) == 0;
+    bool dest_is_16b_aligned = (current_dest_offset & 0xF) == 0;
+    size_t bytes_to_move;
+
+    /*
+     * The amount to move defaults to 32-bit. If there are 4 registers left to move, then do a
+     * a 128-bit move because we won't get the chance to try to aligned. If there are more than
+     * 4 registers left to move, consider doing a 128-bit only if either src or dest are aligned.
+     * We do this because we could potentially do a smaller move to align.
+     */
+    if (count == 4 || (count > 4 && (src_is_16b_aligned || dest_is_16b_aligned))) {
+      // Moving 128-bits via xmm register.
+      bytes_to_move = sizeof(uint32_t) * 4;
+
+      // Allocate a free xmm temp. Since we are working through the calling sequence,
+      // we expect to have an xmm temporary available. AllocTempDouble will abort if
+      // there are no free registers.
+      RegStorage temp = AllocTempDouble();
+
+      LIR* ld1 = nullptr;
+      LIR* ld2 = nullptr;
+      LIR* st1 = nullptr;
+      LIR* st2 = nullptr;
+
+      /*
+       * The logic is similar for both loads and stores. If we have 16-byte alignment,
+       * do an aligned move. If we have 8-byte alignment, then do the move in two
+       * parts. This approach prevents possible cache line splits. Finally, fall back
+       * to doing an unaligned move. In most cases we likely won't split the cache
+       * line but we cannot prove it and thus take a conservative approach.
+       */
+      bool src_is_8b_aligned = (current_src_offset & 0x7) == 0;
+      bool dest_is_8b_aligned = (current_dest_offset & 0x7) == 0;
+
+      if (src_is_16b_aligned) {
+        ld1 = OpMovRegMem(temp, TargetPtrReg(kSp), current_src_offset, kMovA128FP);
+      } else if (src_is_8b_aligned) {
+        ld1 = OpMovRegMem(temp, TargetPtrReg(kSp), current_src_offset, kMovLo128FP);
+        ld2 = OpMovRegMem(temp, TargetPtrReg(kSp), current_src_offset + (bytes_to_move >> 1),
+                          kMovHi128FP);
+      } else {
+        ld1 = OpMovRegMem(temp, TargetPtrReg(kSp), current_src_offset, kMovU128FP);
+      }
+
+      if (dest_is_16b_aligned) {
+        st1 = OpMovMemReg(TargetPtrReg(kSp), current_dest_offset, temp, kMovA128FP);
+      } else if (dest_is_8b_aligned) {
+        st1 = OpMovMemReg(TargetPtrReg(kSp), current_dest_offset, temp, kMovLo128FP);
+        st2 = OpMovMemReg(TargetPtrReg(kSp), current_dest_offset + (bytes_to_move >> 1),
+                          temp, kMovHi128FP);
+      } else {
+        st1 = OpMovMemReg(TargetPtrReg(kSp), current_dest_offset, temp, kMovU128FP);
+      }
+
+      // TODO If we could keep track of aliasing information for memory accesses that are wider
+      // than 64-bit, we wouldn't need to set up a barrier.
+      if (ld1 != nullptr) {
+        if (ld2 != nullptr) {
+          // For 64-bit load we can actually set up the aliasing information.
+          AnnotateDalvikRegAccess(ld1, current_src_offset >> 2, true, true);
+          AnnotateDalvikRegAccess(ld2, (current_src_offset + (bytes_to_move >> 1)) >> 2, true,
+                                  true);
+        } else {
+          // Set barrier for 128-bit load.
+          ld1->u.m.def_mask = &kEncodeAll;
+        }
+      }
+      if (st1 != nullptr) {
+        if (st2 != nullptr) {
+          // For 64-bit store we can actually set up the aliasing information.
+          AnnotateDalvikRegAccess(st1, current_dest_offset >> 2, false, true);
+          AnnotateDalvikRegAccess(st2, (current_dest_offset + (bytes_to_move >> 1)) >> 2, false,
+                                  true);
+        } else {
+          // Set barrier for 128-bit store.
+          st1->u.m.def_mask = &kEncodeAll;
+        }
+      }
+
+      // Free the temporary used for the data movement.
+      FreeTemp(temp);
+    } else {
+      // Moving 32-bits via general purpose register.
+      bytes_to_move = sizeof(uint32_t);
+
+      // Instead of allocating a new temp, simply reuse one of the registers being used
+      // for argument passing.
+      RegStorage temp = TargetReg(kArg3, kNotWide);
+
+      // Now load the argument VR and store to the outs.
+      Load32Disp(TargetPtrReg(kSp), current_src_offset, temp);
+      Store32Disp(TargetPtrReg(kSp), current_dest_offset, temp);
+    }
+
+    current_src_offset += bytes_to_move;
+    current_dest_offset += bytes_to_move;
+    count -= (bytes_to_move >> 2);
+  }
+  DCHECK_EQ(count, 0);
+  return count;
 }
 
 }  // namespace art
