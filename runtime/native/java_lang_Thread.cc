@@ -133,11 +133,7 @@ static void Thread_nativeSetName(JNIEnv* env, jobject peer, jstring java_name) {
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   bool timed_out;
   // Take suspend thread lock to avoid races with threads trying to suspend this one.
-  Thread* thread;
-  {
-    MutexLock mu(self, *Locks::thread_list_suspend_thread_lock_);
-    thread = thread_list->SuspendThreadByPeer(peer, true, false, &timed_out);
-  }
+  Thread* thread = thread_list->SuspendThreadByPeer(peer, true, false, &timed_out);
   if (thread != NULL) {
     {
       ScopedObjectAccess soa(env);
