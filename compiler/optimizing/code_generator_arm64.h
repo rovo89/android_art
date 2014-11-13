@@ -44,12 +44,10 @@ static const vixl::FPRegister kParameterFPRegisters[] = {
 static constexpr size_t kParameterFPRegistersLength = arraysize(kParameterFPRegisters);
 
 const vixl::Register tr = vixl::x18;        // Thread Register
-const vixl::Register wSuspend = vixl::w19;  // Suspend Register
-const vixl::Register xSuspend = vixl::x19;
 
 const vixl::CPURegList vixl_reserved_core_registers(vixl::ip0, vixl::ip1);
 const vixl::CPURegList vixl_reserved_fp_registers(vixl::d31);
-const vixl::CPURegList runtime_reserved_core_registers(tr, xSuspend, vixl::lr);
+const vixl::CPURegList runtime_reserved_core_registers(tr, vixl::lr);
 const vixl::CPURegList quick_callee_saved_registers(vixl::CPURegister::kRegister,
                                                     vixl::kXRegSize,
                                                     kArm64CalleeSaveRefSpills);
@@ -110,7 +108,9 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
 
  private:
   void GenerateClassInitializationCheck(SlowPathCodeARM64* slow_path, vixl::Register class_reg);
+  void GenerateSuspendCheck(HSuspendCheck* instruction, HBasicBlock* successor);
   void HandleBinaryOp(HBinaryOperation* instr);
+  void HandleShift(HBinaryOperation* instr);
 
   Arm64Assembler* const assembler_;
   CodeGeneratorARM64* const codegen_;
@@ -130,6 +130,7 @@ class LocationsBuilderARM64 : public HGraphVisitor {
 
  private:
   void HandleBinaryOp(HBinaryOperation* instr);
+  void HandleShift(HBinaryOperation* instr);
   void HandleInvoke(HInvoke* instr);
 
   CodeGeneratorARM64* const codegen_;

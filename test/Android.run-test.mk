@@ -299,15 +299,11 @@ TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
 # Known broken tests for the arm64 optimizing compiler backend.
 TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   003-omnibus-opcodes \
-  004-NativeAllocations \
   004-ReferenceMap \
   005-annotations \
   009-instanceof \
   010-instance \
-  012-math \
   023-many-interfaces \
-  027-arithmetic \
-  037-inherit \
   044-proxy \
   045-reflect-array \
   046-reflect \
@@ -317,22 +313,15 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   068-classloader \
   069-field-type \
   071-dexfile \
-  083-compiler-regressions \
   106-exceptions2 \
   107-int-math2 \
-  114-ParallelGC \
   201-built-in-exception-detail-messages \
   407-arrays \
   412-new-array \
   422-instanceof \
-  422-type-conversion \
   424-checkcast \
   427-bounds \
-  428-optimizing-arith-rem \
   430-live-register-slow-path \
-  431-optimizing-arith-shifts \
-  432-optimizing-cmp \
-  701-easy-div-rem \
   800-smali \
 
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
