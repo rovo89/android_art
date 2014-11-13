@@ -587,26 +587,34 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
 void CodeGeneratorX86_64::Move(HInstruction* instruction,
                                Location location,
                                HInstruction* move_for) {
-  if (instruction->IsIntConstant()) {
-    Immediate imm(instruction->AsIntConstant()->GetValue());
-    if (location.IsRegister()) {
-      __ movl(location.As<CpuRegister>(), imm);
-    } else if (location.IsStackSlot()) {
-      __ movl(Address(CpuRegister(RSP), location.GetStackIndex()), imm);
-    } else {
-      DCHECK(location.IsConstant());
-      DCHECK_EQ(location.GetConstant(), instruction);
-    }
-  } else if (instruction->IsLongConstant()) {
-    int64_t value = instruction->AsLongConstant()->GetValue();
-    if (location.IsRegister()) {
-      __ movq(location.As<CpuRegister>(), Immediate(value));
-    } else if (location.IsDoubleStackSlot()) {
-      __ movq(CpuRegister(TMP), Immediate(value));
-      __ movq(Address(CpuRegister(RSP), location.GetStackIndex()), CpuRegister(TMP));
-    } else {
-      DCHECK(location.IsConstant());
-      DCHECK_EQ(location.GetConstant(), instruction);
+  LocationSummary* locations = instruction->GetLocations();
+  if (locations != nullptr && locations->Out().Equals(location)) {
+    return;
+  }
+
+  if (locations != nullptr && locations->Out().IsConstant()) {
+    HConstant* const_to_move = locations->Out().GetConstant();
+    if (const_to_move->IsIntConstant()) {
+      Immediate imm(const_to_move->AsIntConstant()->GetValue());
+      if (location.IsRegister()) {
+        __ movl(location.As<CpuRegister>(), imm);
+      } else if (location.IsStackSlot()) {
+        __ movl(Address(CpuRegister(RSP), location.GetStackIndex()), imm);
+      } else {
+        DCHECK(location.IsConstant());
+        DCHECK_EQ(location.GetConstant(), const_to_move);
+      }
+    } else if (const_to_move->IsLongConstant()) {
+      int64_t value = const_to_move->AsLongConstant()->GetValue();
+      if (location.IsRegister()) {
+        __ movq(location.As<CpuRegister>(), Immediate(value));
+      } else if (location.IsDoubleStackSlot()) {
+        __ movq(CpuRegister(TMP), Immediate(value));
+        __ movq(Address(CpuRegister(RSP), location.GetStackIndex()), CpuRegister(TMP));
+      } else {
+        DCHECK(location.IsConstant());
+        DCHECK_EQ(location.GetConstant(), const_to_move);
+      }
     }
   } else if (instruction->IsLoadLocal()) {
     switch (instruction->GetType()) {
@@ -643,7 +651,7 @@ void CodeGeneratorX86_64::Move(HInstruction* instruction,
       case Primitive::kPrimLong:
       case Primitive::kPrimFloat:
       case Primitive::kPrimDouble:
-        Move(location, instruction->GetLocations()->Out());
+        Move(location, locations->Out());
         break;
 
       default:

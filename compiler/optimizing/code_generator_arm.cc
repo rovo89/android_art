@@ -672,13 +672,13 @@ void CodeGeneratorARM::Move32(Location destination, Location source) {
       __ LoadSFromOffset(destination.As<SRegister>(), SP, source.GetStackIndex());
     }
   } else {
-    DCHECK(destination.IsStackSlot());
+    DCHECK(destination.IsStackSlot()) << destination;
     if (source.IsRegister()) {
       __ StoreToOffset(kStoreWord, source.As<Register>(), SP, destination.GetStackIndex());
     } else if (source.IsFpuRegister()) {
       __ StoreSToOffset(source.As<SRegister>(), SP, destination.GetStackIndex());
     } else {
-      DCHECK(source.IsStackSlot());
+      DCHECK(source.IsStackSlot()) << source;
       __ LoadFromOffset(kLoadWord, IP, SP, source.GetStackIndex());
       __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
     }
@@ -780,26 +780,29 @@ void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstr
     return;
   }
 
-  if (instruction->IsIntConstant()) {
-    int32_t value = instruction->AsIntConstant()->GetValue();
-    if (location.IsRegister()) {
-      __ LoadImmediate(location.As<Register>(), value);
-    } else {
-      DCHECK(location.IsStackSlot());
-      __ LoadImmediate(IP, value);
-      __ StoreToOffset(kStoreWord, IP, SP, location.GetStackIndex());
-    }
-  } else if (instruction->IsLongConstant()) {
-    int64_t value = instruction->AsLongConstant()->GetValue();
-    if (location.IsRegisterPair()) {
-      __ LoadImmediate(location.AsRegisterPairLow<Register>(), Low32Bits(value));
-      __ LoadImmediate(location.AsRegisterPairHigh<Register>(), High32Bits(value));
-    } else {
-      DCHECK(location.IsDoubleStackSlot());
-      __ LoadImmediate(IP, Low32Bits(value));
-      __ StoreToOffset(kStoreWord, IP, SP, location.GetStackIndex());
-      __ LoadImmediate(IP, High32Bits(value));
-      __ StoreToOffset(kStoreWord, IP, SP, location.GetHighStackIndex(kArmWordSize));
+  if (locations != nullptr && locations->Out().IsConstant()) {
+    HConstant* const_to_move = locations->Out().GetConstant();
+    if (const_to_move->IsIntConstant()) {
+      int32_t value = const_to_move->AsIntConstant()->GetValue();
+      if (location.IsRegister()) {
+        __ LoadImmediate(location.As<Register>(), value);
+      } else {
+        DCHECK(location.IsStackSlot());
+        __ LoadImmediate(IP, value);
+        __ StoreToOffset(kStoreWord, IP, SP, location.GetStackIndex());
+      }
+    } else if (const_to_move->IsLongConstant()) {
+      int64_t value = const_to_move->AsLongConstant()->GetValue();
+      if (location.IsRegisterPair()) {
+        __ LoadImmediate(location.AsRegisterPairLow<Register>(), Low32Bits(value));
+        __ LoadImmediate(location.AsRegisterPairHigh<Register>(), High32Bits(value));
+      } else {
+        DCHECK(location.IsDoubleStackSlot());
+        __ LoadImmediate(IP, Low32Bits(value));
+        __ StoreToOffset(kStoreWord, IP, SP, location.GetStackIndex());
+        __ LoadImmediate(IP, High32Bits(value));
+        __ StoreToOffset(kStoreWord, IP, SP, location.GetHighStackIndex(kArmWordSize));
+      }
     }
   } else if (instruction->IsLoadLocal()) {
     uint32_t stack_slot = GetStackSlot(instruction->AsLoadLocal()->GetLocal());
