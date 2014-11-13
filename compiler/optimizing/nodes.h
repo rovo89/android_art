@@ -1750,8 +1750,8 @@ class HMul : public HBinaryOperation {
 
 class HDiv : public HBinaryOperation {
  public:
-  HDiv(Primitive::Type result_type, HInstruction* left, HInstruction* right)
-      : HBinaryOperation(result_type, left, right) {}
+  HDiv(Primitive::Type result_type, HInstruction* left, HInstruction* right, uint32_t dex_pc)
+      : HBinaryOperation(result_type, left, right), dex_pc_(dex_pc) {}
 
   virtual int32_t Evaluate(int32_t x, int32_t y) const {
     // Our graph structure ensures we never have 0 for `y` during constant folding.
@@ -1761,9 +1761,13 @@ class HDiv : public HBinaryOperation {
   }
   virtual int64_t Evaluate(int64_t x, int64_t y) const { return x / y; }
 
+  uint32_t GetDexPc() const { return dex_pc_; }
+
   DECLARE_INSTRUCTION(Div);
 
  private:
+  const uint32_t dex_pc_;
+
   DISALLOW_COPY_AND_ASSIGN(HDiv);
 };
 
