@@ -272,7 +272,7 @@ bool JdwpSocketState::Establish(const JdwpOptions* options) {
   /*
    * Start by resolving the host name.
    */
-#ifdef HAVE_GETHOSTBYNAME_R
+#if defined(__linux__)
   hostent he;
   char auxBuf[128];
   int error;
