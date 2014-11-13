@@ -76,7 +76,7 @@ class HGraphBuilder : public ValueObject {
   // Analyzes the dex instruction and adds HInstruction to the graph
   // to execute that instruction. Returns whether the instruction can
   // be handled.
-  bool AnalyzeDexInstruction(const Instruction& instruction, uint32_t dex_offset);
+  bool AnalyzeDexInstruction(const Instruction& instruction, uint32_t dex_pc);
 
   // Finds all instructions that start a new block, and populates branch_targets_ with
   // the newly created blocks.
@@ -92,7 +92,7 @@ class HGraphBuilder : public ValueObject {
   HLocal* GetLocalAt(int register_index) const;
   void UpdateLocal(int register_index, HInstruction* instruction) const;
   HInstruction* LoadLocal(int register_index, Primitive::Type type) const;
-  void PotentiallyAddSuspendCheck(int32_t target_offset, uint32_t dex_offset);
+  void PotentiallyAddSuspendCheck(int32_t target_offset, uint32_t dex_pc);
   void InitializeParameters(uint16_t number_of_parameters);
 
   template<typename T>
@@ -116,8 +116,8 @@ class HGraphBuilder : public ValueObject {
   template<typename T>
   void Binop_22s(const Instruction& instruction, bool reverse);
 
-  template<typename T> void If_21t(const Instruction& instruction, uint32_t dex_offset);
-  template<typename T> void If_22t(const Instruction& instruction, uint32_t dex_offset);
+  template<typename T> void If_21t(const Instruction& instruction, uint32_t dex_pc);
+  template<typename T> void If_22t(const Instruction& instruction, uint32_t dex_pc);
 
   void Conversion_12x(const Instruction& instruction,
                       Primitive::Type input_type,
@@ -126,26 +126,26 @@ class HGraphBuilder : public ValueObject {
   void BuildCheckedDiv(uint16_t out_reg,
                        uint16_t first_reg,
                        int64_t second_reg_or_constant,
-                       uint32_t dex_offset,
+                       uint32_t dex_pc,
                        Primitive::Type type,
                        bool second_is_lit);
 
   void BuildReturn(const Instruction& instruction, Primitive::Type type);
 
   // Builds an instance field access node and returns whether the instruction is supported.
-  bool BuildInstanceFieldAccess(const Instruction& instruction, uint32_t dex_offset, bool is_put);
+  bool BuildInstanceFieldAccess(const Instruction& instruction, uint32_t dex_pc, bool is_put);
 
   // Builds a static field access node and returns whether the instruction is supported.
-  bool BuildStaticFieldAccess(const Instruction& instruction, uint32_t dex_offset, bool is_put);
+  bool BuildStaticFieldAccess(const Instruction& instruction, uint32_t dex_pc, bool is_put);
 
   void BuildArrayAccess(const Instruction& instruction,
-                        uint32_t dex_offset,
+                        uint32_t dex_pc,
                         bool is_get,
                         Primitive::Type anticipated_type);
 
   // Builds an invocation node and returns whether the instruction is supported.
   bool BuildInvoke(const Instruction& instruction,
-                   uint32_t dex_offset,
+                   uint32_t dex_pc,
                    uint32_t method_idx,
                    uint32_t number_of_vreg_arguments,
                    bool is_range,
@@ -153,14 +153,14 @@ class HGraphBuilder : public ValueObject {
                    uint32_t register_index);
 
   // Builds a new array node and the instructions that fill it.
-  void BuildFilledNewArray(uint32_t dex_offset,
+  void BuildFilledNewArray(uint32_t dex_pc,
                            uint32_t type_index,
                            uint32_t number_of_vreg_arguments,
                            bool is_range,
                            uint32_t* args,
                            uint32_t register_index);
 
-  void BuildFillArrayData(const Instruction& instruction, uint32_t dex_offset);
+  void BuildFillArrayData(const Instruction& instruction, uint32_t dex_pc);
 
   // Fills the given object with data as specified in the fill-array-data
   // instruction. Currently only used for non-reference and non-floating point
@@ -170,14 +170,14 @@ class HGraphBuilder : public ValueObject {
                           const T* data,
                           uint32_t element_count,
                           Primitive::Type anticipated_type,
-                          uint32_t dex_offset);
+                          uint32_t dex_pc);
 
   // Fills the given object with data as specified in the fill-array-data
   // instruction. The data must be for long and double arrays.
   void BuildFillWideArrayData(HInstruction* object,
                               const int64_t* data,
                               uint32_t element_count,
-                              uint32_t dex_offset);
+                              uint32_t dex_pc);
 
   // Builds a `HInstanceOf`, or a `HCheckCast` instruction.
   // Returns whether we succeeded in building the instruction.
@@ -185,7 +185,7 @@ class HGraphBuilder : public ValueObject {
                       uint8_t destination,
                       uint8_t reference,
                       uint16_t type_index,
-                      uint32_t dex_offset);
+                      uint32_t dex_pc);
 
   ArenaAllocator* const arena_;
 
