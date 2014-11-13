@@ -1282,6 +1282,22 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
   switch (result_type) {
+    case Primitive::kPrimByte:
+      switch (input_type) {
+        case Primitive::kPrimShort:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
+          // int-to-byte conversion.
+          locations->SetInAt(0, Location::Any());
+          locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      }
+      break;
+
     case Primitive::kPrimInt:
       switch (input_type) {
         case Primitive::kPrimLong:
@@ -1344,6 +1360,29 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
   switch (result_type) {
+    case Primitive::kPrimByte:
+      switch (input_type) {
+        case Primitive::kPrimShort:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
+          // int-to-byte conversion.
+          if (in.IsRegister()) {
+            __ movsxb(out.As<Register>(), in.As<ByteRegister>());
+          } else if (in.IsStackSlot()) {
+            __ movsxb(out.As<Register>(), Address(ESP, in.GetStackIndex()));
+          } else {
+            DCHECK(in.GetConstant()->IsIntConstant());
+            int32_t value = in.GetConstant()->AsIntConstant()->GetValue();
+            __ movl(out.As<Register>(), Immediate(static_cast<int8_t>(value)));
+          }
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      }
+      break;
+
     case Primitive::kPrimInt:
       switch (input_type) {
         case Primitive::kPrimLong:

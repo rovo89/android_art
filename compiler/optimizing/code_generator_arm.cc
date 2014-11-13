@@ -1348,6 +1348,22 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
   switch (result_type) {
+    case Primitive::kPrimByte:
+      switch (input_type) {
+        case Primitive::kPrimShort:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
+          // int-to-byte conversion.
+          locations->SetInAt(0, Location::RequiresRegister());
+          locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      }
+      break;
+
     case Primitive::kPrimInt:
       switch (input_type) {
         case Primitive::kPrimLong:
@@ -1410,6 +1426,21 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
   switch (result_type) {
+    case Primitive::kPrimByte:
+      switch (input_type) {
+        case Primitive::kPrimShort:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
+          // int-to-byte conversion.
+          __ sbfx(out.As<Register>(), in.As<Register>(), 0, 8);
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      }
+      break;
+
     case Primitive::kPrimInt:
       switch (input_type) {
         case Primitive::kPrimLong:
