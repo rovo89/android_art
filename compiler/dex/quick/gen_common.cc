@@ -160,6 +160,10 @@ LIR* Mir2Lir::GenNullCheck(RegStorage m_reg, int opt_flags) {
   if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitNullChecks()) {
     return GenExplicitNullCheck(m_reg, opt_flags);
   }
+  // If null check has not been eliminated, reset redundant store tracking.
+  if ((opt_flags & MIR_IGNORE_NULL_CHECK) == 0) {
+    ResetDefTracking();
+  }
   return nullptr;
 }
 
