@@ -1120,7 +1120,8 @@ std::string GetSchedulerGroupName(pid_t tid) {
 
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     mirror::ArtMethod* current_method) {
-#ifdef __linux__
+  // TODO: enable on __linux__ b/15446488.
+#if 0
   // b/18119146
   if (RUNNING_ON_VALGRIND != 0) {
     return;
