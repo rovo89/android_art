@@ -70,8 +70,15 @@ LOCAL_PATH := art
 
 RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/arch/arch_test.cc \
+  runtime/arch/instruction_set_test.cc \
+  runtime/arch/instruction_set_features_test.cc \
   runtime/arch/memcmp16_test.cc \
   runtime/arch/stub_test.cc \
+  runtime/arch/arm/instruction_set_features_arm_test.cc \
+  runtime/arch/arm64/instruction_set_features_arm64_test.cc \
+  runtime/arch/mips/instruction_set_features_mips_test.cc \
+  runtime/arch/x86/instruction_set_features_x86_test.cc \
+  runtime/arch/x86_64/instruction_set_features_x86_64_test.cc \
   runtime/barrier_test.cc \
   runtime/base/bit_field_test.cc \
   runtime/base/bit_vector_test.cc \
@@ -109,7 +116,6 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/handle_scope_test.cc \
   runtime/indenter_test.cc \
   runtime/indirect_reference_table_test.cc \
-  runtime/instruction_set_test.cc \
   runtime/intern_table_test.cc \
   runtime/interpreter/safe_math_test.cc \
   runtime/java_vm_ext_test.cc \

@@ -17,9 +17,9 @@
 #ifndef ART_COMPILER_OPTIMIZING_CODE_GENERATOR_H_
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_H_
 
+#include "arch/instruction_set.h"
 #include "base/bit_field.h"
 #include "globals.h"
-#include "instruction_set.h"
 #include "locations.h"
 #include "memory_region.h"
 #include "nodes.h"

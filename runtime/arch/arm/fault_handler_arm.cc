@@ -23,7 +23,6 @@
 #include "globals.h"
 #include "base/logging.h"
 #include "base/hex_dump.h"
-#include "instruction_set.h"
 #include "mirror/art_method.h"
 #include "mirror/art_method-inl.h"
 #include "thread.h"

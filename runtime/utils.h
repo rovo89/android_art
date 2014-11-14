@@ -24,10 +24,10 @@
 #include <string>
 #include <vector>
 
+#include "arch/instruction_set.h"
 #include "base/logging.h"
 #include "base/mutex.h"
 #include "globals.h"
-#include "instruction_set.h"
 #include "primitive.h"
 
 namespace art {

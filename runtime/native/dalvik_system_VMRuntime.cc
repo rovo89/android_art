@@ -17,8 +17,14 @@
 #include "dalvik_system_VMRuntime.h"
 
 #include <limits.h>
+#include <ScopedUtfChars.h>
 
-#include "ScopedUtfChars.h"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
+#include "toStringArray.h"
+#pragma GCC diagnostic pop
+
+#include "arch/instruction_set.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"
 #include "debugger.h"
@@ -28,7 +34,6 @@
 #include "gc/heap.h"
 #include "gc/space/dlmalloc_space.h"
 #include "gc/space/image_space.h"
-#include "instruction_set.h"
 #include "intern_table.h"
 #include "jni_internal.h"
 #include "mirror/art_method-inl.h"
@@ -40,11 +45,6 @@
 #include "scoped_thread_state_change.h"
 #include "thread.h"
 #include "thread_list.h"
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wshadow"
-#include "toStringArray.h"
-#pragma GCC diagnostic pop
 
 namespace art {
 

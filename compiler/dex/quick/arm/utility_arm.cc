@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
-#include "arm_lir.h"
 #include "codegen_arm.h"
+
+#include "arch/arm/instruction_set_features_arm.h"
+#include "arm_lir.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
 
@@ -974,7 +976,7 @@ LIR* ArmMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_
   LIR* load;
   if (is_volatile == kVolatile && (size == k64 || size == kDouble) &&
       !cu_->compiler_driver->GetInstructionSetFeatures()->
-          AsArmInstructionSetFeatures()->HasLpae()) {
+          AsArmInstructionSetFeatures()->HasAtomicLdrdAndStrd()) {
     // Only 64-bit load needs special handling.
     // If the cpu supports LPAE, aligned LDRD is atomic - fall through to LoadBaseDisp().
     DCHECK(!r_dest.IsFloat());  // See RegClassForFieldLoadSave().
@@ -1104,7 +1106,7 @@ LIR* ArmMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
   LIR* store;
   if (is_volatile == kVolatile && (size == k64 || size == kDouble) &&
       !cu_->compiler_driver->GetInstructionSetFeatures()->
-          AsArmInstructionSetFeatures()->HasLpae()) {
+          AsArmInstructionSetFeatures()->HasAtomicLdrdAndStrd()) {
     // Only 64-bit store needs special handling.
     // If the cpu supports LPAE, aligned STRD is atomic - fall through to StoreBaseDisp().
     // Use STREXD for the atomic store. (Expect displacement > 0, don't optimize for == 0.)
