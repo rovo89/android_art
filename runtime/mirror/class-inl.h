@@ -402,6 +402,36 @@ inline ObjectArray<ArtField>* Class::GetIFields() {
   return GetFieldObject<ObjectArray<ArtField>>(OFFSET_OF_OBJECT_MEMBER(Class, ifields_));
 }
 
+inline MemberOffset Class::GetFirstReferenceInstanceFieldOffset() {
+  Class* super_class = GetSuperClass();
+  return (super_class != nullptr)
+      ? MemberOffset(RoundUp(super_class->GetObjectSize(),
+                             sizeof(mirror::HeapReference<mirror::Object>)))
+      : ClassOffset();
+}
+
+inline MemberOffset Class::GetFirstReferenceStaticFieldOffset() {
+  DCHECK(IsResolved());
+  uint32_t base = sizeof(mirror::Class);  // Static fields come after the class.
+  if (ShouldHaveEmbeddedImtAndVTable()) {
+    // Static fields come after the embedded tables.
+    base = mirror::Class::ComputeClassSize(true, GetEmbeddedVTableLength(),
+                                           0, 0, 0, 0, 0);
+  }
+  return MemberOffset(base);
+}
+
+inline MemberOffset Class::GetFirstReferenceStaticFieldOffsetDuringLinking() {
+  DCHECK(IsLoaded());
+  uint32_t base = sizeof(mirror::Class);  // Static fields come after the class.
+  if (ShouldHaveEmbeddedImtAndVTable()) {
+    // Static fields come after the embedded tables.
+    base = mirror::Class::ComputeClassSize(true, GetVTableDuringLinking()->GetLength(),
+                                           0, 0, 0, 0, 0);
+  }
+  return MemberOffset(base);
+}
+
 inline void Class::SetIFields(ObjectArray<ArtField>* new_ifields)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(NULL == GetFieldObject<ObjectArray<ArtField>>(OFFSET_OF_OBJECT_MEMBER(Class, ifields_)));
