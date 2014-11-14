@@ -1356,7 +1356,7 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
         case Primitive::kPrimChar:
-          // int-to-byte conversion.
+          // Processing a Dex `int-to-byte' instruction.
           locations->SetInAt(0, Location::RequiresRegister());
           locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
           break;
@@ -1370,7 +1370,7 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
     case Primitive::kPrimInt:
       switch (input_type) {
         case Primitive::kPrimLong:
-          // long-to-int conversion.
+          // Processing a Dex `long-to-int' instruction.
           locations->SetInAt(0, Location::Any());
           locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
           break;
@@ -1393,7 +1393,7 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
         case Primitive::kPrimChar:
-          // int-to-long conversion.
+          // Processing a Dex `int-to-long' instruction.
           locations->SetInAt(0, Location::RequiresRegister());
           locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
           break;
@@ -1402,6 +1402,23 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
         case Primitive::kPrimDouble:
           LOG(FATAL) << "Type conversion from " << input_type << " to "
                      << result_type << " not yet implemented";
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      }
+      break;
+
+    case Primitive::kPrimChar:
+      switch (input_type) {
+        case Primitive::kPrimByte:
+        case Primitive::kPrimShort:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
+          // Processing a Dex `int-to-char' instruction.
+          locations->SetInAt(0, Location::RequiresRegister());
+          locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
           break;
 
         default:
@@ -1434,7 +1451,7 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
         case Primitive::kPrimChar:
-          // int-to-byte conversion.
+          // Processing a Dex `int-to-byte' instruction.
           __ sbfx(out.As<Register>(), in.As<Register>(), 0, 8);
           break;
 
@@ -1447,7 +1464,7 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
     case Primitive::kPrimInt:
       switch (input_type) {
         case Primitive::kPrimLong:
-          // long-to-int conversion.
+          // Processing a Dex `long-to-int' instruction.
           DCHECK(out.IsRegister());
           if (in.IsRegisterPair()) {
             __ Mov(out.As<Register>(), in.AsRegisterPairLow<Register>());
@@ -1479,7 +1496,7 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
         case Primitive::kPrimChar:
-          // int-to-long conversion.
+          // Processing a Dex `int-to-long' instruction.
           DCHECK(out.IsRegisterPair());
           DCHECK(in.IsRegister());
           __ Mov(out.AsRegisterPairLow<Register>(), in.As<Register>());
@@ -1493,6 +1510,22 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
         case Primitive::kPrimDouble:
           LOG(FATAL) << "Type conversion from " << input_type << " to "
                      << result_type << " not yet implemented";
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      }
+      break;
+
+    case Primitive::kPrimChar:
+      switch (input_type) {
+        case Primitive::kPrimByte:
+        case Primitive::kPrimShort:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
+          // Processing a Dex `int-to-char' instruction.
+          __ ubfx(out.As<Register>(), in.As<Register>(), 0, 16);
           break;
 
         default:

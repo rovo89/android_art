@@ -120,4 +120,40 @@ TEST_F(AssemblerThumb2Test, Sbfx) {
   DriverStr(expected, "sbfx");
 }
 
+TEST_F(AssemblerThumb2Test, Ubfx) {
+  GetAssembler()->ubfx(arm::R0, arm::R1, 0, 1);
+  GetAssembler()->ubfx(arm::R0, arm::R1, 0, 8);
+  GetAssembler()->ubfx(arm::R0, arm::R1, 0, 16);
+  GetAssembler()->ubfx(arm::R0, arm::R1, 0, 32);
+
+  GetAssembler()->ubfx(arm::R0, arm::R1, 8, 1);
+  GetAssembler()->ubfx(arm::R0, arm::R1, 8, 8);
+  GetAssembler()->ubfx(arm::R0, arm::R1, 8, 16);
+  GetAssembler()->ubfx(arm::R0, arm::R1, 8, 24);
+
+  GetAssembler()->ubfx(arm::R0, arm::R1, 16, 1);
+  GetAssembler()->ubfx(arm::R0, arm::R1, 16, 8);
+  GetAssembler()->ubfx(arm::R0, arm::R1, 16, 16);
+
+  GetAssembler()->ubfx(arm::R0, arm::R1, 31, 1);
+
+  const char* expected =
+      "ubfx r0, r1, #0, #1\n"
+      "ubfx r0, r1, #0, #8\n"
+      "ubfx r0, r1, #0, #16\n"
+      "ubfx r0, r1, #0, #32\n"
+
+      "ubfx r0, r1, #8, #1\n"
+      "ubfx r0, r1, #8, #8\n"
+      "ubfx r0, r1, #8, #16\n"
+      "ubfx r0, r1, #8, #24\n"
+
+      "ubfx r0, r1, #16, #1\n"
+      "ubfx r0, r1, #16, #8\n"
+      "ubfx r0, r1, #16, #16\n"
+
+      "ubfx r0, r1, #31, #1\n";
+  DriverStr(expected, "ubfx");
+}
+
 }  // namespace art
