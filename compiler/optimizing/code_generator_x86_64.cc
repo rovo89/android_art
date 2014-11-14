@@ -1304,6 +1304,22 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
       }
       break;
 
+    case Primitive::kPrimShort:
+      switch (input_type) {
+        case Primitive::kPrimByte:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
+          // Processing a Dex `int-to-short' instruction.
+          locations->SetInAt(0, Location::Any());
+          locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      }
+      break;
+
     case Primitive::kPrimInt:
       switch (input_type) {
         case Primitive::kPrimLong:
@@ -1400,6 +1416,30 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
             DCHECK(in.GetConstant()->IsIntConstant());
             __ movl(out.As<CpuRegister>(),
                     Immediate(static_cast<int8_t>(in.GetConstant()->AsIntConstant()->GetValue())));
+          }
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      }
+      break;
+
+    case Primitive::kPrimShort:
+      switch (input_type) {
+        case Primitive::kPrimByte:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
+          // Processing a Dex `int-to-short' instruction.
+          if (in.IsRegister()) {
+            __ movsxw(out.As<CpuRegister>(), in.As<CpuRegister>());
+          } else if (in.IsStackSlot()) {
+            __ movsxw(out.As<CpuRegister>(),
+                      Address(CpuRegister(RSP), in.GetStackIndex()));
+          } else {
+            DCHECK(in.GetConstant()->IsIntConstant());
+            __ movl(out.As<CpuRegister>(),
+                    Immediate(static_cast<int16_t>(in.GetConstant()->AsIntConstant()->GetValue())));
           }
           break;
 
