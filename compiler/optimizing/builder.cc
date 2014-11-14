@@ -1002,6 +1002,11 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::INT_TO_BYTE: {
+      Conversion_12x(instruction, Primitive::kPrimInt, Primitive::kPrimByte);
+      break;
+    }
+
     case Instruction::ADD_INT: {
       Binop_23x<HAdd>(instruction, Primitive::kPrimInt);
       break;
