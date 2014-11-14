@@ -421,7 +421,10 @@ class ArmAssembler : public Assembler {
   virtual void sdiv(Register rd, Register rn, Register rm, Condition cond = AL) = 0;
   virtual void udiv(Register rd, Register rn, Register rm, Condition cond = AL) = 0;
 
+  // Bit field extract instructions.
   virtual void sbfx(Register rd, Register rn, uint32_t lsb, uint32_t width,
+                    Condition cond = AL) = 0;
+  virtual void ubfx(Register rd, Register rn, uint32_t lsb, uint32_t width,
                     Condition cond = AL) = 0;
 
   // Load/store instructions.
