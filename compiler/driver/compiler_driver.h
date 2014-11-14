@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "arch/instruction_set.h"
 #include "base/mutex.h"
 #include "base/timing_logger.h"
 #include "class_reference.h"
@@ -28,7 +29,6 @@
 #include "compiler.h"
 #include "dex_file.h"
 #include "driver/compiler_options.h"
-#include "instruction_set.h"
 #include "invoke_type.h"
 #include "method_reference.h"
 #include "mirror/class.h"  // For mirror::Class::Status.
@@ -51,6 +51,7 @@ class CompilerOptions;
 class DexCompilationUnit;
 class DexFileToMethodInlinerMap;
 struct InlineIGetIPutData;
+class InstructionSetFeatures;
 class OatWriter;
 class ParallelCompilationManager;
 class ScopedObjectAccess;

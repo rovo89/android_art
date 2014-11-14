@@ -18,8 +18,8 @@
 
 #include <stdlib.h>
 
+#include "arch/instruction_set.h"
 #include "debugger.h"
-#include "instruction_set.h"
 #include "java_vm_ext.h"
 #include "jni_internal.h"
 #include "JNIHelp.h"

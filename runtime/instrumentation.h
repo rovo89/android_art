@@ -21,8 +21,8 @@
 #include <list>
 #include <map>
 
+#include "arch/instruction_set.h"
 #include "atomic.h"
-#include "instruction_set.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "gc_root.h"

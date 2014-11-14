@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "arch/instruction_set.h"
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "base/stl_util.h"
@@ -29,7 +30,6 @@
 #include "elf_utils.h"
 #include "leb128.h"
 #include "utils.h"
-#include "instruction_set.h"
 
 namespace art {
 

@@ -23,6 +23,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "arch/instruction_set_features.h"
 #include "base/stringpiece.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"

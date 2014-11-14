@@ -17,12 +17,12 @@
 #ifndef ART_COMPILER_ELF_BUILDER_H_
 #define ART_COMPILER_ELF_BUILDER_H_
 
+#include "arch/instruction_set.h"
 #include "base/stl_util.h"
 #include "base/value_object.h"
 #include "buffered_output_stream.h"
 #include "elf_utils.h"
 #include "file_output_stream.h"
-#include "instruction_set.h"
 
 namespace art {
 

@@ -19,13 +19,15 @@
 
 #include <vector>
 
+#include "arch/instruction_set.h"
 #include "base/macros.h"
 #include "dex_file.h"
-#include "instruction_set.h"
 #include "quick/quick_method_frame_info.h"
 #include "safe_map.h"
 
 namespace art {
+
+class InstructionSetFeatures;
 
 class PACKED(4) OatHeader {
  public:
