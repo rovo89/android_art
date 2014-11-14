@@ -881,6 +881,14 @@ void Arm64Mir2Lir::AssembleLIR() {
             LOG(FATAL) << "Invalid jump range in kFixupT1Branch";
           }
           lir->operands[0] = delta >> 2;
+          if (!(cu_->disable_opt & (1 << kSafeOptimizations)) && lir->operands[0] == 1) {
+            // Useless branch.
+            offset_adjustment -= lir->flags.size;
+            lir->flags.is_nop = true;
+            // Don't unlink - just set to do-nothing.
+            lir->flags.fixup = kFixupNone;
+            res = kRetryAll;
+          }
           break;
         }
         case kFixupLoad:

@@ -296,7 +296,8 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
    * We can safely skip the stack overflow check if we're
    * a leaf *and* our frame size < fudge factor.
    */
-  bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !FrameNeedsStackCheck(frame_size_, kArm64);
+  bool skip_overflow_check = mir_graph_->MethodIsLeaf() &&
+    !FrameNeedsStackCheck(frame_size_, kArm64);
 
   NewLIR0(kPseudoMethodEntry);
 
@@ -320,7 +321,7 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
       // TODO: If the frame size is small enough, is it possible to make this a pre-indexed load,
       //       so that we can avoid the following "sub sp" when spilling?
       OpRegRegImm(kOpSub, rs_x8, rs_sp, GetStackOverflowReservedBytes(kArm64));
-      LoadWordDisp(rs_x8, 0, rs_x8);
+      Load32Disp(rs_x8, 0, rs_wzr);
       MarkPossibleStackOverflowException();
     }
   }
