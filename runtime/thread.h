@@ -25,6 +25,7 @@
 #include <setjmp.h>
 #include <string>
 
+#include "arch/instruction_set.h"
 #include "atomic.h"
 #include "base/macros.h"
 #include "base/mutex.h"
@@ -34,7 +35,6 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "globals.h"
 #include "handle_scope.h"
-#include "instruction_set.h"
 #include "jvalue.h"
 #include "object_callbacks.h"
 #include "offsets.h"

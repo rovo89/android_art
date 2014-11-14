@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "arch/instruction_set_features.h"
 #include "class_linker.h"
 #include "common_compiler_test.h"
 #include "compiler.h"
@@ -97,7 +98,7 @@ TEST_F(OatTest, WriteRead) {
 
   std::string error_msg;
   std::unique_ptr<const InstructionSetFeatures> insn_features(
-      InstructionSetFeatures::FromFeatureString(insn_set, "default", &error_msg));
+      InstructionSetFeatures::FromVariant(insn_set, "default", &error_msg));
   ASSERT_TRUE(insn_features.get() != nullptr) << error_msg;
   compiler_options_.reset(new CompilerOptions);
   verification_results_.reset(new VerificationResults(compiler_options_.get()));
@@ -198,7 +199,7 @@ TEST_F(OatTest, OatHeaderIsValid) {
     InstructionSet insn_set = kX86;
     std::string error_msg;
     std::unique_ptr<const InstructionSetFeatures> insn_features(
-        InstructionSetFeatures::FromFeatureString(insn_set, "default", &error_msg));
+        InstructionSetFeatures::FromVariant(insn_set, "default", &error_msg));
     ASSERT_TRUE(insn_features.get() != nullptr) << error_msg;
     std::vector<const DexFile*> dex_files;
     uint32_t image_file_location_oat_checksum = 0;

@@ -20,6 +20,7 @@
 
 #include <string>
 
+#include "arch/mips/instruction_set_features_mips.h"
 #include "backend_mips.h"
 #include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir-inl.h"
@@ -34,8 +35,12 @@ static constexpr RegStorage core_regs_arr[] =
 static constexpr RegStorage sp_regs_arr[] =
     {rs_rF0, rs_rF1, rs_rF2, rs_rF3, rs_rF4, rs_rF5, rs_rF6, rs_rF7, rs_rF8, rs_rF9, rs_rF10,
      rs_rF11, rs_rF12, rs_rF13, rs_rF14, rs_rF15};
-static constexpr RegStorage dp_regs_arr[] =
-    {rs_rD0, rs_rD1, rs_rD2, rs_rD3, rs_rD4, rs_rD5, rs_rD6, rs_rD7};
+static constexpr RegStorage dp_fr0_regs_arr[] =
+    {rs_rD0_fr0, rs_rD1_fr0, rs_rD2_fr0, rs_rD3_fr0, rs_rD4_fr0, rs_rD5_fr0, rs_rD6_fr0,
+     rs_rD7_fr0};
+static constexpr RegStorage dp_fr1_regs_arr[] =
+    {rs_rD0_fr1, rs_rD1_fr1, rs_rD2_fr1, rs_rD3_fr1, rs_rD4_fr1, rs_rD5_fr1, rs_rD6_fr1,
+     rs_rD7_fr1};
 static constexpr RegStorage reserved_regs_arr[] =
     {rs_rZERO, rs_rAT, rs_rS0, rs_rS1, rs_rK0, rs_rK1, rs_rGP, rs_rSP, rs_rRA};
 static constexpr RegStorage core_temps_arr[] =
@@ -44,17 +49,23 @@ static constexpr RegStorage core_temps_arr[] =
 static constexpr RegStorage sp_temps_arr[] =
     {rs_rF0, rs_rF1, rs_rF2, rs_rF3, rs_rF4, rs_rF5, rs_rF6, rs_rF7, rs_rF8, rs_rF9, rs_rF10,
      rs_rF11, rs_rF12, rs_rF13, rs_rF14, rs_rF15};
-static constexpr RegStorage dp_temps_arr[] =
-    {rs_rD0, rs_rD1, rs_rD2, rs_rD3, rs_rD4, rs_rD5, rs_rD6, rs_rD7};
+static constexpr RegStorage dp_fr0_temps_arr[] =
+    {rs_rD0_fr0, rs_rD1_fr0, rs_rD2_fr0, rs_rD3_fr0, rs_rD4_fr0, rs_rD5_fr0, rs_rD6_fr0,
+     rs_rD7_fr0};
+static constexpr RegStorage dp_fr1_temps_arr[] =
+    {rs_rD0_fr1, rs_rD1_fr1, rs_rD2_fr1, rs_rD3_fr1, rs_rD4_fr1, rs_rD5_fr1, rs_rD6_fr1,
+     rs_rD7_fr1};
 
 static constexpr ArrayRef<const RegStorage> empty_pool;
 static constexpr ArrayRef<const RegStorage> core_regs(core_regs_arr);
 static constexpr ArrayRef<const RegStorage> sp_regs(sp_regs_arr);
-static constexpr ArrayRef<const RegStorage> dp_regs(dp_regs_arr);
+static constexpr ArrayRef<const RegStorage> dp_fr0_regs(dp_fr0_regs_arr);
+static constexpr ArrayRef<const RegStorage> dp_fr1_regs(dp_fr1_regs_arr);
 static constexpr ArrayRef<const RegStorage> reserved_regs(reserved_regs_arr);
 static constexpr ArrayRef<const RegStorage> core_temps(core_temps_arr);
 static constexpr ArrayRef<const RegStorage> sp_temps(sp_temps_arr);
-static constexpr ArrayRef<const RegStorage> dp_temps(dp_temps_arr);
+static constexpr ArrayRef<const RegStorage> dp_fr0_temps(dp_fr0_temps_arr);
+static constexpr ArrayRef<const RegStorage> dp_fr1_temps(dp_fr1_temps_arr);
 
 RegLocation MipsMir2Lir::LocCReturn() {
   return mips_loc_c_return;
@@ -129,14 +140,17 @@ RegStorage MipsMir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
  * Decode the register id.
  */
 ResourceMask MipsMir2Lir::GetRegMaskCommon(const RegStorage& reg) const {
-  return reg.IsDouble()
-      /* Each double register is equal to a pair of single-precision FP registers */
-#if (FR_BIT == 0)
-      ? ResourceMask::TwoBits((reg.GetRegNum() & ~1) + kMipsFPReg0)
-#else
-      ? ResourceMask::TwoBits(reg.GetRegNum() * 2 + kMipsFPReg0)
-#endif
-      : ResourceMask::Bit(reg.IsSingle() ? reg.GetRegNum() + kMipsFPReg0 : reg.GetRegNum());
+  if (reg.IsDouble()) {
+    if (cu_->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()->Is32BitFloatingPoint()) {
+      return ResourceMask::TwoBits((reg.GetRegNum() & ~1) + kMipsFPReg0);
+    } else {
+      return ResourceMask::TwoBits(reg.GetRegNum() * 2 + kMipsFPReg0);
+    }
+  } else if (reg.IsSingle()) {
+    return ResourceMask::Bit(reg.GetRegNum() + kMipsFPReg0);
+  } else {
+    return ResourceMask::Bit(reg.GetRegNum());
+  }
 }
 
 ResourceMask MipsMir2Lir::GetPCUseDefEncoding() const {
@@ -382,14 +396,25 @@ void MipsMir2Lir::ClobberCallerSave() {
   Clobber(rs_rF13);
   Clobber(rs_rF14);
   Clobber(rs_rF15);
-  Clobber(rs_rD0);
-  Clobber(rs_rD1);
-  Clobber(rs_rD2);
-  Clobber(rs_rD3);
-  Clobber(rs_rD4);
-  Clobber(rs_rD5);
-  Clobber(rs_rD6);
-  Clobber(rs_rD7);
+  if (cu_->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()->Is32BitFloatingPoint()) {
+    Clobber(rs_rD0_fr0);
+    Clobber(rs_rD1_fr0);
+    Clobber(rs_rD2_fr0);
+    Clobber(rs_rD3_fr0);
+    Clobber(rs_rD4_fr0);
+    Clobber(rs_rD5_fr0);
+    Clobber(rs_rD6_fr0);
+    Clobber(rs_rD7_fr0);
+  } else {
+    Clobber(rs_rD0_fr1);
+    Clobber(rs_rD1_fr1);
+    Clobber(rs_rD2_fr1);
+    Clobber(rs_rD3_fr1);
+    Clobber(rs_rD4_fr1);
+    Clobber(rs_rD5_fr1);
+    Clobber(rs_rD6_fr1);
+    Clobber(rs_rD7_fr1);
+  }
 }
 
 RegLocation MipsMir2Lir::GetReturnWideAlt() {
@@ -420,33 +445,37 @@ void MipsMir2Lir::FreeCallTemps() {
   FreeTemp(rs_rMIPS_ARG3);
 }
 
-bool MipsMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
-  UNUSED(barrier_kind);
-#if ANDROID_SMP != 0
-  NewLIR1(kMipsSync, 0 /* Only stype currently supported */);
-  return true;
-#else
-  return false;
-#endif
+bool MipsMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind ATTRIBUTE_UNUSED) {
+  if (cu_->GetInstructionSetFeatures()->IsSmp()) {
+    NewLIR1(kMipsSync, 0 /* Only stype currently supported */);
+    return true;
+  } else {
+    return false;
+  }
 }
 
 void MipsMir2Lir::CompilerInitializeRegAlloc() {
+  const bool fpu_is_32bit =
+      cu_->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()->Is32BitFloatingPoint();
   reg_pool_.reset(new (arena_) RegisterPool(this, arena_, core_regs, empty_pool /* core64 */,
-                                            sp_regs, dp_regs,
+                                            sp_regs,
+                                            fpu_is_32bit ? dp_fr0_regs : dp_fr1_regs,
                                             reserved_regs, empty_pool /* reserved64 */,
                                             core_temps, empty_pool /* core64_temps */,
-                                            sp_temps, dp_temps));
+                                            sp_temps,
+                                            fpu_is_32bit ? dp_fr0_temps : dp_fr1_temps));
 
   // Target-specific adjustments.
 
   // Alias single precision floats to appropriate half of overlapping double.
   for (RegisterInfo* info : reg_pool_->sp_regs_) {
     int sp_reg_num = info->GetReg().GetRegNum();
-#if (FR_BIT == 0)
-    int dp_reg_num = sp_reg_num & ~1;
-#else
-    int dp_reg_num = sp_reg_num >> 1;
-#endif
+    int dp_reg_num;
+    if (fpu_is_32bit) {
+      dp_reg_num = sp_reg_num & ~1;
+    } else {
+      dp_reg_num = sp_reg_num >> 1;
+    }
     RegStorage dp_reg = RegStorage::Solo64(RegStorage::kFloatingPoint | dp_reg_num);
     RegisterInfo* dp_reg_info = GetRegInfo(dp_reg);
     // Double precision register's master storage should refer to itself.
@@ -465,11 +494,11 @@ void MipsMir2Lir::CompilerInitializeRegAlloc() {
   // TODO: adjust when we roll to hard float calling convention.
   reg_pool_->next_core_reg_ = 2;
   reg_pool_->next_sp_reg_ = 2;
-#if (FR_BIT == 0)
-  reg_pool_->next_dp_reg_ = 2;
-#else
-  reg_pool_->next_dp_reg_ = 1;
-#endif
+  if (fpu_is_32bit) {
+    reg_pool_->next_dp_reg_ = 2;
+  } else {
+    reg_pool_->next_dp_reg_ = 1;
+  }
 }
 
 /*
