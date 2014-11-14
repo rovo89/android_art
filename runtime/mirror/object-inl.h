@@ -911,13 +911,19 @@ inline void Object::VisitFieldsReferences(uint32_t ref_offsets, const Visitor& v
         klass = kIsStatic ? nullptr : klass->GetSuperClass()) {
       size_t num_reference_fields =
           kIsStatic ? klass->NumReferenceStaticFields() : klass->NumReferenceInstanceFields();
+      if (num_reference_fields == 0u) {
+        continue;
+      }
+      MemberOffset field_offset = kIsStatic
+          ? klass->GetFirstReferenceStaticFieldOffset()
+          : klass->GetFirstReferenceInstanceFieldOffset();
       for (size_t i = 0; i < num_reference_fields; ++i) {
-        mirror::ArtField* field = kIsStatic ? klass->GetStaticField(i) : klass->GetInstanceField(i);
-        MemberOffset field_offset = field->GetOffset();
         // TODO: Do a simpler check?
         if (kVisitClass || field_offset.Uint32Value() != ClassOffset().Uint32Value()) {
           visitor(this, field_offset, kIsStatic);
         }
+        field_offset = MemberOffset(field_offset.Uint32Value() +
+                                    sizeof(mirror::HeapReference<mirror::Object>));
       }
     }
   }
