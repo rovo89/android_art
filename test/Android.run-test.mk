@@ -325,6 +325,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   010-instance \
   011-array-copy \
   013-math2 \
+  014-math3 \
   016-intern \
   017-float \
   018-stack-overflow \
