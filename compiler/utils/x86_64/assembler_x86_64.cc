@@ -345,7 +345,7 @@ void X86_64Assembler::movss(const Address& dst, XmmRegister src) {
 void X86_64Assembler::movss(XmmRegister dst, XmmRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xF3);
-  EmitOptionalRex32(dst, src);
+  EmitOptionalRex32(src, dst);  // Movss is MR encoding instead of the usual RM.
   EmitUint8(0x0F);
   EmitUint8(0x11);
   EmitXmmRegisterOperand(src.LowBits(), dst);
@@ -505,7 +505,7 @@ void X86_64Assembler::movsd(const Address& dst, XmmRegister src) {
 void X86_64Assembler::movsd(XmmRegister dst, XmmRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xF2);
-  EmitOptionalRex32(dst, src);
+  EmitOptionalRex32(src, dst);  // Movsd is MR encoding instead of the usual RM.
   EmitUint8(0x0F);
   EmitUint8(0x11);
   EmitXmmRegisterOperand(src.LowBits(), dst);
@@ -856,17 +856,46 @@ void X86_64Assembler::fptan() {
 
 void X86_64Assembler::xchgl(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitOptionalRex32(dst, src);
+  // There is a short version for rax.
+  // It's a bit awkward, as CpuRegister has a const field, so assignment and thus swapping doesn't
+  // work.
+  const bool src_rax = src.AsRegister() == RAX;
+  const bool dst_rax = dst.AsRegister() == RAX;
+  if (src_rax || dst_rax) {
+    EmitOptionalRex32(src_rax ? dst : src);
+    EmitUint8(0x90 + (src_rax ? dst.LowBits() : src.LowBits()));
+    return;
+  }
+
+  // General case.
+  EmitOptionalRex32(src, dst);
   EmitUint8(0x87);
-  EmitRegisterOperand(dst.LowBits(), src.LowBits());
+  EmitRegisterOperand(src.LowBits(), dst.LowBits());
 }
 
 
 void X86_64Assembler::xchgq(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitRex64(dst, src);
+  // There is a short version for rax.
+  // It's a bit awkward, as CpuRegister has a const field, so assignment and thus swapping doesn't
+  // work.
+  const bool src_rax = src.AsRegister() == RAX;
+  const bool dst_rax = dst.AsRegister() == RAX;
+  if (src_rax || dst_rax) {
+    // If src == target, emit a nop instead.
+    if (src_rax && dst_rax) {
+      EmitUint8(0x90);
+    } else {
+      EmitRex64(src_rax ? dst : src);
+      EmitUint8(0x90 + (src_rax ? dst.LowBits() : src.LowBits()));
+    }
+    return;
+  }
+
+  // General case.
+  EmitRex64(src, dst);
   EmitUint8(0x87);
-  EmitOperand(dst.LowBits(), Operand(src));
+  EmitRegisterOperand(src.LowBits(), dst.LowBits());
 }
 
 
@@ -1314,13 +1343,25 @@ void X86_64Assembler::imull(CpuRegister dst, CpuRegister src) {
   EmitOperand(dst.LowBits(), Operand(src));
 }
 
-
 void X86_64Assembler::imull(CpuRegister reg, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());  // imull only supports 32b immediate.
+
   EmitOptionalRex32(reg, reg);
-  EmitUint8(0x69);
-  EmitOperand(reg.LowBits(), Operand(reg));
-  EmitImmediate(imm);
+
+  // See whether imm can be represented as a sign-extended 8bit value.
+  int32_t v32 = static_cast<int32_t>(imm.value());
+  if (IsInt32(8, v32)) {
+    // Sign-extension works.
+    EmitUint8(0x6B);
+    EmitOperand(reg.LowBits(), Operand(reg));
+    EmitUint8(static_cast<uint8_t>(v32 & 0xFF));
+  } else {
+    // Not representable, use full immediate.
+    EmitUint8(0x69);
+    EmitOperand(reg.LowBits(), Operand(reg));
+    EmitImmediate(imm);
+  }
 }
 
 
@@ -1345,10 +1386,22 @@ void X86_64Assembler::imulq(CpuRegister dst, CpuRegister src) {
 void X86_64Assembler::imulq(CpuRegister reg, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   CHECK(imm.is_int32());  // imulq only supports 32b immediate.
-  EmitRex64(reg);
-  EmitUint8(0x69);
-  EmitOperand(reg.LowBits(), Operand(reg));
-  EmitImmediate(imm);
+
+  EmitRex64(reg, reg);
+
+  // See whether imm can be represented as a sign-extended 8bit value.
+  int64_t v64 = imm.value();
+  if (IsInt64(8, v64)) {
+    // Sign-extension works.
+    EmitUint8(0x6B);
+    EmitOperand(reg.LowBits(), Operand(reg));
+    EmitUint8(static_cast<uint8_t>(v64 & 0xFF));
+  } else {
+    // Not representable, use full immediate.
+    EmitUint8(0x69);
+    EmitOperand(reg.LowBits(), Operand(reg));
+    EmitImmediate(imm);
+  }
 }
 
 
@@ -1759,6 +1812,8 @@ void X86_64Assembler::EmitGenericShift(bool wide,
   CHECK(imm.is_int8());
   if (wide) {
     EmitRex64(reg);
+  } else {
+    EmitOptionalRex32(reg);
   }
   if (imm.value() == 1) {
     EmitUint8(0xD1);
@@ -1776,6 +1831,7 @@ void X86_64Assembler::EmitGenericShift(int reg_or_opcode,
                                        CpuRegister shifter) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   CHECK_EQ(shifter.AsRegister(), RCX);
+  EmitOptionalRex32(operand);
   EmitUint8(0xD3);
   EmitOperand(reg_or_opcode, Operand(operand));
 }
