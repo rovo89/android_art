@@ -29,21 +29,31 @@
 
 namespace art {
 
+// Helper for a constexpr string length.
+constexpr size_t ConstexprStrLen(char const* str, size_t count = 0) {
+  return ('\0' == str[0]) ? count : ConstexprStrLen(str+1, count+1);
+}
+
 // Use a glocal static variable to keep the same name for all test data. Else we'll just spam the
 // temp directory.
 static std::string tmpnam_;
 
-template<typename Ass, typename Reg, typename Imm>
+template<typename Ass, typename Reg, typename FPReg, typename Imm>
 class AssemblerTest : public testing::Test {
  public:
+  enum class RegisterView {  // private
+    kUsePrimaryName,
+    kUseSecondaryName
+  };
+
   Ass* GetAssembler() {
     return assembler_.get();
   }
 
-  typedef std::string (*TestFn)(Ass* assembler);
+  typedef std::string (*TestFn)(AssemblerTest* assembler_test, Ass* assembler);
 
   void DriverFn(TestFn f, std::string test_name) {
-    Driver(f(assembler_.get()), test_name);
+    Driver(f(this, assembler_.get()), test_name);
   }
 
   // This driver assumes the assembler has already been called.
@@ -52,116 +62,114 @@ class AssemblerTest : public testing::Test {
   }
 
   std::string RepeatR(void (Ass::*f)(Reg), std::string fmt) {
-    const std::vector<Reg*> registers = GetRegisters();
-    std::string str;
-    for (auto reg : registers) {
-      (assembler_.get()->*f)(*reg);
-      std::string base = fmt;
+    return RepeatTemplatedRegister<Reg>(f,
+        GetRegisters(),
+        &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
+        fmt);
+  }
 
-      size_t reg_index = base.find("{reg}");
-      if (reg_index != std::string::npos) {
-        std::ostringstream sreg;
-        sreg << *reg;
-        std::string reg_string = sreg.str();
-        base.replace(reg_index, 5, reg_string);
-      }
-
-      if (str.size() > 0) {
-        str += "\n";
-      }
-      str += base;
-    }
-    // Add a newline at the end.
-    str += "\n";
-    return str;
+  std::string Repeatr(void (Ass::*f)(Reg), std::string fmt) {
+    return RepeatTemplatedRegister<Reg>(f,
+        GetRegisters(),
+        &AssemblerTest::GetRegName<RegisterView::kUseSecondaryName>,
+        fmt);
   }
 
   std::string RepeatRR(void (Ass::*f)(Reg, Reg), std::string fmt) {
-    const std::vector<Reg*> registers = GetRegisters();
-    std::string str;
-    for (auto reg1 : registers) {
-      for (auto reg2 : registers) {
-        (assembler_.get()->*f)(*reg1, *reg2);
-        std::string base = fmt;
+    return RepeatTemplatedRegisters<Reg, Reg>(f,
+        GetRegisters(),
+        GetRegisters(),
+        &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
+        &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
+        fmt);
+  }
 
-        size_t reg1_index = base.find("{reg1}");
-        if (reg1_index != std::string::npos) {
-          std::ostringstream sreg;
-          sreg << *reg1;
-          std::string reg_string = sreg.str();
-          base.replace(reg1_index, 6, reg_string);
-        }
+  std::string Repeatrr(void (Ass::*f)(Reg, Reg), std::string fmt) {
+    return RepeatTemplatedRegisters<Reg, Reg>(f,
+        GetRegisters(),
+        GetRegisters(),
+        &AssemblerTest::GetRegName<RegisterView::kUseSecondaryName>,
+        &AssemblerTest::GetRegName<RegisterView::kUseSecondaryName>,
+        fmt);
+  }
 
-        size_t reg2_index = base.find("{reg2}");
-        if (reg2_index != std::string::npos) {
-          std::ostringstream sreg;
-          sreg << *reg2;
-          std::string reg_string = sreg.str();
-          base.replace(reg2_index, 6, reg_string);
-        }
-
-        if (str.size() > 0) {
-          str += "\n";
-        }
-        str += base;
-      }
-    }
-    // Add a newline at the end.
-    str += "\n";
-    return str;
+  std::string RepeatRr(void (Ass::*f)(Reg, Reg), std::string fmt) {
+    return RepeatTemplatedRegisters<Reg, Reg>(f,
+        GetRegisters(),
+        GetRegisters(),
+        &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
+        &AssemblerTest::GetRegName<RegisterView::kUseSecondaryName>,
+        fmt);
   }
 
   std::string RepeatRI(void (Ass::*f)(Reg, const Imm&), size_t imm_bytes, std::string fmt) {
-    const std::vector<Reg*> registers = GetRegisters();
-    std::string str;
-    std::vector<int64_t> imms = CreateImmediateValues(imm_bytes);
-    for (auto reg : registers) {
-      for (int64_t imm : imms) {
-        Imm new_imm = CreateImmediate(imm);
-        (assembler_.get()->*f)(*reg, new_imm);
-        std::string base = fmt;
-
-        size_t reg_index = base.find("{reg}");
-        if (reg_index != std::string::npos) {
-          std::ostringstream sreg;
-          sreg << *reg;
-          std::string reg_string = sreg.str();
-          base.replace(reg_index, 5, reg_string);
-        }
-
-        size_t imm_index = base.find("{imm}");
-        if (imm_index != std::string::npos) {
-          std::ostringstream sreg;
-          sreg << imm;
-          std::string imm_string = sreg.str();
-          base.replace(imm_index, 5, imm_string);
-        }
-
-        if (str.size() > 0) {
-          str += "\n";
-        }
-        str += base;
-      }
-    }
-    // Add a newline at the end.
-    str += "\n";
-    return str;
+    return RepeatRegisterImm<RegisterView::kUsePrimaryName>(f, imm_bytes, fmt);
   }
 
-  std::string RepeatI(void (Ass::*f)(const Imm&), size_t imm_bytes, std::string fmt) {
+  std::string Repeatri(void (Ass::*f)(Reg, const Imm&), size_t imm_bytes, std::string fmt) {
+    return RepeatRegisterImm<RegisterView::kUseSecondaryName>(f, imm_bytes, fmt);
+  }
+
+  std::string RepeatFF(void (Ass::*f)(FPReg, FPReg), std::string fmt) {
+    return RepeatTemplatedRegisters<FPReg, FPReg>(f,
+                                                  GetFPRegisters(),
+                                                  GetFPRegisters(),
+                                                  &AssemblerTest::GetFPRegName,
+                                                  &AssemblerTest::GetFPRegName,
+                                                  fmt);
+  }
+
+  std::string RepeatFR(void (Ass::*f)(FPReg, Reg), std::string fmt) {
+    return RepeatTemplatedRegisters<FPReg, Reg>(f,
+        GetFPRegisters(),
+        GetRegisters(),
+        &AssemblerTest::GetFPRegName,
+        &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
+        fmt);
+  }
+
+  std::string RepeatFr(void (Ass::*f)(FPReg, Reg), std::string fmt) {
+    return RepeatTemplatedRegisters<FPReg, Reg>(f,
+        GetFPRegisters(),
+        GetRegisters(),
+        &AssemblerTest::GetFPRegName,
+        &AssemblerTest::GetRegName<RegisterView::kUseSecondaryName>,
+        fmt);
+  }
+
+  std::string RepeatRF(void (Ass::*f)(Reg, FPReg), std::string fmt) {
+    return RepeatTemplatedRegisters<Reg, FPReg>(f,
+        GetRegisters(),
+        GetFPRegisters(),
+        &AssemblerTest::GetRegName<RegisterView::kUsePrimaryName>,
+        &AssemblerTest::GetFPRegName,
+        fmt);
+  }
+
+  std::string RepeatrF(void (Ass::*f)(Reg, FPReg), std::string fmt) {
+    return RepeatTemplatedRegisters<Reg, FPReg>(f,
+        GetRegisters(),
+        GetFPRegisters(),
+        &AssemblerTest::GetRegName<RegisterView::kUseSecondaryName>,
+        &AssemblerTest::GetFPRegName,
+        fmt);
+  }
+
+  std::string RepeatI(void (Ass::*f)(const Imm&), size_t imm_bytes, std::string fmt,
+                      bool as_uint = false) {
     std::string str;
-    std::vector<int64_t> imms = CreateImmediateValues(imm_bytes);
+    std::vector<int64_t> imms = CreateImmediateValues(imm_bytes, as_uint);
     for (int64_t imm : imms) {
       Imm new_imm = CreateImmediate(imm);
       (assembler_.get()->*f)(new_imm);
       std::string base = fmt;
 
-      size_t imm_index = base.find("{imm}");
+      size_t imm_index = base.find(IMM_TOKEN);
       if (imm_index != std::string::npos) {
         std::ostringstream sreg;
         sreg << imm;
         std::string imm_string = sreg.str();
-        base.replace(imm_index, 5, imm_string);
+        base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
       }
 
       if (str.size() > 0) {
@@ -200,7 +208,24 @@ class AssemblerTest : public testing::Test {
     return true;
   }
 
+  // The following functions are public so that TestFn can use them...
+
+  virtual std::vector<Reg*> GetRegisters() = 0;
+
+  virtual std::vector<FPReg*> GetFPRegisters() {
+    UNIMPLEMENTED(FATAL) << "Architecture does not support floating-point registers";
+    UNREACHABLE();
+  }
+
+  // Secondary register names are the secondary view on registers, e.g., 32b on 64b systems.
+  virtual std::string GetSecondaryRegisterName(const Reg& reg ATTRIBUTE_UNUSED) {
+    UNIMPLEMENTED(FATAL) << "Architecture does not support secondary registers";
+    UNREACHABLE();
+  }
+
  protected:
+  explicit AssemblerTest() {}
+
   void SetUp() OVERRIDE {
     assembler_.reset(new Ass());
 
@@ -218,8 +243,6 @@ class AssemblerTest : public testing::Test {
 
   // Override this to set up any architecture-specific things, e.g., register vectors.
   virtual void SetUpHelpers() {}
-
-  virtual std::vector<Reg*> GetRegisters() = 0;
 
   // Get the typically used name for this architecture, e.g., aarch64, x86_64, ...
   virtual std::string GetArchitectureString() = 0;
@@ -305,23 +328,41 @@ class AssemblerTest : public testing::Test {
   }
 
   // Create a couple of immediate values up to the number of bytes given.
-  virtual std::vector<int64_t> CreateImmediateValues(size_t imm_bytes) {
+  virtual std::vector<int64_t> CreateImmediateValues(size_t imm_bytes, bool as_uint = false) {
     std::vector<int64_t> res;
     res.push_back(0);
-    res.push_back(-1);
+    if (!as_uint) {
+      res.push_back(-1);
+    } else {
+      res.push_back(0xFF);
+    }
     res.push_back(0x12);
     if (imm_bytes >= 2) {
       res.push_back(0x1234);
-      res.push_back(-0x1234);
+      if (!as_uint) {
+        res.push_back(-0x1234);
+      } else {
+        res.push_back(0xFFFF);
+      }
       if (imm_bytes >= 4) {
         res.push_back(0x12345678);
-        res.push_back(-0x12345678);
+        if (!as_uint) {
+          res.push_back(-0x12345678);
+        } else {
+          res.push_back(0xFFFFFFFF);
+        }
         if (imm_bytes >= 6) {
           res.push_back(0x123456789ABC);
-          res.push_back(-0x123456789ABC);
+          if (!as_uint) {
+            res.push_back(-0x123456789ABC);
+          }
           if (imm_bytes >= 8) {
             res.push_back(0x123456789ABCDEF0);
-            res.push_back(-0x123456789ABCDEF0);
+            if (!as_uint) {
+              res.push_back(-0x123456789ABCDEF0);
+            } else {
+              res.push_back(0xFFFFFFFFFFFFFFFF);
+            }
           }
         }
       }
@@ -332,7 +373,127 @@ class AssemblerTest : public testing::Test {
   // Create an immediate from the specific value.
   virtual Imm CreateImmediate(int64_t imm_value) = 0;
 
+  template <typename RegType>
+  std::string RepeatTemplatedRegister(void (Ass::*f)(RegType),
+                                      const std::vector<RegType*> registers,
+                                      std::string (AssemblerTest::*GetName)(const RegType&),
+                                      std::string fmt) {
+    std::string str;
+    for (auto reg : registers) {
+      (assembler_.get()->*f)(*reg);
+      std::string base = fmt;
+
+      std::string reg_string = (this->*GetName)(*reg);
+      size_t reg_index;
+      if ((reg_index = base.find(REG_TOKEN)) != std::string::npos) {
+        base.replace(reg_index, ConstexprStrLen(REG_TOKEN), reg_string);
+      }
+
+      if (str.size() > 0) {
+        str += "\n";
+      }
+      str += base;
+    }
+    // Add a newline at the end.
+    str += "\n";
+    return str;
+  }
+
+  template <typename Reg1, typename Reg2>
+  std::string RepeatTemplatedRegisters(void (Ass::*f)(Reg1, Reg2),
+                                       const std::vector<Reg1*> reg1_registers,
+                                       const std::vector<Reg2*> reg2_registers,
+                                       std::string (AssemblerTest::*GetName1)(const Reg1&),
+                                       std::string (AssemblerTest::*GetName2)(const Reg2&),
+                                       std::string fmt) {
+    std::string str;
+    for (auto reg1 : reg1_registers) {
+      for (auto reg2 : reg2_registers) {
+        (assembler_.get()->*f)(*reg1, *reg2);
+        std::string base = fmt;
+
+        std::string reg1_string = (this->*GetName1)(*reg1);
+        size_t reg1_index;
+        while ((reg1_index = base.find(REG1_TOKEN)) != std::string::npos) {
+          base.replace(reg1_index, ConstexprStrLen(REG1_TOKEN), reg1_string);
+        }
+
+        std::string reg2_string = (this->*GetName2)(*reg2);
+        size_t reg2_index;
+        while ((reg2_index = base.find(REG2_TOKEN)) != std::string::npos) {
+          base.replace(reg2_index, ConstexprStrLen(REG2_TOKEN), reg2_string);
+        }
+
+        if (str.size() > 0) {
+          str += "\n";
+        }
+        str += base;
+      }
+    }
+    // Add a newline at the end.
+    str += "\n";
+    return str;
+  }
+
  private:
+  template <RegisterView kRegView>
+  std::string GetRegName(const Reg& reg) {
+    std::ostringstream sreg;
+    switch (kRegView) {
+      case RegisterView::kUsePrimaryName:
+        sreg << reg;
+        break;
+
+      case RegisterView::kUseSecondaryName:
+        sreg << GetSecondaryRegisterName(reg);
+        break;
+    }
+    return sreg.str();
+  }
+
+  std::string GetFPRegName(const FPReg& reg) {
+    std::ostringstream sreg;
+    sreg << reg;
+    return sreg.str();
+  }
+
+  template <RegisterView kRegView>
+  std::string RepeatRegisterImm(void (Ass::*f)(Reg, const Imm&), size_t imm_bytes,
+                                  std::string fmt) {
+    const std::vector<Reg*> registers = GetRegisters();
+    std::string str;
+    std::vector<int64_t> imms = CreateImmediateValues(imm_bytes);
+    for (auto reg : registers) {
+      for (int64_t imm : imms) {
+        Imm new_imm = CreateImmediate(imm);
+        (assembler_.get()->*f)(*reg, new_imm);
+        std::string base = fmt;
+
+        std::string reg_string = GetRegName<kRegView>(*reg);
+        size_t reg_index;
+        while ((reg_index = base.find(REG_TOKEN)) != std::string::npos) {
+          base.replace(reg_index, ConstexprStrLen(REG_TOKEN), reg_string);
+        }
+
+        size_t imm_index = base.find(IMM_TOKEN);
+        if (imm_index != std::string::npos) {
+          std::ostringstream sreg;
+          sreg << imm;
+          std::string imm_string = sreg.str();
+          base.replace(imm_index, ConstexprStrLen(IMM_TOKEN), imm_string);
+        }
+
+        if (str.size() > 0) {
+          str += "\n";
+        }
+        str += base;
+      }
+    }
+    // Add a newline at the end.
+    str += "\n";
+    return str;
+  }
+
   // Driver() assembles and compares the results. If the results are not equal and we have a
   // disassembler, disassemble both and check whether they have the same mnemonics (in which case
   // we just warn).
@@ -489,12 +650,12 @@ class AssemblerTest : public testing::Test {
 
     bool result = CompareFiles(data_name + ".dis", as_name + ".dis");
 
-    if (result) {
-      std::remove(data_name.c_str());
-      std::remove(as_name.c_str());
-      std::remove((data_name + ".dis").c_str());
-      std::remove((as_name + ".dis").c_str());
-    }
+    // If you want to take a look at the differences between the ART assembler and GCC, comment
+    // out the removal code.
+    std::remove(data_name.c_str());
+    std::remove(as_name.c_str());
+    std::remove((data_name + ".dis").c_str());
+    std::remove((as_name + ".dis").c_str());
 
     return result;
   }
@@ -701,6 +862,13 @@ class AssemblerTest : public testing::Test {
     return tmpnam_;
   }
 
+  static constexpr size_t OBJDUMP_SECTION_LINE_MIN_TOKENS = 6;
+
+  static constexpr const char* REG_TOKEN = "{reg}";
+  static constexpr const char* REG1_TOKEN = "{reg1}";
+  static constexpr const char* REG2_TOKEN = "{reg2}";
+  static constexpr const char* IMM_TOKEN = "{imm}";
+
   std::unique_ptr<Ass> assembler_;
 
   std::string resolved_assembler_cmd_;
@@ -709,7 +877,7 @@ class AssemblerTest : public testing::Test {
 
   std::string android_data_;
 
-  static constexpr size_t OBJDUMP_SECTION_LINE_MIN_TOKENS = 6;
+  DISALLOW_COPY_AND_ASSIGN(AssemblerTest);
 };
 
 }  // namespace art

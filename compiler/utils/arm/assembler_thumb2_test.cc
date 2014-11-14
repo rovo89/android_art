@@ -22,8 +22,8 @@
 namespace art {
 
 class AssemblerThumb2Test : public AssemblerTest<arm::Thumb2Assembler,
-                                                arm::Register,
-                                                uint32_t> {
+                                                 arm::Register, arm::SRegister,
+                                                 uint32_t> {
  protected:
   std::string GetArchitectureString() OVERRIDE {
     return "arm";
