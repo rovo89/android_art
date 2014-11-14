@@ -207,4 +207,20 @@ bool GlobalValueNumbering::NullCheckedInAllPredecessors(
   return true;
 }
 
+bool GlobalValueNumbering::DivZeroCheckedInAllPredecessors(
+    const ScopedArenaVector<uint16_t>& merge_names) const {
+  // Implicit parameters:
+  //   - *work_lvn: the LVN for which we're checking predecessors.
+  //   - merge_lvns_: the predecessor LVNs.
+  DCHECK_EQ(merge_lvns_.size(), merge_names.size());
+  for (size_t i = 0, size = merge_lvns_.size(); i != size; ++i) {
+    const LocalValueNumbering* pred_lvn = merge_lvns_[i];
+    uint16_t value_name = merge_names[i];
+    if (!pred_lvn->IsValueDivZeroChecked(value_name)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace art

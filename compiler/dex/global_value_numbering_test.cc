@@ -131,6 +131,8 @@ class GlobalValueNumberingTest : public testing::Test {
     { bb, opcode, 0u, 0u, 2, { src, src + 1 }, 2, { reg, reg + 1 } }
 #define DEF_PHI2(bb, reg, src1, src2) \
     { bb, static_cast<Instruction::Code>(kMirOpPhi), 0, 0u, 2u, { src1, src2 }, 1, { reg } }
+#define DEF_DIV_REM(bb, opcode, result, dividend, divisor) \
+    { bb, opcode, 0u, 0u, 2, { dividend, divisor }, 1, { result } }
 
   void DoPrepareIFields(const IFieldDef* defs, size_t count) {
     cu_.mir_graph->ifield_lowering_infos_.clear();
@@ -2211,6 +2213,47 @@ TEST_F(GlobalValueNumberingTest, NormalPathToCatchEntry) {
   std::swap(merge_block->taken, merge_block->fall_through);
   PrepareMIRs(mirs);
   PerformGVN();
+}
+
+TEST_F(GlobalValueNumberingTestDiamond, DivZeroCheckDiamond) {
+  static const MIRDef mirs[] = {
+      DEF_DIV_REM(3u, Instruction::DIV_INT, 1u, 20u, 21u),
+      DEF_DIV_REM(3u, Instruction::DIV_INT, 2u, 24u, 21u),
+      DEF_DIV_REM(3u, Instruction::DIV_INT, 3u, 20u, 23u),
+      DEF_DIV_REM(4u, Instruction::DIV_INT, 4u, 24u, 22u),
+      DEF_DIV_REM(4u, Instruction::DIV_INT, 9u, 24u, 25u),
+      DEF_DIV_REM(5u, Instruction::DIV_INT, 5u, 24u, 21u),
+      DEF_DIV_REM(5u, Instruction::DIV_INT, 10u, 24u, 26u),
+      DEF_PHI2(6u, 27u, 25u, 26u),
+      DEF_DIV_REM(6u, Instruction::DIV_INT, 12u, 20u, 27u),
+      DEF_DIV_REM(6u, Instruction::DIV_INT, 6u, 24u, 21u),
+      DEF_DIV_REM(6u, Instruction::DIV_INT, 7u, 20u, 23u),
+      DEF_DIV_REM(6u, Instruction::DIV_INT, 8u, 20u, 22u),
+  };
+
+  static const bool expected_ignore_div_zero_check[] = {
+      false,  // New divisor seen.
+      true,   // Eliminated since it has first divisor as first one.
+      false,  // New divisor seen.
+      false,  // New divisor seen.
+      false,  // New divisor seen.
+      true,   // Eliminated in dominating block.
+      false,  // New divisor seen.
+      false,  // Phi node.
+      true,   // Eliminated on both sides of diamond and merged via phi.
+      true,   // Eliminated in dominating block.
+      true,   // Eliminated in dominating block.
+      false,  // Only eliminated on one path of diamond.
+  };
+
+  PrepareMIRs(mirs);
+  PerformGVN();
+  PerformGVNCodeModifications();
+  ASSERT_EQ(arraysize(expected_ignore_div_zero_check), mir_count_);
+  for (size_t i = 0u; i != mir_count_; ++i) {
+    int expected = expected_ignore_div_zero_check[i] ? MIR_IGNORE_DIV_ZERO_CHECK : 0u;
+    EXPECT_EQ(expected, mirs_[i].optimization_flags) << i;
+  }
 }
 
 }  // namespace art

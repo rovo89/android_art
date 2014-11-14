@@ -339,6 +339,7 @@ LocalValueNumbering::LocalValueNumbering(GlobalValueNumbering* gvn, uint16_t id,
       escaped_array_clobber_set_(EscapedArrayClobberKeyComparator(), allocator->Adapter()),
       range_checked_(RangeCheckKeyComparator() , allocator->Adapter()),
       null_checked_(std::less<uint16_t>(), allocator->Adapter()),
+      div_zero_checked_(std::less<uint16_t>(), allocator->Adapter()),
       merge_names_(allocator->Adapter()),
       merge_map_(std::less<ScopedArenaVector<BasicBlockId>>(), allocator->Adapter()),
       merge_new_memory_version_(kNoValue) {
@@ -362,7 +363,8 @@ bool LocalValueNumbering::Equals(const LocalValueNumbering& other) const {
       escaped_ifield_clobber_set_ == other.escaped_ifield_clobber_set_ &&
       escaped_array_clobber_set_ == other.escaped_array_clobber_set_ &&
       range_checked_ == other.range_checked_ &&
-      null_checked_ == other.null_checked_;
+      null_checked_ == other.null_checked_ &&
+      div_zero_checked_ == other.div_zero_checked_;
 }
 
 void LocalValueNumbering::MergeOne(const LocalValueNumbering& other, MergeType merge_type) {
@@ -379,6 +381,7 @@ void LocalValueNumbering::MergeOne(const LocalValueNumbering& other, MergeType m
   non_aliasing_refs_ = other.non_aliasing_refs_;
   range_checked_ = other.range_checked_;
   null_checked_ = other.null_checked_;
+  div_zero_checked_ = other.div_zero_checked_;
 
   const BasicBlock* pred_bb = gvn_->GetBasicBlock(other.Id());
   if (GlobalValueNumbering::HasNullCheckLastInsn(pred_bb, Id())) {
@@ -699,6 +702,28 @@ void LocalValueNumbering::MergeNullChecked() {
   }
 }
 
+void LocalValueNumbering::MergeDivZeroChecked() {
+  DCHECK_GE(gvn_->merge_lvns_.size(), 2u);
+
+  // Find the LVN with the least entries in the set.
+  const LocalValueNumbering* least_entries_lvn = gvn_->merge_lvns_[0];
+  for (const LocalValueNumbering* lvn : gvn_->merge_lvns_) {
+    if (lvn->div_zero_checked_.size() < least_entries_lvn->div_zero_checked_.size()) {
+      least_entries_lvn = lvn;
+    }
+  }
+
+  // For each div-zero value name check if it's div-zero checked in all the LVNs.
+  for (const auto& value_name : least_entries_lvn->div_zero_checked_) {
+    // Merge null_checked_ for this ref.
+    merge_names_.clear();
+    merge_names_.resize(gvn_->merge_lvns_.size(), value_name);
+    if (gvn_->DivZeroCheckedInAllPredecessors(merge_names_)) {
+      div_zero_checked_.insert(div_zero_checked_.end(), value_name);
+    }
+  }
+}
+
 void LocalValueNumbering::MergeSFieldValues(const SFieldToValueMap::value_type& entry,
                                             SFieldToValueMap::iterator hint) {
   uint16_t field_id = entry.first;
@@ -931,6 +956,9 @@ void LocalValueNumbering::Merge(MergeType merge_type) {
   // Merge null_checked_. We may later insert more, such as merged object field values.
   MergeNullChecked();
 
+  // Now merge the div_zero_checked_.
+  MergeDivZeroChecked();
+
   if (merge_type == kCatchMerge) {
     // Memory is clobbered. New memory version already created, don't merge aliasing locations.
     return;
@@ -1054,6 +1082,20 @@ void LocalValueNumbering::HandleRangeCheck(MIR* mir, uint16_t array, uint16_t in
   }
 }
 
+void LocalValueNumbering::HandleDivZeroCheck(MIR* mir, uint16_t reg) {
+  auto lb = div_zero_checked_.lower_bound(reg);
+  if (lb != div_zero_checked_.end() && *lb == reg) {
+    if (LIKELY(gvn_->CanModify())) {
+      if (gvn_->GetCompilationUnit()->verbose) {
+        LOG(INFO) << "Removing div zero check for 0x" << std::hex << mir->offset;
+      }
+      mir->optimization_flags |= MIR_IGNORE_DIV_ZERO_CHECK;
+    }
+  } else {
+    div_zero_checked_.insert(lb, reg);
+  }
+}
+
 void LocalValueNumbering::HandlePutObject(MIR* mir) {
   // If we're storing a non-aliasing reference, stop tracking it as non-aliasing now.
   uint16_t base = GetOperandValue(mir->ssa_rep->uses[0]);
@@ -1138,6 +1180,9 @@ uint16_t LocalValueNumbering::HandlePhi(MIR* mir) {
       merge_map_.PutBefore(lb, merge_names_, value_name);
       if (!wide && gvn_->NullCheckedInAllPredecessors(merge_names_)) {
         null_checked_.insert(value_name);
+      }
+      if (gvn_->DivZeroCheckedInAllPredecessors(merge_names_)) {
+        div_zero_checked_.insert(value_name);
       }
     }
   }
@@ -1696,6 +1741,13 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
       }
       break;
 
+    case Instruction::DIV_INT:
+    case Instruction::DIV_INT_2ADDR:
+    case Instruction::REM_INT:
+    case Instruction::REM_INT_2ADDR:
+      HandleDivZeroCheck(mir, GetOperandValue(mir->ssa_rep->uses[1]));
+      FALLTHROUGH_INTENDED;
+
     case Instruction::CMPG_FLOAT:
     case Instruction::CMPL_FLOAT:
     case Instruction::ADD_INT:
@@ -1710,10 +1762,6 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::XOR_INT_2ADDR:
     case Instruction::SUB_INT:
     case Instruction::SUB_INT_2ADDR:
-    case Instruction::DIV_INT:
-    case Instruction::DIV_INT_2ADDR:
-    case Instruction::REM_INT:
-    case Instruction::REM_INT_2ADDR:
     case Instruction::SHL_INT:
     case Instruction::SHL_INT_2ADDR:
     case Instruction::SHR_INT:
@@ -1728,19 +1776,22 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
       }
       break;
 
+    case Instruction::DIV_LONG:
+    case Instruction::REM_LONG:
+    case Instruction::DIV_LONG_2ADDR:
+    case Instruction::REM_LONG_2ADDR:
+      HandleDivZeroCheck(mir, GetOperandValueWide(mir->ssa_rep->uses[2]));
+      FALLTHROUGH_INTENDED;
+
     case Instruction::ADD_LONG:
     case Instruction::SUB_LONG:
     case Instruction::MUL_LONG:
-    case Instruction::DIV_LONG:
-    case Instruction::REM_LONG:
     case Instruction::AND_LONG:
     case Instruction::OR_LONG:
     case Instruction::XOR_LONG:
     case Instruction::ADD_LONG_2ADDR:
     case Instruction::SUB_LONG_2ADDR:
     case Instruction::MUL_LONG_2ADDR:
-    case Instruction::DIV_LONG_2ADDR:
-    case Instruction::REM_LONG_2ADDR:
     case Instruction::AND_LONG_2ADDR:
     case Instruction::OR_LONG_2ADDR:
     case Instruction::XOR_LONG_2ADDR:

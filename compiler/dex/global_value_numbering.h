@@ -199,6 +199,8 @@ class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
 
   bool NullCheckedInAllPredecessors(const ScopedArenaVector<uint16_t>& merge_names) const;
 
+  bool DivZeroCheckedInAllPredecessors(const ScopedArenaVector<uint16_t>& merge_names) const;
+
   CompilationUnit* GetCompilationUnit() const {
     return cu_;
   }

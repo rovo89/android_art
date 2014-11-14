@@ -84,6 +84,10 @@ class LocalValueNumberingTest : public testing::Test {
     { opcode, 0u, 0u, 1, { reg }, 0, { } }
 #define DEF_UNIQUE_REF(opcode, reg) \
     { opcode, 0u, 0u, 0, { }, 1, { reg } }  // CONST_CLASS, CONST_STRING, NEW_ARRAY, ...
+#define DEF_DIV_REM(opcode, result, dividend, divisor) \
+    { opcode, 0u, 0u, 2, { dividend, divisor }, 1, { result } }
+#define DEF_DIV_REM_WIDE(opcode, result, dividend, divisor) \
+    { opcode, 0u, 0u, 4, { dividend, dividend + 1, divisor, divisor + 1 }, 2, { result, result + 1 } }
 
   void DoPrepareIFields(const IFieldDef* defs, size_t count) {
     cu_.mir_graph->ifield_lowering_infos_.clear();
@@ -733,6 +737,28 @@ TEST_F(LocalValueNumberingTest, ClInitOnSget) {
   PerformLVN();
   ASSERT_EQ(value_names_.size(), 5u);
   EXPECT_NE(value_names_[0], value_names_[3]);
+}
+
+TEST_F(LocalValueNumberingTest, DivZeroCheck) {
+  static const MIRDef mirs[] = {
+      DEF_DIV_REM(Instruction::DIV_INT, 1u, 10u, 20u),
+      DEF_DIV_REM(Instruction::DIV_INT, 2u, 20u, 20u),
+      DEF_DIV_REM(Instruction::DIV_INT_2ADDR, 3u, 10u, 1u),
+      DEF_DIV_REM(Instruction::REM_INT, 4u, 30u, 20u),
+      DEF_DIV_REM_WIDE(Instruction::REM_LONG, 5u, 12u, 14u),
+      DEF_DIV_REM_WIDE(Instruction::DIV_LONG_2ADDR, 7u, 16u, 14u),
+  };
+
+  static const bool expected_ignore_div_zero_check[] = {
+      false, true, false, true, false, true,
+  };
+
+  PrepareMIRs(mirs);
+  PerformLVN();
+  for (size_t i = 0u; i != mir_count_; ++i) {
+    int expected = expected_ignore_div_zero_check[i] ? MIR_IGNORE_DIV_ZERO_CHECK : 0u;
+    EXPECT_EQ(expected, mirs_[i].optimization_flags) << i;
+  }
 }
 
 }  // namespace art
