@@ -16,6 +16,7 @@
 
 #include <functional>
 
+#include "arch/instruction_set.h"
 #include "base/macros.h"
 #include "builder.h"
 #include "code_generator_arm.h"
@@ -25,7 +26,6 @@
 #include "common_compiler_test.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
-#include "instruction_set.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
 #include "prepare_for_register_allocation.h"
@@ -39,7 +39,7 @@ namespace art {
 
 class InternalCodeAllocator : public CodeAllocator {
  public:
-  InternalCodeAllocator() { }
+  InternalCodeAllocator() : size_(0) { }
 
   virtual uint8_t* Allocate(size_t size) {
     size_ = size;

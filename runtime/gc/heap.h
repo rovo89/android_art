@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "allocator_type.h"
+#include "arch/instruction_set.h"
 #include "atomic.h"
 #include "base/timing_logger.h"
 #include "gc/accounting/atomic_stack.h"
@@ -32,7 +33,6 @@
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
 #include "globals.h"
-#include "instruction_set.h"
 #include "jni.h"
 #include "object_callbacks.h"
 #include "offsets.h"

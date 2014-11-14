@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "arch/arm/instruction_set_features_arm.h"
 #include "dex/compiler_ir.h"
 #include "dex/compiler_internals.h"
 #include "dex/quick/arm/arm_lir.h"

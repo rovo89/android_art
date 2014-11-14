@@ -17,7 +17,7 @@
 #ifndef ART_COMPILER_UTILS_STACK_CHECKS_H_
 #define ART_COMPILER_UTILS_STACK_CHECKS_H_
 
-#include "instruction_set.h"
+#include "arch/instruction_set.h"
 
 namespace art {
 
@@ -34,8 +34,7 @@ static constexpr size_t kSmallFrameSize = 1 * KB;
 // stack overflow check on method entry.
 //
 // A frame is considered large when it's above kLargeFrameSize.
-static inline bool FrameNeedsStackCheck(size_t size, InstructionSet isa) {
-  UNUSED(isa);
+static inline bool FrameNeedsStackCheck(size_t size, InstructionSet isa ATTRIBUTE_UNUSED) {
   return size >= kLargeFrameSize;
 }
 

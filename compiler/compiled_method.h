@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "instruction_set.h"
+#include "arch/instruction_set.h"
 #include "method_reference.h"
 #include "utils.h"
 #include "utils/array_ref.h"

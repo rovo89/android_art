@@ -25,7 +25,7 @@
 #include "globals.h"
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
-#include "instruction_set.h"
+#include "arch/instruction_set.h"
 #include "profiler_options.h"
 
 namespace art {

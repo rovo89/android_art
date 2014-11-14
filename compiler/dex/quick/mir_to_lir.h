@@ -17,7 +17,7 @@
 #ifndef ART_COMPILER_DEX_QUICK_MIR_TO_LIR_H_
 #define ART_COMPILER_DEX_QUICK_MIR_TO_LIR_H_
 
-#include "invoke_type.h"
+#include "arch/instruction_set.h"
 #include "compiled_method.h"
 #include "dex/compiler_enums.h"
 #include "dex/compiler_ir.h"
@@ -26,9 +26,9 @@
 #include "dex/backend.h"
 #include "dex/quick/resource_mask.h"
 #include "driver/compiler_driver.h"
-#include "instruction_set.h"
-#include "leb128.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
+#include "invoke_type.h"
+#include "leb128.h"
 #include "safe_map.h"
 #include "utils/array_ref.h"
 #include "utils/arena_allocator.h"

@@ -17,14 +17,14 @@
 #ifndef ART_PATCHOAT_PATCHOAT_H_
 #define ART_PATCHOAT_PATCHOAT_H_
 
+#include "arch/instruction_set.h"
 #include "base/macros.h"
 #include "base/mutex.h"
-#include "instruction_set.h"
-#include "os.h"
 #include "elf_file.h"
 #include "elf_utils.h"
 #include "gc/accounting/space_bitmap.h"
 #include "gc/heap.h"
+#include "os.h"
 #include "utils.h"
 
 namespace art {

@@ -23,7 +23,7 @@
 // caller must arrange for the signal handler to set the r0
 // register to 0 and move the pc forward by 4 bytes (to skip
 // the invalid instruction).
-ENTRY artCheckForARMSDIVInstruction
+ENTRY artCheckForArmSdivInstruction
   mov r1,#1
   // depending on the architecture, the assembler will not allow an
   // sdiv instruction, so we will have to output the bytes directly.
@@ -35,4 +35,4 @@ ENTRY artCheckForARMSDIVInstruction
   // It will have 0 otherwise (set by the signal handler)
   // the value is just returned from this function.
   bx lr
-END artCheckForARMSDIVInstruction
+END artCheckForArmSdivInstruction
