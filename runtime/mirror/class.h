@@ -837,6 +837,9 @@ class MANAGED Class FINAL : public Object {
   void SetReferenceInstanceOffsets(uint32_t new_reference_offsets)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Get the offset of the first reference instance field. Other reference instance fields follow.
+  MemberOffset GetFirstReferenceInstanceFieldOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Returns the number of static fields containing reference types.
   uint32_t NumReferenceStaticFields() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(IsResolved() || IsErroneous());
@@ -852,6 +855,13 @@ class MANAGED Class FINAL : public Object {
     // Not called within a transaction.
     SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, num_reference_static_fields_), new_num);
   }
+
+  // Get the offset of the first reference static field. Other reference static fields follow.
+  MemberOffset GetFirstReferenceStaticFieldOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Get the offset of the first reference static field. Other reference static fields follow.
+  MemberOffset GetFirstReferenceStaticFieldOffsetDuringLinking()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Gets the static fields of the class.
   ObjectArray<ArtField>* GetSFields() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

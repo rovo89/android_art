@@ -484,13 +484,14 @@ void ImageWriter::WalkInstanceFields(mirror::Object* obj, mirror::Class* klass) 
   }
   //
   size_t num_reference_fields = h_class->NumReferenceInstanceFields();
+  MemberOffset field_offset = h_class->GetFirstReferenceInstanceFieldOffset();
   for (size_t i = 0; i < num_reference_fields; ++i) {
-    mirror::ArtField* field = h_class->GetInstanceField(i);
-    MemberOffset field_offset = field->GetOffset();
     mirror::Object* value = obj->GetFieldObject<mirror::Object>(field_offset);
     if (value != nullptr) {
       WalkFieldsInOrder(value);
     }
+    field_offset = MemberOffset(field_offset.Uint32Value() +
+                                sizeof(mirror::HeapReference<mirror::Object>));
   }
 }
 
@@ -507,13 +508,14 @@ void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
     // Walk static fields of a Class.
     if (h_obj->IsClass()) {
       size_t num_static_fields = klass->NumReferenceStaticFields();
+      MemberOffset field_offset = klass->GetFirstReferenceStaticFieldOffset();
       for (size_t i = 0; i < num_static_fields; ++i) {
-        mirror::ArtField* field = klass->GetStaticField(i);
-        MemberOffset field_offset = field->GetOffset();
         mirror::Object* value = h_obj->GetFieldObject<mirror::Object>(field_offset);
         if (value != nullptr) {
           WalkFieldsInOrder(value);
         }
+        field_offset = MemberOffset(field_offset.Uint32Value() +
+                                    sizeof(mirror::HeapReference<mirror::Object>));
       }
     } else if (h_obj->IsObjectArray()) {
       // Walk elements of an object array.
