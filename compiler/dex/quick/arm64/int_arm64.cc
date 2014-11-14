@@ -1147,11 +1147,6 @@ void Arm64Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
     data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Int32Value();
   }
 
-  // If index is constant, just fold it into the data offset
-  if (constant_index) {
-    data_offset += mir_graph_->ConstantValue(rl_index) << scale;
-  }
-
   /* null object? */
   GenNullCheck(rl_array.reg, opt_flags);
 
@@ -1165,42 +1160,22 @@ void Arm64Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
   } else {
     ForceImplicitNullCheck(rl_array.reg, opt_flags);
   }
-  if (rl_dest.wide || rl_dest.fp || constant_index) {
-    RegStorage reg_ptr;
-    if (constant_index) {
-      reg_ptr = rl_array.reg;  // NOTE: must not alter reg_ptr in constant case.
-    } else {
-      // No special indexed operation, lea + load w/ displacement
-      reg_ptr = AllocTempRef();
-      OpRegRegRegShift(kOpAdd, reg_ptr, rl_array.reg, As64BitReg(rl_index.reg),
-                       EncodeShift(kA64Lsl, scale));
-      FreeTemp(rl_index.reg);
-    }
+  if (constant_index) {
     rl_result = EvalLoc(rl_dest, reg_class, true);
 
     if (needs_range_check) {
-      if (constant_index) {
-        GenArrayBoundsCheck(mir_graph_->ConstantValue(rl_index), reg_len);
-      } else {
-        GenArrayBoundsCheck(rl_index.reg, reg_len);
-      }
+      GenArrayBoundsCheck(mir_graph_->ConstantValue(rl_index), reg_len);
       FreeTemp(reg_len);
     }
+    // Fold the constant index into the data offset.
+    data_offset += mir_graph_->ConstantValue(rl_index) << scale;
     if (rl_result.ref) {
-      LoadRefDisp(reg_ptr, data_offset, rl_result.reg, kNotVolatile);
+      LoadRefDisp(rl_array.reg, data_offset, rl_result.reg, kNotVolatile);
     } else {
-      LoadBaseDisp(reg_ptr, data_offset, rl_result.reg, size, kNotVolatile);
-    }
-    if (!constant_index) {
-      FreeTemp(reg_ptr);
-    }
-    if (rl_dest.wide) {
-      StoreValueWide(rl_dest, rl_result);
-    } else {
-      StoreValue(rl_dest, rl_result);
+      LoadBaseDisp(rl_array.reg, data_offset, rl_result.reg, size, kNotVolatile);
     }
   } else {
-    // Offset base, then use indexed load
+    // Offset base, then use indexed load.
     RegStorage reg_ptr = AllocTempRef();
     OpRegRegImm(kOpAdd, reg_ptr, rl_array.reg, data_offset);
     FreeTemp(rl_array.reg);
@@ -1211,11 +1186,15 @@ void Arm64Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       FreeTemp(reg_len);
     }
     if (rl_result.ref) {
-      LoadRefIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_result.reg, scale);
+      LoadRefIndexed(reg_ptr, rl_index.reg, rl_result.reg, scale);
     } else {
-      LoadBaseIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_result.reg, scale, size);
+      LoadBaseIndexed(reg_ptr, rl_index.reg, rl_result.reg, scale, size);
     }
     FreeTemp(reg_ptr);
+  }
+  if (rl_dest.wide) {
+    StoreValueWide(rl_dest, rl_result);
+  } else {
     StoreValue(rl_dest, rl_result);
   }
 }
@@ -1235,11 +1214,6 @@ void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     data_offset = mirror::Array::DataOffset(sizeof(int64_t)).Int32Value();
   } else {
     data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Int32Value();
-  }
-
-  // If index is constant, just fold it into the data offset.
-  if (constant_index) {
-    data_offset += mir_graph_->ConstantValue(rl_index) << scale;
   }
 
   rl_array = LoadValue(rl_array, kRefReg);
@@ -1274,24 +1248,18 @@ void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     ForceImplicitNullCheck(rl_array.reg, opt_flags);
   }
   /* at this point, reg_ptr points to array, 2 live temps */
-  if (rl_src.wide || rl_src.fp || constant_index) {
-    if (rl_src.wide) {
-      rl_src = LoadValueWide(rl_src, reg_class);
-    } else {
-      rl_src = LoadValue(rl_src, reg_class);
-    }
-    if (!constant_index) {
-      OpRegRegRegShift(kOpAdd, reg_ptr, rl_array.reg, As64BitReg(rl_index.reg),
-                       EncodeShift(kA64Lsl, scale));
-    }
+  if (rl_src.wide) {
+    rl_src = LoadValueWide(rl_src, reg_class);
+  } else {
+    rl_src = LoadValue(rl_src, reg_class);
+  }
+  if (constant_index) {
     if (needs_range_check) {
-      if (constant_index) {
-        GenArrayBoundsCheck(mir_graph_->ConstantValue(rl_index), reg_len);
-      } else {
-        GenArrayBoundsCheck(rl_index.reg, reg_len);
-      }
+      GenArrayBoundsCheck(mir_graph_->ConstantValue(rl_index), reg_len);
       FreeTemp(reg_len);
     }
+    // Fold the constant index into the data offset.
+    data_offset += mir_graph_->ConstantValue(rl_index) << scale;
     if (rl_src.ref) {
       StoreRefDisp(reg_ptr, data_offset, rl_src.reg, kNotVolatile);
     } else {
@@ -1300,15 +1268,14 @@ void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   } else {
     /* reg_ptr -> array data */
     OpRegRegImm(kOpAdd, reg_ptr, rl_array.reg, data_offset);
-    rl_src = LoadValue(rl_src, reg_class);
     if (needs_range_check) {
       GenArrayBoundsCheck(rl_index.reg, reg_len);
       FreeTemp(reg_len);
     }
     if (rl_src.ref) {
-      StoreRefIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_src.reg, scale);
+      StoreRefIndexed(reg_ptr, rl_index.reg, rl_src.reg, scale);
     } else {
-      StoreBaseIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_src.reg, scale, size);
+      StoreBaseIndexed(reg_ptr, rl_index.reg, rl_src.reg, scale, size);
     }
   }
   if (allocated_reg_ptr_temp) {
