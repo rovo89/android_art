@@ -568,12 +568,13 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   return true;
 }
 
-void HGraphBuilder::BuildCheckedDiv(uint16_t out_vreg,
-                                    uint16_t first_vreg,
-                                    int64_t second_vreg_or_constant,
-                                    uint32_t dex_pc,
-                                    Primitive::Type type,
-                                    bool second_is_constant) {
+void HGraphBuilder::BuildCheckedDivRem(uint16_t out_vreg,
+                                       uint16_t first_vreg,
+                                       int64_t second_vreg_or_constant,
+                                       uint32_t dex_pc,
+                                       Primitive::Type type,
+                                       bool second_is_constant,
+                                       bool isDiv) {
   DCHECK(type == Primitive::kPrimInt || type == Primitive::kPrimLong);
 
   HInstruction* first = LoadLocal(first_vreg, type);
@@ -597,7 +598,11 @@ void HGraphBuilder::BuildCheckedDiv(uint16_t out_vreg,
     temps.Add(current_block_->GetLastInstruction());
   }
 
-  current_block_->AddInstruction(new (arena_) HDiv(type, first, second, dex_pc));
+  if (isDiv) {
+    current_block_->AddInstruction(new (arena_) HDiv(type, first, second, dex_pc));
+  } else {
+    current_block_->AddInstruction(new (arena_) HRem(type, first, second, dex_pc));
+  }
   UpdateLocal(out_vreg, current_block_->GetLastInstruction());
 }
 
@@ -1078,14 +1083,14 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::DIV_INT: {
-      BuildCheckedDiv(instruction.VRegA(), instruction.VRegB(), instruction.VRegC(),
-                      dex_pc, Primitive::kPrimInt, false);
+      BuildCheckedDivRem(instruction.VRegA(), instruction.VRegB(), instruction.VRegC(),
+                         dex_pc, Primitive::kPrimInt, false, true);
       break;
     }
 
     case Instruction::DIV_LONG: {
-      BuildCheckedDiv(instruction.VRegA(), instruction.VRegB(), instruction.VRegC(),
-                      dex_pc, Primitive::kPrimLong, false);
+      BuildCheckedDivRem(instruction.VRegA(), instruction.VRegB(), instruction.VRegC(),
+                         dex_pc, Primitive::kPrimLong, false, true);
       break;
     }
 
@@ -1096,6 +1101,18 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
 
     case Instruction::DIV_DOUBLE: {
       Binop_23x<HDiv>(instruction, Primitive::kPrimDouble, dex_pc);
+      break;
+    }
+
+    case Instruction::REM_INT: {
+      BuildCheckedDivRem(instruction.VRegA(), instruction.VRegB(), instruction.VRegC(),
+                         dex_pc, Primitive::kPrimInt, false, false);
+      break;
+    }
+
+    case Instruction::REM_LONG: {
+      BuildCheckedDivRem(instruction.VRegA(), instruction.VRegB(), instruction.VRegC(),
+                         dex_pc, Primitive::kPrimLong, false, false);
       break;
     }
 
@@ -1185,14 +1202,26 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::DIV_INT_2ADDR: {
-      BuildCheckedDiv(instruction.VRegA(), instruction.VRegA(), instruction.VRegB(),
-                      dex_pc, Primitive::kPrimInt, false);
+      BuildCheckedDivRem(instruction.VRegA(), instruction.VRegA(), instruction.VRegB(),
+                         dex_pc, Primitive::kPrimInt, false, true);
       break;
     }
 
     case Instruction::DIV_LONG_2ADDR: {
-      BuildCheckedDiv(instruction.VRegA(), instruction.VRegA(), instruction.VRegB(),
-                      dex_pc, Primitive::kPrimLong, false);
+      BuildCheckedDivRem(instruction.VRegA(), instruction.VRegA(), instruction.VRegB(),
+                         dex_pc, Primitive::kPrimLong, false, true);
+      break;
+    }
+
+    case Instruction::REM_INT_2ADDR: {
+      BuildCheckedDivRem(instruction.VRegA(), instruction.VRegA(), instruction.VRegB(),
+                         dex_pc, Primitive::kPrimInt, false, false);
+      break;
+    }
+
+    case Instruction::REM_LONG_2ADDR: {
+      BuildCheckedDivRem(instruction.VRegA(), instruction.VRegA(), instruction.VRegB(),
+                         dex_pc, Primitive::kPrimLong, false, false);
       break;
     }
 
@@ -1298,8 +1327,15 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
 
     case Instruction::DIV_INT_LIT16:
     case Instruction::DIV_INT_LIT8: {
-      BuildCheckedDiv(instruction.VRegA(), instruction.VRegB(), instruction.VRegC(),
-                      dex_pc, Primitive::kPrimInt, true);
+      BuildCheckedDivRem(instruction.VRegA(), instruction.VRegB(), instruction.VRegC(),
+                         dex_pc, Primitive::kPrimInt, true, true);
+      break;
+    }
+
+    case Instruction::REM_INT_LIT16:
+    case Instruction::REM_INT_LIT8: {
+      BuildCheckedDivRem(instruction.VRegA(), instruction.VRegB(), instruction.VRegC(),
+                         dex_pc, Primitive::kPrimInt, true, false);
       break;
     }
 

@@ -1842,6 +1842,86 @@ void InstructionCodeGeneratorARM::VisitDiv(HDiv* div) {
   }
 }
 
+void LocationsBuilderARM::VisitRem(HRem* rem) {
+  LocationSummary::CallKind call_kind = rem->GetResultType() == Primitive::kPrimLong
+      ? LocationSummary::kCall
+      : LocationSummary::kNoCall;
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(rem, call_kind);
+
+  switch (rem->GetResultType()) {
+    case Primitive::kPrimInt: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      locations->AddTemp(Location::RequiresRegister());
+      break;
+    }
+    case Primitive::kPrimLong: {
+      InvokeRuntimeCallingConvention calling_convention;
+      locations->SetInAt(0, Location::RegisterPairLocation(
+          calling_convention.GetRegisterAt(0), calling_convention.GetRegisterAt(1)));
+      locations->SetInAt(1, Location::RegisterPairLocation(
+          calling_convention.GetRegisterAt(2), calling_convention.GetRegisterAt(3)));
+      // The runtime helper puts the output in R2,R3.
+      locations->SetOut(Location::RegisterPairLocation(R2, R3));
+      break;
+    }
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      LOG(FATAL) << "Unimplemented rem type " << rem->GetResultType();
+      break;
+    }
+
+    default:
+      LOG(FATAL) << "Unexpected rem type " << rem->GetResultType();
+  }
+}
+
+void InstructionCodeGeneratorARM::VisitRem(HRem* rem) {
+  LocationSummary* locations = rem->GetLocations();
+  Location out = locations->Out();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+
+  switch (rem->GetResultType()) {
+    case Primitive::kPrimInt: {
+      Register reg1 = first.As<Register>();
+      Register reg2 = second.As<Register>();
+      Register temp = locations->GetTemp(0).As<Register>();
+
+      // temp = reg1 / reg2  (integer division)
+      // temp = temp * reg2
+      // dest = reg1 - temp
+      __ sdiv(temp, reg1, reg2);
+      __ mul(temp, temp, reg2);
+      __ sub(out.As<Register>(), reg1, ShifterOperand(temp));
+      break;
+    }
+
+    case Primitive::kPrimLong: {
+      InvokeRuntimeCallingConvention calling_convention;
+      DCHECK_EQ(calling_convention.GetRegisterAt(0), first.AsRegisterPairLow<Register>());
+      DCHECK_EQ(calling_convention.GetRegisterAt(1), first.AsRegisterPairHigh<Register>());
+      DCHECK_EQ(calling_convention.GetRegisterAt(2), second.AsRegisterPairLow<Register>());
+      DCHECK_EQ(calling_convention.GetRegisterAt(3), second.AsRegisterPairHigh<Register>());
+      DCHECK_EQ(R2, out.AsRegisterPairLow<Register>());
+      DCHECK_EQ(R3, out.AsRegisterPairHigh<Register>());
+
+      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pLmod), rem, rem->GetDexPc());
+      break;
+    }
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      LOG(FATAL) << "Unimplemented rem type " << rem->GetResultType();
+      break;
+    }
+
+    default:
+      LOG(FATAL) << "Unexpected rem type " << rem->GetResultType();
+  }
+}
+
 void LocationsBuilderARM::VisitDivZeroCheck(HDivZeroCheck* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);

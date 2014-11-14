@@ -450,6 +450,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   426-monitor \
   427-bitwise \
   427-bounds \
+  428-optimizing-arith-rem \
   700-LoadArgRegs \
   701-easy-div-rem \
   702-LargeBranchOffset \
