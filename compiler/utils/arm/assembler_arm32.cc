@@ -227,6 +227,25 @@ void Arm32Assembler::sbfx(Register rd, Register rn, uint32_t lsb, uint32_t width
 }
 
 
+void Arm32Assembler::ubfx(Register rd, Register rn, uint32_t lsb, uint32_t width, Condition cond) {
+  CHECK_NE(rd, kNoRegister);
+  CHECK_NE(rn, kNoRegister);
+  CHECK_NE(cond, kNoCondition);
+  CHECK_LE(lsb, 31U);
+  CHECK(1U <= width && width <= 32U) << width;
+  uint32_t widthminus1 = width - 1;
+
+  int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
+      B26 | B25 | B24 | B23 | B22 | B21 |
+      (widthminus1 << 16) |
+      (static_cast<uint32_t>(rd) << 12) |
+      (lsb << 7) |
+      B6 | B4 |
+      static_cast<uint32_t>(rn);
+  Emit(encoding);
+}
+
+
 void Arm32Assembler::ldr(Register rd, const Address& ad, Condition cond) {
   EmitMemOp(cond, true, false, rd, ad);
 }
