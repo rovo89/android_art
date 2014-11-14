@@ -102,7 +102,13 @@ class HGraphBuilder : public ValueObject {
   void Binop_23x(const Instruction& instruction, Primitive::Type type);
 
   template<typename T>
+  void Binop_23x(const Instruction& instruction, Primitive::Type type, uint32_t dex_pc);
+
+  template<typename T>
   void Binop_12x(const Instruction& instruction, Primitive::Type type);
+
+  template<typename T>
+  void Binop_12x(const Instruction& instruction, Primitive::Type type, uint32_t dex_pc);
 
   template<typename T>
   void Binop_22b(const Instruction& instruction, bool reverse);
@@ -119,7 +125,7 @@ class HGraphBuilder : public ValueObject {
 
   void BuildCheckedDiv(uint16_t out_reg,
                        uint16_t first_reg,
-                       int32_t second_reg,  // can be a constant
+                       int64_t second_reg_or_constant,
                        uint32_t dex_offset,
                        Primitive::Type type,
                        bool second_is_lit);
