@@ -402,4 +402,36 @@ TEST_F(UtilsTest, ExecError) {
   }
 }
 
+TEST_F(UtilsTest, RoundUpToPowerOfTwo) {
+  // Tests the constexpr variant since all the parameters are constexpr
+  EXPECT_EQ(0, RoundUpToPowerOfTwo(0));
+  EXPECT_EQ(1, RoundUpToPowerOfTwo(1));
+  EXPECT_EQ(2, RoundUpToPowerOfTwo(2));
+  EXPECT_EQ(4, RoundUpToPowerOfTwo(3));
+  EXPECT_EQ(8, RoundUpToPowerOfTwo(7));
+
+  EXPECT_EQ(0b10000L, RoundUpToPowerOfTwo(0b01101L));
+  EXPECT_EQ(1ULL << 63, RoundUpToPowerOfTwo(1ULL << 62 | 1ULL));
+}
+
+TEST_F(UtilsTest, MostSignificantBit) {
+  EXPECT_EQ(-1, MostSignificantBit(0));
+  EXPECT_EQ(0, MostSignificantBit(1));
+  EXPECT_EQ(31, MostSignificantBit(~static_cast<uint32_t>(0)));
+  EXPECT_EQ(2, MostSignificantBit(0b110));
+  EXPECT_EQ(2, MostSignificantBit(0b100));
+}
+
+TEST_F(UtilsTest, MinimumBitsToStore) {
+  EXPECT_EQ(0u, MinimumBitsToStore(0));
+  EXPECT_EQ(1u, MinimumBitsToStore(1));
+  EXPECT_EQ(2u, MinimumBitsToStore(0b10));
+  EXPECT_EQ(2u, MinimumBitsToStore(0b11));
+  EXPECT_EQ(3u, MinimumBitsToStore(0b100));
+  EXPECT_EQ(3u, MinimumBitsToStore(0b110));
+  EXPECT_EQ(3u, MinimumBitsToStore(0b101));
+  EXPECT_EQ(8u, MinimumBitsToStore(0xFF));
+  EXPECT_EQ(32u, MinimumBitsToStore(~static_cast<uint32_t>(0)));
+}
+
 }  // namespace art
