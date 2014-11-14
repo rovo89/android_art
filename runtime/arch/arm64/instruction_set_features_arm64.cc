@@ -26,7 +26,7 @@ namespace art {
 
 const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromVariant(
     const std::string& variant ATTRIBUTE_UNUSED, std::string* error_msg ATTRIBUTE_UNUSED) {
-  if (variant != "default") {
+  if (variant != "default" && variant != "generic") {
     std::ostringstream os;
     os << "Unexpected CPU variant for Arm64: " << variant;
     *error_msg = os.str();
