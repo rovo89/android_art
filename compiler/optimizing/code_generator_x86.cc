@@ -686,7 +686,12 @@ void CodeGeneratorX86::Move(HInstruction* instruction, Location location, HInstr
     }
   } else if (instruction->IsTemporary()) {
     Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
-    Move32(location, temp_location);
+    if (temp_location.IsStackSlot()) {
+      Move32(location, temp_location);
+    } else {
+      DCHECK(temp_location.IsDoubleStackSlot());
+      Move64(location, temp_location);
+    }
   } else if (instruction->IsLoadLocal()) {
     int slot = GetStackSlot(instruction->AsLoadLocal()->GetLocal());
     switch (instruction->GetType()) {

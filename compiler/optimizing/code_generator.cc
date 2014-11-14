@@ -51,7 +51,7 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
     MarkNotLeaf();
   }
   ComputeFrameSize(GetGraph()->GetNumberOfLocalVRegs()
-                     + GetGraph()->GetNumberOfTemporaries()
+                     + GetGraph()->GetTemporariesVRegSlots()
                      + 1 /* filler */,
                    0, /* the baseline compiler does not have live registers at slow path */
                    GetGraph()->GetMaximumNumberOfOutVRegs()
@@ -150,12 +150,15 @@ void CodeGenerator::ComputeFrameSize(size_t number_of_spill_slots,
 
 Location CodeGenerator::GetTemporaryLocation(HTemporary* temp) const {
   uint16_t number_of_locals = GetGraph()->GetNumberOfLocalVRegs();
+  // The type of the previous instruction tells us if we need a single or double stack slot.
+  Primitive::Type type = temp->GetType();
+  int32_t temp_size = (type == Primitive::kPrimLong) || (type == Primitive::kPrimDouble) ? 2 : 1;
   // Use the temporary region (right below the dex registers).
   int32_t slot = GetFrameSize() - FrameEntrySpillSize()
                                 - kVRegSize  // filler
                                 - (number_of_locals * kVRegSize)
-                                - ((1 + temp->GetIndex()) * kVRegSize);
-  return Location::StackSlot(slot);
+                                - ((temp_size + temp->GetIndex()) * kVRegSize);
+  return temp_size == 2 ? Location::DoubleStackSlot(slot) : Location::StackSlot(slot);
 }
 
 int32_t CodeGenerator::GetStackSlot(HLocal* local) const {
