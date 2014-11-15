@@ -200,9 +200,8 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
 #else
 #error "ART default GC type must be set"
 #endif
-  // If we are using homogeneous space compaction then default background compaction to off since
-  // homogeneous space compactions when we transition to not jank perceptible.
-  use_homogeneous_space_compaction_for_oom_ = false;
+  // Enable hspace compaction on OOM by default.
+  use_homogeneous_space_compaction_for_oom_ = true;
   // If background_collector_type_ is kCollectorTypeNone, it defaults to the collector_type_ after
   // parsing options. If you set this to kCollectorTypeHSpaceCompact then we will do an hspace
   // compaction when we transition to background instead of a normal collector transition.
