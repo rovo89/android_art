@@ -18,32 +18,26 @@
 #define ART_RUNTIME_VERIFIER_METHOD_VERIFIER_H_
 
 #include <memory>
-#include <set>
 #include <vector>
 
-#include "base/casts.h"
 #include "base/macros.h"
-#include "base/stl_util.h"
-#include "class_reference.h"
 #include "dex_file.h"
-#include "dex_instruction.h"
 #include "handle.h"
 #include "instruction_flags.h"
 #include "method_reference.h"
-#include "reg_type.h"
 #include "reg_type_cache.h"
-#include "register_line.h"
-#include "safe_map.h"
 
 namespace art {
 
+class Instruction;
 struct ReferenceMap2Visitor;
-template<class T> class Handle;
 
 namespace verifier {
 
-class MethodVerifier;
 class DexPcToReferenceMap;
+class MethodVerifier;
+class RegisterLine;
+class RegType;
 
 /*
  * "Direct" and "virtual" methods are stored independently. The type of call used to invoke the
@@ -128,6 +122,8 @@ class PcToRegisterLineTable {
  private:
   std::unique_ptr<RegisterLine*[]> register_lines_;
   size_t size_;
+
+  DISALLOW_COPY_AND_ASSIGN(PcToRegisterLineTable);
 };
 
 // The verifier
@@ -733,6 +729,8 @@ class MethodVerifier {
   // even though we might detect to be a compiler. Should only be set when running
   // VerifyMethodAndDump.
   const bool verify_to_dump_;
+
+  DISALLOW_COPY_AND_ASSIGN(MethodVerifier);
 };
 std::ostream& operator<<(std::ostream& os, const MethodVerifier::FailureKind& rhs);
 
