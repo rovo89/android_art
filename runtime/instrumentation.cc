@@ -123,6 +123,9 @@ static void UpdateEntrypoints(mirror::ArtMethod* method, const void* quick_code,
 }
 
 void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
+  if (UNLIKELY(method->IsXposedHookedMethod())) {
+    method = method->GetXposedOriginalMethod();
+  }
   if (method->IsAbstract() || method->IsProxyMethod()) {
     // Do not change stubs for these methods.
     return;
