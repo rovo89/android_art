@@ -55,7 +55,7 @@ ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnabl
 }
 
 mirror::String* ArtMethod::GetNameAsString(Thread* self) {
-  CHECK(!IsProxyMethod());
+  CHECK(!IsProxyMethod(true));
   StackHandleScope<1> hs(self);
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(GetDexCache()));
   auto* dex_file = dex_cache->GetDexFile();
@@ -123,7 +123,7 @@ ArtMethod* ArtMethod::FindOverriddenMethod(size_t pointer_size) {
     result = super_class->GetVTableEntry(method_index, pointer_size);
   } else {
     // Method didn't override superclass method so search interfaces
-    if (IsProxyMethod()) {
+    if (IsProxyMethod(true)) {
       result = GetDexCacheResolvedMethods()->GetElementPtrSize<ArtMethod*>(
           GetDexMethodIndex(), pointer_size);
       CHECK_EQ(result,
@@ -468,7 +468,7 @@ static uint32_t GetNumberOfReferenceArgsWithoutReceiver(ArtMethod* method)
 QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
   Runtime* runtime = Runtime::Current();
 
-  if (UNLIKELY(IsAbstract())) {
+  if (UNLIKELY(IsAbstract()) || IsXposedHookedMethod()) {
     return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
   }
 
@@ -484,7 +484,7 @@ QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
   // quick method not a stub. However, if instrumentation stubs are installed, the
   // instrumentation->GetQuickCodeFor() returns the artQuickProxyInvokeHandler instead of an
   // oat code pointer, thus we have to add a special case here.
-  if (UNLIKELY(IsProxyMethod())) {
+  if (UNLIKELY(IsProxyMethod(true))) {
     if (IsDirect()) {
       CHECK(IsConstructor());
       return GetQuickFrameInfo(EntryPointToCodePointer(GetEntryPointFromQuickCompiledCode()));

@@ -330,13 +330,13 @@ inline const char* ArtMethod::GetDeclaringClassDescriptor() {
   if (UNLIKELY(dex_method_idx == DexFile::kDexNoIndex)) {
     return "<runtime method>";
   }
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsProxyMethod(true));
   const DexFile* dex_file = GetDexFile();
   return dex_file->GetMethodDeclaringClassDescriptor(dex_file->GetMethodId(dex_method_idx));
 }
 
 inline const char* ArtMethod::GetShorty(uint32_t* out_length) {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsProxyMethod(true));
   const DexFile* dex_file = GetDexFile();
   return dex_file->GetMethodShorty(dex_file->GetMethodId(GetDexMethodIndex()), out_length);
 }
@@ -344,7 +344,7 @@ inline const char* ArtMethod::GetShorty(uint32_t* out_length) {
 inline const Signature ArtMethod::GetSignature() {
   uint32_t dex_method_idx = GetDexMethodIndex();
   if (dex_method_idx != DexFile::kDexNoIndex) {
-    DCHECK(!IsProxyMethod());
+    DCHECK(!IsProxyMethod(true));
     const DexFile* dex_file = GetDexFile();
     return dex_file->GetMethodSignature(dex_file->GetMethodId(dex_method_idx));
   }
@@ -354,7 +354,7 @@ inline const Signature ArtMethod::GetSignature() {
 inline const char* ArtMethod::GetName() {
   uint32_t dex_method_idx = GetDexMethodIndex();
   if (LIKELY(dex_method_idx != DexFile::kDexNoIndex)) {
-    DCHECK(!IsProxyMethod());
+    DCHECK(!IsProxyMethod(true));
     const DexFile* dex_file = GetDexFile();
     return dex_file->GetMethodName(dex_file->GetMethodId(dex_method_idx));
   }
@@ -375,11 +375,14 @@ inline const char* ArtMethod::GetName() {
 }
 
 inline const DexFile::CodeItem* ArtMethod::GetCodeItem() {
+  if (UNLIKELY(IsXposedHookedMethod())) {
+    return nullptr;
+  }
   return GetDeclaringClass()->GetDexFile().GetCodeItem(GetCodeItemOffset());
 }
 
 inline bool ArtMethod::IsResolvedTypeIdx(uint16_t type_idx) {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsProxyMethod(true));
   return GetDexCacheResolvedType(type_idx) != nullptr;
 }
 
@@ -392,13 +395,13 @@ inline int32_t ArtMethod::GetLineNumFromDexPC(uint32_t dex_pc) {
 }
 
 inline const DexFile::ProtoId& ArtMethod::GetPrototype() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsProxyMethod(true));
   const DexFile* dex_file = GetDexFile();
   return dex_file->GetMethodPrototype(dex_file->GetMethodId(GetDexMethodIndex()));
 }
 
 inline const DexFile::TypeList* ArtMethod::GetParameterTypeList() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsProxyMethod(true));
   const DexFile* dex_file = GetDexFile();
   const DexFile::ProtoId& proto = dex_file->GetMethodPrototype(
       dex_file->GetMethodId(GetDexMethodIndex()));
@@ -411,17 +414,17 @@ inline const char* ArtMethod::GetDeclaringClassSourceFile() {
 }
 
 inline uint16_t ArtMethod::GetClassDefIndex() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsProxyMethod(true));
   return GetDeclaringClass()->GetDexClassDefIndex();
 }
 
 inline const DexFile::ClassDef& ArtMethod::GetClassDef() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsProxyMethod(true));
   return GetDexFile()->GetClassDef(GetClassDefIndex());
 }
 
 inline const char* ArtMethod::GetReturnTypeDescriptor() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsProxyMethod(true));
   const DexFile* dex_file = GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(GetDexMethodIndex());
   const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
@@ -430,27 +433,27 @@ inline const char* ArtMethod::GetReturnTypeDescriptor() {
 }
 
 inline const char* ArtMethod::GetTypeDescriptorFromTypeIdx(uint16_t type_idx) {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsProxyMethod(true));
   const DexFile* dex_file = GetDexFile();
   return dex_file->GetTypeDescriptor(dex_file->GetTypeId(type_idx));
 }
 
 inline mirror::ClassLoader* ArtMethod::GetClassLoader() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsProxyMethod(true));
   return GetDeclaringClass()->GetClassLoader();
 }
 
 inline mirror::DexCache* ArtMethod::GetDexCache() {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsProxyMethod(true));
   return GetDeclaringClass()->GetDexCache();
 }
 
-inline bool ArtMethod::IsProxyMethod() {
-  return GetDeclaringClass()->IsProxyClass();
+inline bool ArtMethod::IsProxyMethod(bool ignore_xposed) {
+  return GetDeclaringClass()->IsProxyClass() || (!ignore_xposed && IsXposedHookedMethod());
 }
 
 inline ArtMethod* ArtMethod::GetInterfaceMethodIfProxy(size_t pointer_size) {
-  if (LIKELY(!IsProxyMethod())) {
+  if (LIKELY(!IsProxyMethod(true))) {
     return this;
   }
   mirror::Class* klass = GetDeclaringClass();
@@ -472,7 +475,7 @@ inline void ArtMethod::SetDexCacheResolvedTypes(
 }
 
 inline mirror::Class* ArtMethod::GetReturnType(bool resolve) {
-  DCHECK(!IsProxyMethod());
+  DCHECK(!IsProxyMethod(true));
   const DexFile* dex_file = GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(GetDexMethodIndex());
   const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
@@ -490,6 +493,9 @@ void ArtMethod::VisitRoots(RootVisitorType& visitor) {
   visitor.VisitRootIfNonNull(declaring_class_.AddressWithoutBarrier());
   visitor.VisitRootIfNonNull(dex_cache_resolved_methods_.AddressWithoutBarrier());
   visitor.VisitRootIfNonNull(dex_cache_resolved_types_.AddressWithoutBarrier());
+  if (UNLIKELY(IsXposedHookedMethod())) {
+    GetXposedOriginalMethod()->VisitRoots(visitor);
+  }
 }
 
 inline void ArtMethod::CopyFrom(const ArtMethod* src, size_t image_pointer_size) {

@@ -2025,7 +2025,7 @@ const OatFile::OatMethod ClassLinker::FindOatMethodFor(ArtMethod* method, bool* 
   // method for direct methods (or virtual methods made direct).
   mirror::Class* declaring_class = method->GetDeclaringClass();
   size_t oat_method_index;
-  if (method->IsStatic() || method->IsDirect()) {
+  if (method->IsStatic() || method->IsDirect(true)) {
     // Simple case where the oat method index was stashed at load time.
     oat_method_index = method->GetMethodIndex();
   } else {
@@ -2172,6 +2172,9 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
     if (has_oat_class) {
       OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
       quick_code = oat_method.GetQuickCode();
+    }
+    if (UNLIKELY(method->IsXposedHookedMethod())) {
+      method = method->GetXposedOriginalMethod();
     }
     const bool enter_interpreter = NeedsInterpreter(method, quick_code);
     if (enter_interpreter) {
@@ -3422,7 +3425,7 @@ std::string ClassLinker::GetDescriptorForProxy(mirror::Class* proxy_class) {
 ArtMethod* ClassLinker::FindMethodForProxy(mirror::Class* proxy_class,
                                                    ArtMethod* proxy_method) {
   DCHECK(proxy_class->IsProxyClass());
-  DCHECK(proxy_method->IsProxyMethod());
+  DCHECK(proxy_method->IsProxyMethod(true));
   {
     ReaderMutexLock mu(Thread::Current(), dex_lock_);
     // Locate the dex cache of the original interface/Object
@@ -3796,7 +3799,7 @@ static void ThrowSignatureCheckResolveReturnTypeException(Handle<mirror::Class> 
                                                           ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(Thread::Current()->IsExceptionPending());
-  DCHECK(!m->IsProxyMethod());
+  DCHECK(!m->IsProxyMethod(true));
   const DexFile* dex_file = m->GetDexFile();
   const DexFile::MethodId& method_id = dex_file->GetMethodId(m->GetDexMethodIndex());
   const DexFile::ProtoId& proto_id = dex_file->GetMethodPrototype(method_id);
@@ -3820,7 +3823,7 @@ static void ThrowSignatureCheckResolveArgException(Handle<mirror::Class> klass,
                                                    uint32_t index, uint32_t arg_type_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(Thread::Current()->IsExceptionPending());
-  DCHECK(!m->IsProxyMethod());
+  DCHECK(!m->IsProxyMethod(true));
   const DexFile* dex_file = m->GetDexFile();
   std::string arg_type = PrettyType(arg_type_idx, *dex_file);
   std::string class_loader = PrettyTypeOf(m->GetDeclaringClass()->GetClassLoader());
@@ -4411,7 +4414,7 @@ class MethodNameAndSignatureComparator FINAL : public ValueObject {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
       dex_file_(method->GetDexFile()), mid_(&dex_file_->GetMethodId(method->GetDexMethodIndex())),
       name_(nullptr), name_len_(0) {
-    DCHECK(!method->IsProxyMethod()) << PrettyMethod(method);
+    DCHECK(!method->IsProxyMethod(true)) << PrettyMethod(method);
   }
 
   const char* GetName() {
@@ -4423,7 +4426,7 @@ class MethodNameAndSignatureComparator FINAL : public ValueObject {
 
   bool HasSameNameAndSignature(ArtMethod* other)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(!other->IsProxyMethod()) << PrettyMethod(other);
+    DCHECK(!other->IsProxyMethod(true)) << PrettyMethod(other);
     const DexFile* other_dex_file = other->GetDexFile();
     const DexFile::MethodId& other_mid = other_dex_file->GetMethodId(other->GetDexMethodIndex());
     if (dex_file_ == other_dex_file) {
