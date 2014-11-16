@@ -32,6 +32,7 @@
 #include "mapping_table.h"
 #include "mirror/abstract_method.h"
 #include "mirror/class-inl.h"
+#include "mirror/method.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/string.h"
@@ -522,6 +523,10 @@ QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
 }
 
 void ArtMethod::RegisterNative(const void* native_method, bool is_fast) {
+  if (UNLIKELY(IsXposedHookedMethod())) {
+    GetXposedOriginalMethod()->RegisterNative(native_method, is_fast);
+    return;
+  }
   CHECK(IsNative()) << PrettyMethod(this);
   CHECK(!IsFastNative()) << PrettyMethod(this);
   CHECK(native_method != nullptr) << PrettyMethod(this);
@@ -532,6 +537,10 @@ void ArtMethod::RegisterNative(const void* native_method, bool is_fast) {
 }
 
 void ArtMethod::UnregisterNative() {
+  if (UNLIKELY(IsXposedHookedMethod())) {
+    GetXposedOriginalMethod()->UnregisterNative();
+    return;
+  }
   CHECK(IsNative() && !IsFastNative()) << PrettyMethod(this);
   // restore stub to lookup native pointer via dlsym
   RegisterNative(GetJniDlsymLookupStub(), false);
@@ -561,6 +570,45 @@ bool ArtMethod::EqualParameters(Handle<mirror::ObjectArray<mirror::Class>> param
     }
   }
   return true;
+}
+
+void ArtMethod::EnableXposedHook(ScopedObjectAccess& soa, jobject additional_info) {
+  if (UNLIKELY(IsXposedHookedMethod())) {
+    // Already hooked
+    return;
+  } else if (UNLIKELY(IsXposedOriginalMethod())) {
+    // This should never happen
+    ThrowIllegalArgumentException(StringPrintf("Cannot hook the method backup: %s", PrettyMethod(this).c_str()).c_str());
+    return;
+  }
+
+  // Create a backup of the ArtMethod object
+  auto* cl = Runtime::Current()->GetClassLinker();
+  ArtMethod* backup_method = cl->AllocArtMethodArray(soa.Self(), 1);
+  backup_method->CopyFrom(this, cl->GetImagePointerSize());
+  backup_method->SetAccessFlags(backup_method->GetAccessFlags() | kAccXposedOriginalMethod);
+
+  // Create a Method/Constructor object for the backup ArtMethod object
+  mirror::AbstractMethod* reflect_method;
+  if (IsConstructor()) {
+    reflect_method = mirror::Constructor::CreateFromArtMethod(soa.Self(), backup_method);
+  } else {
+    reflect_method = mirror::Method::CreateFromArtMethod(soa.Self(), backup_method);
+  }
+  reflect_method->SetAccessible<false>(true);
+
+  // Save extra information in a separate structure, stored instead of the native method
+  XposedHookInfo* hookInfo = reinterpret_cast<XposedHookInfo*>(calloc(1, sizeof(XposedHookInfo)));
+  hookInfo->reflectedMethod = soa.Vm()->AddGlobalRef(soa.Self(), reflect_method);
+  hookInfo->additionalInfo = soa.Env()->NewGlobalRef(additional_info);
+  hookInfo->originalMethod = backup_method;
+  SetEntryPointFromJni(reinterpret_cast<uint8_t*>(hookInfo));
+
+  SetEntryPointFromQuickCompiledCode(GetQuickProxyInvokeHandler());
+  SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
+
+  // Adjust access flags
+  SetAccessFlags((GetAccessFlags() & ~kAccNative & ~kAccSynchronized) | kAccXposedHookedMethod);
 }
 
 }  // namespace art
