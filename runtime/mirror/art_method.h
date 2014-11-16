@@ -495,6 +495,8 @@ class MANAGED ArtMethod FINAL : public Object {
       return (GetAccessFlags() & kAccXposedOriginalMethod) != 0;
   }
 
+  void EnableXposedHook(JNIEnv* env, jobject additional_info) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   XposedHookInfo* GetXposedHookInfo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return (XposedHookInfo*) GetNativeMethod();
   }
