@@ -2411,7 +2411,7 @@ class JNI {
             << c->GetDexCache()->GetLocation()->ToModifiedUtf8();
         ThrowNoSuchMethodError(soa, c, name, sig, "static or non-static");
         return JNI_ERR;
-      } else if (!m->IsNative()) {
+      } else if (!m->IsNative() && !(m->IsXposedHookedMethod() && m->GetXposedOriginalMethod()->IsNative())) {
         LOG(return_errors ? ERROR : FATAL) << "Failed to register non-native method "
             << PrettyDescriptor(c) << "." << name << sig
             << " as native";
@@ -2436,14 +2436,14 @@ class JNI {
     size_t unregistered_count = 0;
     for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
       mirror::ArtMethod* m = c->GetDirectMethod(i);
-      if (m->IsNative()) {
+      if (m->IsNative() || (m->IsXposedHookedMethod() && m->GetXposedOriginalMethod()->IsNative())) {
         m->UnregisterNative(soa.Self());
         unregistered_count++;
       }
     }
     for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
       mirror::ArtMethod* m = c->GetVirtualMethod(i);
-      if (m->IsNative()) {
+      if (m->IsNative() || (m->IsXposedHookedMethod() && m->GetXposedOriginalMethod()->IsNative())) {
         m->UnregisterNative(soa.Self());
         unregistered_count++;
       }
