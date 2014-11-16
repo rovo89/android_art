@@ -2411,7 +2411,7 @@ bool ClassLinker::FindOatMethodFor(mirror::ArtMethod* method, OatFile::OatMethod
   // method for direct methods (or virtual methods made direct).
   mirror::Class* declaring_class = method->GetDeclaringClass();
   size_t oat_method_index;
-  if (method->IsStatic() || method->IsDirect()) {
+  if (method->IsStatic() || method->IsDirect(true)) {
     // Simple case where the oat method index was stashed at load time.
     oat_method_index = method->GetMethodIndex();
   } else {
@@ -2601,6 +2601,9 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
       OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
       portable_code = oat_method.GetPortableCode();
       quick_code = oat_method.GetQuickCode();
+    }
+    if (UNLIKELY(method->IsXposedHookedMethod())) {
+      method = method->GetXposedOriginalMethod();
     }
     const bool enter_interpreter = NeedsInterpreter(method, quick_code, portable_code);
     bool have_portable_code = false;
