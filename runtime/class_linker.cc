@@ -2566,6 +2566,9 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
       portable_code = oat_method.GetPortableCode();
       quick_code = oat_method.GetQuickCode();
     }
+    if (UNLIKELY(method->IsXposedHookedMethod())) {
+      method = method->GetXposedOriginalMethod();
+    }
     const bool enter_interpreter = NeedsInterpreter(method, quick_code, portable_code);
     bool have_portable_code = false;
     if (enter_interpreter) {

@@ -119,7 +119,7 @@ size_t ArtMethod::NumArgRegisters(const StringPiece& shorty) {
 }
 
 bool ArtMethod::IsProxyMethod() {
-  return GetDeclaringClass()->IsProxyClass();
+  return GetDeclaringClass()->IsProxyClass() || IsXposedHookedMethod();
 }
 
 ArtMethod* ArtMethod::FindOverriddenMethod() {

@@ -356,7 +356,7 @@ inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
   // Direct method is cloned from original java.lang.reflect.Proxy class together with code
   // and as a result it is executed as usual quick compiled method without any stubs.
   // So the frame info should be returned as it is a quick method not a stub.
-  if (UNLIKELY(IsAbstract()) || UNLIKELY(IsProxyMethod() && !IsDirect())) {
+  if (UNLIKELY(IsAbstract()) || UNLIKELY(IsProxyMethod() && !IsDirect()) || UNLIKELY(IsXposedHookedMethod())) {
     return runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
   }
   if (UNLIKELY(IsRuntimeMethod())) {

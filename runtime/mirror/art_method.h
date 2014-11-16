@@ -36,6 +36,12 @@ class ScopedObjectAccessAlreadyRunnable;
 class StringPiece;
 class ShadowFrame;
 
+struct XposedHookInfo {
+  jobject reflectedMethod;
+  jobject additionalInfo;
+  mirror::ArtMethod* originalMethod;
+};
+
 namespace mirror {
 
 typedef void (EntryPointFromInterpreter)(Thread* self, MethodHelper& mh,
@@ -288,6 +294,7 @@ class MANAGED ArtMethod FINAL : public Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   void SetEntryPointFromQuickCompiledCode(const void* entry_point_from_quick_compiled_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(!IsXposedHookedMethod());
     SetFieldPtr<false, true, kVerifyFlags>(
         EntryPointFromQuickCompiledCodeOffset(), entry_point_from_quick_compiled_code);
   }
@@ -478,6 +485,23 @@ class MANAGED ArtMethod FINAL : public Object {
   mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ALWAYS_INLINE ArtMethod* GetInterfaceMethodIfProxy() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Xposed
+  bool IsXposedHookedMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return (GetAccessFlags() & kAccXposedHookedMethod) != 0;
+  }
+
+  bool IsXposedOriginalMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+      return (GetAccessFlags() & kAccXposedOriginalMethod) != 0;
+  }
+
+  XposedHookInfo* GetXposedHookInfo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return (XposedHookInfo*) GetNativeMethod();
+  }
+
+  ArtMethod* GetXposedOriginalMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetXposedHookInfo()->originalMethod;
+  }
 
  protected:
   // Field order required by test "ValidateFieldOrderOfJavaCppUnionClasses".
