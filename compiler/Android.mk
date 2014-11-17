@@ -275,7 +275,11 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
   # Vixl assembly support for ARM64 targets.
-  LOCAL_SHARED_LIBRARIES += libvixl
+  ifeq ($$(art_ndebug_or_debug),debug)
+    LOCAL_SHARED_LIBRARIES += libvixld
+  else
+    LOCAL_SHARED_LIBRARIES += libvixl
+  endif
   ifeq ($$(art_target_or_host),target)
     # For atrace.
     LOCAL_SHARED_LIBRARIES += libcutils
