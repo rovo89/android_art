@@ -101,10 +101,8 @@ class IRBuilder : public LLVMIRBuilder {
   // Extend memory barrier
   //--------------------------------------------------------------------------
   void CreateMemoryBarrier(MemBarrierKind barrier_kind) {
-#if ANDROID_SMP
     // TODO: select atomic ordering according to given barrier kind.
     CreateFence(::llvm::SequentiallyConsistent);
-#endif
   }
 
   //--------------------------------------------------------------------------

@@ -70,11 +70,7 @@ const X86InstructionSetFeatures* X86InstructionSetFeatures::FromBitmap(uint32_t 
 }
 
 const X86InstructionSetFeatures* X86InstructionSetFeatures::FromCppDefines(bool x86_64) {
-#if defined(HAVE_ANDROID_OS) && (ANDROID_SMP == 0)
-  const bool smp = false;
-#else
   const bool smp = true;
-#endif
 
 #ifndef __SSSE3__
   const bool has_SSSE3 = false;
