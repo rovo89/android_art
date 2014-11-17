@@ -42,6 +42,9 @@ static constexpr size_t kRuntimeParameterCoreRegistersLength =
 static constexpr XmmRegister kRuntimeParameterFpuRegisters[] = { };
 static constexpr size_t kRuntimeParameterFpuRegistersLength = 0;
 
+// Marker for places that can be updated once we don't follow the quick ABI.
+static constexpr bool kFollowsQuickABI = true;
+
 class InvokeRuntimeCallingConvention : public CallingConvention<Register, XmmRegister> {
  public:
   InvokeRuntimeCallingConvention()
@@ -427,6 +430,7 @@ void CodeGeneratorX86::SetupBlockedRegisters() const {
   blocked_core_registers_[ESP] = true;
 
   // TODO: We currently don't use Quick's callee saved registers.
+  DCHECK(kFollowsQuickABI);
   blocked_core_registers_[EBP] = true;
   blocked_core_registers_[ESI] = true;
   blocked_core_registers_[EDI] = true;
@@ -2081,7 +2085,9 @@ void LocationsBuilderX86::VisitInstanceFieldSet(HInstanceFieldSet* instruction) 
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   Primitive::Type field_type = instruction->GetFieldType();
-  bool is_object_type = field_type == Primitive::kPrimNot;
+  bool needs_write_barrier =
+    CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1));
+
   bool is_byte_type = (field_type == Primitive::kPrimBoolean)
       || (field_type == Primitive::kPrimByte);
   // The register allocator does not support multiple
@@ -2093,7 +2099,7 @@ void LocationsBuilderX86::VisitInstanceFieldSet(HInstanceFieldSet* instruction) 
     locations->SetInAt(1, Location::RequiresRegister());
   }
   // Temporary registers for the write barrier.
-  if (is_object_type) {
+  if (needs_write_barrier) {
     locations->AddTemp(Location::RequiresRegister());
     // Ensure the card is in a byte register.
     locations->AddTemp(Location::RegisterLocation(ECX));
@@ -2126,7 +2132,7 @@ void InstructionCodeGeneratorX86::VisitInstanceFieldSet(HInstanceFieldSet* instr
       Register value = locations->InAt(1).As<Register>();
       __ movl(Address(obj, offset), value);
 
-      if (field_type == Primitive::kPrimNot) {
+      if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
         Register temp = locations->GetTemp(0).As<Register>();
         Register card = locations->GetTemp(1).As<Register>();
         codegen_->MarkGCCard(temp, card, obj, value);
@@ -2372,11 +2378,20 @@ void InstructionCodeGeneratorX86::VisitArrayGet(HArrayGet* instruction) {
 
 void LocationsBuilderX86::VisitArraySet(HArraySet* instruction) {
   Primitive::Type value_type = instruction->GetComponentType();
+  bool needs_write_barrier =
+      CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
+
+  DCHECK(kFollowsQuickABI);
+  bool not_enough_registers = needs_write_barrier
+      && !instruction->GetValue()->IsConstant()
+      && !instruction->GetIndex()->IsConstant();
+  bool needs_runtime_call = instruction->NeedsTypeCheck() || not_enough_registers;
+
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(
       instruction,
-      value_type == Primitive::kPrimNot ? LocationSummary::kCall : LocationSummary::kNoCall);
+      needs_runtime_call ? LocationSummary::kCall : LocationSummary::kNoCall);
 
-  if (value_type == Primitive::kPrimNot) {
+  if (needs_runtime_call) {
     InvokeRuntimeCallingConvention calling_convention;
     locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
     locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
@@ -2395,6 +2410,12 @@ void LocationsBuilderX86::VisitArraySet(HArraySet* instruction) {
     } else {
       locations->SetInAt(2, Location::RegisterOrConstant(instruction->InputAt(2)));
     }
+    // Temporary registers for the write barrier.
+    if (needs_write_barrier) {
+      locations->AddTemp(Location::RequiresRegister());
+      // Ensure the card is in a byte register.
+      locations->AddTemp(Location::RegisterLocation(ECX));
+    }
   }
 }
 
@@ -2404,6 +2425,9 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
   Location index = locations->InAt(1);
   Location value = locations->InAt(2);
   Primitive::Type value_type = instruction->GetComponentType();
+  bool needs_runtime_call = locations->WillCall();
+  bool needs_write_barrier =
+      CodeGenerator::StoreNeedsWriteBarrier(value_type, instruction->GetValue());
 
   switch (value_type) {
     case Primitive::kPrimBoolean:
@@ -2452,31 +2476,42 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
       break;
     }
 
-    case Primitive::kPrimInt: {
-      uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
-      if (index.IsConstant()) {
-        size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
-        if (value.IsRegister()) {
-          __ movl(Address(obj, offset), value.As<Register>());
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot: {
+      if (!needs_runtime_call) {
+        uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
+        if (index.IsConstant()) {
+          size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+          if (value.IsRegister()) {
+            __ movl(Address(obj, offset), value.As<Register>());
+          } else {
+            DCHECK(value.IsConstant()) << value;
+            __ movl(Address(obj, offset),
+                    Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+          }
         } else {
-          __ movl(Address(obj, offset), Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+          DCHECK(index.IsRegister()) << index;
+          if (value.IsRegister()) {
+            __ movl(Address(obj, index.As<Register>(), TIMES_4, data_offset),
+                    value.As<Register>());
+          } else {
+            DCHECK(value.IsConstant()) << value;
+            __ movl(Address(obj, index.As<Register>(), TIMES_4, data_offset),
+                    Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+          }
+        }
+
+        if (needs_write_barrier) {
+          Register temp = locations->GetTemp(0).As<Register>();
+          Register card = locations->GetTemp(1).As<Register>();
+          codegen_->MarkGCCard(temp, card, obj, value.As<Register>());
         }
       } else {
-        if (value.IsRegister()) {
-          __ movl(Address(obj, index.As<Register>(), TIMES_4, data_offset),
-                  value.As<Register>());
-        } else {
-          __ movl(Address(obj, index.As<Register>(), TIMES_4, data_offset),
-                  Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
-        }
+        DCHECK_EQ(value_type, Primitive::kPrimNot);
+        DCHECK(!codegen_->IsLeafMethod());
+        __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAputObject)));
+        codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
       }
-      break;
-    }
-
-    case Primitive::kPrimNot: {
-      DCHECK(!codegen_->IsLeafMethod());
-      __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAputObject)));
-      codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
       break;
     }
 
@@ -2844,7 +2879,8 @@ void LocationsBuilderX86::VisitStaticFieldSet(HStaticFieldSet* instruction) {
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   Primitive::Type field_type = instruction->GetFieldType();
-  bool is_object_type = field_type == Primitive::kPrimNot;
+  bool needs_write_barrier =
+      CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1));
   bool is_byte_type = (field_type == Primitive::kPrimBoolean)
       || (field_type == Primitive::kPrimByte);
   // The register allocator does not support multiple
@@ -2856,7 +2892,7 @@ void LocationsBuilderX86::VisitStaticFieldSet(HStaticFieldSet* instruction) {
     locations->SetInAt(1, Location::RequiresRegister());
   }
   // Temporary registers for the write barrier.
-  if (is_object_type) {
+  if (needs_write_barrier) {
     locations->AddTemp(Location::RequiresRegister());
     // Ensure the card is in a byte register.
     locations->AddTemp(Location::RegisterLocation(ECX));
@@ -2889,7 +2925,7 @@ void InstructionCodeGeneratorX86::VisitStaticFieldSet(HStaticFieldSet* instructi
       Register value = locations->InAt(1).As<Register>();
       __ movl(Address(cls, offset), value);
 
-      if (field_type == Primitive::kPrimNot) {
+      if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
         Register temp = locations->GetTemp(0).As<Register>();
         Register card = locations->GetTemp(1).As<Register>();
         codegen_->MarkGCCard(temp, card, cls, value);
