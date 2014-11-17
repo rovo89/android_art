@@ -26,12 +26,12 @@
 
 #include "base/macros.h"
 #include "driver/compiler_driver.h"
+#include "gc/space/space.h"
 #include "mem_map.h"
 #include "oat_file.h"
 #include "mirror/dex_cache.h"
 #include "os.h"
 #include "safe_map.h"
-#include "gc/space/space.h"
 
 namespace art {
 
@@ -123,13 +123,16 @@ class ImageWriter FINAL {
   static void ComputeEagerResolvedStringsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Combine string char arrays.
+  void ProcessStrings() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Remove unwanted classes from various roots.
   void PruneNonImageClasses() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static bool NonImageClassesVisitor(mirror::Class* c, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Verify unwanted classes removed.
-  void CheckNonImageClassesRemoved();
+  void CheckNonImageClassesRemoved() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void CheckNonImageClassesRemovedCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -149,7 +152,7 @@ class ImageWriter FINAL {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Creates the contiguous image in memory and adjusts pointers.
-  void CopyAndFixupObjects();
+  void CopyAndFixupObjects() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void CopyAndFixupObjectsCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FixupMethod(mirror::ArtMethod* orig, mirror::ArtMethod* copy)
