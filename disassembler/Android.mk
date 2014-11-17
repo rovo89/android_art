@@ -85,7 +85,11 @@ define build-libart-disassembler
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
   include external/libcxx/libcxx.mk
   # For disassembler_arm64.
-  LOCAL_SHARED_LIBRARIES += libvixl
+  ifeq ($$(art_ndebug_or_debug),debug)
+    LOCAL_SHARED_LIBRARIES += libvixld
+  else
+    LOCAL_SHARED_LIBRARIES += libvixl
+  endif
   ifeq ($$(art_target_or_host),target)
     include $(BUILD_SHARED_LIBRARY)
   else # host
