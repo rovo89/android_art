@@ -21,6 +21,33 @@
 .field static public a:Ljava/lang/Char;
 .field static public a:Ljava/lang/Byte;
 
+# Add some more fields to stress test the sorting for offset assignment.
+.field static public b:C
+.field static public c:J
+.field static public d:C
+.field static public e:B
+.field static public f:C
+.field static public g:J
+.field static public h:C
+.field static public i:J
+.field static public j:I
+.field static public k:J
+.field static public l:J
+.field static public m:I
+.field static public n:J
+.field static public o:I
+.field static public p:Ljava/lang/Integer;
+.field static public q:I
+.field static public r:J
+.field static public s:I
+.field static public t:Ljava/lang/Integer;
+.field static public u:I
+.field static public v:J
+.field static public w:I
+.field static public x:Ljava/lang/Integer;
+.field static public y:I
+.field static public z:Ljava/lang/Integer;
+
 .method public static getInt()I
     .locals 2
     const/4 v0, 2
