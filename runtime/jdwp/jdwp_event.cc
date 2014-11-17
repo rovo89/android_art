@@ -125,6 +125,10 @@ struct ModBasket {
 };
 
 static bool NeedsFullDeoptimization(JdwpEventKind eventKind) {
+  if (!Dbg::RequiresDeoptimization()) {
+    // We don't need deoptimization for debugging.
+    return false;
+  }
   switch (eventKind) {
       case EK_METHOD_ENTRY:
       case EK_METHOD_EXIT:
