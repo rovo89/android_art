@@ -521,6 +521,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(ParallelMove, Instruction)                                          \
   M(ParameterValue, Instruction)                                        \
   M(Phi, Instruction)                                                   \
+  M(Rem, BinaryOperation)                                             \
   M(Return, Instruction)                                                \
   M(ReturnVoid, Instruction)                                            \
   M(StaticFieldGet, Instruction)                                        \
@@ -1756,10 +1757,15 @@ class HDiv : public HBinaryOperation {
   virtual int32_t Evaluate(int32_t x, int32_t y) const {
     // Our graph structure ensures we never have 0 for `y` during constant folding.
     DCHECK_NE(y, 0);
-    // Special case -1 to avoid getting a SIGFPE on x86.
+    // Special case -1 to avoid getting a SIGFPE on x86(_64).
     return (y == -1) ? -x : x / y;
   }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x / y; }
+
+  virtual int64_t Evaluate(int64_t x, int64_t y) const {
+    DCHECK_NE(y, 0);
+    // Special case -1 to avoid getting a SIGFPE on x86(_64).
+    return (y == -1) ? -x : x / y;
+  }
 
   uint32_t GetDexPc() const { return dex_pc_; }
 
@@ -1769,6 +1775,33 @@ class HDiv : public HBinaryOperation {
   const uint32_t dex_pc_;
 
   DISALLOW_COPY_AND_ASSIGN(HDiv);
+};
+
+class HRem : public HBinaryOperation {
+ public:
+  HRem(Primitive::Type result_type, HInstruction* left, HInstruction* right, uint32_t dex_pc)
+      : HBinaryOperation(result_type, left, right), dex_pc_(dex_pc) {}
+
+  virtual int32_t Evaluate(int32_t x, int32_t y) const {
+    DCHECK_NE(y, 0);
+    // Special case -1 to avoid getting a SIGFPE on x86(_64).
+    return (y == -1) ? 0 : x % y;
+  }
+
+  virtual int64_t Evaluate(int64_t x, int64_t y) const {
+    DCHECK_NE(y, 0);
+    // Special case -1 to avoid getting a SIGFPE on x86(_64).
+    return (y == -1) ? 0 : x % y;
+  }
+
+  uint32_t GetDexPc() const { return dex_pc_; }
+
+  DECLARE_INSTRUCTION(Rem);
+
+ private:
+  const uint32_t dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(HRem);
 };
 
 class HDivZeroCheck : public HExpression<1> {

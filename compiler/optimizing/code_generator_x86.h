@@ -130,6 +130,7 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
   void GenerateSuspendCheck(HSuspendCheck* check, HBasicBlock* successor);
   void GenerateClassInitializationCheck(SlowPathCodeX86* slow_path, Register class_reg);
   void HandleBitwiseOperation(HBinaryOperation* instruction);
+  void GenerateDivRemIntegral(HBinaryOperation* instruction);
 
   X86Assembler* const assembler_;
   CodeGeneratorX86* const codegen_;

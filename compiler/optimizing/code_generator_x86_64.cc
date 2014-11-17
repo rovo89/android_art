@@ -106,26 +106,36 @@ class DivZeroCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
   DISALLOW_COPY_AND_ASSIGN(DivZeroCheckSlowPathX86_64);
 };
 
-class DivMinusOneSlowPathX86_64 : public SlowPathCodeX86_64 {
+class DivRemMinusOneSlowPathX86_64 : public SlowPathCodeX86_64 {
  public:
-  explicit DivMinusOneSlowPathX86_64(Register reg, Primitive::Type type)
-      : reg_(reg), type_(type) {}
+  explicit DivRemMinusOneSlowPathX86_64(Register reg, Primitive::Type type, bool is_div)
+      : cpu_reg_(CpuRegister(reg)), type_(type), is_div_(is_div) {}
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
     if (type_ == Primitive::kPrimInt) {
-      __ negl(CpuRegister(reg_));
+      if (is_div_) {
+        __ negl(cpu_reg_);
+      } else {
+        __ movl(cpu_reg_, Immediate(0));
+      }
+
     } else {
       DCHECK_EQ(Primitive::kPrimLong, type_);
-      __ negq(CpuRegister(reg_));
+      if (is_div_) {
+        __ negq(cpu_reg_);
+      } else {
+        __ movq(cpu_reg_, Immediate(0));
+      }
     }
     __ jmp(GetExitLabel());
   }
 
  private:
-  const Register reg_;
+  const CpuRegister cpu_reg_;
   const Primitive::Type type_;
-  DISALLOW_COPY_AND_ASSIGN(DivMinusOneSlowPathX86_64);
+  const bool is_div_;
+  DISALLOW_COPY_AND_ASSIGN(DivRemMinusOneSlowPathX86_64);
 };
 
 class StackOverflowCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
@@ -1741,6 +1751,47 @@ void InstructionCodeGeneratorX86_64::VisitMul(HMul* mul) {
   }
 }
 
+void InstructionCodeGeneratorX86_64::GenerateDivRemIntegral(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsDiv() || instruction->IsRem());
+  Primitive::Type type = instruction->GetResultType();
+  DCHECK(type == Primitive::kPrimInt || Primitive::kPrimLong);
+
+  bool is_div = instruction->IsDiv();
+  LocationSummary* locations = instruction->GetLocations();
+
+  CpuRegister out_reg = locations->Out().As<CpuRegister>();
+  CpuRegister second_reg = locations->InAt(1).As<CpuRegister>();
+
+  DCHECK_EQ(RAX, locations->InAt(0).As<CpuRegister>().AsRegister());
+  DCHECK_EQ(is_div ? RAX : RDX, out_reg.AsRegister());
+
+  SlowPathCodeX86_64* slow_path =
+      new (GetGraph()->GetArena()) DivRemMinusOneSlowPathX86_64(
+          out_reg.AsRegister(), type, is_div);
+  codegen_->AddSlowPath(slow_path);
+
+  // 0x80000000(00000000)/-1 triggers an arithmetic exception!
+  // Dividing by -1 is actually negation and -0x800000000(00000000) = 0x80000000(00000000)
+  // so it's safe to just use negl instead of more complex comparisons.
+
+  __ cmpl(second_reg, Immediate(-1));
+  __ j(kEqual, slow_path->GetEntryLabel());
+
+  if (type == Primitive::kPrimInt) {
+    // edx:eax <- sign-extended of eax
+    __ cdq();
+    // eax = quotient, edx = remainder
+    __ idivl(second_reg);
+  } else {
+    // rdx:rax <- sign-extended of rax
+    __ cqo();
+    // rax = quotient, rdx = remainder
+    __ idivq(second_reg);
+  }
+
+  __ Bind(slow_path->GetExitLabel());
+}
+
 void LocationsBuilderX86_64::VisitDiv(HDiv* div) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(div, LocationSummary::kNoCall);
@@ -1778,35 +1829,7 @@ void InstructionCodeGeneratorX86_64::VisitDiv(HDiv* div) {
   switch (type) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
-      CpuRegister first_reg = first.As<CpuRegister>();
-      CpuRegister second_reg = second.As<CpuRegister>();
-      DCHECK_EQ(RAX,  first_reg.AsRegister());
-      DCHECK_EQ(RDX, locations->GetTemp(0).As<CpuRegister>().AsRegister());
-
-      SlowPathCodeX86_64* slow_path =
-          new (GetGraph()->GetArena()) DivMinusOneSlowPathX86_64(first_reg.AsRegister(), type);
-      codegen_->AddSlowPath(slow_path);
-
-      // 0x80000000(00000000)/-1 triggers an arithmetic exception!
-      // Dividing by -1 is actually negation and -0x800000000(00000000) = 0x80000000(00000000)
-      // so it's safe to just use negl instead of more complex comparisons.
-
-      __ cmpl(second_reg, Immediate(-1));
-      __ j(kEqual, slow_path->GetEntryLabel());
-
-      if (type == Primitive::kPrimInt) {
-        // edx:eax <- sign-extended of eax
-        __ cdq();
-        // eax = quotient, edx = remainder
-        __ idivl(second_reg);
-      } else {
-        // rdx:rax <- sign-extended of rax
-        __ cqo();
-        // rax = quotient, rdx = remainder
-        __ idivq(second_reg);
-      }
-
-      __ Bind(slow_path->GetExitLabel());
+      GenerateDivRemIntegral(div);
       break;
     }
 
@@ -1822,6 +1845,50 @@ void InstructionCodeGeneratorX86_64::VisitDiv(HDiv* div) {
 
     default:
       LOG(FATAL) << "Unexpected div type " << div->GetResultType();
+  }
+}
+
+void LocationsBuilderX86_64::VisitRem(HRem* rem) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(rem, LocationSummary::kNoCall);
+  switch (rem->GetResultType()) {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimLong: {
+      locations->SetInAt(0, Location::RegisterLocation(RAX));
+      locations->SetInAt(1, Location::RequiresRegister());
+      // Intel uses rdx:rax as the dividend and puts the remainder in rdx
+      locations->SetOut(Location::RegisterLocation(RDX));
+      break;
+    }
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      LOG(FATAL) << "Unimplemented rem type " << rem->GetResultType();
+      break;
+    }
+
+    default:
+      LOG(FATAL) << "Unexpected rem type " << rem->GetResultType();
+  }
+}
+
+void InstructionCodeGeneratorX86_64::VisitRem(HRem* rem) {
+  Primitive::Type type = rem->GetResultType();
+  switch (type) {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimLong: {
+      GenerateDivRemIntegral(rem);
+      break;
+    }
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      LOG(FATAL) << "Unimplemented rem type " << rem->GetResultType();
+      break;
+    }
+
+    default:
+      LOG(FATAL) << "Unexpected rem type " << rem->GetResultType();
   }
 }
 
