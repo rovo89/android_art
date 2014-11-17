@@ -148,6 +148,7 @@ void InternTable::RemoveWeakFromTransaction(mirror::String* s) {
 }
 
 void InternTable::AddImageStringsToTable(gc::space::ImageSpace* image_space) {
+  CHECK(image_space != nullptr);
   MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
   if (!image_added_to_intern_table_) {
     mirror::Object* root = image_space->GetImageHeader().GetImageRoot(ImageHeader::kDexCaches);
