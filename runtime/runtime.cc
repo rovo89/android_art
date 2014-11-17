@@ -438,7 +438,8 @@ bool Runtime::Start() {
 
   started_ = true;
 
-  if (IsZygote()) {
+  // Use !IsCompiler so that we get test coverage, tests are never the zygote.
+  if (!IsCompiler()) {
     ScopedObjectAccess soa(self);
     gc::space::ImageSpace* image_space = heap_->GetImageSpace();
     if (image_space != nullptr) {
