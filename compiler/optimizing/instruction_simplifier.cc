@@ -55,4 +55,16 @@ void InstructionSimplifier::VisitEqual(HEqual* equal) {
   }
 }
 
+void InstructionSimplifier::VisitArraySet(HArraySet* instruction) {
+  HInstruction* value = instruction->GetValue();
+  if (value->GetType() != Primitive::kPrimNot) return;
+
+  if (value->IsArrayGet()) {
+    if (value->AsArrayGet()->GetArray() == instruction->GetArray()) {
+      // If the code is just swapping elements in the array, no need for a type check.
+      instruction->ClearNeedsTypeCheck();
+    }
+  }
+}
+
 }  // namespace art
