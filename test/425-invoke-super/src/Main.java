@@ -39,6 +39,8 @@ public class Main {
   }
 
   public static void main(String[] args) throws Exception {
+    // Workaround for b/18051191.
+    System.out.println("Test started");
     assertEquals(1, new B().$opt$bar());
     assertEquals(1, new C().$opt$bar());
     assertEquals(1, new D().$opt$bar());
