@@ -5216,8 +5216,10 @@ struct LinkFieldsComparator {
       // Primitive types differ but sizes match. Arbitrarily order by primitive type.
       return type1 < type2;
     }
-    // same basic group? then sort by string.
-    return strcmp(field1->GetName(), field2->GetName()) < 0;
+    // Same basic group? Then sort by dex field index. This is guaranteed to be sorted
+    // by name and for equal names by type id index.
+    // NOTE: This works also for proxies. Their static fields are assigned appropriate indexes.
+    return field1->GetDexFieldIndex() < field2->GetDexFieldIndex();
   }
 };
 
@@ -5342,7 +5344,9 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
       }
       if (i != 0) {
         mirror::ArtField* prev_field = fields->Get(i - 1u);
-        CHECK_LT(strcmp(prev_field->GetName(), field->GetName()), 0);
+        // NOTE: The field names can be the same. This is not possible in the Java language
+        // but it's valid Java/dex bytecode and for example proguard can generate such bytecode.
+        CHECK_LE(strcmp(prev_field->GetName(), field->GetName()), 0);
       }
       Primitive::Type type = field->GetTypeAsPrimitiveType();
       bool is_primitive = type != Primitive::kPrimNot;

@@ -54,6 +54,7 @@ public class Main {
         testCases.add(new TestCase("FloatBadArgReg", "FloatBadArgReg", "getInt",
             new Object[]{100}, null, 100));
         testCases.add(new TestCase("negLong", "negLong", "negLong", null, null, 122142L));
+        testCases.add(new TestCase("sameFieldNames", "sameFieldNames", "getInt", null, null, 7));
     }
 
     public void runTests() {
