@@ -643,11 +643,12 @@ InstructionCodeGeneratorARM64::InstructionCodeGeneratorARM64(HGraph* graph,
   M(MonitorOperation)                                      \
   M(Or)                                                    \
   M(ParallelMove)                                          \
+  M(Rem)                                                   \
   M(StaticFieldGet)                                        \
   M(StaticFieldSet)                                        \
   M(Throw)                                                 \
   M(TypeConversion)                                        \
-  M(Xor)                                                    \
+  M(Xor)                                                   \
 
 #define UNIMPLEMENTED_INSTRUCTION_BREAK_CODE(name) name##UnimplementedInstructionBreakCode
 
