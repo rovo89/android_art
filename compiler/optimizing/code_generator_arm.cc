@@ -1367,6 +1367,22 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
       }
       break;
 
+    case Primitive::kPrimShort:
+      switch (input_type) {
+        case Primitive::kPrimByte:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
+          // Processing a Dex `int-to-short' instruction.
+          locations->SetInAt(0, Location::RequiresRegister());
+          locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      }
+      break;
+
     case Primitive::kPrimInt:
       switch (input_type) {
         case Primitive::kPrimLong:
@@ -1453,6 +1469,21 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
         case Primitive::kPrimChar:
           // Processing a Dex `int-to-byte' instruction.
           __ sbfx(out.As<Register>(), in.As<Register>(), 0, 8);
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      }
+      break;
+
+    case Primitive::kPrimShort:
+      switch (input_type) {
+        case Primitive::kPrimByte:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
+          // Processing a Dex `int-to-short' instruction.
+          __ sbfx(out.As<Register>(), in.As<Register>(), 0, 16);
           break;
 
         default:
