@@ -360,7 +360,7 @@ class JNI {
     ScopedObjectAccess soa(env);
     mirror::ArtMethod* m = soa.DecodeMethod(mid);
     CHECK(!kMovingMethods);
-    jobject art_method = soa.AddLocalReference<jobject>(m);
+    ScopedLocalRef<jobject> art_method(env, soa.AddLocalReference<jobject>(m));
     jobject reflect_method;
     if (m->IsConstructor()) {
       reflect_method = env->AllocObject(WellKnownClasses::java_lang_reflect_Constructor);
@@ -371,7 +371,7 @@ class JNI {
       return nullptr;
     }
     SetObjectField(env, reflect_method,
-                   WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod, art_method);
+                   WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod, art_method.get());
     return reflect_method;
   }
 
@@ -379,13 +379,13 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(fid);
     ScopedObjectAccess soa(env);
     mirror::ArtField* f = soa.DecodeField(fid);
-    jobject art_field = soa.AddLocalReference<jobject>(f);
+    ScopedLocalRef<jobject> art_field(env, soa.AddLocalReference<jobject>(f));
     jobject reflect_field = env->AllocObject(WellKnownClasses::java_lang_reflect_Field);
     if (env->ExceptionCheck()) {
       return nullptr;
     }
     SetObjectField(env, reflect_field,
-                   WellKnownClasses::java_lang_reflect_Field_artField, art_field);
+                   WellKnownClasses::java_lang_reflect_Field_artField, art_field.get());
     return reflect_field;
   }
 
