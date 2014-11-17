@@ -1117,7 +1117,7 @@ DEFINE_FUNCTION art_quick_instrumentation_entry
     PUSH eax                      // Save eax which will be clobbered by the callee-save method.
     subl LITERAL(12), %esp        // Align stack.
     CFI_ADJUST_CFA_OFFSET(12)
-    pushl 40(%esp)                // Pass LR.
+    pushl FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE-4+16(%esp)  // Pass LR.
     CFI_ADJUST_CFA_OFFSET(4)
     pushl %fs:THREAD_SELF_OFFSET  // Pass Thread::Current().
     CFI_ADJUST_CFA_OFFSET(4)

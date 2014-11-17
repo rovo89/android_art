@@ -1446,7 +1446,7 @@ DEFINE_FUNCTION art_quick_instrumentation_entry
     movq %rdi, %r12               // Preserve method pointer in a callee-save.
 
     movq %gs:THREAD_SELF_OFFSET, %rdx   // Pass thread.
-    movq FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE-8(%rsp), %r8   // Pass return PC.
+    movq FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE-8(%rsp), %rcx   // Pass return PC.
 
     call SYMBOL(artInstrumentationMethodEntryFromCode) // (Method*, Object*, Thread*, LR)
 
