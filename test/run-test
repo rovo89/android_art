@@ -501,6 +501,8 @@ if ! ulimit -S "$file_size_limit"; then
 fi
 
 good="no"
+good_build="yes"
+good_run="yes"
 if [ "$dev_mode" = "yes" ]; then
     "./${build}" 2>&1
     build_exit="$?"
@@ -548,7 +550,15 @@ else
     if [ "$build_exit" = '0' ]; then
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" >"$output" 2>&1
+        run_exit="$?"
+        if [ "$run_exit" != "0" ]; then
+            echo "run exit status: $run_exit" 1>&2
+            good_run="no"
+        else
+            good_run="yes"
+        fi
     else
+        good_build="no"
         cp "$build_output" "$output"
         echo "Failed to build in tmpdir=${tmp_dir} from oldwd=${oldwd} and cwd=`pwd`" >> "$output"
         echo "Non-canonical tmpdir was ${noncanonical_tmp_dir}" >> "$output"
@@ -561,9 +571,11 @@ else
     fi
     ./$check_cmd "$expected" "$output"
     if [ "$?" = "0" ]; then
-        # output == expected
-        good="yes"
-        echo "${test_dir}: succeeded!" 1>&2
+        if [ "$good_build" = "no" -o "$good_run" = "yes" ]; then
+          # output == expected
+          good="yes"
+          echo "${test_dir}: succeeded!" 1>&2
+        fi
     fi
 fi
 
