@@ -37,8 +37,8 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::ArtMethod* 
     result = GetQuickToInterpreterBridge();
   } else {
     result = instrumentation->GetQuickCodeFor(method);
+    DCHECK(!Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(result));
   }
-  DCHECK(!Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(result));
   bool interpreter_entry = (result == GetQuickToInterpreterBridge());
   instrumentation->PushInstrumentationStackFrame(self, method->IsStatic() ? nullptr : this_object,
                                                  method, lr, interpreter_entry);
