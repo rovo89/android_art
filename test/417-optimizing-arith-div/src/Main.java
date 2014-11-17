@@ -24,6 +24,12 @@ public class Main {
     }
   }
 
+  public static void expectEquals(long expected, long result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
   public static void expectEquals(float expected, float result) {
     if (expected != result) {
       throw new Error("Expected: " + expected + ", found: " + result);

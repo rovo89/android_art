@@ -123,12 +123,13 @@ class HGraphBuilder : public ValueObject {
                       Primitive::Type input_type,
                       Primitive::Type result_type);
 
-  void BuildCheckedDiv(uint16_t out_reg,
-                       uint16_t first_reg,
-                       int64_t second_reg_or_constant,
-                       uint32_t dex_pc,
-                       Primitive::Type type,
-                       bool second_is_lit);
+  void BuildCheckedDivRem(uint16_t out_reg,
+                          uint16_t first_reg,
+                          int64_t second_reg_or_constant,
+                          uint32_t dex_pc,
+                          Primitive::Type type,
+                          bool second_is_lit,
+                          bool is_div);
 
   void BuildReturn(const Instruction& instruction, Primitive::Type type);
 
