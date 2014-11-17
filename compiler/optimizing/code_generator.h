@@ -171,7 +171,7 @@ class CodeGenerator : public ArenaObject<kArenaAllocMisc> {
   static bool StoreNeedsWriteBarrier(Primitive::Type type, HInstruction* value) {
     if (kIsDebugBuild) {
       if (type == Primitive::kPrimNot && value->IsIntConstant()) {
-        CHECK(value->AsIntConstant()->GetValue() == 0);
+        CHECK_EQ(value->AsIntConstant()->GetValue(), 0);
       }
     }
     return type == Primitive::kPrimNot && !value->IsIntConstant();
