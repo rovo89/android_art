@@ -25,7 +25,7 @@
 namespace art {
 
 const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '4', '7', '\0' };
+const uint8_t OatHeader::kOatVersion[] = { '0', '4', '8', '\0' };
 
 static size_t ComputeOatHeaderSize(const SafeMap<std::string, std::string>* variable_data) {
   size_t estimate = 0U;
