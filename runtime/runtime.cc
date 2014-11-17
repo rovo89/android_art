@@ -440,8 +440,11 @@ bool Runtime::Start() {
 
   if (IsZygote()) {
     ScopedObjectAccess soa(self);
-    Runtime::Current()->GetInternTable()->AddImageStringsToTable(heap_->GetImageSpace());
-    Runtime::Current()->GetClassLinker()->MoveImageClassesToClassTable();
+    gc::space::ImageSpace* image_space = heap_->GetImageSpace();
+    if (image_space != nullptr) {
+      Runtime::Current()->GetInternTable()->AddImageStringsToTable(image_space);
+      Runtime::Current()->GetClassLinker()->MoveImageClassesToClassTable();
+    }
   }
 
   if (!IsImageDex2OatEnabled() || !Runtime::Current()->GetHeap()->HasImageSpace()) {
