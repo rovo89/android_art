@@ -50,12 +50,37 @@ public class Main {
     }
   }
 
+  public static void assertFloatEquals(float expected, float result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+  public static void assertDoubleEquals(double expected, double result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+
   public static void main(String[] args) {
     // Generate, compile and check int-to-long Dex instructions.
     byteToLong();
     shortToLong();
     intToLong();
     charToLong();
+
+    // Generate, compile and check int-to-float Dex instructions.
+    byteToFloat();
+    shortToFloat();
+    intToFloat();
+    charToFloat();
+
+    // Generate, compile and check int-to-double Dex instructions.
+    byteToDouble();
+    shortToDouble();
+    intToDouble();
+    charToDouble();
 
     // Generate, compile and check long-to-int Dex instructions.
     longToInt();
@@ -119,6 +144,100 @@ public class Main {
     assertLongEquals(65485L, $opt$CharToLong((char)-51));
     assertLongEquals(32769L, $opt$CharToLong((char)-32767));  // -(2^15 - 1)
     assertLongEquals(32768L, $opt$CharToLong((char)-32768));  // -(2^15)
+  }
+
+  private static void byteToFloat() {
+    assertFloatEquals(1F, $opt$ByteToFloat((byte)1));
+    assertFloatEquals(0F, $opt$ByteToFloat((byte)0));
+    assertFloatEquals(-1F, $opt$ByteToFloat((byte)-1));
+    assertFloatEquals(51F, $opt$ByteToFloat((byte)51));
+    assertFloatEquals(-51F, $opt$ByteToFloat((byte)-51));
+    assertFloatEquals(127F, $opt$ByteToFloat((byte)127));  // 2^7 - 1
+    assertFloatEquals(-127F, $opt$ByteToFloat((byte)-127));  // -(2^7 - 1)
+    assertFloatEquals(-128F, $opt$ByteToFloat((byte)-128));  // -(2^7)
+  }
+
+  private static void shortToFloat() {
+    assertFloatEquals(1F, $opt$ShortToFloat((short)1));
+    assertFloatEquals(0F, $opt$ShortToFloat((short)0));
+    assertFloatEquals(-1F, $opt$ShortToFloat((short)-1));
+    assertFloatEquals(51F, $opt$ShortToFloat((short)51));
+    assertFloatEquals(-51F, $opt$ShortToFloat((short)-51));
+    assertFloatEquals(32767F, $opt$ShortToFloat((short)32767));  // 2^15 - 1
+    assertFloatEquals(-32767F, $opt$ShortToFloat((short)-32767));  // -(2^15 - 1)
+    assertFloatEquals(-32768F, $opt$ShortToFloat((short)-32768));  // -(2^15)
+  }
+
+  private static void intToFloat() {
+    assertFloatEquals(1F, $opt$IntToFloat(1));
+    assertFloatEquals(0F, $opt$IntToFloat(0));
+    assertFloatEquals(-1F, $opt$IntToFloat(-1));
+    assertFloatEquals(51F, $opt$IntToFloat(51));
+    assertFloatEquals(-51F, $opt$IntToFloat(-51));
+    assertFloatEquals(16777215F, $opt$IntToFloat(16777215));  // 2^24 - 1
+    assertFloatEquals(-16777215F, $opt$IntToFloat(-16777215));  // -(2^24 - 1)
+    assertFloatEquals(16777216F, $opt$IntToFloat(16777216));  // 2^24
+    assertFloatEquals(-16777216F, $opt$IntToFloat(-16777216));  // -(2^24)
+    assertFloatEquals(2147483647F, $opt$IntToFloat(2147483647));  // 2^31 - 1
+    assertFloatEquals(-2147483648F, $opt$IntToFloat(-2147483648));  // -(2^31)
+  }
+
+  private static void charToFloat() {
+    assertFloatEquals(1F, $opt$CharToFloat((char)1));
+    assertFloatEquals(0F, $opt$CharToFloat((char)0));
+    assertFloatEquals(51F, $opt$CharToFloat((char)51));
+    assertFloatEquals(32767F, $opt$CharToFloat((char)32767));  // 2^15 - 1
+    assertFloatEquals(65535F, $opt$CharToFloat((char)65535));  // 2^16 - 1
+    assertFloatEquals(65535F, $opt$CharToFloat((char)-1));
+    assertFloatEquals(65485F, $opt$CharToFloat((char)-51));
+    assertFloatEquals(32769F, $opt$CharToFloat((char)-32767));  // -(2^15 - 1)
+    assertFloatEquals(32768F, $opt$CharToFloat((char)-32768));  // -(2^15)
+  }
+
+  private static void byteToDouble() {
+    assertDoubleEquals(1D, $opt$ByteToDouble((byte)1));
+    assertDoubleEquals(0D, $opt$ByteToDouble((byte)0));
+    assertDoubleEquals(-1D, $opt$ByteToDouble((byte)-1));
+    assertDoubleEquals(51D, $opt$ByteToDouble((byte)51));
+    assertDoubleEquals(-51D, $opt$ByteToDouble((byte)-51));
+    assertDoubleEquals(127D, $opt$ByteToDouble((byte)127));  // 2^7 - 1
+    assertDoubleEquals(-127D, $opt$ByteToDouble((byte)-127));  // -(2^7 - 1)
+    assertDoubleEquals(-128D, $opt$ByteToDouble((byte)-128));  // -(2^7)
+  }
+
+  private static void shortToDouble() {
+    assertDoubleEquals(1D, $opt$ShortToDouble((short)1));
+    assertDoubleEquals(0D, $opt$ShortToDouble((short)0));
+    assertDoubleEquals(-1D, $opt$ShortToDouble((short)-1));
+    assertDoubleEquals(51D, $opt$ShortToDouble((short)51));
+    assertDoubleEquals(-51D, $opt$ShortToDouble((short)-51));
+    assertDoubleEquals(32767D, $opt$ShortToDouble((short)32767));  // 2^15 - 1
+    assertDoubleEquals(-32767D, $opt$ShortToDouble((short)-32767));  // -(2^15 - 1)
+    assertDoubleEquals(-32768D, $opt$ShortToDouble((short)-32768));  // -(2^15)
+  }
+
+  private static void intToDouble() {
+    assertDoubleEquals(1D, $opt$IntToDouble(1));
+    assertDoubleEquals(0D, $opt$IntToDouble(0));
+    assertDoubleEquals(-1D, $opt$IntToDouble(-1));
+    assertDoubleEquals(51D, $opt$IntToDouble(51));
+    assertDoubleEquals(-51D, $opt$IntToDouble(-51));
+    assertDoubleEquals(16777216D, $opt$IntToDouble(16777216));  // 2^24
+    assertDoubleEquals(-16777216D, $opt$IntToDouble(-16777216));  // -(2^24)
+    assertDoubleEquals(2147483647D, $opt$IntToDouble(2147483647));  // 2^31 - 1
+    assertDoubleEquals(-2147483648D, $opt$IntToDouble(-2147483648));  // -(2^31)
+  }
+
+  private static void charToDouble() {
+    assertDoubleEquals(1D, $opt$CharToDouble((char)1));
+    assertDoubleEquals(0D, $opt$CharToDouble((char)0));
+    assertDoubleEquals(51D, $opt$CharToDouble((char)51));
+    assertDoubleEquals(32767D, $opt$CharToDouble((char)32767));  // 2^15 - 1
+    assertDoubleEquals(65535D, $opt$CharToDouble((char)65535));  // 2^16 - 1
+    assertDoubleEquals(65535D, $opt$CharToDouble((char)-1));
+    assertDoubleEquals(65485D, $opt$CharToDouble((char)-51));
+    assertDoubleEquals(32769D, $opt$CharToDouble((char)-32767));  // -(2^15 - 1)
+    assertDoubleEquals(32768D, $opt$CharToDouble((char)-32768));  // -(2^15)
   }
 
   private static void longToInt() {
@@ -280,6 +399,18 @@ public class Main {
   static long $opt$ShortToLong(short a) { return a; }
   static long $opt$IntToLong(int a) { return a; }
   static long $opt$CharToLong(int a) { return a; }
+
+  // These methods produce int-to-float Dex instructions.
+  static float $opt$ByteToFloat(byte a) { return a; }
+  static float $opt$ShortToFloat(short a) { return a; }
+  static float $opt$IntToFloat(int a) { return a; }
+  static float $opt$CharToFloat(char a) { return a; }
+
+  // These methods produce int-to-double Dex instructions.
+  static double $opt$ByteToDouble(byte a) { return a; }
+  static double $opt$ShortToDouble(short a) { return a; }
+  static double $opt$IntToDouble(int a) { return a; }
+  static double $opt$CharToDouble(int a) { return a; }
 
   // These methods produce long-to-int Dex instructions.
   static int $opt$LongToInt(long a){ return (int)a; }
