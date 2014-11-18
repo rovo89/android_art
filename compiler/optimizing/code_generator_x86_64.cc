@@ -2026,6 +2026,107 @@ void InstructionCodeGeneratorX86_64::VisitDivZeroCheck(HDivZeroCheck* instructio
   }
 }
 
+void LocationsBuilderX86_64::HandleShift(HBinaryOperation* op) {
+  DCHECK(op->IsShl() || op->IsShr() || op->IsUShr());
+
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(op, LocationSummary::kNoCall);
+
+  switch (op->GetResultType()) {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimLong: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      // The shift count needs to be in CL.
+      locations->SetInAt(1, Location::ByteRegisterOrConstant(RCX, op->InputAt(1)));
+      locations->SetOut(Location::SameAsFirstInput());
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected operation type " << op->GetResultType();
+  }
+}
+
+void InstructionCodeGeneratorX86_64::HandleShift(HBinaryOperation* op) {
+  DCHECK(op->IsShl() || op->IsShr() || op->IsUShr());
+
+  LocationSummary* locations = op->GetLocations();
+  CpuRegister first_reg = locations->InAt(0).As<CpuRegister>();
+  Location second = locations->InAt(1);
+
+  switch (op->GetResultType()) {
+    case Primitive::kPrimInt: {
+      if (second.IsRegister()) {
+        CpuRegister second_reg = second.As<CpuRegister>();
+        if (op->IsShl()) {
+          __ shll(first_reg, second_reg);
+        } else if (op->IsShr()) {
+          __ sarl(first_reg, second_reg);
+        } else {
+          __ shrl(first_reg, second_reg);
+        }
+      } else {
+        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue());
+        if (op->IsShl()) {
+          __ shll(first_reg, imm);
+        } else if (op->IsShr()) {
+          __ sarl(first_reg, imm);
+        } else {
+          __ shrl(first_reg, imm);
+        }
+      }
+      break;
+    }
+    case Primitive::kPrimLong: {
+      if (second.IsRegister()) {
+        CpuRegister second_reg = second.As<CpuRegister>();
+        if (op->IsShl()) {
+          __ shlq(first_reg, second_reg);
+        } else if (op->IsShr()) {
+          __ sarq(first_reg, second_reg);
+        } else {
+          __ shrq(first_reg, second_reg);
+        }
+      } else {
+        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue());
+        if (op->IsShl()) {
+          __ shlq(first_reg, imm);
+        } else if (op->IsShr()) {
+          __ sarq(first_reg, imm);
+        } else {
+          __ shrq(first_reg, imm);
+        }
+      }
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected operation type " << op->GetResultType();
+  }
+}
+
+void LocationsBuilderX86_64::VisitShl(HShl* shl) {
+  HandleShift(shl);
+}
+
+void InstructionCodeGeneratorX86_64::VisitShl(HShl* shl) {
+  HandleShift(shl);
+}
+
+void LocationsBuilderX86_64::VisitShr(HShr* shr) {
+  HandleShift(shr);
+}
+
+void InstructionCodeGeneratorX86_64::VisitShr(HShr* shr) {
+  HandleShift(shr);
+}
+
+void LocationsBuilderX86_64::VisitUShr(HUShr* ushr) {
+  HandleShift(ushr);
+}
+
+void InstructionCodeGeneratorX86_64::VisitUShr(HUShr* ushr) {
+  HandleShift(ushr);
+}
+
 void LocationsBuilderX86_64::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
