@@ -232,9 +232,13 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
                                      +-main alloc space2 / bump space 2 (capacity_)+-
                                      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-
   */
+  // We don't have hspace compaction enabled with GSS.
+  if (foreground_collector_type_ == kCollectorTypeGSS) {
+    use_homogeneous_space_compaction_for_oom_ = false;
+  }
   bool support_homogeneous_space_compaction =
       background_collector_type_ == gc::kCollectorTypeHomogeneousSpaceCompact ||
-      use_homogeneous_space_compaction_for_oom;
+      use_homogeneous_space_compaction_for_oom_;
   // We may use the same space the main space for the non moving space if we don't need to compact
   // from the main space.
   // This is not the case if we support homogeneous compaction or have a moving background
