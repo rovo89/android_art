@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_GVN_H_
 
 #include "nodes.h"
+#include "optimization.h"
 
 namespace art {
 
@@ -165,11 +166,11 @@ class ValueSet : public ArenaObject<kArenaAllocMisc> {
 /**
  * Optimization phase that removes redundant instruction.
  */
-class GlobalValueNumberer : public ValueObject {
+class GlobalValueNumberer : public HOptimization {
  public:
   GlobalValueNumberer(ArenaAllocator* allocator, HGraph* graph)
-      : allocator_(allocator),
-        graph_(graph),
+      : HOptimization(graph, true, "GVN"),
+        allocator_(allocator),
         block_effects_(allocator, graph->GetBlocks().Size()),
         loop_effects_(allocator, graph->GetBlocks().Size()),
         sets_(allocator, graph->GetBlocks().Size()),
@@ -186,7 +187,7 @@ class GlobalValueNumberer : public ValueObject {
     }
   }
 
-  void Run();
+  void Run() OVERRIDE;
 
  private:
   // Per-block GVN. Will also update the ValueSet of the dominated and
@@ -202,7 +203,6 @@ class GlobalValueNumberer : public ValueObject {
   SideEffects GetBlockEffects(HBasicBlock* block) const;
 
   ArenaAllocator* const allocator_;
-  HGraph* const graph_;
 
   // Side effects of individual blocks, that is the union of the side effects
   // of the instructions in the block.

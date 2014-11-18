@@ -189,6 +189,25 @@ static bool CanOptimize(const DexFile::CodeItem& code_item) {
   return code_item.tries_size_ == 0;
 }
 
+static void RunOptimizations(HGraph* graph, const HGraphVisualizer& visualizer) {
+  HDeadCodeElimination opt1(graph);
+  HConstantFolding opt2(graph);
+  SsaRedundantPhiElimination opt3(graph);
+  SsaDeadPhiElimination opt4(graph);
+  InstructionSimplifier opt5(graph);
+  GlobalValueNumberer opt6(graph->GetArena(), graph);
+  InstructionSimplifier opt7(graph);
+
+  HOptimization* optimizations[] = { &opt1, &opt2, &opt3, &opt4, &opt5, &opt6, &opt7 };
+
+  for (size_t i = 0; i < arraysize(optimizations); ++i) {
+    HOptimization* optimization = optimizations[i];
+    optimization->Run();
+    optimization->Check();
+    visualizer.DumpGraph(optimization->GetPassName());
+  }
+}
+
 CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                                             uint32_t access_flags,
                                             InvokeType invoke_type,
@@ -256,17 +275,9 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     visualizer.DumpGraph("ssa");
     graph->FindNaturalLoops();
 
-    HDeadCodeElimination(graph, visualizer).Execute();
-    HConstantFolding(graph, visualizer).Execute();
+    RunOptimizations(graph, visualizer);
 
-    SsaRedundantPhiElimination(graph).Run();
-    SsaDeadPhiElimination(graph).Run();
-    InstructionSimplifier(graph).Run();
-    GlobalValueNumberer(graph->GetArena(), graph).Run();
-    visualizer.DumpGraph(kGVNPassName);
-    InstructionSimplifier(graph).Run();
     PrepareForRegisterAllocation(graph).Run();
-
     SsaLivenessAnalysis liveness(*graph, codegen);
     liveness.Analyze();
     visualizer.DumpGraph(kLivenessPassName);
