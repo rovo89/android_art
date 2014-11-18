@@ -1444,9 +1444,49 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
       break;
 
     case Primitive::kPrimFloat:
+      switch (input_type) {
+        case Primitive::kPrimByte:
+        case Primitive::kPrimShort:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
+          // Processing a Dex `int-to-float' instruction.
+          locations->SetInAt(0, Location::RequiresRegister());
+          locations->SetOut(Location::RequiresFpuRegister());
+          break;
+
+        case Primitive::kPrimLong:
+        case Primitive::kPrimDouble:
+          LOG(FATAL) << "Type conversion from " << input_type
+                     << " to " << result_type << " not yet implemented";
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      };
+      break;
+
     case Primitive::kPrimDouble:
-      LOG(FATAL) << "Type conversion from " << input_type
-                 << " to " << result_type << " not yet implemented";
+      switch (input_type) {
+        case Primitive::kPrimByte:
+        case Primitive::kPrimShort:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
+          // Processing a Dex `int-to-double' instruction.
+          locations->SetInAt(0, Location::RequiresRegister());
+          locations->SetOut(Location::RequiresFpuRegister());
+          break;
+
+        case Primitive::kPrimLong:
+        case Primitive::kPrimFloat:
+          LOG(FATAL) << "Type conversion from " << input_type
+                     << " to " << result_type << " not yet implemented";
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      };
       break;
 
     default:
@@ -1566,9 +1606,52 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
       break;
 
     case Primitive::kPrimFloat:
+      switch (input_type) {
+        case Primitive::kPrimByte:
+        case Primitive::kPrimShort:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar: {
+          // Processing a Dex `int-to-float' instruction.
+          __ vmovsr(out.As<SRegister>(), in.As<Register>());
+          __ vcvtsi(out.As<SRegister>(), out.As<SRegister>());
+          break;
+        }
+
+        case Primitive::kPrimLong:
+        case Primitive::kPrimDouble:
+          LOG(FATAL) << "Type conversion from " << input_type
+                     << " to " << result_type << " not yet implemented";
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      };
+      break;
+
     case Primitive::kPrimDouble:
-      LOG(FATAL) << "Type conversion from " << input_type
-                 << " to " << result_type << " not yet implemented";
+      switch (input_type) {
+        case Primitive::kPrimByte:
+        case Primitive::kPrimShort:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar: {
+          // Processing a Dex `int-to-double' instruction.
+          __ vmovsr(out.AsFpuRegisterPairLow<SRegister>(), in.As<Register>());
+          __ vcvtdi(FromLowSToD(out.AsFpuRegisterPairLow<SRegister>()),
+                    out.AsFpuRegisterPairLow<SRegister>());
+          break;
+        }
+
+        case Primitive::kPrimLong:
+        case Primitive::kPrimFloat:
+          LOG(FATAL) << "Type conversion from " << input_type
+                     << " to " << result_type << " not yet implemented";
+          break;
+
+        default:
+          LOG(FATAL) << "Unexpected type conversion from " << input_type
+                     << " to " << result_type;
+      };
       break;
 
     default:
