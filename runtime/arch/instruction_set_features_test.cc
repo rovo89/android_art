@@ -27,12 +27,17 @@
 namespace art {
 
 #ifdef HAVE_ANDROID_OS
+#if defined(__aarch64__)
+TEST(InstructionSetFeaturesTest, DISABLED_FeaturesFromSystemPropertyVariant) {
+  LOG(WARNING) << "Test disabled due to no CPP define for A53 erratum 835769";
+#else
 TEST(InstructionSetFeaturesTest, FeaturesFromSystemPropertyVariant) {
+#endif
   // Take the default set of instruction features from the build.
   std::unique_ptr<const InstructionSetFeatures> instruction_set_features(
       InstructionSetFeatures::FromCppDefines());
 
-  // Read the features property.
+  // Read the variant property.
   std::string key = StringPrintf("dalvik.vm.isa.%s.variant", GetInstructionSetString(kRuntimeISA));
   char dex2oat_isa_variant[PROPERTY_VALUE_MAX];
   if (property_get(key.c_str(), dex2oat_isa_variant, nullptr) > 0) {
@@ -49,29 +54,41 @@ TEST(InstructionSetFeaturesTest, FeaturesFromSystemPropertyVariant) {
   }
 }
 
+#if defined(__aarch64__)
+TEST(InstructionSetFeaturesTest, DISABLED_FeaturesFromSystemPropertyString) {
+  LOG(WARNING) << "Test disabled due to no CPP define for A53 erratum 835769";
+#else
 TEST(InstructionSetFeaturesTest, FeaturesFromSystemPropertyString) {
+#endif
   // Take the default set of instruction features from the build.
   std::unique_ptr<const InstructionSetFeatures> instruction_set_features(
       InstructionSetFeatures::FromCppDefines());
 
-  // Read the features property.
-  std::string key = StringPrintf("dalvik.vm.isa.%s.features", GetInstructionSetString(kRuntimeISA));
-  char dex2oat_isa_features[PROPERTY_VALUE_MAX];
-  if (property_get(key.c_str(), dex2oat_isa_features, nullptr) > 0) {
-    // Use features from property to build InstructionSetFeatures and check against build's
-    // features.
-    std::string error_msg;
-    std::unique_ptr<const InstructionSetFeatures> base_features(
-        InstructionSetFeatures::FromVariant(kRuntimeISA, "default", &error_msg));
-    ASSERT_TRUE(base_features.get() != nullptr) << error_msg;
+  // Read the variant property.
+  std::string variant_key = StringPrintf("dalvik.vm.isa.%s.variant",
+                                         GetInstructionSetString(kRuntimeISA));
+  char dex2oat_isa_variant[PROPERTY_VALUE_MAX];
+  if (property_get(variant_key.c_str(), dex2oat_isa_variant, nullptr) > 0) {
+    // Read the features property.
+    std::string features_key = StringPrintf("dalvik.vm.isa.%s.features",
+                                            GetInstructionSetString(kRuntimeISA));
+    char dex2oat_isa_features[PROPERTY_VALUE_MAX];
+    if (property_get(features_key.c_str(), dex2oat_isa_features, nullptr) > 0) {
+      // Use features from property to build InstructionSetFeatures and check against build's
+      // features.
+      std::string error_msg;
+      std::unique_ptr<const InstructionSetFeatures> base_features(
+          InstructionSetFeatures::FromVariant(kRuntimeISA, dex2oat_isa_variant, &error_msg));
+      ASSERT_TRUE(base_features.get() != nullptr) << error_msg;
 
-    std::unique_ptr<const InstructionSetFeatures> property_features(
-        base_features->AddFeaturesFromString(dex2oat_isa_features, &error_msg));
-    ASSERT_TRUE(property_features.get() != nullptr) << error_msg;
+      std::unique_ptr<const InstructionSetFeatures> property_features(
+          base_features->AddFeaturesFromString(dex2oat_isa_features, &error_msg));
+      ASSERT_TRUE(property_features.get() != nullptr) << error_msg;
 
-    EXPECT_TRUE(property_features->Equals(instruction_set_features.get()))
+      EXPECT_TRUE(property_features->Equals(instruction_set_features.get()))
       << "System property features: " << *property_features.get()
       << "\nFeatures from build: " << *instruction_set_features.get();
+    }
   }
 }
 
@@ -127,13 +144,7 @@ TEST(InstructionSetFeaturesTest, FeaturesFromHwcap) {
       << "\nFeatures from build: " << *instruction_set_features.get();
 }
 
-
-#if defined(__arm__)
-TEST(InstructionSetFeaturesTest, DISABLED_FeaturesFromAssembly) {
-  LOG(WARNING) << "Test disabled due to buggy ARM kernels";
-#else
 TEST(InstructionSetFeaturesTest, FeaturesFromAssembly) {
-#endif
   // Take the default set of instruction features from the build.
   std::unique_ptr<const InstructionSetFeatures> instruction_set_features(
       InstructionSetFeatures::FromCppDefines());

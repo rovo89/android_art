@@ -26,15 +26,29 @@ namespace art {
 
 const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromVariant(
     const std::string& variant ATTRIBUTE_UNUSED, std::string* error_msg ATTRIBUTE_UNUSED) {
-  if (variant != "default" && variant != "generic") {
-    std::ostringstream os;
-    os << "Unexpected CPU variant for Arm64: " << variant;
-    *error_msg = os.str();
-    return nullptr;
-  }
   const bool smp = true;  // Conservative default.
-  const bool is_a53 = true;  // Pessimistically assume all ARM64s are A53s.
-  return new Arm64InstructionSetFeatures(smp, is_a53);
+
+  // Look for variants that need a fix for a53 erratum 835769.
+  static const char* arm64_variants_with_a53_835769_bug[] = {
+      "default", "generic"  // Pessimistically assume all generic ARM64s are A53s.
+  };
+  bool needs_a53_835769_fix = FindVariantInArray(arm64_variants_with_a53_835769_bug,
+                                                 arraysize(arm64_variants_with_a53_835769_bug),
+                                                 variant);
+
+  if (!needs_a53_835769_fix) {
+    // Check to see if this is an expected variant.
+    static const char* arm64_known_variants[] = {
+        "denver64"
+    };
+    if (!FindVariantInArray(arm64_known_variants, arraysize(arm64_known_variants), variant)) {
+      std::ostringstream os;
+      os << "Unexpected CPU variant for Arm64: " << variant;
+      *error_msg = os.str();
+      return nullptr;
+    }
+  }
+  return new Arm64InstructionSetFeatures(smp, needs_a53_835769_fix);
 }
 
 const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromBitmap(uint32_t bitmap) {
