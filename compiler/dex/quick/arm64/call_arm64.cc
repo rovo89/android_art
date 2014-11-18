@@ -473,8 +473,8 @@ static int Arm64NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       if (direct_code == 0) {
         // kInvokeTgt := arg0_ref->entrypoint
         cg->LoadWordDisp(arg0_ref,
-                         mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value(),
-                         cg->TargetPtrReg(kInvokeTgt));
+                         mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+                             kArm64PointerSize).Int32Value(), cg->TargetPtrReg(kInvokeTgt));
       }
       break;
     default:

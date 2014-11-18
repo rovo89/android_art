@@ -243,7 +243,8 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       portable_imt_conflict_trampoline_(nullptr),
       quick_imt_conflict_trampoline_(nullptr),
       quick_generic_jni_trampoline_(nullptr),
-      quick_to_interpreter_bridge_trampoline_(nullptr) {
+      quick_to_interpreter_bridge_trampoline_(nullptr),
+      image_pointer_size_(sizeof(void*)) {
   memset(find_array_class_cache_, 0, kFindArrayCacheSize * sizeof(mirror::Class*));
 }
 
@@ -378,10 +379,9 @@ void ClassLinker::InitWithoutImage(const std::vector<const DexFile*>& boot_class
   Handle<mirror::Class> java_lang_reflect_ArtMethod(hs.NewHandle(
     AllocClass(self, java_lang_Class.Get(), mirror::ArtMethod::ClassSize())));
   CHECK(java_lang_reflect_ArtMethod.Get() != nullptr);
-  java_lang_reflect_ArtMethod->SetObjectSize(mirror::ArtMethod::InstanceSize());
+  java_lang_reflect_ArtMethod->SetObjectSize(mirror::ArtMethod::InstanceSize(sizeof(void*)));
   SetClassRoot(kJavaLangReflectArtMethod, java_lang_reflect_ArtMethod.Get());
   java_lang_reflect_ArtMethod->SetStatus(mirror::Class::kStatusResolved, self);
-
   mirror::ArtMethod::SetClass(java_lang_reflect_ArtMethod.Get());
 
   // Set up array classes for string, field, method
@@ -407,8 +407,7 @@ void ClassLinker::InitWithoutImage(const std::vector<const DexFile*>& boot_class
   // DexCache instances. Needs to be after String, Field, Method arrays since AllocDexCache uses
   // these roots.
   CHECK_NE(0U, boot_class_path.size());
-  for (size_t i = 0; i != boot_class_path.size(); ++i) {
-    const DexFile* dex_file = boot_class_path[i];
+  for (const DexFile* dex_file : boot_class_path) {
     CHECK(dex_file != nullptr);
     AppendToBootClassPath(self, *dex_file);
   }
@@ -1682,6 +1681,20 @@ void ClassLinker::InitFromImage() {
   // Set classes on AbstractMethod early so that IsMethod tests can be performed during the live
   // bitmap walk.
   mirror::ArtMethod::SetClass(GetClassRoot(kJavaLangReflectArtMethod));
+  size_t art_method_object_size = mirror::ArtMethod::GetJavaLangReflectArtMethod()->GetObjectSize();
+  if (!Runtime::Current()->IsCompiler()) {
+    // Compiler supports having an image with a different pointer size than the runtime. This
+    // happens on the host for compile 32 bit tests since we use a 64 bit libart compiler. We may
+    // also use 32 bit dex2oat on a system with 64 bit apps.
+    CHECK_EQ(art_method_object_size, mirror::ArtMethod::InstanceSize(sizeof(void*)))
+        << sizeof(void*);
+  }
+  if (art_method_object_size == mirror::ArtMethod::InstanceSize(4)) {
+    image_pointer_size_ = 4;
+  } else {
+    CHECK_EQ(art_method_object_size, mirror::ArtMethod::InstanceSize(8));
+    image_pointer_size_ = 8;
+  }
 
   // Set entry point to interpreter if in InterpretOnly mode.
   if (Runtime::Current()->GetInstrumentation()->InterpretOnly()) {
@@ -1695,7 +1708,7 @@ void ClassLinker::InitFromImage() {
 
   // reinit array_iftable_ from any array class instance, they should be ==
   array_iftable_ = GcRoot<mirror::IfTable>(GetClassRoot(kObjectArrayClass)->GetIfTable());
-  DCHECK(array_iftable_.Read() == GetClassRoot(kBooleanArrayClass)->GetIfTable());
+  DCHECK_EQ(array_iftable_.Read(), GetClassRoot(kBooleanArrayClass)->GetIfTable());
   // String class root was set above
   mirror::Reference::SetClass(GetClassRoot(kJavaLangRefReference));
   mirror::ArtField::SetClass(GetClassRoot(kJavaLangReflectArtField));
@@ -5312,14 +5325,18 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
   } else {
     klass->SetNumReferenceInstanceFields(num_reference_fields);
     if (!klass->IsVariableSize()) {
-      std::string temp;
-      DCHECK_GE(size, sizeof(mirror::Object)) << klass->GetDescriptor(&temp);
-      size_t previous_size = klass->GetObjectSize();
-      if (previous_size != 0) {
-        // Make sure that we didn't originally have an incorrect size.
-        CHECK_EQ(previous_size, size) << klass->GetDescriptor(&temp);
+      if (klass->DescriptorEquals("Ljava/lang/reflect/ArtMethod;")) {
+        klass->SetObjectSize(mirror::ArtMethod::InstanceSize(sizeof(void*)));
+      } else {
+        std::string temp;
+        DCHECK_GE(size, sizeof(mirror::Object)) << klass->GetDescriptor(&temp);
+        size_t previous_size = klass->GetObjectSize();
+        if (previous_size != 0) {
+          // Make sure that we didn't originally have an incorrect size.
+          CHECK_EQ(previous_size, size) << klass->GetDescriptor(&temp);
+        }
+        klass->SetObjectSize(size);
       }
-      klass->SetObjectSize(size);
     }
   }
 
@@ -5372,7 +5389,6 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
     }
     CHECK_EQ(current_ref_offset.Uint32Value(), end_ref_offset.Uint32Value());
   }
-
   return true;
 }
 
