@@ -90,10 +90,12 @@ void SsaTypePropagation::VisitBasicBlock(HBasicBlock* block) {
     }
   } else {
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-      HPhi* phi = it.Current()->AsPhi();
-      if (UpdateType(phi)) {
-        AddDependentInstructionsToWorklist(phi);
-      }
+      // Eagerly compute the type of the phi, for quicker convergence. Note
+      // that we don't need to add users to the worklist because we are
+      // doing a reverse post-order visit, therefore either the phi users are
+      // non-loop phi and will be visited later in the visit, or are loop-phis,
+      // and they are already in the work list.
+      UpdateType(it.Current()->AsPhi());
     }
   }
 }
