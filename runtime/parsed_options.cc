@@ -105,11 +105,7 @@ ParsedOptions::ParsedOptions()
     profile_clock_source_(kDefaultTraceClockSource),
     verify_(true),
     image_isa_(kRuntimeISA),
-    use_homogeneous_space_compaction_for_oom_(false),  // If we are using homogeneous space
-                                                       // compaction then default background
-                                                       // compaction to off since homogeneous
-                                                       // space compactions when we transition
-                                                       // to not jank perceptible.
+    use_homogeneous_space_compaction_for_oom_(true),  // Enable hspace compaction on OOM by default.
     min_interval_homogeneous_space_compaction_by_oom_(MsToNs(100 * 1000))  // 100s.
     {}
 
