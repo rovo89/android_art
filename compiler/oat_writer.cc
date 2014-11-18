@@ -309,7 +309,7 @@ class OatWriter::Thumb2RelativeCallPatcher FINAL : public ArmBaseRelativeCallPat
     arm::Thumb2Assembler assembler;
     assembler.LoadFromOffset(
         arm::kLoadWord, arm::PC, arm::R0,
-        mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
+        mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArmPointerSize).Int32Value());
     assembler.bkpt(0);
     std::vector<uint8_t> thunk_code(assembler.CodeSize());
     MemoryRegion code(thunk_code.data(), thunk_code.size());
@@ -363,7 +363,8 @@ class OatWriter::Arm64RelativeCallPatcher FINAL : public ArmBaseRelativeCallPatc
     // The thunk just uses the entry point in the ArtMethod. This works even for calls
     // to the generic JNI and interpreter trampolines.
     arm64::Arm64Assembler assembler;
-    Offset offset(mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
+    Offset offset(mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+        kArm64PointerSize).Int32Value());
     assembler.JumpTo(ManagedRegister(arm64::X0), offset, ManagedRegister(arm64::IP0));
     std::vector<uint8_t> thunk_code(assembler.CodeSize());
     MemoryRegion code(thunk_code.data(), thunk_code.size());

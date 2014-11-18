@@ -476,9 +476,10 @@ static void CommonCallCodeLoadClassIntoArg0(const CallInfo* info, Mir2Lir* cg) {
 static bool CommonCallCodeLoadCodePointerIntoInvokeTgt(const RegStorage* alt_from,
                                                        const CompilationUnit* cu, Mir2Lir* cg) {
   if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
+    int32_t offset = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+        InstructionSetPointerSize(cu->instruction_set)).Int32Value();
     // Get the compiled code address [use *alt_from or kArg0, set kInvokeTgt]
-    cg->LoadWordDisp(alt_from == nullptr ? cg->TargetReg(kArg0, kRef) : *alt_from,
-                     mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value(),
+    cg->LoadWordDisp(alt_from == nullptr ? cg->TargetReg(kArg0, kRef) : *alt_from, offset,
                      cg->TargetPtrReg(kInvokeTgt));
     return true;
   }

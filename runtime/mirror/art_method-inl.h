@@ -307,12 +307,6 @@ inline uintptr_t ArtMethod::NativeQuickPcOffset(const uintptr_t pc) {
   return pc - reinterpret_cast<uintptr_t>(code);
 }
 
-template<VerifyObjectFlags kVerifyFlags>
-inline void ArtMethod::SetNativeMethod(const void* native_method) {
-  SetFieldPtr<false, true, kVerifyFlags>(
-      OFFSET_OF_OBJECT_MEMBER(ArtMethod, entry_point_from_jni_), native_method);
-}
-
 inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo(const void* code_pointer) {
   DCHECK(code_pointer != nullptr);
   DCHECK_EQ(code_pointer, GetQuickOatCodePointer());
@@ -483,6 +477,12 @@ inline mirror::Class* ArtMethod::GetReturnType(bool resolve) {
     CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
   }
   return type;
+}
+
+inline void ArtMethod::CheckObjectSizeEqualsMirrorSize() {
+  // Using the default, check the class object size to make sure it matches the size of the
+  // object.
+  DCHECK_EQ(GetClass()->GetObjectSize(), sizeof(*this));
 }
 
 }  // namespace mirror
