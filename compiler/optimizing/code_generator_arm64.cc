@@ -1393,7 +1393,7 @@ void InstructionCodeGeneratorARM64::VisitInvokeInterface(HInvokeInterface* invok
           (invoke->GetImtIndex() % mirror::Class::kImtSize) * sizeof(mirror::Class::ImTableEntry);
   Location receiver = invoke->GetLocations()->InAt(0);
   Offset class_offset = mirror::Object::ClassOffset();
-  Offset entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset();
+  Offset entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64PointerSize);
 
   // The register ip1 is required to be used for the hidden argument in
   // art_quick_imt_conflict_trampoline, so prevent VIXL from using it.
