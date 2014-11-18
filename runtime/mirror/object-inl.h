@@ -404,8 +404,7 @@ inline size_t Object::SizeOf() {
   }
   DCHECK_GE(result, sizeof(Object))
       << " class=" << PrettyTypeOf(GetClass<kNewFlags, kReadBarrierOption>());
-  DCHECK(!(IsArtField<kNewFlags, kReadBarrierOption>())  || result == sizeof(ArtField));
-  DCHECK(!(IsArtMethod<kNewFlags, kReadBarrierOption>()) || result == sizeof(ArtMethod));
+  DCHECK(!(IsArtField<kNewFlags, kReadBarrierOption>()) || result == sizeof(ArtField));
   return result;
 }
 
@@ -962,7 +961,6 @@ inline void Object::VisitReferences(const Visitor& visitor,
     }
   }
 }
-
 }  // namespace mirror
 }  // namespace art
 

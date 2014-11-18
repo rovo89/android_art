@@ -518,7 +518,7 @@ DEFINE_FUNCTION art_quick_invoke_stub
     LOOP_OVER_SHORTY_LOADING_GPRS r8, r8d, .Lgpr_setup_finished
     LOOP_OVER_SHORTY_LOADING_GPRS r9, r9d, .Lgpr_setup_finished
 .Lgpr_setup_finished:
-    call *MIRROR_ART_METHOD_QUICK_CODE_OFFSET(%rdi) // Call the method.
+    call *MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64(%rdi) // Call the method.
     movq %rbp, %rsp               // Restore stack pointer.
     CFI_DEF_CFA_REGISTER(rsp)
     POP r9                        // Pop r9 - shorty*.
@@ -601,7 +601,7 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
     LOOP_OVER_SHORTY_LOADING_GPRS r8, r8d, .Lgpr_setup_finished2
     LOOP_OVER_SHORTY_LOADING_GPRS r9, r9d, .Lgpr_setup_finished2
 .Lgpr_setup_finished2:
-    call *MIRROR_ART_METHOD_QUICK_CODE_OFFSET(%rdi) // Call the method.
+    call *MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64(%rdi) // Call the method.
     movq %rbp, %rsp               // Restore stack pointer.
     CFI_DEF_CFA_REGISTER(rsp)
     POP r9                        // Pop r9 - shorty*.

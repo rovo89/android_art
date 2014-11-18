@@ -1449,7 +1449,8 @@ void InstructionCodeGeneratorARM64::VisitInvokeStatic(HInvokeStatic* invoke) {
   __ Ldr(temp, MemOperand(temp.X(), index_in_cache));
   // lr = temp->entry_point_from_quick_compiled_code_;
   __ Ldr(lr, MemOperand(temp.X(),
-                        mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().SizeValue()));
+                        mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+                            kArm64PointerSize).SizeValue()));
   // lr();
   __ Blr(lr);
 
@@ -1464,7 +1465,7 @@ void InstructionCodeGeneratorARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   size_t method_offset = mirror::Class::EmbeddedVTableOffset().SizeValue() +
     invoke->GetVTableIndex() * sizeof(mirror::Class::VTableEntry);
   Offset class_offset = mirror::Object::ClassOffset();
-  Offset entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset();
+  Offset entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64PointerSize);
 
   // temp = object->GetClass();
   if (receiver.IsStackSlot()) {

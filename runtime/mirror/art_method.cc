@@ -483,7 +483,7 @@ void ArtMethod::RegisterNative(const void* native_method, bool is_fast) {
   if (is_fast) {
     SetAccessFlags(GetAccessFlags() | kAccFastNative);
   }
-  SetNativeMethod(native_method);
+  SetEntryPointFromJni(native_method);
 }
 
 void ArtMethod::UnregisterNative() {
