@@ -132,6 +132,11 @@ static void MarkZygoteStart(const InstructionSet isa) {
 
   VLOG(startup) << "Creating boot start marker: " << boot_marker;
   std::unique_ptr<File> f(OS::CreateEmptyFile(boot_marker.c_str()));
+  if (f.get() != nullptr) {
+    if (f->FlushCloseOrErase() != 0) {
+      PLOG(WARNING) << "Failed to write boot marker.";
+    }
+  }
 }
 
 static bool GenerateImage(const std::string& image_filename, InstructionSet image_isa,

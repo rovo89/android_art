@@ -41,11 +41,12 @@ class MappedFile : public FdFile {
 #endif
   };
 
-  MappedFile() : FdFile(), file_size_(-1), mapped_file_(NULL) {
+  MappedFile() : FdFile(), file_size_(-1), mapped_file_(NULL), map_mode_(kMapReadOnly) {
   }
   // Creates a MappedFile using the given file descriptor. Takes ownership of
   // the file descriptor.
-  explicit MappedFile(int fd) : FdFile(fd), file_size_(-1), mapped_file_(NULL) {
+  explicit MappedFile(int fd, bool check_usage) : FdFile(fd, check_usage), file_size_(-1),
+      mapped_file_(NULL), map_mode_(kMapReadOnly) {
   }
 
   // Unmaps and closes the file if needed.

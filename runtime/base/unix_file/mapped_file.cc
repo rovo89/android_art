@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include "base/logging.h"
 #include "base/unix_file/mapped_file.h"
+
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -23,6 +23,8 @@
 #include <unistd.h>
 #include <algorithm>
 #include <string>
+
+#include "base/logging.h"
 
 namespace unix_file {
 
@@ -39,6 +41,10 @@ int MappedFile::Close() {
 bool MappedFile::MapReadOnly() {
   CHECK(IsOpened());
   CHECK(!IsMapped());
+
+  // Mapping readonly means we don't need to enforce Flush and Close.
+  resetGuard(GuardState::kNoCheck);
+
   struct stat st;
   int result = TEMP_FAILURE_RETRY(fstat(Fd(), &st));
   if (result == -1) {
@@ -71,6 +77,10 @@ bool MappedFile::MapReadWrite(int64_t file_size) {
                 << "' to size " << file_size;
     return false;
   }
+
+  // Need to track this now.
+  resetGuard(GuardState::kBase);
+
   file_size_ = file_size;
   do {
     mapped_file_ =
@@ -130,6 +140,7 @@ int64_t MappedFile::GetLength() const {
 }
 
 int MappedFile::Flush() {
+  moveUp(GuardState::kFlushed, "Flushing closed file.");
   int rc = IsMapped() ? TEMP_FAILURE_RETRY(msync(mapped_file_, file_size_, 0)) : FdFile::Flush();
   return rc == -1 ? -errno : 0;
 }
@@ -145,6 +156,7 @@ int64_t MappedFile::Write(const char* buf, int64_t byte_count, int64_t offset) {
                                   std::min(byte_count, file_size_ - offset));
     if (write_size > 0) {
       memcpy(data() + offset, buf, write_size);
+      moveTo(GuardState::kBase, GuardState::kClosed, "Writing into a closed file.");
     }
     return write_size;
   } else {

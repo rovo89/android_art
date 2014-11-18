@@ -76,6 +76,8 @@ class RandomAccessFileTest : public testing::Test {
     ASSERT_EQ(content.size(), static_cast<uint64_t>(file->Write(content.data(), content.size(), 0)));
 
     TestReadContent(content, file.get());
+
+    CleanUp(file.get());
   }
 
   void TestReadContent(const std::string& content, RandomAccessFile* file) {
@@ -131,6 +133,8 @@ class RandomAccessFileTest : public testing::Test {
     ASSERT_EQ(new_length, file->GetLength());
     ASSERT_TRUE(ReadString(file.get(), &new_content));
     ASSERT_EQ('\0', new_content[new_length - 1]);
+
+    CleanUp(file.get());
   }
 
   void TestWrite() {
@@ -163,6 +167,11 @@ class RandomAccessFileTest : public testing::Test {
     ASSERT_EQ(file->GetLength(), new_length);
     ASSERT_TRUE(ReadString(file.get(), &new_content));
     ASSERT_EQ(std::string("hello\0hello", new_length), new_content);
+
+    CleanUp(file.get());
+  }
+
+  virtual void CleanUp(RandomAccessFile* file) {
   }
 
  protected:

@@ -15,6 +15,7 @@
  */
 
 #include "base/unix_file/mapped_file.h"
+#include "base/casts.h"
 #include "base/logging.h"
 #include "base/unix_file/fd_file.h"
 #include "base/unix_file/random_access_file_test.h"
@@ -34,12 +35,13 @@ class MappedFileTest : public RandomAccessFileTest {
 
     good_path_ = GetTmpPath("some-file.txt");
     int fd = TEMP_FAILURE_RETRY(open(good_path_.c_str(), O_CREAT|O_RDWR, 0666));
-    FdFile dst(fd);
+    FdFile dst(fd, false);
 
     StringFile src;
     src.Assign(kContent);
 
     ASSERT_TRUE(CopyFile(src, &dst));
+    ASSERT_EQ(dst.FlushClose(), 0);
   }
 
   void TearDown() {
@@ -53,6 +55,15 @@ class MappedFileTest : public RandomAccessFileTest {
     MappedFile* f = new MappedFile;
     CHECK(f->Open(good_path_, MappedFile::kReadWriteMode));
     return f;
+  }
+
+  void CleanUp(RandomAccessFile* file) OVERRIDE {
+    if (file == nullptr) {
+      return;
+    }
+    MappedFile* f = ::art::down_cast<MappedFile*>(file);
+    UNUSED(f->Flush());
+    UNUSED(f->Close());
   }
 
   const std::string kContent;
@@ -80,7 +91,7 @@ TEST_F(MappedFileTest, OpenClose) {
 TEST_F(MappedFileTest, OpenFdClose) {
   FILE* f = tmpfile();
   ASSERT_TRUE(f != NULL);
-  MappedFile file(fileno(f));
+  MappedFile file(fileno(f), false);
   EXPECT_GE(file.Fd(), 0);
   EXPECT_TRUE(file.IsOpened());
   EXPECT_EQ(0, file.Close());
@@ -108,6 +119,7 @@ TEST_F(MappedFileTest, CanUseAfterMapReadWrite) {
   ASSERT_TRUE(file.data());
   EXPECT_EQ(kContent[0], *file.data());
   EXPECT_EQ(0, file.Flush());
+  file.Close();
 }
 
 TEST_F(MappedFileTest, CanWriteNewData) {
@@ -122,10 +134,11 @@ TEST_F(MappedFileTest, CanWriteNewData) {
   EXPECT_EQ(kContent.size(), static_cast<uint64_t>(file.size()));
   ASSERT_TRUE(file.data());
   memcpy(file.data(), kContent.c_str(), kContent.size());
+  EXPECT_EQ(0, file.Flush());
   EXPECT_EQ(0, file.Close());
   EXPECT_FALSE(file.IsMapped());
 
-  FdFile new_file(TEMP_FAILURE_RETRY(open(new_path.c_str(), O_RDONLY)));
+  FdFile new_file(TEMP_FAILURE_RETRY(open(new_path.c_str(), O_RDONLY)), false);
   StringFile buffer;
   ASSERT_TRUE(CopyFile(new_file, &buffer));
   EXPECT_EQ(kContent, buffer.ToStringPiece());
@@ -192,6 +205,7 @@ TEST_F(MappedFileTest, ReadMappedReadWrite) {
   ASSERT_TRUE(file.Open(good_path_, MappedFile::kReadWriteMode));
   ASSERT_TRUE(file.MapReadWrite(kContent.size()));
   TestReadContent(kContent, &file);
+  UNUSED(file.FlushClose());
 }
 
 TEST_F(MappedFileTest, WriteMappedReadWrite) {
@@ -217,6 +231,7 @@ TEST_F(MappedFileTest, WriteMappedReadWrite) {
   EXPECT_EQ(kContent.size(),
             static_cast<uint64_t>(file.Write(kContent.c_str(), kContent.size(), 0)));
   EXPECT_EQ(0, memcmp(kContent.c_str(), file.data(), kContent.size()));
+  UNUSED(file.FlushClose());
 }
 
 #if 0  // death tests don't work on android yet

@@ -115,6 +115,9 @@ static const DexFile* OpenDexFileBase64(const char* base64, const char* location
   if (!file->WriteFully(dex_bytes.get(), length)) {
     PLOG(FATAL) << "Failed to write base64 as dex file";
   }
+  if (file->FlushCloseOrErase() != 0) {
+    PLOG(FATAL) << "Could not flush and close test file.";
+  }
   file.reset();
 
   // read dex file
@@ -176,6 +179,9 @@ static const DexFile* FixChecksumAndOpen(byte* bytes, size_t length, const char*
   CHECK(file.get() != NULL);
   if (!file->WriteFully(bytes, length)) {
     PLOG(FATAL) << "Failed to write base64 as dex file";
+  }
+  if (file->FlushCloseOrErase() != 0) {
+    PLOG(FATAL) << "Could not flush and close test file.";
   }
   file.reset();
 

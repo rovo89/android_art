@@ -59,7 +59,7 @@ ScratchFile::ScratchFile() {
   filename_ += "/TmpFile-XXXXXX";
   int fd = mkstemp(&filename_[0]);
   CHECK_NE(-1, fd);
-  file_.reset(new File(fd, GetFilename()));
+  file_.reset(new File(fd, GetFilename(), true));
 }
 
 ScratchFile::ScratchFile(const ScratchFile& other, const char* suffix) {
@@ -67,7 +67,7 @@ ScratchFile::ScratchFile(const ScratchFile& other, const char* suffix) {
   filename_ += suffix;
   int fd = open(filename_.c_str(), O_RDWR | O_CREAT, 0666);
   CHECK_NE(-1, fd);
-  file_.reset(new File(fd, GetFilename()));
+  file_.reset(new File(fd, GetFilename(), true));
 }
 
 ScratchFile::ScratchFile(File* file) {
@@ -87,6 +87,11 @@ int ScratchFile::GetFd() const {
 void ScratchFile::Unlink() {
   if (!OS::FileExists(filename_.c_str())) {
     return;
+  }
+  if (file_.get() != nullptr) {
+    if (file_->FlushCloseOrErase() != 0) {
+      PLOG(WARNING) << "Error closing scratch file.";
+    }
   }
   int unlink_result = unlink(filename_.c_str());
   CHECK_EQ(0, unlink_result);

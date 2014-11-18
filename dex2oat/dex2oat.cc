@@ -434,7 +434,11 @@ class Dex2Oat {
     // Flush result to disk. Patching code will re-open the file (mmap), so ensure that our view
     // of the file already made it there and won't be re-ordered with writes from PatchOat or
     // image patching.
-    oat_file->Flush();
+    if (oat_file->Flush() != 0) {
+      PLOG(ERROR) << "Failed flushing oat file " << oat_file->GetPath();
+      oat_file->Erase();
+      return nullptr;
+    }
 
     if (!driver->IsImage() && driver->GetCompilerOptions().GetIncludePatchInformation()) {
       t2.NewTiming("Patching ELF");
@@ -466,15 +470,23 @@ class Dex2Oat {
       oat_data_begin = image_writer.GetOatDataBegin();
     }
 
-    std::unique_ptr<File> oat_file(OS::OpenFileReadWrite(oat_filename.c_str()));
-    if (oat_file.get() == nullptr) {
-      PLOG(ERROR) << "Failed to open ELF file: " << oat_filename;
-      return false;
-    }
+
     // Do not fix up the ELF file if we are --compile-pic
     if (!compiler_options_->GetCompilePic()) {
+      std::unique_ptr<File> oat_file(OS::OpenFileReadWrite(oat_filename.c_str()));
+      if (oat_file.get() == nullptr) {
+        PLOG(ERROR) << "Failed to open ELF file: " << oat_filename;
+        return false;
+      }
+
       if (!ElfFixup::Fixup(oat_file.get(), oat_data_begin)) {
         LOG(ERROR) << "Failed to fixup ELF file " << oat_file->GetPath();
+        oat_file->Erase();
+        return false;
+      }
+
+      if (oat_file->FlushCloseOrErase() != 0) {
+        PLOG(ERROR) << "Failed to flush and close patched oat file " << oat_filename;
         return false;
       }
     }
@@ -1258,9 +1270,11 @@ static int dex2oat(int argc, char** argv) {
       oat_location = oat_filename;
     }
   } else {
-    oat_file.reset(new File(oat_fd, oat_location));
+    oat_file.reset(new File(oat_fd, oat_location, true));
     oat_file->DisableAutoClose();
-    oat_file->SetLength(0);
+    if (oat_file->SetLength(0)) {  // Only warn for truncation error.
+      PLOG(WARNING) << "Truncating oat file " << oat_location << " failed.";
+    }
   }
   if (oat_file.get() == nullptr) {
     PLOG(ERROR) << "Failed to create oat file: " << oat_location;
@@ -1410,7 +1424,10 @@ static int dex2oat(int argc, char** argv) {
                         << ". Try: adb shell chmod 777 /data/local/tmp";
             continue;
         }
-        tmp_file->WriteFully(dex_file->Begin(), dex_file->Size());
+        // This is just dumping files for debugging. Ignore errors, and leave remnants.
+        UNUSED(tmp_file->WriteFully(dex_file->Begin(), dex_file->Size()));
+        UNUSED(tmp_file->Flush());
+        UNUSED(tmp_file->Close());
         LOG(INFO) << "Wrote input to " << tmp_file_name;
       }
     }
@@ -1481,8 +1498,16 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  VLOG(compiler) << "Oat file written successfully (unstripped): " << oat_location;
+  if (!kUsePortableCompiler) {
+    if (oat_file->FlushCloseOrErase() != 0) {
+      PLOG(ERROR) << "Failed to flush and close oat file: " << oat_location;
+      timings.EndTiming();
+      return EXIT_FAILURE;
+    }
+    oat_file.reset();
+  }
 
+  VLOG(compiler) << "Oat file written successfully (unstripped): " << oat_location;
   // Notes on the interleaving of creating the image and oat file to
   // ensure the references between the two are correct.
   //
@@ -1562,8 +1587,14 @@ static int dex2oat(int argc, char** argv) {
   // We need to strip after image creation because FixupElf needs to use .strtab.
   if (oat_unstripped != oat_stripped) {
     TimingLogger::ScopedTiming t("dex2oat OatFile copy", &timings);
-    oat_file.reset();
-     std::unique_ptr<File> in(OS::OpenFileForReading(oat_unstripped.c_str()));
+    if (kUsePortableCompiler) {
+      if (oat_file->FlushCloseOrErase() != 0) {
+        PLOG(ERROR) << "Failed to flush and close oat file: " << oat_location;
+        return EXIT_FAILURE;
+      }
+      oat_file.reset();
+    }
+    std::unique_ptr<File> in(OS::OpenFileForReading(oat_unstripped.c_str()));
     std::unique_ptr<File> out(OS::CreateEmptyFile(oat_stripped.c_str()));
     size_t buffer_size = 8192;
     std::unique_ptr<uint8_t> buffer(new uint8_t[buffer_size]);
@@ -1579,22 +1610,34 @@ static int dex2oat(int argc, char** argv) {
     VLOG(compiler) << "Oat file copied successfully (stripped): " << oat_stripped;
   }
 
-#if ART_USE_PORTABLE_COMPILER  // We currently only generate symbols on Portable
-  if (!compiler_options.GetIncludeDebugSymbols()) {
-    timings.NewSplit("dex2oat ElfStripper");
-    // Strip unneeded sections for target
-    off_t seek_actual = lseek(oat_file->Fd(), 0, SEEK_SET);
-    CHECK_EQ(0, seek_actual);
-    std::string error_msg;
-    CHECK(ElfStripper::Strip(oat_file.get(), &error_msg)) << error_msg;
+  if (kUsePortableCompiler) {
+    if (!compiler_options->GetIncludeDebugSymbols()) {
+      timings.NewTiming("dex2oat ElfStripper");
+      // Strip unneeded sections for target
+      off_t seek_actual = lseek(oat_file->Fd(), 0, SEEK_SET);
+      CHECK_EQ(0, seek_actual);
+      std::string error_msg;
+      CHECK(ElfStripper::Strip(oat_file.get(), &error_msg)) << error_msg;
 
 
-    // We wrote the oat file successfully, and want to keep it.
-    VLOG(compiler) << "Oat file written successfully (stripped): " << oat_location;
-  } else {
-    VLOG(compiler) << "Oat file written successfully without stripping: " << oat_location;
+      // We wrote the oat file successfully, and want to keep it.
+      VLOG(compiler) << "Oat file written successfully (stripped): " << oat_location;
+    } else {
+      VLOG(compiler) << "Oat file written successfully without stripping: " << oat_location;
+    }
+    if (oat_file->FlushCloseOrErase() != 0) {
+      LOG(ERROR) << "Failed to flush and close oat file: " << oat_location;
+      return EXIT_FAILURE;
+    }
+    oat_file.reset(nullptr);
   }
-#endif  // ART_USE_PORTABLE_COMPILER
+
+  if (oat_file.get() != nullptr) {
+    if (oat_file->FlushCloseOrErase() != 0) {
+      PLOG(ERROR) << "Failed to flush and close oat file: " << oat_location << "/" << oat_filename;
+      return EXIT_FAILURE;
+    }
+  }
 
   timings.EndTiming();
 

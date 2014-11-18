@@ -144,7 +144,14 @@ bool ImageWriter::Write(const std::string& image_filename,
   CopyAndFixupObjects();
 
   PatchOatCodeAndMethods(oat_file.get());
+
+  // Before flushing, which might fail, release the mutator lock.
   Thread::Current()->TransitionFromRunnableToSuspended(kNative);
+
+  if (oat_file->FlushCloseOrErase() != 0) {
+    LOG(ERROR) << "Failed to flush and close oat file " << oat_filename << " for " << oat_location;
+    return false;
+  }
 
   std::unique_ptr<File> image_file(OS::CreateEmptyFile(image_filename.c_str()));
   ImageHeader* image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
@@ -154,6 +161,7 @@ bool ImageWriter::Write(const std::string& image_filename,
   }
   if (fchmod(image_file->Fd(), 0644) != 0) {
     PLOG(ERROR) << "Failed to make image file world readable: " << image_filename;
+    image_file->Erase();
     return EXIT_FAILURE;
   }
 
@@ -161,6 +169,7 @@ bool ImageWriter::Write(const std::string& image_filename,
   CHECK_EQ(image_end_, image_header->GetImageSize());
   if (!image_file->WriteFully(image_->Begin(), image_end_)) {
     PLOG(ERROR) << "Failed to write image file " << image_filename;
+    image_file->Erase();
     return false;
   }
 
@@ -170,9 +179,14 @@ bool ImageWriter::Write(const std::string& image_filename,
                          image_header->GetImageBitmapSize(),
                          image_header->GetImageBitmapOffset())) {
     PLOG(ERROR) << "Failed to write image file " << image_filename;
+    image_file->Erase();
     return false;
   }
 
+  if (image_file->FlushCloseOrErase() != 0) {
+    PLOG(ERROR) << "Failed to flush and close image file " << image_filename;
+    return false;
+  }
   return true;
 }
 

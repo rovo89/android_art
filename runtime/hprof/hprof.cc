@@ -475,9 +475,14 @@ class Hprof {
         }
       }
 
-      std::unique_ptr<File> file(new File(out_fd, filename_));
+      std::unique_ptr<File> file(new File(out_fd, filename_, true));
       okay = file->WriteFully(header_data_ptr_, header_data_size_) &&
-          file->WriteFully(body_data_ptr_, body_data_size_);
+             file->WriteFully(body_data_ptr_, body_data_size_);
+      if (okay) {
+        okay = file->FlushCloseOrErase() == 0;
+      } else {
+        file->Erase();
+      }
       if (!okay) {
         std::string msg(StringPrintf("Couldn't dump heap; writing \"%s\" failed: %s",
                                      filename_.c_str(), strerror(errno)));
