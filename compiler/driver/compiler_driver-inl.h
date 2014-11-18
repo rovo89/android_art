@@ -240,7 +240,8 @@ inline int CompilerDriver::IsFastInvoke(
   bool can_sharpen_super_based_on_type = (*invoke_type == kSuper) &&
       (referrer_class != methods_class) && referrer_class->IsSubClass(methods_class) &&
       resolved_method->GetMethodIndex() < methods_class->GetVTableLength() &&
-      (methods_class->GetVTableEntry(resolved_method->GetMethodIndex()) == resolved_method);
+      (methods_class->GetVTableEntry(resolved_method->GetMethodIndex()) == resolved_method) &&
+      !resolved_method->IsAbstract();
 
   if (can_sharpen_virtual_based_on_type || can_sharpen_super_based_on_type) {
     // Sharpen a virtual call into a direct call. The method_idx is into referrer's
