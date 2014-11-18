@@ -1659,7 +1659,7 @@ extern "C" TwoWordReturn artQuickGenericJniTrampoline(Thread* self,
   *(sp32 - 1) = cookie;
 
   // Retrieve the stored native code.
-  const void* nativeCode = called->GetNativeMethod();
+  void* nativeCode = called->GetEntryPointFromJni();
 
   // There are two cases for the content of nativeCode:
   // 1) Pointer to the native function.

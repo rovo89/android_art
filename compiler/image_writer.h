@@ -47,7 +47,8 @@ class ImageWriter FINAL {
         portable_imt_conflict_trampoline_offset_(0), portable_resolution_trampoline_offset_(0),
         portable_to_interpreter_bridge_offset_(0), quick_generic_jni_trampoline_offset_(0),
         quick_imt_conflict_trampoline_offset_(0), quick_resolution_trampoline_offset_(0),
-        quick_to_interpreter_bridge_offset_(0), compile_pic_(compile_pic) {
+        quick_to_interpreter_bridge_offset_(0), compile_pic_(compile_pic),
+        target_ptr_size_(InstructionSetPointerSize(compiler_driver_.GetInstructionSet())) {
     CHECK_NE(image_begin, 0U);
   }
 
@@ -223,6 +224,9 @@ class ImageWriter FINAL {
   uint32_t quick_resolution_trampoline_offset_;
   uint32_t quick_to_interpreter_bridge_offset_;
   const bool compile_pic_;
+
+  // Size of pointers on the target architecture.
+  size_t target_ptr_size_;
 
   friend class FixupVisitor;
   friend class FixupClassVisitor;

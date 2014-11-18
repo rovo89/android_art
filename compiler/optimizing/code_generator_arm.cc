@@ -1188,7 +1188,8 @@ void InstructionCodeGeneratorARM::VisitInvokeStatic(HInvokeStatic* invoke) {
       kLoadWord, temp, temp, CodeGenerator::GetCacheOffset(invoke->GetIndexInDexCache()));
   // LR = temp[offset_of_quick_compiled_code]
   __ LoadFromOffset(kLoadWord, LR, temp,
-                     mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
+                     mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+                         kArmPointerSize).Int32Value());
   // LR()
   __ blx(LR);
 
@@ -1229,7 +1230,8 @@ void InstructionCodeGeneratorARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
     __ LoadFromOffset(kLoadWord, temp, receiver.As<Register>(), class_offset);
   }
   // temp = temp->GetMethodAt(method_offset);
-  uint32_t entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value();
+  uint32_t entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+      kArmPointerSize).Int32Value();
   __ LoadFromOffset(kLoadWord, temp, temp, method_offset);
   // LR = temp->GetEntryPoint();
   __ LoadFromOffset(kLoadWord, LR, temp, entry_point);
@@ -1265,7 +1267,8 @@ void InstructionCodeGeneratorARM::VisitInvokeInterface(HInvokeInterface* invoke)
     __ LoadFromOffset(kLoadWord, temp, receiver.As<Register>(), class_offset);
   }
   // temp = temp->GetImtEntryAt(method_offset);
-  uint32_t entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value();
+  uint32_t entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+      kArmPointerSize).Int32Value();
   __ LoadFromOffset(kLoadWord, temp, temp, method_offset);
   // LR = temp->GetEntryPoint();
   __ LoadFromOffset(kLoadWord, LR, temp, entry_point);

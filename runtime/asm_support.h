@@ -148,13 +148,21 @@ ADD_TEST_EQ(MIRROR_STRING_OFFSET_OFFSET, art::mirror::String::OffsetOffset().Int
 ADD_TEST_EQ(MIRROR_ART_METHOD_DEX_CACHE_METHODS_OFFSET,
             art::mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value())
 
-#define MIRROR_ART_METHOD_PORTABLE_CODE_OFFSET     (32 + MIRROR_OBJECT_HEADER_SIZE)
-ADD_TEST_EQ(MIRROR_ART_METHOD_PORTABLE_CODE_OFFSET,
-            art::mirror::ArtMethod::EntryPointFromPortableCompiledCodeOffset().Int32Value())
+#define MIRROR_ART_METHOD_PORTABLE_CODE_OFFSET_32     (48 + MIRROR_OBJECT_HEADER_SIZE)
+ADD_TEST_EQ(MIRROR_ART_METHOD_PORTABLE_CODE_OFFSET_32,
+            art::mirror::ArtMethod::EntryPointFromPortableCompiledCodeOffset(4).Int32Value())
 
-#define MIRROR_ART_METHOD_QUICK_CODE_OFFSET        (40 + MIRROR_OBJECT_HEADER_SIZE)
-ADD_TEST_EQ(MIRROR_ART_METHOD_QUICK_CODE_OFFSET,
-            art::mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value())
+#define MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32        (40 + MIRROR_OBJECT_HEADER_SIZE)
+ADD_TEST_EQ(MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32,
+            art::mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(4).Int32Value())
+
+#define MIRROR_ART_METHOD_PORTABLE_CODE_OFFSET_64     (64 + MIRROR_OBJECT_HEADER_SIZE)
+ADD_TEST_EQ(MIRROR_ART_METHOD_PORTABLE_CODE_OFFSET_64,
+            art::mirror::ArtMethod::EntryPointFromPortableCompiledCodeOffset(8).Int32Value())
+
+#define MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64        (48 + MIRROR_OBJECT_HEADER_SIZE)
+ADD_TEST_EQ(MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64,
+            art::mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(8).Int32Value())
 
 #if defined(__cplusplus)
 }  // End of CheckAsmSupportOffsets.
