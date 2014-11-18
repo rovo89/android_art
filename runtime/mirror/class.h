@@ -518,6 +518,13 @@ class MANAGED Class FINAL : public Object {
     return SetField32<false>(OFFSET_OF_OBJECT_MEMBER(Class, object_size_), new_object_size);
   }
 
+  void SetObjectSizeWithoutChecks(uint32_t new_object_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    // Not called within a transaction.
+    return SetField32<false, false, kVerifyNone>(
+        OFFSET_OF_OBJECT_MEMBER(Class, object_size_), new_object_size);
+  }
+
   // Returns true if this class is in the same packages as that class.
   bool IsInSamePackage(Class* that) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

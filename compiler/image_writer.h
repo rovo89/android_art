@@ -207,6 +207,9 @@ class ImageWriter FINAL {
   uint32_t quick_to_interpreter_bridge_offset_;
   bool compile_pic_;
 
+  // Size of pointers on the target architecture.
+  size_t target_ptr_size_;
+
   friend class FixupVisitor;
   friend class FixupClassVisitor;
   DISALLOW_COPY_AND_ASSIGN(ImageWriter);

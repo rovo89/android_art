@@ -176,7 +176,7 @@ bool PatchOat::Patch(const std::string& image_location, off_t delta,
   }
   gc::space::ImageSpace* ispc = Runtime::Current()->GetHeap()->GetImageSpace();
 
-  PatchOat p(image.release(), ispc->GetLiveBitmap(), ispc->GetMemMap(),
+  PatchOat p(isa, image.release(), ispc->GetLiveBitmap(), ispc->GetMemMap(),
              delta, timings);
   t.NewTiming("Patching files");
   if (!p.PatchImage()) {
@@ -298,7 +298,7 @@ bool PatchOat::Patch(File* input_oat, const std::string& image_location, off_t d
     CHECK(is_oat_pic == NOT_PIC);
   }
 
-  PatchOat p(elf.release(), image.release(), ispc->GetLiveBitmap(), ispc->GetMemMap(),
+  PatchOat p(isa, elf.release(), image.release(), ispc->GetLiveBitmap(), ispc->GetMemMap(),
              delta, timings);
   t.NewTiming("Patching files");
   if (!skip_patching_oat && !p.PatchElf()) {
@@ -523,41 +523,46 @@ void PatchOat::VisitObject(mirror::Object* object) {
   PatchOat::PatchVisitor visitor(this, copy);
   object->VisitReferences<true, kVerifyNone>(visitor, visitor);
   if (object->IsArtMethod<kVerifyNone>()) {
-    FixupMethod(static_cast<mirror::ArtMethod*>(object),
-                static_cast<mirror::ArtMethod*>(copy));
+    FixupMethod(down_cast<mirror::ArtMethod*>(object), down_cast<mirror::ArtMethod*>(copy));
   }
 }
 
 void PatchOat::FixupMethod(mirror::ArtMethod* object, mirror::ArtMethod* copy) {
+  const size_t pointer_size = InstructionSetPointerSize(isa_);
   // Just update the entry points if it looks like we should.
   // TODO: sanity check all the pointers' values
 #if defined(ART_USE_PORTABLE_COMPILER)
   uintptr_t portable = reinterpret_cast<uintptr_t>(
-      object->GetEntryPointFromPortableCompiledCode<kVerifyNone>());
+      object->GetEntryPointFromPortableCompiledCodePtrSize<kVerifyNone>(pointer_size));
   if (portable != 0) {
-    copy->SetEntryPointFromPortableCompiledCode(reinterpret_cast<void*>(portable + delta_));
+    copy->SetEntryPointFromPortableCompiledCodePtrSize(reinterpret_cast<void*>(portable + delta_),
+                                                       pointer_size);
   }
 #endif
   uintptr_t quick= reinterpret_cast<uintptr_t>(
-      object->GetEntryPointFromQuickCompiledCode<kVerifyNone>());
+      object->GetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(pointer_size));
   if (quick != 0) {
-    copy->SetEntryPointFromQuickCompiledCode(reinterpret_cast<void*>(quick + delta_));
+    copy->SetEntryPointFromQuickCompiledCodePtrSize(reinterpret_cast<void*>(quick + delta_),
+                                                    pointer_size);
   }
   uintptr_t interpreter = reinterpret_cast<uintptr_t>(
-      object->GetEntryPointFromInterpreter<kVerifyNone>());
+      object->GetEntryPointFromInterpreterPtrSize<kVerifyNone>(pointer_size));
   if (interpreter != 0) {
-    copy->SetEntryPointFromInterpreter(
-        reinterpret_cast<mirror::EntryPointFromInterpreter*>(interpreter + delta_));
+    copy->SetEntryPointFromInterpreterPtrSize(
+        reinterpret_cast<mirror::EntryPointFromInterpreter*>(interpreter + delta_), pointer_size);
   }
 
-  uintptr_t native_method = reinterpret_cast<uintptr_t>(object->GetNativeMethod());
+  uintptr_t native_method = reinterpret_cast<uintptr_t>(
+      object->GetEntryPointFromJniPtrSize(pointer_size));
   if (native_method != 0) {
-    copy->SetNativeMethod(reinterpret_cast<void*>(native_method + delta_));
+    copy->SetEntryPointFromJniPtrSize(reinterpret_cast<void*>(native_method + delta_),
+                                      pointer_size);
   }
 
-  uintptr_t native_gc_map = reinterpret_cast<uintptr_t>(object->GetNativeGcMap());
+  uintptr_t native_gc_map = reinterpret_cast<uintptr_t>(
+      object->GetNativeGcMapPtrSize(pointer_size));
   if (native_gc_map != 0) {
-    copy->SetNativeGcMap(reinterpret_cast<uint8_t*>(native_gc_map + delta_));
+    copy->SetNativeGcMapPtrSize(reinterpret_cast<uint8_t*>(native_gc_map + delta_), pointer_size);
   }
 }
 

@@ -316,15 +316,26 @@ class MANAGED LOCKABLE Object {
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, typename T>
   void SetFieldPtr(MemberOffset field_offset, T new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#ifndef __LP64__
-    SetField32<kTransactionActive, kCheckTransaction, kVerifyFlags>(
-        field_offset, reinterpret_cast<int32_t>(new_value));
-#else
-    SetField64<kTransactionActive, kCheckTransaction, kVerifyFlags>(
-        field_offset, reinterpret_cast<int64_t>(new_value));
-#endif
+    SetFieldPtrWithSize<kTransactionActive, kCheckTransaction, kVerifyFlags>(
+        field_offset, new_value, sizeof(void*));
   }
 
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, typename T>
+  ALWAYS_INLINE void SetFieldPtrWithSize(MemberOffset field_offset, T new_value,
+                                         size_t pointer_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(pointer_size == 4 || pointer_size == 8) << pointer_size;
+    if (pointer_size == 4) {
+      intptr_t ptr  = reinterpret_cast<intptr_t>(new_value);
+      DCHECK_EQ(static_cast<int32_t>(ptr), ptr);  // Check that we dont lose any non 0 bits.
+      SetField32<kTransactionActive, kCheckTransaction, kVerifyFlags>(
+          field_offset, static_cast<int32_t>(ptr));
+    } else {
+      SetField64<kTransactionActive, kCheckTransaction, kVerifyFlags>(
+          field_offset, static_cast<int64_t>(reinterpret_cast<intptr_t>(new_value)));
+    }
+  }
   // TODO fix thread safety analysis broken by the use of template. This should be
   // SHARED_LOCKS_REQUIRED(Locks::mutator_lock_).
   template <const bool kVisitClass, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
@@ -337,11 +348,21 @@ class MANAGED LOCKABLE Object {
   template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
   T GetFieldPtr(MemberOffset field_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-#ifndef __LP64__
-    return reinterpret_cast<T>(GetField32<kVerifyFlags, kIsVolatile>(field_offset));
-#else
-    return reinterpret_cast<T>(GetField64<kVerifyFlags, kIsVolatile>(field_offset));
-#endif
+    return GetFieldPtrWithSize<T, kVerifyFlags, kIsVolatile>(field_offset, sizeof(void*));
+  }
+
+  template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
+  ALWAYS_INLINE T GetFieldPtrWithSize(MemberOffset field_offset, size_t pointer_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    DCHECK(pointer_size == 4 || pointer_size == 8) << pointer_size;
+    if (pointer_size == 4) {
+      return reinterpret_cast<T>(GetField32<kVerifyFlags, kIsVolatile>(field_offset));
+    } else {
+      int64_t v = GetField64<kVerifyFlags, kIsVolatile>(field_offset);
+      // Check that we dont lose any non 0 bits.
+      DCHECK_EQ(reinterpret_cast<int64_t>(reinterpret_cast<T>(v)), v);
+      return reinterpret_cast<T>(v);
+    }
   }
 
   // TODO: Fixme when anotatalysis works with visitors.

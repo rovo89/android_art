@@ -507,7 +507,7 @@ ENTRY art_quick_invoke_stub
     lw    $a1, 4($sp)           # copy arg value for a1
     lw    $a2, 8($sp)           # copy arg value for a2
     lw    $a3, 12($sp)          # copy arg value for a3
-    lw    $t9, METHOD_QUICK_CODE_OFFSET($a0)  # get pointer to the code
+    lw    $t9, METHOD_QUICK_CODE_OFFSET_32($a0)  # get pointer to the code
     jalr  $t9                   # call the method
     sw    $zero, 0($sp)         # store NULL for method* at bottom of frame
     move  $sp, $fp              # restore the stack

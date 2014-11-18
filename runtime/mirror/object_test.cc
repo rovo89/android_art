@@ -89,11 +89,18 @@ TEST_F(ObjectTest, AsmConstants) {
   EXPECT_EQ(STRING_OFFSET_OFFSET, String::OffsetOffset().Int32Value());
   EXPECT_EQ(STRING_DATA_OFFSET, Array::DataOffset(sizeof(uint16_t)).Int32Value());
 
-  EXPECT_EQ(METHOD_DEX_CACHE_METHODS_OFFSET, ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
+  EXPECT_EQ(METHOD_DEX_CACHE_METHODS_OFFSET,
+            ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
 #if defined(ART_USE_PORTABLE_COMPILER)
-  EXPECT_EQ(METHOD_PORTABLE_CODE_OFFSET, ArtMethod::EntryPointFromPortableCompiledCodeOffset().Int32Value());
+  EXPECT_EQ(METHOD_PORTABLE_CODE_OFFSET_32,
+            ArtMethod::EntryPointFromPortableCompiledCodeOffset(4).Int32Value());
+  EXPECT_EQ(METHOD_PORTABLE_CODE_OFFSET_64,
+            ArtMethod::EntryPointFromPortableCompiledCodeOffset(8).Int32Value());
 #endif
-  EXPECT_EQ(METHOD_QUICK_CODE_OFFSET, ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
+  EXPECT_EQ(METHOD_QUICK_CODE_OFFSET_32,
+            ArtMethod::EntryPointFromQuickCompiledCodeOffset(4).Int32Value());
+  EXPECT_EQ(METHOD_QUICK_CODE_OFFSET_64,
+            ArtMethod::EntryPointFromQuickCompiledCodeOffset(8).Int32Value());
 }
 
 TEST_F(ObjectTest, IsInSamePackage) {

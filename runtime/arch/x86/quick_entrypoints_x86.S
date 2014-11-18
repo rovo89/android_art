@@ -292,7 +292,7 @@ DEFINE_FUNCTION art_quick_invoke_stub
     mov 4(%esp), %ecx             // copy arg1 into ecx
     mov 8(%esp), %edx             // copy arg2 into edx
     mov 12(%esp), %ebx            // copy arg3 into ebx
-    call *METHOD_QUICK_CODE_OFFSET(%eax) // call the method
+    call *METHOD_QUICK_CODE_OFFSET_32(%eax) // call the method
     mov %ebp, %esp                // restore stack pointer
     CFI_DEF_CFA_REGISTER(esp)
     POP ebx                       // pop ebx

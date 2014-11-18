@@ -477,9 +477,10 @@ static bool CommonCallCodeLoadCodePointerIntoInvokeTgt(const CallInfo* info,
                                                        const RegStorage* alt_from,
                                                        const CompilationUnit* cu, Mir2Lir* cg) {
   if (cu->instruction_set != kX86 && cu->instruction_set != kX86_64) {
+    int32_t offset = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+        InstructionSetPointerSize(cu->instruction_set)).Int32Value();
     // Get the compiled code address [use *alt_from or kArg0, set kInvokeTgt]
-    cg->LoadWordDisp(alt_from == nullptr ? cg->TargetReg(kArg0, kRef) : *alt_from,
-                     mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value(),
+    cg->LoadWordDisp(alt_from == nullptr ? cg->TargetReg(kArg0, kRef) : *alt_from, offset,
                      cg->TargetPtrReg(kInvokeTgt));
     return true;
   }
@@ -1802,8 +1803,9 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
         call_inst =
           reinterpret_cast<X86Mir2Lir*>(this)->CallWithLinkerFixup(target_method, info->type);
       } else {
-        call_inst = OpMem(kOpBlx, TargetReg(kArg0, kRef),
-                          mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset().Int32Value());
+        int32_t offset = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+            InstructionSetPointerSize(cu_->instruction_set)).Int32Value();
+        call_inst = OpMem(kOpBlx, TargetReg(kArg0, kRef), offset);
       }
     } else {
       call_inst = GenInvokeNoInlineCall(this, info->type);

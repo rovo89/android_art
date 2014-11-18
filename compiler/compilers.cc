@@ -84,7 +84,9 @@ CompiledMethod* QuickCompiler::JniCompile(uint32_t access_flags,
 }
 
 uintptr_t QuickCompiler::GetEntryPointOf(mirror::ArtMethod* method) const {
-  return reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCode());
+  size_t pointer_size = InstructionSetPointerSize(GetCompilerDriver()->GetInstructionSet());
+  return reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCodePtrSize(
+      pointer_size));
 }
 
 bool QuickCompiler::WriteElf(art::File* file,

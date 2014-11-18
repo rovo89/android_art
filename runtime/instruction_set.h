@@ -125,6 +125,10 @@ static inline bool Is64BitInstructionSet(InstructionSet isa) {
   }
 }
 
+static inline size_t InstructionSetPointerSize(InstructionSet isa) {
+  return Is64BitInstructionSet(isa) ? 8U : 4U;
+}
+
 static inline size_t GetBytesPerGprSpillLocation(InstructionSet isa) {
   switch (isa) {
     case kArm:

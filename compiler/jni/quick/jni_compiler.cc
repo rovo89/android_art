@@ -308,7 +308,9 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   }
 
   // 9. Plant call to native code associated with method.
-  __ Call(main_jni_conv->MethodStackOffset(), mirror::ArtMethod::NativeMethodOffset(),
+  MemberOffset jni_entrypoint_offset = mirror::ArtMethod::EntryPointFromJniOffset(
+      InstructionSetPointerSize(instruction_set));
+  __ Call(main_jni_conv->MethodStackOffset(), jni_entrypoint_offset,
           mr_conv->InterproceduralScratchRegister());
 
   // 10. Fix differences in result widths.
