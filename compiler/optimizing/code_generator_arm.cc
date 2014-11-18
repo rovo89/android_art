@@ -80,7 +80,7 @@ class NullCheckSlowPathARM : public SlowPathCodeARM {
  public:
   explicit NullCheckSlowPathARM(HNullCheck* instruction) : instruction_(instruction) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
     arm_codegen->InvokeRuntime(
@@ -96,7 +96,7 @@ class DivZeroCheckSlowPathARM : public SlowPathCodeARM {
  public:
   explicit DivZeroCheckSlowPathARM(HDivZeroCheck* instruction) : instruction_(instruction) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
     arm_codegen->InvokeRuntime(
@@ -112,7 +112,7 @@ class StackOverflowCheckSlowPathARM : public SlowPathCodeARM {
  public:
   StackOverflowCheckSlowPathARM() {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
     __ LoadFromOffset(kLoadWord, PC, TR,
         QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pThrowStackOverflow).Int32Value());
@@ -124,10 +124,10 @@ class StackOverflowCheckSlowPathARM : public SlowPathCodeARM {
 
 class SuspendCheckSlowPathARM : public SlowPathCodeARM {
  public:
-  explicit SuspendCheckSlowPathARM(HSuspendCheck* instruction, HBasicBlock* successor)
+  SuspendCheckSlowPathARM(HSuspendCheck* instruction, HBasicBlock* successor)
       : instruction_(instruction), successor_(successor) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
     codegen->SaveLiveRegisters(instruction_->GetLocations());
@@ -166,7 +166,7 @@ class BoundsCheckSlowPathARM : public SlowPathCodeARM {
         index_location_(index_location),
         length_location_(length_location) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
     // We're moving two locations to locations that could overlap, so we need a parallel
@@ -199,7 +199,7 @@ class LoadClassSlowPathARM : public SlowPathCodeARM {
     DCHECK(at->IsLoadClass() || at->IsClinitCheck());
   }
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = at_->GetLocations();
 
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
@@ -245,7 +245,7 @@ class LoadStringSlowPathARM : public SlowPathCodeARM {
  public:
   explicit LoadStringSlowPathARM(HLoadString* instruction) : instruction_(instruction) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
 
@@ -281,7 +281,7 @@ class TypeCheckSlowPathARM : public SlowPathCodeARM {
         object_class_(object_class),
         dex_pc_(dex_pc) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
     DCHECK(instruction_->IsCheckCast()
            || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
