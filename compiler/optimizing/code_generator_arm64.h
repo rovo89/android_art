@@ -29,6 +29,7 @@ namespace art {
 namespace arm64 {
 
 class CodeGeneratorARM64;
+class SlowPathCodeARM64;
 
 static constexpr size_t kArm64WordSize = 8;
 static const vixl::Register kParameterCoreRegisters[] = {
@@ -103,9 +104,11 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
   void LoadCurrentMethod(XRegister reg);
 
   Arm64Assembler* GetAssembler() const { return assembler_; }
+  vixl::MacroAssembler* GetVIXLAssembler() { return GetAssembler()->vixl_masm_; }
 
  private:
-  void HandleAddSub(HBinaryOperation* instr);
+  void GenerateClassInitializationCheck(SlowPathCodeARM64* slow_path, vixl::Register class_reg);
+  void HandleBinaryOp(HBinaryOperation* instr);
 
   Arm64Assembler* const assembler_;
   CodeGeneratorARM64* const codegen_;
@@ -124,7 +127,7 @@ class LocationsBuilderARM64 : public HGraphVisitor {
 #undef DECLARE_VISIT_INSTRUCTION
 
  private:
-  void HandleAddSub(HBinaryOperation* instr);
+  void HandleBinaryOp(HBinaryOperation* instr);
   void HandleInvoke(HInvoke* instr);
 
   CodeGeneratorARM64* const codegen_;
@@ -162,9 +165,10 @@ class CodeGeneratorARM64 : public CodeGenerator {
     return kArm64WordSize;
   }
 
-  uintptr_t GetAddressOf(HBasicBlock* block ATTRIBUTE_UNUSED) const OVERRIDE {
-    UNIMPLEMENTED(INFO) << "TODO: GetAddressOf";
-    return 0u;
+  uintptr_t GetAddressOf(HBasicBlock* block) const OVERRIDE {
+    vixl::Label* block_entry_label = GetLabelOf(block);
+    DCHECK(block_entry_label->IsBound());
+    return block_entry_label->location();
   }
 
   size_t FrameEntrySpillSize() const OVERRIDE;
@@ -172,6 +176,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
   HGraphVisitor* GetLocationBuilder() OVERRIDE { return &location_builder_; }
   HGraphVisitor* GetInstructionVisitor() OVERRIDE { return &instruction_visitor_; }
   Arm64Assembler* GetAssembler() OVERRIDE { return &assembler_; }
+  vixl::MacroAssembler* GetVIXLAssembler() { return GetAssembler()->vixl_masm_; }
 
   // Emit a write barrier.
   void MarkGCCard(vixl::Register object, vixl::Register value);
@@ -185,18 +190,18 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 
-  size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE {
+  size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) {
     UNUSED(stack_index);
     UNUSED(reg_id);
-    UNIMPLEMENTED(INFO) << "TODO: SaveCoreRegister";
-    return 0;
+    LOG(INFO) << "CodeGeneratorARM64::SaveCoreRegister()";
+    return kArm64WordSize;
   }
 
-  size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE {
+  size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) {
     UNUSED(stack_index);
     UNUSED(reg_id);
-    UNIMPLEMENTED(INFO) << "TODO: RestoreCoreRegister";
-    return 0;
+    LOG(INFO) << "CodeGeneratorARM64::RestoreCoreRegister()";
+    return kArm64WordSize;
   }
 
   // The number of registers that can be allocated. The register allocator may
@@ -226,9 +231,14 @@ class CodeGeneratorARM64 : public CodeGenerator {
   }
 
   // Code generation helpers.
+  void MoveConstant(vixl::CPURegister destination, HConstant* constant);
   void MoveHelper(Location destination, Location source, Primitive::Type type);
-  void Load(Primitive::Type type, vixl::Register dst, const vixl::MemOperand& src);
-  void Store(Primitive::Type type, vixl::Register rt, const vixl::MemOperand& dst);
+  void Load(Primitive::Type type, vixl::CPURegister dst, const vixl::MemOperand& src);
+  void Store(Primitive::Type type, vixl::CPURegister rt, const vixl::MemOperand& dst);
+  void LoadCurrentMethod(vixl::Register current_method);
+
+  // Generate code to invoke a runtime entry point.
+  void InvokeRuntime(int32_t offset, HInstruction* instruction, uint32_t dex_pc);
 
   ParallelMoveResolver* GetMoveResolver() OVERRIDE {
     UNIMPLEMENTED(INFO) << "TODO: MoveResolver";
