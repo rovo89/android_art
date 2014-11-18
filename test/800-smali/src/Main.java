@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.LinkedList;
@@ -55,6 +56,10 @@ public class Main {
             new Object[]{100}, null, 100));
         testCases.add(new TestCase("negLong", "negLong", "negLong", null, null, 122142L));
         testCases.add(new TestCase("sameFieldNames", "sameFieldNames", "getInt", null, null, 7));
+        testCases.add(new TestCase("b/18380491", "B18380491ConcreteClass", "foo",
+            new Object[]{42}, null, 42));
+        testCases.add(new TestCase("invoke-super abstract", "B18380491ConcreteClass", "foo",
+            new Object[]{0}, new AbstractMethodError(), null));
     }
 
     public void runTests() {
@@ -116,6 +121,9 @@ public class Main {
         } catch (Throwable exc) {
             if (tc.expectedException == null) {
                 errorReturn = new IllegalStateException("Did not expect exception", exc);
+            } else if (exc instanceof InvocationTargetException && exc.getCause() != null &&
+                       exc.getCause().getClass().equals(tc.expectedException.getClass())) {
+                // Expected exception is wrapped in InvocationTargetException.
             } else if (!tc.expectedException.getClass().equals(exc.getClass())) {
                 errorReturn = new IllegalStateException("Expected " +
                                                         tc.expectedException.getClass().getName() +
