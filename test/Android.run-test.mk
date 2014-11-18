@@ -316,7 +316,6 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   012-math \
   023-many-interfaces \
   037-inherit \
-  047-inherit \
   044-proxy \
   045-reflect-array \
   046-reflect \
