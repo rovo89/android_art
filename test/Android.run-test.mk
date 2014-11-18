@@ -307,164 +307,38 @@ TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
 
 # Known broken tests for the arm64 optimizing compiler backend.
 TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
-  001-HelloWorld \
-  002-sleep \
   003-omnibus-opcodes \
-  004-InterfaceTest \
-  004-JniTest \
   004-NativeAllocations \
   004-ReferenceMap \
-  004-SignalTest \
-  004-StackWalk \
-  004-UnsafeTest \
   005-annotations \
-  006-args \
-  007-count10 \
-  008-exceptions \
   009-instanceof \
   010-instance \
-  011-array-copy \
-  013-math2 \
-  014-math3 \
-  016-intern \
-  017-float \
-  018-stack-overflow \
-  019-wrong-array-type \
-  020-string \
-  021-string2 \
-  022-interface \
+  012-math \
   023-many-interfaces \
-  024-illegal-access \
-  025-access-controller \
-  026-access \
-  028-array-write \
-  029-assert \
-  030-bad-finalizer \
-  031-class-attributes \
-  032-concrete-sub \
-  033-class-init-deadlock \
-  034-call-null \
-  035-enum \
-  036-finalizer \
   037-inherit \
-  038-inner-null \
-  039-join-main \
-  040-miranda \
-  042-new-instance \
-  043-privates \
+  047-inherit \
   044-proxy \
   045-reflect-array \
   046-reflect \
   047-returns \
-  049-show-object \
-  050-sync-test \
-  051-thread \
-  052-verifier-fun \
-  054-uncaught \
-  055-enum-performance \
-  056-const-string-jumbo \
-  058-enum-order \
-  061-out-of-memory \
   062-character-encodings \
   063-process-manager \
-  064-field-access \
-  065-mismatched-implements \
-  066-mismatched-super \
-  067-preemptive-unpark \
   068-classloader \
   069-field-type \
-  070-nio-buffer \
   071-dexfile \
-  072-precise-gc \
-  074-gc-thrash \
-  075-verification-error \
-  076-boolean-put \
-  077-method-override \
-  078-polymorphic-virtual \
-  079-phantom \
-  080-oom-throw \
-  081-hot-exceptions \
-  082-inline-execute \
   083-compiler-regressions \
-  084-class-init \
-  085-old-style-inner-class \
-  086-null-super \
-  087-gc-after-link \
-  088-monitor-verification \
-  090-loop-formation \
-  092-locale \
-  093-serialization \
-  094-pattern \
-  096-array-copy-concurrent-gc \
-  097-duplicate-method \
-  098-ddmc \
-  100-reflect2 \
-  101-fibonacci \
-  102-concurrent-gc \
-  103-string-append \
-  104-growth-limit \
-  105-invoke \
   106-exceptions2 \
   107-int-math2 \
-  108-check-cast \
-  109-suspend-check \
-  110-field-access \
-  111-unresolvable-exception \
-  112-double-math \
-  113-multidex \
   114-ParallelGC \
-  117-nopatchoat \
-  118-noimage-dex2oat \
-  119-noimage-patchoat \
-  120-hashcode \
-  121-modifiers \
-  121-simple-suspend-check \
-  122-npe \
-  123-compiler-regressions-mt \
-  124-missing-classes \
-  125-gc-and-classloading \
-  126-miranda-multidex \
   201-built-in-exception-detail-messages \
-  202-thread-oome \
-  300-package-override \
-  301-abstract-protected \
-  303-verification-stress \
-  304-method-tracing \
-  401-optimizing-compiler \
-  402-optimizing-control-flow \
-  403-optimizing-long \
-  404-optimizing-allocator \
-  405-optimizing-long-allocator \
-  406-fields \
   407-arrays \
-  409-materialized-condition \
-  410-floats \
-  411-optimizing-arith \
   412-new-array \
-  413-regalloc-regression \
-  414-optimizing-arith-sub \
-  414-static-fields \
-  415-optimizing-arith-neg \
-  416-optimizing-arith-not \
-  417-optimizing-arith-div \
-  418-const-string \
-  419-long-parameter \
-  420-const-class \
-  421-exceptions \
-  421-large-frame \
   422-instanceof \
   422-type-conversion \
-  423-invoke-interface \
   424-checkcast \
-  426-monitor \
-  427-bitwise \
   427-bounds \
   428-optimizing-arith-rem \
-  700-LoadArgRegs \
   701-easy-div-rem \
-  702-LargeBranchOffset \
-  703-floating-point-div \
-  800-smali
 
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
