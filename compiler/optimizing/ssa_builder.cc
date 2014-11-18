@@ -183,8 +183,7 @@ static HDoubleConstant* GetDoubleEquivalent(HLongConstant* constant) {
 static HPhi* GetFloatOrDoubleEquivalentOfPhi(HPhi* phi, Primitive::Type type) {
   // We place the floating point phi next to this phi.
   HInstruction* next = phi->GetNext();
-  if (next == nullptr
-      || (next->GetType() != Primitive::kPrimDouble && next->GetType() != Primitive::kPrimFloat)) {
+  if (next == nullptr || (next->AsPhi()->GetRegNumber() != phi->GetRegNumber())) {
     ArenaAllocator* allocator = phi->GetBlock()->GetGraph()->GetArena();
     HPhi* new_phi = new (allocator) HPhi(allocator, phi->GetRegNumber(), phi->InputCount(), type);
     for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
@@ -195,9 +194,7 @@ static HPhi* GetFloatOrDoubleEquivalentOfPhi(HPhi* phi, Primitive::Type type) {
     phi->GetBlock()->InsertPhiAfter(new_phi, phi);
     return new_phi;
   } else {
-    // If there is already a phi with the expected type, we know it is the floating
-    // point equivalent of this phi.
-    DCHECK_EQ(next->AsPhi()->GetRegNumber(), phi->GetRegNumber());
+    DCHECK_EQ(next->GetType(), type);
     return next->AsPhi();
   }
 }
