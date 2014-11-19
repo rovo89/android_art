@@ -942,9 +942,11 @@ class Dex2Oat FINAL {
         oat_location_ = oat_filename_;
       }
     } else {
-      oat_file_.reset(new File(oat_fd_, oat_location_));
+      oat_file_.reset(new File(oat_fd_, oat_location_, true));
       oat_file_->DisableAutoClose();
-      oat_file_->SetLength(0);
+      if (oat_file_->SetLength(0) != 0) {
+        PLOG(WARNING) << "Truncating oat file " << oat_location_ << " failed.";
+      }
     }
     if (oat_file_.get() == nullptr) {
       PLOG(ERROR) << "Failed to create oat file: " << oat_location_;
@@ -952,6 +954,7 @@ class Dex2Oat FINAL {
     }
     if (create_file && fchmod(oat_file_->Fd(), 0644) != 0) {
       PLOG(ERROR) << "Failed to make oat file world readable: " << oat_location_;
+      oat_file_->Erase();
       return false;
     }
     return true;
@@ -1075,7 +1078,10 @@ class Dex2Oat FINAL {
                 << ". Try: adb shell chmod 777 /data/local/tmp";
             continue;
           }
-          tmp_file->WriteFully(dex_file->Begin(), dex_file->Size());
+          // This is just dumping files for debugging. Ignore errors, and leave remnants.
+          UNUSED(tmp_file->WriteFully(dex_file->Begin(), dex_file->Size()));
+          UNUSED(tmp_file->Flush());
+          UNUSED(tmp_file->Close());
           LOG(INFO) << "Wrote input to " << tmp_file_name;
         }
       }
@@ -1266,6 +1272,7 @@ class Dex2Oat FINAL {
       if (!driver_->WriteElf(android_root_, is_host_, dex_files_, oat_writer.get(),
                              oat_file_.get())) {
         LOG(ERROR) << "Failed to write ELF file " << oat_file_->GetPath();
+        oat_file_->Erase();
         return false;
       }
     }
@@ -1273,8 +1280,8 @@ class Dex2Oat FINAL {
     // Flush result to disk.
     {
       TimingLogger::ScopedTiming t2("dex2oat Flush ELF", timings_);
-      if (oat_file_->Flush() != 0) {
-        LOG(ERROR) << "Failed to flush ELF file " << oat_file_->GetPath();
+      if (oat_file_->FlushCloseOrErase() != 0) {
+        PLOG(ERROR) << "Failed to flush ELF file " << oat_file_->GetPath();
         return false;
       }
     }
@@ -1302,7 +1309,13 @@ class Dex2Oat FINAL {
     // We need to strip after image creation because FixupElf needs to use .strtab.
     if (oat_unstripped_ != oat_stripped_) {
       TimingLogger::ScopedTiming t("dex2oat OatFile copy", timings_);
-      oat_file_.reset();
+      if (kUsePortableCompiler) {
+        if (oat_file_->FlushCloseOrErase() != 0) {
+          PLOG(ERROR) << "Failed to flush and close oat file: " << oat_location_;
+          return EXIT_FAILURE;
+        }
+        oat_file_.reset();
+      }
       std::unique_ptr<File> in(OS::OpenFileForReading(oat_unstripped_.c_str()));
       std::unique_ptr<File> out(OS::CreateEmptyFile(oat_stripped_.c_str()));
       size_t buffer_size = 8192;
@@ -1330,6 +1343,7 @@ class Dex2Oat FINAL {
         std::string error_msg;
         if (!ElfFile::Strip(oat_file_.get(), &error_msg)) {
           LOG(ERROR) << "Failed to strip elf file: " << error_msg;
+          oat_file_->Erase();
           return false;
         }
 
@@ -1338,8 +1352,20 @@ class Dex2Oat FINAL {
       } else {
         VLOG(compiler) << "Oat file written successfully without stripping: " << oat_location_;
       }
+      if (oat_file_->FlushCloseOrErase() != 0) {
+        PLOG(ERROR) << "Failed to flush and close oat file: " << oat_location_;
+        return EXIT_FAILURE;
+      }
+      oat_file_.reset(nullptr);
     }
 
+    if (oat_file_.get() != nullptr) {
+      if (oat_file_->FlushCloseOrErase() != 0) {
+        PLOG(ERROR) << "Failed to flush and close oat file: " << oat_location_ << "/"
+                    << oat_filename_;
+        return EXIT_FAILURE;
+      }
+    }
     return true;
   }
 
@@ -1451,16 +1477,22 @@ class Dex2Oat FINAL {
     // Destroy ImageWriter before doing FixupElf.
     image_writer_.reset();
 
-    std::unique_ptr<File> oat_file(OS::OpenFileReadWrite(oat_unstripped_.c_str()));
-    if (oat_file.get() == nullptr) {
-      PLOG(ERROR) << "Failed to open ELF file: " << oat_unstripped_;
-      return false;
-    }
-
     // Do not fix up the ELF file if we are --compile-pic
     if (!compiler_options_->GetCompilePic()) {
+      std::unique_ptr<File> oat_file(OS::OpenFileReadWrite(oat_unstripped_.c_str()));
+      if (oat_file.get() == nullptr) {
+        PLOG(ERROR) << "Failed to open ELF file: " << oat_unstripped_;
+        return false;
+      }
+
       if (!ElfWriter::Fixup(oat_file.get(), oat_data_begin)) {
+        oat_file->Erase();
         LOG(ERROR) << "Failed to fixup ELF file " << oat_file->GetPath();
+        return false;
+      }
+
+      if (oat_file->FlushCloseOrErase()) {
+        PLOG(ERROR) << "Failed to flush and close fixed ELF file " << oat_file->GetPath();
         return false;
       }
     }

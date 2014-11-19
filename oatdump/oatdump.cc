@@ -182,8 +182,8 @@ class OatSymbolizer FINAL : public CodeOutput {
 
     bool result = builder_->Write();
 
-    elf_output_->Flush();
-    elf_output_->Close();
+    // Ignore I/O errors.
+    UNUSED(elf_output_->FlushClose());
 
     return result;
   }
