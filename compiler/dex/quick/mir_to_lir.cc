@@ -200,6 +200,16 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
     RegStorage reg_arg_low = GetArgMappingToPhysicalReg(in_position);
     RegStorage reg_arg_high = GetArgMappingToPhysicalReg(in_position + 1);
 
+    if (cu_->instruction_set == kX86) {
+      // Can't handle double split between reg & memory.  Flush reg half to memory.
+      if (rl_dest.reg.IsDouble() && (reg_arg_low.Valid() != reg_arg_high.Valid())) {
+        DCHECK(reg_arg_low.Valid());
+        DCHECK(!reg_arg_high.Valid());
+        Store32Disp(TargetPtrReg(kSp), offset, reg_arg_low);
+        reg_arg_low = RegStorage::InvalidReg();
+      }
+    }
+
     if (reg_arg_low.Valid() && reg_arg_high.Valid()) {
       OpRegCopyWide(rl_dest.reg, RegStorage::MakeRegPair(reg_arg_low, reg_arg_high));
     } else if (reg_arg_low.Valid() && !reg_arg_high.Valid()) {

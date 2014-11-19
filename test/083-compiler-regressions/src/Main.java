@@ -30,6 +30,7 @@ public class Main {
     }
 
     public static void main(String args[]) throws Exception {
+        b17325447();
         b17630605();
         b17411468();
         b2296099Test();
@@ -61,6 +62,31 @@ public class Main {
         atomicLong();
         LiveFlags.test();
         minDoubleWith3ConstsTest();
+    }
+
+    public static double b17325447_i1(int i1, double f) {
+      return f;
+    }
+
+    public static double b17325447_i2(int i1, int i2, double f) {
+      return f;
+    }
+
+    public static double b17325447_i3(int i1, int i2, int i3, double f) {
+      return f;
+    }
+
+    public static void b17325447() {
+      // b/17325447 - x86 handling of special identity method w/ double spanning reg/mem.
+      double d = 0.0;
+      d += b17325447_i1(123, 1.0);
+      d += b17325447_i2(123, 456, 2.0);
+      d += b17325447_i3(123, 456, 789, 3.0);
+      if (d == 6.0) {
+        System.out.println("b17325447 passes");
+      } else {
+        System.out.println("b17325447 fails: " + d);
+      }
     }
 
     public static void b17630605() {
