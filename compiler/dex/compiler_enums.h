@@ -610,21 +610,22 @@ std::ostream& operator<<(std::ostream& os, const SelectInstructionKind& kind);
 // LIR fixup kinds for Arm
 enum FixupKind {
   kFixupNone,
-  kFixupLabel,       // For labels we just adjust the offset.
-  kFixupLoad,        // Mostly for immediates.
-  kFixupVLoad,       // FP load which *may* be pc-relative.
-  kFixupCBxZ,        // Cbz, Cbnz.
-  kFixupTBxZ,        // Tbz, Tbnz.
-  kFixupPushPop,     // Not really pc relative, but changes size based on args.
-  kFixupCondBranch,  // Conditional branch
-  kFixupT1Branch,    // Thumb1 Unconditional branch
-  kFixupT2Branch,    // Thumb2 Unconditional branch
-  kFixupBlx1,        // Blx1 (start of Blx1/Blx2 pair).
-  kFixupBl1,         // Bl1 (start of Bl1/Bl2 pair).
-  kFixupAdr,         // Adr.
-  kFixupMovImmLST,   // kThumb2MovImm16LST.
-  kFixupMovImmHST,   // kThumb2MovImm16HST.
-  kFixupAlign4,      // Align to 4-byte boundary.
+  kFixupLabel,             // For labels we just adjust the offset.
+  kFixupLoad,              // Mostly for immediates.
+  kFixupVLoad,             // FP load which *may* be pc-relative.
+  kFixupCBxZ,              // Cbz, Cbnz.
+  kFixupTBxZ,              // Tbz, Tbnz.
+  kFixupPushPop,           // Not really pc relative, but changes size based on args.
+  kFixupCondBranch,        // Conditional branch
+  kFixupT1Branch,          // Thumb1 Unconditional branch
+  kFixupT2Branch,          // Thumb2 Unconditional branch
+  kFixupBlx1,              // Blx1 (start of Blx1/Blx2 pair).
+  kFixupBl1,               // Bl1 (start of Bl1/Bl2 pair).
+  kFixupAdr,               // Adr.
+  kFixupMovImmLST,         // kThumb2MovImm16LST.
+  kFixupMovImmHST,         // kThumb2MovImm16HST.
+  kFixupAlign4,            // Align to 4-byte boundary.
+  kFixupA53Erratum835769,  // Cortex A53 Erratum 835769.
 };
 std::ostream& operator<<(std::ostream& os, const FixupKind& kind);
 
