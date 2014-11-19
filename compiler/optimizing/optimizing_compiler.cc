@@ -167,7 +167,8 @@ CompiledMethod* OptimizingCompiler::JniCompile(uint32_t access_flags,
 }
 
 uintptr_t OptimizingCompiler::GetEntryPointOf(mirror::ArtMethod* method) const {
-  return reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCode());
+  return reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCodePtrSize(
+      InstructionSetPointerSize(GetCompilerDriver()->GetInstructionSet())));
 }
 
 bool OptimizingCompiler::WriteElf(art::File* file, OatWriter* oat_writer,
