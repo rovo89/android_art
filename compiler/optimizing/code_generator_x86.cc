@@ -1120,7 +1120,8 @@ void InstructionCodeGeneratorX86::VisitInvokeStatic(HInvokeStatic* invoke) {
   // temp = temp[index_in_cache]
   __ movl(temp, Address(temp, CodeGenerator::GetCacheOffset(invoke->GetIndexInDexCache())));
   // (temp + offset_of_quick_compiled_code)()
-  __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(4).Int32Value()));
+  __ call(Address(
+      temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -1184,7 +1185,8 @@ void InstructionCodeGeneratorX86::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   // temp = temp->GetMethodAt(method_offset);
   __ movl(temp, Address(temp, method_offset));
   // call temp->GetEntryPoint();
-  __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(4).Int32Value()));
+  __ call(Address(
+      temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -1220,7 +1222,7 @@ void InstructionCodeGeneratorX86::VisitInvokeInterface(HInvokeInterface* invoke)
   __ movl(temp, Address(temp, method_offset));
   // call temp->GetEntryPoint();
   __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-      kX86PointerSize).Int32Value()));
+      kX86WordSize).Int32Value()));
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
