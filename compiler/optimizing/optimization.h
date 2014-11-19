@@ -29,17 +29,12 @@ class HOptimization : public ValueObject {
  public:
   HOptimization(HGraph* graph,
                 bool is_in_ssa_form,
-                const char* pass_name,
-                const HGraphVisualizer& visualizer)
+                const char* pass_name)
       : graph_(graph),
         is_in_ssa_form_(is_in_ssa_form),
-        pass_name_(pass_name),
-        visualizer_(visualizer) {}
+        pass_name_(pass_name) {}
 
   virtual ~HOptimization() {}
-
-  // Execute the optimization pass.
-  void Execute();
 
   // Return the name of the pass.
   const char* GetPassName() const { return pass_name_; }
@@ -47,7 +42,6 @@ class HOptimization : public ValueObject {
   // Peform the analysis itself.
   virtual void Run() = 0;
 
- private:
   // Verify the graph; abort if it is not valid.
   void Check();
 
@@ -59,9 +53,6 @@ class HOptimization : public ValueObject {
   const bool is_in_ssa_form_;
   // Optimization pass name.
   const char* pass_name_;
-  // A graph visualiser invoked after the execution of the optimization
-  // pass if enabled.
-  const HGraphVisualizer& visualizer_;
 
   DISALLOW_COPY_AND_ASSIGN(HOptimization);
 };

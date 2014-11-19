@@ -28,10 +28,10 @@ namespace art {
  */
 class HDeadCodeElimination : public HOptimization {
  public:
-  HDeadCodeElimination(HGraph* graph, const HGraphVisualizer& visualizer)
-      : HOptimization(graph, true, kDeadCodeEliminationPassName, visualizer) {}
+  explicit HDeadCodeElimination(HGraph* graph)
+      : HOptimization(graph, true, kDeadCodeEliminationPassName) {}
 
-  virtual void Run() OVERRIDE;
+  void Run() OVERRIDE;
 
   static constexpr const char* kDeadCodeEliminationPassName =
     "dead_code_elimination";
