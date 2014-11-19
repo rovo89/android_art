@@ -327,23 +327,16 @@ class StringLengthComparator {
   Handle<mirror::ObjectArray<mirror::String>> strings_;
 };
 
-// If string a is a prefix of b or b is a prefix of a then they are considered equal. This
-// enables us to find prefixes instead of exact matches. Otherwise we do a normal string
-// comparison. The strings compared of the form <position, length> inside of the chars_ array.
+// Normal string < comparison through the chars_ array.
 class SubstringComparator {
  public:
   explicit SubstringComparator(const std::vector<uint16_t>* const chars) : chars_(chars) {
   }
   bool operator()(const std::pair<size_t, size_t>& a, const std::pair<size_t, size_t>& b) {
-    size_t compare_length = std::min(a.second, b.second);
-    const uint16_t* ptr_a = &chars_->at(a.first);
-    const uint16_t* ptr_b = &chars_->at(b.first);
-    for (size_t i = 0; i < compare_length; ++i) {
-      if (ptr_a[i] != ptr_b[i]) {
-        return ptr_a[i] < ptr_b[i];
-      }
-    }
-    return false;
+    return std::lexicographical_compare(chars_->begin() + a.first,
+                                        chars_->begin() + a.first + a.second,
+                                        chars_->begin() + b.first,
+                                        chars_->begin() + b.first + b.second);
   }
 
  private:
@@ -399,11 +392,15 @@ void ImageWriter::ProcessStrings() {
     // Try to see if the string exists as a prefix of an existing string.
     size_t new_offset = 0;
     std::pair<size_t, size_t> new_string(num_chars - length, length);
-    auto it = existing_strings.find(new_string);
+    auto it = existing_strings.lower_bound(new_string);
+    bool is_prefix = false;
     if (it != existing_strings.end()) {
-      for (size_t j = 0; j < length; ++j) {
-        DCHECK_EQ(combined_chars[it->first + j], s->CharAt(j));
-      }
+      CHECK_LE(length, it->second);
+      is_prefix = std::equal(combined_chars.begin() + it->first,
+                             combined_chars.begin() + it->first + it->second,
+                             combined_chars.begin() + new_string.first);
+    }
+    if (is_prefix) {
       // Shares a prefix, set the offset to where the new offset will be.
       new_offset = it->first;
       // Remove the added chars.
@@ -425,7 +422,7 @@ void ImageWriter::ProcessStrings() {
   for (size_t i = 0; i < total_strings; ++i) {
     strings->GetWithoutChecks(i)->SetArray(array);
   }
-  VLOG(compiler) << "Total # image strings=" << total_strings << " combined length="
+  LOG(INFO) << "Total # image strings=" << total_strings << " combined length="
       << total_length << " prefix saved chars=" << prefix_saved_chars;
   ComputeEagerResolvedStrings();
 }
