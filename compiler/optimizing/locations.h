@@ -391,6 +391,10 @@ class RegisterSet : public ValueObject {
     return (register_set & (1 << reg)) != 0;
   }
 
+  size_t GetNumberOfRegisters() const {
+    return __builtin_popcount(core_registers_) + __builtin_popcount(floating_point_registers_);
+  }
+
  private:
   uint32_t core_registers_;
   uint32_t floating_point_registers_;
@@ -501,6 +505,10 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
 
   RegisterSet* GetLiveRegisters() {
     return &live_registers_;
+  }
+
+  size_t GetNumberOfLiveRegisters() const {
+    return live_registers_.GetNumberOfRegisters();
   }
 
   bool InputOverlapsWithOutputOrTemp(uint32_t input_index, bool is_environment) const {

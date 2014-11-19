@@ -589,12 +589,14 @@ void CodeGenerator::SaveLiveRegisters(LocationSummary* locations) {
       if (locations->RegisterContainsObject(i)) {
         locations->SetStackBit(stack_offset / kVRegSize);
       }
+      DCHECK_LT(stack_offset, GetFrameSize() - FrameEntrySpillSize());
       stack_offset += SaveCoreRegister(stack_offset, i);
     }
   }
 
   for (size_t i = 0, e = GetNumberOfFloatingPointRegisters(); i < e; ++i) {
     if (register_set->ContainsFloatingPointRegister(i)) {
+      DCHECK_LT(stack_offset, GetFrameSize() - FrameEntrySpillSize());
       stack_offset += SaveFloatingPointRegister(stack_offset, i);
     }
   }
@@ -605,12 +607,14 @@ void CodeGenerator::RestoreLiveRegisters(LocationSummary* locations) {
   size_t stack_offset = first_register_slot_in_slow_path_;
   for (size_t i = 0, e = GetNumberOfCoreRegisters(); i < e; ++i) {
     if (register_set->ContainsCoreRegister(i)) {
+      DCHECK_LT(stack_offset, GetFrameSize() - FrameEntrySpillSize());
       stack_offset += RestoreCoreRegister(stack_offset, i);
     }
   }
 
   for (size_t i = 0, e = GetNumberOfFloatingPointRegisters(); i < e; ++i) {
     if (register_set->ContainsFloatingPointRegister(i)) {
+      DCHECK_LT(stack_offset, GetFrameSize() - FrameEntrySpillSize());
       stack_offset += RestoreFloatingPointRegister(stack_offset, i);
     }
   }
