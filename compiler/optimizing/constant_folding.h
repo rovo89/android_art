@@ -32,10 +32,10 @@ namespace art {
  */
 class HConstantFolding : public HOptimization {
  public:
-  HConstantFolding(HGraph* graph, const HGraphVisualizer& visualizer)
-      : HOptimization(graph, true, kConstantFoldingPassName, visualizer) {}
+  explicit HConstantFolding(HGraph* graph)
+      : HOptimization(graph, true, kConstantFoldingPassName) {}
 
-  virtual void Run() OVERRIDE;
+  void Run() OVERRIDE;
 
   static constexpr const char* kConstantFoldingPassName = "constant_folding";
 
