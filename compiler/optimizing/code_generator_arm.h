@@ -28,7 +28,8 @@ namespace arm {
 class CodeGeneratorARM;
 class SlowPathCodeARM;
 
-static constexpr size_t kArmWordSize = 4;
+// Use a local definition to prevent copying mistakes.
+static constexpr size_t kArmWordSize = kArmPointerSize;
 
 static constexpr Register kParameterCoreRegisters[] = { R1, R2, R3 };
 static constexpr RegisterPair kParameterCorePairRegisters[] = { R1_R2, R2_R3 };
