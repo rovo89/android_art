@@ -431,6 +431,15 @@ void Trace::Stop() {
                                                     instrumentation::Instrumentation::kMethodExited |
                                                     instrumentation::Instrumentation::kMethodUnwind);
     }
+    if (the_trace->trace_file_.get() != nullptr) {
+      // Do not try to erase, so flush and close explicitly.
+      if (the_trace->trace_file_->Flush() != 0) {
+        PLOG(ERROR) << "Could not flush trace file.";
+      }
+      if (the_trace->trace_file_->Close() != 0) {
+        PLOG(ERROR) << "Could not close trace file.";
+      }
+    }
     delete the_trace;
   }
   runtime->GetThreadList()->ResumeAll();
