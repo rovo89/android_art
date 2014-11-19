@@ -102,6 +102,8 @@ static const size_t kDefaultMarkStackSize = 64 * KB;
 static const char* kDlMallocSpaceName[2] = {"main dlmalloc space", "main dlmalloc space 1"};
 static const char* kRosAllocSpaceName[2] = {"main rosalloc space", "main rosalloc space 1"};
 static const char* kMemMapSpaceName[2] = {"main space", "main space 1"};
+static const char* kNonMovingSpaceName = "non moving space";
+static const char* kZygoteSpaceName = "zygote space";
 static constexpr size_t kGSSBumpPointerSpaceCapacity = 32 * MB;
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
@@ -264,10 +266,14 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   std::string error_str;
   std::unique_ptr<MemMap> non_moving_space_mem_map;
   if (separate_non_moving_space) {
+    // If we are the zygote, the non moving space becomes the zygote space when we run
+    // PreZygoteFork the first time. In this case, call the map "zygote space" since we can't
+    // rename the mem map later.
+    const char* space_name = is_zygote ? kZygoteSpaceName: kNonMovingSpaceName;
     // Reserve the non moving mem map before the other two since it needs to be at a specific
     // address.
     non_moving_space_mem_map.reset(
-        MemMap::MapAnonymous("non moving space", requested_alloc_space_begin,
+        MemMap::MapAnonymous(space_name, requested_alloc_space_begin,
                              non_moving_space_capacity, PROT_READ | PROT_WRITE, true, &error_str));
     CHECK(non_moving_space_mem_map != nullptr) << error_str;
     // Try to reserve virtual memory at a lower address if we have a separate non moving space.
@@ -1987,7 +1993,8 @@ void Heap::PreZygoteFork() {
     // from this point on.
     RemoveRememberedSet(old_alloc_space);
   }
-  space::ZygoteSpace* zygote_space = old_alloc_space->CreateZygoteSpace("alloc space",
+  // Remaining space becomes the new non moving space.
+  space::ZygoteSpace* zygote_space = old_alloc_space->CreateZygoteSpace(kNonMovingSpaceName,
                                                                         low_memory_mode_,
                                                                         &non_moving_space_);
   CHECK(!non_moving_space_->CanMoveObjects());
