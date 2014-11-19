@@ -5,4 +5,5 @@ negLong
 sameFieldNames
 b/18380491
 invoke-super abstract
+BadCaseInOpRegRegReg
 Done!

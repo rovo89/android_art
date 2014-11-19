@@ -488,6 +488,7 @@ LIR* X86Mir2Lir::OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1,
       case kOpAdc:
       case kOpAnd:
       case kOpXor:
+      case kOpMul:
         break;
       default:
         LOG(FATAL) << "Bad case in OpRegRegReg " << op;
