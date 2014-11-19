@@ -41,8 +41,7 @@ static void TestCode(const uint16_t* data,
   ASSERT_EQ(actual_before, expected_before);
 
   x86::CodeGeneratorX86 codegen(graph);
-  HGraphVisualizer visualizer(nullptr, graph, codegen, "");
-  HDeadCodeElimination(graph, visualizer).Run();
+  HDeadCodeElimination(graph).Run();
   SSAChecker ssa_checker(&allocator, graph);
   ssa_checker.Run();
   ASSERT_TRUE(ssa_checker.IsValid());
