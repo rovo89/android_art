@@ -1113,7 +1113,7 @@ void InstructionCodeGeneratorX86_64::VisitInvokeStatic(HInvokeStatic* invoke) {
   __ movl(temp, Address(temp, CodeGenerator::GetCacheOffset(invoke->GetIndexInDexCache())));
   // (temp + offset_of_quick_compiled_code)()
   __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-      kX86_64PointerSize).SizeValue()));
+      kX86_64WordSize).SizeValue()));
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -1173,7 +1173,7 @@ void InstructionCodeGeneratorX86_64::VisitInvokeVirtual(HInvokeVirtual* invoke) 
   __ movl(temp, Address(temp, method_offset));
   // call temp->GetEntryPoint();
   __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-      kX86_64PointerSize).SizeValue()));
+      kX86_64WordSize).SizeValue()));
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
@@ -1209,7 +1209,7 @@ void InstructionCodeGeneratorX86_64::VisitInvokeInterface(HInvokeInterface* invo
   __ movl(temp, Address(temp, method_offset));
   // call temp->GetEntryPoint();
   __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-      kX86_64PointerSize).SizeValue()));
+      kX86_64WordSize).SizeValue()));
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());

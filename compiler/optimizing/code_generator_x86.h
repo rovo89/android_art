@@ -25,7 +25,8 @@
 namespace art {
 namespace x86 {
 
-static constexpr size_t kX86WordSize = 4;
+// Use a local definition to prevent copying mistakes.
+static constexpr size_t kX86WordSize = kX86PointerSize;
 
 class CodeGeneratorX86;
 class SlowPathCodeX86;
