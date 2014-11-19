@@ -25,7 +25,8 @@
 namespace art {
 namespace x86_64 {
 
-static constexpr size_t kX86_64WordSize = 8;
+// Use a local definition to prevent copying mistakes.
+static constexpr size_t kX86_64WordSize = kX86_64PointerSize;
 
 static constexpr Register kParameterCoreRegisters[] = { RSI, RDX, RCX, R8, R9 };
 static constexpr FloatRegister kParameterFloatRegisters[] =

@@ -1393,7 +1393,7 @@ void InstructionCodeGeneratorARM64::VisitInvokeInterface(HInvokeInterface* invok
           (invoke->GetImtIndex() % mirror::Class::kImtSize) * sizeof(mirror::Class::ImTableEntry);
   Location receiver = invoke->GetLocations()->InAt(0);
   Offset class_offset = mirror::Object::ClassOffset();
-  Offset entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64PointerSize);
+  Offset entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64WordSize);
 
   // The register ip1 is required to be used for the hidden argument in
   // art_quick_imt_conflict_trampoline, so prevent VIXL from using it.
@@ -1450,7 +1450,7 @@ void InstructionCodeGeneratorARM64::VisitInvokeStatic(HInvokeStatic* invoke) {
   // lr = temp->entry_point_from_quick_compiled_code_;
   __ Ldr(lr, MemOperand(temp.X(),
                         mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-                            kArm64PointerSize).SizeValue()));
+                            kArm64WordSize).SizeValue()));
   // lr();
   __ Blr(lr);
 
@@ -1465,7 +1465,7 @@ void InstructionCodeGeneratorARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   size_t method_offset = mirror::Class::EmbeddedVTableOffset().SizeValue() +
     invoke->GetVTableIndex() * sizeof(mirror::Class::VTableEntry);
   Offset class_offset = mirror::Object::ClassOffset();
-  Offset entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64PointerSize);
+  Offset entry_point = mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kArm64WordSize);
 
   // temp = object->GetClass();
   if (receiver.IsStackSlot()) {

@@ -31,7 +31,9 @@ namespace arm64 {
 class CodeGeneratorARM64;
 class SlowPathCodeARM64;
 
-static constexpr size_t kArm64WordSize = 8;
+// Use a local definition to prevent copying mistakes.
+static constexpr size_t kArm64WordSize = kArm64PointerSize;
+
 static const vixl::Register kParameterCoreRegisters[] = {
   vixl::x1, vixl::x2, vixl::x3, vixl::x4, vixl::x5, vixl::x6, vixl::x7
 };
