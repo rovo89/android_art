@@ -24,6 +24,9 @@
 
 namespace unix_file {
 
+// If true, check whether Flush and Close are called before destruction.
+static constexpr bool kCheckSafeUsage = true;
+
 // A RandomAccessFile implementation backed by a file descriptor.
 //
 // Not thread safe.
@@ -32,8 +35,8 @@ class FdFile : public RandomAccessFile {
   FdFile();
   // Creates an FdFile using the given file descriptor. Takes ownership of the
   // file descriptor. (Use DisableAutoClose to retain ownership.)
-  explicit FdFile(int fd);
-  explicit FdFile(int fd, const std::string& path);
+  explicit FdFile(int fd, bool checkUsage);
+  explicit FdFile(int fd, const std::string& path, bool checkUsage);
 
   // Destroys an FdFile, closing the file descriptor if Close hasn't already
   // been called. (If you care about the return value of Close, call it
@@ -47,12 +50,21 @@ class FdFile : public RandomAccessFile {
   bool Open(const std::string& file_path, int flags, mode_t mode);
 
   // RandomAccessFile API.
-  virtual int Close();
-  virtual int64_t Read(char* buf, int64_t byte_count, int64_t offset) const;
-  virtual int SetLength(int64_t new_length);
+  virtual int Close() WARN_UNUSED;
+  virtual int64_t Read(char* buf, int64_t byte_count, int64_t offset) const WARN_UNUSED;
+  virtual int SetLength(int64_t new_length) WARN_UNUSED;
   virtual int64_t GetLength() const;
-  virtual int64_t Write(const char* buf, int64_t byte_count, int64_t offset);
-  virtual int Flush();
+  virtual int64_t Write(const char* buf, int64_t byte_count, int64_t offset) WARN_UNUSED;
+  virtual int Flush() WARN_UNUSED;
+
+  // Short for SetLength(0); Flush(); Close();
+  void Erase();
+
+  // Try to Flush(), then try to Close(); If either fails, call Erase().
+  int FlushCloseOrErase() WARN_UNUSED;
+
+  // Try to Flush and Close(). Attempts both, but returns the first error.
+  int FlushClose() WARN_UNUSED;
 
   // Bonus API.
   int Fd() const;
@@ -61,8 +73,35 @@ class FdFile : public RandomAccessFile {
     return file_path_;
   }
   void DisableAutoClose();
-  bool ReadFully(void* buffer, size_t byte_count);
-  bool WriteFully(const void* buffer, size_t byte_count);
+  bool ReadFully(void* buffer, size_t byte_count) WARN_UNUSED;
+  bool WriteFully(const void* buffer, size_t byte_count) WARN_UNUSED;
+
+  // This enum is public so that we can define the << operator over it.
+  enum class GuardState {
+    kBase,           // Base, file has not been flushed or closed.
+    kFlushed,        // File has been flushed, but not closed.
+    kClosed,         // File has been flushed and closed.
+    kNoCheck         // Do not check for the current file instance.
+  };
+
+ protected:
+  // If the guard state indicates checking (!=kNoCheck), go to the target state "target". Print the
+  // given warning if the current state is or exceeds warn_threshold.
+  void moveTo(GuardState target, GuardState warn_threshold, const char* warning);
+
+  // If the guard state indicates checking (<kNoCheck), and is below the target state "target", go
+  // to "target." If the current state is higher (excluding kNoCheck) than the trg state, print the
+  // warning.
+  void moveUp(GuardState target, const char* warning);
+
+  // Forcefully sets the state to the given one. This can overwrite kNoCheck.
+  void resetGuard(GuardState new_state) {
+    if (kCheckSafeUsage) {
+      guard_state_ = new_state;
+    }
+  }
+
+  GuardState guard_state_;
 
  private:
   int fd_;
@@ -71,6 +110,8 @@ class FdFile : public RandomAccessFile {
 
   DISALLOW_COPY_AND_ASSIGN(FdFile);
 };
+
+std::ostream& operator<<(std::ostream& os, const FdFile::GuardState& kind);
 
 }  // namespace unix_file
 

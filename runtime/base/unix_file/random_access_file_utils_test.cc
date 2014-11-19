@@ -37,14 +37,14 @@ TEST_F(RandomAccessFileUtilsTest, CopyFile) {
 }
 
 TEST_F(RandomAccessFileUtilsTest, BadSrc) {
-  FdFile src(-1);
+  FdFile src(-1, false);
   StringFile dst;
   ASSERT_FALSE(CopyFile(src, &dst));
 }
 
 TEST_F(RandomAccessFileUtilsTest, BadDst) {
   StringFile src;
-  FdFile dst(-1);
+  FdFile dst(-1, false);
 
   // We need some source content to trigger a write.
   // Copying an empty file is a no-op.

@@ -302,6 +302,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   base/allocator.h \
   base/mutex.h \
   debugger.h \
+  base/unix_file/fd_file.h \
   dex_file.h \
   dex_instruction.h \
   gc/allocator/rosalloc.h \
