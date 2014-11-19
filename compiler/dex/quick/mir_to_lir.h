@@ -1071,6 +1071,13 @@ class Mir2Lir : public Backend {
     // Update LIR for verbose listings.
     void UpdateLIROffsets();
 
+    /**
+     * @brief Mark a garbage collection card. Skip if the stored value is null.
+     * @param val_reg the register holding the stored value to check against null.
+     * @param tgt_addr_reg the address of the object or array where the value was stored.
+     */
+    void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg);
+
     /*
      * @brief Load the address of the dex method into the register.
      * @param target_method The MethodReference of the method to be invoked.
@@ -1139,7 +1146,12 @@ class Mir2Lir : public Backend {
                                OpSize size, VolatileKind is_volatile) = 0;
     virtual LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
                                   int scale, OpSize size) = 0;
-    virtual void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) = 0;
+
+    /**
+     * @brief Unconditionally mark a garbage collection card.
+     * @param tgt_addr_reg the address of the object or array where the value was stored.
+     */
+    virtual void UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) = 0;
 
     // Required for target - register utilities.
 
