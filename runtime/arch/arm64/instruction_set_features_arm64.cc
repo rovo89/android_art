@@ -58,12 +58,7 @@ const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromBitmap(uint3
 }
 
 const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromCppDefines() {
-#if defined(HAVE_ANDROID_OS) && (ANDROID_SMP == 0)
-  const bool smp = false;
-#else
   const bool smp = true;
-#endif
-
   const bool is_a53 = true;  // Pessimistically assume all ARM64s are A53s.
   return new Arm64InstructionSetFeatures(smp, is_a53);
 }

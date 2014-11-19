@@ -1513,10 +1513,8 @@ void Arm32Assembler::MemoryBarrier(ManagedRegister mscratch) {
 
 
 void Arm32Assembler::dmb(DmbOptions flavor) {
-#if ANDROID_SMP != 0
   int32_t encoding = 0xf57ff05f;  // dmb
   Emit(encoding | flavor);
-#endif
 }
 
 
