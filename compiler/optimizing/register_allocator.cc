@@ -215,9 +215,16 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
       // By adding the following interval in the algorithm, we can compute this
       // maximum before updating locations.
       LiveInterval* interval = LiveInterval::MakeSlowPathInterval(allocator_, instruction);
-      interval->AddRange(position, position + 1);
-      unhandled_core_intervals_.Add(interval);
-      unhandled_fp_intervals_.Add(interval);
+      // The start of the interval must be after the position of the safepoint, so that
+      // we can just check the number of active registers at that position. Note that this
+      // will include the current interval in the computation of
+      // `maximum_number_of_live_registers`, so we need a better strategy if this becomes
+      // a problem.
+      // TODO: We could put the logic in AddSorted, to ensure the safepoint range is
+      // after all other intervals starting at that same position.
+      interval->AddRange(position + 1, position + 2);
+      AddSorted(&unhandled_core_intervals_, interval);
+      AddSorted(&unhandled_fp_intervals_, interval);
     }
   }
 
@@ -250,6 +257,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
       : unhandled_fp_intervals_;
 
   DCHECK(unhandled.IsEmpty() || current->StartsBeforeOrAt(unhandled.Peek()));
+
   // Some instructions define their output in fixed register/stack slot. We need
   // to ensure we know these locations before doing register allocation. For a
   // given register, we create an interval that covers these locations. The register
@@ -475,6 +483,17 @@ void RegisterAllocator::LinearScan() {
     LiveInterval* current = unhandled_->Pop();
     DCHECK(!current->IsFixed() && !current->HasSpillSlot());
     DCHECK(unhandled_->IsEmpty() || unhandled_->Peek()->GetStart() >= current->GetStart());
+
+    if (current->IsSlowPathSafepoint()) {
+      // Synthesized interval to record the maximum number of live registers
+      // at safepoints. No need to allocate a register for it.
+      // We know that current actives are all live at the safepoint (modulo
+      // the one created by the safepoint).
+      maximum_number_of_live_registers_ =
+          std::max(maximum_number_of_live_registers_, active_.Size());
+      continue;
+    }
+
     size_t position = current->GetStart();
 
     // Remember the inactive_ size here since the ones moved to inactive_ from
@@ -513,14 +532,6 @@ void RegisterAllocator::LinearScan() {
         --inactive_intervals_to_handle;
         active_.Add(interval);
       }
-    }
-
-    if (current->IsSlowPathSafepoint()) {
-      // Synthesized interval to record the maximum number of live registers
-      // at safepoints. No need to allocate a register for it.
-      maximum_number_of_live_registers_ =
-          std::max(maximum_number_of_live_registers_, active_.Size());
-      continue;
     }
 
     // (4) Try to find an available register.
@@ -1062,6 +1073,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
       switch (source.GetKind()) {
         case Location::kRegister: {
           locations->AddLiveRegister(source);
+          DCHECK_LE(locations->GetNumberOfLiveRegisters(), maximum_number_of_live_registers_);
           if (current->GetType() == Primitive::kPrimNot) {
             locations->SetRegisterBit(source.reg());
           }
