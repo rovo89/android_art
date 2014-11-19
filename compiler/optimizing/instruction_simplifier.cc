@@ -18,11 +18,22 @@
 
 namespace art {
 
+class InstructionSimplifierVisitor : public HGraphVisitor {
+ public:
+  explicit InstructionSimplifierVisitor(HGraph* graph) : HGraphVisitor(graph) {}
+
+ private:
+  void VisitSuspendCheck(HSuspendCheck* check) OVERRIDE;
+  void VisitEqual(HEqual* equal) OVERRIDE;
+  void VisitArraySet(HArraySet* equal) OVERRIDE;
+};
+
 void InstructionSimplifier::Run() {
-  VisitInsertionOrder();
+  InstructionSimplifierVisitor visitor(graph_);
+  visitor.VisitInsertionOrder();
 }
 
-void InstructionSimplifier::VisitSuspendCheck(HSuspendCheck* check) {
+void InstructionSimplifierVisitor::VisitSuspendCheck(HSuspendCheck* check) {
   HBasicBlock* block = check->GetBlock();
   // Currently always keep the suspend check at entry.
   if (block->IsEntryBlock()) return;
@@ -38,7 +49,7 @@ void InstructionSimplifier::VisitSuspendCheck(HSuspendCheck* check) {
   block->RemoveInstruction(check);
 }
 
-void InstructionSimplifier::VisitEqual(HEqual* equal) {
+void InstructionSimplifierVisitor::VisitEqual(HEqual* equal) {
   HInstruction* input1 = equal->InputAt(0);
   HInstruction* input2 = equal->InputAt(1);
   if (input1->GetType() == Primitive::kPrimBoolean && input2->IsIntConstant()) {
@@ -55,7 +66,7 @@ void InstructionSimplifier::VisitEqual(HEqual* equal) {
   }
 }
 
-void InstructionSimplifier::VisitArraySet(HArraySet* instruction) {
+void InstructionSimplifierVisitor::VisitArraySet(HArraySet* instruction) {
   HInstruction* value = instruction->GetValue();
   if (value->GetType() != Primitive::kPrimNot) return;
 

@@ -21,12 +21,6 @@
 
 namespace art {
 
-void HOptimization::Execute() {
-  Run();
-  visualizer_.DumpGraph(pass_name_);
-  Check();
-}
-
 void HOptimization::Check() {
   if (kIsDebugBuild) {
     if (is_in_ssa_form_) {
