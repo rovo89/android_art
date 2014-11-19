@@ -44,11 +44,7 @@ const MipsInstructionSetFeatures* MipsInstructionSetFeatures::FromBitmap(uint32_
 }
 
 const MipsInstructionSetFeatures* MipsInstructionSetFeatures::FromCppDefines() {
-#if defined(HAVE_ANDROID_OS) && (ANDROID_SMP == 0)
-  const bool smp = false;
-#else
   const bool smp = true;
-#endif
 
   // TODO: here we assume the FPU is always 32-bit.
   const bool fpu_32bit = true;

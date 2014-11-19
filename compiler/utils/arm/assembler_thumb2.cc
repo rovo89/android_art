@@ -2599,10 +2599,8 @@ void Thumb2Assembler::MemoryBarrier(ManagedRegister mscratch) {
 
 
 void Thumb2Assembler::dmb(DmbOptions flavor) {
-#if ANDROID_SMP != 0
   int32_t encoding = 0xf3bf8f50;  // dmb in T1 encoding.
   Emit32(encoding | flavor);
-#endif
 }
 
 
