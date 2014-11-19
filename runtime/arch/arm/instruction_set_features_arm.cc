@@ -108,12 +108,7 @@ const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromBitmap(uint32_t 
 }
 
 const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromCppDefines() {
-#if defined(HAVE_ANDROID_OS) && (ANDROID_SMP == 0)
-  const bool smp = false;
-#else
   const bool smp = true;
-#endif
-
 #if defined(__ARM_ARCH_EXT_IDIV__)
   const bool has_div = true;
 #else
@@ -204,11 +199,8 @@ static void bad_divide_inst_handle(int signo ATTRIBUTE_UNUSED, siginfo_t* si ATT
 }
 
 const ArmInstructionSetFeatures* ArmInstructionSetFeatures::FromAssembly() {
-#if defined(HAVE_ANDROID_OS) && (ANDROID_SMP == 0)
-  const bool smp = false;
-#else
   const bool smp = true;
-#endif
+
   // See if have a sdiv instruction.  Register a signal handler and try to execute an sdiv
   // instruction.  If we get a SIGILL then it's not supported.
   struct sigaction sa, osa;

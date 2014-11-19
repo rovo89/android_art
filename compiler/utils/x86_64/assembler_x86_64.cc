@@ -2371,9 +2371,7 @@ void X86_64Assembler::Copy(FrameOffset dest, Offset dest_offset, FrameOffset src
 }
 
 void X86_64Assembler::MemoryBarrier(ManagedRegister) {
-#if ANDROID_SMP != 0
   mfence();
-#endif
 }
 
 void X86_64Assembler::CreateHandleScopeEntry(ManagedRegister mout_reg,

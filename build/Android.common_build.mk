@@ -252,7 +252,7 @@ endif
 ifndef LIBART_IMG_HOST_BASE_ADDRESS
   $(error LIBART_IMG_HOST_BASE_ADDRESS unset)
 endif
-ART_HOST_CFLAGS += $(art_cflags) -DANDROID_SMP=1 -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
+ART_HOST_CFLAGS += $(art_cflags) -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
 ART_HOST_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=default
 
 ifndef LIBART_IMG_TARGET_BASE_ADDRESS
@@ -282,18 +282,6 @@ ifndef LIBART_IMG_TARGET_MAX_BASE_ADDRESS_DELTA
 endif
 ART_TARGET_CFLAGS += -DART_BASE_ADDRESS_MIN_DELTA=$(LIBART_IMG_TARGET_MIN_BASE_ADDRESS_DELTA)
 ART_TARGET_CFLAGS += -DART_BASE_ADDRESS_MAX_DELTA=$(LIBART_IMG_TARGET_MAX_BASE_ADDRESS_DELTA)
-
-ifeq ($(TARGET_CPU_SMP),true)
-  ART_TARGET_CFLAGS += -DANDROID_SMP=1
-else
-  ifeq ($(TARGET_CPU_SMP),false)
-    ART_TARGET_CFLAGS += -DANDROID_SMP=0
-  else
-    $(warning TARGET_CPU_SMP should be (true|false), found $(TARGET_CPU_SMP))
-    # Make sure we emit barriers for the worst case.
-    ART_TARGET_CFLAGS += -DANDROID_SMP=1
-  endif
-endif
 
 # To use oprofile_android --callgraph, uncomment this and recompile with "mmm art -B -j16"
 # ART_TARGET_CFLAGS += -fno-omit-frame-pointer -marm -mapcs
