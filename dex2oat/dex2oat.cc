@@ -1220,6 +1220,8 @@ class Dex2Oat FINAL {
 
   // Write out the generated code part. Calls the OatWriter and ElfBuilder. Also prepares the
   // ImageWriter, if necessary.
+  // Note: Flushing (and closing) the file is the caller's responsibility, except for the failure
+  //       case (when the file will be explicitly erased).
   bool CreateOatFile() {
     CHECK(key_value_store_.get() != nullptr);
 
@@ -1277,15 +1279,6 @@ class Dex2Oat FINAL {
       }
     }
 
-    // Flush result to disk.
-    {
-      TimingLogger::ScopedTiming t2("dex2oat Flush ELF", timings_);
-      if (oat_file_->FlushCloseOrErase() != 0) {
-        PLOG(ERROR) << "Failed to flush ELF file " << oat_file_->GetPath();
-        return false;
-      }
-    }
-
     VLOG(compiler) << "Oat file written successfully (unstripped): " << oat_location_;
     return true;
   }
@@ -1302,20 +1295,19 @@ class Dex2Oat FINAL {
     return true;
   }
 
-  // Strip the oat file, if requested. This first creates a copy from unstripped to stripped, and
-  // then runs the ElfStripper. Currently only relevant for the portable compiler.
-  bool Strip() {
+  // Create a copy from unstripped to stripped.
+  bool CopyUnstrippedToStripped() {
     // If we don't want to strip in place, copy from unstripped location to stripped location.
     // We need to strip after image creation because FixupElf needs to use .strtab.
     if (oat_unstripped_ != oat_stripped_) {
-      TimingLogger::ScopedTiming t("dex2oat OatFile copy", timings_);
-      if (kUsePortableCompiler) {
-        if (oat_file_->FlushCloseOrErase() != 0) {
-          PLOG(ERROR) << "Failed to flush and close oat file: " << oat_location_;
-          return EXIT_FAILURE;
+      // If the oat file is still open, flush it.
+      if (oat_file_.get() != nullptr && oat_file_->IsOpened()) {
+        if (!FlushCloseOatFile()) {
+          return false;
         }
-        oat_file_.reset();
       }
+
+      TimingLogger::ScopedTiming t("dex2oat OatFile copy", timings_);
       std::unique_ptr<File> in(OS::OpenFileForReading(oat_unstripped_.c_str()));
       std::unique_ptr<File> out(OS::CreateEmptyFile(oat_stripped_.c_str()));
       size_t buffer_size = 8192;
@@ -1328,14 +1320,27 @@ class Dex2Oat FINAL {
         bool write_ok = out->WriteFully(buffer.get(), bytes_read);
         CHECK(write_ok);
       }
-      oat_file_.reset(out.release());
+      if (kUsePortableCompiler) {
+        oat_file_.reset(out.release());
+      } else {
+        if (out->FlushCloseOrErase() != 0) {
+          PLOG(ERROR) << "Failed to flush and close copied oat file: " << oat_stripped_;
+          return false;
+        }
+      }
       VLOG(compiler) << "Oat file copied successfully (stripped): " << oat_stripped_;
     }
+    return true;
+  }
 
+  // Run the ElfStripper. Currently only relevant for the portable compiler.
+  bool Strip() {
     if (kUsePortableCompiler) {
       // Portable includes debug symbols unconditionally. If we are not supposed to create them,
       // strip them now. Quick generates debug symbols only when the flag(s) are set.
       if (!compiler_options_->GetIncludeDebugSymbols()) {
+        CHECK(oat_file_.get() != nullptr && oat_file_->IsOpened());
+
         TimingLogger::ScopedTiming t("dex2oat ElfStripper", timings_);
         // Strip unneeded sections for target
         off_t seek_actual = lseek(oat_file_->Fd(), 0, SEEK_SET);
@@ -1347,23 +1352,40 @@ class Dex2Oat FINAL {
           return false;
         }
 
+        if (!FlushCloseOatFile()) {
+          return false;
+        }
+
         // We wrote the oat file successfully, and want to keep it.
         VLOG(compiler) << "Oat file written successfully (stripped): " << oat_location_;
       } else {
         VLOG(compiler) << "Oat file written successfully without stripping: " << oat_location_;
       }
-      if (oat_file_->FlushCloseOrErase() != 0) {
-        PLOG(ERROR) << "Failed to flush and close oat file: " << oat_location_;
-        return EXIT_FAILURE;
-      }
-      oat_file_.reset(nullptr);
     }
 
+    return true;
+  }
+
+  bool FlushOatFile() {
     if (oat_file_.get() != nullptr) {
-      if (oat_file_->FlushCloseOrErase() != 0) {
-        PLOG(ERROR) << "Failed to flush and close oat file: " << oat_location_ << "/"
-                    << oat_filename_;
-        return EXIT_FAILURE;
+      TimingLogger::ScopedTiming t2("dex2oat Flush ELF", timings_);
+      if (oat_file_->Flush() != 0) {
+        PLOG(ERROR) << "Failed to flush oat file: " << oat_location_ << " / "
+            << oat_filename_;
+        oat_file_->Erase();
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool FlushCloseOatFile() {
+    if (oat_file_.get() != nullptr) {
+      std::unique_ptr<File> tmp(oat_file_.release());
+      if (tmp->FlushCloseOrErase() != 0) {
+        PLOG(ERROR) << "Failed to flush and close oat file: " << oat_location_ << " / "
+            << oat_filename_;
+        return false;
       }
     }
     return true;
@@ -1380,6 +1402,10 @@ class Dex2Oat FINAL {
 
   CompilerOptions* GetCompilerOptions() const {
     return compiler_options_.get();
+  }
+
+  bool IsImage() const {
+    return image_;
   }
 
   bool IsHost() const {
@@ -1641,6 +1667,94 @@ static void b13564922() {
 #endif
 }
 
+static int CompileImage(Dex2Oat& dex2oat) {
+  dex2oat.Compile();
+
+  // Create the boot.oat.
+  if (!dex2oat.CreateOatFile()) {
+    return EXIT_FAILURE;
+  }
+
+  // Flush and close the boot.oat. We always expect the output file by name, and it will be
+  // re-opened from the unstripped name.
+  if (!dex2oat.FlushCloseOatFile()) {
+    return EXIT_FAILURE;
+  }
+
+  // Creates the boot.art and patches the boot.oat.
+  if (!dex2oat.HandleImage()) {
+    return EXIT_FAILURE;
+  }
+
+  // When given --host, finish early without stripping.
+  if (dex2oat.IsHost()) {
+    dex2oat.DumpTiming();
+    return EXIT_SUCCESS;
+  }
+
+  // Copy unstripped to stripped location, if necessary.
+  if (!dex2oat.CopyUnstrippedToStripped()) {
+    return EXIT_FAILURE;
+  }
+
+  // Strip, if necessary.
+  if (!dex2oat.Strip()) {
+    return EXIT_FAILURE;
+  }
+
+  // FlushClose again, as stripping might have re-opened the oat file.
+  if (!dex2oat.FlushCloseOatFile()) {
+    return EXIT_FAILURE;
+  }
+
+  dex2oat.DumpTiming();
+  return EXIT_SUCCESS;
+}
+
+static int CompileApp(Dex2Oat& dex2oat) {
+  dex2oat.Compile();
+
+  // Create the app oat.
+  if (!dex2oat.CreateOatFile()) {
+    return EXIT_FAILURE;
+  }
+
+  // Do not close the oat file here. We might haven gotten the output file by file descriptor,
+  // which we would lose.
+  if (!dex2oat.FlushOatFile()) {
+    return EXIT_FAILURE;
+  }
+
+  // When given --host, finish early without stripping.
+  if (dex2oat.IsHost()) {
+    if (!dex2oat.FlushCloseOatFile()) {
+      return EXIT_FAILURE;
+    }
+
+    dex2oat.DumpTiming();
+    return EXIT_SUCCESS;
+  }
+
+  // Copy unstripped to stripped location, if necessary. This will implicitly flush & close the
+  // unstripped version. If this is given, we expect to be able to open writable files by name.
+  if (!dex2oat.CopyUnstrippedToStripped()) {
+    return EXIT_FAILURE;
+  }
+
+  // Strip, if necessary.
+  if (!dex2oat.Strip()) {
+    return EXIT_FAILURE;
+  }
+
+  // Flush and close the file.
+  if (!dex2oat.FlushCloseOatFile()) {
+    return EXIT_FAILURE;
+  }
+
+  dex2oat.DumpTiming();
+  return EXIT_SUCCESS;
+}
+
 static int dex2oat(int argc, char** argv) {
   b13564922();
 
@@ -1662,27 +1776,11 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  dex2oat.Compile();
-
-  if (!dex2oat.CreateOatFile()) {
-    return EXIT_FAILURE;
+  if (dex2oat.IsImage()) {
+    return CompileImage(dex2oat);
+  } else {
+    return CompileApp(dex2oat);
   }
-
-  if (!dex2oat.HandleImage()) {
-    return EXIT_FAILURE;
-  }
-
-  if (dex2oat.IsHost()) {
-    dex2oat.DumpTiming();
-    return EXIT_SUCCESS;
-  }
-
-  if (!dex2oat.Strip()) {
-    return EXIT_FAILURE;
-  }
-
-  dex2oat.DumpTiming();
-  return EXIT_SUCCESS;
 }
 }  // namespace art
 
