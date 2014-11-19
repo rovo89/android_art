@@ -390,59 +390,72 @@ class JniInternalTest : public CommonCompilerTest {
   void ReleasePrimitiveArrayElementsOfWrongType(bool check_jni) {
     bool old_check_jni = vm_->SetCheckJniEnabled(check_jni);
     CheckJniAbortCatcher jni_abort_catcher;
+    {
+      jbooleanArray array = env_->NewBooleanArray(10);
+      ASSERT_TRUE(array != nullptr);
+      jboolean is_copy;
+      jboolean* elements = env_->GetBooleanArrayElements(array, &is_copy);
+      ASSERT_TRUE(elements != nullptr);
+      env_->ReleaseByteArrayElements(reinterpret_cast<jbyteArray>(array),
+                                     reinterpret_cast<jbyte*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type boolean[] expected byte[]"
+              : "attempt to release byte primitive array elements with an object of type boolean[]");
+      env_->ReleaseShortArrayElements(reinterpret_cast<jshortArray>(array),
+                                      reinterpret_cast<jshort*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type boolean[] expected short[]"
+              : "attempt to release short primitive array elements with an object of type boolean[]");
+      env_->ReleaseCharArrayElements(reinterpret_cast<jcharArray>(array),
+                                     reinterpret_cast<jchar*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type boolean[] expected char[]"
+              : "attempt to release char primitive array elements with an object of type boolean[]");
+      env_->ReleaseIntArrayElements(reinterpret_cast<jintArray>(array),
+                                    reinterpret_cast<jint*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type boolean[] expected int[]"
+              : "attempt to release int primitive array elements with an object of type boolean[]");
+      env_->ReleaseLongArrayElements(reinterpret_cast<jlongArray>(array),
+                                     reinterpret_cast<jlong*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type boolean[] expected long[]"
+              : "attempt to release long primitive array elements with an object of type boolean[]");
+      env_->ReleaseFloatArrayElements(reinterpret_cast<jfloatArray>(array),
+                                      reinterpret_cast<jfloat*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type boolean[] expected float[]"
+              : "attempt to release float primitive array elements with an object of type boolean[]");
+      env_->ReleaseDoubleArrayElements(reinterpret_cast<jdoubleArray>(array),
+                                       reinterpret_cast<jdouble*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type boolean[] expected double[]"
+              : "attempt to release double primitive array elements with an object of type boolean[]");
 
-    jbooleanArray array = env_->NewBooleanArray(10);
-    ASSERT_TRUE(array != nullptr);
-    jboolean is_copy;
-    jboolean* elements = env_->GetBooleanArrayElements(array, &is_copy);
-    ASSERT_TRUE(elements != nullptr);
-    env_->ReleaseByteArrayElements(reinterpret_cast<jbyteArray>(array),
-                                   reinterpret_cast<jbyte*>(elements), 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type boolean[] expected byte[]"
-            : "attempt to release byte primitive array elements with an object of type boolean[]");
-    env_->ReleaseShortArrayElements(reinterpret_cast<jshortArray>(array),
-                                    reinterpret_cast<jshort*>(elements), 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type boolean[] expected short[]"
-            : "attempt to release short primitive array elements with an object of type boolean[]");
-    env_->ReleaseCharArrayElements(reinterpret_cast<jcharArray>(array),
-                                   reinterpret_cast<jchar*>(elements), 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type boolean[] expected char[]"
-            : "attempt to release char primitive array elements with an object of type boolean[]");
-    env_->ReleaseIntArrayElements(reinterpret_cast<jintArray>(array),
-                                  reinterpret_cast<jint*>(elements), 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type boolean[] expected int[]"
-            : "attempt to release int primitive array elements with an object of type boolean[]");
-    env_->ReleaseLongArrayElements(reinterpret_cast<jlongArray>(array),
-                                   reinterpret_cast<jlong*>(elements), 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type boolean[] expected long[]"
-            : "attempt to release long primitive array elements with an object of type boolean[]");
-    env_->ReleaseFloatArrayElements(reinterpret_cast<jfloatArray>(array),
-                                    reinterpret_cast<jfloat*>(elements), 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type boolean[] expected float[]"
-            : "attempt to release float primitive array elements with an object of type boolean[]");
-    env_->ReleaseDoubleArrayElements(reinterpret_cast<jdoubleArray>(array),
-                                     reinterpret_cast<jdouble*>(elements), 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type boolean[] expected double[]"
-            : "attempt to release double primitive array elements with an object of type boolean[]");
-    jbyteArray array2 = env_->NewByteArray(10);
-    env_->ReleaseBooleanArrayElements(reinterpret_cast<jbooleanArray>(array2), elements, 0);
-    jni_abort_catcher.Check(
-        check_jni ? "incompatible array type byte[] expected boolean[]"
-            : "attempt to release boolean primitive array elements with an object of type byte[]");
-    jobject object = env_->NewStringUTF("Test String");
-    env_->ReleaseBooleanArrayElements(reinterpret_cast<jbooleanArray>(object), elements, 0);
-    jni_abort_catcher.Check(
-        check_jni ? "jarray argument has non-array type: java.lang.String"
-            : "attempt to release boolean primitive array elements with an object of type "
+      // Don't leak the elements array.
+      env_->ReleaseBooleanArrayElements(array, elements, 0);
+    }
+    {
+      jbyteArray array = env_->NewByteArray(10);
+      jboolean is_copy;
+      jbyte* elements = env_->GetByteArrayElements(array, &is_copy);
+
+      env_->ReleaseBooleanArrayElements(reinterpret_cast<jbooleanArray>(array),
+                                        reinterpret_cast<jboolean*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "incompatible array type byte[] expected boolean[]"
+              : "attempt to release boolean primitive array elements with an object of type byte[]");
+      jobject object = env_->NewStringUTF("Test String");
+      env_->ReleaseBooleanArrayElements(reinterpret_cast<jbooleanArray>(object),
+                                        reinterpret_cast<jboolean*>(elements), 0);
+      jni_abort_catcher.Check(
+          check_jni ? "jarray argument has non-array type: java.lang.String"
+              : "attempt to release boolean primitive array elements with an object of type "
               "java.lang.String");
 
+      // Don't leak the elements array.
+      env_->ReleaseByteArrayElements(array, elements, 0);
+    }
     EXPECT_EQ(check_jni, vm_->SetCheckJniEnabled(old_check_jni));
   }
 
