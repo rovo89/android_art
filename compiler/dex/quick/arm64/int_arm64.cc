@@ -427,8 +427,7 @@ bool Arm64Mir2Lir::SmallLiteralDivRem(Instruction::Code dalvik_opcode, bool is_d
   rl_src = LoadValue(rl_src, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   RegStorage r_long_mul = AllocTemp();
-  NewLIR4(kA64Smaddl4xwwx, As64BitReg(r_long_mul).GetReg(),
-          r_magic.GetReg(), rl_src.reg.GetReg(), rxzr);
+  NewLIR3(kA64Smull3xww, As64BitReg(r_long_mul).GetReg(), r_magic.GetReg(), rl_src.reg.GetReg());
   switch (pattern) {
     case Divide3:
       OpRegRegImm(kOpLsr, As64BitReg(r_long_mul), As64BitReg(r_long_mul), 32);
@@ -648,7 +647,7 @@ RegLocation Arm64Mir2Lir::GenDivRem(RegLocation rl_dest, RegStorage r_src1, RegS
     }
     OpRegRegReg(kOpDiv, temp, r_src1, r_src2);
     NewLIR4(kA64Msub4rrrr | wide, rl_result.reg.GetReg(), temp.GetReg(),
-            r_src1.GetReg(), r_src2.GetReg());
+            r_src2.GetReg(), r_src1.GetReg());
     FreeTemp(temp);
   }
   return rl_result;
