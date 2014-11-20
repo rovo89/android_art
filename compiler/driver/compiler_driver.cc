@@ -424,22 +424,11 @@ CompilerDriver::~CompilerDriver() {
   {
     MutexLock mu(self, compiled_classes_lock_);
     STLDeleteValues(&compiled_classes_);
-  }
-  {
-    MutexLock mu(self, compiled_methods_lock_);
     STLDeleteValues(&compiled_methods_);
-  }
-  {
-    MutexLock mu(self, compiled_methods_lock_);
     STLDeleteElements(&code_to_patch_);
-  }
-  {
-    MutexLock mu(self, compiled_methods_lock_);
     STLDeleteElements(&methods_to_patch_);
-  }
-  {
-    MutexLock mu(self, compiled_methods_lock_);
     STLDeleteElements(&classes_to_patch_);
+    STLDeleteElements(&strings_to_patch_);
   }
   CHECK_PTHREAD_CALL(pthread_key_delete, (tls_key_), "delete tls key");
   compiler_->UnInit();
@@ -941,14 +930,14 @@ bool CompilerDriver::CanAccessInstantiableTypeWithoutChecks(uint32_t referrer_id
 bool CompilerDriver::CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_idx,
                                         bool* is_type_initialized, bool* use_direct_type_ptr,
                                         uintptr_t* direct_type_ptr, bool* out_is_finalizable) {
+  if (GetCompilerOptions().GetCompilePic()) {
+    // Do not allow a direct class pointer to be used when compiling for position-independent
+    return false;
+  }
   ScopedObjectAccess soa(Thread::Current());
   mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
   mirror::Class* resolved_class = dex_cache->GetResolvedType(type_idx);
   if (resolved_class == nullptr) {
-    return false;
-  }
-  if (GetCompilerOptions().GetCompilePic()) {
-    // Do not allow a direct class pointer to be used when compiling for position-independent
     return false;
   }
   *out_is_finalizable = resolved_class->IsFinalizable();
@@ -986,6 +975,51 @@ bool CompilerDriver::CanEmbedTypeInCode(const DexFile& dex_file, uint32_t type_i
       // if/when each app gets an image.
       return false;
     }
+  }
+}
+
+bool CompilerDriver::CanEmbedStringInCode(const DexFile& dex_file, uint32_t string_idx,
+                                          bool* use_direct_type_ptr, uintptr_t* direct_type_ptr) {
+  if (GetCompilerOptions().GetCompilePic()) {
+    // Do not allow a direct class pointer to be used when compiling for position-independent
+    return false;
+  }
+  ScopedObjectAccess soa(Thread::Current());
+  mirror::DexCache* dex_cache = Runtime::Current()->GetClassLinker()->FindDexCache(dex_file);
+  mirror::String* resolved_string = dex_cache->GetResolvedString(string_idx);
+  if (resolved_string == nullptr) {
+    return false;
+  }
+  const bool compiling_boot = Runtime::Current()->GetHeap()->IsCompilingBoot();
+  const bool support_boot_image_fixup = GetSupportBootImageFixup();
+  if (compiling_boot) {
+    // boot -> boot class pointers.
+    // True if the class is in the image at boot compiling time.
+    const bool is_image_string = IsImage();
+    // True if pc relative load works.
+    if (is_image_string && support_boot_image_fixup) {
+      *use_direct_type_ptr = false;
+      *direct_type_ptr = 0;
+      return true;
+    }
+    return false;
+  } else {
+    // True if the class is in the image at app compiling time.
+    const bool obj_in_image =
+        false && Runtime::Current()->GetHeap()->FindSpaceFromObject(resolved_string, false)->IsImageSpace();
+    if (obj_in_image && support_boot_image_fixup) {
+      // boot -> app class pointers.
+      // TODO This is somewhat hacky. We should refactor all of this invoke codepath.
+      *use_direct_type_ptr = !GetCompilerOptions().GetIncludePatchInformation();
+      *direct_type_ptr = reinterpret_cast<uintptr_t>(resolved_string);
+      return true;
+    }
+
+    // app -> app class pointers.
+    // Give up because app does not have an image and class
+    // isn't created at compile time.  TODO: implement this
+    // if/when each app gets an image.
+    return false;
   }
 }
 
@@ -1371,6 +1405,18 @@ void CompilerDriver::AddClassPatch(const DexFile* dex_file,
                                                        referrer_method_idx,
                                                        target_type_idx,
                                                        literal_offset));
+}
+void CompilerDriver::AddStringPatch(const DexFile* dex_file,
+                                    uint16_t referrer_class_def_idx,
+                                    uint32_t referrer_method_idx,
+                                    uint32_t string_idx,
+                                    size_t literal_offset) {
+  MutexLock mu(Thread::Current(), compiled_methods_lock_);
+  strings_to_patch_.push_back(new StringPatchInformation(dex_file,
+                                                         referrer_class_def_idx,
+                                                         referrer_method_idx,
+                                                         string_idx,
+                                                         literal_offset));
 }
 
 class ParallelCompilationManager {

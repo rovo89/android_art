@@ -881,8 +881,8 @@ void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
 
 void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
   /* NOTE: Most strings should be available at compile time */
-  int32_t offset_of_string = mirror::ObjectArray<mirror::String>::OffsetOfElement(string_idx).
-                                                                                      Int32Value();
+  const int32_t offset_of_string =
+      mirror::ObjectArray<mirror::String>::OffsetOfElement(string_idx).Int32Value();
   if (!cu_->compiler_driver->CanAssumeStringIsPresentInDexCache(
       *cu_->dex_file, string_idx) || SLOW_STRING_PATH) {
     // slow path, resolve string if not in dex cache
@@ -934,13 +934,32 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
     GenBarrier();
     StoreValue(rl_dest, GetReturn(kRefReg));
   } else {
-    RegLocation rl_method = LoadCurrMethod();
-    RegStorage res_reg = AllocTempRef();
-    RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
-    LoadRefDisp(rl_method.reg, mirror::ArtMethod::DexCacheStringsOffset().Int32Value(), res_reg,
-                kNotVolatile);
-    LoadRefDisp(res_reg, offset_of_string, rl_result.reg, kNotVolatile);
-    StoreValue(rl_dest, rl_result);
+    // Try to see if we can embed a direct pointer.
+    bool use_direct_ptr = false;
+    size_t direct_ptr = 0;
+    bool embed_string = false;
+    // TODO: Implement for X86.
+    if (cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64) {
+      embed_string = cu_->compiler_driver->CanEmbedStringInCode(*cu_->dex_file, string_idx,
+                                                                &use_direct_ptr, &direct_ptr);
+    }
+    if (embed_string) {
+      RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
+      if (!use_direct_ptr) {
+        LoadString(string_idx, rl_result.reg);
+      } else {
+        LoadConstant(rl_result.reg, static_cast<int32_t>(direct_ptr));
+      }
+      StoreValue(rl_dest, rl_result);
+    } else {
+      RegLocation rl_method = LoadCurrMethod();
+      RegStorage res_reg = AllocTempRef();
+      RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
+      LoadRefDisp(rl_method.reg, mirror::ArtMethod::DexCacheStringsOffset().Int32Value(), res_reg,
+                  kNotVolatile);
+      LoadRefDisp(res_reg, offset_of_string, rl_result.reg, kNotVolatile);
+      StoreValue(rl_dest, rl_result);
+    }
   }
 }
 

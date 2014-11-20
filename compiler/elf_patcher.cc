@@ -96,6 +96,16 @@ mirror::ArtMethod* ElfPatcher::GetTargetMethod(const CompilerDriver::CallPatchIn
   return method;
 }
 
+mirror::String* ElfPatcher::GetTargetString(const CompilerDriver::StringPatchInformation* patch) {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  StackHandleScope<1> hs(Thread::Current());
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(class_linker->FindDexCache(patch->GetDexFile())));
+  mirror::String* string = class_linker->ResolveString(patch->GetDexFile(), patch->GetStringIdx(),
+                                                       dex_cache);
+  CHECK(string != nullptr) << patch->GetDexFile().GetLocation() << " " << patch->GetStringIdx();
+  return string;
+}
+
 mirror::Class* ElfPatcher::GetTargetType(const CompilerDriver::TypePatchInformation* patch) {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   StackHandleScope<2> hs(Thread::Current());
@@ -183,7 +193,8 @@ bool ElfPatcher::PatchElf() {
   if (write_patches_) {
     patches_.reserve(compiler_driver_->GetCodeToPatch().size() +
                      compiler_driver_->GetMethodsToPatch().size() +
-                     compiler_driver_->GetClassesToPatch().size());
+                     compiler_driver_->GetClassesToPatch().size() +
+                     compiler_driver_->GetStringsToPatch().size());
   }
   Thread* self = Thread::Current();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -248,11 +259,13 @@ bool ElfPatcher::PatchElf() {
     SetPatchLocation(patch, PointerToLowMemUInt32(get_image_address_(cb_data_, target)));
   }
 
-  const std::vector<const CompilerDriver::TypePatchInformation*>& classes_to_patch =
-      compiler_driver_->GetClassesToPatch();
-  for (size_t i = 0; i < classes_to_patch.size(); i++) {
-    const CompilerDriver::TypePatchInformation* patch = classes_to_patch[i];
+  for (const CompilerDriver::TypePatchInformation* patch : compiler_driver_->GetClassesToPatch()) {
     mirror::Class* target = GetTargetType(patch);
+    SetPatchLocation(patch, PointerToLowMemUInt32(get_image_address_(cb_data_, target)));
+  }
+  for (const CompilerDriver::StringPatchInformation* patch :
+      compiler_driver_->GetStringsToPatch()) {
+    mirror::String* target = GetTargetString(patch);
     SetPatchLocation(patch, PointerToLowMemUInt32(get_image_address_(cb_data_, target)));
   }
 

@@ -83,6 +83,8 @@ class ElfPatcher {
 
   mirror::Class* GetTargetType(const CompilerDriver::TypePatchInformation* patch)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::String* GetTargetString(const CompilerDriver::StringPatchInformation* patch)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void AddPatch(uintptr_t off);
 

@@ -891,10 +891,11 @@ bool ElfWriterQuick::Create(File* elf_file,
 // Add patch information to this section. Each patch is a Elf32_Word that
 // identifies an offset from the start of the text section
 void ElfWriterQuick::ReservePatchSpace(std::vector<uint8_t>* buffer, bool debug) {
-  size_t size =
+  const size_t size =
       compiler_driver_->GetCodeToPatch().size() +
       compiler_driver_->GetMethodsToPatch().size() +
-      compiler_driver_->GetClassesToPatch().size();
+      compiler_driver_->GetClassesToPatch().size() +
+      compiler_driver_->GetStringsToPatch().size();
   if (size == 0) {
     if (debug) {
       LOG(INFO) << "No patches to record";

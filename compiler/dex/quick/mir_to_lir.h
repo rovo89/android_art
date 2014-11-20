@@ -1119,6 +1119,9 @@ class Mir2Lir : public Backend {
      */
     virtual void LoadClassType(uint32_t type_idx, SpecialTargetRegister symbolic_reg);
 
+    // Load a string
+    virtual void LoadString(uint32_t string_idx, RegStorage target_reg);
+
     // Routines that work for the generic case, but may be overriden by target.
     /*
      * @brief Compare memory to immediate, and branch if condition true.
@@ -1677,6 +1680,7 @@ class Mir2Lir : public Backend {
     LIR* literal_list_;                        // Constants.
     LIR* method_literal_list_;                 // Method literals requiring patching.
     LIR* class_literal_list_;                  // Class literals requiring patching.
+    LIR* string_literal_list_;                 // String literals requiring patching.
     LIR* code_literal_list_;                   // Code literals requiring patching.
     LIR* first_fixup_;                         // Doubly-linked list of LIR nodes requiring fixups.
 

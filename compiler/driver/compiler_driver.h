@@ -212,6 +212,9 @@ class CompilerDriver {
                           bool* is_type_initialized, bool* use_direct_type_ptr,
                           uintptr_t* direct_type_ptr, bool* out_is_finalizable);
 
+  bool CanEmbedStringInCode(const DexFile& dex_file, uint32_t string_idx,
+                            bool* use_direct_type_ptr, uintptr_t* direct_type_ptr);
+
   // Get the DexCache for the
   mirror::DexCache* GetDexCache(const DexCompilationUnit* mUnit)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -356,6 +359,12 @@ class CompilerDriver {
                      uint32_t referrer_method_idx,
                      uint32_t target_method_idx,
                      size_t literal_offset)
+      LOCKS_EXCLUDED(compiled_methods_lock_);
+  void AddStringPatch(const DexFile* dex_file,
+                      uint16_t referrer_class_def_idx,
+                      uint32_t referrer_method_idx,
+                      uint32_t string_idx,
+                      size_t literal_offset)
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
   bool GetSupportBootImageFixup() const {
@@ -576,6 +585,35 @@ class CompilerDriver {
     DISALLOW_COPY_AND_ASSIGN(TypePatchInformation);
   };
 
+  class StringPatchInformation : public PatchInformation {
+   public:
+    uint32_t GetStringIdx() const {
+      return string_idx_;
+    }
+
+    bool IsType() const {
+      return false;
+    }
+    const TypePatchInformation* AsType() const {
+      return nullptr;
+    }
+
+   private:
+    StringPatchInformation(const DexFile* dex_file,
+                           uint16_t referrer_class_def_idx,
+                           uint32_t referrer_method_idx,
+                           uint32_t string_idx,
+                           size_t literal_offset)
+        : PatchInformation(dex_file, referrer_class_def_idx, referrer_method_idx, literal_offset),
+          string_idx_(string_idx) {
+    }
+
+    const uint32_t string_idx_;
+
+    friend class CompilerDriver;
+    DISALLOW_COPY_AND_ASSIGN(StringPatchInformation);
+  };
+
   const std::vector<const CallPatchInformation*>& GetCodeToPatch() const {
     return code_to_patch_;
   }
@@ -584,6 +622,9 @@ class CompilerDriver {
   }
   const std::vector<const TypePatchInformation*>& GetClassesToPatch() const {
     return classes_to_patch_;
+  }
+  const std::vector<const StringPatchInformation*>& GetStringsToPatch() const {
+    return strings_to_patch_;
   }
 
   // Checks if class specified by type_idx is one of the image_classes_
@@ -710,6 +751,7 @@ class CompilerDriver {
   std::vector<const CallPatchInformation*> code_to_patch_;
   std::vector<const CallPatchInformation*> methods_to_patch_;
   std::vector<const TypePatchInformation*> classes_to_patch_;
+  std::vector<const StringPatchInformation*> strings_to_patch_;
 
   const CompilerOptions* const compiler_options_;
   VerificationResults* const verification_results_;
