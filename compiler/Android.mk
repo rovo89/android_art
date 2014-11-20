@@ -178,6 +178,7 @@ LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
   dex/pass_me.h \
   driver/compiler_driver.h \
   driver/compiler_options.h \
+  image_writer.h \
   optimizing/locations.h \
   utils/arm/constants_arm.h
 
