@@ -523,6 +523,9 @@ class Dbg {
       LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Indicates whether we need deoptimization for debugging.
+  static bool RequiresDeoptimization();
+
   // Records deoptimization request in the queue.
   static void RequestDeoptimization(const DeoptimizationRequest& req)
       LOCKS_EXCLUDED(Locks::deoptimization_lock_)
