@@ -2060,6 +2060,7 @@ mirror::Class* ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlready
                                                        Thread* self, const char* descriptor,
                                                        size_t hash,
                                                        Handle<mirror::ClassLoader> class_loader) {
+  // Can we special case for a well understood PathClassLoader with the BootClassLoader as parent?
   if (class_loader->GetClass() !=
       soa.Decode<mirror::Class*>(WellKnownClasses::dalvik_system_PathClassLoader) ||
       class_loader->GetParent()->GetClass() !=
@@ -2071,17 +2072,21 @@ mirror::Class* ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlready
   if (pair.second != nullptr) {
     mirror::Class* klass = LookupClass(self, descriptor, hash, nullptr);
     if (klass != nullptr) {
-      return EnsureResolved(self, descriptor, klass);
+      // May return null if resolution on another thread fails.
+      klass = EnsureResolved(self, descriptor, klass);
+    } else {
+      // May OOME.
+      klass = DefineClass(self, descriptor, hash, NullHandle<mirror::ClassLoader>(), *pair.first,
+                          *pair.second);
     }
-    klass = DefineClass(self, descriptor, hash, NullHandle<mirror::ClassLoader>(), *pair.first,
-                        *pair.second);
-    if (klass != nullptr) {
-      return klass;
+    if (klass == nullptr) {
+      CHECK(self->IsExceptionPending()) << descriptor;
+      self->ClearException();
     }
-    CHECK(self->IsExceptionPending()) << descriptor;
-    self->ClearException();
+    return klass;
   } else {
-    // RegisterDexFile may allocate dex caches (and cause thread suspension).
+    // Handle as if this is the child PathClassLoader.
+    // Handles as RegisterDexFile may allocate dex caches (and cause thread suspension).
     StackHandleScope<3> hs(self);
     // The class loader is a PathClassLoader which inherits from BaseDexClassLoader.
     // We need to get the DexPathList and loop through it.
@@ -2138,8 +2143,9 @@ mirror::Class* ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlready
         }
       }
     }
+    self->AssertNoPendingException();
+    return nullptr;
   }
-  return nullptr;
 }
 
 mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
