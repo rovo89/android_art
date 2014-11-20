@@ -38,14 +38,14 @@ constexpr size_t ConstexprStrLen(char const* str, size_t count = 0) {
 // temp directory.
 static std::string tmpnam_;
 
+enum class RegisterView {  // private
+  kUsePrimaryName,
+  kUseSecondaryName
+};
+
 template<typename Ass, typename Reg, typename FPReg, typename Imm>
 class AssemblerTest : public testing::Test {
  public:
-  enum class RegisterView {  // private
-    kUsePrimaryName,
-    kUseSecondaryName
-  };
-
   Ass* GetAssembler() {
     return assembler_.get();
   }
@@ -159,6 +159,9 @@ class AssemblerTest : public testing::Test {
                       bool as_uint = false) {
     std::string str;
     std::vector<int64_t> imms = CreateImmediateValues(imm_bytes, as_uint);
+
+    WarnOnCombinations(imms.size());
+
     for (int64_t imm : imms) {
       Imm new_imm = CreateImmediate(imm);
       (assembler_.get()->*f)(new_imm);
@@ -184,12 +187,12 @@ class AssemblerTest : public testing::Test {
 
   // This is intended to be run as a test.
   bool CheckTools() {
-    if (!FileExists(GetAssemblerCommand())) {
+    if (!FileExists(FindTool(GetAssemblerCmdName()))) {
       return false;
     }
     LOG(INFO) << "Chosen assembler command: " << GetAssemblerCommand();
 
-    if (!FileExists(GetObjdumpCommand())) {
+    if (!FileExists(FindTool(GetObjdumpCmdName()))) {
       return false;
     }
     LOG(INFO) << "Chosen objdump command: " << GetObjdumpCommand();
@@ -197,7 +200,7 @@ class AssemblerTest : public testing::Test {
     // Disassembly is optional.
     std::string disassembler = GetDisassembleCommand();
     if (disassembler.length() != 0) {
-      if (!FileExists(disassembler)) {
+      if (!FileExists(FindTool(GetDisassembleCmdName()))) {
         return false;
       }
       LOG(INFO) << "Chosen disassemble command: " << GetDisassembleCommand();
@@ -271,7 +274,7 @@ class AssemblerTest : public testing::Test {
 
     resolved_assembler_cmd_ = line + GetAssemblerParameters();
 
-    return line;
+    return resolved_assembler_cmd_;
   }
 
   // Get the name of the objdump, e.g., "objdump" by default.
@@ -298,7 +301,7 @@ class AssemblerTest : public testing::Test {
 
     resolved_objdump_cmd_ = line + GetObjdumpParameters();
 
-    return line;
+    return resolved_objdump_cmd_;
   }
 
   // Get the name of the objdump, e.g., "objdump" by default.
@@ -324,7 +327,7 @@ class AssemblerTest : public testing::Test {
 
     resolved_disassemble_cmd_ = line + GetDisassembleParameters();
 
-    return line;
+    return resolved_disassemble_cmd_;
   }
 
   // Create a couple of immediate values up to the number of bytes given.
@@ -406,6 +409,8 @@ class AssemblerTest : public testing::Test {
                                        std::string (AssemblerTest::*GetName1)(const Reg1&),
                                        std::string (AssemblerTest::*GetName2)(const Reg2&),
                                        std::string fmt) {
+    WarnOnCombinations(reg1_registers.size() * reg2_registers.size());
+
     std::string str;
     for (auto reg1 : reg1_registers) {
       for (auto reg2 : reg2_registers) {
@@ -435,7 +440,6 @@ class AssemblerTest : public testing::Test {
     return str;
   }
 
- private:
   template <RegisterView kRegView>
   std::string GetRegName(const Reg& reg) {
     std::ostringstream sreg;
@@ -457,12 +461,32 @@ class AssemblerTest : public testing::Test {
     return sreg.str();
   }
 
+  // If the assembly file needs a header, return it in a sub-class.
+  virtual const char* GetAssemblyHeader() {
+    return nullptr;
+  }
+
+  void WarnOnCombinations(size_t count) {
+    if (count > kWarnManyCombinationsThreshold) {
+      GTEST_LOG_(WARNING) << "Many combinations (" << count << "), test generation might be slow.";
+    }
+  }
+
+  static constexpr const char* REG_TOKEN = "{reg}";
+  static constexpr const char* REG1_TOKEN = "{reg1}";
+  static constexpr const char* REG2_TOKEN = "{reg2}";
+  static constexpr const char* IMM_TOKEN = "{imm}";
+
+ private:
   template <RegisterView kRegView>
   std::string RepeatRegisterImm(void (Ass::*f)(Reg, const Imm&), size_t imm_bytes,
                                   std::string fmt) {
     const std::vector<Reg*> registers = GetRegisters();
     std::string str;
     std::vector<int64_t> imms = CreateImmediateValues(imm_bytes);
+
+    WarnOnCombinations(registers.size() * imms.size());
+
     for (auto reg : registers) {
       for (int64_t imm : imms) {
         Imm new_imm = CreateImmediate(imm);
@@ -547,7 +571,7 @@ class AssemblerTest : public testing::Test {
 
   // Compile the assembly file from_file to a binary file to_file. Returns true on success.
   bool Assemble(const char* from_file, const char* to_file, std::string* error_msg) {
-    bool have_assembler = FileExists(GetAssemblerCommand());
+    bool have_assembler = FileExists(FindTool(GetAssemblerCmdName()));
     EXPECT_TRUE(have_assembler) << "Cannot find assembler:" << GetAssemblerCommand();
     if (!have_assembler) {
       return false;
@@ -569,13 +593,20 @@ class AssemblerTest : public testing::Test {
     args.push_back("-c");
     args.push_back(cmd);
 
-    return Exec(args, error_msg);
+    bool success = Exec(args, error_msg);
+    if (!success) {
+      LOG(INFO) << "Assembler command line:";
+      for (std::string arg : args) {
+        LOG(INFO) << arg;
+      }
+    }
+    return success;
   }
 
   // Runs objdump -h on the binary file and extracts the first line with .text.
   // Returns "" on failure.
   std::string Objdump(std::string file) {
-    bool have_objdump = FileExists(GetObjdumpCommand());
+    bool have_objdump = FileExists(FindTool(GetObjdumpCmdName()));
     EXPECT_TRUE(have_objdump) << "Cannot find objdump: " << GetObjdumpCommand();
     if (!have_objdump) {
       return "";
@@ -652,10 +683,10 @@ class AssemblerTest : public testing::Test {
 
     // If you want to take a look at the differences between the ART assembler and GCC, comment
     // out the removal code.
-    std::remove(data_name.c_str());
-    std::remove(as_name.c_str());
-    std::remove((data_name + ".dis").c_str());
-    std::remove((as_name + ".dis").c_str());
+//    std::remove(data_name.c_str());
+//    std::remove(as_name.c_str());
+//    std::remove((data_name + ".dis").c_str());
+//    std::remove((as_name + ".dis").c_str());
 
     return result;
   }
@@ -714,6 +745,10 @@ class AssemblerTest : public testing::Test {
     // TODO: Lots of error checking.
 
     std::ofstream s_out(res->base_name + ".S");
+    const char* header = GetAssemblyHeader();
+    if (header != nullptr) {
+      s_out << header;
+    }
     s_out << assembly_code;
     s_out.close();
 
@@ -862,12 +897,8 @@ class AssemblerTest : public testing::Test {
     return tmpnam_;
   }
 
+  static constexpr size_t kWarnManyCombinationsThreshold = 500;
   static constexpr size_t OBJDUMP_SECTION_LINE_MIN_TOKENS = 6;
-
-  static constexpr const char* REG_TOKEN = "{reg}";
-  static constexpr const char* REG1_TOKEN = "{reg1}";
-  static constexpr const char* REG2_TOKEN = "{reg2}";
-  static constexpr const char* IMM_TOKEN = "{imm}";
 
   std::unique_ptr<Ass> assembler_;
 
