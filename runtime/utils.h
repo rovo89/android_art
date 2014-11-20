@@ -165,6 +165,18 @@ struct TypeIdentity {
   typedef T type;
 };
 
+// Like sizeof, but count how many bits a type takes. Pass type explicitly.
+template <typename T>
+static constexpr size_t BitSizeOf() {
+  return sizeof(T) * CHAR_BIT;
+}
+
+// Like sizeof, but count how many bits a type takes. Infers type from parameter.
+template <typename T>
+static constexpr size_t BitSizeOf(T /*x*/) {
+  return sizeof(T) * CHAR_BIT;
+}
+
 // For rounding integers.
 template<typename T>
 static constexpr T RoundDown(T x, typename TypeIdentity<T>::type n) WARN_UNUSED;
@@ -201,10 +213,39 @@ static inline T* AlignUp(T* x, uintptr_t n) {
   return reinterpret_cast<T*>(RoundUp(reinterpret_cast<uintptr_t>(x), n));
 }
 
+namespace utils {
+namespace detail {  // Private, implementation-specific namespace. Do not poke outside of this file.
+template <typename T>
+static constexpr inline T RoundUpToPowerOfTwoRecursive(T x, size_t bit) {
+  return bit == (BitSizeOf<T>()) ? x: RoundUpToPowerOfTwoRecursive(x | x >> bit, bit << 1);
+}
+}  // namespace detail
+}  // namespace utils
+
+// Recursive implementation is from "Hacker's Delight" by Henry S. Warren, Jr.,
+// figure 3-3, page 48, where the function is called clp2.
+template <typename T>
+static constexpr inline T RoundUpToPowerOfTwo(T x) {
+  return art::utils::detail::RoundUpToPowerOfTwoRecursive(x - 1, 1) + 1;
+}
+
+// Find the bit position of the most significant bit (0-based), or -1 if there were no bits set.
+template <typename T>
+static constexpr ssize_t MostSignificantBit(T value) {
+  return (value == 0) ? -1 : (MostSignificantBit(value >> 1) + 1);
+}
+
+// How many bits (minimally) does it take to store the constant 'value'? i.e. 1 for 1, 3 for 5, etc.
+template <typename T>
+static constexpr size_t MinimumBitsToStore(T value) {
+  return static_cast<size_t>(MostSignificantBit(value) + 1);
+}
+
 template<typename T>
 static constexpr int CLZ(T x) {
+  static_assert(sizeof(T) <= sizeof(long long), "T too large, must be smaller than long long");  // NOLINT [runtime/int] [4]
   return (sizeof(T) == sizeof(uint32_t))
-      ? __builtin_clz(x)
+      ? __builtin_clz(x)  // TODO: __builtin_clz[ll] has undefined behavior for x=0
       : __builtin_clzll(x);
 }
 
