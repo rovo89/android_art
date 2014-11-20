@@ -55,7 +55,8 @@
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "handle_scope-inl.h"
-#include "utils.h"
+
+#include <numeric>
 
 using ::art::mirror::ArtField;
 using ::art::mirror::ArtMethod;
@@ -67,6 +68,9 @@ using ::art::mirror::ObjectArray;
 using ::art::mirror::String;
 
 namespace art {
+
+// Separate objects into multiple bins to optimize dirty memory use.
+static constexpr bool kBinObjects = true;
 
 bool ImageWriter::Write(const std::string& image_filename,
                         uintptr_t image_begin,
@@ -191,54 +195,43 @@ bool ImageWriter::Write(const std::string& image_filename,
   return true;
 }
 
-void ImageWriter::SetImageOffset(mirror::Object* object, size_t offset) {
+void ImageWriter::SetImageOffset(mirror::Object* object,
+                                 ImageWriter::BinSlot bin_slot,
+                                 size_t offset) {
   DCHECK(object != nullptr);
   DCHECK_NE(offset, 0U);
-  DCHECK(!IsImageOffsetAssigned(object));
   mirror::Object* obj = reinterpret_cast<mirror::Object*>(image_->Begin() + offset);
   DCHECK_ALIGNED(obj, kObjectAlignment);
-  image_bitmap_->Set(obj);
-  // Before we stomp over the lock word, save the hash code for later.
-  Monitor::Deflate(Thread::Current(), object);;
-  LockWord lw(object->GetLockWord(false));
-  switch (lw.GetState()) {
-    case LockWord::kFatLocked: {
-      LOG(FATAL) << "Fat locked object " << obj << " found during object copy";
-      break;
+
+  image_bitmap_->Set(obj);  // Mark the obj as mutated, since we will end up changing it.
+  {
+    // Remember the object-inside-of-the-image's hash code so we can restore it after the copy.
+    auto hash_it = saved_hashes_map_.find(bin_slot);
+    if (hash_it != saved_hashes_map_.end()) {
+      std::pair<BinSlot, uint32_t> slot_hash = *hash_it;
+      saved_hashes_.push_back(std::make_pair(obj, slot_hash.second));
+      saved_hashes_map_.erase(hash_it);
     }
-    case LockWord::kThinLocked: {
-      LOG(FATAL) << "Thin locked object " << obj << " found during object copy";
-      break;
-    }
-    case LockWord::kUnlocked:
-      // No hash, don't need to save it.
-      break;
-    case LockWord::kHashCode:
-      saved_hashes_.push_back(std::make_pair(obj, lw.GetHashCode()));
-      break;
-    default:
-      LOG(FATAL) << "Unreachable.";
-      break;
   }
+  // The object is already deflated from when we set the bin slot. Just overwrite the lock word.
   object->SetLockWord(LockWord::FromForwardingAddress(offset), false);
   DCHECK(IsImageOffsetAssigned(object));
 }
 
-void ImageWriter::AssignImageOffset(mirror::Object* object) {
+void ImageWriter::AssignImageOffset(mirror::Object* object, ImageWriter::BinSlot bin_slot) {
   DCHECK(object != nullptr);
-  SetImageOffset(object, image_end_);
-  size_t object_size;
-  if (object->IsArtMethod()) {
-    // Methods are sized based on the target pointer size.
-    object_size = mirror::ArtMethod::InstanceSize(target_ptr_size_);
-  } else {
-    object_size = object->SizeOf();
-  }
-  image_end_ += RoundUp(object_size, 8);  // 64-bit alignment
-  DCHECK_LT(image_end_, image_->Size());
+  DCHECK_NE(image_objects_offset_begin_, 0u);
+
+  size_t previous_bin_sizes = GetBinSizeSum(bin_slot.GetBin());  // sum sizes in [0..bin#)
+  size_t new_offset = image_objects_offset_begin_ + previous_bin_sizes + bin_slot.GetIndex();
+  DCHECK_ALIGNED(new_offset, kObjectAlignment);
+
+  SetImageOffset(object, bin_slot, new_offset);
+  DCHECK_LT(new_offset, image_end_);
 }
 
 bool ImageWriter::IsImageOffsetAssigned(mirror::Object* object) const {
+  // Will also return true if the bin slot was assigned since we are reusing the lock word.
   DCHECK(object != nullptr);
   return object->GetLockWord(false).GetState() == LockWord::kForwardingAddress;
 }
@@ -250,6 +243,178 @@ size_t ImageWriter::GetImageOffset(mirror::Object* object) const {
   size_t offset = lock_word.ForwardingAddress();
   DCHECK_LT(offset, image_end_);
   return offset;
+}
+
+void ImageWriter::SetImageBinSlot(mirror::Object* object, BinSlot bin_slot) {
+  DCHECK(object != nullptr);
+  DCHECK(!IsImageOffsetAssigned(object));
+  DCHECK(!IsImageBinSlotAssigned(object));
+
+  // Before we stomp over the lock word, save the hash code for later.
+  Monitor::Deflate(Thread::Current(), object);;
+  LockWord lw(object->GetLockWord(false));
+  switch (lw.GetState()) {
+    case LockWord::kFatLocked: {
+      LOG(FATAL) << "Fat locked object " << object << " found during object copy";
+      break;
+    }
+    case LockWord::kThinLocked: {
+      LOG(FATAL) << "Thin locked object " << object << " found during object copy";
+      break;
+    }
+    case LockWord::kUnlocked:
+      // No hash, don't need to save it.
+      break;
+    case LockWord::kHashCode:
+      saved_hashes_map_[bin_slot] = lw.GetHashCode();
+      break;
+    default:
+      LOG(FATAL) << "Unreachable.";
+      break;
+  }
+  object->SetLockWord(LockWord::FromForwardingAddress(static_cast<uint32_t>(bin_slot)),
+                      false);
+  DCHECK(IsImageBinSlotAssigned(object));
+}
+
+void ImageWriter::AssignImageBinSlot(mirror::Object* object) {
+  DCHECK(object != nullptr);
+  size_t object_size;
+  if (object->IsArtMethod()) {
+    // Methods are sized based on the target pointer size.
+    object_size = mirror::ArtMethod::InstanceSize(target_ptr_size_);
+  } else {
+    object_size = object->SizeOf();
+  }
+
+  // The magic happens here. We segregate objects into different bins based
+  // on how likely they are to get dirty at runtime.
+  //
+  // Likely-to-dirty objects get packed together into the same bin so that
+  // at runtime their page dirtiness ratio (how many dirty objects a page has) is
+  // maximized.
+  //
+  // This means more pages will stay either clean or shared dirty (with zygote) and
+  // the app will use less of its own (private) memory.
+  Bin bin = kBinRegular;
+
+  if (kBinObjects) {
+    //
+    // Changing the bin of an object is purely a memory-use tuning.
+    // It has no change on runtime correctness.
+    //
+    // Memory analysis has determined that the following types of objects get dirtied
+    // the most:
+    //
+    // * Class'es which are verified [their clinit runs only at runtime]
+    //   - classes in general [because their static fields get overwritten]
+    //   - initialized classes with all-final statics are unlikely to be ever dirty,
+    //     so bin them separately
+    // * Art Methods that are:
+    //   - native [their native entry point is not looked up until runtime]
+    //   - have declaring classes that aren't initialized
+    //            [their interpreter/quick entry points are trampolines until the class
+    //             becomes initialized]
+    //
+    // We also assume the following objects get dirtied either never or extremely rarely:
+    //  * Strings (they are immutable)
+    //  * Art methods that aren't native and have initialized declared classes
+    //
+    // We assume that "regular" bin objects are highly unlikely to become dirtied,
+    // so packing them together will not result in a noticeably tighter dirty-to-clean ratio.
+    //
+    if (object->IsClass()) {
+      bin = kBinClassVerified;
+      mirror::Class* klass = object->AsClass();
+
+      if (klass->GetStatus() == Class::kStatusInitialized) {
+        bin = kBinClassInitialized;
+
+        // If the class's static fields are all final, put it into a separate bin
+        // since it's very likely it will stay clean.
+        uint32_t num_static_fields = klass->NumStaticFields();
+        if (num_static_fields == 0) {
+          bin = kBinClassInitializedFinalStatics;
+        } else {
+          // Maybe all the statics are final?
+          bool all_final = true;
+          for (uint32_t i = 0; i < num_static_fields; ++i) {
+            ArtField* field = klass->GetStaticField(i);
+            if (!field->IsFinal()) {
+              all_final = false;
+              break;
+            }
+          }
+
+          if (all_final) {
+            bin = kBinClassInitializedFinalStatics;
+          }
+        }
+      }
+    } else if (object->IsArtMethod<kVerifyNone>()) {
+      mirror::ArtMethod* art_method = down_cast<ArtMethod*>(object);
+      if (art_method->IsNative()) {
+        bin = kBinArtMethodNative;
+      } else {
+        mirror::Class* declaring_class = art_method->GetDeclaringClass();
+        if (declaring_class->GetStatus() != Class::kStatusInitialized) {
+          bin = kBinArtMethodNotInitialized;
+        } else {
+          // This is highly unlikely to dirty since there's no entry points to mutate.
+          bin = kBinArtMethodsManagedInitialized;
+        }
+      }
+    } else if (object->GetClass<kVerifyNone>()->IsStringClass()) {
+      bin = kBinString;  // Strings are almost always immutable (except for object header).
+    }  // else bin = kBinRegular
+  }
+
+  size_t current_offset = bin_slot_sizes_[bin];  // How many bytes the current bin is at (aligned).
+  // Move the current bin size up to accomodate the object we just assigned a bin slot.
+  size_t offset_delta = RoundUp(object_size, kObjectAlignment);  // 64-bit alignment
+  bin_slot_sizes_[bin] += offset_delta;
+
+  BinSlot new_bin_slot(bin, current_offset);
+  SetImageBinSlot(object, new_bin_slot);
+
+  ++bin_slot_count_[bin];
+
+  DCHECK_LT(GetBinSizeSum(), image_->Size());
+
+  // Grow the image closer to the end by the object we just assigned.
+  image_end_ += offset_delta;
+  DCHECK_LT(image_end_, image_->Size());
+}
+
+bool ImageWriter::IsImageBinSlotAssigned(mirror::Object* object) const {
+  DCHECK(object != nullptr);
+
+  // We always stash the bin slot into a lockword, in the 'forwarding address' state.
+  // If it's in some other state, then we haven't yet assigned an image bin slot.
+  if (object->GetLockWord(false).GetState() != LockWord::kForwardingAddress) {
+    return false;
+  } else if (kIsDebugBuild) {
+    LockWord lock_word = object->GetLockWord(false);
+    size_t offset = lock_word.ForwardingAddress();
+    BinSlot bin_slot(offset);
+    DCHECK_LT(bin_slot.GetIndex(), bin_slot_sizes_[bin_slot.GetBin()])
+      << "bin slot offset should not exceed the size of that bin";
+  }
+  return true;
+}
+
+ImageWriter::BinSlot ImageWriter::GetImageBinSlot(mirror::Object* object) const {
+  DCHECK(object != nullptr);
+  DCHECK(IsImageBinSlotAssigned(object));
+
+  LockWord lock_word = object->GetLockWord(false);
+  size_t offset = lock_word.ForwardingAddress();  // TODO: ForwardingAddress should be uint32_t
+  DCHECK_LE(offset, std::numeric_limits<uint32_t>::max());
+
+  BinSlot bin_slot(static_cast<uint32_t>(offset));
+  DCHECK_LT(bin_slot.GetIndex(), bin_slot_sizes_[bin_slot.GetBin()]);
+
+  return bin_slot;
 }
 
 bool ImageWriter::AllocMemory() {
@@ -560,29 +725,29 @@ void ImageWriter::DumpImageClasses() {
   }
 }
 
-void ImageWriter::CalculateObjectOffsets(Object* obj) {
+void ImageWriter::CalculateObjectBinSlots(Object* obj) {
   DCHECK(obj != NULL);
   // if it is a string, we want to intern it if its not interned.
   if (obj->GetClass()->IsStringClass()) {
     // we must be an interned string that was forward referenced and already assigned
-    if (IsImageOffsetAssigned(obj)) {
+    if (IsImageBinSlotAssigned(obj)) {
       DCHECK_EQ(obj, obj->AsString()->Intern());
       return;
     }
     mirror::String* const interned = obj->AsString()->Intern();
     if (obj != interned) {
-      if (!IsImageOffsetAssigned(interned)) {
+      if (!IsImageBinSlotAssigned(interned)) {
         // interned obj is after us, allocate its location early
-        AssignImageOffset(interned);
+        AssignImageBinSlot(interned);
       }
       // point those looking for this object to the interned version.
-      SetImageOffset(obj, GetImageOffset(interned));
+      SetImageBinSlot(obj, GetImageBinSlot(interned));
       return;
     }
     // else (obj == interned), nothing to do but fall through to the normal case
   }
 
-  AssignImageOffset(obj);
+  AssignImageBinSlot(obj);
 }
 
 ObjectArray<Object>* ImageWriter::CreateImageRoots() const {
@@ -663,13 +828,15 @@ void ImageWriter::WalkInstanceFields(mirror::Object* obj, mirror::Class* klass) 
 
 // For an unvisited object, visit it then all its children found via fields.
 void ImageWriter::WalkFieldsInOrder(mirror::Object* obj) {
-  if (!IsImageOffsetAssigned(obj)) {
+  // Use our own visitor routine (instead of GC visitor) to get better locality between
+  // an object and its fields
+  if (!IsImageBinSlotAssigned(obj)) {
     // Walk instance fields of all objects
     StackHandleScope<2> hs(Thread::Current());
     Handle<mirror::Object> h_obj(hs.NewHandle(obj));
     Handle<mirror::Class> klass(hs.NewHandle(obj->GetClass()));
     // visit the object itself.
-    CalculateObjectOffsets(h_obj.Get());
+    CalculateObjectBinSlots(h_obj.Get());
     WalkInstanceFields(h_obj.Get(), klass.Get());
     // Walk static fields of a Class.
     if (h_obj->IsClass()) {
@@ -703,6 +870,24 @@ void ImageWriter::WalkFieldsCallback(mirror::Object* obj, void* arg) {
   writer->WalkFieldsInOrder(obj);
 }
 
+void ImageWriter::UnbinObjectsIntoOffsetCallback(mirror::Object* obj, void* arg) {
+  ImageWriter* writer = reinterpret_cast<ImageWriter*>(arg);
+  DCHECK(writer != nullptr);
+  writer->UnbinObjectsIntoOffset(obj);
+}
+
+void ImageWriter::UnbinObjectsIntoOffset(mirror::Object* obj) {
+  CHECK(obj != nullptr);
+
+  // We know the bin slot, and the total bin sizes for all objects by now,
+  // so calculate the object's final image offset.
+
+  DCHECK(IsImageBinSlotAssigned(obj));
+  BinSlot bin_slot = GetImageBinSlot(obj);
+  // Change the lockword from a bin slot into an offset
+  AssignImageOffset(obj, bin_slot);
+}
+
 void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_data_offset) {
   CHECK_NE(0U, oat_loaded_size);
   Thread* self = Thread::Current();
@@ -714,16 +899,30 @@ void ImageWriter::CalculateNewObjectOffsets(size_t oat_loaded_size, size_t oat_d
 
   // Leave space for the header, but do not write it yet, we need to
   // know where image_roots is going to end up
-  image_end_ += RoundUp(sizeof(ImageHeader), 8);  // 64-bit-alignment
+  image_end_ += RoundUp(sizeof(ImageHeader), kObjectAlignment);  // 64-bit-alignment
 
   {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
     // TODO: Image spaces only?
     const char* old = self->StartAssertNoThreadSuspension("ImageWriter");
     DCHECK_LT(image_end_, image_->Size());
-    // Clear any pre-existing monitors which may have been in the monitor words.
+    image_objects_offset_begin_ = image_end_;
+    // Clear any pre-existing monitors which may have been in the monitor words, assign bin slots.
     heap->VisitObjects(WalkFieldsCallback, this);
+    // Transform each object's bin slot into an offset which will be used to do the final copy.
+    heap->VisitObjects(UnbinObjectsIntoOffsetCallback, this);
+    DCHECK(saved_hashes_map_.empty());  // All binslot hashes should've been put into vector by now.
     self->EndAssertNoThreadSuspension(old);
+  }
+
+  DCHECK_GT(image_end_, GetBinSizeSum());
+
+  if (kIsDebugBuild) {
+    LOG(INFO) << "Bin summary (total size: " << GetBinSizeSum() << "): ";
+    for (size_t bin = 0; bin < kBinSize; ++bin) {
+      LOG(INFO) << "  bin# " << bin << ", number objects: " << bin_slot_count_[bin] << ", "
+                << " total byte size: " << bin_slot_sizes_[bin];
+    }
   }
 
   const byte* oat_file_begin = image_begin_ + RoundUp(image_end_, kPageSize);
@@ -794,6 +993,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* obj, void* arg) {
   image_writer->FixupObject(obj, copy);
 }
 
+// Rewrite all the references in the copied object to point to their image address equivalent
 class FixupVisitor {
  public:
   FixupVisitor(ImageWriter* image_writer, Object* copy) : image_writer_(image_writer), copy_(copy) {
@@ -829,8 +1029,9 @@ class FixupClassVisitor FINAL : public FixupVisitor {
   void operator()(Object* obj, MemberOffset offset, bool /*is_static*/) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     DCHECK(obj->IsClass());
-    FixupVisitor::operator()(obj, offset, false);
+    FixupVisitor::operator()(obj, offset, /*is_static*/false);
 
+    // TODO: Remove dead code
     if (offset.Uint32Value() < mirror::Class::EmbeddedVTableOffset().Uint32Value()) {
       return;
     }
@@ -1057,6 +1258,34 @@ void ImageWriter::PatchOatCodeAndMethods(File* elf_file) {
 
   ImageHeader* image_header = reinterpret_cast<ImageHeader*>(image_->Begin());
   image_header->SetOatChecksum(oat_header->GetChecksum());
+}
+
+size_t ImageWriter::GetBinSizeSum(ImageWriter::Bin up_to) const {
+  DCHECK_LE(up_to, kBinSize);
+  return std::accumulate(&bin_slot_sizes_[0], &bin_slot_sizes_[up_to], /*init*/0);
+}
+
+ImageWriter::BinSlot::BinSlot(uint32_t lockword) : lockword_(lockword) {
+  // These values may need to get updated if more bins are added to the enum Bin
+  static_assert(kBinBits == 3, "wrong number of bin bits");
+  static_assert(kBinShift == 29, "wrong number of shift");
+  static_assert(sizeof(BinSlot) == sizeof(LockWord), "BinSlot/LockWord must have equal sizes");
+
+  DCHECK_LT(GetBin(), kBinSize);
+  DCHECK_ALIGNED(GetIndex(), kObjectAlignment);
+}
+
+ImageWriter::BinSlot::BinSlot(Bin bin, uint32_t index)
+    : BinSlot(index | (static_cast<uint32_t>(bin) << kBinShift)) {
+  DCHECK_EQ(index, GetIndex());
+}
+
+ImageWriter::Bin ImageWriter::BinSlot::GetBin() const {
+  return static_cast<Bin>((lockword_ & kBinMask) >> kBinShift);
+}
+
+uint32_t ImageWriter::BinSlot::GetIndex() const {
+  return lockword_ & ~kBinMask;
 }
 
 }  // namespace art
