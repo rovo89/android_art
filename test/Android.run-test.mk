@@ -337,7 +337,9 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   424-checkcast \
   427-bounds \
   428-optimizing-arith-rem \
+  430-live-register-slow-path \
   701-easy-div-rem \
+  800-smali \
 
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
