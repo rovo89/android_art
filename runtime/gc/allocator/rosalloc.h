@@ -403,7 +403,7 @@ class RosAlloc {
 
   // We use thread-local runs for the size Brackets whose indexes
   // are less than this index. We use shared (current) runs for the rest.
-  static const size_t kNumThreadLocalSizeBrackets = 11;
+  static const size_t kNumThreadLocalSizeBrackets = 8;
 
  private:
   // The base address of the memory region that's managed by this allocator.
