@@ -1772,7 +1772,7 @@ void RosAlloc::Initialize() {
     if (i < 4) {
       numOfPages[i] = 1;
     } else if (i < 8) {
-      numOfPages[i] = 2;
+      numOfPages[i] = 1;
     } else if (i < 16) {
       numOfPages[i] = 4;
     } else if (i < 32) {
