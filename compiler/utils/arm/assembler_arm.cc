@@ -92,16 +92,29 @@ uint32_t ShifterOperand::encodingArm() const {
       break;
     case kRegister:
       if (is_shift_) {
+        uint32_t shift_type;
+        switch (shift_) {
+          case arm::Shift::ROR:
+            shift_type = static_cast<uint32_t>(shift_);
+            CHECK_NE(immed_, 0U);
+            break;
+          case arm::Shift::RRX:
+            shift_type = static_cast<uint32_t>(arm::Shift::ROR);  // Same encoding as ROR.
+            CHECK_EQ(immed_, 0U);
+            break;
+          default:
+            shift_type = static_cast<uint32_t>(shift_);
+        }
         // Shifted immediate or register.
         if (rs_ == kNoRegister) {
           // Immediate shift.
           return immed_ << kShiftImmShift |
-                          static_cast<uint32_t>(shift_) << kShiftShift |
+                          shift_type << kShiftShift |
                           static_cast<uint32_t>(rm_);
         } else {
           // Register shift.
           return static_cast<uint32_t>(rs_) << kShiftRegisterShift |
-              static_cast<uint32_t>(shift_) << kShiftShift | (1 << 4) |
+              shift_type << kShiftShift | (1 << 4) |
               static_cast<uint32_t>(rm_);
         }
       } else {
