@@ -136,23 +136,16 @@ void X86Mir2Lir::GenMoveException(RegLocation rl_dest) {
   StoreValue(rl_dest, rl_result);
 }
 
-/*
- * Mark garbage collection card. Skip if the value we're storing is null.
- */
-void X86Mir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
+void X86Mir2Lir::UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) {
   DCHECK_EQ(tgt_addr_reg.Is64Bit(), cu_->target64);
-  DCHECK_EQ(val_reg.Is64Bit(), cu_->target64);
   RegStorage reg_card_base = AllocTempRef();
   RegStorage reg_card_no = AllocTempRef();
-  LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
   int ct_offset = cu_->target64 ?
       Thread::CardTableOffset<8>().Int32Value() :
       Thread::CardTableOffset<4>().Int32Value();
   NewLIR2(cu_->target64 ? kX86Mov64RT : kX86Mov32RT, reg_card_base.GetReg(), ct_offset);
   OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
   StoreBaseIndexed(reg_card_base, reg_card_no, reg_card_base, 0, kUnsignedByte);
-  LIR* target = NewLIR0(kPseudoTargetLabel);
-  branch_over->target = target;
   FreeTemp(reg_card_base);
   FreeTemp(reg_card_no);
 }
