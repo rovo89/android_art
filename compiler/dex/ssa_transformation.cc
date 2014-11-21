@@ -126,7 +126,7 @@ bool MIRGraph::FillDefBlockMatrix(BasicBlock* bb) {
 
   for (uint32_t idx : bb->data_flow_info->def_v->Indexes()) {
     /* Block bb defines register idx */
-    temp_bit_matrix_[idx]->SetBit(bb->id);
+    temp_.ssa.def_block_matrix[idx]->SetBit(bb->id);
   }
   return true;
 }
@@ -135,16 +135,16 @@ void MIRGraph::ComputeDefBlockMatrix() {
   int num_registers = GetNumOfCodeAndTempVRs();
   /* Allocate num_registers bit vector pointers */
   DCHECK(temp_scoped_alloc_ != nullptr);
-  DCHECK(temp_bit_matrix_ == nullptr);
-  temp_bit_matrix_ = static_cast<ArenaBitVector**>(
+  DCHECK(temp_.ssa.def_block_matrix == nullptr);
+  temp_.ssa.def_block_matrix = static_cast<ArenaBitVector**>(
       temp_scoped_alloc_->Alloc(sizeof(ArenaBitVector*) * num_registers, kArenaAllocDFInfo));
   int i;
 
   /* Initialize num_register vectors with num_blocks bits each */
   for (i = 0; i < num_registers; i++) {
-    temp_bit_matrix_[i] = new (temp_scoped_alloc_.get()) ArenaBitVector(arena_, GetNumBlocks(),
-                                                                        false, kBitMapBMatrix);
-    temp_bit_matrix_[i]->ClearAllBits();
+    temp_.ssa.def_block_matrix[i] = new (temp_scoped_alloc_.get()) ArenaBitVector(
+        arena_, GetNumBlocks(), false, kBitMapBMatrix);
+    temp_.ssa.def_block_matrix[i]->ClearAllBits();
   }
 
   AllNodesIterator iter(this);
@@ -163,7 +163,7 @@ void MIRGraph::ComputeDefBlockMatrix() {
   int num_regs = GetNumOfCodeVRs();
   int in_reg = GetFirstInVR();
   for (; in_reg < num_regs; in_reg++) {
-    temp_bit_matrix_[in_reg]->SetBit(GetEntryBlock()->id);
+    temp_.ssa.def_block_matrix[in_reg]->SetBit(GetEntryBlock()->id);
   }
 }
 
@@ -435,32 +435,32 @@ void MIRGraph::ComputeSuccLineIn(ArenaBitVector* dest, const ArenaBitVector* src
  * insert a phi node if the variable is live-in to the block.
  */
 bool MIRGraph::ComputeBlockLiveIns(BasicBlock* bb) {
-  DCHECK_EQ(temp_bit_vector_size_, cu_->mir_graph.get()->GetNumOfCodeAndTempVRs());
-  ArenaBitVector* temp_dalvik_register_v = temp_bit_vector_;
+  DCHECK_EQ(temp_.ssa.num_vregs, cu_->mir_graph.get()->GetNumOfCodeAndTempVRs());
+  ArenaBitVector* temp_live_vregs = temp_.ssa.work_live_vregs;
 
   if (bb->data_flow_info == NULL) {
     return false;
   }
-  temp_dalvik_register_v->Copy(bb->data_flow_info->live_in_v);
+  temp_live_vregs->Copy(bb->data_flow_info->live_in_v);
   BasicBlock* bb_taken = GetBasicBlock(bb->taken);
   BasicBlock* bb_fall_through = GetBasicBlock(bb->fall_through);
   if (bb_taken && bb_taken->data_flow_info)
-    ComputeSuccLineIn(temp_dalvik_register_v, bb_taken->data_flow_info->live_in_v,
+    ComputeSuccLineIn(temp_live_vregs, bb_taken->data_flow_info->live_in_v,
                       bb->data_flow_info->def_v);
   if (bb_fall_through && bb_fall_through->data_flow_info)
-    ComputeSuccLineIn(temp_dalvik_register_v, bb_fall_through->data_flow_info->live_in_v,
+    ComputeSuccLineIn(temp_live_vregs, bb_fall_through->data_flow_info->live_in_v,
                       bb->data_flow_info->def_v);
   if (bb->successor_block_list_type != kNotUsed) {
     for (SuccessorBlockInfo* successor_block_info : bb->successor_blocks) {
       BasicBlock* succ_bb = GetBasicBlock(successor_block_info->block);
       if (succ_bb->data_flow_info) {
-        ComputeSuccLineIn(temp_dalvik_register_v, succ_bb->data_flow_info->live_in_v,
+        ComputeSuccLineIn(temp_live_vregs, succ_bb->data_flow_info->live_in_v,
                           bb->data_flow_info->def_v);
       }
     }
   }
-  if (!temp_dalvik_register_v->Equal(bb->data_flow_info->live_in_v)) {
-    bb->data_flow_info->live_in_v->Copy(temp_dalvik_register_v);
+  if (!temp_live_vregs->Equal(bb->data_flow_info->live_in_v)) {
+    bb->data_flow_info->live_in_v->Copy(temp_live_vregs);
     return true;
   }
   return false;
@@ -482,7 +482,7 @@ void MIRGraph::InsertPhiNodes() {
 
   /* Iterate through each Dalvik register */
   for (dalvik_reg = GetNumOfCodeAndTempVRs() - 1; dalvik_reg >= 0; dalvik_reg--) {
-    input_blocks->Copy(temp_bit_matrix_[dalvik_reg]);
+    input_blocks->Copy(temp_.ssa.def_block_matrix[dalvik_reg]);
     phi_blocks->ClearAllBits();
     do {
       // TUNING: When we repeat this, we could skip indexes from the previous pass.

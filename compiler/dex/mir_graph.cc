@@ -97,11 +97,6 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       max_nested_loops_(0u),
       i_dom_list_(NULL),
       temp_scoped_alloc_(),
-      temp_insn_data_(nullptr),
-      temp_bit_vector_size_(0u),
-      temp_bit_vector_(nullptr),
-      temp_bit_matrix_(nullptr),
-      temp_gvn_(),
       block_list_(arena->Adapter(kArenaAllocBBList)),
       try_block_addr_(NULL),
       entry_block_(NULL),
@@ -133,6 +128,7 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       sfield_lowering_infos_(arena->Adapter(kArenaAllocLoweringInfo)),
       method_lowering_infos_(arena->Adapter(kArenaAllocLoweringInfo)),
       gen_suspend_test_list_(arena->Adapter()) {
+  memset(&temp_, 0, sizeof(temp_));
   use_counts_.reserve(256);
   raw_use_counts_.reserve(256);
   block_list_.reserve(100);
@@ -1681,9 +1677,9 @@ void MIRGraph::InitializeMethodUses() {
 void MIRGraph::SSATransformationStart() {
   DCHECK(temp_scoped_alloc_.get() == nullptr);
   temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
-  temp_bit_vector_size_ = GetNumOfCodeAndTempVRs();
-  temp_bit_vector_ = new (temp_scoped_alloc_.get()) ArenaBitVector(
-      temp_scoped_alloc_.get(), temp_bit_vector_size_, false, kBitMapRegisterV);
+  temp_.ssa.num_vregs = GetNumOfCodeAndTempVRs();
+  temp_.ssa.work_live_vregs = new (temp_scoped_alloc_.get()) ArenaBitVector(
+      temp_scoped_alloc_.get(), temp_.ssa.num_vregs, false, kBitMapRegisterV);
 }
 
 void MIRGraph::SSATransformationEnd() {
@@ -1692,9 +1688,9 @@ void MIRGraph::SSATransformationEnd() {
     VerifyDataflow();
   }
 
-  temp_bit_vector_size_ = 0u;
-  temp_bit_vector_ = nullptr;
-  temp_bit_matrix_ = nullptr;  // Def block matrix.
+  temp_.ssa.num_vregs = 0u;
+  temp_.ssa.work_live_vregs = nullptr;
+  temp_.ssa.def_block_matrix = nullptr;
   DCHECK(temp_scoped_alloc_.get() != nullptr);
   temp_scoped_alloc_.reset();
 
