@@ -421,6 +421,7 @@ class AssemblerArm32Test : public AssemblerArmTest<arm::Arm32Assembler,
   template <typename... Args>
   void GenericTemplateHelper(std::function<void(Args...)> f, bool without_pc,
                              std::string fmt, std::string test_name) {
+    first_ = false;
     WarnOnCombinations(CountHelper<Args...>(without_pc));
 
     std::ostringstream oss;
