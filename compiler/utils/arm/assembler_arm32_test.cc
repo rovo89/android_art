@@ -49,7 +49,7 @@ class AssemblerArm32Test : public AssemblerArmTest<arm::Arm32Assembler,
   }
 
   std::string GetAssemblerParameters() OVERRIDE {
-    return " -march=armv7ve";  // Arm-v7a with virtualization extension (means we have sdiv).
+    return " -march=armv7-a -mcpu=cortex-a15";  // Arm-v7a, cortex-a15 (means we have sdiv).
   }
 
   const char* GetAssemblyHeader() OVERRIDE {
