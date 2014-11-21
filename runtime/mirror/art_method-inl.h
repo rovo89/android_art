@@ -199,17 +199,17 @@ inline void ArtMethod::SetPortableOatCodeOffset(uint32_t code_offset) {
   SetEntryPointFromPortableCompiledCode(reinterpret_cast<void*>(code_offset));
 }
 
-inline const uint8_t* ArtMethod::GetMappingTable() {
-  const void* code_pointer = GetQuickOatCodePointer();
+inline const uint8_t* ArtMethod::GetMappingTable(size_t pointer_size) {
+  const void* code_pointer = GetQuickOatCodePointer(pointer_size);
   if (code_pointer == nullptr) {
     return nullptr;
   }
-  return GetMappingTable(code_pointer);
+  return GetMappingTable(code_pointer, pointer_size);
 }
 
-inline const uint8_t* ArtMethod::GetMappingTable(const void* code_pointer) {
+inline const uint8_t* ArtMethod::GetMappingTable(const void* code_pointer, size_t pointer_size) {
   DCHECK(code_pointer != nullptr);
-  DCHECK(code_pointer == GetQuickOatCodePointer());
+  DCHECK_EQ(code_pointer, GetQuickOatCodePointer(pointer_size));
   uint32_t offset =
       reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].mapping_table_offset_;
   if (UNLIKELY(offset == 0u)) {
@@ -218,18 +218,18 @@ inline const uint8_t* ArtMethod::GetMappingTable(const void* code_pointer) {
   return reinterpret_cast<const uint8_t*>(code_pointer) - offset;
 }
 
-inline const uint8_t* ArtMethod::GetVmapTable() {
-  const void* code_pointer = GetQuickOatCodePointer();
+inline const uint8_t* ArtMethod::GetVmapTable(size_t pointer_size) {
+  const void* code_pointer = GetQuickOatCodePointer(pointer_size);
   if (code_pointer == nullptr) {
     return nullptr;
   }
-  return GetVmapTable(code_pointer);
+  return GetVmapTable(code_pointer, pointer_size);
 }
 
-inline const uint8_t* ArtMethod::GetVmapTable(const void* code_pointer) {
-  CHECK(!IsOptimized()) << "Unimplemented vmap table for optimized compiler";
+inline const uint8_t* ArtMethod::GetVmapTable(const void* code_pointer, size_t pointer_size) {
+  CHECK(!IsOptimized(pointer_size)) << "Unimplemented vmap table for optimized compiler";
   DCHECK(code_pointer != nullptr);
-  DCHECK(code_pointer == GetQuickOatCodePointer());
+  DCHECK_EQ(code_pointer, GetQuickOatCodePointer(pointer_size));
   uint32_t offset =
       reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].vmap_table_offset_;
   if (UNLIKELY(offset == 0u)) {
@@ -243,8 +243,8 @@ inline StackMap ArtMethod::GetStackMap(uint32_t native_pc_offset) {
 }
 
 inline CodeInfo ArtMethod::GetOptimizedCodeInfo() {
-  DCHECK(IsOptimized());
-  const void* code_pointer = GetQuickOatCodePointer();
+  DCHECK(IsOptimized(sizeof(void*)));
+  const void* code_pointer = GetQuickOatCodePointer(sizeof(void*));
   DCHECK(code_pointer != nullptr);
   uint32_t offset =
       reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].vmap_table_offset_;
@@ -303,13 +303,14 @@ inline bool ArtMethod::IsImtUnimplementedMethod() {
 }
 
 inline uintptr_t ArtMethod::NativeQuickPcOffset(const uintptr_t pc) {
-  const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
+  const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(
+      this, sizeof(void*));
   return pc - reinterpret_cast<uintptr_t>(code);
 }
 
 inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo(const void* code_pointer) {
   DCHECK(code_pointer != nullptr);
-  DCHECK_EQ(code_pointer, GetQuickOatCodePointer());
+  DCHECK_EQ(code_pointer, GetQuickOatCodePointer(sizeof(void*)));
   return reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].frame_info_;
 }
 

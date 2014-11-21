@@ -53,7 +53,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
 
   void CheckReferences(int* registers, int number_of_references, uint32_t native_pc_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (GetMethod()->IsOptimized()) {
+    if (GetMethod()->IsOptimized(sizeof(void*))) {
       CheckOptimizedMethod(registers, number_of_references, native_pc_offset);
     } else {
       CheckQuickMethod(registers, number_of_references, native_pc_offset);
