@@ -200,7 +200,7 @@ class Instrumentation {
   // Get the quick code for the given method. More efficient than asking the class linker as it
   // will short-cut to GetCode if instrumentation and static method resolution stubs aren't
   // installed.
-  const void* GetQuickCodeFor(mirror::ArtMethod* method) const
+  const void* GetQuickCodeFor(mirror::ArtMethod* method, size_t pointer_size) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ForceInterpretOnly() {
