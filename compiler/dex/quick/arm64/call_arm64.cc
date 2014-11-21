@@ -251,20 +251,14 @@ void Arm64Mir2Lir::GenMoveException(RegLocation rl_dest) {
   StoreValue(rl_dest, rl_result);
 }
 
-/*
- * Mark garbage collection card. Skip if the value we're storing is null.
- */
-void Arm64Mir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
+void Arm64Mir2Lir::UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) {
   RegStorage reg_card_base = AllocTempWide();
   RegStorage reg_card_no = AllocTempWide();  // Needs to be wide as addr is ref=64b
-  LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, NULL);
   LoadWordDisp(rs_xSELF, Thread::CardTableOffset<8>().Int32Value(), reg_card_base);
   OpRegRegImm(kOpLsr, reg_card_no, tgt_addr_reg, gc::accounting::CardTable::kCardShift);
   // TODO(Arm64): generate "strb wB, [xB, wC, uxtw]" rather than "strb wB, [xB, xC]"?
   StoreBaseIndexed(reg_card_base, reg_card_no, As32BitReg(reg_card_base),
                    0, kUnsignedByte);
-  LIR* target = NewLIR0(kPseudoTargetLabel);
-  branch_over->target = target;
   FreeTemp(reg_card_base);
   FreeTemp(reg_card_no);
 }

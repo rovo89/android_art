@@ -314,6 +314,15 @@ void Mir2Lir::UpdateLIROffsets() {
   }
 }
 
+void Mir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
+  DCHECK(val_reg.Valid());
+  DCHECK_EQ(val_reg.Is64Bit(), cu_->target64);
+  LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, nullptr);
+  UnconditionallyMarkGCCard(tgt_addr_reg);
+  LIR* target = NewLIR0(kPseudoTargetLabel);
+  branch_over->target = target;
+}
+
 /* Dump instructions and constant pool contents */
 void Mir2Lir::CodegenDump() {
   LOG(INFO) << "Dumping LIR insns for "
