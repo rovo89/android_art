@@ -35,7 +35,7 @@ extern "C" const void* artInstrumentationMethodEntryFromCode(mirror::ArtMethod* 
   if (instrumentation->IsDeoptimized(method)) {
     result = GetQuickToInterpreterBridge();
   } else {
-    result = instrumentation->GetQuickCodeFor(method);
+    result = instrumentation->GetQuickCodeFor(method, sizeof(void*));
     DCHECK(!Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(result));
   }
   bool interpreter_entry = (result == GetQuickToInterpreterBridge());
