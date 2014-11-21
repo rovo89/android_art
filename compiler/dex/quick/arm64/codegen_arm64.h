@@ -94,7 +94,10 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
                         OpSize size) OVERRIDE;
   LIR* StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale) OVERRIDE;
-  void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) OVERRIDE;
+
+  /// @copydoc Mir2Lir::UnconditionallyMarkGCCard(RegStorage)
+  void UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) OVERRIDE;
+
   LIR* OpCmpMemImmBranch(ConditionCode cond, RegStorage temp_reg, RegStorage base_reg,
                          int offset, int check_value, LIR* target, LIR** compare) OVERRIDE;
 
