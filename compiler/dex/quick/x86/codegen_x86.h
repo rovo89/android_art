@@ -94,7 +94,10 @@ class X86Mir2Lir : public Mir2Lir {
                      OpSize size, VolatileKind is_volatile) OVERRIDE;
   LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
                         OpSize size) OVERRIDE;
-  void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) OVERRIDE;
+
+  /// @copydoc Mir2Lir::UnconditionallyMarkGCCard(RegStorage)
+  void UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) OVERRIDE;
+
   void GenImplicitNullCheck(RegStorage reg, int opt_flags) OVERRIDE;
 
   // Required for target - register utilities.
