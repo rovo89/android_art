@@ -1270,15 +1270,38 @@ class MIRGraph {
   size_t max_nested_loops_;
   int* i_dom_list_;
   std::unique_ptr<ScopedArenaAllocator> temp_scoped_alloc_;
-  uint16_t* temp_insn_data_;
-  uint32_t temp_bit_vector_size_;
-  ArenaBitVector* temp_bit_vector_;
-  // temp_bit_matrix_ used as one of
-  //   - def_block_matrix: original num registers x num_blocks_,
-  //   - ending_null_check_matrix: num_blocks_ x original num registers,
-  //   - ending_clinit_check_matrix: num_blocks_ x unique class count.
-  ArenaBitVector** temp_bit_matrix_;
-  std::unique_ptr<GlobalValueNumbering> temp_gvn_;
+  // Union of temporaries used by different passes.
+  union {
+    // Class init check elimination.
+    struct {
+      size_t num_class_bits;  // 2 bits per class: class initialized and class in dex cache.
+      ArenaBitVector* work_classes_to_check;
+      ArenaBitVector** ending_classes_to_check_matrix;  // num_blocks_ x num_class_bits.
+      uint16_t* indexes;
+    } cice;
+    // Null check elimination.
+    struct {
+      size_t num_vregs;
+      ArenaBitVector* work_vregs_to_check;
+      ArenaBitVector** ending_vregs_to_check_matrix;  // num_blocks_ x num_vregs.
+    } nce;
+    // Special method inlining.
+    struct {
+      size_t num_indexes;
+      ArenaBitVector* processed_indexes;
+      uint16_t* lowering_infos;
+    } smi;
+    // SSA transformation.
+    struct {
+      size_t num_vregs;
+      ArenaBitVector* work_live_vregs;
+      ArenaBitVector** def_block_matrix;  // num_vregs x num_blocks_.
+    } ssa;
+    // Global value numbering.
+    struct {
+      GlobalValueNumbering* gvn;
+    } gvn;
+  } temp_;
   static const int kInvalidEntry = -1;
   ArenaVector<BasicBlock*> block_list_;
   ArenaBitVector* try_block_addr_;
