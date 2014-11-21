@@ -152,9 +152,9 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
     // Portable doesn't use the machine pc, we just use dex pc instead.
     return static_cast<uint32_t>(pc);
   }
-  const void* entry_point = GetQuickOatEntryPoint();
-  MappingTable table(
-      entry_point != nullptr ? GetMappingTable(EntryPointToCodePointer(entry_point)) : nullptr);
+  const void* entry_point = GetQuickOatEntryPoint(sizeof(void*));
+  MappingTable table(entry_point != nullptr ?
+      GetMappingTable(EntryPointToCodePointer(entry_point), sizeof(void*)) : nullptr);
   if (table.TotalSize() == 0) {
     // NOTE: Special methods (see Mir2Lir::GenSpecialCase()) have an empty mapping
     // but they have no suspend checks and, consequently, we never call ToDexPc() for them.
@@ -185,9 +185,9 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
 }
 
 uintptr_t ArtMethod::ToNativePc(const uint32_t dex_pc) {
-  const void* entry_point = GetQuickOatEntryPoint();
-  MappingTable table(
-      entry_point != nullptr ? GetMappingTable(EntryPointToCodePointer(entry_point)) : nullptr);
+  const void* entry_point = GetQuickOatEntryPoint(sizeof(void*));
+  MappingTable table(entry_point != nullptr ?
+      GetMappingTable(EntryPointToCodePointer(entry_point), sizeof(void*)) : nullptr);
   if (table.TotalSize() == 0) {
     DCHECK_EQ(dex_pc, 0U);
     return 0;   // Special no mapping/pc == 0 case

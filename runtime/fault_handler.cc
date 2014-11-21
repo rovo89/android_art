@@ -268,7 +268,8 @@ bool FaultManager::IsInGeneratedCode(siginfo_t* siginfo, void* context, bool che
   // at the return PC address.
   if (true || kIsDebugBuild) {
     VLOG(signals) << "looking for dex pc for return pc " << std::hex << return_pc;
-    const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(method_obj);
+    const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(method_obj,
+                                                                                 sizeof(void*));
     uint32_t sought_offset = return_pc - reinterpret_cast<uintptr_t>(code);
     VLOG(signals) << "pc offset: " << std::hex << sought_offset;
   }

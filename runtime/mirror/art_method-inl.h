@@ -231,16 +231,16 @@ inline void ArtMethod::SetPortableOatCodeOffset(uint32_t code_offset) {
 }
 #endif
 
-inline const void* ArtMethod::GetQuickOatEntryPoint() {
+inline const void* ArtMethod::GetQuickOatEntryPoint(size_t pointer_size) {
   if (IsPortableCompiled() || IsAbstract() || IsRuntimeMethod() || IsProxyMethod()) {
     return nullptr;
   }
   Runtime* runtime = Runtime::Current();
-  const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(this);
+  const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(this, pointer_size);
   // On failure, instead of nullptr we get the quick-generic-jni-trampoline for native method
   // indicating the generic JNI, or the quick-to-interpreter-bridge (but not the trampoline)
   // for non-native methods.
-  DCHECK(entry_point != runtime->GetClassLinker()->GetQuickToInterpreterBridgeTrampoline());
+  DCHECK_NE(entry_point, runtime->GetClassLinker()->GetQuickToInterpreterBridgeTrampoline());
   if (UNLIKELY(entry_point == GetQuickToInterpreterBridge()) ||
       UNLIKELY(entry_point == runtime->GetClassLinker()->GetQuickGenericJniTrampoline())) {
     return nullptr;
@@ -248,21 +248,21 @@ inline const void* ArtMethod::GetQuickOatEntryPoint() {
   return entry_point;
 }
 
-inline const void* ArtMethod::GetQuickOatCodePointer() {
-  return EntryPointToCodePointer(GetQuickOatEntryPoint());
+inline const void* ArtMethod::GetQuickOatCodePointer(size_t pointer_size) {
+  return EntryPointToCodePointer(GetQuickOatEntryPoint(pointer_size));
 }
 
-inline const uint8_t* ArtMethod::GetMappingTable() {
-  const void* code_pointer = GetQuickOatCodePointer();
+inline const uint8_t* ArtMethod::GetMappingTable(size_t pointer_size) {
+  const void* code_pointer = GetQuickOatCodePointer(pointer_size);
   if (code_pointer == nullptr) {
     return nullptr;
   }
-  return GetMappingTable(code_pointer);
+  return GetMappingTable(code_pointer, pointer_size);
 }
 
-inline const uint8_t* ArtMethod::GetMappingTable(const void* code_pointer) {
+inline const uint8_t* ArtMethod::GetMappingTable(const void* code_pointer, size_t pointer_size) {
   DCHECK(code_pointer != nullptr);
-  DCHECK(code_pointer == GetQuickOatCodePointer());
+  DCHECK_EQ(code_pointer, GetQuickOatCodePointer(pointer_size));
   uint32_t offset =
       reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].mapping_table_offset_;
   if (UNLIKELY(offset == 0u)) {
@@ -271,17 +271,17 @@ inline const uint8_t* ArtMethod::GetMappingTable(const void* code_pointer) {
   return reinterpret_cast<const uint8_t*>(code_pointer) - offset;
 }
 
-inline const uint8_t* ArtMethod::GetVmapTable() {
-  const void* code_pointer = GetQuickOatCodePointer();
+inline const uint8_t* ArtMethod::GetVmapTable(size_t pointer_size) {
+  const void* code_pointer = GetQuickOatCodePointer(pointer_size);
   if (code_pointer == nullptr) {
     return nullptr;
   }
-  return GetVmapTable(code_pointer);
+  return GetVmapTable(code_pointer, pointer_size);
 }
 
-inline const uint8_t* ArtMethod::GetVmapTable(const void* code_pointer) {
+inline const uint8_t* ArtMethod::GetVmapTable(const void* code_pointer, size_t pointer_size) {
   DCHECK(code_pointer != nullptr);
-  DCHECK(code_pointer == GetQuickOatCodePointer());
+  DCHECK_EQ(code_pointer, GetQuickOatCodePointer(pointer_size));
   uint32_t offset =
       reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].vmap_table_offset_;
   if (UNLIKELY(offset == 0u)) {
@@ -342,13 +342,14 @@ inline bool ArtMethod::IsImtUnimplementedMethod() {
 }
 
 inline uintptr_t ArtMethod::NativePcOffset(const uintptr_t pc) {
-  const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this);
+  const void* code = Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this, sizeof(void*));
   return pc - reinterpret_cast<uintptr_t>(code);
 }
 
 inline uintptr_t ArtMethod::NativePcOffset(const uintptr_t pc, const void* quick_entry_point) {
   DCHECK(quick_entry_point != GetQuickToInterpreterBridge());
-  DCHECK(quick_entry_point == Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this));
+  DCHECK_EQ(quick_entry_point,
+            Runtime::Current()->GetInstrumentation()->GetQuickCodeFor(this, sizeof(void*)));
   return pc - reinterpret_cast<uintptr_t>(quick_entry_point);
 }
 
@@ -369,7 +370,7 @@ inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
     return runtime->GetRuntimeMethodFrameInfo(this);
   }
 
-  const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(this);
+  const void* entry_point = runtime->GetInstrumentation()->GetQuickCodeFor(this, sizeof(void*));
   // On failure, instead of nullptr we get the quick-generic-jni-trampoline for native method
   // indicating the generic JNI, or the quick-to-interpreter-bridge (but not the trampoline)
   // for non-native methods. And we really shouldn't see a failure for non-native methods here.
@@ -400,7 +401,7 @@ inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
 
 inline QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo(const void* code_pointer) {
   DCHECK(code_pointer != nullptr);
-  DCHECK_EQ(code_pointer, GetQuickOatCodePointer());
+  DCHECK_EQ(code_pointer, GetQuickOatCodePointer(sizeof(void*)));
   return reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].frame_info_;
 }
 

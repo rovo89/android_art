@@ -366,18 +366,22 @@ class MANAGED ArtMethod FINAL : public Object {
   }
 
   // Actual entry point pointer to compiled oat code or nullptr.
-  const void* GetQuickOatEntryPoint() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const void* GetQuickOatEntryPoint(size_t pointer_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Actual pointer to compiled oat code or nullptr.
-  const void* GetQuickOatCodePointer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const void* GetQuickOatCodePointer(size_t pointer_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Callers should wrap the uint8_t* in a MappingTable instance for convenient access.
-  const uint8_t* GetMappingTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const uint8_t* GetMappingTable(const void* code_pointer)
+  const uint8_t* GetMappingTable(size_t pointer_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const uint8_t* GetMappingTable(const void* code_pointer, size_t pointer_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Callers should wrap the uint8_t* in a VmapTable instance for convenient access.
-  const uint8_t* GetVmapTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const uint8_t* GetVmapTable(const void* code_pointer)
+  const uint8_t* GetVmapTable(size_t pointer_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const uint8_t* GetVmapTable(const void* code_pointer, size_t pointer_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const uint8_t* GetNativeGcMap() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
