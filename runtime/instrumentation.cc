@@ -869,10 +869,10 @@ void Instrumentation::DisableMethodTracing() {
   ConfigureStubs(false, false);
 }
 
-const void* Instrumentation::GetQuickCodeFor(mirror::ArtMethod* method) const {
+const void* Instrumentation::GetQuickCodeFor(mirror::ArtMethod* method, size_t pointer_size) const {
   Runtime* runtime = Runtime::Current();
   if (LIKELY(!instrumentation_stubs_installed_)) {
-    const void* code = method->GetEntryPointFromQuickCompiledCode();
+    const void* code = method->GetEntryPointFromQuickCompiledCodePtrSize(pointer_size);
     DCHECK(code != nullptr);
     ClassLinker* class_linker = runtime->GetClassLinker();
     if (LIKELY(!class_linker->IsQuickResolutionStub(code) &&
