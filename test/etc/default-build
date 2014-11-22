@@ -17,6 +17,11 @@
 # Stop if something fails.
 set -e
 
+if [ -e classes.dex ]; then
+  zip $TEST_NAME.jar classes.dex
+  exit 0
+fi
+
 mkdir classes
 ${JAVAC} -d classes `find src -name '*.java'`
 
