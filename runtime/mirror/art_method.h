@@ -384,29 +384,15 @@ class MANAGED ArtMethod FINAL : public Object {
   const uint8_t* GetVmapTable(const void* code_pointer, size_t pointer_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  const uint8_t* GetNativeGcMap() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CheckObjectSizeEqualsMirrorSize();
-    return GetNativeGcMapPtrSize(sizeof(void*));
-  }
-  ALWAYS_INLINE const uint8_t* GetNativeGcMapPtrSize(size_t pointer_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldPtrWithSize<uint8_t*>(GcMapOffset(pointer_size), pointer_size);
-  }
-  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  void SetNativeGcMap(const uint8_t* data) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CheckObjectSizeEqualsMirrorSize();
-    SetNativeGcMapPtrSize(data, sizeof(void*));
-  }
-  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE void SetNativeGcMapPtrSize(const uint8_t* data, size_t pointer_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    SetFieldPtrWithSize<false, true, kVerifyFlags>(GcMapOffset(pointer_size), data,
-                                                   pointer_size);
-  }
+  // Callers should wrap the uint8_t* in a GcMap instance for convenient access.
+  const uint8_t* GetNativeGcMap(size_t pointer_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  const uint8_t* GetNativeGcMap(const void* code_pointer, size_t pointer_size)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // When building the oat need a convenient place to stuff the offset of the native GC map.
-  void SetOatNativeGcMapOffset(uint32_t gc_map_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  uint32_t GetOatNativeGcMapOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // void SetOatNativeGcMapOffset(uint32_t gc_map_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // uint32_t GetOatNativeGcMapOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template <bool kCheckFrameSize = true>
   uint32_t GetFrameSizeInBytes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -453,11 +439,6 @@ class MANAGED ArtMethod FINAL : public Object {
   static MemberOffset EntryPointFromQuickCompiledCodeOffset(size_t pointer_size) {
     return MemberOffset(PtrSizedFieldsOffset() + OFFSETOF_MEMBER(
         PtrSizedFields, entry_point_from_quick_compiled_code_) / sizeof(void*) * pointer_size);
-  }
-
-  static MemberOffset GcMapOffset(size_t pointer_size) {
-    return MemberOffset(PtrSizedFieldsOffset() + OFFSETOF_MEMBER(
-        PtrSizedFields, gc_map_) / sizeof(void*) * pointer_size);
   }
 
   void* GetEntryPointFromJni() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -623,11 +604,6 @@ class MANAGED ArtMethod FINAL : public Object {
     // Method dispatch from quick compiled code invokes this pointer which may cause bridging into
     // portable compiled code or the interpreter.
     void* entry_point_from_quick_compiled_code_;
-
-    // Pointer to a data structure created by the compiler and used by the garbage collector to
-    // determine which registers hold live references to objects within the heap. Keyed by native PC
-    // offsets for the quick compiler and dex PCs for the portable.
-    void* gc_map_;
 
     // Method dispatch from portable compiled code invokes this pointer which may cause bridging
     // into quick compiled code or the interpreter. Last to simplify entrypoint logic.

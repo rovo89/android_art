@@ -1139,7 +1139,6 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
   copy->SetEntryPointFromJniPtrSize<kVerifyNone>(orig->GetEntryPointFromJni(), target_ptr_size_);
   copy->SetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(
       orig->GetEntryPointFromQuickCompiledCode(), target_ptr_size_);
-  copy->SetNativeGcMapPtrSize<kVerifyNone>(orig->GetNativeGcMap(), target_ptr_size_);
 
   // The resolution method has a special trampoline to call.
   Runtime* runtime = Runtime::Current();
@@ -1208,11 +1207,6 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
         // Note this is not the code_ pointer, that is handled above.
         copy->SetEntryPointFromJniPtrSize<kVerifyNone>(GetOatAddress(jni_dlsym_lookup_offset_),
                                                        target_ptr_size_);
-      } else {
-        // Normal (non-abstract non-native) methods have various tables to relocate.
-        uint32_t native_gc_map_offset = orig->GetOatNativeGcMapOffset();
-        const uint8_t* native_gc_map = GetOatAddress(native_gc_map_offset);
-        copy->SetNativeGcMapPtrSize<kVerifyNone>(native_gc_map, target_ptr_size_);
       }
 
       // Interpreter entrypoint:

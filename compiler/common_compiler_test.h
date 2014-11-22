@@ -42,7 +42,7 @@ class CommonCompilerTest : public CommonRuntimeTest {
   ~CommonCompilerTest();
 
   // Create an OatMethod based on pointers (for unit tests).
-  OatFile::OatMethod CreateOatMethod(const void* code, const uint8_t* gc_map);
+  OatFile::OatMethod CreateOatMethod(const void* code);
 
   void MakeExecutable(mirror::ArtMethod* method) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

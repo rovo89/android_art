@@ -290,14 +290,23 @@ inline const uint8_t* ArtMethod::GetVmapTable(const void* code_pointer, size_t p
   return reinterpret_cast<const uint8_t*>(code_pointer) - offset;
 }
 
-inline void ArtMethod::SetOatNativeGcMapOffset(uint32_t gc_map_offset) {
-  DCHECK(!Runtime::Current()->IsStarted());
-  SetNativeGcMap(reinterpret_cast<uint8_t*>(gc_map_offset));
+inline const uint8_t* ArtMethod::GetNativeGcMap(size_t pointer_size) {
+  const void* code_pointer = GetQuickOatCodePointer(pointer_size);
+  if (code_pointer == nullptr) {
+    return nullptr;
+  }
+  return GetNativeGcMap(code_pointer, pointer_size);
 }
 
-inline uint32_t ArtMethod::GetOatNativeGcMapOffset() {
-  DCHECK(!Runtime::Current()->IsStarted());
-  return PointerToLowMemUInt32(GetNativeGcMap());
+inline const uint8_t* ArtMethod::GetNativeGcMap(const void* code_pointer, size_t pointer_size) {
+  DCHECK(code_pointer != nullptr);
+  DCHECK_EQ(code_pointer, GetQuickOatCodePointer(pointer_size));
+  uint32_t offset =
+      reinterpret_cast<const OatQuickMethodHeader*>(code_pointer)[-1].gc_map_offset_;
+  if (UNLIKELY(offset == 0u)) {
+    return nullptr;
+  }
+  return reinterpret_cast<const uint8_t*>(code_pointer) - offset;
 }
 
 inline bool ArtMethod::IsRuntimeMethod() {

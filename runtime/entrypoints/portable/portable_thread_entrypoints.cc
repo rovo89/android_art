@@ -35,7 +35,7 @@ class ShadowFrameCopyVisitor : public StackVisitor {
       uint32_t dex_pc = cur_frame->GetDexPC();
       ShadowFrame* new_frame = ShadowFrame::Create(num_regs, NULL, method, dex_pc);
 
-      const uint8_t* gc_map = method->GetNativeGcMap();
+      const uint8_t* gc_map = method->GetNativeGcMap(sizeof(void*));
       verifier::DexPcToReferenceMap dex_gc_map(gc_map);
       const uint8_t* reg_bitmap = dex_gc_map.FindBitMap(dex_pc);
       for (size_t reg = 0; reg < num_regs; ++reg) {

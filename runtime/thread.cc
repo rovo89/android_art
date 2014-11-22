@@ -2074,7 +2074,7 @@ class ReferenceMapVisitor : public StackVisitor {
     } else {
       // Java method.
       // Portable path use DexGcMap and store in Method.native_gc_map_.
-      const uint8_t* gc_map = m->GetNativeGcMap();
+      const uint8_t* gc_map = m->GetNativeGcMap(sizeof(void*));
       CHECK(gc_map != nullptr) << PrettyMethod(m);
       verifier::DexPcToReferenceMap dex_gc_map(gc_map);
       uint32_t dex_pc = shadow_frame->GetDexPC();
@@ -2108,7 +2108,7 @@ class ReferenceMapVisitor : public StackVisitor {
 
     // Process register map (which native and runtime methods don't have)
     if (!m->IsNative() && !m->IsRuntimeMethod() && !m->IsProxyMethod()) {
-      const uint8_t* native_gc_map = m->GetNativeGcMap();
+      const uint8_t* native_gc_map = m->GetNativeGcMap(sizeof(void*));
       CHECK(native_gc_map != nullptr) << PrettyMethod(m);
       const DexFile::CodeItem* code_item = m->GetCodeItem();
       DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be nullptr or how would we compile its instructions?

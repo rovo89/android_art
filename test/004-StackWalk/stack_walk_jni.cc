@@ -59,7 +59,7 @@ struct TestReferenceMapVisitor : public StackVisitor {
     }
     const uint8_t* reg_bitmap = NULL;
     if (!IsShadowFrame()) {
-      NativePcOffsetToReferenceMap map(m->GetNativeGcMap());
+      NativePcOffsetToReferenceMap map(m->GetNativeGcMap(sizeof(void*)));
       reg_bitmap = map.FindBitMap(GetNativePcOffset());
     }
     StringPiece m_name(m->GetName());

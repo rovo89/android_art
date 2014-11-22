@@ -572,27 +572,22 @@ const OatMethodOffsets* OatFile::OatClass::GetOatMethodOffsets(uint32_t method_i
 const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) const {
   const OatMethodOffsets* oat_method_offsets = GetOatMethodOffsets(method_index);
   if (oat_method_offsets == nullptr) {
-    return OatMethod(nullptr, 0, 0);
+    return OatMethod(nullptr, 0);
   }
   if (oat_file_->IsExecutable() ||
       Runtime::Current() == nullptr ||        // This case applies for oatdump.
       Runtime::Current()->IsCompiler()) {
-    return OatMethod(
-        oat_file_->Begin(),
-        oat_method_offsets->code_offset_,
-        oat_method_offsets->gc_map_offset_);
+    return OatMethod(oat_file_->Begin(), oat_method_offsets->code_offset_);
   } else {
     // We aren't allowed to use the compiled code. We just force it down the interpreted version.
-    return OatMethod(oat_file_->Begin(), 0, 0);
+    return OatMethod(oat_file_->Begin(), 0);
   }
 }
 
 OatFile::OatMethod::OatMethod(const byte* base,
-                              const uint32_t code_offset,
-                              const uint32_t gc_map_offset)
+                              const uint32_t code_offset)
   : begin_(base),
-    code_offset_(code_offset),
-    native_gc_map_offset_(gc_map_offset) {
+    code_offset_(code_offset) {
 }
 
 OatFile::OatMethod::~OatMethod() {}
@@ -603,7 +598,6 @@ void OatFile::OatMethod::LinkMethod(mirror::ArtMethod* method) const {
   method->SetEntryPointFromPortableCompiledCode(GetPortableCode());
 #endif
   method->SetEntryPointFromQuickCompiledCode(GetQuickCode());
-  method->SetNativeGcMap(GetNativeGcMap());
 }
 
 bool OatFile::IsPic() const {

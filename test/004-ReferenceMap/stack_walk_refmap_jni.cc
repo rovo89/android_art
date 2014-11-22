@@ -57,7 +57,7 @@ struct ReferenceMap2Visitor : public StackVisitor {
     }
     LOG(INFO) << "At " << PrettyMethod(m, false);
 
-    NativePcOffsetToReferenceMap map(m->GetNativeGcMap());
+    NativePcOffsetToReferenceMap map(m->GetNativeGcMap(sizeof(void*)));
 
     if (m->IsCalleeSaveMethod()) {
       LOG(WARNING) << "no PC for " << PrettyMethod(m);
