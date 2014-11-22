@@ -96,6 +96,7 @@ void* ArenaStack::AllocValgrind(size_t bytes, ArenaAllocKind kind) {
   uint8_t* ptr = top_ptr_;
   if (UNLIKELY(static_cast<size_t>(top_end_ - ptr) < rounded_bytes)) {
     ptr = AllocateFromNextArena(rounded_bytes);
+    CHECK(ptr != nullptr) << "Failed to allocate memory";
   }
   CurrentStats()->RecordAlloc(bytes, kind);
   top_ptr_ = ptr + rounded_bytes;
