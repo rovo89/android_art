@@ -1986,6 +1986,7 @@ static bool InstructionSetHasGenericJniStub(InstructionSet isa) {
     case kArm:
     case kArm64:
     case kThumb2:
+    case kMips:
     case kX86:
     case kX86_64: return true;
     default: return false;
