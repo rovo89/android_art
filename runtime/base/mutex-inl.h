@@ -97,7 +97,9 @@ inline void BaseMutex::RegisterAsLocked(Thread* self) {
         }
       }
     }
-    CHECK(!bad_mutexes_held);
+    if (gAborting == 0) {  // Avoid recursive aborts.
+      CHECK(!bad_mutexes_held);
+    }
   }
   // Don't record monitors as they are outside the scope of analysis. They may be inspected off of
   // the monitor list.
@@ -112,7 +114,7 @@ inline void BaseMutex::RegisterAsUnlocked(Thread* self) {
     return;
   }
   if (level_ != kMonitorLock) {
-    if (kDebugLocking && !gAborting) {
+    if (kDebugLocking && gAborting == 0) {  // Avoid recursive aborts.
       CHECK(self->GetHeldMutex(level_) == this) << "Unlocking on unacquired mutex: " << name_;
     }
     self->SetHeldMutex(level_, NULL);
