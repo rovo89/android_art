@@ -577,18 +577,15 @@ const OatMethodOffsets* OatFile::OatClass::GetOatMethodOffsets(uint32_t method_i
 const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) const {
   const OatMethodOffsets* oat_method_offsets = GetOatMethodOffsets(method_index);
   if (oat_method_offsets == nullptr) {
-    return OatMethod(nullptr, 0, 0);
+    return OatMethod(nullptr, 0);
   }
   if (oat_file_->IsExecutable() ||
       Runtime::Current() == nullptr ||        // This case applies for oatdump.
       Runtime::Current()->IsCompiler()) {
-    return OatMethod(
-        oat_file_->Begin(),
-        oat_method_offsets->code_offset_,
-        oat_method_offsets->gc_map_offset_);
+    return OatMethod(oat_file_->Begin(), oat_method_offsets->code_offset_);
   } else {
     // We aren't allowed to use the compiled code. We just force it down the interpreted version.
-    return OatMethod(oat_file_->Begin(), 0, 0);
+    return OatMethod(oat_file_->Begin(), 0);
   }
 }
 
@@ -596,7 +593,6 @@ void OatFile::OatMethod::LinkMethod(mirror::ArtMethod* method) const {
   CHECK(method != NULL);
   method->SetEntryPointFromPortableCompiledCode(GetPortableCode());
   method->SetEntryPointFromQuickCompiledCode(GetQuickCode());
-  method->SetNativeGcMap(GetNativeGcMap());  // Used by native methods in work around JNI mode.
 }
 
 bool OatFile::IsPic() const {
