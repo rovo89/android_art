@@ -282,6 +282,10 @@ void VerifiedMethod::GenerateSafeCastSet(verifier::MethodVerifier* method_verifi
     Instruction::Code code = inst->Opcode();
     if ((code == Instruction::CHECK_CAST) || (code == Instruction::APUT_OBJECT)) {
       uint32_t dex_pc = inst->GetDexPc(code_item->insns_);
+      if (!method_verifier->GetInstructionFlags(dex_pc).IsVisited()) {
+        // Do not attempt to quicken this instruction, it's unreachable anyway.
+        continue;
+      }
       const verifier::RegisterLine* line = method_verifier->GetRegLine(dex_pc);
       bool is_safe_cast = false;
       if (code == Instruction::CHECK_CAST) {
