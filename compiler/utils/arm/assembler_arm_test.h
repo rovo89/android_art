@@ -159,7 +159,7 @@ class AssemblerArmTest : public AssemblerTest<Ass, Reg, FPReg, Imm> {
   std::string RepeatRRiiC(void (Ass::*f)(Reg, Reg, Imm, Imm, Cond),
                           std::vector<std::pair<Imm, Imm>>& immediates,
                           std::string fmt) {
-    return RepeatTemplatedRRiiC(f, GetRegisters(), GetRegisters(),
+    return RepeatTemplatedRRiiC<Reg, Reg>(f, GetRegisters(), GetRegisters(),
         &AssemblerArmTest::template GetRegName<RegisterView::kUsePrimaryName>,
         &AssemblerArmTest::template GetRegName<RegisterView::kUsePrimaryName>,
         immediates, fmt);
