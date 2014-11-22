@@ -1209,6 +1209,10 @@ void MIRGraph::DisassembleExtendedInstr(const MIR* mir, std::string* decoded_mir
   int defs = (ssa_rep != nullptr) ? ssa_rep->num_defs : 0;
   int uses = (ssa_rep != nullptr) ? ssa_rep->num_uses : 0;
 
+  if (opcode < kMirOpFirst) {
+    return;  // It is not an extended instruction.
+  }
+
   decoded_mir->append(extended_mir_op_names_[opcode - kMirOpFirst]);
 
   switch (opcode) {
