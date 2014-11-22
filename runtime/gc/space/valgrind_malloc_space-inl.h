@@ -126,6 +126,30 @@ template <typename S,
           size_t kValgrindRedZoneBytes,
           bool kAdjustForRedzoneInAllocSize,
           bool kUseObjSizeForUsable>
+mirror::Object* ValgrindMallocSpace<S,
+                                    kValgrindRedZoneBytes,
+                                    kAdjustForRedzoneInAllocSize,
+                                    kUseObjSizeForUsable>::AllocThreadUnsafe(
+    Thread* self, size_t num_bytes, size_t* bytes_allocated_out, size_t* usable_size_out) {
+  size_t bytes_allocated;
+  size_t usable_size;
+  void* obj_with_rdz = S::AllocThreadUnsafe(self, num_bytes + 2 * kValgrindRedZoneBytes,
+                                &bytes_allocated, &usable_size);
+  if (obj_with_rdz == nullptr) {
+    return nullptr;
+  }
+
+  return valgrind_details::AdjustForValgrind<kValgrindRedZoneBytes,
+                                             kUseObjSizeForUsable>(obj_with_rdz, num_bytes,
+                                                                   bytes_allocated, usable_size,
+                                                                   bytes_allocated_out,
+                                                                   usable_size_out);
+}
+
+template <typename S,
+          size_t kValgrindRedZoneBytes,
+          bool kAdjustForRedzoneInAllocSize,
+          bool kUseObjSizeForUsable>
 size_t ValgrindMallocSpace<S,
                            kValgrindRedZoneBytes,
                            kAdjustForRedzoneInAllocSize,

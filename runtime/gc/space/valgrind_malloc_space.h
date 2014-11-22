@@ -37,6 +37,9 @@ class ValgrindMallocSpace FINAL : public BaseMallocSpaceType {
                                   size_t* usable_size) OVERRIDE;
   mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
                         size_t* usable_size) OVERRIDE;
+  mirror::Object* AllocThreadUnsafe(Thread* self, size_t num_bytes, size_t* bytes_allocated,
+                                    size_t* usable_size) OVERRIDE
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE;
 
