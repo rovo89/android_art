@@ -22,6 +22,7 @@
 #include "compiler_internals.h"
 #include "global_value_numbering.h"
 #include "utils/arena_object.h"
+#include "utils/dex_instruction_utils.h"
 
 namespace art {
 
@@ -75,17 +76,6 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
  private:
   // A set of value names.
   typedef GlobalValueNumbering::ValueNameSet ValueNameSet;
-
-  // Field types correspond to the ordering of GET/PUT instructions; this order is the same
-  // for IGET, IPUT, SGET, SPUT, AGET and APUT:
-  // op         0
-  // op_WIDE    1
-  // op_OBJECT  2
-  // op_BOOLEAN 3
-  // op_BYTE    4
-  // op_CHAR    5
-  // op_SHORT   6
-  static constexpr size_t kFieldTypeCount = 7;
 
   // Key is s_reg, value is value name.
   typedef ScopedArenaSafeMap<uint16_t, uint16_t> SregValueMap;
@@ -364,8 +354,8 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
 
   // Data for dealing with memory clobbering and store/load aliasing.
   uint16_t global_memory_version_;
-  uint16_t unresolved_sfield_version_[kFieldTypeCount];
-  uint16_t unresolved_ifield_version_[kFieldTypeCount];
+  uint16_t unresolved_sfield_version_[kDexMemAccessTypeCount];
+  uint16_t unresolved_ifield_version_[kDexMemAccessTypeCount];
   // Value names of references to objects that cannot be reached through a different value name.
   ValueNameSet non_aliasing_refs_;
   // Previously non-aliasing refs that escaped but can still be used for non-aliasing AGET/IGET.
