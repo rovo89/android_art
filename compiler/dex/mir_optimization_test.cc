@@ -19,6 +19,7 @@
 #include "compiler_internals.h"
 #include "dataflow_iterator.h"
 #include "dataflow_iterator-inl.h"
+#include "dex/mir_field_info.h"
 #include "gtest/gtest.h"
 
 namespace art {
@@ -236,15 +237,17 @@ class MirOptimizationTest : public testing::Test {
       ASSERT_LT(def->bbid, cu_.mir_graph->block_list_.size());
       BasicBlock* bb = cu_.mir_graph->block_list_[def->bbid];
       bb->AppendMIR(mir);
-      if (def->opcode >= Instruction::SGET && def->opcode <= Instruction::SPUT_SHORT) {
-        ASSERT_LT(def->field_or_method_info, cu_.mir_graph->sfield_lowering_infos_.size());
-        mir->meta.sfield_lowering_info = def->field_or_method_info;
-      } else if (def->opcode >= Instruction::IGET && def->opcode <= Instruction::IPUT_SHORT) {
+      if (IsInstructionIGetOrIPut(def->opcode)) {
         ASSERT_LT(def->field_or_method_info, cu_.mir_graph->ifield_lowering_infos_.size());
         mir->meta.ifield_lowering_info = def->field_or_method_info;
-      } else if (def->opcode >= Instruction::INVOKE_VIRTUAL &&
-          def->opcode < Instruction::INVOKE_INTERFACE_RANGE &&
-          def->opcode != Instruction::RETURN_VOID_BARRIER) {
+        ASSERT_EQ(cu_.mir_graph->ifield_lowering_infos_[def->field_or_method_info].MemAccessType(),
+                  IGetOrIPutMemAccessType(def->opcode));
+      } else if (IsInstructionSGetOrSPut(def->opcode)) {
+        ASSERT_LT(def->field_or_method_info, cu_.mir_graph->sfield_lowering_infos_.size());
+        mir->meta.sfield_lowering_info = def->field_or_method_info;
+        ASSERT_EQ(cu_.mir_graph->sfield_lowering_infos_[def->field_or_method_info].MemAccessType(),
+                  SGetOrSPutMemAccessType(def->opcode));
+      } else if (IsInstructionInvoke(def->opcode)) {
         ASSERT_LT(def->field_or_method_info, cu_.mir_graph->method_lowering_infos_.size());
         mir->meta.method_lowering_info = def->field_or_method_info;
       }
@@ -294,6 +297,7 @@ class ClassInitCheckEliminationTest : public MirOptimizationTest {
     uintptr_t declaring_dex_file;
     uint16_t declaring_class_idx;
     uint16_t declaring_field_idx;
+    DexMemAccessType type;
   };
 
   void DoPrepareSFields(const SFieldDef* defs, size_t count) {
@@ -301,12 +305,12 @@ class ClassInitCheckEliminationTest : public MirOptimizationTest {
     cu_.mir_graph->sfield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const SFieldDef* def = &defs[i];
-      MirSFieldLoweringInfo field_info(def->field_idx);
+      MirSFieldLoweringInfo field_info(def->field_idx, def->type);
       if (def->declaring_dex_file != 0u) {
         field_info.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
         field_info.declaring_class_idx_ = def->declaring_class_idx;
         field_info.declaring_field_idx_ = def->declaring_field_idx;
-        field_info.flags_ = MirSFieldLoweringInfo::kFlagIsStatic;
+        // We don't care about the volatile flag in these tests.
       }
       ASSERT_EQ(def->declaring_dex_file != 0u, field_info.IsResolved());
       ASSERT_FALSE(field_info.IsClassInitialized());
@@ -343,6 +347,7 @@ class NullCheckEliminationTest : public MirOptimizationTest {
     uintptr_t declaring_dex_file;
     uint16_t declaring_class_idx;
     uint16_t declaring_field_idx;
+    DexMemAccessType type;
   };
 
   void DoPrepareIFields(const IFieldDef* defs, size_t count) {
@@ -350,11 +355,12 @@ class NullCheckEliminationTest : public MirOptimizationTest {
     cu_.mir_graph->ifield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const IFieldDef* def = &defs[i];
-      MirIFieldLoweringInfo field_info(def->field_idx);
+      MirIFieldLoweringInfo field_info(def->field_idx, def->type);
       if (def->declaring_dex_file != 0u) {
         field_info.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
         field_info.declaring_class_idx_ = def->declaring_class_idx;
         field_info.declaring_field_idx_ = def->declaring_field_idx;
+        // We don't care about the volatile flag in these tests.
       }
       ASSERT_EQ(def->declaring_dex_file != 0u, field_info.IsResolved());
       cu_.mir_graph->ifield_lowering_infos_.push_back(field_info);
@@ -393,12 +399,12 @@ class NullCheckEliminationTest : public MirOptimizationTest {
 
 TEST_F(ClassInitCheckEliminationTest, SingleBlock) {
   static const SFieldDef sfields[] = {
-      { 0u, 1u, 0u, 0u },
-      { 1u, 1u, 1u, 1u },
-      { 2u, 1u, 2u, 2u },
-      { 3u, 1u, 3u, 3u },  // Same declaring class as sfield[4].
-      { 4u, 1u, 3u, 4u },  // Same declaring class as sfield[3].
-      { 5u, 0u, 0u, 0u },  // Unresolved.
+      { 0u, 1u, 0u, 0u, kDexMemAccessWord },
+      { 1u, 1u, 1u, 1u, kDexMemAccessWord },
+      { 2u, 1u, 2u, 2u, kDexMemAccessWord },
+      { 3u, 1u, 3u, 3u, kDexMemAccessWord },  // Same declaring class as sfield[4].
+      { 4u, 1u, 3u, 4u, kDexMemAccessWord },  // Same declaring class as sfield[3].
+      { 5u, 0u, 0u, 0u, kDexMemAccessWord },  // Unresolved.
   };
   static const MIRDef mirs[] = {
       DEF_SGET_SPUT(3u, Instruction::SPUT, 0u, 5u),  // Unresolved.
@@ -432,9 +438,9 @@ TEST_F(ClassInitCheckEliminationTest, SingleBlock) {
 
 TEST_F(ClassInitCheckEliminationTest, SingleBlockWithInvokes) {
   static const SFieldDef sfields[] = {
-      { 0u, 1u, 0u, 0u },
-      { 1u, 1u, 1u, 1u },
-      { 2u, 1u, 2u, 2u },
+      { 0u, 1u, 0u, 0u, kDexMemAccessWord },
+      { 1u, 1u, 1u, 1u, kDexMemAccessWord },
+      { 2u, 1u, 2u, 2u, kDexMemAccessWord },
   };
   static const MethodDef methods[] = {
       { 0u, 1u, 0u, 0u, kStatic, kStatic, false, false },
@@ -473,17 +479,17 @@ TEST_F(ClassInitCheckEliminationTest, SingleBlockWithInvokes) {
 
 TEST_F(ClassInitCheckEliminationTest, Diamond) {
   static const SFieldDef sfields[] = {
-      { 0u, 1u, 0u, 0u },
-      { 1u, 1u, 1u, 1u },
-      { 2u, 1u, 2u, 2u },
-      { 3u, 1u, 3u, 3u },
-      { 4u, 1u, 4u, 4u },
-      { 5u, 1u, 5u, 5u },
-      { 6u, 1u, 6u, 6u },
-      { 7u, 1u, 7u, 7u },
-      { 8u, 1u, 8u, 8u },  // Same declaring class as sfield[9].
-      { 9u, 1u, 8u, 9u },  // Same declaring class as sfield[8].
-      { 10u, 0u, 0u, 0u },  // Unresolved.
+      { 0u, 1u, 0u, 0u, kDexMemAccessWord },
+      { 1u, 1u, 1u, 1u, kDexMemAccessWord },
+      { 2u, 1u, 2u, 2u, kDexMemAccessWord },
+      { 3u, 1u, 3u, 3u, kDexMemAccessWord },
+      { 4u, 1u, 4u, 4u, kDexMemAccessWord },
+      { 5u, 1u, 5u, 5u, kDexMemAccessWord },
+      { 6u, 1u, 6u, 6u, kDexMemAccessWord },
+      { 7u, 1u, 7u, 7u, kDexMemAccessWord },
+      { 8u, 1u, 8u, 8u, kDexMemAccessWord },   // Same declaring class as sfield[9].
+      { 9u, 1u, 8u, 9u, kDexMemAccessWord },   // Same declaring class as sfield[8].
+      { 10u, 0u, 0u, 0u, kDexMemAccessWord },  // Unresolved.
   };
   static const MIRDef mirs[] = {
       // NOTE: MIRs here are ordered by unique tests. They will be put into appropriate blocks.
@@ -539,11 +545,11 @@ TEST_F(ClassInitCheckEliminationTest, Diamond) {
 
 TEST_F(ClassInitCheckEliminationTest, DiamondWithInvokes) {
   static const SFieldDef sfields[] = {
-      { 0u, 1u, 0u, 0u },
-      { 1u, 1u, 1u, 1u },
-      { 2u, 1u, 2u, 2u },
-      { 3u, 1u, 3u, 3u },
-      { 4u, 1u, 4u, 4u },
+      { 0u, 1u, 0u, 0u, kDexMemAccessWord },
+      { 1u, 1u, 1u, 1u, kDexMemAccessWord },
+      { 2u, 1u, 2u, 2u, kDexMemAccessWord },
+      { 3u, 1u, 3u, 3u, kDexMemAccessWord },
+      { 4u, 1u, 4u, 4u, kDexMemAccessWord },
   };
   static const MethodDef methods[] = {
       { 0u, 1u, 0u, 0u, kStatic, kStatic, false, false },
@@ -600,9 +606,9 @@ TEST_F(ClassInitCheckEliminationTest, DiamondWithInvokes) {
 
 TEST_F(ClassInitCheckEliminationTest, Loop) {
   static const SFieldDef sfields[] = {
-      { 0u, 1u, 0u, 0u },
-      { 1u, 1u, 1u, 1u },
-      { 2u, 1u, 2u, 2u },
+      { 0u, 1u, 0u, 0u, kDexMemAccessWord },
+      { 1u, 1u, 1u, 1u, kDexMemAccessWord },
+      { 2u, 1u, 2u, 2u, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 0u),
@@ -631,7 +637,7 @@ TEST_F(ClassInitCheckEliminationTest, Loop) {
 
 TEST_F(ClassInitCheckEliminationTest, LoopWithInvokes) {
   static const SFieldDef sfields[] = {
-      { 0u, 1u, 0u, 0u },
+      { 0u, 1u, 0u, 0u, kDexMemAccessWord },
   };
   static const MethodDef methods[] = {
       { 0u, 1u, 0u, 0u, kStatic, kStatic, false, false },
@@ -671,10 +677,10 @@ TEST_F(ClassInitCheckEliminationTest, LoopWithInvokes) {
 
 TEST_F(ClassInitCheckEliminationTest, Catch) {
   static const SFieldDef sfields[] = {
-      { 0u, 1u, 0u, 0u },
-      { 1u, 1u, 1u, 1u },
-      { 2u, 1u, 2u, 2u },
-      { 3u, 1u, 3u, 3u },
+      { 0u, 1u, 0u, 0u, kDexMemAccessWord },
+      { 1u, 1u, 1u, 1u, kDexMemAccessWord },
+      { 2u, 1u, 2u, 2u, kDexMemAccessWord },
+      { 3u, 1u, 3u, 3u, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_SGET_SPUT(3u, Instruction::SGET, 0u, 0u),  // Before the exception edge.
@@ -707,9 +713,9 @@ TEST_F(ClassInitCheckEliminationTest, Catch) {
 
 TEST_F(NullCheckEliminationTest, SingleBlock) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, 0u },
-      { 1u, 1u, 0u, 1u },
-      { 2u, 1u, 0u, 2u },  // Object.
+      { 0u, 1u, 0u, 0u, kDexMemAccessWord },
+      { 1u, 1u, 0u, 1u, kDexMemAccessWord },
+      { 2u, 1u, 0u, 2u, kDexMemAccessObject },
   };
   static const MIRDef mirs[] = {
       DEF_IGET_IPUT(3u, Instruction::IGET_OBJECT, 0u, 100u, 2u),
@@ -768,9 +774,9 @@ TEST_F(NullCheckEliminationTest, SingleBlock) {
 
 TEST_F(NullCheckEliminationTest, Diamond) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, 0u },
-      { 1u, 1u, 0u, 1u },
-      { 2u, 1u, 0u, 2u },  // int[].
+      { 0u, 1u, 0u, 0u, kDexMemAccessWord },
+      { 1u, 1u, 0u, 1u, kDexMemAccessWord },
+      { 2u, 1u, 0u, 2u, kDexMemAccessObject },  // int[].
   };
   static const MIRDef mirs[] = {
       // NOTE: MIRs here are ordered by unique tests. They will be put into appropriate blocks.
@@ -816,8 +822,8 @@ TEST_F(NullCheckEliminationTest, Diamond) {
 
 TEST_F(NullCheckEliminationTest, Loop) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, 0u },
-      { 1u, 1u, 1u, 1u },
+      { 0u, 1u, 0u, 0u, kDexMemAccessWord },
+      { 1u, 1u, 1u, 1u, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_IGET_IPUT(3u, Instruction::IGET, 0u, 100u, 0u),
@@ -846,8 +852,8 @@ TEST_F(NullCheckEliminationTest, Loop) {
 
 TEST_F(NullCheckEliminationTest, Catch) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, 0u },
-      { 1u, 1u, 1u, 1u },
+      { 0u, 1u, 0u, 0u, kDexMemAccessWord },
+      { 1u, 1u, 1u, 1u, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_IGET_IPUT(3u, Instruction::IGET, 0u, 100u, 0u),  // Before the exception edge.

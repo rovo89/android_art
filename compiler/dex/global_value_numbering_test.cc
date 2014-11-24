@@ -17,6 +17,7 @@
 #include "compiler_internals.h"
 #include "dataflow_iterator.h"
 #include "dataflow_iterator-inl.h"
+#include "dex/mir_field_info.h"
 #include "global_value_numbering.h"
 #include "local_value_numbering.h"
 #include "gtest/gtest.h"
@@ -32,6 +33,7 @@ class GlobalValueNumberingTest : public testing::Test {
     uintptr_t declaring_dex_file;
     uint16_t declaring_field_idx;
     bool is_volatile;
+    DexMemAccessType type;
   };
 
   struct SFieldDef {
@@ -39,6 +41,7 @@ class GlobalValueNumberingTest : public testing::Test {
     uintptr_t declaring_dex_file;
     uint16_t declaring_field_idx;
     bool is_volatile;
+    DexMemAccessType type;
   };
 
   struct BBDef {
@@ -137,12 +140,11 @@ class GlobalValueNumberingTest : public testing::Test {
     cu_.mir_graph->ifield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const IFieldDef* def = &defs[i];
-      MirIFieldLoweringInfo field_info(def->field_idx);
+      MirIFieldLoweringInfo field_info(def->field_idx, def->type);
       if (def->declaring_dex_file != 0u) {
         field_info.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
         field_info.declaring_field_idx_ = def->declaring_field_idx;
-        field_info.flags_ = 0u |  // Without kFlagIsStatic.
-            (def->is_volatile ? MirIFieldLoweringInfo::kFlagIsVolatile : 0u);
+        field_info.flags_ &= ~(def->is_volatile ? 0u : MirSFieldLoweringInfo::kFlagIsVolatile);
       }
       cu_.mir_graph->ifield_lowering_infos_.push_back(field_info);
     }
@@ -158,15 +160,14 @@ class GlobalValueNumberingTest : public testing::Test {
     cu_.mir_graph->sfield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const SFieldDef* def = &defs[i];
-      MirSFieldLoweringInfo field_info(def->field_idx);
+      MirSFieldLoweringInfo field_info(def->field_idx, def->type);
       // Mark even unresolved fields as initialized.
-      field_info.flags_ = MirSFieldLoweringInfo::kFlagIsStatic |
-          MirSFieldLoweringInfo::kFlagClassIsInitialized;
+      field_info.flags_ |= MirSFieldLoweringInfo::kFlagClassIsInitialized;
       // NOTE: MirSFieldLoweringInfo::kFlagClassIsInDexCache isn't used by GVN.
       if (def->declaring_dex_file != 0u) {
         field_info.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
         field_info.declaring_field_idx_ = def->declaring_field_idx;
-        field_info.flags_ |= (def->is_volatile ? MirSFieldLoweringInfo::kFlagIsVolatile : 0u);
+        field_info.flags_ &= ~(def->is_volatile ? 0u : MirSFieldLoweringInfo::kFlagIsVolatile);
       }
       cu_.mir_graph->sfield_lowering_infos_.push_back(field_info);
     }
@@ -238,12 +239,16 @@ class GlobalValueNumberingTest : public testing::Test {
       mir->dalvikInsn.opcode = def->opcode;
       mir->dalvikInsn.vB = static_cast<int32_t>(def->value);
       mir->dalvikInsn.vB_wide = def->value;
-      if (def->opcode >= Instruction::IGET && def->opcode <= Instruction::IPUT_SHORT) {
+      if (IsInstructionIGetOrIPut(def->opcode)) {
         ASSERT_LT(def->field_info, cu_.mir_graph->ifield_lowering_infos_.size());
         mir->meta.ifield_lowering_info = def->field_info;
-      } else if (def->opcode >= Instruction::SGET && def->opcode <= Instruction::SPUT_SHORT) {
+        ASSERT_EQ(cu_.mir_graph->ifield_lowering_infos_[def->field_info].MemAccessType(),
+                  IGetOrIPutMemAccessType(def->opcode));
+      } else if (IsInstructionSGetOrSPut(def->opcode)) {
         ASSERT_LT(def->field_info, cu_.mir_graph->sfield_lowering_infos_.size());
         mir->meta.sfield_lowering_info = def->field_info;
+        ASSERT_EQ(cu_.mir_graph->sfield_lowering_infos_[def->field_info].MemAccessType(),
+                  SGetOrSPutMemAccessType(def->opcode));
       } else if (def->opcode == static_cast<Instruction::Code>(kMirOpPhi)) {
         mir->meta.phi_incoming = static_cast<BasicBlockId*>(
             allocator_->Alloc(def->num_uses * sizeof(BasicBlockId), kArenaAllocDFInfo));
@@ -288,6 +293,10 @@ class GlobalValueNumberingTest : public testing::Test {
     cu_.mir_graph->ComputeDominators();
     cu_.mir_graph->ComputeTopologicalSortOrder();
     cu_.mir_graph->SSATransformationEnd();
+    cu_.mir_graph->temp_.gvn.ifield_ids_ =  GlobalValueNumbering::PrepareGvnFieldIds(
+        allocator_.get(), cu_.mir_graph->ifield_lowering_infos_);
+    cu_.mir_graph->temp_.gvn.sfield_ids_ =  GlobalValueNumbering::PrepareGvnFieldIds(
+        allocator_.get(), cu_.mir_graph->sfield_lowering_infos_);
     ASSERT_TRUE(gvn_ == nullptr);
     gvn_.reset(new (allocator_.get()) GlobalValueNumbering(&cu_, allocator_.get(),
                                                            GlobalValueNumbering::kModeGvn));
@@ -498,18 +507,18 @@ GlobalValueNumberingTestTwoNestedLoops::GlobalValueNumberingTestTwoNestedLoops()
 
 TEST_F(GlobalValueNumberingTestDiamond, NonAliasingIFields) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, false },  // Int.
-      { 1u, 1u, 1u, false },  // Int.
-      { 2u, 1u, 2u, false },  // Int.
-      { 3u, 1u, 3u, false },  // Int.
-      { 4u, 1u, 4u, false },  // Short.
-      { 5u, 1u, 5u, false },  // Char.
-      { 6u, 0u, 0u, false },  // Unresolved, Short.
-      { 7u, 1u, 7u, false },  // Int.
-      { 8u, 0u, 0u, false },  // Unresolved, Int.
-      { 9u, 1u, 9u, false },  // Int.
-      { 10u, 1u, 10u, false },  // Int.
-      { 11u, 1u, 11u, false },  // Int.
+      { 0u, 1u, 0u, false, kDexMemAccessWord },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
+      { 2u, 1u, 2u, false, kDexMemAccessWord },
+      { 3u, 1u, 3u, false, kDexMemAccessWord },
+      { 4u, 1u, 4u, false, kDexMemAccessShort },
+      { 5u, 1u, 5u, false, kDexMemAccessChar },
+      { 6u, 0u, 0u, false, kDexMemAccessShort },   // Unresolved.
+      { 7u, 1u, 7u, false, kDexMemAccessWord },
+      { 8u, 0u, 0u, false, kDexMemAccessWord },    // Unresolved.
+      { 9u, 1u, 9u, false, kDexMemAccessWord },
+      { 10u, 1u, 10u, false, kDexMemAccessWord },
+      { 11u, 1u, 11u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       // NOTE: MIRs here are ordered by unique tests. They will be put into appropriate blocks.
@@ -604,15 +613,15 @@ TEST_F(GlobalValueNumberingTestDiamond, NonAliasingIFields) {
 
 TEST_F(GlobalValueNumberingTestDiamond, AliasingIFieldsSingleObject) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, false },  // Int.
-      { 1u, 1u, 1u, false },  // Int.
-      { 2u, 1u, 2u, false },  // Int.
-      { 3u, 1u, 3u, false },  // Int.
-      { 4u, 1u, 4u, false },  // Short.
-      { 5u, 1u, 5u, false },  // Char.
-      { 6u, 0u, 0u, false },  // Unresolved, Short.
-      { 7u, 1u, 7u, false },  // Int.
-      { 8u, 1u, 8u, false },  // Int.
+      { 0u, 1u, 0u, false, kDexMemAccessWord },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
+      { 2u, 1u, 2u, false, kDexMemAccessWord },
+      { 3u, 1u, 3u, false, kDexMemAccessWord },
+      { 4u, 1u, 4u, false, kDexMemAccessShort },
+      { 5u, 1u, 5u, false, kDexMemAccessChar },
+      { 6u, 0u, 0u, false, kDexMemAccessShort },  // Unresolved.
+      { 7u, 1u, 7u, false, kDexMemAccessWord },
+      { 8u, 1u, 8u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       // NOTE: MIRs here are ordered by unique tests. They will be put into appropriate blocks.
@@ -671,15 +680,15 @@ TEST_F(GlobalValueNumberingTestDiamond, AliasingIFieldsSingleObject) {
 
 TEST_F(GlobalValueNumberingTestDiamond, AliasingIFieldsTwoObjects) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, false },  // Int.
-      { 1u, 1u, 1u, false },  // Int.
-      { 2u, 1u, 2u, false },  // Int.
-      { 3u, 1u, 3u, false },  // Int.
-      { 4u, 1u, 4u, false },  // Short.
-      { 5u, 1u, 5u, false },  // Char.
-      { 6u, 0u, 0u, false },  // Unresolved, Short.
-      { 7u, 1u, 7u, false },  // Int.
-      { 8u, 1u, 8u, false },  // Int.
+      { 0u, 1u, 0u, false, kDexMemAccessWord },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
+      { 2u, 1u, 2u, false, kDexMemAccessWord },
+      { 3u, 1u, 3u, false, kDexMemAccessWord },
+      { 4u, 1u, 4u, false, kDexMemAccessShort },
+      { 5u, 1u, 5u, false, kDexMemAccessChar },
+      { 6u, 0u, 0u, false, kDexMemAccessShort },   // Unresolved.
+      { 7u, 1u, 7u, false, kDexMemAccessWord },
+      { 8u, 1u, 8u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       // NOTE: MIRs here are ordered by unique tests. They will be put into appropriate blocks.
@@ -740,15 +749,15 @@ TEST_F(GlobalValueNumberingTestDiamond, AliasingIFieldsTwoObjects) {
 
 TEST_F(GlobalValueNumberingTestDiamond, SFields) {
   static const SFieldDef sfields[] = {
-      { 0u, 1u, 0u, false },  // Int.
-      { 1u, 1u, 1u, false },  // Int.
-      { 2u, 1u, 2u, false },  // Int.
-      { 3u, 1u, 3u, false },  // Int.
-      { 4u, 1u, 4u, false },  // Short.
-      { 5u, 1u, 5u, false },  // Char.
-      { 6u, 0u, 0u, false },  // Unresolved, Short.
-      { 7u, 1u, 7u, false },  // Int.
-      { 8u, 1u, 8u, false },  // Int.
+      { 0u, 1u, 0u, false, kDexMemAccessWord },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
+      { 2u, 1u, 2u, false, kDexMemAccessWord },
+      { 3u, 1u, 3u, false, kDexMemAccessWord },
+      { 4u, 1u, 4u, false, kDexMemAccessShort },
+      { 5u, 1u, 5u, false, kDexMemAccessChar },
+      { 6u, 0u, 0u, false, kDexMemAccessShort },   // Unresolved.
+      { 7u, 1u, 7u, false, kDexMemAccessWord },
+      { 8u, 1u, 8u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       // NOTE: MIRs here are ordered by unique tests. They will be put into appropriate blocks.
@@ -1078,18 +1087,18 @@ TEST_F(GlobalValueNumberingTestDiamond, PhiWide) {
 
 TEST_F(GlobalValueNumberingTestLoop, NonAliasingIFields) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, false },  // Int.
-      { 1u, 1u, 1u, false },  // Int.
-      { 2u, 1u, 2u, false },  // Int.
-      { 3u, 1u, 3u, false },  // Int.
-      { 4u, 1u, 4u, false },  // Int.
-      { 5u, 1u, 5u, false },  // Short.
-      { 6u, 1u, 6u, false },  // Char.
-      { 7u, 0u, 0u, false },  // Unresolved, Short.
-      { 8u, 1u, 8u, false },  // Int.
-      { 9u, 0u, 0u, false },  // Unresolved, Int.
-      { 10u, 1u, 10u, false },  // Int.
-      { 11u, 1u, 11u, false },  // Int.
+      { 0u, 1u, 0u, false, kDexMemAccessWord },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
+      { 2u, 1u, 2u, false, kDexMemAccessWord },
+      { 3u, 1u, 3u, false, kDexMemAccessWord },
+      { 4u, 1u, 4u, false, kDexMemAccessWord },
+      { 5u, 1u, 5u, false, kDexMemAccessShort },
+      { 6u, 1u, 6u, false, kDexMemAccessChar },
+      { 7u, 0u, 0u, false, kDexMemAccessShort },   // Unresolved.
+      { 8u, 1u, 8u, false, kDexMemAccessWord },
+      { 9u, 0u, 0u, false, kDexMemAccessWord },    // Unresolved.
+      { 10u, 1u, 10u, false, kDexMemAccessWord },
+      { 11u, 1u, 11u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       // NOTE: MIRs here are ordered by unique tests. They will be put into appropriate blocks.
@@ -1201,14 +1210,14 @@ TEST_F(GlobalValueNumberingTestLoop, NonAliasingIFields) {
 
 TEST_F(GlobalValueNumberingTestLoop, AliasingIFieldsSingleObject) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, false },  // Int.
-      { 1u, 1u, 1u, false },  // Int.
-      { 2u, 1u, 2u, false },  // Int.
-      { 3u, 1u, 3u, false },  // Int.
-      { 4u, 1u, 4u, false },  // Int.
-      { 5u, 1u, 5u, false },  // Short.
-      { 6u, 1u, 6u, false },  // Char.
-      { 7u, 0u, 0u, false },  // Unresolved, Short.
+      { 0u, 1u, 0u, false, kDexMemAccessWord },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
+      { 2u, 1u, 2u, false, kDexMemAccessWord },
+      { 3u, 1u, 3u, false, kDexMemAccessWord },
+      { 4u, 1u, 4u, false, kDexMemAccessWord },
+      { 5u, 1u, 5u, false, kDexMemAccessShort },
+      { 6u, 1u, 6u, false, kDexMemAccessChar },
+      { 7u, 0u, 0u, false, kDexMemAccessShort },   // Unresolved.
   };
   static const MIRDef mirs[] = {
       // NOTE: MIRs here are ordered by unique tests. They will be put into appropriate blocks.
@@ -1272,14 +1281,14 @@ TEST_F(GlobalValueNumberingTestLoop, AliasingIFieldsSingleObject) {
 
 TEST_F(GlobalValueNumberingTestLoop, AliasingIFieldsTwoObjects) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, false },  // Int.
-      { 1u, 1u, 1u, false },  // Int.
-      { 2u, 1u, 2u, false },  // Int.
-      { 3u, 1u, 3u, false },  // Short.
-      { 4u, 1u, 4u, false },  // Char.
-      { 5u, 0u, 0u, false },  // Unresolved, Short.
-      { 6u, 1u, 6u, false },  // Int.
-      { 7u, 1u, 7u, false },  // Int.
+      { 0u, 1u, 0u, false, kDexMemAccessWord },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
+      { 2u, 1u, 2u, false, kDexMemAccessWord },
+      { 3u, 1u, 3u, false, kDexMemAccessShort },
+      { 4u, 1u, 4u, false, kDexMemAccessChar },
+      { 5u, 0u, 0u, false, kDexMemAccessShort },   // Unresolved.
+      { 6u, 1u, 6u, false, kDexMemAccessWord },
+      { 7u, 1u, 7u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       // NOTE: MIRs here are ordered by unique tests. They will be put into appropriate blocks.
@@ -1341,7 +1350,7 @@ TEST_F(GlobalValueNumberingTestLoop, AliasingIFieldsTwoObjects) {
 
 TEST_F(GlobalValueNumberingTestLoop, IFieldToBaseDependency) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, false },  // Int.
+      { 0u, 1u, 0u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       // For the IGET that loads sreg 3u using base 2u, the following IPUT creates a dependency
@@ -1366,9 +1375,9 @@ TEST_F(GlobalValueNumberingTestLoop, IFieldToBaseDependency) {
 
 TEST_F(GlobalValueNumberingTestLoop, SFields) {
   static const SFieldDef sfields[] = {
-      { 0u, 1u, 0u, false },  // Int.
-      { 1u, 1u, 1u, false },  // Int.
-      { 2u, 1u, 2u, false },  // Int.
+      { 0u, 1u, 0u, false, kDexMemAccessWord },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
+      { 2u, 1u, 2u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       // NOTE: MIRs here are ordered by unique tests. They will be put into appropriate blocks.
@@ -1562,8 +1571,8 @@ TEST_F(GlobalValueNumberingTestLoop, Phi) {
 
 TEST_F(GlobalValueNumberingTestCatch, IFields) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, false },
-      { 1u, 1u, 1u, false },
+      { 0u, 1u, 0u, false, kDexMemAccessWord },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_UNIQUE_REF(3, Instruction::NEW_INSTANCE, 200u),
@@ -1608,8 +1617,8 @@ TEST_F(GlobalValueNumberingTestCatch, IFields) {
 
 TEST_F(GlobalValueNumberingTestCatch, SFields) {
   static const SFieldDef sfields[] = {
-      { 0u, 1u, 0u, false },
-      { 1u, 1u, 1u, false },
+      { 0u, 1u, 0u, false, kDexMemAccessWord },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_SGET(3, Instruction::SGET, 0u, 0u),
@@ -1731,8 +1740,8 @@ TEST_F(GlobalValueNumberingTestCatch, Phi) {
 
 TEST_F(GlobalValueNumberingTest, NullCheckIFields) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, false },  // Object.
-      { 1u, 1u, 1u, false },  // Object.
+      { 0u, 1u, 0u, false, kDexMemAccessObject },  // Object.
+      { 1u, 1u, 1u, false, kDexMemAccessObject },  // Object.
   };
   static const BBDef bbs[] = {
       DEF_BB(kNullBlock, DEF_SUCC0(), DEF_PRED0()),
@@ -1780,8 +1789,8 @@ TEST_F(GlobalValueNumberingTest, NullCheckIFields) {
 
 TEST_F(GlobalValueNumberingTest, NullCheckSFields) {
   static const SFieldDef sfields[] = {
-      { 0u, 1u, 0u, false },  // Object.
-      { 1u, 1u, 1u, false },  // Object.
+      { 0u, 1u, 0u, false, kDexMemAccessObject },
+      { 1u, 1u, 1u, false, kDexMemAccessObject },
   };
   static const BBDef bbs[] = {
       DEF_BB(kNullBlock, DEF_SUCC0(), DEF_PRED0()),
@@ -1907,12 +1916,12 @@ TEST_F(GlobalValueNumberingTestDiamond, RangeCheckArrays) {
 
 TEST_F(GlobalValueNumberingTestDiamond, MergeSameValueInDifferentMemoryLocations) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, false },  // Int.
-      { 1u, 1u, 1u, false },  // Int.
+      { 0u, 1u, 0u, false, kDexMemAccessWord },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
   };
   static const SFieldDef sfields[] = {
-      { 0u, 1u, 0u, false },  // Int.
-      { 1u, 1u, 1u, false },  // Int.
+      { 0u, 1u, 0u, false, kDexMemAccessWord },
+      { 1u, 1u, 1u, false, kDexMemAccessWord },
   };
   static const MIRDef mirs[] = {
       DEF_UNIQUE_REF(3, Instruction::NEW_INSTANCE, 100u),
@@ -1977,7 +1986,7 @@ TEST_F(GlobalValueNumberingTest, InfiniteLocationLoop) {
   // LVN's aliasing_array_value_map_'s load_value_map for BBs #9, #4, #5, #7 because of the
   // DFS ordering of LVN evaluation.
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, false },  // Object.
+      { 0u, 1u, 0u, false, kDexMemAccessObject },
   };
   static const BBDef bbs[] = {
       DEF_BB(kNullBlock, DEF_SUCC0(), DEF_PRED0()),
@@ -2015,7 +2024,7 @@ TEST_F(GlobalValueNumberingTest, InfiniteLocationLoop) {
 
 TEST_F(GlobalValueNumberingTestTwoConsecutiveLoops, IFieldAndPhi) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, false },  // Int.
+      { 0u, 1u, 0u, false, kDexMemAccessObject },
   };
   static const MIRDef mirs[] = {
       DEF_MOVE(3, Instruction::MOVE_OBJECT, 0u, 100u),
@@ -2052,10 +2061,10 @@ TEST_F(GlobalValueNumberingTestTwoConsecutiveLoops, IFieldAndPhi) {
 
 TEST_F(GlobalValueNumberingTestTwoConsecutiveLoops, NullCheck) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, false },  // Int.
+      { 0u, 1u, 0u, false, kDexMemAccessObject },
   };
   static const SFieldDef sfields[] = {
-      { 0u, 1u, 0u, false },  // Int.
+      { 0u, 1u, 0u, false, kDexMemAccessObject },
   };
   static const MIRDef mirs[] = {
       DEF_MOVE(3, Instruction::MOVE_OBJECT, 0u, 100u),
@@ -2143,7 +2152,7 @@ TEST_F(GlobalValueNumberingTestTwoConsecutiveLoops, NullCheck) {
 
 TEST_F(GlobalValueNumberingTestTwoNestedLoops, IFieldAndPhi) {
   static const IFieldDef ifields[] = {
-      { 0u, 1u, 0u, false },  // Int.
+      { 0u, 1u, 0u, false, kDexMemAccessObject },
   };
   static const MIRDef mirs[] = {
       DEF_MOVE(3, Instruction::MOVE_OBJECT, 0u, 100u),
