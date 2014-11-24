@@ -109,6 +109,7 @@ class LocationsBuilderARM : public HGraphVisitor {
  private:
   void HandleInvoke(HInvoke* invoke);
   void HandleBitwiseOperation(HBinaryOperation* operation);
+  void HandleShift(HBinaryOperation* operation);
 
   CodeGeneratorARM* const codegen_;
   InvokeDexCallingConventionVisitor parameter_visitor_;
@@ -136,6 +137,7 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
   void GenerateSuspendCheck(HSuspendCheck* check, HBasicBlock* successor);
   void GenerateClassInitializationCheck(SlowPathCodeARM* slow_path, Register class_reg);
   void HandleBitwiseOperation(HBinaryOperation* operation);
+  void HandleShift(HBinaryOperation* operation);
 
   ArmAssembler* const assembler_;
   CodeGeneratorARM* const codegen_;

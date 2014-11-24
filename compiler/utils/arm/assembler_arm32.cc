@@ -1079,7 +1079,7 @@ void Arm32Assembler::EmitVFPds(Condition cond, int32_t opcode,
 
 void Arm32Assembler::Lsl(Register rd, Register rm, uint32_t shift_imm,
                          bool setcc, Condition cond) {
-  CHECK_NE(shift_imm, 0u);  // Do not use Lsl if no shift is wanted.
+  CHECK_LE(shift_imm, 31u);
   if (setcc) {
     movs(rd, ShifterOperand(rm, LSL, shift_imm), cond);
   } else {
@@ -1090,7 +1090,7 @@ void Arm32Assembler::Lsl(Register rd, Register rm, uint32_t shift_imm,
 
 void Arm32Assembler::Lsr(Register rd, Register rm, uint32_t shift_imm,
                          bool setcc, Condition cond) {
-  CHECK_NE(shift_imm, 0u);  // Do not use Lsr if no shift is wanted.
+  CHECK(1u <= shift_imm && shift_imm <= 32u);
   if (shift_imm == 32) shift_imm = 0;  // Comply to UAL syntax.
   if (setcc) {
     movs(rd, ShifterOperand(rm, LSR, shift_imm), cond);
@@ -1102,7 +1102,7 @@ void Arm32Assembler::Lsr(Register rd, Register rm, uint32_t shift_imm,
 
 void Arm32Assembler::Asr(Register rd, Register rm, uint32_t shift_imm,
                          bool setcc, Condition cond) {
-  CHECK_NE(shift_imm, 0u);  // Do not use Asr if no shift is wanted.
+  CHECK(1u <= shift_imm && shift_imm <= 32u);
   if (shift_imm == 32) shift_imm = 0;  // Comply to UAL syntax.
   if (setcc) {
     movs(rd, ShifterOperand(rm, ASR, shift_imm), cond);
@@ -1114,7 +1114,7 @@ void Arm32Assembler::Asr(Register rd, Register rm, uint32_t shift_imm,
 
 void Arm32Assembler::Ror(Register rd, Register rm, uint32_t shift_imm,
                          bool setcc, Condition cond) {
-  CHECK_NE(shift_imm, 0u);  // Use Rrx instruction.
+  CHECK(1u <= shift_imm && shift_imm <= 31u);
   if (setcc) {
     movs(rd, ShifterOperand(rm, ROR, shift_imm), cond);
   } else {

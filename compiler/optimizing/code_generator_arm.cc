@@ -2087,6 +2087,124 @@ void InstructionCodeGeneratorARM::VisitDivZeroCheck(HDivZeroCheck* instruction) 
   }
 }
 
+void LocationsBuilderARM::HandleShift(HBinaryOperation* op) {
+  DCHECK(op->IsShl() || op->IsShr() || op->IsUShr());
+
+  LocationSummary::CallKind call_kind = op->GetResultType() == Primitive::kPrimLong
+      ? LocationSummary::kCall
+      : LocationSummary::kNoCall;
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(op, call_kind);
+
+  switch (op->GetResultType()) {
+    case Primitive::kPrimInt: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(op->InputAt(1)));
+      locations->SetOut(Location::RequiresRegister());
+      break;
+    }
+    case Primitive::kPrimLong: {
+      InvokeRuntimeCallingConvention calling_convention;
+      locations->SetInAt(0, Location::RegisterPairLocation(
+          calling_convention.GetRegisterAt(0), calling_convention.GetRegisterAt(1)));
+      locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+      // The runtime helper puts the output in R0,R2.
+      locations->SetOut(Location::RegisterPairLocation(R0, R2));
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected operation type " << op->GetResultType();
+  }
+}
+
+void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
+  DCHECK(op->IsShl() || op->IsShr() || op->IsUShr());
+
+  LocationSummary* locations = op->GetLocations();
+  Location out = locations->Out();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+
+  Primitive::Type type = op->GetResultType();
+  switch (type) {
+    case Primitive::kPrimInt: {
+      Register out_reg = out.As<Register>();
+      Register first_reg = first.As<Register>();
+      // Arm doesn't mask the shift count so we need to do it ourselves.
+      if (second.IsRegister()) {
+        Register second_reg = second.As<Register>();
+        __ and_(second_reg, second_reg, ShifterOperand(kMaxIntShiftValue));
+        if (op->IsShl()) {
+          __ Lsl(out_reg, first_reg, second_reg);
+        } else if (op->IsShr()) {
+          __ Asr(out_reg, first_reg, second_reg);
+        } else {
+          __ Lsr(out_reg, first_reg, second_reg);
+        }
+      } else {
+        int32_t cst = second.GetConstant()->AsIntConstant()->GetValue();
+        uint32_t shift_value = static_cast<uint32_t>(cst & kMaxIntShiftValue);
+        if (shift_value == 0) {  // arm does not support shifting with 0 immediate.
+          __ Mov(out_reg, first_reg);
+        } else if (op->IsShl()) {
+          __ Lsl(out_reg, first_reg, shift_value);
+        } else if (op->IsShr()) {
+          __ Asr(out_reg, first_reg, shift_value);
+        } else {
+          __ Lsr(out_reg, first_reg, shift_value);
+        }
+      }
+      break;
+    }
+    case Primitive::kPrimLong: {
+      // TODO: Inline the assembly instead of calling the runtime.
+      InvokeRuntimeCallingConvention calling_convention;
+      DCHECK_EQ(calling_convention.GetRegisterAt(0), first.AsRegisterPairLow<Register>());
+      DCHECK_EQ(calling_convention.GetRegisterAt(1), first.AsRegisterPairHigh<Register>());
+      DCHECK_EQ(calling_convention.GetRegisterAt(2), second.As<Register>());
+      DCHECK_EQ(R0, out.AsRegisterPairLow<Register>());
+      DCHECK_EQ(R2, out.AsRegisterPairHigh<Register>());
+
+      int32_t entry_point_offset;
+      if (op->IsShl()) {
+        entry_point_offset = QUICK_ENTRY_POINT(pShlLong);
+      } else if (op->IsShr()) {
+        entry_point_offset = QUICK_ENTRY_POINT(pShrLong);
+      } else {
+        entry_point_offset = QUICK_ENTRY_POINT(pUshrLong);
+      }
+      __ LoadFromOffset(kLoadWord, LR, TR, entry_point_offset);
+      __ blx(LR);
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected operation type " << type;
+  }
+}
+
+void LocationsBuilderARM::VisitShl(HShl* shl) {
+  HandleShift(shl);
+}
+
+void InstructionCodeGeneratorARM::VisitShl(HShl* shl) {
+  HandleShift(shl);
+}
+
+void LocationsBuilderARM::VisitShr(HShr* shr) {
+  HandleShift(shr);
+}
+
+void InstructionCodeGeneratorARM::VisitShr(HShr* shr) {
+  HandleShift(shr);
+}
+
+void LocationsBuilderARM::VisitUShr(HUShr* ushr) {
+  HandleShift(ushr);
+}
+
+void InstructionCodeGeneratorARM::VisitUShr(HUShr* ushr) {
+  HandleShift(ushr);
+}
+
 void LocationsBuilderARM::VisitNewInstance(HNewInstance* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
