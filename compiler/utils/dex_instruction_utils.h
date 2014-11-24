@@ -58,6 +58,10 @@ constexpr bool IsInstructionInvokeStatic(Instruction::Code opcode) {
   return opcode == Instruction::INVOKE_STATIC || opcode == Instruction::INVOKE_STATIC_RANGE;
 }
 
+constexpr bool IsInstructionGoto(Instruction::Code opcode) {
+  return Instruction::GOTO <= opcode && opcode <= Instruction::GOTO_32;
+}
+
 constexpr bool IsInstructionIfCc(Instruction::Code opcode) {
   return Instruction::IF_EQ <= opcode && opcode <= Instruction::IF_LE;
 }
