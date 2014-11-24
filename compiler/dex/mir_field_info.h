@@ -20,6 +20,7 @@
 #include "base/macros.h"
 #include "dex_file.h"
 #include "offsets.h"
+#include "utils/dex_instruction_utils.h"
 
 namespace art {
 
@@ -63,18 +64,27 @@ class MirFieldInfo {
     return (flags_ & kFlagIsVolatile) != 0u;
   }
 
+  DexMemAccessType MemAccessType() const {
+    return static_cast<DexMemAccessType>((flags_ >> kBitMemAccessTypeBegin) & kMemAccessTypeMask);
+  }
+
  protected:
   enum {
     kBitIsStatic = 0,
     kBitIsVolatile,
-    kFieldInfoBitEnd
+    kBitMemAccessTypeBegin,
+    kBitMemAccessTypeEnd = kBitMemAccessTypeBegin + 3,  // 3 bits for raw type.
+    kFieldInfoBitEnd = kBitMemAccessTypeEnd
   };
   static constexpr uint16_t kFlagIsVolatile = 1u << kBitIsVolatile;
   static constexpr uint16_t kFlagIsStatic = 1u << kBitIsStatic;
+  static constexpr uint16_t kMemAccessTypeMask = 7u;
+  static_assert((1u << (kBitMemAccessTypeEnd - kBitMemAccessTypeBegin)) - 1u == kMemAccessTypeMask,
+                "Invalid raw type mask");
 
-  MirFieldInfo(uint16_t field_idx, uint16_t flags)
+  MirFieldInfo(uint16_t field_idx, uint16_t flags, DexMemAccessType type)
       : field_idx_(field_idx),
-        flags_(flags),
+        flags_(flags | static_cast<uint16_t>(type) << kBitMemAccessTypeBegin),
         declaring_field_idx_(0u),
         declaring_class_idx_(0u),
         declaring_dex_file_(nullptr) {
@@ -107,8 +117,8 @@ class MirIFieldLoweringInfo : public MirFieldInfo {
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Construct an unresolved instance field lowering info.
-  explicit MirIFieldLoweringInfo(uint16_t field_idx)
-      : MirFieldInfo(field_idx, kFlagIsVolatile),  // Without kFlagIsStatic.
+  explicit MirIFieldLoweringInfo(uint16_t field_idx, DexMemAccessType type)
+      : MirFieldInfo(field_idx, kFlagIsVolatile, type),  // Without kFlagIsStatic.
         field_offset_(0u) {
   }
 
@@ -155,8 +165,8 @@ class MirSFieldLoweringInfo : public MirFieldInfo {
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Construct an unresolved static field lowering info.
-  explicit MirSFieldLoweringInfo(uint16_t field_idx)
-      : MirFieldInfo(field_idx, kFlagIsVolatile | kFlagIsStatic),
+  explicit MirSFieldLoweringInfo(uint16_t field_idx, DexMemAccessType type)
+      : MirFieldInfo(field_idx, kFlagIsVolatile | kFlagIsStatic, type),
         field_offset_(0u),
         storage_index_(DexFile::kDexNoIndex) {
   }

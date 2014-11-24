@@ -21,6 +21,7 @@
 #include "dataflow_iterator-inl.h"
 #include "dex_instruction.h"
 #include "dex_instruction-inl.h"
+#include "dex/mir_field_info.h"
 #include "dex/verified_method.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
@@ -1204,6 +1205,8 @@ void MIRGraph::DoCacheFieldLoweringInfo() {
   ScopedArenaAllocator allocator(&cu_->arena_stack);
   uint16_t* field_idxs =
       reinterpret_cast<uint16_t*>(allocator.Alloc(max_refs * sizeof(uint16_t), kArenaAllocMisc));
+  DexMemAccessType* field_types = reinterpret_cast<DexMemAccessType*>(
+      allocator.Alloc(max_refs * sizeof(DexMemAccessType), kArenaAllocMisc));
 
   // Find IGET/IPUT/SGET/SPUT insns, store IGET/IPUT fields at the beginning, SGET/SPUT at the end.
   size_t ifield_pos = 0u;
@@ -1214,38 +1217,41 @@ void MIRGraph::DoCacheFieldLoweringInfo() {
       continue;
     }
     for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
-      if (mir->dalvikInsn.opcode >= Instruction::IGET &&
-          mir->dalvikInsn.opcode <= Instruction::SPUT_SHORT) {
-        // Get field index and try to find it among existing indexes. If found, it's usually among
-        // the last few added, so we'll start the search from ifield_pos/sfield_pos. Though this
-        // is a linear search, it actually performs much better than map based approach.
-        if (mir->dalvikInsn.opcode <= Instruction::IPUT_SHORT) {
-          uint16_t field_idx = mir->dalvikInsn.vC;
-          size_t i = ifield_pos;
-          while (i != 0u && field_idxs[i - 1] != field_idx) {
-            --i;
-          }
-          if (i != 0u) {
-            mir->meta.ifield_lowering_info = i - 1;
-          } else {
-            mir->meta.ifield_lowering_info = ifield_pos;
-            field_idxs[ifield_pos++] = field_idx;
-          }
-        } else {
-          uint16_t field_idx = mir->dalvikInsn.vB;
-          size_t i = sfield_pos;
-          while (i != max_refs && field_idxs[i] != field_idx) {
-            ++i;
-          }
-          if (i != max_refs) {
-            mir->meta.sfield_lowering_info = max_refs - i - 1u;
-          } else {
-            mir->meta.sfield_lowering_info = max_refs - sfield_pos;
-            field_idxs[--sfield_pos] = field_idx;
-          }
+      // Get field index and try to find it among existing indexes. If found, it's usually among
+      // the last few added, so we'll start the search from ifield_pos/sfield_pos. Though this
+      // is a linear search, it actually performs much better than map based approach.
+      if (IsInstructionIGetOrIPut(mir->dalvikInsn.opcode)) {
+        uint16_t field_idx = mir->dalvikInsn.vC;
+        size_t i = ifield_pos;
+        while (i != 0u && field_idxs[i - 1] != field_idx) {
+          --i;
         }
-        DCHECK_LE(ifield_pos, sfield_pos);
+        if (i != 0u) {
+          mir->meta.ifield_lowering_info = i - 1;
+          DCHECK_EQ(field_types[i - 1], IGetOrIPutMemAccessType(mir->dalvikInsn.opcode));
+        } else {
+          mir->meta.ifield_lowering_info = ifield_pos;
+          field_idxs[ifield_pos] = field_idx;
+          field_types[ifield_pos] = IGetOrIPutMemAccessType(mir->dalvikInsn.opcode);
+          ++ifield_pos;
+        }
+      } else if (IsInstructionSGetOrSPut(mir->dalvikInsn.opcode)) {
+        uint16_t field_idx = mir->dalvikInsn.vB;
+        size_t i = sfield_pos;
+        while (i != max_refs && field_idxs[i] != field_idx) {
+          ++i;
+        }
+        if (i != max_refs) {
+          mir->meta.sfield_lowering_info = max_refs - i - 1u;
+          DCHECK_EQ(field_types[i], SGetOrSPutMemAccessType(mir->dalvikInsn.opcode));
+        } else {
+          mir->meta.sfield_lowering_info = max_refs - sfield_pos;
+          --sfield_pos;
+          field_idxs[sfield_pos] = field_idx;
+          field_types[sfield_pos] = SGetOrSPutMemAccessType(mir->dalvikInsn.opcode);
+        }
       }
+      DCHECK_LE(ifield_pos, sfield_pos);
     }
   }
 
@@ -1254,7 +1260,7 @@ void MIRGraph::DoCacheFieldLoweringInfo() {
     DCHECK_EQ(ifield_lowering_infos_.size(), 0u);
     ifield_lowering_infos_.reserve(ifield_pos);
     for (size_t pos = 0u; pos != ifield_pos; ++pos) {
-      ifield_lowering_infos_.push_back(MirIFieldLoweringInfo(field_idxs[pos]));
+      ifield_lowering_infos_.push_back(MirIFieldLoweringInfo(field_idxs[pos], field_types[pos]));
     }
     MirIFieldLoweringInfo::Resolve(cu_->compiler_driver, GetCurrentDexCompilationUnit(),
                                    ifield_lowering_infos_.data(), ifield_pos);
@@ -1266,7 +1272,7 @@ void MIRGraph::DoCacheFieldLoweringInfo() {
     sfield_lowering_infos_.reserve(max_refs - sfield_pos);
     for (size_t pos = max_refs; pos != sfield_pos;) {
       --pos;
-      sfield_lowering_infos_.push_back(MirSFieldLoweringInfo(field_idxs[pos]));
+      sfield_lowering_infos_.push_back(MirSFieldLoweringInfo(field_idxs[pos], field_types[pos]));
     }
     MirSFieldLoweringInfo::Resolve(cu_->compiler_driver, GetCurrentDexCompilationUnit(),
                                    sfield_lowering_infos_.data(), max_refs - sfield_pos);
@@ -1329,19 +1335,10 @@ void MIRGraph::DoCacheMethodLoweringInfo() {
       continue;
     }
     for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
-      if (mir->dalvikInsn.opcode >= Instruction::INVOKE_VIRTUAL &&
-          mir->dalvikInsn.opcode <= Instruction::INVOKE_INTERFACE_RANGE &&
-          mir->dalvikInsn.opcode != Instruction::RETURN_VOID_BARRIER) {
+      if (IsInstructionInvoke(mir->dalvikInsn.opcode)) {
         // Decode target method index and invoke type.
-        uint16_t target_method_idx;
-        uint16_t invoke_type_idx;
-        if (mir->dalvikInsn.opcode <= Instruction::INVOKE_INTERFACE) {
-          target_method_idx = mir->dalvikInsn.vB;
-          invoke_type_idx = mir->dalvikInsn.opcode - Instruction::INVOKE_VIRTUAL;
-        } else {
-          target_method_idx = mir->dalvikInsn.vB;
-          invoke_type_idx = mir->dalvikInsn.opcode - Instruction::INVOKE_VIRTUAL_RANGE;
-        }
+        uint16_t target_method_idx = mir->dalvikInsn.vB;
+        DexInvokeType invoke_type_idx = InvokeInstructionType(mir->dalvikInsn.opcode);
 
         // Find devirtualization target.
         // TODO: The devirt map is ordered by the dex pc here. Is there a way to get INVOKEs

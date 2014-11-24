@@ -661,13 +661,29 @@ class MIRGraph {
   void DoCacheFieldLoweringInfo();
 
   const MirIFieldLoweringInfo& GetIFieldLoweringInfo(MIR* mir) const {
-    DCHECK_LT(mir->meta.ifield_lowering_info, ifield_lowering_infos_.size());
-    return ifield_lowering_infos_[mir->meta.ifield_lowering_info];
+    return GetIFieldLoweringInfo(mir->meta.ifield_lowering_info);
+  }
+
+  const MirIFieldLoweringInfo& GetIFieldLoweringInfo(uint32_t lowering_info) const {
+    DCHECK_LT(lowering_info, ifield_lowering_infos_.size());
+    return ifield_lowering_infos_[lowering_info];
+  }
+
+  size_t GetIFieldLoweringInfoCount() const {
+    return ifield_lowering_infos_.size();
   }
 
   const MirSFieldLoweringInfo& GetSFieldLoweringInfo(MIR* mir) const {
-    DCHECK_LT(mir->meta.sfield_lowering_info, sfield_lowering_infos_.size());
-    return sfield_lowering_infos_[mir->meta.sfield_lowering_info];
+    return GetSFieldLoweringInfo(mir->meta.sfield_lowering_info);
+  }
+
+  const MirSFieldLoweringInfo& GetSFieldLoweringInfo(uint32_t lowering_info) const {
+    DCHECK_LT(lowering_info, sfield_lowering_infos_.size());
+    return sfield_lowering_infos_[lowering_info];
+  }
+
+  size_t GetSFieldLoweringInfoCount() const {
+    return sfield_lowering_infos_.size();
   }
 
   void DoCacheMethodLoweringInfo();
@@ -1035,6 +1051,21 @@ class MIRGraph {
   bool ApplyGlobalValueNumberingGate();
   bool ApplyGlobalValueNumbering(BasicBlock* bb);
   void ApplyGlobalValueNumberingEnd();
+
+  uint16_t GetGvnIFieldId(MIR* mir) const {
+    DCHECK(IsInstructionIGetOrIPut(mir->dalvikInsn.opcode));
+    DCHECK_LT(mir->meta.ifield_lowering_info, ifield_lowering_infos_.size());
+    DCHECK(temp_.gvn.ifield_ids_ != nullptr);
+    return temp_.gvn.ifield_ids_[mir->meta.ifield_lowering_info];
+  }
+
+  uint16_t GetGvnSFieldId(MIR* mir) const {
+    DCHECK(IsInstructionSGetOrSPut(mir->dalvikInsn.opcode));
+    DCHECK_LT(mir->meta.sfield_lowering_info, sfield_lowering_infos_.size());
+    DCHECK(temp_.gvn.sfield_ids_ != nullptr);
+    return temp_.gvn.sfield_ids_[mir->meta.sfield_lowering_info];
+  }
+
   /*
    * Type inference handling helpers.  Because Dalvik's bytecode is not fully typed,
    * we have to do some work to figure out the sreg type.  For some operations it is
@@ -1300,6 +1331,8 @@ class MIRGraph {
     // Global value numbering.
     struct {
       GlobalValueNumbering* gvn;
+      uint16_t* ifield_ids_;  // Part of GVN/LVN but cached here for LVN to avoid recalculation.
+      uint16_t* sfield_ids_;  // Ditto.
     } gvn;
   } temp_;
   static const int kInvalidEntry = -1;

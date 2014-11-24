@@ -15,7 +15,6 @@
  */
 
 #include "global_value_numbering.h"
-
 #include "local_value_numbering.h"
 
 namespace art {
@@ -31,8 +30,6 @@ GlobalValueNumbering::GlobalValueNumbering(CompilationUnit* cu, ScopedArenaAlloc
       modifications_allowed_(true),
       mode_(mode),
       global_value_map_(std::less<uint64_t>(), allocator->Adapter()),
-      field_index_map_(FieldReferenceComparator(), allocator->Adapter()),
-      field_index_reverse_map_(allocator->Adapter()),
       array_location_map_(ArrayLocationComparator(), allocator->Adapter()),
       array_location_reverse_map_(allocator->Adapter()),
       ref_set_map_(std::less<ValueNameSet>(), allocator->Adapter()),
@@ -143,19 +140,6 @@ bool GlobalValueNumbering::FinishBasicBlock(BasicBlock* bb) {
     work_lvn_.reset();
   }
   return change;
-}
-
-uint16_t GlobalValueNumbering::GetFieldId(const MirFieldInfo& field_info, uint16_t type) {
-  FieldReference key = { field_info.DeclaringDexFile(), field_info.DeclaringFieldIndex(), type };
-  auto lb = field_index_map_.lower_bound(key);
-  if (lb != field_index_map_.end() && !field_index_map_.key_comp()(key, lb->first)) {
-    return lb->second;
-  }
-  DCHECK_LT(field_index_map_.size(), kNoValue);
-  uint16_t id = field_index_map_.size();
-  auto it = field_index_map_.PutBefore(lb, key, id);
-  field_index_reverse_map_.push_back(&*it);
-  return id;
 }
 
 uint16_t GlobalValueNumbering::GetArrayLocation(uint16_t base, uint16_t index) {
