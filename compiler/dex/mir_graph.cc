@@ -913,7 +913,7 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
                 bb->first_mir_insn ? " | " : " ");
         for (mir = bb->first_mir_insn; mir; mir = mir->next) {
             int opcode = mir->dalvikInsn.opcode;
-            fprintf(file, "    {%04x %s %s %s %s %s %s %s %s\\l}%s\\\n", mir->offset,
+            fprintf(file, "    {%04x %s %s %s %s %s %s %s %s %s\\l}%s\\\n", mir->offset,
                       mir->ssa_rep ? GetDalvikDisassembly(mir) :
                       !MIR::DecodedInstruction::IsPseudoMirOp(opcode) ?
                         Instruction::Name(mir->dalvikInsn.opcode) :
@@ -925,6 +925,7 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
                       (mir->optimization_flags & MIR_CALLEE) != 0 ? " inlined" : " ",
                       (mir->optimization_flags & MIR_CLASS_IS_INITIALIZED) != 0 ? " cl_inited" : " ",
                       (mir->optimization_flags & MIR_CLASS_IS_IN_DEX_CACHE) != 0 ? " cl_in_cache" : " ",
+                      (mir->optimization_flags & MIR_IGNORE_DIV_ZERO_CHECK) != 0 ? " no_div_check" : " ",
                       mir->next ? " | " : " ");
         }
         fprintf(file, "  }\"];\n\n");
