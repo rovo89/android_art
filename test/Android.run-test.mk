@@ -306,6 +306,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   010-instance \
   012-math \
   023-many-interfaces \
+  027-arithmetic \
   037-inherit \
   044-proxy \
   045-reflect-array \
@@ -329,6 +330,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   427-bounds \
   428-optimizing-arith-rem \
   430-live-register-slow-path \
+  431-optimizing-arith-shifts \
   701-easy-div-rem \
   800-smali \
 
