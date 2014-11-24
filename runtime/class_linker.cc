@@ -5737,24 +5737,13 @@ void ClassLinker::DumpAllClasses(int flags) {
   }
 }
 
-static OatFile::OatMethod CreateOatMethod(const void* code, const uint8_t* gc_map,
-                                          bool is_portable) {
+static OatFile::OatMethod CreateOatMethod(const void* code, bool is_portable) {
   CHECK_EQ(kUsePortableCompiler, is_portable);
   CHECK(code != nullptr);
-  const uint8_t* base;
-  uint32_t code_offset, gc_map_offset;
-  if (gc_map == nullptr) {
-    base = reinterpret_cast<const uint8_t*>(code);  // Base of data points at code.
-    base -= sizeof(void*);  // Move backward so that code_offset != 0.
-    code_offset = sizeof(void*);
-    gc_map_offset = 0;
-  } else {
-    // TODO: 64bit support.
-    base = nullptr;  // Base of data in oat file, ie 0.
-    code_offset = PointerToLowMemUInt32(code);
-    gc_map_offset = PointerToLowMemUInt32(gc_map);
-  }
-  return OatFile::OatMethod(base, code_offset, gc_map_offset);
+  const uint8_t* base = reinterpret_cast<const uint8_t*>(code);  // Base of data points at code.
+  base -= sizeof(void*);  // Move backward so that code_offset != 0.
+  const uint32_t code_offset = sizeof(void*);
+  return OatFile::OatMethod(base, code_offset);
 }
 
 bool ClassLinker::IsPortableResolutionStub(const void* entry_point) const {
@@ -5788,7 +5777,7 @@ const void* ClassLinker::GetRuntimeQuickGenericJniStub() const {
 
 void ClassLinker::SetEntryPointsToCompiledCode(mirror::ArtMethod* method, const void* method_code,
                                                bool is_portable) const {
-  OatFile::OatMethod oat_method = CreateOatMethod(method_code, nullptr, is_portable);
+  OatFile::OatMethod oat_method = CreateOatMethod(method_code, is_portable);
   oat_method.LinkMethod(method);
   method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
   // Create bridges to transition between different kinds of compiled bridge.
@@ -5808,7 +5797,7 @@ void ClassLinker::SetEntryPointsToInterpreter(mirror::ArtMethod* method) const {
     method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
   } else {
     const void* quick_method_code = GetQuickGenericJniStub();
-    OatFile::OatMethod oat_method = CreateOatMethod(quick_method_code, nullptr, false);
+    OatFile::OatMethod oat_method = CreateOatMethod(quick_method_code, false);
     oat_method.LinkMethod(method);
     method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
     method->SetEntryPointFromPortableCompiledCode(GetPortableToQuickBridge());
