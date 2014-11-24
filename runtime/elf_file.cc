@@ -794,7 +794,7 @@ template <typename Elf_Ehdr, typename Elf_Phdr, typename Elf_Shdr, typename Elf_
 Elf_Word ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     Elf_Sword, Elf_Addr, Elf_Sym, Elf_Rel, Elf_Rela, Elf_Dyn, Elf_Off>
     ::GetHashChain(size_t i, bool* ok) const {
-  if (i >= GetHashBucketNum()) {
+  if (i >= GetHashChainNum()) {
     *ok = false;
     return 0;
   }
