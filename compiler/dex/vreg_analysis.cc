@@ -276,8 +276,7 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
       }
       int num_uses = mir->dalvikInsn.vA;
       // If this is a non-static invoke, mark implicit "this"
-      if (((mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC) &&
-          (mir->dalvikInsn.opcode != Instruction::INVOKE_STATIC_RANGE))) {
+      if (!IsInstructionInvokeStatic(mir->dalvikInsn.opcode)) {
         reg_location_[uses[next]].defined = true;
         reg_location_[uses[next]].ref = true;
         type_mismatch |= reg_location_[uses[next]].wide;
