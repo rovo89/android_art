@@ -236,7 +236,7 @@ class HLoopInformation : public ArenaObject<kArenaAllocMisc> {
     return false;
   }
 
-  size_t NumberOfBackEdges() const {
+  int NumberOfBackEdges() const {
     return back_edges_.Size();
   }
 
