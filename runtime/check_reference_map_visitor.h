@@ -98,7 +98,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
   void CheckQuickMethod(int* registers, int number_of_references, uint32_t native_pc_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     mirror::ArtMethod* m = GetMethod();
-    NativePcOffsetToReferenceMap map(m->GetNativeGcMap());
+    NativePcOffsetToReferenceMap map(m->GetNativeGcMap(sizeof(void*)));
     const uint8_t* ref_bitmap = map.FindBitMap(native_pc_offset);
     CHECK(ref_bitmap);
     for (int i = 0; i < number_of_references; ++i) {

@@ -25,7 +25,7 @@
 namespace art {
 
 const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '4', '8', '\0' };
+const uint8_t OatHeader::kOatVersion[] = { '0', '4', '9', '\0' };
 
 static size_t ComputeOatHeaderSize(const SafeMap<std::string, std::string>* variable_data) {
   size_t estimate = 0U;
@@ -493,35 +493,19 @@ void OatHeader::Flatten(const SafeMap<std::string, std::string>* key_value_store
   key_value_store_size_ = data_ptr - reinterpret_cast<char*>(&key_value_store_);
 }
 
-OatMethodOffsets::OatMethodOffsets()
-  : code_offset_(0),
-    gc_map_offset_(0)
-{}
-
-OatMethodOffsets::OatMethodOffsets(uint32_t code_offset,
-                                   uint32_t gc_map_offset
-                                   )
-  : code_offset_(code_offset),
-    gc_map_offset_(gc_map_offset)
-{}
+OatMethodOffsets::OatMethodOffsets(uint32_t code_offset) : code_offset_(code_offset) {
+}
 
 OatMethodOffsets::~OatMethodOffsets() {}
 
-OatQuickMethodHeader::OatQuickMethodHeader()
-  : mapping_table_offset_(0),
-    vmap_table_offset_(0),
-    frame_info_(0, 0, 0),
-    code_size_(0)
-{}
-
 OatQuickMethodHeader::OatQuickMethodHeader(
-    uint32_t mapping_table_offset, uint32_t vmap_table_offset, uint32_t frame_size_in_bytes,
-    uint32_t core_spill_mask, uint32_t fp_spill_mask, uint32_t code_size)
-  : mapping_table_offset_(mapping_table_offset),
-    vmap_table_offset_(vmap_table_offset),
-    frame_info_(frame_size_in_bytes, core_spill_mask, fp_spill_mask),
-    code_size_(code_size)
-{}
+    uint32_t mapping_table_offset, uint32_t vmap_table_offset, uint32_t gc_map_offset,
+    uint32_t frame_size_in_bytes, uint32_t core_spill_mask, uint32_t fp_spill_mask,
+    uint32_t code_size)
+    : mapping_table_offset_(mapping_table_offset), vmap_table_offset_(vmap_table_offset),
+      gc_map_offset_(gc_map_offset),
+      frame_info_(frame_size_in_bytes, core_spill_mask, fp_spill_mask), code_size_(code_size) {
+}
 
 OatQuickMethodHeader::~OatQuickMethodHeader() {}
 
