@@ -49,6 +49,10 @@ std::ostream& operator<<(std::ostream& os, const DexMemAccessType& type);
 
 // NOTE: The following functions disregard quickened instructions.
 
+constexpr bool IsInstructionReturn(Instruction::Code opcode) {
+  return Instruction::RETURN_VOID <= opcode && opcode <= Instruction::RETURN_OBJECT;
+}
+
 constexpr bool IsInstructionInvoke(Instruction::Code opcode) {
   return Instruction::INVOKE_VIRTUAL <= opcode && opcode <= Instruction::INVOKE_INTERFACE_RANGE &&
       opcode != Instruction::RETURN_VOID_BARRIER;

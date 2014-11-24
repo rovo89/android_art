@@ -112,18 +112,18 @@ MIR* AllocReplacementMIR(MIRGraph* mir_graph, MIR* invoke) {
 uint32_t GetInvokeReg(MIR* invoke, uint32_t arg) {
   DCHECK_LT(arg, invoke->dalvikInsn.vA);
   DCHECK(!MIR::DecodedInstruction::IsPseudoMirOp(invoke->dalvikInsn.opcode));
-  if (Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k3rc) {
-    return invoke->dalvikInsn.vC + arg;  // Non-range invoke.
+  if (IsInvokeInstructionRange(invoke->dalvikInsn.opcode)) {
+    return invoke->dalvikInsn.vC + arg;  // Range invoke.
   } else {
     DCHECK_EQ(Instruction::FormatOf(invoke->dalvikInsn.opcode), Instruction::k35c);
-    return invoke->dalvikInsn.arg[arg];  // Range invoke.
+    return invoke->dalvikInsn.arg[arg];  // Non-range invoke.
   }
 }
 
 bool WideArgIsInConsecutiveDalvikRegs(MIR* invoke, uint32_t arg) {
   DCHECK_LT(arg + 1, invoke->dalvikInsn.vA);
   DCHECK(!MIR::DecodedInstruction::IsPseudoMirOp(invoke->dalvikInsn.opcode));
-  return Instruction::FormatOf(invoke->dalvikInsn.opcode) == Instruction::k3rc ||
+  return IsInvokeInstructionRange(invoke->dalvikInsn.opcode) ||
       invoke->dalvikInsn.arg[arg + 1u] == invoke->dalvikInsn.arg[arg] + 1u;
 }
 
@@ -573,8 +573,7 @@ bool DexFileMethodInliner::GenInline(MIRGraph* mir_graph, BasicBlock* bb, MIR* i
     // If the invoke has not been eliminated yet, check now whether we should do it.
     // This is done so that dataflow analysis does not get tripped up seeing nop invoke.
     if (static_cast<int>(invoke->dalvikInsn.opcode) != kMirOpNop) {
-      bool is_static = invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC ||
-          invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC_RANGE;
+      bool is_static = IsInstructionInvokeStatic(invoke->dalvikInsn.opcode);
       if (is_static || (invoke->optimization_flags & MIR_IGNORE_NULL_CHECK) != 0) {
         // No null object register involved here so we can eliminate the invoke.
         invoke->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
@@ -804,9 +803,7 @@ bool DexFileMethodInliner::GenInlineIGet(MIRGraph* mir_graph, BasicBlock* bb, MI
     return !data.is_volatile;
   }
 
-  DCHECK_EQ(data.method_is_static != 0u,
-            invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC ||
-            invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC_RANGE);
+  DCHECK_EQ(data.method_is_static != 0u, IsInstructionInvokeStatic(invoke->dalvikInsn.opcode));
   bool object_is_this = (data.method_is_static == 0u && data.object_arg == 0u);
   if (!object_is_this) {
     // TODO: Implement inlining of IGET on non-"this" registers (needs correct stack trace for NPE).
@@ -865,9 +862,7 @@ bool DexFileMethodInliner::GenInlineIPut(MIRGraph* mir_graph, BasicBlock* bb, MI
     return false;
   }
 
-  DCHECK_EQ(data.method_is_static != 0u,
-            invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC ||
-            invoke->dalvikInsn.opcode == Instruction::INVOKE_STATIC_RANGE);
+  DCHECK_EQ(data.method_is_static != 0u, IsInstructionInvokeStatic(invoke->dalvikInsn.opcode));
   bool object_is_this = (data.method_is_static == 0u && data.object_arg == 0u);
   if (!object_is_this) {
     // TODO: Implement inlining of IPUT on non-"this" registers (needs correct stack trace for NPE).
