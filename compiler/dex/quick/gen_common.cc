@@ -583,6 +583,7 @@ class StaticFieldSlowPath : public Mir2Lir::LIRSlowPath {
 
 void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, OpSize size) {
   const MirSFieldLoweringInfo& field_info = mir_graph_->GetSFieldLoweringInfo(mir);
+  DCHECK_EQ(SPutMemAccessType(mir->dalvikInsn.opcode), field_info.MemAccessType());
   cu_->compiler_driver->ProcessedStaticField(field_info.FastPut(), field_info.IsReferrersClass());
   if (!SLOW_FIELD_PATH && field_info.FastPut()) {
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
@@ -701,6 +702,7 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, OpSize size) {
 
 void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest, OpSize size, Primitive::Type type) {
   const MirSFieldLoweringInfo& field_info = mir_graph_->GetSFieldLoweringInfo(mir);
+  DCHECK_EQ(SGetMemAccessType(mir->dalvikInsn.opcode), field_info.MemAccessType());
   cu_->compiler_driver->ProcessedStaticField(field_info.FastGet(), field_info.IsReferrersClass());
 
   if (!SLOW_FIELD_PATH && field_info.FastGet()) {
@@ -839,6 +841,7 @@ void Mir2Lir::HandleSlowPaths() {
 void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size, Primitive::Type type,
                       RegLocation rl_dest, RegLocation rl_obj) {
   const MirIFieldLoweringInfo& field_info = mir_graph_->GetIFieldLoweringInfo(mir);
+  DCHECK_EQ(IGetMemAccessType(mir->dalvikInsn.opcode), field_info.MemAccessType());
   cu_->compiler_driver->ProcessedInstanceField(field_info.FastGet());
   if (!SLOW_FIELD_PATH && field_info.FastGet()) {
     RegisterClass reg_class = RegClassForFieldLoadStore(size, field_info.IsVolatile());
@@ -912,6 +915,7 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size, Primitive::Type type
 void Mir2Lir::GenIPut(MIR* mir, int opt_flags, OpSize size,
                       RegLocation rl_src, RegLocation rl_obj) {
   const MirIFieldLoweringInfo& field_info = mir_graph_->GetIFieldLoweringInfo(mir);
+  DCHECK_EQ(IPutMemAccessType(mir->dalvikInsn.opcode), field_info.MemAccessType());
   cu_->compiler_driver->ProcessedInstanceField(field_info.FastPut());
   if (!SLOW_FIELD_PATH && field_info.FastPut()) {
     RegisterClass reg_class = RegClassForFieldLoadStore(size, field_info.IsVolatile());
