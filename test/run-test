@@ -586,7 +586,7 @@ fi
         echo '#################### info'
         cat "${td_info}" | sed 's/^/# /g'
         echo '#################### diffs'
-        diff --strip-trailing-cr -u "$expected" "$output" | tail -n 500
+        diff --strip-trailing-cr -u "$expected" "$output" | tail -n 2000
         echo '####################'
         echo ' '
     fi
