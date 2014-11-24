@@ -1451,8 +1451,18 @@ void X86_64Assembler::shll(CpuRegister reg, const Immediate& imm) {
 }
 
 
+void X86_64Assembler::shlq(CpuRegister reg, const Immediate& imm) {
+  EmitGenericShift(true, 4, reg, imm);
+}
+
+
 void X86_64Assembler::shll(CpuRegister operand, CpuRegister shifter) {
-  EmitGenericShift(4, operand, shifter);
+  EmitGenericShift(false, 4, operand, shifter);
+}
+
+
+void X86_64Assembler::shlq(CpuRegister operand, CpuRegister shifter) {
+  EmitGenericShift(true, 4, operand, shifter);
 }
 
 
@@ -1467,7 +1477,12 @@ void X86_64Assembler::shrq(CpuRegister reg, const Immediate& imm) {
 
 
 void X86_64Assembler::shrl(CpuRegister operand, CpuRegister shifter) {
-  EmitGenericShift(5, operand, shifter);
+  EmitGenericShift(false, 5, operand, shifter);
+}
+
+
+void X86_64Assembler::shrq(CpuRegister operand, CpuRegister shifter) {
+  EmitGenericShift(true, 5, operand, shifter);
 }
 
 
@@ -1477,7 +1492,17 @@ void X86_64Assembler::sarl(CpuRegister reg, const Immediate& imm) {
 
 
 void X86_64Assembler::sarl(CpuRegister operand, CpuRegister shifter) {
-  EmitGenericShift(7, operand, shifter);
+  EmitGenericShift(false, 7, operand, shifter);
+}
+
+
+void X86_64Assembler::sarq(CpuRegister reg, const Immediate& imm) {
+  EmitGenericShift(true, 7, reg, imm);
+}
+
+
+void X86_64Assembler::sarq(CpuRegister operand, CpuRegister shifter) {
+  EmitGenericShift(true, 7, operand, shifter);
 }
 
 
@@ -1826,12 +1851,17 @@ void X86_64Assembler::EmitGenericShift(bool wide,
 }
 
 
-void X86_64Assembler::EmitGenericShift(int reg_or_opcode,
+void X86_64Assembler::EmitGenericShift(bool wide,
+                                       int reg_or_opcode,
                                        CpuRegister operand,
                                        CpuRegister shifter) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   CHECK_EQ(shifter.AsRegister(), RCX);
-  EmitOptionalRex32(operand);
+  if (wide) {
+    EmitRex64(operand);
+  } else {
+    EmitOptionalRex32(operand);
+  }
   EmitUint8(0xD3);
   EmitOperand(reg_or_opcode, Operand(operand));
 }

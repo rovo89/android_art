@@ -226,6 +226,10 @@ class AssemblerTest : public testing::Test {
     UNREACHABLE();
   }
 
+  std::string GetRegisterName(const Reg& reg) {
+    return GetRegName<RegisterView::kUsePrimaryName>(reg);
+  }
+
  protected:
   explicit AssemblerTest() {}
 

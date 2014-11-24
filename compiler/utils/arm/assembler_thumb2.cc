@@ -2210,7 +2210,7 @@ void Thumb2Assembler::EmitBranches() {
 
 void Thumb2Assembler::Lsl(Register rd, Register rm, uint32_t shift_imm,
                           bool setcc, Condition cond) {
-  CHECK_NE(shift_imm, 0u);  // Do not use Lsl if no shift is wanted.
+  CHECK_LE(shift_imm, 31u);
   CheckCondition(cond);
   EmitShift(rd, rm, LSL, shift_imm, setcc);
 }
@@ -2218,7 +2218,7 @@ void Thumb2Assembler::Lsl(Register rd, Register rm, uint32_t shift_imm,
 
 void Thumb2Assembler::Lsr(Register rd, Register rm, uint32_t shift_imm,
                           bool setcc, Condition cond) {
-  CHECK_NE(shift_imm, 0u);  // Do not use Lsr if no shift is wanted.
+  CHECK(1u <= shift_imm && shift_imm <= 32u);
   if (shift_imm == 32) shift_imm = 0;  // Comply to UAL syntax.
   CheckCondition(cond);
   EmitShift(rd, rm, LSR, shift_imm, setcc);
@@ -2227,7 +2227,7 @@ void Thumb2Assembler::Lsr(Register rd, Register rm, uint32_t shift_imm,
 
 void Thumb2Assembler::Asr(Register rd, Register rm, uint32_t shift_imm,
                           bool setcc, Condition cond) {
-  CHECK_NE(shift_imm, 0u);  // Do not use Asr if no shift is wanted.
+  CHECK(1u <= shift_imm && shift_imm <= 32u);
   if (shift_imm == 32) shift_imm = 0;  // Comply to UAL syntax.
   CheckCondition(cond);
   EmitShift(rd, rm, ASR, shift_imm, setcc);
@@ -2236,7 +2236,7 @@ void Thumb2Assembler::Asr(Register rd, Register rm, uint32_t shift_imm,
 
 void Thumb2Assembler::Ror(Register rd, Register rm, uint32_t shift_imm,
                           bool setcc, Condition cond) {
-  CHECK_NE(shift_imm, 0u);  // Use Rrx instruction.
+  CHECK(1u <= shift_imm && shift_imm <= 31u);
   CheckCondition(cond);
   EmitShift(rd, rm, ROR, shift_imm, setcc);
 }
