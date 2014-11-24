@@ -108,11 +108,7 @@ LocalValueNumbering* GlobalValueNumbering::PrepareBasicBlock(BasicBlock* bb,
          bb->last_mir_insn->dalvikInsn.opcode == Instruction::RETURN ||
          bb->last_mir_insn->dalvikInsn.opcode == Instruction::RETURN_OBJECT ||
          bb->last_mir_insn->dalvikInsn.opcode == Instruction::RETURN_WIDE) &&
-        (bb->first_mir_insn == bb->last_mir_insn ||
-         (static_cast<int>(bb->first_mir_insn->dalvikInsn.opcode) == kMirOpPhi &&
-          (bb->first_mir_insn->next == bb->last_mir_insn ||
-           (static_cast<int>(bb->first_mir_insn->next->dalvikInsn.opcode) == kMirOpPhi &&
-            bb->first_mir_insn->next->next == bb->last_mir_insn))))) {
+        bb->GetFirstNonPhiInsn() == bb->last_mir_insn) {
       merge_type = LocalValueNumbering::kReturnMerge;
     }
     // At least one predecessor must have been processed before this bb.
