@@ -28,11 +28,6 @@ void SsaLivenessAnalysis::Analyze() {
   ComputeLiveness();
 }
 
-static bool IsLoopExit(HLoopInformation* current, HLoopInformation* to) {
-  // `to` is either not part of a loop, or `current` is an inner loop of `to`.
-  return to == nullptr || (current != to && current->IsIn(*to));
-}
-
 static bool IsLoop(HLoopInformation* info) {
   return info != nullptr;
 }
@@ -48,46 +43,65 @@ static bool IsInnerLoop(HLoopInformation* outer, HLoopInformation* inner) {
       && inner->IsIn(*outer);
 }
 
-static void VisitBlockForLinearization(HBasicBlock* block,
-                                       GrowableArray<HBasicBlock*>* order,
-                                       ArenaBitVector* visited) {
-  if (visited->IsBitSet(block->GetBlockId())) {
-    return;
-  }
-  visited->SetBit(block->GetBlockId());
-  size_t number_of_successors = block->GetSuccessors().Size();
-  if (number_of_successors == 0) {
-    // Nothing to do.
-  } else if (number_of_successors == 1) {
-    VisitBlockForLinearization(block->GetSuccessors().Get(0), order, visited);
-  } else {
-    DCHECK_EQ(number_of_successors, 2u);
-    HBasicBlock* first_successor = block->GetSuccessors().Get(0);
-    HBasicBlock* second_successor = block->GetSuccessors().Get(1);
-    HLoopInformation* my_loop = block->GetLoopInformation();
-    HLoopInformation* first_loop = first_successor->GetLoopInformation();
-    HLoopInformation* second_loop = second_successor->GetLoopInformation();
-
-    if (!IsLoop(my_loop)) {
-      // Nothing to do. Current order is fine.
-    } else if (IsLoopExit(my_loop, second_loop) && InSameLoop(my_loop, first_loop)) {
-      // Visit the loop exit first in post order.
-      std::swap(first_successor, second_successor);
-    } else if (IsInnerLoop(my_loop, first_loop) && !IsInnerLoop(my_loop, second_loop)) {
-      // Visit the inner loop last in post order.
-      std::swap(first_successor, second_successor);
+static void AddToListForLinearization(GrowableArray<HBasicBlock*>* worklist, HBasicBlock* block) {
+  size_t insert_at = worklist->Size();
+  HLoopInformation* block_loop = block->GetLoopInformation();
+  for (; insert_at > 0; --insert_at) {
+    HBasicBlock* current = worklist->Get(insert_at - 1);
+    HLoopInformation* current_loop = current->GetLoopInformation();
+    if (InSameLoop(block_loop, current_loop)
+        || !IsLoop(current_loop)
+        || IsInnerLoop(current_loop, block_loop)) {
+      // The block can be processed immediately.
+      break;
     }
-    VisitBlockForLinearization(first_successor, order, visited);
-    VisitBlockForLinearization(second_successor, order, visited);
   }
-  order->Add(block);
+  worklist->InsertAt(insert_at, block);
 }
 
 void SsaLivenessAnalysis::LinearizeGraph() {
-  // For simplicity of the implementation, we create post linear order. The order for
-  // computing live ranges is the reverse of that order.
-  ArenaBitVector visited(graph_.GetArena(), graph_.GetBlocks().Size(), false);
-  VisitBlockForLinearization(graph_.GetEntryBlock(), &linear_post_order_, &visited);
+  // Create a reverse post ordering with the following properties:
+  // - Blocks in a loop are consecutive,
+  // - Back-edge is the last block before loop exits.
+
+  // (1): Record the number of forward predecessors for each block. This is to
+  //      ensure the resulting order is reverse post order. We could use the
+  //      current reverse post order in the graph, but it would require making
+  //      order queries to a GrowableArray, which is not the best data structure
+  //      for it.
+  GrowableArray<uint32_t> forward_predecessors(graph_.GetArena(), graph_.GetBlocks().Size());
+  forward_predecessors.SetSize(graph_.GetBlocks().Size());
+  for (size_t i = 0, e = graph_.GetBlocks().Size(); i < e; ++i) {
+    HBasicBlock* block = graph_.GetBlocks().Get(i);
+    size_t number_of_forward_predecessors = block->GetPredecessors().Size();
+    if (block->IsLoopHeader()) {
+      // We rely on having simplified the CFG.
+      DCHECK_EQ(1u, block->GetLoopInformation()->NumberOfBackEdges());
+      number_of_forward_predecessors--;
+    }
+    forward_predecessors.Put(block->GetBlockId(), number_of_foward_predecessors);
+  }
+
+  // (2): Following a worklist approach, first start with the entry block, and
+  //      iterate over the successors. When all non-back edge predecessors of a
+  //      successor block are visited, the successor block is added in the worklist
+  //      following an order that satisfies the requirements to build our linear graph.
+  GrowableArray<HBasicBlock*> worklist(graph_.GetArena(), 1);
+  worklist.Add(graph_.GetEntryBlock());
+  do {
+    HBasicBlock* current = worklist.Pop();
+    linear_order_.Add(current);
+    for (size_t i = 0, e = current->GetSuccessors().Size(); i < e; ++i) {
+      HBasicBlock* successor = current->GetSuccessors().Get(i);
+      int block_id = successor->GetBlockId();
+      size_t number_of_remaining_predecessors = forward_predecessors.Get(block_id);
+      if (number_of_remaining_predecessors == 1) {
+        AddToListForLinearization(&worklist, successor);
+      } else {
+        forward_predecessors.Put(block_id, number_of_remaining_predecessors - 1);
+      }
+    }
+  } while (!worklist.IsEmpty());
 }
 
 void SsaLivenessAnalysis::NumberInstructions() {

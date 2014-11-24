@@ -50,10 +50,9 @@ static void TestCode(const uint16_t* data, const int* expected_order, size_t num
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
-  ASSERT_EQ(liveness.GetLinearPostOrder().Size(), number_of_blocks);
+  ASSERT_EQ(liveness.GetLinearOrder().Size(), number_of_blocks);
   for (size_t i = 0; i < number_of_blocks; ++i) {
-    ASSERT_EQ(liveness.GetLinearPostOrder().Get(number_of_blocks - i - 1)->GetBlockId(),
-              expected_order[i]);
+    ASSERT_EQ(liveness.GetLinearOrder().Get(i)->GetBlockId(), expected_order[i]);
   }
 }
 
@@ -192,6 +191,60 @@ TEST(LinearizeTest, CFG5) {
 
   const int blocks[] = {0, 1, 2, 8, 4, 10, 5, 6, 11, 9, 3, 7};
   TestCode(data, blocks, 12);
+}
+
+TEST(LinearizeTest, CFG6) {
+  //            Block0
+  //              |
+  //            Block1
+  //              |
+  //            Block2 ++++++++++++++
+  //              |                 +
+  //            Block3              +
+  //            /     \             +
+  //       Block8     Block4        +
+  //         |         /   \        +
+  //       Block5 <- Block9 Block6  +
+  //         |
+  //       Block7
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::GOTO | 0x0100,
+    Instruction::IF_EQ, 0x0004,
+    Instruction::IF_EQ, 0x0003,
+    Instruction::RETURN_VOID,
+    Instruction::GOTO | 0xFA00);
+
+  const int blocks[] = {0, 1, 2, 3, 4, 6, 9, 8, 5, 7};
+  TestCode(data, blocks, arraysize(blocks));
+}
+
+TEST(LinearizeTest, CFG7) {
+  // Structure of this graph (+ are back edges)
+  //            Block0
+  //              |
+  //            Block1
+  //              |
+  //            Block2 ++++++++
+  //              |           +
+  //            Block3        +
+  //            /    \        +
+  //        Block4  Block8    +
+  //        /  \        |     +
+  //   Block5 Block9 - Block6 +
+  //     |
+  //   Block7
+  //
+  const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
+    Instruction::CONST_4 | 0 | 0,
+    Instruction::GOTO | 0x0100,
+    Instruction::IF_EQ, 0x0005,
+    Instruction::IF_EQ, 0x0003,
+    Instruction::RETURN_VOID,
+    Instruction::GOTO | 0xFA00);
+
+  const int blocks[] = {0, 1, 2, 3, 4, 9, 8, 6, 5, 7};
+  TestCode(data, blocks, arraysize(blocks));
 }
 
 }  // namespace art
