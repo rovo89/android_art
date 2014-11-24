@@ -444,6 +444,11 @@ class BasicBlock : public DeletableArenaObject<kArenaAllocBB> {
   void UpdatePredecessor(BasicBlockId old_pred, BasicBlockId new_pred);
 
   /**
+   * @brief Return first non-Phi insn.
+   */
+  MIR* GetFirstNonPhiInsn();
+
+  /**
    * @brief Used to obtain the next MIR that follows unconditionally.
    * @details The implementation does not guarantee that a MIR does not
    * follow even if this method returns nullptr.
