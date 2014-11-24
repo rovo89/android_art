@@ -56,7 +56,7 @@ class LocalValueNumbering::AliasingIFieldVersions {
  public:
   static uint16_t StartMemoryVersion(GlobalValueNumbering* gvn, const LocalValueNumbering* lvn,
                                      uint16_t field_id) {
-    uint16_t type = gvn->GetFieldType(field_id);
+    uint16_t type = gvn->GetIFieldType(field_id);
     return gvn->LookupValue(kAliasingIFieldStartVersionOp, field_id,
                             lvn->global_memory_version_, lvn->unresolved_ifield_version_[type]);
   }
@@ -75,7 +75,7 @@ class LocalValueNumbering::AliasingIFieldVersions {
   static uint16_t LookupMergeValue(GlobalValueNumbering* gvn, const LocalValueNumbering* lvn,
                                    uint16_t field_id, uint16_t base) {
     // If the base/field_id is non-aliasing in lvn, use the non-aliasing value.
-    uint16_t type = gvn->GetFieldType(field_id);
+    uint16_t type = gvn->GetIFieldType(field_id);
     if (lvn->IsNonAliasingIField(base, field_id, type)) {
       uint16_t loc = gvn->LookupValue(kNonAliasingIFieldLocOp, base, field_id, type);
       auto lb = lvn->non_aliasing_ifield_value_map_.find(loc);
@@ -89,7 +89,7 @@ class LocalValueNumbering::AliasingIFieldVersions {
 
   static bool HasNewBaseVersion(GlobalValueNumbering* gvn, const LocalValueNumbering* lvn,
                                 uint16_t field_id) {
-    uint16_t type = gvn->GetFieldType(field_id);
+    uint16_t type = gvn->GetIFieldType(field_id);
     return lvn->unresolved_ifield_version_[type] == lvn->merge_new_memory_version_ ||
         lvn->global_memory_version_ == lvn->merge_new_memory_version_;
   }
@@ -711,7 +711,7 @@ void LocalValueNumbering::MergeSFieldValues(const SFieldToValueMap::value_type& 
     if (it != lvn->sfield_value_map_.end()) {
       value_name = it->second;
     } else {
-      uint16_t type = gvn_->GetFieldType(field_id);
+      uint16_t type = gvn_->GetSFieldType(field_id);
       value_name = gvn_->LookupValue(kResolvedSFieldOp, field_id,
                                      lvn->unresolved_sfield_version_[type],
                                      lvn->global_memory_version_);
@@ -1150,12 +1150,11 @@ uint16_t LocalValueNumbering::HandlePhi(MIR* mir) {
 }
 
 uint16_t LocalValueNumbering::HandleAGet(MIR* mir, uint16_t opcode) {
-  // uint16_t type = opcode - Instruction::AGET;
   uint16_t array = GetOperandValue(mir->ssa_rep->uses[0]);
   HandleNullCheck(mir, array);
   uint16_t index = GetOperandValue(mir->ssa_rep->uses[1]);
   HandleRangeCheck(mir, array, index);
-  uint16_t type = opcode - Instruction::AGET;
+  uint16_t type = AGetMemAccessType(static_cast<Instruction::Code>(opcode));
   // Establish value number for loaded register.
   uint16_t res;
   if (IsNonAliasingArray(array, type)) {
@@ -1182,7 +1181,7 @@ void LocalValueNumbering::HandleAPut(MIR* mir, uint16_t opcode) {
   uint16_t index = GetOperandValue(mir->ssa_rep->uses[index_idx]);
   HandleRangeCheck(mir, array, index);
 
-  uint16_t type = opcode - Instruction::APUT;
+  uint16_t type = APutMemAccessType(static_cast<Instruction::Code>(opcode));
   uint16_t value = (opcode == Instruction::APUT_WIDE)
                    ? GetOperandValueWide(mir->ssa_rep->uses[0])
                    : GetOperandValue(mir->ssa_rep->uses[0]);
@@ -1224,8 +1223,8 @@ uint16_t LocalValueNumbering::HandleIGet(MIR* mir, uint16_t opcode) {
     // Use result s_reg - will be unique.
     res = gvn_->LookupValue(kNoValue, mir->ssa_rep->defs[0], kNoValue, kNoValue);
   } else {
-    uint16_t type = opcode - Instruction::IGET;
-    uint16_t field_id = gvn_->GetFieldId(field_info, type);
+    uint16_t type = IGetMemAccessType(static_cast<Instruction::Code>(opcode));
+    uint16_t field_id = gvn_->GetIFieldId(mir);
     if (IsNonAliasingIField(base, field_id, type)) {
       uint16_t loc = gvn_->LookupValue(kNonAliasingIFieldLocOp, base, field_id, type);
       auto lb = non_aliasing_ifield_value_map_.lower_bound(loc);
@@ -1249,10 +1248,10 @@ uint16_t LocalValueNumbering::HandleIGet(MIR* mir, uint16_t opcode) {
 }
 
 void LocalValueNumbering::HandleIPut(MIR* mir, uint16_t opcode) {
-  uint16_t type = opcode - Instruction::IPUT;
   int base_reg = (opcode == Instruction::IPUT_WIDE) ? 2 : 1;
   uint16_t base = GetOperandValue(mir->ssa_rep->uses[base_reg]);
   HandleNullCheck(mir, base);
+  uint16_t type = IPutMemAccessType(static_cast<Instruction::Code>(opcode));
   const MirFieldInfo& field_info = gvn_->GetMirGraph()->GetIFieldLoweringInfo(mir);
   if (!field_info.IsResolved()) {
     // Unresolved fields always alias with everything of the same type.
@@ -1272,7 +1271,7 @@ void LocalValueNumbering::HandleIPut(MIR* mir, uint16_t opcode) {
     // Aliasing fields of the same type may have been overwritten.
     auto it = aliasing_ifield_value_map_.begin(), end = aliasing_ifield_value_map_.end();
     while (it != end) {
-      if (gvn_->GetFieldType(it->first) != type) {
+      if (gvn_->GetIFieldType(it->first) != type) {
         ++it;
       } else {
         it = aliasing_ifield_value_map_.erase(it);
@@ -1282,7 +1281,7 @@ void LocalValueNumbering::HandleIPut(MIR* mir, uint16_t opcode) {
     // Nothing to do, resolved volatile fields always get a new memory version anyway and
     // can't alias with resolved non-volatile fields.
   } else {
-    uint16_t field_id = gvn_->GetFieldId(field_info, type);
+    uint16_t field_id = gvn_->GetIFieldId(mir);
     uint16_t value = (opcode == Instruction::IPUT_WIDE)
                      ? GetOperandValueWide(mir->ssa_rep->uses[0])
                      : GetOperandValue(mir->ssa_rep->uses[0]);
@@ -1333,8 +1332,8 @@ uint16_t LocalValueNumbering::HandleSGet(MIR* mir, uint16_t opcode) {
     // Use result s_reg - will be unique.
     res = gvn_->LookupValue(kNoValue, mir->ssa_rep->defs[0], kNoValue, kNoValue);
   } else {
-    uint16_t type = opcode - Instruction::SGET;
-    uint16_t field_id = gvn_->GetFieldId(field_info, type);
+    uint16_t type = SGetMemAccessType(static_cast<Instruction::Code>(opcode));
+    uint16_t field_id = gvn_->GetSFieldId(mir);
     auto lb = sfield_value_map_.lower_bound(field_id);
     if (lb != sfield_value_map_.end() && lb->first == field_id) {
       res = lb->second;
@@ -1362,7 +1361,7 @@ void LocalValueNumbering::HandleSPut(MIR* mir, uint16_t opcode) {
     // Class initialization can call arbitrary functions, we need to wipe aliasing values.
     HandleInvokeOrClInitOrAcquireOp(mir);
   }
-  uint16_t type = opcode - Instruction::SPUT;
+  uint16_t type = SPutMemAccessType(static_cast<Instruction::Code>(opcode));
   if (!field_info.IsResolved()) {
     // Unresolved fields always alias with everything of the same type.
     // Use mir->offset as modifier; without elaborate inlining, it will be unique.
@@ -1373,7 +1372,7 @@ void LocalValueNumbering::HandleSPut(MIR* mir, uint16_t opcode) {
     // Nothing to do, resolved volatile fields always get a new memory version anyway and
     // can't alias with resolved non-volatile fields.
   } else {
-    uint16_t field_id = gvn_->GetFieldId(field_info, type);
+    uint16_t field_id = gvn_->GetSFieldId(mir);
     uint16_t value = (opcode == Instruction::SPUT_WIDE)
                      ? GetOperandValueWide(mir->ssa_rep->uses[0])
                      : GetOperandValue(mir->ssa_rep->uses[0]);
@@ -1397,7 +1396,7 @@ void LocalValueNumbering::HandleSPut(MIR* mir, uint16_t opcode) {
 void LocalValueNumbering::RemoveSFieldsForType(uint16_t type) {
   // Erase all static fields of this type from the sfield_value_map_.
   for (auto it = sfield_value_map_.begin(), end = sfield_value_map_.end(); it != end; ) {
-    if (gvn_->GetFieldType(it->first) == type) {
+    if (gvn_->GetSFieldType(it->first) == type) {
       it = sfield_value_map_.erase(it);
     } else {
       ++it;

@@ -106,9 +106,7 @@ enum IntrinsicFlags {
 };
 
 struct InlineIGetIPutData {
-  // The op_variant below is opcode-Instruction::IGET for IGETs and
-  // opcode-Instruction::IPUT for IPUTs. This is because the runtime
-  // doesn't know the OpSize enumeration.
+  // The op_variant below is DexMemAccessType but the runtime doesn't know that enumeration.
   uint16_t op_variant : 3;
   uint16_t method_is_static : 1;
   uint16_t object_arg : 4;
