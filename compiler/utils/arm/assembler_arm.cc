@@ -205,10 +205,9 @@ uint32_t Address::encodingArm() const {
       encoding =  am_ | offset_;
     }
   } else {
-    uint32_t imm5 = offset_;
     uint32_t shift = shift_;
     if (shift == RRX) {
-      imm5 = 0;
+      CHECK_EQ(offset_, 0);
       shift = ROR;
     }
     encoding = am_ | static_cast<uint32_t>(rm_) | shift << 5 | offset_ << 7 | B25;
