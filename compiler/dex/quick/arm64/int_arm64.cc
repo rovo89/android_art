@@ -758,7 +758,7 @@ bool Arm64Mir2Lir::GenInlinedCas(CallInfo* info, bool is_long, bool is_object) {
 
   if (is_object && !mir_graph_->IsConstantNullRef(rl_new_value)) {
     // Mark card for object assuming new value is stored.
-    MarkGCCard(rl_new_value.reg, rl_object.reg);
+    MarkGCCard(0, rl_new_value.reg, rl_object.reg);
   }
 
   RegStorage r_ptr = AllocTempRef();
@@ -1281,7 +1281,7 @@ void Arm64Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     FreeTemp(reg_ptr);
   }
   if (card_mark) {
-    MarkGCCard(rl_src.reg, rl_array.reg);
+    MarkGCCard(opt_flags, rl_src.reg, rl_array.reg);
   }
 }
 

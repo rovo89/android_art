@@ -1110,6 +1110,12 @@ void LocalValueNumbering::HandlePutObject(MIR* mir) {
   // If we're storing a non-aliasing reference, stop tracking it as non-aliasing now.
   uint16_t base = GetOperandValue(mir->ssa_rep->uses[0]);
   HandleEscapingRef(base);
+  if (gvn_->CanModify() && null_checked_.count(base) != 0u) {
+    if (gvn_->GetCompilationUnit()->verbose) {
+      LOG(INFO) << "Removing GC card mark value null check for 0x" << std::hex << mir->offset;
+    }
+    mir->optimization_flags |= MIR_STORE_NON_NULL_VALUE;
+  }
 }
 
 void LocalValueNumbering::HandleEscapingRef(uint16_t base) {
