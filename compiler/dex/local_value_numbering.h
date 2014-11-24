@@ -47,6 +47,10 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
     return null_checked_.find(value_name) != null_checked_.end();
   }
 
+  bool IsValueDivZeroChecked(uint16_t value_name) const {
+    return div_zero_checked_.find(value_name) != div_zero_checked_.end();
+  }
+
   bool IsSregValue(uint16_t s_reg, uint16_t value_name) const {
     auto it = sreg_value_map_.find(s_reg);
     if (it != sreg_value_map_.end()) {
@@ -286,6 +290,7 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
   bool IsNonAliasingArray(uint16_t reg, uint16_t type) const;
   void HandleNullCheck(MIR* mir, uint16_t reg);
   void HandleRangeCheck(MIR* mir, uint16_t array, uint16_t index);
+  void HandleDivZeroCheck(MIR* mir, uint16_t reg);
   void HandlePutObject(MIR* mir);
   void HandleEscapingRef(uint16_t base);
   void HandleInvokeArgs(const MIR* mir, const LocalValueNumbering* mir_lvn);
@@ -337,6 +342,7 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
   void MergeNonAliasingIFieldValues(const IFieldLocToValueMap::value_type& entry,
                                     IFieldLocToValueMap::iterator hint);
   void MergeNullChecked();
+  void MergeDivZeroChecked();
 
   template <typename Map, Map LocalValueNumbering::*map_ptr, typename Versions>
   void MergeAliasingValues(const typename Map::value_type& entry, typename Map::iterator hint);
@@ -371,6 +377,7 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
   // Range check and null check elimination.
   RangeCheckSet range_checked_;
   ValueNameSet null_checked_;
+  ValueNameSet div_zero_checked_;
 
   // Reuse one vector for all merges to avoid leaking too much memory on the ArenaStack.
   ScopedArenaVector<BasicBlockId> merge_names_;
