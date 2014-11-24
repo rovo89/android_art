@@ -1167,6 +1167,14 @@ bool BasicBlock::RemoveMIRList(MIR* first_list_mir, MIR* last_list_mir) {
   return true;
 }
 
+MIR* BasicBlock::GetFirstNonPhiInsn() {
+  MIR* mir = first_mir_insn;
+  while (mir != nullptr && static_cast<int>(mir->dalvikInsn.opcode) == kMirOpPhi) {
+    mir = mir->next;
+  }
+  return mir;
+}
+
 MIR* BasicBlock::GetNextUnconditionalMir(MIRGraph* mir_graph, MIR* current) {
   MIR* next_mir = nullptr;
 
