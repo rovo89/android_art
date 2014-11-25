@@ -17,7 +17,6 @@
 #ifndef ART_COMPILER_OPTIMIZING_OPTIMIZATION_H_
 #define ART_COMPILER_OPTIMIZING_OPTIMIZATION_H_
 
-#include "graph_visualizer.h"
 #include "nodes.h"
 
 namespace art {
