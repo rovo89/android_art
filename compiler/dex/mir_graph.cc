@@ -762,8 +762,10 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
       } else {
         DCHECK(cur_block->fall_through == NullBasicBlockId);
         DCHECK(cur_block->taken == NullBasicBlockId);
-        // Unreachable instruction, mark for no continuation.
+        // Unreachable instruction, mark for no continuation and end basic block.
         flags &= ~Instruction::kContinue;
+        FindBlock(current_offset_ + width, /* split */ false, /* create */ true,
+                  /* immed_pred_block_p */ NULL);
       }
     } else {
       cur_block->AppendMIR(insn);
