@@ -353,6 +353,9 @@ class OatWriter {
       if (UNLIKELY(&lhs->GetVmapTable() != &rhs->GetVmapTable())) {
         return &lhs->GetVmapTable() < &rhs->GetVmapTable();
       }
+      if (UNLIKELY(lhs->GetGcMap() != rhs->GetGcMap())) {
+        return lhs->GetGcMap() < rhs->GetGcMap();
+      }
       const auto& lhs_patches = lhs->GetPatches();
       const auto& rhs_patches = rhs->GetPatches();
       if (UNLIKELY(lhs_patches.size() != rhs_patches.size())) {
