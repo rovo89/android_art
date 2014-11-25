@@ -390,10 +390,6 @@ class MANAGED ArtMethod FINAL : public Object {
   const uint8_t* GetNativeGcMap(const void* code_pointer, size_t pointer_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // When building the oat need a convenient place to stuff the offset of the native GC map.
-  // void SetOatNativeGcMapOffset(uint32_t gc_map_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  // uint32_t GetOatNativeGcMapOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   template <bool kCheckFrameSize = true>
   uint32_t GetFrameSizeInBytes() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t result = GetQuickFrameInfo().FrameSizeInBytes();

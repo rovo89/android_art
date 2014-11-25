@@ -317,6 +317,9 @@ class OatWriter {
       if (UNLIKELY(&lhs->GetVmapTable() != &rhs->GetVmapTable())) {
         return &lhs->GetVmapTable() < &rhs->GetVmapTable();
       }
+      if (UNLIKELY(&lhs->GetGcMap() != &rhs->GetGcMap())) {
+        return &lhs->GetGcMap() < &rhs->GetGcMap();
+      }
       return false;
     }
   };

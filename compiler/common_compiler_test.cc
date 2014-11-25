@@ -146,7 +146,7 @@ OatFile::OatMethod CommonCompilerTest::CreateOatMethod(const void* code) {
   CHECK(code != nullptr);
   const byte* base = reinterpret_cast<const byte*>(code);  // Base of data points at code.
   base -= kPointerSize;  // Move backward so that code_offset != 0.
-  uint32_t  code_offset = kPointerSize;
+  uint32_t code_offset = kPointerSize;
   return OatFile::OatMethod(base, code_offset);
 }
 
