@@ -18,8 +18,23 @@
 #define ART_COMPILER_OPTIMIZING_SSA_BUILDER_H_
 
 #include "nodes.h"
+#include "optimization.h"
 
 namespace art {
+
+class TransformToSsa : public HOptimization {
+ public:
+  explicit TransformToSsa(HGraph* graph) : HOptimization(graph, true, "ssa transform") {}
+
+  void Run() OVERRIDE {
+    graph_->BuildDominatorTree();
+    graph_->TransformToSSA();
+    graph_->FindNaturalLoops();
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TransformToSsa);
+};
 
 static constexpr int kDefaultNumberOfLoops = 2;
 
