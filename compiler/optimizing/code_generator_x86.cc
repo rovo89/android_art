@@ -2355,20 +2355,36 @@ void InstructionCodeGeneratorX86::VisitNot(HNot* not_) {
 void LocationsBuilderX86::VisitCompare(HCompare* compare) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::Any());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  switch (compare->InputAt(0)->GetType()) {
+    case Primitive::kPrimLong: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      // TODO: we set any here but we don't handle constants
+      locations->SetInAt(1, Location::Any());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+    }
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresRegister());
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected type for compare operation " << compare->InputAt(0)->GetType();
+  }
 }
 
 void InstructionCodeGeneratorX86::VisitCompare(HCompare* compare) {
   LocationSummary* locations = compare->GetLocations();
+  Register out = locations->Out().As<Register>();
+  Location left = locations->InAt(0);
+  Location right = locations->InAt(1);
+
+  Label less, greater, done;
   switch (compare->InputAt(0)->GetType()) {
     case Primitive::kPrimLong: {
-      Label less, greater, done;
-      Register output = locations->Out().As<Register>();
-      Location left = locations->InAt(0);
-      Location right = locations->InAt(1);
-      if (right.IsRegister()) {
+      if (right.IsRegisterPair()) {
         __ cmpl(left.AsRegisterPairHigh<Register>(), right.AsRegisterPairHigh<Register>());
       } else {
         DCHECK(right.IsDoubleStackSlot());
@@ -2383,23 +2399,33 @@ void InstructionCodeGeneratorX86::VisitCompare(HCompare* compare) {
         DCHECK(right.IsDoubleStackSlot());
         __ cmpl(left.AsRegisterPairLow<Register>(), Address(ESP, right.GetStackIndex()));
       }
-      __ movl(output, Immediate(0));
-      __ j(kEqual, &done);
-      __ j(kBelow, &less);  // Unsigned compare.
-
-      __ Bind(&greater);
-      __ movl(output, Immediate(1));
-      __ jmp(&done);
-
-      __ Bind(&less);
-      __ movl(output, Immediate(-1));
-
-      __ Bind(&done);
+      break;
+    }
+    case Primitive::kPrimFloat: {
+      __ ucomiss(left.As<XmmRegister>(), right.As<XmmRegister>());
+      __ j(kUnordered, compare->IsGtBias() ? &greater : &less);
+      break;
+    }
+    case Primitive::kPrimDouble: {
+      __ ucomisd(left.As<XmmRegister>(), right.As<XmmRegister>());
+      __ j(kUnordered, compare->IsGtBias() ? &greater : &less);
       break;
     }
     default:
-      LOG(FATAL) << "Unimplemented compare type " << compare->InputAt(0)->GetType();
+      LOG(FATAL) << "Unexpected type for compare operation " << compare->InputAt(0)->GetType();
   }
+  __ movl(out, Immediate(0));
+  __ j(kEqual, &done);
+  __ j(kBelow, &less);  // kBelow is for CF (unsigned & floats).
+
+  __ Bind(&greater);
+  __ movl(out, Immediate(1));
+  __ jmp(&done);
+
+  __ Bind(&less);
+  __ movl(out, Immediate(-1));
+
+  __ Bind(&done);
 }
 
 void LocationsBuilderX86::VisitPhi(HPhi* instruction) {
