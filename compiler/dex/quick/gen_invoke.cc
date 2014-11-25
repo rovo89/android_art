@@ -1668,7 +1668,7 @@ bool Mir2Lir::GenInlinedUnsafePut(CallInfo* info, bool is_long,
     GenMemBarrier(kAnyAny);
   }
   if (is_object) {
-    MarkGCCard(rl_value.reg, rl_object.reg);
+    MarkGCCard(0, rl_value.reg, rl_object.reg);
   }
   return true;
 }
