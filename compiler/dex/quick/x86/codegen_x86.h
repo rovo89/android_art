@@ -264,8 +264,11 @@ class X86Mir2Lir : public Mir2Lir {
                                      int first_bit, int second_bit) OVERRIDE;
   void GenNegDouble(RegLocation rl_dest, RegLocation rl_src) OVERRIDE;
   void GenNegFloat(RegLocation rl_dest, RegLocation rl_src) OVERRIDE;
+  const uint16_t* ConvertPackedSwitchTable(MIR* mir, const uint16_t* table);
   void GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) OVERRIDE;
   void GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) OVERRIDE;
+  LIR* InsertCaseLabel(DexOffset vaddr, int keyVal) OVERRIDE;
+  void MarkPackedCaseLabels(Mir2Lir::SwitchTable* tab_rec) OVERRIDE;
 
   /**
    * @brief Implement instanceof a final class with x86 specific code.
