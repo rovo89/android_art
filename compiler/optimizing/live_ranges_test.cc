@@ -386,7 +386,7 @@ TEST(LiveRangesTest, CFG4) {
     Instruction::ADD_INT, 1 << 8,
     Instruction::GOTO | 0x300,
     Instruction::ADD_INT, 1 << 8,
-    Instruction::RETURN | 1 << 8);
+    Instruction::RETURN);
 
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
@@ -410,7 +410,10 @@ TEST(LiveRangesTest, CFG4) {
   interval = liveness.GetInstructionFromSsaIndex(1)->GetLiveInterval();
   range = interval->GetFirstRange();
   ASSERT_EQ(4u, range->GetStart());
-  ASSERT_EQ(28u, range->GetEnd());
+  ASSERT_EQ(17u, range->GetEnd());
+  range = range->GetNext();
+  ASSERT_EQ(20u, range->GetStart());
+  ASSERT_EQ(23u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the first add.
@@ -429,9 +432,8 @@ TEST(LiveRangesTest, CFG4) {
   ASSERT_EQ(26u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
-  // Test for the phi, which is unused.
   HPhi* phi = liveness.GetInstructionFromSsaIndex(4)->AsPhi();
-  ASSERT_EQ(phi->NumberOfUses(), 0u);
+  ASSERT_EQ(phi->NumberOfUses(), 1u);
   interval = phi->GetLiveInterval();
   range = interval->GetFirstRange();
   ASSERT_EQ(26u, range->GetStart());
