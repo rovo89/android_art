@@ -164,11 +164,8 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_TRUE(method->GetName() != nullptr);
     EXPECT_TRUE(method->GetSignature() != Signature::NoSignature());
 
-    EXPECT_TRUE(method->GetDexCacheStrings() != nullptr);
     EXPECT_TRUE(method->HasDexCacheResolvedMethods());
     EXPECT_TRUE(method->HasDexCacheResolvedTypes());
-    EXPECT_EQ(method->GetDeclaringClass()->GetDexCache()->GetStrings(),
-              method->GetDexCacheStrings());
     EXPECT_TRUE(method->HasSameDexCacheResolvedMethods(
         method->GetDeclaringClass()->GetDexCache()->GetResolvedMethods()));
     EXPECT_TRUE(method->HasSameDexCacheResolvedTypes(
@@ -205,6 +202,8 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_FALSE(klass->IsArrayClass());
     EXPECT_TRUE(klass->GetComponentType() == NULL);
     EXPECT_TRUE(klass->IsInSamePackage(klass.Get()));
+    EXPECT_TRUE(klass->GetDexCacheStrings() != nullptr);
+    EXPECT_EQ(klass->GetDexCacheStrings(), klass->GetDexCache()->GetStrings());
     std::string temp2;
     EXPECT_TRUE(mirror::Class::IsInSamePackage(klass->GetDescriptor(&temp),
                                                klass->GetDescriptor(&temp2)));
@@ -392,7 +391,8 @@ struct CheckOffsets {
 
     bool error = false;
 
-    if (!klass->IsClassClass() && !is_static) {
+    // Art method have a different size due to the padding field.
+    if (!klass->IsArtMethodClass() && !klass->IsClassClass() && !is_static) {
       size_t expected_size = is_static ? klass->GetClassSize(): klass->GetObjectSize();
       if (sizeof(T) != expected_size) {
         LOG(ERROR) << "Class size mismatch:"
@@ -489,7 +489,6 @@ struct ArtMethodOffsets : public CheckOffsets<mirror::ArtMethod> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, declaring_class_),                      "declaringClass"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_resolved_methods_),           "dexCacheResolvedMethods"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_resolved_types_),             "dexCacheResolvedTypes"));
-    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_cache_strings_),                    "dexCacheStrings"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_code_item_offset_),           "dexCodeItemOffset"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, dex_method_index_),               "dexMethodIndex"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::ArtMethod, method_index_),                   "methodIndex"));
@@ -504,6 +503,7 @@ struct ClassOffsets : public CheckOffsets<mirror::Class> {
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, clinit_thread_id_),              "clinitThreadId"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, component_type_),                "componentType"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, dex_cache_),                     "dexCache"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, dex_cache_strings_),             "dexCacheStrings"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, dex_class_def_idx_),             "dexClassDefIndex"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, dex_type_idx_),                  "dexTypeIndex"));
     offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Class, direct_methods_),                "directMethods"));

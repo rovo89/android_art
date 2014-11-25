@@ -64,7 +64,8 @@ inline mirror::Class* MethodHelper::GetReturnType(bool resolve) {
 
 inline mirror::String* MethodHelper::ResolveString(uint32_t string_idx) {
   mirror::ArtMethod* method = GetMethod();
-  mirror::String* s = method->GetDexCacheStrings()->Get(string_idx);
+  mirror::Class* declaringClass = method->GetDeclaringClass();
+  mirror::String* s = declaringClass->GetDexCacheStrings()->Get(string_idx);
   if (UNLIKELY(s == nullptr)) {
     StackHandleScope<1> hs(Thread::Current());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
