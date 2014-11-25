@@ -582,7 +582,7 @@ class SsaLivenessAnalysis : public ValueObject {
   SsaLivenessAnalysis(const HGraph& graph, CodeGenerator* codegen)
       : graph_(graph),
         codegen_(codegen),
-        linear_post_order_(graph.GetArena(), graph.GetBlocks().Size()),
+        linear_order_(graph.GetArena(), graph.GetBlocks().Size()),
         block_infos_(graph.GetArena(), graph.GetBlocks().Size()),
         instructions_from_ssa_index_(graph.GetArena(), 0),
         instructions_from_lifetime_position_(graph.GetArena(), 0),
@@ -604,8 +604,8 @@ class SsaLivenessAnalysis : public ValueObject {
     return &block_infos_.Get(block.GetBlockId())->kill_;
   }
 
-  const GrowableArray<HBasicBlock*>& GetLinearPostOrder() const {
-    return linear_post_order_;
+  const GrowableArray<HBasicBlock*>& GetLinearOrder() const {
+    return linear_order_;
   }
 
   HInstruction* GetInstructionFromSsaIndex(size_t index) const {
@@ -661,7 +661,7 @@ class SsaLivenessAnalysis : public ValueObject {
 
   const HGraph& graph_;
   CodeGenerator* const codegen_;
-  GrowableArray<HBasicBlock*> linear_post_order_;
+  GrowableArray<HBasicBlock*> linear_order_;
   GrowableArray<BlockInfo*> block_infos_;
 
   // Temporary array used when computing live_in, live_out, and kill sets.
@@ -674,36 +674,36 @@ class SsaLivenessAnalysis : public ValueObject {
   DISALLOW_COPY_AND_ASSIGN(SsaLivenessAnalysis);
 };
 
-class HLinearOrderIterator : public ValueObject {
- public:
-  explicit HLinearOrderIterator(const SsaLivenessAnalysis& liveness)
-      : post_order_(liveness.GetLinearPostOrder()), index_(liveness.GetLinearPostOrder().Size()) {}
-
-  bool Done() const { return index_ == 0; }
-  HBasicBlock* Current() const { return post_order_.Get(index_ -1); }
-  void Advance() { --index_; DCHECK_GE(index_, 0U); }
-
- private:
-  const GrowableArray<HBasicBlock*>& post_order_;
-  size_t index_;
-
-  DISALLOW_COPY_AND_ASSIGN(HLinearOrderIterator);
-};
-
 class HLinearPostOrderIterator : public ValueObject {
  public:
   explicit HLinearPostOrderIterator(const SsaLivenessAnalysis& liveness)
-      : post_order_(liveness.GetLinearPostOrder()), index_(0) {}
+      : order_(liveness.GetLinearOrder()), index_(liveness.GetLinearOrder().Size()) {}
 
-  bool Done() const { return index_ == post_order_.Size(); }
-  HBasicBlock* Current() const { return post_order_.Get(index_); }
-  void Advance() { ++index_; }
+  bool Done() const { return index_ == 0; }
+  HBasicBlock* Current() const { return order_.Get(index_ -1); }
+  void Advance() { --index_; DCHECK_GE(index_, 0U); }
 
  private:
-  const GrowableArray<HBasicBlock*>& post_order_;
+  const GrowableArray<HBasicBlock*>& order_;
   size_t index_;
 
   DISALLOW_COPY_AND_ASSIGN(HLinearPostOrderIterator);
+};
+
+class HLinearOrderIterator : public ValueObject {
+ public:
+  explicit HLinearOrderIterator(const SsaLivenessAnalysis& liveness)
+      : order_(liveness.GetLinearOrder()), index_(0) {}
+
+  bool Done() const { return index_ == order_.Size(); }
+  HBasicBlock* Current() const { return order_.Get(index_); }
+  void Advance() { ++index_; }
+
+ private:
+  const GrowableArray<HBasicBlock*>& order_;
+  size_t index_;
+
+  DISALLOW_COPY_AND_ASSIGN(HLinearOrderIterator);
 };
 
 }  // namespace art
