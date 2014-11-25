@@ -35,6 +35,7 @@
 #include "nodes.h"
 #include "prepare_for_register_allocation.h"
 #include "register_allocator.h"
+#include "ssa_builder.h"
 #include "ssa_phi_elimination.h"
 #include "ssa_liveness_analysis.h"
 #include "utils/arena_allocator.h"
@@ -191,21 +192,31 @@ static bool CanOptimize(const DexFile::CodeItem& code_item) {
 }
 
 static void RunOptimizations(HGraph* graph, const HGraphVisualizer& visualizer) {
+  TransformToSsa ssa(graph);
   HDeadCodeElimination opt1(graph);
   HConstantFolding opt2(graph);
   SsaRedundantPhiElimination opt3(graph);
   SsaDeadPhiElimination opt4(graph);
   InstructionSimplifier opt5(graph);
-  GlobalValueNumberer opt6(graph->GetArena(), graph);
+  GVNOptimization opt6(graph);
   InstructionSimplifier opt7(graph);
 
-  HOptimization* optimizations[] = { &opt1, &opt2, &opt3, &opt4, &opt5, &opt6, &opt7 };
+  HOptimization* optimizations[] = {
+    &ssa,
+    &opt1,
+    &opt2,
+    &opt3,
+    &opt4,
+    &opt5,
+    &opt6,
+    &opt7
+  };
 
   for (size_t i = 0; i < arraysize(optimizations); ++i) {
     HOptimization* optimization = optimizations[i];
     optimization->Run();
-    optimization->Check();
     visualizer.DumpGraph(optimization->GetPassName());
+    optimization->Check();
   }
 }
 
@@ -271,11 +282,6 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
       && CanOptimize(*code_item)
       && RegisterAllocator::CanAllocateRegistersFor(*graph, instruction_set)) {
     optimized_compiled_methods_++;
-    graph->BuildDominatorTree();
-    graph->TransformToSSA();
-    visualizer.DumpGraph("ssa");
-    graph->FindNaturalLoops();
-
     RunOptimizations(graph, visualizer);
 
     PrepareForRegisterAllocation(graph).Run();
@@ -321,7 +327,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
       graph->FindNaturalLoops();
       SsaRedundantPhiElimination(graph).Run();
       SsaDeadPhiElimination(graph).Run();
-      GlobalValueNumberer(graph->GetArena(), graph).Run();
+      GVNOptimization(graph).Run();
       SsaLivenessAnalysis liveness(*graph, codegen);
       liveness.Analyze();
       visualizer.DumpGraph(kLivenessPassName);

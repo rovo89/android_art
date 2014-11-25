@@ -342,4 +342,72 @@ void SSAChecker::VisitPhi(HPhi* phi) {
   }
 }
 
+static Primitive::Type PrimitiveKind(Primitive::Type type) {
+  switch (type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimInt:
+      return Primitive::kPrimInt;
+    default:
+      return type;
+  }
+}
+
+void SSAChecker::VisitCondition(HCondition* op) {
+  VisitInstruction(op);
+  // TODO: check inputs types, and special case the `null` check.
+  if (op->GetType() != Primitive::kPrimBoolean) {
+    std::stringstream error;
+    error << "Condition " << op->DebugName() << " " << op->GetId()
+          << " has a non-boolean result type: "
+          << op->GetType() << ".";
+    errors_.push_back(error.str());
+  }
+}
+
+void SSAChecker::VisitBinaryOperation(HBinaryOperation* op) {
+  VisitInstruction(op);
+  if (op->IsUShr() || op->IsShr() || op->IsShl()) {
+    if (PrimitiveKind(op->InputAt(1)->GetType()) != Primitive::kPrimInt) {
+      std::stringstream error;
+      error << "Shift operation " << op->DebugName() << " " << op->GetId()
+            << " has a non-int kind second input: "
+            << op->InputAt(1)->DebugName() << " of type " << op->InputAt(1)->GetType()
+            << ".";
+      errors_.push_back(error.str());
+    }
+  } else {
+    if (PrimitiveKind(op->InputAt(1)->GetType()) != PrimitiveKind(op->InputAt(0)->GetType())) {
+      std::stringstream error;
+      error << "Binary operation " << op->DebugName() << " " << op->GetId()
+            << " has inputs of different type: "
+            << op->InputAt(0)->GetType() << ", and " << op->InputAt(1)->GetType()
+            << ".";
+      errors_.push_back(error.str());
+    }
+  }
+
+  if (op->IsCompare()) {
+    if (op->GetType() != Primitive::kPrimInt) {
+      std::stringstream error;
+      error << "Compare operation " << op->GetId()
+            << " has a non-int result type: "
+            << op->GetType() << ".";
+      errors_.push_back(error.str());
+    }
+  } else {
+    // Use the first input, so that we can also make this check for shift operations.
+    if (PrimitiveKind(op->GetType()) != PrimitiveKind(op->InputAt(0)->GetType())) {
+      std::stringstream error;
+      error << "Binary operation " << op->DebugName() << " " << op->GetId()
+            << " has a result type different than its input type: "
+            << op->GetType() << ", and " << op->InputAt(1)->GetType()
+            << ".";
+      errors_.push_back(error.str());
+    }
+  }
+}
+
 }  // namespace art
