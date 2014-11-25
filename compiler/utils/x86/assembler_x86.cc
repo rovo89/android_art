@@ -1126,10 +1126,20 @@ void X86Assembler::sarl(Register operand, Register shifter) {
 }
 
 
-void X86Assembler::shld(Register dst, Register src) {
+void X86Assembler::shld(Register dst, Register src, Register shifter) {
+  DCHECK_EQ(ECX, shifter);
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0F);
   EmitUint8(0xA5);
+  EmitRegisterOperand(src, dst);
+}
+
+
+void X86Assembler::shrd(Register dst, Register src, Register shifter) {
+  DCHECK_EQ(ECX, shifter);
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0xAD);
   EmitRegisterOperand(src, dst);
 }
 

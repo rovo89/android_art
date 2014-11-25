@@ -460,7 +460,12 @@ class X86_64Assembler FINAL : public Assembler {
   void sarl(CpuRegister reg, const Immediate& imm);
   void sarl(CpuRegister operand, CpuRegister shifter);
 
+  void shlq(CpuRegister reg, const Immediate& imm);
+  void shlq(CpuRegister operand, CpuRegister shifter);
   void shrq(CpuRegister reg, const Immediate& imm);
+  void shrq(CpuRegister operand, CpuRegister shifter);
+  void sarq(CpuRegister reg, const Immediate& imm);
+  void sarq(CpuRegister operand, CpuRegister shifter);
 
   void negl(CpuRegister reg);
   void negq(CpuRegister reg);
@@ -657,7 +662,7 @@ class X86_64Assembler FINAL : public Assembler {
   void EmitNearLabelLink(Label* label);
 
   void EmitGenericShift(bool wide, int rm, CpuRegister reg, const Immediate& imm);
-  void EmitGenericShift(int rm, CpuRegister operand, CpuRegister shifter);
+  void EmitGenericShift(bool wide, int rm, CpuRegister operand, CpuRegister shifter);
 
   // If any input is not false, output the necessary rex prefix.
   void EmitOptionalRex(bool force, bool w, bool r, bool x, bool b);

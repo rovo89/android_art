@@ -108,6 +108,7 @@ class LocationsBuilderX86_64 : public HGraphVisitor {
  private:
   void HandleInvoke(HInvoke* invoke);
   void HandleBitwiseOperation(HBinaryOperation* operation);
+  void HandleShift(HBinaryOperation* operation);
 
   CodeGeneratorX86_64* const codegen_;
   InvokeDexCallingConventionVisitor parameter_visitor_;
@@ -136,6 +137,7 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   void GenerateClassInitializationCheck(SlowPathCodeX86_64* slow_path, CpuRegister class_reg);
   void HandleBitwiseOperation(HBinaryOperation* operation);
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
+  void HandleShift(HBinaryOperation* operation);
 
   X86_64Assembler* const assembler_;
   CodeGeneratorX86_64* const codegen_;

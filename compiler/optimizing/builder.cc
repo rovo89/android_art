@@ -305,9 +305,26 @@ void HGraphBuilder::Binop_23x(const Instruction& instruction,
 }
 
 template<typename T>
+void HGraphBuilder::Binop_23x_shift(const Instruction& instruction,
+                                    Primitive::Type type) {
+  HInstruction* first = LoadLocal(instruction.VRegB(), type);
+  HInstruction* second = LoadLocal(instruction.VRegC(), Primitive::kPrimInt);
+  current_block_->AddInstruction(new (arena_) T(type, first, second));
+  UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+}
+
+template<typename T>
 void HGraphBuilder::Binop_12x(const Instruction& instruction, Primitive::Type type) {
   HInstruction* first = LoadLocal(instruction.VRegA(), type);
   HInstruction* second = LoadLocal(instruction.VRegB(), type);
+  current_block_->AddInstruction(new (arena_) T(type, first, second));
+  UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+}
+
+template<typename T>
+void HGraphBuilder::Binop_12x_shift(const Instruction& instruction, Primitive::Type type) {
+  HInstruction* first = LoadLocal(instruction.VRegA(), type);
+  HInstruction* second = LoadLocal(instruction.VRegB(), Primitive::kPrimInt);
   current_block_->AddInstruction(new (arena_) T(type, first, second));
   UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
 }
@@ -1141,6 +1158,36 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::SHL_INT: {
+      Binop_23x_shift<HShl>(instruction, Primitive::kPrimInt);
+      break;
+    }
+
+    case Instruction::SHL_LONG: {
+      Binop_23x_shift<HShl>(instruction, Primitive::kPrimLong);
+      break;
+    }
+
+    case Instruction::SHR_INT: {
+      Binop_23x_shift<HShr>(instruction, Primitive::kPrimInt);
+      break;
+    }
+
+    case Instruction::SHR_LONG: {
+      Binop_23x_shift<HShr>(instruction, Primitive::kPrimLong);
+      break;
+    }
+
+    case Instruction::USHR_INT: {
+      Binop_23x_shift<HUShr>(instruction, Primitive::kPrimInt);
+      break;
+    }
+
+    case Instruction::USHR_LONG: {
+      Binop_23x_shift<HUShr>(instruction, Primitive::kPrimLong);
+      break;
+    }
+
     case Instruction::OR_INT: {
       Binop_23x<HOr>(instruction, Primitive::kPrimInt);
       break;
@@ -1237,6 +1284,36 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::REM_LONG_2ADDR: {
       BuildCheckedDivRem(instruction.VRegA(), instruction.VRegA(), instruction.VRegB(),
                          dex_pc, Primitive::kPrimLong, false, false);
+      break;
+    }
+
+    case Instruction::SHL_INT_2ADDR: {
+      Binop_12x_shift<HShl>(instruction, Primitive::kPrimInt);
+      break;
+    }
+
+    case Instruction::SHL_LONG_2ADDR: {
+      Binop_12x_shift<HShl>(instruction, Primitive::kPrimLong);
+      break;
+    }
+
+    case Instruction::SHR_INT_2ADDR: {
+      Binop_12x_shift<HShr>(instruction, Primitive::kPrimInt);
+      break;
+    }
+
+    case Instruction::SHR_LONG_2ADDR: {
+      Binop_12x_shift<HShr>(instruction, Primitive::kPrimLong);
+      break;
+    }
+
+    case Instruction::USHR_INT_2ADDR: {
+      Binop_12x_shift<HUShr>(instruction, Primitive::kPrimInt);
+      break;
+    }
+
+    case Instruction::USHR_LONG_2ADDR: {
+      Binop_12x_shift<HUShr>(instruction, Primitive::kPrimLong);
       break;
     }
 
@@ -1351,6 +1428,21 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::REM_INT_LIT8: {
       BuildCheckedDivRem(instruction.VRegA(), instruction.VRegB(), instruction.VRegC(),
                          dex_pc, Primitive::kPrimInt, true, false);
+      break;
+    }
+
+    case Instruction::SHL_INT_LIT8: {
+      Binop_22b<HShl>(instruction, false);
+      break;
+    }
+
+    case Instruction::SHR_INT_LIT8: {
+      Binop_22b<HShr>(instruction, false);
+      break;
+    }
+
+    case Instruction::USHR_INT_LIT8: {
+      Binop_22b<HUShr>(instruction, false);
       break;
     }
 
