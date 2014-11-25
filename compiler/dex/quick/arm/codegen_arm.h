@@ -182,6 +182,8 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     void GenNegFloat(RegLocation rl_dest, RegLocation rl_src);
     void GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
     void GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src);
+    void GenMaddMsubInt(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
+                        RegLocation rl_src3, bool is_sub);
 
     // Required for target - single operation generators.
     LIR* OpUnconditionalBranch(LIR* target);
@@ -258,6 +260,8 @@ class ArmMir2Lir FINAL : public Mir2Lir {
 
     LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) OVERRIDE;
     size_t GetInstructionOffset(LIR* lir);
+
+    void GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) OVERRIDE;
 
   private:
     void GenNegLong(RegLocation rl_dest, RegLocation rl_src);

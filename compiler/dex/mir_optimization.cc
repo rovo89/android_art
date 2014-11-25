@@ -426,6 +426,10 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
   if (bb->block_type == kDead) {
     return true;
   }
+  // Currently multiply-accumulate backend supports are only available on arm32 and arm64.
+  if (cu_->instruction_set == kArm64 || cu_->instruction_set == kThumb2) {
+    MultiplyAddOpt(bb);
+  }
   bool use_lvn = bb->use_lvn && (cu_->disable_opt & (1u << kLocalValueNumbering)) == 0u;
   std::unique_ptr<ScopedArenaAllocator> allocator;
   std::unique_ptr<GlobalValueNumbering> global_valnum;
@@ -1707,6 +1711,207 @@ bool MIRGraph::EliminateSuspendChecks(BasicBlock* bb) {
 
 void MIRGraph::EliminateSuspendChecksEnd() {
   temp_.sce.inliner = nullptr;
+}
+
+bool MIRGraph::CanThrow(MIR* mir) {
+  if ((mir->dalvikInsn.FlagsOf() & Instruction::kThrow) == 0) {
+    return false;
+  }
+  const int opt_flags = mir->optimization_flags;
+  uint64_t df_attributes = GetDataFlowAttributes(mir);
+
+  if (((df_attributes & DF_HAS_NULL_CHKS) != 0) && ((opt_flags & MIR_IGNORE_NULL_CHECK) == 0)) {
+    return true;
+  }
+  if ((df_attributes & DF_IFIELD) != 0) {
+    // The IGET/IPUT family.
+    const MirIFieldLoweringInfo& field_info = GetIFieldLoweringInfo(mir);
+    bool fast = (df_attributes & DF_DA) ? field_info.FastGet() : field_info.FastPut();
+    // Already processed null check above.
+    if (fast) {
+      return false;
+    }
+  } else if ((df_attributes & DF_HAS_RANGE_CHKS) != 0) {
+    // The AGET/APUT family.
+    // Already processed null check above.
+    if ((opt_flags & MIR_IGNORE_RANGE_CHECK) != 0) {
+      return false;
+    }
+  } else if ((df_attributes & DF_SFIELD) != 0) {
+    // The SGET/SPUT family.
+    const MirSFieldLoweringInfo& field_info = GetSFieldLoweringInfo(mir);
+    bool fast = (df_attributes & DF_DA) ? field_info.FastGet() : field_info.FastPut();
+    bool is_class_initialized = field_info.IsClassInitialized() ||
+        ((mir->optimization_flags & MIR_CLASS_IS_INITIALIZED) != 0);
+    if (fast && is_class_initialized) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool MIRGraph::HasAntiDependency(MIR* first, MIR* second) {
+  DCHECK(first->ssa_rep != nullptr);
+  DCHECK(second->ssa_rep != nullptr);
+  if ((second->ssa_rep->num_defs > 0) && (first->ssa_rep->num_uses > 0)) {
+    int vreg0 = SRegToVReg(second->ssa_rep->defs[0]);
+    int vreg1 = (second->ssa_rep->num_defs == 2) ?
+        SRegToVReg(second->ssa_rep->defs[1]) : INVALID_VREG;
+    for (int i = 0; i < first->ssa_rep->num_uses; i++) {
+      int32_t use = SRegToVReg(first->ssa_rep->uses[i]);
+      if (use == vreg0 || use == vreg1) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+void MIRGraph::CombineMultiplyAdd(MIR* mul_mir, MIR* add_mir, bool mul_is_first_addend,
+                                  bool is_wide, bool is_sub) {
+  if (is_wide) {
+    if (is_sub) {
+      add_mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpMsubLong);
+    } else {
+      add_mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpMaddLong);
+    }
+  } else {
+    if (is_sub) {
+      add_mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpMsubInt);
+    } else {
+      add_mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpMaddInt);
+    }
+  }
+  add_mir->ssa_rep->num_uses = is_wide ? 6 : 3;
+  int32_t addend0 = INVALID_SREG;
+  int32_t addend1 = INVALID_SREG;
+  if (is_wide) {
+    addend0 = mul_is_first_addend ? add_mir->ssa_rep->uses[2] : add_mir->ssa_rep->uses[0];
+    addend1 = mul_is_first_addend ? add_mir->ssa_rep->uses[3] : add_mir->ssa_rep->uses[1];
+  } else {
+    addend0 = mul_is_first_addend ? add_mir->ssa_rep->uses[1] : add_mir->ssa_rep->uses[0];
+  }
+
+  AllocateSSAUseData(add_mir, add_mir->ssa_rep->num_uses);
+  add_mir->ssa_rep->uses[0] = mul_mir->ssa_rep->uses[0];
+  add_mir->ssa_rep->uses[1] = mul_mir->ssa_rep->uses[1];
+  // Clear the original multiply product ssa use count, as it is not used anymore.
+  raw_use_counts_[mul_mir->ssa_rep->defs[0]] = 0;
+  use_counts_[mul_mir->ssa_rep->defs[0]] = 0;
+  if (is_wide) {
+    DCHECK_EQ(add_mir->ssa_rep->num_uses, 6);
+    add_mir->ssa_rep->uses[2] = mul_mir->ssa_rep->uses[2];
+    add_mir->ssa_rep->uses[3] = mul_mir->ssa_rep->uses[3];
+    add_mir->ssa_rep->uses[4] = addend0;
+    add_mir->ssa_rep->uses[5] = addend1;
+    raw_use_counts_[mul_mir->ssa_rep->defs[1]] = 0;
+    use_counts_[mul_mir->ssa_rep->defs[1]] = 0;
+  } else {
+    DCHECK_EQ(add_mir->ssa_rep->num_uses, 3);
+    add_mir->ssa_rep->uses[2] = addend0;
+  }
+  // Copy in the decoded instruction information.
+  add_mir->dalvikInsn.vB = SRegToVReg(add_mir->ssa_rep->uses[0]);
+  if (is_wide) {
+    add_mir->dalvikInsn.vC = SRegToVReg(add_mir->ssa_rep->uses[2]);
+    add_mir->dalvikInsn.arg[0] = SRegToVReg(add_mir->ssa_rep->uses[4]);
+  } else {
+    add_mir->dalvikInsn.vC = SRegToVReg(add_mir->ssa_rep->uses[1]);
+    add_mir->dalvikInsn.arg[0] = SRegToVReg(add_mir->ssa_rep->uses[2]);
+  }
+  // Original multiply MIR is set to Nop.
+  mul_mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+}
+
+void MIRGraph::MultiplyAddOpt(BasicBlock* bb) {
+  if (bb->block_type == kDead) {
+    return;
+  }
+  ScopedArenaAllocator allocator(&cu_->arena_stack);
+  ScopedArenaSafeMap<uint32_t, MIR*> ssa_mul_map(std::less<uint32_t>(), allocator.Adapter());
+  ScopedArenaSafeMap<uint32_t, MIR*>::iterator map_it;
+  for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
+    Instruction::Code opcode = mir->dalvikInsn.opcode;
+    bool is_sub = true;
+    bool is_candidate_multiply = false;
+    switch (opcode) {
+      case Instruction::MUL_INT:
+      case Instruction::MUL_INT_2ADDR:
+        is_candidate_multiply = true;
+        break;
+      case Instruction::MUL_LONG:
+      case Instruction::MUL_LONG_2ADDR:
+        if (cu_->target64) {
+          is_candidate_multiply = true;
+        }
+        break;
+      case Instruction::ADD_INT:
+      case Instruction::ADD_INT_2ADDR:
+        is_sub = false;
+        FALLTHROUGH_INTENDED;
+      case Instruction::SUB_INT:
+      case Instruction::SUB_INT_2ADDR:
+        if (((map_it = ssa_mul_map.find(mir->ssa_rep->uses[0])) != ssa_mul_map.end()) && !is_sub) {
+          // a*b+c
+          CombineMultiplyAdd(map_it->second, mir, true /* product is the first addend */,
+                             false /* is_wide */, false /* is_sub */);
+          ssa_mul_map.erase(mir->ssa_rep->uses[0]);
+        } else if ((map_it = ssa_mul_map.find(mir->ssa_rep->uses[1])) != ssa_mul_map.end()) {
+          // c+a*b or c-a*b
+          CombineMultiplyAdd(map_it->second, mir, false /* product is the second addend */,
+                             false /* is_wide */, is_sub);
+          ssa_mul_map.erase(map_it);
+        }
+        break;
+      case Instruction::ADD_LONG:
+      case Instruction::ADD_LONG_2ADDR:
+        is_sub = false;
+        FALLTHROUGH_INTENDED;
+      case Instruction::SUB_LONG:
+      case Instruction::SUB_LONG_2ADDR:
+        if (!cu_->target64) {
+          break;
+        }
+        if ((map_it = ssa_mul_map.find(mir->ssa_rep->uses[0])) != ssa_mul_map.end() && !is_sub) {
+          // a*b+c
+          CombineMultiplyAdd(map_it->second, mir, true /* product is the first addend */,
+                             true /* is_wide */, false /* is_sub */);
+          ssa_mul_map.erase(map_it);
+        } else if ((map_it = ssa_mul_map.find(mir->ssa_rep->uses[2])) != ssa_mul_map.end()) {
+          // c+a*b or c-a*b
+          CombineMultiplyAdd(map_it->second, mir, false /* product is the second addend */,
+                             true /* is_wide */, is_sub);
+          ssa_mul_map.erase(map_it);
+        }
+        break;
+      default:
+        if (!ssa_mul_map.empty() && CanThrow(mir)) {
+          // Should not combine multiply and add MIRs across potential exception.
+          ssa_mul_map.clear();
+        }
+        break;
+    }
+
+    // Exclude the case when an MIR writes a vreg which is previous candidate multiply MIR's uses.
+    // It is because that current RA may allocate the same physical register to them. For this
+    // kind of cases, the multiplier has been updated, we should not use updated value to the
+    // multiply-add insn.
+    if (ssa_mul_map.size() > 0) {
+      for (auto it = ssa_mul_map.begin(); it != ssa_mul_map.end();) {
+        MIR* mul = it->second;
+        if (HasAntiDependency(mul, mir)) {
+          it = ssa_mul_map.erase(it);
+        } else {
+          ++it;
+        }
+      }
+    }
+
+    if (is_candidate_multiply &&
+        (GetRawUseCount(mir->ssa_rep->defs[0]) == 1) && (mir->next != nullptr)) {
+      ssa_mul_map.Put(mir->ssa_rep->defs[0], mir);
+    }
+  }
 }
 
 }  // namespace art

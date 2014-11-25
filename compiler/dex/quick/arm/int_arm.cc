@@ -1075,6 +1075,17 @@ LIR* ArmMir2Lir::OpVstm(RegStorage r_base, int count) {
   return NewLIR3(kThumb2Vstms, r_base.GetReg(), rs_fr0.GetReg(), count);
 }
 
+void ArmMir2Lir::GenMaddMsubInt(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
+                                RegLocation rl_src3, bool is_sub) {
+  rl_src1 = LoadValue(rl_src1, kCoreReg);
+  rl_src2 = LoadValue(rl_src2, kCoreReg);
+  rl_src3 = LoadValue(rl_src3, kCoreReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  NewLIR4(is_sub ? kThumb2Mls : kThumb2Mla, rl_result.reg.GetReg(), rl_src1.reg.GetReg(),
+          rl_src2.reg.GetReg(), rl_src3.reg.GetReg());
+  StoreValue(rl_dest, rl_result);
+}
+
 void ArmMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
                                                RegLocation rl_result, int lit,
                                                int first_bit, int second_bit) {
