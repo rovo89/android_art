@@ -58,9 +58,9 @@ inline mirror::Class* ClassLinker::FindArrayClass(Thread* self, mirror::Class** 
 
 inline mirror::String* ClassLinker::ResolveString(uint32_t string_idx,
                                                   mirror::ArtMethod* referrer) {
-  mirror::String* resolved_string = referrer->GetDexCacheStrings()->Get(string_idx);
+  mirror::Class* declaring_class = referrer->GetDeclaringClass();
+  mirror::String* resolved_string = declaring_class->GetDexCacheStrings()->Get(string_idx);
   if (UNLIKELY(resolved_string == NULL)) {
-    mirror::Class* declaring_class = referrer->GetDeclaringClass();
     StackHandleScope<1> hs(Thread::Current());
     Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
     const DexFile& dex_file = *dex_cache->GetDexFile();

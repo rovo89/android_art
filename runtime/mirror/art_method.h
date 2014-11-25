@@ -41,6 +41,8 @@ namespace mirror {
 typedef void (EntryPointFromInterpreter)(Thread* self, MethodHelper& mh,
     const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame, JValue* result);
 
+#define ART_METHOD_HAS_PADDING_FIELD_ON_64_BIT
+
 // C++ mirror of java.lang.reflect.ArtMethod.
 class MANAGED ArtMethod FINAL : public Object {
  public:
@@ -196,14 +198,6 @@ class MANAGED ArtMethod FINAL : public Object {
   void SetDexMethodIndex(uint32_t new_idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Not called within a transaction.
     SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_method_index_), new_idx);
-  }
-
-  ObjectArray<String>* GetDexCacheStrings() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  static MemberOffset DexCacheStringsOffset() {
-    return OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_strings_);
   }
 
   static MemberOffset DexCacheResolvedMethodsOffset() {
@@ -427,17 +421,17 @@ class MANAGED ArtMethod FINAL : public Object {
   void UnregisterNative(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static MemberOffset EntryPointFromInterpreterOffset(size_t pointer_size) {
-    return MemberOffset(PtrSizedFieldsOffset() + OFFSETOF_MEMBER(
+    return MemberOffset(PtrSizedFieldsOffset(pointer_size) + OFFSETOF_MEMBER(
         PtrSizedFields, entry_point_from_interpreter_) / sizeof(void*) * pointer_size);
   }
 
   static MemberOffset EntryPointFromJniOffset(size_t pointer_size) {
-    return MemberOffset(PtrSizedFieldsOffset() + OFFSETOF_MEMBER(
+    return MemberOffset(PtrSizedFieldsOffset(pointer_size) + OFFSETOF_MEMBER(
         PtrSizedFields, entry_point_from_jni_) / sizeof(void*) * pointer_size);
   }
 
   static MemberOffset EntryPointFromQuickCompiledCodeOffset(size_t pointer_size) {
-    return MemberOffset(PtrSizedFieldsOffset() + OFFSETOF_MEMBER(
+    return MemberOffset(PtrSizedFieldsOffset(pointer_size) + OFFSETOF_MEMBER(
         PtrSizedFields, entry_point_from_quick_compiled_code_) / sizeof(void*) * pointer_size);
   }
 
@@ -549,13 +543,19 @@ class MANAGED ArtMethod FINAL : public Object {
 
   ALWAYS_INLINE ArtMethod* GetInterfaceMethodIfProxy() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static size_t SizeWithoutPointerFields() {
-    return sizeof(ArtMethod) - sizeof(PtrSizedFields);
+  static size_t SizeWithoutPointerFields(size_t pointer_size) {
+    size_t total = sizeof(ArtMethod) - sizeof(PtrSizedFields);
+#ifdef ART_METHOD_HAS_PADDING_FIELD_ON_64_BIT
+    // Add 4 bytes if 64 bit, otherwise 0.
+    total += pointer_size - sizeof(uint32_t);
+#endif
+    return total;
   }
 
   // Size of an instance of java.lang.reflect.ArtMethod not including its value array.
   static size_t InstanceSize(size_t pointer_size) {
-    return SizeWithoutPointerFields() + (sizeof(PtrSizedFields) / sizeof(void*)) * pointer_size;
+    return SizeWithoutPointerFields(pointer_size) +
+        (sizeof(PtrSizedFields) / sizeof(void*)) * pointer_size;
   }
 
  protected:
@@ -568,9 +568,6 @@ class MANAGED ArtMethod FINAL : public Object {
 
   // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
   HeapReference<ObjectArray<Class>> dex_cache_resolved_types_;
-
-  // Short cuts to declaring_class_->dex_cache_ member for fast compiled code access.
-  HeapReference<ObjectArray<String>> dex_cache_strings_;
 
   // Access flags; low 16 bits are defined by spec.
   uint32_t access_flags_;
@@ -590,7 +587,7 @@ class MANAGED ArtMethod FINAL : public Object {
   // ifTable.
   uint32_t method_index_;
 
-  // Add alignment word here if necessary.
+  // Fake padding field gets inserted here.
 
   // Must be the last fields in the method.
   struct PACKED(4) PtrSizedFields {
@@ -623,8 +620,13 @@ class MANAGED ArtMethod FINAL : public Object {
   ALWAYS_INLINE ObjectArray<Class>* GetDexCacheResolvedTypes()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static size_t PtrSizedFieldsOffset() {
-    return OFFSETOF_MEMBER(ArtMethod, ptr_sized_fields_);
+  static size_t PtrSizedFieldsOffset(size_t pointer_size) {
+    size_t offset = OFFSETOF_MEMBER(ArtMethod, ptr_sized_fields_);
+#ifdef ART_METHOD_HAS_PADDING_FIELD_ON_64_BIT
+    // Add 4 bytes if 64 bit, otherwise 0.
+    offset += pointer_size - sizeof(uint32_t);
+#endif
+    return offset;
   }
 
   friend struct art::ArtMethodOffsets;  // for verifying offset information
