@@ -49,6 +49,8 @@ public class Main {
     public Main() {
         // Create the test cases.
         testCases = new LinkedList<TestCase>();
+        testCases.add(new TestCase("PackedSwitch", "PackedSwitch", "packedSwitch",
+          new Object[]{123}, null, 123));
 
         testCases.add(new TestCase("b/17790197", "B17790197", "getInt", null, null, 100));
         testCases.add(new TestCase("b/17978759", "B17978759", "test", null, new VerifyError(), null));
