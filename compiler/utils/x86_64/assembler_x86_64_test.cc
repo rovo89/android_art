@@ -296,7 +296,7 @@ TEST_F(AssemblerX86_64Test, SublImm) {
   DriverStr(Repeatri(&x86_64::X86_64Assembler::subl, 4U, "sub ${imm}, %{reg}"), "subli");
 }
 
-// Shll only allows CL as the shift register.
+// Shll only allows CL as the shift count.
 std::string shll_fn(AssemblerX86_64Test::Base* assembler_test, x86_64::X86_64Assembler* assembler) {
   std::ostringstream str;
 
@@ -319,7 +319,31 @@ TEST_F(AssemblerX86_64Test, ShllImm) {
   DriverStr(Repeatri(&x86_64::X86_64Assembler::shll, 1U, "shll ${imm}, %{reg}"), "shlli");
 }
 
-// Shrl only allows CL as the shift register.
+// Shlq only allows CL as the shift count.
+std::string shlq_fn(AssemblerX86_64Test::Base* assembler_test, x86_64::X86_64Assembler* assembler) {
+  std::ostringstream str;
+
+  std::vector<x86_64::CpuRegister*> registers = assembler_test->GetRegisters();
+
+  x86_64::CpuRegister shifter(x86_64::RCX);
+  for (auto reg : registers) {
+    assembler->shlq(*reg, shifter);
+    str << "shlq %cl, %" << assembler_test->GetRegisterName(*reg) << "\n";
+  }
+  printf("%s\n", str.str().c_str());
+
+  return str.str();
+}
+
+TEST_F(AssemblerX86_64Test, ShlqReg) {
+  DriverFn(&shlq_fn, "shlq");
+}
+
+TEST_F(AssemblerX86_64Test, ShlqImm) {
+  DriverStr(RepeatRI(&x86_64::X86_64Assembler::shlq, 1U, "shlq ${imm}, %{reg}"), "shlqi");
+}
+
+// Shrl only allows CL as the shift count.
 std::string shrl_fn(AssemblerX86_64Test::Base* assembler_test, x86_64::X86_64Assembler* assembler) {
   std::ostringstream str;
 
@@ -342,7 +366,30 @@ TEST_F(AssemblerX86_64Test, ShrlImm) {
   DriverStr(Repeatri(&x86_64::X86_64Assembler::shrl, 1U, "shrl ${imm}, %{reg}"), "shrli");
 }
 
-// Sarl only allows CL as the shift register.
+// Shrq only allows CL as the shift count.
+std::string shrq_fn(AssemblerX86_64Test::Base* assembler_test, x86_64::X86_64Assembler* assembler) {
+  std::ostringstream str;
+
+  std::vector<x86_64::CpuRegister*> registers = assembler_test->GetRegisters();
+
+  x86_64::CpuRegister shifter(x86_64::RCX);
+  for (auto reg : registers) {
+    assembler->shrq(*reg, shifter);
+    str << "shrq %cl, %" << assembler_test->GetRegisterName(*reg) << "\n";
+  }
+
+  return str.str();
+}
+
+TEST_F(AssemblerX86_64Test, ShrqReg) {
+  DriverFn(&shrq_fn, "shrq");
+}
+
+TEST_F(AssemblerX86_64Test, ShrqImm) {
+  DriverStr(RepeatRI(&x86_64::X86_64Assembler::shrq, 1U, "shrq ${imm}, %{reg}"), "shrqi");
+}
+
+// Sarl only allows CL as the shift count.
 std::string sarl_fn(AssemblerX86_64Test::Base* assembler_test, x86_64::X86_64Assembler* assembler) {
   std::ostringstream str;
 
@@ -363,6 +410,29 @@ TEST_F(AssemblerX86_64Test, SarlReg) {
 
 TEST_F(AssemblerX86_64Test, SarlImm) {
   DriverStr(Repeatri(&x86_64::X86_64Assembler::sarl, 1U, "sarl ${imm}, %{reg}"), "sarli");
+}
+
+// Sarq only allows CL as the shift count.
+std::string sarq_fn(AssemblerX86_64Test::Base* assembler_test, x86_64::X86_64Assembler* assembler) {
+  std::ostringstream str;
+
+  std::vector<x86_64::CpuRegister*> registers = assembler_test->GetRegisters();
+
+  x86_64::CpuRegister shifter(x86_64::RCX);
+  for (auto reg : registers) {
+    assembler->sarq(*reg, shifter);
+    str << "sarq %cl, %" << assembler_test->GetRegisterName(*reg) << "\n";
+  }
+
+  return str.str();
+}
+
+TEST_F(AssemblerX86_64Test, SarqReg) {
+  DriverFn(&sarq_fn, "sarq");
+}
+
+TEST_F(AssemblerX86_64Test, SarqImm) {
+  DriverStr(RepeatRI(&x86_64::X86_64Assembler::sarq, 1U, "sarq ${imm}, %{reg}"), "sarqi");
 }
 
 TEST_F(AssemblerX86_64Test, CmpqRegs) {

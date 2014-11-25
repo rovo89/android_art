@@ -801,7 +801,10 @@ InstructionCodeGeneratorARM64::InstructionCodeGeneratorARM64(HGraph* graph,
 
 #define FOR_EACH_UNIMPLEMENTED_INSTRUCTION(M)              \
   M(ParallelMove)                                          \
-  M(Rem)
+  M(Rem)                                                   \
+  M(Shl)                                                   \
+  M(Shr)                                                   \
+  M(UShr)                                                  \
 
 #define UNIMPLEMENTED_INSTRUCTION_BREAK_CODE(name) name##UnimplementedInstructionBreakCode
 
