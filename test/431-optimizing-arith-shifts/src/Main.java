@@ -209,7 +209,7 @@ public class Main {
     expectEquals(1L, $opt$UShr(2147483648L, 31L));
     expectEquals(1073741824L, $opt$UShr(2147483648L, 1L));
 
-   Long shifts can use use up to 6 lower bits.
+    // Long shifts can use use up to 6 lower bits.
     expectEquals(1L, $opt$UShr(4294967296L, 32L));
     expectEquals(7L, $opt$UShr(60129542144L, 33L));
     expectEquals(0L, $opt$UShr(Long.MAX_VALUE, 63L));
