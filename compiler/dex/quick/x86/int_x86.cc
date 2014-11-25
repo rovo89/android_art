@@ -1898,6 +1898,16 @@ void X86Mir2Lir::GenLongArith(RegLocation rl_dest, RegLocation rl_src, Instructi
     AnnotateDalvikRegAccess(lir, (displacement + HIWORD_OFFSET) >> 2,
                             false /* is_load */, true /* is64bit */);
   }
+
+  int v_src_reg = mir_graph_->SRegToVReg(rl_src.s_reg_low);
+  int v_dst_reg = mir_graph_->SRegToVReg(rl_dest.s_reg_low);
+
+  // If the left operand is in memory and the right operand is in a register
+  // and both belong to the same dalvik register then we should clobber the
+  // right one because it doesn't hold valid data anymore.
+  if (v_src_reg == v_dst_reg) {
+    Clobber(rl_src.reg);
+  }
 }
 
 void X86Mir2Lir::GenLongArith(RegLocation rl_dest, RegLocation rl_src1,
