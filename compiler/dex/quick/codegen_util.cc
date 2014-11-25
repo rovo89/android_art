@@ -314,13 +314,17 @@ void Mir2Lir::UpdateLIROffsets() {
   }
 }
 
-void Mir2Lir::MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg) {
+void Mir2Lir::MarkGCCard(int opt_flags, RegStorage val_reg, RegStorage tgt_addr_reg) {
   DCHECK(val_reg.Valid());
   DCHECK_EQ(val_reg.Is64Bit(), cu_->target64);
-  LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, nullptr);
-  UnconditionallyMarkGCCard(tgt_addr_reg);
-  LIR* target = NewLIR0(kPseudoTargetLabel);
-  branch_over->target = target;
+  if ((opt_flags & MIR_STORE_NON_NULL_VALUE) != 0) {
+    UnconditionallyMarkGCCard(tgt_addr_reg);
+  } else {
+    LIR* branch_over = OpCmpImmBranch(kCondEq, val_reg, 0, nullptr);
+    UnconditionallyMarkGCCard(tgt_addr_reg);
+    LIR* target = NewLIR0(kPseudoTargetLabel);
+    branch_over->target = target;
+  }
 }
 
 /* Dump instructions and constant pool contents */

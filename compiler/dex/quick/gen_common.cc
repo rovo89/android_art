@@ -665,7 +665,7 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, OpSize size) {
                     field_info.IsVolatile() ? kVolatile : kNotVolatile);
     }
     if (IsRef(size) && !mir_graph_->IsConstantNullRef(rl_src)) {
-      MarkGCCard(rl_src.reg, r_base);
+      MarkGCCard(mir->optimization_flags, rl_src.reg, r_base);
     }
     FreeTemp(r_base);
   } else {
@@ -940,7 +940,7 @@ void Mir2Lir::GenIPut(MIR* mir, int opt_flags, OpSize size,
     }
     MarkPossibleNullPointerExceptionAfter(opt_flags, store);
     if (IsRef(size) && !mir_graph_->IsConstantNullRef(rl_src)) {
-      MarkGCCard(rl_src.reg, rl_obj.reg);
+      MarkGCCard(opt_flags, rl_src.reg, rl_obj.reg);
     }
   } else {
     QuickEntrypointEnum target;
