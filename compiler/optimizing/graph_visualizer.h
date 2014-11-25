@@ -30,7 +30,6 @@ class HGraph;
 // TODO: Create an analysis/optimization abstraction.
 static const char* kLivenessPassName = "liveness";
 static const char* kRegisterAllocatorPassName = "register";
-static const char* kGVNPassName = "gvn";
 
 /**
  * If enabled, emits compilation information suitable for the c1visualizer tool
