@@ -316,9 +316,8 @@ enum ExtendedMIROpcode {
 
 enum MIROptimizationFlagPositions {
   kMIRIgnoreNullCheck = 0,
-  kMIRNullCheckOnly,
   kMIRIgnoreRangeCheck,
-  kMIRRangeCheckOnly,
+  kMIRStoreNonNullValue,              // Storing non-null value, always mark GC card.
   kMIRClassIsInitialized,
   kMIRClassIsInDexCache,
   kMirIgnoreDivZeroCheck,

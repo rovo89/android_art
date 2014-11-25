@@ -641,7 +641,7 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     FreeTemp(reg_ptr);
   }
   if (card_mark) {
-    MarkGCCard(rl_src.reg, rl_array.reg);
+    MarkGCCard(opt_flags, rl_src.reg, rl_array.reg);
   }
 }
 
