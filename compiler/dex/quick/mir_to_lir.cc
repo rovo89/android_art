@@ -332,7 +332,7 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
         kNotVolatile);
   }
   if (IsRef(size)) {
-    MarkGCCard(reg_src, reg_obj);
+    MarkGCCard(0, reg_src, reg_obj);
   }
   return true;
 }

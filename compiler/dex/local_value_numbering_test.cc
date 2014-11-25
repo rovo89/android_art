@@ -607,7 +607,9 @@ TEST_F(LocalValueNumberingTest, EscapingRefs) {
   EXPECT_NE(value_names_[13], value_names_[16]);  // New value.
   EXPECT_NE(value_names_[14], value_names_[17]);  // New value.
   for (size_t i = 0u; i != mir_count_; ++i) {
-    int expected = (i != 0u && i != 3u && i != 6u) ? MIR_IGNORE_NULL_CHECK : 0;
+    int expected =
+        ((i != 0u && i != 3u && i != 6u) ? MIR_IGNORE_NULL_CHECK : 0) |
+        ((i == 3u) ? MIR_STORE_NON_NULL_VALUE: 0);
     EXPECT_EQ(expected, mirs_[i].optimization_flags) << i;
   }
 }
@@ -640,7 +642,8 @@ TEST_F(LocalValueNumberingTest, EscapingArrayRefs) {
   for (size_t i = 0u; i != mir_count_; ++i) {
     int expected =
         ((i != 0u && i != 3u && i != 6u && i != 9u) ? MIR_IGNORE_NULL_CHECK : 0u) |
-        ((i >= 4 && i != 6u && i != 9u) ? MIR_IGNORE_RANGE_CHECK : 0u);
+        ((i >= 4 && i != 6u && i != 9u) ? MIR_IGNORE_RANGE_CHECK : 0u) |
+        ((i == 3u) ? MIR_STORE_NON_NULL_VALUE: 0);
     EXPECT_EQ(expected, mirs_[i].optimization_flags) << i;
   }
 }

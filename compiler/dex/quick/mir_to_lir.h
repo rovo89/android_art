@@ -1075,8 +1075,9 @@ class Mir2Lir : public Backend {
      * @brief Mark a garbage collection card. Skip if the stored value is null.
      * @param val_reg the register holding the stored value to check against null.
      * @param tgt_addr_reg the address of the object or array where the value was stored.
+     * @param opt_flags the optimization flags which may indicate that the value is non-null.
      */
-    void MarkGCCard(RegStorage val_reg, RegStorage tgt_addr_reg);
+    void MarkGCCard(int opt_flags, RegStorage val_reg, RegStorage tgt_addr_reg);
 
     /*
      * @brief Load the address of the dex method into the register.
