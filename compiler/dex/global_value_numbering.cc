@@ -104,10 +104,7 @@ LocalValueNumbering* GlobalValueNumbering::PrepareBasicBlock(BasicBlock* bb,
     if (bb->catch_entry) {
       merge_type = LocalValueNumbering::kCatchMerge;
     } else if (bb->last_mir_insn != nullptr &&
-        (bb->last_mir_insn->dalvikInsn.opcode == Instruction::RETURN_VOID ||
-         bb->last_mir_insn->dalvikInsn.opcode == Instruction::RETURN ||
-         bb->last_mir_insn->dalvikInsn.opcode == Instruction::RETURN_OBJECT ||
-         bb->last_mir_insn->dalvikInsn.opcode == Instruction::RETURN_WIDE) &&
+        IsInstructionReturn(bb->last_mir_insn->dalvikInsn.opcode) &&
         bb->GetFirstNonPhiInsn() == bb->last_mir_insn) {
       merge_type = LocalValueNumbering::kReturnMerge;
     }
