@@ -343,8 +343,8 @@ LocalValueNumbering::LocalValueNumbering(GlobalValueNumbering* gvn, uint16_t id,
       merge_names_(allocator->Adapter()),
       merge_map_(std::less<ScopedArenaVector<BasicBlockId>>(), allocator->Adapter()),
       merge_new_memory_version_(kNoValue) {
-  std::fill_n(unresolved_sfield_version_, kFieldTypeCount, 0u);
-  std::fill_n(unresolved_ifield_version_, kFieldTypeCount, 0u);
+  std::fill_n(unresolved_sfield_version_, arraysize(unresolved_sfield_version_), 0u);
+  std::fill_n(unresolved_ifield_version_, arraysize(unresolved_ifield_version_), 0u);
 }
 
 bool LocalValueNumbering::Equals(const LocalValueNumbering& other) const {
@@ -392,16 +392,20 @@ void LocalValueNumbering::MergeOne(const LocalValueNumbering& other, MergeType m
   if (merge_type == kCatchMerge) {
     // Memory is clobbered. Use new memory version and don't merge aliasing locations.
     global_memory_version_ = NewMemoryVersion(&merge_new_memory_version_);
-    std::fill_n(unresolved_sfield_version_, kFieldTypeCount, global_memory_version_);
-    std::fill_n(unresolved_ifield_version_, kFieldTypeCount, global_memory_version_);
+    std::fill_n(unresolved_sfield_version_, arraysize(unresolved_sfield_version_),
+                global_memory_version_);
+    std::fill_n(unresolved_ifield_version_, arraysize(unresolved_ifield_version_),
+                global_memory_version_);
     PruneNonAliasingRefsForCatch();
     return;
   }
 
   DCHECK(merge_type == kNormalMerge);
   global_memory_version_ = other.global_memory_version_;
-  std::copy_n(other.unresolved_ifield_version_, kFieldTypeCount, unresolved_ifield_version_);
-  std::copy_n(other.unresolved_sfield_version_, kFieldTypeCount, unresolved_sfield_version_);
+  std::copy_n(other.unresolved_ifield_version_, arraysize(unresolved_sfield_version_),
+              unresolved_ifield_version_);
+  std::copy_n(other.unresolved_sfield_version_, arraysize(unresolved_ifield_version_),
+              unresolved_sfield_version_);
   sfield_value_map_ = other.sfield_value_map_;
   CopyAliasingValuesMap(&aliasing_ifield_value_map_, other.aliasing_ifield_value_map_);
   CopyAliasingValuesMap(&aliasing_array_value_map_, other.aliasing_array_value_map_);
@@ -413,9 +417,11 @@ void LocalValueNumbering::MergeOne(const LocalValueNumbering& other, MergeType m
 bool LocalValueNumbering::SameMemoryVersion(const LocalValueNumbering& other) const {
   return
       global_memory_version_ == other.global_memory_version_ &&
-      std::equal(unresolved_ifield_version_, unresolved_ifield_version_ + kFieldTypeCount,
+      std::equal(unresolved_ifield_version_,
+                 unresolved_ifield_version_ + arraysize(unresolved_ifield_version_),
                  other.unresolved_ifield_version_) &&
-      std::equal(unresolved_sfield_version_, unresolved_sfield_version_ + kFieldTypeCount,
+      std::equal(unresolved_sfield_version_,
+                 unresolved_sfield_version_ + arraysize(unresolved_sfield_version_),
                  other.unresolved_sfield_version_);
 }
 
@@ -442,18 +448,22 @@ void LocalValueNumbering::MergeMemoryVersions(bool clobbered_catch) {
   }
   if (new_global_version) {
     global_memory_version_ = NewMemoryVersion(&merge_new_memory_version_);
-    std::fill_n(unresolved_sfield_version_, kFieldTypeCount, merge_new_memory_version_);
-    std::fill_n(unresolved_ifield_version_, kFieldTypeCount, merge_new_memory_version_);
+    std::fill_n(unresolved_sfield_version_, arraysize(unresolved_sfield_version_),
+                merge_new_memory_version_);
+    std::fill_n(unresolved_ifield_version_, arraysize(unresolved_ifield_version_),
+                merge_new_memory_version_);
   } else {
     // Initialize with a copy of memory versions from the comparison LVN.
     global_memory_version_ = cmp->global_memory_version_;
-    std::copy_n(cmp->unresolved_ifield_version_, kFieldTypeCount, unresolved_ifield_version_);
-    std::copy_n(cmp->unresolved_sfield_version_, kFieldTypeCount, unresolved_sfield_version_);
+    std::copy_n(cmp->unresolved_ifield_version_, arraysize(unresolved_sfield_version_),
+                unresolved_ifield_version_);
+    std::copy_n(cmp->unresolved_sfield_version_, arraysize(unresolved_ifield_version_),
+                unresolved_sfield_version_);
     for (const LocalValueNumbering* lvn : gvn_->merge_lvns_) {
       if (lvn == cmp) {
         continue;
       }
-      for (size_t i = 0; i != kFieldTypeCount; ++i) {
+      for (size_t i = 0; i != kDexMemAccessTypeCount; ++i) {
         if (lvn->unresolved_ifield_version_[i] != cmp->unresolved_ifield_version_[i]) {
           unresolved_ifield_version_[i] = NewMemoryVersion(&merge_new_memory_version_);
         }
