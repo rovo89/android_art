@@ -209,7 +209,9 @@ void BaseMutex::CheckSafeToWait(Thread* self) {
         }
       }
     }
-    CHECK(!bad_mutexes_held);
+    if (gAborting == 0) {  // Avoid recursive aborts.
+      CHECK(!bad_mutexes_held);
+    }
   }
 }
 
