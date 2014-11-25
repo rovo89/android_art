@@ -96,9 +96,6 @@ class OatFile {
     uint32_t GetCodeOffset() const {
       return code_offset_;
     }
-    uint32_t GetNativeGcMapOffset() const {
-      return native_gc_map_offset_;
-    }
 
     const void* GetPortableCode() const {
       // TODO: encode whether code is portable/quick in flags within OatMethod.
@@ -134,10 +131,6 @@ class OatFile {
     const OatQuickMethodHeader* GetOatQuickMethodHeader() const;
     uint32_t GetOatQuickMethodHeaderOffset() const;
 
-    const uint8_t* GetNativeGcMap() const {
-      return GetOatPointer<const uint8_t*>(native_gc_map_offset_);
-    }
-
     size_t GetFrameSizeInBytes() const;
     uint32_t GetCoreSpillMask() const;
     uint32_t GetFpSpillMask() const;
@@ -150,18 +143,20 @@ class OatFile {
     uint32_t GetVmapTableOffset() const;
     uint32_t GetVmapTableOffsetOffset() const;
 
+    const uint8_t* GetGcMap() const;
+    uint32_t GetGcMapOffset() const;
+    uint32_t GetGcMapOffsetOffset() const;
+
     // Create an OatMethod with offsets relative to the given base address
-    OatMethod(const uint8_t* base, const uint32_t code_offset, const uint32_t gc_map_offset)
-      : begin_(base),
-        code_offset_(code_offset),
-        native_gc_map_offset_(gc_map_offset) {
+    OatMethod(const uint8_t* base, const uint32_t code_offset)
+        : begin_(base), code_offset_(code_offset) {
     }
     ~OatMethod() {}
 
     // A representation of an invalid OatMethod, used when an OatMethod or OatClass can't be found.
     // See ClassLinker::FindOatMethodFor.
     static const OatMethod Invalid() {
-      return OatMethod(nullptr, -1, -1);
+      return OatMethod(nullptr, -1);
     }
 
    private:
@@ -174,9 +169,7 @@ class OatFile {
     }
 
     const uint8_t* const begin_;
-
     const uint32_t code_offset_;
-    const uint32_t native_gc_map_offset_;
 
     friend class OatClass;
   };

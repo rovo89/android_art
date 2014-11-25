@@ -605,7 +605,7 @@ class OatDumper {
     offsets_.insert(code_offset);
     offsets_.insert(oat_method.GetMappingTableOffset());
     offsets_.insert(oat_method.GetVmapTableOffset());
-    offsets_.insert(oat_method.GetNativeGcMapOffset());
+    offsets_.insert(oat_method.GetGcMapOffset());
   }
 
   bool DumpOatDexFile(std::ostream& os, const OatFile::OatDexFile& oat_dex_file) {
@@ -755,9 +755,9 @@ class OatDumper {
 
       *indent2_os << "gc_map: ";
       if (options_->absolute_addresses_) {
-        *indent2_os << StringPrintf("%p ", oat_method.GetNativeGcMap());
+        *indent2_os << StringPrintf("%p ", oat_method.GetGcMap());
       }
-      uint32_t gc_map_offset = oat_method.GetNativeGcMapOffset();
+      uint32_t gc_map_offset = oat_method.GetGcMapOffset();
       *indent2_os << StringPrintf("(offset=0x%08x)\n", gc_map_offset);
       if (gc_map_offset > oat_file_.Size()) {
         *indent2_os << StringPrintf("WARNING: "
@@ -935,7 +935,7 @@ class OatDumper {
     // If the native GC map is null, then this method has been compiled with the
     // optimizing compiler. The optimizing compiler currently outputs its stack map
     // in the vmap table, and the code below does not work with such a stack map.
-    if (oat_method.GetNativeGcMap() == nullptr) {
+    if (oat_method.GetGcMap() == nullptr) {
       return;
     }
     const uint8_t* raw_table = oat_method.GetVmapTable();
@@ -1050,7 +1050,7 @@ class OatDumper {
   }
   void DumpGcMap(std::ostream& os, const OatFile::OatMethod& oat_method,
                  const DexFile::CodeItem* code_item) {
-    const uint8_t* gc_map_raw = oat_method.GetNativeGcMap();
+    const uint8_t* gc_map_raw = oat_method.GetGcMap();
     if (gc_map_raw == nullptr) {
       return;  // No GC map.
     }
@@ -1128,7 +1128,7 @@ class OatDumper {
 
   void DumpGcMapAtNativePcOffset(std::ostream& os, const OatFile::OatMethod& oat_method,
                                  const DexFile::CodeItem* code_item, size_t native_pc_offset) {
-    const uint8_t* gc_map_raw = oat_method.GetNativeGcMap();
+    const uint8_t* gc_map_raw = oat_method.GetGcMap();
     if (gc_map_raw != nullptr) {
       NativePcOffsetToReferenceMap map(gc_map_raw);
       if (map.HasEntry(native_pc_offset)) {
@@ -1634,8 +1634,7 @@ class ImageDumper {
       mirror::ArtMethod* method = obj->AsArtMethod();
       if (method->IsNative()) {
         // TODO: portable dumping.
-        DCHECK(method->GetNativeGcMapPtrSize(image_pointer_size) == nullptr)
-            << PrettyMethod(method);
+        DCHECK(method->GetNativeGcMap(image_pointer_size) == nullptr) << PrettyMethod(method);
         DCHECK(method->GetMappingTable(image_pointer_size) == nullptr) << PrettyMethod(method);
         bool first_occurrence;
         const void* quick_oat_code = state->GetQuickOatCodeBegin(method);
@@ -1651,8 +1650,7 @@ class ImageDumper {
       } else if (method->IsAbstract() || method->IsCalleeSaveMethod() ||
           method->IsResolutionMethod() || method->IsImtConflictMethod() ||
           method->IsImtUnimplementedMethod() || method->IsClassInitializer()) {
-        DCHECK(method->GetNativeGcMapPtrSize(image_pointer_size) == nullptr)
-            << PrettyMethod(method);
+        DCHECK(method->GetNativeGcMap(image_pointer_size) == nullptr) << PrettyMethod(method);
         DCHECK(method->GetMappingTable(image_pointer_size) == nullptr) << PrettyMethod(method);
       } else {
         const DexFile::CodeItem* code_item = method->GetCodeItem();
@@ -1660,8 +1658,8 @@ class ImageDumper {
         state->stats_.dex_instruction_bytes += dex_instruction_bytes;
 
         bool first_occurrence;
-        size_t gc_map_bytes = state->ComputeOatSize(
-            method->GetNativeGcMapPtrSize(image_pointer_size), &first_occurrence);
+        size_t gc_map_bytes =
+            state->ComputeOatSize(method->GetNativeGcMap(image_pointer_size), &first_occurrence);
         if (first_occurrence) {
           state->stats_.gc_map_bytes += gc_map_bytes;
         }

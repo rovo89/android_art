@@ -565,12 +565,6 @@ void PatchOat::FixupMethod(mirror::ArtMethod* object, mirror::ArtMethod* copy) {
     copy->SetEntryPointFromJniPtrSize(reinterpret_cast<void*>(native_method + delta_),
                                       pointer_size);
   }
-
-  uintptr_t native_gc_map = reinterpret_cast<uintptr_t>(
-      object->GetNativeGcMapPtrSize(pointer_size));
-  if (native_gc_map != 0) {
-    copy->SetNativeGcMapPtrSize(reinterpret_cast<uint8_t*>(native_gc_map + delta_), pointer_size);
-  }
 }
 
 bool PatchOat::Patch(File* input_oat, off_t delta, File* output_oat, TimingLogger* timings,
