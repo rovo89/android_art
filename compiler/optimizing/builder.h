@@ -202,6 +202,10 @@ class HGraphBuilder : public ValueObject {
                       uint16_t type_index,
                       uint32_t dex_pc);
 
+  // Builds an instruction sequence for a packed switch statement. This will punt to the interpreter
+  // for a switch with a full 64k set of cases.
+  bool BuildPackedSwitch(const Instruction& instruction, uint32_t dex_pc);
+
   ArenaAllocator* const arena_;
 
   // A list of the size of the dex code holding block information for

@@ -16,6 +16,7 @@
 
 #include "builder.h"
 
+#include "base/logging.h"
 #include "class_linker.h"
 #include "dex_file.h"
 #include "dex_file-inl.h"
@@ -66,6 +67,53 @@ class Temporaries : public ValueObject {
 
   // Current index in the temporary stack, updated by `Add`.
   size_t index_;
+};
+
+class SwitchTable : public ValueObject {
+ public:
+  SwitchTable(const Instruction& instruction, uint32_t dex_pc, bool sparse)
+      : instruction_(instruction), dex_pc_(dex_pc), sparse_(sparse) {
+    int32_t table_offset = instruction.VRegB_31t();
+    const uint16_t* table = reinterpret_cast<const uint16_t*>(&instruction) + table_offset;
+    if (sparse) {
+      CHECK_EQ(table[0], static_cast<uint16_t>(Instruction::kSparseSwitchSignature));
+    } else {
+      CHECK_EQ(table[0], static_cast<uint16_t>(Instruction::kPackedSwitchSignature));
+    }
+    num_entries_ = table[1];
+    values_ = reinterpret_cast<const int32_t*>(&table[2]);
+  }
+
+  uint16_t GetNumEntries() const {
+    return num_entries_;
+  }
+
+  int32_t GetEntryAt(size_t index) const {
+    DCHECK_LE(index, static_cast<size_t>(sparse_ ? num_entries_ - 1 : num_entries_));
+    return values_[index];
+  }
+
+  uint32_t GetDexPcForIndex(size_t index) const {
+    DCHECK_LE(index, static_cast<size_t>(sparse_ ? num_entries_ - 1 : num_entries_));
+    return dex_pc_ +
+        (reinterpret_cast<const int16_t*>(values_ + index) -
+         reinterpret_cast<const int16_t*>(&instruction_));
+  }
+
+ private:
+  const Instruction& instruction_;
+  const uint32_t dex_pc_;
+
+  // Whether this is a sparse-switch table (or a packed-switch one).
+  const bool sparse_;
+
+  // This can't be const as it needs to be computed off of the given instruction, and complicated
+  // expressions in the initializer list seemed very ugly.
+  uint16_t num_entries_;
+
+  const int32_t* values_;
+
+  DISALLOW_COPY_AND_ASSIGN(SwitchTable);
 };
 
 void HGraphBuilder::InitializeLocals(uint16_t count) {
@@ -286,7 +334,7 @@ void HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
                                          size_t* number_of_dex_instructions,
                                          size_t* number_of_blocks,
                                          size_t* number_of_branches) {
-  // TODO: Support switch instructions.
+  // TODO: Support sparse-switch instructions.
   branch_targets_.SetSize(code_end - code_ptr);
 
   // Create the first block for the dex instructions, single successor of the entry block.
@@ -296,7 +344,7 @@ void HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
 
   // Iterate over all instructions and find branching instructions. Create blocks for
   // the locations these instructions branch to.
-  size_t dex_pc = 0;
+  uint32_t dex_pc = 0;
   while (code_ptr < code_end) {
     (*number_of_dex_instructions)++;
     const Instruction& instruction = *Instruction::At(code_ptr);
@@ -309,6 +357,37 @@ void HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
         branch_targets_.Put(target, block);
         (*number_of_blocks)++;
       }
+      dex_pc += instruction.SizeInCodeUnits();
+      code_ptr += instruction.SizeInCodeUnits();
+      if ((code_ptr < code_end) && (FindBlockStartingAt(dex_pc) == nullptr)) {
+        block = new (arena_) HBasicBlock(graph_, dex_pc);
+        branch_targets_.Put(dex_pc, block);
+        (*number_of_blocks)++;
+      }
+    } else if (instruction.Opcode() == Instruction::PACKED_SWITCH) {
+      SwitchTable table(instruction, dex_pc, false);
+
+      uint16_t num_entries = table.GetNumEntries();
+
+      // Entry @0: starting key. Use a larger loop counter type to avoid overflow issues.
+      for (size_t i = 1; i <= num_entries; ++i) {
+        // The target of the case.
+        uint32_t target = dex_pc + table.GetEntryAt(i);
+        if (FindBlockStartingAt(target) == nullptr) {
+          block = new (arena_) HBasicBlock(graph_, target);
+          branch_targets_.Put(target, block);
+          (*number_of_blocks)++;
+        }
+
+        // The next case gets its own block.
+        if (i < num_entries) {
+          block = new (arena_) HBasicBlock(graph_, target);
+          branch_targets_.Put(table.GetDexPcForIndex(i), block);
+          (*number_of_blocks)++;
+        }
+      }
+
+      // Fall-through. Add a block if there is more code afterwards.
       dex_pc += instruction.SizeInCodeUnits();
       code_ptr += instruction.SizeInCodeUnits();
       if ((code_ptr < code_end) && (FindBlockStartingAt(dex_pc) == nullptr)) {
@@ -859,6 +938,63 @@ bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
     DCHECK_EQ(instruction.Opcode(), Instruction::CHECK_CAST);
     current_block_->AddInstruction(
         new (arena_) HCheckCast(object, cls, type_known_final, dex_pc));
+  }
+  return true;
+}
+
+bool HGraphBuilder::BuildPackedSwitch(const Instruction& instruction, uint32_t dex_pc) {
+  SwitchTable table(instruction, dex_pc, false);
+
+  // Value to test against.
+  HInstruction* value = LoadLocal(instruction.VRegA(), Primitive::kPrimInt);
+
+  // Chained cmp-and-branch, starting from starting_key.
+  int32_t starting_key = table.GetEntryAt(0);
+
+  uint16_t num_entries = table.GetNumEntries();
+  // On overflow condition (or zero cases) just punt.
+  if (num_entries == 0 || num_entries == UINT16_MAX) {
+    return false;
+  }
+
+  for (size_t i = 1; i <= num_entries; i++) {
+    int32_t target_offset = table.GetEntryAt(i);
+    PotentiallyAddSuspendCheck(target_offset, dex_pc);
+
+    // The current case's value.
+    HInstruction* this_case_value = GetIntConstant(starting_key + i - 1);
+
+    // Compare value and this_case_value.
+    HEqual* comparison = new (arena_) HEqual(value, this_case_value);
+    current_block_->AddInstruction(comparison);
+    HInstruction* ifinst = new (arena_) HIf(comparison);
+    current_block_->AddInstruction(ifinst);
+
+    // Case hit: use the target offset to determine where to go.
+    HBasicBlock* case_target = FindBlockStartingAt(dex_pc + target_offset);
+    DCHECK(case_target != nullptr);
+    current_block_->AddSuccessor(case_target);
+
+    // Case miss: go to the next case (or default fall-through).
+    // When there is a next case, we use the block stored with the table offset representing this
+    // case (that is where we registered them in ComputeBranchTargets).
+    // When there is no next case, we use the following instruction.
+    // TODO: Peel the last iteration to avoid conditional.
+    if (i < table.GetNumEntries()) {
+      HBasicBlock* next_case_target = FindBlockStartingAt(table.GetDexPcForIndex(i));
+      DCHECK(next_case_target != nullptr);
+      current_block_->AddSuccessor(next_case_target);
+
+      // Need to manually add the block, as there is no dex-pc transition for the cases.
+      graph_->AddBlock(next_case_target);
+
+      current_block_ = next_case_target;
+    } else {
+      HBasicBlock* default_target = FindBlockStartingAt(dex_pc + instruction.SizeInCodeUnits());
+      DCHECK(default_target != nullptr);
+      current_block_->AddSuccessor(default_target);
+      current_block_ = nullptr;
+    }
   }
   return true;
 }
@@ -1757,6 +1893,13 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
           LoadLocal(instruction.VRegA_11x(), Primitive::kPrimNot),
           HMonitorOperation::kExit,
           dex_pc));
+      break;
+    }
+
+    case Instruction::PACKED_SWITCH: {
+      if (!BuildPackedSwitch(instruction, dex_pc)) {
+        return false;
+      }
       break;
     }
 
