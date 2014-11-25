@@ -199,29 +199,31 @@ TEST(SsaTest, Loop1) {
   // Test that we create a phi for an initialized local at entry of a loop.
   const char* expected =
     "BasicBlock 0, succ: 1\n"
-    "  0: IntConstant 0 [6, 4, 2, 2]\n"
-    "  1: Goto\n"
-    "BasicBlock 1, pred: 0, succ: 5, 6\n"
-    "  2: Equal(0, 0) [3]\n"
-    "  3: If(2)\n"
-    "BasicBlock 2, pred: 3, 6, succ: 3\n"
-    "  4: Phi(6, 0) [6]\n"
+    "  0: IntConstant 0 [6, 3, 3]\n"
+    "  1: IntConstant 4 [6]\n"
+    "  2: Goto\n"
+    "BasicBlock 1, pred: 0, succ: 4, 2\n"
+    "  3: Equal(0, 0) [4]\n"
+    "  4: If(3)\n"
+    "BasicBlock 2, pred: 1, succ: 3\n"
     "  5: Goto\n"
-    "BasicBlock 3, pred: 5, 2, succ: 2\n"
-    "  6: Phi(0, 4) [4]\n"
+    "BasicBlock 3, pred: 2, 4, succ: 5\n"
+    "  6: Phi(1, 0) [9]\n"
     "  7: Goto\n"
-    "BasicBlock 4\n"
-    // Synthesized blocks to avoid critical edge.
-    "BasicBlock 5, pred: 1, succ: 3\n"
+    "BasicBlock 4, pred: 1, succ: 3\n"
     "  8: Goto\n"
-    "BasicBlock 6, pred: 1, succ: 2\n"
-    "  9: Goto\n";
+    "BasicBlock 5, pred: 3, succ: 6\n"
+    "  9: Return(6)\n"
+    "BasicBlock 6, pred: 5\n"
+    "  10: Exit\n";
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
-    Instruction::IF_EQ, 3,
-    Instruction::GOTO | 0x100,
-    Instruction::GOTO | 0xFF00);
+    Instruction::IF_EQ, 4,
+    Instruction::CONST_4 | 4 << 12 | 0,
+    Instruction::GOTO | 0x200,
+    Instruction::GOTO | 0xFF00,
+    Instruction::RETURN | 0 << 8);
 
   TestCode(data, expected);
 }
