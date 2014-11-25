@@ -1981,8 +1981,13 @@ void Thumb2Assembler::EmitVFPds(Condition cond, int32_t opcode,
 
 
 void Thumb2Assembler::vmstat(Condition cond) {  // VMRS APSR_nzcv, FPSCR.
+  CHECK_NE(cond, kNoCondition);
   CheckCondition(cond);
-  UNIMPLEMENTED(FATAL) << "Unimplemented thumb instruction";
+  int32_t encoding = (static_cast<int32_t>(cond) << kConditionShift) |
+      B27 | B26 | B25 | B23 | B22 | B21 | B20 | B16 |
+      (static_cast<int32_t>(PC)*B12) |
+      B11 | B9 | B4;
+  Emit32(encoding);
 }
 
 
