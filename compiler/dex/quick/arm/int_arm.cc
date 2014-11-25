@@ -592,7 +592,6 @@ bool ArmMir2Lir::GetEasyMultiplyOp(int lit, ArmMir2Lir::EasyMultiplyOp* op) {
 
 // Try to convert *lit to 1~2 RegRegRegShift/RegRegShift forms.
 bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
-  GetEasyMultiplyOp(lit, &ops[0]);
   if (GetEasyMultiplyOp(lit, &ops[0])) {
     ops[1].op = kOpInvalid;
     ops[1].shift = 0;

@@ -250,10 +250,11 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     int EncodeShift(int code, int amount);
     int ModifiedImmediate(uint32_t value);
     ArmConditionCode ArmConditionEncoding(ConditionCode code);
-    bool InexpensiveConstantInt(int32_t value);
-    bool InexpensiveConstantFloat(int32_t value);
-    bool InexpensiveConstantLong(int64_t value);
-    bool InexpensiveConstantDouble(int64_t value);
+    bool InexpensiveConstantInt(int32_t value) OVERRIDE;
+    bool InexpensiveConstantInt(int32_t value, Instruction::Code opcode) OVERRIDE;
+    bool InexpensiveConstantFloat(int32_t value) OVERRIDE;
+    bool InexpensiveConstantLong(int64_t value) OVERRIDE;
+    bool InexpensiveConstantDouble(int64_t value) OVERRIDE;
     RegStorage AllocPreservedDouble(int s_reg);
     RegStorage AllocPreservedSingle(int s_reg);
 
