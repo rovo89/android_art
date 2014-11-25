@@ -3135,8 +3135,8 @@ void InstructionCodeGeneratorARM::VisitLoadString(HLoadString* load) {
 
   Register out = load->GetLocations()->Out().As<Register>();
   codegen_->LoadCurrentMethod(out);
-  __ LoadFromOffset(
-      kLoadWord, out, out, mirror::ArtMethod::DexCacheStringsOffset().Int32Value());
+  __ LoadFromOffset(kLoadWord, out, out, mirror::ArtMethod::DeclaringClassOffset().Int32Value());
+  __ LoadFromOffset(kLoadWord, out, out, mirror::Class::DexCacheStringsOffset().Int32Value());
   __ LoadFromOffset(kLoadWord, out, out, CodeGenerator::GetCacheOffset(load->GetStringIndex()));
   __ cmp(out, ShifterOperand(0));
   __ b(slow_path->GetEntryLabel(), EQ);
