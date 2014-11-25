@@ -24,6 +24,8 @@ void SsaDeadPhiElimination::Run() {
     HBasicBlock* block = it.Current();
     for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
       HPhi* phi = inst_it.Current()->AsPhi();
+      // Set dead ahead of running through uses. The phi may have no use.
+      phi->SetDead();
       for (HUseIterator<HInstruction> use_it(phi->GetUses()); !use_it.Done(); use_it.Advance()) {
         HUseListNode<HInstruction>* current = use_it.Current();
         HInstruction* user = current->GetUser();
@@ -31,8 +33,6 @@ void SsaDeadPhiElimination::Run() {
           worklist_.Add(phi);
           phi->SetLive();
           break;
-        } else {
-          phi->SetDead();
         }
       }
     }
@@ -65,8 +65,8 @@ void SsaDeadPhiElimination::Run() {
                use_it.Advance()) {
             HUseListNode<HInstruction>* user_node = use_it.Current();
             HInstruction* user = user_node->GetUser();
-            DCHECK(user->IsLoopHeaderPhi());
-            DCHECK(user->AsPhi()->IsDead());
+            DCHECK(user->IsLoopHeaderPhi()) << user->GetId();
+            DCHECK(user->AsPhi()->IsDead()) << user->GetId();
             // Just put itself as an input. The phi will be removed in this loop anyway.
             user->SetRawInputAt(user_node->GetIndex(), user);
             current->RemoveUser(user, user_node->GetIndex());

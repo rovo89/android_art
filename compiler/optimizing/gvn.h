@@ -166,10 +166,10 @@ class ValueSet : public ArenaObject<kArenaAllocMisc> {
 /**
  * Optimization phase that removes redundant instruction.
  */
-class GlobalValueNumberer : public HOptimization {
+class GlobalValueNumberer : public ValueObject {
  public:
   GlobalValueNumberer(ArenaAllocator* allocator, HGraph* graph)
-      : HOptimization(graph, true, "GVN"),
+      : graph_(graph),
         allocator_(allocator),
         block_effects_(allocator, graph->GetBlocks().Size()),
         loop_effects_(allocator, graph->GetBlocks().Size()),
@@ -187,7 +187,7 @@ class GlobalValueNumberer : public HOptimization {
     }
   }
 
-  void Run() OVERRIDE;
+  void Run();
 
  private:
   // Per-block GVN. Will also update the ValueSet of the dominated and
@@ -201,6 +201,8 @@ class GlobalValueNumberer : public HOptimization {
   void UpdateLoopEffects(HLoopInformation* info, SideEffects effects);
   SideEffects GetLoopEffects(HBasicBlock* block) const;
   SideEffects GetBlockEffects(HBasicBlock* block) const;
+
+  HGraph* graph_;
 
   ArenaAllocator* const allocator_;
 
@@ -222,6 +224,19 @@ class GlobalValueNumberer : public HOptimization {
 
   ART_FRIEND_TEST(GVNTest, LoopSideEffects);
   DISALLOW_COPY_AND_ASSIGN(GlobalValueNumberer);
+};
+
+class GVNOptimization : public HOptimization {
+ public:
+  explicit GVNOptimization(HGraph* graph) : HOptimization(graph, true, "GVN") {}
+
+  void Run() OVERRIDE {
+    GlobalValueNumberer gvn(graph_->GetArena(), graph_);
+    gvn.Run();
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(GVNOptimization);
 };
 
 }  // namespace art

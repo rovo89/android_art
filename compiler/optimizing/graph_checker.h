@@ -24,11 +24,11 @@
 namespace art {
 
 // A control-flow graph visitor performing various checks.
-class GraphChecker : public HGraphVisitor {
+class GraphChecker : public HGraphDelegateVisitor {
  public:
   GraphChecker(ArenaAllocator* allocator, HGraph* graph,
                const char* dump_prefix = "art::GraphChecker: ")
-    : HGraphVisitor(graph),
+    : HGraphDelegateVisitor(graph),
       allocator_(allocator),
       dump_prefix_(dump_prefix) {}
 
@@ -36,10 +36,10 @@ class GraphChecker : public HGraphVisitor {
   virtual void Run() { VisitInsertionOrder(); }
 
   // Check `block`.
-  virtual void VisitBasicBlock(HBasicBlock* block) OVERRIDE;
+  void VisitBasicBlock(HBasicBlock* block) OVERRIDE;
 
   // Check `instruction`.
-  virtual void VisitInstruction(HInstruction* instruction) OVERRIDE;
+  void VisitInstruction(HInstruction* instruction) OVERRIDE;
 
   // Was the last visit of the graph valid?
   bool IsValid() const {
@@ -82,7 +82,7 @@ class SSAChecker : public GraphChecker {
     : GraphChecker(allocator, graph, "art::SSAChecker: ") {}
 
   // Check the whole graph (in reverse post-order).
-  virtual void Run() {
+  void Run() OVERRIDE {
     // VisitReversePostOrder is used instead of VisitInsertionOrder,
     // as the latter might visit dead blocks removed by the dominator
     // computation.
@@ -90,13 +90,15 @@ class SSAChecker : public GraphChecker {
   }
 
   // Perform SSA form checks on `block`.
-  virtual void VisitBasicBlock(HBasicBlock* block) OVERRIDE;
+  void VisitBasicBlock(HBasicBlock* block) OVERRIDE;
   // Loop-related checks from block `loop_header`.
   void CheckLoop(HBasicBlock* loop_header);
 
   // Perform SSA form checks on instructions.
-  virtual void VisitInstruction(HInstruction* instruction) OVERRIDE;
-  virtual void VisitPhi(HPhi* phi) OVERRIDE;
+  void VisitInstruction(HInstruction* instruction) OVERRIDE;
+  void VisitPhi(HPhi* phi) OVERRIDE;
+  void VisitBinaryOperation(HBinaryOperation* op) OVERRIDE;
+  void VisitCondition(HCondition* op) OVERRIDE;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(SSAChecker);

@@ -27,13 +27,15 @@ void HOptimization::Check() {
       SSAChecker checker(graph_->GetArena(), graph_);
       checker.Run();
       if (!checker.IsValid()) {
-        LOG(FATAL) << Dumpable<SSAChecker>(checker);
+        LOG(FATAL) << "Error after " << GetPassName() << ": "
+                   << Dumpable<SSAChecker>(checker);
       }
     } else {
       GraphChecker checker(graph_->GetArena(), graph_);
       checker.Run();
       if (!checker.IsValid()) {
-        LOG(FATAL) << Dumpable<GraphChecker>(checker);
+        LOG(FATAL) << "Error after " << GetPassName() << ": "
+                   << Dumpable<GraphChecker>(checker);
       }
     }
   }
