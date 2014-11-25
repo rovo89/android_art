@@ -899,33 +899,61 @@ void InstructionCodeGeneratorX86_64::VisitGreaterThanOrEqual(HGreaterThanOrEqual
 void LocationsBuilderX86_64::VisitCompare(HCompare* compare) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  switch (compare->InputAt(0)->GetType()) {
+    case Primitive::kPrimLong: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+    }
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresRegister());
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected type for compare operation " << compare->InputAt(0)->GetType();
+  }
 }
 
 void InstructionCodeGeneratorX86_64::VisitCompare(HCompare* compare) {
-  Label greater, done;
   LocationSummary* locations = compare->GetLocations();
-  switch (compare->InputAt(0)->GetType()) {
-    case Primitive::kPrimLong:
-      __ cmpq(locations->InAt(0).As<CpuRegister>(),
-              locations->InAt(1).As<CpuRegister>());
+  CpuRegister out = locations->Out().As<CpuRegister>();
+  Location left = locations->InAt(0);
+  Location right = locations->InAt(1);
+
+  Label less, greater, done;
+  Primitive::Type type = compare->InputAt(0)->GetType();
+  switch (type) {
+    case Primitive::kPrimLong: {
+      __ cmpq(left.As<CpuRegister>(), right.As<CpuRegister>());
       break;
+    }
+    case Primitive::kPrimFloat: {
+      __ ucomiss(left.As<XmmRegister>(), right.As<XmmRegister>());
+      __ j(kUnordered, compare->IsGtBias() ? &greater : &less);
+      break;
+    }
+    case Primitive::kPrimDouble: {
+      __ ucomisd(left.As<XmmRegister>(), right.As<XmmRegister>());
+      __ j(kUnordered, compare->IsGtBias() ? &greater : &less);
+      break;
+    }
     default:
-      LOG(FATAL) << "Unimplemented compare type " << compare->InputAt(0)->GetType();
+      LOG(FATAL) << "Unexpected compare type " << type;
   }
-
-  CpuRegister output = locations->Out().As<CpuRegister>();
-  __ movl(output, Immediate(0));
+  __ movl(out, Immediate(0));
   __ j(kEqual, &done);
-  __ j(kGreater, &greater);
-
-  __ movl(output, Immediate(-1));
-  __ jmp(&done);
+  __ j(type == Primitive::kPrimLong ? kLess : kBelow, &less);  //  ucomis{s,d} sets CF (kBelow)
 
   __ Bind(&greater);
-  __ movl(output, Immediate(1));
+  __ movl(out, Immediate(1));
+  __ jmp(&done);
+
+  __ Bind(&less);
+  __ movl(out, Immediate(-1));
 
   __ Bind(&done);
 }
