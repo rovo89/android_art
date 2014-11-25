@@ -18,6 +18,7 @@
 
 #include "nodes.h"
 #include "ssa_type_propagation.h"
+#include "ssa_phi_elimination.h"
 
 namespace art {
 
@@ -41,11 +42,20 @@ void SsaBuilder::BuildSsa() {
     }
   }
 
-  // 3) Propagate types of phis.
+  // 3) Remove dead phis. This will remove phis that are only used by environments:
+  // at the DEX level, the type of these phis does not need to be consistent, but
+  // our code generator will complain if the inputs of a phi do not have the same
+  // type (modulo the special case of `null`).
+  SsaDeadPhiElimination dead_phis(GetGraph());
+  dead_phis.Run();
+
+  // 4) Propagate types of phis. At this point, phis are typed void in the general
+  // case, or float or double when we created a floating-point equivalent. So we
+  // need to propagate the types across phis to give them a correct type.
   SsaTypePropagation type_propagation(GetGraph());
   type_propagation.Run();
 
-  // 4) Clear locals.
+  // 5) Clear locals.
   // TODO: Move this to a dead code eliminator phase.
   for (HInstructionIterator it(GetGraph()->GetEntryBlock()->GetInstructions());
        !it.Done();

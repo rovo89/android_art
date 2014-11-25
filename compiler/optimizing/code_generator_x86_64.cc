@@ -2896,7 +2896,7 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
       __ movss(Address(CpuRegister(RSP), destination.GetStackIndex()),
                source.As<XmmRegister>());
     } else {
-      DCHECK(destination.IsDoubleStackSlot());
+      DCHECK(destination.IsDoubleStackSlot()) << destination;
       __ movsd(Address(CpuRegister(RSP), destination.GetStackIndex()),
                source.As<XmmRegister>());
     }
