@@ -213,10 +213,7 @@ LIR* ArmMir2Lir::OpUnconditionalBranch(LIR* target) {
 }
 
 LIR* ArmMir2Lir::OpCondBranch(ConditionCode cc, LIR* target) {
-  // This is kThumb2BCond instead of kThumbBCond for performance reasons. The assembly
-  // time required for a new pass after kThumbBCond is fixed up to kThumb2BCond is
-  // substantial.
-  LIR* branch = NewLIR2(kThumb2BCond, 0 /* offset to be patched */,
+  LIR* branch = NewLIR2(kThumbBCond, 0 /* offset to be patched */,
                         ArmConditionEncoding(cc));
   branch->target = target;
   return branch;
