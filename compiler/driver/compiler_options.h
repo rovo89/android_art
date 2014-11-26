@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_DRIVER_COMPILER_OPTIONS_H_
 #define ART_COMPILER_DRIVER_COMPILER_OPTIONS_H_
 
+#include <ostream>
 #include <string>
 #include <vector>
 
@@ -70,7 +71,8 @@ class CompilerOptions FINAL {
 #ifdef ART_SEA_IR_MODE
     sea_ir_mode_(false),
 #endif
-    verbose_methods_(nullptr) {
+    verbose_methods_(nullptr),
+    init_failure_output_(nullptr) {
   }
 
   CompilerOptions(CompilerFilter compiler_filter,
@@ -90,7 +92,8 @@ class CompilerOptions FINAL {
 #ifdef ART_SEA_IR_MODE
                   bool sea_ir_mode,
 #endif
-                  const std::vector<std::string>* verbose_methods
+                  const std::vector<std::string>* verbose_methods,
+                  std::ostream* init_failure_output
                   ) :  // NOLINT(whitespace/parens)
     compiler_filter_(compiler_filter),
     huge_method_threshold_(huge_method_threshold),
@@ -109,7 +112,8 @@ class CompilerOptions FINAL {
 #ifdef ART_SEA_IR_MODE
     sea_ir_mode_(sea_ir_mode),
 #endif
-    verbose_methods_(verbose_methods) {
+    verbose_methods_(verbose_methods),
+    init_failure_output_(init_failure_output) {
   }
 
   CompilerFilter GetCompilerFilter() const {
@@ -217,6 +221,10 @@ class CompilerOptions FINAL {
     return false;
   }
 
+  std::ostream* GetInitFailureOutput() const {
+    return init_failure_output_;
+  }
+
  private:
   CompilerFilter compiler_filter_;
   const size_t huge_method_threshold_;
@@ -240,6 +248,9 @@ class CompilerOptions FINAL {
 
   // Vector of methods to have verbose output enabled for.
   const std::vector<std::string>* const verbose_methods_;
+
+  // Log initialization of initialization failures to this stream if not null.
+  std::ostream* const init_failure_output_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerOptions);
 };

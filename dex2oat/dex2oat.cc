@@ -702,6 +702,16 @@ class Dex2Oat FINAL {
         //       on having verbost methods.
         gLogVerbosity.compiler = false;
         Split(option.substr(strlen("--verbose-methods=")).ToString(), ',', &verbose_methods_);
+      } else if (option.starts_with("--dump-init-failures=")) {
+        std::string file_name = option.substr(strlen("--dump-init-failures=")).data();
+        init_failure_output_.reset(new std::ofstream(file_name));
+        if (init_failure_output_.get() == nullptr) {
+          LOG(ERROR) << "Failed to allocate ofstream";
+        } else if (init_failure_output_->fail()) {
+          LOG(ERROR) << "Failed to open " << file_name << " for writing the initialization "
+                     << "failures.";
+          init_failure_output_.reset();
+        }
       } else {
         Usage("Unknown argument %s", option.data());
       }
@@ -906,7 +916,8 @@ class Dex2Oat FINAL {
   #endif
                                                 verbose_methods_.empty() ?
                                                     nullptr :
-                                                    &verbose_methods_));
+                                                    &verbose_methods_,
+                                                init_failure_output_.get()));
 
     // Done with usage checks, enable watchdog if requested
     if (watch_dog_enabled) {
@@ -1640,6 +1651,7 @@ class Dex2Oat FINAL {
   std::string profile_file_;  // Profile file to use
   TimingLogger* timings_;
   std::unique_ptr<CumulativeLogger> compiler_phases_timings_;
+  std::unique_ptr<std::ostream> init_failure_output_;
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
 };
