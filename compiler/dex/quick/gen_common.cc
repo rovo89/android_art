@@ -1068,7 +1068,11 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
       r_method = TargetReg(kArg2, kRef);
       LoadCurrMethodDirect(r_method);
     }
-    LoadRefDisp(r_method, mirror::ArtMethod::DexCacheStringsOffset().Int32Value(),
+    // Method to declaring class.
+    LoadRefDisp(r_method, mirror::ArtMethod::DeclaringClassOffset().Int32Value(),
+                TargetReg(kArg0, kRef), kNotVolatile);
+    // Declaring class to dex cache strings.
+    LoadRefDisp(TargetReg(kArg0, kRef), mirror::Class::DexCacheStringsOffset().Int32Value(),
                 TargetReg(kArg0, kRef), kNotVolatile);
 
     // Might call out to helper, which will return resolved string in kRet0
@@ -1106,7 +1110,9 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
     RegLocation rl_method = LoadCurrMethod();
     RegStorage res_reg = AllocTempRef();
     RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
-    LoadRefDisp(rl_method.reg, mirror::ArtMethod::DexCacheStringsOffset().Int32Value(), res_reg,
+    LoadRefDisp(rl_method.reg, mirror::ArtMethod::DeclaringClassOffset().Int32Value(), res_reg,
+                kNotVolatile);
+    LoadRefDisp(res_reg, mirror::Class::DexCacheStringsOffset().Int32Value(), res_reg,
                 kNotVolatile);
     LoadRefDisp(res_reg, offset_of_string, rl_result.reg, kNotVolatile);
     StoreValue(rl_dest, rl_result);
