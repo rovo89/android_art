@@ -331,6 +331,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   428-optimizing-arith-rem \
   430-live-register-slow-path \
   431-optimizing-arith-shifts \
+  432-optimizing-cmp \
   701-easy-div-rem \
   800-smali \
 
