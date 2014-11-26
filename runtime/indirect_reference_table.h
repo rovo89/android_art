@@ -344,6 +344,9 @@ class IndirectReferenceTable {
     return Offset(OFFSETOF_MEMBER(IndirectReferenceTable, segment_state_));
   }
 
+  // Release pages past the end of the table that may have previously held references.
+  void Trim() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   // Extract the table index from an indirect reference.
   static uint32_t ExtractIndex(IndirectRef iref) {
