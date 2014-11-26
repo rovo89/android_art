@@ -313,6 +313,15 @@ void HGraphBuilder::Binop_23x_shift(const Instruction& instruction,
   UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
 }
 
+void HGraphBuilder::Binop_23x_cmp(const Instruction& instruction,
+                                  Primitive::Type type,
+                                  HCompare::Bias bias) {
+  HInstruction* first = LoadLocal(instruction.VRegB(), type);
+  HInstruction* second = LoadLocal(instruction.VRegC(), type);
+  current_block_->AddInstruction(new (arena_) HCompare(type, first, second, bias));
+  UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
+}
+
 template<typename T>
 void HGraphBuilder::Binop_12x(const Instruction& instruction, Primitive::Type type) {
   HInstruction* first = LoadLocal(instruction.VRegA(), type);
@@ -1492,7 +1501,27 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
 
     case Instruction::CMP_LONG: {
-      Binop_23x<HCompare>(instruction, Primitive::kPrimLong);
+      Binop_23x_cmp(instruction, Primitive::kPrimLong, HCompare::kNoBias);
+      break;
+    }
+
+    case Instruction::CMPG_FLOAT: {
+      Binop_23x_cmp(instruction, Primitive::kPrimFloat, HCompare::kGtBias);
+      break;
+    }
+
+    case Instruction::CMPG_DOUBLE: {
+      Binop_23x_cmp(instruction, Primitive::kPrimDouble, HCompare::kGtBias);
+      break;
+    }
+
+    case Instruction::CMPL_FLOAT: {
+      Binop_23x_cmp(instruction, Primitive::kPrimFloat, HCompare::kLtBias);
+      break;
+    }
+
+    case Instruction::CMPL_DOUBLE: {
+      Binop_23x_cmp(instruction, Primitive::kPrimDouble, HCompare::kLtBias);
       break;
     }
 
