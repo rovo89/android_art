@@ -168,7 +168,9 @@ class DumpCheckpoint FINAL : public Closure {
     const uint32_t kWaitTimeoutMs = 10000;
     bool timed_out = barrier_.Increment(self, threads_running_checkpoint, kWaitTimeoutMs);
     if (timed_out) {
-      LOG(kIsDebugBuild ? FATAL : ERROR) << "Unexpected time out during dump checkpoint.";
+      // Avoid a recursive abort.
+      LOG((kIsDebugBuild && (gAborting == 0)) ? FATAL : ERROR)
+          << "Unexpected time out during dump checkpoint.";
     }
   }
 
