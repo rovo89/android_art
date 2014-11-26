@@ -660,6 +660,14 @@ TEST_F(AssemblerX86_64Test, Comisd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::comisd, "comisd %{reg2}, %{reg1}"), "comisd");
 }
 
+TEST_F(AssemblerX86_64Test, Ucomiss) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::ucomiss, "ucomiss %{reg2}, %{reg1}"), "ucomiss");
+}
+
+TEST_F(AssemblerX86_64Test, Ucomisd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::ucomisd, "ucomisd %{reg2}, %{reg1}"), "ucomisd");
+}
+
 TEST_F(AssemblerX86_64Test, Sqrtss) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::sqrtss, "sqrtss %{reg2}, %{reg1}"), "sqrtss");
 }

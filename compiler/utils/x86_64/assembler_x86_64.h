@@ -344,6 +344,8 @@ class X86_64Assembler FINAL : public Assembler {
 
   void comiss(XmmRegister a, XmmRegister b);
   void comisd(XmmRegister a, XmmRegister b);
+  void ucomiss(XmmRegister a, XmmRegister b);
+  void ucomisd(XmmRegister a, XmmRegister b);
 
   void sqrtsd(XmmRegister dst, XmmRegister src);
   void sqrtss(XmmRegister dst, XmmRegister src);
