@@ -967,7 +967,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* obj, void* arg) {
   if (obj->IsArtMethod()) {
     // Size without pointer fields since we don't want to overrun the buffer if target art method
     // is 32 bits but source is 64 bits.
-    n = mirror::ArtMethod::SizeWithoutPointerFields();
+    n = mirror::ArtMethod::SizeWithoutPointerFields(sizeof(void*));
   } else {
     n = obj->SizeOf();
   }

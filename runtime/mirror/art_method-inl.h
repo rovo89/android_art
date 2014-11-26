@@ -82,11 +82,6 @@ inline uint32_t ArtMethod::GetDexMethodIndex() {
   return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_method_index_));
 }
 
-inline ObjectArray<String>* ArtMethod::GetDexCacheStrings() {
-  return GetFieldObject<ObjectArray<String>>(
-      OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_strings_));
-}
-
 inline ObjectArray<ArtMethod>* ArtMethod::GetDexCacheResolvedMethods() {
   return GetFieldObject<ObjectArray<ArtMethod>>(
       OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_methods_));
@@ -460,11 +455,6 @@ inline ArtMethod* ArtMethod::GetInterfaceMethodIfProxy() {
   return interface_method;
 }
 
-inline void ArtMethod::SetDexCacheStrings(ObjectArray<String>* new_dex_cache_strings) {
-  SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_strings_),
-                        new_dex_cache_strings);
-}
-
 inline void ArtMethod::SetDexCacheResolvedMethods(ObjectArray<ArtMethod>* new_dex_cache_methods) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_cache_resolved_methods_),
                         new_dex_cache_methods);
@@ -492,7 +482,11 @@ inline mirror::Class* ArtMethod::GetReturnType(bool resolve) {
 inline void ArtMethod::CheckObjectSizeEqualsMirrorSize() {
   // Using the default, check the class object size to make sure it matches the size of the
   // object.
-  DCHECK_EQ(GetClass()->GetObjectSize(), sizeof(*this));
+  size_t this_size = sizeof(*this);
+#ifdef ART_METHOD_HAS_PADDING_FIELD_ON_64_BIT
+  this_size += sizeof(void*) - sizeof(uint32_t);
+#endif
+  DCHECK_EQ(GetClass()->GetObjectSize(), this_size);
 }
 
 }  // namespace mirror
