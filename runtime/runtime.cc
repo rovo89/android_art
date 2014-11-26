@@ -760,7 +760,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     case kArm64:
     case kX86_64:
       implicit_null_checks_ = true;
-      implicit_so_checks_ = true;
+      implicit_so_checks_ = (RUNNING_ON_VALGRIND == 0);
       break;
     default:
       // Keep the defaults.
