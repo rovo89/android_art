@@ -29,6 +29,10 @@
 #include "read_barrier_option.h"
 #include "utils.h"
 
+#ifndef IMT_SIZE
+#error IMT_SIZE not defined
+#endif
+
 namespace art {
 
 struct ClassOffsets;
@@ -58,7 +62,7 @@ class MANAGED Class FINAL : public Object {
   // Interface method table size. Increasing this value reduces the chance of two interface methods
   // colliding in the interface method table but increases the size of classes that implement
   // (non-marker) interfaces.
-  static constexpr size_t kImtSize = 64;
+  static constexpr size_t kImtSize = IMT_SIZE;
 
   // imtable entry embedded in class object.
   struct MANAGED ImTableEntry {
