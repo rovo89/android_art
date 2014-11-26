@@ -566,7 +566,8 @@ class JNI {
     return soa.AddLocalReference<jobject>(decoded_obj);
   }
 
-  static void DeleteLocalRef(JNIEnv* env, jobject obj) {
+  static void DeleteLocalRef(JNIEnv* env, jobject obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (obj == nullptr) {
       return;
     }
