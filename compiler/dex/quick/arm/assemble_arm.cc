@@ -671,12 +671,12 @@ const ArmEncodingMap ArmMir2Lir::EncodingMap[kArmLast] = {
                  kFmtBitBlt, 15, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
                  IS_UNARY_OP | REG_DEF_SP | REG_USE_SP | REG_DEF_LIST0
-                 | IS_LOAD | NEEDS_FIXUP, "pop", "<!0R>", 4, kFixupPushPop),
+                 | IS_LOAD, "pop", "<!0R>", 4, kFixupNone),
     ENCODING_MAP(kThumb2Push,          0xe92d0000,
                  kFmtBitBlt, 15, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
                  IS_UNARY_OP | REG_DEF_SP | REG_USE_SP | REG_USE_LIST0
-                 | IS_STORE | NEEDS_FIXUP, "push", "<!0R>", 4, kFixupPushPop),
+                 | IS_STORE, "push", "<!0R>", 4, kFixupNone),
     ENCODING_MAP(kThumb2CmpRI8M, 0xf1b00f00,
                  kFmtBitBlt, 19, 16, kFmtModImm, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
@@ -1393,31 +1393,6 @@ void ArmMir2Lir::AssembleLIR() {
             continue;
           } else {
             lir->operands[1] = delta >> 1;
-          }
-          break;
-        }
-        case kFixupPushPop: {
-          if (__builtin_popcount(lir->operands[0]) == 1) {
-            /*
-             * The standard push/pop multiple instruction
-             * requires at least two registers in the list.
-             * If we've got just one, switch to the single-reg
-             * encoding.
-             */
-            lir->opcode = (lir->opcode == kThumb2Push) ? kThumb2Push1 :
-                kThumb2Pop1;
-            int reg = 0;
-            while (lir->operands[0]) {
-              if (lir->operands[0] & 0x1) {
-                break;
-              } else {
-                reg++;
-                lir->operands[0] >>= 1;
-              }
-            }
-            lir->operands[0] = reg;
-            // This won't change again, don't bother unlinking, just reset fixup kind
-            lir->flags.fixup = kFixupNone;
           }
           break;
         }

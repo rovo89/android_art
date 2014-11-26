@@ -347,7 +347,20 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     }
   }
   /* Spill core callee saves */
-  NewLIR1(kThumb2Push, core_spill_mask_);
+  if (core_spill_mask_ == 0u) {
+    // Nothing to spill.
+  } else if ((core_spill_mask_ & ~(0xffu | (1u << rs_rARM_LR.GetRegNum()))) == 0u) {
+    // Spilling only low regs and/or LR, use 16-bit PUSH.
+    constexpr int lr_bit_shift = rs_rARM_LR.GetRegNum() - 8;
+    NewLIR1(kThumbPush,
+            (core_spill_mask_ & ~(1u << rs_rARM_LR.GetRegNum())) |
+            ((core_spill_mask_ & (1u << rs_rARM_LR.GetRegNum())) >> lr_bit_shift));
+  } else if (IsPowerOfTwo(core_spill_mask_)) {
+    // kThumb2Push cannot be used to spill a single register.
+    NewLIR1(kThumb2Push1, CTZ(core_spill_mask_));
+  } else {
+    NewLIR1(kThumb2Push, core_spill_mask_);
+  }
   /* Need to spill any FP regs? */
   if (num_fp_spills_) {
     /*
@@ -444,13 +457,26 @@ void ArmMir2Lir::GenExitSequence() {
   if (num_fp_spills_) {
     NewLIR1(kThumb2VPopCS, num_fp_spills_);
   }
-  if (core_spill_mask_ & (1 << rs_rARM_LR.GetRegNum())) {
+  if ((core_spill_mask_ & (1 << rs_rARM_LR.GetRegNum())) != 0) {
     /* Unspill rARM_LR to rARM_PC */
     core_spill_mask_ &= ~(1 << rs_rARM_LR.GetRegNum());
     core_spill_mask_ |= (1 << rs_rARM_PC.GetRegNum());
   }
-  NewLIR1(kThumb2Pop, core_spill_mask_);
-  if (!(core_spill_mask_ & (1 << rs_rARM_PC.GetRegNum()))) {
+  if (core_spill_mask_ == 0u) {
+    // Nothing to unspill.
+  } else if ((core_spill_mask_ & ~(0xffu | (1u << rs_rARM_PC.GetRegNum()))) == 0u) {
+    // Unspilling only low regs and/or PC, use 16-bit POP.
+    constexpr int pc_bit_shift = rs_rARM_PC.GetRegNum() - 8;
+    NewLIR1(kThumbPop,
+            (core_spill_mask_ & ~(1u << rs_rARM_PC.GetRegNum())) |
+            ((core_spill_mask_ & (1u << rs_rARM_PC.GetRegNum())) >> pc_bit_shift));
+  } else if (IsPowerOfTwo(core_spill_mask_)) {
+    // kThumb2Pop cannot be used to unspill a single register.
+    NewLIR1(kThumb2Pop1, CTZ(core_spill_mask_));
+  } else {
+    NewLIR1(kThumb2Pop, core_spill_mask_);
+  }
+  if ((core_spill_mask_ & (1 << rs_rARM_PC.GetRegNum())) == 0) {
     /* We didn't pop to rARM_PC, so must do a bv rARM_LR */
     NewLIR1(kThumbBx, rs_rARM_LR.GetReg());
   }
