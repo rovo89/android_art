@@ -419,7 +419,9 @@ static void ParseDouble(const std::string& option, char after_char, double min, 
 class Dex2Oat FINAL {
  public:
   explicit Dex2Oat(TimingLogger* timings) :
-      compiler_kind_(kUsePortableCompiler ? Compiler::kPortable : Compiler::kQuick),
+      compiler_kind_(kUsePortableCompiler
+          ? Compiler::kPortable
+          : (kUseOptimizingCompiler ? Compiler::kOptimizing : Compiler::kQuick)),
       instruction_set_(kRuntimeISA),
       // Take the default set of instruction features from the build.
       method_inliner_map_(),
@@ -597,7 +599,6 @@ class Dex2Oat FINAL {
           compiler_kind_ = Compiler::kQuick;
         } else if (backend_str == "Optimizing") {
           compiler_kind_ = Compiler::kOptimizing;
-          compile_pic = true;
         } else if (backend_str == "Portable") {
           compiler_kind_ = Compiler::kPortable;
         } else {
@@ -705,6 +706,11 @@ class Dex2Oat FINAL {
       } else {
         Usage("Unknown argument %s", option.data());
       }
+    }
+
+    if (compiler_kind_ == Compiler::kOptimizing) {
+      // Optimizing only supports PIC mode.
+      compile_pic = true;
     }
 
     if (oat_filename_.empty() && oat_fd_ == -1) {
