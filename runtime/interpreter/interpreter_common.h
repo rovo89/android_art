@@ -201,10 +201,11 @@ static inline String* ResolveString(Thread* self, ShadowFrame& shadow_frame, uin
     }
   }
   mirror::ArtMethod* method = shadow_frame.GetMethod();
-  mirror::String* s = method->GetDexCacheStrings()->Get(string_idx);
+  mirror::Class* declaring_class = method->GetDeclaringClass();
+  mirror::String* s = declaring_class->GetDexCacheStrings()->Get(string_idx);
   if (UNLIKELY(s == nullptr)) {
     StackHandleScope<1> hs(self);
-    Handle<mirror::DexCache> dex_cache(hs.NewHandle(method->GetDexCache()));
+    Handle<mirror::DexCache> dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
     s = Runtime::Current()->GetClassLinker()->ResolveString(*method->GetDexFile(), string_idx,
                                                             dex_cache);
   }

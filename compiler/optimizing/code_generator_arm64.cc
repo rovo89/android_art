@@ -1553,7 +1553,8 @@ void InstructionCodeGeneratorARM64::VisitLoadString(HLoadString* load) {
 
   Register out = OutputRegister(load);
   codegen_->LoadCurrentMethod(out);
-  __ Ldr(out, HeapOperand(out, mirror::ArtMethod::DexCacheStringsOffset()));
+  __ Ldr(out, HeapOperand(out, mirror::ArtMethod::DeclaringClassOffset()));
+  __ Ldr(out, HeapOperand(out, mirror::Class::DexCacheStringsOffset()));
   __ Ldr(out, MemOperand(out.X(), CodeGenerator::GetCacheOffset(load->GetStringIndex())));
   __ Cbz(out, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());

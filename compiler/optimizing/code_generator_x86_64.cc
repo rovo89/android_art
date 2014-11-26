@@ -3211,7 +3211,8 @@ void InstructionCodeGeneratorX86_64::VisitLoadString(HLoadString* load) {
 
   CpuRegister out = load->GetLocations()->Out().As<CpuRegister>();
   codegen_->LoadCurrentMethod(CpuRegister(out));
-  __ movl(out, Address(out, mirror::ArtMethod::DexCacheStringsOffset().Int32Value()));
+  __ movl(out, Address(out, mirror::ArtMethod::DeclaringClassOffset().Int32Value()));
+  __ movl(out, Address(out, mirror::Class::DexCacheStringsOffset().Int32Value()));
   __ movl(out, Address(out, CodeGenerator::GetCacheOffset(load->GetStringIndex())));
   __ testl(out, out);
   __ j(kEqual, slow_path->GetEntryLabel());
