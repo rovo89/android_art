@@ -5998,4 +5998,34 @@ std::size_t ClassLinker::ClassDescriptorHashEquals::operator()(const char* descr
   return ComputeModifiedUtf8Hash(descriptor);
 }
 
+bool ClassLinker::MayBeCalledWithDirectCodePointer(mirror::ArtMethod* m) {
+  // Non-image methods don't use direct code pointer.
+  if (!m->GetDeclaringClass()->IsBootStrapClassLoaded()) {
+    return false;
+  }
+  if (m->IsPrivate()) {
+    // The method can only be called inside its own oat file. Therefore it won't be called using
+    // its direct code if the oat file has been compiled in PIC mode.
+    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+    const DexFile& dex_file = m->GetDeclaringClass()->GetDexFile();
+    const OatFile::OatDexFile* oat_dex_file = class_linker->FindOpenedOatDexFileForDexFile(dex_file);
+    if (oat_dex_file == nullptr) {
+      // No oat file: the method has not been compiled.
+      return false;
+    }
+    const OatFile* oat_file = oat_dex_file->GetOatFile();
+    return oat_file != nullptr && !oat_file->IsPic();
+  } else {
+    // The method can be called outside its own oat file. Therefore it won't be called using its
+    // direct code pointer only if all loaded oat files have been compiled in PIC mode.
+    ReaderMutexLock mu(Thread::Current(), dex_lock_);
+    for (const OatFile* oat_file : oat_files_) {
+      if (!oat_file->IsPic()) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
 }  // namespace art
