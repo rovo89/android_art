@@ -90,6 +90,7 @@ class X86Mir2Lir : public Mir2Lir {
                        OpSize size) OVERRIDE;
   LIR* LoadConstantNoClobber(RegStorage r_dest, int value);
   LIR* LoadConstantWide(RegStorage r_dest, int64_t value);
+  void GenLongToInt(RegLocation rl_dest, RegLocation rl_src);
   LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src,
                      OpSize size, VolatileKind is_volatile) OVERRIDE;
   LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
