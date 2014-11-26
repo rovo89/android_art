@@ -1043,6 +1043,11 @@ class MANAGED Class FINAL : public Object {
     DISALLOW_COPY_AND_ASSIGN(InitializeClassVisitor);
   };
 
+  // Returns true if the class loader is null, ie the class loader is the boot strap class loader.
+  bool IsBootStrapClassLoaded() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return GetClassLoader() == nullptr;
+  }
+
  private:
   void SetVerifyErrorClass(Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

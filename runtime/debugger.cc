@@ -3266,8 +3266,16 @@ static DeoptimizationRequest::Kind GetRequiredDeoptimizationKind(Thread* self,
       ClassLinker* const class_linker = Runtime::Current()->GetClassLinker();
       const bool is_compiled = class_linker->GetOatMethodQuickCodeFor(m) != nullptr;
       if (is_compiled) {
-        VLOG(jdwp) << "Need selective deoptimization for compiled method " << PrettyMethod(m);
-        return DeoptimizationRequest::kSelectiveDeoptimization;
+        // If the method may be called through its direct code pointer (without loading
+        // its updated entrypoint), we need full deoptimization to not miss the breakpoint.
+        if (class_linker->MayBeCalledWithDirectCodePointer(m)) {
+          VLOG(jdwp) << "Need full deoptimization because of possible direct code call "
+                     << "into image for compiled method " << PrettyMethod(m);
+          return DeoptimizationRequest::kFullDeoptimization;
+        } else {
+          VLOG(jdwp) << "Need selective deoptimization for compiled method " << PrettyMethod(m);
+          return DeoptimizationRequest::kSelectiveDeoptimization;
+        }
       } else {
         // Method is not compiled: we don't need to deoptimize.
         VLOG(jdwp) << "No need for deoptimization for non-compiled method " << PrettyMethod(m);

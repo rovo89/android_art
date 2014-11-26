@@ -1141,4 +1141,24 @@ TEST_F(ClassLinkerTest, Preverified_App) {
   CheckPreverified(statics.Get(), true);
 }
 
+TEST_F(ClassLinkerTest, IsBootStrapClassLoaded) {
+  ScopedObjectAccess soa(Thread::Current());
+
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(soa.Decode<mirror::ClassLoader*>(LoadDex("Statics"))));
+
+  // java.lang.Object is a bootstrap class.
+  Handle<mirror::Class> jlo_class(
+      hs.NewHandle(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/Object;")));
+  ASSERT_TRUE(jlo_class.Get() != nullptr);
+  EXPECT_TRUE(jlo_class.Get()->IsBootStrapClassLoaded());
+
+  // Statics is not a bootstrap class.
+  Handle<mirror::Class> statics(
+      hs.NewHandle(class_linker_->FindClass(soa.Self(), "LStatics;", class_loader)));
+  ASSERT_TRUE(statics.Get() != nullptr);
+  EXPECT_FALSE(statics.Get()->IsBootStrapClassLoaded());
+}
+
 }  // namespace art
