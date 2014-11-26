@@ -2292,44 +2292,71 @@ void InstructionCodeGeneratorARM::VisitNot(HNot* not_) {
 void LocationsBuilderARM::VisitCompare(HCompare* compare) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  switch (compare->InputAt(0)->GetType()) {
+    case Primitive::kPrimLong: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+    }
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
+      locations->SetOut(Location::RequiresRegister());
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected type for compare operation " << compare->InputAt(0)->GetType();
+  }
 }
 
 void InstructionCodeGeneratorARM::VisitCompare(HCompare* compare) {
   LocationSummary* locations = compare->GetLocations();
+  Register out = locations->Out().As<Register>();
+  Location left = locations->InAt(0);
+  Location right = locations->InAt(1);
+
+  Label less, greater, done;
   switch (compare->InputAt(0)->GetType()) {
     case Primitive::kPrimLong: {
-      Register output = locations->Out().As<Register>();
-      Location left = locations->InAt(0);
-      Location right = locations->InAt(1);
-      Label less, greater, done;
       __ cmp(left.AsRegisterPairHigh<Register>(),
              ShifterOperand(right.AsRegisterPairHigh<Register>()));  // Signed compare.
       __ b(&less, LT);
       __ b(&greater, GT);
-      // Do LoadImmediate before any `cmp`, as LoadImmediate might affect
-      // the status flags.
-      __ LoadImmediate(output, 0);
+      // Do LoadImmediate before any `cmp`, as LoadImmediate might affect the status flags.
+      __ LoadImmediate(out, 0);
       __ cmp(left.AsRegisterPairLow<Register>(),
              ShifterOperand(right.AsRegisterPairLow<Register>()));  // Unsigned compare.
-      __ b(&done, EQ);
-      __ b(&less, CC);
-
-      __ Bind(&greater);
-      __ LoadImmediate(output, 1);
-      __ b(&done);
-
-      __ Bind(&less);
-      __ LoadImmediate(output, -1);
-
-      __ Bind(&done);
+      break;
+    }
+    case Primitive::kPrimFloat: {
+      __ LoadImmediate(out, 0);
+      __ vcmps(left.As<SRegister>(), right.As<SRegister>());
+      __ b(compare->IsGtBias() ? &greater : &less, VS);  // VS for unordered
+      break;
+    }
+    case Primitive::kPrimDouble: {
+      __ LoadImmediate(out, 0);
+      __ vcmpd(FromLowSToD(left.AsFpuRegisterPairLow<SRegister>()),
+               FromLowSToD(right.AsFpuRegisterPairLow<SRegister>()));
+      __ b(compare->IsGtBias() ? &greater : &less, VS);
       break;
     }
     default:
-      LOG(FATAL) << "Unimplemented compare type " << compare->InputAt(0)->GetType();
+      LOG(FATAL) << "Unexpected compare type " << compare->InputAt(0)->GetType();
   }
+  __ b(&done, EQ);
+  __ b(&less, CC);  // CC is for both: unsigned compare for longs and 'less than' for floats.
+
+  __ Bind(&greater);
+  __ LoadImmediate(out, 1);
+  __ b(&done);
+
+  __ Bind(&less);
+  __ LoadImmediate(out, -1);
+
+  __ Bind(&done);
 }
 
 void LocationsBuilderARM::VisitPhi(HPhi* instruction) {

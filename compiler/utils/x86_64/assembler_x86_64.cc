@@ -700,6 +700,24 @@ void X86_64Assembler::comisd(XmmRegister a, XmmRegister b) {
   EmitXmmRegisterOperand(a.LowBits(), b);
 }
 
+void X86_64Assembler::ucomiss(XmmRegister a, XmmRegister b) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(a, b);
+  EmitUint8(0x0F);
+  EmitUint8(0x2E);
+  EmitXmmRegisterOperand(a.LowBits(), b);
+}
+
+
+void X86_64Assembler::ucomisd(XmmRegister a, XmmRegister b) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitOptionalRex32(a, b);
+  EmitUint8(0x0F);
+  EmitUint8(0x2E);
+  EmitXmmRegisterOperand(a.LowBits(), b);
+}
+
 
 void X86_64Assembler::sqrtsd(XmmRegister dst, XmmRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
