@@ -735,7 +735,9 @@ void Trace::StoreExitingThreadInfo(Thread* thread) {
   if (the_trace_ != nullptr) {
     std::string name;
     thread->GetThreadName(name);
-    the_trace_->exited_threads_.Put(thread->GetTid(), name);
+    // The same thread/tid may be used multiple times. As SafeMap::Put does not allow to override
+    // a previous mapping, use SafeMap::Overwrite.
+    the_trace_->exited_threads_.Overwrite(thread->GetTid(), name);
   }
 }
 
