@@ -977,6 +977,22 @@ void Heap::DoPendingTransitionOrTrim() {
   Trim();
 }
 
+class TrimIndirectReferenceTableClosure : public Closure {
+ public:
+  explicit TrimIndirectReferenceTableClosure(Barrier* barrier) : barrier_(barrier) {
+  }
+  virtual void Run(Thread* thread) OVERRIDE NO_THREAD_SAFETY_ANALYSIS {
+    ATRACE_BEGIN("Trimming reference table");
+    thread->GetJniEnv()->locals.Trim();
+    ATRACE_END();
+    barrier_->Pass(Thread::Current());
+  }
+
+ private:
+  Barrier* const barrier_;
+};
+
+
 void Heap::Trim() {
   Thread* self = Thread::Current();
   {
@@ -997,6 +1013,21 @@ void Heap::Trim() {
     // Ensure there is only one GC at a time.
     WaitForGcToCompleteLocked(kGcCauseTrim, self);
     collector_type_running_ = kCollectorTypeHeapTrim;
+  }
+  // Trim reference tables.
+  {
+    ScopedObjectAccess soa(self);
+    JavaVMExt* vm = soa.Vm();
+    // Trim globals indirect reference table.
+    {
+      WriterMutexLock mu(self, vm->globals_lock);
+      vm->globals.Trim();
+    }
+    // Trim locals indirect reference tables.
+    Barrier barrier(0);
+    TrimIndirectReferenceTableClosure closure(&barrier);
+    size_t barrier_count = Runtime::Current()->GetThreadList()->RunCheckpoint(&closure);
+    barrier.Increment(self, barrier_count);
   }
   uint64_t start_ns = NanoTime();
   // Trim the managed spaces.
