@@ -727,7 +727,16 @@ bool MethodVerifier::VerifyInstructions() {
     /* Flag instructions that are garbage collection points */
     // All invoke points are marked as "Throw" points already.
     // We are relying on this to also count all the invokes as interesting.
-    if (inst->IsBranch() || inst->IsSwitch() || inst->IsThrow()) {
+    if (inst->IsBranch()) {
+      insn_flags_[dex_pc].SetCompileTimeInfoPoint();
+      // The compiler also needs safepoints for fall-through to loop heads.
+      // Such a loop head must be a target of a branch.
+      int32_t offset = 0;
+      bool cond, self_ok;
+      bool target_ok = GetBranchOffset(dex_pc, &offset, &cond, &self_ok);
+      DCHECK(target_ok);
+      insn_flags_[dex_pc + offset].SetCompileTimeInfoPoint();
+    } else if (inst->IsSwitch() || inst->IsThrow()) {
       insn_flags_[dex_pc].SetCompileTimeInfoPoint();
     } else if (inst->IsReturn()) {
       insn_flags_[dex_pc].SetCompileTimeInfoPointAndReturn();

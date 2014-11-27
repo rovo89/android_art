@@ -623,8 +623,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::GOTO:
     case Instruction::GOTO_16:
     case Instruction::GOTO_32:
-      if (mir_graph_->IsBackedge(bb, bb->taken) &&
-          (kLeafOptimization || !mir_graph_->HasSuspendTestBetween(bb, bb->taken))) {
+      if (mir_graph_->IsBackEdge(bb, bb->taken)) {
         GenSuspendTestAndBranch(opt_flags, &label_list[bb->taken]);
       } else {
         OpUnconditionalBranch(&label_list[bb->taken]);
@@ -656,12 +655,10 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::IF_GE:
     case Instruction::IF_GT:
     case Instruction::IF_LE: {
-      LIR* taken = &label_list[bb->taken];
-      if (mir_graph_->IsBackwardsBranch(bb) &&
-          (kLeafOptimization || !mir_graph_->HasSuspendTestBetween(bb, bb->taken) ||
-           !mir_graph_->HasSuspendTestBetween(bb, bb->fall_through))) {
+      if (mir_graph_->IsBackEdge(bb, bb->taken) || mir_graph_->IsBackEdge(bb, bb->fall_through)) {
         GenSuspendTest(opt_flags);
       }
+      LIR* taken = &label_list[bb->taken];
       GenCompareAndBranch(opcode, rl_src[0], rl_src[1], taken);
       break;
     }
@@ -671,12 +668,10 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::IF_GEZ:
     case Instruction::IF_GTZ:
     case Instruction::IF_LEZ: {
-      LIR* taken = &label_list[bb->taken];
-      if (mir_graph_->IsBackwardsBranch(bb) &&
-          (kLeafOptimization || !mir_graph_->HasSuspendTestBetween(bb, bb->taken) ||
-           !mir_graph_->HasSuspendTestBetween(bb, bb->fall_through))) {
+      if (mir_graph_->IsBackEdge(bb, bb->taken) || mir_graph_->IsBackEdge(bb, bb->fall_through)) {
         GenSuspendTest(opt_flags);
       }
+      LIR* taken = &label_list[bb->taken];
       GenCompareZeroAndBranch(opcode, rl_src[0], taken);
       break;
     }
@@ -845,69 +840,37 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
 
     case Instruction::INVOKE_STATIC_RANGE:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kStatic, true));
-      if (!kLeafOptimization) {
-        // If the invocation is not inlined, we can assume there is already a
-        // suspend check at the return site
-        mir_graph_->AppendGenSuspendTestList(bb);
-      }
       break;
     case Instruction::INVOKE_STATIC:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kStatic, false));
-      if (!kLeafOptimization) {
-        mir_graph_->AppendGenSuspendTestList(bb);
-      }
       break;
 
     case Instruction::INVOKE_DIRECT:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kDirect, false));
-      if (!kLeafOptimization) {
-        mir_graph_->AppendGenSuspendTestList(bb);
-      }
       break;
     case Instruction::INVOKE_DIRECT_RANGE:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kDirect, true));
-      if (!kLeafOptimization) {
-        mir_graph_->AppendGenSuspendTestList(bb);
-      }
       break;
 
     case Instruction::INVOKE_VIRTUAL:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kVirtual, false));
-      if (!kLeafOptimization) {
-        mir_graph_->AppendGenSuspendTestList(bb);
-      }
       break;
     case Instruction::INVOKE_VIRTUAL_RANGE:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kVirtual, true));
-      if (!kLeafOptimization) {
-        mir_graph_->AppendGenSuspendTestList(bb);
-      }
       break;
 
     case Instruction::INVOKE_SUPER:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kSuper, false));
-      if (!kLeafOptimization) {
-        mir_graph_->AppendGenSuspendTestList(bb);
-      }
       break;
     case Instruction::INVOKE_SUPER_RANGE:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kSuper, true));
-      if (!kLeafOptimization) {
-        mir_graph_->AppendGenSuspendTestList(bb);
-      }
       break;
 
     case Instruction::INVOKE_INTERFACE:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kInterface, false));
-      if (!kLeafOptimization) {
-        mir_graph_->AppendGenSuspendTestList(bb);
-      }
       break;
     case Instruction::INVOKE_INTERFACE_RANGE:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kInterface, true));
-      if (!kLeafOptimization) {
-        mir_graph_->AppendGenSuspendTestList(bb);
-      }
       break;
 
     case Instruction::NEG_INT:
@@ -1108,18 +1071,33 @@ void Mir2Lir::HandleExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
       break;
     }
     case kMirOpFusedCmplFloat:
+      if (mir_graph_->IsBackEdge(bb, bb->taken) || mir_graph_->IsBackEdge(bb, bb->fall_through)) {
+        GenSuspendTest(mir->optimization_flags);
+      }
       GenFusedFPCmpBranch(bb, mir, false /*gt bias*/, false /*double*/);
       break;
     case kMirOpFusedCmpgFloat:
+      if (mir_graph_->IsBackEdge(bb, bb->taken) || mir_graph_->IsBackEdge(bb, bb->fall_through)) {
+        GenSuspendTest(mir->optimization_flags);
+      }
       GenFusedFPCmpBranch(bb, mir, true /*gt bias*/, false /*double*/);
       break;
     case kMirOpFusedCmplDouble:
+      if (mir_graph_->IsBackEdge(bb, bb->taken) || mir_graph_->IsBackEdge(bb, bb->fall_through)) {
+        GenSuspendTest(mir->optimization_flags);
+      }
       GenFusedFPCmpBranch(bb, mir, false /*gt bias*/, true /*double*/);
       break;
     case kMirOpFusedCmpgDouble:
+      if (mir_graph_->IsBackEdge(bb, bb->taken) || mir_graph_->IsBackEdge(bb, bb->fall_through)) {
+        GenSuspendTest(mir->optimization_flags);
+      }
       GenFusedFPCmpBranch(bb, mir, true /*gt bias*/, true /*double*/);
       break;
     case kMirOpFusedCmpLong:
+      if (mir_graph_->IsBackEdge(bb, bb->taken) || mir_graph_->IsBackEdge(bb, bb->fall_through)) {
+        GenSuspendTest(mir->optimization_flags);
+      }
       GenFusedLongCmpBranch(bb, mir);
       break;
     case kMirOpSelect:

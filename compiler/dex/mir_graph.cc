@@ -127,7 +127,7 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       ifield_lowering_infos_(arena->Adapter(kArenaAllocLoweringInfo)),
       sfield_lowering_infos_(arena->Adapter(kArenaAllocLoweringInfo)),
       method_lowering_infos_(arena->Adapter(kArenaAllocLoweringInfo)),
-      gen_suspend_test_list_(arena->Adapter()) {
+      suspend_checks_in_loops_(nullptr) {
   memset(&temp_, 0, sizeof(temp_));
   use_counts_.reserve(256);
   raw_use_counts_.reserve(256);
@@ -1941,6 +1941,7 @@ void MIRGraph::ComputeTopologicalSortOrder() {
     DCHECK_EQ(bb->hidden, false);
     DCHECK_EQ(bb->visited, false);
     bb->visited = true;
+    bb->nesting_depth = loop_head_stack.size();
 
     // Now add the basic block.
     uint16_t idx = static_cast<uint16_t>(topological_order_.size());
@@ -1979,24 +1980,6 @@ bool BasicBlock::IsExceptionBlock() const {
   if (block_type == kExceptionHandling) {
     return true;
   }
-  return false;
-}
-
-bool MIRGraph::HasSuspendTestBetween(BasicBlock* source, BasicBlockId target_id) {
-  BasicBlock* target = GetBasicBlock(target_id);
-
-  if (source == nullptr || target == nullptr)
-    return false;
-
-  int idx;
-  for (idx = gen_suspend_test_list_.size() - 1; idx >= 0; idx--) {
-    BasicBlock* bb = gen_suspend_test_list_[idx];
-    if (bb == source)
-      return true;  // The block has been inserted by a suspend check before.
-    if (source->dominators->IsBitSet(bb->id) && bb->dominators->IsBitSet(target_id))
-      return true;
-  }
-
   return false;
 }
 
