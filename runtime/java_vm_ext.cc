@@ -756,6 +756,11 @@ void JavaVMExt::SweepJniWeakGlobals(IsMarkedCallback* callback, void* arg) {
   }
 }
 
+void JavaVMExt::TrimGlobals() {
+  WriterMutexLock mu(Thread::Current(), globals_lock_);
+  globals_.Trim();
+}
+
 void JavaVMExt::VisitRoots(RootCallback* callback, void* arg) {
   Thread* self = Thread::Current();
   {
