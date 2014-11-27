@@ -1043,6 +1043,11 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::LONG_TO_FLOAT: {
+      Conversion_12x(instruction, Primitive::kPrimLong, Primitive::kPrimFloat);
+      break;
+    }
+
     case Instruction::LONG_TO_DOUBLE: {
       Conversion_12x(instruction, Primitive::kPrimLong, Primitive::kPrimDouble);
       break;
