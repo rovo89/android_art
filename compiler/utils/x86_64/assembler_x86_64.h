@@ -330,6 +330,7 @@ class X86_64Assembler FINAL : public Assembler {
 
   void cvtsi2ss(XmmRegister dst, CpuRegister src);  // Note: this is the r/m32 version.
   void cvtsi2sd(XmmRegister dst, CpuRegister src);  // Note: this is the r/m32 version.
+  void cvtsi2sd(XmmRegister dst, CpuRegister src, bool is64bit);
 
   void cvtss2si(CpuRegister dst, XmmRegister src);  // Note: this is the r32 version.
   void cvtss2sd(XmmRegister dst, XmmRegister src);
