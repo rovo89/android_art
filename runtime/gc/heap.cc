@@ -1026,6 +1026,7 @@ void Heap::Trim() {
     // Trim locals indirect reference tables.
     Barrier barrier(0);
     TrimIndirectReferenceTableClosure closure(&barrier);
+    ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
     size_t barrier_count = Runtime::Current()->GetThreadList()->RunCheckpoint(&closure);
     barrier.Increment(self, barrier_count);
   }
