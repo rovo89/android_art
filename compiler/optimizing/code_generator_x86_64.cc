@@ -1256,9 +1256,9 @@ void LocationsBuilderX86_64::VisitNeg(HNeg* neg) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      // Output overlaps as we need a fresh (zero-initialized)
-      // register to perform subtraction from zero.
-      locations->SetOut(Location::RequiresFpuRegister());
+      locations->SetOut(Location::SameAsFirstInput());
+      locations->AddTemp(Location::RequiresRegister());
+      locations->AddTemp(Location::RequiresFpuRegister());
       break;
 
     default:
@@ -1283,40 +1283,31 @@ void InstructionCodeGeneratorX86_64::VisitNeg(HNeg* neg) {
       __ negq(out.As<CpuRegister>());
       break;
 
-    case Primitive::kPrimFloat:
-      DCHECK(in.IsFpuRegister());
-      DCHECK(out.IsFpuRegister());
-      DCHECK(!in.Equals(out));
-      // TODO: Instead of computing negation as a subtraction from
-      // zero, implement it with an exclusive or with value 0x80000000
-      // (mask for bit 31, representing the sign of a single-precision
-      // floating-point number), fetched from a constant pool:
-      //
-      //   xorps out, [RIP:...] // value at RIP is 0x80 00 00 00
-
-      // out = 0
-      __ xorps(out.As<XmmRegister>(), out.As<XmmRegister>());
-      // out = out - in
-      __ subss(out.As<XmmRegister>(), in.As<XmmRegister>());
+    case Primitive::kPrimFloat: {
+      DCHECK(in.Equals(out));
+      CpuRegister constant = locations->GetTemp(0).As<CpuRegister>();
+      XmmRegister mask = locations->GetTemp(1).As<XmmRegister>();
+      // Implement float negation with an exclusive or with value
+      // 0x80000000 (mask for bit 31, representing the sign of a
+      // single-precision floating-point number).
+      __ movq(constant, Immediate(INT64_C(0x80000000)));
+      __ movd(mask, constant);
+      __ xorps(out.As<XmmRegister>(), mask);
       break;
+    }
 
-    case Primitive::kPrimDouble:
-      DCHECK(in.IsFpuRegister());
-      DCHECK(out.IsFpuRegister());
-      DCHECK(!in.Equals(out));
-      // TODO: Instead of computing negation as a subtraction from
-      // zero, implement it with an exclusive or with value
+    case Primitive::kPrimDouble: {
+      DCHECK(in.Equals(out));
+      CpuRegister constant = locations->GetTemp(0).As<CpuRegister>();
+      XmmRegister mask = locations->GetTemp(1).As<XmmRegister>();
+      // Implement double negation with an exclusive or with value
       // 0x8000000000000000 (mask for bit 63, representing the sign of
-      // a double-precision floating-point number), fetched from a
-      // constant pool:
-      //
-      //   xorpd out, [RIP:...] // value at RIP is 0x80 00 00 00 00 00 00 00
-
-      // out = 0
-      __ xorpd(out.As<XmmRegister>(), out.As<XmmRegister>());
-      // out = out - in
-      __ subsd(out.As<XmmRegister>(), in.As<XmmRegister>());
+      // a double-precision floating-point number).
+      __ movq(constant, Immediate(INT64_C(0x8000000000000000)));
+      __ movd(mask, constant);
+      __ xorpd(out.As<XmmRegister>(), mask);
       break;
+    }
 
     default:
       LOG(FATAL) << "Unexpected neg type " << neg->GetResultType();

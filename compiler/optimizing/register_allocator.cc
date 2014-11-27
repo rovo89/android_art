@@ -189,11 +189,29 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
       BlockRegister(temp, position, position + 1);
     } else {
       DCHECK(temp.IsUnallocated());
-      DCHECK(temp.GetPolicy() == Location::kRequiresRegister);
-      LiveInterval* interval = LiveInterval::MakeTempInterval(allocator_, Primitive::kPrimInt);
-      temp_intervals_.Add(interval);
-      interval->AddRange(position, position + 1);
-      unhandled_core_intervals_.Add(interval);
+      switch (temp.GetPolicy()) {
+        case Location::kRequiresRegister: {
+          LiveInterval* interval =
+              LiveInterval::MakeTempInterval(allocator_, Primitive::kPrimInt);
+          temp_intervals_.Add(interval);
+          interval->AddRange(position, position + 1);
+          unhandled_core_intervals_.Add(interval);
+          break;
+        }
+
+        case Location::kRequiresFpuRegister: {
+          LiveInterval* interval =
+              LiveInterval::MakeTempInterval(allocator_, Primitive::kPrimDouble);
+          temp_intervals_.Add(interval);
+          interval->AddRange(position, position + 1);
+          unhandled_fp_intervals_.Add(interval);
+          break;
+        }
+
+        default:
+          LOG(FATAL) << "Unexpected policy for temporary location "
+                     << temp.GetPolicy();
+      }
     }
   }
 
@@ -1250,9 +1268,27 @@ void RegisterAllocator::Resolve() {
       current = at;
     }
     LocationSummary* locations = at->GetLocations();
-    DCHECK(temp->GetType() == Primitive::kPrimInt);
-    locations->SetTempAt(
-        temp_index++, Location::RegisterLocation(temp->GetRegister()));
+    switch (temp->GetType()) {
+      case Primitive::kPrimInt:
+        locations->SetTempAt(
+            temp_index++, Location::RegisterLocation(temp->GetRegister()));
+        break;
+
+      case Primitive::kPrimDouble:
+        // TODO: Support the case of ARM, where a double value
+        // requires an FPU register pair (note that the ARM back end
+        // does not yet use this register allocator when a method uses
+        // floats or doubles).
+        DCHECK(codegen_->GetInstructionSet() != kArm
+               && codegen_->GetInstructionSet() != kThumb2);
+        locations->SetTempAt(
+            temp_index++, Location::FpuRegisterLocation(temp->GetRegister()));
+        break;
+
+      default:
+        LOG(FATAL) << "Unexpected type for temporary location "
+                   << temp->GetType();
+    }
   }
 }
 
