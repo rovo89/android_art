@@ -637,7 +637,8 @@ void CodeGeneratorX86_64::Move(HInstruction* instruction,
 
       case Primitive::kPrimLong:
       case Primitive::kPrimDouble:
-        Move(location, Location::DoubleStackSlot(GetStackSlot(instruction->AsLoadLocal()->GetLocal())));
+        Move(location,
+             Location::DoubleStackSlot(GetStackSlot(instruction->AsLoadLocal()->GetLocal())));
         break;
 
       default:
@@ -1836,7 +1837,8 @@ void InstructionCodeGeneratorX86_64::VisitMul(HMul* mul) {
         __ imull(first.AsRegister<CpuRegister>(), imm);
       } else {
         DCHECK(second.IsStackSlot());
-        __ imull(first.AsRegister<CpuRegister>(), Address(CpuRegister(RSP), second.GetStackIndex()));
+        __ imull(first.AsRegister<CpuRegister>(),
+                 Address(CpuRegister(RSP), second.GetStackIndex()));
       }
       break;
     }
@@ -2601,7 +2603,8 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
         if (value.IsRegister()) {
           __ movb(Address(obj, offset), value.AsRegister<CpuRegister>());
         } else {
-          __ movb(Address(obj, offset), Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+          __ movb(Address(obj, offset),
+                  Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
         }
       } else {
         if (value.IsRegister()) {
@@ -2624,7 +2627,8 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
           __ movw(Address(obj, offset), value.AsRegister<CpuRegister>());
         } else {
           DCHECK(value.IsConstant()) << value;
-          __ movw(Address(obj, offset), Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
+          __ movw(Address(obj, offset),
+                  Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
         }
       } else {
         DCHECK(index.IsRegister()) << index;
@@ -2674,7 +2678,8 @@ void InstructionCodeGeneratorX86_64::VisitArraySet(HArraySet* instruction) {
         }
       } else {
         DCHECK_EQ(value_type, Primitive::kPrimNot);
-        __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pAputObject), true));
+        __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pAputObject),
+                                        true));
         DCHECK(!codegen_->IsLeafMethod());
         codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
       }
@@ -2871,7 +2876,8 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
       __ movq(destination.AsRegister<CpuRegister>(),
               Address(CpuRegister(RSP), source.GetStackIndex()));
     } else if (destination.IsFpuRegister()) {
-      __ movsd(destination.AsFpuRegister<XmmRegister>(), Address(CpuRegister(RSP), source.GetStackIndex()));
+      __ movsd(destination.AsFpuRegister<XmmRegister>(),
+               Address(CpuRegister(RSP), source.GetStackIndex()));
     } else {
       DCHECK(destination.IsDoubleStackSlot()) << destination;
       __ movq(CpuRegister(TMP), Address(CpuRegister(RSP), source.GetStackIndex()));
@@ -3084,7 +3090,8 @@ void InstructionCodeGeneratorX86_64::VisitClinitCheck(HClinitCheck* check) {
   SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86_64(
       check->GetLoadClass(), check, check->GetDexPc(), true);
   codegen_->AddSlowPath(slow_path);
-  GenerateClassInitializationCheck(slow_path, check->GetLocations()->InAt(0).AsRegister<CpuRegister>());
+  GenerateClassInitializationCheck(slow_path,
+                                   check->GetLocations()->InAt(0).AsRegister<CpuRegister>());
 }
 
 void LocationsBuilderX86_64::VisitStaticFieldGet(HStaticFieldGet* instruction) {
