@@ -689,19 +689,25 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
   }
   if (destination.IsRegisterPair()) {
     if (source.IsRegisterPair()) {
-      __ Mov(destination.AsRegisterPairLow<Register>(), source.AsRegisterPairLow<Register>());
-      __ Mov(destination.AsRegisterPairHigh<Register>(), source.AsRegisterPairHigh<Register>());
+      EmitParallelMoves(
+          Location::RegisterLocation(source.AsRegisterPairHigh<Register>()),
+          Location::RegisterLocation(destination.AsRegisterPairHigh<Register>()),
+          Location::RegisterLocation(source.AsRegisterPairLow<Register>()),
+          Location::RegisterLocation(destination.AsRegisterPairLow<Register>()));
     } else if (source.IsFpuRegister()) {
       UNIMPLEMENTED(FATAL);
     } else if (source.IsQuickParameter()) {
       uint16_t register_index = source.GetQuickParameterRegisterIndex();
       uint16_t stack_index = source.GetQuickParameterStackIndex();
       InvokeDexCallingConvention calling_convention;
-      __ Mov(destination.AsRegisterPairLow<Register>(),
-             calling_convention.GetRegisterAt(register_index));
-      __ LoadFromOffset(kLoadWord, destination.AsRegisterPairHigh<Register>(),
-             SP, calling_convention.GetStackOffsetOf(stack_index + 1) + GetFrameSize());
+      EmitParallelMoves(
+          Location::RegisterLocation(calling_convention.GetRegisterAt(register_index)),
+          Location::RegisterLocation(destination.AsRegisterPairLow<Register>()),
+          Location::StackSlot(
+              calling_convention.GetStackOffsetOf(stack_index + 1) + GetFrameSize()),
+          Location::RegisterLocation(destination.AsRegisterPairHigh<Register>()));
     } else {
+      // No conflict possible, so just do the moves.
       DCHECK(source.IsDoubleStackSlot());
       if (destination.AsRegisterPairLow<Register>() == R1) {
         DCHECK_EQ(destination.AsRegisterPairHigh<Register>(), R2);
@@ -725,22 +731,21 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
     uint16_t register_index = destination.GetQuickParameterRegisterIndex();
     uint16_t stack_index = destination.GetQuickParameterStackIndex();
     if (source.IsRegisterPair()) {
-      __ Mov(calling_convention.GetRegisterAt(register_index),
-             source.AsRegisterPairLow<Register>());
-      __ StoreToOffset(kStoreWord, source.AsRegisterPairHigh<Register>(),
-             SP, calling_convention.GetStackOffsetOf(stack_index + 1));
+      UNIMPLEMENTED(FATAL);
     } else if (source.IsFpuRegister()) {
       UNIMPLEMENTED(FATAL);
     } else {
       DCHECK(source.IsDoubleStackSlot());
-      __ LoadFromOffset(
-          kLoadWord, calling_convention.GetRegisterAt(register_index), SP, source.GetStackIndex());
-      __ LoadFromOffset(kLoadWord, R0, SP, source.GetHighStackIndex(kArmWordSize));
-      __ StoreToOffset(kStoreWord, R0, SP, calling_convention.GetStackOffsetOf(stack_index + 1));
+      EmitParallelMoves(
+          Location::StackSlot(source.GetStackIndex()),
+          Location::RegisterLocation(calling_convention.GetRegisterAt(register_index)),
+          Location::StackSlot(source.GetHighStackIndex(kArmWordSize)),
+          Location::StackSlot(calling_convention.GetStackOffsetOf(stack_index + 1)));
     }
   } else {
     DCHECK(destination.IsDoubleStackSlot());
     if (source.IsRegisterPair()) {
+      // No conflict possible, so just do the moves.
       if (source.AsRegisterPairLow<Register>() == R1) {
         DCHECK_EQ(source.AsRegisterPairHigh<Register>(), R2);
         __ StoreToOffset(kStoreWord, R1, SP, destination.GetStackIndex());
@@ -753,21 +758,24 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
       InvokeDexCallingConvention calling_convention;
       uint16_t register_index = source.GetQuickParameterRegisterIndex();
       uint16_t stack_index = source.GetQuickParameterStackIndex();
+      // Just move the low part. The only time a source is a quick parameter is
+      // when moving the parameter to its stack locations. And the (Java) caller
+      // of this method has already done that.
       __ StoreToOffset(kStoreWord, calling_convention.GetRegisterAt(register_index),
-             SP, destination.GetStackIndex());
-      __ LoadFromOffset(kLoadWord, R0,
-             SP, calling_convention.GetStackOffsetOf(stack_index + 1) + GetFrameSize());
-      __ StoreToOffset(kStoreWord, R0, SP, destination.GetHighStackIndex(kArmWordSize));
+                       SP, destination.GetStackIndex());
+      DCHECK_EQ(calling_convention.GetStackOffsetOf(stack_index + 1) + GetFrameSize(),
+                static_cast<size_t>(destination.GetHighStackIndex(kArmWordSize)));
     } else if (source.IsFpuRegisterPair()) {
       __ StoreDToOffset(FromLowSToD(source.AsFpuRegisterPairLow<SRegister>()),
                         SP,
                         destination.GetStackIndex());
     } else {
       DCHECK(source.IsDoubleStackSlot());
-      __ LoadFromOffset(kLoadWord, IP, SP, source.GetStackIndex());
-      __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
-      __ LoadFromOffset(kLoadWord, IP, SP, source.GetHighStackIndex(kArmWordSize));
-      __ StoreToOffset(kStoreWord, IP, SP, destination.GetHighStackIndex(kArmWordSize));
+      EmitParallelMoves(
+          Location::StackSlot(source.GetStackIndex()),
+          Location::StackSlot(destination.GetStackIndex()),
+          Location::StackSlot(source.GetHighStackIndex(kArmWordSize)),
+          Location::StackSlot(destination.GetHighStackIndex(kArmWordSize)));
     }
   }
 }
