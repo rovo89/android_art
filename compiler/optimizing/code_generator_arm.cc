@@ -1481,6 +1481,14 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
           break;
 
         case Primitive::kPrimLong:
+          // Processing a Dex `long-to-double' instruction.
+          locations->SetInAt(0, Location::RequiresRegister());
+          locations->SetOut(Location::RequiresFpuRegister());
+          locations->AddTemp(Location::RequiresRegister());
+          locations->AddTemp(Location::RequiresRegister());
+          locations->AddTemp(Location::RequiresFpuRegister());
+          break;
+
         case Primitive::kPrimFloat:
           LOG(FATAL) << "Type conversion from " << input_type
                      << " to " << result_type << " not yet implemented";
@@ -1645,7 +1653,41 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
           break;
         }
 
-        case Primitive::kPrimLong:
+        case Primitive::kPrimLong: {
+          // Processing a Dex `long-to-double' instruction.
+          Register low = in.AsRegisterPairLow<Register>();
+          Register high = in.AsRegisterPairHigh<Register>();
+          SRegister out_s = out.AsFpuRegisterPairLow<SRegister>();
+          DRegister out_d = FromLowSToD(out_s);
+          Register constant_low = locations->GetTemp(0).As<Register>();
+          Register constant_high = locations->GetTemp(1).As<Register>();
+          SRegister temp_s = locations->GetTemp(2).AsFpuRegisterPairLow<SRegister>();
+          DRegister temp_d = FromLowSToD(temp_s);
+
+          // Binary encoding of 2^32 for type double.
+          const uint64_t c = UINT64_C(0x41F0000000000000);
+
+          // out_d = int-to-double(high)
+          __ vmovsr(out_s, high);
+          __ vcvtdi(out_d, out_s);
+          // Using vmovd to load the `c` constant as an immediate
+          // value into `temp_d` does not work, as this instruction
+          // only transfers 8 significant bits of its immediate
+          // operand.  Instead, use two 32-bit core registers to
+          // load `c` into `temp_d`.
+          __ LoadImmediate(constant_low, Low32Bits(c));
+          __ LoadImmediate(constant_high, High32Bits(c));
+          __ vmovdrr(temp_d, constant_low, constant_high);
+          // out_d = out_d * 2^32
+          __ vmuld(out_d, out_d, temp_d);
+          // temp_d = unsigned-to-double(low)
+          __ vmovsr(temp_s, low);
+          __ vcvtdu(temp_d, temp_s);
+          // out_d = out_d + temp_d
+          __ vaddd(out_d, out_d, temp_d);
+          break;
+        }
+
         case Primitive::kPrimFloat:
           LOG(FATAL) << "Type conversion from " << input_type
                      << " to " << result_type << " not yet implemented";

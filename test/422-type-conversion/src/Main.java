@@ -85,6 +85,9 @@ public class Main {
     // Generate, compile and check long-to-int Dex instructions.
     longToInt();
 
+    // Generate, compile and check long-to-double Dex instructions.
+    longToDouble();
+
     // Generate, compile and check int-to-byte Dex instructions.
     shortToByte();
     intToByte();
@@ -267,6 +270,26 @@ public class Main {
     assertLongEquals(-1, $opt$IntToLong($opt$LongToInt(-4294967297L)));  // -(2^32 + 1)
   }
 
+  private static void longToDouble() {
+    assertDoubleEquals(1D, $opt$LongToDouble(1L));
+    assertDoubleEquals(0D, $opt$LongToDouble(0L));
+    assertDoubleEquals(-1D, $opt$LongToDouble(-1L));
+    assertDoubleEquals(51D, $opt$LongToDouble(51L));
+    assertDoubleEquals(-51D, $opt$LongToDouble(-51L));
+    assertDoubleEquals(2147483647D, $opt$LongToDouble(2147483647L));  // 2^31 - 1
+    assertDoubleEquals(-2147483647D, $opt$LongToDouble(-2147483647L));  // -(2^31 - 1)
+    assertDoubleEquals(-2147483648D, $opt$LongToDouble(-2147483648L));  // -(2^31)
+    assertDoubleEquals(2147483648D, $opt$LongToDouble(2147483648L));  // (2^31)
+    assertDoubleEquals(-2147483649D, $opt$LongToDouble(-2147483649L));  // -(2^31 + 1)
+    assertDoubleEquals(4294967296D, $opt$LongToDouble(4294967296L));  // (2^32)
+    assertDoubleEquals(-4294967296D, $opt$LongToDouble(-4294967296L));  // -(2^32)
+    assertDoubleEquals(140739635871745D, $opt$LongToDouble(140739635871745L));  // 1 + 2^15 + 2^31 + 2^47
+    assertDoubleEquals(-140739635871745D, $opt$LongToDouble(-140739635871745L));  // -(1 + 2^15 + 2^31 + 2^47)
+    assertDoubleEquals(9223372036854775807D, $opt$LongToDouble(9223372036854775807L));  // 2^63 - 1
+    assertDoubleEquals(-9223372036854775807D, $opt$LongToDouble(-9223372036854775807L));  // -(2^63 - 1)
+    assertDoubleEquals(-9223372036854775808D, $opt$LongToDouble(-9223372036854775808L));  // -(2^63)
+  }
+
   private static void shortToByte() {
     assertByteEquals((byte)1, $opt$ShortToByte((short)1));
     assertByteEquals((byte)0, $opt$ShortToByte((short)0));
@@ -415,6 +438,9 @@ public class Main {
   // These methods produce long-to-int Dex instructions.
   static int $opt$LongToInt(long a){ return (int)a; }
   static int $opt$LongLiteralToInt(){ return (int)42L; }
+
+  // This method produces a long-to-double Dex instruction.
+  static double $opt$LongToDouble(long a){ return (double)a; }
 
   // These methods produce int-to-byte Dex instructions.
   static byte $opt$ShortToByte(short a){ return (byte)a; }
