@@ -1318,13 +1318,19 @@ void X86Assembler::AddImmediate(Register reg, const Immediate& imm) {
 }
 
 
+void X86Assembler::LoadLongConstant(XmmRegister dst, int64_t value) {
+  // TODO: Need to have a code constants table.
+  pushl(Immediate(High32Bits(value)));
+  pushl(Immediate(Low32Bits(value)));
+  movsd(dst, Address(ESP, 0));
+  addl(ESP, Immediate(2 * sizeof(int32_t)));
+}
+
+
 void X86Assembler::LoadDoubleConstant(XmmRegister dst, double value) {
   // TODO: Need to have a code constants table.
   int64_t constant = bit_cast<int64_t, double>(value);
-  pushl(Immediate(High32Bits(constant)));
-  pushl(Immediate(Low32Bits(constant)));
-  movsd(dst, Address(ESP, 0));
-  addl(ESP, Immediate(2 * sizeof(intptr_t)));
+  LoadLongConstant(dst, constant);
 }
 
 

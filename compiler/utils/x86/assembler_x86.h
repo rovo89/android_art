@@ -42,8 +42,6 @@ class Immediate : public ValueObject {
 
  private:
   const int32_t value_;
-
-  DISALLOW_COPY_AND_ASSIGN(Immediate);
 };
 
 
@@ -441,6 +439,7 @@ class X86Assembler FINAL : public Assembler {
 
   void AddImmediate(Register reg, const Immediate& imm);
 
+  void LoadLongConstant(XmmRegister dst, int64_t value);
   void LoadDoubleConstant(XmmRegister dst, double value);
 
   void DoubleNegate(XmmRegister d);
