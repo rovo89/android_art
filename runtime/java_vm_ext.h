@@ -131,6 +131,9 @@ class JavaVMExt : public JavaVM {
     return unchecked_functions_;
   }
 
+  void TrimGlobals() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(globals_lock_);
+
  private:
   Runtime* const runtime_;
 
