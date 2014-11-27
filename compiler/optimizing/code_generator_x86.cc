@@ -143,7 +143,9 @@ class BoundsCheckSlowPathX86 : public SlowPathCodeX86 {
   BoundsCheckSlowPathX86(HBoundsCheck* instruction,
                          Location index_location,
                          Location length_location)
-      : instruction_(instruction), index_location_(index_location), length_location_(length_location) {}
+      : instruction_(instruction),
+        index_location_(index_location),
+        length_location_(length_location) {}
 
   virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
@@ -311,7 +313,8 @@ class TypeCheckSlowPathX86 : public SlowPathCodeX86 {
         Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
 
     if (instruction_->IsInstanceOf()) {
-      __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pInstanceofNonTrivial)));
+      __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize,
+                                                              pInstanceofNonTrivial)));
     } else {
       DCHECK(instruction_->IsCheckCast());
       __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pCheckCast)));
@@ -464,7 +467,8 @@ void CodeGeneratorX86::GenerateFrameEntry() {
   static const int kFakeReturnRegister = 8;
   core_spill_mask_ |= (1 << kFakeReturnRegister);
 
-  bool skip_overflow_check = IsLeafMethod() && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kX86);
+  bool skip_overflow_check =
+      IsLeafMethod() && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kX86);
   if (!skip_overflow_check && !kExplicitStackOverflowCheck) {
     __ testl(EAX, Address(ESP, -static_cast<int32_t>(GetStackOverflowReservedBytes(kX86))));
     RecordPcInfo(nullptr, 0);
@@ -706,7 +710,8 @@ void CodeGeneratorX86::Move(HInstruction* instruction, Location location, HInstr
         __ movl(location.AsRegisterPairHigh<Register>(), Immediate(High32Bits(value)));
       } else if (location.IsDoubleStackSlot()) {
         __ movl(Address(ESP, location.GetStackIndex()), Immediate(Low32Bits(value)));
-        __ movl(Address(ESP, location.GetHighStackIndex(kX86WordSize)), Immediate(High32Bits(value)));
+        __ movl(Address(ESP, location.GetHighStackIndex(kX86WordSize)),
+                Immediate(High32Bits(value)));
       } else {
         DCHECK(location.IsConstant());
         DCHECK_EQ(location.GetConstant(), instruction);
@@ -1723,7 +1728,8 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
       if (second.IsRegister()) {
         __ addl(first.AsRegister<Register>(), second.AsRegister<Register>());
       } else if (second.IsConstant()) {
-        __ addl(first.AsRegister<Register>(), Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
+        __ addl(first.AsRegister<Register>(),
+                Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
       } else {
         __ addl(first.AsRegister<Register>(), Address(ESP, second.GetStackIndex()));
       }
@@ -1799,7 +1805,8 @@ void InstructionCodeGeneratorX86::VisitSub(HSub* sub) {
       if (second.IsRegister()) {
         __ subl(first.AsRegister<Register>(), second.AsRegister<Register>());
       } else if (second.IsConstant()) {
-        __ subl(first.AsRegister<Register>(), Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
+        __ subl(first.AsRegister<Register>(),
+                Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
       } else {
         __ subl(first.AsRegister<Register>(), Address(ESP, second.GetStackIndex()));
       }
@@ -1959,7 +1966,8 @@ void InstructionCodeGeneratorX86::GenerateDivRemIntegral(HBinaryOperation* instr
       DCHECK_EQ(is_div ? EAX : EDX, out.AsRegister<Register>());
 
       SlowPathCodeX86* slow_path =
-          new (GetGraph()->GetArena()) DivRemMinusOneSlowPathX86(out.AsRegister<Register>(), is_div);
+          new (GetGraph()->GetArena()) DivRemMinusOneSlowPathX86(out.AsRegister<Register>(),
+                                                                 is_div);
       codegen_->AddSlowPath(slow_path);
 
       // 0x80000000/-1 triggers an arithmetic exception!
@@ -2904,7 +2912,8 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
       if (!needs_runtime_call) {
         uint32_t data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Uint32Value();
         if (index.IsConstant()) {
-          size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
+          size_t offset =
+              (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_4) + data_offset;
           if (value.IsRegister()) {
             __ movl(Address(obj, offset), value.AsRegister<Register>());
           } else {
@@ -3216,7 +3225,8 @@ void InstructionCodeGeneratorX86::VisitClinitCheck(HClinitCheck* check) {
   SlowPathCodeX86* slow_path = new (GetGraph()->GetArena()) LoadClassSlowPathX86(
       check->GetLoadClass(), check, check->GetDexPc(), true);
   codegen_->AddSlowPath(slow_path);
-  GenerateClassInitializationCheck(slow_path, check->GetLocations()->InAt(0).AsRegister<Register>());
+  GenerateClassInitializationCheck(slow_path,
+                                   check->GetLocations()->InAt(0).AsRegister<Register>());
 }
 
 void InstructionCodeGeneratorX86::GenerateClassInitializationCheck(
@@ -3573,12 +3583,15 @@ void InstructionCodeGeneratorX86::HandleBitwiseOperation(HBinaryOperation* instr
       }
     } else if (second.IsConstant()) {
       if (instruction->IsAnd()) {
-        __ andl(first.AsRegister<Register>(), Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
+        __ andl(first.AsRegister<Register>(),
+                Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
       } else if (instruction->IsOr()) {
-        __ orl(first.AsRegister<Register>(), Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
+        __ orl(first.AsRegister<Register>(),
+               Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
       } else {
         DCHECK(instruction->IsXor());
-        __ xorl(first.AsRegister<Register>(), Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
+        __ xorl(first.AsRegister<Register>(),
+                Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
       }
     } else {
       if (instruction->IsAnd()) {
