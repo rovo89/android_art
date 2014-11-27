@@ -107,6 +107,8 @@ class HGraphBuilder : public ValueObject {
   template<typename T>
   void Binop_23x_shift(const Instruction& instruction, Primitive::Type type);
 
+  void Binop_23x_cmp(const Instruction& instruction, Primitive::Type type, HCompare::Bias bias);
+
   template<typename T>
   void Binop_12x(const Instruction& instruction, Primitive::Type type);
 

@@ -49,7 +49,8 @@ class AssemblerArm32Test : public AssemblerArmTest<arm::Arm32Assembler,
   }
 
   std::string GetAssemblerParameters() OVERRIDE {
-    return " -march=armv7-a -mcpu=cortex-a15";  // Arm-v7a, cortex-a15 (means we have sdiv).
+    // Arm-v7a, cortex-a15 (means we have sdiv).
+    return " -march=armv7-a -mcpu=cortex-a15 -mfpu=neon";
   }
 
   const char* GetAssemblyHeader() OVERRIDE {
@@ -686,6 +687,14 @@ TEST_F(AssemblerArm32Test, Blx) {
 
 TEST_F(AssemblerArm32Test, Bx) {
   T2Helper(&arm::Arm32Assembler::bx, true, "bx{cond} {reg1}", "bx");
+}
+
+TEST_F(AssemblerArm32Test, Vmstat) {
+  GetAssembler()->vmstat();
+
+  const char* expected = "vmrs APSR_nzcv, FPSCR\n";
+
+  DriverStr(expected, "vmrs");
 }
 
 }  // namespace art
