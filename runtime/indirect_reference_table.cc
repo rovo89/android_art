@@ -162,12 +162,13 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   DCHECK(table_ != NULL);
   DCHECK_GE(segment_state_.parts.numHoles, prevState.parts.numHoles);
 
+  int idx = ExtractIndex(iref);
+
   if (GetIndirectRefKind(iref) == kHandleScopeOrInvalid &&
       Thread::Current()->HandleScopeContains(reinterpret_cast<jobject>(iref))) {
     LOG(WARNING) << "Attempt to remove local handle scope entry from IRT, ignoring";
     return true;
   }
-  const int idx = ExtractIndex(iref);
   if (idx < bottomIndex) {
     // Wrong segment.
     LOG(WARNING) << "Attempt to remove index outside index area (" << idx
@@ -233,13 +234,6 @@ bool IndirectReferenceTable::Remove(uint32_t cookie, IndirectRef iref) {
   }
 
   return true;
-}
-
-void IndirectReferenceTable::Trim() {
-  const size_t top_index = Capacity();
-  auto* release_start = AlignUp(reinterpret_cast<uint8_t*>(&table_[top_index]), kPageSize);
-  uint8_t* release_end = table_mem_map_->End();
-  madvise(release_start, release_end - release_start, MADV_DONTNEED);
 }
 
 void IndirectReferenceTable::VisitRoots(RootCallback* callback, void* arg, uint32_t tid,
