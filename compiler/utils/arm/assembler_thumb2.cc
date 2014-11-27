@@ -374,16 +374,11 @@ void Thumb2Assembler::ldm(BlockAddressMode am,
                           Register base,
                           RegList regs,
                           Condition cond) {
-  if (__builtin_popcount(regs) == 1) {
+  CHECK_NE(regs, 0u);  // Do not use ldm if there's nothing to load.
+  if (IsPowerOfTwo(regs)) {
     // Thumb doesn't support one reg in the list.
     // Find the register number.
-    int reg = 0;
-    while (reg < 16) {
-      if ((regs & (1 << reg)) != 0) {
-         break;
-      }
-      ++reg;
-    }
+    int reg = CTZ(static_cast<uint32_t>(regs));
     CHECK_LT(reg, 16);
     CHECK(am == DB_W);      // Only writeback is supported.
     ldr(static_cast<Register>(reg), Address(base, kRegisterSize, Address::PostIndex), cond);
@@ -397,16 +392,11 @@ void Thumb2Assembler::stm(BlockAddressMode am,
                           Register base,
                           RegList regs,
                           Condition cond) {
-  if (__builtin_popcount(regs) == 1) {
+  CHECK_NE(regs, 0u);  // Do not use stm if there's nothing to store.
+  if (IsPowerOfTwo(regs)) {
     // Thumb doesn't support one reg in the list.
     // Find the register number.
-    int reg = 0;
-    while (reg < 16) {
-      if ((regs & (1 << reg)) != 0) {
-         break;
-      }
-      ++reg;
-    }
+    int reg = CTZ(static_cast<uint32_t>(regs));
     CHECK_LT(reg, 16);
     CHECK(am == IA || am == IA_W);
     Address::Mode strmode = am == IA ? Address::PreIndex : Address::Offset;
@@ -813,6 +803,7 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond ATTRIBUTE_UNUSED,
 
   if (thumb_opcode == 255U /* 0b11111111 */) {
     LOG(FATAL) << "Invalid thumb2 opcode " << opcode;
+    UNREACHABLE();
   }
 
   int32_t encoding = 0;
@@ -842,6 +833,7 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond ATTRIBUTE_UNUSED,
       uint32_t imm = ModifiedImmediate(so.encodingThumb());
       if (imm == kInvalidModifiedImmediate) {
         LOG(FATAL) << "Immediate value cannot fit in thumb2 modified immediate";
+        UNREACHABLE();
       }
       encoding = B31 | B30 | B29 | B28 |
           thumb_opcode << 21 |
@@ -979,6 +971,7 @@ void Thumb2Assembler::Emit16BitDataProcessing(Condition cond,
 
   if (thumb_opcode == 255U /* 0b11111111 */) {
     LOG(FATAL) << "Invalid thumb1 opcode " << opcode;
+    UNREACHABLE();
   }
 
   int16_t encoding = dp_opcode << 14 |
@@ -1116,7 +1109,7 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond ATTRIBUTE_UNUSED,
       break;
     default:
       LOG(FATAL) << "This opcode is not an ADD or SUB: " << opcode;
-      return;
+      UNREACHABLE();
   }
 
   int16_t encoding = dp_opcode << 14 |
@@ -1157,6 +1150,7 @@ void Thumb2Assembler::EmitShift(Register rd, Register rm, Shift shift, uint8_t a
       case RRX: opcode = 3U /* 0b11 */; amount = 0; break;
       default:
         LOG(FATAL) << "Unsupported thumb2 shift opcode";
+        UNREACHABLE();
     }
     // 32 bit.
     int32_t encoding = B31 | B30 | B29 | B27 | B25 | B22 |
@@ -1174,7 +1168,8 @@ void Thumb2Assembler::EmitShift(Register rd, Register rm, Shift shift, uint8_t a
       case LSR: opcode = 1U /* 0b01 */; break;
       case ASR: opcode = 2U /* 0b10 */; break;
       default:
-         LOG(FATAL) << "Unsupported thumb2 shift opcode";
+        LOG(FATAL) << "Unsupported thumb2 shift opcode";
+        UNREACHABLE();
     }
     int16_t encoding = opcode << 11 | amount << 6 | static_cast<int16_t>(rm) << 3 |
         static_cast<int16_t>(rd);
@@ -1198,6 +1193,7 @@ void Thumb2Assembler::EmitShift(Register rd, Register rn, Shift shift, Register 
        case ROR: opcode = 3U /* 0b11 */; break;
        default:
          LOG(FATAL) << "Unsupported thumb2 shift opcode";
+         UNREACHABLE();
      }
      // 32 bit.
      int32_t encoding = B31 | B30 | B29 | B28 | B27 | B25 |
@@ -1212,7 +1208,8 @@ void Thumb2Assembler::EmitShift(Register rd, Register rn, Shift shift, Register 
       case LSR: opcode = 3U /* 0b0011 */; break;
       case ASR: opcode = 4U /* 0b0100 */; break;
       default:
-         LOG(FATAL) << "Unsupported thumb2 shift opcode";
+        LOG(FATAL) << "Unsupported thumb2 shift opcode";
+        UNREACHABLE();
     }
     int16_t encoding = B14 | opcode << 6 | static_cast<int16_t>(rm) << 3 |
         static_cast<int16_t>(rd);
@@ -1241,6 +1238,7 @@ void Thumb2Assembler::Branch::Emit(AssemblerBuffer* buffer) const {
     } else {
       if (x) {
         LOG(FATAL) << "Invalid use of BX";
+        UNREACHABLE();
       } else {
         if (cond_ == AL) {
           // Can use the T4 encoding allowing a 24 bit offset.
@@ -1469,6 +1467,15 @@ void Thumb2Assembler::EmitMultiMemOp(Condition cond,
   CheckCondition(cond);
   bool must_be_32bit = force_32bit_;
 
+  if (!must_be_32bit && base == SP && bam == (load ? IA_W : DB_W) &&
+      (regs & 0xff00 & ~(1 << (load ? PC : LR))) == 0) {
+    // Use 16-bit PUSH/POP.
+    int16_t encoding = B15 | B13 | B12 | (load ? B11 : 0) | B10 |
+        ((regs & (1 << (load ? PC : LR))) != 0 ? B8 : 0) | (regs & 0x00ff);
+    Emit16(encoding);
+    return;
+  }
+
   if ((regs & 0xff00) != 0) {
     must_be_32bit = true;
   }
@@ -1495,6 +1502,7 @@ void Thumb2Assembler::EmitMultiMemOp(Condition cond,
       case DA_W:
       case IB_W:
         LOG(FATAL) << "LDM/STM mode not supported on thumb: " << bam;
+        UNREACHABLE();
     }
     if (load) {
       // Cannot have SP in the list.
@@ -2068,6 +2076,7 @@ void Thumb2Assembler::cbz(Register rn, Label* label) {
   CheckCondition(AL);
   if (label->IsBound()) {
     LOG(FATAL) << "cbz can only be used to branch forwards";
+    UNREACHABLE();
   } else {
     uint16_t branchid = EmitCompareAndBranch(rn, static_cast<uint16_t>(label->position_), false);
     label->LinkTo(branchid);
@@ -2079,6 +2088,7 @@ void Thumb2Assembler::cbnz(Register rn, Label* label) {
   CheckCondition(AL);
   if (label->IsBound()) {
     LOG(FATAL) << "cbnz can only be used to branch forwards";
+    UNREACHABLE();
   } else {
     uint16_t branchid = EmitCompareAndBranch(rn, static_cast<uint16_t>(label->position_), true);
     label->LinkTo(branchid);
