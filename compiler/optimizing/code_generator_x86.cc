@@ -1239,11 +1239,16 @@ void LocationsBuilderX86::VisitNeg(HNeg* neg) {
       break;
 
     case Primitive::kPrimFloat:
+      locations->SetInAt(0, Location::RequiresFpuRegister());
+      locations->SetOut(Location::SameAsFirstInput());
+      locations->AddTemp(Location::RequiresRegister());
+      locations->AddTemp(Location::RequiresFpuRegister());
+      break;
+
     case Primitive::kPrimDouble:
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      // Output overlaps as we need a fresh (zero-initialized)
-      // register to perform subtraction from zero.
-      locations->SetOut(Location::RequiresFpuRegister());
+      locations->SetOut(Location::SameAsFirstInput());
+      locations->AddTemp(Location::RequiresFpuRegister());
       break;
 
     default:
@@ -1275,21 +1280,29 @@ void InstructionCodeGeneratorX86::VisitNeg(HNeg* neg) {
       __ negl(out.AsRegisterPairHigh<Register>());
       break;
 
-    case Primitive::kPrimFloat:
-      DCHECK(!in.Equals(out));
-      // out = 0
-      __ xorps(out.As<XmmRegister>(), out.As<XmmRegister>());
-      // out = out - in
-      __ subss(out.As<XmmRegister>(), in.As<XmmRegister>());
+    case Primitive::kPrimFloat: {
+      DCHECK(in.Equals(out));
+      Register constant = locations->GetTemp(0).As<Register>();
+      XmmRegister mask = locations->GetTemp(1).As<XmmRegister>();
+      // Implement float negation with an exclusive or with value
+      // 0x80000000 (mask for bit 31, representing the sign of a
+      // single-precision floating-point number).
+      __ movl(constant, Immediate(INT32_C(0x80000000)));
+      __ movd(mask, constant);
+      __ xorps(out.As<XmmRegister>(), mask);
       break;
+    }
 
-    case Primitive::kPrimDouble:
-      DCHECK(!in.Equals(out));
-      // out = 0
-      __ xorpd(out.As<XmmRegister>(), out.As<XmmRegister>());
-      // out = out - in
-      __ subsd(out.As<XmmRegister>(), in.As<XmmRegister>());
+    case Primitive::kPrimDouble: {
+      DCHECK(in.Equals(out));
+      XmmRegister mask = locations->GetTemp(0).As<XmmRegister>();
+      // Implement double negation with an exclusive or with value
+      // 0x8000000000000000 (mask for bit 63, representing the sign of
+      // a double-precision floating-point number).
+      __ LoadLongConstant(mask, INT64_C(0x8000000000000000));
+      __ xorpd(out.As<XmmRegister>(), mask);
       break;
+    }
 
     default:
       LOG(FATAL) << "Unexpected neg type " << neg->GetResultType();
