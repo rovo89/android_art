@@ -161,7 +161,14 @@ class Location : public ValueObject {
   }
 
   template <typename T>
-  T As() const {
+  T AsRegister() const {
+    DCHECK(IsRegister());
+    return static_cast<T>(reg());
+  }
+
+  template <typename T>
+  T AsFpuRegister() const {
+    DCHECK(IsFpuRegister());
     return static_cast<T>(reg());
   }
 
