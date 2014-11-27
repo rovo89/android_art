@@ -603,19 +603,25 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
   }
   if (destination.IsRegisterPair()) {
     if (source.IsRegisterPair()) {
-      __ movl(destination.AsRegisterPairLow<Register>(), source.AsRegisterPairLow<Register>());
-      __ movl(destination.AsRegisterPairHigh<Register>(), source.AsRegisterPairHigh<Register>());
+      EmitParallelMoves(
+          Location::RegisterLocation(source.AsRegisterPairHigh<Register>()),
+          Location::RegisterLocation(destination.AsRegisterPairHigh<Register>()),
+          Location::RegisterLocation(source.AsRegisterPairLow<Register>()),
+          Location::RegisterLocation(destination.AsRegisterPairLow<Register>()));
     } else if (source.IsFpuRegister()) {
       LOG(FATAL) << "Unimplemented";
     } else if (source.IsQuickParameter()) {
       uint16_t register_index = source.GetQuickParameterRegisterIndex();
       uint16_t stack_index = source.GetQuickParameterStackIndex();
       InvokeDexCallingConvention calling_convention;
-      __ movl(destination.AsRegisterPairLow<Register>(),
-              calling_convention.GetRegisterAt(register_index));
-      __ movl(destination.AsRegisterPairHigh<Register>(), Address(ESP,
-          calling_convention.GetStackOffsetOf(stack_index + 1) + GetFrameSize()));
+      EmitParallelMoves(
+          Location::RegisterLocation(calling_convention.GetRegisterAt(register_index)),
+          Location::RegisterLocation(destination.AsRegisterPairLow<Register>()),
+          Location::StackSlot(
+              calling_convention.GetStackOffsetOf(stack_index + 1) + GetFrameSize()),
+          Location::RegisterLocation(destination.AsRegisterPairHigh<Register>()));
     } else {
+      // No conflict possible, so just do the moves.
       DCHECK(source.IsDoubleStackSlot());
       __ movl(destination.AsRegisterPairLow<Register>(), Address(ESP, source.GetStackIndex()));
       __ movl(destination.AsRegisterPairHigh<Register>(),
@@ -625,18 +631,17 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
     InvokeDexCallingConvention calling_convention;
     uint16_t register_index = destination.GetQuickParameterRegisterIndex();
     uint16_t stack_index = destination.GetQuickParameterStackIndex();
-    if (source.IsRegister()) {
-      __ movl(calling_convention.GetRegisterAt(register_index), source.AsRegisterPairLow<Register>());
-      __ movl(Address(ESP, calling_convention.GetStackOffsetOf(stack_index + 1)),
-              source.AsRegisterPairHigh<Register>());
+    if (source.IsRegisterPair()) {
+      LOG(FATAL) << "Unimplemented";
     } else if (source.IsFpuRegister()) {
       LOG(FATAL) << "Unimplemented";
     } else {
       DCHECK(source.IsDoubleStackSlot());
-      __ movl(calling_convention.GetRegisterAt(register_index),
-              Address(ESP, source.GetStackIndex()));
-      __ pushl(Address(ESP, source.GetHighStackIndex(kX86WordSize)));
-      __ popl(Address(ESP, calling_convention.GetStackOffsetOf(stack_index + 1)));
+      EmitParallelMoves(
+          Location::StackSlot(source.GetStackIndex()),
+          Location::RegisterLocation(calling_convention.GetRegisterAt(register_index)),
+          Location::StackSlot(source.GetHighStackIndex(kX86WordSize)),
+          Location::StackSlot(calling_convention.GetStackOffsetOf(stack_index + 1)));
     }
   } else if (destination.IsFpuRegister()) {
     if (source.IsDoubleStackSlot()) {
@@ -647,13 +652,18 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
   } else {
     DCHECK(destination.IsDoubleStackSlot()) << destination;
     if (source.IsRegisterPair()) {
+      // No conflict possible, so just do the moves.
       __ movl(Address(ESP, destination.GetStackIndex()), source.AsRegisterPairLow<Register>());
       __ movl(Address(ESP, destination.GetHighStackIndex(kX86WordSize)),
               source.AsRegisterPairHigh<Register>());
     } else if (source.IsQuickParameter()) {
+      // No conflict possible, so just do the move.
       InvokeDexCallingConvention calling_convention;
       uint16_t register_index = source.GetQuickParameterRegisterIndex();
       uint16_t stack_index = source.GetQuickParameterStackIndex();
+      // Just move the low part. The only time a source is a quick parameter is
+      // when moving the parameter to its stack locations. And the (Java) caller
+      // of this method has already done that.
       __ movl(Address(ESP, destination.GetStackIndex()),
               calling_convention.GetRegisterAt(register_index));
       DCHECK_EQ(calling_convention.GetStackOffsetOf(stack_index + 1) + GetFrameSize(),
@@ -662,10 +672,11 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
       __ movsd(Address(ESP, destination.GetStackIndex()), source.As<XmmRegister>());
     } else {
       DCHECK(source.IsDoubleStackSlot());
-      __ pushl(Address(ESP, source.GetStackIndex()));
-      __ popl(Address(ESP, destination.GetStackIndex()));
-      __ pushl(Address(ESP, source.GetHighStackIndex(kX86WordSize)));
-      __ popl(Address(ESP, destination.GetHighStackIndex(kX86WordSize)));
+      EmitParallelMoves(
+          Location::StackSlot(source.GetStackIndex()),
+          Location::StackSlot(destination.GetStackIndex()),
+          Location::StackSlot(source.GetHighStackIndex(kX86WordSize)),
+          Location::StackSlot(destination.GetHighStackIndex(kX86WordSize)));
     }
   }
 }
