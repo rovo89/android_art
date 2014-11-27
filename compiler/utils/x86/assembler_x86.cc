@@ -613,23 +613,6 @@ void X86Assembler::comisd(XmmRegister a, XmmRegister b) {
 }
 
 
-void X86Assembler::ucomiss(XmmRegister a, XmmRegister b) {
-  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitUint8(0x0F);
-  EmitUint8(0x2E);
-  EmitXmmRegisterOperand(a, b);
-}
-
-
-void X86Assembler::ucomisd(XmmRegister a, XmmRegister b) {
-  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
-  EmitUint8(0x66);
-  EmitUint8(0x0F);
-  EmitUint8(0x2E);
-  EmitXmmRegisterOperand(a, b);
-}
-
-
 void X86Assembler::sqrtsd(XmmRegister dst, XmmRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xF2);
