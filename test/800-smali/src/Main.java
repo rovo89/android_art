@@ -63,6 +63,7 @@ public class Main {
         testCases.add(new TestCase("invoke-super abstract", "B18380491ConcreteClass", "foo",
             new Object[]{0}, new AbstractMethodError(), null));
         testCases.add(new TestCase("BadCaseInOpRegRegReg", "BadCaseInOpRegRegReg", "getInt", null, null, 2));
+        testCases.add(new TestCase("CmpLong", "CmpLong", "run", null, null, 0));
     }
 
     public void runTests() {
