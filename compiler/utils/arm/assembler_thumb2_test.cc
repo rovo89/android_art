@@ -30,7 +30,7 @@ class AssemblerThumb2Test : public AssemblerTest<arm::Thumb2Assembler,
   }
 
   std::string GetAssemblerParameters() OVERRIDE {
-    return " -mthumb";
+    return " -mthumb -mfpu=neon";
   }
 
   std::string GetDisassembleParameters() OVERRIDE {
@@ -154,6 +154,14 @@ TEST_F(AssemblerThumb2Test, Ubfx) {
 
       "ubfx r0, r1, #31, #1\n";
   DriverStr(expected, "ubfx");
+}
+
+TEST_F(AssemblerThumb2Test, Vmstat) {
+  GetAssembler()->vmstat();
+
+  const char* expected = "vmrs APSR_nzcv, FPSCR\n";
+
+  DriverStr(expected, "vmrs");
 }
 
 }  // namespace art
