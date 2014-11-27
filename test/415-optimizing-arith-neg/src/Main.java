@@ -36,8 +36,20 @@ public class Main {
     }
   }
 
+  public static void assertEquals(String expected, float result) {
+    if (!expected.equals(new Float(result).toString())) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
   public static void assertEquals(double expected, double result) {
     if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+  public static void assertEquals(String expected, double result) {
+    if (!expected.equals(new Double(result).toString())) {
       throw new Error("Expected: " + expected + ", found: " + result);
     }
   }
@@ -116,9 +128,10 @@ public class Main {
   }
 
   private static void negFloat() {
+     assertEquals("-0.0", $opt$NegFloat(0F));
+     assertEquals("0.0", $opt$NegFloat(-0F));
      assertEquals(-1F, $opt$NegFloat(1F));
      assertEquals(1F, $opt$NegFloat(-1F));
-     assertEquals(0F, $opt$NegFloat(0F));
      assertEquals(51F, $opt$NegFloat(-51F));
      assertEquals(-51F, $opt$NegFloat(51F));
 
@@ -140,9 +153,10 @@ public class Main {
   }
 
   private static void negDouble() {
+     assertEquals("-0.0", $opt$NegDouble(0D));
+     assertEquals("0.0", $opt$NegDouble(-0D));
      assertEquals(-1D, $opt$NegDouble(1D));
      assertEquals(1D, $opt$NegDouble(-1D));
-     assertEquals(0D, $opt$NegDouble(0D));
      assertEquals(51D, $opt$NegDouble(-51D));
      assertEquals(-51D, $opt$NegDouble(51D));
 
