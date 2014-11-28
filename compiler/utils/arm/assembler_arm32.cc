@@ -25,6 +25,37 @@
 namespace art {
 namespace arm {
 
+bool Arm32Assembler::ShifterOperandCanHoldArm32(uint32_t immediate, ShifterOperand* shifter_op) {
+  // Avoid the more expensive test for frequent small immediate values.
+  if (immediate < (1 << kImmed8Bits)) {
+    shifter_op->type_ = ShifterOperand::kImmediate;
+    shifter_op->is_rotate_ = true;
+    shifter_op->rotate_ = 0;
+    shifter_op->immed_ = immediate;
+    return true;
+  }
+  // Note that immediate must be unsigned for the test to work correctly.
+  for (int rot = 0; rot < 16; rot++) {
+    uint32_t imm8 = (immediate << 2*rot) | (immediate >> (32 - 2*rot));
+    if (imm8 < (1 << kImmed8Bits)) {
+      shifter_op->type_ = ShifterOperand::kImmediate;
+      shifter_op->is_rotate_ = true;
+      shifter_op->rotate_ = rot;
+      shifter_op->immed_ = imm8;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool Arm32Assembler::ShifterOperandCanHold(Register rd ATTRIBUTE_UNUSED,
+                                           Register rn ATTRIBUTE_UNUSED,
+                                           Opcode opcode ATTRIBUTE_UNUSED,
+                                           uint32_t immediate,
+                                           ShifterOperand* shifter_op) {
+  return ShifterOperandCanHoldArm32(immediate, shifter_op);
+}
+
 void Arm32Assembler::and_(Register rd, Register rn, const ShifterOperand& so,
                         Condition cond) {
   EmitType01(cond, so.type(), AND, 0, rn, rd, so);
@@ -1291,16 +1322,16 @@ void Arm32Assembler::AddConstant(Register rd, Register rn, int32_t value,
   // positive values and sub for negatives ones, which would slightly improve
   // the readability of generated code for some constants.
   ShifterOperand shifter_op;
-  if (ShifterOperand::CanHoldArm(value, &shifter_op)) {
+  if (ShifterOperandCanHoldArm32(value, &shifter_op)) {
     add(rd, rn, shifter_op, cond);
-  } else if (ShifterOperand::CanHoldArm(-value, &shifter_op)) {
+  } else if (ShifterOperandCanHoldArm32(-value, &shifter_op)) {
     sub(rd, rn, shifter_op, cond);
   } else {
     CHECK(rn != IP);
-    if (ShifterOperand::CanHoldArm(~value, &shifter_op)) {
+    if (ShifterOperandCanHoldArm32(~value, &shifter_op)) {
       mvn(IP, shifter_op, cond);
       add(rd, rn, ShifterOperand(IP), cond);
-    } else if (ShifterOperand::CanHoldArm(~(-value), &shifter_op)) {
+    } else if (ShifterOperandCanHoldArm32(~(-value), &shifter_op)) {
       mvn(IP, shifter_op, cond);
       sub(rd, rn, ShifterOperand(IP), cond);
     } else {
@@ -1318,16 +1349,16 @@ void Arm32Assembler::AddConstant(Register rd, Register rn, int32_t value,
 void Arm32Assembler::AddConstantSetFlags(Register rd, Register rn, int32_t value,
                                          Condition cond) {
   ShifterOperand shifter_op;
-  if (ShifterOperand::CanHoldArm(value, &shifter_op)) {
+  if (ShifterOperandCanHoldArm32(value, &shifter_op)) {
     adds(rd, rn, shifter_op, cond);
-  } else if (ShifterOperand::CanHoldArm(-value, &shifter_op)) {
+  } else if (ShifterOperandCanHoldArm32(-value, &shifter_op)) {
     subs(rd, rn, shifter_op, cond);
   } else {
     CHECK(rn != IP);
-    if (ShifterOperand::CanHoldArm(~value, &shifter_op)) {
+    if (ShifterOperandCanHoldArm32(~value, &shifter_op)) {
       mvn(IP, shifter_op, cond);
       adds(rd, rn, ShifterOperand(IP), cond);
-    } else if (ShifterOperand::CanHoldArm(~(-value), &shifter_op)) {
+    } else if (ShifterOperandCanHoldArm32(~(-value), &shifter_op)) {
       mvn(IP, shifter_op, cond);
       subs(rd, rn, ShifterOperand(IP), cond);
     } else {
@@ -1343,9 +1374,9 @@ void Arm32Assembler::AddConstantSetFlags(Register rd, Register rn, int32_t value
 
 void Arm32Assembler::LoadImmediate(Register rd, int32_t value, Condition cond) {
   ShifterOperand shifter_op;
-  if (ShifterOperand::CanHoldArm(value, &shifter_op)) {
+  if (ShifterOperandCanHoldArm32(value, &shifter_op)) {
     mov(rd, shifter_op, cond);
-  } else if (ShifterOperand::CanHoldArm(~value, &shifter_op)) {
+  } else if (ShifterOperandCanHoldArm32(~value, &shifter_op)) {
     mvn(rd, shifter_op, cond);
   } else {
     movw(rd, Low16Bits(value), cond);
