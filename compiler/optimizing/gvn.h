@@ -96,6 +96,26 @@ class ValueSet : public ArenaObject<kArenaAllocMisc> {
     return nullptr;
   }
 
+  // Returns whether `instruction` is in the set.
+  HInstruction* IdentityLookup(HInstruction* instruction) const {
+    size_t hash_code = instruction->ComputeHashCode();
+    size_t index = hash_code % kDefaultNumberOfEntries;
+    HInstruction* existing = table_[index];
+    if (existing != nullptr && existing == instruction) {
+      return existing;
+    }
+
+    for (ValueSetNode* node = collisions_; node != nullptr; node = node->GetNext()) {
+      if (node->GetHashCode() == hash_code) {
+        existing = node->GetInstruction();
+        if (existing == instruction) {
+          return existing;
+        }
+      }
+    }
+    return nullptr;
+  }
+
   // Removes all instructions in the set that are affected by the given side effects.
   void Kill(SideEffects side_effects) {
     for (size_t i = 0; i < kDefaultNumberOfEntries; ++i) {
@@ -106,9 +126,9 @@ class ValueSet : public ArenaObject<kArenaAllocMisc> {
       }
     }
 
-    ValueSetNode* current = collisions_;
-    ValueSetNode* previous = nullptr;
-    while (current != nullptr) {
+    for (ValueSetNode* current = collisions_, *previous = nullptr;
+         current != nullptr;
+         current = current->GetNext()) {
       HInstruction* instruction = current->GetInstruction();
       if (instruction->GetSideEffects().DependsOn(side_effects)) {
         if (previous == nullptr) {
@@ -120,7 +140,6 @@ class ValueSet : public ArenaObject<kArenaAllocMisc> {
       } else {
         previous = current;
       }
-      current = current->GetNext();
     }
   }
 
@@ -141,6 +160,44 @@ class ValueSet : public ArenaObject<kArenaAllocMisc> {
 
     copy->number_of_entries_ = number_of_entries_;
     return copy;
+  }
+
+  void Clear() {
+    number_of_entries_ = 0;
+    collisions_ = nullptr;
+    for (size_t i = 0; i < kDefaultNumberOfEntries; ++i) {
+      table_[i] = nullptr;
+    }
+  }
+
+  // Update this `ValueSet` by intersecting with instructions in `other`.
+  void IntersectionWith(ValueSet* other) {
+    if (IsEmpty()) {
+      return;
+    } else if (other->IsEmpty()) {
+      Clear();
+    } else {
+      for (size_t i = 0; i < kDefaultNumberOfEntries; ++i) {
+        if (table_[i] != nullptr && other->IdentityLookup(table_[i]) == nullptr) {
+          --number_of_entries_;
+          table_[i] = nullptr;
+        }
+      }
+      for (ValueSetNode* current = collisions_, *previous = nullptr;
+           current != nullptr;
+           current = current->GetNext()) {
+        if (other->IdentityLookup(current->GetInstruction()) == nullptr) {
+          if (previous == nullptr) {
+            collisions_ = current->GetNext();
+          } else {
+            previous->SetNext(current->GetNext());
+          }
+          --number_of_entries_;
+        } else {
+          previous = current;
+        }
+      }
+    }
   }
 
   bool IsEmpty() const { return number_of_entries_ == 0; }
@@ -173,13 +230,11 @@ class GlobalValueNumberer : public ValueObject {
         allocator_(allocator),
         block_effects_(allocator, graph->GetBlocks().Size()),
         loop_effects_(allocator, graph->GetBlocks().Size()),
-        sets_(allocator, graph->GetBlocks().Size()),
-        visited_(allocator, graph->GetBlocks().Size()) {
+        sets_(allocator, graph->GetBlocks().Size()) {
     size_t number_of_blocks = graph->GetBlocks().Size();
     block_effects_.SetSize(number_of_blocks);
     loop_effects_.SetSize(number_of_blocks);
     sets_.SetSize(number_of_blocks);
-    visited_.SetSize(number_of_blocks);
 
     for (size_t i = 0; i < number_of_blocks; ++i) {
       block_effects_.Put(i, SideEffects::None());
@@ -218,9 +273,6 @@ class GlobalValueNumberer : public ValueObject {
   // are allocated and populated by the dominator, and updated by all blocks
   // in the path from the dominator to the block.
   GrowableArray<ValueSet*> sets_;
-
-  // Mark visisted blocks. Only used for debugging.
-  GrowableArray<bool> visited_;
 
   ART_FRIEND_TEST(GVNTest, LoopSideEffects);
   DISALLOW_COPY_AND_ASSIGN(GlobalValueNumberer);
