@@ -165,7 +165,13 @@ static void UsageError(const char* fmt, ...) {
   UsageError("  --compiler-backend=(Quick|Optimizing|Portable): select compiler backend");
   UsageError("      set.");
   UsageError("      Example: --compiler-backend=Portable");
-  UsageError("      Default: Quick");
+  if (kUsePortableCompiler) {
+    UsageError("      Default: Portable");
+  } else if (kUseOptimizingCompiler) {
+    UsageError("      Default: Optimizing");
+  } else {
+    UsageError("      Default: Quick");
+  }
   UsageError("");
   UsageError("  --compiler-filter="
                 "(verify-none"
