@@ -949,20 +949,20 @@ void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
       // Condition has not been materialized, use its inputs as the
       // comparison and its condition as the branch condition.
       LocationSummary* locations = cond->GetLocations();
+      Register left = locations->InAt(0).AsRegister<Register>();
       if (locations->InAt(1).IsRegister()) {
-        __ cmp(locations->InAt(0).AsRegister<Register>(),
-               ShifterOperand(locations->InAt(1).AsRegister<Register>()));
+        __ cmp(left, ShifterOperand(locations->InAt(1).AsRegister<Register>()));
       } else {
         DCHECK(locations->InAt(1).IsConstant());
         int32_t value =
             locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
         ShifterOperand operand;
-        if (ShifterOperand::CanHoldArm(value, &operand)) {
-          __ cmp(locations->InAt(0).AsRegister<Register>(), ShifterOperand(value));
+        if (GetAssembler()->ShifterOperandCanHold(R0, left, CMP, value, &operand)) {
+          __ cmp(left, operand);
         } else {
           Register temp = IP;
           __ LoadImmediate(temp, value);
-          __ cmp(locations->InAt(0).AsRegister<Register>(), ShifterOperand(temp));
+          __ cmp(left, ShifterOperand(temp));
         }
       }
       __ b(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()),
@@ -988,21 +988,21 @@ void LocationsBuilderARM::VisitCondition(HCondition* comp) {
 
 void InstructionCodeGeneratorARM::VisitCondition(HCondition* comp) {
   if (!comp->NeedsMaterialization()) return;
-
   LocationSummary* locations = comp->GetLocations();
+  Register left = locations->InAt(0).AsRegister<Register>();
+
   if (locations->InAt(1).IsRegister()) {
-    __ cmp(locations->InAt(0).AsRegister<Register>(),
-           ShifterOperand(locations->InAt(1).AsRegister<Register>()));
+    __ cmp(left, ShifterOperand(locations->InAt(1).AsRegister<Register>()));
   } else {
     DCHECK(locations->InAt(1).IsConstant());
     int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
     ShifterOperand operand;
-    if (ShifterOperand::CanHoldArm(value, &operand)) {
-      __ cmp(locations->InAt(0).AsRegister<Register>(), ShifterOperand(value));
+    if (GetAssembler()->ShifterOperandCanHold(R0, left, CMP, value, &operand)) {
+      __ cmp(left, operand);
     } else {
       Register temp = IP;
       __ LoadImmediate(temp, value);
-      __ cmp(locations->InAt(0).AsRegister<Register>(), ShifterOperand(temp));
+      __ cmp(left, ShifterOperand(temp));
     }
   }
   __ it(ARMCondition(comp->GetCondition()), kItElse);

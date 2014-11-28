@@ -25,6 +25,39 @@
 namespace art {
 namespace arm {
 
+bool Thumb2Assembler::ShifterOperandCanHold(Register rd,
+                                            Register rn,
+                                            Opcode opcode,
+                                            uint32_t immediate,
+                                            ShifterOperand* shifter_op) {
+  shifter_op->type_ = ShifterOperand::kImmediate;
+  shifter_op->immed_ = immediate;
+  shifter_op->is_shift_ = false;
+  shifter_op->is_rotate_ = false;
+  switch (opcode) {
+    case ADD:
+    case SUB:
+      if (rn == SP) {
+        if (rd == SP) {
+          return immediate < (1 << 9);    // 9 bits allowed.
+        } else {
+          return immediate < (1 << 12);   // 12 bits.
+        }
+      }
+      if (immediate < (1 << 12)) {    // Less than (or equal to) 12 bits can always be done.
+        return true;
+      }
+      return ArmAssembler::ModifiedImmediate(immediate) != kInvalidModifiedImmediate;
+
+    case MOV:
+      // TODO: Support less than or equal to 12bits.
+      return ArmAssembler::ModifiedImmediate(immediate) != kInvalidModifiedImmediate;
+    case MVN:
+    default:
+      return ArmAssembler::ModifiedImmediate(immediate) != kInvalidModifiedImmediate;
+  }
+}
+
 void Thumb2Assembler::and_(Register rd, Register rn, const ShifterOperand& so,
                            Condition cond) {
   EmitDataProcessing(cond, AND, 0, rn, rd, so);
@@ -2375,16 +2408,16 @@ void Thumb2Assembler::AddConstant(Register rd, Register rn, int32_t value,
   // positive values and sub for negatives ones, which would slightly improve
   // the readability of generated code for some constants.
   ShifterOperand shifter_op;
-  if (ShifterOperand::CanHoldThumb(rd, rn, ADD, value, &shifter_op)) {
+  if (ShifterOperandCanHold(rd, rn, ADD, value, &shifter_op)) {
     add(rd, rn, shifter_op, cond);
-  } else if (ShifterOperand::CanHoldThumb(rd, rn, SUB, -value, &shifter_op)) {
+  } else if (ShifterOperandCanHold(rd, rn, SUB, -value, &shifter_op)) {
     sub(rd, rn, shifter_op, cond);
   } else {
     CHECK(rn != IP);
-    if (ShifterOperand::CanHoldThumb(rd, rn, MVN, ~value, &shifter_op)) {
+    if (ShifterOperandCanHold(rd, rn, MVN, ~value, &shifter_op)) {
       mvn(IP, shifter_op, cond);
       add(rd, rn, ShifterOperand(IP), cond);
-    } else if (ShifterOperand::CanHoldThumb(rd, rn, MVN, ~(-value), &shifter_op)) {
+    } else if (ShifterOperandCanHold(rd, rn, MVN, ~(-value), &shifter_op)) {
       mvn(IP, shifter_op, cond);
       sub(rd, rn, ShifterOperand(IP), cond);
     } else {
@@ -2402,16 +2435,16 @@ void Thumb2Assembler::AddConstant(Register rd, Register rn, int32_t value,
 void Thumb2Assembler::AddConstantSetFlags(Register rd, Register rn, int32_t value,
                                           Condition cond) {
   ShifterOperand shifter_op;
-  if (ShifterOperand::CanHoldThumb(rd, rn, ADD, value, &shifter_op)) {
+  if (ShifterOperandCanHold(rd, rn, ADD, value, &shifter_op)) {
     adds(rd, rn, shifter_op, cond);
-  } else if (ShifterOperand::CanHoldThumb(rd, rn, ADD, -value, &shifter_op)) {
+  } else if (ShifterOperandCanHold(rd, rn, ADD, -value, &shifter_op)) {
     subs(rd, rn, shifter_op, cond);
   } else {
     CHECK(rn != IP);
-    if (ShifterOperand::CanHoldThumb(rd, rn, MVN, ~value, &shifter_op)) {
+    if (ShifterOperandCanHold(rd, rn, MVN, ~value, &shifter_op)) {
       mvn(IP, shifter_op, cond);
       adds(rd, rn, ShifterOperand(IP), cond);
-    } else if (ShifterOperand::CanHoldThumb(rd, rn, MVN, ~(-value), &shifter_op)) {
+    } else if (ShifterOperandCanHold(rd, rn, MVN, ~(-value), &shifter_op)) {
       mvn(IP, shifter_op, cond);
       subs(rd, rn, ShifterOperand(IP), cond);
     } else {
@@ -2425,11 +2458,12 @@ void Thumb2Assembler::AddConstantSetFlags(Register rd, Register rn, int32_t valu
   }
 }
 
+
 void Thumb2Assembler::LoadImmediate(Register rd, int32_t value, Condition cond) {
   ShifterOperand shifter_op;
-  if (ShifterOperand::CanHoldThumb(rd, R0, MOV, value, &shifter_op)) {
+  if (ShifterOperandCanHold(rd, R0, MOV, value, &shifter_op)) {
     mov(rd, shifter_op, cond);
-  } else if (ShifterOperand::CanHoldThumb(rd, R0, MVN, ~value, &shifter_op)) {
+  } else if (ShifterOperandCanHold(rd, R0, MVN, ~value, &shifter_op)) {
     mvn(rd, shifter_op, cond);
   } else {
     movw(rd, Low16Bits(value), cond);
@@ -2439,6 +2473,7 @@ void Thumb2Assembler::LoadImmediate(Register rd, int32_t value, Condition cond) 
     }
   }
 }
+
 
 // Implementation note: this method must emit at most one instruction when
 // Address::CanHoldLoadOffsetThumb.
