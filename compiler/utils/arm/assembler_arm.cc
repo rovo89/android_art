@@ -165,36 +165,6 @@ uint32_t ShifterOperand::encodingThumb() const {
   return 0;
 }
 
-bool ShifterOperand::CanHoldThumb(Register rd, Register rn, Opcode opcode,
-                                  uint32_t immediate, ShifterOperand* shifter_op) {
-  shifter_op->type_ = kImmediate;
-  shifter_op->immed_ = immediate;
-  shifter_op->is_shift_ = false;
-  shifter_op->is_rotate_ = false;
-  switch (opcode) {
-    case ADD:
-    case SUB:
-      if (rn == SP) {
-        if (rd == SP) {
-          return immediate < (1 << 9);    // 9 bits allowed.
-        } else {
-          return immediate < (1 << 12);   // 12 bits.
-        }
-      }
-      if (immediate < (1 << 12)) {    // Less than (or equal to) 12 bits can always be done.
-        return true;
-      }
-      return ArmAssembler::ModifiedImmediate(immediate) != kInvalidModifiedImmediate;
-
-    case MOV:
-      // TODO: Support less than or equal to 12bits.
-      return ArmAssembler::ModifiedImmediate(immediate) != kInvalidModifiedImmediate;
-    case MVN:
-    default:
-      return ArmAssembler::ModifiedImmediate(immediate) != kInvalidModifiedImmediate;
-  }
-}
-
 uint32_t Address::encodingArm() const {
   CHECK(IsAbsoluteUint(12, offset_));
   uint32_t encoding;
