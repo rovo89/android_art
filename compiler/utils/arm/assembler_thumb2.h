@@ -304,6 +304,12 @@ class Thumb2Assembler FINAL : public ArmAssembler {
                       int32_t offset,
                       Condition cond = AL) OVERRIDE;
 
+  bool ShifterOperandCanHold(Register rd,
+                             Register rn,
+                             Opcode opcode,
+                             uint32_t immediate,
+                             ShifterOperand* shifter_op) OVERRIDE;
+
 
   static bool IsInstructionForExceptionHandling(uintptr_t pc);
 
