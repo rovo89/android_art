@@ -91,29 +91,38 @@ SideEffects GlobalValueNumberer::GetBlockEffects(HBasicBlock* block) const {
   return block_effects_.Get(block->GetBlockId());
 }
 
-static bool IsLoopExit(HBasicBlock* block, HBasicBlock* successor) {
-  HLoopInformation* block_info = block->GetLoopInformation();
-  HLoopInformation* other_info = successor->GetLoopInformation();
-  return block_info != other_info && (other_info == nullptr || block_info->IsIn(*other_info));
-}
-
 void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
-  if (kIsDebugBuild) {
-    // Check that all non back-edge processors have been visited.
-    for (size_t i = 0, e = block->GetPredecessors().Size(); i < e; ++i) {
-      HBasicBlock* predecessor = block->GetPredecessors().Get(i);
-      DCHECK(visited_.Get(predecessor->GetBlockId())
-             || (block->GetLoopInformation() != nullptr
-                 && (block->GetLoopInformation()->GetBackEdges().Get(0) == predecessor)));
+  ValueSet* set = nullptr;
+  const GrowableArray<HBasicBlock*>& predecessors = block->GetPredecessors();
+  if (predecessors.Size() == 0 || predecessors.Get(0)->IsEntryBlock()) {
+    // The entry block should only accumulate constant instructions, and
+    // the builder puts constants only in the entry block.
+    // Therefore, there is no need to propagate the value set to the next block.
+    set = new (allocator_) ValueSet(allocator_);
+  } else {
+    HBasicBlock* dominator = block->GetDominator();
+    set = sets_.Get(dominator->GetBlockId())->Copy();
+    if (dominator->GetSuccessors().Size() != 1 || dominator->GetSuccessors().Get(0) != block) {
+      // We have to copy if the dominator has other successors, or `block` is not a successor
+      // of the dominator.
+      set = set->Copy();
     }
-    visited_.Put(block->GetBlockId(), true);
+    if (!set->IsEmpty()) {
+      if (block->IsLoopHeader()) {
+        DCHECK_EQ(block->GetDominator(), block->GetLoopInformation()->GetPreHeader());
+        set->Kill(GetLoopEffects(block));
+      } else if (predecessors.Size() > 1) {
+        for (size_t i = 0, e = predecessors.Size(); i < e; ++i) {
+          set->IntersectionWith(sets_.Get(predecessors.Get(i)->GetBlockId()));
+          if (set->IsEmpty()) {
+            break;
+          }
+        }
+      }
+    }
   }
 
-  ValueSet* set = sets_.Get(block->GetBlockId());
-
-  if (block->IsLoopHeader()) {
-    set->Kill(GetLoopEffects(block));
-  }
+  sets_.Put(block->GetBlockId(), set);
 
   HInstruction* current = block->GetFirstInstruction();
   while (current != nullptr) {
@@ -130,57 +139,6 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
       }
     }
     current = next;
-  }
-
-  if (block == graph_->GetEntryBlock()) {
-    // The entry block should only accumulate constant instructions, and
-    // the builder puts constants only in the entry block.
-    // Therefore, there is no need to propagate the value set to the next block.
-    DCHECK_EQ(block->GetDominatedBlocks().Size(), 1u);
-    HBasicBlock* dominated = block->GetDominatedBlocks().Get(0);
-    sets_.Put(dominated->GetBlockId(), new (allocator_) ValueSet(allocator_));
-    return;
-  }
-
-  // Copy the value set to dominated blocks. We can re-use
-  // the current set for the last dominated block because we are done visiting
-  // this block.
-  for (size_t i = 0, e = block->GetDominatedBlocks().Size(); i < e; ++i) {
-    HBasicBlock* dominated = block->GetDominatedBlocks().Get(i);
-    sets_.Put(dominated->GetBlockId(), i == e - 1 ? set : set->Copy());
-  }
-
-  // Kill instructions in the value set of each successor. If the successor
-  // is a loop exit, then we use the side effects of the loop. If not, we use
-  // the side effects of this block.
-  for (size_t i = 0, e = block->GetSuccessors().Size(); i < e; ++i) {
-    HBasicBlock* successor = block->GetSuccessors().Get(i);
-    if (successor->IsLoopHeader()
-        && successor->GetLoopInformation()->GetBackEdges().Get(0) == block) {
-      // In case of a back edge, we already have visited the loop header.
-      // We should not update its value set, because the last dominated block
-      // of the loop header uses the same value set.
-      DCHECK(visited_.Get(successor->GetBlockId()));
-      continue;
-    }
-    DCHECK(!visited_.Get(successor->GetBlockId()));
-    ValueSet* successor_set = sets_.Get(successor->GetBlockId());
-    // The dominator sets the set, and we are guaranteed to have visited it already.
-    DCHECK(successor_set != nullptr);
-
-    // If this block dominates this successor there is nothing to do.
-    // Also if the set is empty, there is nothing to kill.
-    if (successor->GetDominator() != block && !successor_set->IsEmpty()) {
-      if (block->IsInLoop() && IsLoopExit(block, successor)) {
-        // All instructions killed in the loop must be killed for a loop exit.
-        SideEffects effects = GetLoopEffects(block->GetLoopInformation()->GetHeader());
-        sets_.Get(successor->GetBlockId())->Kill(effects);
-      } else {
-        // Following block (that might be in the same loop).
-        // Just kill instructions based on this block's side effects.
-        sets_.Get(successor->GetBlockId())->Kill(GetBlockEffects(block));
-      }
-    }
   }
 }
 
