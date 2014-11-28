@@ -85,6 +85,9 @@ public class Main {
     // Generate, compile and check long-to-int Dex instructions.
     longToInt();
 
+    // Generate, compile and check long-to-float Dex instructions.
+    longToFloat();
+
     // Generate, compile and check long-to-double Dex instructions.
     longToDouble();
 
@@ -270,6 +273,26 @@ public class Main {
     assertLongEquals(-1, $opt$IntToLong($opt$LongToInt(-4294967297L)));  // -(2^32 + 1)
   }
 
+  private static void longToFloat() {
+    assertFloatEquals(1F, $opt$LongToFloat(1L));
+    assertFloatEquals(0F, $opt$LongToFloat(0L));
+    assertFloatEquals(-1F, $opt$LongToFloat(-1L));
+    assertFloatEquals(51F, $opt$LongToFloat(51L));
+    assertFloatEquals(-51F, $opt$LongToFloat(-51L));
+    assertFloatEquals(2147483647F, $opt$LongToFloat(2147483647L));  // 2^31 - 1
+    assertFloatEquals(-2147483647F, $opt$LongToFloat(-2147483647L));  // -(2^31 - 1)
+    assertFloatEquals(-2147483648F, $opt$LongToFloat(-2147483648L));  // -(2^31)
+    assertFloatEquals(2147483648F, $opt$LongToFloat(2147483648L));  // (2^31)
+    assertFloatEquals(-2147483649F, $opt$LongToFloat(-2147483649L));  // -(2^31 + 1)
+    assertFloatEquals(4294967296F, $opt$LongToFloat(4294967296L));  // (2^32)
+    assertFloatEquals(-4294967296F, $opt$LongToFloat(-4294967296L));  // -(2^32)
+    assertFloatEquals(140739635871745F, $opt$LongToFloat(140739635871745L));  // 1 + 2^15 + 2^31 + 2^47
+    assertFloatEquals(-140739635871745F, $opt$LongToFloat(-140739635871745L));  // -(1 + 2^15 + 2^31 + 2^47)
+    assertFloatEquals(9223372036854775807F, $opt$LongToFloat(9223372036854775807L));  // 2^63 - 1
+    assertFloatEquals(-9223372036854775807F, $opt$LongToFloat(-9223372036854775807L));  // -(2^63 - 1)
+    assertFloatEquals(-9223372036854775808F, $opt$LongToFloat(-9223372036854775808L));  // -(2^63)
+  }
+
   private static void longToDouble() {
     assertDoubleEquals(1D, $opt$LongToDouble(1L));
     assertDoubleEquals(0D, $opt$LongToDouble(0L));
@@ -438,6 +461,9 @@ public class Main {
   // These methods produce long-to-int Dex instructions.
   static int $opt$LongToInt(long a){ return (int)a; }
   static int $opt$LongLiteralToInt(){ return (int)42L; }
+
+  // This method produces a long-to-float Dex instruction.
+  static float $opt$LongToFloat(long a){ return (float)a; }
 
   // This method produces a long-to-double Dex instruction.
   static double $opt$LongToDouble(long a){ return (double)a; }
