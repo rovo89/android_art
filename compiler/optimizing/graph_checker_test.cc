@@ -62,7 +62,7 @@ static void TestCodeSSA(const uint16_t* data) {
   ASSERT_NE(graph, nullptr);
 
   graph->BuildDominatorTree();
-  graph->TransformToSSA();
+  graph->TransformToSsa();
 
   SSAChecker ssa_checker(&allocator, graph);
   ssa_checker.Run();

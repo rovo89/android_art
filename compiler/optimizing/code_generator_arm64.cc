@@ -1796,11 +1796,11 @@ void LocationsBuilderARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
   HandleInvoke(invoke);
 }
 
-void LocationsBuilderARM64::VisitInvokeStatic(HInvokeStatic* invoke) {
+void LocationsBuilderARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   HandleInvoke(invoke);
 }
 
-void InstructionCodeGeneratorARM64::VisitInvokeStatic(HInvokeStatic* invoke) {
+void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   Register temp = WRegisterFrom(invoke->GetLocations()->GetTemp(0));
   // Make sure that ArtMethod* is passed in W0 as per the calling convention
   DCHECK(temp.Is(w0));

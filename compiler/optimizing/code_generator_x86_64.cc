@@ -1122,11 +1122,11 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
   return Location();
 }
 
-void LocationsBuilderX86_64::VisitInvokeStatic(HInvokeStatic* invoke) {
+void LocationsBuilderX86_64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   HandleInvoke(invoke);
 }
 
-void InstructionCodeGeneratorX86_64::VisitInvokeStatic(HInvokeStatic* invoke) {
+void InstructionCodeGeneratorX86_64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   CpuRegister temp = invoke->GetLocations()->GetTemp(0).AsRegister<CpuRegister>();
   // TODO: Implement all kinds of calls:
   // 1) boot -> boot
