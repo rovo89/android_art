@@ -322,6 +322,12 @@ void Mir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src) {
   StoreValueWide(rl_dest, rl_result);
 }
 
+void Mir2Lir::GenLongToInt(RegLocation rl_dest, RegLocation rl_src) {
+  rl_src = UpdateLocWide(rl_src);
+  rl_src = NarrowRegLoc(rl_src);
+  StoreValue(rl_dest, rl_src);
+}
+
 void Mir2Lir::GenIntNarrowing(Instruction::Code opcode, RegLocation rl_dest,
                               RegLocation rl_src) {
   rl_src = LoadValue(rl_src, kCoreReg);

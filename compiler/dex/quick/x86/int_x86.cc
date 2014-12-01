@@ -3213,6 +3213,26 @@ void X86Mir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src) {
   StoreValueWide(rl_dest, rl_result);
 }
 
+void X86Mir2Lir::GenLongToInt(RegLocation rl_dest, RegLocation rl_src) {
+  rl_src = UpdateLocWide(rl_src);
+  rl_src = NarrowRegLoc(rl_src);
+  StoreValue(rl_dest, rl_src);
+
+  if (cu_->target64) {
+    // if src and dest are in the same phys reg then StoreValue generates
+    // no operation but we need explicit 32-bit mov R, R to clear
+    // the higher 32-bits
+    rl_dest = UpdateLoc(rl_dest);
+    if (rl_src.location == kLocPhysReg && rl_dest.location == kLocPhysReg
+           && IsSameReg(rl_src.reg, rl_dest.reg)) {
+        LIR* copy_lir = OpRegCopyNoInsert(rl_dest.reg, rl_dest.reg);
+        // remove nop flag set by OpRegCopyNoInsert if src == dest
+        copy_lir->flags.is_nop = false;
+        AppendLIR(copy_lir);
+    }
+  }
+}
+
 void X86Mir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest,
                         RegLocation rl_src1, RegLocation rl_shift) {
   if (!cu_->target64) {
