@@ -74,7 +74,7 @@ void CustomDisassembler::VisitLoadLiteral(const vixl::Instruction* instr) {
     ++buffer;
   }
 
-  void* data_address = instr->LiteralAddress();
+  void* data_address = instr->LiteralAddress<void*>();
   ptrdiff_t buf_size_remaining = buffer_end - buffer;
   vixl::Instr op = instr->Mask(vixl::LoadLiteralMask);
 

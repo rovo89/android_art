@@ -90,6 +90,7 @@ class CodeGenerator : public ArenaObject<kArenaAllocMisc> {
   }
 
   virtual void Initialize() = 0;
+  virtual void Finalize(CodeAllocator* allocator);
   virtual void GenerateFrameEntry() = 0;
   virtual void GenerateFrameExit() = 0;
   virtual void Bind(HBasicBlock* block) = 0;
