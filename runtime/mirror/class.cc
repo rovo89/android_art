@@ -149,6 +149,7 @@ void Class::SetStatus(Status new_status, Thread* self) {
 
 void Class::SetDexCache(DexCache* new_dex_cache) {
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(Class, dex_cache_), new_dex_cache);
+  SetDexCacheStrings(new_dex_cache != nullptr ? new_dex_cache->GetStrings() : nullptr);
 }
 
 void Class::SetClassSize(uint32_t new_class_size) {
