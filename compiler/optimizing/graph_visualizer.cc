@@ -167,6 +167,15 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       }
       output_ << "]";
     }
+    if (instruction->IsIntConstant()) {
+      output_ << " " << instruction->AsIntConstant()->GetValue();
+    } else if (instruction->IsLongConstant()) {
+      output_ << " " << instruction->AsLongConstant()->GetValue();
+    } else if (instruction->IsFloatConstant()) {
+      output_ << " " << instruction->AsFloatConstant()->GetValue();
+    } else if (instruction->IsDoubleConstant()) {
+      output_ << " " << instruction->AsDoubleConstant()->GetValue();
+    }
     if (pass_name_ == kLivenessPassName && instruction->GetLifetimePosition() != kNoLifetime) {
       output_ << " (liveness: " << instruction->GetLifetimePosition();
       if (instruction->HasLiveInterval()) {
@@ -270,7 +279,7 @@ HGraphVisualizer::HGraphVisualizer(std::ostream* output,
                                    const char* string_filter,
                                    const CodeGenerator& codegen,
                                    const char* method_name)
-    : output_(output), graph_(graph), codegen_(codegen), is_enabled_(false) {
+  : output_(output), graph_(graph), codegen_(codegen), is_enabled_(false) {
   if (output == nullptr) {
     return;
   }
@@ -279,7 +288,7 @@ HGraphVisualizer::HGraphVisualizer(std::ostream* output,
   }
 
   is_enabled_ = true;
-  HGraphVisualizerPrinter printer(graph, *output_, "", codegen_);
+  HGraphVisualizerPrinter printer(graph_, *output_, "", codegen_);
   printer.StartTag("compilation");
   printer.PrintProperty("name", method_name);
   printer.PrintProperty("method", method_name);
@@ -287,12 +296,12 @@ HGraphVisualizer::HGraphVisualizer(std::ostream* output,
   printer.EndTag("compilation");
 }
 
-void HGraphVisualizer::DumpGraph(const char* pass_name) const {
-  if (!is_enabled_) {
-    return;
+void HGraphVisualizer::DumpGraph(const char* pass_name, bool is_after_pass) const {
+  if (is_enabled_) {
+    std::string pass_desc = std::string(pass_name) + (is_after_pass ? " (after)" : " (before)");
+    HGraphVisualizerPrinter printer(graph_, *output_, pass_desc.c_str(), codegen_);
+    printer.Run();
   }
-  HGraphVisualizerPrinter printer(graph_, *output_, pass_name, codegen_);
-  printer.Run();
 }
 
 }  // namespace art
