@@ -26,6 +26,7 @@ class InstructionSimplifierVisitor : public HGraphVisitor {
   void VisitSuspendCheck(HSuspendCheck* check) OVERRIDE;
   void VisitEqual(HEqual* equal) OVERRIDE;
   void VisitArraySet(HArraySet* equal) OVERRIDE;
+  void VisitTypeConversion(HTypeConversion* instruction) OVERRIDE;
 };
 
 void InstructionSimplifier::Run() {
@@ -75,6 +76,14 @@ void InstructionSimplifierVisitor::VisitArraySet(HArraySet* instruction) {
       // If the code is just swapping elements in the array, no need for a type check.
       instruction->ClearNeedsTypeCheck();
     }
+  }
+}
+
+void InstructionSimplifierVisitor::VisitTypeConversion(HTypeConversion* instruction) {
+  if (instruction->GetResultType() == instruction->GetInputType()) {
+    // Remove the instruction if it's converting to the same type.
+    instruction->ReplaceWith(instruction->GetInput());
+    instruction->GetBlock()->RemoveInstruction(instruction);
   }
 }
 
