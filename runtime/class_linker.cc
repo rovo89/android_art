@@ -2715,7 +2715,7 @@ void ClassLinker::LoadClass(const DexFile& dex_file,
 
   klass->SetDexClassDefIndex(dex_file.GetIndexForClassDef(dex_class_def));
   klass->SetDexTypeIndex(dex_class_def.class_idx_);
-  klass->SetDexCacheStrings(klass->GetDexCache()->GetStrings());
+  CHECK(klass->GetDexCacheStrings() != nullptr);
 
   const byte* class_data = dex_file.GetClassData(dex_class_def);
   if (class_data == nullptr) {
