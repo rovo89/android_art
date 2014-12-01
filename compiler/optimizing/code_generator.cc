@@ -71,11 +71,7 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
     }
   }
   GenerateSlowPaths();
-
-  size_t code_size = GetAssembler()->CodeSize();
-  uint8_t* buffer = allocator->Allocate(code_size);
-  MemoryRegion code(buffer, code_size);
-  GetAssembler()->FinalizeInstructions(code);
+  Finalize(allocator);
 }
 
 void CodeGenerator::CompileOptimized(CodeAllocator* allocator) {
@@ -97,9 +93,13 @@ void CodeGenerator::CompileOptimized(CodeAllocator* allocator) {
     }
   }
   GenerateSlowPaths();
+  Finalize(allocator);
+}
 
+void CodeGenerator::Finalize(CodeAllocator* allocator) {
   size_t code_size = GetAssembler()->CodeSize();
   uint8_t* buffer = allocator->Allocate(code_size);
+
   MemoryRegion code(buffer, code_size);
   GetAssembler()->FinalizeInstructions(code);
 }
