@@ -96,6 +96,25 @@ void RegisterAllocator::AllocateRegisters() {
     ValidateInternal(true);
     processing_core_registers_ = false;
     ValidateInternal(true);
+    // Check that the linear order is still correct with regards to lifetime positions.
+    // Since only parallel moves have been inserted during the register allocation,
+    // these checks are mostly for making sure these moves have been added correctly.
+    size_t current_liveness = 0;
+    for (HLinearOrderIterator it(liveness_); !it.Done(); it.Advance()) {
+      HBasicBlock* block = it.Current();
+      for (HInstructionIterator inst_it(block->GetPhis()); !inst_it.Done(); inst_it.Advance()) {
+        HInstruction* instruction = inst_it.Current();
+        DCHECK_LE(current_liveness, instruction->GetLifetimePosition());
+        current_liveness = instruction->GetLifetimePosition();
+      }
+      for (HInstructionIterator inst_it(block->GetInstructions());
+           !inst_it.Done();
+           inst_it.Advance()) {
+        HInstruction* instruction = inst_it.Current();
+        DCHECK_LE(current_liveness, instruction->GetLifetimePosition()) << instruction->DebugName();
+        current_liveness = instruction->GetLifetimePosition();
+      }
+    }
   }
 }
 
@@ -928,11 +947,18 @@ void RegisterAllocator::InsertParallelMoveAt(size_t position,
     } else {
       // Move must happen before the first instruction of the block.
       at = liveness_.GetInstructionFromPosition((position + 1) / 2);
-      move = at->AsParallelMove();
-      if (move == nullptr || move->GetLifetimePosition() < position) {
+      // Note that parallel moves may have already been inserted, so we explicitly
+      // ask for the first instruction of the block: `GetInstructionFromPosition` does
+      // not contain the moves.
+      at = at->GetBlock()->GetFirstInstruction();
+      if (at->GetLifetimePosition() != position) {
+        DCHECK_GT(at->GetLifetimePosition(), position);
         move = new (allocator_) HParallelMove(allocator_);
         move->SetLifetimePosition(position);
         at->GetBlock()->InsertInstructionBefore(move, at);
+      } else {
+        DCHECK(at->IsParallelMove());
+        move = at->AsParallelMove();
       }
     }
   } else if (IsInstructionEnd(position)) {
@@ -987,10 +1013,11 @@ void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
   HParallelMove* move;
   // This is a parallel move for connecting blocks. We need to differentiate
   // it with moves for connecting siblings in a same block, and output moves.
+  size_t position = last->GetLifetimePosition();
   if (previous == nullptr || !previous->IsParallelMove()
-      || previous->AsParallelMove()->GetLifetimePosition() != block->GetLifetimeEnd()) {
+      || previous->AsParallelMove()->GetLifetimePosition() != position) {
     move = new (allocator_) HParallelMove(allocator_);
-    move->SetLifetimePosition(block->GetLifetimeEnd());
+    move->SetLifetimePosition(position);
     block->InsertInstructionBefore(move, last);
   } else {
     move = previous->AsParallelMove();
