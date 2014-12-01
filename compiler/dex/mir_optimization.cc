@@ -399,6 +399,28 @@ CompilerTemp* MIRGraph::GetNewCompilerTemp(CompilerTempType ct_type, bool wide) 
   return compiler_temp;
 }
 
+static bool EvaluateBranch(Instruction::Code opcode, int32_t src1, int32_t src2) {
+  bool is_taken;
+  switch (opcode) {
+    case Instruction::IF_EQ: is_taken = (src1 == src2); break;
+    case Instruction::IF_NE: is_taken = (src1 != src2); break;
+    case Instruction::IF_LT: is_taken = (src1 < src2); break;
+    case Instruction::IF_GE: is_taken = (src1 >= src2); break;
+    case Instruction::IF_GT: is_taken = (src1 > src2); break;
+    case Instruction::IF_LE: is_taken = (src1 <= src2); break;
+    case Instruction::IF_EQZ: is_taken = (src1 == 0); break;
+    case Instruction::IF_NEZ: is_taken = (src1 != 0); break;
+    case Instruction::IF_LTZ: is_taken = (src1 < 0); break;
+    case Instruction::IF_GEZ: is_taken = (src1 >= 0); break;
+    case Instruction::IF_GTZ: is_taken = (src1 > 0); break;
+    case Instruction::IF_LEZ: is_taken = (src1 <= 0); break;
+    default:
+      LOG(FATAL) << "Unexpected opcode " << opcode;
+      UNREACHABLE();
+  }
+  return is_taken;
+}
+
 /* Do some MIR-level extended basic block optimizations */
 bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
   if (bb->block_type == kDead) {
@@ -424,6 +446,46 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
       // Look for interesting opcodes, skip otherwise
       Instruction::Code opcode = mir->dalvikInsn.opcode;
       switch (opcode) {
+        case Instruction::IF_EQ:
+        case Instruction::IF_NE:
+        case Instruction::IF_LT:
+        case Instruction::IF_GE:
+        case Instruction::IF_GT:
+        case Instruction::IF_LE:
+          if (!IsConst(mir->ssa_rep->uses[1])) {
+            break;
+          }
+          FALLTHROUGH_INTENDED;
+        case Instruction::IF_EQZ:
+        case Instruction::IF_NEZ:
+        case Instruction::IF_LTZ:
+        case Instruction::IF_GEZ:
+        case Instruction::IF_GTZ:
+        case Instruction::IF_LEZ:
+          // Result known at compile time?
+          if (IsConst(mir->ssa_rep->uses[0])) {
+            int32_t rhs = (mir->ssa_rep->num_uses == 2) ? ConstantValue(mir->ssa_rep->uses[1]) : 0;
+            bool is_taken = EvaluateBranch(opcode, ConstantValue(mir->ssa_rep->uses[0]), rhs);
+            BasicBlockId edge_to_kill = is_taken ? bb->fall_through : bb->taken;
+            if (is_taken) {
+              // Replace with GOTO.
+              bb->fall_through = NullBasicBlockId;
+              mir->dalvikInsn.opcode = Instruction::GOTO;
+              mir->dalvikInsn.vA =
+                  IsInstructionIfCc(opcode) ? mir->dalvikInsn.vC : mir->dalvikInsn.vB;
+            } else {
+              // Make NOP.
+              bb->taken = NullBasicBlockId;
+              mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+            }
+            mir->ssa_rep->num_uses = 0;
+            BasicBlock* successor_to_unlink = GetBasicBlock(edge_to_kill);
+            successor_to_unlink->ErasePredecessor(bb->id);
+            if (successor_to_unlink->predecessors.empty()) {
+              successor_to_unlink->KillUnreachable(this);
+            }
+          }
+          break;
         case Instruction::CMPL_FLOAT:
         case Instruction::CMPL_DOUBLE:
         case Instruction::CMPG_FLOAT:
