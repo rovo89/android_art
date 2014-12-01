@@ -2129,6 +2129,7 @@ void LocationsBuilderARM64::VisitTypeConversion(HTypeConversion* conversion) {
       new (GetGraph()->GetArena()) LocationSummary(conversion, LocationSummary::kNoCall);
   Primitive::Type input_type = conversion->GetInputType();
   Primitive::Type result_type = conversion->GetResultType();
+  DCHECK_NE(input_type, result_type);
   if ((input_type == Primitive::kPrimNot) || (input_type == Primitive::kPrimVoid) ||
       (result_type == Primitive::kPrimNot) || (result_type == Primitive::kPrimVoid)) {
     LOG(FATAL) << "Unexpected type conversion from " << input_type << " to " << result_type;

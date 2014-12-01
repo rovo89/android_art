@@ -1363,6 +1363,7 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
       new (GetGraph()->GetArena()) LocationSummary(conversion, LocationSummary::kNoCall);
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
+  DCHECK_NE(result_type, input_type);
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
@@ -1444,7 +1445,6 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
-        case Primitive::kPrimChar:
           // Processing a Dex `int-to-char' instruction.
           locations->SetInAt(0, Location::RequiresRegister());
           locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
@@ -1531,6 +1531,7 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
   Location in = locations->InAt(0);
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
+  DCHECK_NE(result_type, input_type);
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
@@ -1624,7 +1625,6 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
-        case Primitive::kPrimChar:
           // Processing a Dex `int-to-char' instruction.
           __ ubfx(out.AsRegister<Register>(), in.AsRegister<Register>(), 0, 16);
           break;
