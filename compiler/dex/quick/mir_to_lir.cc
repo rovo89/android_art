@@ -657,24 +657,12 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::IF_GT:
     case Instruction::IF_LE: {
       LIR* taken = &label_list[bb->taken];
-      // Result known at compile time?
-      if (rl_src[0].is_const && rl_src[1].is_const) {
-        bool is_taken = EvaluateBranch(opcode, mir_graph_->ConstantValue(rl_src[0].orig_sreg),
-                                       mir_graph_->ConstantValue(rl_src[1].orig_sreg));
-        BasicBlockId target_id = is_taken ? bb->taken : bb->fall_through;
-        if (mir_graph_->IsBackedge(bb, target_id) &&
-            (kLeafOptimization || !mir_graph_->HasSuspendTestBetween(bb, target_id))) {
-          GenSuspendTest(opt_flags);
-        }
-        OpUnconditionalBranch(&label_list[target_id]);
-      } else {
-        if (mir_graph_->IsBackwardsBranch(bb) &&
-            (kLeafOptimization || !mir_graph_->HasSuspendTestBetween(bb, bb->taken) ||
-             !mir_graph_->HasSuspendTestBetween(bb, bb->fall_through))) {
-          GenSuspendTest(opt_flags);
-        }
-        GenCompareAndBranch(opcode, rl_src[0], rl_src[1], taken);
+      if (mir_graph_->IsBackwardsBranch(bb) &&
+          (kLeafOptimization || !mir_graph_->HasSuspendTestBetween(bb, bb->taken) ||
+           !mir_graph_->HasSuspendTestBetween(bb, bb->fall_through))) {
+        GenSuspendTest(opt_flags);
       }
+      GenCompareAndBranch(opcode, rl_src[0], rl_src[1], taken);
       break;
     }
     case Instruction::IF_EQZ:
@@ -684,23 +672,12 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::IF_GTZ:
     case Instruction::IF_LEZ: {
       LIR* taken = &label_list[bb->taken];
-      // Result known at compile time?
-      if (rl_src[0].is_const) {
-        bool is_taken = EvaluateBranch(opcode, mir_graph_->ConstantValue(rl_src[0].orig_sreg), 0);
-        BasicBlockId target_id = is_taken ? bb->taken : bb->fall_through;
-        if (mir_graph_->IsBackedge(bb, target_id) &&
-            (kLeafOptimization || !mir_graph_->HasSuspendTestBetween(bb, target_id))) {
-          GenSuspendTest(opt_flags);
-        }
-        OpUnconditionalBranch(&label_list[target_id]);
-      } else {
-        if (mir_graph_->IsBackwardsBranch(bb) &&
-            (kLeafOptimization || !mir_graph_->HasSuspendTestBetween(bb, bb->taken) ||
-             !mir_graph_->HasSuspendTestBetween(bb, bb->fall_through))) {
-          GenSuspendTest(opt_flags);
-        }
-        GenCompareZeroAndBranch(opcode, rl_src[0], taken);
+      if (mir_graph_->IsBackwardsBranch(bb) &&
+          (kLeafOptimization || !mir_graph_->HasSuspendTestBetween(bb, bb->taken) ||
+           !mir_graph_->HasSuspendTestBetween(bb, bb->fall_through))) {
+        GenSuspendTest(opt_flags);
       }
+      GenCompareZeroAndBranch(opcode, rl_src[0], taken);
       break;
     }
 

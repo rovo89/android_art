@@ -666,7 +666,6 @@ class Mir2Lir : public Backend {
     void MarkBoundary(DexOffset offset, const char* inst_str);
     void NopLIR(LIR* lir);
     void UnlinkLIR(LIR* lir);
-    bool EvaluateBranch(Instruction::Code opcode, int src1, int src2);
     bool IsInexpensiveConstant(RegLocation rl_src);
     ConditionCode FlipComparisonOrder(ConditionCode before);
     ConditionCode NegateComparison(ConditionCode before);

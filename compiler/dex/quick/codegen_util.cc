@@ -922,28 +922,6 @@ void Mir2Lir::MarkBoundary(DexOffset offset, const char* inst_str) {
   NewLIR1(kPseudoDalvikByteCodeBoundary, WrapPointer(ArenaStrdup(inst_str)));
 }
 
-bool Mir2Lir::EvaluateBranch(Instruction::Code opcode, int32_t src1, int32_t src2) {
-  bool is_taken;
-  switch (opcode) {
-    case Instruction::IF_EQ: is_taken = (src1 == src2); break;
-    case Instruction::IF_NE: is_taken = (src1 != src2); break;
-    case Instruction::IF_LT: is_taken = (src1 < src2); break;
-    case Instruction::IF_GE: is_taken = (src1 >= src2); break;
-    case Instruction::IF_GT: is_taken = (src1 > src2); break;
-    case Instruction::IF_LE: is_taken = (src1 <= src2); break;
-    case Instruction::IF_EQZ: is_taken = (src1 == 0); break;
-    case Instruction::IF_NEZ: is_taken = (src1 != 0); break;
-    case Instruction::IF_LTZ: is_taken = (src1 < 0); break;
-    case Instruction::IF_GEZ: is_taken = (src1 >= 0); break;
-    case Instruction::IF_GTZ: is_taken = (src1 > 0); break;
-    case Instruction::IF_LEZ: is_taken = (src1 <= 0); break;
-    default:
-      LOG(FATAL) << "Unexpected opcode " << opcode;
-      UNREACHABLE();
-  }
-  return is_taken;
-}
-
 // Convert relation of src1/src2 to src2/src1
 ConditionCode Mir2Lir::FlipComparisonOrder(ConditionCode before) {
   ConditionCode res;
