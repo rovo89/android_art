@@ -1162,6 +1162,7 @@ void ArmMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   // Check for destructive overlap
   if (rl_result.reg.GetLowReg() == rl_src.reg.GetHighReg()) {
     RegStorage t_reg = AllocTemp();
+    OpRegCopy(t_reg, rl_result.reg.GetLow());
     OpRegRegReg(kOpSub, rl_result.reg.GetLow(), z_reg, rl_src.reg.GetLow());
     OpRegRegReg(kOpSbc, rl_result.reg.GetHigh(), z_reg, t_reg);
     FreeTemp(t_reg);
