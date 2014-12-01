@@ -643,7 +643,7 @@ class Heap {
 
   // We don't force this to be inlined since it is a slow path.
   template <bool kInstrumented, typename PreFenceVisitor>
-  mirror::Object* AllocLargeObject(Thread* self, mirror::Class* klass, size_t byte_count,
+  mirror::Object* AllocLargeObject(Thread* self, mirror::Class** klass, size_t byte_count,
                                    const PreFenceVisitor& pre_fence_visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
