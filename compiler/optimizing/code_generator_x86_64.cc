@@ -1320,6 +1320,7 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
       new (GetGraph()->GetArena()) LocationSummary(conversion, LocationSummary::kNoCall);
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
+  DCHECK_NE(result_type, input_type);
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
@@ -1403,7 +1404,6 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
-        case Primitive::kPrimChar:
           // Processing a Dex `int-to-char' instruction.
           locations->SetInAt(0, Location::Any());
           locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
@@ -1483,6 +1483,7 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
   Location in = locations->InAt(0);
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
+  DCHECK_NE(result_type, input_type);
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
@@ -1590,7 +1591,6 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
-        case Primitive::kPrimChar:
           // Processing a Dex `int-to-char' instruction.
           if (in.IsRegister()) {
             __ movzxw(out.AsRegister<CpuRegister>(), in.AsRegister<CpuRegister>());
