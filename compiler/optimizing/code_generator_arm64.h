@@ -232,6 +232,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
     }
   }
 
+  void Finalize(CodeAllocator* allocator) OVERRIDE;
+
   // Code generation helpers.
   void MoveConstant(vixl::CPURegister destination, HConstant* constant);
   void MoveHelper(Location destination, Location source, Primitive::Type type);

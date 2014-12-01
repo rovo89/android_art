@@ -83,6 +83,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
       break;
   }
 
+  assembler->EmitSlowPaths();
   size_t cs = assembler->CodeSize();
   std::unique_ptr<std::vector<uint8_t>> entry_stub(new std::vector<uint8_t>(cs));
   MemoryRegion code(&(*entry_stub)[0], entry_stub->size());
