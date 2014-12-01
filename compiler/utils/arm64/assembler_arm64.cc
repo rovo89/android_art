@@ -329,12 +329,12 @@ void Arm64Assembler::Move(ManagedRegister m_dst, ManagedRegister m_src, size_t s
     if (dst.IsXRegister()) {
       if (size == 4) {
         CHECK(src.IsWRegister());
-        ___ Mov(reg_x(dst.AsXRegister()), reg_w(src.AsWRegister()));
+        ___ Mov(reg_w(dst.AsOverlappingWRegister()), reg_w(src.AsWRegister()));
       } else {
         if (src.IsXRegister()) {
           ___ Mov(reg_x(dst.AsXRegister()), reg_x(src.AsXRegister()));
         } else {
-          ___ Mov(reg_x(dst.AsXRegister()), reg_w(src.AsWRegister()));
+          ___ Mov(reg_x(dst.AsXRegister()), reg_x(src.AsOverlappingXRegister()));
         }
       }
     } else if (dst.IsWRegister()) {
@@ -484,9 +484,9 @@ void Arm64Assembler::SignExtend(ManagedRegister mreg, size_t size) {
   CHECK(size == 1 || size == 2) << size;
   CHECK(reg.IsWRegister()) << reg;
   if (size == 1) {
-    ___ sxtb(reg_w(reg.AsWRegister()), reg_w(reg.AsWRegister()));
+    ___ Sxtb(reg_w(reg.AsWRegister()), reg_w(reg.AsWRegister()));
   } else {
-    ___ sxth(reg_w(reg.AsWRegister()), reg_w(reg.AsWRegister()));
+    ___ Sxth(reg_w(reg.AsWRegister()), reg_w(reg.AsWRegister()));
   }
 }
 
@@ -495,9 +495,9 @@ void Arm64Assembler::ZeroExtend(ManagedRegister mreg, size_t size) {
   CHECK(size == 1 || size == 2) << size;
   CHECK(reg.IsWRegister()) << reg;
   if (size == 1) {
-    ___ uxtb(reg_w(reg.AsWRegister()), reg_w(reg.AsWRegister()));
+    ___ Uxtb(reg_w(reg.AsWRegister()), reg_w(reg.AsWRegister()));
   } else {
-    ___ uxth(reg_w(reg.AsWRegister()), reg_w(reg.AsWRegister()));
+    ___ Uxth(reg_w(reg.AsWRegister()), reg_w(reg.AsWRegister()));
   }
 }
 

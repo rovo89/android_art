@@ -479,6 +479,12 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph)
 #undef __
 #define __ GetVIXLAssembler()->
 
+void CodeGeneratorARM64::Finalize(CodeAllocator* allocator) {
+  // Ensure we emit the literal pool.
+  __ FinalizeCode();
+  CodeGenerator::Finalize(allocator);
+}
+
 void CodeGeneratorARM64::GenerateFrameEntry() {
   // TODO: Add proper support for the stack overflow check.
   UseScratchRegisterScope temps(GetVIXLAssembler());
