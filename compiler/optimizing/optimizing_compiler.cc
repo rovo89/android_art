@@ -319,20 +319,6 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     unoptimized_compiled_methods_++;
     codegen->CompileBaseline(&allocator);
 
-    if (CanOptimize(*code_item)) {
-      // Run these phases to get some test coverage.
-      graph->BuildDominatorTree();
-      graph->TransformToSSA();
-      visualizer.DumpGraph("ssa");
-      graph->FindNaturalLoops();
-      SsaRedundantPhiElimination(graph).Run();
-      SsaDeadPhiElimination(graph).Run();
-      GVNOptimization(graph).Run();
-      SsaLivenessAnalysis liveness(*graph, codegen);
-      liveness.Analyze();
-      visualizer.DumpGraph(kLivenessPassName);
-    }
-
     std::vector<uint8_t> mapping_table;
     SrcMap src_mapping_table;
     codegen->BuildMappingTable(&mapping_table,
