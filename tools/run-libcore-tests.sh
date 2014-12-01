@@ -28,20 +28,15 @@ if [ ! -f $test_jar ]; then
 fi
 
 # Packages that currently report no failures.
-working_packages=("java/lang"
-                  "java/math"
-                  "java/util")
-
-# Create a regexp suitable for egrep.
-working_packages=$(printf "|%s" "${working_packages[@]}")
-working_packages=${working_packages:1}
-
-# Get all the tests for these packages.
-test_packages=$(find libcore/*/src/test -name "*.java" | \
-  egrep -E $working_packages | \
-  xargs grep -h '^package ' | sed 's/^package //' | sed 's/;$//' | sort | uniq | tr "\n" " ")
+working_packages=("libcore.java.lang"
+                  "libcore.java.util"
+                  "org.apache.harmony.annotation"
+                  "org.apache.harmony.regex"
+                  "org.apache.harmony.tests.java.lang"
+                  "org.apache.harmony.tests.java.util"
+                  "tests.java.lang.String")
 
 # Run the tests using vogar.
-echo "Running tests for following test packages:"
-echo $test_packages | tr " " "\n"
-vogar $@ --classpath $test_jar $test_packages
+echo "Running tests for the following test packages:"
+echo ${working_packages[@]} | tr " " "\n"
+vogar $@ --classpath $test_jar ${working_packages[@]}
