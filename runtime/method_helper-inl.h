@@ -20,9 +20,7 @@
 #include "method_helper.h"
 
 #include "class_linker.h"
-#include "mirror/object_array.h"
-#include "runtime.h"
-#include "thread-inl.h"
+#include "dex_file-inl.h"
 
 namespace art {
 
@@ -43,18 +41,6 @@ inline bool MethodHelperT<HandleKind>::HasSameNameAndSignature(MethodHelperT<Han
     return false;  // Name mismatch.
   }
   return dex_file->GetMethodSignature(mid) == other_dex_file->GetMethodSignature(other_mid);
-}
-
-template <template <class T> class HandleKind>
-inline mirror::Class* MethodHelperT<HandleKind>::GetClassFromTypeIdx(uint16_t type_idx,
-                                                                     bool resolve) {
-  mirror::ArtMethod* method = GetMethod();
-  mirror::Class* type = method->GetDexCacheResolvedType(type_idx);
-  if (type == nullptr && resolve) {
-    type = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
-    CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
-  }
-  return type;
 }
 
 }  // namespace art
