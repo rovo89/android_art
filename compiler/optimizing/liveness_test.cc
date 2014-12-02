@@ -50,7 +50,7 @@ static void TestCode(const uint16_t* data, const char* expected) {
   ASSERT_NE(graph, nullptr);
   graph->BuildDominatorTree();
   graph->TransformToSSA();
-  graph->FindNaturalLoops();
+  graph->AnalyzeNaturalLoops();
   // `Inline` conditions into ifs.
   PrepareForRegisterAllocation(graph).Run();
   x86::CodeGeneratorX86 codegen(graph);
