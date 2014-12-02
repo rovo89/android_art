@@ -1406,6 +1406,12 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
           break;
 
         case Primitive::kPrimFloat:
+          // Processing a Dex `float-to-int' instruction.
+          locations->SetInAt(0, Location::RequiresFpuRegister());
+          locations->SetOut(Location::RequiresRegister());
+          locations->AddTemp(Location::RequiresFpuRegister());
+          break;
+
         case Primitive::kPrimDouble:
           LOG(FATAL) << "Type conversion from " << input_type
                      << " to " << result_type << " not yet implemented";
@@ -1580,7 +1586,15 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
           }
           break;
 
-        case Primitive::kPrimFloat:
+        case Primitive::kPrimFloat: {
+          // Processing a Dex `float-to-int' instruction.
+          SRegister temp = locations->GetTemp(0).AsFpuRegisterPairLow<SRegister>();
+          __ vmovs(temp, in.AsFpuRegister<SRegister>());
+          __ vcvtis(temp, temp);
+          __ vmovrs(out.AsRegister<Register>(), temp);
+          break;
+        }
+
         case Primitive::kPrimDouble:
           LOG(FATAL) << "Type conversion from " << input_type
                      << " to " << result_type << " not yet implemented";
