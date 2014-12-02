@@ -177,6 +177,12 @@ void FaultManager::HandleFault(int sig, siginfo_t* info, void* context) {
 
   Thread* self = Thread::Current();
 
+  // If ART is not running, or the thread is not attached to ART pass the
+  // signal on to the next handler in the chain.
+  if (self == nullptr || Runtime::Current() == nullptr || !Runtime::Current()->IsStarted()) {
+    InvokeUserSignalHandler(sig, info, context);
+    return;
+  }
   // Now set up the nested signal handler.
 
   // TODO: add SIGSEGV back to the nested signals when we can handle running out stack gracefully.
