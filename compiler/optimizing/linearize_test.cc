@@ -44,7 +44,7 @@ static void TestCode(const uint16_t* data, const int* expected_order, size_t num
 
   graph->BuildDominatorTree();
   graph->TransformToSSA();
-  graph->FindNaturalLoops();
+  graph->AnalyzeNaturalLoops();
 
   x86::CodeGeneratorX86 codegen(graph);
   SsaLivenessAnalysis liveness(*graph, &codegen);

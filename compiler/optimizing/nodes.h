@@ -112,10 +112,10 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   void TransformToSSA();
   void SimplifyCFG();
 
-  // Find all natural loops in this graph. Aborts computation and returns false
-  // if one loop is not natural, that is the header does not dominate the back
-  // edge.
-  bool FindNaturalLoops() const;
+  // Analyze all natural loops in this graph. Returns false if one
+  // loop is not natural, that is the header does not dominate the
+  // back edge.
+  bool AnalyzeNaturalLoops() const;
 
   void SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor);
   void SimplifyLoop(HBasicBlock* header);

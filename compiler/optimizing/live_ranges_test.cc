@@ -38,7 +38,7 @@ static HGraph* BuildGraph(const uint16_t* data, ArenaAllocator* allocator) {
   RemoveSuspendChecks(graph);
   graph->BuildDominatorTree();
   graph->TransformToSSA();
-  graph->FindNaturalLoops();
+  graph->AnalyzeNaturalLoops();
   // `Inline` conditions into ifs.
   PrepareForRegisterAllocation(graph).Run();
   return graph;

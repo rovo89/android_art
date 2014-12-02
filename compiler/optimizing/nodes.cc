@@ -237,7 +237,7 @@ void HGraph::SimplifyCFG() {
   }
 }
 
-bool HGraph::FindNaturalLoops() const {
+bool HGraph::AnalyzeNaturalLoops() const {
   for (size_t i = 0; i < blocks_.Size(); ++i) {
     HBasicBlock* block = blocks_.Get(i);
     if (block->IsLoopHeader()) {

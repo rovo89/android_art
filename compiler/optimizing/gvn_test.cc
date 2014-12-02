@@ -175,7 +175,7 @@ TEST(GVNTest, LoopFieldElimination) {
 
   graph->BuildDominatorTree();
   graph->TransformToSSA();
-  graph->FindNaturalLoops();
+  graph->AnalyzeNaturalLoops();
   GlobalValueNumberer(&allocator, graph).Run();
 
   // Check that all field get instructions are still there.
@@ -239,7 +239,7 @@ TEST(GVNTest, LoopSideEffects) {
 
   graph->BuildDominatorTree();
   graph->TransformToSSA();
-  graph->FindNaturalLoops();
+  graph->AnalyzeNaturalLoops();
 
   ASSERT_TRUE(inner_loop_header->GetLoopInformation()->IsIn(
       *outer_loop_header->GetLoopInformation()));
