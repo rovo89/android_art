@@ -2029,6 +2029,11 @@ public class Main {
     l997 += l996;
     l998 += l997;
     l999 += l998;
-    return l999;
+    // Create a branch to beat the large method check.
+    if (l998 == l999) {
+      return l998;
+    } else {
+      return l999;
+    }
   }
 }
