@@ -480,38 +480,36 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   bool is_instance_call = invoke_type != kStatic;
   const size_t number_of_arguments = strlen(descriptor) - (is_instance_call ? 0 : 1);
 
-  HInvoke* invoke = nullptr;
-  if (invoke_type == kVirtual || invoke_type == kInterface || invoke_type == kSuper) {
-    MethodReference target_method(dex_file_, method_idx);
-    uintptr_t direct_code;
-    uintptr_t direct_method;
-    int table_index;
-    InvokeType optimized_invoke_type = invoke_type;
-    compiler_driver_->ComputeInvokeInfo(dex_compilation_unit_, dex_pc, true, true,
-                                        &optimized_invoke_type, &target_method, &table_index,
-                                        &direct_code, &direct_method);
-    if (table_index == -1) {
-      return false;
-    }
+  MethodReference target_method(dex_file_, method_idx);
+  uintptr_t direct_code;
+  uintptr_t direct_method;
+  int table_index;
+  InvokeType optimized_invoke_type = invoke_type;
 
-    if (optimized_invoke_type == kVirtual) {
-      invoke = new (arena_) HInvokeVirtual(
-          arena_, number_of_arguments, return_type, dex_pc, table_index);
-    } else if (optimized_invoke_type == kInterface) {
-      invoke = new (arena_) HInvokeInterface(
-          arena_, number_of_arguments, return_type, dex_pc, method_idx, table_index);
-    } else if (optimized_invoke_type == kDirect) {
-      // For this compiler, sharpening only works if we compile PIC.
-      DCHECK(compiler_driver_->GetCompilerOptions().GetCompilePic());
-      // Treat invoke-direct like static calls for now.
-      invoke = new (arena_) HInvokeStatic(
-          arena_, number_of_arguments, return_type, dex_pc, target_method.dex_method_index);
-    }
+  if (!compiler_driver_->ComputeInvokeInfo(dex_compilation_unit_, dex_pc, true, true,
+                                           &optimized_invoke_type, &target_method, &table_index,
+                                           &direct_code, &direct_method)) {
+    LOG(INFO) << "Did not compile " << PrettyMethod(method_idx, *dex_file_)
+              << " because a method call could not be resolved";
+    return false;
+  }
+  DCHECK(optimized_invoke_type != kSuper);
+
+  HInvoke* invoke = nullptr;
+  if (optimized_invoke_type == kVirtual) {
+    invoke = new (arena_) HInvokeVirtual(
+        arena_, number_of_arguments, return_type, dex_pc, table_index);
+  } else if (optimized_invoke_type == kInterface) {
+    invoke = new (arena_) HInvokeInterface(
+        arena_, number_of_arguments, return_type, dex_pc, method_idx, table_index);
   } else {
-    DCHECK(invoke_type == kDirect || invoke_type == kStatic);
+    DCHECK(optimized_invoke_type == kDirect || optimized_invoke_type == kStatic);
+    // Sharpening to kDirect only works if we compile PIC.
+    DCHECK((optimized_invoke_type == invoke_type) || (optimized_invoke_type != kDirect)
+           || compiler_driver_->GetCompilerOptions().GetCompilePic());
     // Treat invoke-direct like static calls for now.
     invoke = new (arena_) HInvokeStatic(
-        arena_, number_of_arguments, return_type, dex_pc, method_idx);
+        arena_, number_of_arguments, return_type, dex_pc, target_method.dex_method_index);
   }
 
   size_t start_index = 0;
