@@ -1671,6 +1671,7 @@ void ClassLinker::InitFromImage() {
       LOG(FATAL) << "Failed to open dex file " << dex_file_location
                  << " from within oat file " << oat_file.GetLocation()
                  << " error '" << error_msg << "'";
+      UNREACHABLE();
     }
 
     CHECK_EQ(dex_file->GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
@@ -2393,6 +2394,7 @@ uint32_t ClassLinker::SizeOfClassWithoutEmbeddedTables(const DexFile& dex_file,
           break;
         default:
           LOG(FATAL) << "Unknown descriptor: " << c;
+          UNREACHABLE();
       }
     }
   }
@@ -2442,7 +2444,7 @@ static uint32_t GetOatMethodIndexFromMethodIndex(const DexFile& dex_file, uint16
   }
   DCHECK(!it.HasNext());
   LOG(FATAL) << "Failed to find method index " << method_idx << " in " << dex_file.GetLocation();
-  return 0;
+  UNREACHABLE();
 }
 
 const OatFile::OatMethod ClassLinker::FindOatMethodFor(mirror::ArtMethod* method, bool* found) {
@@ -3078,7 +3080,7 @@ mirror::DexCache* ClassLinker::FindDexCache(const DexFile& dex_file) {
     LOG(ERROR) << "Registered dex file " << i << " = " << dex_cache->GetDexFile()->GetLocation();
   }
   LOG(FATAL) << "Failed to find DexCache for DexFile " << location;
-  return nullptr;
+  UNREACHABLE();
 }
 
 void ClassLinker::FixupDexCaches(mirror::ArtMethod* resolution_method) {
@@ -3749,8 +3751,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class
   LOG(FATAL) << "Unexpected class status: " << oat_file_class_status
              << " " << dex_file.GetLocation() << " " << PrettyClass(klass) << " "
              << klass->GetDescriptor(&temp);
-
-  return false;
+  UNREACHABLE();
 }
 
 void ClassLinker::ResolveClassExceptionHandlerTypes(const DexFile& dex_file,
@@ -5566,71 +5567,73 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file, uint32_t 
       }
 
       // If we found something, check that it can be accessed by the referrer.
+      bool exception_generated = false;
       if (resolved != nullptr && referrer.Get() != nullptr) {
         mirror::Class* methods_class = resolved->GetDeclaringClass();
         mirror::Class* referring_class = referrer->GetDeclaringClass();
         if (!referring_class->CanAccess(methods_class)) {
           ThrowIllegalAccessErrorClassForMethodDispatch(referring_class, methods_class,
                                                         resolved, type);
-          return nullptr;
+          exception_generated = true;
         } else if (!referring_class->CanAccessMember(methods_class,
                                                      resolved->GetAccessFlags())) {
           ThrowIllegalAccessErrorMethod(referring_class, resolved);
-          return nullptr;
+          exception_generated = true;
         }
       }
-
-      // Otherwise, throw an IncompatibleClassChangeError if we found something, and check interface
-      // methods and throw if we find the method there. If we find nothing, throw a
-      // NoSuchMethodError.
-      switch (type) {
-        case kDirect:
-        case kStatic:
-          if (resolved != nullptr) {
-            ThrowIncompatibleClassChangeError(type, kVirtual, resolved, referrer.Get());
-          } else {
-            resolved = klass->FindInterfaceMethod(name, signature);
-            if (resolved != nullptr) {
-              ThrowIncompatibleClassChangeError(type, kInterface, resolved, referrer.Get());
-            } else {
-              ThrowNoSuchMethodError(type, klass, name, signature);
-            }
-          }
-          break;
-        case kInterface:
-          if (resolved != nullptr) {
-            ThrowIncompatibleClassChangeError(type, kDirect, resolved, referrer.Get());
-          } else {
-            resolved = klass->FindVirtualMethod(name, signature);
+      if (!exception_generated) {
+        // Otherwise, throw an IncompatibleClassChangeError if we found something, and check
+        // interface methods and throw if we find the method there. If we find nothing, throw a
+        // NoSuchMethodError.
+        switch (type) {
+          case kDirect:
+          case kStatic:
             if (resolved != nullptr) {
               ThrowIncompatibleClassChangeError(type, kVirtual, resolved, referrer.Get());
             } else {
-              ThrowNoSuchMethodError(type, klass, name, signature);
+              resolved = klass->FindInterfaceMethod(name, signature);
+              if (resolved != nullptr) {
+                ThrowIncompatibleClassChangeError(type, kInterface, resolved, referrer.Get());
+              } else {
+                ThrowNoSuchMethodError(type, klass, name, signature);
+              }
             }
-          }
-          break;
-        case kSuper:
-          if (resolved != nullptr) {
-            ThrowIncompatibleClassChangeError(type, kDirect, resolved, referrer.Get());
-          } else {
-            ThrowNoSuchMethodError(type, klass, name, signature);
-          }
-          break;
-        case kVirtual:
-          if (resolved != nullptr) {
-            ThrowIncompatibleClassChangeError(type, kDirect, resolved, referrer.Get());
-          } else {
-            resolved = klass->FindInterfaceMethod(name, signature);
+            break;
+          case kInterface:
             if (resolved != nullptr) {
-              ThrowIncompatibleClassChangeError(type, kInterface, resolved, referrer.Get());
+              ThrowIncompatibleClassChangeError(type, kDirect, resolved, referrer.Get());
+            } else {
+              resolved = klass->FindVirtualMethod(name, signature);
+              if (resolved != nullptr) {
+                ThrowIncompatibleClassChangeError(type, kVirtual, resolved, referrer.Get());
+              } else {
+                ThrowNoSuchMethodError(type, klass, name, signature);
+              }
+            }
+            break;
+          case kSuper:
+            if (resolved != nullptr) {
+              ThrowIncompatibleClassChangeError(type, kDirect, resolved, referrer.Get());
             } else {
               ThrowNoSuchMethodError(type, klass, name, signature);
             }
-          }
-          break;
+            break;
+          case kVirtual:
+            if (resolved != nullptr) {
+              ThrowIncompatibleClassChangeError(type, kDirect, resolved, referrer.Get());
+            } else {
+              resolved = klass->FindInterfaceMethod(name, signature);
+              if (resolved != nullptr) {
+                ThrowIncompatibleClassChangeError(type, kInterface, resolved, referrer.Get());
+              } else {
+                ThrowNoSuchMethodError(type, klass, name, signature);
+              }
+            }
+            break;
+        }
       }
     }
-    DCHECK(Thread::Current()->IsExceptionPending());
+    Thread::Current()->AssertPendingException();
     return nullptr;
   }
 }

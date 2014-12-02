@@ -35,7 +35,6 @@
 #include "dex/quick/dex_file_method_inliner.h"
 #include "driver/compiler_options.h"
 #include "jni_internal.h"
-#include "method_helper.h"
 #include "object_lock.h"
 #include "profiler.h"
 #include "runtime.h"
@@ -1195,11 +1194,10 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
     target_method->dex_method_index = method->GetDexMethodIndex();
   } else {
     if (no_guarantee_of_dex_cache_entry) {
-      StackHandleScope<1> hs(Thread::Current());
-      MethodHelper mh(hs.NewHandle(method));
       // See if the method is also declared in this dex cache.
-      uint32_t dex_method_idx = mh.FindDexMethodIndexInOtherDexFile(
-          *target_method->dex_file, target_method->dex_method_index);
+      uint32_t dex_method_idx =
+          method->FindDexMethodIndexInOtherDexFile(*target_method->dex_file,
+                                                   target_method->dex_method_index);
       if (dex_method_idx != DexFile::kDexNoIndex) {
         target_method->dex_method_index = dex_method_idx;
       } else {
