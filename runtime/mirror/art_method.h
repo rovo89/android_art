@@ -237,8 +237,16 @@ class MANAGED ArtMethod FINAL : public Object {
   bool HasSameDexCacheResolvedTypes(ObjectArray<Class>* other_cache)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Find the method that this method overrides
+  // Find the method that this method overrides.
   ArtMethod* FindOverriddenMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Find the method index for this method within other_dexfile. If this method isn't present then
+  // return DexFile::kDexNoIndex. The name_and_signature_idx MUST refer to a MethodId with the same
+  // name and signature in the other_dexfile, such as the method index used to resolve this method
+  // in the other_dexfile.
+  uint32_t FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile,
+                                            uint32_t name_and_signature_idx)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue* result, const char* shorty)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

@@ -22,7 +22,7 @@
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/card_table-inl.h"
 #include "interpreter/interpreter.h"
-#include "method_helper.h"
+#include "method_reference.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
@@ -642,7 +642,7 @@ extern "C" uint64_t artQuickProxyInvokeHandler(mirror::ArtMethod* proxy_method,
 
   // Convert proxy method into expected interface method.
   mirror::ArtMethod* interface_method = proxy_method->FindOverriddenMethod();
-  DCHECK(interface_method != NULL) << PrettyMethod(proxy_method);
+  DCHECK(interface_method != nullptr) << PrettyMethod(proxy_method);
   DCHECK(!interface_method->IsProxyMethod()) << PrettyMethod(interface_method);
   jobject interface_method_jobj = soa.AddLocalReference<jobject>(interface_method);
 
@@ -711,12 +711,12 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
   mirror::ArtMethod* caller = QuickArgumentVisitor::GetCallingMethod(sp);
   InvokeType invoke_type;
-  const DexFile* dex_file;
-  uint32_t dex_method_idx;
-  if (called->IsRuntimeMethod()) {
+  MethodReference called_method(nullptr, 0);
+  const bool called_method_known_on_entry = !called->IsRuntimeMethod();
+  if (!called_method_known_on_entry) {
     uint32_t dex_pc = caller->ToDexPc(QuickArgumentVisitor::GetCallingPc(sp));
     const DexFile::CodeItem* code;
-    dex_file = caller->GetDexFile();
+    called_method.dex_file = caller->GetDexFile();
     code = caller->GetCodeItem();
     CHECK_LT(dex_pc, code->insns_size_in_code_units_);
     const Instruction* instr = Instruction::At(&code->insns_[dex_pc]);
@@ -764,33 +764,33 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
         is_range = true;
         break;
       default:
-        LOG(FATAL) << "Unexpected call into trampoline: " << instr->DumpString(NULL);
-        // Avoid used uninitialized warnings.
-        invoke_type = kDirect;
-        is_range = false;
+        LOG(FATAL) << "Unexpected call into trampoline: " << instr->DumpString(nullptr);
+        UNREACHABLE();
     }
-    dex_method_idx = (is_range) ? instr->VRegB_3rc() : instr->VRegB_35c();
+    called_method.dex_method_index = (is_range) ? instr->VRegB_3rc() : instr->VRegB_35c();
   } else {
     invoke_type = kStatic;
-    dex_file = called->GetDexFile();
-    dex_method_idx = called->GetDexMethodIndex();
+    called_method.dex_file = called->GetDexFile();
+    called_method.dex_method_index = called->GetDexMethodIndex();
   }
   uint32_t shorty_len;
   const char* shorty =
-      dex_file->GetMethodShorty(dex_file->GetMethodId(dex_method_idx), &shorty_len);
+      called_method.dex_file->GetMethodShorty(
+          called_method.dex_file->GetMethodId(called_method.dex_method_index), &shorty_len);
   RememberForGcArgumentVisitor visitor(sp, invoke_type == kStatic, shorty, shorty_len, &soa);
   visitor.VisitArguments();
   self->EndAssertNoThreadSuspension(old_cause);
-  bool virtual_or_interface = invoke_type == kVirtual || invoke_type == kInterface;
+  const bool virtual_or_interface = invoke_type == kVirtual || invoke_type == kInterface;
   // Resolve method filling in dex cache.
-  if (UNLIKELY(called->IsRuntimeMethod())) {
+  if (!called_method_known_on_entry) {
     StackHandleScope<1> hs(self);
     mirror::Object* dummy = nullptr;
     HandleWrapper<mirror::Object> h_receiver(
         hs.NewHandleWrapper(virtual_or_interface ? &receiver : &dummy));
-    called = linker->ResolveMethod(self, dex_method_idx, &caller, invoke_type);
+    DCHECK_EQ(caller->GetDexFile(), called_method.dex_file);
+    called = linker->ResolveMethod(self, called_method.dex_method_index, &caller, invoke_type);
   }
-  const void* code = NULL;
+  const void* code = nullptr;
   if (LIKELY(!self->IsExceptionPending())) {
     // Incompatible class change should have been handled in resolve method.
     CHECK(!called->CheckIncompatibleClassChange(invoke_type))
@@ -811,20 +811,23 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
                                << invoke_type << " " << orig_called->GetVtableIndex();
 
       // We came here because of sharpening. Ensure the dex cache is up-to-date on the method index
-      // of the sharpened method.
-      if (called->HasSameDexCacheResolvedMethods(caller)) {
-        caller->SetDexCacheResolvedMethod(called->GetDexMethodIndex(), called);
-      } else {
+      // of the sharpened method avoiding dirtying the dex cache if possible.
+      uint32_t update_dex_cache_method_index = called_method.dex_method_index;
+      if (!called->HasSameDexCacheResolvedMethods(caller)) {
         // Calling from one dex file to another, need to compute the method index appropriate to
         // the caller's dex file. Since we get here only if the original called was a runtime
         // method, we've got the correct dex_file and a dex_method_idx from above.
-        DCHECK_EQ(caller->GetDexFile(), dex_file);
-        StackHandleScope<1> hs(self);
-        MethodHelper mh(hs.NewHandle(called));
-        uint32_t method_index = mh.FindDexMethodIndexInOtherDexFile(*dex_file, dex_method_idx);
-        if (method_index != DexFile::kDexNoIndex) {
-          caller->SetDexCacheResolvedMethod(method_index, called);
-        }
+        DCHECK(!called_method_known_on_entry);
+        DCHECK_EQ(caller->GetDexFile(), called_method.dex_file);
+        const DexFile* caller_dex_file = called_method.dex_file;
+        uint32_t caller_method_name_and_sig_index = called_method.dex_method_index;
+        update_dex_cache_method_index =
+            called->FindDexMethodIndexInOtherDexFile(*caller_dex_file,
+                                                     caller_method_name_and_sig_index);
+      }
+      if ((update_dex_cache_method_index != DexFile::kDexNoIndex) &&
+          (caller->GetDexCacheResolvedMethod(update_dex_cache_method_index) != called)) {
+        caller->SetDexCacheResolvedMethod(update_dex_cache_method_index, called);
       }
     }
     // Ensure that the called method's class is initialized.
@@ -846,7 +849,7 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
       DCHECK(called_class->IsErroneous());
     }
   }
-  CHECK_EQ(code == NULL, self->IsExceptionPending());
+  CHECK_EQ(code == nullptr, self->IsExceptionPending());
   // Fixup any locally saved objects may have moved during a GC.
   visitor.FixupReferences();
   // Place called method in callee-save frame to be placed as first argument to quick method.
@@ -1263,6 +1266,7 @@ class ComputeNativeCallFrameSize {
           break;
         default:
           LOG(FATAL) << "Unexpected type: " << cur_type_ << " in " << shorty;
+          UNREACHABLE();
       }
     }
 
@@ -1786,7 +1790,7 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_o
       visitor.FixupReferences();
     }
 
-    if (UNLIKELY(method == NULL)) {
+    if (UNLIKELY(method == nullptr)) {
       CHECK(self->IsExceptionPending());
       return GetTwoWordFailureValue();  // Failure.
     }
@@ -1795,7 +1799,7 @@ static TwoWordReturn artInvokeCommon(uint32_t method_idx, mirror::Object* this_o
   const void* code = method->GetEntryPointFromQuickCompiledCode();
 
   // When we return, the caller will branch to this address, so it had better not be 0!
-  DCHECK(code != nullptr) << "Code was NULL in method: " << PrettyMethod(method)
+  DCHECK(code != nullptr) << "Code was null in method: " << PrettyMethod(method)
                           << " location: "
                           << method->GetDexFile()->GetLocation();
 
@@ -1881,7 +1885,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
   mirror::ArtMethod* method;
   if (LIKELY(interface_method->GetDexMethodIndex() != DexFile::kDexNoIndex)) {
     method = this_object->GetClass()->FindVirtualMethodForInterface(interface_method);
-    if (UNLIKELY(method == NULL)) {
+    if (UNLIKELY(method == nullptr)) {
       ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(interface_method, this_object,
                                                                  caller_method);
       return GetTwoWordFailureValue();  // Failure.
@@ -1901,7 +1905,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
     Instruction::Code instr_code = instr->Opcode();
     CHECK(instr_code == Instruction::INVOKE_INTERFACE ||
           instr_code == Instruction::INVOKE_INTERFACE_RANGE)
-        << "Unexpected call into interface trampoline: " << instr->DumpString(NULL);
+        << "Unexpected call into interface trampoline: " << instr->DumpString(nullptr);
     uint32_t dex_method_idx;
     if (instr_code == Instruction::INVOKE_INTERFACE) {
       dex_method_idx = instr->VRegB_35c();
@@ -1933,7 +1937,7 @@ extern "C" TwoWordReturn artInvokeInterfaceTrampoline(mirror::ArtMethod* interfa
   const void* code = method->GetEntryPointFromQuickCompiledCode();
 
   // When we return, the caller will branch to this address, so it had better not be 0!
-  DCHECK(code != nullptr) << "Code was NULL in method: " << PrettyMethod(method)
+  DCHECK(code != nullptr) << "Code was null in method: " << PrettyMethod(method)
                           << " location: " << method->GetDexFile()->GetLocation();
 
   return GetTwoWordSuccessValue(reinterpret_cast<uintptr_t>(code),
