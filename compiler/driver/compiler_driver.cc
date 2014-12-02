@@ -818,7 +818,7 @@ class ClinitImageUpdate {
   }
 
   // java.lang.Reference visitor for VisitReferences.
-  void operator()(mirror::Class* /*klass*/, mirror::Reference* ref) const {
+  void operator()(mirror::Class* /* klass */, mirror::Reference* /* ref */) const {
   }
 
   void Walk() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -840,8 +840,10 @@ class ClinitImageUpdate {
     old_cause_ = self->StartAssertNoThreadSuspension("Boot image closure");
 
     // Find the interesting classes.
-    art_method_class_ = linker->LookupClass(self, "Ljava/lang/reflect/ArtMethod;", nullptr);
-    dex_cache_class_ = linker->LookupClass(self, "Ljava/lang/DexCache;", nullptr);
+    art_method_class_ = linker->LookupClass(self, "Ljava/lang/reflect/ArtMethod;",
+        ComputeModifiedUtf8Hash("Ljava/lang/reflect/ArtMethod;"), nullptr);
+    dex_cache_class_ = linker->LookupClass(self, "Ljava/lang/DexCache;",
+        ComputeModifiedUtf8Hash("Ljava/lang/DexCache;"), nullptr);
 
     // Find all the already-marked classes.
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
