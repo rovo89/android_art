@@ -80,7 +80,13 @@ class HGraphBuilder : public ValueObject {
 
   // Finds all instructions that start a new block, and populates branch_targets_ with
   // the newly created blocks.
-  void ComputeBranchTargets(const uint16_t* start, const uint16_t* end);
+  // As a side effect, also compute the number of dex instructions, blocks, and
+  // branches.
+  void ComputeBranchTargets(const uint16_t* start,
+                            const uint16_t* end,
+                            size_t* number_of_dex_instructions,
+                            size_t* number_of_block,
+                            size_t* number_of_branches);
   void MaybeUpdateCurrentBlock(size_t index);
   HBasicBlock* FindBlockStartingAt(int32_t index) const;
 
