@@ -28,10 +28,8 @@ namespace art {
 
 static const char* GetMethodShorty(JNIEnv* env, jmethodID mid) {
   ScopedObjectAccess soa(env);
-  StackHandleScope<1> scope(soa.Self());
   mirror::ArtMethod* m = soa.DecodeMethod(mid);
-  MethodHelper mh(scope.NewHandle(m));
-  return mh.GetShorty();
+  return m->GetShorty();
 }
 
 static uint32_t GetNativeMethodCount(JNIEnv* env, jclass clazz) {

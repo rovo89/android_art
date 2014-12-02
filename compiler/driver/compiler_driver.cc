@@ -35,6 +35,7 @@
 #include "dex/quick/dex_file_method_inliner.h"
 #include "driver/compiler_options.h"
 #include "jni_internal.h"
+#include "method_helper.h"
 #include "object_lock.h"
 #include "profiler.h"
 #include "runtime.h"
@@ -626,10 +627,10 @@ bool CompilerDriver::IsClassToCompile(const char* descriptor) const {
   }
 }
 
-static void ResolveExceptionsForMethod(MutableMethodHelper* mh,
+static void ResolveExceptionsForMethod(MutableHandle<mirror::ArtMethod> method_handle,
     std::set<std::pair<uint16_t, const DexFile*>>& exceptions_to_resolve)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  const DexFile::CodeItem* code_item = mh->GetMethod()->GetCodeItem();
+  const DexFile::CodeItem* code_item = method_handle->GetCodeItem();
   if (code_item == nullptr) {
     return;  // native or abstract method
   }
@@ -649,10 +650,10 @@ static void ResolveExceptionsForMethod(MutableMethodHelper* mh,
       uint16_t encoded_catch_handler_handlers_type_idx =
           DecodeUnsignedLeb128(&encoded_catch_handler_list);
       // Add to set of types to resolve if not already in the dex cache resolved types
-      if (!mh->GetMethod()->IsResolvedTypeIdx(encoded_catch_handler_handlers_type_idx)) {
+      if (!method_handle->IsResolvedTypeIdx(encoded_catch_handler_handlers_type_idx)) {
         exceptions_to_resolve.insert(
             std::pair<uint16_t, const DexFile*>(encoded_catch_handler_handlers_type_idx,
-                                                mh->GetMethod()->GetDexFile()));
+                                                method_handle->GetDexFile()));
       }
       // ignore address associated with catch handler
       DecodeUnsignedLeb128(&encoded_catch_handler_list);
@@ -669,14 +670,14 @@ static bool ResolveCatchBlockExceptionsClassVisitor(mirror::Class* c, void* arg)
   std::set<std::pair<uint16_t, const DexFile*>>* exceptions_to_resolve =
       reinterpret_cast<std::set<std::pair<uint16_t, const DexFile*>>*>(arg);
   StackHandleScope<1> hs(Thread::Current());
-  MutableMethodHelper mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
+  MutableHandle<mirror::ArtMethod> method_handle(hs.NewHandle<mirror::ArtMethod>(nullptr));
   for (size_t i = 0; i < c->NumVirtualMethods(); ++i) {
-    mh.ChangeMethod(c->GetVirtualMethod(i));
-    ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
+    method_handle.Assign(c->GetVirtualMethod(i));
+    ResolveExceptionsForMethod(method_handle, *exceptions_to_resolve);
   }
   for (size_t i = 0; i < c->NumDirectMethods(); ++i) {
-    mh.ChangeMethod(c->GetDirectMethod(i));
-    ResolveExceptionsForMethod(&mh, *exceptions_to_resolve);
+    method_handle.Assign(c->GetDirectMethod(i));
+    ResolveExceptionsForMethod(method_handle, *exceptions_to_resolve);
   }
   return true;
 }
