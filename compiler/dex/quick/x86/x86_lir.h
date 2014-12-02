@@ -217,6 +217,9 @@ enum X86NativeRegisterPool {
   xr14 = RegStorage::k128BitSolo | 14,
   xr15 = RegStorage::k128BitSolo | 15,
 
+  // Special value for RIP 64 bit addressing.
+  kRIPReg = 255,
+
   // TODO: as needed, add 256, 512 and 1024-bit xmm views.
 };
 
