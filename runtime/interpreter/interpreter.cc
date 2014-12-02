@@ -327,37 +327,31 @@ static constexpr InterpreterImplKind kInterpreterImplKind = kComputedGotoImplKin
 // Clang 3.4 fails to build the goto interpreter implementation.
 static constexpr InterpreterImplKind kInterpreterImplKind = kSwitchImpl;
 template<bool do_access_check, bool transaction_active>
-JValue ExecuteGotoImpl(Thread*, MethodHelper&, const DexFile::CodeItem*, ShadowFrame&, JValue) {
+JValue ExecuteGotoImpl(Thread*, const DexFile::CodeItem*, ShadowFrame&, JValue) {
   LOG(FATAL) << "UNREACHABLE";
   UNREACHABLE();
 }
 // Explicit definitions of ExecuteGotoImpl.
 template<> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-JValue ExecuteGotoImpl<true, false>(Thread* self, MethodHelper& mh,
-                                    const DexFile::CodeItem* code_item,
+JValue ExecuteGotoImpl<true, false>(Thread* self, const DexFile::CodeItem* code_item,
                                     ShadowFrame& shadow_frame, JValue result_register);
 template<> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-JValue ExecuteGotoImpl<false, false>(Thread* self, MethodHelper& mh,
-                                     const DexFile::CodeItem* code_item,
+JValue ExecuteGotoImpl<false, false>(Thread* self, const DexFile::CodeItem* code_item,
                                      ShadowFrame& shadow_frame, JValue result_register);
 template<> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-JValue ExecuteGotoImpl<true, true>(Thread* self, MethodHelper& mh,
-                                    const DexFile::CodeItem* code_item,
+JValue ExecuteGotoImpl<true, true>(Thread* self,  const DexFile::CodeItem* code_item,
+                                   ShadowFrame& shadow_frame, JValue result_register);
+template<> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+JValue ExecuteGotoImpl<false, true>(Thread* self, const DexFile::CodeItem* code_item,
                                     ShadowFrame& shadow_frame, JValue result_register);
-template<> SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-JValue ExecuteGotoImpl<false, true>(Thread* self, MethodHelper& mh,
-                                     const DexFile::CodeItem* code_item,
-                                     ShadowFrame& shadow_frame, JValue result_register);
 #endif
 
-static JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
-                      ShadowFrame& shadow_frame, JValue result_register)
+static JValue Execute(Thread* self, const DexFile::CodeItem* code_item, ShadowFrame& shadow_frame,
+                      JValue result_register)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-static inline JValue Execute(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
+static inline JValue Execute(Thread* self, const DexFile::CodeItem* code_item,
                              ShadowFrame& shadow_frame, JValue result_register) {
-  DCHECK(shadow_frame.GetMethod() == mh.GetMethod() ||
-         shadow_frame.GetMethod()->GetDeclaringClass()->IsProxyClass());
   DCHECK(!shadow_frame.GetMethod()->IsAbstract());
   DCHECK(!shadow_frame.GetMethod()->IsNative());
   shadow_frame.GetMethod()->GetDeclaringClass()->AssertInitializedOrInitializingInThread(self);
@@ -367,32 +361,32 @@ static inline JValue Execute(Thread* self, MethodHelper& mh, const DexFile::Code
     // Enter the "without access check" interpreter.
     if (kInterpreterImplKind == kSwitchImpl) {
       if (transaction_active) {
-        return ExecuteSwitchImpl<false, true>(self, mh, code_item, shadow_frame, result_register);
+        return ExecuteSwitchImpl<false, true>(self, code_item, shadow_frame, result_register);
       } else {
-        return ExecuteSwitchImpl<false, false>(self, mh, code_item, shadow_frame, result_register);
+        return ExecuteSwitchImpl<false, false>(self, code_item, shadow_frame, result_register);
       }
     } else {
       DCHECK_EQ(kInterpreterImplKind, kComputedGotoImplKind);
       if (transaction_active) {
-        return ExecuteGotoImpl<false, true>(self, mh, code_item, shadow_frame, result_register);
+        return ExecuteGotoImpl<false, true>(self, code_item, shadow_frame, result_register);
       } else {
-        return ExecuteGotoImpl<false, false>(self, mh, code_item, shadow_frame, result_register);
+        return ExecuteGotoImpl<false, false>(self, code_item, shadow_frame, result_register);
       }
     }
   } else {
     // Enter the "with access check" interpreter.
     if (kInterpreterImplKind == kSwitchImpl) {
       if (transaction_active) {
-        return ExecuteSwitchImpl<true, true>(self, mh, code_item, shadow_frame, result_register);
+        return ExecuteSwitchImpl<true, true>(self, code_item, shadow_frame, result_register);
       } else {
-        return ExecuteSwitchImpl<true, false>(self, mh, code_item, shadow_frame, result_register);
+        return ExecuteSwitchImpl<true, false>(self, code_item, shadow_frame, result_register);
       }
     } else {
       DCHECK_EQ(kInterpreterImplKind, kComputedGotoImplKind);
       if (transaction_active) {
-        return ExecuteGotoImpl<true, true>(self, mh, code_item, shadow_frame, result_register);
+        return ExecuteGotoImpl<true, true>(self, code_item, shadow_frame, result_register);
       } else {
-        return ExecuteGotoImpl<true, false>(self, mh, code_item, shadow_frame, result_register);
+        return ExecuteGotoImpl<true, false>(self, code_item, shadow_frame, result_register);
       }
     }
   }
@@ -473,9 +467,7 @@ void EnterInterpreterFromInvoke(Thread* self, ArtMethod* method, Object* receive
     }
   }
   if (LIKELY(!method->IsNative())) {
-    StackHandleScope<1> hs(self);
-    MethodHelper mh(hs.NewHandle(method));
-    JValue r = Execute(self, mh, code_item, *shadow_frame, JValue());
+    JValue r = Execute(self, code_item, *shadow_frame, JValue());
     if (result != NULL) {
       *result = r;
     }
@@ -500,10 +492,8 @@ void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JVa
   value.SetJ(ret_val->GetJ());  // Set value to last known result in case the shadow frame chain is empty.
   while (shadow_frame != NULL) {
     self->SetTopOfShadowStack(shadow_frame);
-    StackHandleScope<1> hs(self);
-    MethodHelper mh(hs.NewHandle(shadow_frame->GetMethod()));
-    const DexFile::CodeItem* code_item = mh.GetMethod()->GetCodeItem();
-    value = Execute(self, mh, code_item, *shadow_frame, value);
+    const DexFile::CodeItem* code_item = shadow_frame->GetMethod()->GetCodeItem();
+    value = Execute(self, code_item, *shadow_frame, value);
     ShadowFrame* old_frame = shadow_frame;
     shadow_frame = shadow_frame->GetLink();
     delete old_frame;
@@ -511,8 +501,7 @@ void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JVa
   ret_val->SetJ(value.GetJ());
 }
 
-JValue EnterInterpreterFromEntryPoint(Thread* self, MethodHelper* mh,
-                                      const DexFile::CodeItem* code_item,
+JValue EnterInterpreterFromEntryPoint(Thread* self, const DexFile::CodeItem* code_item,
                                       ShadowFrame* shadow_frame) {
   DCHECK_EQ(self, Thread::Current());
   bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
@@ -521,11 +510,10 @@ JValue EnterInterpreterFromEntryPoint(Thread* self, MethodHelper* mh,
     return JValue();
   }
 
-  return Execute(self, *mh, code_item, *shadow_frame, JValue());
+  return Execute(self, code_item, *shadow_frame, JValue());
 }
 
-extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper* mh,
-                                                  const DexFile::CodeItem* code_item,
+extern "C" void artInterpreterToInterpreterBridge(Thread* self, const DexFile::CodeItem* code_item,
                                                   ShadowFrame* shadow_frame, JValue* result) {
   bool implicit_check = !Runtime::Current()->ExplicitStackOverflowChecks();
   if (UNLIKELY(__builtin_frame_address(0) < self->GetStackEndForInterpreter(implicit_check))) {
@@ -534,10 +522,10 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper* mh
   }
 
   self->PushShadowFrame(shadow_frame);
-  DCHECK_EQ(shadow_frame->GetMethod(), mh->Get());
   // Ensure static methods are initialized.
-  if (mh->Get()->IsStatic()) {
-    mirror::Class* declaring_class = mh->Get()->GetDeclaringClass();
+  const bool is_static = shadow_frame->GetMethod()->IsStatic();
+  if (is_static) {
+    mirror::Class* declaring_class = shadow_frame->GetMethod()->GetDeclaringClass();
     if (UNLIKELY(!declaring_class->IsInitialized())) {
       StackHandleScope<1> hs(self);
       HandleWrapper<Class> h_declaring_class(hs.NewHandleWrapper(&declaring_class));
@@ -551,15 +539,15 @@ extern "C" void artInterpreterToInterpreterBridge(Thread* self, MethodHelper* mh
     }
   }
 
-  if (LIKELY(!mh->Get()->IsNative())) {
-    result->SetJ(Execute(self, *mh, code_item, *shadow_frame, JValue()).GetJ());
+  if (LIKELY(!shadow_frame->GetMethod()->IsNative())) {
+    result->SetJ(Execute(self, code_item, *shadow_frame, JValue()).GetJ());
   } else {
     // We don't expect to be asked to interpret native code (which is entered via a JNI compiler
     // generated stub) except during testing and image writing.
     CHECK(!Runtime::Current()->IsStarted());
-    Object* receiver = mh->Get()->IsStatic() ? nullptr : shadow_frame->GetVRegReference(0);
-    uint32_t* args = shadow_frame->GetVRegArgs(mh->Get()->IsStatic() ? 0 : 1);
-    UnstartedRuntimeJni(self, mh->Get(), receiver, args, result);
+    Object* receiver = is_static ? nullptr : shadow_frame->GetVRegReference(0);
+    uint32_t* args = shadow_frame->GetVRegArgs(is_static ? 0 : 1);
+    UnstartedRuntimeJni(self, shadow_frame->GetMethod(), receiver, args, result);
   }
 
   self->PopShadowFrame();

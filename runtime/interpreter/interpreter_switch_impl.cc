@@ -57,7 +57,7 @@ namespace interpreter {
   } while (false)
 
 template<bool do_access_check, bool transaction_active>
-JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
+JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
                          ShadowFrame& shadow_frame, JValue result_register) {
   bool do_assignability_check = do_access_check;
   if (UNLIKELY(!shadow_frame.HasReferenceArray())) {
@@ -82,7 +82,7 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
   while (true) {
     dex_pc = inst->GetDexPc(insns);
     shadow_frame.SetDexPC(dex_pc);
-    TraceExecution(shadow_frame, inst, dex_pc, mh);
+    TraceExecution(shadow_frame, inst, dex_pc);
     inst_data = inst->Fetch16(0);
     switch (inst->Opcode(inst_data)) {
       case Instruction::NOP:
@@ -2140,27 +2140,23 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
       case Instruction::UNUSED_EF ... Instruction::UNUSED_FF:
       case Instruction::UNUSED_79:
       case Instruction::UNUSED_7A:
-        UnexpectedOpcode(inst, mh);
+        UnexpectedOpcode(inst, shadow_frame);
     }
   }
 }  // NOLINT(readability/fn_size)
 
 // Explicit definitions of ExecuteSwitchImpl.
 template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) HOT_ATTR
-JValue ExecuteSwitchImpl<true, false>(Thread* self, MethodHelper& mh,
-                                      const DexFile::CodeItem* code_item,
+JValue ExecuteSwitchImpl<true, false>(Thread* self, const DexFile::CodeItem* code_item,
                                       ShadowFrame& shadow_frame, JValue result_register);
 template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) HOT_ATTR
-JValue ExecuteSwitchImpl<false, false>(Thread* self, MethodHelper& mh,
-                                       const DexFile::CodeItem* code_item,
+JValue ExecuteSwitchImpl<false, false>(Thread* self, const DexFile::CodeItem* code_item,
                                        ShadowFrame& shadow_frame, JValue result_register);
 template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-JValue ExecuteSwitchImpl<true, true>(Thread* self, MethodHelper& mh,
-                                     const DexFile::CodeItem* code_item,
+JValue ExecuteSwitchImpl<true, true>(Thread* self, const DexFile::CodeItem* code_item,
                                      ShadowFrame& shadow_frame, JValue result_register);
 template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-JValue ExecuteSwitchImpl<false, true>(Thread* self, MethodHelper& mh,
-                                      const DexFile::CodeItem* code_item,
+JValue ExecuteSwitchImpl<false, true>(Thread* self, const DexFile::CodeItem* code_item,
                                       ShadowFrame& shadow_frame, JValue result_register);
 
 }  // namespace interpreter
