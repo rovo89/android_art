@@ -20,7 +20,6 @@
 #include "class_linker-inl.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
-#include "field_helper.h"
 #include "jni_internal.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
@@ -294,9 +293,8 @@ static void Field_set(JNIEnv* env, jobject javaField, jobject javaObj, jobject j
     StackHandleScope<2> hs(soa.Self());
     HandleWrapper<mirror::Object> h_o(hs.NewHandleWrapper(&o));
     HandleWrapper<mirror::ArtField> h_f(hs.NewHandleWrapper(&f));
-    FieldHelper fh(h_f);
     // May cause resolution.
-    field_type = fh.GetType(true);
+    field_type = h_f->GetType(true);
     if (field_type == nullptr) {
       DCHECK(soa.Self()->IsExceptionPending());
       return;

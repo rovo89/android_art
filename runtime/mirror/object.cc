@@ -24,7 +24,6 @@
 #include "class.h"
 #include "class-inl.h"
 #include "class_linker-inl.h"
-#include "field_helper.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
 #include "iftable-inl.h"
@@ -202,12 +201,16 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
     if (fields != NULL) {
       size_t num_ifields = fields->GetLength();
       for (size_t i = 0; i < num_ifields; ++i) {
+        StackHandleScope<1> hs(Thread::Current());
+        Handle<Object> h_object(hs.NewHandle(new_value));
         ArtField* field = fields->Get(i);
         if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
           CHECK_NE(field->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
-          StackHandleScope<1> hs(Thread::Current());
-          FieldHelper fh(hs.NewHandle(field));
-          CHECK(fh.GetType()->IsAssignableFrom(new_value->GetClass()));
+          // TODO: resolve the field type for moving GC.
+          mirror::Class* field_type = field->GetType(!kMovingCollector);
+          if (field_type != nullptr) {
+            CHECK(field_type->IsAssignableFrom(new_value->GetClass()));
+          }
           return;
         }
       }
@@ -225,9 +228,11 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
         ArtField* field = fields->Get(i);
         if (field->GetOffset().Int32Value() == field_offset.Int32Value()) {
           CHECK_NE(field->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
-          StackHandleScope<1> hs(Thread::Current());
-          FieldHelper fh(hs.NewHandle(field));
-          CHECK(fh.GetType()->IsAssignableFrom(new_value->GetClass()));
+          // TODO: resolve the field type for moving GC.
+          mirror::Class* field_type = field->GetType(!kMovingCollector);
+          if (field_type != nullptr) {
+            CHECK(field_type->IsAssignableFrom(new_value->GetClass()));
+          }
           return;
         }
       }
@@ -235,6 +240,7 @@ void Object::CheckFieldAssignmentImpl(MemberOffset field_offset, Object* new_val
   }
   LOG(FATAL) << "Failed to find field for assignment to " << reinterpret_cast<void*>(this)
       << " of type " << PrettyDescriptor(c) << " at offset " << field_offset;
+  UNREACHABLE();
 }
 
 }  // namespace mirror

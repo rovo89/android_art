@@ -24,7 +24,6 @@
 #include "class_linker.h"
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
-#include "field_helper.h"
 #include "gc/space/space.h"
 #include "java_vm_ext.h"
 #include "jni_internal.h"
