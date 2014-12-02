@@ -144,11 +144,8 @@ ART_TARGET_CLANG_CFLAGS_arm64  += \
 ART_TARGET_CLANG_CFLAGS_arm64 += \
   -fno-vectorize
 
-# Colorize clang compiler warnings.
-art_clang_cflags := -fcolor-diagnostics
-
 # Warn about thread safety violations with clang.
-art_clang_cflags += -Wthread-safety
+art_clang_cflags := -Wthread-safety
 
 # Warn if switch fallthroughs aren't annotated.
 art_clang_cflags += -Wimplicit-fallthrough
