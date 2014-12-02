@@ -155,6 +155,37 @@ void HGraphBuilder::If_21t(const Instruction& instruction, uint32_t dex_pc) {
   current_block_ = nullptr;
 }
 
+static bool ShouldSkipCompilation(const CompilerDriver& compiler_driver,
+                                  const DexCompilationUnit& dex_compilation_unit,
+                                  size_t number_of_dex_instructions,
+                                  size_t number_of_blocks ATTRIBUTE_UNUSED,
+                                  size_t number_of_branches) {
+  const CompilerOptions& compiler_options = compiler_driver.GetCompilerOptions();
+  CompilerOptions::CompilerFilter compiler_filter = compiler_options.GetCompilerFilter();
+  if (compiler_filter == CompilerOptions::kEverything) {
+    return false;
+  }
+
+  if (compiler_options.IsHugeMethod(number_of_dex_instructions)) {
+    LOG(INFO) << "Skip compilation of huge method "
+              << PrettyMethod(dex_compilation_unit.GetDexMethodIndex(),
+                              *dex_compilation_unit.GetDexFile())
+              << ": " << number_of_dex_instructions << " dex instructions";
+    return true;
+  }
+
+  // If it's large and contains no branches, it's likely to be machine generated initialization.
+  if (compiler_options.IsLargeMethod(number_of_dex_instructions) && (number_of_branches == 0)) {
+    LOG(INFO) << "Skip compilation of large method with no branch "
+              << PrettyMethod(dex_compilation_unit.GetDexMethodIndex(),
+                              *dex_compilation_unit.GetDexFile())
+              << ": " << number_of_dex_instructions << " dex instructions";
+    return true;
+  }
+
+  return false;
+}
+
 HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
   const uint16_t* code_ptr = code_item.insns_;
   const uint16_t* code_end = code_item.insns_ + code_item.insns_size_in_code_units_;
@@ -171,9 +202,27 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
   InitializeLocals(code_item.registers_size_);
   graph_->UpdateMaximumNumberOfOutVRegs(code_item.outs_size_);
 
+  // Compute the number of dex instructions, blocks, and branches. We will
+  // check these values against limits given to the compiler.
+  size_t number_of_dex_instructions = 0;
+  size_t number_of_blocks = 0;
+  size_t number_of_branches = 0;
+
   // To avoid splitting blocks, we compute ahead of time the instructions that
   // start a new block, and create these blocks.
-  ComputeBranchTargets(code_ptr, code_end);
+  ComputeBranchTargets(
+      code_ptr, code_end, &number_of_dex_instructions, &number_of_blocks, &number_of_branches);
+
+  // Note that the compiler driver is null when unit testing.
+  if (compiler_driver_ != nullptr) {
+    if (ShouldSkipCompilation(*compiler_driver_,
+                              *dex_compilation_unit_,
+                              number_of_dex_instructions,
+                              number_of_blocks,
+                              number_of_branches)) {
+      return nullptr;
+    }
+  }
 
   // Also create blocks for catch handlers.
   if (code_item.tries_size_ != 0) {
@@ -232,7 +281,11 @@ void HGraphBuilder::MaybeUpdateCurrentBlock(size_t index) {
   current_block_ = block;
 }
 
-void HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr, const uint16_t* code_end) {
+void HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr,
+                                         const uint16_t* code_end,
+                                         size_t* number_of_dex_instructions,
+                                         size_t* number_of_blocks,
+                                         size_t* number_of_branches) {
   // TODO: Support switch instructions.
   branch_targets_.SetSize(code_end - code_ptr);
 
@@ -245,19 +298,23 @@ void HGraphBuilder::ComputeBranchTargets(const uint16_t* code_ptr, const uint16_
   // the locations these instructions branch to.
   size_t dex_pc = 0;
   while (code_ptr < code_end) {
+    (*number_of_dex_instructions)++;
     const Instruction& instruction = *Instruction::At(code_ptr);
     if (instruction.IsBranch()) {
+      (*number_of_branches)++;
       int32_t target = instruction.GetTargetOffset() + dex_pc;
       // Create a block for the target instruction.
       if (FindBlockStartingAt(target) == nullptr) {
         block = new (arena_) HBasicBlock(graph_, target);
         branch_targets_.Put(target, block);
+        (*number_of_blocks)++;
       }
       dex_pc += instruction.SizeInCodeUnits();
       code_ptr += instruction.SizeInCodeUnits();
       if ((code_ptr < code_end) && (FindBlockStartingAt(dex_pc) == nullptr)) {
         block = new (arena_) HBasicBlock(graph_, dex_pc);
         branch_targets_.Put(dex_pc, block);
+        (*number_of_blocks)++;
       }
     } else {
       code_ptr += instruction.SizeInCodeUnits();
