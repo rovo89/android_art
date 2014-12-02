@@ -27,17 +27,14 @@
 namespace art {
 
 union JValue;
-class MethodHelper;
 class ShadowFrame;
 class Thread;
 
 // Pointers to functions that are called by interpreter trampolines via thread-local storage.
 struct PACKED(4) InterpreterEntryPoints {
-  void (*pInterpreterToInterpreterBridge)(Thread* self, MethodHelper* mh,
-                                          const DexFile::CodeItem* code_item,
+  void (*pInterpreterToInterpreterBridge)(Thread* self, const DexFile::CodeItem* code_item,
                                           ShadowFrame* shadow_frame, JValue* result);
-  void (*pInterpreterToCompiledCodeBridge)(Thread* self, MethodHelper* mh,
-                                           const DexFile::CodeItem* code_item,
+  void (*pInterpreterToCompiledCodeBridge)(Thread* self, const DexFile::CodeItem* code_item,
                                            ShadowFrame* shadow_frame, JValue* result);
 };
 
