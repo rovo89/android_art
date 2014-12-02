@@ -2560,15 +2560,6 @@ const void* ClassLinker::GetOatMethodPortableCodeFor(mirror::ArtMethod* method) 
   return found ? oat_method.GetPortableCode() : nullptr;
 }
 
-const void* ClassLinker::GetOatMethodQuickCodeFor(mirror::ArtMethod* method) {
-  if (method->IsNative() || method->IsAbstract() || method->IsProxyMethod()) {
-    return nullptr;
-  }
-  OatFile::OatMethod oat_method;
-  bool found = FindOatMethodFor(method, &oat_method);
-  return found ? oat_method.GetQuickCode() : nullptr;
-}
-
 const void* ClassLinker::GetQuickOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx,
                                             uint32_t method_idx) {
   bool found;
