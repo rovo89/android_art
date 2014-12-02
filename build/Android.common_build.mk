@@ -262,16 +262,21 @@ ifeq ($(HOST_OS),linux)
   art_target_non_debug_cflags += -Wframe-larger-than=1728
 endif
 
-ifndef LIBART_IMG_HOST_BASE_ADDRESS
-  $(error LIBART_IMG_HOST_BASE_ADDRESS unset)
-endif
-ART_HOST_CFLAGS += $(art_cflags) -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
-ART_HOST_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=default
+# DALVIK_VM_LIB will be empty for VM-less builds. Avoid $(error) calls here because
+# LIBART_IMG_XXX variables won't be defined.
+ifneq ($(DALVIK_VM_LIB),)
+  ifndef LIBART_IMG_HOST_BASE_ADDRESS
+    $(error LIBART_IMG_HOST_BASE_ADDRESS unset)
+  endif
+  ART_HOST_CFLAGS += $(art_cflags) -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
+  ART_HOST_CFLAGS += -DART_DEFAULT_INSTRUCTION_SET_FEATURES=default
 
-ifndef LIBART_IMG_TARGET_BASE_ADDRESS
-  $(error LIBART_IMG_TARGET_BASE_ADDRESS unset)
+  ifndef LIBART_IMG_TARGET_BASE_ADDRESS
+    $(error LIBART_IMG_TARGET_BASE_ADDRESS unset)
+  endif
+  ART_TARGET_CFLAGS += $(art_cflags) \
+                       -DART_TARGET -DART_BASE_ADDRESS=$(LIBART_IMG_TARGET_BASE_ADDRESS)
 endif
-ART_TARGET_CFLAGS += $(art_cflags) -DART_TARGET -DART_BASE_ADDRESS=$(LIBART_IMG_TARGET_BASE_ADDRESS)
 
 ART_HOST_NON_DEBUG_CFLAGS := $(art_host_non_debug_cflags)
 ART_TARGET_NON_DEBUG_CFLAGS := $(art_target_non_debug_cflags)
