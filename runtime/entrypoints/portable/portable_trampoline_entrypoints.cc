@@ -21,6 +21,7 @@
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "interpreter/interpreter.h"
+#include "method_helper.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 #include "scoped_thread_state_change.h"
@@ -224,7 +225,7 @@ extern "C" uint64_t artPortableToInterpreterBridge(mirror::ArtMethod* method, Th
       }
     }
 
-    JValue result = interpreter::EnterInterpreterFromEntryPoint(self, &mh, code_item, shadow_frame);
+    JValue result = interpreter::EnterInterpreterFromEntryPoint(self, code_item, shadow_frame);
     // Pop transition.
     self->PopManagedStackFragment(fragment);
     return result.GetJ();
