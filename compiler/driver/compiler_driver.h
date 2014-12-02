@@ -378,6 +378,9 @@ class CompilerDriver {
   ArenaPool* GetArenaPool() {
     return &arena_pool_;
   }
+  const ArenaPool* GetArenaPool() const {
+    return &arena_pool_;
+  }
 
   bool WriteElf(const std::string& android_root,
                 bool is_host,

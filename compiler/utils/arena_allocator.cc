@@ -177,6 +177,15 @@ Arena* ArenaPool::AllocArena(size_t size) {
   return ret;
 }
 
+size_t ArenaPool::GetBytesAllocated() const {
+  size_t total = 0;
+  MutexLock lock(Thread::Current(), lock_);
+  for (Arena* arena = free_arenas_; arena != nullptr; arena = arena->next_) {
+    total += arena->GetBytesAllocated();
+  }
+  return total;
+}
+
 void ArenaPool::FreeArenaChain(Arena* first) {
   if (UNLIKELY(RUNNING_ON_VALGRIND > 0)) {
     for (Arena* arena = first; arena != nullptr; arena = arena->next_) {

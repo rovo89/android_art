@@ -21,6 +21,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <malloc.h>  // For mallinfo
 #include <sstream>
 #include <string>
 #include <vector>
@@ -264,12 +265,23 @@ class Dex2Oat {
 
   ~Dex2Oat() {
     delete runtime_;
-    LogCompletionTime();
   }
 
-  void LogCompletionTime() {
+  void LogCompletionTime(const CompilerDriver* compiler) {
+    std::ostringstream mallinfostr;
+#ifdef HAVE_MALLOC_H
+    struct mallinfo info = mallinfo();
+    const size_t allocated_space = static_cast<size_t>(info.uordblks);
+    const size_t free_space = static_cast<size_t>(info.fordblks);
+    mallinfostr << " native alloc=" << PrettySize(allocated_space) << " free="
+        << PrettySize(free_space);
+#endif
+    const ArenaPool* arena_pool = compiler->GetArenaPool();
+    gc::Heap* heap = Runtime::Current()->GetHeap();
     LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_)
-              << " (threads: " << thread_count_ << ")";
+              << " (threads: " << thread_count_ << ")"
+              << " arena alloc=" << PrettySize(arena_pool->GetBytesAllocated())
+              << " java alloc=" << PrettySize(heap->GetBytesAllocated()) << mallinfostr.str();
   }
 
 
@@ -1648,10 +1660,10 @@ static int dex2oat(int argc, char** argv) {
     LOG(INFO) << Dumpable<CumulativeLogger>(compiler_phases_timings);
   }
 
+  dex2oat->LogCompletionTime(compiler.get());
   // Everything was successfully written, do an explicit exit here to avoid running Runtime
   // destructors that take time (bug 10645725) unless we're a debug build or running on valgrind.
   if (!kIsDebugBuild && (RUNNING_ON_VALGRIND == 0)) {
-    dex2oat->LogCompletionTime();
     exit(EXIT_SUCCESS);
   }
 
