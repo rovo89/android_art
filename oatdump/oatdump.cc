@@ -32,7 +32,6 @@
 #include "dex_instruction.h"
 #include "disassembler.h"
 #include "elf_builder.h"
-#include "field_helper.h"
 #include "gc_map.h"
 #include "gc/space/image_space.h"
 #include "gc/space/large_object_space.h"
@@ -1459,50 +1458,54 @@ class ImageDumper {
 
   static void PrintField(std::ostream& os, mirror::ArtField* field, mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const char* descriptor = field->GetTypeDescriptor();
     os << StringPrintf("%s: ", field->GetName());
-    if (descriptor[0] != 'L' && descriptor[0] != '[') {
-      StackHandleScope<1> hs(Thread::Current());
-      FieldHelper fh(hs.NewHandle(field));
-      mirror::Class* type = fh.GetType();
-      DCHECK(type->IsPrimitive());
-      if (type->IsPrimitiveLong()) {
+    switch (field->GetTypeAsPrimitiveType()) {
+      case Primitive::kPrimLong:
         os << StringPrintf("%" PRId64 " (0x%" PRIx64 ")\n", field->Get64(obj), field->Get64(obj));
-      } else if (type->IsPrimitiveDouble()) {
+        break;
+      case Primitive::kPrimDouble:
         os << StringPrintf("%f (%a)\n", field->GetDouble(obj), field->GetDouble(obj));
-      } else if (type->IsPrimitiveFloat()) {
+        break;
+      case Primitive::kPrimFloat:
         os << StringPrintf("%f (%a)\n", field->GetFloat(obj), field->GetFloat(obj));
-      } else if (type->IsPrimitiveInt()) {
+        break;
+      case Primitive::kPrimInt:
         os << StringPrintf("%d (0x%x)\n", field->Get32(obj), field->Get32(obj));
-      } else if (type->IsPrimitiveChar()) {
+        break;
+      case Primitive::kPrimChar:
         os << StringPrintf("%u (0x%x)\n", field->GetChar(obj), field->GetChar(obj));
-      } else if (type->IsPrimitiveShort()) {
+        break;
+      case Primitive::kPrimShort:
         os << StringPrintf("%d (0x%x)\n", field->GetShort(obj), field->GetShort(obj));
-      } else if (type->IsPrimitiveBoolean()) {
+        break;
+      case Primitive::kPrimBoolean:
         os << StringPrintf("%s (0x%x)\n", field->GetBoolean(obj)? "true" : "false",
             field->GetBoolean(obj));
-      } else if (type->IsPrimitiveByte()) {
+        break;
+      case Primitive::kPrimByte:
         os << StringPrintf("%d (0x%x)\n", field->GetByte(obj), field->GetByte(obj));
-      } else {
-        LOG(FATAL) << "Unknown type: " << PrettyClass(type);
-      }
-    } else {
-      // Get the value, don't compute the type unless it is non-null as we don't want
-      // to cause class loading.
-      mirror::Object* value = field->GetObj(obj);
-      if (value == nullptr) {
-        os << StringPrintf("null   %s\n", PrettyDescriptor(descriptor).c_str());
-      } else {
-        // Grab the field type without causing resolution.
-        StackHandleScope<1> hs(Thread::Current());
-        FieldHelper fh(hs.NewHandle(field));
-        mirror::Class* field_type = fh.GetType(false);
-        if (field_type != nullptr) {
-          PrettyObjectValue(os, field_type, value);
+        break;
+      case Primitive::kPrimNot: {
+        // Get the value, don't compute the type unless it is non-null as we don't want
+        // to cause class loading.
+        mirror::Object* value = field->GetObj(obj);
+        if (value == nullptr) {
+          os << StringPrintf("null   %s\n", PrettyDescriptor(field->GetTypeDescriptor()).c_str());
         } else {
-          os << StringPrintf("%p   %s\n", value, PrettyDescriptor(descriptor).c_str());
+          // Grab the field type without causing resolution.
+          mirror::Class* field_type = field->GetType(false);
+          if (field_type != nullptr) {
+            PrettyObjectValue(os, field_type, value);
+          } else {
+            os << StringPrintf("%p   %s\n", value,
+                               PrettyDescriptor(field->GetTypeDescriptor()).c_str());
+          }
         }
+        break;
       }
+      default:
+        os << "unexpected field type: " << field->GetTypeDescriptor() << "\n";
+        break;
     }
   }
 

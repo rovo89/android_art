@@ -25,7 +25,6 @@
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "dex_instruction.h"
-#include "field_helper.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
@@ -1924,7 +1923,7 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId
         HandleWrapper<mirror::Object> h_v(hs.NewHandleWrapper(&v));
         HandleWrapper<mirror::ArtField> h_f(hs.NewHandleWrapper(&f));
         HandleWrapper<mirror::Object> h_o(hs.NewHandleWrapper(&o));
-        field_type = FieldHelper(h_f).GetType();
+        field_type = h_f->GetType(true);
       }
       if (!field_type->IsAssignableFrom(v->GetClass())) {
         return JDWP::ERR_INVALID_OBJECT;

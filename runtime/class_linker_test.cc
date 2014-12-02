@@ -23,7 +23,6 @@
 #include "common_runtime_test.h"
 #include "dex_file.h"
 #include "entrypoints/entrypoint_utils-inl.h"
-#include "field_helper.h"
 #include "gc/heap.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method.h"
@@ -178,9 +177,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_TRUE(field->GetClass() != nullptr);
     EXPECT_EQ(klass, field->GetDeclaringClass());
     EXPECT_TRUE(field->GetName() != nullptr);
-    StackHandleScope<1> hs(Thread::Current());
-    FieldHelper fh(hs.NewHandle(field));
-    EXPECT_TRUE(fh.GetType() != nullptr);
+    EXPECT_TRUE(field->GetType(true) != nullptr);
   }
 
   void AssertClass(const std::string& descriptor, Handle<mirror::Class> klass)
@@ -286,8 +283,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
       mirror::ArtField* field = klass->GetInstanceField(i);
       fhandle.Assign(field);
-      FieldHelper fh(fhandle);
-      mirror::Class* field_type = fh.GetType();
+      mirror::Class* field_type = fhandle->GetType(true);
       ASSERT_TRUE(field_type != nullptr);
       if (!field->IsPrimitiveType()) {
         ASSERT_TRUE(!field_type->IsPrimitive());
@@ -295,7 +291,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
         if (current_ref_offset.Uint32Value() == end_ref_offset.Uint32Value()) {
           // While Reference.referent is not primitive, the ClassLinker
           // treats it as such so that the garbage collector won't scan it.
-          EXPECT_EQ(PrettyField(fh.GetField()),
+          EXPECT_EQ(PrettyField(fhandle.Get()),
                     "java.lang.Object java.lang.ref.Reference.referent");
         } else {
           current_ref_offset = MemberOffset(current_ref_offset.Uint32Value() +
