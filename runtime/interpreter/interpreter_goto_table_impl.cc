@@ -26,7 +26,6 @@ namespace interpreter {
 // - "inst_data" : the current instruction's first 16 bits.
 // - "dex_pc": the current pc.
 // - "shadow_frame": the current shadow frame.
-// - "mh": the current MethodHelper.
 // - "currentHandlersTable": the current table of pointer to each instruction handler.
 
 // Advance to the next instruction and updates interpreter state.
@@ -36,7 +35,7 @@ namespace interpreter {
     inst = inst->RelativeAt(disp);                                          \
     dex_pc = static_cast<uint32_t>(static_cast<int32_t>(dex_pc) + disp);    \
     shadow_frame.SetDexPC(dex_pc);                                          \
-    TraceExecution(shadow_frame, inst, dex_pc, mh);                         \
+    TraceExecution(shadow_frame, inst, dex_pc);                             \
     inst_data = inst->Fetch16(0);                                           \
     goto *currentHandlersTable[inst->Opcode(inst_data)];                    \
   } while (false)
@@ -59,6 +58,7 @@ namespace interpreter {
   do {                                          \
     if (kIsDebugBuild) {                        \
       LOG(FATAL) << "We should not be here !";  \
+      UNREACHABLE();                            \
     }                                           \
   } while (false)
 
@@ -111,8 +111,8 @@ namespace interpreter {
  *
  */
 template<bool do_access_check, bool transaction_active>
-JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* code_item,
-                       ShadowFrame& shadow_frame, JValue result_register) {
+JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowFrame& shadow_frame,
+                       JValue result_register) {
   // Define handler tables:
   // - The main handler table contains execution handlers for each instruction.
   // - The alternative handler table contains prelude handlers which check for thread suspend and
@@ -2279,103 +2279,103 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_3E)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_3F)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_40)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_41)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_42)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_43)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_79)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_7A)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_EF)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_F0)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_F1)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_F2)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_F3)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_F4)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_F5)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_F6)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_F7)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_F8)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_F9)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_FA)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_FB)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_FC)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_FD)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_FE)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_FF)
-    UnexpectedOpcode(inst, mh);
+    UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
   exception_pending_label: {
@@ -2430,21 +2430,17 @@ JValue ExecuteGotoImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem* 
 
 // Explicit definitions of ExecuteGotoImpl.
 template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) HOT_ATTR
-JValue ExecuteGotoImpl<true, false>(Thread* self, MethodHelper& mh,
-                                    const DexFile::CodeItem* code_item,
+JValue ExecuteGotoImpl<true, false>(Thread* self, const DexFile::CodeItem* code_item,
                                     ShadowFrame& shadow_frame, JValue result_register);
 template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) HOT_ATTR
-JValue ExecuteGotoImpl<false, false>(Thread* self, MethodHelper& mh,
-                                     const DexFile::CodeItem* code_item,
+JValue ExecuteGotoImpl<false, false>(Thread* self, const DexFile::CodeItem* code_item,
                                      ShadowFrame& shadow_frame, JValue result_register);
 template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-JValue ExecuteGotoImpl<true, true>(Thread* self, MethodHelper& mh,
-                                    const DexFile::CodeItem* code_item,
+JValue ExecuteGotoImpl<true, true>(Thread* self, const DexFile::CodeItem* code_item,
+                                   ShadowFrame& shadow_frame, JValue result_register);
+template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+JValue ExecuteGotoImpl<false, true>(Thread* self, const DexFile::CodeItem* code_item,
                                     ShadowFrame& shadow_frame, JValue result_register);
-template SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-JValue ExecuteGotoImpl<false, true>(Thread* self, MethodHelper& mh,
-                                     const DexFile::CodeItem* code_item,
-                                     ShadowFrame& shadow_frame, JValue result_register);
 
 }  // namespace interpreter
 }  // namespace art

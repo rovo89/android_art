@@ -20,7 +20,6 @@
 #include "class_linker-inl.h"
 #include "dex_file-inl.h"
 #include "gc/accounting/card_table-inl.h"
-#include "method_helper-inl.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"

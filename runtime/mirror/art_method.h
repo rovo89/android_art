@@ -32,15 +32,14 @@ namespace art {
 struct ArtMethodOffsets;
 struct ConstructorMethodOffsets;
 union JValue;
-class MethodHelper;
 class ScopedObjectAccessAlreadyRunnable;
 class StringPiece;
 class ShadowFrame;
 
 namespace mirror {
 
-typedef void (EntryPointFromInterpreter)(Thread* self, MethodHelper* mh,
-    const DexFile::CodeItem* code_item, ShadowFrame* shadow_frame, JValue* result);
+typedef void (EntryPointFromInterpreter)(Thread* self, const DexFile::CodeItem* code_item,
+                                         ShadowFrame* shadow_frame, JValue* result);
 
 #define ART_METHOD_HAS_PADDING_FIELD_ON_64_BIT
 

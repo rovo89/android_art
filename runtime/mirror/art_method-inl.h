@@ -24,7 +24,6 @@
 #include "class_linker.h"
 #include "dex_cache.h"
 #include "dex_file.h"
-#include "method_helper.h"
 #include "object-inl.h"
 #include "object_array.h"
 #include "oat.h"
