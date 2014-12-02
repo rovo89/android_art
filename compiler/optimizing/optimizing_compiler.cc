@@ -281,6 +281,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
   if (run_optimizations_
       && CanOptimize(*code_item)
       && RegisterAllocator::CanAllocateRegistersFor(*graph, instruction_set)) {
+    VLOG(compiler) << "Optimizing " << PrettyMethod(method_idx, dex_file);
     optimized_compiled_methods_++;
     RunOptimizations(graph, visualizer);
 
@@ -316,6 +317,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     LOG(FATAL) << "Could not allocate registers in optimizing compiler";
     UNREACHABLE();
   } else {
+    VLOG(compiler) << "Compile baseline " << PrettyMethod(method_idx, dex_file);
     unoptimized_compiled_methods_++;
     codegen->CompileBaseline(&allocator);
 
