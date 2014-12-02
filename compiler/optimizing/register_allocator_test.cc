@@ -41,7 +41,7 @@ static bool Check(const uint16_t* data) {
   HGraph* graph = builder.BuildGraph(*item);
   graph->BuildDominatorTree();
   graph->TransformToSSA();
-  graph->FindNaturalLoops();
+  graph->AnalyzeNaturalLoops();
   x86::CodeGeneratorX86 codegen(graph);
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
@@ -255,7 +255,7 @@ static HGraph* BuildSSAGraph(const uint16_t* data, ArenaAllocator* allocator) {
   HGraph* graph = builder.BuildGraph(*item);
   graph->BuildDominatorTree();
   graph->TransformToSSA();
-  graph->FindNaturalLoops();
+  graph->AnalyzeNaturalLoops();
   return graph;
 }
 
@@ -494,7 +494,7 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
   (*phi)->AddInput(*input2);
 
   graph->BuildDominatorTree();
-  graph->FindNaturalLoops();
+  graph->AnalyzeNaturalLoops();
   return graph;
 }
 
