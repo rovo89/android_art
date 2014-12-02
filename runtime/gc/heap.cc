@@ -364,6 +364,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   byte* heap_end = continuous_spaces_.back()->Limit();
   size_t heap_capacity = heap_end - heap_begin;
   // Remove the main backup space since it slows down the GC to have unused extra spaces.
+  // TODO: Avoid needing to do this.
   if (main_space_backup_.get() != nullptr) {
     RemoveSpace(main_space_backup_.get());
   }
@@ -1617,6 +1618,8 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
   to_space->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
   const uint64_t space_size_before_compaction = from_space->Size();
   AddSpace(to_space);
+  // Make sure that we will have enough room to copy.
+  CHECK_GE(to_space->GetFootprintLimit(), from_space->GetFootprintLimit());
   Compact(to_space, from_space, kGcCauseHomogeneousSpaceCompact);
   // Leave as prot read so that we can still run ROSAlloc verification on this space.
   from_space->GetMemMap()->Protect(PROT_READ);
@@ -1735,8 +1738,8 @@ void Heap::TransitionCollector(CollectorType collector_type) {
         RemoveSpace(temp_space_);
         temp_space_ = nullptr;
         mem_map->Protect(PROT_READ | PROT_WRITE);
-        CreateMainMallocSpace(mem_map.get(), kDefaultInitialSize, mem_map->Size(),
-                              mem_map->Size());
+        CreateMainMallocSpace(mem_map.get(), kDefaultInitialSize,
+                              std::min(mem_map->Size(), growth_limit_), mem_map->Size());
         mem_map.release();
         // Compact to the main space from the bump pointer space, don't need to swap semispaces.
         AddSpace(main_space_);
@@ -1749,9 +1752,9 @@ void Heap::TransitionCollector(CollectorType collector_type) {
         if (kIsDebugBuild && kUseRosAlloc) {
           mem_map->Protect(PROT_READ | PROT_WRITE);
         }
-        main_space_backup_.reset(CreateMallocSpaceFromMemMap(mem_map.get(), kDefaultInitialSize,
-                                                             mem_map->Size(), mem_map->Size(),
-                                                             name, true));
+        main_space_backup_.reset(CreateMallocSpaceFromMemMap(
+            mem_map.get(), kDefaultInitialSize, std::min(mem_map->Size(), growth_limit_),
+            mem_map->Size(), name, true));
         if (kIsDebugBuild && kUseRosAlloc) {
           mem_map->Protect(PROT_NONE);
         }
@@ -1990,7 +1993,8 @@ void Heap::PreZygoteFork() {
       MemMap* mem_map = main_space_->ReleaseMemMap();
       RemoveSpace(main_space_);
       space::Space* old_main_space = main_space_;
-      CreateMainMallocSpace(mem_map, kDefaultInitialSize, mem_map->Size(), mem_map->Size());
+      CreateMainMallocSpace(mem_map, kDefaultInitialSize, std::min(mem_map->Size(), growth_limit_),
+                            mem_map->Size());
       delete old_main_space;
       AddSpace(main_space_);
     } else {
@@ -2987,7 +2991,18 @@ void Heap::GrowForUtilization(collector::GarbageCollector* collector_ran) {
 
 void Heap::ClearGrowthLimit() {
   growth_limit_ = capacity_;
-  non_moving_space_->ClearGrowthLimit();
+  for (const auto& space : continuous_spaces_) {
+    if (space->IsMallocSpace()) {
+      gc::space::MallocSpace* malloc_space = space->AsMallocSpace();
+      malloc_space->ClearGrowthLimit();
+      malloc_space->SetFootprintLimit(malloc_space->Capacity());
+    }
+  }
+  // This space isn't added for performance reasons.
+  if (main_space_backup_.get() != nullptr) {
+    main_space_backup_->ClearGrowthLimit();
+    main_space_backup_->SetFootprintLimit(main_space_backup_->Capacity());
+  }
 }
 
 void Heap::AddFinalizerReference(Thread* self, mirror::Object** object) {
