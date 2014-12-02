@@ -161,6 +161,8 @@ class MANAGED ArtField FINAL : public Object {
 
   bool IsPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  Class* GetType(bool resolve) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   size_t FieldSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::DexCache* GetDexCache() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
