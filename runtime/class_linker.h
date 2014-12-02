@@ -359,6 +359,12 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 #endif
 
+  // Get compiled code for a method, return null if no code
+  // exists. This is unlike Get..OatCodeFor which will return a bridge
+  // or interpreter entrypoint.
+  const void* GetOatMethodQuickCodeFor(mirror::ArtMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   pid_t GetClassesLockOwner();  // For SignalCatcher.
   pid_t GetDexLockOwner();  // For SignalCatcher.
 
