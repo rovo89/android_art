@@ -160,6 +160,35 @@ ArtMethod* ArtMethod::FindOverriddenMethod() {
   return result;
 }
 
+uint32_t ArtMethod::FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfile,
+                                                     uint32_t name_and_signature_idx) {
+  const DexFile* dexfile = GetDexFile();
+  const uint32_t dex_method_idx = GetDexMethodIndex();
+  const DexFile::MethodId& mid = dexfile->GetMethodId(dex_method_idx);
+  const DexFile::MethodId& name_and_sig_mid = other_dexfile.GetMethodId(name_and_signature_idx);
+  DCHECK_STREQ(dexfile->GetMethodName(mid), other_dexfile.GetMethodName(name_and_sig_mid));
+  DCHECK_EQ(dexfile->GetMethodSignature(mid), other_dexfile.GetMethodSignature(name_and_sig_mid));
+  if (dexfile == &other_dexfile) {
+    return dex_method_idx;
+  }
+  const char* mid_declaring_class_descriptor = dexfile->StringByTypeIdx(mid.class_idx_);
+  const DexFile::StringId* other_descriptor =
+      other_dexfile.FindStringId(mid_declaring_class_descriptor);
+  if (other_descriptor != nullptr) {
+    const DexFile::TypeId* other_type_id =
+        other_dexfile.FindTypeId(other_dexfile.GetIndexForStringId(*other_descriptor));
+    if (other_type_id != nullptr) {
+      const DexFile::MethodId* other_mid = other_dexfile.FindMethodId(
+          *other_type_id, other_dexfile.GetStringId(name_and_sig_mid.name_idx_),
+          other_dexfile.GetProtoId(name_and_sig_mid.proto_idx_));
+      if (other_mid != nullptr) {
+        return other_dexfile.GetIndexForMethodId(*other_mid);
+      }
+    }
+  }
+  return DexFile::kDexNoIndex;
+}
+
 uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
   if (IsPortableCompiled()) {
     // Portable doesn't use the machine pc, we just use dex pc instead.
