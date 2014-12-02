@@ -192,7 +192,6 @@ static bool CanOptimize(const DexFile::CodeItem& code_item) {
 }
 
 static void RunOptimizations(HGraph* graph, const HGraphVisualizer& visualizer) {
-  TransformToSsa ssa(graph);
   HDeadCodeElimination opt1(graph);
   HConstantFolding opt2(graph);
   SsaRedundantPhiElimination opt3(graph);
@@ -202,7 +201,6 @@ static void RunOptimizations(HGraph* graph, const HGraphVisualizer& visualizer) 
   InstructionSimplifier opt7(graph);
 
   HOptimization* optimizations[] = {
-    &ssa,
     &opt1,
     &opt2,
     &opt3,
@@ -218,6 +216,23 @@ static void RunOptimizations(HGraph* graph, const HGraphVisualizer& visualizer) 
     visualizer.DumpGraph(optimization->GetPassName());
     optimization->Check();
   }
+}
+
+static bool TryBuildingSsa(HGraph* graph,
+                           const DexCompilationUnit& dex_compilation_unit,
+                           const HGraphVisualizer& visualizer) {
+  graph->BuildDominatorTree();
+  graph->TransformToSSA();
+
+  if (!graph->AnalyzeNaturalLoops()) {
+    LOG(INFO) << "Skipping compilation of "
+              << PrettyMethod(dex_compilation_unit.GetDexMethodIndex(),
+                              *dex_compilation_unit.GetDexFile())
+              << ": it contains a non natural loop";
+    return false;
+  }
+  visualizer.DumpGraph("ssa transform");
+  return true;
 }
 
 CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
@@ -282,6 +297,10 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
       && CanOptimize(*code_item)
       && RegisterAllocator::CanAllocateRegistersFor(*graph, instruction_set)) {
     optimized_compiled_methods_++;
+    if (!TryBuildingSsa(graph, dex_compilation_unit, visualizer)) {
+      // We could not transform the graph to SSA, bailout.
+      return nullptr;
+    }
     RunOptimizations(graph, visualizer);
 
     PrepareForRegisterAllocation(graph).Run();
