@@ -21,10 +21,13 @@
 
 #include <fstream>
 #include <iostream>
-#include <malloc.h>  // For mallinfo
 #include <sstream>
 #include <string>
 #include <vector>
+
+#ifndef __APPLE__
+#include <malloc.h>  // For mallinfo
+#endif
 
 #if defined(__linux__) && defined(__arm__)
 #include <sys/personality.h>
