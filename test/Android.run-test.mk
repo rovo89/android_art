@@ -472,6 +472,7 @@ define define-test-art-run-test
     else
       ifeq ($(4),default)
         test_groups += ART_RUN_TEST_$$(uc_host_or_target)_DEFAULT_RULES
+        run_test_options += --quick
       else
         $$(error found $(4) expected $(COMPILER_TYPES))
       endif
