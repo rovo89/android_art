@@ -43,7 +43,6 @@
 #include "intern_table.h"
 #include "interpreter/interpreter.h"
 #include "leb128.h"
-#include "method_helper.h"
 #include "oat.h"
 #include "oat_file.h"
 #include "object_lock.h"
@@ -4346,6 +4345,41 @@ bool ClassLinker::WaitForInitializeClass(Handle<mirror::Class> klass, Thread* se
   UNREACHABLE();
 }
 
+static bool HasSameSignatureWithDifferentClassLoaders(Thread* self,
+                                                      Handle<mirror::ArtMethod> method1,
+                                                      Handle<mirror::ArtMethod> method2)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  {
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Class> return_type(hs.NewHandle(method1->GetReturnType()));
+    if (UNLIKELY(method2->GetReturnType() != return_type.Get())) {
+      return false;
+    }
+  }
+  const DexFile::TypeList* types1 = method1->GetParameterTypeList();
+  const DexFile::TypeList* types2 = method2->GetParameterTypeList();
+  if (types1 == nullptr) {
+    return (types2 == nullptr) || (types2->Size() == 0);
+  } else if (UNLIKELY(types2 == nullptr)) {
+    return types1->Size() == 0;
+  }
+  uint32_t num_types = types1->Size();
+  if (UNLIKELY(num_types != types2->Size())) {
+    return false;
+  }
+  for (uint32_t i = 0; i < num_types; ++i) {
+    mirror::Class* param_type =
+        method1->GetClassFromTypeIndex(types1->GetTypeItem(i).type_idx_, true);
+    mirror::Class* other_param_type =
+        method2->GetClassFromTypeIndex(types2->GetTypeItem(i).type_idx_, true);
+    if (UNLIKELY(param_type != other_param_type)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+
 bool ClassLinker::ValidateSuperClassDescriptors(Handle<mirror::Class> klass) {
   if (klass->IsInterface()) {
     return true;
@@ -4353,19 +4387,19 @@ bool ClassLinker::ValidateSuperClassDescriptors(Handle<mirror::Class> klass) {
   // Begin with the methods local to the superclass.
   Thread* self = Thread::Current();
   StackHandleScope<2> hs(self);
-  MutableMethodHelper mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
-  MutableMethodHelper super_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
+  MutableHandle<mirror::ArtMethod> h_m(hs.NewHandle<mirror::ArtMethod>(nullptr));
+  MutableHandle<mirror::ArtMethod> super_h_m(hs.NewHandle<mirror::ArtMethod>(nullptr));
   if (klass->HasSuperClass() &&
       klass->GetClassLoader() != klass->GetSuperClass()->GetClassLoader()) {
     for (int i = klass->GetSuperClass()->GetVTableLength() - 1; i >= 0; --i) {
-      mh.ChangeMethod(klass->GetVTableEntry(i));
-      super_mh.ChangeMethod(klass->GetSuperClass()->GetVTableEntry(i));
-      if (mh.GetMethod() != super_mh.GetMethod() &&
-          !mh.HasSameSignatureWithDifferentClassLoaders(self, &super_mh)) {
+      h_m.Assign(klass->GetVTableEntry(i));
+      super_h_m.Assign(klass->GetSuperClass()->GetVTableEntry(i));
+      if (h_m.Get() != super_h_m.Get() &&
+          !HasSameSignatureWithDifferentClassLoaders(self, h_m, super_h_m)) {
         ThrowLinkageError(klass.Get(),
                           "Class %s method %s resolves differently in superclass %s",
                           PrettyDescriptor(klass.Get()).c_str(),
-                          PrettyMethod(mh.GetMethod()).c_str(),
+                          PrettyMethod(h_m.Get()).c_str(),
                           PrettyDescriptor(klass->GetSuperClass()).c_str());
         return false;
       }
@@ -4375,14 +4409,14 @@ bool ClassLinker::ValidateSuperClassDescriptors(Handle<mirror::Class> klass) {
     if (klass->GetClassLoader() != klass->GetIfTable()->GetInterface(i)->GetClassLoader()) {
       uint32_t num_methods = klass->GetIfTable()->GetInterface(i)->NumVirtualMethods();
       for (uint32_t j = 0; j < num_methods; ++j) {
-        mh.ChangeMethod(klass->GetIfTable()->GetMethodArray(i)->GetWithoutChecks(j));
-        super_mh.ChangeMethod(klass->GetIfTable()->GetInterface(i)->GetVirtualMethod(j));
-        if (mh.GetMethod() != super_mh.GetMethod() &&
-            !mh.HasSameSignatureWithDifferentClassLoaders(self, &super_mh)) {
+        h_m.Assign(klass->GetIfTable()->GetMethodArray(i)->GetWithoutChecks(j));
+        super_h_m.Assign(klass->GetIfTable()->GetInterface(i)->GetVirtualMethod(j));
+        if (h_m.Get() != super_h_m.Get() &&
+            !HasSameSignatureWithDifferentClassLoaders(self, h_m, super_h_m)) {
           ThrowLinkageError(klass.Get(),
                             "Class %s method %s resolves differently in interface %s",
                             PrettyDescriptor(klass.Get()).c_str(),
-                            PrettyMethod(mh.GetMethod()).c_str(),
+                            PrettyMethod(h_m.Get()).c_str(),
                             PrettyDescriptor(klass->GetIfTable()->GetInterface(i)).c_str());
           return false;
         }
