@@ -812,7 +812,10 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
 
       // We came here because of sharpening. Ensure the dex cache is up-to-date on the method index
       // of the sharpened method avoiding dirtying the dex cache if possible.
-      uint32_t update_dex_cache_method_index = called_method.dex_method_index;
+      // Note, called_method.dex_method_index references the dex method before the
+      // FindVirtualMethodFor... This is ok for FindDexMethodIndexInOtherDexFile that only cares
+      // about the name and signature.
+      uint32_t update_dex_cache_method_index = called->GetDexMethodIndex();
       if (!called->HasSameDexCacheResolvedMethods(caller)) {
         // Calling from one dex file to another, need to compute the method index appropriate to
         // the caller's dex file. Since we get here only if the original called was a runtime
