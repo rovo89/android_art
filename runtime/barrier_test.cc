@@ -27,22 +27,17 @@
 namespace art {
 class CheckWaitTask : public Task {
  public:
-  CheckWaitTask(Barrier* barrier, AtomicInteger* count1, AtomicInteger* count2,
-                   AtomicInteger* count3)
+  CheckWaitTask(Barrier* barrier, AtomicInteger* count1, AtomicInteger* count2)
       : barrier_(barrier),
         count1_(count1),
-        count2_(count2),
-        count3_(count3) {}
+        count2_(count2) {}
 
   void Run(Thread* self) {
-    LOG(INFO) << "Before barrier 1 " << *self;
+    LOG(INFO) << "Before barrier" << *self;
     ++*count1_;
     barrier_->Wait(self);
     ++*count2_;
-    LOG(INFO) << "Before barrier 2 " << *self;
-    barrier_->Wait(self);
-    ++*count3_;
-    LOG(INFO) << "After barrier 2 " << *self;
+    LOG(INFO) << "After barrier" << *self;
   }
 
   virtual void Finalize() {
@@ -53,7 +48,6 @@ class CheckWaitTask : public Task {
   Barrier* const barrier_;
   AtomicInteger* const count1_;
   AtomicInteger* const count2_;
-  AtomicInteger* const count3_;
 };
 
 class BarrierTest : public CommonRuntimeTest {
@@ -67,31 +61,27 @@ int32_t BarrierTest::num_threads = 4;
 TEST_F(BarrierTest, CheckWait) {
   Thread* self = Thread::Current();
   ThreadPool thread_pool("Barrier test thread pool", num_threads);
-  Barrier barrier(0);
+  Barrier barrier(num_threads + 1);  // One extra Wait() in main thread.
+  Barrier timeout_barrier(0);  // Only used for sleeping on timeout.
   AtomicInteger count1(0);
   AtomicInteger count2(0);
-  AtomicInteger count3(0);
   for (int32_t i = 0; i < num_threads; ++i) {
-    thread_pool.AddTask(self, new CheckWaitTask(&barrier, &count1, &count2, &count3));
+    thread_pool.AddTask(self, new CheckWaitTask(&barrier, &count1, &count2));
   }
   thread_pool.StartWorkers(self);
-  barrier.Increment(self, num_threads);
-  // At this point each thread should have passed through the barrier. The first count should be
-  // equal to num_threads.
-  EXPECT_EQ(num_threads, count1.LoadRelaxed());
-  // Count 3 should still be zero since no thread should have gone past the second barrier.
-  EXPECT_EQ(0, count3.LoadRelaxed());
-  // Now lets tell the threads to pass again.
-  barrier.Increment(self, num_threads);
-  // Count 2 should be equal to num_threads since each thread must have passed the second barrier
-  // at this point.
-  EXPECT_EQ(num_threads, count2.LoadRelaxed());
+  while (count1.LoadRelaxed() != num_threads) {
+    timeout_barrier.Increment(self, 1, 100);  // sleep 100 msecs
+  }
+  // Count 2 should still be zero since no thread should have gone past the barrier.
+  EXPECT_EQ(0, count2.LoadRelaxed());
+  // Perform one additional Wait(), allowing pool threads to proceed.
+  barrier.Wait(self);
   // Wait for all the threads to finish.
   thread_pool.Wait(self, true, false);
-  // All three counts should be equal to num_threads now.
-  EXPECT_EQ(count1.LoadRelaxed(), count2.LoadRelaxed());
-  EXPECT_EQ(count2.LoadRelaxed(), count3.LoadRelaxed());
-  EXPECT_EQ(num_threads, count3.LoadRelaxed());
+  // Both counts should be equal to num_threads now.
+  EXPECT_EQ(count1.LoadRelaxed(), num_threads);
+  EXPECT_EQ(count2.LoadRelaxed(), num_threads);
+  timeout_barrier.Init(self, 0);  // Reset to zero for destruction.
 }
 
 class CheckPassTask : public Task {
