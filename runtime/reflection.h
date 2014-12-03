@@ -29,7 +29,6 @@ namespace mirror {
   class Object;
 }  // namespace mirror
 union JValue;
-class MethodHelper;
 class ScopedObjectAccessAlreadyRunnable;
 class ShadowFrame;
 class ThrowLocation;

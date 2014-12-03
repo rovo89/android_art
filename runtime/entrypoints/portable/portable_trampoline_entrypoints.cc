@@ -21,12 +21,61 @@
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "interpreter/interpreter.h"
-#include "method_helper.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {
+
+class ShortyHelper {
+ public:
+  ShortyHelper(const char* shorty, uint32_t shorty_len, bool is_static)
+      : shorty_(shorty), shorty_len_(shorty_len), is_static_(is_static) {
+  }
+
+  const char* GetShorty() const {
+    return shorty_;
+  }
+
+  uint32_t GetShortyLength() const {
+    return shorty_len_;
+  }
+
+  size_t NumArgs() const {
+    // "1 +" because the first in Args is the receiver.
+    // "- 1" because we don't count the return type.
+    return (is_static_ ? 0 : 1) + GetShortyLength() - 1;
+  }
+
+  // Get the primitive type associated with the given parameter.
+  Primitive::Type GetParamPrimitiveType(size_t param) const {
+    CHECK_LT(param, NumArgs());
+    if (is_static_) {
+      param++;  // 0th argument must skip return value at start of the shorty.
+    } else if (param == 0) {
+      return Primitive::kPrimNot;
+    }
+    return Primitive::GetType(shorty_[param]);
+  }
+
+  // Is the specified parameter a long or double, where parameter 0 is 'this' for instance methods.
+  bool IsParamALongOrDouble(size_t param) const {
+    Primitive::Type type = GetParamPrimitiveType(param);
+    return type == Primitive::kPrimLong || type == Primitive::kPrimDouble;
+  }
+
+  // Is the specified parameter a reference, where parameter 0 is 'this' for instance methods.
+  bool IsParamAReference(size_t param) const {
+    return GetParamPrimitiveType(param) == Primitive::kPrimNot;
+  }
+
+ private:
+  const char* const shorty_;
+  const uint32_t shorty_len_;
+  const bool is_static_;
+
+  DISALLOW_COPY_AND_ASSIGN(ShortyHelper);
+};
 
 // Visits the arguments as saved to the stack by a Runtime::kRefAndArgs callee save frame.
 class PortableArgumentVisitor {
@@ -61,7 +110,7 @@ class PortableArgumentVisitor {
 #define PORTABLE_STACK_ARG_SKIP 0
 #endif
 
-  PortableArgumentVisitor(MethodHelper& caller_mh, mirror::ArtMethod** sp)
+  PortableArgumentVisitor(ShortyHelper& caller_mh, mirror::ArtMethod** sp)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) :
     caller_mh_(caller_mh),
     args_in_regs_(ComputeArgsInRegs(caller_mh)),
@@ -120,7 +169,7 @@ class PortableArgumentVisitor {
   }
 
  private:
-  static size_t ComputeArgsInRegs(MethodHelper& mh) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  static size_t ComputeArgsInRegs(ShortyHelper& mh) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
 #if (defined(__i386__))
     UNUSED(mh);
     return 0;
@@ -137,7 +186,7 @@ class PortableArgumentVisitor {
     return args_in_regs;
 #endif
   }
-  MethodHelper& caller_mh_;
+  ShortyHelper& caller_mh_;
   const size_t args_in_regs_;
   const size_t num_params_;
   uint8_t* const reg_args_;
@@ -150,7 +199,7 @@ class PortableArgumentVisitor {
 // Visits arguments on the stack placing them into the shadow frame.
 class BuildPortableShadowFrameVisitor : public PortableArgumentVisitor {
  public:
-  BuildPortableShadowFrameVisitor(MethodHelper& caller_mh, mirror::ArtMethod** sp,
+  BuildPortableShadowFrameVisitor(ShortyHelper& caller_mh, mirror::ArtMethod** sp,
       ShadowFrame& sf, size_t first_arg_reg) :
     PortableArgumentVisitor(caller_mh, sp), sf_(sf), cur_reg_(first_arg_reg) { }
   virtual void Visit() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -199,7 +248,9 @@ extern "C" uint64_t artPortableToInterpreterBridge(mirror::ArtMethod* method, Th
   } else {
     const char* old_cause = self->StartAssertNoThreadSuspension("Building interpreter shadow frame");
     StackHandleScope<2> hs(self);
-    MethodHelper mh(hs.NewHandle(method));
+    uint32_t shorty_len;
+    const char* shorty = method->GetShorty(&shorty_len);
+    ShortyHelper mh(shorty, shorty_len, method->IsStatic());
     const DexFile::CodeItem* code_item = method->GetCodeItem();
     uint16_t num_regs = code_item->registers_size_;
     void* memory = alloca(ShadowFrame::ComputeSize(num_regs));
@@ -236,7 +287,7 @@ extern "C" uint64_t artPortableToInterpreterBridge(mirror::ArtMethod* method, Th
 // to jobjects.
 class BuildPortableArgumentVisitor : public PortableArgumentVisitor {
  public:
-  BuildPortableArgumentVisitor(MethodHelper& caller_mh, mirror::ArtMethod** sp,
+  BuildPortableArgumentVisitor(ShortyHelper& caller_mh, mirror::ArtMethod** sp,
                                ScopedObjectAccessUnchecked& soa, std::vector<jvalue>& args) :
     PortableArgumentVisitor(caller_mh, sp), soa_(soa), args_(args) {}
 
@@ -295,8 +346,9 @@ extern "C" uint64_t artPortableProxyInvokeHandler(mirror::ArtMethod* proxy_metho
   jobject rcvr_jobj = soa.AddLocalReference<jobject>(receiver);
 
   // Placing arguments into args vector and remove the receiver.
-  StackHandleScope<1> hs(self);
-  MethodHelper proxy_mh(hs.NewHandle(proxy_method));
+  uint32_t shorty_len;
+  const char* shorty = proxy_method->GetShorty(&shorty_len);
+  ShortyHelper proxy_mh(shorty, shorty_len, false);
   std::vector<jvalue> args;
   BuildPortableArgumentVisitor local_ref_visitor(proxy_mh, sp, soa, args);
   local_ref_visitor.VisitArguments();
