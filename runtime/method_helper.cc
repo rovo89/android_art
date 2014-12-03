@@ -48,9 +48,10 @@ bool MethodHelperT<HandleKind>::HasSameSignatureWithDifferentClassLoaders(Thread
     return false;
   }
   for (uint32_t i = 0; i < num_types; ++i) {
-    mirror::Class* param_type = GetClassFromTypeIdx(types->GetTypeItem(i).type_idx_);
+    mirror::Class* param_type =
+        method_->GetClassFromTypeIndex(types->GetTypeItem(i).type_idx_, true);
     mirror::Class* other_param_type =
-        other->GetClassFromTypeIdx(other_types->GetTypeItem(i).type_idx_);
+        other->method_->GetClassFromTypeIndex(other_types->GetTypeItem(i).type_idx_, true);
     if (UNLIKELY(param_type != other_param_type)) {
       return false;
     }

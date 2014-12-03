@@ -538,16 +538,6 @@ void AbortTransaction(Thread* self, const char* fmt, ...) {
   va_end(args);
 }
 
-static mirror::Class* GetClassFromTypeIdx(mirror::ArtMethod* method, uint16_t type_idx)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  mirror::Class* type = method->GetDexCacheResolvedType(type_idx);
-  if (type == nullptr) {
-    type = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, method);
-    CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
-  }
-  return type;
-}
-
 template<bool is_range, bool do_assignability_check>
 bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
             const Instruction* inst, uint16_t inst_data, JValue* result) {
@@ -610,8 +600,9 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
         case 'L': {
           Object* o = shadow_frame.GetVRegReference(src_reg);
           if (do_assignability_check && o != NULL) {
-            Class* arg_type = GetClassFromTypeIdx(new_shadow_frame->GetMethod(),
-                                                  params->GetTypeItem(shorty_pos).type_idx_);
+            Class* arg_type =
+                new_shadow_frame->GetMethod()->GetClassFromTypeIndex(
+                    params->GetTypeItem(shorty_pos).type_idx_, true);
             if (arg_type == NULL) {
               CHECK(self->IsExceptionPending());
               return false;

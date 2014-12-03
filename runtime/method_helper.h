@@ -106,9 +106,6 @@ class MethodHelperT {
   bool HasSameSignatureWithDifferentClassLoaders(Thread* self, MethodHelperT<HandleKind2>* other)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::Class* GetClassFromTypeIdx(uint16_t type_idx, bool resolve = true)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
  protected:
   HandleKind<mirror::ArtMethod> method_;
 

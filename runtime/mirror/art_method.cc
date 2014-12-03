@@ -257,7 +257,6 @@ uintptr_t ArtMethod::ToNativeQuickPc(const uint32_t dex_pc, bool abort_on_failur
 
 uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> exception_type,
                                    uint32_t dex_pc, bool* has_no_move_exception) {
-  MethodHelper mh(h_this);
   const DexFile::CodeItem* code_item = h_this->GetCodeItem();
   // Set aside the exception while we resolve its type.
   Thread* self = Thread::Current();
@@ -277,7 +276,7 @@ uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> excep
       break;
     }
     // Does this catch exception type apply?
-    Class* iter_exception_type = mh.GetClassFromTypeIdx(iter_type_idx);
+    Class* iter_exception_type = h_this->GetClassFromTypeIndex(iter_type_idx, true);
     if (UNLIKELY(iter_exception_type == nullptr)) {
       // Now have a NoClassDefFoundError as exception. Ignore in case the exception class was
       // removed by a pro-guard like tool.

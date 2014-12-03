@@ -30,7 +30,6 @@
 #include "gc/space/space-inl.h"
 #include "handle_scope.h"
 #include "jdwp/object_registry.h"
-#include "method_helper-inl.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class.h"
@@ -3678,7 +3677,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
 
     {
       StackHandleScope<3> hs(soa.Self());
-      MethodHelper mh(hs.NewHandle(m));
+      HandleWrapper<mirror::ArtMethod> h_m(hs.NewHandleWrapper(&m));
       HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(&receiver));
       HandleWrapper<mirror::Class> h_klass(hs.NewHandleWrapper(&c));
       const DexFile::TypeList* types = m->GetParameterTypeList();
@@ -3689,7 +3688,8 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
 
         if (shorty[i + 1] == 'L') {
           // Did we really get an argument of an appropriate reference type?
-          mirror::Class* parameter_type = mh.GetClassFromTypeIdx(types->GetTypeItem(i).type_idx_);
+          mirror::Class* parameter_type =
+              h_m->GetClassFromTypeIndex(types->GetTypeItem(i).type_idx_, true);
           mirror::Object* argument = gRegistry->Get<mirror::Object*>(arg_values[i], &error);
           if (error != JDWP::ERR_NONE) {
             return JDWP::ERR_INVALID_OBJECT;
@@ -3703,8 +3703,6 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
           v.l = gRegistry->GetJObject(arg_values[i]);
         }
       }
-      // Update in case it moved.
-      m = mh.GetMethod();
     }
 
     req->receiver = receiver;
