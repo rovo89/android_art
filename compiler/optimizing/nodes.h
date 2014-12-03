@@ -173,6 +173,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   void VisitBlockForBackEdges(HBasicBlock* block,
                               ArenaBitVector* visited,
                               ArenaBitVector* visiting);
+  void RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const;
   void RemoveDeadBlocks(const ArenaBitVector& visited) const;
 
   ArenaAllocator* const arena_;
