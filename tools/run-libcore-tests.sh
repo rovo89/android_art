@@ -27,16 +27,18 @@ if [ ! -f $test_jar ]; then
   exit 1
 fi
 
-# Packages that currently report no failures.
+# Packages that currently work correctly with the expectation files.
 working_packages=("libcore.java.lang"
+                  "libcore.java.math"
                   "libcore.java.util"
                   "org.apache.harmony.annotation"
                   "org.apache.harmony.regex"
                   "org.apache.harmony.tests.java.lang"
+                  "org.apache.harmony.tests.java.math"
                   "org.apache.harmony.tests.java.util"
                   "tests.java.lang.String")
 
 # Run the tests using vogar.
 echo "Running tests for the following test packages:"
 echo ${working_packages[@]} | tr " " "\n"
-vogar $@ --classpath $test_jar ${working_packages[@]}
+vogar $@ --expectations art/tools/libcore_failures.txt --classpath $test_jar ${working_packages[@]}
