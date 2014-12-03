@@ -97,31 +97,11 @@ LIR* ArmMir2Lir::LoadFPConstantValue(int r_dest, int value) {
   return load_pc_rel;
 }
 
-static int LeadingZeros(uint32_t val) {
-  uint32_t alt;
-  int32_t n;
-  int32_t count;
-
-  count = 16;
-  n = 32;
-  do {
-    alt = val >> count;
-    if (alt != 0) {
-      n = n - count;
-      val = alt;
-    }
-    count >>= 1;
-  } while (count);
-  return n - val;
-}
-
 /*
  * Determine whether value can be encoded as a Thumb2 modified
  * immediate.  If not, return -1.  If so, return i:imm3:a:bcdefgh form.
  */
 int ArmMir2Lir::ModifiedImmediate(uint32_t value) {
-  int32_t z_leading;
-  int32_t z_trailing;
   uint32_t b0 = value & 0xff;
 
   /* Note: case of value==0 must use 0:000:0:0000000 encoding */
@@ -135,8 +115,8 @@ int ArmMir2Lir::ModifiedImmediate(uint32_t value) {
   if (value == ((b0 << 24) | (b0 << 8)))
     return (0x2 << 8) | b0; /* 0:010:a:bcdefgh */
   /* Can we do it with rotation? */
-  z_leading = LeadingZeros(value);
-  z_trailing = 32 - LeadingZeros(~value & (value - 1));
+  int z_leading = CLZ(value);
+  int z_trailing = CTZ(value);
   /* A run of eight or fewer active bits? */
   if ((z_leading + z_trailing) < 24)
     return -1;  /* No - bail */
@@ -150,6 +130,64 @@ int ArmMir2Lir::ModifiedImmediate(uint32_t value) {
 
 bool ArmMir2Lir::InexpensiveConstantInt(int32_t value) {
   return (ModifiedImmediate(value) >= 0) || (ModifiedImmediate(~value) >= 0);
+}
+
+bool ArmMir2Lir::InexpensiveConstantInt(int32_t value, Instruction::Code opcode) {
+  switch (opcode) {
+    case Instruction::ADD_INT:
+    case Instruction::ADD_INT_2ADDR:
+    case Instruction::SUB_INT:
+    case Instruction::SUB_INT_2ADDR:
+      if ((value >> 12) == (value >> 31)) {  // Signed 12-bit, RRI12 versions of ADD/SUB.
+        return true;
+      }
+      FALLTHROUGH_INTENDED;
+    case Instruction::IF_EQ:
+    case Instruction::IF_NE:
+    case Instruction::IF_LT:
+    case Instruction::IF_GE:
+    case Instruction::IF_GT:
+    case Instruction::IF_LE:
+      return (ModifiedImmediate(value) >= 0) || (ModifiedImmediate(-value) >= 0);
+    case Instruction::SHL_INT:
+    case Instruction::SHL_INT_2ADDR:
+    case Instruction::SHR_INT:
+    case Instruction::SHR_INT_2ADDR:
+    case Instruction::USHR_INT:
+    case Instruction::USHR_INT_2ADDR:
+      return true;
+    case Instruction::AND_INT:
+    case Instruction::AND_INT_2ADDR:
+    case Instruction::AND_INT_LIT16:
+    case Instruction::AND_INT_LIT8:
+    case Instruction::OR_INT:
+    case Instruction::OR_INT_2ADDR:
+    case Instruction::OR_INT_LIT16:
+    case Instruction::OR_INT_LIT8:
+      return (ModifiedImmediate(value) >= 0) || (ModifiedImmediate(~value) >= 0);
+    case Instruction::XOR_INT:
+    case Instruction::XOR_INT_2ADDR:
+    case Instruction::XOR_INT_LIT16:
+    case Instruction::XOR_INT_LIT8:
+      return (ModifiedImmediate(value) >= 0);
+    case Instruction::MUL_INT:
+    case Instruction::MUL_INT_2ADDR:
+    case Instruction::MUL_INT_LIT8:
+    case Instruction::MUL_INT_LIT16:
+    case Instruction::DIV_INT:
+    case Instruction::DIV_INT_2ADDR:
+    case Instruction::DIV_INT_LIT8:
+    case Instruction::DIV_INT_LIT16:
+    case Instruction::REM_INT:
+    case Instruction::REM_INT_2ADDR:
+    case Instruction::REM_INT_LIT8:
+    case Instruction::REM_INT_LIT16: {
+      EasyMultiplyOp ops[2];
+      return GetEasyMultiplyTwoOps(value, ops);
+    }
+    default:
+      return false;
+  }
 }
 
 bool ArmMir2Lir::InexpensiveConstantFloat(int32_t value) {
@@ -510,7 +548,7 @@ LIR* ArmMir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, in
           op = (op == kOpAdd) ? kOpSub : kOpAdd;
         }
       }
-      if (mod_imm < 0 && (abs_value & 0x3ff) == abs_value) {
+      if (mod_imm < 0 && (abs_value >> 12) == 0) {
         // This is deliberately used only if modified immediate encoding is inadequate since
         // we sometimes actually use the flags for small values but not necessarily low regs.
         if (op == kOpAdd)
@@ -542,6 +580,12 @@ LIR* ArmMir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, in
     case kOpOr:
       opcode = kThumb2OrrRRI8M;
       alt_opcode = kThumb2OrrRRR;
+      if (mod_imm < 0) {
+        mod_imm = ModifiedImmediate(~value);
+        if (mod_imm >= 0) {
+          opcode = kThumb2OrnRRI8M;
+        }
+      }
       break;
     case kOpAnd:
       if (mod_imm < 0) {
