@@ -124,6 +124,10 @@ class Arena {
     return Size() - bytes_allocated_;
   }
 
+  size_t GetBytesAllocated() const {
+    return bytes_allocated_;
+  }
+
  private:
   size_t bytes_allocated_;
   uint8_t* memory_;
@@ -142,11 +146,12 @@ class ArenaPool {
  public:
   ArenaPool();
   ~ArenaPool();
-  Arena* AllocArena(size_t size);
-  void FreeArenaChain(Arena* first);
+  Arena* AllocArena(size_t size) LOCKS_EXCLUDED(lock_);
+  void FreeArenaChain(Arena* first) LOCKS_EXCLUDED(lock_);
+  size_t GetBytesAllocated() const LOCKS_EXCLUDED(lock_);
 
  private:
-  Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   Arena* free_arenas_ GUARDED_BY(lock_);
   DISALLOW_COPY_AND_ASSIGN(ArenaPool);
 };

@@ -200,7 +200,7 @@ art_target_non_debug_cflags := \
 
 ifeq ($(HOST_OS),linux)
   # Larger frame-size for host clang builds today
-  art_host_non_debug_cflags += -Wframe-larger-than=2700
+  art_host_non_debug_cflags += -Wframe-larger-than=3000
   art_target_non_debug_cflags += -Wframe-larger-than=1728
 endif
 
