@@ -1373,6 +1373,12 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
           break;
 
         case Primitive::kPrimFloat:
+          // Processing a Dex `float-to-int' instruction.
+          locations->SetInAt(0, Location::RequiresFpuRegister());
+          locations->SetOut(Location::RequiresRegister());
+          locations->AddTemp(Location::RequiresFpuRegister());
+          break;
+
         case Primitive::kPrimDouble:
           LOG(FATAL) << "Type conversion from " << input_type
                      << " to " << result_type << " not yet implemented";
@@ -1559,7 +1565,31 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
           }
           break;
 
-        case Primitive::kPrimFloat:
+        case Primitive::kPrimFloat: {
+          // Processing a Dex `float-to-int' instruction.
+          XmmRegister input = in.AsFpuRegister<XmmRegister>();
+          Register output = out.AsRegister<Register>();
+          XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
+          Label done, nan;
+
+          __ movl(output, Immediate(kPrimIntMax));
+          // temp = int-to-float(output)
+          __ cvtsi2ss(temp, output);
+          // if input >= temp goto done
+          __ comiss(input, temp);
+          __ j(kAboveEqual, &done);
+          // if input == NaN goto nan
+          __ j(kUnordered, &nan);
+          // output = float-to-int-truncate(input)
+          __ cvttss2si(output, input);
+          __ jmp(&done);
+          __ Bind(&nan);
+          //  output = 0
+          __ xorl(output, output);
+          __ Bind(&done);
+          break;
+        }
+
         case Primitive::kPrimDouble:
           LOG(FATAL) << "Type conversion from " << input_type
                      << " to " << result_type << " not yet implemented";
