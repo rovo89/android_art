@@ -90,7 +90,6 @@ LIBART_COMMON_SRC_FILES := \
   jobject_comparator.cc \
   mem_map.cc \
   memory_region.cc \
-  method_helper.cc \
   mirror/art_field.cc \
   mirror/art_method.cc \
   mirror/array.cc \
