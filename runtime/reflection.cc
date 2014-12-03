@@ -21,7 +21,6 @@
 #include "dex_file-inl.h"
 #include "entrypoints/entrypoint_utils.h"
 #include "jni_internal.h"
-#include "method_helper-inl.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -220,9 +219,10 @@ class ArgArray {
   }
 
   bool BuildArgArrayFromObjectArray(mirror::Object* receiver,
-                                    mirror::ObjectArray<mirror::Object>* args, MethodHelper& mh)
+                                    mirror::ObjectArray<mirror::Object>* args,
+                                    Handle<mirror::ArtMethod> h_m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    const DexFile::TypeList* classes = mh.GetMethod()->GetParameterTypeList();
+    const DexFile::TypeList* classes = h_m->GetParameterTypeList();
     // Set receiver if non-null (method is not static)
     if (receiver != nullptr) {
       Append(receiver);
@@ -231,11 +231,11 @@ class ArgArray {
       mirror::Object* arg = args->Get(args_offset);
       if (((shorty_[i] == 'L') && (arg != nullptr)) || ((arg == nullptr && shorty_[i] != 'L'))) {
         mirror::Class* dst_class =
-            mh.GetClassFromTypeIdx(classes->GetTypeItem(args_offset).type_idx_);
+            h_m->GetClassFromTypeIndex(classes->GetTypeItem(args_offset).type_idx_, true);
         if (UNLIKELY(arg == nullptr || !arg->InstanceOf(dst_class))) {
           ThrowIllegalArgumentException(nullptr,
               StringPrintf("method %s argument %zd has type %s, got %s",
-                  PrettyMethod(mh.GetMethod(), false).c_str(),
+                  PrettyMethod(h_m.Get(), false).c_str(),
                   args_offset + 1,  // Humans don't count from 0.
                   PrettyDescriptor(dst_class).c_str(),
                   PrettyTypeOf(arg).c_str()).c_str());
@@ -263,7 +263,7 @@ class ArgArray {
             } else { \
               ThrowIllegalArgumentException(nullptr, \
                   StringPrintf("method %s argument %zd has type %s, got %s", \
-                      PrettyMethod(mh.GetMethod(), false).c_str(), \
+                      PrettyMethod(h_m.Get(), false).c_str(), \
                       args_offset + 1, \
                       expected, \
                       PrettyTypeOf(arg).c_str()).c_str()); \
@@ -329,6 +329,7 @@ class ArgArray {
 #ifndef NDEBUG
         default:
           LOG(FATAL) << "Unexpected shorty character: " << shorty_[i];
+          UNREACHABLE();
 #endif
       }
 #undef DO_FIRST_ARG
@@ -360,14 +361,13 @@ static void CheckMethodArguments(JavaVMExt* vm, mirror::ArtMethod* m, uint32_t* 
   if (!m->IsStatic()) {
     offset = 1;
   }
-  // TODO: If args contain object references, it may cause problems
+  // TODO: If args contain object references, it may cause problems.
   Thread* self = Thread::Current();
   StackHandleScope<1> hs(self);
   Handle<mirror::ArtMethod> h_m(hs.NewHandle(m));
-  MethodHelper mh(h_m);
   for (uint32_t i = 0; i < num_params; i++) {
     uint16_t type_idx = params->GetTypeItem(i).type_idx_;
-    mirror::Class* param_type = mh.GetClassFromTypeIdx(type_idx);
+    mirror::Class* param_type = h_m->GetClassFromTypeIndex(type_idx, true);
     if (param_type == nullptr) {
       CHECK(self->IsExceptionPending());
       LOG(ERROR) << "Internal error: unresolvable type for argument type in JNI invoke: "
@@ -572,7 +572,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
     // Check that the receiver is non-null and an instance of the field's declaring class.
     receiver = soa.Decode<mirror::Object*>(javaReceiver);
     if (!VerifyObjectIsClass(receiver, declaring_class)) {
-      return NULL;
+      return nullptr;
     }
 
     // Find the actual implementation of the virtual method.
@@ -586,10 +586,10 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   uint32_t classes_size = (classes == nullptr) ? 0 : classes->Size();
   uint32_t arg_count = (objects != nullptr) ? objects->GetLength() : 0;
   if (arg_count != classes_size) {
-    ThrowIllegalArgumentException(NULL,
+    ThrowIllegalArgumentException(nullptr,
                                   StringPrintf("Wrong number of arguments; expected %d, got %d",
                                                classes_size, arg_count).c_str());
-    return NULL;
+    return nullptr;
   }
 
   // If method is not set to be accessible, verify it can be accessed by the caller.
@@ -612,8 +612,8 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   const char* shorty = m->GetShorty(&shorty_len);
   ArgArray arg_array(shorty, shorty_len);
   StackHandleScope<1> hs(soa.Self());
-  MethodHelper mh(hs.NewHandle(m));
-  if (!arg_array.BuildArgArrayFromObjectArray(receiver, objects, mh)) {
+  Handle<mirror::ArtMethod> h_m(hs.NewHandle(m));
+  if (!arg_array.BuildArgArrayFromObjectArray(receiver, objects, h_m)) {
     CHECK(soa.Self()->IsExceptionPending());
     return nullptr;
   }
@@ -628,22 +628,21 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
     jmethodID mid = soa.Env()->GetMethodID(exception_class, "<init>", "(Ljava/lang/Throwable;)V");
     jobject exception_instance = soa.Env()->NewObject(exception_class, mid, th);
     soa.Env()->Throw(reinterpret_cast<jthrowable>(exception_instance));
-    return NULL;
+    return nullptr;
   }
 
   // Box if necessary and return.
-  return soa.AddLocalReference<jobject>(
-      BoxPrimitive(Primitive::GetType(mh.GetMethod()->GetReturnTypeDescriptor()[0]), result));
+  return soa.AddLocalReference<jobject>(BoxPrimitive(Primitive::GetType(shorty[0]), result));
 }
 
 bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c) {
-  if (o == NULL) {
-    ThrowNullPointerException(NULL, "null receiver");
+  if (o == nullptr) {
+    ThrowNullPointerException(nullptr, "null receiver");
     return false;
   } else if (!o->InstanceOf(c)) {
     std::string expected_class_name(PrettyDescriptor(c));
     std::string actual_class_name(PrettyTypeOf(o));
-    ThrowIllegalArgumentException(NULL,
+    ThrowIllegalArgumentException(nullptr,
                                   StringPrintf("Expected receiver of type %s, but got %s",
                                                expected_class_name.c_str(),
                                                actual_class_name.c_str()).c_str());

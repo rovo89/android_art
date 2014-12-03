@@ -140,6 +140,15 @@ inline bool ArtMethod::HasSameDexCacheResolvedTypes(ArtMethod* other) {
   return GetDexCacheResolvedTypes() == other->GetDexCacheResolvedTypes();
 }
 
+inline mirror::Class* ArtMethod::GetClassFromTypeIndex(uint16_t type_idx, bool resolve) {
+  mirror::Class* type = GetDexCacheResolvedType(type_idx);
+  if (type == nullptr && resolve) {
+    type = Runtime::Current()->GetClassLinker()->ResolveType(type_idx, this);
+    CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
+  }
+  return type;
+}
+
 inline uint32_t ArtMethod::GetCodeSize() {
   DCHECK(!IsRuntimeMethod() && !IsProxyMethod()) << PrettyMethod(this);
   const void* code = EntryPointToCodePointer(GetEntryPointFromQuickCompiledCode());
