@@ -29,7 +29,7 @@
 #include "interpreter/interpreter.h"
 #include "jni_internal.h"
 #include "mapping_table.h"
-#include "method_helper-inl.h"
+#include "method_helper.h"
 #include "object_array-inl.h"
 #include "object_array.h"
 #include "object-inl.h"
@@ -93,7 +93,7 @@ InvokeType ArtMethod::GetInvokeType() {
 
 void ArtMethod::SetClass(Class* java_lang_reflect_ArtMethod) {
   CHECK(java_lang_reflect_ArtMethod_.IsNull());
-  CHECK(java_lang_reflect_ArtMethod != NULL);
+  CHECK(java_lang_reflect_ArtMethod != nullptr);
   java_lang_reflect_ArtMethod_ = GcRoot<Class>(java_lang_reflect_ArtMethod);
 }
 
@@ -116,14 +116,31 @@ size_t ArtMethod::NumArgRegisters(const StringPiece& shorty) {
   return num_registers;
 }
 
+static bool HasSameNameAndSignature(ArtMethod* method1, ArtMethod* method2)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  ScopedAssertNoThreadSuspension ants(Thread::Current(), "HasSameNameAndSignature");
+  const DexFile* dex_file = method1->GetDexFile();
+  const DexFile::MethodId& mid = dex_file->GetMethodId(method1->GetDexMethodIndex());
+  if (method1->GetDexCache() == method2->GetDexCache()) {
+    const DexFile::MethodId& mid2 = dex_file->GetMethodId(method2->GetDexMethodIndex());
+    return mid.name_idx_ == mid2.name_idx_ && mid.proto_idx_ == mid2.proto_idx_;
+  }
+  const DexFile* dex_file2 = method2->GetDexFile();
+  const DexFile::MethodId& mid2 = dex_file2->GetMethodId(method2->GetDexMethodIndex());
+  if (!DexFileStringEquals(dex_file, mid.name_idx_, dex_file2, mid2.name_idx_)) {
+    return false;  // Name mismatch.
+  }
+  return dex_file->GetMethodSignature(mid) == dex_file2->GetMethodSignature(mid2);
+}
+
 ArtMethod* ArtMethod::FindOverriddenMethod() {
   if (IsStatic()) {
-    return NULL;
+    return nullptr;
   }
   Class* declaring_class = GetDeclaringClass();
   Class* super_class = declaring_class->GetSuperClass();
   uint16_t method_index = GetMethodIndex();
-  ArtMethod* result = NULL;
+  ArtMethod* result = nullptr;
   // Did this method override a super class method? If so load the result from the super class'
   // vtable
   if (super_class->HasVTable() && method_index < super_class->GetVTableLength()) {
@@ -135,16 +152,13 @@ ArtMethod* ArtMethod::FindOverriddenMethod() {
       CHECK_EQ(result,
                Runtime::Current()->GetClassLinker()->FindMethodForProxy(GetDeclaringClass(), this));
     } else {
-      StackHandleScope<2> hs(Thread::Current());
-      MethodHelper mh(hs.NewHandle(this));
-      MutableMethodHelper interface_mh(hs.NewHandle<mirror::ArtMethod>(nullptr));
       IfTable* iftable = GetDeclaringClass()->GetIfTable();
-      for (size_t i = 0; i < iftable->Count() && result == NULL; i++) {
+      for (size_t i = 0; i < iftable->Count() && result == nullptr; i++) {
         Class* interface = iftable->GetInterface(i);
         for (size_t j = 0; j < interface->NumVirtualMethods(); ++j) {
-          interface_mh.ChangeMethod(interface->GetVirtualMethod(j));
-          if (mh.HasSameNameAndSignature(&interface_mh)) {
-            result = interface_mh.GetMethod();
+          mirror::ArtMethod* interface_method = interface->GetVirtualMethod(j);
+          if (HasSameNameAndSignature(this, interface_method)) {
+            result = interface_method;
             break;
           }
         }
@@ -152,10 +166,7 @@ ArtMethod* ArtMethod::FindOverriddenMethod() {
     }
   }
   if (kIsDebugBuild) {
-    StackHandleScope<2> hs(Thread::Current());
-    MethodHelper result_mh(hs.NewHandle(result));
-    MethodHelper this_mh(hs.NewHandle(this));
-    DCHECK(result == nullptr || this_mh.HasSameNameAndSignature(&result_mh));
+    DCHECK(result == nullptr || HasSameNameAndSignature(this, result));
   }
   return result;
 }
@@ -448,7 +459,7 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
       }
     } else {
       LOG(INFO) << "Not invoking '" << PrettyMethod(this) << "' code=null";
-      if (result != NULL) {
+      if (result != nullptr) {
         result->SetJ(0);
       }
     }
@@ -521,7 +532,7 @@ QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
 void ArtMethod::RegisterNative(const void* native_method, bool is_fast) {
   CHECK(IsNative()) << PrettyMethod(this);
   CHECK(!IsFastNative()) << PrettyMethod(this);
-  CHECK(native_method != NULL) << PrettyMethod(this);
+  CHECK(native_method != nullptr) << PrettyMethod(this);
   if (is_fast) {
     SetAccessFlags(GetAccessFlags() | kAccFastNative);
   }

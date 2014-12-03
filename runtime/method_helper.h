@@ -99,10 +99,6 @@ class MethodHelperT {
   }
 
   template <template <class T> class HandleKind2>
-  ALWAYS_INLINE bool HasSameNameAndSignature(MethodHelperT<HandleKind2>* other)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  template <template <class T> class HandleKind2>
   bool HasSameSignatureWithDifferentClassLoaders(Thread* self, MethodHelperT<HandleKind2>* other)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 

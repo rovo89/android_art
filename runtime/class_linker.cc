@@ -43,7 +43,7 @@
 #include "intern_table.h"
 #include "interpreter/interpreter.h"
 #include "leb128.h"
-#include "method_helper-inl.h"
+#include "method_helper.h"
 #include "oat.h"
 #include "oat_file.h"
 #include "object_lock.h"
