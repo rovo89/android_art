@@ -21,6 +21,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <malloc.h>  // For mallinfo
 #include <sstream>
 #include <string>
 #include <vector>
@@ -450,10 +451,10 @@ class Dex2Oat FINAL {
       timings_(timings) {}
 
   ~Dex2Oat() {
+    LogCompletionTime();  // Needs to be before since it accesses the runtime.
     if (kIsDebugBuild || (RUNNING_ON_VALGRIND != 0)) {
       delete runtime_;  // See field declaration for why this is manual.
     }
-    LogCompletionTime();
   }
 
   // Parse the arguments from the command line. In case of an unrecognized option or impossible
@@ -1604,9 +1605,21 @@ class Dex2Oat FINAL {
     return ReadImageClasses(image_classes_stream);
   }
 
-  void LogCompletionTime() const {
+  void LogCompletionTime() {
+    std::ostringstream mallinfostr;
+#ifdef HAVE_MALLOC_H
+    struct mallinfo info = mallinfo();
+    const size_t allocated_space = static_cast<size_t>(info.uordblks);
+    const size_t free_space = static_cast<size_t>(info.fordblks);
+    mallinfostr << " native alloc=" << PrettySize(allocated_space) << " free="
+        << PrettySize(free_space);
+#endif
+    const ArenaPool* arena_pool = driver_->GetArenaPool();
+    gc::Heap* heap = Runtime::Current()->GetHeap();
     LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_)
-              << " (threads: " << thread_count_ << ")";
+              << " (threads: " << thread_count_ << ")"
+              << " arena alloc=" << PrettySize(arena_pool->GetBytesAllocated())
+              << " java alloc=" << PrettySize(heap->GetBytesAllocated()) << mallinfostr.str();
   }
 
   std::unique_ptr<CompilerOptions> compiler_options_;
