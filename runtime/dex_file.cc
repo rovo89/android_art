@@ -569,14 +569,14 @@ const DexFile::StringId* DexFile::FindStringId(const char* string) const {
   return NULL;
 }
 
-const DexFile::StringId* DexFile::FindStringId(const uint16_t* string) const {
+const DexFile::StringId* DexFile::FindStringId(const uint16_t* string, size_t length) const {
   int32_t lo = 0;
   int32_t hi = NumStringIds() - 1;
   while (hi >= lo) {
     int32_t mid = (hi + lo) / 2;
     const DexFile::StringId& str_id = GetStringId(mid);
     const char* str = GetStringData(str_id);
-    int compare = CompareModifiedUtf8ToUtf16AsCodePointValues(str, string);
+    int compare = CompareModifiedUtf8ToUtf16AsCodePointValues(str, string, length);
     if (compare > 0) {
       lo = mid + 1;
     } else if (compare < 0) {

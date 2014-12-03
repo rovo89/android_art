@@ -598,6 +598,7 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg ATT
   }
   mirror::String* string = obj->AsString();
   const uint16_t* utf16_string = string->GetCharArray()->GetData() + string->GetOffset();
+  size_t utf16_length = static_cast<size_t>(string->GetLength());
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   ReaderMutexLock mu(Thread::Current(), *class_linker->DexLock());
   size_t dex_cache_count = class_linker->GetDexCacheCount();
@@ -605,10 +606,10 @@ void ImageWriter::ComputeEagerResolvedStringsCallback(Object* obj, void* arg ATT
     DexCache* dex_cache = class_linker->GetDexCache(i);
     const DexFile& dex_file = *dex_cache->GetDexFile();
     const DexFile::StringId* string_id;
-    if (UNLIKELY(string->GetLength() == 0)) {
+    if (UNLIKELY(utf16_length == 0)) {
       string_id = dex_file.FindStringId("");
     } else {
-      string_id = dex_file.FindStringId(utf16_string);
+      string_id = dex_file.FindStringId(utf16_string, utf16_length);
     }
     if (string_id != nullptr) {
       // This string occurs in this dex file, assign the dex cache entry.

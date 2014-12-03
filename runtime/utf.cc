@@ -93,16 +93,18 @@ size_t ComputeModifiedUtf8Hash(const char* chars) {
   return static_cast<int32_t>(hash);
 }
 
-int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8_1, const uint16_t* utf8_2) {
+int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8, const uint16_t* utf16,
+                                                size_t utf16_length) {
   for (;;) {
-    if (*utf8_1 == '\0') {
-      return (*utf8_2 == '\0') ? 0 : -1;
-    } else if (*utf8_2 == '\0') {
+    if (*utf8 == '\0') {
+      return (utf16_length == 0) ? 0 : -1;
+    } else if (utf16_length == 0) {
       return 1;
     }
 
-    int c1 = GetUtf16FromUtf8(&utf8_1);
-    int c2 = *utf8_2;
+    int c1 = GetUtf16FromUtf8(&utf8);
+    int c2 = *utf16++;
+    --utf16_length;
 
     if (c1 != c2) {
       return c1 > c2 ? 1 : -1;
