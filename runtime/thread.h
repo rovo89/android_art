@@ -1189,7 +1189,7 @@ class ScopedAssertNoThreadSuspension {
 
  private:
   Thread* const self_;
-  const char* old_cause_;
+  const char* const old_cause_;
 };
 
 std::ostream& operator<<(std::ostream& os, const Thread& thread);

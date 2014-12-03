@@ -34,7 +34,7 @@
 #include "gc/heap.h"
 #include "handle_scope-inl.h"
 #include "iftable-inl.h"
-#include "method_helper-inl.h"
+#include "method_helper.h"
 #include "object-inl.h"
 #include "object_array-inl.h"
 #include "scoped_thread_state_change.h"
@@ -528,26 +528,6 @@ TEST_F(ObjectTest, DescriptorCompare) {
   EXPECT_STREQ(m3_2->GetName(), "m3");
   ArtMethod* m4_2 = klass2->GetVirtualMethod(3);
   EXPECT_STREQ(m4_2->GetName(), "m4");
-
-  MutableMethodHelper mh(hs.NewHandle(m1_1));
-  MutableMethodHelper mh2(hs.NewHandle(m1_2));
-  EXPECT_TRUE(mh.HasSameNameAndSignature(&mh2));
-  EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
-
-  mh.ChangeMethod(m2_1);
-  mh2.ChangeMethod(m2_2);
-  EXPECT_TRUE(mh.HasSameNameAndSignature(&mh2));
-  EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
-
-  mh.ChangeMethod(m3_1);
-  mh2.ChangeMethod(m3_2);
-  EXPECT_TRUE(mh.HasSameNameAndSignature(&mh2));
-  EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
-
-  mh.ChangeMethod(m4_1);
-  mh2.ChangeMethod(m4_2);
-  EXPECT_TRUE(mh.HasSameNameAndSignature(&mh2));
-  EXPECT_TRUE(mh2.HasSameNameAndSignature(&mh));
 }
 
 TEST_F(ObjectTest, StringHashCode) {
