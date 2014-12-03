@@ -488,6 +488,7 @@ enum ArmOpcode {
   kThumb2BicRRI8M,   // bic rd, rn, #<const> [11110] i [000010] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
   kThumb2AndRRI8M,   // and rd, rn, #<const> [11110] i [000000] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
   kThumb2OrrRRI8M,   // orr rd, rn, #<const> [11110] i [000100] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
+  kThumb2OrnRRI8M,   // orn rd, rn, #<const> [11110] i [000110] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
   kThumb2EorRRI8M,   // eor rd, rn, #<const> [11110] i [001000] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
   kThumb2AddRRI8M,   // add rd, rn, #<const> [11110] i [010001] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
   kThumb2AdcRRI8M,   // adc rd, rn, #<const> [11110] i [010101] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
