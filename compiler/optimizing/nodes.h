@@ -1669,7 +1669,12 @@ class HNewInstance : public HExpression<0> {
   uint16_t GetTypeIndex() const { return type_index_; }
 
   // Calls runtime so needs an environment.
-  virtual bool NeedsEnvironment() const { return true; }
+  bool NeedsEnvironment() const OVERRIDE { return true; }
+  // It may throw when called on:
+  //   - interfaces
+  //   - abstract/innaccessible/unknown classes
+  // TODO: optimize when possible.
+  bool CanThrow() const OVERRIDE { return true; }
 
   DECLARE_INSTRUCTION(NewInstance);
 
