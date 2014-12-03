@@ -29,7 +29,6 @@
 #include "interpreter/interpreter.h"
 #include "jni_internal.h"
 #include "mapping_table.h"
-#include "method_helper.h"
 #include "object_array-inl.h"
 #include "object_array.h"
 #include "object-inl.h"
@@ -469,6 +468,21 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   self->PopManagedStackFragment(fragment);
 }
 
+// Counts the number of references in the parameter list of the corresponding method.
+// Note: Thus does _not_ include "this" for non-static methods.
+static uint32_t GetNumberOfReferenceArgsWithoutReceiver(ArtMethod* method)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  uint32_t shorty_len;
+  const char* shorty = method->GetShorty(&shorty_len);
+  uint32_t refs = 0;
+  for (uint32_t i = 1; i < shorty_len ; ++i) {
+    if (shorty[i] == 'L') {
+      refs++;
+    }
+  }
+  return refs;
+}
+
 QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
   if (UNLIKELY(IsPortableCompiled())) {
     // Portable compiled dex bytecode or jni stub.
@@ -511,8 +525,7 @@ QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
     // Generic JNI frame.
     DCHECK(IsNative());
     StackHandleScope<1> hs(Thread::Current());
-    uint32_t handle_refs =
-        MethodHelper(hs.NewHandle(this)).GetNumberOfReferenceArgsWithoutReceiver() + 1;
+    uint32_t handle_refs = GetNumberOfReferenceArgsWithoutReceiver(this) + 1;
     size_t scope_size = HandleScope::SizeOf(handle_refs);
     QuickMethodFrameInfo callee_info = runtime->GetCalleeSaveMethodFrameInfo(Runtime::kRefsAndArgs);
 
