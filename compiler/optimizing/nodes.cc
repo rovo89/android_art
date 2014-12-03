@@ -30,6 +30,36 @@ void HGraph::FindBackEdges(ArenaBitVector* visited) {
   VisitBlockForBackEdges(entry_block_, visited, &visiting);
 }
 
+static void RemoveAsUser(HInstruction* instruction) {
+  for (size_t i = 0; i < instruction->InputCount(); i++) {
+    instruction->InputAt(i)->RemoveUser(instruction, i);
+  }
+
+  HEnvironment* environment = instruction->GetEnvironment();
+  if (environment != nullptr) {
+    for (size_t i = 0, e = environment->Size(); i < e; ++i) {
+      HInstruction* vreg = environment->GetInstructionAt(i);
+      if (vreg != nullptr) {
+        vreg->RemoveEnvironmentUser(environment, i);
+      }
+    }
+  }
+}
+
+void HGraph::RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const {
+  for (size_t i = 0; i < blocks_.Size(); ++i) {
+    if (!visited.IsBitSet(i)) {
+      HBasicBlock* block = blocks_.Get(i);
+      for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+        RemoveAsUser(it.Current());
+      }
+      for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+        RemoveAsUser(it.Current());
+      }
+    }
+  }
+}
+
 void HGraph::RemoveDeadBlocks(const ArenaBitVector& visited) const {
   for (size_t i = 0; i < blocks_.Size(); ++i) {
     if (!visited.IsBitSet(i)) {
@@ -72,16 +102,21 @@ void HGraph::BuildDominatorTree() {
   // (1) Find the back edges in the graph doing a DFS traversal.
   FindBackEdges(&visited);
 
-  // (2) Remove blocks not visited during the initial DFS.
-  //     Step (3) requires dead blocks to be removed from the
+  // (2) Remove instructions and phis from blocks not visited during
+  //     the initial DFS as users from other instructions, so that
+  //     users can be safely removed before uses later.
+  RemoveInstructionsAsUsersFromDeadBlocks(visited);
+
+  // (3) Remove blocks not visited during the initial DFS.
+  //     Step (4) requires dead blocks to be removed from the
   //     predecessors list of live blocks.
   RemoveDeadBlocks(visited);
 
-  // (3) Simplify the CFG now, so that we don't need to recompute
+  // (4) Simplify the CFG now, so that we don't need to recompute
   //     dominators and the reverse post order.
   SimplifyCFG();
 
-  // (4) Compute the immediate dominator of each block. We visit
+  // (5) Compute the immediate dominator of each block. We visit
   //     the successors of a block only when all its forward branches
   //     have been processed.
   GrowableArray<size_t> visits(arena_, blocks_.Size());
@@ -391,19 +426,7 @@ static void Remove(HInstructionList* instruction_list,
   instruction->SetBlock(nullptr);
   instruction_list->RemoveInstruction(instruction);
 
-  for (size_t i = 0; i < instruction->InputCount(); i++) {
-    instruction->InputAt(i)->RemoveUser(instruction, i);
-  }
-
-  HEnvironment* environment = instruction->GetEnvironment();
-  if (environment != nullptr) {
-    for (size_t i = 0, e = environment->Size(); i < e; ++i) {
-      HInstruction* vreg = environment->GetInstructionAt(i);
-      if (vreg != nullptr) {
-        vreg->RemoveEnvironmentUser(environment, i);
-      }
-    }
-  }
+  RemoveAsUser(instruction);
 }
 
 void HBasicBlock::RemoveInstruction(HInstruction* instruction) {
