@@ -91,6 +91,9 @@ public class Main {
     // Generate, compile and check long-to-double Dex instructions.
     longToDouble();
 
+    // Generate, compile and check float-to-int Dex instructions.
+    floatToInt();
+
     // Generate, compile and check int-to-byte Dex instructions.
     shortToByte();
     intToByte();
@@ -313,6 +316,32 @@ public class Main {
     assertDoubleEquals(-9223372036854775808D, $opt$LongToDouble(-9223372036854775808L));  // -(2^63)
   }
 
+  private static void floatToInt() {
+    assertIntEquals(1, $opt$FloatToInt(1F));
+    assertIntEquals(0, $opt$FloatToInt(0F));
+    assertIntEquals(0, $opt$FloatToInt(-0F));
+    assertIntEquals(-1, $opt$FloatToInt(-1F));
+    assertIntEquals(51, $opt$FloatToInt(51F));
+    assertIntEquals(-51, $opt$FloatToInt(-51F));
+    assertIntEquals(0, $opt$FloatToInt(0.5F));
+    assertIntEquals(0, $opt$FloatToInt(0.4999999F));
+    assertIntEquals(0, $opt$FloatToInt(-0.4999999F));
+    assertIntEquals(0, $opt$FloatToInt(-0.5F));
+    assertIntEquals(42, $opt$FloatToInt(42.199F));
+    assertIntEquals(-42, $opt$FloatToInt(-42.199F));
+    assertIntEquals(2147483647, $opt$FloatToInt(2147483647F));  // 2^31 - 1
+    assertIntEquals(-2147483648, $opt$FloatToInt(-2147483647F));  // -(2^31 - 1)
+    assertIntEquals(-2147483648, $opt$FloatToInt(-2147483648F));  // -(2^31)
+    assertIntEquals(2147483647, $opt$FloatToInt(2147483648F));  // (2^31)
+    assertIntEquals(-2147483648, $opt$FloatToInt(-2147483649F));  // -(2^31 + 1)
+    assertIntEquals(2147483647, $opt$FloatToInt(9223372036854775807F));  // 2^63 - 1
+    assertIntEquals(-2147483648, $opt$FloatToInt(-9223372036854775807F));  // -(2^63 - 1)
+    assertIntEquals(-2147483648, $opt$FloatToInt(-9223372036854775808F));  // -(2^63)
+    assertIntEquals(0, $opt$FloatToInt(Float.NaN));
+    assertIntEquals(2147483647, $opt$FloatToInt(Float.POSITIVE_INFINITY));
+    assertIntEquals(-2147483648, $opt$FloatToInt(Float.NEGATIVE_INFINITY));
+  }
+
   private static void shortToByte() {
     assertByteEquals((byte)1, $opt$ShortToByte((short)1));
     assertByteEquals((byte)0, $opt$ShortToByte((short)0));
@@ -467,6 +496,9 @@ public class Main {
 
   // This method produces a long-to-double Dex instruction.
   static double $opt$LongToDouble(long a){ return (double)a; }
+
+  // This method produces a float-to-int Dex instruction.
+  static int $opt$FloatToInt(float a){ return (int)a; }
 
   // These methods produce int-to-byte Dex instructions.
   static byte $opt$ShortToByte(short a){ return (byte)a; }
