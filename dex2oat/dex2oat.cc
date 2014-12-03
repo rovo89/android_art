@@ -443,6 +443,7 @@ class Dex2Oat {
     t2.NewTiming("Writing ELF");
     if (!driver->WriteElf(android_root, is_host, dex_files, &oat_writer, oat_file)) {
       LOG(ERROR) << "Failed to write ELF file " << oat_file->GetPath();
+      oat_file->Erase();
       return nullptr;
     }
 
@@ -460,6 +461,7 @@ class Dex2Oat {
       std::string error_msg;
       if (!PatchOatCode(driver.get(), oat_file, oat_location, &error_msg)) {
         LOG(ERROR) << "Failed to fixup ELF file " << oat_file->GetPath() << ": " << error_msg;
+        oat_file->Erase();
         return nullptr;
       }
     }
@@ -1297,6 +1299,7 @@ static int dex2oat(int argc, char** argv) {
   }
   if (create_file && fchmod(oat_file->Fd(), 0644) != 0) {
     PLOG(ERROR) << "Failed to make oat file world readable: " << oat_location;
+    oat_file->Erase();
     return EXIT_FAILURE;
   }
 
@@ -1310,6 +1313,7 @@ static int dex2oat(int argc, char** argv) {
     size_t failure_count = OpenDexFiles(dex_filenames, dex_locations, boot_class_path);
     if (failure_count > 0) {
       LOG(ERROR) << "Failed to open some dex files: " << failure_count;
+      oat_file->Erase();
       return EXIT_FAILURE;
     }
     runtime_options.push_back(std::make_pair("bootclasspath", &boot_class_path));
@@ -1341,6 +1345,7 @@ static int dex2oat(int argc, char** argv) {
                        thread_count)) {
     LOG(ERROR) << "Failed to create dex2oat";
     timings.EndTiming();
+    oat_file->Erase();
     return EXIT_FAILURE;
   }
   std::unique_ptr<Dex2Oat> dex2oat(p_dex2oat);
@@ -1370,6 +1375,7 @@ static int dex2oat(int argc, char** argv) {
       LOG(ERROR) << "Failed to create list of image classes from '" << image_classes_filename <<
           "': " << error_msg;
       timings.EndTiming();
+      oat_file->Erase();
       return EXIT_FAILURE;
     }
   } else if (image) {
@@ -1391,6 +1397,7 @@ static int dex2oat(int argc, char** argv) {
       LOG(ERROR) << "Failed to create list of compiled classes from '" << compiled_classes_filename
                  << "': " << error_msg;
       timings.EndTiming();
+      oat_file->Erase();
       return EXIT_FAILURE;
     }
   } else if (image) {
@@ -1410,12 +1417,14 @@ static int dex2oat(int argc, char** argv) {
         LOG(ERROR) << "Failed to open zip from file descriptor for '" << zip_location << "': "
             << error_msg;
         timings.EndTiming();
+        oat_file->Erase();
         return EXIT_FAILURE;
       }
       if (!DexFile::OpenFromZip(*zip_archive.get(), zip_location, &error_msg, &dex_files)) {
         LOG(ERROR) << "Failed to open dex from file descriptor for zip file '" << zip_location
             << "': " << error_msg;
         timings.EndTiming();
+        oat_file->Erase();
         return EXIT_FAILURE;
       }
       ATRACE_END();
@@ -1424,6 +1433,7 @@ static int dex2oat(int argc, char** argv) {
       if (failure_count > 0) {
         LOG(ERROR) << "Failed to open some dex files: " << failure_count;
         timings.EndTiming();
+        oat_file->Erase();
         return EXIT_FAILURE;
       }
     }
