@@ -35,6 +35,9 @@ static int64_t constexpr k2Pow32EncodingForDouble = INT64_C(0x41F0000000000000);
 // Binary encoding of 2^31 for type double.
 static int64_t constexpr k2Pow31EncodingForDouble = INT64_C(0x41E0000000000000);
 
+// Maximum value for a primitive integer.
+static int32_t constexpr kPrimIntMax = 0x7fffffff;
+
 class Assembler;
 class CodeGenerator;
 class DexCompilationUnit;
