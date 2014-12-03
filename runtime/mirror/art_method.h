@@ -237,6 +237,10 @@ class MANAGED ArtMethod FINAL : public Object {
   bool HasSameDexCacheResolvedTypes(ObjectArray<Class>* other_cache)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Get the Class* from the type index into this method's dex cache.
+  mirror::Class* GetClassFromTypeIndex(uint16_t type_idx, bool resolve)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Find the method that this method overrides.
   ArtMethod* FindOverriddenMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
