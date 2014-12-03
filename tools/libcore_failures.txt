@@ -1,0 +1,21 @@
+/*
+ * This file contains expectations for ART's buildbot. The purpose of this file is
+ * to temporary and quickly list failing tests and not break the bots, until the
+ * libcore expectation files get properly updated. The script that uses this file
+ * is art/tools/run-libcore-tests.sh.
+ *
+ * It is also used to enable AOSP experiments, and not mess up with CTS's expectations.
+ */
+
+[
+{
+  description: "Assert.java differences between vogar and junit.",
+  result: EXEC_FAILED,
+  name: "libcore.java.math.RunCSVTests#test_csv"
+},
+{
+  description: "Test is currently being updated.",
+  result: EXEC_FAILED,
+  name: "libcore.java.util.OldTimeZoneTest#test_getDisplayNameZILjava_util_Locale"
+}
+]
