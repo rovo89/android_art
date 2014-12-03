@@ -28,7 +28,6 @@
 #include "base/stl_util.h"
 #include "base/unix_file/fd_file.h"
 #include "dex_file-inl.h"
-#include "field_helper.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -324,8 +323,8 @@ std::string PrettyField(mirror::ArtField* f, bool with_type) {
     result += PrettyDescriptor(f->GetTypeDescriptor());
     result += ' ';
   }
-  StackHandleScope<1> hs(Thread::Current());
-  result += PrettyDescriptor(FieldHelper(hs.NewHandle(f)).GetDeclaringClassDescriptor());
+  std::string temp;
+  result += PrettyDescriptor(f->GetDeclaringClass()->GetDescriptor(&temp));
   result += '.';
   result += f->GetName();
   return result;

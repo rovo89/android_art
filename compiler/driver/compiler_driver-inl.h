@@ -21,7 +21,6 @@
 
 #include "dex/compiler_ir.h"
 #include "dex_compilation_unit.h"
-#include "field_helper.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class_loader.h"
@@ -134,10 +133,9 @@ inline std::pair<bool, bool> CompilerDriver::IsFastStaticField(
       } else {
         // Search dex file for localized ssb index, may fail if field's class is a parent
         // of the class mentioned in the dex file and there is no dex cache entry.
-        StackHandleScope<1> hs(Thread::Current());
+        std::string temp;
         const DexFile::StringId* string_id =
-            dex_file->FindStringId(
-                FieldHelper(hs.NewHandle(resolved_field)).GetDeclaringClassDescriptor());
+            dex_file->FindStringId(resolved_field->GetDeclaringClass()->GetDescriptor(&temp));
         if (string_id != nullptr) {
           const DexFile::TypeId* type_id =
              dex_file->FindTypeId(dex_file->GetIndexForStringId(*string_id));

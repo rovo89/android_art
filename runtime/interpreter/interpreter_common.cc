@@ -16,7 +16,6 @@
 
 #include "interpreter_common.h"
 
-#include "field_helper.h"
 #include "mirror/array-inl.h"
 
 namespace art {
@@ -267,8 +266,7 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
           HandleWrapper<mirror::ArtField> h_f(hs.NewHandleWrapper(&f));
           HandleWrapper<mirror::Object> h_reg(hs.NewHandleWrapper(&reg));
           HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(&obj));
-          FieldHelper fh(h_f);
-          field_class = fh.GetType();
+          field_class = h_f->GetType(true);
         }
         if (!reg->VerifierInstanceOf(field_class)) {
           // This should never happen.

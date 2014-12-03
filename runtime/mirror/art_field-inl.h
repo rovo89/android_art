@@ -20,6 +20,7 @@
 #include "art_field.h"
 
 #include "base/logging.h"
+#include "class_linker.h"
 #include "dex_cache.h"
 #include "gc/accounting/card_table-inl.h"
 #include "jvalue.h"
@@ -287,6 +288,22 @@ inline Primitive::Type ArtField::GetTypeAsPrimitiveType()
 
 inline bool ArtField::IsPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   return GetTypeAsPrimitiveType() != Primitive::kPrimNot;
+}
+
+inline Class* ArtField::GetType(bool resolve) {
+  uint32_t field_index = GetDexFieldIndex();
+  if (UNLIKELY(GetDeclaringClass()->IsProxyClass())) {
+    return Runtime::Current()->GetClassLinker()->FindSystemClass(Thread::Current(),
+                                                                 GetTypeDescriptor());
+  }
+  const DexFile* dex_file = GetDexFile();
+  const DexFile::FieldId& field_id = dex_file->GetFieldId(field_index);
+  mirror::Class* type = GetDexCache()->GetResolvedType(field_id.type_idx_);
+  if (resolve && (type == nullptr)) {
+    type = Runtime::Current()->GetClassLinker()->ResolveType(field_id.type_idx_, this);
+    CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
+  }
+  return type;
 }
 
 inline size_t ArtField::FieldSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
