@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "method_helper-inl.h"
+#include "method_helper.h"
 
 #include "class_linker.h"
 #include "dex_file-inl.h"
