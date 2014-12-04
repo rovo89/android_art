@@ -39,6 +39,7 @@
 #include "thread_pool.h"
 #include "utils/arena_allocator.h"
 #include "utils/dedupe_set.h"
+#include "dex/verified_method.h"
 
 namespace art {
 
@@ -658,6 +659,9 @@ class CompilerDriver {
 
   // Should the compiler run on this method given profile information?
   bool SkipCompilation(const std::string& method_name);
+
+  // Get memory usage during compilation.
+  std::string GetMemoryUsageString() const;
 
  private:
   // These flags are internal to CompilerDriver for collecting INVOKE resolution statistics.

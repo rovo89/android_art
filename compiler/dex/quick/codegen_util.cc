@@ -773,6 +773,10 @@ void Mir2Lir::CreateNativeGcMap() {
         ": " << PrettyMethod(cu_->method_idx, *cu_->dex_file);
     native_gc_map_builder.AddEntry(native_offset, references);
   }
+
+  // Maybe not necessary, but this could help prevent errors where we access the verified method
+  // after it has been deleted.
+  mir_graph_->GetCurrentDexCompilationUnit()->ClearVerifiedMethod();
 }
 
 /* Determine the offset of each literal field */
