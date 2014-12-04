@@ -62,6 +62,18 @@ public class Main {
     }
   }
 
+  public static void assertFloatIsNaN(float result) {
+    if (!Float.isNaN(result)) {
+      throw new Error("Expected: NaN, found: " + result);
+    }
+  }
+
+  public static void assertDoubleIsNaN(double result) {
+    if (!Double.isNaN(result)) {
+      throw new Error("Expected: NaN, found: " + result);
+    }
+  }
+
 
   public static void main(String[] args) {
     // Generate, compile and check int-to-long Dex instructions.
@@ -96,6 +108,12 @@ public class Main {
 
     // Generate, compile and check float-to-long Dex instructions.
     floatToLong();
+
+    // Generate, compile and check float-to-double Dex instructions.
+    floatToDouble();
+
+    // Generate, compile and check double-to-float Dex instructions.
+    doubleToFloat();
 
     // Generate, compile and check int-to-byte Dex instructions.
     shortToByte();
@@ -371,6 +389,58 @@ public class Main {
     assertLongEquals(-9223372036854775808L, $opt$FloatToLong(Float.NEGATIVE_INFINITY));
   }
 
+  private static void floatToDouble() {
+    assertDoubleEquals(1D, $opt$FloatToDouble(1F));
+    assertDoubleEquals(0D, $opt$FloatToDouble(0F));
+    assertDoubleEquals(0D, $opt$FloatToDouble(-0F));
+    assertDoubleEquals(-1D, $opt$FloatToDouble(-1F));
+    assertDoubleEquals(51D, $opt$FloatToDouble(51F));
+    assertDoubleEquals(-51D, $opt$FloatToDouble(-51F));
+    assertDoubleEquals(0.5D, $opt$FloatToDouble(0.5F));
+    assertDoubleEquals(0.49999991059303284D, $opt$FloatToDouble(0.4999999F));
+    assertDoubleEquals(-0.49999991059303284D, $opt$FloatToDouble(-0.4999999F));
+    assertDoubleEquals(-0.5D, $opt$FloatToDouble(-0.5F));
+    assertDoubleEquals(42.19900131225586D, $opt$FloatToDouble(42.199F));
+    assertDoubleEquals(-42.19900131225586D, $opt$FloatToDouble(-42.199F));
+    assertDoubleEquals(2147483648D, $opt$FloatToDouble(2147483647F));  // 2^31 - 1
+    assertDoubleEquals(-2147483648D, $opt$FloatToDouble(-2147483647F));  // -(2^31 - 1)
+    assertDoubleEquals(-2147483648D, $opt$FloatToDouble(-2147483648F));  // -(2^31)
+    assertDoubleEquals(2147483648D, $opt$FloatToDouble(2147483648F));  // (2^31)
+    assertDoubleEquals(-2147483648D, $opt$FloatToDouble(-2147483649F));  // -(2^31 + 1)
+    assertDoubleEquals(9223372036854775807D, $opt$FloatToDouble(9223372036854775807F));  // 2^63 - 1
+    assertDoubleEquals(-9223372036854775807D, $opt$FloatToDouble(-9223372036854775807F));  // -(2^63 - 1)
+    assertDoubleEquals(-9223372036854775808D, $opt$FloatToDouble(-9223372036854775808F));  // -(2^63)
+    assertDoubleIsNaN($opt$FloatToDouble(Float.NaN));
+    assertDoubleEquals(Double.POSITIVE_INFINITY, $opt$FloatToDouble(Float.POSITIVE_INFINITY));
+    assertDoubleEquals(Double.NEGATIVE_INFINITY, $opt$FloatToDouble(Float.NEGATIVE_INFINITY));
+  }
+
+  private static void doubleToFloat() {
+    assertFloatEquals(1F, $opt$DoubleToFloat(1D));
+    assertFloatEquals(0F, $opt$DoubleToFloat(0D));
+    assertFloatEquals(0F, $opt$DoubleToFloat(-0D));
+    assertFloatEquals(-1F, $opt$DoubleToFloat(-1D));
+    assertFloatEquals(51F, $opt$DoubleToFloat(51D));
+    assertFloatEquals(-51F, $opt$DoubleToFloat(-51D));
+    assertFloatEquals(0.5F, $opt$DoubleToFloat(0.5D));
+    assertFloatEquals(0.4999999F, $opt$DoubleToFloat(0.4999999D));
+    assertFloatEquals(-0.4999999F, $opt$DoubleToFloat(-0.4999999D));
+    assertFloatEquals(-0.5F, $opt$DoubleToFloat(-0.5D));
+    assertFloatEquals(42.199F, $opt$DoubleToFloat(42.199D));
+    assertFloatEquals(-42.199F, $opt$DoubleToFloat(-42.199D));
+    assertFloatEquals(2147483648F, $opt$DoubleToFloat(2147483647D));  // 2^31 - 1
+    assertFloatEquals(-2147483648F, $opt$DoubleToFloat(-2147483647D));  // -(2^31 - 1)
+    assertFloatEquals(-2147483648F, $opt$DoubleToFloat(-2147483648D));  // -(2^31)
+    assertFloatEquals(2147483648F, $opt$DoubleToFloat(2147483648D));  // (2^31)
+    assertFloatEquals(-2147483648F, $opt$DoubleToFloat(-2147483649D));  // -(2^31 + 1)
+    assertFloatEquals(9223372036854775807F, $opt$DoubleToFloat(9223372036854775807D));  // 2^63 - 1
+    assertFloatEquals(-9223372036854775807F, $opt$DoubleToFloat(-9223372036854775807D));  // -(2^63 - 1)
+    assertFloatEquals(-9223372036854775808F, $opt$DoubleToFloat(-9223372036854775808D));  // -(2^63)
+    assertFloatIsNaN($opt$DoubleToFloat(Float.NaN));
+    assertFloatEquals(Float.POSITIVE_INFINITY, $opt$DoubleToFloat(Double.POSITIVE_INFINITY));
+    assertFloatEquals(Float.NEGATIVE_INFINITY, $opt$DoubleToFloat(Double.NEGATIVE_INFINITY));
+  }
+
   private static void shortToByte() {
     assertByteEquals((byte)1, $opt$ShortToByte((short)1));
     assertByteEquals((byte)0, $opt$ShortToByte((short)0));
@@ -499,51 +569,57 @@ public class Main {
 
 
   // These methods produce int-to-long Dex instructions.
-  static long $opt$ByteToLong(byte a) { return a; }
-  static long $opt$ShortToLong(short a) { return a; }
-  static long $opt$IntToLong(int a) { return a; }
-  static long $opt$CharToLong(int a) { return a; }
+  static long $opt$ByteToLong(byte a) { return (long)a; }
+  static long $opt$ShortToLong(short a) { return (long)a; }
+  static long $opt$IntToLong(int a) { return (long)a; }
+  static long $opt$CharToLong(int a) { return (long)a; }
 
   // These methods produce int-to-float Dex instructions.
-  static float $opt$ByteToFloat(byte a) { return a; }
-  static float $opt$ShortToFloat(short a) { return a; }
-  static float $opt$IntToFloat(int a) { return a; }
-  static float $opt$CharToFloat(char a) { return a; }
+  static float $opt$ByteToFloat(byte a) { return (float)a; }
+  static float $opt$ShortToFloat(short a) { return (float)a; }
+  static float $opt$IntToFloat(int a) { return (float)a; }
+  static float $opt$CharToFloat(char a) { return (float)a; }
 
   // These methods produce int-to-double Dex instructions.
-  static double $opt$ByteToDouble(byte a) { return a; }
-  static double $opt$ShortToDouble(short a) { return a; }
-  static double $opt$IntToDouble(int a) { return a; }
-  static double $opt$CharToDouble(int a) { return a; }
+  static double $opt$ByteToDouble(byte a) { return (double)a; }
+  static double $opt$ShortToDouble(short a) { return (double)a; }
+  static double $opt$IntToDouble(int a) { return (double)a; }
+  static double $opt$CharToDouble(int a) { return (double)a; }
 
   // These methods produce long-to-int Dex instructions.
-  static int $opt$LongToInt(long a){ return (int)a; }
-  static int $opt$LongLiteralToInt(){ return (int)42L; }
+  static int $opt$LongToInt(long a) { return (int)a; }
+  static int $opt$LongLiteralToInt() { return (int)42L; }
 
   // This method produces a long-to-float Dex instruction.
-  static float $opt$LongToFloat(long a){ return (float)a; }
+  static float $opt$LongToFloat(long a) { return (float)a; }
 
   // This method produces a long-to-double Dex instruction.
-  static double $opt$LongToDouble(long a){ return (double)a; }
+  static double $opt$LongToDouble(long a) { return (double)a; }
 
   // This method produces a float-to-int Dex instruction.
-  static int $opt$FloatToInt(float a){ return (int)a; }
+  static int $opt$FloatToInt(float a) { return (int)a; }
+
+  // This method produces a float-to-double Dex instruction.
+  static double $opt$FloatToDouble(float a) { return (double)a; }
+
+  // This method produces a double-to-float Dex instruction.
+  static float $opt$DoubleToFloat(double a) { return (float)a; }
 
   // This method produces a float-to-long Dex instruction.
   static long $opt$FloatToLong(float a){ return (long)a; }
 
   // These methods produce int-to-byte Dex instructions.
-  static byte $opt$ShortToByte(short a){ return (byte)a; }
-  static byte $opt$IntToByte(int a){ return (byte)a; }
-  static byte $opt$CharToByte(char a){ return (byte)a; }
+  static byte $opt$ShortToByte(short a) { return (byte)a; }
+  static byte $opt$IntToByte(int a) { return (byte)a; }
+  static byte $opt$CharToByte(char a) { return (byte)a; }
 
   // These methods produce int-to-short Dex instructions.
-  static short $opt$ByteToShort(byte a){ return (short)a; }
-  static short $opt$IntToShort(int a){ return (short)a; }
-  static short $opt$CharToShort(char a){ return (short)a; }
+  static short $opt$ByteToShort(byte a) { return (short)a; }
+  static short $opt$IntToShort(int a) { return (short)a; }
+  static short $opt$CharToShort(char a) { return (short)a; }
 
   // These methods produce int-to-char Dex instructions.
-  static char $opt$ByteToChar(byte a){ return (char)a; }
-  static char $opt$ShortToChar(short a){ return (char)a; }
-  static char $opt$IntToChar(int a){ return (char)a; }
+  static char $opt$ByteToChar(byte a) { return (char)a; }
+  static char $opt$ShortToChar(short a) { return (char)a; }
+  static char $opt$IntToChar(int a) { return (char)a; }
 }
