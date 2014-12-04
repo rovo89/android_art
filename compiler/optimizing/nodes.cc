@@ -60,19 +60,22 @@ void HGraph::RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visit
   }
 }
 
+void HGraph::RemoveBlock(HBasicBlock* block) const {
+  for (size_t j = 0; j < block->GetSuccessors().Size(); ++j) {
+    block->GetSuccessors().Get(j)->RemovePredecessor(block);
+  }
+  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    block->RemovePhi(it.Current()->AsPhi());
+  }
+  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    block->RemoveInstruction(it.Current());
+  }
+}
+
 void HGraph::RemoveDeadBlocks(const ArenaBitVector& visited) const {
   for (size_t i = 0; i < blocks_.Size(); ++i) {
     if (!visited.IsBitSet(i)) {
-      HBasicBlock* block = blocks_.Get(i);
-      for (size_t j = 0; j < block->GetSuccessors().Size(); ++j) {
-        block->GetSuccessors().Get(j)->RemovePredecessor(block);
-      }
-      for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
-        block->RemovePhi(it.Current()->AsPhi());
-      }
-      for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-        block->RemoveInstruction(it.Current());
-      }
+      RemoveBlock(blocks_.Get(i));
     }
   }
 }
