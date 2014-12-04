@@ -337,9 +337,10 @@ void HGraphBuilder::Unop_12x(const Instruction& instruction, Primitive::Type typ
 
 void HGraphBuilder::Conversion_12x(const Instruction& instruction,
                                    Primitive::Type input_type,
-                                   Primitive::Type result_type) {
+                                   Primitive::Type result_type,
+                                   uint32_t dex_pc) {
   HInstruction* first = LoadLocal(instruction.VRegB(), input_type);
-  current_block_->AddInstruction(new (arena_) HTypeConversion(result_type, first));
+  current_block_->AddInstruction(new (arena_) HTypeConversion(result_type, first, dex_pc));
   UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
 }
 
@@ -1079,52 +1080,57 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::INT_TO_LONG: {
-      Conversion_12x(instruction, Primitive::kPrimInt, Primitive::kPrimLong);
+      Conversion_12x(instruction, Primitive::kPrimInt, Primitive::kPrimLong, dex_pc);
       break;
     }
 
     case Instruction::INT_TO_FLOAT: {
-      Conversion_12x(instruction, Primitive::kPrimInt, Primitive::kPrimFloat);
+      Conversion_12x(instruction, Primitive::kPrimInt, Primitive::kPrimFloat, dex_pc);
       break;
     }
 
     case Instruction::INT_TO_DOUBLE: {
-      Conversion_12x(instruction, Primitive::kPrimInt, Primitive::kPrimDouble);
+      Conversion_12x(instruction, Primitive::kPrimInt, Primitive::kPrimDouble, dex_pc);
       break;
     }
 
     case Instruction::LONG_TO_INT: {
-      Conversion_12x(instruction, Primitive::kPrimLong, Primitive::kPrimInt);
+      Conversion_12x(instruction, Primitive::kPrimLong, Primitive::kPrimInt, dex_pc);
       break;
     }
 
     case Instruction::LONG_TO_FLOAT: {
-      Conversion_12x(instruction, Primitive::kPrimLong, Primitive::kPrimFloat);
+      Conversion_12x(instruction, Primitive::kPrimLong, Primitive::kPrimFloat, dex_pc);
       break;
     }
 
     case Instruction::LONG_TO_DOUBLE: {
-      Conversion_12x(instruction, Primitive::kPrimLong, Primitive::kPrimDouble);
+      Conversion_12x(instruction, Primitive::kPrimLong, Primitive::kPrimDouble, dex_pc);
       break;
     }
 
     case Instruction::FLOAT_TO_INT: {
-      Conversion_12x(instruction, Primitive::kPrimFloat, Primitive::kPrimInt);
+      Conversion_12x(instruction, Primitive::kPrimFloat, Primitive::kPrimInt, dex_pc);
+      break;
+    }
+
+    case Instruction::FLOAT_TO_LONG: {
+      Conversion_12x(instruction, Primitive::kPrimFloat, Primitive::kPrimLong, dex_pc);
       break;
     }
 
     case Instruction::INT_TO_BYTE: {
-      Conversion_12x(instruction, Primitive::kPrimInt, Primitive::kPrimByte);
+      Conversion_12x(instruction, Primitive::kPrimInt, Primitive::kPrimByte, dex_pc);
       break;
     }
 
     case Instruction::INT_TO_SHORT: {
-      Conversion_12x(instruction, Primitive::kPrimInt, Primitive::kPrimShort);
+      Conversion_12x(instruction, Primitive::kPrimInt, Primitive::kPrimShort, dex_pc);
       break;
     }
 
     case Instruction::INT_TO_CHAR: {
-      Conversion_12x(instruction, Primitive::kPrimInt, Primitive::kPrimChar);
+      Conversion_12x(instruction, Primitive::kPrimInt, Primitive::kPrimChar, dex_pc);
       break;
     }
 

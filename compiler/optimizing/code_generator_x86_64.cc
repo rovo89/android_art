@@ -1394,6 +1394,12 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
           break;
 
         case Primitive::kPrimFloat:
+          // Processing a Dex `float-to-long' instruction.
+          locations->SetInAt(0, Location::RequiresFpuRegister());
+          locations->SetOut(Location::RequiresRegister());
+          locations->AddTemp(Location::RequiresFpuRegister());
+          break;
+
         case Primitive::kPrimDouble:
           LOG(FATAL) << "Type conversion from " << input_type << " to "
                      << result_type << " not yet implemented";
@@ -1565,14 +1571,14 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
 
           __ movl(output, Immediate(kPrimIntMax));
           // temp = int-to-float(output)
-          __ cvtsi2ss(temp, output);
+          __ cvtsi2ss(temp, output, false);
           // if input >= temp goto done
           __ comiss(input, temp);
           __ j(kAboveEqual, &done);
           // if input == NaN goto nan
           __ j(kUnordered, &nan);
           // output = float-to-int-truncate(input)
-          __ cvttss2si(output, input);
+          __ cvttss2si(output, input, false);
           __ jmp(&done);
           __ Bind(&nan);
           //  output = 0
@@ -1604,7 +1610,31 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           __ movsxd(out.AsRegister<CpuRegister>(), in.AsRegister<CpuRegister>());
           break;
 
-        case Primitive::kPrimFloat:
+        case Primitive::kPrimFloat: {
+          // Processing a Dex `float-to-long' instruction.
+          XmmRegister input = in.AsFpuRegister<XmmRegister>();
+          CpuRegister output = out.AsRegister<CpuRegister>();
+          XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
+          Label done, nan;
+
+          __ movq(output, Immediate(kPrimLongMax));
+          // temp = int-to-float(output)
+          __ cvtsi2ss(temp, output, true);
+          // if input >= temp goto done
+          __ comiss(input, temp);
+          __ j(kAboveEqual, &done);
+          // if input == NaN goto nan
+          __ j(kUnordered, &nan);
+          // output = float-to-int-truncate(input)
+          __ cvttss2si(output, input, true);
+          __ jmp(&done);
+          __ Bind(&nan);
+          //  output = 0
+          __ xorq(output, output);
+          __ Bind(&done);
+          break;
+        }
+
         case Primitive::kPrimDouble:
           LOG(FATAL) << "Type conversion from " << input_type << " to "
                      << result_type << " not yet implemented";
