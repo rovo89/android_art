@@ -987,6 +987,12 @@ class Dex2Oat FINAL {
     return true;
   }
 
+  void EraseOatFile() {
+    DCHECK(oat_file_.get() != nullptr);
+    oat_file_->Erase();
+    oat_file_.reset();
+  }
+
   // Set up the environment for compilation. Includes starting the runtime and loading/opening the
   // boot class path.
   bool Setup() {
@@ -1301,7 +1307,6 @@ class Dex2Oat FINAL {
       if (!driver_->WriteElf(android_root_, is_host_, dex_files_, oat_writer.get(),
                              oat_file_.get())) {
         LOG(ERROR) << "Failed to write ELF file " << oat_file_->GetPath();
-        oat_file_->Erase();
         return false;
       }
     }
@@ -1712,6 +1717,7 @@ static int CompileImage(Dex2Oat& dex2oat) {
 
   // Create the boot.oat.
   if (!dex2oat.CreateOatFile()) {
+    dex2oat.EraseOatFile();
     return EXIT_FAILURE;
   }
 
@@ -1756,6 +1762,7 @@ static int CompileApp(Dex2Oat& dex2oat) {
 
   // Create the app oat.
   if (!dex2oat.CreateOatFile()) {
+    dex2oat.EraseOatFile();
     return EXIT_FAILURE;
   }
 
@@ -1813,6 +1820,7 @@ static int dex2oat(int argc, char** argv) {
   LOG(INFO) << CommandLine();
 
   if (!dex2oat.Setup()) {
+    dex2oat.EraseOatFile();
     return EXIT_FAILURE;
   }
 
