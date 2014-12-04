@@ -663,9 +663,19 @@ void X86_64Assembler::cvtsd2si(CpuRegister dst, XmmRegister src) {
 
 
 void X86_64Assembler::cvttss2si(CpuRegister dst, XmmRegister src) {
+  cvttss2si(dst, src, false);
+}
+
+
+void X86_64Assembler::cvttss2si(CpuRegister dst, XmmRegister src, bool is64bit) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xF3);
-  EmitOptionalRex32(dst, src);
+  if (is64bit) {
+    // Emit a REX.W prefix if the operand size is 64 bits.
+    EmitRex64(dst, src);
+  } else {
+    EmitOptionalRex32(dst, src);
+  }
   EmitUint8(0x0F);
   EmitUint8(0x2C);
   EmitXmmRegisterOperand(dst.LowBits(), src);
@@ -1994,6 +2004,10 @@ void X86_64Assembler::EmitRex64(CpuRegister dst, CpuRegister src) {
 }
 
 void X86_64Assembler::EmitRex64(XmmRegister dst, CpuRegister src) {
+  EmitOptionalRex(false, true, dst.NeedsRex(), false, src.NeedsRex());
+}
+
+void X86_64Assembler::EmitRex64(CpuRegister dst, XmmRegister src) {
   EmitOptionalRex(false, true, dst.NeedsRex(), false, src.NeedsRex());
 }
 

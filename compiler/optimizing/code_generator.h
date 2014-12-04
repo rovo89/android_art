@@ -37,6 +37,8 @@ static int64_t constexpr k2Pow31EncodingForDouble = INT64_C(0x41E0000000000000);
 
 // Maximum value for a primitive integer.
 static int32_t constexpr kPrimIntMax = 0x7fffffff;
+// Maximum value for a primitive long.
+static int64_t constexpr kPrimLongMax = 0x7fffffffffffffff;
 
 class Assembler;
 class CodeGenerator;
