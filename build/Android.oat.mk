@@ -44,13 +44,14 @@ define create-core-oat-host-rules
   core_pic_infix :=
   core_dex2oat_dependency := $(DEX2OAT_DEPENDENCY)
 
-  ifeq ($(1),default)
-    core_compile_options += --compiler-backend=Quick
+  # With the optimizing compiler, we want to rerun dex2oat whenever there is
+  # a dex2oat change to catch regressions early.
+  ifeq ($(ART_USE_OPTIMIZING_COMPILER), true)
+    core_dex2oat_dependency := $(DEX2OAT)
   endif
+
   ifeq ($(1),optimizing)
     core_compile_options += --compiler-backend=Optimizing
-    # With the optimizing compiler, we want to rerun dex2oat whenever there is
-    # a dex2oat change to catch regressions early.
     core_dex2oat_dependency := $(DEX2OAT)
     core_infix := -optimizing
   endif
@@ -140,9 +141,12 @@ define create-core-oat-target-rules
   core_pic_infix :=
   core_dex2oat_dependency := $(DEX2OAT_DEPENDENCY)
 
-  ifeq ($(1),default)
-    core_compile_options += --compiler-backend=Quick
+  # With the optimizing compiler, we want to rerun dex2oat whenever there is
+  # a dex2oat change to catch regressions early.
+  ifeq ($(ART_USE_OPTIMIZING_COMPILER), true)
+    core_dex2oat_dependency := $(DEX2OAT)
   endif
+
   ifeq ($(1),optimizing)
     ifeq ($($(3)TARGET_ARCH),arm64)
       # TODO: Enable image generation on arm64 once the backend
@@ -150,8 +154,6 @@ define create-core-oat-target-rules
       core_compile_options += --compiler-backend=Quick
     else
       core_compile_options += --compiler-backend=Optimizing
-      # With the optimizing compiler, we want to rerun dex2oat whenever there is
-      # a dex2oat change to catch regressions early.
       core_dex2oat_dependency := $(DEX2OAT)
     endif
     core_infix := -optimizing
