@@ -263,7 +263,7 @@ static void UsageError(const char* fmt, ...) {
 // during development when fatal aborts lead to a cascade of failures
 // that result in a deadlock.
 class WatchDog {
-// WatchDog defines its own CHECK_PTHREAD_CALL to avoid using Log which uses locks
+// WatchDog defines its own CHECK_PTHREAD_CALL to avoid using LOG which uses locks
 #undef CHECK_PTHREAD_CALL
 #define CHECK_WATCH_DOG_PTHREAD_CALL(call, args, what) \
   do { \
@@ -326,41 +326,23 @@ class WatchDog {
             message.c_str());
   }
 
-  static void Warn(const std::string& message) {
-    Message('W', message);
-  }
-
   [[noreturn]] static void Fatal(const std::string& message) {
     Message('F', message);
     exit(1);
   }
 
   void Wait() {
-    bool warning = true;
-    CHECK_GT(kWatchDogTimeoutSeconds, kWatchDogWarningSeconds);
     // TODO: tune the multiplier for GC verification, the following is just to make the timeout
     //       large.
     int64_t multiplier = kVerifyObjectSupport > kVerifyObjectModeFast ? 100 : 1;
-    timespec warning_ts;
-    InitTimeSpec(true, CLOCK_REALTIME, multiplier * kWatchDogWarningSeconds * 1000, 0, &warning_ts);
     timespec timeout_ts;
     InitTimeSpec(true, CLOCK_REALTIME, multiplier * kWatchDogTimeoutSeconds * 1000, 0, &timeout_ts);
     const char* reason = "dex2oat watch dog thread waiting";
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_lock, (&mutex_), reason);
     while (!shutting_down_) {
-      int rc = TEMP_FAILURE_RETRY(pthread_cond_timedwait(&cond_, &mutex_,
-                                                         warning ? &warning_ts
-                                                                 : &timeout_ts));
+      int rc = TEMP_FAILURE_RETRY(pthread_cond_timedwait(&cond_, &mutex_, &timeout_ts));
       if (rc == ETIMEDOUT) {
-        std::string message(StringPrintf("dex2oat did not finish after %d seconds",
-                                         warning ? kWatchDogWarningSeconds
-                                                 : kWatchDogTimeoutSeconds));
-        if (warning) {
-          Warn(message.c_str());
-          warning = false;
-        } else {
-          Fatal(message.c_str());
-        }
+        Fatal(StringPrintf("dex2oat did not finish after %d seconds", kWatchDogTimeoutSeconds));
       } else if (rc != 0) {
         std::string message(StringPrintf("pthread_cond_timedwait failed: %s",
                                          strerror(errno)));
@@ -374,9 +356,6 @@ class WatchDog {
   // Debug builds are slower so they have larger timeouts.
   static const unsigned int kSlowdownFactor = kIsDebugBuild ? 5U : 1U;
 
-  static const unsigned int kWatchDogWarningSeconds = kUsePortableCompiler ?
-      kSlowdownFactor * 2 * 60 :   // 2 minutes scaled by kSlowdownFactor (portable).
-      kSlowdownFactor * 1 * 60;    // 1 minute scaled by kSlowdownFactor  (not-portable).
   static const unsigned int kWatchDogTimeoutSeconds = kUsePortableCompiler ?
       kSlowdownFactor * 30 * 60 :  // 30 minutes scaled by kSlowdownFactor (portable).
       kSlowdownFactor * 6 * 60;    // 6 minutes scaled by kSlowdownFactor  (not-portable).
@@ -705,8 +684,8 @@ class Dex2Oat FINAL {
       } else if (option == "--no-include-patch-information") {
         include_patch_information = false;
       } else if (option.starts_with("--verbose-methods=")) {
-        // TODO: rather than switch off compiler logging, make all VLOG(compiler) messages conditional
-        //       on having verbost methods.
+        // TODO: rather than switch off compiler logging, make all VLOG(compiler) messages
+        //       conditional on having verbost methods.
         gLogVerbosity.compiler = false;
         Split(option.substr(strlen("--verbose-methods=")).ToString(), ',', &verbose_methods_);
       } else if (option.starts_with("--dump-init-failures=")) {
@@ -1100,7 +1079,8 @@ class Dex2Oat FINAL {
       if (kSaveDexInput) {
         for (size_t i = 0; i < dex_files_.size(); ++i) {
           const DexFile* dex_file = dex_files_[i];
-          std::string tmp_file_name(StringPrintf("/data/local/tmp/dex2oat.%d.%zd.dex", getpid(), i));
+          std::string tmp_file_name(StringPrintf("/data/local/tmp/dex2oat.%d.%zd.dex",
+                                                 getpid(), i));
           std::unique_ptr<File> tmp_file(OS::CreateEmptyFile(tmp_file_name.c_str()));
           if (tmp_file.get() == nullptr) {
             PLOG(ERROR) << "Failed to open file " << tmp_file_name
@@ -1126,7 +1106,9 @@ class Dex2Oat FINAL {
      * If we're not in interpret-only or verify-none mode, go ahead and compile small applications.
      * Don't bother to check if we're doing the image.
      */
-    if (!image_ && compiler_options_->IsCompilationEnabled() && compiler_kind_ == Compiler::kQuick) {
+    if (!image_ &&
+        compiler_options_->IsCompilationEnabled() &&
+        compiler_kind_ == Compiler::kQuick) {
       size_t num_methods = 0;
       for (size_t i = 0; i != dex_files_.size(); ++i) {
         const DexFile* dex_file = dex_files_[i];
@@ -1674,7 +1656,6 @@ class Dex2Oat FINAL {
   DISALLOW_IMPLICIT_CONSTRUCTORS(Dex2Oat);
 };
 
-const unsigned int WatchDog::kWatchDogWarningSeconds;
 const unsigned int WatchDog::kWatchDogTimeoutSeconds;
 
 static void b13564922() {
