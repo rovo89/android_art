@@ -480,34 +480,29 @@ class StringCollector {
 };
 
 // Compare strings based on length, used for sorting strings by length / reverse length.
-class StringLengthComparator {
+class LexicographicalStringComparator {
  public:
-  explicit StringLengthComparator(Handle<mirror::ObjectArray<mirror::String>> strings)
-      : strings_(strings) {
+  bool operator()(const mirror::HeapReference<mirror::String>& lhs,
+                  const mirror::HeapReference<mirror::String>& rhs) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::String* lhs_s = lhs.AsMirrorPtr();
+    mirror::String* rhs_s = rhs.AsMirrorPtr();
+    uint16_t* lhs_begin = lhs_s->GetCharArray()->GetData() + lhs_s->GetOffset();
+    uint16_t* rhs_begin = rhs_s->GetCharArray()->GetData() + rhs_s->GetOffset();
+    return std::lexicographical_compare(lhs_begin, lhs_begin + lhs_s->GetLength(),
+                                        rhs_begin, rhs_begin + rhs_s->GetLength());
   }
-  bool operator()(size_t a, size_t b) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return strings_->GetWithoutChecks(a)->GetLength() < strings_->GetWithoutChecks(b)->GetLength();
-  }
-
- private:
-  Handle<mirror::ObjectArray<mirror::String>> strings_;
 };
 
-// Normal string < comparison through the chars_ array.
-class SubstringComparator {
- public:
-  explicit SubstringComparator(const std::vector<uint16_t>* const chars) : chars_(chars) {
+static bool IsPrefix(mirror::String* pref, mirror::String* full)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (pref->GetLength() > full->GetLength()) {
+    return false;
   }
-  bool operator()(const std::pair<size_t, size_t>& a, const std::pair<size_t, size_t>& b) {
-    return std::lexicographical_compare(chars_->begin() + a.first,
-                                        chars_->begin() + a.first + a.second,
-                                        chars_->begin() + b.first,
-                                        chars_->begin() + b.first + b.second);
-  }
-
- private:
-  const std::vector<uint16_t>* const chars_;
-};
+  uint16_t* pref_begin = pref->GetCharArray()->GetData() + pref->GetOffset();
+  uint16_t* full_begin = full->GetCharArray()->GetData() + full->GetOffset();
+  return std::equal(pref_begin, pref_begin + pref->GetLength(), full_begin);
+}
 
 void ImageWriter::ProcessStrings() {
   size_t total_strings = 0;
@@ -529,67 +524,50 @@ void ImageWriter::ProcessStrings() {
   // Some strings could have gotten freed if AllocStringArray caused a GC.
   CHECK_LE(string_collector.GetIndex(), total_strings);
   total_strings = string_collector.GetIndex();
-  size_t total_length = 0;
-  std::vector<size_t> reverse_sorted_strings;
-  for (size_t i = 0; i < total_strings; ++i) {
-    mirror::String* s = strings->GetWithoutChecks(i);
-    // Look up the string in the array.
-    total_length += s->GetLength();
-    reverse_sorted_strings.push_back(i);
-  }
-  // Sort by reverse length.
-  StringLengthComparator comparator(strings);
-  std::sort(reverse_sorted_strings.rbegin(), reverse_sorted_strings.rend(), comparator);
-  // Deduplicate prefixes and add strings to the char array.
-  std::vector<uint16_t> combined_chars(total_length, 0U);
-  size_t num_chars = 0;
+  auto* strings_begin = reinterpret_cast<mirror::HeapReference<mirror::String>*>(
+          strings->GetRawData(sizeof(mirror::HeapReference<mirror::String>), 0));
+  std::sort(strings_begin, strings_begin + total_strings, LexicographicalStringComparator());
   // Characters of strings which are non equal prefix of another string (not the same string).
   // We don't count the savings from equal strings since these would get interned later anyways.
   size_t prefix_saved_chars = 0;
-  std::set<std::pair<size_t, size_t>, SubstringComparator> existing_strings((
-      SubstringComparator(&combined_chars)));
-  for (size_t i = 0; i < total_strings; ++i) {
-    mirror::String* s = strings->GetWithoutChecks(reverse_sorted_strings[i]);
-    // Add the string to the end of the char array.
+  // Count characters needed for the strings.
+  size_t num_chars = 0u;
+  mirror::String* prev_s = nullptr;
+  for (size_t idx = 0; idx != total_strings; ++idx) {
+    mirror::String* s = strings->GetWithoutChecks(idx);
     size_t length = s->GetLength();
-    for (size_t j = 0; j < length; ++j) {
-      combined_chars[num_chars++] = s->CharAt(j);
-    }
-    // Try to see if the string exists as a prefix of an existing string.
-    size_t new_offset = 0;
-    std::pair<size_t, size_t> new_string(num_chars - length, length);
-    auto it = existing_strings.lower_bound(new_string);
-    bool is_prefix = false;
-    if (it != existing_strings.end()) {
-      CHECK_LE(length, it->second);
-      is_prefix = std::equal(combined_chars.begin() + new_string.first,
-                             combined_chars.begin() + new_string.first + new_string.second,
-                             combined_chars.begin() + it->first);
-    }
-    if (is_prefix) {
-      // Shares a prefix, set the offset to where the new offset will be.
-      new_offset = it->first;
-      // Remove the added chars.
-      num_chars -= length;
-      if (it->second != length) {
-        prefix_saved_chars += length;
+    num_chars += length;
+    if (prev_s != nullptr && IsPrefix(prev_s, s)) {
+      size_t prev_length = prev_s->GetLength();
+      num_chars -= prev_length;
+      if (prev_length != length) {
+        prefix_saved_chars += prev_length;
       }
-    } else {
-      new_offset = new_string.first;
-      existing_strings.insert(new_string);
     }
-    s->SetOffset(new_offset);
+    prev_s = s;
   }
-  // Allocate and update the char arrays.
-  auto* array = mirror::CharArray::Alloc(self, num_chars);
-  for (size_t i = 0; i < num_chars; ++i) {
-    array->SetWithoutChecks<false>(i, combined_chars[i]);
+  // Create character array, copy characters and point the strings there.
+  mirror::CharArray* array = mirror::CharArray::Alloc(self, num_chars);
+  uint16_t* array_data = array->GetData();
+  size_t pos = 0u;
+  prev_s = nullptr;
+  for (size_t idx = 0; idx != total_strings; ++idx) {
+    mirror::String* s = strings->GetWithoutChecks(idx);
+    uint16_t* s_data = s->GetCharArray()->GetData();
+    int32_t s_length = s->GetLength();
+    int32_t prefix_length = 0u;
+    if (idx != 0u && IsPrefix(prev_s, s)) {
+      prefix_length = prev_s->GetLength();
+    }
+    memcpy(array_data + pos, s_data + prefix_length, (s_length - prefix_length) * sizeof(*s_data));
+    s->SetOffset(pos - prefix_length);
+    s->SetArray(array);
+    pos += s_length - prefix_length;
+    prev_s = s;
   }
-  for (size_t i = 0; i < total_strings; ++i) {
-    strings->GetWithoutChecks(i)->SetArray(array);
-  }
+
   LOG(INFO) << "Total # image strings=" << total_strings << " combined length="
-      << total_length << " prefix saved chars=" << prefix_saved_chars;
+      << num_chars << " prefix saved chars=" << prefix_saved_chars;
   ComputeEagerResolvedStrings();
 }
 
