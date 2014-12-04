@@ -294,20 +294,20 @@ static void testShallowGetCallingClassLoader(JNIEnv* env) {
     assert(!env->ExceptionCheck());
 
     // Create a string object.
-    jobject library_string = env->NewStringUTF("arttest");
+    jobject library_string = env->NewStringUTF("non_existing_library");
     assert(library_string != nullptr);
     assert(!env->ExceptionCheck());
 
     env->CallStaticVoidMethod(system_clazz, loadLibraryMethodId, library_string);
-    if (env->ExceptionCheck()) {
-      // At most we expect UnsatisfiedLinkError.
-      jthrowable thrown = env->ExceptionOccurred();
-      env->ExceptionClear();
+    assert(env->ExceptionCheck());
 
-      jclass unsatisfied_link_error_clazz = env->FindClass("java/lang/UnsatisfiedLinkError");
-      jclass thrown_class = env->GetObjectClass(thrown);
-      assert(env->IsSameObject(unsatisfied_link_error_clazz, thrown_class));
-    }
+    // We expect UnsatisfiedLinkError.
+    jthrowable thrown = env->ExceptionOccurred();
+    env->ExceptionClear();
+
+    jclass unsatisfied_link_error_clazz = env->FindClass("java/lang/UnsatisfiedLinkError");
+    jclass thrown_class = env->GetObjectClass(thrown);
+    assert(env->IsSameObject(unsatisfied_link_error_clazz, thrown_class));
   }
 }
 
