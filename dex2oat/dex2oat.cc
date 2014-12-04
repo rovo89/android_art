@@ -608,7 +608,7 @@ static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
 // during development when fatal aborts lead to a cascade of failures
 // that result in a deadlock.
 class WatchDog {
-// WatchDog defines its own CHECK_PTHREAD_CALL to avoid using Log which uses locks
+// WatchDog defines its own CHECK_PTHREAD_CALL to avoid using LOG which uses locks
 #undef CHECK_PTHREAD_CALL
 #define CHECK_WATCH_DOG_PTHREAD_CALL(call, args, what) \
   do { \
@@ -671,41 +671,23 @@ class WatchDog {
             message.c_str());
   }
 
-  static void Warn(const std::string& message) {
-    Message('W', message);
-  }
-
   static void Fatal(const std::string& message) {
     Message('F', message);
     exit(1);
   }
 
   void Wait() {
-    bool warning = true;
-    CHECK_GT(kWatchDogTimeoutSeconds, kWatchDogWarningSeconds);
     // TODO: tune the multiplier for GC verification, the following is just to make the timeout
     //       large.
     int64_t multiplier = kVerifyObjectSupport > kVerifyObjectModeFast ? 100 : 1;
-    timespec warning_ts;
-    InitTimeSpec(true, CLOCK_REALTIME, multiplier * kWatchDogWarningSeconds * 1000, 0, &warning_ts);
     timespec timeout_ts;
     InitTimeSpec(true, CLOCK_REALTIME, multiplier * kWatchDogTimeoutSeconds * 1000, 0, &timeout_ts);
     const char* reason = "dex2oat watch dog thread waiting";
     CHECK_WATCH_DOG_PTHREAD_CALL(pthread_mutex_lock, (&mutex_), reason);
     while (!shutting_down_) {
-      int rc = TEMP_FAILURE_RETRY(pthread_cond_timedwait(&cond_, &mutex_,
-                                                         warning ? &warning_ts
-                                                                 : &timeout_ts));
+      int rc = TEMP_FAILURE_RETRY(pthread_cond_timedwait(&cond_, &mutex_, &timeout_ts));
       if (rc == ETIMEDOUT) {
-        std::string message(StringPrintf("dex2oat did not finish after %d seconds",
-                                         warning ? kWatchDogWarningSeconds
-                                                 : kWatchDogTimeoutSeconds));
-        if (warning) {
-          Warn(message.c_str());
-          warning = false;
-        } else {
-          Fatal(message.c_str());
-        }
+        Fatal(StringPrintf("dex2oat did not finish after %d seconds", kWatchDogTimeoutSeconds));
       } else if (rc != 0) {
         std::string message(StringPrintf("pthread_cond_timedwait failed: %s",
                                          strerror(errno)));
@@ -719,13 +701,9 @@ class WatchDog {
   // Debug builds are slower so they have larger timeouts.
   static const unsigned int kSlowdownFactor = kIsDebugBuild ? 5U : 1U;
 #if ART_USE_PORTABLE_COMPILER
-  // 2 minutes scaled by kSlowdownFactor.
-  static const unsigned int kWatchDogWarningSeconds = kSlowdownFactor * 2 * 60;
   // 30 minutes scaled by kSlowdownFactor.
   static const unsigned int kWatchDogTimeoutSeconds = kSlowdownFactor * 30 * 60;
 #else
-  // 1 minutes scaled by kSlowdownFactor.
-  static const unsigned int kWatchDogWarningSeconds = kSlowdownFactor * 1 * 60;
   // 6 minutes scaled by kSlowdownFactor.
   static const unsigned int kWatchDogTimeoutSeconds = kSlowdownFactor * 6 * 60;
 #endif
@@ -738,7 +716,6 @@ class WatchDog {
   pthread_attr_t attr_;
   pthread_t pthread_;
 };
-const unsigned int WatchDog::kWatchDogWarningSeconds;
 const unsigned int WatchDog::kWatchDogTimeoutSeconds;
 
 // Given a set of instruction features from the build, parse it.  The
