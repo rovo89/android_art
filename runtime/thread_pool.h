@@ -22,12 +22,17 @@
 
 #include "barrier.h"
 #include "base/mutex.h"
-#include "closure.h"
 #include "mem_map.h"
 
 namespace art {
 
 class ThreadPool;
+
+class Closure {
+ public:
+  virtual ~Closure() { }
+  virtual void Run(Thread* self) = 0;
+};
 
 class Task : public Closure {
  public:

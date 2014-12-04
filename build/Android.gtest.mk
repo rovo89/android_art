@@ -90,9 +90,6 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/base/stringprintf_test.cc \
   runtime/base/timing_logger_test.cc \
   runtime/base/unix_file/fd_file_test.cc \
-  runtime/base/unix_file/null_file_test.cc \
-  runtime/base/unix_file/random_access_file_utils_test.cc \
-  runtime/base/unix_file/string_file_test.cc \
   runtime/class_linker_test.cc \
   runtime/dex_file_test.cc \
   runtime/dex_file_verifier_test.cc \
