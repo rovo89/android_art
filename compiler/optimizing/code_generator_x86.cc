@@ -1464,8 +1464,9 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
           break;
 
         case Primitive::kPrimDouble:
-          LOG(FATAL) << "Type conversion from " << input_type
-                     << " to " << result_type << " not yet implemented";
+          // Processing a Dex `double-to-float' instruction.
+          locations->SetInAt(0, Location::RequiresFpuRegister());
+          locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
           break;
 
         default:
@@ -1494,8 +1495,9 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
           break;
 
         case Primitive::kPrimFloat:
-          LOG(FATAL) << "Type conversion from " << input_type
-                     << " to " << result_type << " not yet implemented";
+          // Processing a Dex `float-to-double' instruction.
+          locations->SetInAt(0, Location::RequiresFpuRegister());
+          locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
           break;
 
         default:
@@ -1715,8 +1717,8 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
         }
 
         case Primitive::kPrimDouble:
-          LOG(FATAL) << "Type conversion from " << input_type
-                     << " to " << result_type << " not yet implemented";
+          // Processing a Dex `double-to-float' instruction.
+          __ cvtsd2ss(out.AsFpuRegister<XmmRegister>(), in.AsFpuRegister<XmmRegister>());
           break;
 
         default:
@@ -1762,8 +1764,8 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
         }
 
         case Primitive::kPrimFloat:
-          LOG(FATAL) << "Type conversion from " << input_type
-                     << " to " << result_type << " not yet implemented";
+          // Processing a Dex `float-to-double' instruction.
+          __ cvtss2sd(out.AsFpuRegister<XmmRegister>(), in.AsFpuRegister<XmmRegister>());
           break;
 
         default:
