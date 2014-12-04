@@ -445,7 +445,7 @@ static void RemoveFromUseList(T* user,
   HUseListNode<T>* current = *list;
   while (current != nullptr) {
     if (current->GetUser() == user && current->GetIndex() == input_index) {
-      if (previous == NULL) {
+      if (previous == nullptr) {
         *list = current->GetTail();
       } else {
         previous->SetTail(current->GetTail());

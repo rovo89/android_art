@@ -66,7 +66,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
 
   void PrintTime(const char* name) {
     AddIndent();
-    output_ << name << " " << time(NULL) << std::endl;
+    output_ << name << " " << time(nullptr) << std::endl;
   }
 
   void PrintInt(const char* name, int value) {

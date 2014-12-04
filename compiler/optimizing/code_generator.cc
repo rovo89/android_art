@@ -369,7 +369,7 @@ void CodeGenerator::BuildNativeGCMap(
     uint32_t native_offset = pc_info.native_pc;
     uint32_t dex_pc = pc_info.dex_pc;
     const uint8_t* references = dex_gc_map.FindBitMap(dex_pc, false);
-    CHECK(references != NULL) << "Missing ref for dex pc 0x" << std::hex << dex_pc;
+    CHECK(references != nullptr) << "Missing ref for dex pc 0x" << std::hex << dex_pc;
     builder.AddEntry(native_offset, references);
   }
 }
