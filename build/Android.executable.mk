@@ -99,7 +99,18 @@ define build-art-executable
   ifeq ($$(art_target_or_host),target)
     LOCAL_MODULE_TARGET_ARCH := $(ART_SUPPORTED_ARCH)
   endif
+
+  # If multilib, need to provide stem.
   LOCAL_MULTILIB := $$(art_multilib)
+  ifeq ($$(art_multilib),both)
+    ifeq ($$(art_ndebug_or_debug),ndebug)
+      LOCAL_MODULE_STEM_32 := $$(art_executable)32
+      LOCAL_MODULE_STEM_64 := $$(art_executable)
+    else #debug
+      LOCAL_MODULE_STEM_32 := $$(art_executable)d32
+      LOCAL_MODULE_STEM_64 := $$(art_executable)d
+    endif
+  endif
 
   include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)
