@@ -342,6 +342,14 @@ ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
       $(IMAGE_TYPES),$(PICTEST_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
+# If ART_USE_OPTIMIZING_COMPILER is set to true, then the default core.art has been
+# compiled with the optimizing compiler.
+ifeq ($(ART_USE_OPTIMIZING_COMPILER),true)
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      default,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
 TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS :=
 
 
