@@ -48,6 +48,7 @@ class VerificationResults {
 
     const VerifiedMethod* GetVerifiedMethod(MethodReference ref)
         LOCKS_EXCLUDED(verified_methods_lock_);
+    void RemoveVerifiedMethod(MethodReference ref) LOCKS_EXCLUDED(verified_methods_lock_);
 
     void AddRejectedClass(ClassReference ref) LOCKS_EXCLUDED(rejected_classes_lock_);
     bool IsClassRejected(ClassReference ref) LOCKS_EXCLUDED(rejected_classes_lock_);

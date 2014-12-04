@@ -25,10 +25,6 @@
 #include <string>
 #include <vector>
 
-#ifndef __APPLE__
-#include <malloc.h>  // For mallinfo
-#endif
-
 #if defined(__linux__) && defined(__arm__)
 #include <sys/personality.h>
 #include <sys/utsname.h>
@@ -271,20 +267,8 @@ class Dex2Oat {
   }
 
   void LogCompletionTime(const CompilerDriver* compiler) {
-    std::ostringstream mallinfostr;
-#ifdef HAVE_MALLOC_H
-    struct mallinfo info = mallinfo();
-    const size_t allocated_space = static_cast<size_t>(info.uordblks);
-    const size_t free_space = static_cast<size_t>(info.fordblks);
-    mallinfostr << " native alloc=" << PrettySize(allocated_space) << " free="
-        << PrettySize(free_space);
-#endif
-    const ArenaPool* arena_pool = compiler->GetArenaPool();
-    gc::Heap* heap = Runtime::Current()->GetHeap();
     LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_)
-              << " (threads: " << thread_count_ << ")"
-              << " arena alloc=" << PrettySize(arena_pool->GetBytesAllocated())
-              << " java alloc=" << PrettySize(heap->GetBytesAllocated()) << mallinfostr.str();
+              << " (threads: " << thread_count_ << ") " << compiler->GetMemoryUsageString();
   }
 
 
