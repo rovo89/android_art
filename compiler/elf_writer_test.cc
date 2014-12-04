@@ -46,7 +46,11 @@ class ElfWriterTest : public CommonCompilerTest {
     EXPECT_EQ(expected_value, ef->FindDynamicSymbolAddress(symbol_name)); \
   } while (false)
 
+#if defined(ART_USE_OPTIMIZING_COMPILER)
+TEST_F(ElfWriterTest, DISABLED_dlsym) {
+#else
 TEST_F(ElfWriterTest, dlsym) {
+#endif
   std::string elf_location;
   if (IsHost()) {
     const char* host_dir = getenv("ANDROID_HOST_OUT");
