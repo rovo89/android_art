@@ -31,9 +31,7 @@ LIBART_COMMON_SRC_FILES := \
   base/stringprintf.cc \
   base/timing_logger.cc \
   base/unix_file/fd_file.cc \
-  base/unix_file/null_file.cc \
   base/unix_file/random_access_file_utils.cc \
-  base/unix_file/string_file.cc \
   check_jni.cc \
   class_linker.cc \
   common_throws.cc \
