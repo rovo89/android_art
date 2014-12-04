@@ -77,6 +77,7 @@ bool ImageWriter::PrepareImageAddressSpace() {
     Thread::Current()->TransitionFromSuspendedToRunnable();
     PruneNonImageClasses();  // Remove junk
     ComputeLazyFieldsForImageClasses();  // Add useful information
+    ProcessStrings();
     Thread::Current()->TransitionFromRunnableToSuspended(kNative);
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
@@ -561,9 +562,9 @@ void ImageWriter::ProcessStrings() {
     bool is_prefix = false;
     if (it != existing_strings.end()) {
       CHECK_LE(length, it->second);
-      is_prefix = std::equal(combined_chars.begin() + it->first,
-                             combined_chars.begin() + it->first + it->second,
-                             combined_chars.begin() + new_string.first);
+      is_prefix = std::equal(combined_chars.begin() + new_string.first,
+                             combined_chars.begin() + new_string.first + new_string.second,
+                             combined_chars.begin() + it->first);
     }
     if (is_prefix) {
       // Shares a prefix, set the offset to where the new offset will be.
