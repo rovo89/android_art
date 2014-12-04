@@ -340,6 +340,7 @@ class X86_64Assembler FINAL : public Assembler {
   void cvtsd2ss(XmmRegister dst, XmmRegister src);
 
   void cvttss2si(CpuRegister dst, XmmRegister src);  // Note: this is the r32 version.
+  void cvttss2si(CpuRegister dst, XmmRegister src, bool is64bit);
   void cvttsd2si(CpuRegister dst, XmmRegister src);  // Note: this is the r32 version.
 
   void cvtdq2pd(XmmRegister dst, XmmRegister src);
@@ -688,6 +689,7 @@ class X86_64Assembler FINAL : public Assembler {
   void EmitRex64(CpuRegister dst, CpuRegister src);
   void EmitRex64(CpuRegister dst, const Operand& operand);
   void EmitRex64(XmmRegister dst, CpuRegister src);
+  void EmitRex64(CpuRegister dst, XmmRegister src);
 
   // Emit a REX prefix to normalize byte registers plus necessary register bit encodings.
   void EmitOptionalByteRegNormalizingRex32(CpuRegister dst, CpuRegister src);

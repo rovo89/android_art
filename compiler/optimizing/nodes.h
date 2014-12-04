@@ -2001,8 +2001,8 @@ class HNot : public HUnaryOperation {
 class HTypeConversion : public HExpression<1> {
  public:
   // Instantiate a type conversion of `input` to `result_type`.
-  HTypeConversion(Primitive::Type result_type, HInstruction* input)
-      : HExpression(result_type, SideEffects::None()) {
+  HTypeConversion(Primitive::Type result_type, HInstruction* input, uint32_t dex_pc)
+      : HExpression(result_type, SideEffects::None()), dex_pc_(dex_pc) {
     SetRawInputAt(0, input);
     DCHECK_NE(input->GetType(), result_type);
   }
@@ -2011,12 +2011,18 @@ class HTypeConversion : public HExpression<1> {
   Primitive::Type GetInputType() const { return GetInput()->GetType(); }
   Primitive::Type GetResultType() const { return GetType(); }
 
+  // Required by the x86 and ARM code generators when producing calls
+  // to the runtime.
+  uint32_t GetDexPc() const { return dex_pc_; }
+
   bool CanBeMoved() const OVERRIDE { return true; }
   bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE { return true; }
 
   DECLARE_INSTRUCTION(TypeConversion);
 
  private:
+  const uint32_t dex_pc_;
+
   DISALLOW_COPY_AND_ASSIGN(HTypeConversion);
 };
 

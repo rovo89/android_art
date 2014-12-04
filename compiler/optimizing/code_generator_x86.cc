@@ -1326,11 +1326,18 @@ void InstructionCodeGeneratorX86::VisitNeg(HNeg* neg) {
 }
 
 void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(conversion, LocationSummary::kNoCall);
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
   DCHECK_NE(result_type, input_type);
+
+  // Float-to-long conversions invoke the runtime.
+  LocationSummary::CallKind call_kind =
+      (input_type == Primitive::kPrimFloat && result_type == Primitive::kPrimLong)
+      ? LocationSummary::kCall
+      : LocationSummary::kNoCall;
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(conversion, call_kind);
+
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
@@ -1401,7 +1408,15 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
           locations->SetOut(Location::RegisterPairLocation(EAX, EDX));
           break;
 
-        case Primitive::kPrimFloat:
+        case Primitive::kPrimFloat: {
+          // Processing a Dex `float-to-long' instruction.
+          InvokeRuntimeCallingConvention calling_convention;
+          locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+          // The runtime helper puts the result in EAX, EDX.
+          locations->SetOut(Location::RegisterPairLocation(EAX, EDX));
+          break;
+        }
+
         case Primitive::kPrimDouble:
           LOG(FATAL) << "Type conversion from " << input_type << " to "
                      << result_type << " not yet implemented";
@@ -1615,6 +1630,12 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
           break;
 
         case Primitive::kPrimFloat:
+          // Processing a Dex `float-to-long' instruction.
+          __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pF2l)));
+          // This call does not actually record PC information.
+          codegen_->RecordPcInfo(conversion, conversion->GetDexPc());
+          break;
+
         case Primitive::kPrimDouble:
           LOG(FATAL) << "Type conversion from " << input_type << " to "
                      << result_type << " not yet implemented";
