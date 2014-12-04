@@ -430,7 +430,8 @@ static constexpr inline uint64_t MsToNs(uint64_t ns) {
 // Sleep for the given number of nanoseconds, a bad way to handle contention.
 void NanoSleep(uint64_t ns);
 
-// Initialize a timespec to either an absolute or relative time.
+// Initialize a timespec to either a relative time (ms,ns), or to the absolute
+// time corresponding to the indicated clock value plus the supplied offset.
 void InitTimeSpec(bool absolute, int clock, int64_t ms, int32_t ns, timespec* ts);
 
 // Splits a string using the given separator character into a vector of
