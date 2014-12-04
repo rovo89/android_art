@@ -135,7 +135,8 @@ class HGraphBuilder : public ValueObject {
 
   void Conversion_12x(const Instruction& instruction,
                       Primitive::Type input_type,
-                      Primitive::Type result_type);
+                      Primitive::Type result_type,
+                      uint32_t dex_pc);
 
   void BuildCheckedDivRem(uint16_t out_reg,
                           uint16_t first_reg,

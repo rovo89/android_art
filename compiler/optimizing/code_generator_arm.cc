@@ -44,8 +44,9 @@ static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kRuntimeParameterCoreRegisters[] = { R0, R1, R2, R3 };
 static constexpr size_t kRuntimeParameterCoreRegistersLength =
     arraysize(kRuntimeParameterCoreRegisters);
-static constexpr SRegister kRuntimeParameterFpuRegisters[] = { };
-static constexpr size_t kRuntimeParameterFpuRegistersLength = 0;
+static constexpr SRegister kRuntimeParameterFpuRegisters[] = { S0 };
+static constexpr size_t kRuntimeParameterFpuRegistersLength =
+    arraysize(kRuntimeParameterFpuRegisters);
 
 class InvokeRuntimeCallingConvention : public CallingConvention<Register, SRegister> {
  public:
@@ -874,6 +875,7 @@ void CodeGeneratorARM::InvokeRuntime(int32_t entry_point_offset,
       || instruction->IsBoundsCheck()
       || instruction->IsNullCheck()
       || instruction->IsDivZeroCheck()
+      || instruction->GetLocations()->CanCall()
       || !IsLeafMethod());
 }
 
@@ -1359,11 +1361,18 @@ void InstructionCodeGeneratorARM::VisitNeg(HNeg* neg) {
 }
 
 void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(conversion, LocationSummary::kNoCall);
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
   DCHECK_NE(result_type, input_type);
+
+  // Float-to-long conversions invoke the runtime.
+  LocationSummary::CallKind call_kind =
+      (input_type == Primitive::kPrimFloat && result_type == Primitive::kPrimLong)
+      ? LocationSummary::kCall
+      : LocationSummary::kNoCall;
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(conversion, call_kind);
+
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
@@ -1434,7 +1443,15 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
           locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
           break;
 
-        case Primitive::kPrimFloat:
+        case Primitive::kPrimFloat: {
+          // Processing a Dex `float-to-long' instruction.
+          InvokeRuntimeCallingConvention calling_convention;
+          locations->SetInAt(0, Location::FpuRegisterLocation(
+              calling_convention.GetFpuRegisterAt(0)));
+          locations->SetOut(Location::RegisterPairLocation(R0, R1));
+          break;
+        }
+
         case Primitive::kPrimDouble:
           LOG(FATAL) << "Type conversion from " << input_type << " to "
                      << result_type << " not yet implemented";
@@ -1623,6 +1640,13 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
           break;
 
         case Primitive::kPrimFloat:
+          // Processing a Dex `float-to-long' instruction.
+          // This call does not actually record PC information.
+          codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pF2l),
+                                  conversion,
+                                  conversion->GetDexPc());
+          break;
+
         case Primitive::kPrimDouble:
           LOG(FATAL) << "Type conversion from " << input_type << " to "
                      << result_type << " not yet implemented";
