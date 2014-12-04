@@ -161,20 +161,11 @@ define create-core-oat-target-rules
   # a dex2oat change to catch regressions early.
   ifeq ($(ART_USE_OPTIMIZING_COMPILER), true)
     core_dex2oat_dependency := $(DEX2OAT)
-    ifeq ($($(3)TARGET_ARCH),arm64)
-      # TODO: Enable image generation on arm64 once the backend
-      # is on par with other architectures.
-      core_compile_options += --compiler-filter=interpret-only
-    endif
   endif
 
   ifeq ($(1),optimizing)
-    ifeq ($($(3)TARGET_ARCH),arm64)
-      core_compile_options += --compiler-filter=interpret-only
-    else
-      core_compile_options += --compiler-backend=Optimizing
-      core_dex2oat_dependency := $(DEX2OAT)
-    endif
+    core_compile_options += --compiler-backend=Optimizing
+    core_dex2oat_dependency := $(DEX2OAT)
     core_infix := -optimizing
   endif
   ifeq ($(1),interpreter)
