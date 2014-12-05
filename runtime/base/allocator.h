@@ -62,7 +62,7 @@ enum AllocatorTag {
   kAllocatorTagRememberedSet,
   kAllocatorTagModUnionCardSet,
   kAllocatorTagModUnionReferenceArray,
-  kAllocatorTagJNILibrarires,
+  kAllocatorTagJNILibraries,
   kAllocatorTagCompileTimeClassPath,
   kAllocatorTagOatFile,
   kAllocatorTagDexFileVerifier,
