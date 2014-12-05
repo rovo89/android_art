@@ -24,22 +24,30 @@ DEX2OAT_SRC_FILES := \
 # TODO: Remove this when the framework (installd) supports pushing the
 # right instruction-set parameter for the primary architecture.
 ifneq ($(filter ro.zygote=zygote64,$(PRODUCT_DEFAULT_PROPERTY_OVERRIDES)),)
-  dex2oat_arch := 64
+  dex2oat_target_arch := 64
 else
-  dex2oat_arch := 32
+  dex2oat_target_arch := 32
+endif
+
+# We need to explcitly give the arch, as giving 'both' will make the
+# build-art-executable rule compile dex2oat for 64bits.
+ifeq ($(HOST_PREFER_32_BIT),true)
+  dex2oat_host_arch := 32
+else
+  dex2oat_host_arch := both
 endif
 
 ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
-  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libcutils libart-compiler,art/compiler,target,ndebug,$(dex2oat_arch)))
+  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libcutils libart-compiler,art/compiler,target,ndebug,$(dex2oat_target_arch)))
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
-  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libcutils libartd-compiler,art/compiler,target,debug,$(dex2oat_arch)))
+  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libcutils libartd-compiler,art/compiler,target,debug,$(dex2oat_target_arch)))
 endif
 
 # We always build dex2oat and dependencies, even if the host build is otherwise disabled, since they are used to cross compile for the target.
 ifeq ($(ART_BUILD_HOST_NDEBUG),true)
-  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libart-compiler libziparchive-host,art/compiler,host,ndebug,both))
+  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libart-compiler libziparchive-host,art/compiler,host,ndebug,$(dex2oat_host_arch)))
 endif
 ifeq ($(ART_BUILD_HOST_DEBUG),true)
-  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libartd-compiler libziparchive-host,art/compiler,host,debug,both))
+  $(eval $(call build-art-executable,dex2oat,$(DEX2OAT_SRC_FILES),libartd-compiler libziparchive-host,art/compiler,host,debug,$(dex2oat_host_arch)))
 endif
