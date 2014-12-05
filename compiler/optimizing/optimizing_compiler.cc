@@ -19,6 +19,7 @@
 #include <fstream>
 #include <stdint.h>
 
+#include "bounds_check_elimination.h"
 #include "builder.h"
 #include "code_generator.h"
 #include "compiler.h"
@@ -198,7 +199,8 @@ static void RunOptimizations(HGraph* graph, const HGraphVisualizer& visualizer) 
   SsaDeadPhiElimination opt4(graph);
   InstructionSimplifier opt5(graph);
   GVNOptimization opt6(graph);
-  InstructionSimplifier opt7(graph);
+  BoundsCheckElimination bce(graph);
+  InstructionSimplifier opt8(graph);
 
   HOptimization* optimizations[] = {
     &opt1,
@@ -207,7 +209,8 @@ static void RunOptimizations(HGraph* graph, const HGraphVisualizer& visualizer) 
     &opt4,
     &opt5,
     &opt6,
-    &opt7
+    &bce,
+    &opt8
   };
 
   for (size_t i = 0; i < arraysize(optimizations); ++i) {
