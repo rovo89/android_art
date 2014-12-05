@@ -795,10 +795,6 @@ bool MIRGraph::LayoutBlocks(BasicBlock* bb) {
       break;
     }
     walker = prev;
-
-    if (walker->visited) {
-      break;
-    }
   }
   return false;
 }
