@@ -28,7 +28,6 @@
      */
 ENTRY art_portable_invoke_stub
     push   {r0, r4, r5, r9, r11, lr}       @ spill regs
-    .save  {r0, r4, r5, r9, r11, lr}
     .cfi_adjust_cfa_offset 24
     .cfi_rel_offset r0, 0
     .cfi_rel_offset r4, 4
@@ -38,7 +37,6 @@ ENTRY art_portable_invoke_stub
     .cfi_rel_offset lr, 20
     mov    r11, sp                         @ save the stack pointer
     .cfi_def_cfa_register r11
-    @.movsp r11
     mov    r9, r3                          @ move managed thread pointer into r9
     mov    r4, #SUSPEND_CHECK_INTERVAL     @ reset r4 to suspend check interval
     add    r5, r2, #16                     @ create space for method pointer in frame
@@ -56,11 +54,10 @@ ENTRY art_portable_invoke_stub
     ldr    ip, [r0, #MIRROR_ART_METHOD_PORTABLE_CODE_OFFSET_32]  @ get pointer to the code
     blx    ip                              @ call the method
     mov    sp, r11                         @ restore the stack pointer
+    .cfi_def_cfa_register sp
     ldr    ip, [sp, #24]                   @ load the result pointer
     strd   r0, [ip]                        @ store r0/r1 into result pointer
-    pop    {r0, r4, r5, r9, r11, lr}       @ restore spill regs
-    .cfi_adjust_cfa_offset -24
-    bx     lr
+    pop    {r0, r4, r5, r9, r11, pc}       @ restore spill regs
 END art_portable_invoke_stub
 
     .extern artPortableProxyInvokeHandler
@@ -68,7 +65,6 @@ ENTRY art_portable_proxy_invoke_handler
     @ Fake callee save ref and args frame set up, note portable doesn't use callee save frames.
     @ TODO: just save the registers that are needed in artPortableProxyInvokeHandler.
     push {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
-    .save {r1-r3, r5-r8, r10-r11, lr}
     .cfi_adjust_cfa_offset 40
     .cfi_rel_offset r1, 0
     .cfi_rel_offset r2, 4
@@ -81,7 +77,6 @@ ENTRY art_portable_proxy_invoke_handler
     .cfi_rel_offset r11, 32
     .cfi_rel_offset lr, 36
     sub sp, #8                        @ 2 words of space, bottom word will hold Method*
-    .pad #8
     .cfi_adjust_cfa_offset 8
     @ Begin argument set up.
     str     r0, [sp, #0]           @ place proxy method at bottom of frame
@@ -100,7 +95,6 @@ ENTRY art_portable_resolution_trampoline
     @ Fake callee save ref and args frame set up, note portable doesn't use callee save frames.
     @ TODO: just save the registers that are needed in artPortableResolutionTrampoline.
     push {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
-    .save {r1-r3, r5-r8, r10-r11, lr}
     .cfi_adjust_cfa_offset 40
     .cfi_rel_offset r1, 0
     .cfi_rel_offset r2, 4
@@ -113,7 +107,6 @@ ENTRY art_portable_resolution_trampoline
     .cfi_rel_offset r11, 32
     .cfi_rel_offset lr, 36
     sub sp, #8                     @ 2 words of space, bottom word will hold Method*
-    .pad #8
     .cfi_adjust_cfa_offset 8
     mov     r2, r9                 @ pass Thread::Current
     mov     r3, sp                 @ pass SP
@@ -128,6 +121,8 @@ ENTRY art_portable_resolution_trampoline
     add  sp, #48                   @ rewind sp
     .cfi_adjust_cfa_offset -48
     bx      r12                    @ tail-call into actual code
+    .cfi_adjust_cfa_offset 48      @ Reset unwind info so following code unwinds.
+
 1:
     ldr  r1, [sp, #8]          @ restore non-callee save r1
     ldrd r2, [sp, #12]         @ restore non-callee saves r2-r3
@@ -142,7 +137,6 @@ ENTRY art_portable_to_interpreter_bridge
     @ Fake callee save ref and args frame set up, note portable doesn't use callee save frames.
     @ TODO: just save the registers that are needed in artPortableToInterpreterBridge.
     push {r1-r3, r5-r8, r10-r11, lr}  @ 10 words of callee saves
-    .save {r1-r3, r5-r8, r10-r11, lr}
     .cfi_adjust_cfa_offset 40
     .cfi_rel_offset r1, 0
     .cfi_rel_offset r2, 4
@@ -155,7 +149,6 @@ ENTRY art_portable_to_interpreter_bridge
     .cfi_rel_offset r11, 32
     .cfi_rel_offset lr, 36
     sub sp, #8                     @ 2 words of space, bottom word will hold Method*
-    .pad #8
     .cfi_adjust_cfa_offset 8
     mov     r1, r9                 @ pass Thread::Current
     mov     r2, sp                 @ pass SP
