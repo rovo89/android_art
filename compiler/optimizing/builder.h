@@ -29,6 +29,7 @@
 namespace art {
 
 class Instruction;
+class SwitchTable;
 
 class HGraphBuilder : public ValueObject {
  public:
@@ -203,9 +204,16 @@ class HGraphBuilder : public ValueObject {
                       uint16_t type_index,
                       uint32_t dex_pc);
 
-  // Builds an instruction sequence for a packed switch statement. This will punt to the interpreter
-  // for a switch with a full 64k set of cases.
+  // Builds an instruction sequence for a packed switch statement.
   bool BuildPackedSwitch(const Instruction& instruction, uint32_t dex_pc);
+
+  // Builds an instruction sequence for a sparse switch statement.
+  bool BuildSparseSwitch(const Instruction& instruction, uint32_t dex_pc);
+
+  void BuildSwitchCaseHelper(const Instruction& instruction, size_t index,
+                             bool is_last_case, const SwitchTable& table,
+                             HInstruction* value, int32_t case_value_int,
+                             int32_t target_offset, uint32_t dex_pc);
 
   ArenaAllocator* const arena_;
 
