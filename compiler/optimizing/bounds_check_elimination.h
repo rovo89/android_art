@@ -23,7 +23,7 @@ namespace art {
 
 class BoundsCheckElimination : public HOptimization {
  public:
-  BoundsCheckElimination(HGraph* graph) : HOptimization(graph, true, "BCE") {}
+  explicit BoundsCheckElimination(HGraph* graph) : HOptimization(graph, true, "BCE") {}
 
   void Run() OVERRIDE;
 
