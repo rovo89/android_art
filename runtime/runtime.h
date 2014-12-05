@@ -71,6 +71,11 @@ class ThreadList;
 class Trace;
 class Transaction;
 
+// 0 if not abort, non-zero if an abort is in progress. Used on fatal exit to prevents recursive
+// aborts. Global declaration allows us to disable some error checking to ensure fatal shutdown
+// makes forward progress.
+extern volatile unsigned int gAborting;
+
 typedef std::vector<std::pair<std::string, const void*>> RuntimeOptions;
 
 // Not all combinations of flags are valid. You may not visit all roots as well as the new roots
@@ -175,9 +180,9 @@ class Runtime {
     return instance_;
   }
 
-  // Aborts semi-cleanly. Used in the implementation of LOG(FATAL), which most
-  // callers should prefer.
-  [[noreturn]] static void Abort() LOCKS_EXCLUDED(Locks::abort_lock_);
+  // Aborts semi-cleanly. Used in the implementation of LOG(FATAL), which most callers should
+  // prefer. Not [[noreturn]] due to returning early in the case of recursive aborts.
+  static void Abort() LOCKS_EXCLUDED(Locks::abort_lock_);
 
   // Returns the "main" ThreadGroup, used when attaching user threads.
   jobject GetMainThreadGroup() const;
