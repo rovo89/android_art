@@ -97,9 +97,7 @@ inline void BaseMutex::RegisterAsLocked(Thread* self) {
         }
       }
     }
-    if (gAborting == 0) {  // Avoid recursive aborts.
-      CHECK(!bad_mutexes_held);
-    }
+    CHECK(!bad_mutexes_held);
   }
   // Don't record monitors as they are outside the scope of analysis. They may be inspected off of
   // the monitor list.
@@ -114,7 +112,7 @@ inline void BaseMutex::RegisterAsUnlocked(Thread* self) {
     return;
   }
   if (level_ != kMonitorLock) {
-    if (kDebugLocking && gAborting == 0) {  // Avoid recursive aborts.
+    if (kDebugLocking) {
       CHECK(self->GetHeldMutex(level_) == this) << "Unlocking on unacquired mutex: " << name_;
     }
     self->SetHeldMutex(level_, NULL);
@@ -178,7 +176,7 @@ inline bool Mutex::IsExclusiveHeld(const Thread* self) const {
   bool result = (GetExclusiveOwnerTid() == SafeGetTid(self));
   if (kDebugLocking) {
     // Sanity debug check that if we think it is locked we have it in our held mutexes.
-    if (result && self != NULL && level_ != kMonitorLock && !gAborting) {
+    if (result && self != NULL && level_ != kMonitorLock) {
       CHECK_EQ(self->GetHeldMutex(level_), this);
     }
   }
