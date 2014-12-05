@@ -11,11 +11,26 @@
 {
   description: "Assert.java differences between vogar and junit.",
   result: EXEC_FAILED,
+  modes: [host],
   name: "libcore.java.math.RunCSVTests#test_csv"
 },
 {
   description: "Test is currently being updated.",
   result: EXEC_FAILED,
   name: "libcore.java.util.OldTimeZoneTest#test_getDisplayNameZILjava_util_Locale"
+},
+{
+  description: "Differences between vogar and cts in user directory",
+  result: EXEC_FAILED,
+  modes: [device],
+  name: "libcore.java.lang.SystemTest#testSystemProperties_mutable"
+},
+{
+  description: "Differences between vogar and cts",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["libcore.java.lang.OldSystemTest#test_getProperties",
+          "org.apache.harmony.tests.java.lang.Process2Test#test_getErrorStream",
+          "org.apache.harmony.tests.java.lang.ProcessTest#test_exitValue"]
 }
 ]
