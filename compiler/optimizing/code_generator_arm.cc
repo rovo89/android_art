@@ -44,7 +44,7 @@ static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kRuntimeParameterCoreRegisters[] = { R0, R1, R2, R3 };
 static constexpr size_t kRuntimeParameterCoreRegistersLength =
     arraysize(kRuntimeParameterCoreRegisters);
-static constexpr SRegister kRuntimeParameterFpuRegisters[] = { S0 };
+static constexpr SRegister kRuntimeParameterFpuRegisters[] = { S0, S1 };
 static constexpr size_t kRuntimeParameterFpuRegistersLength =
     arraysize(kRuntimeParameterFpuRegisters);
 
@@ -1365,9 +1365,11 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
   Primitive::Type input_type = conversion->GetInputType();
   DCHECK_NE(result_type, input_type);
 
-  // Float-to-long conversions invoke the runtime.
+  // The float-to-long and double-to-long type conversions rely on a
+  // call to the runtime.
   LocationSummary::CallKind call_kind =
-      (input_type == Primitive::kPrimFloat && result_type == Primitive::kPrimLong)
+      ((input_type == Primitive::kPrimFloat || input_type == Primitive::kPrimDouble)
+       && result_type == Primitive::kPrimLong)
       ? LocationSummary::kCall
       : LocationSummary::kNoCall;
   LocationSummary* locations =
@@ -1422,8 +1424,10 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
           break;
 
         case Primitive::kPrimDouble:
-          LOG(FATAL) << "Type conversion from " << input_type
-                     << " to " << result_type << " not yet implemented";
+          // Processing a Dex `double-to-int' instruction.
+          locations->SetInAt(0, Location::RequiresFpuRegister());
+          locations->SetOut(Location::RequiresRegister());
+          locations->AddTemp(Location::RequiresFpuRegister());
           break;
 
         default:
@@ -1452,10 +1456,15 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
           break;
         }
 
-        case Primitive::kPrimDouble:
-          LOG(FATAL) << "Type conversion from " << input_type << " to "
-                     << result_type << " not yet implemented";
+        case Primitive::kPrimDouble: {
+          // Processing a Dex `double-to-long' instruction.
+          InvokeRuntimeCallingConvention calling_convention;
+          locations->SetInAt(0, Location::FpuRegisterPairLocation(
+              calling_convention.GetFpuRegisterAt(0),
+              calling_convention.GetFpuRegisterAt(1)));
+          locations->SetOut(Location::RegisterPairLocation(R0, R1));
           break;
+        }
 
         default:
           LOG(FATAL) << "Unexpected type conversion from " << input_type
@@ -1614,10 +1623,15 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
           break;
         }
 
-        case Primitive::kPrimDouble:
-          LOG(FATAL) << "Type conversion from " << input_type
-                     << " to " << result_type << " not yet implemented";
+        case Primitive::kPrimDouble: {
+          // Processing a Dex `double-to-int' instruction.
+          SRegister temp_s = locations->GetTemp(0).AsFpuRegisterPairLow<SRegister>();
+          DRegister temp_d = FromLowSToD(temp_s);
+          __ vmovd(temp_d, FromLowSToD(in.AsFpuRegisterPairLow<SRegister>()));
+          __ vcvtid(temp_s, temp_d);
+          __ vmovrs(out.AsRegister<Register>(), temp_s);
           break;
+        }
 
         default:
           LOG(FATAL) << "Unexpected type conversion from " << input_type
@@ -1643,15 +1657,16 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
 
         case Primitive::kPrimFloat:
           // Processing a Dex `float-to-long' instruction.
-          // This call does not actually record PC information.
           codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pF2l),
                                   conversion,
                                   conversion->GetDexPc());
           break;
 
         case Primitive::kPrimDouble:
-          LOG(FATAL) << "Type conversion from " << input_type << " to "
-                     << result_type << " not yet implemented";
+          // Processing a Dex `double-to-long' instruction.
+          codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pD2l),
+                                  conversion,
+                                  conversion->GetDexPc());
           break;
 
         default:

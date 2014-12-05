@@ -112,6 +112,12 @@ public class Main {
     // Generate, compile and check float-to-double Dex instructions.
     floatToDouble();
 
+    // Generate, compile and check double-to-int Dex instructions.
+    doubleToInt();
+
+    // Generate, compile and check double-to-long Dex instructions.
+    doubleToLong();
+
     // Generate, compile and check double-to-float Dex instructions.
     doubleToFloat();
 
@@ -415,6 +421,58 @@ public class Main {
     assertDoubleEquals(Double.NEGATIVE_INFINITY, $opt$FloatToDouble(Float.NEGATIVE_INFINITY));
   }
 
+  private static void doubleToInt() {
+    assertIntEquals(1, $opt$DoubleToInt(1D));
+    assertIntEquals(0, $opt$DoubleToInt(0D));
+    assertIntEquals(0, $opt$DoubleToInt(-0D));
+    assertIntEquals(-1, $opt$DoubleToInt(-1D));
+    assertIntEquals(51, $opt$DoubleToInt(51D));
+    assertIntEquals(-51, $opt$DoubleToInt(-51D));
+    assertIntEquals(0, $opt$DoubleToInt(0.5D));
+    assertIntEquals(0, $opt$DoubleToInt(0.4999999D));
+    assertIntEquals(0, $opt$DoubleToInt(-0.4999999D));
+    assertIntEquals(0, $opt$DoubleToInt(-0.5D));
+    assertIntEquals(42, $opt$DoubleToInt(42.199D));
+    assertIntEquals(-42, $opt$DoubleToInt(-42.199D));
+    assertIntEquals(2147483647, $opt$DoubleToInt(2147483647D));  // 2^31 - 1
+    assertIntEquals(-2147483647, $opt$DoubleToInt(-2147483647D));  // -(2^31 - 1)
+    assertIntEquals(-2147483648, $opt$DoubleToInt(-2147483648D));  // -(2^31)
+    assertIntEquals(2147483647, $opt$DoubleToInt(2147483648D));  // (2^31)
+    assertIntEquals(-2147483648, $opt$DoubleToInt(-2147483649D));  // -(2^31 + 1)
+    assertIntEquals(2147483647, $opt$DoubleToInt(9223372036854775807D));  // 2^63 - 1
+    assertIntEquals(-2147483648, $opt$DoubleToInt(-9223372036854775807D));  // -(2^63 - 1)
+    assertIntEquals(-2147483648, $opt$DoubleToInt(-9223372036854775808D));  // -(2^63)
+    assertIntEquals(0, $opt$DoubleToInt(Double.NaN));
+    assertIntEquals(2147483647, $opt$DoubleToInt(Double.POSITIVE_INFINITY));
+    assertIntEquals(-2147483648, $opt$DoubleToInt(Double.NEGATIVE_INFINITY));
+  }
+
+  private static void doubleToLong() {
+    assertLongEquals(1L, $opt$DoubleToLong(1D));
+    assertLongEquals(0L, $opt$DoubleToLong(0D));
+    assertLongEquals(0L, $opt$DoubleToLong(-0D));
+    assertLongEquals(-1L, $opt$DoubleToLong(-1D));
+    assertLongEquals(51L, $opt$DoubleToLong(51D));
+    assertLongEquals(-51L, $opt$DoubleToLong(-51D));
+    assertLongEquals(0L, $opt$DoubleToLong(0.5D));
+    assertLongEquals(0L, $opt$DoubleToLong(0.4999999D));
+    assertLongEquals(0L, $opt$DoubleToLong(-0.4999999D));
+    assertLongEquals(0L, $opt$DoubleToLong(-0.5D));
+    assertLongEquals(42L, $opt$DoubleToLong(42.199D));
+    assertLongEquals(-42L, $opt$DoubleToLong(-42.199D));
+    assertLongEquals(2147483647L, $opt$DoubleToLong(2147483647D));  // 2^31 - 1
+    assertLongEquals(-2147483647L, $opt$DoubleToLong(-2147483647D));  // -(2^31 - 1)
+    assertLongEquals(-2147483648L, $opt$DoubleToLong(-2147483648D));  // -(2^31)
+    assertLongEquals(2147483648L, $opt$DoubleToLong(2147483648D));  // (2^31)
+    assertLongEquals(-2147483649L, $opt$DoubleToLong(-2147483649D));  // -(2^31 + 1)
+    assertLongEquals(9223372036854775807L, $opt$DoubleToLong(9223372036854775807D));  // 2^63 - 1
+    assertLongEquals(-9223372036854775808L, $opt$DoubleToLong(-9223372036854775807D));  // -(2^63 - 1)
+    assertLongEquals(-9223372036854775808L, $opt$DoubleToLong(-9223372036854775808D));  // -(2^63)
+    assertLongEquals(0L, $opt$DoubleToLong(Double.NaN));
+    assertLongEquals(9223372036854775807L, $opt$DoubleToLong(Double.POSITIVE_INFINITY));
+    assertLongEquals(-9223372036854775808L, $opt$DoubleToLong(Double.NEGATIVE_INFINITY));
+  }
+
   private static void doubleToFloat() {
     assertFloatEquals(1F, $opt$DoubleToFloat(1D));
     assertFloatEquals(0F, $opt$DoubleToFloat(0D));
@@ -599,14 +657,20 @@ public class Main {
   // This method produces a float-to-int Dex instruction.
   static int $opt$FloatToInt(float a) { return (int)a; }
 
+  // This method produces a float-to-long Dex instruction.
+  static long $opt$FloatToLong(float a){ return (long)a; }
+
   // This method produces a float-to-double Dex instruction.
   static double $opt$FloatToDouble(float a) { return (double)a; }
 
+  // This method produces a double-to-int Dex instruction.
+  static int $opt$DoubleToInt(double a){ return (int)a; }
+
+  // This method produces a double-to-long Dex instruction.
+  static long $opt$DoubleToLong(double a){ return (long)a; }
+
   // This method produces a double-to-float Dex instruction.
   static float $opt$DoubleToFloat(double a) { return (float)a; }
-
-  // This method produces a float-to-long Dex instruction.
-  static long $opt$FloatToLong(float a){ return (long)a; }
 
   // These methods produce int-to-byte Dex instructions.
   static byte $opt$ShortToByte(short a) { return (byte)a; }
