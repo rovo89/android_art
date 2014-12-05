@@ -28,14 +28,54 @@ class MonotonicValueRange;
  */
 class ValueBound : public ValueObject {
  public:
-  static ValueBound Create(HInstruction* instruction, int constant) {
-    if (instruction == nullptr) {
-      return ValueBound(nullptr, constant);
+  ValueBound(HInstruction* instruction, int constant) {
+    if (instruction != nullptr && instruction->IsIntConstant()) {
+      // Normalizing ValueBound with constant instruction.
+      int instr_const = instruction->AsIntConstant()->GetValue();
+      if (constant >= 0 && (instr_const <= INT_MAX - constant)) {
+        // No overflow.
+        instruction_ = nullptr;
+        constant_ = instr_const + constant;
+        return;
+      }
+      if (constant < 0 && (instr_const >= INT_MIN - constant)) {
+        // No underflow.
+        instruction_ = nullptr;
+        constant_ = instr_const + constant;
+        return;
+      }
     }
+    instruction_ = instruction;
+    constant_ = constant;
+  }
+
+  // Try to detect useful value bound format from an instruction, e.g.
+  // a constant or array length related value.
+  static ValueBound DetectValueBoundFromValue(HInstruction* instruction, bool* found) {
+    DCHECK(instruction != nullptr);
     if (instruction->IsIntConstant()) {
-      return ValueBound(nullptr, instruction->AsIntConstant()->GetValue() + constant);
+      *found = true;
+      return ValueBound(nullptr, instruction->AsIntConstant()->GetValue());
     }
-    return ValueBound(instruction, constant);
+
+    if (instruction->IsArrayLength()) {
+      *found = true;
+      return ValueBound(instruction, 0);
+    }
+    // Try to detect (array.length + c) format.
+    if (instruction->IsAdd()) {
+      HAdd* add = instruction->AsAdd();
+      HInstruction* left = add->GetLeft();
+      HInstruction* right = add->GetRight();
+      if (left->IsArrayLength() && right->IsIntConstant()) {
+        *found = true;
+        return ValueBound(left, right->AsIntConstant()->GetValue());
+      }
+    }
+
+    // No useful bound detected.
+    *found = false;
+    return ValueBound::Max();
   }
 
   HInstruction* GetInstruction() const { return instruction_; }
@@ -140,7 +180,7 @@ class ValueBound : public ValueObject {
   // overflows/underflows, then we can't accurately represent it. For correctness,
   // just return Max/Min() depending on whether the returned ValueBound is used for
   // lower/upper bound.
-  ValueBound Add(int c, bool for_lower_bound, bool* overflow_or_underflow) const {
+  ValueBound Add(int c, bool* overflow_or_underflow) const {
     *overflow_or_underflow = false;
     if (c == 0) {
       return *this;
@@ -151,7 +191,7 @@ class ValueBound : public ValueObject {
       if (constant_ > INT_MAX - c) {
         // Constant part overflows.
         *overflow_or_underflow = true;
-        return for_lower_bound ? Min() : Max();
+        return Max();
       } else {
         new_constant = constant_ + c;
       }
@@ -159,7 +199,7 @@ class ValueBound : public ValueObject {
       if (constant_ < INT_MIN - c) {
         // Constant part underflows.
         *overflow_or_underflow = true;
-        return for_lower_bound ? Min() : Max();
+        return Max();
       } else {
         new_constant = constant_ + c;
       }
@@ -168,9 +208,6 @@ class ValueBound : public ValueObject {
   }
 
  private:
-  ValueBound(HInstruction* instruction, int constant)
-      : instruction_(instruction), constant_(constant) {}
-
   HInstruction* instruction_;
   int constant_;
 };
@@ -231,12 +268,12 @@ class ValueRange : public ArenaObject<kArenaAllocMisc> {
   // return the full integer range.
   ValueRange* Add(int constant) const {
     bool overflow_or_underflow;
-    ValueBound lower = lower_.Add(constant, true, &overflow_or_underflow);
+    ValueBound lower = lower_.Add(constant, &overflow_or_underflow);
     if (overflow_or_underflow) {
       // We can't accurately represent the bounds anymore.
       return FullIntRange();
     }
-    ValueBound upper = upper_.Add(constant, false, &overflow_or_underflow);
+    ValueBound upper = upper_.Add(constant, &overflow_or_underflow);
     if (overflow_or_underflow) {
       // We can't accurately represent the bounds anymore.
       return FullIntRange();
@@ -265,14 +302,16 @@ class ValueRange : public ArenaObject<kArenaAllocMisc> {
  */
 class MonotonicValueRange : public ValueRange {
  public:
-  static MonotonicValueRange* Create(ArenaAllocator* allocator,
-                                     HInstruction* initial, int increment) {
-    DCHECK_NE(increment, 0);
-    // To be conservative, give it full range [INT_MIN, INT_MAX] in case it's
-    // used as a regular value range, due to possible overflow/underflow.
-    return new (allocator) MonotonicValueRange(
-        allocator, ValueBound::Min(), ValueBound::Max(), initial, increment);
-  }
+  MonotonicValueRange(ArenaAllocator* allocator,
+                      HInstruction* initial,
+                      int increment,
+                      ValueBound bound)
+      // To be conservative, give it full range [INT_MIN, INT_MAX] in case it's
+      // used as a regular value range, due to possible overflow/underflow.
+      : ValueRange(allocator, ValueBound::Min(), ValueBound::Max()),
+        initial_(initial),
+        increment_(increment),
+        bound_(bound) {}
 
   virtual ~MonotonicValueRange() {}
 
@@ -298,8 +337,7 @@ class MonotonicValueRange : public ValueRange {
 
     if (increment_ > 0) {
       // Monotonically increasing.
-      ValueBound lower = ValueBound::NarrowLowerBound(
-          ValueBound::Create(initial_, 0), range->GetLower());
+      ValueBound lower = ValueBound::NarrowLowerBound(bound_, range->GetLower());
 
       // We currently conservatively assume max array length is INT_MAX. If we can
       // make assumptions about the max array length, e.g. due to the max heap size,
@@ -351,8 +389,7 @@ class MonotonicValueRange : public ValueRange {
     } else {
       DCHECK_NE(increment_, 0);
       // Monotonically decreasing.
-      ValueBound upper = ValueBound::NarrowUpperBound(
-          ValueBound::Create(initial_, 0), range->GetUpper());
+      ValueBound upper = ValueBound::NarrowUpperBound(bound_, range->GetUpper());
 
       // Need to take care of underflow. Try to prove underflow won't happen
       // for common cases. Basically need to be able to prove for any value
@@ -370,14 +407,9 @@ class MonotonicValueRange : public ValueRange {
   }
 
  private:
-  MonotonicValueRange(ArenaAllocator* allocator, ValueBound lower,
-                      ValueBound upper, HInstruction* initial, int increment)
-      : ValueRange(allocator, lower, upper),
-        initial_(initial),
-        increment_(increment) {}
-
   HInstruction* const initial_;
   const int increment_;
+  ValueBound bound_;  // Additional value bound info for initial_;
 
   DISALLOW_COPY_AND_ASSIGN(MonotonicValueRange);
 };
@@ -414,30 +446,6 @@ class BCEVisitor : public HGraphVisitor {
     return nullptr;
   }
 
-  // Try to detect useful value bound format from an instruction, e.g.
-  // a constant or array length related value.
-  ValueBound DetectValueBoundFromValue(HInstruction* instruction) {
-    if (instruction->IsIntConstant()) {
-      return ValueBound::Create(nullptr, instruction->AsIntConstant()->GetValue());
-    }
-
-    if (instruction->IsArrayLength()) {
-      return ValueBound::Create(instruction, 0);
-    }
-    // Try to detect (array.length + c) format.
-    if (instruction->IsAdd()) {
-      HAdd* add = instruction->AsAdd();
-      HInstruction* left = add->GetLeft();
-      HInstruction* right = add->GetRight();
-      if (left->IsArrayLength() && right->IsIntConstant()) {
-        return ValueBound::Create(left, right->AsIntConstant()->GetValue());
-      }
-    }
-
-    // No useful bound detected.
-    return ValueBound::Max();
-  }
-
   // Narrow the value range of 'instruction' at the end of 'basic_block' with 'range',
   // and push the narrowed value range to 'successor'.
   void ApplyRangeFromComparison(HInstruction* instruction, HBasicBlock* basic_block,
@@ -462,9 +470,8 @@ class BCEVisitor : public HGraphVisitor {
     // There should be no critical edge at this point.
     DCHECK_EQ(false_successor->GetPredecessors().Size(), 1u);
 
-    ValueBound bound = DetectValueBoundFromValue(right);
-    bool found = !bound.Equals(ValueBound::Max());
-
+    bool found;
+    ValueBound bound = ValueBound::DetectValueBoundFromValue(right, &found);
     ValueBound lower = bound;
     ValueBound upper = bound;
     if (!found) {
@@ -484,9 +491,10 @@ class BCEVisitor : public HGraphVisitor {
     if (cond == kCondLT || cond == kCondLE) {
       if (!upper.Equals(ValueBound::Max())) {
         int compensation = (cond == kCondLT) ? -1 : 0;  // upper bound is inclusive
-        ValueBound new_upper = upper.Add(compensation, false, &overflow_or_underflow);
-        // overflow_or_underflow is ignored here since we already use ValueBound::Min()
-        // for lower bound.
+        ValueBound new_upper = upper.Add(compensation, &overflow_or_underflow);
+        if (overflow_or_underflow) {
+          new_upper = ValueBound::Max();
+        }
         ValueRange* new_range = new (GetGraph()->GetArena())
             ValueRange(GetGraph()->GetArena(), ValueBound::Min(), new_upper);
         ApplyRangeFromComparison(left, block, true_successor, new_range);
@@ -495,9 +503,10 @@ class BCEVisitor : public HGraphVisitor {
       // array.length as a lower bound isn't considered useful.
       if (!lower.Equals(ValueBound::Min()) && !lower.IsRelativeToArrayLength()) {
         int compensation = (cond == kCondLE) ? 1 : 0;  // lower bound is inclusive
-        ValueBound new_lower = lower.Add(compensation, true, &overflow_or_underflow);
-        // overflow_or_underflow is ignored here since we already use ValueBound::Max()
-        // for upper bound.
+        ValueBound new_lower = lower.Add(compensation, &overflow_or_underflow);
+        if (overflow_or_underflow) {
+          new_lower = ValueBound::Min();
+        }
         ValueRange* new_range = new (GetGraph()->GetArena())
             ValueRange(GetGraph()->GetArena(), new_lower, ValueBound::Max());
         ApplyRangeFromComparison(left, block, false_successor, new_range);
@@ -506,9 +515,10 @@ class BCEVisitor : public HGraphVisitor {
       // array.length as a lower bound isn't considered useful.
       if (!lower.Equals(ValueBound::Min()) && !lower.IsRelativeToArrayLength()) {
         int compensation = (cond == kCondGT) ? 1 : 0;  // lower bound is inclusive
-        ValueBound new_lower = lower.Add(compensation, true, &overflow_or_underflow);
-        // overflow_or_underflow is ignored here since we already use ValueBound::Max()
-        // for upper bound.
+        ValueBound new_lower = lower.Add(compensation, &overflow_or_underflow);
+        if (overflow_or_underflow) {
+          new_lower = ValueBound::Min();
+        }
         ValueRange* new_range = new (GetGraph()->GetArena())
             ValueRange(GetGraph()->GetArena(), new_lower, ValueBound::Max());
         ApplyRangeFromComparison(left, block, true_successor, new_range);
@@ -516,9 +526,10 @@ class BCEVisitor : public HGraphVisitor {
 
       if (!upper.Equals(ValueBound::Max())) {
         int compensation = (cond == kCondGE) ? -1 : 0;  // upper bound is inclusive
-        ValueBound new_upper = upper.Add(compensation, false, &overflow_or_underflow);
-        // overflow_or_underflow is ignored here since we already use ValueBound::Min()
-        // for lower bound.
+        ValueBound new_upper = upper.Add(compensation, &overflow_or_underflow);
+        if (overflow_or_underflow) {
+          new_upper = ValueBound::Max();
+        }
         ValueRange* new_range = new (GetGraph()->GetArena())
             ValueRange(GetGraph()->GetArena(), ValueBound::Min(), new_upper);
         ApplyRangeFromComparison(left, block, false_successor, new_range);
@@ -533,8 +544,8 @@ class BCEVisitor : public HGraphVisitor {
     ValueRange* index_range = LookupValueRange(index, block);
 
     if (index_range != nullptr) {
-      ValueBound lower = ValueBound::Create(nullptr, 0);        // constant 0
-      ValueBound upper = ValueBound::Create(array_length, -1);  // array_length - 1
+      ValueBound lower = ValueBound(nullptr, 0);        // constant 0
+      ValueBound upper = ValueBound(array_length, -1);  // array_length - 1
       ValueRange* array_range = new (GetGraph()->GetArena())
           ValueRange(GetGraph()->GetArena(), lower, upper);
       if (index_range->FitsIn(array_range)) {
@@ -555,7 +566,7 @@ class BCEVisitor : public HGraphVisitor {
       }
 
       // Once we have an array access like 'array[5] = 1', we record array.length >= 6.
-      ValueBound lower = ValueBound::Create(nullptr, constant + 1);
+      ValueBound lower = ValueBound(nullptr, constant + 1);
       ValueBound upper = ValueBound::Max();
       ValueRange* range = new (GetGraph()->GetArena())
           ValueRange(GetGraph()->GetArena(), lower, upper);
@@ -584,18 +595,35 @@ class BCEVisitor : public HGraphVisitor {
         if (left == phi && right->IsIntConstant()) {
           HInstruction* initial_value = phi->InputAt(0);
           ValueRange* range = nullptr;
-          if (right->AsIntConstant()->GetValue() == 0) {
+          int increment = right->AsIntConstant()->GetValue();
+          if (increment == 0) {
             // Add constant 0. It's really a fixed value.
             range = new (GetGraph()->GetArena()) ValueRange(
                 GetGraph()->GetArena(),
-                ValueBound::Create(initial_value, 0),
-                ValueBound::Create(initial_value, 0));
+                ValueBound(initial_value, 0),
+                ValueBound(initial_value, 0));
           } else {
             // Monotonically increasing/decreasing.
-            range = MonotonicValueRange::Create(
+            bool found;
+            ValueBound bound = ValueBound::DetectValueBoundFromValue(
+                initial_value, &found);
+            if (!found) {
+              // No constant or array.length+c bound found.
+              // For i=j, we can still use j's upper bound as i's upper bound.
+              // Same for lower.
+              ValueRange* initial_range = LookupValueRange(initial_value, phi->GetBlock());
+              if (initial_range != nullptr) {
+                bound = increment > 0 ? initial_range->GetLower() :
+                                        initial_range->GetUpper();
+              } else {
+                bound = increment > 0 ? ValueBound::Min() : ValueBound::Max();
+              }
+            }
+            range = new (GetGraph()->GetArena()) MonotonicValueRange(
                 GetGraph()->GetArena(),
                 initial_value,
-                right->AsIntConstant()->GetValue());
+                increment,
+                bound);
           }
           GetValueRangeMap(phi->GetBlock())->Overwrite(phi->GetId(), range);
         }
@@ -662,8 +690,8 @@ class BCEVisitor : public HGraphVisitor {
             // gets [-c2, array.length - c1] as its value range.
             ValueRange* range = new (GetGraph()->GetArena()) ValueRange(
                 GetGraph()->GetArena(),
-                ValueBound::Create(nullptr, - upper.GetConstant()),
-                ValueBound::Create(array_length, - lower.GetConstant()));
+                ValueBound(nullptr, - upper.GetConstant()),
+                ValueBound(array_length, - lower.GetConstant()));
             GetValueRangeMap(sub->GetBlock())->Overwrite(sub->GetId(), range);
           }
         }
