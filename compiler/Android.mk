@@ -86,6 +86,7 @@ LIBART_COMPILER_SRC_FILES := \
 	jni/quick/jni_compiler.cc \
 	llvm/llvm_compiler.cc \
 	optimizing/builder.cc \
+	optimizing/bounds_check_elimination.cc \
 	optimizing/code_generator.cc \
 	optimizing/code_generator_arm.cc \
 	optimizing/code_generator_arm64.cc \
