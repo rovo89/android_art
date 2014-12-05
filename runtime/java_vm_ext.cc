@@ -247,7 +247,7 @@ class Libraries {
   }
 
  private:
-  AllocationTrackingSafeMap<std::string, SharedLibrary*, kAllocatorTagJNILibrarires> libraries_;
+  AllocationTrackingSafeMap<std::string, SharedLibrary*, kAllocatorTagJNILibraries> libraries_;
 };
 
 
