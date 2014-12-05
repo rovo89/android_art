@@ -553,7 +553,7 @@ std::ostream& operator<<(std::ostream& os, const X86OpCode& rhs) {
 }
 
 static bool NeedsRex(int32_t raw_reg) {
-  return RegStorage::RegNum(raw_reg) > 7;
+  return raw_reg != kRIPReg && RegStorage::RegNum(raw_reg) > 7;
 }
 
 static uint8_t LowRegisterBits(int32_t raw_reg) {
@@ -689,7 +689,13 @@ size_t X86Mir2Lir::ComputeSize(const X86EncodingMap* entry, int32_t raw_reg, int
           entry->opcode != kX86Lea32RM && entry->opcode != kX86Lea64RM) {
         DCHECK_NE(entry->flags & (IS_LOAD | IS_STORE), UINT64_C(0)) << entry->name;
       }
-      size += IS_SIMM8(displacement) ? 1 : 4;
+      if (raw_base == kRIPReg) {
+        DCHECK(cu_->target64) <<
+          "Attempt to use a 64-bit RIP adressing with instruction " << entry->name;
+        size += 4;
+      } else {
+        size += IS_SIMM8(displacement) ? 1 : 4;
+      }
     }
   }
   size += entry->skeleton.immediate_bytes;
@@ -1022,14 +1028,24 @@ void X86Mir2Lir::EmitModrmThread(uint8_t reg_or_opcode) {
 
 void X86Mir2Lir::EmitModrmDisp(uint8_t reg_or_opcode, uint8_t base, int32_t disp) {
   DCHECK_LT(reg_or_opcode, 8);
-  DCHECK_LT(base, 8);
-  uint8_t modrm = (ModrmForDisp(base, disp) << 6) | (reg_or_opcode << 3) | base;
-  code_buffer_.push_back(modrm);
-  if (base == rs_rX86_SP_32.GetRegNum()) {
-    // Special SIB for SP base
-    code_buffer_.push_back(0 << 6 | rs_rX86_SP_32.GetRegNum() << 3 | rs_rX86_SP_32.GetRegNum());
+  if (base == kRIPReg) {
+    // x86_64 RIP handling: always 32 bit displacement.
+    uint8_t modrm = (0x0 << 6) | (reg_or_opcode << 3) | 0x5;
+    code_buffer_.push_back(modrm);
+    code_buffer_.push_back(disp & 0xFF);
+    code_buffer_.push_back((disp >> 8) & 0xFF);
+    code_buffer_.push_back((disp >> 16) & 0xFF);
+    code_buffer_.push_back((disp >> 24) & 0xFF);
+  } else {
+    DCHECK_LT(base, 8);
+    uint8_t modrm = (ModrmForDisp(base, disp) << 6) | (reg_or_opcode << 3) | base;
+    code_buffer_.push_back(modrm);
+    if (base == rs_rX86_SP_32.GetRegNum()) {
+      // Special SIB for SP base
+      code_buffer_.push_back(0 << 6 | rs_rX86_SP_32.GetRegNum() << 3 | rs_rX86_SP_32.GetRegNum());
+    }
+    EmitDisp(base, disp);
   }
-  EmitDisp(base, disp);
 }
 
 void X86Mir2Lir::EmitModrmSibDisp(uint8_t reg_or_opcode, uint8_t base, uint8_t index,
@@ -1141,7 +1157,7 @@ void X86Mir2Lir::EmitMemReg(const X86EncodingMap* entry, int32_t raw_base, int32
   CheckValidByteRegister(entry, raw_reg);
   EmitPrefixAndOpcode(entry, raw_reg, NO_REG, raw_base);
   uint8_t low_reg = LowRegisterBits(raw_reg);
-  uint8_t low_base = LowRegisterBits(raw_base);
+  uint8_t low_base = (raw_base == kRIPReg) ? raw_base : LowRegisterBits(raw_base);
   EmitModrmDisp(low_reg, low_base, disp);
   DCHECK_EQ(0, entry->skeleton.modrm_opcode);
   DCHECK_EQ(0, entry->skeleton.ax_opcode);
@@ -1758,12 +1774,29 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
             LIR *target_lir = lir->target;
             DCHECK(target_lir != NULL);
             CodeOffset target = target_lir->offset;
-            lir->operands[2] = target;
-            int newSize = GetInsnSize(lir);
-            if (newSize != lir->flags.size) {
-              lir->flags.size = newSize;
-              res = kRetryAll;
+            // Handle 64 bit RIP addressing.
+            if (lir->operands[1] == kRIPReg) {
+              // Offset is relative to next instruction.
+              lir->operands[2] = target - (lir->offset + lir->flags.size);
+            } else {
+              lir->operands[2] = target;
+              int newSize = GetInsnSize(lir);
+              if (newSize != lir->flags.size) {
+                lir->flags.size = newSize;
+                res = kRetryAll;
+              }
             }
+          } else if (lir->flags.fixup == kFixupSwitchTable) {
+            DCHECK(cu_->target64);
+            DCHECK_EQ(lir->opcode, kX86Lea64RM) << "Unknown instruction: " << X86Mir2Lir::EncodingMap[lir->opcode].name;
+            DCHECK_EQ(lir->operands[1], static_cast<int>(kRIPReg));
+            // Grab the target offset from the saved data.
+            Mir2Lir::EmbeddedData* tab_rec =
+                reinterpret_cast<Mir2Lir::EmbeddedData*>(UnwrapPointer(lir->operands[4]));
+            CodeOffset target = tab_rec->offset;
+            // Handle 64 bit RIP addressing.
+            // Offset is relative to next instruction.
+            lir->operands[2] = target - (lir->offset + lir->flags.size);
           }
           break;
       }
