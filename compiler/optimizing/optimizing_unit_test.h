@@ -96,6 +96,11 @@ inline std::string Patch(const std::string& original, const diff_t& diff) {
   return result;
 }
 
+// Returns if the instruction is removed from the graph.
+inline bool IsRemoved(HInstruction* instruction) {
+  return instruction->GetBlock() == nullptr;
+}
+
 }  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_OPTIMIZING_UNIT_TEST_H_
