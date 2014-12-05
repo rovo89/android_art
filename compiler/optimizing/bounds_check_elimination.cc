@@ -384,7 +384,7 @@ class MonotonicValueRange : public ValueRange {
 
 class BCEVisitor : public HGraphVisitor {
  public:
-  BCEVisitor(HGraph* graph)
+  explicit BCEVisitor(HGraph* graph)
       : HGraphVisitor(graph),
         maps_(graph->GetBlocks().Size()) {}
 
@@ -575,7 +575,7 @@ class BCEVisitor : public HGraphVisitor {
 
   void VisitPhi(HPhi* phi) {
     if (phi->IsLoopHeaderPhi() && phi->GetType() == Primitive::kPrimInt) {
-      DCHECK(phi->InputCount() == 2);
+      DCHECK_EQ(phi->InputCount(), 2U);
       HInstruction* instruction = phi->InputAt(1);
       if (instruction->IsAdd()) {
         HAdd* add = instruction->AsAdd();
