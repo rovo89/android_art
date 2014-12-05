@@ -38,7 +38,6 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
     _exit(1);
   }
   handling_unexpected_signal = true;
-  gAborting++;  // set before taking any locks
   MutexLock mu(Thread::Current(), *Locks::unexpected_signal_lock_);
 
   Runtime* runtime = Runtime::Current();

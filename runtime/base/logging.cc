@@ -35,8 +35,6 @@ namespace art {
 
 LogVerbosity gLogVerbosity;
 
-unsigned int gAborting = 0;
-
 static LogSeverity gMinimumLogSeverity = INFO;
 static std::unique_ptr<std::string> gCmdLine;
 static std::unique_ptr<std::string> gProgramInvocationName;

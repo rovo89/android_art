@@ -55,11 +55,6 @@ struct LogVerbosity {
 // Global log verbosity setting, initialized by InitLogging.
 extern LogVerbosity gLogVerbosity;
 
-// 0 if not abort, non-zero if an abort is in progress. Used on fatal exit to prevents recursive
-// aborts. Global declaration allows us to disable some error checking to ensure fatal shutdown
-// makes forward progress.
-extern unsigned int gAborting;
-
 // Configure logging based on ANDROID_LOG_TAGS environment variable.
 // We need to parse a string that looks like
 //
