@@ -596,26 +596,40 @@ void MIRGraph::CountChecks(struct BasicBlock* bb) {
   }
 }
 
-/* Try to make common case the fallthrough path */
+/* Try to make common case the fallthrough path. */
 bool MIRGraph::LayoutBlocks(BasicBlock* bb) {
-  // TODO: For now, just looking for direct throws.  Consider generalizing for profile feedback
+  // TODO: For now, just looking for direct throws.  Consider generalizing for profile feedback.
   if (!bb->explicit_throw) {
     return false;
   }
+
+  // If we visited it, we are done.
+  if (bb->visited) {
+    return false;
+  }
+  bb->visited = true;
+
   BasicBlock* walker = bb;
   while (true) {
-    // Check termination conditions
+    // Check termination conditions.
     if ((walker->block_type == kEntryBlock) || (Predecessors(walker) != 1)) {
       break;
     }
     BasicBlock* prev = GetBasicBlock(walker->predecessors->Get(0));
+
+    // If we visited the predecessor, we are done.
+    if (prev->visited) {
+      return false;
+    }
+    prev->visited = true;
+
     if (prev->conditional_branch) {
       if (GetBasicBlock(prev->fall_through) == walker) {
-        // Already done - return
+        // Already done - return.
         break;
       }
       DCHECK_EQ(walker, GetBasicBlock(prev->taken));
-      // Got one.  Flip it and exit
+      // Got one.  Flip it and exit.
       Instruction::Code opcode = prev->last_mir_insn->dalvikInsn.opcode;
       switch (opcode) {
         case Instruction::IF_EQ: opcode = Instruction::IF_NE; break;
