@@ -1330,9 +1330,11 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
   Primitive::Type input_type = conversion->GetInputType();
   DCHECK_NE(result_type, input_type);
 
-  // Float-to-long conversions invoke the runtime.
+  // The float-to-long and double-to-long type conversions rely on a
+  // call to the runtime.
   LocationSummary::CallKind call_kind =
-      (input_type == Primitive::kPrimFloat && result_type == Primitive::kPrimLong)
+      ((input_type == Primitive::kPrimFloat || input_type == Primitive::kPrimDouble)
+       && result_type == Primitive::kPrimLong)
       ? LocationSummary::kCall
       : LocationSummary::kNoCall;
   LocationSummary* locations =
@@ -1387,8 +1389,10 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
           break;
 
         case Primitive::kPrimDouble:
-          LOG(FATAL) << "Type conversion from " << input_type
-                     << " to " << result_type << " not yet implemented";
+          // Processing a Dex `double-to-int' instruction.
+          locations->SetInAt(0, Location::RequiresFpuRegister());
+          locations->SetOut(Location::RequiresRegister());
+          locations->AddTemp(Location::RequiresFpuRegister());
           break;
 
         default:
@@ -1411,15 +1415,27 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
         case Primitive::kPrimFloat: {
           // Processing a Dex `float-to-long' instruction.
           InvokeRuntimeCallingConvention calling_convention;
-          locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+          // Note that on x86 floating-point parameters are passed
+          // through core registers (here, EAX).
+          locations->SetInAt(0, Location::RegisterLocation(
+              calling_convention.GetRegisterAt(0)));
           // The runtime helper puts the result in EAX, EDX.
           locations->SetOut(Location::RegisterPairLocation(EAX, EDX));
           break;
         }
 
-        case Primitive::kPrimDouble:
-          LOG(FATAL) << "Type conversion from " << input_type << " to "
-                     << result_type << " not yet implemented";
+        case Primitive::kPrimDouble: {
+          // Processing a Dex `double-to-long' instruction.
+          InvokeRuntimeCallingConvention calling_convention;
+          // Note that on x86 floating-point parameters are passed
+          // through core registers (here, EAX and ECX).
+          locations->SetInAt(0, Location::RegisterPairLocation(
+              calling_convention.GetRegisterAt(0),
+              calling_convention.GetRegisterAt(1)));
+          // The runtime helper puts the result in EAX, EDX.
+          locations->SetOut(Location::RegisterPairLocation(EAX, EDX));
+          break;
+        }
           break;
 
         default:
@@ -1607,10 +1623,30 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
           break;
         }
 
-        case Primitive::kPrimDouble:
-          LOG(FATAL) << "Type conversion from " << input_type
-                     << " to " << result_type << " not yet implemented";
+        case Primitive::kPrimDouble: {
+          // Processing a Dex `double-to-int' instruction.
+          XmmRegister input = in.AsFpuRegister<XmmRegister>();
+          Register output = out.AsRegister<Register>();
+          XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
+          Label done, nan;
+
+          __ movl(output, Immediate(kPrimIntMax));
+          // temp = int-to-double(output)
+          __ cvtsi2sd(temp, output);
+          // if input >= temp goto done
+          __ comisd(input, temp);
+          __ j(kAboveEqual, &done);
+          // if input == NaN goto nan
+          __ j(kUnordered, &nan);
+          // output = double-to-int-truncate(input)
+          __ cvttsd2si(output, input);
+          __ jmp(&done);
+          __ Bind(&nan);
+          //  output = 0
+          __ xorl(output, output);
+          __ Bind(&done);
           break;
+        }
 
         default:
           LOG(FATAL) << "Unexpected type conversion from " << input_type
@@ -1634,13 +1670,13 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
         case Primitive::kPrimFloat:
           // Processing a Dex `float-to-long' instruction.
           __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pF2l)));
-          // This call does not actually record PC information.
           codegen_->RecordPcInfo(conversion, conversion->GetDexPc());
           break;
 
         case Primitive::kPrimDouble:
-          LOG(FATAL) << "Type conversion from " << input_type << " to "
-                     << result_type << " not yet implemented";
+          // Processing a Dex `double-to-long' instruction.
+          __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pD2l)));
+          codegen_->RecordPcInfo(conversion, conversion->GetDexPc());
           break;
 
         default:

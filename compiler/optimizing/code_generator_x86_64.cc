@@ -1370,8 +1370,10 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
           break;
 
         case Primitive::kPrimDouble:
-          LOG(FATAL) << "Type conversion from " << input_type
-                     << " to " << result_type << " not yet implemented";
+          // Processing a Dex `double-to-int' instruction.
+          locations->SetInAt(0, Location::RequiresFpuRegister());
+          locations->SetOut(Location::RequiresRegister());
+          locations->AddTemp(Location::RequiresFpuRegister());
           break;
 
         default:
@@ -1401,8 +1403,10 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
           break;
 
         case Primitive::kPrimDouble:
-          LOG(FATAL) << "Type conversion from " << input_type << " to "
-                     << result_type << " not yet implemented";
+          // Processing a Dex `double-to-long' instruction.
+          locations->SetInAt(0, Location::RequiresFpuRegister());
+          locations->SetOut(Location::RequiresRegister());
+          locations->AddTemp(Location::RequiresFpuRegister());
           break;
 
         default:
@@ -1589,10 +1593,30 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           break;
         }
 
-        case Primitive::kPrimDouble:
-          LOG(FATAL) << "Type conversion from " << input_type
-                     << " to " << result_type << " not yet implemented";
+        case Primitive::kPrimDouble: {
+          // Processing a Dex `double-to-int' instruction.
+          XmmRegister input = in.AsFpuRegister<XmmRegister>();
+          CpuRegister output = out.AsRegister<CpuRegister>();
+          XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
+          Label done, nan;
+
+          __ movl(output, Immediate(kPrimIntMax));
+          // temp = int-to-double(output)
+          __ cvtsi2sd(temp, output);
+          // if input >= temp goto done
+          __ comisd(input, temp);
+          __ j(kAboveEqual, &done);
+          // if input == NaN goto nan
+          __ j(kUnordered, &nan);
+          // output = double-to-int-truncate(input)
+          __ cvttsd2si(output, input);
+          __ jmp(&done);
+          __ Bind(&nan);
+          //  output = 0
+          __ xorl(output, output);
+          __ Bind(&done);
           break;
+        }
 
         default:
           LOG(FATAL) << "Unexpected type conversion from " << input_type
@@ -1620,14 +1644,14 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           Label done, nan;
 
           __ movq(output, Immediate(kPrimLongMax));
-          // temp = int-to-float(output)
+          // temp = long-to-float(output)
           __ cvtsi2ss(temp, output, true);
           // if input >= temp goto done
           __ comiss(input, temp);
           __ j(kAboveEqual, &done);
           // if input == NaN goto nan
           __ j(kUnordered, &nan);
-          // output = float-to-int-truncate(input)
+          // output = float-to-long-truncate(input)
           __ cvttss2si(output, input, true);
           __ jmp(&done);
           __ Bind(&nan);
@@ -1637,10 +1661,30 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
           break;
         }
 
-        case Primitive::kPrimDouble:
-          LOG(FATAL) << "Type conversion from " << input_type << " to "
-                     << result_type << " not yet implemented";
+        case Primitive::kPrimDouble: {
+          // Processing a Dex `double-to-long' instruction.
+          XmmRegister input = in.AsFpuRegister<XmmRegister>();
+          CpuRegister output = out.AsRegister<CpuRegister>();
+          XmmRegister temp = locations->GetTemp(0).AsFpuRegister<XmmRegister>();
+          Label done, nan;
+
+          __ movq(output, Immediate(kPrimLongMax));
+          // temp = long-to-double(output)
+          __ cvtsi2sd(temp, output, true);
+          // if input >= temp goto done
+          __ comisd(input, temp);
+          __ j(kAboveEqual, &done);
+          // if input == NaN goto nan
+          __ j(kUnordered, &nan);
+          // output = double-to-long-truncate(input)
+          __ cvttsd2si(output, input, true);
+          __ jmp(&done);
+          __ Bind(&nan);
+          //  output = 0
+          __ xorq(output, output);
+          __ Bind(&done);
           break;
+        }
 
         default:
           LOG(FATAL) << "Unexpected type conversion from " << input_type
