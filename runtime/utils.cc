@@ -1125,14 +1125,6 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     return;
   }
 
-#if !defined(HAVE_ANDROID_OS)
-  if (GetTid() != tid) {
-    // TODO: dumping of other threads is disabled to avoid crashes during stress testing.
-    //       b/15446488.
-    return;
-  }
-#endif
-
   std::unique_ptr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid));
   if (!backtrace->Unwind(0)) {
     os << prefix << "(backtrace::Unwind failed for thread " << tid << ")\n";
