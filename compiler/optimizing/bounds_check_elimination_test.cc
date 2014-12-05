@@ -188,10 +188,10 @@ TEST(BoundsCheckEliminationTest, OverflowArrayBoundsElimination) {
   HBasicBlock* exit = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(exit);
   exit->AddInstruction(new (&allocator) HExit());
-  block1->AddSuccessor(exit);   // true successor
-  block1->AddSuccessor(block2); // false successor
-  block2->AddSuccessor(exit);   // true successor
-  block2->AddSuccessor(block3); // false successor
+  block1->AddSuccessor(exit);    // true successor
+  block1->AddSuccessor(block2);  // false successor
+  block2->AddSuccessor(exit);    // true successor
+  block2->AddSuccessor(block3);  // false successor
   block3->AddSuccessor(exit);
 
   graph->BuildDominatorTree();
@@ -263,10 +263,10 @@ TEST(BoundsCheckEliminationTest, UnderflowArrayBoundsElimination) {
   HBasicBlock* exit = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(exit);
   exit->AddInstruction(new (&allocator) HExit());
-  block1->AddSuccessor(exit);   // true successor
-  block1->AddSuccessor(block2); // false successor
-  block2->AddSuccessor(exit);   // true successor
-  block2->AddSuccessor(block3); // false successor
+  block1->AddSuccessor(exit);    // true successor
+  block1->AddSuccessor(block2);  // false successor
+  block2->AddSuccessor(exit);    // true successor
+  block2->AddSuccessor(block3);  // false successor
   block3->AddSuccessor(exit);
 
   graph->BuildDominatorTree();
