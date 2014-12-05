@@ -476,6 +476,9 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
+  static void InitFromImageInterpretOnlyCallback(mirror::Object* obj, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   const OatFile::OatMethod FindOatMethodFor(mirror::ArtMethod* method, bool* found)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
