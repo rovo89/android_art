@@ -206,7 +206,7 @@ static const RegStorage RegStorage32FromSpecialTargetRegister_Target64[] {
   RegStorage::InvalidReg(),  // kSelf - Thread pointer.
   RegStorage::InvalidReg(),  // kSuspend - Used to reduce suspend checks for some targets.
   RegStorage::InvalidReg(),  // kLr - no register as the return address is pushed on entry.
-  RegStorage::InvalidReg(),  // kPc - TODO: RIP based addressing.
+  RegStorage(kRIPReg),       // kPc
   rs_rX86_SP_32,             // kSp
   rs_rDI,                    // kArg0
   rs_rSI,                    // kArg1
@@ -660,6 +660,12 @@ void X86Mir2Lir::CompilerInitializeRegAlloc() {
   for (RegStorage reg : *xp_temps) {
     RegisterInfo* xp_reg_info = GetRegInfo(reg);
     xp_reg_info->SetIsTemp(true);
+  }
+
+  // Special Handling for x86_64 RIP addressing.
+  if (cu_->target64) {
+    RegisterInfo* info = new (arena_) RegisterInfo(RegStorage(kRIPReg), kEncodeNone);
+    reginfo_map_[kRIPReg] = info;
   }
 
   // Alias single precision xmm to double xmms.
@@ -1608,9 +1614,6 @@ void X86Mir2Lir::GenConst128(MIR* mir) {
 }
 
 void X86Mir2Lir::AppendOpcodeWithConst(X86OpCode opcode, int reg, MIR* mir) {
-  // The literal pool needs position independent logic.
-  store_method_addr_used_ = true;
-
   // To deal with correct memory ordering, reverse order of constants.
   int32_t constants[4];
   constants[3] = mir->dalvikInsn.arg[0];
@@ -1624,20 +1627,28 @@ void X86Mir2Lir::AppendOpcodeWithConst(X86OpCode opcode, int reg, MIR* mir) {
     data_target = AddVectorLiteral(constants);
   }
 
-  // Address the start of the method.
-  RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
-  if (rl_method.wide) {
-    rl_method = LoadValueWide(rl_method, kCoreReg);
-  } else {
-    rl_method = LoadValue(rl_method, kCoreReg);
-  }
-
   // Load the proper value from the literal area.
   // We don't know the proper offset for the value, so pick one that will force
-  // 4 byte offset.  We will fix this up in the assembler later to have the right
-  // value.
+  // 4 byte offset.  We will fix this up in the assembler later to have the
+  // right value.
+  LIR* load;
   ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
-  LIR *load = NewLIR3(opcode, reg, rl_method.reg.GetReg(), 256 /* bogus */);
+  if (cu_->target64) {
+    load = NewLIR3(opcode, reg, kRIPReg, 256 /* bogus */);
+  } else {
+    // Address the start of the method.
+    RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
+    if (rl_method.wide) {
+      rl_method = LoadValueWide(rl_method, kCoreReg);
+    } else {
+      rl_method = LoadValue(rl_method, kCoreReg);
+    }
+
+    load = NewLIR3(opcode, reg, rl_method.reg.GetReg(), 256 /* bogus */);
+
+    // The literal pool needs position independent logic.
+    store_method_addr_used_ = true;
+  }
   load->flags.fixup = kFixupLoad;
   load->target = data_target;
 }

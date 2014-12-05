@@ -142,25 +142,7 @@ void X86Mir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocat
 
   // Get the switch value
   rl_src = LoadValue(rl_src, kCoreReg);
-  // NewLIR0(kX86Bkpt);
 
-  // Materialize a pointer to the switch table
-  RegStorage start_of_method_reg;
-  if (base_of_code_ != nullptr) {
-    // We can use the saved value.
-    RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
-    if (rl_method.wide) {
-      rl_method = LoadValueWide(rl_method, kCoreReg);
-    } else {
-      rl_method = LoadValue(rl_method, kCoreReg);
-    }
-    start_of_method_reg = rl_method.reg;
-    store_method_addr_used_ = true;
-  } else {
-    start_of_method_reg = AllocTempRef();
-    NewLIR1(kX86StartOfMethod, start_of_method_reg.GetReg());
-  }
-  DCHECK_EQ(start_of_method_reg.Is64Bit(), cu_->target64);
   int low_key = s4FromSwitchData(&table[2]);
   RegStorage keyReg;
   // Remove the bias, if necessary
@@ -170,19 +152,49 @@ void X86Mir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocat
     keyReg = AllocTemp();
     OpRegRegImm(kOpSub, keyReg, rl_src.reg, low_key);
   }
+
   // Bounds check - if < 0 or >= size continue following switch
   OpRegImm(kOpCmp, keyReg, size - 1);
   LIR* branch_over = OpCondBranch(kCondHi, NULL);
 
-  // Load the displacement from the switch table
-  RegStorage disp_reg = AllocTemp();
-  NewLIR5(kX86PcRelLoadRA, disp_reg.GetReg(), start_of_method_reg.GetReg(), keyReg.GetReg(),
-          2, WrapPointer(tab_rec));
-  // Add displacement to start of method
-  OpRegReg(kOpAdd, start_of_method_reg, cu_->target64 ? As64BitReg(disp_reg) : disp_reg);
+  RegStorage addr_for_jump;
+  if (cu_->target64) {
+    RegStorage table_base = AllocTempWide();
+    // Load the address of the table into table_base.
+    LIR* lea = RawLIR(current_dalvik_offset_, kX86Lea64RM, table_base.GetReg(), kRIPReg,
+                      256, 0, WrapPointer(tab_rec));
+    lea->flags.fixup = kFixupSwitchTable;
+    AppendLIR(lea);
+
+    // Load the offset from the table out of the table.
+    addr_for_jump = AllocTempWide();
+    NewLIR5(kX86MovsxdRA, addr_for_jump.GetReg(), table_base.GetReg(), keyReg.GetReg(), 2, 0);
+
+    // Add the offset from the table to the table base.
+    OpRegReg(kOpAdd, addr_for_jump, table_base);
+  } else {
+    // Materialize a pointer to the switch table.
+    RegStorage start_of_method_reg;
+    if (base_of_code_ != nullptr) {
+      // We can use the saved value.
+      RegLocation rl_method = mir_graph_->GetRegLocation(base_of_code_->s_reg_low);
+      rl_method = LoadValue(rl_method, kCoreReg);
+      start_of_method_reg = rl_method.reg;
+      store_method_addr_used_ = true;
+    } else {
+      start_of_method_reg = AllocTempRef();
+      NewLIR1(kX86StartOfMethod, start_of_method_reg.GetReg());
+    }
+    // Load the displacement from the switch table.
+    addr_for_jump = AllocTemp();
+    NewLIR5(kX86PcRelLoadRA, addr_for_jump.GetReg(), start_of_method_reg.GetReg(), keyReg.GetReg(),
+            2, WrapPointer(tab_rec));
+    // Add displacement to start of method.
+    OpRegReg(kOpAdd, addr_for_jump, start_of_method_reg);
+  }
+
   // ..and go!
-  LIR* switch_branch = NewLIR1(kX86JmpR, start_of_method_reg.GetReg());
-  tab_rec->anchor = switch_branch;
+  tab_rec->anchor = NewLIR1(kX86JmpR, addr_for_jump.GetReg());
 
   /* branch_over target here */
   LIR* target = NewLIR0(kPseudoTargetLabel);
