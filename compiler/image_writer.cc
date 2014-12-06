@@ -548,6 +548,7 @@ void ImageWriter::ProcessStrings() {
   }
   // Create character array, copy characters and point the strings there.
   mirror::CharArray* array = mirror::CharArray::Alloc(self, num_chars);
+  string_data_array_ = array;
   uint16_t* array_data = array->GetData();
   size_t pos = 0u;
   prev_s = nullptr;
@@ -1232,6 +1233,15 @@ ImageWriter::Bin ImageWriter::BinSlot::GetBin() const {
 
 uint32_t ImageWriter::BinSlot::GetIndex() const {
   return lockword_ & ~kBinMask;
+}
+
+void ImageWriter::FreeStringDataArray() {
+  if (string_data_array_ != nullptr) {
+    gc::space::LargeObjectSpace* los = Runtime::Current()->GetHeap()->GetLargeObjectsSpace();
+    if (los != nullptr) {
+      los->Free(Thread::Current(), reinterpret_cast<mirror::Object*>(string_data_array_));
+    }
+  }
 }
 
 }  // namespace art
