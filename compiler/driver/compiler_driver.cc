@@ -1118,6 +1118,9 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
     // TODO: support patching on all architectures.
     use_dex_cache = force_relocations && !support_boot_image_fixup_;
   }
+  // Direct branching to the method's code offset means that Xposed hooks are not considered
+  // So we always need to go through the dex cache/ArtMethod
+  use_dex_cache = true;
   bool method_code_in_boot = (method->GetDeclaringClass()->GetClassLoader() == nullptr);
   if (!use_dex_cache) {
     if (!method_code_in_boot) {
