@@ -1368,7 +1368,9 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   gc::Heap* const heap = runtime->GetHeap();
   auto* cl = runtime->GetClassLinker();
   const auto pointer_size = cl->GetImagePointerSize();
-  bool use_dex_cache = GetCompilerOptions().GetCompilePic();  // Off by default
+  // Direct branching to the method's code offset means that Xposed hooks are not considered.
+  // So we always need to go through the dex cache/ArtMethod.
+  bool use_dex_cache = true;
   const bool compiling_boot = heap->IsCompilingBoot();
   // TODO This is somewhat hacky. We should refactor all of this invoke codepath.
   const bool force_relocations = (compiling_boot ||
