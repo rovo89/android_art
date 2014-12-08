@@ -44,7 +44,7 @@ static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kRuntimeParameterCoreRegisters[] = { R0, R1, R2, R3 };
 static constexpr size_t kRuntimeParameterCoreRegistersLength =
     arraysize(kRuntimeParameterCoreRegisters);
-static constexpr SRegister kRuntimeParameterFpuRegisters[] = { S0, S1 };
+static constexpr SRegister kRuntimeParameterFpuRegisters[] = { S0, S1, S2, S3 };
 static constexpr size_t kRuntimeParameterFpuRegistersLength =
     arraysize(kRuntimeParameterFpuRegisters);
 
@@ -2132,12 +2132,13 @@ void InstructionCodeGeneratorARM::VisitDiv(HDiv* div) {
 }
 
 void LocationsBuilderARM::VisitRem(HRem* rem) {
-  LocationSummary::CallKind call_kind = rem->GetResultType() == Primitive::kPrimLong
-      ? LocationSummary::kCall
-      : LocationSummary::kNoCall;
+  Primitive::Type type = rem->GetResultType();
+  LocationSummary::CallKind call_kind = type == Primitive::kPrimInt
+      ? LocationSummary::kNoCall
+      : LocationSummary::kCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(rem, call_kind);
 
-  switch (rem->GetResultType()) {
+  switch (type) {
     case Primitive::kPrimInt: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RequiresRegister());
@@ -2155,14 +2156,26 @@ void LocationsBuilderARM::VisitRem(HRem* rem) {
       locations->SetOut(Location::RegisterPairLocation(R2, R3));
       break;
     }
-    case Primitive::kPrimFloat:
+    case Primitive::kPrimFloat: {
+      InvokeRuntimeCallingConvention calling_convention;
+      locations->SetInAt(0, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
+      locations->SetInAt(1, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(1)));
+      locations->SetOut(Location::FpuRegisterLocation(S0));
+      break;
+    }
+
     case Primitive::kPrimDouble: {
-      LOG(FATAL) << "Unimplemented rem type " << rem->GetResultType();
+      InvokeRuntimeCallingConvention calling_convention;
+      locations->SetInAt(0, Location::FpuRegisterPairLocation(
+          calling_convention.GetFpuRegisterAt(0), calling_convention.GetFpuRegisterAt(1)));
+      locations->SetInAt(1, Location::FpuRegisterPairLocation(
+          calling_convention.GetFpuRegisterAt(2), calling_convention.GetFpuRegisterAt(3)));
+      locations->SetOut(Location::Location::FpuRegisterPairLocation(S0, S1));
       break;
     }
 
     default:
-      LOG(FATAL) << "Unexpected rem type " << rem->GetResultType();
+      LOG(FATAL) << "Unexpected rem type " << type;
   }
 }
 
@@ -2172,7 +2185,8 @@ void InstructionCodeGeneratorARM::VisitRem(HRem* rem) {
   Location first = locations->InAt(0);
   Location second = locations->InAt(1);
 
-  switch (rem->GetResultType()) {
+  Primitive::Type type = rem->GetResultType();
+  switch (type) {
     case Primitive::kPrimInt: {
       Register reg1 = first.AsRegister<Register>();
       Register reg2 = second.AsRegister<Register>();
@@ -2188,26 +2202,22 @@ void InstructionCodeGeneratorARM::VisitRem(HRem* rem) {
     }
 
     case Primitive::kPrimLong: {
-      InvokeRuntimeCallingConvention calling_convention;
-      DCHECK_EQ(calling_convention.GetRegisterAt(0), first.AsRegisterPairLow<Register>());
-      DCHECK_EQ(calling_convention.GetRegisterAt(1), first.AsRegisterPairHigh<Register>());
-      DCHECK_EQ(calling_convention.GetRegisterAt(2), second.AsRegisterPairLow<Register>());
-      DCHECK_EQ(calling_convention.GetRegisterAt(3), second.AsRegisterPairHigh<Register>());
-      DCHECK_EQ(R2, out.AsRegisterPairLow<Register>());
-      DCHECK_EQ(R3, out.AsRegisterPairHigh<Register>());
-
       codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pLmod), rem, rem->GetDexPc());
       break;
     }
 
-    case Primitive::kPrimFloat:
+    case Primitive::kPrimFloat: {
+      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pFmodf), rem, rem->GetDexPc());
+      break;
+    }
+
     case Primitive::kPrimDouble: {
-      LOG(FATAL) << "Unimplemented rem type " << rem->GetResultType();
+      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pFmod), rem, rem->GetDexPc());
       break;
     }
 
     default:
-      LOG(FATAL) << "Unexpected rem type " << rem->GetResultType();
+      LOG(FATAL) << "Unexpected rem type " << type;
   }
 }
 
