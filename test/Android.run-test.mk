@@ -322,6 +322,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
   424-checkcast \
   427-bounds \
   430-live-register-slow-path \
+  436-rem-float \
   800-smali \
 
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))

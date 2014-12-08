@@ -499,19 +499,27 @@ void CodeGenerator::BuildStackMaps(std::vector<uint8_t>* data) {
 }
 
 void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
-  if (instruction != nullptr && instruction->IsTypeConversion()) {
+  if (instruction != nullptr) {
     // The code generated for some type conversions may call the
     // runtime, thus normally requiring a subsequent call to this
     // method.  However, the method verifier does not produce PC
-    // information for Dex type conversion instructions, as it
-    // considers them as "atomic" (they cannot join a GC).
+    // information for certain instructions, which are considered "atomic"
+    // (they cannot join a GC).
     // Therefore we do not currently record PC information for such
     // instructions.  As this may change later, we added this special
     // case so that code generators may nevertheless call
     // CodeGenerator::RecordPcInfo without triggering an error in
     // CodeGenerator::BuildNativeGCMap ("Missing ref for dex pc 0x")
     // thereafter.
-    return;
+    if (instruction->IsTypeConversion()) {
+      return;
+    }
+    if (instruction->IsRem()) {
+      Primitive::Type type = instruction->AsRem()->GetResultType();
+      if ((type == Primitive::kPrimFloat) || (type == Primitive::kPrimDouble)) {
+        return;
+      }
+    }
   }
 
   // Collect PC infos for the mapping table.

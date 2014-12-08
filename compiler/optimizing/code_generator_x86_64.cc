@@ -43,8 +43,9 @@ static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kRuntimeParameterCoreRegisters[] = { RDI, RSI, RDX };
 static constexpr size_t kRuntimeParameterCoreRegistersLength =
     arraysize(kRuntimeParameterCoreRegisters);
-static constexpr FloatRegister kRuntimeParameterFpuRegisters[] = { };
-static constexpr size_t kRuntimeParameterFpuRegistersLength = 0;
+static constexpr FloatRegister kRuntimeParameterFpuRegisters[] = { XMM0, XMM1 };
+static constexpr size_t kRuntimeParameterFpuRegistersLength =
+    arraysize(kRuntimeParameterFpuRegisters);
 
 class InvokeRuntimeCallingConvention : public CallingConvention<Register, FloatRegister> {
  public:
@@ -1999,16 +2000,16 @@ void InstructionCodeGeneratorX86_64::GenerateDivRemIntegral(HBinaryOperation* in
   // 0x80000000(00000000)/-1 triggers an arithmetic exception!
   // Dividing by -1 is actually negation and -0x800000000(00000000) = 0x80000000(00000000)
   // so it's safe to just use negl instead of more complex comparisons.
-
-  __ cmpl(second_reg, Immediate(-1));
-  __ j(kEqual, slow_path->GetEntryLabel());
-
   if (type == Primitive::kPrimInt) {
+    __ cmpl(second_reg, Immediate(-1));
+    __ j(kEqual, slow_path->GetEntryLabel());
     // edx:eax <- sign-extended of eax
     __ cdq();
     // eax = quotient, edx = remainder
     __ idivl(second_reg);
   } else {
+    __ cmpq(second_reg, Immediate(-1));
+    __ j(kEqual, slow_path->GetEntryLabel());
     // rdx:rax <- sign-extended of rax
     __ cqo();
     // rax = quotient, rdx = remainder
@@ -2075,9 +2076,14 @@ void InstructionCodeGeneratorX86_64::VisitDiv(HDiv* div) {
 }
 
 void LocationsBuilderX86_64::VisitRem(HRem* rem) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(rem, LocationSummary::kNoCall);
-  switch (rem->GetResultType()) {
+  Primitive::Type type = rem->GetResultType();
+  LocationSummary::CallKind call_kind =
+      (type == Primitive::kPrimInt) || (type == Primitive::kPrimLong)
+      ? LocationSummary::kNoCall
+      : LocationSummary::kCall;
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(rem, call_kind);
+
+  switch (type) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RegisterLocation(RAX));
@@ -2089,12 +2095,16 @@ void LocationsBuilderX86_64::VisitRem(HRem* rem) {
 
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
-      LOG(FATAL) << "Unimplemented rem type " << rem->GetResultType();
+      InvokeRuntimeCallingConvention calling_convention;
+      locations->SetInAt(0, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(0)));
+      locations->SetInAt(1, Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(1)));
+      // The runtime helper puts the result in XMM0.
+      locations->SetOut(Location::FpuRegisterLocation(XMM0));
       break;
     }
 
     default:
-      LOG(FATAL) << "Unexpected rem type " << rem->GetResultType();
+      LOG(FATAL) << "Unexpected rem type " << type;
   }
 }
 
@@ -2106,13 +2116,16 @@ void InstructionCodeGeneratorX86_64::VisitRem(HRem* rem) {
       GenerateDivRemIntegral(rem);
       break;
     }
-
-    case Primitive::kPrimFloat:
-    case Primitive::kPrimDouble: {
-      LOG(FATAL) << "Unimplemented rem type " << rem->GetResultType();
+    case Primitive::kPrimFloat: {
+      __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pFmodf), true));
+      codegen_->RecordPcInfo(rem, rem->GetDexPc());
       break;
     }
-
+    case Primitive::kPrimDouble: {
+      __ gs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pFmod), true));
+      codegen_->RecordPcInfo(rem, rem->GetDexPc());
+      break;
+    }
     default:
       LOG(FATAL) << "Unexpected rem type " << rem->GetResultType();
   }

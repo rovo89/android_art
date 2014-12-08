@@ -29,6 +29,10 @@ namespace art {
 extern "C" uint32_t art_quick_is_assignable(const mirror::Class* klass,
                                             const mirror::Class* ref_class);
 
+// fmod entrypointes.
+extern "C" double art_quick_fmod(double, double);
+extern "C" float art_quick_fmodf(float, float);
+
 void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
                      PortableEntryPoints* ppoints, QuickEntryPoints* qpoints) {
   // Interpreter
@@ -105,9 +109,9 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   // points->pCmpgFloat = NULL;  // Not needed on x86.
   // points->pCmplDouble = NULL;  // Not needed on x86.
   // points->pCmplFloat = NULL;  // Not needed on x86.
-  // qpoints->pFmod = NULL;  // Not needed on x86.
+  qpoints->pFmod = art_quick_fmod;
   // qpoints->pL2d = NULL;  // Not needed on x86.
-  // qpoints->pFmodf = NULL;  // Not needed on x86.
+  qpoints->pFmodf = art_quick_fmodf;
   // qpoints->pL2f = NULL;  // Not needed on x86.
   // points->pD2iz = NULL;  // Not needed on x86.
   // points->pF2iz = NULL;  // Not needed on x86.
