@@ -410,15 +410,15 @@ class BasicBlock : public DeletableArenaObject<kArenaAllocBB> {
   void ResetOptimizationFlags(uint16_t reset_flags);
 
   /**
-   * @brief Hide the BasicBlock.
-   * @details Set it to kDalvikByteCode, set hidden to true, remove all MIRs,
-   *          remove itself from any predecessor edges, remove itself from any
-   *          child's predecessor array.
+   * @brief Kill the BasicBlock.
+   * @details Unlink predecessors to make this block unreachable, then KillUnreachable().
    */
-  void Hide(MIRGraph* mir_graph);
+  void Kill(MIRGraph* mir_graph);
 
   /**
-   *  @brief Kill the unreachable block and all blocks that become unreachable by killing this one.
+   * @brief Kill the unreachable block and all blocks that become unreachable by killing this one.
+   * @details Set the block type to kDead and set hidden to true, remove all MIRs,
+   *          unlink all successors and recursively kill successors that become unreachable.
    */
   void KillUnreachable(MIRGraph* mir_graph);
 

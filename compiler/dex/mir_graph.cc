@@ -2222,21 +2222,7 @@ void BasicBlock::ResetOptimizationFlags(uint16_t reset_flags) {
   }
 }
 
-void BasicBlock::Hide(MIRGraph* mir_graph) {
-  // First lets make it a dalvik bytecode block so it doesn't have any special meaning.
-  block_type = kDalvikByteCode;
-
-  // Mark it as hidden.
-  hidden = true;
-
-  // Detach it from its MIRs so we don't generate code for them. Also detached MIRs
-  // are updated to know that they no longer have a parent.
-  for (MIR* mir = first_mir_insn; mir != nullptr; mir = mir->next) {
-    mir->bb = NullBasicBlockId;
-  }
-  first_mir_insn = nullptr;
-  last_mir_insn = nullptr;
-
+void BasicBlock::Kill(MIRGraph* mir_graph) {
   for (BasicBlockId pred_id : predecessors) {
     BasicBlock* pred_bb = mir_graph->GetBasicBlock(pred_id);
     DCHECK(pred_bb != nullptr);
@@ -2244,24 +2230,11 @@ void BasicBlock::Hide(MIRGraph* mir_graph) {
     // Sadly we have to go through the children by hand here.
     pred_bb->ReplaceChild(id, NullBasicBlockId);
   }
+  predecessors.clear();
 
-  // Iterate through children of bb we are hiding.
-  ChildBlockIterator successorChildIter(this, mir_graph);
-
-  for (BasicBlock* childPtr = successorChildIter.Next(); childPtr != 0; childPtr = successorChildIter.Next()) {
-    // Erase this predecessor from child.
-    childPtr->ErasePredecessor(id);
-  }
-
-  // Remove link to children.
-  taken = NullBasicBlockId;
-  fall_through = NullBasicBlockId;
-  successor_block_list_type = kNotUsed;
+  KillUnreachable(mir_graph);
 }
 
-/*
- * Kill an unreachable block and all blocks that become unreachable by killing this one.
- */
 void BasicBlock::KillUnreachable(MIRGraph* mir_graph) {
   DCHECK(predecessors.empty());  // Unreachable.
 
