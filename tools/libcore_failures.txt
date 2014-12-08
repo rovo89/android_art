@@ -15,11 +15,6 @@
   name: "libcore.java.math.RunCSVTests#test_csv"
 },
 {
-  description: "Test is currently being updated.",
-  result: EXEC_FAILED,
-  name: "libcore.java.util.OldTimeZoneTest#test_getDisplayNameZILjava_util_Locale"
-},
-{
   description: "Differences between vogar and cts in user directory",
   result: EXEC_FAILED,
   modes: [device],
