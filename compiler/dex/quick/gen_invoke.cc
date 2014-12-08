@@ -401,59 +401,50 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
    * half to memory as well.
    */
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-  for (uint32_t i = 0; i < mir_graph_->GetNumOfInVRs(); i++) {
-    PromotionMap* v_map = &promotion_map_[start_vreg + i];
+  RegLocation* t_loc = nullptr;
+  for (uint32_t i = 0; i < mir_graph_->GetNumOfInVRs(); i += t_loc->wide ? 2 : 1) {
+    // get reg corresponding to input
     RegStorage reg = GetArgMappingToPhysicalReg(i);
+    t_loc = &ArgLocs[i];
+
+    // If the wide input appeared as single, flush it and go
+    // as it comes from memory.
+    if (t_loc->wide && reg.Valid() && !reg.Is64Bit()) {
+      StoreBaseDisp(TargetPtrReg(kSp), SRegOffset(start_vreg + i), reg, k32, kNotVolatile);
+      reg = RegStorage::InvalidReg();
+    }
 
     if (reg.Valid()) {
-      // If arriving in register
-      bool need_flush = true;
-      RegLocation* t_loc = &ArgLocs[i];
-      if ((v_map->core_location == kLocPhysReg) && !t_loc->fp) {
-        OpRegCopy(RegStorage::Solo32(v_map->core_reg), reg);
-        need_flush = false;
-      } else if ((v_map->fp_location == kLocPhysReg) && t_loc->fp) {
-        OpRegCopy(RegStorage::Solo32(v_map->fp_reg), reg);
-        need_flush = false;
-      } else {
-        need_flush = true;
-      }
+      // If arriving in register.
 
-      // For wide args, force flush if not fully promoted
-      if (t_loc->wide) {
-        PromotionMap* p_map = v_map + (t_loc->high_word ? -1 : +1);
-        // Is only half promoted?
-        need_flush |= (p_map->core_location != v_map->core_location) ||
-            (p_map->fp_location != v_map->fp_location);
-        if ((cu_->instruction_set == kThumb2) && t_loc->fp && !need_flush) {
-          /*
-           * In Arm, a double is represented as a pair of consecutive single float
-           * registers starting at an even number.  It's possible that both Dalvik vRegs
-           * representing the incoming double were independently promoted as singles - but
-           * not in a form usable as a double.  If so, we need to flush - even though the
-           * incoming arg appears fully in register.  At this point in the code, both
-           * halves of the double are promoted.  Make sure they are in a usable form.
-           */
-          int lowreg_index = start_vreg + i + (t_loc->high_word ? -1 : 0);
-          int low_reg = promotion_map_[lowreg_index].fp_reg;
-          int high_reg = promotion_map_[lowreg_index + 1].fp_reg;
-          if (((low_reg & 0x1) != 0) || (high_reg != (low_reg + 1))) {
-            need_flush = true;
-          }
+      // We have already updated the arg location with promoted info
+      // so we can be based on it.
+      if (t_loc->location == kLocPhysReg) {
+        // Just copy it.
+        if (t_loc->wide) {
+          OpRegCopyWide(t_loc->reg, reg);
+        } else {
+          OpRegCopy(t_loc->reg, reg);
+        }
+      } else {
+        // Needs flush.
+        int offset = SRegOffset(start_vreg + i);
+        if (t_loc->ref) {
+          StoreRefDisp(TargetPtrReg(kSp), offset, reg, kNotVolatile);
+        } else {
+          StoreBaseDisp(TargetPtrReg(kSp), offset, reg, t_loc->wide ? k64 : k32, kNotVolatile);
         }
       }
-      if (need_flush) {
-        Store32Disp(TargetPtrReg(kSp), SRegOffset(start_vreg + i), reg);
-      }
     } else {
-      // If arriving in frame & promoted
-      if (v_map->core_location == kLocPhysReg) {
-        Load32Disp(TargetPtrReg(kSp), SRegOffset(start_vreg + i),
-                   RegStorage::Solo32(v_map->core_reg));
-      }
-      if (v_map->fp_location == kLocPhysReg) {
-        Load32Disp(TargetPtrReg(kSp), SRegOffset(start_vreg + i),
-                   RegStorage::Solo32(v_map->fp_reg));
+      // If arriving in frame & promoted.
+      if (t_loc->location == kLocPhysReg) {
+        int offset = SRegOffset(start_vreg + i);
+        if (t_loc->ref) {
+          LoadRefDisp(TargetPtrReg(kSp), offset, t_loc->reg, kNotVolatile);
+        } else {
+          LoadBaseDisp(TargetPtrReg(kSp), offset, t_loc->reg, t_loc->wide ? k64 : k32,
+                       kNotVolatile);
+        }
       }
     }
   }
@@ -568,7 +559,7 @@ static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
  * emit the next instruction in a virtual invoke sequence.
  * We can use kLr as a temp prior to target address loading
  * Note also that we'll load the first argument ("this") into
- * kArg1 here rather than the standard LoadArgRegs.
+ * kArg1 here rather than the standard GenDalvikArgs.
  */
 static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
                          int state, const MethodReference& target_method,
@@ -612,7 +603,7 @@ static int NextVCallInsn(CompilationUnit* cu, CallInfo* info,
  * Emit the next instruction in an invoke interface sequence. This will do a lookup in the
  * class's IMT, calling either the actual method or art_quick_imt_conflict_trampoline if
  * more than one interface method map to the same index. Note also that we'll load the first
- * argument ("this") into kArg1 here rather than the standard LoadArgRegs.
+ * argument ("this") into kArg1 here rather than the standard GenDalvikArgs.
  */
 static int NextInterfaceCallInsn(CompilationUnit* cu, CallInfo* info, int state,
                                  const MethodReference& target_method,
@@ -719,158 +710,6 @@ static int NextInterfaceCallInsnWithAccessCheck(CompilationUnit* cu,
                           target_method, 0);
 }
 
-int Mir2Lir::LoadArgRegs(CallInfo* info, int call_state,
-                         NextCallInsn next_call_insn,
-                         const MethodReference& target_method,
-                         uint32_t vtable_idx, uintptr_t direct_code,
-                         uintptr_t direct_method, InvokeType type, bool skip_this) {
-  int last_arg_reg = 3 - 1;
-  int arg_regs[3] = {TargetReg(kArg1, kNotWide).GetReg(), TargetReg(kArg2, kNotWide).GetReg(),
-                     TargetReg(kArg3, kNotWide).GetReg()};
-
-  int next_reg = 0;
-  int next_arg = 0;
-  if (skip_this) {
-    next_reg++;
-    next_arg++;
-  }
-  for (; (next_reg <= last_arg_reg) && (next_arg < info->num_arg_words); next_reg++) {
-    RegLocation rl_arg = info->args[next_arg++];
-    rl_arg = UpdateRawLoc(rl_arg);
-    if (rl_arg.wide && (next_reg <= last_arg_reg - 1)) {
-      RegStorage r_tmp(RegStorage::k64BitPair, arg_regs[next_reg], arg_regs[next_reg + 1]);
-      LoadValueDirectWideFixed(rl_arg, r_tmp);
-      next_reg++;
-      next_arg++;
-    } else {
-      if (rl_arg.wide) {
-        rl_arg = NarrowRegLoc(rl_arg);
-        rl_arg.is_const = false;
-      }
-      LoadValueDirectFixed(rl_arg, RegStorage::Solo32(arg_regs[next_reg]));
-    }
-    call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                                direct_code, direct_method, type);
-  }
-  return call_state;
-}
-
-/*
- * Load up to 5 arguments, the first three of which will be in
- * kArg1 .. kArg3.  On entry kArg0 contains the current method pointer,
- * and as part of the load sequence, it must be replaced with
- * the target method pointer.  Note, this may also be called
- * for "range" variants if the number of arguments is 5 or fewer.
- */
-int Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
-                                  int call_state, LIR** pcrLabel, NextCallInsn next_call_insn,
-                                  const MethodReference& target_method,
-                                  uint32_t vtable_idx, uintptr_t direct_code,
-                                  uintptr_t direct_method, InvokeType type, bool skip_this) {
-  RegLocation rl_arg;
-
-  /* If no arguments, just return */
-  if (info->num_arg_words == 0)
-    return call_state;
-
-  call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                              direct_code, direct_method, type);
-
-  DCHECK_LE(info->num_arg_words, 5);
-  if (info->num_arg_words > 3) {
-    int32_t next_use = 3;
-    // Detect special case of wide arg spanning arg3/arg4
-    RegLocation rl_use0 = info->args[0];
-    RegLocation rl_use1 = info->args[1];
-    RegLocation rl_use2 = info->args[2];
-    if (((!rl_use0.wide && !rl_use1.wide) || rl_use0.wide) && rl_use2.wide) {
-      RegStorage reg;
-      // Wide spans, we need the 2nd half of uses[2].
-      rl_arg = UpdateLocWide(rl_use2);
-      if (rl_arg.location == kLocPhysReg) {
-        if (rl_arg.reg.IsPair()) {
-          reg = rl_arg.reg.GetHigh();
-        } else {
-          RegisterInfo* reg_info = GetRegInfo(rl_arg.reg);
-          reg_info = reg_info->FindMatchingView(RegisterInfo::kHighSingleStorageMask);
-          if (reg_info == nullptr) {
-            // NOTE: For hard float convention we won't split arguments across reg/mem.
-            UNIMPLEMENTED(FATAL) << "Needs hard float api.";
-          }
-          reg = reg_info->GetReg();
-        }
-      } else {
-        // kArg2 & rArg3 can safely be used here
-        reg = TargetReg(kArg3, kNotWide);
-        {
-          ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          Load32Disp(TargetPtrReg(kSp), SRegOffset(rl_arg.s_reg_low) + 4, reg);
-        }
-        call_state = next_call_insn(cu_, info, call_state, target_method,
-                                    vtable_idx, direct_code, direct_method, type);
-      }
-      {
-        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-        Store32Disp(TargetPtrReg(kSp), (next_use + 1) * 4, reg);
-      }
-      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                                  direct_code, direct_method, type);
-      next_use++;
-    }
-    // Loop through the rest
-    while (next_use < info->num_arg_words) {
-      RegStorage arg_reg;
-      rl_arg = info->args[next_use];
-      rl_arg = UpdateRawLoc(rl_arg);
-      if (rl_arg.location == kLocPhysReg) {
-        arg_reg = rl_arg.reg;
-      } else {
-        arg_reg = TargetReg(kArg2, rl_arg.wide ? kWide : kNotWide);
-        if (rl_arg.wide) {
-          LoadValueDirectWideFixed(rl_arg, arg_reg);
-        } else {
-          LoadValueDirectFixed(rl_arg, arg_reg);
-        }
-        call_state = next_call_insn(cu_, info, call_state, target_method,
-                                    vtable_idx, direct_code, direct_method, type);
-      }
-      int outs_offset = (next_use + 1) * 4;
-      {
-        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-        if (rl_arg.wide) {
-          StoreBaseDisp(TargetPtrReg(kSp), outs_offset, arg_reg, k64, kNotVolatile);
-          next_use += 2;
-        } else {
-          Store32Disp(TargetPtrReg(kSp), outs_offset, arg_reg);
-          next_use++;
-        }
-      }
-      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                               direct_code, direct_method, type);
-    }
-  }
-
-  call_state = LoadArgRegs(info, call_state, next_call_insn,
-                           target_method, vtable_idx, direct_code, direct_method,
-                           type, skip_this);
-
-  if (pcrLabel) {
-    if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitNullChecks()) {
-      *pcrLabel = GenExplicitNullCheck(TargetReg(kArg1, kRef), info->opt_flags);
-    } else {
-      *pcrLabel = nullptr;
-      if (!(cu_->disable_opt & (1 << kNullCheckElimination)) &&
-          (info->opt_flags & MIR_IGNORE_NULL_CHECK)) {
-        return call_state;
-      }
-      // In lieu of generating a check for kArg1 being null, we need to
-      // perform a load when doing implicit checks.
-      GenImplicitNullCheck(TargetReg(kArg1, kRef), info->opt_flags);
-    }
-  }
-  return call_state;
-}
-
 // Default implementation of implicit null pointer check.
 // Overridden by arch specific as necessary.
 void Mir2Lir::GenImplicitNullCheck(RegStorage reg, int opt_flags) {
@@ -883,209 +722,194 @@ void Mir2Lir::GenImplicitNullCheck(RegStorage reg, int opt_flags) {
   FreeTemp(tmp);
 }
 
-
-/*
- * May have 0+ arguments (also used for jumbo).  Note that
- * source virtual registers may be in physical registers, so may
- * need to be flushed to home location before copying.  This
- * applies to arg3 and above (see below).
- *
- * Two general strategies:
- *    If < 20 arguments
- *       Pass args 3-18 using vldm/vstm block copy
- *       Pass arg0, arg1 & arg2 in kArg1-kArg3
- *    If 20+ arguments
- *       Pass args arg19+ using memcpy block copy
- *       Pass arg0, arg1 & arg2 in kArg1-kArg3
- *
+/**
+ * @brief Used to flush promoted registers if they are used as argument
+ * in an invocation.
+ * @param info the infromation about arguments for invocation.
+ * @param start the first argument we should start to look from.
  */
-int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
-                                LIR** pcrLabel, NextCallInsn next_call_insn,
-                                const MethodReference& target_method,
-                                uint32_t vtable_idx, uintptr_t direct_code, uintptr_t direct_method,
-                                InvokeType type, bool skip_this) {
-  // If we can treat it as non-range (Jumbo ops will use range form)
-  if (info->num_arg_words <= 5)
-    return GenDalvikArgsNoRange(info, call_state, pcrLabel,
-                                next_call_insn, target_method, vtable_idx,
-                                direct_code, direct_method, type, skip_this);
-  /*
-   * First load the non-register arguments.  Both forms expect all
-   * of the source arguments to be in their home frame location, so
-   * scan the s_reg names and flush any that have been promoted to
-   * frame backing storage.
-   */
+void Mir2Lir::GenDalvikArgsFlushPromoted(CallInfo* info, int start) {
+  if (cu_->disable_opt & (1 << kPromoteRegs)) {
+    // This make sense only if promotion is enabled.
+    return;
+  }
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   // Scan the rest of the args - if in phys_reg flush to memory
-  for (int next_arg = 0; next_arg < info->num_arg_words;) {
+  for (int next_arg = start; next_arg < info->num_arg_words;) {
     RegLocation loc = info->args[next_arg];
     if (loc.wide) {
       loc = UpdateLocWide(loc);
-      if ((next_arg >= 2) && (loc.location == kLocPhysReg)) {
-        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+      if (loc.location == kLocPhysReg) {
         StoreBaseDisp(TargetPtrReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k64, kNotVolatile);
       }
       next_arg += 2;
     } else {
       loc = UpdateLoc(loc);
-      if ((next_arg >= 3) && (loc.location == kLocPhysReg)) {
-        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-        Store32Disp(TargetPtrReg(kSp), SRegOffset(loc.s_reg_low), loc.reg);
+      if (loc.location == kLocPhysReg) {
+        if (loc.ref) {
+          StoreRefDisp(TargetPtrReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, kNotVolatile);
+        } else {
+          StoreBaseDisp(TargetPtrReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k32,
+                        kNotVolatile);
+        }
       }
       next_arg++;
     }
   }
+}
 
-  // The first 3 arguments are passed via registers.
-  // TODO: For 64-bit, instead of hardcoding 4 for Method* size, we should either
-  // get size of uintptr_t or size of object reference according to model being used.
-  int outs_offset = 4 /* Method* */ + (3 * sizeof(uint32_t));
-  int start_offset = SRegOffset(info->args[3].s_reg_low);
-  int regs_left_to_pass_via_stack = info->num_arg_words - 3;
-  DCHECK_GT(regs_left_to_pass_via_stack, 0);
+/**
+ * @brief Used to optimize the copying of VRs which are arguments of invocation.
+ * Please note that you should flush promoted registers first if you copy.
+ * If implementation does copying it may skip several of the first VRs but must copy
+ * till the end. Implementation must return the number of skipped VRs
+ * (it might be all VRs).
+ * @see GenDalvikArgsFlushPromoted
+ * @param info the information about arguments for invocation.
+ * @param first the first argument we should start to look from.
+ * @param count the number of remaining arguments we can handle.
+ * @return the number of arguments which we did not handle. Unhandled arguments
+ * must be attached to the first one.
+ */
+int Mir2Lir::GenDalvikArgsBulkCopy(CallInfo* info, int first, int count) {
+  // call is pretty expensive, let's use it if count is big.
+  if (count > 16) {
+    GenDalvikArgsFlushPromoted(info, first);
+    int start_offset = SRegOffset(info->args[first].s_reg_low);
+    int outs_offset = StackVisitor::GetOutVROffset(first, cu_->instruction_set);
 
-  if (cu_->instruction_set == kThumb2 && regs_left_to_pass_via_stack <= 16) {
-    // Use vldm/vstm pair using kArg3 as a temp
-    call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                             direct_code, direct_method, type);
-    OpRegRegImm(kOpAdd, TargetReg(kArg3, kRef), TargetPtrReg(kSp), start_offset);
-    LIR* ld = nullptr;
-    {
-      ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-      ld = OpVldm(TargetReg(kArg3, kRef), regs_left_to_pass_via_stack);
-    }
-    // TUNING: loosen barrier
-    ld->u.m.def_mask = &kEncodeAll;
-    call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                             direct_code, direct_method, type);
-    OpRegRegImm(kOpAdd, TargetReg(kArg3, kRef), TargetPtrReg(kSp), 4 /* Method* */ + (3 * 4));
-    call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                             direct_code, direct_method, type);
-    LIR* st = nullptr;
-    {
-      ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-      st = OpVstm(TargetReg(kArg3, kRef), regs_left_to_pass_via_stack);
-    }
-    st->u.m.def_mask = &kEncodeAll;
-    call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                             direct_code, direct_method, type);
-  } else if (cu_->instruction_set == kX86 || cu_->instruction_set == kX86_64) {
-    int current_src_offset = start_offset;
-    int current_dest_offset = outs_offset;
-
-    // Only davik regs are accessed in this loop; no next_call_insn() calls.
-    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-    while (regs_left_to_pass_via_stack > 0) {
-      // This is based on the knowledge that the stack itself is 16-byte aligned.
-      bool src_is_16b_aligned = (current_src_offset & 0xF) == 0;
-      bool dest_is_16b_aligned = (current_dest_offset & 0xF) == 0;
-      size_t bytes_to_move;
-
-      /*
-       * The amount to move defaults to 32-bit. If there are 4 registers left to move, then do a
-       * a 128-bit move because we won't get the chance to try to aligned. If there are more than
-       * 4 registers left to move, consider doing a 128-bit only if either src or dest are aligned.
-       * We do this because we could potentially do a smaller move to align.
-       */
-      if (regs_left_to_pass_via_stack == 4 ||
-          (regs_left_to_pass_via_stack > 4 && (src_is_16b_aligned || dest_is_16b_aligned))) {
-        // Moving 128-bits via xmm register.
-        bytes_to_move = sizeof(uint32_t) * 4;
-
-        // Allocate a free xmm temp. Since we are working through the calling sequence,
-        // we expect to have an xmm temporary available.  AllocTempDouble will abort if
-        // there are no free registers.
-        RegStorage temp = AllocTempDouble();
-
-        LIR* ld1 = nullptr;
-        LIR* ld2 = nullptr;
-        LIR* st1 = nullptr;
-        LIR* st2 = nullptr;
-
-        /*
-         * The logic is similar for both loads and stores. If we have 16-byte alignment,
-         * do an aligned move. If we have 8-byte alignment, then do the move in two
-         * parts. This approach prevents possible cache line splits. Finally, fall back
-         * to doing an unaligned move. In most cases we likely won't split the cache
-         * line but we cannot prove it and thus take a conservative approach.
-         */
-        bool src_is_8b_aligned = (current_src_offset & 0x7) == 0;
-        bool dest_is_8b_aligned = (current_dest_offset & 0x7) == 0;
-
-        if (src_is_16b_aligned) {
-          ld1 = OpMovRegMem(temp, TargetPtrReg(kSp), current_src_offset, kMovA128FP);
-        } else if (src_is_8b_aligned) {
-          ld1 = OpMovRegMem(temp, TargetPtrReg(kSp), current_src_offset, kMovLo128FP);
-          ld2 = OpMovRegMem(temp, TargetPtrReg(kSp), current_src_offset + (bytes_to_move >> 1),
-                            kMovHi128FP);
-        } else {
-          ld1 = OpMovRegMem(temp, TargetPtrReg(kSp), current_src_offset, kMovU128FP);
-        }
-
-        if (dest_is_16b_aligned) {
-          st1 = OpMovMemReg(TargetPtrReg(kSp), current_dest_offset, temp, kMovA128FP);
-        } else if (dest_is_8b_aligned) {
-          st1 = OpMovMemReg(TargetPtrReg(kSp), current_dest_offset, temp, kMovLo128FP);
-          st2 = OpMovMemReg(TargetPtrReg(kSp), current_dest_offset + (bytes_to_move >> 1),
-                            temp, kMovHi128FP);
-        } else {
-          st1 = OpMovMemReg(TargetPtrReg(kSp), current_dest_offset, temp, kMovU128FP);
-        }
-
-        // TODO If we could keep track of aliasing information for memory accesses that are wider
-        // than 64-bit, we wouldn't need to set up a barrier.
-        if (ld1 != nullptr) {
-          if (ld2 != nullptr) {
-            // For 64-bit load we can actually set up the aliasing information.
-            AnnotateDalvikRegAccess(ld1, current_src_offset >> 2, true, true);
-            AnnotateDalvikRegAccess(ld2, (current_src_offset + (bytes_to_move >> 1)) >> 2, true,
-                                    true);
-          } else {
-            // Set barrier for 128-bit load.
-            ld1->u.m.def_mask = &kEncodeAll;
-          }
-        }
-        if (st1 != nullptr) {
-          if (st2 != nullptr) {
-            // For 64-bit store we can actually set up the aliasing information.
-            AnnotateDalvikRegAccess(st1, current_dest_offset >> 2, false, true);
-            AnnotateDalvikRegAccess(st2, (current_dest_offset + (bytes_to_move >> 1)) >> 2, false,
-                                    true);
-          } else {
-            // Set barrier for 128-bit store.
-            st1->u.m.def_mask = &kEncodeAll;
-          }
-        }
-
-        // Free the temporary used for the data movement.
-        FreeTemp(temp);
-      } else {
-        // Moving 32-bits via general purpose register.
-        bytes_to_move = sizeof(uint32_t);
-
-        // Instead of allocating a new temp, simply reuse one of the registers being used
-        // for argument passing.
-        RegStorage temp = TargetReg(kArg3, kNotWide);
-
-        // Now load the argument VR and store to the outs.
-        Load32Disp(TargetPtrReg(kSp), current_src_offset, temp);
-        Store32Disp(TargetPtrReg(kSp), current_dest_offset, temp);
-      }
-
-      current_src_offset += bytes_to_move;
-      current_dest_offset += bytes_to_move;
-      regs_left_to_pass_via_stack -= (bytes_to_move >> 2);
-    }
-  } else {
-    // Generate memcpy
     OpRegRegImm(kOpAdd, TargetReg(kArg0, kRef), TargetPtrReg(kSp), outs_offset);
     OpRegRegImm(kOpAdd, TargetReg(kArg1, kRef), TargetPtrReg(kSp), start_offset);
     CallRuntimeHelperRegRegImm(kQuickMemcpy, TargetReg(kArg0, kRef), TargetReg(kArg1, kRef),
-                               (info->num_arg_words - 3) * 4, false);
+                               count * 4, false);
+    count = 0;
+  }
+  return count;
+}
+
+int Mir2Lir::GenDalvikArgs(CallInfo* info, int call_state,
+                           LIR** pcrLabel, NextCallInsn next_call_insn,
+                           const MethodReference& target_method,
+                           uint32_t vtable_idx, uintptr_t direct_code, uintptr_t direct_method,
+                           InvokeType type, bool skip_this) {
+  // If no arguments, just return.
+  if (info->num_arg_words == 0)
+    return call_state;
+
+  const int start_index = skip_this ? 1 : 0;
+
+  // Get architecture dependent mapping between output VRs and physical registers
+  // basing on shorty of method to call.
+  InToRegStorageMapping in_to_reg_storage_mapping(arena_);
+  {
+    const char* target_shorty = mir_graph_->GetShortyFromMethodReference(target_method);
+    ShortyIterator shorty_iterator(target_shorty, type == kStatic);
+    in_to_reg_storage_mapping.Initialize(&shorty_iterator, GetResetedInToRegStorageMapper());
   }
 
-  call_state = LoadArgRegs(info, call_state, next_call_insn,
-                           target_method, vtable_idx, direct_code, direct_method,
-                           type, skip_this);
+  int stack_map_start = std::max(in_to_reg_storage_mapping.GetMaxMappedIn() + 1, start_index);
+  if ((stack_map_start < info->num_arg_words) && info->args[stack_map_start].high_word) {
+    // It is possible that the last mapped reg is 32 bit while arg is 64-bit.
+    // It will be handled together with low part mapped to register.
+    stack_map_start++;
+  }
+  int regs_left_to_pass_via_stack = info->num_arg_words - stack_map_start;
+
+  // If it is a range case we can try to copy remaining VRs (not mapped to physical registers)
+  // using more optimal algorithm.
+  if (info->is_range && regs_left_to_pass_via_stack > 1) {
+    regs_left_to_pass_via_stack = GenDalvikArgsBulkCopy(info, stack_map_start,
+                                                        regs_left_to_pass_via_stack);
+  }
+
+  // Now handle any remaining VRs mapped to stack.
+  if (in_to_reg_storage_mapping.HasArgumentsOnStack()) {
+    // Two temps but do not use kArg1, it might be this which we can skip.
+    // Separate single and wide - it can give some advantage.
+    RegStorage regRef = TargetReg(kArg3, kRef);
+    RegStorage regSingle = TargetReg(kArg3, kNotWide);
+    RegStorage regWide = TargetReg(kArg2, kWide);
+    for (int i = start_index;
+         i < stack_map_start + regs_left_to_pass_via_stack; i++) {
+      RegLocation rl_arg = info->args[i];
+      rl_arg = UpdateRawLoc(rl_arg);
+      RegStorage reg = in_to_reg_storage_mapping.Get(i);
+      if (!reg.Valid()) {
+        int out_offset = StackVisitor::GetOutVROffset(i, cu_->instruction_set);
+        {
+          ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+          if (rl_arg.wide) {
+            if (rl_arg.location == kLocPhysReg) {
+              StoreBaseDisp(TargetPtrReg(kSp), out_offset, rl_arg.reg, k64, kNotVolatile);
+            } else {
+              LoadValueDirectWideFixed(rl_arg, regWide);
+              StoreBaseDisp(TargetPtrReg(kSp), out_offset, regWide, k64, kNotVolatile);
+            }
+          } else {
+            if (rl_arg.location == kLocPhysReg) {
+              if (rl_arg.ref) {
+                StoreRefDisp(TargetPtrReg(kSp), out_offset, rl_arg.reg, kNotVolatile);
+              } else {
+                StoreBaseDisp(TargetPtrReg(kSp), out_offset, rl_arg.reg, k32, kNotVolatile);
+              }
+            } else {
+              if (rl_arg.ref) {
+                LoadValueDirectFixed(rl_arg, regRef);
+                StoreRefDisp(TargetPtrReg(kSp), out_offset, regRef, kNotVolatile);
+              } else {
+                LoadValueDirectFixed(rl_arg, regSingle);
+                StoreBaseDisp(TargetPtrReg(kSp), out_offset, regSingle, k32, kNotVolatile);
+              }
+            }
+          }
+        }
+        call_state = next_call_insn(cu_, info, call_state, target_method,
+                                    vtable_idx, direct_code, direct_method, type);
+      }
+      if (rl_arg.wide) {
+        i++;
+      }
+    }
+  }
+
+  // Finish with VRs mapped to physical registers.
+  for (int i = start_index; i < stack_map_start; i++) {
+    RegLocation rl_arg = info->args[i];
+    rl_arg = UpdateRawLoc(rl_arg);
+    RegStorage reg = in_to_reg_storage_mapping.Get(i);
+    if (reg.Valid()) {
+      if (rl_arg.wide) {
+        // if reg is not 64-bit (it is half of 64-bit) then handle it separately.
+        if (!reg.Is64Bit()) {
+          // TODO: REVISIT: This adds a spill of low part while we could just copy it.
+          ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
+          if (rl_arg.location == kLocPhysReg) {
+            int out_offset = StackVisitor::GetOutVROffset(i, cu_->instruction_set);
+            // Dump it to memory and then load only low part
+            StoreBaseDisp(TargetPtrReg(kSp), out_offset, rl_arg.reg, k64, kNotVolatile);
+            LoadBaseDisp(TargetPtrReg(kSp), out_offset, reg, k32, kNotVolatile);
+          } else {
+            int out_offset = StackVisitor::GetOutVROffset(i + 1, cu_->instruction_set);
+            // First, use target reg for high part.
+            LoadBaseDisp(TargetPtrReg(kSp), SRegOffset(rl_arg.s_reg_low + 1), reg, k32,
+                         kNotVolatile);
+            StoreBaseDisp(TargetPtrReg(kSp), out_offset, reg, k32, kNotVolatile);
+            // Now load target reg with low part.
+            LoadBaseDisp(TargetPtrReg(kSp), SRegOffset(rl_arg.s_reg_low), reg, k32, kNotVolatile);
+          }
+        } else {
+          LoadValueDirectWideFixed(rl_arg, reg);
+        }
+      } else {
+        LoadValueDirectFixed(rl_arg, reg);
+      }
+      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
+                               direct_code, direct_method, type);
+    }
+    if (rl_arg.wide) {
+      i++;
+    }
+  }
 
   call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
                            direct_code, direct_method, type);
@@ -1094,16 +918,18 @@ int Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
       *pcrLabel = GenExplicitNullCheck(TargetReg(kArg1, kRef), info->opt_flags);
     } else {
       *pcrLabel = nullptr;
-      if (!(cu_->disable_opt & (1 << kNullCheckElimination)) &&
-          (info->opt_flags & MIR_IGNORE_NULL_CHECK)) {
-        return call_state;
-      }
-      // In lieu of generating a check for kArg1 being null, we need to
-      // perform a load when doing implicit checks.
       GenImplicitNullCheck(TargetReg(kArg1, kRef), info->opt_flags);
     }
   }
   return call_state;
+}
+
+RegStorage Mir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
+  if (!in_to_reg_storage_mapping_.IsInitialized()) {
+    ShortyIterator shorty_iterator(cu_->shorty, cu_->invoke_type == kStatic);
+    in_to_reg_storage_mapping_.Initialize(&shorty_iterator, GetResetedInToRegStorageMapper());
+  }
+  return in_to_reg_storage_mapping_.Get(arg_num);
 }
 
 RegLocation Mir2Lir::InlineTarget(CallInfo* info) {
@@ -1719,17 +1545,10 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
     skip_this = fast_path;
   }
   MethodReference target_method = method_info.GetTargetMethod();
-  if (!info->is_range) {
-    call_state = GenDalvikArgsNoRange(info, call_state, p_null_ck,
-                                      next_call_insn, target_method, method_info.VTableIndex(),
-                                      method_info.DirectCode(), method_info.DirectMethod(),
-                                      original_type, skip_this);
-  } else {
-    call_state = GenDalvikArgsRange(info, call_state, p_null_ck,
-                                    next_call_insn, target_method, method_info.VTableIndex(),
-                                    method_info.DirectCode(), method_info.DirectMethod(),
-                                    original_type, skip_this);
-  }
+  call_state = GenDalvikArgs(info, call_state, p_null_ck,
+                             next_call_insn, target_method, method_info.VTableIndex(),
+                             method_info.DirectCode(), method_info.DirectMethod(),
+                             original_type, skip_this);
   // Finish up any of the call sequence not interleaved in arg loading
   while (call_state >= 0) {
     call_state = next_call_insn(cu_, info, call_state, target_method, method_info.VTableIndex(),

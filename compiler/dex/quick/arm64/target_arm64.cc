@@ -790,27 +790,23 @@ const char* Arm64Mir2Lir::GetTargetInstFmt(int opcode) {
   return Arm64Mir2Lir::EncodingMap[UNWIDE(opcode)].fmt;
 }
 
-RegStorage Arm64Mir2Lir::InToRegStorageArm64Mapper::GetNextReg(bool is_double_or_float,
-                                                               bool is_wide,
-                                                               bool is_ref) {
+RegStorage Arm64Mir2Lir::InToRegStorageArm64Mapper::GetNextReg(ShortyArg arg) {
   const RegStorage coreArgMappingToPhysicalReg[] =
       {rs_x1, rs_x2, rs_x3, rs_x4, rs_x5, rs_x6, rs_x7};
-  const int coreArgMappingToPhysicalRegSize =
-      sizeof(coreArgMappingToPhysicalReg) / sizeof(RegStorage);
+  const size_t coreArgMappingToPhysicalRegSize = arraysize(coreArgMappingToPhysicalReg);
   const RegStorage fpArgMappingToPhysicalReg[] =
       {rs_f0, rs_f1, rs_f2, rs_f3, rs_f4, rs_f5, rs_f6, rs_f7};
-  const int fpArgMappingToPhysicalRegSize =
-      sizeof(fpArgMappingToPhysicalReg) / sizeof(RegStorage);
+  const size_t fpArgMappingToPhysicalRegSize = arraysize(fpArgMappingToPhysicalReg);
 
   RegStorage result = RegStorage::InvalidReg();
-  if (is_double_or_float) {
+  if (arg.IsFP()) {
     if (cur_fp_reg_ < fpArgMappingToPhysicalRegSize) {
-      DCHECK(!is_ref);
+      DCHECK(!arg.IsRef());
       result = fpArgMappingToPhysicalReg[cur_fp_reg_++];
       if (result.Valid()) {
         // TODO: switching between widths remains a bit ugly.  Better way?
         int res_reg = result.GetReg();
-        result = is_wide ? RegStorage::FloatSolo64(res_reg) : RegStorage::FloatSolo32(res_reg);
+        result = arg.IsWide() ? RegStorage::FloatSolo64(res_reg) : RegStorage::FloatSolo32(res_reg);
       }
     }
   } else {
@@ -819,386 +815,13 @@ RegStorage Arm64Mir2Lir::InToRegStorageArm64Mapper::GetNextReg(bool is_double_or
       if (result.Valid()) {
         // TODO: switching between widths remains a bit ugly.  Better way?
         int res_reg = result.GetReg();
-        DCHECK(!(is_wide && is_ref));
-        result = (is_wide || is_ref) ? RegStorage::Solo64(res_reg) : RegStorage::Solo32(res_reg);
+        DCHECK(!(arg.IsWide() && arg.IsRef()));
+        result = (arg.IsWide() || arg.IsRef()) ?
+                 RegStorage::Solo64(res_reg) : RegStorage::Solo32(res_reg);
       }
     }
   }
   return result;
-}
-
-RegStorage Arm64Mir2Lir::InToRegStorageMapping::Get(int in_position) {
-  DCHECK(IsInitialized());
-  auto res = mapping_.find(in_position);
-  return res != mapping_.end() ? res->second : RegStorage::InvalidReg();
-}
-
-void Arm64Mir2Lir::InToRegStorageMapping::Initialize(RegLocation* arg_locs, int count,
-                                                     InToRegStorageMapper* mapper) {
-  DCHECK(mapper != nullptr);
-  max_mapped_in_ = -1;
-  is_there_stack_mapped_ = false;
-  for (int in_position = 0; in_position < count; in_position++) {
-     RegStorage reg = mapper->GetNextReg(arg_locs[in_position].fp,
-                                         arg_locs[in_position].wide,
-                                         arg_locs[in_position].ref);
-     if (reg.Valid()) {
-       mapping_[in_position] = reg;
-       if (arg_locs[in_position].wide) {
-         // We covered 2 args, so skip the next one
-         in_position++;
-       }
-       max_mapped_in_ = std::max(max_mapped_in_, in_position);
-     } else {
-       is_there_stack_mapped_ = true;
-     }
-  }
-  initialized_ = true;
-}
-
-
-// Deprecate.  Use the new mechanism.
-// TODO(Arm64): reuse info in QuickArgumentVisitor?
-static RegStorage GetArgPhysicalReg(RegLocation* loc, int* num_gpr_used, int* num_fpr_used,
-                                    OpSize* op_size) {
-  if (loc->fp) {
-    int n = *num_fpr_used;
-    if (n < 8) {
-      *num_fpr_used = n + 1;
-      RegStorage::RegStorageKind reg_kind;
-      if (loc->wide) {
-        *op_size = kDouble;
-        reg_kind = RegStorage::k64BitSolo;
-      } else {
-        *op_size = kSingle;
-        reg_kind = RegStorage::k32BitSolo;
-      }
-      return RegStorage(RegStorage::kValid | reg_kind | RegStorage::kFloatingPoint | n);
-    }
-  } else {
-    int n = *num_gpr_used;
-    if (n < 8) {
-      *num_gpr_used = n + 1;
-      if (loc->wide || loc->ref) {
-        *op_size = k64;
-        return RegStorage::Solo64(n);
-      } else {
-        *op_size = k32;
-        return RegStorage::Solo32(n);
-      }
-    }
-  }
-  *op_size = kWord;
-  return RegStorage::InvalidReg();
-}
-
-RegStorage Arm64Mir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
-  if (!in_to_reg_storage_mapping_.IsInitialized()) {
-    int start_vreg = mir_graph_->GetFirstInVR();
-    RegLocation* arg_locs = &mir_graph_->reg_location_[start_vreg];
-
-    InToRegStorageArm64Mapper mapper;
-    in_to_reg_storage_mapping_.Initialize(arg_locs, mir_graph_->GetNumOfInVRs(), &mapper);
-  }
-  return in_to_reg_storage_mapping_.Get(arg_num);
-}
-
-
-/*
- * If there are any ins passed in registers that have not been promoted
- * to a callee-save register, flush them to the frame.  Perform initial
- * assignment of promoted arguments.
- *
- * ArgLocs is an array of location records describing the incoming arguments
- * with one location record per word of argument.
- */
-void Arm64Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
-  int num_gpr_used = 1;
-  int num_fpr_used = 0;
-
-  /*
-   * Dummy up a RegLocation for the incoming StackReference<mirror::ArtMethod>
-   * It will attempt to keep kArg0 live (or copy it to home location
-   * if promoted).
-   */
-  RegLocation rl_src = rl_method;
-  rl_src.location = kLocPhysReg;
-  rl_src.reg = TargetReg(kArg0, kRef);
-  rl_src.home = false;
-  MarkLive(rl_src);
-  StoreValue(rl_method, rl_src);
-  // If Method* has been promoted, explicitly flush
-  if (rl_method.location == kLocPhysReg) {
-    StoreRefDisp(TargetPtrReg(kSp), 0, rl_src.reg, kNotVolatile);
-  }
-
-  if (mir_graph_->GetNumOfInVRs() == 0) {
-    return;
-  }
-
-  // Handle dalvik registers.
-  ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-  int start_vreg = mir_graph_->GetFirstInVR();
-  for (uint32_t i = 0; i < mir_graph_->GetNumOfInVRs(); i++) {
-    RegLocation* t_loc = &ArgLocs[i];
-    OpSize op_size;
-    RegStorage reg = GetArgPhysicalReg(t_loc, &num_gpr_used, &num_fpr_used, &op_size);
-
-    if (reg.Valid()) {
-      // If arriving in register.
-
-      // We have already updated the arg location with promoted info
-      // so we can be based on it.
-      if (t_loc->location == kLocPhysReg) {
-        // Just copy it.
-        OpRegCopy(t_loc->reg, reg);
-      } else {
-        // Needs flush.
-        if (t_loc->ref) {
-          StoreRefDisp(TargetPtrReg(kSp), SRegOffset(start_vreg + i), reg, kNotVolatile);
-        } else {
-          StoreBaseDisp(TargetPtrReg(kSp), SRegOffset(start_vreg + i), reg, t_loc->wide ? k64 : k32,
-              kNotVolatile);
-        }
-      }
-    } else {
-      // If arriving in frame & promoted.
-      if (t_loc->location == kLocPhysReg) {
-        if (t_loc->ref) {
-          LoadRefDisp(TargetPtrReg(kSp), SRegOffset(start_vreg + i), t_loc->reg, kNotVolatile);
-        } else {
-          LoadBaseDisp(TargetPtrReg(kSp), SRegOffset(start_vreg + i), t_loc->reg,
-                       t_loc->wide ? k64 : k32, kNotVolatile);
-        }
-      }
-    }
-    if (t_loc->wide) {
-      // Increment i to skip the next one.
-      i++;
-    }
-    //      if ((v_map->core_location == kLocPhysReg) && !t_loc->fp) {
-    //        OpRegCopy(RegStorage::Solo32(v_map->core_reg), reg);
-    //      } else if ((v_map->fp_location == kLocPhysReg) && t_loc->fp) {
-    //        OpRegCopy(RegStorage::Solo32(v_map->fp_reg), reg);
-    //      } else {
-    //        StoreBaseDisp(TargetReg(kSp), SRegOffset(start_vreg + i), reg, op_size, kNotVolatile);
-    //        if (reg.Is64Bit()) {
-    //          if (SRegOffset(start_vreg + i) + 4 != SRegOffset(start_vreg + i + 1)) {
-    //            LOG(FATAL) << "64 bit value stored in non-consecutive 4 bytes slots";
-    //          }
-    //          i += 1;
-    //        }
-    //      }
-    //    } else {
-    //      // If arriving in frame & promoted
-    //      if (v_map->core_location == kLocPhysReg) {
-    //        LoadWordDisp(TargetReg(kSp), SRegOffset(start_vreg + i),
-    //                     RegStorage::Solo32(v_map->core_reg));
-    //      }
-    //      if (v_map->fp_location == kLocPhysReg) {
-    //        LoadWordDisp(TargetReg(kSp), SRegOffset(start_vreg + i), RegStorage::Solo32(v_map->fp_reg));
-    //      }
-  }
-}
-
-/*
- * Load up to 5 arguments, the first three of which will be in
- * kArg1 .. kArg3.  On entry kArg0 contains the current method pointer,
- * and as part of the load sequence, it must be replaced with
- * the target method pointer.
- */
-int Arm64Mir2Lir::GenDalvikArgsNoRange(CallInfo* info,
-                                       int call_state, LIR** pcrLabel, NextCallInsn next_call_insn,
-                                       const MethodReference& target_method,
-                                       uint32_t vtable_idx, uintptr_t direct_code,
-                                       uintptr_t direct_method, InvokeType type, bool skip_this) {
-  return GenDalvikArgsRange(info,
-                       call_state, pcrLabel, next_call_insn,
-                       target_method,
-                       vtable_idx, direct_code,
-                       direct_method, type, skip_this);
-}
-
-/*
- * May have 0+ arguments (also used for jumbo).  Note that
- * source virtual registers may be in physical registers, so may
- * need to be flushed to home location before copying.  This
- * applies to arg3 and above (see below).
- *
- * FIXME: update comments.
- *
- * Two general strategies:
- *    If < 20 arguments
- *       Pass args 3-18 using vldm/vstm block copy
- *       Pass arg0, arg1 & arg2 in kArg1-kArg3
- *    If 20+ arguments
- *       Pass args arg19+ using memcpy block copy
- *       Pass arg0, arg1 & arg2 in kArg1-kArg3
- *
- */
-int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
-                                     LIR** pcrLabel, NextCallInsn next_call_insn,
-                                     const MethodReference& target_method,
-                                     uint32_t vtable_idx, uintptr_t direct_code,
-                                     uintptr_t direct_method, InvokeType type, bool skip_this) {
-  /* If no arguments, just return */
-  if (info->num_arg_words == 0)
-    return call_state;
-
-  const int start_index = skip_this ? 1 : 0;
-
-  InToRegStorageArm64Mapper mapper;
-  InToRegStorageMapping in_to_reg_storage_mapping;
-  in_to_reg_storage_mapping.Initialize(info->args, info->num_arg_words, &mapper);
-  const int last_mapped_in = in_to_reg_storage_mapping.GetMaxMappedIn();
-  int regs_left_to_pass_via_stack = info->num_arg_words - (last_mapped_in + 1);
-
-  // First of all, check whether it makes sense to use bulk copying.
-  // Bulk copying is done only for the range case.
-  // TODO: make a constant instead of 2
-  if (info->is_range && regs_left_to_pass_via_stack >= 2) {
-    // Scan the rest of the args - if in phys_reg flush to memory
-    for (int next_arg = last_mapped_in + 1; next_arg < info->num_arg_words;) {
-      RegLocation loc = info->args[next_arg];
-      if (loc.wide) {
-        loc = UpdateLocWide(loc);
-        if (loc.location == kLocPhysReg) {
-          ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          StoreBaseDisp(TargetPtrReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k64, kNotVolatile);
-        }
-        next_arg += 2;
-      } else {
-        loc = UpdateLoc(loc);
-        if (loc.location == kLocPhysReg) {
-          ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          if (loc.ref) {
-            StoreRefDisp(TargetPtrReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, kNotVolatile);
-          } else {
-            StoreBaseDisp(TargetPtrReg(kSp), SRegOffset(loc.s_reg_low), loc.reg, k32,
-                          kNotVolatile);
-          }
-        }
-        next_arg++;
-      }
-    }
-
-    // The rest can be copied together
-    int start_offset = SRegOffset(info->args[last_mapped_in + 1].s_reg_low);
-    int outs_offset = StackVisitor::GetOutVROffset(last_mapped_in + 1,
-                                                   cu_->instruction_set);
-
-    int current_src_offset = start_offset;
-    int current_dest_offset = outs_offset;
-
-    // Only davik regs are accessed in this loop; no next_call_insn() calls.
-    ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-    while (regs_left_to_pass_via_stack > 0) {
-      /*
-       * TODO: Improve by adding block copy for large number of arguments.  This
-       * should be done, if possible, as a target-depending helper.  For now, just
-       * copy a Dalvik vreg at a time.
-       */
-      // Moving 32-bits via general purpose register.
-      size_t bytes_to_move = sizeof(uint32_t);
-
-      // Instead of allocating a new temp, simply reuse one of the registers being used
-      // for argument passing.
-      RegStorage temp = TargetReg(kArg3, kNotWide);
-
-      // Now load the argument VR and store to the outs.
-      Load32Disp(TargetPtrReg(kSp), current_src_offset, temp);
-      Store32Disp(TargetPtrReg(kSp), current_dest_offset, temp);
-
-      current_src_offset += bytes_to_move;
-      current_dest_offset += bytes_to_move;
-      regs_left_to_pass_via_stack -= (bytes_to_move >> 2);
-    }
-    DCHECK_EQ(regs_left_to_pass_via_stack, 0);
-  }
-
-  // Now handle rest not registers if they are
-  if (in_to_reg_storage_mapping.IsThereStackMapped()) {
-    RegStorage regWide = TargetReg(kArg3, kWide);
-    for (int i = start_index; i <= last_mapped_in + regs_left_to_pass_via_stack; i++) {
-      RegLocation rl_arg = info->args[i];
-      rl_arg = UpdateRawLoc(rl_arg);
-      RegStorage reg = in_to_reg_storage_mapping.Get(i);
-      if (!reg.Valid()) {
-        int out_offset = StackVisitor::GetOutVROffset(i, cu_->instruction_set);
-
-        {
-          ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-          if (rl_arg.wide) {
-            if (rl_arg.location == kLocPhysReg) {
-              StoreBaseDisp(TargetPtrReg(kSp), out_offset, rl_arg.reg, k64, kNotVolatile);
-            } else {
-              LoadValueDirectWideFixed(rl_arg, regWide);
-              StoreBaseDisp(TargetPtrReg(kSp), out_offset, regWide, k64, kNotVolatile);
-            }
-          } else {
-            if (rl_arg.location == kLocPhysReg) {
-              if (rl_arg.ref) {
-                StoreRefDisp(TargetPtrReg(kSp), out_offset, rl_arg.reg, kNotVolatile);
-              } else {
-                StoreBaseDisp(TargetPtrReg(kSp), out_offset, rl_arg.reg, k32, kNotVolatile);
-              }
-            } else {
-              if (rl_arg.ref) {
-                RegStorage regSingle = TargetReg(kArg2, kRef);
-                LoadValueDirectFixed(rl_arg, regSingle);
-                StoreRefDisp(TargetPtrReg(kSp), out_offset, regSingle, kNotVolatile);
-              } else {
-                RegStorage regSingle = TargetReg(kArg2, kNotWide);
-                LoadValueDirectFixed(rl_arg, regSingle);
-                StoreBaseDisp(TargetPtrReg(kSp), out_offset, regSingle, k32, kNotVolatile);
-              }
-            }
-          }
-        }
-        call_state = next_call_insn(cu_, info, call_state, target_method,
-                                    vtable_idx, direct_code, direct_method, type);
-      }
-      if (rl_arg.wide) {
-        i++;
-      }
-    }
-  }
-
-  // Finish with mapped registers
-  for (int i = start_index; i <= last_mapped_in; i++) {
-    RegLocation rl_arg = info->args[i];
-    rl_arg = UpdateRawLoc(rl_arg);
-    RegStorage reg = in_to_reg_storage_mapping.Get(i);
-    if (reg.Valid()) {
-      if (rl_arg.wide) {
-        LoadValueDirectWideFixed(rl_arg, reg);
-      } else {
-        LoadValueDirectFixed(rl_arg, reg);
-      }
-      call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                                  direct_code, direct_method, type);
-    }
-    if (rl_arg.wide) {
-      i++;
-    }
-  }
-
-  call_state = next_call_insn(cu_, info, call_state, target_method, vtable_idx,
-                           direct_code, direct_method, type);
-  if (pcrLabel) {
-    if (!cu_->compiler_driver->GetCompilerOptions().GetImplicitNullChecks()) {
-      *pcrLabel = GenExplicitNullCheck(TargetReg(kArg1, kRef), info->opt_flags);
-    } else {
-      *pcrLabel = nullptr;
-      // In lieu of generating a check for kArg1 being null, we need to
-      // perform a load when doing implicit checks.
-      RegStorage tmp = AllocTemp();
-      Load32Disp(TargetReg(kArg1, kRef), 0, tmp);
-      MarkPossibleNullPointerException(info->opt_flags);
-      FreeTemp(tmp);
-    }
-  }
-  return call_state;
 }
 
 void Arm64Mir2Lir::InstallLiteralPools() {
@@ -1216,6 +839,14 @@ void Arm64Mir2Lir::InstallLiteralPools() {
 
   // And do the normal processing.
   Mir2Lir::InstallLiteralPools();
+}
+
+int Arm64Mir2Lir::GenDalvikArgsBulkCopy(CallInfo* /*info*/, int /*first*/, int count) {
+  /*
+   * TODO: Improve by adding block copy for large number of arguments.  For now, just
+   * copy a Dalvik vreg at a time.
+   */
+  return count;
 }
 
 }  // namespace art

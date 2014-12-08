@@ -1113,6 +1113,7 @@ class MIRGraph {
   std::string GetSSANameWithConst(int ssa_reg, bool singles_only);
   void GetBlockName(BasicBlock* bb, char* name);
   const char* GetShortyFromTargetIdx(int);
+  const char* GetShortyFromMethodReference(const MethodReference& target_method);
   void DumpMIRGraph();
   CallInfo* NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type, bool is_range);
   BasicBlock* NewMemBB(BBType block_type, int block_id);
