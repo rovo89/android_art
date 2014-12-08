@@ -122,18 +122,20 @@ RegStorage MipsMir2Lir::TargetReg(SpecialTargetRegister reg) {
   return res_reg;
 }
 
-RegStorage MipsMir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
-  // For the 32-bit internal ABI, the first 3 arguments are passed in registers.
-  switch (arg_num) {
-    case 0:
-      return rs_rMIPS_ARG1;
-    case 1:
-      return rs_rMIPS_ARG2;
-    case 2:
-      return rs_rMIPS_ARG3;
-    default:
-      return RegStorage::InvalidReg();
+RegStorage MipsMir2Lir::InToRegStorageMipsMapper::GetNextReg(ShortyArg arg) {
+  const SpecialTargetRegister coreArgMappingToPhysicalReg[] = {kArg1, kArg2, kArg3};
+  const size_t coreArgMappingToPhysicalRegSize = arraysize(coreArgMappingToPhysicalReg);
+
+  RegStorage result = RegStorage::InvalidReg();
+  if (cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
+    result = m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++],
+                             arg.IsRef() ? kRef : kNotWide);
+    if (arg.IsWide() && cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
+      result = RegStorage::MakeRegPair(
+          result, m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++], kNotWide));
+    }
   }
+  return result;
 }
 
 /*
@@ -602,7 +604,7 @@ RegisterClass MipsMir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volati
 }
 
 MipsMir2Lir::MipsMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
-    : Mir2Lir(cu, mir_graph, arena) {
+    : Mir2Lir(cu, mir_graph, arena), in_to_reg_storage_mips_mapper_(this) {
   for (int i = 0; i < kMipsLast; i++) {
     DCHECK_EQ(MipsMir2Lir::EncodingMap[i].opcode, i)
         << "Encoding order for " << MipsMir2Lir::EncodingMap[i].name

@@ -905,19 +905,14 @@ class Mir2Lir : public Backend {
     virtual LIR* GenCallInsn(const MirMethodLoweringInfo& method_info);
 
     virtual void FlushIns(RegLocation* ArgLocs, RegLocation rl_method);
-    virtual int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
-                             NextCallInsn next_call_insn,
-                             const MethodReference& target_method,
-                             uint32_t vtable_idx,
-                             uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
-                             bool skip_this);
-    virtual int GenDalvikArgsRange(CallInfo* info, int call_state, LIR** pcrLabel,
-                           NextCallInsn next_call_insn,
-                           const MethodReference& target_method,
-                           uint32_t vtable_idx,
-                           uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
-                           bool skip_this);
-
+    virtual int GenDalvikArgs(CallInfo* info, int call_state, LIR** pcrLabel,
+                      NextCallInsn next_call_insn,
+                      const MethodReference& target_method,
+                      uint32_t vtable_idx,
+                      uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
+                      bool skip_this);
+    virtual int GenDalvikArgsBulkCopy(CallInfo* info, int first, int count);
+    virtual void GenDalvikArgsFlushPromoted(CallInfo* info, int start);
     /**
      * @brief Used to determine the register location of destination.
      * @details This is needed during generation of inline intrinsics because it finds destination
@@ -958,12 +953,6 @@ class Mir2Lir : public Backend {
     bool GenInlinedUnsafeGet(CallInfo* info, bool is_long, bool is_volatile);
     bool GenInlinedUnsafePut(CallInfo* info, bool is_long, bool is_object,
                              bool is_volatile, bool is_ordered);
-    virtual int LoadArgRegs(CallInfo* info, int call_state,
-                    NextCallInsn next_call_insn,
-                    const MethodReference& target_method,
-                    uint32_t vtable_idx,
-                    uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
-                    bool skip_this);
 
     // Shared by all targets - implemented in gen_loadstore.cc.
     RegLocation LoadCurrMethod();
@@ -1228,7 +1217,7 @@ class Mir2Lir : public Backend {
       }
     }
 
-    virtual RegStorage GetArgMappingToPhysicalReg(int arg_num) = 0;
+    RegStorage GetArgMappingToPhysicalReg(int arg_num);
     virtual RegLocation GetReturnAlt() = 0;
     virtual RegLocation GetReturnWideAlt() = 0;
     virtual RegLocation LocCReturn() = 0;
@@ -1779,6 +1768,63 @@ class Mir2Lir : public Backend {
     // (i.e. 8 bytes on 32-bit arch, 16 bytes on 64-bit arch) and we use ResourceMaskCache
     // to deduplicate the masks.
     ResourceMaskCache mask_cache_;
+
+  protected:
+    // ABI support
+    class ShortyArg {
+      public:
+        explicit ShortyArg(char type) : type_(type) { }
+        bool IsFP() { return type_ == 'F' || type_ == 'D'; }
+        bool IsWide() { return type_ == 'J' || type_ == 'D'; }
+        bool IsRef() { return type_ == 'L'; }
+        char GetType() { return type_; }
+      private:
+        char type_;
+    };
+
+    class ShortyIterator {
+      public:
+        ShortyIterator(const char* shorty, bool is_static);
+        bool Next();
+        ShortyArg GetArg() { return ShortyArg(pending_this_ ? 'L' : *cur_); }
+      private:
+        const char* cur_;
+        bool pending_this_;
+        bool initialized_;
+    };
+
+    class InToRegStorageMapper {
+     public:
+      virtual RegStorage GetNextReg(ShortyArg arg) = 0;
+      virtual ~InToRegStorageMapper() {}
+      virtual void Reset() = 0;
+    };
+
+    class InToRegStorageMapping {
+     public:
+      explicit InToRegStorageMapping(ArenaAllocator* arena)
+          : mapping_(std::less<int>(), arena->Adapter()), count_(0),
+            max_mapped_in_(0), has_arguments_on_stack_(false),  initialized_(false) {}
+      void Initialize(ShortyIterator* shorty, InToRegStorageMapper* mapper);
+      /**
+       * @return the index of last VR mapped to physical register. In other words
+       * any VR starting from (return value + 1) index is mapped to memory.
+       */
+      int GetMaxMappedIn() { return max_mapped_in_; }
+      bool HasArgumentsOnStack() { return has_arguments_on_stack_; }
+      RegStorage Get(int in_position);
+      bool IsInitialized() { return initialized_; }
+     private:
+      ArenaSafeMap<int, RegStorage> mapping_;
+      int count_;
+      int max_mapped_in_;
+      bool has_arguments_on_stack_;
+      bool initialized_;
+    };
+
+  // Cached mapping of method input to reg storage according to ABI.
+  InToRegStorageMapping in_to_reg_storage_mapping_;
+  virtual InToRegStorageMapper* GetResetedInToRegStorageMapper() = 0;
 
   private:
     static bool SizeMatchesTypeForEntrypoint(OpSize size, Primitive::Type type);

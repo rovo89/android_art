@@ -28,39 +28,47 @@ namespace art {
 
 class X86Mir2Lir : public Mir2Lir {
  protected:
-  class InToRegStorageMapper {
-   public:
-    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide, bool is_ref) = 0;
-    virtual ~InToRegStorageMapper() {}
-  };
-
   class InToRegStorageX86_64Mapper : public InToRegStorageMapper {
    public:
-    explicit InToRegStorageX86_64Mapper(Mir2Lir* ml) : ml_(ml), cur_core_reg_(0), cur_fp_reg_(0) {}
-    virtual ~InToRegStorageX86_64Mapper() {}
-    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide, bool is_ref);
+    explicit InToRegStorageX86_64Mapper(Mir2Lir* m2l)
+        : m2l_(m2l), cur_core_reg_(0), cur_fp_reg_(0) {}
+    virtual RegStorage GetNextReg(ShortyArg arg);
+    virtual void Reset() OVERRIDE {
+      cur_core_reg_ = 0;
+      cur_fp_reg_ = 0;
+    }
    protected:
-    Mir2Lir* ml_;
+    Mir2Lir* m2l_;
    private:
-    int cur_core_reg_;
-    int cur_fp_reg_;
+    size_t cur_core_reg_;
+    size_t cur_fp_reg_;
   };
 
-  class InToRegStorageMapping {
+  class InToRegStorageX86Mapper : public InToRegStorageMapper {
    public:
-    InToRegStorageMapping() : max_mapped_in_(0), is_there_stack_mapped_(false),
-    initialized_(false) {}
-    void Initialize(RegLocation* arg_locs, int count, InToRegStorageMapper* mapper);
-    int GetMaxMappedIn() { return max_mapped_in_; }
-    bool IsThereStackMapped() { return is_there_stack_mapped_; }
-    RegStorage Get(int in_position);
-    bool IsInitialized() { return initialized_; }
+    explicit InToRegStorageX86Mapper(Mir2Lir* m2l) : m2l_(m2l), cur_core_reg_(0) {}
+    virtual RegStorage GetNextReg(ShortyArg arg);
+    virtual void Reset() OVERRIDE {
+      cur_core_reg_ = 0;
+    }
+   protected:
+    Mir2Lir* m2l_;
    private:
-    std::map<int, RegStorage> mapping_;
-    int max_mapped_in_;
-    bool is_there_stack_mapped_;
-    bool initialized_;
+    size_t cur_core_reg_;
   };
+
+  InToRegStorageX86_64Mapper in_to_reg_storage_x86_64_mapper_;
+  InToRegStorageX86Mapper in_to_reg_storage_x86_mapper_;
+  InToRegStorageMapper* GetResetedInToRegStorageMapper() OVERRIDE {
+    InToRegStorageMapper* res;
+    if (cu_->target64) {
+      res = &in_to_reg_storage_x86_64_mapper_;
+    } else {
+      res = &in_to_reg_storage_x86_mapper_;
+    }
+    res->Reset();
+    return res;
+  }
 
   class ExplicitTempRegisterLock {
   public:
@@ -70,6 +78,8 @@ class X86Mir2Lir : public Mir2Lir {
     std::vector<RegStorage> temp_regs_;
     X86Mir2Lir* const mir_to_lir_;
   };
+
+  virtual int GenDalvikArgsBulkCopy(CallInfo* info, int first, int count) OVERRIDE;
 
  public:
   X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
@@ -124,8 +134,6 @@ class X86Mir2Lir : public Mir2Lir {
   RegStorage TargetPtrReg(SpecialTargetRegister symbolic_reg) OVERRIDE {
     return TargetReg(symbolic_reg, cu_->target64 ? kWide : kNotWide);
   }
-
-  RegStorage GetArgMappingToPhysicalReg(int arg_num) OVERRIDE;
 
   RegLocation GetReturnAlt() OVERRIDE;
   RegLocation GetReturnWideAlt() OVERRIDE;
@@ -350,22 +358,7 @@ class X86Mir2Lir : public Mir2Lir {
   void LoadClassType(const DexFile& dex_file, uint32_t type_idx,
                      SpecialTargetRegister symbolic_reg) OVERRIDE;
 
-  void FlushIns(RegLocation* ArgLocs, RegLocation rl_method) OVERRIDE;
-
   NextCallInsn GetNextSDCallInsn() OVERRIDE;
-  int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
-                           NextCallInsn next_call_insn,
-                           const MethodReference& target_method,
-                           uint32_t vtable_idx,
-                           uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
-                           bool skip_this) OVERRIDE;
-
-  int GenDalvikArgsRange(CallInfo* info, int call_state, LIR** pcrLabel,
-                         NextCallInsn next_call_insn,
-                         const MethodReference& target_method,
-                         uint32_t vtable_idx,
-                         uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
-                         bool skip_this) OVERRIDE;
 
   /*
    * @brief Generate a relative call to the method that will be patched at link time.
@@ -438,8 +431,6 @@ class X86Mir2Lir : public Mir2Lir {
                            RegStorage r_dest, OpSize size);
   LIR* StoreBaseIndexedDisp(RegStorage r_base, RegStorage r_index, int scale, int displacement,
                             RegStorage r_src, OpSize size, int opt_flags = 0);
-
-  RegStorage GetCoreArgMappingToPhysicalReg(int core_arg_num) const;
 
   int AssignInsnOffsets();
   void AssignOffsets();
@@ -999,8 +990,6 @@ class X86Mir2Lir : public Mir2Lir {
    * @param loc Register location to dump
    */
   static void DumpRegLocation(RegLocation loc);
-
-  InToRegStorageMapping in_to_reg_storage_mapping_;
 
  private:
   void SwapBits(RegStorage result_reg, int shift, int32_t value);

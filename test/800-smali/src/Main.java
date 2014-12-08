@@ -64,6 +64,7 @@ public class Main {
             new Object[]{0}, new AbstractMethodError(), null));
         testCases.add(new TestCase("BadCaseInOpRegRegReg", "BadCaseInOpRegRegReg", "getInt", null, null, 2));
         testCases.add(new TestCase("CmpLong", "CmpLong", "run", null, null, 0));
+        testCases.add(new TestCase("FloatIntConstPassing", "FloatIntConstPassing", "run", null, null, 2));
     }
 
     public void runTests() {

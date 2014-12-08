@@ -24,6 +24,26 @@
 namespace art {
 
 class MipsMir2Lir FINAL : public Mir2Lir {
+ protected:
+  class InToRegStorageMipsMapper : public InToRegStorageMapper {
+   public:
+    explicit InToRegStorageMipsMapper(Mir2Lir* m2l) : m2l_(m2l), cur_core_reg_(0) {}
+    virtual RegStorage GetNextReg(ShortyArg arg);
+    virtual void Reset() OVERRIDE {
+      cur_core_reg_ = 0;
+    }
+   protected:
+    Mir2Lir* m2l_;
+   private:
+    size_t cur_core_reg_;
+  };
+
+  InToRegStorageMipsMapper in_to_reg_storage_mips_mapper_;
+  InToRegStorageMapper* GetResetedInToRegStorageMapper() OVERRIDE {
+    in_to_reg_storage_mips_mapper_.Reset();
+    return &in_to_reg_storage_mips_mapper_;
+  }
+
   public:
     MipsMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
@@ -56,7 +76,6 @@ class MipsMir2Lir FINAL : public Mir2Lir {
     // Required for target - register utilities.
     RegStorage Solo64ToPair64(RegStorage reg);
     RegStorage TargetReg(SpecialTargetRegister reg);
-    RegStorage GetArgMappingToPhysicalReg(int arg_num);
     RegLocation GetReturnAlt();
     RegLocation GetReturnWideAlt();
     RegLocation LocCReturn();

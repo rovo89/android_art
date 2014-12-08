@@ -276,6 +276,24 @@ inline void Mir2Lir::CheckRegStorage(RegStorage rs, WidenessCheck wide, RefCheck
   }
 }
 
+inline Mir2Lir::ShortyIterator::ShortyIterator(const char* shorty, bool is_static)
+    : cur_(shorty + 1), pending_this_(!is_static), initialized_(false) {
+  DCHECK(shorty != nullptr);
+  DCHECK_NE(*shorty, 0);
+}
+
+inline bool Mir2Lir::ShortyIterator::Next() {
+  if (!initialized_) {
+    initialized_ = true;
+  } else if (pending_this_) {
+    pending_this_ = false;
+  } else if (*cur_ != 0) {
+    cur_++;
+  }
+
+  return *cur_ != 0 || pending_this_;
+}
+
 }  // namespace art
 
 #endif  // ART_COMPILER_DEX_QUICK_MIR_TO_LIR_INL_H_
