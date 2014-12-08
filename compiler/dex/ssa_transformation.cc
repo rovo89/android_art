@@ -104,11 +104,11 @@ void MIRGraph::ComputeDFSOrders() {
   num_reachable_blocks_ = dfs_order_.size();
 
   if (num_reachable_blocks_ != num_blocks_) {
-    // Hide all unreachable blocks.
+    // Kill all unreachable blocks.
     AllNodesIterator iter(this);
     for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
       if (!bb->visited) {
-        bb->Hide(this);
+        bb->Kill(this);
       }
     }
   }
