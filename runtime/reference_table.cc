@@ -78,6 +78,11 @@ struct ObjectComparator {
     Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
     mirror::Object* obj1 = root1.Read<kWithoutReadBarrier>();
     mirror::Object* obj2 = root2.Read<kWithoutReadBarrier>();
+    DCHECK(obj1 != nullptr);
+    DCHECK(obj2 != nullptr);
+    Runtime* runtime = Runtime::Current();
+    DCHECK(!runtime->IsClearedJniWeakGlobal(obj1));
+    DCHECK(!runtime->IsClearedJniWeakGlobal(obj2));
     // Sort by class...
     if (obj1->GetClass() != obj2->GetClass()) {
       return obj1->GetClass()->IdentityHashCode() < obj2->IdentityHashCode();
@@ -153,7 +158,7 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
   os << "  Last " << (count - first) << " entries (of " << count << "):\n";
   Runtime* runtime = Runtime::Current();
   for (int idx = count - 1; idx >= first; --idx) {
-    mirror::Object* ref = entries[idx].Read<kWithoutReadBarrier>();
+    mirror::Object* ref = entries[idx].Read();
     if (ref == nullptr) {
       continue;
     }
@@ -189,7 +194,7 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
   // Make a copy of the table and sort it, only adding non null and not cleared elements.
   Table sorted_entries;
   for (GcRoot<mirror::Object>& root : entries) {
-    if (!root.IsNull() && !runtime->IsClearedJniWeakGlobal(root.Read<kWithoutReadBarrier>())) {
+    if (!root.IsNull() && !runtime->IsClearedJniWeakGlobal(root.Read())) {
       sorted_entries.push_back(root);
     }
   }
