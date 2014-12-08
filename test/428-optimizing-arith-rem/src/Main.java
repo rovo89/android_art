@@ -16,49 +16,7 @@
 
 public class Main {
 
-  public static void expectEquals(int expected, int result) {
-    if (expected != result) {
-      throw new Error("Expected: " + expected + ", found: " + result);
-    }
-  }
-
-  public static void expectEquals(long expected, long result) {
-    if (expected != result) {
-      throw new Error("Expected: " + expected + ", found: " + result);
-    }
-  }
-
-  public static void expectDivisionByZero(int value) {
-    try {
-      $opt$Rem(value, 0);
-      throw new Error("Expected RuntimeException when modulo by 0");
-    } catch (java.lang.RuntimeException e) {
-    }
-    try {
-      $opt$RemZero(value);
-      throw new Error("Expected RuntimeException when modulo by 0");
-    } catch (java.lang.RuntimeException e) {
-    }
-  }
-
-  public static void expectDivisionByZero(long value) {
-    try {
-      $opt$Rem(value, 0L);
-      throw new Error("Expected RuntimeException when modulo by 0");
-    } catch (java.lang.RuntimeException e) {
-    }
-    try {
-      $opt$RemZero(value);
-      throw new Error("Expected RuntimeException when modulo by 0");
-    } catch (java.lang.RuntimeException e) {
-    }
-  }
-
   public static void main(String[] args) {
-    rem();
-  }
-
-  public static void rem() {
     remInt();
     remLong();
   }
@@ -115,22 +73,22 @@ public class Main {
     expectEquals(-7L, $opt$Rem(-7L, 9L));
     expectEquals(-7L, $opt$Rem(-7L, -9L));
 
-    expectEquals(0L, $opt$Rem(Integer.MAX_VALUE, 1L));
-    expectEquals(0L, $opt$Rem(Integer.MAX_VALUE, -1L));
-    expectEquals(0L, $opt$Rem(Integer.MIN_VALUE, 1L));
-    expectEquals(0L, $opt$Rem(Integer.MIN_VALUE, -1L)); // no overflow
-    expectEquals(-1L, $opt$Rem(Integer.MIN_VALUE, Integer.MAX_VALUE));
-    expectEquals(Integer.MAX_VALUE, $opt$Rem(Integer.MAX_VALUE, Integer.MIN_VALUE));
+    expectEquals(0L, $opt$Rem(Long.MAX_VALUE, 1L));
+    expectEquals(0L, $opt$Rem(Long.MAX_VALUE, -1L));
+    expectEquals(0L, $opt$Rem(Long.MIN_VALUE, 1L));
+    expectEquals(0L, $opt$Rem(Long.MIN_VALUE, -1L)); // no overflow
+    expectEquals(-1L, $opt$Rem(Long.MIN_VALUE, Long.MAX_VALUE));
+    expectEquals(Long.MAX_VALUE, $opt$Rem(Long.MAX_VALUE, Long.MIN_VALUE));
 
     expectEquals(0L, $opt$Rem(0L, 7L));
-    expectEquals(0L, $opt$Rem(0L, Integer.MAX_VALUE));
-    expectEquals(0L, $opt$Rem(0L, Integer.MIN_VALUE));
+    expectEquals(0L, $opt$Rem(0L, Long.MAX_VALUE));
+    expectEquals(0L, $opt$Rem(0L, Long.MIN_VALUE));
 
     expectDivisionByZero(0L);
     expectDivisionByZero(1L);
     expectDivisionByZero(5L);
-    expectDivisionByZero(Integer.MAX_VALUE);
-    expectDivisionByZero(Integer.MIN_VALUE);
+    expectDivisionByZero(Long.MAX_VALUE);
+    expectDivisionByZero(Long.MIN_VALUE);
   }
 
   static int $opt$Rem(int a, int b) {
@@ -157,4 +115,43 @@ public class Main {
   static long $opt$RemZero(long a) {
     return a % 0L;
   }
+
+  public static void expectEquals(int expected, int result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+  public static void expectEquals(long expected, long result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+  public static void expectDivisionByZero(int value) {
+    try {
+      $opt$Rem(value, 0);
+      throw new Error("Expected RuntimeException when modulo by 0");
+    } catch (java.lang.RuntimeException e) {
+    }
+    try {
+      $opt$RemZero(value);
+      throw new Error("Expected RuntimeException when modulo by 0");
+    } catch (java.lang.RuntimeException e) {
+    }
+  }
+
+  public static void expectDivisionByZero(long value) {
+    try {
+      $opt$Rem(value, 0L);
+      throw new Error("Expected RuntimeException when modulo by 0");
+    } catch (java.lang.RuntimeException e) {
+    }
+    try {
+      $opt$RemZero(value);
+      throw new Error("Expected RuntimeException when modulo by 0");
+    } catch (java.lang.RuntimeException e) {
+    }
+  }
+
 }

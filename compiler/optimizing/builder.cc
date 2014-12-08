@@ -1435,6 +1435,16 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       break;
     }
 
+    case Instruction::REM_FLOAT: {
+      Binop_23x<HRem>(instruction, Primitive::kPrimFloat, dex_pc);
+      break;
+    }
+
+    case Instruction::REM_DOUBLE: {
+      Binop_23x<HRem>(instruction, Primitive::kPrimDouble, dex_pc);
+      break;
+    }
+
     case Instruction::AND_INT: {
       Binop_23x<HAnd>(instruction, Primitive::kPrimInt);
       break;
@@ -1571,6 +1581,16 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::REM_LONG_2ADDR: {
       BuildCheckedDivRem(instruction.VRegA(), instruction.VRegA(), instruction.VRegB(),
                          dex_pc, Primitive::kPrimLong, false, false);
+      break;
+    }
+
+    case Instruction::REM_FLOAT_2ADDR: {
+      Binop_12x<HRem>(instruction, Primitive::kPrimFloat, dex_pc);
+      break;
+    }
+
+    case Instruction::REM_DOUBLE_2ADDR: {
+      Binop_12x<HRem>(instruction, Primitive::kPrimDouble, dex_pc);
       break;
     }
 
