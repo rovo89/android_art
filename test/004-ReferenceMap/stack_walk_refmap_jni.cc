@@ -52,11 +52,11 @@ struct ReferenceMap2Visitor : public CheckReferenceMapVisitor {
       // v2 is added because of the instruction at DexPC 0024. Object merges with 0 is Object. See:
       //   0024: move-object v3, v2
       //   0025: goto 0013
-      // Detaled dex instructions for ReferenceMap.java are at the end of this function.
+      // Detailed dex instructions for ReferenceMap.java are at the end of this function.
       // CHECK_REGS_CONTAIN_REFS(8, 3, 2, 1);  // v8: this, v3: y, v2: y, v1: x
       // We eliminate the non-live registers at a return, so only v3 is live.
       // Note that it is OK for a compiler to not have a dex map at this dex PC because
-      // a return is not a safepoint.
+      // a return is not necessarily a safepoint.
       CHECK_REGS_CONTAIN_REFS(0x13U, false);  // v3: y
       CHECK_REGS_CONTAIN_REFS(0x18U, true, 8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
       CHECK_REGS_CONTAIN_REFS(0x1aU, true, 8, 5, 2, 1, 0);  // v8: this, v5: x[1], v2: y, v1: x, v0: ex
@@ -68,8 +68,10 @@ struct ReferenceMap2Visitor : public CheckReferenceMapVisitor {
       CHECK_REGS_CONTAIN_REFS(0x27U, true, 8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
       CHECK_REGS_CONTAIN_REFS(0x29U, true, 8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
       CHECK_REGS_CONTAIN_REFS(0x2cU, true, 8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
-      CHECK_REGS_CONTAIN_REFS(0x2fU, true, 8, 4, 3, 2, 1);  // v8: this, v4: ex, v3: y, v2: y, v1: x
-      CHECK_REGS_CONTAIN_REFS(0x32U, true, 8, 3, 2, 1, 0);  // v8: this, v3: y, v2: y, v1: x, v0: ex
+      // Note that it is OK for a compiler to not have a dex map at these two dex PCs because
+      // a goto is not necessarily a safepoint.
+      CHECK_REGS_CONTAIN_REFS(0x2fU, false, 8, 4, 3, 2, 1);  // v8: this, v4: ex, v3: y, v2: y, v1: x
+      CHECK_REGS_CONTAIN_REFS(0x32U, false, 8, 3, 2, 1, 0);  // v8: this, v3: y, v2: y, v1: x, v0: ex
     }
 
     return true;

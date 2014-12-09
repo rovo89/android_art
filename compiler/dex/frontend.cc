@@ -47,6 +47,7 @@ static uint32_t kCompilerOptimizerDisableFlags = 0 |  // Disable specific optimi
   // (1 << kTrackLiveTemps) |
   // (1 << kSafeOptimizations) |
   // (1 << kBBOpt) |
+  // (1 << kSuspendCheckElimination) |
   // (1 << kMatch) |
   // (1 << kPromoteCompilerTemps) |
   // (1 << kSuppressExceptionEdges) |
