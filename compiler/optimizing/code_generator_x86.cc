@@ -2206,12 +2206,13 @@ void InstructionCodeGeneratorX86::VisitDiv(HDiv* div) {
 }
 
 void LocationsBuilderX86::VisitRem(HRem* rem) {
-  LocationSummary::CallKind call_kind = rem->GetResultType() == Primitive::kPrimLong
-      ? LocationSummary::kCall
-      : LocationSummary::kNoCall;
+  Primitive::Type type = rem->GetResultType();
+  LocationSummary::CallKind call_kind = type == Primitive::kPrimInt
+      ? LocationSummary::kNoCall
+      : LocationSummary::kCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(rem, call_kind);
 
-  switch (rem->GetResultType()) {
+  switch (type) {
     case Primitive::kPrimInt: {
       locations->SetInAt(0, Location::RegisterLocation(EAX));
       locations->SetInAt(1, Location::RequiresRegister());
@@ -2228,14 +2229,29 @@ void LocationsBuilderX86::VisitRem(HRem* rem) {
       locations->SetOut(Location::RegisterPairLocation(EAX, EDX));
       break;
     }
-    case Primitive::kPrimFloat:
+    case Primitive::kPrimFloat: {
+      InvokeRuntimeCallingConvention calling_convention;
+      // x86 floating-point parameters are passed through core registers (EAX, ECX).
+      locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+      locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+      // The runtime helper puts the result in XMM0.
+      locations->SetOut(Location::FpuRegisterLocation(XMM0));
+      break;
+    }
     case Primitive::kPrimDouble: {
-      LOG(FATAL) << "Unimplemented rem type " << rem->GetResultType();
+      InvokeRuntimeCallingConvention calling_convention;
+      // x86 floating-point parameters are passed through core registers (EAX_ECX, EDX_EBX).
+      locations->SetInAt(0, Location::RegisterPairLocation(
+          calling_convention.GetRegisterAt(0), calling_convention.GetRegisterAt(1)));
+      locations->SetInAt(1, Location::RegisterPairLocation(
+          calling_convention.GetRegisterAt(2), calling_convention.GetRegisterAt(3)));
+      // The runtime helper puts the result in XMM0.
+      locations->SetOut(Location::FpuRegisterLocation(XMM0));
       break;
     }
 
     default:
-      LOG(FATAL) << "Unexpected rem type " << rem->GetResultType();
+      LOG(FATAL) << "Unexpected rem type " << type;
   }
 }
 
@@ -2247,9 +2263,14 @@ void InstructionCodeGeneratorX86::VisitRem(HRem* rem) {
       GenerateDivRemIntegral(rem);
       break;
     }
-    case Primitive::kPrimFloat:
+    case Primitive::kPrimFloat: {
+      __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pFmodf)));
+      codegen_->RecordPcInfo(rem, rem->GetDexPc());
+      break;
+    }
     case Primitive::kPrimDouble: {
-      LOG(FATAL) << "Unimplemented rem type " << type;
+      __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pFmod)));
+      codegen_->RecordPcInfo(rem, rem->GetDexPc());
       break;
     }
     default:
