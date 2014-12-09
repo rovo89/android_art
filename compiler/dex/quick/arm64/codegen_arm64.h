@@ -27,38 +27,25 @@ namespace art {
 
 class Arm64Mir2Lir FINAL : public Mir2Lir {
  protected:
-  // TODO: consolidate 64-bit target support.
-  class InToRegStorageMapper {
-   public:
-    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide, bool is_ref) = 0;
-    virtual ~InToRegStorageMapper() {}
-  };
-
   class InToRegStorageArm64Mapper : public InToRegStorageMapper {
    public:
     InToRegStorageArm64Mapper() : cur_core_reg_(0), cur_fp_reg_(0) {}
     virtual ~InToRegStorageArm64Mapper() {}
-    virtual RegStorage GetNextReg(bool is_double_or_float, bool is_wide, bool is_ref);
+    virtual RegStorage GetNextReg(ShortyArg arg);
+    virtual void Reset() OVERRIDE {
+      cur_core_reg_ = 0;
+      cur_fp_reg_ = 0;
+    }
    private:
-    int cur_core_reg_;
-    int cur_fp_reg_;
+    size_t cur_core_reg_;
+    size_t cur_fp_reg_;
   };
 
-  class InToRegStorageMapping {
-   public:
-    InToRegStorageMapping() : max_mapped_in_(0), is_there_stack_mapped_(false),
-    initialized_(false) {}
-    void Initialize(RegLocation* arg_locs, int count, InToRegStorageMapper* mapper);
-    int GetMaxMappedIn() { return max_mapped_in_; }
-    bool IsThereStackMapped() { return is_there_stack_mapped_; }
-    RegStorage Get(int in_position);
-    bool IsInitialized() { return initialized_; }
-   private:
-    std::map<int, RegStorage> mapping_;
-    int max_mapped_in_;
-    bool is_there_stack_mapped_;
-    bool initialized_;
-  };
+  InToRegStorageArm64Mapper in_to_reg_storage_arm64_mapper_;
+  InToRegStorageMapper* GetResetedInToRegStorageMapper() OVERRIDE {
+    in_to_reg_storage_arm64_mapper_.Reset();
+    return &in_to_reg_storage_arm64_mapper_;
+  }
 
  public:
   Arm64Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
@@ -113,7 +100,6 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   RegStorage TargetPtrReg(SpecialTargetRegister symbolic_reg) OVERRIDE {
     return As64BitReg(TargetReg(symbolic_reg));
   }
-  RegStorage GetArgMappingToPhysicalReg(int arg_num) OVERRIDE;
   RegLocation GetReturnAlt() OVERRIDE;
   RegLocation GetReturnWideAlt() OVERRIDE;
   RegLocation LocCReturn() OVERRIDE;
@@ -239,22 +225,6 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   bool InexpensiveConstantFloat(int32_t value) OVERRIDE;
   bool InexpensiveConstantLong(int64_t value) OVERRIDE;
   bool InexpensiveConstantDouble(int64_t value) OVERRIDE;
-
-  void FlushIns(RegLocation* ArgLocs, RegLocation rl_method) OVERRIDE;
-
-  int GenDalvikArgsNoRange(CallInfo* info, int call_state, LIR** pcrLabel,
-                           NextCallInsn next_call_insn,
-                           const MethodReference& target_method,
-                           uint32_t vtable_idx,
-                           uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
-                           bool skip_this) OVERRIDE;
-
-  int GenDalvikArgsRange(CallInfo* info, int call_state, LIR** pcrLabel,
-                         NextCallInsn next_call_insn,
-                         const MethodReference& target_method,
-                         uint32_t vtable_idx,
-                         uintptr_t direct_code, uintptr_t direct_method, InvokeType type,
-                         bool skip_this) OVERRIDE;
 
   bool WideGPRsAreAliases() const OVERRIDE {
     return true;  // 64b architecture.
@@ -422,10 +392,11 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   void GenDivRemLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                      RegLocation rl_src2, bool is_div, int flags);
 
-  InToRegStorageMapping in_to_reg_storage_mapping_;
   static const A64EncodingMap EncodingMap[kA64Last];
 
   ArenaVector<LIR*> call_method_insns_;
+
+  int GenDalvikArgsBulkCopy(CallInfo* info, int first, int count) OVERRIDE;
 };
 
 }  // namespace art
