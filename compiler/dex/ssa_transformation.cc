@@ -197,12 +197,6 @@ void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb) {
         dom_post_order_traversal_.push_back(curr_bb->id);
       }
       work_stack.pop_back();
-
-      /* hacky loop detection */
-      if ((curr_bb->taken != NullBasicBlockId) && curr_bb->dominators->IsBitSet(curr_bb->taken)) {
-        curr_bb->nesting_depth++;
-        attributes_ |= METHOD_HAS_LOOP;
-      }
     }
   }
 }
