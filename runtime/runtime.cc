@@ -126,8 +126,6 @@ namespace art {
 static constexpr bool kEnableJavaStackTraceHandler = false;
 Runtime* Runtime::instance_ = nullptr;
 
-volatile unsigned int gAborting = 0;
-
 Runtime::Runtime()
     : instruction_set_(kNone),
       compiler_callbacks_(nullptr),
@@ -238,8 +236,13 @@ Runtime::~Runtime() {
 
 struct AbortState {
   void Dump(std::ostream& os) const {
+    if (gAborting > 1) {
+      os << "Runtime aborting --- recursively, so no thread-specific detail!\n";
+      return;
+    }
+    gAborting++;
     os << "Runtime aborting...\n";
-    if (Runtime::Current() == nullptr) {
+    if (Runtime::Current() == NULL) {
       os << "(Runtime does not yet exist!)\n";
       return;
     }
@@ -297,18 +300,13 @@ struct AbortState {
 
 void Runtime::Abort() {
   gAborting++;  // set before taking any locks
-  if (gAborting > 1) {
-    LogMessage::LogLine(__FILE__, __LINE__, INTERNAL_FATAL,
-                        "Runtime aborting --- recursively, so no thread-specific detail!\n");
-    return;
-  }
 
   // Ensure that we don't have multiple threads trying to abort at once,
   // which would result in significantly worse diagnostics.
   MutexLock mu(Thread::Current(), *Locks::abort_lock_);
 
   // Get any pending output out of the way.
-  fflush(nullptr);
+  fflush(NULL);
 
   // Many people have difficulty distinguish aborts from crashes,
   // so be explicit.
@@ -316,7 +314,7 @@ void Runtime::Abort() {
   LOG(INTERNAL_FATAL) << Dumpable<AbortState>(state);
 
   // Call the abort hook if we have one.
-  if (Runtime::Current() != nullptr && Runtime::Current()->abort_ != nullptr) {
+  if (Runtime::Current() != NULL && Runtime::Current()->abort_ != NULL) {
     LOG(INTERNAL_FATAL) << "Calling abort hook...";
     Runtime::Current()->abort_();
     // notreached
@@ -344,7 +342,7 @@ void Runtime::PreZygoteFork() {
 }
 
 void Runtime::CallExitHook(jint status) {
-  if (exit_ != nullptr) {
+  if (exit_ != NULL) {
     ScopedThreadStateChange tsc(Thread::Current(), kNative);
     exit_(status);
     LOG(WARNING) << "Exit hook returned instead of exiting!";
@@ -359,14 +357,14 @@ void Runtime::SweepSystemWeaks(IsMarkedCallback* visitor, void* arg) {
 
 bool Runtime::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
   // TODO: acquire a static mutex on Runtime to avoid racing.
-  if (Runtime::instance_ != nullptr) {
+  if (Runtime::instance_ != NULL) {
     return false;
   }
-  InitLogging(nullptr);  // Calls Locks::Init() as a side effect.
+  InitLogging(NULL);  // Calls Locks::Init() as a side effect.
   instance_ = new Runtime;
   if (!instance_->Init(options, ignore_unrecognized)) {
     delete instance_;
-    instance_ = nullptr;
+    instance_ = NULL;
     return false;
   }
   return true;
@@ -374,7 +372,7 @@ bool Runtime::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
 
 static jobject CreateSystemClassLoader() {
   if (Runtime::Current()->UseCompileTimeClassPath()) {
-    return nullptr;
+    return NULL;
   }
 
   ScopedObjectAccess soa(Thread::Current());
@@ -387,7 +385,7 @@ static jobject CreateSystemClassLoader() {
 
   mirror::ArtMethod* getSystemClassLoader =
       class_loader_class->FindDirectMethod("getSystemClassLoader", "()Ljava/lang/ClassLoader;");
-  CHECK(getSystemClassLoader != nullptr);
+  CHECK(getSystemClassLoader != NULL);
 
   JValue result = InvokeWithJValues(soa, nullptr, soa.EncodeMethod(getSystemClassLoader), nullptr);
   JNIEnv* env = soa.Self()->GetJniEnv();
@@ -403,7 +401,7 @@ static jobject CreateSystemClassLoader() {
 
   mirror::ArtField* contextClassLoader =
       thread_class->FindDeclaredInstanceField("contextClassLoader", "Ljava/lang/ClassLoader;");
-  CHECK(contextClassLoader != nullptr);
+  CHECK(contextClassLoader != NULL);
 
   // We can't run in a transaction yet.
   contextClassLoader->SetObject<false>(soa.Self()->GetPeer(),
@@ -529,7 +527,7 @@ bool Runtime::InitZygote() {
 
   // Mark rootfs as being a slave so that changes from default
   // namespace only flow into our children.
-  if (mount("rootfs", "/", nullptr, (MS_SLAVE | MS_REC), nullptr) == -1) {
+  if (mount("rootfs", "/", NULL, (MS_SLAVE | MS_REC), NULL) == -1) {
     PLOG(WARNING) << "Failed to mount() rootfs as MS_SLAVE";
     return false;
   }
@@ -538,7 +536,7 @@ bool Runtime::InitZygote() {
   // bind mount storage into their respective private namespaces, which
   // are isolated from each other.
   const char* target_base = getenv("EMULATED_STORAGE_TARGET");
-  if (target_base != nullptr) {
+  if (target_base != NULL) {
     if (mount("tmpfs", target_base, "tmpfs", MS_NOSUID | MS_NODEV,
               "uid=0,gid=1028,mode=0751") == -1) {
       LOG(WARNING) << "Failed to mount tmpfs to " << target_base;
@@ -895,14 +893,14 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   self->ThrowNewException(ThrowLocation(), "Ljava/lang/OutOfMemoryError;",
                           "OutOfMemoryError thrown while trying to throw OutOfMemoryError; "
                           "no stack trace available");
-  pre_allocated_OutOfMemoryError_ = GcRoot<mirror::Throwable>(self->GetException(nullptr));
+  pre_allocated_OutOfMemoryError_ = GcRoot<mirror::Throwable>(self->GetException(NULL));
   self->ClearException();
 
   // Pre-allocate a NoClassDefFoundError for the common case of failing to find a system class
   // ahead of checking the application's class loader.
   self->ThrowNewException(ThrowLocation(), "Ljava/lang/NoClassDefFoundError;",
                           "Class not found using the boot class loader; no stack trace available");
-  pre_allocated_NoClassDefFoundError_ = GcRoot<mirror::Throwable>(self->GetException(nullptr));
+  pre_allocated_NoClassDefFoundError_ = GcRoot<mirror::Throwable>(self->GetException(NULL));
   self->ClearException();
 
   // Look for a native bridge.
@@ -978,26 +976,26 @@ void Runtime::InitThreadGroups(Thread* self) {
       env->NewGlobalRef(env->GetStaticObjectField(
           WellKnownClasses::java_lang_ThreadGroup,
           WellKnownClasses::java_lang_ThreadGroup_mainThreadGroup));
-  CHECK(main_thread_group_ != nullptr || IsCompiler());
+  CHECK(main_thread_group_ != NULL || IsCompiler());
   system_thread_group_ =
       env->NewGlobalRef(env->GetStaticObjectField(
           WellKnownClasses::java_lang_ThreadGroup,
           WellKnownClasses::java_lang_ThreadGroup_systemThreadGroup));
-  CHECK(system_thread_group_ != nullptr || IsCompiler());
+  CHECK(system_thread_group_ != NULL || IsCompiler());
 }
 
 jobject Runtime::GetMainThreadGroup() const {
-  CHECK(main_thread_group_ != nullptr || IsCompiler());
+  CHECK(main_thread_group_ != NULL || IsCompiler());
   return main_thread_group_;
 }
 
 jobject Runtime::GetSystemThreadGroup() const {
-  CHECK(system_thread_group_ != nullptr || IsCompiler());
+  CHECK(system_thread_group_ != NULL || IsCompiler());
   return system_thread_group_;
 }
 
 jobject Runtime::GetSystemClassLoader() const {
-  CHECK(system_class_loader_ != nullptr || IsCompiler());
+  CHECK(system_class_loader_ != NULL || IsCompiler());
   return system_class_loader_;
 }
 
@@ -1123,12 +1121,12 @@ void Runtime::BlockSignals() {
 
 bool Runtime::AttachCurrentThread(const char* thread_name, bool as_daemon, jobject thread_group,
                                   bool create_peer) {
-  return Thread::Attach(thread_name, as_daemon, thread_group, create_peer) != nullptr;
+  return Thread::Attach(thread_name, as_daemon, thread_group, create_peer) != NULL;
 }
 
 void Runtime::DetachCurrentThread() {
   Thread* self = Thread::Current();
-  if (self == nullptr) {
+  if (self == NULL) {
     LOG(FATAL) << "attempting to detach thread that is not attached";
   }
   if (self->HasManagedStack()) {
@@ -1353,7 +1351,7 @@ void Runtime::SetCalleeSaveMethod(mirror::ArtMethod* method, CalleeSaveType type
 }
 
 const std::vector<const DexFile*>& Runtime::GetCompileTimeClassPath(jobject class_loader) {
-  if (class_loader == nullptr) {
+  if (class_loader == NULL) {
     return GetClassLinker()->GetBootClassPath();
   }
   CHECK(UseCompileTimeClassPath());
