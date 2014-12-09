@@ -1344,8 +1344,10 @@ static JdwpError ER_Set(JdwpState* state, Request& request, ExpandBuf* pReply)
       }
       break;
     default:
-      LOG(WARNING) << "GLITCH: unsupported modKind=" << mod.modKind;
-      break;
+      LOG(WARNING) << "Unsupported modifier " << mod.modKind << " for event " << pEvent->eventKind;
+      // Free allocated event to avoid leak before leaving.
+      EventFree(pEvent);
+      return JDWP::ERR_NOT_IMPLEMENTED;
     }
   }
 
