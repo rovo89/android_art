@@ -168,7 +168,9 @@ class DumpCheckpoint FINAL : public Closure {
     const uint32_t kWaitTimeoutMs = 10000;
     bool timed_out = barrier_.Increment(self, threads_running_checkpoint, kWaitTimeoutMs);
     if (timed_out) {
-      LOG(kIsDebugBuild ? FATAL : ERROR) << "Unexpected time out during dump checkpoint.";
+      // Avoid a recursive abort.
+      LOG((kIsDebugBuild && (gAborting == 0)) ? FATAL : ERROR)
+          << "Unexpected time out during dump checkpoint.";
     }
   }
 
@@ -241,7 +243,7 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
   Locks::mutator_lock_->AssertNotExclusiveHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
   Locks::thread_suspend_count_lock_->AssertNotHeld(self);
-  if (kDebugLocking) {
+  if (kDebugLocking && gAborting == 0) {
     CHECK_NE(self->GetState(), kRunnable);
   }
 
