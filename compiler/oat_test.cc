@@ -59,7 +59,7 @@ class OatTest : public CommonCompilerTest {
       EXPECT_EQ(oat_method.GetFpSpillMask(), compiled_method->GetFpSpillMask());
       uintptr_t oat_code_aligned = RoundDown(reinterpret_cast<uintptr_t>(quick_oat_code), 2);
       quick_oat_code = reinterpret_cast<const void*>(oat_code_aligned);
-      const std::vector<uint8_t>* quick_code = compiled_method->GetQuickCode();
+      const SwapVector<uint8_t>* quick_code = compiled_method->GetQuickCode();
       EXPECT_TRUE(quick_code != nullptr);
       size_t code_size = quick_code->size() * sizeof(quick_code[0]);
       EXPECT_EQ(0, memcmp(quick_oat_code, &quick_code[0], code_size))
@@ -92,7 +92,7 @@ TEST_F(OatTest, WriteRead) {
                                             method_inliner_map_.get(),
                                             compiler_kind, insn_set,
                                             insn_features.get(), false, nullptr, nullptr, 2, true,
-                                            true, timer_.get(), ""));
+                                            true, timer_.get(), -1, ""));
   jobject class_loader = nullptr;
   if (kCompile) {
     TimingLogger timings2("OatTest::WriteRead", false, false);

@@ -430,13 +430,18 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   MemoryRegion code(&managed_code[0], managed_code.size());
   __ FinalizeInstructions(code);
   jni_asm->FinalizeFrameDescriptionEntry();
-  return new CompiledMethod(driver,
-                            instruction_set,
-                            managed_code,
-                            frame_size,
-                            main_jni_conv->CoreSpillMask(),
-                            main_jni_conv->FpSpillMask(),
-                            jni_asm->GetFrameDescriptionEntry());
+  std::vector<uint8_t>* fde(jni_asm->GetFrameDescriptionEntry());
+  ArrayRef<const uint8_t> cfi_ref;
+  if (fde != nullptr) {
+    cfi_ref = ArrayRef<const uint8_t>(*fde);
+  }
+  return CompiledMethod::SwapAllocCompiledMethodCFI(driver,
+                                                    instruction_set,
+                                                    ArrayRef<const uint8_t>(managed_code),
+                                                    frame_size,
+                                                    main_jni_conv->CoreSpillMask(),
+                                                    main_jni_conv->FpSpillMask(),
+                                                    cfi_ref);
 }
 
 // Copy a single parameter from the managed to the JNI calling convention

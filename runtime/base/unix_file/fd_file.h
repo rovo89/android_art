@@ -85,6 +85,9 @@ class FdFile : public RandomAccessFile {
     kNoCheck         // Do not check for the current file instance.
   };
 
+  // WARNING: Only use this when you know what you're doing!
+  void MarkUnchecked();
+
  protected:
   // If the guard state indicates checking (!=kNoCheck), go to the target state "target". Print the
   // given warning if the current state is or exceeds warn_threshold.

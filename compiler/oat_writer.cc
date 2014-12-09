@@ -504,7 +504,7 @@ OatWriter::~OatWriter() {
 }
 
 struct OatWriter::GcMapDataAccess {
-  static const std::vector<uint8_t>* GetData(const CompiledMethod* compiled_method) ALWAYS_INLINE {
+  static const SwapVector<uint8_t>* GetData(const CompiledMethod* compiled_method) ALWAYS_INLINE {
     return compiled_method->GetGcMap();
   }
 
@@ -526,7 +526,7 @@ struct OatWriter::GcMapDataAccess {
 };
 
 struct OatWriter::MappingTableDataAccess {
-  static const std::vector<uint8_t>* GetData(const CompiledMethod* compiled_method) ALWAYS_INLINE {
+  static const SwapVector<uint8_t>* GetData(const CompiledMethod* compiled_method) ALWAYS_INLINE {
     return compiled_method->GetMappingTable();
   }
 
@@ -548,7 +548,7 @@ struct OatWriter::MappingTableDataAccess {
 };
 
 struct OatWriter::VmapTableDataAccess {
-  static const std::vector<uint8_t>* GetData(const CompiledMethod* compiled_method) ALWAYS_INLINE {
+  static const SwapVector<uint8_t>* GetData(const CompiledMethod* compiled_method) ALWAYS_INLINE {
     return &compiled_method->GetVmapTable();
   }
 
@@ -719,7 +719,7 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
       // Derived from CompiledMethod.
       uint32_t quick_code_offset = 0;
 
-      const std::vector<uint8_t>* quick_code = compiled_method->GetQuickCode();
+      const SwapVector<uint8_t>* quick_code = compiled_method->GetQuickCode();
       CHECK(quick_code != nullptr);
       offset_ = writer_->relative_call_patcher_->ReserveSpace(offset_, compiled_method);
       offset_ = compiled_method->AlignCode(offset_);
@@ -829,7 +829,7 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
         } else {
           status = mirror::Class::kStatusNotReady;
         }
-        std::vector<uint8_t> const * gc_map = compiled_method->GetGcMap();
+        const SwapVector<uint8_t>* gc_map = compiled_method->GetGcMap();
         if (gc_map != nullptr) {
           size_t gc_map_size = gc_map->size() * sizeof(gc_map[0]);
           bool is_native = it.MemberIsNative();
@@ -871,7 +871,7 @@ class OatWriter::InitMapMethodVisitor : public OatDexMethodVisitor {
       DCHECK_LT(method_offsets_index_, oat_class->method_offsets_.size());
       DCHECK_EQ(DataAccess::GetOffset(oat_class, method_offsets_index_), 0u);
 
-      const std::vector<uint8_t>* map = DataAccess::GetData(compiled_method);
+      const SwapVector<uint8_t>* map = DataAccess::GetData(compiled_method);
       uint32_t map_size = map == nullptr ? 0 : map->size() * sizeof((*map)[0]);
       if (map_size != 0u) {
         auto lb = dedupe_map_.lower_bound(map);
@@ -893,7 +893,7 @@ class OatWriter::InitMapMethodVisitor : public OatDexMethodVisitor {
  private:
   // Deduplication is already done on a pointer basis by the compiler driver,
   // so we can simply compare the pointers to find out if things are duplicated.
-  SafeMap<const std::vector<uint8_t>*, uint32_t> dedupe_map_;
+  SafeMap<const SwapVector<uint8_t>*, uint32_t> dedupe_map_;
 };
 
 class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
@@ -990,8 +990,11 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
       size_t file_offset = file_offset_;
       OutputStream* out = out_;
 
-      const std::vector<uint8_t>* quick_code = compiled_method->GetQuickCode();
+      const SwapVector<uint8_t>* quick_code = compiled_method->GetQuickCode();
       if (quick_code != nullptr) {
+        // Need a wrapper if we create a copy for patching.
+        ArrayRef<const uint8_t> wrapped(*quick_code);
+
         offset_ = writer_->relative_call_patcher_->WriteThunks(out, offset_);
         if (offset_ == 0u) {
           ReportWriteFailure("relative call thunk", it);
@@ -1030,8 +1033,8 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
           DCHECK_OFFSET_();
 
           if (!compiled_method->GetPatches().empty()) {
-            patched_code_ =  *quick_code;
-            quick_code = &patched_code_;
+            patched_code_ = std::vector<uint8_t>(quick_code->begin(), quick_code->end());
+            wrapped = ArrayRef<const uint8_t>(patched_code_);
             for (const LinkerPatch& patch : compiled_method->GetPatches()) {
               if (patch.Type() == kLinkerPatchCallRelative) {
                 // NOTE: Relative calls across oat files are not supported.
@@ -1052,8 +1055,8 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
             }
           }
 
-          writer_->oat_header_->UpdateChecksum(&(*quick_code)[0], code_size);
-          if (!out->WriteFully(&(*quick_code)[0], code_size)) {
+          writer_->oat_header_->UpdateChecksum(wrapped.data(), code_size);
+          if (!out->WriteFully(wrapped.data(), code_size)) {
             ReportWriteFailure("method code", it);
             return false;
           }
@@ -1170,7 +1173,7 @@ class OatWriter::WriteMapMethodVisitor : public OatDexMethodVisitor {
       ++method_offsets_index_;
 
       // Write deduplicated map.
-      const std::vector<uint8_t>* map = DataAccess::GetData(compiled_method);
+      const SwapVector<uint8_t>* map = DataAccess::GetData(compiled_method);
       size_t map_size = map == nullptr ? 0 : map->size() * sizeof((*map)[0]);
       DCHECK((map_size == 0u && map_offset == 0u) ||
             (map_size != 0u && map_offset != 0u && map_offset <= offset_))

@@ -502,6 +502,8 @@ class Assembler {
 
   virtual void InitializeFrameDescriptionEntry() {}
   virtual void FinalizeFrameDescriptionEntry() {}
+  // Give a vector containing FDE data, or null if not used. Note: the assembler must take care
+  // of handling the lifecycle.
   virtual std::vector<uint8_t>* GetFrameDescriptionEntry() { return nullptr; }
 
   virtual ~Assembler() {}

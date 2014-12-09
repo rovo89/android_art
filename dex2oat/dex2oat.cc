@@ -248,6 +248,12 @@ static void UsageError(const char* fmt, ...) {
   UsageError("      Used to specify a pass specific option. The setting itself must be integer.");
   UsageError("      Separator used between options is a comma.");
   UsageError("");
+  UsageError("  --swap-file=<file-name>:  specifies a file to use for swap.");
+  UsageError("      Example: --swap-file=/data/tmp/swap.001");
+  UsageError("");
+  UsageError("  --swap-fd=<file-descriptor>:  specifies a file to use for swap (by descriptor).");
+  UsageError("      Example: --swap-fd=10");
+  UsageError("");
   std::cerr << "See log for usage error information\n";
   exit(EXIT_FAILURE);
 }
@@ -393,6 +399,25 @@ static void ParseDouble(const std::string& option, char after_char, double min, 
   *parsed_value = value;
 }
 
+static constexpr size_t kMinDexFilesForSwap = 2;
+static constexpr size_t kMinDexFileCumulativeSizeForSwap = 20 * MB;
+
+static bool UseSwap(bool is_image, std::vector<const DexFile*>& dex_files) {
+  if (is_image) {
+    // Don't use swap, we know generation should succeed, and we don't want to slow it down.
+    return false;
+  }
+  if (dex_files.size() < kMinDexFilesForSwap) {
+    // If there are less dex files than the threshold, assume it's gonna be fine.
+    return false;
+  }
+  size_t dex_files_size = 0;
+  for (const auto* dex_file : dex_files) {
+    dex_files_size += dex_file->GetHeader().file_size_;
+  }
+  return dex_files_size >= kMinDexFileCumulativeSizeForSwap;
+}
+
 class Dex2Oat FINAL {
  public:
   explicit Dex2Oat(TimingLogger* timings) :
@@ -416,6 +441,7 @@ class Dex2Oat FINAL {
       dump_passes_(false),
       dump_timing_(false),
       dump_slow_timing_(kIsDebugBuild),
+      swap_fd_(-1),
       timings_(timings) {}
 
   ~Dex2Oat() {
@@ -684,6 +710,16 @@ class Dex2Oat FINAL {
                      << "failures.";
           init_failure_output_.reset();
         }
+      } else if (option.starts_with("--swap-file=")) {
+        swap_file_name_ = option.substr(strlen("--swap-file=")).data();
+      } else if (option.starts_with("--swap-fd=")) {
+        const char* swap_fd_str = option.substr(strlen("--swap-fd=")).data();
+        if (!ParseInt(swap_fd_str, &swap_fd_)) {
+          Usage("Failed to parse --swap-fd argument '%s' as an integer", swap_fd_str);
+        }
+        if (swap_fd_ < 0) {
+          Usage("--swap-fd passed a negative value %d", swap_fd_);
+        }
       } else {
         Usage("Unknown argument %s", option.data());
       }
@@ -918,7 +954,8 @@ class Dex2Oat FINAL {
     }
   }
 
-  // Check whether the oat output file is writable, and open it for later.
+  // Check whether the oat output file is writable, and open it for later. Also open a swap file,
+  // if a name is given.
   bool OpenFile() {
     bool create_file = !oat_unstripped_.empty();  // as opposed to using open file descriptor
     if (create_file) {
@@ -942,6 +979,27 @@ class Dex2Oat FINAL {
       oat_file_->Erase();
       return false;
     }
+
+    // Swap file handling.
+    //
+    // If the swap fd is not -1, we assume this is the file descriptor of an open but unlinked file
+    // that we can use for swap.
+    //
+    // If the swap fd is -1 and we have a swap-file string, open the given file as a swap file. We
+    // will immediately unlink to satisfy the swap fd assumption.
+    if (swap_fd_ == -1 && !swap_file_name_.empty()) {
+      std::unique_ptr<File> swap_file(OS::CreateEmptyFile(swap_file_name_.c_str()));
+      if (swap_file.get() == nullptr) {
+        PLOG(ERROR) << "Failed to create swap file: " << swap_file_name_;
+        return false;
+      }
+      swap_fd_ = swap_file->Fd();
+      swap_file->MarkUnchecked();     // We don't we to track this, it will be unlinked immediately.
+      swap_file->DisableAutoClose();  // We'll handle it ourselves, the File object will be
+                                      // released immediately.
+      unlink(swap_file_name_.c_str());
+    }
+
     return true;
   }
 
@@ -1085,6 +1143,18 @@ class Dex2Oat FINAL {
       }
     }
 
+    // If we use a swap file, ensure we are above the threshold to make it necessary.
+    if (swap_fd_ != -1) {
+      if (!UseSwap(image_, dex_files_)) {
+        close(swap_fd_);
+        swap_fd_ = -1;
+        LOG(INFO) << "Decided to run without swap.";
+      } else {
+        LOG(INFO) << "Accepted running with swap.";
+      }
+    }
+    // Note that dex2oat won't close the swap_fd_. The compiler driver's swap space will do that.
+
     /*
      * If we're not in interpret-only or verify-none mode, go ahead and compile small applications.
      * Don't bother to check if we're doing the image.
@@ -1143,6 +1213,7 @@ class Dex2Oat FINAL {
                                      dump_stats_,
                                      dump_passes_,
                                      compiler_phases_timings_.get(),
+                                     swap_fd_,
                                      profile_file_));
 
     driver_->CompileAll(class_loader, dex_files_, timings_);
@@ -1591,6 +1662,8 @@ class Dex2Oat FINAL {
   bool dump_passes_;
   bool dump_timing_;
   bool dump_slow_timing_;
+  std::string swap_file_name_;
+  int swap_fd_;
   std::string profile_file_;  // Profile file to use
   TimingLogger* timings_;
   std::unique_ptr<CumulativeLogger> compiler_phases_timings_;
