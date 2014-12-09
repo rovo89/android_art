@@ -121,9 +121,8 @@ class OptimizingCompiler FINAL : public Compiler {
   // Whether we should run any optimization or register allocation. If false, will
   // just run the code generation after the graph was built.
   const bool run_optimizations_;
-  mutable AtomicInteger total_compiled_methods_;
-  mutable AtomicInteger unoptimized_compiled_methods_;
-  mutable AtomicInteger optimized_compiled_methods_;
+
+  mutable OptimizingCompilerStats compilation_stats_;
 
   std::unique_ptr<std::ostream> visualizer_output_;
 
@@ -136,24 +135,14 @@ OptimizingCompiler::OptimizingCompiler(CompilerDriver* driver)
     : Compiler(driver, kMaximumCompilationTimeBeforeWarning),
       run_optimizations_(
           driver->GetCompilerOptions().GetCompilerFilter() != CompilerOptions::kTime),
-      total_compiled_methods_(0),
-      unoptimized_compiled_methods_(0),
-      optimized_compiled_methods_(0) {
+      compilation_stats_() {
   if (kIsVisualizerEnabled) {
     visualizer_output_.reset(new std::ofstream("art.cfg"));
   }
 }
 
 OptimizingCompiler::~OptimizingCompiler() {
-  if (total_compiled_methods_ == 0) {
-    LOG(INFO) << "Did not compile any method.";
-  } else {
-    size_t unoptimized_percent = (unoptimized_compiled_methods_ * 100 / total_compiled_methods_);
-    size_t optimized_percent = (optimized_compiled_methods_ * 100 / total_compiled_methods_);
-    LOG(INFO) << "Compiled " << total_compiled_methods_ << " methods: "
-              << unoptimized_percent << "% (" << unoptimized_compiled_methods_ << ") unoptimized, "
-              << optimized_percent << "% (" << optimized_compiled_methods_ << ") optimized.";
-  }
+  compilation_stats_.Log();
 }
 
 bool OptimizingCompiler::CanCompileMethod(uint32_t method_idx ATTRIBUTE_UNUSED,
@@ -246,7 +235,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                                             jobject class_loader,
                                             const DexFile& dex_file) const {
   UNUSED(invoke_type);
-  total_compiled_methods_++;
+  compilation_stats_.RecordStat(MethodCompilationStat::kAttemptCompilation);
   InstructionSet instruction_set = GetCompilerDriver()->GetInstructionSet();
   // Always use the thumb2 assembler: some runtime functionality (like implicit stack
   // overflow checks) assume thumb2.
@@ -256,10 +245,12 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
 
   // Do not attempt to compile on architectures we do not support.
   if (!IsInstructionSetSupported(instruction_set)) {
+    compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledUnsupportedIsa);
     return nullptr;
   }
 
   if (Compiler::IsPathologicalCase(*code_item, method_idx, dex_file)) {
+    compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledPathological);
     return nullptr;
   }
 
@@ -276,7 +267,10 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
 
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  HGraphBuilder builder(&arena, &dex_compilation_unit, &dex_file, GetCompilerDriver());
+  HGraphBuilder builder(&arena,
+                        &dex_compilation_unit,
+                        &dex_file, GetCompilerDriver(),
+                        &compilation_stats_);
 
   HGraph* graph = builder.BuildGraph(*code_item);
   if (graph == nullptr) {
@@ -287,6 +281,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
   CodeGenerator* codegen = CodeGenerator::Create(&arena, graph, instruction_set);
   if (codegen == nullptr) {
     CHECK(!shouldCompile) << "Could not find code generator for optimizing compiler";
+    compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledNoCodegen);
     return nullptr;
   }
 
@@ -296,13 +291,13 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
 
   CodeVectorAllocator allocator;
 
-  if (run_optimizations_
-      && CanOptimize(*code_item)
-      && RegisterAllocator::CanAllocateRegistersFor(*graph, instruction_set)) {
+  bool can_optimize = CanOptimize(*code_item);
+  bool can_allocate_registers = RegisterAllocator::CanAllocateRegistersFor(*graph, instruction_set);
+  if (run_optimizations_ && can_optimize && can_allocate_registers) {
     VLOG(compiler) << "Optimizing " << PrettyMethod(method_idx, dex_file);
-    optimized_compiled_methods_++;
     if (!TryBuildingSsa(graph, dex_compilation_unit, visualizer)) {
       // We could not transform the graph to SSA, bailout.
+      compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledCannotBuildSSA);
       return nullptr;
     }
     RunOptimizations(graph, visualizer);
@@ -327,6 +322,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     std::vector<uint8_t> stack_map;
     codegen->BuildStackMaps(&stack_map);
 
+    compilation_stats_.RecordStat(MethodCompilationStat::kCompiledOptimized);
     return new CompiledMethod(GetCompilerDriver(),
                               instruction_set,
                               allocator.GetMemory(),
@@ -340,7 +336,15 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     UNREACHABLE();
   } else {
     VLOG(compiler) << "Compile baseline " << PrettyMethod(method_idx, dex_file);
-    unoptimized_compiled_methods_++;
+
+    if (!run_optimizations_) {
+      compilation_stats_.RecordStat(MethodCompilationStat::kNotOptimizedDisabled);
+    } else if (!can_optimize) {
+      compilation_stats_.RecordStat(MethodCompilationStat::kNotOptimizedTryCatch);
+    } else if (!can_allocate_registers) {
+      compilation_stats_.RecordStat(MethodCompilationStat::kNotOptimizedRegisterAllocator);
+    }
+
     codegen->CompileBaseline(&allocator);
 
     std::vector<uint8_t> mapping_table;
@@ -353,6 +357,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     std::vector<uint8_t> gc_map;
     codegen->BuildNativeGCMap(&gc_map, dex_compilation_unit);
 
+    compilation_stats_.RecordStat(MethodCompilationStat::kCompiledBaseline);
     return new CompiledMethod(GetCompilerDriver(),
                               instruction_set,
                               allocator.GetMemory(),
