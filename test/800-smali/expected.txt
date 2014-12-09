@@ -8,4 +8,5 @@ b/18380491
 invoke-super abstract
 BadCaseInOpRegRegReg
 CmpLong
+FloatIntConstPassing
 Done!

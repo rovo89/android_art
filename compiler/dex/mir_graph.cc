@@ -1590,6 +1590,12 @@ const char* MIRGraph::GetShortyFromTargetIdx(int target_idx) {
   return cu_->dex_file->GetShorty(method_id.proto_idx_);
 }
 
+const char* MIRGraph::GetShortyFromMethodReference(const MethodReference& target_method) {
+  const DexFile::MethodId& method_id =
+      target_method.dex_file->GetMethodId(target_method.dex_method_index);
+  return target_method.dex_file->GetShorty(method_id.proto_idx_);
+}
+
 /* Debug Utility - dump a compilation unit */
 void MIRGraph::DumpMIRGraph() {
   const char* block_type_names[] = {
