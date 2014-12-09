@@ -85,7 +85,7 @@ struct ObjectComparator {
     DCHECK(!runtime->IsClearedJniWeakGlobal(obj2));
     // Sort by class...
     if (obj1->GetClass() != obj2->GetClass()) {
-      return obj1->GetClass()->IdentityHashCode() < obj2->IdentityHashCode();
+      return obj1->GetClass()->IdentityHashCode() < obj2->GetClass()->IdentityHashCode();
     }
     // ...then by size...
     const size_t size1 = obj1->SizeOf();
