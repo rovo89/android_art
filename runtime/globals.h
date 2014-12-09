@@ -101,7 +101,11 @@ static constexpr bool kUseBrooksReadBarrier = false;
 static constexpr bool kUseBakerOrBrooksReadBarrier = kUseBakerReadBarrier || kUseBrooksReadBarrier;
 
 // If true, references within the heap are poisoned (negated).
+#ifdef ART_HEAP_POISONING
+static constexpr bool kPoisonHeapReferences = true;
+#else
 static constexpr bool kPoisonHeapReferences = false;
+#endif
 
 // Kinds of tracing clocks.
 enum TraceClockSource {
