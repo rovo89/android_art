@@ -46,6 +46,7 @@ enum opt_control_vector {
   kTrackLiveTemps,
   kSafeOptimizations,
   kBBOpt,
+  kSuspendCheckElimination,
   kMatch,
   kPromoteCompilerTemps,
   kBranchFusing,

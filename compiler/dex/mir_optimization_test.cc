@@ -88,6 +88,8 @@ class MirOptimizationTest : public testing::Test {
     { bb, opcode, 0u, vA, vB, vC }
 #define DEF_INVOKE(bb, opcode, vC, method_info) \
     { bb, opcode, method_info, 0u, 0u, vC }
+#define DEF_OTHER0(bb, opcode) \
+    { bb, opcode, 0u, 0u, 0u, 0u }
 #define DEF_OTHER1(bb, opcode, vA) \
     { bb, opcode, 0u, vA, 0u, 0u }
 #define DEF_OTHER2(bb, opcode, vA, vB) \
@@ -170,6 +172,56 @@ class MirOptimizationTest : public testing::Test {
         DEF_BB(kExitBlock, DEF_SUCC0(), DEF_PRED1(5)),
         DEF_BB(kDalvikByteCode, DEF_SUCC1(4), DEF_PRED1(1)),
         DEF_BB(kDalvikByteCode, DEF_SUCC2(5, 4), DEF_PRED2(3, 4)),  // "taken" loops to self.
+        DEF_BB(kDalvikByteCode, DEF_SUCC1(2), DEF_PRED1(4)),
+    };
+    PrepareBasicBlocks(bbs);
+  }
+
+  void PrepareNestedLoopsWhile_While() {
+    static const BBDef bbs[] = {
+        DEF_BB(kNullBlock, DEF_SUCC0(), DEF_PRED0()),
+        DEF_BB(kEntryBlock, DEF_SUCC1(3), DEF_PRED0()),
+        DEF_BB(kExitBlock, DEF_SUCC0(), DEF_PRED1(8)),
+        DEF_BB(kDalvikByteCode, DEF_SUCC1(4), DEF_PRED1(1)),
+        DEF_BB(kDalvikByteCode, DEF_SUCC2(5, 8), DEF_PRED2(3, 7)),  // Outer while loop head.
+        DEF_BB(kDalvikByteCode, DEF_SUCC2(6, 7), DEF_PRED2(4, 6)),  // Inner while loop head.
+        DEF_BB(kDalvikByteCode, DEF_SUCC1(5), DEF_PRED1(5)),        // "taken" loops to inner head.
+        DEF_BB(kDalvikByteCode, DEF_SUCC1(4), DEF_PRED1(5)),        // "taken" loops to outer head.
+        DEF_BB(kDalvikByteCode, DEF_SUCC1(2), DEF_PRED1(4)),
+    };
+    PrepareBasicBlocks(bbs);
+  }
+
+  void PrepareNestedLoopsWhile_WhileWhile() {
+    static const BBDef bbs[] = {
+        DEF_BB(kNullBlock, DEF_SUCC0(), DEF_PRED0()),
+        DEF_BB(kEntryBlock, DEF_SUCC1(3), DEF_PRED0()),
+        DEF_BB(kExitBlock, DEF_SUCC0(), DEF_PRED1(10)),
+        DEF_BB(kDalvikByteCode, DEF_SUCC1(4), DEF_PRED1(1)),
+        DEF_BB(kDalvikByteCode, DEF_SUCC2(5, 10), DEF_PRED2(3, 9)),   // Outer while loop head.
+        DEF_BB(kDalvikByteCode, DEF_SUCC2(6, 7), DEF_PRED2(4, 6)),    // Inner while loop head 1.
+        DEF_BB(kDalvikByteCode, DEF_SUCC1(5), DEF_PRED1(5)),          // Loops to inner head 1.
+        DEF_BB(kDalvikByteCode, DEF_SUCC2(8, 9), DEF_PRED2(5, 8)),    // Inner while loop head 2.
+        DEF_BB(kDalvikByteCode, DEF_SUCC1(7), DEF_PRED1(7)),          // loops to inner head 2.
+        DEF_BB(kDalvikByteCode, DEF_SUCC1(4), DEF_PRED1(7)),          // loops to outer head.
+        DEF_BB(kDalvikByteCode, DEF_SUCC1(2), DEF_PRED1(4)),
+    };
+    PrepareBasicBlocks(bbs);
+  }
+
+  void PrepareNestedLoopsWhile_WhileWhile_WithExtraEdge() {
+    // Extra edge from the first inner loop body to second inner loop body (6u->8u).
+    static const BBDef bbs[] = {
+        DEF_BB(kNullBlock, DEF_SUCC0(), DEF_PRED0()),
+        DEF_BB(kEntryBlock, DEF_SUCC1(3), DEF_PRED0()),
+        DEF_BB(kExitBlock, DEF_SUCC0(), DEF_PRED1(10)),
+        DEF_BB(kDalvikByteCode, DEF_SUCC1(4), DEF_PRED1(1)),
+        DEF_BB(kDalvikByteCode, DEF_SUCC2(5, 10), DEF_PRED2(3, 9)),   // Outer while loop head.
+        DEF_BB(kDalvikByteCode, DEF_SUCC2(6, 7), DEF_PRED2(4, 6)),    // Inner while loop head 1.
+        DEF_BB(kDalvikByteCode, DEF_SUCC2(5, 8), DEF_PRED1(5)),       // Loops to inner head 1.
+        DEF_BB(kDalvikByteCode, DEF_SUCC2(8, 9), DEF_PRED2(5, 8)),    // Inner while loop head 2.
+        DEF_BB(kDalvikByteCode, DEF_SUCC1(7), DEF_PRED2(7, 6)),       // loops to inner head 2.
+        DEF_BB(kDalvikByteCode, DEF_SUCC1(4), DEF_PRED1(7)),          // loops to outer head.
         DEF_BB(kDalvikByteCode, DEF_SUCC1(2), DEF_PRED1(4)),
     };
     PrepareBasicBlocks(bbs);
@@ -389,6 +441,43 @@ class NullCheckEliminationTest : public MirOptimizationTest {
   }
 
   NullCheckEliminationTest()
+      : MirOptimizationTest() {
+    static const MethodDef methods[] = {
+        { 0u, 1u, 0u, 0u, kDirect, kDirect, false, false },  // Dummy.
+    };
+    PrepareMethods(methods);
+  }
+};
+
+class SuspendCheckEliminationTest : public MirOptimizationTest {
+ protected:
+  bool IsBackEdge(BasicBlockId branch_bb, BasicBlockId target_bb) {
+    BasicBlock* branch = cu_.mir_graph->GetBasicBlock(branch_bb);
+    return target_bb != NullBasicBlockId && cu_.mir_graph->IsBackEdge(branch, target_bb);
+  }
+
+  bool IsSuspendCheckEdge(BasicBlockId branch_bb, BasicBlockId target_bb) {
+    BasicBlock* branch = cu_.mir_graph->GetBasicBlock(branch_bb);
+    return cu_.mir_graph->IsSuspendCheckEdge(branch, target_bb);
+  }
+
+  void PerformSuspendCheckElimination() {
+    cu_.mir_graph->SSATransformationStart();
+    cu_.mir_graph->ComputeDFSOrders();
+    cu_.mir_graph->ComputeDominators();
+    cu_.mir_graph->ComputeTopologicalSortOrder();
+    cu_.mir_graph->SSATransformationEnd();
+    bool gate_result = cu_.mir_graph->EliminateSuspendChecksGate();
+    ASSERT_TRUE(gate_result);
+    TopologicalSortIterator iterator(cu_.mir_graph.get());
+    bool change = false;
+    for (BasicBlock* bb = iterator.Next(change); bb != nullptr; bb = iterator.Next(change)) {
+      change = cu_.mir_graph->EliminateSuspendChecks(bb);
+    }
+    cu_.mir_graph->EliminateSuspendChecksEnd();
+  }
+
+  SuspendCheckEliminationTest()
       : MirOptimizationTest() {
     static const MethodDef methods[] = {
         { 0u, 1u, 0u, 0u, kDirect, kDirect, false, false },  // Dummy.
@@ -882,7 +971,208 @@ TEST_F(NullCheckEliminationTest, Catch) {
   }
 }
 
-// Undefine MIR_DEF for null check elimination.
-#undef MIR_DEF
+TEST_F(SuspendCheckEliminationTest, LoopNoElimination) {
+  static const MIRDef mirs[] = {
+    DEF_INVOKE(3u, Instruction::INVOKE_STATIC, 0u, 0u),  // Force the pass to run.
+    DEF_OTHER1(4u, Instruction::IF_NEZ, 1u),             // Edge back.
+  };
+
+  PrepareLoop();
+  PrepareMIRs(mirs);
+  PerformSuspendCheckElimination();
+  ASSERT_TRUE(IsBackEdge(4u, 4u));
+  EXPECT_TRUE(IsSuspendCheckEdge(4u, 4u));  // Suspend point on loop to self.
+}
+
+TEST_F(SuspendCheckEliminationTest, LoopElimination) {
+  static const MIRDef mirs[] = {
+    DEF_INVOKE(4u, Instruction::INVOKE_STATIC, 0u, 0u),  // Invoke in the loop.
+    DEF_OTHER1(4u, Instruction::IF_NEZ, 1u),             // Edge back.
+  };
+
+  PrepareLoop();
+  PrepareMIRs(mirs);
+  PerformSuspendCheckElimination();
+  ASSERT_TRUE(IsBackEdge(4u, 4u));
+  EXPECT_FALSE(IsSuspendCheckEdge(4u, 4u));  // No suspend point on loop to self.
+}
+
+TEST_F(SuspendCheckEliminationTest, While_While_NoElimination) {
+  static const MIRDef mirs[] = {
+    DEF_INVOKE(3u, Instruction::INVOKE_STATIC, 0u, 0u),  // Force the pass to run.
+    DEF_OTHER1(4u, Instruction::IF_NEZ, 1u),             // Edge out of outer loop.
+    DEF_OTHER1(5u, Instruction::IF_NEZ, 2u),             // Edge out of inner loop.
+    DEF_OTHER0(6u, Instruction::GOTO),                   // Edge back to inner loop head.
+    DEF_OTHER0(7u, Instruction::GOTO),                   // Edge back to outer loop head.
+  };
+
+  PrepareNestedLoopsWhile_While();
+  PrepareMIRs(mirs);
+  PerformSuspendCheckElimination();
+  ASSERT_TRUE(IsBackEdge(6u, 5u));
+  EXPECT_TRUE(IsSuspendCheckEdge(6u, 5u));
+  ASSERT_TRUE(IsBackEdge(7u, 4u));
+  EXPECT_TRUE(IsSuspendCheckEdge(7u, 4u));
+}
+
+TEST_F(SuspendCheckEliminationTest, While_While_InvokeInOuterLoopHead) {
+  static const MIRDef mirs[] = {
+    DEF_INVOKE(4u, Instruction::INVOKE_STATIC, 0u, 0u),  // Invoke in outer loop head.
+    DEF_OTHER1(4u, Instruction::IF_NEZ, 1u),             // Edge out of outer loop.
+    DEF_OTHER1(5u, Instruction::IF_NEZ, 2u),             // Edge out of inner loop.
+    DEF_OTHER0(6u, Instruction::GOTO),                   // Edge back to inner loop head.
+    DEF_OTHER0(7u, Instruction::GOTO),                   // Edge back to outer loop head.
+  };
+
+  PrepareNestedLoopsWhile_While();
+  PrepareMIRs(mirs);
+  PerformSuspendCheckElimination();
+  ASSERT_TRUE(IsBackEdge(6u, 5u));
+  EXPECT_TRUE(IsSuspendCheckEdge(6u, 5u));
+  ASSERT_TRUE(IsBackEdge(7u, 4u));
+  EXPECT_FALSE(IsSuspendCheckEdge(7u, 4u));
+}
+
+TEST_F(SuspendCheckEliminationTest, While_While_InvokeInOuterLoopBody) {
+  static const MIRDef mirs[] = {
+    DEF_OTHER1(4u, Instruction::IF_NEZ, 1u),             // Edge out of outer loop.
+    DEF_OTHER1(5u, Instruction::IF_NEZ, 2u),             // Edge out of inner loop.
+    DEF_OTHER0(6u, Instruction::GOTO),                   // Edge back to inner loop head.
+    DEF_INVOKE(7u, Instruction::INVOKE_STATIC, 0u, 0u),  // Invoke in outer loop body.
+    DEF_OTHER0(7u, Instruction::GOTO),                   // Edge back to outer loop head.
+  };
+
+  PrepareNestedLoopsWhile_While();
+  PrepareMIRs(mirs);
+  PerformSuspendCheckElimination();
+  ASSERT_TRUE(IsBackEdge(6u, 5u));
+  EXPECT_TRUE(IsSuspendCheckEdge(6u, 5u));
+  ASSERT_TRUE(IsBackEdge(7u, 4u));
+  EXPECT_FALSE(IsSuspendCheckEdge(7u, 4u));
+}
+
+TEST_F(SuspendCheckEliminationTest, While_While_InvokeInInnerLoopHead) {
+  static const MIRDef mirs[] = {
+    DEF_OTHER1(4u, Instruction::IF_NEZ, 1u),             // Edge out of outer loop.
+    DEF_INVOKE(5u, Instruction::INVOKE_STATIC, 0u, 0u),  // Invoke in inner loop head.
+    DEF_OTHER1(5u, Instruction::IF_NEZ, 2u),             // Edge out of inner loop.
+    DEF_OTHER0(6u, Instruction::GOTO),                   // Edge back to inner loop head.
+    DEF_OTHER0(7u, Instruction::GOTO),                   // Edge back to outer loop head.
+  };
+
+  PrepareNestedLoopsWhile_While();
+  PrepareMIRs(mirs);
+  PerformSuspendCheckElimination();
+  ASSERT_TRUE(IsBackEdge(6u, 5u));
+  EXPECT_FALSE(IsSuspendCheckEdge(6u, 5u));
+  ASSERT_TRUE(IsBackEdge(7u, 4u));
+  EXPECT_FALSE(IsSuspendCheckEdge(7u, 4u));
+}
+
+TEST_F(SuspendCheckEliminationTest, While_While_InvokeInInnerLoopBody) {
+  static const MIRDef mirs[] = {
+    DEF_OTHER1(4u, Instruction::IF_NEZ, 1u),             // Edge out of outer loop.
+    DEF_OTHER1(5u, Instruction::IF_NEZ, 2u),             // Edge out of inner loop.
+    DEF_INVOKE(6u, Instruction::INVOKE_STATIC, 0u, 0u),  // Invoke in inner loop body.
+    DEF_OTHER0(6u, Instruction::GOTO),                   // Edge back to inner loop head.
+    DEF_OTHER0(7u, Instruction::GOTO),                   // Edge back to outer loop head.
+  };
+
+  PrepareNestedLoopsWhile_While();
+  PrepareMIRs(mirs);
+  PerformSuspendCheckElimination();
+  ASSERT_TRUE(IsBackEdge(6u, 5u));
+  EXPECT_FALSE(IsSuspendCheckEdge(6u, 5u));
+  ASSERT_TRUE(IsBackEdge(7u, 4u));
+  EXPECT_TRUE(IsSuspendCheckEdge(7u, 4u));
+}
+
+TEST_F(SuspendCheckEliminationTest, While_WhileWhile_InvokeInFirstInnerLoopHead) {
+  static const MIRDef mirs[] = {
+    DEF_OTHER1(4u, Instruction::IF_NEZ, 1u),             // Edge out of outer loop.
+    DEF_INVOKE(5u, Instruction::INVOKE_STATIC, 0u, 0u),  // Invoke in first inner loop head.
+    DEF_OTHER1(5u, Instruction::IF_NEZ, 2u),             // Edge out of inner loop 1.
+    DEF_OTHER0(6u, Instruction::GOTO),                   // Edge back to inner loop head.
+    DEF_OTHER1(7u, Instruction::IF_NEZ, 2u),             // Edge out of inner loop 2.
+    DEF_OTHER0(8u, Instruction::GOTO),                   // Edge back to inner loop 2 head.
+    DEF_OTHER0(9u, Instruction::GOTO),                   // Edge back to outer loop head.
+  };
+
+  PrepareNestedLoopsWhile_WhileWhile();
+  PrepareMIRs(mirs);
+  PerformSuspendCheckElimination();
+  ASSERT_TRUE(IsBackEdge(6u, 5u));
+  EXPECT_FALSE(IsSuspendCheckEdge(6u, 5u));
+  ASSERT_TRUE(IsBackEdge(8u, 7u));
+  EXPECT_TRUE(IsSuspendCheckEdge(8u, 7u));
+  ASSERT_TRUE(IsBackEdge(9u, 4u));
+  EXPECT_FALSE(IsSuspendCheckEdge(9u, 4u));
+}
+
+TEST_F(SuspendCheckEliminationTest, While_WhileWhile_InvokeInFirstInnerLoopBody) {
+  static const MIRDef mirs[] = {
+    DEF_OTHER1(4u, Instruction::IF_NEZ, 1u),             // Edge out of outer loop.
+    DEF_OTHER1(5u, Instruction::IF_NEZ, 2u),             // Edge out of inner loop 1.
+    DEF_INVOKE(6u, Instruction::INVOKE_STATIC, 0u, 0u),  // Invoke in first inner loop body.
+    DEF_OTHER0(6u, Instruction::GOTO),                   // Edge back to inner loop head.
+    DEF_OTHER1(7u, Instruction::IF_NEZ, 2u),             // Edge out of inner loop 2.
+    DEF_OTHER0(8u, Instruction::GOTO),                   // Edge back to inner loop 2 head.
+    DEF_OTHER0(9u, Instruction::GOTO),                   // Edge back to outer loop head.
+  };
+
+  PrepareNestedLoopsWhile_WhileWhile();
+  PrepareMIRs(mirs);
+  PerformSuspendCheckElimination();
+  ASSERT_TRUE(IsBackEdge(6u, 5u));
+  EXPECT_FALSE(IsSuspendCheckEdge(6u, 5u));
+  ASSERT_TRUE(IsBackEdge(8u, 7u));
+  EXPECT_TRUE(IsSuspendCheckEdge(8u, 7u));
+  ASSERT_TRUE(IsBackEdge(9u, 4u));
+  EXPECT_TRUE(IsSuspendCheckEdge(9u, 4u));
+}
+
+TEST_F(SuspendCheckEliminationTest, While_WhileWhile_WithExtraEdge_InvokeInFirstInnerLoopBody) {
+  static const MIRDef mirs[] = {
+    DEF_OTHER1(4u, Instruction::IF_NEZ, 1u),             // Edge out of outer loop.
+    DEF_OTHER1(5u, Instruction::IF_NEZ, 2u),             // Edge out of inner loop 1.
+    DEF_INVOKE(6u, Instruction::INVOKE_STATIC, 0u, 0u),  // Invoke in first inner loop body.
+    DEF_OTHER0(6u, Instruction::GOTO),                   // Edge back to inner loop head.
+    DEF_OTHER1(7u, Instruction::IF_NEZ, 2u),             // Edge out of inner loop 2.
+    DEF_OTHER0(8u, Instruction::GOTO),                   // Edge back to inner loop 2 head.
+    DEF_OTHER0(9u, Instruction::GOTO),                   // Edge back to outer loop head.
+  };
+
+  PrepareNestedLoopsWhile_WhileWhile_WithExtraEdge();
+  PrepareMIRs(mirs);
+  PerformSuspendCheckElimination();
+  ASSERT_TRUE(IsBackEdge(6u, 5u));
+  EXPECT_FALSE(IsSuspendCheckEdge(6u, 5u));
+  ASSERT_TRUE(IsBackEdge(8u, 7u));
+  EXPECT_TRUE(IsSuspendCheckEdge(8u, 7u));  // Unaffected by the extra edge.
+  ASSERT_TRUE(IsBackEdge(9u, 4u));
+  EXPECT_TRUE(IsSuspendCheckEdge(9u, 4u));
+}
+
+TEST_F(SuspendCheckEliminationTest, While_WhileWhile_WithExtraEdge_InvokeInSecondInnerLoopHead) {
+  static const MIRDef mirs[] = {
+    DEF_OTHER1(4u, Instruction::IF_NEZ, 1u),             // Edge out of outer loop.
+    DEF_OTHER1(5u, Instruction::IF_NEZ, 2u),             // Edge out of inner loop 1.
+    DEF_OTHER0(6u, Instruction::GOTO),                   // Edge back to inner loop head.
+    DEF_INVOKE(7u, Instruction::INVOKE_STATIC, 0u, 0u),  // Invoke in second inner loop head.
+    DEF_OTHER1(7u, Instruction::IF_NEZ, 2u),             // Edge out of inner loop 2.
+    DEF_OTHER0(8u, Instruction::GOTO),                   // Edge back to inner loop 2 head.
+    DEF_OTHER0(9u, Instruction::GOTO),                   // Edge back to outer loop head.
+  };
+
+  PrepareNestedLoopsWhile_WhileWhile_WithExtraEdge();
+  PrepareMIRs(mirs);
+  PerformSuspendCheckElimination();
+  ASSERT_TRUE(IsBackEdge(6u, 5u));
+  EXPECT_TRUE(IsSuspendCheckEdge(6u, 5u));
+  ASSERT_TRUE(IsBackEdge(8u, 7u));
+  EXPECT_FALSE(IsSuspendCheckEdge(8u, 7u));  // Unaffected by the extra edge.
+  ASSERT_TRUE(IsBackEdge(9u, 4u));
+  EXPECT_FALSE(IsSuspendCheckEdge(9u, 4u));
+}
 
 }  // namespace art

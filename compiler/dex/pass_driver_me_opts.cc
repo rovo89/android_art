@@ -46,6 +46,7 @@ const Pass* const PassDriver<PassDriverMEOpts>::g_passes[] = {
   GetPassInstance<TypeInference>(),
   GetPassInstance<GlobalValueNumberingPass>(),
   GetPassInstance<BBOptimizations>(),
+  GetPassInstance<SuspendCheckElimination>(),
 };
 
 // The number of the passes in the initial list of Passes (g_passes).

@@ -843,8 +843,8 @@ class Mir2Lir : public Backend {
     virtual void GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest,
                                 RegLocation rl_src1, RegLocation rl_src2, int flags);
     void GenConversionCall(QuickEntrypointEnum trampoline, RegLocation rl_dest, RegLocation rl_src);
-    virtual void GenSuspendTest(int opt_flags);
-    virtual void GenSuspendTestAndBranch(int opt_flags, LIR* target);
+    void GenSuspendTest(int opt_flags);
+    void GenSuspendTestAndBranch(int opt_flags, LIR* target);
 
     // This will be overridden by x86 implementation.
     virtual void GenConstWide(RegLocation rl_dest, int64_t value);

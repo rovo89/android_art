@@ -21,10 +21,15 @@ public class Main {
         System.out.println("Running (" + TEST_TIME + " seconds) ...");
         InfiniteForLoop forLoop = new InfiniteForLoop();
         InfiniteWhileLoop whileLoop = new InfiniteWhileLoop();
+        InfiniteWhileLoopWithIntrinsic whileLoopWithIntrinsic =
+            new InfiniteWhileLoopWithIntrinsic();
+        InfiniteDoWhileLoopWithLong doWhileLoopWithLong = new InfiniteDoWhileLoopWithLong();
         InfiniteDoWhileLoop doWhileLoop = new InfiniteDoWhileLoop();
         MakeGarbage garbage = new MakeGarbage();
         forLoop.start();
         whileLoop.start();
+        whileLoopWithIntrinsic.start();
+        doWhileLoopWithLong.start();
         doWhileLoop.start();
         garbage.start();
         for (int i = 0; i < TEST_TIME; i++) {
@@ -34,6 +39,8 @@ public class Main {
         }
         forLoop.stopNow();
         whileLoop.stopNow();
+        whileLoopWithIntrinsic.stopNow();
+        doWhileLoopWithLong.stopNow();
         doWhileLoop.stopNow();
         garbage.stopNow();
         System.out.println("Done.");
@@ -46,6 +53,35 @@ public class Main {
             System.err.println("sleep was interrupted");
         }
     }
+}
+
+class InfiniteWhileLoopWithIntrinsic extends Thread {
+  volatile private boolean keepGoing = true;
+  private String[] strings = { "a", "b", "c", "d" };
+  private int sum = 0;
+  public void run() {
+    int i = 0;
+    while (keepGoing) {
+      i++;
+      sum += strings[i & 3].length();
+    }
+  }
+  public void stopNow() {
+    keepGoing = false;
+  }
+}
+
+class InfiniteDoWhileLoopWithLong extends Thread {
+  volatile private long keepGoing = 7L;
+  public void run() {
+    int i = 0;
+    do {
+      i++;
+    } while (keepGoing >= 4L);
+  }
+  public void stopNow() {
+    keepGoing = 1L;
+  }
 }
 
 class InfiniteWhileLoop extends Thread {

@@ -297,6 +297,41 @@ class BBOptimizations : public PassME {
   void Start(PassDataHolder* data) const;
 };
 
+/**
+ * @class SuspendCheckElimination
+ * @brief Any simple BasicBlock optimization can be put here.
+ */
+class SuspendCheckElimination : public PassME {
+ public:
+  SuspendCheckElimination()
+    : PassME("SuspendCheckElimination", kTopologicalSortTraversal, "6_post_sce_cfg") {
+  }
+
+  bool Gate(const PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    return c_unit->mir_graph->EliminateSuspendChecksGate();
+  }
+
+  bool Worker(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
+    CompilationUnit* c_unit = pass_me_data_holder->c_unit;
+    DCHECK(c_unit != nullptr);
+    BasicBlock* bb = pass_me_data_holder->bb;
+    DCHECK(bb != nullptr);
+    return c_unit->mir_graph->EliminateSuspendChecks(bb);
+  }
+
+  void End(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    c_unit->mir_graph->EliminateSuspendChecksEnd();
+  }
+};
+
 }  // namespace art
 
 #endif  // ART_COMPILER_DEX_BB_OPTIMIZATIONS_H_
