@@ -526,6 +526,9 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
                 default: LOG(ERROR) << "Unexpected opcode: " << opcode;
               }
               mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+              // Clear use count of temp VR.
+              use_counts_[mir->ssa_rep->defs[0]] = 0;
+              raw_use_counts_[mir->ssa_rep->defs[0]] = 0;
               // Copy the SSA information that is relevant.
               mir_next->ssa_rep->num_uses = mir->ssa_rep->num_uses;
               mir_next->ssa_rep->uses = mir->ssa_rep->uses;
