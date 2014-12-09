@@ -151,7 +151,8 @@ class MANAGED ArtMethod FINAL : public Object {
     // Temporary solution for detecting if a method has been optimized: the compiler
     // does not create a GC map. Instead, the vmap table contains the stack map
     // (as in stack_map.h).
-    return GetEntryPointFromQuickCompiledCodePtrSize(pointer_size) != nullptr
+    return !IsNative()
+        && GetEntryPointFromQuickCompiledCodePtrSize(pointer_size) != nullptr
         && GetQuickOatCodePointer(pointer_size) != nullptr
         && GetNativeGcMap(pointer_size) == nullptr;
   }

@@ -291,7 +291,6 @@ class CompiledMethod FINAL : public CompiledCode {
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask,
-                 const std::vector<uint8_t>& mapping_table,
                  const std::vector<uint8_t>& vmap_table);
 
   // Constructs a CompiledMethod for the QuickJniCompiler.
@@ -330,9 +329,8 @@ class CompiledMethod FINAL : public CompiledCode {
     return *src_mapping_table_;
   }
 
-  const std::vector<uint8_t>& GetMappingTable() const {
-    DCHECK(mapping_table_ != nullptr);
-    return *mapping_table_;
+  std::vector<uint8_t> const* GetMappingTable() const {
+    return mapping_table_;
   }
 
   const std::vector<uint8_t>& GetVmapTable() const {
