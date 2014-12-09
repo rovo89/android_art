@@ -434,12 +434,12 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   std::vector<uint8_t> managed_code(cs);
   MemoryRegion code(&managed_code[0], managed_code.size());
   __ FinalizeInstructions(code);
-  return new CompiledMethod(driver,
-                            instruction_set,
-                            managed_code,
-                            frame_size,
-                            main_jni_conv->CoreSpillMask(),
-                            main_jni_conv->FpSpillMask());
+  return CompiledMethod::SwapAllocCompiledMethod(driver,
+                                                 instruction_set,
+                                                 ArrayRef<const uint8_t>(managed_code),
+                                                 frame_size,
+                                                 main_jni_conv->CoreSpillMask(),
+                                                 main_jni_conv->FpSpillMask());
 }
 
 // Copy a single parameter from the managed to the JNI calling convention

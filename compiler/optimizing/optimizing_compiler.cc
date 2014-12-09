@@ -167,16 +167,16 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
   std::vector<uint8_t> gc_map;
   codegen->BuildNativeGCMap(&gc_map, dex_compilation_unit);
 
-  return new CompiledMethod(GetCompilerDriver(),
-                            instruction_set,
-                            allocator.GetMemory(),
-                            codegen->GetFrameSize(),
-                            codegen->GetCoreSpillMask(),
-                            0, /* FPR spill mask, unused */
-                            mapping_table,
-                            vmap_table,
-                            gc_map,
-                            nullptr);
+  return CompiledMethod::SwapAllocCompiledMethod(GetCompilerDriver(),
+                                                 instruction_set,
+                                                 ArrayRef<const uint8_t>(allocator.GetMemory()),
+                                                 codegen->GetFrameSize(),
+                                                 codegen->GetCoreSpillMask(),
+                                                 0, /* FPR spill mask, unused */
+                                                 ArrayRef<const uint8_t>(mapping_table),
+                                                 ArrayRef<const uint8_t>(vmap_table),
+                                                 ArrayRef<const uint8_t>(gc_map),
+                                                 ArrayRef<const uint8_t>());
 }
 
 }  // namespace art

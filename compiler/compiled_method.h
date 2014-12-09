@@ -23,6 +23,8 @@
 
 #include "instruction_set.h"
 #include "utils.h"
+#include "utils/array_ref.h"
+#include "utils/swap_space.h"
 
 namespace llvm {
   class Function;
@@ -36,7 +38,7 @@ class CompiledCode {
  public:
   // For Quick to supply an code blob
   CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
-               const std::vector<uint8_t>& quick_code);
+               const ArrayRef<const uint8_t>& quick_code);
 
   // For Portable to supply an ELF object
   CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
@@ -46,15 +48,16 @@ class CompiledCode {
     return instruction_set_;
   }
 
-  const std::vector<uint8_t>* GetPortableCode() const {
+  const SwapVector<uint8_t>* GetPortableCode() const {
     return portable_code_;
   }
 
-  const std::vector<uint8_t>* GetQuickCode() const {
+  const SwapVector<uint8_t>* GetQuickCode() const {
     return quick_code_;
   }
 
-  void SetCode(const std::vector<uint8_t>* quick_code, const std::vector<uint8_t>* portable_code);
+  void SetCode(const ArrayRef<const uint8_t>* quick_code,
+               const ArrayRef<const uint8_t>* portable_code);
 
   bool operator==(const CompiledCode& rhs) const;
 
@@ -85,10 +88,10 @@ class CompiledCode {
   const InstructionSet instruction_set_;
 
   // The ELF image for portable.
-  std::vector<uint8_t>* portable_code_;
+  SwapVector<uint8_t>* portable_code_;
 
   // Used to store the PIC code for Quick.
-  std::vector<uint8_t>* quick_code_;
+  SwapVector<uint8_t>* quick_code_;
 
   // Used for the Portable ELF symbol name.
   const std::string symbol_;
@@ -105,32 +108,52 @@ class CompiledMethod : public CompiledCode {
   // Constructs a CompiledMethod for the non-LLVM compilers.
   CompiledMethod(CompilerDriver* driver,
                  InstructionSet instruction_set,
-                 const std::vector<uint8_t>& quick_code,
+                 const ArrayRef<const uint8_t>& quick_code,
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask,
-                 const std::vector<uint8_t>& mapping_table,
-                 const std::vector<uint8_t>& vmap_table,
-                 const std::vector<uint8_t>& native_gc_map,
-                 const std::vector<uint8_t>* cfi_info);
+                 const ArrayRef<const uint8_t>& mapping_table,
+                 const ArrayRef<const uint8_t>& vmap_table,
+                 const ArrayRef<const uint8_t>& native_gc_map,
+                 const ArrayRef<const uint8_t>& cfi_info);
 
   // Constructs a CompiledMethod for the QuickJniCompiler.
   CompiledMethod(CompilerDriver* driver,
                  InstructionSet instruction_set,
-                 const std::vector<uint8_t>& quick_code,
+                 const ArrayRef<const uint8_t>& quick_code,
                  const size_t frame_size_in_bytes,
                  const uint32_t core_spill_mask,
                  const uint32_t fp_spill_mask);
 
   // Constructs a CompiledMethod for the Portable compiler.
   CompiledMethod(CompilerDriver* driver, InstructionSet instruction_set, const std::string& code,
-                 const std::vector<uint8_t>& gc_map, const std::string& symbol);
+                 const ArrayRef<const uint8_t>& gc_map, const std::string& symbol);
 
   // Constructs a CompiledMethod for the Portable JniCompiler.
   CompiledMethod(CompilerDriver* driver, InstructionSet instruction_set, const std::string& code,
                  const std::string& symbol);
 
   ~CompiledMethod() {}
+
+  static CompiledMethod* SwapAllocCompiledMethod(CompilerDriver* driver,
+                                                 InstructionSet instruction_set,
+                                                 const ArrayRef<const uint8_t>& quick_code,
+                                                 const size_t frame_size_in_bytes,
+                                                 const uint32_t core_spill_mask,
+                                                 const uint32_t fp_spill_mask,
+                                                 const ArrayRef<const uint8_t>& mapping_table,
+                                                 const ArrayRef<const uint8_t>& vmap_table,
+                                                 const ArrayRef<const uint8_t>& native_gc_map,
+                                                 const ArrayRef<const uint8_t>& cfi_info);
+
+  static CompiledMethod* SwapAllocCompiledMethod(CompilerDriver* driver,
+                                                 InstructionSet instruction_set,
+                                                 const ArrayRef<const uint8_t>& quick_code,
+                                                 const size_t frame_size_in_bytes,
+                                                 const uint32_t core_spill_mask,
+                                                 const uint32_t fp_spill_mask);
+
+  static void ReleaseSwapAllocatedCompiledMethod(CompilerDriver* driver, CompiledMethod* m);
 
   size_t GetFrameSizeInBytes() const {
     return frame_size_in_bytes_;
@@ -144,22 +167,22 @@ class CompiledMethod : public CompiledCode {
     return fp_spill_mask_;
   }
 
-  const std::vector<uint8_t>& GetMappingTable() const {
+  const SwapVector<uint8_t>& GetMappingTable() const {
     DCHECK(mapping_table_ != nullptr);
     return *mapping_table_;
   }
 
-  const std::vector<uint8_t>& GetVmapTable() const {
+  const SwapVector<uint8_t>& GetVmapTable() const {
     DCHECK(vmap_table_ != nullptr);
     return *vmap_table_;
   }
 
-  const std::vector<uint8_t>& GetGcMap() const {
+  const SwapVector<uint8_t>& GetGcMap() const {
     DCHECK(gc_map_ != nullptr);
     return *gc_map_;
   }
 
-  const std::vector<uint8_t>* GetCFIInfo() const {
+  const SwapVector<uint8_t>* GetCFIInfo() const {
     return cfi_info_;
   }
 
@@ -172,14 +195,14 @@ class CompiledMethod : public CompiledCode {
   const uint32_t fp_spill_mask_;
   // For quick code, a uleb128 encoded map from native PC offset to dex PC aswell as dex PC to
   // native PC offset. Size prefixed.
-  std::vector<uint8_t>* mapping_table_;
+  SwapVector<uint8_t>* mapping_table_;
   // For quick code, a uleb128 encoded map from GPR/FPR register to dex register. Size prefixed.
-  std::vector<uint8_t>* vmap_table_;
+  SwapVector<uint8_t>* vmap_table_;
   // For quick code, a map keyed by native PC indices to bitmaps describing what dalvik registers
   // are live. For portable code, the key is a dalvik PC.
-  std::vector<uint8_t>* gc_map_;
+  SwapVector<uint8_t>* gc_map_;
   // For quick code, a FDE entry for the debug_frame section.
-  std::vector<uint8_t>* cfi_info_;
+  SwapVector<uint8_t>* cfi_info_;
 };
 
 }  // namespace art

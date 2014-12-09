@@ -55,6 +55,7 @@ class ScratchFile {
 
   int GetFd() const;
 
+  void Close();
   void Unlink();
 
  private:

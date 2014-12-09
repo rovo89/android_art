@@ -88,7 +88,7 @@ class ArrayRef {
 
   template <typename U>
   ArrayRef(const std::vector<U>& v,
-           typename std::enable_if<std::is_same<T, const U>::value, tag>::tag t = tag())
+           typename std::enable_if<std::is_same<T, const U>::value, tag>::type t = tag())
       : array_(v.data()), size_(v.size()) {
   }
 

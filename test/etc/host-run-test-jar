@@ -27,6 +27,7 @@ SECONDARY_DEX=""
 exe="${ANDROID_HOST_OUT}/bin/dalvikvm32"
 main="Main"
 DEX_VERIFY=""
+DEX2OAT_SWAP="n"
 
 while true; do
     if [ "x$1" = "x--quiet" ]; then
@@ -107,6 +108,9 @@ while true; do
         option="$1"
         FLAGS="${FLAGS} $option"
         shift
+    elif [ "x$1" = "x--dex2oat-swap" ]; then
+        DEX2OAT_SWAP="y"
+        shift
     elif [ "x$1" = "x--" ]; then
         shift
         break
@@ -136,6 +140,10 @@ export ANDROID_DATA="$DEX_LOCATION"
 export ANDROID_ROOT="${ANDROID_HOST_OUT}"
 export LD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
 export DYLD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
+
+if [ "$DEX2OAT_SWAP" = "y" ]; then
+  COMPILER_FLAGS="${COMPILER_FLAGS} --swap-file=$ANDROID_DATA/dex2oat.swap"
+fi
 
 if [ "$DEBUGGER" = "y" ]; then
     PORT=8000

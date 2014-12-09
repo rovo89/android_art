@@ -162,18 +162,18 @@ void CommonCompilerTest::MakeExecutable(mirror::ArtMethod* method) {
                                                             method->GetDexMethodIndex()));
   }
   if (compiled_method != nullptr) {
-    const std::vector<uint8_t>* code = compiled_method->GetQuickCode();
+    const SwapVector<uint8_t>* code = compiled_method->GetQuickCode();
     const void* code_ptr;
     if (code != nullptr) {
       uint32_t code_size = code->size();
       CHECK_NE(0u, code_size);
-      const std::vector<uint8_t>& vmap_table = compiled_method->GetVmapTable();
+      const SwapVector<uint8_t>& vmap_table = compiled_method->GetVmapTable();
       uint32_t vmap_table_offset = vmap_table.empty() ? 0u
           : sizeof(OatQuickMethodHeader) + vmap_table.size();
-      const std::vector<uint8_t>& mapping_table = compiled_method->GetMappingTable();
+      const SwapVector<uint8_t>& mapping_table = compiled_method->GetMappingTable();
       uint32_t mapping_table_offset = mapping_table.empty() ? 0u
           : sizeof(OatQuickMethodHeader) + vmap_table.size() + mapping_table.size();
-      const std::vector<uint8_t>& gc_map = compiled_method->GetGcMap();
+      const SwapVector<uint8_t>& gc_map = compiled_method->GetGcMap();
       uint32_t gc_map_offset = gc_map.empty() ? 0u
           : sizeof(OatQuickMethodHeader) + vmap_table.size() + mapping_table.size() + gc_map.size();
       OatQuickMethodHeader method_header(mapping_table_offset, vmap_table_offset, gc_map_offset,

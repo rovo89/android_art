@@ -59,7 +59,7 @@ class OatTest : public CommonCompilerTest {
         EXPECT_EQ(oat_method.GetFpSpillMask(), compiled_method->GetFpSpillMask());
         uintptr_t oat_code_aligned = RoundDown(reinterpret_cast<uintptr_t>(quick_oat_code), 2);
         quick_oat_code = reinterpret_cast<const void*>(oat_code_aligned);
-        const std::vector<uint8_t>* quick_code = compiled_method->GetQuickCode();
+        const SwapVector<uint8_t>* quick_code = compiled_method->GetQuickCode();
         EXPECT_TRUE(quick_code != nullptr);
         size_t code_size = quick_code->size() * sizeof(quick_code[0]);
         EXPECT_EQ(0, memcmp(quick_oat_code, &quick_code[0], code_size))
@@ -73,7 +73,7 @@ class OatTest : public CommonCompilerTest {
         EXPECT_EQ(oat_method.GetFpSpillMask(), 0U);
         uintptr_t oat_code_aligned = RoundDown(reinterpret_cast<uintptr_t>(portable_oat_code), 2);
         portable_oat_code = reinterpret_cast<const void*>(oat_code_aligned);
-        const std::vector<uint8_t>* portable_code = compiled_method->GetPortableCode();
+        const SwapVector<uint8_t>* portable_code = compiled_method->GetPortableCode();
         EXPECT_TRUE(portable_code != nullptr);
         size_t code_size = portable_code->size() * sizeof(portable_code[0]);
         EXPECT_EQ(0, memcmp(quick_oat_code, &portable_code[0], code_size))
