@@ -2223,7 +2223,7 @@ void InstructionCodeGeneratorX86_64::HandleShift(HBinaryOperation* op) {
           __ shrl(first_reg, second_reg);
         }
       } else {
-        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue());
+        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxIntShiftValue);
         if (op->IsShl()) {
           __ shll(first_reg, imm);
         } else if (op->IsShr()) {
@@ -2245,7 +2245,7 @@ void InstructionCodeGeneratorX86_64::HandleShift(HBinaryOperation* op) {
           __ shrq(first_reg, second_reg);
         }
       } else {
-        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue());
+        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue() & kMaxLongShiftValue);
         if (op->IsShl()) {
           __ shlq(first_reg, imm);
         } else if (op->IsShr()) {
