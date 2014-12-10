@@ -129,12 +129,15 @@ static void RunCodeOptimized(HGraph* graph,
                              std::function<void(HGraph*)> hook_before_codegen,
                              bool has_result,
                              Expected expected) {
-  if (kRuntimeISA == kX86) {
-    x86::CodeGeneratorX86 codegenX86(graph);
-    RunCodeOptimized(&codegenX86, graph, hook_before_codegen, has_result, expected);
-  } else if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
+  if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
     arm::CodeGeneratorARM codegenARM(graph);
     RunCodeOptimized(&codegenARM, graph, hook_before_codegen, has_result, expected);
+  } else if (kRuntimeISA == kArm64) {
+    arm64::CodeGeneratorARM64 codegenARM64(graph);
+    RunCodeOptimized(&codegenARM64, graph, hook_before_codegen, has_result, expected);
+  } else if (kRuntimeISA == kX86) {
+    x86::CodeGeneratorX86 codegenX86(graph);
+    RunCodeOptimized(&codegenX86, graph, hook_before_codegen, has_result, expected);
   } else if (kRuntimeISA == kX86_64) {
     x86_64::CodeGeneratorX86_64 codegenX86_64(graph);
     RunCodeOptimized(&codegenX86_64, graph, hook_before_codegen, has_result, expected);
@@ -362,11 +365,7 @@ NOT_LONG_TEST(ReturnNotLongINT64_MAX,
 
 #undef NOT_LONG_TEST
 
-#if defined(__aarch64__)
-TEST(CodegenTest, DISABLED_IntToLongOfLongToInt) {
-#else
 TEST(CodegenTest, IntToLongOfLongToInt) {
-#endif
   const int64_t input = INT64_C(4294967296);             // 2^32
   const uint16_t word0 = Low16Bits(Low32Bits(input));    // LSW.
   const uint16_t word1 = High16Bits(Low32Bits(input));
@@ -493,10 +492,8 @@ TEST(CodegenTest, NonMaterializedCondition) {
     TestCode(data, true, 12);                         \
   }
 
-#if !defined(__aarch64__)
 MUL_TEST(INT, MulInt);
 MUL_TEST(LONG, MulLong);
-#endif
 
 TEST(CodegenTest, ReturnMulIntLit8) {
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
@@ -633,11 +630,7 @@ TEST(CodegenTest, MaterializedCondition2) {
   }
 }
 
-#if defined(__aarch64__)
-TEST(CodegenTest, DISABLED_ReturnDivIntLit8) {
-#else
 TEST(CodegenTest, ReturnDivIntLit8) {
-#endif
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 4 << 12 | 0 << 8,
     Instruction::DIV_INT_LIT8, 3 << 8 | 0,
@@ -646,11 +639,7 @@ TEST(CodegenTest, ReturnDivIntLit8) {
   TestCode(data, true, 1);
 }
 
-#if defined(__aarch64__)
-TEST(CodegenTest, DISABLED_ReturnDivInt2Addr) {
-#else
 TEST(CodegenTest, ReturnDivInt2Addr) {
-#endif
   const uint16_t data[] = TWO_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 4 << 12 | 0,
     Instruction::CONST_4 | 2 << 12 | 1 << 8,
