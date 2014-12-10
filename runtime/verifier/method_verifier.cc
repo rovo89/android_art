@@ -3113,7 +3113,7 @@ mirror::ArtMethod* MethodVerifier::ResolveMethodAndCheckAccess(uint32_t dex_meth
   }
   // See if the method type implied by the invoke instruction matches the access flags for the
   // target method.
-  if ((method_type == METHOD_DIRECT && !res_method->IsDirect()) ||
+  if ((method_type == METHOD_DIRECT && (!res_method->IsDirect() || res_method->IsStatic())) ||
       (method_type == METHOD_STATIC && !res_method->IsStatic()) ||
       ((method_type == METHOD_VIRTUAL || method_type == METHOD_INTERFACE) && res_method->IsDirect())
       ) {
