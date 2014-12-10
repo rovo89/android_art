@@ -90,10 +90,12 @@ int ARTRegCodeFromVIXL(int code) {
 }
 
 Register XRegisterFrom(Location location) {
+  DCHECK(location.IsRegister());
   return Register::XRegFromCode(VIXLRegCodeFromART(location.reg()));
 }
 
 Register WRegisterFrom(Location location) {
+  DCHECK(location.IsRegister());
   return Register::WRegFromCode(VIXLRegCodeFromART(location.reg()));
 }
 
@@ -112,10 +114,12 @@ Register InputRegisterAt(HInstruction* instr, int input_index) {
 }
 
 FPRegister DRegisterFrom(Location location) {
+  DCHECK(location.IsFpuRegister());
   return FPRegister::DRegFromCode(location.reg());
 }
 
 FPRegister SRegisterFrom(Location location) {
+  DCHECK(location.IsFpuRegister());
   return FPRegister::SRegFromCode(location.reg());
 }
 
@@ -131,6 +135,11 @@ FPRegister OutputFPRegister(HInstruction* instr) {
 FPRegister InputFPRegisterAt(HInstruction* instr, int input_index) {
   return FPRegisterFrom(instr->GetLocations()->InAt(input_index),
                         instr->InputAt(input_index)->GetType());
+}
+
+CPURegister CPURegisterFrom(Location location, Primitive::Type type) {
+  return IsFPType(type) ? CPURegister(FPRegisterFrom(location, type))
+                        : CPURegister(RegisterFrom(location, type));
 }
 
 CPURegister OutputCPURegister(HInstruction* instr) {
@@ -266,14 +275,32 @@ class SlowPathCodeARM64 : public SlowPathCode {
 
 class BoundsCheckSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  BoundsCheckSlowPathARM64() {}
+  BoundsCheckSlowPathARM64(HBoundsCheck* instruction,
+                           Location index_location,
+                           Location length_location)
+      : instruction_(instruction),
+        index_location_(index_location),
+        length_location_(length_location) {}
+
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
     __ Bind(GetEntryLabel());
-    __ Brk(__LINE__);  // TODO: Unimplemented BoundsCheckSlowPathARM64.
+    // We're moving two locations to locations that could overlap, so we need a parallel
+    // move resolver.
+    InvokeRuntimeCallingConvention calling_convention;
+    codegen->EmitParallelMoves(
+        index_location_, LocationFrom(calling_convention.GetRegisterAt(0)),
+        length_location_, LocationFrom(calling_convention.GetRegisterAt(1)));
+    arm64_codegen->InvokeRuntime(
+        QUICK_ENTRY_POINT(pThrowArrayBounds), instruction_, instruction_->GetDexPc());
   }
 
  private:
+  HBoundsCheck* const instruction_;
+  const Location index_location_;
+  const Location length_location_;
+
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckSlowPathARM64);
 };
 
@@ -322,7 +349,7 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
     if (out.IsValid()) {
       DCHECK(out.IsRegister() && !locations->GetLiveRegisters()->ContainsCoreRegister(out.reg()));
       Primitive::Type type = at_->GetType();
-      arm64_codegen->MoveHelper(out, calling_convention.GetReturnLocation(type), type);
+      arm64_codegen->MoveLocation(out, calling_convention.GetReturnLocation(type), type);
     }
 
     codegen->RestoreLiveRegisters(locations);
@@ -364,7 +391,7 @@ class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
     arm64_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pResolveString), instruction_, instruction_->GetDexPc());
     Primitive::Type type = instruction_->GetType();
-    arm64_codegen->MoveHelper(locations->Out(), calling_convention.GetReturnLocation(type), type);
+    arm64_codegen->MoveLocation(locations->Out(), calling_convention.GetReturnLocation(type), type);
 
     codegen->RestoreLiveRegisters(locations);
     __ B(GetExitLabel());
@@ -445,15 +472,51 @@ class SuspendCheckSlowPathARM64 : public SlowPathCodeARM64 {
 
 class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
  public:
-  TypeCheckSlowPathARM64() {}
+  TypeCheckSlowPathARM64(HInstruction* instruction,
+                         Location class_to_check,
+                         Location object_class,
+                         uint32_t dex_pc)
+      : instruction_(instruction),
+        class_to_check_(class_to_check),
+        object_class_(object_class),
+        dex_pc_(dex_pc) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    LocationSummary* locations = instruction_->GetLocations();
+    DCHECK(instruction_->IsCheckCast()
+           || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
+    CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
+
     __ Bind(GetEntryLabel());
-    __ Brk(__LINE__);  // TODO: Unimplemented TypeCheckSlowPathARM64.
+    codegen->SaveLiveRegisters(locations);
+
+    // We're moving two locations to locations that could overlap, so we need a parallel
+    // move resolver.
+    InvokeRuntimeCallingConvention calling_convention;
+    codegen->EmitParallelMoves(
+        class_to_check_, LocationFrom(calling_convention.GetRegisterAt(0)),
+        object_class_, LocationFrom(calling_convention.GetRegisterAt(1)));
+
+    if (instruction_->IsInstanceOf()) {
+      arm64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pInstanceofNonTrivial), instruction_, dex_pc_);
+      Primitive::Type ret_type = instruction_->GetType();
+      Location ret_loc = calling_convention.GetReturnLocation(ret_type);
+      arm64_codegen->MoveLocation(locations->Out(), ret_loc, ret_type);
+    } else {
+      DCHECK(instruction_->IsCheckCast());
+      arm64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast), instruction_, dex_pc_);
+    }
+
+    codegen->RestoreLiveRegisters(locations);
     __ B(GetExitLabel());
   }
 
  private:
+  HInstruction* const instruction_;
+  const Location class_to_check_;
+  const Location object_class_;
+  uint32_t dex_pc_;
+
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathARM64);
 };
 
@@ -487,7 +550,8 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph)
                     kNumberOfAllocatableRegisterPairs),
       block_labels_(nullptr),
       location_builder_(graph, this),
-      instruction_visitor_(graph, this) {}
+      instruction_visitor_(graph, this),
+      move_resolver_(graph->GetArena(), this) {}
 
 #undef __
 #define __ GetVIXLAssembler()->
@@ -496,6 +560,24 @@ void CodeGeneratorARM64::Finalize(CodeAllocator* allocator) {
   // Ensure we emit the literal pool.
   __ FinalizeCode();
   CodeGenerator::Finalize(allocator);
+}
+
+void ParallelMoveResolverARM64::EmitMove(size_t index) {
+  MoveOperands* move = moves_.Get(index);
+  codegen_->MoveLocation(move->GetDestination(), move->GetSource());
+}
+
+void ParallelMoveResolverARM64::EmitSwap(size_t index) {
+  MoveOperands* move = moves_.Get(index);
+  codegen_->SwapLocations(move->GetDestination(), move->GetSource());
+}
+
+void ParallelMoveResolverARM64::RestoreScratch(int reg) {
+  __ Pop(Register(VIXLRegCodeFromART(reg), kXRegSize));
+}
+
+void ParallelMoveResolverARM64::SpillScratch(int reg) {
+  __ Push(Register(VIXLRegCodeFromART(reg), kXRegSize));
 }
 
 void CodeGeneratorARM64::GenerateFrameEntry() {
@@ -571,18 +653,18 @@ void CodeGeneratorARM64::Move(HInstruction* instruction,
     }
   } else if (instruction->IsTemporary()) {
     Location temp_location = GetTemporaryLocation(instruction->AsTemporary());
-    MoveHelper(location, temp_location, type);
+    MoveLocation(location, temp_location, type);
   } else if (instruction->IsLoadLocal()) {
     uint32_t stack_slot = GetStackSlot(instruction->AsLoadLocal()->GetLocal());
     if (Is64BitType(type)) {
-      MoveHelper(location, Location::DoubleStackSlot(stack_slot), type);
+      MoveLocation(location, Location::DoubleStackSlot(stack_slot), type);
     } else {
-      MoveHelper(location, Location::StackSlot(stack_slot), type);
+      MoveLocation(location, Location::StackSlot(stack_slot), type);
     }
 
   } else {
     DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
-    MoveHelper(location, locations->Out(), type);
+    MoveLocation(location, locations->Out(), type);
   }
 }
 
@@ -665,6 +747,30 @@ Location CodeGeneratorARM64::AllocateFreeRegister(Primitive::Type type) const {
   }
 }
 
+size_t CodeGeneratorARM64::SaveCoreRegister(size_t stack_index, uint32_t reg_id) {
+  Register reg = Register(VIXLRegCodeFromART(reg_id), kXRegSize);
+  __ Str(reg, MemOperand(sp, stack_index));
+  return kArm64WordSize;
+}
+
+size_t CodeGeneratorARM64::RestoreCoreRegister(size_t stack_index, uint32_t reg_id) {
+  Register reg = Register(VIXLRegCodeFromART(reg_id), kXRegSize);
+  __ Ldr(reg, MemOperand(sp, stack_index));
+  return kArm64WordSize;
+}
+
+size_t CodeGeneratorARM64::SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) {
+  FPRegister reg = FPRegister(reg_id, kDRegSize);
+  __ Str(reg, MemOperand(sp, stack_index));
+  return kArm64WordSize;
+}
+
+size_t CodeGeneratorARM64::RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) {
+  FPRegister reg = FPRegister(reg_id, kDRegSize);
+  __ Ldr(reg, MemOperand(sp, stack_index));
+  return kArm64WordSize;
+}
+
 void CodeGeneratorARM64::DumpCoreRegister(std::ostream& stream, int reg) const {
   stream << Arm64ManagedRegister::FromXRegister(XRegister(reg));
 }
@@ -686,55 +792,159 @@ void CodeGeneratorARM64::MoveConstant(CPURegister destination, HConstant* consta
   }
 }
 
-void CodeGeneratorARM64::MoveHelper(Location destination,
-                                    Location source,
-                                    Primitive::Type type) {
+
+static bool CoherentConstantAndType(Location constant, Primitive::Type type) {
+  DCHECK(constant.IsConstant());
+  HConstant* cst = constant.GetConstant();
+  return (cst->IsIntConstant() && type == Primitive::kPrimInt) ||
+         (cst->IsLongConstant() && type == Primitive::kPrimLong) ||
+         (cst->IsFloatConstant() && type == Primitive::kPrimFloat) ||
+         (cst->IsDoubleConstant() && type == Primitive::kPrimDouble);
+}
+
+void CodeGeneratorARM64::MoveLocation(Location destination, Location source, Primitive::Type type) {
   if (source.Equals(destination)) {
     return;
   }
-  if (destination.IsRegister()) {
-    Register dst = RegisterFrom(destination, type);
-    if (source.IsStackSlot() || source.IsDoubleStackSlot()) {
-      DCHECK(dst.Is64Bits() == source.IsDoubleStackSlot());
-      __ Ldr(dst, StackOperandFrom(source));
-    } else {
-      __ Mov(dst, OperandFrom(source, type));
-    }
-  } else if (destination.IsFpuRegister()) {
-    FPRegister dst = FPRegisterFrom(destination, type);
-    if (source.IsStackSlot() || source.IsDoubleStackSlot()) {
-      DCHECK(dst.Is64Bits() == source.IsDoubleStackSlot());
-      __ Ldr(dst, StackOperandFrom(source));
-    } else if (source.IsFpuRegister()) {
-      __ Fmov(dst, FPRegisterFrom(source, type));
-    } else {
-      MoveConstant(dst, source.GetConstant());
-    }
-  } else {
-    DCHECK(destination.IsStackSlot() || destination.IsDoubleStackSlot());
-    if (source.IsRegister()) {
-      __ Str(RegisterFrom(source, type), StackOperandFrom(destination));
-    } else if (source.IsFpuRegister()) {
-      __ Str(FPRegisterFrom(source, type), StackOperandFrom(destination));
-    } else if (source.IsConstant()) {
-      UseScratchRegisterScope temps(GetVIXLAssembler());
-      HConstant* cst = source.GetConstant();
-      CPURegister temp;
-      if (cst->IsIntConstant() || cst->IsLongConstant()) {
-        temp = cst->IsIntConstant() ? temps.AcquireW() : temps.AcquireX();
+
+  // A valid move can always be inferred from the destination and source
+  // locations. When moving from and to a register, the argument type can be
+  // used to generate 32bit instead of 64bit moves. In debug mode we also
+  // checks the coherency of the locations and the type.
+  bool unspecified_type = (type == Primitive::kPrimVoid);
+
+  if (destination.IsRegister() || destination.IsFpuRegister()) {
+    if (unspecified_type) {
+      HConstant* src_cst = source.IsConstant() ? source.GetConstant() : nullptr;
+      if (source.IsStackSlot() ||
+          (src_cst != nullptr && (src_cst->IsIntConstant() || src_cst->IsFloatConstant()))) {
+        // For stack slots and 32bit constants, a 64bit type is appropriate.
+        type = destination.IsRegister() ? Primitive::kPrimInt : Primitive::kPrimFloat;
       } else {
-        DCHECK(cst->IsFloatConstant() || cst->IsDoubleConstant());
-        temp = cst->IsFloatConstant() ? temps.AcquireS() : temps.AcquireD();
+        // If the source is a double stack slot or a 64bit constant, a 64bit
+        // type is appropriate. Else the source is a register, and since the
+        // type has not been specified, we chose a 64bit type to force a 64bit
+        // move.
+        type = destination.IsRegister() ? Primitive::kPrimLong : Primitive::kPrimDouble;
       }
-      MoveConstant(temp, cst);
+    }
+    DCHECK((destination.IsFpuRegister() && IsFPType(type)) ||
+           (destination.IsRegister() && !IsFPType(type)));
+    CPURegister dst = CPURegisterFrom(destination, type);
+    if (source.IsStackSlot() || source.IsDoubleStackSlot()) {
+      DCHECK(dst.Is64Bits() == source.IsDoubleStackSlot());
+      __ Ldr(dst, StackOperandFrom(source));
+    } else if (source.IsConstant()) {
+      DCHECK(CoherentConstantAndType(source, type));
+      MoveConstant(dst, source.GetConstant());
+    } else {
+      if (destination.IsRegister()) {
+        __ Mov(Register(dst), RegisterFrom(source, type));
+      } else {
+        __ Fmov(FPRegister(dst), FPRegisterFrom(source, type));
+      }
+    }
+
+  } else {  // The destination is not a register. It must be a stack slot.
+    DCHECK(destination.IsStackSlot() || destination.IsDoubleStackSlot());
+    if (source.IsRegister() || source.IsFpuRegister()) {
+      if (unspecified_type) {
+        if (source.IsRegister()) {
+          type = destination.IsStackSlot() ? Primitive::kPrimInt : Primitive::kPrimLong;
+        } else {
+          type = destination.IsStackSlot() ? Primitive::kPrimFloat : Primitive::kPrimDouble;
+        }
+      }
+      DCHECK((destination.IsDoubleStackSlot() == Is64BitType(type)) &&
+             (source.IsFpuRegister() == IsFPType(type)));
+      __ Str(CPURegisterFrom(source, type), StackOperandFrom(destination));
+    } else if (source.IsConstant()) {
+      DCHECK(unspecified_type || CoherentConstantAndType(source, type));
+      UseScratchRegisterScope temps(GetVIXLAssembler());
+      HConstant* src_cst = source.GetConstant();
+      CPURegister temp;
+      if (src_cst->IsIntConstant()) {
+        temp = temps.AcquireW();
+      } else if (src_cst->IsLongConstant()) {
+        temp = temps.AcquireX();
+      } else if (src_cst->IsFloatConstant()) {
+        temp = temps.AcquireS();
+      } else {
+        DCHECK(src_cst->IsDoubleConstant());
+        temp = temps.AcquireD();
+      }
+      MoveConstant(temp, src_cst);
       __ Str(temp, StackOperandFrom(destination));
     } else {
       DCHECK(source.IsStackSlot() || source.IsDoubleStackSlot());
+      DCHECK(source.IsDoubleStackSlot() == destination.IsDoubleStackSlot());
       UseScratchRegisterScope temps(GetVIXLAssembler());
-      Register temp = destination.IsDoubleStackSlot() ? temps.AcquireX() : temps.AcquireW();
+      // There is generally less pressure on FP registers.
+      FPRegister temp = destination.IsDoubleStackSlot() ? temps.AcquireD() : temps.AcquireS();
       __ Ldr(temp, StackOperandFrom(source));
       __ Str(temp, StackOperandFrom(destination));
     }
+  }
+}
+
+void CodeGeneratorARM64::SwapLocations(Location loc1, Location loc2) {
+  DCHECK(!loc1.IsConstant());
+  DCHECK(!loc2.IsConstant());
+
+  if (loc1.Equals(loc2)) {
+    return;
+  }
+
+  UseScratchRegisterScope temps(GetAssembler()->vixl_masm_);
+
+  bool is_slot1 = loc1.IsStackSlot() || loc1.IsDoubleStackSlot();
+  bool is_slot2 = loc2.IsStackSlot() || loc2.IsDoubleStackSlot();
+  bool is_fp_reg1 = loc1.IsFpuRegister();
+  bool is_fp_reg2 = loc2.IsFpuRegister();
+
+  if (loc2.IsRegister() && loc1.IsRegister()) {
+    Register r1 = XRegisterFrom(loc1);
+    Register r2 = XRegisterFrom(loc2);
+    Register tmp = temps.AcquireSameSizeAs(r1);
+    __ Mov(tmp, r2);
+    __ Mov(r2, r1);
+    __ Mov(r1, tmp);
+  } else if (is_fp_reg2 && is_fp_reg1) {
+    FPRegister r1 = DRegisterFrom(loc1);
+    FPRegister r2 = DRegisterFrom(loc2);
+    FPRegister tmp = temps.AcquireSameSizeAs(r1);
+    __ Fmov(tmp, r2);
+    __ Fmov(r2, r1);
+    __ Fmov(r1, tmp);
+  } else if (is_slot1 != is_slot2) {
+    MemOperand mem = StackOperandFrom(is_slot1 ? loc1 : loc2);
+    Location reg_loc = is_slot1 ? loc2 : loc1;
+    CPURegister reg, tmp;
+    if (reg_loc.IsFpuRegister()) {
+      reg = DRegisterFrom(reg_loc);
+      tmp = temps.AcquireD();
+    } else {
+      reg = XRegisterFrom(reg_loc);
+      tmp = temps.AcquireX();
+    }
+    __ Ldr(tmp, mem);
+    __ Str(reg, mem);
+    if (reg_loc.IsFpuRegister()) {
+      __ Fmov(FPRegister(reg), FPRegister(tmp));
+    } else {
+      __ Mov(Register(reg), Register(tmp));
+    }
+  } else if (is_slot1 && is_slot2) {
+    MemOperand mem1 = StackOperandFrom(loc1);
+    MemOperand mem2 = StackOperandFrom(loc2);
+    Register tmp1 = loc1.IsStackSlot() ? temps.AcquireW() : temps.AcquireX();
+    Register tmp2 = temps.AcquireSameSizeAs(tmp1);
+    __ Ldr(tmp1, mem1);
+    __ Ldr(tmp2, mem2);
+    __ Str(tmp1, mem2);
+    __ Str(tmp2, mem1);
+  } else {
+    LOG(FATAL) << "Unimplemented";
   }
 }
 
@@ -850,7 +1060,7 @@ InstructionCodeGeneratorARM64::InstructionCodeGeneratorARM64(HGraph* graph,
         codegen_(codegen) {}
 
 #define FOR_EACH_UNIMPLEMENTED_INSTRUCTION(M)              \
-  M(ParallelMove)                                          \
+  /* No unimplemented IR. */
 
 #define UNIMPLEMENTED_INSTRUCTION_BREAK_CODE(name) name##UnimplementedInstructionBreakCode
 
@@ -1113,7 +1323,9 @@ void LocationsBuilderARM64::VisitBoundsCheck(HBoundsCheck* instruction) {
 }
 
 void InstructionCodeGeneratorARM64::VisitBoundsCheck(HBoundsCheck* instruction) {
-  BoundsCheckSlowPathARM64* slow_path = new (GetGraph()->GetArena()) BoundsCheckSlowPathARM64();
+  LocationSummary* locations = instruction->GetLocations();
+  BoundsCheckSlowPathARM64* slow_path = new (GetGraph()->GetArena()) BoundsCheckSlowPathARM64(
+      instruction, locations->InAt(0), locations->InAt(1));
   codegen_->AddSlowPath(slow_path);
 
   __ Cmp(InputRegisterAt(instruction, 0), InputOperandAt(instruction, 1));
@@ -1125,22 +1337,24 @@ void LocationsBuilderARM64::VisitCheckCast(HCheckCast* instruction) {
       instruction, LocationSummary::kCallOnSlowPath);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorARM64::VisitCheckCast(HCheckCast* instruction) {
-  UseScratchRegisterScope temps(GetVIXLAssembler());
+  LocationSummary* locations = instruction->GetLocations();
   Register obj = InputRegisterAt(instruction, 0);;
   Register cls = InputRegisterAt(instruction, 1);;
-  Register temp = temps.AcquireW();
+  Register obj_cls = WRegisterFrom(instruction->GetLocations()->GetTemp(0));
 
-  SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathARM64();
+  SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) TypeCheckSlowPathARM64(
+      instruction, locations->InAt(1), LocationFrom(obj_cls), instruction->GetDexPc());
   codegen_->AddSlowPath(slow_path);
 
   // TODO: avoid this check if we know obj is not null.
   __ Cbz(obj, slow_path->GetExitLabel());
   // Compare the class of `obj` with `cls`.
-  __ Ldr(temp, HeapOperand(obj, mirror::Object::ClassOffset()));
-  __ Cmp(temp, cls);
+  __ Ldr(obj_cls, HeapOperand(obj, mirror::Object::ClassOffset()));
+  __ Cmp(obj_cls, cls);
   __ B(ne, slow_path->GetEntryLabel());
   __ Bind(slow_path->GetExitLabel());
 }
@@ -1316,12 +1530,20 @@ void InstructionCodeGeneratorARM64::VisitDivZeroCheck(HDivZeroCheck* instruction
   codegen_->AddSlowPath(slow_path);
   Location value = instruction->GetLocations()->InAt(0);
 
+  Primitive::Type type = instruction->GetType();
+
+  if ((type != Primitive::kPrimInt) && (type != Primitive::kPrimLong)) {
+      LOG(FATAL) << "Unexpected type " << type << "for DivZeroCheck.";
+    return;
+  }
+
   if (value.IsConstant()) {
     int64_t divisor = Int64ConstantFrom(value);
     if (divisor == 0) {
       __ B(slow_path->GetEntryLabel());
     } else {
-      LOG(FATAL) << "Divisions by non-null constants should have been optimized away.";
+      // A division by a non-null constant is valid. We don't need to perform
+      // any check, so simply fall through.
     }
   } else {
     __ Cbz(InputRegisterAt(instruction, 0), slow_path->GetEntryLabel());
@@ -1496,7 +1718,8 @@ void InstructionCodeGeneratorARM64::VisitInstanceOf(HInstanceOf* instruction) {
     // If the classes are not equal, we go into a slow path.
     DCHECK(locations->OnlyCallsOnSlowPath());
     SlowPathCodeARM64* slow_path =
-        new (GetGraph()->GetArena()) TypeCheckSlowPathARM64();
+        new (GetGraph()->GetArena()) TypeCheckSlowPathARM64(
+        instruction, locations->InAt(1), locations->Out(), instruction->GetDexPc());
     codegen_->AddSlowPath(slow_path);
     __ B(ne, slow_path->GetEntryLabel());
     __ Mov(out, 1);
@@ -1914,6 +2137,14 @@ void InstructionCodeGeneratorARM64::VisitOr(HOr* instruction) {
   HandleBinaryOp(instruction);
 }
 
+void LocationsBuilderARM64::VisitParallelMove(HParallelMove* instruction ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "Unreachable";
+}
+
+void InstructionCodeGeneratorARM64::VisitParallelMove(HParallelMove* instruction) {
+  codegen_->GetMoveResolver()->EmitNativeCode(instruction);
+}
+
 void LocationsBuilderARM64::VisitParameterValue(HParameterValue* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
   Location location = parameter_visitor_.GetNextLocation(instruction->GetType());
@@ -1989,7 +2220,7 @@ void LocationsBuilderARM64::VisitReturn(HReturn* instruction) {
 void InstructionCodeGeneratorARM64::VisitReturn(HReturn* instruction) {
   UNUSED(instruction);
   codegen_->GenerateFrameExit();
-  __ Br(lr);
+  __ Ret();
 }
 
 void LocationsBuilderARM64::VisitReturnVoid(HReturnVoid* instruction) {
@@ -1999,7 +2230,7 @@ void LocationsBuilderARM64::VisitReturnVoid(HReturnVoid* instruction) {
 void InstructionCodeGeneratorARM64::VisitReturnVoid(HReturnVoid* instruction) {
   UNUSED(instruction);
   codegen_->GenerateFrameExit();
-  __ Br(lr);
+  __ Ret();
 }
 
 void LocationsBuilderARM64::VisitShl(HShl* shl) {
@@ -2157,17 +2388,18 @@ void InstructionCodeGeneratorARM64::VisitTypeConversion(HTypeConversion* convers
   if (IsIntegralType(result_type) && IsIntegralType(input_type)) {
     int result_size = Primitive::ComponentSize(result_type);
     int input_size = Primitive::ComponentSize(input_type);
-    int min_size = kBitsPerByte * std::min(result_size, input_size);
+    int min_size = std::min(result_size, input_size);
     Register output = OutputRegister(conversion);
     Register source = InputRegisterAt(conversion, 0);
-    if ((result_type == Primitive::kPrimChar) ||
-        ((input_type == Primitive::kPrimChar) && (result_size > input_size))) {
-      __ Ubfx(output, output.IsX() ? source.X() : source.W(), 0, min_size);
+    if ((result_type == Primitive::kPrimChar) && (input_size < result_size)) {
+      __ Ubfx(output, source, 0, result_size * kBitsPerByte);
+    } else if ((result_type == Primitive::kPrimChar) ||
+               ((input_type == Primitive::kPrimChar) && (result_size > input_size))) {
+      __ Ubfx(output, output.IsX() ? source.X() : source.W(), 0, min_size * kBitsPerByte);
     } else {
-      __ Sbfx(output, output.IsX() ? source.X() : source.W(), 0, min_size);
+      __ Sbfx(output, output.IsX() ? source.X() : source.W(), 0, min_size * kBitsPerByte);
     }
   } else if (IsFPType(result_type) && IsIntegralType(input_type)) {
-    CHECK(input_type == Primitive::kPrimInt || input_type == Primitive::kPrimLong);
     __ Scvtf(OutputFPRegister(conversion), InputRegisterAt(conversion, 0));
   } else if (IsIntegralType(result_type) && IsFPType(input_type)) {
     CHECK(result_type == Primitive::kPrimInt || result_type == Primitive::kPrimLong);
