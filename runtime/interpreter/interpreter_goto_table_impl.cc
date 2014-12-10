@@ -1249,6 +1249,30 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   }
   HANDLE_INSTRUCTION_END();
 
+  HANDLE_INSTRUCTION_START(IGET_BOOLEAN_QUICK) {
+    bool success = DoIGetQuick<Primitive::kPrimBoolean>(shadow_frame, inst, inst_data);
+    POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
+  }
+  HANDLE_INSTRUCTION_END();
+
+  HANDLE_INSTRUCTION_START(IGET_BYTE_QUICK) {
+    bool success = DoIGetQuick<Primitive::kPrimByte>(shadow_frame, inst, inst_data);
+    POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
+  }
+  HANDLE_INSTRUCTION_END();
+
+  HANDLE_INSTRUCTION_START(IGET_CHAR_QUICK) {
+    bool success = DoIGetQuick<Primitive::kPrimChar>(shadow_frame, inst, inst_data);
+    POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
+  }
+  HANDLE_INSTRUCTION_END();
+
+  HANDLE_INSTRUCTION_START(IGET_SHORT_QUICK) {
+    bool success = DoIGetQuick<Primitive::kPrimShort>(shadow_frame, inst, inst_data);
+    POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
+  }
+  HANDLE_INSTRUCTION_END();
+
   HANDLE_INSTRUCTION_START(IGET_WIDE_QUICK) {
     bool success = DoIGetQuick<Primitive::kPrimLong>(shadow_frame, inst, inst_data);
     POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, 2);
@@ -2307,22 +2331,6 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(UNUSED_7A)
-    UnexpectedOpcode(inst, shadow_frame);
-  HANDLE_INSTRUCTION_END();
-
-  HANDLE_INSTRUCTION_START(UNUSED_EF)
-    UnexpectedOpcode(inst, shadow_frame);
-  HANDLE_INSTRUCTION_END();
-
-  HANDLE_INSTRUCTION_START(UNUSED_F0)
-    UnexpectedOpcode(inst, shadow_frame);
-  HANDLE_INSTRUCTION_END();
-
-  HANDLE_INSTRUCTION_START(UNUSED_F1)
-    UnexpectedOpcode(inst, shadow_frame);
-  HANDLE_INSTRUCTION_END();
-
-  HANDLE_INSTRUCTION_START(UNUSED_F2)
     UnexpectedOpcode(inst, shadow_frame);
   HANDLE_INSTRUCTION_END();
 
