@@ -120,6 +120,22 @@ void DexCompiler::Compile() {
         CompileInstanceFieldAccess(inst, dex_pc, Instruction::IGET_OBJECT_QUICK, false);
         break;
 
+      case Instruction::IGET_BOOLEAN:
+        CompileInstanceFieldAccess(inst, dex_pc, Instruction::IGET_BOOLEAN_QUICK, false);
+        break;
+
+      case Instruction::IGET_BYTE:
+        CompileInstanceFieldAccess(inst, dex_pc, Instruction::IGET_BYTE_QUICK, false);
+        break;
+
+      case Instruction::IGET_CHAR:
+        CompileInstanceFieldAccess(inst, dex_pc, Instruction::IGET_CHAR_QUICK, false);
+        break;
+
+      case Instruction::IGET_SHORT:
+        CompileInstanceFieldAccess(inst, dex_pc, Instruction::IGET_SHORT_QUICK, false);
+        break;
+
       case Instruction::IPUT:
         CompileInstanceFieldAccess(inst, dex_pc, Instruction::IPUT_QUICK, true);
         break;
