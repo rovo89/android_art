@@ -20,6 +20,7 @@
 #include "dex_file.h"
 #include "gc_root.h"
 #include "invoke_type.h"
+#include "method_reference.h"
 #include "modifiers.h"
 #include "object.h"
 #include "object_callbacks.h"
@@ -432,6 +433,10 @@ class MANAGED ArtMethod FINAL : public Object {
 
   // Converts a dex PC to a native PC.
   uintptr_t ToNativePc(const uint32_t dex_pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  MethodReference ToMethodReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return MethodReference(GetDexFile(), GetDexMethodIndex());
+  }
 
   // Find the catch block for the given exception type and dex_pc. When a catch block is found,
   // indicates whether the found catch block is responsible for clearing the exception or whether

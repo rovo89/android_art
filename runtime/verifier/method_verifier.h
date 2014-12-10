@@ -238,6 +238,10 @@ class MethodVerifier {
   bool HasFailures() const;
   RegType& ResolveCheckedClass(uint32_t class_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  mirror::ArtMethod* GetQuickInvokedMethod(const Instruction* inst,
+                                           RegisterLine* reg_line,
+                                           bool is_range)
+        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   // Private constructor for dumping.
@@ -583,11 +587,6 @@ class MethodVerifier {
   mirror::ArtMethod* VerifyInvocationArgsFromIterator(T* it, const Instruction* inst,
                                                       MethodType method_type, bool is_range,
                                                       mirror::ArtMethod* res_method)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  mirror::ArtMethod* GetQuickInvokedMethod(const Instruction* inst,
-                                           RegisterLine* reg_line,
-                                           bool is_range)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::ArtMethod* VerifyInvokeVirtualQuickArgs(const Instruction* inst, bool is_range)
