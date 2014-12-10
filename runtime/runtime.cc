@@ -190,6 +190,13 @@ Runtime::~Runtime() {
   }
 
   Thread* self = Thread::Current();
+  if (self == nullptr) {
+    CHECK(AttachCurrentThread("Shutdown thread", false, nullptr, false));
+    self = Thread::Current();
+  } else {
+    LOG(WARNING) << "Current thread not detached in Runtime shutdown";
+  }
+
   {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
     shutting_down_started_ = true;
@@ -198,6 +205,16 @@ Runtime::~Runtime() {
     }
     shutting_down_ = true;
   }
+  // Shutdown and wait for the daemons.
+  CHECK(self != nullptr);
+  if (IsFinishedStarting()) {
+    self->ClearException();
+    self->GetJniEnv()->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
+                                            WellKnownClasses::java_lang_Daemons_stop);
+  }
+  DetachCurrentThread();
+  self = nullptr;
+
   // Shut down background profiler before the runtime exits.
   if (profiler_started_) {
     BackgroundMethodSamplingProfiler::Shutdown();
