@@ -139,6 +139,27 @@ class LocationsBuilderARM64 : public HGraphVisitor {
   DISALLOW_COPY_AND_ASSIGN(LocationsBuilderARM64);
 };
 
+class ParallelMoveResolverARM64 : public ParallelMoveResolver {
+ public:
+  ParallelMoveResolverARM64(ArenaAllocator* allocator, CodeGeneratorARM64* codegen)
+      : ParallelMoveResolver(allocator), codegen_(codegen) {}
+
+  void EmitMove(size_t index) OVERRIDE;
+  void EmitSwap(size_t index) OVERRIDE;
+  void RestoreScratch(int reg) OVERRIDE;
+  void SpillScratch(int reg) OVERRIDE;
+
+ private:
+  Arm64Assembler* GetAssembler() const;
+  vixl::MacroAssembler* GetVIXLAssembler() const {
+    return GetAssembler()->vixl_masm_;
+  }
+
+  CodeGeneratorARM64* const codegen_;
+
+  DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolverARM64);
+};
+
 class CodeGeneratorARM64 : public CodeGenerator {
  public:
   explicit CodeGeneratorARM64(HGraph* graph);
@@ -193,19 +214,10 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   Location GetStackLocation(HLoadLocal* load) const OVERRIDE;
 
-  size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) {
-    UNUSED(stack_index);
-    UNUSED(reg_id);
-    LOG(INFO) << "CodeGeneratorARM64::SaveCoreRegister()";
-    return kArm64WordSize;
-  }
-
-  size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) {
-    UNUSED(stack_index);
-    UNUSED(reg_id);
-    LOG(INFO) << "CodeGeneratorARM64::RestoreCoreRegister()";
-    return kArm64WordSize;
-  }
+  size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id);
+  size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id);
+  size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id);
+  size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id);
 
   // The number of registers that can be allocated. The register allocator may
   // decide to reserve and not use a few of them.
@@ -237,7 +249,11 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   // Code generation helpers.
   void MoveConstant(vixl::CPURegister destination, HConstant* constant);
-  void MoveHelper(Location destination, Location source, Primitive::Type type);
+  // The type is optional. When specified it must be coherent with the
+  // locations, and is used for optimisation and debugging.
+  void MoveLocation(Location destination, Location source,
+                    Primitive::Type type = Primitive::kPrimVoid);
+  void SwapLocations(Location loc_1, Location loc_2);
   void Load(Primitive::Type type, vixl::CPURegister dst, const vixl::MemOperand& src);
   void Store(Primitive::Type type, vixl::CPURegister rt, const vixl::MemOperand& dst);
   void LoadCurrentMethod(vixl::Register current_method);
@@ -245,10 +261,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
   // Generate code to invoke a runtime entry point.
   void InvokeRuntime(int32_t offset, HInstruction* instruction, uint32_t dex_pc);
 
-  ParallelMoveResolver* GetMoveResolver() OVERRIDE {
-    UNIMPLEMENTED(INFO) << "TODO: MoveResolver";
-    return nullptr;
-  }
+  ParallelMoveResolverARM64* GetMoveResolver() { return &move_resolver_; }
 
  private:
   // Labels for each block that will be compiled.
@@ -256,10 +269,15 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   LocationsBuilderARM64 location_builder_;
   InstructionCodeGeneratorARM64 instruction_visitor_;
+  ParallelMoveResolverARM64 move_resolver_;
   Arm64Assembler assembler_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM64);
 };
+
+inline Arm64Assembler* ParallelMoveResolverARM64::GetAssembler() const {
+  return codegen_->GetAssembler();
+}
 
 }  // namespace arm64
 }  // namespace art
