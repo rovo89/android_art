@@ -347,8 +347,8 @@ class OatWriter {
         return lhs->GetQuickCode() < rhs->GetQuickCode();
       }
       // If the code is the same, all other fields are likely to be the same as well.
-      if (UNLIKELY(&lhs->GetMappingTable() != &rhs->GetMappingTable())) {
-        return &lhs->GetMappingTable() < &rhs->GetMappingTable();
+      if (UNLIKELY(lhs->GetMappingTable() != rhs->GetMappingTable())) {
+        return lhs->GetMappingTable() < rhs->GetMappingTable();
       }
       if (UNLIKELY(&lhs->GetVmapTable() != &rhs->GetVmapTable())) {
         return &lhs->GetVmapTable() < &rhs->GetVmapTable();
