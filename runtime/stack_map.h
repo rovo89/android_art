@@ -19,6 +19,7 @@
 
 #include "base/bit_vector.h"
 #include "memory_region.h"
+#include "utils.h"
 
 namespace art {
 
@@ -199,6 +200,11 @@ class StackMap {
        && region_.size() == other.region_.size();
   }
 
+  static size_t ComputeAlignedStackMapSize(size_t stack_mask_size) {
+    // On ARM, the stack maps must be 4-byte aligned.
+    return RoundUp(StackMap::kFixedSize + stack_mask_size, 4);
+  }
+
  private:
   static constexpr int kDexPcOffset = 0;
   static constexpr int kNativePcOffsetOffset = kDexPcOffset + sizeof(uint32_t);
@@ -262,7 +268,7 @@ class CodeInfo {
   }
 
   size_t StackMapSize() const {
-    return StackMap::kFixedSize + GetStackMaskSize();
+    return StackMap::ComputeAlignedStackMapSize(GetStackMaskSize());
   }
 
   DexRegisterMap GetDexRegisterMapOf(StackMap stack_map, uint32_t number_of_dex_registers) {

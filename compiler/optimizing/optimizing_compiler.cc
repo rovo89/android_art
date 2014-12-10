@@ -238,6 +238,17 @@ static bool TryBuildingSsa(HGraph* graph,
   return true;
 }
 
+// The stack map we generate must be 4-byte aligned on ARM. Since existing
+// maps are generated alongside these stack maps, we must also align them.
+static std::vector<uint8_t>& AlignVectorSize(std::vector<uint8_t>& vector) {
+  size_t size = vector.size();
+  size_t aligned_size = RoundUp(size, 4);
+  for (; size < aligned_size; ++size) {
+    vector.push_back(0);
+  }
+  return vector;
+}
+
 CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                                             uint32_t access_flags,
                                             InvokeType invoke_type,
@@ -318,12 +329,6 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     visualizer.DumpGraph(kRegisterAllocatorPassName);
     codegen->CompileOptimized(&allocator);
 
-    std::vector<uint8_t> mapping_table;
-    SrcMap src_mapping_table;
-    codegen->BuildMappingTable(&mapping_table,
-            GetCompilerDriver()->GetCompilerOptions().GetIncludeDebugSymbols() ?
-                 &src_mapping_table : nullptr);
-
     std::vector<uint8_t> stack_map;
     codegen->BuildStackMaps(&stack_map);
 
@@ -333,7 +338,6 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                               codegen->GetFrameSize(),
                               codegen->GetCoreSpillMask(),
                               0, /* FPR spill mask, unused */
-                              mapping_table,
                               stack_map);
   } else if (shouldOptimize && RegisterAllocator::Supports(instruction_set)) {
     LOG(FATAL) << "Could not allocate registers in optimizing compiler";
@@ -360,9 +364,9 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                               codegen->GetCoreSpillMask(),
                               0, /* FPR spill mask, unused */
                               &src_mapping_table,
-                              mapping_table,
-                              vmap_table,
-                              gc_map,
+                              AlignVectorSize(mapping_table),
+                              AlignVectorSize(vmap_table),
+                              AlignVectorSize(gc_map),
                               nullptr);
   }
 }
