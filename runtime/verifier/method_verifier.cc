@@ -2705,6 +2705,18 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     case Instruction::IGET_OBJECT_QUICK:
       VerifyQuickFieldAccess<FieldAccessType::kAccGet>(inst, reg_types_.JavaLangObject(false), false);
       break;
+    case Instruction::IGET_BOOLEAN_QUICK:
+      VerifyQuickFieldAccess<FieldAccessType::kAccGet>(inst, reg_types_.Boolean(), true);
+      break;
+    case Instruction::IGET_BYTE_QUICK:
+      VerifyQuickFieldAccess<FieldAccessType::kAccGet>(inst, reg_types_.Byte(), true);
+      break;
+    case Instruction::IGET_CHAR_QUICK:
+      VerifyQuickFieldAccess<FieldAccessType::kAccGet>(inst, reg_types_.Char(), true);
+      break;
+    case Instruction::IGET_SHORT_QUICK:
+      VerifyQuickFieldAccess<FieldAccessType::kAccGet>(inst, reg_types_.Short(), true);
+      break;
     case Instruction::IPUT_QUICK:
       VerifyQuickFieldAccess<FieldAccessType::kAccPut>(inst, reg_types_.Integer(), true);
       break;
@@ -2744,31 +2756,10 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
     }
 
     /* These should never appear during verification. */
-    case Instruction::UNUSED_3E:
-    case Instruction::UNUSED_3F:
-    case Instruction::UNUSED_40:
-    case Instruction::UNUSED_41:
-    case Instruction::UNUSED_42:
-    case Instruction::UNUSED_43:
+    case Instruction::UNUSED_3E ... Instruction::UNUSED_43:
+    case Instruction::UNUSED_F3 ... Instruction::UNUSED_FF:
     case Instruction::UNUSED_79:
     case Instruction::UNUSED_7A:
-    case Instruction::UNUSED_EF:
-    case Instruction::UNUSED_F0:
-    case Instruction::UNUSED_F1:
-    case Instruction::UNUSED_F2:
-    case Instruction::UNUSED_F3:
-    case Instruction::UNUSED_F4:
-    case Instruction::UNUSED_F5:
-    case Instruction::UNUSED_F6:
-    case Instruction::UNUSED_F7:
-    case Instruction::UNUSED_F8:
-    case Instruction::UNUSED_F9:
-    case Instruction::UNUSED_FA:
-    case Instruction::UNUSED_FB:
-    case Instruction::UNUSED_FC:
-    case Instruction::UNUSED_FD:
-    case Instruction::UNUSED_FE:
-    case Instruction::UNUSED_FF:
       Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Unexpected opcode " << inst->DumpString(dex_file_);
       break;
 
@@ -3909,6 +3900,10 @@ mirror::ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
   DCHECK(inst->Opcode() == Instruction::IGET_QUICK ||
          inst->Opcode() == Instruction::IGET_WIDE_QUICK ||
          inst->Opcode() == Instruction::IGET_OBJECT_QUICK ||
+         inst->Opcode() == Instruction::IGET_BOOLEAN_QUICK ||
+         inst->Opcode() == Instruction::IGET_BYTE_QUICK ||
+         inst->Opcode() == Instruction::IGET_CHAR_QUICK ||
+         inst->Opcode() == Instruction::IGET_SHORT_QUICK ||
          inst->Opcode() == Instruction::IPUT_QUICK ||
          inst->Opcode() == Instruction::IPUT_WIDE_QUICK ||
          inst->Opcode() == Instruction::IPUT_OBJECT_QUICK ||

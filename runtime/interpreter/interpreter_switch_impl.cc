@@ -1128,6 +1128,30 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
         break;
       }
+      case Instruction::IGET_BOOLEAN_QUICK: {
+        PREAMBLE();
+        bool success = DoIGetQuick<Primitive::kPrimBoolean>(shadow_frame, inst, inst_data);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
+        break;
+      }
+      case Instruction::IGET_BYTE_QUICK: {
+        PREAMBLE();
+        bool success = DoIGetQuick<Primitive::kPrimByte>(shadow_frame, inst, inst_data);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
+        break;
+      }
+      case Instruction::IGET_CHAR_QUICK: {
+        PREAMBLE();
+        bool success = DoIGetQuick<Primitive::kPrimChar>(shadow_frame, inst, inst_data);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
+        break;
+      }
+      case Instruction::IGET_SHORT_QUICK: {
+        PREAMBLE();
+        bool success = DoIGetQuick<Primitive::kPrimShort>(shadow_frame, inst, inst_data);
+        POSSIBLY_HANDLE_PENDING_EXCEPTION(!success, Next_2xx);
+        break;
+      }
       case Instruction::SGET_BOOLEAN: {
         PREAMBLE();
         bool success = DoFieldGet<StaticPrimitiveRead, Primitive::kPrimBoolean, do_access_check>(self, shadow_frame, inst, inst_data);
@@ -2137,7 +2161,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         inst = inst->Next_2xx();
         break;
       case Instruction::UNUSED_3E ... Instruction::UNUSED_43:
-      case Instruction::UNUSED_EF ... Instruction::UNUSED_FF:
+      case Instruction::UNUSED_F3 ... Instruction::UNUSED_FF:
       case Instruction::UNUSED_79:
       case Instruction::UNUSED_7A:
         UnexpectedOpcode(inst, shadow_frame);
