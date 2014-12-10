@@ -57,7 +57,7 @@ void CommonCompilerTest::MakeExecutable(mirror::ArtMethod* method) {
       const std::vector<uint8_t>& vmap_table = compiled_method->GetVmapTable();
       uint32_t vmap_table_offset = vmap_table.empty() ? 0u
           : sizeof(OatQuickMethodHeader) + vmap_table.size();
-      const std::vector<uint8_t>& mapping_table = compiled_method->GetMappingTable();
+      const std::vector<uint8_t>& mapping_table = *compiled_method->GetMappingTable();
       uint32_t mapping_table_offset = mapping_table.empty() ? 0u
           : sizeof(OatQuickMethodHeader) + vmap_table.size() + mapping_table.size();
       const std::vector<uint8_t>& gc_map = *compiled_method->GetGcMap();

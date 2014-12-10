@@ -204,7 +204,14 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
     // Portable doesn't use the machine pc, we just use dex pc instead.
     return static_cast<uint32_t>(pc);
   }
+
   const void* entry_point = GetQuickOatEntryPoint(sizeof(void*));
+  uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(entry_point);
+  if (IsOptimized(sizeof(void*))) {
+    uint32_t ret = GetStackMap(sought_offset).GetDexPc();
+    return ret;
+  }
+
   MappingTable table(entry_point != nullptr ?
       GetMappingTable(EntryPointToCodePointer(entry_point), sizeof(void*)) : nullptr);
   if (table.TotalSize() == 0) {
@@ -213,7 +220,6 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
     DCHECK(IsNative() || IsCalleeSaveMethod() || IsProxyMethod()) << PrettyMethod(this);
     return DexFile::kDexNoIndex;   // Special no mapping case
   }
-  uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(entry_point);
   // Assume the caller wants a pc-to-dex mapping so check here first.
   typedef MappingTable::PcToDexIterator It;
   for (It cur = table.PcToDexBegin(), end = table.PcToDexEnd(); cur != end; ++cur) {
