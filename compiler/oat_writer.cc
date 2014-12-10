@@ -530,7 +530,7 @@ struct OatWriter::GcMapDataAccess {
 
 struct OatWriter::MappingTableDataAccess {
   static const std::vector<uint8_t>* GetData(const CompiledMethod* compiled_method) ALWAYS_INLINE {
-    return &compiled_method->GetMappingTable();
+    return compiled_method->GetMappingTable();
   }
 
   static uint32_t GetOffset(OatClass* oat_class, size_t method_offsets_index) ALWAYS_INLINE {
