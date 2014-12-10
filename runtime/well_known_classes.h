@@ -80,6 +80,7 @@ struct WellKnownClasses {
   static jmethodID java_lang_Daemons_requestGC;
   static jmethodID java_lang_Daemons_requestHeapTrim;
   static jmethodID java_lang_Daemons_start;
+  static jmethodID java_lang_Daemons_stop;
   static jmethodID java_lang_Double_valueOf;
   static jmethodID java_lang_Float_valueOf;
   static jmethodID java_lang_Integer_valueOf;
