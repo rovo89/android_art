@@ -840,6 +840,20 @@ uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
 // are better set directly from the code (they will require no more than 2 instructions).
 #define ALIGNED_DATA_OFFSET(offset) (((offset) + 0x7) & ~0x7)
 
+/*
+ * Get the LIR which emits the instruction preceding the given LIR.
+ * Returns nullptr, if no previous emitting insn found.
+ */
+static LIR* GetPrevEmittingLIR(LIR* lir) {
+  DCHECK(lir != nullptr);
+  LIR* prev_lir = lir->prev;
+  while ((prev_lir != nullptr) &&
+         (prev_lir->flags.is_nop || Mir2Lir::IsPseudoLirOp(prev_lir->opcode))) {
+    prev_lir = prev_lir->prev;
+  }
+  return prev_lir;
+}
+
 // Assemble the LIR into binary instruction format.
 void Arm64Mir2Lir::AssembleLIR() {
   LIR* lir;
@@ -1002,7 +1016,11 @@ void Arm64Mir2Lir::AssembleLIR() {
               ->NeedFixCortexA53_835769()) {
             // Check that this is a 64-bit multiply-accumulate.
             if (IS_WIDE(lir->opcode)) {
-              uint64_t prev_insn_flags = EncodingMap[UNWIDE(lir->prev->opcode)].flags;
+              LIR* prev_insn = GetPrevEmittingLIR(lir);
+              if (prev_insn == nullptr) {
+                break;
+              }
+              uint64_t prev_insn_flags = EncodingMap[UNWIDE(prev_insn->opcode)].flags;
               // Check that the instruction preceding the multiply-accumulate is a load or store.
               if ((prev_insn_flags & IS_LOAD) != 0 || (prev_insn_flags & IS_STORE) != 0) {
                 // insert a NOP between the load/store and the multiply-accumulate.
