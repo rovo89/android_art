@@ -3408,7 +3408,7 @@ mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst
     return nullptr;
   }
   mirror::ArtMethod* res_method = dispatch_class->GetVTableEntry(vtable_index);
-  if (FailOrAbort(this, !Thread::Current()->IsExceptionPending(),
+  if (FailOrAbort(this, !self_->IsExceptionPending(),
                   "Unexpected exception pending for quickened invoke at ",
                   work_insn_idx_)) {
     return nullptr;
