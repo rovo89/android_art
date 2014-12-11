@@ -19,6 +19,7 @@
 #include <fcntl.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <deque>
 #include <memory>
 #include <string>
@@ -645,7 +646,14 @@ bool ClassLinker::GenerateOatFile(const char* dex_filename,
     argv.push_back(compiler_options[i].c_str());
   }
 
-  return Exec(argv, error_msg);
+  if (!Exec(argv, error_msg)) {
+    // Manually delete the file. Ensures there is no garbage left over if the process unexpectedly
+    // died. Ignore unlink failure, propagate the original error.
+    TEMP_FAILURE_RETRY(unlink(oat_cache_filename));
+    return false;
+  }
+
+  return true;
 }
 
 const OatFile* ClassLinker::RegisterOatFile(const OatFile* oat_file) {
