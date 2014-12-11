@@ -27,5 +27,15 @@
   names: ["libcore.java.lang.OldSystemTest#test_getProperties",
           "org.apache.harmony.tests.java.lang.Process2Test#test_getErrorStream",
           "org.apache.harmony.tests.java.lang.ProcessTest#test_exitValue"]
+},
+{
+  description: "Failures needing investigation",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["libcore.java.util.TimeZoneTest#testDisplayNames",
+          "libcore.java.util.TimeZoneTest#test_useDaylightTime_Taiwan",
+          "org.apache.harmony.tests.java.util.DateTest#test_Constructor",
+          "org.apache.harmony.tests.java.util.ScannerTest#test_Constructor_LReadableByteChannel",
+          "org.apache.harmony.tests.java.util.TimeZoneTest#test_hasSameRules_Ljava_util_TimeZone"]
 }
 ]
