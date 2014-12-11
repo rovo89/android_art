@@ -949,10 +949,33 @@ LIR* Arm64Mir2Lir::OpVstm(RegStorage r_base, int count) {
   UNREACHABLE();
 }
 
+void Arm64Mir2Lir::GenMaddMsubInt(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
+                                  RegLocation rl_src3, bool is_sub) {
+  rl_src1 = LoadValue(rl_src1, kCoreReg);
+  rl_src2 = LoadValue(rl_src2, kCoreReg);
+  rl_src3 = LoadValue(rl_src3, kCoreReg);
+  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+  NewLIR4(is_sub ? kA64Msub4rrrr : kA64Madd4rrrr, rl_result.reg.GetReg(), rl_src1.reg.GetReg(),
+          rl_src2.reg.GetReg(), rl_src3.reg.GetReg());
+  StoreValue(rl_dest, rl_result);
+}
+
+void Arm64Mir2Lir::GenMaddMsubLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
+                                   RegLocation rl_src3, bool is_sub) {
+  rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+  rl_src2 = LoadValueWide(rl_src2, kCoreReg);
+  rl_src3 = LoadValueWide(rl_src3, kCoreReg);
+  RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+  NewLIR4(is_sub ? WIDE(kA64Msub4rrrr) : WIDE(kA64Madd4rrrr), rl_result.reg.GetReg(),
+          rl_src1.reg.GetReg(), rl_src2.reg.GetReg(), rl_src3.reg.GetReg());
+  StoreValueWide(rl_dest, rl_result);
+}
+
 void Arm64Mir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
                                                  RegLocation rl_result, int lit ATTRIBUTE_UNUSED,
                                                  int first_bit, int second_bit) {
-  OpRegRegRegShift(kOpAdd, rl_result.reg, rl_src.reg, rl_src.reg, EncodeShift(kA64Lsl, second_bit - first_bit));
+  OpRegRegRegShift(kOpAdd, rl_result.reg, rl_src.reg, rl_src.reg,
+                   EncodeShift(kA64Lsl, second_bit - first_bit));
   if (first_bit != 0) {
     OpRegRegImm(kOpLsl, rl_result.reg, rl_result.reg, first_bit);
   }
@@ -1686,7 +1709,8 @@ bool Arm64Mir2Lir::GenInlinedReverseBits(CallInfo* info, OpSize size) {
   RegLocation rl_src_i = info->args[0];
   RegLocation rl_dest = IsWide(size) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  RegLocation rl_i = IsWide(size) ? LoadValueWide(rl_src_i, kCoreReg) : LoadValue(rl_src_i, kCoreReg);
+  RegLocation rl_i = IsWide(size) ?
+      LoadValueWide(rl_src_i, kCoreReg) : LoadValue(rl_src_i, kCoreReg);
   NewLIR2(kA64Rbit2rr | wide, rl_result.reg.GetReg(), rl_i.reg.GetReg());
   IsWide(size) ? StoreValueWide(rl_dest, rl_result) : StoreValue(rl_dest, rl_result);
   return true;
