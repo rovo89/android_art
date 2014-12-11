@@ -548,7 +548,7 @@ class Dex2Oat FINAL {
       } else if (option.starts_with("--instruction-set=")) {
         StringPiece instruction_set_str = option.substr(strlen("--instruction-set=")).data();
         // StringPiece is not necessarily zero-terminated, so need to make a copy and ensure it.
-        std::unique_ptr<char> buf(new char[instruction_set_str.length() + 1]);
+        std::unique_ptr<char[]> buf(new char[instruction_set_str.length() + 1]);
         strncpy(buf.get(), instruction_set_str.data(), instruction_set_str.length());
         buf.get()[instruction_set_str.length()] = 0;
         instruction_set_ = GetInstructionSetFromString(buf.get());
@@ -1321,7 +1321,7 @@ class Dex2Oat FINAL {
       std::unique_ptr<File> in(OS::OpenFileForReading(oat_unstripped_.c_str()));
       std::unique_ptr<File> out(OS::CreateEmptyFile(oat_stripped_.c_str()));
       size_t buffer_size = 8192;
-      std::unique_ptr<uint8_t> buffer(new uint8_t[buffer_size]);
+      std::unique_ptr<uint8_t[]> buffer(new uint8_t[buffer_size]);
       while (true) {
         int bytes_read = TEMP_FAILURE_RETRY(read(in->Fd(), buffer.get(), buffer_size));
         if (bytes_read <= 0) {
