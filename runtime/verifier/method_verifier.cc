@@ -3418,7 +3418,9 @@ mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst
 
 mirror::ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instruction* inst,
                                                                 bool is_range) {
-  DCHECK(Runtime::Current()->IsStarted() || verify_to_dump_);
+  DCHECK(Runtime::Current()->IsStarted() || verify_to_dump_)
+      << PrettyMethod(dex_method_idx_, *dex_file_, true) << "@" << work_insn_idx_;
+
   mirror::ArtMethod* res_method = GetQuickInvokedMethod(inst, work_line_.get(),
                                                              is_range);
   if (res_method == nullptr) {
