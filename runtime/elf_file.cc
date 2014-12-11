@@ -488,6 +488,20 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     return false;
   }
 
+  // We'd also like to confirm a shstrtab in program_header_only_ mode (else Open() does this for
+  // us). This is usually the last in an oat file, and a good indicator of whether writing was
+  // successful (or the process crashed and left garbage).
+  if (program_header_only_) {
+    // It might not be mapped, but we can compare against the file size.
+    int64_t offset = static_cast<int64_t>(GetHeader().e_shoff +
+                                          (GetHeader().e_shstrndx * GetHeader().e_shentsize));
+    if (offset >= file_->GetLength()) {
+      *error_msg = StringPrintf("Shstrtab is not in the mapped ELF file: '%s'",
+                                file_->GetPath().c_str());
+      return false;
+    }
+  }
+
   return true;
 }
 
