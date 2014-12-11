@@ -481,10 +481,10 @@ enum ArmOpcode {
   kThumb2LsrRRR,     // lsr [111110100010] rn[19..16] [1111] rd[11..8] [0000] rm[3..0].
   kThumb2AsrRRR,     // asr [111110100100] rn[19..16] [1111] rd[11..8] [0000] rm[3..0].
   kThumb2RorRRR,     // ror [111110100110] rn[19..16] [1111] rd[11..8] [0000] rm[3..0].
-  kThumb2LslRRI5,    // lsl [11101010010011110] imm[14.12] rd[11..8] [00] rm[3..0].
-  kThumb2LsrRRI5,    // lsr [11101010010011110] imm[14.12] rd[11..8] [01] rm[3..0].
-  kThumb2AsrRRI5,    // asr [11101010010011110] imm[14.12] rd[11..8] [10] rm[3..0].
-  kThumb2RorRRI5,    // ror [11101010010011110] imm[14.12] rd[11..8] [11] rm[3..0].
+  kThumb2LslRRI5,    // lsl [11101010010011110] imm3[14..12] rd[11..8] imm2[7..6] [00] rm[3..0].
+  kThumb2LsrRRI5,    // lsr [11101010010011110] imm3[14..12] rd[11..8] imm2[7..6] [01] rm[3..0].
+  kThumb2AsrRRI5,    // asr [11101010010011110] imm3[14..12] rd[11..8] imm2[7..6] [10] rm[3..0].
+  kThumb2RorRRI5,    // ror [11101010010011110] imm3[14..12] rd[11..8] imm2[7..6] [11] rm[3..0].
   kThumb2BicRRI8M,   // bic rd, rn, #<const> [11110] i [000010] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
   kThumb2AndRRI8M,   // and rd, rn, #<const> [11110] i [000000] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
   kThumb2OrrRRI8M,   // orr rd, rn, #<const> [11110] i [000100] rn[19..16] [0] imm3[14..12] rd[11..8] imm8[7..0].
@@ -512,7 +512,8 @@ enum ArmOpcode {
   kThumb2Vnegs,      // vneg.f32 [111011101] D [110000] rd[15-12] [1010110] M [0] vm[3-0].
   kThumb2Vmovs_IMM8,  // vmov.f32 [111011101] D [11] imm4h[19-16] vd[15-12] [10100000] imm4l[3-0].
   kThumb2Vmovd_IMM8,  // vmov.f64 [111011101] D [11] imm4h[19-16] vd[15-12] [10110000] imm4l[3-0].
-  kThumb2Mla,        // mla [111110110000] rn[19-16] ra[15-12] rd[7-4] [0000] rm[3-0].
+  kThumb2Mla,        // mla [111110110000] rn[19-16] ra[15-12] rd[11-8] [0000] rm[3-0].
+  kThumb2Mls,        // mls [111110110000] rn[19-16] ra[15-12] rd[11-8] [0001] rm[3-0].
   kThumb2Umull,      // umull [111110111010] rn[19-16], rdlo[15-12] rdhi[11-8] [0000] rm[3-0].
   kThumb2Ldrex,      // ldrex [111010000101] rn[19-16] rt[15-12] [1111] imm8[7-0].
   kThumb2Ldrexd,     // ldrexd [111010001101] rn[19-16] rt[15-12] rt2[11-8] [11111111].

@@ -193,6 +193,10 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   void GenNegFloat(RegLocation rl_dest, RegLocation rl_src) OVERRIDE;
   void GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) OVERRIDE;
   void GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) OVERRIDE;
+  void GenMaddMsubInt(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
+                      RegLocation rl_src3, bool is_sub);
+  void GenMaddMsubLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
+                       RegLocation rl_src3, bool is_sub);
 
   // Required for target - single operation generators.
   LIR* OpUnconditionalBranch(LIR* target) OVERRIDE;
@@ -225,6 +229,8 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   bool InexpensiveConstantFloat(int32_t value) OVERRIDE;
   bool InexpensiveConstantLong(int64_t value) OVERRIDE;
   bool InexpensiveConstantDouble(int64_t value) OVERRIDE;
+
+  void GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) OVERRIDE;
 
   bool WideGPRsAreAliases() const OVERRIDE {
     return true;  // 64b architecture.

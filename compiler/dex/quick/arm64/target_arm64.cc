@@ -849,4 +849,35 @@ int Arm64Mir2Lir::GenDalvikArgsBulkCopy(CallInfo* /*info*/, int /*first*/, int c
   return count;
 }
 
+void Arm64Mir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
+  UNUSED(bb);
+  DCHECK(MIR::DecodedInstruction::IsPseudoMirOp(mir->dalvikInsn.opcode));
+  RegLocation rl_src[3];
+  RegLocation rl_dest = mir_graph_->GetBadLoc();
+  rl_src[0] = rl_src[1] = rl_src[2] = mir_graph_->GetBadLoc();
+  ExtendedMIROpcode opcode = static_cast<ExtendedMIROpcode>(mir->dalvikInsn.opcode);
+  switch (opcode) {
+    case kMirOpMaddInt:
+    case kMirOpMsubInt:
+      rl_dest = mir_graph_->GetDest(mir);
+      rl_src[0] = mir_graph_->GetSrc(mir, 0);
+      rl_src[1] = mir_graph_->GetSrc(mir, 1);
+      rl_src[2]= mir_graph_->GetSrc(mir, 2);
+      GenMaddMsubInt(rl_dest, rl_src[0], rl_src[1], rl_src[2],
+                     (opcode == kMirOpMsubInt) ? true : false);
+      break;
+    case kMirOpMaddLong:
+    case kMirOpMsubLong:
+      rl_dest = mir_graph_->GetDestWide(mir);
+      rl_src[0] = mir_graph_->GetSrcWide(mir, 0);
+      rl_src[1] = mir_graph_->GetSrcWide(mir, 2);
+      rl_src[2] = mir_graph_->GetSrcWide(mir, 4);
+      GenMaddMsubLong(rl_dest, rl_src[0], rl_src[1], rl_src[2],
+                      (opcode == kMirOpMsubLong) ? true : false);
+      break;
+    default:
+      LOG(FATAL) << "Unexpected opcode: " << static_cast<int>(opcode);
+  }
+}
+
 }  // namespace art
