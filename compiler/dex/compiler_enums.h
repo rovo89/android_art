@@ -311,6 +311,34 @@ enum ExtendedMIROpcode {
   // arg[0]: TypeSize (most other vector opcodes have this in vC)
   kMirOpPackedArrayPut,
 
+  // @brief Multiply-add integer.
+  // vA: destination
+  // vB: multiplicand
+  // vC: multiplier
+  // arg[0]: addend
+  kMirOpMaddInt,
+
+  // @brief Multiply-subtract integer.
+  // vA: destination
+  // vB: multiplicand
+  // vC: multiplier
+  // arg[0]: minuend
+  kMirOpMsubInt,
+
+  // @brief Multiply-add long.
+  // vA: destination
+  // vB: multiplicand
+  // vC: multiplier
+  // arg[0]: addend
+  kMirOpMaddLong,
+
+  // @brief Multiply-subtract long.
+  // vA: destination
+  // vB: multiplicand
+  // vC: multiplier
+  // arg[0]: minuend
+  kMirOpMsubLong,
+
   kMirOpLast,
 };
 
