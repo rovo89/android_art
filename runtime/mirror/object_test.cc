@@ -77,10 +77,6 @@ class ObjectTest : public CommonRuntimeTest {
 TEST_F(ObjectTest, Constants) {
   EXPECT_EQ(kObjectReferenceSize, sizeof(HeapReference<Object>));
   EXPECT_EQ(kObjectHeaderSize, sizeof(Object));
-  EXPECT_EQ(MIRROR_ART_METHOD_PORTABLE_CODE_OFFSET_32,
-            ArtMethod::EntryPointFromPortableCompiledCodeOffset(4).Int32Value());
-  EXPECT_EQ(MIRROR_ART_METHOD_PORTABLE_CODE_OFFSET_64,
-            ArtMethod::EntryPointFromPortableCompiledCodeOffset(8).Int32Value());
   EXPECT_EQ(MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32,
             ArtMethod::EntryPointFromQuickCompiledCodeOffset(4).Int32Value());
   EXPECT_EQ(MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64,

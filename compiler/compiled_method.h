@@ -40,23 +40,15 @@ class CompiledCode {
   CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
                const std::vector<uint8_t>& quick_code);
 
-  // For Portable to supply an ELF object
-  CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
-               const std::string& elf_object, const std::string &symbol);
-
   InstructionSet GetInstructionSet() const {
     return instruction_set_;
-  }
-
-  const std::vector<uint8_t>* GetPortableCode() const {
-    return portable_code_;
   }
 
   const std::vector<uint8_t>* GetQuickCode() const {
     return quick_code_;
   }
 
-  void SetCode(const std::vector<uint8_t>* quick_code, const std::vector<uint8_t>* portable_code);
+  void SetCode(const std::vector<uint8_t>* quick_code);
 
   bool operator==(const CompiledCode& rhs) const;
 
@@ -77,7 +69,6 @@ class CompiledCode {
   static const void* CodePointer(const void* code_pointer,
                                  InstructionSet instruction_set);
 
-  const std::string& GetSymbol() const;
   const std::vector<uint32_t>& GetOatdataOffsetsToCompliledCodeOffset() const;
   void AddOatdataOffsetToCompliledCodeOffset(uint32_t offset);
 
@@ -86,14 +77,8 @@ class CompiledCode {
 
   const InstructionSet instruction_set_;
 
-  // The ELF image for portable.
-  std::vector<uint8_t>* portable_code_;
-
   // Used to store the PIC code for Quick.
   std::vector<uint8_t>* quick_code_;
-
-  // Used for the Portable ELF symbol name.
-  const std::string symbol_;
 
   // There are offsets from the oatdata symbol to where the offset to
   // the compiled method will be found. These are computed by the
@@ -302,14 +287,6 @@ class CompiledMethod FINAL : public CompiledCode {
                  const uint32_t fp_spill_mask,
                  const std::vector<uint8_t>* cfi_info);
 
-  // Constructs a CompiledMethod for the Portable compiler.
-  CompiledMethod(CompilerDriver* driver, InstructionSet instruction_set, const std::string& code,
-                 const std::vector<uint8_t>& gc_map, const std::string& symbol);
-
-  // Constructs a CompiledMethod for the Portable JniCompiler.
-  CompiledMethod(CompilerDriver* driver, InstructionSet instruction_set, const std::string& code,
-                 const std::string& symbol);
-
   ~CompiledMethod() {}
 
   size_t GetFrameSizeInBytes() const {
@@ -365,7 +342,7 @@ class CompiledMethod FINAL : public CompiledCode {
   // For quick code, a uleb128 encoded map from GPR/FPR register to dex register. Size prefixed.
   std::vector<uint8_t>* vmap_table_;
   // For quick code, a map keyed by native PC indices to bitmaps describing what dalvik registers
-  // are live. For portable code, the key is a dalvik PC.
+  // are live.
   std::vector<uint8_t>* gc_map_;
   // For quick code, a FDE entry for the debug_frame section.
   std::vector<uint8_t>* cfi_info_;

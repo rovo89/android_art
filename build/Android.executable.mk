@@ -20,9 +20,6 @@ ART_HOST_EXECUTABLES ?=
 ART_TARGET_EXECUTABLES ?=
 
 ART_EXECUTABLES_CFLAGS :=
-ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-  ART_EXECUTABLES_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
-endif
 
 # $(1): executable ("d" will be appended for debug version)
 # $(2): source

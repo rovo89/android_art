@@ -1624,7 +1624,6 @@ TEST_F(JniInternalTest, GetObjectArrayElement_SetObjectArrayElement) {
 
 
 TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
-  TEST_DISABLED_FOR_PORTABLE();
   Thread::Current()->TransitionFromSuspendedToRunnable();
   LoadDex("AllFields");
   bool started = runtime_->Start();
@@ -1655,7 +1654,6 @@ TEST_F(JniInternalTest, GetPrimitiveField_SetPrimitiveField) {
 }
 
 TEST_F(JniInternalTest, GetObjectField_SetObjectField) {
-  TEST_DISABLED_FOR_PORTABLE();
   Thread::Current()->TransitionFromSuspendedToRunnable();
   LoadDex("AllFields");
   runtime_->Start();

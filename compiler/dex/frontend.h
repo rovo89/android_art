@@ -70,8 +70,6 @@ enum debugControlVector {
   kDebugShowNops,
   kDebugCountOpcodes,
   kDebugDumpCheckStats,
-  kDebugDumpBitcodeFile,
-  kDebugVerifyBitcode,
   kDebugShowSummaryMemoryUsage,
   kDebugShowFilterStats,
   kDebugTimings,

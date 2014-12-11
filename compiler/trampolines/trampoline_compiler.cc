@@ -40,8 +40,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
       __ LoadFromOffset(kLoadWord, IP, R0, JNIEnvExt::SelfOffset().Int32Value());
       __ LoadFromOffset(kLoadWord, PC, IP, offset.Int32Value());
       break;
-    case kPortableAbi:  // R9 holds Thread*.
-    case kQuickAbi:  // Fall-through.
+    case kQuickAbi:  // R9 holds Thread*.
       __ LoadFromOffset(kLoadWord, PC, R9, offset.Int32Value());
   }
   __ bkpt(0);
@@ -75,8 +74,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
                 Arm64ManagedRegister::FromXRegister(IP0));
 
       break;
-    case kPortableAbi:  // X18 holds Thread*.
-    case kQuickAbi:  // Fall-through.
+    case kQuickAbi:  // X18 holds Thread*.
       __ JumpTo(Arm64ManagedRegister::FromXRegister(TR), Offset(offset.Int32Value()),
                 Arm64ManagedRegister::FromXRegister(IP0));
 
@@ -106,8 +104,7 @@ static const std::vector<uint8_t>* CreateTrampoline(EntryPointCallingConvention 
       __ LoadFromOffset(kLoadWord, T9, A0, JNIEnvExt::SelfOffset().Int32Value());
       __ LoadFromOffset(kLoadWord, T9, T9, offset.Int32Value());
       break;
-    case kPortableAbi:  // S1 holds Thread*.
-    case kQuickAbi:  // Fall-through.
+    case kQuickAbi:  // S1 holds Thread*.
       __ LoadFromOffset(kLoadWord, T9, S1, offset.Int32Value());
   }
   __ Jr(T9);

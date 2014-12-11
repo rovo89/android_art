@@ -84,7 +84,6 @@ LIBART_COMPILER_SRC_FILES := \
 	jni/quick/x86_64/calling_convention_x86_64.cc \
 	jni/quick/calling_convention.cc \
 	jni/quick/jni_compiler.cc \
-	llvm/llvm_compiler.cc \
 	optimizing/builder.cc \
 	optimizing/bounds_check_elimination.cc \
 	optimizing/code_generator.cc \
@@ -137,37 +136,7 @@ LIBART_COMPILER_SRC_FILES := \
 	output_stream.cc \
 	vector_output_stream.cc
 
-ifeq ($(ART_SEA_IR_MODE),true)
-LIBART_COMPILER_SRC_FILES += \
-	sea_ir/frontend.cc \
-	sea_ir/ir/instruction_tools.cc \
-	sea_ir/ir/sea.cc \
-	sea_ir/code_gen/code_gen.cc \
-	sea_ir/code_gen/code_gen_data.cc \
-	sea_ir/types/type_inference.cc \
-	sea_ir/types/type_inference_visitor.cc \
-	sea_ir/debug/dot_gen.cc
-endif
-
 LIBART_COMPILER_CFLAGS :=
-
-ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-LIBART_COMPILER_SRC_FILES += \
-	dex/portable/mir_to_gbc.cc \
-	elf_writer_mclinker.cc \
-	jni/portable/jni_compiler.cc \
-	llvm/compiler_llvm.cc \
-	llvm/gbc_expander.cc \
-	llvm/generated/art_module.cc \
-	llvm/intrinsic_helper.cc \
-	llvm/ir_builder.cc \
-	llvm/llvm_compilation_unit.cc \
-	llvm/md_builder.cc \
-	llvm/runtime_support_builder.cc \
-	llvm/runtime_support_builder_arm.cc \
-	llvm/runtime_support_builder_x86.cc
-LIBART_COMPILER_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
-endif
 
 LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
   dex/quick/arm/arm_lir.h \
@@ -249,28 +218,6 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     endif
   endif
 
-  ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-    LOCAL_SHARED_LIBRARIES += libLLVM
-    LOCAL_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
-    ifeq ($$(art_target_or_host),target)
-      LOCAL_STATIC_LIBRARIES_arm += libmcldARMInfo libmcldARMTarget
-      LOCAL_STATIC_LIBRARIES_x86 += libmcldX86Info libmcldX86Target
-      LOCAL_STATIC_LIBRARIES_x86_64 += libmcldX86Info libmcldX86Target
-      LOCAL_STATIC_LIBRARIES_mips += libmcldMipsInfo libmcldMipsTarget
-      ifeq ($(TARGET_ARCH),arm64)
-         $$(info TODOAArch64: $$(LOCAL_PATH)/Android.mk Add Arm64 specific MCLinker libraries)
-      endif # TARGET_ARCH != arm64
-      include $(LLVM_DEVICE_BUILD_MK)
-    else # host
-      LOCAL_STATIC_LIBRARIES += libmcldARMInfo libmcldARMTarget
-      LOCAL_STATIC_LIBRARIES += libmcldX86Info libmcldX86Target
-      LOCAL_STATIC_LIBRARIES += libmcldMipsInfo libmcldMipsTarget
-      include $(LLVM_HOST_BUILD_MK)
-    endif
-    LOCAL_STATIC_LIBRARIES += libmcldCore libmcldObject libmcldADT libmcldFragment libmcldTarget libmcldCodeGen libmcldLDVariant libmcldMC libmcldSupport libmcldLD libmcldScript
-    include $(LLVM_GEN_INTRINSICS_MK)
-  endif
-
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
 
   ifeq ($$(art_target_or_host),host)
@@ -322,19 +269,4 @@ ifeq ($(ART_BUILD_TARGET_NDEBUG),true)
 endif
 ifeq ($(ART_BUILD_TARGET_DEBUG),true)
   $(eval $(call build-libart-compiler,target,debug))
-endif
-
-# Rule to build /system/lib/libcompiler_rt.a
-# Usually static libraries are not installed on the device.
-ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-ifeq ($(ART_BUILD_TARGET),true)
-# TODO: Move to external/compiler_rt
-$(eval $(call copy-one-file, $(call intermediates-dir-for,STATIC_LIBRARIES,libcompiler_rt,,)/libcompiler_rt.a, $(TARGET_OUT_SHARED_LIBRARIES)/libcompiler_rt.a))
-ifdef TARGET_2ND_ARCH
-$(eval $(call copy-one-file, $(call intermediates-dir-for,STATIC_LIBRARIES,libcompiler_rt,,,t)/libcompiler_rt.a, $(2ND_TARGET_OUT_SHARED_LIBRARIES)/libcompiler_rt.a))
-endif
-
-$(DEX2OAT): $(TARGET_OUT_SHARED_LIBRARIES)/libcompiler_rt.a
-
-endif
 endif

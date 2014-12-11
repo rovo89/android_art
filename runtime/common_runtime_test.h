@@ -138,16 +138,6 @@ class CheckJniAbortCatcher {
   DISALLOW_COPY_AND_ASSIGN(CheckJniAbortCatcher);
 };
 
-// TODO: These tests were disabled for portable when we went to having
-// MCLinker link LLVM ELF output because we no longer just have code
-// blobs in memory. We'll need to dlopen to load and relocate
-// temporary output to resurrect these tests.
-#define TEST_DISABLED_FOR_PORTABLE() \
-  if (kUsePortableCompiler) { \
-    printf("WARNING: TEST DISABLED FOR PORTABLE\n"); \
-    return; \
-  }
-
 // TODO: When heap reference poisoning works with the compiler, get rid of this.
 #define TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING() \
   if (kPoisonHeapReferences) { \

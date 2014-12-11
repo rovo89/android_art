@@ -22,33 +22,11 @@ namespace art {
 CompiledCode::CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
                            const std::vector<uint8_t>& quick_code)
     : compiler_driver_(compiler_driver), instruction_set_(instruction_set),
-      portable_code_(nullptr), quick_code_(nullptr) {
-  SetCode(&quick_code, nullptr);
+      quick_code_(nullptr) {
+  SetCode(&quick_code);
 }
 
-CompiledCode::CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
-                           const std::string& elf_object, const std::string& symbol)
-    : compiler_driver_(compiler_driver), instruction_set_(instruction_set),
-      portable_code_(nullptr), quick_code_(nullptr), symbol_(symbol) {
-  CHECK_NE(elf_object.size(), 0U);
-  CHECK_NE(symbol.size(), 0U);
-  std::vector<uint8_t> temp_code(elf_object.size());
-  for (size_t i = 0; i < elf_object.size(); ++i) {
-    temp_code[i] = elf_object[i];
-  }
-  // TODO: we shouldn't just shove ELF objects in as "code" but
-  // change to have different kinds of compiled methods.  This is
-  // being deferred until we work on hybrid execution or at least
-  // until we work on batch compilation.
-  SetCode(nullptr, &temp_code);
-}
-
-void CompiledCode::SetCode(const std::vector<uint8_t>* quick_code,
-                           const std::vector<uint8_t>* portable_code) {
-  if (portable_code != nullptr) {
-    CHECK(!portable_code->empty());
-    portable_code_ = compiler_driver_->DeduplicateCode(*portable_code);
-  }
+void CompiledCode::SetCode(const std::vector<uint8_t>* quick_code) {
   if (quick_code != nullptr) {
     CHECK(!quick_code->empty());
     quick_code_ = compiler_driver_->DeduplicateCode(*quick_code);
@@ -64,17 +42,8 @@ bool CompiledCode::operator==(const CompiledCode& rhs) const {
     } else {
       return std::equal(quick_code_->begin(), quick_code_->end(), rhs.quick_code_->begin());
     }
-  } else if (portable_code_ != nullptr) {
-    if (rhs.portable_code_ == nullptr) {
-      return false;
-    } else if (portable_code_->size() != rhs.portable_code_->size()) {
-      return false;
-    } else {
-      return std::equal(portable_code_->begin(), portable_code_->end(),
-                        rhs.portable_code_->begin());
-    }
   }
-  return (rhs.quick_code_ == nullptr) && (rhs.portable_code_ == nullptr);
+  return (rhs.quick_code_ == nullptr);
 }
 
 uint32_t CompiledCode::AlignCode(uint32_t offset) const {
@@ -128,13 +97,8 @@ const void* CompiledCode::CodePointer(const void* code_pointer,
   }
 }
 
-const std::string& CompiledCode::GetSymbol() const {
-  CHECK_NE(0U, symbol_.size());
-  return symbol_;
-}
-
 const std::vector<uint32_t>& CompiledCode::GetOatdataOffsetsToCompliledCodeOffset() const {
-  CHECK_NE(0U, oatdata_offsets_to_compiled_code_offset_.size()) << symbol_;
+  CHECK_NE(0U, oatdata_offsets_to_compiled_code_offset_.size());
   return oatdata_offsets_to_compiled_code_offset_;
 }
 
@@ -198,34 +162,6 @@ CompiledMethod::CompiledMethod(CompilerDriver* driver,
       vmap_table_(driver->DeduplicateVMapTable(std::vector<uint8_t>())),
       gc_map_(driver->DeduplicateGCMap(std::vector<uint8_t>())),
       cfi_info_(driver->DeduplicateCFIInfo(cfi_info)),
-      patches_() {
-}
-
-// Constructs a CompiledMethod for the Portable compiler.
-CompiledMethod::CompiledMethod(CompilerDriver* driver, InstructionSet instruction_set,
-                               const std::string& code, const std::vector<uint8_t>& gc_map,
-                               const std::string& symbol)
-    : CompiledCode(driver, instruction_set, code, symbol),
-      frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
-      fp_spill_mask_(0),
-      src_mapping_table_(driver->DeduplicateSrcMappingTable(SrcMap())),
-      mapping_table_(driver->DeduplicateMappingTable(std::vector<uint8_t>())),
-      vmap_table_(driver->DeduplicateVMapTable(std::vector<uint8_t>())),
-      gc_map_(driver->DeduplicateGCMap(gc_map)),
-      cfi_info_(nullptr),
-      patches_() {
-}
-
-CompiledMethod::CompiledMethod(CompilerDriver* driver, InstructionSet instruction_set,
-                               const std::string& code, const std::string& symbol)
-    : CompiledCode(driver, instruction_set, code, symbol),
-      frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
-      fp_spill_mask_(0),
-      src_mapping_table_(driver->DeduplicateSrcMappingTable(SrcMap())),
-      mapping_table_(driver->DeduplicateMappingTable(std::vector<uint8_t>())),
-      vmap_table_(driver->DeduplicateVMapTable(std::vector<uint8_t>())),
-      gc_map_(driver->DeduplicateGCMap(std::vector<uint8_t>())),
-      cfi_info_(nullptr),
       patches_() {
 }
 

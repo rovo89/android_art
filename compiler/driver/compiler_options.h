@@ -68,9 +68,6 @@ class CompilerOptions FINAL {
     implicit_so_checks_(false),
     implicit_suspend_checks_(false),
     compile_pic_(false),
-#ifdef ART_SEA_IR_MODE
-    sea_ir_mode_(false),
-#endif
     verbose_methods_(nullptr),
     init_failure_output_(nullptr) {
   }
@@ -89,9 +86,6 @@ class CompilerOptions FINAL {
                   bool implicit_so_checks,
                   bool implicit_suspend_checks,
                   bool compile_pic,
-#ifdef ART_SEA_IR_MODE
-                  bool sea_ir_mode,
-#endif
                   const std::vector<std::string>* verbose_methods,
                   std::ostream* init_failure_output
                   ) :  // NOLINT(whitespace/parens)
@@ -109,9 +103,6 @@ class CompilerOptions FINAL {
     implicit_so_checks_(implicit_so_checks),
     implicit_suspend_checks_(implicit_suspend_checks),
     compile_pic_(compile_pic),
-#ifdef ART_SEA_IR_MODE
-    sea_ir_mode_(sea_ir_mode),
-#endif
     verbose_methods_(verbose_methods),
     init_failure_output_(init_failure_output) {
   }
@@ -189,12 +180,6 @@ class CompilerOptions FINAL {
     return implicit_suspend_checks_;
   }
 
-#ifdef ART_SEA_IR_MODE
-  bool GetSeaIrMode() const {
-    return sea_ir_mode_;
-  }
-#endif
-
   bool GetGenerateGDBInformation() const {
     return generate_gdb_information_;
   }
@@ -241,10 +226,6 @@ class CompilerOptions FINAL {
   const bool implicit_so_checks_;
   const bool implicit_suspend_checks_;
   const bool compile_pic_;
-
-#ifdef ART_SEA_IR_MODE
-  const bool sea_ir_mode_;
-#endif
 
   // Vector of methods to have verbose output enabled for.
   const std::vector<std::string>* const verbose_methods_;

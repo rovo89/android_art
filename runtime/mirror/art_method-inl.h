@@ -24,6 +24,7 @@
 #include "class_linker.h"
 #include "dex_cache.h"
 #include "dex_file.h"
+#include "dex_file-inl.h"
 #include "object-inl.h"
 #include "object_array.h"
 #include "oat.h"
@@ -72,12 +73,7 @@ inline uint16_t ArtMethod::GetMethodIndexDuringLinking() {
 }
 
 inline uint32_t ArtMethod::GetDexMethodIndex() {
-#ifdef ART_SEA_IR_MODE
-  // TODO: Re-add this check for (PORTABLE + SMALL + ) SEA IR when PORTABLE IS fixed!
-  // DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-#else
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-#endif
   return GetField32(OFFSET_OF_OBJECT_MEMBER(ArtMethod, dex_method_index_));
 }
 
@@ -187,19 +183,9 @@ inline uint32_t ArtMethod::GetQuickOatCodeOffset() {
   return PointerToLowMemUInt32(GetEntryPointFromQuickCompiledCode());
 }
 
-inline uint32_t ArtMethod::GetPortableOatCodeOffset() {
-  DCHECK(!Runtime::Current()->IsStarted());
-  return PointerToLowMemUInt32(GetEntryPointFromPortableCompiledCode());
-}
-
 inline void ArtMethod::SetQuickOatCodeOffset(uint32_t code_offset) {
   DCHECK(!Runtime::Current()->IsStarted());
   SetEntryPointFromQuickCompiledCode(reinterpret_cast<void*>(code_offset));
-}
-
-inline void ArtMethod::SetPortableOatCodeOffset(uint32_t code_offset) {
-  DCHECK(!Runtime::Current()->IsStarted());
-  SetEntryPointFromPortableCompiledCode(reinterpret_cast<void*>(code_offset));
 }
 
 inline const uint8_t* ArtMethod::GetMappingTable(size_t pointer_size) {
