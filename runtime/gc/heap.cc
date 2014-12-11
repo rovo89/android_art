@@ -76,8 +76,6 @@ namespace gc {
 
 static constexpr size_t kCollectorTransitionStressIterations = 0;
 static constexpr size_t kCollectorTransitionStressWait = 10 * 1000;  // Microseconds
-static constexpr bool kGCALotMode = false;
-static constexpr size_t kGcAlotInterval = KB;
 // Minimum amount of remaining bytes before a concurrent GC is triggered.
 static constexpr size_t kMinConcurrentRemainingBytes = 128 * KB;
 static constexpr size_t kMaxConcurrentRemainingBytes = 512 * KB;
@@ -99,6 +97,15 @@ static const char* kMemMapSpaceName[2] = {"main space", "main space 1"};
 static const char* kNonMovingSpaceName = "non moving space";
 static const char* kZygoteSpaceName = "zygote space";
 static constexpr size_t kGSSBumpPointerSpaceCapacity = 32 * MB;
+static constexpr bool kGCALotMode = false;
+// GC alot mode uses a small allocation stack to stress test a lot of GC.
+static constexpr size_t kGcAlotAllocationStackSize = 4 * KB /
+    sizeof(mirror::HeapReference<mirror::Object>);
+// Verify objet has a small allocation stack size since searching the allocation stack is slow.
+static constexpr size_t kVerifyObjectAllocationStackSize = 16 * KB /
+    sizeof(mirror::HeapReference<mirror::Object>);
+static constexpr size_t kDefaultAllocationStackSize = 8 * MB /
+    sizeof(mirror::HeapReference<mirror::Object>);
 
 Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max_free,
            double target_utilization, double foreground_heap_growth_multiplier,
@@ -165,8 +172,9 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
        * verification is enabled, we limit the size of allocation stacks to speed up their
        * searching.
        */
-      max_allocation_stack_size_(kGCALotMode ? kGcAlotInterval
-          : (kVerifyObjectSupport > kVerifyObjectModeFast) ? KB : MB),
+      max_allocation_stack_size_(kGCALotMode ? kGcAlotAllocationStackSize
+          : (kVerifyObjectSupport > kVerifyObjectModeFast) ? kVerifyObjectAllocationStackSize :
+          kDefaultAllocationStackSize),
       current_allocator_(kAllocatorTypeDlMalloc),
       current_non_moving_allocator_(kAllocatorTypeNonMoving),
       bump_pointer_space_(nullptr),
