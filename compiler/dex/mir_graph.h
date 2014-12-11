@@ -1265,6 +1265,34 @@ class MIRGraph {
   void ComputeDomPostOrderTraversal(BasicBlock* bb);
   int GetSSAUseCount(int s_reg);
   bool BasicBlockOpt(BasicBlock* bb);
+  void MultiplyAddOpt(BasicBlock* bb);
+
+  /**
+   * @brief Check whether the given MIR is possible to throw an exception.
+   * @param mir The mir to check.
+   * @return Returns 'true' if the given MIR might throw an exception.
+   */
+  bool CanThrow(MIR* mir);
+  /**
+   * @brief Combine multiply and add/sub MIRs into corresponding extended MAC MIR.
+   * @param mul_mir The multiply MIR to be combined.
+   * @param add_mir The add/sub MIR to be combined.
+   * @param mul_is_first_addend 'true' if multiply product is the first addend of add operation.
+   * @param is_wide 'true' if the operations are long type.
+   * @param is_sub 'true' if it is a multiply-subtract operation.
+   */
+  void CombineMultiplyAdd(MIR* mul_mir, MIR* add_mir, bool mul_is_first_addend,
+                          bool is_wide, bool is_sub);
+  /*
+   * @brief Check whether the first MIR anti-depends on the second MIR.
+   * @details To check whether one of first MIR's uses of vregs is redefined by the second MIR,
+   * i.e. there is a write-after-read dependency.
+   * @param first The first MIR.
+   * @param second The second MIR.
+   * @param Returns true if there is a write-after-read dependency.
+   */
+  bool HasAntiDependency(MIR* first, MIR* second);
+
   bool BuildExtendedBBList(class BasicBlock* bb);
   bool FillDefBlockMatrix(BasicBlock* bb);
   void InitializeDominationInfo(BasicBlock* bb);

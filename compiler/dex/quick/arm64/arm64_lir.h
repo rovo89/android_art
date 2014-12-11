@@ -312,6 +312,7 @@ enum A64Opcode {
   kA64Lsl3rrr,       // lsl [s0011010110] rm[20-16] [001000] rn[9-5] rd[4-0].
   kA64Lsr3rrd,       // lsr alias of "ubfm arg0, arg1, arg2, #{31/63}".
   kA64Lsr3rrr,       // lsr [s0011010110] rm[20-16] [001001] rn[9-5] rd[4-0].
+  kA64Madd4rrrr,     // madd[s0011011000] rm[20-16] [0] ra[14-10] rn[9-5] rd[4-0].
   kA64Movk3rdM,      // mov [010100101] hw[22-21] imm_16[20-5] rd[4-0].
   kA64Movn3rdM,      // mov [000100101] hw[22-21] imm_16[20-5] rd[4-0].
   kA64Movz3rdM,      // mov [011100101] hw[22-21] imm_16[20-5] rd[4-0].
