@@ -36,6 +36,7 @@
           "libcore.java.util.TimeZoneTest#test_useDaylightTime_Taiwan",
           "org.apache.harmony.tests.java.util.DateTest#test_Constructor",
           "org.apache.harmony.tests.java.util.ScannerTest#test_Constructor_LReadableByteChannel",
-          "org.apache.harmony.tests.java.util.TimeZoneTest#test_hasSameRules_Ljava_util_TimeZone"]
+          "org.apache.harmony.tests.java.util.TimeZoneTest#test_hasSameRules_Ljava_util_TimeZone",
+          "libcore.java.util.TimeZoneTest#testAllDisplayNames"]
 }
 ]
