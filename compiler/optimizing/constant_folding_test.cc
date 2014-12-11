@@ -81,7 +81,7 @@ static void TestCode(const uint16_t* data,
  *                              offset
  *                              ------
  *     v0 <- 1                  0.      const/4 v0, #+1
- *     v1 <- -v0                1.      neg-int v0, v1
+ *     v1 <- -v0                1.      neg-int v1, v0
  *     return v1                2.      return v1
  */
 TEST(ConstantFolding, IntConstantFoldingNegation) {
@@ -129,6 +129,69 @@ TEST(ConstantFolding, IntConstantFoldingNegation) {
            expected_after_cf,
            expected_after_dce,
            check_after_cf);
+}
+
+/**
+ * Tiny three-register program exercising long constant folding on negation.
+ *
+ *                              16-bit
+ *                              offset
+ *                              ------
+ *     (v0, v1) <- 4294967296   0.      const-wide v0 #+4294967296
+ *     (v2, v3) <- -(v0, v1)    1.      neg-long v2, v0
+ *     return (v2, v3)          2.      return-wide v2
+ */
+TEST(ConstantFolding, LongConstantFoldingNegation) {
+  const int64_t input = INT64_C(4294967296);             // 2^32
+  const uint16_t word0 = Low16Bits(Low32Bits(input));    // LSW.
+  const uint16_t word1 = High16Bits(Low32Bits(input));
+  const uint16_t word2 = Low16Bits(High32Bits(input));
+  const uint16_t word3 = High16Bits(High32Bits(input));  // MSW.
+  const uint16_t data[] = FOUR_REGISTERS_CODE_ITEM(
+    Instruction::CONST_WIDE | 0 << 8, word0, word1, word2, word3,
+    Instruction::NEG_LONG | 2 << 8 | 0 << 12,
+    Instruction::RETURN_WIDE | 2 << 8);
+
+  std::string expected_before =
+      "BasicBlock 0, succ: 1\n"
+      "  4: LongConstant [7]\n"
+      "  12: SuspendCheck\n"
+      "  13: Goto 1\n"
+      "BasicBlock 1, pred: 0, succ: 2\n"
+      "  7: Neg(4) [10]\n"
+      "  10: Return(7)\n"
+      "BasicBlock 2, pred: 1\n"
+      "  11: Exit\n";
+
+  // Expected difference after constant folding.
+  diff_t expected_cf_diff = {
+    { "  4: LongConstant [7]\n", "  4: LongConstant\n" },
+    { "  12: SuspendCheck\n",    "  12: SuspendCheck\n"
+                                 "  14: LongConstant [10]\n" },
+    { "  7: Neg(4) [10]\n",      removed },
+    { "  10: Return(7)\n",       "  10: Return(14)\n" }
+  };
+  std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
+
+  // Check the value of the computed constant.
+  auto check_after_cf = [](HGraph* graph) {
+    HInstruction* inst = graph->GetBlock(1)->GetFirstInstruction()->InputAt(0);
+    ASSERT_TRUE(inst->IsLongConstant());
+    ASSERT_EQ(inst->AsLongConstant()->GetValue(), INT64_C(-4294967296));
+  };
+
+  // Expected difference after dead code elimination.
+  diff_t expected_dce_diff = {
+    { "  4: LongConstant\n", removed },
+  };
+  std::string expected_after_dce = Patch(expected_after_cf, expected_dce_diff);
+
+  TestCode(data,
+           expected_before,
+           expected_after_cf,
+           expected_after_dce,
+           check_after_cf,
+           Primitive::kPrimLong);
 }
 
 /**
