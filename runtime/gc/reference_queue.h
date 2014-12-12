@@ -56,12 +56,14 @@ class ReferenceQueue {
   // overhead.
   void EnqueueReference(mirror::Reference* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Enqueue a reference without checking that it is enqueable.
   void EnqueuePendingReference(mirror::Reference* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Dequeue the first reference (returns list_).
   mirror::Reference* DequeuePendingReference() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Enqueues finalizer references with white referents.  White referents are blackened, moved to the
-  // zombie field, and the referent field is cleared.
+  // Enqueues finalizer references with white referents.  White referents are blackened, moved to
+  // the zombie field, and the referent field is cleared.
   void EnqueueFinalizerReferences(ReferenceQueue* cleared_references,
                                   IsHeapReferenceMarkedCallback* is_marked_callback,
                                   MarkObjectCallback* mark_object_callback, void* arg)
@@ -73,24 +75,22 @@ class ReferenceQueue {
   void ForwardSoftReferences(IsHeapReferenceMarkedCallback* preserve_callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Unlink the reference list clearing references objects with white referents.  Cleared references
+  // Unlink the reference list clearing references objects with white referents. Cleared references
   // registered to a reference queue are scheduled for appending by the heap worker thread.
   void ClearWhiteReferences(ReferenceQueue* cleared_references,
                             IsHeapReferenceMarkedCallback* is_marked_callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Dump(std::ostream& os) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void Dump(std::ostream& os) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  size_t GetLength() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsEmpty() const {
     return list_ == nullptr;
   }
-
   void Clear() {
     list_ = nullptr;
   }
-
-  mirror::Reference* GetList() {
+  mirror::Reference* GetList() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return list_;
   }
 
@@ -102,7 +102,6 @@ class ReferenceQueue {
   // Lock, used for parallel GC reference enqueuing. It allows for multiple threads simultaneously
   // calling AtomicEnqueueIfNotEnqueued.
   Mutex* const lock_;
-
   // The actual reference list. Only a root for the mark compact GC since it will be null for other
   // GC types.
   mirror::Reference* list_;
