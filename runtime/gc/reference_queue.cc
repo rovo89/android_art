@@ -91,15 +91,30 @@ mirror::Reference* ReferenceQueue::DequeuePendingReference() {
 void ReferenceQueue::Dump(std::ostream& os) const {
   mirror::Reference* cur = list_;
   os << "Reference starting at list_=" << list_ << "\n";
-  while (cur != nullptr) {
+  if (cur == nullptr) {
+    return;
+  }
+  do {
     mirror::Reference* pending_next = cur->GetPendingNext();
-    os << "PendingNext=" << pending_next;
+    os << "Reference= " << cur << " PendingNext=" << pending_next;
     if (cur->IsFinalizerReferenceInstance()) {
       os << " Zombie=" << cur->AsFinalizerReference()->GetZombie();
     }
     os << "\n";
     cur = pending_next;
+  } while (cur != list_);
+}
+
+size_t ReferenceQueue::GetLength() const {
+  size_t count = 0;
+  mirror::Reference* cur = list_;
+  if (cur != nullptr) {
+    do {
+      ++count;
+      cur = cur->GetPendingNext();
+    } while (cur != list_);
   }
+  return count;
 }
 
 void ReferenceQueue::ClearWhiteReferences(ReferenceQueue* cleared_references,
