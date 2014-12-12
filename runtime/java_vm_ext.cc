@@ -22,6 +22,7 @@
 #include "base/mutex.h"
 #include "base/stl_util.h"
 #include "check_jni.h"
+#include "dex_file-inl.h"
 #include "fault_handler.h"
 #include "indirect_reference_table-inl.h"
 #include "mirror/art_method.h"

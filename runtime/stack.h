@@ -72,8 +72,7 @@ class MANAGED StackReference : public mirror::ObjectReference<false, MirrorType>
       : mirror::ObjectReference<false, MirrorType>(p) {}
 };
 
-// ShadowFrame has 3 possible layouts:
-//  - portable - a unified array of VRegs and references. Precise references need GC maps.
+// ShadowFrame has 2 possible layouts:
 //  - interpreter - separate VRegs and reference arrays. References are in the reference array.
 //  - JNI - just VRegs, but where every VReg holds a reference.
 class ShadowFrame {
@@ -100,28 +99,11 @@ class ShadowFrame {
   ~ShadowFrame() {}
 
   bool HasReferenceArray() const {
-#if defined(ART_USE_PORTABLE_COMPILER)
-    return (number_of_vregs_ & kHasReferenceArray) != 0;
-#else
     return true;
-#endif
   }
 
   uint32_t NumberOfVRegs() const {
-#if defined(ART_USE_PORTABLE_COMPILER)
-    return number_of_vregs_ & ~kHasReferenceArray;
-#else
     return number_of_vregs_;
-#endif
-  }
-
-  void SetNumberOfVRegs(uint32_t number_of_vregs) {
-#if defined(ART_USE_PORTABLE_COMPILER)
-    number_of_vregs_ = number_of_vregs | (number_of_vregs_ & kHasReferenceArray);
-#else
-    UNUSED(number_of_vregs);
-    UNIMPLEMENTED(FATAL) << "Should only be called when portable is enabled";
-#endif
   }
 
   uint32_t GetDexPC() const {
@@ -270,16 +252,6 @@ class ShadowFrame {
 
   ThrowLocation GetCurrentLocationForThrow() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void SetMethod(mirror::ArtMethod* method) {
-#if defined(ART_USE_PORTABLE_COMPILER)
-    DCHECK(method != nullptr);
-    method_ = method;
-#else
-    UNUSED(method);
-    UNIMPLEMENTED(FATAL) << "Should only be called when portable is enabled";
-#endif
-  }
-
   bool Contains(StackReference<mirror::Object>* shadow_frame_entry_obj) const {
     if (HasReferenceArray()) {
       return ((&References()[0] <= shadow_frame_entry_obj) &&
@@ -316,10 +288,6 @@ class ShadowFrame {
               uint32_t dex_pc, bool has_reference_array)
       : number_of_vregs_(num_vregs), link_(link), method_(method), dex_pc_(dex_pc) {
     if (has_reference_array) {
-#if defined(ART_USE_PORTABLE_COMPILER)
-      CHECK_LT(num_vregs, static_cast<uint32_t>(kHasReferenceArray));
-      number_of_vregs_ |= kHasReferenceArray;
-#endif
       memset(vregs_, 0, num_vregs * (sizeof(uint32_t) + sizeof(StackReference<mirror::Object>)));
     } else {
       memset(vregs_, 0, num_vregs * sizeof(uint32_t));
@@ -336,13 +304,7 @@ class ShadowFrame {
     return const_cast<StackReference<mirror::Object>*>(const_cast<const ShadowFrame*>(this)->References());
   }
 
-#if defined(ART_USE_PORTABLE_COMPILER)
-  constexpr uint32_t kHasReferenceArray = 1ul << 31;
-  // TODO: make const in the portable case.
-  uint32_t number_of_vregs_;
-#else
   const uint32_t number_of_vregs_;
-#endif
   // Link to previous shadow frame or NULL.
   ShadowFrame* link_;
   mirror::ArtMethod* method_;

@@ -540,12 +540,6 @@ void PatchOat::FixupMethod(mirror::ArtMethod* object, mirror::ArtMethod* copy) {
   const size_t pointer_size = InstructionSetPointerSize(isa_);
   // Just update the entry points if it looks like we should.
   // TODO: sanity check all the pointers' values
-  uintptr_t portable = reinterpret_cast<uintptr_t>(
-      object->GetEntryPointFromPortableCompiledCodePtrSize<kVerifyNone>(pointer_size));
-  if (portable != 0) {
-    copy->SetEntryPointFromPortableCompiledCodePtrSize(reinterpret_cast<void*>(portable + delta_),
-                                                       pointer_size);
-  }
   uintptr_t quick= reinterpret_cast<uintptr_t>(
       object->GetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(pointer_size));
   if (quick != 0) {

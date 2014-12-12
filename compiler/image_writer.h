@@ -48,8 +48,7 @@ class ImageWriter FINAL {
         image_end_(0), image_objects_offset_begin_(0), image_roots_address_(0), oat_file_(nullptr),
         oat_data_begin_(nullptr), interpreter_to_interpreter_bridge_offset_(0),
         interpreter_to_compiled_code_bridge_offset_(0), jni_dlsym_lookup_offset_(0),
-        portable_imt_conflict_trampoline_offset_(0), portable_resolution_trampoline_offset_(0),
-        portable_to_interpreter_bridge_offset_(0), quick_generic_jni_trampoline_offset_(0),
+        quick_generic_jni_trampoline_offset_(0),
         quick_imt_conflict_trampoline_offset_(0), quick_resolution_trampoline_offset_(0),
         quick_to_interpreter_bridge_offset_(0), compile_pic_(compile_pic),
         target_ptr_size_(InstructionSetPointerSize(compiler_driver_.GetInstructionSet())),
@@ -178,12 +177,9 @@ class ImageWriter FINAL {
   }
 
   const uint8_t* GetOatAddress(uint32_t offset) const {
-#if !defined(ART_USE_PORTABLE_COMPILER)
     // With Quick, code is within the OatFile, as there are all in one
-    // .o ELF object. However with Portable, the code is always in
-    // different .o ELF objects.
+    // .o ELF object.
     DCHECK_LT(offset, oat_file_->Size());
-#endif
     if (offset == 0u) {
       return nullptr;
     }
@@ -302,9 +298,6 @@ class ImageWriter FINAL {
   uint32_t interpreter_to_interpreter_bridge_offset_;
   uint32_t interpreter_to_compiled_code_bridge_offset_;
   uint32_t jni_dlsym_lookup_offset_;
-  uint32_t portable_imt_conflict_trampoline_offset_;
-  uint32_t portable_resolution_trampoline_offset_;
-  uint32_t portable_to_interpreter_bridge_offset_;
   uint32_t quick_generic_jni_trampoline_offset_;
   uint32_t quick_imt_conflict_trampoline_offset_;
   uint32_t quick_resolution_trampoline_offset_;

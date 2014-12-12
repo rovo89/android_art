@@ -15,6 +15,7 @@
  */
 
 #include "class_linker.h"
+#include "dex_file-inl.h"
 #include "interpreter/interpreter.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/object-inl.h"
@@ -47,13 +48,9 @@ extern "C" void artInterpreterToCompiledCodeBridge(Thread* self, const DexFile::
     }
   }
   uint16_t arg_offset = (code_item == NULL) ? 0 : code_item->registers_size_ - code_item->ins_size_;
-  if (kUsePortableCompiler) {
-    InvokeWithShadowFrame(self, shadow_frame, arg_offset, result);
-  } else {
-    method->Invoke(self, shadow_frame->GetVRegArgs(arg_offset),
-                   (shadow_frame->NumberOfVRegs() - arg_offset) * sizeof(uint32_t),
-                   result, method->GetShorty());
-  }
+  method->Invoke(self, shadow_frame->GetVRegArgs(arg_offset),
+                 (shadow_frame->NumberOfVRegs() - arg_offset) * sizeof(uint32_t),
+                 result, method->GetShorty());
 }
 
 }  // namespace art

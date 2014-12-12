@@ -91,7 +91,7 @@ static void UnimplementedEntryPoint() {
 }
 
 void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
-                     PortableEntryPoints* ppoints, QuickEntryPoints* qpoints);
+                     QuickEntryPoints* qpoints);
 
 void Thread::InitTlsEntryPoints() {
   // Insert a placeholder so we can easily tell if we call an unimplemented entry point.
@@ -102,7 +102,7 @@ void Thread::InitTlsEntryPoints() {
     *it = reinterpret_cast<uintptr_t>(UnimplementedEntryPoint);
   }
   InitEntryPoints(&tlsPtr_.interpreter_entrypoints, &tlsPtr_.jni_entrypoints,
-                  &tlsPtr_.portable_entrypoints, &tlsPtr_.quick_entrypoints);
+                  &tlsPtr_.quick_entrypoints);
 }
 
 void Thread::ResetQuickAllocEntryPointsForThread() {
@@ -1864,16 +1864,6 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
     }
   JNI_ENTRY_POINT_INFO(pDlsymLookup)
 #undef JNI_ENTRY_POINT_INFO
-
-#define PORTABLE_ENTRY_POINT_INFO(x) \
-    if (PORTABLE_ENTRYPOINT_OFFSET(ptr_size, x).Uint32Value() == offset) { \
-      os << #x; \
-      return; \
-    }
-  PORTABLE_ENTRY_POINT_INFO(pPortableImtConflictTrampoline)
-  PORTABLE_ENTRY_POINT_INFO(pPortableResolutionTrampoline)
-  PORTABLE_ENTRY_POINT_INFO(pPortableToInterpreterBridge)
-#undef PORTABLE_ENTRY_POINT_INFO
 
 #define QUICK_ENTRY_POINT_INFO(x) \
     if (QUICK_ENTRYPOINT_OFFSET(ptr_size, x).Uint32Value() == offset) { \

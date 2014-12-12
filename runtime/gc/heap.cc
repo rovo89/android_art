@@ -30,6 +30,7 @@
 #include "common_throws.h"
 #include "cutils/sched_policy.h"
 #include "debugger.h"
+#include "dex_file-inl.h"
 #include "gc/accounting/atomic_stack.h"
 #include "gc/accounting/card_table-inl.h"
 #include "gc/accounting/heap_bitmap-inl.h"

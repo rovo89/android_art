@@ -59,41 +59,10 @@ ART_SMALL_MODE := true
 endif
 
 #
-# Used to enable SEA mode
-#
-ART_SEA_IR_MODE := false
-ifneq ($(wildcard art/SEA_IR_ART),)
-$(info Enabling ART_SEA_IR_MODE because of existence of art/SEA_IR_ART)
-ART_SEA_IR_MODE := true
-endif
-ifeq ($(WITH_ART_SEA_IR_MODE), true)
-ART_SEA_IR_MODE := true
-endif
-
-#
-# Used to enable portable mode
-#
-ART_USE_PORTABLE_COMPILER := false
-ifneq ($(wildcard art/USE_PORTABLE_COMPILER),)
-$(info Enabling ART_USE_PORTABLE_COMPILER because of existence of art/USE_PORTABLE_COMPILER)
-ART_USE_PORTABLE_COMPILER := true
-endif
-ifeq ($(WITH_ART_USE_PORTABLE_COMPILER),true)
-$(info Enabling ART_USE_PORTABLE_COMPILER because WITH_ART_USE_PORTABLE_COMPILER=true)
-ART_USE_PORTABLE_COMPILER := true
-endif
-
-#
 # Used to change the default GC. Valid values are CMS, SS, GSS. The default is CMS.
 #
 art_default_gc_type ?= CMS
 art_default_gc_type_cflags := -DART_DEFAULT_GC_TYPE_IS_$(art_default_gc_type)
-
-ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-  LLVM_ROOT_PATH := external/llvm
-  # Don't fail a dalvik minimal host build.
-  -include $(LLVM_ROOT_PATH)/llvm.mk
-endif
 
 ART_HOST_CFLAGS :=
 ART_TARGET_CFLAGS :=
@@ -194,7 +163,6 @@ ART_C_INCLUDES := \
   external/valgrind/main \
   external/vixl/src \
   external/zlib \
-  frameworks/compile/mclinker/include
 
 # Base set of cflags used by all things ART.
 art_cflags := \
@@ -227,10 +195,6 @@ endif
 
 ifeq ($(ART_SMALL_MODE),true)
   art_cflags += -DART_SMALL_MODE=1
-endif
-
-ifeq ($(ART_SEA_IR_MODE),true)
-  art_cflags += -DART_SEA_IR_MODE=1
 endif
 
 ifeq ($(ART_USE_OPTIMIZING_COMPILER),true)

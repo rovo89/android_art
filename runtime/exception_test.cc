@@ -19,6 +19,7 @@
 #include "class_linker.h"
 #include "common_runtime_test.h"
 #include "dex_file.h"
+#include "dex_file-inl.h"
 #include "gtest/gtest.h"
 #include "leb128.h"
 #include "mirror/class-inl.h"
@@ -174,60 +175,41 @@ TEST_F(ExceptionTest, StackTraceElement) {
   // ASSERT_EQ(sizeof(uintptr_t), sizeof(uint32_t));
 
 
-  if (!kUsePortableCompiler) {
-    // Create three fake stack frames with mapping data created in SetUp. We map offset 3 in the
-    // code to dex pc 3.
-    const uint32_t dex_pc = 3;
+  // Create three fake stack frames with mapping data created in SetUp. We map offset 3 in the
+  // code to dex pc 3.
+  const uint32_t dex_pc = 3;
 
-    // Create the stack frame for the callee save method, expected by the runtime.
-    fake_stack.push_back(reinterpret_cast<uintptr_t>(save_method));
-    for (size_t i = 0; i < frame_info.FrameSizeInBytes() - 2 * sizeof(uintptr_t);
-         i += sizeof(uintptr_t)) {
-      fake_stack.push_back(0);
-    }
-
-    fake_stack.push_back(method_g_->ToNativeQuickPc(dex_pc));  // return pc
-
-    // Create/push fake 16byte stack frame for method g
-    fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
+  // Create the stack frame for the callee save method, expected by the runtime.
+  fake_stack.push_back(reinterpret_cast<uintptr_t>(save_method));
+  for (size_t i = 0; i < frame_info.FrameSizeInBytes() - 2 * sizeof(uintptr_t);
+       i += sizeof(uintptr_t)) {
     fake_stack.push_back(0);
-    fake_stack.push_back(0);
-    fake_stack.push_back(method_f_->ToNativeQuickPc(dex_pc));  // return pc
-
-    // Create/push fake 16byte stack frame for method f
-    fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
-    fake_stack.push_back(0);
-    fake_stack.push_back(0);
-    fake_stack.push_back(0xEBAD6070);  // return pc
-
-    // Push Method* of NULL to terminate the trace
-    fake_stack.push_back(0);
-
-    // Push null values which will become null incoming arguments.
-    fake_stack.push_back(0);
-    fake_stack.push_back(0);
-    fake_stack.push_back(0);
-
-    // Set up thread to appear as if we called out of method_g_ at pc dex 3
-    thread->SetTopOfStack(reinterpret_cast<StackReference<mirror::ArtMethod>*>(&fake_stack[0]));
-  } else {
-    // Create/push fake 20-byte shadow frame for method g
-    fake_stack.push_back(0);
-    fake_stack.push_back(0);
-    fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
-    fake_stack.push_back(3);
-    fake_stack.push_back(0);
-
-    // Create/push fake 20-byte shadow frame for method f
-    fake_stack.push_back(0);
-    fake_stack.push_back(0);
-    fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
-    fake_stack.push_back(3);
-    fake_stack.push_back(0);
-
-    thread->PushShadowFrame(reinterpret_cast<ShadowFrame*>(&fake_stack[5]));
-    thread->PushShadowFrame(reinterpret_cast<ShadowFrame*>(&fake_stack[0]));
   }
+
+  fake_stack.push_back(method_g_->ToNativeQuickPc(dex_pc));  // return pc
+
+  // Create/push fake 16byte stack frame for method g
+  fake_stack.push_back(reinterpret_cast<uintptr_t>(method_g_));
+  fake_stack.push_back(0);
+  fake_stack.push_back(0);
+  fake_stack.push_back(method_f_->ToNativeQuickPc(dex_pc));  // return pc
+
+  // Create/push fake 16byte stack frame for method f
+  fake_stack.push_back(reinterpret_cast<uintptr_t>(method_f_));
+  fake_stack.push_back(0);
+  fake_stack.push_back(0);
+  fake_stack.push_back(0xEBAD6070);  // return pc
+
+  // Push Method* of NULL to terminate the trace
+  fake_stack.push_back(0);
+
+  // Push null values which will become null incoming arguments.
+  fake_stack.push_back(0);
+  fake_stack.push_back(0);
+  fake_stack.push_back(0);
+
+  // Set up thread to appear as if we called out of method_g_ at pc dex 3
+  thread->SetTopOfStack(reinterpret_cast<StackReference<mirror::ArtMethod>*>(&fake_stack[0]));
 
   jobject internal = thread->CreateInternalStackTrace<false>(soa);
   ASSERT_TRUE(internal != nullptr);
@@ -253,12 +235,7 @@ TEST_F(ExceptionTest, StackTraceElement) {
   EXPECT_STREQ("f", trace_array->Get(1)->GetMethodName()->ToModifiedUtf8().c_str());
   EXPECT_EQ(22, trace_array->Get(1)->GetLineNumber());
 
-  if (!kUsePortableCompiler) {
-    thread->SetTopOfStack(nullptr);  // Disarm the assertion that no code is running when we detach.
-  } else {
-    thread->PopShadowFrame();
-    thread->PopShadowFrame();
-  }
+  thread->SetTopOfStack(nullptr);  // Disarm the assertion that no code is running when we detach.
 }
 
 }  // namespace art

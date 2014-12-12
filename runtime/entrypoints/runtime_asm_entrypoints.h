@@ -28,22 +28,10 @@ static inline const void* GetJniDlsymLookupStub() {
   return reinterpret_cast<const void*>(art_jni_dlsym_lookup_stub);
 }
 
-// Return the address of portable stub code for handling IMT conflicts.
-extern "C" void art_portable_imt_conflict_trampoline(mirror::ArtMethod*);
-static inline const void* GetPortableImtConflictStub() {
-  return reinterpret_cast<const void*>(art_portable_imt_conflict_trampoline);
-}
-
 // Return the address of quick stub code for handling IMT conflicts.
 extern "C" void art_quick_imt_conflict_trampoline(mirror::ArtMethod*);
 static inline const void* GetQuickImtConflictStub() {
   return reinterpret_cast<const void*>(art_quick_imt_conflict_trampoline);
-}
-
-// Return the address of portable stub code for bridging from portable code to the interpreter.
-extern "C" void art_portable_to_interpreter_bridge(mirror::ArtMethod*);
-static inline const void* GetPortableToInterpreterBridge() {
-  return reinterpret_cast<const void*>(art_portable_to_interpreter_bridge);
 }
 
 // Return the address of quick stub code for bridging from quick code to the interpreter.
@@ -52,40 +40,16 @@ static inline const void* GetQuickToInterpreterBridge() {
   return reinterpret_cast<const void*>(art_quick_to_interpreter_bridge);
 }
 
-// Return the address of portable stub code for bridging from portable code to quick.
-static inline const void* GetPortableToQuickBridge() {
-  // TODO: portable to quick bridge. Bug: 8196384
-  return GetPortableToInterpreterBridge();
-}
-
-// Return the address of quick stub code for bridging from quick code to portable.
-static inline const void* GetQuickToPortableBridge() {
-  // TODO: quick to portable bridge. Bug: 8196384
-  return GetQuickToInterpreterBridge();
-}
-
 // Return the address of quick stub code for handling JNI calls.
 extern "C" void art_quick_generic_jni_trampoline(mirror::ArtMethod*);
 static inline const void* GetQuickGenericJniStub() {
   return reinterpret_cast<const void*>(art_quick_generic_jni_trampoline);
 }
 
-// Return the address of portable stub code for handling transitions into the proxy invoke handler.
-extern "C" void art_portable_proxy_invoke_handler();
-static inline const void* GetPortableProxyInvokeHandler() {
-  return reinterpret_cast<const void*>(art_portable_proxy_invoke_handler);
-}
-
 // Return the address of quick stub code for handling transitions into the proxy invoke handler.
 extern "C" void art_quick_proxy_invoke_handler();
 static inline const void* GetQuickProxyInvokeHandler() {
   return reinterpret_cast<const void*>(art_quick_proxy_invoke_handler);
-}
-
-// Return the address of portable stub code for resolving a method at first call.
-extern "C" void art_portable_resolution_trampoline(mirror::ArtMethod*);
-static inline const void* GetPortableResolutionStub() {
-  return reinterpret_cast<const void*>(art_portable_resolution_trampoline);
 }
 
 // Return the address of quick stub code for resolving a method at first call.

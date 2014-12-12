@@ -150,17 +150,6 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
             + sizeof(void*) == sizeof(JniEntryPoints), JniEntryPoints_all);
   }
 
-  void CheckPortableEntryPoints() {
-    CHECKED(OFFSETOF_MEMBER(PortableEntryPoints, pPortableImtConflictTrampoline) == 0,
-            PortableEntryPoints_start_with_imt);
-    EXPECT_OFFSET_DIFFNP(PortableEntryPoints, pPortableImtConflictTrampoline,
-                         pPortableResolutionTrampoline, sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(PortableEntryPoints, pPortableResolutionTrampoline,
-                         pPortableToInterpreterBridge, sizeof(void*));
-    CHECKED(OFFSETOF_MEMBER(PortableEntryPoints, pPortableToInterpreterBridge)
-            + sizeof(void*) == sizeof(PortableEntryPoints), PortableEntryPoints_all);
-  }
-
   void CheckQuickEntryPoints() {
     CHECKED(OFFSETOF_MEMBER(QuickEntryPoints, pAllocArray) == 0,
                 QuickEntryPoints_start_with_allocarray);
@@ -294,10 +283,6 @@ TEST_F(EntrypointsOrderTest, InterpreterEntryPoints) {
 
 TEST_F(EntrypointsOrderTest, JniEntryPoints) {
   CheckJniEntryPoints();
-}
-
-TEST_F(EntrypointsOrderTest, PortableEntryPoints) {
-  CheckPortableEntryPoints();
 }
 
 TEST_F(EntrypointsOrderTest, QuickEntryPoints) {

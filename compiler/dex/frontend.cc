@@ -69,8 +69,6 @@ static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
   // (1 << kDebugShowNops) |
   // (1 << kDebugCountOpcodes) |
   // (1 << kDebugDumpCheckStats) |
-  // (1 << kDebugDumpBitcodeFile) |
-  // (1 << kDebugVerifyBitcode) |
   // (1 << kDebugShowSummaryMemoryUsage) |
   // (1 << kDebugShowFilterStats) |
   // (1 << kDebugTimings) |

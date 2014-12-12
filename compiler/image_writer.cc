@@ -127,13 +127,6 @@ bool ImageWriter::Write(const std::string& image_filename,
 
   jni_dlsym_lookup_offset_ = oat_file_->GetOatHeader().GetJniDlsymLookupOffset();
 
-  portable_imt_conflict_trampoline_offset_ =
-      oat_file_->GetOatHeader().GetPortableImtConflictTrampolineOffset();
-  portable_resolution_trampoline_offset_ =
-      oat_file_->GetOatHeader().GetPortableResolutionTrampolineOffset();
-  portable_to_interpreter_bridge_offset_ =
-      oat_file_->GetOatHeader().GetPortableToInterpreterBridgeOffset();
-
   quick_generic_jni_trampoline_offset_ =
       oat_file_->GetOatHeader().GetQuickGenericJniTrampolineOffset();
   quick_imt_conflict_trampoline_offset_ =
@@ -1099,8 +1092,6 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
   // locations.
   // Copy all of the fields from the runtime methods to the target methods first since we did a
   // bytewise copy earlier.
-  copy->SetEntryPointFromPortableCompiledCodePtrSize<kVerifyNone>(
-      orig->GetEntryPointFromPortableCompiledCode(), target_ptr_size_);
   copy->SetEntryPointFromInterpreterPtrSize<kVerifyNone>(orig->GetEntryPointFromInterpreter(),
                                                          target_ptr_size_);
   copy->SetEntryPointFromJniPtrSize<kVerifyNone>(orig->GetEntryPointFromJni(), target_ptr_size_);
@@ -1110,14 +1101,10 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
   // The resolution method has a special trampoline to call.
   Runtime* runtime = Runtime::Current();
   if (UNLIKELY(orig == runtime->GetResolutionMethod())) {
-    copy->SetEntryPointFromPortableCompiledCodePtrSize<kVerifyNone>(
-        GetOatAddress(portable_resolution_trampoline_offset_), target_ptr_size_);
     copy->SetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(
         GetOatAddress(quick_resolution_trampoline_offset_), target_ptr_size_);
   } else if (UNLIKELY(orig == runtime->GetImtConflictMethod() ||
                       orig == runtime->GetImtUnimplementedMethod())) {
-    copy->SetEntryPointFromPortableCompiledCodePtrSize<kVerifyNone>(
-        GetOatAddress(portable_imt_conflict_trampoline_offset_), target_ptr_size_);
     copy->SetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(
         GetOatAddress(quick_imt_conflict_trampoline_offset_), target_ptr_size_);
   } else {
@@ -1125,8 +1112,6 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
     // resolution trampoline. Abstract methods never have code and so we need to make sure their
     // use results in an AbstractMethodError. We use the interpreter to achieve this.
     if (UNLIKELY(orig->IsAbstract())) {
-      copy->SetEntryPointFromPortableCompiledCodePtrSize<kVerifyNone>(
-          GetOatAddress(portable_to_interpreter_bridge_offset_), target_ptr_size_);
       copy->SetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(
           GetOatAddress(quick_to_interpreter_bridge_offset_), target_ptr_size_);
       copy->SetEntryPointFromInterpreterPtrSize<kVerifyNone>(
@@ -1137,29 +1122,6 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
       const uint8_t* quick_code = GetQuickCode(orig, &quick_is_interpreted);
       copy->SetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(quick_code, target_ptr_size_);
 
-      // Portable entrypoint:
-      const uint8_t* portable_code = GetOatAddress(orig->GetPortableOatCodeOffset());
-      bool portable_is_interpreted = false;
-      if (portable_code != nullptr &&
-          (!orig->IsStatic() || orig->IsConstructor() || orig->GetDeclaringClass()->IsInitialized())) {
-        // We have code for a non-static or initialized method, just use the code.
-      } else if (portable_code == nullptr && orig->IsNative() &&
-          (!orig->IsStatic() || orig->GetDeclaringClass()->IsInitialized())) {
-        // Non-static or initialized native method missing compiled code, use generic JNI version.
-        // TODO: generic JNI support for LLVM.
-        portable_code = GetOatAddress(portable_resolution_trampoline_offset_);
-      } else if (portable_code == nullptr && !orig->IsNative()) {
-        // We don't have code at all for a non-native method, use the interpreter.
-        portable_code = GetOatAddress(portable_to_interpreter_bridge_offset_);
-        portable_is_interpreted = true;
-      } else {
-        CHECK(!orig->GetDeclaringClass()->IsInitialized());
-        // We have code for a static method, but need to go through the resolution stub for class
-        // initialization.
-        portable_code = GetOatAddress(portable_resolution_trampoline_offset_);
-      }
-      copy->SetEntryPointFromPortableCompiledCodePtrSize<kVerifyNone>(
-          portable_code, target_ptr_size_);
       // JNI entrypoint:
       if (orig->IsNative()) {
         // The native method's pointer is set to a stub to lookup via dlsym.
@@ -1170,7 +1132,7 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
 
       // Interpreter entrypoint:
       // Set the interpreter entrypoint depending on whether there is compiled code or not.
-      uint32_t interpreter_code = (quick_is_interpreted && portable_is_interpreted)
+      uint32_t interpreter_code = (quick_is_interpreted)
           ? interpreter_to_interpreter_bridge_offset_
           : interpreter_to_compiled_code_bridge_offset_;
       EntryPointFromInterpreter* interpreter_entrypoint =

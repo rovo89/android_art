@@ -67,28 +67,6 @@ TEST_F(ElfWriterTest, dlsym) {
   void* dl_oatexec = NULL;
   void* dl_oatlastword = NULL;
 
-#if defined(ART_USE_PORTABLE_COMPILER)
-  {
-    // We only use dlopen for loading with portable. See OatFile::Open.
-    void* dl_oat_so = dlopen(elf_filename.c_str(), RTLD_NOW);
-    ASSERT_TRUE(dl_oat_so != NULL) << dlerror();
-    dl_oatdata = dlsym(dl_oat_so, "oatdata");
-    ASSERT_TRUE(dl_oatdata != NULL);
-
-    OatHeader* dl_oat_header = reinterpret_cast<OatHeader*>(dl_oatdata);
-    ASSERT_TRUE(dl_oat_header->IsValid());
-    dl_oatexec = dlsym(dl_oat_so, "oatexec");
-    ASSERT_TRUE(dl_oatexec != NULL);
-    ASSERT_LT(dl_oatdata, dl_oatexec);
-
-    dl_oatlastword = dlsym(dl_oat_so, "oatlastword");
-    ASSERT_TRUE(dl_oatlastword != NULL);
-    ASSERT_LT(dl_oatexec, dl_oatlastword);
-
-    ASSERT_EQ(0, dlclose(dl_oat_so));
-  }
-#endif
-
   std::unique_ptr<File> file(OS::OpenFileForReading(elf_filename.c_str()));
   ASSERT_TRUE(file.get() != NULL);
   {

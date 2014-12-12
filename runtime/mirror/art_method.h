@@ -158,20 +158,6 @@ class MANAGED ArtMethod FINAL : public Object {
         && GetNativeGcMap(pointer_size) == nullptr;
   }
 
-  bool IsPortableCompiled() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return (GetAccessFlags() & kAccPortableCompiled) != 0;
-  }
-
-  void SetIsPortableCompiled() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(!IsPortableCompiled());
-    SetAccessFlags(GetAccessFlags() | kAccPortableCompiled);
-  }
-
-  void ClearIsPortableCompiled() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(IsPortableCompiled());
-    SetAccessFlags(GetAccessFlags() & ~kAccPortableCompiled);
-  }
-
   bool CheckIncompatibleClassChange(InvokeType type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint16_t GetMethodIndex() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -284,42 +270,6 @@ class MANAGED ArtMethod FINAL : public Object {
         EntryPointFromInterpreterOffset(pointer_size), entry_point_from_interpreter, pointer_size);
   }
 
-  ALWAYS_INLINE static MemberOffset EntryPointFromPortableCompiledCodeOffset(size_t pointer_size) {
-    return MemberOffset(PtrSizedFieldsOffset(pointer_size) + OFFSETOF_MEMBER(
-        PtrSizedFields, entry_point_from_portable_compiled_code_) / sizeof(void*) * pointer_size);
-  }
-
-  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  const void* GetEntryPointFromPortableCompiledCode()
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CheckObjectSizeEqualsMirrorSize();
-    return GetEntryPointFromPortableCompiledCodePtrSize(sizeof(void*));
-  }
-
-  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  ALWAYS_INLINE const void* GetEntryPointFromPortableCompiledCodePtrSize(size_t pointer_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return GetFieldPtrWithSize<const void*, kVerifyFlags>(
-        EntryPointFromPortableCompiledCodeOffset(pointer_size), pointer_size);
-  }
-
-  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  void SetEntryPointFromPortableCompiledCode(const void* entry_point_from_portable_compiled_code)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    CheckObjectSizeEqualsMirrorSize();
-    return SetEntryPointFromPortableCompiledCodePtrSize(entry_point_from_portable_compiled_code,
-                                                        sizeof(void*));
-  }
-
-  template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
-  void SetEntryPointFromPortableCompiledCodePtrSize(
-      const void* entry_point_from_portable_compiled_code, size_t pointer_size)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    SetFieldPtrWithSize<false, true, kVerifyFlags>(
-        EntryPointFromPortableCompiledCodeOffset(pointer_size),
-        entry_point_from_portable_compiled_code, pointer_size);
-  }
-
   template <VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   const void* GetEntryPointFromQuickCompiledCode() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CheckObjectSizeEqualsMirrorSize();
@@ -376,9 +326,7 @@ class MANAGED ArtMethod FINAL : public Object {
   bool IsEntrypointInterpreter() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint32_t GetQuickOatCodeOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  uint32_t GetPortableOatCodeOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetQuickOatCodeOffset(uint32_t code_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void SetPortableOatCodeOffset(uint32_t code_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ALWAYS_INLINE static const void* EntryPointToCodePointer(const void* entry_point) {
     uintptr_t code = reinterpret_cast<uintptr_t>(entry_point);
@@ -648,12 +596,8 @@ class MANAGED ArtMethod FINAL : public Object {
     void* entry_point_from_jni_;
 
     // Method dispatch from quick compiled code invokes this pointer which may cause bridging into
-    // portable compiled code or the interpreter.
+    // the interpreter.
     void* entry_point_from_quick_compiled_code_;
-
-    // Method dispatch from portable compiled code invokes this pointer which may cause bridging
-    // into quick compiled code or the interpreter. Last to simplify entrypoint logic.
-    void* entry_point_from_portable_compiled_code_;
   } ptr_sized_fields_;
 
   static GcRoot<Class> java_lang_reflect_ArtMethod_;

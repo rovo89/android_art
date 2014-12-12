@@ -75,32 +75,26 @@ OatFile* OatFile::Open(const std::string& filename,
   CHECK(!filename.empty()) << location;
   CheckLocation(location);
   std::unique_ptr<OatFile> ret;
-  if (kUsePortableCompiler && executable) {
-    // If we are using PORTABLE, use dlopen to deal with relocations.
-    //
-    // We use our own ELF loader for Quick to deal with legacy apps that
-    // open a generated dex file by name, remove the file, then open
-    // another generated dex file with the same name. http://b/10614658
-    ret.reset(OpenDlopen(filename, location, requested_base, error_msg));
-  } else {
-    // If we aren't trying to execute, we just use our own ElfFile loader for a couple reasons:
-    //
-    // On target, dlopen may fail when compiling due to selinux restrictions on installd.
-    //
-    // On host, dlopen is expected to fail when cross compiling, so fall back to OpenElfFile.
-    // This won't work for portable runtime execution because it doesn't process relocations.
-    std::unique_ptr<File> file(OS::OpenFileForReading(filename.c_str()));
-    if (file.get() == NULL) {
-      *error_msg = StringPrintf("Failed to open oat filename for reading: %s", strerror(errno));
-      return nullptr;
-    }
-    ret.reset(OpenElfFile(file.get(), location, requested_base, oat_file_begin, false, executable,
-                          error_msg));
-
-    // It would be nice to unlink here. But we might have opened the file created by the
-    // ScopedLock, which we better not delete to avoid races. TODO: Investigate how to fix the API
-    // to allow removal when we know the ELF must be borked.
+  // If we aren't trying to execute, we just use our own ElfFile loader for a couple reasons:
+  //
+  // On target, dlopen may fail when compiling due to selinux restrictions on installd.
+  //
+  // We use our own ELF loader for Quick to deal with legacy apps that
+  // open a generated dex file by name, remove the file, then open
+  // another generated dex file with the same name. http://b/10614658
+  //
+  // On host, dlopen is expected to fail when cross compiling, so fall back to OpenElfFile.
+  std::unique_ptr<File> file(OS::OpenFileForReading(filename.c_str()));
+  if (file.get() == NULL) {
+    *error_msg = StringPrintf("Failed to open oat filename for reading: %s", strerror(errno));
+    return nullptr;
   }
+  ret.reset(OpenElfFile(file.get(), location, requested_base, oat_file_begin, false, executable,
+                        error_msg));
+
+  // It would be nice to unlink here. But we might have opened the file created by the
+  // ScopedLock, which we better not delete to avoid races. TODO: Investigate how to fix the API
+  // to allow removal when we know the ELF must be borked.
   return ret.release();
 }
 
@@ -591,7 +585,6 @@ const OatFile::OatMethod OatFile::OatClass::GetOatMethod(uint32_t method_index) 
 
 void OatFile::OatMethod::LinkMethod(mirror::ArtMethod* method) const {
   CHECK(method != NULL);
-  method->SetEntryPointFromPortableCompiledCode(GetPortableCode());
   method->SetEntryPointFromQuickCompiledCode(GetQuickCode());
 }
 
