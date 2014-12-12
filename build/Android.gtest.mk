@@ -102,6 +102,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/gc/accounting/card_table_test.cc \
   runtime/gc/accounting/space_bitmap_test.cc \
   runtime/gc/heap_test.cc \
+  runtime/gc/reference_queue_test.cc \
   runtime/gc/space/dlmalloc_space_base_test.cc \
   runtime/gc/space/dlmalloc_space_static_test.cc \
   runtime/gc/space/dlmalloc_space_random_test.cc \
