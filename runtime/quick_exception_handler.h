@@ -32,7 +32,7 @@ class Thread;
 class ThrowLocation;
 class ShadowFrame;
 
-// Manages exception delivery for Quick backend. Not used by Portable backend.
+// Manages exception delivery for Quick backend.
 class QuickExceptionHandler {
  public:
   QuickExceptionHandler(Thread* self, bool is_deoptimization)

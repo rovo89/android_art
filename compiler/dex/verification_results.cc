@@ -106,18 +106,8 @@ bool VerificationResults::IsClassRejected(ClassReference ref) {
   return (rejected_classes_.find(ref) != rejected_classes_.end());
 }
 
-bool VerificationResults::IsCandidateForCompilation(MethodReference& method_ref,
+bool VerificationResults::IsCandidateForCompilation(MethodReference&,
                                                     const uint32_t access_flags) {
-#ifdef ART_SEA_IR_MODE
-  bool use_sea = compiler_options_->GetSeaIrMode();
-  use_sea = use_sea && (std::string::npos != PrettyMethod(
-                        method_ref.dex_method_index, *(method_ref.dex_file)).find("fibonacci"));
-  if (use_sea) {
-    return true;
-  }
-#else
-  UNUSED(method_ref);
-#endif
   if (!compiler_options_->IsCompilationEnabled()) {
     return false;
   }

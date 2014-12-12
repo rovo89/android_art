@@ -171,14 +171,6 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/utils/arm64/managed_register_arm64_test.cc \
   compiler/utils/x86/managed_register_x86_test.cc \
 
-ifeq ($(ART_SEA_IR_MODE),true)
-COMPILER_GTEST_COMMON_SRC_FILES += \
-  compiler/utils/scoped_hashtable_test.cc \
-  compiler/sea_ir/types/type_data_test.cc \
-  compiler/sea_ir/types/type_inference_visitor_test.cc \
-  compiler/sea_ir/ir/regions_test.cc
-endif
-
 RUNTIME_GTEST_TARGET_SRC_FILES := \
   $(RUNTIME_GTEST_COMMON_SRC_FILES)
 
@@ -197,9 +189,6 @@ COMPILER_GTEST_HOST_SRC_FILES := \
   compiler/utils/x86_64/assembler_x86_64_test.cc
 
 ART_TEST_CFLAGS :=
-ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-  ART_TEST_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
-endif
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := libart-gtest

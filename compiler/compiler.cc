@@ -19,54 +19,9 @@
 #include "base/logging.h"
 #include "dex/quick/quick_compiler.h"
 #include "driver/compiler_driver.h"
-#include "llvm/llvm_compiler.h"
 #include "optimizing/optimizing_compiler.h"
 
 namespace art {
-
-#ifdef ART_SEA_IR_MODE
-constexpr bool kCanUseSeaIR = true;
-#else
-constexpr bool kCanUseSeaIR = false;
-#endif
-
-extern "C" art::CompiledMethod* SeaIrCompileMethod(const art::DexFile::CodeItem* code_item ATTRIBUTE_UNUSED,
-                                                   uint32_t access_flags ATTRIBUTE_UNUSED,
-                                                   art::InvokeType invoke_type ATTRIBUTE_UNUSED,
-                                                   uint16_t class_def_idx ATTRIBUTE_UNUSED,
-                                                   uint32_t method_idx ATTRIBUTE_UNUSED,
-                                                   jobject class_loader ATTRIBUTE_UNUSED,
-                                                   const art::DexFile& dex_file ATTRIBUTE_UNUSED)
-#ifdef ART_SEA_IR_MODE
-;   // NOLINT(whitespace/semicolon)
-#else
-{
-  UNREACHABLE();
-}
-#endif
-
-
-CompiledMethod* Compiler::TryCompileWithSeaIR(const art::DexFile::CodeItem* code_item,
-                                              uint32_t access_flags,
-                                              art::InvokeType invoke_type,
-                                              uint16_t class_def_idx,
-                                              uint32_t method_idx,
-                                              jobject class_loader,
-                                              const art::DexFile& dex_file) {
-  bool use_sea = kCanUseSeaIR &&
-      (std::string::npos != PrettyMethod(method_idx, dex_file).find("fibonacci"));
-  if (use_sea) {
-    LOG(INFO) << "Using SEA IR to compile..." << std::endl;
-    return SeaIrCompileMethod(code_item,
-                              access_flags,
-                              invoke_type,
-                              class_def_idx,
-                              method_idx,
-                              class_loader,
-                              dex_file);
-  }
-  return nullptr;
-}
 
 Compiler* Compiler::Create(CompilerDriver* driver, Compiler::Kind kind) {
   switch (kind) {
@@ -75,13 +30,6 @@ Compiler* Compiler::Create(CompilerDriver* driver, Compiler::Kind kind) {
 
     case kOptimizing:
       return CreateOptimizingCompiler(driver);
-
-    case kPortable:
-      {
-        Compiler* compiler = CreateLLVMCompiler(driver);
-        CHECK(compiler != nullptr) << "Portable compiler not compiled";
-        return compiler;
-      }
 
     default:
       LOG(FATAL) << "UNREACHABLE";

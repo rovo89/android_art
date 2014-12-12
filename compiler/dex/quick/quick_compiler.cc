@@ -19,6 +19,7 @@
 #include <cstdint>
 
 #include "compiler.h"
+#include "dex_file-inl.h"
 #include "dex/frontend.h"
 #include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir.h"
@@ -588,17 +589,6 @@ CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
                                        uint32_t method_idx,
                                        jobject class_loader,
                                        const DexFile& dex_file) const {
-  CompiledMethod* method = TryCompileWithSeaIR(code_item,
-                                               access_flags,
-                                               invoke_type,
-                                               class_def_idx,
-                                               method_idx,
-                                               class_loader,
-                                               dex_file);
-  if (method != nullptr) {
-    return method;
-  }
-
   // TODO: check method fingerprint here to determine appropriate backend type.  Until then, use
   // build default.
   CompilerDriver* driver = GetCompilerDriver();

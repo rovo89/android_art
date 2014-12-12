@@ -16,7 +16,6 @@
 
 #include "entrypoints/interpreter/interpreter_entrypoints.h"
 #include "entrypoints/jni/jni_entrypoints.h"
-#include "entrypoints/portable/portable_entrypoints.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "entrypoints/quick/quick_default_externs.h"
 #include "entrypoints/quick/quick_entrypoints.h"
@@ -39,17 +38,13 @@ extern "C" double art_quick_fmod(double a, double b);        // REM_DOUBLE[_2ADD
 
 
 void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
-                     PortableEntryPoints* ppoints, QuickEntryPoints* qpoints) {
+                     QuickEntryPoints* qpoints) {
   // Interpreter
   ipoints->pInterpreterToInterpreterBridge = artInterpreterToInterpreterBridge;
   ipoints->pInterpreterToCompiledCodeBridge = artInterpreterToCompiledCodeBridge;
 
   // JNI
   jpoints->pDlsymLookup = art_jni_dlsym_lookup_stub;
-
-  // Portable
-  ppoints->pPortableResolutionTrampoline = art_portable_resolution_trampoline;
-  ppoints->pPortableToInterpreterBridge = art_portable_to_interpreter_bridge;
 
   // Alloc
   ResetQuickAllocEntryPoints(qpoints);

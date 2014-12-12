@@ -38,9 +38,7 @@
 #include "ScopedLocalRef.h"
 #include "thread.h"
 #include "thread_list.h"
-#if !defined(ART_USE_PORTABLE_COMPILER)
 #include "entrypoints/quick/quick_entrypoints.h"
-#endif
 
 namespace art {
 

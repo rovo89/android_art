@@ -493,7 +493,6 @@ class ReflectionTest : public CommonCompilerTest {
 };
 
 TEST_F(ReflectionTest, StaticMainMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("Main");
   StackHandleScope<1> hs(soa.Self());
@@ -518,122 +517,98 @@ TEST_F(ReflectionTest, StaticMainMethod) {
 }
 
 TEST_F(ReflectionTest, StaticNopMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeNopMethod(true);
 }
 
 TEST_F(ReflectionTest, NonStaticNopMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeNopMethod(false);
 }
 
 TEST_F(ReflectionTest, StaticIdentityByteMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeIdentityByteMethod(true);
 }
 
 TEST_F(ReflectionTest, NonStaticIdentityByteMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeIdentityByteMethod(false);
 }
 
 TEST_F(ReflectionTest, StaticIdentityIntMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeIdentityIntMethod(true);
 }
 
 TEST_F(ReflectionTest, NonStaticIdentityIntMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeIdentityIntMethod(false);
 }
 
 TEST_F(ReflectionTest, StaticIdentityDoubleMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeIdentityDoubleMethod(true);
 }
 
 TEST_F(ReflectionTest, NonStaticIdentityDoubleMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeIdentityDoubleMethod(false);
 }
 
 TEST_F(ReflectionTest, StaticSumIntIntMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumIntIntMethod(true);
 }
 
 TEST_F(ReflectionTest, NonStaticSumIntIntMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumIntIntMethod(false);
 }
 
 TEST_F(ReflectionTest, StaticSumIntIntIntMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumIntIntIntMethod(true);
 }
 
 TEST_F(ReflectionTest, NonStaticSumIntIntIntMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumIntIntIntMethod(false);
 }
 
 TEST_F(ReflectionTest, StaticSumIntIntIntIntMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumIntIntIntIntMethod(true);
 }
 
 TEST_F(ReflectionTest, NonStaticSumIntIntIntIntMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumIntIntIntIntMethod(false);
 }
 
 TEST_F(ReflectionTest, StaticSumIntIntIntIntIntMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumIntIntIntIntIntMethod(true);
 }
 
 TEST_F(ReflectionTest, NonStaticSumIntIntIntIntIntMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumIntIntIntIntIntMethod(false);
 }
 
 TEST_F(ReflectionTest, StaticSumDoubleDoubleMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumDoubleDoubleMethod(true);
 }
 
 TEST_F(ReflectionTest, NonStaticSumDoubleDoubleMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumDoubleDoubleMethod(false);
 }
 
 TEST_F(ReflectionTest, StaticSumDoubleDoubleDoubleMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumDoubleDoubleDoubleMethod(true);
 }
 
 TEST_F(ReflectionTest, NonStaticSumDoubleDoubleDoubleMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumDoubleDoubleDoubleMethod(false);
 }
 
 TEST_F(ReflectionTest, StaticSumDoubleDoubleDoubleDoubleMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumDoubleDoubleDoubleDoubleMethod(true);
 }
 
 TEST_F(ReflectionTest, NonStaticSumDoubleDoubleDoubleDoubleMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumDoubleDoubleDoubleDoubleMethod(false);
 }
 
 TEST_F(ReflectionTest, StaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(true);
 }
 
 TEST_F(ReflectionTest, NonStaticSumDoubleDoubleDoubleDoubleDoubleMethod) {
-  TEST_DISABLED_FOR_PORTABLE();
   InvokeSumDoubleDoubleDoubleDoubleDoubleMethod(false);
 }
 

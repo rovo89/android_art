@@ -130,9 +130,6 @@ static void UsageError(const char* fmt, ...) {
   UsageError("  --oat-symbols=<file.oat>: specifies the oat output destination with full symbols.");
   UsageError("      Example: --oat-symbols=/symbols/system/framework/boot.oat");
   UsageError("");
-  UsageError("  --bitcode=<file.bc>: specifies the optional bitcode filename.");
-  UsageError("      Example: --bitcode=/system/framework/boot.bc");
-  UsageError("");
   UsageError("  --image=<file.art>: specifies the output image filename.");
   UsageError("      Example: --image=/system/framework/boot.art");
   UsageError("");
@@ -162,12 +159,10 @@ static void UsageError(const char* fmt, ...) {
   UsageError("  --compile-pic: Force indirect use of code, methods, and classes");
   UsageError("      Default: disabled");
   UsageError("");
-  UsageError("  --compiler-backend=(Quick|Optimizing|Portable): select compiler backend");
+  UsageError("  --compiler-backend=(Quick|Optimizing): select compiler backend");
   UsageError("      set.");
-  UsageError("      Example: --compiler-backend=Portable");
-  if (kUsePortableCompiler) {
-    UsageError("      Default: Portable");
-  } else if (kUseOptimizingCompiler) {
+  UsageError("      Example: --compiler-backend=Optimizing");
+  if (kUseOptimizingCompiler) {
     UsageError("      Default: Optimizing");
   } else {
     UsageError("      Default: Quick");
@@ -220,8 +215,6 @@ static void UsageError(const char* fmt, ...) {
   UsageError("      filter to use speed");
   UsageError("      Example: --num-dex-method=%d", CompilerOptions::kDefaultNumDexMethodsThreshold);
   UsageError("      Default: %d", CompilerOptions::kDefaultNumDexMethodsThreshold);
-  UsageError("");
-  UsageError("  --host: used with Portable backend to link against host runtime libraries");
   UsageError("");
   UsageError("  --dump-timing: display a breakdown of where time was spent");
   UsageError("");
@@ -356,9 +349,8 @@ class WatchDog {
   // Debug builds are slower so they have larger timeouts.
   static const unsigned int kSlowdownFactor = kIsDebugBuild ? 5U : 1U;
 
-  static const unsigned int kWatchDogTimeoutSeconds = kUsePortableCompiler ?
-      kSlowdownFactor * 30 * 60 :  // 30 minutes scaled by kSlowdownFactor (portable).
-      kSlowdownFactor * 6 * 60;    // 6 minutes scaled by kSlowdownFactor  (not-portable).
+  // 6 minutes scaled by kSlowdownFactor.
+  static const unsigned int kWatchDogTimeoutSeconds = kSlowdownFactor * 6 * 60;
 
   bool is_watch_dog_enabled_;
   bool shutting_down_;
@@ -404,9 +396,7 @@ static void ParseDouble(const std::string& option, char after_char, double min, 
 class Dex2Oat FINAL {
  public:
   explicit Dex2Oat(TimingLogger* timings) :
-      compiler_kind_(kUsePortableCompiler
-          ? Compiler::kPortable
-          : (kUseOptimizingCompiler ? Compiler::kOptimizing : Compiler::kQuick)),
+      compiler_kind_(kUseOptimizingCompiler ? Compiler::kOptimizing : Compiler::kQuick),
       instruction_set_(kRuntimeISA),
       // Take the default set of instruction features from the build.
       method_inliner_map_(),
@@ -522,8 +512,6 @@ class Dex2Oat FINAL {
         }
       } else if (option.starts_with("--oat-location=")) {
         oat_location_ = option.substr(strlen("--oat-location=")).data();
-      } else if (option.starts_with("--bitcode=")) {
-        bitcode_filename_ = option.substr(strlen("--bitcode=")).data();
       } else if (option.starts_with("--image=")) {
         image_filename_ = option.substr(strlen("--image=")).data();
       } else if (option.starts_with("--image-classes=")) {
@@ -584,8 +572,6 @@ class Dex2Oat FINAL {
           compiler_kind_ = Compiler::kQuick;
         } else if (backend_str == "Optimizing") {
           compiler_kind_ = Compiler::kOptimizing;
-        } else if (backend_str == "Portable") {
-          compiler_kind_ = Compiler::kPortable;
         } else {
           Usage("Unknown compiler backend: %s", backend_str.data());
         }
@@ -902,9 +888,6 @@ class Dex2Oat FINAL {
                                                 implicit_so_checks,
                                                 implicit_suspend_checks,
                                                 compile_pic,
-  #ifdef ART_SEA_IR_MODE
-                                                true,
-  #endif
                                                 verbose_methods_.empty() ?
                                                     nullptr :
                                                     &verbose_methods_,
@@ -1162,8 +1145,6 @@ class Dex2Oat FINAL {
                                      compiler_phases_timings_.get(),
                                      profile_file_));
 
-    driver_->GetCompiler()->SetBitcodeFileName(*driver_, bitcode_filename_);
-
     driver_->CompileAll(class_loader, dex_files_, timings_);
   }
 
@@ -1330,49 +1311,12 @@ class Dex2Oat FINAL {
         bool write_ok = out->WriteFully(buffer.get(), bytes_read);
         CHECK(write_ok);
       }
-      if (kUsePortableCompiler) {
-        oat_file_.reset(out.release());
-      } else {
-        if (out->FlushCloseOrErase() != 0) {
-          PLOG(ERROR) << "Failed to flush and close copied oat file: " << oat_stripped_;
-          return false;
-        }
+      if (out->FlushCloseOrErase() != 0) {
+        PLOG(ERROR) << "Failed to flush and close copied oat file: " << oat_stripped_;
+        return false;
       }
       VLOG(compiler) << "Oat file copied successfully (stripped): " << oat_stripped_;
     }
-    return true;
-  }
-
-  // Run the ElfStripper. Currently only relevant for the portable compiler.
-  bool Strip() {
-    if (kUsePortableCompiler) {
-      // Portable includes debug symbols unconditionally. If we are not supposed to create them,
-      // strip them now. Quick generates debug symbols only when the flag(s) are set.
-      if (!compiler_options_->GetIncludeDebugSymbols()) {
-        CHECK(oat_file_.get() != nullptr && oat_file_->IsOpened());
-
-        TimingLogger::ScopedTiming t("dex2oat ElfStripper", timings_);
-        // Strip unneeded sections for target
-        off_t seek_actual = lseek(oat_file_->Fd(), 0, SEEK_SET);
-        CHECK_EQ(0, seek_actual);
-        std::string error_msg;
-        if (!ElfFile::Strip(oat_file_.get(), &error_msg)) {
-          LOG(ERROR) << "Failed to strip elf file: " << error_msg;
-          oat_file_->Erase();
-          return false;
-        }
-
-        if (!FlushCloseOatFile()) {
-          return false;
-        }
-
-        // We wrote the oat file successfully, and want to keep it.
-        VLOG(compiler) << "Oat file written successfully (stripped): " << oat_location_;
-      } else {
-        VLOG(compiler) << "Oat file written successfully without stripping: " << oat_location_;
-      }
-    }
-
     return true;
   }
 
@@ -1622,7 +1566,6 @@ class Dex2Oat FINAL {
   std::string oat_location_;
   std::string oat_filename_;
   int oat_fd_;
-  std::string bitcode_filename_;
   std::vector<const char*> dex_filenames_;
   std::vector<const char*> dex_locations_;
   int zip_fd_;
@@ -1709,11 +1652,6 @@ static int CompileImage(Dex2Oat& dex2oat) {
     return EXIT_FAILURE;
   }
 
-  // Strip, if necessary.
-  if (!dex2oat.Strip()) {
-    return EXIT_FAILURE;
-  }
-
   // FlushClose again, as stripping might have re-opened the oat file.
   if (!dex2oat.FlushCloseOatFile()) {
     return EXIT_FAILURE;
@@ -1751,11 +1689,6 @@ static int CompileApp(Dex2Oat& dex2oat) {
   // Copy unstripped to stripped location, if necessary. This will implicitly flush & close the
   // unstripped version. If this is given, we expect to be able to open writable files by name.
   if (!dex2oat.CopyUnstrippedToStripped()) {
-    return EXIT_FAILURE;
-  }
-
-  // Strip, if necessary.
-  if (!dex2oat.Strip()) {
     return EXIT_FAILURE;
   }
 

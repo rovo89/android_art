@@ -20,6 +20,7 @@
 
 #include "base/logging.h"
 #include "base/macros.h"
+#include "dex_file-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "scoped_thread_state_change.h"

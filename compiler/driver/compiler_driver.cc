@@ -371,8 +371,6 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
   DCHECK(verification_results_ != nullptr);
   DCHECK(method_inliner_map_ != nullptr);
 
-  CHECK_PTHREAD_CALL(pthread_key_create, (&tls_key_, nullptr), "compiler tls key");
-
   dex_to_dex_compiler_ = reinterpret_cast<DexToDexCompilerFn>(ArtCompileDEX);
 
   compiler_->Init();
@@ -432,18 +430,7 @@ CompilerDriver::~CompilerDriver() {
     MutexLock mu(self, compiled_methods_lock_);
     STLDeleteValues(&compiled_methods_);
   }
-  CHECK_PTHREAD_CALL(pthread_key_delete, (tls_key_), "delete tls key");
   compiler_->UnInit();
-}
-
-CompilerTls* CompilerDriver::GetTls() {
-  // Lazily create thread-local storage
-  CompilerTls* res = static_cast<CompilerTls*>(pthread_getspecific(tls_key_));
-  if (res == nullptr) {
-    res = compiler_->CreateNewCompilerTls();
-    CHECK_PTHREAD_CALL(pthread_setspecific, (tls_key_, res), "compiler tls");
-  }
-  return res;
 }
 
 #define CREATE_TRAMPOLINE(type, abi, offset) \
@@ -465,18 +452,6 @@ const std::vector<uint8_t>* CompilerDriver::CreateInterpreterToCompiledCodeBridg
 
 const std::vector<uint8_t>* CompilerDriver::CreateJniDlsymLookup() const {
   CREATE_TRAMPOLINE(JNI, kJniAbi, pDlsymLookup)
-}
-
-const std::vector<uint8_t>* CompilerDriver::CreatePortableImtConflictTrampoline() const {
-  CREATE_TRAMPOLINE(PORTABLE, kPortableAbi, pPortableImtConflictTrampoline)
-}
-
-const std::vector<uint8_t>* CompilerDriver::CreatePortableResolutionTrampoline() const {
-  CREATE_TRAMPOLINE(PORTABLE, kPortableAbi, pPortableResolutionTrampoline)
-}
-
-const std::vector<uint8_t>* CompilerDriver::CreatePortableToInterpreterBridge() const {
-  CREATE_TRAMPOLINE(PORTABLE, kPortableAbi, pPortableToInterpreterBridge)
 }
 
 const std::vector<uint8_t>* CompilerDriver::CreateQuickGenericJniTrampoline() const {
@@ -1283,18 +1258,11 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   // TODO This is somewhat hacky. We should refactor all of this invoke codepath.
   const bool force_relocations = (compiling_boot ||
                                   GetCompilerOptions().GetIncludePatchInformation());
-  if (compiler_->IsPortable()) {
-    if (sharp_type != kStatic && sharp_type != kDirect) {
-      return;
-    }
-    use_dex_cache = true;
-  } else {
-    if (sharp_type != kStatic && sharp_type != kDirect) {
-      return;
-    }
-    // TODO: support patching on all architectures.
-    use_dex_cache = use_dex_cache || (force_relocations && !support_boot_image_fixup_);
+  if (sharp_type != kStatic && sharp_type != kDirect) {
+    return;
   }
+  // TODO: support patching on all architectures.
+  use_dex_cache = use_dex_cache || (force_relocations && !support_boot_image_fixup_);
   bool method_code_in_boot = (method->GetDeclaringClass()->GetClassLoader() == nullptr);
   if (!use_dex_cache) {
     if (!method_code_in_boot) {

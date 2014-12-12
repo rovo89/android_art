@@ -193,8 +193,7 @@ class Instrumentation {
   void ResetQuickAllocEntryPoints() EXCLUSIVE_LOCKS_REQUIRED(Locks::runtime_shutdown_lock_);
 
   // Update the code of a method respecting any installed stubs.
-  void UpdateMethodsCode(mirror::ArtMethod* method, const void* quick_code,
-                         const void* portable_code, bool have_portable_code)
+  void UpdateMethodsCode(mirror::ArtMethod* method, const void* quick_code)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the quick code for the given method. More efficient than asking the class linker as it
@@ -215,10 +214,6 @@ class Instrumentation {
 
   bool IsForcedInterpretOnly() const {
     return forced_interpret_only_;
-  }
-
-  bool ShouldPortableCodeDeoptimize() const {
-    return instrumentation_stubs_installed_;
   }
 
   bool AreExitStubsInstalled() const {

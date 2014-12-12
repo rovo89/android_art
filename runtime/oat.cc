@@ -25,7 +25,7 @@
 namespace art {
 
 const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '5', '1', '\0' };
+const uint8_t OatHeader::kOatVersion[] = { '0', '5', '2', '\0' };
 
 static size_t ComputeOatHeaderSize(const SafeMap<std::string, std::string>* variable_data) {
   size_t estimate = 0U;
@@ -105,9 +105,6 @@ OatHeader::OatHeader(InstructionSet instruction_set,
   interpreter_to_interpreter_bridge_offset_ = 0;
   interpreter_to_compiled_code_bridge_offset_ = 0;
   jni_dlsym_lookup_offset_ = 0;
-  portable_imt_conflict_trampoline_offset_ = 0;
-  portable_resolution_trampoline_offset_ = 0;
-  portable_to_interpreter_bridge_offset_ = 0;
   quick_generic_jni_trampoline_offset_ = 0;
   quick_imt_conflict_trampoline_offset_ = 0;
   quick_resolution_trampoline_offset_ = 0;
@@ -231,75 +228,18 @@ void OatHeader::SetJniDlsymLookupOffset(uint32_t offset) {
   UpdateChecksum(&jni_dlsym_lookup_offset_, sizeof(offset));
 }
 
-const void* OatHeader::GetPortableImtConflictTrampoline() const {
-  return reinterpret_cast<const uint8_t*>(this) + GetPortableImtConflictTrampolineOffset();
-}
-
-uint32_t OatHeader::GetPortableImtConflictTrampolineOffset() const {
-  DCHECK(IsValid());
-  CHECK_GE(portable_imt_conflict_trampoline_offset_, jni_dlsym_lookup_offset_);
-  return portable_imt_conflict_trampoline_offset_;
-}
-
-void OatHeader::SetPortableImtConflictTrampolineOffset(uint32_t offset) {
-  CHECK(offset == 0 || offset >= jni_dlsym_lookup_offset_);
-  DCHECK(IsValid());
-  DCHECK_EQ(portable_imt_conflict_trampoline_offset_, 0U) << offset;
-
-  portable_imt_conflict_trampoline_offset_ = offset;
-  UpdateChecksum(&portable_imt_conflict_trampoline_offset_, sizeof(offset));
-}
-
-const void* OatHeader::GetPortableResolutionTrampoline() const {
-  return reinterpret_cast<const uint8_t*>(this) + GetPortableResolutionTrampolineOffset();
-}
-
-uint32_t OatHeader::GetPortableResolutionTrampolineOffset() const {
-  DCHECK(IsValid());
-  CHECK_GE(portable_resolution_trampoline_offset_, portable_imt_conflict_trampoline_offset_);
-  return portable_resolution_trampoline_offset_;
-}
-
-void OatHeader::SetPortableResolutionTrampolineOffset(uint32_t offset) {
-  CHECK(offset == 0 || offset >= portable_imt_conflict_trampoline_offset_);
-  DCHECK(IsValid());
-  DCHECK_EQ(portable_resolution_trampoline_offset_, 0U) << offset;
-
-  portable_resolution_trampoline_offset_ = offset;
-  UpdateChecksum(&portable_resolution_trampoline_offset_, sizeof(offset));
-}
-
-const void* OatHeader::GetPortableToInterpreterBridge() const {
-  return reinterpret_cast<const uint8_t*>(this) + GetPortableToInterpreterBridgeOffset();
-}
-
-uint32_t OatHeader::GetPortableToInterpreterBridgeOffset() const {
-  DCHECK(IsValid());
-  CHECK_GE(portable_to_interpreter_bridge_offset_, portable_resolution_trampoline_offset_);
-  return portable_to_interpreter_bridge_offset_;
-}
-
-void OatHeader::SetPortableToInterpreterBridgeOffset(uint32_t offset) {
-  CHECK(offset == 0 || offset >= portable_resolution_trampoline_offset_);
-  DCHECK(IsValid());
-  DCHECK_EQ(portable_to_interpreter_bridge_offset_, 0U) << offset;
-
-  portable_to_interpreter_bridge_offset_ = offset;
-  UpdateChecksum(&portable_to_interpreter_bridge_offset_, sizeof(offset));
-}
-
 const void* OatHeader::GetQuickGenericJniTrampoline() const {
   return reinterpret_cast<const uint8_t*>(this) + GetQuickGenericJniTrampolineOffset();
 }
 
 uint32_t OatHeader::GetQuickGenericJniTrampolineOffset() const {
   DCHECK(IsValid());
-  CHECK_GE(quick_generic_jni_trampoline_offset_, portable_to_interpreter_bridge_offset_);
+  CHECK_GE(quick_generic_jni_trampoline_offset_, jni_dlsym_lookup_offset_);
   return quick_generic_jni_trampoline_offset_;
 }
 
 void OatHeader::SetQuickGenericJniTrampolineOffset(uint32_t offset) {
-  CHECK(offset == 0 || offset >= portable_to_interpreter_bridge_offset_);
+  CHECK(offset == 0 || offset >= jni_dlsym_lookup_offset_);
   DCHECK(IsValid());
   DCHECK_EQ(quick_generic_jni_trampoline_offset_, 0U) << offset;
 
