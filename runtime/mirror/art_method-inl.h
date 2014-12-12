@@ -380,8 +380,7 @@ inline const char* ArtMethod::GetName() {
 }
 
 inline const DexFile::CodeItem* ArtMethod::GetCodeItem() {
-  mirror::ArtMethod* method = GetInterfaceMethodIfProxy();
-  return method->GetDexFile()->GetCodeItem(method->GetCodeItemOffset());
+  return GetDeclaringClass()->GetDexFile().GetCodeItem(GetCodeItemOffset());
 }
 
 inline bool ArtMethod::IsResolvedTypeIdx(uint16_t type_idx) {
