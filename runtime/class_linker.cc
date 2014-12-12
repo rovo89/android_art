@@ -238,9 +238,7 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       log_new_dex_caches_roots_(false),
       log_new_class_table_roots_(false),
       intern_table_(intern_table),
-      portable_resolution_trampoline_(nullptr),
       quick_resolution_trampoline_(nullptr),
-      portable_imt_conflict_trampoline_(nullptr),
       quick_imt_conflict_trampoline_(nullptr),
       quick_generic_jni_trampoline_(nullptr),
       quick_to_interpreter_bridge_trampoline_(nullptr),
@@ -1639,8 +1637,6 @@ void ClassLinker::InitFromImageInterpretOnlyCallback(mirror::Object* obj, void* 
       if (method != Runtime::Current()->GetResolutionMethod()) {
         method->SetEntryPointFromQuickCompiledCodePtrSize(GetQuickToInterpreterBridge(),
                                                           pointer_size);
-        method->SetEntryPointFromPortableCompiledCodePtrSize(GetPortableToInterpreterBridge(),
-                                                             pointer_size);
       }
     }
   }
@@ -1661,9 +1657,7 @@ void ClassLinker::InitFromImage() {
   const char* image_file_location = oat_file.GetOatHeader().
       GetStoreValueByKey(OatHeader::kImageLocationKey);
   CHECK(image_file_location == nullptr || *image_file_location == 0);
-  portable_resolution_trampoline_ = oat_file.GetOatHeader().GetPortableResolutionTrampoline();
   quick_resolution_trampoline_ = oat_file.GetOatHeader().GetQuickResolutionTrampoline();
-  portable_imt_conflict_trampoline_ = oat_file.GetOatHeader().GetPortableImtConflictTrampoline();
   quick_imt_conflict_trampoline_ = oat_file.GetOatHeader().GetQuickImtConflictTrampoline();
   quick_generic_jni_trampoline_ = oat_file.GetOatHeader().GetQuickGenericJniTrampoline();
   quick_to_interpreter_bridge_trampoline_ = oat_file.GetOatHeader().GetQuickToInterpreterBridge();
@@ -2529,43 +2523,10 @@ const void* ClassLinker::GetQuickOatCodeFor(mirror::ArtMethod* method) {
     if (method->IsNative()) {
       // No code and native? Use generic trampoline.
       result = GetQuickGenericJniStub();
-    } else if (method->IsPortableCompiled()) {
-      // No code? Do we expect portable code?
-      result = GetQuickToPortableBridge();
     } else {
       // No code? You must mean to go into the interpreter.
       result = GetQuickToInterpreterBridge();
     }
-  }
-  return result;
-}
-
-const void* ClassLinker::GetPortableOatCodeFor(mirror::ArtMethod* method,
-                                               bool* have_portable_code) {
-  CHECK(!method->IsAbstract()) << PrettyMethod(method);
-  *have_portable_code = false;
-  if (method->IsProxyMethod()) {
-    return GetPortableProxyInvokeHandler();
-  }
-  bool found;
-  OatFile::OatMethod oat_method = FindOatMethodFor(method, &found);
-  const void* result = nullptr;
-  const void* quick_code = nullptr;
-  if (found) {
-    result = oat_method.GetPortableCode();
-    quick_code = oat_method.GetQuickCode();
-  }
-
-  if (result == nullptr) {
-    if (quick_code == nullptr) {
-      // No code? You must mean to go into the interpreter.
-      result = GetPortableToInterpreterBridge();
-    } else {
-      // No code? But there's quick code, so use a bridge.
-      result = GetPortableToQuickBridge();
-    }
-  } else {
-    *have_portable_code = true;
   }
   return result;
 }
@@ -2579,15 +2540,6 @@ const void* ClassLinker::GetOatMethodQuickCodeFor(mirror::ArtMethod* method) {
   return found ? oat_method.GetQuickCode() : nullptr;
 }
 
-const void* ClassLinker::GetOatMethodPortableCodeFor(mirror::ArtMethod* method) {
-  if (method->IsNative() || method->IsAbstract() || method->IsProxyMethod()) {
-    return nullptr;
-  }
-  bool found;
-  OatFile::OatMethod oat_method = FindOatMethodFor(method, &found);
-  return found ? oat_method.GetPortableCode() : nullptr;
-}
-
 const void* ClassLinker::GetQuickOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx,
                                             uint32_t method_idx) {
   bool found;
@@ -2599,34 +2551,15 @@ const void* ClassLinker::GetQuickOatCodeFor(const DexFile& dex_file, uint16_t cl
   return oat_class.GetOatMethod(oat_method_idx).GetQuickCode();
 }
 
-const void* ClassLinker::GetPortableOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx,
-                                               uint32_t method_idx) {
-  bool found;
-  OatFile::OatClass oat_class = FindOatClass(dex_file, class_def_idx, &found);
-  if (!found) {
-    return nullptr;
-  }
-  uint32_t oat_method_idx = GetOatMethodIndexFromMethodIndex(dex_file, class_def_idx, method_idx);
-  return oat_class.GetOatMethod(oat_method_idx).GetPortableCode();
-}
-
 // Returns true if the method must run with interpreter, false otherwise.
-static bool NeedsInterpreter(
-    mirror::ArtMethod* method, const void* quick_code, const void* portable_code)
+static bool NeedsInterpreter(mirror::ArtMethod* method, const void* quick_code)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  if ((quick_code == nullptr) && (portable_code == nullptr)) {
+  if (quick_code == nullptr) {
     // No code: need interpreter.
     // May return true for native code, in the case of generic JNI
     // DCHECK(!method->IsNative());
     return true;
   }
-#ifdef ART_SEA_IR_MODE
-  ScopedObjectAccess soa(Thread::Current());
-  if (std::string::npos != PrettyMethod(method).find("fibonacci")) {
-    LOG(INFO) << "Found " << PrettyMethod(method);
-    return false;
-  }
-#endif
   // If interpreter mode is enabled, every method (except native and proxy) must
   // be run with interpreter.
   return Runtime::Current()->GetInstrumentation()->InterpretOnly() &&
@@ -2669,37 +2602,22 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
       // Only update static methods.
       continue;
     }
-    const void* portable_code = nullptr;
     const void* quick_code = nullptr;
     if (has_oat_class) {
       OatFile::OatMethod oat_method = oat_class.GetOatMethod(method_index);
-      portable_code = oat_method.GetPortableCode();
       quick_code = oat_method.GetQuickCode();
     }
-    const bool enter_interpreter = NeedsInterpreter(method, quick_code, portable_code);
-    bool have_portable_code = false;
+    const bool enter_interpreter = NeedsInterpreter(method, quick_code);
     if (enter_interpreter) {
       // Use interpreter entry point.
       // Check whether the method is native, in which case it's generic JNI.
-      if (quick_code == nullptr && portable_code == nullptr && method->IsNative()) {
+      if (quick_code == nullptr && method->IsNative()) {
         quick_code = GetQuickGenericJniStub();
-        portable_code = GetPortableToQuickBridge();
       } else {
-        portable_code = GetPortableToInterpreterBridge();
         quick_code = GetQuickToInterpreterBridge();
       }
-    } else {
-      if (portable_code == nullptr) {
-        portable_code = GetPortableToQuickBridge();
-      } else {
-        have_portable_code = true;
-      }
-      if (quick_code == nullptr) {
-        quick_code = GetQuickToPortableBridge();
-      }
     }
-    runtime->GetInstrumentation()->UpdateMethodsCode(method, quick_code, portable_code,
-                                                     have_portable_code);
+    runtime->GetInstrumentation()->UpdateMethodsCode(method, quick_code);
   }
   // Ignore virtual methods on the iterator.
 }
@@ -2714,7 +2632,6 @@ void ClassLinker::LinkCode(Handle<mirror::ArtMethod> method,
   }
   // Method shouldn't have already been linked.
   DCHECK(method->GetEntryPointFromQuickCompiledCode() == nullptr);
-  DCHECK(method->GetEntryPointFromPortableCompiledCode() == nullptr);
   if (oat_class != nullptr) {
     // Every kind of method should at least get an invoke stub from the oat_method.
     // non-abstract methods also get their code pointers.
@@ -2724,8 +2641,7 @@ void ClassLinker::LinkCode(Handle<mirror::ArtMethod> method,
 
   // Install entry point from interpreter.
   bool enter_interpreter = NeedsInterpreter(method.Get(),
-                                            method->GetEntryPointFromQuickCompiledCode(),
-                                            method->GetEntryPointFromPortableCompiledCode());
+                                            method->GetEntryPointFromQuickCompiledCode());
   if (enter_interpreter && !method->IsNative()) {
     method->SetEntryPointFromInterpreter(artInterpreterToInterpreterBridge);
   } else {
@@ -2734,33 +2650,21 @@ void ClassLinker::LinkCode(Handle<mirror::ArtMethod> method,
 
   if (method->IsAbstract()) {
     method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
-    method->SetEntryPointFromPortableCompiledCode(GetPortableToInterpreterBridge());
     return;
   }
 
-  bool have_portable_code = false;
   if (method->IsStatic() && !method->IsConstructor()) {
     // For static methods excluding the class initializer, install the trampoline.
     // It will be replaced by the proper entry point by ClassLinker::FixupStaticTrampolines
     // after initializing class (see ClassLinker::InitializeClass method).
     method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionStub());
-    method->SetEntryPointFromPortableCompiledCode(GetPortableResolutionStub());
   } else if (enter_interpreter) {
     if (!method->IsNative()) {
       // Set entry point from compiled code if there's no code or in interpreter only mode.
       method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
-      method->SetEntryPointFromPortableCompiledCode(GetPortableToInterpreterBridge());
     } else {
       method->SetEntryPointFromQuickCompiledCode(GetQuickGenericJniStub());
-      method->SetEntryPointFromPortableCompiledCode(GetPortableToQuickBridge());
     }
-  } else if (method->GetEntryPointFromPortableCompiledCode() != nullptr) {
-    DCHECK(method->GetEntryPointFromQuickCompiledCode() == nullptr);
-    have_portable_code = true;
-    method->SetEntryPointFromQuickCompiledCode(GetQuickToPortableBridge());
-  } else {
-    DCHECK(method->GetEntryPointFromQuickCompiledCode() != nullptr);
-    method->SetEntryPointFromPortableCompiledCode(GetPortableToQuickBridge());
   }
 
   if (method->IsNative()) {
@@ -2778,9 +2682,7 @@ void ClassLinker::LinkCode(Handle<mirror::ArtMethod> method,
 
   // Allow instrumentation its chance to hijack code.
   runtime->GetInstrumentation()->UpdateMethodsCode(method.Get(),
-                                                   method->GetEntryPointFromQuickCompiledCode(),
-                                                   method->GetEntryPointFromPortableCompiledCode(),
-                                                   have_portable_code);
+                                                   method->GetEntryPointFromQuickCompiledCode());
 }
 
 
@@ -4087,7 +3989,6 @@ mirror::ArtMethod* ClassLinker::CreateProxyMethod(Thread* self,
   // At runtime the method looks like a reference and argument saving method, clone the code
   // related parameters from this method.
   method->SetEntryPointFromQuickCompiledCode(GetQuickProxyInvokeHandler());
-  method->SetEntryPointFromPortableCompiledCode(GetPortableProxyInvokeHandler());
   method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
 
   return method;
@@ -5813,8 +5714,7 @@ void ClassLinker::DumpAllClasses(int flags) {
   }
 }
 
-static OatFile::OatMethod CreateOatMethod(const void* code, bool is_portable) {
-  CHECK_EQ(kUsePortableCompiler, is_portable);
+static OatFile::OatMethod CreateOatMethod(const void* code) {
   CHECK(code != nullptr);
   const uint8_t* base = reinterpret_cast<const uint8_t*>(code);  // Base of data points at code.
   base -= sizeof(void*);  // Move backward so that code_offset != 0.
@@ -5822,19 +5722,9 @@ static OatFile::OatMethod CreateOatMethod(const void* code, bool is_portable) {
   return OatFile::OatMethod(base, code_offset);
 }
 
-bool ClassLinker::IsPortableResolutionStub(const void* entry_point) const {
-  return (entry_point == GetPortableResolutionStub()) ||
-      (portable_resolution_trampoline_ == entry_point);
-}
-
 bool ClassLinker::IsQuickResolutionStub(const void* entry_point) const {
   return (entry_point == GetQuickResolutionStub()) ||
       (quick_resolution_trampoline_ == entry_point);
-}
-
-bool ClassLinker::IsPortableToInterpreterBridge(const void* entry_point) const {
-  return (entry_point == GetPortableToInterpreterBridge());
-  // TODO: portable_to_interpreter_bridge_trampoline_ == entry_point;
 }
 
 bool ClassLinker::IsQuickToInterpreterBridge(const void* entry_point) const {
@@ -5851,32 +5741,22 @@ const void* ClassLinker::GetRuntimeQuickGenericJniStub() const {
   return GetQuickGenericJniStub();
 }
 
-void ClassLinker::SetEntryPointsToCompiledCode(mirror::ArtMethod* method, const void* method_code,
-                                               bool is_portable) const {
-  OatFile::OatMethod oat_method = CreateOatMethod(method_code, is_portable);
+void ClassLinker::SetEntryPointsToCompiledCode(mirror::ArtMethod* method,
+                                               const void* method_code) const {
+  OatFile::OatMethod oat_method = CreateOatMethod(method_code);
   oat_method.LinkMethod(method);
   method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
-  // Create bridges to transition between different kinds of compiled bridge.
-  if (method->GetEntryPointFromPortableCompiledCode() == nullptr) {
-    method->SetEntryPointFromPortableCompiledCode(GetPortableToQuickBridge());
-  } else {
-    CHECK(method->GetEntryPointFromQuickCompiledCode() == nullptr);
-    method->SetEntryPointFromQuickCompiledCode(GetQuickToPortableBridge());
-    method->SetIsPortableCompiled();
-  }
 }
 
 void ClassLinker::SetEntryPointsToInterpreter(mirror::ArtMethod* method) const {
   if (!method->IsNative()) {
     method->SetEntryPointFromInterpreter(artInterpreterToInterpreterBridge);
-    method->SetEntryPointFromPortableCompiledCode(GetPortableToInterpreterBridge());
     method->SetEntryPointFromQuickCompiledCode(GetQuickToInterpreterBridge());
   } else {
     const void* quick_method_code = GetQuickGenericJniStub();
-    OatFile::OatMethod oat_method = CreateOatMethod(quick_method_code, false);
+    OatFile::OatMethod oat_method = CreateOatMethod(quick_method_code);
     oat_method.LinkMethod(method);
     method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
-    method->SetEntryPointFromPortableCompiledCode(GetPortableToQuickBridge());
   }
 }
 

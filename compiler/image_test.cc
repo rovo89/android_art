@@ -72,11 +72,6 @@ TEST_F(ImageTest, WriteRead) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       TimingLogger timings("ImageTest::WriteRead", false, false);
       TimingLogger::ScopedTiming t("CompileAll", &timings);
-      if (kUsePortableCompiler) {
-        // TODO: we disable this for portable so the test executes in a reasonable amount of time.
-        //       We shouldn't need to do this.
-        compiler_options_->SetCompilerFilter(CompilerOptions::kInterpretOnly);
-      }
       for (const DexFile* dex_file : class_linker->GetBootClassPath()) {
         dex_file->EnableWrite();
       }

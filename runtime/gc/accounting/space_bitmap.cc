@@ -17,6 +17,7 @@
 #include "space_bitmap-inl.h"
 
 #include "base/stringprintf.h"
+#include "dex_file-inl.h"
 #include "mem_map.h"
 #include "mirror/object-inl.h"
 #include "mirror/class.h"

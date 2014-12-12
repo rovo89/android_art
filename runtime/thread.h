@@ -31,10 +31,10 @@
 #include "base/mutex.h"
 #include "entrypoints/interpreter/interpreter_entrypoints.h"
 #include "entrypoints/jni/jni_entrypoints.h"
-#include "entrypoints/portable/portable_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "globals.h"
 #include "handle_scope.h"
+#include "instrumentation.h"
 #include "jvalue.h"
 #include "object_callbacks.h"
 #include "offsets.h"
@@ -546,12 +546,6 @@ class Thread {
   static ThreadOffset<pointer_size> JniEntryPointOffset(size_t jni_entrypoint_offset) {
     return ThreadOffsetFromTlsPtr<pointer_size>(
         OFFSETOF_MEMBER(tls_ptr_sized_values, jni_entrypoints) + jni_entrypoint_offset);
-  }
-
-  template<size_t pointer_size>
-  static ThreadOffset<pointer_size> PortableEntryPointOffset(size_t port_entrypoint_offset) {
-    return ThreadOffsetFromTlsPtr<pointer_size>(
-        OFFSETOF_MEMBER(tls_ptr_sized_values, portable_entrypoints) + port_entrypoint_offset);
   }
 
   template<size_t pointer_size>
@@ -1128,7 +1122,6 @@ class Thread {
     // TODO: move this to more of a global offset table model to avoid per-thread duplication.
     InterpreterEntryPoints interpreter_entrypoints;
     JniEntryPoints jni_entrypoints;
-    PortableEntryPoints portable_entrypoints;
     QuickEntryPoints quick_entrypoints;
 
     // Thread-local allocation pointer.

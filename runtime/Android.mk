@@ -176,17 +176,6 @@ LIBART_COMMON_SRC_FILES += \
   entrypoints/interpreter/interpreter_entrypoints.cc \
   entrypoints/jni/jni_entrypoints.cc \
   entrypoints/math_entrypoints.cc \
-  entrypoints/portable/portable_alloc_entrypoints.cc \
-  entrypoints/portable/portable_cast_entrypoints.cc \
-  entrypoints/portable/portable_dexcache_entrypoints.cc \
-  entrypoints/portable/portable_field_entrypoints.cc \
-  entrypoints/portable/portable_fillarray_entrypoints.cc \
-  entrypoints/portable/portable_invoke_entrypoints.cc \
-  entrypoints/portable/portable_jni_entrypoints.cc \
-  entrypoints/portable/portable_lock_entrypoints.cc \
-  entrypoints/portable/portable_thread_entrypoints.cc \
-  entrypoints/portable/portable_throw_entrypoints.cc \
-  entrypoints/portable/portable_trampoline_entrypoints.cc \
   entrypoints/quick/quick_alloc_entrypoints.cc \
   entrypoints/quick/quick_cast_entrypoints.cc \
   entrypoints/quick/quick_deoptimization_entrypoints.cc \
@@ -221,7 +210,6 @@ LIBART_TARGET_SRC_FILES_arm := \
   arch/arm/instruction_set_features_assembly_tests.S \
   arch/arm/jni_entrypoints_arm.S \
   arch/arm/memcmp16_arm.S \
-  arch/arm/portable_entrypoints_arm.S \
   arch/arm/quick_entrypoints_arm.S \
   arch/arm/quick_entrypoints_cc_arm.cc \
   arch/arm/thread_arm.cc \
@@ -232,7 +220,6 @@ LIBART_TARGET_SRC_FILES_arm64 := \
   arch/arm64/entrypoints_init_arm64.cc \
   arch/arm64/jni_entrypoints_arm64.S \
   arch/arm64/memcmp16_arm64.S \
-  arch/arm64/portable_entrypoints_arm64.S \
   arch/arm64/quick_entrypoints_arm64.S \
   arch/arm64/thread_arm64.cc \
   monitor_pool.cc \
@@ -243,7 +230,6 @@ LIBART_SRC_FILES_x86 := \
   arch/x86/entrypoints_init_x86.cc \
   arch/x86/jni_entrypoints_x86.S \
   arch/x86/memcmp16_x86.S \
-  arch/x86/portable_entrypoints_x86.S \
   arch/x86/quick_entrypoints_x86.S \
   arch/x86/thread_x86.cc \
   arch/x86/fault_handler_x86.cc
@@ -258,7 +244,6 @@ LIBART_SRC_FILES_x86_64 := \
   arch/x86_64/entrypoints_init_x86_64.cc \
   arch/x86_64/jni_entrypoints_x86_64.S \
   arch/x86_64/memcmp16_x86_64.S \
-  arch/x86_64/portable_entrypoints_x86_64.S \
   arch/x86_64/quick_entrypoints_x86_64.S \
   arch/x86_64/thread_x86_64.cc \
   monitor_pool.cc \
@@ -272,7 +257,6 @@ LIBART_TARGET_SRC_FILES_mips := \
   arch/mips/entrypoints_init_mips.cc \
   arch/mips/jni_entrypoints_mips.S \
   arch/mips/memcmp16_mips.S \
-  arch/mips/portable_entrypoints_mips.S \
   arch/mips/quick_entrypoints_mips.S \
   arch/mips/thread_mips.cc \
   arch/mips/fault_handler_mips.cc
@@ -325,9 +309,6 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   verifier/method_verifier.h
 
 LIBART_CFLAGS := -DBUILDING_LIBART=1
-ifeq ($(ART_USE_PORTABLE_COMPILER),true)
-  LIBART_CFLAGS += -DART_USE_PORTABLE_COMPILER=1
-endif
 
 ifeq ($(MALLOC_IMPL),dlmalloc)
   LIBART_CFLAGS += -DUSE_DLMALLOC
@@ -482,14 +463,6 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     LOCAL_SHARED_LIBRARIES += libziparchive-host
     # For ashmem_create_region.
     LOCAL_STATIC_LIBRARIES += libcutils
-  endif
-  ifeq ($$(ART_USE_PORTABLE_COMPILER),true)
-    include $$(LLVM_GEN_INTRINSICS_MK)
-    ifeq ($$(art_target_or_host),target)
-      include $$(LLVM_DEVICE_BUILD_MK)
-    else # host
-      include $$(LLVM_HOST_BUILD_MK)
-    endif
   endif
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $$(LOCAL_PATH)/Android.mk

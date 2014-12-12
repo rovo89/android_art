@@ -15,6 +15,7 @@
  */
 
 #include "inline_method_analyser.h"
+#include "dex_file-inl.h"
 #include "dex_instruction.h"
 #include "dex_instruction-inl.h"
 #include "mirror/art_field.h"

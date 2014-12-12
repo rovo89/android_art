@@ -68,16 +68,6 @@ class PACKED(4) OatHeader {
   uint32_t GetJniDlsymLookupOffset() const;
   void SetJniDlsymLookupOffset(uint32_t offset);
 
-  const void* GetPortableResolutionTrampoline() const;
-  uint32_t GetPortableResolutionTrampolineOffset() const;
-  void SetPortableResolutionTrampolineOffset(uint32_t offset);
-  const void* GetPortableImtConflictTrampoline() const;
-  uint32_t GetPortableImtConflictTrampolineOffset() const;
-  void SetPortableImtConflictTrampolineOffset(uint32_t offset);
-  const void* GetPortableToInterpreterBridge() const;
-  uint32_t GetPortableToInterpreterBridgeOffset() const;
-  void SetPortableToInterpreterBridgeOffset(uint32_t offset);
-
   const void* GetQuickGenericJniTrampoline() const;
   uint32_t GetQuickGenericJniTrampolineOffset() const;
   void SetQuickGenericJniTrampolineOffset(uint32_t offset);
@@ -129,9 +119,6 @@ class PACKED(4) OatHeader {
   uint32_t interpreter_to_interpreter_bridge_offset_;
   uint32_t interpreter_to_compiled_code_bridge_offset_;
   uint32_t jni_dlsym_lookup_offset_;
-  uint32_t portable_imt_conflict_trampoline_offset_;
-  uint32_t portable_resolution_trampoline_offset_;
-  uint32_t portable_to_interpreter_bridge_offset_;
   uint32_t quick_generic_jni_trampoline_offset_;
   uint32_t quick_imt_conflict_trampoline_offset_;
   uint32_t quick_resolution_trampoline_offset_;

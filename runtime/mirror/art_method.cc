@@ -39,7 +39,6 @@
 namespace art {
 namespace mirror {
 
-extern "C" void art_portable_invoke_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, JValue*, char);
 extern "C" void art_quick_invoke_stub(ArtMethod*, uint32_t*, uint32_t, Thread*, JValue*,
                                       const char*);
 #if defined(__LP64__) || defined(__arm__)
@@ -200,11 +199,6 @@ uint32_t ArtMethod::FindDexMethodIndexInOtherDexFile(const DexFile& other_dexfil
 }
 
 uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
-  if (IsPortableCompiled()) {
-    // Portable doesn't use the machine pc, we just use dex pc instead.
-    return static_cast<uint32_t>(pc);
-  }
-
   const void* entry_point = GetQuickOatEntryPoint(sizeof(void*));
   uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(entry_point);
   if (IsOptimized(sizeof(void*))) {
@@ -353,19 +347,12 @@ void ArtMethod::AssertPcIsWithinQuickCode(uintptr_t pc) {
 
 bool ArtMethod::IsEntrypointInterpreter() {
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  if (!IsPortableCompiled()) {  // Quick.
-    const void* oat_quick_code = class_linker->GetOatMethodQuickCodeFor(this);
-    return oat_quick_code == nullptr ||
-        oat_quick_code != GetEntryPointFromQuickCompiledCode();
-  } else {  // Portable.
-    const void* oat_portable_code = class_linker->GetOatMethodPortableCodeFor(this);
-    return oat_portable_code == nullptr ||
-        oat_portable_code != GetEntryPointFromPortableCompiledCode();
-  }
+  const void* oat_quick_code = class_linker->GetOatMethodQuickCodeFor(this);
+  return oat_quick_code == nullptr || oat_quick_code != GetEntryPointFromQuickCompiledCode();
 }
 
 const void* ArtMethod::GetQuickOatEntryPoint(size_t pointer_size) {
-  if (IsPortableCompiled() || IsAbstract() || IsRuntimeMethod() || IsProxyMethod()) {
+  if (IsAbstract() || IsRuntimeMethod() || IsProxyMethod()) {
     return nullptr;
   }
   Runtime* runtime = Runtime::Current();
@@ -418,34 +405,27 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
   } else {
     const bool kLogInvocationStartAndReturn = false;
     bool have_quick_code = GetEntryPointFromQuickCompiledCode() != nullptr;
-    bool have_portable_code = GetEntryPointFromPortableCompiledCode() != nullptr;
-    if (LIKELY(have_quick_code || have_portable_code)) {
+    if (LIKELY(have_quick_code)) {
       if (kLogInvocationStartAndReturn) {
-        LOG(INFO) << StringPrintf("Invoking '%s' %s code=%p", PrettyMethod(this).c_str(),
-                                  have_quick_code ? "quick" : "portable",
-                                  have_quick_code ? GetEntryPointFromQuickCompiledCode()
-                                                  : GetEntryPointFromPortableCompiledCode());
+        LOG(INFO) << StringPrintf("Invoking '%s' quick code=%p", PrettyMethod(this).c_str(),
+                                  GetEntryPointFromQuickCompiledCode());
       }
 
-      // Ensure that we won't be accidentally calling quick/portable compiled code when -Xint.
+      // Ensure that we won't be accidentally calling quick compiled code when -Xint.
       if (kIsDebugBuild && Runtime::Current()->GetInstrumentation()->IsForcedInterpretOnly()) {
         CHECK(IsEntrypointInterpreter())
             << "Don't call compiled code when -Xint " << PrettyMethod(this);
       }
 
-      if (!IsPortableCompiled()) {
 #if defined(__LP64__) || defined(__arm__)
-        if (!IsStatic()) {
-          (*art_quick_invoke_stub)(this, args, args_size, self, result, shorty);
-        } else {
-          (*art_quick_invoke_static_stub)(this, args, args_size, self, result, shorty);
-        }
-#else
+      if (!IsStatic()) {
         (*art_quick_invoke_stub)(this, args, args_size, self, result, shorty);
-#endif
       } else {
-        (*art_portable_invoke_stub)(this, args, args_size, self, result, shorty[0]);
+        (*art_quick_invoke_static_stub)(this, args, args_size, self, result, shorty);
       }
+#else
+      (*art_quick_invoke_stub)(this, args, args_size, self, result, shorty);
+#endif
       if (UNLIKELY(self->GetException(nullptr) == Thread::GetDeoptimizationException())) {
         // Unusual case where we were running generated code and an
         // exception was thrown to force the activations to be removed from the
@@ -457,10 +437,8 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
         interpreter::EnterInterpreterFromDeoptimize(self, shadow_frame, result);
       }
       if (kLogInvocationStartAndReturn) {
-        LOG(INFO) << StringPrintf("Returned '%s' %s code=%p", PrettyMethod(this).c_str(),
-                                  have_quick_code ? "quick" : "portable",
-                                  have_quick_code ? GetEntryPointFromQuickCompiledCode()
-                                                  : GetEntryPointFromPortableCompiledCode());
+        LOG(INFO) << StringPrintf("Returned '%s' quick code=%p", PrettyMethod(this).c_str(),
+                                  GetEntryPointFromQuickCompiledCode());
       }
     } else {
       LOG(INFO) << "Not invoking '" << PrettyMethod(this) << "' code=null";
@@ -490,10 +468,6 @@ static uint32_t GetNumberOfReferenceArgsWithoutReceiver(ArtMethod* method)
 }
 
 QuickMethodFrameInfo ArtMethod::GetQuickFrameInfo() {
-  if (UNLIKELY(IsPortableCompiled())) {
-    // Portable compiled dex bytecode or jni stub.
-    return QuickMethodFrameInfo(kStackAlignment, 0u, 0u);
-  }
   Runtime* runtime = Runtime::Current();
 
   if (UNLIKELY(IsAbstract())) {

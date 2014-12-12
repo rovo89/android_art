@@ -44,9 +44,7 @@
 #include "cutils/properties.h"
 #endif
 
-#if !defined(ART_USE_PORTABLE_COMPILER)
 #include "entrypoints/quick/quick_entrypoints.h"
-#endif
 
 namespace art {
 
