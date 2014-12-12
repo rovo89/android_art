@@ -973,10 +973,9 @@ void Runtime::InitNativeMethods() {
   // Most JNI libraries can just use System.loadLibrary, but libcore can't because it's
   // the library that implements System.loadLibrary!
   {
-    std::string mapped_name(StringPrintf(OS_SHARED_LIB_FORMAT_STR, "javacore"));
     std::string reason;
-    if (!java_vm_->LoadNativeLibrary(env, mapped_name, nullptr, &reason)) {
-      LOG(FATAL) << "LoadNativeLibrary failed for \"" << mapped_name << "\": " << reason;
+    if (!java_vm_->LoadNativeLibrary(env, "libjavacore.so", nullptr, &reason)) {
+      LOG(FATAL) << "LoadNativeLibrary failed for \"libjavacore.so\": " << reason;
     }
   }
 
