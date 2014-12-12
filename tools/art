@@ -76,10 +76,6 @@ ANDROID_ROOT=$PROG_DIR/..
 LIBDIR=$(find_libdir)
 LD_LIBRARY_PATH=$ANDROID_ROOT/$LIBDIR
 
-if [ z"$PERF" != z ]; then
-  invoke_with="perf record -o $ANDROID_DATA/perf.data -e cycles:u $invoke_with"
-fi
-
 DELETE_ANDROID_DATA=false
 # If ANDROID_DATA is the system ANDROID_DATA or is not set, use our own,
 # and ensure we delete it at the end.
@@ -87,6 +83,10 @@ if [ "$ANDROID_DATA" = "/data" ] || [ "$ANDROID_DATA" = "" ]; then
   ANDROID_DATA=$PWD/android-data$$
   mkdir -p $ANDROID_DATA/dalvik-cache/{arm,arm64,x86,x86_64}
   DELETE_ANDROID_DATA=true
+fi
+
+if [ z"$PERF" != z ]; then
+  invoke_with="perf record -o $ANDROID_DATA/perf.data -e cycles:u $invoke_with"
 fi
 
 ANDROID_DATA=$ANDROID_DATA \
