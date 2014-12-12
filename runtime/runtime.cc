@@ -1274,10 +1274,8 @@ mirror::ArtMethod* Runtime::CreateImtConflictMethod() {
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   // When compiling, the code pointer will get set later when the image is loaded.
   if (runtime->IsCompiler()) {
-    method->SetEntryPointFromPortableCompiledCode(nullptr);
     method->SetEntryPointFromQuickCompiledCode(nullptr);
   } else {
-    method->SetEntryPointFromPortableCompiledCode(GetPortableImtConflictStub());
     method->SetEntryPointFromQuickCompiledCode(GetQuickImtConflictStub());
   }
   return method.Get();
@@ -1294,10 +1292,8 @@ mirror::ArtMethod* Runtime::CreateResolutionMethod() {
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   // When compiling, the code pointer will get set later when the image is loaded.
   if (runtime->IsCompiler()) {
-    method->SetEntryPointFromPortableCompiledCode(nullptr);
     method->SetEntryPointFromQuickCompiledCode(nullptr);
   } else {
-    method->SetEntryPointFromPortableCompiledCode(GetPortableResolutionStub());
     method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionStub());
   }
   return method.Get();
@@ -1312,7 +1308,6 @@ mirror::ArtMethod* Runtime::CreateCalleeSaveMethod() {
   method->SetDeclaringClass(mirror::ArtMethod::GetJavaLangReflectArtMethod());
   // TODO: use a special method for callee saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
-  method->SetEntryPointFromPortableCompiledCode(nullptr);
   method->SetEntryPointFromQuickCompiledCode(nullptr);
   DCHECK_NE(instruction_set_, kNone);
   return method.Get();

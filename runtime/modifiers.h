@@ -46,7 +46,6 @@ static constexpr uint32_t kAccClassIsProxy =         0x00040000;  // class  (dex
 static constexpr uint32_t kAccPreverified =          0x00080000;  // class (runtime),
                                                                   // method (dex only)
 static constexpr uint32_t kAccFastNative =           0x00080000;  // method (dex only)
-static constexpr uint32_t kAccPortableCompiled =     0x00100000;  // method (dex only)
 static constexpr uint32_t kAccMiranda =              0x00200000;  // method (dex only)
 
 // Special runtime-only flags.

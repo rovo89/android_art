@@ -49,50 +49,43 @@ void CommonCompilerTest::MakeExecutable(mirror::ArtMethod* method) {
   }
   if (compiled_method != nullptr) {
     const std::vector<uint8_t>* code = compiled_method->GetQuickCode();
-    const void* code_ptr;
-    bool is_portable = (code == nullptr);
-    if (!is_portable) {
-      uint32_t code_size = code->size();
-      CHECK_NE(0u, code_size);
-      const std::vector<uint8_t>& vmap_table = compiled_method->GetVmapTable();
-      uint32_t vmap_table_offset = vmap_table.empty() ? 0u
-          : sizeof(OatQuickMethodHeader) + vmap_table.size();
-      const std::vector<uint8_t>& mapping_table = *compiled_method->GetMappingTable();
-      uint32_t mapping_table_offset = mapping_table.empty() ? 0u
-          : sizeof(OatQuickMethodHeader) + vmap_table.size() + mapping_table.size();
-      const std::vector<uint8_t>& gc_map = *compiled_method->GetGcMap();
-      uint32_t gc_map_offset = gc_map.empty() ? 0u
-          : sizeof(OatQuickMethodHeader) + vmap_table.size() + mapping_table.size() + gc_map.size();
-      OatQuickMethodHeader method_header(mapping_table_offset, vmap_table_offset, gc_map_offset,
-                                         compiled_method->GetFrameSizeInBytes(),
-                                         compiled_method->GetCoreSpillMask(),
-                                         compiled_method->GetFpSpillMask(), code_size);
+    uint32_t code_size = code->size();
+    CHECK_NE(0u, code_size);
+    const std::vector<uint8_t>& vmap_table = compiled_method->GetVmapTable();
+    uint32_t vmap_table_offset = vmap_table.empty() ? 0u
+        : sizeof(OatQuickMethodHeader) + vmap_table.size();
+    const std::vector<uint8_t>& mapping_table = *compiled_method->GetMappingTable();
+    uint32_t mapping_table_offset = mapping_table.empty() ? 0u
+        : sizeof(OatQuickMethodHeader) + vmap_table.size() + mapping_table.size();
+    const std::vector<uint8_t>& gc_map = *compiled_method->GetGcMap();
+    uint32_t gc_map_offset = gc_map.empty() ? 0u
+        : sizeof(OatQuickMethodHeader) + vmap_table.size() + mapping_table.size() + gc_map.size();
+    OatQuickMethodHeader method_header(mapping_table_offset, vmap_table_offset, gc_map_offset,
+                                       compiled_method->GetFrameSizeInBytes(),
+                                       compiled_method->GetCoreSpillMask(),
+                                       compiled_method->GetFpSpillMask(), code_size);
 
-      header_code_and_maps_chunks_.push_back(std::vector<uint8_t>());
-      std::vector<uint8_t>* chunk = &header_code_and_maps_chunks_.back();
-      size_t size = sizeof(method_header) + code_size + vmap_table.size() + mapping_table.size() +
-          gc_map.size();
-      size_t code_offset = compiled_method->AlignCode(size - code_size);
-      size_t padding = code_offset - (size - code_size);
-      chunk->reserve(padding + size);
-      chunk->resize(sizeof(method_header));
-      memcpy(&(*chunk)[0], &method_header, sizeof(method_header));
-      chunk->insert(chunk->begin(), vmap_table.begin(), vmap_table.end());
-      chunk->insert(chunk->begin(), mapping_table.begin(), mapping_table.end());
-      chunk->insert(chunk->begin(), gc_map.begin(), gc_map.end());
-      chunk->insert(chunk->begin(), padding, 0);
-      chunk->insert(chunk->end(), code->begin(), code->end());
-      CHECK_EQ(padding + size, chunk->size());
-      code_ptr = &(*chunk)[code_offset];
-    } else {
-      code = compiled_method->GetPortableCode();
-      code_ptr = &(*code)[0];
-    }
+    header_code_and_maps_chunks_.push_back(std::vector<uint8_t>());
+    std::vector<uint8_t>* chunk = &header_code_and_maps_chunks_.back();
+    size_t size = sizeof(method_header) + code_size + vmap_table.size() + mapping_table.size() +
+        gc_map.size();
+    size_t code_offset = compiled_method->AlignCode(size - code_size);
+    size_t padding = code_offset - (size - code_size);
+    chunk->reserve(padding + size);
+    chunk->resize(sizeof(method_header));
+    memcpy(&(*chunk)[0], &method_header, sizeof(method_header));
+    chunk->insert(chunk->begin(), vmap_table.begin(), vmap_table.end());
+    chunk->insert(chunk->begin(), mapping_table.begin(), mapping_table.end());
+    chunk->insert(chunk->begin(), gc_map.begin(), gc_map.end());
+    chunk->insert(chunk->begin(), padding, 0);
+    chunk->insert(chunk->end(), code->begin(), code->end());
+    CHECK_EQ(padding + size, chunk->size());
+    const void* code_ptr = &(*chunk)[code_offset];
     MakeExecutable(code_ptr, code->size());
     const void* method_code = CompiledMethod::CodePointer(code_ptr,
                                                           compiled_method->GetInstructionSet());
     LOG(INFO) << "MakeExecutable " << PrettyMethod(method) << " code=" << method_code;
-    class_linker_->SetEntryPointsToCompiledCode(method, method_code, is_portable);
+    class_linker_->SetEntryPointsToCompiledCode(method, method_code);
   } else {
     // No code? You must mean to go into the interpreter.
     // Or the generic JNI...
@@ -155,7 +148,7 @@ void CommonCompilerTest::SetUp() {
     }
 
     // TODO: make selectable
-    Compiler::Kind compiler_kind = kUsePortableCompiler ? Compiler::kPortable : Compiler::kQuick;
+    Compiler::Kind compiler_kind = Compiler::kQuick;
     timer_.reset(new CumulativeLogger("Compilation times"));
     compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
                                               verification_results_.get(),

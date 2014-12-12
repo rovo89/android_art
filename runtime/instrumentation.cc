@@ -83,30 +83,15 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
   return true;
 }
 
-static void UpdateEntrypoints(mirror::ArtMethod* method, const void* quick_code,
-                              const void* portable_code, bool have_portable_code)
+static void UpdateEntrypoints(mirror::ArtMethod* method, const void* quick_code)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  method->SetEntryPointFromPortableCompiledCode(portable_code);
   method->SetEntryPointFromQuickCompiledCode(quick_code);
-  bool portable_enabled = method->IsPortableCompiled();
-  if (have_portable_code && !portable_enabled) {
-    method->SetIsPortableCompiled();
-  } else if (portable_enabled) {
-    method->ClearIsPortableCompiled();
-  }
   if (!method->IsResolutionMethod()) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     if (class_linker->IsQuickToInterpreterBridge(quick_code) ||
         (class_linker->IsQuickResolutionStub(quick_code) &&
          Runtime::Current()->GetInstrumentation()->IsForcedInterpretOnly() &&
          !method->IsNative() && !method->IsProxyMethod())) {
-      if (kIsDebugBuild) {
-        if (quick_code == GetQuickToInterpreterBridge()) {
-          DCHECK(portable_code == GetPortableToInterpreterBridge());
-        } else if (class_linker->IsQuickResolutionStub(quick_code)) {
-          DCHECK(class_linker->IsPortableResolutionStub(portable_code));
-        }
-      }
       DCHECK(!method->IsNative()) << PrettyMethod(method);
       DCHECK(!method->IsProxyMethod()) << PrettyMethod(method);
       method->SetEntryPointFromInterpreter(art::artInterpreterToInterpreterBridge);
@@ -126,27 +111,21 @@ void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
       method->GetDeclaringClass()->DescriptorEquals("Ljava/lang/reflect/Proxy;")) {
     return;
   }
-  const void* new_portable_code;
   const void* new_quick_code;
   bool uninstall = !entry_exit_stubs_installed_ && !interpreter_stubs_installed_;
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   bool is_class_initialized = method->GetDeclaringClass()->IsInitialized();
-  bool have_portable_code = false;
   if (uninstall) {
     if ((forced_interpret_only_ || IsDeoptimized(method)) && !method->IsNative()) {
-      new_portable_code = GetPortableToInterpreterBridge();
       new_quick_code = GetQuickToInterpreterBridge();
     } else if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
-      new_portable_code = class_linker->GetPortableOatCodeFor(method, &have_portable_code);
       new_quick_code = class_linker->GetQuickOatCodeFor(method);
     } else {
-      new_portable_code = GetPortableResolutionStub();
       new_quick_code = GetQuickResolutionStub();
     }
   } else {  // !uninstall
     if ((interpreter_stubs_installed_ || forced_interpret_only_ || IsDeoptimized(method)) &&
         !method->IsNative()) {
-      new_portable_code = GetPortableToInterpreterBridge();
       new_quick_code = GetQuickToInterpreterBridge();
     } else {
       // Do not overwrite resolution trampoline. When the trampoline initializes the method's
@@ -154,20 +133,17 @@ void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
       // For more details, see ClassLinker::FixupStaticTrampolines.
       if (is_class_initialized || !method->IsStatic() || method->IsConstructor()) {
         if (entry_exit_stubs_installed_) {
-          new_portable_code = GetPortableToInterpreterBridge();
           new_quick_code = GetQuickInstrumentationEntryPoint();
         } else {
-          new_portable_code = class_linker->GetPortableOatCodeFor(method, &have_portable_code);
           new_quick_code = class_linker->GetQuickOatCodeFor(method);
           DCHECK(!class_linker->IsQuickToInterpreterBridge(new_quick_code));
         }
       } else {
-        new_portable_code = GetPortableResolutionStub();
         new_quick_code = GetQuickResolutionStub();
       }
     }
   }
-  UpdateEntrypoints(method, new_quick_code, new_portable_code, have_portable_code);
+  UpdateEntrypoints(method, new_quick_code);
 }
 
 // Places the instrumentation exit pc as the return PC for every quick frame. This also allows
@@ -195,7 +171,7 @@ static void InstrumentationInstallStack(Thread* thread, void* arg)
         return true;  // Ignore upcalls.
       }
       if (GetCurrentQuickFrame() == NULL) {
-        bool interpreter_frame = !m->IsPortableCompiled();
+        bool interpreter_frame = true;
         InstrumentationStackFrame instrumentation_frame(GetThisObject(), m, 0, GetFrameId(),
                                                         interpreter_frame);
         if (kVerboseInstrumentation) {
@@ -654,41 +630,26 @@ void Instrumentation::ResetQuickAllocEntryPoints() {
   }
 }
 
-void Instrumentation::UpdateMethodsCode(mirror::ArtMethod* method, const void* quick_code,
-                                        const void* portable_code, bool have_portable_code) {
-  const void* new_portable_code;
+void Instrumentation::UpdateMethodsCode(mirror::ArtMethod* method, const void* quick_code) {
   const void* new_quick_code;
-  bool new_have_portable_code;
   if (LIKELY(!instrumentation_stubs_installed_)) {
-    new_portable_code = portable_code;
     new_quick_code = quick_code;
-    new_have_portable_code = have_portable_code;
   } else {
     if ((interpreter_stubs_installed_ || IsDeoptimized(method)) && !method->IsNative()) {
-      new_portable_code = GetPortableToInterpreterBridge();
       new_quick_code = GetQuickToInterpreterBridge();
-      new_have_portable_code = false;
     } else {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       if (class_linker->IsQuickResolutionStub(quick_code) ||
           class_linker->IsQuickToInterpreterBridge(quick_code)) {
-        DCHECK(class_linker->IsPortableResolutionStub(portable_code) ||
-               class_linker->IsPortableToInterpreterBridge(portable_code));
-        new_portable_code = portable_code;
         new_quick_code = quick_code;
-        new_have_portable_code = have_portable_code;
       } else if (entry_exit_stubs_installed_) {
         new_quick_code = GetQuickInstrumentationEntryPoint();
-        new_portable_code = GetPortableToInterpreterBridge();
-        new_have_portable_code = false;
       } else {
-        new_portable_code = portable_code;
         new_quick_code = quick_code;
-        new_have_portable_code = have_portable_code;
       }
     }
   }
-  UpdateEntrypoints(method, new_quick_code, new_portable_code, new_have_portable_code);
+  UpdateEntrypoints(method, new_quick_code);
 }
 
 bool Instrumentation::AddDeoptimizedMethod(mirror::ArtMethod* method) {
@@ -761,8 +722,7 @@ void Instrumentation::Deoptimize(mirror::ArtMethod* method) {
         << " is already deoptimized";
   }
   if (!interpreter_stubs_installed_) {
-    UpdateEntrypoints(method, GetQuickInstrumentationEntryPoint(), GetPortableToInterpreterBridge(),
-                      false);
+    UpdateEntrypoints(method, GetQuickInstrumentationEntryPoint());
 
     // Install instrumentation exit stub and instrumentation frames. We may already have installed
     // these previously so it will only cover the newly created frames.
@@ -793,12 +753,10 @@ void Instrumentation::Undeoptimize(mirror::ArtMethod* method) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     if (method->IsStatic() && !method->IsConstructor() &&
         !method->GetDeclaringClass()->IsInitialized()) {
-      UpdateEntrypoints(method, GetQuickResolutionStub(), GetPortableResolutionStub(), false);
+      UpdateEntrypoints(method, GetQuickResolutionStub());
     } else {
-      bool have_portable_code = false;
       const void* quick_code = class_linker->GetQuickOatCodeFor(method);
-      const void* portable_code = class_linker->GetPortableOatCodeFor(method, &have_portable_code);
-      UpdateEntrypoints(method, quick_code, portable_code, have_portable_code);
+      UpdateEntrypoints(method, quick_code);
     }
 
     // If there is no deoptimized method left, we can restore the stack of each thread.

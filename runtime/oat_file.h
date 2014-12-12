@@ -97,29 +97,8 @@ class OatFile {
       return code_offset_;
     }
 
-    const void* GetPortableCode() const {
-      // TODO: encode whether code is portable/quick in flags within OatMethod.
-      if (kUsePortableCompiler) {
-        return GetOatPointer<const void*>(code_offset_);
-      } else {
-        return nullptr;
-      }
-    }
-
     const void* GetQuickCode() const {
-      if (kUsePortableCompiler) {
-        return nullptr;
-      } else {
-        return GetOatPointer<const void*>(code_offset_);
-      }
-    }
-
-    // Returns 0.
-    uint32_t GetPortableCodeSize() const {
-      // TODO: With Quick, we store the size before the code. With Portable, the code is in a .o
-      // file we don't manage ourselves. ELF symbols do have a concept of size, so we could capture
-      // that and store it somewhere, such as the OatMethod.
-      return 0;
+      return GetOatPointer<const void*>(code_offset_);
     }
 
     // Returns size of quick code.

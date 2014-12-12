@@ -129,10 +129,6 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
                                            << " "
                                            << dex->GetMethodDeclaringClassDescriptor(dex->GetMethodId(i))
                                            << " " << dex->GetMethodName(dex->GetMethodId(i));
-    EXPECT_TRUE(method->GetEntryPointFromPortableCompiledCode() != NULL) << "method_idx=" << i
-                                           << " "
-                                           << dex->GetMethodDeclaringClassDescriptor(dex->GetMethodId(i))
-                                           << " " << dex->GetMethodName(dex->GetMethodId(i));
   }
   EXPECT_EQ(dex->NumFieldIds(), dex_cache->NumResolvedFields());
   for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
@@ -148,7 +144,6 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
 }
 
 TEST_F(CompilerDriverTest, AbstractMethodErrorStub) {
-  TEST_DISABLED_FOR_PORTABLE();
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
   jobject class_loader;
   {

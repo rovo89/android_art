@@ -442,12 +442,6 @@ class OatDumper {
                            GetInterpreterToCompiledCodeBridgeOffset);
     DUMP_OAT_HEADER_OFFSET("JNI DLSYM LOOKUP",
                            GetJniDlsymLookupOffset);
-    DUMP_OAT_HEADER_OFFSET("PORTABLE IMT CONFLICT TRAMPOLINE",
-                           GetPortableImtConflictTrampolineOffset);
-    DUMP_OAT_HEADER_OFFSET("PORTABLE RESOLUTION TRAMPOLINE",
-                           GetPortableResolutionTrampolineOffset);
-    DUMP_OAT_HEADER_OFFSET("PORTABLE TO INTERPRETER BRIDGE",
-                           GetPortableToInterpreterBridgeOffset);
     DUMP_OAT_HEADER_OFFSET("QUICK GENERIC JNI TRAMPOLINE",
                            GetQuickGenericJniTrampolineOffset);
     DUMP_OAT_HEADER_OFFSET("QUICK IMT CONFLICT TRAMPOLINE",
@@ -851,11 +845,6 @@ class OatDumper {
       } else {
         const void* code = oat_method.GetQuickCode();
         uint32_t code_size = oat_method.GetQuickCodeSize();
-        if (code == nullptr) {
-          code = oat_method.GetPortableCode();
-          code_size = oat_method.GetPortableCodeSize();
-          code_size_offset = 0;
-        }
         uint32_t code_offset = oat_method.GetCodeOffset();
         uint32_t aligned_code_begin = AlignCodeOffset(code_offset);
         uint64_t aligned_code_end = aligned_code_begin + code_size;
@@ -1054,23 +1043,12 @@ class OatDumper {
       return;  // No GC map.
     }
     const void* quick_code = oat_method.GetQuickCode();
-    if (quick_code != nullptr) {
-      NativePcOffsetToReferenceMap map(gc_map_raw);
-      for (size_t entry = 0; entry < map.NumEntries(); entry++) {
-        const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(quick_code) +
-            map.GetNativePcOffset(entry);
-        os << StringPrintf("%p", native_pc);
-        DumpGcMapRegisters(os, oat_method, code_item, map.RegWidth() * 8, map.GetBitMap(entry));
-      }
-    } else {
-      const void* portable_code = oat_method.GetPortableCode();
-      CHECK(portable_code != nullptr);
-      verifier::DexPcToReferenceMap map(gc_map_raw);
-      for (size_t entry = 0; entry < map.NumEntries(); entry++) {
-        uint32_t dex_pc = map.GetDexPc(entry);
-        os << StringPrintf("0x%08x", dex_pc);
-        DumpGcMapRegisters(os, oat_method, code_item, map.RegWidth() * 8, map.GetBitMap(entry));
-      }
+    NativePcOffsetToReferenceMap map(gc_map_raw);
+    for (size_t entry = 0; entry < map.NumEntries(); entry++) {
+      const uint8_t* native_pc = reinterpret_cast<const uint8_t*>(quick_code) +
+          map.GetNativePcOffset(entry);
+      os << StringPrintf("%p", native_pc);
+      DumpGcMapRegisters(os, oat_method, code_item, map.RegWidth() * 8, map.GetBitMap(entry));
     }
   }
 
@@ -1228,16 +1206,15 @@ class OatDumper {
   void DumpCode(std::ostream& os, verifier::MethodVerifier* verifier,
                 const OatFile::OatMethod& oat_method, const DexFile::CodeItem* code_item,
                 bool bad_input, size_t code_size) {
-    const void* portable_code = oat_method.GetPortableCode();
     const void* quick_code = oat_method.GetQuickCode();
 
     if (code_size == 0) {
       code_size = oat_method.GetQuickCodeSize();
     }
-    if ((code_size == 0) || ((portable_code == nullptr) && (quick_code == nullptr))) {
+    if (code_size == 0 || quick_code == nullptr) {
       os << "NO CODE!\n";
       return;
-    } else if (quick_code != nullptr) {
+    } else {
       const uint8_t* quick_native_pc = reinterpret_cast<const uint8_t*>(quick_code);
       size_t offset = 0;
       while (offset < code_size) {
@@ -1255,9 +1232,6 @@ class OatDumper {
           }
         }
       }
-    } else {
-      CHECK(portable_code != nullptr);
-      CHECK_EQ(code_size, 0U);  // TODO: disassembly of portable is currently not supported.
     }
   }
 
@@ -1636,7 +1610,6 @@ class ImageDumper {
           state->oat_dumper_->GetOatInstructionSet());
       mirror::ArtMethod* method = obj->AsArtMethod();
       if (method->IsNative()) {
-        // TODO: portable dumping.
         DCHECK(method->GetNativeGcMap(image_pointer_size) == nullptr) << PrettyMethod(method);
         DCHECK(method->GetMappingTable(image_pointer_size) == nullptr) << PrettyMethod(method);
         bool first_occurrence;
@@ -1679,7 +1652,6 @@ class ImageDumper {
           state->stats_.vmap_table_bytes += vmap_table_bytes;
         }
 
-        // TODO: portable dumping.
         const void* quick_oat_code_begin = state->GetQuickOatCodeBegin(method);
         const void* quick_oat_code_end = state->GetQuickOatCodeEnd(method);
         uint32_t quick_oat_code_size = state->GetQuickOatCodeSize(method);

@@ -392,21 +392,15 @@ class ClassLinker {
   // Get the oat code for a method when its class isn't yet initialized
   const void* GetQuickOatCodeFor(mirror::ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const void* GetPortableOatCodeFor(mirror::ArtMethod* method, bool* have_portable_code)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get the oat code for a method from a method index.
   const void* GetQuickOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx, uint32_t method_idx)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const void* GetPortableOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx, uint32_t method_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get compiled code for a method, return null if no code
   // exists. This is unlike Get..OatCodeFor which will return a bridge
   // or interpreter entrypoint.
   const void* GetOatMethodQuickCodeFor(mirror::ArtMethod* method)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  const void* GetOatMethodPortableCodeFor(mirror::ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   pid_t GetClassesLockOwner();  // For SignalCatcher.
@@ -416,14 +410,8 @@ class ClassLinker {
 
   static const char* GetClassRootDescriptor(ClassRoot class_root);
 
-  // Is the given entry point portable code to run the resolution stub?
-  bool IsPortableResolutionStub(const void* entry_point) const;
-
   // Is the given entry point quick code to run the resolution stub?
   bool IsQuickResolutionStub(const void* entry_point) const;
-
-  // Is the given entry point portable code to bridge into the interpreter?
-  bool IsPortableToInterpreterBridge(const void* entry_point) const;
 
   // Is the given entry point quick code to bridge into the interpreter?
   bool IsQuickToInterpreterBridge(const void* entry_point) const;
@@ -436,8 +424,7 @@ class ClassLinker {
   }
 
   // Set the entrypoints up for method to the given code.
-  void SetEntryPointsToCompiledCode(mirror::ArtMethod* method, const void* method_code,
-                                    bool is_portable) const
+  void SetEntryPointsToCompiledCode(mirror::ArtMethod* method, const void* method_code) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Set the entrypoints up for method to the enter the interpreter.
@@ -805,9 +792,7 @@ class ClassLinker {
 
   // Trampolines within the image the bounce to runtime entrypoints. Done so that there is a single
   // patch point within the image. TODO: make these proper relocations.
-  const void* portable_resolution_trampoline_;
   const void* quick_resolution_trampoline_;
-  const void* portable_imt_conflict_trampoline_;
   const void* quick_imt_conflict_trampoline_;
   const void* quick_generic_jni_trampoline_;
   const void* quick_to_interpreter_bridge_trampoline_;
