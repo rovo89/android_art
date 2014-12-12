@@ -514,7 +514,15 @@ inline uint32_t Class::GetAccessFlags() {
          IsErroneous<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>() ||
          this == String::GetJavaLangString() ||
          this == ArtField::GetJavaLangReflectArtField() ||
-         this == ArtMethod::GetJavaLangReflectArtMethod());
+         this == ArtMethod::GetJavaLangReflectArtMethod())
+      << "IsIdxLoaded=" << IsIdxLoaded<kVerifyFlags>()
+      << " IsRetired=" << IsRetired<kVerifyFlags>()
+      << " IsErroneous=" <<
+          IsErroneous<static_cast<VerifyObjectFlags>(kVerifyFlags & ~kVerifyThis)>()
+      << " IsString=" << (this == String::GetJavaLangString())
+      << " IsArtField=" << (this == ArtField::GetJavaLangReflectArtField())
+      << " IsArtMethod=" << (this == ArtMethod::GetJavaLangReflectArtMethod())
+      << " descriptor=" << PrettyDescriptor(this);
   return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
 }
 
