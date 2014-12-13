@@ -173,7 +173,8 @@ ZygoteSpace* MallocSpace::CreateZygoteSpace(const char* alloc_space_name, bool l
   // stored in between objects.
   // Remaining size is for the new alloc space.
   const size_t growth_limit = growth_limit_ - size;
-  const size_t capacity = Capacity() - size;
+  // Use mem map limit in case error for clear growth limit.
+  const size_t capacity = NonGrowthLimitCapacity() - size;
   VLOG(heap) << "Begin " << reinterpret_cast<const void*>(begin_) << "\n"
              << "End " << reinterpret_cast<const void*>(End()) << "\n"
              << "Size " << size << "\n"
