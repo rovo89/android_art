@@ -669,6 +669,8 @@ static void FillInCFIInformation(OatWriter* oat_writer,
 template <typename Elf_Word, typename Elf_Sword, typename Elf_Addr,
           typename Elf_Dyn, typename Elf_Sym, typename Elf_Ehdr,
           typename Elf_Phdr, typename Elf_Shdr>
+// Do not inline to avoid Clang stack frame problems. b/18738594
+NO_INLINE
 static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
                               ElfBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
                                          Elf_Sym, Elf_Ehdr, Elf_Phdr, Elf_Shdr>* builder,

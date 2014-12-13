@@ -154,8 +154,8 @@ static void DumpSegmentOverride(std::ostream& os, uint8_t segment_prefix) {
 }
 
 // Do not inline to avoid Clang stack frame problems. b/18733806
-static std::string __attribute__((noinline)) DumpCodeHex(const uint8_t* begin,
-                                                         const uint8_t* end) {
+NO_INLINE
+static std::string DumpCodeHex(const uint8_t* begin, const uint8_t* end) {
   std::stringstream hex;
   for (size_t i = 0; begin + i < end; ++i) {
     hex << StringPrintf("%02X", begin[i]);

@@ -158,6 +158,8 @@ char (&ArraySizeHelper(T (&array)[N]))[N];
 #define ALWAYS_INLINE_LAMBDA ALWAYS_INLINE
 #endif
 
+#define NO_INLINE __attribute__ ((noinline))
+
 #if defined (__APPLE__)
 #define HOT_ATTR
 #define COLD_ATTR
