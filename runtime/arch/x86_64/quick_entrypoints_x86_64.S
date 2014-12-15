@@ -487,15 +487,21 @@ DEFINE_FUNCTION art_quick_invoke_stub
     PUSH rbp                      // Save rbp.
     PUSH r8                       // Save r8/result*.
     PUSH r9                       // Save r9/shorty*.
+    PUSH rbx                      // Save native callee save rbx
+    PUSH r12                      // Save native callee save r12
+    PUSH r13                      // Save native callee save r13
+    PUSH r14                      // Save native callee save r14
+    PUSH r15                      // Save native callee save r15
     movq %rsp, %rbp               // Copy value of stack pointer into base pointer.
     CFI_DEF_CFA_REGISTER(rbp)
 
     movl %edx, %r10d
-    addl LITERAL(60), %edx        // Reserve space for return addr, StackReference<method>, rbp,
-                                  // r8 and r9 in frame.
-    andl LITERAL(0xFFFFFFF0), %edx    // Align frame size to 16 bytes.
-    subl LITERAL(32), %edx        // Remove space for return address, rbp, r8 and r9.
-    subq %rdx, %rsp               // Reserve stack space for argument array.
+    addl LITERAL(100), %edx        // Reserve space for return addr, StackReference<method>, rbp,
+                                   // r8, r9, rbx, r12, r13, r14, and r15 in frame.
+    andl LITERAL(0xFFFFFFF0), %edx // Align frame size to 16 bytes.
+    subl LITERAL(72), %edx         // Remove space for return address, rbp, r8, r9, rbx, r12,
+                                   // r13, r14, and r15
+    subq %rdx, %rsp                // Reserve stack space for argument array.
 
 #if (STACK_REFERENCE_SIZE != 4)
 #error "STACK_REFERENCE_SIZE(X86_64) size not as expected."
@@ -503,15 +509,15 @@ DEFINE_FUNCTION art_quick_invoke_stub
     movl LITERAL(0), (%rsp)       // Store NULL for method*
 
     movl %r10d, %ecx              // Place size of args in rcx.
-    movq %rdi, %rax               // RAX := method to be called
-    movq %rsi, %r11               // R11 := arg_array
-    leaq 4(%rsp), %rdi            // Rdi is pointing just above the StackReference<method> in the
+    movq %rdi, %rax               // rax := method to be called
+    movq %rsi, %r11               // r11 := arg_array
+    leaq 4(%rsp), %rdi            // rdi is pointing just above the StackReference<method> in the
                                   // stack arguments.
     // Copy arg array into stack.
     rep movsb                     // while (rcx--) { *rdi++ = *rsi++ }
-    leaq 1(%r9), %r10             // R10 := shorty + 1  ; ie skip return arg character
-    movq %rax, %rdi               // RDI := method to be called
-    movl (%r11), %esi             // RSI := this pointer
+    leaq 1(%r9), %r10             // r10 := shorty + 1  ; ie skip return arg character
+    movq %rax, %rdi               // rdi := method to be called
+    movl (%r11), %esi             // rsi := this pointer
     addq LITERAL(4), %r11         // arg_array++
     LOOP_OVER_SHORTY_LOADING_GPRS rdx, edx, .Lgpr_setup_finished
     LOOP_OVER_SHORTY_LOADING_GPRS rcx, ecx, .Lgpr_setup_finished
@@ -520,8 +526,12 @@ DEFINE_FUNCTION art_quick_invoke_stub
 .Lgpr_setup_finished:
     call *MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64(%rdi) // Call the method.
     movq %rbp, %rsp               // Restore stack pointer.
-    CFI_DEF_CFA_REGISTER(rsp)
-    POP r9                        // Pop r9 - shorty*.
+    POP r15                       // Pop r15
+    POP r14                       // Pop r14
+    POP r13                       // Pop r13
+    POP r12                       // Pop r12
+    POP rbx                       // Pop rbx
+    POP r9                        // Pop r9 - shorty*
     POP r8                        // Pop r8 - result*.
     POP rbp                       // Pop rbp
     cmpb LITERAL(68), (%r9)       // Test if result type char == 'D'.
@@ -531,10 +541,10 @@ DEFINE_FUNCTION art_quick_invoke_stub
     movq %rax, (%r8)              // Store the result assuming its a long, int or Object*
     ret
 .Lreturn_double_quick:
-    movsd %xmm0, (%r8)           // Store the double floating point result.
+    movsd %xmm0, (%r8)            // Store the double floating point result.
     ret
 .Lreturn_float_quick:
-    movss %xmm0, (%r8)           // Store the floating point result.
+    movss %xmm0, (%r8)            // Store the floating point result.
     ret
 #endif  // __APPLE__
 END_FUNCTION art_quick_invoke_stub
@@ -571,30 +581,36 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
     PUSH rbp                      // Save rbp.
     PUSH r8                       // Save r8/result*.
     PUSH r9                       // Save r9/shorty*.
+    PUSH rbx                      // Save rbx
+    PUSH r12                      // Save r12
+    PUSH r13                      // Save r13
+    PUSH r14                      // Save r14
+    PUSH r15                      // Save r15
     movq %rsp, %rbp               // Copy value of stack pointer into base pointer.
     CFI_DEF_CFA_REGISTER(rbp)
 
     movl %edx, %r10d
-    addl LITERAL(60), %edx        // Reserve space for return addr, StackReference<method>, rbp,
-                                  // r8 and r9 in frame.
-    andl LITERAL(0xFFFFFFF0), %edx    // Align frame size to 16 bytes.
-    subl LITERAL(32), %edx        // Remove space for return address, rbp, r8 and r9.
-    subq %rdx, %rsp               // Reserve stack space for argument array.
+    addl LITERAL(100), %edx        // Reserve space for return addr, StackReference<method>, rbp,
+                                   // r8, r9, r12, r13, r14, and r15 in frame.
+    andl LITERAL(0xFFFFFFF0), %edx // Align frame size to 16 bytes.
+    subl LITERAL(72), %edx         // Remove space for return address, rbp, r8, r9, rbx, r12,
+                                   // r13, r14, and r15.
+    subq %rdx, %rsp                // Reserve stack space for argument array.
 
 #if (STACK_REFERENCE_SIZE != 4)
 #error "STACK_REFERENCE_SIZE(X86_64) size not as expected."
 #endif
-    movl LITERAL(0), (%rsp)       // Store NULL for method*
+    movl LITERAL(0), (%rsp)        // Store NULL for method*
 
-    movl %r10d, %ecx              // Place size of args in rcx.
-    movq %rdi, %rax               // RAX := method to be called
-    movq %rsi, %r11               // R11 := arg_array
-    leaq 4(%rsp), %rdi            // Rdi is pointing just above the StackReference<method> in the
-                                  // stack arguments.
+    movl %r10d, %ecx               // Place size of args in rcx.
+    movq %rdi, %rax                // rax := method to be called
+    movq %rsi, %r11                // r11 := arg_array
+    leaq 4(%rsp), %rdi             // rdi is pointing just above the StackReference<method> in the
+                                   // stack arguments.
     // Copy arg array into stack.
-    rep movsb                     // while (rcx--) { *rdi++ = *rsi++ }
-    leaq 1(%r9), %r10             // R10 := shorty + 1  ; ie skip return arg character
-    movq %rax, %rdi               // RDI := method to be called
+    rep movsb                      // while (rcx--) { *rdi++ = *rsi++ }
+    leaq 1(%r9), %r10              // r10 := shorty + 1  ; ie skip return arg character
+    movq %rax, %rdi                // rdi := method to be called
     LOOP_OVER_SHORTY_LOADING_GPRS rsi, esi, .Lgpr_setup_finished2
     LOOP_OVER_SHORTY_LOADING_GPRS rdx, edx, .Lgpr_setup_finished2
     LOOP_OVER_SHORTY_LOADING_GPRS rcx, ecx, .Lgpr_setup_finished2
@@ -602,22 +618,26 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
     LOOP_OVER_SHORTY_LOADING_GPRS r9, r9d, .Lgpr_setup_finished2
 .Lgpr_setup_finished2:
     call *MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64(%rdi) // Call the method.
-    movq %rbp, %rsp               // Restore stack pointer.
-    CFI_DEF_CFA_REGISTER(rsp)
-    POP r9                        // Pop r9 - shorty*.
-    POP r8                        // Pop r8 - result*.
-    POP rbp                       // Pop rbp
-    cmpb LITERAL(68), (%r9)       // Test if result type char == 'D'.
+    movq %rbp, %rsp                // Restore stack pointer.
+    POP r15                        // Pop r15
+    POP r14                        // Pop r14
+    POP r13                        // Pop r13
+    POP r12                        // Pop r12
+    POP rbx                        // Pop rbx
+    POP r9                         // Pop r9 - shorty*.
+    POP r8                         // Pop r8 - result*.
+    POP rbp                        // Pop rbp
+    cmpb LITERAL(68), (%r9)        // Test if result type char == 'D'.
     je .Lreturn_double_quick2
-    cmpb LITERAL(70), (%r9)       // Test if result type char == 'F'.
+    cmpb LITERAL(70), (%r9)        // Test if result type char == 'F'.
     je .Lreturn_float_quick2
-    movq %rax, (%r8)              // Store the result assuming its a long, int or Object*
+    movq %rax, (%r8)               // Store the result assuming its a long, int or Object*
     ret
 .Lreturn_double_quick2:
-    movsd %xmm0, (%r8)           // Store the double floating point result.
+    movsd %xmm0, (%r8)             // Store the double floating point result.
     ret
 .Lreturn_float_quick2:
-    movss %xmm0, (%r8)           // Store the floating point result.
+    movss %xmm0, (%r8)             // Store the floating point result.
     ret
 #endif  // __APPLE__
 END_FUNCTION art_quick_invoke_static_stub
