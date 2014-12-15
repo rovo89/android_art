@@ -17,7 +17,6 @@
 #include "graph_visualizer.h"
 
 #include "code_generator.h"
-#include "driver/dex_compilation_unit.h"
 #include "nodes.h"
 #include "ssa_liveness_analysis.h"
 
@@ -270,39 +269,20 @@ HGraphVisualizer::HGraphVisualizer(std::ostream* output,
                                    HGraph* graph,
                                    const char* string_filter,
                                    const CodeGenerator& codegen,
-                                   const DexCompilationUnit& cu)
+                                   const char* method_name)
     : output_(output), graph_(graph), codegen_(codegen), is_enabled_(false) {
   if (output == nullptr) {
     return;
   }
-  std::string pretty_name = PrettyMethod(cu.GetDexMethodIndex(), *cu.GetDexFile());
-  if (pretty_name.find(string_filter) == std::string::npos) {
+  if (strstr(method_name, string_filter) == nullptr) {
     return;
   }
 
   is_enabled_ = true;
   HGraphVisualizerPrinter printer(graph, *output_, "", codegen_);
   printer.StartTag("compilation");
-  printer.PrintProperty("name", pretty_name.c_str());
-  printer.PrintProperty("method", pretty_name.c_str());
-  printer.PrintTime("date");
-  printer.EndTag("compilation");
-}
-
-HGraphVisualizer::HGraphVisualizer(std::ostream* output,
-                                   HGraph* graph,
-                                   const CodeGenerator& codegen,
-                                   const char* name)
-    : output_(output), graph_(graph), codegen_(codegen), is_enabled_(false) {
-  if (output == nullptr) {
-    return;
-  }
-
-  is_enabled_ = true;
-  HGraphVisualizerPrinter printer(graph, *output_, "", codegen_);
-  printer.StartTag("compilation");
-  printer.PrintProperty("name", name);
-  printer.PrintProperty("method", name);
+  printer.PrintProperty("name", method_name);
+  printer.PrintProperty("method", method_name);
   printer.PrintTime("date");
   printer.EndTag("compilation");
 }

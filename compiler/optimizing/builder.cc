@@ -259,13 +259,13 @@ bool HGraphBuilder::SkipCompilation(size_t number_of_dex_instructions,
   return false;
 }
 
-HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
+HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item, int start_instruction_id) {
   const uint16_t* code_ptr = code_item.insns_;
   const uint16_t* code_end = code_item.insns_ + code_item.insns_size_in_code_units_;
   code_start_ = code_ptr;
 
   // Setup the graph with the entry block and exit block.
-  graph_ = new (arena_) HGraph(arena_);
+  graph_ = new (arena_) HGraph(arena_, start_instruction_id);
   entry_block_ = new (arena_) HBasicBlock(graph_, 0);
   graph_->AddBlock(entry_block_);
   exit_block_ = new (arena_) HBasicBlock(graph_, kNoDexPc);
@@ -273,7 +273,7 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
   graph_->SetExitBlock(exit_block_);
 
   InitializeLocals(code_item.registers_size_);
-  graph_->UpdateMaximumNumberOfOutVRegs(code_item.outs_size_);
+  graph_->SetMaximumNumberOfOutVRegs(code_item.outs_size_);
 
   // Compute the number of dex instructions, blocks, and branches. We will
   // check these values against limits given to the compiler.
@@ -613,9 +613,9 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
     // Sharpening to kDirect only works if we compile PIC.
     DCHECK((optimized_invoke_type == invoke_type) || (optimized_invoke_type != kDirect)
            || compiler_driver_->GetCompilerOptions().GetCompilePic());
-    // Treat invoke-direct like static calls for now.
-    invoke = new (arena_) HInvokeStatic(
-        arena_, number_of_arguments, return_type, dex_pc, target_method.dex_method_index);
+    invoke = new (arena_) HInvokeStaticOrDirect(
+        arena_, number_of_arguments, return_type, dex_pc, target_method.dex_method_index,
+        optimized_invoke_type);
   }
 
   size_t start_index = 0;
@@ -709,42 +709,53 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   uint32_t source_or_dest_reg = instruction.VRegA_21c();
   uint16_t field_index = instruction.VRegB_21c();
 
-  uint32_t storage_index;
-  bool is_referrers_class;
-  bool is_initialized;
-  bool is_volatile;
-  MemberOffset field_offset(0u);
-  Primitive::Type field_type;
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<4> hs(soa.Self());
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(
+      dex_compilation_unit_->GetClassLinker()->FindDexCache(*dex_compilation_unit_->GetDexFile())));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
+      soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
+  Handle<mirror::ArtField> resolved_field(hs.NewHandle(compiler_driver_->ResolveField(
+      soa, dex_cache, class_loader, dex_compilation_unit_, field_index, true)));
 
-  bool fast_path = compiler_driver_->ComputeStaticFieldInfo(field_index,
-                                                            dex_compilation_unit_,
-                                                            is_put,
-                                                            &field_offset,
-                                                            &storage_index,
-                                                            &is_referrers_class,
-                                                            &is_volatile,
-                                                            &is_initialized,
-                                                            &field_type);
-  if (!fast_path) {
+  if (resolved_field.Get() == nullptr) {
     MaybeRecordStat(MethodCompilationStat::kNotCompiledUnresolvedField);
     return false;
   }
 
-  if (is_volatile) {
+  if (resolved_field->IsVolatile()) {
     MaybeRecordStat(MethodCompilationStat::kNotCompiledVolatile);
     return false;
   }
 
-  HLoadClass* constant = new (arena_) HLoadClass(
-      storage_index, is_referrers_class, dex_pc);
+  Handle<mirror::Class> referrer_class(hs.NewHandle(compiler_driver_->ResolveCompilingMethodsClass(
+      soa, dex_cache, class_loader, outer_compilation_unit_)));
+
+  // The index at which the field's class is stored in the DexCache's type array.
+  uint32_t storage_index;
+  std::pair<bool, bool> pair = compiler_driver_->IsFastStaticField(
+      dex_cache.Get(), referrer_class.Get(), resolved_field.Get(), field_index, &storage_index);
+  bool can_easily_access = is_put ? pair.second : pair.first;
+  if (!can_easily_access) {
+    return false;
+  }
+
+  // TODO: find out why this check is needed.
+  bool is_in_dex_cache = compiler_driver_->CanAssumeTypeIsPresentInDexCache(
+      *outer_compilation_unit_->GetDexFile(), storage_index);
+  bool is_initialized = resolved_field->GetDeclaringClass()->IsInitialized() && is_in_dex_cache;
+  bool is_referrer_class = (referrer_class.Get() == resolved_field->GetDeclaringClass());
+
+  HLoadClass* constant = new (arena_) HLoadClass(storage_index, is_referrer_class, dex_pc);
   current_block_->AddInstruction(constant);
 
   HInstruction* cls = constant;
-  if (!is_initialized) {
+  if (!is_initialized && !is_referrer_class) {
     cls = new (arena_) HClinitCheck(constant, dex_pc);
     current_block_->AddInstruction(cls);
   }
 
+  Primitive::Type field_type = resolved_field->GetTypeAsPrimitiveType();
   if (is_put) {
     // We need to keep the class alive before loading the value.
     Temporaries temps(graph_);
@@ -752,9 +763,10 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
     HInstruction* value = LoadLocal(source_or_dest_reg, field_type);
     DCHECK_EQ(value->GetType(), field_type);
     current_block_->AddInstruction(
-        new (arena_) HStaticFieldSet(cls, value, field_type, field_offset));
+        new (arena_) HStaticFieldSet(cls, value, field_type, resolved_field->GetOffset()));
   } else {
-    current_block_->AddInstruction(new (arena_) HStaticFieldGet(cls, field_type, field_offset));
+    current_block_->AddInstruction(
+        new (arena_) HStaticFieldGet(cls, field_type, resolved_field->GetOffset()));
     UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
   }
   return true;
@@ -949,16 +961,20 @@ bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
                                    uint32_t dex_pc) {
   bool type_known_final;
   bool type_known_abstract;
-  bool is_referrers_class;
+  // `CanAccessTypeWithoutChecks` will tell whether the method being
+  // built is trying to access its own class, so that the generated
+  // code can optimize for this case. However, the optimization does not
+  // work for inlining, so we use `IsCompilingClass` instead.
+  bool dont_use_is_referrers_class;
   bool can_access = compiler_driver_->CanAccessTypeWithoutChecks(
       dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index,
-      &type_known_final, &type_known_abstract, &is_referrers_class);
+      &type_known_final, &type_known_abstract, &dont_use_is_referrers_class);
   if (!can_access) {
     MaybeRecordStat(MethodCompilationStat::kNotCompiledCantAccesType);
     return false;
   }
   HInstruction* object = LoadLocal(reference, Primitive::kPrimNot);
-  HLoadClass* cls = new (arena_) HLoadClass(type_index, is_referrers_class, dex_pc);
+  HLoadClass* cls = new (arena_) HLoadClass(type_index, IsCompilingClass(type_index), dex_pc);
   current_block_->AddInstruction(cls);
   // The class needs a temporary before being used by the type check.
   Temporaries temps(graph_);
@@ -1929,16 +1945,20 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       uint16_t type_index = instruction.VRegB_21c();
       bool type_known_final;
       bool type_known_abstract;
-      bool is_referrers_class;
+      bool dont_use_is_referrers_class;
+      // `CanAccessTypeWithoutChecks` will tell whether the method being
+      // built is trying to access its own class, so that the generated
+      // code can optimize for this case. However, the optimization does not
+      // work for inlining, so we use `IsCompilingClass` instead.
       bool can_access = compiler_driver_->CanAccessTypeWithoutChecks(
           dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index,
-          &type_known_final, &type_known_abstract, &is_referrers_class);
+          &type_known_final, &type_known_abstract, &dont_use_is_referrers_class);
       if (!can_access) {
         MaybeRecordStat(MethodCompilationStat::kNotCompiledCantAccesType);
         return false;
       }
       current_block_->AddInstruction(
-          new (arena_) HLoadClass(type_index, is_referrers_class, dex_pc));
+          new (arena_) HLoadClass(type_index, IsCompilingClass(type_index), dex_pc));
       UpdateLocal(instruction.VRegA_21c(), current_block_->GetLastInstruction());
       break;
     }

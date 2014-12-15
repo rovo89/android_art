@@ -39,9 +39,7 @@ static bool Check(const uint16_t* data) {
   HGraphBuilder builder(&allocator);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   HGraph* graph = builder.BuildGraph(*item);
-  graph->BuildDominatorTree();
-  graph->TransformToSSA();
-  graph->AnalyzeNaturalLoops();
+  graph->TryBuildingSsa();
   x86::CodeGeneratorX86 codegen(graph);
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
@@ -253,9 +251,7 @@ static HGraph* BuildSSAGraph(const uint16_t* data, ArenaAllocator* allocator) {
   HGraphBuilder builder(allocator);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   HGraph* graph = builder.BuildGraph(*item);
-  graph->BuildDominatorTree();
-  graph->TransformToSSA();
-  graph->AnalyzeNaturalLoops();
+  graph->TryBuildingSsa();
   return graph;
 }
 

@@ -48,9 +48,7 @@ static void TestCode(const uint16_t* data, const char* expected) {
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
   HGraph* graph = builder.BuildGraph(*item);
   ASSERT_NE(graph, nullptr);
-  graph->BuildDominatorTree();
-  graph->TransformToSSA();
-  graph->AnalyzeNaturalLoops();
+  graph->TryBuildingSsa();
   // `Inline` conditions into ifs.
   PrepareForRegisterAllocation(graph).Run();
   x86::CodeGeneratorX86 codegen(graph);

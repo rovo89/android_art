@@ -36,6 +36,7 @@ class HGraphBuilder : public ValueObject {
  public:
   HGraphBuilder(ArenaAllocator* arena,
                 DexCompilationUnit* dex_compilation_unit,
+                const DexCompilationUnit* const outer_compilation_unit,
                 const DexFile* dex_file,
                 CompilerDriver* driver,
                 OptimizingCompilerStats* compiler_stats)
@@ -51,6 +52,7 @@ class HGraphBuilder : public ValueObject {
         dex_file_(dex_file),
         dex_compilation_unit_(dex_compilation_unit),
         compiler_driver_(driver),
+        outer_compilation_unit_(outer_compilation_unit),
         return_type_(Primitive::GetType(dex_compilation_unit_->GetShorty()[0])),
         code_start_(nullptr),
         latest_result_(nullptr),
@@ -70,12 +72,13 @@ class HGraphBuilder : public ValueObject {
         dex_file_(nullptr),
         dex_compilation_unit_(nullptr),
         compiler_driver_(nullptr),
+        outer_compilation_unit_(nullptr),
         return_type_(return_type),
         code_start_(nullptr),
         latest_result_(nullptr),
         compilation_stats_(nullptr) {}
 
-  HGraph* BuildGraph(const DexFile::CodeItem& code);
+  HGraph* BuildGraph(const DexFile::CodeItem& code, int start_instruction_id = 0);
 
  private:
   // Analyzes the dex instruction and adds HInstruction to the graph
@@ -225,6 +228,14 @@ class HGraphBuilder : public ValueObject {
 
   void MaybeRecordStat(MethodCompilationStat compilation_stat);
 
+  // Returns whether `type_index` points to the outer-most compiling method's class.
+  bool IsCompilingClass(uint16_t type_index) const {
+    uint32_t referrer_index = outer_compilation_unit_->GetDexMethodIndex();
+    const DexFile::MethodId& method_id =
+        outer_compilation_unit_->GetDexFile()->GetMethodId(referrer_index);
+    return method_id.class_idx_ == type_index;
+  }
+
   ArenaAllocator* const arena_;
 
   // A list of the size of the dex code holding block information for
@@ -242,9 +253,21 @@ class HGraphBuilder : public ValueObject {
   HIntConstant* constant0_;
   HIntConstant* constant1_;
 
+  // The dex file where the method being compiled is.
   const DexFile* const dex_file_;
+
+  // The compilation unit of the current method being compiled. Note that
+  // it can be an inlined method.
   DexCompilationUnit* const dex_compilation_unit_;
+
   CompilerDriver* const compiler_driver_;
+
+  // The compilation unit of the outermost method being compiled. That is the
+  // method being compiled (and not inlined), and potentially inlining other
+  // methods.
+  const DexCompilationUnit* const outer_compilation_unit_;
+
+  // The return type of the method being compiled.
   const Primitive::Type return_type_;
 
   // The pointer in the dex file where the instructions of the code item

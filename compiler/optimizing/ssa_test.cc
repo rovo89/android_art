@@ -87,7 +87,7 @@ static void TestCode(const uint16_t* data, const char* expected) {
   // Suspend checks implementation may change in the future, and this test relies
   // on how instructions are ordered.
   RemoveSuspendChecks(graph);
-  graph->TransformToSSA();
+  graph->TransformToSsa();
   ReNumberInstructions(graph);
 
   // Test that phis had their type set.
