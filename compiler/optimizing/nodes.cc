@@ -167,7 +167,7 @@ void HGraph::VisitBlockForDominatorTree(HBasicBlock* block,
   }
 }
 
-void HGraph::TransformToSSA() {
+void HGraph::TransformToSsa() {
   DCHECK(!reverse_post_order_.IsEmpty());
   SsaBuilder ssa_builder(this);
   ssa_builder.BuildSsa();
@@ -680,6 +680,83 @@ std::ostream& operator<<(std::ostream& os, const HInstruction::InstructionKind& 
   }
 #undef DECLARE_CASE
   return os;
+}
+
+void HInstruction::InsertBefore(HInstruction* cursor) {
+  next_->previous_ = previous_;
+  if (previous_ != nullptr) {
+    previous_->next_ = next_;
+  }
+  if (block_->instructions_.first_instruction_ == this) {
+    block_->instructions_.first_instruction_ = next_;
+  }
+
+  previous_ = cursor->previous_;
+  if (previous_ != nullptr) {
+    previous_->next_ = this;
+  }
+  next_ = cursor;
+  cursor->previous_ = this;
+  block_ = cursor->block_;
+}
+
+void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
+  // We currently only support graphs with one entry block, one body block, and one exit block.
+  DCHECK_EQ(GetBlocks().Size(), 3u);
+
+  // Walk over the entry block and:
+  // - Move constants from the entry block to the outer_graph's entry block,
+  // - Replace HParameterValue instructions with their real value.
+  // - Remove suspend checks, that hold an environment.
+  int parameter_index = 0;
+  for (HInstructionIterator it(entry_block_->GetInstructions()); !it.Done(); it.Advance()) {
+    HInstruction* current = it.Current();
+    if (current->IsConstant()) {
+      current->InsertBefore(outer_graph->GetEntryBlock()->GetLastInstruction());
+    } else if (current->IsParameterValue()) {
+      current->ReplaceWith(invoke->InputAt(parameter_index++));
+    } else {
+      DCHECK(current->IsGoto() || current->IsSuspendCheck());
+      entry_block_->RemoveInstruction(current);
+    }
+  }
+
+  // Insert the body's instructions except the last, just after the `invoke`
+  // instruction.
+  HBasicBlock* body = GetBlocks().Get(1);
+  DCHECK(!body->IsExitBlock());
+  HInstruction* last = body->GetLastInstruction();
+  HInstruction* first = body->GetFirstInstruction();
+
+  if (first != last) {
+    HInstruction* antelast = last->GetPrevious();
+
+    // Update the instruction list of the body to only contain the last
+    // instruction.
+    last->previous_ = nullptr;
+    body->instructions_.first_instruction_ = last;
+    body->instructions_.last_instruction_ = last;
+
+    // Update the instruction list of the `invoke`'s block to now contain the
+    // body's instructions.
+    antelast->next_ = invoke->GetNext();
+    antelast->next_->previous_ = antelast;
+    first->previous_ = invoke;
+    invoke->next_ = first;
+
+    // Update the block pointer of all instructions.
+    for (HInstruction* current = antelast; current != invoke; current = current->GetPrevious()) {
+      current->SetBlock(invoke->GetBlock());
+    }
+  }
+
+  // Finally, replace the invoke with the return value of the inlined graph.
+  if (last->IsReturn()) {
+    invoke->ReplaceWith(last->InputAt(0));
+    body->RemoveInstruction(last);
+  } else {
+    DCHECK(last->IsReturnVoid());
+  }
 }
 
 }  // namespace art

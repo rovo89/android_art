@@ -28,6 +28,7 @@ enum MethodCompilationStat {
   kAttemptCompilation = 0,
   kCompiledBaseline,
   kCompiledOptimized,
+  kInlinedInvoke,
   kNotCompiledUnsupportedIsa,
   kNotCompiledPathological,
   kNotCompiledHugeMethod,
@@ -65,10 +66,10 @@ class OptimizingCompilerStats {
       std::ostringstream oss;
       oss << "Attempted compilation of " << compile_stats_[kAttemptCompilation] << " methods: "
           << unoptimized_percent << "% (" << compile_stats_[kCompiledBaseline] << ") unoptimized, "
-          << optimized_percent << "% (" << compile_stats_[kCompiledOptimized] << ") optimized.\n";
+          << optimized_percent << "% (" << compile_stats_[kCompiledOptimized] << ") optimized.";
       for (int i = 0; i < kLastStat; i++) {
         if (compile_stats_[i] != 0) {
-          oss << PrintMethodCompilationStat(i) << ": " << compile_stats_[i] << "\n";
+          oss << "\n" << PrintMethodCompilationStat(i) << ": " << compile_stats_[i];
         }
       }
       LOG(INFO) << oss.str();
@@ -81,6 +82,7 @@ class OptimizingCompilerStats {
       case kAttemptCompilation : return "kAttemptCompilation";
       case kCompiledBaseline : return "kCompiledBaseline";
       case kCompiledOptimized : return "kCompiledOptimized";
+      case kInlinedInvoke : return "kInlinedInvoke";
       case kNotCompiledUnsupportedIsa : return "kNotCompiledUnsupportedIsa";
       case kNotCompiledPathological : return "kNotCompiledPathological";
       case kNotCompiledHugeMethod : return "kNotCompiledHugeMethod";

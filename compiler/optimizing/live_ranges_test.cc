@@ -36,9 +36,7 @@ static HGraph* BuildGraph(const uint16_t* data, ArenaAllocator* allocator) {
   // Suspend checks implementation may change in the future, and this test relies
   // on how instructions are ordered.
   RemoveSuspendChecks(graph);
-  graph->BuildDominatorTree();
-  graph->TransformToSSA();
-  graph->AnalyzeNaturalLoops();
+  graph->TryBuildingSsa();
   // `Inline` conditions into ifs.
   PrepareForRegisterAllocation(graph).Run();
   return graph;

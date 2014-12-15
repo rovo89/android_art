@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_NODES_H_
 #define ART_COMPILER_OPTIMIZING_NODES_H_
 
+#include "invoke_type.h"
 #include "locations.h"
 #include "offsets.h"
 #include "primitive.h"
@@ -30,6 +31,7 @@ class HBasicBlock;
 class HEnvironment;
 class HInstruction;
 class HIntConstant;
+class HInvoke;
 class HGraphVisitor;
 class HPhi;
 class HSuspendCheck;
@@ -75,6 +77,8 @@ class HInstructionList {
   HInstruction* last_instruction_;
 
   friend class HBasicBlock;
+  friend class HGraph;
+  friend class HInstruction;
   friend class HInstructionIterator;
   friend class HBackwardInstructionIterator;
 
@@ -84,7 +88,7 @@ class HInstructionList {
 // Control-flow graph of a method. Contains a list of basic blocks.
 class HGraph : public ArenaObject<kArenaAllocMisc> {
  public:
-  explicit HGraph(ArenaAllocator* arena)
+  HGraph(ArenaAllocator* arena, int start_instruction_id = 0)
       : arena_(arena),
         blocks_(arena, kDefaultNumberOfBlocks),
         reverse_post_order_(arena, kDefaultNumberOfBlocks),
@@ -94,7 +98,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
         number_of_vregs_(0),
         number_of_in_vregs_(0),
         temporaries_vreg_slots_(0),
-        current_instruction_id_(0) {}
+        current_instruction_id_(start_instruction_id) {}
 
   ArenaAllocator* GetArena() const { return arena_; }
   const GrowableArray<HBasicBlock*>& GetBlocks() const { return blocks_; }
@@ -108,8 +112,16 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
 
   void AddBlock(HBasicBlock* block);
 
+  // Try building the SSA form of this graph, with dominance computation and loop
+  // recognition. Returns whether it was successful in doing all these steps.
+  bool TryBuildingSsa() {
+    BuildDominatorTree();
+    TransformToSsa();
+    return AnalyzeNaturalLoops();
+  }
+
   void BuildDominatorTree();
-  void TransformToSSA();
+  void TransformToSsa();
   void SimplifyCFG();
 
   // Analyze all natural loops in this graph. Returns false if one
@@ -117,19 +129,31 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   // back edge.
   bool AnalyzeNaturalLoops() const;
 
+  // Inline this graph in `outer_graph`, replacing the given `invoke` instruction.
+  void InlineInto(HGraph* outer_graph, HInvoke* invoke);
+
   void SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor);
   void SimplifyLoop(HBasicBlock* header);
 
-  int GetNextInstructionId() {
+  int32_t GetNextInstructionId() {
+    DCHECK_NE(current_instruction_id_, INT32_MAX);
     return current_instruction_id_++;
+  }
+
+  int32_t GetCurrentInstructionId() const {
+    return current_instruction_id_;
+  }
+
+  void SetCurrentInstructionId(int32_t id) {
+    current_instruction_id_ = id;
   }
 
   uint16_t GetMaximumNumberOfOutVRegs() const {
     return maximum_number_of_out_vregs_;
   }
 
-  void UpdateMaximumNumberOfOutVRegs(uint16_t new_value) {
-    maximum_number_of_out_vregs_ = std::max(new_value, maximum_number_of_out_vregs_);
+  void SetMaximumNumberOfOutVRegs(uint16_t new_value) {
+    maximum_number_of_out_vregs_ = new_value;
   }
 
   void UpdateTemporariesVRegSlots(size_t slots) {
@@ -150,10 +174,6 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
 
   void SetNumberOfInVRegs(uint16_t value) {
     number_of_in_vregs_ = value;
-  }
-
-  uint16_t GetNumberOfInVRegs() const {
-    return number_of_in_vregs_;
   }
 
   uint16_t GetNumberOfLocalVRegs() const {
@@ -200,8 +220,9 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   size_t temporaries_vreg_slots_;
 
   // The current id to assign to a newly added instruction. See HInstruction.id_.
-  int current_instruction_id_;
+  int32_t current_instruction_id_;
 
+  ART_FRIEND_TEST(GraphTest, IfSuccessorSimpleJoinBlock1);
   DISALLOW_COPY_AND_ASSIGN(HGraph);
 };
 
@@ -474,6 +495,9 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   size_t lifetime_end_;
   bool is_catch_block_;
 
+  friend class HGraph;
+  friend class HInstruction;
+
   DISALLOW_COPY_AND_ASSIGN(HBasicBlock);
 };
 
@@ -503,7 +527,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(InstanceOf, Instruction)                                            \
   M(IntConstant, Constant)                                              \
   M(InvokeInterface, Invoke)                                            \
-  M(InvokeStatic, Invoke)                                               \
+  M(InvokeStaticOrDirect, Invoke)                                       \
   M(InvokeVirtual, Invoke)                                              \
   M(LessThan, Condition)                                                \
   M(LessThanOrEqual, Condition)                                         \
@@ -748,6 +772,9 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   void ReplaceWith(HInstruction* instruction);
   void ReplaceInput(HInstruction* replacement, size_t index);
 
+  // Insert `this` instruction in `cursor`'s graph, just before `cursor`.
+  void InsertBefore(HInstruction* cursor);
+
   bool HasOnlyOneUse() const {
     return uses_ != nullptr && uses_->GetTail() == nullptr;
   }
@@ -836,6 +863,7 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   const SideEffects side_effects_;
 
   friend class HBasicBlock;
+  friend class HGraph;
   friend class HInstructionList;
 
   DISALLOW_COPY_AND_ASSIGN(HInstruction);
@@ -1595,24 +1623,28 @@ class HInvoke : public HInstruction {
   DISALLOW_COPY_AND_ASSIGN(HInvoke);
 };
 
-class HInvokeStatic : public HInvoke {
+class HInvokeStaticOrDirect : public HInvoke {
  public:
-  HInvokeStatic(ArenaAllocator* arena,
-                uint32_t number_of_arguments,
-                Primitive::Type return_type,
-                uint32_t dex_pc,
-                uint32_t index_in_dex_cache)
+  HInvokeStaticOrDirect(ArenaAllocator* arena,
+                        uint32_t number_of_arguments,
+                        Primitive::Type return_type,
+                        uint32_t dex_pc,
+                        uint32_t index_in_dex_cache,
+                        InvokeType invoke_type)
       : HInvoke(arena, number_of_arguments, return_type, dex_pc),
-        index_in_dex_cache_(index_in_dex_cache) {}
+        index_in_dex_cache_(index_in_dex_cache),
+        invoke_type_(invoke_type) {}
 
   uint32_t GetIndexInDexCache() const { return index_in_dex_cache_; }
+  InvokeType GetInvokeType() const { return invoke_type_; }
 
-  DECLARE_INSTRUCTION(InvokeStatic);
+  DECLARE_INSTRUCTION(InvokeStaticOrDirect);
 
  private:
   const uint32_t index_in_dex_cache_;
+  const InvokeType invoke_type_;
 
-  DISALLOW_COPY_AND_ASSIGN(HInvokeStatic);
+  DISALLOW_COPY_AND_ASSIGN(HInvokeStaticOrDirect);
 };
 
 class HInvokeVirtual : public HInvoke {
@@ -2425,7 +2457,7 @@ class HLoadString : public HExpression<0> {
   DISALLOW_COPY_AND_ASSIGN(HLoadString);
 };
 
-// TODO: Pass this check to HInvokeStatic nodes.
+// TODO: Pass this check to HInvokeStaticOrDirect nodes.
 /**
  * Performs an initialization check on its Class object input.
  */

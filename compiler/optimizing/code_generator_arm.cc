@@ -1171,7 +1171,7 @@ void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
   codegen_->GenerateFrameExit();
 }
 
-void LocationsBuilderARM::VisitInvokeStatic(HInvokeStatic* invoke) {
+void LocationsBuilderARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   HandleInvoke(invoke);
 }
 
@@ -1179,7 +1179,7 @@ void CodeGeneratorARM::LoadCurrentMethod(Register reg) {
   __ LoadFromOffset(kLoadWord, reg, SP, kCurrentMethodStackOffset);
 }
 
-void InstructionCodeGeneratorARM::VisitInvokeStatic(HInvokeStatic* invoke) {
+void InstructionCodeGeneratorARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   Register temp = invoke->GetLocations()->GetTemp(0).AsRegister<Register>();
 
   // TODO: Implement all kinds of calls:
