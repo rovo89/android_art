@@ -22,6 +22,8 @@
 namespace art {
 namespace x86 {
 
+enum RegFile { GPR, MMX, SSE };
+
 class DisassemblerX86 FINAL : public Disassembler {
  public:
   DisassemblerX86(DisassemblerOptions* options, bool supports_rex)
@@ -32,6 +34,11 @@ class DisassemblerX86 FINAL : public Disassembler {
 
  private:
   size_t DumpInstruction(std::ostream& os, const uint8_t* instr);
+
+  std::string DumpAddress(uint8_t mod, uint8_t rm, uint8_t rex64, uint8_t rex_w, bool no_ops,
+                          bool byte_operand, bool byte_second_operand, uint8_t* prefix, bool load,
+                          RegFile src_reg_file, RegFile dst_reg_file, const uint8_t** instr,
+                          uint32_t* address_bits);
 
   const bool supports_rex_;
 
