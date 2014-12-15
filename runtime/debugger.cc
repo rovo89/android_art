@@ -4238,10 +4238,15 @@ class HeapChunkContext {
     Reset();
   }
 
-  static void HeapChunkCallback(void* start, void* end, size_t used_bytes, void* arg)
+  static void HeapChunkJavaCallback(void* start, void* end, size_t used_bytes, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
                             Locks::mutator_lock_) {
-    reinterpret_cast<HeapChunkContext*>(arg)->HeapChunkCallback(start, end, used_bytes);
+    reinterpret_cast<HeapChunkContext*>(arg)->HeapChunkJavaCallback(start, end, used_bytes);
+  }
+
+  static void HeapChunkNativeCallback(void* start, void* end, size_t used_bytes, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    reinterpret_cast<HeapChunkContext*>(arg)->HeapChunkNativeCallback(start, end, used_bytes);
   }
 
  private:
@@ -4255,78 +4260,85 @@ class HeapChunkContext {
     pieceLenField_ = nullptr;
   }
 
-  void HeapChunkCallback(void* start, void* /*end*/, size_t used_bytes)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_,
-                            Locks::mutator_lock_) {
+  bool IsNative() const {
+    return type_ == CHUNK_TYPE("NHSG");
+  }
+
+  // Returns true if the object is not an empty chunk.
+  bool ProcessRecord(void* start, size_t used_bytes) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Note: heap call backs cannot manipulate the heap upon which they are crawling, care is taken
     // in the following code not to allocate memory, by ensuring buf_ is of the correct size
     if (used_bytes == 0) {
-        if (start == nullptr) {
-            // Reset for start of new heap.
-            startOfNextMemoryChunk_ = nullptr;
-            Flush();
-        }
-        // Only process in use memory so that free region information
-        // also includes dlmalloc book keeping.
-        return;
+      if (start == nullptr) {
+        // Reset for start of new heap.
+        startOfNextMemoryChunk_ = nullptr;
+        Flush();
+      }
+      // Only process in use memory so that free region information
+      // also includes dlmalloc book keeping.
+      return false;
     }
-
-    /* If we're looking at the native heap, we'll just return
-     * (SOLIDITY_HARD, KIND_NATIVE) for all allocated chunks
-     */
-    bool native = type_ == CHUNK_TYPE("NHSG");
-
-    // TODO: I'm not sure using start of next chunk works well with multiple spaces. We shouldn't
-    // count gaps inbetween spaces as free memory.
     if (startOfNextMemoryChunk_ != nullptr) {
-        // Transmit any pending free memory. Native free memory of
-        // over kMaxFreeLen could be because of the use of mmaps, so
-        // don't report. If not free memory then start a new segment.
-        bool flush = true;
-        if (start > startOfNextMemoryChunk_) {
-            const size_t kMaxFreeLen = 2 * kPageSize;
-            void* freeStart = startOfNextMemoryChunk_;
-            void* freeEnd = start;
-            size_t freeLen = reinterpret_cast<char*>(freeEnd) - reinterpret_cast<char*>(freeStart);
-            if (!native || freeLen < kMaxFreeLen) {
-                AppendChunk(HPSG_STATE(SOLIDITY_FREE, 0), freeStart, freeLen);
-                flush = false;
-            }
+      // Transmit any pending free memory. Native free memory of over kMaxFreeLen could be because
+      // of the use of mmaps, so don't report. If not free memory then start a new segment.
+      bool flush = true;
+      if (start > startOfNextMemoryChunk_) {
+        const size_t kMaxFreeLen = 2 * kPageSize;
+        void* free_start = startOfNextMemoryChunk_;
+        void* free_end = start;
+        const size_t free_len =
+            reinterpret_cast<uintptr_t>(free_end) - reinterpret_cast<uintptr_t>(free_start);
+        if (!IsNative() || free_len < kMaxFreeLen) {
+          AppendChunk(HPSG_STATE(SOLIDITY_FREE, 0), free_start, free_len, IsNative());
+          flush = false;
         }
-        if (flush) {
-            startOfNextMemoryChunk_ = nullptr;
-            Flush();
-        }
+      }
+      if (flush) {
+        startOfNextMemoryChunk_ = nullptr;
+        Flush();
+      }
     }
-    mirror::Object* obj = reinterpret_cast<mirror::Object*>(start);
-
-    // Determine the type of this chunk.
-    // OLD-TODO: if context.merge, see if this chunk is different from the last chunk.
-    // If it's the same, we should combine them.
-    uint8_t state = ExamineObject(obj, native);
-    AppendChunk(state, start, used_bytes + chunk_overhead_);
-    startOfNextMemoryChunk_ = reinterpret_cast<char*>(start) + used_bytes + chunk_overhead_;
+    return true;
   }
 
-  void AppendChunk(uint8_t state, void* ptr, size_t length)
+  void HeapChunkNativeCallback(void* start, void* /*end*/, size_t used_bytes)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (ProcessRecord(start, used_bytes)) {
+      uint8_t state = ExamineNativeObject(start);
+      AppendChunk(state, start, used_bytes + chunk_overhead_, true /*is_native*/);
+      startOfNextMemoryChunk_ = reinterpret_cast<char*>(start) + used_bytes + chunk_overhead_;
+    }
+  }
+
+  void HeapChunkJavaCallback(void* start, void* /*end*/, size_t used_bytes)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
+    if (ProcessRecord(start, used_bytes)) {
+      // Determine the type of this chunk.
+      // OLD-TODO: if context.merge, see if this chunk is different from the last chunk.
+      // If it's the same, we should combine them.
+      uint8_t state = ExamineJavaObject(reinterpret_cast<mirror::Object*>(start));
+      AppendChunk(state, start, used_bytes + chunk_overhead_, false /*is_native*/);
+      startOfNextMemoryChunk_ = reinterpret_cast<char*>(start) + used_bytes + chunk_overhead_;
+    }
+  }
+
+  void AppendChunk(uint8_t state, void* ptr, size_t length, bool is_native)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Make sure there's enough room left in the buffer.
     // We need to use two bytes for every fractional 256 allocation units used by the chunk plus
     // 17 bytes for any header.
-    size_t needed = (((length/ALLOCATION_UNIT_SIZE + 255) / 256) * 2) + 17;
-    size_t bytesLeft = buf_.size() - (size_t)(p_ - &buf_[0]);
-    if (bytesLeft < needed) {
-#if defined(HAVE_ANDROID_OS) && defined(USE_DLMALLOC)
+    const size_t needed = ((RoundUp(length / ALLOCATION_UNIT_SIZE, 256) / 256) * 2) + 17;
+    size_t byte_left = &buf_.back() - p_;
+    if (byte_left < needed) {
+      if (is_native) {
       // Cannot trigger memory allocation while walking native heap.
-      if (type_ == CHUNK_TYPE("NHSG")) {
         return;
       }
-#endif
       Flush();
     }
 
-    bytesLeft = buf_.size() - (size_t)(p_ - &buf_[0]);
-    if (bytesLeft < needed) {
+    byte_left = &buf_.back() - p_;
+    if (byte_left < needed) {
       LOG(WARNING) << "Chunk is too big to transmit (chunk_len=" << length << ", "
           << needed << " bytes)";
       return;
@@ -4344,43 +4356,34 @@ class HeapChunkContext {
     *p_++ = length - 1;
   }
 
-  uint8_t ExamineObject(mirror::Object* o, bool is_native_heap)
+  uint8_t ExamineNativeObject(const void* p) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return p == nullptr ? HPSG_STATE(SOLIDITY_FREE, 0) : HPSG_STATE(SOLIDITY_HARD, KIND_NATIVE);
+  }
+
+  uint8_t ExamineJavaObject(mirror::Object* o)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     if (o == nullptr) {
       return HPSG_STATE(SOLIDITY_FREE, 0);
     }
-
     // It's an allocated chunk. Figure out what it is.
-
-    // If we're looking at the native heap, we'll just return
-    // (SOLIDITY_HARD, KIND_NATIVE) for all allocated chunks.
-    if (is_native_heap) {
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    if (!heap->IsLiveObjectLocked(o)) {
+      LOG(ERROR) << "Invalid object in managed heap: " << o;
       return HPSG_STATE(SOLIDITY_HARD, KIND_NATIVE);
     }
-
-    if (!Runtime::Current()->GetHeap()->IsLiveObjectLocked(o)) {
-      return HPSG_STATE(SOLIDITY_HARD, KIND_NATIVE);
-    }
-
     mirror::Class* c = o->GetClass();
     if (c == nullptr) {
       // The object was probably just created but hasn't been initialized yet.
       return HPSG_STATE(SOLIDITY_HARD, KIND_OBJECT);
     }
-
-    if (!Runtime::Current()->GetHeap()->IsValidObjectAddress(c)) {
+    if (!heap->IsValidObjectAddress(c)) {
       LOG(ERROR) << "Invalid class for managed heap object: " << o << " " << c;
       return HPSG_STATE(SOLIDITY_HARD, KIND_UNKNOWN);
     }
-
     if (c->IsClassClass()) {
       return HPSG_STATE(SOLIDITY_HARD, KIND_CLASS_OBJECT);
     }
-
     if (c->IsArrayClass()) {
-      if (o->IsObjectArray()) {
-        return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_4);
-      }
       switch (c->GetComponentSize()) {
       case 1: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_1);
       case 2: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_2);
@@ -4388,7 +4391,6 @@ class HeapChunkContext {
       case 8: return HPSG_STATE(SOLIDITY_HARD, KIND_ARRAY_8);
       }
     }
-
     return HPSG_STATE(SOLIDITY_HARD, KIND_OBJECT);
   }
 
@@ -4407,43 +4409,33 @@ class HeapChunkContext {
 static void BumpPointerSpaceCallback(mirror::Object* obj, void* arg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
   const size_t size = RoundUp(obj->SizeOf(), kObjectAlignment);
-  HeapChunkContext::HeapChunkCallback(
+  HeapChunkContext::HeapChunkJavaCallback(
       obj, reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(obj) + size), size, arg);
 }
 
 void Dbg::DdmSendHeapSegments(bool native) {
-  Dbg::HpsgWhen when;
-  Dbg::HpsgWhat what;
-  if (!native) {
-    when = gDdmHpsgWhen;
-    what = gDdmHpsgWhat;
-  } else {
-    when = gDdmNhsgWhen;
-    what = gDdmNhsgWhat;
-  }
+  Dbg::HpsgWhen when = native ? gDdmNhsgWhen : gDdmHpsgWhen;
+  Dbg::HpsgWhat what = native ? gDdmNhsgWhat : gDdmHpsgWhat;
   if (when == HPSG_WHEN_NEVER) {
     return;
   }
-
   // Figure out what kind of chunks we'll be sending.
-  CHECK(what == HPSG_WHAT_MERGED_OBJECTS || what == HPSG_WHAT_DISTINCT_OBJECTS) << static_cast<int>(what);
+  CHECK(what == HPSG_WHAT_MERGED_OBJECTS || what == HPSG_WHAT_DISTINCT_OBJECTS)
+      << static_cast<int>(what);
 
   // First, send a heap start chunk.
   uint8_t heap_id[4];
   JDWP::Set4BE(&heap_id[0], 1);  // Heap id (bogus; we only have one heap).
   Dbg::DdmSendChunk(native ? CHUNK_TYPE("NHST") : CHUNK_TYPE("HPST"), sizeof(heap_id), heap_id);
-
   Thread* self = Thread::Current();
-
   Locks::mutator_lock_->AssertSharedHeld(self);
 
   // Send a series of heap segment chunks.
-  HeapChunkContext context((what == HPSG_WHAT_MERGED_OBJECTS), native);
+  HeapChunkContext context(what == HPSG_WHAT_MERGED_OBJECTS, native);
   if (native) {
 #if defined(HAVE_ANDROID_OS) && defined(USE_DLMALLOC)
-    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    dlmalloc_inspect_all(HeapChunkContext::HeapChunkCallback, &context);
-    HeapChunkContext::HeapChunkCallback(NULL, NULL, 0, &context);  // Indicate end of a space.
+    dlmalloc_inspect_all(HeapChunkContext::HeapChunkNativeCallback, &context);
+    HeapChunkContext::HeapChunkNativeCallback(nullptr, nullptr, 0, &context);  // Indicate end of a space.
 #else
     UNIMPLEMENTED(WARNING) << "Native heap inspection is only supported with dlmalloc";
 #endif
@@ -4455,7 +4447,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
         // dlmalloc's chunk header is 2 * sizeof(size_t), but if the previous chunk is in use for an
         // allocation then the first sizeof(size_t) may belong to it.
         context.SetChunkOverhead(sizeof(size_t));
-        space->AsDlMallocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+        space->AsDlMallocSpace()->Walk(HeapChunkContext::HeapChunkJavaCallback, &context);
       } else if (space->IsRosAllocSpace()) {
         context.SetChunkOverhead(0);
         // Need to acquire the mutator lock before the heap bitmap lock with exclusive access since
@@ -4465,7 +4457,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
         tl->SuspendAll();
         {
           ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-          space->AsRosAllocSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+          space->AsRosAllocSpace()->Walk(HeapChunkContext::HeapChunkJavaCallback, &context);
         }
         tl->ResumeAll();
         self->TransitionFromSuspendedToRunnable();
@@ -4473,6 +4465,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
         ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
         context.SetChunkOverhead(0);
         space->AsBumpPointerSpace()->Walk(BumpPointerSpaceCallback, &context);
+        HeapChunkContext::HeapChunkJavaCallback(nullptr, nullptr, 0, &context);
       } else {
         UNIMPLEMENTED(WARNING) << "Not counting objects in space " << *space;
       }
@@ -4481,7 +4474,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     // Walk the large objects, these are not in the AllocSpace.
     context.SetChunkOverhead(0);
-    heap->GetLargeObjectsSpace()->Walk(HeapChunkContext::HeapChunkCallback, &context);
+    heap->GetLargeObjectsSpace()->Walk(HeapChunkContext::HeapChunkJavaCallback, &context);
   }
 
   // Finally, send a heap end chunk.
