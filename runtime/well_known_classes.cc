@@ -66,7 +66,6 @@ jmethodID WellKnownClasses::java_lang_Byte_valueOf;
 jmethodID WellKnownClasses::java_lang_Character_valueOf;
 jmethodID WellKnownClasses::java_lang_ClassLoader_loadClass;
 jmethodID WellKnownClasses::java_lang_ClassNotFoundException_init;
-jmethodID WellKnownClasses::java_lang_Daemons_requestGC;
 jmethodID WellKnownClasses::java_lang_Daemons_requestHeapTrim;
 jmethodID WellKnownClasses::java_lang_Daemons_start;
 jmethodID WellKnownClasses::java_lang_Daemons_stop;
@@ -205,7 +204,6 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_ClassNotFoundException_init = CacheMethod(env, java_lang_ClassNotFoundException, false, "<init>", "(Ljava/lang/String;Ljava/lang/Throwable;)V");
   java_lang_ClassLoader_loadClass = CacheMethod(env, java_lang_ClassLoader, false, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
 
-  java_lang_Daemons_requestGC = CacheMethod(env, java_lang_Daemons, true, "requestGC", "()V");
   java_lang_Daemons_requestHeapTrim = CacheMethod(env, java_lang_Daemons, true, "requestHeapTrim", "()V");
   java_lang_Daemons_start = CacheMethod(env, java_lang_Daemons, true, "start", "()V");
   java_lang_Daemons_stop = CacheMethod(env, java_lang_Daemons, true, "stop", "()V");
