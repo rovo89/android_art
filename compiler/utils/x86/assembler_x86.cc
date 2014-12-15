@@ -269,11 +269,11 @@ void X86Assembler::cmovl(Condition condition, Register dst, Register src) {
 }
 
 
-void X86Assembler::setb(Condition condition, Register dst) {
+void X86Assembler::setb(Condition condition, ByteRegister dst) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0F);
   EmitUint8(0x90 + condition);
-  EmitOperand(0, Operand(dst));
+  EmitRegisterOperand(0, dst);
 }
 
 

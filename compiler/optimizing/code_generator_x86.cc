@@ -42,6 +42,12 @@ static constexpr size_t kRuntimeParameterCoreRegistersLength =
 static constexpr XmmRegister kRuntimeParameterFpuRegisters[] = { };
 static constexpr size_t kRuntimeParameterFpuRegistersLength = 0;
 
+static constexpr Register kByteRegisters[] = { EAX, ECX, EDX, EBX };
+
+static ByteRegister ToByteRegister(Register reg) {
+  return X86ManagedRegister::FromCpuRegister(reg).AsByteRegister();
+}
+
 // Marker for places that can be updated once we don't follow the quick ABI.
 static constexpr bool kFollowsQuickABI = true;
 
@@ -437,11 +443,8 @@ void CodeGeneratorX86::SetupBlockedRegisters() const {
   // Stack register is always reserved.
   blocked_core_registers_[ESP] = true;
 
-  // TODO: We currently don't use Quick's callee saved registers.
-  DCHECK(kFollowsQuickABI);
+  // Frame register is always reserved.
   blocked_core_registers_[EBP] = true;
-  blocked_core_registers_[ESI] = true;
-  blocked_core_registers_[EDI] = true;
 
   UpdateBlockedPairRegisters();
 }
@@ -929,7 +932,7 @@ void LocationsBuilderX86::VisitCondition(HCondition* comp) {
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::Any());
   if (comp->NeedsMaterialization()) {
-    locations->SetOut(Location::RequiresRegister());
+    locations->SetOut(Location::RegisterLocation(kByteRegisters[0]));
   }
 }
 
@@ -950,7 +953,7 @@ void InstructionCodeGeneratorX86::VisitCondition(HCondition* comp) {
       __ cmpl(locations->InAt(0).AsRegister<Register>(),
               Address(ESP, locations->InAt(1).GetStackIndex()));
     }
-    __ setb(X86Condition(comp->GetCondition()), reg);
+    __ setb(X86Condition(comp->GetCondition()), ToByteRegister(reg));
   }
 }
 
@@ -1165,11 +1168,11 @@ void LocationsBuilderX86::HandleInvoke(HInvoke* invoke) {
     case Primitive::kPrimShort:
     case Primitive::kPrimInt:
     case Primitive::kPrimNot:
-      locations->SetOut(Location::RegisterLocation(EAX));
+      locations->SetOut(Location::RegisterLocation(EAX), Location::kNoOutputOverlap);
       break;
 
     case Primitive::kPrimLong:
-      locations->SetOut(Location::RegisterPairLocation(EAX, EDX));
+      locations->SetOut(Location::RegisterPairLocation(EAX, EDX), Location::kNoOutputOverlap);
       break;
 
     case Primitive::kPrimVoid:
@@ -1177,7 +1180,7 @@ void LocationsBuilderX86::HandleInvoke(HInvoke* invoke) {
 
     case Primitive::kPrimDouble:
     case Primitive::kPrimFloat:
-      locations->SetOut(Location::FpuRegisterLocation(XMM0));
+      locations->SetOut(Location::FpuRegisterLocation(XMM0), Location::kNoOutputOverlap);
       break;
   }
 
@@ -1347,7 +1350,7 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
         case Primitive::kPrimInt:
         case Primitive::kPrimChar:
           // Processing a Dex `int-to-byte' instruction.
-          locations->SetInAt(0, Location::Any());
+          locations->SetInAt(0, Location::RegisterLocation(kByteRegisters[0]));
           locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
           break;
 
@@ -1542,15 +1545,7 @@ void InstructionCodeGeneratorX86::VisitTypeConversion(HTypeConversion* conversio
         case Primitive::kPrimInt:
         case Primitive::kPrimChar:
           // Processing a Dex `int-to-byte' instruction.
-          if (in.IsRegister()) {
-            __ movsxb(out.AsRegister<Register>(), in.AsRegister<ByteRegister>());
-          } else if (in.IsStackSlot()) {
-            __ movsxb(out.AsRegister<Register>(), Address(ESP, in.GetStackIndex()));
-          } else {
-            DCHECK(in.GetConstant()->IsIntConstant());
-            int32_t value = in.GetConstant()->AsIntConstant()->GetValue();
-            __ movl(out.AsRegister<Register>(), Immediate(static_cast<int8_t>(value)));
-          }
+          __ movsxb(out.AsRegister<Register>(), ToByteRegister(in.AsRegister<Register>()));
           break;
 
         default:
@@ -2668,17 +2663,16 @@ void LocationsBuilderX86::VisitInstanceFieldSet(HInstanceFieldSet* instruction) 
       || (field_type == Primitive::kPrimByte);
   // The register allocator does not support multiple
   // inputs that die at entry with one in a specific register.
+  size_t byte_register_index = 0;
   if (is_byte_type) {
-    // Ensure the value is in a byte register.
-    locations->SetInAt(1, Location::RegisterLocation(EAX));
+    locations->SetInAt(1, Location::RegisterLocation(kByteRegisters[byte_register_index++]));
   } else {
     locations->SetInAt(1, Location::RequiresRegister());
   }
   // Temporary registers for the write barrier.
   if (needs_write_barrier) {
     locations->AddTemp(Location::RequiresRegister());
-    // Ensure the card is in a byte register.
-    locations->AddTemp(Location::RegisterLocation(ECX));
+    locations->AddTemp(Location::RegisterLocation(kByteRegisters[byte_register_index]));
   }
 }
 
@@ -2691,7 +2685,7 @@ void InstructionCodeGeneratorX86::VisitInstanceFieldSet(HInstanceFieldSet* instr
   switch (field_type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte: {
-      ByteRegister value = locations->InAt(1).AsRegister<ByteRegister>();
+      ByteRegister value = ToByteRegister(locations->InAt(1).AsRegister<Register>());
       __ movb(Address(obj, offset), value);
       break;
     }
@@ -2741,15 +2735,17 @@ void InstructionCodeGeneratorX86::VisitInstanceFieldSet(HInstanceFieldSet* instr
   }
 }
 
-void CodeGeneratorX86::MarkGCCard(Register temp, Register card, Register object, Register value) {
+void CodeGeneratorX86::MarkGCCard(Register temp,
+                                  Register card,
+                                  Register object,
+                                  Register value) {
   Label is_null;
   __ testl(value, value);
   __ j(kEqual, &is_null);
   __ fs()->movl(card, Address::Absolute(Thread::CardTableOffset<kX86WordSize>().Int32Value()));
   __ movl(temp, object);
   __ shrl(temp, Immediate(gc::accounting::CardTable::kCardShift));
-  __ movb(Address(temp, card, TIMES_1, 0),
-          X86ManagedRegister::FromCpuRegister(card).AsByteRegister());
+  __ movb(Address(temp, card, TIMES_1, 0), ToByteRegister(card));
   __ Bind(&is_null);
 }
 
@@ -2980,17 +2976,17 @@ void LocationsBuilderX86::VisitArraySet(HArraySet* instruction) {
     // inputs that die at entry with one in a specific register.
     locations->SetInAt(0, Location::RequiresRegister());
     locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
+    size_t byte_register_index = 0;
     if (is_byte_type) {
-      // Ensure the value is in a byte register.
-      locations->SetInAt(2, Location::ByteRegisterOrConstant(EAX, instruction->InputAt(2)));
+      locations->SetInAt(2, Location::ByteRegisterOrConstant(
+          kByteRegisters[byte_register_index++], instruction->InputAt(2)));
     } else {
       locations->SetInAt(2, Location::RegisterOrConstant(instruction->InputAt(2)));
     }
     // Temporary registers for the write barrier.
     if (needs_write_barrier) {
       locations->AddTemp(Location::RequiresRegister());
-      // Ensure the card is in a byte register.
-      locations->AddTemp(Location::RegisterLocation(ECX));
+      locations->AddTemp(Location::RegisterLocation(kByteRegisters[byte_register_index]));
     }
   }
 }
@@ -3012,7 +3008,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
       if (index.IsConstant()) {
         size_t offset = (index.GetConstant()->AsIntConstant()->GetValue() << TIMES_1) + data_offset;
         if (value.IsRegister()) {
-          __ movb(Address(obj, offset), value.AsRegister<ByteRegister>());
+          __ movb(Address(obj, offset), ToByteRegister(value.AsRegister<Register>()));
         } else {
           __ movb(Address(obj, offset),
                   Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
@@ -3020,7 +3016,7 @@ void InstructionCodeGeneratorX86::VisitArraySet(HArraySet* instruction) {
       } else {
         if (value.IsRegister()) {
           __ movb(Address(obj, index.AsRegister<Register>(), TIMES_1, data_offset),
-                  value.AsRegister<ByteRegister>());
+                  ToByteRegister(value.AsRegister<Register>()));
         } else {
           __ movb(Address(obj, index.AsRegister<Register>(), TIMES_1, data_offset),
                   Immediate(value.GetConstant()->AsIntConstant()->GetValue()));
@@ -3463,17 +3459,16 @@ void LocationsBuilderX86::VisitStaticFieldSet(HStaticFieldSet* instruction) {
       || (field_type == Primitive::kPrimByte);
   // The register allocator does not support multiple
   // inputs that die at entry with one in a specific register.
+  size_t byte_register_index = 0;
   if (is_byte_type) {
-    // Ensure the value is in a byte register.
-    locations->SetInAt(1, Location::RegisterLocation(EAX));
+    locations->SetInAt(1, Location::RegisterLocation(kByteRegisters[byte_register_index++]));
   } else {
     locations->SetInAt(1, Location::RequiresRegister());
   }
   // Temporary registers for the write barrier.
   if (needs_write_barrier) {
     locations->AddTemp(Location::RequiresRegister());
-    // Ensure the card is in a byte register.
-    locations->AddTemp(Location::RegisterLocation(ECX));
+    locations->AddTemp(Location::RegisterLocation(kByteRegisters[byte_register_index]));
   }
 }
 
@@ -3486,7 +3481,7 @@ void InstructionCodeGeneratorX86::VisitStaticFieldSet(HStaticFieldSet* instructi
   switch (field_type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte: {
-      ByteRegister value = locations->InAt(1).AsRegister<ByteRegister>();
+      ByteRegister value = ToByteRegister(locations->InAt(1).AsRegister<Register>());
       __ movb(Address(cls, offset), value);
       break;
     }

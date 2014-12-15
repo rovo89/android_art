@@ -180,18 +180,18 @@ class Address : public Operand {
   void Init(CpuRegister base_in, int32_t disp) {
     if (disp == 0 && base_in.AsRegister() != RBP) {
       SetModRM(0, base_in);
-      if (base_in.AsRegister() == RSP) {
+      if (base_in.LowBits() == RSP) {
         SetSIB(TIMES_1, CpuRegister(RSP), base_in);
       }
     } else if (disp >= -128 && disp <= 127) {
       SetModRM(1, base_in);
-      if (base_in.AsRegister() == RSP) {
+      if (base_in.LowBits() == RSP) {
         SetSIB(TIMES_1, CpuRegister(RSP), base_in);
       }
       SetDisp8(disp);
     } else {
       SetModRM(2, base_in);
-      if (base_in.AsRegister() == RSP) {
+      if (base_in.LowBits() == RSP) {
         SetSIB(TIMES_1, CpuRegister(RSP), base_in);
       }
       SetDisp32(disp);
