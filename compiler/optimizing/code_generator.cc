@@ -565,9 +565,18 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
           stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, High32Bits(value));
           ++i;
           DCHECK_LT(i, environment_size);
-        } else {
-          DCHECK(current->IsIntConstant());
+        } else if (current->IsDoubleConstant()) {
+          int64_t value = bit_cast<double, int64_t>(current->AsDoubleConstant()->GetValue());
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, Low32Bits(value));
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, High32Bits(value));
+          ++i;
+          DCHECK_LT(i, environment_size);
+        } else if (current->IsIntConstant()) {
           int32_t value = current->AsIntConstant()->GetValue();
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, value);
+        } else {
+          DCHECK(current->IsFloatConstant());
+          int32_t value = bit_cast<float, int32_t>(current->AsFloatConstant()->GetValue());
           stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, value);
         }
         break;

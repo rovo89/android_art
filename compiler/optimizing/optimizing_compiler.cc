@@ -30,6 +30,7 @@
 #include "elf_writer_quick.h"
 #include "graph_visualizer.h"
 #include "gvn.h"
+#include "inliner.h"
 #include "instruction_simplifier.h"
 #include "jni/quick/jni_compiler.h"
 #include "mirror/art_method-inl.h"
@@ -181,25 +182,33 @@ static bool CanOptimize(const DexFile::CodeItem& code_item) {
   return code_item.tries_size_ == 0;
 }
 
-static void RunOptimizations(HGraph* graph, const HGraphVisualizer& visualizer) {
-  HDeadCodeElimination opt1(graph);
-  HConstantFolding opt2(graph);
-  SsaRedundantPhiElimination opt3(graph);
-  SsaDeadPhiElimination opt4(graph);
-  InstructionSimplifier opt5(graph);
-  GVNOptimization opt6(graph);
+static void RunOptimizations(HGraph* graph,
+                             CompilerDriver* driver,
+                             OptimizingCompilerStats* stats,
+                             const DexCompilationUnit& dex_compilation_unit,
+                             const HGraphVisualizer& visualizer) {
+  SsaRedundantPhiElimination redundant_phi(graph);
+  SsaDeadPhiElimination dead_phi(graph);
+  HDeadCodeElimination dce(graph);
+  HConstantFolding fold(graph);
+  InstructionSimplifier simplify1(graph);
+
+  HInliner inliner(graph, dex_compilation_unit, driver, stats);
+
+  GVNOptimization gvn(graph);
   BoundsCheckElimination bce(graph);
-  InstructionSimplifier opt8(graph);
+  InstructionSimplifier simplify2(graph);
 
   HOptimization* optimizations[] = {
-    &opt1,
-    &opt2,
-    &opt3,
-    &opt4,
-    &opt5,
-    &opt6,
+    &redundant_phi,
+    &dead_phi,
+    &dce,
+    &fold,
+    &simplify1,
+    &inliner,
+    &gvn,
     &bce,
-    &opt8
+    &simplify2
   };
 
   for (size_t i = 0; i < arraysize(optimizations); ++i) {
@@ -208,23 +217,6 @@ static void RunOptimizations(HGraph* graph, const HGraphVisualizer& visualizer) 
     visualizer.DumpGraph(optimization->GetPassName());
     optimization->Check();
   }
-}
-
-static bool TryBuildingSsa(HGraph* graph,
-                           const DexCompilationUnit& dex_compilation_unit,
-                           const HGraphVisualizer& visualizer) {
-  graph->BuildDominatorTree();
-  graph->TransformToSSA();
-
-  if (!graph->AnalyzeNaturalLoops()) {
-    LOG(INFO) << "Skipping compilation of "
-              << PrettyMethod(dex_compilation_unit.GetDexMethodIndex(),
-                              *dex_compilation_unit.GetDexFile())
-              << ": it contains a non natural loop";
-    return false;
-  }
-  visualizer.DumpGraph("ssa transform");
-  return true;
 }
 
 // The stack map we generate must be 4-byte aligned on ARM. Since existing
@@ -270,19 +262,23 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     class_def_idx, method_idx, access_flags,
     GetCompilerDriver()->GetVerifiedMethod(&dex_file, method_idx));
 
+  std::string method_name = PrettyMethod(method_idx, dex_file);
+
   // For testing purposes, we put a special marker on method names that should be compiled
   // with this compiler. This makes sure we're not regressing.
-  bool shouldCompile = dex_compilation_unit.GetSymbol().find("00024opt_00024") != std::string::npos;
-  bool shouldOptimize =
-      dex_compilation_unit.GetSymbol().find("00024reg_00024") != std::string::npos;
+  bool shouldCompile = method_name.find("$opt$") != std::string::npos;
+  bool shouldOptimize = method_name.find("$opt$reg$") != std::string::npos;
 
   ArenaPool pool;
   ArenaAllocator arena(&pool);
   HGraphBuilder builder(&arena,
                         &dex_compilation_unit,
-                        &dex_file, GetCompilerDriver(),
+                        &dex_compilation_unit,
+                        &dex_file,
+                        GetCompilerDriver(),
                         &compilation_stats_);
 
+  VLOG(compiler) << "Building " << PrettyMethod(method_idx, dex_file);
   HGraph* graph = builder.BuildGraph(*code_item);
   if (graph == nullptr) {
     CHECK(!shouldCompile) << "Could not build graph in optimizing compiler";
@@ -297,7 +293,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
   }
 
   HGraphVisualizer visualizer(
-      visualizer_output_.get(), graph, kStringFilter, *codegen, dex_compilation_unit);
+      visualizer_output_.get(), graph, kStringFilter, *codegen, method_name.c_str());
   visualizer.DumpGraph("builder");
 
   CodeVectorAllocator allocator;
@@ -306,12 +302,16 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
   bool can_allocate_registers = RegisterAllocator::CanAllocateRegistersFor(*graph, instruction_set);
   if (run_optimizations_ && can_optimize && can_allocate_registers) {
     VLOG(compiler) << "Optimizing " << PrettyMethod(method_idx, dex_file);
-    if (!TryBuildingSsa(graph, dex_compilation_unit, visualizer)) {
+    if (!graph->TryBuildingSsa()) {
+      LOG(INFO) << "Skipping compilation of "
+                << PrettyMethod(method_idx, dex_file)
+                << ": it contains a non natural loop";
       // We could not transform the graph to SSA, bailout.
       compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledCannotBuildSSA);
       return nullptr;
     }
-    RunOptimizations(graph, visualizer);
+    RunOptimizations(
+        graph, GetCompilerDriver(), &compilation_stats_, dex_compilation_unit, visualizer);
 
     PrepareForRegisterAllocation(graph).Run();
     SsaLivenessAnalysis liveness(*graph, codegen);

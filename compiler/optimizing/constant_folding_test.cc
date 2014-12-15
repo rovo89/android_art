@@ -38,8 +38,7 @@ static void TestCode(const uint16_t* data,
   HGraph* graph = CreateCFG(&allocator, data, return_type);
   ASSERT_NE(graph, nullptr);
 
-  graph->BuildDominatorTree();
-  graph->TransformToSSA();
+  graph->TryBuildingSsa();
 
   StringPrettyPrinter printer_before(graph);
   printer_before.VisitInsertionOrder();

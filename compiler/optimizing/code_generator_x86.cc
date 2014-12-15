@@ -1115,11 +1115,11 @@ void InstructionCodeGeneratorX86::VisitReturn(HReturn* ret) {
   __ ret();
 }
 
-void LocationsBuilderX86::VisitInvokeStatic(HInvokeStatic* invoke) {
+void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   HandleInvoke(invoke);
 }
 
-void InstructionCodeGeneratorX86::VisitInvokeStatic(HInvokeStatic* invoke) {
+void InstructionCodeGeneratorX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
   Register temp = invoke->GetLocations()->GetTemp(0).AsRegister<Register>();
 
   // TODO: Implement all kinds of calls:
