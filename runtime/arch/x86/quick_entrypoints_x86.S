@@ -297,28 +297,34 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
 DEFINE_FUNCTION art_quick_invoke_stub
     PUSH ebp                      // save ebp
     PUSH ebx                      // save ebx
+    PUSH esi                      // save esi
+    PUSH edi                      // save edi
     mov %esp, %ebp                // copy value of stack pointer into base pointer
     CFI_DEF_CFA_REGISTER(ebp)
-    mov 20(%ebp), %ebx            // get arg array size
-    addl LITERAL(28), %ebx        // reserve space for return addr, method*, ebx, and ebp in frame
-    andl LITERAL(0xFFFFFFF0), %ebx    // align frame size to 16 bytes
-    subl LITERAL(12), %ebx        // remove space for return address, ebx, and ebp
+    mov 28(%ebp), %ebx            // get arg array size
+    // reserve space for return addr, method*, ebx, ebp, esi, and edi in frame
+    addl LITERAL(36), %ebx
+    // align frame size to 16 bytes
+    andl LITERAL(0xFFFFFFF0), %ebx
+    subl LITERAL(20), %ebx        // remove space for return address, ebx, ebp, esi and edi
     subl %ebx, %esp               // reserve stack space for argument array
     SETUP_GOT_NOSAVE ebx          // clobbers ebx (harmless here)
     lea  4(%esp), %eax            // use stack pointer + method ptr as dest for memcpy
-    pushl 20(%ebp)                // push size of region to memcpy
-    pushl 16(%ebp)                // push arg array as source of memcpy
+    pushl 28(%ebp)                // push size of region to memcpy
+    pushl 24(%ebp)                // push arg array as source of memcpy
     pushl %eax                    // push stack pointer as destination of memcpy
     call PLT_SYMBOL(memcpy)       // (void*, const void*, size_t)
     addl LITERAL(12), %esp        // pop arguments to memcpy
     movl LITERAL(0), (%esp)       // store NULL for method*
-    mov 12(%ebp), %eax            // move method pointer into eax
+    mov 20(%ebp), %eax            // move method pointer into eax
     mov 4(%esp), %ecx             // copy arg1 into ecx
     mov 8(%esp), %edx             // copy arg2 into edx
     mov 12(%esp), %ebx            // copy arg3 into ebx
     call *MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32(%eax) // call the method
     mov %ebp, %esp                // restore stack pointer
     CFI_DEF_CFA_REGISTER(esp)
+    POP edi                       // pop edi
+    POP esi                       // pop esi
     POP ebx                       // pop ebx
     POP ebp                       // pop ebp
     mov 20(%esp), %ecx            // get result pointer
