@@ -224,31 +224,35 @@ void HGraphBuilder::If_21t(const Instruction& instruction, uint32_t dex_pc) {
   current_block_ = nullptr;
 }
 
-static bool ShouldSkipCompilation(const CompilerDriver& compiler_driver,
-                                  const DexCompilationUnit& dex_compilation_unit,
-                                  size_t number_of_dex_instructions,
-                                  size_t number_of_blocks ATTRIBUTE_UNUSED,
-                                  size_t number_of_branches) {
-  const CompilerOptions& compiler_options = compiler_driver.GetCompilerOptions();
+void HGraphBuilder::MaybeRecordStat(MethodCompilationStat compilation_stat) {
+  if (compilation_stats_ != nullptr) {
+    compilation_stats_->RecordStat(compilation_stat);
+  }
+}
+
+bool HGraphBuilder::SkipCompilation(size_t number_of_dex_instructions,
+                                    size_t number_of_blocks ATTRIBUTE_UNUSED,
+                                    size_t number_of_branches) {
+  const CompilerOptions& compiler_options = compiler_driver_->GetCompilerOptions();
   CompilerOptions::CompilerFilter compiler_filter = compiler_options.GetCompilerFilter();
   if (compiler_filter == CompilerOptions::kEverything) {
     return false;
   }
 
   if (compiler_options.IsHugeMethod(number_of_dex_instructions)) {
-    LOG(INFO) << "Skip compilation of huge method "
-              << PrettyMethod(dex_compilation_unit.GetDexMethodIndex(),
-                              *dex_compilation_unit.GetDexFile())
-              << ": " << number_of_dex_instructions << " dex instructions";
+    VLOG(compiler) << "Skip compilation of huge method "
+                   << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
+                   << ": " << number_of_dex_instructions << " dex instructions";
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledHugeMethod);
     return true;
   }
 
   // If it's large and contains no branches, it's likely to be machine generated initialization.
   if (compiler_options.IsLargeMethod(number_of_dex_instructions) && (number_of_branches == 0)) {
-    LOG(INFO) << "Skip compilation of large method with no branch "
-              << PrettyMethod(dex_compilation_unit.GetDexMethodIndex(),
-                              *dex_compilation_unit.GetDexFile())
-              << ": " << number_of_dex_instructions << " dex instructions";
+    VLOG(compiler) << "Skip compilation of large method with no branch "
+                   << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
+                   << ": " << number_of_dex_instructions << " dex instructions";
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledLargeMethodNoBranches);
     return true;
   }
 
@@ -283,14 +287,9 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
       code_ptr, code_end, &number_of_dex_instructions, &number_of_blocks, &number_of_branches);
 
   // Note that the compiler driver is null when unit testing.
-  if (compiler_driver_ != nullptr) {
-    if (ShouldSkipCompilation(*compiler_driver_,
-                              *dex_compilation_unit_,
-                              number_of_dex_instructions,
-                              number_of_blocks,
-                              number_of_branches)) {
-      return nullptr;
-    }
+  if ((compiler_driver_ != nullptr)
+      && SkipCompilation(number_of_dex_instructions, number_of_blocks, number_of_branches)) {
+    return nullptr;
   }
 
   // Also create blocks for catch handlers.
@@ -319,7 +318,9 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
     // Update the current block if dex_pc starts a new block.
     MaybeUpdateCurrentBlock(dex_pc);
     const Instruction& instruction = *Instruction::At(code_ptr);
-    if (!AnalyzeDexInstruction(instruction, dex_pc)) return nullptr;
+    if (!AnalyzeDexInstruction(instruction, dex_pc)) {
+      return nullptr;
+    }
     dex_pc += instruction.SizeInCodeUnits();
     code_ptr += instruction.SizeInCodeUnits();
   }
@@ -593,8 +594,9 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   if (!compiler_driver_->ComputeInvokeInfo(dex_compilation_unit_, dex_pc, true, true,
                                            &optimized_invoke_type, &target_method, &table_index,
                                            &direct_code, &direct_method)) {
-    LOG(INFO) << "Did not compile " << PrettyMethod(method_idx, *dex_file_)
-              << " because a method call could not be resolved";
+    VLOG(compiler) << "Did not compile " << PrettyMethod(method_idx, *dex_file_)
+                   << " because a method call could not be resolved";
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledUnresolvedMethod);
     return false;
   }
   DCHECK(optimized_invoke_type != kSuper);
@@ -636,6 +638,7 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
       LOG(WARNING) << "Non sequential register pair in " << dex_compilation_unit_->GetSymbol()
                    << " at " << dex_pc;
       // We do not implement non sequential register pair.
+      MaybeRecordStat(MethodCompilationStat::kNotCompiledNonSequentialRegPair);
       return false;
     }
     HInstruction* arg = LoadLocal(is_range ? register_index + i : args[i], type);
@@ -664,9 +667,11 @@ bool HGraphBuilder::BuildInstanceFieldAccess(const Instruction& instruction,
       compiler_driver_->ComputeInstanceFieldInfo(field_index, dex_compilation_unit_, is_put, soa)));
 
   if (resolved_field.Get() == nullptr) {
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledUnresolvedField);
     return false;
   }
   if (resolved_field->IsVolatile()) {
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledVolatile);
     return false;
   }
 
@@ -721,10 +726,12 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
                                                             &is_initialized,
                                                             &field_type);
   if (!fast_path) {
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledUnresolvedField);
     return false;
   }
 
   if (is_volatile) {
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledVolatile);
     return false;
   }
 
@@ -947,6 +954,7 @@ bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
       dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index,
       &type_known_final, &type_known_abstract, &is_referrers_class);
   if (!can_access) {
+    MaybeRecordStat(MethodCompilationStat::kNotCompiledCantAccesType);
     return false;
   }
   HInstruction* object = LoadLocal(reference, Primitive::kPrimNot);
@@ -967,7 +975,7 @@ bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
   return true;
 }
 
-bool HGraphBuilder::BuildPackedSwitch(const Instruction& instruction, uint32_t dex_pc) {
+void HGraphBuilder::BuildPackedSwitch(const Instruction& instruction, uint32_t dex_pc) {
   SwitchTable table(instruction, dex_pc, false);
 
   // Value to test against.
@@ -984,10 +992,9 @@ bool HGraphBuilder::BuildPackedSwitch(const Instruction& instruction, uint32_t d
     BuildSwitchCaseHelper(instruction, i, i == num_entries, table, value, starting_key + i - 1,
                           table.GetEntryAt(i), dex_pc);
   }
-  return true;
 }
 
-bool HGraphBuilder::BuildSparseSwitch(const Instruction& instruction, uint32_t dex_pc) {
+void HGraphBuilder::BuildSparseSwitch(const Instruction& instruction, uint32_t dex_pc) {
   SwitchTable table(instruction, dex_pc, true);
 
   // Value to test against.
@@ -1001,7 +1008,6 @@ bool HGraphBuilder::BuildSparseSwitch(const Instruction& instruction, uint32_t d
     BuildSwitchCaseHelper(instruction, i, i == static_cast<size_t>(num_entries) - 1, table, value,
                           table.GetEntryAt(i), table.GetEntryAt(i + num_entries), dex_pc);
   }
-  return true;
 }
 
 void HGraphBuilder::BuildSwitchCaseHelper(const Instruction& instruction, size_t index,
@@ -1928,6 +1934,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
           dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index,
           &type_known_final, &type_known_abstract, &is_referrers_class);
       if (!can_access) {
+        MaybeRecordStat(MethodCompilationStat::kNotCompiledCantAccesType);
         return false;
       }
       current_block_->AddInstruction(
@@ -1989,20 +1996,21 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::PACKED_SWITCH: {
-      if (!BuildPackedSwitch(instruction, dex_pc)) {
-        return false;
-      }
+      BuildPackedSwitch(instruction, dex_pc);
       break;
     }
 
     case Instruction::SPARSE_SWITCH: {
-      if (!BuildSparseSwitch(instruction, dex_pc)) {
-        return false;
-      }
+      BuildSparseSwitch(instruction, dex_pc);
       break;
     }
 
     default:
+      VLOG(compiler) << "Did not compile "
+                     << PrettyMethod(dex_compilation_unit_->GetDexMethodIndex(), *dex_file_)
+                     << " because of unhandled instruction "
+                     << instruction.Name();
+      MaybeRecordStat(MethodCompilationStat::kNotCompiledUnhandledInstruction);
       return false;
   }
   return true;

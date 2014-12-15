@@ -21,6 +21,7 @@
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
+#include "optimizing_compiler_stats.h"
 #include "primitive.h"
 #include "utils/arena_object.h"
 #include "utils/growable_array.h"
@@ -36,7 +37,8 @@ class HGraphBuilder : public ValueObject {
   HGraphBuilder(ArenaAllocator* arena,
                 DexCompilationUnit* dex_compilation_unit,
                 const DexFile* dex_file,
-                CompilerDriver* driver)
+                CompilerDriver* driver,
+                OptimizingCompilerStats* compiler_stats)
       : arena_(arena),
         branch_targets_(arena, 0),
         locals_(arena, 0),
@@ -51,7 +53,8 @@ class HGraphBuilder : public ValueObject {
         compiler_driver_(driver),
         return_type_(Primitive::GetType(dex_compilation_unit_->GetShorty()[0])),
         code_start_(nullptr),
-        latest_result_(nullptr) {}
+        latest_result_(nullptr),
+        compilation_stats_(compiler_stats) {}
 
   // Only for unit testing.
   HGraphBuilder(ArenaAllocator* arena, Primitive::Type return_type = Primitive::kPrimInt)
@@ -69,7 +72,8 @@ class HGraphBuilder : public ValueObject {
         compiler_driver_(nullptr),
         return_type_(return_type),
         code_start_(nullptr),
-        latest_result_(nullptr) {}
+        latest_result_(nullptr),
+        compilation_stats_(nullptr) {}
 
   HGraph* BuildGraph(const DexFile::CodeItem& code);
 
@@ -205,15 +209,21 @@ class HGraphBuilder : public ValueObject {
                       uint32_t dex_pc);
 
   // Builds an instruction sequence for a packed switch statement.
-  bool BuildPackedSwitch(const Instruction& instruction, uint32_t dex_pc);
+  void BuildPackedSwitch(const Instruction& instruction, uint32_t dex_pc);
 
   // Builds an instruction sequence for a sparse switch statement.
-  bool BuildSparseSwitch(const Instruction& instruction, uint32_t dex_pc);
+  void BuildSparseSwitch(const Instruction& instruction, uint32_t dex_pc);
 
   void BuildSwitchCaseHelper(const Instruction& instruction, size_t index,
                              bool is_last_case, const SwitchTable& table,
                              HInstruction* value, int32_t case_value_int,
                              int32_t target_offset, uint32_t dex_pc);
+
+  bool SkipCompilation(size_t number_of_dex_instructions,
+                       size_t number_of_blocks,
+                       size_t number_of_branches);
+
+  void MaybeRecordStat(MethodCompilationStat compilation_stat);
 
   ArenaAllocator* const arena_;
 
@@ -244,6 +254,8 @@ class HGraphBuilder : public ValueObject {
   // The last invoke or fill-new-array being built. Only to be
   // used by move-result instructions.
   HInstruction* latest_result_;
+
+  OptimizingCompilerStats* compilation_stats_;
 
   DISALLOW_COPY_AND_ASSIGN(HGraphBuilder);
 };
