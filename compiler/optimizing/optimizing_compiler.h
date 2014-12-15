@@ -24,6 +24,6 @@ class CompilerDriver;
 
 Compiler* CreateOptimizingCompiler(CompilerDriver* driver);
 
-}
+}  // namespace art
 
 #endif  // ART_COMPILER_OPTIMIZING_OPTIMIZING_COMPILER_H_
