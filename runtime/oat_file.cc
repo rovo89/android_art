@@ -227,7 +227,9 @@ bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file
 
 bool OatFile::Setup(std::string* error_msg) {
   if (!GetOatHeader().IsValid()) {
-    *error_msg = StringPrintf("Invalid oat magic for '%s'", GetLocation().c_str());
+    std::string cause = GetOatHeader().GetValidationErrorMessage();
+    *error_msg = StringPrintf("Invalid oat header for '%s': %s", GetLocation().c_str(),
+                              cause.c_str());
     return false;
   }
   const uint8_t* oat = Begin();

@@ -31,8 +31,8 @@ class InstructionSetFeatures;
 
 class PACKED(4) OatHeader {
  public:
-  static const uint8_t kOatMagic[4];
-  static const uint8_t kOatVersion[4];
+  static constexpr uint8_t kOatMagic[] = { 'o', 'a', 't', '\n' };
+  static constexpr uint8_t kOatVersion[] = { '0', '4', '5', '\0' };
 
   static constexpr const char* kImageLocationKey = "image-location";
   static constexpr const char* kDex2OatCmdLineKey = "dex2oat-cmdline";
@@ -47,6 +47,7 @@ class PACKED(4) OatHeader {
                            const SafeMap<std::string, std::string>* variable_data);
 
   bool IsValid() const;
+  std::string GetValidationErrorMessage() const;
   const char* GetMagic() const;
   uint32_t GetChecksum() const;
   void UpdateChecksum(const void* data, size_t length);
