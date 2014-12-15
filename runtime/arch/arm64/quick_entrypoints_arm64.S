@@ -499,7 +499,7 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
 
 .macro INVOKE_STUB_CREATE_FRAME
 
-SAVE_SIZE=6*8   // x4, x5, xSUSPEND, SP, LR & FP saved.
+SAVE_SIZE=15*8   // x4, x5, x20, x21, x22, x23, x24, x25, x26, x27, x28, xSUSPEND, SP, LR, FP saved.
 SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
 
 
@@ -514,6 +514,25 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
     sub x10, x9, #SAVE_SIZE                // Calculate new FP (later). Done here as we must move SP
     .cfi_def_cfa_register x10              // before this.
     .cfi_adjust_cfa_offset SAVE_SIZE
+
+    str x28, [x10, #112]
+    .cfi_rel_offset x28, 112
+
+    stp x26, x27, [x10, #96]
+    .cfi_rel_offset x26, 96
+    .cfi_rel_offset x27, 104
+
+    stp x24, x25, [x10, #80]
+    .cfi_rel_offset x24, 80
+    .cfi_rel_offset x25, 88
+
+    stp x22, x23, [x10, #64]
+    .cfi_rel_offset x22, 64
+    .cfi_rel_offset x23, 72
+
+    stp x20, x21, [x10, #48]
+    .cfi_rel_offset x20, 48
+    .cfi_rel_offset x21, 56
 
     stp x9, xSUSPEND, [x10, #32]           // Save old stack pointer and xSUSPEND
     .cfi_rel_offset sp, 32
@@ -572,6 +591,25 @@ SAVE_SIZE_AND_METHOD=SAVE_SIZE+STACK_REFERENCE_SIZE
     ldp x4,x5, [xFP, #16]
     .cfi_restore x4
     .cfi_restore x5
+
+    ldr x28, [xFP, #112]
+    .cfi_restore x28
+
+    ldp x26, x27, [xFP, #96]
+    .cfi_restore x26
+    .cfi_restore x27
+
+    ldp x24, x25, [xFP, #80]
+    .cfi_restore x24
+    .cfi_restore x25
+
+    ldp x22, x23, [xFP, #64]
+    .cfi_restore x22
+    .cfi_restore x23
+
+    ldp x20, x21, [xFP, #48]
+    .cfi_restore x20
+    .cfi_restore x21
 
     // Store result (w0/x0/s0/d0) appropriately, depending on resultType.
     ldrb w10, [x5]

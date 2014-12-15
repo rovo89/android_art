@@ -379,12 +379,17 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
      *  +-------------------------+
      */
 ENTRY art_quick_invoke_stub_internal
-    push   {r4, r9, r11, lr}               @ spill regs
+    push   {r4, r5, r6, r7, r8, r9, r10, r11, lr}               @ spill regs
     .cfi_adjust_cfa_offset 16
     .cfi_rel_offset r4, 0
-    .cfi_rel_offset r9, 4
-    .cfi_rel_offset r11, 8
-    .cfi_rel_offset lr, 12
+    .cfi_rel_offset r5, 4
+    .cfi_rel_offset r6, 8
+    .cfi_rel_offset r7, 12
+    .cfi_rel_offset r8, 16
+    .cfi_rel_offset r9, 20
+    .cfi_rel_offset r10, 24
+    .cfi_rel_offset r11, 28
+    .cfi_rel_offset lr, 32
     mov    r11, sp                         @ save the stack pointer
     .cfi_def_cfa_register r11
 
@@ -401,10 +406,10 @@ ENTRY art_quick_invoke_stub_internal
     mov    ip, #0                          @ set ip to 0
     str    ip, [sp]                        @ store NULL for method* at bottom of frame
 
-    ldr    ip, [r11, #28]                  @ load fp register argument array pointer
+    ldr    ip, [r11, #48]                  @ load fp register argument array pointer
     vldm   ip, {s0-s15}                    @ copy s0 - s15
 
-    ldr    ip, [r11, #24]                  @ load core register argument array pointer
+    ldr    ip, [r11, #44]                  @ load core register argument array pointer
     mov    r0, r4                          @ restore method*
     add    ip, ip, #4                      @ skip r0
     ldm    ip, {r1-r3}                     @ copy r1 - r3
@@ -419,14 +424,14 @@ ENTRY art_quick_invoke_stub_internal
     mov    sp, r11                         @ restore the stack pointer
     .cfi_def_cfa_register sp
 
-    ldr    r4, [sp, #20]                   @ load result_is_float
-    ldr    r9, [sp, #16]                   @ load the result pointer
+    ldr    r4, [sp, #40]                   @ load result_is_float
+    ldr    r9, [sp, #36]                   @ load the result pointer
     cmp    r4, #0
     ite    eq
     strdeq r0, [r9]                        @ store r0/r1 into result pointer
     vstrne d0, [r9]                        @ store s0-s1/d0 into result pointer
 
-    pop    {r4, r9, r11, pc}               @ restore spill regs
+    pop    {r4, r5, r6, r7, r8, r9, r10, r11, pc}               @ restore spill regs
 END art_quick_invoke_stub_internal
 
     /*
