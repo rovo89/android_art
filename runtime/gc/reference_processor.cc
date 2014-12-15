@@ -234,7 +234,7 @@ bool ReferenceProcessor::MakeCircularListIfUnenqueued(mirror::FinalizerReference
   MutexLock mu(self, *Locks::reference_processor_lock_);
   // Wait untul we are done processing reference.
   while (SlowPathEnabled()) {
-    condition_.Wait(self);
+    condition_.WaitHoldingLocks(self);
   }
   // At this point, since the sentinel of the reference is live, it is guaranteed to not be
   // enqueued if we just finished processing references. Otherwise, we may be doing the main GC
