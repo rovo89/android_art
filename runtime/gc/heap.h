@@ -611,6 +611,9 @@ class Heap {
     return zygote_space_ != nullptr;
   }
 
+  void WaitForConcurrentGCRequest(Thread* self) LOCKS_EXCLUDED(gc_request_lock_);
+  void NotifyConcurrentGCRequest(Thread* self) LOCKS_EXCLUDED(gc_request_lock_);
+
  private:
   // Compact source space to target space.
   void Compact(space::ContinuousMemMapAllocSpace* target_space,
@@ -873,6 +876,11 @@ class Heap {
   // completes.
   Mutex* gc_complete_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::unique_ptr<ConditionVariable> gc_complete_cond_ GUARDED_BY(gc_complete_lock_);
+
+  // Guards concurrent GC requests.
+  Mutex* gc_request_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  std::unique_ptr<ConditionVariable> gc_request_cond_ GUARDED_BY(gc_request_lock_);
+  bool gc_request_pending_ GUARDED_BY(gc_request_lock_);
 
   // Reference processor;
   ReferenceProcessor reference_processor_;

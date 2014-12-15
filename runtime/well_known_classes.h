@@ -77,7 +77,6 @@ struct WellKnownClasses {
   static jmethodID java_lang_Character_valueOf;
   static jmethodID java_lang_ClassLoader_loadClass;
   static jmethodID java_lang_ClassNotFoundException_init;
-  static jmethodID java_lang_Daemons_requestGC;
   static jmethodID java_lang_Daemons_requestHeapTrim;
   static jmethodID java_lang_Daemons_start;
   static jmethodID java_lang_Daemons_stop;
