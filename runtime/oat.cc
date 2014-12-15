@@ -20,12 +20,13 @@
 #include <zlib.h>
 
 #include "arch/instruction_set_features.h"
+#include "base/stringprintf.h"
 #include "utils.h"
 
 namespace art {
 
-const uint8_t OatHeader::kOatMagic[] = { 'o', 'a', 't', '\n' };
-const uint8_t OatHeader::kOatVersion[] = { '0', '5', '2', '\0' };
+constexpr uint8_t OatHeader::kOatMagic[4];
+constexpr uint8_t OatHeader::kOatVersion[4];
 
 static size_t ComputeOatHeaderSize(const SafeMap<std::string, std::string>* variable_data) {
   size_t estimate = 0U;
@@ -67,6 +68,13 @@ OatHeader::OatHeader(InstructionSet instruction_set,
                      uint32_t image_file_location_oat_checksum,
                      uint32_t image_file_location_oat_data_begin,
                      const SafeMap<std::string, std::string>* variable_data) {
+  // Don't want asserts in header as they would be checked in each file that includes it. But the
+  // fields are private, so we check inside a method.
+  static_assert(sizeof(magic_) == sizeof(kOatMagic),
+                "Oat magic and magic_ have different lengths.");
+  static_assert(sizeof(version_) == sizeof(kOatVersion),
+                "Oat version and version_ have different lengths.");
+
   memcpy(magic_, kOatMagic, sizeof(kOatMagic));
   memcpy(version_, kOatVersion, sizeof(kOatVersion));
   executable_offset_ = 0;
@@ -125,6 +133,28 @@ bool OatHeader::IsValid() const {
     return false;
   }
   return true;
+}
+
+std::string OatHeader::GetValidationErrorMessage() const {
+  if (memcmp(magic_, kOatMagic, sizeof(kOatMagic)) != 0) {
+    static_assert(sizeof(kOatMagic) == 4, "kOatMagic has unexpected length");
+    return StringPrintf("Invalid oat magic, expected 0x%x%x%x%x, got 0x%x%x%x%x.",
+                        kOatMagic[0], kOatMagic[1], kOatMagic[2], kOatMagic[3],
+                        magic_[0], magic_[1], magic_[2], magic_[3]);
+  }
+  if (memcmp(version_, kOatVersion, sizeof(kOatVersion)) != 0) {
+    static_assert(sizeof(kOatVersion) == 4, "kOatVersion has unexpected length");
+    return StringPrintf("Invalid oat version, expected 0x%x%x%x%x, got 0x%x%x%x%x.",
+                        kOatVersion[0], kOatVersion[1], kOatVersion[2], kOatVersion[3],
+                        version_[0], version_[1], version_[2], version_[3]);
+  }
+  if (!IsAligned<kPageSize>(executable_offset_)) {
+    return "Executable offset not page-aligned.";
+  }
+  if (!IsAligned<kPageSize>(image_patch_delta_)) {
+    return "Image patch delta not page-aligned.";
+  }
+  return "";
 }
 
 const char* OatHeader::GetMagic() const {
