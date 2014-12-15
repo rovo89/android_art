@@ -59,8 +59,7 @@ TEST(GVNTest, LocalFieldElimination) {
   ASSERT_EQ(different_offset->GetBlock(), block);
   ASSERT_EQ(use_after_kill->GetBlock(), block);
 
-  graph->BuildDominatorTree();
-  graph->TransformToSSA();
+  graph->TryBuildingSsa();
   GlobalValueNumberer(&allocator, graph).Run();
 
   ASSERT_TRUE(to_remove->GetBlock() == nullptr);
@@ -108,8 +107,7 @@ TEST(GVNTest, GlobalFieldElimination) {
       new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
   join->AddInstruction(new (&allocator) HExit());
 
-  graph->BuildDominatorTree();
-  graph->TransformToSSA();
+  graph->TryBuildingSsa();
   GlobalValueNumberer(&allocator, graph).Run();
 
   // Check that all field get instructions have been GVN'ed.
@@ -173,9 +171,7 @@ TEST(GVNTest, LoopFieldElimination) {
   ASSERT_EQ(field_get_in_loop_body->GetBlock(), loop_body);
   ASSERT_EQ(field_get_in_exit->GetBlock(), exit);
 
-  graph->BuildDominatorTree();
-  graph->TransformToSSA();
-  graph->AnalyzeNaturalLoops();
+  graph->TryBuildingSsa();
   GlobalValueNumberer(&allocator, graph).Run();
 
   // Check that all field get instructions are still there.
@@ -237,9 +233,7 @@ TEST(GVNTest, LoopSideEffects) {
   inner_loop_exit->AddInstruction(new (&allocator) HGoto());
   outer_loop_exit->AddInstruction(new (&allocator) HExit());
 
-  graph->BuildDominatorTree();
-  graph->TransformToSSA();
-  graph->AnalyzeNaturalLoops();
+  graph->TryBuildingSsa();
 
   ASSERT_TRUE(inner_loop_header->GetLoopInformation()->IsIn(
       *outer_loop_header->GetLoopInformation()));

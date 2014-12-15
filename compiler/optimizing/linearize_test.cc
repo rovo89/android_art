@@ -42,9 +42,7 @@ static void TestCode(const uint16_t* data, const int* expected_order, size_t num
   HGraph* graph = builder.BuildGraph(*item);
   ASSERT_NE(graph, nullptr);
 
-  graph->BuildDominatorTree();
-  graph->TransformToSSA();
-  graph->AnalyzeNaturalLoops();
+  graph->TryBuildingSsa();
 
   x86::CodeGeneratorX86 codegen(graph);
   SsaLivenessAnalysis liveness(*graph, &codegen);
