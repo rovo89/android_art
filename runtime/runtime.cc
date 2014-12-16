@@ -1380,12 +1380,18 @@ void Runtime::SetCompileTimeClassPath(jobject class_loader,
 
 void Runtime::AddMethodVerifier(verifier::MethodVerifier* verifier) {
   DCHECK(verifier != nullptr);
+  if (gAborting) {
+    return;
+  }
   MutexLock mu(Thread::Current(), method_verifier_lock_);
   method_verifiers_.insert(verifier);
 }
 
 void Runtime::RemoveMethodVerifier(verifier::MethodVerifier* verifier) {
   DCHECK(verifier != nullptr);
+  if (gAborting) {
+    return;
+  }
   MutexLock mu(Thread::Current(), method_verifier_lock_);
   auto it = method_verifiers_.find(verifier);
   CHECK(it != method_verifiers_.end());
