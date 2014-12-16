@@ -314,38 +314,23 @@
      * FIXME: just guessing about the shape of the jmpbuf.  Where will pc be?
      */
 ENTRY art_quick_do_long_jump
-    l.s     $f0, 0($a1)
-    l.s     $f1, 4($a1)
-    l.s     $f2, 8($a1)
-    l.s     $f3, 12($a1)
-    l.s     $f4, 16($a1)
-    l.s     $f5, 20($a1)
-    l.s     $f6, 24($a1)
-    l.s     $f7, 28($a1)
-    l.s     $f8, 32($a1)
-    l.s     $f9, 36($a1)
-    l.s     $f10, 40($a1)
-    l.s     $f11, 44($a1)
-    l.s     $f12, 48($a1)
-    l.s     $f13, 52($a1)
-    l.s     $f14, 56($a1)
-    l.s     $f15, 60($a1)
-    l.s     $f16, 64($a1)
-    l.s     $f17, 68($a1)
-    l.s     $f18, 72($a1)
-    l.s     $f19, 76($a1)
-    l.s     $f20, 80($a1)
-    l.s     $f21, 84($a1)
-    l.s     $f22, 88($a1)
-    l.s     $f23, 92($a1)
-    l.s     $f24, 96($a1)
-    l.s     $f25, 100($a1)
-    l.s     $f26, 104($a1)
-    l.s     $f27, 108($a1)
-    l.s     $f28, 112($a1)
-    l.s     $f29, 116($a1)
-    l.s     $f30, 120($a1)
-    l.s     $f31, 124($a1)
+    LDu  $f0,  $f1,   0*8, $a1, $t1
+    LDu  $f2,  $f3,   1*8, $a1, $t1
+    LDu  $f4,  $f5,   2*8, $a1, $t1
+    LDu  $f6,  $f7,   3*8, $a1, $t1
+    LDu  $f8,  $f9,   4*8, $a1, $t1
+    LDu  $f10, $f11,  5*8, $a1, $t1
+    LDu  $f12, $f13,  6*8, $a1, $t1
+    LDu  $f14, $f15,  7*8, $a1, $t1
+    LDu  $f16, $f17,  8*8, $a1, $t1
+    LDu  $f18, $f19,  9*8, $a1, $t1
+    LDu  $f20, $f21, 10*8, $a1, $t1
+    LDu  $f22, $f23, 11*8, $a1, $t1
+    LDu  $f24, $f25, 12*8, $a1, $t1
+    LDu  $f26, $f27, 13*8, $a1, $t1
+    LDu  $f28, $f29, 14*8, $a1, $t1
+    LDu  $f30, $f31, 15*8, $a1, $t1
+
     .set push
     .set nomacro
     .set noat
@@ -558,9 +543,9 @@ ENTRY art_quick_invoke_stub
     jr    $ra
     sw    $v1, 4($t0)           # store the other half of the result
 1:
-    s.s   $f0, 0($t0)           # store floating point result
+    SDu   $f0, $f1, 0, $t0, $t1 # store floating point result
     jr    $ra
-    s.s   $f1, 4($t0)           # store other half of floating point result
+    nop
 END art_quick_invoke_stub
 
     /*
@@ -699,7 +684,7 @@ ENTRY art_quick_aput_obj
     lw     $a2, 8($sp)
     lw     $a1, 4($sp)
     lw     $a0, 0($sp)
-    add    $sp, 32
+    addiu  $sp, 32
     .cfi_adjust_cfa_offset -32
     bnez   $v0, .Ldo_aput
     nop
@@ -1080,7 +1065,7 @@ GENERATE_ALL_ALLOC_ENTRYPOINTS
 ENTRY art_quick_test_suspend
     lh     $a0, THREAD_FLAGS_OFFSET(rSELF)
     bnez   $a0, 1f
-    addi  rSUSPEND, $zero, SUSPEND_CHECK_INTERVAL   # reset rSUSPEND to SUSPEND_CHECK_INTERVAL
+    addiu  rSUSPEND, $zero, SUSPEND_CHECK_INTERVAL   # reset rSUSPEND to SUSPEND_CHECK_INTERVAL
     jr     $ra
     nop
 1:
@@ -1103,9 +1088,10 @@ ENTRY art_quick_proxy_invoke_handler
     lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     bnez    $t0, 1f
-    mtc1    $v0, $f0               # place return value to FP return value
+    # don't care if $v0 and/or $v1 are modified, when exception branch taken
+    MTD     $v0, $v1, $f0, $f1          # move float value to return value
     jr      $ra
-    mtc1    $v1, $f1               # place return value to FP return value
+    nop
 1:
     DELIVER_PENDING_EXCEPTION
 END art_quick_proxy_invoke_handler
@@ -1191,9 +1177,9 @@ ENTRY art_quick_generic_jni_trampoline
     # tear dpown the callee-save frame
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
 
-    mtc1    $v0, $f0               # place return value to FP return value
+    MTD     $v0, $v1, $f0, $f1     # move float value to return value
     jr      $ra
-    mtc1    $v1, $f1               # place return value to FP return value
+    nop
 
 1:
     move    $sp, $s8               # tear down the alloca
@@ -1211,9 +1197,10 @@ ENTRY art_quick_to_interpreter_bridge
     lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     bnez    $t0, 1f
-    mtc1    $v0, $f0               # place return value to FP return value
+    # don't care if $v0 and/or $v1 are modified, when exception branch taken
+    MTD     $v0, $v1, $f0, $f1                  # move float value to return value
     jr      $ra
-    mtc1    $v1, $f1               # place return value to FP return value
+    nop
 1:
     DELIVER_PENDING_EXCEPTION
 END art_quick_to_interpreter_bridge
@@ -1248,12 +1235,10 @@ art_quick_instrumentation_exit:
     sw       $v0, 12($sp)
     .cfi_rel_offset 2, 32
     sw       $v1, 8($sp)
-    .cfi_rel_offset 3, 36 
-    s.s      $f0, 4($sp)
-    s.s      $f1, 0($sp)
+    .cfi_rel_offset 3, 36
+    s.d      $f0, 0($sp)
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME
-    s.s      $f0, 16($sp)   # pass fpr result
-    s.s      $f1, 20($sp)
+    s.d      $f0, 16($sp)   # pass fpr result
     move     $a2, $v0       # pass gpr result
     move     $a3, $v1
     addiu    $a1, $sp, ARG_SLOT_SIZE   # pass $sp (remove arg slots)
@@ -1264,8 +1249,7 @@ art_quick_instrumentation_exit:
     addiu    $sp, $sp, ARG_SLOT_SIZE+FRAME_SIZE_REFS_ONLY_CALLEE_SAVE  # args slot + refs_only callee save frame
     lw       $v0, 12($sp)   # restore return values
     lw       $v1, 8($sp)
-    l.s      $f0, 4($sp)
-    l.s      $f1, 0($sp)
+    l.d      $f0, 0($sp)
     jr       $t0            # return
     addiu    $sp, $sp, 16   # remove temp storage from stack
     .cfi_adjust_cfa_offset -16
@@ -1300,11 +1284,15 @@ ENTRY_NO_GP art_quick_shl_long
     srl     $a0, 1
     srl     $a0, $v1                         #  alo<- alo >> (32-(shift&31))
     sll     $v1, $a1, $a2                    #  rhi<- ahi << (shift&31)
-    or      $v1, $a0                         #  rhi<- rhi | alo
     andi    $a2, 0x20                        #  shift< shift & 0x20
-    movn    $v1, $v0, $a2                    #  rhi<- rlo (if shift&0x20)
-    jr      $ra
-    movn    $v0, $zero, $a2                  #  rlo<- 0  (if shift&0x20)
+    beqz    $a2, 1f
+    or      $v1, $a0                         #  rhi<- rhi | alo
+
+    move    $v1, $v0                         #  rhi<- rlo (if shift&0x20)
+    move    $v0, $zero                       #  rlo<- 0 (if shift&0x20)
+
+1:  jr      $ra
+    nop
 END art_quick_shl_long
 
     /*
@@ -1324,11 +1312,15 @@ ENTRY_NO_GP art_quick_shr_long
     not     $a0, $a2                         #  alo<- 31-shift (shift is 5b)
     sll     $a1, 1
     sll     $a1, $a0                         #  ahi<- ahi << (32-(shift&31))
-    or      $v0, $a1                         #  rlo<- rlo | ahi
     andi    $a2, 0x20                        #  shift & 0x20
-    movn    $v0, $v1, $a2                    #  rlo<- rhi (if shift&0x20)
-    jr      $ra
-    movn    $v1, $a3, $a2                    #  rhi<- sign(ahi) (if shift&0x20)
+    beqz    $s2, 1f
+    or      $v0, $a1                         #  rlo<- rlo | ahi
+
+    move    $v0, $v1                         #  rlo<- rhi (if shift&0x20)
+    move    $v1, $a3                         #  rhi<- sign(ahi) (if shift&0x20)
+
+1:  jr      $ra
+    nop
 END art_quick_shr_long
 
     /*
@@ -1348,11 +1340,15 @@ ENTRY_NO_GP art_quick_ushr_long
     not     $a0, $a2                         #  alo<- 31-shift (shift is 5b)
     sll     $a1, 1
     sll     $a1, $a0                         #  ahi<- ahi << (32-(shift&31))
-    or      $v0, $a1                         #  rlo<- rlo | ahi
     andi    $a2, 0x20                        #  shift & 0x20
-    movn    $v0, $v1, $a2                    #  rlo<- rhi (if shift&0x20)
-    jr      $ra
-    movn    $v1, $zero, $a2                  #  rhi<- 0 (if shift&0x20)
+    beqz    $a2, 1f
+    or      $v0, $a1                         #  rlo<- rlo | ahi
+
+    move    $v0, $v1                         #  rlo<- rhi (if shift&0x20)
+    move    $v1, $zero                       #  rhi<- 0 (if shift&0x20)
+
+1:  jr      $ra
+    nop
 END art_quick_ushr_long
 
 UNIMPLEMENTED art_quick_indexof
