@@ -313,11 +313,7 @@ OAT_TARGET_RULES :=
 
 # $(1): input jar or apk target location
 define declare-oat-target-target
-ifneq (,$(filter $(1),$(addprefix system/app/,$(addsuffix .apk,$(PRODUCT_DEX_PREOPT_PACKAGES_IN_DATA)))))
-OUT_OAT_FILE := $(call dalvik-cache-out,$(1)/classes.dex)
-else
 OUT_OAT_FILE := $(PRODUCT_OUT)/$(basename $(1)).odex
-endif
 
 ifeq ($(ONE_SHOT_MAKEFILE),)
 # ONE_SHOT_MAKEFILE is empty for a top level build and we don't want
