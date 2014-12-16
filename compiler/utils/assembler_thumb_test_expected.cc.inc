@@ -102,11 +102,11 @@ const char* DataProcessingShiftedRegisterResults[] = {
   "   4:	11a3      	asrs	r3, r4, #6\n",
   "   6:	ea4f 13f4 	mov.w	r3, r4, ror #7\n",
   "   a:	41e3      	rors	r3, r4\n",
-  "   c:	0128      	lsls	r0, r5, #4\n",
-  "   e:	0968      	lsrs	r0, r5, #5\n",
-  "  10:	11a8      	asrs	r0, r5, #6\n",
-  "  12:	ea4f 18f4 	mov.w	r8, r4, ror #7\n",
-  "  16:	ea4f 0834 	mov.w	r8, r4, rrx\n",
+  "   c:	ea4f 1804 	mov.w	r8, r4, lsl #4\n",
+  "  10:	ea4f 1854 	mov.w	r8, r4, lsr #5\n",
+  "  14:	ea4f 18a4 	mov.w	r8, r4, asr #6\n",
+  "  18:	ea4f 18f4 	mov.w	r8, r4, ror #7\n",
+  "  1c:	ea4f 0834 	mov.w	r8, r4, rrx\n",
   nullptr
 };
 const char* BasicLoadResults[] = {
@@ -340,15 +340,15 @@ const char* MovWMovTResults[] = {
   nullptr
 };
 const char* SpecialAddSubResults[] = {
-  "   0:	f20d 0250 	addw	r2, sp, #80	; 0x50\n",
-  "   4:	f20d 0d50 	addw	sp, sp, #80	; 0x50\n",
-  "   8:	f20d 0850 	addw	r8, sp, #80	; 0x50\n",
-  "   c:	f60d 7200 	addw	r2, sp, #3840	; 0xf00\n",
-  "  10:	f60d 7d00 	addw	sp, sp, #3840	; 0xf00\n",
-  "  14:	f2ad 0d50 	subw	sp, sp, #80	; 0x50\n",
-  "  18:	f2ad 0050 	subw	r0, sp, #80	; 0x50\n",
-  "  1c:	f2ad 0850 	subw	r8, sp, #80	; 0x50\n",
-  "  20:	f6ad 7d00 	subw	sp, sp, #3840	; 0xf00\n",
+  "   0:	aa14      	add	r2, sp, #80	; 0x50\n",
+  "   2:	b014      	add	sp, #80		; 0x50\n",
+  "   4:	f20d 0850 	addw	r8, sp, #80	; 0x50\n",
+  "   8:	f60d 7200 	addw	r2, sp, #3840	; 0xf00\n",
+  "   c:	f60d 7d00 	addw	sp, sp, #3840	; 0xf00\n",
+  "  10:	b094      	sub	sp, #80		; 0x50\n",
+  "  12:	f2ad 0050 	subw	r0, sp, #80	; 0x50\n",
+  "  16:	f2ad 0850 	subw	r8, sp, #80	; 0x50\n",
+  "  1a:	f6ad 7d00 	subw	sp, sp, #3840	; 0xf00\n",
   nullptr
 };
 const char* StoreToOffsetResults[] = {
