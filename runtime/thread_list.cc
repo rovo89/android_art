@@ -504,9 +504,9 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
   static const useconds_t kTimeoutUs = 30 * 1000000;  // 30s.
   useconds_t total_delay_us = 0;
   useconds_t delay_us = 0;
-  bool did_suspend_request = false;
   *timed_out = false;
   Thread* self = Thread::Current();
+  Thread* suspended_thread = nullptr;
   VLOG(threads) << "SuspendThreadByPeer starting";
   while (true) {
     Thread* thread;
@@ -520,10 +520,18 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
       MutexLock thread_list_mu(self, *Locks::thread_list_lock_);
       thread = Thread::FromManagedThread(soa, peer);
       if (thread == nullptr) {
+        if (suspended_thread != nullptr) {
+          MutexLock suspend_count_mu(self, *Locks::thread_suspend_count_lock_);
+          // If we incremented the suspend count but the thread reset its peer, we need to
+          // re-decrement it since it is shutting down and may deadlock the runtime in
+          // ThreadList::WaitForOtherNonDaemonThreadsToExit.
+          suspended_thread->ModifySuspendCount(soa.Self(), -1, debug_suspension);
+        }
         ThreadSuspendByPeerWarning(self, WARNING, "No such thread for suspend", peer);
         return nullptr;
       }
       if (!Contains(thread)) {
+        CHECK(suspended_thread == nullptr);
         VLOG(threads) << "SuspendThreadByPeer failed for unattached thread: "
             << reinterpret_cast<void*>(thread);
         return nullptr;
@@ -538,9 +546,10 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
             // which will allow this thread to be suspended.
             continue;
           }
-          thread->ModifySuspendCount(self, +1, debug_suspension);
+          CHECK(suspended_thread == nullptr);
+          suspended_thread = thread;
+          suspended_thread->ModifySuspendCount(self, +1, debug_suspension);
           request_suspension = false;
-          did_suspend_request = true;
         } else {
           // If the caller isn't requesting suspension, a suspension should have already occurred.
           CHECK_GT(thread->GetSuspendCount(), 0);
@@ -559,8 +568,9 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
         }
         if (total_delay_us >= kTimeoutUs) {
           ThreadSuspendByPeerWarning(self, FATAL, "Thread suspension timed out", peer);
-          if (did_suspend_request) {
-            thread->ModifySuspendCount(soa.Self(), -1, debug_suspension);
+          if (suspended_thread != nullptr) {
+            CHECK_EQ(suspended_thread, thread);
+            suspended_thread->ModifySuspendCount(soa.Self(), -1, debug_suspension);
           }
           *timed_out = true;
           return nullptr;
