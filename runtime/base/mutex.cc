@@ -434,7 +434,17 @@ bool Mutex::ExclusiveTryLock(Thread* self) {
 }
 
 void Mutex::ExclusiveUnlock(Thread* self) {
-  DCHECK(self == NULL || self == Thread::Current());
+  if (kIsDebugBuild && self != nullptr && self != Thread::Current()) {
+    std::string name1 = "<null>";
+    std::string name2 = "<null>";
+    if (self != nullptr) {
+      self->GetThreadName(name1);
+    }
+    if (Thread::Current() != nullptr) {
+      Thread::Current()->GetThreadName(name2);
+    }
+    LOG(FATAL) << name1 << " " << name2;
+  }
   AssertHeld(self);
   DCHECK_NE(exclusive_owner_, 0U);
   recursion_count_--;
