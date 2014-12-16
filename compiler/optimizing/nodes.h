@@ -2128,39 +2128,45 @@ class HNullCheck : public HExpression<1> {
 
 class FieldInfo : public ValueObject {
  public:
-  FieldInfo(MemberOffset field_offset, Primitive::Type field_type)
-      : field_offset_(field_offset), field_type_(field_type) {}
+  FieldInfo(MemberOffset field_offset, Primitive::Type field_type, bool is_volatile)
+      : field_offset_(field_offset), field_type_(field_type), is_volatile_(is_volatile) {}
 
   MemberOffset GetFieldOffset() const { return field_offset_; }
   Primitive::Type GetFieldType() const { return field_type_; }
+  bool IsVolatile() const { return is_volatile_; }
 
  private:
   const MemberOffset field_offset_;
   const Primitive::Type field_type_;
+  const bool is_volatile_;
 };
 
 class HInstanceFieldGet : public HExpression<1> {
  public:
   HInstanceFieldGet(HInstruction* value,
                     Primitive::Type field_type,
-                    MemberOffset field_offset)
+                    MemberOffset field_offset,
+                    bool is_volatile)
       : HExpression(field_type, SideEffects::DependsOnSomething()),
-        field_info_(field_offset, field_type) {
+        field_info_(field_offset, field_type, is_volatile) {
     SetRawInputAt(0, value);
   }
 
-  virtual bool CanBeMoved() const { return true; }
-  virtual bool InstructionDataEquals(HInstruction* other) const {
-    size_t other_offset = other->AsInstanceFieldGet()->GetFieldOffset().SizeValue();
-    return other_offset == GetFieldOffset().SizeValue();
+  bool CanBeMoved() const OVERRIDE { return IsVolatile(); }
+
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
+    HInstanceFieldGet* other_get = other->AsInstanceFieldGet();
+    return GetFieldOffset().SizeValue() == other_get->GetFieldOffset().SizeValue();
   }
 
   virtual size_t ComputeHashCode() const {
     return (HInstruction::ComputeHashCode() << 7) | GetFieldOffset().SizeValue();
   }
 
+  const FieldInfo& GetFieldInfo() const { return field_info_; }
   MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
   Primitive::Type GetFieldType() const { return field_info_.GetFieldType(); }
+  bool IsVolatile() const { return field_info_.IsVolatile(); }
 
   DECLARE_INSTRUCTION(InstanceFieldGet);
 
@@ -2175,15 +2181,18 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
   HInstanceFieldSet(HInstruction* object,
                     HInstruction* value,
                     Primitive::Type field_type,
-                    MemberOffset field_offset)
+                    MemberOffset field_offset,
+                    bool is_volatile)
       : HTemplateInstruction(SideEffects::ChangesSomething()),
-        field_info_(field_offset, field_type) {
+        field_info_(field_offset, field_type, is_volatile) {
     SetRawInputAt(0, object);
     SetRawInputAt(1, value);
   }
 
+  const FieldInfo& GetFieldInfo() const { return field_info_; }
   MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
   Primitive::Type GetFieldType() const { return field_info_.GetFieldType(); }
+  bool IsVolatile() const { return field_info_.IsVolatile(); }
 
   HInstruction* GetValue() const { return InputAt(1); }
 
@@ -2496,24 +2505,29 @@ class HStaticFieldGet : public HExpression<1> {
  public:
   HStaticFieldGet(HInstruction* cls,
                   Primitive::Type field_type,
-                  MemberOffset field_offset)
+                  MemberOffset field_offset,
+                  bool is_volatile)
       : HExpression(field_type, SideEffects::DependsOnSomething()),
-        field_info_(field_offset, field_type) {
+        field_info_(field_offset, field_type, is_volatile) {
     SetRawInputAt(0, cls);
   }
 
-  bool CanBeMoved() const OVERRIDE { return true; }
+
+  bool CanBeMoved() const OVERRIDE { return IsVolatile(); }
+
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
-    size_t other_offset = other->AsStaticFieldGet()->GetFieldOffset().SizeValue();
-    return other_offset == GetFieldOffset().SizeValue();
+    HStaticFieldGet* other_get = other->AsStaticFieldGet();
+    return GetFieldOffset().SizeValue() == other_get->GetFieldOffset().SizeValue();
   }
 
   size_t ComputeHashCode() const OVERRIDE {
     return (HInstruction::ComputeHashCode() << 7) | GetFieldOffset().SizeValue();
   }
 
+  const FieldInfo& GetFieldInfo() const { return field_info_; }
   MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
   Primitive::Type GetFieldType() const { return field_info_.GetFieldType(); }
+  bool IsVolatile() const { return field_info_.IsVolatile(); }
 
   DECLARE_INSTRUCTION(StaticFieldGet);
 
@@ -2528,15 +2542,18 @@ class HStaticFieldSet : public HTemplateInstruction<2> {
   HStaticFieldSet(HInstruction* cls,
                   HInstruction* value,
                   Primitive::Type field_type,
-                  MemberOffset field_offset)
+                  MemberOffset field_offset,
+                  bool is_volatile)
       : HTemplateInstruction(SideEffects::ChangesSomething()),
-        field_info_(field_offset, field_type) {
+        field_info_(field_offset, field_type, is_volatile) {
     SetRawInputAt(0, cls);
     SetRawInputAt(1, value);
   }
 
+  const FieldInfo& GetFieldInfo() const { return field_info_; }
   MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
   Primitive::Type GetFieldType() const { return field_info_.GetFieldType(); }
+  bool IsVolatile() const { return field_info_.IsVolatile(); }
 
   HInstruction* GetValue() const { return InputAt(1); }
 
@@ -2677,14 +2694,13 @@ class HMonitorOperation : public HTemplateInstruction<1> {
 
   DECLARE_INSTRUCTION(MonitorOperation);
 
- protected:
+ private:
   const OperationKind kind_;
   const uint32_t dex_pc_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HMonitorOperation);
 };
-
 
 class MoveOperands : public ArenaObject<kArenaAllocMisc> {
  public:

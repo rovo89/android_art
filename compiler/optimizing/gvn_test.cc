@@ -40,18 +40,22 @@ TEST(GVNTest, LocalFieldElimination) {
   entry->AddSuccessor(block);
 
   block->AddInstruction(
-      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot, MemberOffset(42)));
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot,
+          MemberOffset(42), false));
   block->AddInstruction(
-      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot, MemberOffset(42)));
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot,
+          MemberOffset(42), false));
   HInstruction* to_remove = block->GetLastInstruction();
   block->AddInstruction(
-      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot, MemberOffset(43)));
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot,
+          MemberOffset(43), false));
   HInstruction* different_offset = block->GetLastInstruction();
   // Kill the value.
   block->AddInstruction(new (&allocator) HInstanceFieldSet(
-      parameter, parameter, Primitive::kPrimNot, MemberOffset(42)));
+      parameter, parameter, Primitive::kPrimNot, MemberOffset(42), false));
   block->AddInstruction(
-      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot, MemberOffset(42)));
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimNot,
+          MemberOffset(42), false));
   HInstruction* use_after_kill = block->GetLastInstruction();
   block->AddInstruction(new (&allocator) HExit());
 
@@ -82,7 +86,8 @@ TEST(GVNTest, GlobalFieldElimination) {
   graph->AddBlock(block);
   entry->AddSuccessor(block);
   block->AddInstruction(
-      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
+          MemberOffset(42), false));
 
   block->AddInstruction(new (&allocator) HIf(block->GetLastInstruction()));
   HBasicBlock* then = new (&allocator) HBasicBlock(graph);
@@ -98,13 +103,16 @@ TEST(GVNTest, GlobalFieldElimination) {
   else_->AddSuccessor(join);
 
   then->AddInstruction(
-      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
+          MemberOffset(42), false));
   then->AddInstruction(new (&allocator) HGoto());
   else_->AddInstruction(
-      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
+          MemberOffset(42), false));
   else_->AddInstruction(new (&allocator) HGoto());
   join->AddInstruction(
-      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
+          MemberOffset(42), false));
   join->AddInstruction(new (&allocator) HExit());
 
   graph->TryBuildingSsa();
@@ -132,7 +140,8 @@ TEST(GVNTest, LoopFieldElimination) {
   graph->AddBlock(block);
   entry->AddSuccessor(block);
   block->AddInstruction(
-      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
+          MemberOffset(42), false));
   block->AddInstruction(new (&allocator) HGoto());
 
   HBasicBlock* loop_header = new (&allocator) HBasicBlock(graph);
@@ -148,22 +157,25 @@ TEST(GVNTest, LoopFieldElimination) {
   loop_body->AddSuccessor(loop_header);
 
   loop_header->AddInstruction(
-      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
+          MemberOffset(42), false));
   HInstruction* field_get_in_loop_header = loop_header->GetLastInstruction();
   loop_header->AddInstruction(new (&allocator) HIf(block->GetLastInstruction()));
 
   // Kill inside the loop body to prevent field gets inside the loop header
   // and the body to be GVN'ed.
   loop_body->AddInstruction(new (&allocator) HInstanceFieldSet(
-      parameter, parameter, Primitive::kPrimNot, MemberOffset(42)));
+      parameter, parameter, Primitive::kPrimNot, MemberOffset(42), false));
   HInstruction* field_set = loop_body->GetLastInstruction();
   loop_body->AddInstruction(
-      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
+          MemberOffset(42), false));
   HInstruction* field_get_in_loop_body = loop_body->GetLastInstruction();
   loop_body->AddInstruction(new (&allocator) HGoto());
 
   exit->AddInstruction(
-      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean, MemberOffset(42)));
+      new (&allocator) HInstanceFieldGet(parameter, Primitive::kPrimBoolean,
+          MemberOffset(42), false));
   HInstruction* field_get_in_exit = exit->GetLastInstruction();
   exit->AddInstruction(new (&allocator) HExit());
 
@@ -242,7 +254,7 @@ TEST(GVNTest, LoopSideEffects) {
   {
     // Make one block with a side effect.
     entry->AddInstruction(new (&allocator) HInstanceFieldSet(
-        parameter, parameter, Primitive::kPrimNot, MemberOffset(42)));
+        parameter, parameter, Primitive::kPrimNot, MemberOffset(42), false));
 
     GlobalValueNumberer gvn(&allocator, graph);
     gvn.Run();
@@ -256,7 +268,7 @@ TEST(GVNTest, LoopSideEffects) {
   {
     outer_loop_body->InsertInstructionBefore(
         new (&allocator) HInstanceFieldSet(
-            parameter, parameter, Primitive::kPrimNot, MemberOffset(42)),
+            parameter, parameter, Primitive::kPrimNot, MemberOffset(42), false),
         outer_loop_body->GetLastInstruction());
 
     GlobalValueNumberer gvn(&allocator, graph);
@@ -273,7 +285,7 @@ TEST(GVNTest, LoopSideEffects) {
     outer_loop_body->RemoveInstruction(outer_loop_body->GetFirstInstruction());
     inner_loop_body->InsertInstructionBefore(
         new (&allocator) HInstanceFieldSet(
-            parameter, parameter, Primitive::kPrimNot, MemberOffset(42)),
+            parameter, parameter, Primitive::kPrimNot, MemberOffset(42), false),
         inner_loop_body->GetLastInstruction());
 
     GlobalValueNumberer gvn(&allocator, graph);

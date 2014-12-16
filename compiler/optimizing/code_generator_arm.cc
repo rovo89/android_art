@@ -2556,68 +2556,170 @@ void InstructionCodeGeneratorARM::VisitPhi(HPhi* instruction) {
   LOG(FATAL) << "Unreachable";
 }
 
-void LocationsBuilderARM::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
+void InstructionCodeGeneratorARM::GenerateMemoryBarrier(MemBarrierKind kind) {
+  // TODO (ported from quick): revisit Arm barrier kinds
+  DmbOptions flavour = DmbOptions::ISH;  // quiet c++ warnings
+  switch (kind) {
+    case MemBarrierKind::kAnyStore:
+    case MemBarrierKind::kLoadAny:
+    case MemBarrierKind::kAnyAny: {
+      flavour = DmbOptions::ISH;
+      break;
+    }
+    case MemBarrierKind::kStoreStore: {
+      flavour = DmbOptions::ISHST;
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected memory barrier " << kind;
+  }
+  __ dmb(flavour);
+}
+
+void InstructionCodeGeneratorARM::GenerateWideAtomicLoad(Register addr,
+                                                         uint32_t offset,
+                                                         Register out_lo,
+                                                         Register out_hi) {
+  if (offset != 0) {
+    __ LoadImmediate(out_lo, offset);
+    __ add(addr, addr, ShifterOperand(out_lo));
+  }
+  __ ldrexd(out_lo, out_hi, addr);
+}
+
+void InstructionCodeGeneratorARM::GenerateWideAtomicStore(Register addr,
+                                                          uint32_t offset,
+                                                          Register value_lo,
+                                                          Register value_hi,
+                                                          Register temp1,
+                                                          Register temp2) {
+  Label fail;
+  if (offset != 0) {
+    __ LoadImmediate(temp1, offset);
+    __ add(addr, addr, ShifterOperand(temp1));
+  }
+  __ Bind(&fail);
+  // We need a load followed by store. (The address used in a STREX instruction must
+  // be the same as the address in the most recently executed LDREX instruction.)
+  __ ldrexd(temp1, temp2, addr);
+  __ strexd(temp1, value_lo, value_hi, addr);
+  __ cmp(temp1, ShifterOperand(0));
+  __ b(&fail, NE);
+}
+
+void LocationsBuilderARM::HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info) {
+  DCHECK(instruction->IsInstanceFieldSet() || instruction->IsStaticFieldSet());
+
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  bool needs_write_barrier =
-      CodeGenerator::StoreNeedsWriteBarrier(instruction->GetFieldType(), instruction->GetValue());
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
+
+  bool is_volatile = field_info.IsVolatile();
+  Primitive::Type field_type = field_info.GetFieldType();
+  bool is_wide = field_type == Primitive::kPrimLong || field_type == Primitive::kPrimDouble;
+
   // Temporary registers for the write barrier.
-  if (needs_write_barrier) {
+  // TODO: consider renaming StoreNeedsWriteBarrier to StoreNeedsGCMark.
+  if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
     locations->AddTemp(Location::RequiresRegister());
     locations->AddTemp(Location::RequiresRegister());
+  } else if (is_volatile && is_wide) {
+    // Arm encoding have some additional constraints for ldrexd/strexd:
+    // - registers need to be consecutive
+    // - the first register should be even but not R14.
+    // We don't test for Arm yet, and the assertion makes sure that we revisit this if we ever
+    // enable Arm encoding.
+    DCHECK_EQ(InstructionSet::kThumb2, codegen_->GetInstructionSet());
+
+    locations->AddTemp(Location::RequiresRegister());
+    locations->AddTemp(Location::RequiresRegister());
+    if (field_type == Primitive::kPrimDouble) {
+      // For doubles we need two more registers to copy the value.
+      locations->AddTemp(Location::RegisterLocation(R2));
+      locations->AddTemp(Location::RegisterLocation(R3));
+    }
   }
 }
 
-void InstructionCodeGeneratorARM::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
+void InstructionCodeGeneratorARM::HandleFieldSet(HInstruction* instruction,
+                                                 const FieldInfo& field_info) {
+  DCHECK(instruction->IsInstanceFieldSet() || instruction->IsStaticFieldSet());
+
   LocationSummary* locations = instruction->GetLocations();
-  Register obj = locations->InAt(0).AsRegister<Register>();
-  uint32_t offset = instruction->GetFieldOffset().Uint32Value();
-  Primitive::Type field_type = instruction->GetFieldType();
+  Register base = locations->InAt(0).AsRegister<Register>();
+  Location value = locations->InAt(1);
+
+  bool is_volatile = field_info.IsVolatile();
+  Primitive::Type field_type = field_info.GetFieldType();
+  uint32_t offset = field_info.GetFieldOffset().Uint32Value();
+
+  if (is_volatile) {
+    GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
+  }
 
   switch (field_type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte: {
-      Register value = locations->InAt(1).AsRegister<Register>();
-      __ StoreToOffset(kStoreByte, value, obj, offset);
+      __ StoreToOffset(kStoreByte, value.AsRegister<Register>(), base, offset);
       break;
     }
 
     case Primitive::kPrimShort:
     case Primitive::kPrimChar: {
-      Register value = locations->InAt(1).AsRegister<Register>();
-      __ StoreToOffset(kStoreHalfword, value, obj, offset);
+      __ StoreToOffset(kStoreHalfword, value.AsRegister<Register>(), base, offset);
       break;
     }
 
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
-      Register value = locations->InAt(1).AsRegister<Register>();
-      __ StoreToOffset(kStoreWord, value, obj, offset);
-      if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->GetValue())) {
+      Register value_reg = value.AsRegister<Register>();
+      __ StoreToOffset(kStoreWord, value_reg, base, offset);
+      if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
         Register temp = locations->GetTemp(0).AsRegister<Register>();
         Register card = locations->GetTemp(1).AsRegister<Register>();
-        codegen_->MarkGCCard(temp, card, obj, value);
+        codegen_->MarkGCCard(temp, card, base, value_reg);
       }
       break;
     }
 
     case Primitive::kPrimLong: {
-      Location value = locations->InAt(1);
-      __ StoreToOffset(kStoreWordPair, value.AsRegisterPairLow<Register>(), obj, offset);
+      if (is_volatile) {
+        // TODO: We could use ldrd and strd that are atomic with Large Physical Address Extension
+        // support. This info is stored in the compiler driver (HasAtomicLdrdAndStrd) and we should
+        // pass it around to be able to optimize.
+        GenerateWideAtomicStore(base, offset,
+                                value.AsRegisterPairLow<Register>(),
+                                value.AsRegisterPairHigh<Register>(),
+                                locations->GetTemp(0).AsRegister<Register>(),
+                                locations->GetTemp(1).AsRegister<Register>());
+      } else {
+        __ StoreToOffset(kStoreWordPair, value.AsRegisterPairLow<Register>(), base, offset);
+      }
       break;
     }
 
     case Primitive::kPrimFloat: {
-      SRegister value = locations->InAt(1).AsFpuRegister<SRegister>();
-      __ StoreSToOffset(value, obj, offset);
+      __ StoreSToOffset(value.AsFpuRegister<SRegister>(), base, offset);
       break;
     }
 
     case Primitive::kPrimDouble: {
-      DRegister value = FromLowSToD(locations->InAt(1).AsFpuRegisterPairLow<SRegister>());
-      __ StoreDToOffset(value, obj, offset);
+      DRegister value_reg = FromLowSToD(value.AsFpuRegisterPairLow<SRegister>());
+      if (is_volatile) {
+        Register value_reg_lo = locations->GetTemp(0).AsRegister<Register>();
+        Register value_reg_hi = locations->GetTemp(1).AsRegister<Register>();
+
+        __ vmovrrd(value_reg_lo, value_reg_hi, value_reg);
+
+        GenerateWideAtomicStore(base, offset,
+                                value_reg_lo,
+                                value_reg_hi,
+                                locations->GetTemp(2).AsRegister<Register>(),
+                                locations->GetTemp(3).AsRegister<Register>());
+      } else {
+        __ StoreDToOffset(value_reg, base, offset);
+      }
       break;
     }
 
@@ -2625,75 +2727,138 @@ void InstructionCodeGeneratorARM::VisitInstanceFieldSet(HInstanceFieldSet* instr
       LOG(FATAL) << "Unreachable type " << field_type;
       UNREACHABLE();
   }
+
+  if (is_volatile) {
+    GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+  }
 }
 
-void LocationsBuilderARM::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
+void LocationsBuilderARM::HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info) {
+  DCHECK(instruction->IsInstanceFieldGet() || instruction->IsStaticFieldGet());
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+
+  if (field_info.IsVolatile() && (field_info.GetFieldType() == Primitive::kPrimDouble)) {
+    // Arm encoding have some additional constraints for ldrexd/strexd:
+    // - registers need to be consecutive
+    // - the first register should be even but not R14.
+    // We don't test for Arm yet, and the assertion makes sure that we revisit this if we ever
+    // enable Arm encoding.
+    DCHECK_EQ(InstructionSet::kThumb2, codegen_->GetInstructionSet());
+    locations->AddTemp(Location::RequiresRegister());
+    locations->AddTemp(Location::RequiresRegister());
+  }
 }
 
-void InstructionCodeGeneratorARM::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
-  LocationSummary* locations = instruction->GetLocations();
-  Register obj = locations->InAt(0).AsRegister<Register>();
-  uint32_t offset = instruction->GetFieldOffset().Uint32Value();
+void InstructionCodeGeneratorARM::HandleFieldGet(HInstruction* instruction,
+                                                 const FieldInfo& field_info) {
+  DCHECK(instruction->IsInstanceFieldGet() || instruction->IsStaticFieldGet());
 
-  switch (instruction->GetType()) {
+  LocationSummary* locations = instruction->GetLocations();
+  Register base = locations->InAt(0).AsRegister<Register>();
+  Location out = locations->Out();
+  bool is_volatile = field_info.IsVolatile();
+  Primitive::Type field_type = field_info.GetFieldType();
+  uint32_t offset = field_info.GetFieldOffset().Uint32Value();
+
+  switch (field_type) {
     case Primitive::kPrimBoolean: {
-      Register out = locations->Out().AsRegister<Register>();
-      __ LoadFromOffset(kLoadUnsignedByte, out, obj, offset);
+      __ LoadFromOffset(kLoadUnsignedByte, out.AsRegister<Register>(), base, offset);
       break;
     }
 
     case Primitive::kPrimByte: {
-      Register out = locations->Out().AsRegister<Register>();
-      __ LoadFromOffset(kLoadSignedByte, out, obj, offset);
+      __ LoadFromOffset(kLoadSignedByte, out.AsRegister<Register>(), base, offset);
       break;
     }
 
     case Primitive::kPrimShort: {
-      Register out = locations->Out().AsRegister<Register>();
-      __ LoadFromOffset(kLoadSignedHalfword, out, obj, offset);
+      __ LoadFromOffset(kLoadSignedHalfword, out.AsRegister<Register>(), base, offset);
       break;
     }
 
     case Primitive::kPrimChar: {
-      Register out = locations->Out().AsRegister<Register>();
-      __ LoadFromOffset(kLoadUnsignedHalfword, out, obj, offset);
+      __ LoadFromOffset(kLoadUnsignedHalfword, out.AsRegister<Register>(), base, offset);
       break;
     }
 
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
-      Register out = locations->Out().AsRegister<Register>();
-      __ LoadFromOffset(kLoadWord, out, obj, offset);
+      __ LoadFromOffset(kLoadWord, out.AsRegister<Register>(), base, offset);
       break;
     }
 
     case Primitive::kPrimLong: {
-      // TODO: support volatile.
-      Location out = locations->Out();
-      __ LoadFromOffset(kLoadWordPair, out.AsRegisterPairLow<Register>(), obj, offset);
+      if (is_volatile) {
+        GenerateWideAtomicLoad(base, offset,
+                               out.AsRegisterPairLow<Register>(),
+                               out.AsRegisterPairHigh<Register>());
+      } else {
+        __ LoadFromOffset(kLoadWordPair, out.AsRegisterPairLow<Register>(), base, offset);
+      }
       break;
     }
 
     case Primitive::kPrimFloat: {
-      SRegister out = locations->Out().AsFpuRegister<SRegister>();
-      __ LoadSFromOffset(out, obj, offset);
+      __ LoadSFromOffset(out.AsFpuRegister<SRegister>(), base, offset);
       break;
     }
 
     case Primitive::kPrimDouble: {
-      DRegister out = FromLowSToD(locations->Out().AsFpuRegisterPairLow<SRegister>());
-      __ LoadDFromOffset(out, obj, offset);
+      DRegister out_reg = FromLowSToD(out.AsFpuRegisterPairLow<SRegister>());
+      if (is_volatile) {
+        Register lo = locations->GetTemp(0).AsRegister<Register>();
+        Register hi = locations->GetTemp(1).AsRegister<Register>();
+        GenerateWideAtomicLoad(base, offset, lo, hi);
+        __ vmovdrr(out_reg, lo, hi);
+      } else {
+        __ LoadDFromOffset(out_reg, base, offset);
+      }
       break;
     }
 
     case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unreachable type " << instruction->GetType();
+      LOG(FATAL) << "Unreachable type " << field_type;
       UNREACHABLE();
   }
+
+  if (is_volatile) {
+    GenerateMemoryBarrier(MemBarrierKind::kLoadAny);
+  }
+}
+
+void LocationsBuilderARM::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
+  HandleFieldSet(instruction, instruction->GetFieldInfo());
+}
+
+void InstructionCodeGeneratorARM::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
+  HandleFieldSet(instruction, instruction->GetFieldInfo());
+}
+
+void LocationsBuilderARM::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
+  HandleFieldGet(instruction, instruction->GetFieldInfo());
+}
+
+void InstructionCodeGeneratorARM::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
+  HandleFieldGet(instruction, instruction->GetFieldInfo());
+}
+
+void LocationsBuilderARM::VisitStaticFieldGet(HStaticFieldGet* instruction) {
+  HandleFieldGet(instruction, instruction->GetFieldInfo());
+}
+
+void InstructionCodeGeneratorARM::VisitStaticFieldGet(HStaticFieldGet* instruction) {
+  HandleFieldGet(instruction, instruction->GetFieldInfo());
+}
+
+void LocationsBuilderARM::VisitStaticFieldSet(HStaticFieldSet* instruction) {
+  HandleFieldSet(instruction, instruction->GetFieldInfo());
+}
+
+void InstructionCodeGeneratorARM::VisitStaticFieldSet(HStaticFieldSet* instruction) {
+  HandleFieldSet(instruction, instruction->GetFieldInfo());
 }
 
 void LocationsBuilderARM::VisitNullCheck(HNullCheck* instruction) {
@@ -3204,146 +3369,6 @@ void InstructionCodeGeneratorARM::GenerateClassInitializationCheck(
   // properly. Therefore, we do a memory fence.
   __ dmb(ISH);
   __ Bind(slow_path->GetExitLabel());
-}
-
-void LocationsBuilderARM::VisitStaticFieldGet(HStaticFieldGet* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-}
-
-void InstructionCodeGeneratorARM::VisitStaticFieldGet(HStaticFieldGet* instruction) {
-  LocationSummary* locations = instruction->GetLocations();
-  Register cls = locations->InAt(0).AsRegister<Register>();
-  uint32_t offset = instruction->GetFieldOffset().Uint32Value();
-
-  switch (instruction->GetType()) {
-    case Primitive::kPrimBoolean: {
-      Register out = locations->Out().AsRegister<Register>();
-      __ LoadFromOffset(kLoadUnsignedByte, out, cls, offset);
-      break;
-    }
-
-    case Primitive::kPrimByte: {
-      Register out = locations->Out().AsRegister<Register>();
-      __ LoadFromOffset(kLoadSignedByte, out, cls, offset);
-      break;
-    }
-
-    case Primitive::kPrimShort: {
-      Register out = locations->Out().AsRegister<Register>();
-      __ LoadFromOffset(kLoadSignedHalfword, out, cls, offset);
-      break;
-    }
-
-    case Primitive::kPrimChar: {
-      Register out = locations->Out().AsRegister<Register>();
-      __ LoadFromOffset(kLoadUnsignedHalfword, out, cls, offset);
-      break;
-    }
-
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot: {
-      Register out = locations->Out().AsRegister<Register>();
-      __ LoadFromOffset(kLoadWord, out, cls, offset);
-      break;
-    }
-
-    case Primitive::kPrimLong: {
-      // TODO: support volatile.
-      Location out = locations->Out();
-      __ LoadFromOffset(kLoadWordPair, out.AsRegisterPairLow<Register>(), cls, offset);
-      break;
-    }
-
-    case Primitive::kPrimFloat: {
-      SRegister out = locations->Out().AsFpuRegister<SRegister>();
-      __ LoadSFromOffset(out, cls, offset);
-      break;
-    }
-
-    case Primitive::kPrimDouble: {
-      DRegister out = FromLowSToD(locations->Out().AsFpuRegisterPairLow<SRegister>());
-      __ LoadDFromOffset(out, cls, offset);
-      break;
-    }
-
-    case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unreachable type " << instruction->GetType();
-      UNREACHABLE();
-  }
-}
-
-void LocationsBuilderARM::VisitStaticFieldSet(HStaticFieldSet* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  bool needs_write_barrier =
-      CodeGenerator::StoreNeedsWriteBarrier(instruction->GetFieldType(), instruction->GetValue());
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  // Temporary registers for the write barrier.
-  if (needs_write_barrier) {
-    locations->AddTemp(Location::RequiresRegister());
-    locations->AddTemp(Location::RequiresRegister());
-  }
-}
-
-void InstructionCodeGeneratorARM::VisitStaticFieldSet(HStaticFieldSet* instruction) {
-  LocationSummary* locations = instruction->GetLocations();
-  Register cls = locations->InAt(0).AsRegister<Register>();
-  uint32_t offset = instruction->GetFieldOffset().Uint32Value();
-  Primitive::Type field_type = instruction->GetFieldType();
-
-  switch (field_type) {
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte: {
-      Register value = locations->InAt(1).AsRegister<Register>();
-      __ StoreToOffset(kStoreByte, value, cls, offset);
-      break;
-    }
-
-    case Primitive::kPrimShort:
-    case Primitive::kPrimChar: {
-      Register value = locations->InAt(1).AsRegister<Register>();
-      __ StoreToOffset(kStoreHalfword, value, cls, offset);
-      break;
-    }
-
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot: {
-      Register value = locations->InAt(1).AsRegister<Register>();
-      __ StoreToOffset(kStoreWord, value, cls, offset);
-      if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->GetValue())) {
-        Register temp = locations->GetTemp(0).AsRegister<Register>();
-        Register card = locations->GetTemp(1).AsRegister<Register>();
-        codegen_->MarkGCCard(temp, card, cls, value);
-      }
-      break;
-    }
-
-    case Primitive::kPrimLong: {
-      Location value = locations->InAt(1);
-      __ StoreToOffset(kStoreWordPair, value.AsRegisterPairLow<Register>(), cls, offset);
-      break;
-    }
-
-    case Primitive::kPrimFloat: {
-      SRegister value = locations->InAt(1).AsFpuRegister<SRegister>();
-      __ StoreSToOffset(value, cls, offset);
-      break;
-    }
-
-    case Primitive::kPrimDouble: {
-      DRegister value = FromLowSToD(locations->InAt(1).AsFpuRegisterPairLow<SRegister>());
-      __ StoreDToOffset(value, cls, offset);
-      break;
-    }
-
-    case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unreachable type " << field_type;
-      UNREACHABLE();
-  }
 }
 
 void LocationsBuilderARM::VisitLoadString(HLoadString* load) {
