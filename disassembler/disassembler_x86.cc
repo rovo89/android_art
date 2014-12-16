@@ -171,7 +171,7 @@ std::string DisassemblerX86::DumpAddress(uint8_t mod, uint8_t rm, uint8_t rex64,
   std::ostringstream address;
   if (mod == 0 && rm == 5) {
     if (!supports_rex_) {  // Absolute address.
-      *address_bits = *reinterpret_cast<const uint32_t*>(**instr);
+      *address_bits = *reinterpret_cast<const uint32_t*>(*instr);
       address << StringPrintf("[0x%x]", *address_bits);
     } else {  // 64-bit RIP relative addressing.
       address << StringPrintf("[RIP + 0x%x]",  *reinterpret_cast<const uint32_t*>(*instr));
