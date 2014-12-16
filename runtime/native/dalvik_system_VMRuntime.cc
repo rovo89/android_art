@@ -221,6 +221,13 @@ static void VMRuntime_concurrentGC(JNIEnv* env, jobject) {
   Runtime::Current()->GetHeap()->ConcurrentGC(ThreadForEnv(env));
 }
 
+static void VMRuntime_requestConcurrentGC(JNIEnv* env, jobject) {
+  Runtime::Current()->GetHeap()->NotifyConcurrentGCRequest(ThreadForEnv(env));
+}
+static void VMRuntime_waitForConcurrentGCRequest(JNIEnv* env, jobject) {
+  Runtime::Current()->GetHeap()->WaitForConcurrentGCRequest(ThreadForEnv(env));
+}
+
 typedef std::map<std::string, mirror::String*> StringTable;
 
 static void PreloadDexCachesStringsCallback(mirror::Object** root, void* arg,
@@ -559,6 +566,8 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, classPath, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, clearGrowthLimit, "()V"),
   NATIVE_METHOD(VMRuntime, concurrentGC, "()V"),
+  NATIVE_METHOD(VMRuntime, requestConcurrentGC, "()V"),
+  NATIVE_METHOD(VMRuntime, waitForConcurrentGCRequest, "()V"),
   NATIVE_METHOD(VMRuntime, disableJitCompilation, "()V"),
   NATIVE_METHOD(VMRuntime, getTargetHeapUtilization, "()F"),
   NATIVE_METHOD(VMRuntime, isDebuggerActive, "!()Z"),
