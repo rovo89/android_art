@@ -16,6 +16,9 @@
 
 #include "monitor.h"
 
+#define ATRACE_TAG ATRACE_TAG_DALVIK
+
+#include <cutils/trace.h>
 #include <vector>
 
 #include "base/mutex.h"
@@ -251,7 +254,12 @@ void Monitor::Lock(Thread* self) {
     {
       ScopedThreadStateChange tsc(self, kBlocked);  // Change to blocked and give up mutator_lock_.
       MutexLock mu2(self, monitor_lock_);  // Reacquire monitor_lock_ without mutator_lock_ for Wait.
-      if (owner_ != NULL) {  // Did the owner_ give the lock up?
+      if (owner_ != nullptr) {  // Did the owner_ give the lock up?
+        if (ATRACE_ENABLED()) {
+          std::string name;
+          owner_->GetThreadName(name);
+          ATRACE_BEGIN(("Contended on monitor with owner " + name).c_str());
+        }
         monitor_contenders_.Wait(self);  // Still contended so wait.
         // Woken from contention.
         if (log_contention) {
@@ -275,6 +283,7 @@ void Monitor::Lock(Thread* self) {
             LogContentionEvent(self, wait_ms, sample_percent, owners_filename, owners_line_number);
           }
         }
+        ATRACE_END();
       }
     }
     self->SetMonitorEnterObject(nullptr);
