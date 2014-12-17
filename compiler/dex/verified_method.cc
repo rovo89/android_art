@@ -49,7 +49,6 @@ const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_ve
   if (compile) {
     /* Generate a register map. */
     if (!verified_method->GenerateGcMap(method_verifier)) {
-      CHECK(method_verifier->HasFailures());
       return nullptr;  // Not a real failure, but a failure to encode.
     }
     if (kIsDebugBuild) {
@@ -83,17 +82,17 @@ bool VerifiedMethod::GenerateGcMap(verifier::MethodVerifier* method_verifier) {
   ComputeGcMapSizes(method_verifier, &num_entries, &ref_bitmap_bits, &pc_bits);
   // There's a single byte to encode the size of each bitmap.
   if (ref_bitmap_bits >= (8 /* bits per byte */ * 8192 /* 13-bit size */ )) {
-    // TODO: either a better GC map format or per method failures
-    method_verifier->Fail(verifier::VERIFY_ERROR_BAD_CLASS_HARD)
-        << "Cannot encode GC map for method with " << ref_bitmap_bits << " registers";
+    LOG(WARNING) << "Cannot encode GC map for method with " << ref_bitmap_bits << " registers: "
+                 << PrettyMethod(method_verifier->GetMethodReference().dex_method_index,
+                                 *method_verifier->GetMethodReference().dex_file);
     return false;
   }
   size_t ref_bitmap_bytes = (ref_bitmap_bits + 7) / 8;
   // There are 2 bytes to encode the number of entries.
   if (num_entries >= 65536) {
-    // TODO: Either a better GC map format or per method failures.
-    method_verifier->Fail(verifier::VERIFY_ERROR_BAD_CLASS_HARD)
-        << "Cannot encode GC map for method with " << num_entries << " entries";
+    LOG(WARNING) << "Cannot encode GC map for method with " << num_entries << " entries: "
+                 << PrettyMethod(method_verifier->GetMethodReference().dex_method_index,
+                                 *method_verifier->GetMethodReference().dex_file);
     return false;
   }
   size_t pc_bytes;
@@ -105,10 +104,10 @@ bool VerifiedMethod::GenerateGcMap(verifier::MethodVerifier* method_verifier) {
     format = verifier::kRegMapFormatCompact16;
     pc_bytes = 2;
   } else {
-    // TODO: Either a better GC map format or per method failures.
-    method_verifier->Fail(verifier::VERIFY_ERROR_BAD_CLASS_HARD)
-        << "Cannot encode GC map for method with "
-        << (1 << pc_bits) << " instructions (number is rounded up to nearest power of 2)";
+    LOG(WARNING) << "Cannot encode GC map for method with "
+                 << (1 << pc_bits) << " instructions (number is rounded up to nearest power of 2): "
+                 << PrettyMethod(method_verifier->GetMethodReference().dex_method_index,
+                                 *method_verifier->GetMethodReference().dex_file);
     return false;
   }
   size_t table_size = ((pc_bytes + ref_bitmap_bytes) * num_entries) + 4;
@@ -161,7 +160,7 @@ void VerifiedMethod::VerifyGcMap(verifier::MethodVerifier* method_verifier,
         }
       }
     } else {
-      DCHECK(reg_bitmap == NULL);
+      DCHECK(i >= 65536 || reg_bitmap == NULL);
     }
   }
 }
