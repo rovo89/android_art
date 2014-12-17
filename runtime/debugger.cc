@@ -3235,8 +3235,12 @@ static void SanityCheckExistingBreakpoints(mirror::ArtMethod* m,
   }
 }
 
+// Returns the deoptimization kind required to set a breakpoint in a method.
+// If a breakpoint has already been set, we also return the first breakpoint
+// through the given 'existing_brkpt' pointer.
 static DeoptimizationRequest::Kind GetRequiredDeoptimizationKind(Thread* self,
-                                                                 mirror::ArtMethod* m)
+                                                                 mirror::ArtMethod* m,
+                                                                 const Breakpoint** existing_brkpt)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (!Dbg::RequiresDeoptimization()) {
     // We already run in interpreter-only mode so we don't need to deoptimize anything.
@@ -3244,12 +3248,14 @@ static DeoptimizationRequest::Kind GetRequiredDeoptimizationKind(Thread* self,
                << PrettyMethod(m);
     return DeoptimizationRequest::kNothing;
   }
-  const Breakpoint* existing_breakpoint;
+  const Breakpoint* first_breakpoint;
   {
     ReaderMutexLock mu(self, *Locks::breakpoint_lock_);
-    existing_breakpoint = FindFirstBreakpointForMethod(m);
+    first_breakpoint = FindFirstBreakpointForMethod(m);
+    *existing_brkpt = first_breakpoint;
   }
-  if (existing_breakpoint == nullptr) {
+
+  if (first_breakpoint == nullptr) {
     // There is no breakpoint on this method yet: we need to deoptimize. If this method may be
     // inlined, we deoptimize everything; otherwise we deoptimize only this method.
     // Note: IsMethodPossiblyInlined goes into the method verifier and may cause thread suspension.
@@ -3284,7 +3290,7 @@ static DeoptimizationRequest::Kind GetRequiredDeoptimizationKind(Thread* self,
     // There is at least one breakpoint for this method: we don't need to deoptimize.
     // Let's check that all breakpoints are configured the same way for deoptimization.
     VLOG(jdwp) << "Breakpoint already set: no deoptimization is required";
-    DeoptimizationRequest::Kind deoptimization_kind = existing_breakpoint->GetDeoptimizationKind();
+    DeoptimizationRequest::Kind deoptimization_kind = first_breakpoint->GetDeoptimizationKind();
     if (kIsDebugBuild) {
       ReaderMutexLock mu(self, *Locks::breakpoint_lock_);
       SanityCheckExistingBreakpoints(m, deoptimization_kind);
@@ -3300,7 +3306,9 @@ void Dbg::WatchLocation(const JDWP::JdwpLocation* location, DeoptimizationReques
   mirror::ArtMethod* m = FromMethodId(location->method_id);
   DCHECK(m != nullptr) << "No method for method id " << location->method_id;
 
-  const DeoptimizationRequest::Kind deoptimization_kind = GetRequiredDeoptimizationKind(self, m);
+  const Breakpoint* existing_breakpoint = nullptr;
+  const DeoptimizationRequest::Kind deoptimization_kind =
+      GetRequiredDeoptimizationKind(self, m, &existing_breakpoint);
   req->SetKind(deoptimization_kind);
   if (deoptimization_kind == DeoptimizationRequest::kSelectiveDeoptimization) {
     req->SetMethod(m);
@@ -3312,7 +3320,15 @@ void Dbg::WatchLocation(const JDWP::JdwpLocation* location, DeoptimizationReques
 
   {
     WriterMutexLock mu(self, *Locks::breakpoint_lock_);
-    gBreakpoints.push_back(Breakpoint(m, location->dex_pc, deoptimization_kind));
+    // If there is at least one existing breakpoint on the same method, the new breakpoint
+    // must have the same deoptimization kind than the existing breakpoint(s).
+    DeoptimizationRequest::Kind breakpoint_deoptimization_kind;
+    if (existing_breakpoint != nullptr) {
+      breakpoint_deoptimization_kind = existing_breakpoint->GetDeoptimizationKind();
+    } else {
+      breakpoint_deoptimization_kind = deoptimization_kind;
+    }
+    gBreakpoints.push_back(Breakpoint(m, location->dex_pc, breakpoint_deoptimization_kind));
     VLOG(jdwp) << "Set breakpoint #" << (gBreakpoints.size() - 1) << ": "
                << gBreakpoints[gBreakpoints.size() - 1];
   }
