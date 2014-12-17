@@ -46,6 +46,23 @@ public class Main {
     if ($opt$inline$returnSub(42, 1) != 41) {
       throw new Error();
     }
+
+    // Some architectures used to not be able to allocate registers with
+    // floating point operations. This call is a regression test that we don't
+    // try inlining methods with floats in it on such architectures. The
+    // compiler used to crash after inlining a method it cannot allocate
+    // registers for.
+    tryInlineFloat();
+  }
+
+  public static int tryInlineFloat() {
+    return useFloatMethod();
+  }
+
+  public static float staticFloat = 42.0f;
+
+  public static int useFloatMethod() {
+    return (int)staticFloat;
   }
 
   public static int $opt$inline$returnParameter(int a) {
