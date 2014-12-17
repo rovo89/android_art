@@ -74,6 +74,7 @@ class FdFile : public RandomAccessFile {
   }
   void DisableAutoClose();
   bool ReadFully(void* buffer, size_t byte_count) WARN_UNUSED;
+  bool PreadFully(void* buffer, size_t byte_count, size_t offset) WARN_UNUSED;
   bool WriteFully(const void* buffer, size_t byte_count) WARN_UNUSED;
 
   // This enum is public so that we can define the << operator over it.

@@ -51,14 +51,7 @@ TEST_F(ElfWriterTest, DISABLED_dlsym) {
 #else
 TEST_F(ElfWriterTest, dlsym) {
 #endif
-  std::string elf_location;
-  if (IsHost()) {
-    const char* host_dir = getenv("ANDROID_HOST_OUT");
-    CHECK(host_dir != NULL);
-    elf_location = StringPrintf("%s/framework/core.oat", host_dir);
-  } else {
-    elf_location = "/data/art-test/core.oat";
-  }
+  std::string elf_location = GetCoreOatLocation();
   std::string elf_filename = GetSystemImageFilename(elf_location.c_str(), kRuntimeISA);
   LOG(INFO) << "elf_filename=" << elf_filename;
 

@@ -178,10 +178,16 @@ bool FdFile::IsOpened() const {
   return fd_ >= 0;
 }
 
-bool FdFile::ReadFully(void* buffer, size_t byte_count) {
+static ssize_t ReadIgnoreOffset(int fd, void *buf, size_t count, off_t offset) {
+  DCHECK_EQ(offset, 0);
+  return read(fd, buf, count);
+}
+
+template <ssize_t (*read_func)(int, void*, size_t, off_t)>
+static bool ReadFullyGeneric(int fd, void* buffer, size_t byte_count, size_t offset) {
   char* ptr = static_cast<char*>(buffer);
   while (byte_count > 0) {
-    ssize_t bytes_read = TEMP_FAILURE_RETRY(read(fd_, ptr, byte_count));
+    ssize_t bytes_read = TEMP_FAILURE_RETRY(read_func(fd, ptr, byte_count, offset));
     if (bytes_read <= 0) {
       // 0: end of file
       // -1: error
@@ -189,8 +195,17 @@ bool FdFile::ReadFully(void* buffer, size_t byte_count) {
     }
     byte_count -= bytes_read;  // Reduce the number of remaining bytes.
     ptr += bytes_read;  // Move the buffer forward.
+    offset += static_cast<size_t>(bytes_read);  // Move the offset forward.
   }
   return true;
+}
+
+bool FdFile::ReadFully(void* buffer, size_t byte_count) {
+  return ReadFullyGeneric<ReadIgnoreOffset>(fd_, buffer, byte_count, 0);
+}
+
+bool FdFile::PreadFully(void* buffer, size_t byte_count, size_t offset) {
+  return ReadFullyGeneric<pread>(fd_, buffer, byte_count, offset);
 }
 
 bool FdFile::WriteFully(const void* buffer, size_t byte_count) {
