@@ -47,9 +47,9 @@ static void TestCode(const uint16_t* data,
 
   x86::CodeGeneratorX86 codegen(graph);
   HConstantFolding(graph).Run();
-  SSAChecker ssa_checker(&allocator, graph);
-  ssa_checker.Run();
-  ASSERT_TRUE(ssa_checker.IsValid());
+  SSAChecker ssa_checker_cf(&allocator, graph);
+  ssa_checker_cf.Run();
+  ASSERT_TRUE(ssa_checker_cf.IsValid());
 
   StringPrettyPrinter printer_after_cf(graph);
   printer_after_cf.VisitInsertionOrder();
@@ -59,8 +59,9 @@ static void TestCode(const uint16_t* data,
   check_after_cf(graph);
 
   HDeadCodeElimination(graph).Run();
-  ssa_checker.Run();
-  ASSERT_TRUE(ssa_checker.IsValid());
+  SSAChecker ssa_checker_dce(&allocator, graph);
+  ssa_checker_dce.Run();
+  ASSERT_TRUE(ssa_checker_dce.IsValid());
 
   StringPrettyPrinter printer_after_dce(graph);
   printer_after_dce.VisitInsertionOrder();
