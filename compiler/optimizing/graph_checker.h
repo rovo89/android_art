@@ -30,7 +30,8 @@ class GraphChecker : public HGraphDelegateVisitor {
                const char* dump_prefix = "art::GraphChecker: ")
     : HGraphDelegateVisitor(graph),
       allocator_(allocator),
-      dump_prefix_(dump_prefix) {}
+      dump_prefix_(dump_prefix),
+      seen_ids_(allocator, graph->GetCurrentInstructionId(), false) {}
 
   // Check the whole graph (in insertion order).
   virtual void Run() { VisitInsertionOrder(); }
@@ -68,6 +69,7 @@ class GraphChecker : public HGraphDelegateVisitor {
  private:
   // String displayed before dumped errors.
   const char* const dump_prefix_;
+  ArenaBitVector seen_ids_;
 
   DISALLOW_COPY_AND_ASSIGN(GraphChecker);
 };
