@@ -52,6 +52,9 @@ define create-core-oat-host-rules
     core_dex2oat_dependency := $(DEX2OAT)
   endif
 
+  ifeq ($(1),default)
+    core_compile_options += --compiler-backend=Quick
+  endif
   ifeq ($(1),optimizing)
     core_compile_options += --compiler-backend=Optimizing
     core_dex2oat_dependency := $(DEX2OAT)
@@ -163,6 +166,9 @@ define create-core-oat-target-rules
     core_dex2oat_dependency := $(DEX2OAT)
   endif
 
+  ifeq ($(1),default)
+    core_compile_options += --compiler-backend=Quick
+  endif
   ifeq ($(1),optimizing)
     core_compile_options += --compiler-backend=Optimizing
     core_dex2oat_dependency := $(DEX2OAT)
