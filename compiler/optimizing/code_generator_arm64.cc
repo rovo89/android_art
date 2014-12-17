@@ -1816,12 +1816,10 @@ void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDir
 
   // temp = method;
   codegen_->LoadCurrentMethod(temp);
-  if (!invoke->GetIsRecursive()) {
-    // temp = temp->dex_cache_resolved_methods_;
-    __ Ldr(temp, HeapOperand(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset()));
-    // temp = temp[index_in_cache];
-    __ Ldr(temp, HeapOperand(temp, index_in_cache));
-  }
+  // temp = temp->dex_cache_resolved_methods_;
+  __ Ldr(temp, HeapOperand(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset()));
+  // temp = temp[index_in_cache];
+  __ Ldr(temp, HeapOperand(temp, index_in_cache));
   // lr = temp->entry_point_from_quick_compiled_code_;
   __ Ldr(lr, HeapOperand(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
                           kArm64WordSize)));
