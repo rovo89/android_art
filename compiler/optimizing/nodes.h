@@ -1630,19 +1630,23 @@ class HInvokeStaticOrDirect : public HInvoke {
                         Primitive::Type return_type,
                         uint32_t dex_pc,
                         uint32_t index_in_dex_cache,
+                        bool is_recursive,
                         InvokeType invoke_type)
       : HInvoke(arena, number_of_arguments, return_type, dex_pc),
         index_in_dex_cache_(index_in_dex_cache),
-        invoke_type_(invoke_type) {}
+        invoke_type_(invoke_type),
+        is_recursive_(is_recursive) {}
 
   uint32_t GetIndexInDexCache() const { return index_in_dex_cache_; }
   InvokeType GetInvokeType() const { return invoke_type_; }
+  bool GetIsRecursive() const { return is_recursive_; }
 
   DECLARE_INSTRUCTION(InvokeStaticOrDirect);
 
  private:
   const uint32_t index_in_dex_cache_;
   const InvokeType invoke_type_;
+  const bool is_recursive_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeStaticOrDirect);
 };
