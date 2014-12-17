@@ -874,6 +874,7 @@ Heap::~Heap() {
   STLDeleteElements(&continuous_spaces_);
   STLDeleteElements(&discontinuous_spaces_);
   delete gc_complete_lock_;
+  delete gc_request_lock_;
   delete heap_trim_request_lock_;
   VLOG(heap) << "Finished ~Heap()";
 }
