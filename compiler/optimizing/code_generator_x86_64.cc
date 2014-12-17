@@ -1137,10 +1137,12 @@ void InstructionCodeGeneratorX86_64::VisitInvokeStaticOrDirect(HInvokeStaticOrDi
 
   // temp = method;
   codegen_->LoadCurrentMethod(temp);
-  // temp = temp->dex_cache_resolved_methods_;
-  __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().SizeValue()));
-  // temp = temp[index_in_cache]
-  __ movl(temp, Address(temp, CodeGenerator::GetCacheOffset(invoke->GetIndexInDexCache())));
+  if (!invoke->GetIsRecursive()) {
+    // temp = temp->dex_cache_resolved_methods_;
+    __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().SizeValue()));
+    // temp = temp[index_in_cache]
+    __ movl(temp, Address(temp, CodeGenerator::GetCacheOffset(invoke->GetIndexInDexCache())));
+  }
   // (temp + offset_of_quick_compiled_code)()
   __ call(Address(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
       kX86_64WordSize).SizeValue()));
