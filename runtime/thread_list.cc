@@ -454,6 +454,9 @@ void ThreadList::ResumeAll() {
 }
 
 void ThreadList::Resume(Thread* thread, bool for_debugger) {
+  // This assumes there was an ATRACE_BEGIN when we suspended the thread.
+  ATRACE_END();
+
   Thread* self = Thread::Current();
   DCHECK_NE(thread, self);
   VLOG(threads) << "Resume(" << reinterpret_cast<void*>(thread) << ") starting..."
@@ -564,6 +567,12 @@ Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
         // done.
         if (thread->IsSuspended()) {
           VLOG(threads) << "SuspendThreadByPeer thread suspended: " << *thread;
+          if (ATRACE_ENABLED()) {
+            std::string name;
+            thread->GetThreadName(name);
+            ATRACE_BEGIN(StringPrintf("SuspendThreadByPeer suspended %s for peer=%p", name.c_str(),
+                                      peer).c_str());
+          }
           return thread;
         }
         if (total_delay_us >= kTimeoutUs) {
@@ -648,6 +657,12 @@ Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspe
         // count, or else we've waited and it has self suspended) or is the current thread, we're
         // done.
         if (thread->IsSuspended()) {
+          if (ATRACE_ENABLED()) {
+            std::string name;
+            thread->GetThreadName(name);
+            ATRACE_BEGIN(StringPrintf("SuspendThreadByThreadId suspended %s id=%d",
+                                      name.c_str(), thread_id).c_str());
+          }
           VLOG(threads) << "SuspendThreadByThreadId thread suspended: " << *thread;
           return thread;
         }
