@@ -19,12 +19,13 @@
 
 #include <fstream>
 #include <iostream>
+#include <map>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "arch/instruction_set_features.h"
-#include "base/stringpiece.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
 #include "class_linker-inl.h"
@@ -45,12 +46,10 @@
 #include "mirror/class-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
-#include "noop_compiler_callbacks.h"
 #include "oat.h"
 #include "oat_file-inl.h"
 #include "os.h"
 #include "output_stream.h"
-#include "runtime.h"
 #include "safe_map.h"
 #include "scoped_thread_state_change.h"
 #include "ScopedLocalRef.h"
@@ -60,58 +59,10 @@
 #include "vmap_table.h"
 #include "well_known_classes.h"
 
-namespace art {
+#include <sys/stat.h>
+#include "cmdline.h"
 
-static void usage() {
-  fprintf(stderr,
-          "Usage: oatdump [options] ...\n"
-          "    Example: oatdump --image=$ANDROID_PRODUCT_OUT/system/framework/boot.art\n"
-          "    Example: adb shell oatdump --image=/system/framework/boot.art\n"
-          "\n");
-  fprintf(stderr,
-          "  --oat-file=<file.oat>: specifies an input oat filename.\n"
-          "      Example: --oat-file=/system/framework/boot.oat\n"
-          "\n");
-  fprintf(stderr,
-          "  --image=<file.art>: specifies an input image filename.\n"
-          "      Example: --image=/system/framework/boot.art\n"
-          "\n");
-  fprintf(stderr,
-          "  --boot-image=<file.art>: provide the image file for the boot class path.\n"
-          "      Example: --boot-image=/system/framework/boot.art\n"
-          "\n");
-  fprintf(stderr,
-          "  --instruction-set=(arm|arm64|mips|x86|x86_64): for locating the image\n"
-          "      file based on the image location set.\n"
-          "      Example: --instruction-set=x86\n"
-          "      Default: %s\n"
-          "\n",
-          GetInstructionSetString(kRuntimeISA));
-  fprintf(stderr,
-          "  --output=<file> may be used to send the output to a file.\n"
-          "      Example: --output=/tmp/oatdump.txt\n"
-          "\n");
-  fprintf(stderr,
-          "  --dump:raw_mapping_table enables dumping of the mapping table.\n"
-          "      Example: --dump:raw_mapping_table\n"
-          "\n");
-  fprintf(stderr,
-          "  --dump:raw_mapping_table enables dumping of the GC map.\n"
-          "      Example: --dump:raw_gc_map\n"
-          "\n");
-  fprintf(stderr,
-          "  --no-dump:vmap may be used to disable vmap dumping.\n"
-          "      Example: --no-dump:vmap\n"
-          "\n");
-  fprintf(stderr,
-          "  --no-disassemble may be used to disable disassembly.\n"
-          "      Example: --no-disassemble\n"
-          "\n");
-  fprintf(stderr,
-          "  --method-filter=<method name>: only dumps methods that contain the filter.\n"
-          "      Example: --method-filter=foo\n"
-          "\n");
-}
+namespace art {
 
 const char* image_roots_descriptions_[] = {
   "kResolutionMethod",
@@ -360,15 +311,14 @@ class OatDumperOptions {
                    bool dump_vmap,
                    bool disassemble_code,
                    bool absolute_addresses,
-                   const char* method_filter,
-                   Handle<mirror::ClassLoader>* class_loader)
+                   const char* method_filter)
     : dump_raw_mapping_table_(dump_raw_mapping_table),
       dump_raw_gc_map_(dump_raw_gc_map),
       dump_vmap_(dump_vmap),
       disassemble_code_(disassemble_code),
       absolute_addresses_(absolute_addresses),
       method_filter_(method_filter),
-      class_loader_(class_loader) {}
+      class_loader_(nullptr) {}
 
   const bool dump_raw_mapping_table_;
   const bool dump_raw_gc_map_;
@@ -1983,45 +1933,6 @@ class ImageDumper {
   DISALLOW_COPY_AND_ASSIGN(ImageDumper);
 };
 
-static NoopCompilerCallbacks callbacks;
-
-static Runtime* StartRuntime(const char* boot_image_location, const char* image_location,
-                             InstructionSet instruction_set) {
-  RuntimeOptions options;
-  std::string image_option;
-  std::string oat_option;
-  std::string boot_image_option;
-  std::string boot_oat_option;
-
-  // We are more like a compiler than a run-time. We don't want to execute code.
-  options.push_back(std::make_pair("compilercallbacks", &callbacks));
-
-  if (boot_image_location != nullptr) {
-    boot_image_option += "-Ximage:";
-    boot_image_option += boot_image_location;
-    options.push_back(std::make_pair(boot_image_option.c_str(), nullptr));
-  }
-  if (image_location != nullptr) {
-    image_option += "-Ximage:";
-    image_option += image_location;
-    options.push_back(std::make_pair(image_option.c_str(), nullptr));
-  }
-  options.push_back(
-      std::make_pair("imageinstructionset",
-                     reinterpret_cast<const void*>(GetInstructionSetString(instruction_set))));
-
-  if (!Runtime::Create(options, false)) {
-    fprintf(stderr, "Failed to create runtime\n");
-    return nullptr;
-  }
-
-  // Runtime::Create acquired the mutator_lock_ that is normally given away when we Runtime::Start,
-  // give it away now and then switch to a more manageable ScopedObjectAccess.
-  Thread::Current()->TransitionFromRunnableToSuspended(kNative);
-
-  return Runtime::Current();
-}
-
 static int DumpImage(Runtime* runtime, const char* image_location, OatDumperOptions* options,
                      std::ostream* os) {
   // Dumping the image, no explicit class loader.
@@ -2037,7 +1948,9 @@ static int DumpImage(Runtime* runtime, const char* image_location, OatDumperOpti
     fprintf(stderr, "Invalid image header %s\n", image_location);
     return EXIT_FAILURE;
   }
+
   ImageDumper image_dumper(os, *image_space, image_header, options);
+
   bool success = image_dumper.Dump();
   return (success) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
@@ -2096,7 +2009,8 @@ static int DumpOatWithoutRuntime(OatFile* oat_file, OatDumperOptions* options, s
 static int DumpOat(Runtime* runtime, const char* oat_filename, OatDumperOptions* options,
                    std::ostream* os) {
   std::string error_msg;
-  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, nullptr, nullptr, false, &error_msg);
+  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, nullptr, nullptr, false,
+                                    &error_msg);
   if (oat_file == nullptr) {
     fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
     return EXIT_FAILURE;
@@ -2111,7 +2025,8 @@ static int DumpOat(Runtime* runtime, const char* oat_filename, OatDumperOptions*
 
 static int SymbolizeOat(const char* oat_filename, std::string& output_name) {
   std::string error_msg;
-  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, nullptr, nullptr, false, &error_msg);
+  OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, nullptr, nullptr, false,
+                                    &error_msg);
   if (oat_file == nullptr) {
     fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
     return EXIT_FAILURE;
@@ -2130,86 +2045,110 @@ static int SymbolizeOat(const char* oat_filename, std::string& output_name) {
   return EXIT_SUCCESS;
 }
 
-struct OatdumpArgs {
-  bool Parse(int argc, char** argv) {
-    // Skip over argv[0].
-    argv++;
-    argc--;
+struct OatdumpArgs : public CmdlineArgs {
+ protected:
+  using Base = CmdlineArgs;
 
-    if (argc == 0) {
-      fprintf(stderr, "No arguments specified\n");
-      usage();
-      return false;
-    }
-
-    for (int i = 0; i < argc; i++) {
-      const StringPiece option(argv[i]);
-      if (option.starts_with("--oat-file=")) {
-        oat_filename_ = option.substr(strlen("--oat-file=")).data();
-      } else if (option.starts_with("--image=")) {
-        image_location_ = option.substr(strlen("--image=")).data();
-      } else if (option.starts_with("--boot-image=")) {
-        boot_image_location_ = option.substr(strlen("--boot-image=")).data();
-      } else if (option.starts_with("--instruction-set=")) {
-        StringPiece instruction_set_str = option.substr(strlen("--instruction-set=")).data();
-        instruction_set_ = GetInstructionSetFromString(instruction_set_str.data());
-        if (instruction_set_ == kNone) {
-          fprintf(stderr, "Unsupported instruction set %s\n", instruction_set_str.data());
-          usage();
-          return false;
-        }
-      } else if (option =="--dump:raw_mapping_table") {
-        dump_raw_mapping_table_ = true;
-      } else if (option == "--dump:raw_gc_map") {
-        dump_raw_gc_map_ = true;
-      } else if (option == "--no-dump:vmap") {
-        dump_vmap_ = false;
-      } else if (option == "--no-disassemble") {
-        disassemble_code_ = false;
-      } else if (option.starts_with("--output=")) {
-        output_name_ = option.substr(strlen("--output=")).ToString();
-        const char* filename = output_name_.c_str();
-        out_.reset(new std::ofstream(filename));
-        if (!out_->good()) {
-          fprintf(stderr, "Failed to open output filename %s\n", filename);
-          usage();
-          return false;
-        }
-        os_ = out_.get();
-      } else if (option.starts_with("--symbolize=")) {
-        oat_filename_ = option.substr(strlen("--symbolize=")).data();
-        symbolize_ = true;
-      } else if (option.starts_with("--method-filter=")) {
-        method_filter_ = option.substr(strlen("--method-filter=")).data();
-      } else {
-        fprintf(stderr, "Unknown argument %s\n", option.data());
-        usage();
-        return false;
+  virtual ParseStatus ParseCustom(const StringPiece& option,
+                                  std::string* error_msg) OVERRIDE {
+    {
+      ParseStatus base_parse = Base::ParseCustom(option, error_msg);
+      if (base_parse != kParseUnknownArgument) {
+        return base_parse;
       }
     }
 
-    if (image_location_ == nullptr && oat_filename_ == nullptr) {
-      fprintf(stderr, "Either --image or --oat must be specified\n");
-      return false;
+    if (option.starts_with("--oat-file=")) {
+      oat_filename_ = option.substr(strlen("--oat-file=")).data();
+    } else if (option.starts_with("--image=")) {
+      image_location_ = option.substr(strlen("--image=")).data();
+    } else if (option =="--dump:raw_mapping_table") {
+      dump_raw_mapping_table_ = true;
+    } else if (option == "--dump:raw_gc_map") {
+      dump_raw_gc_map_ = true;
+    } else if (option == "--no-dump:vmap") {
+      dump_vmap_ = false;
+    } else if (option == "--no-disassemble") {
+      disassemble_code_ = false;
+    } else if (option.starts_with("--symbolize=")) {
+      oat_filename_ = option.substr(strlen("--symbolize=")).data();
+      symbolize_ = true;
+    } else if (option.starts_with("--method-filter=")) {
+      method_filter_ = option.substr(strlen("--method-filter=")).data();
+    } else {
+      return kParseUnknownArgument;
     }
 
-    if (image_location_ != nullptr && oat_filename_ != nullptr) {
-      fprintf(stderr, "Either --image or --oat must be specified but not both\n");
-      return false;
-    }
-
-    return true;
+    return kParseOk;
   }
 
+  virtual ParseStatus ParseChecks(std::string* error_msg) OVERRIDE {
+    // Infer boot image location from the image location if possible.
+    if (boot_image_location_ == nullptr) {
+      boot_image_location_ = image_location_;
+    }
+
+    // Perform the parent checks.
+    ParseStatus parent_checks = Base::ParseChecks(error_msg);
+    if (parent_checks != kParseOk) {
+      return parent_checks;
+    }
+
+    // Perform our own checks.
+    if (image_location_ == nullptr && oat_filename_ == nullptr) {
+      *error_msg = "Either --image or --oat-file must be specified";
+      return kParseError;
+    } else if (image_location_ != nullptr && oat_filename_ != nullptr) {
+      *error_msg = "Either --image or --oat-file must be specified but not both";
+      return kParseError;
+    }
+
+    return kParseOk;
+  }
+
+  virtual std::string GetUsage() const {
+    std::string usage;
+
+    usage +=
+        "Usage: oatdump [options] ...\n"
+        "    Example: oatdump --image=$ANDROID_PRODUCT_OUT/system/framework/boot.art\n"
+        "    Example: adb shell oatdump --image=/system/framework/boot.art\n"
+        "\n"
+        // Either oat-file or image is required.
+        "  --oat-file=<file.oat>: specifies an input oat filename.\n"
+        "      Example: --oat-file=/system/framework/boot.oat\n"
+        "\n"
+        "  --image=<file.art>: specifies an input image location.\n"
+        "      Example: --image=/system/framework/boot.art\n"
+        "\n";
+
+    usage += Base::GetUsage();
+
+    usage +=  // Optional.
+        "  --dump:raw_mapping_table enables dumping of the mapping table.\n"
+        "      Example: --dump:raw_mapping_table\n"
+        "\n"
+        "  --dump:raw_mapping_table enables dumping of the GC map.\n"
+        "      Example: --dump:raw_gc_map\n"
+        "\n"
+        "  --no-dump:vmap may be used to disable vmap dumping.\n"
+        "      Example: --no-dump:vmap\n"
+        "\n"
+        "  --no-disassemble may be used to disable disassembly.\n"
+        "      Example: --no-disassemble\n"
+        "\n"
+        "  --method-filter=<method name>: only dumps methods that contain the filter.\n"
+        "      Example: --method-filter=foo\n"
+        "\n";
+
+    return usage;
+  }
+
+ public:
   const char* oat_filename_ = nullptr;
   const char* method_filter_ = "";
   const char* image_location_ = nullptr;
-  const char* boot_image_location_ = nullptr;
-  InstructionSet instruction_set_ = kRuntimeISA;
   std::string elf_filename_prefix_;
-  std::ostream* os_ = &std::cout;
-  std::unique_ptr<std::ofstream> out_;
-  std::string output_name_;
   bool dump_raw_mapping_table_ = false;
   bool dump_raw_gc_map_ = false;
   bool dump_vmap_ = true;
@@ -2217,55 +2156,54 @@ struct OatdumpArgs {
   bool symbolize_ = false;
 };
 
-static int oatdump(int argc, char** argv) {
-  InitLogging(argv);
+struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
+  virtual bool NeedsRuntime() OVERRIDE {
+    CHECK(args_ != nullptr);
 
-  OatdumpArgs args;
-  if (!args.Parse(argc, argv)) {
-    return EXIT_FAILURE;
+    // If we are only doing the oat file, disable absolute_addresses. Keep them for image dumping.
+    bool absolute_addresses = (args_->oat_filename_ == nullptr);
+
+    oat_dumper_options_ = std::unique_ptr<OatDumperOptions>(new OatDumperOptions(
+        args_->dump_raw_mapping_table_,
+        args_->dump_raw_gc_map_,
+        args_->dump_vmap_,
+        args_->disassemble_code_,
+        absolute_addresses,
+        args_->method_filter_));
+
+    return (args_->boot_image_location_ != nullptr || args_->image_location_ != nullptr) &&
+          !args_->symbolize_;
   }
 
-  // If we are only doing the oat file, disable absolute_addresses. Keep them for image dumping.
-  bool absolute_addresses = (args.oat_filename_ == nullptr);
+  virtual bool ExecuteWithoutRuntime() OVERRIDE {
+    CHECK(args_ != nullptr);
+    CHECK(args_->symbolize_);
 
-  std::unique_ptr<OatDumperOptions> oat_dumper_options(new OatDumperOptions(
-      args.dump_raw_mapping_table_,
-      args.dump_raw_gc_map_,
-      args.dump_vmap_,
-      args.disassemble_code_,
-      absolute_addresses,
-      args.method_filter_,
-      nullptr));
-
-  std::unique_ptr<Runtime> runtime;
-  if ((args.boot_image_location_ != nullptr || args.image_location_ != nullptr) &&
-      !args.symbolize_) {
-    // If we have a boot image option, try to start the runtime; except when just symbolizing.
-    runtime.reset(StartRuntime(args.boot_image_location_,
-                               args.image_location_,
-                               args.instruction_set_));
-  } else {
     MemMap::Init();
+
+    return SymbolizeOat(args_->oat_filename_, args_->output_name_) == EXIT_SUCCESS;
   }
 
-  if (args.oat_filename_ != nullptr) {
-    if (args.symbolize_) {
-      return SymbolizeOat(args.oat_filename_, args.output_name_);
-    } else {
-      return DumpOat(runtime.get(), args.oat_filename_, oat_dumper_options.release(), args.os_);
+  virtual bool ExecuteWithRuntime(Runtime* runtime) {
+    CHECK(args_ != nullptr);
+
+    if (args_->oat_filename_ != nullptr) {
+      return DumpOat(runtime,
+                     args_->oat_filename_,
+                     oat_dumper_options_.release(),
+                     args_->os_) == EXIT_SUCCESS;
     }
+
+    return DumpImage(runtime, args_->image_location_, oat_dumper_options_.release(), args_->os_)
+      == EXIT_SUCCESS;
   }
 
-  if (runtime.get() == nullptr) {
-    // We need the runtime when printing an image.
-    return EXIT_FAILURE;
-  }
-
-  return DumpImage(runtime.get(), args.image_location_, oat_dumper_options.release(), args.os_);
-}
+  std::unique_ptr<OatDumperOptions> oat_dumper_options_;
+};
 
 }  // namespace art
 
 int main(int argc, char** argv) {
-  return art::oatdump(argc, argv);
+  art::OatdumpMain main;
+  return main.Main(argc, argv);
 }

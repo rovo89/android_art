@@ -14,8 +14,8 @@
 # limitations under the License.
 #
 
-ifndef ANDROID_COMMON_TEST_MK
-ANDROID_COMMON_TEST_MK = true
+ifndef ART_ANDROID_COMMON_TEST_MK
+ART_ANDROID_COMMON_TEST_MK = true
 
 include art/build/Android.common_path.mk
 
@@ -197,4 +197,4 @@ define build-art-test-dex
   endif
 endef
 
-endif # ANDROID_COMMON_TEST_MK
+endif # ART_ANDROID_COMMON_TEST_MK
