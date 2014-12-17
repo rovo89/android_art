@@ -200,6 +200,11 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
   }
 
   callee_graph->InlineInto(graph_, invoke_instruction);
+
+  // Now that we have inlined the callee, we need to update the next
+  // instruction id of the caller, so that new instructions added
+  // after optimizations get a unique id.
+  graph_->SetCurrentInstructionId(callee_graph->GetNextInstructionId());
   VLOG(compiler) << "Successfully inlined " << PrettyMethod(method_index, outer_dex_file);
   outer_stats_->RecordStat(kInlinedInvoke);
   return true;
