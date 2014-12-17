@@ -32,28 +32,18 @@ static const char* kLivenessPassName = "liveness";
 static const char* kRegisterAllocatorPassName = "register";
 
 /**
- * If enabled, emits compilation information suitable for the c1visualizer tool
- * and IRHydra.
- * Currently only works if the compiler is single threaded.
+ * This class outputs the HGraph in the C1visualizer format.
+ * Note: Currently only works if the compiler is single threaded.
  */
 class HGraphVisualizer : public ValueObject {
  public:
-  /**
-   * If output is not null, and the method name of the dex compilation
-   * unit contains `string_filter`, the compilation information will be
-   * emitted.
-   */
   HGraphVisualizer(std::ostream* output,
                    HGraph* graph,
                    const char* string_filter,
                    const CodeGenerator& codegen,
                    const char* method_name);
 
-  /**
-   * If this visualizer is enabled, emit the compilation information
-   * in `output_`.
-   */
-  void DumpGraph(const char* pass_name) const;
+  void DumpGraph(const char* pass_name, bool is_after_pass = true) const;
 
  private:
   std::ostream* const output_;
