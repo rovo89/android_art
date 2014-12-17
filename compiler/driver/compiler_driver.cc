@@ -2022,7 +2022,12 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
   } else if ((access_flags & kAccAbstract) != 0) {
   } else {
     MethodReference method_ref(&dex_file, method_idx);
-    bool compile = verification_results_->IsCandidateForCompilation(method_ref, access_flags);
+    bool has_verified_method = verification_results_->GetVerifiedMethod(method_ref) != nullptr;
+    bool compile = compiler_options_->IsCompilationEnabled() &&
+                   // Basic checks, e.g., not <clinit>.
+                   verification_results_->IsCandidateForCompilation(method_ref, access_flags) &&
+                   // Did not fail to create VerifiedMethod metadata.
+                   has_verified_method;
     if (compile) {
       // NOTE: if compiler declines to compile this method, it will return nullptr.
       compiled_method = compiler_->Compile(code_item, access_flags, invoke_type, class_def_idx,
@@ -2030,10 +2035,12 @@ void CompilerDriver::CompileMethod(const DexFile::CodeItem* code_item, uint32_t 
     }
     if (compiled_method == nullptr && dex_to_dex_compilation_level != kDontDexToDexCompile) {
       // TODO: add a command-line option to disable DEX-to-DEX compilation ?
+      // Do not optimize if a VerifiedMethod is missing. SafeCast elision, for example, relies on
+      // it.
       (*dex_to_dex_compiler_)(*this, code_item, access_flags,
                               invoke_type, class_def_idx,
                               method_idx, class_loader, dex_file,
-                              dex_to_dex_compilation_level);
+                              has_verified_method ? dex_to_dex_compilation_level : kRequired);
     }
   }
   if (kTimeCompileMethod) {
