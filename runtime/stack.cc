@@ -122,7 +122,7 @@ mirror::Object* StackVisitor::GetThisObject() const {
   } else if (m->IsNative()) {
     if (cur_quick_frame_ != NULL) {
       HandleScope* hs = reinterpret_cast<HandleScope*>(
-          reinterpret_cast<char*>(cur_quick_frame_) + m->GetHandleScopeOffsetInBytes());
+          reinterpret_cast<char*>(cur_quick_frame_) + m->GetHandleScopeOffsetInBytes().SizeValue());
       return hs->GetReference(0);
     } else {
       return cur_shadow_frame_->GetVRegReference(0);
