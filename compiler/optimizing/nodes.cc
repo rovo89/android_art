@@ -750,13 +750,16 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     }
   }
 
-  // Finally, replace the invoke with the return value of the inlined graph.
+  // Replace the invoke with the return value of the inlined graph.
   if (last->IsReturn()) {
     invoke->ReplaceWith(last->InputAt(0));
     body->RemoveInstruction(last);
   } else {
     DCHECK(last->IsReturnVoid());
   }
+
+  // Finally remove the invoke from the caller.
+  invoke->GetBlock()->RemoveInstruction(invoke);
 }
 
 }  // namespace art
