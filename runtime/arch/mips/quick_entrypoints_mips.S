@@ -1313,7 +1313,7 @@ ENTRY_NO_GP art_quick_shr_long
     sll     $a1, 1
     sll     $a1, $a0                         #  ahi<- ahi << (32-(shift&31))
     andi    $a2, 0x20                        #  shift & 0x20
-    beqz    $s2, 1f
+    beqz    $a2, 1f
     or      $v0, $a1                         #  rlo<- rlo | ahi
 
     move    $v0, $v1                         #  rlo<- rhi (if shift&0x20)
