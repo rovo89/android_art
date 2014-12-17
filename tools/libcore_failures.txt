@@ -38,5 +38,11 @@
           "org.apache.harmony.tests.java.util.ScannerTest#test_Constructor_LReadableByteChannel",
           "org.apache.harmony.tests.java.util.TimeZoneTest#test_hasSameRules_Ljava_util_TimeZone",
           "libcore.java.util.TimeZoneTest#testAllDisplayNames"]
+},
+{
+  description: "Test timeouts",
+  result: EXEC_TIMEOUT,
+  modes: [device],
+  names: ["org.apache.harmony.tests.java.util.ScannerTest#testPerformance"]
 }
 ]
