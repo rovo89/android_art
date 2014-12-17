@@ -169,6 +169,13 @@ void CommonRuntimeTest::TearDownAndroidData(const std::string& android_data, boo
   }
 }
 
+std::string CommonRuntimeTest::GetCoreArtLocation() {
+  return GetCoreFileLocation("art");
+}
+
+std::string CommonRuntimeTest::GetCoreOatLocation() {
+  return GetCoreFileLocation("oat");
+}
 
 const DexFile* CommonRuntimeTest::LoadExpectSingleDexFile(const char* location) {
   std::vector<const DexFile*> dex_files;
@@ -356,6 +363,21 @@ jobject CommonRuntimeTest::LoadDex(const char* dex_name) {
   self->SetClassLoaderOverride(class_loader_local.get());
   Runtime::Current()->SetCompileTimeClassPath(class_loader, dex_files);
   return class_loader;
+}
+
+std::string CommonRuntimeTest::GetCoreFileLocation(const char* suffix) {
+  CHECK(suffix != nullptr);
+
+  std::string location;
+  if (IsHost()) {
+    const char* host_dir = getenv("ANDROID_HOST_OUT");
+    CHECK(host_dir != NULL);
+    location = StringPrintf("%s/framework/core.%s", host_dir, suffix);
+  } else {
+    location = StringPrintf("/data/art-test/core.%s", suffix);
+  }
+
+  return location;
 }
 
 CheckJniAbortCatcher::CheckJniAbortCatcher() : vm_(Runtime::Current()->GetJavaVM()) {

@@ -14,10 +14,11 @@
 # limitations under the License.
 #
 
-ifndef ANDROID_COMMON_BUILD_MK
-ANDROID_COMMON_BUILD_MK = true
+ifndef ART_ANDROID_COMMON_BUILD_MK
+ART_ANDROID_COMMON_BUILD_MK = true
 
 include art/build/Android.common.mk
+include art/build/Android.common_utils.mk
 
 # These can be overridden via the environment or by editing to
 # enable/disable certain build configuration.
@@ -325,4 +326,4 @@ ifeq ($(ART_BUILD_HOST_DEBUG),true)
   ART_BUILD_DEBUG := true
 endif
 
-endif # ANDROID_COMMON_BUILD_MK
+endif # ART_ANDROID_COMMON_BUILD_MK

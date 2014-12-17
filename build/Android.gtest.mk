@@ -65,10 +65,15 @@ ART_GTEST_elf_writer_test_TARGET_DEPS := $(TARGET_CORE_IMAGE_default_no-pic_64) 
 # TODO: document why this is needed.
 ART_GTEST_proxy_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
 
+# The imgdiag test has dependencies on core.oat since it needs to load it during the test.
+ART_GTEST_imgdiag_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
+ART_GTEST_imgdiag_test_TARGET_DEPS := $(TARGET_CORE_IMAGE_default_no-pic_64) $(TARGET_CORE_IMAGE_default_no-pic_32)
+
 # The path for which all the source files are relative, not actually the current directory.
 LOCAL_PATH := art
 
 RUNTIME_GTEST_COMMON_SRC_FILES := \
+  imgdiag/imgdiag_test.cc \
   runtime/arch/arch_test.cc \
   runtime/arch/instruction_set_test.cc \
   runtime/arch/instruction_set_features_test.cc \

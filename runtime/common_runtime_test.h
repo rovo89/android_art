@@ -80,6 +80,12 @@ class CommonRuntimeTest : public testing::Test {
     return !kIsTargetBuild;
   }
 
+  // File location to core.art, e.g. $ANDROID_HOST_OUT/system/framework/core.art
+  static std::string GetCoreArtLocation();
+
+  // File location to core.oat, e.g. $ANDROID_HOST_OUT/system/framework/core.oat
+  static std::string GetCoreOatLocation();
+
   const DexFile* LoadExpectSingleDexFile(const char* location);
 
   virtual void SetUp();
@@ -115,6 +121,8 @@ class CommonRuntimeTest : public testing::Test {
   ClassLinker* class_linker_;
 
  private:
+  static std::string GetCoreFileLocation(const char* suffix);
+
   std::unique_ptr<CompilerCallbacks> callbacks_;
   std::vector<const DexFile*> opened_dex_files_;
 };
