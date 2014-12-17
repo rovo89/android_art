@@ -16,9 +16,9 @@
 
 #include "graph_checker.h"
 
-#include <string>
 #include <map>
 #include <sstream>
+#include <string>
 
 #include "base/bit_vector-inl.h"
 
@@ -123,6 +123,14 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
 }
 
 void GraphChecker::VisitInstruction(HInstruction* instruction) {
+  if (seen_ids_.IsBitSet(instruction->GetId())) {
+    std::stringstream error;
+    error << "Duplicate id in graph " << instruction->GetId() << ".";
+    errors_.push_back(error.str());
+  } else {
+    seen_ids_.SetBit(instruction->GetId());
+  }
+
   // Ensure `instruction` is associated with `current_block_`.
   if (instruction->GetBlock() != current_block_) {
     std::stringstream error;
