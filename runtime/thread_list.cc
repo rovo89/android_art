@@ -27,6 +27,7 @@
 
 #include <sstream>
 
+#include "base/histogram-inl.h"
 #include "base/mutex.h"
 #include "base/mutex-inl.h"
 #include "base/timing_logger.h"
@@ -46,7 +47,8 @@ static constexpr uint64_t kLongThreadSuspendThreshold = MsToNs(5);
 
 ThreadList::ThreadList()
     : suspend_all_count_(0), debug_suspend_all_count_(0),
-      thread_exit_cond_("thread exit condition variable", *Locks::thread_list_lock_) {
+      thread_exit_cond_("thread exit condition variable", *Locks::thread_list_lock_),
+      suspend_all_historam_("suspend all histogram", 16, 64) {
   CHECK(Monitor::IsValidLockWord(LockWord::FromThinLockId(kMaxThreadId, 1)));
 }
 
@@ -97,6 +99,12 @@ void ThreadList::DumpNativeStacks(std::ostream& os) {
 }
 
 void ThreadList::DumpForSigQuit(std::ostream& os) {
+  {
+    ScopedObjectAccess soa(Thread::Current());
+    Histogram<uint64_t>::CumulativeData data;
+    suspend_all_historam_.CreateHistogram(&data);
+    suspend_all_historam_.PrintConfidenceIntervals(os, 0.99, data);  // Dump time to suspend.
+  }
   Dump(os);
   DumpUnattachedThreads(os);
 }
@@ -351,7 +359,7 @@ void ThreadList::SuspendAll() {
     VLOG(threads) << "Thread[null] SuspendAll starting...";
   }
   ATRACE_BEGIN("Suspending mutator threads");
-  uint64_t start_time = NanoTime();
+  const uint64_t start_time = NanoTime();
 
   Locks::mutator_lock_->AssertNotHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
@@ -384,9 +392,11 @@ void ThreadList::SuspendAll() {
   Locks::mutator_lock_->ExclusiveLock(self);
 #endif
 
-  uint64_t end_time = NanoTime();
-  if (end_time - start_time > kLongThreadSuspendThreshold) {
-    LOG(WARNING) << "Suspending all threads took: " << PrettyDuration(end_time - start_time);
+  const uint64_t end_time = NanoTime();
+  const uint64_t suspend_time = end_time - start_time;
+  suspend_all_historam_.AdjustAndAddValue(suspend_time);
+  if (suspend_time > kLongThreadSuspendThreshold) {
+    LOG(WARNING) << "Suspending all threads took: " << PrettyDuration(suspend_time);
   }
 
   if (kDebugLocking) {

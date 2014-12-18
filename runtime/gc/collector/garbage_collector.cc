@@ -102,7 +102,7 @@ void GarbageCollector::Run(GcCause gc_cause, bool clear_soft_references) {
   total_time_ns_ += current_iteration->GetDurationNs();
   for (uint64_t pause_time : current_iteration->GetPauseTimes()) {
     MutexLock mu(self, pause_histogram_lock_);
-    pause_histogram_.AddValue(pause_time / 1000);
+    pause_histogram_.AdjustAndAddValue(pause_time);
   }
   ATRACE_END();
 }

@@ -17,6 +17,7 @@
 #ifndef ART_RUNTIME_THREAD_LIST_H_
 #define ART_RUNTIME_THREAD_LIST_H_
 
+#include "base/histogram.h"
 #include "base/mutex.h"
 #include "jni.h"
 #include "object_callbacks.h"
@@ -39,11 +40,10 @@ class ThreadList {
   ~ThreadList();
 
   void DumpForSigQuit(std::ostream& os)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::mutator_lock_);
   // For thread suspend timeout dumps.
   void Dump(std::ostream& os)
-      LOCKS_EXCLUDED(Locks::thread_list_lock_,
-                     Locks::thread_suspend_count_lock_);
+      LOCKS_EXCLUDED(Locks::thread_list_lock_, Locks::thread_suspend_count_lock_);
   pid_t GetLockOwner();  // For SignalCatcher.
 
   // Thread suspension support.
@@ -168,6 +168,10 @@ class ThreadList {
 
   // Signaled when threads terminate. Used to determine when all non-daemons have terminated.
   ConditionVariable thread_exit_cond_ GUARDED_BY(Locks::thread_list_lock_);
+
+  // Thread suspend time histogram. Only modified when all the threads are suspended, so guarding
+  // by mutator lock ensures no thread can read when another thread is modifying it.
+  Histogram<uint64_t> suspend_all_historam_ GUARDED_BY(Locks::mutator_lock_);
 
   friend class Thread;
 
