@@ -453,18 +453,8 @@ void CodeGeneratorX86_64::SetupBlockedRegisters() const {
   // Block the register used as TMP.
   blocked_core_registers_[TMP] = true;
 
-  // TODO: We currently don't use Quick's callee saved registers.
-  blocked_core_registers_[RBX] = true;
+  // Block the frame pointer.
   blocked_core_registers_[RBP] = true;
-  blocked_core_registers_[R12] = true;
-  blocked_core_registers_[R13] = true;
-  blocked_core_registers_[R14] = true;
-  blocked_core_registers_[R15] = true;
-
-  blocked_fpu_registers_[XMM12] = true;
-  blocked_fpu_registers_[XMM13] = true;
-  blocked_fpu_registers_[XMM14] = true;
-  blocked_fpu_registers_[XMM15] = true;
 }
 
 void CodeGeneratorX86_64::GenerateFrameEntry() {
