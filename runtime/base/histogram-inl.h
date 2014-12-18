@@ -35,8 +35,11 @@ template <class Value> inline void Histogram<Value>::AddValue(Value value) {
     DCHECK_GT(new_max, max_);
     GrowBuckets(new_max);
   }
-
   BucketiseValue(value);
+}
+
+template <class Value> inline void Histogram<Value>::AdjustAndAddValue(Value value) {
+  AddValue(value / kAdjust);
 }
 
 template <class Value> inline Histogram<Value>::Histogram(const char* name)
