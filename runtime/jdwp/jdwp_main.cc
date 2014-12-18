@@ -139,7 +139,7 @@ ssize_t JdwpNetStateBase::WriteBufferedPacket(const std::vector<iovec>& iov) {
 }
 
 bool JdwpState::IsConnected() {
-  return netState != NULL && netState->IsConnected();
+  return netState != nullptr && netState->IsConnected();
 }
 
 void JdwpState::SendBufferedRequest(uint32_t type, const std::vector<iovec>& iov) {
@@ -202,18 +202,18 @@ JdwpState::JdwpState(const JdwpOptions* options)
       thread_start_lock_("JDWP thread start lock", kJdwpStartLock),
       thread_start_cond_("JDWP thread start condition variable", thread_start_lock_),
       pthread_(0),
-      thread_(NULL),
+      thread_(nullptr),
       debug_thread_started_(false),
       debug_thread_id_(0),
       run(false),
-      netState(NULL),
+      netState(nullptr),
       attach_lock_("JDWP attach lock", kJdwpAttachLock),
       attach_cond_("JDWP attach condition variable", attach_lock_),
       last_activity_time_ms_(0),
       request_serial_(0x10000000),
       event_serial_(0x20000000),
       event_list_lock_("JDWP event list lock", kJdwpEventListLock),
-      event_list_(NULL),
+      event_list_(nullptr),
       event_list_size_(0),
       event_thread_lock_("JDWP event thread lock"),
       event_thread_cond_("JDWP event thread condition variable", event_thread_lock_),
@@ -289,7 +289,7 @@ JdwpState* JdwpState::Create(const JdwpOptions* options) {
     }
     if (!state->IsActive()) {
       LOG(ERROR) << "JDWP connection failed";
-      return NULL;
+      return nullptr;
     }
 
     LOG(INFO) << "JDWP connected";
@@ -317,7 +317,7 @@ void JdwpState::ResetState() {
   UnregisterAll();
   {
     MutexLock mu(Thread::Current(), event_list_lock_);
-    CHECK(event_list_ == NULL);
+    CHECK(event_list_ == nullptr);
   }
 
   Dbg::ProcessDelayedFullUndeoptimizations();
@@ -336,7 +336,7 @@ void JdwpState::ResetState() {
  * Tell the JDWP thread to shut down.  Frees "state".
  */
 JdwpState::~JdwpState() {
-  if (netState != NULL) {
+  if (netState != nullptr) {
     /*
      * Close down the network to inspire the thread to halt.
      */
@@ -353,9 +353,9 @@ JdwpState::~JdwpState() {
 
     VLOG(jdwp) << "JDWP freeing netstate...";
     delete netState;
-    netState = NULL;
+    netState = nullptr;
   }
-  CHECK(netState == NULL);
+  CHECK(netState == nullptr);
 
   ResetState();
 }
@@ -398,10 +398,10 @@ bool JdwpState::HandlePacket() {
  */
 static void* StartJdwpThread(void* arg) {
   JdwpState* state = reinterpret_cast<JdwpState*>(arg);
-  CHECK(state != NULL);
+  CHECK(state != nullptr);
 
   state->Run();
-  return NULL;
+  return nullptr;
 }
 
 void JdwpState::Run() {

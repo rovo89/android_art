@@ -669,9 +669,7 @@ void Dbg::StartJdwp() {
   // This may cause us to suspend all threads.
   if (gJdwpState->IsActive()) {
     ScopedObjectAccess soa(Thread::Current());
-    if (!gJdwpState->PostVMStart()) {
-      LOG(WARNING) << "Failed to post 'start' message to debugger";
-    }
+    gJdwpState->PostVMStart();
   }
 }
 
@@ -2569,7 +2567,7 @@ JDWP::JdwpError Dbg::GetLocalValues(JDWP::Request* request, JDWP::ExpandBuf* pRe
     VLOG(jdwp) << "    --> slot " << slot << " " << reqSigByte;
 
     size_t width = Dbg::GetTagWidth(reqSigByte);
-    uint8_t* ptr = expandBufAddSpace(pReply, width+1);
+    uint8_t* ptr = expandBufAddSpace(pReply, width + 1);
     JDWP::JdwpError error = Dbg::GetLocalValue(visitor, soa, slot, reqSigByte, ptr, width);
     if (error != JDWP::ERR_NONE) {
       return error;
