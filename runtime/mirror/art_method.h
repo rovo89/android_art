@@ -26,6 +26,7 @@
 #include "object_callbacks.h"
 #include "quick/quick_method_frame_info.h"
 #include "read_barrier_option.h"
+#include "stack.h"
 #include "stack_map.h"
 
 namespace art {
@@ -390,8 +391,9 @@ class MANAGED ArtMethod FINAL : public Object {
   }
 
   FrameOffset GetHandleScopeOffset() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK_LT(sizeof(void*), GetFrameSizeInBytes());
-    return FrameOffset(sizeof(void*));
+    constexpr size_t handle_scope_offset = sizeof(StackReference<mirror::ArtMethod>);
+    DCHECK_LT(handle_scope_offset, GetFrameSizeInBytes());
+    return FrameOffset(handle_scope_offset);
   }
 
   void RegisterNative(const void* native_method, bool is_fast)
