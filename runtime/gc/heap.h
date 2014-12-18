@@ -755,8 +755,10 @@ class Heap {
 
   // Given the current contents of the alloc space, increase the allowed heap footprint to match
   // the target utilization ratio.  This should only be called immediately after a full garbage
-  // collection.
-  void GrowForUtilization(collector::GarbageCollector* collector_ran);
+  // collection. bytes_allocated_before_gc is used to measure bytes / second for the period which
+  // the GC was run.
+  void GrowForUtilization(collector::GarbageCollector* collector_ran,
+                          uint64_t bytes_allocated_before_gc = 0);
 
   size_t GetPercentFree();
 
@@ -881,6 +883,7 @@ class Heap {
   Mutex* gc_request_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::unique_ptr<ConditionVariable> gc_request_cond_ GUARDED_BY(gc_request_lock_);
   bool gc_request_pending_ GUARDED_BY(gc_request_lock_);
+  bool conc_gc_running_ GUARDED_BY(gc_request_lock_);
 
   // Reference processor;
   ReferenceProcessor reference_processor_;
@@ -970,12 +973,6 @@ class Heap {
 
   // Parallel GC data structures.
   std::unique_ptr<ThreadPool> thread_pool_;
-
-  // The nanosecond time at which the last GC ended.
-  uint64_t last_gc_time_ns_;
-
-  // How many bytes were allocated at the end of the last GC.
-  uint64_t last_gc_size_;
 
   // Estimated allocation rate (bytes / second). Computed between the time of the last GC cycle
   // and the start of the current one.
