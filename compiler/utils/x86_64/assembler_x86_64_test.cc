@@ -536,10 +536,16 @@ TEST_F(AssemblerX86_64Test, Movl) {
       x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12));
   GetAssembler()->movl(x86_64::CpuRegister(x86_64::R8), x86_64::Address(
       x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12));
+  GetAssembler()->movl(x86_64::CpuRegister(x86_64::RAX), x86_64::Address(
+      x86_64::CpuRegister(x86_64::R13), 0));
+  GetAssembler()->movl(x86_64::CpuRegister(x86_64::RAX), x86_64::Address(
+      x86_64::CpuRegister(x86_64::R13), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_1, 0));
   const char* expected =
     "movl 0xc(%RDI,%RBX,4), %EAX\n"
     "movl 0xc(%RDI,%R9,4), %EAX\n"
-    "movl 0xc(%RDI,%R9,4), %R8d\n";
+    "movl 0xc(%RDI,%R9,4), %R8d\n"
+    "movl (%R13), %EAX\n"
+    "movl (%R13,%R9,1), %EAX\n";
 
   DriverStr(expected, "movl");
 }
