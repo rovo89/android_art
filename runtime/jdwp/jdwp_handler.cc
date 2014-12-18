@@ -106,8 +106,8 @@ static JdwpError FinishInvoke(JdwpState*, Request* request, ExpandBuf* pReply,
                              Dbg::GetMethodName(method_id).c_str());
   VLOG(jdwp) << StringPrintf("        %d args:", arg_count);
 
-  std::unique_ptr<JdwpTag[]> argTypes(arg_count > 0 ? new JdwpTag[arg_count] : NULL);
-  std::unique_ptr<uint64_t[]> argValues(arg_count > 0 ? new uint64_t[arg_count] : NULL);
+  std::unique_ptr<JdwpTag[]> argTypes(arg_count > 0 ? new JdwpTag[arg_count] : nullptr);
+  std::unique_ptr<uint64_t[]> argValues(arg_count > 0 ? new uint64_t[arg_count] : nullptr);
   for (int32_t i = 0; i < arg_count; ++i) {
     argTypes[i] = request->ReadTag();
     size_t width = Dbg::GetTagWidth(argTypes[i]);
@@ -124,7 +124,9 @@ static JdwpError FinishInvoke(JdwpState*, Request* request, ExpandBuf* pReply,
   JdwpTag resultTag;
   uint64_t resultValue;
   ObjectId exceptObjId;
-  JdwpError err = Dbg::InvokeMethod(thread_id, object_id, class_id, method_id, arg_count, argValues.get(), argTypes.get(), options, &resultTag, &resultValue, &exceptObjId);
+  JdwpError err = Dbg::InvokeMethod(thread_id, object_id, class_id, method_id, arg_count,
+                                    argValues.get(), argTypes.get(), options, &resultTag,
+                                    &resultValue, &exceptObjId);
   if (err != ERR_NONE) {
     return err;
   }
@@ -203,7 +205,7 @@ static JdwpError VM_ClassesBySignature(JdwpState*, Request* request, ExpandBuf* 
     // Get class vs. interface and status flags.
     JDWP::JdwpTypeTag type_tag;
     uint32_t class_status;
-    JDWP::JdwpError status = Dbg::GetClassInfo(ids[i], &type_tag, &class_status, NULL);
+    JDWP::JdwpError status = Dbg::GetClassInfo(ids[i], &type_tag, &class_status, nullptr);
     if (status != ERR_NONE) {
       return status;
     }
@@ -371,7 +373,7 @@ static JdwpError VM_Capabilities(JdwpState*, Request*, ExpandBuf* reply)
 static JdwpError VM_CapabilitiesNew(JdwpState*, Request* request, ExpandBuf* reply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // The first few capabilities are the same as those reported by the older call.
-  VM_Capabilities(NULL, request, reply);
+  VM_Capabilities(nullptr, request, reply);
 
   expandBufAdd1(reply, false);   // canRedefineClasses
   expandBufAdd1(reply, false);   // canAddMethod
@@ -507,7 +509,7 @@ static JdwpError RT_Status(JdwpState*, Request* request, ExpandBuf* pReply)
   RefTypeId refTypeId = request->ReadRefTypeId();
   JDWP::JdwpTypeTag type_tag;
   uint32_t class_status;
-  JDWP::JdwpError status = Dbg::GetClassInfo(refTypeId, &type_tag, &class_status, NULL);
+  JDWP::JdwpError status = Dbg::GetClassInfo(refTypeId, &type_tag, &class_status, nullptr);
   if (status != ERR_NONE) {
     return status;
   }
@@ -1432,7 +1434,7 @@ static JdwpError COR_ReflectedType(JdwpState*, Request* request, ExpandBuf* pRep
 static JdwpError DDM_Chunk(JdwpState* state, Request* request, ExpandBuf* pReply)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   state->NotifyDdmsActive();
-  uint8_t* replyBuf = NULL;
+  uint8_t* replyBuf = nullptr;
   int replyLen = -1;
   if (Dbg::DdmHandlePacket(request, &replyBuf, &replyLen)) {
     // If they want to send something back, we copy it into the buffer.
@@ -1481,11 +1483,11 @@ static const JdwpHandlerMap gHandlers[] = {
   { 1,    12, VM_Capabilities,          "VirtualMachine.Capabilities" },
   { 1,    13, VM_ClassPaths,            "VirtualMachine.ClassPaths" },
   { 1,    14, VM_DisposeObjects,        "VirtualMachine.DisposeObjects" },
-  { 1,    15, NULL,                     "VirtualMachine.HoldEvents" },
-  { 1,    16, NULL,                     "VirtualMachine.ReleaseEvents" },
+  { 1,    15, nullptr,                  "VirtualMachine.HoldEvents" },
+  { 1,    16, nullptr,                  "VirtualMachine.ReleaseEvents" },
   { 1,    17, VM_CapabilitiesNew,       "VirtualMachine.CapabilitiesNew" },
-  { 1,    18, NULL,                     "VirtualMachine.RedefineClasses" },
-  { 1,    19, NULL,                     "VirtualMachine.SetDefaultStratum" },
+  { 1,    18, nullptr,                  "VirtualMachine.RedefineClasses" },
+  { 1,    19, nullptr,                  "VirtualMachine.SetDefaultStratum" },
   { 1,    20, VM_AllClassesWithGeneric, "VirtualMachine.AllClassesWithGeneric" },
   { 1,    21, VM_InstanceCounts,        "VirtualMachine.InstanceCounts" },
 
@@ -1497,7 +1499,7 @@ static const JdwpHandlerMap gHandlers[] = {
   { 2,    5,  RT_Methods,              "ReferenceType.Methods" },
   { 2,    6,  RT_GetValues,            "ReferenceType.GetValues" },
   { 2,    7,  RT_SourceFile,           "ReferenceType.SourceFile" },
-  { 2,    8,  NULL,                    "ReferenceType.NestedTypes" },
+  { 2,    8,  nullptr,                 "ReferenceType.NestedTypes" },
   { 2,    9,  RT_Status,               "ReferenceType.Status" },
   { 2,    10, RT_Interfaces,           "ReferenceType.Interfaces" },
   { 2,    11, RT_ClassObject,          "ReferenceType.ClassObject" },
@@ -1506,8 +1508,8 @@ static const JdwpHandlerMap gHandlers[] = {
   { 2,    14, RT_FieldsWithGeneric,    "ReferenceType.FieldsWithGeneric" },
   { 2,    15, RT_MethodsWithGeneric,   "ReferenceType.MethodsWithGeneric" },
   { 2,    16, RT_Instances,            "ReferenceType.Instances" },
-  { 2,    17, NULL,                    "ReferenceType.ClassFileVersion" },
-  { 2,    18, NULL,                    "ReferenceType.ConstantPool" },
+  { 2,    17, nullptr,                 "ReferenceType.ClassFileVersion" },
+  { 2,    18, nullptr,                 "ReferenceType.ConstantPool" },
 
   /* ClassType command set (3) */
   { 3,    1,  CT_Superclass,    "ClassType.Superclass" },
@@ -1524,7 +1526,7 @@ static const JdwpHandlerMap gHandlers[] = {
   { 6,    1,  M_LineTable,                "Method.LineTable" },
   { 6,    2,  M_VariableTable,            "Method.VariableTable" },
   { 6,    3,  M_Bytecodes,                "Method.Bytecodes" },
-  { 6,    4,  NULL,                       "Method.IsObsolete" },
+  { 6,    4,  nullptr,                    "Method.IsObsolete" },
   { 6,    5,  M_VariableTableWithGeneric, "Method.VariableTableWithGeneric" },
 
   /* Field command set (8) */
@@ -1533,7 +1535,7 @@ static const JdwpHandlerMap gHandlers[] = {
   { 9,    1,  OR_ReferenceType,     "ObjectReference.ReferenceType" },
   { 9,    2,  OR_GetValues,         "ObjectReference.GetValues" },
   { 9,    3,  OR_SetValues,         "ObjectReference.SetValues" },
-  { 9,    4,  NULL,                 "ObjectReference.UNUSED" },
+  { 9,    4,  nullptr,              "ObjectReference.UNUSED" },
   { 9,    5,  OR_MonitorInfo,       "ObjectReference.MonitorInfo" },
   { 9,    6,  OR_InvokeMethod,      "ObjectReference.InvokeMethod" },
   { 9,    7,  OR_DisableCollection, "ObjectReference.DisableCollection" },
@@ -1554,11 +1556,11 @@ static const JdwpHandlerMap gHandlers[] = {
   { 11,   7,  TR_FrameCount,                  "ThreadReference.FrameCount" },
   { 11,   8,  TR_OwnedMonitors,               "ThreadReference.OwnedMonitors" },
   { 11,   9,  TR_CurrentContendedMonitor,     "ThreadReference.CurrentContendedMonitor" },
-  { 11,   10, NULL,                           "ThreadReference.Stop" },
+  { 11,   10, nullptr,                        "ThreadReference.Stop" },
   { 11,   11, TR_Interrupt,                   "ThreadReference.Interrupt" },
   { 11,   12, TR_DebugSuspendCount,           "ThreadReference.SuspendCount" },
   { 11,   13, TR_OwnedMonitorsStackDepthInfo, "ThreadReference.OwnedMonitorsStackDepthInfo" },
-  { 11,   14, NULL,                           "ThreadReference.ForceEarlyReturn" },
+  { 11,   14, nullptr,                        "ThreadReference.ForceEarlyReturn" },
 
   /* ThreadGroupReference command set (12) */
   { 12,   1,  TGR_Name,         "ThreadGroupReference.Name" },
@@ -1576,26 +1578,27 @@ static const JdwpHandlerMap gHandlers[] = {
   /* EventRequest command set (15) */
   { 15,   1,  ER_Set,           "EventRequest.Set" },
   { 15,   2,  ER_Clear,         "EventRequest.Clear" },
-  { 15,   3,  NULL,             "EventRequest.ClearAllBreakpoints" },
+  { 15,   3,  nullptr,          "EventRequest.ClearAllBreakpoints" },
 
   /* StackFrame command set (16) */
   { 16,   1,  SF_GetValues,     "StackFrame.GetValues" },
   { 16,   2,  SF_SetValues,     "StackFrame.SetValues" },
   { 16,   3,  SF_ThisObject,    "StackFrame.ThisObject" },
-  { 16,   4,  NULL,             "StackFrame.PopFrames" },
+  { 16,   4,  nullptr,          "StackFrame.PopFrames" },
 
   /* ClassObjectReference command set (17) */
   { 17,   1,  COR_ReflectedType, "ClassObjectReference.ReflectedType" },
 
   /* Event command set (64) */
-  { 64, 100,  NULL, "Event.Composite" },  // sent from VM to debugger, never received by VM
+  { 64, 100,  nullptr, "Event.Composite" },  // sent from VM to debugger, never received by VM
 
   { 199,  1,  DDM_Chunk,        "DDM.Chunk" },
 };
 
 static const char* GetCommandName(Request* request) {
   for (size_t i = 0; i < arraysize(gHandlers); ++i) {
-    if (gHandlers[i].cmdSet == request->GetCommandSet() && gHandlers[i].cmd == request->GetCommand()) {
+    if (gHandlers[i].cmdSet == request->GetCommandSet() &&
+        gHandlers[i].cmd == request->GetCommand()) {
       return gHandlers[i].name;
     }
   }
@@ -1663,7 +1666,9 @@ size_t JdwpState::ProcessRequest(Request* request, ExpandBuf* pReply) {
 
   size_t i;
   for (i = 0; i < arraysize(gHandlers); ++i) {
-    if (gHandlers[i].cmdSet == request->GetCommandSet() && gHandlers[i].cmd == request->GetCommand() && gHandlers[i].func != NULL) {
+    if (gHandlers[i].cmdSet == request->GetCommandSet() &&
+        gHandlers[i].cmd == request->GetCommand() &&
+        gHandlers[i].func != nullptr) {
       VLOG(jdwp) << DescribeCommand(request);
       result = (*gHandlers[i].func)(this, request, pReply);
       if (result == ERR_NONE) {
