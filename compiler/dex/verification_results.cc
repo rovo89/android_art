@@ -57,8 +57,8 @@ bool VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method
 
   const VerifiedMethod* verified_method = VerifiedMethod::Create(method_verifier, compile);
   if (verified_method == nullptr) {
-    DCHECK(method_verifier->HasFailures());
-    return false;
+    // Do not report an error to the verifier. We'll just punt this later.
+    return true;
   }
 
   WriterMutexLock mu(Thread::Current(), verified_methods_lock_);
