@@ -1019,7 +1019,7 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond ATTRIBUTE_UNUSED,
   uint8_t rn_shift = 3;
   uint8_t immediate_shift = 0;
   bool use_immediate = false;
-  uint8_t immediate = 0;
+  uint32_t immediate = 0;  // Should be at most 9 bits but keep the full immediate for CHECKs.
   uint8_t thumb_opcode;;
 
   if (so.IsImmediate()) {
@@ -1055,8 +1055,8 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond ATTRIBUTE_UNUSED,
           dp_opcode = 2U /* 0b10 */;
           thumb_opcode = 3U /* 0b11 */;
           opcode_shift = 12;
-          CHECK_LT(immediate, (1 << 9));
-          CHECK_EQ((immediate & 3 /* 0b11 */), 0);
+          CHECK_LT(immediate, (1u << 9));
+          CHECK_EQ((immediate & 3u /* 0b11 */), 0u);
 
           // Remove rd and rn from instruction by orring it with immed and clearing bits.
           rn = R0;
@@ -1069,8 +1069,8 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond ATTRIBUTE_UNUSED,
           dp_opcode = 2U /* 0b10 */;
           thumb_opcode = 5U /* 0b101 */;
           opcode_shift = 11;
-          CHECK_LT(immediate, (1 << 10));
-          CHECK_EQ((immediate & 3 /* 0b11 */), 0);
+          CHECK_LT(immediate, (1u << 10));
+          CHECK_EQ((immediate & 3u /* 0b11 */), 0u);
 
           // Remove rn from instruction.
           rn = R0;
@@ -1106,8 +1106,8 @@ void Thumb2Assembler::Emit16BitAddSub(Condition cond ATTRIBUTE_UNUSED,
            dp_opcode = 2U /* 0b10 */;
            thumb_opcode = 0x61 /* 0b1100001 */;
            opcode_shift = 7;
-           CHECK_LT(immediate, (1 << 9));
-           CHECK_EQ((immediate & 3 /* 0b11 */), 0);
+           CHECK_LT(immediate, (1u << 9));
+           CHECK_EQ((immediate & 3u /* 0b11 */), 0u);
 
            // Remove rd and rn from instruction by orring it with immed and clearing bits.
            rn = R0;
