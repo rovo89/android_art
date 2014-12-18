@@ -82,8 +82,6 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       cu_(cu),
       ssa_base_vregs_(arena->Adapter(kArenaAllocSSAToDalvikMap)),
       ssa_subscripts_(arena->Adapter(kArenaAllocSSAToDalvikMap)),
-      vreg_to_ssa_map_(NULL),
-      ssa_last_defs_(NULL),
       is_constant_v_(NULL),
       constant_values_(NULL),
       use_counts_(arena->Adapter()),
@@ -91,6 +89,9 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       num_reachable_blocks_(0),
       max_num_reachable_blocks_(0),
       dfs_orders_up_to_date_(false),
+      domination_up_to_date_(false),
+      mir_ssa_rep_up_to_date_(false),
+      topological_order_up_to_date_(false),
       dfs_order_(arena->Adapter(kArenaAllocDfsPreOrder)),
       dfs_post_order_(arena->Adapter(kArenaAllocDfsPostOrder)),
       dom_post_order_traversal_(arena->Adapter(kArenaAllocDomPostOrder)),
@@ -105,7 +106,6 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       try_block_addr_(NULL),
       entry_block_(NULL),
       exit_block_(NULL),
-      num_blocks_(0),
       current_code_item_(NULL),
       dex_pc_to_block_map_(arena->Adapter()),
       m_units_(arena->Adapter()),
@@ -691,7 +691,7 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
   if (current_method_ == 0) {
     DCHECK(entry_block_ == NULL);
     DCHECK(exit_block_ == NULL);
-    DCHECK_EQ(num_blocks_, 0U);
+    DCHECK_EQ(GetNumBlocks(), 0U);
     // Use id 0 to represent a null block.
     BasicBlock* null_block = CreateNewBB(kNullBlock);
     DCHECK_EQ(null_block->id, NullBasicBlockId);
@@ -1740,6 +1740,9 @@ void MIRGraph::SSATransformationEnd() {
 
   // Update the maximum number of reachable blocks.
   max_num_reachable_blocks_ = num_reachable_blocks_;
+
+  // Mark MIR SSA representations as up to date.
+  mir_ssa_rep_up_to_date_ = true;
 }
 
 size_t MIRGraph::GetNumDalvikInsns() const {
@@ -2005,6 +2008,7 @@ void MIRGraph::ComputeTopologicalSortOrder() {
   topological_order_loop_head_stack_.clear();
   topological_order_loop_head_stack_.reserve(max_nested_loops);
   max_nested_loops_ = max_nested_loops;
+  topological_order_up_to_date_ = true;
 }
 
 bool BasicBlock::IsExceptionBlock() const {
@@ -2393,7 +2397,8 @@ void BasicBlock::UpdatePredecessor(BasicBlockId old_pred, BasicBlockId new_pred)
 // Create a new basic block with block_id as num_blocks_ that is
 // post-incremented.
 BasicBlock* MIRGraph::CreateNewBB(BBType block_type) {
-  BasicBlock* res = NewMemBB(block_type, num_blocks_++);
+  BasicBlockId id = static_cast<BasicBlockId>(block_list_.size());
+  BasicBlock* res = NewMemBB(block_type, id);
   block_list_.push_back(res);
   return res;
 }
@@ -2401,10 +2406,6 @@ BasicBlock* MIRGraph::CreateNewBB(BBType block_type) {
 void MIRGraph::CalculateBasicBlockInformation() {
   PassDriverMEPostOpt driver(cu_);
   driver.Launch();
-}
-
-void MIRGraph::InitializeBasicBlockData() {
-  num_blocks_ = block_list_.size();
 }
 
 int MIR::DecodedInstruction::FlagsOf() const {

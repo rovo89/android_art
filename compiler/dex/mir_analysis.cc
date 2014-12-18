@@ -1151,7 +1151,7 @@ bool MIRGraph::SkipCompilation(std::string* skip_message) {
     skip_compilation = true;
     *skip_message = "Huge method: " + std::to_string(GetNumDalvikInsns());
     // If we're got a huge number of basic blocks, don't bother with further analysis.
-    if (static_cast<size_t>(num_blocks_) > (compiler_options.GetHugeMethodThreshold() / 2)) {
+    if (static_cast<size_t>(GetNumBlocks()) > (compiler_options.GetHugeMethodThreshold() / 2)) {
       return true;
     }
   } else if (compiler_options.IsLargeMethod(GetNumDalvikInsns()) &&

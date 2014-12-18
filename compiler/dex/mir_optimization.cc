@@ -908,8 +908,10 @@ void MIRGraph::CombineBlocks(class BasicBlock* bb) {
       child->UpdatePredecessor(bb_next->id, bb->id);
     }
 
-    // DFS orders are not up to date anymore.
+    // DFS orders, domination and topological order are not up to date anymore.
     dfs_orders_up_to_date_ = false;
+    domination_up_to_date_ = false;
+    topological_order_up_to_date_ = false;
 
     // Now, loop back and see if we can keep going
   }
@@ -1581,7 +1583,7 @@ bool MIRGraph::BuildExtendedBBList(class BasicBlock* bb) {
   return false;  // Not iterative - return value will be ignored
 }
 
-void MIRGraph::BasicBlockOptimization() {
+void MIRGraph::BasicBlockOptimizationStart() {
   if ((cu_->disable_opt & (1 << kLocalValueNumbering)) == 0) {
     temp_scoped_alloc_.reset(ScopedArenaAllocator::Create(&cu_->arena_stack));
     temp_.gvn.ifield_ids_ =
@@ -1589,7 +1591,9 @@ void MIRGraph::BasicBlockOptimization() {
     temp_.gvn.sfield_ids_ =
         GlobalValueNumbering::PrepareGvnFieldIds(temp_scoped_alloc_.get(), sfield_lowering_infos_);
   }
+}
 
+void MIRGraph::BasicBlockOptimization() {
   if ((cu_->disable_opt & (1 << kSuppressExceptionEdges)) != 0) {
     ClearAllVisitedFlags();
     PreOrderDfsIterator iter2(this);
@@ -1606,7 +1610,9 @@ void MIRGraph::BasicBlockOptimization() {
       BasicBlockOpt(bb);
     }
   }
+}
 
+void MIRGraph::BasicBlockOptimizationEnd() {
   // Clean up after LVN.
   temp_.gvn.ifield_ids_ = nullptr;
   temp_.gvn.sfield_ids_ = nullptr;

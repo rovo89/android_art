@@ -574,7 +574,7 @@ class MIRGraph {
   }
 
   unsigned int GetNumBlocks() const {
-    return num_blocks_;
+    return block_list_.size();
   }
 
   /**
@@ -704,7 +704,9 @@ class MIRGraph {
 
   void DumpRegLocTable(RegLocation* table, int count);
 
+  void BasicBlockOptimizationStart();
   void BasicBlockOptimization();
+  void BasicBlockOptimizationEnd();
 
   const ArenaVector<BasicBlockId>& GetTopologicalSortOrder() {
     DCHECK(!topological_order_.empty());
@@ -1198,7 +1200,6 @@ class MIRGraph {
   void AllocateSSAUseData(MIR *mir, int num_uses);
   void AllocateSSADefData(MIR *mir, int num_defs);
   void CalculateBasicBlockInformation();
-  void InitializeBasicBlockData();
   void ComputeDFSOrders();
   void ComputeDefBlockMatrix();
   void ComputeDominators();
@@ -1209,6 +1210,18 @@ class MIRGraph {
 
   bool DfsOrdersUpToDate() const {
     return dfs_orders_up_to_date_;
+  }
+
+  bool DominationUpToDate() const {
+    return domination_up_to_date_;
+  }
+
+  bool MirSsaRepUpToDate() const {
+    return mir_ssa_rep_up_to_date_;
+  }
+
+  bool TopologicalOrderUpToDate() const {
+    return topological_order_up_to_date_;
   }
 
   /*
@@ -1310,9 +1323,6 @@ class MIRGraph {
   CompilationUnit* const cu_;
   ArenaVector<int> ssa_base_vregs_;
   ArenaVector<int> ssa_subscripts_;
-  // Map original Dalvik virtual reg i to the current SSA name.
-  int* vreg_to_ssa_map_;            // length == method->registers_size
-  int* ssa_last_defs_;              // length == method->registers_size
   ArenaBitVector* is_constant_v_;   // length == num_ssa_reg
   int* constant_values_;            // length == num_ssa_reg
   // Use counts of ssa names.
@@ -1321,6 +1331,9 @@ class MIRGraph {
   unsigned int num_reachable_blocks_;
   unsigned int max_num_reachable_blocks_;
   bool dfs_orders_up_to_date_;
+  bool domination_up_to_date_;
+  bool mir_ssa_rep_up_to_date_;
+  bool topological_order_up_to_date_;
   ArenaVector<BasicBlockId> dfs_order_;
   ArenaVector<BasicBlockId> dfs_post_order_;
   ArenaVector<BasicBlockId> dom_post_order_traversal_;
@@ -1362,6 +1375,9 @@ class MIRGraph {
       size_t num_vregs;
       ArenaBitVector* work_live_vregs;
       ArenaBitVector** def_block_matrix;  // num_vregs x num_blocks_.
+      // Map original Dalvik virtual reg i to the current SSA name.
+      int* vreg_to_ssa_map_;            // length == method->registers_size
+      int* ssa_last_defs_;              // length == method->registers_size
     } ssa;
     // Global value numbering.
     struct {
@@ -1379,7 +1395,6 @@ class MIRGraph {
   ArenaBitVector* try_block_addr_;
   BasicBlock* entry_block_;
   BasicBlock* exit_block_;
-  unsigned int num_blocks_;
   const DexFile::CodeItem* current_code_item_;
   ArenaVector<uint16_t> dex_pc_to_block_map_;    // FindBlock lookup cache.
   ArenaVector<DexCompilationUnit*> m_units_;     // List of methods included in this graph

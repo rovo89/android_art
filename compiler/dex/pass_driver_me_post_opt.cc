@@ -31,20 +31,19 @@ namespace art {
 // The initial list of passes to be used by the PassDriveMEPostOpt.
 template<>
 const Pass* const PassDriver<PassDriverMEPostOpt>::g_passes[] = {
-  GetPassInstance<InitializeData>(),
-  GetPassInstance<ClearPhiInstructions>(),
-  GetPassInstance<DFSOrders>(),
-  GetPassInstance<BuildDomination>(),
-  GetPassInstance<TopologicalSortOrders>(),
-  GetPassInstance<DefBlockMatrix>(),
-  GetPassInstance<CreatePhiNodes>(),
-  GetPassInstance<ClearVisitedFlag>(),
-  GetPassInstance<SSAConversion>(),
-  GetPassInstance<PhiNodeOperands>(),
-  GetPassInstance<ConstantPropagation>(),
-  GetPassInstance<PerformInitRegLocations>(),
-  GetPassInstance<MethodUseCount>(),
-  GetPassInstance<FreeData>(),
+    GetPassInstance<DFSOrders>(),
+    GetPassInstance<BuildDomination>(),
+    GetPassInstance<TopologicalSortOrders>(),
+    GetPassInstance<InitializeSSATransformation>(),
+    GetPassInstance<ClearPhiInstructions>(),
+    GetPassInstance<DefBlockMatrix>(),
+    GetPassInstance<CreatePhiNodes>(),
+    GetPassInstance<SSAConversion>(),
+    GetPassInstance<PhiNodeOperands>(),
+    GetPassInstance<ConstantPropagation>(),
+    GetPassInstance<PerformInitRegLocations>(),
+    GetPassInstance<MethodUseCount>(),
+    GetPassInstance<FinishSSATransformation>(),
 };
 
 // The number of the passes in the initial list of Passes (g_passes).
