@@ -859,7 +859,7 @@ void Heap::DumpGcPerformanceInfo(std::ostream& os) {
     os << "Zygote space size " << PrettySize(zygote_space_->Size()) << "\n";
   }
   os << "Total mutator paused time: " << PrettyDuration(total_paused_time) << "\n";
-  os << "Total time waiting for GC to complete: " << PrettyDuration(total_wait_time_) << "\n";
+  os << "Total time waiting for GC to complete: " << PrettyDuration(total_wait_time_);
   BaseMutex::DumpAll(os);
 }
 
