@@ -38,7 +38,7 @@ static DRegister FromLowSToD(SRegister reg) {
 
 static constexpr bool kExplicitStackOverflowCheck = false;
 
-static constexpr int kNumberOfPushedRegistersAtEntry = 1;  // LR.
+static constexpr int kNumberOfPushedRegistersAtEntry = 1 + 2;  // LR, R6, R7
 static constexpr int kCurrentMethodStackOffset = 0;
 
 static constexpr Register kRuntimeParameterCoreRegisters[] = { R0, R1, R2, R3 };
@@ -444,16 +444,21 @@ void CodeGeneratorARM::SetupBlockedRegisters() const {
   blocked_core_registers_[LR] = true;
   blocked_core_registers_[PC] = true;
 
-  // Reserve frame pointer register.
-  blocked_core_registers_[FP] = true;
-
   // Reserve thread register.
   blocked_core_registers_[TR] = true;
 
   // Reserve temp register.
   blocked_core_registers_[IP] = true;
 
-  // Reserve hard-float's callee saved registers.
+  // TODO: We currently don't use Quick's callee saved registers.
+  // We always save and restore R6 and R7 to make sure we can use three
+  // register pairs for long operations.
+  blocked_core_registers_[R4] = true;
+  blocked_core_registers_[R5] = true;
+  blocked_core_registers_[R8] = true;
+  blocked_core_registers_[R10] = true;
+  blocked_core_registers_[R11] = true;
+
   blocked_fpu_registers_[S16] = true;
   blocked_fpu_registers_[S17] = true;
   blocked_fpu_registers_[S18] = true;
@@ -508,8 +513,8 @@ void CodeGeneratorARM::GenerateFrameEntry() {
     }
   }
 
-  core_spill_mask_ |= (1 << LR);
-  __ Push(LR);
+  core_spill_mask_ |= (1 << LR | 1 << R6 | 1 << R7);
+  __ PushList(1 << LR | 1 << R6 | 1 << R7);
 
   // The return PC has already been pushed on the stack.
   __ AddConstant(SP, -(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kArmWordSize));
@@ -518,7 +523,7 @@ void CodeGeneratorARM::GenerateFrameEntry() {
 
 void CodeGeneratorARM::GenerateFrameExit() {
   __ AddConstant(SP, GetFrameSize() - kNumberOfPushedRegistersAtEntry * kArmWordSize);
-  __ Pop(PC);
+  __ PopList(1 << PC | 1 << R6 | 1 << R7);
 }
 
 void CodeGeneratorARM::Bind(HBasicBlock* block) {
