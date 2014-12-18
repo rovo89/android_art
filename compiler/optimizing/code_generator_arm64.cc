@@ -716,11 +716,8 @@ void CodeGeneratorARM64::SetupBlockedRegisters() const {
   //   tr
   //   lr
   // sp is not part of the allocatable registers, so we don't need to block it.
-  // TODO: Avoid blocking callee-saved registers, and instead preserve them
-  // where necessary.
   CPURegList reserved_core_registers = vixl_reserved_core_registers;
   reserved_core_registers.Combine(runtime_reserved_core_registers);
-  reserved_core_registers.Combine(quick_callee_saved_registers);
   while (!reserved_core_registers.IsEmpty()) {
     blocked_core_registers_[reserved_core_registers.PopLowestIndex().code()] = true;
   }

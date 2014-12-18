@@ -251,7 +251,7 @@ class X86Assembler FINAL : public Assembler {
 
   void cmovl(Condition condition, Register dst, Register src);
 
-  void setb(Condition condition, Register dst);
+  void setb(Condition condition, ByteRegister dst);
 
   void movaps(XmmRegister dst, XmmRegister src);
   void movss(XmmRegister dst, const Address& src);
