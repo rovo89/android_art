@@ -2177,11 +2177,18 @@ struct OatdumpMain : public CmdlineMain<OatdumpArgs> {
 
   virtual bool ExecuteWithoutRuntime() OVERRIDE {
     CHECK(args_ != nullptr);
-    CHECK(args_->symbolize_);
+    CHECK(args_->oat_filename_ != nullptr);
 
     MemMap::Init();
 
-    return SymbolizeOat(args_->oat_filename_, args_->output_name_) == EXIT_SUCCESS;
+    if (args_->symbolize_) {
+      return SymbolizeOat(args_->oat_filename_, args_->output_name_) == EXIT_SUCCESS;
+    } else {
+      return DumpOat(nullptr,
+                     args_->oat_filename_,
+                     oat_dumper_options_.release(),
+                     args_->os_) == EXIT_SUCCESS;
+    }
   }
 
   virtual bool ExecuteWithRuntime(Runtime* runtime) {

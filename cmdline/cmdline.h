@@ -221,18 +221,10 @@ struct CmdlineArgs {
 
   virtual ~CmdlineArgs() {}
 
- protected:
-  virtual ParseStatus ParseCustom(const StringPiece& option, std::string* error_msg) {
-    UNUSED(option);
-    UNUSED(error_msg);
-
-    return kParseUnknownArgument;
-  }
-
-  virtual ParseStatus ParseChecks(std::string* error_msg) {
+  bool ParseCheckBootImage(std::string* error_msg) {
     if (boot_image_location_ == nullptr) {
       *error_msg = "--boot-image must be specified";
-      return kParseError;
+      return false;
     }
 
     DBG_LOG << "boot image location: " << boot_image_location_;
@@ -243,7 +235,7 @@ struct CmdlineArgs {
       size_t file_name_idx = boot_image_location.rfind("/");
       if (file_name_idx == std::string::npos) {  // Prevent a InsertIsaDirectory check failure.
         *error_msg = "Boot image location must have a / in it";
-        return kParseError;
+        return false;
       }
 
       // Don't let image locations with the 'arch' in it through, since it's not a location.
@@ -263,7 +255,7 @@ struct CmdlineArgs {
 
         if (GetInstructionSetFromString(parent_dir_name.c_str()) != kNone) {
           *error_msg = "Do not specify the architecture as part of the boot image location";
-          return kParseError;
+          return false;
         }
       }
 
@@ -272,18 +264,27 @@ struct CmdlineArgs {
       if (!LocationToFilename(boot_image_location, instruction_set_, &file_name)) {
         *error_msg = StringPrintf("No corresponding file for location '%s' exists",
                                   file_name.c_str());
-        return kParseError;
+        return false;
       }
 
       DBG_LOG << "boot_image_filename does exist: " << file_name;
     }
 
-    return kParseOk;
+    return true;
   }
 
- private:
   void PrintUsage() {
     fprintf(stderr, "%s", GetUsage().c_str());
+  }
+
+ protected:
+  virtual ParseStatus ParseCustom(const StringPiece& option ATTRIBUTE_UNUSED,
+                                  std::string* error_msg ATTRIBUTE_UNUSED) {
+    return kParseUnknownArgument;
+  }
+
+  virtual ParseStatus ParseChecks(std::string* error_msg ATTRIBUTE_UNUSED) {
+    return kParseOk;
   }
 };
 
@@ -300,14 +301,21 @@ struct CmdlineMain {
       return EXIT_FAILURE;
     }
 
-    std::unique_ptr<Runtime> runtime = CreateRuntime(args.get());
-    if (runtime == nullptr) {
-      return EXIT_FAILURE;
-    }
-
     bool needs_runtime = NeedsRuntime();
+    std::unique_ptr<Runtime> runtime;
+
 
     if (needs_runtime) {
+      std::string error_msg;
+      if (!args_->ParseCheckBootImage(&error_msg)) {
+        fprintf(stderr, "%s\n", error_msg.c_str());
+        args_->PrintUsage();
+        return EXIT_FAILURE;
+      }
+      runtime.reset(CreateRuntime(args.get()));
+      if (runtime == nullptr) {
+        return EXIT_FAILURE;
+      }
       if (!ExecuteWithRuntime(runtime.get())) {
         return EXIT_FAILURE;
       }
@@ -358,11 +366,10 @@ struct CmdlineMain {
   Args* args_ = nullptr;
 
  private:
-  std::unique_ptr<Runtime> CreateRuntime(CmdlineArgs* args) {
+  Runtime* CreateRuntime(CmdlineArgs* args) {
     CHECK(args != nullptr);
 
-    return std::unique_ptr<Runtime>(StartRuntime(args->boot_image_location_,
-                                                 args->instruction_set_));
+    return StartRuntime(args->boot_image_location_, args->instruction_set_);
   }
 };
 }  // namespace art
