@@ -48,6 +48,9 @@ const vixl::Register tr = vixl::x18;        // Thread Register
 const vixl::CPURegList vixl_reserved_core_registers(vixl::ip0, vixl::ip1);
 const vixl::CPURegList vixl_reserved_fp_registers(vixl::d31);
 const vixl::CPURegList runtime_reserved_core_registers(tr, vixl::lr);
+const vixl::CPURegList quick_callee_saved_registers(vixl::CPURegister::kRegister,
+                                                    vixl::kXRegSize,
+                                                    kArm64CalleeSaveRefSpills);
 
 Location ARM64ReturnLocation(Primitive::Type return_type);
 
