@@ -57,7 +57,7 @@ ExpandBuf* expandBufAlloc() {
  * Free a JdwpBuf and associated storage.
  */
 void expandBufFree(ExpandBuf* pBuf) {
-  if (pBuf == NULL) {
+  if (pBuf == nullptr) {
     return;
   }
 
@@ -93,7 +93,7 @@ static void ensureSpace(ExpandBuf* pBuf, int newCount) {
   }
 
   uint8_t* newPtr = reinterpret_cast<uint8_t*>(realloc(pBuf->storage, pBuf->maxLen));
-  if (newPtr == NULL) {
+  if (newPtr == nullptr) {
     LOG(FATAL) << "realloc(" << pBuf->maxLen << ") failed";
   }
 

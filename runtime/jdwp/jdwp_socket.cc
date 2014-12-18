@@ -77,12 +77,12 @@ bool InitSocketTransport(JdwpState* state, const JdwpOptions* options) {
       /* scan through a range of ports, binding to the first available */
       for (port = kBasePort; port <= kMaxPort; port++) {
         state->netState = SocketStartup(state, port, true);
-        if (state->netState != NULL) {
+        if (state->netState != nullptr) {
           break;
         }
       }
     }
-    if (state->netState == NULL) {
+    if (state->netState == nullptr) {
       LOG(ERROR) << "JDWP net startup failed (req port=" << options->port << ")";
       return false;
     }
@@ -157,7 +157,7 @@ static JdwpSocketState* SocketStartup(JdwpState* state, uint16_t port, bool prob
  fail:
   netState->Shutdown();
   delete netState;
-  return NULL;
+  return nullptr;
 }
 
 /*
@@ -284,7 +284,7 @@ bool JdwpSocketState::Establish(const JdwpOptions* options) {
 #else
   h_errno = 0;
   pEntry = gethostbyname(options->host.c_str());
-  if (pEntry == NULL) {
+  if (pEntry == nullptr) {
     PLOG(WARNING) << "gethostbyname('" << options->host << "') failed";
     return false;
   }
@@ -403,7 +403,7 @@ bool JdwpSocketState::ProcessIncoming() {
        * re-issue the select.  We're currently using #2, as it's more
        * reliable than #1 and generally better than #3.  Wastes two fds.
        */
-      selCount = select(maxfd+1, &readfds, NULL, NULL, NULL);
+      selCount = select(maxfd + 1, &readfds, nullptr, nullptr, nullptr);
       if (selCount < 0) {
         if (errno == EINTR) {
           continue;

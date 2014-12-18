@@ -27,6 +27,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <vector>
 
 struct iovec;
 
@@ -188,7 +189,7 @@ struct JdwpState {
    * The VM has finished initializing.  Only called when the debugger is
    * connected at the time initialization completes.
    */
-  bool PostVMStart() LOCKS_EXCLUDED(event_list_lock_) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void PostVMStart() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * A location of interest has been reached.  This is used for breakpoints,
@@ -202,7 +203,7 @@ struct JdwpState {
    *
    * "returnValue" is non-null for MethodExit events only.
    */
-  bool PostLocationEvent(const EventLocation* pLoc, mirror::Object* thisPtr, int eventFlags,
+  void PostLocationEvent(const EventLocation* pLoc, mirror::Object* thisPtr, int eventFlags,
                          const JValue* returnValue)
      LOCKS_EXCLUDED(event_list_lock_)
      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -214,7 +215,7 @@ struct JdwpState {
    * "fieldValue" is non-null for field modification events only.
    * "is_modification" is true for field modification, false for field access.
    */
-  bool PostFieldEvent(const EventLocation* pLoc, mirror::ArtField* field, mirror::Object* thisPtr,
+  void PostFieldEvent(const EventLocation* pLoc, mirror::ArtField* field, mirror::Object* thisPtr,
                       const JValue* fieldValue, bool is_modification)
       LOCKS_EXCLUDED(event_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -224,7 +225,7 @@ struct JdwpState {
    *
    * Pass in a zeroed-out "*pCatchLoc" if the exception wasn't caught.
    */
-  bool PostException(const EventLocation* pThrowLoc, mirror::Throwable* exception_object,
+  void PostException(const EventLocation* pThrowLoc, mirror::Throwable* exception_object,
                      const EventLocation* pCatchLoc, mirror::Object* thisPtr)
       LOCKS_EXCLUDED(event_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -232,14 +233,14 @@ struct JdwpState {
   /*
    * A thread has started or stopped.
    */
-  bool PostThreadChange(Thread* thread, bool start)
+  void PostThreadChange(Thread* thread, bool start)
       LOCKS_EXCLUDED(event_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*
    * Class has been prepared.
    */
-  bool PostClassPrepare(mirror::Class* klass)
+  void PostClassPrepare(mirror::Class* klass)
       LOCKS_EXCLUDED(event_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -307,15 +308,16 @@ struct JdwpState {
   void SendRequestAndPossiblySuspend(ExpandBuf* pReq, JdwpSuspendPolicy suspend_policy,
                                      ObjectId threadId)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void CleanupMatchList(JdwpEvent** match_list,
-                        size_t match_count)
+  void CleanupMatchList(const std::vector<JdwpEvent*>& match_list)
       EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void EventFinish(ExpandBuf* pReq);
-  void FindMatchingEvents(JdwpEventKind eventKind,
-                          const ModBasket& basket,
-                          JdwpEvent** match_list,
-                          size_t* pMatchCount)
+  bool FindMatchingEvents(JdwpEventKind eventKind, const ModBasket& basket,
+                          std::vector<JdwpEvent*>* match_list)
+      LOCKS_EXCLUDED(event_list_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void FindMatchingEventsLocked(JdwpEventKind eventKind, const ModBasket& basket,
+                                std::vector<JdwpEvent*>* match_list)
       EXCLUSIVE_LOCKS_REQUIRED(event_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void UnregisterEvent(JdwpEvent* pEvent)
