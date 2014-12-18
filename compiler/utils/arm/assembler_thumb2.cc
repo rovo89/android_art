@@ -698,48 +698,37 @@ bool Thumb2Assembler::Is32BitDataProcessing(Condition cond ATTRIBUTE_UNUSED,
     return true;
   }
 
-  bool can_contain_high_register = (opcode == MOV)
-      || ((opcode == ADD || opcode == SUB) && (rn == rd));
-
-  if (IsHighRegister(rd) || IsHighRegister(rn)) {
-    if (can_contain_high_register) {
-      // There are high register instructions available for this opcode.
-      // However, there is no RRX available.
-      if (so.IsShift() && so.GetShift() == RRX) {
-        return true;
+  // Check special case for SP relative ADD and SUB immediate.
+  if ((opcode == ADD || opcode == SUB) && rn == SP && so.IsImmediate()) {
+    // If the immediate is in range, use 16 bit.
+    if (rd == SP) {
+      if (so.GetImmediate() < (1 << 9)) {    // 9 bit immediate.
+        return false;
       }
-
-      // Check special case for SP relative ADD and SUB immediate.
-      if ((opcode == ADD || opcode == SUB) && so.IsImmediate()) {
-        // If rn is SP and rd is a high register we need to use a 32 bit encoding.
-         if (rn == SP && rd != SP && IsHighRegister(rd)) {
-           return true;
-         }
-
-         uint32_t imm = so.GetImmediate();
-         // If the immediates are out of range use 32 bit.
-         if (rd == SP && rn == SP) {
-           if (imm > (1 << 9)) {    // 9 bit immediate.
-             return true;
-           }
-         } else if (opcode == ADD && rd != SP && rn == SP) {   // 10 bit immediate.
-           if (imm > (1 << 10)) {
-             return true;
-           }
-         } else if (opcode == SUB && rd != SP && rn == SP) {
-           // SUB rd, SP, #imm is always 32 bit.
-           return true;
-         }
+    } else if (!IsHighRegister(rd) && opcode == ADD) {
+      if (so.GetImmediate() < (1 << 10)) {    // 10 bit immediate.
+        return false;
       }
     }
+  }
 
-    // The ADD,SUB and MOV instructions that work with high registers don't have
-    // immediate variants.
-    if (so.IsImmediate()) {
+  bool can_contain_high_register = (opcode == MOV)
+      || ((opcode == ADD) && (rn == rd));
+
+  if (IsHighRegister(rd) || IsHighRegister(rn)) {
+    if (!can_contain_high_register) {
       return true;
     }
 
-    if (!can_contain_high_register) {
+    // There are high register instructions available for this opcode.
+    // However, there is no actual shift available, neither for ADD nor for MOV (ASR/LSR/LSL/ROR).
+    if (so.IsShift() && (so.GetShift() == RRX || so.GetImmediate() != 0u)) {
+      return true;
+    }
+
+    // The ADD and MOV instructions that work with high registers don't have 16-bit
+    // immediate variants.
+    if (so.IsImmediate()) {
       return true;
     }
   }
