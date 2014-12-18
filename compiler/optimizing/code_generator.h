@@ -211,6 +211,7 @@ class CodeGenerator : public ArenaObject<kArenaAllocMisc> {
 
   // Register allocation logic.
   void AllocateRegistersLocally(HInstruction* instruction) const;
+  void MaybeBlockPhysicalRegisters(Location loc, bool is_output) const;
 
   // Backend specific implementation for allocating a register.
   virtual Location AllocateFreeRegister(Primitive::Type type) const = 0;
