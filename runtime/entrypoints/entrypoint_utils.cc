@@ -33,8 +33,8 @@
 namespace art {
 
 static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx,
-                                                      mirror::ArtMethod* referrer,
                                                       int32_t component_count,
+                                                      mirror::ArtMethod* referrer,
                                                       Thread* self,
                                                       bool access_check)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -76,11 +76,11 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx,
 }
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
-mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* referrer,
-                                          int32_t component_count, Thread* self,
+mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, int32_t component_count,
+                                          mirror::ArtMethod* referrer, Thread* self,
                                           bool access_check,
                                           gc::AllocatorType /* allocator_type */) {
-  mirror::Class* klass = CheckFilledNewArrayAlloc(type_idx, referrer, component_count, self,
+  mirror::Class* klass = CheckFilledNewArrayAlloc(type_idx, component_count, referrer, self,
                                                   access_check);
   if (UNLIKELY(klass == nullptr)) {
     return nullptr;
@@ -96,12 +96,12 @@ mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* 
 
 // Helper function to allocate array for FILLED_NEW_ARRAY.
 mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx,
-                                                      mirror::ArtMethod* referrer,
                                                       int32_t component_count,
+                                                      mirror::ArtMethod* referrer,
                                                       Thread* self,
                                                       bool access_check,
                                                       gc::AllocatorType /* allocator_type */) {
-  mirror::Class* klass = CheckFilledNewArrayAlloc(type_idx, referrer, component_count, self,
+  mirror::Class* klass = CheckFilledNewArrayAlloc(type_idx, component_count, referrer, self,
                                                   access_check);
   if (UNLIKELY(klass == nullptr)) {
     return nullptr;

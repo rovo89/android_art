@@ -233,6 +233,11 @@ END \c_name
     DELIVER_PENDING_EXCEPTION
 .endm
 
+.macro RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+    RETURN_IF_RESULT_IS_NON_ZERO
+    DELIVER_PENDING_EXCEPTION
+.endm
+
 // Macros taking opportunity of code similarities for downcalls with referrer for non-wide fields.
 .macro  ONE_ARG_REF_DOWNCALL name, entrypoint, return
     .extern \entrypoint
@@ -258,7 +263,7 @@ ENTRY \name
 END \name
 .endm
 
-.macro  THREE_ARG_REF_DOWNCALL name, entrypoint, return
+.macro THREE_ARG_REF_DOWNCALL name, entrypoint, return
     .extern \entrypoint
 ENTRY \name
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME r3, r12  @ save callee saves in case of GC
@@ -633,50 +638,35 @@ ENTRY art_quick_aput_obj
     bkpt                           @ unreached
 END art_quick_aput_obj
 
-    /*
-     * Entry from managed code when uninitialized static storage, this stub will run the class
-     * initializer and deliver the exception on error. On success the static storage base is
-     * returned.
-     */
-    .extern artInitializeStaticStorageFromCode
-ENTRY art_quick_initialize_static_storage
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME r2, r3    @ save callee saves in case of GC
-    mov    r2, r9                              @ pass Thread::Current
-    @ artInitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer, Thread*)
-    bl     artInitializeStaticStorageFromCode
+// Macro to facilitate adding new allocation entrypoints.
+.macro TWO_ARG_DOWNCALL name, entrypoint, return
+    .extern \entrypoint
+ENTRY \name
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  r2, r3  @ save callee saves in case of GC
+    mov    r2, r9                     @ pass Thread::Current
+    bl     \entrypoint     @ (uint32_t type_idx, Method* method, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
-    RETURN_IF_RESULT_IS_NON_ZERO
-    DELIVER_PENDING_EXCEPTION
-END art_quick_initialize_static_storage
+    \return
+END \name
+.endm
 
-    /*
-     * Entry from managed code when dex cache misses for a type_idx
-     */
-    .extern artInitializeTypeFromCode
-ENTRY art_quick_initialize_type
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME r2, r3    @ save callee saves in case of GC
-    mov    r2, r9                              @ pass Thread::Current
-    @ artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*)
-    bl     artInitializeTypeFromCode
+// Macro to facilitate adding new array allocation entrypoints.
+.macro THREE_ARG_DOWNCALL name, entrypoint, return
+    .extern \entrypoint
+ENTRY \name
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  r3, r12  @ save callee saves in case of GC
+    mov    r3, r9                     @ pass Thread::Current
+    @ (uint32_t type_idx, Method* method, int32_t component_count, Thread*)
+    bl     \entrypoint
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
-    RETURN_IF_RESULT_IS_NON_ZERO
-    DELIVER_PENDING_EXCEPTION
-END art_quick_initialize_type
+    \return
+END \name
+.endm
 
-    /*
-     * Entry from managed code when type_idx needs to be checked for access and dex cache may also
-     * miss.
-     */
-    .extern artInitializeTypeAndVerifyAccessFromCode
-ENTRY art_quick_initialize_type_and_verify_access
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME r2, r3    @ save callee saves in case of GC
-    mov    r2, r9                              @ pass Thread::Current
-    @ artInitializeTypeAndVerifyAccessFromCode(uint32_t type_idx, Method* referrer, Thread*)
-    bl     artInitializeTypeAndVerifyAccessFromCode
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
-    RETURN_IF_RESULT_IS_NON_ZERO
-    DELIVER_PENDING_EXCEPTION
-END art_quick_initialize_type_and_verify_access
+TWO_ARG_DOWNCALL art_quick_initialize_static_storage, artInitializeStaticStorageFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+
+TWO_ARG_DOWNCALL art_quick_initialize_type, artInitializeTypeFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+TWO_ARG_DOWNCALL art_quick_initialize_type_and_verify_access, artInitializeTypeAndVerifyAccessFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 
     /*
      * Called by managed code to resolve a static field and load a non-wide value.
@@ -789,43 +779,7 @@ END art_quick_set64_instance
      * R1 holds the string index. The fast path check for hit in strings cache has already been
      * performed.
      */
-    .extern artResolveStringFromCode
-ENTRY art_quick_resolve_string
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME r2, r3  @ save callee saves in case of GC
-    mov    r2, r9                     @ pass Thread::Current
-    @ artResolveStringFromCode(Method* referrer, uint32_t string_idx, Thread*)
-    bl     artResolveStringFromCode
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
-    RETURN_IF_RESULT_IS_NON_ZERO
-    DELIVER_PENDING_EXCEPTION
-END art_quick_resolve_string
-
-// Macro to facilitate adding new allocation entrypoints.
-.macro TWO_ARG_DOWNCALL name, entrypoint, return
-    .extern \entrypoint
-ENTRY \name
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  r2, r3  @ save callee saves in case of GC
-    mov    r2, r9                     @ pass Thread::Current
-    bl     \entrypoint     @ (uint32_t type_idx, Method* method, Thread*)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
-    \return
-    DELIVER_PENDING_EXCEPTION
-END \name
-.endm
-
-// Macro to facilitate adding new array allocation entrypoints.
-.macro THREE_ARG_DOWNCALL name, entrypoint, return
-    .extern \entrypoint
-ENTRY \name
-    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  r3, r12  @ save callee saves in case of GC
-    mov    r3, r9                     @ pass Thread::Current
-    @ (uint32_t type_idx, Method* method, int32_t component_count, Thread*)
-    bl     \entrypoint
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
-    \return
-    DELIVER_PENDING_EXCEPTION
-END \name
-.endm
+TWO_ARG_DOWNCALL art_quick_resolve_string, artResolveStringFromCode, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALL_ALLOC_ENTRYPOINTS

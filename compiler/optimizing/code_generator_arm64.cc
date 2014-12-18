@@ -17,6 +17,7 @@
 #include "code_generator_arm64.h"
 
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "gc/accounting/card_table.h"
 #include "mirror/array-inl.h"
 #include "mirror/art_method.h"
@@ -294,6 +295,7 @@ class BoundsCheckSlowPathARM64 : public SlowPathCodeARM64 {
         length_location_, LocationFrom(calling_convention.GetRegisterAt(1)));
     arm64_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pThrowArrayBounds), instruction_, instruction_->GetDexPc());
+    CheckEntrypointTypes<kQuickThrowArrayBounds, void, int32_t, int32_t>();
   }
 
  private:
@@ -313,6 +315,7 @@ class DivZeroCheckSlowPathARM64 : public SlowPathCodeARM64 {
     __ Bind(GetEntryLabel());
     arm64_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pThrowDivZero), instruction_, instruction_->GetDexPc());
+    CheckEntrypointTypes<kQuickThrowDivZero, void, void>();
   }
 
  private:
@@ -343,6 +346,11 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
     int32_t entry_point_offset = do_clinit_ ? QUICK_ENTRY_POINT(pInitializeStaticStorage)
                                             : QUICK_ENTRY_POINT(pInitializeType);
     arm64_codegen->InvokeRuntime(entry_point_offset, at_, dex_pc_);
+    if (do_clinit_) {
+      CheckEntrypointTypes<kQuickInitializeStaticStorage, void*, uint32_t, mirror::ArtMethod*>();
+    } else {
+      CheckEntrypointTypes<kQuickInitializeType, void*, uint32_t, mirror::ArtMethod*>();
+    }
 
     // Move the class to the desired location.
     Location out = locations->Out();
@@ -386,10 +394,11 @@ class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
     codegen->SaveLiveRegisters(locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    arm64_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(0).W());
-    __ Mov(calling_convention.GetRegisterAt(1).W(), instruction_->GetStringIndex());
+    arm64_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1).W());
+    __ Mov(calling_convention.GetRegisterAt(0).W(), instruction_->GetStringIndex());
     arm64_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pResolveString), instruction_, instruction_->GetDexPc());
+    CheckEntrypointTypes<kQuickResolveString, void*, uint32_t, mirror::ArtMethod*>();
     Primitive::Type type = instruction_->GetType();
     arm64_codegen->MoveLocation(locations->Out(), calling_convention.GetReturnLocation(type), type);
 
@@ -412,6 +421,7 @@ class NullCheckSlowPathARM64 : public SlowPathCodeARM64 {
     __ Bind(GetEntryLabel());
     arm64_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pThrowNullPointer), instruction_, instruction_->GetDexPc());
+    CheckEntrypointTypes<kQuickThrowNullPointer, void, void>();
   }
 
  private:
@@ -428,6 +438,7 @@ class StackOverflowCheckSlowPathARM64 : public SlowPathCodeARM64 {
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
     __ Bind(GetEntryLabel());
     arm64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pThrowStackOverflow), nullptr, 0);
+    CheckEntrypointTypes<kQuickThrowStackOverflow, void, void>();
   }
 
  private:
@@ -446,6 +457,7 @@ class SuspendCheckSlowPathARM64 : public SlowPathCodeARM64 {
     codegen->SaveLiveRegisters(instruction_->GetLocations());
     arm64_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pTestSuspend), instruction_, instruction_->GetDexPc());
+    CheckEntrypointTypes<kQuickTestSuspend, void, void>();
     codegen->RestoreLiveRegisters(instruction_->GetLocations());
     if (successor_ == nullptr) {
       __ B(GetReturnLabel());
@@ -502,9 +514,12 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
       Primitive::Type ret_type = instruction_->GetType();
       Location ret_loc = calling_convention.GetReturnLocation(ret_type);
       arm64_codegen->MoveLocation(locations->Out(), ret_loc, ret_type);
+      CheckEntrypointTypes<kQuickInstanceofNonTrivial, uint32_t,
+                           const mirror::Class*, const mirror::Class*>();
     } else {
       DCHECK(instruction_->IsCheckCast());
       arm64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast), instruction_, dex_pc_);
+      CheckEntrypointTypes<kQuickCheckCast, void, const mirror::Class*, const mirror::Class*>();
     }
 
     codegen->RestoreLiveRegisters(locations);
@@ -1288,7 +1303,7 @@ void InstructionCodeGeneratorARM64::VisitArraySet(HArraySet* instruction) {
   Primitive::Type value_type = instruction->GetComponentType();
   if (value_type == Primitive::kPrimNot) {
     codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pAputObject), instruction, instruction->GetDexPc());
-
+    CheckEntrypointTypes<kQuickAputObject, void, mirror::Array*, int32_t, mirror::Object*>();
   } else {
     LocationSummary* locations = instruction->GetLocations();
     Register obj = InputRegisterAt(instruction, 0);
@@ -1959,6 +1974,7 @@ void InstructionCodeGeneratorARM64::VisitMonitorOperation(HMonitorOperation* ins
         ? QUICK_ENTRY_POINT(pLockObject) : QUICK_ENTRY_POINT(pUnlockObject),
       instruction,
       instruction->GetDexPc());
+  CheckEntrypointTypes<kQuickLockObject, void, mirror::Object*>();
 }
 
 void LocationsBuilderARM64::VisitMul(HMul* mul) {
@@ -2044,9 +2060,11 @@ void LocationsBuilderARM64::VisitNewArray(HNewArray* instruction) {
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kCall);
   InvokeRuntimeCallingConvention calling_convention;
   locations->AddTemp(LocationFrom(calling_convention.GetRegisterAt(0)));
-  locations->AddTemp(LocationFrom(calling_convention.GetRegisterAt(1)));
+  locations->AddTemp(LocationFrom(calling_convention.GetRegisterAt(2)));
   locations->SetOut(LocationFrom(x0));
-  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(2)));
+  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(1)));
+  CheckEntrypointTypes<kQuickAllocArrayWithAccessCheck,
+                       void*, uint32_t, int32_t, mirror::ArtMethod*>();
 }
 
 void InstructionCodeGeneratorARM64::VisitNewArray(HNewArray* instruction) {
@@ -2055,11 +2073,13 @@ void InstructionCodeGeneratorARM64::VisitNewArray(HNewArray* instruction) {
   Register type_index = RegisterFrom(locations->GetTemp(0), Primitive::kPrimInt);
   DCHECK(type_index.Is(w0));
   Register current_method = RegisterFrom(locations->GetTemp(1), Primitive::kPrimNot);
-  DCHECK(current_method.Is(w1));
+  DCHECK(current_method.Is(w2));
   codegen_->LoadCurrentMethod(current_method);
   __ Mov(type_index, instruction->GetTypeIndex());
   codegen_->InvokeRuntime(
       QUICK_ENTRY_POINT(pAllocArrayWithAccessCheck), instruction, instruction->GetDexPc());
+  CheckEntrypointTypes<kQuickAllocArrayWithAccessCheck,
+                       void*, uint32_t, int32_t, mirror::ArtMethod*>();
 }
 
 void LocationsBuilderARM64::VisitNewInstance(HNewInstance* instruction) {
@@ -2069,6 +2089,7 @@ void LocationsBuilderARM64::VisitNewInstance(HNewInstance* instruction) {
   locations->AddTemp(LocationFrom(calling_convention.GetRegisterAt(0)));
   locations->AddTemp(LocationFrom(calling_convention.GetRegisterAt(1)));
   locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimNot));
+  CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, mirror::ArtMethod*>();
 }
 
 void InstructionCodeGeneratorARM64::VisitNewInstance(HNewInstance* instruction) {
@@ -2081,6 +2102,7 @@ void InstructionCodeGeneratorARM64::VisitNewInstance(HNewInstance* instruction) 
   __ Mov(type_index, instruction->GetTypeIndex());
   codegen_->InvokeRuntime(
       QUICK_ENTRY_POINT(pAllocObjectWithAccessCheck), instruction, instruction->GetDexPc());
+  CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, mirror::ArtMethod*>();
 }
 
 void LocationsBuilderARM64::VisitNot(HNot* instruction) {
@@ -2353,6 +2375,7 @@ void LocationsBuilderARM64::VisitThrow(HThrow* instruction) {
 void InstructionCodeGeneratorARM64::VisitThrow(HThrow* instruction) {
   codegen_->InvokeRuntime(
       QUICK_ENTRY_POINT(pDeliverException), instruction, instruction->GetDexPc());
+  CheckEntrypointTypes<kQuickDeliverException, void, mirror::Object*>();
 }
 
 void LocationsBuilderARM64::VisitTypeConversion(HTypeConversion* conversion) {
