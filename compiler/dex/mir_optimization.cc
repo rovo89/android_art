@@ -788,43 +788,9 @@ void MIRGraph::CombineBlocks(class BasicBlock* bb) {
     MIR* mir = bb->last_mir_insn;
     DCHECK(bb->first_mir_insn !=  nullptr);
 
-    // Grab the attributes from the paired opcode.
+    // Get the paired insn and check if it can still throw.
     MIR* throw_insn = mir->meta.throw_insn;
-    uint64_t df_attributes = GetDataFlowAttributes(throw_insn);
-
-    // Don't combine if the throw_insn can still throw NPE.
-    if ((df_attributes & DF_HAS_NULL_CHKS) != 0 &&
-        (throw_insn->optimization_flags & MIR_IGNORE_NULL_CHECK) == 0) {
-      break;
-    }
-    // Now whitelist specific instructions.
-    bool ok = false;
-    if ((df_attributes & DF_IFIELD) != 0) {
-      // Combine only if fast, otherwise weird things can happen.
-      const MirIFieldLoweringInfo& field_info = GetIFieldLoweringInfo(throw_insn);
-      ok = (df_attributes & DF_DA)  ? field_info.FastGet() : field_info.FastPut();
-    } else if ((df_attributes & DF_SFIELD) != 0) {
-      // Combine only if fast, otherwise weird things can happen.
-      const MirSFieldLoweringInfo& field_info = GetSFieldLoweringInfo(throw_insn);
-      bool fast = ((df_attributes & DF_DA)  ? field_info.FastGet() : field_info.FastPut());
-      // Don't combine if the SGET/SPUT can call <clinit>().
-      bool clinit = !field_info.IsClassInitialized() &&
-          (throw_insn->optimization_flags & MIR_CLASS_IS_INITIALIZED) == 0;
-      ok = fast && !clinit;
-    } else if ((df_attributes & DF_HAS_RANGE_CHKS) != 0) {
-      // Only AGET/APUT have range checks. We have processed the AGET/APUT null check above.
-      DCHECK_NE(throw_insn->optimization_flags & MIR_IGNORE_NULL_CHECK, 0);
-      ok = ((throw_insn->optimization_flags & MIR_IGNORE_RANGE_CHECK) != 0);
-    } else if ((throw_insn->dalvikInsn.FlagsOf() & Instruction::kThrow) == 0) {
-      // We can encounter a non-throwing insn here thanks to inlining or other optimizations.
-      ok = true;
-    } else if (throw_insn->dalvikInsn.opcode == Instruction::ARRAY_LENGTH ||
-        throw_insn->dalvikInsn.opcode == Instruction::FILL_ARRAY_DATA ||
-        static_cast<int>(throw_insn->dalvikInsn.opcode) == kMirOpNullCheck) {
-      // No more checks for these (null check was processed above).
-      ok = true;
-    }
-    if (!ok) {
+    if (CanThrow(throw_insn)) {
       break;
     }
 
@@ -1719,32 +1685,37 @@ bool MIRGraph::CanThrow(MIR* mir) {
   const int opt_flags = mir->optimization_flags;
   uint64_t df_attributes = GetDataFlowAttributes(mir);
 
+  // First, check if the insn can still throw NPE.
   if (((df_attributes & DF_HAS_NULL_CHKS) != 0) && ((opt_flags & MIR_IGNORE_NULL_CHECK) == 0)) {
     return true;
   }
+
+  // Now process specific instructions.
   if ((df_attributes & DF_IFIELD) != 0) {
-    // The IGET/IPUT family.
+    // The IGET/IPUT family. We have processed the IGET/IPUT null check above.
+    DCHECK_NE(opt_flags & MIR_IGNORE_NULL_CHECK, 0);
+    // If not fast, weird things can happen and the insn can throw.
     const MirIFieldLoweringInfo& field_info = GetIFieldLoweringInfo(mir);
-    bool fast = (df_attributes & DF_DA) ? field_info.FastGet() : field_info.FastPut();
-    // Already processed null check above.
-    if (fast) {
-      return false;
-    }
-  } else if ((df_attributes & DF_HAS_RANGE_CHKS) != 0) {
-    // The AGET/APUT family.
-    // Already processed null check above.
-    if ((opt_flags & MIR_IGNORE_RANGE_CHECK) != 0) {
-      return false;
-    }
+    bool fast = (df_attributes & DF_DA) != 0 ? field_info.FastGet() : field_info.FastPut();
+    return !fast;
   } else if ((df_attributes & DF_SFIELD) != 0) {
-    // The SGET/SPUT family.
+    // The SGET/SPUT family. Check for potentially throwing class initialization.
+    // Also, if not fast, weird things can happen and the insn can throw.
     const MirSFieldLoweringInfo& field_info = GetSFieldLoweringInfo(mir);
-    bool fast = (df_attributes & DF_DA) ? field_info.FastGet() : field_info.FastPut();
+    bool fast = (df_attributes & DF_DA) != 0 ? field_info.FastGet() : field_info.FastPut();
     bool is_class_initialized = field_info.IsClassInitialized() ||
         ((mir->optimization_flags & MIR_CLASS_IS_INITIALIZED) != 0);
-    if (fast && is_class_initialized) {
-      return false;
-    }
+    return !(fast && is_class_initialized);
+  } else if ((df_attributes & DF_HAS_RANGE_CHKS) != 0) {
+    // Only AGET/APUT have range checks. We have processed the AGET/APUT null check above.
+    DCHECK_NE(opt_flags & MIR_IGNORE_NULL_CHECK, 0);
+    // Non-throwing only if range check has been eliminated.
+    return ((opt_flags & MIR_IGNORE_RANGE_CHECK) == 0);
+  } else if (mir->dalvikInsn.opcode == Instruction::ARRAY_LENGTH ||
+      mir->dalvikInsn.opcode == Instruction::FILL_ARRAY_DATA ||
+      static_cast<int>(mir->dalvikInsn.opcode) == kMirOpNullCheck) {
+    // No more checks for these (null check was processed above).
+    return false;
   }
   return true;
 }
