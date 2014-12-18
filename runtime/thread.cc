@@ -1210,7 +1210,10 @@ void Thread::Destroy() {
     tlsPtr_.opeer = nullptr;
   }
 
-  Runtime::Current()->GetHeap()->RevokeThreadLocalBuffers(this);
+  {
+    ScopedObjectAccess soa(self);
+    Runtime::Current()->GetHeap()->RevokeThreadLocalBuffers(this);
+  }
 }
 
 Thread::~Thread() {
