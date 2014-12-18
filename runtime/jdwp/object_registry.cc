@@ -138,7 +138,7 @@ mirror::Object* ObjectRegistry::InternalGet(JDWP::ObjectId id, JDWP::JdwpError* 
 
 jobject ObjectRegistry::GetJObject(JDWP::ObjectId id) {
   if (id == 0) {
-    return NULL;
+    return nullptr;
   }
   Thread* self = Thread::Current();
   MutexLock mu(self, lock_);
@@ -194,7 +194,7 @@ bool ObjectRegistry::IsCollected(JDWP::ObjectId id) {
   ObjectRegistryEntry& entry = *it->second;
   if (entry.jni_reference_type == JNIWeakGlobalRefType) {
     JNIEnv* env = self->GetJniEnv();
-    return env->IsSameObject(entry.jni_reference, NULL);  // Has the jweak been collected?
+    return env->IsSameObject(entry.jni_reference, nullptr);  // Has the jweak been collected?
   } else {
     return false;  // We hold a strong reference, so we know this is live.
   }
