@@ -27,6 +27,7 @@
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache.h"
 #include "nodes.h"
+#include "register_allocator.h"
 #include "ssa_phi_elimination.h"
 #include "scoped_thread_state_change.h"
 #include "thread.h"
@@ -140,6 +141,13 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
     VLOG(compiler) << "Method " << PrettyMethod(method_index, outer_dex_file)
                    << " has too many blocks to be inlined: "
                    << callee_graph->GetBlocks().Size();
+    return false;
+  }
+
+  if (!RegisterAllocator::CanAllocateRegistersFor(*callee_graph,
+                                                  compiler_driver_->GetInstructionSet())) {
+    VLOG(compiler) << "Method " << PrettyMethod(method_index, outer_dex_file)
+                   << " cannot be inlined because of the register allocator";
     return false;
   }
 
