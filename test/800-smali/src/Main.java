@@ -65,6 +65,7 @@ public class Main {
         testCases.add(new TestCase("BadCaseInOpRegRegReg", "BadCaseInOpRegRegReg", "getInt", null, null, 2));
         testCases.add(new TestCase("CmpLong", "CmpLong", "run", null, null, 0));
         testCases.add(new TestCase("FloatIntConstPassing", "FloatIntConstPassing", "run", null, null, 2));
+        testCases.add(new TestCase("b/18718277", "B18718277", "getInt", null, null, 0));
     }
 
     public void runTests() {

@@ -284,7 +284,8 @@ class BBCombine : public PassME {
  */
 class BBOptimizations : public PassME {
  public:
-  BBOptimizations() : PassME("BBOptimizations", kNoNodes, "5_post_bbo_cfg") {
+  BBOptimizations()
+      : PassME("BBOptimizations", kNoNodes, kOptimizationBasicBlockChange, "5_post_bbo_cfg") {
   }
 
   bool Gate(const PassDataHolder* data) const {
@@ -314,6 +315,7 @@ class BBOptimizations : public PassME {
     CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
     c_unit->mir_graph->BasicBlockOptimizationEnd();
+    down_cast<PassMEDataHolder*>(data)->dirty = !c_unit->mir_graph->DfsOrdersUpToDate();
   }
 };
 

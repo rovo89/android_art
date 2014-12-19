@@ -2250,12 +2250,6 @@ void BasicBlock::Kill(MIRGraph* mir_graph) {
   }
   predecessors.clear();
 
-  KillUnreachable(mir_graph);
-}
-
-void BasicBlock::KillUnreachable(MIRGraph* mir_graph) {
-  DCHECK(predecessors.empty());  // Unreachable.
-
   // Mark as dead and hidden.
   block_type = kDead;
   hidden = true;
@@ -2274,9 +2268,6 @@ void BasicBlock::KillUnreachable(MIRGraph* mir_graph) {
   ChildBlockIterator iter(this, mir_graph);
   for (BasicBlock* succ_bb = iter.Next(); succ_bb != nullptr; succ_bb = iter.Next()) {
     succ_bb->ErasePredecessor(id);
-    if (succ_bb->predecessors.empty()) {
-      succ_bb->KillUnreachable(mir_graph);
-    }
   }
 
   // Remove links to children.
