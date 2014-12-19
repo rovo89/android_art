@@ -417,6 +417,7 @@ void MipsMir2Lir::FreeCallTemps() {
   FreeTemp(rs_rMIPS_ARG1);
   FreeTemp(rs_rMIPS_ARG2);
   FreeTemp(rs_rMIPS_ARG3);
+  FreeTemp(TargetReg(kHiddenArg));
 }
 
 bool MipsMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
