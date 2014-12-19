@@ -1052,7 +1052,7 @@ bool MIRGraph::FindLocalLiveIn(BasicBlock* bb) {
 }
 
 int MIRGraph::AddNewSReg(int v_reg) {
-  int subscript = ++ssa_last_defs_[v_reg];
+  int subscript = ++temp_.ssa.ssa_last_defs_[v_reg];
   uint32_t ssa_reg = GetNumSSARegs();
   SetNumSSARegs(ssa_reg + 1);
   ssa_base_vregs_.push_back(v_reg);
@@ -1070,14 +1070,14 @@ int MIRGraph::AddNewSReg(int v_reg) {
 /* Find out the latest SSA register for a given Dalvik register */
 void MIRGraph::HandleSSAUse(int* uses, int dalvik_reg, int reg_index) {
   DCHECK((dalvik_reg >= 0) && (dalvik_reg < static_cast<int>(GetNumOfCodeAndTempVRs())));
-  uses[reg_index] = vreg_to_ssa_map_[dalvik_reg];
+  uses[reg_index] = temp_.ssa.vreg_to_ssa_map_[dalvik_reg];
 }
 
 /* Setup a new SSA register for a given Dalvik register */
 void MIRGraph::HandleSSADef(int* defs, int dalvik_reg, int reg_index) {
   DCHECK((dalvik_reg >= 0) && (dalvik_reg < static_cast<int>(GetNumOfCodeAndTempVRs())));
   int ssa_reg = AddNewSReg(dalvik_reg);
-  vreg_to_ssa_map_[dalvik_reg] = ssa_reg;
+  temp_.ssa.vreg_to_ssa_map_[dalvik_reg] = ssa_reg;
   defs[reg_index] = ssa_reg;
 }
 
@@ -1319,7 +1319,7 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
       static_cast<int*>(arena_->Alloc(sizeof(int) * GetNumOfCodeAndTempVRs(),
                                       kArenaAllocDFInfo));
 
-  memcpy(bb->data_flow_info->vreg_to_ssa_map_exit, vreg_to_ssa_map_,
+  memcpy(bb->data_flow_info->vreg_to_ssa_map_exit, temp_.ssa.vreg_to_ssa_map_,
          sizeof(int) * GetNumOfCodeAndTempVRs());
   return true;
 }
@@ -1369,17 +1369,15 @@ void MIRGraph::CompilerInitializeSSAConversion() {
    * Initialize the DalvikToSSAMap map. There is one entry for each
    * Dalvik register, and the SSA names for those are the same.
    */
-  vreg_to_ssa_map_ =
-      static_cast<int*>(arena_->Alloc(sizeof(int) * num_reg,
-                                      kArenaAllocDFInfo));
+  temp_.ssa.vreg_to_ssa_map_ =
+      reinterpret_cast<int*>(temp_scoped_alloc_->Alloc(sizeof(int) * num_reg, kArenaAllocDFInfo));
   /* Keep track of the higest def for each dalvik reg */
-  ssa_last_defs_ =
-      static_cast<int*>(arena_->Alloc(sizeof(int) * num_reg,
-                                      kArenaAllocDFInfo));
+  temp_.ssa.ssa_last_defs_ =
+      reinterpret_cast<int*>(temp_scoped_alloc_->Alloc(sizeof(int) * num_reg, kArenaAllocDFInfo));
 
   for (unsigned int i = 0; i < num_reg; i++) {
-    vreg_to_ssa_map_[i] = i;
-    ssa_last_defs_[i] = 0;
+    temp_.ssa.vreg_to_ssa_map_[i] = i;
+    temp_.ssa.ssa_last_defs_[i] = 0;
   }
 
   // Create a compiler temporary for Method*. This is done after SSA initialization.
