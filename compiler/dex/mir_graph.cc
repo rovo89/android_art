@@ -82,6 +82,8 @@ MIRGraph::MIRGraph(CompilationUnit* cu, ArenaAllocator* arena)
       cu_(cu),
       ssa_base_vregs_(arena->Adapter(kArenaAllocSSAToDalvikMap)),
       ssa_subscripts_(arena->Adapter(kArenaAllocSSAToDalvikMap)),
+      vreg_to_ssa_map_(NULL),
+      ssa_last_defs_(NULL),
       is_constant_v_(NULL),
       constant_values_(NULL),
       use_counts_(arena->Adapter()),
