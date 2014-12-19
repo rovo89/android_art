@@ -410,16 +410,10 @@ class BasicBlock : public DeletableArenaObject<kArenaAllocBB> {
 
   /**
    * @brief Kill the BasicBlock.
-   * @details Unlink predecessors to make this block unreachable, then KillUnreachable().
+   * @details Unlink predecessors and successors, remove all MIRs, set the block type to kDead
+   *          and set hidden to true.
    */
   void Kill(MIRGraph* mir_graph);
-
-  /**
-   * @brief Kill the unreachable block and all blocks that become unreachable by killing this one.
-   * @details Set the block type to kDead and set hidden to true, remove all MIRs,
-   *          unlink all successors and recursively kill successors that become unreachable.
-   */
-  void KillUnreachable(MIRGraph* mir_graph);
 
   /**
    * @brief Is ssa_reg the last SSA definition of that VR in the block?
