@@ -17,6 +17,7 @@
 #include <functional>
 
 #include "arch/instruction_set.h"
+#include "arch/arm/instruction_set_features_arm.h"
 #include "base/macros.h"
 #include "builder.h"
 #include "code_generator_arm.h"
@@ -87,7 +88,7 @@ static void RunCodeBaseline(HGraph* graph, bool has_result, Expected expected) {
     Run(allocator, codegenX86, has_result, expected);
   }
 
-  arm::CodeGeneratorARM codegenARM(graph);
+  arm::CodeGeneratorARM codegenARM(graph, ArmInstructionSetFeatures::FromCppDefines());
   codegenARM.CompileBaseline(&allocator, true);
   if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
     Run(allocator, codegenARM, has_result, expected);
@@ -130,7 +131,7 @@ static void RunCodeOptimized(HGraph* graph,
                              bool has_result,
                              Expected expected) {
   if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
-    arm::CodeGeneratorARM codegenARM(graph);
+    arm::CodeGeneratorARM codegenARM(graph, ArmInstructionSetFeatures::FromCppDefines());
     RunCodeOptimized(&codegenARM, graph, hook_before_codegen, has_result, expected);
   } else if (kRuntimeISA == kArm64) {
     arm64::CodeGeneratorARM64 codegenARM64(graph);
