@@ -103,7 +103,7 @@ void MIRGraph::ComputeDFSOrders() {
 
   num_reachable_blocks_ = dfs_order_.size();
 
-  if (num_reachable_blocks_ != num_blocks_) {
+  if (num_reachable_blocks_ != GetNumBlocks()) {
     // Kill all unreachable blocks.
     AllNodesIterator iter(this);
     for (BasicBlock* bb = iter.Next(); bb != NULL; bb = iter.Next()) {
@@ -173,9 +173,9 @@ void MIRGraph::ComputeDomPostOrderTraversal(BasicBlock* bb) {
   dom_post_order_traversal_.reserve(num_reachable_blocks_);
 
   ClearAllVisitedFlags();
-  DCHECK(temp_scoped_alloc_.get() != nullptr);
+  ScopedArenaAllocator allocator(&cu_->arena_stack);
   ScopedArenaVector<std::pair<BasicBlock*, ArenaBitVector::IndexIterator>> work_stack(
-      temp_scoped_alloc_->Adapter());
+      allocator.Adapter());
   bb->visited = true;
   work_stack.push_back(std::make_pair(bb, bb->i_dominated->Indexes().begin()));
   while (!work_stack.empty()) {
@@ -402,6 +402,8 @@ void MIRGraph::ComputeDominators() {
   for (BasicBlock* bb = iter5.Next(); bb != NULL; bb = iter5.Next()) {
     ComputeDominanceFrontier(bb);
   }
+
+  domination_up_to_date_ = true;
 }
 
 /*
@@ -556,24 +558,24 @@ void MIRGraph::DoDFSPreOrderSSARename(BasicBlock* block) {
   ScopedArenaAllocator allocator(&cu_->arena_stack);
   int* saved_ssa_map =
       static_cast<int*>(allocator.Alloc(map_size, kArenaAllocDalvikToSSAMap));
-  memcpy(saved_ssa_map, vreg_to_ssa_map_, map_size);
+  memcpy(saved_ssa_map, temp_.ssa.vreg_to_ssa_map_, map_size);
 
   if (block->fall_through != NullBasicBlockId) {
     DoDFSPreOrderSSARename(GetBasicBlock(block->fall_through));
     /* Restore SSA map snapshot */
-    memcpy(vreg_to_ssa_map_, saved_ssa_map, map_size);
+    memcpy(temp_.ssa.vreg_to_ssa_map_, saved_ssa_map, map_size);
   }
   if (block->taken != NullBasicBlockId) {
     DoDFSPreOrderSSARename(GetBasicBlock(block->taken));
     /* Restore SSA map snapshot */
-    memcpy(vreg_to_ssa_map_, saved_ssa_map, map_size);
+    memcpy(temp_.ssa.vreg_to_ssa_map_, saved_ssa_map, map_size);
   }
   if (block->successor_block_list_type != kNotUsed) {
     for (SuccessorBlockInfo* successor_block_info : block->successor_blocks) {
       BasicBlock* succ_bb = GetBasicBlock(successor_block_info->block);
       DoDFSPreOrderSSARename(succ_bb);
       /* Restore SSA map snapshot */
-      memcpy(vreg_to_ssa_map_, saved_ssa_map, map_size);
+      memcpy(temp_.ssa.vreg_to_ssa_map_, saved_ssa_map, map_size);
     }
   }
   return;

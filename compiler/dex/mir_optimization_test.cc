@@ -129,7 +129,6 @@ class MirOptimizationTest : public testing::Test {
             cu_.arena.Alloc(sizeof(BasicBlockDataFlow), kArenaAllocDFInfo));
       }
     }
-    cu_.mir_graph->num_blocks_ = count;
     ASSERT_EQ(count, cu_.mir_graph->block_list_.size());
     cu_.mir_graph->entry_block_ = cu_.mir_graph->block_list_[1];
     ASSERT_EQ(kEntryBlock, cu_.mir_graph->entry_block_->block_type);

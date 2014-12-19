@@ -24,13 +24,31 @@
 namespace art {
 
 /**
- * @class InitializeData
+ * @class PassMEMirSsaRep
+ * @brief Convenience class for passes that check MIRGraph::MirSsaRepUpToDate().
+ */
+class PassMEMirSsaRep : public PassME {
+ public:
+  PassMEMirSsaRep(const char* name, DataFlowAnalysisMode type = kAllNodes)
+      : PassME(name, type) {
+  }
+
+  bool Gate(const PassDataHolder* data) const OVERRIDE {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    return !c_unit->mir_graph->MirSsaRepUpToDate();
+  }
+};
+
+/**
+ * @class InitializeSSATransformation
  * @brief There is some data that needs to be initialized before performing
  * the post optimization passes.
  */
-class InitializeData : public PassME {
+class InitializeSSATransformation : public PassMEMirSsaRep {
  public:
-  InitializeData() : PassME("InitializeData", kNoNodes) {
+  InitializeSSATransformation() : PassMEMirSsaRep("InitializeSSATransformation", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const {
@@ -39,8 +57,8 @@ class InitializeData : public PassME {
     DCHECK(data != nullptr);
     CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
-    c_unit->mir_graph.get()->InitializeBasicBlockData();
-    c_unit->mir_graph.get()->SSATransformationStart();
+    c_unit->mir_graph->SSATransformationStart();
+    c_unit->mir_graph->CompilerInitializeSSAConversion();
   }
 };
 
@@ -62,9 +80,9 @@ class MethodUseCount : public PassME {
  * @class ClearPhiInformation
  * @brief Clear the PHI nodes from the CFG.
  */
-class ClearPhiInstructions : public PassME {
+class ClearPhiInstructions : public PassMEMirSsaRep {
  public:
-  ClearPhiInstructions() : PassME("ClearPhiInstructions") {
+  ClearPhiInstructions() : PassMEMirSsaRep("ClearPhiInstructions") {
   }
 
   bool Worker(PassDataHolder* data) const;
@@ -115,12 +133,18 @@ class BuildDomination : public PassME {
   BuildDomination() : PassME("BuildDomination", kNoNodes) {
   }
 
+  bool Gate(const PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    return !c_unit->mir_graph->DominationUpToDate();
+  }
+
   void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
     CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
-    c_unit->mir_graph.get()->ComputeDominators();
-    c_unit->mir_graph.get()->CompilerInitializeSSAConversion();
+    c_unit->mir_graph->ComputeDominators();
   }
 
   void End(PassDataHolder* data) const {
@@ -143,6 +167,13 @@ class TopologicalSortOrders : public PassME {
   TopologicalSortOrders() : PassME("TopologicalSortOrders", kNoNodes) {
   }
 
+  bool Gate(const PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    return !c_unit->mir_graph->TopologicalOrderUpToDate();
+  }
+
   void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
     CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
@@ -155,9 +186,9 @@ class TopologicalSortOrders : public PassME {
  * @class DefBlockMatrix
  * @brief Calculate the matrix of definition per basic block
  */
-class DefBlockMatrix : public PassME {
+class DefBlockMatrix : public PassMEMirSsaRep {
  public:
-  DefBlockMatrix() : PassME("DefBlockMatrix", kNoNodes) {
+  DefBlockMatrix() : PassMEMirSsaRep("DefBlockMatrix", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const {
@@ -172,9 +203,9 @@ class DefBlockMatrix : public PassME {
  * @class CreatePhiNodes
  * @brief Pass to create the phi nodes after SSA calculation
  */
-class CreatePhiNodes : public PassME {
+class CreatePhiNodes : public PassMEMirSsaRep {
  public:
-  CreatePhiNodes() : PassME("CreatePhiNodes", kNoNodes) {
+  CreatePhiNodes() : PassMEMirSsaRep("CreatePhiNodes", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const {
@@ -186,30 +217,12 @@ class CreatePhiNodes : public PassME {
 };
 
 /**
- * @class ClearVisitedFlag
- * @brief Pass to clear the visited flag for all basic blocks.
- */
-
-class ClearVisitedFlag : public PassME {
- public:
-  ClearVisitedFlag() : PassME("ClearVisitedFlag", kNoNodes) {
-  }
-
-  void Start(PassDataHolder* data) const {
-    DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
-    DCHECK(c_unit != nullptr);
-    c_unit->mir_graph.get()->ClearAllVisitedFlags();
-  }
-};
-
-/**
  * @class SSAConversion
  * @brief Pass for SSA conversion of MIRs
  */
-class SSAConversion : public PassME {
+class SSAConversion : public PassMEMirSsaRep {
  public:
-  SSAConversion() : PassME("SSAConversion", kNoNodes) {
+  SSAConversion() : PassMEMirSsaRep("SSAConversion", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const {
@@ -217,6 +230,7 @@ class SSAConversion : public PassME {
     CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
     MIRGraph *mir_graph = c_unit->mir_graph.get();
+    mir_graph->ClearAllVisitedFlags();
     mir_graph->DoDFSPreOrderSSARename(mir_graph->GetEntryBlock());
   }
 };
@@ -225,9 +239,9 @@ class SSAConversion : public PassME {
  * @class PhiNodeOperands
  * @brief Pass to insert the Phi node operands to basic blocks
  */
-class PhiNodeOperands : public PassME {
+class PhiNodeOperands : public PassMEMirSsaRep {
  public:
-  PhiNodeOperands() : PassME("PhiNodeOperands", kPreOrderDFSTraversal) {
+  PhiNodeOperands() : PassMEMirSsaRep("PhiNodeOperands", kPreOrderDFSTraversal) {
   }
 
   bool Worker(PassDataHolder* data) const {
@@ -246,9 +260,9 @@ class PhiNodeOperands : public PassME {
  * @class InitRegLocations
  * @brief Initialize Register Locations.
  */
-class PerformInitRegLocations : public PassME {
+class PerformInitRegLocations : public PassMEMirSsaRep {
  public:
-  PerformInitRegLocations() : PassME("PerformInitRegLocation", kNoNodes) {
+  PerformInitRegLocations() : PassMEMirSsaRep("PerformInitRegLocation", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const {
@@ -263,9 +277,9 @@ class PerformInitRegLocations : public PassME {
  * @class ConstantPropagation
  * @brief Perform a constant propagation pass.
  */
-class ConstantPropagation : public PassME {
+class ConstantPropagation : public PassMEMirSsaRep {
  public:
-  ConstantPropagation() : PassME("ConstantPropagation") {
+  ConstantPropagation() : PassMEMirSsaRep("ConstantPropagation") {
   }
 
   bool Worker(PassDataHolder* data) const {
@@ -288,12 +302,12 @@ class ConstantPropagation : public PassME {
 };
 
 /**
- * @class FreeData
+ * @class FinishSSATransformation
  * @brief There is some data that needs to be freed after performing the post optimization passes.
  */
-class FreeData : public PassME {
+class FinishSSATransformation : public PassMEMirSsaRep {
  public:
-  FreeData() : PassME("FreeData", kNoNodes) {
+  FinishSSATransformation() : PassMEMirSsaRep("FinishSSATransformation", kNoNodes) {
   }
 
   void End(PassDataHolder* data) const {
