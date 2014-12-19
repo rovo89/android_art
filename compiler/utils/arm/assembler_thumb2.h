@@ -149,6 +149,8 @@ class Thumb2Assembler FINAL : public ArmAssembler {
   void ldrex(Register rd, Register rn, uint16_t imm, Condition cond = AL);
   void strex(Register rd, Register rt, Register rn, uint16_t imm, Condition cond = AL);
 
+  void ldrexd(Register rt, Register rt2, Register rn, Condition cond = AL) OVERRIDE;
+  void strexd(Register rd, Register rt, Register rt2, Register rn, Condition cond = AL) OVERRIDE;
 
   // Miscellaneous instructions.
   void clrex(Condition cond = AL) OVERRIDE;

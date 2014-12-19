@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_ARM_H_
 
 #include "code_generator.h"
+#include "dex/compiler_enums.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 #include "utils/arm/assembler_thumb2.h"
@@ -110,6 +111,8 @@ class LocationsBuilderARM : public HGraphVisitor {
   void HandleInvoke(HInvoke* invoke);
   void HandleBitwiseOperation(HBinaryOperation* operation);
   void HandleShift(HBinaryOperation* operation);
+  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
 
   CodeGeneratorARM* const codegen_;
   InvokeDexCallingConventionVisitor parameter_visitor_;
@@ -138,6 +141,15 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
   void GenerateClassInitializationCheck(SlowPathCodeARM* slow_path, Register class_reg);
   void HandleBitwiseOperation(HBinaryOperation* operation);
   void HandleShift(HBinaryOperation* operation);
+  void GenerateMemoryBarrier(MemBarrierKind kind);
+  void GenerateWideAtomicStore(Register addr, uint32_t offset,
+                               Register value_lo, Register value_hi,
+                               Register temp1, Register temp2);
+  void GenerateWideAtomicLoad(Register addr, uint32_t offset,
+                              Register out_lo, Register out_hi);
+  void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
+  void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+
 
   ArmAssembler* const assembler_;
   CodeGeneratorARM* const codegen_;

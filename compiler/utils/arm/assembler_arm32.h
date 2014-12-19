@@ -123,6 +123,8 @@ class Arm32Assembler FINAL : public ArmAssembler {
 
   void ldrex(Register rd, Register rn, Condition cond = AL) OVERRIDE;
   void strex(Register rd, Register rt, Register rn, Condition cond = AL) OVERRIDE;
+  void ldrexd(Register rt, Register rt2, Register rn, Condition cond = AL) OVERRIDE;
+  void strexd(Register rd, Register rt, Register rt2, Register rn, Condition cond = AL) OVERRIDE;
 
   // Miscellaneous instructions.
   void clrex(Condition cond = AL) OVERRIDE;
