@@ -558,24 +558,24 @@ void MIRGraph::DoDFSPreOrderSSARename(BasicBlock* block) {
   ScopedArenaAllocator allocator(&cu_->arena_stack);
   int* saved_ssa_map =
       static_cast<int*>(allocator.Alloc(map_size, kArenaAllocDalvikToSSAMap));
-  memcpy(saved_ssa_map, temp_.ssa.vreg_to_ssa_map_, map_size);
+  memcpy(saved_ssa_map, vreg_to_ssa_map_, map_size);
 
   if (block->fall_through != NullBasicBlockId) {
     DoDFSPreOrderSSARename(GetBasicBlock(block->fall_through));
     /* Restore SSA map snapshot */
-    memcpy(temp_.ssa.vreg_to_ssa_map_, saved_ssa_map, map_size);
+    memcpy(vreg_to_ssa_map_, saved_ssa_map, map_size);
   }
   if (block->taken != NullBasicBlockId) {
     DoDFSPreOrderSSARename(GetBasicBlock(block->taken));
     /* Restore SSA map snapshot */
-    memcpy(temp_.ssa.vreg_to_ssa_map_, saved_ssa_map, map_size);
+    memcpy(vreg_to_ssa_map_, saved_ssa_map, map_size);
   }
   if (block->successor_block_list_type != kNotUsed) {
     for (SuccessorBlockInfo* successor_block_info : block->successor_blocks) {
       BasicBlock* succ_bb = GetBasicBlock(successor_block_info->block);
       DoDFSPreOrderSSARename(succ_bb);
       /* Restore SSA map snapshot */
-      memcpy(temp_.ssa.vreg_to_ssa_map_, saved_ssa_map, map_size);
+      memcpy(vreg_to_ssa_map_, saved_ssa_map, map_size);
     }
   }
   return;
