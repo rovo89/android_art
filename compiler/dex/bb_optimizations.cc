@@ -51,20 +51,4 @@ bool BBCombine::Worker(PassDataHolder* data) const {
   return false;
 }
 
-/*
- * BasicBlock Optimization pass implementation start.
- */
-void BBOptimizations::Start(PassDataHolder* data) const {
-  DCHECK(data != nullptr);
-  CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
-  DCHECK(c_unit != nullptr);
-  /*
-   * This pass has a different ordering depEnding on the suppress exception,
-   * so do the pass here for now:
-   *   - Later, the Start should just change the ordering and we can move the extended
-   *     creation into the pass driver's main job with a new iterator
-   */
-  c_unit->mir_graph->BasicBlockOptimization();
-}
-
 }  // namespace art

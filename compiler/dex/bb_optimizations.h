@@ -294,7 +294,27 @@ class BBOptimizations : public PassME {
     return ((c_unit->disable_opt & (1 << kBBOpt)) == 0);
   }
 
-  void Start(PassDataHolder* data) const;
+  void Start(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    c_unit->mir_graph->BasicBlockOptimizationStart();
+
+    /*
+     * This pass has a different ordering depending on the suppress exception,
+     * so do the pass here for now:
+     *   - Later, the Start should just change the ordering and we can move the extended
+     *     creation into the pass driver's main job with a new iterator
+     */
+    c_unit->mir_graph->BasicBlockOptimization();
+  }
+
+  void End(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    c_unit->mir_graph->BasicBlockOptimizationEnd();
+  }
 };
 
 /**
