@@ -101,9 +101,12 @@ void ThreadList::DumpNativeStacks(std::ostream& os) {
 void ThreadList::DumpForSigQuit(std::ostream& os) {
   {
     ScopedObjectAccess soa(Thread::Current());
-    Histogram<uint64_t>::CumulativeData data;
-    suspend_all_historam_.CreateHistogram(&data);
-    suspend_all_historam_.PrintConfidenceIntervals(os, 0.99, data);  // Dump time to suspend.
+    // Only print if we have samples.
+    if (suspend_all_historam_.SampleSize() > 0) {
+      Histogram<uint64_t>::CumulativeData data;
+      suspend_all_historam_.CreateHistogram(&data);
+      suspend_all_historam_.PrintConfidenceIntervals(os, 0.99, data);  // Dump time to suspend.
+    }
   }
   Dump(os);
   DumpUnattachedThreads(os);
