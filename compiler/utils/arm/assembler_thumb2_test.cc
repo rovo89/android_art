@@ -164,4 +164,32 @@ TEST_F(AssemblerThumb2Test, Vmstat) {
   DriverStr(expected, "vmrs");
 }
 
+TEST_F(AssemblerThumb2Test, ldrexd) {
+  GetAssembler()->ldrexd(arm::R0, arm::R1, arm::R0);
+  GetAssembler()->ldrexd(arm::R0, arm::R1, arm::R1);
+  GetAssembler()->ldrexd(arm::R0, arm::R1, arm::R2);
+  GetAssembler()->ldrexd(arm::R5, arm::R3, arm::R7);
+
+  const char* expected =
+      "ldrexd r0, r1, [r0]\n"
+      "ldrexd r0, r1, [r1]\n"
+      "ldrexd r0, r1, [r2]\n"
+      "ldrexd r5, r3, [r7]\n";
+  DriverStr(expected, "ldrexd");
+}
+
+TEST_F(AssemblerThumb2Test, strexd) {
+  GetAssembler()->strexd(arm::R9, arm::R0, arm::R1, arm::R0);
+  GetAssembler()->strexd(arm::R9, arm::R0, arm::R1, arm::R1);
+  GetAssembler()->strexd(arm::R9, arm::R0, arm::R1, arm::R2);
+  GetAssembler()->strexd(arm::R9, arm::R5, arm::R3, arm::R7);
+
+  const char* expected =
+      "strexd r9, r0, r1, [r0]\n"
+      "strexd r9, r0, r1, [r1]\n"
+      "strexd r9, r0, r1, [r2]\n"
+      "strexd r9, r5, r3, [r7]\n";
+  DriverStr(expected, "strexd");
+}
+
 }  // namespace art

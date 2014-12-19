@@ -274,6 +274,9 @@ class X86Assembler FINAL : public Assembler {
   void movsd(const Address& dst, XmmRegister src);
   void movsd(XmmRegister dst, XmmRegister src);
 
+  void psrlq(XmmRegister reg, const Immediate& shift_count);
+  void punpckldq(XmmRegister dst, XmmRegister src);
+
   void addsd(XmmRegister dst, XmmRegister src);
   void addsd(XmmRegister dst, const Address& src);
   void subsd(XmmRegister dst, XmmRegister src);

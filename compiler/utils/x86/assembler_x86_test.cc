@@ -105,6 +105,18 @@ TEST_F(AssemblerX86Test, Movl) {
   DriverStr(expected, "movl");
 }
 
+TEST_F(AssemblerX86Test, psrlq) {
+  GetAssembler()->psrlq(x86::XMM0, CreateImmediate(32));
+  const char* expected = "psrlq $0x20, %xmm0\n";
+  DriverStr(expected, "psrlq");
+}
+
+TEST_F(AssemblerX86Test, punpckldq) {
+  GetAssembler()->punpckldq(x86::XMM0, x86::XMM1);
+  const char* expected = "punpckldq %xmm1, %xmm0\n";
+  DriverStr(expected, "punpckldq");
+}
+
 TEST_F(AssemblerX86Test, LoadLongConstant) {
   GetAssembler()->LoadLongConstant(x86::XMM0, 51);
   const char* expected =

@@ -1662,9 +1662,6 @@ void Thumb2Assembler::ldrex(Register rt, Register rn, uint16_t imm, Condition co
   CHECK_NE(rn, kNoRegister);
   CHECK_NE(rt, kNoRegister);
   CheckCondition(cond);
-  CHECK_NE(rn, kNoRegister);
-  CHECK_NE(rt, kNoRegister);
-  CheckCondition(cond);
   CHECK_LT(imm, (1u << 10));
 
   int32_t encoding = B31 | B30 | B29 | B27 | B22 | B20 |
@@ -1701,11 +1698,47 @@ void Thumb2Assembler::strex(Register rd,
 }
 
 
+void Thumb2Assembler::ldrexd(Register rt, Register rt2, Register rn, Condition cond) {
+  CHECK_NE(rn, kNoRegister);
+  CHECK_NE(rt, kNoRegister);
+  CHECK_NE(rt2, kNoRegister);
+  CHECK_NE(rt, rt2);
+  CheckCondition(cond);
+
+  int32_t encoding = B31 | B30 | B29 | B27 | B23 | B22 | B20 |
+      static_cast<uint32_t>(rn) << 16 |
+      static_cast<uint32_t>(rt) << 12 |
+      static_cast<uint32_t>(rt2) << 8 |
+      B6 | B5 | B4 | B3 | B2 | B1 | B0;
+  Emit32(encoding);
+}
+
+
 void Thumb2Assembler::strex(Register rd,
                             Register rt,
                             Register rn,
                             Condition cond) {
   strex(rd, rt, rn, 0, cond);
+}
+
+
+void Thumb2Assembler::strexd(Register rd, Register rt, Register rt2, Register rn, Condition cond) {
+  CHECK_NE(rd, kNoRegister);
+  CHECK_NE(rn, kNoRegister);
+  CHECK_NE(rt, kNoRegister);
+  CHECK_NE(rt2, kNoRegister);
+  CHECK_NE(rt, rt2);
+  CHECK_NE(rd, rt);
+  CHECK_NE(rd, rt2);
+  CheckCondition(cond);
+
+  int32_t encoding = B31 | B30 | B29 | B27 | B23 | B22 |
+      static_cast<uint32_t>(rn) << 16 |
+      static_cast<uint32_t>(rt) << 12 |
+      static_cast<uint32_t>(rt2) << 8 |
+      B6 | B5 | B4 |
+      static_cast<uint32_t>(rd);
+  Emit32(encoding);
 }
 
 

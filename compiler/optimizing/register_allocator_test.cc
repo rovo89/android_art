@@ -462,7 +462,7 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
   entry->AddSuccessor(block);
 
   HInstruction* test = new (allocator) HInstanceFieldGet(
-      parameter, Primitive::kPrimBoolean, MemberOffset(22));
+      parameter, Primitive::kPrimBoolean, MemberOffset(22), false);
   block->AddInstruction(test);
   block->AddInstruction(new (allocator) HIf(test));
   HBasicBlock* then = new (allocator) HBasicBlock(graph);
@@ -481,8 +481,10 @@ static HGraph* BuildIfElseWithPhi(ArenaAllocator* allocator,
 
   *phi = new (allocator) HPhi(allocator, 0, 0, Primitive::kPrimInt);
   join->AddPhi(*phi);
-  *input1 = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt, MemberOffset(42));
-  *input2 = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt, MemberOffset(42));
+  *input1 = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt,
+                                              MemberOffset(42), false);
+  *input2 = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt,
+                                              MemberOffset(42), false);
   then->AddInstruction(*input1);
   else_->AddInstruction(*input2);
   join->AddInstruction(new (allocator) HExit());
@@ -581,7 +583,8 @@ static HGraph* BuildFieldReturn(ArenaAllocator* allocator,
   graph->AddBlock(block);
   entry->AddSuccessor(block);
 
-  *field = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt, MemberOffset(42));
+  *field = new (allocator) HInstanceFieldGet(parameter, Primitive::kPrimInt,
+                                             MemberOffset(42), false);
   block->AddInstruction(*field);
   *ret = new (allocator) HReturn(*field);
   block->AddInstruction(*ret);
