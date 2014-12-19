@@ -2209,18 +2209,36 @@ void X86Mir2Lir::GenReduceVector(MIR* mir) {
     // Handle float case.
     // TODO Add support for fast math (not value safe) and do horizontal add in that case.
 
+    int extract_index = mir->dalvikInsn.arg[0];
+
     rl_result = EvalLoc(rl_dest, kFPReg, true);
     NewLIR2(kX86PxorRR, rl_result.reg.GetReg(), rl_result.reg.GetReg());
-    NewLIR2(kX86AddssRR, rl_result.reg.GetReg(), vector_src.GetReg());
 
-    // Since FP must keep order of operation for value safety, we shift to low
-    // 32-bits and add to result.
-    for (int i = 0; i < 3; i++) {
-      NewLIR3(kX86ShufpsRRI, vector_src.GetReg(), vector_src.GetReg(), 0x39);
+    if (LIKELY(extract_index != 0)) {
+      // We know the index of element which we want to extract. We want to extract it and
+      // keep values in vector register correct for future use. So the way we act is:
+      // 1. Generate shuffle mask that allows to swap zeroth and required elements;
+      // 2. Shuffle vector register with this mask;
+      // 3. Extract zeroth element where required value lies;
+      // 4. Shuffle with same mask again to restore original values in vector register.
+      // The mask is generated from equivalence mask 0b11100100 swapping 0th and extracted
+      // element indices.
+      int shuffle[4] = {0b00, 0b01, 0b10, 0b11};
+      shuffle[0] = extract_index;
+      shuffle[extract_index] = 0;
+      int mask = 0;
+      for (int i = 0; i < 4; i++) {
+        mask |= (shuffle[i] << (2 * i));
+      }
+      NewLIR3(kX86ShufpsRRI, vector_src.GetReg(), vector_src.GetReg(), mask);
+      NewLIR2(kX86AddssRR, rl_result.reg.GetReg(), vector_src.GetReg());
+      NewLIR3(kX86ShufpsRRI, vector_src.GetReg(), vector_src.GetReg(), mask);
+    } else {
+      // We need to extract zeroth element and don't need any complex stuff to do it.
       NewLIR2(kX86AddssRR, rl_result.reg.GetReg(), vector_src.GetReg());
     }
 
-    StoreValue(rl_dest, rl_result);
+    StoreFinalValue(rl_dest, rl_result);
   } else if (opsize == kDouble) {
     // TODO Handle double case.
     LOG(FATAL) << "Unsupported add reduce for double.";
