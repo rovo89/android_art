@@ -485,9 +485,11 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
             mir->ssa_rep->num_uses = 0;
             BasicBlock* successor_to_unlink = GetBasicBlock(edge_to_kill);
             successor_to_unlink->ErasePredecessor(bb->id);
-            if (successor_to_unlink->predecessors.empty()) {
-              successor_to_unlink->KillUnreachable(this);
-            }
+            // We have changed the graph structure.
+            dfs_orders_up_to_date_ = false;
+            domination_up_to_date_ = false;
+            topological_order_up_to_date_ = false;
+            // Keep MIR SSA rep, the worst that can happen is a Phi with just 1 input.
           }
           break;
         case Instruction::CMPL_FLOAT:
@@ -649,36 +651,36 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
                * Phi node only contains our two cases as input, we will use the result
                * SSA name of the Phi node as our select result and delete the Phi.  If
                * the Phi node has more than two operands, we will arbitrarily use the SSA
-               * name of the "true" path, delete the SSA name of the "false" path from the
+               * name of the "false" path, delete the SSA name of the "true" path from the
                * Phi node (and fix up the incoming arc list).
                */
               if (phi->ssa_rep->num_uses == 2) {
                 mir->ssa_rep->defs[0] = phi->ssa_rep->defs[0];
-                phi->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
+                // Rather than changing the Phi to kMirOpNop, remove it completely.
+                // This avoids leaving other Phis after kMirOpNop (i.e. a non-Phi) insn.
+                tk_tk->RemoveMIR(phi);
+                int dead_false_def = if_false->ssa_rep->defs[0];
+                raw_use_counts_[dead_false_def] = use_counts_[dead_false_def] = 0;
               } else {
-                int dead_def = if_false->ssa_rep->defs[0];
-                int live_def = if_true->ssa_rep->defs[0];
+                int live_def = if_false->ssa_rep->defs[0];
                 mir->ssa_rep->defs[0] = live_def;
-                BasicBlockId* incoming = phi->meta.phi_incoming;
-                for (int i = 0; i < phi->ssa_rep->num_uses; i++) {
-                  if (phi->ssa_rep->uses[i] == live_def) {
-                    incoming[i] = bb->id;
-                  }
-                }
-                for (int i = 0; i < phi->ssa_rep->num_uses; i++) {
-                  if (phi->ssa_rep->uses[i] == dead_def) {
-                    int last_slot = phi->ssa_rep->num_uses - 1;
-                    phi->ssa_rep->uses[i] = phi->ssa_rep->uses[last_slot];
-                    incoming[i] = incoming[last_slot];
-                  }
-                }
               }
-              phi->ssa_rep->num_uses--;
-              bb->taken = NullBasicBlockId;
-              tk->block_type = kDead;
-              for (MIR* tmir = ft->first_mir_insn; tmir != NULL; tmir = tmir->next) {
-                tmir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
-              }
+              int dead_true_def = if_true->ssa_rep->defs[0];
+              raw_use_counts_[dead_true_def] = use_counts_[dead_true_def] = 0;
+              // We want to remove ft and tk and link bb directly to ft_ft. First, we need
+              // to update all Phi inputs correctly with UpdatePredecessor(ft->id, bb->id)
+              // since the live_def above comes from ft->first_mir_insn (if_false).
+              DCHECK(if_false == ft->first_mir_insn);
+              ft_ft->UpdatePredecessor(ft->id, bb->id);
+              // Correct the rest of the links between bb, ft and ft_ft.
+              ft->ErasePredecessor(bb->id);
+              ft->fall_through = NullBasicBlockId;
+              bb->fall_through = ft_ft->id;
+              // Now we can kill tk and ft.
+              tk->Kill(this);
+              ft->Kill(this);
+              // NOTE: DFS order, domination info and topological order are still usable
+              // despite the newly dead blocks.
             }
           }
         }
@@ -829,9 +831,6 @@ void MIRGraph::CombineBlocks(class BasicBlock* bb) {
           BasicBlock* succ_bb = GetBasicBlock(succ_info->block);
           DCHECK(succ_bb->catch_entry);
           succ_bb->ErasePredecessor(bb->id);
-          if (succ_bb->predecessors.empty()) {
-            succ_bb->KillUnreachable(this);
-          }
         }
       }
     }
