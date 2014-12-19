@@ -718,6 +718,7 @@ void ArmMir2Lir::FreeCallTemps() {
   FreeTemp(rs_r1);
   FreeTemp(rs_r2);
   FreeTemp(rs_r3);
+  FreeTemp(TargetReg(kHiddenArg));
 }
 
 RegStorage ArmMir2Lir::LoadHelper(QuickEntrypointEnum trampoline) {

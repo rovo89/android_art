@@ -1814,7 +1814,7 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
   EndInvoke(info);
   MarkSafepointPC(call_inst);
 
-  ClobberCallerSave();
+  FreeCallTemps();
   if (info->result.location != kLocInvalid) {
     // We have a following MOVE_RESULT - do it now.
     if (info->result.wide) {
