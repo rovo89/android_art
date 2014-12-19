@@ -2389,12 +2389,109 @@ void InstructionCodeGeneratorX86_64::VisitPhi(HPhi* instruction) {
   LOG(FATAL) << "Unimplemented";
 }
 
-void LocationsBuilderX86_64::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
+void InstructionCodeGeneratorX86_64::GenerateMemoryBarrier(MemBarrierKind kind) {
+  /*
+   * According to the JSR-133 Cookbook, for x86 only StoreLoad/AnyAny barriers need memory fence.
+   * All other barriers (LoadAny, AnyStore, StoreStore) are nops due to the x86 memory model.
+   * For those cases, all we need to ensure is that there is a scheduling barrier in place.
+   */
+  switch (kind) {
+    case MemBarrierKind::kAnyAny: {
+      __ mfence();
+      break;
+    }
+    case MemBarrierKind::kAnyStore:
+    case MemBarrierKind::kLoadAny:
+    case MemBarrierKind::kStoreStore: {
+      // nop
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected memory barier " << kind;
+  }
+}
+
+void LocationsBuilderX86_64::HandleFieldGet(HInstruction* instruction) {
+  DCHECK(instruction->IsInstanceFieldGet() || instruction->IsStaticFieldGet());
+
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  Primitive::Type field_type = instruction->GetFieldType();
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorX86_64::HandleFieldGet(HInstruction* instruction,
+                                                    const FieldInfo& field_info) {
+  DCHECK(instruction->IsInstanceFieldGet() || instruction->IsStaticFieldGet());
+
+  LocationSummary* locations = instruction->GetLocations();
+  CpuRegister base = locations->InAt(0).AsRegister<CpuRegister>();
+  Location out = locations->Out();
+  bool is_volatile = field_info.IsVolatile();
+  Primitive::Type field_type = field_info.GetFieldType();
+  uint32_t offset = field_info.GetFieldOffset().Uint32Value();
+
+  switch (field_type) {
+    case Primitive::kPrimBoolean: {
+      __ movzxb(out.AsRegister<CpuRegister>(), Address(base, offset));
+      break;
+    }
+
+    case Primitive::kPrimByte: {
+      __ movsxb(out.AsRegister<CpuRegister>(), Address(base, offset));
+      break;
+    }
+
+    case Primitive::kPrimShort: {
+      __ movsxw(out.AsRegister<CpuRegister>(), Address(base, offset));
+      break;
+    }
+
+    case Primitive::kPrimChar: {
+      __ movzxw(out.AsRegister<CpuRegister>(), Address(base, offset));
+      break;
+    }
+
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot: {
+      __ movl(out.AsRegister<CpuRegister>(), Address(base, offset));
+      break;
+    }
+
+    case Primitive::kPrimLong: {
+      __ movq(out.AsRegister<CpuRegister>(), Address(base, offset));
+      break;
+    }
+
+    case Primitive::kPrimFloat: {
+      __ movss(out.AsFpuRegister<XmmRegister>(), Address(base, offset));
+      break;
+    }
+
+    case Primitive::kPrimDouble: {
+      __ movsd(out.AsFpuRegister<XmmRegister>(), Address(base, offset));
+      break;
+    }
+
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unreachable type " << field_type;
+      UNREACHABLE();
+  }
+
+  if (is_volatile) {
+    GenerateMemoryBarrier(MemBarrierKind::kLoadAny);
+  }
+}
+
+void LocationsBuilderX86_64::HandleFieldSet(HInstruction* instruction,
+                                            const FieldInfo& field_info) {
+  DCHECK(instruction->IsInstanceFieldSet() || instruction->IsStaticFieldSet());
+
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   bool needs_write_barrier =
-      CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->GetValue());
+      CodeGenerator::StoreNeedsWriteBarrier(field_info.GetFieldType(), instruction->InputAt(1));
+
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
   if (needs_write_barrier) {
@@ -2404,54 +2501,57 @@ void LocationsBuilderX86_64::VisitInstanceFieldSet(HInstanceFieldSet* instructio
   }
 }
 
-void InstructionCodeGeneratorX86_64::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
+void InstructionCodeGeneratorX86_64::HandleFieldSet(HInstruction* instruction,
+                                                    const FieldInfo& field_info) {
+  DCHECK(instruction->IsInstanceFieldSet() || instruction->IsStaticFieldSet());
+
   LocationSummary* locations = instruction->GetLocations();
-  CpuRegister obj = locations->InAt(0).AsRegister<CpuRegister>();
-  size_t offset = instruction->GetFieldOffset().SizeValue();
-  Primitive::Type field_type = instruction->GetFieldType();
+  CpuRegister base = locations->InAt(0).AsRegister<CpuRegister>();
+  Location value = locations->InAt(1);
+  bool is_volatile = field_info.IsVolatile();
+  Primitive::Type field_type = field_info.GetFieldType();
+  uint32_t offset = field_info.GetFieldOffset().Uint32Value();
+
+  if (is_volatile) {
+    GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
+  }
 
   switch (field_type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte: {
-      CpuRegister value = locations->InAt(1).AsRegister<CpuRegister>();
-      __ movb(Address(obj, offset), value);
+      __ movb(Address(base, offset), value.AsRegister<CpuRegister>());
       break;
     }
 
     case Primitive::kPrimShort:
     case Primitive::kPrimChar: {
-      CpuRegister value = locations->InAt(1).AsRegister<CpuRegister>();
-      __ movw(Address(obj, offset), value);
+      __ movw(Address(base, offset), value.AsRegister<CpuRegister>());
       break;
     }
 
     case Primitive::kPrimInt:
     case Primitive::kPrimNot: {
-      CpuRegister value = locations->InAt(1).AsRegister<CpuRegister>();
-      __ movl(Address(obj, offset), value);
-      if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->GetValue())) {
+      __ movl(Address(base, offset), value.AsRegister<CpuRegister>());
+      if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
         CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
         CpuRegister card = locations->GetTemp(1).AsRegister<CpuRegister>();
-        codegen_->MarkGCCard(temp, card, obj, value);
+        codegen_->MarkGCCard(temp, card, base, value.AsRegister<CpuRegister>());
       }
       break;
     }
 
     case Primitive::kPrimLong: {
-      CpuRegister value = locations->InAt(1).AsRegister<CpuRegister>();
-      __ movq(Address(obj, offset), value);
+      __ movq(Address(base, offset), value.AsRegister<CpuRegister>());
       break;
     }
 
     case Primitive::kPrimFloat: {
-      XmmRegister value = locations->InAt(1).AsFpuRegister<XmmRegister>();
-      __ movss(Address(obj, offset), value);
+      __ movss(Address(base, offset), value.AsFpuRegister<XmmRegister>());
       break;
     }
 
     case Primitive::kPrimDouble: {
-      XmmRegister value = locations->InAt(1).AsFpuRegister<XmmRegister>();
-      __ movsd(Address(obj, offset), value);
+      __ movsd(Address(base, offset), value.AsFpuRegister<XmmRegister>());
       break;
     }
 
@@ -2459,74 +2559,42 @@ void InstructionCodeGeneratorX86_64::VisitInstanceFieldSet(HInstanceFieldSet* in
       LOG(FATAL) << "Unreachable type " << field_type;
       UNREACHABLE();
   }
+
+  if (is_volatile) {
+    GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+  }
+}
+
+void LocationsBuilderX86_64::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
+  HandleFieldSet(instruction, instruction->GetFieldInfo());
+}
+
+void InstructionCodeGeneratorX86_64::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
+  HandleFieldSet(instruction, instruction->GetFieldInfo());
 }
 
 void LocationsBuilderX86_64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  HandleFieldGet(instruction);
 }
 
 void InstructionCodeGeneratorX86_64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
-  LocationSummary* locations = instruction->GetLocations();
-  CpuRegister obj = locations->InAt(0).AsRegister<CpuRegister>();
-  size_t offset = instruction->GetFieldOffset().SizeValue();
+  HandleFieldGet(instruction, instruction->GetFieldInfo());
+}
 
-  switch (instruction->GetType()) {
-    case Primitive::kPrimBoolean: {
-      CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-      __ movzxb(out, Address(obj, offset));
-      break;
-    }
+void LocationsBuilderX86_64::VisitStaticFieldGet(HStaticFieldGet* instruction) {
+  HandleFieldGet(instruction);
+}
 
-    case Primitive::kPrimByte: {
-      CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-      __ movsxb(out, Address(obj, offset));
-      break;
-    }
+void InstructionCodeGeneratorX86_64::VisitStaticFieldGet(HStaticFieldGet* instruction) {
+  HandleFieldGet(instruction, instruction->GetFieldInfo());
+}
 
-    case Primitive::kPrimShort: {
-      CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-      __ movsxw(out, Address(obj, offset));
-      break;
-    }
+void LocationsBuilderX86_64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
+  HandleFieldSet(instruction, instruction->GetFieldInfo());
+}
 
-    case Primitive::kPrimChar: {
-      CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-      __ movzxw(out, Address(obj, offset));
-      break;
-    }
-
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot: {
-      CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-      __ movl(out, Address(obj, offset));
-      break;
-    }
-
-    case Primitive::kPrimLong: {
-      CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-      __ movq(out, Address(obj, offset));
-      break;
-    }
-
-    case Primitive::kPrimFloat: {
-      XmmRegister out = locations->Out().AsFpuRegister<XmmRegister>();
-      __ movss(out, Address(obj, offset));
-      break;
-    }
-
-    case Primitive::kPrimDouble: {
-      XmmRegister out = locations->Out().AsFpuRegister<XmmRegister>();
-      __ movsd(out, Address(obj, offset));
-      break;
-    }
-
-    case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unreachable type " << instruction->GetType();
-      UNREACHABLE();
-  }
+void InstructionCodeGeneratorX86_64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
+  HandleFieldSet(instruction, instruction->GetFieldInfo());
 }
 
 void LocationsBuilderX86_64::VisitNullCheck(HNullCheck* instruction) {
@@ -3220,146 +3288,6 @@ void InstructionCodeGeneratorX86_64::VisitClinitCheck(HClinitCheck* check) {
   codegen_->AddSlowPath(slow_path);
   GenerateClassInitializationCheck(slow_path,
                                    check->GetLocations()->InAt(0).AsRegister<CpuRegister>());
-}
-
-void LocationsBuilderX86_64::VisitStaticFieldGet(HStaticFieldGet* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-}
-
-void InstructionCodeGeneratorX86_64::VisitStaticFieldGet(HStaticFieldGet* instruction) {
-  LocationSummary* locations = instruction->GetLocations();
-  CpuRegister cls = locations->InAt(0).AsRegister<CpuRegister>();
-  size_t offset = instruction->GetFieldOffset().SizeValue();
-
-  switch (instruction->GetType()) {
-    case Primitive::kPrimBoolean: {
-      CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-      __ movzxb(out, Address(cls, offset));
-      break;
-    }
-
-    case Primitive::kPrimByte: {
-      CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-      __ movsxb(out, Address(cls, offset));
-      break;
-    }
-
-    case Primitive::kPrimShort: {
-      CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-      __ movsxw(out, Address(cls, offset));
-      break;
-    }
-
-    case Primitive::kPrimChar: {
-      CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-      __ movzxw(out, Address(cls, offset));
-      break;
-    }
-
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot: {
-      CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-      __ movl(out, Address(cls, offset));
-      break;
-    }
-
-    case Primitive::kPrimLong: {
-      CpuRegister out = locations->Out().AsRegister<CpuRegister>();
-      __ movq(out, Address(cls, offset));
-      break;
-    }
-
-    case Primitive::kPrimFloat: {
-      XmmRegister out = locations->Out().AsFpuRegister<XmmRegister>();
-      __ movss(out, Address(cls, offset));
-      break;
-    }
-
-    case Primitive::kPrimDouble: {
-      XmmRegister out = locations->Out().AsFpuRegister<XmmRegister>();
-      __ movsd(out, Address(cls, offset));
-      break;
-    }
-
-    case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unreachable type " << instruction->GetType();
-      UNREACHABLE();
-  }
-}
-
-void LocationsBuilderX86_64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  Primitive::Type field_type = instruction->GetFieldType();
-  bool needs_write_barrier =
-      CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->GetValue());
-  locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, Location::RequiresRegister());
-  if (needs_write_barrier) {
-    // Temporary registers for the write barrier.
-    locations->AddTemp(Location::RequiresRegister());
-    locations->AddTemp(Location::RequiresRegister());
-  }
-}
-
-void InstructionCodeGeneratorX86_64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
-  LocationSummary* locations = instruction->GetLocations();
-  CpuRegister cls = locations->InAt(0).AsRegister<CpuRegister>();
-  size_t offset = instruction->GetFieldOffset().SizeValue();
-  Primitive::Type field_type = instruction->GetFieldType();
-
-  switch (field_type) {
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte: {
-      CpuRegister value = locations->InAt(1).AsRegister<CpuRegister>();
-      __ movb(Address(cls, offset), value);
-      break;
-    }
-
-    case Primitive::kPrimShort:
-    case Primitive::kPrimChar: {
-      CpuRegister value = locations->InAt(1).AsRegister<CpuRegister>();
-      __ movw(Address(cls, offset), value);
-      break;
-    }
-
-    case Primitive::kPrimInt:
-    case Primitive::kPrimNot: {
-      CpuRegister value = locations->InAt(1).AsRegister<CpuRegister>();
-      __ movl(Address(cls, offset), value);
-      if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->GetValue())) {
-        CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
-        CpuRegister card = locations->GetTemp(1).AsRegister<CpuRegister>();
-        codegen_->MarkGCCard(temp, card, cls, value);
-      }
-      break;
-    }
-
-    case Primitive::kPrimLong: {
-      CpuRegister value = locations->InAt(1).AsRegister<CpuRegister>();
-      __ movq(Address(cls, offset), value);
-      break;
-    }
-
-    case Primitive::kPrimFloat: {
-      XmmRegister value = locations->InAt(1).AsFpuRegister<XmmRegister>();
-      __ movss(Address(cls, offset), value);
-      break;
-    }
-
-    case Primitive::kPrimDouble: {
-      XmmRegister value = locations->InAt(1).AsFpuRegister<XmmRegister>();
-      __ movsd(Address(cls, offset), value);
-      break;
-    }
-
-    case Primitive::kPrimVoid:
-      LOG(FATAL) << "Unreachable type " << field_type;
-      UNREACHABLE();
-  }
 }
 
 void LocationsBuilderX86_64::VisitLoadString(HLoadString* load) {
