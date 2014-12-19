@@ -365,8 +365,9 @@ void RosAllocSpace::Clear() {
   mark_bitmap_->Clear();
   SetEnd(begin_ + starting_size_);
   delete rosalloc_;
-  rosalloc_ = CreateRosAlloc(mem_map_->Begin(), starting_size_, initial_size_, Capacity(),
-                             low_memory_mode_, Runtime::Current()->RunningOnValgrind());
+  rosalloc_ = CreateRosAlloc(mem_map_->Begin(), starting_size_, initial_size_,
+                             NonGrowthLimitCapacity(), low_memory_mode_,
+                             Runtime::Current()->RunningOnValgrind());
   SetFootprintLimit(footprint_limit);
 }
 
