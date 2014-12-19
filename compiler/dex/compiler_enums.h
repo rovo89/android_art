@@ -555,7 +555,7 @@ std::ostream& operator<<(std::ostream& os, const DividePattern& pattern);
  * The current recipe is as follows:
  * -# Use AnyStore ~= (LoadStore | StoreStore) ~= release barrier before volatile store.
  * -# Use AnyAny barrier after volatile store.  (StoreLoad is as expensive.)
- * -# Use LoadAny barrier ~= (LoadLoad | LoadStore) ~= acquire barrierafter each volatile load.
+ * -# Use LoadAny barrier ~= (LoadLoad | LoadStore) ~= acquire barrier after each volatile load.
  * -# Use StoreStore barrier after all stores but before return from any constructor whose
  *    class has final fields.
  * -# Use NTStoreStore to order non-temporal stores with respect to all later

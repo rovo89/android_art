@@ -697,4 +697,28 @@ TEST_F(AssemblerArm32Test, Vmstat) {
   DriverStr(expected, "vmrs");
 }
 
+TEST_F(AssemblerArm32Test, ldrexd) {
+  GetAssembler()->ldrexd(arm::R0, arm::R1, arm::R0);
+  GetAssembler()->ldrexd(arm::R0, arm::R1, arm::R1);
+  GetAssembler()->ldrexd(arm::R0, arm::R1, arm::R2);
+
+  const char* expected =
+      "ldrexd r0, r1, [r0]\n"
+      "ldrexd r0, r1, [r1]\n"
+      "ldrexd r0, r1, [r2]\n";
+  DriverStr(expected, "ldrexd");
+}
+
+TEST_F(AssemblerArm32Test, strexd) {
+  GetAssembler()->strexd(arm::R9, arm::R0, arm::R1, arm::R0);
+  GetAssembler()->strexd(arm::R9, arm::R0, arm::R1, arm::R1);
+  GetAssembler()->strexd(arm::R9, arm::R0, arm::R1, arm::R2);
+
+  const char* expected =
+      "strexd r9, r0, r1, [r0]\n"
+      "strexd r9, r0, r1, [r1]\n"
+      "strexd r9, r0, r1, [r2]\n";
+  DriverStr(expected, "strexd");
+}
+
 }  // namespace art

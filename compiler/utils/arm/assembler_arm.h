@@ -429,6 +429,8 @@ class ArmAssembler : public Assembler {
 
   virtual void ldrex(Register rd, Register rn, Condition cond = AL) = 0;
   virtual void strex(Register rd, Register rt, Register rn, Condition cond = AL) = 0;
+  virtual void ldrexd(Register rt, Register rt2, Register rn, Condition cond = AL) = 0;
+  virtual void strexd(Register rd, Register rt, Register rt2, Register rn, Condition cond = AL) = 0;
 
   // Miscellaneous instructions.
   virtual void clrex(Condition cond = AL) = 0;
