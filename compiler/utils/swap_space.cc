@@ -142,6 +142,7 @@ SpaceChunk SwapSpace::NewFileChunk(size_t min_size) {
     LOG(ERROR) << "Unable to mmap new swap file chunk.";
     LOG(ERROR) << "Current size: " << size_ << " requested: " << next_part << "/" << min_size;
     LOG(ERROR) << "Free list:";
+    MutexLock lock(Thread::Current(), lock_);
     DumpFreeMap(free_by_size_);
     LOG(ERROR) << "In free list: " << CollectFree(free_by_start_, free_by_size_);
     LOG(FATAL) << "Aborting...";
@@ -172,7 +173,7 @@ void SwapSpace::Free(void* ptrV, size_t size) {
       // Merge *prev with this chunk.
       chunk.size += prev->size;
       chunk.ptr -= prev->size;
-      auto erase_pos = free_by_size_.find(FreeBySizeEntry { size, prev });
+      auto erase_pos = free_by_size_.find(FreeBySizeEntry { prev->size, prev });
       DCHECK(erase_pos != free_by_size_.end());
       RemoveChunk(&free_by_start_, &free_by_size_, erase_pos);
       // "prev" is invalidated but "it" remains valid.
@@ -183,7 +184,7 @@ void SwapSpace::Free(void* ptrV, size_t size) {
     if (chunk.End() == it->Start()) {
       // Merge *it with this chunk.
       chunk.size += it->size;
-      auto erase_pos = free_by_size_.find(FreeBySizeEntry { size, it });
+      auto erase_pos = free_by_size_.find(FreeBySizeEntry { it->size, it });
       DCHECK(erase_pos != free_by_size_.end());
       RemoveChunk(&free_by_start_, &free_by_size_, erase_pos);
       // "it" is invalidated but we don't need it anymore.
