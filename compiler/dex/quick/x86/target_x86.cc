@@ -562,6 +562,7 @@ void X86Mir2Lir::FreeCallTemps() {
   FreeTemp(TargetReg32(kArg1));
   FreeTemp(TargetReg32(kArg2));
   FreeTemp(TargetReg32(kArg3));
+  FreeTemp(TargetReg32(kHiddenArg));
   if (cu_->target64) {
     FreeTemp(TargetReg32(kArg4));
     FreeTemp(TargetReg32(kArg5));
