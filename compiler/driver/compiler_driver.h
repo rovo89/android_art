@@ -39,6 +39,7 @@
 #include "thread_pool.h"
 #include "utils/arena_allocator.h"
 #include "utils/dedupe_set.h"
+#include "utils/swap_space.h"
 #include "dex/verified_method.h"
 
 namespace art {
@@ -91,6 +92,8 @@ class CompilerTls {
     void* llvm_info_;
 };
 
+static constexpr bool kUseMurmur3Hash = true;
+
 class CompilerDriver {
  public:
   // Create a compiler targeting the requested "instruction_set".
@@ -107,7 +110,8 @@ class CompilerDriver {
                           bool image, std::set<std::string>* image_classes,
                           std::set<std::string>* compiled_classes,
                           size_t thread_count, bool dump_stats, bool dump_passes,
-                          CumulativeLogger* timer, std::string profile_file = "");
+                          CumulativeLogger* timer, int swap_fd = -1,
+                          std::string profile_file = "");
 
   ~CompilerDriver();
 
@@ -382,6 +386,9 @@ class CompilerDriver {
   const ArenaPool* GetArenaPool() const {
     return &arena_pool_;
   }
+  SwapAllocator<void>& GetSwapSpaceAllocator() {
+    return *swap_space_allocator_.get();
+  }
 
   bool WriteElf(const std::string& android_root,
                 bool is_host,
@@ -640,11 +647,11 @@ class CompilerDriver {
   void RecordClassStatus(ClassReference ref, mirror::Class::Status status)
       LOCKS_EXCLUDED(compiled_classes_lock_);
 
-  std::vector<uint8_t>* DeduplicateCode(const std::vector<uint8_t>& code);
-  std::vector<uint8_t>* DeduplicateMappingTable(const std::vector<uint8_t>& code);
-  std::vector<uint8_t>* DeduplicateVMapTable(const std::vector<uint8_t>& code);
-  std::vector<uint8_t>* DeduplicateGCMap(const std::vector<uint8_t>& code);
-  std::vector<uint8_t>* DeduplicateCFIInfo(const std::vector<uint8_t>* cfi_info);
+  SwapVector<uint8_t>* DeduplicateCode(const ArrayRef<const uint8_t>& code);
+  SwapVector<uint8_t>* DeduplicateMappingTable(const ArrayRef<const uint8_t>& code);
+  SwapVector<uint8_t>* DeduplicateVMapTable(const ArrayRef<const uint8_t>& code);
+  SwapVector<uint8_t>* DeduplicateGCMap(const ArrayRef<const uint8_t>& code);
+  SwapVector<uint8_t>* DeduplicateCFIInfo(const ArrayRef<const uint8_t>& cfi_info);
 
   /*
    * @brief return the pointer to the Call Frame Information.
@@ -653,9 +660,6 @@ class CompilerDriver {
   std::vector<uint8_t>* GetCallFrameInformation() const {
     return cfi_info_.get();
   }
-
-  ProfileFile profile_file_;
-  bool profile_present_;
 
   // Should the compiler run on this method given profile information?
   bool SkipCompilation(const std::string& method_name);
@@ -755,6 +759,14 @@ class CompilerDriver {
   static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
+  // Swap pool and allocator used for native allocations. May be file-backed. Needs to be first
+  // as other fields rely on this.
+  std::unique_ptr<SwapSpace> swap_space_;
+  std::unique_ptr<SwapAllocator<void> > swap_space_allocator_;
+
+  ProfileFile profile_file_;
+  bool profile_present_;
+
   std::vector<const CallPatchInformation*> code_to_patch_;
   std::vector<const CallPatchInformation*> methods_to_patch_;
   std::vector<const TypePatchInformation*> classes_to_patch_;
@@ -841,42 +853,81 @@ class CompilerDriver {
   // DeDuplication data structures, these own the corresponding byte arrays.
   class DedupeHashFunc {
    public:
-    size_t operator()(const std::vector<uint8_t>& array) const {
-      // For small arrays compute a hash using every byte.
-      static const size_t kSmallArrayThreshold = 16;
-      size_t hash = 0x811c9dc5;
-      if (array.size() <= kSmallArrayThreshold) {
+    size_t operator()(const ArrayRef<const uint8_t>& array) const {
+      if (kUseMurmur3Hash) {
+        static constexpr uint32_t c1 = 0xcc9e2d51;
+        static constexpr uint32_t c2 = 0x1b873593;
+        static constexpr uint32_t r1 = 15;
+        static constexpr uint32_t r2 = 13;
+        static constexpr uint32_t m = 5;
+        static constexpr uint32_t n = 0xe6546b64;
+
+        uint32_t hash = 0;
+        uint32_t len = static_cast<uint32_t>(array.size());
+
+        const int nblocks = len / 4;
+        typedef __attribute__((__aligned__(1))) uint32_t unaligned_uint32_t;
+        const unaligned_uint32_t *blocks = reinterpret_cast<const uint32_t*>(array.data());
+        int i;
+        for (i = 0; i < nblocks; i++) {
+          uint32_t k = blocks[i];
+          k *= c1;
+          k = (k << r1) | (k >> (32 - r1));
+          k *= c2;
+
+          hash ^= k;
+          hash = ((hash << r2) | (hash >> (32 - r2))) * m + n;
+        }
+
+        const uint8_t *tail = reinterpret_cast<const uint8_t*>(array.data() + nblocks * 4);
+        uint32_t k1 = 0;
+
+        switch (len & 3) {
+          case 3:
+            k1 ^= tail[2] << 16;
+          case 2:
+            k1 ^= tail[1] << 8;
+          case 1:
+            k1 ^= tail[0];
+
+            k1 *= c1;
+            k1 = (k1 << r1) | (k1 >> (32 - r1));
+            k1 *= c2;
+            hash ^= k1;
+        }
+
+        hash ^= len;
+        hash ^= (hash >> 16);
+        hash *= 0x85ebca6b;
+        hash ^= (hash >> 13);
+        hash *= 0xc2b2ae35;
+        hash ^= (hash >> 16);
+
+        return hash;
+      } else {
+        size_t hash = 0x811c9dc5;
         for (uint8_t b : array) {
           hash = (hash * 16777619) ^ b;
         }
-      } else {
-        // For larger arrays use the 2 bytes at 6 bytes (the location of a push registers
-        // instruction field for quick generated code on ARM) and then select a number of other
-        // values at random.
-        static const size_t kRandomHashCount = 16;
-        for (size_t i = 0; i < 2; ++i) {
-          uint8_t b = array[i + 6];
-          hash = (hash * 16777619) ^ b;
-        }
-        for (size_t i = 2; i < kRandomHashCount; ++i) {
-          size_t r = i * 1103515245 + 12345;
-          uint8_t b = array[r % array.size()];
-          hash = (hash * 16777619) ^ b;
-        }
+        hash += hash << 13;
+        hash ^= hash >> 7;
+        hash += hash << 3;
+        hash ^= hash >> 17;
+        hash += hash << 5;
+        return hash;
       }
-      hash += hash << 13;
-      hash ^= hash >> 7;
-      hash += hash << 3;
-      hash ^= hash >> 17;
-      hash += hash << 5;
-      return hash;
     }
   };
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_code_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_mapping_table_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_vmap_table_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_gc_map_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_cfi_info_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_code_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_mapping_table_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_vmap_table_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_gc_map_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc, 4> dedupe_cfi_info_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };

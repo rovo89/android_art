@@ -84,15 +84,19 @@ int ScratchFile::GetFd() const {
   return file_->Fd();
 }
 
-void ScratchFile::Unlink() {
-  if (!OS::FileExists(filename_.c_str())) {
-    return;
-  }
+void ScratchFile::Close() {
   if (file_.get() != nullptr) {
     if (file_->FlushCloseOrErase() != 0) {
       PLOG(WARNING) << "Error closing scratch file.";
     }
   }
+}
+
+void ScratchFile::Unlink() {
+  if (!OS::FileExists(filename_.c_str())) {
+    return;
+  }
+  Close();
   int unlink_result = unlink(filename_.c_str());
   CHECK_EQ(0, unlink_result);
 }

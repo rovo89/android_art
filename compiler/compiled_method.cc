@@ -20,7 +20,7 @@
 namespace art {
 
 CompiledCode::CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
-                           const std::vector<uint8_t>& quick_code)
+                           const ArrayRef<const uint8_t>& quick_code)
     : compiler_driver_(compiler_driver), instruction_set_(instruction_set),
       portable_code_(nullptr), quick_code_(nullptr) {
   SetCode(&quick_code, nullptr);
@@ -29,22 +29,20 @@ CompiledCode::CompiledCode(CompilerDriver* compiler_driver, InstructionSet instr
 CompiledCode::CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
                            const std::string& elf_object, const std::string& symbol)
     : compiler_driver_(compiler_driver), instruction_set_(instruction_set),
-      portable_code_(nullptr), quick_code_(nullptr), symbol_(symbol) {
+      portable_code_(compiler_driver_->DeduplicateCode(
+          ArrayRef<const uint8_t>(reinterpret_cast<const uint8_t*>(elf_object.data()),
+                                  elf_object.size()))),
+      quick_code_(nullptr), symbol_(symbol) {
   CHECK_NE(elf_object.size(), 0U);
   CHECK_NE(symbol.size(), 0U);
-  std::vector<uint8_t> temp_code(elf_object.size());
-  for (size_t i = 0; i < elf_object.size(); ++i) {
-    temp_code[i] = elf_object[i];
-  }
   // TODO: we shouldn't just shove ELF objects in as "code" but
   // change to have different kinds of compiled methods.  This is
   // being deferred until we work on hybrid execution or at least
   // until we work on batch compilation.
-  SetCode(nullptr, &temp_code);
 }
 
-void CompiledCode::SetCode(const std::vector<uint8_t>* quick_code,
-                           const std::vector<uint8_t>* portable_code) {
+void CompiledCode::SetCode(const ArrayRef<const uint8_t>* quick_code,
+                           const ArrayRef<const uint8_t>* portable_code) {
   if (portable_code != nullptr) {
     CHECK(!portable_code->empty());
     portable_code_ = compiler_driver_->DeduplicateCode(*portable_code);
@@ -144,56 +142,93 @@ void CompiledCode::AddOatdataOffsetToCompliledCodeOffset(uint32_t offset) {
 
 CompiledMethod::CompiledMethod(CompilerDriver* driver,
                                InstructionSet instruction_set,
-                               const std::vector<uint8_t>& quick_code,
+                               const ArrayRef<const uint8_t>& quick_code,
                                const size_t frame_size_in_bytes,
                                const uint32_t core_spill_mask,
                                const uint32_t fp_spill_mask,
-                               const std::vector<uint8_t>& mapping_table,
-                               const std::vector<uint8_t>& vmap_table,
-                               const std::vector<uint8_t>& native_gc_map,
-                               const std::vector<uint8_t>* cfi_info)
+                               const ArrayRef<const uint8_t>& mapping_table,
+                               const ArrayRef<const uint8_t>& vmap_table,
+                               const ArrayRef<const uint8_t>& native_gc_map,
+                               const ArrayRef<const uint8_t>& cfi_info)
     : CompiledCode(driver, instruction_set, quick_code), frame_size_in_bytes_(frame_size_in_bytes),
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask),
-  mapping_table_(driver->DeduplicateMappingTable(mapping_table)),
-  vmap_table_(driver->DeduplicateVMapTable(vmap_table)),
-  gc_map_(driver->DeduplicateGCMap(native_gc_map)),
-  cfi_info_(driver->DeduplicateCFIInfo(cfi_info)) {
+      mapping_table_(driver->DeduplicateMappingTable(mapping_table)),
+      vmap_table_(driver->DeduplicateVMapTable(vmap_table)),
+      gc_map_(driver->DeduplicateGCMap(native_gc_map)),
+      cfi_info_(cfi_info.data() == nullptr ? nullptr : driver->DeduplicateCFIInfo(cfi_info)) {
 }
 
 CompiledMethod::CompiledMethod(CompilerDriver* driver,
                                InstructionSet instruction_set,
-                               const std::vector<uint8_t>& code,
+                               const ArrayRef<const uint8_t>& code,
                                const size_t frame_size_in_bytes,
                                const uint32_t core_spill_mask,
                                const uint32_t fp_spill_mask)
     : CompiledCode(driver, instruction_set, code),
       frame_size_in_bytes_(frame_size_in_bytes),
       core_spill_mask_(core_spill_mask), fp_spill_mask_(fp_spill_mask),
-      mapping_table_(driver->DeduplicateMappingTable(std::vector<uint8_t>())),
-      vmap_table_(driver->DeduplicateVMapTable(std::vector<uint8_t>())),
-      gc_map_(driver->DeduplicateGCMap(std::vector<uint8_t>())),
       cfi_info_(nullptr) {
+  mapping_table_ = driver->DeduplicateMappingTable(ArrayRef<const uint8_t>());
+  vmap_table_ = driver->DeduplicateVMapTable(ArrayRef<const uint8_t>());
+  gc_map_ = driver->DeduplicateGCMap(ArrayRef<const uint8_t>());
 }
 
 // Constructs a CompiledMethod for the Portable compiler.
 CompiledMethod::CompiledMethod(CompilerDriver* driver, InstructionSet instruction_set,
-                               const std::string& code, const std::vector<uint8_t>& gc_map,
+                               const std::string& code, const ArrayRef<const uint8_t>& gc_map,
                                const std::string& symbol)
     : CompiledCode(driver, instruction_set, code, symbol),
       frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
-      fp_spill_mask_(0), gc_map_(driver->DeduplicateGCMap(gc_map)) {
-  mapping_table_ = driver->DeduplicateMappingTable(std::vector<uint8_t>());
-  vmap_table_ = driver->DeduplicateVMapTable(std::vector<uint8_t>());
+      fp_spill_mask_(0), gc_map_(driver->DeduplicateGCMap(gc_map)),
+      cfi_info_(nullptr) {
+  mapping_table_ = driver->DeduplicateMappingTable(ArrayRef<const uint8_t>());
+  vmap_table_ = driver->DeduplicateVMapTable(ArrayRef<const uint8_t>());
 }
 
 CompiledMethod::CompiledMethod(CompilerDriver* driver, InstructionSet instruction_set,
                                const std::string& code, const std::string& symbol)
     : CompiledCode(driver, instruction_set, code, symbol),
       frame_size_in_bytes_(kStackAlignment), core_spill_mask_(0),
-      fp_spill_mask_(0) {
-  mapping_table_ = driver->DeduplicateMappingTable(std::vector<uint8_t>());
-  vmap_table_ = driver->DeduplicateVMapTable(std::vector<uint8_t>());
-  gc_map_ = driver->DeduplicateGCMap(std::vector<uint8_t>());
+      fp_spill_mask_(0), cfi_info_(nullptr) {
+  mapping_table_ = driver->DeduplicateMappingTable(ArrayRef<const uint8_t>());
+  vmap_table_ = driver->DeduplicateVMapTable(ArrayRef<const uint8_t>());
+  gc_map_ = driver->DeduplicateGCMap(ArrayRef<const uint8_t>());
+}
+
+CompiledMethod* CompiledMethod::SwapAllocCompiledMethod(CompilerDriver* driver,
+    InstructionSet instruction_set,
+    const ArrayRef<const uint8_t>& quick_code,
+    const size_t frame_size_in_bytes,
+    const uint32_t core_spill_mask,
+    const uint32_t fp_spill_mask,
+    const ArrayRef<const uint8_t>& mapping_table,
+    const ArrayRef<const uint8_t>& vmap_table,
+    const ArrayRef<const uint8_t>& native_gc_map,
+    const ArrayRef<const uint8_t>& cfi_info) {
+  SwapAllocator<CompiledMethod> alloc(driver->GetSwapSpaceAllocator());
+  CompiledMethod* ret = alloc.allocate(1);
+  alloc.construct(ret, driver, instruction_set, quick_code, frame_size_in_bytes, core_spill_mask,
+                  fp_spill_mask, mapping_table, vmap_table, native_gc_map, cfi_info);
+  return ret;
+}
+
+CompiledMethod* CompiledMethod::SwapAllocCompiledMethod(CompilerDriver* driver,
+                                                        InstructionSet instruction_set,
+                                                        const ArrayRef<const uint8_t>& quick_code,
+                                                        const size_t frame_size_in_bytes,
+                                                        const uint32_t core_spill_mask,
+                                                        const uint32_t fp_spill_mask) {
+  SwapAllocator<CompiledMethod> alloc(driver->GetSwapSpaceAllocator());
+  CompiledMethod* ret = alloc.allocate(1);
+  alloc.construct(ret, driver, instruction_set, quick_code, frame_size_in_bytes, core_spill_mask,
+                  fp_spill_mask);
+  return ret;
+}
+
+void CompiledMethod::ReleaseSwapAllocatedCompiledMethod(CompilerDriver* driver, CompiledMethod* m) {
+  SwapAllocator<CompiledMethod> alloc(driver->GetSwapSpaceAllocator());
+  alloc.destroy(m);
+  alloc.deallocate(m, 1);
 }
 
 }  // namespace art

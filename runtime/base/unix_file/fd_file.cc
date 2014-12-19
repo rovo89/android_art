@@ -241,4 +241,8 @@ int FdFile::FlushClose() {
   return (flush_result != 0) ? flush_result : close_result;
 }
 
+void FdFile::MarkUnchecked() {
+  guard_state_ = GuardState::kNoCheck;
+}
+
 }  // namespace unix_file

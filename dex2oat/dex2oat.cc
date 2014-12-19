@@ -229,6 +229,12 @@ static void Usage(const char* fmt, ...) {
   UsageError("  --disable-passes=<pass-names>:  disable one or more passes separated by comma.");
   UsageError("      Example: --disable-passes=UseCount,BBOptimizations");
   UsageError("");
+  UsageError("  --swap-file=<file-name>:  specifies a file to use for swap.");
+  UsageError("      Example: --swap-file=/data/tmp/swap.001");
+  UsageError("");
+  UsageError("  --swap-fd=<file-descriptor>:  specifies a file to use for swap (by descriptor).");
+  UsageError("      Example: --swap-fd=10");
+  UsageError("");
   std::cerr << "See log for usage error information\n";
   exit(EXIT_FAILURE);
 }
@@ -357,6 +363,7 @@ class Dex2Oat {
                                       bool dump_passes,
                                       TimingLogger& timings,
                                       CumulativeLogger& compiler_phases_timings,
+                                      int swap_fd,
                                       std::string profile_file,
                                       SafeMap<std::string, std::string>* key_value_store) {
     CHECK(key_value_store != nullptr);
@@ -392,6 +399,7 @@ class Dex2Oat {
                                                               dump_stats,
                                                               dump_passes,
                                                               &compiler_phases_timings,
+                                                              swap_fd,
                                                               profile_file));
 
     driver->GetCompiler()->SetBitcodeFileName(*driver.get(), bitcode_filename);
@@ -802,6 +810,25 @@ static void b13564922() {
 #endif
 }
 
+static constexpr size_t kMinDexFilesForSwap = 2;
+static constexpr size_t kMinDexFileCumulativeSizeForSwap = 20 * MB;
+
+static bool UseSwap(bool is_image, std::vector<const DexFile*>& dex_files) {
+  if (is_image) {
+    // Don't use swap, we know generation should succeed, and we don't want to slow it down.
+    return false;
+  }
+  if (dex_files.size() < kMinDexFilesForSwap) {
+    // If there are less dex files than the threshold, assume it's gonna be fine.
+    return false;
+  }
+  size_t dex_files_size = 0;
+  for (const auto* dex_file : dex_files) {
+    dex_files_size += dex_file->GetHeader().file_size_;
+  }
+  return dex_files_size >= kMinDexFileCumulativeSizeForSwap;
+}
+
 static int dex2oat(int argc, char** argv) {
   b13564922();
 
@@ -875,6 +902,10 @@ static int dex2oat(int argc, char** argv) {
   bool implicit_null_checks = false;
   bool implicit_so_checks = false;
   bool implicit_suspend_checks = false;
+
+  // Swap file.
+  std::string swap_file_name;
+  int swap_fd = -1;  // No swap file descriptor;
 
   for (int i = 0; i < argc; i++) {
     const StringPiece option(argv[i]);
@@ -1062,6 +1093,16 @@ static int dex2oat(int argc, char** argv) {
       include_patch_information = true;
     } else if (option == "--no-include-patch-information") {
       include_patch_information = false;
+    } else if (option.starts_with("--swap-file=")) {
+      swap_file_name = option.substr(strlen("--swap-file=")).data();
+    } else if (option.starts_with("--swap-fd=")) {
+      const char* swap_fd_str = option.substr(strlen("--swap-fd=")).data();
+      if (!ParseInt(swap_fd_str, &swap_fd)) {
+        Usage("Failed to parse --swap-fd argument '%s' as an integer", swap_fd_str);
+      }
+      if (swap_fd < 0) {
+        Usage("--swap-fd passed a negative value %d", swap_fd);
+      }
     } else {
       Usage("Unknown argument %s", option.data());
     }
@@ -1264,6 +1305,25 @@ static int dex2oat(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  // Swap file handling.
+  //
+  // If the swap fd is not -1, we assume this is the file descriptor of an open but unlinked file
+  // that we can use for swap.
+  //
+  // If the swap fd is -1 and we have a swap-file string, open the given file as a swap file. We
+  // will immediately unlink to satisfy the swap fd assumption.
+  std::unique_ptr<File> swap_file;
+  if (swap_fd == -1 && !swap_file_name.empty()) {
+    swap_file.reset(OS::CreateEmptyFile(swap_file_name.c_str()));
+    if (swap_file.get() == nullptr) {
+      PLOG(ERROR) << "Failed to create swap file: " << swap_file_name;
+      return EXIT_FAILURE;
+    }
+    swap_fd = swap_file->Fd();
+    swap_file->MarkUnchecked();  // We don't we to track this, it will be unlinked immediately.
+    unlink(swap_file_name.c_str());
+  }
+
   timings.StartTiming("dex2oat Setup");
   LOG(INFO) << CommandLine();
 
@@ -1293,6 +1353,11 @@ static int dex2oat(int argc, char** argv) {
   runtime_options.push_back(
       std::make_pair("imageinstructionset",
                      reinterpret_cast<const void*>(GetInstructionSetString(instruction_set))));
+
+  if (swap_fd != -1) {
+    // Swap file indicates low-memory mode. Use GC.
+    runtime_options.push_back(std::make_pair("-Xgc:MS", nullptr));
+  }
 
   Dex2Oat* p_dex2oat;
   if (!Dex2Oat::Create(&p_dex2oat,
@@ -1424,6 +1489,16 @@ static int dex2oat(int argc, char** argv) {
       PLOG(ERROR) << "Failed to make .dex file writeable '" << dex_file->GetLocation() << "'\n";
     }
   }
+  // If we use a swap file, ensure we are above the threshold to make it necessary.
+  if (swap_fd != -1) {
+    if (!UseSwap(image, dex_files)) {
+      close(swap_fd);
+      swap_fd = -1;
+      LOG(INFO) << "Decided to run without swap.";
+    } else {
+      LOG(INFO) << "Accepted running with swap.";
+    }
+  }
 
   /*
    * If we're not in interpret-only or verify-none mode, go ahead and compile small applications.
@@ -1476,6 +1551,7 @@ static int dex2oat(int argc, char** argv) {
                                                                         dump_passes,
                                                                         timings,
                                                                         compiler_phases_timings,
+                                                                        swap_fd,
                                                                         profile_file,
                                                                         key_value_store.get()));
   if (compiler.get() == nullptr) {
