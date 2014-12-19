@@ -2152,7 +2152,7 @@ class HInstanceFieldGet : public HExpression<1> {
     SetRawInputAt(0, value);
   }
 
-  bool CanBeMoved() const OVERRIDE { return IsVolatile(); }
+  bool CanBeMoved() const OVERRIDE { return !IsVolatile(); }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     HInstanceFieldGet* other_get = other->AsInstanceFieldGet();
@@ -2513,7 +2513,7 @@ class HStaticFieldGet : public HExpression<1> {
   }
 
 
-  bool CanBeMoved() const OVERRIDE { return IsVolatile(); }
+  bool CanBeMoved() const OVERRIDE { return !IsVolatile(); }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     HStaticFieldGet* other_get = other->AsStaticFieldGet();
