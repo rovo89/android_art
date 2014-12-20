@@ -2256,8 +2256,10 @@ class JNI {
         java_buffer, WellKnownClasses::java_nio_DirectByteBuffer_capacity));
   }
 
-  static jobjectRefType GetObjectRefType(JNIEnv* env, jobject java_object) {
-    CHECK_NON_NULL_ARGUMENT_RETURN(java_object, JNIInvalidRefType);
+  static jobjectRefType GetObjectRefType(JNIEnv* env ATTRIBUTE_UNUSED, jobject java_object) {
+    if (java_object == nullptr) {
+      return JNIInvalidRefType;
+    }
 
     // Do we definitely know what kind of reference this is?
     IndirectRef ref = reinterpret_cast<IndirectRef>(java_object);
@@ -2274,7 +2276,7 @@ class JNI {
       return JNILocalRefType;
     }
     LOG(FATAL) << "IndirectRefKind[" << kind << "]";
-    return JNIInvalidRefType;
+    UNREACHABLE();
   }
 
  private:
