@@ -133,6 +133,10 @@ class Runtime {
     return compiler_options_;
   }
 
+  void AddCompilerOption(std::string option) {
+    compiler_options_.push_back(option);
+  }
+
   const std::vector<std::string>& GetImageCompilerOptions() const {
     return image_compiler_options_;
   }
