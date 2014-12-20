@@ -67,6 +67,7 @@ LIBART_COMMON_SRC_FILES := \
   gc/space/rosalloc_space.cc \
   gc/space/space.cc \
   gc/space/zygote_space.cc \
+  gc/task_processor.cc \
   hprof/hprof.cc \
   image.cc \
   indirect_reference_table.cc \

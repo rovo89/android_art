@@ -23,10 +23,13 @@
 #include "reflection.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
+#include "task_processor.h"
 #include "well_known_classes.h"
 
 namespace art {
 namespace gc {
+
+static constexpr bool kAsyncReferenceQueueAdd = false;
 
 ReferenceProcessor::ReferenceProcessor()
     : process_references_args_(nullptr, nullptr, nullptr),
@@ -213,17 +216,43 @@ void ReferenceProcessor::UpdateRoots(IsMarkedCallback* callback, void* arg) {
   cleared_references_.UpdateRoots(callback, arg);
 }
 
+class ClearedReferenceTask : public HeapTask {
+ public:
+  explicit ClearedReferenceTask(jobject cleared_references)
+      : HeapTask(NanoTime()), cleared_references_(cleared_references) {
+  }
+  virtual void Run(Thread* thread) {
+    ScopedObjectAccess soa(thread);
+    jvalue args[1];
+    args[0].l = cleared_references_;
+    InvokeWithJValues(soa, nullptr, WellKnownClasses::java_lang_ref_ReferenceQueue_add, args);
+    soa.Env()->DeleteGlobalRef(cleared_references_);
+  }
+
+ private:
+  const jobject cleared_references_;
+};
+
 void ReferenceProcessor::EnqueueClearedReferences(Thread* self) {
   Locks::mutator_lock_->AssertNotHeld(self);
+  // When a runtime isn't started there are no reference queues to care about so ignore.
   if (!cleared_references_.IsEmpty()) {
-    // When a runtime isn't started there are no reference queues to care about so ignore.
     if (LIKELY(Runtime::Current()->IsStarted())) {
-      ScopedObjectAccess soa(self);
-      ScopedLocalRef<jobject> arg(self->GetJniEnv(),
-                                  soa.AddLocalReference<jobject>(cleared_references_.GetList()));
-      jvalue args[1];
-      args[0].l = arg.get();
-      InvokeWithJValues(soa, nullptr, WellKnownClasses::java_lang_ref_ReferenceQueue_add, args);
+      jobject cleared_references;
+      {
+        ReaderMutexLock mu(self, *Locks::mutator_lock_);
+        cleared_references = self->GetJniEnv()->vm->AddGlobalRef(
+            self, cleared_references_.GetList());
+      }
+      if (kAsyncReferenceQueueAdd) {
+        // TODO: This can cause RunFinalization to terminate before newly freed objects are
+        // finalized since they may not be enqueued by the time RunFinalization starts.
+        Runtime::Current()->GetHeap()->GetTaskProcessor()->AddTask(
+            self, new ClearedReferenceTask(cleared_references));
+      } else {
+        ClearedReferenceTask task(cleared_references);
+        task.Run(self);
+      }
     }
     cleared_references_.Clear();
   }

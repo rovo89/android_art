@@ -52,6 +52,7 @@
 #include "gc/space/rosalloc_space-inl.h"
 #include "gc/space/space-inl.h"
 #include "gc/space/zygote_space.h"
+#include "gc/task_processor.h"
 #include "entrypoints/quick/quick_alloc_entrypoints.h"
 #include "heap-inl.h"
 #include "image.h"
@@ -129,10 +130,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       foreground_collector_type_(foreground_collector_type),
       background_collector_type_(background_collector_type),
       desired_collector_type_(foreground_collector_type_),
-      heap_trim_request_lock_(nullptr),
-      last_trim_time_(0),
-      heap_transition_or_trim_target_time_(0),
-      heap_trim_request_pending_(false),
+      pending_task_lock_(nullptr),
       parallel_gc_threads_(parallel_gc_threads),
       conc_gc_threads_(conc_gc_threads),
       low_memory_mode_(low_memory_mode),
@@ -142,8 +140,6 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       zygote_creation_lock_("zygote creation lock", kZygoteCreationLock),
       zygote_space_(nullptr),
       large_object_threshold_(large_object_threshold),
-      gc_request_pending_(false),
-      conc_gc_running_(false),
       collector_type_running_(kCollectorTypeNone),
       last_gc_type_(collector::kGcTypeNone),
       next_gc_type_(collector::kGcTypePartial),
@@ -194,6 +190,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       min_interval_homogeneous_space_compaction_by_oom_(
           min_interval_homogeneous_space_compaction_by_oom),
       last_time_homogeneous_space_compaction_by_oom_(NanoTime()),
+      pending_collector_transition_(nullptr),
+      pending_heap_trim_(nullptr),
       use_homogeneous_space_compaction_for_oom_(use_homogeneous_space_compaction_for_oom) {
   if (VLOG_IS_ON(heap) || VLOG_IS_ON(startup)) {
     LOG(INFO) << "Heap() entering";
@@ -409,9 +407,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   gc_complete_lock_ = new Mutex("GC complete lock");
   gc_complete_cond_.reset(new ConditionVariable("GC complete condition variable",
                                                 *gc_complete_lock_));
-  gc_request_lock_ = new Mutex("GC request lock");
-  gc_request_cond_.reset(new ConditionVariable("GC request condition variable", *gc_request_lock_));
-  heap_trim_request_lock_ = new Mutex("Heap trim request lock");
+  task_processor_.reset(new TaskProcessor());
+  pending_task_lock_ = new Mutex("Pending task lock");
   if (ignore_max_footprint_) {
     SetIdealFootprint(std::numeric_limits<size_t>::max());
     concurrent_start_bytes_ = std::numeric_limits<size_t>::max();
@@ -719,8 +716,8 @@ void Heap::VisitObjects(ObjectCallback callback, void* arg) {
     mirror::Object* obj = *it;
     if (obj != nullptr && obj->GetClass() != nullptr) {
       // Avoid the race condition caused by the object not yet being written into the allocation
-      // stack or the class not yet being written in the object. Or, if kUseThreadLocalAllocationStack,
-      // there can be nulls on the allocation stack.
+      // stack or the class not yet being written in the object. Or, if
+      // kUseThreadLocalAllocationStack, there can be nulls on the allocation stack.
       callback(obj, arg);
     }
   }
@@ -872,8 +869,7 @@ Heap::~Heap() {
   STLDeleteElements(&continuous_spaces_);
   STLDeleteElements(&discontinuous_spaces_);
   delete gc_complete_lock_;
-  delete gc_request_lock_;
-  delete heap_trim_request_lock_;
+  delete pending_task_lock_;
   VLOG(heap) << "Finished ~Heap()";
 }
 
@@ -944,37 +940,23 @@ void Heap::ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType 
   self->ThrowOutOfMemoryError(oss.str().c_str());
 }
 
-void Heap::DoPendingTransitionOrTrim() {
-  Thread* self = Thread::Current();
-  CollectorType desired_collector_type;
-  // Wait until we reach the desired transition time.
-  while (true) {
-    uint64_t wait_time;
-    {
-      MutexLock mu(self, *heap_trim_request_lock_);
-      desired_collector_type = desired_collector_type_;
-      uint64_t current_time = NanoTime();
-      if (current_time >= heap_transition_or_trim_target_time_) {
-        break;
-      }
-      wait_time = heap_transition_or_trim_target_time_ - current_time;
-    }
-    ScopedThreadStateChange tsc(self, kSleeping);
-    usleep(wait_time / 1000);  // Usleep takes microseconds.
-  }
+void Heap::DoPendingCollectorTransition() {
+  CollectorType desired_collector_type = desired_collector_type_;
   // Launch homogeneous space compaction if it is desired.
   if (desired_collector_type == kCollectorTypeHomogeneousSpaceCompact) {
     if (!CareAboutPauseTimes()) {
       PerformHomogeneousSpaceCompact();
+    } else {
+      VLOG(gc) << "Homogeneous compaction ignored due to jank perceptible process state";
     }
-    // No need to Trim(). Homogeneous space compaction may free more virtual and physical memory.
-    desired_collector_type = collector_type_;
-    return;
+  } else {
+    TransitionCollector(desired_collector_type);
   }
-  // Transition the collector if the desired collector type is not the same as the current
-  // collector type.
-  TransitionCollector(desired_collector_type);
+}
+
+void Heap::Trim(Thread* self) {
   if (!CareAboutPauseTimes()) {
+    ATRACE_BEGIN("Deflating monitors");
     // Deflate the monitors, this can cause a pause but shouldn't matter since we don't care
     // about pauses.
     Runtime* runtime = Runtime::Current();
@@ -984,9 +966,10 @@ void Heap::DoPendingTransitionOrTrim() {
     VLOG(heap) << "Deflating " << count << " monitors took "
         << PrettyDuration(NanoTime() - start_time);
     runtime->GetThreadList()->ResumeAll();
+    ATRACE_END();
   }
-  // Do a heap trim if it is needed.
-  Trim();
+  TrimIndirectReferenceTables(self);
+  TrimSpaces(self);
 }
 
 class TrimIndirectReferenceTableClosure : public Closure {
@@ -1004,17 +987,22 @@ class TrimIndirectReferenceTableClosure : public Closure {
   Barrier* const barrier_;
 };
 
+void Heap::TrimIndirectReferenceTables(Thread* self) {
+  ScopedObjectAccess soa(self);
+  ATRACE_BEGIN(__FUNCTION__);
+  JavaVMExt* vm = soa.Vm();
+  // Trim globals indirect reference table.
+  vm->TrimGlobals();
+  // Trim locals indirect reference tables.
+  Barrier barrier(0);
+  TrimIndirectReferenceTableClosure closure(&barrier);
+  ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
+  size_t barrier_count = Runtime::Current()->GetThreadList()->RunCheckpoint(&closure);
+  barrier.Increment(self, barrier_count);
+  ATRACE_END();
+}
 
-void Heap::Trim() {
-  Thread* self = Thread::Current();
-  {
-    MutexLock mu(self, *heap_trim_request_lock_);
-    if (!heap_trim_request_pending_ || last_trim_time_ + kHeapTrimWait >= NanoTime()) {
-      return;
-    }
-    last_trim_time_ = NanoTime();
-    heap_trim_request_pending_ = false;
-  }
+void Heap::TrimSpaces(Thread* self) {
   {
     // Need to do this before acquiring the locks since we don't want to get suspended while
     // holding any locks.
@@ -1026,20 +1014,8 @@ void Heap::Trim() {
     WaitForGcToCompleteLocked(kGcCauseTrim, self);
     collector_type_running_ = kCollectorTypeHeapTrim;
   }
-  // Trim reference tables.
-  {
-    ScopedObjectAccess soa(self);
-    JavaVMExt* vm = soa.Vm();
-    // Trim globals indirect reference table.
-    vm->TrimGlobals();
-    // Trim locals indirect reference tables.
-    Barrier barrier(0);
-    TrimIndirectReferenceTableClosure closure(&barrier);
-    ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
-    size_t barrier_count = Runtime::Current()->GetThreadList()->RunCheckpoint(&closure);
-    barrier.Increment(self, barrier_count);
-  }
-  uint64_t start_ns = NanoTime();
+  ATRACE_BEGIN(__FUNCTION__);
+  const uint64_t start_ns = NanoTime();
   // Trim the managed spaces.
   uint64_t total_alloc_space_allocated = 0;
   uint64_t total_alloc_space_size = 0;
@@ -1089,6 +1065,7 @@ void Heap::Trim() {
       << PrettyDuration(end_ns - gc_heap_end_ns) << ", advised=" << PrettySize(native_reclaimed)
       << ") heaps. Managed heap utilization of " << static_cast<int>(100 * managed_utilization)
       << "%.";
+  ATRACE_END();
 }
 
 bool Heap::IsValidObjectAddress(const mirror::Object* obj) const {
@@ -1638,7 +1615,6 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
   FinishGC(self, collector::kGcTypeFull);
   return HomogeneousSpaceCompactResult::kSuccess;
 }
-
 
 void Heap::TransitionCollector(CollectorType collector_type) {
   if (collector_type == collector_type_) {
@@ -2207,7 +2183,7 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   collector->Run(gc_cause, clear_soft_references || runtime->IsZygote());
   total_objects_freed_ever_ += GetCurrentGcIteration()->GetFreedObjects();
   total_bytes_freed_ever_ += GetCurrentGcIteration()->GetFreedBytes();
-  RequestHeapTrim();
+  RequestTrim(self);
   // Enqueue cleared references.
   reference_processor_.EnqueueClearedReferences(self);
   // Grow the heap so that we know when to perform the next GC.
@@ -3032,52 +3008,109 @@ void Heap::RequestConcurrentGCAndSaveObject(Thread* self, mirror::Object** obj) 
   RequestConcurrentGC(self);
 }
 
-void Heap::RequestConcurrentGC(Thread* self) {
-  // Make sure that we can do a concurrent GC.
-  Runtime* runtime = Runtime::Current();
-  if (runtime == nullptr || !runtime->IsFinishedStarting() || runtime->IsShuttingDown(self) ||
-      self->IsHandlingStackOverflow()) {
-    return;
+class Heap::ConcurrentGCTask : public HeapTask {
+ public:
+  explicit ConcurrentGCTask(uint64_t target_time) : HeapTask(target_time) { }
+  virtual void Run(Thread* self) OVERRIDE {
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    heap->ConcurrentGC(self);
+    heap->ClearConcurrentGCRequest();
   }
-  NotifyConcurrentGCRequest(self);
+};
+
+static bool CanAddHeapTask(Thread* self) LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_) {
+  Runtime* runtime = Runtime::Current();
+  return runtime != nullptr && runtime->IsFinishedStarting() && !runtime->IsShuttingDown(self) &&
+      !self->IsHandlingStackOverflow();
+}
+
+void Heap::ClearConcurrentGCRequest() {
+  concurrent_gc_pending_.StoreRelaxed(false);
+}
+
+void Heap::RequestConcurrentGC(Thread* self) {
+  if (CanAddHeapTask(self) &&
+      concurrent_gc_pending_.CompareExchangeStrongSequentiallyConsistent(false, true)) {
+    task_processor_->AddTask(self, new ConcurrentGCTask(NanoTime()));  // Start straight away.
+  }
 }
 
 void Heap::ConcurrentGC(Thread* self) {
-  if (Runtime::Current()->IsShuttingDown(self)) {
-    return;
-  }
-  // Wait for any GCs currently running to finish.
-  if (WaitForGcToComplete(kGcCauseBackground, self) == collector::kGcTypeNone) {
-    // If the we can't run the GC type we wanted to run, find the next appropriate one and try that
-    // instead. E.g. can't do partial, so do full instead.
-    if (CollectGarbageInternal(next_gc_type_, kGcCauseBackground, false) ==
-        collector::kGcTypeNone) {
-      for (collector::GcType gc_type : gc_plan_) {
-        // Attempt to run the collector, if we succeed, we are done.
-        if (gc_type > next_gc_type_ &&
-            CollectGarbageInternal(gc_type, kGcCauseBackground, false) != collector::kGcTypeNone) {
-          break;
+  if (!Runtime::Current()->IsShuttingDown(self)) {
+    // Wait for any GCs currently running to finish.
+    if (WaitForGcToComplete(kGcCauseBackground, self) == collector::kGcTypeNone) {
+      // If the we can't run the GC type we wanted to run, find the next appropriate one and try that
+      // instead. E.g. can't do partial, so do full instead.
+      if (CollectGarbageInternal(next_gc_type_, kGcCauseBackground, false) ==
+          collector::kGcTypeNone) {
+        for (collector::GcType gc_type : gc_plan_) {
+          // Attempt to run the collector, if we succeed, we are done.
+          if (gc_type > next_gc_type_ &&
+              CollectGarbageInternal(gc_type, kGcCauseBackground, false) !=
+                  collector::kGcTypeNone) {
+            break;
+          }
         }
       }
     }
   }
 }
 
-void Heap::RequestCollectorTransition(CollectorType desired_collector_type, uint64_t delta_time) {
-  Thread* self = Thread::Current();
-  {
-    MutexLock mu(self, *heap_trim_request_lock_);
-    if (desired_collector_type_ == desired_collector_type) {
-      return;
-    }
-    heap_transition_or_trim_target_time_ =
-        std::max(heap_transition_or_trim_target_time_, NanoTime() + delta_time);
-    desired_collector_type_ = desired_collector_type;
+class Heap::CollectorTransitionTask : public HeapTask {
+ public:
+  explicit CollectorTransitionTask(uint64_t target_time) : HeapTask(target_time) { }
+  virtual void Run(Thread* self) OVERRIDE {
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    heap->DoPendingCollectorTransition();
+    heap->ClearPendingCollectorTransition(self);
   }
-  SignalHeapTrimDaemon(self);
+};
+
+void Heap::ClearPendingCollectorTransition(Thread* self) {
+  MutexLock mu(self, *pending_task_lock_);
+  pending_collector_transition_ = nullptr;
 }
 
-void Heap::RequestHeapTrim() {
+void Heap::RequestCollectorTransition(CollectorType desired_collector_type, uint64_t delta_time) {
+  Thread* self = Thread::Current();
+  desired_collector_type_ = desired_collector_type;
+  if (desired_collector_type_ == collector_type_ || !CanAddHeapTask(self)) {
+    return;
+  }
+  CollectorTransitionTask* added_task = nullptr;
+  const uint64_t target_time = NanoTime() + delta_time;
+  {
+    MutexLock mu(self, *pending_task_lock_);
+    // If we have an existing collector transition, update the targe time to be the new target.
+    if (pending_collector_transition_ != nullptr) {
+      task_processor_->UpdateTargetRunTime(self, pending_collector_transition_, target_time);
+      return;
+    }
+    added_task = new CollectorTransitionTask(target_time);
+    pending_collector_transition_ = added_task;
+  }
+  task_processor_->AddTask(self, added_task);
+}
+
+class Heap::HeapTrimTask : public HeapTask {
+ public:
+  explicit HeapTrimTask(uint64_t delta_time) : HeapTask(NanoTime() + delta_time) { }
+  virtual void Run(Thread* self) OVERRIDE {
+    gc::Heap* heap = Runtime::Current()->GetHeap();
+    heap->Trim(self);
+    heap->ClearPendingTrim(self);
+  }
+};
+
+void Heap::ClearPendingTrim(Thread* self) {
+  MutexLock mu(self, *pending_task_lock_);
+  pending_heap_trim_ = nullptr;
+}
+
+void Heap::RequestTrim(Thread* self) {
+  if (!CanAddHeapTask(self)) {
+    return;
+  }
   // GC completed and now we must decide whether to request a heap trim (advising pages back to the
   // kernel) or not. Issuing a request will also cause trimming of the libc heap. As a trim scans
   // a space it will hold its lock and can become a cause of jank.
@@ -3090,42 +3123,17 @@ void Heap::RequestHeapTrim() {
   // to utilization (which is probably inversely proportional to how much benefit we can expect).
   // We could try mincore(2) but that's only a measure of how many pages we haven't given away,
   // not how much use we're making of those pages.
-
-  Thread* self = Thread::Current();
-  Runtime* runtime = Runtime::Current();
-  if (runtime == nullptr || !runtime->IsFinishedStarting() || runtime->IsShuttingDown(self) ||
-      runtime->IsZygote()) {
-    // Ignore the request if we are the zygote to prevent app launching lag due to sleep in heap
-    // trimmer daemon. b/17310019
-    // Heap trimming isn't supported without a Java runtime or Daemons (such as at dex2oat time)
-    // Also: we do not wish to start a heap trim if the runtime is shutting down (a racy check
-    // as we don't hold the lock while requesting the trim).
-    return;
-  }
+  HeapTrimTask* added_task = nullptr;
   {
-    MutexLock mu(self, *heap_trim_request_lock_);
-    if (last_trim_time_ + kHeapTrimWait >= NanoTime()) {
-      // We have done a heap trim in the last kHeapTrimWait nanosecs, don't request another one
-      // just yet.
+    MutexLock mu(self, *pending_task_lock_);
+    if (pending_heap_trim_ != nullptr) {
+      // Already have a heap trim request in task processor, ignore this request.
       return;
     }
-    heap_trim_request_pending_ = true;
-    uint64_t current_time = NanoTime();
-    if (heap_transition_or_trim_target_time_ < current_time) {
-      heap_transition_or_trim_target_time_ = current_time + kHeapTrimWait;
-    }
+    added_task = new HeapTrimTask(kHeapTrimWait);
+    pending_heap_trim_ = added_task;
   }
-  // Notify the daemon thread which will actually do the heap trim.
-  SignalHeapTrimDaemon(self);
-}
-
-void Heap::SignalHeapTrimDaemon(Thread* self) {
-  JNIEnv* env = self->GetJniEnv();
-  DCHECK(WellKnownClasses::java_lang_Daemons != nullptr);
-  DCHECK(WellKnownClasses::java_lang_Daemons_requestHeapTrim != nullptr);
-  env->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
-                            WellKnownClasses::java_lang_Daemons_requestHeapTrim);
-  CHECK(!env->ExceptionCheck());
+  task_processor_->AddTask(self, added_task);
 }
 
 void Heap::RevokeThreadLocalBuffers(Thread* thread) {
@@ -3153,7 +3161,7 @@ void Heap::RevokeAllThreadLocalBuffers() {
 }
 
 bool Heap::IsGCRequestPending() const {
-  return concurrent_start_bytes_ != std::numeric_limits<size_t>::max();
+  return concurrent_gc_pending_.LoadRelaxed();
 }
 
 void Heap::RunFinalization(JNIEnv* env) {
@@ -3235,7 +3243,7 @@ void Heap::AddModUnionTable(accounting::ModUnionTable* mod_union_table) {
 }
 
 void Heap::CheckPreconditionsForAllocObject(mirror::Class* c, size_t byte_count) {
-  CHECK(c == NULL || (c->IsClassClass() && byte_count >= sizeof(mirror::Class)) ||
+  CHECK(c == nullptr || (c->IsClassClass() && byte_count >= sizeof(mirror::Class)) ||
         (c->IsVariableSize() || c->GetObjectSize() == byte_count));
   CHECK_GE(byte_count, sizeof(mirror::Object));
 }
@@ -3269,26 +3277,6 @@ void Heap::ClearMarkedObjects() {
   // Clear the marked objects in the discontinous space object sets.
   for (const auto& space : GetDiscontinuousSpaces()) {
     space->GetMarkBitmap()->Clear();
-  }
-}
-
-void Heap::WaitForConcurrentGCRequest(Thread* self) {
-  ScopedThreadStateChange tsc(self, kBlocked);
-  MutexLock mu(self, *gc_request_lock_);
-  conc_gc_running_ = false;
-  while (!gc_request_pending_) {
-    gc_request_cond_->Wait(self);
-  }
-  gc_request_pending_ = false;
-  conc_gc_running_ = true;
-}
-
-void Heap::NotifyConcurrentGCRequest(Thread* self) {
-  ScopedThreadStateChange tsc(self, kBlocked);
-  MutexLock mu(self, *gc_request_lock_);
-  if (!conc_gc_running_) {
-    gc_request_pending_ = true;
-    gc_request_cond_->Signal(self);
   }
 }
 
