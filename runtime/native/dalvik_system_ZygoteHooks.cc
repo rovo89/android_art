@@ -83,9 +83,15 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
   }
   debug_flags &= ~DEBUG_ENABLE_DEBUGGER;
 
-  // These two are for backwards compatibility with Dalvik.
+  if ((debug_flags & DEBUG_ENABLE_SAFEMODE) != 0) {
+    // Ensure that any (secondary) oat files will be interpreted.
+    Runtime* runtime = Runtime::Current();
+    runtime->AddCompilerOption("--compiler-filter=interpret-only");
+    debug_flags &= ~DEBUG_ENABLE_SAFEMODE;
+  }
+
+  // This is for backwards compatibility with Dalvik.
   debug_flags &= ~DEBUG_ENABLE_ASSERT;
-  debug_flags &= ~DEBUG_ENABLE_SAFEMODE;
 
   if (debug_flags != 0) {
     LOG(ERROR) << StringPrintf("Unknown bits set in debug_flags: %#x", debug_flags);
