@@ -36,8 +36,16 @@ class Closure {
 
 class Task : public Closure {
  public:
-  // Called when references reaches 0.
+  // Called after Closure::Run has been called.
   virtual void Finalize() { }
+};
+
+class SelfDeletingTask : public Task {
+ public:
+  virtual ~SelfDeletingTask() { }
+  virtual void Finalize() {
+    delete this;
+  }
 };
 
 class ThreadPoolWorker {
