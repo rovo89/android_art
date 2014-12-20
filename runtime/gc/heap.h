@@ -57,6 +57,7 @@ namespace mirror {
 namespace gc {
 
 class ReferenceProcessor;
+class TaskProcessor;
 
 namespace accounting {
   class HeapBitmap;
@@ -470,11 +471,11 @@ class Heap {
 
   void DumpForSigQuit(std::ostream& os);
 
-  // Do a pending heap transition or trim.
-  void DoPendingTransitionOrTrim() LOCKS_EXCLUDED(heap_trim_request_lock_);
+  // Do a pending collector transition.
+  void DoPendingCollectorTransition();
 
-  // Trim the managed and native heaps by releasing unused memory back to the OS.
-  void Trim() LOCKS_EXCLUDED(heap_trim_request_lock_);
+  // Deflate monitors, ... and trim the spaces.
+  void Trim(Thread* self) LOCKS_EXCLUDED(gc_complete_lock_);
 
   void RevokeThreadLocalBuffers(Thread* thread);
   void RevokeRosAllocThreadLocalBuffers(Thread* thread);
@@ -606,15 +607,25 @@ class Heap {
   ReferenceProcessor* GetReferenceProcessor() {
     return &reference_processor_;
   }
+  TaskProcessor* GetTaskProcessor() {
+    return task_processor_.get();
+  }
 
   bool HasZygoteSpace() const {
     return zygote_space_ != nullptr;
   }
 
-  void WaitForConcurrentGCRequest(Thread* self) LOCKS_EXCLUDED(gc_request_lock_);
-  void NotifyConcurrentGCRequest(Thread* self) LOCKS_EXCLUDED(gc_request_lock_);
+  // Request an asynchronous trim.
+  void RequestTrim(Thread* self) LOCKS_EXCLUDED(pending_task_lock_);
+
+  // Request asynchronous GC.
+  void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(pending_task_lock_);
 
  private:
+  class ConcurrentGCTask;
+  class CollectorTransitionTask;
+  class HeapTrimTask;
+
   // Compact source space to target space.
   void Compact(space::ContinuousMemMapAllocSpace* target_space,
                space::ContinuousMemMapAllocSpace* source_space,
@@ -705,12 +716,10 @@ class Heap {
       EXCLUSIVE_LOCKS_REQUIRED(gc_complete_lock_);
 
   void RequestCollectorTransition(CollectorType desired_collector_type, uint64_t delta_time)
-      LOCKS_EXCLUDED(heap_trim_request_lock_);
-  void RequestHeapTrim() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
+      LOCKS_EXCLUDED(pending_task_lock_);
+
   void RequestConcurrentGCAndSaveObject(Thread* self, mirror::Object** obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void RequestConcurrentGC(Thread* self)
-      LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_);
   bool IsGCRequestPending() const;
 
   // Sometimes CollectGarbageInternal decides to run a different Gc than you requested. Returns
@@ -771,10 +780,6 @@ class Heap {
   // Clear cards and update the mod union table.
   void ProcessCards(TimingLogger* timings, bool use_rem_sets);
 
-  // Signal the heap trim daemon that there is something to do, either a heap transition or heap
-  // trim.
-  void SignalHeapTrimDaemon(Thread* self);
-
   // Push an object onto the allocation stack.
   void PushOnAllocationStack(Thread* self, mirror::Object** obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -783,11 +788,21 @@ class Heap {
   void PushOnThreadLocalAllocationStackWithInternalGC(Thread* thread, mirror::Object** obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void ClearConcurrentGCRequest();
+  void ClearPendingTrim(Thread* self) LOCKS_EXCLUDED(pending_task_lock_);
+  void ClearPendingCollectorTransition(Thread* self) LOCKS_EXCLUDED(pending_task_lock_);
+
   // What kind of concurrency behavior is the runtime after? Currently true for concurrent mark
   // sweep GC, false for other GC types.
   bool IsGcConcurrent() const ALWAYS_INLINE {
     return collector_type_ == kCollectorTypeCMS || collector_type_ == kCollectorTypeCC;
   }
+
+  // Trim the managed and native spaces by releasing unused memory back to the OS.
+  void TrimSpaces(Thread* self) LOCKS_EXCLUDED(gc_complete_lock_);
+
+  // Trim 0 pages at the end of reference tables.
+  void TrimIndirectReferenceTables(Thread* self);
 
   // All-known continuous spaces, where objects lie within fixed bounds.
   std::vector<space::ContinuousSpace*> continuous_spaces_;
@@ -835,14 +850,8 @@ class Heap {
   // Desired collector type, heap trimming daemon transitions the heap if it is != collector_type_.
   CollectorType desired_collector_type_;
 
-  // Lock which guards heap trim requests.
-  Mutex* heap_trim_request_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  // When we want to perform the next heap trim (nano seconds).
-  uint64_t last_trim_time_ GUARDED_BY(heap_trim_request_lock_);
-  // When we want to perform the next heap transition (nano seconds) or heap trim.
-  uint64_t heap_transition_or_trim_target_time_ GUARDED_BY(heap_trim_request_lock_);
-  // If we have a heap trim request pending.
-  bool heap_trim_request_pending_ GUARDED_BY(heap_trim_request_lock_);
+  // Lock which guards pending tasks.
+  Mutex* pending_task_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   // How many GC threads we may use for paused parts of garbage collection.
   const size_t parallel_gc_threads_;
@@ -879,14 +888,11 @@ class Heap {
   Mutex* gc_complete_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::unique_ptr<ConditionVariable> gc_complete_cond_ GUARDED_BY(gc_complete_lock_);
 
-  // Guards concurrent GC requests.
-  Mutex* gc_request_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  std::unique_ptr<ConditionVariable> gc_request_cond_ GUARDED_BY(gc_request_lock_);
-  bool gc_request_pending_ GUARDED_BY(gc_request_lock_);
-  bool conc_gc_running_ GUARDED_BY(gc_request_lock_);
-
   // Reference processor;
   ReferenceProcessor reference_processor_;
+
+  // Task processor, proxies heap trim requests to the daemon threads.
+  std::unique_ptr<TaskProcessor> task_processor_;
 
   // True while the garbage collector is running.
   volatile CollectorType collector_type_running_ GUARDED_BY(gc_complete_lock_);
@@ -1060,9 +1066,17 @@ class Heap {
   // Count for performed homogeneous space compaction.
   Atomic<size_t> count_performed_homogeneous_space_compaction_;
 
+  // Whether or not a concurrent GC is pending.
+  Atomic<bool> concurrent_gc_pending_;
+
+  // Active tasks which we can modify (change target time, desired collector type, etc..).
+  CollectorTransitionTask* pending_collector_transition_ GUARDED_BY(pending_task_lock_);
+  HeapTrimTask* pending_heap_trim_ GUARDED_BY(pending_task_lock_);
+
   // Whether or not we use homogeneous space compaction to avoid OOM errors.
   bool use_homogeneous_space_compaction_for_oom_;
 
+  friend class CollectorTransitionTask;
   friend class collector::GarbageCollector;
   friend class collector::MarkCompact;
   friend class collector::MarkSweep;
