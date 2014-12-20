@@ -2528,7 +2528,9 @@ class JNI {
   }
 
   static jobjectRefType GetObjectRefType(JNIEnv* env, jobject java_object) {
-    CHECK_NON_NULL_ARGUMENT_RETURN(java_object, JNIInvalidRefType);
+    if (java_object == nullptr) {
+      return JNIInvalidRefType;
+    }
 
     // Do we definitely know what kind of reference this is?
     IndirectRef ref = reinterpret_cast<IndirectRef>(java_object);
