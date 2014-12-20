@@ -66,8 +66,16 @@ ART_GTEST_elf_writer_test_TARGET_DEPS := $(TARGET_CORE_IMAGE_default_no-pic_64) 
 ART_GTEST_proxy_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
 
 # The imgdiag test has dependencies on core.oat since it needs to load it during the test.
-ART_GTEST_imgdiag_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
-ART_GTEST_imgdiag_test_TARGET_DEPS := $(TARGET_CORE_IMAGE_default_no-pic_64) $(TARGET_CORE_IMAGE_default_no-pic_32)
+# For the host, also add the installed tool (in the base size, that should suffice). For the
+# target, just the module is fine, the sync will happen late enough.
+ART_GTEST_imgdiag_test_HOST_DEPS := \
+  $(HOST_CORE_IMAGE_default_no-pic_64) \
+  $(HOST_CORE_IMAGE_default_no-pic_32) \
+  $(HOST_OUT_EXECUTABLES)/imgdiagd
+ART_GTEST_imgdiag_test_TARGET_DEPS := \
+  $(TARGET_CORE_IMAGE_default_no-pic_64) \
+  $(TARGET_CORE_IMAGE_default_no-pic_32) \
+  imgdiagd
 
 # The path for which all the source files are relative, not actually the current directory.
 LOCAL_PATH := art
