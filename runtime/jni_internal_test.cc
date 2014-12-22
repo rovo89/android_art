@@ -1300,16 +1300,20 @@ TEST_F(JniInternalTest, GetObjectRefType) {
   jweak weak_global = env_->NewWeakGlobalRef(local);
   EXPECT_EQ(JNIWeakGlobalRefType, env_->GetObjectRefType(weak_global));
 
-  CheckJniAbortCatcher jni_abort_catcher;
-  jobject invalid = reinterpret_cast<jobject>(this);
-  EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(invalid));
-  jni_abort_catcher.Check("use of invalid jobject");
+  {
+    CheckJniAbortCatcher jni_abort_catcher;
+    jobject invalid = reinterpret_cast<jobject>(this);
+    EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(invalid));
+    jni_abort_catcher.Check("use of invalid jobject");
+  }
 
   // TODO: invoke a native method and test that its arguments are considered local references.
 
-  // Null as object should fail.
+  // Null as pointer should not fail and return invalid-ref. b/18820997
   EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(nullptr));
-  jni_abort_catcher.Check("java_object == null");
+
+  // TODO: Null as reference should return the original type.
+  // This requires running a GC so a non-null object gets freed.
 }
 
 TEST_F(JniInternalTest, StaleWeakGlobal) {
