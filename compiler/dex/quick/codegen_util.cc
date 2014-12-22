@@ -1086,12 +1086,20 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
   });
 
   std::unique_ptr<std::vector<uint8_t>> cfi_info(ReturnFrameDescriptionEntry());
-  CompiledMethod* result =
-      new CompiledMethod(cu_->compiler_driver, cu_->instruction_set, code_buffer_, frame_size_,
-                         core_spill_mask_, fp_spill_mask_, &src_mapping_table_, encoded_mapping_table_,
-                         vmap_encoder.GetData(), native_gc_map_, cfi_info.get(),
-                         ArrayRef<LinkerPatch>(patches_));
-  return result;
+  ArrayRef<const uint8_t> cfi_ref;
+  if (cfi_info.get() != nullptr) {
+    cfi_ref = ArrayRef<const uint8_t>(*cfi_info);
+  }
+  return CompiledMethod::SwapAllocCompiledMethod(
+      cu_->compiler_driver, cu_->instruction_set,
+      ArrayRef<const uint8_t>(code_buffer_),
+      frame_size_, core_spill_mask_, fp_spill_mask_,
+      &src_mapping_table_,
+      ArrayRef<const uint8_t>(encoded_mapping_table_),
+      ArrayRef<const uint8_t>(vmap_encoder.GetData()),
+      ArrayRef<const uint8_t>(native_gc_map_),
+      cfi_ref,
+      ArrayRef<LinkerPatch>(patches_));
 }
 
 size_t Mir2Lir::GetMaxPossibleCompilerTemps() const {

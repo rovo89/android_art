@@ -258,6 +258,9 @@ while true; do
     elif [ "x$1" = "x--always-clean" ]; then
         always_clean="yes"
         shift
+    elif [ "x$1" = "x--dex2oat-swap" ]; then
+        run_args="${run_args} --dex2oat-swap"
+        shift
     elif expr "x$1" : "x--" >/dev/null 2>&1; then
         echo "unknown $0 option: $1" 1>&2
         usage="yes"
@@ -452,6 +455,7 @@ if [ "$usage" = "yes" ]; then
         echo "    --gcverify            Run with gc verification"
         echo "    --always-clean        Delete the test files even if the test fails."
         echo "    --android-root [path] The path on target for the android root. (/system by default)."
+        echo "    --dex2oat-swap       Use a dex2oat swap file."
     ) 1>&2
     exit 1
 fi

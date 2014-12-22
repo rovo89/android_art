@@ -44,7 +44,10 @@ class Assembler;
 class CodeGenerator;
 class DexCompilationUnit;
 class ParallelMoveResolver;
+class SrcMapElem;
+template <class Alloc>
 class SrcMap;
+using DefaultSrcMap = SrcMap<std::allocator<SrcMapElem>>;
 
 class CodeAllocator {
  public:
@@ -146,7 +149,7 @@ class CodeGenerator : public ArenaObject<kArenaAllocMisc> {
 
   void GenerateSlowPaths();
 
-  void BuildMappingTable(std::vector<uint8_t>* vector, SrcMap* src_map) const;
+  void BuildMappingTable(std::vector<uint8_t>* vector, DefaultSrcMap* src_map) const;
   void BuildVMapTable(std::vector<uint8_t>* vector) const;
   void BuildNativeGCMap(
       std::vector<uint8_t>* vector, const DexCompilationUnit& dex_compilation_unit) const;
