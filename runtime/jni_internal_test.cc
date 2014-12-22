@@ -1023,10 +1023,11 @@ TEST_F(JniInternalTest, GetObjectRefType) {
 
   // TODO: invoke a native method and test that its arguments are considered local references.
 
-  // Null as object should fail.
-  CheckJniAbortCatcher jni_abort_catcher;
+  // Null as pointer should not fail and return invalid-ref. b/18820997
   EXPECT_EQ(JNIInvalidRefType, env_->GetObjectRefType(nullptr));
-  jni_abort_catcher.Check("java_object == null");
+
+  // TODO: Null as reference should return the original type.
+  // This requires running a GC so a non-null object gets freed.
 }
 
 TEST_F(JniInternalTest, StaleWeakGlobal) {
