@@ -131,6 +131,7 @@ void* SwapSpace::Alloc(size_t size) {
 }
 
 SpaceChunk SwapSpace::NewFileChunk(size_t min_size) {
+#if !defined(__APPLE__)
   size_t next_part = std::max(RoundUp(min_size, kPageSize), RoundUp(kMininumMapSize, kPageSize));
   int result = TEMP_FAILURE_RETRY(ftruncate64(fd_, size_ + next_part));
   if (result != 0) {
@@ -151,6 +152,11 @@ SpaceChunk SwapSpace::NewFileChunk(size_t min_size) {
   SpaceChunk new_chunk = {ptr, next_part};
   maps_.push_back(new_chunk);
   return new_chunk;
+#else
+  UNUSED(kMininumMapSize);
+  LOG(FATAL) << "No swap file support on the Mac.";
+  return {nullptr, 0U};  // NOLINT [readability/braces] [4]
+#endif
 }
 
 // TODO: Full coalescing.
