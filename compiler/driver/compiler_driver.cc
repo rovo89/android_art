@@ -62,6 +62,7 @@
 #include "thread_pool.h"
 #include "trampolines/trampoline_compiler.h"
 #include "transaction.h"
+#include "utils/swap_space.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
 
@@ -339,8 +340,10 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
                                bool image, std::set<std::string>* image_classes,
                                std::set<std::string>* compiled_classes, size_t thread_count,
                                bool dump_stats, bool dump_passes, CumulativeLogger* timer,
-                               const std::string& profile_file)
-    : profile_present_(false), compiler_options_(compiler_options),
+                               int swap_fd, const std::string& profile_file)
+    : swap_space_(swap_fd == -1 ? nullptr : new SwapSpace(swap_fd, 10 * MB)),
+      swap_space_allocator_(new SwapAllocator<void>(swap_space_.get())),
+      profile_present_(false), compiler_options_(compiler_options),
       verification_results_(verification_results),
       method_inliner_map_(method_inliner_map),
       compiler_(Compiler::Create(this, compiler_kind)),
@@ -349,7 +352,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
       freezing_constructor_lock_("freezing constructor lock"),
       compiled_classes_lock_("compiled classes lock"),
       compiled_methods_lock_("compiled method lock"),
-      compiled_methods_(),
+      compiled_methods_(MethodTable::key_compare()),
       non_relative_linker_patch_count_(0u),
       image_(image),
       image_classes_(image_classes),
@@ -361,12 +364,12 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
       timings_logger_(timer),
       compiler_context_(nullptr),
       support_boot_image_fixup_(instruction_set != kMips),
-      dedupe_code_("dedupe code"),
-      dedupe_src_mapping_table_("dedupe source mapping table"),
-      dedupe_mapping_table_("dedupe mapping table"),
-      dedupe_vmap_table_("dedupe vmap table"),
-      dedupe_gc_map_("dedupe gc map"),
-      dedupe_cfi_info_("dedupe cfi info") {
+      dedupe_code_("dedupe code", *swap_space_allocator_),
+      dedupe_src_mapping_table_("dedupe source mapping table", *swap_space_allocator_),
+      dedupe_mapping_table_("dedupe mapping table", *swap_space_allocator_),
+      dedupe_vmap_table_("dedupe vmap table", *swap_space_allocator_),
+      dedupe_gc_map_("dedupe gc map", *swap_space_allocator_),
+      dedupe_cfi_info_("dedupe cfi info", *swap_space_allocator_) {
   DCHECK(compiler_options_ != nullptr);
   DCHECK(verification_results_ != nullptr);
   DCHECK(method_inliner_map_ != nullptr);
@@ -393,31 +396,28 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
   }
 }
 
-std::vector<uint8_t>* CompilerDriver::DeduplicateCode(const std::vector<uint8_t>& code) {
+SwapVector<uint8_t>* CompilerDriver::DeduplicateCode(const ArrayRef<const uint8_t>& code) {
   return dedupe_code_.Add(Thread::Current(), code);
 }
 
-SrcMap* CompilerDriver::DeduplicateSrcMappingTable(const SrcMap& src_map) {
+SwapSrcMap* CompilerDriver::DeduplicateSrcMappingTable(const ArrayRef<SrcMapElem>& src_map) {
   return dedupe_src_mapping_table_.Add(Thread::Current(), src_map);
 }
 
-std::vector<uint8_t>* CompilerDriver::DeduplicateMappingTable(const std::vector<uint8_t>& code) {
+SwapVector<uint8_t>* CompilerDriver::DeduplicateMappingTable(const ArrayRef<const uint8_t>& code) {
   return dedupe_mapping_table_.Add(Thread::Current(), code);
 }
 
-std::vector<uint8_t>* CompilerDriver::DeduplicateVMapTable(const std::vector<uint8_t>& code) {
+SwapVector<uint8_t>* CompilerDriver::DeduplicateVMapTable(const ArrayRef<const uint8_t>& code) {
   return dedupe_vmap_table_.Add(Thread::Current(), code);
 }
 
-std::vector<uint8_t>* CompilerDriver::DeduplicateGCMap(const std::vector<uint8_t>& code) {
+SwapVector<uint8_t>* CompilerDriver::DeduplicateGCMap(const ArrayRef<const uint8_t>& code) {
   return dedupe_gc_map_.Add(Thread::Current(), code);
 }
 
-std::vector<uint8_t>* CompilerDriver::DeduplicateCFIInfo(const std::vector<uint8_t>* cfi_info) {
-  if (cfi_info == nullptr) {
-    return nullptr;
-  }
-  return dedupe_cfi_info_.Add(Thread::Current(), *cfi_info);
+SwapVector<uint8_t>* CompilerDriver::DeduplicateCFIInfo(const ArrayRef<const uint8_t>& cfi_info) {
+  return dedupe_cfi_info_.Add(Thread::Current(), cfi_info);
 }
 
 CompilerDriver::~CompilerDriver() {
@@ -428,7 +428,9 @@ CompilerDriver::~CompilerDriver() {
   }
   {
     MutexLock mu(self, compiled_methods_lock_);
-    STLDeleteValues(&compiled_methods_);
+    for (auto& pair : compiled_methods_) {
+      CompiledMethod::ReleaseSwapAllocatedCompiledMethod(this, pair.second);
+    }
   }
   compiler_->UnInit();
 }
@@ -2337,6 +2339,14 @@ std::string CompilerDriver::GetMemoryUsageString() const {
   oss << " native alloc=" << PrettySize(allocated_space) << " free="
       << PrettySize(free_space);
 #endif
+  if (swap_space_.get() != nullptr) {
+    oss << " swap=" << PrettySize(swap_space_->GetSize());
+  }
+  oss << "\nCode dedupe: " << dedupe_code_.DumpStats();
+  oss << "\nMapping table dedupe: " << dedupe_mapping_table_.DumpStats();
+  oss << "\nVmap table dedupe: " << dedupe_vmap_table_.DumpStats();
+  oss << "\nGC map dedupe: " << dedupe_gc_map_.DumpStats();
+  oss << "\nCFI info dedupe: " << dedupe_cfi_info_.DumpStats();
   return oss.str();
 }
 
