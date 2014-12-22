@@ -84,7 +84,7 @@ class ArrayRef {
 
   template <typename U, typename Alloc>
   ArrayRef(const std::vector<U, Alloc>& v,
-           typename std::enable_if<std::is_same<T, const U>::value, tag>::tag
+           typename std::enable_if<std::is_same<T, const U>::value, tag>::type
                t ATTRIBUTE_UNUSED = tag())
       : array_(v.data()), size_(v.size()) {
   }
