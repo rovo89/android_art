@@ -225,13 +225,13 @@ static void RunOptimizations(HGraph* graph,
 
 // The stack map we generate must be 4-byte aligned on ARM. Since existing
 // maps are generated alongside these stack maps, we must also align them.
-static std::vector<uint8_t>& AlignVectorSize(std::vector<uint8_t>& vector) {
+static ArrayRef<const uint8_t> AlignVectorSize(std::vector<uint8_t>& vector) {
   size_t size = vector.size();
   size_t aligned_size = RoundUp(size, 4);
   for (; size < aligned_size; ++size) {
     vector.push_back(0);
   }
-  return vector;
+  return ArrayRef<const uint8_t>(vector);
 }
 
 CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
@@ -332,13 +332,14 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     codegen->BuildStackMaps(&stack_map);
 
     compilation_stats_.RecordStat(MethodCompilationStat::kCompiledOptimized);
-    return new CompiledMethod(GetCompilerDriver(),
-                              instruction_set,
-                              allocator.GetMemory(),
-                              codegen->GetFrameSize(),
-                              codegen->GetCoreSpillMask(),
-                              0, /* FPR spill mask, unused */
-                              stack_map);
+    return CompiledMethod::SwapAllocCompiledMethodStackMap(
+        GetCompilerDriver(),
+        instruction_set,
+        ArrayRef<const uint8_t>(allocator.GetMemory()),
+        codegen->GetFrameSize(),
+        codegen->GetCoreSpillMask(),
+        0, /* FPR spill mask, unused */
+        ArrayRef<const uint8_t>(stack_map));
   } else if (shouldOptimize && RegisterAllocator::Supports(instruction_set)) {
     LOG(FATAL) << "Could not allocate registers in optimizing compiler";
     UNREACHABLE();
@@ -356,7 +357,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     codegen->CompileBaseline(&allocator);
 
     std::vector<uint8_t> mapping_table;
-    SrcMap src_mapping_table;
+    DefaultSrcMap src_mapping_table;
     codegen->BuildMappingTable(&mapping_table,
             GetCompilerDriver()->GetCompilerOptions().GetIncludeDebugSymbols() ?
                  &src_mapping_table : nullptr);
@@ -366,17 +367,17 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     codegen->BuildNativeGCMap(&gc_map, dex_compilation_unit);
 
     compilation_stats_.RecordStat(MethodCompilationStat::kCompiledBaseline);
-    return new CompiledMethod(GetCompilerDriver(),
-                              instruction_set,
-                              allocator.GetMemory(),
-                              codegen->GetFrameSize(),
-                              codegen->GetCoreSpillMask(),
-                              0, /* FPR spill mask, unused */
-                              &src_mapping_table,
-                              AlignVectorSize(mapping_table),
-                              AlignVectorSize(vmap_table),
-                              AlignVectorSize(gc_map),
-                              nullptr);
+    return CompiledMethod::SwapAllocCompiledMethod(GetCompilerDriver(),
+                                                   instruction_set,
+                                                   ArrayRef<const uint8_t>(allocator.GetMemory()),
+                                                   codegen->GetFrameSize(),
+                                                   codegen->GetCoreSpillMask(),
+                                                   0, /* FPR spill mask, unused */
+                                                   &src_mapping_table,
+                                                   AlignVectorSize(mapping_table),
+                                                   AlignVectorSize(vmap_table),
+                                                   AlignVectorSize(gc_map),
+                                                   ArrayRef<const uint8_t>());
   }
 }
 

@@ -39,6 +39,8 @@
 #include "thread_pool.h"
 #include "utils/arena_allocator.h"
 #include "utils/dedupe_set.h"
+#include "utils/swap_space.h"
+#include "utils.h"
 #include "dex/verified_method.h"
 
 namespace art {
@@ -77,6 +79,8 @@ enum DexToDexCompilationLevel {
 };
 std::ostream& operator<<(std::ostream& os, const DexToDexCompilationLevel& rhs);
 
+static constexpr bool kUseMurmur3Hash = true;
+
 class CompilerDriver {
  public:
   // Create a compiler targeting the requested "instruction_set".
@@ -93,7 +97,8 @@ class CompilerDriver {
                           bool image, std::set<std::string>* image_classes,
                           std::set<std::string>* compiled_classes,
                           size_t thread_count, bool dump_stats, bool dump_passes,
-                          CumulativeLogger* timer, const std::string& profile_file);
+                          CumulativeLogger* timer, int swap_fd,
+                          const std::string& profile_file);
 
   ~CompilerDriver();
 
@@ -334,6 +339,9 @@ class CompilerDriver {
   const ArenaPool* GetArenaPool() const {
     return &arena_pool_;
   }
+  SwapAllocator<void>& GetSwapSpaceAllocator() {
+    return *swap_space_allocator_.get();
+  }
 
   bool WriteElf(const std::string& android_root,
                 bool is_host,
@@ -376,15 +384,12 @@ class CompilerDriver {
   void RecordClassStatus(ClassReference ref, mirror::Class::Status status)
       LOCKS_EXCLUDED(compiled_classes_lock_);
 
-  std::vector<uint8_t>* DeduplicateCode(const std::vector<uint8_t>& code);
-  SrcMap* DeduplicateSrcMappingTable(const SrcMap& src_map);
-  std::vector<uint8_t>* DeduplicateMappingTable(const std::vector<uint8_t>& code);
-  std::vector<uint8_t>* DeduplicateVMapTable(const std::vector<uint8_t>& code);
-  std::vector<uint8_t>* DeduplicateGCMap(const std::vector<uint8_t>& code);
-  std::vector<uint8_t>* DeduplicateCFIInfo(const std::vector<uint8_t>* cfi_info);
-
-  ProfileFile profile_file_;
-  bool profile_present_;
+  SwapVector<uint8_t>* DeduplicateCode(const ArrayRef<const uint8_t>& code);
+  SwapSrcMap* DeduplicateSrcMappingTable(const ArrayRef<SrcMapElem>& src_map);
+  SwapVector<uint8_t>* DeduplicateMappingTable(const ArrayRef<const uint8_t>& code);
+  SwapVector<uint8_t>* DeduplicateVMapTable(const ArrayRef<const uint8_t>& code);
+  SwapVector<uint8_t>* DeduplicateGCMap(const ArrayRef<const uint8_t>& code);
+  SwapVector<uint8_t>* DeduplicateCFIInfo(const ArrayRef<const uint8_t>& cfi_info);
 
   // Should the compiler run on this method given profile information?
   bool SkipCompilation(const std::string& method_name);
@@ -484,6 +489,14 @@ class CompilerDriver {
   static void CompileClass(const ParallelCompilationManager* context, size_t class_def_index)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
+  // Swap pool and allocator used for native allocations. May be file-backed. Needs to be first
+  // as other fields rely on this.
+  std::unique_ptr<SwapSpace> swap_space_;
+  std::unique_ptr<SwapAllocator<void> > swap_space_allocator_;
+
+  ProfileFile profile_file_;
+  bool profile_present_;
+
   const CompilerOptions* const compiler_options_;
   VerificationResults* const verification_results_;
   DexFileToMethodInlinerMap* const method_inliner_map_;
@@ -551,47 +564,92 @@ class CompilerDriver {
   bool support_boot_image_fixup_;
 
   // DeDuplication data structures, these own the corresponding byte arrays.
-  template <typename ByteArray>
+  template <typename ContentType>
   class DedupeHashFunc {
    public:
-    size_t operator()(const ByteArray& array) const {
-      // For small arrays compute a hash using every byte.
-      static const size_t kSmallArrayThreshold = 16;
-      size_t hash = 0x811c9dc5;
-      if (array.size() <= kSmallArrayThreshold) {
-        for (auto b : array) {
-          hash = (hash * 16777619) ^ static_cast<uint8_t>(b);
+    size_t operator()(const ArrayRef<ContentType>& array) const {
+      const uint8_t* data = reinterpret_cast<const uint8_t*>(array.data());
+      static_assert(IsPowerOfTwo(sizeof(ContentType)),
+          "ContentType is not power of two, don't know whether array layout is as assumed");
+      uint32_t len = sizeof(ContentType) * array.size();
+      if (kUseMurmur3Hash) {
+        static constexpr uint32_t c1 = 0xcc9e2d51;
+        static constexpr uint32_t c2 = 0x1b873593;
+        static constexpr uint32_t r1 = 15;
+        static constexpr uint32_t r2 = 13;
+        static constexpr uint32_t m = 5;
+        static constexpr uint32_t n = 0xe6546b64;
+
+        uint32_t hash = 0;
+
+        const int nblocks = len / 4;
+        typedef __attribute__((__aligned__(1))) uint32_t unaligned_uint32_t;
+        const unaligned_uint32_t *blocks = reinterpret_cast<const uint32_t*>(data);
+        int i;
+        for (i = 0; i < nblocks; i++) {
+          uint32_t k = blocks[i];
+          k *= c1;
+          k = (k << r1) | (k >> (32 - r1));
+          k *= c2;
+
+          hash ^= k;
+          hash = ((hash << r2) | (hash >> (32 - r2))) * m + n;
         }
+
+        const uint8_t *tail = reinterpret_cast<const uint8_t*>(data + nblocks * 4);
+        uint32_t k1 = 0;
+
+        switch (len & 3) {
+          case 3:
+            k1 ^= tail[2] << 16;
+            FALLTHROUGH_INTENDED;
+          case 2:
+            k1 ^= tail[1] << 8;
+            FALLTHROUGH_INTENDED;
+          case 1:
+            k1 ^= tail[0];
+
+            k1 *= c1;
+            k1 = (k1 << r1) | (k1 >> (32 - r1));
+            k1 *= c2;
+            hash ^= k1;
+        }
+
+        hash ^= len;
+        hash ^= (hash >> 16);
+        hash *= 0x85ebca6b;
+        hash ^= (hash >> 13);
+        hash *= 0xc2b2ae35;
+        hash ^= (hash >> 16);
+
+        return hash;
       } else {
-        // For larger arrays use the 2 bytes at 6 bytes (the location of a push registers
-        // instruction field for quick generated code on ARM) and then select a number of other
-        // values at random.
-        static const size_t kRandomHashCount = 16;
-        for (size_t i = 0; i < 2; ++i) {
-          uint8_t b = static_cast<uint8_t>(array[i + 6]);
-          hash = (hash * 16777619) ^ b;
+        size_t hash = 0x811c9dc5;
+        for (uint32_t i = 0; i < len; ++i) {
+          hash = (hash * 16777619) ^ data[i];
         }
-        for (size_t i = 2; i < kRandomHashCount; ++i) {
-          size_t r = i * 1103515245 + 12345;
-          uint8_t b = static_cast<uint8_t>(array[r % array.size()]);
-          hash = (hash * 16777619) ^ b;
-        }
+        hash += hash << 13;
+        hash ^= hash >> 7;
+        hash += hash << 3;
+        hash ^= hash >> 17;
+        hash += hash << 5;
+        return hash;
       }
-      hash += hash << 13;
-      hash ^= hash >> 7;
-      hash += hash << 3;
-      hash ^= hash >> 17;
-      hash += hash << 5;
-      return hash;
     }
   };
 
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_code_;
-  DedupeSet<SrcMap, size_t, DedupeHashFunc<SrcMap>, 4> dedupe_src_mapping_table_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_mapping_table_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_vmap_table_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_gc_map_;
-  DedupeSet<std::vector<uint8_t>, size_t, DedupeHashFunc<std::vector<uint8_t>>, 4> dedupe_cfi_info_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_code_;
+  DedupeSet<ArrayRef<SrcMapElem>,
+            SwapSrcMap, size_t, DedupeHashFunc<SrcMapElem>, 4> dedupe_src_mapping_table_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_mapping_table_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_vmap_table_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_gc_map_;
+  DedupeSet<ArrayRef<const uint8_t>,
+            SwapVector<uint8_t>, size_t, DedupeHashFunc<const uint8_t>, 4> dedupe_cfi_info_;
 
   DISALLOW_COPY_AND_ASSIGN(CompilerDriver);
 };

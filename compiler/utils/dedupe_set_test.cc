@@ -15,6 +15,10 @@
  */
 
 #include "dedupe_set.h"
+
+#include <algorithm>
+#include <cstdio>
+
 #include "gtest/gtest.h"
 #include "thread-inl.h"
 
@@ -35,19 +39,22 @@ class DedupeHashFunc {
 TEST(DedupeSetTest, Test) {
   Thread* self = Thread::Current();
   typedef std::vector<uint8_t> ByteArray;
-  DedupeSet<ByteArray, size_t, DedupeHashFunc> deduplicator("test");
-  ByteArray* array1;
+  SwapAllocator<void> swap(nullptr);
+  DedupeSet<ByteArray, SwapVector<uint8_t>, size_t, DedupeHashFunc> deduplicator("test", swap);
+  SwapVector<uint8_t>* array1;
   {
     ByteArray test1;
     test1.push_back(10);
     test1.push_back(20);
     test1.push_back(30);
     test1.push_back(45);
+
     array1 = deduplicator.Add(self, test1);
-    ASSERT_EQ(test1, *array1);
+    ASSERT_NE(array1, nullptr);
+    ASSERT_TRUE(std::equal(test1.begin(), test1.end(), array1->begin()));
   }
 
-  ByteArray* array2;
+  SwapVector<uint8_t>* array2;
   {
     ByteArray test1;
     test1.push_back(10);
@@ -56,10 +63,10 @@ TEST(DedupeSetTest, Test) {
     test1.push_back(45);
     array2 = deduplicator.Add(self, test1);
     ASSERT_EQ(array2, array1);
-    ASSERT_EQ(test1, *array2);
+    ASSERT_TRUE(std::equal(test1.begin(), test1.end(), array2->begin()));
   }
 
-  ByteArray* array3;
+  SwapVector<uint8_t>* array3;
   {
     ByteArray test1;
     test1.push_back(10);
@@ -67,8 +74,8 @@ TEST(DedupeSetTest, Test) {
     test1.push_back(30);
     test1.push_back(47);
     array3 = deduplicator.Add(self, test1);
-    ASSERT_NE(array3, &test1);
-    ASSERT_EQ(test1, *array3);
+    ASSERT_NE(array3, nullptr);
+    ASSERT_TRUE(std::equal(test1.begin(), test1.end(), array3->begin()));
   }
 }
 

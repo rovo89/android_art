@@ -358,8 +358,8 @@ class LineTableGenerator FINAL : public Leb128Encoder {
 };
 
 // TODO: rewriting it using DexFile::DecodeDebugInfo needs unneeded stuff.
-static void GetLineInfoForJava(const uint8_t* dbgstream, const SrcMap& pc2dex,
-                               SrcMap* result, uint32_t start_pc = 0) {
+static void GetLineInfoForJava(const uint8_t* dbgstream, const SwapSrcMap& pc2dex,
+                               DefaultSrcMap* result, uint32_t start_pc = 0) {
   if (dbgstream == nullptr) {
     return;
   }
@@ -415,7 +415,7 @@ static void GetLineInfoForJava(const uint8_t* dbgstream, const SrcMap& pc2dex,
       dex_offset += adjopcode / DexFile::DBG_LINE_RANGE;
       java_line += DexFile::DBG_LINE_BASE + (adjopcode % DexFile::DBG_LINE_RANGE);
 
-      for (SrcMap::const_iterator found = pc2dex.FindByTo(dex_offset);
+      for (SwapSrcMap::const_iterator found = pc2dex.FindByTo(dex_offset);
           found != pc2dex.end() && found->to_ == static_cast<int32_t>(dex_offset);
           found++) {
         result->push_back({found->from_ + start_pc, static_cast<int32_t>(java_line)});
@@ -615,7 +615,7 @@ static void FillInCFIInformation(OatWriter* oat_writer,
     LineTableGenerator line_table_generator(LINE_BASE, LINE_RANGE, OPCODE_BASE,
                                             dbg_line, 0, 1);
 
-    SrcMap pc2java_map;
+    DefaultSrcMap pc2java_map;
     for (size_t i = 0; i < method_info.size(); ++i) {
       const OatWriter::DebugInfo &dbg = method_info[i];
       const char* file_name = (dbg.src_file_name_ == nullptr) ? "null" : dbg.src_file_name_;
@@ -700,7 +700,7 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
       DCHECK(it->compiled_method_ != nullptr);
 
       // Copy in the FDE, if present
-      const std::vector<uint8_t>* fde = it->compiled_method_->GetCFIInfo();
+      const SwapVector<uint8_t>* fde = it->compiled_method_->GetCFIInfo();
       if (fde != nullptr) {
         // Copy the information into cfi_info and then fix the address in the new copy.
         int cur_offset = cfi_info->size();

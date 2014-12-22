@@ -127,6 +127,7 @@ LIBART_COMPILER_SRC_FILES := \
 	utils/x86_64/assembler_x86_64.cc \
 	utils/x86_64/managed_register_x86_64.cc \
 	utils/scoped_arena_allocator.cc \
+	utils/swap_space.cc \
 	buffered_output_stream.cc \
 	compiler.cc \
 	elf_writer.cc \

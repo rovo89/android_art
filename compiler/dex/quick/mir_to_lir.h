@@ -1741,7 +1741,7 @@ class Mir2Lir : public Backend {
     int live_sreg_;
     CodeBuffer code_buffer_;
     // The source mapping table data (pc -> dex). More entries than in encoded_mapping_table_
-    SrcMap src_mapping_table_;
+    DefaultSrcMap src_mapping_table_;
     // The encoding mapping table data (dex -> pc offset and pc offset -> dex) with a size prefix.
     std::vector<uint8_t> encoded_mapping_table_;
     ArenaVector<uint32_t> core_vmap_table_;
