@@ -103,6 +103,14 @@ ALWAYS_INLINE static inline bool FailOrAbort(MethodVerifier* verifier, bool cond
   return false;
 }
 
+static void SafelyMarkAllRegistersAsConflicts(MethodVerifier* verifier, RegisterLine* reg_line) {
+  if (verifier->IsConstructor()) {
+    // Before we mark all regs as conflicts, check that we don't have an uninitialized this.
+    reg_line->CheckConstructorReturn(verifier);
+  }
+  reg_line->MarkAllRegistersAsConflicts(verifier);
+}
+
 MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                         mirror::Class* klass,
                                                         bool allow_soft_failures,
@@ -1559,6 +1567,16 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   std::unique_ptr<RegisterLine> branch_line;
   std::unique_ptr<RegisterLine> fallthrough_line;
 
+  /*
+   * If we are in a constructor, and we currently have an UninitializedThis type
+   * in a register somewhere, we need to make sure it isn't overwritten.
+   */
+  bool track_uninitialized_this = false;
+  size_t uninitialized_this_loc = 0;
+  if (IsConstructor()) {
+    track_uninitialized_this = work_line_->GetUninitializedThisLoc(this, &uninitialized_this_loc);
+  }
+
   switch (inst->Opcode()) {
     case Instruction::NOP:
       /*
@@ -2769,6 +2787,20 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
      */
   }  // end - switch (dec_insn.opcode)
 
+  /*
+   * If we are in a constructor, and we had an UninitializedThis type
+   * in a register somewhere, we need to make sure it wasn't overwritten.
+   */
+  if (track_uninitialized_this) {
+    bool was_invoke_direct = (inst->Opcode() == Instruction::INVOKE_DIRECT ||
+                              inst->Opcode() == Instruction::INVOKE_DIRECT_RANGE);
+    if (work_line_->WasUninitializedThisOverwritten(this, uninitialized_this_loc,
+                                                    was_invoke_direct)) {
+      Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+          << "Constructor failed to initialize this object";
+    }
+  }
+
   if (have_pending_hard_failure_) {
     if (Runtime::Current()->IsCompiler()) {
       /* When compiling, check that the last failure is a hard failure */
@@ -2950,7 +2982,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       const Instruction* ret_inst = Instruction::At(code_item_->insns_ + next_insn_idx);
       Instruction::Code opcode = ret_inst->Opcode();
       if ((opcode == Instruction::RETURN_VOID) || (opcode == Instruction::RETURN_VOID_BARRIER)) {
-        work_line_->MarkAllRegistersAsConflicts(this);
+        SafelyMarkAllRegistersAsConflicts(this, work_line_.get());
       } else {
         if (opcode == Instruction::RETURN_WIDE) {
           work_line_->MarkAllRegistersAsConflictsExceptWide(this, ret_inst->VRegA_11x());
@@ -4105,7 +4137,7 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, RegisterLine* merge_lin
       const Instruction* ret_inst = Instruction::At(code_item_->insns_ + next_insn);
       Instruction::Code opcode = ret_inst->Opcode();
       if ((opcode == Instruction::RETURN_VOID) || (opcode == Instruction::RETURN_VOID_BARRIER)) {
-        target_line->MarkAllRegistersAsConflicts(this);
+        SafelyMarkAllRegistersAsConflicts(this, target_line);
       } else {
         target_line->CopyFromLine(merge_line);
         if (opcode == Instruction::RETURN_WIDE) {
