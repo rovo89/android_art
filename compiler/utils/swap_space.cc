@@ -153,9 +153,9 @@ SpaceChunk SwapSpace::NewFileChunk(size_t min_size) {
   maps_.push_back(new_chunk);
   return new_chunk;
 #else
-  UNUSED(kMininumMapSize);
+  UNUSED(min_size, kMininumMapSize);
   LOG(FATAL) << "No swap file support on the Mac.";
-  return {nullptr, 0U};  // NOLINT [readability/braces] [4]
+  UNREACHABLE();
 #endif
 }
 
