@@ -243,6 +243,16 @@ class MethodVerifier {
                                            bool is_range)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Is the method being verified a constructor?
+  bool IsConstructor() const {
+    return (method_access_flags_ & kAccConstructor) != 0;
+  }
+
+  // Is the method verified static?
+  bool IsStatic() const {
+    return (method_access_flags_ & kAccStatic) != 0;
+  }
+
  private:
   // Private constructor for dumping.
   MethodVerifier(Thread* self, const DexFile* dex_file, Handle<mirror::DexCache> dex_cache,
@@ -624,16 +634,6 @@ class MethodVerifier {
   */
   bool UpdateRegisters(uint32_t next_insn, RegisterLine* merge_line, bool update_merge_line)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Is the method being verified a constructor?
-  bool IsConstructor() const {
-    return (method_access_flags_ & kAccConstructor) != 0;
-  }
-
-  // Is the method verified static?
-  bool IsStatic() const {
-    return (method_access_flags_ & kAccStatic) != 0;
-  }
 
   // Return the register type for the method.
   const RegType& GetMethodReturnType() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

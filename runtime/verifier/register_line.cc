@@ -25,6 +25,49 @@
 namespace art {
 namespace verifier {
 
+bool RegisterLine::WasUninitializedThisOverwritten(MethodVerifier* verifier,
+                                                   size_t this_loc,
+                                                   bool was_invoke_direct) const {
+  DCHECK(verifier->IsConstructor());
+
+  // Is the UnintializedThis type still there?
+  if (GetRegisterType(verifier, this_loc).IsUninitializedThisReference() ||
+      GetRegisterType(verifier, this_loc).IsUnresolvedAndUninitializedThisReference()) {
+    return false;
+  }
+
+  // If there is an initialized reference here now, did we just perform an invoke-direct? Note that
+  // this is the correct approach for dex bytecode: results of invoke-direct are stored in the
+  // result register. Overwriting "this_loc" can only be done by a constructor call.
+  if (GetRegisterType(verifier, this_loc).IsReferenceTypes() && was_invoke_direct) {
+    return false;
+    // Otherwise we could have just copied a different initialized reference to this location.
+  }
+
+  // The UnintializedThis in the register is gone, so check to see if it's somewhere else now.
+  for (size_t i = 0; i < num_regs_; i++) {
+    if (GetRegisterType(verifier, i).IsUninitializedThisReference() ||
+        GetRegisterType(verifier, i).IsUnresolvedAndUninitializedThisReference()) {
+      // We found it somewhere else...
+      return false;
+    }
+  }
+
+  // The UninitializedThis is gone from the original register, and now we can't find it.
+  return true;
+}
+
+bool RegisterLine::GetUninitializedThisLoc(MethodVerifier* verifier, size_t* vreg) const {
+  for (size_t i = 0; i < num_regs_; i++) {
+    if (GetRegisterType(verifier, i).IsUninitializedThisReference() ||
+        GetRegisterType(verifier, i).IsUnresolvedAndUninitializedThisReference()) {
+      *vreg = i;
+      return true;
+    }
+  }
+  return false;
+}
+
 bool RegisterLine::CheckConstructorReturn(MethodVerifier* verifier) const {
   for (size_t i = 0; i < num_regs_; i++) {
     if (GetRegisterType(verifier, i).IsUninitializedThisReference() ||

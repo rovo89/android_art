@@ -157,6 +157,18 @@ class RegisterLine {
    */
   bool CheckConstructorReturn(MethodVerifier* verifier) const;
 
+  /*
+   * Check if an UninitializedThis at the specified location has been overwritten before
+   * being correctly initialized.
+   */
+  bool WasUninitializedThisOverwritten(MethodVerifier* verifier, size_t this_loc,
+                                       bool was_invoke_direct) const;
+
+  /*
+   * Get the first location of an UninitializedThis type, or return kInvalidVreg if there are none.
+   */
+  bool GetUninitializedThisLoc(MethodVerifier* verifier, size_t* vreg) const;
+
   // Compare two register lines. Returns 0 if they match.
   // Using this for a sort is unwise, since the value can change based on machine endianness.
   int CompareLine(const RegisterLine* line2) const {
