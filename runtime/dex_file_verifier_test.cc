@@ -101,8 +101,9 @@ static inline uint8_t* DecodeBase64(const char* src, size_t* dst_size) {
   return dst.release();
 }
 
-static const DexFile* OpenDexFileBase64(const char* base64, const char* location,
-                                        std::string* error_msg) {
+static std::unique_ptr<const DexFile> OpenDexFileBase64(const char* base64,
+                                                        const char* location,
+                                                        std::string* error_msg) {
   // decode base64
   CHECK(base64 != NULL);
   size_t length;
@@ -122,11 +123,11 @@ static const DexFile* OpenDexFileBase64(const char* base64, const char* location
 
   // read dex file
   ScopedObjectAccess soa(Thread::Current());
-  std::vector<const DexFile*> tmp;
+  std::vector<std::unique_ptr<const DexFile>> tmp;
   bool success = DexFile::Open(location, location, error_msg, &tmp);
   CHECK(success) << error_msg;
   EXPECT_EQ(1U, tmp.size());
-  const DexFile* dex_file = tmp[0];
+  std::unique_ptr<const DexFile> dex_file = std::move(tmp[0]);
   EXPECT_EQ(PROT_READ, dex_file->GetPermissions());
   EXPECT_TRUE(dex_file->IsReadOnly());
   return dex_file;
@@ -166,8 +167,9 @@ static void FixUpChecksum(uint8_t* dex_file) {
   header->checksum_ = adler_checksum;
 }
 
-static const DexFile* FixChecksumAndOpen(uint8_t* bytes, size_t length, const char* location,
-                                         std::string* error_msg) {
+static std::unique_ptr<const DexFile> FixChecksumAndOpen(uint8_t* bytes, size_t length,
+                                                         const char* location,
+                                                         std::string* error_msg) {
   // Check data.
   CHECK(bytes != nullptr);
 
@@ -187,12 +189,12 @@ static const DexFile* FixChecksumAndOpen(uint8_t* bytes, size_t length, const ch
 
   // read dex file
   ScopedObjectAccess soa(Thread::Current());
-  std::vector<const DexFile*> tmp;
+  std::vector<std::unique_ptr<const DexFile>> tmp;
   if (!DexFile::Open(location, location, error_msg, &tmp)) {
     return nullptr;
   }
   EXPECT_EQ(1U, tmp.size());
-  const DexFile* dex_file = tmp[0];
+  std::unique_ptr<const DexFile> dex_file = std::move(tmp[0]);
   EXPECT_EQ(PROT_READ, dex_file->GetPermissions());
   EXPECT_TRUE(dex_file->IsReadOnly());
   return dex_file;

@@ -445,7 +445,15 @@ class Dex2Oat FINAL {
       timings_(timings) {}
 
   ~Dex2Oat() {
-    LogCompletionTime();  // Needs to be before since it accesses the runtime.
+    // Free opened dex files before deleting the runtime_, because ~DexFile
+    // uses MemMap, which is shut down by ~Runtime.
+    class_path_files_.clear();
+    opened_dex_files_.clear();
+
+    // Log completion time before deleting the runtime_, because this accesses
+    // the runtime.
+    LogCompletionTime();
+
     if (kIsDebugBuild || (RUNNING_ON_VALGRIND != 0)) {
       delete runtime_;  // See field declaration for why this is manual.
     }
@@ -1101,17 +1109,23 @@ class Dex2Oat FINAL {
               << error_msg;
           return false;
         }
-        if (!DexFile::OpenFromZip(*zip_archive.get(), zip_location_, &error_msg, &dex_files_)) {
+        if (!DexFile::OpenFromZip(*zip_archive.get(), zip_location_, &error_msg, &opened_dex_files_)) {
           LOG(ERROR) << "Failed to open dex from file descriptor for zip file '" << zip_location_
               << "': " << error_msg;
           return false;
         }
+        for (auto& dex_file : opened_dex_files_) {
+          dex_files_.push_back(dex_file.get());
+        }
         ATRACE_END();
       } else {
-        size_t failure_count = OpenDexFiles(dex_filenames_, dex_locations_, dex_files_);
+        size_t failure_count = OpenDexFiles(dex_filenames_, dex_locations_, &opened_dex_files_);
         if (failure_count > 0) {
           LOG(ERROR) << "Failed to open some dex files: " << failure_count;
           return false;
+        }
+        for (auto& dex_file : opened_dex_files_) {
+          dex_files_.push_back(dex_file.get());
         }
       }
 
@@ -1186,9 +1200,13 @@ class Dex2Oat FINAL {
     Thread* self = Thread::Current();
     if (!boot_image_option_.empty()) {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-      std::vector<const DexFile*> class_path_files(dex_files_);
-      OpenClassPathFiles(runtime_->GetClassPathString(), class_path_files);
+      OpenClassPathFiles(runtime_->GetClassPathString(), dex_files_, &class_path_files_);
       ScopedObjectAccess soa(self);
+      std::vector<const DexFile*> class_path_files(dex_files_);
+      for (auto& class_path_file : class_path_files_) {
+        class_path_files.push_back(class_path_file.get());
+      }
+
       for (size_t i = 0; i < class_path_files.size(); i++) {
         class_linker->RegisterDexFile(*class_path_files[i]);
       }
@@ -1439,7 +1457,8 @@ class Dex2Oat FINAL {
  private:
   static size_t OpenDexFiles(const std::vector<const char*>& dex_filenames,
                              const std::vector<const char*>& dex_locations,
-                             std::vector<const DexFile*>& dex_files) {
+                             std::vector<std::unique_ptr<const DexFile>>* dex_files) {
+    DCHECK(dex_files != nullptr) << "OpenDexFiles out-param is NULL";
     size_t failure_count = 0;
     for (size_t i = 0; i < dex_filenames.size(); i++) {
       const char* dex_filename = dex_filenames[i];
@@ -1450,7 +1469,7 @@ class Dex2Oat FINAL {
         LOG(WARNING) << "Skipping non-existent dex file '" << dex_filename << "'";
         continue;
       }
-      if (!DexFile::Open(dex_filename, dex_location, &error_msg, &dex_files)) {
+      if (!DexFile::Open(dex_filename, dex_location, &error_msg, dex_files)) {
         LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "': " << error_msg;
         ++failure_count;
       }
@@ -1470,10 +1489,12 @@ class Dex2Oat FINAL {
     return false;
   }
 
-  // Appends to dex_files any elements of class_path that it doesn't already
-  // contain. This will open those dex files as necessary.
+  // Appends to opened_dex_files any elements of class_path that dex_files
+  // doesn't already contain. This will open those dex files as necessary.
   static void OpenClassPathFiles(const std::string& class_path,
-                                 std::vector<const DexFile*>& dex_files) {
+                                 std::vector<const DexFile*> dex_files,
+                                 std::vector<std::unique_ptr<const DexFile>>* opened_dex_files) {
+    DCHECK(opened_dex_files != nullptr) << "OpenClassPathFiles out-param is NULL";
     std::vector<std::string> parsed;
     Split(class_path, ':', &parsed);
     // Take Locks::mutator_lock_ so that lock ordering on the ClassLinker::dex_lock_ is maintained.
@@ -1483,7 +1504,7 @@ class Dex2Oat FINAL {
         continue;
       }
       std::string error_msg;
-      if (!DexFile::Open(parsed[i].c_str(), parsed[i].c_str(), &error_msg, &dex_files)) {
+      if (!DexFile::Open(parsed[i].c_str(), parsed[i].c_str(), &error_msg, opened_dex_files)) {
         LOG(WARNING) << "Failed to open dex file '" << parsed[i] << "': " << error_msg;
       }
     }
@@ -1623,6 +1644,9 @@ class Dex2Oat FINAL {
   DexFileToMethodInlinerMap method_inliner_map_;
   std::unique_ptr<QuickCompilerCallbacks> callbacks_;
 
+  // Ownership for the class path files.
+  std::vector<std::unique_ptr<const DexFile>> class_path_files_;
+
   // Not a unique_ptr as we want to just exit on non-debug builds, not bringing the runtime down
   // in an orderly fashion. The destructor takes care of deleting this.
   Runtime* runtime_;
@@ -1655,6 +1679,7 @@ class Dex2Oat FINAL {
   bool is_host_;
   std::string android_root_;
   std::vector<const DexFile*> dex_files_;
+  std::vector<std::unique_ptr<const DexFile>> opened_dex_files_;
   std::unique_ptr<CompilerDriver> driver_;
   std::vector<std::string> verbose_methods_;
   bool dump_stats_;

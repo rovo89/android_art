@@ -425,6 +425,9 @@ class Runtime {
       LOCKS_EXCLUDED(method_verifier_lock_);
 
   const std::vector<const DexFile*>& GetCompileTimeClassPath(jobject class_loader);
+
+  // The caller is responsible for ensuring the class_path DexFiles remain
+  // valid as long as the Runtime object remains valid.
   void SetCompileTimeClassPath(jobject class_loader, std::vector<const DexFile*>& class_path);
 
   void StartProfiler(const char* profile_output_filename);

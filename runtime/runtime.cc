@@ -625,8 +625,9 @@ void Runtime::StartDaemonThreads() {
 }
 
 static bool OpenDexFilesFromImage(const std::string& image_location,
-                                  std::vector<const DexFile*>& dex_files,
+                                  std::vector<std::unique_ptr<const DexFile>>* dex_files,
                                   size_t* failures) {
+  DCHECK(dex_files != nullptr) << "OpenDexFilesFromImage: out-param is NULL";
   std::string system_filename;
   bool has_system = false;
   std::string cache_filename_unused;
@@ -670,11 +671,11 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
       *failures += 1;
       continue;
     }
-    const DexFile* dex_file = oat_dex_file->OpenDexFile(&error_msg);
-    if (dex_file == nullptr) {
+    std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error_msg);
+    if (dex_file.get() == nullptr) {
       *failures += 1;
     } else {
-      dex_files.push_back(dex_file);
+      dex_files->push_back(std::move(dex_file));
     }
   }
   Runtime::Current()->GetClassLinker()->RegisterOatFile(oat_file.release());
@@ -685,7 +686,8 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
 static size_t OpenDexFiles(const std::vector<std::string>& dex_filenames,
                            const std::vector<std::string>& dex_locations,
                            const std::string& image_location,
-                           std::vector<const DexFile*>& dex_files) {
+                           std::vector<std::unique_ptr<const DexFile>>* dex_files) {
+  DCHECK(dex_files != nullptr) << "OpenDexFiles: out-param is NULL";
   size_t failure_count = 0;
   if (!image_location.empty() && OpenDexFilesFromImage(image_location, dex_files, &failure_count)) {
     return failure_count;
@@ -699,7 +701,7 @@ static size_t OpenDexFiles(const std::vector<std::string>& dex_filenames,
       LOG(WARNING) << "Skipping non-existent dex file '" << dex_filename << "'";
       continue;
     }
-    if (!DexFile::Open(dex_filename, dex_location, &error_msg, &dex_files)) {
+    if (!DexFile::Open(dex_filename, dex_location, &error_msg, dex_files)) {
       LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "': " << error_msg;
       ++failure_count;
     }
@@ -877,9 +879,9 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
       CHECK_EQ(dex_filenames.size(), dex_locations.size());
     }
 
-    std::vector<const DexFile*> boot_class_path;
-    OpenDexFiles(dex_filenames, dex_locations, options->image_, boot_class_path);
-    class_linker_->InitWithoutImage(boot_class_path);
+    std::vector<std::unique_ptr<const DexFile>> boot_class_path;
+    OpenDexFiles(dex_filenames, dex_locations, options->image_, &boot_class_path);
+    class_linker_->InitWithoutImage(std::move(boot_class_path));
     // TODO: Should we move the following to InitWithoutImage?
     SetInstructionSet(kRuntimeISA);
     for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
