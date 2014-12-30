@@ -142,8 +142,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     }
   }
 
-  void VisitParallelMove(HParallelMove* instruction) {
-    output_ << instruction->DebugName();
+  void VisitParallelMove(HParallelMove* instruction) OVERRIDE {
     output_ << " (";
     for (size_t i = 0, e = instruction->NumMoves(); i < e; ++i) {
       MoveOperands* move = instruction->MoveOperandsAt(i);
@@ -158,23 +157,31 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     output_ << " (liveness: " << instruction->GetLifetimePosition() << ")";
   }
 
-  void VisitInstruction(HInstruction* instruction) {
+  void VisitIntConstant(HIntConstant *instruction) OVERRIDE {
+    output_ << " " << instruction->GetValue();
+  }
+
+  void VisitLongConstant(HLongConstant *instruction) OVERRIDE {
+    output_ << " " << instruction->GetValue();
+  }
+
+  void VisitFloatConstant(HFloatConstant *instruction) OVERRIDE {
+    output_ << " " << instruction->GetValue();
+  }
+
+  void VisitDoubleConstant(HDoubleConstant *instruction) OVERRIDE {
+    output_ << " " << instruction->GetValue();
+  }
+
+  void PrintInstruction(HInstruction* instruction) {
     output_ << instruction->DebugName();
+    instruction->Accept(this);
     if (instruction->InputCount() > 0) {
       output_ << " [ ";
       for (HInputIterator inputs(instruction); !inputs.Done(); inputs.Advance()) {
         output_ << GetTypeId(inputs.Current()->GetType()) << inputs.Current()->GetId() << " ";
       }
       output_ << "]";
-    }
-    if (instruction->IsIntConstant()) {
-      output_ << " " << instruction->AsIntConstant()->GetValue();
-    } else if (instruction->IsLongConstant()) {
-      output_ << " " << instruction->AsLongConstant()->GetValue();
-    } else if (instruction->IsFloatConstant()) {
-      output_ << " " << instruction->AsFloatConstant()->GetValue();
-    } else if (instruction->IsDoubleConstant()) {
-      output_ << " " << instruction->AsDoubleConstant()->GetValue();
     }
     if (pass_name_ == kLivenessPassName && instruction->GetLifetimePosition() != kNoLifetime) {
       output_ << " (liveness: " << instruction->GetLifetimePosition();
@@ -210,7 +217,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       int bci = 0;
       output_ << bci << " " << instruction->NumberOfUses()
               << " " << GetTypeId(instruction->GetType()) << instruction->GetId() << " ";
-      instruction->Accept(this);
+      PrintInstruction(instruction);
       output_ << kEndInstructionMarker << std::endl;
     }
   }
@@ -222,7 +229,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     EndTag("cfg");
   }
 
-  void VisitBasicBlock(HBasicBlock* block) {
+  void VisitBasicBlock(HBasicBlock* block) OVERRIDE {
     StartTag("block");
     PrintProperty("name", "B", block->GetBlockId());
     if (block->GetLifetimeStart() != kNoLifetime) {
