@@ -44,10 +44,10 @@ void HInliner::Run() {
          instr_it.Advance()) {
       HInvokeStaticOrDirect* current = instr_it.Current()->AsInvokeStaticOrDirect();
       if (current != nullptr) {
-        if (!TryInline(current, current->GetIndexInDexCache(), current->GetInvokeType())) {
+        if (!TryInline(current, current->GetDexMethodIndex(), current->GetInvokeType())) {
           if (kIsDebugBuild) {
             std::string callee_name =
-                PrettyMethod(current->GetIndexInDexCache(), *outer_compilation_unit_.GetDexFile());
+                PrettyMethod(current->GetDexMethodIndex(), *outer_compilation_unit_.GetDexFile());
             bool should_inline = callee_name.find("$inline$") != std::string::npos;
             CHECK(!should_inline) << "Could not inline " << callee_name;
           }

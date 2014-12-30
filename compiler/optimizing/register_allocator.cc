@@ -1217,10 +1217,17 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
         locations->SetEnvironmentAt(use->GetInputIndex(), source);
       } else {
         Location expected_location = locations->InAt(use->GetInputIndex());
-        if (expected_location.IsUnallocated()) {
-          locations->SetInAt(use->GetInputIndex(), source);
-        } else if (!expected_location.IsConstant()) {
-          AddInputMoveFor(use->GetUser(), source, expected_location);
+        // The expected (actual) location may be invalid in case the input is unused. Currently
+        // this only happens for intrinsics.
+        if (expected_location.IsValid()) {
+          if (expected_location.IsUnallocated()) {
+            locations->SetInAt(use->GetInputIndex(), source);
+          } else if (!expected_location.IsConstant()) {
+            AddInputMoveFor(use->GetUser(), source, expected_location);
+          }
+        } else {
+          DCHECK(use->GetUser()->IsInvoke());
+          DCHECK(use->GetUser()->AsInvoke()->GetIntrinsic() != Intrinsics::kNone);
         }
       }
       use = use->GetNext();
