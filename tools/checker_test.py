@@ -64,6 +64,9 @@ class TestCheckLine_Parse(unittest.TestCase):
   def __parsesTo(self, string, expected):
     self.assertEqual(expected, self.__getRegex(self.__tryParse(string)))
 
+  def __tryParseNot(self, string):
+    return checker.CheckLine(string, checker.CheckLine.Variant.UnorderedNot)
+
   def __parsesPattern(self, string, pattern):
     line = self.__tryParse(string)
     self.assertEqual(1, len(line.lineParts))
@@ -163,6 +166,9 @@ class TestCheckLine_Parse(unittest.TestCase):
     self.__parsesTo("{{abc}}{{def}}", "(abc)(def)")
     self.__parsesTo("[[ABC:abc]][[DEF:def]]", "(abc)(def)")
 
+  def test_NoVarDefsInNotChecks(self):
+    with self.assertRaises(Exception):
+      self.__tryParseNot("[[ABC:abc]]")
 
 class TestCheckLine_Match(unittest.TestCase):
   def __matchSingle(self, checkString, outputString, varState={}):
@@ -228,9 +234,23 @@ class TestCheckLine_Match(unittest.TestCase):
     self.__notMatchSingle("[[X:..]]foo[[X]]", ".*fooAAAA")
 
 
+CheckVariant = checker.CheckLine.Variant
+
+def prepareSingleCheck(line):
+  if isinstance(line, str):
+    return checker.CheckLine(line)
+  else:
+    return checker.CheckLine(line[0], line[1])
+
+def prepareChecks(lines):
+  if isinstance(lines, str):
+    lines = lines.splitlines()
+  return list(map(lambda line: prepareSingleCheck(line), lines))
+
+
 class TestCheckGroup_Match(unittest.TestCase):
-  def __matchMulti(self, checkString, outputString):
-    checkGroup = checker.CheckGroup.parse("MyGroup", checkString.splitlines())
+  def __matchMulti(self, checkLines, outputString):
+    checkGroup = checker.CheckGroup("MyGroup", prepareChecks(checkLines))
     outputGroup = checker.OutputGroup("MyGroup", outputString.splitlines())
     return checkGroup.match(outputGroup)
 
@@ -271,14 +291,62 @@ class TestCheckGroup_Match(unittest.TestCase):
                          ### 1234 ###""");
 
   def test_Ordering(self):
-    self.__matchMulti("""foo
-                         bar""",
+    self.__matchMulti([("foo", CheckVariant.InOrder),
+                       ("bar", CheckVariant.InOrder)],
                       """foo
                          bar""")
-    self.__notMatchMulti("""foo
-                            bar""",
+    self.__notMatchMulti([("foo", CheckVariant.InOrder),
+                          ("bar", CheckVariant.InOrder)],
                          """bar
                             foo""")
+    self.__matchMulti([("abc", CheckVariant.DAG),
+                       ("def", CheckVariant.DAG)],
+                      """abc
+                         def""")
+    self.__matchMulti([("abc", CheckVariant.DAG),
+                       ("def", CheckVariant.DAG)],
+                      """def
+                         abc""")
+    self.__matchMulti([("foo", CheckVariant.InOrder),
+                       ("abc", CheckVariant.DAG),
+                       ("def", CheckVariant.DAG),
+                       ("bar", CheckVariant.InOrder)],
+                      """foo
+                         def
+                         abc
+                         bar""")
+    self.__notMatchMulti([("foo", CheckVariant.InOrder),
+                          ("abc", CheckVariant.DAG),
+                          ("def", CheckVariant.DAG),
+                          ("bar", CheckVariant.InOrder)],
+                         """foo
+                            abc
+                            bar""")
+    self.__notMatchMulti([("foo", CheckVariant.InOrder),
+                          ("abc", CheckVariant.DAG),
+                          ("def", CheckVariant.DAG),
+                          ("bar", CheckVariant.InOrder)],
+                         """foo
+                            def
+                            bar""")
+
+  def test_NotAssertions(self):
+    self.__matchMulti([("foo", CheckVariant.Not)],
+                      """abc
+                         def""")
+    self.__notMatchMulti([("foo", CheckVariant.Not)],
+                         """abc foo
+                            def""")
+
+  def test_LineOnlyMatchesOnce(self):
+    self.__matchMulti([("foo", CheckVariant.DAG),
+                       ("foo", CheckVariant.DAG)],
+                       """foo
+                          foo""")
+    self.__notMatchMulti([("foo", CheckVariant.DAG),
+                          ("foo", CheckVariant.DAG)],
+                          """foo
+                             bar""")
 
 class TestOutputFile_Parse(unittest.TestCase):
   def __parsesTo(self, string, expected):
@@ -355,7 +423,7 @@ class TestCheckFile_Parse(unittest.TestCase):
     self.__parsesTo("""// CHECK-START: Example Group
                        // CHECK:  foo
                        // CHECK:    bar""",
-                    [ checker.CheckGroup.parse("Example Group", [ "foo", "bar" ]) ])
+                    [ checker.CheckGroup("Example Group", prepareChecks([ "foo", "bar" ])) ])
 
   def test_MultipleGroups(self):
     self.__parsesTo("""// CHECK-START: Example Group1
@@ -364,8 +432,20 @@ class TestCheckFile_Parse(unittest.TestCase):
                        // CHECK-START: Example Group2
                        // CHECK: abc
                        // CHECK: def""",
-                    [ checker.CheckGroup.parse("Example Group1", [ "foo", "bar" ]),
-                      checker.CheckGroup.parse("Example Group2", [ "abc", "def" ]) ])
+                    [ checker.CheckGroup("Example Group1", prepareChecks([ "foo", "bar" ])),
+                      checker.CheckGroup("Example Group2", prepareChecks([ "abc", "def" ])) ])
+
+  def test_CheckVariants(self):
+    self.__parsesTo("""// CHECK-START: Example Group
+                       // CHECK:     foo
+                       // CHECK-NOT: bar
+                       // CHECK-DAG: abc
+                       // CHECK-DAG: def""",
+                    [ checker.CheckGroup("Example Group",
+                                         prepareChecks([ ("foo", CheckVariant.InOrder),
+                                                         ("bar", CheckVariant.Not),
+                                                         ("abc", CheckVariant.DAG),
+                                                         ("def", CheckVariant.DAG) ])) ])
 
 if __name__ == '__main__':
   unittest.main()
