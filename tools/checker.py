@@ -20,9 +20,9 @@
 # against a set of assertions specified alongside the tests.
 #
 # Tests are written in Java, turned into DEX and compiled with the Optimizing
-# compiler. "Check lines" are comments in the Java file which begin with prefix
-# 'CHECK' followed by a pattern that the engine attempts to match in the
-# compiler-generated output.
+# compiler. "Check lines" are assertions formatted as comments of the Java file.
+# They begin with prefix 'CHECK' followed by a pattern that the engine attempts
+# to match in the compiler-generated output.
 #
 # Assertions are tested in groups which correspond to the individual compiler
 # passes. Each group of check lines therefore must start with a 'CHECK-START'
@@ -30,7 +30,23 @@
 # name must exactly match one of the groups recognized in the output (they can
 # be listed with the '--list-groups' command-line flag).
 #
-# Check line patterns are treated as plain text rather than regular expressions
+# Matching of check lines is carried out in the order of appearance in the
+# source file. There are three types of check lines:
+#  - CHECK:     Must match an output line which appears in the output group
+#               later than lines matched against any preceeding checks. Output
+#               lines must therefore match the check lines in the same order.
+#               These are referred to as "in-order" checks in the code.
+#  - CHECK-DAG: Must match an output line which appears in the output group
+#               later than lines matched against any preceeding in-order checks.
+#               In other words, the order of output lines does not matter
+#               between consecutive DAG checks.
+#  - CHECK-NOT: Must not match any output line which appear in the output group
+#               later than lines matched against any preceeding checks and
+#               earlier than lines matched against any subsequent checks.
+#               Surrounding non-negative checks (or boundaries of the group)
+#               therefore create a scope within which the assertion is verified.
+#
+# Check-line patterns are treated as plain text rather than regular expressions
 # but are whitespace agnostic.
 #
 # Actual regex patterns can be inserted enclosed in '{{' and '}}' brackets. If
@@ -115,13 +131,16 @@ class CheckLine(CommonEqualityMixin):
      more regex elements. Matching against an output line is successful only
      if all regex elements can be matched in the given order."""
 
-  def __init__(self, lineContent, lineNo=-1):
-    lineContent = lineContent.strip()
+  class Variant(object):
+    """Supported types of assertions."""
+    InOrder, DAG, Not = range(3)
 
+  def __init__(self, content, variant=Variant.InOrder, lineNo=-1):
+    self.content = content.strip()
+    self.variant = variant
     self.lineNo = lineNo
-    self.content = lineContent
 
-    self.lineParts = self.__parse(lineContent)
+    self.lineParts = self.__parse(self.content)
     if not self.lineParts:
       raise Exception("Empty check line")
 
@@ -180,7 +199,11 @@ class CheckLine(CommonEqualityMixin):
       elif self.__isMatchAtStart(matchVariable):
         var = line[0:matchVariable.end()]
         line = line[matchVariable.end():]
-        lineParts.append(CheckElement.parseVariable(var))
+        elem = CheckElement.parseVariable(var)
+        if self.variant == CheckLine.Variant.Not and elem.variant == CheckElement.Variant.VarDef:
+          raise Exception("CHECK-NOT check lines cannot define variables " +
+                          "(line " + str(self.lineNo) + ")")
+        lineParts.append(elem)
       else:
         # If we're not currently looking at a special marker, this is a plain
         # text match all the way until the first special marker (or the end
@@ -267,44 +290,101 @@ class CheckGroup(CommonEqualityMixin):
   def __headAndTail(self, list):
     return list[0], list[1:]
 
-  # The driver of matching inside a group. It simultaneously reads lines from
-  # the output and check groups and attempts to match them against each other
-  # in the correct order.
-  def match(self, outputGroup):
-    readOutputLines = 0
-    lastMatch = 0
+  # Splits a list of check lines at index 'i' such that lines[i] is the first
+  # element whose variant is not equal to the given parameter.
+  def __splitByVariant(self, lines, variant):
+    i = 0
+    while i < len(lines) and lines[i].variant == variant:
+      i += 1
+    return lines[:i], lines[i:]
 
-    # Check and output lines which remain to be matched.
+  # Extracts the first sequence of check lines which are independent of each
+  # other's match location, i.e. either consecutive DAG lines or a single
+  # InOrder line. Any Not lines preceeding this sequence are also extracted.
+  def __nextIndependentChecks(self, checkLines):
+    notChecks, checkLines = self.__splitByVariant(checkLines, CheckLine.Variant.Not)
+    if not checkLines:
+      return notChecks, [], []
+
+    head, tail = self.__headAndTail(checkLines)
+    if head.variant == CheckLine.Variant.InOrder:
+      return notChecks, [head], tail
+    else:
+      assert head.variant == CheckLine.Variant.DAG
+      independentChecks, checkLines = self.__splitByVariant(checkLines, CheckLine.Variant.DAG)
+      return notChecks, independentChecks, checkLines
+
+  # If successful, returns the line number of the first output line matching the
+  # check line and the updated variable state. Otherwise returns -1 and None,
+  # respectively. The 'lineFilter' parameter can be used to supply a list of
+  # line numbers (counting from 1) which should be skipped.
+  def __findFirstMatch(self, checkLine, outputLines, lineFilter, varState):
+    matchLineNo = 0
+    for outputLine in outputLines:
+      matchLineNo += 1
+      if matchLineNo in lineFilter:
+        continue
+      newVarState = checkLine.match(outputLine, varState)
+      if newVarState is not None:
+        return matchLineNo, newVarState
+    return -1, None
+
+  # Matches the given positive check lines against the output in order of
+  # appearance. Variable state is propagated but the scope of the search remains
+  # the same for all checks. Each output line can only be matched once.
+  # If all check lines are matched, the resulting variable state is returned
+  # together with the remaining output. The function also returns output lines
+  # which appear before either of the matched lines so they can be tested
+  # against Not checks.
+  def __matchIndependentChecks(self, checkLines, outputLines, varState):
+    # If no checks are provided, skip over the entire output.
+    if not checkLines:
+      return outputLines, varState, []
+
+    # Keep track of which lines have been matched.
+    matchedLines = []
+
+    # Find first unused output line which matches each check line.
+    for checkLine in checkLines:
+      matchLineNo, varState = self.__findFirstMatch(checkLine, outputLines, matchedLines, varState)
+      if varState is None:
+        raise Exception("Could not match line " + str(checkLine))
+      matchedLines.append(matchLineNo)
+
+    # Return new variable state and the output lines which lie outside the
+    # match locations of this independent group.
+    preceedingLines = outputLines[:min(matchedLines)-1]
+    remainingLines = outputLines[max(matchedLines):]
+    return preceedingLines, remainingLines, varState
+
+  # Makes sure that the given check lines do not match any of the given output
+  # lines. Variable state does not change.
+  def __matchNotLines(self, checkLines, outputLines, varState):
+    for checkLine in checkLines:
+      assert checkLine.variant == CheckLine.Variant.Not
+      matchLineNo, varState = self.__findFirstMatch(checkLine, outputLines, [], varState)
+      if varState is not None:
+        raise Exception("CHECK-NOT line " + str(checkLine) + " matches output")
+
+  # Matches the check lines in this group against an output group. It is
+  # responsible for running the checks in the right order and scope, and
+  # for propagating the variable state between the check lines.
+  def match(self, outputGroup):
+    varState = {}
     checkLines = self.lines
     outputLines = outputGroup.body
-    varState = {}
 
-    # Retrieve the next check line.
     while checkLines:
-      checkLine, checkLines = self.__headAndTail(checkLines)
-      foundMatch = False
-
-      # Retrieve the next output line.
-      while outputLines:
-        outputLine, outputLines = self.__headAndTail(outputLines)
-        readOutputLines += 1
-
-        # Try to match the current lines against each other. If successful,
-        # save the new state of variables and continue to the next check line.
-        newVarState = checkLine.match(outputLine, varState)
-        if newVarState is not None:
-          varState = newVarState
-          lastMatch = readOutputLines
-          foundMatch = True
-          break
-      if not foundMatch:
-        raise Exception("Could not match check line \"" + checkLine.content + "\" from line " +
-                        str(lastMatch+1) + " of the output. [vars=" + str(varState) + "]")
-
-  @staticmethod
-  def parse(name, lines):
-    return CheckGroup(name, list(map(lambda line: CheckLine(line), lines)))
-
+      # Extract the next sequence of location-independent checks to be matched.
+      notChecks, independentChecks, checkLines = self.__nextIndependentChecks(checkLines)
+      # Match the independent checks.
+      notOutput, outputLines, newVarState = \
+          self.__matchIndependentChecks(independentChecks, outputLines, varState)
+      # Run the Not checks against the output lines which lie between the last
+      # two independent groups or the bounds of the output.
+      self.__matchNotLines(notChecks, notOutput, varState)
+      # Update variable state.
+      varState = newVarState
 
 class OutputGroup(CommonEqualityMixin):
   """Represents a named part of the test output against which a check group of
@@ -378,20 +458,35 @@ class CheckFile(FileSplitMixin):
       return None
 
   def _processLine(self, line, lineNo):
+    # Lines beginning with 'CHECK-START' start a new check group.
     startLine = self._extractLine(self.prefix + "-START", line)
     if startLine is not None:
-      # Line starts with the CHECK-START keyword, start a new group
-      return (None, startLine)
-    else:
-      # Otherwise try to parse it as a standard CHECK line. If unsuccessful,
-      # _extractLine will return None and the line will be ignored.
-      return (self._extractLine(self.prefix, line), None)
+      return None, startLine
+
+    # Lines starting only with 'CHECK' are matched in order.
+    plainLine = self._extractLine(self.prefix, line)
+    if plainLine is not None:
+      return (plainLine, CheckLine.Variant.InOrder), None
+
+    # 'CHECK-DAG' lines are no-order assertions.
+    dagLine = self._extractLine(self.prefix + "-DAG", line)
+    if dagLine is not None:
+      return (dagLine, CheckLine.Variant.DAG), None
+
+    # 'CHECK-NOT' lines are no-order negative assertions.
+    notLine = self._extractLine(self.prefix + "-NOT", line)
+    if notLine is not None:
+      return (notLine, CheckLine.Variant.Not), None
+
+    # Other lines are ignored.
+    return None, None
 
   def _exceptionLineOutsideGroup(self, line, lineNo):
     raise Exception("Check file line lies outside a group (line " + str(lineNo) + ")")
 
   def _processGroup(self, name, lines):
-    return CheckGroup.parse(name, lines)
+    checkLines = list(map(lambda line: CheckLine(line[0], line[1]), lines))
+    return CheckGroup(name, checkLines)
 
   def match(self, outputFile, printInfo=False):
     for checkGroup in self.groups:
