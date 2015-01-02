@@ -2319,7 +2319,7 @@ void X86Mir2Lir::OpRegThreadMem(OpKind op, RegStorage r_dest, ThreadOffset<8> th
  */
 void X86Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_dest, int scale) {
-  RegisterClass reg_class = RegClassBySize(size);
+  RegisterClass reg_class = RegClassForFieldLoadStore(size, false);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   RegLocation rl_result;
   rl_array = LoadValue(rl_array, kRefReg);
@@ -2368,7 +2368,7 @@ void X86Mir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
  */
 void X86Mir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
                              RegLocation rl_index, RegLocation rl_src, int scale, bool card_mark) {
-  RegisterClass reg_class = RegClassBySize(size);
+  RegisterClass reg_class = RegClassForFieldLoadStore(size, false);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
 
