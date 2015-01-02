@@ -28,7 +28,7 @@ GlobalValueNumbering::GlobalValueNumbering(CompilationUnit* cu, ScopedArenaAlloc
       allocator_(allocator),
       bbs_processed_(0u),
       max_bbs_to_process_(kMaxBbsToProcessMultiplyFactor * mir_graph_->GetNumReachableBlocks()),
-      last_value_(0u),
+      last_value_(kNullValue),
       modifications_allowed_(true),
       mode_(mode),
       global_value_map_(std::less<uint64_t>(), allocator->Adapter()),
@@ -128,7 +128,11 @@ bool GlobalValueNumbering::FinishBasicBlock(BasicBlock* bb) {
   merge_lvns_.clear();
 
   bool change = (lvns_[bb->id] == nullptr) || !lvns_[bb->id]->Equals(*work_lvn_);
-  if (change) {
+  if (mode_ == kModeGvn) {
+    // In GVN mode, keep the latest LVN even if Equals() indicates no change. This is
+    // to keep the correct values of fields that do not contribute to Equals() as long
+    // as they depend only on predecessor LVNs' fields that do contribute to Equals().
+    // Currently, that's LVN::merge_map_ used by LVN::GetStartingVregValueNumberImpl().
     std::unique_ptr<const LocalValueNumbering> old_lvn(lvns_[bb->id]);
     lvns_[bb->id] = work_lvn_.release();
   } else {
@@ -178,7 +182,7 @@ bool GlobalValueNumbering::NullCheckedInAllPredecessors(
       }
       // IF_EQZ/IF_NEZ checks some sreg, see if that sreg contains the value_name.
       int s_reg = pred_bb->last_mir_insn->ssa_rep->uses[0];
-      if (!pred_lvn->IsSregValue(s_reg, value_name)) {
+      if (pred_lvn->GetSregValue(s_reg) != value_name) {
         return false;
       }
     }

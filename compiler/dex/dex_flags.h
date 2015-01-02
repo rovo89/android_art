@@ -27,6 +27,7 @@ enum OptControlVector {
   kNullCheckElimination,
   kClassInitCheckElimination,
   kGlobalValueNumbering,
+  kGvnDeadCodeElimination,
   kLocalValueNumbering,
   kPromoteRegs,
   kTrackLiveTemps,

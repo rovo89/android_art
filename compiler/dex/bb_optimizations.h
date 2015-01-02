@@ -240,6 +240,41 @@ class GlobalValueNumberingPass : public PassME {
 };
 
 /**
+ * @class DeadCodeEliminationPass
+ * @brief Performs the GVN-based dead code elimination pass.
+ */
+class DeadCodeEliminationPass : public PassME {
+ public:
+  DeadCodeEliminationPass() : PassME("DCE", kPreOrderDFSTraversal, "4_post_dce_cfg") {
+  }
+
+  bool Gate(const PassDataHolder* data) const OVERRIDE {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    return c_unit->mir_graph->EliminateDeadCodeGate();
+  }
+
+  bool Worker(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
+    CompilationUnit* c_unit = pass_me_data_holder->c_unit;
+    DCHECK(c_unit != nullptr);
+    BasicBlock* bb = pass_me_data_holder->bb;
+    DCHECK(bb != nullptr);
+    return c_unit->mir_graph->EliminateDeadCode(bb);
+  }
+
+  void End(PassDataHolder* data) const OVERRIDE {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    c_unit->mir_graph->EliminateDeadCodeEnd();
+    down_cast<PassMEDataHolder*>(data)->dirty = !c_unit->mir_graph->MirSsaRepUpToDate();
+  }
+};
+
+/**
  * @class BBCombine
  * @brief Perform the basic block combination pass.
  */

@@ -37,6 +37,7 @@ struct CompilationUnit;
 class DexCompilationUnit;
 class DexFileMethodInliner;
 class GlobalValueNumbering;
+class GvnDeadCodeElimination;
 
 // Forward declaration.
 class MIRGraph;
@@ -1052,7 +1053,12 @@ class MIRGraph {
 
   void DumpCheckStats();
   MIR* FindMoveResult(BasicBlock* bb, MIR* mir);
-  int SRegToVReg(int ssa_reg) const;
+
+  /* Return the base virtual register for a SSA name */
+  int SRegToVReg(int ssa_reg) const {
+    return ssa_base_vregs_[ssa_reg];
+  }
+
   void VerifyDataflow();
   void CheckForDominanceFrontier(BasicBlock* dom_bb, const BasicBlock* succ_bb);
   bool EliminateNullChecksGate();
@@ -1065,6 +1071,9 @@ class MIRGraph {
   bool ApplyGlobalValueNumberingGate();
   bool ApplyGlobalValueNumbering(BasicBlock* bb);
   void ApplyGlobalValueNumberingEnd();
+  bool EliminateDeadCodeGate();
+  bool EliminateDeadCode(BasicBlock* bb);
+  void EliminateDeadCodeEnd();
   bool EliminateSuspendChecksGate();
   bool EliminateSuspendChecks(BasicBlock* bb);
   void EliminateSuspendChecksEnd();
@@ -1072,15 +1081,15 @@ class MIRGraph {
   uint16_t GetGvnIFieldId(MIR* mir) const {
     DCHECK(IsInstructionIGetOrIPut(mir->dalvikInsn.opcode));
     DCHECK_LT(mir->meta.ifield_lowering_info, ifield_lowering_infos_.size());
-    DCHECK(temp_.gvn.ifield_ids_ != nullptr);
-    return temp_.gvn.ifield_ids_[mir->meta.ifield_lowering_info];
+    DCHECK(temp_.gvn.ifield_ids != nullptr);
+    return temp_.gvn.ifield_ids[mir->meta.ifield_lowering_info];
   }
 
   uint16_t GetGvnSFieldId(MIR* mir) const {
     DCHECK(IsInstructionSGetOrSPut(mir->dalvikInsn.opcode));
     DCHECK_LT(mir->meta.sfield_lowering_info, sfield_lowering_infos_.size());
-    DCHECK(temp_.gvn.sfield_ids_ != nullptr);
-    return temp_.gvn.sfield_ids_[mir->meta.sfield_lowering_info];
+    DCHECK(temp_.gvn.sfield_ids != nullptr);
+    return temp_.gvn.sfield_ids[mir->meta.sfield_lowering_info];
   }
 
   /*
@@ -1115,9 +1124,7 @@ class MIRGraph {
     return punt_to_interpreter_;
   }
 
-  void SetPuntToInterpreter(bool val) {
-    punt_to_interpreter_ = val;
-  }
+  void SetPuntToInterpreter(bool val);
 
   void DisassembleExtendedInstr(const MIR* mir, std::string* decoded_mir);
   char* GetDalvikDisassembly(const MIR* mir);
@@ -1284,7 +1291,8 @@ class MIRGraph {
    * @param mir The mir to check.
    * @return Returns 'true' if the given MIR might throw an exception.
    */
-  bool CanThrow(MIR* mir);
+  bool CanThrow(MIR* mir) const;
+
   /**
    * @brief Combine multiply and add/sub MIRs into corresponding extended MAC MIR.
    * @param mul_mir The multiply MIR to be combined.
@@ -1382,8 +1390,9 @@ class MIRGraph {
     // Global value numbering.
     struct {
       GlobalValueNumbering* gvn;
-      uint16_t* ifield_ids_;  // Part of GVN/LVN but cached here for LVN to avoid recalculation.
-      uint16_t* sfield_ids_;  // Ditto.
+      uint16_t* ifield_ids;  // Part of GVN/LVN but cached here for LVN to avoid recalculation.
+      uint16_t* sfield_ids;  // Ditto.
+      GvnDeadCodeElimination* dce;
     } gvn;
     // Suspend check elimination.
     struct {
@@ -1437,6 +1446,7 @@ class MIRGraph {
   friend class SuspendCheckEliminationTest;
   friend class NullCheckEliminationTest;
   friend class GlobalValueNumberingTest;
+  friend class GvnDeadCodeEliminationTest;
   friend class LocalValueNumberingTest;
   friend class TopologicalSortOrderTest;
 };

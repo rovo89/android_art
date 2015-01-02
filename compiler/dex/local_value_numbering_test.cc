@@ -185,9 +185,9 @@ class LocalValueNumberingTest : public testing::Test {
   }
 
   void PerformLVN() {
-    cu_.mir_graph->temp_.gvn.ifield_ids_ =  GlobalValueNumbering::PrepareGvnFieldIds(
+    cu_.mir_graph->temp_.gvn.ifield_ids =  GlobalValueNumbering::PrepareGvnFieldIds(
         allocator_.get(), cu_.mir_graph->ifield_lowering_infos_);
-    cu_.mir_graph->temp_.gvn.sfield_ids_ =  GlobalValueNumbering::PrepareGvnFieldIds(
+    cu_.mir_graph->temp_.gvn.sfield_ids =  GlobalValueNumbering::PrepareGvnFieldIds(
         allocator_.get(), cu_.mir_graph->sfield_lowering_infos_);
     gvn_.reset(new (allocator_.get()) GlobalValueNumbering(&cu_, allocator_.get(),
                                                            GlobalValueNumbering::kModeLvn));
@@ -211,7 +211,13 @@ class LocalValueNumberingTest : public testing::Test {
         value_names_() {
     cu_.mir_graph.reset(new MIRGraph(&cu_, &cu_.arena));
     allocator_.reset(ScopedArenaAllocator::Create(&cu_.arena_stack));
+    // By default, the zero-initialized reg_location_[.] with ref == false tells LVN that
+    // 0 constants are integral, not references. Nothing else is used by LVN/GVN.
+    cu_.mir_graph->reg_location_ = static_cast<RegLocation*>(cu_.arena.Alloc(
+        kMaxSsaRegs * sizeof(cu_.mir_graph->reg_location_[0]), kArenaAllocRegAlloc));
   }
+
+  static constexpr size_t kMaxSsaRegs = 16384u;
 
   ArenaPool pool_;
   CompilationUnit cu_;
