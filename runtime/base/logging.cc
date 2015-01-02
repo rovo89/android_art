@@ -16,6 +16,7 @@
 
 #include "logging.h"
 
+#include <limits>
 #include <sstream>
 
 #include "base/mutex.h"
@@ -239,8 +240,25 @@ void LogMessage::LogLine(const char* file, unsigned int line, LogSeverity log_se
 void LogMessage::LogLineLowStack(const char* file, unsigned int line, LogSeverity log_severity,
                                  const char* message) {
 #ifdef HAVE_ANDROID_OS
-  // TODO: be more conservative on stack usage here.
-  LogLine(file, line, log_severity, message);
+  // Use android_writeLog() to avoid stack-based buffers used by android_printLog().
+  const char* tag = ProgramInvocationShortName();
+  int priority = kLogSeverityToAndroidLogPriority[log_severity];
+  char* buf = nullptr;
+  size_t buf_size = 0u;
+  if (priority == ANDROID_LOG_FATAL) {
+    // Allocate buffer for snprintf(buf, buf_size, "%s:%u] %s", file, line, message) below.
+    // If allocation fails, fall back to printing only the message.
+    buf_size = strlen(file) + 1 /* ':' */ + std::numeric_limits<typeof(line)>::max_digits10 +
+        2 /* "] " */ + strlen(message) + 1 /* terminating 0 */;
+    buf = reinterpret_cast<char*>(malloc(buf_size));
+  }
+  if (buf != nullptr) {
+    snprintf(buf, buf_size, "%s:%u] %s", file, line, message);
+    android_writeLog(priority, tag, buf);
+    free(buf);
+  } else {
+    android_writeLog(priority, tag, message);
+  }
 #else
   static const char* log_characters = "VDIWEFF";
   CHECK_EQ(strlen(log_characters), INTERNAL_FATAL + 1U);

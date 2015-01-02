@@ -515,12 +515,6 @@ bool Thread::InitStackHwm() {
   size_t read_guard_size;
   GetThreadStack(tlsPtr_.pthread_self, &read_stack_base, &read_stack_size, &read_guard_size);
 
-  // This is included in the SIGQUIT output, but it's useful here for thread debugging.
-  VLOG(threads) << StringPrintf("Native stack is at %p (%s with %s guard)",
-                                read_stack_base,
-                                PrettySize(read_stack_size).c_str(),
-                                PrettySize(read_guard_size).c_str());
-
   tlsPtr_.stack_begin = reinterpret_cast<uint8_t*>(read_stack_base);
   tlsPtr_.stack_size = read_stack_size;
 
@@ -536,6 +530,12 @@ bool Thread::InitStackHwm() {
                                 "Attempt to attach a thread with a too-small stack");
     return false;
   }
+
+  // This is included in the SIGQUIT output, but it's useful here for thread debugging.
+  VLOG(threads) << StringPrintf("Native stack is at %p (%s with %s guard)",
+                                read_stack_base,
+                                PrettySize(read_stack_size).c_str(),
+                                PrettySize(read_guard_size).c_str());
 
   // Set stack_end_ to the bottom of the stack saving space of stack overflows
 
