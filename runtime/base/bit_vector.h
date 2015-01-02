@@ -52,7 +52,7 @@ class BitVector {
       return !(*this == other);
     }
 
-    int operator*() const;
+    uint32_t operator*() const;
 
     IndexIterator& operator++();
 

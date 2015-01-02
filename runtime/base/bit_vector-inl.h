@@ -29,7 +29,7 @@ inline bool BitVector::IndexIterator::operator==(const IndexIterator& other) con
   return bit_index_ == other.bit_index_;
 }
 
-inline int BitVector::IndexIterator::operator*() const {
+inline uint32_t BitVector::IndexIterator::operator*() const {
   DCHECK_LT(bit_index_, BitSize());
   return bit_index_;
 }
