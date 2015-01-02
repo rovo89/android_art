@@ -798,6 +798,12 @@ bool X86Mir2Lir::IsUnconditionalBranch(LIR* lir) {
 }
 
 RegisterClass X86Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volatile) {
+  // Prefer XMM registers.  Fixes a problem with iget/iput to a FP when cached temporary
+  // with same VR is a Core register.
+  if (size == kSingle || size == kDouble) {
+    return kFPReg;
+  }
+
   // X86_64 can handle any size.
   if (cu_->target64) {
     return RegClassBySize(size);
