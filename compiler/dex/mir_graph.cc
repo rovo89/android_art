@@ -18,6 +18,7 @@
 
 #include <inttypes.h>
 #include <queue>
+#include <unistd.h>
 
 #include "base/bit_vector-inl.h"
 #include "base/stl_util.h"
@@ -876,6 +877,34 @@ uint64_t MIRGraph::GetDataFlowAttributes(MIR* mir) {
   return GetDataFlowAttributes(opcode);
 }
 
+// The path can easily surpass FS limits because of parameters etc. Use pathconf to get FS
+// restrictions here. Note that a successful invocation will return an actual value. If the path
+// is too long for some reason, the return will be ENAMETOOLONG. Then cut off part of the name.
+//
+// It's possible the path is not valid, or some other errors appear. In that case return false.
+static bool CreateDumpFile(std::string& fname, const char* dir_prefix, NarrowDexOffset start_offset,
+                           const char *suffix, int nr, std::string* output) {
+  std::string dir = StringPrintf("./%s", dir_prefix);
+  int64_t max_name_length = pathconf(dir.c_str(), _PC_NAME_MAX);
+  if (max_name_length <= 0) {
+    PLOG(ERROR) << "Could not get file name restrictions for " << dir;
+    return false;
+  }
+
+  std::string name = StringPrintf("%s%x%s_%d.dot", fname.c_str(), start_offset,
+                                  suffix == nullptr ? "" : suffix, nr);
+  std::string fpath;
+  if (static_cast<int64_t>(name.size()) > max_name_length) {
+    std::string suffix_str = StringPrintf("_%d.dot", nr);
+    name = name.substr(0, static_cast<size_t>(max_name_length) - suffix_str.size()) + suffix_str;
+  }
+  // Sanity check.
+  DCHECK_LE(name.size(), static_cast<size_t>(max_name_length));
+
+  *output = StringPrintf("%s%s", dir_prefix, name.c_str());
+  return true;
+}
+
 // TODO: use a configurable base prefix, and adjust callers to supply pass name.
 /* Dump the CFG into a DOT graph */
 void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suffix) {
@@ -884,15 +913,19 @@ void MIRGraph::DumpCFG(const char* dir_prefix, bool all_blocks, const char *suff
 
   // Increment counter to get a unique file number.
   cnt++;
+  int nr = cnt.LoadRelaxed();
 
   std::string fname(PrettyMethod(cu_->method_idx, *cu_->dex_file));
   ReplaceSpecialChars(fname);
-  fname = StringPrintf("%s%s%x%s_%d.dot", dir_prefix, fname.c_str(),
-                      GetBasicBlock(GetEntryBlock()->fall_through)->start_offset,
-                      suffix == nullptr ? "" : suffix,
-                      cnt.LoadRelaxed());
-  file = fopen(fname.c_str(), "w");
+  std::string fpath;
+  if (!CreateDumpFile(fname, dir_prefix, GetBasicBlock(GetEntryBlock()->fall_through)->start_offset,
+                      suffix, nr, &fpath)) {
+    LOG(ERROR) << "Could not create dump file name for " << fname;
+    return;
+  }
+  file = fopen(fpath.c_str(), "w");
   if (file == NULL) {
+    PLOG(ERROR) << "Could not open " << fpath << " for DumpCFG.";
     return;
   }
   fprintf(file, "digraph G {\n");
