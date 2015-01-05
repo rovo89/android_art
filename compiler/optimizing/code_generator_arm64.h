@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_ARM64_H_
 
 #include "code_generator.h"
+#include "dex/compiler_enums.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 #include "utils/arm64/assembler_arm64.h"
@@ -108,6 +109,7 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
 
  private:
   void GenerateClassInitializationCheck(SlowPathCodeARM64* slow_path, vixl::Register class_reg);
+  void GenerateMemoryBarrier(MemBarrierKind kind);
   void GenerateSuspendCheck(HSuspendCheck* instruction, HBasicBlock* successor);
   void HandleBinaryOp(HBinaryOperation* instr);
   void HandleShift(HBinaryOperation* instr);
@@ -257,6 +259,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
   void Load(Primitive::Type type, vixl::CPURegister dst, const vixl::MemOperand& src);
   void Store(Primitive::Type type, vixl::CPURegister rt, const vixl::MemOperand& dst);
   void LoadCurrentMethod(vixl::Register current_method);
+  void LoadAcquire(Primitive::Type type, vixl::CPURegister dst, const vixl::MemOperand& src);
+  void StoreRelease(Primitive::Type type, vixl::CPURegister rt, const vixl::MemOperand& dst);
 
   // Generate code to invoke a runtime entry point.
   void InvokeRuntime(int32_t offset, HInstruction* instruction, uint32_t dex_pc);
