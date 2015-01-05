@@ -297,10 +297,7 @@ endif
 TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
 
 # Known broken tests for the arm64 optimizing compiler backend.
-TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS := \
-  003-omnibus-opcodes64 \
-  012-math64 \
-  436-rem-float64
+TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS :=
 
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
