@@ -1139,8 +1139,8 @@ TEST_F(StubTest, AllocObjectArray) {
   if ((false)) {
     // Use an arbitrary method from c to use as referrer
     size_t result = Invoke3(static_cast<size_t>(c->GetDexTypeIndex()),    // type_idx
-                            reinterpret_cast<size_t>(c_obj->GetVirtualMethod(0)),  // arbitrary
                             10U,
+                            reinterpret_cast<size_t>(c_obj->GetVirtualMethod(0)),  // arbitrary
                             StubTest::GetEntrypoint(self, kQuickAllocArray),
                             self);
 
@@ -1155,7 +1155,8 @@ TEST_F(StubTest, AllocObjectArray) {
   {
     // We can use nullptr in the second argument as we do not need a method here (not used in
     // resolved/initialized cases)
-    size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(nullptr), 10U,
+    size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), 10U,
+                            reinterpret_cast<size_t>(nullptr),
                             StubTest::GetEntrypoint(self, kQuickAllocArrayResolved),
                             self);
     EXPECT_FALSE(self->IsExceptionPending()) << PrettyTypeOf(self->GetException(nullptr));
@@ -1173,8 +1174,9 @@ TEST_F(StubTest, AllocObjectArray) {
 
   // Out-of-memory.
   {
-    size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()), reinterpret_cast<size_t>(nullptr),
+    size_t result = Invoke3(reinterpret_cast<size_t>(c.Get()),
                             GB,  // that should fail...
+                            reinterpret_cast<size_t>(nullptr),
                             StubTest::GetEntrypoint(self, kQuickAllocArrayResolved),
                             self);
 

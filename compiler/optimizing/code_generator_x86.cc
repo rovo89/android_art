@@ -215,8 +215,8 @@ class LoadStringSlowPathX86 : public SlowPathCodeX86 {
     codegen->SaveLiveRegisters(locations);
 
     InvokeRuntimeCallingConvention calling_convention;
-    x86_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(0));
-    __ movl(calling_convention.GetRegisterAt(1), Immediate(instruction_->GetStringIndex()));
+    x86_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
+    __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction_->GetStringIndex()));
     __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pResolveString)));
     codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
     x86_codegen->Move32(locations->Out(), Location::RegisterLocation(EAX));
@@ -2503,13 +2503,13 @@ void LocationsBuilderX86::VisitNewArray(HNewArray* instruction) {
   locations->SetOut(Location::RegisterLocation(EAX));
   InvokeRuntimeCallingConvention calling_convention;
   locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
-  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+  locations->AddTemp(Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
 }
 
 void InstructionCodeGeneratorX86::VisitNewArray(HNewArray* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
-  codegen_->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
+  codegen_->LoadCurrentMethod(calling_convention.GetRegisterAt(2));
   __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction->GetTypeIndex()));
 
   __ fs()->call(
