@@ -455,7 +455,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         int32_t length = shadow_frame.GetVReg(inst->VRegB_22c(inst_data));
         Object* obj = AllocArrayFromCode<do_access_check, true>(
-            inst->VRegC_22c(), shadow_frame.GetMethod(), length, self,
+            inst->VRegC_22c(), length, shadow_frame.GetMethod(), self,
             Runtime::Current()->GetHeap()->GetCurrentAllocator());
         if (UNLIKELY(obj == NULL)) {
           HANDLE_PENDING_EXCEPTION();

@@ -371,19 +371,19 @@ void Mir2Lir::GenNewArray(uint32_t type_idx, RegLocation rl_dest,
       // The fast path.
       if (!use_direct_type_ptr) {
         LoadClassType(*dex_file, type_idx, kArg0);
-        CallRuntimeHelperRegMethodRegLocation(kQuickAllocArrayResolved, TargetReg(kArg0, kNotWide),
+        CallRuntimeHelperRegRegLocationMethod(kQuickAllocArrayResolved, TargetReg(kArg0, kNotWide),
                                               rl_src, true);
       } else {
         // Use the direct pointer.
-        CallRuntimeHelperImmMethodRegLocation(kQuickAllocArrayResolved, direct_type_ptr, rl_src,
+        CallRuntimeHelperImmRegLocationMethod(kQuickAllocArrayResolved, direct_type_ptr, rl_src,
                                               true);
       }
     } else {
       // The slow path.
-      CallRuntimeHelperImmMethodRegLocation(kQuickAllocArray, type_idx, rl_src, true);
+      CallRuntimeHelperImmRegLocationMethod(kQuickAllocArray, type_idx, rl_src, true);
     }
   } else {
-    CallRuntimeHelperImmMethodRegLocation(kQuickAllocArrayWithAccessCheck, type_idx, rl_src, true);
+    CallRuntimeHelperImmRegLocationMethod(kQuickAllocArrayWithAccessCheck, type_idx, rl_src, true);
   }
   StoreValue(rl_dest, GetReturn(kRefReg));
 }
@@ -405,7 +405,7 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
   } else {
     target = kQuickCheckAndAllocArrayWithAccessCheck;
   }
-  CallRuntimeHelperImmMethodImm(target, type_idx, elems, true);
+  CallRuntimeHelperImmImmMethod(target, type_idx, elems, true);
   FreeTemp(TargetReg(kArg2, kNotWide));
   FreeTemp(TargetReg(kArg1, kNotWide));
   /*
@@ -1098,7 +1098,7 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
 
         void Compile() {
           GenerateTargetLabel();
-          m2l_->CallRuntimeHelperRegImm(kQuickResolveString, r_method_, string_idx_, true);
+          m2l_->CallRuntimeHelperImmReg(kQuickResolveString, string_idx_, r_method_, true);
           m2l_->OpUnconditionalBranch(cont_);
         }
 

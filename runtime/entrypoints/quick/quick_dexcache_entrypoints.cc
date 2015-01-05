@@ -55,8 +55,8 @@ extern "C" mirror::Class* artInitializeTypeAndVerifyAccessFromCode(uint32_t type
   return ResolveVerifyAndClinit(type_idx, referrer, self, false, true);
 }
 
-extern "C" mirror::String* artResolveStringFromCode(mirror::ArtMethod* referrer,
-                                                    int32_t string_idx,
+extern "C" mirror::String* artResolveStringFromCode(int32_t string_idx,
+                                                    mirror::ArtMethod* referrer,
                                                     Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);

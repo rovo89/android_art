@@ -16,25 +16,25 @@
 
 .macro GENERATE_ALLOC_ENTRYPOINTS c_suffix, cxx_suffix
 // Called by managed code to allocate an object.
-TWO_ARG_DOWNCALL art_quick_alloc_object\c_suffix, artAllocObjectFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
+TWO_ARG_DOWNCALL art_quick_alloc_object\c_suffix, artAllocObjectFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an object of a resolved class.
-TWO_ARG_DOWNCALL art_quick_alloc_object_resolved\c_suffix, artAllocObjectFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
+TWO_ARG_DOWNCALL art_quick_alloc_object_resolved\c_suffix, artAllocObjectFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an object of an initialized class.
-TWO_ARG_DOWNCALL art_quick_alloc_object_initialized\c_suffix, artAllocObjectFromCodeInitialized\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
+TWO_ARG_DOWNCALL art_quick_alloc_object_initialized\c_suffix, artAllocObjectFromCodeInitialized\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an object when the caller doesn't know whether it has access
 // to the created type.
-TWO_ARG_DOWNCALL art_quick_alloc_object_with_access_check\c_suffix, artAllocObjectFromCodeWithAccessCheck\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
+TWO_ARG_DOWNCALL art_quick_alloc_object_with_access_check\c_suffix, artAllocObjectFromCodeWithAccessCheck\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an array.
-THREE_ARG_DOWNCALL art_quick_alloc_array\c_suffix, artAllocArrayFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
+THREE_ARG_DOWNCALL art_quick_alloc_array\c_suffix, artAllocArrayFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an array of a resolve class.
-THREE_ARG_DOWNCALL art_quick_alloc_array_resolved\c_suffix, artAllocArrayFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
+THREE_ARG_DOWNCALL art_quick_alloc_array_resolved\c_suffix, artAllocArrayFromCodeResolved\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an array when the caller doesn't know whether it has access
 // to the created type.
-THREE_ARG_DOWNCALL art_quick_alloc_array_with_access_check\c_suffix, artAllocArrayFromCodeWithAccessCheck\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
+THREE_ARG_DOWNCALL art_quick_alloc_array_with_access_check\c_suffix, artAllocArrayFromCodeWithAccessCheck\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY.
-THREE_ARG_DOWNCALL art_quick_check_and_alloc_array\c_suffix, artCheckAndAllocArrayFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
+THREE_ARG_DOWNCALL art_quick_check_and_alloc_array\c_suffix, artCheckAndAllocArrayFromCode\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 // Called by managed code to allocate an array in a special case for FILLED_NEW_ARRAY.
-THREE_ARG_DOWNCALL art_quick_check_and_alloc_array_with_access_check\c_suffix, artCheckAndAllocArrayFromCodeWithAccessCheck\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO
+THREE_ARG_DOWNCALL art_quick_check_and_alloc_array_with_access_check\c_suffix, artCheckAndAllocArrayFromCodeWithAccessCheck\cxx_suffix, RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
 .endm
 
 .macro GENERATE_ALL_ALLOC_ENTRYPOINTS
