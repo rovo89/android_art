@@ -38,6 +38,9 @@ namespace art {
 
 namespace arm64 {
 
+// TODO: Tune the use of Load-Acquire, Store-Release vs Data Memory Barriers.
+// For now we prefer the use of load-acquire, store-release over explicit memory barriers.
+static constexpr bool kUseAcquireRelease = true;
 static constexpr bool kExplicitStackOverflowCheck = false;
 static constexpr size_t kHeapRefSize = sizeof(mirror::HeapReference<mirror::Object>);
 static constexpr int kCurrentMethodStackOffset = 0;
@@ -233,8 +236,9 @@ Location ARM64ReturnLocation(Primitive::Type return_type) {
 static const Register kRuntimeParameterCoreRegisters[] = { x0, x1, x2, x3, x4, x5, x6, x7 };
 static constexpr size_t kRuntimeParameterCoreRegistersLength =
     arraysize(kRuntimeParameterCoreRegisters);
-static const FPRegister kRuntimeParameterFpuRegisters[] = { };
-static constexpr size_t kRuntimeParameterFpuRegistersLength = 0;
+static const FPRegister kRuntimeParameterFpuRegisters[] = { d0, d1, d2, d3, d4, d5, d6, d7 };
+static constexpr size_t kRuntimeParameterFpuRegistersLength =
+    arraysize(kRuntimeParameterCoreRegisters);
 
 class InvokeRuntimeCallingConvention : public CallingConvention<Register, FPRegister> {
  public:
@@ -949,8 +953,8 @@ void CodeGeneratorARM64::SwapLocations(Location loc1, Location loc2) {
 }
 
 void CodeGeneratorARM64::Load(Primitive::Type type,
-                              vixl::CPURegister dst,
-                              const vixl::MemOperand& src) {
+                              CPURegister dst,
+                              const MemOperand& src) {
   switch (type) {
     case Primitive::kPrimBoolean:
       __ Ldrb(Register(dst), src);
@@ -969,7 +973,7 @@ void CodeGeneratorARM64::Load(Primitive::Type type,
     case Primitive::kPrimLong:
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
-      DCHECK(dst.Is64Bits() == Is64BitType(type));
+      DCHECK_EQ(dst.Is64Bits(), Is64BitType(type));
       __ Ldr(dst, src);
       break;
     case Primitive::kPrimVoid:
@@ -977,26 +981,118 @@ void CodeGeneratorARM64::Load(Primitive::Type type,
   }
 }
 
+void CodeGeneratorARM64::LoadAcquire(Primitive::Type type,
+                                     CPURegister dst,
+                                     const MemOperand& src) {
+  UseScratchRegisterScope temps(GetVIXLAssembler());
+  Register temp_base = temps.AcquireX();
+
+  DCHECK(!src.IsRegisterOffset());
+  DCHECK(!src.IsPreIndex());
+  DCHECK(!src.IsPostIndex());
+
+  // TODO(vixl): Let the MacroAssembler handle MemOperand.
+  __ Add(temp_base, src.base(), src.offset());
+  MemOperand base = MemOperand(temp_base);
+  switch (type) {
+    case Primitive::kPrimBoolean:
+      __ Ldarb(Register(dst), base);
+      break;
+    case Primitive::kPrimByte:
+      __ Ldarb(Register(dst), base);
+      __ Sbfx(Register(dst), Register(dst), 0, Primitive::ComponentSize(type) * kBitsPerByte);
+      break;
+    case Primitive::kPrimChar:
+      __ Ldarh(Register(dst), base);
+      break;
+    case Primitive::kPrimShort:
+      __ Ldarh(Register(dst), base);
+      __ Sbfx(Register(dst), Register(dst), 0, Primitive::ComponentSize(type) * kBitsPerByte);
+      break;
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot:
+    case Primitive::kPrimLong:
+      DCHECK_EQ(dst.Is64Bits(), Is64BitType(type));
+      __ Ldar(Register(dst), base);
+      break;
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      DCHECK(dst.IsFPRegister());
+      DCHECK_EQ(dst.Is64Bits(), Is64BitType(type));
+
+      Register temp = dst.Is64Bits() ? temps.AcquireX() : temps.AcquireW();
+      __ Ldar(temp, base);
+      __ Fmov(FPRegister(dst), temp);
+      break;
+    }
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unreachable type " << type;
+  }
+}
+
 void CodeGeneratorARM64::Store(Primitive::Type type,
-                               vixl::CPURegister rt,
-                               const vixl::MemOperand& dst) {
+                               CPURegister src,
+                               const MemOperand& dst) {
   switch (type) {
     case Primitive::kPrimBoolean:
     case Primitive::kPrimByte:
-      __ Strb(Register(rt), dst);
+      __ Strb(Register(src), dst);
       break;
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
-      __ Strh(Register(rt), dst);
+      __ Strh(Register(src), dst);
       break;
     case Primitive::kPrimInt:
     case Primitive::kPrimNot:
     case Primitive::kPrimLong:
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
-      DCHECK(rt.Is64Bits() == Is64BitType(type));
-      __ Str(rt, dst);
+      DCHECK_EQ(src.Is64Bits(), Is64BitType(type));
+      __ Str(src, dst);
       break;
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unreachable type " << type;
+  }
+}
+
+void CodeGeneratorARM64::StoreRelease(Primitive::Type type,
+                                      CPURegister src,
+                                      const MemOperand& dst) {
+  UseScratchRegisterScope temps(GetVIXLAssembler());
+  Register temp_base = temps.AcquireX();
+
+  DCHECK(!dst.IsRegisterOffset());
+  DCHECK(!dst.IsPreIndex());
+  DCHECK(!dst.IsPostIndex());
+
+  // TODO(vixl): Let the MacroAssembler handle this.
+  __ Add(temp_base, dst.base(), dst.offset());
+  MemOperand base = MemOperand(temp_base);
+  switch (type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+      __ Stlrb(Register(src), base);
+      break;
+    case Primitive::kPrimChar:
+    case Primitive::kPrimShort:
+      __ Stlrh(Register(src), base);
+      break;
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot:
+    case Primitive::kPrimLong:
+      DCHECK_EQ(src.Is64Bits(), Is64BitType(type));
+      __ Stlr(Register(src), base);
+      break;
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      DCHECK(src.IsFPRegister());
+      DCHECK_EQ(src.Is64Bits(), Is64BitType(type));
+
+      Register temp = src.Is64Bits() ? temps.AcquireX() : temps.AcquireW();
+      __ Fmov(temp, FPRegister(src));
+      __ Stlr(temp, base);
+      break;
+    }
     case Primitive::kPrimVoid:
       LOG(FATAL) << "Unreachable type " << type;
   }
@@ -1026,12 +1122,45 @@ void InstructionCodeGeneratorARM64::GenerateClassInitializationCheck(SlowPathCod
                                                                      vixl::Register class_reg) {
   UseScratchRegisterScope temps(GetVIXLAssembler());
   Register temp = temps.AcquireW();
-  __ Ldr(temp, HeapOperand(class_reg, mirror::Class::StatusOffset()));
-  __ Cmp(temp, mirror::Class::kStatusInitialized);
-  __ B(lt, slow_path->GetEntryLabel());
+  size_t status_offset = mirror::Class::StatusOffset().SizeValue();
+
   // Even if the initialized flag is set, we need to ensure consistent memory ordering.
-  __ Dmb(InnerShareable, BarrierReads);
+  if (kUseAcquireRelease) {
+    // TODO(vixl): Let the MacroAssembler handle MemOperand.
+    __ Add(temp, class_reg, status_offset);
+    __ Ldar(temp, HeapOperand(temp));
+    __ Cmp(temp, mirror::Class::kStatusInitialized);
+    __ B(lt, slow_path->GetEntryLabel());
+  } else {
+    __ Ldr(temp, HeapOperand(class_reg, status_offset));
+    __ Cmp(temp, mirror::Class::kStatusInitialized);
+    __ B(lt, slow_path->GetEntryLabel());
+    __ Dmb(InnerShareable, BarrierReads);
+  }
   __ Bind(slow_path->GetExitLabel());
+}
+
+void InstructionCodeGeneratorARM64::GenerateMemoryBarrier(MemBarrierKind kind) {
+  BarrierType type = BarrierAll;
+
+  switch (kind) {
+    case MemBarrierKind::kAnyAny:
+    case MemBarrierKind::kAnyStore: {
+      type = BarrierAll;
+      break;
+    }
+    case MemBarrierKind::kLoadAny: {
+      type = BarrierReads;
+      break;
+    }
+    case MemBarrierKind::kStoreStore: {
+      type = BarrierWrites;
+      break;
+    }
+    default:
+      LOG(FATAL) << "Unexpected memory barrier " << kind;
+  }
+  __ Dmb(InnerShareable, type);
 }
 
 void InstructionCodeGeneratorARM64::GenerateSuspendCheck(HSuspendCheck* instruction,
@@ -1660,28 +1789,54 @@ void InstructionCodeGeneratorARM64::VisitIf(HIf* if_instr) {
 }
 
 void LocationsBuilderARM64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
 void InstructionCodeGeneratorARM64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
   MemOperand field = HeapOperand(InputRegisterAt(instruction, 0), instruction->GetFieldOffset());
-  codegen_->Load(instruction->GetType(), OutputCPURegister(instruction), field);
+
+  if (instruction->IsVolatile()) {
+    if (kUseAcquireRelease) {
+      codegen_->LoadAcquire(instruction->GetType(), OutputCPURegister(instruction), field);
+    } else {
+      codegen_->Load(instruction->GetType(), OutputCPURegister(instruction), field);
+      // For IRIW sequential consistency kLoadAny is not sufficient.
+      GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+    }
+  } else {
+    codegen_->Load(instruction->GetType(), OutputCPURegister(instruction), field);
+  }
 }
 
 void LocationsBuilderARM64::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
 }
 
 void InstructionCodeGeneratorARM64::VisitInstanceFieldSet(HInstanceFieldSet* instruction) {
-  Primitive::Type field_type = instruction->GetFieldType();
-  CPURegister value = InputCPURegisterAt(instruction, 1);
   Register obj = InputRegisterAt(instruction, 0);
-  codegen_->Store(field_type, value, HeapOperand(obj, instruction->GetFieldOffset()));
-  if (field_type == Primitive::kPrimNot) {
+  CPURegister value = InputCPURegisterAt(instruction, 1);
+  Offset offset = instruction->GetFieldOffset();
+  Primitive::Type field_type = instruction->GetFieldType();
+
+  if (instruction->IsVolatile()) {
+    if (kUseAcquireRelease) {
+      codegen_->StoreRelease(field_type, value, HeapOperand(obj, offset));
+    } else {
+      GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
+      codegen_->Store(field_type, value, HeapOperand(obj, offset));
+      GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+    }
+  } else {
+    codegen_->Store(field_type, value, HeapOperand(obj, offset));
+  }
+
+  if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
     codegen_->MarkGCCard(obj, Register(value));
   }
 }
@@ -2175,9 +2330,12 @@ void InstructionCodeGeneratorARM64::VisitPhi(HPhi* instruction) {
 }
 
 void LocationsBuilderARM64::VisitRem(HRem* rem) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(rem, LocationSummary::kNoCall);
-  switch (rem->GetResultType()) {
+  Primitive::Type type = rem->GetResultType();
+  LocationSummary::CallKind call_kind = IsFPType(type) ? LocationSummary::kCall
+                                                       : LocationSummary::kNoCall;
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(rem, call_kind);
+
+  switch (type) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
@@ -2185,13 +2343,24 @@ void LocationsBuilderARM64::VisitRem(HRem* rem) {
       locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
 
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      InvokeRuntimeCallingConvention calling_convention;
+      locations->SetInAt(0, LocationFrom(calling_convention.GetFpuRegisterAt(0)));
+      locations->SetInAt(1, LocationFrom(calling_convention.GetFpuRegisterAt(1)));
+      locations->SetOut(calling_convention.GetReturnLocation(type));
+
+      break;
+    }
+
     default:
-      LOG(FATAL) << "Unexpected rem type " << rem->GetResultType();
+      LOG(FATAL) << "Unexpected rem type " << type;
   }
 }
 
 void InstructionCodeGeneratorARM64::VisitRem(HRem* rem) {
   Primitive::Type type = rem->GetResultType();
+
   switch (type) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
@@ -2203,6 +2372,14 @@ void InstructionCodeGeneratorARM64::VisitRem(HRem* rem) {
 
       __ Sdiv(temp, dividend, divisor);
       __ Msub(output, temp, divisor, dividend);
+      break;
+    }
+
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble: {
+      int32_t entry_offset = (type == Primitive::kPrimFloat) ? QUICK_ENTRY_POINT(pFmodf)
+                                                             : QUICK_ENTRY_POINT(pFmod);
+      codegen_->InvokeRuntime(entry_offset, rem, rem->GetDexPc());
       break;
     }
 
@@ -2294,7 +2471,18 @@ void LocationsBuilderARM64::VisitStaticFieldGet(HStaticFieldGet* instruction) {
 
 void InstructionCodeGeneratorARM64::VisitStaticFieldGet(HStaticFieldGet* instruction) {
   MemOperand field = HeapOperand(InputRegisterAt(instruction, 0), instruction->GetFieldOffset());
-  codegen_->Load(instruction->GetType(), OutputCPURegister(instruction), field);
+
+  if (instruction->IsVolatile()) {
+    if (kUseAcquireRelease) {
+      codegen_->LoadAcquire(instruction->GetType(), OutputCPURegister(instruction), field);
+    } else {
+      codegen_->Load(instruction->GetType(), OutputCPURegister(instruction), field);
+      // For IRIW sequential consistency kLoadAny is not sufficient.
+      GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+    }
+  } else {
+    codegen_->Load(instruction->GetType(), OutputCPURegister(instruction), field);
+  }
 }
 
 void LocationsBuilderARM64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
@@ -2305,13 +2493,24 @@ void LocationsBuilderARM64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
 }
 
 void InstructionCodeGeneratorARM64::VisitStaticFieldSet(HStaticFieldSet* instruction) {
-  CPURegister value = InputCPURegisterAt(instruction, 1);
   Register cls = InputRegisterAt(instruction, 0);
+  CPURegister value = InputCPURegisterAt(instruction, 1);
   Offset offset = instruction->GetFieldOffset();
   Primitive::Type field_type = instruction->GetFieldType();
 
-  codegen_->Store(field_type, value, HeapOperand(cls, offset));
-  if (field_type == Primitive::kPrimNot) {
+  if (instruction->IsVolatile()) {
+    if (kUseAcquireRelease) {
+      codegen_->StoreRelease(field_type, value, HeapOperand(cls, offset));
+    } else {
+      GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
+      codegen_->Store(field_type, value, HeapOperand(cls, offset));
+      GenerateMemoryBarrier(MemBarrierKind::kAnyAny);
+    }
+  } else {
+    codegen_->Store(field_type, value, HeapOperand(cls, offset));
+  }
+
+  if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
     codegen_->MarkGCCard(cls, Register(value));
   }
 }
