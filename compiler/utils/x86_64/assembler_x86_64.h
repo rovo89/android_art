@@ -178,7 +178,7 @@ class Address : public Operand {
   }
 
   void Init(CpuRegister base_in, int32_t disp) {
-    if (disp == 0 && base_in.AsRegister() != RBP) {
+    if (disp == 0 && base_in.LowBits() != RBP) {
       SetModRM(0, base_in);
       if (base_in.AsRegister() == RSP) {
         SetSIB(TIMES_1, CpuRegister(RSP), base_in);
@@ -208,7 +208,7 @@ class Address : public Operand {
 
   Address(CpuRegister base_in, CpuRegister index_in, ScaleFactor scale_in, int32_t disp) {
     CHECK_NE(index_in.AsRegister(), RSP);  // Illegal addressing mode.
-    if (disp == 0 && base_in.AsRegister() != RBP) {
+    if (disp == 0 && base_in.LowBits() != RBP) {
       SetModRM(0, CpuRegister(RSP));
       SetSIB(scale_in, index_in, base_in);
     } else if (disp >= -128 && disp <= 127) {
