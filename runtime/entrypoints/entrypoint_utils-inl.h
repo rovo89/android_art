@@ -172,8 +172,8 @@ inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Class* klass,
 template <bool kAccessCheck>
 ALWAYS_INLINE
 inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
-                                      mirror::ArtMethod* method,
                                       int32_t component_count,
+                                      mirror::ArtMethod* method,
                                       bool* slow_path) {
   if (UNLIKELY(component_count < 0)) {
     ThrowNegativeArraySizeException(component_count);
@@ -208,12 +208,12 @@ inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
 template <bool kAccessCheck, bool kInstrumented>
 ALWAYS_INLINE
 inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
-                                         mirror::ArtMethod* method,
                                          int32_t component_count,
+                                         mirror::ArtMethod* method,
                                          Thread* self,
                                          gc::AllocatorType allocator_type) {
   bool slow_path = false;
-  mirror::Class* klass = CheckArrayAlloc<kAccessCheck>(type_idx, method, component_count,
+  mirror::Class* klass = CheckArrayAlloc<kAccessCheck>(type_idx, component_count, method,
                                                        &slow_path);
   if (UNLIKELY(slow_path)) {
     if (klass == nullptr) {
@@ -231,8 +231,8 @@ inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
 template <bool kAccessCheck, bool kInstrumented>
 ALWAYS_INLINE
 inline mirror::Array* AllocArrayFromCodeResolved(mirror::Class* klass,
-                                                 mirror::ArtMethod* method,
                                                  int32_t component_count,
+                                                 mirror::ArtMethod* method,
                                                  Thread* self,
                                                  gc::AllocatorType allocator_type) {
   DCHECK(klass != nullptr);

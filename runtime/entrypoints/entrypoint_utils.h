@@ -80,8 +80,8 @@ ALWAYS_INLINE inline mirror::Object* AllocObjectFromCodeInitialized(mirror::Clas
 
 template <bool kAccessCheck>
 ALWAYS_INLINE inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
-                                                    mirror::ArtMethod* method,
                                                     int32_t component_count,
+                                                    mirror::ArtMethod* method,
                                                     bool* slow_path)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -91,29 +91,30 @@ ALWAYS_INLINE inline mirror::Class* CheckArrayAlloc(uint32_t type_idx,
 // check.
 template <bool kAccessCheck, bool kInstrumented>
 ALWAYS_INLINE inline mirror::Array* AllocArrayFromCode(uint32_t type_idx,
-                                                       mirror::ArtMethod* method,
                                                        int32_t component_count,
+                                                       mirror::ArtMethod* method,
                                                        Thread* self,
                                                        gc::AllocatorType allocator_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 template <bool kAccessCheck, bool kInstrumented>
 ALWAYS_INLINE inline mirror::Array* AllocArrayFromCodeResolved(mirror::Class* klass,
-                                                               mirror::ArtMethod* method,
                                                                int32_t component_count,
+                                                               mirror::ArtMethod* method,
                                                                Thread* self,
                                                                gc::AllocatorType allocator_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-extern mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, mirror::ArtMethod* method,
-                                                 int32_t component_count, Thread* self,
+extern mirror::Array* CheckAndAllocArrayFromCode(uint32_t type_idx, int32_t component_count,
+                                                 mirror::ArtMethod* method, Thread* self,
                                                  bool access_check,
                                                  gc::AllocatorType allocator_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 extern mirror::Array* CheckAndAllocArrayFromCodeInstrumented(uint32_t type_idx,
+                                                             int32_t component_count,
                                                              mirror::ArtMethod* method,
-                                                             int32_t component_count, Thread* self,
+                                                             Thread* self,
                                                              bool access_check,
                                                              gc::AllocatorType allocator_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
