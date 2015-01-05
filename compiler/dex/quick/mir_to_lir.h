@@ -874,17 +874,17 @@ class Mir2Lir : public Backend {
     void CallRuntimeHelperImmMethod(QuickEntrypointEnum trampoline, int arg0, bool safepoint_pc);
     void CallRuntimeHelperRegMethod(QuickEntrypointEnum trampoline, RegStorage arg0,
                                     bool safepoint_pc);
-    void CallRuntimeHelperRegMethodRegLocation(QuickEntrypointEnum trampoline, RegStorage arg0,
-                                               RegLocation arg2, bool safepoint_pc);
+    void CallRuntimeHelperRegRegLocationMethod(QuickEntrypointEnum trampoline, RegStorage arg0,
+                                               RegLocation arg1, bool safepoint_pc);
     void CallRuntimeHelperRegLocationRegLocation(QuickEntrypointEnum trampoline, RegLocation arg0,
                                                  RegLocation arg1, bool safepoint_pc);
     void CallRuntimeHelperRegReg(QuickEntrypointEnum trampoline, RegStorage arg0, RegStorage arg1,
                                  bool safepoint_pc);
     void CallRuntimeHelperRegRegImm(QuickEntrypointEnum trampoline, RegStorage arg0,
                                     RegStorage arg1, int arg2, bool safepoint_pc);
-    void CallRuntimeHelperImmMethodRegLocation(QuickEntrypointEnum trampoline, int arg0,
-                                               RegLocation arg2, bool safepoint_pc);
-    void CallRuntimeHelperImmMethodImm(QuickEntrypointEnum trampoline, int arg0, int arg2,
+    void CallRuntimeHelperImmRegLocationMethod(QuickEntrypointEnum trampoline, int arg0,
+                                               RegLocation arg1, bool safepoint_pc);
+    void CallRuntimeHelperImmImmMethod(QuickEntrypointEnum trampoline, int arg0, int arg1,
                                        bool safepoint_pc);
     void CallRuntimeHelperImmRegLocationRegLocation(QuickEntrypointEnum trampoline, int arg0,
                                                     RegLocation arg1, RegLocation arg2,

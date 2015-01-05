@@ -19,16 +19,25 @@
 
 #include <cstdint>
 
+namespace art {
+namespace mirror {
+class Array;
+class ArtMethod;
+class Class;
+class Object;
+}  // namespace mirror
+}  // namespace art
+
 // These are extern declarations of assembly stubs with common names.
 
 // Cast entrypoints.
-extern "C" void art_quick_check_cast(void*, void*);
+extern "C" void art_quick_check_cast(const art::mirror::Class*, const art::mirror::Class*);
 
 // DexCache entrypoints.
-extern "C" void* art_quick_initialize_static_storage(uint32_t, void*);
-extern "C" void* art_quick_initialize_type(uint32_t, void*);
-extern "C" void* art_quick_initialize_type_and_verify_access(uint32_t, void*);
-extern "C" void* art_quick_resolve_string(void*, uint32_t);
+extern "C" void* art_quick_initialize_static_storage(uint32_t, art::mirror::ArtMethod*);
+extern "C" void* art_quick_initialize_type(uint32_t, art::mirror::ArtMethod*);
+extern "C" void* art_quick_initialize_type_and_verify_access(uint32_t, art::mirror::ArtMethod*);
+extern "C" void* art_quick_resolve_string(uint32_t, art::mirror::ArtMethod*);
 
 // Field entrypoints.
 extern "C" int art_quick_set8_instance(uint32_t, void*, int8_t);
@@ -57,14 +66,16 @@ extern "C" void* art_quick_get_obj_instance(uint32_t, void*);
 extern "C" void* art_quick_get_obj_static(uint32_t);
 
 // Array entrypoints.
-extern "C" void art_quick_aput_obj_with_null_and_bound_check(void*, uint32_t, void*);
-extern "C" void art_quick_aput_obj_with_bound_check(void*, uint32_t, void*);
-extern "C" void art_quick_aput_obj(void*, uint32_t, void*);
+extern "C" void art_quick_aput_obj_with_null_and_bound_check(art::mirror::Array*, int32_t,
+                                                             art::mirror::Object*);
+extern "C" void art_quick_aput_obj_with_bound_check(art::mirror::Array*, int32_t,
+                                                    art::mirror::Object*);
+extern "C" void art_quick_aput_obj(art::mirror::Array*, int32_t, art::mirror::Object*);
 extern "C" void art_quick_handle_fill_data(void*, void*);
 
 // Lock entrypoints.
-extern "C" void art_quick_lock_object(void*);
-extern "C" void art_quick_unlock_object(void*);
+extern "C" void art_quick_lock_object(art::mirror::Object*);
+extern "C" void art_quick_unlock_object(art::mirror::Object*);
 
 // Math entrypoints.
 extern "C" int64_t art_quick_d2l(double);
@@ -99,7 +110,7 @@ extern "C" void art_quick_invoke_virtual_trampoline_with_access_check(uint32_t, 
 extern "C" void art_quick_test_suspend();
 
 // Throw entrypoints.
-extern "C" void art_quick_deliver_exception(void*);
+extern "C" void art_quick_deliver_exception(art::mirror::Object*);
 extern "C" void art_quick_throw_array_bounds(int32_t index, int32_t limit);
 extern "C" void art_quick_throw_div_zero();
 extern "C" void art_quick_throw_no_such_method(int32_t method_idx);
