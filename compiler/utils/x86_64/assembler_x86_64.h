@@ -512,11 +512,6 @@ class X86_64Assembler FINAL : public Assembler {
 
   void LoadDoubleConstant(XmmRegister dst, double value);
 
-  void DoubleNegate(XmmRegister d);
-  void FloatNegate(XmmRegister f);
-
-  void DoubleAbs(XmmRegister reg);
-
   void LockCmpxchgl(const Address& address, CpuRegister reg) {
     lock()->cmpxchgl(address, reg);
   }
