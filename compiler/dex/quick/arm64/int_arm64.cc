@@ -543,7 +543,7 @@ bool Arm64Mir2Lir::HandleEasyDivRem64(Instruction::Code dalvik_opcode, bool is_d
       return SmallLiteralDivRem(dalvik_opcode, is_div, rl_src, rl_dest, static_cast<int32_t>(lit));
     }
   }
-  int k = LowestSetBit(lit);
+  int k = CTZ(lit);
   if (k >= nbits - 2) {
     // Avoid special cases.
     return false;
