@@ -1175,24 +1175,6 @@ void Mir2Lir::InsertLIRAfter(LIR* current_lir, LIR* new_lir) {
   new_lir->next->prev = new_lir;
 }
 
-bool Mir2Lir::IsPowerOfTwo(uint64_t x) {
-  return (x & (x - 1)) == 0;
-}
-
-// Returns the index of the lowest set bit in 'x'.
-int32_t Mir2Lir::LowestSetBit(uint64_t x) {
-  int bit_posn = 0;
-  while ((x & 0xf) == 0) {
-    bit_posn += 4;
-    x >>= 4;
-  }
-  while ((x & 1) == 0) {
-    bit_posn++;
-    x >>= 1;
-  }
-  return bit_posn;
-}
-
 bool Mir2Lir::PartiallyIntersects(RegLocation rl_src, RegLocation rl_dest) {
   DCHECK(rl_src.wide);
   DCHECK(rl_dest.wide);

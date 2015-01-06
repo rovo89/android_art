@@ -23,6 +23,7 @@
 #include "dex/reg_storage_eq.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/array-inl.h"
+#include "utils.h"
 
 namespace art {
 
@@ -577,19 +578,19 @@ bool ArmMir2Lir::GetEasyMultiplyOp(int lit, ArmMir2Lir::EasyMultiplyOp* op) {
 
   if (IsPowerOfTwo(lit)) {
     op->op = kOpLsl;
-    op->shift = LowestSetBit(lit);
+    op->shift = CTZ(lit);
     return true;
   }
 
   if (IsPowerOfTwo(lit - 1)) {
     op->op = kOpAdd;
-    op->shift = LowestSetBit(lit - 1);
+    op->shift = CTZ(lit - 1);
     return true;
   }
 
   if (IsPowerOfTwo(lit + 1)) {
     op->op = kOpRsub;
-    op->shift = LowestSetBit(lit + 1);
+    op->shift = CTZ(lit + 1);
     return true;
   }
 
@@ -607,7 +608,7 @@ bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
   }
 
   int lit1 = lit;
-  uint32_t shift = LowestSetBit(lit1);
+  uint32_t shift = CTZ(lit1);
   if (GetEasyMultiplyOp(lit1 >> shift, &ops[0])) {
     ops[1].op = kOpLsl;
     ops[1].shift = shift;
@@ -615,7 +616,7 @@ bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
   }
 
   lit1 = lit - 1;
-  shift = LowestSetBit(lit1);
+  shift = CTZ(lit1);
   if (GetEasyMultiplyOp(lit1 >> shift, &ops[0])) {
     ops[1].op = kOpAdd;
     ops[1].shift = shift;
@@ -623,7 +624,7 @@ bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
   }
 
   lit1 = lit + 1;
-  shift = LowestSetBit(lit1);
+  shift = CTZ(lit1);
   if (GetEasyMultiplyOp(lit1 >> shift, &ops[0])) {
     ops[1].op = kOpRsub;
     ops[1].shift = shift;
