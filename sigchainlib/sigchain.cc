@@ -170,11 +170,12 @@ extern "C" int sigaction(int signal, const struct sigaction* new_action, struct 
   // Note that we check that the signal number is in range here.  An out of range signal
   // number should behave exactly as the libc sigaction.
   if (signal > 0 && signal < _NSIG && user_sigactions[signal].IsClaimed()) {
-    if (old_action != NULL) {
-      *old_action = user_sigactions[signal].GetAction();
-    }
+    struct sigaction saved_action = user_sigactions[signal].GetAction();
     if (new_action != NULL) {
       user_sigactions[signal].SetAction(*new_action, false);
+    }
+    if (old_action != NULL) {
+      *old_action = saved_action;
     }
     return 0;
   }
