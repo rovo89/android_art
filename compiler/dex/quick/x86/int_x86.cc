@@ -21,6 +21,7 @@
 #include "dex/reg_storage_eq.h"
 #include "mirror/art_method.h"
 #include "mirror/array-inl.h"
+#include "utils.h"
 #include "x86_lir.h"
 
 namespace art {
@@ -656,7 +657,7 @@ RegLocation X86Mir2Lir::GenDivRemLit(RegLocation rl_dest, RegLocation rl_src,
     NewLIR3(kX86Lea32RM, rl_result.reg.GetReg(), rl_src.reg.GetReg(), std::abs(imm) - 1);
     NewLIR2(kX86Test32RR, rl_src.reg.GetReg(), rl_src.reg.GetReg());
     OpCondRegReg(kOpCmov, kCondPl, rl_result.reg, rl_src.reg);
-    int shift_amount = LowestSetBit(imm);
+    int shift_amount = CTZ(imm);
     OpRegImm(kOpAsr, rl_result.reg, shift_amount);
     if (imm < 0) {
       OpReg(kOpNeg, rl_result.reg);
@@ -1627,7 +1628,7 @@ bool X86Mir2Lir::GenMulLongConst(RegLocation rl_dest, RegLocation rl_src1, int64
     GenArithOpLong(Instruction::ADD_LONG, rl_dest, rl_src1, rl_src1, flags);
     return true;
   } else if (IsPowerOfTwo(val)) {
-    int shift_amount = LowestSetBit(val);
+    int shift_amount = CTZ(val);
     if (!PartiallyIntersects(rl_src1, rl_dest)) {
       rl_src1 = LoadValueWide(rl_src1, kCoreReg);
       RegLocation rl_result = GenShiftImmOpLong(Instruction::SHL_LONG, rl_dest, rl_src1,
@@ -2070,7 +2071,7 @@ void X86Mir2Lir::GenDivRemLongLit(RegLocation rl_dest, RegLocation rl_src,
     OpRegReg(kOpAdd, rl_result.reg, rl_src.reg);
     NewLIR2(kX86Test64RR, rl_src.reg.GetReg(), rl_src.reg.GetReg());
     OpCondRegReg(kOpCmov, kCondPl, rl_result.reg, rl_src.reg);
-    int shift_amount = LowestSetBit(imm);
+    int shift_amount = CTZ(imm);
     OpRegImm(kOpAsr, rl_result.reg, shift_amount);
     if (imm < 0) {
       OpReg(kOpNeg, rl_result.reg);
