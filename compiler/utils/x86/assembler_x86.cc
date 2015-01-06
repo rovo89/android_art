@@ -1372,38 +1372,6 @@ void X86Assembler::LoadDoubleConstant(XmmRegister dst, double value) {
 }
 
 
-void X86Assembler::FloatNegate(XmmRegister f) {
-  static const struct {
-    uint32_t a;
-    uint32_t b;
-    uint32_t c;
-    uint32_t d;
-  } float_negate_constant __attribute__((aligned(16))) =
-      { 0x80000000, 0x00000000, 0x80000000, 0x00000000 };
-  xorps(f, Address::Absolute(reinterpret_cast<uintptr_t>(&float_negate_constant)));
-}
-
-
-void X86Assembler::DoubleNegate(XmmRegister d) {
-  static const struct {
-    uint64_t a;
-    uint64_t b;
-  } double_negate_constant __attribute__((aligned(16))) =
-      {0x8000000000000000LL, 0x8000000000000000LL};
-  xorpd(d, Address::Absolute(reinterpret_cast<uintptr_t>(&double_negate_constant)));
-}
-
-
-void X86Assembler::DoubleAbs(XmmRegister reg) {
-  static const struct {
-    uint64_t a;
-    uint64_t b;
-  } double_abs_constant __attribute__((aligned(16))) =
-      {0x7FFFFFFFFFFFFFFFLL, 0x7FFFFFFFFFFFFFFFLL};
-  andpd(reg, Address::Absolute(reinterpret_cast<uintptr_t>(&double_abs_constant)));
-}
-
-
 void X86Assembler::Align(int alignment, int offset) {
   CHECK(IsPowerOfTwo(alignment));
   // Emit nop instruction until the real position is aligned.
