@@ -21,6 +21,7 @@
 #include <ostream>
 #include <sstream>
 
+#include "arch/arm/registers_arm.h"
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "thread.h"
@@ -148,15 +149,15 @@ struct ThumbRegister : ArmRegister {
   ThumbRegister(uint16_t instruction, uint16_t at_bit) : ArmRegister((instruction >> at_bit) & 0x7) {}
 };
 
-struct Rm {
-  explicit Rm(uint32_t instruction) : shift((instruction >> 4) & 0xff), rm(instruction & 0xf) {}
-  uint32_t shift;
+struct RmLslImm2 {
+  explicit RmLslImm2(uint32_t instr) : imm2((instr >> 4) & 0x3), rm(instr & 0xf) {}
+  uint32_t imm2;
   ArmRegister rm;
 };
-std::ostream& operator<<(std::ostream& os, const Rm& r) {
+std::ostream& operator<<(std::ostream& os, const RmLslImm2& r) {
   os << r.rm;
-  if (r.shift != 0) {
-    os << "-shift-" << r.shift;  // TODO
+  if (r.imm2 != 0) {
+    os << ", lsl #" << r.imm2;
   }
   return os;
 }
@@ -397,7 +398,74 @@ static uint64_t VFPExpand64(uint32_t imm8) {
   uint64_t bit_a = (imm8 >> 7) & 1;
   uint64_t bit_b = (imm8 >> 6) & 1;
   uint64_t slice = imm8 & 0x3f;
-  return (bit_a << 31) | ((UINT64_C(1) << 62) - (bit_b << 54)) | (slice << 48);
+  return (bit_a << 63) | ((UINT64_C(1) << 62) - (bit_b << 54)) | (slice << 48);
+}
+
+enum T2LitType {
+  kT2LitInvalid,
+  kT2LitUByte,
+  kT2LitSByte,
+  kT2LitUHalf,
+  kT2LitSHalf,
+  kT2LitUWord,
+  kT2LitSWord,
+  kT2LitHexWord,
+  kT2LitULong,
+  kT2LitSLong,
+  kT2LitHexLong,
+};
+std::ostream& operator<<(std::ostream& os, T2LitType type) {
+  return os << static_cast<int>(type);
+}
+
+void DumpThumb2Literal(std::ostream& args, const uint8_t* instr_ptr, uint32_t U, uint32_t imm32,
+                       T2LitType type) {
+  // Literal offsets (imm32) are not required to be aligned so we may need unaligned access.
+  typedef const int16_t unaligned_int16_t __attribute__ ((aligned (1)));
+  typedef const uint16_t unaligned_uint16_t __attribute__ ((aligned (1)));
+  typedef const int32_t unaligned_int32_t __attribute__ ((aligned (1)));
+  typedef const uint32_t unaligned_uint32_t __attribute__ ((aligned (1)));
+  typedef const int64_t unaligned_int64_t __attribute__ ((aligned (1)));
+  typedef const uint64_t unaligned_uint64_t __attribute__ ((aligned (1)));
+
+  uintptr_t pc = RoundDown(reinterpret_cast<intptr_t>(instr_ptr) + 4, 4);
+  uintptr_t lit_adr = U ? pc + imm32 : pc - imm32;
+  args << "  ; ";
+  switch (type) {
+    case kT2LitUByte:
+      args << *reinterpret_cast<const uint8_t*>(lit_adr);
+      break;
+    case kT2LitSByte:
+      args << *reinterpret_cast<const int8_t*>(lit_adr);
+      break;
+    case kT2LitUHalf:
+      args << *reinterpret_cast<const unaligned_uint16_t*>(lit_adr);
+      break;
+    case kT2LitSHalf:
+      args << *reinterpret_cast<const unaligned_int16_t*>(lit_adr);
+      break;
+    case kT2LitUWord:
+      args << *reinterpret_cast<const unaligned_uint32_t*>(lit_adr);
+      break;
+    case kT2LitSWord:
+      args << *reinterpret_cast<const unaligned_int32_t*>(lit_adr);
+      break;
+    case kT2LitHexWord:
+      args << StringPrintf("0x%08x", *reinterpret_cast<const unaligned_uint32_t*>(lit_adr));
+      break;
+    case kT2LitULong:
+      args << *reinterpret_cast<const unaligned_uint64_t*>(lit_adr);
+      break;
+    case kT2LitSLong:
+      args << *reinterpret_cast<const unaligned_int64_t*>(lit_adr);
+      break;
+    case kT2LitHexLong:
+      args << StringPrintf("0x%" PRIx64, *reinterpret_cast<unaligned_int64_t*>(lit_adr));
+      break;
+    default:
+      LOG(FATAL) << "Invalid type: " << type;
+      break;
+  }
 }
 
 size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) {
@@ -756,10 +824,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
                 args << d << ", [" << Rn << ", #" << ((U == 1) ? "" : "-")
                      << (imm8 << 2) << "]";
                 if (Rn.r == 15 && U == 1) {
-                  intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
-                  lit_adr = RoundDown(lit_adr, 4) + 4 + (imm8 << 2);
-                  typedef const int64_t unaligned_int64_t __attribute__ ((aligned (2)));
-                  args << StringPrintf("  ; 0x%" PRIx64, *reinterpret_cast<unaligned_int64_t*>(lit_adr));
+                  DumpThumb2Literal(args, instr_ptr, U, imm8 << 2, kT2LitHexLong);
                 }
               } else if (Rn.r == 13 && W == 1 && U == L) {  // VPUSH/VPOP
                 opcode << (L == 1 ? "vpop" : "vpush");
@@ -1227,164 +1292,141 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
       break;
     case 3:
       switch (op2) {
-        case 0x00: case 0x02: case 0x04: case 0x06:  // 000xxx0
-        case 0x08: case 0x09: case 0x0A: case 0x0C: case 0x0E: {
-          // Store single data item
-          // |111|11|100|000|0|0000|1111|110000|000000|
-          // |5 3|21|098|765|4|3  0|5  2|10   6|5    0|
-          // |---|--|---|---|-|----|----|------|------|
-          // |332|22|222|222|2|1111|1111|110000|000000|
-          // |1 9|87|654|321|0|9  6|5  2|10   6|5    0|
-          // |---|--|---|---|-|----|----|------|------|
-          // |111|11|000|op3|0|    |    |  op4 |      |
-          uint32_t op3 = (instr >> 21) & 7;
-          // uint32_t op4 = (instr >> 6) & 0x3F;
-          switch (op3) {
-            case 0x0: case 0x4: {
-              // {ST,LD}RB Rt,[Rn,#+/-imm12]    - 111 11 00 0 1 00 0 nnnn tttt 1 PUWii ii iiii
-              // {ST,LD}RB Rt,[Rn,#+/-imm8]     - 111 11 00 0 0 00 0 nnnn tttt 1 PUWii ii iiii
-              // {ST,LD}RB Rt,[Rn,Rm,lsl #imm2] - 111 11 00 0 0 00 0 nnnn tttt 0 00000 ii mmmm
-              ArmRegister Rn(instr, 16);
-              ArmRegister Rt(instr, 12);
-              opcode << (HasBitSet(instr, 20) ? "ldrb" : "strb");
-              if (HasBitSet(instr, 23)) {
-                uint32_t imm12 = instr & 0xFFF;
-                args << Rt << ", [" << Rn << ",#" << imm12 << "]";
-              } else if ((instr & 0x800) != 0) {
-                uint32_t imm8 = instr & 0xFF;
-                args << Rt << ", [" << Rn << ",#" << imm8 << "]";
-              } else {
-                uint32_t imm2 = (instr >> 4) & 3;
-                ArmRegister Rm(instr, 0);
-                args << Rt << ", [" << Rn << ", " << Rm;
-                if (imm2 != 0) {
-                  args << ", " << "lsl #" << imm2;
-                }
-                args << "]";
-              }
-              break;
-            }
-            case 0x1: case 0x5: {
-              // STRH Rt,[Rn,#+/-imm12]    - 111 11 00 0 1 01 0 nnnn tttt 1 PUWii ii iiii
-              // STRH Rt,[Rn,#+/-imm8]     - 111 11 00 0 0 01 0 nnnn tttt 1 PUWii ii iiii
-              // STRH Rt,[Rn,Rm,lsl #imm2] - 111 11 00 0 0 01 0 nnnn tttt 0 00000 ii mmmm
-              ArmRegister Rn(instr, 16);
-              ArmRegister Rt(instr, 12);
-              opcode << "strh";
-              if (HasBitSet(instr, 23)) {
-                uint32_t imm12 = instr & 0xFFF;
-                args << Rt << ", [" << Rn << ",#" << imm12 << "]";
-              } else if ((instr & 0x800) != 0) {
-                uint32_t imm8 = instr & 0xFF;
-                args << Rt << ", [" << Rn << ",#" << imm8 << "]";
-              } else {
-                uint32_t imm2 = (instr >> 4) & 3;
-                ArmRegister Rm(instr, 0);
-                args << Rt << ", [" << Rn << ", " << Rm;
-                if (imm2 != 0) {
-                  args << ", " << "lsl #" << imm2;
-                }
-                args << "]";
-              }
-              break;
-            }
-            case 0x2: case 0x6: {
-              ArmRegister Rn(instr, 16);
-              ArmRegister Rt(instr, 12);
-              if (op3 == 2) {
-                if ((instr & 0x800) != 0) {
-                  // STR Rt, [Rn, #imm8] - 111 11 000 010 0 nnnn tttt 1PUWiiiiiiii
-                  uint32_t P = (instr >> 10) & 1;
-                  uint32_t U = (instr >> 9) & 1;
-                  uint32_t W = (instr >> 8) & 1;
-                  uint32_t imm8 = instr & 0xFF;
-                  int32_t imm32 = (imm8 << 24) >> 24;  // sign-extend imm8
-                  if (Rn.r == 13 && P == 1 && U == 0 && W == 1 && imm32 == 4) {
-                    opcode << "push";
-                    args << "{" << Rt << "}";
-                  } else if (Rn.r == 15 || (P == 0 && W == 0)) {
-                    opcode << "UNDEFINED";
-                  } else {
-                    if (P == 1 && U == 1 && W == 0) {
-                      opcode << "strt";
-                    } else {
-                      opcode << "str";
-                    }
-                    args << Rt << ", [" << Rn;
-                    if (P == 0 && W == 1) {
-                      args << "], #" << imm32;
-                    } else {
-                      args << ", #" << imm32 << "]";
-                      if (W == 1) {
-                        args << "!";
-                      }
-                    }
-                  }
-                } else {
-                  // STR Rt, [Rn, Rm, LSL #imm2] - 111 11 000 010 0 nnnn tttt 000000iimmmm
-                  ArmRegister Rm(instr, 0);
-                  uint32_t imm2 = (instr >> 4) & 3;
-                  opcode << "str.w";
-                  args << Rt << ", [" << Rn << ", " << Rm;
-                  if (imm2 != 0) {
-                    args << ", lsl #" << imm2;
-                  }
-                  args << "]";
-                }
-              } else if (op3 == 6) {
-                // STR.W Rt, [Rn, #imm12] - 111 11 000 110 0 nnnn tttt iiiiiiiiiiii
-                uint32_t imm12 = instr & 0xFFF;
-                opcode << "str.w";
-                args << Rt << ", [" << Rn << ", #" << imm12 << "]";
-              }
-              break;
-            }
-          }
-
+        case 0x07: case 0x0F: case 0x17: case 0x1F: {  // Explicitly UNDEFINED, A6.3.
+          opcode << "UNDEFINED";
           break;
         }
-        case 0x03: case 0x0B: case 0x11: case 0x13: case 0x19: case 0x1B: {  // 00xx011
-          // Load byte/halfword
-          // |111|11|10|0 0|00|0|0000|1111|110000|000000|
-          // |5 3|21|09|8 7|65|4|3  0|5  2|10   6|5    0|
-          // |---|--|--|---|--|-|----|----|------|------|
-          // |332|22|22|2 2|22|2|1111|1111|110000|000000|
-          // |1 9|87|65|4 3|21|0|9  6|5  2|10   6|5    0|
-          // |---|--|--|---|--|-|----|----|------|------|
-          // |111|11|00|op3|01|1| Rn | Rt | op4  |      |
-          // |111|11| op2       |    |    | imm12       |
-          uint32_t op3 = (instr >> 23) & 3;
+        case 0x06: case 0x0E: {  // "Store single data item" undefined opcodes, A6.3.10.
+          opcode << "UNDEFINED [store]";
+          break;
+        }
+        case 0x15: case 0x1D: {  // "Load word" undefined opcodes, A6.3.7.
+          opcode << "UNDEFINED [load]";
+          break;
+        }
+        case 0x10: case 0x12: case 0x14: case 0x16: case 0x18: case 0x1A: case 0x1C: case 0x1E: {
+          opcode << "UNKNOWN " << op2 << " [SIMD]";
+          break;
+        }
+        case 0x01: case 0x00: case 0x09: case 0x08:   // {LD,ST}RB{,T}
+        case 0x03: case 0x02: case 0x0B: case 0x0A:   // {LD,ST}RH{,T}
+        case 0x05: case 0x04: case 0x0D: case 0x0C:   // {LD,ST}R{,T}
+        case 0x11:            case 0x19:              // LDRSB{,T} (no signed store)
+        case 0x13:            case 0x1B: {            // LDRSH{,T} (no signed store)
+          // Load:
+          // (Store is the same except that l==0 and always s==0 below.)
+          //                       00s.whl (sign, word, half, load)
+          // LDR{S}B  imm12: 11111|00s1001| Rn | Rt |imm12             (0x09)
+          // LDR{S}B   imm8: 11111|00s0001| Rn | Rt |1PUW|imm8         (0x01)
+          // LDR{S}BT  imm8: 11111|00s0001| Rn | Rt |1110|imm8         (0x01)
+          // LDR{S}B    lit: 11111|00sU001|1111| Rt |imm12             (0x01/0x09)
+          // LDR{S}B    reg: 11111|00s0001| Rn | Rt |000000|imm2| Rm   (0x01)
+          // LDR{S}H  imm12: 11111|00s1011| Rn | Rt |imm12             (0x0B)
+          // LDR{S}H   imm8: 11111|00s0011| Rn | Rt |1PUW|imm8         (0x03)
+          // LDR{S}HT  imm8: 11111|00s0011| Rn | Rt |1110|imm8         (0x03)
+          // LDR{S}H    lit: 11111|00sU011|1111| Rt |imm12             (0x03/0x0B)
+          // LDR{S}H    reg: 11111|00s0011| Rn | Rt |000000|imm2| Rm   (0x03)
+          // LDR      imm12: 11111|0001101| Rn | Rt |imm12             (0x0D)
+          // LDR       imm8: 11111|0000101| Rn | Rt |1PUW|imm8         (0x05)
+          // LDRT      imm8: 11111|0000101| Rn | Rt |1110|imm8         (0x05)
+          // LDR        lit: 11111|000U101|1111| Rt |imm12             (0x05/0x0D)
+          // LDR        reg: 11111|0000101| Rn | Rt |000000|imm2| Rm   (0x05)
+          //
+          // If Rt == 15, instead of load we have preload:
+          // PLD{W}   imm12: 11111|00010W1| Rn |1111|imm12             (0x09/0x0B)
+          // PLD{W}    imm8: 11111|00000W1| Rn |1111|1100|imm8         (0x01/0x03); -imm8
+          // PLD        lit: 11111|000U001|1111|1111|imm12             (0x01/0x09)
+          // PLD{W}     reg: 11111|00000W1| Rn |1111|000000|imm2| Rm   (0x01/0x03)
+          // PLI      imm12: 11111|0011001| Rn |1111|imm12             (0x19)
+          // PLI       imm8: 11111|0010001| Rn |1111|1100|imm8         (0x11); -imm8
+          // PLI        lit: 11111|001U001|1111|1111|imm12             (0x01/0x09)
+          // PLI        reg: 11111|0010001| Rn |1111|000000|imm2| Rm   (0x01/0x03)
+
+          bool is_load = HasBitSet(instr, 20);
+          bool is_half = HasBitSet(instr, 21);  // W for PLD/PLDW.
+          bool is_word = HasBitSet(instr, 22);
+          bool is_signed = HasBitSet(instr, 24);
           ArmRegister Rn(instr, 16);
           ArmRegister Rt(instr, 12);
-          if (Rt.r != 15) {
-            if (op3 == 1) {
-              // LDRH.W Rt, [Rn, #imm12]       - 111 11 00 01 011 nnnn tttt iiiiiiiiiiii
-              uint32_t imm12 = instr & 0xFFF;
-              opcode << "ldrh.w";
-              args << Rt << ", [" << Rn << ", #" << imm12 << "]";
-              if (Rn.r == 9) {
-                args << "  ; ";
-                Thread::DumpThreadOffset<4>(args, imm12);
-              } else if (Rn.r == 15) {
-                intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
-                lit_adr = RoundDown(lit_adr, 4) + 4 + imm12;
-                args << StringPrintf("  ; 0x%08x", *reinterpret_cast<int32_t*>(lit_adr));
+          uint32_t imm12 = instr & 0xFFF;
+          uint32_t U = (instr >> 23) & 1;  // U for imm12
+          uint32_t imm8 = instr & 0xFF;
+          uint32_t op4 = (instr >> 8) & 0xF;  // 1PUW for imm8
+          if (Rt.r == PC && is_load && !is_word) {
+            // PLD, PLDW, PLI
+            const char* pld_pli = (is_signed ? "pli" : "pld");
+            const char* w = (is_half ? "w" : "");
+            if (is_signed && !is_half) {
+              opcode << "UNDEFINED [PLI+W]";
+            } else if (Rn.r == PC || U != 0u) {
+              opcode << pld_pli << w;
+              args << "[" << Rn << ", #" << (U != 0u ? "" : "-") << imm12 << "]";
+              if (Rn.r == PC && is_half) {
+                args << " (UNPREDICTABLE)";
               }
-            } else if (op3 == 3) {
-              // LDRSH.W Rt, [Rn, #imm12]      - 111 11 00 11 011 nnnn tttt iiiiiiiiiiii
-              // LDRSB.W Rt, [Rn, #imm12]      - 111 11 00 11 001 nnnn tttt iiiiiiiiiiii
-              uint32_t imm12 = instr & 0xFFF;
-              opcode << (HasBitSet(instr, 20) ? "ldrsb.w" : "ldrsh.w");
-              args << Rt << ", [" << Rn << ", #" << imm12 << "]";
-              if (Rn.r == 9) {
-                args << "  ; ";
-                Thread::DumpThreadOffset<4>(args, imm12);
-              } else if (Rn.r == 15) {
-                intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
-                lit_adr = RoundDown(lit_adr, 4) + 4 + imm12;
-                args << StringPrintf("  ; 0x%08x", *reinterpret_cast<int32_t*>(lit_adr));
-              }
+            } else if ((instr & 0xFC0) == 0) {
+              opcode << pld_pli << w;
+              RmLslImm2 Rm(instr);
+              args << "[" << Rn << ", " << Rm << "]";
+            } else if (op4 == 0xC) {
+              opcode << pld_pli << w;
+              args << "[" << Rn << ", #-" << imm8 << "]";
+            } else {
+              opcode << "UNDEFINED [~" << pld_pli << "]";
             }
+            break;
+          }
+          const char* ldr_str = is_load ? "ldr" : "str";
+          const char* sign = is_signed ? "s" : "";
+          const char* type = is_word ? "" : is_half ? "h" : "b";
+          bool unpred = (Rt.r == SP && !is_word) || (Rt.r == PC && !is_load);
+          if (Rn.r == PC && !is_load) {
+            opcode << "UNDEFINED [STR-lit]";
+            unpred = false;
+          } else if (Rn.r == PC || U != 0u) {
+            // Load/store with imm12 (load literal if Rn.r == PC; there's no store literal).
+            opcode << ldr_str << sign << type << ".w";
+            args << Rt << ", [" << Rn << ", #" << (U != 0u ? "" : "-") << imm12 << "]";
+            if (Rn.r == TR && is_load) {
+              args << "  ; ";
+              Thread::DumpThreadOffset<4>(args, imm12);
+            } else if (Rn.r == PC) {
+              T2LitType lit_type[] = {
+                  kT2LitUByte, kT2LitUHalf, kT2LitHexWord, kT2LitInvalid,
+                  kT2LitUByte, kT2LitUHalf, kT2LitHexWord, kT2LitInvalid,
+                  kT2LitSByte, kT2LitSHalf, kT2LitInvalid, kT2LitInvalid,
+                  kT2LitSByte, kT2LitSHalf, kT2LitInvalid, kT2LitInvalid,
+              };
+              DCHECK_LT(op2 >> 1, arraysize(lit_type));
+              DCHECK_NE(lit_type[op2 >> 1], kT2LitInvalid);
+              DumpThumb2Literal(args, instr_ptr, U, imm12, lit_type[op2 >> 1]);
+            }
+          } else if ((instr & 0xFC0) == 0) {
+            opcode << ldr_str << sign << type << ".w";
+            RmLslImm2 Rm(instr);
+            args << Rt << ", [" << Rn << ", " << Rm << "]";
+            unpred = unpred || (Rm.rm.r == SP) || (Rm.rm.r == PC);
+          } else if (is_word && Rn.r == SP && imm8 == 4 && op4 == (is_load ? 0xB : 0xD)) {
+            opcode << (is_load ? "pop" : "push") << ".w";
+            args << Rn;
+            unpred = unpred || (Rn.r == SP);
+          } else if ((op4 & 5) == 0) {
+            opcode << "UNDEFINED [P = W = 0 for " << ldr_str << "]";
+            unpred = false;
+          } else {
+            uint32_t P = (instr >> 10) & 1;
+            U = (instr >> 9) & 1;
+            uint32_t W = (instr >> 8) & 1;
+            bool pre_index = (P != 0 && W == 1);
+            bool post_index = (P == 0 && W == 1);
+            const char* t = (P != 0 && U != 0 && W == 0) ? "t" : "";  // Unprivileged load/store?
+            opcode << ldr_str << sign << type << t << ".w";
+            args << Rt << ", [" << Rn << (post_index ? "]" : "") << ", #" << (U != 0 ? "" : "-")
+                << imm8 << (post_index ? "" : "]") << (pre_index ? "!" : "");
+            unpred = (W != 0 && Rn.r == Rt.r);
+          }
+          if (unpred) {
+            args << " (UNPREDICTABLE)";
           }
           break;
         }
@@ -1411,75 +1453,6 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
               args << " (UNPREDICTABLE)";
             }
           }  // else unknown instruction
-          break;
-        }
-        case 0x05: case 0x0D: case 0x15: case 0x1D: {  // 00xx101
-          // Load word
-          // |111|11|10|0 0|00|0|0000|1111|110000|000000|
-          // |5 3|21|09|8 7|65|4|3  0|5  2|10   6|5    0|
-          // |---|--|--|---|--|-|----|----|------|------|
-          // |332|22|22|2 2|22|2|1111|1111|110000|000000|
-          // |1 9|87|65|4 3|21|0|9  6|5  2|10   6|5    0|
-          // |---|--|--|---|--|-|----|----|------|------|
-          // |111|11|00|op3|10|1| Rn | Rt | op4  |      |
-          // |111|11| op2       |    |    | imm12       |
-          uint32_t op3 = (instr >> 23) & 3;
-          uint32_t op4 = (instr >> 6) & 0x3F;
-          ArmRegister Rn(instr, 16);
-          ArmRegister Rt(instr, 12);
-          if (op3 == 1 || Rn.r == 15) {
-            // LDR.W Rt, [Rn, #imm12]          - 111 11 00 00 101 nnnn tttt iiiiiiiiiiii
-            // LDR.W Rt, [PC, #imm12]          - 111 11 00 0x 101 1111 tttt iiiiiiiiiiii
-            uint32_t imm12 = instr & 0xFFF;
-            opcode << "ldr.w";
-            args << Rt << ", [" << Rn << ", #" << imm12 << "]";
-            if (Rn.r == 9) {
-              args << "  ; ";
-              Thread::DumpThreadOffset<4>(args, imm12);
-            } else if (Rn.r == 15) {
-              intptr_t lit_adr = reinterpret_cast<intptr_t>(instr_ptr);
-              lit_adr = RoundDown(lit_adr, 4) + 4 + imm12;
-              args << StringPrintf("  ; 0x%08x", *reinterpret_cast<int32_t*>(lit_adr));
-            }
-          } else if (op4 == 0) {
-            // LDR.W Rt, [Rn, Rm{, LSL #imm2}] - 111 11 00 00 101 nnnn tttt 000000iimmmm
-            uint32_t imm2 = (instr >> 4) & 0xF;
-            ArmRegister rm(instr, 0);
-            opcode << "ldr.w";
-            args << Rt << ", [" << Rn << ", " << rm;
-            if (imm2 != 0) {
-              args << ", lsl #" << imm2;
-            }
-            args << "]";
-          } else {
-            bool p = (instr & (1 << 10)) != 0;
-            bool w = (instr & (1 << 8)) != 0;
-            bool u = (instr & (1 << 9)) != 0;
-            if (p && u && !w) {
-              // LDRT Rt, [Rn, #imm8]            - 111 11 00 00 101 nnnn tttt 1110iiiiiiii
-              uint32_t imm8 = instr & 0xFF;
-              opcode << "ldrt";
-              args << Rt << ", [" << Rn << ", #" << imm8 << "]";
-            } else if (Rn.r == 13 && !p && u && w && (instr & 0xff) == 4) {
-              // POP
-              opcode << "pop";
-              args << "{" << Rt << "}";
-           } else {
-              bool wback = !p || w;
-              uint32_t offset = (instr & 0xff);
-              opcode << "ldr.w";
-              args << Rt << ",";
-              if (p && !wback) {
-                args << "[" << Rn << ", #" << offset << "]";
-              } else if (p && wback) {
-                args << "[" << Rn << ", #" << offset << "]!";
-              } else if (!p && wback) {
-                args << "[" << Rn << "], #" << offset;
-              } else {
-                LOG(FATAL) << p << " " << w;
-              }
-            }
-          }
           break;
         }
       default:      // more formats
@@ -1806,6 +1779,23 @@ size_t DisassemblerArm::DumpThumb16(std::ostream& os, const uint8_t* instr_ptr) 
           uint32_t imm32 = (i << 6) | (imm5 << 1);
           args << Rn << ", ";
           DumpBranchTarget(args, instr_ptr + 4, imm32);
+          break;
+        }
+        case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27:
+        case 0x28: case 0x29: case 0x2A: case 0x2B: case 0x2C: case 0x2D: case 0x2E: case 0x2F: {
+          opcode << "push";
+          args << RegisterList((instr & 0xFF) | ((instr & 0x100) << 6));
+          break;
+        }
+        case 0x60: case 0x61: case 0x62: case 0x63: case 0x64: case 0x65: case 0x66: case 0x67:
+        case 0x68: case 0x69: case 0x6A: case 0x6B: case 0x6C: case 0x6D: case 0x6E: case 0x6F: {
+          opcode << "pop";
+          args << RegisterList((instr & 0xFF) | ((instr & 0x100) << 7));
+          break;
+        }
+        case 0x70: case 0x71: case 0x72: case 0x73: case 0x74: case 0x75: case 0x76: case 0x77: {
+          opcode << "bkpt";
+          args << "#" << (instr & 0xFF);
           break;
         }
         case 0x50: case 0x51:    // 101000x
