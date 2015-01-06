@@ -289,7 +289,9 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     return nullptr;
   }
 
-  CodeGenerator* codegen = CodeGenerator::Create(&arena, graph, instruction_set);
+  CompilerDriver* compiler_driver = GetCompilerDriver();
+  CodeGenerator* codegen = CodeGenerator::Create(&arena, graph, instruction_set,
+      *compiler_driver->GetInstructionSetFeatures());
   if (codegen == nullptr) {
     CHECK(!shouldCompile) << "Could not find code generator for optimizing compiler";
     compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledNoCodegen);
@@ -315,7 +317,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
       return nullptr;
     }
     RunOptimizations(
-        graph, GetCompilerDriver(), &compilation_stats_, dex_compilation_unit, visualizer);
+        graph, compiler_driver, &compilation_stats_, dex_compilation_unit, visualizer);
 
     PrepareForRegisterAllocation(graph).Run();
     SsaLivenessAnalysis liveness(*graph, codegen);
@@ -333,7 +335,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
 
     compilation_stats_.RecordStat(MethodCompilationStat::kCompiledOptimized);
     return CompiledMethod::SwapAllocCompiledMethodStackMap(
-        GetCompilerDriver(),
+        compiler_driver,
         instruction_set,
         ArrayRef<const uint8_t>(allocator.GetMemory()),
         codegen->GetFrameSize(),
@@ -358,16 +360,15 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
 
     std::vector<uint8_t> mapping_table;
     DefaultSrcMap src_mapping_table;
-    codegen->BuildMappingTable(&mapping_table,
-            GetCompilerDriver()->GetCompilerOptions().GetIncludeDebugSymbols() ?
-                 &src_mapping_table : nullptr);
+    bool include_debug_symbol = compiler_driver->GetCompilerOptions().GetIncludeDebugSymbols();
+    codegen->BuildMappingTable(&mapping_table, include_debug_symbol ? &src_mapping_table : nullptr);
     std::vector<uint8_t> vmap_table;
     codegen->BuildVMapTable(&vmap_table);
     std::vector<uint8_t> gc_map;
     codegen->BuildNativeGCMap(&gc_map, dex_compilation_unit);
 
     compilation_stats_.RecordStat(MethodCompilationStat::kCompiledBaseline);
-    return CompiledMethod::SwapAllocCompiledMethod(GetCompilerDriver(),
+    return CompiledMethod::SwapAllocCompiledMethod(compiler_driver,
                                                    instruction_set,
                                                    ArrayRef<const uint8_t>(allocator.GetMemory()),
                                                    codegen->GetFrameSize(),
