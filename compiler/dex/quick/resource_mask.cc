@@ -19,6 +19,7 @@
 #include "resource_mask.h"
 
 #include "utils/arena_allocator.h"
+#include "utils.h"
 
 namespace art {
 
