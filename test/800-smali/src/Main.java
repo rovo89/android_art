@@ -68,6 +68,7 @@ public class Main {
         testCases.add(new TestCase("b/18718277", "B18718277", "getInt", null, null, 0));
         testCases.add(new TestCase("b/18800943 (1)", "B18800943_1", "n_a", null, new VerifyError(), 0));
         testCases.add(new TestCase("b/18800943 (2)", "B18800943_2", "n_a", null, new VerifyError(), 0));
+        testCases.add(new TestCase("MoveExc", "MoveExc", "run", null, new ArithmeticException(), null));
     }
 
     public void runTests() {
