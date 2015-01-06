@@ -292,7 +292,10 @@ static jbyte IsDexOptNeededForFile(const std::string& oat_filename, const char* 
   std::unique_ptr<const OatFile> oat_file(OatFile::Open(oat_filename, oat_filename, nullptr,
                                                         false, &error_msg));
   if (oat_file.get() == nullptr) {
-    if (kReasonLogging) {
+    // Note that even though this is kDexoptNeeded, we use
+    // kVerboseLogging instead of the usual kReasonLogging since it is
+    // the common case on first boot and very spammy.
+    if (kVerboseLogging) {
       LOG(INFO) << "DexFile_isDexOptNeeded failed to open oat file '" << oat_filename
           << "' for file location '" << filename << "': " << error_msg;
     }
