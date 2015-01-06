@@ -214,7 +214,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     Handle<mirror::ArtMethod> h_method(hs.NewHandle(m));
     verifier::MethodVerifier verifier(self_, h_dex_cache->GetDexFile(), h_dex_cache, h_class_loader,
                                       &m->GetClassDef(), code_item, m->GetDexMethodIndex(),
-                                      h_method, m->GetAccessFlags(), false, true, true);
+                                      h_method, m->GetAccessFlags(), false, true, true, true);
     verifier.Verify();
     const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
     for (uint16_t reg = 0; reg < num_regs; ++reg) {
