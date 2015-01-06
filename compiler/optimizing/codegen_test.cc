@@ -88,7 +88,9 @@ static void RunCodeBaseline(HGraph* graph, bool has_result, Expected expected) {
     Run(allocator, codegenX86, has_result, expected);
   }
 
-  arm::CodeGeneratorARM codegenARM(graph, ArmInstructionSetFeatures::FromCppDefines());
+  std::unique_ptr<const ArmInstructionSetFeatures> features(
+      ArmInstructionSetFeatures::FromCppDefines());
+  arm::CodeGeneratorARM codegenARM(graph, features.get());
   codegenARM.CompileBaseline(&allocator, true);
   if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
     Run(allocator, codegenARM, has_result, expected);
