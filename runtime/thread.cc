@@ -932,7 +932,10 @@ struct StackDumpVisitor : public StackVisitor {
         os << StringPrintf("<@addr=0x%" PRIxPTR "> (a %s)", reinterpret_cast<intptr_t>(o),
                            PrettyTypeOf(o).c_str());
       } else {
-        os << StringPrintf("<0x%08x> (a %s)", o->IdentityHashCode(), PrettyTypeOf(o).c_str());
+        // IdentityHashCode can cause thread suspension, which would invalidate o if it moved. So
+        // we get the pretty type beofre we call IdentityHashCode.
+        const std::string pretty_type(PrettyTypeOf(o));
+        os << StringPrintf("<0x%08x> (a %s)", o->IdentityHashCode(), pretty_type.c_str());
       }
     }
     os << "\n";
