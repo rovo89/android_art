@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_CODE_GENERATOR_H_
 
 #include "arch/instruction_set.h"
+#include "arch/instruction_set_features.h"
 #include "base/bit_field.h"
 #include "globals.h"
 #include "locations.h"
@@ -84,7 +85,8 @@ class CodeGenerator : public ArenaObject<kArenaAllocMisc> {
   void CompileOptimized(CodeAllocator* allocator);
   static CodeGenerator* Create(ArenaAllocator* allocator,
                                HGraph* graph,
-                               InstructionSet instruction_set);
+                               InstructionSet instruction_set,
+                               const InstructionSetFeatures& isa_features);
 
   HGraph* GetGraph() const { return graph_; }
 

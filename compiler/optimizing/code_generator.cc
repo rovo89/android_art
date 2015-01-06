@@ -327,11 +327,13 @@ bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) con
 
 CodeGenerator* CodeGenerator::Create(ArenaAllocator* allocator,
                                      HGraph* graph,
-                                     InstructionSet instruction_set) {
+                                     InstructionSet instruction_set,
+                                     const InstructionSetFeatures& isa_features) {
   switch (instruction_set) {
     case kArm:
     case kThumb2: {
-      return new (allocator) arm::CodeGeneratorARM(graph);
+      return new (allocator) arm::CodeGeneratorARM(graph,
+          isa_features.AsArmInstructionSetFeatures());
     }
     case kArm64: {
       return new (allocator) arm64::CodeGeneratorARM64(graph);
