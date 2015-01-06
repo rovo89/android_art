@@ -207,10 +207,11 @@ class MethodVerifier {
                  const DexFile::CodeItem* code_item, uint32_t method_idx,
                  Handle<mirror::ArtMethod> method,
                  uint32_t access_flags, bool can_load_classes, bool allow_soft_failures,
-                 bool need_precise_constants) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+                 bool need_precise_constants, bool allow_thread_suspension)
+          SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : MethodVerifier(self, dex_file, dex_cache, class_loader, class_def, code_item, method_idx,
                        method, access_flags, can_load_classes, allow_soft_failures,
-                       need_precise_constants, false) {}
+                       need_precise_constants, false, allow_thread_suspension) {}
 
   ~MethodVerifier();
 
@@ -260,7 +261,7 @@ class MethodVerifier {
                  const DexFile::CodeItem* code_item, uint32_t method_idx,
                  Handle<mirror::ArtMethod> method, uint32_t access_flags,
                  bool can_load_classes, bool allow_soft_failures, bool need_precise_constants,
-                 bool verify_to_dump)
+                 bool verify_to_dump, bool allow_thread_suspension)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Adds the given string to the beginning of the last failure message.
@@ -728,6 +729,11 @@ class MethodVerifier {
   // even though we might detect to be a compiler. Should only be set when running
   // VerifyMethodAndDump.
   const bool verify_to_dump_;
+
+  // Whether or not we call AllowThreadSuspension periodically, we want a way to disable this for
+  // thread dumping checkpoints since we may get thread suspension at an inopportune time due to
+  // FindLocksAtDexPC, resulting in deadlocks.
+  const bool allow_thread_suspension_;
 
   DISALLOW_COPY_AND_ASSIGN(MethodVerifier);
 };
