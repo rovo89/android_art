@@ -1482,18 +1482,6 @@ class Mir2Lir : public Backend {
       return cu_;
     }
     /*
-     * @brief Returns the index of the lowest set bit in 'x'.
-     * @param x Value to be examined.
-     * @returns The bit number of the lowest bit set in the value.
-     */
-    int32_t LowestSetBit(uint64_t x);
-    /*
-     * @brief Is this value a power of two?
-     * @param x Value to be examined.
-     * @returns 'true' if only 1 bit is set in the value.
-     */
-    bool IsPowerOfTwo(uint64_t x);
-    /*
      * @brief Do these SRs overlap?
      * @param rl_op1 One RegLocation
      * @param rl_op2 The other RegLocation

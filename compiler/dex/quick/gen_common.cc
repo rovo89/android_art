@@ -13,6 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#include <functional>
+
 #include "arch/arm/instruction_set_features_arm.h"
 #include "dex/compiler_ir.h"
 #include "dex/compiler_internals.h"
@@ -23,8 +26,8 @@
 #include "mirror/object_array-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_reference.h"
+#include "utils.h"
 #include "verifier/method_verifier.h"
-#include <functional>
 
 namespace art {
 
@@ -1733,7 +1736,7 @@ bool Mir2Lir::HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
   if ((cu_->instruction_set == kThumb2) && !IsPowerOfTwo(lit)) {
     return SmallLiteralDivRem(dalvik_opcode, is_div, rl_src, rl_dest, lit);
   }
-  int k = LowestSetBit(lit);
+  int k = CTZ(lit);
   if (k >= 30) {
     // Avoid special cases.
     return false;
@@ -1813,18 +1816,18 @@ bool Mir2Lir::HandleEasyMultiply(RegLocation rl_src, RegLocation rl_dest, int li
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (power_of_two) {
     // Shift.
-    OpRegRegImm(kOpLsl, rl_result.reg, rl_src.reg, LowestSetBit(lit));
+    OpRegRegImm(kOpLsl, rl_result.reg, rl_src.reg, CTZ(lit));
   } else if (pop_count_le2) {
     // Shift and add and shift.
-    int first_bit = LowestSetBit(lit);
-    int second_bit = LowestSetBit(lit ^ (1 << first_bit));
+    int first_bit = CTZ(lit);
+    int second_bit = CTZ(lit ^ (1 << first_bit));
     GenMultiplyByTwoBitMultiplier(rl_src, rl_result, lit, first_bit, second_bit);
   } else {
     // Reverse subtract: (src << (shift + 1)) - src.
     DCHECK(power_of_two_minus_one);
-    // TUNING: rsb dst, src, src lsl#LowestSetBit(lit + 1)
+    // TUNING: rsb dst, src, src lsl#CTZ(lit + 1)
     RegStorage t_reg = AllocTemp();
-    OpRegRegImm(kOpLsl, t_reg, rl_src.reg, LowestSetBit(lit + 1));
+    OpRegRegImm(kOpLsl, t_reg, rl_src.reg, CTZ(lit + 1));
     OpRegRegReg(kOpSub, rl_result.reg, t_reg, rl_src.reg);
   }
   StoreValue(rl_dest, rl_result);

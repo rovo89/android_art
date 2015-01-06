@@ -23,6 +23,7 @@
 #include "mirror/art_method.h"
 #include "mirror/object_array-inl.h"
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "utils.h"
 
 namespace art {
 
