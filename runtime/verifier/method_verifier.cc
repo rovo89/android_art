@@ -286,7 +286,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyMethod(Thread* self, uint32_t 
 
   MethodVerifier verifier(self, dex_file, dex_cache, class_loader, class_def, code_item,
                           method_idx, method, method_access_flags, true, allow_soft_failures,
-                          need_precise_constants);
+                          need_precise_constants, true);
   if (verifier.Verify()) {
     // Verification completed, however failures may be pending that didn't cause the verification
     // to hard fail.
@@ -352,7 +352,8 @@ MethodVerifier::MethodVerifier(Thread* self,
                                const DexFile::CodeItem* code_item, uint32_t dex_method_idx,
                                Handle<mirror::ArtMethod> method, uint32_t method_access_flags,
                                bool can_load_classes, bool allow_soft_failures,
-                               bool need_precise_constants, bool verify_to_dump)
+                               bool need_precise_constants, bool verify_to_dump,
+                               bool allow_thread_suspension)
     : self_(self),
       reg_types_(can_load_classes),
       work_insn_idx_(-1),
@@ -377,7 +378,8 @@ MethodVerifier::MethodVerifier(Thread* self,
       need_precise_constants_(need_precise_constants),
       has_check_casts_(false),
       has_virtual_or_interface_invokes_(false),
-      verify_to_dump_(verify_to_dump) {
+      verify_to_dump_(verify_to_dump),
+      allow_thread_suspension_(allow_thread_suspension) {
   Runtime::Current()->AddMethodVerifier(this);
   DCHECK(class_def != nullptr);
 }
@@ -396,7 +398,7 @@ void MethodVerifier::FindLocksAtDexPc(mirror::ArtMethod* m, uint32_t dex_pc,
   Handle<mirror::ArtMethod> method(hs.NewHandle(m));
   MethodVerifier verifier(self, m->GetDexFile(), dex_cache, class_loader, &m->GetClassDef(),
                           m->GetCodeItem(), m->GetDexMethodIndex(), method, m->GetAccessFlags(),
-                          false, true, false);
+                          false, true, false, false);
   verifier.interesting_dex_pc_ = dex_pc;
   verifier.monitor_enter_dex_pcs_ = monitor_enter_dex_pcs;
   verifier.FindLocksAtDexPc();
@@ -443,7 +445,7 @@ mirror::ArtField* MethodVerifier::FindAccessedFieldAtDexPc(mirror::ArtMethod* m,
   Handle<mirror::ArtMethod> method(hs.NewHandle(m));
   MethodVerifier verifier(self, m->GetDexFile(), dex_cache, class_loader, &m->GetClassDef(),
                           m->GetCodeItem(), m->GetDexMethodIndex(), method, m->GetAccessFlags(),
-                          true, true, false);
+                          true, true, false, true);
   return verifier.FindAccessedFieldAtDexPc(dex_pc);
 }
 
@@ -475,7 +477,7 @@ mirror::ArtMethod* MethodVerifier::FindInvokedMethodAtDexPc(mirror::ArtMethod* m
   Handle<mirror::ArtMethod> method(hs.NewHandle(m));
   MethodVerifier verifier(self, m->GetDexFile(), dex_cache, class_loader, &m->GetClassDef(),
                           m->GetCodeItem(), m->GetDexMethodIndex(), method, m->GetAccessFlags(),
-                          true, true, false);
+                          true, true, false, true);
   return verifier.FindInvokedMethodAtDexPc(dex_pc);
 }
 
@@ -1402,7 +1404,9 @@ bool MethodVerifier::CodeFlowVerifyMethod() {
 
   /* Continue until no instructions are marked "changed". */
   while (true) {
-    self_->AllowThreadSuspension();
+    if (allow_thread_suspension_) {
+      self_->AllowThreadSuspension();
+    }
     // Find the first marked one. Use "start_guess" as a way to find one quickly.
     uint32_t insn_idx = start_guess;
     for (; insn_idx < insns_size; insn_idx++) {

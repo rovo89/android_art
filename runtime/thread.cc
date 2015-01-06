@@ -1339,7 +1339,6 @@ void Thread::HandleScopeVisitRoots(RootCallback* visitor, void* arg, uint32_t th
 }
 
 mirror::Object* Thread::DecodeJObject(jobject obj) const {
-  Locks::mutator_lock_->AssertSharedHeld(this);
   if (obj == nullptr) {
     return nullptr;
   }
