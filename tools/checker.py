@@ -40,7 +40,7 @@
 #               later than lines matched against any preceeding in-order checks.
 #               In other words, the order of output lines does not matter
 #               between consecutive DAG checks.
-#  - CHECK-NOT: Must not match any output line which appear in the output group
+#  - CHECK-NOT: Must not match any output line which appears in the output group
 #               later than lines matched against any preceeding checks and
 #               earlier than lines matched against any subsequent checks.
 #               Surrounding non-negative checks (or boundaries of the group)
@@ -551,6 +551,11 @@ class CheckFile(FileSplitMixin):
     else:
       return None
 
+  # This function is invoked on each line of the check file and returns a pair
+  # which instructs the parser how the line should be handled. If the line is to
+  # be included in the current check group, it is returned in the first value.
+  # If the line starts a new check group, the name of the group is returned in
+  # the second value.
   def _processLine(self, line, lineNo):
     # Lines beginning with 'CHECK-START' start a new check group.
     startLine = self._extractLine(self.prefix + "-START", line)
@@ -578,6 +583,7 @@ class CheckFile(FileSplitMixin):
   def _exceptionLineOutsideGroup(self, line, lineNo):
     Logger.fail("Check line not inside a group", self.fileName, lineNo)
 
+  # Constructs a check group from the parser-collected check lines.
   def _processGroup(self, name, lines, lineNo):
     checkLines = list(map(lambda line: CheckLine(line[0], line[1], self.fileName, line[2]), lines))
     return CheckGroup(name, checkLines, self.fileName, lineNo)
@@ -618,6 +624,11 @@ class OutputFile(FileSplitMixin):
     self.state = OutputFile.ParsingState.OutsideBlock
     self.groups = self._parseStream(outputStream)
 
+  # This function is invoked on each line of the output file and returns a pair
+  # which instructs the parser how the line should be handled. If the line is to
+  # be included in the current group, it is returned in the first value. If the
+  # line starts a new output group, the name of the group is returned in the
+  # second value.
   def _processLine(self, line, lineNo):
     if self.state == OutputFile.ParsingState.StartingCfgBlock:
       # Previous line started a new 'cfg' block which means that this one must
@@ -663,6 +674,7 @@ class OutputFile(FileSplitMixin):
       else:
         Logger.fail("Output line not inside a group", self.fileName, lineNo)
 
+  # Constructs an output group from the parser-collected output lines.
   def _processGroup(self, name, lines, lineNo):
     return OutputGroup(name, lines, self.fileName, lineNo + 1)
 
