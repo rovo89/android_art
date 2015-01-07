@@ -2734,7 +2734,7 @@ class MoveOperands : public ArenaObject<kArenaAllocMisc> {
 
   // True if this blocks a move from the given location.
   bool Blocks(Location loc) const {
-    return !IsEliminated() && source_.Equals(loc);
+    return !IsEliminated() && source_.Contains(loc);
   }
 
   // A move is redundant if it's been eliminated, if its source and

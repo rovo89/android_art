@@ -77,6 +77,15 @@ class LiveRange FINAL : public ArenaObject<kArenaAllocMisc> {
     stream << "[" << start_ << ", " << end_ << ")";
   }
 
+  LiveRange* Dup(ArenaAllocator* allocator) const {
+    return new (allocator) LiveRange(
+        start_, end_, next_ == nullptr ? nullptr : next_->Dup(allocator));
+  }
+
+  LiveRange* GetLastRange() {
+    return next_ == nullptr ? this : next_->GetLastRange();
+  }
+
  private:
   size_t start_;
   size_t end_;
@@ -121,6 +130,12 @@ class UsePosition : public ArenaObject<kArenaAllocMisc> {
 
   void Dump(std::ostream& stream) const {
     stream << position_;
+  }
+
+  UsePosition* Dup(ArenaAllocator* allocator) const {
+    return new (allocator) UsePosition(
+        user_, input_index_, is_environment_, position_,
+        next_ == nullptr ? nullptr : next_->Dup(allocator));
   }
 
  private:
@@ -478,6 +493,8 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     }
     stream << "}";
     stream << " is_fixed: " << is_fixed_ << ", is_split: " << IsSplit();
+    stream << " is_high: " << IsHighInterval();
+    stream << " is_low: " << IsLowInterval();
   }
 
   LiveInterval* GetNextSibling() const { return next_sibling_; }
@@ -512,6 +529,58 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
   // Returns whether `other` and `this` share the same kind of register.
   bool SameRegisterKind(Location other) const;
 
+  bool HasHighInterval() const {
+    return !IsHighInterval() && (GetParent()->high_or_low_interval_ != nullptr);
+  }
+
+  bool HasLowInterval() const {
+    return IsHighInterval();
+  }
+
+  LiveInterval* GetLowInterval() const {
+    DCHECK(HasLowInterval());
+    return high_or_low_interval_;
+  }
+
+  LiveInterval* GetHighInterval() const {
+    DCHECK(HasHighInterval());
+    return high_or_low_interval_;
+  }
+
+  bool IsHighInterval() const {
+    return GetParent()->is_high_interval_;
+  }
+
+  bool IsLowInterval() const {
+    return !IsHighInterval() && (GetParent()->high_or_low_interval_ != nullptr);
+  }
+
+  void SetLowInterval(LiveInterval* low) {
+    DCHECK(IsHighInterval());
+    high_or_low_interval_ = low;
+  }
+
+  void SetHighInterval(LiveInterval* high) {
+    DCHECK(IsLowInterval());
+    high_or_low_interval_ = high;
+  }
+
+  void AddHighInterval(bool is_temp = false) {
+    DCHECK_EQ(GetParent(), this);
+    DCHECK(!HasHighInterval());
+    DCHECK(!HasLowInterval());
+    high_or_low_interval_ = new (allocator_) LiveInterval(
+        allocator_, type_, defined_by_, false, kNoRegister, is_temp, false, true);
+    high_or_low_interval_->high_or_low_interval_ = this;
+    if (first_range_ != nullptr) {
+      high_or_low_interval_->first_range_ = first_range_->Dup(allocator_);
+      high_or_low_interval_->last_range_ = first_range_->GetLastRange();
+    }
+    if (first_use_ != nullptr) {
+      high_or_low_interval_->first_use_ = first_use_->Dup(allocator_);
+    }
+  }
+
  private:
   LiveInterval(ArenaAllocator* allocator,
                Primitive::Type type,
@@ -519,7 +588,8 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
                bool is_fixed = false,
                int reg = kNoRegister,
                bool is_temp = false,
-               bool is_slow_path_safepoint = false)
+               bool is_slow_path_safepoint = false,
+               bool is_high_interval = false)
       : allocator_(allocator),
         first_range_(nullptr),
         last_range_(nullptr),
@@ -532,6 +602,8 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
         is_fixed_(is_fixed),
         is_temp_(is_temp),
         is_slow_path_safepoint_(is_slow_path_safepoint),
+        is_high_interval_(is_high_interval),
+        high_or_low_interval_(nullptr),
         defined_by_(defined_by) {}
 
   ArenaAllocator* const allocator_;
@@ -567,6 +639,13 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
 
   // Whether the interval is for a safepoint that calls on slow path.
   const bool is_slow_path_safepoint_;
+
+  // Whether this interval is a synthesized interval for register pair.
+  const bool is_high_interval_;
+
+  // If this interval needs a register pair, the high or low equivalent.
+  // `is_high_interval_` tells whether this holds the low or the high.
+  LiveInterval* high_or_low_interval_;
 
   // The instruction represented by this interval.
   HInstruction* const defined_by_;

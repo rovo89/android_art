@@ -30,10 +30,12 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
   HGraphVisualizerPrinter(HGraph* graph,
                           std::ostream& output,
                           const char* pass_name,
+                          bool is_after_pass,
                           const CodeGenerator& codegen)
       : HGraphVisitor(graph),
         output_(output),
         pass_name_(pass_name),
+        is_after_pass_(is_after_pass),
         codegen_(codegen),
         indent_(0) {}
 
@@ -136,6 +138,10 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       output_ << "invalid";
     } else if (location.IsStackSlot()) {
       output_ << location.GetStackIndex() << "(sp)";
+    } else if (location.IsFpuRegisterPair()) {
+      codegen_.DumpFloatingPointRegister(output_, location.low());
+      output_ << " and ";
+      codegen_.DumpFloatingPointRegister(output_, location.high());
     } else {
       DCHECK(location.IsDoubleStackSlot());
       output_ << "2x" << location.GetStackIndex() << "(sp)";
@@ -224,7 +230,8 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
 
   void Run() {
     StartTag("cfg");
-    PrintProperty("name", pass_name_);
+    std::string pass_desc = std::string(pass_name_) + (is_after_pass_ ? " (after)" : " (before)");
+    PrintProperty("name", pass_desc.c_str());
     VisitInsertionOrder();
     EndTag("cfg");
   }
@@ -275,6 +282,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
  private:
   std::ostream& output_;
   const char* pass_name_;
+  const bool is_after_pass_;
   const CodeGenerator& codegen_;
   size_t indent_;
 
@@ -295,7 +303,7 @@ HGraphVisualizer::HGraphVisualizer(std::ostream* output,
   }
 
   is_enabled_ = true;
-  HGraphVisualizerPrinter printer(graph_, *output_, "", codegen_);
+  HGraphVisualizerPrinter printer(graph_, *output_, "", true, codegen_);
   printer.StartTag("compilation");
   printer.PrintProperty("name", method_name);
   printer.PrintProperty("method", method_name);
@@ -305,8 +313,7 @@ HGraphVisualizer::HGraphVisualizer(std::ostream* output,
 
 void HGraphVisualizer::DumpGraph(const char* pass_name, bool is_after_pass) const {
   if (is_enabled_) {
-    std::string pass_desc = std::string(pass_name) + (is_after_pass ? " (after)" : " (before)");
-    HGraphVisualizerPrinter printer(graph_, *output_, pass_desc.c_str(), codegen_);
+    HGraphVisualizerPrinter printer(graph_, *output_, pass_name, is_after_pass, codegen_);
     printer.Run();
   }
 }

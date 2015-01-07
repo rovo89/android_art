@@ -142,6 +142,7 @@ class CodeGenerator : public ArenaObject<kArenaAllocMisc> {
     UNIMPLEMENTED(FATAL);
     UNREACHABLE();
   }
+  virtual bool NeedsTwoRegisters(Primitive::Type type) const = 0;
 
   void RecordPcInfo(HInstruction* instruction, uint32_t dex_pc);
 
