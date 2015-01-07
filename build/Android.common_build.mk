@@ -138,7 +138,7 @@ art_gcc_cflags := -Wunused-but-set-parameter
 # Suggest final: Have to move to a more recent GCC.
 #                  -Wsuggest-final-types
 
-
+ART_TARGET_CLANG_CFLAGS := $(art_clang_cflags)
 ifeq ($(ART_HOST_CLANG),true)
   # Bug: 15446488. We don't omit the frame pointer to work around
   # clang/libunwind bugs that cause SEGVs in run-test-004-ThreadStress.
@@ -146,10 +146,14 @@ ifeq ($(ART_HOST_CLANG),true)
 else
   ART_HOST_CFLAGS += $(art_gcc_cflags)
 endif
-ifeq ($(ART_TARGET_CLANG),true)
-  ART_TARGET_CFLAGS += $(art_clang_cflags)
-else
+ifneq ($(ART_TARGET_CLANG),true)
   ART_TARGET_CFLAGS += $(art_gcc_cflags)
+else
+  # TODO: if we ever want to support GCC/Clang mix for multi-target products, this needs to be
+  #       split up.
+  ifeq ($(ART_TARGET_CLANG_$(TARGET_ARCH)),false)
+    ART_TARGET_CFLAGS += $(art_gcc_cflags)
+  endif
 endif
 
 # Clear local variables now their use has ended.
@@ -294,11 +298,9 @@ define set-target-local-cflags-vars
     LOCAL_CFLAGS += $(ART_TARGET_NON_DEBUG_CFLAGS)
   endif
 
-  # TODO: Also set when ART_TARGET_CLANG_$(arch)!=false and ART_TARGET_CLANG==true
+  LOCAL_CLANG_CFLAGS := $(ART_TARGET_CLANG_CFLAGS)
   $(foreach arch,$(ART_SUPPORTED_ARCH),
-    ifeq ($$(ART_TARGET_CLANG_$(arch)),true)
-      LOCAL_CFLAGS_$(arch) += $$(ART_TARGET_CLANG_CFLAGS_$(arch))
-  endif)
+    LOCAL_CLANG_CFLAGS_$(arch) += $$(ART_TARGET_CLANG_CFLAGS_$(arch)))
 
   # Clear locally used variables.
   art_target_cflags_ndebug_or_debug :=

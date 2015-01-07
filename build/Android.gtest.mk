@@ -210,14 +210,14 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := libart-gtest
 LOCAL_MODULE_TAGS := optional
 LOCAL_CPP_EXTENSION := cc
-LOCAL_CFLAGS := $(ART_TARGET_CFLAGS)
 LOCAL_SRC_FILES := runtime/common_runtime_test.cc compiler/common_compiler_test.cc
 LOCAL_C_INCLUDES := $(ART_C_INCLUDES) art/runtime art/compiler
 LOCAL_SHARED_LIBRARIES := libartd libartd-compiler libdl
 LOCAL_STATIC_LIBRARIES += libgtest
-LOCAL_CLANG := $(ART_TARGET_CLANG)
 LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
+$(eval $(call set-target-local-clang-vars))
+$(eval $(call set-target-local-cflags-vars,debug))
 include external/libcxx/libcxx.mk
 include $(BUILD_SHARED_LIBRARY)
 
