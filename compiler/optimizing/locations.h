@@ -160,6 +160,16 @@ class Location : public ValueObject {
     return GetPayload();
   }
 
+  int low() const {
+    DCHECK(IsPair());
+    return GetPayload() >> 16;
+  }
+
+  int high() const {
+    DCHECK(IsPair());
+    return GetPayload() & 0xFFFF;
+  }
+
   template <typename T>
   T AsRegister() const {
     DCHECK(IsRegister());
@@ -175,25 +185,41 @@ class Location : public ValueObject {
   template <typename T>
   T AsRegisterPairLow() const {
     DCHECK(IsRegisterPair());
-    return static_cast<T>(GetPayload() >> 16);
+    return static_cast<T>(low());
   }
 
   template <typename T>
   T AsRegisterPairHigh() const {
     DCHECK(IsRegisterPair());
-    return static_cast<T>(GetPayload() & 0xFFFF);
+    return static_cast<T>(high());
   }
 
   template <typename T>
   T AsFpuRegisterPairLow() const {
     DCHECK(IsFpuRegisterPair());
-    return static_cast<T>(GetPayload() >> 16);
+    return static_cast<T>(low());
   }
 
   template <typename T>
   T AsFpuRegisterPairHigh() const {
     DCHECK(IsFpuRegisterPair());
-    return static_cast<T>(GetPayload() & 0xFFFF);
+    return static_cast<T>(high());
+  }
+
+  bool IsPair() const {
+    return IsRegisterPair() || IsFpuRegisterPair();
+  }
+
+  Location ToLow() const {
+    return IsRegisterPair()
+        ? Location::RegisterLocation(low())
+        : Location::FpuRegisterLocation(low());
+  }
+
+  Location ToHigh() const {
+    return IsRegisterPair()
+        ? Location::RegisterLocation(high())
+        : Location::FpuRegisterLocation(high());
   }
 
   static uintptr_t EncodeStackIndex(intptr_t stack_index) {
@@ -262,6 +288,18 @@ class Location : public ValueObject {
 
   bool Equals(Location other) const {
     return value_ == other.value_;
+  }
+
+  // Returns whether this location contains `other`.
+  bool Contains(Location other) const {
+    if (Equals(other)) return true;
+    if (IsRegisterPair() && other.IsRegister()) {
+      return low() == other.reg() || high() == other.reg();
+    }
+    if (IsFpuRegisterPair() && other.IsFpuRegister()) {
+      return low() == other.reg() || high() == other.reg();
+    }
+    return false;
   }
 
   const char* DebugString() const {
@@ -525,7 +563,8 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
         && (output_.GetPolicy() == Location::kSameAsFirstInput)) {
       return false;
     }
-    if (inputs_.Get(input_index).IsRegister() || inputs_.Get(input_index).IsFpuRegister()) {
+    Location input = inputs_.Get(input_index);
+    if (input.IsRegister() || input.IsFpuRegister() || input.IsPair()) {
       return false;
     }
     return true;

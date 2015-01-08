@@ -620,6 +620,14 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
         break;
       }
 
+      case Location::kFpuRegisterPair : {
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInFpuRegister, location.low());
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInFpuRegister, location.high());
+        ++i;
+        DCHECK_LT(i, environment_size);
+        break;
+      }
+
       default:
         LOG(FATAL) << "Unexpected kind " << location.GetKind();
     }
