@@ -163,19 +163,19 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     output_ << " (liveness: " << instruction->GetLifetimePosition() << ")";
   }
 
-  void VisitIntConstant(HIntConstant *instruction) OVERRIDE {
+  void VisitIntConstant(HIntConstant* instruction) OVERRIDE {
     output_ << " " << instruction->GetValue();
   }
 
-  void VisitLongConstant(HLongConstant *instruction) OVERRIDE {
+  void VisitLongConstant(HLongConstant* instruction) OVERRIDE {
     output_ << " " << instruction->GetValue();
   }
 
-  void VisitFloatConstant(HFloatConstant *instruction) OVERRIDE {
+  void VisitFloatConstant(HFloatConstant* instruction) OVERRIDE {
     output_ << " " << instruction->GetValue();
   }
 
-  void VisitDoubleConstant(HDoubleConstant *instruction) OVERRIDE {
+  void VisitDoubleConstant(HDoubleConstant* instruction) OVERRIDE {
     output_ << " " << instruction->GetValue();
   }
 
