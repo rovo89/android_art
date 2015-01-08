@@ -1118,7 +1118,7 @@ std::string GetSchedulerGroupName(pid_t tid) {
 }
 
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
-    mirror::ArtMethod* current_method) {
+    mirror::ArtMethod* current_method, void* ucontext_ptr) {
 #if __linux__
   // b/18119146
   if (RUNNING_ON_VALGRIND != 0) {
@@ -1134,7 +1134,7 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
 #endif
 
   std::unique_ptr<Backtrace> backtrace(Backtrace::Create(BACKTRACE_CURRENT_PROCESS, tid));
-  if (!backtrace->Unwind(0)) {
+  if (!backtrace->Unwind(0, reinterpret_cast<ucontext*>(ucontext_ptr))) {
     os << prefix << "(backtrace::Unwind failed for thread " << tid << ")\n";
     return;
   } else if (backtrace->NumFrames() == 0) {
