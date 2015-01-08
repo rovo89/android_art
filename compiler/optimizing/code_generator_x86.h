@@ -222,6 +222,10 @@ class CodeGeneratorX86 : public CodeGenerator {
     block_labels_.SetSize(GetGraph()->GetBlocks().Size());
   }
 
+  bool NeedsTwoRegisters(Primitive::Type type) const OVERRIDE {
+    return type == Primitive::kPrimLong;
+  }
+
  private:
   // Labels for each block that will be compiled.
   GrowableArray<Label> block_labels_;

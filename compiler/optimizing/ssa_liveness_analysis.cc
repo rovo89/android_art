@@ -419,10 +419,21 @@ bool LiveInterval::NeedsTwoSpillSlots() const {
 }
 
 Location LiveInterval::ToLocation() const {
+  DCHECK(!IsHighInterval());
   if (HasRegister()) {
-    return IsFloatingPoint()
-        ? Location::FpuRegisterLocation(GetRegister())
-        : Location::RegisterLocation(GetRegister());
+    if (IsFloatingPoint()) {
+      if (HasHighInterval()) {
+        return Location::FpuRegisterPairLocation(GetRegister(), GetHighInterval()->GetRegister());
+      } else {
+        return Location::FpuRegisterLocation(GetRegister());
+      }
+    } else {
+      if (HasHighInterval()) {
+        return Location::RegisterPairLocation(GetRegister(), GetHighInterval()->GetRegister());
+      } else {
+        return Location::RegisterLocation(GetRegister());
+      }
+    }
   } else {
     HInstruction* defined_by = GetParent()->GetDefinedBy();
     if (defined_by->IsConstant()) {
