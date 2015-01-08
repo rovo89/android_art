@@ -183,14 +183,12 @@ void ThrowStackOverflowError(Thread* self) {
         env->SetObjectField(exc.get(),
                             WellKnownClasses::java_lang_Throwable_stackTrace,
                             stack_trace_elem.get());
-
-        // Throw the exception.
-        ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-        self->SetException(throw_location,
-            reinterpret_cast<mirror::Throwable*>(self->DecodeJObject(exc.get())));
       } else {
         error_msg = "Could not create stack trace.";
       }
+      // Throw the exception.
+      self->SetException(self->GetCurrentLocationForThrow(),
+                         reinterpret_cast<mirror::Throwable*>(self->DecodeJObject(exc.get())));
     } else {
       // Could not allocate a string object.
       error_msg = "Couldn't throw new StackOverflowError because JNI NewStringUTF failed.";

@@ -2106,7 +2106,9 @@ collector::GcType Heap::CollectGarbageInternal(collector::GcType gc_type, GcCaus
   ScopedThreadStateChange tsc(self, kWaitingPerformingGc);
   Locks::mutator_lock_->AssertNotHeld(self);
   if (self->IsHandlingStackOverflow()) {
-    LOG(WARNING) << "Performing GC on a thread that is handling a stack overflow.";
+    // If we are throwing a stack overflow error we probably don't have enough remaining stack
+    // space to run the GC.
+    return collector::kGcTypeNone;
   }
   bool compacting_gc;
   {

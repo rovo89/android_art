@@ -20,7 +20,7 @@ public class Main {
     private static native int testSignal();
 
     private static void stackOverflow() {
-       stackOverflow();
+        stackOverflow();
     }
 
     public static void main(String[] args) {
@@ -40,7 +40,6 @@ public class Main {
         }
         try {
             stackOverflow();
-
             // Should never get here.
             throw new AssertionError();
         } catch (StackOverflowError e) {
