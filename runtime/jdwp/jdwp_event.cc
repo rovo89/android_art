@@ -1015,6 +1015,14 @@ void JdwpState::PostThreadChange(Thread* thread, bool start) {
     return;
   }
 
+  // We need the java.lang.Thread object associated to the starting/ending
+  // thread to get its JDWP id. Therefore we can't report event if there
+  // is no Java peer. This happens when the runtime shuts down and re-attaches
+  // the current thread without creating a Java peer.
+  if (thread->GetPeer() == nullptr) {
+    return;
+  }
+
   ModBasket basket;
   basket.thread = thread;
 
