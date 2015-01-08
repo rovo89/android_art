@@ -25,13 +25,7 @@ ART_TARGET_CFLAGS += -DART_TARGET_NATIVETEST_DIR=${ART_TARGET_NATIVETEST_DIR}
 
 # List of known broken tests that we won't attempt to execute. The test name must be the full
 # rule name such as test-art-host-oat-optimizing-HelloWorld64.
-ART_TEST_KNOWN_BROKEN := \
-  test-art-host-run-test-gcstress-default-prebuild-114-ParallelGC32 \
-  test-art-host-run-test-gcstress-interpreter-prebuild-114-ParallelGC32 \
-  test-art-host-run-test-gcstress-optimizing-prebuild-114-ParallelGC32 \
-  test-art-host-run-test-gcstress-default-prebuild-114-ParallelGC64 \
-  test-art-host-run-test-gcstress-interpreter-prebuild-114-ParallelGC64 \
-  test-art-host-run-test-gcstress-optimizing-prebuild-114-ParallelGC64
+ART_TEST_KNOWN_BROKEN :=
 
 # Failing valgrind tests.
 # Note: *all* 64b tests involving the runtime do not work currently. b/15170219.
