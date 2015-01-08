@@ -28,6 +28,7 @@ LOCAL_MODULE:= libsigchain
 LOCAL_SHARED_LIBRARIES := liblog
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.common_build.mk
+$(eval $(call set-target-local-clang-vars))
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
@@ -40,6 +41,7 @@ LOCAL_MODULE:= libsigchain
 LOCAL_SHARED_LIBRARIES := liblog
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.common_build.mk
+$(eval $(call set-target-local-clang-vars))
 include $(BUILD_STATIC_LIBRARY)
 
 # Build host library.
