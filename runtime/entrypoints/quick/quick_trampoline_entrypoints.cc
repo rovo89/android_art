@@ -304,14 +304,9 @@ class QuickArgumentVisitor {
   }
 
   uint64_t ReadSplitLongParam() const {
-    DCHECK(IsSplitLongOrDouble());
-    // Read low half from register.
-    uint64_t low_half = *reinterpret_cast<uint32_t*>(GetParamAddress());
-    // Read high half from the stack. As current stack_index_ indexes the argument, the high part
-    // index should be (stack_index_ + 1).
-    uint64_t high_half = *reinterpret_cast<uint32_t*>(stack_args_
-        + (stack_index_ + 1) * kBytesStackArgLocation);
-    return (low_half & 0xffffffffULL) | (high_half << 32);
+    // The splitted long is always available through the stack.
+    return *reinterpret_cast<uint64_t*>(stack_args_
+        + stack_index_ * kBytesStackArgLocation);
   }
 
   void VisitArguments() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
