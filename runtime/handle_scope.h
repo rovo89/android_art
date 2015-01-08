@@ -22,6 +22,7 @@
 #include "handle.h"
 #include "stack.h"
 #include "utils.h"
+#include "verify_object.h"
 
 namespace art {
 namespace mirror {
@@ -47,19 +48,10 @@ class PACKED(4) HandleScope {
   // takes the pointer size explicitly so that at compile time we can cross-compile correctly.
 
   // Returns the size of a HandleScope containing num_references handles.
-  static size_t SizeOf(uint32_t num_references) {
-    size_t header_size = sizeof(HandleScope);
-    size_t data_size = sizeof(StackReference<mirror::Object>) * num_references;
-    return header_size + data_size;
-  }
+  static size_t SizeOf(uint32_t num_references);
 
   // Returns the size of a HandleScope containing num_references handles.
-  static size_t SizeOf(size_t pointer_size, uint32_t num_references) {
-    // Assume that the layout is packed.
-    size_t header_size = pointer_size + sizeof(number_of_references_);
-    size_t data_size = sizeof(StackReference<mirror::Object>) * num_references;
-    return header_size + data_size;
-  }
+  static size_t SizeOf(size_t pointer_size, uint32_t num_references);
 
   // Link to previous HandleScope or null.
   HandleScope* GetLink() const {
@@ -67,37 +59,18 @@ class PACKED(4) HandleScope {
   }
 
   ALWAYS_INLINE mirror::Object* GetReference(size_t i) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK_LT(i, number_of_references_);
-    return GetReferences()[i].AsMirrorPtr();
-  }
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ALWAYS_INLINE Handle<mirror::Object> GetHandle(size_t i)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK_LT(i, number_of_references_);
-    return Handle<mirror::Object>(&GetReferences()[i]);
-  }
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ALWAYS_INLINE MutableHandle<mirror::Object> GetMutableHandle(size_t i)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK_LT(i, number_of_references_);
-    return MutableHandle<mirror::Object>(&GetReferences()[i]);
-  }
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ALWAYS_INLINE void SetReference(size_t i, mirror::Object* object)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK_LT(i, number_of_references_);
-    GetReferences()[i].Assign(object);
-  }
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool Contains(StackReference<mirror::Object>* handle_scope_entry) const {
-    // A HandleScope should always contain something. One created by the
-    // jni_compiler should have a jobject/jclass as a native method is
-    // passed in a this pointer or a class
-    DCHECK_GT(number_of_references_, 0U);
-    return &GetReferences()[0] <= handle_scope_entry &&
-        handle_scope_entry <= &GetReferences()[number_of_references_ - 1];
-  }
+  ALWAYS_INLINE bool Contains(StackReference<mirror::Object>* handle_scope_entry) const;
 
   // Offset of link within HandleScope, used by generated code.
   static size_t LinkOffset(size_t pointer_size ATTRIBUTE_UNUSED) {
@@ -174,27 +147,14 @@ class PACKED(4) StackHandleScope FINAL : public HandleScope {
   ALWAYS_INLINE ~StackHandleScope();
 
   template<class T>
-  ALWAYS_INLINE MutableHandle<T> NewHandle(T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    SetReference(pos_, object);
-    MutableHandle<T> h(GetHandle<T>(pos_));
-    pos_++;
-    return h;
-  }
+  ALWAYS_INLINE MutableHandle<T> NewHandle(T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<class T>
   ALWAYS_INLINE HandleWrapper<T> NewHandleWrapper(T** object)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    SetReference(pos_, *object);
-    MutableHandle<T> h(GetHandle<T>(pos_));
-    pos_++;
-    return HandleWrapper<T>(object, h);
-  }
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ALWAYS_INLINE void SetReference(size_t i, mirror::Object* object)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK_LT(i, kNumReferences);
-    GetReferences()[i].Assign(object);
-  }
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   template<class T>

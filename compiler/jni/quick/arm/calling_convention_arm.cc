@@ -16,6 +16,7 @@
 
 #include "base/logging.h"
 #include "calling_convention_arm.h"
+#include "handle_scope-inl.h"
 #include "utils/arm/managed_register_arm.h"
 
 namespace art {
