@@ -416,8 +416,8 @@ size_t CodeGeneratorX86_64::RestoreFloatingPointRegister(size_t stack_index, uin
   return kX86_64WordSize;
 }
 
-CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph)
-      : CodeGenerator(graph, kNumberOfCpuRegisters, kNumberOfFloatRegisters, 0),
+CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph, const CompilerOptions& compiler_options)
+      : CodeGenerator(graph, kNumberOfCpuRegisters, kNumberOfFloatRegisters, 0, compiler_options),
         block_labels_(graph->GetArena(), 0),
         location_builder_(graph, this),
         instruction_visitor_(graph, this),
@@ -2623,13 +2623,24 @@ void InstructionCodeGeneratorX86_64::VisitStaticFieldSet(HStaticFieldSet* instru
 void LocationsBuilderX86_64::VisitNullCheck(HNullCheck* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::Any());
+  Location loc = codegen_->GetCompilerOptions().GetImplicitNullChecks()
+      ? Location::RequiresRegister()
+      : Location::Any();
+  locations->SetInAt(0, loc);
   if (instruction->HasUses()) {
     locations->SetOut(Location::SameAsFirstInput());
   }
 }
 
-void InstructionCodeGeneratorX86_64::VisitNullCheck(HNullCheck* instruction) {
+void InstructionCodeGeneratorX86_64::GenerateImplicitNullCheck(HNullCheck* instruction) {
+  LocationSummary* locations = instruction->GetLocations();
+  Location obj = locations->InAt(0);
+
+  __ testl(CpuRegister(RAX), Address(obj.AsRegister<CpuRegister>(), 0));
+  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+}
+
+void InstructionCodeGeneratorX86_64::GenerateExplicitNullCheck(HNullCheck* instruction) {
   SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathX86_64(instruction);
   codegen_->AddSlowPath(slow_path);
 
@@ -2647,6 +2658,14 @@ void InstructionCodeGeneratorX86_64::VisitNullCheck(HNullCheck* instruction) {
     return;
   }
   __ j(kEqual, slow_path->GetEntryLabel());
+}
+
+void InstructionCodeGeneratorX86_64::VisitNullCheck(HNullCheck* instruction) {
+  if (codegen_->GetCompilerOptions().GetImplicitNullChecks()) {
+    GenerateImplicitNullCheck(instruction);
+  } else {
+    GenerateExplicitNullCheck(instruction);
+  }
 }
 
 void LocationsBuilderX86_64::VisitArrayGet(HArrayGet* instruction) {

@@ -16,6 +16,7 @@
 
 #include "code_generator_x86.h"
 #include "dead_code_elimination.h"
+#include "driver/compiler_options.h"
 #include "graph_checker.h"
 #include "optimizing_unit_test.h"
 #include "pretty_printer.h"
@@ -39,7 +40,7 @@ static void TestCode(const uint16_t* data,
   std::string actual_before = printer_before.str();
   ASSERT_EQ(actual_before, expected_before);
 
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   HDeadCodeElimination(graph).Run();
   SSAChecker ssa_checker(&allocator, graph);
   ssa_checker.Run();

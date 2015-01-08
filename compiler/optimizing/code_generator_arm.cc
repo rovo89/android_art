@@ -387,8 +387,10 @@ size_t CodeGeneratorARM::RestoreFloatingPointRegister(size_t stack_index, uint32
 }
 
 CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
-                                   const ArmInstructionSetFeatures* isa_features)
-    : CodeGenerator(graph, kNumberOfCoreRegisters, kNumberOfSRegisters, kNumberOfRegisterPairs),
+                                   const ArmInstructionSetFeatures& isa_features,
+                                   const CompilerOptions& compiler_options)
+    : CodeGenerator(graph, kNumberOfCoreRegisters, kNumberOfSRegisters,
+                    kNumberOfRegisterPairs, compiler_options),
       block_labels_(graph->GetArena(), 0),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
@@ -2616,7 +2618,7 @@ void LocationsBuilderARM::HandleFieldSet(HInstruction* instruction, const FieldI
   bool is_wide = field_type == Primitive::kPrimLong || field_type == Primitive::kPrimDouble;
   bool generate_volatile = field_info.IsVolatile()
       && is_wide
-      && !codegen_->GetInstructionSetFeatures()->HasAtomicLdrdAndStrd();
+      && !codegen_->GetInstructionSetFeatures().HasAtomicLdrdAndStrd();
   // Temporary registers for the write barrier.
   // TODO: consider renaming StoreNeedsWriteBarrier to StoreNeedsGCMark.
   if (CodeGenerator::StoreNeedsWriteBarrier(field_type, instruction->InputAt(1))) {
@@ -2649,7 +2651,7 @@ void InstructionCodeGeneratorARM::HandleFieldSet(HInstruction* instruction,
   Location value = locations->InAt(1);
 
   bool is_volatile = field_info.IsVolatile();
-  bool atomic_ldrd_strd = codegen_->GetInstructionSetFeatures()->HasAtomicLdrdAndStrd();
+  bool atomic_ldrd_strd = codegen_->GetInstructionSetFeatures().HasAtomicLdrdAndStrd();
   Primitive::Type field_type = field_info.GetFieldType();
   uint32_t offset = field_info.GetFieldOffset().Uint32Value();
 
@@ -2738,7 +2740,7 @@ void LocationsBuilderARM::HandleFieldGet(HInstruction* instruction, const FieldI
 
   bool generate_volatile = field_info.IsVolatile()
       && (field_info.GetFieldType() == Primitive::kPrimDouble)
-      && !codegen_->GetInstructionSetFeatures()->HasAtomicLdrdAndStrd();
+      && !codegen_->GetInstructionSetFeatures().HasAtomicLdrdAndStrd();
   if (generate_volatile) {
     // Arm encoding have some additional constraints for ldrexd/strexd:
     // - registers need to be consecutive
@@ -2759,7 +2761,7 @@ void InstructionCodeGeneratorARM::HandleFieldGet(HInstruction* instruction,
   Register base = locations->InAt(0).AsRegister<Register>();
   Location out = locations->Out();
   bool is_volatile = field_info.IsVolatile();
-  bool atomic_ldrd_strd = codegen_->GetInstructionSetFeatures()->HasAtomicLdrdAndStrd();
+  bool atomic_ldrd_strd = codegen_->GetInstructionSetFeatures().HasAtomicLdrdAndStrd();
   Primitive::Type field_type = field_info.GetFieldType();
   uint32_t offset = field_info.GetFieldOffset().Uint32Value();
 
@@ -2864,13 +2866,22 @@ void InstructionCodeGeneratorARM::VisitStaticFieldSet(HStaticFieldSet* instructi
 void LocationsBuilderARM::VisitNullCheck(HNullCheck* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
+  Location loc = codegen_->GetCompilerOptions().GetImplicitNullChecks()
+      ? Location::RequiresRegister()
+      : Location::RegisterOrConstant(instruction->InputAt(0));
+  locations->SetInAt(0, loc);
   if (instruction->HasUses()) {
     locations->SetOut(Location::SameAsFirstInput());
   }
 }
 
-void InstructionCodeGeneratorARM::VisitNullCheck(HNullCheck* instruction) {
+void InstructionCodeGeneratorARM::GenerateImplicitNullCheck(HNullCheck* instruction) {
+  Location obj = instruction->GetLocations()->InAt(0);
+  __ LoadFromOffset(kLoadWord, IP, obj.AsRegister<Register>(), 0);
+  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+}
+
+void InstructionCodeGeneratorARM::GenerateExplicitNullCheck(HNullCheck* instruction) {
   SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathARM(instruction);
   codegen_->AddSlowPath(slow_path);
 
@@ -2884,6 +2895,14 @@ void InstructionCodeGeneratorARM::VisitNullCheck(HNullCheck* instruction) {
     DCHECK(obj.IsConstant()) << obj;
     DCHECK_EQ(obj.GetConstant()->AsIntConstant()->GetValue(), 0);
     __ b(slow_path->GetEntryLabel());
+  }
+}
+
+void InstructionCodeGeneratorARM::VisitNullCheck(HNullCheck* instruction) {
+  if (codegen_->GetCompilerOptions().GetImplicitNullChecks()) {
+    GenerateImplicitNullCheck(instruction);
+  } else {
+    GenerateExplicitNullCheck(instruction);
   }
 }
 

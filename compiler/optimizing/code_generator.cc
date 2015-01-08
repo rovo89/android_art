@@ -330,23 +330,25 @@ bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) con
 
 CodeGenerator* CodeGenerator::Create(HGraph* graph,
                                      InstructionSet instruction_set,
-                                     const InstructionSetFeatures& isa_features) {
+                                     const InstructionSetFeatures& isa_features,
+                                     const CompilerOptions& compiler_options) {
   switch (instruction_set) {
     case kArm:
     case kThumb2: {
       return new arm::CodeGeneratorARM(graph,
-          isa_features.AsArmInstructionSetFeatures());
+          *isa_features.AsArmInstructionSetFeatures(),
+          compiler_options);
     }
     case kArm64: {
-      return new arm64::CodeGeneratorARM64(graph);
+      return new arm64::CodeGeneratorARM64(graph, compiler_options);
     }
     case kMips:
       return nullptr;
     case kX86: {
-      return new x86::CodeGeneratorX86(graph);
+      return new x86::CodeGeneratorX86(graph, compiler_options);
     }
     case kX86_64: {
-      return new x86_64::CodeGeneratorX86_64(graph);
+      return new x86_64::CodeGeneratorX86_64(graph, compiler_options);
     }
     default:
       return nullptr;

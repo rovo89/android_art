@@ -20,6 +20,7 @@
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
 #include "base/bit_field.h"
+#include "driver/compiler_options.h"
 #include "globals.h"
 #include "locations.h"
 #include "memory_region.h"
@@ -85,7 +86,8 @@ class CodeGenerator {
   void CompileOptimized(CodeAllocator* allocator);
   static CodeGenerator* Create(HGraph* graph,
                                InstructionSet instruction_set,
-                               const InstructionSetFeatures& isa_features);
+                               const InstructionSetFeatures& isa_features,
+                               const CompilerOptions& compiler_options);
   virtual ~CodeGenerator() {}
 
   HGraph* GetGraph() const { return graph_; }
@@ -130,6 +132,9 @@ class CodeGenerator {
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const = 0;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const = 0;
   virtual InstructionSet GetInstructionSet() const = 0;
+
+  const CompilerOptions& GetCompilerOptions() const { return compiler_options_; }
+
   // Saves the register in the stack. Returns the size taken on stack.
   virtual size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) = 0;
   // Restores the register from the stack. Returns the size taken on stack.
@@ -200,7 +205,8 @@ class CodeGenerator {
   CodeGenerator(HGraph* graph,
                 size_t number_of_core_registers,
                 size_t number_of_fpu_registers,
-                size_t number_of_register_pairs)
+                size_t number_of_register_pairs,
+                const CompilerOptions& compiler_options)
       : frame_size_(kUninitializedFrameSize),
         core_spill_mask_(0),
         first_register_slot_in_slow_path_(0),
@@ -211,6 +217,7 @@ class CodeGenerator {
         number_of_fpu_registers_(number_of_fpu_registers),
         number_of_register_pairs_(number_of_register_pairs),
         graph_(graph),
+        compiler_options_(compiler_options),
         pc_infos_(graph->GetArena(), 32),
         slow_paths_(graph->GetArena(), 8),
         is_leaf_(true),
@@ -249,6 +256,7 @@ class CodeGenerator {
   size_t GetStackOffsetOfSavedRegister(size_t index);
 
   HGraph* const graph_;
+  const CompilerOptions& compiler_options_;
 
   GrowableArray<PcInfo> pc_infos_;
   GrowableArray<SlowPathCode*> slow_paths_;
