@@ -16,6 +16,7 @@
 
 #include "logging.h"
 
+#include <iostream>
 #include <limits>
 #include <sstream>
 
@@ -42,6 +43,19 @@ static LogSeverity gMinimumLogSeverity = INFO;
 static std::unique_ptr<std::string> gCmdLine;
 static std::unique_ptr<std::string> gProgramInvocationName;
 static std::unique_ptr<std::string> gProgramInvocationShortName;
+
+// Print INTERNAL_FATAL messages directly instead of at destruction time. This only works on the
+// host right now: for the device, a stream buf collating output into lines and calling LogLine or
+// lower-level logging is necessary.
+#ifdef HAVE_ANDROID_OS
+static constexpr bool kPrintInternalFatalDirectly = false;
+#else
+static constexpr bool kPrintInternalFatalDirectly = !kIsTargetBuild;
+#endif
+
+static bool PrintDirectly(LogSeverity severity) {
+  return kPrintInternalFatalDirectly && severity == INTERNAL_FATAL;
+}
 
 const char* GetCmdLine() {
   return (gCmdLine.get() != nullptr) ? gCmdLine->c_str() : nullptr;
@@ -170,31 +184,39 @@ class LogMessageData {
 
 LogMessage::LogMessage(const char* file, unsigned int line, LogSeverity severity, int error)
   : data_(new LogMessageData(file, line, severity, error)) {
+  if (PrintDirectly(severity)) {
+    static const char* log_characters = "VDIWEFF";
+    CHECK_EQ(strlen(log_characters), INTERNAL_FATAL + 1U);
+    stream() << ProgramInvocationShortName() << " " << log_characters[static_cast<size_t>(severity)]
+             << " " << getpid() << " " << ::art::GetTid() << " " << file << ":" <<  line << "]";
+  }
 }
 LogMessage::~LogMessage() {
-  if (data_->GetSeverity() < gMinimumLogSeverity) {
-    return;  // No need to format something we're not going to output.
-  }
+  if (!PrintDirectly(data_->GetSeverity())) {
+    if (data_->GetSeverity() < gMinimumLogSeverity) {
+      return;  // No need to format something we're not going to output.
+    }
 
-  // Finish constructing the message.
-  if (data_->GetError() != -1) {
-    data_->GetBuffer() << ": " << strerror(data_->GetError());
-  }
-  std::string msg(data_->ToString());
+    // Finish constructing the message.
+    if (data_->GetError() != -1) {
+      data_->GetBuffer() << ": " << strerror(data_->GetError());
+    }
+    std::string msg(data_->ToString());
 
-  // Do the actual logging with the lock held.
-  {
-    MutexLock mu(Thread::Current(), *Locks::logging_lock_);
-    if (msg.find('\n') == std::string::npos) {
-      LogLine(data_->GetFile(), data_->GetLineNumber(), data_->GetSeverity(), msg.c_str());
-    } else {
-      msg += '\n';
-      size_t i = 0;
-      while (i < msg.size()) {
-        size_t nl = msg.find('\n', i);
-        msg[nl] = '\0';
-        LogLine(data_->GetFile(), data_->GetLineNumber(), data_->GetSeverity(), &msg[i]);
-        i = nl + 1;
+    // Do the actual logging with the lock held.
+    {
+      MutexLock mu(Thread::Current(), *Locks::logging_lock_);
+      if (msg.find('\n') == std::string::npos) {
+        LogLine(data_->GetFile(), data_->GetLineNumber(), data_->GetSeverity(), msg.c_str());
+      } else {
+        msg += '\n';
+        size_t i = 0;
+        while (i < msg.size()) {
+          size_t nl = msg.find('\n', i);
+          msg[nl] = '\0';
+          LogLine(data_->GetFile(), data_->GetLineNumber(), data_->GetSeverity(), &msg[i]);
+          i = nl + 1;
+        }
       }
     }
   }
@@ -206,6 +228,9 @@ LogMessage::~LogMessage() {
 }
 
 std::ostream& LogMessage::stream() {
+  if (PrintDirectly(data_->GetSeverity())) {
+    return std::cerr;
+  }
   return data_->GetBuffer();
 }
 
