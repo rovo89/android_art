@@ -858,6 +858,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
 
   CHECK_GE(GetHeap()->GetContinuousSpaces().size(), 1U);
   class_linker_ = new ClassLinker(intern_table_);
+  bool options_class_path_used = false;
   if (GetHeap()->HasImageSpace()) {
     class_linker_->InitFromImage();
     if (kIsDebugBuild) {
@@ -881,7 +882,16 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     CHECK(options->boot_class_path_ != nullptr);
     CHECK_NE(options->boot_class_path_->size(), 0U);
     class_linker_->InitWithoutImage(*options->boot_class_path_);
+    options_class_path_used = true;
   }
+
+  if (!options_class_path_used) {
+    // If the class linker does not take ownership of the boot class path, wipe it to prevent leaks.
+    auto boot_class_path_vector_ptr =
+        const_cast<std::vector<const DexFile*>*>(options->boot_class_path_);
+    STLDeleteElements(boot_class_path_vector_ptr);
+  }
+
   CHECK(class_linker_ != nullptr);
 
   // Initialize the special sentinel_ value early.
