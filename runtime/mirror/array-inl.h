@@ -19,6 +19,7 @@
 
 #include "array.h"
 
+#include "base/stringprintf.h"
 #include "class.h"
 #include "gc/heap-inl.h"
 #include "thread.h"
