@@ -21,6 +21,7 @@
 
 #include "handle.h"
 #include "thread.h"
+#include "verify_object-inl.h"
 
 namespace art {
 
@@ -40,6 +41,71 @@ template<size_t kNumReferences>
 inline StackHandleScope<kNumReferences>::~StackHandleScope() {
   HandleScope* top_handle_scope = self_->PopHandleScope();
   DCHECK_EQ(top_handle_scope, this);
+}
+
+inline size_t HandleScope::SizeOf(uint32_t num_references) {
+  size_t header_size = sizeof(HandleScope);
+  size_t data_size = sizeof(StackReference<mirror::Object>) * num_references;
+  return header_size + data_size;
+}
+
+inline size_t HandleScope::SizeOf(size_t pointer_size, uint32_t num_references) {
+  // Assume that the layout is packed.
+  size_t header_size = pointer_size + sizeof(number_of_references_);
+  size_t data_size = sizeof(StackReference<mirror::Object>) * num_references;
+  return header_size + data_size;
+}
+
+inline mirror::Object* HandleScope::GetReference(size_t i) const {
+  DCHECK_LT(i, number_of_references_);
+  return GetReferences()[i].AsMirrorPtr();
+}
+
+inline Handle<mirror::Object> HandleScope::GetHandle(size_t i) {
+  DCHECK_LT(i, number_of_references_);
+  return Handle<mirror::Object>(&GetReferences()[i]);
+}
+
+inline MutableHandle<mirror::Object> HandleScope::GetMutableHandle(size_t i) {
+  DCHECK_LT(i, number_of_references_);
+  return MutableHandle<mirror::Object>(&GetReferences()[i]);
+}
+
+inline void HandleScope::SetReference(size_t i, mirror::Object* object) {
+  DCHECK_LT(i, number_of_references_);
+  GetReferences()[i].Assign(object);
+}
+
+inline bool HandleScope::Contains(StackReference<mirror::Object>* handle_scope_entry) const {
+  // A HandleScope should always contain something. One created by the
+  // jni_compiler should have a jobject/jclass as a native method is
+  // passed in a this pointer or a class
+  DCHECK_GT(number_of_references_, 0U);
+  return &GetReferences()[0] <= handle_scope_entry &&
+      handle_scope_entry <= &GetReferences()[number_of_references_ - 1];
+}
+
+template<size_t kNumReferences> template<class T>
+inline MutableHandle<T> StackHandleScope<kNumReferences>::NewHandle(T* object) {
+  SetReference(pos_, object);
+  MutableHandle<T> h(GetHandle<T>(pos_));
+  pos_++;
+  return h;
+}
+
+template<size_t kNumReferences> template<class T>
+inline HandleWrapper<T> StackHandleScope<kNumReferences>::NewHandleWrapper(T** object) {
+  SetReference(pos_, *object);
+  MutableHandle<T> h(GetHandle<T>(pos_));
+  pos_++;
+  return HandleWrapper<T>(object, h);
+}
+
+template<size_t kNumReferences>
+inline void StackHandleScope<kNumReferences>::SetReference(size_t i, mirror::Object* object) {
+  DCHECK_LT(i, kNumReferences);
+  VerifyObject(object);
+  GetReferences()[i].Assign(object);
 }
 
 }  // namespace art
