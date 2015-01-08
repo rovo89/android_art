@@ -214,8 +214,7 @@ endif
 TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
 
 # Tests that are broken with GC stress.
-TEST_ART_BROKEN_GCSTRESS_RUN_TESTS := \
-  114-ParallelGC
+TEST_ART_BROKEN_GCSTRESS_RUN_TESTS :=
 
 ifneq (,$(filter gcstress,$(GC_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
