@@ -168,6 +168,8 @@ class CodeGeneratorARM : public CodeGenerator {
   void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
   size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
 
   size_t GetWordSize() const OVERRIDE {
     return kArmWordSize;
@@ -235,6 +237,10 @@ class CodeGeneratorARM : public CodeGenerator {
 
   const ArmInstructionSetFeatures* GetInstructionSetFeatures() const {
     return isa_features_;
+  }
+
+  bool NeedsTwoRegisters(Primitive::Type type) const OVERRIDE {
+    return type == Primitive::kPrimDouble || type == Primitive::kPrimLong;
   }
 
  private:

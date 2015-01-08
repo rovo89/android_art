@@ -267,6 +267,10 @@ class CodeGeneratorARM64 : public CodeGenerator {
 
   ParallelMoveResolverARM64* GetMoveResolver() { return &move_resolver_; }
 
+  bool NeedsTwoRegisters(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
+    return false;
+  }
+
  private:
   // Labels for each block that will be compiled.
   vixl::Label* block_labels_;

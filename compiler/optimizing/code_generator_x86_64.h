@@ -218,6 +218,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     block_labels_.SetSize(GetGraph()->GetBlocks().Size());
   }
 
+  bool NeedsTwoRegisters(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
+    return false;
+  }
+
  private:
   // Labels for each block that will be compiled.
   GrowableArray<Label> block_labels_;

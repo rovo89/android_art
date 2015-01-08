@@ -27,6 +27,12 @@ namespace art {
 static constexpr size_t kMaxLifetimePosition = -1;
 static constexpr size_t kDefaultNumberOfSpillSlots = 4;
 
+// For simplicity, we implement register pairs as (reg, reg + 1).
+// Note that this is a requirement for double registers on ARM, since we
+// allocate SRegister.
+static int GetHighForLowRegister(int reg) { return reg + 1; }
+static bool IsLowRegister(int reg) { return (reg & 1) == 0; }
+
 RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator,
                                      CodeGenerator* codegen,
                                      const SsaLivenessAnalysis& liveness)
@@ -72,10 +78,16 @@ bool RegisterAllocator::CanAllocateRegistersFor(const HGraph& graph,
          !it.Done();
          it.Advance()) {
       HInstruction* current = it.Current();
-      if (current->GetType() == Primitive::kPrimLong ||
-          current->GetType() == Primitive::kPrimFloat ||
-          current->GetType() == Primitive::kPrimDouble) {
-        return false;
+      if (instruction_set == kX86) {
+        if (current->GetType() == Primitive::kPrimLong ||
+            current->GetType() == Primitive::kPrimFloat ||
+            current->GetType() == Primitive::kPrimDouble) {
+          return false;
+        }
+      } else if (instruction_set == kArm || instruction_set == kThumb2) {
+        if (current->GetType() == Primitive::kPrimLong) {
+          return false;
+        }
       }
     }
   }
@@ -130,7 +142,7 @@ void RegisterAllocator::BlockRegister(Location location,
       : physical_fp_register_intervals_.Get(reg);
   Primitive::Type type = location.IsRegister()
       ? Primitive::kPrimInt
-      : Primitive::kPrimDouble;
+      : Primitive::kPrimFloat;
   if (interval == nullptr) {
     interval = LiveInterval::MakeFixedInterval(allocator_, reg, type);
     if (location.IsRegister()) {
@@ -226,6 +238,12 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
               LiveInterval::MakeTempInterval(allocator_, Primitive::kPrimDouble);
           temp_intervals_.Add(interval);
           interval->AddRange(position, position + 1);
+          if (codegen_->NeedsTwoRegisters(Primitive::kPrimDouble)) {
+            interval->AddHighInterval(true);
+            LiveInterval* high = interval->GetHighInterval();
+            temp_intervals_.Add(high);
+            unhandled_fp_intervals_.Add(high);
+          }
           unhandled_fp_intervals_.Add(interval);
           break;
         }
@@ -279,6 +297,9 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
     Location input = locations->InAt(i);
     if (input.IsRegister() || input.IsFpuRegister()) {
       BlockRegister(input, position, position + 1);
+    } else if (input.IsPair()) {
+      BlockRegister(input.ToLow(), position, position + 1);
+      BlockRegister(input.ToHigh(), position, position + 1);
     }
   }
 
@@ -290,6 +311,10 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
       : unhandled_fp_intervals_;
 
   DCHECK(unhandled.IsEmpty() || current->StartsBeforeOrAt(unhandled.Peek()));
+
+  if (codegen_->NeedsTwoRegisters(current->GetType())) {
+    current->AddHighInterval();
+  }
 
   // Some instructions define their output in fixed register/stack slot. We need
   // to ensure we know these locations before doing register allocation. For a
@@ -304,14 +329,30 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
     if (first.IsRegister() || first.IsFpuRegister()) {
       current->SetFrom(position + 1);
       current->SetRegister(first.reg());
+    } else if (first.IsPair()) {
+      current->SetFrom(position + 1);
+      current->SetRegister(first.low());
+      LiveInterval* high = current->GetHighInterval();
+      high->SetRegister(first.high());
+      high->SetFrom(position + 1);
     }
   } else if (output.IsRegister() || output.IsFpuRegister()) {
     // Shift the interval's start by one to account for the blocked register.
     current->SetFrom(position + 1);
     current->SetRegister(output.reg());
     BlockRegister(output, position, position + 1);
+  } else if (output.IsPair()) {
+    current->SetFrom(position + 1);
+    current->SetRegister(output.low());
+    LiveInterval* high = current->GetHighInterval();
+    high->SetRegister(output.high());
+    high->SetFrom(position + 1);
+    BlockRegister(output.ToLow(), position, position + 1);
+    BlockRegister(output.ToHigh(), position, position + 1);
   } else if (output.IsStackSlot() || output.IsDoubleStackSlot()) {
     current->SetSpillSlot(output.GetStackIndex());
+  } else {
+    DCHECK(output.IsUnallocated() || output.IsConstant());
   }
 
   // If needed, add interval to the list of unhandled intervals.
@@ -516,6 +557,7 @@ void RegisterAllocator::LinearScan() {
     LiveInterval* current = unhandled_->Pop();
     DCHECK(!current->IsFixed() && !current->HasSpillSlot());
     DCHECK(unhandled_->IsEmpty() || unhandled_->Peek()->GetStart() >= current->GetStart());
+    DCHECK(!current->IsLowInterval() || unhandled_->Peek()->IsHighInterval());
 
     size_t position = current->GetStart();
 
@@ -566,6 +608,13 @@ void RegisterAllocator::LinearScan() {
       continue;
     }
 
+    if (current->IsHighInterval() && !current->GetLowInterval()->HasRegister()) {
+      DCHECK(!current->HasRegister());
+      // Allocating the low part was unsucessful. The splitted interval for the high part
+      // will be handled next (it is in the `unhandled_` list).
+      continue;
+    }
+
     // (4) Try to find an available register.
     bool success = TryAllocateFreeReg(current);
 
@@ -578,6 +627,9 @@ void RegisterAllocator::LinearScan() {
     //     intervals.
     if (success) {
       active_.Add(current);
+      if (current->HasHighInterval() && !current->GetHighInterval()->HasRegister()) {
+        current->GetHighInterval()->SetRegister(GetHighForLowRegister(current->GetRegister()));
+      }
     }
   }
 }
@@ -630,26 +682,31 @@ bool RegisterAllocator::TryAllocateFreeReg(LiveInterval* current) {
   if (current->HasRegister()) {
     // Some instructions have a fixed register output.
     reg = current->GetRegister();
-    DCHECK_NE(free_until[reg], 0u);
+    if (free_until[reg] == 0) {
+      DCHECK(current->IsHighInterval());
+      // AllocateBlockedReg will spill the holder of the register.
+      return false;
+    }
   } else {
+    DCHECK(!current->IsHighInterval());
     int hint = current->FindFirstRegisterHint(free_until);
     if (hint != kNoRegister) {
       DCHECK(!IsBlocked(hint));
       reg = hint;
+    } else if (current->IsLowInterval()) {
+      reg = FindAvailableRegisterPair(free_until);
     } else {
-      // Pick the register that is free the longest.
-      for (size_t i = 0; i < number_of_registers_; ++i) {
-        if (IsBlocked(i)) continue;
-        if (reg == -1 || free_until[i] > free_until[reg]) {
-          reg = i;
-          if (free_until[i] == kMaxLifetimePosition) break;
-        }
-      }
+      reg = FindAvailableRegister(free_until);
     }
   }
 
+  DCHECK_NE(reg, -1);
   // If we could not find a register, we need to spill.
-  if (reg == -1 || free_until[reg] == 0) {
+  if (free_until[reg] == 0) {
+    return false;
+  }
+
+  if (current->IsLowInterval() && free_until[GetHighForLowRegister(reg)] == 0) {
     return false;
   }
 
@@ -669,6 +726,40 @@ bool RegisterAllocator::IsBlocked(int reg) const {
   return processing_core_registers_
       ? blocked_core_registers_[reg]
       : blocked_fp_registers_[reg];
+}
+
+int RegisterAllocator::FindAvailableRegisterPair(size_t* next_use) const {
+  int reg = -1;
+  // Pick the register pair that is used the last.
+  for (size_t i = 0; i < number_of_registers_; ++i) {
+    if (IsBlocked(i)) continue;
+    if (!IsLowRegister(i)) continue;
+    int high_register = GetHighForLowRegister(i);
+    if (IsBlocked(high_register)) continue;
+    int existing_high_register = GetHighForLowRegister(reg);
+    if ((reg == -1) || (next_use[i] >= next_use[reg]
+                        && next_use[high_register] >= next_use[existing_high_register])) {
+      reg = i;
+      if (next_use[i] == kMaxLifetimePosition
+          && next_use[high_register] == kMaxLifetimePosition) {
+        break;
+      }
+    }
+  }
+  return reg;
+}
+
+int RegisterAllocator::FindAvailableRegister(size_t* next_use) const {
+  int reg = -1;
+  // Pick the register that is used the last.
+  for (size_t i = 0; i < number_of_registers_; ++i) {
+    if (IsBlocked(i)) continue;
+    if (reg == -1 || next_use[i] > next_use[reg]) {
+      reg = i;
+      if (next_use[i] == kMaxLifetimePosition) break;
+    }
+  }
+  return reg;
 }
 
 // Find the register that is used the last, and spill the interval
@@ -731,17 +822,20 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
     }
   }
 
-  // Pick the register that is used the last.
   int reg = -1;
-  for (size_t i = 0; i < number_of_registers_; ++i) {
-    if (IsBlocked(i)) continue;
-    if (reg == -1 || next_use[i] > next_use[reg]) {
-      reg = i;
-      if (next_use[i] == kMaxLifetimePosition) break;
-    }
+  if (current->HasRegister()) {
+    DCHECK(current->IsHighInterval());
+    reg = current->GetRegister();
+  } else if (current->IsLowInterval()) {
+    reg = FindAvailableRegisterPair(next_use);
+  } else {
+    DCHECK(!current->IsHighInterval());
+    reg = FindAvailableRegister(next_use);
   }
 
-  if (first_register_use >= next_use[reg]) {
+  if ((first_register_use >= next_use[reg])
+      || (current->IsLowInterval() && first_register_use >= next_use[GetHighForLowRegister(reg)])) {
+    DCHECK(!current->IsHighInterval());
     // If the first use of that instruction is after the last use of the found
     // register, we split this interval just before its first register use.
     AllocateSpillSlotFor(current);
@@ -815,23 +909,49 @@ void RegisterAllocator::AddSorted(GrowableArray<LiveInterval*>* array, LiveInter
       break;
     }
   }
+
   array->InsertAt(insert_at, interval);
+  // Insert the high interval before the low, to ensure the low is processed before.
+  if (interval->HasHighInterval()) {
+    array->InsertAt(insert_at, interval->GetHighInterval());
+  } else if (interval->HasLowInterval()) {
+    array->InsertAt(insert_at + 1, interval->GetLowInterval());
+  }
 }
 
 LiveInterval* RegisterAllocator::Split(LiveInterval* interval, size_t position) {
-  DCHECK(position >= interval->GetStart());
+  DCHECK_GE(position, interval->GetStart());
   DCHECK(!interval->IsDeadAt(position));
   if (position == interval->GetStart()) {
     // Spill slot will be allocated when handling `interval` again.
     interval->ClearRegister();
+    if (interval->HasHighInterval()) {
+      interval->GetHighInterval()->ClearRegister();
+    } else if (interval->HasLowInterval()) {
+      interval->GetLowInterval()->ClearRegister();
+    }
     return interval;
   } else {
     LiveInterval* new_interval = interval->SplitAt(position);
+    if (interval->HasHighInterval()) {
+      LiveInterval* high = interval->GetHighInterval()->SplitAt(position);
+      new_interval->SetHighInterval(high);
+      high->SetLowInterval(new_interval);
+    } else if (interval->HasLowInterval()) {
+      LiveInterval* low = interval->GetLowInterval()->SplitAt(position);
+      new_interval->SetLowInterval(low);
+      low->SetHighInterval(new_interval);
+    }
     return new_interval;
   }
 }
 
 void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
+  if (interval->IsHighInterval()) {
+    // The low interval will contain the spill slot.
+    return;
+  }
+
   LiveInterval* parent = interval->GetParent();
 
   // An instruction gets a spill slot for its entire lifetime. If the parent
@@ -898,6 +1018,7 @@ void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
 static bool IsValidDestination(Location destination) {
   return destination.IsRegister()
       || destination.IsFpuRegister()
+      || destination.IsFpuRegisterPair()
       || destination.IsStackSlot()
       || destination.IsDoubleStackSlot();
 }
@@ -905,7 +1026,6 @@ static bool IsValidDestination(Location destination) {
 void RegisterAllocator::AddInputMoveFor(HInstruction* user,
                                         Location source,
                                         Location destination) const {
-  DCHECK(IsValidDestination(destination));
   if (source.Equals(destination)) return;
 
   DCHECK(!user->IsPhi());
@@ -1075,9 +1195,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
   if (current->HasSpillSlot() && current->HasRegister()) {
     // We spill eagerly, so move must be at definition.
     InsertMoveAfter(interval->GetDefinedBy(),
-                    interval->IsFloatingPoint()
-                        ? Location::FpuRegisterLocation(interval->GetRegister())
-                        : Location::RegisterLocation(interval->GetRegister()),
+                    interval->ToLocation(),
                     interval->NeedsTwoSpillSlots()
                         ? Location::DoubleStackSlot(interval->GetParent()->GetSpillSlot())
                         : Location::StackSlot(interval->GetParent()->GetSpillSlot()));
@@ -1146,6 +1264,11 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
         }
         case Location::kFpuRegister: {
           locations->AddLiveRegister(source);
+          break;
+        }
+        case Location::kFpuRegisterPair: {
+          locations->AddLiveRegister(source.ToLow());
+          locations->AddLiveRegister(source.ToHigh());
           break;
         }
         case Location::kStackSlot:  // Fall-through
@@ -1307,6 +1430,10 @@ void RegisterAllocator::Resolve() {
   size_t temp_index = 0;
   for (size_t i = 0; i < temp_intervals_.Size(); ++i) {
     LiveInterval* temp = temp_intervals_.Get(i);
+    if (temp->IsHighInterval()) {
+      // High intervals can be skipped, they are already handled by the low interval.
+      continue;
+    }
     HInstruction* at = liveness_.GetTempUser(temp);
     if (at != current) {
       temp_index = 0;
@@ -1320,14 +1447,14 @@ void RegisterAllocator::Resolve() {
         break;
 
       case Primitive::kPrimDouble:
-        // TODO: Support the case of ARM, where a double value
-        // requires an FPU register pair (note that the ARM back end
-        // does not yet use this register allocator when a method uses
-        // floats or doubles).
-        DCHECK(codegen_->GetInstructionSet() != kArm
-               && codegen_->GetInstructionSet() != kThumb2);
-        locations->SetTempAt(
-            temp_index++, Location::FpuRegisterLocation(temp->GetRegister()));
+        if (codegen_->NeedsTwoRegisters(Primitive::kPrimDouble)) {
+          Location location = Location::FpuRegisterPairLocation(
+              temp->GetRegister(), temp->GetHighInterval()->GetRegister());
+          locations->SetTempAt(temp_index++, location);
+        } else {
+          locations->SetTempAt(
+              temp_index++, Location::FpuRegisterLocation(temp->GetRegister()));
+        }
         break;
 
       default:
