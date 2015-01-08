@@ -79,6 +79,66 @@ import sys
 import tempfile
 from subprocess import check_call
 
+class Logger(object):
+  SilentMode = False
+
+  class Color(object):
+    Default, Blue, Gray, Purple, Red = range(5)
+
+    @staticmethod
+    def terminalCode(color, out=sys.stdout):
+      if not out.isatty():
+        return ''
+      elif color == Logger.Color.Blue:
+        return '\033[94m'
+      elif color == Logger.Color.Gray:
+        return '\033[37m'
+      elif color == Logger.Color.Purple:
+        return '\033[95m'
+      elif color == Logger.Color.Red:
+        return '\033[91m'
+      else:
+        return '\033[0m'
+
+  @staticmethod
+  def log(text, color=Color.Default, newLine=True, out=sys.stdout):
+    if not Logger.SilentMode:
+      text = Logger.Color.terminalCode(color, out) + text + \
+             Logger.Color.terminalCode(Logger.Color.Default, out)
+      if newLine:
+        print(text, file=out)
+      else:
+        print(text, end="", flush=True, file=out)
+
+  @staticmethod
+  def fail(msg, file=None, line=-1):
+    location = ""
+    if file:
+      location += file + ":"
+    if line > 0:
+      location += str(line) + ":"
+    if location:
+      location += " "
+
+    Logger.log(location, color=Logger.Color.Gray, newLine=False, out=sys.stderr)
+    Logger.log("error: ", color=Logger.Color.Red, newLine=False, out=sys.stderr)
+    Logger.log(msg, out=sys.stderr)
+    sys.exit(1)
+
+  @staticmethod
+  def startTest(name):
+    Logger.log("TEST ", color=Logger.Color.Purple, newLine=False)
+    Logger.log(name + "... ", newLine=False)
+
+  @staticmethod
+  def testPassed():
+    Logger.log("PASS", color=Logger.Color.Blue)
+
+  @staticmethod
+  def testFailed(msg, file=None, line=-1):
+    Logger.log("FAIL", color=Logger.Color.Red)
+    Logger.fail(msg, file, line)
+
 class CommonEqualityMixin:
   """Mixin for class equality as equality of the fields."""
   def __eq__(self, other):
@@ -135,14 +195,25 @@ class CheckLine(CommonEqualityMixin):
     """Supported types of assertions."""
     InOrder, DAG, Not = range(3)
 
-  def __init__(self, content, variant=Variant.InOrder, lineNo=-1):
-    self.content = content.strip()
-    self.variant = variant
+  def __init__(self, content, variant=Variant.InOrder, fileName=None, lineNo=-1):
+    self.fileName = fileName
     self.lineNo = lineNo
+    self.content = content.strip()
 
+    self.variant = variant
     self.lineParts = self.__parse(self.content)
     if not self.lineParts:
-      raise Exception("Empty check line")
+      Logger.fail("Empty check line", self.fileName, self.lineNo)
+
+    if self.variant == CheckLine.Variant.Not:
+      for elem in self.lineParts:
+        if elem.variant == CheckElement.Variant.VarDef:
+          Logger.fail("CHECK-NOT lines cannot define variables", self.fileName, self.lineNo)
+
+  def __eq__(self, other):
+    return (isinstance(other, self.__class__) and
+            self.variant == other.variant and
+            self.lineParts == other.lineParts)
 
   # Returns True if the given Match object was at the beginning of the line.
   def __isMatchAtStart(self, match):
@@ -199,11 +270,7 @@ class CheckLine(CommonEqualityMixin):
       elif self.__isMatchAtStart(matchVariable):
         var = line[0:matchVariable.end()]
         line = line[matchVariable.end():]
-        elem = CheckElement.parseVariable(var)
-        if self.variant == CheckLine.Variant.Not and elem.variant == CheckElement.Variant.VarDef:
-          raise Exception("CHECK-NOT check lines cannot define variables " +
-                          "(line " + str(self.lineNo) + ")")
-        lineParts.append(elem)
+        lineParts.append(CheckElement.parseVariable(var))
       else:
         # If we're not currently looking at a special marker, this is a plain
         # text match all the way until the first special marker (or the end
@@ -223,8 +290,8 @@ class CheckLine(CommonEqualityMixin):
       try:
         return re.escape(varState[linePart.name])
       except KeyError:
-        raise Exception("Use of undefined variable '" + linePart.name + "' " +
-                        "(line " + str(self.lineNo))
+        Logger.testFailed("Use of undefined variable \"" + linePart.name + "\"",
+                          self.fileName, self.lineNo)
     else:
       return linePart.pattern
 
@@ -262,8 +329,8 @@ class CheckLine(CommonEqualityMixin):
         matchEnd = matchStart + match.end()
         if part.variant == CheckElement.Variant.VarDef:
           if part.name in varState:
-            raise Exception("Redefinition of variable '" + part.name + "'" +
-                            " (line " + str(self.lineNo) + ")")
+            Logger.testFailed("Multiple definitions of variable \"" + part.name + "\"",
+                              self.fileName, self.lineNo)
           varState[part.name] = outputLine[matchStart:matchEnd]
         matchStart = matchEnd
 
@@ -277,15 +344,22 @@ class CheckGroup(CommonEqualityMixin):
   """Represents a named collection of check lines which are to be matched
      against an output group of the same name."""
 
-  def __init__(self, name, lines):
-    if name:
-      self.name = name
-    else:
-      raise Exception("Check group does not have a name")
-    if lines:
-      self.lines = lines
-    else:
-      raise Exception("Check group " + self.name + " does not have a body")
+  def __init__(self, name, lines, fileName=None, lineNo=-1):
+    self.fileName = fileName
+    self.lineNo = lineNo
+
+    if not name:
+      Logger.fail("Check group does not have a name", self.fileName, self.lineNo)
+    if not lines:
+      Logger.fail("Check group does not have a body", self.fileName, self.lineNo)
+
+    self.name = name
+    self.lines = lines
+
+  def __eq__(self, other):
+    return (isinstance(other, self.__class__) and
+            self.name == other.name and
+            self.lines == other.lines)
 
   def __headAndTail(self, list):
     return list[0], list[1:]
@@ -318,15 +392,14 @@ class CheckGroup(CommonEqualityMixin):
   # check line and the updated variable state. Otherwise returns -1 and None,
   # respectively. The 'lineFilter' parameter can be used to supply a list of
   # line numbers (counting from 1) which should be skipped.
-  def __findFirstMatch(self, checkLine, outputLines, lineFilter, varState):
-    matchLineNo = 0
+  def __findFirstMatch(self, checkLine, outputLines, startLineNo, lineFilter, varState):
+    matchLineNo = startLineNo
     for outputLine in outputLines:
+      if matchLineNo not in lineFilter:
+        newVarState = checkLine.match(outputLine, varState)
+        if newVarState is not None:
+          return matchLineNo, newVarState
       matchLineNo += 1
-      if matchLineNo in lineFilter:
-        continue
-      newVarState = checkLine.match(outputLine, varState)
-      if newVarState is not None:
-        return matchLineNo, newVarState
     return -1, None
 
   # Matches the given positive check lines against the output in order of
@@ -336,35 +409,42 @@ class CheckGroup(CommonEqualityMixin):
   # together with the remaining output. The function also returns output lines
   # which appear before either of the matched lines so they can be tested
   # against Not checks.
-  def __matchIndependentChecks(self, checkLines, outputLines, varState):
+  def __matchIndependentChecks(self, checkLines, outputLines, startLineNo, varState):
     # If no checks are provided, skip over the entire output.
     if not checkLines:
-      return outputLines, varState, []
+      return outputLines, [], startLineNo + len(outputLines), varState
 
     # Keep track of which lines have been matched.
     matchedLines = []
 
     # Find first unused output line which matches each check line.
     for checkLine in checkLines:
-      matchLineNo, varState = self.__findFirstMatch(checkLine, outputLines, matchedLines, varState)
+      matchLineNo, varState = \
+        self.__findFirstMatch(checkLine, outputLines, startLineNo, matchedLines, varState)
       if varState is None:
-        raise Exception("Could not match line " + str(checkLine))
+        Logger.testFailed("Could not match check line \"" + checkLine.content + "\" " +
+                          "starting from output line " + str(startLineNo),
+                          self.fileName, checkLine.lineNo)
       matchedLines.append(matchLineNo)
 
     # Return new variable state and the output lines which lie outside the
     # match locations of this independent group.
-    preceedingLines = outputLines[:min(matchedLines)-1]
-    remainingLines = outputLines[max(matchedLines):]
-    return preceedingLines, remainingLines, varState
+    minMatchLineNo = min(matchedLines)
+    maxMatchLineNo = max(matchedLines)
+    preceedingLines = outputLines[:minMatchLineNo - startLineNo]
+    remainingLines = outputLines[maxMatchLineNo - startLineNo + 1:]
+    return preceedingLines, remainingLines, maxMatchLineNo + 1, varState
 
   # Makes sure that the given check lines do not match any of the given output
   # lines. Variable state does not change.
-  def __matchNotLines(self, checkLines, outputLines, varState):
+  def __matchNotLines(self, checkLines, outputLines, startLineNo, varState):
     for checkLine in checkLines:
       assert checkLine.variant == CheckLine.Variant.Not
-      matchLineNo, varState = self.__findFirstMatch(checkLine, outputLines, [], varState)
+      matchLineNo, varState = \
+        self.__findFirstMatch(checkLine, outputLines, startLineNo, [], varState)
       if varState is not None:
-        raise Exception("CHECK-NOT line " + str(checkLine) + " matches output")
+        Logger.testFailed("CHECK-NOT line \"" + checkLine.content + "\" matches output line " + \
+                          str(matchLineNo), self.fileName, checkLine.lineNo)
 
   # Matches the check lines in this group against an output group. It is
   # responsible for running the checks in the right order and scope, and
@@ -373,32 +453,42 @@ class CheckGroup(CommonEqualityMixin):
     varState = {}
     checkLines = self.lines
     outputLines = outputGroup.body
+    startLineNo = outputGroup.lineNo
 
     while checkLines:
       # Extract the next sequence of location-independent checks to be matched.
       notChecks, independentChecks, checkLines = self.__nextIndependentChecks(checkLines)
+
       # Match the independent checks.
-      notOutput, outputLines, newVarState = \
-          self.__matchIndependentChecks(independentChecks, outputLines, varState)
+      notOutput, outputLines, newStartLineNo, newVarState = \
+        self.__matchIndependentChecks(independentChecks, outputLines, startLineNo, varState)
+
       # Run the Not checks against the output lines which lie between the last
       # two independent groups or the bounds of the output.
-      self.__matchNotLines(notChecks, notOutput, varState)
+      self.__matchNotLines(notChecks, notOutput, startLineNo, varState)
+
       # Update variable state.
+      startLineNo = newStartLineNo
       varState = newVarState
 
 class OutputGroup(CommonEqualityMixin):
   """Represents a named part of the test output against which a check group of
      the same name is to be matched."""
 
-  def __init__(self, name, body):
-    if name:
-      self.name = name
-    else:
-      raise Exception("Output group does not have a name")
-    if body:
-      self.body = body
-    else:
-      raise Exception("Output group " + self.name + " does not have a body")
+  def __init__(self, name, body, fileName=None, lineNo=-1):
+    if not name:
+      Logger.fail("Output group does not have a name", fileName, lineNo)
+    if not body:
+      Logger.fail("Output group does not have a body", fileName, lineNo)
+
+    self.name = name
+    self.body = body
+    self.lineNo = lineNo
+
+  def __eq__(self, other):
+    return (isinstance(other, self.__class__) and
+            self.name == other.name and
+            self.body == other.body)
 
 
 class FileSplitMixin(object):
@@ -421,20 +511,24 @@ class FileSplitMixin(object):
       # entirely) and specify whether it starts a new group.
       processedLine, newGroupName = self._processLine(line, lineNo)
       if newGroupName is not None:
-        currentGroup = (newGroupName, [])
+        currentGroup = (newGroupName, [], lineNo)
         allGroups.append(currentGroup)
       if processedLine is not None:
-        currentGroup[1].append(processedLine)
+        if currentGroup is not None:
+          currentGroup[1].append(processedLine)
+        else:
+          self._exceptionLineOutsideGroup(line, lineNo)
 
     # Finally, take the generated line groups and let the child class process
     # each one before storing the final outcome.
-    return list(map(lambda group: self._processGroup(group[0], group[1]), allGroups))
+    return list(map(lambda group: self._processGroup(group[0], group[1], group[2]), allGroups))
 
 
 class CheckFile(FileSplitMixin):
   """Collection of check groups extracted from the input test file."""
 
-  def __init__(self, prefix, checkStream):
+  def __init__(self, prefix, checkStream, fileName=None):
+    self.fileName = fileName
     self.prefix = prefix
     self.groups = self._parseStream(checkStream)
 
@@ -466,46 +560,40 @@ class CheckFile(FileSplitMixin):
     # Lines starting only with 'CHECK' are matched in order.
     plainLine = self._extractLine(self.prefix, line)
     if plainLine is not None:
-      return (plainLine, CheckLine.Variant.InOrder), None
+      return (plainLine, CheckLine.Variant.InOrder, lineNo), None
 
     # 'CHECK-DAG' lines are no-order assertions.
     dagLine = self._extractLine(self.prefix + "-DAG", line)
     if dagLine is not None:
-      return (dagLine, CheckLine.Variant.DAG), None
+      return (dagLine, CheckLine.Variant.DAG, lineNo), None
 
     # 'CHECK-NOT' lines are no-order negative assertions.
     notLine = self._extractLine(self.prefix + "-NOT", line)
     if notLine is not None:
-      return (notLine, CheckLine.Variant.Not), None
+      return (notLine, CheckLine.Variant.Not, lineNo), None
 
     # Other lines are ignored.
     return None, None
 
   def _exceptionLineOutsideGroup(self, line, lineNo):
-    raise Exception("Check file line lies outside a group (line " + str(lineNo) + ")")
+    Logger.fail("Check line not inside a group", self.fileName, lineNo)
 
-  def _processGroup(self, name, lines):
-    checkLines = list(map(lambda line: CheckLine(line[0], line[1]), lines))
-    return CheckGroup(name, checkLines)
+  def _processGroup(self, name, lines, lineNo):
+    checkLines = list(map(lambda line: CheckLine(line[0], line[1], self.fileName, line[2]), lines))
+    return CheckGroup(name, checkLines, self.fileName, lineNo)
 
-  def match(self, outputFile, printInfo=False):
+  def match(self, outputFile):
     for checkGroup in self.groups:
       # TODO: Currently does not handle multiple occurrences of the same group
       # name, e.g. when a pass is run multiple times. It will always try to
       # match a check group against the first output group of the same name.
       outputGroup = outputFile.findGroup(checkGroup.name)
       if outputGroup is None:
-        raise Exception("Group " + checkGroup.name + " not found in the output")
-      if printInfo:
-        print("TEST " + checkGroup.name + "... ", end="", flush=True)
-      try:
-        checkGroup.match(outputGroup)
-        if printInfo:
-          print("PASSED")
-      except Exception as e:
-        if printInfo:
-          print("FAILED!")
-        raise e
+        Logger.fail("Group \"" + checkGroup.name + "\" not found in the output",
+                    self.fileName, checkGroup.lineNo)
+      Logger.startTest(checkGroup.name)
+      checkGroup.match(outputGroup)
+      Logger.testPassed()
 
 
 class OutputFile(FileSplitMixin):
@@ -522,7 +610,9 @@ class OutputFile(FileSplitMixin):
   class ParsingState:
     OutsideBlock, InsideCompilationBlock, StartingCfgBlock, InsideCfgBlock = range(4)
 
-  def __init__(self, outputStream):
+  def __init__(self, outputStream, fileName=None):
+    self.fileName = fileName
+
     # Initialize the state machine
     self.lastMethodName = None
     self.state = OutputFile.ParsingState.OutsideBlock
@@ -538,7 +628,7 @@ class OutputFile(FileSplitMixin):
         self.state = OutputFile.ParsingState.InsideCfgBlock
         return (None, self.lastMethodName + " " + line.split("\"")[1])
       else:
-        raise Exception("Expected group name in output file (line " + str(lineNo) + ")")
+        Logger.fail("Expected output group name", self.fileName, lineNo)
 
     elif self.state == OutputFile.ParsingState.InsideCfgBlock:
       if line == "end_cfg":
@@ -549,29 +639,32 @@ class OutputFile(FileSplitMixin):
 
     elif self.state == OutputFile.ParsingState.InsideCompilationBlock:
       # Search for the method's name. Format: method "<name>"
-      if re.match("method\s+\"[^\"]+\"", line):
-        self.lastMethodName = line.split("\"")[1]
+      if re.match("method\s+\"[^\"]*\"", line):
+        methodName = line.split("\"")[1].strip()
+        if not methodName:
+          Logger.fail("Empty method name in output", self.fileName, lineNo)
+        self.lastMethodName = methodName
       elif line == "end_compilation":
         self.state = OutputFile.ParsingState.OutsideBlock
       return (None, None)
 
-    else:  # self.state == OutputFile.ParsingState.OutsideBlock:
+    else:
+      assert self.state == OutputFile.ParsingState.OutsideBlock
       if line == "begin_cfg":
         # The line starts a new group but we'll wait until the next line from
         # which we can extract the name of the pass.
         if self.lastMethodName is None:
-          raise Exception("Output contains a pass without a method header" +
-                          " (line " + str(lineNo) + ")")
+          Logger.fail("Expected method header", self.fileName, lineNo)
         self.state = OutputFile.ParsingState.StartingCfgBlock
         return (None, None)
       elif line == "begin_compilation":
         self.state = OutputFile.ParsingState.InsideCompilationBlock
         return (None, None)
       else:
-        raise Exception("Output line lies outside a group (line " + str(lineNo) + ")")
+        Logger.fail("Output line not inside a group", self.fileName, lineNo)
 
-  def _processGroup(self, name, lines):
-    return OutputGroup(name, lines)
+  def _processGroup(self, name, lines, lineNo):
+    return OutputGroup(name, lines, self.fileName, lineNo + 1)
 
   def findGroup(self, name):
     for group in self.groups:
@@ -631,22 +724,30 @@ def CompileTest(inputFile, tempFolder):
 def ListGroups(outputFilename):
   outputFile = OutputFile(open(outputFilename, "r"))
   for group in outputFile.groups:
-    print(group.name)
+    Logger.log(group.name)
 
 
 def DumpGroup(outputFilename, groupName):
   outputFile = OutputFile(open(outputFilename, "r"))
   group = outputFile.findGroup(groupName)
   if group:
-    print("\n".join(group.body))
+    lineNo = group.lineNo
+    maxLineNo = lineNo + len(group.body)
+    lenLineNo = len(str(maxLineNo)) + 2
+    for line in group.body:
+      Logger.log((str(lineNo) + ":").ljust(lenLineNo) + line)
+      lineNo += 1
   else:
-    raise Exception("Check group " + groupName + " not found in the output")
+    Logger.fail("Group \"" + groupName + "\" not found in the output")
 
 
 def RunChecks(checkPrefix, checkFilename, outputFilename):
-  checkFile = CheckFile(checkPrefix, open(checkFilename, "r"))
-  outputFile = OutputFile(open(outputFilename, "r"))
-  checkFile.match(outputFile, True)
+  checkBaseName = os.path.basename(checkFilename)
+  outputBaseName = os.path.splitext(checkBaseName)[0] + ".cfg"
+
+  checkFile = CheckFile(checkPrefix, open(checkFilename, "r"), checkBaseName)
+  outputFile = OutputFile(open(outputFilename, "r"), outputBaseName)
+  checkFile.match(outputFile)
 
 
 if __name__ == "__main__":

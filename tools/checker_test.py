@@ -21,6 +21,11 @@ import checker
 import io
 import unittest
 
+# The parent type of exception expected to be thrown by Checker during tests.
+# It must be specific enough to not cover exceptions thrown due to actual flaws
+# in Checker..
+CheckerException = SystemExit
+
 
 class TestCheckFile_PrefixExtraction(unittest.TestCase):
   def __tryParse(self, string):
@@ -65,7 +70,7 @@ class TestCheckLine_Parse(unittest.TestCase):
     self.assertEqual(expected, self.__getRegex(self.__tryParse(string)))
 
   def __tryParseNot(self, string):
-    return checker.CheckLine(string, checker.CheckLine.Variant.UnorderedNot)
+    return checker.CheckLine(string, checker.CheckLine.Variant.Not)
 
   def __parsesPattern(self, string, pattern):
     line = self.__tryParse(string)
@@ -167,7 +172,7 @@ class TestCheckLine_Parse(unittest.TestCase):
     self.__parsesTo("[[ABC:abc]][[DEF:def]]", "(abc)(def)")
 
   def test_NoVarDefsInNotChecks(self):
-    with self.assertRaises(Exception):
+    with self.assertRaises(CheckerException):
       self.__tryParseNot("[[ABC:abc]]")
 
 class TestCheckLine_Match(unittest.TestCase):
@@ -203,7 +208,7 @@ class TestCheckLine_Match(unittest.TestCase):
     self.__matchSingle("foo[[X]]bar", "fooBbar", {"X": "B"})
     self.__notMatchSingle("foo[[X]]bar", "foobar", {"X": "A"})
     self.__notMatchSingle("foo[[X]]bar", "foo bar", {"X": "A"})
-    with self.assertRaises(Exception):
+    with self.assertRaises(CheckerException):
       self.__matchSingle("foo[[X]]bar", "foobar", {})
 
   def test_VariableDefinition(self):
@@ -221,7 +226,7 @@ class TestCheckLine_Match(unittest.TestCase):
     self.__notMatchSingle("foo[[X:A|B]]bar[[X]]baz", "fooAbarBbaz")
 
   def test_NoVariableRedefinition(self):
-    with self.assertRaises(Exception):
+    with self.assertRaises(CheckerException):
       self.__matchSingle("[[X:...]][[X]][[X:...]][[X]]", "foofoobarbar")
 
   def test_EnvNotChangedOnPartialMatch(self):
@@ -255,7 +260,7 @@ class TestCheckGroup_Match(unittest.TestCase):
     return checkGroup.match(outputGroup)
 
   def __notMatchMulti(self, checkString, outputString):
-    with self.assertRaises(Exception):
+    with self.assertRaises(CheckerException):
       self.__matchMulti(checkString, outputString)
 
   def test_TextAndPattern(self):
@@ -448,4 +453,5 @@ class TestCheckFile_Parse(unittest.TestCase):
                                                          ("def", CheckVariant.DAG) ])) ])
 
 if __name__ == '__main__':
+  checker.Logger.SilentMode = True
   unittest.main()
