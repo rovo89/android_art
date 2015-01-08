@@ -134,6 +134,10 @@ static void VMRuntime_clearGrowthLimit(JNIEnv*, jobject) {
   Runtime::Current()->GetHeap()->ClearGrowthLimit();
 }
 
+static void VMRuntime_clampGrowthLimit(JNIEnv*, jobject) {
+  Runtime::Current()->GetHeap()->ClampGrowthLimit();
+}
+
 static jboolean VMRuntime_isDebuggerActive(JNIEnv*, jobject) {
   return Dbg::IsDebuggerActive();
 }
@@ -577,6 +581,7 @@ static jstring VMRuntime_getCurrentInstructionSet(JNIEnv* env, jclass) {
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMRuntime, addressOf, "!(Ljava/lang/Object;)J"),
   NATIVE_METHOD(VMRuntime, bootClassPath, "()Ljava/lang/String;"),
+  NATIVE_METHOD(VMRuntime, clampGrowthLimit, "()V"),
   NATIVE_METHOD(VMRuntime, classPath, "()Ljava/lang/String;"),
   NATIVE_METHOD(VMRuntime, clearGrowthLimit, "()V"),
   NATIVE_METHOD(VMRuntime, concurrentGC, "()V"),
