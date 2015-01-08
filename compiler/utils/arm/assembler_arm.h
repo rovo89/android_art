@@ -534,6 +534,13 @@ class ArmAssembler : public Assembler {
 
   // Load and Store. May clobber IP.
   virtual void LoadImmediate(Register rd, int32_t value, Condition cond = AL) = 0;
+  void LoadSImmediate(SRegister sd, float value, Condition cond = AL) {
+    if (!vmovs(sd, value, cond)) {
+      LoadImmediate(IP, bit_cast<int32_t, float>(value), cond);
+      vmovsr(sd, IP, cond);
+    }
+  }
+
   virtual void MarkExceptionHandler(Label* label) = 0;
   virtual void LoadFromOffset(LoadOperandType type,
                               Register reg,
