@@ -342,6 +342,10 @@ class TestCheckGroup_Match(unittest.TestCase):
     self.__notMatchMulti([("foo", CheckVariant.Not)],
                          """abc foo
                             def""")
+    self.__notMatchMulti([("foo", CheckVariant.Not),
+                          ("bar", CheckVariant.Not)],
+                         """abc
+                            def bar""")
 
   def test_LineOnlyMatchesOnce(self):
     self.__matchMulti([("foo", CheckVariant.DAG),
