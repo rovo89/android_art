@@ -194,6 +194,19 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       }
       output_ << "]";
     }
+    if (instruction->HasEnvironment()) {
+      HEnvironment* env = instruction->GetEnvironment();
+      output_ << " (env: [ ";
+      for (size_t i = 0, e = env->Size(); i < e; ++i) {
+        HInstruction* insn = env->GetInstructionAt(i);
+        if (insn != nullptr) {
+          output_ << GetTypeId(insn->GetType()) << insn->GetId() << " ";
+        } else {
+          output_ << " _ ";
+        }
+      }
+      output_ << "])";
+    }
     if (pass_name_ == kLivenessPassName
         && is_after_pass_
         && instruction->GetLifetimePosition() != kNoLifetime) {
