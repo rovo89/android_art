@@ -302,7 +302,7 @@ class StubTest : public CommonRuntimeTest {
 #if defined(__i386__)
     // TODO: Set the thread?
     __asm__ __volatile__(
-        "movd %[hidden], %%xmm0\n\t"
+        "movd %[hidden], %%xmm7\n\t"
         "subl $12, %%esp\n\t"       // Align stack.
         "pushl %[referrer]\n\t"     // Store referrer
         "call *%%edi\n\t"           // Call the stub
