@@ -60,6 +60,10 @@
 
 namespace art {
 
+#if defined(__linux__)
+static constexpr bool kUseAddr2line = !kIsTargetBuild;
+#endif
+
 pid_t GetTid() {
 #if defined(__APPLE__)
   uint64_t owner;
@@ -1117,6 +1121,66 @@ std::string GetSchedulerGroupName(pid_t tid) {
   return "";
 }
 
+#if defined(__linux__)
+static bool RunCommand(std::string cmd, std::ostream* os, const char* prefix) {
+  FILE* stream = popen(cmd.c_str(), "r");
+  if (stream) {
+    if (os != nullptr) {
+      bool odd_line = true;               // We indent them differently.
+      constexpr size_t kMaxBuffer = 128;  // Relatively small buffer. Should be OK as we're on an
+                                          // alt stack, but just to be sure...
+      char buffer[kMaxBuffer];
+      while (!feof(stream)) {
+        if (fgets(buffer, kMaxBuffer, stream) != nullptr) {
+          // Split on newlines.
+          char* tmp = buffer;
+          for (;;) {
+            char* new_line = strchr(tmp, '\n');
+            if (new_line == nullptr) {
+              // Print the rest.
+              if (*tmp != 0) {
+                if (prefix != nullptr) {
+                  *os << prefix;
+                }
+                if (!odd_line) {
+                  *os << " ";
+                }
+                *os << tmp;
+              }
+              break;
+            }
+            if (prefix != nullptr) {
+              *os << prefix;
+            }
+            *os << "  ";
+            if (!odd_line) {
+              *os << " ";
+            }
+            char saved = *(new_line + 1);
+            *(new_line + 1) = 0;
+            *os << tmp;
+            *(new_line + 1) = saved;
+            tmp = new_line + 1;
+            odd_line = !odd_line;
+          }
+        }
+      }
+    }
+    pclose(stream);
+    return true;
+  } else {
+    return false;
+  }
+}
+
+static void Addr2line(const std::string& map_src, uintptr_t offset, std::ostream& os,
+                      const char* prefix) {
+  std::string cmdline(StringPrintf("addr2line --functions --inlines --demangle -e %s %zx",
+                                   map_src.c_str(), offset));
+  RunCommand(cmdline.c_str(), &os, prefix);
+}
+#endif
+
 void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     mirror::ArtMethod* current_method, void* ucontext_ptr) {
 #if __linux__
@@ -1142,6 +1206,16 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     return;
   }
 
+  // Check whether we have and should use addr2line.
+  bool use_addr2line;
+  if (kUseAddr2line) {
+    // Try to run it to see whether we have it. Push an argument so that it doesn't assume a.out
+    // and print to stderr.
+    use_addr2line = RunCommand("addr2line -h", nullptr, nullptr);
+  } else {
+    use_addr2line = false;
+  }
+
   for (Backtrace::const_iterator it = backtrace->begin();
        it != backtrace->end(); ++it) {
     // We produce output like this:
@@ -1153,6 +1227,7 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     // after the <RELATIVE_ADDR>. There can be any prefix data before the
     // #XX. <RELATIVE_ADDR> has to be a hex number but with no 0x prefix.
     os << prefix << StringPrintf("#%02zu pc ", it->num);
+    bool try_addr2line = false;
     if (!it->map) {
       os << StringPrintf("%08" PRIxPTR "  ???", it->pc);
     } else {
@@ -1163,6 +1238,7 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
         if (it->func_offset != 0) {
           os << "+" << it->func_offset;
         }
+        try_addr2line = true;
       } else if (current_method != nullptr &&
                  Locks::mutator_lock_->IsSharedHeld(Thread::Current()) &&
                  current_method->PcIsWithinQuickCode(it->pc)) {
@@ -1175,6 +1251,9 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
       os << ")";
     }
     os << "\n";
+    if (try_addr2line && use_addr2line) {
+      Addr2line(it->map->name, it->pc - it->map->start, os, prefix);
+    }
   }
 #else
   UNUSED(os, tid, prefix, current_method, ucontext_ptr);
