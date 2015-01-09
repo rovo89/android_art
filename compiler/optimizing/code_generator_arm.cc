@@ -2596,7 +2596,8 @@ void InstructionCodeGeneratorARM::GenerateWideAtomicLoad(Register addr,
                                                          Register out_hi) {
   if (offset != 0) {
     __ LoadImmediate(out_lo, offset);
-    __ add(addr, addr, ShifterOperand(out_lo));
+    __ add(IP, addr, ShifterOperand(out_lo));
+    addr = IP;
   }
   __ ldrexd(out_lo, out_hi, addr);
 }
@@ -2610,7 +2611,8 @@ void InstructionCodeGeneratorARM::GenerateWideAtomicStore(Register addr,
   Label fail;
   if (offset != 0) {
     __ LoadImmediate(temp1, offset);
-    __ add(addr, addr, ShifterOperand(temp1));
+    __ add(IP, addr, ShifterOperand(temp1));
+    addr = IP;
   }
   __ Bind(&fail);
   // We need a load followed by store. (The address used in a STREX instruction must
