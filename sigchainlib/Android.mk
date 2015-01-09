@@ -41,5 +41,8 @@ LOCAL_SRC_FILES := sigchain.cc
 LOCAL_MODULE:= libsigchain
 LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
 LOCAL_LDLIBS = -ldl
+ifeq ($(strip $(HOST_OS)),darwin)
+LOCAL_LDFLAGS += -Wl,-lstdc++
+endif
 LOCAL_MULTILIB := both
 include $(BUILD_HOST_SHARED_LIBRARY)
