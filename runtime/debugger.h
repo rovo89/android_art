@@ -647,6 +647,8 @@ class Dbg {
   static void SetJdwpLocation(JDWP::JdwpLocation* location, mirror::ArtMethod* m, uint32_t dex_pc)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static JDWP::JdwpState* GetJdwpState();
+
  private:
   static JDWP::JdwpError GetLocalValue(const StackVisitor& visitor,
                                        ScopedObjectAccessUnchecked& soa, int slot,

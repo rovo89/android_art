@@ -48,6 +48,8 @@
 #include "gc/heap.h"
 #include "gc/space/space.h"
 #include "globals.h"
+#include "jdwp/jdwp.h"
+#include "jdwp/jdwp_priv.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
@@ -61,7 +63,7 @@ namespace art {
 
 namespace hprof {
 
-#define UNIQUE_ERROR -((((uintptr_t)__func__) << 16 | __LINE__) & (0x7fffffff))
+static constexpr bool kDirectStream = true;
 
 #define HPROF_TIME 0
 #define HPROF_NULL_STACK_TRACE   0
@@ -170,6 +172,8 @@ enum HprofBasicType {
 typedef uint32_t HprofStringId;
 typedef uint32_t HprofClassObjectId;
 
+class Hprof;
+
 // Represents a top-level hprof record, whose serialized format is:
 // U1  TAG: denoting the type of the record
 // U4  TIME: number of microseconds since the time stamp in the header
@@ -177,7 +181,8 @@ typedef uint32_t HprofClassObjectId;
 // U1* BODY: as many bytes as specified in the above uint32_t field
 class HprofRecord {
  public:
-  HprofRecord() : alloc_length_(128), fp_(nullptr), tag_(0), time_(0), length_(0), dirty_(false) {
+  explicit HprofRecord(Hprof* hprof) : alloc_length_(128), fp_(nullptr), tag_(0), time_(0),
+      length_(0), dirty_(false), hprof_(hprof) {
     body_ = reinterpret_cast<unsigned char*>(malloc(alloc_length_));
   }
 
@@ -185,161 +190,72 @@ class HprofRecord {
     free(body_);
   }
 
-  int StartNewRecord(FILE* fp, uint8_t tag, uint32_t time) {
-    int rc = Flush();
-    if (rc != 0) {
-      return rc;
-    }
-
+  // Returns how many characters were in the buffer (or written).
+  size_t StartNewRecord(FILE* fp, uint8_t tag, uint32_t time) WARN_UNUSED {
+    const size_t ret = Flush();
     fp_ = fp;
     tag_ = tag;
     time_ = time;
     length_ = 0;
     dirty_ = true;
-    return 0;
+    return ret;
   }
 
-  int Flush() {
-    if (dirty_) {
-      unsigned char headBuf[sizeof(uint8_t) + 2 * sizeof(uint32_t)];
+  // Returns how many characters were in the buffer (or written).
+  size_t Flush() WARN_UNUSED;
 
-      headBuf[0] = tag_;
-      U4_TO_BUF_BE(headBuf, 1, time_);
-      U4_TO_BUF_BE(headBuf, 5, length_);
+  void AddU1(uint8_t value);
 
-      int nb = fwrite(headBuf, 1, sizeof(headBuf), fp_);
-      if (nb != sizeof(headBuf)) {
-        return UNIQUE_ERROR;
-      }
-      nb = fwrite(body_, 1, length_, fp_);
-      if (nb != static_cast<int>(length_)) {
-        return UNIQUE_ERROR;
-      }
-
-      dirty_ = false;
-    }
-    // TODO if we used less than half (or whatever) of allocLen, shrink the buffer.
-    return 0;
+  void AddU2(uint16_t value) {
+    AddU2List(&value, 1);
   }
 
-  int AddU1(uint8_t value) {
-    int err = GuaranteeRecordAppend(1);
-    if (UNLIKELY(err != 0)) {
-      return err;
-    }
-
-    body_[length_++] = value;
-    return 0;
+  void AddU4(uint32_t value) {
+    AddU4List(&value, 1);
   }
 
-  int AddU2(uint16_t value) {
-    return AddU2List(&value, 1);
+  void AddU8(uint64_t value) {
+    AddU8List(&value, 1);
   }
 
-  int AddU4(uint32_t value) {
-    return AddU4List(&value, 1);
-  }
-
-  int AddU8(uint64_t value) {
-    return AddU8List(&value, 1);
-  }
-
-  int AddObjectId(const mirror::Object* value) {
-    return AddU4(PointerToLowMemUInt32(value));
+  void AddObjectId(const mirror::Object* value) {
+    AddU4(PointerToLowMemUInt32(value));
   }
 
   // The ID for the synthetic object generated to account for class static overhead.
-  int AddClassStaticsId(const mirror::Class* value) {
-    return AddU4(1 | PointerToLowMemUInt32(value));
+  void AddClassStaticsId(const mirror::Class* value) {
+    AddU4(1 | PointerToLowMemUInt32(value));
   }
 
-  int AddJniGlobalRefId(jobject value) {
-    return AddU4(PointerToLowMemUInt32(value));
+  void AddJniGlobalRefId(jobject value) {
+    AddU4(PointerToLowMemUInt32(value));
   }
 
-  int AddClassId(HprofClassObjectId value) {
-    return AddU4(value);
+  void AddClassId(HprofClassObjectId value) {
+    AddU4(value);
   }
 
-  int AddStringId(HprofStringId value) {
-    return AddU4(value);
+  void AddStringId(HprofStringId value) {
+    AddU4(value);
   }
 
-  int AddU1List(const uint8_t* values, size_t numValues) {
-    int err = GuaranteeRecordAppend(numValues);
-    if (UNLIKELY(err != 0)) {
-      return err;
-    }
+  void AddU1List(const uint8_t* values, size_t numValues);
+  void AddU2List(const uint16_t* values, size_t numValues);
+  void AddU4List(const uint32_t* values, size_t numValues);
+  void UpdateU4(size_t offset, uint32_t new_value);
+  void AddU8List(const uint64_t* values, size_t numValues);
 
-    memcpy(body_ + length_, values, numValues);
-    length_ += numValues;
-    return 0;
-  }
-
-  int AddU2List(const uint16_t* values, size_t numValues) {
-    int err = GuaranteeRecordAppend(numValues * 2);
-    if (UNLIKELY(err != 0)) {
-      return err;
-    }
-
-    unsigned char* insert = body_ + length_;
-    for (size_t i = 0; i < numValues; ++i) {
-      U2_TO_BUF_BE(insert, 0, *values++);
-      insert += sizeof(*values);
-    }
-    length_ += numValues * 2;
-    return 0;
-  }
-
-  int AddU4List(const uint32_t* values, size_t numValues) {
-    int err = GuaranteeRecordAppend(numValues * 4);
-    if (UNLIKELY(err != 0)) {
-      return err;
-    }
-
-    unsigned char* insert = body_ + length_;
-    for (size_t i = 0; i < numValues; ++i) {
-      U4_TO_BUF_BE(insert, 0, *values++);
-      insert += sizeof(*values);
-    }
-    length_ += numValues * 4;
-    return 0;
-  }
-
-  void UpdateU4(size_t offset, uint32_t new_value) {
-    U4_TO_BUF_BE(body_, offset, new_value);
-  }
-
-  int AddU8List(const uint64_t* values, size_t numValues) {
-    int err = GuaranteeRecordAppend(numValues * 8);
-    if (err != 0) {
-      return err;
-    }
-
-    unsigned char* insert = body_ + length_;
-    for (size_t i = 0; i < numValues; ++i) {
-      U8_TO_BUF_BE(insert, 0, *values++);
-      insert += sizeof(*values);
-    }
-    length_ += numValues * 8;
-    return 0;
-  }
-
-  int AddIdList(mirror::ObjectArray<mirror::Object>* values)
+  void AddIdList(mirror::ObjectArray<mirror::Object>* values)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    int32_t length = values->GetLength();
+    const int32_t length = values->GetLength();
     for (int32_t i = 0; i < length; ++i) {
-      int err = AddObjectId(values->GetWithoutChecks(i));
-      if (UNLIKELY(err != 0)) {
-        return err;
-      }
+      AddObjectId(values->GetWithoutChecks(i));
     }
-    return 0;
   }
 
-  int AddUtf8String(const char* str) {
+  void AddUtf8String(const char* str) {
     // The terminating NUL character is NOT written.
-    return AddU1List((const uint8_t*)str, strlen(str));
+    AddU1List((const uint8_t*)str, strlen(str));
   }
 
   size_t Size() const {
@@ -347,25 +263,15 @@ class HprofRecord {
   }
 
  private:
-  int GuaranteeRecordAppend(size_t nmore) {
-    size_t minSize = length_ + nmore;
-    if (minSize > alloc_length_) {
-      size_t newAllocLen = alloc_length_ * 2;
-      if (newAllocLen < minSize) {
-        newAllocLen = alloc_length_ + nmore + nmore/2;
-      }
-      unsigned char* newBody = (unsigned char*)realloc(body_, newAllocLen);
-      if (newBody != NULL) {
-        body_ = newBody;
-        alloc_length_ = newAllocLen;
-      } else {
-        // TODO: set an error flag so future ops will fail
-        return UNIQUE_ERROR;
-      }
+  void GuaranteeRecordAppend(size_t nmore) {
+    const size_t min_size = length_ + nmore;
+    if (min_size > alloc_length_) {
+      const size_t new_alloc_len = std::max(alloc_length_ * 2, min_size);
+      body_ = (unsigned char*)realloc(body_, new_alloc_len);
+      CHECK(body_ != nullptr);
+      alloc_length_ = new_alloc_len;
     }
-
     CHECK_LE(length_ + nmore, alloc_length_);
-    return 0;
   }
 
   size_t alloc_length_;
@@ -376,6 +282,7 @@ class HprofRecord {
   uint32_t time_;
   size_t length_;
   bool dirty_;
+  Hprof* hprof_;
 
   DISALLOW_COPY_AND_ASSIGN(HprofRecord);
 };
@@ -387,57 +294,50 @@ class Hprof {
         fd_(fd),
         direct_to_ddms_(direct_to_ddms),
         start_ns_(NanoTime()),
-        current_record_(),
+        current_record_(this),
         gc_thread_serial_number_(0),
         gc_scan_state_(0),
         current_heap_(HPROF_HEAP_DEFAULT),
         objects_in_segment_(0),
-        header_fp_(NULL),
-        header_data_ptr_(NULL),
+        header_fp_(nullptr),
+        header_data_ptr_(nullptr),
         header_data_size_(0),
-        body_fp_(NULL),
-        body_data_ptr_(NULL),
+        body_fp_(nullptr),
+        body_data_ptr_(nullptr),
         body_data_size_(0),
+        net_state_(nullptr),
         next_string_id_(0x400000) {
     LOG(INFO) << "hprof: heap dump \"" << filename_ << "\" starting...";
-
-    header_fp_ = open_memstream(&header_data_ptr_, &header_data_size_);
-    if (header_fp_ == NULL) {
-      PLOG(FATAL) << "header open_memstream failed";
-    }
-
-    body_fp_ = open_memstream(&body_data_ptr_, &body_data_size_);
-    if (body_fp_ == NULL) {
-      PLOG(FATAL) << "body open_memstream failed";
-    }
   }
 
   ~Hprof() {
-    if (header_fp_ != NULL) {
+    if (header_fp_ != nullptr) {
       fclose(header_fp_);
     }
-    if (body_fp_ != NULL) {
+    if (body_fp_ != nullptr) {
       fclose(body_fp_);
     }
     free(header_data_ptr_);
     free(body_data_ptr_);
   }
 
-  void Dump()
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_) {
+  void ProcessBody() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    Runtime* runtime = Runtime::Current();
     // Walk the roots and the heap.
-    current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_SEGMENT, HPROF_TIME);
-    Runtime::Current()->VisitRoots(RootVisitor, this);
-    Thread* self = Thread::Current();
-    {
-      ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-      Runtime::Current()->GetHeap()->VisitObjects(VisitObjectCallback, this);
+    total_body_bytes_ += current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_SEGMENT,
+                                                        HPROF_TIME);
+    runtime->VisitRoots(RootVisitor, this);
+    runtime->GetHeap()->VisitObjects(VisitObjectCallback, this);
+    total_body_bytes_ += current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_END,
+                                                        HPROF_TIME);
+    total_body_bytes_ += current_record_.Flush();
+    if (allow_writing_) {
+      fflush(body_fp_);
     }
-    current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_END, HPROF_TIME);
-    current_record_.Flush();
-    fflush(body_fp_);
+  }
 
+  void ProcessHeader() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Write the header.
     WriteFixedHeader();
     // Write the string and class tables, and any stack traces, to the header.
@@ -445,49 +345,112 @@ class Hprof {
     WriteStringTable();
     WriteClassTable();
     WriteStackTraces();
-    current_record_.Flush();
-    fflush(header_fp_);
+    total_header_bytes_ += current_record_.Flush();
+    if (allow_writing_) {
+      fflush(header_fp_);
+    }
+  }
+
+  void ProcessHeapStreaming(size_t data_len, uint32_t chunk_type)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    total_body_bytes_ = 0;
+    total_header_bytes_ = 0;
+    allow_writing_ = true;
+    CHECK(direct_to_ddms_);
+    JDWP::JdwpState* state = Dbg::GetJdwpState();
+    CHECK(state != nullptr);
+    net_state_ = state->netState;
+    CHECK(net_state_ != nullptr);
+    // Hold the socket lock for the whole tiem since we want this to be atomic.
+    MutexLock mu(Thread::Current(), *net_state_->GetSocketLock());
+    total_body_bytes_ = 0;
+    total_header_bytes_ = 0;
+    constexpr size_t kChunkHeaderSize = kJDWPHeaderLen + 8;
+    uint8_t chunk_header[kChunkHeaderSize] = { 0 };
+    state->SetupChunkHeader(chunk_type, data_len, kChunkHeaderSize, chunk_header);
+    Write(chunk_header, kChunkHeaderSize, nullptr);  // Send the header chunk to DDMS.
+    ProcessHeader();
+    ProcessBody();
+    CHECK_EQ(total_body_bytes_ + total_header_bytes_, data_len);
+    net_state_ = nullptr;
+  }
+  void ProcessHeap(bool allow_writing) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    allow_writing_ = allow_writing;
+    total_body_bytes_ = 0;
+    total_header_bytes_ = 0;
+    if (allow_writing) {
+      header_fp_ = open_memstream(&header_data_ptr_, &header_data_size_);
+      CHECK(header_fp_ != nullptr) << "header open_memstream failed";
+      body_fp_ = open_memstream(&body_data_ptr_, &body_data_size_);
+      CHECK(body_fp_ != nullptr) << "body open_memstream failed";
+    }
+    ProcessBody();
+    ProcessHeader();
+  }
+
+  void Dump() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_) {
+    {
+      ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+      // First pass to measure the size of the dump.
+      ProcessHeap(false);
+      const size_t header_bytes = total_header_bytes_;
+      const size_t body_bytes = total_body_bytes_;
+      if (direct_to_ddms_ && kDirectStream) {
+        ProcessHeapStreaming(header_bytes + body_bytes, CHUNK_TYPE("HPDS"));
+      } else {
+        ProcessHeap(true);
+        CHECK_EQ(header_data_size_, header_bytes);
+        CHECK_EQ(body_data_size_, body_bytes);
+      }
+      CHECK_EQ(total_header_bytes_, header_bytes);
+      CHECK_EQ(total_body_bytes_, body_bytes);
+    }
 
     bool okay = true;
-    if (direct_to_ddms_) {
-      // Send the data off to DDMS.
-      iovec iov[2];
-      iov[0].iov_base = header_data_ptr_;
-      iov[0].iov_len = header_data_size_;
-      iov[1].iov_base = body_data_ptr_;
-      iov[1].iov_len = body_data_size_;
-      Dbg::DdmSendChunkV(CHUNK_TYPE("HPDS"), iov, 2);
-    } else {
-      // Where exactly are we writing to?
-      int out_fd;
-      if (fd_ >= 0) {
-        out_fd = dup(fd_);
-        if (out_fd < 0) {
-          ThrowRuntimeException("Couldn't dump heap; dup(%d) failed: %s", fd_, strerror(errno));
-          return;
-        }
+    if (!kDirectStream) {
+      if (direct_to_ddms_) {
+        // Send the data off to DDMS.
+        iovec iov[2];
+        iov[0].iov_base = header_data_ptr_;
+        iov[0].iov_len = header_data_size_;
+        iov[1].iov_base = body_data_ptr_;
+        iov[1].iov_len = body_data_size_;
+        Dbg::DdmSendChunkV(CHUNK_TYPE("HPDS"), iov, 2);
       } else {
-        out_fd = open(filename_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
-        if (out_fd < 0) {
-          ThrowRuntimeException("Couldn't dump heap; open(\"%s\") failed: %s", filename_.c_str(),
-                                strerror(errno));
-          return;
+        // Where exactly are we writing to?
+        int out_fd;
+        if (fd_ >= 0) {
+          out_fd = dup(fd_);
+          if (out_fd < 0) {
+            ThrowRuntimeException("Couldn't dump heap; dup(%d) failed: %s", fd_, strerror(errno));
+            return;
+          }
+        } else {
+          out_fd = open(filename_.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
+          if (out_fd < 0) {
+            ThrowRuntimeException("Couldn't dump heap; open(\"%s\") failed: %s", filename_.c_str(),
+                                  strerror(errno));
+            return;
+          }
         }
-      }
 
-      std::unique_ptr<File> file(new File(out_fd, filename_, true));
-      okay = file->WriteFully(header_data_ptr_, header_data_size_) &&
-             file->WriteFully(body_data_ptr_, body_data_size_);
-      if (okay) {
-        okay = file->FlushCloseOrErase() == 0;
-      } else {
-        file->Erase();
-      }
-      if (!okay) {
-        std::string msg(StringPrintf("Couldn't dump heap; writing \"%s\" failed: %s",
-                                     filename_.c_str(), strerror(errno)));
-        ThrowRuntimeException("%s", msg.c_str());
-        LOG(ERROR) << msg;
+        std::unique_ptr<File> file(new File(out_fd, filename_, true));
+        okay = file->WriteFully(header_data_ptr_, header_data_size_) &&
+               file->WriteFully(body_data_ptr_, body_data_size_);
+        if (okay) {
+          okay = file->FlushCloseOrErase() == 0;
+        } else {
+          file->Erase();
+        }
+        if (!okay) {
+          std::string msg(StringPrintf("Couldn't dump heap; writing \"%s\" failed: %s",
+                                       filename_.c_str(), strerror(errno)));
+          ThrowRuntimeException("%s", msg.c_str());
+          LOG(ERROR) << msg;
+        }
       }
     }
 
@@ -495,9 +458,30 @@ class Hprof {
     if (okay) {
       uint64_t duration = NanoTime() - start_ns_;
       LOG(INFO) << "hprof: heap dump completed ("
-          << PrettySize(header_data_size_ + body_data_size_ + 1023)
+          << PrettySize(total_header_bytes_ + total_body_bytes_ + 1023)
           << ") in " << PrettyDuration(duration);
     }
+  }
+
+  bool AllowWriting() const {
+    return allow_writing_;
+  }
+
+  size_t Write(const void* ptr, size_t len, FILE* fp) {
+    if (allow_writing_) {
+      if (net_state_ != nullptr) {
+        CHECK(fp == nullptr);
+        std::vector<iovec> iov;
+        iov.push_back(iovec());
+        iov[0].iov_base = const_cast<void*>(ptr);
+        iov[0].iov_len = len;
+        net_state_->WriteBufferedPacketLocked(iov);
+      } else {
+        const size_t n = fwrite(ptr, 1, len, fp);
+        CHECK_EQ(n, len);
+      }
+    }
+    return len;
   }
 
  private:
@@ -511,8 +495,8 @@ class Hprof {
 
   static void VisitObjectCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(obj != NULL);
-    DCHECK(arg != NULL);
+    DCHECK(obj != nullptr);
+    DCHECK(arg != nullptr);
     reinterpret_cast<Hprof*>(arg)->DumpHeapObject(obj);
   }
 
@@ -521,21 +505,14 @@ class Hprof {
 
   int DumpHeapObject(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void Finish() {
-  }
-
-  int WriteClassTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void WriteClassTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     HprofRecord* rec = &current_record_;
     uint32_t nextSerialNumber = 1;
 
     for (mirror::Class* c : classes_) {
       CHECK(c != nullptr);
-
-      int err = current_record_.StartNewRecord(header_fp_, HPROF_TAG_LOAD_CLASS, HPROF_TIME);
-      if (UNLIKELY(err != 0)) {
-        return err;
-      }
-
+      total_header_bytes_ += current_record_.StartNewRecord(header_fp_, HPROF_TAG_LOAD_CLASS,
+                                                            HPROF_TIME);
       // LOAD CLASS format:
       // U4: class serial number (always > 0)
       // ID: class object ID. We use the address of the class object structure as its ID.
@@ -546,44 +523,31 @@ class Hprof {
       rec->AddU4(HPROF_NULL_STACK_TRACE);
       rec->AddStringId(LookupClassNameId(c));
     }
-
-    return 0;
   }
 
-  int WriteStringTable() {
+  void WriteStringTable() {
     HprofRecord* rec = &current_record_;
-
-    for (std::pair<std::string, HprofStringId> p : strings_) {
+    for (const std::pair<std::string, HprofStringId>& p : strings_) {
       const std::string& string = p.first;
-      size_t id = p.second;
+      const size_t id = p.second;
 
-      int err = current_record_.StartNewRecord(header_fp_, HPROF_TAG_STRING, HPROF_TIME);
-      if (err != 0) {
-        return err;
-      }
+      total_header_bytes_ += current_record_.StartNewRecord(header_fp_, HPROF_TAG_STRING,
+                                                            HPROF_TIME);
 
       // STRING format:
       // ID:  ID for this string
       // U1*: UTF8 characters for string (NOT NULL terminated)
       //      (the record format encodes the length)
-      err = rec->AddU4(id);
-      if (err != 0) {
-        return err;
-      }
-      err = rec->AddUtf8String(string.c_str());
-      if (err != 0) {
-        return err;
-      }
+      rec->AddU4(id);
+      rec->AddUtf8String(string.c_str());
     }
-
-    return 0;
   }
 
   void StartNewHeapDumpSegment() {
     // This flushes the old segment and starts a new one.
-    current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_SEGMENT, HPROF_TIME);
+    total_body_bytes_ += current_record_.StartNewRecord(body_fp_, HPROF_TAG_HEAP_DUMP_SEGMENT,
+                                                        HPROF_TIME);
     objects_in_segment_ = 0;
-
     // Starting a new HEAP_DUMP resets the heap to default.
     current_heap_ = HPROF_HEAP_DEFAULT;
   }
@@ -591,22 +555,14 @@ class Hprof {
   int MarkRootObject(const mirror::Object* obj, jobject jniObj);
 
   HprofClassObjectId LookupClassId(mirror::Class* c) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (c == nullptr) {
-      // c is the superclass of java.lang.Object or a primitive.
-      return 0;
-    }
-
-    {
+    if (c != nullptr) {
       auto result = classes_.insert(c);
       const mirror::Class* present = *result.first;
       CHECK_EQ(present, c);
+      // Make sure that we've assigned a string ID for this class' name
+      LookupClassNameId(c);
     }
-
-    // Make sure that we've assigned a string ID for this class' name
-    LookupClassNameId(c);
-
-    HprofClassObjectId result = PointerToLowMemUInt32(c);
-    return result;
+    return PointerToLowMemUInt32(c);
   }
 
   HprofStringId LookupStringId(mirror::String* string) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
@@ -633,41 +589,33 @@ class Hprof {
 
   void WriteFixedHeader() {
     char magic[] = "JAVA PROFILE 1.0.3";
-    unsigned char buf[4];
-
+    unsigned char buf[4] = { 0 };
     // Write the file header.
     // U1: NUL-terminated magic string.
-    fwrite(magic, 1, sizeof(magic), header_fp_);
-
+    total_header_bytes_ += Write(magic, sizeof(magic), header_fp_);
     // U4: size of identifiers.  We're using addresses as IDs and our heap references are stored
     // as uint32_t.
     // Note of warning: hprof-conv hard-codes the size of identifiers to 4.
     static_assert(sizeof(mirror::HeapReference<mirror::Object>) == sizeof(uint32_t),
                   "Unexpected HeapReference size");
     U4_TO_BUF_BE(buf, 0, sizeof(uint32_t));
-    fwrite(buf, 1, sizeof(uint32_t), header_fp_);
-
+    total_header_bytes_ += Write(buf, sizeof(uint32_t), header_fp_);
     // The current time, in milliseconds since 0:00 GMT, 1/1/70.
     timeval now;
-    uint64_t nowMs;
-    if (gettimeofday(&now, NULL) < 0) {
-      nowMs = 0;
-    } else {
-      nowMs = (uint64_t)now.tv_sec * 1000 + now.tv_usec / 1000;
-    }
-
+    const uint64_t nowMs = (gettimeofday(&now, NULL) < 0) ? 0 :
+        (uint64_t)now.tv_sec * 1000 + now.tv_usec / 1000;
     // U4: high word of the 64-bit time.
     U4_TO_BUF_BE(buf, 0, (uint32_t)(nowMs >> 32));
-    fwrite(buf, 1, sizeof(uint32_t), header_fp_);
-
+    total_header_bytes_ += Write(buf, sizeof(uint32_t), header_fp_);
     // U4: low word of the 64-bit time.
     U4_TO_BUF_BE(buf, 0, (uint32_t)(nowMs & 0xffffffffULL));
-    fwrite(buf, 1, sizeof(uint32_t), header_fp_);  // xxx fix the time
+    total_header_bytes_ += Write(buf, sizeof(uint32_t), header_fp_);  // xxx fix the time
   }
 
   void WriteStackTraces() {
     // Write a dummy stack trace record so the analysis tools don't freak out.
-    current_record_.StartNewRecord(header_fp_, HPROF_TAG_STACK_TRACE, HPROF_TIME);
+    total_header_bytes_ +=
+        current_record_.StartNewRecord(header_fp_, HPROF_TAG_STACK_TRACE, HPROF_TIME);
     current_record_.AddU4(HPROF_NULL_STACK_TRACE);
     current_record_.AddU4(HPROF_NULL_THREAD);
     current_record_.AddU4(0);    // no frames
@@ -679,6 +627,9 @@ class Hprof {
   std::string filename_;
   int fd_;
   bool direct_to_ddms_;
+
+  // Whether or not we are in the size calculating mode or writing mode.
+  bool allow_writing_;
 
   uint64_t start_ns_;
 
@@ -692,10 +643,14 @@ class Hprof {
   FILE* header_fp_;
   char* header_data_ptr_;
   size_t header_data_size_;
+  size_t total_header_bytes_;
 
   FILE* body_fp_;
   char* body_data_ptr_;
   size_t body_data_size_;
+  size_t total_body_bytes_;
+
+  JDWP::JdwpNetStateBase* net_state_;
 
   std::set<mirror::Class*> classes_;
   HprofStringId next_string_id_;
@@ -1103,6 +1058,78 @@ void DumpHeap(const char* filename, int fd, bool direct_to_ddms) {
   Runtime::Current()->GetThreadList()->ResumeAll();
 }
 
-}  // namespace hprof
+// Returns how many characters were in the buffer (or written).
+size_t HprofRecord::Flush() {
+  size_t chars = 0;
+  if (dirty_) {
+    unsigned char headBuf[sizeof(uint8_t) + 2 * sizeof(uint32_t)];
+    headBuf[0] = tag_;
+    U4_TO_BUF_BE(headBuf, 1, time_);
+    U4_TO_BUF_BE(headBuf, 5, length_);
+    chars += hprof_->Write(headBuf, sizeof(headBuf), fp_);
+    chars += hprof_->Write(body_, length_, fp_);
+    dirty_ = false;
+  }
+  return chars;
+}
 
+void HprofRecord::AddU1(uint8_t value) {
+  if (hprof_->AllowWriting()) {
+    GuaranteeRecordAppend(1);
+    body_[length_] = value;
+  }
+  ++length_;
+}
+
+void HprofRecord::AddU1List(const uint8_t* values, size_t numValues) {
+  if (hprof_->AllowWriting()) {
+    GuaranteeRecordAppend(numValues);
+    memcpy(body_ + length_, values, numValues);
+  }
+  length_ += numValues;
+}
+
+void HprofRecord::AddU2List(const uint16_t* values, size_t numValues) {
+  if (hprof_->AllowWriting()) {
+    GuaranteeRecordAppend(numValues * 2);
+    unsigned char* insert = body_ + length_;
+    for (size_t i = 0; i < numValues; ++i) {
+      U2_TO_BUF_BE(insert, 0, *values++);
+      insert += sizeof(*values);
+    }
+  }
+  length_ += numValues * 2;
+}
+
+void HprofRecord::AddU4List(const uint32_t* values, size_t numValues) {
+  if (hprof_->AllowWriting()) {
+    GuaranteeRecordAppend(numValues * 4);
+    unsigned char* insert = body_ + length_;
+    for (size_t i = 0; i < numValues; ++i) {
+      U4_TO_BUF_BE(insert, 0, *values++);
+      insert += sizeof(*values);
+    }
+  }
+  length_ += numValues * 4;
+}
+
+void HprofRecord::UpdateU4(size_t offset, uint32_t new_value) {
+  if (hprof_->AllowWriting()) {
+    U4_TO_BUF_BE(body_, offset, new_value);
+  }
+}
+
+void HprofRecord::AddU8List(const uint64_t* values, size_t numValues) {
+  if (hprof_->AllowWriting()) {
+    GuaranteeRecordAppend(numValues * 8);
+    unsigned char* insert = body_ + length_;
+    for (size_t i = 0; i < numValues; ++i) {
+      U8_TO_BUF_BE(insert, 0, *values++);
+      insert += sizeof(*values);
+    }
+  }
+  length_ += numValues * 8;
+}
+
+}  // namespace hprof
 }  // namespace art

@@ -1257,6 +1257,22 @@ void JdwpState::PostClassPrepare(mirror::Class* klass) {
 }
 
 /*
+ * Setup the header for a chunk of DDM data.
+ */
+void JdwpState::SetupChunkHeader(uint32_t type, size_t data_len, size_t header_size,
+                                 uint8_t* out_header) {
+  CHECK_EQ(header_size, static_cast<size_t>(kJDWPHeaderLen + 8));
+  /* form the header (JDWP plus DDMS) */
+  Set4BE(out_header, header_size + data_len);
+  Set4BE(out_header + 4, NextRequestSerial());
+  Set1(out_header + 8, 0);     /* flags */
+  Set1(out_header + 9, kJDWPDdmCmdSet);
+  Set1(out_header + 10, kJDWPDdmCmd);
+  Set4BE(out_header + 11, type);
+  Set4BE(out_header + 15, data_len);
+}
+
+/*
  * Send up a chunk of DDM data.
  *
  * While this takes the form of a JDWP "event", it doesn't interact with
@@ -1264,7 +1280,7 @@ void JdwpState::PostClassPrepare(mirror::Class* klass) {
  * the fun event token gymnastics.
  */
 void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
-  uint8_t header[kJDWPHeaderLen + 8];
+  uint8_t header[kJDWPHeaderLen + 8] = { 0 };
   size_t dataLen = 0;
 
   CHECK(iov != nullptr);
@@ -1282,14 +1298,7 @@ void JdwpState::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
     dataLen += iov[i].iov_len;
   }
 
-  /* form the header (JDWP plus DDMS) */
-  Set4BE(header, sizeof(header) + dataLen);
-  Set4BE(header + 4, NextRequestSerial());
-  Set1(header + 8, 0);     /* flags */
-  Set1(header + 9, kJDWPDdmCmdSet);
-  Set1(header + 10, kJDWPDdmCmd);
-  Set4BE(header + 11, type);
-  Set4BE(header + 15, dataLen);
+  SetupChunkHeader(type, dataLen, sizeof(header), header);
 
   wrapiov[0].iov_base = header;
   wrapiov[0].iov_len = sizeof(header);
