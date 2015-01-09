@@ -2978,6 +2978,20 @@ void Heap::GrowForUtilization(collector::GarbageCollector* collector_ran,
   }
 }
 
+void Heap::ClampGrowthLimit() {
+  capacity_ = growth_limit_;
+  for (const auto& space : continuous_spaces_) {
+    if (space->IsMallocSpace()) {
+      gc::space::MallocSpace* malloc_space = space->AsMallocSpace();
+      malloc_space->ClampGrowthLimit();
+    }
+  }
+  // This space isn't added for performance reasons.
+  if (main_space_backup_.get() != nullptr) {
+    main_space_backup_->ClampGrowthLimit();
+  }
+}
+
 void Heap::ClearGrowthLimit() {
   growth_limit_ = capacity_;
   for (const auto& space : continuous_spaces_) {
