@@ -69,7 +69,12 @@ static void* attach_current_thread_callback(void* arg ATTRIBUTE_UNUSED) {
     } else {
       ok = vms_buf[0]->AttachCurrentThreadAsDaemon(&env, nullptr);
     }
-    EXPECT_EQ(gSmallStack ? JNI_ERR : JNI_OK, ok);
+    // TODO: Find a way to test with exact SMALL_STACK value, for which we would bail. The pthreads
+    //       spec says that the stack size argument is a lower bound, and bionic currently gives us
+    //       a chunk more on arm64.
+    if (!gSmallStack) {
+      EXPECT_EQ(JNI_OK, ok);
+    }
     if (ok == JNI_OK) {
       ok = vms_buf[0]->DetachCurrentThread();
       EXPECT_EQ(JNI_OK, ok);
