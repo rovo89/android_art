@@ -30,6 +30,8 @@ enum AllocatorType {
   kAllocatorTypeDlMalloc,  // Use dlmalloc allocator, has entrypoints.
   kAllocatorTypeNonMoving,  // Special allocator for non moving objects, doesn't have entrypoints.
   kAllocatorTypeLOS,  // Large object space, also doesn't have entrypoints.
+  kAllocatorTypeRegion,
+  kAllocatorTypeRegionTLAB,
 };
 std::ostream& operator<<(std::ostream& os, const AllocatorType& rhs);
 

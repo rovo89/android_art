@@ -53,7 +53,7 @@ class ReferenceProcessor {
   // The slow path bool is contained in the reference class object, can only be set once
   // Only allow setting this with mutators suspended so that we can avoid using a lock in the
   // GetReferent fast path as an optimization.
-  void EnableSlowPath() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void EnableSlowPath() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Decode the referent, may block if references are being processed.
   mirror::Object* GetReferent(Thread* self, mirror::Reference* reference)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::reference_processor_lock_);

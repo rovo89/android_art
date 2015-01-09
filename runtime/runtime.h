@@ -43,6 +43,9 @@ namespace art {
 
 namespace gc {
   class Heap;
+  namespace collector {
+    class GarbageCollector;
+  }  // namespace collector
 }  // namespace gc
 namespace mirror {
   class ArtMethod;
@@ -58,6 +61,7 @@ namespace verifier {
   class MethodVerifier;
 }  // namespace verifier
 class ClassLinker;
+class Closure;
 class DexFile;
 class InternTable;
 class JavaVMExt;
@@ -270,8 +274,9 @@ class Runtime {
     return "2.1.0";
   }
 
-  void DisallowNewSystemWeaks() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void DisallowNewSystemWeaks() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AllowNewSystemWeaks() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void EnsureNewSystemWeaksDisallowed() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Visit all the roots. If only_dirty is true then non-dirty roots won't be visited. If
   // clean_dirty is true then dirty roots will be marked as non-dirty after visiting.
@@ -286,6 +291,17 @@ class Runtime {
   // Visit all of the non thread roots, we can do this with mutators unpaused.
   void VisitNonThreadRoots(RootCallback* visitor, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void VisitTransactionRoots(RootCallback* visitor, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Visit all of the thread roots.
+  void VisitThreadRoots(RootCallback* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Flip thread roots from from-space refs to to-space refs.
+  size_t FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
+                         gc::collector::GarbageCollector* collector)
+      LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Visit all other roots which must be done with mutators suspended.
   void VisitNonConcurrentRoots(RootCallback* visitor, void* arg)

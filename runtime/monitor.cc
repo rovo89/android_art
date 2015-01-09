@@ -1106,6 +1106,13 @@ void MonitorList::AllowNewMonitors() {
   monitor_add_condition_.Broadcast(self);
 }
 
+void MonitorList::EnsureNewMonitorsDisallowed() {
+  // Lock and unlock once to ensure that no threads are still in the
+  // middle of adding new monitors.
+  MutexLock mu(Thread::Current(), monitor_list_lock_);
+  CHECK(!allow_new_monitors_);
+}
+
 void MonitorList::Add(Monitor* m) {
   Thread* self = Thread::Current();
   MutexLock mu(self, monitor_list_lock_);

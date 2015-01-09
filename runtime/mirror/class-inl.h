@@ -650,7 +650,14 @@ inline uint32_t Class::ComputeClassSize(bool has_embedded_tables,
 template <bool kVisitClass, typename Visitor>
 inline void Class::VisitReferences(mirror::Class* klass, const Visitor& visitor) {
   VisitInstanceFieldsReferences<kVisitClass>(klass, visitor);
-  if (!IsTemp() && IsResolved()) {
+  // Right after a class is allocated, but not yet loaded
+  // (kStatusNotReady, see ClassLinkder::LoadClass()), GC may find it
+  // and scan it. IsTemp() may call Class::GetAccessFlags() but may
+  // fail in the DCHECK in Class::GetAccessFlags() because the class
+  // status is kStatusNotReady. To avoid it, rely on IsResolved()
+  // only. This is fine because a temp class never goes into the
+  // kStatusResolved state.
+  if (IsResolved()) {
     // Temp classes don't ever populate imt/vtable or static fields and they are not even
     // allocated with the right size for those. Also, unresolved classes don't have fields
     // linked yet.

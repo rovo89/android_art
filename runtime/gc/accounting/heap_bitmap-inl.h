@@ -105,6 +105,15 @@ inline ContinuousSpaceBitmap* HeapBitmap::GetContinuousSpaceBitmap(const mirror:
   return nullptr;
 }
 
+inline LargeObjectBitmap* HeapBitmap::GetLargeObjectBitmap(const mirror::Object* obj) const {
+  for (const auto& bitmap : large_object_bitmaps_) {
+    if (LIKELY(bitmap->HasAddress(obj))) {
+      return bitmap;
+    }
+  }
+  return nullptr;
+}
+
 }  // namespace accounting
 }  // namespace gc
 }  // namespace art

@@ -20,6 +20,7 @@
 #include "base/casts.h"
 #include "java_vm_ext.h"
 #include "jni_env_ext-inl.h"
+#include "mirror/art_field.h"
 #include "read_barrier.h"
 #include "thread-inl.h"
 #include "verify_object.h"

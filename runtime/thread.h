@@ -216,6 +216,9 @@ class Thread {
   bool RequestCheckpoint(Closure* function)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::thread_suspend_count_lock_);
 
+  void SetFlipFunction(Closure* function);
+  Closure* GetFlipFunction();
+
   // Called when thread detected that the thread_suspend_count_ was non-zero. Gives up share of
   // mutator_lock_ and waits until it is resumed and thread_suspend_count_ is zero.
   void FullSuspendCheck()
@@ -781,6 +784,12 @@ class Thread {
   mirror::Object* AllocTlab(size_t bytes);
   void SetTlab(uint8_t* start, uint8_t* end);
   bool HasTlab() const;
+  uint8_t* GetTlabStart() {
+    return tlsPtr_.thread_local_start;
+  }
+  uint8_t* GetTlabPos() {
+    return tlsPtr_.thread_local_pos;
+  }
 
   // Remove the suspend trigger for this thread by making the suspend_trigger_ TLS value
   // equal to a valid pointer.
@@ -846,6 +855,10 @@ class Thread {
 
   jmp_buf* GetNestedSignalState() {
     return tlsPtr_.nested_signal_state;
+  }
+
+  bool IsSuspendedAtSuspendCheck() const {
+    return tls32_.suspended_at_suspend_check;
   }
 
  private:
@@ -953,7 +966,7 @@ class Thread {
       suspend_count(0), debug_suspend_count(0), thin_lock_thread_id(0), tid(0),
       daemon(is_daemon), throwing_OutOfMemoryError(false), no_thread_suspension(0),
       thread_exit_check_count(0), is_exception_reported_to_instrumentation_(false),
-      handling_signal_(false), padding_(0) {
+      handling_signal_(false), suspended_at_suspend_check(false) {
     }
 
     union StateAndFlags state_and_flags;
@@ -997,8 +1010,10 @@ class Thread {
     // True if signal is being handled by this thread.
     bool32_t handling_signal_;
 
-    // Padding to make the size aligned to 8.  Remove this if we add another 32 bit field.
-    int32_t padding_;
+    // True if the thread is suspended in FullSuspendCheck(). This is
+    // used to distinguish runnable threads that are suspended due to
+    // a normal suspend check from other threads.
+    bool32_t suspended_at_suspend_check;
   } tls32_;
 
   struct PACKED(8) tls_64bit_sized_values {
@@ -1025,7 +1040,7 @@ class Thread {
       pthread_self(0), last_no_thread_suspension_cause(nullptr), thread_local_start(nullptr),
       thread_local_pos(nullptr), thread_local_end(nullptr), thread_local_objects(0),
       thread_local_alloc_stack_top(nullptr), thread_local_alloc_stack_end(nullptr),
-      nested_signal_state(nullptr) {
+      nested_signal_state(nullptr), flip_function(nullptr) {
         for (size_t i = 0; i < kLockLevelCount; ++i) {
           held_mutexes[i] = nullptr;
         }
@@ -1142,6 +1157,9 @@ class Thread {
 
     // Recorded thread state for nested signals.
     jmp_buf* nested_signal_state;
+
+    // The function used for thread flip.
+    Closure* flip_function;
   } tlsPtr_;
 
   // Guards the 'interrupted_' and 'wait_monitor_' members.
