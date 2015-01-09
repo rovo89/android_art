@@ -1122,11 +1122,24 @@ std::string GetSchedulerGroupName(pid_t tid) {
 }
 
 #if defined(__linux__)
+
+ALWAYS_INLINE
+static inline void WritePrefix(std::ostream* os, const char* prefix, bool odd) {
+  if (prefix != nullptr) {
+    *os << prefix;
+  }
+  *os << "  ";
+  if (!odd) {
+    *os << " ";
+  }
+}
+
 static bool RunCommand(std::string cmd, std::ostream* os, const char* prefix) {
   FILE* stream = popen(cmd.c_str(), "r");
   if (stream) {
     if (os != nullptr) {
       bool odd_line = true;               // We indent them differently.
+      bool wrote_prefix = false;          // Have we already written a prefix?
       constexpr size_t kMaxBuffer = 128;  // Relatively small buffer. Should be OK as we're on an
                                           // alt stack, but just to be sure...
       char buffer[kMaxBuffer];
@@ -1139,22 +1152,16 @@ static bool RunCommand(std::string cmd, std::ostream* os, const char* prefix) {
             if (new_line == nullptr) {
               // Print the rest.
               if (*tmp != 0) {
-                if (prefix != nullptr) {
-                  *os << prefix;
+                if (!wrote_prefix) {
+                  WritePrefix(os, prefix, odd_line);
                 }
-                if (!odd_line) {
-                  *os << " ";
-                }
+                wrote_prefix = true;
                 *os << tmp;
               }
               break;
             }
-            if (prefix != nullptr) {
-              *os << prefix;
-            }
-            *os << "  ";
-            if (!odd_line) {
-              *os << " ";
+            if (!wrote_prefix) {
+              WritePrefix(os, prefix, odd_line);
             }
             char saved = *(new_line + 1);
             *(new_line + 1) = 0;
@@ -1162,6 +1169,7 @@ static bool RunCommand(std::string cmd, std::ostream* os, const char* prefix) {
             *(new_line + 1) = saved;
             tmp = new_line + 1;
             odd_line = !odd_line;
+            wrote_prefix = false;
           }
         }
       }
