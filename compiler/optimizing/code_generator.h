@@ -77,16 +77,16 @@ class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
   DISALLOW_COPY_AND_ASSIGN(SlowPathCode);
 };
 
-class CodeGenerator : public ArenaObject<kArenaAllocMisc> {
+class CodeGenerator {
  public:
   // Compiles the graph to executable instructions. Returns whether the compilation
   // succeeded.
   void CompileBaseline(CodeAllocator* allocator, bool is_leaf = false);
   void CompileOptimized(CodeAllocator* allocator);
-  static CodeGenerator* Create(ArenaAllocator* allocator,
-                               HGraph* graph,
+  static CodeGenerator* Create(HGraph* graph,
                                InstructionSet instruction_set,
                                const InstructionSetFeatures& isa_features);
+  virtual ~CodeGenerator() {}
 
   HGraph* GetGraph() const { return graph_; }
 
@@ -212,7 +212,6 @@ class CodeGenerator : public ArenaObject<kArenaAllocMisc> {
         slow_paths_(graph->GetArena(), 8),
         is_leaf_(true),
         stack_map_stream_(graph->GetArena()) {}
-  ~CodeGenerator() {}
 
   // Register allocation logic.
   void AllocateRegistersLocally(HInstruction* instruction) const;
