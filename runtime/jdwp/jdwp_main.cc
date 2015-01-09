@@ -135,6 +135,11 @@ ssize_t JdwpNetStateBase::WritePacket(ExpandBuf* pReply, size_t length) {
  */
 ssize_t JdwpNetStateBase::WriteBufferedPacket(const std::vector<iovec>& iov) {
   MutexLock mu(Thread::Current(), socket_lock_);
+  return WriteBufferedPacketLocked(iov);
+}
+
+ssize_t JdwpNetStateBase::WriteBufferedPacketLocked(const std::vector<iovec>& iov) {
+  socket_lock_.AssertHeld(Thread::Current());
   return TEMP_FAILURE_RETRY(writev(clientSock, &iov[0], iov.size()));
 }
 
