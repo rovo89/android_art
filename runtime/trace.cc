@@ -150,7 +150,7 @@ void Trace::FreeStackTrace(std::vector<mirror::ArtMethod*>* stack_trace) {
 }
 
 void Trace::SetDefaultClockSource(TraceClockSource clock_source) {
-#if defined(HAVE_POSIX_CLOCKS)
+#if defined(__linux__)
   default_clock_source_ = clock_source;
 #else
   if (clock_source != kTraceClockSourceWall) {

@@ -39,17 +39,10 @@
 #include "scoped_thread_state_change.h"
 #include "utf-inl.h"
 
-#if !defined(HAVE_POSIX_CLOCKS)
-#include <sys/time.h>
-#endif
-
-#if defined(HAVE_PRCTL)
-#include <sys/prctl.h>
-#endif
-
 #if defined(__APPLE__)
 #include "AvailabilityMacros.h"  // For MAC_OS_X_VERSION_MAX_ALLOWED
 #include <sys/syscall.h>
+#include <sys/time.h>
 #endif
 
 #include <backtrace/Backtrace.h>  // For DumpNativeStack.
@@ -164,11 +157,11 @@ std::string GetIsoDate() {
 }
 
 uint64_t MilliTime() {
-#if defined(HAVE_POSIX_CLOCKS)
+#if defined(__linux__)
   timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000) + now.tv_nsec / UINT64_C(1000000);
-#else
+#else  // __APPLE__
   timeval now;
   gettimeofday(&now, NULL);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000) + now.tv_usec / UINT64_C(1000);
@@ -176,11 +169,11 @@ uint64_t MilliTime() {
 }
 
 uint64_t MicroTime() {
-#if defined(HAVE_POSIX_CLOCKS)
+#if defined(__linux__)
   timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000) + now.tv_nsec / UINT64_C(1000);
-#else
+#else  // __APPLE__
   timeval now;
   gettimeofday(&now, NULL);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000) + now.tv_usec;
@@ -188,11 +181,11 @@ uint64_t MicroTime() {
 }
 
 uint64_t NanoTime() {
-#if defined(HAVE_POSIX_CLOCKS)
+#if defined(__linux__)
   timespec now;
   clock_gettime(CLOCK_MONOTONIC, &now);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000000) + now.tv_nsec;
-#else
+#else  // __APPLE__
   timeval now;
   gettimeofday(&now, NULL);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000000) + now.tv_usec * UINT64_C(1000);
@@ -200,11 +193,11 @@ uint64_t NanoTime() {
 }
 
 uint64_t ThreadCpuNanoTime() {
-#if defined(HAVE_POSIX_CLOCKS)
+#if defined(__linux__)
   timespec now;
   clock_gettime(CLOCK_THREAD_CPUTIME_ID, &now);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000000) + now.tv_nsec;
-#else
+#else  // __APPLE__
   UNIMPLEMENTED(WARNING);
   return -1;
 #endif
@@ -1057,21 +1050,17 @@ void SetThreadName(const char* thread_name) {
   } else {
     s = thread_name + len - 15;
   }
-#if defined(__BIONIC__)
+#if defined(__linux__)
   // pthread_setname_np fails rather than truncating long strings.
-  char buf[16];       // MAX_TASK_COMM_LEN=16 is hard-coded into bionic
+  char buf[16];       // MAX_TASK_COMM_LEN=16 is hard-coded in the kernel.
   strncpy(buf, s, sizeof(buf)-1);
   buf[sizeof(buf)-1] = '\0';
   errno = pthread_setname_np(pthread_self(), buf);
   if (errno != 0) {
     PLOG(WARNING) << "Unable to set the name of current thread to '" << buf << "'";
   }
-#elif defined(__APPLE__) && MAC_OS_X_VERSION_MAX_ALLOWED >= 1060
+#else  // __APPLE__
   pthread_setname_np(thread_name);
-#elif defined(HAVE_PRCTL)
-  prctl(PR_SET_NAME, (unsigned long) s, 0, 0, 0);  // NOLINT (unsigned long)
-#else
-  UNIMPLEMENTED(WARNING) << thread_name;
 #endif
 }
 

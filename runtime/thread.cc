@@ -592,13 +592,13 @@ void Thread::GetThreadName(std::string& name) const {
 }
 
 uint64_t Thread::GetCpuMicroTime() const {
-#if defined(HAVE_POSIX_CLOCKS)
+#if defined(__linux__)
   clockid_t cpu_clock_id;
   pthread_getcpuclockid(tlsPtr_.pthread_self, &cpu_clock_id);
   timespec now;
   clock_gettime(cpu_clock_id, &now);
   return static_cast<uint64_t>(now.tv_sec) * UINT64_C(1000000) + now.tv_nsec / UINT64_C(1000);
-#else
+#else  // __APPLE__
   UNIMPLEMENTED(WARNING);
   return -1;
 #endif
