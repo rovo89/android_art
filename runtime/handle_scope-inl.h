@@ -28,6 +28,7 @@ namespace art {
 template<size_t kNumReferences>
 inline StackHandleScope<kNumReferences>::StackHandleScope(Thread* self, mirror::Object* fill_value)
     : HandleScope(self->GetTopHandleScope(), kNumReferences), self_(self), pos_(0) {
+  DCHECK_EQ(self, Thread::Current());
   static_assert(kNumReferences >= 1, "StackHandleScope must contain at least 1 reference");
   // TODO: Figure out how to use a compile assert.
   CHECK_EQ(&storage_[0], GetReferences());
