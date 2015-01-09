@@ -252,6 +252,9 @@ struct JdwpState {
   // Called if/when we realize we're talking to DDMS.
   void NotifyDdmsActive() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+
+  void SetupChunkHeader(uint32_t type, size_t data_len, size_t header_size, uint8_t* out_header);
+
   /*
    * Send up a chunk of DDM data.
    */

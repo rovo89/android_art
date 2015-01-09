@@ -4089,6 +4089,10 @@ void Dbg::DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count) {
   }
 }
 
+JDWP::JdwpState* Dbg::GetJdwpState() {
+  return gJdwpState;
+}
+
 int Dbg::DdmHandleHpifChunk(HpifWhen when) {
   if (when == HPIF_WHEN_NOW) {
     DdmSendHeapInfo(when);
