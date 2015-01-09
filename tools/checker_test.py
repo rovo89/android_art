@@ -23,7 +23,7 @@ import unittest
 
 # The parent type of exception expected to be thrown by Checker during tests.
 # It must be specific enough to not cover exceptions thrown due to actual flaws
-# in Checker..
+# in Checker.
 CheckerException = SystemExit
 
 
