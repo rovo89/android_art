@@ -108,7 +108,7 @@ enum TraceClockSource {
   kTraceClockSourceDual,  // Both wall and thread CPU clocks.
 };
 
-#if defined(HAVE_POSIX_CLOCKS)
+#if defined(__linux__)
 static constexpr TraceClockSource kDefaultTraceClockSource = kTraceClockSourceDual;
 #else
 static constexpr TraceClockSource kDefaultTraceClockSource = kTraceClockSourceWall;

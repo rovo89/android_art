@@ -26,7 +26,7 @@
 #include "ScopedUtfChars.h"
 #include "thread-inl.h"
 
-#if defined(HAVE_PRCTL)
+#if defined(__linux__)
 #include <sys/prctl.h>
 #endif
 
@@ -35,9 +35,9 @@
 namespace art {
 
 static void EnableDebugger() {
+#if defined(__linux__)
   // To let a non-privileged gdbserver attach to this
   // process, we must set our dumpable flag.
-#if defined(HAVE_PRCTL)
   if (prctl(PR_SET_DUMPABLE, 1, 0, 0, 0) == -1) {
     PLOG(ERROR) << "prctl(PR_SET_DUMPABLE) failed for pid " << getpid();
   }
