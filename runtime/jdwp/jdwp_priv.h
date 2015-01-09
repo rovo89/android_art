@@ -71,6 +71,10 @@ class JdwpNetStateBase {
 
   ssize_t WritePacket(ExpandBuf* pReply, size_t length) LOCKS_EXCLUDED(socket_lock_);
   ssize_t WriteBufferedPacket(const std::vector<iovec>& iov) LOCKS_EXCLUDED(socket_lock_);
+  Mutex* GetSocketLock() {
+    return &socket_lock_;
+  }
+  ssize_t WriteBufferedPacketLocked(const std::vector<iovec>& iov);
 
   int clientSock;  // Active connection to debugger.
 
