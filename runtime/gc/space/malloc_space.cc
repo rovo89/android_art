@@ -248,6 +248,16 @@ void MallocSpace::SweepCallback(size_t num_ptrs, mirror::Object** ptrs, void* ar
   context->freed.bytes += space->FreeList(self, num_ptrs, ptrs);
 }
 
+void MallocSpace::ClampGrowthLimit() {
+  size_t new_capacity = Capacity();
+  CHECK_LE(new_capacity, NonGrowthLimitCapacity());
+  GetLiveBitmap()->SetHeapSize(new_capacity);
+  GetMarkBitmap()->SetHeapSize(new_capacity);
+  GetMemMap()->SetSize(new_capacity);
+  limit_ = Begin() + new_capacity;
+  CHECK(temp_bitmap_.get() == nullptr);
+}
+
 }  // namespace space
 }  // namespace gc
 }  // namespace art
