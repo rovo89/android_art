@@ -116,7 +116,7 @@ class CommonRuntimeTest : public testing::Test {
   std::string android_data_;
   std::string dalvik_cache_;
   const DexFile* java_lang_dex_file_;  // owned by runtime_
-  std::vector<const DexFile*> boot_class_path_;
+  std::vector<const DexFile*> boot_class_path_;  // owned by runtime_
   std::unique_ptr<Runtime> runtime_;
   // Owned by the runtime
   ClassLinker* class_linker_;
