@@ -982,8 +982,9 @@ static bool ShouldShowNativeStack(const Thread* thread)
 void Thread::DumpJavaStack(std::ostream& os) const {
   // Dumping the Java stack involves the verifier for locks. The verifier operates under the
   // assumption that there is no exception pending on entry. Thus, stash any pending exception.
-  // TODO: Find a way to avoid const_cast.
-  StackHandleScope<3> scope(const_cast<Thread*>(this));
+  // Thread::Current() instead of this in case a thread is dumping the stack of another suspended
+  // thread.
+  StackHandleScope<3> scope(Thread::Current());
   Handle<mirror::Throwable> exc;
   Handle<mirror::Object> throw_location_this_object;
   Handle<mirror::ArtMethod> throw_location_method;
