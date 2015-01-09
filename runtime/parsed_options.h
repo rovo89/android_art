@@ -40,8 +40,8 @@ class ParsedOptions {
   // returns null if problem parsing and ignore_unrecognized is false
   static ParsedOptions* Create(const RuntimeOptions& options, bool ignore_unrecognized);
 
-  const std::vector<const DexFile*>* boot_class_path_;
   std::string boot_class_path_string_;
+  std::string boot_class_path_locations_string_;
   std::string class_path_string_;
   std::string image_;
   bool check_jni_;
