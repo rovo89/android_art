@@ -1633,27 +1633,15 @@ size_t JdwpState::ProcessRequest(Request* request, ExpandBuf* pReply) {
 
   /*
    * If a debugger event has fired in another thread, wait until the
-   * initiating thread has suspended itself before processing messages
+   * initiating thread has suspended itself before processing commands
    * from the debugger.  Otherwise we (the JDWP thread) could be told to
    * resume the thread before it has suspended.
-   *
-   * We call with an argument of zero to wait for the current event
-   * thread to finish, and then clear the block.  Depending on the thread
-   * suspend policy, this may allow events in other threads to fire,
-   * but those events have no bearing on what the debugger has sent us
-   * in the current request->
    *
    * Note that we MUST clear the event token before waking the event
    * thread up, or risk waiting for the thread to suspend after we've
    * told it to resume.
    */
-  SetWaitForEventThread(0);
-
-  /*
-   * We do not want events to be sent while we process a request-> Indicate the JDWP thread starts
-   * to process a request so other threads wait for it to finish before sending an event.
-   */
-  StartProcessingRequest();
+  AcquireJdwpTokenForCommand();
 
   /*
    * Tell the VM that we're running and shouldn't be interrupted by GC.
@@ -1717,50 +1705,6 @@ size_t JdwpState::ProcessRequest(Request* request, ExpandBuf* pReply) {
   self->TransitionFromRunnableToSuspended(old_state);
 
   return replyLength;
-}
-
-/*
- * Indicates a request is about to be processed. If a thread wants to send an event in the meantime,
- * it will need to wait until we processed this request (see EndProcessingRequest).
- */
-void JdwpState::StartProcessingRequest() {
-  Thread* self = Thread::Current();
-  CHECK_EQ(self, GetDebugThread()) << "Requests are only processed by debug thread";
-  MutexLock mu(self, process_request_lock_);
-  CHECK_EQ(processing_request_, false);
-  processing_request_ = true;
-}
-
-/*
- * Indicates a request has been processed (and we sent its reply). All threads waiting for us (see
- * WaitForProcessingRequest) are waken up so they can send events again.
- */
-void JdwpState::EndProcessingRequest() {
-  Thread* self = Thread::Current();
-  CHECK_EQ(self, GetDebugThread()) << "Requests are only processed by debug thread";
-  MutexLock mu(self, process_request_lock_);
-  CHECK_EQ(processing_request_, true);
-  processing_request_ = false;
-  process_request_cond_.Broadcast(self);
-}
-
-/*
- * Waits for any request being processed so we do not send an event in the meantime.
- */
-void JdwpState::WaitForProcessingRequest() {
-  Thread* self = Thread::Current();
-  CHECK_NE(self, GetDebugThread()) << "Events should not be posted by debug thread";
-  MutexLock mu(self, process_request_lock_);
-  bool waited = false;
-  while (processing_request_) {
-    VLOG(jdwp) << StringPrintf("wait for processing request");
-    waited = true;
-    process_request_cond_.Wait(self);
-  }
-  if (waited) {
-    VLOG(jdwp) << StringPrintf("finished waiting for processing request");
-  }
-  CHECK_EQ(processing_request_, false);
 }
 
 }  // namespace JDWP

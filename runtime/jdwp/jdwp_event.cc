@@ -612,7 +612,7 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy, JDWP::ObjectId
     }
 
     /* grab this before posting/suspending again */
-    SetWaitForEventThread(thread_self_id);
+    AcquireJdwpTokenForEvent(thread_self_id);
 
     /* leave pReq->invoke_needed_ raised so we can check reentrancy */
     Dbg::ExecuteMethod(pReq);
@@ -630,7 +630,7 @@ void JdwpState::SendRequestAndPossiblySuspend(ExpandBuf* pReq, JdwpSuspendPolicy
   JDWP::ObjectId thread_self_id = Dbg::GetThreadSelfId();
   self->TransitionFromRunnableToSuspended(kWaitingForDebuggerSend);
   if (suspend_policy != SP_NONE) {
-    SetWaitForEventThread(threadId);
+    AcquireJdwpTokenForEvent(threadId);
   }
   EventFinish(pReq);
   SuspendByPolicy(suspend_policy, thread_self_id);
@@ -649,62 +649,81 @@ bool JdwpState::InvokeInProgress() {
   return pReq->invoke_needed;
 }
 
+void JdwpState::AcquireJdwpTokenForCommand() {
+  CHECK_EQ(Thread::Current(), GetDebugThread()) << "Expected debugger thread";
+  SetWaitForJdwpToken(debug_thread_id_);
+}
+
+void JdwpState::ReleaseJdwpTokenForCommand() {
+  CHECK_EQ(Thread::Current(), GetDebugThread()) << "Expected debugger thread";
+  ClearWaitForJdwpToken();
+}
+
+void JdwpState::AcquireJdwpTokenForEvent(ObjectId threadId) {
+  CHECK_NE(Thread::Current(), GetDebugThread()) << "Expected event thread";
+  CHECK_NE(debug_thread_id_, threadId) << "Not expected debug thread";
+  SetWaitForJdwpToken(threadId);
+}
+
+void JdwpState::ReleaseJdwpTokenForEvent() {
+  CHECK_NE(Thread::Current(), GetDebugThread()) << "Expected event thread";
+  ClearWaitForJdwpToken();
+}
+
 /*
  * We need the JDWP thread to hold off on doing stuff while we post an
  * event and then suspend ourselves.
  *
- * Call this with a threadId of zero if you just want to wait for the
- * current thread operation to complete.
- *
  * This could go to sleep waiting for another thread, so it's important
  * that the thread be marked as VMWAIT before calling here.
  */
-void JdwpState::SetWaitForEventThread(ObjectId threadId) {
+void JdwpState::SetWaitForJdwpToken(ObjectId threadId) {
   bool waited = false;
+  Thread* const self = Thread::Current();
+  CHECK_NE(threadId, 0u);
+  CHECK_NE(self->GetState(), kRunnable);
+  Locks::mutator_lock_->AssertNotHeld(self);
 
   /* this is held for very brief periods; contention is unlikely */
-  Thread* self = Thread::Current();
-  MutexLock mu(self, event_thread_lock_);
+  MutexLock mu(self, jdwp_token_lock_);
+
+  CHECK_NE(jdwp_token_owner_thread_id_, threadId) << "Thread is already holding event thread lock";
 
   /*
    * If another thread is already doing stuff, wait for it.  This can
    * go to sleep indefinitely.
    */
-  while (event_thread_id_ != 0) {
+  while (jdwp_token_owner_thread_id_ != 0) {
     VLOG(jdwp) << StringPrintf("event in progress (%#" PRIx64 "), %#" PRIx64 " sleeping",
-                               event_thread_id_, threadId);
+                               jdwp_token_owner_thread_id_, threadId);
     waited = true;
-    event_thread_cond_.Wait(self);
+    jdwp_token_cond_.Wait(self);
   }
 
-  if (waited || threadId != 0) {
+  if (waited || threadId != debug_thread_id_) {
     VLOG(jdwp) << StringPrintf("event token grabbed (%#" PRIx64 ")", threadId);
   }
-  if (threadId != 0) {
-    event_thread_id_ = threadId;
-  }
+  jdwp_token_owner_thread_id_ = threadId;
 }
 
 /*
  * Clear the threadId and signal anybody waiting.
  */
-void JdwpState::ClearWaitForEventThread() {
+void JdwpState::ClearWaitForJdwpToken() {
   /*
    * Grab the mutex.  Don't try to go in/out of VMWAIT mode, as this
-   * function is called by dvmSuspendSelf(), and the transition back
+   * function is called by Dbg::SuspendSelf(), and the transition back
    * to RUNNING would confuse it.
    */
-  Thread* self = Thread::Current();
-  MutexLock mu(self, event_thread_lock_);
+  Thread* const self = Thread::Current();
+  MutexLock mu(self, jdwp_token_lock_);
 
-  CHECK_NE(event_thread_id_, 0U);
-  VLOG(jdwp) << StringPrintf("cleared event token (%#" PRIx64 ")", event_thread_id_);
+  CHECK_NE(jdwp_token_owner_thread_id_, 0U);
+  VLOG(jdwp) << StringPrintf("cleared event token (%#" PRIx64 ")", jdwp_token_owner_thread_id_);
 
-  event_thread_id_ = 0;
-
-  event_thread_cond_.Signal(self);
+  jdwp_token_owner_thread_id_ = 0;
+  jdwp_token_cond_.Signal(self);
 }
-
 
 /*
  * Prep an event.  Allocates storage for the message and leaves space for
@@ -729,11 +748,6 @@ void JdwpState::EventFinish(ExpandBuf* pReq) {
   Set1(buf + 8, 0);     /* flags */
   Set1(buf + 9, kJdwpEventCommandSet);
   Set1(buf + 10, kJdwpCompositeCommand);
-
-  // Prevents from interleaving commands and events. Otherwise we could end up in sending an event
-  // before sending the reply of the command being processed and would lead to bad synchronization
-  // between the debugger and the debuggee.
-  WaitForProcessingRequest();
 
   SendRequest(pReq);
 
