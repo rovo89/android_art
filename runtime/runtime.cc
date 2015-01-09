@@ -683,6 +683,7 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
 
 
 static size_t OpenDexFiles(const std::vector<std::string>& dex_filenames,
+                           const std::vector<std::string>& dex_locations,
                            const std::string& image_location,
                            std::vector<const DexFile*>& dex_files) {
   size_t failure_count = 0;
@@ -692,12 +693,13 @@ static size_t OpenDexFiles(const std::vector<std::string>& dex_filenames,
   failure_count = 0;
   for (size_t i = 0; i < dex_filenames.size(); i++) {
     const char* dex_filename = dex_filenames[i].c_str();
+    const char* dex_location = dex_locations[i].c_str();
     std::string error_msg;
     if (!OS::FileExists(dex_filename)) {
       LOG(WARNING) << "Skipping non-existent dex file '" << dex_filename << "'";
       continue;
     }
-    if (!DexFile::Open(dex_filename, dex_filename, &error_msg, &dex_files)) {
+    if (!DexFile::Open(dex_filename, dex_location, &error_msg, &dex_files)) {
       LOG(WARNING) << "Failed to open .dex from file '" << dex_filename << "': " << error_msg;
       ++failure_count;
     }
@@ -858,17 +860,25 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
 
   CHECK_GE(GetHeap()->GetContinuousSpaces().size(), 1U);
   class_linker_ = new ClassLinker(intern_table_);
-  bool options_class_path_used = false;
   if (GetHeap()->HasImageSpace()) {
     class_linker_->InitFromImage();
     if (kIsDebugBuild) {
       GetHeap()->GetImageSpace()->VerifyImageAllocations();
     }
-  } else if (!IsCompiler() || !image_dex2oat_enabled_) {
+  } else {
     std::vector<std::string> dex_filenames;
     Split(boot_class_path_string_, ':', &dex_filenames);
+
+    std::vector<std::string> dex_locations;
+    if (options->boot_class_path_locations_string_.empty()) {
+      dex_locations = dex_filenames;
+    } else {
+      Split(options->boot_class_path_locations_string_, ':', &dex_locations);
+      CHECK_EQ(dex_filenames.size(), dex_locations.size());
+    }
+
     std::vector<const DexFile*> boot_class_path;
-    OpenDexFiles(dex_filenames, options->image_, boot_class_path);
+    OpenDexFiles(dex_filenames, dex_locations, options->image_, boot_class_path);
     class_linker_->InitWithoutImage(boot_class_path);
     // TODO: Should we move the following to InitWithoutImage?
     SetInstructionSet(kRuntimeISA);
@@ -878,18 +888,6 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
         SetCalleeSaveMethod(CreateCalleeSaveMethod(), type);
       }
     }
-  } else {
-    CHECK(options->boot_class_path_ != nullptr);
-    CHECK_NE(options->boot_class_path_->size(), 0U);
-    class_linker_->InitWithoutImage(*options->boot_class_path_);
-    options_class_path_used = true;
-  }
-
-  if (!options_class_path_used) {
-    // If the class linker does not take ownership of the boot class path, wipe it to prevent leaks.
-    auto boot_class_path_vector_ptr =
-        const_cast<std::vector<const DexFile*>*>(options->boot_class_path_);
-    STLDeleteElements(boot_class_path_vector_ptr);
   }
 
   CHECK(class_linker_ != nullptr);
