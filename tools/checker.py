@@ -438,9 +438,9 @@ class CheckGroup(CommonEqualityMixin):
   def __matchNotLines(self, checkLines, outputLines, startLineNo, varState):
     for checkLine in checkLines:
       assert checkLine.variant == CheckLine.Variant.Not
-      matchLineNo, varState = \
+      matchLineNo, matchVarState = \
         self.__findFirstMatch(checkLine, outputLines, startLineNo, [], varState)
-      if varState is not None:
+      if matchVarState is not None:
         Logger.testFailed("CHECK-NOT line \"" + checkLine.content + "\" matches output line " + \
                           str(matchLineNo), self.fileName, checkLine.lineNo)
 
