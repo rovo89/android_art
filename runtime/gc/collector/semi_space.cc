@@ -251,10 +251,13 @@ void SemiSpace::MarkingPhase() {
   // Note: Freed bytes can be negative if we copy form a compacted space to a free-list backed
   // space.
   RecordFree(ObjectBytePair(from_objects - to_objects, from_bytes - to_bytes));
-  // Clear and protect the from space.
+  // Clear the from space. Protect it with PROT_READ here and if
+  // kProtectFromSpace is true, will protect it with PROT_NONE later
+  // in FinishPhase() so the rosalloc verification works (can read the
+  // metadata magic number.)
   from_space_->Clear();
-  VLOG(heap) << "Protecting from_space_: " << *from_space_;
-  from_space_->GetMemMap()->Protect(kProtectFromSpace ? PROT_NONE : PROT_READ);
+  VLOG(heap) << "Protecting from_space_ with PROT_READ : " << *from_space_;
+  from_space_->GetMemMap()->Protect(PROT_READ);
   heap_->PreSweepingGcVerification(this);
   if (swap_semi_spaces_) {
     heap_->SwapSemiSpaces();
@@ -749,6 +752,10 @@ void SemiSpace::SetFromSpace(space::ContinuousMemMapAllocSpace* from_space) {
 
 void SemiSpace::FinishPhase() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
+  if (kProtectFromSpace) {
+    VLOG(heap) << "Protecting from_space_ with PROT_NONE : " << *from_space_;
+    from_space_->GetMemMap()->Protect(PROT_NONE);
+  }
   // Null the "to" and "from" spaces since compacting from one to the other isn't valid until
   // further action is done by the heap.
   to_space_ = nullptr;
