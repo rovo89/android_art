@@ -150,6 +150,11 @@ void ThreadList::DumpUnattachedThreads(std::ostream& os) {
   closedir(d);
 }
 
+// Dump checkpoint timeout in milliseconds. Larger amount on the host, as dumping will invoke
+// addr2line when available.
+static constexpr uint32_t kDumpWaitTimeoutTarget = 10000;
+static constexpr uint32_t kDumpWaitTimeoutHost = 20000;
+
 // A closure used by Thread::Dump.
 class DumpCheckpoint FINAL : public Closure {
  public:
@@ -176,8 +181,8 @@ class DumpCheckpoint FINAL : public Closure {
   void WaitForThreadsToRunThroughCheckpoint(size_t threads_running_checkpoint) {
     Thread* self = Thread::Current();
     ScopedThreadStateChange tsc(self, kWaitingForCheckPointsToRun);
-    const uint32_t kWaitTimeoutMs = 10000;
-    bool timed_out = barrier_.Increment(self, threads_running_checkpoint, kWaitTimeoutMs);
+    bool timed_out = barrier_.Increment(self, threads_running_checkpoint,
+        kIsTargetBuild ? kDumpWaitTimeoutTarget : kDumpWaitTimeoutHost);
     if (timed_out) {
       // Avoid a recursive abort.
       LOG((kIsDebugBuild && (gAborting == 0)) ? FATAL : ERROR)
