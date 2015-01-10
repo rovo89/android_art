@@ -1592,8 +1592,6 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
   // Make sure that we will have enough room to copy.
   CHECK_GE(to_space->GetFootprintLimit(), from_space->GetFootprintLimit());
   Compact(to_space, from_space, kGcCauseHomogeneousSpaceCompact);
-  // Leave as prot read so that we can still run ROSAlloc verification on this space.
-  from_space->GetMemMap()->Protect(PROT_READ);
   const uint64_t space_size_after_compaction = to_space->Size();
   main_space_ = to_space;
   main_space_backup_.reset(from_space);
