@@ -410,7 +410,7 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
     // If the wide input appeared as single, flush it and go
     // as it comes from memory.
     if (t_loc->wide && reg.Valid() && !reg.Is64Bit()) {
-      StoreBaseDisp(TargetPtrReg(kSp), SRegOffset(start_vreg + i), reg, k32, kNotVolatile);
+      // The memory already holds the half. Don't do anything.
       reg = RegStorage::InvalidReg();
     }
 
@@ -881,21 +881,23 @@ int Mir2Lir::GenDalvikArgs(CallInfo* info, int call_state,
       if (rl_arg.wide) {
         // if reg is not 64-bit (it is half of 64-bit) then handle it separately.
         if (!reg.Is64Bit()) {
-          // TODO: REVISIT: This adds a spill of low part while we could just copy it.
           ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
           if (rl_arg.location == kLocPhysReg) {
             int out_offset = StackVisitor::GetOutVROffset(i, cu_->instruction_set);
-            // Dump it to memory and then load only low part
+            // Dump it to memory.
             StoreBaseDisp(TargetPtrReg(kSp), out_offset, rl_arg.reg, k64, kNotVolatile);
             LoadBaseDisp(TargetPtrReg(kSp), out_offset, reg, k32, kNotVolatile);
           } else {
-            int out_offset = StackVisitor::GetOutVROffset(i + 1, cu_->instruction_set);
+            int high_offset = StackVisitor::GetOutVROffset(i + 1, cu_->instruction_set);
             // First, use target reg for high part.
             LoadBaseDisp(TargetPtrReg(kSp), SRegOffset(rl_arg.s_reg_low + 1), reg, k32,
                          kNotVolatile);
-            StoreBaseDisp(TargetPtrReg(kSp), out_offset, reg, k32, kNotVolatile);
-            // Now load target reg with low part.
+            StoreBaseDisp(TargetPtrReg(kSp), high_offset, reg, k32, kNotVolatile);
+            // Now, use target reg for low part.
             LoadBaseDisp(TargetPtrReg(kSp), SRegOffset(rl_arg.s_reg_low), reg, k32, kNotVolatile);
+            int low_offset = StackVisitor::GetOutVROffset(i, cu_->instruction_set);
+            // And store it to the expected memory location.
+            StoreBaseDisp(TargetPtrReg(kSp), low_offset, reg, k32, kNotVolatile);
           }
         } else {
           LoadValueDirectWideFixed(rl_arg, reg);
