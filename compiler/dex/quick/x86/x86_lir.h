@@ -56,15 +56,15 @@ namespace art {
  * x86-64/x32 gs: holds it.
  *
  * For floating point we don't support CPUs without SSE2 support (ie newer than PIII):
- *  Native: x86  | x86-64 / x32 | ART x86                    | ART x86-64
- *  XMM0: caller | caller, arg1 | caller, float return value | caller, arg1, float return value
- *  XMM1: caller | caller, arg2 | caller, scratch            | caller, arg2, scratch
- *  XMM2: caller | caller, arg3 | caller, scratch            | caller, arg3, scratch
- *  XMM3: caller | caller, arg4 | caller, scratch            | caller, arg4, scratch
- *  XMM4: caller | caller, arg5 | caller, scratch            | caller, arg5, scratch
- *  XMM5: caller | caller, arg6 | caller, scratch            | caller, arg6, scratch
- *  XMM6: caller | caller, arg7 | caller, scratch            | caller, arg7, scratch
- *  XMM7: caller | caller, arg8 | caller, scratch            | caller, arg8, scratch
+ *  Native: x86  | x86-64 / x32 | ART x86                          | ART x86-64
+ *  XMM0: caller | caller, arg1 | caller, arg1, float return value | caller, arg1, float return value
+ *  XMM1: caller | caller, arg2 | caller, arg2, scratch            | caller, arg2, scratch
+ *  XMM2: caller | caller, arg3 | caller, arg3, scratch            | caller, arg3, scratch
+ *  XMM3: caller | caller, arg4 | caller, arg4, scratch            | caller, arg4, scratch
+ *  XMM4: caller | caller, arg5 | caller, scratch                  | caller, arg5, scratch
+ *  XMM5: caller | caller, arg6 | caller, scratch                  | caller, arg6, scratch
+ *  XMM6: caller | caller, arg7 | caller, scratch                  | caller, arg7, scratch
+ *  XMM7: caller | caller, arg8 | caller, scratch                  | caller, arg8, scratch
  *  ---  x86-64/x32 registers
  *  XMM8 .. 11: caller save available as scratch registers for ART.
  *  XMM12 .. 15: callee save available as promoted registers for ART.

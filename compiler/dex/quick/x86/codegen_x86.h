@@ -39,22 +39,15 @@ class X86Mir2Lir : public Mir2Lir {
     }
    protected:
     Mir2Lir* m2l_;
-   private:
     size_t cur_core_reg_;
     size_t cur_fp_reg_;
   };
 
-  class InToRegStorageX86Mapper : public InToRegStorageMapper {
+  class InToRegStorageX86Mapper : public InToRegStorageX86_64Mapper {
    public:
-    explicit InToRegStorageX86Mapper(Mir2Lir* m2l) : m2l_(m2l), cur_core_reg_(0) {}
+    explicit InToRegStorageX86Mapper(Mir2Lir* m2l)
+        : InToRegStorageX86_64Mapper(m2l) { }
     virtual RegStorage GetNextReg(ShortyArg arg);
-    virtual void Reset() OVERRIDE {
-      cur_core_reg_ = 0;
-    }
-   protected:
-    Mir2Lir* m2l_;
-   private:
-    size_t cur_core_reg_;
   };
 
   InToRegStorageX86_64Mapper in_to_reg_storage_x86_64_mapper_;
@@ -118,9 +111,12 @@ class X86Mir2Lir : public Mir2Lir {
       if (cu_->target64) {
         return As64BitReg(TargetReg32(symbolic_reg));
       } else {
+        if (symbolic_reg >= kFArg0 && symbolic_reg <= kFArg3) {
+          // We want an XMM, not a pair.
+          return As64BitReg(TargetReg32(symbolic_reg));
+        }
         // x86: construct a pair.
         DCHECK((kArg0 <= symbolic_reg && symbolic_reg < kArg3) ||
-               (kFArg0 <= symbolic_reg && symbolic_reg < kFArg3) ||
                (kRet0 == symbolic_reg));
         return RegStorage::MakeRegPair(TargetReg32(symbolic_reg),
                                  TargetReg32(static_cast<SpecialTargetRegister>(symbolic_reg + 1)));

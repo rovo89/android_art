@@ -40,7 +40,7 @@ void X86Context::FillCalleeSaves(const StackVisitor& fr) {
   mirror::ArtMethod* method = fr.GetMethod();
   const QuickMethodFrameInfo frame_info = method->GetQuickFrameInfo();
   size_t spill_count = POPCOUNT(frame_info.CoreSpillMask());
-  DCHECK_EQ(frame_info.FpSpillMask(), 0u);
+  // We don't have any callee save FPRs, so ignore them.
   if (spill_count > 0) {
     // Lowest number spill is farthest away, walk registers and fill into context.
     int j = 2;  // Offset j to skip return address spill.
