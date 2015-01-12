@@ -643,9 +643,10 @@ void CodeGeneratorX86::Move64(Location destination, Location source) {
       DCHECK(source.IsDoubleStackSlot());
       EmitParallelMoves(
           Location::StackSlot(source.GetStackIndex()),
-          Location::RegisterLocation(calling_convention.GetRegisterAt(register_index)),
+          Location::StackSlot(calling_convention.GetStackOffsetOf(stack_index)),
           Location::StackSlot(source.GetHighStackIndex(kX86WordSize)),
           Location::StackSlot(calling_convention.GetStackOffsetOf(stack_index + 1)));
+      __ movl(calling_convention.GetRegisterAt(register_index), Address(ESP, source.GetStackIndex()));
     }
   } else if (destination.IsFpuRegister()) {
     if (source.IsDoubleStackSlot()) {
