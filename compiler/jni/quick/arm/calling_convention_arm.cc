@@ -168,9 +168,13 @@ const ManagedRegisterEntrySpills& ArmManagedRuntimeCallingConvention::EntrySpill
         } else {
           // FIXME: Pointer this returns as both reference and long.
           if (IsCurrentParamALong() && !IsCurrentParamAReference()) {  // Long.
-            if (gpr_index < arraysize(kHFCoreArgumentRegisters)) {
+            // If it spans register and memory, we must use the value in memory.
+            if (gpr_index < arraysize(kHFCoreArgumentRegisters) - 1) {
               entry_spills_.push_back(
                   ArmManagedRegister::FromCoreRegister(kHFCoreArgumentRegisters[gpr_index++]));
+            } else if (gpr_index == arraysize(kHFCoreArgumentRegisters) - 1) {
+              gpr_index++;
+              entry_spills_.push_back(ManagedRegister::NoRegister(), 4);
             } else {
               entry_spills_.push_back(ManagedRegister::NoRegister(), 4);
             }
