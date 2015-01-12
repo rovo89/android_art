@@ -40,7 +40,7 @@ bool JobjectComparator::operator()(jobject jobj1, jobject jobj2) const {
   }
   // Sort by class...
   if (obj1->GetClass() != obj2->GetClass()) {
-    return obj1->GetClass()->IdentityHashCode() < obj2->IdentityHashCode();
+    return obj1->GetClass()->IdentityHashCode() < obj2->GetClass()->IdentityHashCode();
   } else {
     // ...then by size...
     size_t count1 = obj1->SizeOf();
