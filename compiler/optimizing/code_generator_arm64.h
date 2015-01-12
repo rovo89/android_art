@@ -267,7 +267,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
   void Load(Primitive::Type type, vixl::CPURegister dst, const vixl::MemOperand& src);
   void Store(Primitive::Type type, vixl::CPURegister rt, const vixl::MemOperand& dst);
   void LoadCurrentMethod(vixl::Register current_method);
-  void LoadAcquire(Primitive::Type type, vixl::CPURegister dst, const vixl::MemOperand& src);
+  void LoadAcquire(HInstruction* instruction, vixl::CPURegister dst, const vixl::MemOperand& src);
   void StoreRelease(Primitive::Type type, vixl::CPURegister rt, const vixl::MemOperand& dst);
 
   // Generate code to invoke a runtime entry point.
