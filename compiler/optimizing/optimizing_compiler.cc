@@ -118,6 +118,18 @@ class OptimizingCompiler FINAL : public Compiler {
   // just run the code generation after the graph was built.
   const bool run_optimizations_;
 
+  // Optimize and compile `graph`.
+  CompiledMethod* CompileOptimized(HGraph* graph,
+                                   CodeGenerator* codegen,
+                                   CompilerDriver* driver,
+                                   const DexCompilationUnit& dex_compilation_unit,
+                                   const HGraphVisualizer& visualizer) const;
+
+  // Just compile without doing optimizations.
+  CompiledMethod* CompileBaseline(CodeGenerator* codegen,
+                                  CompilerDriver* driver,
+                                  const DexCompilationUnit& dex_compilation_unit) const;
+
   mutable OptimizingCompilerStats compilation_stats_;
 
   std::unique_ptr<std::ostream> visualizer_output_;
@@ -234,6 +246,73 @@ static ArrayRef<const uint8_t> AlignVectorSize(std::vector<uint8_t>& vector) {
   return ArrayRef<const uint8_t>(vector);
 }
 
+
+CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
+                                                     CodeGenerator* codegen,
+                                                     CompilerDriver* compiler_driver,
+                                                     const DexCompilationUnit& dex_compilation_unit,
+                                                     const HGraphVisualizer& visualizer) const {
+  RunOptimizations(
+      graph, compiler_driver, &compilation_stats_, dex_compilation_unit, visualizer);
+
+  PrepareForRegisterAllocation(graph).Run();
+  SsaLivenessAnalysis liveness(*graph, codegen);
+  liveness.Analyze();
+  visualizer.DumpGraph(kLivenessPassName);
+
+  RegisterAllocator register_allocator(graph->GetArena(), codegen, liveness);
+  register_allocator.AllocateRegisters();
+  visualizer.DumpGraph(kRegisterAllocatorPassName);
+
+  CodeVectorAllocator allocator;
+  codegen->CompileOptimized(&allocator);
+
+  std::vector<uint8_t> stack_map;
+  codegen->BuildStackMaps(&stack_map);
+
+  compilation_stats_.RecordStat(MethodCompilationStat::kCompiledOptimized);
+
+  return CompiledMethod::SwapAllocCompiledMethodStackMap(
+      compiler_driver,
+      codegen->GetInstructionSet(),
+      ArrayRef<const uint8_t>(allocator.GetMemory()),
+      codegen->GetFrameSize(),
+      codegen->GetCoreSpillMask(),
+      0, /* FPR spill mask, unused */
+      ArrayRef<const uint8_t>(stack_map));
+}
+
+
+CompiledMethod* OptimizingCompiler::CompileBaseline(
+    CodeGenerator* codegen,
+    CompilerDriver* compiler_driver,
+    const DexCompilationUnit& dex_compilation_unit) const {
+  CodeVectorAllocator allocator;
+  codegen->CompileBaseline(&allocator);
+
+  std::vector<uint8_t> mapping_table;
+  DefaultSrcMap src_mapping_table;
+  bool include_debug_symbol = compiler_driver->GetCompilerOptions().GetIncludeDebugSymbols();
+  codegen->BuildMappingTable(&mapping_table, include_debug_symbol ? &src_mapping_table : nullptr);
+  std::vector<uint8_t> vmap_table;
+  codegen->BuildVMapTable(&vmap_table);
+  std::vector<uint8_t> gc_map;
+  codegen->BuildNativeGCMap(&gc_map, dex_compilation_unit);
+
+  compilation_stats_.RecordStat(MethodCompilationStat::kCompiledBaseline);
+  return CompiledMethod::SwapAllocCompiledMethod(compiler_driver,
+                                                 codegen->GetInstructionSet(),
+                                                 ArrayRef<const uint8_t>(allocator.GetMemory()),
+                                                 codegen->GetFrameSize(),
+                                                 codegen->GetCoreSpillMask(),
+                                                 0, /* FPR spill mask, unused */
+                                                 &src_mapping_table,
+                                                 AlignVectorSize(mapping_table),
+                                                 AlignVectorSize(vmap_table),
+                                                 AlignVectorSize(gc_map),
+                                                 ArrayRef<const uint8_t>());
+}
+
 CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                                             uint32_t access_flags,
                                             InvokeType invoke_type,
@@ -290,22 +369,21 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
   }
 
   CompilerDriver* compiler_driver = GetCompilerDriver();
-  CodeGenerator* codegen = CodeGenerator::Create(&arena, graph, instruction_set,
-      *compiler_driver->GetInstructionSetFeatures());
-  if (codegen == nullptr) {
+  std::unique_ptr<CodeGenerator> codegen(
+      CodeGenerator::Create(graph, instruction_set, *compiler_driver->GetInstructionSetFeatures()));
+  if (codegen.get() == nullptr) {
     CHECK(!shouldCompile) << "Could not find code generator for optimizing compiler";
     compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledNoCodegen);
     return nullptr;
   }
 
   HGraphVisualizer visualizer(
-      visualizer_output_.get(), graph, kStringFilter, *codegen, method_name.c_str());
+      visualizer_output_.get(), graph, kStringFilter, *codegen.get(), method_name.c_str());
   visualizer.DumpGraph("builder");
-
-  CodeVectorAllocator allocator;
 
   bool can_optimize = CanOptimize(*code_item);
   bool can_allocate_registers = RegisterAllocator::CanAllocateRegistersFor(*graph, instruction_set);
+  CompiledMethod* result = nullptr;
   if (run_optimizations_ && can_optimize && can_allocate_registers) {
     VLOG(compiler) << "Optimizing " << PrettyMethod(method_idx, dex_file);
     if (!graph->TryBuildingSsa()) {
@@ -314,34 +392,9 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                 << ": it contains a non natural loop";
       // We could not transform the graph to SSA, bailout.
       compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledCannotBuildSSA);
-      return nullptr;
+    } else {
+      result = CompileOptimized(graph, codegen.get(), compiler_driver, dex_compilation_unit, visualizer);
     }
-    RunOptimizations(
-        graph, compiler_driver, &compilation_stats_, dex_compilation_unit, visualizer);
-
-    PrepareForRegisterAllocation(graph).Run();
-    SsaLivenessAnalysis liveness(*graph, codegen);
-    liveness.Analyze();
-    visualizer.DumpGraph(kLivenessPassName);
-
-    RegisterAllocator register_allocator(graph->GetArena(), codegen, liveness);
-    register_allocator.AllocateRegisters();
-
-    visualizer.DumpGraph(kRegisterAllocatorPassName);
-    codegen->CompileOptimized(&allocator);
-
-    std::vector<uint8_t> stack_map;
-    codegen->BuildStackMaps(&stack_map);
-
-    compilation_stats_.RecordStat(MethodCompilationStat::kCompiledOptimized);
-    return CompiledMethod::SwapAllocCompiledMethodStackMap(
-        compiler_driver,
-        instruction_set,
-        ArrayRef<const uint8_t>(allocator.GetMemory()),
-        codegen->GetFrameSize(),
-        codegen->GetCoreSpillMask(),
-        0, /* FPR spill mask, unused */
-        ArrayRef<const uint8_t>(stack_map));
   } else if (shouldOptimize && RegisterAllocator::Supports(instruction_set)) {
     LOG(FATAL) << "Could not allocate registers in optimizing compiler";
     UNREACHABLE();
@@ -356,30 +409,9 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
       compilation_stats_.RecordStat(MethodCompilationStat::kNotOptimizedRegisterAllocator);
     }
 
-    codegen->CompileBaseline(&allocator);
-
-    std::vector<uint8_t> mapping_table;
-    DefaultSrcMap src_mapping_table;
-    bool include_debug_symbol = compiler_driver->GetCompilerOptions().GetIncludeDebugSymbols();
-    codegen->BuildMappingTable(&mapping_table, include_debug_symbol ? &src_mapping_table : nullptr);
-    std::vector<uint8_t> vmap_table;
-    codegen->BuildVMapTable(&vmap_table);
-    std::vector<uint8_t> gc_map;
-    codegen->BuildNativeGCMap(&gc_map, dex_compilation_unit);
-
-    compilation_stats_.RecordStat(MethodCompilationStat::kCompiledBaseline);
-    return CompiledMethod::SwapAllocCompiledMethod(compiler_driver,
-                                                   instruction_set,
-                                                   ArrayRef<const uint8_t>(allocator.GetMemory()),
-                                                   codegen->GetFrameSize(),
-                                                   codegen->GetCoreSpillMask(),
-                                                   0, /* FPR spill mask, unused */
-                                                   &src_mapping_table,
-                                                   AlignVectorSize(mapping_table),
-                                                   AlignVectorSize(vmap_table),
-                                                   AlignVectorSize(gc_map),
-                                                   ArrayRef<const uint8_t>());
+    result = CompileBaseline(codegen.get(), compiler_driver, dex_compilation_unit);
   }
+  return result;
 }
 
 Compiler* CreateOptimizingCompiler(CompilerDriver* driver) {
