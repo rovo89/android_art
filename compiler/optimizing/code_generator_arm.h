@@ -175,6 +175,11 @@ class CodeGeneratorARM : public CodeGenerator {
     return kArmWordSize;
   }
 
+  size_t GetFloatingPointSpillSlotSize() const OVERRIDE {
+    // Allocated in S registers, which are word sized.
+    return kArmWordSize;
+  }
+
   size_t FrameEntrySpillSize() const OVERRIDE;
 
   HGraphVisitor* GetLocationBuilder() OVERRIDE {
