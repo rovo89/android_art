@@ -659,6 +659,8 @@ class Dex2Oat FINAL {
         dump_timing_ = true;
       } else if (option == "--dump-passes") {
         dump_passes_ = true;
+      } else if (option.starts_with("--dump-cfg=")) {
+        dump_cfg_file_name_ = option.substr(strlen("--dump-cfg=")).data();
       } else if (option == "--dump-stats") {
         dump_stats_ = true;
       } else if (option == "--include-debug-symbols" || option == "--no-strip-symbols") {
@@ -1211,6 +1213,7 @@ class Dex2Oat FINAL {
                                      thread_count_,
                                      dump_stats_,
                                      dump_passes_,
+                                     dump_cfg_file_name_,
                                      compiler_phases_timings_.get(),
                                      swap_fd_,
                                      profile_file_));
@@ -1661,6 +1664,7 @@ class Dex2Oat FINAL {
   bool dump_passes_;
   bool dump_timing_;
   bool dump_slow_timing_;
+  std::string dump_cfg_file_name_;
   std::string swap_file_name_;
   int swap_fd_;
   std::string profile_file_;  // Profile file to use
