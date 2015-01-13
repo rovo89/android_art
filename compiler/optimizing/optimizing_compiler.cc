@@ -149,11 +149,12 @@ void OptimizingCompiler::Init() {
   // Enable C1visualizer output. Must be done in Init() because the compiler
   // driver is not fully initialized when passed to the compiler's constructor.
   CompilerDriver* driver = GetCompilerDriver();
-  if (driver->GetDumpPasses()) {
+  const std::string cfg_file_name = driver->GetDumpCfgFileName();
+  if (!cfg_file_name.empty()) {
     CHECK_EQ(driver->GetThreadCount(), 1U)
       << "Graph visualizer requires the compiler to run single-threaded. "
       << "Invoke the compiler with '-j1'.";
-    visualizer_output_.reset(new std::ofstream("art.cfg"));
+    visualizer_output_.reset(new std::ofstream(cfg_file_name));
   }
 }
 
