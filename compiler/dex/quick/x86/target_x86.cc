@@ -177,10 +177,10 @@ static const RegStorage RegStorage32FromSpecialTargetRegister_Target32[] {
   RegStorage::InvalidReg(),  // kArg5
   RegStorage::InvalidReg(),  // kArg6
   RegStorage::InvalidReg(),  // kArg7
-  rs_rAX,                    // kFArg0
-  rs_rCX,                    // kFArg1
-  rs_rDX,                    // kFArg2
-  rs_rBX,                    // kFArg3
+  rs_fr0,                    // kFArg0
+  rs_fr1,                    // kFArg1
+  rs_fr2,                    // kFArg2
+  rs_fr3,                    // kFArg3
   RegStorage::InvalidReg(),  // kFArg4
   RegStorage::InvalidReg(),  // kFArg5
   RegStorage::InvalidReg(),  // kFArg6
@@ -197,7 +197,7 @@ static const RegStorage RegStorage32FromSpecialTargetRegister_Target32[] {
   rs_rDX,                    // kRet1
   rs_rAX,                    // kInvokeTgt
   rs_rAX,                    // kHiddenArg - used to hold the method index before copying to fr0.
-  rs_fr0,                    // kHiddenFpArg
+  rs_fr7,                    // kHiddenFpArg
   rs_rCX,                    // kCount
 };
 
@@ -542,13 +542,13 @@ void X86Mir2Lir::LockCallTemps() {
   LockTemp(TargetReg32(kArg1));
   LockTemp(TargetReg32(kArg2));
   LockTemp(TargetReg32(kArg3));
+  LockTemp(TargetReg32(kFArg0));
+  LockTemp(TargetReg32(kFArg1));
+  LockTemp(TargetReg32(kFArg2));
+  LockTemp(TargetReg32(kFArg3));
   if (cu_->target64) {
     LockTemp(TargetReg32(kArg4));
     LockTemp(TargetReg32(kArg5));
-    LockTemp(TargetReg32(kFArg0));
-    LockTemp(TargetReg32(kFArg1));
-    LockTemp(TargetReg32(kFArg2));
-    LockTemp(TargetReg32(kFArg3));
     LockTemp(TargetReg32(kFArg4));
     LockTemp(TargetReg32(kFArg5));
     LockTemp(TargetReg32(kFArg6));
@@ -563,13 +563,13 @@ void X86Mir2Lir::FreeCallTemps() {
   FreeTemp(TargetReg32(kArg2));
   FreeTemp(TargetReg32(kArg3));
   FreeTemp(TargetReg32(kHiddenArg));
+  FreeTemp(TargetReg32(kFArg0));
+  FreeTemp(TargetReg32(kFArg1));
+  FreeTemp(TargetReg32(kFArg2));
+  FreeTemp(TargetReg32(kFArg3));
   if (cu_->target64) {
     FreeTemp(TargetReg32(kArg4));
     FreeTemp(TargetReg32(kArg5));
-    FreeTemp(TargetReg32(kFArg0));
-    FreeTemp(TargetReg32(kFArg1));
-    FreeTemp(TargetReg32(kFArg2));
-    FreeTemp(TargetReg32(kFArg3));
     FreeTemp(TargetReg32(kFArg4));
     FreeTemp(TargetReg32(kFArg5));
     FreeTemp(TargetReg32(kFArg6));
@@ -2457,14 +2457,23 @@ RegStorage X86Mir2Lir::InToRegStorageX86_64Mapper::GetNextReg(ShortyArg arg) {
 RegStorage X86Mir2Lir::InToRegStorageX86Mapper::GetNextReg(ShortyArg arg) {
   const SpecialTargetRegister coreArgMappingToPhysicalReg[] = {kArg1, kArg2, kArg3};
   const size_t coreArgMappingToPhysicalRegSize = arraysize(coreArgMappingToPhysicalReg);
+  const SpecialTargetRegister fpArgMappingToPhysicalReg[] = {kFArg0, kFArg1, kFArg2, kFArg3};
+  const size_t fpArgMappingToPhysicalRegSize = arraysize(fpArgMappingToPhysicalReg);
 
   RegStorage result = RegStorage::InvalidReg();
-  if (cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
-    result = m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++],
-                          arg.IsRef() ? kRef : kNotWide);
-    if (arg.IsWide() && cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
-      result = RegStorage::MakeRegPair(
-          result, m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++], kNotWide));
+  if (arg.IsFP()) {
+    if (cur_fp_reg_ < fpArgMappingToPhysicalRegSize) {
+      return m2l_->TargetReg(fpArgMappingToPhysicalReg[cur_fp_reg_++],
+                             arg.IsWide() ? kWide : kNotWide);
+    }
+  } else {
+    if (cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
+      result = m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++],
+                               arg.IsRef() ? kRef : kNotWide);
+      if (arg.IsWide() && cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
+        result = RegStorage::MakeRegPair(
+            result, m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++], kNotWide));
+      }
     }
   }
   return result;
