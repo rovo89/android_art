@@ -281,7 +281,8 @@ tmp_dir="`cd $oldwd ; python -c "import os; print os.path.realpath('$tmp_dir')"`
 mkdir -p $tmp_dir
 
 if [ "$basic_verify" = "true" ]; then
-  run_args="${run_args} --runtime-option -Xgc:preverify --runtime-option -Xgc:postverify"
+  # Set HspaceCompactForOOMMinIntervalMs to zero to run hspace compaction for OOM more frequently in tests.
+  run_args="${run_args} --runtime-option -Xgc:preverify --runtime-option -Xgc:postverify --runtime-option -XX:HspaceCompactForOOMMinIntervalMs=0"
 fi
 if [ "$gc_verify" = "true" ]; then
   run_args="${run_args} --runtime-option -Xgc:preverify_rosalloc --runtime-option -Xgc:postverify_rosalloc"

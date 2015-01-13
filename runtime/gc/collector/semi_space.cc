@@ -251,13 +251,19 @@ void SemiSpace::MarkingPhase() {
   // Note: Freed bytes can be negative if we copy form a compacted space to a free-list backed
   // space.
   RecordFree(ObjectBytePair(from_objects - to_objects, from_bytes - to_bytes));
-  // Clear the from space. Protect it with PROT_READ here and if
-  // kProtectFromSpace is true, will protect it with PROT_NONE later
-  // in FinishPhase() so the rosalloc verification works (can read the
-  // metadata magic number.)
+  // Clear and protect the from space.
   from_space_->Clear();
-  VLOG(heap) << "Protecting from_space_ with PROT_READ : " << *from_space_;
-  from_space_->GetMemMap()->Protect(PROT_READ);
+  if (kProtectFromSpace && !from_space_->IsRosAllocSpace()) {
+    // Protect with PROT_NONE.
+    VLOG(heap) << "Protecting from_space_ : " << *from_space_;
+    from_space_->GetMemMap()->Protect(PROT_NONE);
+  } else {
+    // If RosAllocSpace, we'll leave it as PROT_READ here so the
+    // rosaloc verification can read the metadata magic number and
+    // protect it with PROT_NONE later in FinishPhase().
+    VLOG(heap) << "Protecting from_space_ with PROT_READ : " << *from_space_;
+    from_space_->GetMemMap()->Protect(PROT_READ);
+  }
   heap_->PreSweepingGcVerification(this);
   if (swap_semi_spaces_) {
     heap_->SwapSemiSpaces();
@@ -752,7 +758,7 @@ void SemiSpace::SetFromSpace(space::ContinuousMemMapAllocSpace* from_space) {
 
 void SemiSpace::FinishPhase() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
-  if (kProtectFromSpace) {
+  if (kProtectFromSpace && from_space_->IsRosAllocSpace()) {
     VLOG(heap) << "Protecting from_space_ with PROT_NONE : " << *from_space_;
     from_space_->GetMemMap()->Protect(PROT_NONE);
   }
