@@ -97,7 +97,6 @@ class CompilerDriver {
                           bool image, std::set<std::string>* image_classes,
                           std::set<std::string>* compiled_classes,
                           size_t thread_count, bool dump_stats, bool dump_passes,
-                          const std::string& dump_cfg_file_name,
                           CumulativeLogger* timer, int swap_fd,
                           const std::string& profile_file);
 
@@ -372,10 +371,6 @@ class CompilerDriver {
     return dump_passes_;
   }
 
-  const std::string& GetDumpCfgFileName() const {
-    return dump_cfg_file_name_;
-  }
-
   CumulativeLogger* GetTimingsLogger() const {
     return timings_logger_;
   }
@@ -547,7 +542,6 @@ class CompilerDriver {
 
   bool dump_stats_;
   const bool dump_passes_;
-  const std::string& dump_cfg_file_name_;
 
   CumulativeLogger* const timings_logger_;
 
