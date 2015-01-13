@@ -59,6 +59,7 @@ class QuickArgumentVisitor {
   // | S0         |
   // |            |    4x2 bytes padding
   // | Method*    |  <- sp
+  static constexpr bool kAlignPairRegister = !kArm32QuickCodeUseSoftFloat;
   static constexpr bool kQuickSoftFloatAbi = kArm32QuickCodeUseSoftFloat;
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = !kArm32QuickCodeUseSoftFloat;
   static constexpr size_t kNumQuickGprArgs = 3;
@@ -93,6 +94,7 @@ class QuickArgumentVisitor {
   // | D0         |
   // |            |    padding
   // | Method*    |  <- sp
+  static constexpr bool kAlignPairRegister = false;
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
   static constexpr size_t kNumQuickGprArgs = 7;  // 7 arguments passed in GPRs.
@@ -121,6 +123,7 @@ class QuickArgumentVisitor {
   // | A2         |    arg2
   // | A1         |    arg1
   // | A0/Method* |  <- sp
+  static constexpr bool kAlignPairRegister = false;
   static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
   static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
@@ -146,6 +149,7 @@ class QuickArgumentVisitor {
   // | EDX         |    arg2
   // | ECX         |    arg1
   // | EAX/Method* |  <- sp
+  static constexpr bool kAlignPairRegister = false;
   static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
   static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
@@ -184,6 +188,7 @@ class QuickArgumentVisitor {
   // | XMM0            |    float arg 1
   // | Padding         |
   // | RDI/Method*     |  <- sp
+  static constexpr bool kAlignPairRegister = false;
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
   static constexpr size_t kNumQuickGprArgs = 5;  // 5 arguments passed in GPRs.
@@ -370,6 +375,11 @@ class QuickArgumentVisitor {
         case Primitive::kPrimDouble:
         case Primitive::kPrimLong:
           if (kQuickSoftFloatAbi || (cur_type_ == Primitive::kPrimLong)) {
+            if (cur_type_ == Primitive::kPrimLong && kAlignPairRegister && gpr_index_ == 0) {
+              // Currently, this is only for ARM, where the first available parameter register
+              // is R1. So we skip it, and use R2 instead.
+              gpr_index_++;
+            }
             is_split_long_or_double_ = (GetBytesPerGprSpillLocation(kRuntimeISA) == 4) &&
                 ((gpr_index_ + 1) == kNumQuickGprArgs);
             Visit();

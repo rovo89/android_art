@@ -75,7 +75,14 @@ static void quick_invoke_reg_setup(mirror::ArtMethod* method, uint32_t* args, ui
         }
         break;
       case 'J':
+        if (gpr_index == 1 && !kArm32QuickCodeUseSoftFloat) {
+          // Don't use r1-r2 as a register pair, move to r2-r3 instead.
+          gpr_index++;
+        }
         if (gpr_index < arraysize(core_reg_args)) {
+          // Note that we don't need to do this if two registers are not available
+          // when !kArm32QuickCodeUseSoftFloat. We do it anyway to leave this
+          // code simple.
           core_reg_args[gpr_index++] = args[arg_index];
         }
         ++arg_index;
