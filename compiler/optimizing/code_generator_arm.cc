@@ -49,6 +49,9 @@ static constexpr SRegister kRuntimeParameterFpuRegisters[] = { S0, S1, S2, S3 };
 static constexpr size_t kRuntimeParameterFpuRegistersLength =
     arraysize(kRuntimeParameterFpuRegisters);
 
+static constexpr DRegister DTMP = D7;
+static constexpr SRegister STMP = S14;
+
 class InvokeRuntimeCallingConvention : public CallingConvention<Register, SRegister> {
  public:
   InvokeRuntimeCallingConvention()
@@ -471,6 +474,11 @@ void CodeGeneratorARM::SetupBlockedRegisters() const {
   blocked_core_registers_[R8] = true;
   blocked_core_registers_[R10] = true;
   blocked_core_registers_[R11] = true;
+
+  // Don't allocate our temporary double register.
+  blocked_fpu_registers_[STMP] = true;
+  blocked_fpu_registers_[STMP + 1] = true;
+  DCHECK_EQ(FromLowSToD(STMP), DTMP);
 
   blocked_fpu_registers_[S16] = true;
   blocked_fpu_registers_[S17] = true;
@@ -3364,9 +3372,9 @@ void ParallelMoveResolverARM::EmitSwap(size_t index) {
   } else if (source.IsStackSlot() && destination.IsStackSlot()) {
     Exchange(source.GetStackIndex(), destination.GetStackIndex());
   } else if (source.IsFpuRegister() && destination.IsFpuRegister()) {
-    __ vmovrs(IP, source.AsFpuRegister<SRegister>());
+    __ vmovs(STMP, source.AsFpuRegister<SRegister>());
     __ vmovs(source.AsFpuRegister<SRegister>(), destination.AsFpuRegister<SRegister>());
-    __ vmovsr(destination.AsFpuRegister<SRegister>(), IP);
+    __ vmovs(destination.AsFpuRegister<SRegister>(), STMP);
   } else if (source.IsFpuRegister() || destination.IsFpuRegister()) {
     SRegister reg = source.IsFpuRegister() ? source.AsFpuRegister<SRegister>()
                                            : destination.AsFpuRegister<SRegister>();
@@ -3374,11 +3382,33 @@ void ParallelMoveResolverARM::EmitSwap(size_t index) {
         ? destination.GetStackIndex()
         : source.GetStackIndex();
 
-    __ vmovrs(IP, reg);
+    __ vmovs(STMP, reg);
     __ LoadSFromOffset(reg, SP, mem);
-    __ StoreToOffset(kStoreWord, IP, SP, mem);
+    __ StoreSToOffset(STMP, SP, mem);
+  } else if (source.IsFpuRegisterPair() && destination.IsFpuRegisterPair()) {
+    __ vmovd(DTMP, FromLowSToD(source.AsFpuRegisterPairLow<SRegister>()));
+    __ vmovd(FromLowSToD(source.AsFpuRegisterPairLow<SRegister>()),
+             FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>()));
+    __ vmovd(FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>()), DTMP);
+  } else if (source.IsFpuRegisterPair() || destination.IsFpuRegisterPair()) {
+    DRegister reg = source.IsFpuRegisterPair()
+        ? FromLowSToD(source.AsFpuRegisterPairLow<SRegister>())
+        : FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>());
+    int mem = source.IsFpuRegisterPair()
+        ? destination.GetStackIndex()
+        : source.GetStackIndex();
+
+    __ vmovd(DTMP, reg);
+    __ LoadDFromOffset(reg, SP, mem);
+    __ StoreDToOffset(DTMP, SP, mem);
+  } else if (source.IsDoubleStackSlot() && destination.IsDoubleStackSlot()) {
+    // TODO: We could use DTMP and ask for a pair scratch register (float or core).
+    // This would save four instructions if two scratch registers are available, and
+    // two instructions if not.
+    Exchange(source.GetStackIndex(), destination.GetStackIndex());
+    Exchange(source.GetHighStackIndex(kArmWordSize), destination.GetHighStackIndex(kArmWordSize));
   } else {
-    LOG(FATAL) << "Unimplemented";
+    LOG(FATAL) << "Unimplemented" << source << " <-> " << destination;
   }
 }
 
