@@ -413,6 +413,12 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
       use_homogeneous_space_compaction_for_oom_ = true;
     } else if (option == "-XX:DisableHSpaceCompactForOOM") {
       use_homogeneous_space_compaction_for_oom_ = false;
+    } else if (StartsWith(option, "-XX:HspaceCompactForOOMMinIntervalMs=")) {
+      unsigned int value;
+      if (!ParseUnsignedInteger(option, '=', &value)) {
+        return false;
+      }
+      min_interval_homogeneous_space_compaction_by_oom_ = MsToNs(value);
     } else if (StartsWith(option, "-D")) {
       properties_.push_back(option.substr(strlen("-D")));
     } else if (StartsWith(option, "-Xjnitrace:")) {
