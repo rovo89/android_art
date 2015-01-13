@@ -90,6 +90,15 @@ MACRO2(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME, got_reg, temp_reg)
     PUSH ebx  // Save args
     PUSH edx
     PUSH ecx
+    // Create space for FPR args.
+    subl MACRO_LITERAL(4 * 8), %esp
+    CFI_ADJUST_CFA_OFFSET(4 * 8)
+    // Save FPRs.
+    movsd %xmm0, 0(%esp)
+    movsd %xmm1, 8(%esp)
+    movsd %xmm2, 16(%esp)
+    movsd %xmm3, 24(%esp)
+
     SETUP_GOT_NOSAVE VAR(got_reg, 0)
     // Load Runtime::instance_ from GOT.
     movl SYMBOL(_ZN3art7Runtime9instance_E)@GOT(REG_VAR(got_reg, 0)), REG_VAR(temp_reg, 1)
@@ -102,7 +111,7 @@ MACRO2(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME, got_reg, temp_reg)
 
     // Ugly compile-time check, but we only have the preprocessor.
     // Last +4: implicit return address pushed on stack when caller made call.
-#if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 7*4 + 4)
+#if (FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE != 7*4 + 4*8 + 4)
 #error "REFS_AND_ARGS_CALLEE_SAVE_FRAME(X86) size not as expected."
 #endif
 END_MACRO
@@ -112,26 +121,69 @@ END_MACRO
      * Runtime::CreateCalleeSaveMethod(kRefsAndArgs) where the method is passed in EAX.
      */
 MACRO0(SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_WITH_METHOD_IN_EAX)
+    // Save callee and GPR args, mixed together to agree with core spills bitmap.
     PUSH edi  // Save callee saves
     PUSH esi
     PUSH ebp
     PUSH ebx  // Save args
     PUSH edx
     PUSH ecx
+
+    // Create space for FPR args.
+    subl MACRO_LITERAL(32), %esp
+    CFI_ADJUST_CFA_OFFSET(32)
+
+    // Save FPRs.
+    movsd %xmm0, 0(%esp)
+    movsd %xmm1, 8(%esp)
+    movsd %xmm2, 16(%esp)
+    movsd %xmm3, 24(%esp)
+
     PUSH eax  // Store the ArtMethod reference at the bottom of the stack.
     // Store esp as the stop quick frame.
     movl %esp, %fs:THREAD_TOP_QUICK_FRAME_OFFSET
 END_MACRO
 
 MACRO0(RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME)
-    addl MACRO_LITERAL(4), %esp  // Remove padding
-    CFI_ADJUST_CFA_OFFSET(-4)
+    // Restore FPRs. EAX is still on the stack.
+    movsd 4(%esp), %xmm0
+    movsd 12(%esp), %xmm1
+    movsd 20(%esp), %xmm2
+    movsd 28(%esp), %xmm3
+
+    addl MACRO_LITERAL(36), %esp  // Remove FPRs and EAX.
+    CFI_ADJUST_CFA_OFFSET(-36)
+
     POP ecx  // Restore args except eax
     POP edx
     POP ebx
     POP ebp  // Restore callee saves
     POP esi
     POP edi
+END_MACRO
+
+// Restore register and jump to routine
+// Inputs:  EDI contains pointer to code.
+// Notes: Need to pop EAX too (restores Method*)
+MACRO0(RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME_AND_JUMP)
+    POP eax  // Restore Method*
+
+    // Restore FPRs.
+    movsd 0(%esp), %xmm0
+    movsd 8(%esp), %xmm1
+    movsd 16(%esp), %xmm2
+    movsd 24(%esp), %xmm3
+
+    addl MACRO_LITERAL(32), %esp  // Remove FPRs.
+    CFI_ADJUST_CFA_OFFSET(-32)
+
+    POP ecx  // Restore args except eax
+    POP edx
+    POP ebx
+    POP ebp  // Restore callee saves
+    POP esi
+    xchgl 0(%esp),%edi // restore EDI and place code pointer as only value on stack
+    ret
 END_MACRO
 
     /*
@@ -243,13 +295,14 @@ MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
     DEFINE_FUNCTION RAW_VAR(c_name, 0)
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME ebx, ebx
     movl %esp, %edx  // remember SP
+
     // Outgoing argument set up
     subl MACRO_LITERAL(12), %esp  // alignment padding
     CFI_ADJUST_CFA_OFFSET(12)
     PUSH edx                      // pass SP
     pushl %fs:THREAD_SELF_OFFSET  // pass Thread::Current()
     CFI_ADJUST_CFA_OFFSET(4)
-    pushl 32(%edx)                // pass caller Method*
+    pushl 32+32(%edx)             // pass caller Method*
     CFI_ADJUST_CFA_OFFSET(4)
     PUSH ecx                      // pass arg2
     PUSH eax                      // pass arg1
@@ -257,6 +310,17 @@ MACRO2(INVOKE_TRAMPOLINE, c_name, cxx_name)
     movl %edx, %edi               // save code pointer in EDI
     addl MACRO_LITERAL(36), %esp  // Pop arguments skip eax
     CFI_ADJUST_CFA_OFFSET(-36)
+
+    // Restore FPRs.
+    movsd 0(%esp), %xmm0
+    movsd 8(%esp), %xmm1
+    movsd 16(%esp), %xmm2
+    movsd 24(%esp), %xmm3
+
+    // Remove space for FPR args.
+    addl MACRO_LITERAL(4 * 8), %esp
+    CFI_ADJUST_CFA_OFFSET(-4 * 8)
+
     POP ecx  // Restore args except eax
     POP edx
     POP ebx
@@ -284,7 +348,63 @@ INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvoke
 INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
     /*
-     * Quick invocation stub.
+     * Helper for quick invocation stub to set up XMM registers. Assumes EBX == shorty,
+     * ECX == arg_array. Clobbers EBX, ECX and al. Branches to xmm_setup_finished if it encounters
+     * the end of the shorty.
+     */
+MACRO2(LOOP_OVER_SHORTY_LOADING_XMMS, xmm_reg, finished)
+1: // LOOP
+    movb (%ebx), %al              // al := *shorty
+    addl MACRO_LITERAL(1), %ebx   // shorty++
+    cmpb MACRO_LITERAL(0), %al    // if (al == '\0') goto xmm_setup_finished
+    je VAR(finished, 1)
+    cmpb MACRO_LITERAL(68), %al   // if (al == 'D') goto FOUND_DOUBLE
+    je 2f
+    cmpb MACRO_LITERAL(70), %al   // if (al == 'F') goto FOUND_FLOAT
+    je 3f
+    addl MACRO_LITERAL(4), %ecx   // arg_array++
+    //  Handle extra space in arg array taken by a long.
+    cmpb MACRO_LITERAL(74), %al   // if (al != 'J') goto LOOP
+    jne 1b
+    addl MACRO_LITERAL(4), %ecx   // arg_array++
+    jmp 1b                        // goto LOOP
+2:  // FOUND_DOUBLE
+    movsd (%ecx), REG_VAR(xmm_reg, 0)
+    addl MACRO_LITERAL(8), %ecx   // arg_array+=2
+    jmp 4f
+3:  // FOUND_FLOAT
+    movss (%ecx), REG_VAR(xmm_reg, 0)
+    addl MACRO_LITERAL(4), %ecx   // arg_array++
+4:
+END_MACRO
+
+    /*
+     * Helper for quick invocation stub to set up GPR registers. Assumes ESI == shorty,
+     * EDI == arg_array. Clobbers ESI, EDI and al. Branches to gpr_setup_finished if it encounters
+     * the end of the shorty.
+     */
+MACRO1(SKIP_OVER_FLOATS, finished)
+1: // LOOP
+    movb (%esi), %al              // al := *shorty
+    addl MACRO_LITERAL(1), %esi   // shorty++
+    cmpb MACRO_LITERAL(0), %al    // if (al == '\0') goto gpr_setup_finished
+    je  VAR(finished, 2)
+    cmpb MACRO_LITERAL(70), %al   // if (al == 'F') goto SKIP_FLOAT
+    je 3f
+    cmpb MACRO_LITERAL(68), %al   // if (al == 'D') goto SKIP_DOUBLE
+    je 4f
+    jmp 5f
+3:  // SKIP_FLOAT
+    addl MACRO_LITERAL(4), %edi   // arg_array++
+    jmp 1b
+4:  // SKIP_DOUBLE
+    addl MACRO_LITERAL(8), %edi   // arg_array+=2
+    jmp 1b
+5:
+END_MACRO
+
+  /*
+     * Quick invocation stub (non-static).
      * On entry:
      *   [sp] = return address
      *   [sp + 4] = method pointer
@@ -295,6 +415,17 @@ INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvo
      *   [sp + 24] = shorty
      */
 DEFINE_FUNCTION art_quick_invoke_stub
+    // Set up argument XMM registers.
+    mov 24(%esp), %ebx           // EBX := shorty + 1  ; ie skip return arg character.
+    addl LITERAL(1), %ebx
+    mov 8(%esp), %ecx            // ECX := arg_array + 4 ; ie skip this pointer.
+    addl LITERAL(4), %ecx
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm0, .Lxmm_setup_finished
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm1, .Lxmm_setup_finished
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm2, .Lxmm_setup_finished
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm3, .Lxmm_setup_finished
+    .balign 16
+.Lxmm_setup_finished:
     PUSH ebp                      // save ebp
     PUSH ebx                      // save ebx
     PUSH esi                      // save esi
@@ -308,18 +439,41 @@ DEFINE_FUNCTION art_quick_invoke_stub
     andl LITERAL(0xFFFFFFF0), %ebx
     subl LITERAL(20), %ebx        // remove space for return address, ebx, ebp, esi and edi
     subl %ebx, %esp               // reserve stack space for argument array
-    SETUP_GOT_NOSAVE ebx          // clobbers ebx (harmless here)
-    lea  4(%esp), %eax            // use stack pointer + method ptr as dest for memcpy
-    pushl 28(%ebp)                // push size of region to memcpy
-    pushl 24(%ebp)                // push arg array as source of memcpy
-    pushl %eax                    // push stack pointer as destination of memcpy
-    call PLT_SYMBOL(memcpy)       // (void*, const void*, size_t)
-    addl LITERAL(12), %esp        // pop arguments to memcpy
+
     movl LITERAL(0), (%esp)       // store NULL for method*
+
+    // Copy arg array into stack.
+    movl 28(%ebp), %ecx           // ECX = size of args
+    movl 24(%ebp), %esi           // ESI = argument array
+    leal 4(%esp), %edi            // EDI = just after Method* in stack arguments
+    rep movsb                     // while (ecx--) { *edi++ = *esi++ }
+
+    mov 40(%ebp), %esi            // ESI := shorty + 1  ; ie skip return arg character.
+    addl LITERAL(1), %esi
+    mov 24(%ebp), %edi            // EDI := arg_array
+    mov 0(%edi), %ecx             // ECX := this pointer
+    addl LITERAL(4), %edi         // EDI := arg_array + 4 ; ie skip this pointer.
+
+    // Enumerate the possible cases for loading GPRS.
+    // edx (and maybe ebx):
+    SKIP_OVER_FLOATS .Lgpr_setup_finished
+    cmpb MACRO_LITERAL(74), %al   // if (al == 'J') goto FOUND_LONG
+    je .LfirstLong
+    // Must be an integer value.
+    movl (%edi), %edx
+    addl LITERAL(4), %edi         // arg_array++
+
+    // Now check ebx
+    SKIP_OVER_FLOATS .Lgpr_setup_finished
+    // Must be first word of a long, or an integer.
+    movl (%edi), %ebx
+    jmp .Lgpr_setup_finished
+.LfirstLong:
+    movl (%edi), %edx
+    movl 4(%edi), %ebx
+    // Nothing left to load.
+.Lgpr_setup_finished:
     mov 20(%ebp), %eax            // move method pointer into eax
-    mov 4(%esp), %ecx             // copy arg1 into ecx
-    mov 8(%esp), %edx             // copy arg2 into edx
-    mov 12(%esp), %ebx            // copy arg3 into ebx
     call *MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32(%eax) // call the method
     mov %ebp, %esp                // restore stack pointer
     CFI_DEF_CFA_REGISTER(esp)
@@ -343,6 +497,119 @@ DEFINE_FUNCTION art_quick_invoke_stub
     movss %xmm0, (%ecx)           // store the floating point result
     ret
 END_FUNCTION art_quick_invoke_stub
+
+  /*
+     * Quick invocation stub (static).
+     * On entry:
+     *   [sp] = return address
+     *   [sp + 4] = method pointer
+     *   [sp + 8] = argument array or NULL for no argument methods
+     *   [sp + 12] = size of argument array in bytes
+     *   [sp + 16] = (managed) thread pointer
+     *   [sp + 20] = JValue* result
+     *   [sp + 24] = shorty
+     */
+DEFINE_FUNCTION art_quick_invoke_static_stub
+    // Set up argument XMM registers.
+    mov 24(%esp), %ebx           // EBX := shorty + 1  ; ie skip return arg character.
+    addl LITERAL(1), %ebx
+    mov 8(%esp), %ecx            // ECX := arg_array
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm0, .Lxmm_setup_finished2
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm1, .Lxmm_setup_finished2
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm2, .Lxmm_setup_finished2
+    LOOP_OVER_SHORTY_LOADING_XMMS xmm3, .Lxmm_setup_finished2
+    .balign 16
+.Lxmm_setup_finished2:
+    PUSH ebp                      // save ebp
+    PUSH ebx                      // save ebx
+    PUSH esi                      // save esi
+    PUSH edi                      // save edi
+    mov %esp, %ebp                // copy value of stack pointer into base pointer
+    CFI_DEF_CFA_REGISTER(ebp)
+    mov 28(%ebp), %ebx            // get arg array size
+    // reserve space for return addr, method*, ebx, ebp, esi, and edi in frame
+    addl LITERAL(36), %ebx
+    // align frame size to 16 bytes
+    andl LITERAL(0xFFFFFFF0), %ebx
+    subl LITERAL(20), %ebx        // remove space for return address, ebx, ebp, esi and edi
+    subl %ebx, %esp               // reserve stack space for argument array
+
+    movl LITERAL(0), (%esp)       // store NULL for method*
+
+    // Copy arg array into stack.
+    movl 28(%ebp), %ecx           // ECX = size of args
+    movl 24(%ebp), %esi           // ESI = argument array
+    leal 4(%esp), %edi            // EDI = just after Method* in stack arguments
+    rep movsb                     // while (ecx--) { *edi++ = *esi++ }
+
+    mov 40(%ebp), %esi            // ESI := shorty + 1  ; ie skip return arg character.
+    addl LITERAL(1), %esi
+    mov 24(%ebp), %edi            // EDI := arg_array
+
+    // Enumerate the possible cases for loading GPRS.
+    // ecx (and maybe edx)
+    SKIP_OVER_FLOATS .Lgpr_setup_finished2
+    cmpb MACRO_LITERAL(74), %al   // if (al == 'J') goto FOUND_LONG
+    je .LfirstLong2
+    // Must be an integer value.  Load into ECX.
+    movl (%edi), %ecx
+    addl LITERAL(4), %edi         // arg_array++
+
+    // Now check edx (and maybe ebx).
+    SKIP_OVER_FLOATS .Lgpr_setup_finished2
+    cmpb MACRO_LITERAL(74), %al   // if (al == 'J') goto FOUND_LONG
+    je .LSecondLong2
+    // Must be an integer.  Load into EDX.
+    movl (%edi), %edx
+    addl LITERAL(4), %edi         // arg_array++
+
+    // Is there anything for ebx?
+    SKIP_OVER_FLOATS .Lgpr_setup_finished2
+    // First word of long or integer.  Load into EBX.
+    movl (%edi), %ebx
+    jmp .Lgpr_setup_finished2
+.LSecondLong2:
+    // EDX:EBX is long.  That is all.
+    movl (%edi), %edx
+    movl 4(%edi), %ebx
+    jmp .Lgpr_setup_finished2
+.LfirstLong2:
+    // ECX:EDX is a long
+    movl (%edi), %ecx
+    movl 4(%edi), %edx
+    addl LITERAL(8), %edi         // arg_array += 2
+
+    // Anything for EBX?
+    SKIP_OVER_FLOATS .Lgpr_setup_finished2
+    // First word of long or integer.  Load into EBX.
+    movl (%edi), %ebx
+    jmp .Lgpr_setup_finished2
+    // Nothing left to load.
+.Lgpr_setup_finished2:
+    mov 20(%ebp), %eax            // move method pointer into eax
+    call *MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32(%eax) // call the method
+    mov %ebp, %esp                // restore stack pointer
+    CFI_DEF_CFA_REGISTER(esp)
+    POP edi                       // pop edi
+    POP esi                       // pop esi
+    POP ebx                       // pop ebx
+    POP ebp                       // pop ebp
+    mov 20(%esp), %ecx            // get result pointer
+    mov %eax, (%ecx)              // store the result assuming its a long, int or Object*
+    mov %edx, 4(%ecx)             // store the other half of the result
+    mov 24(%esp), %edx            // get the shorty
+    cmpb LITERAL(68), (%edx)      // test if result type char == 'D'
+    je .Lreturn_double_quick2
+    cmpb LITERAL(70), (%edx)      // test if result type char == 'F'
+    je .Lreturn_float_quick2
+    ret
+.Lreturn_double_quick2:
+    movsd %xmm0, (%ecx)           // store the floating point result
+    ret
+.Lreturn_float_quick2:
+    movss %xmm0, (%ecx)           // store the floating point result
+    ret
+END_FUNCTION art_quick_invoke_static_stub
 
 MACRO3(NO_ARG_DOWNCALL, c_name, cxx_name, return_macro)
     DEFINE_FUNCTION RAW_VAR(c_name, 0)
@@ -802,20 +1069,20 @@ END_FUNCTION art_quick_memcpy
 NO_ARG_DOWNCALL art_quick_test_suspend, artTestSuspendFromCode, ret
 
 DEFINE_FUNCTION art_quick_d2l
-    PUSH eax                      // alignment padding
-    PUSH ecx                      // pass arg2 a.hi
-    PUSH eax                      // pass arg1 a.lo
-    call SYMBOL(art_d2l)      // (jdouble a)
+    subl LITERAL(12), %esp        // alignment padding, room for argument
+    CFI_ADJUST_CFA_OFFSET(12)
+    movsd %xmm0, 0(%esp)          // arg a
+    call SYMBOL(art_d2l)          // (jdouble a)
     addl LITERAL(12), %esp        // pop arguments
     CFI_ADJUST_CFA_OFFSET(-12)
     ret
 END_FUNCTION art_quick_d2l
 
 DEFINE_FUNCTION art_quick_f2l
-    subl LITERAL(8), %esp         // alignment padding
-    CFI_ADJUST_CFA_OFFSET(8)
-    PUSH eax                      // pass arg1 a
-    call SYMBOL(art_f2l)      // (jfloat a)
+    subl LITERAL(12), %esp        // alignment padding
+    CFI_ADJUST_CFA_OFFSET(12)
+    movss %xmm0, 0(%esp)          // arg a
+    call SYMBOL(art_f2l)          // (jfloat a)
     addl LITERAL(12), %esp        // pop arguments
     CFI_ADJUST_CFA_OFFSET(-12)
     ret
@@ -975,8 +1242,8 @@ DEFINE_FUNCTION art_quick_proxy_invoke_handler
     movd %eax, %xmm0              // place return value also into floating point return value
     movd %edx, %xmm1
     punpckldq %xmm1, %xmm0
-    addl LITERAL(44), %esp        // pop arguments
-    CFI_ADJUST_CFA_OFFSET(-44)
+    addl LITERAL(76), %esp        // pop arguments
+    CFI_ADJUST_CFA_OFFSET(-76)
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 END_FUNCTION art_quick_proxy_invoke_handler
 
@@ -988,7 +1255,7 @@ DEFINE_FUNCTION art_quick_imt_conflict_trampoline
     PUSH ecx
     movl 8(%esp), %eax            // load caller Method*
     movl MIRROR_ART_METHOD_DEX_CACHE_METHODS_OFFSET(%eax), %eax  // load dex_cache_resolved_methods
-    movd %xmm0, %ecx              // get target method index stored in xmm0
+    movd %xmm7, %ecx              // get target method index stored in xmm0
     movl MIRROR_OBJECT_ARRAY_DATA_OFFSET(%eax, %ecx, 4), %eax  // load the target method
     POP ecx
     jmp SYMBOL(art_quick_invoke_interface_trampoline)
@@ -1007,14 +1274,7 @@ DEFINE_FUNCTION art_quick_resolution_trampoline
     addl LITERAL(16), %esp        // pop arguments
     test %eax, %eax               // if code pointer is NULL goto deliver pending exception
     jz 1f
-    POP eax                       // called method
-    POP ecx                       // restore args
-    POP edx
-    POP ebx
-    POP ebp                       // restore callee saves except EDI
-    POP esi
-    xchgl 0(%esp),%edi            // restore EDI and place code pointer as only value on stack
-    ret                           // tail call into method
+    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME_AND_JUMP
 1:
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     DELIVER_PENDING_EXCEPTION
@@ -1048,7 +1308,6 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movl %edx, %esp
 
     // On x86 there are no registers passed, so nothing to pop here.
-
     // Native call.
     call *%eax
 
@@ -1075,8 +1334,10 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     jnz .Lexception_in_native
 
     // Tear down the callee-save frame.
-    addl LITERAL(4), %esp     // Remove padding
-    CFI_ADJUST_CFA_OFFSET(-4)
+    // Remove space for FPR args and EAX
+    addl MACRO_LITERAL(4 + 4 * 8), %esp
+    CFI_ADJUST_CFA_OFFSET(-(4 + 4 * 8))
+
     POP ecx
     addl LITERAL(4), %esp     // Avoid edx, as it may be part of the result.
     CFI_ADJUST_CFA_OFFSET(-4)
@@ -1106,12 +1367,21 @@ DEFINE_FUNCTION art_quick_to_interpreter_bridge
     CFI_ADJUST_CFA_OFFSET(4)
     PUSH eax                      // pass  method
     call SYMBOL(artQuickToInterpreterBridge)  // (method, Thread*, SP)
-    movd %eax, %xmm0              // place return value also into floating point return value
-    movd %edx, %xmm1
-    punpckldq %xmm1, %xmm0
     addl LITERAL(16), %esp        // pop arguments
     CFI_ADJUST_CFA_OFFSET(-16)
-    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+
+    // Return eax:edx in xmm0 also.
+    movd %eax, %xmm0
+    movd %edx, %xmm1
+    punpckldq %xmm1, %xmm0
+
+    addl MACRO_LITERAL(48), %esp  // Remove FPRs and EAX, ECX, EDX, EBX.
+    CFI_ADJUST_CFA_OFFSET(-48)
+
+    POP ebp  // Restore callee saves
+    POP esi
+    POP edi
+
     RETURN_OR_DELIVER_PENDING_EXCEPTION    // return or deliver exception
 END_FUNCTION art_quick_to_interpreter_bridge
 
@@ -1131,18 +1401,25 @@ DEFINE_FUNCTION art_quick_instrumentation_entry
     PUSH eax                      // Pass Method*.
     call SYMBOL(artInstrumentationMethodEntryFromCode) // (Method*, Object*, Thread*, LR)
     addl LITERAL(28), %esp        // Pop arguments upto saved Method*.
-    movl 28(%esp), %edi           // Restore edi.
-    movl %eax, 28(%esp)           // Place code* over edi, just under return pc.
+    movl 60(%esp), %edi           // Restore edi.
+    movl %eax, 60(%esp)           // Place code* over edi, just under return pc.
     movl SYMBOL(art_quick_instrumentation_exit)@GOT(%ebx), %ebx
     // Place instrumentation exit as return pc. ebx holds the GOT computed on entry.
-    movl %ebx, 32(%esp)
-    movl (%esp), %eax             // Restore eax.
-    movl 8(%esp), %ecx            // Restore ecx.
-    movl 12(%esp), %edx           // Restore edx.
-    movl 16(%esp), %ebx           // Restore ebx.
-    movl 20(%esp), %ebp           // Restore ebp.
-    movl 24(%esp), %esi           // Restore esi.
-    addl LITERAL(28), %esp        // Wind stack back upto code*.
+    movl %ebx, 64(%esp)
+    movl 0(%esp), %eax           // Restore eax.
+    // Restore FPRs (extra 4 bytes of offset due to EAX push at top).
+    movsd 8(%esp), %xmm0
+    movsd 16(%esp), %xmm1
+    movsd 24(%esp), %xmm2
+    movsd 32(%esp), %xmm3
+
+    // Restore GPRs.
+    movl 40(%esp), %ecx           // Restore ecx.
+    movl 48(%esp), %edx           // Restore edx.
+    movl 48(%esp), %ebx           // Restore ebx.
+    movl 52(%esp), %ebp           // Restore ebp.
+    movl 56(%esp), %esi           // Restore esi.
+    addl LITERAL(60), %esp        // Wind stack back upto code*.
     ret                           // Call method (and pop).
 END_FUNCTION art_quick_instrumentation_entry
 

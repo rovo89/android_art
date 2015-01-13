@@ -30,6 +30,9 @@ void X86Context::Reset() {
   for (size_t  i = 0; i < kNumberOfCpuRegisters; i++) {
     gprs_[i] = nullptr;
   }
+  for (size_t i = 0; i < kNumberOfFloatRegisters; ++i) {
+    fprs_[i] = nullptr;
+  }
   gprs_[ESP] = &esp_;
   // Initialize registers with easy to spot debug values.
   esp_ = X86Context::kBadGprBase + ESP;
@@ -40,7 +43,7 @@ void X86Context::FillCalleeSaves(const StackVisitor& fr) {
   mirror::ArtMethod* method = fr.GetMethod();
   const QuickMethodFrameInfo frame_info = method->GetQuickFrameInfo();
   size_t spill_count = POPCOUNT(frame_info.CoreSpillMask());
-  DCHECK_EQ(frame_info.FpSpillMask(), 0u);
+  size_t fp_spill_count = POPCOUNT(frame_info.FpSpillMask());
   if (spill_count > 0) {
     // Lowest number spill is farthest away, walk registers and fill into context.
     int j = 2;  // Offset j to skip return address spill.
@@ -48,6 +51,24 @@ void X86Context::FillCalleeSaves(const StackVisitor& fr) {
       if (((frame_info.CoreSpillMask() >> i) & 1) != 0) {
         gprs_[i] = fr.CalleeSaveAddress(spill_count - j, frame_info.FrameSizeInBytes());
         j++;
+      }
+    }
+  }
+  if (fp_spill_count > 0) {
+    // Lowest number spill is farthest away, walk registers and fill into context.
+    size_t j = 2;  // Offset j to skip return address spill.
+    size_t fp_spill_size_in_words = fp_spill_count * 2;
+    for (size_t i = 0; i < kNumberOfFloatRegisters; ++i) {
+      if (((frame_info.FpSpillMask() >> i) & 1) != 0) {
+        // There are 2 pieces to each XMM register, to match VR size.
+        fprs_[2*i] = reinterpret_cast<uint32_t*>(
+            fr.CalleeSaveAddress(spill_count + fp_spill_size_in_words - j,
+                                 frame_info.FrameSizeInBytes()));
+        fprs_[2*i+1] = reinterpret_cast<uint32_t*>(
+            fr.CalleeSaveAddress(spill_count + fp_spill_size_in_words - j - 1,
+                                 frame_info.FrameSizeInBytes()));
+        // Two void* per XMM register.
+        j += 2;
       }
     }
   }
@@ -59,6 +80,7 @@ void X86Context::SmashCallerSaves() {
   gprs_[EDX] = const_cast<uintptr_t*>(&gZero);
   gprs_[ECX] = nullptr;
   gprs_[EBX] = nullptr;
+  memset(&fprs_[0], '\0', sizeof(fprs_));
 }
 
 bool X86Context::SetGPR(uint32_t reg, uintptr_t value) {
@@ -72,14 +94,15 @@ bool X86Context::SetGPR(uint32_t reg, uintptr_t value) {
   }
 }
 
-bool X86Context::GetFPR(uint32_t reg ATTRIBUTE_UNUSED, uintptr_t* val ATTRIBUTE_UNUSED) {
-  LOG(FATAL) << "Floating-point registers are all caller save in X86";
-  UNREACHABLE();
-}
-
-bool X86Context::SetFPR(uint32_t reg ATTRIBUTE_UNUSED, uintptr_t value ATTRIBUTE_UNUSED) {
-  LOG(FATAL) << "Floating-point registers are all caller save in X86";
-  UNREACHABLE();
+bool X86Context::SetFPR(uint32_t reg, uintptr_t value) {
+  CHECK_LT(reg, static_cast<uint32_t>(kNumberOfFloatRegisters));
+  CHECK_NE(fprs_[reg], reinterpret_cast<const uint32_t*>(&gZero));
+  if (fprs_[reg] != nullptr) {
+    *fprs_[reg] = value;
+    return true;
+  } else {
+    return false;
+  }
 }
 
 void X86Context::DoLongJump() {
@@ -90,17 +113,30 @@ void X86Context::DoLongJump() {
   for (size_t i = 0; i < kNumberOfCpuRegisters; ++i) {
     gprs[kNumberOfCpuRegisters - i - 1] = gprs_[i] != nullptr ? *gprs_[i] : X86Context::kBadGprBase + i;
   }
+  uint32_t fprs[kNumberOfFloatRegisters];
+  for (size_t i = 0; i < kNumberOfFloatRegisters; ++i) {
+    fprs[i] = fprs_[i] != nullptr ? *fprs_[i] : X86Context::kBadFprBase + i;
+  }
   // We want to load the stack pointer one slot below so that the ret will pop eip.
   uintptr_t esp = gprs[kNumberOfCpuRegisters - ESP - 1] - sizeof(intptr_t);
   gprs[kNumberOfCpuRegisters] = esp;
   *(reinterpret_cast<uintptr_t*>(esp)) = eip_;
   __asm__ __volatile__(
+      "movl %1, %%ebx\n\t"          // Address base of FPRs.
+      "movsd 0(%%ebx), %%xmm0\n\t"  // Load up XMM0-XMM7.
+      "movsd 8(%%ebx), %%xmm1\n\t"
+      "movsd 16(%%ebx), %%xmm2\n\t"
+      "movsd 24(%%ebx), %%xmm3\n\t"
+      "movsd 32(%%ebx), %%xmm4\n\t"
+      "movsd 40(%%ebx), %%xmm5\n\t"
+      "movsd 48(%%ebx), %%xmm6\n\t"
+      "movsd 56(%%ebx), %%xmm7\n\t"
       "movl %0, %%esp\n\t"  // ESP points to gprs.
       "popal\n\t"           // Load all registers except ESP and EIP with values in gprs.
       "popl %%esp\n\t"      // Load stack pointer.
       "ret\n\t"             // From higher in the stack pop eip.
       :  // output.
-      : "g"(&gprs[0])  // input.
+      : "g"(&gprs[0]), "g"(&fprs[0]) // input.
       :);  // clobber.
 #else
   UNIMPLEMENTED(FATAL);

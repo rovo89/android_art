@@ -36,8 +36,9 @@ static constexpr int kCurrentMethodStackOffset = 0;
 static constexpr Register kRuntimeParameterCoreRegisters[] = { EAX, ECX, EDX, EBX };
 static constexpr size_t kRuntimeParameterCoreRegistersLength =
     arraysize(kRuntimeParameterCoreRegisters);
-static constexpr XmmRegister kRuntimeParameterFpuRegisters[] = { };
-static constexpr size_t kRuntimeParameterFpuRegistersLength = 0;
+static constexpr XmmRegister kRuntimeParameterFpuRegisters[] = { XMM0, XMM1, XMM2, XMM3 };
+static constexpr size_t kRuntimeParameterFpuRegistersLength =
+    arraysize(kRuntimeParameterFpuRegisters);
 
 static constexpr int kC2ConditionMask = 0x400;
 
@@ -504,30 +505,49 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
     case Primitive::kPrimChar:
     case Primitive::kPrimShort:
     case Primitive::kPrimInt:
-    case Primitive::kPrimFloat:
     case Primitive::kPrimNot: {
       uint32_t index = gp_index_++;
+      stack_index_++;
       if (index < calling_convention.GetNumberOfRegisters()) {
         return Location::RegisterLocation(calling_convention.GetRegisterAt(index));
       } else {
-        return Location::StackSlot(calling_convention.GetStackOffsetOf(index));
+        return Location::StackSlot(calling_convention.GetStackOffsetOf(stack_index_ - 1));
       }
     }
 
-    case Primitive::kPrimLong:
-    case Primitive::kPrimDouble: {
+    case Primitive::kPrimLong: {
       uint32_t index = gp_index_;
       gp_index_ += 2;
+      stack_index_ += 2;
       if (index + 1 < calling_convention.GetNumberOfRegisters()) {
         X86ManagedRegister pair = X86ManagedRegister::FromRegisterPair(
             calling_convention.GetRegisterPairAt(index));
         return Location::RegisterPairLocation(pair.AsRegisterPairLow(), pair.AsRegisterPairHigh());
       } else if (index + 1 == calling_convention.GetNumberOfRegisters()) {
-        // On X86, the register index and stack index of a quick parameter is the same, since
-        // we are passing floating pointer values in core registers.
-        return Location::QuickParameter(index, index);
+        // stack_index_ is the right offset for the memory.
+        return Location::QuickParameter(index, stack_index_ - 2);
       } else {
-        return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(index));
+        return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(stack_index_ - 2));
+      }
+    }
+
+    case Primitive::kPrimFloat: {
+      uint32_t index = fp_index_++;
+      stack_index_++;
+      if (index < calling_convention.GetNumberOfFpuRegisters()) {
+        return Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(index));
+      } else {
+        return Location::StackSlot(calling_convention.GetStackOffsetOf(stack_index_ - 1));
+      }
+    }
+
+    case Primitive::kPrimDouble: {
+      uint32_t index = fp_index_++;
+      stack_index_ += 2;
+      if (index < calling_convention.GetNumberOfFpuRegisters()) {
+        return Location::FpuRegisterLocation(calling_convention.GetFpuRegisterAt(index));
+      } else {
+        return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(stack_index_ - 2));
       }
     }
 
@@ -1186,7 +1206,7 @@ void InstructionCodeGeneratorX86::VisitInvokeVirtual(HInvokeVirtual* invoke) {
 void LocationsBuilderX86::VisitInvokeInterface(HInvokeInterface* invoke) {
   HandleInvoke(invoke);
   // Add the hidden argument.
-  invoke->GetLocations()->AddTemp(Location::FpuRegisterLocation(XMM0));
+  invoke->GetLocations()->AddTemp(Location::FpuRegisterLocation(XMM7));
 }
 
 void InstructionCodeGeneratorX86::VisitInvokeInterface(HInvokeInterface* invoke) {
@@ -1388,31 +1408,17 @@ void LocationsBuilderX86::VisitTypeConversion(HTypeConversion* conversion) {
           locations->SetOut(Location::RegisterPairLocation(EAX, EDX));
           break;
 
-        case Primitive::kPrimFloat: {
-          // Processing a Dex `float-to-long' instruction.
-          InvokeRuntimeCallingConvention calling_convention;
-          // Note that on x86 floating-point parameters are passed
-          // through core registers (here, EAX).
-          locations->SetInAt(0, Location::RegisterLocation(
-              calling_convention.GetRegisterAt(0)));
-          // The runtime helper puts the result in EAX, EDX.
-          locations->SetOut(Location::RegisterPairLocation(EAX, EDX));
-          break;
-        }
-
+        case Primitive::kPrimFloat:
         case Primitive::kPrimDouble: {
-          // Processing a Dex `double-to-long' instruction.
+          // Processing a Dex `float-to-long' or 'double-to-long' instruction.
           InvokeRuntimeCallingConvention calling_convention;
-          // Note that on x86 floating-point parameters are passed
-          // through core registers (here, EAX and ECX).
-          locations->SetInAt(0, Location::RegisterPairLocation(
-              calling_convention.GetRegisterAt(0),
-              calling_convention.GetRegisterAt(1)));
+          XmmRegister parameter = calling_convention.GetFpuRegisterAt(0);
+          locations->SetInAt(0, Location::FpuRegisterLocation(parameter));
+
           // The runtime helper puts the result in EAX, EDX.
           locations->SetOut(Location::RegisterPairLocation(EAX, EDX));
-          break;
         }
-          break;
+        break;
 
         default:
           LOG(FATAL) << "Unexpected type conversion from " << input_type
