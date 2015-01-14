@@ -34,6 +34,7 @@
 #include <cutils/trace.h>
 
 #include "arch/instruction_set_features.h"
+#include "arch/mips/instruction_set_features_mips.h"
 #include "base/dumpable.h"
 #include "base/stl_util.h"
 #include "base/stringpiece.h"
@@ -852,7 +853,13 @@ class Dex2Oat FINAL {
     }
 
     if (compiler_filter_string == nullptr) {
-      if (instruction_set_ == kMips64) {
+      if (instruction_set_ == kMips &&
+          reinterpret_cast<const MipsInstructionSetFeatures*>(instruction_set_features_.get())->
+          IsR6()) {
+        // For R6, only interpreter mode is working.
+        // TODO: fix compiler for Mips32r6.
+        compiler_filter_string = "interpret-only";
+      } else if (instruction_set_ == kMips64) {
         // TODO: fix compiler for Mips64.
         compiler_filter_string = "interpret-only";
       } else if (image_) {
