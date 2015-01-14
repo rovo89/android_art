@@ -28,6 +28,7 @@ TEST(InstructionSetTest, GetInstructionSetFromString) {
   EXPECT_EQ(kX86, GetInstructionSetFromString("x86"));
   EXPECT_EQ(kX86_64, GetInstructionSetFromString("x86_64"));
   EXPECT_EQ(kMips, GetInstructionSetFromString("mips"));
+  EXPECT_EQ(kMips64, GetInstructionSetFromString("mips64"));
   EXPECT_EQ(kNone, GetInstructionSetFromString("none"));
   EXPECT_EQ(kNone, GetInstructionSetFromString("random-string"));
 }
@@ -39,6 +40,7 @@ TEST(InstructionSetTest, GetInstructionSetString) {
   EXPECT_STREQ("x86", GetInstructionSetString(kX86));
   EXPECT_STREQ("x86_64", GetInstructionSetString(kX86_64));
   EXPECT_STREQ("mips", GetInstructionSetString(kMips));
+  EXPECT_STREQ("mips64", GetInstructionSetString(kMips64));
   EXPECT_STREQ("none", GetInstructionSetString(kNone));
 }
 

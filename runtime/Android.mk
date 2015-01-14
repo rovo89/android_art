@@ -170,6 +170,8 @@ LIBART_COMMON_SRC_FILES += \
   arch/arm64/registers_arm64.cc \
   arch/mips/instruction_set_features_mips.cc \
   arch/mips/registers_mips.cc \
+  arch/mips64/instruction_set_features_mips64.cc \
+  arch/mips64/registers_mips64.cc \
   arch/x86/instruction_set_features_x86.cc \
   arch/x86/registers_x86.cc \
   arch/x86_64/registers_x86_64.cc \

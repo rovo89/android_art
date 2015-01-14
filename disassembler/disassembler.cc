@@ -23,6 +23,7 @@
 #include "disassembler_arm.h"
 #include "disassembler_arm64.h"
 #include "disassembler_mips.h"
+#include "disassembler_mips64.h"
 #include "disassembler_x86.h"
 
 namespace art {
@@ -34,6 +35,8 @@ Disassembler* Disassembler::Create(InstructionSet instruction_set, DisassemblerO
     return new arm64::DisassemblerArm64(options);
   } else if (instruction_set == kMips) {
     return new mips::DisassemblerMips(options);
+  } else if (instruction_set == kMips64) {
+    return new mips64::DisassemblerMips64(options);
   } else if (instruction_set == kX86) {
     return new x86::DisassemblerX86(options, false);
   } else if (instruction_set == kX86_64) {

@@ -122,6 +122,8 @@ LIBART_COMPILER_SRC_FILES := \
 	utils/dwarf_cfi.cc \
 	utils/mips/assembler_mips.cc \
 	utils/mips/managed_register_mips.cc \
+	utils/mips64/assembler_mips64.cc \
+	utils/mips64/managed_register_mips64.cc \
 	utils/x86/assembler_x86.cc \
 	utils/x86/managed_register_x86.cc \
 	utils/x86_64/assembler_x86_64.cc \

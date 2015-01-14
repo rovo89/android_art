@@ -1108,6 +1108,14 @@ class ElfBuilder FINAL {
                                EF_MIPS_ARCH_32R2);
         break;
       }
+      case kMips64: {
+        elf_header_.e_machine = EM_MIPS;
+        elf_header_.e_flags = (EF_MIPS_NOREORDER |
+                               EF_MIPS_PIC       |
+                               EF_MIPS_CPIC      |
+                               EF_MIPS_ARCH_64R6);
+        break;
+      }
       default: {
         fatal_error_ = true;
         LOG(FATAL) << "Unknown instruction set: " << isa;

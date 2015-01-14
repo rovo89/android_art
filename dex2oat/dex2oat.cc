@@ -148,7 +148,7 @@ static void UsageError(const char* fmt, ...) {
   UsageError("      Example: --android-root=out/host/linux-x86");
   UsageError("      Default: $ANDROID_ROOT");
   UsageError("");
-  UsageError("  --instruction-set=(arm|arm64|mips|x86|x86_64): compile for a particular");
+  UsageError("  --instruction-set=(arm|arm64|mips|mips64|x86|x86_64): compile for a particular");
   UsageError("      instruction set.");
   UsageError("      Example: --instruction-set=x86");
   UsageError("      Default: arm");
@@ -868,6 +868,7 @@ class Dex2Oat FINAL {
         // TODO: fix compiler for Mips32r6.
         compiler_filter_string = "interpret-only";
       } else if (instruction_set_ == kMips64) {
+        // For Mips64, can only compile in interpreter mode.
         // TODO: fix compiler for Mips64.
         compiler_filter_string = "interpret-only";
       } else if (image_) {

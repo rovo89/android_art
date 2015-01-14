@@ -23,6 +23,7 @@
 #include "arm/instruction_set_features_arm.h"
 #include "arm64/instruction_set_features_arm64.h"
 #include "mips/instruction_set_features_mips.h"
+#include "mips64/instruction_set_features_mips64.h"
 #include "x86/instruction_set_features_x86.h"
 #include "x86_64/instruction_set_features_x86_64.h"
 
@@ -42,6 +43,9 @@ const InstructionSetFeatures* InstructionSetFeatures::FromVariant(InstructionSet
       break;
     case kMips:
       result = MipsInstructionSetFeatures::FromVariant(variant, error_msg);
+      break;
+    case kMips64:
+      result = Mips64InstructionSetFeatures::FromVariant(variant, error_msg);
       break;
     case kX86:
       result = X86InstructionSetFeatures::FromVariant(variant, error_msg);
@@ -71,6 +75,9 @@ const InstructionSetFeatures* InstructionSetFeatures::FromBitmap(InstructionSet 
     case kMips:
       result = MipsInstructionSetFeatures::FromBitmap(bitmap);
       break;
+    case kMips64:
+      result = Mips64InstructionSetFeatures::FromBitmap(bitmap);
+      break;
     case kX86:
       result = X86InstructionSetFeatures::FromBitmap(bitmap);
       break;
@@ -97,6 +104,9 @@ const InstructionSetFeatures* InstructionSetFeatures::FromCppDefines() {
       break;
     case kMips:
       result = MipsInstructionSetFeatures::FromCppDefines();
+      break;
+    case kMips64:
+      result = Mips64InstructionSetFeatures::FromCppDefines();
       break;
     case kX86:
       result = X86InstructionSetFeatures::FromCppDefines();
@@ -125,6 +135,9 @@ const InstructionSetFeatures* InstructionSetFeatures::FromCpuInfo() {
     case kMips:
       result = MipsInstructionSetFeatures::FromCpuInfo();
       break;
+    case kMips64:
+      result = Mips64InstructionSetFeatures::FromCpuInfo();
+      break;
     case kX86:
       result = X86InstructionSetFeatures::FromCpuInfo();
       break;
@@ -151,6 +164,9 @@ const InstructionSetFeatures* InstructionSetFeatures::FromHwcap() {
     case kMips:
       result = MipsInstructionSetFeatures::FromHwcap();
       break;
+    case kMips64:
+      result = Mips64InstructionSetFeatures::FromHwcap();
+      break;
     case kX86:
       result = X86InstructionSetFeatures::FromHwcap();
       break;
@@ -176,6 +192,9 @@ const InstructionSetFeatures* InstructionSetFeatures::FromAssembly() {
       break;
     case kMips:
       result = MipsInstructionSetFeatures::FromAssembly();
+      break;
+    case kMips64:
+      result = Mips64InstructionSetFeatures::FromAssembly();
       break;
     case kX86:
       result = X86InstructionSetFeatures::FromAssembly();
@@ -248,6 +267,11 @@ const Arm64InstructionSetFeatures* InstructionSetFeatures::AsArm64InstructionSet
 const MipsInstructionSetFeatures* InstructionSetFeatures::AsMipsInstructionSetFeatures() const {
   DCHECK_EQ(kMips, GetInstructionSet());
   return down_cast<const MipsInstructionSetFeatures*>(this);
+}
+
+const Mips64InstructionSetFeatures* InstructionSetFeatures::AsMips64InstructionSetFeatures() const {
+  DCHECK_EQ(kMips64, GetInstructionSet());
+  return down_cast<const Mips64InstructionSetFeatures*>(this);
 }
 
 const X86InstructionSetFeatures* InstructionSetFeatures::AsX86InstructionSetFeatures() const {
