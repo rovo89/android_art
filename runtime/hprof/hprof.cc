@@ -44,6 +44,7 @@
 #include "common_throws.h"
 #include "debugger.h"
 #include "dex_file-inl.h"
+#include "gc_root.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "gc/heap.h"
 #include "gc/space/space.h"
@@ -456,13 +457,13 @@ class Hprof {
     EndianOutput* output;
   };
 
-  static void RootVisitor(mirror::Object** obj, void* arg, uint32_t thread_id, RootType root_type)
+  static void RootVisitor(mirror::Object** obj, void* arg, const RootInfo& root_info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(arg != nullptr);
     DCHECK(obj != nullptr);
     DCHECK(*obj != nullptr);
     Env* env = reinterpret_cast<Env*>(arg);
-    env->hprof->VisitRoot(*obj, thread_id, root_type, env->output);
+    env->hprof->VisitRoot(*obj, root_info, env->output);
   }
 
   static void VisitObjectCallback(mirror::Object* obj, void* arg)
@@ -574,7 +575,7 @@ class Hprof {
     }
   }
 
-  void VisitRoot(const mirror::Object* obj, uint32_t thread_id, RootType type, EndianOutput* output)
+  void VisitRoot(const mirror::Object* obj, const RootInfo& root_info, EndianOutput* output)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void MarkRootObject(const mirror::Object* obj, jobject jni_obj, HprofHeapTag heap_tag,
                       uint32_t thread_serial, EndianOutput* output);
@@ -1124,8 +1125,7 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass,
   __ UpdateU4(size_patch_offset, output->Length() - (size_patch_offset + 4));
 }
 
-void Hprof::VisitRoot(const mirror::Object* obj, uint32_t thread_id, RootType type,
-                      EndianOutput* output) {
+void Hprof::VisitRoot(const mirror::Object* obj, const RootInfo& info, EndianOutput* output) {
   static const HprofHeapTag xlate[] = {
     HPROF_ROOT_UNKNOWN,
     HPROF_ROOT_JNI_GLOBAL,
@@ -1143,11 +1143,11 @@ void Hprof::VisitRoot(const mirror::Object* obj, uint32_t thread_id, RootType ty
     HPROF_ROOT_VM_INTERNAL,
     HPROF_ROOT_JNI_MONITOR,
   };
-  CHECK_LT(type, sizeof(xlate) / sizeof(HprofHeapTag));
+  CHECK_LT(info.GetType(), sizeof(xlate) / sizeof(HprofHeapTag));
   if (obj == nullptr) {
     return;
   }
-  MarkRootObject(obj, 0, xlate[type], thread_id, output);
+  MarkRootObject(obj, 0, xlate[info.GetType()], info.GetThreadId(), output);
 }
 
 // If "direct_to_ddms" is true, the other arguments are ignored, and data is

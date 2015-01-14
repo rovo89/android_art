@@ -1045,28 +1045,6 @@ void ThreadList::VisitRoots(RootCallback* callback, void* arg) const {
   }
 }
 
-class VerifyRootWrapperArg {
- public:
-  VerifyRootWrapperArg(VerifyRootCallback* callback, void* arg) : callback_(callback), arg_(arg) {
-  }
-  VerifyRootCallback* const callback_;
-  void* const arg_;
-};
-
-static void VerifyRootWrapperCallback(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
-                                      RootType root_type) {
-  VerifyRootWrapperArg* wrapperArg = reinterpret_cast<VerifyRootWrapperArg*>(arg);
-  wrapperArg->callback_(*root, wrapperArg->arg_, 0, NULL, root_type);
-}
-
-void ThreadList::VerifyRoots(VerifyRootCallback* callback, void* arg) const {
-  VerifyRootWrapperArg wrapper(callback, arg);
-  MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
-  for (const auto& thread : list_) {
-    thread->VisitRoots(VerifyRootWrapperCallback, &wrapper);
-  }
-}
-
 uint32_t ThreadList::AllocThreadId(Thread* self) {
   MutexLock mu(self, *Locks::allocated_thread_ids_lock_);
   for (size_t i = 0; i < allocated_ids_.size(); ++i) {

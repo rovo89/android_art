@@ -1748,23 +1748,23 @@ void ClassLinker::VisitClassRoots(RootCallback* callback, void* arg, VisitRootFl
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   if ((flags & kVisitRootFlagAllRoots) != 0) {
     for (GcRoot<mirror::Class>& root : class_table_) {
-      root.VisitRoot(callback, arg, 0, kRootStickyClass);
+      root.VisitRoot(callback, arg, RootInfo(kRootStickyClass));
     }
     for (GcRoot<mirror::Class>& root : pre_zygote_class_table_) {
-      root.VisitRoot(callback, arg, 0, kRootStickyClass);
+      root.VisitRoot(callback, arg, RootInfo(kRootStickyClass));
     }
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_class_roots_) {
       mirror::Class* old_ref = root.Read<kWithoutReadBarrier>();
-      root.VisitRoot(callback, arg, 0, kRootStickyClass);
+      root.VisitRoot(callback, arg, RootInfo(kRootStickyClass));
       mirror::Class* new_ref = root.Read<kWithoutReadBarrier>();
       if (UNLIKELY(new_ref != old_ref)) {
         // Uh ohes, GC moved a root in the log. Need to search the class_table and update the
         // corresponding object. This is slow, but luckily for us, this may only happen with a
         // concurrent moving GC.
         auto it = class_table_.Find(GcRoot<mirror::Class>(old_ref));
-        class_table_.Erase(it);
-        class_table_.Insert(GcRoot<mirror::Class>(new_ref));
+        DCHECK(it != class_table_.end());
+        *it = GcRoot<mirror::Class>(new_ref);
       }
     }
   }
@@ -1784,17 +1784,17 @@ void ClassLinker::VisitClassRoots(RootCallback* callback, void* arg, VisitRootFl
 // reinit references to when reinitializing a ClassLinker from a
 // mapped image.
 void ClassLinker::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
-  class_roots_.VisitRoot(callback, arg, 0, kRootVMInternal);
+  class_roots_.VisitRoot(callback, arg, RootInfo(kRootVMInternal));
   Thread* self = Thread::Current();
   {
     ReaderMutexLock mu(self, dex_lock_);
     if ((flags & kVisitRootFlagAllRoots) != 0) {
       for (GcRoot<mirror::DexCache>& dex_cache : dex_caches_) {
-        dex_cache.VisitRoot(callback, arg, 0, kRootVMInternal);
+        dex_cache.VisitRoot(callback, arg, RootInfo(kRootVMInternal));
       }
     } else if ((flags & kVisitRootFlagNewRoots) != 0) {
       for (size_t index : new_dex_cache_roots_) {
-        dex_caches_[index].VisitRoot(callback, arg, 0, kRootVMInternal);
+        dex_caches_[index].VisitRoot(callback, arg, RootInfo(kRootVMInternal));
       }
     }
     if ((flags & kVisitRootFlagClearRootLog) != 0) {
@@ -1807,12 +1807,10 @@ void ClassLinker::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags f
     }
   }
   VisitClassRoots(callback, arg, flags);
-  array_iftable_.VisitRoot(callback, arg, 0, kRootVMInternal);
+  array_iftable_.VisitRoot(callback, arg, RootInfo(kRootVMInternal));
   DCHECK(!array_iftable_.IsNull());
   for (size_t i = 0; i < kFindArrayCacheSize; ++i) {
-    if (!find_array_class_cache_[i].IsNull()) {
-      find_array_class_cache_[i].VisitRoot(callback, arg, 0, kRootVMInternal);
-    }
+    find_array_class_cache_[i].VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
   }
 }
 
