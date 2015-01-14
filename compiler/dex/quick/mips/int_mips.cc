@@ -172,7 +172,7 @@ LIR* MipsMir2Lir::OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) {
   if (r_dest.IsFloat() || r_src.IsFloat())
     return OpFpRegCopy(r_dest, r_src);
   LIR* res = RawLIR(current_dalvik_offset_, kMipsMove,
-            r_dest.GetReg(), r_src.GetReg());
+                    r_dest.GetReg(), r_src.GetReg());
   if (!(cu_->disable_opt & (1 << kSafeOptimizations)) && r_dest == r_src) {
     res->flags.is_nop = true;
   }
@@ -194,7 +194,7 @@ void MipsMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
       if (src_fp) {
         OpRegCopy(r_dest, r_src);
       } else {
-         /* note the operands are swapped for the mtc1 instr */
+        /* note the operands are swapped for the mtc1 instr */
         NewLIR2(kMipsMtc1, r_src.GetLowReg(), r_dest.GetLowReg());
         NewLIR2(kMipsMtc1, r_src.GetHighReg(), r_dest.GetHighReg());
       }
@@ -240,7 +240,7 @@ void MipsMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
 }
 
 RegLocation MipsMir2Lir::GenDivRem(RegLocation rl_dest, RegStorage reg1, RegStorage reg2,
-                                    bool is_div) {
+                                   bool is_div) {
   NewLIR2(kMipsDiv, reg1.GetReg(), reg2.GetReg());
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (is_div) {
@@ -252,7 +252,7 @@ RegLocation MipsMir2Lir::GenDivRem(RegLocation rl_dest, RegStorage reg1, RegStor
 }
 
 RegLocation MipsMir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg1, int lit,
-                                       bool is_div) {
+                                      bool is_div) {
   RegStorage t_reg = AllocTemp();
   NewLIR3(kMipsAddiu, t_reg.GetReg(), rZERO, lit);
   NewLIR2(kMipsDiv, reg1.GetReg(), t_reg.GetReg());
@@ -501,7 +501,7 @@ void MipsMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
  * Generate array load
  */
 void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
-                          RegLocation rl_index, RegLocation rl_dest, int scale) {
+                              RegLocation rl_index, RegLocation rl_dest, int scale) {
   RegisterClass reg_class = RegClassBySize(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
@@ -570,7 +570,7 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
  *
  */
 void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
-                          RegLocation rl_index, RegLocation rl_src, int scale, bool card_mark) {
+                              RegLocation rl_index, RegLocation rl_src, int scale, bool card_mark) {
   RegisterClass reg_class = RegClassBySize(size);
   int len_offset = mirror::Array::LengthOffset().Int32Value();
   int data_offset;
@@ -632,7 +632,7 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   } else {
     rl_src = LoadValue(rl_src, reg_class);
     if (needs_range_check) {
-       GenArrayBoundsCheck(rl_index.reg, reg_len);
+      GenArrayBoundsCheck(rl_index.reg, reg_len);
       FreeTemp(reg_len);
     }
     StoreBaseIndexed(reg_ptr, rl_index.reg, rl_src.reg, scale, size);
