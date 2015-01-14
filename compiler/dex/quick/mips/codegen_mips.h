@@ -216,7 +216,8 @@ class MipsMir2Lir FINAL : public Mir2Lir {
     void ConvertShortToLongBranch(LIR* lir);
     RegLocation GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
                           RegLocation rl_src2, bool is_div, int flags) OVERRIDE;
-    RegLocation GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit, bool is_div) OVERRIDE;
+    RegLocation GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit, bool is_div)
+        OVERRIDE;
 };
 
 }  // namespace art

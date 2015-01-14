@@ -482,7 +482,7 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
   if (!unconditional) {
     hop_target = RawLIR(dalvik_offset, kPseudoTargetLabel);
     LIR* hop_branch = RawLIR(dalvik_offset, opcode, lir->operands[0],
-                            lir->operands[1], 0, 0, 0, hop_target);
+                             lir->operands[1], 0, 0, 0, hop_target);
     InsertLIRBefore(lir, hop_branch);
   }
   LIR* curr_pc = RawLIR(dalvik_offset, kMipsCurrPC);
