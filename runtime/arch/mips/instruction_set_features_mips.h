@@ -67,6 +67,10 @@ class MipsInstructionSetFeatures FINAL : public InstructionSetFeatures {
     return fpu_32bit_;
   }
 
+  bool IsR6() const {
+    return r6_;
+  }
+
   virtual ~MipsInstructionSetFeatures() {}
 
  protected:
@@ -76,19 +80,21 @@ class MipsInstructionSetFeatures FINAL : public InstructionSetFeatures {
                                  std::string* error_msg) const OVERRIDE;
 
  private:
-  MipsInstructionSetFeatures(bool smp, bool fpu_32bit, bool mips_isa_gte2)
-      : InstructionSetFeatures(smp), fpu_32bit_(fpu_32bit),  mips_isa_gte2_(mips_isa_gte2) {
-  }
+  MipsInstructionSetFeatures(bool smp, bool fpu_32bit, bool mips_isa_gte2, bool r6)
+      : InstructionSetFeatures(smp), fpu_32bit_(fpu_32bit),  mips_isa_gte2_(mips_isa_gte2), r6_(r6)
+  {}
 
   // Bitmap positions for encoding features as a bitmap.
   enum {
     kSmpBitfield = 1,
     kFpu32Bitfield = 2,
     kIsaRevGte2Bitfield = 4,
+    kR6 = 8,
   };
 
   const bool fpu_32bit_;
   const bool mips_isa_gte2_;
+  const bool r6_;
 
   DISALLOW_COPY_AND_ASSIGN(MipsInstructionSetFeatures);
 };
