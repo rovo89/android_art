@@ -84,7 +84,7 @@ else
 ART_TARGET_CLANG := false
 endif
 
-ifeq ($(TARGET_ARCH),mips)
+ifeq ($(TARGET_ARCH)|$(ART_TARGET_CLANG),mips|true)
   # b/18807290, Clang generated mips assembly code for array.cc
   # cannot be compiled by gas.
   # b/18789639, Clang assembler cannot compile inlined assembly code in
