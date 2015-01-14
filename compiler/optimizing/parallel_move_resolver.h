@@ -58,6 +58,9 @@ class ParallelMoveResolver : public ValueObject {
   };
 
   bool IsScratchLocation(Location loc);
+
+  // Allocate a scratch register for performing a move. The method will try to use
+  // a register that is the destination of a move, but that move has not been emitted yet.
   int AllocateScratchRegister(int blocked, int if_scratch, int register_count, bool* spilled);
 
   // Emit a move.
