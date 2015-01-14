@@ -420,6 +420,7 @@ if [ "$dev_mode" = "yes" ]; then
             good="yes"
         fi
     fi
+    exit
 elif [ "$update_mode" = "yes" ]; then
     "./${build}" >"$build_output" 2>&1
     build_exit="$?"
