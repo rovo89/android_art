@@ -1332,7 +1332,10 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
         break;
       }
       case EM_MIPS: {
-        elf_ISA = kMips;
+        if ((GetHeader().e_flags & EF_MIPS_ARCH) == EF_MIPS_ARCH_32R2 ||
+            (GetHeader().e_flags & EF_MIPS_ARCH) == EF_MIPS_ARCH_32R6) {
+          elf_ISA = kMips;
+        }
         break;
       }
     }
