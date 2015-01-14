@@ -154,7 +154,7 @@
 
 .macro RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
-    jr     $ra
+    jalr   $zero, $ra
     nop
 .endm
 
@@ -274,7 +274,7 @@
 .macro DELIVER_PENDING_EXCEPTION
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME     # save callee saves for throw
     la      $t9, artDeliverPendingExceptionFromCode
-    jr      $t9                          # artDeliverPendingExceptionFromCode(Thread*)
+    jalr    $zero, $t9                   # artDeliverPendingExceptionFromCode(Thread*)
     move    $a0, rSELF                   # pass Thread::Current
 .endm
 
@@ -283,7 +283,7 @@
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
     bnez   $t0, 1f                       # success if no exception is pending
     nop
-    jr     $ra
+    jalr   $zero, $ra
     nop
 1:
     DELIVER_PENDING_EXCEPTION
@@ -293,7 +293,7 @@
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
     bnez   $v0, 1f                       # success?
     nop
-    jr     $ra                           # return on success
+    jalr   $zero, $ra                    # return on success
     nop
 1:
     DELIVER_PENDING_EXCEPTION
@@ -303,7 +303,7 @@
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
     beqz   $v0, 1f                       # success?
     nop
-    jr     $ra                           # return on success
+    jalr   $zero, $ra                    # return on success
     nop
 1:
     DELIVER_PENDING_EXCEPTION
@@ -365,7 +365,7 @@ ENTRY art_quick_do_long_jump
     lw      $ra, 124($a0)
     lw      $a0, 16($a0)
     move    $v0, $zero          # clear result registers r0 and r1
-    jr      $ra                 # do long jump
+    jalr    $zero, $ra          # do long jump
     move    $v1, $zero
 END art_quick_do_long_jump
 
@@ -377,7 +377,7 @@ END art_quick_do_long_jump
 ENTRY art_quick_deliver_exception
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     la   $t9, artDeliverExceptionFromCode
-    jr   $t9                        # artDeliverExceptionFromCode(Throwable*, Thread*)
+    jalr $zero, $t9                 # artDeliverExceptionFromCode(Throwable*, Thread*)
     move $a1, rSELF                 # pass Thread::Current
 END art_quick_deliver_exception
 
@@ -388,7 +388,7 @@ END art_quick_deliver_exception
 ENTRY art_quick_throw_null_pointer_exception
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     la   $t9, artThrowNullPointerExceptionFromCode
-    jr   $t9                        # artThrowNullPointerExceptionFromCode(Thread*)
+    jalr $zero, $t9                 # artThrowNullPointerExceptionFromCode(Thread*)
     move $a0, rSELF                 # pass Thread::Current
 END art_quick_throw_null_pointer_exception
 
@@ -399,7 +399,7 @@ END art_quick_throw_null_pointer_exception
 ENTRY art_quick_throw_div_zero
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     la   $t9, artThrowDivZeroFromCode
-    jr   $t9                        # artThrowDivZeroFromCode(Thread*)
+    jalr $zero, $t9                 # artThrowDivZeroFromCode(Thread*)
     move $a0, rSELF                 # pass Thread::Current
 END art_quick_throw_div_zero
 
@@ -410,7 +410,7 @@ END art_quick_throw_div_zero
 ENTRY art_quick_throw_array_bounds
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     la   $t9, artThrowArrayBoundsFromCode
-    jr   $t9                        # artThrowArrayBoundsFromCode(index, limit, Thread*)
+    jalr $zero, $t9                 # artThrowArrayBoundsFromCode(index, limit, Thread*)
     move $a2, rSELF                 # pass Thread::Current
 END art_quick_throw_array_bounds
 
@@ -421,7 +421,7 @@ END art_quick_throw_array_bounds
 ENTRY art_quick_throw_stack_overflow
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     la   $t9, artThrowStackOverflowFromCode
-    jr   $t9                        # artThrowStackOverflowFromCode(Thread*)
+    jalr $zero, $t9                 # artThrowStackOverflowFromCode(Thread*)
     move $a0, rSELF                 # pass Thread::Current
 END art_quick_throw_stack_overflow
 
@@ -432,7 +432,7 @@ END art_quick_throw_stack_overflow
 ENTRY art_quick_throw_no_such_method
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     la   $t9, artThrowNoSuchMethodFromCode
-    jr   $t9                        # artThrowNoSuchMethodFromCode(method_idx, Thread*)
+    jalr $zero, $t9                 # artThrowNoSuchMethodFromCode(method_idx, Thread*)
     move $a1, rSELF                 # pass Thread::Current
 END art_quick_throw_no_such_method
 
@@ -465,7 +465,7 @@ ENTRY \c_name
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     beqz  $v0, 1f
     move  $t9, $v1                        # save $v0->code_
-    jr    $t9
+    jalr  $zero, $t9
     nop
 1:
     DELIVER_PENDING_EXCEPTION
@@ -540,11 +540,11 @@ ENTRY art_quick_invoke_stub
     li    $t3, 70               # put char 'F' into t3
     beq   $t1, $t3, 1f          # branch if result type char == 'F'
     sw    $v0, 0($t0)           # store the result
-    jr    $ra
+    jalr  $zero, $ra
     sw    $v1, 4($t0)           # store the other half of the result
 1:
     SDu   $f0, $f1, 0, $t0, $t1 # store floating point result
-    jr    $ra
+    jalr  $zero, $ra
     nop
 END art_quick_invoke_stub
 
@@ -604,7 +604,7 @@ ENTRY art_quick_check_cast
     addiu  $sp, $sp, 16
     beqz   $v0, .Lthrow_class_cast_exception
     lw     $ra, 12($sp)
-    jr     $ra
+    jalr   $zero, $ra
     addiu  $sp, $sp, 16
     .cfi_adjust_cfa_offset -16
 .Lthrow_class_cast_exception:
@@ -615,7 +615,7 @@ ENTRY art_quick_check_cast
     .cfi_adjust_cfa_offset -16
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     la   $t9, artThrowClassCastException
-    jr   $t9                        # artThrowClassCastException (Class*, Class*, Thread*)
+    jalr $zero, $t9                 # artThrowClassCastException (Class*, Class*, Thread*)
     move $a2, rSELF                 # pass Thread::Current
 END art_quick_check_cast
 
@@ -657,13 +657,13 @@ ENTRY art_quick_aput_obj
     srl $t1, $a0, 7
     add $t1, $t1, $t0
     sb  $t0, ($t1)
-    jr  $ra
+    jalr $zero, $ra
     nop
 .Ldo_aput_null:
     sll $a1, $a1, 2
     add $t0, $a0, $a1
     sw  $a2, MIRROR_OBJECT_ARRAY_DATA_OFFSET($t0)
-    jr  $ra
+    jalr $zero, $ra
     nop
 .Lcheck_assignability:
     addiu  $sp, $sp, -32
@@ -691,7 +691,7 @@ ENTRY art_quick_aput_obj
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
     move $a1, $a2
     la   $t9, artThrowArrayStoreException
-    jr   $t9                        # artThrowArrayStoreException(Class*, Class*, Thread*)
+    jalr $zero, $t9                 # artThrowArrayStoreException(Class*, Class*, Thread*)
     move $a2, rSELF                 # pass Thread::Current
 END art_quick_aput_obj
 
@@ -901,6 +901,7 @@ END art_quick_set32_static
     .extern artSet64StaticFromCode
 ENTRY art_quick_set64_static
     lw     $a1, 0($sp)                   # pass referrer's Method*
+                                         # 64 bit new_val is in a2:a3 pair
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
     jal    artSet64StaticFromCode        # (field_idx, referrer, new_val, Thread*)
     sw     rSELF, 16($sp)                # pass Thread::Current
@@ -961,6 +962,7 @@ END art_quick_set32_instance
     .extern artSet64InstanceFromCode
 ENTRY art_quick_set64_instance
     lw     $t1, 0($sp)                   # load referrer's Method*
+                                         # 64 bit new_val is in a2:a3 pair
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
     sw     rSELF, 20($sp)                # pass Thread::Current
     jal    artSet64InstanceFromCode      # (field_idx, Object*, new_val, referrer, Thread*)
@@ -1038,7 +1040,7 @@ ENTRY art_quick_test_suspend
     lh     $a0, THREAD_FLAGS_OFFSET(rSELF)
     bnez   $a0, 1f
     addiu  rSUSPEND, $zero, SUSPEND_CHECK_INTERVAL   # reset rSUSPEND to SUSPEND_CHECK_INTERVAL
-    jr     $ra
+    jalr   $zero, $ra
     nop
 1:
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME          # save callee saves for stack crawl
@@ -1062,7 +1064,7 @@ ENTRY art_quick_proxy_invoke_handler
     bnez    $t0, 1f
     # don't care if $v0 and/or $v1 are modified, when exception branch taken
     MTD     $v0, $v1, $f0, $f1          # move float value to return value
-    jr      $ra
+    jalr    $zero, $ra
     nop
 1:
     DELIVER_PENDING_EXCEPTION
@@ -1079,7 +1081,7 @@ ENTRY art_quick_imt_conflict_trampoline
     add     $a0, $t0               # get address of target method
     lw      $a0, MIRROR_OBJECT_ARRAY_DATA_OFFSET($a0)  # load the target method
     la      $t9, art_quick_invoke_interface_trampoline
-    jr      $t9
+    jalr    $zero, $t9
 END art_quick_imt_conflict_trampoline
 
     .extern artQuickResolutionTrampoline
@@ -1092,7 +1094,7 @@ ENTRY art_quick_resolution_trampoline
     lw      $a0, ARG_SLOT_SIZE($sp)       # load resolved method to $a0
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
     move    $t9, $v0               # code pointer must be in $t9 to generate the global pointer
-    jr      $v0                    # tail call to method
+    jalr    $zero, $v0             # tail call to method
     nop
 1:
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
@@ -1150,7 +1152,7 @@ ENTRY art_quick_generic_jni_trampoline
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
 
     MTD     $v0, $v1, $f0, $f1     # move float value to return value
-    jr      $ra
+    jalr    $zero, $ra
     nop
 
 1:
@@ -1171,7 +1173,7 @@ ENTRY art_quick_to_interpreter_bridge
     bnez    $t0, 1f
     # don't care if $v0 and/or $v1 are modified, when exception branch taken
     MTD     $v0, $v1, $f0, $f1                  # move float value to return value
-    jr      $ra
+    jalr    $zero, $ra
     nop
 1:
     DELIVER_PENDING_EXCEPTION
@@ -1222,7 +1224,7 @@ art_quick_instrumentation_exit:
     lw       $v0, 12($sp)   # restore return values
     lw       $v1, 8($sp)
     l.d      $f0, 0($sp)
-    jr       $t0            # return
+    jalr     $zero, $t0     # return
     addiu    $sp, $sp, 16   # remove temp storage from stack
     .cfi_adjust_cfa_offset -16
 END art_quick_instrumentation_exit
@@ -1263,7 +1265,7 @@ ENTRY_NO_GP art_quick_shl_long
     move    $v1, $v0                         #  rhi<- rlo (if shift&0x20)
     move    $v0, $zero                       #  rlo<- 0 (if shift&0x20)
 
-1:  jr      $ra
+1:  jalr    $zero, $ra
     nop
 END art_quick_shl_long
 
@@ -1291,7 +1293,7 @@ ENTRY_NO_GP art_quick_shr_long
     move    $v0, $v1                         #  rlo<- rhi (if shift&0x20)
     move    $v1, $a3                         #  rhi<- sign(ahi) (if shift&0x20)
 
-1:  jr      $ra
+1:  jalr    $zero, $ra
     nop
 END art_quick_shr_long
 
@@ -1319,7 +1321,7 @@ ENTRY_NO_GP art_quick_ushr_long
     move    $v0, $v1                         #  rlo<- rhi (if shift&0x20)
     move    $v1, $zero                       #  rhi<- 0 (if shift&0x20)
 
-1:  jr      $ra
+1:  jalr    $zero, $ra
     nop
 END art_quick_ushr_long
 

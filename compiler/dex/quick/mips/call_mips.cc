@@ -58,7 +58,7 @@ bool MipsMir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& s
  *   bne   r_val, r_key, loop
  *   lw    r_disp, -4(r_base)
  *   addu  rRA, r_disp
- *   jr    rRA
+ *   jalr  rZERO, rRA
  * done:
  *
  */
@@ -136,7 +136,7 @@ void MipsMir2Lir::GenLargeSparseSwitch(MIR* mir, DexOffset table_offset, RegLoca
  *   bound check -> done
  *   lw    r_disp, [rRA, r_val]
  *   addu  rRA, r_disp
- *   jr    rRA
+ *   jalr  rZERO, rRA
  * done:
  */
 void MipsMir2Lir::GenLargePackedSwitch(MIR* mir, DexOffset table_offset, RegLocation rl_src) {

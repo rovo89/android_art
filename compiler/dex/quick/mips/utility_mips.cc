@@ -125,7 +125,7 @@ LIR* MipsMir2Lir::OpReg(OpKind op, RegStorage r_dest_src) {
       opcode = kMipsJalr;
       break;
     case kOpBx:
-      return NewLIR1(kMipsJr, r_dest_src.GetReg());
+      return NewLIR2(kMipsJalr, rZERO, r_dest_src.GetReg());
       break;
     default:
       LOG(FATAL) << "Bad case in OpReg";
