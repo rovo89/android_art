@@ -939,15 +939,15 @@ void Mir2Lir::GenIPut(MIR* mir, int opt_flags, OpSize size,
     }
     GenNullCheck(rl_obj.reg, opt_flags);
     int field_offset = field_info.FieldOffset().Int32Value();
-    LIR* store;
+    LIR* null_ck_insn;
     if (IsRef(size)) {
-      store = StoreRefDisp(rl_obj.reg, field_offset, rl_src.reg, field_info.IsVolatile() ?
+      null_ck_insn = StoreRefDisp(rl_obj.reg, field_offset, rl_src.reg, field_info.IsVolatile() ?
           kVolatile : kNotVolatile);
     } else {
-      store = StoreBaseDisp(rl_obj.reg, field_offset, rl_src.reg, size,
-                            field_info.IsVolatile() ? kVolatile : kNotVolatile);
+      null_ck_insn = StoreBaseDisp(rl_obj.reg, field_offset, rl_src.reg, size,
+                                   field_info.IsVolatile() ? kVolatile : kNotVolatile);
     }
-    MarkPossibleNullPointerExceptionAfter(opt_flags, store);
+    MarkPossibleNullPointerExceptionAfter(opt_flags, null_ck_insn);
     if (IsRef(size) && !mir_graph_->IsConstantNullRef(rl_src)) {
       MarkGCCard(opt_flags, rl_src.reg, rl_obj.reg);
     }
