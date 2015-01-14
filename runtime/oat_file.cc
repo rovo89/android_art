@@ -454,7 +454,7 @@ size_t OatFile::OatDexFile::FileSize() const {
   return reinterpret_cast<const DexFile::Header*>(dex_file_pointer_)->file_size_;
 }
 
-const DexFile* OatFile::OatDexFile::OpenDexFile(std::string* error_msg) const {
+std::unique_ptr<const DexFile> OatFile::OatDexFile::OpenDexFile(std::string* error_msg) const {
   return DexFile::Open(dex_file_pointer_, FileSize(), dex_file_location_,
                        dex_file_location_checksum_, error_msg);
 }
