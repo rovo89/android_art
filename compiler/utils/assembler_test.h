@@ -29,6 +29,10 @@
 
 namespace art {
 
+// If you want to take a look at the differences between the ART assembler and GCC, set this flag
+// to true. The disassembled files will then remain in the tmp directory.
+static constexpr bool kKeepDisassembledFiles = false;
+
 // Helper for a constexpr string length.
 constexpr size_t ConstexprStrLen(char const* str, size_t count = 0) {
   return ('\0' == str[0]) ? count : ConstexprStrLen(str+1, count+1);
@@ -685,12 +689,12 @@ class AssemblerTest : public testing::Test {
 
     bool result = CompareFiles(data_name + ".dis", as_name + ".dis");
 
-    // If you want to take a look at the differences between the ART assembler and GCC, comment
-    // out the removal code.
-//    std::remove(data_name.c_str());
-//    std::remove(as_name.c_str());
-//    std::remove((data_name + ".dis").c_str());
-//    std::remove((as_name + ".dis").c_str());
+    if (!kKeepDisassembledFiles) {
+      std::remove(data_name.c_str());
+      std::remove(as_name.c_str());
+      std::remove((data_name + ".dis").c_str());
+      std::remove((as_name + ".dis").c_str());
+    }
 
     return result;
   }
