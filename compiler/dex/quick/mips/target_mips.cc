@@ -89,9 +89,9 @@ RegLocation MipsMir2Lir::LocCReturnDouble() {
 
 // Convert k64BitSolo into k64BitPair
 RegStorage MipsMir2Lir::Solo64ToPair64(RegStorage reg) {
-    DCHECK(reg.IsDouble());
-    int reg_num = (reg.GetRegNum() & ~1) | RegStorage::kFloatingPoint;
-    return RegStorage(RegStorage::k64BitPair, reg_num, reg_num + 1);
+  DCHECK(reg.IsDouble());
+  int reg_num = (reg.GetRegNum() & ~1) | RegStorage::kFloatingPoint;
+  return RegStorage(RegStorage::k64BitPair, reg_num, reg_num + 1);
 }
 
 // Return a target-dependent special register.
@@ -223,78 +223,78 @@ std::string MipsMir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned cha
       if (nc == '!') {
         strcpy(tbuf, "!");
       } else {
-         DCHECK_LT(fmt, fmt_end);
-         DCHECK_LT(static_cast<unsigned>(nc-'0'), 4u);
-         operand = lir->operands[nc-'0'];
-         switch (*fmt++) {
-           case 'b':
-             strcpy(tbuf, "0000");
-             for (i = 3; i >= 0; i--) {
-               tbuf[i] += operand & 1;
-               operand >>= 1;
-             }
-             break;
-           case 's':
-             snprintf(tbuf, arraysize(tbuf), "$f%d", RegStorage::RegNum(operand));
-             break;
-           case 'S':
-             DCHECK_EQ(RegStorage::RegNum(operand) & 1, 0);
-             snprintf(tbuf, arraysize(tbuf), "$f%d", RegStorage::RegNum(operand));
-             break;
-           case 'h':
-             snprintf(tbuf, arraysize(tbuf), "%04x", operand);
-             break;
-           case 'M':
-           case 'd':
-             snprintf(tbuf, arraysize(tbuf), "%d", operand);
-             break;
-           case 'D':
-             snprintf(tbuf, arraysize(tbuf), "%d", operand+1);
-             break;
-           case 'E':
-             snprintf(tbuf, arraysize(tbuf), "%d", operand*4);
-             break;
-           case 'F':
-             snprintf(tbuf, arraysize(tbuf), "%d", operand*2);
-             break;
-           case 't':
-             snprintf(tbuf, arraysize(tbuf), "0x%08" PRIxPTR " (L%p)",
-                 reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 + (operand << 1),
-                 lir->target);
-             break;
-           case 'T':
-             snprintf(tbuf, arraysize(tbuf), "0x%08x", operand << 2);
-             break;
-           case 'u': {
-             int offset_1 = lir->operands[0];
-             int offset_2 = NEXT_LIR(lir)->operands[0];
-             uintptr_t target =
-                 (((reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4) & ~3) +
-                 (offset_1 << 21 >> 9) + (offset_2 << 1)) & 0xfffffffc;
-             snprintf(tbuf, arraysize(tbuf), "%p", reinterpret_cast<void*>(target));
-             break;
+        DCHECK_LT(fmt, fmt_end);
+        DCHECK_LT(static_cast<unsigned>(nc-'0'), 4u);
+        operand = lir->operands[nc-'0'];
+        switch (*fmt++) {
+          case 'b':
+            strcpy(tbuf, "0000");
+            for (i = 3; i >= 0; i--) {
+              tbuf[i] += operand & 1;
+              operand >>= 1;
+            }
+            break;
+          case 's':
+            snprintf(tbuf, arraysize(tbuf), "$f%d", RegStorage::RegNum(operand));
+            break;
+          case 'S':
+            DCHECK_EQ(RegStorage::RegNum(operand) & 1, 0);
+            snprintf(tbuf, arraysize(tbuf), "$f%d", RegStorage::RegNum(operand));
+            break;
+          case 'h':
+            snprintf(tbuf, arraysize(tbuf), "%04x", operand);
+            break;
+          case 'M':
+          case 'd':
+            snprintf(tbuf, arraysize(tbuf), "%d", operand);
+            break;
+          case 'D':
+            snprintf(tbuf, arraysize(tbuf), "%d", operand+1);
+            break;
+          case 'E':
+            snprintf(tbuf, arraysize(tbuf), "%d", operand*4);
+            break;
+          case 'F':
+            snprintf(tbuf, arraysize(tbuf), "%d", operand*2);
+            break;
+          case 't':
+            snprintf(tbuf, arraysize(tbuf), "0x%08" PRIxPTR " (L%p)",
+                     reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4 + (operand << 1),
+                     lir->target);
+            break;
+          case 'T':
+            snprintf(tbuf, arraysize(tbuf), "0x%08x", operand << 2);
+            break;
+          case 'u': {
+            int offset_1 = lir->operands[0];
+            int offset_2 = NEXT_LIR(lir)->operands[0];
+            uintptr_t target =
+                (((reinterpret_cast<uintptr_t>(base_addr) + lir->offset + 4) & ~3) +
+                    (offset_1 << 21 >> 9) + (offset_2 << 1)) & 0xfffffffc;
+            snprintf(tbuf, arraysize(tbuf), "%p", reinterpret_cast<void*>(target));
+            break;
           }
 
-           /* Nothing to print for BLX_2 */
-           case 'v':
-             strcpy(tbuf, "see above");
-             break;
-           case 'r':
-             DCHECK(operand >= 0 && operand < MIPS_REG_COUNT);
-             strcpy(tbuf, mips_reg_name[operand]);
-             break;
-           case 'N':
-             // Placeholder for delay slot handling
-             strcpy(tbuf, ";  nop");
-             break;
-           default:
-             strcpy(tbuf, "DecodeError");
-             break;
-         }
-         buf += tbuf;
+          /* Nothing to print for BLX_2 */
+          case 'v':
+            strcpy(tbuf, "see above");
+            break;
+          case 'r':
+            DCHECK(operand >= 0 && operand < MIPS_REG_COUNT);
+            strcpy(tbuf, mips_reg_name[operand]);
+            break;
+          case 'N':
+            // Placeholder for delay slot handling
+            strcpy(tbuf, ";  nop");
+            break;
+          default:
+            strcpy(tbuf, "DecodeError");
+            break;
+        }
+        buf += tbuf;
       }
     } else {
-       buf += *fmt++;
+      buf += *fmt++;
     }
   }
   return buf;

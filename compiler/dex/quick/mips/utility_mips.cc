@@ -228,17 +228,17 @@ LIR* MipsMir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, i
       }
       break;
     case kOpLsl:
-        DCHECK(value >= 0 && value <= 31);
-        opcode = kMipsSll;
-        break;
+      DCHECK(value >= 0 && value <= 31);
+      opcode = kMipsSll;
+      break;
     case kOpLsr:
-        DCHECK(value >= 0 && value <= 31);
-        opcode = kMipsSrl;
-        break;
+      DCHECK(value >= 0 && value <= 31);
+      opcode = kMipsSrl;
+      break;
     case kOpAsr:
-        DCHECK(value >= 0 && value <= 31);
-        opcode = kMipsSra;
-        break;
+      DCHECK(value >= 0 && value <= 31);
+      opcode = kMipsSra;
+      break;
     case kOpAnd:
       if (IS_UIMM16((value))) {
         opcode = kMipsAndi;
@@ -324,7 +324,7 @@ LIR* MipsMir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2)
       }
       return res;
     case kOp2Char:
-       return NewLIR3(kMipsAndi, r_dest_src1.GetReg(), r_src2.GetReg(), 0xFFFF);
+      return NewLIR3(kMipsAndi, r_dest_src1.GetReg(), r_src2.GetReg(), 0xFFFF);
     default:
       LOG(FATAL) << "Bad case in OpRegReg";
       UNREACHABLE();
