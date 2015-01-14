@@ -19,6 +19,7 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "gc_root.h"
 #include "object_callbacks.h"
 #include "offsets.h"
 #include "primitive.h"

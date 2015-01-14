@@ -298,6 +298,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   base/unix_file/fd_file.h \
   dex_file.h \
   dex_instruction.h \
+  gc_root.h \
   gc/collector/gc_type.h \
   gc/collector_type.h \
   gc/space/space.h \
@@ -310,7 +311,6 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   lock_word.h \
   mirror/class.h \
   oat.h \
-  object_callbacks.h \
   quick/inline_method_analyser.h \
   thread.h \
   thread_state.h \

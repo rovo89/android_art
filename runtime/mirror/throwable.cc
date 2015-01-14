@@ -138,9 +138,7 @@ void Throwable::ResetClass() {
 }
 
 void Throwable::VisitRoots(RootCallback* callback, void* arg) {
-  if (!java_lang_Throwable_.IsNull()) {
-    java_lang_Throwable_.VisitRoot(callback, arg, 0, kRootStickyClass);
-  }
+  java_lang_Throwable_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
 }
 
 }  // namespace mirror

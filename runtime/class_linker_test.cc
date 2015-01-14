@@ -364,7 +364,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     }
   }
 
-  static void TestRootVisitor(mirror::Object** root, void*, uint32_t, RootType) {
+  static void TestRootVisitor(mirror::Object** root, void*, const RootInfo&) {
     EXPECT_TRUE(*root != NULL);
   }
 };
