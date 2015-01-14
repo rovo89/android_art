@@ -39,10 +39,10 @@ class OatTest : public CommonCompilerTest {
 
   void CheckMethod(mirror::ArtMethod* method,
                    const OatFile::OatMethod& oat_method,
-                   const DexFile* dex_file)
+                   const DexFile& dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     const CompiledMethod* compiled_method =
-        compiler_driver_->GetCompiledMethod(MethodReference(dex_file,
+        compiler_driver_->GetCompiledMethod(MethodReference(&dex_file,
                                                             method->GetDexMethodIndex()));
 
     if (compiled_method == nullptr) {
@@ -130,22 +130,23 @@ TEST_F(OatTest, WriteRead) {
   ASSERT_EQ(4096U, oat_header.GetImageFileLocationOatDataBegin());
   ASSERT_EQ("lue.art", std::string(oat_header.GetStoreValueByKey(OatHeader::kImageLocationKey)));
 
-  const DexFile* dex_file = java_lang_dex_file_;
-  uint32_t dex_file_checksum = dex_file->GetLocationChecksum();
-  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file->GetLocation().c_str(),
+  ASSERT_TRUE(java_lang_dex_file_ != nullptr);
+  const DexFile& dex_file = *java_lang_dex_file_;
+  uint32_t dex_file_checksum = dex_file.GetLocationChecksum();
+  const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_file.GetLocation().c_str(),
                                                                     &dex_file_checksum);
   ASSERT_TRUE(oat_dex_file != nullptr);
-  CHECK_EQ(dex_file->GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
+  CHECK_EQ(dex_file.GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
   ScopedObjectAccess soa(Thread::Current());
-  for (size_t i = 0; i < dex_file->NumClassDefs(); i++) {
-    const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
-    const uint8_t* class_data = dex_file->GetClassData(class_def);
+  for (size_t i = 0; i < dex_file.NumClassDefs(); i++) {
+    const DexFile::ClassDef& class_def = dex_file.GetClassDef(i);
+    const uint8_t* class_data = dex_file.GetClassData(class_def);
     size_t num_virtual_methods = 0;
     if (class_data != nullptr) {
-      ClassDataItemIterator it(*dex_file, class_data);
+      ClassDataItemIterator it(dex_file, class_data);
       num_virtual_methods = it.NumVirtualMethods();
     }
-    const char* descriptor = dex_file->GetClassDescriptor(class_def);
+    const char* descriptor = dex_file.GetClassDescriptor(class_def);
     StackHandleScope<1> hs(soa.Self());
     mirror::Class* klass = class_linker->FindClass(soa.Self(), descriptor,
                                                    NullHandle<mirror::ClassLoader>());
