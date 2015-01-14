@@ -28,6 +28,7 @@
 #include "base/mutex.h"
 #include "base/stringprintf.h"
 #include "thread-inl.h"
+#include "thread_list.h"
 #include "utils.h"
 
 namespace art {
@@ -283,10 +284,22 @@ struct UContext {
   mcontext_t& context;
 };
 
+static int GetTimeoutSignal() {
+  return SIGRTMIN + 2;
+}
+
+static bool IsTimeoutSignal(int signal_number) {
+  return signal_number == GetTimeoutSignal();
+}
+
 void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_context) {
   static bool handlingUnexpectedSignal = false;
   if (handlingUnexpectedSignal) {
     LogMessage::LogLine(__FILE__, __LINE__, INTERNAL_FATAL, "HandleUnexpectedSignal reentered\n");
+    if (IsTimeoutSignal(signal_number)) {
+      // Ignore a recursive timeout.
+      return;
+    }
     _exit(1);
   }
   handlingUnexpectedSignal = true;
@@ -320,6 +333,10 @@ void HandleUnexpectedSignal(int signal_number, siginfo_t* info, void* raw_contex
                       << "Backtrace:\n" << Dumpable<Backtrace>(thread_backtrace);
   Runtime* runtime = Runtime::Current();
   if (runtime != nullptr) {
+    if (IsTimeoutSignal(signal_number)) {
+      // Special timeout signal. Try to dump all threads.
+      runtime->GetThreadList()->DumpForSigQuit(LOG(INTERNAL_FATAL));
+    }
     gc::Heap* heap = runtime->GetHeap();
     LOG(INTERNAL_FATAL) << "Fault message: " << runtime->GetFaultMessage();
     if (kDumpHeapObjectOnSigsevg && heap != nullptr && info != nullptr) {
@@ -374,6 +391,8 @@ void Runtime::InitPlatformSignalHandlers() {
   rc += sigaction(SIGSTKFLT, &action, NULL);
 #endif
   rc += sigaction(SIGTRAP, &action, NULL);
+  // Special dump-all timeout.
+  rc += sigaction(GetTimeoutSignal(), &action, NULL);
   CHECK_EQ(rc, 0);
 }
 
