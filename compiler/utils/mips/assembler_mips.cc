@@ -332,7 +332,7 @@ void MipsAssembler::Jal(uint32_t address) {
 }
 
 void MipsAssembler::Jr(Register rs) {
-  EmitR(0, rs, static_cast<Register>(0), static_cast<Register>(0), 0, 0x08);
+  EmitR(0, rs, static_cast<Register>(0), static_cast<Register>(0), 0, 0x09);  // Jalr zero, rs
   Nop();
 }
 
@@ -420,7 +420,7 @@ void MipsAssembler::Nop() {
 }
 
 void MipsAssembler::Move(Register rt, Register rs) {
-  EmitI(0x8, rs, rt, 0);
+  EmitI(0x9, rs, rt, 0);    // Addiu
 }
 
 void MipsAssembler::Clear(Register rt) {
@@ -447,11 +447,11 @@ void MipsAssembler::Rem(Register rd, Register rs, Register rt) {
 }
 
 void MipsAssembler::AddConstant(Register rt, Register rs, int32_t value) {
-  Addi(rt, rs, value);
+  Addiu(rt, rs, value);
 }
 
 void MipsAssembler::LoadImmediate(Register rt, int32_t value) {
-  Addi(rt, ZERO, value);
+  Addiu(rt, ZERO, value);
 }
 
 void MipsAssembler::EmitLoad(ManagedRegister m_dst, Register src_register, int32_t src_offset,
