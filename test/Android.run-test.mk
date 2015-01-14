@@ -229,6 +229,14 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUIL
     $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),115-native-bridge, \
     $(ALL_ADDRESS_SIZES))
 
+# 130-hprof dumps the heap and runs hprof-conv to check whether the file is somewhat readable. This
+# is only possible on the host.
+# TODO: Turn off all the other combinations, this is more about testing actual ART code. A gtest is
+#       very hard to write here, as (for a complete test) JDWP must be set up.
+ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
+    $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
+    $(PICTEST_TYPES),130-hprof,$(ALL_ADDRESS_SIZES))
+
 # All these tests check that we have sane behavior if we don't have a patchoat or dex2oat.
 # Therefore we shouldn't run them in situations where we actually don't have these since they
 # explicitly test for them. These all also assume we have an image.
@@ -580,7 +588,7 @@ define define-test-art-run-test
   endif
 $$(run_test_rule_name): PRIVATE_RUN_TEST_OPTIONS := $$(run_test_options)
 .PHONY: $$(run_test_rule_name)
-$$(run_test_rule_name): $(DX) $(HOST_OUT_EXECUTABLES)/jasmin $(HOST_OUT_EXECUTABLES)/smali $(HOST_OUT_EXECUTABLES)/dexmerger $$(prereq_rule)
+$$(run_test_rule_name): $(DX) $(HOST_OUT_EXECUTABLES)/jasmin $(HOST_OUT_EXECUTABLES)/smali $(HOST_OUT_EXECUTABLES)/dexmerger $(HOST_OUT_EXECUTABLES)/hprof-conv $$(prereq_rule)
 	$(hide) $$(call ART_TEST_SKIP,$$@) && \
 	  DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) \
 	    SMALI=$(abspath $(HOST_OUT_EXECUTABLES)/smali) \
