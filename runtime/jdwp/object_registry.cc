@@ -104,7 +104,20 @@ bool ObjectRegistry::ContainsLocked(Thread* self, mirror::Object* o, int32_t ide
 }
 
 void ObjectRegistry::Clear() {
-  Thread* self = Thread::Current();
+  Thread* const self = Thread::Current();
+
+  // We must not hold the mutator lock exclusively if we want to delete weak global
+  // references. Otherwise this can lead to a deadlock with a running GC:
+  // 1. GC thread disables access to weak global references, then releases
+  //    mutator lock.
+  // 2. JDWP thread takes mutator lock exclusively after suspending all
+  //    threads.
+  // 3. GC thread waits for shared mutator lock which is held by JDWP
+  //    thread.
+  // 4. JDWP thread clears weak global references but need to wait for GC
+  //    thread to re-enable access to them.
+  Locks::mutator_lock_->AssertNotExclusiveHeld(self);
+
   MutexLock mu(self, lock_);
   VLOG(jdwp) << "Object registry contained " << object_to_entry_.size() << " entries";
   // Delete all the JNI references.

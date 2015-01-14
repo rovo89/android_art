@@ -819,10 +819,15 @@ void Dbg::Disconnected() {
     }
     gDebuggerActive = false;
   }
-  gRegistry->Clear();
-  gDebuggerConnected = false;
   CHECK_EQ(self->SetStateUnsafe(old_state), kRunnable);
   runtime->GetThreadList()->ResumeAll();
+
+  {
+    ScopedObjectAccess soa(self);
+    gRegistry->Clear();
+  }
+
+  gDebuggerConnected = false;
 }
 
 bool Dbg::IsDebuggerActive() {
