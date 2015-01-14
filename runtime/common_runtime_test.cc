@@ -102,7 +102,11 @@ void ScratchFile::Unlink() {
 }
 
 CommonRuntimeTest::CommonRuntimeTest() {}
-CommonRuntimeTest::~CommonRuntimeTest() {}
+CommonRuntimeTest::~CommonRuntimeTest() {
+  // Ensure the dex files are cleaned up before the runtime.
+  loaded_dex_files_.clear();
+  runtime_.reset();
+}
 
 void CommonRuntimeTest::SetUpAndroidRoot() {
   if (IsHost()) {
@@ -181,15 +185,15 @@ std::string CommonRuntimeTest::GetCoreOatLocation() {
   return GetCoreFileLocation("oat");
 }
 
-const DexFile* CommonRuntimeTest::LoadExpectSingleDexFile(const char* location) {
-  std::vector<const DexFile*> dex_files;
+std::unique_ptr<const DexFile> CommonRuntimeTest::LoadExpectSingleDexFile(const char* location) {
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
   std::string error_msg;
   if (!DexFile::Open(location, location, &error_msg, &dex_files)) {
     LOG(FATAL) << "Could not open .dex file '" << location << "': " << error_msg << "\n";
-    return nullptr;
+    UNREACHABLE();
   } else {
     CHECK_EQ(1U, dex_files.size()) << "Expected only one dex file in " << location;
-    return dex_files[0];
+    return std::move(dex_files[0]);
   }
 }
 
@@ -222,6 +226,9 @@ void CommonRuntimeTest::SetUp() {
   class_linker_ = runtime_->GetClassLinker();
   class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
   class_linker_->RunRootClinits();
+  boot_class_path_ = class_linker_->GetBootClassPath();
+  java_lang_dex_file_ = boot_class_path_[0];
+
 
   // Runtime::Create acquired the mutator_lock_ that is normally given away when we
   // Runtime::Start, give it away now and then switch to a more managable ScopedObjectAccess.
@@ -285,8 +292,6 @@ void CommonRuntimeTest::TearDown() {
   IcuCleanupFn icu_cleanup_fn = reinterpret_cast<IcuCleanupFn>(sym);
   (*icu_cleanup_fn)();
 
-  STLDeleteElements(&opened_dex_files_);
-
   Runtime::Current()->GetHeap()->VerifyHeap();  // Check for heap corruption after the test
 }
 
@@ -323,7 +328,7 @@ std::string CommonRuntimeTest::GetTestAndroidRoot() {
 #define ART_TARGET_NATIVETEST_DIR_STRING ""
 #endif
 
-std::vector<const DexFile*> CommonRuntimeTest::OpenTestDexFiles(const char* name) {
+std::vector<std::unique_ptr<const DexFile>> CommonRuntimeTest::OpenTestDexFiles(const char* name) {
   CHECK(name != nullptr);
   std::string filename;
   if (IsHost()) {
@@ -336,28 +341,30 @@ std::vector<const DexFile*> CommonRuntimeTest::OpenTestDexFiles(const char* name
   filename += name;
   filename += ".jar";
   std::string error_msg;
-  std::vector<const DexFile*> dex_files;
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
   bool success = DexFile::Open(filename.c_str(), filename.c_str(), &error_msg, &dex_files);
   CHECK(success) << "Failed to open '" << filename << "': " << error_msg;
-  for (const DexFile* dex_file : dex_files) {
+  for (auto& dex_file : dex_files) {
     CHECK_EQ(PROT_READ, dex_file->GetPermissions());
     CHECK(dex_file->IsReadOnly());
   }
-  opened_dex_files_.insert(opened_dex_files_.end(), dex_files.begin(), dex_files.end());
   return dex_files;
 }
 
-const DexFile* CommonRuntimeTest::OpenTestDexFile(const char* name) {
-  std::vector<const DexFile*> vector = OpenTestDexFiles(name);
+std::unique_ptr<const DexFile> CommonRuntimeTest::OpenTestDexFile(const char* name) {
+  std::vector<std::unique_ptr<const DexFile>> vector = OpenTestDexFiles(name);
   EXPECT_EQ(1U, vector.size());
-  return vector[0];
+  return std::move(vector[0]);
 }
 
 jobject CommonRuntimeTest::LoadDex(const char* dex_name) {
-  std::vector<const DexFile*> dex_files = OpenTestDexFiles(dex_name);
+  std::vector<std::unique_ptr<const DexFile>> dex_files = OpenTestDexFiles(dex_name);
+  std::vector<const DexFile*> class_path;
   CHECK_NE(0U, dex_files.size());
-  for (const DexFile* dex_file : dex_files) {
+  for (auto& dex_file : dex_files) {
+    class_path.push_back(dex_file.get());
     class_linker_->RegisterDexFile(*dex_file);
+    loaded_dex_files_.push_back(std::move(dex_file));
   }
   Thread* self = Thread::Current();
   JNIEnvExt* env = self->GetJniEnv();
@@ -365,7 +372,7 @@ jobject CommonRuntimeTest::LoadDex(const char* dex_name) {
       env->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader));
   jobject class_loader = env->NewGlobalRef(class_loader_local.get());
   self->SetClassLoaderOverride(class_loader_local.get());
-  Runtime::Current()->SetCompileTimeClassPath(class_loader, dex_files);
+  Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path);
   return class_loader;
 }
 

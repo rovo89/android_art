@@ -246,7 +246,7 @@ ClassLinker::ClassLinker(InternTable* intern_table)
   memset(find_array_class_cache_, 0, kFindArrayCacheSize * sizeof(mirror::Class*));
 }
 
-void ClassLinker::InitWithoutImage(const std::vector<const DexFile*>& boot_class_path) {
+void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> boot_class_path) {
   VLOG(startup) << "ClassLinker::Init";
   CHECK(!Runtime::Current()->GetHeap()->HasImageSpace()) << "Runtime has image. We should use it.";
 
@@ -405,9 +405,10 @@ void ClassLinker::InitWithoutImage(const std::vector<const DexFile*>& boot_class
   // DexCache instances. Needs to be after String, Field, Method arrays since AllocDexCache uses
   // these roots.
   CHECK_NE(0U, boot_class_path.size());
-  for (const DexFile* dex_file : boot_class_path) {
-    CHECK(dex_file != nullptr);
+  for (auto& dex_file : boot_class_path) {
+    CHECK(dex_file.get() != nullptr);
     AppendToBootClassPath(self, *dex_file);
+    opened_dex_files_.push_back(std::move(dex_file));
   }
 
   // now we can use FindSystemClass
@@ -794,7 +795,7 @@ static bool LoadMultiDexFilesFromOatFile(const OatFile* oat_file,
                                          const uint32_t* dex_location_checksum,
                                          bool generated,
                                          std::vector<std::string>* error_msgs,
-                                         std::vector<const DexFile*>* dex_files) {
+                                         std::vector<std::unique_ptr<const DexFile>>* dex_files) {
   if (oat_file == nullptr) {
     return false;
   }
@@ -841,12 +842,12 @@ static bool LoadMultiDexFilesFromOatFile(const OatFile* oat_file,
     }
 
     if (success) {
-      const DexFile* dex_file = oat_dex_file->OpenDexFile(&error_msg);
-      if (dex_file == nullptr) {
+      std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error_msg);
+      if (dex_file.get() == nullptr) {
         success = false;
         error_msgs->push_back(error_msg);
       } else {
-        dex_files->push_back(dex_file);
+        dex_files->push_back(std::move(dex_file));
       }
     }
 
@@ -864,14 +865,7 @@ static bool LoadMultiDexFilesFromOatFile(const OatFile* oat_file,
   if (success) {
     return true;
   } else {
-    // Free all the dex files we have loaded.
-    auto it = dex_files->begin() + old_size;
-    auto it_end = dex_files->end();
-    for (; it != it_end; it++) {
-      delete *it;
-    }
-    dex_files->erase(dex_files->begin() + old_size, it_end);
-
+    dex_files->erase(dex_files->begin() + old_size, dex_files->end());
     return false;
   }
 }
@@ -882,7 +876,7 @@ static bool LoadMultiDexFilesFromOatFile(const OatFile* oat_file,
 // multidex ahead of time.
 bool ClassLinker::OpenDexFilesFromOat(const char* dex_location, const char* oat_location,
                                       std::vector<std::string>* error_msgs,
-                                      std::vector<const DexFile*>* dex_files) {
+                                      std::vector<std::unique_ptr<const DexFile>>* dex_files) {
   // 1) Check whether we have an open oat file.
   // This requires a dex checksum, use the "primary" one.
   uint32_t dex_location_checksum;
@@ -1232,15 +1226,15 @@ bool ClassLinker::VerifyOatWithDexFile(const OatFile* oat_file,
                                 error_msg->c_str());
       return false;
     }
-    dex_file.reset(oat_dex_file->OpenDexFile(error_msg));
+    dex_file = oat_dex_file->OpenDexFile(error_msg);
   } else {
     bool verified = VerifyOatAndDexFileChecksums(oat_file, dex_location, *dex_location_checksum,
                                                  kRuntimeISA, error_msg);
     if (!verified) {
       return false;
     }
-    dex_file.reset(oat_file->GetOatDexFile(dex_location,
-                                           dex_location_checksum)->OpenDexFile(error_msg));
+    dex_file = oat_file->GetOatDexFile(dex_location,
+                                       dex_location_checksum)->OpenDexFile(error_msg);
   }
   return dex_file.get() != nullptr;
 }
@@ -1685,8 +1679,8 @@ void ClassLinker::InitFromImage() {
                                                                      nullptr);
     CHECK(oat_dex_file != nullptr) << oat_file.GetLocation() << " " << dex_file_location;
     std::string error_msg;
-    const DexFile* dex_file = oat_dex_file->OpenDexFile(&error_msg);
-    if (dex_file == nullptr) {
+    std::unique_ptr<const DexFile> dex_file = oat_dex_file->OpenDexFile(&error_msg);
+    if (dex_file.get() == nullptr) {
       LOG(FATAL) << "Failed to open dex file " << dex_file_location
                  << " from within oat file " << oat_file.GetLocation()
                  << " error '" << error_msg << "'";
@@ -1695,7 +1689,8 @@ void ClassLinker::InitFromImage() {
 
     CHECK_EQ(dex_file->GetLocationChecksum(), oat_dex_file->GetDexFileLocationChecksum());
 
-    AppendToBootClassPath(*dex_file, dex_cache);
+    AppendToBootClassPath(*dex_file.get(), dex_cache);
+    opened_dex_files_.push_back(std::move(dex_file));
   }
 
   // Set classes on AbstractMethod early so that IsMethod tests can be performed during the live
@@ -1928,7 +1923,6 @@ ClassLinker::~ClassLinker() {
   mirror::ShortArray::ResetArrayClass();
   mirror::Throwable::ResetClass();
   mirror::StackTraceElement::ResetClass();
-  STLDeleteElements(&boot_class_path_);
   STLDeleteElements(&oat_files_);
 }
 

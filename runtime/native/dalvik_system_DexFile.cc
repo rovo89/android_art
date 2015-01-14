@@ -115,7 +115,8 @@ static jlong DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNa
   }
 
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  std::unique_ptr<std::vector<const DexFile*>> dex_files(new std::vector<const DexFile*>());
+  std::unique_ptr<std::vector<std::unique_ptr<const DexFile>>> dex_files(
+      new std::vector<std::unique_ptr<const DexFile>>());
   std::vector<std::string> error_msgs;
 
   bool success = linker->OpenDexFilesFromOat(sourceName.c_str(), outputName.c_str(), &error_msgs,
@@ -143,9 +144,11 @@ static jlong DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNa
   }
 }
 
-static std::vector<const DexFile*>* toDexFiles(jlong dex_file_address, JNIEnv* env) {
-  std::vector<const DexFile*>* dex_files = reinterpret_cast<std::vector<const DexFile*>*>(
-      static_cast<uintptr_t>(dex_file_address));
+static std::vector<std::unique_ptr<const DexFile>>*
+toDexFiles(jlong dex_file_address, JNIEnv* env) {
+  std::vector<std::unique_ptr<const DexFile>>* dex_files
+    = reinterpret_cast<std::vector<std::unique_ptr<const DexFile>>*>(
+        static_cast<uintptr_t>(dex_file_address));
   if (UNLIKELY(dex_files == nullptr)) {
     ScopedObjectAccess soa(env);
     ThrowNullPointerException(NULL, "dex_file == null");
@@ -154,27 +157,29 @@ static std::vector<const DexFile*>* toDexFiles(jlong dex_file_address, JNIEnv* e
 }
 
 static void DexFile_closeDexFile(JNIEnv* env, jclass, jlong cookie) {
-  std::unique_ptr<std::vector<const DexFile*>> dex_files(toDexFiles(cookie, env));
+  std::unique_ptr<std::vector<std::unique_ptr<const DexFile>>> dex_files(toDexFiles(cookie, env));
   if (dex_files.get() == nullptr) {
     return;
   }
   ScopedObjectAccess soa(env);
 
-  size_t index = 0;
-  for (const DexFile* dex_file : *dex_files) {
+  // The Runtime currently never unloads classes, which means any registered
+  // dex files must be kept around forever in case they are used. We
+  // accomplish this here by explicitly leaking those dex files that are
+  // registered.
+  //
+  // TODO: The Runtime should support unloading of classes and freeing of the
+  // dex files for those unloaded classes rather than leaking dex files here.
+  for (auto& dex_file : *dex_files) {
     if (Runtime::Current()->GetClassLinker()->IsDexFileRegistered(*dex_file)) {
-      (*dex_files)[index] = nullptr;
+      dex_file.release();
     }
-    index++;
   }
-
-  STLDeleteElements(dex_files.get());
-  // Unique_ptr will delete the vector itself.
 }
 
 static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
                                         jlong cookie) {
-  std::vector<const DexFile*>* dex_files = toDexFiles(cookie, env);
+  std::vector<std::unique_ptr<const DexFile>>* dex_files = toDexFiles(cookie, env);
   if (dex_files == NULL) {
     VLOG(class_linker) << "Failed to find dex_file";
     return NULL;
@@ -186,7 +191,7 @@ static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, j
   }
   const std::string descriptor(DotToDescriptor(class_name.c_str()));
   const size_t hash(ComputeModifiedUtf8Hash(descriptor.c_str()));
-  for (const DexFile* dex_file : *dex_files) {
+  for (auto& dex_file : *dex_files) {
     const DexFile::ClassDef* dex_class_def = dex_file->FindClassDef(descriptor.c_str(), hash);
     if (dex_class_def != nullptr) {
       ScopedObjectAccess soa(env);
@@ -218,13 +223,13 @@ struct CharPointerComparator {
 // Note: this can be an expensive call, as we sort out duplicates in MultiDex files.
 static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jlong cookie) {
   jobjectArray result = nullptr;
-  std::vector<const DexFile*>* dex_files = toDexFiles(cookie, env);
+  std::vector<std::unique_ptr<const DexFile>>* dex_files = toDexFiles(cookie, env);
 
   if (dex_files != nullptr) {
     // Push all class descriptors into a set. Use set instead of unordered_set as we want to
     // retrieve all in the end.
     std::set<const char*, CharPointerComparator> descriptors;
-    for (const DexFile* dex_file : *dex_files) {
+    for (auto& dex_file : *dex_files) {
       for (size_t i = 0; i < dex_file->NumClassDefs(); ++i) {
         const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
         const char* descriptor = dex_file->GetClassDescriptor(class_def);

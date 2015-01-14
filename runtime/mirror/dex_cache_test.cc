@@ -34,6 +34,7 @@ class DexCacheTest : public CommonRuntimeTest {};
 TEST_F(DexCacheTest, Open) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<1> hs(soa.Self());
+  ASSERT_TRUE(java_lang_dex_file_ != NULL);
   Handle<DexCache> dex_cache(
       hs.NewHandle(class_linker_->AllocDexCache(soa.Self(), *java_lang_dex_file_)));
   ASSERT_TRUE(dex_cache.Get() != NULL);
