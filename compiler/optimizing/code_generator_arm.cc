@@ -598,9 +598,9 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
       }
       if (index + 1 < calling_convention.GetNumberOfRegisters()) {
         DCHECK_EQ(calling_convention.GetRegisterAt(index) + 1,
-                  calling_convention.GetRegisterAt(index + 1)); 
+                  calling_convention.GetRegisterAt(index + 1));
         return Location::RegisterPairLocation(calling_convention.GetRegisterAt(index),
-                                              calling_convention.GetRegisterAt(index + 1)); 
+                                              calling_convention.GetRegisterAt(index + 1));
       } else {
         return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(stack_index));
       }
