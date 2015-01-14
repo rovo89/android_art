@@ -47,9 +47,9 @@ ENTRY art_jni_dlsym_lookup_stub
     addiu $sp, $sp, 32          # restore the stack
     .cfi_adjust_cfa_offset -32
     move  $t9, $v0              # put method code result in $t9
-    jr    $t9                   # leaf call to method's code
+    jalr  $zero, $t9            # leaf call to method's code
     nop
 .Lno_native_code_found:
-    jr    $ra
+    jalr  $zero, $ra
     nop
 END art_jni_dlsym_lookup_stub

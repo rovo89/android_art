@@ -434,7 +434,7 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
  * anchor:
  *      ori  rAT, rAT, ((target-anchor) & 0xffff)
  *      addu rAT, rAT, rRA
- *      jr   rAT
+ *      jalr rZERO, rAT
  * hop:
  *
  * Orig unconditional branch
@@ -448,7 +448,7 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
  * anchor:
  *      ori  rAT, rAT, ((target-anchor) & 0xffff)
  *      addu rAT, rAT, rRA
- *      jr   rAT
+ *      jalr rZERO, rAT
  *
  *
  * NOTE: An out-of-range bal isn't supported because it should
@@ -497,8 +497,8 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
   InsertLIRBefore(lir, delta_lo);
   LIR* addu = RawLIR(dalvik_offset, kMipsAddu, rAT, rAT, rRA);
   InsertLIRBefore(lir, addu);
-  LIR* jr = RawLIR(dalvik_offset, kMipsJr, rAT);
-  InsertLIRBefore(lir, jr);
+  LIR* jalr = RawLIR(dalvik_offset, kMipsJalr, rZERO, rAT);
+  InsertLIRBefore(lir, jalr);
   if (!unconditional) {
     InsertLIRBefore(lir, hop_target);
   }
