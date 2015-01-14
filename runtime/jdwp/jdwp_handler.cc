@@ -333,15 +333,15 @@ static JdwpError VM_ClassPaths(JdwpState*, Request*, ExpandBuf* pReply)
   std::vector<std::string> class_path;
   Split(Runtime::Current()->GetClassPathString(), ':', &class_path);
   expandBufAdd4BE(pReply, class_path.size());
-  for (size_t i = 0; i < class_path.size(); ++i) {
-    expandBufAddUtf8String(pReply, class_path[i]);
+  for (const std::string& str : class_path) {
+    expandBufAddUtf8String(pReply, str);
   }
 
   std::vector<std::string> boot_class_path;
   Split(Runtime::Current()->GetBootClassPathString(), ':', &boot_class_path);
   expandBufAdd4BE(pReply, boot_class_path.size());
-  for (size_t i = 0; i < boot_class_path.size(); ++i) {
-    expandBufAddUtf8String(pReply, boot_class_path[i]);
+  for (const std::string& str : boot_class_path) {
+    expandBufAddUtf8String(pReply, str);
   }
 
   return ERR_NONE;
