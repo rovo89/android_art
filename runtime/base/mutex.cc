@@ -612,7 +612,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
 #if ART_USE_FUTEXES
   bool done = false;
   timespec end_abs_ts;
-  InitTimeSpec(true, CLOCK_REALTIME, ms, ns, &end_abs_ts);
+  InitTimeSpec(true, CLOCK_MONOTONIC, ms, ns, &end_abs_ts);
   do {
     int32_t cur_state = state_.LoadRelaxed();
     if (cur_state == 0) {
@@ -621,7 +621,7 @@ bool ReaderWriterMutex::ExclusiveLockWithTimeout(Thread* self, int64_t ms, int32
     } else {
       // Failed to acquire, hang up.
       timespec now_abs_ts;
-      InitTimeSpec(true, CLOCK_REALTIME, 0, 0, &now_abs_ts);
+      InitTimeSpec(true, CLOCK_MONOTONIC, 0, 0, &now_abs_ts);
       timespec rel_ts;
       if (ComputeRelativeTimeSpec(&rel_ts, end_abs_ts, now_abs_ts)) {
         return false;  // Timed out.
