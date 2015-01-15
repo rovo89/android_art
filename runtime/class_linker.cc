@@ -4486,6 +4486,171 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
   return true;
 }
 
+static void CountMethodsAndFields(ClassDataItemIterator& dex_data,
+                                  size_t* virtual_methods,
+                                  size_t* direct_methods,
+                                  size_t* static_fields,
+                                  size_t* instance_fields) {
+  *virtual_methods = *direct_methods = *static_fields = *instance_fields = 0;
+
+  while (dex_data.HasNextStaticField()) {
+    dex_data.Next();
+    (*static_fields)++;
+  }
+  while (dex_data.HasNextInstanceField()) {
+    dex_data.Next();
+    (*instance_fields)++;
+  }
+  while (dex_data.HasNextDirectMethod()) {
+    (*direct_methods)++;
+    dex_data.Next();
+  }
+  while (dex_data.HasNextVirtualMethod()) {
+    (*virtual_methods)++;
+    dex_data.Next();
+  }
+  DCHECK(!dex_data.HasNext());
+}
+
+static void DumpClass(std::ostream& os,
+                      const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
+                      const char* suffix) {
+  ClassDataItemIterator dex_data(dex_file, dex_file.GetClassData(dex_class_def));
+  os << dex_file.GetClassDescriptor(dex_class_def) << suffix << ":\n";
+  os << " Static fields:\n";
+  while (dex_data.HasNextStaticField()) {
+    const DexFile::FieldId& id = dex_file.GetFieldId(dex_data.GetMemberIndex());
+    os << "  " << dex_file.GetFieldTypeDescriptor(id) << " " << dex_file.GetFieldName(id) << "\n";
+    dex_data.Next();
+  }
+  os << " Instance fields:\n";
+  while (dex_data.HasNextInstanceField()) {
+    const DexFile::FieldId& id = dex_file.GetFieldId(dex_data.GetMemberIndex());
+    os << "  " << dex_file.GetFieldTypeDescriptor(id) << " " << dex_file.GetFieldName(id) << "\n";
+    dex_data.Next();
+  }
+  os << " Direct methods:\n";
+  while (dex_data.HasNextDirectMethod()) {
+    const DexFile::MethodId& id = dex_file.GetMethodId(dex_data.GetMemberIndex());
+    os << "  " << dex_file.GetMethodName(id) << dex_file.GetMethodSignature(id).ToString() << "\n";
+    dex_data.Next();
+  }
+  os << " Virtual methods:\n";
+  while (dex_data.HasNextVirtualMethod()) {
+    const DexFile::MethodId& id = dex_file.GetMethodId(dex_data.GetMemberIndex());
+    os << "  " << dex_file.GetMethodName(id) << dex_file.GetMethodSignature(id).ToString() << "\n";
+    dex_data.Next();
+  }
+}
+
+static std::string DumpClasses(const DexFile& dex_file1, const DexFile::ClassDef& dex_class_def1,
+                               const DexFile& dex_file2, const DexFile::ClassDef& dex_class_def2) {
+  std::ostringstream os;
+  DumpClass(os, dex_file1, dex_class_def1, " (Compile time)");
+  DumpClass(os, dex_file2, dex_class_def2, " (Runtime)");
+  return os.str();
+}
+
+
+// Very simple structural check on whether the classes match. Only compares the number of
+// methods and fields.
+static bool SimpleStructuralCheck(const DexFile& dex_file1, const DexFile::ClassDef& dex_class_def1,
+                                  const DexFile& dex_file2, const DexFile::ClassDef& dex_class_def2,
+                                  std::string* error_msg) {
+  ClassDataItemIterator dex_data1(dex_file1, dex_file1.GetClassData(dex_class_def1));
+  ClassDataItemIterator dex_data2(dex_file2, dex_file2.GetClassData(dex_class_def2));
+
+  // Counters for current dex file.
+  size_t dex_virtual_methods1, dex_direct_methods1, dex_static_fields1, dex_instance_fields1;
+  CountMethodsAndFields(dex_data1, &dex_virtual_methods1, &dex_direct_methods1, &dex_static_fields1,
+                        &dex_instance_fields1);
+  // Counters for compile-time dex file.
+  size_t dex_virtual_methods2, dex_direct_methods2, dex_static_fields2, dex_instance_fields2;
+  CountMethodsAndFields(dex_data2, &dex_virtual_methods2, &dex_direct_methods2, &dex_static_fields2,
+                        &dex_instance_fields2);
+
+  if (dex_virtual_methods1 != dex_virtual_methods2) {
+    std::string class_dump = DumpClasses(dex_file1, dex_class_def1, dex_file2, dex_class_def2);
+    *error_msg = StringPrintf("Virtual method count off: %zu vs %zu\n%s", dex_virtual_methods1,
+                              dex_virtual_methods2, class_dump.c_str());
+    return false;
+  }
+  if (dex_direct_methods1 != dex_direct_methods2) {
+    std::string class_dump = DumpClasses(dex_file1, dex_class_def1, dex_file2, dex_class_def2);
+    *error_msg = StringPrintf("Direct method count off: %zu vs %zu\n%s", dex_direct_methods1,
+                              dex_direct_methods2, class_dump.c_str());
+    return false;
+  }
+  if (dex_static_fields1 != dex_static_fields2) {
+    std::string class_dump = DumpClasses(dex_file1, dex_class_def1, dex_file2, dex_class_def2);
+    *error_msg = StringPrintf("Static field count off: %zu vs %zu\n%s", dex_static_fields1,
+                              dex_static_fields2, class_dump.c_str());
+    return false;
+  }
+  if (dex_instance_fields1 != dex_instance_fields2) {
+    std::string class_dump = DumpClasses(dex_file1, dex_class_def1, dex_file2, dex_class_def2);
+    *error_msg = StringPrintf("Instance field count off: %zu vs %zu\n%s", dex_instance_fields1,
+                              dex_instance_fields2, class_dump.c_str());
+    return false;
+  }
+
+  return true;
+}
+
+// Checks whether a the super-class changed from what we had at compile-time. This would
+// invalidate quickening.
+static bool CheckSuperClassChange(Handle<mirror::Class> klass,
+                                  const DexFile& dex_file,
+                                  const DexFile::ClassDef& class_def,
+                                  mirror::Class* super_class)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // Check for unexpected changes in the superclass.
+  // Quick check 1) is the super_class class-loader the boot class loader? This always has
+  // precedence.
+  if (super_class->GetClassLoader() != nullptr &&
+      // Quick check 2) different dex cache? Breaks can only occur for different dex files,
+      // which is implied by different dex cache.
+      klass->GetDexCache() != super_class->GetDexCache()) {
+    // Now comes the expensive part: things can be broken if (a) the klass' dex file has a
+    // definition for the super-class, and (b) the files are in separate oat files. The oat files
+    // are referenced from the dex file, so do (b) first. Only relevant if we have oat files.
+    const OatFile* class_oat_file = dex_file.GetOatFile();
+    if (class_oat_file != nullptr) {
+      const OatFile* loaded_super_oat_file = super_class->GetDexFile().GetOatFile();
+      if (loaded_super_oat_file != nullptr && class_oat_file != loaded_super_oat_file) {
+        // Now check (a).
+        const DexFile::ClassDef* super_class_def = dex_file.FindClassDef(class_def.superclass_idx_);
+        if (super_class_def != nullptr) {
+          // Uh-oh, we found something. Do our check.
+          std::string error_msg;
+          if (!SimpleStructuralCheck(dex_file, *super_class_def,
+                                     super_class->GetDexFile(), *super_class->GetClassDef(),
+                                     &error_msg)) {
+            // Print a warning to the log. This exception might be caught, e.g., as common in test
+            // drivers. When the class is later tried to be used, we re-throw a new instance, as we
+            // only save the type of the exception.
+            LOG(WARNING) << "Incompatible structural change detected: " <<
+                StringPrintf(
+                    "Structural change of %s is hazardous (%s at compile time, %s at runtime): %s",
+                    PrettyType(super_class_def->class_idx_, dex_file).c_str(),
+                    class_oat_file->GetLocation().c_str(),
+                    loaded_super_oat_file->GetLocation().c_str(),
+                    error_msg.c_str());
+            ThrowIncompatibleClassChangeError(klass.Get(),
+                "Structural change of %s is hazardous (%s at compile time, %s at runtime): %s",
+                PrettyType(super_class_def->class_idx_, dex_file).c_str(),
+                class_oat_file->GetLocation().c_str(),
+                loaded_super_oat_file->GetLocation().c_str(),
+                error_msg.c_str());
+            return false;
+          }
+        }
+      }
+    }
+  }
+  return true;
+}
+
 bool ClassLinker::LoadSuperAndInterfaces(Handle<mirror::Class> klass, const DexFile& dex_file) {
   CHECK_EQ(mirror::Class::kStatusIdx, klass->GetStatus());
   const DexFile::ClassDef& class_def = dex_file.GetClassDef(klass->GetDexClassDefIndex());
@@ -4505,6 +4670,11 @@ bool ClassLinker::LoadSuperAndInterfaces(Handle<mirror::Class> klass, const DexF
     }
     CHECK(super_class->IsResolved());
     klass->SetSuperClass(super_class);
+
+    if (!CheckSuperClassChange(klass, dex_file, class_def, super_class)) {
+      DCHECK(Thread::Current()->IsExceptionPending());
+      return false;
+    }
   }
   const DexFile::TypeList* interfaces = dex_file.GetInterfacesList(class_def);
   if (interfaces != nullptr) {
