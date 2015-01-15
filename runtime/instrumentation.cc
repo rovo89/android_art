@@ -1142,7 +1142,7 @@ void Instrumentation::VisitRoots(RootCallback* callback, void* arg) {
     return;
   }
   for (auto pair : deoptimized_methods_) {
-    pair.second.VisitRoot(callback, arg, 0, kRootVMInternal);
+    pair.second.VisitRoot(callback, arg, RootInfo(kRootVMInternal));
   }
 }
 

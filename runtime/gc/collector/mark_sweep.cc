@@ -456,42 +456,35 @@ inline void MarkSweep::MarkObject(Object* obj) {
   }
 }
 
-void MarkSweep::MarkRootParallelCallback(Object** root, void* arg, uint32_t /*thread_id*/,
-                                         RootType /*root_type*/) {
+void MarkSweep::MarkRootParallelCallback(Object** root, void* arg, const RootInfo& /*root_info*/) {
   reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNullParallel(*root);
 }
 
-void MarkSweep::VerifyRootMarked(Object** root, void* arg, uint32_t /*thread_id*/,
-                                 RootType /*root_type*/) {
+void MarkSweep::VerifyRootMarked(Object** root, void* arg, const RootInfo& /*root_info*/) {
   CHECK(reinterpret_cast<MarkSweep*>(arg)->IsMarked(*root));
 }
 
-void MarkSweep::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*/,
-                                 RootType /*root_type*/) {
+void MarkSweep::MarkRootCallback(Object** root, void* arg, const RootInfo& /*root_info*/) {
   reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNull(*root);
 }
 
-void MarkSweep::VerifyRootCallback(const Object* root, void* arg, size_t vreg,
-                                   const StackVisitor* visitor, RootType root_type) {
-  reinterpret_cast<MarkSweep*>(arg)->VerifyRoot(root, vreg, visitor, root_type);
+void MarkSweep::VerifyRootCallback(Object** root, void* arg, const RootInfo& root_info) {
+  reinterpret_cast<MarkSweep*>(arg)->VerifyRoot(*root, root_info);
 }
 
-void MarkSweep::VerifyRoot(const Object* root, size_t vreg, const StackVisitor* visitor,
-                           RootType root_type) {
+void MarkSweep::VerifyRoot(const Object* root, const RootInfo& root_info) {
   // See if the root is on any space bitmap.
   if (heap_->GetLiveBitmap()->GetContinuousSpaceBitmap(root) == nullptr) {
     space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
     if (!large_object_space->Contains(root)) {
-      LOG(ERROR) << "Found invalid root: " << root << " with type " << root_type;
-      if (visitor != NULL) {
-        LOG(ERROR) << visitor->DescribeLocation() << " in VReg: " << vreg;
-      }
+      LOG(ERROR) << "Found invalid root: " << root << " ";
+      root_info.Describe(LOG(ERROR));
     }
   }
 }
 
 void MarkSweep::VerifyRoots() {
-  Runtime::Current()->GetThreadList()->VerifyRoots(VerifyRootCallback, this);
+  Runtime::Current()->GetThreadList()->VisitRoots(VerifyRootCallback, this);
 }
 
 void MarkSweep::MarkRoots(Thread* self) {

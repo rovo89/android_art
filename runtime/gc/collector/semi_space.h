@@ -23,6 +23,7 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "garbage_collector.h"
+#include "gc_root.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "immune_region.h"
 #include "mirror/object_reference.h"
@@ -132,8 +133,7 @@ class SemiSpace : public GarbageCollector {
   void SweepSystemWeaks()
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  static void MarkRootCallback(mirror::Object** root, void* arg, uint32_t /*tid*/,
-                               RootType /*root_type*/)
+  static void MarkRootCallback(mirror::Object** root, void* arg, const RootInfo& root_info)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   static mirror::Object* MarkObjectCallback(mirror::Object* root, void* arg)

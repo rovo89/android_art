@@ -2277,8 +2277,8 @@ void Heap::FinishGC(Thread* self, collector::GcType gc_type) {
   gc_complete_cond_->Broadcast(self);
 }
 
-static void RootMatchesObjectVisitor(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
-                                     RootType /*root_type*/) {
+static void RootMatchesObjectVisitor(mirror::Object** root, void* arg,
+                                     const RootInfo& /*root_info*/) {
   mirror::Object* obj = reinterpret_cast<mirror::Object*>(arg);
   if (*root == obj) {
     LOG(INFO) << "Object " << obj << " is a root";
@@ -2319,12 +2319,12 @@ class VerifyReferenceVisitor {
     return heap_->IsLiveObjectLocked(obj, true, false, true);
   }
 
-  static void VerifyRootCallback(mirror::Object** root, void* arg, uint32_t thread_id,
-                                 RootType root_type) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  static void VerifyRootCallback(mirror::Object** root, void* arg, const RootInfo& root_info)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     VerifyReferenceVisitor* visitor = reinterpret_cast<VerifyReferenceVisitor*>(arg);
     if (!visitor->VerifyReference(nullptr, *root, MemberOffset(0))) {
       LOG(ERROR) << "Root " << *root << " is dead with type " << PrettyTypeOf(*root)
-          << " thread_id= " << thread_id << " root_type= " << root_type;
+          << " thread_id= " << root_info.GetThreadId() << " root_type= " << root_info.GetType();
     }
   }
 

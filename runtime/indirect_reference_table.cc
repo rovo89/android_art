@@ -239,10 +239,10 @@ void IndirectReferenceTable::Trim() {
   madvise(release_start, release_end - release_start, MADV_DONTNEED);
 }
 
-void IndirectReferenceTable::VisitRoots(RootCallback* callback, void* arg, uint32_t tid,
-                                        RootType root_type) {
+void IndirectReferenceTable::VisitRoots(RootCallback* callback, void* arg,
+                                        const RootInfo& root_info) {
   for (auto ref : *this) {
-    callback(ref, arg, tid, root_type);
+    callback(ref, arg, root_info);
     DCHECK(*ref != nullptr);
   }
 }

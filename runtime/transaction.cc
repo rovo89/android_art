@@ -172,7 +172,7 @@ void Transaction::VisitObjectLogs(RootCallback* callback, void* arg) {
     it.second.VisitRoots(callback, arg);
     mirror::Object* old_root = it.first;
     mirror::Object* new_root = old_root;
-    callback(&new_root, arg, 0, kRootUnknown);
+    callback(&new_root, arg, RootInfo(kRootUnknown));
     if (new_root != old_root) {
       moving_roots.push_back(std::make_pair(old_root, new_root));
     }
@@ -199,7 +199,7 @@ void Transaction::VisitArrayLogs(RootCallback* callback, void* arg) {
     mirror::Array* old_root = it.first;
     CHECK(!old_root->IsObjectArray());
     mirror::Array* new_root = old_root;
-    callback(reinterpret_cast<mirror::Object**>(&new_root), arg, 0, kRootUnknown);
+    callback(reinterpret_cast<mirror::Object**>(&new_root), arg, RootInfo(kRootUnknown));
     if (new_root != old_root) {
       moving_roots.push_back(std::make_pair(old_root, new_root));
     }
@@ -319,7 +319,7 @@ void Transaction::ObjectLog::VisitRoots(RootCallback* callback, void* arg) {
       mirror::Object* obj =
           reinterpret_cast<mirror::Object*>(static_cast<uintptr_t>(field_value.value));
       if (obj != nullptr) {
-        callback(&obj, arg, 0, kRootUnknown);
+        callback(&obj, arg, RootInfo(kRootUnknown));
         field_value.value = reinterpret_cast<uintptr_t>(obj);
       }
     }
@@ -364,7 +364,7 @@ void Transaction::InternStringLog::Undo(InternTable* intern_table) {
 }
 
 void Transaction::InternStringLog::VisitRoots(RootCallback* callback, void* arg) {
-  callback(reinterpret_cast<mirror::Object**>(&str_), arg, 0, kRootInternedString);
+  callback(reinterpret_cast<mirror::Object**>(&str_), arg, RootInfo(kRootInternedString));
 }
 
 void Transaction::ArrayLog::LogValue(size_t index, uint64_t value) {

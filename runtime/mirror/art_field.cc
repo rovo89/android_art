@@ -56,9 +56,7 @@ void ArtField::SetOffset(MemberOffset num_bytes) {
 }
 
 void ArtField::VisitRoots(RootCallback* callback, void* arg) {
-  if (!java_lang_reflect_ArtField_.IsNull()) {
-    java_lang_reflect_ArtField_.VisitRoot(callback, arg, 0, kRootStickyClass);
-  }
+  java_lang_reflect_ArtField_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
 }
 
 // TODO: we could speed up the search if fields are ordered by offsets.

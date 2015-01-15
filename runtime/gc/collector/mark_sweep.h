@@ -24,6 +24,7 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "garbage_collector.h"
+#include "gc_root.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "immune_region.h"
 #include "object_callbacks.h"
@@ -182,13 +183,11 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  static void MarkRootCallback(mirror::Object** root, void* arg, uint32_t thread_id,
-                               RootType root_type)
+  static void MarkRootCallback(mirror::Object** root, void* arg, const RootInfo& root_info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
-  static void VerifyRootMarked(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
-                               RootType /*root_type*/)
+  static void VerifyRootMarked(mirror::Object** root, void* arg, const RootInfo& root_info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
@@ -196,8 +195,7 @@ class MarkSweep : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void MarkRootParallelCallback(mirror::Object** root, void* arg, uint32_t thread_id,
-                                       RootType root_type)
+  static void MarkRootParallelCallback(mirror::Object** root, void* arg, const RootInfo& root_info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Marks an object.
@@ -247,11 +245,9 @@ class MarkSweep : public GarbageCollector {
   // whether or not we care about pauses.
   size_t GetThreadCount(bool paused) const;
 
-  static void VerifyRootCallback(const mirror::Object* root, void* arg, size_t vreg,
-                                 const StackVisitor *visitor, RootType root_type);
+  static void VerifyRootCallback(mirror::Object** root, void* arg, const RootInfo& root_info);
 
-  void VerifyRoot(const mirror::Object* root, size_t vreg, const StackVisitor* visitor,
-                  RootType root_type) NO_THREAD_SAFETY_ANALYSIS;
+  void VerifyRoot(const mirror::Object* root, const RootInfo& root_info) NO_THREAD_SAFETY_ANALYSIS;
 
   // Push a single reference on a mark stack.
   void PushOnMarkStack(mirror::Object* obj);
