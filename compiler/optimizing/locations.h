@@ -463,7 +463,9 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
     kCall
   };
 
-  LocationSummary(HInstruction* instruction, CallKind call_kind = kNoCall);
+  LocationSummary(HInstruction* instruction,
+                  CallKind call_kind = kNoCall,
+                  bool intrinsified = false);
 
   void SetInAt(uint32_t at, Location location) {
     DCHECK(inputs_.Get(at).IsUnallocated() || inputs_.Get(at).IsInvalid());
@@ -574,6 +576,10 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
     return output_overlaps_;
   }
 
+  bool Intrinsified() const {
+    return intrinsified_;
+  }
+
  private:
   GrowableArray<Location> inputs_;
   GrowableArray<Location> temps_;
@@ -592,6 +598,9 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
 
   // Registers that are in use at this position.
   RegisterSet live_registers_;
+
+  // Whether these are locations for an intrinsified call.
+  const bool intrinsified_;
 
   ART_FRIEND_TEST(RegisterAllocatorTest, ExpectedInRegisterHint);
   ART_FRIEND_TEST(RegisterAllocatorTest, SameAsFirstInputHint);

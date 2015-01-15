@@ -276,6 +276,9 @@ class X86_64Assembler FINAL : public Assembler {
   void movl(const Address& dst, CpuRegister src);
   void movl(const Address& dst, const Immediate& imm);
 
+  void cmov(Condition c, CpuRegister dst, CpuRegister src);  // This is the 64b version.
+  void cmov(Condition c, CpuRegister dst, CpuRegister src, bool is64bit);
+
   void movzxb(CpuRegister dst, CpuRegister src);
   void movzxb(CpuRegister dst, const Address& src);
   void movsxb(CpuRegister dst, CpuRegister src);
@@ -303,8 +306,10 @@ class X86_64Assembler FINAL : public Assembler {
   void movsxd(CpuRegister dst, CpuRegister src);
   void movsxd(CpuRegister dst, const Address& src);
 
-  void movd(XmmRegister dst, CpuRegister src);
-  void movd(CpuRegister dst, XmmRegister src);
+  void movd(XmmRegister dst, CpuRegister src);  // Note: this is the r64 version, formally movq.
+  void movd(CpuRegister dst, XmmRegister src);  // Note: this is the r64 version, formally movq.
+  void movd(XmmRegister dst, CpuRegister src, bool is64bit);
+  void movd(CpuRegister dst, XmmRegister src, bool is64bit);
 
   void addss(XmmRegister dst, XmmRegister src);
   void addss(XmmRegister dst, const Address& src);
@@ -360,6 +365,11 @@ class X86_64Assembler FINAL : public Assembler {
   void xorps(XmmRegister dst, XmmRegister src);
 
   void andpd(XmmRegister dst, const Address& src);
+  void andpd(XmmRegister dst, XmmRegister src);
+  void andps(XmmRegister dst, XmmRegister src);
+
+  void orpd(XmmRegister dst, XmmRegister src);
+  void orps(XmmRegister dst, XmmRegister src);
 
   void flds(const Address& src);
   void fstps(const Address& dst);
@@ -503,6 +513,9 @@ class X86_64Assembler FINAL : public Assembler {
   X86_64Assembler* gs();
 
   void setcc(Condition condition, CpuRegister dst);
+
+  void bswapl(CpuRegister dst);
+  void bswapq(CpuRegister dst);
 
   //
   // Macros for High-level operations.
