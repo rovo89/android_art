@@ -34,11 +34,11 @@ std::string ThrowLocation::Dump() const {
 
 void ThrowLocation::VisitRoots(RootCallback* visitor, void* arg) {
   if (this_object_ != nullptr) {
-    visitor(&this_object_, arg, 0, kRootVMInternal);
+    visitor(&this_object_, arg, RootInfo(kRootVMInternal));
     DCHECK(this_object_ != nullptr);
   }
   if (method_ != nullptr) {
-    visitor(reinterpret_cast<mirror::Object**>(&method_), arg, 0, kRootVMInternal);
+    visitor(reinterpret_cast<mirror::Object**>(&method_), arg, RootInfo(kRootVMInternal));
     DCHECK(method_ != nullptr);
   }
 }

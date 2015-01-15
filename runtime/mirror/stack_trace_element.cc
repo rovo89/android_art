@@ -68,9 +68,7 @@ void StackTraceElement::Init(Handle<String> declaring_class, Handle<String> meth
 }
 
 void StackTraceElement::VisitRoots(RootCallback* callback, void* arg) {
-  if (!java_lang_StackTraceElement_.IsNull()) {
-    java_lang_StackTraceElement_.VisitRoot(callback, arg, 0, kRootStickyClass);
-  }
+  java_lang_StackTraceElement_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
 }
 
 

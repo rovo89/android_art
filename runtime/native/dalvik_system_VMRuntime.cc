@@ -249,7 +249,7 @@ static void VMRuntime_runHeapTasks(JNIEnv* env, jobject) {
 typedef std::map<std::string, mirror::String*> StringTable;
 
 static void PreloadDexCachesStringsCallback(mirror::Object** root, void* arg,
-                                            uint32_t /*thread_id*/, RootType /*root_type*/)
+                                            const RootInfo& /*root_info*/)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   StringTable& table = *reinterpret_cast<StringTable*>(arg);
   mirror::String* string = const_cast<mirror::Object*>(*root)->AsString();
