@@ -47,6 +47,9 @@ namespace arm64 {
 namespace mips {
   class MipsAssembler;
 }
+namespace mips64 {
+  class Mips64Assembler;
+}
 namespace x86 {
   class X86Assembler;
 }
@@ -120,6 +123,7 @@ class Label {
   friend class arm::Thumb2Assembler;
   friend class arm64::Arm64Assembler;
   friend class mips::MipsAssembler;
+  friend class mips64::Mips64Assembler;
   friend class x86::X86Assembler;
   friend class x86_64::X86_64Assembler;
 

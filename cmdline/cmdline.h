@@ -196,7 +196,7 @@ struct CmdlineArgs {
         "      Example: --boot-image=/system/framework/boot.art\n"
         "\n";
     usage += StringPrintf(  // Optional.
-        "  --instruction-set=(arm|arm64|mips|x86|x86_64): for locating the image\n"
+        "  --instruction-set=(arm|arm64|mips|mips64|x86|x86_64): for locating the image\n"
         "      file based on the image location set.\n"
         "      Example: --instruction-set=x86\n"
         "      Default: %s\n"

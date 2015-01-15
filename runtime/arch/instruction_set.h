@@ -40,8 +40,10 @@ std::ostream& operator<<(std::ostream& os, const InstructionSet& rhs);
 static constexpr InstructionSet kRuntimeISA = kArm;
 #elif defined(__aarch64__)
 static constexpr InstructionSet kRuntimeISA = kArm64;
-#elif defined(__mips__)
+#elif defined(__mips__) && !defined(__LP64__)
 static constexpr InstructionSet kRuntimeISA = kMips;
+#elif defined(__mips__) && defined(__LP64__)
+static constexpr InstructionSet kRuntimeISA = kMips64;
 #elif defined(__i386__)
 static constexpr InstructionSet kRuntimeISA = kX86;
 #elif defined(__x86_64__)
@@ -145,6 +147,8 @@ static inline size_t GetBytesPerGprSpillLocation(InstructionSet isa) {
       return 8;
     case kMips:
       return 4;
+    case kMips64:
+      return 8;
     case kNone:
       LOG(FATAL) << "ISA kNone does not have spills.";
       UNREACHABLE();
@@ -168,6 +172,8 @@ static inline size_t GetBytesPerFprSpillLocation(InstructionSet isa) {
       return 8;
     case kMips:
       return 4;
+    case kMips64:
+      return 8;
     case kNone:
       LOG(FATAL) << "ISA kNone does not have spills.";
       UNREACHABLE();
@@ -186,8 +192,8 @@ size_t GetStackOverflowReservedBytes(InstructionSet isa);
 // On x86, ARM32 and MIPS, this is given for a *scalar* 64bit value. The definition thus *must* be
 // uint64_t or long long int.
 //
-// On x86_64 and ARM64, structs are decomposed for allocation, so we can create a structs of two
-// size_t-sized values.
+// On x86_64, ARM64 and MIPS64, structs are decomposed for allocation, so we can create a structs of
+// two size_t-sized values.
 //
 // We need two operations:
 //
@@ -202,7 +208,7 @@ size_t GetStackOverflowReservedBytes(InstructionSet isa);
 //            when the garbage collector can move objects concurrently. Ensure that required locks
 //            are held when using!
 
-#if defined(__i386__) || defined(__arm__) || defined(__mips__)
+#if defined(__i386__) || defined(__arm__) || (defined(__mips__) && !defined(__LP64__))
 typedef uint64_t TwoWordReturn;
 
 // Encodes method_ptr==nullptr and code_ptr==nullptr
@@ -218,7 +224,7 @@ static inline TwoWordReturn GetTwoWordSuccessValue(uintptr_t hi, uintptr_t lo) {
   return ((hi64 << 32) | lo32);
 }
 
-#elif defined(__x86_64__) || defined(__aarch64__)
+#elif defined(__x86_64__) || defined(__aarch64__) || (defined(__mips__) && defined(__LP64__))
 struct TwoWordReturn {
   uintptr_t lo;
   uintptr_t hi;
