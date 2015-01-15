@@ -713,7 +713,7 @@ def CompileTest(inputFile, tempFolder):
   classFolder = tempFolder + "/classes"
   dexFile = tempFolder + "/test.dex"
   oatFile = tempFolder + "/test.oat"
-  outputFile = tempFolder + "/art.cfg"
+  outputFile = tempFolder + "/test.cfg"
   os.makedirs(classFolder)
 
   # Build a DEX from the source file. We pass "--no-optimize" to dx to avoid
@@ -723,7 +723,7 @@ def CompileTest(inputFile, tempFolder):
 
   # Run dex2oat and export the HGraph. The output is stored into ${PWD}/art.cfg.
   with cd(tempFolder):
-    check_call(["dex2oat", "-j1", "--dump-passes", "--compiler-backend=Optimizing",
+    check_call(["dex2oat", "-j1", "--dump-cfg=" + outputFile, "--compiler-backend=Optimizing",
                 "--android-root=" + os.environ["ANDROID_HOST_OUT"],
                 "--boot-image=" + os.environ["ANDROID_HOST_OUT"] + "/framework/core-optimizing.art",
                 "--runtime-arg", "-Xnorelocate", "--dex-file=" + dexFile, "--oat-file=" + oatFile])
