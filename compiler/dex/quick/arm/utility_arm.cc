@@ -978,9 +978,8 @@ LIR* ArmMir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_
     // Use LDREXD for the atomic load. (Expect displacement > 0, don't optimize for == 0.)
     RegStorage r_ptr = AllocTemp();
     OpRegRegImm(kOpAdd, r_ptr, r_base, displacement);
-    LIR* lir = NewLIR3(kThumb2Ldrexd, r_dest.GetLowReg(), r_dest.GetHighReg(), r_ptr.GetReg());
+    load = NewLIR3(kThumb2Ldrexd, r_dest.GetLowReg(), r_dest.GetHighReg(), r_ptr.GetReg());
     FreeTemp(r_ptr);
-    return lir;
   } else {
     load = LoadBaseDispBody(r_base, displacement, r_dest, size);
   }
@@ -1092,7 +1091,7 @@ LIR* ArmMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
     GenMemBarrier(kAnyStore);
   }
 
-  LIR* store;
+  LIR* null_ck_insn;
   if (UNLIKELY(is_volatile == kVolatile &&
                (size == k64 || size == kDouble) &&
                !cu_->compiler_driver->GetInstructionSetFeatures().HasLpae())) {
@@ -1109,17 +1108,16 @@ LIR* ArmMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
     RegStorage r_temp = AllocTemp();
     RegStorage r_temp_high = AllocTemp(false);  // We may not have another temp.
     if (r_temp_high.Valid()) {
-      NewLIR3(kThumb2Ldrexd, r_temp.GetReg(), r_temp_high.GetReg(), r_ptr.GetReg());
+      null_ck_insn = NewLIR3(kThumb2Ldrexd, r_temp.GetReg(), r_temp_high.GetReg(), r_ptr.GetReg());
       FreeTemp(r_temp_high);
       FreeTemp(r_temp);
     } else {
       // If we don't have another temp, clobber r_ptr in LDREXD and reload it.
-      NewLIR3(kThumb2Ldrexd, r_temp.GetReg(), r_ptr.GetReg(), r_ptr.GetReg());
+      null_ck_insn = NewLIR3(kThumb2Ldrexd, r_temp.GetReg(), r_ptr.GetReg(), r_ptr.GetReg());
       FreeTemp(r_temp);  // May need the temp for kOpAdd.
       OpRegRegImm(kOpAdd, r_ptr, r_base, displacement);
     }
-    store = NewLIR4(kThumb2Strexd, r_temp.GetReg(), r_src.GetLowReg(), r_src.GetHighReg(),
-                    r_ptr.GetReg());
+    NewLIR4(kThumb2Strexd, r_temp.GetReg(), r_src.GetLowReg(), r_src.GetHighReg(), r_ptr.GetReg());
     OpCmpImmBranch(kCondNe, r_temp, 0, fail_target);
     FreeTemp(r_ptr);
   } else {
@@ -1128,7 +1126,7 @@ LIR* ArmMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
       size = k32;
     }
 
-    store = StoreBaseDispBody(r_base, displacement, r_src, size);
+    null_ck_insn = StoreBaseDispBody(r_base, displacement, r_src, size);
   }
 
   if (UNLIKELY(is_volatile == kVolatile)) {
@@ -1137,7 +1135,7 @@ LIR* ArmMir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r
     GenMemBarrier(kAnyAny);
   }
 
-  return store;
+  return null_ck_insn;
 }
 
 LIR* ArmMir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {

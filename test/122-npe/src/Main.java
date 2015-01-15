@@ -191,6 +191,132 @@ public class Main {
     check(npe, thisLine += 7);
 
     try {
+      ((Value) null).volatileObjectField.toString();
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      ((Value) null).volatileObjectField = "Fisk";
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      useInt(((Value) null).volatileIntField);
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      ((Value) null).volatileIntField = 42;
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      useFloat(((Value) null).volatileFloatField);
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      ((Value) null).volatileFloatField = 42.0F;
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      useLong(((Value) null).volatileLongField);
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      ((Value) null).volatileLongField = 42L;
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      useDouble(((Value) null).volatileDoubleField);
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      ((Value) null).volatileDoubleField = 42.0d;
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      useInt(((Value) null).volatileByteField);
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      ((Value) null).volatileByteField = 42;
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      if (((Value) null).volatileBooleanField) { }
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      ((Value) null).volatileBooleanField = true;
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      useInt(((Value) null).volatileCharField);
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      ((Value) null).volatileCharField = '\u0042';
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      useInt(((Value) null).volatileShortField);
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
+      ((Value) null).volatileShortField = 42;
+    } catch (NullPointerException e) {
+      npe = e;
+    }
+    check(npe, thisLine += 7);
+
+    try {
       ((Object[]) null)[0].toString();
     } catch (NullPointerException e) {
       npe = e;
@@ -477,11 +603,22 @@ public class Main {
   static class Value {
     Object objectField;
     int intField;
-    float floatField; long longField;
+    float floatField;
+    long longField;
     double doubleField;
     byte byteField;
     boolean booleanField;
     char charField;
     short shortField;
+
+    volatile Object volatileObjectField;
+    volatile int volatileIntField;
+    volatile float volatileFloatField;
+    volatile long volatileLongField;
+    volatile double volatileDoubleField;
+    volatile byte volatileByteField;
+    volatile boolean volatileBooleanField;
+    volatile char volatileCharField;
+    volatile short volatileShortField;
   }
 }
