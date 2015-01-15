@@ -40,6 +40,8 @@
 #include "arch/instruction_set_features.h"
 #include "arch/mips/quick_method_frame_info_mips.h"
 #include "arch/mips/registers_mips.h"
+#include "arch/mips64/quick_method_frame_info_mips64.h"
+#include "arch/mips64/registers_mips64.h"
 #include "arch/x86/quick_method_frame_info_x86.h"
 #include "arch/x86/registers_x86.h"
 #include "arch/x86_64/quick_method_frame_info_x86_64.h"
@@ -1355,6 +1357,11 @@ void Runtime::SetInstructionSet(InstructionSet instruction_set) {
     for (int i = 0; i != kLastCalleeSaveType; ++i) {
       CalleeSaveType type = static_cast<CalleeSaveType>(i);
       callee_save_method_frame_infos_[i] = mips::MipsCalleeSaveMethodFrameInfo(type);
+    }
+  } else if (instruction_set_ == kMips64) {
+    for (int i = 0; i != kLastCalleeSaveType; ++i) {
+      CalleeSaveType type = static_cast<CalleeSaveType>(i);
+      callee_save_method_frame_infos_[i] = mips64::Mips64CalleeSaveMethodFrameInfo(type);
     }
   } else if (instruction_set_ == kX86) {
     for (int i = 0; i != kLastCalleeSaveType; ++i) {

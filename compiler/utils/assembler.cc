@@ -23,6 +23,7 @@
 #include "arm/assembler_thumb2.h"
 #include "arm64/assembler_arm64.h"
 #include "mips/assembler_mips.h"
+#include "mips64/assembler_mips64.h"
 #include "x86/assembler_x86.h"
 #include "x86_64/assembler_x86_64.h"
 #include "globals.h"
@@ -115,6 +116,8 @@ Assembler* Assembler::Create(InstructionSet instruction_set) {
       return new arm64::Arm64Assembler();
     case kMips:
       return new mips::MipsAssembler();
+    case kMips64:
+      return new mips64::Mips64Assembler();
     case kX86:
       return new x86::X86Assembler();
     case kX86_64:
