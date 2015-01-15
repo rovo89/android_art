@@ -101,7 +101,7 @@ class CardTable {
 
   // For every dirty at least minumum age between begin and end invoke the visitor with the
   // specified argument. Returns how many cards the visitor was run on.
-  template <typename Visitor>
+  template <bool kClearCard, typename Visitor>
   size_t Scan(SpaceBitmap<kObjectAlignment>* bitmap, uint8_t* scan_begin, uint8_t* scan_end,
               const Visitor& visitor,
               const uint8_t minimum_age = kCardDirty) const
