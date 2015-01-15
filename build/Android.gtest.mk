@@ -90,6 +90,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/arch/arm/instruction_set_features_arm_test.cc \
   runtime/arch/arm64/instruction_set_features_arm64_test.cc \
   runtime/arch/mips/instruction_set_features_mips_test.cc \
+  runtime/arch/mips64/instruction_set_features_mips64_test.cc \
   runtime/arch/x86/instruction_set_features_x86_test.cc \
   runtime/arch/x86_64/instruction_set_features_x86_64_test.cc \
   runtime/barrier_test.cc \

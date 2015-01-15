@@ -30,6 +30,9 @@ class Arm64ManagedRegister;
 namespace mips {
 class MipsManagedRegister;
 }
+namespace mips64 {
+class Mips64ManagedRegister;
+}
 
 namespace x86 {
 class X86ManagedRegister;
@@ -54,6 +57,7 @@ class ManagedRegister {
   arm::ArmManagedRegister AsArm() const;
   arm64::Arm64ManagedRegister AsArm64() const;
   mips::MipsManagedRegister AsMips() const;
+  mips64::Mips64ManagedRegister AsMips64() const;
   x86::X86ManagedRegister AsX86() const;
   x86_64::X86_64ManagedRegister AsX86_64() const;
 

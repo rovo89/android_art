@@ -27,6 +27,7 @@
 #include "arch/arm/quick_method_frame_info_arm.h"
 #include "arch/arm64/quick_method_frame_info_arm64.h"
 #include "arch/mips/quick_method_frame_info_mips.h"
+#include "arch/mips64/quick_method_frame_info_mips64.h"
 #include "arch/x86/quick_method_frame_info_x86.h"
 #include "arch/x86_64/quick_method_frame_info_x86_64.h"
 
@@ -76,6 +77,7 @@ static constexpr size_t GetCalleeSaveFrameSize(InstructionSet isa, Runtime::Call
   return (isa == kArm || isa == kThumb2) ? arm::ArmCalleeSaveFrameSize(type) :
          isa == kArm64 ? arm64::Arm64CalleeSaveFrameSize(type) :
          isa == kMips ? mips::MipsCalleeSaveFrameSize(type) :
+         isa == kMips64 ? mips64::Mips64CalleeSaveFrameSize(type) :
          isa == kX86 ? x86::X86CalleeSaveFrameSize(type) :
          isa == kX86_64 ? x86_64::X86_64CalleeSaveFrameSize(type) :
          isa == kNone ? (LOG(FATAL) << "kNone has no frame size", 0) :
@@ -88,6 +90,7 @@ static constexpr size_t GetConstExprPointerSize(InstructionSet isa) {
   return (isa == kArm || isa == kThumb2) ? kArmPointerSize :
          isa == kArm64 ? kArm64PointerSize :
          isa == kMips ? kMipsPointerSize :
+         isa == kMips64 ? kMips64PointerSize :
          isa == kX86 ? kX86PointerSize :
          isa == kX86_64 ? kX86_64PointerSize :
          isa == kNone ? (LOG(FATAL) << "kNone has no pointer size", 0) :

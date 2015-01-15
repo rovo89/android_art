@@ -57,7 +57,7 @@ InstructionSet GetInstructionSetFromString(const char* isa_str) {
   } else if (strcmp("mips", isa_str) == 0) {
     return kMips;
   } else if (strcmp("mips64", isa_str) == 0) {
-    return kMips;
+    return kMips64;
   }
 
   return kNone;
@@ -76,6 +76,8 @@ size_t GetInstructionSetAlignment(InstructionSet isa) {
     case kX86_64:
       return kX86Alignment;
     case kMips:
+      // Fall-through.
+    case kMips64:
       return kMipsAlignment;
     case kNone:
       LOG(FATAL) << "ISA kNone does not have alignment.";
@@ -88,6 +90,7 @@ size_t GetInstructionSetAlignment(InstructionSet isa) {
 
 static constexpr size_t kDefaultStackOverflowReservedBytes = 16 * KB;
 static constexpr size_t kMipsStackOverflowReservedBytes = kDefaultStackOverflowReservedBytes;
+static constexpr size_t kMips64StackOverflowReservedBytes = kDefaultStackOverflowReservedBytes;
 
 static constexpr size_t kArmStackOverflowReservedBytes =    8 * KB;
 static constexpr size_t kArm64StackOverflowReservedBytes =  8 * KB;
@@ -105,6 +108,9 @@ size_t GetStackOverflowReservedBytes(InstructionSet isa) {
 
     case kMips:
       return kMipsStackOverflowReservedBytes;
+
+    case kMips64:
+      return kMips64StackOverflowReservedBytes;
 
     case kX86:
       return kX86StackOverflowReservedBytes;

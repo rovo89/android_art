@@ -63,6 +63,7 @@ size_t CompiledCode::CodeDelta(InstructionSet instruction_set) {
     case kArm:
     case kArm64:
     case kMips:
+    case kMips64:
     case kX86:
     case kX86_64:
       return 0;
@@ -82,6 +83,7 @@ const void* CompiledCode::CodePointer(const void* code_pointer,
     case kArm:
     case kArm64:
     case kMips:
+    case kMips64:
     case kX86:
     case kX86_64:
       return code_pointer;

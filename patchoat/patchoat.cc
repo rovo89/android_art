@@ -62,6 +62,8 @@ static InstructionSet ElfISAToInstructionSet(Elf32_Word isa, Elf32_Word e_flags)
       if (((e_flags & EF_MIPS_ARCH) == EF_MIPS_ARCH_32R2) ||
           ((e_flags & EF_MIPS_ARCH) == EF_MIPS_ARCH_32R6)) {
         return kMips;
+      } else if ((e_flags & EF_MIPS_ARCH) == EF_MIPS_ARCH_64R6) {
+        return kMips64;
       } else {
         return kNone;
       }
