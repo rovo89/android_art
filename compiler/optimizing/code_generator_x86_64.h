@@ -169,6 +169,10 @@ class CodeGeneratorX86_64 : public CodeGenerator {
     return kX86_64WordSize;
   }
 
+  size_t GetFloatingPointSpillSlotSize() const OVERRIDE {
+    return kX86_64WordSize;
+  }
+
   size_t FrameEntrySpillSize() const OVERRIDE;
 
   HGraphVisitor* GetLocationBuilder() OVERRIDE {

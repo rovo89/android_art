@@ -109,9 +109,11 @@ class CodeGenerator {
   virtual HGraphVisitor* GetInstructionVisitor() = 0;
   virtual Assembler* GetAssembler() = 0;
   virtual size_t GetWordSize() const = 0;
+  virtual size_t GetFloatingPointSpillSlotSize() const = 0;
   virtual uintptr_t GetAddressOf(HBasicBlock* block) const = 0;
   void ComputeFrameSize(size_t number_of_spill_slots,
-                        size_t maximum_number_of_live_registers,
+                        size_t maximum_number_of_live_core_registers,
+                        size_t maximum_number_of_live_fp_registers,
                         size_t number_of_out_slots);
   virtual size_t FrameEntrySpillSize() const = 0;
   int32_t GetStackSlot(HLocal* local) const;
