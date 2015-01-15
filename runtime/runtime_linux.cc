@@ -25,6 +25,7 @@
 
 #include "base/dumpable.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/mutex.h"
 #include "base/stringprintf.h"
 #include "thread-inl.h"
@@ -289,6 +290,7 @@ struct UContext {
 static int GetTimeoutSignal() {
 #if defined(__APPLE__)
   // Mac does not support realtime signals.
+  UNUSED(kUseSigRTTimeout);
   return -1;
 #else
   return kUseSigRTTimeout ? (SIGRTMIN + 2) : -1;
