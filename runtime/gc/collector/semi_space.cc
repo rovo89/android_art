@@ -216,7 +216,7 @@ void SemiSpace::MarkingPhase() {
   // Assume the cleared space is already empty.
   BindBitmaps();
   // Process dirty cards and add dirty cards to mod-union tables.
-  heap_->ProcessCards(GetTimings(), kUseRememberedSet && generational_);
+  heap_->ProcessCards(GetTimings(), kUseRememberedSet && generational_, false, true);
   // Clear the whole card table since we can not Get any additional dirty cards during the
   // paused GC. This saves memory but only works for pause the world collectors.
   t.NewTiming("ClearCardTable");
