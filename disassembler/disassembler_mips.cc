@@ -138,7 +138,9 @@ static const MipsInstruction gMipsInstructions[] = {
   { kITypeMask, 41u << kOpcodeShift, "sh", "TO", },
   { kITypeMask, 43u << kOpcodeShift, "sw", "TO", },
   { kITypeMask, 49u << kOpcodeShift, "lwc1", "tO", },
+  { kITypeMask, 53u << kOpcodeShift, "ldc1", "tO", },
   { kITypeMask, 57u << kOpcodeShift, "swc1", "tO", },
+  { kITypeMask, 61u << kOpcodeShift, "sdc1", "tO", },
 
   // Floating point.
   { kFpMask,                kCop1 | 0, "add", "fdst" },
