@@ -127,6 +127,9 @@ static inline size_t test_rand(size_t* seed) {
 }
 
 void SpaceTest::InitTestBody(CreateSpaceFn create_space) {
+  // This will lead to error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   {
     // Init < max == growth
     std::unique_ptr<Space> space(create_space("test", 16 * MB, 32 * MB, 32 * MB, nullptr));

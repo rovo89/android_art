@@ -356,6 +356,8 @@ static void CommonWaitSetup(MonitorTest* test, ClassLinker* class_linker, uint64
 TEST_F(MonitorTest, CheckExceptionsWait1) {
   // Make the CreateTask wait 10ms, the UseTask wait 10ms.
   // => The use task will get the lock first and get to self == owner check.
+  // This will lead to OOM and monitor error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
   CommonWaitSetup(this, class_linker_, 10, 50, false, false, 2, 50, true,
                   "Monitor test thread pool 1");
 }
@@ -364,6 +366,8 @@ TEST_F(MonitorTest, CheckExceptionsWait1) {
 TEST_F(MonitorTest, CheckExceptionsWait2) {
   // Make the CreateTask wait 0ms, the UseTask wait 10ms.
   // => The create task will get the lock first and get to ms >= 0
+  // This will lead to OOM and monitor error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
   CommonWaitSetup(this, class_linker_, 0, -1, true, false, 10, 50, true,
                   "Monitor test thread pool 2");
 }
@@ -373,6 +377,8 @@ TEST_F(MonitorTest, CheckExceptionsWait3) {
   // Make the CreateTask wait 0ms, then Wait for a long time. Make the InterruptTask wait 10ms,
   // after which it will interrupt the create task and then wait another 10ms.
   // => The create task will get to the interrupted-exception throw.
+  // This will lead to OOM and monitor error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
   CommonWaitSetup(this, class_linker_, 0, 500, true, true, 10, 50, true,
                   "Monitor test thread pool 3");
 }

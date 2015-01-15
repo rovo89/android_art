@@ -799,6 +799,9 @@ static void TestUnlockObject(StubTest* test) NO_THREAD_SAFETY_ANALYSIS {
 }
 
 TEST_F(StubTest, UnlockObject) {
+  // This will lead to monitor error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   TestUnlockObject(this);
 }
 
@@ -992,6 +995,9 @@ TEST_F(StubTest, AllocObject) {
   TEST_DISABLED_FOR_HEAP_REFERENCE_POISONING();
 
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
+  // This will lead to OOM  error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   // TODO: Check the "Unresolved" allocation stubs
 
   Thread* self = Thread::Current();
@@ -1115,6 +1121,9 @@ TEST_F(StubTest, AllocObjectArray) {
 
 #if defined(__i386__) || defined(__arm__) || defined(__aarch64__) || (defined(__x86_64__) && !defined(__APPLE__))
   // TODO: Check the "Unresolved" allocation stubs
+
+  // This will lead to OOM  error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
 
   Thread* self = Thread::Current();
   // Create an object
