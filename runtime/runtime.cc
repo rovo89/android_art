@@ -1157,29 +1157,14 @@ void Runtime::VisitConcurrentRoots(RootCallback* callback, void* arg, VisitRootF
 
 void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
   java_vm_->VisitRoots(callback, arg);
-  if (!pre_allocated_OutOfMemoryError_.IsNull()) {
-    pre_allocated_OutOfMemoryError_.VisitRoot(callback, arg, 0, kRootVMInternal);
-    DCHECK(!pre_allocated_OutOfMemoryError_.IsNull());
-  }
-  resolution_method_.VisitRoot(callback, arg, 0, kRootVMInternal);
-  DCHECK(!resolution_method_.IsNull());
-  if (!pre_allocated_NoClassDefFoundError_.IsNull()) {
-    pre_allocated_NoClassDefFoundError_.VisitRoot(callback, arg, 0, kRootVMInternal);
-    DCHECK(!pre_allocated_NoClassDefFoundError_.IsNull());
-  }
-  if (HasImtConflictMethod()) {
-    imt_conflict_method_.VisitRoot(callback, arg, 0, kRootVMInternal);
-  }
-  if (!imt_unimplemented_method_.IsNull()) {
-    imt_unimplemented_method_.VisitRoot(callback, arg, 0, kRootVMInternal);
-  }
-  if (HasDefaultImt()) {
-    default_imt_.VisitRoot(callback, arg, 0, kRootVMInternal);
-  }
+  pre_allocated_OutOfMemoryError_.VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
+  resolution_method_.VisitRoot(callback, arg, RootInfo(kRootVMInternal));
+  pre_allocated_NoClassDefFoundError_.VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
+  imt_conflict_method_.VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
+  imt_unimplemented_method_.VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
+  default_imt_.VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
   for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
-    if (!callee_save_methods_[i].IsNull()) {
-      callee_save_methods_[i].VisitRoot(callback, arg, 0, kRootVMInternal);
-    }
+    callee_save_methods_[i].VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
   }
   verifier::MethodVerifier::VisitStaticRoots(callback, arg);
   {

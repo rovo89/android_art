@@ -437,9 +437,7 @@ class SharedLibrary {
   }
 
   void VisitRoots(RootCallback* visitor, void* arg) {
-    if (!class_loader_.IsNull()) {
-      class_loader_.VisitRoot(visitor, arg, 0, kRootVMInternal);
-    }
+    class_loader_.VisitRootIfNonNull(visitor, arg, RootInfo(kRootVMInternal));
   }
 
  private:
@@ -3416,7 +3414,7 @@ void JavaVMExt::VisitRoots(RootCallback* callback, void* arg) {
   Thread* self = Thread::Current();
   {
     ReaderMutexLock mu(self, globals_lock);
-    globals.VisitRoots(callback, arg, 0, kRootJNIGlobal);
+    globals.VisitRoots(callback, arg, RootInfo(kRootJNIGlobal));
   }
   {
     MutexLock mu(self, libraries_lock);

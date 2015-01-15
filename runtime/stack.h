@@ -21,6 +21,7 @@
 #include <string>
 
 #include "dex_file.h"
+#include "gc_root.h"
 #include "instruction_set.h"
 #include "mirror/object_reference.h"
 #include "throw_location.h"
@@ -395,6 +396,19 @@ class ShadowFrame {
   uint32_t vregs_[0];
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(ShadowFrame);
+};
+
+class JavaFrameRootInfo : public RootInfo {
+ public:
+  JavaFrameRootInfo(uint32_t thread_id, const StackVisitor* stack_visitor, size_t vreg)
+     : RootInfo(kRootJavaFrame, thread_id), stack_visitor_(stack_visitor), vreg_(vreg) {
+  }
+  virtual void Describe(std::ostream& os) const OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+ private:
+  const StackVisitor* const stack_visitor_;
+  const size_t vreg_;
 };
 
 // The managed stack is used to record fragments of managed code stacks. Managed code stacks

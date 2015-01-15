@@ -590,8 +590,7 @@ void SemiSpace::DelayReferenceReferentCallback(mirror::Class* klass, mirror::Ref
   reinterpret_cast<SemiSpace*>(arg)->DelayReferenceReferent(klass, ref);
 }
 
-void SemiSpace::MarkRootCallback(Object** root, void* arg, uint32_t /*thread_id*/,
-                                 RootType /*root_type*/) {
+void SemiSpace::MarkRootCallback(Object** root, void* arg, const RootInfo& /*root_info*/) {
   auto ref = StackReference<mirror::Object>::FromMirrorPtr(*root);
   reinterpret_cast<SemiSpace*>(arg)->MarkObject(&ref);
   if (*root != ref.AsMirrorPtr()) {

@@ -242,10 +242,9 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
                   identical, equiv);
 }
 
-void ReferenceTable::VisitRoots(RootCallback* visitor, void* arg, uint32_t tid,
-                                RootType root_type) {
+void ReferenceTable::VisitRoots(RootCallback* visitor, void* arg, const RootInfo& root_info) {
   for (GcRoot<mirror::Object>& root : entries_) {
-    root.VisitRoot(visitor, arg, tid, root_type);
+    root.VisitRoot(visitor, arg, root_info);
   }
 }
 

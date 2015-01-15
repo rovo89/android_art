@@ -18,6 +18,7 @@
 #define ART_RUNTIME_THREAD_LIST_H_
 
 #include "base/mutex.h"
+#include "gc_root.h"
 #include "jni.h"
 #include "object_callbacks.h"
 
@@ -124,9 +125,6 @@ class ThreadList {
   void Unregister(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_, Locks::thread_list_lock_);
 
   void VisitRoots(RootCallback* callback, void* arg) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  void VerifyRoots(VerifyRootCallback* callback, void* arg) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Return a copy of the thread list.

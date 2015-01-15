@@ -19,9 +19,56 @@
 
 #include "base/macros.h"
 #include "base/mutex.h"       // For Locks::mutator_lock_.
-#include "object_callbacks.h"
 
 namespace art {
+
+namespace mirror {
+class Object;
+}  // namespace mirror
+
+enum RootType {
+  kRootUnknown = 0,
+  kRootJNIGlobal,
+  kRootJNILocal,
+  kRootJavaFrame,
+  kRootNativeStack,
+  kRootStickyClass,
+  kRootThreadBlock,
+  kRootMonitorUsed,
+  kRootThreadObject,
+  kRootInternedString,
+  kRootDebugger,
+  kRootVMInternal,
+  kRootJNIMonitor,
+};
+std::ostream& operator<<(std::ostream& os, const RootType& root_type);
+
+class RootInfo {
+ public:
+  // Thread id 0 is for non thread roots.
+  explicit RootInfo(RootType type, uint32_t thread_id = 0)
+     : type_(type), thread_id_(thread_id) {
+  }
+  virtual ~RootInfo() {
+  }
+  RootType GetType() const {
+    return type_;
+  }
+  uint32_t GetThreadId() const {
+    return thread_id_;
+  }
+  virtual void Describe(std::ostream& os) const {
+    os << "Type=" << type_ << " thread_id=" << thread_id_;
+  }
+
+ private:
+  const RootType type_;
+  const uint32_t thread_id_;
+};
+
+// Returns the new address of the object, returns root if it has not moved. tid and root_type are
+// only used by hprof.
+typedef void (RootCallback)(mirror::Object** root, void* arg, const RootInfo& root_info);
 
 template<class MirrorType>
 class PACKED(4) GcRoot {
@@ -29,10 +76,16 @@ class PACKED(4) GcRoot {
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE MirrorType* Read() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VisitRoot(RootCallback* callback, void* arg, uint32_t thread_id, RootType root_type) const {
+  void VisitRoot(RootCallback* callback, void* arg, const RootInfo& info) const {
     DCHECK(!IsNull());
-    callback(reinterpret_cast<mirror::Object**>(&root_), arg, thread_id, root_type);
+    callback(reinterpret_cast<mirror::Object**>(&root_), arg, info);
     DCHECK(!IsNull());
+  }
+
+  void VisitRootIfNonNull(RootCallback* callback, void* arg, const RootInfo& info) const {
+    if (!IsNull()) {
+      VisitRoot(callback, arg, info);
+    }
   }
 
   // This is only used by IrtIterator.

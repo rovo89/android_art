@@ -608,4 +608,11 @@ void StackVisitor::WalkStack(bool include_transitions) {
   }
 }
 
+void JavaFrameRootInfo::Describe(std::ostream& os) const {
+  const StackVisitor* visitor = stack_visitor_;
+  CHECK(visitor != nullptr);
+  os << "Type=" << GetType() << " thread_id=" << GetThreadId() << " location=" <<
+      visitor->DescribeLocation() << " vreg=" << vreg_;
+}
+
 }  // namespace art
