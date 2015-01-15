@@ -457,5 +457,5 @@ class TestCheckFile_Parse(unittest.TestCase):
                                                          ("def", CheckVariant.DAG) ])) ])
 
 if __name__ == '__main__':
-  checker.Logger.SilentMode = True
+  checker.Logger.Verbosity = checker.Logger.Level.NoOutput
   unittest.main()

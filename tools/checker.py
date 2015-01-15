@@ -80,7 +80,9 @@ import tempfile
 from subprocess import check_call
 
 class Logger(object):
-  SilentMode = False
+
+  class Level(object):
+    NoOutput, Error, Info = range(3)
 
   class Color(object):
     Default, Blue, Gray, Purple, Red = range(5)
@@ -100,13 +102,15 @@ class Logger(object):
       else:
         return '\033[0m'
 
+  Verbosity = Level.Info
+
   @staticmethod
-  def log(text, color=Color.Default, newLine=True, out=sys.stdout):
-    if not Logger.SilentMode:
+  def log(text, level=Level.Info, color=Color.Default, newLine=True, out=sys.stdout):
+    if level <= Logger.Verbosity:
       text = Logger.Color.terminalCode(color, out) + text + \
              Logger.Color.terminalCode(Logger.Color.Default, out)
       if newLine:
-        print(text, file=out)
+        print(text, flush=True, file=out)
       else:
         print(text, end="", flush=True, file=out)
 
@@ -120,9 +124,9 @@ class Logger(object):
     if location:
       location += " "
 
-    Logger.log(location, color=Logger.Color.Gray, newLine=False, out=sys.stderr)
-    Logger.log("error: ", color=Logger.Color.Red, newLine=False, out=sys.stderr)
-    Logger.log(msg, out=sys.stderr)
+    Logger.log(location, Logger.Level.Error, color=Logger.Color.Gray, newLine=False, out=sys.stderr)
+    Logger.log("error: ", Logger.Level.Error, color=Logger.Color.Red, newLine=False, out=sys.stderr)
+    Logger.log(msg, Logger.Level.Error, out=sys.stderr)
     sys.exit(1)
 
   @staticmethod
@@ -692,6 +696,8 @@ def ParseArguments():
                       help="print a list of all groups found in the test output")
   parser.add_argument("--dump-group", dest="dump_group", metavar="GROUP",
                       help="print the contents of an output group")
+  parser.add_argument("-q", "--quiet", action="store_true",
+                      help="print only errors")
   return parser.parse_args()
 
 
@@ -762,8 +768,10 @@ def RunChecks(checkPrefix, checkFilename, outputFilename):
 
 if __name__ == "__main__":
   args = ParseArguments()
-  tempFolder = tempfile.mkdtemp()
+  if args.quiet:
+    Logger.Verbosity = Logger.Level.Error
 
+  tempFolder = tempfile.mkdtemp()
   try:
     outputFile = CompileTest(args.test_file, tempFolder)
     if args.list_groups:
