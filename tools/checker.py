@@ -77,7 +77,6 @@ import re
 import shutil
 import sys
 import tempfile
-from subprocess import check_call
 
 class Logger(object):
 
@@ -689,52 +688,19 @@ class OutputFile(FileSplitMixin):
 
 def ParseArguments():
   parser = argparse.ArgumentParser()
-  parser.add_argument("test_file", help="the source of the test with checking annotations")
+  parser.add_argument("tested_file",
+                      help="text file the checks should be verified against")
+  parser.add_argument("source_path", nargs="?",
+                      help="path to file/folder with checking annotations")
   parser.add_argument("--check-prefix", dest="check_prefix", default="CHECK", metavar="PREFIX",
-                      help="prefix of checks in the test file (default: CHECK)")
+                      help="prefix of checks in the test files (default: CHECK)")
   parser.add_argument("--list-groups", dest="list_groups", action="store_true",
-                      help="print a list of all groups found in the test output")
+                      help="print a list of all groups found in the tested file")
   parser.add_argument("--dump-group", dest="dump_group", metavar="GROUP",
                       help="print the contents of an output group")
   parser.add_argument("-q", "--quiet", action="store_true",
                       help="print only errors")
   return parser.parse_args()
-
-
-class cd:
-  """Helper class which temporarily changes the working directory."""
-
-  def __init__(self, newPath):
-    self.newPath = newPath
-
-  def __enter__(self):
-    self.savedPath = os.getcwd()
-    os.chdir(self.newPath)
-
-  def __exit__(self, etype, value, traceback):
-    os.chdir(self.savedPath)
-
-
-def CompileTest(inputFile, tempFolder):
-  classFolder = tempFolder + "/classes"
-  dexFile = tempFolder + "/test.dex"
-  oatFile = tempFolder + "/test.oat"
-  outputFile = tempFolder + "/test.cfg"
-  os.makedirs(classFolder)
-
-  # Build a DEX from the source file. We pass "--no-optimize" to dx to avoid
-  # interference with its optimizations.
-  check_call(["javac", "-d", classFolder, inputFile])
-  check_call(["dx", "--dex", "--no-optimize", "--output=" + dexFile, classFolder])
-
-  # Run dex2oat and export the HGraph. The output is stored into ${PWD}/art.cfg.
-  with cd(tempFolder):
-    check_call(["dex2oat", "-j1", "--dump-cfg=" + outputFile, "--compiler-backend=Optimizing",
-                "--android-root=" + os.environ["ANDROID_HOST_OUT"],
-                "--boot-image=" + os.environ["ANDROID_HOST_OUT"] + "/framework/core-optimizing.art",
-                "--runtime-arg", "-Xnorelocate", "--dex-file=" + dexFile, "--oat-file=" + oatFile])
-
-  return outputFile
 
 
 def ListGroups(outputFilename):
@@ -757,13 +723,30 @@ def DumpGroup(outputFilename, groupName):
     Logger.fail("Group \"" + groupName + "\" not found in the output")
 
 
-def RunChecks(checkPrefix, checkFilename, outputFilename):
-  checkBaseName = os.path.basename(checkFilename)
-  outputBaseName = os.path.splitext(checkBaseName)[0] + ".cfg"
+def FindCheckFiles(path):
+  if not path:
+    Logger.fail("No source path provided")
+  elif os.path.isfile(path):
+    return [ path ]
+  elif os.path.isdir(path):
+    foundFiles = []
+    for root, dirs, files in os.walk(path):
+      for file in files:
+        if os.path.splitext(file)[1] == ".java":
+          foundFiles.append(os.path.join(root, file))
+    return foundFiles
+  else:
+    Logger.fail("Source path \"" + path + "\" not found")
 
-  checkFile = CheckFile(checkPrefix, open(checkFilename, "r"), checkBaseName)
+
+def RunChecks(checkPrefix, checkPath, outputFilename):
+  outputBaseName = os.path.basename(outputFilename)
   outputFile = OutputFile(open(outputFilename, "r"), outputBaseName)
-  checkFile.match(outputFile)
+
+  for checkFilename in FindCheckFiles(checkPath):
+    checkBaseName = os.path.basename(checkFilename)
+    checkFile = CheckFile(checkPrefix, open(checkFilename, "r"), checkBaseName)
+    checkFile.match(outputFile)
 
 
 if __name__ == "__main__":
@@ -773,12 +756,11 @@ if __name__ == "__main__":
 
   tempFolder = tempfile.mkdtemp()
   try:
-    outputFile = CompileTest(args.test_file, tempFolder)
     if args.list_groups:
-      ListGroups(outputFile)
+      ListGroups(args.tested_file)
     elif args.dump_group:
-      DumpGroup(outputFile, args.dump_group)
+      DumpGroup(args.tested_file, args.dump_group)
     else:
-      RunChecks(args.check_prefix, args.test_file, outputFile)
+      RunChecks(args.check_prefix, args.source_path, args.tested_file)
   finally:
     shutil.rmtree(tempFolder)
