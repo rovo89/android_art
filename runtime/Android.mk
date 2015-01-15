@@ -264,9 +264,15 @@ LIBART_TARGET_SRC_FILES_mips := \
   arch/mips/thread_mips.cc \
   arch/mips/fault_handler_mips.cc
 
-ifeq ($(TARGET_ARCH),mips64)
-$(info TODOMips64: $(LOCAL_PATH)/Android.mk Add mips64 specific runtime files)
-endif # TARGET_ARCH != mips64
+LIBART_TARGET_SRC_FILES_mips64 := \
+  arch/mips64/context_mips64.cc \
+  arch/mips64/entrypoints_init_mips64.cc \
+  arch/mips64/jni_entrypoints_mips64.S \
+  arch/mips64/memcmp16_mips64.S \
+  arch/mips64/quick_entrypoints_mips64.S \
+  arch/mips64/thread_mips64.cc \
+  monitor_pool.cc \
+  arch/mips64/fault_handler_mips64.cc
 
 LIBART_HOST_SRC_FILES := \
   $(LIBART_COMMON_SRC_FILES) \
@@ -525,6 +531,7 @@ LIBART_TARGET_SRC_FILES_arm64 :=
 LIBART_TARGET_SRC_FILES_x86 :=
 LIBART_TARGET_SRC_FILES_x86_64 :=
 LIBART_TARGET_SRC_FILES_mips :=
+LIBART_TARGET_SRC_FILES_mips64 :=
 LIBART_HOST_SRC_FILES :=
 LIBART_HOST_SRC_FILES_32 :=
 LIBART_HOST_SRC_FILES_64 :=

@@ -65,7 +65,7 @@ class VmapTable {
     uint16_t adjusted_vreg = vreg + kEntryAdjustment;
     size_t end = DecodeUnsignedLeb128(&table);
     bool high_reg = (kind == kLongHiVReg) || (kind == kDoubleHiVReg);
-    bool target64 = (kRuntimeISA == kArm64) || (kRuntimeISA == kX86_64);
+    bool target64 = (kRuntimeISA == kArm64) || (kRuntimeISA == kX86_64) || (kRuntimeISA == kMips64);
     if (target64 && high_reg) {
       // Wide promoted registers are associated with the sreg of the low portion.
       adjusted_vreg--;
