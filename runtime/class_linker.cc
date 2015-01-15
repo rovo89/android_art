@@ -2354,6 +2354,18 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, si
 
   Handle<mirror::Class> new_class_h(hs.NewHandle(new_class));
 
+  // Instrumentation may have updated entrypoints for all methods of all
+  // classes. However it could not update methods of this class while we
+  // were loading it. Now the class is resolved, we can update entrypoints
+  // as required by instrumentation.
+  if (Runtime::Current()->GetInstrumentation()->AreExitStubsInstalled()) {
+    // We must be in the kRunnable state to prevent instrumentation from
+    // suspending all threads to update entrypoints while we are doing it
+    // for this class.
+    DCHECK_EQ(self->GetState(), kRunnable);
+    Runtime::Current()->GetInstrumentation()->InstallStubsForClass(new_class_h.Get());
+  }
+
   /*
    * We send CLASS_PREPARE events to the debugger from here.  The
    * definition of "preparation" is creating the static fields for a
@@ -2671,10 +2683,6 @@ void ClassLinker::LinkCode(Handle<mirror::ArtMethod> method,
       DCHECK(IsQuickGenericJniStub(entry_point) || IsQuickResolutionStub(entry_point));
     }
   }
-
-  // Allow instrumentation its chance to hijack code.
-  runtime->GetInstrumentation()->UpdateMethodsCode(method.Get(),
-                                                   method->GetEntryPointFromQuickCompiledCode());
 }
 
 

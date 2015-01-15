@@ -54,7 +54,7 @@ const bool kVerboseInstrumentation = false;
 static constexpr bool kDeoptimizeForAccurateMethodEntryExitListeners = true;
 
 static bool InstallStubsClassVisitor(mirror::Class* klass, void* arg)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Instrumentation* instrumentation = reinterpret_cast<Instrumentation*>(arg);
   return instrumentation->InstallStubsForClass(klass);
 }
@@ -74,11 +74,18 @@ Instrumentation::Instrumentation()
 }
 
 bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
-  for (size_t i = 0, e = klass->NumDirectMethods(); i < e; i++) {
-    InstallStubsForMethod(klass->GetDirectMethod(i));
-  }
-  for (size_t i = 0, e = klass->NumVirtualMethods(); i < e; i++) {
-    InstallStubsForMethod(klass->GetVirtualMethod(i));
+  if (klass->IsErroneous()) {
+    // We can't execute code in a erroneous class: do nothing.
+  } else if (!klass->IsResolved()) {
+    // We need the class to be resolved to install/uninstall stubs. Otherwise its methods
+    // could not be initialized or linked with regards to class inheritance.
+  } else {
+    for (size_t i = 0, e = klass->NumDirectMethods(); i < e; i++) {
+      InstallStubsForMethod(klass->GetDirectMethod(i));
+    }
+    for (size_t i = 0, e = klass->NumVirtualMethods(); i < e; i++) {
+      InstallStubsForMethod(klass->GetVirtualMethod(i));
+    }
   }
   return true;
 }
@@ -541,6 +548,7 @@ void Instrumentation::ConfigureStubs(bool require_entry_exit_stubs, bool require
   }
   Thread* const self = Thread::Current();
   Runtime* runtime = Runtime::Current();
+  Locks::mutator_lock_->AssertExclusiveHeld(self);
   Locks::thread_list_lock_->AssertNotHeld(self);
   if (desired_level > 0) {
     if (require_interpreter) {
@@ -631,6 +639,7 @@ void Instrumentation::ResetQuickAllocEntryPoints() {
 }
 
 void Instrumentation::UpdateMethodsCode(mirror::ArtMethod* method, const void* quick_code) {
+  DCHECK(method->GetDeclaringClass()->IsResolved());
   const void* new_quick_code;
   if (LIKELY(!instrumentation_stubs_installed_)) {
     new_quick_code = quick_code;
