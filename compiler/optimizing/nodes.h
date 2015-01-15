@@ -1580,19 +1580,18 @@ class HLongConstant : public HConstant {
   DISALLOW_COPY_AND_ASSIGN(HLongConstant);
 };
 
+enum class Intrinsics {
+#define OPTIMIZING_INTRINSICS(Name, IsStatic) k ## Name,
+#include "intrinsics_list.h"
+  kNone,
+  INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
+#undef INTRINSICS_LIST
+#undef OPTIMIZING_INTRINSICS
+};
+std::ostream& operator<<(std::ostream& os, const Intrinsics& intrinsic);
+
 class HInvoke : public HInstruction {
  public:
-  HInvoke(ArenaAllocator* arena,
-          uint32_t number_of_arguments,
-          Primitive::Type return_type,
-          uint32_t dex_pc)
-    : HInstruction(SideEffects::All()),
-      inputs_(arena, number_of_arguments),
-      return_type_(return_type),
-      dex_pc_(dex_pc) {
-    inputs_.SetSize(number_of_arguments);
-  }
-
   virtual size_t InputCount() const { return inputs_.Size(); }
   virtual HInstruction* InputAt(size_t i) const { return inputs_.Get(i); }
 
@@ -1612,12 +1611,38 @@ class HInvoke : public HInstruction {
 
   uint32_t GetDexPc() const { return dex_pc_; }
 
+  uint32_t GetDexMethodIndex() const { return dex_method_index_; }
+
+  Intrinsics GetIntrinsic() {
+    return intrinsic_;
+  }
+
+  void SetIntrinsic(Intrinsics intrinsic) {
+    intrinsic_ = intrinsic;
+  }
+
   DECLARE_INSTRUCTION(Invoke);
 
  protected:
+  HInvoke(ArenaAllocator* arena,
+          uint32_t number_of_arguments,
+          Primitive::Type return_type,
+          uint32_t dex_pc,
+          uint32_t dex_method_index)
+    : HInstruction(SideEffects::All()),
+      inputs_(arena, number_of_arguments),
+      return_type_(return_type),
+      dex_pc_(dex_pc),
+      dex_method_index_(dex_method_index),
+      intrinsic_(Intrinsics::kNone) {
+    inputs_.SetSize(number_of_arguments);
+  }
+
   GrowableArray<HInstruction*> inputs_;
   const Primitive::Type return_type_;
   const uint32_t dex_pc_;
+  const uint32_t dex_method_index_;
+  Intrinsics intrinsic_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(HInvoke);
@@ -1629,19 +1654,16 @@ class HInvokeStaticOrDirect : public HInvoke {
                         uint32_t number_of_arguments,
                         Primitive::Type return_type,
                         uint32_t dex_pc,
-                        uint32_t index_in_dex_cache,
+                        uint32_t dex_method_index,
                         InvokeType invoke_type)
-      : HInvoke(arena, number_of_arguments, return_type, dex_pc),
-        index_in_dex_cache_(index_in_dex_cache),
+      : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
         invoke_type_(invoke_type) {}
 
-  uint32_t GetIndexInDexCache() const { return index_in_dex_cache_; }
   InvokeType GetInvokeType() const { return invoke_type_; }
 
   DECLARE_INSTRUCTION(InvokeStaticOrDirect);
 
  private:
-  const uint32_t index_in_dex_cache_;
   const InvokeType invoke_type_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeStaticOrDirect);
@@ -1653,8 +1675,9 @@ class HInvokeVirtual : public HInvoke {
                  uint32_t number_of_arguments,
                  Primitive::Type return_type,
                  uint32_t dex_pc,
+                 uint32_t dex_method_index,
                  uint32_t vtable_index)
-      : HInvoke(arena, number_of_arguments, return_type, dex_pc),
+      : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
         vtable_index_(vtable_index) {}
 
   uint32_t GetVTableIndex() const { return vtable_index_; }
@@ -1675,8 +1698,7 @@ class HInvokeInterface : public HInvoke {
                    uint32_t dex_pc,
                    uint32_t dex_method_index,
                    uint32_t imt_index)
-      : HInvoke(arena, number_of_arguments, return_type, dex_pc),
-        dex_method_index_(dex_method_index),
+      : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
         imt_index_(imt_index) {}
 
   uint32_t GetImtIndex() const { return imt_index_; }
@@ -1685,7 +1707,6 @@ class HInvokeInterface : public HInvoke {
   DECLARE_INSTRUCTION(InvokeInterface);
 
  private:
-  const uint32_t dex_method_index_;
   const uint32_t imt_index_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeInterface);

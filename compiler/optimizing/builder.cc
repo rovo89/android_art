@@ -604,7 +604,7 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
   HInvoke* invoke = nullptr;
   if (optimized_invoke_type == kVirtual) {
     invoke = new (arena_) HInvokeVirtual(
-        arena_, number_of_arguments, return_type, dex_pc, table_index);
+        arena_, number_of_arguments, return_type, dex_pc, method_idx, table_index);
   } else if (optimized_invoke_type == kInterface) {
     invoke = new (arena_) HInvokeInterface(
         arena_, number_of_arguments, return_type, dex_pc, method_idx, table_index);

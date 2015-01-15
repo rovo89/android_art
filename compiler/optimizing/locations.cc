@@ -20,7 +20,9 @@
 
 namespace art {
 
-LocationSummary::LocationSummary(HInstruction* instruction, CallKind call_kind)
+LocationSummary::LocationSummary(HInstruction* instruction,
+                                 CallKind call_kind,
+                                 bool intrinsified)
     : inputs_(instruction->GetBlock()->GetGraph()->GetArena(), instruction->InputCount()),
       temps_(instruction->GetBlock()->GetGraph()->GetArena(), 0),
       environment_(instruction->GetBlock()->GetGraph()->GetArena(),
@@ -29,7 +31,8 @@ LocationSummary::LocationSummary(HInstruction* instruction, CallKind call_kind)
       call_kind_(call_kind),
       stack_mask_(nullptr),
       register_mask_(0),
-      live_registers_() {
+      live_registers_(),
+      intrinsified_(intrinsified) {
   inputs_.SetSize(instruction->InputCount());
   for (size_t i = 0; i < instruction->InputCount(); ++i) {
     inputs_.Put(i, Location());
