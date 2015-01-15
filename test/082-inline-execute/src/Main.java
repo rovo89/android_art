@@ -119,6 +119,9 @@ public class Main {
     }
   }
 
+  // Break up the charAt tests. The optimizing compiler doesn't optimize methods with try-catch yet,
+  // so we need to separate out the tests that are expected to throw exception
+
   public static void test_String_charAt() {
     String testStr = "Now is the time";
 
@@ -127,6 +130,12 @@ public class Main {
     Assert.assertEquals(' ', testStr.charAt(10));
     Assert.assertEquals('e', testStr.charAt(testStr.length()-1));
 
+    test_String_charAtExc();
+    test_String_charAtExc2();
+  }
+
+  private static void test_String_charAtExc() {
+    String testStr = "Now is the time";
     try {
       testStr.charAt(-1);
       Assert.fail();
@@ -144,6 +153,19 @@ public class Main {
       Assert.fail();
     } catch (NullPointerException expected) {
     }
+  }
+
+  private static void test_String_charAtExc2() {
+    try {
+      test_String_charAtExc3();
+      Assert.fail();
+    } catch (StringIndexOutOfBoundsException expected) {
+    }
+  }
+
+  private static void test_String_charAtExc3() {
+    String testStr = "Now is the time";
+    Assert.assertEquals('N', testStr.charAt(-1));
   }
 
   static int start;

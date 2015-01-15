@@ -689,6 +689,22 @@ TEST_F(AssemblerX86_64Test, Xorpd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::xorpd, "xorpd %{reg2}, %{reg1}"), "xorpd");
 }
 
+TEST_F(AssemblerX86_64Test, Andps) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::andps, "andps %{reg2}, %{reg1}"), "andps");
+}
+
+TEST_F(AssemblerX86_64Test, Andpd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::andpd, "andpd %{reg2}, %{reg1}"), "andpd");
+}
+
+TEST_F(AssemblerX86_64Test, Orps) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::orps, "orps %{reg2}, %{reg1}"), "orps");
+}
+
+TEST_F(AssemblerX86_64Test, Orpd) {
+  DriverStr(RepeatFF(&x86_64::X86_64Assembler::orpd, "orpd %{reg2}, %{reg1}"), "orpd");
+}
+
 // X87
 
 std::string x87_fn(AssemblerX86_64Test::Base* assembler_test ATTRIBUTE_UNUSED,
@@ -756,6 +772,14 @@ TEST_F(AssemblerX86_64Test, RetAndLeave) {
 //////////
 // MISC //
 //////////
+
+TEST_F(AssemblerX86_64Test, Bswapl) {
+  DriverStr(Repeatr(&x86_64::X86_64Assembler::bswapl, "bswap %{reg}"), "bswapl");
+}
+
+TEST_F(AssemblerX86_64Test, Bswapq) {
+  DriverStr(RepeatR(&x86_64::X86_64Assembler::bswapq, "bswap %{reg}"), "bswapq");
+}
 
 std::string setcc_test_fn(AssemblerX86_64Test::Base* assembler_test,
                           x86_64::X86_64Assembler* assembler) {
