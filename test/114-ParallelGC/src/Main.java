@@ -24,7 +24,10 @@ import java.util.concurrent.TimeoutException;
 
 public class Main implements Runnable {
 
-    public final static long TIMEOUT_VALUE = 5;  // Timeout in minutes.
+    // Timeout in minutes. Make it larger than the run-test timeout to get a native thread dump by
+    // ART on timeout when running on the host.
+    public final static long TIMEOUT_VALUE = 7;
+
     public final static long MAX_SIZE = 1000;  // Maximum size of array-list to allocate.
 
     public static void main(String[] args) throws Exception {
