@@ -1208,7 +1208,7 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
   if (kUseAddr2line) {
     // Try to run it to see whether we have it. Push an argument so that it doesn't assume a.out
     // and print to stderr.
-    use_addr2line = RunCommand("addr2line -h", nullptr, nullptr);
+    use_addr2line = (gAborting > 0) && RunCommand("addr2line -h", nullptr, nullptr);
   } else {
     use_addr2line = false;
   }
