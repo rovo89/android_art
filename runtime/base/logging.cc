@@ -303,4 +303,13 @@ void LogMessage::LogLineLowStack(const char* file, unsigned int line, LogSeverit
 #endif
 }
 
+ScopedLogSeverity::ScopedLogSeverity(LogSeverity level) {
+  old_ = gMinimumLogSeverity;
+  gMinimumLogSeverity = level;
+}
+
+ScopedLogSeverity::~ScopedLogSeverity() {
+  gMinimumLogSeverity = old_;
+}
+
 }  // namespace art

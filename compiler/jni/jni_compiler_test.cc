@@ -973,6 +973,9 @@ void Java_MyClassNatives_staticMethodThatShouldTakeClass(JNIEnv*, jclass, jclass
 }
 
 void JniCompilerTest::UpcallArgumentTypeChecking_InstanceImpl() {
+  // This will lead to error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   SetUpForTest(false, "instanceMethodThatShouldTakeClass", "(ILjava/lang/Class;)V",
                reinterpret_cast<void*>(&Java_MyClassNatives_instanceMethodThatShouldTakeClass));
 
@@ -985,6 +988,9 @@ void JniCompilerTest::UpcallArgumentTypeChecking_InstanceImpl() {
 JNI_TEST(UpcallArgumentTypeChecking_Instance)
 
 void JniCompilerTest::UpcallArgumentTypeChecking_StaticImpl() {
+  // This will lead to error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   SetUpForTest(true, "staticMethodThatShouldTakeClass", "(ILjava/lang/Class;)V",
                reinterpret_cast<void*>(&Java_MyClassNatives_staticMethodThatShouldTakeClass));
 
@@ -1475,6 +1481,9 @@ void JniCompilerTest::MaxParamNumberImpl() {
 JNI_TEST(MaxParamNumber)
 
 void JniCompilerTest::WithoutImplementationImpl() {
+  // This will lead to error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   SetUpForTest(false, "withoutImplementation", "()V", nullptr);
 
   env_->CallVoidMethod(jobj_, jmethod_);

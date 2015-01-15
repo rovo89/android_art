@@ -634,6 +634,9 @@ TEST_F(JniInternalTest, GetVersion) {
 }
 
 TEST_F(JniInternalTest, FindClass) {
+  // This tests leads to warnings in the log.
+  ScopedLogSeverity sls(LogSeverity::ERROR);
+
   FindClassTest(false);
   FindClassTest(true);
 }
@@ -890,40 +893,44 @@ TEST_F(JniInternalTest, RegisterAndUnregisterNatives) {
   // Sanity check that no exceptions are pending.
   ASSERT_FALSE(env_->ExceptionCheck());
 
-  // Check that registering method without name causes a NoSuchMethodError.
+  // The following can print errors to the log we'd like to ignore.
   {
-    JNINativeMethod methods[] = { { nullptr, "()V", native_function } };
-    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
-  }
-  ExpectException(jlnsme);
+    ScopedLogSeverity sls(LogSeverity::FATAL);
+    // Check that registering method without name causes a NoSuchMethodError.
+    {
+      JNINativeMethod methods[] = { { nullptr, "()V", native_function } };
+      EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+    }
+    ExpectException(jlnsme);
 
-  // Check that registering method without signature causes a NoSuchMethodError.
-  {
-    JNINativeMethod methods[] = { { "notify", nullptr, native_function } };
-    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
-  }
-  ExpectException(jlnsme);
+    // Check that registering method without signature causes a NoSuchMethodError.
+    {
+      JNINativeMethod methods[] = { { "notify", nullptr, native_function } };
+      EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+    }
+    ExpectException(jlnsme);
 
-  // Check that registering method without function causes a NoSuchMethodError.
-  {
-    JNINativeMethod methods[] = { { "notify", "()V", nullptr } };
-    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
-  }
-  ExpectException(jlnsme);
+    // Check that registering method without function causes a NoSuchMethodError.
+    {
+      JNINativeMethod methods[] = { { "notify", "()V", nullptr } };
+      EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+    }
+    ExpectException(jlnsme);
 
-  // Check that registering to a non-existent java.lang.Object.foo() causes a NoSuchMethodError.
-  {
-    JNINativeMethod methods[] = { { "foo", "()V", native_function } };
-    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
-  }
-  ExpectException(jlnsme);
+    // Check that registering to a non-existent java.lang.Object.foo() causes a NoSuchMethodError.
+    {
+      JNINativeMethod methods[] = { { "foo", "()V", native_function } };
+      EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+    }
+    ExpectException(jlnsme);
 
-  // Check that registering non-native methods causes a NoSuchMethodError.
-  {
-    JNINativeMethod methods[] = { { "equals", "(Ljava/lang/Object;)Z", native_function } };
-    EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+    // Check that registering non-native methods causes a NoSuchMethodError.
+    {
+      JNINativeMethod methods[] = { { "equals", "(Ljava/lang/Object;)Z", native_function } };
+      EXPECT_EQ(env_->RegisterNatives(jlobject, methods, 1), JNI_ERR);
+    }
+    ExpectException(jlnsme);
   }
-  ExpectException(jlnsme);
 
   // Check that registering native methods is successful.
   {
@@ -1707,6 +1714,9 @@ TEST_F(JniInternalTest, DeleteLocalRef_nullptr) {
 }
 
 TEST_F(JniInternalTest, DeleteLocalRef) {
+  // This tests leads to warnings and errors in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   jstring s = env_->NewStringUTF("");
   ASSERT_NE(s, nullptr);
   env_->DeleteLocalRef(s);
@@ -1743,6 +1753,9 @@ TEST_F(JniInternalTest, PushLocalFrame_10395422) {
   ASSERT_EQ(JNI_OK, env_->PushLocalFrame(0));
   env_->PopLocalFrame(nullptr);
 
+  // The following two tests will print errors to the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   // Negative capacities are not allowed.
   ASSERT_EQ(JNI_ERR, env_->PushLocalFrame(-1));
 
@@ -1751,6 +1764,9 @@ TEST_F(JniInternalTest, PushLocalFrame_10395422) {
 }
 
 TEST_F(JniInternalTest, PushLocalFrame_PopLocalFrame) {
+  // This tests leads to errors in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   jobject original = env_->NewStringUTF("");
   ASSERT_NE(original, nullptr);
 
@@ -1815,6 +1831,9 @@ TEST_F(JniInternalTest, DeleteGlobalRef_nullptr) {
 }
 
 TEST_F(JniInternalTest, DeleteGlobalRef) {
+  // This tests leads to warnings and errors in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   jstring s = env_->NewStringUTF("");
   ASSERT_NE(s, nullptr);
 
@@ -1865,6 +1884,9 @@ TEST_F(JniInternalTest, DeleteWeakGlobalRef_nullptr) {
 }
 
 TEST_F(JniInternalTest, DeleteWeakGlobalRef) {
+  // This tests leads to warnings and errors in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   jstring s = env_->NewStringUTF("");
   ASSERT_NE(s, nullptr);
 
@@ -1989,6 +2011,9 @@ TEST_F(JniInternalTest, NewDirectBuffer_GetDirectBufferAddress_GetDirectBufferCa
 }
 
 TEST_F(JniInternalTest, MonitorEnterExit) {
+  // This will print some error messages. Suppress.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   // Create an object to torture.
   jclass object_class = env_->FindClass("java/lang/Object");
   ASSERT_NE(object_class, nullptr);

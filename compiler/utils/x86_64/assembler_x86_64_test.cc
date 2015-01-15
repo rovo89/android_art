@@ -330,7 +330,6 @@ std::string shlq_fn(AssemblerX86_64Test::Base* assembler_test, x86_64::X86_64Ass
     assembler->shlq(*reg, shifter);
     str << "shlq %cl, %" << assembler_test->GetRegisterName(*reg) << "\n";
   }
-  printf("%s\n", str.str().c_str());
 
   return str.str();
 }
