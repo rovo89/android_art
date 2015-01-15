@@ -54,6 +54,7 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
                      + GetGraph()->GetTemporariesVRegSlots()
                      + 1 /* filler */,
                    0, /* the baseline compiler does not have live registers at slow path */
+                   0, /* the baseline compiler does not have live registers at slow path */
                    GetGraph()->GetMaximumNumberOfOutVRegs()
                      + 1 /* current method */);
   GenerateFrameEntry();
@@ -136,14 +137,16 @@ size_t CodeGenerator::FindTwoFreeConsecutiveAlignedEntries(bool* array, size_t l
 }
 
 void CodeGenerator::ComputeFrameSize(size_t number_of_spill_slots,
-                                     size_t maximum_number_of_live_registers,
+                                     size_t maximum_number_of_live_core_registers,
+                                     size_t maximum_number_of_live_fp_registers,
                                      size_t number_of_out_slots) {
   first_register_slot_in_slow_path_ = (number_of_out_slots + number_of_spill_slots) * kVRegSize;
 
   SetFrameSize(RoundUp(
       number_of_spill_slots * kVRegSize
       + number_of_out_slots * kVRegSize
-      + maximum_number_of_live_registers * GetWordSize()
+      + maximum_number_of_live_core_registers * GetWordSize()
+      + maximum_number_of_live_fp_registers * GetFloatingPointSpillSlotSize()
       + FrameEntrySpillSize(),
       kStackAlignment));
 }
