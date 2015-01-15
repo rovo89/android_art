@@ -392,6 +392,9 @@ TEST_F(UtilsTest, ExecSuccess) {
 }
 
 TEST_F(UtilsTest, ExecError) {
+  // This will lead to error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   std::vector<std::string> command;
   command.push_back("bogus");
   std::string error_msg;
