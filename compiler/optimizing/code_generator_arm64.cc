@@ -1975,7 +1975,7 @@ void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDir
   // Make sure that ArtMethod* is passed in W0 as per the calling convention
   DCHECK(temp.Is(w0));
   size_t index_in_cache = mirror::Array::DataOffset(kHeapRefSize).SizeValue() +
-    invoke->GetIndexInDexCache() * kHeapRefSize;
+    invoke->GetDexMethodIndex() * kHeapRefSize;
 
   // TODO: Implement all kinds of calls:
   // 1) boot -> boot

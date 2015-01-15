@@ -103,6 +103,9 @@ enum IntrinsicFlags {
   kIntrinsicFlagIsObject   = 4,
   // kIntrinsicUnsafePut
   kIntrinsicFlagIsOrdered  = 8,
+
+  // kIntrinsicDoubleCvt, kIntrinsicFloatCvt.
+  kIntrinsicFlagToFloatingPoint = kIntrinsicFlagMin,
 };
 
 struct InlineIGetIPutData {
