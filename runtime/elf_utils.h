@@ -31,6 +31,7 @@ namespace art {
 #define EF_MIPS_ABI_O32 0x00001000
 #define EF_MIPS_ARCH_32R2 0x70000000
 #define EF_MIPS_ARCH_32R6 0x90000000
+#define EF_MIPS_ARCH_64R6 0xa0000000
 
 #define EI_ABIVERSION 8
 #define EM_ARM 40

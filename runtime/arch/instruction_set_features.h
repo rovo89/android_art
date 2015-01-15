@@ -28,6 +28,7 @@ namespace art {
 class ArmInstructionSetFeatures;
 class Arm64InstructionSetFeatures;
 class MipsInstructionSetFeatures;
+class Mips64InstructionSetFeatures;
 class X86InstructionSetFeatures;
 class X86_64InstructionSetFeatures;
 
@@ -86,6 +87,9 @@ class InstructionSetFeatures {
 
   // Down cast this MipsInstructionFeatures.
   const MipsInstructionSetFeatures* AsMipsInstructionSetFeatures() const;
+
+  // Down cast this Mips64InstructionFeatures.
+  const Mips64InstructionSetFeatures* AsMips64InstructionSetFeatures() const;
 
   // Down cast this X86InstructionFeatures.
   const X86InstructionSetFeatures* AsX86InstructionSetFeatures() const;
