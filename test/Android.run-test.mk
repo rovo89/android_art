@@ -303,6 +303,20 @@ endif
 
 TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
 
+# Tests known to be broken for the optimizing compiler on 32-bit targets due to
+# inability to allocate registers for methods with long values.
+TEST_ART_BROKEN_OPTIMIZING_32_RUN_TESTS := \
+  441-checker-inliner \
+  442-checker-constant-folding \
+
+ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_32_RUN_TESTS),32)
+endif
+
+TEST_ART_BROKEN_OPTIMIZING_32_RUN_TESTS :=
+
 # Known broken tests for the arm64 optimizing compiler backend.
 TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS :=
 
