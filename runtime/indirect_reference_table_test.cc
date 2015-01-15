@@ -43,6 +43,9 @@ static void CheckDump(IndirectReferenceTable* irt, size_t num_objects, size_t nu
 }
 
 TEST_F(IndirectReferenceTableTest, BasicTest) {
+  // This will lead to error messages in the log.
+  ScopedLogSeverity sls(LogSeverity::FATAL);
+
   ScopedObjectAccess soa(Thread::Current());
   static const size_t kTableInitial = 10;
   static const size_t kTableMax = 20;

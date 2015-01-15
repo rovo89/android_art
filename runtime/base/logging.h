@@ -254,6 +254,16 @@ class LogMessage {
   DISALLOW_COPY_AND_ASSIGN(LogMessage);
 };
 
+// Allows to temporarily change the minimum severity level for logging.
+class ScopedLogSeverity {
+ public:
+  explicit ScopedLogSeverity(LogSeverity level);
+  ~ScopedLogSeverity();
+
+ private:
+  LogSeverity old_;
+};
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_BASE_LOGGING_H_
