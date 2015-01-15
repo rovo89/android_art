@@ -342,19 +342,18 @@ uint32_t Dbg::instrumentation_events_ = 0;
 // Breakpoints.
 static std::vector<Breakpoint> gBreakpoints GUARDED_BY(Locks::breakpoint_lock_);
 
-void DebugInvokeReq::VisitRoots(RootCallback* callback, void* arg, uint32_t tid,
-                                RootType root_type) {
+void DebugInvokeReq::VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info) {
   if (receiver != nullptr) {
-    callback(&receiver, arg, tid, root_type);
+    callback(&receiver, arg, root_info);
   }
   if (thread != nullptr) {
-    callback(&thread, arg, tid, root_type);
+    callback(&thread, arg, root_info);
   }
   if (klass != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&klass), arg, tid, root_type);
+    callback(reinterpret_cast<mirror::Object**>(&klass), arg, root_info);
   }
   if (method != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&method), arg, tid, root_type);
+    callback(reinterpret_cast<mirror::Object**>(&method), arg, root_info);
   }
 }
 
@@ -366,10 +365,9 @@ void DebugInvokeReq::Clear() {
   method = nullptr;
 }
 
-void SingleStepControl::VisitRoots(RootCallback* callback, void* arg, uint32_t tid,
-                                   RootType root_type) {
+void SingleStepControl::VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info) {
   if (method != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&method), arg, tid, root_type);
+    callback(reinterpret_cast<mirror::Object**>(&method), arg, root_info);
   }
 }
 

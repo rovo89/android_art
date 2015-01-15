@@ -24,6 +24,7 @@
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "garbage_collector.h"
+#include "gc_root.h"
 #include "gc/accounting/heap_bitmap.h"
 #include "immune_region.h"
 #include "lock_word.h"
@@ -113,8 +114,7 @@ class MarkCompact : public GarbageCollector {
   void SweepSystemWeaks()
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  static void MarkRootCallback(mirror::Object** root, void* arg, uint32_t /*tid*/,
-                               RootType /*root_type*/)
+  static void MarkRootCallback(mirror::Object** root, void* arg, const RootInfo& root_info)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   static mirror::Object* MarkObjectCallback(mirror::Object* root, void* arg)
@@ -180,8 +180,7 @@ class MarkCompact : public GarbageCollector {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
   // Update the references of objects by using the forwarding addresses.
   void UpdateReferences() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
-  static void UpdateRootCallback(mirror::Object** root, void* arg, uint32_t /*thread_id*/,
-                                 RootType /*root_type*/)
+  static void UpdateRootCallback(mirror::Object** root, void* arg, const RootInfo& /*root_info*/)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
   // Move objects and restore lock words.

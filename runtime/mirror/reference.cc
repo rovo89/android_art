@@ -33,9 +33,7 @@ void Reference::ResetClass() {
 }
 
 void Reference::VisitRoots(RootCallback* callback, void* arg) {
-  if (!java_lang_ref_Reference_.IsNull()) {
-    java_lang_ref_Reference_.VisitRoot(callback, arg, 0, kRootStickyClass);
-  }
+  java_lang_ref_Reference_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
 }
 
 }  // namespace mirror
