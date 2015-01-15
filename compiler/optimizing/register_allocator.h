@@ -194,6 +194,7 @@ class RegisterAllocator {
   size_t maximum_number_of_live_registers_;
 
   ART_FRIEND_TEST(RegisterAllocatorTest, FreeUntil);
+  ART_FRIEND_TEST(RegisterAllocatorTest, SpillInactive);
 
   DISALLOW_COPY_AND_ASSIGN(RegisterAllocator);
 };

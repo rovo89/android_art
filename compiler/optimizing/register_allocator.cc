@@ -855,7 +855,9 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
         DCHECK(!active->IsFixed());
         LiveInterval* split = Split(active, current->GetStart());
         active_.DeleteAt(i);
-        handled_.Add(active);
+        if (split != active) {
+          handled_.Add(active);
+        }
         AddSorted(unhandled_, split);
         break;
       }
@@ -876,9 +878,14 @@ bool RegisterAllocator::AllocateBlockedReg(LiveInterval* current) {
         if (next_intersection != kNoLifetime) {
           if (inactive->IsFixed()) {
             LiveInterval* split = Split(current, next_intersection);
+            DCHECK_NE(split, current);
             AddSorted(unhandled_, split);
           } else {
-            LiveInterval* split = Split(inactive, next_intersection);
+            // Split at the start of `current`, which will lead to splitting
+            // at the end of the lifetime hole of `inactive`.
+            LiveInterval* split = Split(inactive, current->GetStart());
+            // If it's inactive, it must start before the current interval.
+            DCHECK_NE(split, inactive);
             inactive_.DeleteAt(i);
             --i;
             --e;

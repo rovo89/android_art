@@ -429,7 +429,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     LiveRange* current = first_range_;
     LiveRange* previous = nullptr;
     // Iterate over the ranges, and either find a range that covers this position, or
-    // a two ranges in between this position (that is, the position is in a lifetime hole).
+    // two ranges in between this position (that is, the position is in a lifetime hole).
     do {
       if (position >= current->GetEnd()) {
         // Move to next range.
@@ -652,6 +652,8 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
 
   static constexpr int kNoRegister = -1;
   static constexpr int kNoSpillSlot = -1;
+
+  ART_FRIEND_TEST(RegisterAllocatorTest, SpillInactive);
 
   DISALLOW_COPY_AND_ASSIGN(LiveInterval);
 };

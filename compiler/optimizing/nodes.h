@@ -2775,10 +2775,16 @@ class HParallelMove : public HTemplateInstruction<0> {
       : HTemplateInstruction(SideEffects::None()), moves_(arena, kDefaultNumberOfMoves) {}
 
   void AddMove(MoveOperands* move) {
-    if (kIsDebugBuild && move->GetInstruction() != nullptr) {
+    if (kIsDebugBuild) {
+      if (move->GetInstruction() != nullptr) {
+        for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
+          DCHECK_NE(moves_.Get(i)->GetInstruction(), move->GetInstruction())
+            << "Doing parallel moves for the same instruction.";
+        }
+      }
       for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
-        DCHECK_NE(moves_.Get(i)->GetInstruction(), move->GetInstruction())
-          << "Doing parallel moves for the same instruction.";
+        DCHECK(!move->GetDestination().Contains(moves_.Get(i)->GetDestination()))
+            << "Same destination for two moves in a parallel move.";
       }
     }
     moves_.Add(move);
