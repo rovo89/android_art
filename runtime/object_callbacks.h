@@ -35,34 +35,10 @@ namespace mirror {
 }  // namespace mirror
 class StackVisitor;
 
-enum RootType {
-  kRootUnknown = 0,
-  kRootJNIGlobal,
-  kRootJNILocal,
-  kRootJavaFrame,
-  kRootNativeStack,
-  kRootStickyClass,
-  kRootThreadBlock,
-  kRootMonitorUsed,
-  kRootThreadObject,
-  kRootInternedString,
-  kRootDebugger,
-  kRootVMInternal,
-  kRootJNIMonitor,
-};
-std::ostream& operator<<(std::ostream& os, const RootType& root_type);
-
-// Returns the new address of the object, returns root if it has not moved. tid and root_type are
-// only used by hprof.
-typedef void (RootCallback)(mirror::Object** root, void* arg, uint32_t thread_id,
-    RootType root_type);
 // A callback for visiting an object in the heap.
 typedef void (ObjectCallback)(mirror::Object* obj, void* arg);
 // A callback used for marking an object, returns the new address of the object if the object moved.
 typedef mirror::Object* (MarkObjectCallback)(mirror::Object* obj, void* arg) WARN_UNUSED;
-// A callback for verifying roots.
-typedef void (VerifyRootCallback)(const mirror::Object* root, void* arg, size_t vreg,
-    const StackVisitor* visitor, RootType root_type);
 
 typedef void (MarkHeapReferenceCallback)(mirror::HeapReference<mirror::Object>* ref, void* arg);
 typedef void (DelayReferenceReferentCallback)(mirror::Class* klass, mirror::Reference* ref, void* arg);

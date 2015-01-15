@@ -52,9 +52,7 @@ void Class::ResetClass() {
 }
 
 void Class::VisitRoots(RootCallback* callback, void* arg) {
-  if (!java_lang_Class_.IsNull()) {
-    java_lang_Class_.VisitRoot(callback, arg, 0, kRootStickyClass);
-  }
+  java_lang_Class_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
 }
 
 void Class::SetStatus(Status new_status, Thread* self) {

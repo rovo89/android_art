@@ -764,10 +764,8 @@ void JavaVMExt::TrimGlobals() {
 
 void JavaVMExt::VisitRoots(RootCallback* callback, void* arg) {
   Thread* self = Thread::Current();
-  {
-    ReaderMutexLock mu(self, globals_lock_);
-    globals_.VisitRoots(callback, arg, 0, kRootJNIGlobal);
-  }
+  ReaderMutexLock mu(self, globals_lock_);
+  globals_.VisitRoots(callback, arg, RootInfo(kRootJNIGlobal));
   // The weak_globals table is visited by the GC itself (because it mutates the table).
 }
 

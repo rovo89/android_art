@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 
+#include "gc_root.h"
 #include "jdwp/jdwp.h"
 #include "jni.h"
 #include "jvalue.h"
@@ -87,7 +88,7 @@ struct DebugInvokeReq {
   Mutex lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   ConditionVariable cond GUARDED_BY(lock);
 
-  void VisitRoots(RootCallback* callback, void* arg, uint32_t tid, RootType root_type)
+  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void Clear();
@@ -122,7 +123,7 @@ struct SingleStepControl {
   // single-step depth.
   int stack_depth;
 
-  void VisitRoots(RootCallback* callback, void* arg, uint32_t tid, RootType root_type)
+  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool ContainsDexPc(uint32_t dex_pc) const;
