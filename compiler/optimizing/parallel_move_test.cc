@@ -31,9 +31,13 @@ class TestParallelMoveResolver : public ParallelMoveResolver {
     if (!message_.str().empty()) {
       message_ << " ";
     }
-    message_ << "("
-             << move->GetSource().reg()
-             << " -> "
+    message_ << "(";
+    if (move->GetSource().IsConstant()) {
+      message_ << "C";
+    } else {
+      message_ << move->GetSource().reg();
+    }
+    message_ << " -> "
              << move->GetDestination().reg()
              << ")";
   }
@@ -127,6 +131,23 @@ TEST(ParallelMoveTest, Swap) {
     resolver.EmitNativeCode(BuildParallelMove(&allocator, moves, arraysize(moves)));
     ASSERT_STREQ("(4 <-> 1) (3 <-> 4) (2 <-> 3) (0 -> 1) (5 -> 4)", resolver.GetMessage().c_str());
   }
+}
+
+TEST(ParallelMoveTest, ConstantLast) {
+  ArenaPool pool;
+  ArenaAllocator allocator(&pool);
+  TestParallelMoveResolver resolver(&allocator);
+  HParallelMove* moves = new (&allocator) HParallelMove(&allocator);
+  moves->AddMove(new (&allocator) MoveOperands(
+      Location::ConstantLocation(new (&allocator) HIntConstant(0)),
+      Location::RegisterLocation(0),
+      nullptr));
+  moves->AddMove(new (&allocator) MoveOperands(
+      Location::RegisterLocation(1),
+      Location::RegisterLocation(2),
+      nullptr));
+  resolver.EmitNativeCode(moves);
+  ASSERT_STREQ("(1 -> 2) (C -> 0)", resolver.GetMessage().c_str());
 }
 
 }  // namespace art

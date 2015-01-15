@@ -37,10 +37,12 @@ void ParallelMoveResolver::EmitNativeCode(HParallelMove* parallel_move) {
 
   // Perform the moves with constant sources.
   for (size_t i = 0; i < moves_.Size(); ++i) {
-    const MoveOperands& move = *moves_.Get(i);
-    if (!move.IsEliminated()) {
-      DCHECK(move.GetSource().IsConstant());
+    MoveOperands* move = moves_.Get(i);
+    if (!move->IsEliminated()) {
+      DCHECK(move->GetSource().IsConstant());
       EmitMove(i);
+      // Eliminate the move, in case following moves need a scratch register.
+      move->Eliminate();
     }
   }
 
