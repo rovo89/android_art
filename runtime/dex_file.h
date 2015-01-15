@@ -385,19 +385,20 @@ class DexFile {
 
   // Opens .dex files found in the container, guessing the container format based on file extension.
   static bool Open(const char* filename, const char* location, std::string* error_msg,
-                   std::vector<const DexFile*>* dex_files);
+                   std::vector<std::unique_ptr<const DexFile>>* dex_files);
 
   // Opens .dex file, backed by existing memory
-  static const DexFile* Open(const uint8_t* base, size_t size,
-                             const std::string& location,
-                             uint32_t location_checksum,
-                             std::string* error_msg) {
+  static std::unique_ptr<const DexFile> Open(const uint8_t* base, size_t size,
+                                             const std::string& location,
+                                             uint32_t location_checksum,
+                                             std::string* error_msg) {
     return OpenMemory(base, size, location, location_checksum, NULL, error_msg);
   }
 
   // Open all classesXXX.dex files from a zip archive.
   static bool OpenFromZip(const ZipArchive& zip_archive, const std::string& location,
-                          std::string* error_msg, std::vector<const DexFile*>* dex_files);
+                          std::string* error_msg,
+                          std::vector<std::unique_ptr<const DexFile>>* dex_files);
 
   // Closes a .dex file.
   virtual ~DexFile();
@@ -892,11 +893,12 @@ class DexFile {
 
  private:
   // Opens a .dex file
-  static const DexFile* OpenFile(int fd, const char* location, bool verify, std::string* error_msg);
+  static std::unique_ptr<const DexFile> OpenFile(int fd, const char* location,
+                                                 bool verify, std::string* error_msg);
 
   // Opens dex files from within a .jar, .zip, or .apk file
   static bool OpenZip(int fd, const std::string& location, std::string* error_msg,
-                      std::vector<const DexFile*>* dex_files);
+                      std::vector<std::unique_ptr<const DexFile>>* dex_files);
 
   enum class ZipOpenErrorCode {  // private
     kNoError,
@@ -909,23 +911,23 @@ class DexFile {
 
   // Opens .dex file from the entry_name in a zip archive. error_code is undefined when non-nullptr
   // return.
-  static const DexFile* Open(const ZipArchive& zip_archive, const char* entry_name,
-                             const std::string& location, std::string* error_msg,
-                             ZipOpenErrorCode* error_code);
+  static std::unique_ptr<const DexFile> Open(const ZipArchive& zip_archive, const char* entry_name,
+                                             const std::string& location, std::string* error_msg,
+                                             ZipOpenErrorCode* error_code);
 
   // Opens a .dex file at the given address backed by a MemMap
-  static const DexFile* OpenMemory(const std::string& location,
-                                   uint32_t location_checksum,
-                                   MemMap* mem_map,
-                                   std::string* error_msg);
+  static std::unique_ptr<const DexFile> OpenMemory(const std::string& location,
+                                                   uint32_t location_checksum,
+                                                   MemMap* mem_map,
+                                                   std::string* error_msg);
 
   // Opens a .dex file at the given address, optionally backed by a MemMap
-  static const DexFile* OpenMemory(const uint8_t* dex_file,
-                                   size_t size,
-                                   const std::string& location,
-                                   uint32_t location_checksum,
-                                   MemMap* mem_map,
-                                   std::string* error_msg);
+  static std::unique_ptr<const DexFile> OpenMemory(const uint8_t* dex_file,
+                                                   size_t size,
+                                                   const std::string& location,
+                                                   uint32_t location_checksum,
+                                                   MemMap* mem_map,
+                                                   std::string* error_msg);
 
   DexFile(const uint8_t* base, size_t size,
           const std::string& location,

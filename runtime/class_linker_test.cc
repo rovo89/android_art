@@ -342,28 +342,26 @@ class ClassLinkerTest : public CommonRuntimeTest {
     }
   }
 
-  void AssertDexFile(const DexFile* dex, mirror::ClassLoader* class_loader)
+  void AssertDexFile(const DexFile& dex, mirror::ClassLoader* class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ASSERT_TRUE(dex != nullptr);
-
     // Verify all the classes defined in this file
-    for (size_t i = 0; i < dex->NumClassDefs(); i++) {
-      const DexFile::ClassDef& class_def = dex->GetClassDef(i);
-      const char* descriptor = dex->GetClassDescriptor(class_def);
+    for (size_t i = 0; i < dex.NumClassDefs(); i++) {
+      const DexFile::ClassDef& class_def = dex.GetClassDef(i);
+      const char* descriptor = dex.GetClassDescriptor(class_def);
       AssertDexFileClass(class_loader, descriptor);
     }
     // Verify all the types referenced by this file
-    for (size_t i = 0; i < dex->NumTypeIds(); i++) {
-      const DexFile::TypeId& type_id = dex->GetTypeId(i);
-      const char* descriptor = dex->GetTypeDescriptor(type_id);
+    for (size_t i = 0; i < dex.NumTypeIds(); i++) {
+      const DexFile::TypeId& type_id = dex.GetTypeId(i);
+      const char* descriptor = dex.GetTypeDescriptor(type_id);
       AssertDexFileClass(class_loader, descriptor);
     }
     class_linker_->VisitRoots(TestRootVisitor, nullptr, kVisitRootFlagAllRoots);
     // Verify the dex cache has resolution methods in all resolved method slots
-    mirror::DexCache* dex_cache = class_linker_->FindDexCache(*dex);
+    mirror::DexCache* dex_cache = class_linker_->FindDexCache(dex);
     mirror::ObjectArray<mirror::ArtMethod>* resolved_methods = dex_cache->GetResolvedMethods();
     for (size_t i = 0; i < static_cast<size_t>(resolved_methods->GetLength()); i++) {
-      EXPECT_TRUE(resolved_methods->Get(i) != nullptr) << dex->GetLocation() << " i=" << i;
+      EXPECT_TRUE(resolved_methods->Get(i) != nullptr) << dex.GetLocation() << " i=" << i;
     }
   }
 
@@ -744,7 +742,8 @@ TEST_F(ClassLinkerTest, FindClass) {
 
 TEST_F(ClassLinkerTest, LibCore) {
   ScopedObjectAccess soa(Thread::Current());
-  AssertDexFile(java_lang_dex_file_, nullptr);
+  ASSERT_TRUE(java_lang_dex_file_ != nullptr);
+  AssertDexFile(*java_lang_dex_file_, nullptr);
 }
 
 // The first reference array element must be a multiple of 4 bytes from the

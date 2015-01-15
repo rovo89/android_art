@@ -210,7 +210,7 @@ class OatFile {
   class OatDexFile {
    public:
     // Opens the DexFile referred to by this OatDexFile from within the containing OatFile.
-    const DexFile* OpenDexFile(std::string* error_msg) const;
+    std::unique_ptr<const DexFile> OpenDexFile(std::string* error_msg) const;
 
     const OatFile* GetOatFile() const {
       return oat_file_;
