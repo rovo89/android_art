@@ -260,6 +260,13 @@ TEST_F(CmdlineParserTest, TestLogVerbosity) {
   }
 
   EXPECT_SINGLE_PARSE_FAIL("-verbose:blablabla", CmdlineResult::kUsage);  // invalid verbose opt
+
+  {
+    const char* log_args = "-verbose:oat";
+    LogVerbosity log_verbosity = LogVerbosity();
+    log_verbosity.oat = true;
+    EXPECT_SINGLE_PARSE_VALUE(log_verbosity, log_args, M::Verbose);
+  }
 }  // TEST_F
 
 // TODO: Enable this b/19274810

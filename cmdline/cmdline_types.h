@@ -591,6 +591,8 @@ struct CmdlineType<LogVerbosity> : CmdlineTypeParser<LogVerbosity> {
         log_verbosity.jni = true;
       } else if (verbose_options[j] == "monitor") {
         log_verbosity.monitor = true;
+      } else if (verbose_options[j] == "oat") {
+        log_verbosity.oat = true;
       } else if (verbose_options[j] == "profiler") {
         log_verbosity.profiler = true;
       } else if (verbose_options[j] == "signals") {

@@ -36,6 +36,7 @@
 #include "gtest/gtest.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
+#include "mem_map.h"
 #include "noop_compiler_callbacks.h"
 #include "os.h"
 #include "runtime-inl.h"
@@ -194,6 +195,7 @@ std::string CommonRuntimeTest::GetCoreOatLocation() {
 std::unique_ptr<const DexFile> CommonRuntimeTest::LoadExpectSingleDexFile(const char* location) {
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   std::string error_msg;
+  MemMap::Init();
   if (!DexFile::Open(location, location, &error_msg, &dex_files)) {
     LOG(FATAL) << "Could not open .dex file '" << location << "': " << error_msg << "\n";
     UNREACHABLE();
@@ -225,10 +227,12 @@ void CommonRuntimeTest::SetUp() {
   options.push_back(std::make_pair("compilercallbacks", callbacks_.get()));
   SetUpRuntimeOptions(&options);
 
+  PreRuntimeCreate();
   if (!Runtime::Create(options, false)) {
     LOG(FATAL) << "Failed to create runtime";
     return;
   }
+  PostRuntimeCreate();
   runtime_.reset(Runtime::Current());
   class_linker_ = runtime_->GetClassLinker();
   class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
@@ -335,7 +339,7 @@ std::string CommonRuntimeTest::GetTestAndroidRoot() {
 #define ART_TARGET_NATIVETEST_DIR_STRING ""
 #endif
 
-std::vector<std::unique_ptr<const DexFile>> CommonRuntimeTest::OpenTestDexFiles(const char* name) {
+std::string CommonRuntimeTest::GetTestDexFileName(const char* name) {
   CHECK(name != nullptr);
   std::string filename;
   if (IsHost()) {
@@ -347,6 +351,11 @@ std::vector<std::unique_ptr<const DexFile>> CommonRuntimeTest::OpenTestDexFiles(
   filename += "art-gtest-";
   filename += name;
   filename += ".jar";
+  return filename;
+}
+
+std::vector<std::unique_ptr<const DexFile>> CommonRuntimeTest::OpenTestDexFiles(const char* name) {
+  std::string filename = GetTestDexFileName(name);
   std::string error_msg;
   std::vector<std::unique_ptr<const DexFile>> dex_files;
   bool success = DexFile::Open(filename.c_str(), filename.c_str(), &error_msg, &dex_files);

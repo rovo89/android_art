@@ -371,13 +371,6 @@ TEST_F(UtilsTest, GetSystemImageFilename) {
                GetSystemImageFilename("/system/framework/boot.art", kArm).c_str());
 }
 
-TEST_F(UtilsTest, DexFilenameToOdexFilename) {
-  EXPECT_STREQ("/foo/bar/arm/baz.odex",
-               DexFilenameToOdexFilename("/foo/bar/baz.jar", kArm).c_str());
-  EXPECT_STREQ("/foo/bar/arm/baz.odex",
-               DexFilenameToOdexFilename("/foo/bar/baz.funnyext", kArm).c_str());
-}
-
 TEST_F(UtilsTest, ExecSuccess) {
   std::vector<std::string> command;
   if (kIsTargetBuild) {
