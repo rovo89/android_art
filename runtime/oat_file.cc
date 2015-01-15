@@ -456,7 +456,7 @@ size_t OatFile::OatDexFile::FileSize() const {
 
 std::unique_ptr<const DexFile> OatFile::OatDexFile::OpenDexFile(std::string* error_msg) const {
   return DexFile::Open(dex_file_pointer_, FileSize(), dex_file_location_,
-                       dex_file_location_checksum_, error_msg);
+                       dex_file_location_checksum_, GetOatFile(), error_msg);
 }
 
 uint32_t OatFile::OatDexFile::GetOatClassOffset(uint16_t class_def_index) const {
