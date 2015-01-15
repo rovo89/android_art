@@ -34,6 +34,7 @@
 namespace art {
 
 static constexpr bool kDumpHeapObjectOnSigsevg = false;
+static constexpr bool kUseSigRTTimeout = true;
 
 struct Backtrace {
  public:
@@ -284,8 +285,14 @@ struct UContext {
   mcontext_t& context;
 };
 
+// Return the signal number we recognize as timeout. -1 means not active/supported.
 static int GetTimeoutSignal() {
-  return SIGRTMIN + 2;
+#if defined(__APPLE__)
+  // Mac does not support realtime signals.
+  return -1;
+#else
+  return kUseSigRTTimeout ? (SIGRTMIN + 2) : -1;
+#endif
 }
 
 static bool IsTimeoutSignal(int signal_number) {
@@ -392,7 +399,9 @@ void Runtime::InitPlatformSignalHandlers() {
 #endif
   rc += sigaction(SIGTRAP, &action, NULL);
   // Special dump-all timeout.
-  rc += sigaction(GetTimeoutSignal(), &action, NULL);
+  if (GetTimeoutSignal() != -1) {
+    rc += sigaction(GetTimeoutSignal(), &action, NULL);
+  }
   CHECK_EQ(rc, 0);
 }
 
