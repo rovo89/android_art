@@ -46,6 +46,9 @@ class Mutex;
 class QuasiAtomic {
 #if defined(__mips__) && !defined(__LP64__)
   static constexpr bool kNeedSwapMutexes = true;
+#elif defined(__mips__) && defined(__LP64__)
+  // TODO - mips64 still need this for Cas64 ???
+  static constexpr bool kNeedSwapMutexes = true;
 #else
   static constexpr bool kNeedSwapMutexes = false;
 #endif
