@@ -20,35 +20,6 @@
 
 namespace art {
 
-/*
- * MethodUseCount pass implementation start.
- */
-bool MethodUseCount::Gate(const PassDataHolder* data) const {
-  DCHECK(data != nullptr);
-  CompilationUnit* c_unit = down_cast<const PassMEDataHolder*>(data)->c_unit;
-  DCHECK(c_unit != nullptr);
-  // First initialize the data.
-  c_unit->mir_graph->InitializeMethodUses();
-
-  // Now check if the pass is to be ignored.
-  bool res = ((c_unit->disable_opt & (1 << kPromoteRegs)) == 0);
-
-  return res;
-}
-
-bool MethodUseCount::Worker(PassDataHolder* data) const {
-  DCHECK(data != nullptr);
-  PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
-  CompilationUnit* c_unit = pass_me_data_holder->c_unit;
-  DCHECK(c_unit != nullptr);
-  BasicBlock* bb = pass_me_data_holder->bb;
-  DCHECK(bb != nullptr);
-  c_unit->mir_graph->CountUses(bb);
-  // No need of repeating, so just return false.
-  return false;
-}
-
-
 bool ClearPhiInstructions::Worker(PassDataHolder* data) const {
   DCHECK(data != nullptr);
   PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);

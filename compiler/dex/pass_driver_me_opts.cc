@@ -43,8 +43,9 @@ const Pass* const PassDriver<PassDriverMEOpts>::g_passes[] = {
   GetPassInstance<NullCheckElimination>(),
   GetPassInstance<BBCombine>(),
   GetPassInstance<CodeLayout>(),
-  GetPassInstance<TypeInference>(),
   GetPassInstance<GlobalValueNumberingPass>(),
+  GetPassInstance<ConstantPropagation>(),
+  GetPassInstance<MethodUseCount>(),
   GetPassInstance<BBOptimizations>(),
   GetPassInstance<SuspendCheckElimination>(),
 };
