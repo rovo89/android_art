@@ -50,25 +50,33 @@ public class Main {
         // Create the test cases.
         testCases = new LinkedList<TestCase>();
         testCases.add(new TestCase("PackedSwitch", "PackedSwitch", "packedSwitch",
-          new Object[]{123}, null, 123));
+                new Object[]{123}, null, 123));
 
         testCases.add(new TestCase("b/17790197", "B17790197", "getInt", null, null, 100));
-        testCases.add(new TestCase("b/17978759", "B17978759", "test", null, new VerifyError(), null));
+        testCases.add(new TestCase("b/17978759", "B17978759", "test", null, new VerifyError(),
+                null));
         testCases.add(new TestCase("FloatBadArgReg", "FloatBadArgReg", "getInt",
-            new Object[]{100}, null, 100));
+                new Object[]{100}, null, 100));
         testCases.add(new TestCase("negLong", "negLong", "negLong", null, null, 122142L));
         testCases.add(new TestCase("sameFieldNames", "sameFieldNames", "getInt", null, null, 7));
         testCases.add(new TestCase("b/18380491", "B18380491ConcreteClass", "foo",
-            new Object[]{42}, null, 42));
+                new Object[]{42}, null, 42));
         testCases.add(new TestCase("invoke-super abstract", "B18380491ConcreteClass", "foo",
-            new Object[]{0}, new AbstractMethodError(), null));
-        testCases.add(new TestCase("BadCaseInOpRegRegReg", "BadCaseInOpRegRegReg", "getInt", null, null, 2));
+                new Object[]{0}, new AbstractMethodError(), null));
+        testCases.add(new TestCase("BadCaseInOpRegRegReg", "BadCaseInOpRegRegReg", "getInt", null,
+                null, 2));
         testCases.add(new TestCase("CmpLong", "CmpLong", "run", null, null, 0));
-        testCases.add(new TestCase("FloatIntConstPassing", "FloatIntConstPassing", "run", null, null, 2));
+        testCases.add(new TestCase("FloatIntConstPassing", "FloatIntConstPassing", "run", null,
+                null, 2));
         testCases.add(new TestCase("b/18718277", "B18718277", "getInt", null, null, 0));
-        testCases.add(new TestCase("b/18800943 (1)", "B18800943_1", "n_a", null, new VerifyError(), 0));
-        testCases.add(new TestCase("b/18800943 (2)", "B18800943_2", "n_a", null, new VerifyError(), 0));
-        testCases.add(new TestCase("MoveExc", "MoveExc", "run", null, new ArithmeticException(), null));
+        testCases.add(new TestCase("b/18800943 (1)", "B18800943_1", "n_a", null, new VerifyError(),
+                0));
+        testCases.add(new TestCase("b/18800943 (2)", "B18800943_2", "n_a", null, new VerifyError(),
+                0));
+        testCases.add(new TestCase("MoveExc", "MoveExc", "run", null, new ArithmeticException(),
+                null));
+        testCases.add(new TestCase("MoveExceptionOnEntry", "MoveExceptionOnEntry",
+            "moveExceptionOnEntry", new Object[]{0}, new VerifyError(), null));
     }
 
     public void runTests() {
