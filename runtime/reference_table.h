@@ -49,7 +49,7 @@ class ReferenceTable {
 
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VisitRoots(RootCallback* visitor, void* arg, uint32_t tid, RootType root_type);
+  void VisitRoots(RootCallback* visitor, void* arg, const RootInfo& root_info);
 
  private:
   typedef std::vector<GcRoot<mirror::Object>,

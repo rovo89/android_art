@@ -60,7 +60,7 @@ void InternTable::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags f
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_strong_intern_roots_) {
       mirror::String* old_ref = root.Read<kWithoutReadBarrier>();
-      root.VisitRoot(callback, arg, 0, kRootInternedString);
+      root.VisitRoot(callback, arg, RootInfo(kRootInternedString));
       mirror::String* new_ref = root.Read<kWithoutReadBarrier>();
       if (new_ref != old_ref) {
         // The GC moved a root in the log. Need to search the strong interns and update the
@@ -329,10 +329,10 @@ void InternTable::Table::Insert(mirror::String* s) {
 
 void InternTable::Table::VisitRoots(RootCallback* callback, void* arg) {
   for (auto& intern : pre_zygote_table_) {
-    intern.VisitRoot(callback, arg, 0, kRootInternedString);
+    intern.VisitRoot(callback, arg, RootInfo(kRootInternedString));
   }
   for (auto& intern : post_zygote_table_) {
-    intern.VisitRoot(callback, arg, 0, kRootInternedString);
+    intern.VisitRoot(callback, arg, RootInfo(kRootInternedString));
   }
 }
 

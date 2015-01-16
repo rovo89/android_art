@@ -224,9 +224,7 @@ int32_t String::CompareTo(String* rhs) {
 }
 
 void String::VisitRoots(RootCallback* callback, void* arg) {
-  if (!java_lang_String_.IsNull()) {
-    java_lang_String_.VisitRoot(callback, arg, 0, kRootStickyClass);
-  }
+  java_lang_String_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
 }
 
 }  // namespace mirror

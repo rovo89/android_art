@@ -779,9 +779,7 @@ void RegType::CheckInvariants() const {
 }
 
 void RegType::VisitRoots(RootCallback* callback, void* arg) const {
-  if (!klass_.IsNull()) {
-    callback(reinterpret_cast<mirror::Object**>(&klass_), arg, 0, kRootUnknown);
-  }
+  klass_.VisitRootIfNonNull(callback, arg, RootInfo(kRootUnknown));
 }
 
 void UninitializedThisReferenceType::CheckInvariants() const {
