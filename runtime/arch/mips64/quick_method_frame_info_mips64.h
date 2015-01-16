@@ -40,6 +40,7 @@ static constexpr uint32_t kMips64CalleeSaveFpArgSpills =
     (1 << art::mips64::F12) | (1 << art::mips64::F13) | (1 << art::mips64::F14) |
     (1 << art::mips64::F15) | (1 << art::mips64::F16) | (1 << art::mips64::F17) |
     (1 << art::mips64::F18) | (1 << art::mips64::F19);
+// F12 should not be necessary to spill, as A0 is always in use.
 static constexpr uint32_t kMips64CalleeSaveFpAllSpills =
     (1 << art::mips64::F24) | (1 << art::mips64::F25) | (1 << art::mips64::F26) |
     (1 << art::mips64::F27) | (1 << art::mips64::F28) | (1 << art::mips64::F29) |
