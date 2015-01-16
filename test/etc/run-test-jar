@@ -38,7 +38,7 @@ RELOCATE="y"
 SECONDARY_DEX=""
 TIME_OUT="y"
 # Value in minutes.
-TIME_OUT_VALUE=5
+TIME_OUT_VALUE=10
 USE_GDB="n"
 USE_JVM="n"
 VERIFY="y"
