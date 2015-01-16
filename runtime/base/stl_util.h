@@ -57,8 +57,8 @@ void STLDeleteContainerPointers(ForwardIterator begin,
 // If container is NULL, this function is a no-op.
 //
 // As an alternative to calling STLDeleteElements() directly, consider
-// ElementDeleter (defined below), which ensures that your container's elements
-// are deleted when the ElementDeleter goes out of scope.
+// using a container of std::unique_ptr, which ensures that your container's
+// elements are deleted when the container goes out of scope.
 template <class T>
 void STLDeleteElements(T *container) {
   if (!container) return;
