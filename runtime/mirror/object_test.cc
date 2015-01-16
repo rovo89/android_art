@@ -731,5 +731,14 @@ TEST_F(ObjectTest, FindStaticField) {
   // TODO: test that interfaces trump superclasses.
 }
 
+TEST_F(ObjectTest, IdentityHashCode) {
+  // Regression test for b/19046417 which had an infinite loop if the
+  // (seed & LockWord::kHashMask) == 0. seed 0 triggered the infinite loop since we did the check
+  // before the CAS which resulted in the same seed the next loop iteration.
+  mirror::Object::SetHashCodeSeed(0);
+  int32_t hash_code = mirror::Object::GenerateIdentityHashCode();
+  EXPECT_NE(hash_code, 0);
+}
+
 }  // namespace mirror
 }  // namespace art

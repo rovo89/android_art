@@ -419,6 +419,11 @@ class MANAGED LOCKABLE Object {
   void VisitReferences(const Visitor& visitor, const JavaLangRefVisitor& ref_visitor)
       NO_THREAD_SAFETY_ANALYSIS;
 
+  // Used by object_test.
+  static void SetHashCodeSeed(uint32_t new_seed);
+  // Generate an identity hash code. Public for object test.
+  static uint32_t GenerateIdentityHashCode();
+
  protected:
   // Accessors for non-Java type fields
   template<class T, VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags, bool kIsVolatile = false>
@@ -471,15 +476,14 @@ class MANAGED LOCKABLE Object {
     }
   }
 
-  // Generate an identity hash code.
-  static uint32_t GenerateIdentityHashCode();
-
   // A utility function that copies an object in a read barrier and
   // write barrier-aware way. This is internally used by Clone() and
   // Class::CopyOf().
   static Object* CopyObject(Thread* self, mirror::Object* dest, mirror::Object* src,
                             size_t num_bytes)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static Atomic<uint32_t> hash_code_seed;
 
   // The Class representing the type of the object.
   HeapReference<Class> klass_;
