@@ -700,6 +700,8 @@ def ParseArguments():
                       help="print the contents of an output group")
   parser.add_argument("-q", "--quiet", action="store_true",
                       help="print only errors")
+  parser.add_argument("--no-clean", dest="no_clean", action="store_true",
+                      help="don't clean up generated files")
   return parser.parse_args()
 
 
@@ -763,4 +765,7 @@ if __name__ == "__main__":
     else:
       RunChecks(args.check_prefix, args.source_path, args.tested_file)
   finally:
-    shutil.rmtree(tempFolder)
+    if args.no_clean:
+      print("Files left in %s" % tempFolder)
+    else:
+      shutil.rmtree(tempFolder)
