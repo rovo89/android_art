@@ -363,14 +363,62 @@ static Primitive::Type PrimitiveKind(Primitive::Type type) {
   }
 }
 
+void SSAChecker::VisitIf(HIf* instruction) {
+  VisitInstruction(instruction);
+  HInstruction* input = instruction->InputAt(0);
+  if (input->IsIntConstant()) {
+    int value = input->AsIntConstant()->GetValue();
+    if (value != 0 && value != 1) {
+      std::stringstream error;
+      error << "If instruction " << instruction->GetId()
+            << " has a non-boolean constant input whose value is: "
+            << value << ".";
+      errors_.push_back(error.str());
+    }
+  } else if (instruction->InputAt(0)->GetType() != Primitive::kPrimBoolean) {
+    std::stringstream error;
+    error << "If instruction " << instruction->GetId()
+          << " has a non-boolean input type: "
+          << instruction->InputAt(0)->GetType() << ".";
+    errors_.push_back(error.str());
+  }
+}
+
 void SSAChecker::VisitCondition(HCondition* op) {
   VisitInstruction(op);
-  // TODO: check inputs types, and special case the `null` check.
   if (op->GetType() != Primitive::kPrimBoolean) {
     std::stringstream error;
     error << "Condition " << op->DebugName() << " " << op->GetId()
           << " has a non-boolean result type: "
           << op->GetType() << ".";
+    errors_.push_back(error.str());
+  }
+  HInstruction* lhs = op->InputAt(0);
+  HInstruction* rhs = op->InputAt(1);
+  if (lhs->GetType() == Primitive::kPrimNot && rhs->IsIntConstant()) {
+    if (rhs->AsIntConstant()->GetValue() != 0) {
+      std::stringstream error;
+      error << "Condition " << op->DebugName() << " " << op->GetId()
+            << " compares an object with a non-0 integer: "
+            << rhs->AsIntConstant()->GetValue()
+            << ".";
+      errors_.push_back(error.str());
+    }
+  } else if (rhs->GetType() == Primitive::kPrimNot && lhs->IsIntConstant()) {
+    if (lhs->AsIntConstant()->GetValue() != 0) {
+      std::stringstream error;
+      error << "Condition " << op->DebugName() << " " << op->GetId()
+            << " compares a non-0 integer with an object: "
+            << lhs->AsIntConstant()->GetValue()
+            << ".";
+      errors_.push_back(error.str());
+    }
+  } else if (PrimitiveKind(lhs->GetType()) != PrimitiveKind(rhs->GetType())) {
+    std::stringstream error;
+    error << "Condition " << op->DebugName() << " " << op->GetId()
+          << " has inputs of different type: "
+          << lhs->GetType() << ", and " << rhs->GetType()
+          << ".";
     errors_.push_back(error.str());
   }
 }
