@@ -45,8 +45,12 @@ namespace art {
 LiveInterval* BuildInterval(const size_t ranges[][2],
                             size_t number_of_ranges,
                             ArenaAllocator* allocator,
-                            int reg = -1) {
-  LiveInterval* interval = LiveInterval::MakeInterval(allocator, Primitive::kPrimInt);
+                            int reg = -1,
+                            HInstruction* defined_by = nullptr) {
+  LiveInterval* interval = LiveInterval::MakeInterval(allocator, Primitive::kPrimInt, defined_by);
+  if (defined_by != nullptr) {
+    defined_by->SetLiveInterval(interval);
+  }
   for (size_t i = number_of_ranges; i > 0; --i) {
     interval->AddRange(ranges[i - 1][0], ranges[i - 1][1]);
   }

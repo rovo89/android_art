@@ -738,4 +738,106 @@ TEST(RegisterAllocatorTest, ExpectedExactInRegisterAndSameOutputHint) {
   }
 }
 
+// Test a bug in the register allocator, where allocating a blocked
+// register would lead to spilling an inactive interval at the wrong
+// position.
+TEST(RegisterAllocatorTest, SpillInactive) {
+  ArenaPool pool;
+
+  // Create a synthesized graph to please the register_allocator and
+  // ssa_liveness_analysis code.
+  ArenaAllocator allocator(&pool);
+  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HBasicBlock* entry = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(entry);
+  graph->SetEntryBlock(entry);
+  HInstruction* one = new (&allocator) HParameterValue(0, Primitive::kPrimInt);
+  HInstruction* two = new (&allocator) HParameterValue(0, Primitive::kPrimInt);
+  HInstruction* three = new (&allocator) HParameterValue(0, Primitive::kPrimInt);
+  HInstruction* four = new (&allocator) HParameterValue(0, Primitive::kPrimInt);
+  entry->AddInstruction(one);
+  entry->AddInstruction(two);
+  entry->AddInstruction(three);
+  entry->AddInstruction(four);
+
+  HBasicBlock* block = new (&allocator) HBasicBlock(graph);
+  graph->AddBlock(block);
+  entry->AddSuccessor(block);
+  block->AddInstruction(new (&allocator) HExit());
+
+  // We create a synthesized user requesting a register, to avoid just spilling the
+  // intervals.
+  HPhi* user = new (&allocator) HPhi(&allocator, 0, 1, Primitive::kPrimInt);
+  user->AddInput(one);
+  user->SetBlock(block);
+  LocationSummary* locations = new (&allocator) LocationSummary(user, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  static constexpr size_t phi_ranges[][2] = {{20, 30}};
+  BuildInterval(phi_ranges, arraysize(phi_ranges), &allocator, -1, user);
+
+  // Create an interval with lifetime holes.
+  static constexpr size_t ranges1[][2] = {{0, 2}, {4, 6}, {8, 10}};
+  LiveInterval* first = BuildInterval(ranges1, arraysize(ranges1), &allocator, -1, one);
+  first->first_use_ = new(&allocator) UsePosition(user, 0, false, 8, first->first_use_);
+  first->first_use_ = new(&allocator) UsePosition(user, 0, false, 7, first->first_use_);
+  first->first_use_ = new(&allocator) UsePosition(user, 0, false, 6, first->first_use_);
+
+  locations = new (&allocator) LocationSummary(first->GetDefinedBy(), LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
+  first = first->SplitAt(1);
+
+  // Create an interval that conflicts with the next interval, to force the next
+  // interval to call `AllocateBlockedReg`.
+  static constexpr size_t ranges2[][2] = {{2, 4}};
+  LiveInterval* second = BuildInterval(ranges2, arraysize(ranges2), &allocator, -1, two);
+  locations = new (&allocator) LocationSummary(second->GetDefinedBy(), LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
+
+  // Create an interval that will lead to splitting the first interval. The bug occured
+  // by splitting at a wrong position, in this case at the next intersection between
+  // this interval and the first interval. We would have then put the interval with ranges
+  // "[0, 2(, [4, 6(" in the list of handled intervals, even though we haven't processed intervals
+  // before lifetime position 6 yet.
+  static constexpr size_t ranges3[][2] = {{2, 4}, {8, 10}};
+  LiveInterval* third = BuildInterval(ranges3, arraysize(ranges3), &allocator, -1, three);
+  third->first_use_ = new(&allocator) UsePosition(user, 0, false, 8, third->first_use_);
+  third->first_use_ = new(&allocator) UsePosition(user, 0, false, 4, third->first_use_);
+  third->first_use_ = new(&allocator) UsePosition(user, 0, false, 3, third->first_use_);
+  locations = new (&allocator) LocationSummary(third->GetDefinedBy(), LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
+  third = third->SplitAt(3);
+
+  // Because the first part of the split interval was considered handled, this interval
+  // was free to allocate the same register, even though it conflicts with it.
+  static constexpr size_t ranges4[][2] = {{4, 6}};
+  LiveInterval* fourth = BuildInterval(ranges4, arraysize(ranges4), &allocator, -1, four);
+  locations = new (&allocator) LocationSummary(fourth->GetDefinedBy(), LocationSummary::kNoCall);
+  locations->SetOut(Location::RequiresRegister());
+
+  x86::CodeGeneratorX86 codegen(graph);
+  SsaLivenessAnalysis liveness(*graph, &codegen);
+
+  RegisterAllocator register_allocator(&allocator, &codegen, liveness);
+  register_allocator.unhandled_core_intervals_.Add(fourth);
+  register_allocator.unhandled_core_intervals_.Add(third);
+  register_allocator.unhandled_core_intervals_.Add(second);
+  register_allocator.unhandled_core_intervals_.Add(first);
+
+  // Set just one register available to make all intervals compete for the same.
+  register_allocator.number_of_registers_ = 1;
+  register_allocator.registers_array_ = allocator.AllocArray<size_t>(1);
+  register_allocator.processing_core_registers_ = true;
+  register_allocator.unhandled_ = &register_allocator.unhandled_core_intervals_;
+  register_allocator.LinearScan();
+
+  // Test that there is no conflicts between intervals.
+  GrowableArray<LiveInterval*> intervals(&allocator, 0);
+  intervals.Add(first);
+  intervals.Add(second);
+  intervals.Add(third);
+  intervals.Add(fourth);
+  ASSERT_TRUE(RegisterAllocator::ValidateIntervals(
+      intervals, 0, 0, codegen, &allocator, true, false));
+}
+
 }  // namespace art
