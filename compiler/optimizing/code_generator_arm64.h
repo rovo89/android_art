@@ -31,7 +31,10 @@ namespace art {
 namespace arm64 {
 
 class CodeGeneratorARM64;
-class SlowPathCodeARM64;
+
+// TODO: Tune the use of Load-Acquire, Store-Release vs Data Memory Barriers.
+// For now we prefer the use of load-acquire, store-release over explicit memory barriers.
+static constexpr bool kUseAcquireRelease = true;
 
 // Use a local definition to prevent copying mistakes.
 static constexpr size_t kArm64WordSize = kArm64PointerSize;
@@ -45,7 +48,8 @@ static const vixl::FPRegister kParameterFPRegisters[] = {
 };
 static constexpr size_t kParameterFPRegistersLength = arraysize(kParameterFPRegisters);
 
-const vixl::Register tr = vixl::x18;        // Thread Register
+const vixl::Register tr = vixl::x18;                        // Thread Register
+static const vixl::Register kArtMethodRegister = vixl::w0;  // Method register on invoke.
 
 const vixl::CPURegList vixl_reserved_core_registers(vixl::ip0, vixl::ip1);
 const vixl::CPURegList vixl_reserved_fp_registers(vixl::d31);
@@ -55,6 +59,20 @@ const vixl::CPURegList quick_callee_saved_registers(vixl::CPURegister::kRegister
                                                     kArm64CalleeSaveRefSpills);
 
 Location ARM64ReturnLocation(Primitive::Type return_type);
+
+class SlowPathCodeARM64 : public SlowPathCode {
+ public:
+  SlowPathCodeARM64() : entry_label_(), exit_label_() {}
+
+  vixl::Label* GetEntryLabel() { return &entry_label_; }
+  vixl::Label* GetExitLabel() { return &exit_label_; }
+
+ private:
+  vixl::Label entry_label_;
+  vixl::Label exit_label_;
+
+  DISALLOW_COPY_AND_ASSIGN(SlowPathCodeARM64);
+};
 
 class InvokeDexCallingConvention : public CallingConvention<vixl::Register, vixl::FPRegister> {
  public:
@@ -273,6 +291,8 @@ class CodeGeneratorARM64 : public CodeGenerator {
   bool NeedsTwoRegisters(Primitive::Type type ATTRIBUTE_UNUSED) const OVERRIDE {
     return false;
   }
+
+  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, vixl::Register temp);
 
  private:
   // Labels for each block that will be compiled.
