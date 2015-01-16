@@ -190,12 +190,12 @@
     .cfi_rel_offset 19, 32
     sw     $s2, 28($sp)
     .cfi_rel_offset 18, 28
-    sw     $a3, 12($sp)
-    .cfi_rel_offset 7, 12
-    sw     $a2, 8($sp)
-    .cfi_rel_offset 6, 8
-    sw     $a1, 4($sp)
-    .cfi_rel_offset 5, 4
+    sw     $a3, 24($sp)
+    .cfi_rel_offset 7, 24
+    sw     $a2, 20($sp)
+    .cfi_rel_offset 6, 20
+    sw     $a1, 16($sp)
+    .cfi_rel_offset 5, 16
     # bottom will hold Method*
 .endm
 
@@ -257,11 +257,11 @@
     .cfi_restore 19
     lw     $s2, 28($sp)
     .cfi_restore 18
-    lw     $a3, 12($sp)
+    lw     $a3, 24($sp)
     .cfi_restore 7
-    lw     $a2, 8($sp)
+    lw     $a2, 20($sp)
     .cfi_restore 6
-    lw     $a1, 4($sp)
+    lw     $a1, 16($sp)
     .cfi_restore 5
     addiu  $sp, $sp, 64           # pop frame
     .cfi_adjust_cfa_offset -64
