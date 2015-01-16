@@ -52,7 +52,7 @@ function all() {
   DIRS=$(adbls /data/dalvik-cache/)
   for DIR in $DIRS ; do
     case $DIR in
-      arm|arm64|mips|x86|x86_64)
+      arm|arm64|mips|mips64|x86|x86_64)
         FILES=$(adbls /data/dalvik-cache/$DIR/*.oat /data/dalvik-cache/$DIR/*.dex)
         for FILE in $FILES ; do
           # Cannot use basename as the file doesn't exist.

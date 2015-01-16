@@ -82,6 +82,16 @@ static constexpr size_t kFrameSizeRefsAndArgsCalleeSave = FRAME_SIZE_REFS_AND_AR
 #undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
 }
 
+namespace mips64 {
+#include "arch/mips64/asm_support_mips64.h"
+static constexpr size_t kFrameSizeSaveAllCalleeSave = FRAME_SIZE_SAVE_ALL_CALLEE_SAVE;
+#undef FRAME_SIZE_SAVE_ALL_CALLEE_SAVE
+static constexpr size_t kFrameSizeRefsOnlyCalleeSave = FRAME_SIZE_REFS_ONLY_CALLEE_SAVE;
+#undef FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
+static constexpr size_t kFrameSizeRefsAndArgsCalleeSave = FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE;
+#undef FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE
+}
+
 namespace x86 {
 #include "arch/x86/asm_support_x86.h"
 static constexpr size_t kFrameSizeSaveAllCalleeSave = FRAME_SIZE_SAVE_ALL_CALLEE_SAVE;
@@ -122,6 +132,13 @@ TEST_F(ArchTest, MIPS) {
   CheckFrameSize(InstructionSet::kMips, Runtime::kRefsOnly, mips::kFrameSizeRefsOnlyCalleeSave);
   CheckFrameSize(InstructionSet::kMips, Runtime::kRefsAndArgs,
                  mips::kFrameSizeRefsAndArgsCalleeSave);
+}
+
+TEST_F(ArchTest, MIPS64) {
+  CheckFrameSize(InstructionSet::kMips64, Runtime::kSaveAll, mips64::kFrameSizeSaveAllCalleeSave);
+  CheckFrameSize(InstructionSet::kMips64, Runtime::kRefsOnly, mips64::kFrameSizeRefsOnlyCalleeSave);
+  CheckFrameSize(InstructionSet::kMips64, Runtime::kRefsAndArgs,
+                 mips64::kFrameSizeRefsAndArgsCalleeSave);
 }
 
 TEST_F(ArchTest, X86) {
