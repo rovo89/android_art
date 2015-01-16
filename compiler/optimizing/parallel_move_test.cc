@@ -120,16 +120,9 @@ TEST(ParallelMoveTest, Swap) {
 
   {
     TestParallelMoveResolver resolver(&allocator);
-    static constexpr size_t moves[][2] = {{0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 1}};
+    static constexpr size_t moves[][2] = {{0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 0}};
     resolver.EmitNativeCode(BuildParallelMove(&allocator, moves, arraysize(moves)));
-    ASSERT_STREQ("(4 <-> 1) (3 <-> 4) (2 <-> 3) (0 -> 1)", resolver.GetMessage().c_str());
-  }
-
-  {
-    TestParallelMoveResolver resolver(&allocator);
-    static constexpr size_t moves[][2] = {{0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 1}, {5, 4}};
-    resolver.EmitNativeCode(BuildParallelMove(&allocator, moves, arraysize(moves)));
-    ASSERT_STREQ("(4 <-> 1) (3 <-> 4) (2 <-> 3) (0 -> 1) (5 -> 4)", resolver.GetMessage().c_str());
+    ASSERT_STREQ("(4 <-> 0) (3 <-> 4) (2 <-> 3) (1 <-> 2)", resolver.GetMessage().c_str());
   }
 }
 
