@@ -26,7 +26,7 @@ public class Main implements Runnable {
 
     // Timeout in minutes. Make it larger than the run-test timeout to get a native thread dump by
     // ART on timeout when running on the host.
-    public final static long TIMEOUT_VALUE = 7;
+    public final static long TIMEOUT_VALUE = 12;
 
     public final static long MAX_SIZE = 1000;  // Maximum size of array-list to allocate.
 
