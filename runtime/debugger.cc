@@ -2194,6 +2194,7 @@ JDWP::JdwpThreadStatus Dbg::ToJdwpThreadStatus(ThreadState state) {
     case kWaitingForJniOnLoad:
     case kWaitingForMethodTracingStart:
     case kWaitingForSignalCatcherOutput:
+    case kWaitingForVisitObjects:
     case kWaitingInMainDebuggerLoop:
     case kWaitingInMainSignalCatcherLoop:
     case kWaitingPerformingGc:

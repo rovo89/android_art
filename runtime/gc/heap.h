@@ -216,7 +216,11 @@ class Heap {
 
   // Visit all of the live objects in the heap.
   void VisitObjects(ObjectCallback callback, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  void VisitObjectsInternal(ObjectCallback callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   void CheckPreconditionsForAllocObject(mirror::Class* c, size_t byte_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -245,7 +249,7 @@ class Heap {
   void VerifyHeap() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
   // Returns how many failures occured.
   size_t VerifyHeapReferences(bool verify_referents = true)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool VerifyMissingCardMarks()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
@@ -741,7 +745,8 @@ class Heap {
   void PrePauseRosAllocVerification(collector::GarbageCollector* gc)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   void PreSweepingGcVerification(collector::GarbageCollector* gc)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
   void PostGcVerification(collector::GarbageCollector* gc)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
   void PostGcVerificationPaused(collector::GarbageCollector* gc)
