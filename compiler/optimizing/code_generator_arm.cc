@@ -785,7 +785,7 @@ void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstr
         __ StoreToOffset(kStoreWord, IP, SP, location.GetStackIndex());
       }
     } else {
-      DCHECK(const_to_move->IsLongConstant()) << const_to_move;
+      DCHECK(const_to_move->IsLongConstant()) << const_to_move->DebugName();
       int64_t value = const_to_move->AsLongConstant()->GetValue();
       if (location.IsRegisterPair()) {
         __ LoadImmediate(location.AsRegisterPairLow<Register>(), Low32Bits(value));
