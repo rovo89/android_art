@@ -290,18 +290,6 @@ class Location : public ValueObject {
     return value_ == other.value_;
   }
 
-  // Returns whether this location contains `other`.
-  bool Contains(Location other) const {
-    if (Equals(other)) return true;
-    if (IsRegisterPair() && other.IsRegister()) {
-      return low() == other.reg() || high() == other.reg();
-    }
-    if (IsFpuRegisterPair() && other.IsFpuRegister()) {
-      return low() == other.reg() || high() == other.reg();
-    }
-    return false;
-  }
-
   const char* DebugString() const {
     switch (GetKind()) {
       case kInvalid: return "I";
