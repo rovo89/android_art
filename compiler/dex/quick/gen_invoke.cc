@@ -1048,9 +1048,13 @@ bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
     // TODO - add Mips implementation.
     return false;
   }
+  RegLocation rl_dest = IsWide(size) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
+  if (rl_dest.s_reg_low == INVALID_SREG) {
+    // Result is unused, the code is dead. Inlining successful, no code generated.
+    return true;
+  }
   RegLocation rl_src_i = info->args[0];
   RegLocation rl_i = IsWide(size) ? LoadValueWide(rl_src_i, kCoreReg) : LoadValue(rl_src_i, kCoreReg);
-  RegLocation rl_dest = IsWide(size) ? InlineTargetWide(info) : InlineTarget(info);  // result reg
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   if (IsWide(size)) {
     if (cu_->instruction_set == kArm64 || cu_->instruction_set == kX86_64) {
@@ -1080,9 +1084,13 @@ bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
 }
 
 bool Mir2Lir::GenInlinedAbsInt(CallInfo* info) {
+  RegLocation rl_dest = InlineTarget(info);
+  if (rl_dest.s_reg_low == INVALID_SREG) {
+    // Result is unused, the code is dead. Inlining successful, no code generated.
+    return true;
+  }
   RegLocation rl_src = info->args[0];
   rl_src = LoadValue(rl_src, kCoreReg);
-  RegLocation rl_dest = InlineTarget(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   RegStorage sign_reg = AllocTemp();
   // abs(x) = y<=x>>31, (x+y)^y.
@@ -1094,9 +1102,13 @@ bool Mir2Lir::GenInlinedAbsInt(CallInfo* info) {
 }
 
 bool Mir2Lir::GenInlinedAbsLong(CallInfo* info) {
+  RegLocation rl_dest = InlineTargetWide(info);
+  if (rl_dest.s_reg_low == INVALID_SREG) {
+    // Result is unused, the code is dead. Inlining successful, no code generated.
+    return true;
+  }
   RegLocation rl_src = info->args[0];
   rl_src = LoadValueWide(rl_src, kCoreReg);
-  RegLocation rl_dest = InlineTargetWide(info);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
 
   // If on x86 or if we would clobber a register needed later, just copy the source first.
@@ -1171,8 +1183,12 @@ bool Mir2Lir::GenInlinedFloatCvt(CallInfo* info) {
     // TODO - add Mips implementation
     return false;
   }
-  RegLocation rl_src = info->args[0];
   RegLocation rl_dest = InlineTarget(info);
+  if (rl_dest.s_reg_low == INVALID_SREG) {
+    // Result is unused, the code is dead. Inlining successful, no code generated.
+    return true;
+  }
+  RegLocation rl_src = info->args[0];
   StoreValue(rl_dest, rl_src);
   return true;
 }
@@ -1182,8 +1198,12 @@ bool Mir2Lir::GenInlinedDoubleCvt(CallInfo* info) {
     // TODO - add Mips implementation
     return false;
   }
-  RegLocation rl_src = info->args[0];
   RegLocation rl_dest = InlineTargetWide(info);
+  if (rl_dest.s_reg_low == INVALID_SREG) {
+    // Result is unused, the code is dead. Inlining successful, no code generated.
+    return true;
+  }
+  RegLocation rl_src = info->args[0];
   StoreValueWide(rl_dest, rl_src);
   return true;
 }
