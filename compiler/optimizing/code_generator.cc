@@ -696,11 +696,9 @@ void CodeGenerator::ClearSpillSlotsFromLoopPhisInStackMap(HSuspendCheck* suspend
 }
 
 void CodeGenerator::EmitParallelMoves(Location from1, Location to1, Location from2, Location to2) {
-  MoveOperands move1(from1, to1, nullptr);
-  MoveOperands move2(from2, to2, nullptr);
   HParallelMove parallel_move(GetGraph()->GetArena());
-  parallel_move.AddMove(&move1);
-  parallel_move.AddMove(&move2);
+  parallel_move.AddMove(from1, to1, nullptr);
+  parallel_move.AddMove(from2, to2, nullptr);
   GetMoveResolver()->EmitNativeCode(&parallel_move);
 }
 
