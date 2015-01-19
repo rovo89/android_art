@@ -40,9 +40,8 @@ const Pass* const PassDriver<PassDriverMEPostOpt>::g_passes[] = {
     GetPassInstance<CreatePhiNodes>(),
     GetPassInstance<SSAConversion>(),
     GetPassInstance<PhiNodeOperands>(),
-    GetPassInstance<ConstantPropagation>(),
     GetPassInstance<PerformInitRegLocations>(),
-    GetPassInstance<MethodUseCount>(),
+    GetPassInstance<TypeInference>(),
     GetPassInstance<FinishSSATransformation>(),
 };
 
