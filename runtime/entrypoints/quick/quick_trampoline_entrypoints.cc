@@ -59,6 +59,7 @@ class QuickArgumentVisitor {
   // | S0         |
   // |            |    4x2 bytes padding
   // | Method*    |  <- sp
+  static constexpr bool kSplitPairAcrossRegisterAndStack = kArm32QuickCodeUseSoftFloat;
   static constexpr bool kAlignPairRegister = !kArm32QuickCodeUseSoftFloat;
   static constexpr bool kQuickSoftFloatAbi = kArm32QuickCodeUseSoftFloat;
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = !kArm32QuickCodeUseSoftFloat;
@@ -95,6 +96,7 @@ class QuickArgumentVisitor {
   // | D0         |
   // |            |    padding
   // | Method*    |  <- sp
+  static constexpr bool kSplitPairAcrossRegisterAndStack = false;
   static constexpr bool kAlignPairRegister = false;
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
@@ -125,6 +127,7 @@ class QuickArgumentVisitor {
   // | A2         |    arg2
   // | A1         |    arg1
   // | A0/Method* |  <- sp
+  static constexpr bool kSplitPairAcrossRegisterAndStack = true;
   static constexpr bool kAlignPairRegister = false;
   static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
@@ -203,6 +206,7 @@ class QuickArgumentVisitor {
   // | XMM1        |    float arg 2
   // | XMM0        |    float arg 1
   // | EAX/Method* |  <- sp
+  static constexpr bool kSplitPairAcrossRegisterAndStack = false;
   static constexpr bool kAlignPairRegister = false;
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
@@ -243,6 +247,7 @@ class QuickArgumentVisitor {
   // | XMM0            |    float arg 1
   // | Padding         |
   // | RDI/Method*     |  <- sp
+  static constexpr bool kSplitPairAcrossRegisterAndStack = false;
   static constexpr bool kAlignPairRegister = false;
   static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
@@ -452,6 +457,11 @@ class QuickArgumentVisitor {
             }
             is_split_long_or_double_ = (GetBytesPerGprSpillLocation(kRuntimeISA) == 4) &&
                 ((gpr_index_ + 1) == kNumQuickGprArgs);
+            if (!kSplitPairAcrossRegisterAndStack && is_split_long_or_double_) {
+              // We don't want to split this. Pass over this register.
+              gpr_index_++;
+              is_split_long_or_double_ = false;
+            }
             Visit();
             if (kBytesStackArgLocation == 4) {
               stack_index_+= 2;
