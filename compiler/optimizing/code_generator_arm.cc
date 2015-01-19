@@ -3302,15 +3302,6 @@ void ParallelMoveResolverARM::EmitMove(size_t index) {
       DCHECK(destination.IsStackSlot());
       __ StoreSToOffset(source.AsFpuRegister<SRegister>(), SP, destination.GetStackIndex());
     }
-  } else if (source.IsFpuRegisterPair()) {
-    if (destination.IsFpuRegisterPair()) {
-      __ vmovd(FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>()),
-               FromLowSToD(source.AsFpuRegisterPairLow<SRegister>()));
-    } else {
-      DCHECK(destination.IsDoubleStackSlot()) << destination;
-      __ StoreDToOffset(FromLowSToD(source.AsFpuRegisterPairLow<SRegister>()),
-                        SP, destination.GetStackIndex());
-    }
   } else if (source.IsDoubleStackSlot()) {
     if (destination.IsFpuRegisterPair()) {
       __ LoadDFromOffset(FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>()),
@@ -3396,22 +3387,6 @@ void ParallelMoveResolverARM::EmitSwap(size_t index) {
     __ vmovs(STMP, reg);
     __ LoadSFromOffset(reg, SP, mem);
     __ StoreSToOffset(STMP, SP, mem);
-  } else if (source.IsFpuRegisterPair() && destination.IsFpuRegisterPair()) {
-    __ vmovd(DTMP, FromLowSToD(source.AsFpuRegisterPairLow<SRegister>()));
-    __ vmovd(FromLowSToD(source.AsFpuRegisterPairLow<SRegister>()),
-             FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>()));
-    __ vmovd(FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>()), DTMP);
-  } else if (source.IsFpuRegisterPair() || destination.IsFpuRegisterPair()) {
-    DRegister reg = source.IsFpuRegisterPair()
-        ? FromLowSToD(source.AsFpuRegisterPairLow<SRegister>())
-        : FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>());
-    int mem = source.IsFpuRegisterPair()
-        ? destination.GetStackIndex()
-        : source.GetStackIndex();
-
-    __ vmovd(DTMP, reg);
-    __ LoadDFromOffset(reg, SP, mem);
-    __ StoreDToOffset(DTMP, SP, mem);
   } else if (source.IsDoubleStackSlot() && destination.IsDoubleStackSlot()) {
     // TODO: We could use DTMP and ask for a pair scratch register (float or core).
     // This would save four instructions if two scratch registers are available, and

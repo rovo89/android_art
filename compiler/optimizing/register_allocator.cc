@@ -1051,7 +1051,7 @@ void RegisterAllocator::AddInputMoveFor(HInstruction* user,
     move = previous->AsParallelMove();
   }
   DCHECK_EQ(move->GetLifetimePosition(), user->GetLifetimePosition());
-  move->AddMove(new (allocator_) MoveOperands(source, destination, nullptr));
+  move->AddMove(source, destination, nullptr);
 }
 
 static bool IsInstructionStart(size_t position) {
@@ -1123,7 +1123,7 @@ void RegisterAllocator::InsertParallelMoveAt(size_t position,
     }
   }
   DCHECK_EQ(move->GetLifetimePosition(), position);
-  move->AddMove(new (allocator_) MoveOperands(source, destination, instruction));
+  move->AddMove(source, destination, instruction);
 }
 
 void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
@@ -1153,7 +1153,7 @@ void RegisterAllocator::InsertParallelMoveAtExitOf(HBasicBlock* block,
   } else {
     move = previous->AsParallelMove();
   }
-  move->AddMove(new (allocator_) MoveOperands(source, destination, instruction));
+  move->AddMove(source, destination, instruction);
 }
 
 void RegisterAllocator::InsertParallelMoveAtEntryOf(HBasicBlock* block,
@@ -1172,7 +1172,7 @@ void RegisterAllocator::InsertParallelMoveAtEntryOf(HBasicBlock* block,
     move->SetLifetimePosition(block->GetLifetimeStart());
     block->InsertInstructionBefore(move, first);
   }
-  move->AddMove(new (allocator_) MoveOperands(source, destination, instruction));
+  move->AddMove(source, destination, instruction);
 }
 
 void RegisterAllocator::InsertMoveAfter(HInstruction* instruction,
@@ -1196,7 +1196,7 @@ void RegisterAllocator::InsertMoveAfter(HInstruction* instruction,
     move->SetLifetimePosition(position);
     instruction->GetBlock()->InsertInstructionBefore(move, instruction->GetNext());
   }
-  move->AddMove(new (allocator_) MoveOperands(source, destination, instruction));
+  move->AddMove(source, destination, instruction);
 }
 
 void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {

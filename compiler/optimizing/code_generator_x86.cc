@@ -3363,7 +3363,7 @@ void ParallelMoveResolverX86::EmitMove(size_t index) {
       __ movl(Address(ESP, destination.GetStackIndex()), imm);
     }
   } else {
-    LOG(FATAL) << "Unimplemented";
+    LOG(FATAL) << "Unimplemented move: " << destination << " <- " << source;
   }
 }
 
