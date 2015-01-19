@@ -573,6 +573,7 @@ bool ArmMir2Lir::GetEasyMultiplyOp(int lit, ArmMir2Lir::EasyMultiplyOp* op) {
     // GenArithOpIntLit will directly generate exception-throwing code, and multiply-by-zero will
     // have been optimized away earlier.
     op->op = kOpInvalid;
+    op->shift = 0;
     return true;
   }
 
