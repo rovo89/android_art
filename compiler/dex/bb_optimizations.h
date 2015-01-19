@@ -171,27 +171,6 @@ class NullCheckElimination : public PassME {
   }
 };
 
-/**
- * @class TypeInference
- * @brief Type inference pass.
- */
-class TypeInference : public PassME {
- public:
-  TypeInference()
-    : PassME("TypeInference", kRepeatingPreOrderDFSTraversal, "4_post_type_cfg") {
-  }
-
-  bool Worker(PassDataHolder* data) const {
-    DCHECK(data != nullptr);
-    PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
-    CompilationUnit* c_unit = pass_me_data_holder->c_unit;
-    DCHECK(c_unit != nullptr);
-    BasicBlock* bb = pass_me_data_holder->bb;
-    DCHECK(bb != nullptr);
-    return c_unit->mir_graph->InferTypes(bb);
-  }
-};
-
 class ClassInitCheckElimination : public PassME {
  public:
   ClassInitCheckElimination()
@@ -276,6 +255,48 @@ class BBCombine : public PassME {
   }
 
   bool Worker(PassDataHolder* data) const;
+};
+
+/**
+ * @class ConstantPropagation
+ * @brief Perform a constant propagation pass.
+ */
+class ConstantPropagation : public PassME {
+ public:
+  ConstantPropagation() : PassME("ConstantPropagation") {
+  }
+
+  void Start(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    c_unit->mir_graph->InitializeConstantPropagation();
+  }
+
+  bool Worker(PassDataHolder* data) const {
+    DCHECK(data != nullptr);
+    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+    DCHECK(c_unit != nullptr);
+    BasicBlock* bb = down_cast<PassMEDataHolder*>(data)->bb;
+    DCHECK(bb != nullptr);
+    c_unit->mir_graph->DoConstantPropagation(bb);
+    // No need of repeating, so just return false.
+    return false;
+  }
+};
+
+/**
+ * @class MethodUseCount
+ * @brief Count the register uses of the method
+ */
+class MethodUseCount : public PassME {
+ public:
+  MethodUseCount() : PassME("UseCount") {
+  }
+
+  bool Worker(PassDataHolder* data) const;
+
+  bool Gate(const PassDataHolder* data) const;
 };
 
 /**

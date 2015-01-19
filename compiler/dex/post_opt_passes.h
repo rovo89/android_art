@@ -63,20 +63,6 @@ class InitializeSSATransformation : public PassMEMirSsaRep {
 };
 
 /**
- * @class MethodUseCount
- * @brief Count the register uses of the method
- */
-class MethodUseCount : public PassME {
- public:
-  MethodUseCount() : PassME("UseCount") {
-  }
-
-  bool Worker(PassDataHolder* data) const;
-
-  bool Gate(const PassDataHolder* data) const;
-};
-
-/**
  * @class ClearPhiInformation
  * @brief Clear the PHI nodes from the CFG.
  */
@@ -274,30 +260,22 @@ class PerformInitRegLocations : public PassMEMirSsaRep {
 };
 
 /**
- * @class ConstantPropagation
- * @brief Perform a constant propagation pass.
+ * @class TypeInference
+ * @brief Type inference pass.
  */
-class ConstantPropagation : public PassMEMirSsaRep {
+class TypeInference : public PassMEMirSsaRep {
  public:
-  ConstantPropagation() : PassMEMirSsaRep("ConstantPropagation") {
+  TypeInference() : PassMEMirSsaRep("TypeInference", kRepeatingPreOrderDFSTraversal) {
   }
 
   bool Worker(PassDataHolder* data) const {
     DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
+    PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
+    CompilationUnit* c_unit = pass_me_data_holder->c_unit;
     DCHECK(c_unit != nullptr);
-    BasicBlock* bb = down_cast<PassMEDataHolder*>(data)->bb;
+    BasicBlock* bb = pass_me_data_holder->bb;
     DCHECK(bb != nullptr);
-    c_unit->mir_graph->DoConstantPropagation(bb);
-    // No need of repeating, so just return false.
-    return false;
-  }
-
-  void Start(PassDataHolder* data) const {
-    DCHECK(data != nullptr);
-    CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
-    DCHECK(c_unit != nullptr);
-    c_unit->mir_graph->InitializeConstantPropagation();
+    return c_unit->mir_graph->InferTypes(bb);
   }
 };
 
