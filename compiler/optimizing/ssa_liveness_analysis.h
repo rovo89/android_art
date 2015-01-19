@@ -530,7 +530,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
   bool SameRegisterKind(Location other) const;
 
   bool HasHighInterval() const {
-    return !IsHighInterval() && (GetParent()->high_or_low_interval_ != nullptr);
+    return IsLowInterval();
   }
 
   bool HasLowInterval() const {
