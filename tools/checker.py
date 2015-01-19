@@ -700,8 +700,6 @@ def ParseArguments():
                       help="print the contents of an output group")
   parser.add_argument("-q", "--quiet", action="store_true",
                       help="print only errors")
-  parser.add_argument("--no-clean", dest="no_clean", action="store_true",
-                      help="don't clean up generated files")
   return parser.parse_args()
 
 
@@ -725,6 +723,9 @@ def DumpGroup(outputFilename, groupName):
     Logger.fail("Group \"" + groupName + "\" not found in the output")
 
 
+# Returns a list of files to scan for check annotations in the given path. Path
+# to a file is returned as a single-element list, directories are recursively
+# traversed and all '.java' files returned.
 def FindCheckFiles(path):
   if not path:
     Logger.fail("No source path provided")
@@ -753,19 +754,13 @@ def RunChecks(checkPrefix, checkPath, outputFilename):
 
 if __name__ == "__main__":
   args = ParseArguments()
+
   if args.quiet:
     Logger.Verbosity = Logger.Level.Error
 
-  tempFolder = tempfile.mkdtemp()
-  try:
-    if args.list_groups:
-      ListGroups(args.tested_file)
-    elif args.dump_group:
-      DumpGroup(args.tested_file, args.dump_group)
-    else:
-      RunChecks(args.check_prefix, args.source_path, args.tested_file)
-  finally:
-    if args.no_clean:
-      print("Files left in %s" % tempFolder)
-    else:
-      shutil.rmtree(tempFolder)
+  if args.list_groups:
+    ListGroups(args.tested_file)
+  elif args.dump_group:
+    DumpGroup(args.tested_file, args.dump_group)
+  else:
+    RunChecks(args.check_prefix, args.source_path, args.tested_file)
