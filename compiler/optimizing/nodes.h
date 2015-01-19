@@ -2755,7 +2755,7 @@ class MoveOperands : public ArenaObject<kArenaAllocMisc> {
 
   // True if this blocks a move from the given location.
   bool Blocks(Location loc) const {
-    return !IsEliminated() && source_.Contains(loc);
+    return !IsEliminated() && source_.Equals(loc);
   }
 
   // A move is redundant if it's been eliminated, if its source and
@@ -2784,8 +2784,6 @@ class MoveOperands : public ArenaObject<kArenaAllocMisc> {
   // This is only used in debug mode, to ensure we do not connect interval siblings
   // in the same parallel move.
   HInstruction* instruction_;
-
-  DISALLOW_COPY_AND_ASSIGN(MoveOperands);
 };
 
 static constexpr size_t kDefaultNumberOfMoves = 4;
@@ -2795,24 +2793,46 @@ class HParallelMove : public HTemplateInstruction<0> {
   explicit HParallelMove(ArenaAllocator* arena)
       : HTemplateInstruction(SideEffects::None()), moves_(arena, kDefaultNumberOfMoves) {}
 
-  void AddMove(MoveOperands* move) {
-    if (kIsDebugBuild) {
-      if (move->GetInstruction() != nullptr) {
+  void AddMove(Location source, Location destination, HInstruction* instruction) {
+    DCHECK(source.IsValid());
+    DCHECK(destination.IsValid());
+    // The parallel move resolver does not handle pairs. So we decompose the
+    // pair locations into two moves.
+    if (source.IsPair() && destination.IsPair()) {
+      AddMove(source.ToLow(), destination.ToLow(), instruction);
+      AddMove(source.ToHigh(), destination.ToHigh(), nullptr);
+    } else if (source.IsPair()) {
+      DCHECK(destination.IsDoubleStackSlot());
+      AddMove(source.ToLow(), Location::StackSlot(destination.GetStackIndex()), instruction);
+      AddMove(source.ToHigh(), Location::StackSlot(destination.GetHighStackIndex(4)), nullptr);
+    } else if (destination.IsPair()) {
+      DCHECK(source.IsDoubleStackSlot());
+      AddMove(Location::StackSlot(source.GetStackIndex()), destination.ToLow(), instruction);
+      // TODO: rewrite GetHighStackIndex to not require a word size. It's supposed to
+      // always be 4.
+      static constexpr int kHighOffset = 4;
+      AddMove(Location::StackSlot(source.GetHighStackIndex(kHighOffset)),
+              destination.ToHigh(),
+              nullptr);
+    } else {
+      if (kIsDebugBuild) {
+        if (instruction != nullptr) {
+          for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
+            DCHECK_NE(moves_.Get(i).GetInstruction(), instruction)
+              << "Doing parallel moves for the same instruction.";
+          }
+        }
         for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
-          DCHECK_NE(moves_.Get(i)->GetInstruction(), move->GetInstruction())
-            << "Doing parallel moves for the same instruction.";
+          DCHECK(!destination.Equals(moves_.Get(i).GetDestination()))
+              << "Same destination for two moves in a parallel move.";
         }
       }
-      for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
-        DCHECK(!move->GetDestination().Contains(moves_.Get(i)->GetDestination()))
-            << "Same destination for two moves in a parallel move.";
-      }
+      moves_.Add(MoveOperands(source, destination, instruction));
     }
-    moves_.Add(move);
   }
 
   MoveOperands* MoveOperandsAt(size_t index) const {
-    return moves_.Get(index);
+    return moves_.GetRawStorage() + index;
   }
 
   size_t NumMoves() const { return moves_.Size(); }
@@ -2820,7 +2840,7 @@ class HParallelMove : public HTemplateInstruction<0> {
   DECLARE_INSTRUCTION(ParallelMove);
 
  private:
-  GrowableArray<MoveOperands*> moves_;
+  GrowableArray<MoveOperands> moves_;
 
   DISALLOW_COPY_AND_ASSIGN(HParallelMove);
 };

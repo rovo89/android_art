@@ -57,6 +57,9 @@ void ParallelMoveResolver::BuildInitialMoveList(HParallelMove* parallel_move) {
   // unallocated, or the move was already eliminated).
   for (size_t i = 0; i < parallel_move->NumMoves(); ++i) {
     MoveOperands* move = parallel_move->MoveOperandsAt(i);
+    // The parallel move resolver algorithm does not work with register pairs.
+    DCHECK(!move->GetSource().IsPair());
+    DCHECK(!move->GetDestination().IsPair());
     if (!move->IsRedundant()) {
       moves_.Add(move);
     }
