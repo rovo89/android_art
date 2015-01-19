@@ -35,6 +35,7 @@ static unsigned int Predecessors(BasicBlock* bb) {
 void MIRGraph::SetConstant(int32_t ssa_reg, int32_t value) {
   is_constant_v_->SetBit(ssa_reg);
   constant_values_[ssa_reg] = value;
+  reg_location_[ssa_reg].is_const = true;
 }
 
 void MIRGraph::SetConstantWide(int32_t ssa_reg, int64_t value) {
@@ -42,6 +43,8 @@ void MIRGraph::SetConstantWide(int32_t ssa_reg, int64_t value) {
   is_constant_v_->SetBit(ssa_reg + 1);
   constant_values_[ssa_reg] = Low32Bits(value);
   constant_values_[ssa_reg + 1] = High32Bits(value);
+  reg_location_[ssa_reg].is_const = true;
+  reg_location_[ssa_reg + 1].is_const = true;
 }
 
 void MIRGraph::DoConstantPropagation(BasicBlock* bb) {

@@ -442,7 +442,7 @@ void MIRGraph::InitRegLocations() {
   for (int i = 0; i < GetNumSSARegs(); i++) {
     loc[i] = fresh_loc;
     loc[i].s_reg_low = i;
-    loc[i].is_const = is_constant_v_->IsBitSet(i);
+    loc[i].is_const = false;  // Constants will be marked by constant propagation pass later.
     loc[i].wide = false;
   }
 
