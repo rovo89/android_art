@@ -395,8 +395,14 @@ void SSAChecker::VisitCondition(HCondition* op) {
   }
   HInstruction* lhs = op->InputAt(0);
   HInstruction* rhs = op->InputAt(1);
-  if (lhs->GetType() == Primitive::kPrimNot && rhs->IsIntConstant()) {
-    if (rhs->AsIntConstant()->GetValue() != 0) {
+  if (lhs->GetType() == Primitive::kPrimNot) {
+    if (!op->IsEqual() && !op->IsNotEqual()) {
+      std::stringstream error;
+      error << "Condition " << op->DebugName() << " " << op->GetId()
+            << " uses an object as left-hand side input.";
+      errors_.push_back(error.str());
+    }
+    if (rhs->IsIntConstant() && rhs->AsIntConstant()->GetValue() != 0) {
       std::stringstream error;
       error << "Condition " << op->DebugName() << " " << op->GetId()
             << " compares an object with a non-0 integer: "
@@ -404,8 +410,14 @@ void SSAChecker::VisitCondition(HCondition* op) {
             << ".";
       errors_.push_back(error.str());
     }
-  } else if (rhs->GetType() == Primitive::kPrimNot && lhs->IsIntConstant()) {
-    if (lhs->AsIntConstant()->GetValue() != 0) {
+  } else if (rhs->GetType() == Primitive::kPrimNot) {
+    if (!op->IsEqual() && !op->IsNotEqual()) {
+      std::stringstream error;
+      error << "Condition " << op->DebugName() << " " << op->GetId()
+            << " uses an object as right-hand side input.";
+      errors_.push_back(error.str());
+    }
+    if (lhs->IsIntConstant() && lhs->AsIntConstant()->GetValue() != 0) {
       std::stringstream error;
       error << "Condition " << op->DebugName() << " " << op->GetId()
             << " compares a non-0 integer with an object: "
