@@ -208,11 +208,12 @@ static void RunOptimizations(HGraph* graph,
   SsaRedundantPhiElimination redundant_phi(graph);
   SsaDeadPhiElimination dead_phi(graph);
   HDeadCodeElimination dce(graph);
-  HConstantFolding fold(graph);
+  HConstantFolding fold1(graph);
   InstructionSimplifier simplify1(graph);
 
   HInliner inliner(graph, dex_compilation_unit, driver, stats);
 
+  HConstantFolding fold2(graph);
   GVNOptimization gvn(graph);
   BoundsCheckElimination bce(graph);
   InstructionSimplifier simplify2(graph);
@@ -224,9 +225,10 @@ static void RunOptimizations(HGraph* graph,
     &dead_phi,
     &intrinsics,
     &dce,
-    &fold,
+    &fold1,
     &simplify1,
     &inliner,
+    &fold2,
     &gvn,
     &bce,
     &simplify2

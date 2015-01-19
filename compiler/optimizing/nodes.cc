@@ -643,7 +643,12 @@ HConstant* HBinaryOperation::TryStaticEvaluation() const {
   } else if (GetLeft()->IsLongConstant() && GetRight()->IsLongConstant()) {
     int64_t value = Evaluate(GetLeft()->AsLongConstant()->GetValue(),
                              GetRight()->AsLongConstant()->GetValue());
-    return new(GetBlock()->GetGraph()->GetArena()) HLongConstant(value);
+    if (GetResultType() == Primitive::kPrimLong) {
+      return new(GetBlock()->GetGraph()->GetArena()) HLongConstant(value);
+    } else {
+      DCHECK(GetResultType() == Primitive::kPrimInt);
+      return new(GetBlock()->GetGraph()->GetArena()) HIntConstant(value);
+    }
   }
   return nullptr;
 }
