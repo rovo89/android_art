@@ -1640,7 +1640,7 @@ class Dex2Oat FINAL {
   void LogCompletionTime() {
     LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_)
               << " (threads: " << thread_count_ << ") "
-              << driver_->GetMemoryUsageString();
+              << driver_->GetMemoryUsageString(kIsDebugBuild || VLOG_IS_ON(compiler));
   }
 
   std::unique_ptr<CompilerOptions> compiler_options_;
