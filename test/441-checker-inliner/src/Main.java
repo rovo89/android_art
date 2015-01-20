@@ -14,14 +14,14 @@
 * limitations under the License.
 */
 
-public class Inliner {
+public class Main {
 
-  // CHECK-START: void Inliner.InlineVoid() inliner (before)
+  // CHECK-START: void Main.InlineVoid() inliner (before)
   // CHECK-DAG:     [[Const42:i\d+]] IntConstant 42
   // CHECK-DAG:                      InvokeStaticOrDirect
   // CHECK-DAG:                      InvokeStaticOrDirect [ [[Const42]] ]
 
-  // CHECK-START: void Inliner.InlineVoid() inliner (after)
+  // CHECK-START: void Main.InlineVoid() inliner (after)
   // CHECK-NOT:                      InvokeStaticOrDirect
 
   public static void InlineVoid() {
@@ -29,12 +29,12 @@ public class Inliner {
     returnVoidWithOneParameter(42);
   }
 
-  // CHECK-START: int Inliner.InlineParameter(int) inliner (before)
+  // CHECK-START: int Main.InlineParameter(int) inliner (before)
   // CHECK-DAG:     [[Param:i\d+]]  ParameterValue
   // CHECK-DAG:     [[Result:i\d+]] InvokeStaticOrDirect [ [[Param]] ]
   // CHECK-DAG:                     Return [ [[Result]] ]
 
-  // CHECK-START: int Inliner.InlineParameter(int) inliner (after)
+  // CHECK-START: int Main.InlineParameter(int) inliner (after)
   // CHECK-DAG:     [[Param:i\d+]]  ParameterValue
   // CHECK-DAG:                     Return [ [[Param]] ]
 
@@ -42,12 +42,12 @@ public class Inliner {
     return returnParameter(a);
   }
 
-  // CHECK-START: long Inliner.InlineWideParameter(long) inliner (before)
+  // CHECK-START: long Main.InlineWideParameter(long) inliner (before)
   // CHECK-DAG:     [[Param:j\d+]]  ParameterValue
   // CHECK-DAG:     [[Result:j\d+]] InvokeStaticOrDirect [ [[Param]] ]
   // CHECK-DAG:                     Return [ [[Result]] ]
 
-  // CHECK-START: long Inliner.InlineWideParameter(long) inliner (after)
+  // CHECK-START: long Main.InlineWideParameter(long) inliner (after)
   // CHECK-DAG:     [[Param:j\d+]]  ParameterValue
   // CHECK-DAG:                     Return [ [[Param]] ]
 
@@ -55,12 +55,12 @@ public class Inliner {
     return returnWideParameter(a);
   }
 
-  // CHECK-START: java.lang.Object Inliner.InlineReferenceParameter(java.lang.Object) inliner (before)
+  // CHECK-START: java.lang.Object Main.InlineReferenceParameter(java.lang.Object) inliner (before)
   // CHECK-DAG:     [[Param:l\d+]]  ParameterValue
   // CHECK-DAG:     [[Result:l\d+]] InvokeStaticOrDirect [ [[Param]] ]
   // CHECK-DAG:                     Return [ [[Result]] ]
 
-  // CHECK-START: java.lang.Object Inliner.InlineReferenceParameter(java.lang.Object) inliner (after)
+  // CHECK-START: java.lang.Object Main.InlineReferenceParameter(java.lang.Object) inliner (after)
   // CHECK-DAG:     [[Param:l\d+]]  ParameterValue
   // CHECK-DAG:                     Return [ [[Param]] ]
 
@@ -68,11 +68,11 @@ public class Inliner {
     return returnReferenceParameter(o);
   }
 
-  // CHECK-START: int Inliner.InlineInt() inliner (before)
+  // CHECK-START: int Main.InlineInt() inliner (before)
   // CHECK-DAG:     [[Result:i\d+]] InvokeStaticOrDirect
   // CHECK-DAG:                     Return [ [[Result]] ]
 
-  // CHECK-START: int Inliner.InlineInt() inliner (after)
+  // CHECK-START: int Main.InlineInt() inliner (after)
   // CHECK-DAG:     [[Const4:i\d+]] IntConstant 4
   // CHECK-DAG:                     Return [ [[Const4]] ]
 
@@ -80,11 +80,11 @@ public class Inliner {
     return returnInt();
   }
 
-  // CHECK-START: long Inliner.InlineWide() inliner (before)
+  // CHECK-START: long Main.InlineWide() inliner (before)
   // CHECK-DAG:     [[Result:j\d+]] InvokeStaticOrDirect
   // CHECK-DAG:                     Return [ [[Result]] ]
 
-  // CHECK-START: long Inliner.InlineWide() inliner (after)
+  // CHECK-START: long Main.InlineWide() inliner (after)
   // CHECK-DAG:     [[Const8:j\d+]] LongConstant 8
   // CHECK-DAG:                     Return [ [[Const8]] ]
 
@@ -92,13 +92,13 @@ public class Inliner {
     return returnWide();
   }
 
-  // CHECK-START: int Inliner.InlineAdd() inliner (before)
+  // CHECK-START: int Main.InlineAdd() inliner (before)
   // CHECK-DAG:     [[Const3:i\d+]] IntConstant 3
   // CHECK-DAG:     [[Const5:i\d+]] IntConstant 5
   // CHECK-DAG:     [[Result:i\d+]] InvokeStaticOrDirect
   // CHECK-DAG:                     Return [ [[Result]] ]
 
-  // CHECK-START: int Inliner.InlineAdd() inliner (after)
+  // CHECK-START: int Main.InlineAdd() inliner (after)
   // CHECK-DAG:     [[Const3:i\d+]] IntConstant 3
   // CHECK-DAG:     [[Const5:i\d+]] IntConstant 5
   // CHECK-DAG:     [[Add:i\d+]]    Add [ [[Const3]] [[Const5]] ]
@@ -108,25 +108,25 @@ public class Inliner {
     return returnAdd(3, 5);
   }
 
-  // CHECK-START: int Inliner.InlineFieldAccess() inliner (before)
+  // CHECK-START: int Main.InlineFieldAccess() inliner (before)
   // CHECK-DAG:     [[After:i\d+]]  InvokeStaticOrDirect
   // CHECK-DAG:                     Return [ [[After]] ]
 
-  // CHECK-START: int Inliner.InlineFieldAccess() inliner (after)
+  // CHECK-START: int Main.InlineFieldAccess() inliner (after)
   // CHECK-DAG:     [[Const1:i\d+]] IntConstant 1
   // CHECK-DAG:     [[Before:i\d+]] StaticFieldGet
   // CHECK-DAG:     [[After:i\d+]]  Add [ [[Before]] [[Const1]] ]
   // CHECK-DAG:                     StaticFieldSet [ {{l\d+}} [[After]] ]
   // CHECK-DAG:                     Return [ [[After]] ]
 
-  // CHECK-START: int Inliner.InlineFieldAccess() inliner (after)
+  // CHECK-START: int Main.InlineFieldAccess() inliner (after)
   // CHECK-NOT:                     InvokeStaticOrDirect
 
   public static int InlineFieldAccess() {
     return incCounter();
   }
 
-  // CHECK-START: int Inliner.InlineWithControlFlow(boolean) inliner (before)
+  // CHECK-START: int Main.InlineWithControlFlow(boolean) inliner (before)
   // CHECK-DAG:     [[Const1:i\d+]] IntConstant 1
   // CHECK-DAG:     [[Const3:i\d+]] IntConstant 3
   // CHECK-DAG:     [[Const5:i\d+]] IntConstant 5
@@ -135,7 +135,7 @@ public class Inliner {
   // CHECK-DAG:     [[Phi:i\d+]]    Phi [ [[Add]] [[Sub]] ]
   // CHECK-DAG:                     Return [ [[Phi]] ]
 
-  // CHECK-START: int Inliner.InlineWithControlFlow(boolean) inliner (after)
+  // CHECK-START: int Main.InlineWithControlFlow(boolean) inliner (after)
   // CHECK-DAG:     [[Const1:i\d+]] IntConstant 1
   // CHECK-DAG:     [[Const3:i\d+]] IntConstant 3
   // CHECK-DAG:     [[Const5:i\d+]] IntConstant 5
@@ -198,5 +198,45 @@ public class Inliner {
 
   private static int incCounter() {
     return ++counter;
+  }
+
+  public static void main(String[] args) {
+    InlineVoid();
+
+    if (InlineInt() != 4) {
+      throw new Error();
+    }
+
+    if (InlineWide() != 8L) {
+      throw new Error();
+    }
+
+    if (InlineParameter(42) != 42) {
+      throw new Error();
+    }
+
+    if (InlineWideParameter(0x100000001L) != 0x100000001L) {
+      throw new Error();
+    }
+
+    if (InlineReferenceParameter(Main.class) != Main.class) {
+      throw new Error();
+    }
+
+    if (InlineAdd() != 8) {
+      throw new Error();
+    }
+
+    if (InlineFieldAccess() != 43 || InlineFieldAccess() != 44) {
+      throw new Error();
+    }
+
+    if (InlineWithControlFlow(true) != 4) {
+      throw new Error();
+    }
+
+    if (InlineWithControlFlow(false) != 2) {
+      throw new Error();
+    }
   }
 }

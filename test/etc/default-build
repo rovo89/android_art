@@ -17,6 +17,22 @@
 # Stop if something fails.
 set -e
 
+DX_FLAGS=""
+
+while true; do
+  if [ "x$1" = "x--dx-option" ]; then
+    shift
+    option="$1"
+    DX_FLAGS="${DX_FLAGS} $option"
+    shift
+  elif expr "x$1" : "x--" >/dev/null 2>&1; then
+    echo "unknown $0 option: $1" 1>&2
+    exit 1
+  else
+    break
+  fi
+done
+
 if [ -e classes.dex ]; then
   zip $TEST_NAME.jar classes.dex
   exit 0
@@ -30,7 +46,8 @@ if [ -d src2 ]; then
 fi
 
 if [ ${NEED_DEX} = "true" ]; then
-  ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex --dump-width=1000 classes
+  ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex \
+    --dump-width=1000 ${DX_FLAGS} classes
 fi
 
 if [ -d smali ]; then
@@ -43,7 +60,8 @@ if [ -d src-ex ]; then
   mkdir classes-ex
   ${JAVAC} -d classes-ex -cp classes `find src-ex -name '*.java'`
   if [ ${NEED_DEX} = "true" ]; then
-    ${DX} -JXmx256m --debug --dex --dump-to=classes-ex.lst --output=classes-ex.dex --dump-width=1000 classes-ex
+    ${DX} -JXmx256m --debug --dex --dump-to=classes-ex.lst --output=classes-ex.dex \
+      --dump-width=1000 ${DX_FLAGS} classes-ex
 
     # quick shuffle so that the stored name is "classes.dex"
     mv classes.dex classes-1.dex
