@@ -480,7 +480,7 @@ void CompilerDriver::CompileAll(jobject class_loader,
                                 TimingLogger* timings) {
   DCHECK(!Runtime::Current()->IsStarted());
   std::unique_ptr<ThreadPool> thread_pool(new ThreadPool("Compiler driver thread pool", thread_count_ - 1));
-  VLOG(compiler) << "Before precompile " << GetMemoryUsageString();
+  VLOG(compiler) << "Before precompile " << GetMemoryUsageString(false);
   PreCompile(class_loader, dex_files, thread_pool.get(), timings);
   Compile(class_loader, dex_files, thread_pool.get(), timings);
   if (dump_stats_) {
@@ -577,10 +577,10 @@ void CompilerDriver::Resolve(jobject class_loader, const std::vector<const DexFi
 void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const DexFile*>& dex_files,
                                 ThreadPool* thread_pool, TimingLogger* timings) {
   LoadImageClasses(timings);
-  VLOG(compiler) << "LoadImageClasses: " << GetMemoryUsageString();
+  VLOG(compiler) << "LoadImageClasses: " << GetMemoryUsageString(false);
 
   Resolve(class_loader, dex_files, thread_pool, timings);
-  VLOG(compiler) << "Resolve: " << GetMemoryUsageString();
+  VLOG(compiler) << "Resolve: " << GetMemoryUsageString(false);
 
   if (!compiler_options_->IsVerificationEnabled()) {
     VLOG(compiler) << "Verify none mode specified, skipping verification.";
@@ -589,13 +589,13 @@ void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const De
   }
 
   Verify(class_loader, dex_files, thread_pool, timings);
-  VLOG(compiler) << "Verify: " << GetMemoryUsageString();
+  VLOG(compiler) << "Verify: " << GetMemoryUsageString(false);
 
   InitializeClasses(class_loader, dex_files, thread_pool, timings);
-  VLOG(compiler) << "InitializeClasses: " << GetMemoryUsageString();
+  VLOG(compiler) << "InitializeClasses: " << GetMemoryUsageString(false);
 
   UpdateImageClasses(timings);
-  VLOG(compiler) << "UpdateImageClasses: " << GetMemoryUsageString();
+  VLOG(compiler) << "UpdateImageClasses: " << GetMemoryUsageString(false);
 }
 
 bool CompilerDriver::IsImageClass(const char* descriptor) const {
@@ -1983,7 +1983,7 @@ void CompilerDriver::Compile(jobject class_loader, const std::vector<const DexFi
     CHECK(dex_file != nullptr);
     CompileDexFile(class_loader, *dex_file, dex_files, thread_pool, timings);
   }
-  VLOG(compiler) << "Compile: " << GetMemoryUsageString();
+  VLOG(compiler) << "Compile: " << GetMemoryUsageString(false);
 }
 
 void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, size_t class_def_index) {
@@ -2329,7 +2329,7 @@ bool CompilerDriver::SkipCompilation(const std::string& method_name) {
   return !compile;
 }
 
-std::string CompilerDriver::GetMemoryUsageString() const {
+std::string CompilerDriver::GetMemoryUsageString(bool extended) const {
   std::ostringstream oss;
   const ArenaPool* arena_pool = GetArenaPool();
   gc::Heap* heap = Runtime::Current()->GetHeap();
@@ -2345,11 +2345,13 @@ std::string CompilerDriver::GetMemoryUsageString() const {
   if (swap_space_.get() != nullptr) {
     oss << " swap=" << PrettySize(swap_space_->GetSize());
   }
-  oss << "\nCode dedupe: " << dedupe_code_.DumpStats();
-  oss << "\nMapping table dedupe: " << dedupe_mapping_table_.DumpStats();
-  oss << "\nVmap table dedupe: " << dedupe_vmap_table_.DumpStats();
-  oss << "\nGC map dedupe: " << dedupe_gc_map_.DumpStats();
-  oss << "\nCFI info dedupe: " << dedupe_cfi_info_.DumpStats();
+  if (extended) {
+    oss << "\nCode dedupe: " << dedupe_code_.DumpStats();
+    oss << "\nMapping table dedupe: " << dedupe_mapping_table_.DumpStats();
+    oss << "\nVmap table dedupe: " << dedupe_vmap_table_.DumpStats();
+    oss << "\nGC map dedupe: " << dedupe_gc_map_.DumpStats();
+    oss << "\nCFI info dedupe: " << dedupe_cfi_info_.DumpStats();
+  }
   return oss.str();
 }
 
