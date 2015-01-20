@@ -39,6 +39,7 @@ if [ -z "$TMPDIR" ]; then
 else
   tmp_dir="${TMPDIR}/$USER/${test_dir}"
 fi
+checker="${progdir}/../tools/checker.py"
 
 export JAVA="java"
 export JAVAC="javac -g"
@@ -74,8 +75,10 @@ expected="expected.txt"
 check_cmd="check"
 output="output.txt"
 build_output="build-output.txt"
+cfg_output="cfg-output.txt"
 lib="libartd.so"
 run_args="--quiet"
+build_args=""
 
 prebuild_mode="yes"
 target_mode="yes"
@@ -503,6 +506,21 @@ chmod 755 "$check_cmd"
 
 export TEST_NAME=`basename ${test_dir}`
 
+# Tests named '<number>-checker-*' will also have their CFGs verified with
+# Checker when compiled with Optimizing on host.
+if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
+  # Build Checker DEX files without dx's optimizations so the input to dex2oat
+  # better resembles the Java source. We always build the DEX the same way, even
+  # if Checker is not invoked and the test only runs the program.
+  build_args="${build_args} --dx-option --no-optimize"
+
+  if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" -a "$target_mode" = "no" ]; then
+    run_checker="yes"
+    run_args="${run_args} -Xcompiler-option --dump-cfg=$tmp_dir/$cfg_output \
+                          -Xcompiler-option -j1"
+  fi
+fi
+
 # To cause tests to fail fast, limit the file sizes created by dx, dex2oat and ART output to 2MB.
 file_size_limit=2048
 if echo "$test_dir" | grep 089; then
@@ -518,7 +536,7 @@ good="no"
 good_build="yes"
 good_run="yes"
 if [ "$dev_mode" = "yes" ]; then
-    "./${build}" 2>&1
+    "./${build}" $build_args 2>&1
     build_exit="$?"
     echo "build exit status: $build_exit" 1>&2
     if [ "$build_exit" = '0' ]; then
@@ -531,11 +549,14 @@ if [ "$dev_mode" = "yes" ]; then
         fi
     fi
 elif [ "$update_mode" = "yes" ]; then
-    "./${build}" >"$build_output" 2>&1
+    "./${build}" $build_args >"$build_output" 2>&1
     build_exit="$?"
     if [ "$build_exit" = '0' ]; then
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" >"$output" 2>&1
+        if [ "$run_checker" = "yes" ]; then
+          "$checker" -q "$cfg_output" "$tmp_dir" >> "$output" 2>&1
+        fi
         sed -e 's/[[:cntrl:]]$//g' < "$output" >"${td_expected}"
         good="yes"
     else
@@ -544,7 +565,7 @@ elif [ "$update_mode" = "yes" ]; then
     fi
 elif [ "$build_only" = "yes" ]; then
     good="yes"
-    "./${build}" >"$build_output" 2>&1
+    "./${build}" $build_args >"$build_output" 2>&1
     build_exit="$?"
     if [ "$build_exit" '!=' '0' ]; then
         cp "$build_output" "$output"
@@ -559,7 +580,7 @@ elif [ "$build_only" = "yes" ]; then
     find $tmp_dir -mindepth 1  ! -regex ".*/\(.*jar\|$output\|$expected\)" | xargs rm -rf
     exit 0
 else
-    "./${build}" >"$build_output" 2>&1
+    "./${build}" $build_args >"$build_output" 2>&1
     build_exit="$?"
     if [ "$build_exit" = '0' ]; then
         echo "${test_dir}: running..." 1>&2
@@ -568,6 +589,15 @@ else
         if [ "$run_exit" != "0" ]; then
             echo "run exit status: $run_exit" 1>&2
             good_run="no"
+        elif [ "$run_checker" = "yes" ]; then
+            "$checker" -q "$cfg_output" "$tmp_dir" >> "$output" 2>&1
+            checker_exit="$?"
+            if [ "$checker_exit" != "0" ]; then
+                echo "checker exit status: $checker_exit" 1>&2
+                good_run="no"
+            else
+                good_run="yes"
+            fi
         else
             good_run="yes"
         fi
