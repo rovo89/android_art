@@ -206,6 +206,29 @@ class MipsMir2Lir FINAL : public Mir2Lir {
 
     LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) OVERRIDE;
 
+    RegLocation GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
+                          RegLocation rl_src2, bool is_div, int flags) OVERRIDE;
+    RegLocation GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit, bool is_div)
+        OVERRIDE;
+
+    NextCallInsn GetNextSDCallInsn() OVERRIDE;
+    LIR* GenCallInsn(const MirMethodLoweringInfo& method_info) OVERRIDE;
+
+    // Unimplemented intrinsics.
+    bool GenInlinedCharAt(CallInfo* info ATTRIBUTE_UNUSED) OVERRIDE {
+      return false;
+    }
+    bool GenInlinedAbsInt(CallInfo* info ATTRIBUTE_UNUSED) OVERRIDE {
+      return false;
+    }
+    bool GenInlinedAbsLong(CallInfo* info ATTRIBUTE_UNUSED) OVERRIDE {
+      return false;
+    }
+    bool GenInlinedIndexOf(CallInfo* info ATTRIBUTE_UNUSED, bool zero_based ATTRIBUTE_UNUSED)
+        OVERRIDE {
+      return false;
+    }
+
   private:
     void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
     void GenAddLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
@@ -214,10 +237,6 @@ class MipsMir2Lir FINAL : public Mir2Lir {
                     RegLocation rl_src2);
 
     void ConvertShortToLongBranch(LIR* lir);
-    RegLocation GenDivRem(RegLocation rl_dest, RegLocation rl_src1,
-                          RegLocation rl_src2, bool is_div, int flags) OVERRIDE;
-    RegLocation GenDivRemLit(RegLocation rl_dest, RegLocation rl_src1, int lit, bool is_div)
-        OVERRIDE;
 };
 
 }  // namespace art

@@ -479,83 +479,6 @@ static bool CommonCallCodeLoadCodePointerIntoInvokeTgt(const RegStorage* alt_fro
 
 /*
  * Bit of a hack here - in the absence of a real scheduling pass,
- * emit the next instruction in static & direct invoke sequences.
- */
-static int NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
-                          int state, const MethodReference& target_method,
-                          uint32_t,
-                          uintptr_t direct_code, uintptr_t direct_method,
-                          InvokeType type) {
-  UNUSED(info);
-  DCHECK(cu->instruction_set != kX86 && cu->instruction_set != kX86_64 &&
-         cu->instruction_set != kThumb2 && cu->instruction_set != kArm &&
-         cu->instruction_set != kArm64);
-  Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
-  if (direct_code != 0 && direct_method != 0) {
-    switch (state) {
-    case 0:  // Get the current Method* [sets kArg0]
-      if (direct_code != static_cast<uintptr_t>(-1)) {
-        cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
-      } else {
-        cg->LoadCodeAddress(target_method, type, kInvokeTgt);
-      }
-      if (direct_method != static_cast<uintptr_t>(-1)) {
-        cg->LoadConstant(cg->TargetReg(kArg0, kRef), direct_method);
-      } else {
-        cg->LoadMethodAddress(target_method, type, kArg0);
-      }
-      break;
-    default:
-      return -1;
-    }
-  } else {
-    RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
-    switch (state) {
-    case 0:  // Get the current Method* [sets kArg0]
-      // TUNING: we can save a reg copy if Method* has been promoted.
-      cg->LoadCurrMethodDirect(arg0_ref);
-      break;
-    case 1:  // Get method->dex_cache_resolved_methods_
-      cg->LoadRefDisp(arg0_ref,
-                      mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value(),
-                      arg0_ref,
-                      kNotVolatile);
-      // Set up direct code if known.
-      if (direct_code != 0) {
-        if (direct_code != static_cast<uintptr_t>(-1)) {
-          cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
-        } else {
-          CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
-          cg->LoadCodeAddress(target_method, type, kInvokeTgt);
-        }
-      }
-      break;
-    case 2:  // Grab target method*
-      CHECK_EQ(cu->dex_file, target_method.dex_file);
-      cg->LoadRefDisp(arg0_ref,
-                      ObjArray::OffsetOfElement(target_method.dex_method_index).Int32Value(),
-                      arg0_ref,
-                      kNotVolatile);
-      break;
-    case 3:  // Grab the code from the method*
-      if (direct_code == 0) {
-        if (CommonCallCodeLoadCodePointerIntoInvokeTgt(&arg0_ref, cu, cg)) {
-          break;                                    // kInvokeTgt := arg0_ref->entrypoint
-        }
-      } else {
-        break;
-      }
-      DCHECK(cu->instruction_set == kX86 || cu->instruction_set == kX86_64);
-      FALLTHROUGH_INTENDED;
-    default:
-      return -1;
-    }
-  }
-  return state + 1;
-}
-
-/*
- * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in a virtual invoke sequence.
  * We can use kLr as a temp prior to target address loading
  * Note also that we'll load the first argument ("this") into
@@ -1028,10 +951,6 @@ bool Mir2Lir::GenInlinedReferenceGetReferent(CallInfo* info) {
 }
 
 bool Mir2Lir::GenInlinedCharAt(CallInfo* info) {
-  if (cu_->instruction_set == kMips) {
-    // TODO - add Mips implementation
-    return false;
-  }
   // Location of reference to data array
   int value_offset = mirror::String::ValueOffset().Int32Value();
   // Location of count
@@ -1161,10 +1080,6 @@ bool Mir2Lir::GenInlinedReverseBytes(CallInfo* info, OpSize size) {
 }
 
 bool Mir2Lir::GenInlinedAbsInt(CallInfo* info) {
-  if (cu_->instruction_set == kMips) {
-    // TODO - add Mips implementation
-    return false;
-  }
   RegLocation rl_src = info->args[0];
   rl_src = LoadValue(rl_src, kCoreReg);
   RegLocation rl_dest = InlineTarget(info);
@@ -1179,10 +1094,6 @@ bool Mir2Lir::GenInlinedAbsInt(CallInfo* info) {
 }
 
 bool Mir2Lir::GenInlinedAbsLong(CallInfo* info) {
-  if (cu_->instruction_set == kMips) {
-    // TODO - add Mips implementation
-    return false;
-  }
   RegLocation rl_src = info->args[0];
   rl_src = LoadValueWide(rl_src, kCoreReg);
   RegLocation rl_dest = InlineTargetWide(info);
@@ -1288,14 +1199,6 @@ bool Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
  * otherwise bails to standard library code.
  */
 bool Mir2Lir::GenInlinedIndexOf(CallInfo* info, bool zero_based) {
-  if (cu_->instruction_set == kMips) {
-    // TODO - add Mips implementation
-    return false;
-  }
-  if (cu_->instruction_set == kX86_64) {
-    // TODO - add kX86_64 implementation
-    return false;
-  }
   RegLocation rl_obj = info->args[0];
   RegLocation rl_char = info->args[1];
   if (rl_char.is_const && (mir_graph_->ConstantValue(rl_char) & ~0xFFFF) != 0) {
@@ -1384,23 +1287,13 @@ bool Mir2Lir::GenInlinedCurrentThread(CallInfo* info) {
 
   RegLocation rl_result = EvalLoc(rl_dest, kRefReg, true);
 
-  switch (cu_->instruction_set) {
-    case kArm:
-      // Fall-through.
-    case kThumb2:
-      // Fall-through.
-    case kMips:
-      Load32Disp(TargetPtrReg(kSelf), Thread::PeerOffset<4>().Int32Value(), rl_result.reg);
-      break;
-
-    case kArm64:
-      LoadRefDisp(TargetPtrReg(kSelf), Thread::PeerOffset<8>().Int32Value(), rl_result.reg,
-                  kNotVolatile);
-      break;
-
-    default:
-      LOG(FATAL) << "Unexpected isa " << cu_->instruction_set;
+  if (Is64BitInstructionSet(cu_->instruction_set)) {
+    LoadRefDisp(TargetPtrReg(kSelf), Thread::PeerOffset<8>().Int32Value(), rl_result.reg,
+                kNotVolatile);
+  } else {
+    Load32Disp(TargetPtrReg(kSelf), Thread::PeerOffset<4>().Int32Value(), rl_result.reg);
   }
+
   StoreValue(rl_dest, rl_result);
   return true;
 }
@@ -1570,18 +1463,6 @@ void Mir2Lir::GenInvokeNoInline(CallInfo* info) {
       StoreValue(info->result, ret_loc);
     }
   }
-}
-
-NextCallInsn Mir2Lir::GetNextSDCallInsn() {
-  return NextSDCallInsn;
-}
-
-LIR* Mir2Lir::GenCallInsn(const MirMethodLoweringInfo& method_info) {
-  UNUSED(method_info);
-  DCHECK(cu_->instruction_set != kX86 && cu_->instruction_set != kX86_64 &&
-         cu_->instruction_set != kThumb2 && cu_->instruction_set != kArm &&
-         cu_->instruction_set != kArm64);
-  return OpReg(kOpBlx, TargetPtrReg(kInvokeTgt));
 }
 
 }  // namespace art

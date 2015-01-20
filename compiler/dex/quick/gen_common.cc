@@ -1727,14 +1727,10 @@ static bool IsPopCountLE2(unsigned int x) {
 
 // Returns true if it added instructions to 'cu' to divide 'rl_src' by 'lit'
 // and store the result in 'rl_dest'.
-bool Mir2Lir::HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
+bool Mir2Lir::HandleEasyDivRem(Instruction::Code dalvik_opcode ATTRIBUTE_UNUSED, bool is_div,
                                RegLocation rl_src, RegLocation rl_dest, int lit) {
-  if ((lit < 2) || ((cu_->instruction_set != kThumb2) && !IsPowerOfTwo(lit))) {
+  if ((lit < 2) || (!IsPowerOfTwo(lit))) {
     return false;
-  }
-  // No divide instruction for Arm, so check for more special cases
-  if ((cu_->instruction_set == kThumb2) && !IsPowerOfTwo(lit)) {
-    return SmallLiteralDivRem(dalvik_opcode, is_div, rl_src, rl_dest, lit);
   }
   int k = CTZ(lit);
   if (k >= 30) {
