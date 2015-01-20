@@ -1656,4 +1656,19 @@ void ArmMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
   StoreValueWide(rl_dest, rl_result);
 }
 
+bool ArmMir2Lir::HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
+                                  RegLocation rl_src, RegLocation rl_dest, int lit) {
+  if (lit < 2) {
+    return false;
+  }
+
+  // ARM does either not support a division instruction, or it is potentially expensive. Look for
+  // more special cases.
+  if (!IsPowerOfTwo(lit)) {
+    return SmallLiteralDivRem(dalvik_opcode, is_div, rl_src, rl_dest, lit);
+  }
+
+  return Mir2Lir::HandleEasyDivRem(dalvik_opcode, is_div, rl_src, rl_dest, lit);
+}
+
 }  // namespace art
