@@ -19,6 +19,7 @@
 
 #include "code_generator.h"
 #include "dex/compiler_enums.h"
+#include "driver/compiler_options.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 #include "utils/arm64/assembler_arm64.h"
@@ -113,6 +114,8 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
   void GenerateSuspendCheck(HSuspendCheck* instruction, HBasicBlock* successor);
   void HandleBinaryOp(HBinaryOperation* instr);
   void HandleShift(HBinaryOperation* instr);
+  void GenerateImplicitNullCheck(HNullCheck* instruction);
+  void GenerateExplicitNullCheck(HNullCheck* instruction);
 
   Arm64Assembler* const assembler_;
   CodeGeneratorARM64* const codegen_;
@@ -164,7 +167,7 @@ class ParallelMoveResolverARM64 : public ParallelMoveResolver {
 
 class CodeGeneratorARM64 : public CodeGenerator {
  public:
-  explicit CodeGeneratorARM64(HGraph* graph);
+  CodeGeneratorARM64(HGraph* graph, const CompilerOptions& compiler_options);
   virtual ~CodeGeneratorARM64() {}
 
   void GenerateFrameEntry() OVERRIDE;

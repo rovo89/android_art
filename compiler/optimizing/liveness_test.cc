@@ -19,6 +19,7 @@
 #include "code_generator_x86.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
+#include "driver/compiler_options.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
 #include "prepare_for_register_allocation.h"
@@ -51,7 +52,7 @@ static void TestCode(const uint16_t* data, const char* expected) {
   graph->TryBuildingSsa();
   // `Inline` conditions into ifs.
   PrepareForRegisterAllocation(graph).Run();
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 

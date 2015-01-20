@@ -27,6 +27,7 @@
 #include "common_compiler_test.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
+#include "driver/compiler_options.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
 #include "prepare_for_register_allocation.h"
@@ -80,7 +81,8 @@ template <typename Expected>
 static void RunCodeBaseline(HGraph* graph, bool has_result, Expected expected) {
   InternalCodeAllocator allocator;
 
-  x86::CodeGeneratorX86 codegenX86(graph);
+  CompilerOptions compiler_options;
+  x86::CodeGeneratorX86 codegenX86(graph, compiler_options);
   // We avoid doing a stack overflow check that requires the runtime being setup,
   // by making sure the compiler knows the methods we are running are leaf methods.
   codegenX86.CompileBaseline(&allocator, true);
@@ -90,19 +92,19 @@ static void RunCodeBaseline(HGraph* graph, bool has_result, Expected expected) {
 
   std::unique_ptr<const ArmInstructionSetFeatures> features(
       ArmInstructionSetFeatures::FromCppDefines());
-  arm::CodeGeneratorARM codegenARM(graph, features.get());
+  arm::CodeGeneratorARM codegenARM(graph, *features.get(), compiler_options);
   codegenARM.CompileBaseline(&allocator, true);
   if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
     Run(allocator, codegenARM, has_result, expected);
   }
 
-  x86_64::CodeGeneratorX86_64 codegenX86_64(graph);
+  x86_64::CodeGeneratorX86_64 codegenX86_64(graph, compiler_options);
   codegenX86_64.CompileBaseline(&allocator, true);
   if (kRuntimeISA == kX86_64) {
     Run(allocator, codegenX86_64, has_result, expected);
   }
 
-  arm64::CodeGeneratorARM64 codegenARM64(graph);
+  arm64::CodeGeneratorARM64 codegenARM64(graph, compiler_options);
   codegenARM64.CompileBaseline(&allocator, true);
   if (kRuntimeISA == kArm64) {
     Run(allocator, codegenARM64, has_result, expected);
@@ -132,17 +134,20 @@ static void RunCodeOptimized(HGraph* graph,
                              std::function<void(HGraph*)> hook_before_codegen,
                              bool has_result,
                              Expected expected) {
+  CompilerOptions compiler_options;
   if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
-    arm::CodeGeneratorARM codegenARM(graph, ArmInstructionSetFeatures::FromCppDefines());
+    arm::CodeGeneratorARM codegenARM(graph,
+                                     *ArmInstructionSetFeatures::FromCppDefines(),
+                                     compiler_options);
     RunCodeOptimized(&codegenARM, graph, hook_before_codegen, has_result, expected);
   } else if (kRuntimeISA == kArm64) {
-    arm64::CodeGeneratorARM64 codegenARM64(graph);
+    arm64::CodeGeneratorARM64 codegenARM64(graph, compiler_options);
     RunCodeOptimized(&codegenARM64, graph, hook_before_codegen, has_result, expected);
   } else if (kRuntimeISA == kX86) {
-    x86::CodeGeneratorX86 codegenX86(graph);
+    x86::CodeGeneratorX86 codegenX86(graph, compiler_options);
     RunCodeOptimized(&codegenX86, graph, hook_before_codegen, has_result, expected);
   } else if (kRuntimeISA == kX86_64) {
-    x86_64::CodeGeneratorX86_64 codegenX86_64(graph);
+    x86_64::CodeGeneratorX86_64 codegenX86_64(graph, compiler_options);
     RunCodeOptimized(&codegenX86_64, graph, hook_before_codegen, has_result, expected);
   }
 }
