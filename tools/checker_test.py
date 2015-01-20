@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python2
 #
 # Copyright (C) 2014 The Android Open Source Project
 #
@@ -359,6 +359,8 @@ class TestCheckGroup_Match(unittest.TestCase):
 
 class TestOutputFile_Parse(unittest.TestCase):
   def __parsesTo(self, string, expected):
+    if isinstance(string, str):
+      string = unicode(string)
     outputStream = io.StringIO(string)
     return self.assertEqual(checker.OutputFile(outputStream).groups, expected)
 
@@ -421,6 +423,8 @@ class TestOutputFile_Parse(unittest.TestCase):
 
 class TestCheckFile_Parse(unittest.TestCase):
   def __parsesTo(self, string, expected):
+    if isinstance(string, str):
+      string = unicode(string)
     checkStream = io.StringIO(string)
     return self.assertEqual(checker.CheckFile("CHECK", checkStream).groups, expected)
 
