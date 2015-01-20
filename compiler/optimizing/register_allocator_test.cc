@@ -815,7 +815,7 @@ TEST(RegisterAllocatorTest, SpillInactive) {
   locations = new (&allocator) LocationSummary(fourth->GetDefinedBy(), LocationSummary::kNoCall);
   locations->SetOut(Location::RequiresRegister());
 
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
 
   RegisterAllocator register_allocator(&allocator, &codegen, liveness);
