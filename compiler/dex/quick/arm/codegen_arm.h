@@ -263,6 +263,9 @@ class ArmMir2Lir FINAL : public Mir2Lir {
 
     void GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) OVERRIDE;
 
+    bool HandleEasyDivRem(Instruction::Code dalvik_opcode, bool is_div,
+                          RegLocation rl_src, RegLocation rl_dest, int lit) OVERRIDE;
+
   private:
     void GenNegLong(RegLocation rl_dest, RegLocation rl_src);
     void GenMulLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
