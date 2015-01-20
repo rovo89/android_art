@@ -492,7 +492,8 @@ class StackVisitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t val;
     bool success = GetVReg(m, vreg, kind, &val);
-    CHECK(success) << "Failed to read vreg " << vreg << " of kind " << kind;
+    CHECK(success) << "Failed to read v" << vreg << " of kind " << kind << " in method "
+                   << PrettyMethod(m);
     return val;
   }
 
@@ -505,7 +506,8 @@ class StackVisitor {
     uint64_t val;
     bool success = GetVRegPair(m, vreg, kind_lo, kind_hi, &val);
     CHECK(success) << "Failed to read vreg pair " << vreg
-                   << " of kind [" << kind_lo << "," << kind_hi << "]";
+                   << " of kind [" << kind_lo << "," << kind_hi << "] in method "
+                   << PrettyMethod(m);
     return val;
   }
 
@@ -672,6 +674,45 @@ class StackVisitor {
   bool IsAccessibleFPR(uint32_t reg) const;
   uintptr_t GetFPR(uint32_t reg) const;
   void SetFPR(uint32_t reg, uintptr_t value);
+
+  bool GetVRegFromQuickCode(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
+                            uint32_t* val) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool GetVRegFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind,
+                                uint32_t* val) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool GetRegisterIfAccessible(uint32_t reg, VRegKind kind, uint32_t* val) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool GetVRegPairFromQuickCode(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
+                                VRegKind kind_hi, uint64_t* val) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool GetVRegPairFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg,
+                                    VRegKind kind_lo, VRegKind kind_hi,
+                                    uint64_t* val) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool GetRegisterPairIfAccessible(uint32_t reg_lo, uint32_t reg_hi, VRegKind kind_lo,
+                                   uint64_t* val) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool SetVRegFromQuickCode(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value,
+                            VRegKind kind)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool SetVRegFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value,
+                                VRegKind kind)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool SetRegisterIfAccessible(uint32_t reg, uint32_t new_value, VRegKind kind)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool SetVRegPairFromQuickCode(mirror::ArtMethod* m, uint16_t vreg, uint64_t new_value,
+                                VRegKind kind_lo, VRegKind kind_hi)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool SetVRegPairFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg, uint64_t new_value,
+                                    VRegKind kind_lo, VRegKind kind_hi)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool SetRegisterPairIfAccessible(uint32_t reg_lo, uint32_t reg_hi, uint64_t new_value,
+                                   bool is_float)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
