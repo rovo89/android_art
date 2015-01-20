@@ -14,19 +14,19 @@
 * limitations under the License.
 */
 
-public class ConstantFolding {
+public class Main {
 
   /**
    * Tiny three-register program exercising int constant folding
    * on negation.
    */
 
-  // CHECK-START: int ConstantFolding.IntNegation() constant_folding (before)
+  // CHECK-START: int Main.IntNegation() constant_folding (before)
   // CHECK-DAG:     [[Const42:i\d+]]  IntConstant 42
   // CHECK-DAG:     [[Neg:i\d+]]      Neg [ [[Const42]] ]
   // CHECK-DAG:                       Return [ [[Neg]] ]
 
-  // CHECK-START: int ConstantFolding.IntNegation() constant_folding (after)
+  // CHECK-START: int Main.IntNegation() constant_folding (after)
   // CHECK-DAG:     [[ConstN42:i\d+]] IntConstant -42
   // CHECK-DAG:                       Return [ [[ConstN42]] ]
 
@@ -42,13 +42,13 @@ public class ConstantFolding {
    * on addition.
    */
 
-  // CHECK-START: int ConstantFolding.IntAddition1() constant_folding (before)
+  // CHECK-START: int Main.IntAddition1() constant_folding (before)
   // CHECK-DAG:     [[Const1:i\d+]]  IntConstant 1
   // CHECK-DAG:     [[Const2:i\d+]]  IntConstant 2
   // CHECK-DAG:     [[Add:i\d+]]     Add [ [[Const1]] [[Const2]] ]
   // CHECK-DAG:                      Return [ [[Add]] ]
 
-  // CHECK-START: int ConstantFolding.IntAddition1() constant_folding (after)
+  // CHECK-START: int Main.IntAddition1() constant_folding (after)
   // CHECK-DAG:     [[Const3:i\d+]]  IntConstant 3
   // CHECK-DAG:                      Return [ [[Const3]] ]
 
@@ -65,7 +65,7 @@ public class ConstantFolding {
   * on addition.
   */
 
-  // CHECK-START: int ConstantFolding.IntAddition2() constant_folding (before)
+  // CHECK-START: int Main.IntAddition2() constant_folding (before)
   // CHECK-DAG:     [[Const1:i\d+]]  IntConstant 1
   // CHECK-DAG:     [[Const2:i\d+]]  IntConstant 2
   // CHECK-DAG:     [[Const5:i\d+]]  IntConstant 5
@@ -75,7 +75,7 @@ public class ConstantFolding {
   // CHECK-DAG:     [[Add3:i\d+]]    Add [ [[Add1]] [[Add2]] ]
   // CHECK-DAG:                      Return [ [[Add3]] ]
 
-  // CHECK-START: int ConstantFolding.IntAddition2() constant_folding (after)
+  // CHECK-START: int Main.IntAddition2() constant_folding (after)
   // CHECK-DAG:     [[Const14:i\d+]] IntConstant 14
   // CHECK-DAG:                      Return [ [[Const14]] ]
 
@@ -96,19 +96,19 @@ public class ConstantFolding {
    * on subtraction.
    */
 
-  // CHECK-START: int ConstantFolding.IntSubtraction() constant_folding (before)
-  // CHECK-DAG:     [[Const5:i\d+]]  IntConstant 5
+  // CHECK-START: int Main.IntSubtraction() constant_folding (before)
+  // CHECK-DAG:     [[Const6:i\d+]]  IntConstant 6
   // CHECK-DAG:     [[Const2:i\d+]]  IntConstant 2
-  // CHECK-DAG:     [[Sub:i\d+]]     Sub [ [[Const5]] [[Const2]] ]
+  // CHECK-DAG:     [[Sub:i\d+]]     Sub [ [[Const6]] [[Const2]] ]
   // CHECK-DAG:                      Return [ [[Sub]] ]
 
-  // CHECK-START: int ConstantFolding.IntSubtraction() constant_folding (after)
-  // CHECK-DAG:     [[Const3:i\d+]]  IntConstant 3
-  // CHECK-DAG:                      Return [ [[Const3]] ]
+  // CHECK-START: int Main.IntSubtraction() constant_folding (after)
+  // CHECK-DAG:     [[Const4:i\d+]]  IntConstant 4
+  // CHECK-DAG:                      Return [ [[Const4]] ]
 
   public static int IntSubtraction() {
     int a, b, c;
-    a = 5;
+    a = 6;
     b = 2;
     c = a - b;
     return c;
@@ -119,13 +119,13 @@ public class ConstantFolding {
    * on addition.
    */
 
-  // CHECK-START: long ConstantFolding.LongAddition() constant_folding (before)
+  // CHECK-START: long Main.LongAddition() constant_folding (before)
   // CHECK-DAG:     [[Const1:j\d+]]  LongConstant 1
   // CHECK-DAG:     [[Const2:j\d+]]  LongConstant 2
   // CHECK-DAG:     [[Add:j\d+]]     Add [ [[Const1]] [[Const2]] ]
   // CHECK-DAG:                      Return [ [[Add]] ]
 
-  // CHECK-START: long ConstantFolding.LongAddition() constant_folding (after)
+  // CHECK-START: long Main.LongAddition() constant_folding (after)
   // CHECK-DAG:     [[Const3:j\d+]]  LongConstant 3
   // CHECK-DAG:                      Return [ [[Const3]] ]
 
@@ -142,19 +142,19 @@ public class ConstantFolding {
    * on subtraction.
    */
 
-  // CHECK-START: long ConstantFolding.LongSubtraction() constant_folding (before)
-  // CHECK-DAG:     [[Const5:j\d+]]  LongConstant 5
+  // CHECK-START: long Main.LongSubtraction() constant_folding (before)
+  // CHECK-DAG:     [[Const6:j\d+]]  LongConstant 6
   // CHECK-DAG:     [[Const2:j\d+]]  LongConstant 2
-  // CHECK-DAG:     [[Sub:j\d+]]     Sub [ [[Const5]] [[Const2]] ]
+  // CHECK-DAG:     [[Sub:j\d+]]     Sub [ [[Const6]] [[Const2]] ]
   // CHECK-DAG:                      Return [ [[Sub]] ]
 
-  // CHECK-START: long ConstantFolding.LongSubtraction() constant_folding (after)
-  // CHECK-DAG:     [[Const3:j\d+]]  LongConstant 3
-  // CHECK-DAG:                      Return [ [[Const3]] ]
+  // CHECK-START: long Main.LongSubtraction() constant_folding (after)
+  // CHECK-DAG:     [[Const4:j\d+]]  LongConstant 4
+  // CHECK-DAG:                      Return [ [[Const4]] ]
 
   public static long LongSubtraction() {
     long a, b, c;
-    a = 5L;
+    a = 6L;
     b = 2L;
     c = a - b;
     return c;
@@ -164,19 +164,19 @@ public class ConstantFolding {
    * Three-register program with a constant (static) condition.
    */
 
-  // CHECK-START: int ConstantFolding.StaticCondition() constant_folding (before)
-  // CHECK-DAG:     [[Const5:i\d+]]  IntConstant 5
+  // CHECK-START: int Main.StaticCondition() constant_folding (before)
+  // CHECK-DAG:     [[Const7:i\d+]]  IntConstant 7
   // CHECK-DAG:     [[Const2:i\d+]]  IntConstant 2
-  // CHECK-DAG:     [[Cond:z\d+]]    GreaterThanOrEqual [ [[Const5]] [[Const2]] ]
+  // CHECK-DAG:     [[Cond:z\d+]]    GreaterThanOrEqual [ [[Const7]] [[Const2]] ]
   // CHECK-DAG:                      If [ [[Cond]] ]
 
-  // CHECK-START: int ConstantFolding.StaticCondition() constant_folding (after)
+  // CHECK-START: int Main.StaticCondition() constant_folding (after)
   // CHECK-DAG:     [[Const1:i\d+]]  IntConstant 1
   // CHECK-DAG:                      If [ [[Const1]] ]
 
   public static int StaticCondition() {
     int a, b, c;
-    a = 5;
+    a = 7;
     b = 2;
     if (a < b)
       c = a + b;
@@ -194,7 +194,7 @@ public class ConstantFolding {
    * (forward) post-order traversal of the the dominator tree.
    */
 
-  // CHECK-START: int ConstantFolding.JumpsAndConditionals(boolean) constant_folding (before)
+  // CHECK-START: int Main.JumpsAndConditionals(boolean) constant_folding (before)
   // CHECK-DAG:     [[Const2:i\d+]]  IntConstant 2
   // CHECK-DAG:     [[Const5:i\d+]]  IntConstant 5
   // CHECK-DAG:     [[Add:i\d+]]     Add [ [[Const5]] [[Const2]] ]
@@ -202,7 +202,7 @@ public class ConstantFolding {
   // CHECK-DAG:     [[Phi:i\d+]]     Phi [ [[Add]] [[Sub]] ]
   // CHECK-DAG:                      Return [ [[Phi]] ]
 
-  // CHECK-START: int ConstantFolding.JumpsAndConditionals(boolean) constant_folding (after)
+  // CHECK-START: int Main.JumpsAndConditionals(boolean) constant_folding (after)
   // CHECK-DAG:     [[Const3:i\d+]]  IntConstant 3
   // CHECK-DAG:     [[Const7:i\d+]]  IntConstant 7
   // CHECK-DAG:     [[Phi:i\d+]]     Phi [ [[Const7]] [[Const3]] ]
@@ -217,5 +217,43 @@ public class ConstantFolding {
     else
       c = a - b;
     return c;
+  }
+
+  public static void main(String[] args) {
+    if (IntNegation() != -42) {
+      throw new Error();
+    }
+
+    if (IntAddition1() != 3) {
+      throw new Error();
+    }
+
+    if (IntAddition2() != 14) {
+      throw new Error();
+    }
+
+    if (IntSubtraction() != 4) {
+      throw new Error();
+    }
+
+    if (LongAddition() != 3L) {
+      throw new Error();
+    }
+
+    if (LongSubtraction() != 4L) {
+      throw new Error();
+    }
+
+    if (StaticCondition() != 5) {
+      throw new Error();
+    }
+
+    if (JumpsAndConditionals(true) != 7) {
+      throw new Error();
+    }
+
+    if (JumpsAndConditionals(false) != 3) {
+      throw new Error();
+    }
   }
 }
