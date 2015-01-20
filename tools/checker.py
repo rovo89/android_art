@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python2
 #
 # Copyright (C) 2014 The Android Open Source Project
 #
@@ -71,6 +71,7 @@
 #   constant folding returns an integer constant with value either 11 or 22.
 #
 
+from __future__ import print_function
 import argparse
 import os
 import re
