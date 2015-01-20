@@ -274,7 +274,8 @@ class Dex2Oat {
 
   void LogCompletionTime(const CompilerDriver* compiler) {
     LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_)
-              << " (threads: " << thread_count_ << ") " << compiler->GetMemoryUsageString();
+              << " (threads: " << thread_count_ << ") "
+              << compiler->GetMemoryUsageString(kIsDebugBuild || VLOG_IS_ON(compiler));
   }
 
 
