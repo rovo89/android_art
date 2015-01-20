@@ -66,21 +66,14 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   RegStorage LoadHelper(QuickEntrypointEnum trampoline) OVERRIDE;
   LIR* LoadBaseDisp(RegStorage r_base, int displacement, RegStorage r_dest,
                     OpSize size, VolatileKind is_volatile) OVERRIDE;
-  LIR* LoadRefDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                   VolatileKind is_volatile) OVERRIDE;
   LIR* LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale,
                        OpSize size) OVERRIDE;
-  LIR* LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest, int scale)
-      OVERRIDE;
   LIR* LoadConstantNoClobber(RegStorage r_dest, int value) OVERRIDE;
   LIR* LoadConstantWide(RegStorage r_dest, int64_t value) OVERRIDE;
   LIR* StoreBaseDisp(RegStorage r_base, int displacement, RegStorage r_src, OpSize size,
                      VolatileKind is_volatile) OVERRIDE;
-  LIR* StoreRefDisp(RegStorage r_base, int displacement, RegStorage r_src, VolatileKind is_volatile)
-      OVERRIDE;
   LIR* StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale,
                         OpSize size) OVERRIDE;
-  LIR* StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src, int scale) OVERRIDE;
 
   /// @copydoc Mir2Lir::UnconditionallyMarkGCCard(RegStorage)
   void UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) OVERRIDE;
