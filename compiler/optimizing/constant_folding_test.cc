@@ -19,6 +19,7 @@
 #include "code_generator_x86.h"
 #include "constant_folding.h"
 #include "dead_code_elimination.h"
+#include "driver/compiler_options.h"
 #include "graph_checker.h"
 #include "optimizing_unit_test.h"
 #include "pretty_printer.h"
@@ -45,7 +46,7 @@ static void TestCode(const uint16_t* data,
   std::string actual_before = printer_before.str();
   ASSERT_EQ(expected_before, actual_before);
 
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   HConstantFolding(graph).Run();
   SSAChecker ssa_checker_cf(&allocator, graph);
   ssa_checker_cf.Run();

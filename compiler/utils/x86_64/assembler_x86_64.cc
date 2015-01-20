@@ -1121,6 +1121,14 @@ void X86_64Assembler::testl(CpuRegister reg1, CpuRegister reg2) {
 }
 
 
+void X86_64Assembler::testl(CpuRegister reg, const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(reg, address);
+  EmitUint8(0x85);
+  EmitOperand(reg.LowBits(), address);
+}
+
+
 void X86_64Assembler::testl(CpuRegister reg, const Immediate& immediate) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   // For registers that have a byte variant (RAX, RBX, RCX, and RDX)

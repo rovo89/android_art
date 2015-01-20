@@ -22,6 +22,7 @@
 #include "mirror/array-inl.h"
 #include "mirror/art_method.h"
 #include "mirror/class.h"
+#include "offsets.h"
 #include "thread.h"
 #include "utils/arm64/assembler_arm64.h"
 #include "utils/assembler.h"
@@ -562,11 +563,12 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
   return next_location;
 }
 
-CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph)
+CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph, const CompilerOptions& compiler_options)
     : CodeGenerator(graph,
                     kNumberOfAllocatableRegisters,
                     kNumberOfAllocatableFPRegisters,
-                    kNumberOfAllocatableRegisterPairs),
+                    kNumberOfAllocatableRegisterPairs,
+                    compiler_options),
       block_labels_(nullptr),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
@@ -2291,7 +2293,14 @@ void LocationsBuilderARM64::VisitNullCheck(HNullCheck* instruction) {
   }
 }
 
-void InstructionCodeGeneratorARM64::VisitNullCheck(HNullCheck* instruction) {
+void InstructionCodeGeneratorARM64::GenerateImplicitNullCheck(HNullCheck* instruction) {
+  Location obj = instruction->GetLocations()->InAt(0);
+
+  __ Ldr(wzr, HeapOperandFrom(obj, Offset(0)));
+  codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
+}
+
+void InstructionCodeGeneratorARM64::GenerateExplicitNullCheck(HNullCheck* instruction) {
   SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) NullCheckSlowPathARM64(instruction);
   codegen_->AddSlowPath(slow_path);
 
@@ -2303,6 +2312,14 @@ void InstructionCodeGeneratorARM64::VisitNullCheck(HNullCheck* instruction) {
     DCHECK(obj.IsConstant()) << obj;
     DCHECK_EQ(obj.GetConstant()->AsIntConstant()->GetValue(), 0);
     __ B(slow_path->GetEntryLabel());
+  }
+}
+
+void InstructionCodeGeneratorARM64::VisitNullCheck(HNullCheck* instruction) {
+  if (codegen_->GetCompilerOptions().GetImplicitNullChecks()) {
+    GenerateImplicitNullCheck(instruction);
+  } else {
+    GenerateExplicitNullCheck(instruction);
   }
 }
 

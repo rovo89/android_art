@@ -19,6 +19,7 @@
 #include "code_generator_x86.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
+#include "driver/compiler_options.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
 #include "prepare_for_register_allocation.h"
@@ -63,7 +64,7 @@ TEST(LiveRangesTest, CFG1) {
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
 
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
@@ -109,7 +110,7 @@ TEST(LiveRangesTest, CFG2) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
@@ -158,7 +159,7 @@ TEST(LiveRangesTest, CFG3) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
@@ -235,7 +236,7 @@ TEST(LiveRangesTest, Loop1) {
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
   RemoveSuspendChecks(graph);
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
@@ -313,7 +314,7 @@ TEST(LiveRangesTest, Loop2) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
@@ -389,7 +390,7 @@ TEST(LiveRangesTest, CFG4) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
   HGraph* graph = BuildGraph(data, &allocator);
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
