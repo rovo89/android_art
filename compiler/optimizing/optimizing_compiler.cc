@@ -330,7 +330,8 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                                             const DexFile& dex_file) const {
   UNUSED(invoke_type);
   compilation_stats_.RecordStat(MethodCompilationStat::kAttemptCompilation);
-  InstructionSet instruction_set = GetCompilerDriver()->GetInstructionSet();
+  CompilerDriver* compiler_driver = GetCompilerDriver();
+  InstructionSet instruction_set = compiler_driver->GetInstructionSet();
   // Always use the thumb2 assembler: some runtime functionality (like implicit stack
   // overflow checks) assume thumb2.
   if (instruction_set == kArm) {
@@ -351,7 +352,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
   DexCompilationUnit dex_compilation_unit(
     nullptr, class_loader, art::Runtime::Current()->GetClassLinker(), dex_file, code_item,
     class_def_idx, method_idx, access_flags,
-    GetCompilerDriver()->GetVerifiedMethod(&dex_file, method_idx));
+    compiler_driver->GetVerifiedMethod(&dex_file, method_idx));
 
   std::string method_name = PrettyMethod(method_idx, dex_file);
 
@@ -366,7 +367,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                         &dex_compilation_unit,
                         &dex_compilation_unit,
                         &dex_file,
-                        GetCompilerDriver(),
+                        compiler_driver,
                         &compilation_stats_);
 
   VLOG(compiler) << "Building " << PrettyMethod(method_idx, dex_file);
@@ -376,9 +377,11 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     return nullptr;
   }
 
-  CompilerDriver* compiler_driver = GetCompilerDriver();
   std::unique_ptr<CodeGenerator> codegen(
-      CodeGenerator::Create(graph, instruction_set, *compiler_driver->GetInstructionSetFeatures()));
+      CodeGenerator::Create(graph,
+                            instruction_set,
+                            *compiler_driver->GetInstructionSetFeatures(),
+                            compiler_driver->GetCompilerOptions()));
   if (codegen.get() == nullptr) {
     CHECK(!shouldCompile) << "Could not find code generator for optimizing compiler";
     compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledNoCodegen);
