@@ -1062,9 +1062,11 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
       opcode = WIDE(kA64Ldr4rXxG);
       expected_scale = 3;
       break;
-    case kSingle:     // Intentional fall-through.
-    case k32:         // Intentional fall-through.
     case kReference:
+      r_dest = As32BitReg(r_dest);
+      FALLTHROUGH_INTENDED;
+    case kSingle:     // Intentional fall-through.
+    case k32:
       r_dest = Check32BitReg(r_dest);
       opcode = kA64Ldr4rXxG;
       expected_scale = 2;
@@ -1103,11 +1105,6 @@ LIR* Arm64Mir2Lir::LoadBaseIndexed(RegStorage r_base, RegStorage r_index, RegSto
   }
 
   return load;
-}
-
-LIR* Arm64Mir2Lir::LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
-                                  int scale) {
-  return LoadBaseIndexed(r_base, r_index, As32BitReg(r_dest), scale, kReference);
 }
 
 LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
@@ -1150,9 +1147,11 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
       opcode = WIDE(kA64Str4rXxG);
       expected_scale = 3;
       break;
-    case kSingle:     // Intentional fall-trough.
-    case k32:         // Intentional fall-trough.
     case kReference:
+      r_src = As32BitReg(r_src);
+      FALLTHROUGH_INTENDED;
+    case kSingle:     // Intentional fall-trough.
+    case k32:
       r_src = Check32BitReg(r_src);
       opcode = kA64Str4rXxG;
       expected_scale = 2;
@@ -1185,11 +1184,6 @@ LIR* Arm64Mir2Lir::StoreBaseIndexed(RegStorage r_base, RegStorage r_index, RegSt
   return store;
 }
 
-LIR* Arm64Mir2Lir::StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
-                                   int scale) {
-  return StoreBaseIndexed(r_base, r_index, As32BitReg(r_src), scale, kReference);
-}
-
 /*
  * Load value from base + displacement.  Optionally perform null check
  * on base (which must have an associated s_reg and MIR).  If not
@@ -1217,9 +1211,11 @@ LIR* Arm64Mir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStor
         alt_opcode = WIDE(kA64Ldur3rXd);
       }
       break;
-    case kSingle:     // Intentional fall-through.
-    case k32:         // Intentional fall-trough.
     case kReference:
+      r_dest = As32BitReg(r_dest);
+      FALLTHROUGH_INTENDED;
+    case kSingle:     // Intentional fall-through.
+    case k32:
       r_dest = Check32BitReg(r_dest);
       scale = 2;
       if (r_dest.IsFloat()) {
@@ -1287,11 +1283,6 @@ LIR* Arm64Mir2Lir::LoadBaseDisp(RegStorage r_base, int displacement, RegStorage 
   return load;
 }
 
-LIR* Arm64Mir2Lir::LoadRefDisp(RegStorage r_base, int displacement, RegStorage r_dest,
-                               VolatileKind is_volatile) {
-  return LoadBaseDisp(r_base, displacement, As32BitReg(r_dest), kReference, is_volatile);
-}
-
 LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegStorage r_src,
                                      OpSize size) {
   LIR* store = NULL;
@@ -1314,9 +1305,11 @@ LIR* Arm64Mir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement, RegSto
         alt_opcode = WIDE(kA64Stur3rXd);
       }
       break;
-    case kSingle:     // Intentional fall-through.
-    case k32:         // Intentional fall-trough.
     case kReference:
+      r_src = As32BitReg(r_src);
+      FALLTHROUGH_INTENDED;
+    case kSingle:     // Intentional fall-through.
+    case k32:
       r_src = Check32BitReg(r_src);
       scale = 2;
       if (r_src.IsFloat()) {
@@ -1383,11 +1376,6 @@ LIR* Arm64Mir2Lir::StoreBaseDisp(RegStorage r_base, int displacement, RegStorage
   }
 
   return store;
-}
-
-LIR* Arm64Mir2Lir::StoreRefDisp(RegStorage r_base, int displacement, RegStorage r_src,
-                                VolatileKind is_volatile) {
-  return StoreBaseDisp(r_base, displacement, As32BitReg(r_src), kReference, is_volatile);
 }
 
 LIR* Arm64Mir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
