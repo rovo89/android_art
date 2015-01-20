@@ -409,6 +409,7 @@ class X86_64Assembler FINAL : public Assembler {
   void cmpq(const Address& address, const Immediate& imm);
 
   void testl(CpuRegister reg1, CpuRegister reg2);
+  void testl(CpuRegister reg, const Address& address);
   void testl(CpuRegister reg, const Immediate& imm);
 
   void testq(CpuRegister reg1, CpuRegister reg2);

@@ -19,6 +19,7 @@
 
 #include "code_generator.h"
 #include "dex/compiler_enums.h"
+#include "driver/compiler_options.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 #include "utils/x86/assembler_x86.h"
@@ -144,6 +145,9 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
 
+  void GenerateImplicitNullCheck(HNullCheck* instruction);
+  void GenerateExplicitNullCheck(HNullCheck* instruction);
+
   X86Assembler* const assembler_;
   CodeGeneratorX86* const codegen_;
 
@@ -152,7 +156,7 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
 
 class CodeGeneratorX86 : public CodeGenerator {
  public:
-  explicit CodeGeneratorX86(HGraph* graph);
+  CodeGeneratorX86(HGraph* graph, const CompilerOptions& compiler_options);
   virtual ~CodeGeneratorX86() {}
 
   void GenerateFrameEntry() OVERRIDE;

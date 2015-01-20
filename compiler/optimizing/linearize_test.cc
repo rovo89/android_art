@@ -22,6 +22,7 @@
 #include "code_generator_x86.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
+#include "driver/compiler_options.h"
 #include "graph_visualizer.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
@@ -44,7 +45,7 @@ static void TestCode(const uint16_t* data, const int* expected_order, size_t num
 
   graph->TryBuildingSsa();
 
-  x86::CodeGeneratorX86 codegen(graph);
+  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 

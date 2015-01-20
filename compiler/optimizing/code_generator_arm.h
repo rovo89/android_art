@@ -19,6 +19,7 @@
 
 #include "code_generator.h"
 #include "dex/compiler_enums.h"
+#include "driver/compiler_options.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 #include "utils/arm/assembler_thumb2.h"
@@ -143,7 +144,8 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
                               Register out_lo, Register out_hi);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
-
+  void GenerateImplicitNullCheck(HNullCheck* instruction);
+  void GenerateExplicitNullCheck(HNullCheck* instruction);
 
   ArmAssembler* const assembler_;
   CodeGeneratorARM* const codegen_;
@@ -153,7 +155,9 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
 
 class CodeGeneratorARM : public CodeGenerator {
  public:
-  CodeGeneratorARM(HGraph* graph, const ArmInstructionSetFeatures* isa_features);
+  CodeGeneratorARM(HGraph* graph,
+                   const ArmInstructionSetFeatures& isa_features,
+                   const CompilerOptions& compiler_options);
   virtual ~CodeGeneratorARM() {}
 
   void GenerateFrameEntry() OVERRIDE;
@@ -234,7 +238,7 @@ class CodeGeneratorARM : public CodeGenerator {
     block_labels_.SetSize(GetGraph()->GetBlocks().Size());
   }
 
-  const ArmInstructionSetFeatures* GetInstructionSetFeatures() const {
+  const ArmInstructionSetFeatures& GetInstructionSetFeatures() const {
     return isa_features_;
   }
 
@@ -249,7 +253,7 @@ class CodeGeneratorARM : public CodeGenerator {
   InstructionCodeGeneratorARM instruction_visitor_;
   ParallelMoveResolverARM move_resolver_;
   Thumb2Assembler assembler_;
-  const ArmInstructionSetFeatures* isa_features_;
+  const ArmInstructionSetFeatures& isa_features_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM);
 };

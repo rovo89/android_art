@@ -19,6 +19,7 @@
 
 #include "code_generator.h"
 #include "dex/compiler_enums.h"
+#include "driver/compiler_options.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 #include "utils/x86_64/assembler_x86_64.h"
@@ -159,6 +160,8 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   void GenerateMemoryBarrier(MemBarrierKind kind);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+  void GenerateImplicitNullCheck(HNullCheck* instruction);
+  void GenerateExplicitNullCheck(HNullCheck* instruction);
 
   X86_64Assembler* const assembler_;
   CodeGeneratorX86_64* const codegen_;
@@ -168,7 +171,7 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
 
 class CodeGeneratorX86_64 : public CodeGenerator {
  public:
-  explicit CodeGeneratorX86_64(HGraph* graph);
+  CodeGeneratorX86_64(HGraph* graph, const CompilerOptions& compiler_options);
   virtual ~CodeGeneratorX86_64() {}
 
   void GenerateFrameEntry() OVERRIDE;
