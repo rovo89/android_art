@@ -2437,10 +2437,6 @@ void InstructionCodeGeneratorARM::VisitNot(HNot* not_) {
   Location out = locations->Out();
   Location in = locations->InAt(0);
   switch (not_->InputAt(0)->GetType()) {
-    case Primitive::kPrimBoolean:
-      __ eor(out.AsRegister<Register>(), in.AsRegister<Register>(), ShifterOperand(1));
-      break;
-
     case Primitive::kPrimInt:
       __ mvn(out.AsRegister<Register>(), ShifterOperand(in.AsRegister<Register>()));
       break;
