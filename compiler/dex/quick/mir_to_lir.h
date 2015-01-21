@@ -959,24 +959,20 @@ class Mir2Lir : public Backend {
     void LoadCurrMethodDirect(RegStorage r_tgt);
     virtual LIR* LoadConstant(RegStorage r_dest, int value);
     // Natural word size.
-    virtual LIR* LoadWordDisp(RegStorage r_base, int displacement, RegStorage r_dest) {
+    LIR* LoadWordDisp(RegStorage r_base, int displacement, RegStorage r_dest) {
       return LoadBaseDisp(r_base, displacement, r_dest, kWord, kNotVolatile);
     }
-    // Load 8 bits, regardless of target.
-    virtual LIR* Load8Disp(RegStorage r_base, int displacement, RegStorage r_dest) {
-      return LoadBaseDisp(r_base, displacement, r_dest, kSignedByte, kNotVolatile);
-    }
     // Load 32 bits, regardless of target.
-    virtual LIR* Load32Disp(RegStorage r_base, int displacement, RegStorage r_dest)  {
+    LIR* Load32Disp(RegStorage r_base, int displacement, RegStorage r_dest)  {
       return LoadBaseDisp(r_base, displacement, r_dest, k32, kNotVolatile);
     }
     // Load a reference at base + displacement and decompress into register.
-    virtual LIR* LoadRefDisp(RegStorage r_base, int displacement, RegStorage r_dest,
+    LIR* LoadRefDisp(RegStorage r_base, int displacement, RegStorage r_dest,
                              VolatileKind is_volatile) {
       return LoadBaseDisp(r_base, displacement, r_dest, kReference, is_volatile);
     }
     // Load a reference at base + index and decompress into register.
-    virtual LIR* LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
+    LIR* LoadRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_dest,
                                 int scale) {
       return LoadBaseIndexed(r_base, r_index, r_dest, scale, kReference);
     }
@@ -993,21 +989,21 @@ class Mir2Lir : public Backend {
     // Load Dalvik value with 64-bit memory storage.
     virtual void LoadValueDirectWideFixed(RegLocation rl_src, RegStorage r_dest);
     // Store an item of natural word size.
-    virtual LIR* StoreWordDisp(RegStorage r_base, int displacement, RegStorage r_src) {
+    LIR* StoreWordDisp(RegStorage r_base, int displacement, RegStorage r_src) {
       return StoreBaseDisp(r_base, displacement, r_src, kWord, kNotVolatile);
     }
     // Store an uncompressed reference into a compressed 32-bit container.
-    virtual LIR* StoreRefDisp(RegStorage r_base, int displacement, RegStorage r_src,
+    LIR* StoreRefDisp(RegStorage r_base, int displacement, RegStorage r_src,
                               VolatileKind is_volatile) {
       return StoreBaseDisp(r_base, displacement, r_src, kReference, is_volatile);
     }
     // Store an uncompressed reference into a compressed 32-bit container by index.
-    virtual LIR* StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
+    LIR* StoreRefIndexed(RegStorage r_base, RegStorage r_index, RegStorage r_src,
                                  int scale) {
       return StoreBaseIndexed(r_base, r_index, r_src, scale, kReference);
     }
     // Store 32 bits, regardless of target.
-    virtual LIR* Store32Disp(RegStorage r_base, int displacement, RegStorage r_src) {
+    LIR* Store32Disp(RegStorage r_base, int displacement, RegStorage r_src) {
       return StoreBaseDisp(r_base, displacement, r_src, k32, kNotVolatile);
     }
 
