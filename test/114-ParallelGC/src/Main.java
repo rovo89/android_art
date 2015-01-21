@@ -16,54 +16,36 @@
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 public class Main implements Runnable {
 
     // Timeout in minutes. Make it larger than the run-test timeout to get a native thread dump by
     // ART on timeout when running on the host.
-    public final static long TIMEOUT_VALUE = 12;
+    private final static long TIMEOUT_VALUE = 7;
 
-    public final static long MAX_SIZE = 1000;  // Maximum size of array-list to allocate.
+    private final static long MAX_SIZE = 1000;  // Maximum size of array-list to allocate.
+
+    private final static int THREAD_COUNT = 16;
+
+    // Use a couple of different forms of synchronizing to test some of these...
+    private final static AtomicInteger counter = new AtomicInteger();
+    private final static Object gate = new Object();
+    private volatile static int waitCount = 0;
 
     public static void main(String[] args) throws Exception {
-        Thread[] threads = new Thread[16];
+        Thread[] threads = new Thread[THREAD_COUNT];
 
-        // Use a cyclic system of synchronous queues to pass a boolean token around.
-        //
-        // The combinations are:
-        //
-        // Worker receives:    true     false    false    true
-        // Worker has OOM:     false    false    true     true
-        //    |
-        //    v
-        // Value to pass:      true     false    false    false
-        // Exit out of loop:   false    true     true     true
-        // Wait on in queue:   true     false    false    true
-        //
-        // Finally, the workers are supposed to wait on the barrier to synchronize the GC run.
-
-        CyclicBarrier barrier = new CyclicBarrier(threads.length);
-        List<SynchronousQueue<Boolean>> queues = new ArrayList<SynchronousQueue<Boolean>>(
-            threads.length);
-        for (int i = 0; i < threads.length; i++) {
-            queues.add(new SynchronousQueue<Boolean>());
-        }
+        // This barrier is used to synchronize the threads starting to allocate.
+        // Note: Even though a barrier is not allocation-free, this one is fine, as it will be used
+        //       before filling the heap.
+        CyclicBarrier startBarrier = new CyclicBarrier(threads.length);
 
         for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(new Main(i, queues.get(i), queues.get((i + 1) % threads.length),
-                                             barrier));
+            threads[i] = new Thread(new Main(startBarrier));
+            threads[i].start();
         }
-        for (Thread thread : threads) {
-            thread.start();
-        }
-
-        // Push off the cycle.
-        checkTimeout(queues.get(0).offer(Boolean.TRUE, TIMEOUT_VALUE, TimeUnit.MINUTES));
 
         // Wait for the threads to finish.
         for (Thread thread : threads) {
@@ -72,85 +54,84 @@ public class Main implements Runnable {
 
         // Allocate objects to definitely run GC before quitting.
         try {
-            for (int i = 0; i < 1000; i++) {
-                new ArrayList<Object>(i);
+            ArrayList<Object> l = new ArrayList<Object>();
+            for (int i = 0; i < 100000; i++) {
+                l.add(new ArrayList<Object>(i));
             }
         } catch (OutOfMemoryError oom) {
         }
+        new ArrayList<Object>(50);
     }
 
-    private static void checkTimeout(Object o) {
-        checkTimeout(o != null);
+    private Main(CyclicBarrier startBarrier) {
+        this.startBarrier = startBarrier;
     }
 
-    private static void checkTimeout(boolean b) {
-        if (!b) {
-            // Something went wrong.
-            System.out.println("Bad things happened, timeout.");
-            System.exit(1);
-        }
-    }
-
-    private final int id;
-    private final SynchronousQueue<Boolean> waitOn;
-    private final SynchronousQueue<Boolean> pushTo;
-    private final CyclicBarrier finalBarrier;
-
-    private Main(int id, SynchronousQueue<Boolean> waitOn, SynchronousQueue<Boolean> pushTo,
-        CyclicBarrier finalBarrier) {
-        this.id = id;
-        this.waitOn = waitOn;
-        this.pushTo = pushTo;
-        this.finalBarrier = finalBarrier;
-    }
+    private ArrayList<Object> store;
+    private CyclicBarrier startBarrier;
 
     public void run() {
         try {
             work();
-        } catch (Exception exc) {
-            // Any exception is bad.
-            exc.printStackTrace(System.err);
+        } catch (Throwable t) {
+            // Any exception or error getting here is bad.
+            try {
+                // May need allocations...
+                t.printStackTrace(System.err);
+            } catch (Throwable tInner) {
+            }
             System.exit(1);
         }
     }
 
-    public void work() throws BrokenBarrierException, InterruptedException, TimeoutException {
+    private void work() throws Exception {
+        // Any exceptions except an OOME in the allocation loop are bad and handed off to the
+        // caller which should abort the whole runtime.
+
         ArrayList<Object> l = new ArrayList<Object>();
+        store = l;  // Keep it alive.
 
-        // Main loop.
-        for (int i = 0; ; i++) {
-          Boolean receivedB = waitOn.poll(TIMEOUT_VALUE, TimeUnit.MINUTES);
-          checkTimeout(receivedB);
-          boolean received = receivedB;
+        // Wait for the start signal.
+        startBarrier.await(TIMEOUT_VALUE, java.util.concurrent.TimeUnit.MINUTES);
 
-          // This is the first stage, try to allocate up till MAX_SIZE.
-          boolean oom = i >= MAX_SIZE;
-          try {
-            l.add(new ArrayList<Object>(i));
-          } catch (OutOfMemoryError oome) {
-            oom = true;
-          }
-
-          if (!received || oom) {
-            // First stage, always push false.
-            checkTimeout(pushTo.offer(Boolean.FALSE, TIMEOUT_VALUE, TimeUnit.MINUTES));
-
-            // If we received true, wait for the false to come around.
-            if (received) {
-              checkTimeout(waitOn.poll(TIMEOUT_VALUE, TimeUnit.MINUTES));
+        // Allocate.
+        try {
+            for (int i = 0; i < MAX_SIZE; i++) {
+                l.add(new ArrayList<Object>(i));
             }
-
-            // Break out of the loop.
-            break;
-          } else {
-            // Pass on true.
-            checkTimeout(pushTo.offer(Boolean.TRUE, TIMEOUT_VALUE, TimeUnit.MINUTES));
-          }
+        } catch (OutOfMemoryError oome) {
+            // Fine, we're done.
         }
 
-        // We have reached the final point. Wait on the barrier, but at most a minute.
-        finalBarrier.await(TIMEOUT_VALUE, TimeUnit.MINUTES);
+        // Atomically increment the counter and check whether we were last.
+        int number = counter.incrementAndGet();
 
-        // Done.
+        if (number < THREAD_COUNT) {
+            // Not last.
+            synchronized (gate) {
+                // Increment the wait counter.
+                waitCount++;
+                gate.wait(TIMEOUT_VALUE * 1000 * 60);
+            }
+        } else {
+            // Last. Wait until waitCount == THREAD_COUNT - 1.
+            for (int loops = 0; ; loops++) {
+                synchronized (gate) {
+                    if (waitCount == THREAD_COUNT - 1) {
+                        // OK, everyone's waiting. Notify and break out.
+                        gate.notifyAll();
+                        break;
+                    } else if (loops > 40) {
+                        // 1s wait, too many tries.
+                        System.out.println("Waited too long for the last thread.");
+                        System.exit(1);
+                    }
+                }
+                // Wait a bit.
+                Thread.sleep(25);
+            }
+        }
+
+        store = null;  // Allow GC to reclaim it.
     }
 }
