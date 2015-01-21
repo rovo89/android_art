@@ -317,9 +317,15 @@ class X86Assembler FINAL : public Assembler {
 
   void flds(const Address& src);
   void fstps(const Address& dst);
+  void fsts(const Address& dst);
 
   void fldl(const Address& src);
   void fstpl(const Address& dst);
+  void fstl(const Address& dst);
+
+  void fstsw();
+
+  void fucompp();
 
   void fnstcw(const Address& dst);
   void fldcw(const Address& src);
@@ -334,6 +340,7 @@ class X86Assembler FINAL : public Assembler {
   void fsin();
   void fcos();
   void fptan();
+  void fprem();
 
   void xchgl(Register dst, Register src);
   void xchgl(Register reg, const Address& address);
