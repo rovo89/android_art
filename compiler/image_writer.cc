@@ -561,8 +561,10 @@ void ImageWriter::ProcessStrings() {
   }
   CHECK_EQ(pos, num_chars);
 
-  LOG(INFO) << "Total # image strings=" << total_strings << " combined length="
-      << num_chars << " prefix saved chars=" << prefix_saved_chars;
+  if (kIsDebugBuild || VLOG_IS_ON(compiler)) {
+    LOG(INFO) << "Total # image strings=" << total_strings << " combined length="
+        << num_chars << " prefix saved chars=" << prefix_saved_chars;
+  }
   ComputeEagerResolvedStrings();
 }
 
