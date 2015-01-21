@@ -197,7 +197,7 @@ class CodeGeneratorARM : public CodeGenerator {
     return GetLabelOf(block)->Position();
   }
 
-  void SetupBlockedRegisters() const OVERRIDE;
+  void SetupBlockedRegisters(bool is_baseline) const OVERRIDE;
 
   Location AllocateFreeRegister(Primitive::Type type) const OVERRIDE;
 

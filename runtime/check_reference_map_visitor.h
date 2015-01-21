@@ -82,7 +82,7 @@ class CheckReferenceMapVisitor : public StackVisitor {
           CHECK(stack_mask.LoadBit(dex_register_map.GetValue(reg) >> 2));
           break;
         case DexRegisterMap::kInRegister:
-          CHECK_NE(register_mask & dex_register_map.GetValue(reg), 0u);
+          CHECK_NE(register_mask & (1 << dex_register_map.GetValue(reg)), 0u);
           break;
         case DexRegisterMap::kInFpuRegister:
           // In Fpu register, should not be a reference.
