@@ -421,7 +421,6 @@ class Hprof {
   void Dump()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_) {
-    ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
     // First pass to measure the size of the dump.
     size_t overall_size;
     size_t max_length;
@@ -487,8 +486,7 @@ class Hprof {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ProcessHeap(EndianOutput* output, bool header_first)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Reset current heap and object count.
     current_heap_ = HPROF_HEAP_DEFAULT;
     objects_in_segment_ = 0;
@@ -502,8 +500,7 @@ class Hprof {
     }
   }
 
-  void ProcessBody(EndianOutput* output) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+  void ProcessBody(EndianOutput* output) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
     Runtime* runtime = Runtime::Current();
     // Walk the roots and the heap.
     output->StartNewRecord(HPROF_TAG_HEAP_DUMP_SEGMENT, kHprofTime);
@@ -646,8 +643,7 @@ class Hprof {
   }
 
   bool DumpToDdmsBuffered(size_t overall_size ATTRIBUTE_UNUSED, size_t max_length ATTRIBUTE_UNUSED)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
     LOG(FATAL) << "Unimplemented";
     UNREACHABLE();
     //        // Send the data off to DDMS.
@@ -660,8 +656,7 @@ class Hprof {
   }
 
   bool DumpToFile(size_t overall_size, size_t max_length)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Where exactly are we writing to?
     int out_fd;
     if (fd_ >= 0) {
@@ -708,8 +703,7 @@ class Hprof {
   }
 
   bool DumpToDdmsDirect(size_t overall_size, size_t max_length, uint32_t chunk_type)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(direct_to_ddms_);
     JDWP::JdwpState* state = Dbg::GetJdwpState();
     CHECK(state != nullptr);
