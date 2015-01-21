@@ -704,8 +704,29 @@ void Heap::CreateThreadPool() {
 }
 
 void Heap::VisitObjects(ObjectCallback callback, void* arg) {
-  // GCs can move objects, so don't allow this.
-  ScopedAssertNoThreadSuspension ants(Thread::Current(), "Visiting objects");
+  Thread* self = Thread::Current();
+  if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
+    // Threads are already suspended.
+    VisitObjectsInternal(callback, arg);
+  } else if (IsGcConcurrent() && IsMovingGc(collector_type_)) {
+    // Concurrent moving GC. Suspend all threads and visit objects.
+    DCHECK_EQ(collector_type_, foreground_collector_type_);
+    DCHECK_EQ(foreground_collector_type_, background_collector_type_)
+        << "Assume no transition such that collector_type_ won't change";
+    self->TransitionFromRunnableToSuspended(kWaitingForVisitObjects);
+    ThreadList* tl = Runtime::Current()->GetThreadList();
+    tl->SuspendAll();
+    VisitObjectsInternal(callback, arg);
+    tl->ResumeAll();
+    self->TransitionFromSuspendedToRunnable();
+  } else {
+    // GCs can move objects, so don't allow this.
+    ScopedAssertNoThreadSuspension ants(self, "Visiting objects");
+    VisitObjectsInternal(callback, arg);
+  }
+}
+
+void Heap::VisitObjectsInternal(ObjectCallback callback, void* arg) {
   if (bump_pointer_space_ != nullptr) {
     // Visit objects in bump pointer space.
     bump_pointer_space_->Walk(callback, arg);
@@ -721,7 +742,10 @@ void Heap::VisitObjects(ObjectCallback callback, void* arg) {
       callback(obj, arg);
     }
   }
-  GetLiveBitmap()->Walk(callback, arg);
+  {
+    ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+    GetLiveBitmap()->Walk(callback, arg);
+  }
 }
 
 void Heap::MarkAllocStackAsLive(accounting::ObjectStack* stack) {
@@ -1459,10 +1483,7 @@ class InstanceCounter {
 
 void Heap::CountInstances(const std::vector<mirror::Class*>& classes, bool use_is_assignable_from,
                           uint64_t* counts) {
-  // Can't do any GC in this function since this may move classes.
-  ScopedAssertNoThreadSuspension ants(Thread::Current(), "CountInstances");
   InstanceCounter counter(classes, use_is_assignable_from, counts);
-  ReaderMutexLock mu(ants.Self(), *Locks::heap_bitmap_lock_);
   VisitObjects(InstanceCounter::Callback, &counter);
 }
 
@@ -1493,10 +1514,7 @@ class InstanceCollector {
 
 void Heap::GetInstances(mirror::Class* c, int32_t max_count,
                         std::vector<mirror::Object*>& instances) {
-  // Can't do any GC in this function since this may move classes.
-  ScopedAssertNoThreadSuspension ants(Thread::Current(), "GetInstances");
   InstanceCollector collector(c, max_count, instances);
-  ReaderMutexLock mu(ants.Self(), *Locks::heap_bitmap_lock_);
   VisitObjects(&InstanceCollector::Callback, &collector);
 }
 
@@ -1538,10 +1556,7 @@ class ReferringObjectsFinder {
 
 void Heap::GetReferringObjects(mirror::Object* o, int32_t max_count,
                                std::vector<mirror::Object*>& referring_objects) {
-  // Can't do any GC in this function since this may move the object o.
-  ScopedAssertNoThreadSuspension ants(Thread::Current(), "GetReferringObjects");
   ReferringObjectsFinder finder(o, max_count, referring_objects);
-  ReaderMutexLock mu(ants.Self(), *Locks::heap_bitmap_lock_);
   VisitObjects(&ReferringObjectsFinder::Callback, &finder);
 }
 
@@ -2702,7 +2717,6 @@ void Heap::PreGcVerificationPaused(collector::GarbageCollector* gc) {
   TimingLogger::ScopedTiming t(__FUNCTION__, timings);
   if (verify_pre_gc_heap_) {
     TimingLogger::ScopedTiming t2("(Paused)PreGcVerifyHeapReferences", timings);
-    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     size_t failures = VerifyHeapReferences();
     if (failures > 0) {
       LOG(FATAL) << "Pre " << gc->GetName() << " heap verification failed with " << failures
@@ -2754,9 +2768,11 @@ void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
   if (verify_pre_sweeping_heap_) {
     TimingLogger::ScopedTiming t2("(Paused)PostSweepingVerifyHeapReferences", timings);
     CHECK_NE(self->GetState(), kRunnable);
-    WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    // Swapping bound bitmaps does nothing.
-    gc->SwapBitmaps();
+    {
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+      // Swapping bound bitmaps does nothing.
+      gc->SwapBitmaps();
+    }
     // Pass in false since concurrent reference processing can mean that the reference referents
     // may point to dead objects at the point which PreSweepingGcVerification is called.
     size_t failures = VerifyHeapReferences(false);
@@ -2764,7 +2780,10 @@ void Heap::PreSweepingGcVerification(collector::GarbageCollector* gc) {
       LOG(FATAL) << "Pre sweeping " << gc->GetName() << " GC verification failed with " << failures
           << " failures";
     }
-    gc->SwapBitmaps();
+    {
+      WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+      gc->SwapBitmaps();
+    }
   }
   if (verify_pre_sweeping_rosalloc_) {
     RosAllocVerification(timings, "PreSweepingRosAllocVerification");
@@ -2786,7 +2805,6 @@ void Heap::PostGcVerificationPaused(collector::GarbageCollector* gc) {
   }
   if (verify_post_gc_heap_) {
     TimingLogger::ScopedTiming t2("(Paused)PostGcVerifyHeapReferences", timings);
-    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     size_t failures = VerifyHeapReferences();
     if (failures > 0) {
       LOG(FATAL) << "Pre " << gc->GetName() << " heap verification failed with " << failures
