@@ -1714,7 +1714,6 @@ void ClassLinker::InitFromImage() {
   // Set entry point to interpreter if in InterpretOnly mode.
   Runtime* runtime = Runtime::Current();
   if (!runtime->IsCompiler() && runtime->GetInstrumentation()->InterpretOnly()) {
-    ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
     heap->VisitObjects(InitFromImageInterpretOnlyCallback, this);
   }
 
