@@ -423,6 +423,10 @@ class ClassLinker {
       LOCKS_EXCLUDED(Locks::classlinker_classes_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Returns true if the method can be called with its direct code pointer, false otherwise.
+  bool MayBeCalledWithDirectCodePointer(mirror::ArtMethod* m)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   bool FindOatMethodFor(mirror::ArtMethod* method, OatFile::OatMethod* oat_method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
