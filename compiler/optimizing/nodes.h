@@ -696,6 +696,9 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   HInstruction* GetNext() const { return next_; }
   HInstruction* GetPrevious() const { return previous_; }
 
+  HInstruction* GetNextDisregardingMoves() const;
+  HInstruction* GetPreviousDisregardingMoves() const;
+
   HBasicBlock* GetBlock() const { return block_; }
   void SetBlock(HBasicBlock* block) { block_ = block; }
   bool IsInBlock() const { return block_ != nullptr; }
@@ -715,6 +718,8 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   virtual bool IsControlFlow() const { return false; }
   virtual bool CanThrow() const { return false; }
   bool HasSideEffects() const { return side_effects_.HasSideEffects(); }
+
+  virtual bool CanDoImplicitNullCheck() const { return false; }
 
   void AddUseAt(HInstruction* user, size_t index) {
     uses_ = new (block_->GetGraph()->GetArena()) HUseListNode<HInstruction>(user, index, uses_);
@@ -1597,7 +1602,7 @@ class HInvoke : public HInstruction {
 
   // Runtime needs to walk the stack, so Dex -> Dex calls need to
   // know their environment.
-  virtual bool NeedsEnvironment() const { return true; }
+  bool NeedsEnvironment() const OVERRIDE { return true; }
 
   void SetArgumentAt(size_t index, HInstruction* argument) {
     SetRawInputAt(index, argument);
@@ -1659,6 +1664,12 @@ class HInvokeStaticOrDirect : public HInvoke {
       : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
         invoke_type_(invoke_type) {}
 
+  bool CanDoImplicitNullCheck() const OVERRIDE {
+    // We access the method via the dex cache so we can't do an implicit null check.
+    // TODO: for intrinsics we can generate implicit null checks.
+    return false;
+  }
+
   InvokeType GetInvokeType() const { return invoke_type_; }
 
   DECLARE_INSTRUCTION(InvokeStaticOrDirect);
@@ -1680,6 +1691,11 @@ class HInvokeVirtual : public HInvoke {
       : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
         vtable_index_(vtable_index) {}
 
+  bool CanDoImplicitNullCheck() const OVERRIDE {
+    // TODO: Add implicit null checks in intrinsics.
+    return !GetLocations()->Intrinsified();
+  }
+
   uint32_t GetVTableIndex() const { return vtable_index_; }
 
   DECLARE_INSTRUCTION(InvokeVirtual);
@@ -1700,6 +1716,11 @@ class HInvokeInterface : public HInvoke {
                    uint32_t imt_index)
       : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
         imt_index_(imt_index) {}
+
+  bool CanDoImplicitNullCheck() const OVERRIDE {
+    // TODO: Add implicit null checks in intrinsics.
+    return !GetLocations()->Intrinsified();
+  }
 
   uint32_t GetImtIndex() const { return imt_index_; }
   uint32_t GetDexMethodIndex() const { return dex_method_index_; }
@@ -2180,7 +2201,11 @@ class HInstanceFieldGet : public HExpression<1> {
     return GetFieldOffset().SizeValue() == other_get->GetFieldOffset().SizeValue();
   }
 
-  virtual size_t ComputeHashCode() const {
+  bool CanDoImplicitNullCheck() const OVERRIDE {
+    return GetFieldOffset().Uint32Value() < kPageSize;
+  }
+
+  size_t ComputeHashCode() const OVERRIDE {
     return (HInstruction::ComputeHashCode() << 7) | GetFieldOffset().SizeValue();
   }
 
@@ -2210,11 +2235,14 @@ class HInstanceFieldSet : public HTemplateInstruction<2> {
     SetRawInputAt(1, value);
   }
 
+  bool CanDoImplicitNullCheck() const OVERRIDE {
+    return GetFieldOffset().Uint32Value() < kPageSize;
+  }
+
   const FieldInfo& GetFieldInfo() const { return field_info_; }
   MemberOffset GetFieldOffset() const { return field_info_.GetFieldOffset(); }
   Primitive::Type GetFieldType() const { return field_info_.GetFieldType(); }
   bool IsVolatile() const { return field_info_.IsVolatile(); }
-
   HInstruction* GetValue() const { return InputAt(1); }
 
   DECLARE_INSTRUCTION(InstanceFieldSet);
@@ -2238,6 +2266,15 @@ class HArrayGet : public HExpression<2> {
     UNUSED(other);
     return true;
   }
+  bool CanDoImplicitNullCheck() const OVERRIDE {
+    // TODO: We can be smarter here.
+    // Currently, the array access is always preceded by an ArrayLength or a NullCheck
+    // which generates the implicit null check. There are cases when these can be removed
+    // to produce better code. If we ever add optimizations to do so we should allow an
+    // implicit check here (as long as the address falls in the first page).
+    return false;
+  }
+
   void SetType(Primitive::Type type) { type_ = type; }
 
   HInstruction* GetArray() const { return InputAt(0); }
@@ -2265,10 +2302,15 @@ class HArraySet : public HTemplateInstruction<3> {
     SetRawInputAt(2, value);
   }
 
-  bool NeedsEnvironment() const {
+  bool NeedsEnvironment() const OVERRIDE {
     // We currently always call a runtime method to catch array store
     // exceptions.
     return needs_type_check_;
+  }
+
+  bool CanDoImplicitNullCheck() const OVERRIDE {
+    // TODO: Same as for ArrayGet.
+    return false;
   }
 
   void ClearNeedsTypeCheck() {
@@ -2313,11 +2355,12 @@ class HArrayLength : public HExpression<1> {
     SetRawInputAt(0, array);
   }
 
-  virtual bool CanBeMoved() const { return true; }
-  virtual bool InstructionDataEquals(HInstruction* other) const {
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     UNUSED(other);
     return true;
   }
+  bool CanDoImplicitNullCheck() const OVERRIDE { return true; }
 
   DECLARE_INSTRUCTION(ArrayLength);
 

@@ -139,7 +139,8 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
   void GenerateMemoryBarrier(MemBarrierKind kind);
   void GenerateWideAtomicStore(Register addr, uint32_t offset,
                                Register value_lo, Register value_hi,
-                               Register temp1, Register temp2);
+                               Register temp1, Register temp2,
+                               HInstruction* instruction);
   void GenerateWideAtomicLoad(Register addr, uint32_t offset,
                               Register out_lo, Register out_hi);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
