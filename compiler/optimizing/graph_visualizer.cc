@@ -142,6 +142,10 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       codegen_.DumpFloatingPointRegister(output_, location.low());
       output_ << " and ";
       codegen_.DumpFloatingPointRegister(output_, location.high());
+    } else if (location.IsRegisterPair()) {
+      codegen_.DumpCoreRegister(output_, location.low());
+      output_ << " and ";
+      codegen_.DumpCoreRegister(output_, location.high());
     } else {
       DCHECK(location.IsDoubleStackSlot());
       output_ << "2x" << location.GetStackIndex() << "(sp)";

@@ -128,8 +128,12 @@ class RegisterAllocator {
   bool ValidateInternal(bool log_fatal_on_failure) const;
   void DumpInterval(std::ostream& stream, LiveInterval* interval) const;
   void DumpAllIntervals(std::ostream& stream) const;
-  int FindAvailableRegisterPair(size_t* next_use) const;
+  int FindAvailableRegisterPair(size_t* next_use, size_t starting_at) const;
   int FindAvailableRegister(size_t* next_use) const;
+
+  // Try splitting an active non-pair interval at the given `position`.
+  // Returns whether it was successful at finding such an interval.
+  bool TrySplitNonPairIntervalAt(size_t position, size_t first_register_use, size_t* next_use);
 
   ArenaAllocator* const allocator_;
   CodeGenerator* const codegen_;
