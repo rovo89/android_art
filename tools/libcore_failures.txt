@@ -44,5 +44,11 @@
   result: EXEC_TIMEOUT,
   modes: [device],
   names: ["org.apache.harmony.tests.java.util.ScannerTest#testPerformance"]
+},
+{
+  description: "Needs the newest cat version on the device",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["org.apache.harmony.tests.java.lang.ProcessTest#test_getErrorStream"]
 }
 ]
