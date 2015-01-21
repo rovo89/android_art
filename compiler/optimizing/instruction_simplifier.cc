@@ -59,10 +59,9 @@ void InstructionSimplifierVisitor::VisitEqual(HEqual* equal) {
       equal->ReplaceWith(equal->InputAt(0));
       equal->GetBlock()->RemoveInstruction(equal);
     } else {
-      // Replace (bool_value == 0) with !bool_value
+      // We should replace (bool_value == 0) with !bool_value, but we unfortunately
+      // do not have such instruction.
       DCHECK_EQ(input2->AsIntConstant()->GetValue(), 0);
-      equal->GetBlock()->ReplaceAndRemoveInstructionWith(
-          equal, new (GetGraph()->GetArena()) HNot(Primitive::kPrimBoolean, input1));
     }
   }
 }
