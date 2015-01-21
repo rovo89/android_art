@@ -31,6 +31,11 @@ static const char* kTypeNames[] = {
   "PrimVoid",
 };
 
+const char* Primitive::PrettyDescriptor(Primitive::Type type) {
+  CHECK(Primitive::kPrimNot <= type && type <= Primitive::kPrimVoid) << static_cast<int>(type);
+  return kTypeNames[type];
+}
+
 std::ostream& operator<<(std::ostream& os, const Primitive::Type& type) {
   int32_t int_type = static_cast<int32_t>(type);
   if (type >= Primitive::kPrimNot && type <= Primitive::kPrimVoid) {
