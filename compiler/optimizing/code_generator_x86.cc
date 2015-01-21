@@ -31,8 +31,6 @@ namespace art {
 
 namespace x86 {
 
-static constexpr bool kExplicitStackOverflowCheck = false;
-
 static constexpr int kNumberOfPushedRegistersAtEntry = 1;
 static constexpr int kCurrentMethodStackOffset = 0;
 
@@ -470,7 +468,9 @@ void CodeGeneratorX86::GenerateFrameEntry() {
 
   bool skip_overflow_check =
       IsLeafMethod() && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kX86);
-  if (!skip_overflow_check && !kExplicitStackOverflowCheck) {
+  bool implicitStackOverflowChecks = GetCompilerOptions().GetImplicitStackOverflowChecks();
+
+  if (!skip_overflow_check && implicitStackOverflowChecks) {
     __ testl(EAX, Address(ESP, -static_cast<int32_t>(GetStackOverflowReservedBytes(kX86))));
     RecordPcInfo(nullptr, 0);
   }
@@ -478,7 +478,7 @@ void CodeGeneratorX86::GenerateFrameEntry() {
   // The return PC has already been pushed on the stack.
   __ subl(ESP, Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86WordSize));
 
-  if (!skip_overflow_check && kExplicitStackOverflowCheck) {
+  if (!skip_overflow_check && !implicitStackOverflowChecks) {
     SlowPathCodeX86* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathX86();
     AddSlowPath(slow_path);
 

@@ -34,8 +34,6 @@ namespace art {
 
 namespace x86_64 {
 
-static constexpr bool kExplicitStackOverflowCheck = false;
-
 // Some x86_64 instructions require a register to be available as temp.
 static constexpr Register TMP = R11;
 
@@ -487,8 +485,9 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
 
   bool skip_overflow_check = IsLeafMethod()
       && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kX86_64);
+  bool implicitStackOverflowChecks = GetCompilerOptions().GetImplicitStackOverflowChecks();
 
-  if (!skip_overflow_check && !kExplicitStackOverflowCheck) {
+  if (!skip_overflow_check && implicitStackOverflowChecks) {
     __ testq(CpuRegister(RAX), Address(
         CpuRegister(RSP), -static_cast<int32_t>(GetStackOverflowReservedBytes(kX86_64))));
     RecordPcInfo(nullptr, 0);
@@ -498,7 +497,7 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
   __ subq(CpuRegister(RSP),
           Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86_64WordSize));
 
-  if (!skip_overflow_check && kExplicitStackOverflowCheck) {
+  if (!skip_overflow_check && !implicitStackOverflowChecks) {
     SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathX86_64();
     AddSlowPath(slow_path);
 
