@@ -801,35 +801,6 @@ END_FUNCTION art_quick_memcpy
 
 NO_ARG_DOWNCALL art_quick_test_suspend, artTestSuspendFromCode, ret
 
-DEFINE_FUNCTION art_quick_fmod
-    subl LITERAL(12), %esp        // alignment padding
-    CFI_ADJUST_CFA_OFFSET(12)
-    PUSH ebx                      // pass arg4 b.hi
-    PUSH edx                      // pass arg3 b.lo
-    PUSH ecx                      // pass arg2 a.hi
-    PUSH eax                      // pass arg1 a.lo
-    SETUP_GOT_NOSAVE ebx          // clobbers EBX
-    call PLT_SYMBOL(fmod)         // (jdouble a, jdouble b)
-    fstpl (%esp)                  // pop return value off fp stack
-    movsd (%esp), %xmm0           // place into %xmm0
-    addl LITERAL(28), %esp        // pop arguments
-    CFI_ADJUST_CFA_OFFSET(-28)
-    ret
-END_FUNCTION art_quick_fmod
-
-DEFINE_FUNCTION art_quick_fmodf
-    PUSH eax                      // alignment padding
-    PUSH ecx                      // pass arg2 b
-    PUSH eax                      // pass arg1 a
-    SETUP_GOT_NOSAVE ebx          // clobbers EBX
-    call PLT_SYMBOL(fmodf)        // (jfloat a, jfloat b)
-    fstps (%esp)                  // pop return value off fp stack
-    movss (%esp), %xmm0           // place into %xmm0
-    addl LITERAL(12), %esp        // pop arguments
-    CFI_ADJUST_CFA_OFFSET(-12)
-    ret
-END_FUNCTION art_quick_fmodf
-
 DEFINE_FUNCTION art_quick_d2l
     PUSH eax                      // alignment padding
     PUSH ecx                      // pass arg2 a.hi

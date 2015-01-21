@@ -105,9 +105,9 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   // points->pCmpgFloat = NULL;  // Not needed on x86.
   // points->pCmplDouble = NULL;  // Not needed on x86.
   // points->pCmplFloat = NULL;  // Not needed on x86.
-  qpoints->pFmod = fmod;
+  // qpoints->pFmod = NULL;  // Not needed on x86.
   // qpoints->pL2d = NULL;  // Not needed on x86.
-  qpoints->pFmodf = fmodf;
+  // qpoints->pFmodf = NULL;  // Not needed on x86.
   // qpoints->pL2f = NULL;  // Not needed on x86.
   // points->pD2iz = NULL;  // Not needed on x86.
   // points->pF2iz = NULL;  // Not needed on x86.

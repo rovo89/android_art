@@ -1121,8 +1121,6 @@ UNIMPLEMENTED art_quick_lmul
 UNIMPLEMENTED art_quick_lshl
 UNIMPLEMENTED art_quick_lshr
 UNIMPLEMENTED art_quick_lushr
-UNIMPLEMENTED art_quick_fmod
-UNIMPLEMENTED art_quick_fmodf
 
 THREE_ARG_REF_DOWNCALL art_quick_set8_instance, artSet8InstanceFromCode, RETURN_IF_EAX_ZERO
 THREE_ARG_REF_DOWNCALL art_quick_set16_instance, artSet16InstanceFromCode, RETURN_IF_EAX_ZERO
