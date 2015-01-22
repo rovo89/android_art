@@ -40,6 +40,8 @@ static constexpr size_t kRuntimeParameterCoreRegistersLength =
 static constexpr XmmRegister kRuntimeParameterFpuRegisters[] = { };
 static constexpr size_t kRuntimeParameterFpuRegistersLength = 0;
 
+static constexpr int kC2ConditionMask = 0x400;
+
 // Marker for places that can be updated once we don't follow the quick ABI.
 static constexpr bool kFollowsQuickABI = true;
 
@@ -2076,6 +2078,81 @@ void InstructionCodeGeneratorX86::VisitMul(HMul* mul) {
   }
 }
 
+void InstructionCodeGeneratorX86::PushOntoFPStack(Location source, uint32_t temp_offset,
+                                                  uint32_t stack_adjustment, bool is_float) {
+  if (source.IsStackSlot()) {
+    DCHECK(is_float);
+    __ flds(Address(ESP, source.GetStackIndex() + stack_adjustment));
+  } else if (source.IsDoubleStackSlot()) {
+    DCHECK(!is_float);
+    __ fldl(Address(ESP, source.GetStackIndex() + stack_adjustment));
+  } else {
+    // Write the value to the temporary location on the stack and load to FP stack.
+    if (is_float) {
+      Location stack_temp = Location::StackSlot(temp_offset);
+      codegen_->Move32(stack_temp, source);
+      __ flds(Address(ESP, temp_offset));
+    } else {
+      Location stack_temp = Location::DoubleStackSlot(temp_offset);
+      codegen_->Move64(stack_temp, source);
+      __ fldl(Address(ESP, temp_offset));
+    }
+  }
+}
+
+void InstructionCodeGeneratorX86::GenerateRemFP(HRem *rem) {
+  Primitive::Type type = rem->GetResultType();
+  bool is_float = type == Primitive::kPrimFloat;
+  size_t elem_size = Primitive::ComponentSize(type);
+  LocationSummary* locations = rem->GetLocations();
+  Location first = locations->InAt(0);
+  Location second = locations->InAt(1);
+  Location out = locations->Out();
+
+  // Create stack space for 2 elements.
+  // TODO: enhance register allocator to ask for stack temporaries.
+  __ subl(ESP, Immediate(2 * elem_size));
+
+  // Load the values to the FP stack in reverse order, using temporaries if needed.
+  PushOntoFPStack(second, elem_size, 2 * elem_size, is_float);
+  PushOntoFPStack(first, 0, 2 * elem_size, is_float);
+
+  // Loop doing FPREM until we stabilize.
+  Label retry;
+  __ Bind(&retry);
+  __ fprem();
+
+  // Move FP status to AX.
+  __ fstsw();
+
+  // And see if the argument reduction is complete. This is signaled by the
+  // C2 FPU flag bit set to 0.
+  __ andl(EAX, Immediate(kC2ConditionMask));
+  __ j(kNotEqual, &retry);
+
+  // We have settled on the final value. Retrieve it into an XMM register.
+  // Store FP top of stack to real stack.
+  if (is_float) {
+    __ fsts(Address(ESP, 0));
+  } else {
+    __ fstl(Address(ESP, 0));
+  }
+
+  // Pop the 2 items from the FP stack.
+  __ fucompp();
+
+  // Load the value from the stack into an XMM register.
+  DCHECK(out.IsFpuRegister()) << out;
+  if (is_float) {
+    __ movss(out.AsFpuRegister<XmmRegister>(), Address(ESP, 0));
+  } else {
+    __ movsd(out.AsFpuRegister<XmmRegister>(), Address(ESP, 0));
+  }
+
+  // And remove the temporary stack space we allocated.
+  __ addl(ESP, Immediate(2 * elem_size));
+}
+
 void InstructionCodeGeneratorX86::GenerateDivRemIntegral(HBinaryOperation* instruction) {
   DCHECK(instruction->IsDiv() || instruction->IsRem());
 
@@ -2209,10 +2286,8 @@ void InstructionCodeGeneratorX86::VisitDiv(HDiv* div) {
 
 void LocationsBuilderX86::VisitRem(HRem* rem) {
   Primitive::Type type = rem->GetResultType();
-  LocationSummary::CallKind call_kind = type == Primitive::kPrimInt
-      ? LocationSummary::kNoCall
-      : LocationSummary::kCall;
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(rem, call_kind);
+  LocationSummary* locations =
+    new (GetGraph()->GetArena()) LocationSummary(rem, LocationSummary::kNoCall);
 
   switch (type) {
     case Primitive::kPrimInt: {
@@ -2231,24 +2306,12 @@ void LocationsBuilderX86::VisitRem(HRem* rem) {
       locations->SetOut(Location::RegisterPairLocation(EAX, EDX));
       break;
     }
+    case Primitive::kPrimDouble:
     case Primitive::kPrimFloat: {
-      InvokeRuntimeCallingConvention calling_convention;
-      // x86 floating-point parameters are passed through core registers (EAX, ECX).
-      locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
-      locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
-      // The runtime helper puts the result in XMM0.
-      locations->SetOut(Location::FpuRegisterLocation(XMM0));
-      break;
-    }
-    case Primitive::kPrimDouble: {
-      InvokeRuntimeCallingConvention calling_convention;
-      // x86 floating-point parameters are passed through core registers (EAX_ECX, EDX_EBX).
-      locations->SetInAt(0, Location::RegisterPairLocation(
-          calling_convention.GetRegisterAt(0), calling_convention.GetRegisterAt(1)));
-      locations->SetInAt(1, Location::RegisterPairLocation(
-          calling_convention.GetRegisterAt(2), calling_convention.GetRegisterAt(3)));
-      // The runtime helper puts the result in XMM0.
-      locations->SetOut(Location::FpuRegisterLocation(XMM0));
+      locations->SetInAt(0, Location::Any());
+      locations->SetInAt(1, Location::Any());
+      locations->SetOut(Location::RequiresFpuRegister());
+      locations->AddTemp(Location::RegisterLocation(EAX));
       break;
     }
 
@@ -2265,14 +2328,9 @@ void InstructionCodeGeneratorX86::VisitRem(HRem* rem) {
       GenerateDivRemIntegral(rem);
       break;
     }
-    case Primitive::kPrimFloat: {
-      __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pFmodf)));
-      codegen_->RecordPcInfo(rem, rem->GetDexPc());
-      break;
-    }
+    case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
-      __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pFmod)));
-      codegen_->RecordPcInfo(rem, rem->GetDexPc());
+      GenerateRemFP(rem);
       break;
     }
     default:
