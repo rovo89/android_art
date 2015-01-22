@@ -646,7 +646,7 @@ HConstant* HBinaryOperation::TryStaticEvaluation() const {
     if (GetResultType() == Primitive::kPrimLong) {
       return new(GetBlock()->GetGraph()->GetArena()) HLongConstant(value);
     } else {
-      DCHECK(GetResultType() == Primitive::kPrimInt);
+      DCHECK_EQ(GetResultType(), Primitive::kPrimInt);
       return new(GetBlock()->GetGraph()->GetArena()) HIntConstant(value);
     }
   }
