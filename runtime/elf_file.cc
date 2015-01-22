@@ -1313,35 +1313,7 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
   CHECK(program_header_only_) << file_->GetPath();
 
   if (executable) {
-    InstructionSet elf_ISA = kNone;
-    switch (GetHeader().e_machine) {
-      case EM_ARM: {
-        elf_ISA = kArm;
-        break;
-      }
-      case EM_AARCH64: {
-        elf_ISA = kArm64;
-        break;
-      }
-      case EM_386: {
-        elf_ISA = kX86;
-        break;
-      }
-      case EM_X86_64: {
-        elf_ISA = kX86_64;
-        break;
-      }
-      case EM_MIPS: {
-        if ((GetHeader().e_flags & EF_MIPS_ARCH) == EF_MIPS_ARCH_32R2 ||
-            (GetHeader().e_flags & EF_MIPS_ARCH) == EF_MIPS_ARCH_32R6) {
-          elf_ISA = kMips;
-        } else if ((GetHeader().e_flags & EF_MIPS_ARCH) == EF_MIPS_ARCH_64R6) {
-          elf_ISA = kMips64;
-        }
-        break;
-      }
-    }
-
+    InstructionSet elf_ISA = GetInstructionSetFromELF(GetHeader().e_machine, GetHeader().e_flags);
     if (elf_ISA != kRuntimeISA) {
       std::ostringstream oss;
       oss << "Expected ISA " << kRuntimeISA << " but found " << elf_ISA;
