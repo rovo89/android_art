@@ -390,7 +390,7 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
                                    const ArmInstructionSetFeatures& isa_features,
                                    const CompilerOptions& compiler_options)
     : CodeGenerator(graph, kNumberOfCoreRegisters, kNumberOfSRegisters,
-                    kNumberOfRegisterPairs, compiler_options),
+                    kNumberOfRegisterPairs, 0, 0, compiler_options),
       block_labels_(graph->GetArena(), 0),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
@@ -453,7 +453,7 @@ Location CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type) const {
   return Location();
 }
 
-void CodeGeneratorARM::SetupBlockedRegisters() const {
+void CodeGeneratorARM::SetupBlockedRegisters(bool is_baseline ATTRIBUTE_UNUSED) const {
   // Don't allocate the dalvik style register pair passing.
   blocked_register_pairs_[R1_R2] = true;
 

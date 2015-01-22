@@ -567,6 +567,8 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph, const CompilerOptions& com
                     kNumberOfAllocatableRegisters,
                     kNumberOfAllocatableFPRegisters,
                     kNumberOfAllocatableRegisterPairs,
+                    0,
+                    0,
                     compiler_options),
       block_labels_(nullptr),
       location_builder_(graph, this),
@@ -729,7 +731,7 @@ void CodeGeneratorARM64::MarkGCCard(Register object, Register value) {
   __ Bind(&done);
 }
 
-void CodeGeneratorARM64::SetupBlockedRegisters() const {
+void CodeGeneratorARM64::SetupBlockedRegisters(bool is_baseline ATTRIBUTE_UNUSED) const {
   // Block reserved registers:
   //   ip0 (VIXL temporary)
   //   ip1 (VIXL temporary)

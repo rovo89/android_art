@@ -236,7 +236,8 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
     }
   }
 
-  SetupBlockedRegisters();
+  static constexpr bool kBaseline = true;
+  SetupBlockedRegisters(kBaseline);
 
   // Allocate all unallocated input locations.
   for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
@@ -547,8 +548,18 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
 
   size_t environment_size = instruction->EnvironmentSize();
 
-  size_t register_mask = 0;
   size_t inlining_depth = 0;
+  uint32_t register_mask = locations->GetRegisterMask();
+  if (locations->OnlyCallsOnSlowPath()) {
+    // In case of slow path, we currently set the location of caller-save registers
+    // to register (instead of their stack location when pushed before the slow-path
+    // call). Therefore register_mask contains both callee-save and caller-save
+    // registers that hold objects. We must remove the caller-save from the mask, since
+    // they will be overwritten by the callee.
+    register_mask &= core_callee_save_mask_;
+  }
+  // The register mask must be a subset of callee-save registers.
+  DCHECK_EQ(register_mask & core_callee_save_mask_, register_mask);
   stack_map_stream_.AddStackMapEntry(
       dex_pc, pc_info.native_pc, register_mask,
       locations->GetStackMask(), environment_size, inlining_depth);
@@ -684,20 +695,24 @@ void CodeGenerator::SaveLiveRegisters(LocationSummary* locations) {
   RegisterSet* register_set = locations->GetLiveRegisters();
   size_t stack_offset = first_register_slot_in_slow_path_;
   for (size_t i = 0, e = GetNumberOfCoreRegisters(); i < e; ++i) {
-    if (register_set->ContainsCoreRegister(i)) {
-      // If the register holds an object, update the stack mask.
-      if (locations->RegisterContainsObject(i)) {
-        locations->SetStackBit(stack_offset / kVRegSize);
+    if (!IsCoreCalleeSaveRegister(i)) {
+      if (register_set->ContainsCoreRegister(i)) {
+        // If the register holds an object, update the stack mask.
+        if (locations->RegisterContainsObject(i)) {
+          locations->SetStackBit(stack_offset / kVRegSize);
+        }
+        DCHECK_LT(stack_offset, GetFrameSize() - FrameEntrySpillSize());
+        stack_offset += SaveCoreRegister(stack_offset, i);
       }
-      DCHECK_LT(stack_offset, GetFrameSize() - FrameEntrySpillSize());
-      stack_offset += SaveCoreRegister(stack_offset, i);
     }
   }
 
   for (size_t i = 0, e = GetNumberOfFloatingPointRegisters(); i < e; ++i) {
-    if (register_set->ContainsFloatingPointRegister(i)) {
-      DCHECK_LT(stack_offset, GetFrameSize() - FrameEntrySpillSize());
-      stack_offset += SaveFloatingPointRegister(stack_offset, i);
+    if (!IsFloatingPointCalleeSaveRegister(i)) {
+      if (register_set->ContainsFloatingPointRegister(i)) {
+        DCHECK_LT(stack_offset, GetFrameSize() - FrameEntrySpillSize());
+        stack_offset += SaveFloatingPointRegister(stack_offset, i);
+      }
     }
   }
 }
@@ -706,16 +721,20 @@ void CodeGenerator::RestoreLiveRegisters(LocationSummary* locations) {
   RegisterSet* register_set = locations->GetLiveRegisters();
   size_t stack_offset = first_register_slot_in_slow_path_;
   for (size_t i = 0, e = GetNumberOfCoreRegisters(); i < e; ++i) {
-    if (register_set->ContainsCoreRegister(i)) {
-      DCHECK_LT(stack_offset, GetFrameSize() - FrameEntrySpillSize());
-      stack_offset += RestoreCoreRegister(stack_offset, i);
+    if (!IsCoreCalleeSaveRegister(i)) {
+      if (register_set->ContainsCoreRegister(i)) {
+        DCHECK_LT(stack_offset, GetFrameSize() - FrameEntrySpillSize());
+        stack_offset += RestoreCoreRegister(stack_offset, i);
+      }
     }
   }
 
   for (size_t i = 0, e = GetNumberOfFloatingPointRegisters(); i < e; ++i) {
-    if (register_set->ContainsFloatingPointRegister(i)) {
-      DCHECK_LT(stack_offset, GetFrameSize() - FrameEntrySpillSize());
-      stack_offset += RestoreFloatingPointRegister(stack_offset, i);
+    if (!IsFloatingPointCalleeSaveRegister(i)) {
+      if (register_set->ContainsFloatingPointRegister(i)) {
+        DCHECK_LT(stack_offset, GetFrameSize() - FrameEntrySpillSize());
+        stack_offset += RestoreFloatingPointRegister(stack_offset, i);
+      }
     }
   }
 }
