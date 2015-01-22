@@ -48,30 +48,6 @@
 
 namespace art {
 
-static InstructionSet ElfISAToInstructionSet(Elf32_Word isa, Elf32_Word e_flags) {
-  switch (isa) {
-    case EM_ARM:
-      return kArm;
-    case EM_AARCH64:
-      return kArm64;
-    case EM_386:
-      return kX86;
-    case EM_X86_64:
-      return kX86_64;
-    case EM_MIPS:
-      if (((e_flags & EF_MIPS_ARCH) == EF_MIPS_ARCH_32R2) ||
-          ((e_flags & EF_MIPS_ARCH) == EF_MIPS_ARCH_32R6)) {
-        return kMips;
-      } else if ((e_flags & EF_MIPS_ARCH) == EF_MIPS_ARCH_64R6) {
-        return kMips64;
-      } else {
-        return kNone;
-      }
-    default:
-      return kNone;
-  }
-}
-
 static bool LocationToFilename(const std::string& location, InstructionSet isa,
                                std::string* filename) {
   bool has_system = false;
@@ -219,7 +195,7 @@ bool PatchOat::Patch(File* input_oat, const std::string& image_location, off_t d
       LOG(ERROR) << "unable to read elf header";
       return false;
     }
-    isa = ElfISAToInstructionSet(elf_hdr.e_machine, elf_hdr.e_flags);
+    isa = GetInstructionSetFromELF(elf_hdr.e_machine, elf_hdr.e_flags);
   }
   const char* isa_name = GetInstructionSetString(isa);
   std::string image_filename;
