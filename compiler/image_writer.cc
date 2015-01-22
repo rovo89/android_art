@@ -592,8 +592,10 @@ void ImageWriter::ProcessStrings() {
   for (size_t i = 0; i < total_strings; ++i) {
     strings->GetWithoutChecks(i)->SetArray(array);
   }
-  LOG(INFO) << "Total # image strings=" << total_strings << " combined length="
-      << total_length << " prefix saved chars=" << prefix_saved_chars;
+  if (kIsDebugBuild || VLOG_IS_ON(compiler)) {
+    LOG(INFO) << "Total # image strings=" << total_strings << " combined length="
+        << total_length << " prefix saved chars=" << prefix_saved_chars;
+  }
   ComputeEagerResolvedStrings();
 }
 
