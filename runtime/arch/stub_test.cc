@@ -272,9 +272,9 @@ class StubTest : public CommonRuntimeTest {
         ".cfi_adjust_cfa_offset -16\n\t"
         : "=a" (result)
           // Use the result from rax
-        : "D"(arg0), "S"(arg1), "d"(arg2), "a"(code), [referrer] "m"(referrer)
+        : "D"(arg0), "S"(arg1), "d"(arg2), "a"(code), [referrer] "c"(referrer)
           // This places arg0 into rdi, arg1 into rsi, arg2 into rdx, and code into rax
-        : "rbx", "rcx", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
+        : "rbx", "rbp", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",
           "memory");  // clobber all
     // TODO: Should we clobber the other registers?
 #else
