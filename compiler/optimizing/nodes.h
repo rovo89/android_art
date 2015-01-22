@@ -2845,18 +2845,25 @@ class HParallelMove : public HTemplateInstruction<0> {
       AddMove(source.ToLow(), destination.ToLow(), instruction);
       AddMove(source.ToHigh(), destination.ToHigh(), nullptr);
     } else if (source.IsPair()) {
-      DCHECK(destination.IsDoubleStackSlot());
+      DCHECK(destination.IsDoubleStackSlot()) << destination;
       AddMove(source.ToLow(), Location::StackSlot(destination.GetStackIndex()), instruction);
       AddMove(source.ToHigh(), Location::StackSlot(destination.GetHighStackIndex(4)), nullptr);
     } else if (destination.IsPair()) {
-      DCHECK(source.IsDoubleStackSlot());
-      AddMove(Location::StackSlot(source.GetStackIndex()), destination.ToLow(), instruction);
-      // TODO: rewrite GetHighStackIndex to not require a word size. It's supposed to
-      // always be 4.
-      static constexpr int kHighOffset = 4;
-      AddMove(Location::StackSlot(source.GetHighStackIndex(kHighOffset)),
-              destination.ToHigh(),
-              nullptr);
+      if (source.IsConstant()) {
+        // We put the same constant in the move. The code generator will handle which
+        // low or high part to use.
+        AddMove(source, destination.ToLow(), instruction);
+        AddMove(source, destination.ToHigh(), nullptr);
+      } else {
+        DCHECK(source.IsDoubleStackSlot());
+        AddMove(Location::StackSlot(source.GetStackIndex()), destination.ToLow(), instruction);
+        // TODO: rewrite GetHighStackIndex to not require a word size. It's supposed to
+        // always be 4.
+        static constexpr int kHighOffset = 4;
+        AddMove(Location::StackSlot(source.GetHighStackIndex(kHighOffset)),
+                destination.ToHigh(),
+                nullptr);
+      }
     } else {
       if (kIsDebugBuild) {
         if (instruction != nullptr) {
