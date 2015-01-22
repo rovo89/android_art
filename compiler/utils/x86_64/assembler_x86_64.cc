@@ -496,6 +496,13 @@ void X86_64Assembler::flds(const Address& src) {
 }
 
 
+void X86_64Assembler::fsts(const Address& dst) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xD9);
+  EmitOperand(2, dst);
+}
+
+
 void X86_64Assembler::fstps(const Address& dst) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xD9);
@@ -888,10 +895,25 @@ void X86_64Assembler::fldl(const Address& src) {
 }
 
 
+void X86_64Assembler::fstl(const Address& dst) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xDD);
+  EmitOperand(2, dst);
+}
+
+
 void X86_64Assembler::fstpl(const Address& dst) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xDD);
   EmitOperand(3, dst);
+}
+
+
+void X86_64Assembler::fstsw() {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x9B);
+  EmitUint8(0xDF);
+  EmitUint8(0xE0);
 }
 
 
@@ -963,6 +985,19 @@ void X86_64Assembler::fptan() {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xD9);
   EmitUint8(0xF2);
+}
+
+void X86_64Assembler::fucompp() {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xDA);
+  EmitUint8(0xE9);
+}
+
+
+void X86_64Assembler::fprem() {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0xD9);
+  EmitUint8(0xF8);
 }
 
 

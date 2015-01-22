@@ -137,6 +137,7 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
   void GenerateClassInitializationCheck(SlowPathCodeX86* slow_path, Register class_reg);
   void HandleBitwiseOperation(HBinaryOperation* instruction);
   void GenerateDivRemIntegral(HBinaryOperation* instruction);
+  void GenerateRemFP(HRem *rem);
   void HandleShift(HBinaryOperation* instruction);
   void GenerateShlLong(const Location& loc, Register shifter);
   void GenerateShrLong(const Location& loc, Register shifter);
@@ -144,6 +145,8 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
   void GenerateMemoryBarrier(MemBarrierKind kind);
   void HandleFieldSet(HInstruction* instruction, const FieldInfo& field_info);
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
+  void PushOntoFPStack(Location source, uint32_t temp_offset,
+                       uint32_t stack_adjustment, bool is_float);
 
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
