@@ -511,7 +511,7 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
         CpuRegister(RSP), -static_cast<int32_t>(GetStackOverflowReservedBytes(kX86_64))));
     RecordPcInfo(nullptr, 0);
   }
-  
+
   for (int i = arraysize(kCoreCalleeSaves) - 1; i >= 0; --i) {
     if (allocated_registers_.ContainsCoreRegister(kCoreCalleeSaves[i])) {
       __ pushq(CpuRegister(kCoreCalleeSaves[i]));
