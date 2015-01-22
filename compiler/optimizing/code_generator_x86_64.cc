@@ -2471,10 +2471,6 @@ void InstructionCodeGeneratorX86_64::VisitNot(HNot* not_) {
             locations->Out().AsRegister<CpuRegister>().AsRegister());
   Location out = locations->Out();
   switch (not_->InputAt(0)->GetType()) {
-    case Primitive::kPrimBoolean:
-      __ xorq(out.AsRegister<CpuRegister>(), Immediate(1));
-      break;
-
     case Primitive::kPrimInt:
       __ notl(out.AsRegister<CpuRegister>());
       break;
