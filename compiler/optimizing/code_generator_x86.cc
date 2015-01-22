@@ -31,7 +31,6 @@ namespace art {
 
 namespace x86 {
 
-static constexpr int kNumberOfPushedRegistersAtEntry = 1;
 static constexpr int kCurrentMethodStackOffset = 0;
 
 static constexpr Register kRuntimeParameterCoreRegisters[] = { EAX, ECX, EDX, EBX };
@@ -44,6 +43,7 @@ static constexpr int kC2ConditionMask = 0x400;
 
 // Marker for places that can be updated once we don't follow the quick ABI.
 static constexpr bool kFollowsQuickABI = true;
+static constexpr int kFakeReturnRegister = Register(8);
 
 class InvokeRuntimeCallingConvention : public CallingConvention<Register, XmmRegister> {
  public:
@@ -121,21 +121,6 @@ class DivRemMinusOneSlowPathX86 : public SlowPathCodeX86 {
   Register reg_;
   bool is_div_;
   DISALLOW_COPY_AND_ASSIGN(DivRemMinusOneSlowPathX86);
-};
-
-class StackOverflowCheckSlowPathX86 : public SlowPathCodeX86 {
- public:
-  StackOverflowCheckSlowPathX86() {}
-
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    __ Bind(GetEntryLabel());
-    __ addl(ESP,
-            Immediate(codegen->GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86WordSize));
-    __ fs()->jmp(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pThrowStackOverflow)));
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(StackOverflowCheckSlowPathX86);
 };
 
 class BoundsCheckSlowPathX86 : public SlowPathCodeX86 {
@@ -375,14 +360,13 @@ size_t CodeGeneratorX86::RestoreCoreRegister(size_t stack_index, uint32_t reg_id
 
 CodeGeneratorX86::CodeGeneratorX86(HGraph* graph, const CompilerOptions& compiler_options)
     : CodeGenerator(graph, kNumberOfCpuRegisters, kNumberOfXmmRegisters,
-                    kNumberOfRegisterPairs, 0, 0, compiler_options),
+                    kNumberOfRegisterPairs, (1 << kFakeReturnRegister), 0, compiler_options),
       block_labels_(graph->GetArena(), 0),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
-      move_resolver_(graph->GetArena(), this) {}
-
-size_t CodeGeneratorX86::FrameEntrySpillSize() const {
-  return kNumberOfPushedRegistersAtEntry * kX86WordSize;
+      move_resolver_(graph->GetArena(), this) {
+  // Use a fake return address register to mimic Quick.
+  AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
 }
 
 Location CodeGeneratorX86::AllocateFreeRegister(Primitive::Type type) const {
@@ -464,35 +448,21 @@ InstructionCodeGeneratorX86::InstructionCodeGeneratorX86(HGraph* graph, CodeGene
         codegen_(codegen) {}
 
 void CodeGeneratorX86::GenerateFrameEntry() {
-  // Create a fake register to mimic Quick.
-  static const int kFakeReturnRegister = 8;
-  core_spill_mask_ |= (1 << kFakeReturnRegister);
-
   bool skip_overflow_check =
       IsLeafMethod() && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kX86);
-  bool implicitStackOverflowChecks = GetCompilerOptions().GetImplicitStackOverflowChecks();
+  DCHECK(GetCompilerOptions().GetImplicitStackOverflowChecks());
 
-  if (!skip_overflow_check && implicitStackOverflowChecks) {
+  if (!skip_overflow_check) {
     __ testl(EAX, Address(ESP, -static_cast<int32_t>(GetStackOverflowReservedBytes(kX86))));
     RecordPcInfo(nullptr, 0);
   }
 
-  // The return PC has already been pushed on the stack.
-  __ subl(ESP, Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86WordSize));
-
-  if (!skip_overflow_check && !implicitStackOverflowChecks) {
-    SlowPathCodeX86* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathX86();
-    AddSlowPath(slow_path);
-
-    __ fs()->cmpl(ESP, Address::Absolute(Thread::StackEndOffset<kX86WordSize>()));
-    __ j(kLess, slow_path->GetEntryLabel());
-  }
-
+  __ subl(ESP, Immediate(GetFrameSize() - FrameEntrySpillSize()));
   __ movl(Address(ESP, kCurrentMethodStackOffset), EAX);
 }
 
 void CodeGeneratorX86::GenerateFrameExit() {
-  __ addl(ESP, Immediate(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86WordSize));
+  __ addl(ESP, Immediate(GetFrameSize() - FrameEntrySpillSize()));
 }
 
 void CodeGeneratorX86::Bind(HBasicBlock* block) {

@@ -179,8 +179,6 @@ class CodeGeneratorARM : public CodeGenerator {
     return kArmWordSize;
   }
 
-  size_t FrameEntrySpillSize() const OVERRIDE;
-
   HGraphVisitor* GetLocationBuilder() OVERRIDE {
     return &location_builder_;
   }

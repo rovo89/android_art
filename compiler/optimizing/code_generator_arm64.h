@@ -178,9 +178,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
         vixl::CPURegList(vixl::CPURegister::kRegister, vixl::kXRegSize, vixl::lr.Bit());
     return frame_preserved_regs;
   }
-  static int GetFramePreservedRegistersSize() {
-    return GetFramePreservedRegisters().TotalSizeInBytes();
-  }
 
   void Bind(HBasicBlock* block) OVERRIDE;
 
@@ -204,8 +201,6 @@ class CodeGeneratorARM64 : public CodeGenerator {
     DCHECK(block_entry_label->IsBound());
     return block_entry_label->location();
   }
-
-  size_t FrameEntrySpillSize() const OVERRIDE;
 
   HGraphVisitor* GetLocationBuilder() OVERRIDE { return &location_builder_; }
   HGraphVisitor* GetInstructionVisitor() OVERRIDE { return &instruction_visitor_; }
