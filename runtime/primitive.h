@@ -146,6 +146,8 @@ class Primitive {
     }
   }
 
+  static const char* PrettyDescriptor(Type type);
+
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(Primitive);
 };
