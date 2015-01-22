@@ -70,27 +70,19 @@ void Arm64Context::FillCalleeSaves(const StackVisitor& fr) {
   }
 }
 
-bool Arm64Context::SetGPR(uint32_t reg, uintptr_t value) {
+void Arm64Context::SetGPR(uint32_t reg, uintptr_t value) {
   DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfXRegisters));
   DCHECK_NE(reg, static_cast<uint32_t>(XZR));
+  DCHECK(IsAccessibleGPR(reg));
   DCHECK_NE(gprs_[reg], &gZero);  // Can't overwrite this static value since they are never reset.
-  if (gprs_[reg] != nullptr) {
-    *gprs_[reg] = value;
-    return true;
-  } else {
-    return false;
-  }
+  *gprs_[reg] = value;
 }
 
-bool Arm64Context::SetFPR(uint32_t reg, uintptr_t value) {
+void Arm64Context::SetFPR(uint32_t reg, uintptr_t value) {
   DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfDRegisters));
+  DCHECK(IsAccessibleFPR(reg));
   DCHECK_NE(fprs_[reg], &gZero);  // Can't overwrite this static value since they are never reset.
-  if (fprs_[reg] != nullptr) {
-    *fprs_[reg] = value;
-    return true;
-  } else {
-    return false;
-  }
+  *fprs_[reg] = value;
 }
 
 void Arm64Context::SmashCallerSaves() {

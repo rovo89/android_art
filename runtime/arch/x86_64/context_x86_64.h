@@ -36,12 +36,16 @@ class X86_64Context : public Context {
   void FillCalleeSaves(const StackVisitor& fr) OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetSP(uintptr_t new_sp) OVERRIDE {
-    bool success = SetGPR(RSP, new_sp);
-    CHECK(success) << "Failed to set RSP register";
+    SetGPR(RSP, new_sp);
   }
 
   void SetPC(uintptr_t new_pc) OVERRIDE {
     rip_ = new_pc;
+  }
+
+  bool IsAccessibleGPR(uint32_t reg) OVERRIDE {
+    DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCpuRegisters));
+    return gprs_[reg] != nullptr;
   }
 
   uintptr_t* GetGPRAddress(uint32_t reg) OVERRIDE {
@@ -49,31 +53,26 @@ class X86_64Context : public Context {
     return gprs_[reg];
   }
 
-  bool GetGPR(uint32_t reg, uintptr_t* val) OVERRIDE {
+  uintptr_t GetGPR(uint32_t reg) OVERRIDE {
     DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfCpuRegisters));
-    if (gprs_[reg] == nullptr) {
-      return false;
-    } else {
-      DCHECK(val != nullptr);
-      *val = *gprs_[reg];
-      return true;
-    }
+    DCHECK(IsAccessibleGPR(reg));
+    return *gprs_[reg];
   }
 
-  bool SetGPR(uint32_t reg, uintptr_t value) OVERRIDE;
+  void SetGPR(uint32_t reg, uintptr_t value) OVERRIDE;
 
-  bool GetFPR(uint32_t reg, uintptr_t* val) OVERRIDE {
+  bool IsAccessibleFPR(uint32_t reg) OVERRIDE {
     DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfFloatRegisters));
-    if (fprs_[reg] == nullptr) {
-      return false;
-    } else {
-      DCHECK(val != nullptr);
-      *val = *fprs_[reg];
-      return true;
-    }
+    return fprs_[reg] != nullptr;
   }
 
-  bool SetFPR(uint32_t reg, uintptr_t value) OVERRIDE;
+  uintptr_t GetFPR(uint32_t reg) OVERRIDE {
+    DCHECK_LT(reg, static_cast<uint32_t>(kNumberOfFloatRegisters));
+    DCHECK(IsAccessibleFPR(reg));
+    return *fprs_[reg];
+  }
+
+  void SetFPR(uint32_t reg, uintptr_t value) OVERRIDE;
 
   void SmashCallerSaves() OVERRIDE;
   void DoLongJump() OVERRIDE;
