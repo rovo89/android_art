@@ -328,7 +328,7 @@ class Instrumentation {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Call back for configure stubs.
-  bool InstallStubsForClass(mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void InstallStubsForClass(mirror::Class* klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void InstallStubsForMethod(mirror::ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
