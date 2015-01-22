@@ -58,7 +58,8 @@ RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator,
         reserved_out_slots_(0),
         maximum_number_of_live_core_registers_(0),
         maximum_number_of_live_fp_registers_(0) {
-  codegen->SetupBlockedRegisters();
+  static constexpr bool kIsBaseline = false;
+  codegen->SetupBlockedRegisters(kIsBaseline);
   physical_core_register_intervals_.SetSize(codegen->GetNumberOfCoreRegisters());
   physical_fp_register_intervals_.SetSize(codegen->GetNumberOfFloatingPointRegisters());
   // Always reserve for the current method and the graph's max out registers.
@@ -278,14 +279,18 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
   if (locations->WillCall()) {
     // Block all registers.
     for (size_t i = 0; i < codegen_->GetNumberOfCoreRegisters(); ++i) {
-      BlockRegister(Location::RegisterLocation(i),
-                    position,
-                    position + 1);
+      if (!codegen_->IsCoreCalleeSaveRegister(i)) {
+        BlockRegister(Location::RegisterLocation(i),
+                      position,
+                      position + 1);
+      }
     }
     for (size_t i = 0; i < codegen_->GetNumberOfFloatingPointRegisters(); ++i) {
-      BlockRegister(Location::FpuRegisterLocation(i),
-                    position,
-                    position + 1);
+      if (!codegen_->IsFloatingPointCalleeSaveRegister(i)) {
+        BlockRegister(Location::FpuRegisterLocation(i),
+                      position,
+                      position + 1);
+      }
     }
   }
 
@@ -627,6 +632,9 @@ void RegisterAllocator::LinearScan() {
     // (6) If the interval had a register allocated, add it to the list of active
     //     intervals.
     if (success) {
+      codegen_->AddAllocatedRegister(processing_core_registers_
+          ? Location::RegisterLocation(current->GetRegister())
+          : Location::FpuRegisterLocation(current->GetRegister()));
       active_.Add(current);
       if (current->HasHighInterval() && !current->GetHighInterval()->HasRegister()) {
         current->GetHighInterval()->SetRegister(GetHighForLowRegister(current->GetRegister()));
@@ -1357,9 +1365,11 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
       switch (source.GetKind()) {
         case Location::kRegister: {
           locations->AddLiveRegister(source);
-          DCHECK_LE(locations->GetNumberOfLiveRegisters(),
-                    maximum_number_of_live_core_registers_ +
-                    maximum_number_of_live_fp_registers_);
+          if (kIsDebugBuild && locations->OnlyCallsOnSlowPath()) {
+            DCHECK_LE(locations->GetNumberOfLiveRegisters(),
+                      maximum_number_of_live_core_registers_ +
+                      maximum_number_of_live_fp_registers_);
+          }
           if (current->GetType() == Primitive::kPrimNot) {
             locations->SetRegisterBit(source.reg());
           }

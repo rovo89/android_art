@@ -127,7 +127,7 @@ class CodeGenerator {
 
   size_t GetNumberOfCoreRegisters() const { return number_of_core_registers_; }
   size_t GetNumberOfFloatingPointRegisters() const { return number_of_fpu_registers_; }
-  virtual void SetupBlockedRegisters() const = 0;
+  virtual void SetupBlockedRegisters(bool is_baseline) const = 0;
 
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const = 0;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const = 0;
@@ -150,6 +150,14 @@ class CodeGenerator {
     UNREACHABLE();
   }
   virtual bool NeedsTwoRegisters(Primitive::Type type) const = 0;
+
+  bool IsCoreCalleeSaveRegister(int reg) const {
+    return (core_callee_save_mask_ & (1 << reg)) != 0;
+  }
+
+  bool IsFloatingPointCalleeSaveRegister(int reg) const {
+    return (fpu_callee_save_mask_ & (1 << reg)) != 0;
+  }
 
   void RecordPcInfo(HInstruction* instruction, uint32_t dex_pc);
   bool CanMoveNullCheckToUser(HNullCheck* null_check);
@@ -203,11 +211,17 @@ class CodeGenerator {
     return type == Primitive::kPrimNot && !value->IsIntConstant();
   }
 
+  void AddAllocatedRegister(Location location) {
+    allocated_registers_.Add(location);
+  }
+
  protected:
   CodeGenerator(HGraph* graph,
                 size_t number_of_core_registers,
                 size_t number_of_fpu_registers,
                 size_t number_of_register_pairs,
+                uint32_t core_callee_save_mask,
+                uint32_t fpu_callee_save_mask,
                 const CompilerOptions& compiler_options)
       : frame_size_(kUninitializedFrameSize),
         core_spill_mask_(0),
@@ -218,6 +232,8 @@ class CodeGenerator {
         number_of_core_registers_(number_of_core_registers),
         number_of_fpu_registers_(number_of_fpu_registers),
         number_of_register_pairs_(number_of_register_pairs),
+        core_callee_save_mask_(core_callee_save_mask),
+        fpu_callee_save_mask_(fpu_callee_save_mask),
         graph_(graph),
         compiler_options_(compiler_options),
         pc_infos_(graph->GetArena(), 32),
@@ -243,6 +259,9 @@ class CodeGenerator {
   uint32_t core_spill_mask_;
   uint32_t first_register_slot_in_slow_path_;
 
+  // Registers that were allocated during linear scan.
+  RegisterSet allocated_registers_;
+
   // Arrays used when doing register allocation to know which
   // registers we can allocate. `SetupBlockedRegisters` updates the
   // arrays.
@@ -252,6 +271,8 @@ class CodeGenerator {
   size_t number_of_core_registers_;
   size_t number_of_fpu_registers_;
   size_t number_of_register_pairs_;
+  const uint32_t core_callee_save_mask_;
+  const uint32_t fpu_callee_save_mask_;
 
  private:
   void InitLocations(HInstruction* instruction);

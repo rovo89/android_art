@@ -431,6 +431,14 @@ class RegisterSet : public ValueObject {
     return __builtin_popcount(core_registers_) + __builtin_popcount(floating_point_registers_);
   }
 
+  uint32_t GetCoreRegisters() const {
+    return core_registers_;
+  }
+
+  uint32_t GetFloatingPointRegisters() const {
+    return floating_point_registers_;
+  }
+
  private:
   uint32_t core_registers_;
   uint32_t floating_point_registers_;
@@ -529,6 +537,10 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
     register_mask_ |= (1 << reg_id);
   }
 
+  uint32_t GetRegisterMask() const {
+    return register_mask_;
+  }
+
   bool RegisterContainsObject(uint32_t reg_id) {
     return RegisterSet::Contains(register_mask_, reg_id);
   }
@@ -557,7 +569,14 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
       return false;
     }
     Location input = inputs_.Get(input_index);
-    if (input.IsRegister() || input.IsFpuRegister() || input.IsPair()) {
+    if (input.IsRegister()
+        || input.IsFpuRegister()
+        || input.IsPair()
+        || input.IsStackSlot()
+        || input.IsDoubleStackSlot()) {
+      // For fixed locations, the register allocator requires to have inputs die before
+      // the instruction, so that input moves use the location of the input just
+      // before that instruction (and not potential moves due to splitting).
       return false;
     }
     return true;
