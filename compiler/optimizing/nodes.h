@@ -195,6 +195,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
                               ArenaBitVector* visiting);
   void RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const;
   void RemoveDeadBlocks(const ArenaBitVector& visited) const;
+  void RemoveBlock(HBasicBlock* block) const;
 
   ArenaAllocator* const arena_;
 
