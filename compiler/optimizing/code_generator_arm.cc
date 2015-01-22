@@ -37,8 +37,6 @@ static DRegister FromLowSToD(SRegister reg) {
   return static_cast<DRegister>(reg / 2);
 }
 
-static constexpr bool kExplicitStackOverflowCheck = false;
-
 static constexpr int kNumberOfPushedRegistersAtEntry = 1 + 2;  // LR, R6, R7
 static constexpr int kCurrentMethodStackOffset = 0;
 
@@ -514,17 +512,17 @@ void CodeGeneratorARM::GenerateFrameEntry() {
   bool skip_overflow_check =
       IsLeafMethod() && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kArm);
   if (!skip_overflow_check) {
-    if (kExplicitStackOverflowCheck) {
+    if (GetCompilerOptions().GetImplicitStackOverflowChecks()) {
+      __ AddConstant(IP, SP, -static_cast<int32_t>(GetStackOverflowReservedBytes(kArm)));
+      __ LoadFromOffset(kLoadWord, IP, IP, 0);
+      RecordPcInfo(nullptr, 0);
+    } else {
       SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathARM();
       AddSlowPath(slow_path);
 
       __ LoadFromOffset(kLoadWord, IP, TR, Thread::StackEndOffset<kArmWordSize>().Int32Value());
       __ cmp(SP, ShifterOperand(IP));
       __ b(slow_path->GetEntryLabel(), CC);
-    } else {
-      __ AddConstant(IP, SP, -static_cast<int32_t>(GetStackOverflowReservedBytes(kArm)));
-      __ LoadFromOffset(kLoadWord, IP, IP, 0);
-      RecordPcInfo(nullptr, 0);
     }
   }
 
