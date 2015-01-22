@@ -2610,10 +2610,6 @@ void InstructionCodeGeneratorX86::VisitNot(HNot* not_) {
   Location out = locations->Out();
   DCHECK(in.Equals(out));
   switch (not_->InputAt(0)->GetType()) {
-    case Primitive::kPrimBoolean:
-      __ xorl(out.AsRegister<Register>(), Immediate(1));
-      break;
-
     case Primitive::kPrimInt:
       __ notl(out.AsRegister<Register>());
       break;

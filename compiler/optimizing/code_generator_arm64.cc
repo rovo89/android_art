@@ -2288,10 +2288,6 @@ void LocationsBuilderARM64::VisitNot(HNot* instruction) {
 
 void InstructionCodeGeneratorARM64::VisitNot(HNot* instruction) {
   switch (instruction->InputAt(0)->GetType()) {
-    case Primitive::kPrimBoolean:
-      __ Eor(OutputRegister(instruction), InputRegisterAt(instruction, 0), Operand(1));
-      break;
-
     case Primitive::kPrimInt:
     case Primitive::kPrimLong:
       __ Mvn(OutputRegister(instruction), InputOperandAt(instruction, 0));
