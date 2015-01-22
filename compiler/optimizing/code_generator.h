@@ -152,6 +152,8 @@ class CodeGenerator {
   virtual bool NeedsTwoRegisters(Primitive::Type type) const = 0;
 
   void RecordPcInfo(HInstruction* instruction, uint32_t dex_pc);
+  bool CanMoveNullCheckToUser(HNullCheck* null_check);
+  void MaybeRecordImplicitNullCheck(HInstruction* instruction);
 
   void AddSlowPath(SlowPathCode* slow_path) {
     slow_paths_.Add(slow_path);
