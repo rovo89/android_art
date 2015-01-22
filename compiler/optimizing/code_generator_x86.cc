@@ -375,7 +375,7 @@ size_t CodeGeneratorX86::RestoreCoreRegister(size_t stack_index, uint32_t reg_id
 
 CodeGeneratorX86::CodeGeneratorX86(HGraph* graph, const CompilerOptions& compiler_options)
     : CodeGenerator(graph, kNumberOfCpuRegisters, kNumberOfXmmRegisters,
-                    kNumberOfRegisterPairs, compiler_options),
+                    kNumberOfRegisterPairs, 0, 0, compiler_options),
       block_labels_(graph->GetArena(), 0),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
@@ -431,7 +431,7 @@ Location CodeGeneratorX86::AllocateFreeRegister(Primitive::Type type) const {
   return Location();
 }
 
-void CodeGeneratorX86::SetupBlockedRegisters() const {
+void CodeGeneratorX86::SetupBlockedRegisters(bool is_baseline ATTRIBUTE_UNUSED) const {
   // Don't allocate the dalvik style register pair passing.
   blocked_register_pairs_[ECX_EDX] = true;
 

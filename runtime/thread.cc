@@ -2137,6 +2137,7 @@ class ReferenceMapVisitor : public StackVisitor {
         uintptr_t native_pc_offset = m->NativeQuickPcOffset(GetCurrentQuickFramePc(), entry_point);
         StackMap map = m->GetStackMap(native_pc_offset);
         MemoryRegion mask = map.GetStackMask();
+        // Visit stack entries that hold pointers.
         for (size_t i = 0; i < mask.size_in_bits(); ++i) {
           if (mask.LoadBit(i)) {
             StackReference<mirror::Object>* ref_addr =
@@ -2148,6 +2149,16 @@ class ReferenceMapVisitor : public StackVisitor {
               if (ref != new_ref) {
                 ref_addr->Assign(new_ref);
               }
+            }
+          }
+        }
+        // Visit callee-save registers that hold pointers.
+        uint32_t register_mask = map.GetRegisterMask();
+        for (size_t i = 0; i < BitSizeOf<uint32_t>(); ++i) {
+          if (register_mask & (1 << i)) {
+            mirror::Object** ref_addr = reinterpret_cast<mirror::Object**>(GetGPRAddress(i));
+            if (*ref_addr != nullptr) {
+              visitor_(ref_addr, -1, this);
             }
           }
         }
