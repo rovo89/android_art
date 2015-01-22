@@ -34,6 +34,7 @@ public class Main {
     test_Math_max_F();
     test_Math_min_D();
     test_Math_max_D();
+    test_Math_sqrt();
     test_Math_ceil();
     test_Math_floor();
     test_Math_rint();
@@ -54,6 +55,7 @@ public class Main {
     test_StrictMath_max_F();
     test_StrictMath_min_D();
     test_StrictMath_max_D();
+    test_StrictMath_sqrt();
     test_StrictMath_ceil();
     test_StrictMath_floor();
     test_StrictMath_rint();
@@ -298,6 +300,7 @@ public class Main {
   }
 
   public static void test_Math_abs_I() {
+    Math.abs(-1);
     Assert.assertEquals(Math.abs(0), 0);
     Assert.assertEquals(Math.abs(123), 123);
     Assert.assertEquals(Math.abs(-123), 123);
@@ -308,6 +311,7 @@ public class Main {
   }
 
   public static void test_Math_abs_J() {
+    Math.abs(-1L);
     Assert.assertEquals(Math.abs(0L), 0L);
     Assert.assertEquals(Math.abs(123L), 123L);
     Assert.assertEquals(Math.abs(-123L), 123L);
@@ -317,6 +321,7 @@ public class Main {
   }
 
   public static void test_Math_min_I() {
+    Math.min(1, 0);
     Assert.assertEquals(Math.min(0, 0), 0);
     Assert.assertEquals(Math.min(1, 0), 0);
     Assert.assertEquals(Math.min(0, 1), 0);
@@ -326,6 +331,7 @@ public class Main {
   }
 
   public static void test_Math_max_I() {
+    Math.max(1, 0);
     Assert.assertEquals(Math.max(0, 0), 0);
     Assert.assertEquals(Math.max(1, 0), 1);
     Assert.assertEquals(Math.max(0, 1), 1);
@@ -335,6 +341,7 @@ public class Main {
   }
 
   public static void test_Math_min_J() {
+    Math.min(1L, 0L);
     Assert.assertEquals(Math.min(0L, 0L), 0L);
     Assert.assertEquals(Math.min(1L, 0L), 0L);
     Assert.assertEquals(Math.min(0L, 1L), 0L);
@@ -344,6 +351,7 @@ public class Main {
   }
 
   public static void test_Math_max_J() {
+    Math.max(1L, 0L);
     Assert.assertEquals(Math.max(0L, 0L), 0L);
     Assert.assertEquals(Math.max(1L, 0L), 1L);
     Assert.assertEquals(Math.max(0L, 1L), 1L);
@@ -353,6 +361,7 @@ public class Main {
   }
 
   public static void test_Math_min_F() {
+    Math.min(1.0f, Float.NaN);
     Assert.assertTrue(Float.isNaN(Math.min(1.0f, Float.NaN)));
     Assert.assertTrue(Float.isNaN(Math.min(Float.NaN, 1.0f)));
     Assert.assertEquals(Math.min(-0.0f, 0.0f), -0.0f);
@@ -367,6 +376,7 @@ public class Main {
   }
 
   public static void test_Math_max_F() {
+    Math.max(1.0f, Float.NaN);
     Assert.assertTrue(Float.isNaN(Math.max(1.0f, Float.NaN)));
     Assert.assertTrue(Float.isNaN(Math.max(Float.NaN, 1.0f)));
     Assert.assertEquals(Math.max(-0.0f, 0.0f), 0.0f);
@@ -381,6 +391,7 @@ public class Main {
   }
 
   public static void test_Math_min_D() {
+    Math.min(1.0d, Double.NaN);
     Assert.assertTrue(Double.isNaN(Math.min(1.0d, Double.NaN)));
     Assert.assertTrue(Double.isNaN(Math.min(Double.NaN, 1.0d)));
     Assert.assertEquals(Math.min(-0.0d, 0.0d), -0.0d);
@@ -395,6 +406,7 @@ public class Main {
   }
 
   public static void test_Math_max_D() {
+    Math.max(1.0d, Double.NaN);
     Assert.assertTrue(Double.isNaN(Math.max(1.0d, Double.NaN)));
     Assert.assertTrue(Double.isNaN(Math.max(Double.NaN, 1.0d)));
     Assert.assertEquals(Math.max(-0.0d, 0.0d), 0.0d);
@@ -408,7 +420,15 @@ public class Main {
     Assert.assertEquals(Math.max(Double.MIN_VALUE, Double.MAX_VALUE), Double.MAX_VALUE);
   }
 
+  public static void test_Math_sqrt() {
+    Math.sqrt(+4.0);
+    Assert.assertEquals(Math.sqrt(+4.0), +2.0d, 0.0);
+    Assert.assertEquals(Math.sqrt(+49.0), +7.0d, 0.0);
+    Assert.assertEquals(Math.sqrt(+1.44), +1.2d, 0.0);
+  }
+
   public static void test_Math_ceil() {
+    Math.ceil(-0.9);
     Assert.assertEquals(Math.ceil(+0.0), +0.0d, 0.0);
     Assert.assertEquals(Math.ceil(-0.0), -0.0d, 0.0);
     Assert.assertEquals(Math.ceil(-0.9), -0.0d, 0.0);
@@ -430,6 +450,7 @@ public class Main {
   }
 
   public static void test_Math_floor() {
+    Math.floor(+2.1);
     Assert.assertEquals(Math.floor(+0.0), +0.0d, 0.0);
     Assert.assertEquals(Math.floor(-0.0), -0.0d, 0.0);
     Assert.assertEquals(Math.floor(+2.0), +2.0d, 0.0);
@@ -448,6 +469,7 @@ public class Main {
   }
 
   public static void test_Math_rint() {
+    Math.rint(+2.1);
     Assert.assertEquals(Math.rint(+0.0), +0.0d, 0.0);
     Assert.assertEquals(Math.rint(-0.0), -0.0d, 0.0);
     Assert.assertEquals(Math.rint(+2.0), +2.0d, 0.0);
@@ -466,6 +488,7 @@ public class Main {
   }
 
   public static void test_Math_round_D() {
+    Math.round(2.1d);
     Assert.assertEquals(Math.round(+0.0d), (long)+0.0);
     Assert.assertEquals(Math.round(-0.0d), (long)+0.0);
     Assert.assertEquals(Math.round(2.0d), 2l);
@@ -487,6 +510,7 @@ public class Main {
   }
 
   public static void test_Math_round_F() {
+    Math.round(2.1f);
     Assert.assertEquals(Math.round(+0.0f), (int)+0.0);
     Assert.assertEquals(Math.round(-0.0f), (int)+0.0);
     Assert.assertEquals(Math.round(2.0f), 2);
@@ -507,6 +531,7 @@ public class Main {
   }
 
   public static void test_StrictMath_abs_I() {
+    StrictMath.abs(-1);
     Assert.assertEquals(StrictMath.abs(0), 0);
     Assert.assertEquals(StrictMath.abs(123), 123);
     Assert.assertEquals(StrictMath.abs(-123), 123);
@@ -517,6 +542,7 @@ public class Main {
   }
 
   public static void test_StrictMath_abs_J() {
+    StrictMath.abs(-1L);
     Assert.assertEquals(StrictMath.abs(0L), 0L);
     Assert.assertEquals(StrictMath.abs(123L), 123L);
     Assert.assertEquals(StrictMath.abs(-123L), 123L);
@@ -526,6 +552,7 @@ public class Main {
   }
 
   public static void test_StrictMath_min_I() {
+    StrictMath.min(1, 0);
     Assert.assertEquals(StrictMath.min(0, 0), 0);
     Assert.assertEquals(StrictMath.min(1, 0), 0);
     Assert.assertEquals(StrictMath.min(0, 1), 0);
@@ -535,6 +562,7 @@ public class Main {
   }
 
   public static void test_StrictMath_max_I() {
+    StrictMath.max(1, 0);
     Assert.assertEquals(StrictMath.max(0, 0), 0);
     Assert.assertEquals(StrictMath.max(1, 0), 1);
     Assert.assertEquals(StrictMath.max(0, 1), 1);
@@ -544,6 +572,7 @@ public class Main {
   }
 
   public static void test_StrictMath_min_J() {
+    StrictMath.min(1L, 0L);
     Assert.assertEquals(StrictMath.min(0L, 0L), 0L);
     Assert.assertEquals(StrictMath.min(1L, 0L), 0L);
     Assert.assertEquals(StrictMath.min(0L, 1L), 0L);
@@ -553,6 +582,7 @@ public class Main {
   }
 
   public static void test_StrictMath_max_J() {
+    StrictMath.max(1L, 0L);
     Assert.assertEquals(StrictMath.max(0L, 0L), 0L);
     Assert.assertEquals(StrictMath.max(1L, 0L), 1L);
     Assert.assertEquals(StrictMath.max(0L, 1L), 1L);
@@ -562,6 +592,7 @@ public class Main {
   }
 
   public static void test_StrictMath_min_F() {
+    StrictMath.min(1.0f, Float.NaN);
     Assert.assertTrue(Float.isNaN(StrictMath.min(1.0f, Float.NaN)));
     Assert.assertTrue(Float.isNaN(StrictMath.min(Float.NaN, 1.0f)));
     Assert.assertEquals(StrictMath.min(-0.0f, 0.0f), -0.0f);
@@ -576,6 +607,7 @@ public class Main {
   }
 
   public static void test_StrictMath_max_F() {
+    StrictMath.max(1.0f, Float.NaN);
     Assert.assertTrue(Float.isNaN(StrictMath.max(1.0f, Float.NaN)));
     Assert.assertTrue(Float.isNaN(StrictMath.max(Float.NaN, 1.0f)));
     Assert.assertEquals(StrictMath.max(-0.0f, 0.0f), 0.0f);
@@ -590,6 +622,7 @@ public class Main {
   }
 
   public static void test_StrictMath_min_D() {
+    StrictMath.min(1.0d, Double.NaN);
     Assert.assertTrue(Double.isNaN(StrictMath.min(1.0d, Double.NaN)));
     Assert.assertTrue(Double.isNaN(StrictMath.min(Double.NaN, 1.0d)));
     Assert.assertEquals(StrictMath.min(-0.0d, 0.0d), -0.0d);
@@ -604,6 +637,7 @@ public class Main {
   }
 
   public static void test_StrictMath_max_D() {
+    StrictMath.max(1.0d, Double.NaN);
     Assert.assertTrue(Double.isNaN(StrictMath.max(1.0d, Double.NaN)));
     Assert.assertTrue(Double.isNaN(StrictMath.max(Double.NaN, 1.0d)));
     Assert.assertEquals(StrictMath.max(-0.0d, 0.0d), 0.0d);
@@ -617,7 +651,15 @@ public class Main {
     Assert.assertEquals(StrictMath.max(Double.MIN_VALUE, Double.MAX_VALUE), Double.MAX_VALUE);
   }
 
+  public static void test_StrictMath_sqrt() {
+    StrictMath.sqrt(+4.0);
+    Assert.assertEquals(StrictMath.sqrt(+4.0), +2.0d, 0.0);
+    Assert.assertEquals(StrictMath.sqrt(+49.0), +7.0d, 0.0);
+    Assert.assertEquals(StrictMath.sqrt(+1.44), +1.2d, 0.0);
+  }
+
   public static void test_StrictMath_ceil() {
+    StrictMath.ceil(-0.9);
     Assert.assertEquals(StrictMath.ceil(+0.0), +0.0d, 0.0);
     Assert.assertEquals(StrictMath.ceil(-0.0), -0.0d, 0.0);
     Assert.assertEquals(StrictMath.ceil(-0.9), -0.0d, 0.0);
@@ -639,6 +681,7 @@ public class Main {
   }
 
   public static void test_StrictMath_floor() {
+    StrictMath.floor(+2.1);
     Assert.assertEquals(StrictMath.floor(+0.0), +0.0d, 0.0);
     Assert.assertEquals(StrictMath.floor(-0.0), -0.0d, 0.0);
     Assert.assertEquals(StrictMath.floor(+2.0), +2.0d, 0.0);
@@ -657,6 +700,7 @@ public class Main {
   }
 
   public static void test_StrictMath_rint() {
+    StrictMath.rint(+2.1);
     Assert.assertEquals(StrictMath.rint(+0.0), +0.0d, 0.0);
     Assert.assertEquals(StrictMath.rint(-0.0), -0.0d, 0.0);
     Assert.assertEquals(StrictMath.rint(+2.0), +2.0d, 0.0);
@@ -675,6 +719,7 @@ public class Main {
   }
 
   public static void test_StrictMath_round_D() {
+    StrictMath.round(2.1d);
     Assert.assertEquals(StrictMath.round(+0.0d), (long)+0.0);
     Assert.assertEquals(StrictMath.round(-0.0d), (long)+0.0);
     Assert.assertEquals(StrictMath.round(2.0d), 2l);
@@ -696,6 +741,7 @@ public class Main {
   }
 
   public static void test_StrictMath_round_F() {
+    StrictMath.round(2.1f);
     Assert.assertEquals(StrictMath.round(+0.0f), (int)+0.0);
     Assert.assertEquals(StrictMath.round(-0.0f), (int)+0.0);
     Assert.assertEquals(StrictMath.round(2.0f), 2);
@@ -716,6 +762,7 @@ public class Main {
   }
 
   public static void test_Float_floatToRawIntBits() {
+    Float.floatToRawIntBits(-1.0f);
     Assert.assertEquals(Float.floatToRawIntBits(-1.0f), 0xbf800000);
     Assert.assertEquals(Float.floatToRawIntBits(0.0f), 0);
     Assert.assertEquals(Float.floatToRawIntBits(1.0f), 0x3f800000);
@@ -725,6 +772,7 @@ public class Main {
   }
 
   public static void test_Float_intBitsToFloat() {
+    Float.intBitsToFloat(0xbf800000);
     Assert.assertEquals(Float.intBitsToFloat(0xbf800000), -1.0f);
     Assert.assertEquals(Float.intBitsToFloat(0x00000000), 0.0f);
     Assert.assertEquals(Float.intBitsToFloat(0x3f800000), 1.0f);
@@ -734,6 +782,7 @@ public class Main {
   }
 
   public static void test_Double_doubleToRawLongBits() {
+    Double.doubleToRawLongBits(-1.0);
     Assert.assertEquals(Double.doubleToRawLongBits(-1.0), 0xbff0000000000000L);
     Assert.assertEquals(Double.doubleToRawLongBits(0.0), 0x0000000000000000L);
     Assert.assertEquals(Double.doubleToRawLongBits(1.0), 0x3ff0000000000000L);
@@ -743,6 +792,7 @@ public class Main {
   }
 
   public static void test_Double_longBitsToDouble() {
+    Double.longBitsToDouble(0xbff0000000000000L);
     Assert.assertEquals(Double.longBitsToDouble(0xbff0000000000000L), -1.0);
     Assert.assertEquals(Double.longBitsToDouble(0x0000000000000000L), 0.0);
     Assert.assertEquals(Double.longBitsToDouble(0x3ff0000000000000L), 1.0);
@@ -752,6 +802,7 @@ public class Main {
   }
 
   public static void test_Short_reverseBytes() {
+      Short.reverseBytes((short)0x1357);
       Assert.assertEquals(Short.reverseBytes((short)0x0000), (short)0x0000);
       Assert.assertEquals(Short.reverseBytes((short)0xffff), (short)0xffff);
       Assert.assertEquals(Short.reverseBytes((short)0x8000), (short)0x0080);
@@ -763,6 +814,7 @@ public class Main {
   }
 
   public static void test_Integer_reverseBytes() {
+      Integer.reverseBytes(0x13579bdf);
       Assert.assertEquals(Integer.reverseBytes(0x00000000), 0x00000000);
       Assert.assertEquals(Integer.reverseBytes(0xffffffff), 0xffffffff);
       Assert.assertEquals(Integer.reverseBytes(0x80000000), 0x00000080);
@@ -772,6 +824,7 @@ public class Main {
   }
 
   public static void test_Long_reverseBytes() {
+      Long.reverseBytes(0x13579bdf2468ace0L);
       Assert.assertEquals(Long.reverseBytes(0x0000000000000000L), 0x0000000000000000L);
       Assert.assertEquals(Long.reverseBytes(0xffffffffffffffffL), 0xffffffffffffffffL);
       Assert.assertEquals(Long.reverseBytes(0x8000000000000000L), 0x0000000000000080L);
@@ -780,6 +833,7 @@ public class Main {
   }
 
   public static void test_Integer_reverse() {
+    Integer.reverse(0x12345678);
     Assert.assertEquals(Integer.reverse(1), 0x80000000);
     Assert.assertEquals(Integer.reverse(-1), 0xffffffff);
     Assert.assertEquals(Integer.reverse(0), 0);
@@ -790,6 +844,7 @@ public class Main {
   }
 
   public static void test_Long_reverse() {
+    Long.reverse(0x1234567812345678L);
     Assert.assertEquals(Long.reverse(1L), 0x8000000000000000L);
     Assert.assertEquals(Long.reverse(-1L), 0xffffffffffffffffL);
     Assert.assertEquals(Long.reverse(0L), 0L);
@@ -844,6 +899,7 @@ public class Main {
     b[1] = 0x12;
     b[2] = 0x11;
     long address = (long)address_of.invoke(runtime, b);
+    peek_short.invoke(null, address, false);
     Assert.assertEquals((short)peek_short.invoke(null, address, false), 0x1213);  // Aligned read
     Assert.assertEquals((short)peek_short.invoke(null, address + 1, false), 0x1112);  // Unaligned read
   }
@@ -856,6 +912,7 @@ public class Main {
     b[3] = 0x12;
     b[4] = 0x11;
     long address = (long)address_of.invoke(runtime, b);
+    peek_int.invoke(null, address, false);
     Assert.assertEquals((int)peek_int.invoke(null, address, false), 0x12131415);
     Assert.assertEquals((int)peek_int.invoke(null, address + 1, false), 0x11121314);
   }
@@ -872,6 +929,7 @@ public class Main {
     b[7] = 0x12;
     b[8] = 0x11;
     long address = (long)address_of.invoke(runtime, b);
+    peek_long.invoke(null, address, false);
     Assert.assertEquals((long)peek_long.invoke(null, address, false), 0x1213141516171819L);
     Assert.assertEquals((long)peek_long.invoke(null, address + 1, false), 0x1112131415161718L);
   }
