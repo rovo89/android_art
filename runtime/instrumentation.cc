@@ -56,7 +56,8 @@ static constexpr bool kDeoptimizeForAccurateMethodEntryExitListeners = true;
 static bool InstallStubsClassVisitor(mirror::Class* klass, void* arg)
     EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
   Instrumentation* instrumentation = reinterpret_cast<Instrumentation*>(arg);
-  return instrumentation->InstallStubsForClass(klass);
+  instrumentation->InstallStubsForClass(klass);
+  return true;  // we visit all classes.
 }
 
 Instrumentation::Instrumentation()
@@ -73,7 +74,7 @@ Instrumentation::Instrumentation()
       quick_alloc_entry_points_instrumentation_counter_(0) {
 }
 
-bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
+void Instrumentation::InstallStubsForClass(mirror::Class* klass) {
   if (klass->IsErroneous()) {
     // We can't execute code in a erroneous class: do nothing.
   } else if (!klass->IsResolved()) {
@@ -87,7 +88,6 @@ bool Instrumentation::InstallStubsForClass(mirror::Class* klass) {
       InstallStubsForMethod(klass->GetVirtualMethod(i));
     }
   }
-  return true;
 }
 
 static void UpdateEntrypoints(mirror::ArtMethod* method, const void* quick_code)
