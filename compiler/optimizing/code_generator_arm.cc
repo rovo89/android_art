@@ -37,6 +37,11 @@ static DRegister FromLowSToD(SRegister reg) {
   return static_cast<DRegister>(reg / 2);
 }
 
+static bool ExpectedPairLayout(Location location) {
+  // We expected this for both core and fpu register pairs.
+  return ((location.low() & 1) == 0) && (location.low() + 1 == location.high());
+}
+
 static constexpr int kNumberOfPushedRegistersAtEntry = 1 + 2;  // LR, R6, R7
 static constexpr int kCurrentMethodStackOffset = 0;
 
@@ -625,12 +630,11 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
       if (double_index_ + 1 < calling_convention.GetNumberOfFpuRegisters()) {
         uint32_t index = double_index_;
         double_index_ += 2;
-        DCHECK_EQ(calling_convention.GetFpuRegisterAt(index) + 1,
-                  calling_convention.GetFpuRegisterAt(index + 1));
-        DCHECK_EQ(calling_convention.GetFpuRegisterAt(index) & 1, 0);
-        return Location::FpuRegisterPairLocation(
+        Location result = Location::FpuRegisterPairLocation(
           calling_convention.GetFpuRegisterAt(index),
           calling_convention.GetFpuRegisterAt(index + 1));
+        DCHECK(ExpectedPairLayout(result));
+        return result;
       } else {
         return Location::DoubleStackSlot(calling_convention.GetStackOffsetOf(stack_index));
       }
@@ -721,16 +725,10 @@ void CodeGeneratorARM::Move64(Location destination, Location source) {
     } else if (source.IsFpuRegister()) {
       UNIMPLEMENTED(FATAL);
     } else {
-      // No conflict possible, so just do the moves.
       DCHECK(source.IsDoubleStackSlot());
-      if (destination.AsRegisterPairLow<Register>() == R1) {
-        DCHECK_EQ(destination.AsRegisterPairHigh<Register>(), R2);
-        __ LoadFromOffset(kLoadWord, R1, SP, source.GetStackIndex());
-        __ LoadFromOffset(kLoadWord, R2, SP, source.GetHighStackIndex(kArmWordSize));
-      } else {
-        __ LoadFromOffset(kLoadWordPair, destination.AsRegisterPairLow<Register>(),
-                          SP, source.GetStackIndex());
-      }
+      DCHECK(ExpectedPairLayout(destination));
+      __ LoadFromOffset(kLoadWordPair, destination.AsRegisterPairLow<Register>(),
+                        SP, source.GetStackIndex());
     }
   } else if (destination.IsFpuRegisterPair()) {
     if (source.IsDoubleStackSlot()) {
@@ -937,6 +935,7 @@ void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
       // Condition has not been materialized, use its inputs as the
       // comparison and its condition as the branch condition.
       LocationSummary* locations = cond->GetLocations();
+      DCHECK(locations->InAt(0).IsRegister()) << locations->InAt(0);
       Register left = locations->InAt(0).AsRegister<Register>();
       if (locations->InAt(1).IsRegister()) {
         __ cmp(left, ShifterOperand(locations->InAt(1).AsRegister<Register>()));
@@ -1282,7 +1281,9 @@ void LocationsBuilderARM::VisitNeg(HNeg* neg) {
   switch (neg->GetResultType()) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong: {
-      bool output_overlaps = (neg->GetResultType() == Primitive::kPrimLong);
+      Location::OutputOverlap output_overlaps = (neg->GetResultType() == Primitive::kPrimLong)
+          ? Location::kOutputOverlap
+          : Location::kNoOutputOverlap;
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetOut(Location::RequiresRegister(), output_overlaps);
       break;
@@ -1809,12 +1810,17 @@ void LocationsBuilderARM::VisitAdd(HAdd* add) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(add, LocationSummary::kNoCall);
   switch (add->GetResultType()) {
-    case Primitive::kPrimInt:
-    case Primitive::kPrimLong: {
-      bool output_overlaps = (add->GetResultType() == Primitive::kPrimLong);
+    case Primitive::kPrimInt: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RegisterOrConstant(add->InputAt(1)));
-      locations->SetOut(Location::RequiresRegister(), output_overlaps);
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+    }
+
+    case Primitive::kPrimLong: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
       break;
     }
 
@@ -1849,7 +1855,8 @@ void InstructionCodeGeneratorARM::VisitAdd(HAdd* add) {
       }
       break;
 
-    case Primitive::kPrimLong:
+    case Primitive::kPrimLong: {
+      DCHECK(second.IsRegisterPair());
       __ adds(out.AsRegisterPairLow<Register>(),
               first.AsRegisterPairLow<Register>(),
               ShifterOperand(second.AsRegisterPairLow<Register>()));
@@ -1857,6 +1864,7 @@ void InstructionCodeGeneratorARM::VisitAdd(HAdd* add) {
              first.AsRegisterPairHigh<Register>(),
              ShifterOperand(second.AsRegisterPairHigh<Register>()));
       break;
+    }
 
     case Primitive::kPrimFloat:
       __ vadds(out.AsFpuRegister<SRegister>(),
@@ -1879,12 +1887,17 @@ void LocationsBuilderARM::VisitSub(HSub* sub) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(sub, LocationSummary::kNoCall);
   switch (sub->GetResultType()) {
-    case Primitive::kPrimInt:
-    case Primitive::kPrimLong: {
-      bool output_overlaps = (sub->GetResultType() == Primitive::kPrimLong);
+    case Primitive::kPrimInt: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RegisterOrConstant(sub->InputAt(1)));
-      locations->SetOut(Location::RequiresRegister(), output_overlaps);
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+    }
+
+    case Primitive::kPrimLong: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
       break;
     }
     case Primitive::kPrimFloat:
@@ -1919,6 +1932,7 @@ void InstructionCodeGeneratorARM::VisitSub(HSub* sub) {
     }
 
     case Primitive::kPrimLong: {
+      DCHECK(second.IsRegisterPair());
       __ subs(out.AsRegisterPairLow<Register>(),
               first.AsRegisterPairLow<Register>(),
               ShifterOperand(second.AsRegisterPairLow<Register>()));
@@ -2054,8 +2068,7 @@ void LocationsBuilderARM::VisitDiv(HDiv* div) {
           calling_convention.GetRegisterAt(0), calling_convention.GetRegisterAt(1)));
       locations->SetInAt(1, Location::RegisterPairLocation(
           calling_convention.GetRegisterAt(2), calling_convention.GetRegisterAt(3)));
-      // The runtime helper puts the output in R0,R2.
-      locations->SetOut(Location::RegisterPairLocation(R0, R2));
+      locations->SetOut(Location::RegisterPairLocation(R0, R1));
       break;
     }
     case Primitive::kPrimFloat:
@@ -2092,7 +2105,7 @@ void InstructionCodeGeneratorARM::VisitDiv(HDiv* div) {
       DCHECK_EQ(calling_convention.GetRegisterAt(2), second.AsRegisterPairLow<Register>());
       DCHECK_EQ(calling_convention.GetRegisterAt(3), second.AsRegisterPairHigh<Register>());
       DCHECK_EQ(R0, out.AsRegisterPairLow<Register>());
-      DCHECK_EQ(R2, out.AsRegisterPairHigh<Register>());
+      DCHECK_EQ(R1, out.AsRegisterPairHigh<Register>());
 
       codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pLdiv), div, div->GetDexPc());
       break;
@@ -2275,8 +2288,8 @@ void LocationsBuilderARM::HandleShift(HBinaryOperation* op) {
       locations->SetInAt(0, Location::RegisterPairLocation(
           calling_convention.GetRegisterAt(0), calling_convention.GetRegisterAt(1)));
       locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
-      // The runtime helper puts the output in R0,R2.
-      locations->SetOut(Location::RegisterPairLocation(R0, R2));
+      // The runtime helper puts the output in R0,R1.
+      locations->SetOut(Location::RegisterPairLocation(R0, R1));
       break;
     }
     default:
@@ -2330,7 +2343,7 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
       DCHECK_EQ(calling_convention.GetRegisterAt(1), first.AsRegisterPairHigh<Register>());
       DCHECK_EQ(calling_convention.GetRegisterAt(2), second.AsRegister<Register>());
       DCHECK_EQ(R0, out.AsRegisterPairLow<Register>());
-      DCHECK_EQ(R2, out.AsRegisterPairHigh<Register>());
+      DCHECK_EQ(R1, out.AsRegisterPairHigh<Register>());
 
       int32_t entry_point_offset;
       if (op->IsShl()) {
@@ -3312,16 +3325,11 @@ void ParallelMoveResolverARM::EmitMove(size_t index) {
       __ StoreSToOffset(source.AsFpuRegister<SRegister>(), SP, destination.GetStackIndex());
     }
   } else if (source.IsDoubleStackSlot()) {
-    if (destination.IsFpuRegisterPair()) {
-      __ LoadDFromOffset(FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>()),
-                         SP, source.GetStackIndex());
-    } else {
-      DCHECK(destination.IsDoubleStackSlot()) << destination;
-      __ LoadFromOffset(kLoadWord, IP, SP, source.GetStackIndex());
-      __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
-      __ LoadFromOffset(kLoadWord, IP, SP, source.GetHighStackIndex(kArmWordSize));
-      __ StoreToOffset(kStoreWord, IP, SP, destination.GetHighStackIndex(kArmWordSize));
-    }
+    DCHECK(destination.IsDoubleStackSlot()) << destination;
+    __ LoadFromOffset(kLoadWord, IP, SP, source.GetStackIndex());
+    __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
+    __ LoadFromOffset(kLoadWord, IP, SP, source.GetHighStackIndex(kArmWordSize));
+    __ StoreToOffset(kStoreWord, IP, SP, destination.GetHighStackIndex(kArmWordSize));
   } else {
     DCHECK(source.IsConstant()) << source;
     HInstruction* constant = source.GetConstant();
@@ -3334,8 +3342,47 @@ void ParallelMoveResolverARM::EmitMove(size_t index) {
         __ LoadImmediate(IP, value);
         __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
       }
+    } else if (constant->IsLongConstant()) {
+      int64_t value = constant->AsLongConstant()->GetValue();
+      if (destination.IsRegister()) {
+        // In the presence of long or double constants, the parallel move resolver will
+        // split the move into two, but keeps the same constant for both moves. Here,
+        // we use the low or high part depending on which register this move goes to.
+        if (destination.reg() % 2 == 0) {
+          __ LoadImmediate(destination.AsRegister<Register>(), Low32Bits(value));
+        } else {
+          __ LoadImmediate(destination.AsRegister<Register>(), High32Bits(value));
+        }
+      } else {
+        DCHECK(destination.IsDoubleStackSlot());
+        __ LoadImmediate(IP, Low32Bits(value));
+        __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
+        __ LoadImmediate(IP, High32Bits(value));
+        __ StoreToOffset(kStoreWord, IP, SP, destination.GetHighStackIndex(kArmWordSize));
+      }
+    } else if (constant->IsDoubleConstant()) {
+      double value = constant->AsDoubleConstant()->GetValue();
+      uint64_t int_value = bit_cast<uint64_t, double>(value);
+      if (destination.IsFpuRegister()) {
+        // In the presence of long or double constants, the parallel move resolver will
+        // split the move into two, but keeps the same constant for both moves. Here,
+        // we use the low or high part depending on which register this move goes to.
+        if (destination.reg() % 2 == 0) {
+          __ LoadSImmediate(destination.AsFpuRegister<SRegister>(),
+                            bit_cast<float, uint32_t>(Low32Bits(int_value)));
+        } else {
+          __ LoadSImmediate(destination.AsFpuRegister<SRegister>(),
+                            bit_cast<float, uint32_t>(High32Bits(int_value)));
+        }
+      } else {
+        DCHECK(destination.IsDoubleStackSlot());
+        __ LoadImmediate(IP, Low32Bits(int_value));
+        __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
+        __ LoadImmediate(IP, High32Bits(int_value));
+        __ StoreToOffset(kStoreWord, IP, SP, destination.GetHighStackIndex(kArmWordSize));
+      }
     } else {
-      DCHECK(constant->IsFloatConstant());
+      DCHECK(constant->IsFloatConstant()) << constant->DebugName();
       float value = constant->AsFloatConstant()->GetValue();
       if (destination.IsFpuRegister()) {
         __ LoadSImmediate(destination.AsFpuRegister<SRegister>(), value);
@@ -3626,7 +3673,9 @@ void LocationsBuilderARM::HandleBitwiseOperation(HBinaryOperation* instruction) 
          || instruction->GetResultType() == Primitive::kPrimLong);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
-  bool output_overlaps = (instruction->GetResultType() == Primitive::kPrimLong);
+  Location::OutputOverlap output_overlaps = (instruction->GetResultType() == Primitive::kPrimLong)
+      ? Location::kOutputOverlap
+      : Location::kNoOutputOverlap;
   locations->SetOut(Location::RequiresRegister(), output_overlaps);
 }
 
