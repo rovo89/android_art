@@ -37,10 +37,7 @@ std::ostream& operator<<(std::ostream& os, const Location& location);
  */
 class Location : public ValueObject {
  public:
-  enum OutputOverlap {
-    kOutputOverlap,
-    kNoOutputOverlap
-  };
+  static constexpr bool kNoOutputOverlap = false;
 
   enum Kind {
     kInvalid = 0,
@@ -471,7 +468,7 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
     return inputs_.Size();
   }
 
-  void SetOut(Location location, Location::OutputOverlap overlaps = Location::kOutputOverlap) {
+  void SetOut(Location location, bool overlaps = true) {
     DCHECK(output_.IsUnallocated() || output_.IsInvalid());
     output_overlaps_ = overlaps;
     output_ = location;
@@ -564,7 +561,7 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
   }
 
   bool OutputOverlapsWithInputs() const {
-    return output_overlaps_ == Location::kOutputOverlap;
+    return output_overlaps_;
   }
 
   bool Intrinsified() const {
@@ -577,7 +574,7 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
   GrowableArray<Location> environment_;
   // Whether the output overlaps with any of the inputs. If it overlaps, then it cannot
   // share the same register as the inputs.
-  Location::OutputOverlap output_overlaps_;
+  bool output_overlaps_;
   Location output_;
   const CallKind call_kind_;
 
