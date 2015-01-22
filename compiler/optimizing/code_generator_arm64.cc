@@ -43,7 +43,6 @@ namespace arm64 {
 // TODO: Tune the use of Load-Acquire, Store-Release vs Data Memory Barriers.
 // For now we prefer the use of load-acquire, store-release over explicit memory barriers.
 static constexpr bool kUseAcquireRelease = true;
-static constexpr bool kExplicitStackOverflowCheck = false;
 static constexpr size_t kHeapRefSize = sizeof(mirror::HeapReference<mirror::Object>);
 static constexpr int kCurrentMethodStackOffset = 0;
 
@@ -443,7 +442,7 @@ class StackOverflowCheckSlowPathARM64 : public SlowPathCodeARM64 {
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
     __ Bind(GetEntryLabel());
     arm64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pThrowStackOverflow), nullptr, 0);
-    CheckEntrypointTypes<kQuickThrowStackOverflow, void, void>();
+    CheckEntrypointTypes<kQuickThrowStackOverflow, void, void*>();
   }
 
  private:
@@ -606,17 +605,17 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
   if (do_overflow_check) {
     UseScratchRegisterScope temps(GetVIXLAssembler());
     Register temp = temps.AcquireX();
-    if (kExplicitStackOverflowCheck) {
+    if (GetCompilerOptions().GetImplicitStackOverflowChecks()) {
+      __ Add(temp, sp, -static_cast<int32_t>(GetStackOverflowReservedBytes(kArm64)));
+      __ Ldr(wzr, MemOperand(temp, 0));
+      RecordPcInfo(nullptr, 0);
+    } else {
       SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathARM64();
       AddSlowPath(slow_path);
 
       __ Ldr(temp, MemOperand(tr, Thread::StackEndOffset<kArm64WordSize>().Int32Value()));
       __ Cmp(sp, temp);
       __ B(lo, slow_path->GetEntryLabel());
-    } else {
-      __ Add(temp, sp, -static_cast<int32_t>(GetStackOverflowReservedBytes(kArm64)));
-      __ Ldr(wzr, MemOperand(temp, 0));
-      RecordPcInfo(nullptr, 0);
     }
   }
 
