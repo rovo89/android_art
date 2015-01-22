@@ -60,6 +60,11 @@ class GraphChecker : public HGraphDelegateVisitor {
   }
 
  protected:
+  // Report a new error.
+  void AddError(const std::string& error) {
+    errors_.push_back(error);
+  }
+
   ArenaAllocator* const allocator_;
   // The block currently visited.
   HBasicBlock* current_block_ = nullptr;
