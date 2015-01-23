@@ -105,8 +105,15 @@ ParsedOptions::ParsedOptions()
     verify_(true),
     image_isa_(kRuntimeISA),
     use_homogeneous_space_compaction_for_oom_(true),  // Enable hspace compaction on OOM by default.
-    min_interval_homogeneous_space_compaction_by_oom_(MsToNs(100 * 1000))  // 100s.
-    {}
+    min_interval_homogeneous_space_compaction_by_oom_(MsToNs(100 * 1000)) {  // 100s.
+  if (kUseReadBarrier) {
+    // If RB is enabled (currently a build-time decision), use CC as the default GC.
+    collector_type_ = gc::kCollectorTypeCC;
+    background_collector_type_ = gc::kCollectorTypeCC;  // Disable background compaction for CC.
+    interpreter_only_ = true;  // Disable the compiler for CC (for now).
+    // use_tlab_ = true;
+  }
+}
 
 ParsedOptions* ParsedOptions::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
   std::unique_ptr<ParsedOptions> parsed(new ParsedOptions());

@@ -27,6 +27,11 @@
 #include <list>
 
 namespace art {
+namespace gc {
+  namespace collector {
+    class GarbageCollector;
+  }  // namespac collector
+}  // namespace gc
 class Closure;
 class Thread;
 class TimingLogger;
@@ -94,6 +99,14 @@ class ThreadList {
   size_t RunCheckpointOnRunnableThreads(Closure* checkpoint_function)
   LOCKS_EXCLUDED(Locks::thread_list_lock_,
                  Locks::thread_suspend_count_lock_);
+
+  // Flip thread roots from from-space refs to to-space refs. Used by
+  // the concurrent copying collector.
+  size_t FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
+                         gc::collector::GarbageCollector* collector)
+      LOCKS_EXCLUDED(Locks::mutator_lock_,
+                     Locks::thread_list_lock_,
+                     Locks::thread_suspend_count_lock_);
 
   // Suspends all threads
   void SuspendAllForDebugger()

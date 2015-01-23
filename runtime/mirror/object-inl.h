@@ -154,7 +154,6 @@ inline bool Object::AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object*
     }
   } while (!atomic_rb_ptr->CompareExchangeWeakSequentiallyConsistent(expected_ref.reference_,
                                                                      new_ref.reference_));
-  DCHECK_EQ(new_ref.reference_, atomic_rb_ptr->LoadRelaxed());
   return true;
 #else
   UNUSED(expected_rb_ptr, rb_ptr);
@@ -826,6 +825,17 @@ inline HeapReference<Object>* Object::GetFieldObjectReferenceAddr(MemberOffset f
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
 inline bool Object::CasFieldWeakSequentiallyConsistentObject(MemberOffset field_offset,
                                                              Object* old_value, Object* new_value) {
+  bool success = CasFieldWeakSequentiallyConsistentObjectWithoutWriteBarrier<
+      kTransactionActive, kCheckTransaction, kVerifyFlags>(field_offset, old_value, new_value);
+  if (success) {
+    Runtime::Current()->GetHeap()->WriteBarrierField(this, field_offset, new_value);
+  }
+  return success;
+}
+
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline bool Object::CasFieldWeakSequentiallyConsistentObjectWithoutWriteBarrier(
+    MemberOffset field_offset, Object* old_value, Object* new_value) {
   if (kCheckTransaction) {
     DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
   }
@@ -848,7 +858,14 @@ inline bool Object::CasFieldWeakSequentiallyConsistentObject(MemberOffset field_
 
   bool success = atomic_addr->CompareExchangeWeakSequentiallyConsistent(old_ref.reference_,
                                                                         new_ref.reference_);
+  return success;
+}
 
+template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
+inline bool Object::CasFieldStrongSequentiallyConsistentObject(MemberOffset field_offset,
+                                                               Object* old_value, Object* new_value) {
+  bool success = CasFieldStrongSequentiallyConsistentObjectWithoutWriteBarrier<
+      kTransactionActive, kCheckTransaction, kVerifyFlags>(field_offset, old_value, new_value);
   if (success) {
     Runtime::Current()->GetHeap()->WriteBarrierField(this, field_offset, new_value);
   }
@@ -856,8 +873,8 @@ inline bool Object::CasFieldWeakSequentiallyConsistentObject(MemberOffset field_
 }
 
 template<bool kTransactionActive, bool kCheckTransaction, VerifyObjectFlags kVerifyFlags>
-inline bool Object::CasFieldStrongSequentiallyConsistentObject(MemberOffset field_offset,
-                                                             Object* old_value, Object* new_value) {
+inline bool Object::CasFieldStrongSequentiallyConsistentObjectWithoutWriteBarrier(
+    MemberOffset field_offset, Object* old_value, Object* new_value) {
   if (kCheckTransaction) {
     DCHECK_EQ(kTransactionActive, Runtime::Current()->IsActiveTransaction());
   }
@@ -880,10 +897,6 @@ inline bool Object::CasFieldStrongSequentiallyConsistentObject(MemberOffset fiel
 
   bool success = atomic_addr->CompareExchangeStrongSequentiallyConsistent(old_ref.reference_,
                                                                           new_ref.reference_);
-
-  if (success) {
-    Runtime::Current()->GetHeap()->WriteBarrierField(this, field_offset, new_value);
-  }
   return success;
 }
 

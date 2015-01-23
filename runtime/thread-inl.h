@@ -178,6 +178,11 @@ inline ThreadState Thread::TransitionFromSuspendedToRunnable() {
       // Failed to transition to Runnable. Release shared mutator_lock_ access and try again.
       Locks::mutator_lock_->SharedUnlock(this);
     } else {
+      // Run the flip function, if set.
+      Closure* flip_func = GetFlipFunction();
+      if (flip_func != nullptr) {
+        flip_func->Run(this);
+      }
       return static_cast<ThreadState>(old_state);
     }
   } while (true);

@@ -19,6 +19,7 @@
 
 #include "runtime.h"
 
+#include "mirror/art_method.h"
 #include "read_barrier-inl.h"
 
 namespace art {

@@ -24,6 +24,7 @@
 #include "dex_file.h"
 #include "gc_root.h"
 #include "mirror/object_reference.h"
+#include "read_barrier.h"
 #include "throw_location.h"
 #include "utils.h"
 #include "verify_object.h"
@@ -163,6 +164,9 @@ class ShadowFrame {
       const uint32_t* vreg_ptr = &vregs_[i];
       ref = reinterpret_cast<const StackReference<mirror::Object>*>(vreg_ptr)->AsMirrorPtr();
     }
+    if (kUseReadBarrier) {
+      ReadBarrier::AssertToSpaceInvariant(ref);
+    }
     if (kVerifyFlags & kVerifyReads) {
       VerifyObject(ref);
     }
@@ -229,6 +233,9 @@ class ShadowFrame {
     DCHECK_LT(i, NumberOfVRegs());
     if (kVerifyFlags & kVerifyWrites) {
       VerifyObject(val);
+    }
+    if (kUseReadBarrier) {
+      ReadBarrier::AssertToSpaceInvariant(val);
     }
     uint32_t* vreg = &vregs_[i];
     reinterpret_cast<StackReference<mirror::Object>*>(vreg)->Assign(val);

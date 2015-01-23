@@ -1219,6 +1219,12 @@ void Runtime::VisitConcurrentRoots(RootCallback* callback, void* arg, VisitRootF
   }
 }
 
+void Runtime::VisitTransactionRoots(RootCallback* callback, void* arg) {
+  if (preinitialization_transaction_ != nullptr) {
+    preinitialization_transaction_->VisitRoots(callback, arg);
+  }
+}
+
 void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
   java_vm_->VisitRoots(callback, arg);
   sentinel_.VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
@@ -1238,15 +1244,22 @@ void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
       verifier->VisitRoots(callback, arg);
     }
   }
-  if (preinitialization_transaction_ != nullptr) {
-    preinitialization_transaction_->VisitRoots(callback, arg);
-  }
+  VisitTransactionRoots(callback, arg);
   instrumentation_.VisitRoots(callback, arg);
 }
 
 void Runtime::VisitNonConcurrentRoots(RootCallback* callback, void* arg) {
   thread_list_->VisitRoots(callback, arg);
   VisitNonThreadRoots(callback, arg);
+}
+
+void Runtime::VisitThreadRoots(RootCallback* callback, void* arg) {
+  thread_list_->VisitRoots(callback, arg);
+}
+
+size_t Runtime::FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
+                                gc::collector::GarbageCollector* collector) {
+  return thread_list_->FlipThreadRoots(thread_flip_visitor, flip_callback, collector);
 }
 
 void Runtime::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
@@ -1326,6 +1339,14 @@ void Runtime::AllowNewSystemWeaks() {
   monitor_list_->AllowNewMonitors();
   intern_table_->AllowNewInterns();
   java_vm_->AllowNewWeakGlobals();
+}
+
+void Runtime::EnsureNewSystemWeaksDisallowed() {
+  // Lock and unlock the system weak locks once to ensure that no
+  // threads are still in the middle of adding new system weaks.
+  monitor_list_->EnsureNewMonitorsDisallowed();
+  intern_table_->EnsureNewInternsDisallowed();
+  java_vm_->EnsureNewWeakGlobalsDisallowed();
 }
 
 void Runtime::SetInstructionSet(InstructionSet instruction_set) {
