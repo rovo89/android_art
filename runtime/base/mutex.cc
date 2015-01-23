@@ -276,16 +276,26 @@ Mutex::Mutex(const char* name, LockLevel level, bool recursive)
   exclusive_owner_ = 0;
 }
 
+// Helper to ignore the lock requirement.
+static bool IsShuttingDown() NO_THREAD_SAFETY_ANALYSIS {
+  Runtime* runtime = Runtime::Current();
+  return runtime == nullptr || runtime->IsShuttingDownLocked();
+}
+
 Mutex::~Mutex() {
+  bool shutting_down = IsShuttingDown();
 #if ART_USE_FUTEXES
   if (state_.LoadRelaxed() != 0) {
-    Runtime* runtime = Runtime::Current();
-    bool shutting_down = runtime == nullptr || runtime->IsShuttingDown(Thread::Current());
-    LOG(shutting_down ? WARNING : FATAL) << "destroying mutex with owner: " << exclusive_owner_;
+    LOG(shutting_down ? WARNING : FATAL) << "destroying mutex with owner: "
+                                                 << exclusive_owner_;
   } else {
-    CHECK_EQ(exclusive_owner_, 0U)  << "unexpectedly found an owner on unlocked mutex " << name_;
-    CHECK_EQ(num_contenders_.LoadSequentiallyConsistent(), 0)
-        << "unexpectedly found a contender on mutex " << name_;
+    if (exclusive_owner_ != 0) {
+      LOG(shutting_down ? WARNING : FATAL) << "unexpectedly found an owner on unlocked mutex "
+                                           << name_;
+    }
+    if (num_contenders_.LoadSequentiallyConsistent() != 0) {
+      LOG(shutting_down ? WARNING : FATAL) << "unexpectedly found a contender on mutex " << name_;
+    }
   }
 #else
   // We can't use CHECK_MUTEX_CALL here because on shutdown a suspended daemon thread
@@ -295,8 +305,6 @@ Mutex::~Mutex() {
     errno = rc;
     // TODO: should we just not log at all if shutting down? this could be the logging mutex!
     MutexLock mu(Thread::Current(), *Locks::runtime_shutdown_lock_);
-    Runtime* runtime = Runtime::Current();
-    bool shutting_down = (runtime == NULL) || runtime->IsShuttingDownLocked();
     PLOG(shutting_down ? WARNING : FATAL) << "pthread_mutex_destroy failed for " << name_;
   }
 #endif
