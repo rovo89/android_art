@@ -2385,8 +2385,8 @@ class VerifyReferenceVisitor {
         // Attempt to see if the card table missed the reference.
         ScanVisitor scan_visitor;
         uint8_t* byte_cover_begin = reinterpret_cast<uint8_t*>(card_table->AddrFromCard(card_addr));
-        card_table->Scan(bitmap, byte_cover_begin,
-                         byte_cover_begin + accounting::CardTable::kCardSize, scan_visitor);
+        card_table->Scan<false>(bitmap, byte_cover_begin,
+                                byte_cover_begin + accounting::CardTable::kCardSize, scan_visitor);
       }
 
       // Search to see if any of the roots reference our object.
