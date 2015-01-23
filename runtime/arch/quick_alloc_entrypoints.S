@@ -46,4 +46,8 @@ GENERATE_ALLOC_ENTRYPOINTS _bump_pointer, BumpPointer
 GENERATE_ALLOC_ENTRYPOINTS _bump_pointer_instrumented, BumpPointerInstrumented
 GENERATE_ALLOC_ENTRYPOINTS _tlab, TLAB
 GENERATE_ALLOC_ENTRYPOINTS _tlab_instrumented, TLABInstrumented
+GENERATE_ALLOC_ENTRYPOINTS _region, Region
+GENERATE_ALLOC_ENTRYPOINTS _region_instrumented, RegionInstrumented
+GENERATE_ALLOC_ENTRYPOINTS _region_tlab, RegionTLAB
+GENERATE_ALLOC_ENTRYPOINTS _region_tlab_instrumented, RegionTLABInstrumented
 .endm

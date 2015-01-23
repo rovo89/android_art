@@ -64,6 +64,7 @@ LIBART_COMMON_SRC_FILES := \
   gc/space/image_space.cc \
   gc/space/large_object_space.cc \
   gc/space/malloc_space.cc \
+  gc/space/region_space.cc \
   gc/space/rosalloc_space.cc \
   gc/space/space.cc \
   gc/space/zygote_space.cc \

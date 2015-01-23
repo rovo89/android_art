@@ -92,7 +92,15 @@ static constexpr bool kUseBrooksReadBarrier = true;
 static constexpr bool kUseBrooksReadBarrier = false;
 #endif
 
+#ifdef USE_TABLE_LOOKUP_READ_BARRIER
+static constexpr bool kUseTableLookupReadBarrier = true;
+#else
+static constexpr bool kUseTableLookupReadBarrier = false;
+#endif
+
 static constexpr bool kUseBakerOrBrooksReadBarrier = kUseBakerReadBarrier || kUseBrooksReadBarrier;
+static constexpr bool kUseReadBarrier = kUseBakerReadBarrier || kUseBrooksReadBarrier ||
+    kUseTableLookupReadBarrier;
 
 // If true, references within the heap are poisoned (negated).
 #ifdef ART_HEAP_POISONING

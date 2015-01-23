@@ -135,6 +135,7 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
     FrameOffset handle_scope_offset = main_jni_conv->CurrentParamHandleScopeEntryOffset();
     // Check handle scope offset is within frame
     CHECK_LT(handle_scope_offset.Uint32Value(), frame_size);
+    // TODO: Insert the read barrier for this load.
     __ LoadRef(main_jni_conv->InterproceduralScratchRegister(),
                mr_conv->MethodRegister(), mirror::ArtMethod::DeclaringClassOffset());
     __ VerifyObject(main_jni_conv->InterproceduralScratchRegister(), false);

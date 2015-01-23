@@ -130,8 +130,11 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_alloc_stack_top, thread_local_alloc_stack_end,
                         sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, thread_local_alloc_stack_end, held_mutexes, sizeof(void*));
-    EXPECT_OFFSET_DIFF(Thread, tlsPtr_.held_mutexes, Thread, wait_mutex_,
-                       sizeof(void*) * kLockLevelCount + sizeof(void*), thread_tlsptr_end);
+    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, held_mutexes, nested_signal_state,
+                        sizeof(void*) * kLockLevelCount);
+    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, nested_signal_state, flip_function, sizeof(void*));
+    EXPECT_OFFSET_DIFF(Thread, tlsPtr_.flip_function, Thread, wait_mutex_, sizeof(void*),
+                       thread_tlsptr_end);
   }
 
   void CheckInterpreterEntryPoints() {

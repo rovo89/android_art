@@ -240,11 +240,23 @@ class MANAGED LOCKABLE Object {
   bool CasFieldWeakSequentiallyConsistentObject(MemberOffset field_offset, Object* old_value,
                                                 Object* new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool CasFieldWeakSequentiallyConsistentObjectWithoutWriteBarrier(MemberOffset field_offset,
+                                                                   Object* old_value,
+                                                                   Object* new_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<bool kTransactionActive, bool kCheckTransaction = true,
       VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   bool CasFieldStrongSequentiallyConsistentObject(MemberOffset field_offset, Object* old_value,
                                                   Object* new_value)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  template<bool kTransactionActive, bool kCheckTransaction = true,
+      VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
+  bool CasFieldStrongSequentiallyConsistentObjectWithoutWriteBarrier(MemberOffset field_offset,
+                                                                     Object* old_value,
+                                                                     Object* new_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>

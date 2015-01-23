@@ -57,6 +57,13 @@ class ImmuneRegion {
     UpdateSize();
   }
 
+  mirror::Object* Begin() {
+    return begin_;
+  }
+  mirror::Object* End() {
+    return end_;
+  }
+
  private:
   bool IsEmpty() const {
     return size_ == 0;

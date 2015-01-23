@@ -192,6 +192,7 @@ mirror::String* InternTable::LookupStringFromImage(mirror::String* s)
     const DexFile::StringId* string_id = dex_file->FindStringId(utf8.c_str());
     if (string_id != nullptr) {
       uint32_t string_idx = dex_file->GetIndexForStringId(*string_id);
+      // GetResolvedString() contains a RB.
       mirror::String* image_string = dex_cache->GetResolvedString(string_idx);
       if (image_string != NULL) {
         return image_string;
@@ -212,6 +213,13 @@ void InternTable::DisallowNewInterns() {
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::intern_table_lock_);
   allow_new_interns_ = false;
+}
+
+void InternTable::EnsureNewInternsDisallowed() {
+  // Lock and unlock once to ensure that no threads are still in the
+  // middle of adding new interns.
+  MutexLock mu(Thread::Current(), *Locks::intern_table_lock_);
+  CHECK(!allow_new_interns_);
 }
 
 mirror::String* InternTable::Insert(mirror::String* s, bool is_strong) {

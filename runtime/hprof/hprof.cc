@@ -507,7 +507,7 @@ class Hprof {
 
     Env env = { this, output };
     runtime->VisitRoots(RootVisitor, &env);
-    runtime->GetHeap()->VisitObjects(VisitObjectCallback, &env);
+    runtime->GetHeap()->VisitObjectsPaused(VisitObjectCallback, &env);
 
     output->StartNewRecord(HPROF_TAG_HEAP_DUMP_END, kHprofTime);
     output->EndRecord();
@@ -1151,10 +1151,20 @@ void Hprof::VisitRoot(const mirror::Object* obj, const RootInfo& info, EndianOut
 void DumpHeap(const char* filename, int fd, bool direct_to_ddms) {
   CHECK(filename != nullptr);
 
+  Thread* self = Thread::Current();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  if (heap->IsGcConcurrentAndMoving()) {
+    // Need to take a heap dump while GC isn't running. See the
+    // comment in Heap::VisitObjects().
+    heap->IncrementDisableMovingGC(self);
+  }
   Runtime::Current()->GetThreadList()->SuspendAll();
   Hprof hprof(filename, fd, direct_to_ddms);
   hprof.Dump();
   Runtime::Current()->GetThreadList()->ResumeAll();
+  if (heap->IsGcConcurrentAndMoving()) {
+    heap->DecrementDisableMovingGC(self);
+  }
 }
 
 }  // namespace hprof

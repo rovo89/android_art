@@ -907,7 +907,6 @@ void ImageWriter::CreateHeader(size_t oat_loaded_size, size_t oat_data_offset) {
 }
 
 void ImageWriter::CopyAndFixupObjects() {
-  ScopedAssertNoThreadSuspension ants(Thread::Current(), "ImageWriter");
   gc::Heap* heap = Runtime::Current()->GetHeap();
   // TODO: heap validation can't handle this fix up pass
   heap->DisableObjectValidation();

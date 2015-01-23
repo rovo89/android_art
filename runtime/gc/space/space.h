@@ -50,6 +50,7 @@ class DlMallocSpace;
 class RosAllocSpace;
 class ImageSpace;
 class LargeObjectSpace;
+class RegionSpace;
 class ZygoteSpace;
 
 static constexpr bool kDebugSpaces = kIsDebugBuild;
@@ -72,6 +73,7 @@ enum SpaceType {
   kSpaceTypeZygoteSpace,
   kSpaceTypeBumpPointerSpace,
   kSpaceTypeLargeObjectSpace,
+  kSpaceTypeRegionSpace,
 };
 std::ostream& operator<<(std::ostream& os, const SpaceType& space_type);
 
@@ -131,6 +133,11 @@ class Space {
     return GetType() == kSpaceTypeBumpPointerSpace;
   }
   virtual BumpPointerSpace* AsBumpPointerSpace();
+
+  bool IsRegionSpace() const {
+    return GetType() == kSpaceTypeRegionSpace;
+  }
+  virtual RegionSpace* AsRegionSpace();
 
   // Does this space hold large objects and implement the large object space abstraction?
   bool IsLargeObjectSpace() const {

@@ -356,6 +356,95 @@ size_t ThreadList::RunCheckpointOnRunnableThreads(Closure* checkpoint_function) 
   return count;
 }
 
+// A checkpoint/suspend-all hybrid to switch thread roots from
+// from-space to to-space refs. Used to synchronize threads at a point
+// to mark the initiation of marking while maintaining the to-space
+// invariant.
+size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_callback,
+                                   gc::collector::GarbageCollector* collector) {
+  TimingLogger::ScopedTiming split("ThreadListFlip", collector->GetTimings());
+  const uint64_t start_time = NanoTime();
+  Thread* self = Thread::Current();
+  Locks::mutator_lock_->AssertNotHeld(self);
+  Locks::thread_list_lock_->AssertNotHeld(self);
+  Locks::thread_suspend_count_lock_->AssertNotHeld(self);
+  CHECK_NE(self->GetState(), kRunnable);
+
+  std::vector<Thread*> runnable_threads;
+  std::vector<Thread*> other_threads;
+
+  // Suspend all threads once.
+  {
+    MutexLock mu(self, *Locks::thread_list_lock_);
+    MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+    // Update global suspend all state for attaching threads.
+    ++suspend_all_count_;
+    // Increment everybody's suspend count (except our own).
+    for (const auto& thread : list_) {
+      if (thread == self) {
+        continue;
+      }
+      thread->ModifySuspendCount(self, +1, false);
+    }
+  }
+
+  // Run the flip callback for the collector.
+  Locks::mutator_lock_->ExclusiveLock(self);
+  flip_callback->Run(self);
+  Locks::mutator_lock_->ExclusiveUnlock(self);
+  collector->RegisterPause(NanoTime() - start_time);
+
+  // Resume runnable threads.
+  {
+    MutexLock mu(self, *Locks::thread_list_lock_);
+    MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+    --suspend_all_count_;
+    for (const auto& thread : list_) {
+      if (thread == self) {
+        continue;
+      }
+      // Set the flip function for both runnable and suspended threads
+      // because Thread::DumpState/DumpJavaStack() (invoked by a
+      // checkpoint) may cause the flip function to be run for a
+      // runnable/suspended thread before a runnable threads runs it
+      // for itself or we run it for a suspended thread below.
+      thread->SetFlipFunction(thread_flip_visitor);
+      if (thread->IsSuspendedAtSuspendCheck()) {
+        // The thread will resume right after the broadcast.
+        thread->ModifySuspendCount(self, -1, false);
+        runnable_threads.push_back(thread);
+      } else {
+        other_threads.push_back(thread);
+      }
+    }
+    Thread::resume_cond_->Broadcast(self);
+  }
+
+  // Run the closure on the other threads and let them resume.
+  {
+    ReaderMutexLock mu(self, *Locks::mutator_lock_);
+    for (const auto& thread : other_threads) {
+      Closure* flip_func = thread->GetFlipFunction();
+      if (flip_func != nullptr) {
+        flip_func->Run(thread);
+      }
+    }
+    // Run it for self.
+    thread_flip_visitor->Run(self);
+  }
+
+  // Resume other threads.
+  {
+    MutexLock mu2(self, *Locks::thread_suspend_count_lock_);
+    for (const auto& thread : other_threads) {
+      thread->ModifySuspendCount(self, -1, false);
+    }
+    Thread::resume_cond_->Broadcast(self);
+  }
+
+  return runnable_threads.size() + other_threads.size() + 1;  // +1 for self.
+}
+
 void ThreadList::SuspendAll() {
   Thread* self = Thread::Current();
 

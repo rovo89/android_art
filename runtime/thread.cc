@@ -33,6 +33,7 @@
 
 #include "arch/context.h"
 #include "base/mutex.h"
+#include "base/timing_logger.h"
 #include "base/to_str.h"
 #include "class_linker-inl.h"
 #include "class_linker.h"
@@ -723,13 +724,34 @@ bool Thread::RequestCheckpoint(Closure* function) {
   return success;
 }
 
+Closure* Thread::GetFlipFunction() {
+  Atomic<Closure*>* atomic_func = reinterpret_cast<Atomic<Closure*>*>(&tlsPtr_.flip_function);
+  Closure* func;
+  do {
+    func = atomic_func->LoadRelaxed();
+    if (func == nullptr) {
+      return nullptr;
+    }
+  } while (!atomic_func->CompareExchangeWeakSequentiallyConsistent(func, nullptr));
+  DCHECK(func != nullptr);
+  return func;
+}
+
+void Thread::SetFlipFunction(Closure* function) {
+  CHECK(function != nullptr);
+  Atomic<Closure*>* atomic_func = reinterpret_cast<Atomic<Closure*>*>(&tlsPtr_.flip_function);
+  atomic_func->StoreSequentiallyConsistent(function);
+}
+
 void Thread::FullSuspendCheck() {
   VLOG(threads) << this << " self-suspending";
   ATRACE_BEGIN("Full suspend check");
   // Make thread appear suspended to other threads, release mutator_lock_.
+  tls32_.suspended_at_suspend_check = true;
   TransitionFromRunnableToSuspended(kSuspended);
   // Transition back to runnable noting requests to suspend, re-acquire share on mutator_lock_.
   TransitionFromSuspendedToRunnable();
+  tls32_.suspended_at_suspend_check = false;
   ATRACE_END();
   VLOG(threads) << this << " self-reviving";
 }
@@ -739,6 +761,20 @@ void Thread::DumpState(std::ostream& os, const Thread* thread, pid_t tid) {
   int priority;
   bool is_daemon = false;
   Thread* self = Thread::Current();
+
+  // If flip_function is not null, it means we have run a checkpoint
+  // before the thread wakes up to execute the flip function and the
+  // thread roots haven't been forwarded.  So the following access to
+  // the roots (opeer or methods in the frames) would be bad. Run it
+  // here. TODO: clean up.
+  if (thread != nullptr) {
+    ScopedObjectAccessUnchecked soa(self);
+    Thread* this_thread = const_cast<Thread*>(thread);
+    Closure* flip_func = this_thread->GetFlipFunction();
+    if (flip_func != nullptr) {
+      flip_func->Run(this_thread);
+    }
+  }
 
   // Don't do this if we are aborting since the GC may have all the threads suspended. This will
   // cause ScopedObjectAccessUnchecked to deadlock.
@@ -980,6 +1016,19 @@ static bool ShouldShowNativeStack(const Thread* thread)
 }
 
 void Thread::DumpJavaStack(std::ostream& os) const {
+  // If flip_function is not null, it means we have run a checkpoint
+  // before the thread wakes up to execute the flip function and the
+  // thread roots haven't been forwarded.  So the following access to
+  // the roots (locks or methods in the frames) would be bad. Run it
+  // here. TODO: clean up.
+  {
+    Thread* this_thread = const_cast<Thread*>(this);
+    Closure* flip_func = this_thread->GetFlipFunction();
+    if (flip_func != nullptr) {
+      flip_func->Run(this_thread);
+    }
+  }
+
   // Dumping the Java stack involves the verifier for locks. The verifier operates under the
   // assumption that there is no exception pending on entry. Thus, stash any pending exception.
   // Thread::Current() instead of this in case a thread is dumping the stack of another suspended
@@ -1115,6 +1164,8 @@ Thread::Thread(bool daemon) : tls32_(daemon), wait_monitor_(nullptr), interrupte
   for (uint32_t i = 0; i < kMaxCheckpoints; ++i) {
     tlsPtr_.checkpoint_functions[i] = nullptr;
   }
+  tlsPtr_.flip_function = nullptr;
+  tls32_.suspended_at_suspend_check = false;
 }
 
 bool Thread::IsStillStarting() const {
@@ -1233,6 +1284,8 @@ Thread::~Thread() {
   CHECK(tlsPtr_.checkpoint_functions[0] == nullptr);
   CHECK(tlsPtr_.checkpoint_functions[1] == nullptr);
   CHECK(tlsPtr_.checkpoint_functions[2] == nullptr);
+  CHECK(tlsPtr_.flip_function == nullptr);
+  CHECK_EQ(tls32_.suspended_at_suspend_check, false);
 
   // We may be deleting a still born thread.
   SetStateUnsafe(kTerminated);
