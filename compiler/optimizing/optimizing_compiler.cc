@@ -286,7 +286,7 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
       ArrayRef<const uint8_t>(allocator.GetMemory()),
       codegen->GetFrameSize(),
       codegen->GetCoreSpillMask(),
-      0, /* FPR spill mask, unused */
+      codegen->GetFpuSpillMask(),
       ArrayRef<const uint8_t>(stack_map));
 }
 
@@ -313,7 +313,7 @@ CompiledMethod* OptimizingCompiler::CompileBaseline(
                                                  ArrayRef<const uint8_t>(allocator.GetMemory()),
                                                  codegen->GetFrameSize(),
                                                  codegen->GetCoreSpillMask(),
-                                                 0, /* FPR spill mask, unused */
+                                                 codegen->GetFpuSpillMask(),
                                                  &src_mapping_table,
                                                  AlignVectorSize(mapping_table),
                                                  AlignVectorSize(vmap_table),
