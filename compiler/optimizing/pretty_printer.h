@@ -55,7 +55,7 @@ class HPrettyPrinter : public HGraphVisitor {
     if (instruction->HasUses()) {
       PrintString(" [");
       bool first = true;
-      for (HUseIterator<HInstruction> it(instruction->GetUses()); !it.Done(); it.Advance()) {
+      for (HUseIterator<HInstruction*> it(instruction->GetUses()); !it.Done(); it.Advance()) {
         if (first) {
           first = false;
         } else {

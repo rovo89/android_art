@@ -146,7 +146,7 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
   }
 
   // Ensure the uses of `instruction` are defined in a block of the graph.
-  for (HUseIterator<HInstruction> use_it(instruction->GetUses());
+  for (HUseIterator<HInstruction*> use_it(instruction->GetUses());
        !use_it.Done(); use_it.Advance()) {
     HInstruction* use = use_it.Current()->GetUser();
     const HInstructionList& list = use->IsPhi()
@@ -254,7 +254,7 @@ void SSAChecker::VisitInstruction(HInstruction* instruction) {
   super_type::VisitInstruction(instruction);
 
   // Ensure an instruction dominates all its uses.
-  for (HUseIterator<HInstruction> use_it(instruction->GetUses());
+  for (HUseIterator<HInstruction*> use_it(instruction->GetUses());
        !use_it.Done(); use_it.Advance()) {
     HInstruction* use = use_it.Current()->GetUser();
     if (!use->IsPhi() && !instruction->StrictlyDominates(use)) {

@@ -81,13 +81,13 @@ TEST(Node, InsertInstruction) {
   entry->AddInstruction(new (&allocator) HExit());
 
   ASSERT_FALSE(parameter1->HasUses());
-  ASSERT_EQ(parameter1->NumberOfUses(), 0u);
+  ASSERT_EQ(parameter1->ExpensiveComputeNumberOfUses(), 0u);
 
   HInstruction* to_insert = new (&allocator) HNullCheck(parameter1, 0);
   entry->InsertInstructionBefore(to_insert, parameter2);
 
   ASSERT_TRUE(parameter1->HasUses());
-  ASSERT_EQ(parameter1->NumberOfUses(), 1u);
+  ASSERT_EQ(parameter1->ExpensiveComputeNumberOfUses(), 1u);
 }
 
 /**
@@ -105,13 +105,13 @@ TEST(Node, AddInstruction) {
   entry->AddInstruction(parameter);
 
   ASSERT_FALSE(parameter->HasUses());
-  ASSERT_EQ(parameter->NumberOfUses(), 0u);
+  ASSERT_EQ(parameter->ExpensiveComputeNumberOfUses(), 0u);
 
   HInstruction* to_add = new (&allocator) HNullCheck(parameter, 0);
   entry->AddInstruction(to_add);
 
   ASSERT_TRUE(parameter->HasUses());
-  ASSERT_EQ(parameter->NumberOfUses(), 1u);
+  ASSERT_EQ(parameter->ExpensiveComputeNumberOfUses(), 1u);
 }
 
 }  // namespace art

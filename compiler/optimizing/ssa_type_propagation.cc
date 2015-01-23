@@ -114,7 +114,7 @@ void SsaTypePropagation::AddToWorklist(HPhi* instruction) {
 }
 
 void SsaTypePropagation::AddDependentInstructionsToWorklist(HPhi* instruction) {
-  for (HUseIterator<HInstruction> it(instruction->GetUses()); !it.Done(); it.Advance()) {
+  for (HUseIterator<HInstruction*> it(instruction->GetUses()); !it.Done(); it.Advance()) {
     HPhi* phi = it.Current()->GetUser()->AsPhi();
     if (phi != nullptr) {
       AddToWorklist(phi);
