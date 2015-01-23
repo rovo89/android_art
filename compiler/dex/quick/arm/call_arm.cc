@@ -16,9 +16,13 @@
 
 /* This file contains codegen for the Thumb2 ISA. */
 
-#include "arm_lir.h"
 #include "codegen_arm.h"
+
+#include "arm_lir.h"
+#include "base/logging.h"
+#include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "driver/compiler_driver.h"
 #include "gc/accounting/card_table.h"
 #include "mirror/art_method.h"
 #include "mirror/object_array-inl.h"

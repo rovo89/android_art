@@ -22,6 +22,7 @@
 #include "bb_optimizations.h"
 #include "dataflow_iterator.h"
 #include "dataflow_iterator-inl.h"
+#include "dex_flags.h"
 #include "pass_driver.h"
 #include "pass_me.h"
 

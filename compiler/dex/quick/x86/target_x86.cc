@@ -14,16 +14,19 @@
  * limitations under the License.
  */
 
+#include "codegen_x86.h"
+
 #include <cstdarg>
 #include <inttypes.h>
 #include <string>
 
 #include "arch/instruction_set_features.h"
 #include "backend_x86.h"
-#include "codegen_x86.h"
-#include "dex/compiler_internals.h"
+#include "base/logging.h"
+#include "dex/compiler_ir.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
+#include "driver/compiler_driver.h"
 #include "mirror/array-inl.h"
 #include "mirror/art_method.h"
 #include "mirror/string.h"
@@ -596,7 +599,7 @@ bool X86Mir2Lir::ProvidesFullMemoryBarrier(X86OpCode opcode) {
 }
 
 bool X86Mir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
-  if (!cu_->GetInstructionSetFeatures()->IsSmp()) {
+  if (!cu_->compiler_driver->GetInstructionSetFeatures()->IsSmp()) {
     return false;
   }
   // Start off with using the last LIR as the barrier. If it is not enough, then we will update it.

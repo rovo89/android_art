@@ -21,7 +21,7 @@
 #include "backend.h"
 #include "base/dumpable.h"
 #include "compiler.h"
-#include "compiler_internals.h"
+#include "dex_flags.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "mirror/object.h"
@@ -90,16 +90,12 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   DCHECK(driver.GetCompilerOptions().IsCompilationEnabled());
 
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
-  CompilationUnit cu(driver.GetArenaPool());
-
-  cu.compiler_driver = &driver;
-  cu.class_linker = class_linker;
-  cu.instruction_set = driver.GetInstructionSet();
-  if (cu.instruction_set == kArm) {
-    cu.instruction_set = kThumb2;
+  InstructionSet instruction_set = driver.GetInstructionSet();
+  if (instruction_set == kArm) {
+    instruction_set = kThumb2;
   }
-  cu.target64 = Is64BitInstructionSet(cu.instruction_set);
-  cu.compiler = compiler;
+  CompilationUnit cu(driver.GetArenaPool(), instruction_set, &driver, class_linker);
+
   // TODO: Mips64 is not yet implemented.
   CHECK((cu.instruction_set == kThumb2) ||
         (cu.instruction_set == kArm64) ||
@@ -108,10 +104,12 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
         (cu.instruction_set == kMips));
 
   // TODO: set this from command line
-  cu.compiler_flip_match = false;
-  bool use_match = !cu.compiler_method_match.empty();
-  bool match = use_match && (cu.compiler_flip_match ^
-      (PrettyMethod(method_idx, dex_file).find(cu.compiler_method_match) != std::string::npos));
+  constexpr bool compiler_flip_match = false;
+  const std::string compiler_method_match = "";
+
+  bool use_match = !compiler_method_match.empty();
+  bool match = use_match && (compiler_flip_match ^
+      (PrettyMethod(method_idx, dex_file).find(compiler_method_match) != std::string::npos));
   if (!use_match || match) {
     cu.disable_opt = kCompilerOptimizerDisableFlags;
     cu.enable_debug = kCompilerDebugFlags;

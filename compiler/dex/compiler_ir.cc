@@ -16,16 +16,19 @@
 
 #include "compiler_ir.h"
 
+#include "arch/instruction_set_features.h"
 #include "base/dumpable.h"
 #include "backend.h"
-#include "frontend.h"
+#include "dex_flags.h"
+#include "driver/compiler_driver.h"
 #include "mir_graph.h"
 
 namespace art {
 
-CompilationUnit::CompilationUnit(ArenaPool* pool)
-  : compiler_driver(nullptr),
-    class_linker(nullptr),
+CompilationUnit::CompilationUnit(ArenaPool* pool, InstructionSet isa, CompilerDriver* driver,
+                                 ClassLinker* linker)
+  : compiler_driver(driver),
+    class_linker(linker),
     dex_file(nullptr),
     class_loader(nullptr),
     class_def_idx(0),
@@ -36,10 +39,8 @@ CompilationUnit::CompilationUnit(ArenaPool* pool)
     disable_opt(0),
     enable_debug(0),
     verbose(false),
-    compiler(nullptr),
-    instruction_set(kNone),
-    target64(false),
-    compiler_flip_match(false),
+    instruction_set(isa),
+    target64(Is64BitInstructionSet(isa)),
     arena(pool),
     arena_stack(pool),
     mir_graph(nullptr),

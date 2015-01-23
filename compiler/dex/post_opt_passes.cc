@@ -15,7 +15,7 @@
  */
 
 #include "post_opt_passes.h"
-#include "dataflow_iterator.h"
+
 #include "dataflow_iterator-inl.h"
 
 namespace art {

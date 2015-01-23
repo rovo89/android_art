@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
-#include "arm_lir.h"
 #include "codegen_arm.h"
-#include "dex/quick/mir_to_lir-inl.h"
+
+#include "arm_lir.h"
+#include "base/logging.h"
+#include "dex/compiler_ir.h"
+#include "dex/quick/mir_to_lir.h"
 
 namespace art {
 

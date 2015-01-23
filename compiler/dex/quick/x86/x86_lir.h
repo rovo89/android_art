@@ -17,7 +17,8 @@
 #ifndef ART_COMPILER_DEX_QUICK_X86_X86_LIR_H_
 #define ART_COMPILER_DEX_QUICK_X86_X86_LIR_H_
 
-#include "dex/compiler_internals.h"
+#include "dex/reg_location.h"
+#include "dex/reg_storage.h"
 
 namespace art {
 

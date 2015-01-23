@@ -18,8 +18,10 @@
 
 #include "arch/arm/instruction_set_features_arm.h"
 #include "arm_lir.h"
+#include "base/logging.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
+#include "driver/compiler_driver.h"
 
 namespace art {
 
