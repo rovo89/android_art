@@ -1643,6 +1643,12 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
 
     case Instruction::MOVE_EXCEPTION: {
+      // We do not allow MOVE_EXCEPTION as the first instruction in a method. This is a simple case
+      // where one entrypoint to the catch block is not actually an exception path.
+      if (work_insn_idx_ == 0) {
+        Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "move-exception at pc 0x0";
+        break;
+      }
       /*
        * This statement can only appear as the first instruction in an exception handler. We verify
        * that as part of extracting the exception type from the catch block list.

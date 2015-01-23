@@ -493,7 +493,23 @@ void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JVa
   while (shadow_frame != NULL) {
     self->SetTopOfShadowStack(shadow_frame);
     const DexFile::CodeItem* code_item = shadow_frame->GetMethod()->GetCodeItem();
-    value = Execute(self, code_item, *shadow_frame, value);
+    const uint32_t dex_pc = shadow_frame->GetDexPC();
+    uint32_t new_dex_pc;
+    if (UNLIKELY(self->IsExceptionPending())) {
+      const instrumentation::Instrumentation* const instrumentation =
+          Runtime::Current()->GetInstrumentation();
+      uint32_t found_dex_pc = FindNextInstructionFollowingException(self, *shadow_frame, dex_pc,
+                                                                    instrumentation);
+      new_dex_pc = found_dex_pc;  // the dex pc of a matching catch handler
+                                  // or DexFile::kDexNoIndex if there is none.
+    } else {
+      const Instruction* instr = Instruction::At(&code_item->insns_[dex_pc]);
+      new_dex_pc = dex_pc + instr->SizeInCodeUnits();  // the dex pc of the next instruction.
+    }
+    if (new_dex_pc != DexFile::kDexNoIndex) {
+      shadow_frame->SetDexPC(new_dex_pc);
+      value = Execute(self, code_item, *shadow_frame, value);
+    }
     ShadowFrame* old_frame = shadow_frame;
     shadow_frame = shadow_frame->GetLink();
     delete old_frame;
