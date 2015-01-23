@@ -398,14 +398,14 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     rb_table_.reset(new accounting::ReadBarrierTable());
     DCHECK(rb_table_->IsAllCleared());
   }
-
-  // Card cache for now since it makes it easier for us to update the references to the copying
-  // spaces.
-  accounting::ModUnionTable* mod_union_table =
-      new accounting::ModUnionTableToZygoteAllocspace("Image mod-union table", this,
-                                                      GetImageSpace());
-  CHECK(mod_union_table != nullptr) << "Failed to create image mod-union table";
-  AddModUnionTable(mod_union_table);
+  if (GetImageSpace() != nullptr) {
+    // Don't add the image mod union table if we are running without an image, this can crash if
+    // we use the CardCache implementation.
+    accounting::ModUnionTable* mod_union_table = new accounting::ModUnionTableToZygoteAllocspace(
+        "Image mod-union table", this, GetImageSpace());
+    CHECK(mod_union_table != nullptr) << "Failed to create image mod-union table";
+    AddModUnionTable(mod_union_table);
+  }
   if (collector::SemiSpace::kUseRememberedSet && non_moving_space_ != main_space_) {
     accounting::RememberedSet* non_moving_space_rem_set =
         new accounting::RememberedSet("Non-moving space remembered set", this, non_moving_space_);

@@ -188,13 +188,6 @@ class SpaceBitmap {
 
   std::string Dump() const;
 
-  const void* GetObjectWordAddress(const mirror::Object* obj) const {
-    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
-    const uintptr_t offset = addr - heap_begin_;
-    const size_t index = OffsetToIndex(offset);
-    return &bitmap_begin_[index];
-  }
-
  private:
   // TODO: heap_end_ is initialized so that the heap bitmap is empty, this doesn't require the -1,
   // however, we document that this is expected on heap_end_

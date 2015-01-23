@@ -44,6 +44,7 @@ LIBART_COMMON_SRC_FILES := \
   elf_file.cc \
   gc/allocator/dlmalloc.cc \
   gc/allocator/rosalloc.cc \
+  gc/accounting/bitmap.cc \
   gc/accounting/card_table.cc \
   gc/accounting/heap_bitmap.cc \
   gc/accounting/mod_union_table.cc \
