@@ -45,9 +45,7 @@ static constexpr size_t kRuntimeParameterCoreRegistersLength =
 static constexpr FloatRegister kRuntimeParameterFpuRegisters[] = { XMM0, XMM1 };
 static constexpr size_t kRuntimeParameterFpuRegistersLength =
     arraysize(kRuntimeParameterFpuRegisters);
-static constexpr Register kFakeReturnRegister = Register(16);
-static constexpr Register kCoreCalleeSaves[] =
-    { RBX, RBP, R12, R13, R14, R15, kFakeReturnRegister };
+static constexpr Register kCoreCalleeSaves[] = { RBX, RBP, R12, R13, R14, R15 };
 static constexpr FloatRegister kFpuCalleeSaves[] = { XMM12, XMM13, XMM14, XMM15 };
 
 static constexpr int kC2ConditionMask = 0x400;
@@ -412,13 +410,16 @@ static uint32_t ComputeCalleeSaveMask(const int* registers, size_t length) {
 }
 
 static constexpr int kNumberOfCpuRegisterPairs = 0;
+// Use a fake return address register to mimic Quick.
+static constexpr Register kFakeReturnRegister = Register(kLastCpuRegister + 1);
 CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph, const CompilerOptions& compiler_options)
       : CodeGenerator(graph,
                       kNumberOfCpuRegisters,
                       kNumberOfFloatRegisters,
                       kNumberOfCpuRegisterPairs,
                       ComputeCalleeSaveMask(reinterpret_cast<const int*>(kCoreCalleeSaves),
-                                            arraysize(kCoreCalleeSaves)),
+                                            arraysize(kCoreCalleeSaves))
+                          | (1 << kFakeReturnRegister),
                       ComputeCalleeSaveMask(reinterpret_cast<const int*>(kFpuCalleeSaves),
                                             arraysize(kFpuCalleeSaves)),
                       compiler_options),
@@ -426,7 +427,6 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph, const CompilerOptions& c
         location_builder_(graph, this),
         instruction_visitor_(graph, this),
         move_resolver_(graph->GetArena(), this) {
-  // Use a fake return address register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
 }
 
@@ -492,7 +492,7 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
 
   for (int i = arraysize(kCoreCalleeSaves) - 1; i >= 0; --i) {
     Register reg = kCoreCalleeSaves[i];
-    if (allocated_registers_.ContainsCoreRegister(reg) && reg != kFakeReturnRegister) {
+    if (allocated_registers_.ContainsCoreRegister(reg)) {
       __ pushq(CpuRegister(reg));
     }
   }
@@ -525,7 +525,7 @@ void CodeGeneratorX86_64::GenerateFrameExit() {
 
   for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
     Register reg = kCoreCalleeSaves[i];
-    if (allocated_registers_.ContainsCoreRegister(reg) && reg != kFakeReturnRegister) {
+    if (allocated_registers_.ContainsCoreRegister(reg)) {
       __ popq(CpuRegister(reg));
     }
   }
