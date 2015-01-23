@@ -75,7 +75,7 @@ Object* Object::CopyObject(Thread* self, mirror::Object* dest, mirror::Object* s
   uint8_t* dst_bytes = reinterpret_cast<uint8_t*>(dest);
   size_t offset = sizeof(Object);
   memcpy(dst_bytes + offset, src_bytes + offset, num_bytes - offset);
-  if (kUseBakerOrBrooksReadBarrier) {
+  if (kUseReadBarrier) {
     // We need a RB here. After the memcpy that covers the whole
     // object above, copy references fields one by one again with a
     // RB. TODO: Optimize this later?

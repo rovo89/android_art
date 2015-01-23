@@ -2697,9 +2697,6 @@ void ClassLinker::LoadClass(Thread* self, const DexFile& dex_file,
   CHECK(descriptor != nullptr);
 
   klass->SetClass(GetClassRoot(kJavaLangClass));
-  if (kUseBakerOrBrooksReadBarrier) {
-    klass->AssertReadBarrierPointer();
-  }
   uint32_t access_flags = dex_class_def.GetJavaAccessFlags();
   CHECK_EQ(access_flags & ~kAccJavaFlagsMask, 0U);
   klass->SetAccessFlags(access_flags);

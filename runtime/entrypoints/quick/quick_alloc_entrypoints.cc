@@ -163,6 +163,8 @@ GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(DlMalloc, gc::kAllocatorTypeDlMalloc)
 GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(RosAlloc, gc::kAllocatorTypeRosAlloc)
 GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(BumpPointer, gc::kAllocatorTypeBumpPointer)
 GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(TLAB, gc::kAllocatorTypeTLAB)
+GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(Region, gc::kAllocatorTypeRegion)
+GENERATE_ENTRYPOINTS_FOR_ALLOCATOR(RegionTLAB, gc::kAllocatorTypeRegionTLAB)
 
 #define GENERATE_ENTRYPOINTS(suffix) \
 extern "C" void* art_quick_alloc_array##suffix(uint32_t, int32_t, mirror::ArtMethod* ref); \
@@ -213,6 +215,8 @@ GENERATE_ENTRYPOINTS(_dlmalloc)
 GENERATE_ENTRYPOINTS(_rosalloc)
 GENERATE_ENTRYPOINTS(_bump_pointer)
 GENERATE_ENTRYPOINTS(_tlab)
+GENERATE_ENTRYPOINTS(_region)
+GENERATE_ENTRYPOINTS(_region_tlab)
 #endif
 
 static bool entry_points_instrumented = false;
@@ -245,6 +249,16 @@ void ResetQuickAllocEntryPoints(QuickEntryPoints* qpoints) {
     case gc::kAllocatorTypeTLAB: {
       CHECK(kMovingCollector);
       SetQuickAllocEntryPoints_tlab(qpoints, entry_points_instrumented);
+      return;
+    }
+    case gc::kAllocatorTypeRegion: {
+      CHECK(kMovingCollector);
+      SetQuickAllocEntryPoints_region(qpoints, entry_points_instrumented);
+      return;
+    }
+    case gc::kAllocatorTypeRegionTLAB: {
+      CHECK(kMovingCollector);
+      SetQuickAllocEntryPoints_region_tlab(qpoints, entry_points_instrumented);
       return;
     }
     default:
