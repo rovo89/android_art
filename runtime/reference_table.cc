@@ -71,33 +71,6 @@ static size_t GetElementCount(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::
   return obj->AsArray()->GetLength();
 }
 
-struct ObjectComparator {
-  bool operator()(GcRoot<mirror::Object> root1, GcRoot<mirror::Object> root2) const
-    // TODO: enable analysis when analysis can work with the STL.
-      NO_THREAD_SAFETY_ANALYSIS {
-    Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
-    mirror::Object* obj1 = root1.Read<kWithoutReadBarrier>();
-    mirror::Object* obj2 = root2.Read<kWithoutReadBarrier>();
-    DCHECK(obj1 != nullptr);
-    DCHECK(obj2 != nullptr);
-    Runtime* runtime = Runtime::Current();
-    DCHECK(!runtime->IsClearedJniWeakGlobal(obj1));
-    DCHECK(!runtime->IsClearedJniWeakGlobal(obj2));
-    // Sort by class...
-    if (obj1->GetClass() != obj2->GetClass()) {
-      return obj1->GetClass()->IdentityHashCode() < obj2->GetClass()->IdentityHashCode();
-    }
-    // ...then by size...
-    const size_t size1 = obj1->SizeOf();
-    const size_t size2 = obj2->SizeOf();
-    if (size1 != size2) {
-      return size1 < size2;
-    }
-    // ...and finally by identity hash code.
-    return obj1->IdentityHashCode() < obj2->IdentityHashCode();
-  }
-};
-
 // Log an object with some additional info.
 //
 // Pass in the number of elements in the array (or 0 if this is not an
@@ -143,6 +116,38 @@ void ReferenceTable::Dump(std::ostream& os) {
 }
 
 void ReferenceTable::Dump(std::ostream& os, Table& entries) {
+  // Compare GC roots, first by class, then size, then address.
+  struct GcRootComparator {
+    bool operator()(GcRoot<mirror::Object> root1, GcRoot<mirror::Object> root2) const
+      // TODO: enable analysis when analysis can work with the STL.
+        NO_THREAD_SAFETY_ANALYSIS {
+      Locks::mutator_lock_->AssertSharedHeld(Thread::Current());
+      // These GC roots are already forwarded in ReferenceTable::Dump. We sort by class since there
+      // are no suspend points which can happen during the sorting process. This works since
+      // we are guaranteed that the addresses of obj1, obj2, obj1->GetClass, obj2->GetClass wont
+      // change during the sorting process. The classes are forwarded by ref->GetClass().
+      mirror::Object* obj1 = root1.Read<kWithoutReadBarrier>();
+      mirror::Object* obj2 = root2.Read<kWithoutReadBarrier>();
+      DCHECK(obj1 != nullptr);
+      DCHECK(obj2 != nullptr);
+      Runtime* runtime = Runtime::Current();
+      DCHECK(!runtime->IsClearedJniWeakGlobal(obj1));
+      DCHECK(!runtime->IsClearedJniWeakGlobal(obj2));
+      // Sort by class...
+      if (obj1->GetClass() != obj2->GetClass()) {
+        return obj1->GetClass() < obj2->GetClass();
+      }
+      // ...then by size...
+      const size_t size1 = obj1->SizeOf();
+      const size_t size2 = obj2->SizeOf();
+      if (size1 != size2) {
+        return size1 < size2;
+      }
+      // ...and finally by address.
+      return obj1 < obj2;
+    }
+  };
+
   if (entries.empty()) {
     os << "  (empty)\n";
     return;
@@ -201,7 +206,7 @@ void ReferenceTable::Dump(std::ostream& os, Table& entries) {
   if (sorted_entries.empty()) {
     return;
   }
-  std::sort(sorted_entries.begin(), sorted_entries.end(), ObjectComparator());
+  std::sort(sorted_entries.begin(), sorted_entries.end(), GcRootComparator());
 
   // Dump a summary of the whole table.
   os << "  Summary:\n";
