@@ -25,33 +25,32 @@ namespace art {
 
 bool JobjectComparator::operator()(jobject jobj1, jobject jobj2) const {
   // Ensure null references and cleared jweaks appear at the end.
-  if (jobj1 == NULL) {
+  if (jobj1 == nullptr) {
     return true;
-  } else if (jobj2 == NULL) {
+  } else if (jobj2 == nullptr) {
     return false;
   }
   ScopedObjectAccess soa(Thread::Current());
-  mirror::Object* obj1 = soa.Decode<mirror::Object*>(jobj1);
-  mirror::Object* obj2 = soa.Decode<mirror::Object*>(jobj2);
-  if (obj1 == NULL) {
+  StackHandleScope<2> hs(soa.Self());
+  Handle<mirror::Object> obj1(hs.NewHandle(soa.Decode<mirror::Object*>(jobj1)));
+  Handle<mirror::Object> obj2(hs.NewHandle(soa.Decode<mirror::Object*>(jobj2)));
+  if (obj1.Get() == nullptr) {
     return true;
-  } else if (obj2 == NULL) {
+  } else if (obj2.Get() == nullptr) {
     return false;
   }
   // Sort by class...
   if (obj1->GetClass() != obj2->GetClass()) {
     return obj1->GetClass()->IdentityHashCode() < obj2->GetClass()->IdentityHashCode();
-  } else {
-    // ...then by size...
-    size_t count1 = obj1->SizeOf();
-    size_t count2 = obj2->SizeOf();
-    if (count1 != count2) {
-      return count1 < count2;
-    } else {
-      // ...and finally by identity hash code.
-      return obj1->IdentityHashCode() < obj2->IdentityHashCode();
-    }
   }
+  // ...then by size...
+  const size_t count1 = obj1->SizeOf();
+  const size_t count2 = obj2->SizeOf();
+  if (count1 != count2) {
+    return count1 < count2;
+  }
+  // ...and finally by identity hash code.
+  return obj1->IdentityHashCode() < obj2->IdentityHashCode();
 }
 
 }  // namespace art

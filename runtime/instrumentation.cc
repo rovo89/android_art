@@ -671,12 +671,14 @@ bool Instrumentation::AddDeoptimizedMethod(mirror::ArtMethod* method) {
     return false;
   }
   // Not found. Add it.
+  static_assert(!kMovingMethods, "Not safe if methods can move");
   int32_t hash_code = method->IdentityHashCode();
   deoptimized_methods_.insert(std::make_pair(hash_code, GcRoot<mirror::ArtMethod>(method)));
   return true;
 }
 
 bool Instrumentation::FindDeoptimizedMethod(mirror::ArtMethod* method) {
+  static_assert(!kMovingMethods, "Not safe if methods can move");
   int32_t hash_code = method->IdentityHashCode();
   auto range = deoptimized_methods_.equal_range(hash_code);
   for (auto it = range.first; it != range.second; ++it) {
@@ -700,6 +702,7 @@ mirror::ArtMethod* Instrumentation::BeginDeoptimizedMethod() {
 }
 
 bool Instrumentation::RemoveDeoptimizedMethod(mirror::ArtMethod* method) {
+  static_assert(!kMovingMethods, "Not safe if methods can move");
   int32_t hash_code = method->IdentityHashCode();
   auto range = deoptimized_methods_.equal_range(hash_code);
   for (auto it = range.first; it != range.second; ++it) {
