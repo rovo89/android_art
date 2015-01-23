@@ -35,7 +35,6 @@ class HGraphVisualizer : public ValueObject {
  public:
   HGraphVisualizer(std::ostream* output,
                    HGraph* graph,
-                   const char* string_filter,
                    const CodeGenerator& codegen,
                    const char* method_name);
 
@@ -45,10 +44,6 @@ class HGraphVisualizer : public ValueObject {
   std::ostream* const output_;
   HGraph* const graph_;
   const CodeGenerator& codegen_;
-
-  // Is true when `output_` is not null, and the compiled method's name
-  // contains the string_filter given in the constructor.
-  bool is_enabled_;
 
   DISALLOW_COPY_AND_ASSIGN(HGraphVisualizer);
 };

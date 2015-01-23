@@ -180,10 +180,11 @@ static void RunCodeOptimized(HGraph* graph,
 static void TestCode(const uint16_t* data, bool has_result = false, int32_t expected = 0) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  HGraphBuilder builder(&arena);
+  HGraph* graph = new (&arena) HGraph(&arena);
+  HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  HGraph* graph = builder.BuildGraph(*item);
-  ASSERT_NE(graph, nullptr);
+  bool graph_built = builder.BuildGraph(*item);
+  ASSERT_TRUE(graph_built);
   // Remove suspend checks, they cannot be executed in this context.
   RemoveSuspendChecks(graph);
   RunCodeBaseline(graph, has_result, expected);
@@ -192,10 +193,11 @@ static void TestCode(const uint16_t* data, bool has_result = false, int32_t expe
 static void TestCodeLong(const uint16_t* data, bool has_result, int64_t expected) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  HGraphBuilder builder(&arena, Primitive::kPrimLong);
+  HGraph* graph = new (&arena) HGraph(&arena);
+  HGraphBuilder builder(graph, Primitive::kPrimLong);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  HGraph* graph = builder.BuildGraph(*item);
-  ASSERT_NE(graph, nullptr);
+  bool graph_built = builder.BuildGraph(*item);
+  ASSERT_TRUE(graph_built);
   // Remove suspend checks, they cannot be executed in this context.
   RemoveSuspendChecks(graph);
   RunCodeBaseline(graph, has_result, expected);

@@ -78,10 +78,11 @@ static void ReNumberInstructions(HGraph* graph) {
 static void TestCode(const uint16_t* data, const char* expected) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraphBuilder builder(&allocator);
+  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  HGraph* graph = builder.BuildGraph(*item);
-  ASSERT_NE(graph, nullptr);
+  bool graph_built = builder.BuildGraph(*item);
+  ASSERT_TRUE(graph_built);
 
   graph->BuildDominatorTree();
   // Suspend checks implementation may change in the future, and this test relies
