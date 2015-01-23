@@ -42,7 +42,6 @@ static bool ExpectedPairLayout(Location location) {
   return ((location.low() & 1) == 0) && (location.low() + 1 == location.high());
 }
 
-static constexpr int kNumberOfPushedRegistersAtEntry = 1 + 2;  // LR, R6, R7
 static constexpr int kCurrentMethodStackOffset = 0;
 
 static constexpr Register kRuntimeParameterCoreRegisters[] = { R0, R1, R2, R3 };
@@ -111,20 +110,6 @@ class DivZeroCheckSlowPathARM : public SlowPathCodeARM {
  private:
   HDivZeroCheck* const instruction_;
   DISALLOW_COPY_AND_ASSIGN(DivZeroCheckSlowPathARM);
-};
-
-class StackOverflowCheckSlowPathARM : public SlowPathCodeARM {
- public:
-  StackOverflowCheckSlowPathARM() {}
-
-  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    __ Bind(GetEntryLabel());
-    __ LoadFromOffset(kLoadWord, PC, TR,
-        QUICK_ENTRYPOINT_OFFSET(kArmWordSize, pThrowStackOverflow).Int32Value());
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(StackOverflowCheckSlowPathARM);
 };
 
 class SuspendCheckSlowPathARM : public SlowPathCodeARM {
@@ -390,16 +375,19 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
                                    const ArmInstructionSetFeatures& isa_features,
                                    const CompilerOptions& compiler_options)
     : CodeGenerator(graph, kNumberOfCoreRegisters, kNumberOfSRegisters,
-                    kNumberOfRegisterPairs, 0, 0, compiler_options),
+                    kNumberOfRegisterPairs, (1 << R6) | (1 << R7) | (1 << LR), 0, compiler_options),
       block_labels_(graph->GetArena(), 0),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
       assembler_(true),
-      isa_features_(isa_features) {}
-
-size_t CodeGeneratorARM::FrameEntrySpillSize() const {
-  return kNumberOfPushedRegistersAtEntry * kArmWordSize;
+      isa_features_(isa_features) {
+  // We unconditionally allocate R6 and R7 to ensure we can do long operations
+  // with baseline.
+  AddAllocatedRegister(Location::RegisterLocation(R6));
+  AddAllocatedRegister(Location::RegisterLocation(R7));
+  // Save the link register to mimic Quick.
+  AddAllocatedRegister(Location::RegisterLocation(LR));
 }
 
 Location CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type) const {
@@ -516,32 +504,21 @@ InstructionCodeGeneratorARM::InstructionCodeGeneratorARM(HGraph* graph, CodeGene
 void CodeGeneratorARM::GenerateFrameEntry() {
   bool skip_overflow_check =
       IsLeafMethod() && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kArm);
+  DCHECK(GetCompilerOptions().GetImplicitStackOverflowChecks());
   if (!skip_overflow_check) {
-    if (GetCompilerOptions().GetImplicitStackOverflowChecks()) {
-      __ AddConstant(IP, SP, -static_cast<int32_t>(GetStackOverflowReservedBytes(kArm)));
-      __ LoadFromOffset(kLoadWord, IP, IP, 0);
-      RecordPcInfo(nullptr, 0);
-    } else {
-      SlowPathCodeARM* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathARM();
-      AddSlowPath(slow_path);
-
-      __ LoadFromOffset(kLoadWord, IP, TR, Thread::StackEndOffset<kArmWordSize>().Int32Value());
-      __ cmp(SP, ShifterOperand(IP));
-      __ b(slow_path->GetEntryLabel(), CC);
-    }
+    __ AddConstant(IP, SP, -static_cast<int32_t>(GetStackOverflowReservedBytes(kArm)));
+    __ LoadFromOffset(kLoadWord, IP, IP, 0);
+    RecordPcInfo(nullptr, 0);
   }
 
-  core_spill_mask_ |= (1 << LR | 1 << R6 | 1 << R7);
-  __ PushList(1 << LR | 1 << R6 | 1 << R7);
-
-  // The return PC has already been pushed on the stack.
-  __ AddConstant(SP, -(GetFrameSize() - kNumberOfPushedRegistersAtEntry * kArmWordSize));
+  __ PushList(core_spill_mask_);
+  __ AddConstant(SP, -(GetFrameSize() - FrameEntrySpillSize()));
   __ StoreToOffset(kStoreWord, R0, SP, 0);
 }
 
 void CodeGeneratorARM::GenerateFrameExit() {
-  __ AddConstant(SP, GetFrameSize() - kNumberOfPushedRegistersAtEntry * kArmWordSize);
-  __ PopList(1 << PC | 1 << R6 | 1 << R7);
+  __ AddConstant(SP, GetFrameSize() - FrameEntrySpillSize());
+  __ PopList((core_spill_mask_ & (~(1 << LR))) | 1 << PC);
 }
 
 void CodeGeneratorARM::Bind(HBasicBlock* block) {

@@ -178,8 +178,6 @@ class CodeGeneratorX86 : public CodeGenerator {
     return 2 * kX86WordSize;
   }
 
-  size_t FrameEntrySpillSize() const OVERRIDE;
-
   HGraphVisitor* GetLocationBuilder() OVERRIDE {
     return &location_builder_;
   }
