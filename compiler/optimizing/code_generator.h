@@ -117,13 +117,13 @@ class CodeGenerator {
                         size_t maximum_number_of_live_core_registers,
                         size_t maximum_number_of_live_fp_registers,
                         size_t number_of_out_slots);
-  virtual size_t FrameEntrySpillSize() const = 0;
   int32_t GetStackSlot(HLocal* local) const;
   Location GetTemporaryLocation(HTemporary* temp) const;
 
   uint32_t GetFrameSize() const { return frame_size_; }
   void SetFrameSize(uint32_t size) { frame_size_ = size; }
   uint32_t GetCoreSpillMask() const { return core_spill_mask_; }
+  uint32_t GetFpuSpillMask() const { return fpu_spill_mask_; }
 
   size_t GetNumberOfCoreRegisters() const { return number_of_core_registers_; }
   size_t GetNumberOfFloatingPointRegisters() const { return number_of_fpu_registers_; }
@@ -225,6 +225,7 @@ class CodeGenerator {
                 const CompilerOptions& compiler_options)
       : frame_size_(kUninitializedFrameSize),
         core_spill_mask_(0),
+        fpu_spill_mask_(0),
         first_register_slot_in_slow_path_(0),
         blocked_core_registers_(graph->GetArena()->AllocArray<bool>(number_of_core_registers)),
         blocked_fpu_registers_(graph->GetArena()->AllocArray<bool>(number_of_fpu_registers)),
@@ -254,9 +255,29 @@ class CodeGenerator {
 
   virtual ParallelMoveResolver* GetMoveResolver() = 0;
 
+  // Returns the location of the first spilled entry for floating point registers,
+  // relative to the stack pointer.
+  uint32_t GetFpuSpillStart() const {
+    DCHECK_NE(frame_size_, kUninitializedFrameSize);
+    return GetFrameSize() - FrameEntrySpillSize();
+  }
+
+  uint32_t GetFpuSpillSize() const {
+    return POPCOUNT(fpu_spill_mask_) * GetFloatingPointSpillSlotSize();
+  }
+
+  uint32_t GetCoreSpillSize() const {
+    return POPCOUNT(core_spill_mask_) * GetWordSize();
+  }
+
+  uint32_t FrameEntrySpillSize() const {
+    return GetFpuSpillSize() + GetCoreSpillSize();
+  }
+
   // Frame size required for this method.
   uint32_t frame_size_;
   uint32_t core_spill_mask_;
+  uint32_t fpu_spill_mask_;
   uint32_t first_register_slot_in_slow_path_;
 
   // Registers that were allocated during linear scan.
