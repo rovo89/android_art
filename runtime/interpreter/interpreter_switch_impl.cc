@@ -70,7 +70,10 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
   uint32_t dex_pc = shadow_frame.GetDexPC();
   bool notified_method_entry_event = false;
   const instrumentation::Instrumentation* const instrumentation = Runtime::Current()->GetInstrumentation();
-  if (LIKELY(dex_pc == 0)) {  // We are entering the method as opposed to deoptimizing..
+  if (LIKELY(dex_pc == 0)) {  // We are entering the method as opposed to deoptimizing.
+    if (kIsDebugBuild) {
+        self->AssertNoPendingException();
+    }
     if (UNLIKELY(instrumentation->HasMethodEntryListeners())) {
       instrumentation->MethodEnterEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
                                         shadow_frame.GetMethod(), 0);
@@ -162,6 +165,7 @@ JValue ExecuteSwitchImpl(Thread* self, MethodHelper& mh, const DexFile::CodeItem
       case Instruction::MOVE_EXCEPTION: {
         PREAMBLE();
         Throwable* exception = self->GetException(nullptr);
+        DCHECK(exception != nullptr) << "No pending exception on MOVE_EXCEPTION instruction";
         shadow_frame.SetVRegReference(inst->VRegA_11x(inst_data), exception);
         self->ClearException();
         inst = inst->Next_1xx();

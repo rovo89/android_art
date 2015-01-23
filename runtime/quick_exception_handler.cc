@@ -203,9 +203,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     CHECK(code_item != nullptr);
     uint16_t num_regs = code_item->registers_size_;
     uint32_t dex_pc = GetDexPc();
-    const Instruction* inst = Instruction::At(code_item->insns_ + dex_pc);
-    uint32_t new_dex_pc = dex_pc + inst->SizeInCodeUnits();
-    ShadowFrame* new_frame = ShadowFrame::Create(num_regs, nullptr, m, new_dex_pc);
+    ShadowFrame* new_frame = ShadowFrame::Create(num_regs, nullptr, m, dex_pc);
     StackHandleScope<2> hs(self_);
     mirror::Class* declaring_class = m->GetDeclaringClass();
     Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
