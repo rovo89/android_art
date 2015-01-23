@@ -57,10 +57,10 @@ TEST(BitVector, Test) {
 
   BitVector::IndexIterator iterator = bv.Indexes().begin();
   EXPECT_TRUE(iterator != bv.Indexes().end());
-  EXPECT_EQ(0, *iterator);
+  EXPECT_EQ(0u, *iterator);
   ++iterator;
   EXPECT_TRUE(iterator != bv.Indexes().end());
-  EXPECT_EQ(static_cast<int>(kBits - 1), *iterator);
+  EXPECT_EQ(kBits - 1u, *iterator);
   ++iterator;
   EXPECT_TRUE(iterator == bv.Indexes().end());
 }
