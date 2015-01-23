@@ -43,6 +43,7 @@ enum Register {
   R13 = 13,
   R14 = 14,
   R15 = 15,
+  kLastCpuRegister = 15,
   kNumberOfCpuRegisters = 16,
   kNoRegister = -1  // Signals an illegal register.
 };
