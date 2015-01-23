@@ -933,8 +933,11 @@ void Monitor::DescribeWait(std::ostream& os, const Thread* thread) {
                                            PrettyTypeOf(pretty_object).c_str());
       } else {
         // - waiting on <0x6008c468> (a java.lang.Class<java.lang.ref.ReferenceQueue>)
+        // Call PrettyTypeOf before IdentityHashCode since IdentityHashCode can cause thread
+        // suspension and move pretty_object.
+        const std::string pretty_type(PrettyTypeOf(pretty_object));
         os << wait_message << StringPrintf("<0x%08x> (a %s)", pretty_object->IdentityHashCode(),
-                                           PrettyTypeOf(pretty_object).c_str());
+                                           pretty_type.c_str());
       }
     }
     // - waiting to lock <0x613f83d8> (a java.lang.Object) held by thread 5
