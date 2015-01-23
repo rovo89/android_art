@@ -37,7 +37,6 @@ namespace x86_64 {
 // Some x86_64 instructions require a register to be available as temp.
 static constexpr Register TMP = R11;
 
-static constexpr int kNumberOfPushedRegistersAtEntry = 1;
 static constexpr int kCurrentMethodStackOffset = 0;
 
 static constexpr Register kRuntimeParameterCoreRegisters[] = { RDI, RSI, RDX };
@@ -46,7 +45,10 @@ static constexpr size_t kRuntimeParameterCoreRegistersLength =
 static constexpr FloatRegister kRuntimeParameterFpuRegisters[] = { XMM0, XMM1 };
 static constexpr size_t kRuntimeParameterFpuRegistersLength =
     arraysize(kRuntimeParameterFpuRegisters);
-static constexpr Register kCoreCalleeSaves[] = { RBX, RBP, R12, R13, R14, R15 };
+static constexpr Register kFakeReturnRegister = Register(16);
+static constexpr Register kCoreCalleeSaves[] =
+    { RBX, RBP, R12, R13, R14, R15, kFakeReturnRegister };
+static constexpr FloatRegister kFpuCalleeSaves[] = { XMM12, XMM13, XMM14, XMM15 };
 
 static constexpr int kC2ConditionMask = 0x400;
 
@@ -126,22 +128,6 @@ class DivRemMinusOneSlowPathX86_64 : public SlowPathCodeX86_64 {
   const Primitive::Type type_;
   const bool is_div_;
   DISALLOW_COPY_AND_ASSIGN(DivRemMinusOneSlowPathX86_64);
-};
-
-class StackOverflowCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
- public:
-  StackOverflowCheckSlowPathX86_64() {}
-
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    __ Bind(GetEntryLabel());
-    __ addq(CpuRegister(RSP),
-            Immediate(codegen->GetFrameSize() - kNumberOfPushedRegistersAtEntry * kX86_64WordSize));
-    __ gs()->jmp(
-        Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pThrowStackOverflow), true));
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(StackOverflowCheckSlowPathX86_64);
 };
 
 class SuspendCheckSlowPathX86_64 : public SlowPathCodeX86_64 {
@@ -417,26 +403,32 @@ size_t CodeGeneratorX86_64::RestoreFloatingPointRegister(size_t stack_index, uin
   return kX86_64WordSize;
 }
 
-static uint32_t ComputeCoreCalleeSaveMask() {
+static uint32_t ComputeCalleeSaveMask(const int* registers, size_t length) {
   uint32_t mask = 0;
-  for (size_t i = 0, e = arraysize(kCoreCalleeSaves); i < e; ++i) {
-    mask |= (1 << kCoreCalleeSaves[i]);
+  for (size_t i = 0, e = length; i < e; ++i) {
+    mask |= (1 << registers[i]);
   }
   return mask;
 }
 
+static constexpr int kNumberOfCpuRegisterPairs = 0;
 CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph, const CompilerOptions& compiler_options)
       : CodeGenerator(graph,
                       kNumberOfCpuRegisters,
                       kNumberOfFloatRegisters,
-                      0,
-                      ComputeCoreCalleeSaveMask(),
-                      0,
+                      kNumberOfCpuRegisterPairs,
+                      ComputeCalleeSaveMask(reinterpret_cast<const int*>(kCoreCalleeSaves),
+                                            arraysize(kCoreCalleeSaves)),
+                      ComputeCalleeSaveMask(reinterpret_cast<const int*>(kFpuCalleeSaves),
+                                            arraysize(kFpuCalleeSaves)),
                       compiler_options),
         block_labels_(graph->GetArena(), 0),
         location_builder_(graph, this),
         instruction_visitor_(graph, this),
-        move_resolver_(graph->GetArena(), this) {}
+        move_resolver_(graph->GetArena(), this) {
+  // Use a fake return address register to mimic Quick.
+  AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
+}
 
 InstructionCodeGeneratorX86_64::InstructionCodeGeneratorX86_64(HGraph* graph,
                                                                CodeGeneratorX86_64* codegen)
@@ -470,12 +462,6 @@ Location CodeGeneratorX86_64::AllocateFreeRegister(Primitive::Type type) const {
   return Location();
 }
 
-size_t CodeGeneratorX86_64::FrameEntrySpillSize() const {
-  uint32_t mask = allocated_registers_.GetCoreRegisters() & core_callee_save_mask_;
-  return kNumberOfPushedRegistersAtEntry * kX86_64WordSize
-      + __builtin_popcount(mask) * kX86_64WordSize;
-}
-
 void CodeGeneratorX86_64::SetupBlockedRegisters(bool is_baseline) const {
   // Stack register is always reserved.
   blocked_core_registers_[RSP] = true;
@@ -487,57 +473,60 @@ void CodeGeneratorX86_64::SetupBlockedRegisters(bool is_baseline) const {
     for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
       blocked_core_registers_[kCoreCalleeSaves[i]] = true;
     }
+    for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
+      blocked_fpu_registers_[kFpuCalleeSaves[i]] = true;
+    }
   }
-
-  // TODO: We currently don't use Quick's FP callee saved registers.
-  blocked_fpu_registers_[XMM12] = true;
-  blocked_fpu_registers_[XMM13] = true;
-  blocked_fpu_registers_[XMM14] = true;
-  blocked_fpu_registers_[XMM15] = true;
 }
 
 void CodeGeneratorX86_64::GenerateFrameEntry() {
-  // Create a fake register to mimic Quick.
-  static const int kFakeReturnRegister = 16;
-  core_spill_mask_ |= (1 << kFakeReturnRegister);
-  core_spill_mask_ |= (allocated_registers_.GetCoreRegisters() & core_callee_save_mask_);
-
   bool skip_overflow_check = IsLeafMethod()
       && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kX86_64);
-  bool implicitStackOverflowChecks = GetCompilerOptions().GetImplicitStackOverflowChecks();
+  DCHECK(GetCompilerOptions().GetImplicitStackOverflowChecks());
 
-  if (!skip_overflow_check && implicitStackOverflowChecks) {
+  if (!skip_overflow_check) {
     __ testq(CpuRegister(RAX), Address(
         CpuRegister(RSP), -static_cast<int32_t>(GetStackOverflowReservedBytes(kX86_64))));
     RecordPcInfo(nullptr, 0);
   }
 
   for (int i = arraysize(kCoreCalleeSaves) - 1; i >= 0; --i) {
-    if (allocated_registers_.ContainsCoreRegister(kCoreCalleeSaves[i])) {
-      __ pushq(CpuRegister(kCoreCalleeSaves[i]));
+    Register reg = kCoreCalleeSaves[i];
+    if (allocated_registers_.ContainsCoreRegister(reg) && reg != kFakeReturnRegister) {
+      __ pushq(CpuRegister(reg));
     }
   }
 
-  __ subq(CpuRegister(RSP), Immediate(GetFrameSize() - FrameEntrySpillSize()));
+  __ subq(CpuRegister(RSP), Immediate(GetFrameSize() - GetCoreSpillSize()));
+  uint32_t xmm_spill_location = GetFpuSpillStart();
+  size_t xmm_spill_slot_size = GetFloatingPointSpillSlotSize();
 
-  if (!skip_overflow_check && !implicitStackOverflowChecks) {
-    SlowPathCodeX86_64* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathX86_64();
-    AddSlowPath(slow_path);
-
-    __ gs()->cmpq(CpuRegister(RSP),
-                  Address::Absolute(Thread::StackEndOffset<kX86_64WordSize>(), true));
-    __ j(kLess, slow_path->GetEntryLabel());
+  for (int i = arraysize(kFpuCalleeSaves) - 1; i >= 0; --i) {
+    if (allocated_registers_.ContainsFloatingPointRegister(kFpuCalleeSaves[i])) {
+      __ movsd(Address(CpuRegister(RSP), xmm_spill_location + (xmm_spill_slot_size * i)),
+               XmmRegister(kFpuCalleeSaves[i]));
+    }
   }
 
   __ movl(Address(CpuRegister(RSP), kCurrentMethodStackOffset), CpuRegister(RDI));
 }
 
 void CodeGeneratorX86_64::GenerateFrameExit() {
-  __ addq(CpuRegister(RSP), Immediate(GetFrameSize() - FrameEntrySpillSize()));
+  uint32_t xmm_spill_location = GetFpuSpillStart();
+  size_t xmm_spill_slot_size = GetFloatingPointSpillSlotSize();
+  for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
+    if (allocated_registers_.ContainsFloatingPointRegister(kFpuCalleeSaves[i])) {
+      __ movsd(XmmRegister(kFpuCalleeSaves[i]),
+               Address(CpuRegister(RSP), xmm_spill_location + (xmm_spill_slot_size * i)));
+    }
+  }
+
+  __ addq(CpuRegister(RSP), Immediate(GetFrameSize() - GetCoreSpillSize()));
 
   for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
-    if (allocated_registers_.ContainsCoreRegister(kCoreCalleeSaves[i])) {
-      __ popq(CpuRegister(kCoreCalleeSaves[i]));
+    Register reg = kCoreCalleeSaves[i];
+    if (allocated_registers_.ContainsCoreRegister(reg) && reg != kFakeReturnRegister) {
+      __ popq(CpuRegister(reg));
     }
   }
 }

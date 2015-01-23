@@ -434,21 +434,6 @@ class NullCheckSlowPathARM64 : public SlowPathCodeARM64 {
   DISALLOW_COPY_AND_ASSIGN(NullCheckSlowPathARM64);
 };
 
-class StackOverflowCheckSlowPathARM64 : public SlowPathCodeARM64 {
- public:
-  StackOverflowCheckSlowPathARM64() {}
-
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
-    __ Bind(GetEntryLabel());
-    arm64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pThrowStackOverflow), nullptr, 0);
-    CheckEntrypointTypes<kQuickThrowStackOverflow, void, void*>();
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(StackOverflowCheckSlowPathARM64);
-};
-
 class SuspendCheckSlowPathARM64 : public SlowPathCodeARM64 {
  public:
   explicit SuspendCheckSlowPathARM64(HSuspendCheck* instruction,
@@ -567,13 +552,16 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph, const CompilerOptions& com
                     kNumberOfAllocatableRegisters,
                     kNumberOfAllocatableFPRegisters,
                     kNumberOfAllocatableRegisterPairs,
-                    0,
+                    (1 << LR),
                     0,
                     compiler_options),
       block_labels_(nullptr),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
-      move_resolver_(graph->GetArena(), this) {}
+      move_resolver_(graph->GetArena(), this) {
+  // Save the link register (containing the return address) to mimic Quick.
+  AddAllocatedRegister(Location::RegisterLocation(LR));
+}
 
 #undef __
 #define __ GetVIXLAssembler()->
@@ -607,26 +595,15 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
   if (do_overflow_check) {
     UseScratchRegisterScope temps(GetVIXLAssembler());
     Register temp = temps.AcquireX();
-    if (GetCompilerOptions().GetImplicitStackOverflowChecks()) {
-      __ Add(temp, sp, -static_cast<int32_t>(GetStackOverflowReservedBytes(kArm64)));
-      __ Ldr(wzr, MemOperand(temp, 0));
-      RecordPcInfo(nullptr, 0);
-    } else {
-      SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena()) StackOverflowCheckSlowPathARM64();
-      AddSlowPath(slow_path);
-
-      __ Ldr(temp, MemOperand(tr, Thread::StackEndOffset<kArm64WordSize>().Int32Value()));
-      __ Cmp(sp, temp);
-      __ B(lo, slow_path->GetEntryLabel());
-    }
+    DCHECK(GetCompilerOptions().GetImplicitStackOverflowChecks());
+    __ Add(temp, sp, -static_cast<int32_t>(GetStackOverflowReservedBytes(kArm64)));
+    __ Ldr(wzr, MemOperand(temp, 0));
+    RecordPcInfo(nullptr, 0);
   }
 
-  CPURegList preserved_regs = GetFramePreservedRegisters();
   int frame_size = GetFrameSize();
-  core_spill_mask_ |= preserved_regs.list();
-
   __ Str(w0, MemOperand(sp, -frame_size, PreIndex));
-  __ PokeCPURegList(preserved_regs, frame_size - preserved_regs.TotalSizeInBytes());
+  __ PokeCPURegList(GetFramePreservedRegisters(), frame_size - FrameEntrySpillSize());
 
   // Stack layout:
   // sp[frame_size - 8]        : lr.
@@ -638,8 +615,7 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
 
 void CodeGeneratorARM64::GenerateFrameExit() {
   int frame_size = GetFrameSize();
-  CPURegList preserved_regs = GetFramePreservedRegisters();
-  __ PeekCPURegList(preserved_regs, frame_size - preserved_regs.TotalSizeInBytes());
+  __ PeekCPURegList(GetFramePreservedRegisters(), frame_size - FrameEntrySpillSize());
   __ Drop(frame_size);
 }
 
@@ -688,10 +664,6 @@ void CodeGeneratorARM64::Move(HInstruction* instruction,
     DCHECK((instruction->GetNext() == move_for) || instruction->GetNext()->IsTemporary());
     MoveLocation(location, locations->Out(), type);
   }
-}
-
-size_t CodeGeneratorARM64::FrameEntrySpillSize() const {
-  return GetFramePreservedRegistersSize();
 }
 
 Location CodeGeneratorARM64::GetStackLocation(HLoadLocal* load) const {
