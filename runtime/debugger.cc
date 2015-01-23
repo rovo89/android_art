@@ -105,18 +105,17 @@ class AllocRecordStackTraceElement {
 
 jobject Dbg::TypeCache::Add(mirror::Class* t) {
   ScopedObjectAccessUnchecked soa(Thread::Current());
-  int32_t hash_code = t->IdentityHashCode();
+  JNIEnv* const env = soa.Env();
+  ScopedLocalRef<jobject> local_ref(soa.Env(), soa.AddLocalReference<jobject>(t));
+  const int32_t hash_code = soa.Decode<mirror::Class*>(local_ref.get())->IdentityHashCode();
   auto range = objects_.equal_range(hash_code);
   for (auto it = range.first; it != range.second; ++it) {
-    if (soa.Decode<mirror::Class*>(it->second) == t) {
+    if (soa.Decode<mirror::Class*>(it->second) == soa.Decode<mirror::Class*>(local_ref.get())) {
       // Found a matching weak global, return it.
       return it->second;
     }
   }
-  JNIEnv* env = soa.Env();
-  const jobject local_ref = soa.AddLocalReference<jobject>(t);
-  const jobject weak_global = env->NewWeakGlobalRef(local_ref);
-  env->DeleteLocalRef(local_ref);
+  const jobject weak_global = env->NewWeakGlobalRef(local_ref.get());
   objects_.insert(std::make_pair(hash_code, weak_global));
   return weak_global;
 }
