@@ -266,12 +266,13 @@ class MonitorList {
   MonitorList();
   ~MonitorList();
 
-  void Add(Monitor* m);
+  void Add(Monitor* m) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SweepMonitorList(IsMarkedCallback* callback, void* arg)
       LOCKS_EXCLUDED(monitor_list_lock_) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DisallowNewMonitors() LOCKS_EXCLUDED(monitor_list_lock_);
   void AllowNewMonitors() LOCKS_EXCLUDED(monitor_list_lock_);
+  void EnsureNewMonitorsDisallowed() LOCKS_EXCLUDED(monitor_list_lock_);
   // Returns how many monitors were deflated.
   size_t DeflateMonitors() LOCKS_EXCLUDED(monitor_list_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);

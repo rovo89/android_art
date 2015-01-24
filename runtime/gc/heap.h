@@ -27,6 +27,7 @@
 #include "base/timing_logger.h"
 #include "gc/accounting/atomic_stack.h"
 #include "gc/accounting/card_table.h"
+#include "gc/accounting/read_barrier_table.h"
 #include "gc/gc_cause.h"
 #include "gc/collector/garbage_collector.h"
 #include "gc/collector/gc_type.h"
@@ -86,6 +87,7 @@ namespace space {
   class ImageSpace;
   class LargeObjectSpace;
   class MallocSpace;
+  class RegionSpace;
   class RosAllocSpace;
   class Space;
   class SpaceTest;
@@ -218,8 +220,8 @@ class Heap {
   void VisitObjects(ObjectCallback callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
-  void VisitObjectsInternal(ObjectCallback callback, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+  void VisitObjectsPaused(ObjectCallback callback, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   void CheckPreconditionsForAllocObject(mirror::Class* c, size_t byte_count)
@@ -408,6 +410,10 @@ class Heap {
 
   accounting::CardTable* GetCardTable() const {
     return card_table_.get();
+  }
+
+  accounting::ReadBarrierTable* GetReadBarrierTable() const {
+    return rb_table_.get();
   }
 
   void AddFinalizerReference(Thread* self, mirror::Object** object);
@@ -623,6 +629,30 @@ class Heap {
     return zygote_space_ != nullptr;
   }
 
+  collector::ConcurrentCopying* ConcurrentCopyingCollector() {
+    return concurrent_copying_collector_;
+  }
+
+  CollectorType CurrentCollectorType() {
+    return collector_type_;
+  }
+
+  bool IsGcConcurrentAndMoving() const {
+    if (IsGcConcurrent() && IsMovingGc(collector_type_)) {
+      // Assume no transition when a concurrent moving collector is used.
+      DCHECK_EQ(collector_type_, foreground_collector_type_);
+      DCHECK_EQ(foreground_collector_type_, background_collector_type_)
+          << "Assume no transition such that collector_type_ won't change";
+      return true;
+    }
+    return false;
+  }
+
+  bool IsMovingGCDisabled(Thread* self) {
+    MutexLock mu(self, *gc_complete_lock_);
+    return disable_moving_gc_count_ > 0;
+  }
+
   // Request an asynchronous trim.
   void RequestTrim(Thread* self) LOCKS_EXCLUDED(pending_task_lock_);
 
@@ -654,10 +684,14 @@ class Heap {
   static ALWAYS_INLINE bool AllocatorHasAllocationStack(AllocatorType allocator_type) {
     return
         allocator_type != kAllocatorTypeBumpPointer &&
-        allocator_type != kAllocatorTypeTLAB;
+        allocator_type != kAllocatorTypeTLAB &&
+        allocator_type != kAllocatorTypeRegion &&
+        allocator_type != kAllocatorTypeRegionTLAB;
   }
   static ALWAYS_INLINE bool AllocatorMayHaveConcurrentGC(AllocatorType allocator_type) {
-    return AllocatorHasAllocationStack(allocator_type);
+    return
+        allocator_type != kAllocatorTypeBumpPointer &&
+        allocator_type != kAllocatorTypeTLAB;
   }
   static bool IsMovingGc(CollectorType collector_type) {
     return collector_type == kCollectorTypeSS || collector_type == kCollectorTypeGSS ||
@@ -813,6 +847,13 @@ class Heap {
   // Trim 0 pages at the end of reference tables.
   void TrimIndirectReferenceTables(Thread* self);
 
+  void VisitObjectsInternal(ObjectCallback callback, void* arg)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+  void VisitObjectsInternalRegionSpace(ObjectCallback callback, void* arg)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
+
   // All-known continuous spaces, where objects lie within fixed bounds.
   std::vector<space::ContinuousSpace*> continuous_spaces_;
 
@@ -841,6 +882,8 @@ class Heap {
 
   // The card table, dirtied by the write barrier.
   std::unique_ptr<accounting::CardTable> card_table_;
+
+  std::unique_ptr<accounting::ReadBarrierTable> rb_table_;
 
   // A mod-union table remembers all of the references from the it's space to other spaces.
   AllocationTrackingSafeMap<space::Space*, accounting::ModUnionTable*, kAllocatorTagHeap>
@@ -1020,6 +1063,8 @@ class Heap {
   // Temp space is the space which the semispace collector copies to.
   space::BumpPointerSpace* temp_space_;
 
+  space::RegionSpace* region_space_;
+
   // Minimum free guarantees that you always have at least min_free_ free bytes after growing for
   // utilization, regardless of target utilization ratio.
   size_t min_free_;
@@ -1088,6 +1133,7 @@ class Heap {
   friend class CollectorTransitionTask;
   friend class collector::GarbageCollector;
   friend class collector::MarkCompact;
+  friend class collector::ConcurrentCopying;
   friend class collector::MarkSweep;
   friend class collector::SemiSpace;
   friend class ReferenceQueue;

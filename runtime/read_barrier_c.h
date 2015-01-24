@@ -22,10 +22,12 @@
 // include globals.h.
 
 // Uncomment one of the following two and the two fields in
-// Object.java (libcore) to enable baker or brooks pointers.
+// Object.java (libcore) to enable baker, brooks (unimplemented), or
+// table-lookup read barriers.
 
 // #define USE_BAKER_READ_BARRIER
 // #define USE_BROOKS_READ_BARRIER
+// #define USE_TABLE_LOOKUP_READ_BARRIER
 
 #if defined(USE_BAKER_READ_BARRIER) || defined(USE_BROOKS_READ_BARRIER)
 #define USE_BAKER_OR_BROOKS_READ_BARRIER

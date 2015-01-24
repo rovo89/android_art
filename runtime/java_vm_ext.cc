@@ -550,6 +550,13 @@ void JavaVMExt::AllowNewWeakGlobals() {
   weak_globals_add_condition_.Broadcast(self);
 }
 
+void JavaVMExt::EnsureNewWeakGlobalsDisallowed() {
+  // Lock and unlock once to ensure that no threads are still in the
+  // middle of adding new weak globals.
+  MutexLock mu(Thread::Current(), weak_globals_lock_);
+  CHECK(!allow_new_weak_globals_);
+}
+
 mirror::Object* JavaVMExt::DecodeGlobal(Thread* self, IndirectRef ref) {
   return globals_.SynchronizedGet(self, &globals_lock_, ref);
 }
