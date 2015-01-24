@@ -129,7 +129,7 @@ class MarkQueue {
   Atomic<size_t> tail_;
 
   size_t size_;
-  std::unique_ptr<Atomic<mirror::Object*>> buf_;
+  std::unique_ptr<Atomic<mirror::Object*>[]> buf_;
 };
 
 class ConcurrentCopying : public GarbageCollector {
