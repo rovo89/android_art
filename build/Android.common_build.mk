@@ -221,6 +221,10 @@ ifeq ($(ART_HEAP_POISONING),true)
   art_cflags += -DART_HEAP_POISONING=1
 endif
 
+ifeq ($(ART_USE_READ_BARRIER),true)
+  art_cflags += -DART_USE_READ_BARRIER=1
+endif
+
 # Cflags for non-debug ART and ART tools.
 art_non_debug_cflags := \
   -O3
