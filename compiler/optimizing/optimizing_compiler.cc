@@ -214,7 +214,8 @@ static void RunOptimizations(HGraph* graph,
   HInliner inliner(graph, dex_compilation_unit, driver, stats);
 
   HConstantFolding fold2(graph);
-  GVNOptimization gvn(graph);
+  SideEffectsAnalysis side_effects(graph);
+  GVNOptimization gvn(graph, side_effects);
   BoundsCheckElimination bce(graph);
   InstructionSimplifier simplify2(graph);
 
@@ -229,6 +230,7 @@ static void RunOptimizations(HGraph* graph,
     &simplify1,
     &inliner,
     &fold2,
+    &side_effects,
     &gvn,
     &bce,
     &simplify2
