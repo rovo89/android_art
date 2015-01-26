@@ -847,6 +847,10 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   virtual bool CanThrow() const { return false; }
   bool HasSideEffects() const { return side_effects_.HasSideEffects(); }
 
+  // Does not apply for all instructions, but having this at top level greatly
+  // simplifies the null check elimination.
+  virtual bool CanBeNull() const { return true; }
+
   virtual bool CanDoImplicitNullCheck() const { return false; }
 
   void AddUseAt(HInstruction* user, size_t index) {
@@ -1802,6 +1806,8 @@ class HNewInstance : public HExpression<0> {
   // TODO: optimize when possible.
   bool CanThrow() const OVERRIDE { return true; }
 
+  bool CanBeNull() const OVERRIDE { return false; }
+
   DECLARE_INSTRUCTION(NewInstance);
 
  private:
@@ -1838,7 +1844,9 @@ class HNewArray : public HExpression<1> {
   uint16_t GetTypeIndex() const { return type_index_; }
 
   // Calls runtime so needs an environment.
-  virtual bool NeedsEnvironment() const { return true; }
+  bool NeedsEnvironment() const OVERRIDE { return true; }
+
+  bool CanBeNull() const OVERRIDE { return false; }
 
   DECLARE_INSTRUCTION(NewArray);
 
@@ -2088,17 +2096,22 @@ class HXor : public HBinaryOperation {
 // the calling convention.
 class HParameterValue : public HExpression<0> {
  public:
-  HParameterValue(uint8_t index, Primitive::Type parameter_type)
-      : HExpression(parameter_type, SideEffects::None()), index_(index) {}
+  HParameterValue(uint8_t index, Primitive::Type parameter_type, bool is_this = false)
+      : HExpression(parameter_type, SideEffects::None()), index_(index), is_this_(is_this) {}
 
   uint8_t GetIndex() const { return index_; }
+
+  bool CanBeNull() const OVERRIDE { return !is_this_; }
 
   DECLARE_INSTRUCTION(ParameterValue);
 
  private:
   // The index of this parameter in the parameters list. Must be less
-  // than HGraph::number_of_in_vregs_;
+  // than HGraph::number_of_in_vregs_.
   const uint8_t index_;
+
+  // Whether or not the parameter value corresponds to 'this' argument.
+  const bool is_this_;
 
   DISALLOW_COPY_AND_ASSIGN(HParameterValue);
 };
@@ -2158,21 +2171,25 @@ class HPhi : public HInstruction {
         inputs_(arena, number_of_inputs),
         reg_number_(reg_number),
         type_(type),
-        is_live_(false) {
+        is_live_(false),
+        can_be_null_(true) {
     inputs_.SetSize(number_of_inputs);
   }
 
-  virtual size_t InputCount() const { return inputs_.Size(); }
-  virtual HInstruction* InputAt(size_t i) const { return inputs_.Get(i); }
+  size_t InputCount() const OVERRIDE { return inputs_.Size(); }
+  HInstruction* InputAt(size_t i) const OVERRIDE { return inputs_.Get(i); }
 
-  virtual void SetRawInputAt(size_t index, HInstruction* input) {
+  void SetRawInputAt(size_t index, HInstruction* input) OVERRIDE {
     inputs_.Put(index, input);
   }
 
   void AddInput(HInstruction* input);
 
-  virtual Primitive::Type GetType() const { return type_; }
+  Primitive::Type GetType() const OVERRIDE { return type_; }
   void SetType(Primitive::Type type) { type_ = type; }
+
+  bool CanBeNull() const OVERRIDE { return can_be_null_; }
+  void SetCanBeNull(bool can_be_null) { can_be_null_ = can_be_null; }
 
   uint32_t GetRegNumber() const { return reg_number_; }
 
@@ -2188,6 +2205,7 @@ class HPhi : public HInstruction {
   const uint32_t reg_number_;
   Primitive::Type type_;
   bool is_live_;
+  bool can_be_null_;
 
   DISALLOW_COPY_AND_ASSIGN(HPhi);
 };
@@ -2199,15 +2217,17 @@ class HNullCheck : public HExpression<1> {
     SetRawInputAt(0, value);
   }
 
-  virtual bool CanBeMoved() const { return true; }
-  virtual bool InstructionDataEquals(HInstruction* other) const {
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     UNUSED(other);
     return true;
   }
 
-  virtual bool NeedsEnvironment() const { return true; }
+  bool NeedsEnvironment() const OVERRIDE { return true; }
 
-  virtual bool CanThrow() const { return true; }
+  bool CanThrow() const OVERRIDE { return true; }
+
+  bool CanBeNull() const OVERRIDE { return false; }
 
   uint32_t GetDexPc() const { return dex_pc_; }
 
