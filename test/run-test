@@ -543,10 +543,20 @@ if [ "$dev_mode" = "yes" ]; then
         echo "${test_dir}: running..." 1>&2
         "./${run}" $run_args "$@" 2>&1
         run_exit="$?"
-        echo "run exit status: $run_exit" 1>&2
+
         if [ "$run_exit" = "0" ]; then
-            good="yes"
+            if [ "$run_checker" = "yes" ]; then
+                "$checker" "$cfg_output" "$tmp_dir" 2>&1
+                checker_exit="$?"
+                if [ "$checker_exit" = "0" ]; then
+                    good="yes"
+                fi
+                echo "checker exit status: $checker_exit" 1>&2
+            else
+                good="yes"
+            fi
         fi
+        echo "run exit status: $run_exit" 1>&2
     fi
 elif [ "$update_mode" = "yes" ]; then
     "./${build}" $build_args >"$build_output" 2>&1
