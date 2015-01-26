@@ -18,24 +18,12 @@
 
 namespace art {
 
-void GlobalValueNumberer::Run() {
-  ComputeSideEffects();
-
-  sets_.Put(graph_->GetEntryBlock()->GetBlockId(), new (allocator_) ValueSet(allocator_));
-
-  // Do reverse post order to ensure the non back-edge predecessors of a block are
-  // visited before the block itself.
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    VisitBasicBlock(it.Current());
-  }
-}
-
-void GlobalValueNumberer::UpdateLoopEffects(HLoopInformation* info, SideEffects effects) {
+void SideEffectsAnalysis::UpdateLoopEffects(HLoopInformation* info, SideEffects effects) {
   int id = info->GetHeader()->GetBlockId();
   loop_effects_.Put(id, loop_effects_.Get(id).Union(effects));
 }
 
-void GlobalValueNumberer::ComputeSideEffects() {
+void SideEffectsAnalysis::Run() {
   if (kIsDebugBuild) {
     for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
       HBasicBlock* block = it.Current();
@@ -80,15 +68,27 @@ void GlobalValueNumberer::ComputeSideEffects() {
       UpdateLoopEffects(block->GetLoopInformation(), effects);
     }
   }
+  has_run_ = true;
 }
 
-SideEffects GlobalValueNumberer::GetLoopEffects(HBasicBlock* block) const {
+SideEffects SideEffectsAnalysis::GetLoopEffects(HBasicBlock* block) const {
   DCHECK(block->IsLoopHeader());
   return loop_effects_.Get(block->GetBlockId());
 }
 
-SideEffects GlobalValueNumberer::GetBlockEffects(HBasicBlock* block) const {
+SideEffects SideEffectsAnalysis::GetBlockEffects(HBasicBlock* block) const {
   return block_effects_.Get(block->GetBlockId());
+}
+
+void GlobalValueNumberer::Run() {
+  DCHECK(side_effects_.HasRun());
+  sets_.Put(graph_->GetEntryBlock()->GetBlockId(), new (allocator_) ValueSet(allocator_));
+
+  // Use the reverse post order to ensure the non back-edge predecessors of a block are
+  // visited before the block itself.
+  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
+    VisitBasicBlock(it.Current());
+  }
 }
 
 void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
@@ -110,7 +110,7 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
     if (!set->IsEmpty()) {
       if (block->IsLoopHeader()) {
         DCHECK_EQ(block->GetDominator(), block->GetLoopInformation()->GetPreHeader());
-        set->Kill(GetLoopEffects(block));
+        set->Kill(side_effects_.GetLoopEffects(block));
       } else if (predecessors.Size() > 1) {
         for (size_t i = 0, e = predecessors.Size(); i < e; ++i) {
           set->IntersectionWith(sets_.Get(predecessors.Get(i)->GetBlockId()));
