@@ -140,9 +140,7 @@ void CodeGenerator::ComputeFrameSize(size_t number_of_spill_slots,
                                      size_t maximum_number_of_live_core_registers,
                                      size_t maximum_number_of_live_fp_registers,
                                      size_t number_of_out_slots) {
-  core_spill_mask_ = allocated_registers_.GetCoreRegisters() & core_callee_save_mask_;
-  DCHECK_NE(core_spill_mask_, 0u) << "At least the return address register must be saved";
-  fpu_spill_mask_ = allocated_registers_.GetFloatingPointRegisters() & fpu_callee_save_mask_;
+  ComputeSpillMask();
   first_register_slot_in_slow_path_ = (number_of_out_slots + number_of_spill_slots) * kVRegSize;
 
   SetFrameSize(RoundUp(

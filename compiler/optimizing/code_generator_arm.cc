@@ -50,6 +50,13 @@ static constexpr size_t kRuntimeParameterCoreRegistersLength =
 static constexpr SRegister kRuntimeParameterFpuRegisters[] = { S0, S1, S2, S3 };
 static constexpr size_t kRuntimeParameterFpuRegistersLength =
     arraysize(kRuntimeParameterFpuRegisters);
+// We unconditionally allocate R5 to ensure we can do long operations
+// with baseline.
+static constexpr Register kCoreSavedRegisterForBaseline = R5;
+static constexpr Register kCoreCalleeSaves[] =
+    { R5, R6, R7, R8, R10, R11, PC };
+static constexpr SRegister kFpuCalleeSaves[] =
+    { S16, S17, S18, S19, S20, S21, S22, S23, S24, S25, S26, S27, S28, S29, S30, S31 };
 
 class InvokeRuntimeCallingConvention : public CallingConvention<Register, SRegister> {
  public:
@@ -374,20 +381,27 @@ size_t CodeGeneratorARM::RestoreFloatingPointRegister(size_t stack_index, uint32
 CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
                                    const ArmInstructionSetFeatures& isa_features,
                                    const CompilerOptions& compiler_options)
-    : CodeGenerator(graph, kNumberOfCoreRegisters, kNumberOfSRegisters,
-                    kNumberOfRegisterPairs, (1 << R6) | (1 << R7) | (1 << LR), 0, compiler_options),
+    : CodeGenerator(graph,
+                    kNumberOfCoreRegisters,
+                    kNumberOfSRegisters,
+                    kNumberOfRegisterPairs,
+                    ComputeRegisterMask(reinterpret_cast<const int*>(kCoreCalleeSaves),
+                                        arraysize(kCoreCalleeSaves)),
+                    ComputeRegisterMask(reinterpret_cast<const int*>(kFpuCalleeSaves),
+                                        arraysize(kFpuCalleeSaves)),
+                    compiler_options),
       block_labels_(graph->GetArena(), 0),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this),
       assembler_(true),
       isa_features_(isa_features) {
-  // We unconditionally allocate R6 and R7 to ensure we can do long operations
-  // with baseline.
-  AddAllocatedRegister(Location::RegisterLocation(R6));
-  AddAllocatedRegister(Location::RegisterLocation(R7));
-  // Save the link register to mimic Quick.
-  AddAllocatedRegister(Location::RegisterLocation(LR));
+  // Save one extra register for baseline. Note that on thumb2, there is no easy
+  // instruction to restore just the PC, so this actually helps both baseline
+  // and non-baseline to save and restore at least two registers at entry and exit.
+  AddAllocatedRegister(Location::RegisterLocation(kCoreSavedRegisterForBaseline));
+  // Save the PC register to mimic Quick.
+  AddAllocatedRegister(Location::RegisterLocation(PC));
 }
 
 Location CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type) const {
@@ -456,31 +470,17 @@ void CodeGeneratorARM::SetupBlockedRegisters(bool is_baseline ATTRIBUTE_UNUSED) 
   // Reserve temp register.
   blocked_core_registers_[IP] = true;
 
-  // TODO: We currently don't use Quick's callee saved registers.
-  // We always save and restore R6 and R7 to make sure we can use three
-  // register pairs for long operations.
-  blocked_core_registers_[R4] = true;
-  blocked_core_registers_[R5] = true;
-  blocked_core_registers_[R8] = true;
-  blocked_core_registers_[R10] = true;
-  blocked_core_registers_[R11] = true;
+  if (is_baseline) {
+    for (size_t i = 0; i < arraysize(kCoreCalleeSaves); ++i) {
+      blocked_core_registers_[kCoreCalleeSaves[i]] = true;
+    }
 
-  blocked_fpu_registers_[S16] = true;
-  blocked_fpu_registers_[S17] = true;
-  blocked_fpu_registers_[S18] = true;
-  blocked_fpu_registers_[S19] = true;
-  blocked_fpu_registers_[S20] = true;
-  blocked_fpu_registers_[S21] = true;
-  blocked_fpu_registers_[S22] = true;
-  blocked_fpu_registers_[S23] = true;
-  blocked_fpu_registers_[S24] = true;
-  blocked_fpu_registers_[S25] = true;
-  blocked_fpu_registers_[S26] = true;
-  blocked_fpu_registers_[S27] = true;
-  blocked_fpu_registers_[S28] = true;
-  blocked_fpu_registers_[S29] = true;
-  blocked_fpu_registers_[S30] = true;
-  blocked_fpu_registers_[S31] = true;
+    blocked_core_registers_[kCoreSavedRegisterForBaseline] = false;
+
+    for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
+      blocked_fpu_registers_[kFpuCalleeSaves[i]] = true;
+    }
+  }
 
   UpdateBlockedPairRegisters();
 }
@@ -501,6 +501,28 @@ InstructionCodeGeneratorARM::InstructionCodeGeneratorARM(HGraph* graph, CodeGene
         assembler_(codegen->GetAssembler()),
         codegen_(codegen) {}
 
+static uint32_t LeastSignificantBit(uint32_t mask) {
+  // ffs starts at 1.
+  return ffs(mask) - 1;
+}
+
+void CodeGeneratorARM::ComputeSpillMask() {
+  core_spill_mask_ = allocated_registers_.GetCoreRegisters() & core_callee_save_mask_;
+  DCHECK_NE(core_spill_mask_, 0u) << "At least the return address register must be saved";
+  fpu_spill_mask_ = allocated_registers_.GetFloatingPointRegisters() & fpu_callee_save_mask_;
+  // We use vpush and vpop for saving and restoring floating point registers, which take
+  // a SRegister and the number of registers to save/restore after that SRegister. We
+  // therefore update the `fpu_spill_mask_` to also contain those registers not allocated,
+  // but in the range.
+  if (fpu_spill_mask_ != 0) {
+    uint32_t least_significant_bit = LeastSignificantBit(fpu_spill_mask_);
+    uint32_t most_significant_bit = MostSignificantBit(fpu_spill_mask_);
+    for (uint32_t i = least_significant_bit + 1 ; i < most_significant_bit; ++i) {
+      fpu_spill_mask_ |= (1 << i);
+    }
+  }
+}
+
 void CodeGeneratorARM::GenerateFrameEntry() {
   bool skip_overflow_check =
       IsLeafMethod() && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kArm);
@@ -511,14 +533,24 @@ void CodeGeneratorARM::GenerateFrameEntry() {
     RecordPcInfo(nullptr, 0);
   }
 
-  __ PushList(core_spill_mask_);
+  // PC is in the list of callee-save to mimic Quick, but we need to push
+  // LR at entry instead.
+  __ PushList((core_spill_mask_ & (~(1 << PC))) | 1 << LR);
+  if (fpu_spill_mask_ != 0) {
+    SRegister start_register = SRegister(LeastSignificantBit(fpu_spill_mask_));
+    __ vpushs(start_register, POPCOUNT(fpu_spill_mask_));
+  }
   __ AddConstant(SP, -(GetFrameSize() - FrameEntrySpillSize()));
   __ StoreToOffset(kStoreWord, R0, SP, 0);
 }
 
 void CodeGeneratorARM::GenerateFrameExit() {
   __ AddConstant(SP, GetFrameSize() - FrameEntrySpillSize());
-  __ PopList((core_spill_mask_ & (~(1 << LR))) | 1 << PC);
+  if (fpu_spill_mask_ != 0) {
+    SRegister start_register = SRegister(LeastSignificantBit(fpu_spill_mask_));
+    __ vpops(start_register, POPCOUNT(fpu_spill_mask_));
+  }
+  __ PopList(core_spill_mask_);
 }
 
 void CodeGeneratorARM::Bind(HBasicBlock* block) {
