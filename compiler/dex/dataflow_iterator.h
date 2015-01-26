@@ -17,7 +17,7 @@
 #ifndef ART_COMPILER_DEX_DATAFLOW_ITERATOR_H_
 #define ART_COMPILER_DEX_DATAFLOW_ITERATOR_H_
 
-#include "compiler_ir.h"
+#include "base/logging.h"
 #include "mir_graph.h"
 
 namespace art {

@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
+#include "pass_driver_me_opts.h"
+
+#include "base/logging.h"
 #include "base/macros.h"
 #include "bb_optimizations.h"
-#include "compiler_internals.h"
 #include "dataflow_iterator.h"
 #include "dataflow_iterator-inl.h"
-#include "pass_driver_me_opts.h"
 #include "post_opt_passes.h"
 
 namespace art {

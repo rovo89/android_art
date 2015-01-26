@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "compiler_internals.h"
 #include "local_value_numbering.h"
 #include "dataflow_iterator-inl.h"
 

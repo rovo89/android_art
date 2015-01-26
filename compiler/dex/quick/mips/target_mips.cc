@@ -22,8 +22,10 @@
 
 #include "arch/mips/instruction_set_features_mips.h"
 #include "backend_mips.h"
-#include "dex/compiler_internals.h"
+#include "base/logging.h"
+#include "dex/compiler_ir.h"
 #include "dex/quick/mir_to_lir-inl.h"
+#include "driver/compiler_driver.h"
 #include "mips_lir.h"
 
 namespace art {
@@ -143,7 +145,8 @@ RegStorage MipsMir2Lir::InToRegStorageMipsMapper::GetNextReg(ShortyArg arg) {
  */
 ResourceMask MipsMir2Lir::GetRegMaskCommon(const RegStorage& reg) const {
   if (reg.IsDouble()) {
-    if (cu_->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()->Is32BitFloatingPoint()) {
+    if (cu_->compiler_driver->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()
+        ->Is32BitFloatingPoint()) {
       return ResourceMask::TwoBits((reg.GetRegNum() & ~1) + kMipsFPReg0);
     } else {
       return ResourceMask::TwoBits(reg.GetRegNum() * 2 + kMipsFPReg0);
@@ -398,7 +401,8 @@ void MipsMir2Lir::ClobberCallerSave() {
   Clobber(rs_rF13);
   Clobber(rs_rF14);
   Clobber(rs_rF15);
-  if (cu_->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()->Is32BitFloatingPoint()) {
+  if (cu_->compiler_driver->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()
+      ->Is32BitFloatingPoint()) {
     Clobber(rs_rD0_fr0);
     Clobber(rs_rD1_fr0);
     Clobber(rs_rD2_fr0);
@@ -449,7 +453,7 @@ void MipsMir2Lir::FreeCallTemps() {
 }
 
 bool MipsMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind ATTRIBUTE_UNUSED) {
-  if (cu_->GetInstructionSetFeatures()->IsSmp()) {
+  if (cu_->compiler_driver->GetInstructionSetFeatures()->IsSmp()) {
     NewLIR1(kMipsSync, 0 /* Only stype currently supported */);
     return true;
   } else {
@@ -459,7 +463,8 @@ bool MipsMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind ATTRIBUTE_UNUSED) {
 
 void MipsMir2Lir::CompilerInitializeRegAlloc() {
   const bool fpu_is_32bit =
-      cu_->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()->Is32BitFloatingPoint();
+      cu_->compiler_driver->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()
+      ->Is32BitFloatingPoint();
   reg_pool_.reset(new (arena_) RegisterPool(this, arena_, core_regs, empty_pool /* core64 */,
                                             sp_regs,
                                             fpu_is_32bit ? dp_fr0_regs : dp_fr1_regs,

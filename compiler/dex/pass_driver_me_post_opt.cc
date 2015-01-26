@@ -16,7 +16,6 @@
 
 #include "base/macros.h"
 #include "post_opt_passes.h"
-#include "compiler_internals.h"
 #include "pass_driver_me_post_opt.h"
 
 namespace art {

@@ -19,7 +19,8 @@
 
 #include "mir_to_lir.h"
 
-#include "dex/compiler_internals.h"
+#include "base/logging.h"
+#include "dex/compiler_ir.h"
 
 namespace art {
 

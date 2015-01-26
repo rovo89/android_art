@@ -17,15 +17,14 @@
 #ifndef ART_COMPILER_DEX_QUICK_MIR_TO_LIR_H_
 #define ART_COMPILER_DEX_QUICK_MIR_TO_LIR_H_
 
-#include "arch/instruction_set.h"
 #include "compiled_method.h"
 #include "dex/compiler_enums.h"
-#include "dex/compiler_ir.h"
+#include "dex/dex_flags.h"
+#include "dex/dex_types.h"
 #include "dex/reg_location.h"
 #include "dex/reg_storage.h"
 #include "dex/backend.h"
 #include "dex/quick/resource_mask.h"
-#include "driver/compiler_driver.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "invoke_type.h"
 #include "leb128.h"
@@ -125,10 +124,12 @@ namespace art {
 #define REG_USE23            (REG_USE2 | REG_USE3)
 #define REG_USE123           (REG_USE1 | REG_USE2 | REG_USE3)
 
-// TODO: #includes need a cleanup
-#ifndef INVALID_SREG
-#define INVALID_SREG (-1)
-#endif
+/*
+ * Assembly is an iterative process, and usually terminates within
+ * two or three passes.  This should be high enough to handle bizarre
+ * cases, but detect an infinite loop bug.
+ */
+#define MAX_ASSEMBLER_RETRIES 50
 
 class BasicBlock;
 struct CallInfo;
@@ -140,7 +141,6 @@ struct RegisterInfo;
 class DexFileMethodInliner;
 class MIRGraph;
 class MirMethodLoweringInfo;
-class Mir2Lir;
 
 typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int,
                             const MethodReference& target_method,
@@ -148,6 +148,7 @@ typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int,
                             uintptr_t direct_method, InvokeType type);
 
 typedef std::vector<uint8_t> CodeBuffer;
+typedef uint32_t CodeOffset;           // Native code offset in bytes.
 
 struct UseDefMasks {
   const ResourceMask* use_mask;        // Resource mask for use.
@@ -199,13 +200,6 @@ struct LIR {
 
 // Mask to denote sreg as the start of a 64-bit item.  Must not interfere with low 16 bits.
 #define STARTING_WIDE_SREG 0x10000
-
-// TODO: replace these macros
-#define SLOW_FIELD_PATH (cu_->enable_debug & (1 << kDebugSlowFieldPath))
-#define SLOW_INVOKE_PATH (cu_->enable_debug & (1 << kDebugSlowInvokePath))
-#define SLOW_STRING_PATH (cu_->enable_debug & (1 << kDebugSlowStringPath))
-#define SLOW_TYPE_PATH (cu_->enable_debug & (1 << kDebugSlowTypePath))
-#define EXERCISE_SLOWEST_STRING_PATH (cu_->enable_debug & (1 << kDebugSlowestStringPath))
 
 class Mir2Lir : public Backend {
   public:

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "compiler_ir.h"
 #include "mir_graph.h"
 #include "gtest/gtest.h"
 
@@ -148,7 +149,7 @@ class TopologicalSortOrderTest : public testing::Test {
 
   TopologicalSortOrderTest()
       : pool_(),
-        cu_(&pool_) {
+        cu_(&pool_, kRuntimeISA, nullptr, nullptr) {
     cu_.mir_graph.reset(new MIRGraph(&cu_, &cu_.arena));
   }
 

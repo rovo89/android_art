@@ -18,7 +18,10 @@
 
 #include "arch/arm64/instruction_set_features_arm64.h"
 #include "arm64_lir.h"
-#include "dex/quick/mir_to_lir-inl.h"
+#include "base/logging.h"
+#include "dex/compiler_ir.h"
+#include "dex/quick/mir_to_lir.h"
+#include "driver/compiler_driver.h"
 
 namespace art {
 
@@ -1016,7 +1019,7 @@ void Arm64Mir2Lir::AssembleLIR() {
           // Avoid emitting code that could trigger Cortex A53's erratum 835769.
           // This fixup should be carried out for all multiply-accumulate instructions: madd, msub,
           // smaddl, smsubl, umaddl and umsubl.
-          if (cu_->GetInstructionSetFeatures()->AsArm64InstructionSetFeatures()
+          if (cu_->compiler_driver->GetInstructionSetFeatures()->AsArm64InstructionSetFeatures()
               ->NeedFixCortexA53_835769()) {
             // Check that this is a 64-bit multiply-accumulate.
             if (IS_WIDE(lir->opcode)) {
