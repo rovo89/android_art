@@ -455,7 +455,7 @@ Location CodeGeneratorARM::AllocateFreeRegister(Primitive::Type type) const {
   return Location();
 }
 
-void CodeGeneratorARM::SetupBlockedRegisters(bool is_baseline ATTRIBUTE_UNUSED) const {
+void CodeGeneratorARM::SetupBlockedRegisters(bool is_baseline) const {
   // Don't allocate the dalvik style register pair passing.
   blocked_register_pairs_[R1_R2] = true;
 

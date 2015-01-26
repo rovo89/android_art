@@ -36,8 +36,33 @@
 #include "utils.h"
 
 #include "gtest/gtest.h"
-
+  
 namespace art {
+
+// Provide our own codegen, that ensures the C calling conventions
+// are preserved. Currently, ART and C do not match as R4 is caller-save
+// in ART, and callee-save in C. Alternatively, we could use or write
+// the stub that saves and restores all registers, but it is easier
+// to just overwrite the code generator.
+class TestCodeGeneratorARM : public arm::CodeGeneratorARM {
+ public:
+  TestCodeGeneratorARM(HGraph* graph,
+                       const ArmInstructionSetFeatures& isa_features,
+                       const CompilerOptions& compiler_options)
+      : arm::CodeGeneratorARM(graph, isa_features, compiler_options) {
+    AddAllocatedRegister(Location::RegisterLocation(6));
+    AddAllocatedRegister(Location::RegisterLocation(7));
+  }
+
+  void SetupBlockedRegisters(bool is_baseline) const OVERRIDE {
+    arm::CodeGeneratorARM::SetupBlockedRegisters(is_baseline);
+    blocked_core_registers_[4] = true;
+    blocked_core_registers_[6] = false;
+    blocked_core_registers_[7] = false;
+    // Makes pari R6-R7 available.
+    blocked_register_pairs_[6 >> 1] = false;
+  }
+};
 
 class InternalCodeAllocator : public CodeAllocator {
  public:
@@ -92,7 +117,7 @@ static void RunCodeBaseline(HGraph* graph, bool has_result, Expected expected) {
 
   std::unique_ptr<const ArmInstructionSetFeatures> features(
       ArmInstructionSetFeatures::FromCppDefines());
-  arm::CodeGeneratorARM codegenARM(graph, *features.get(), compiler_options);
+  TestCodeGeneratorARM codegenARM(graph, *features.get(), compiler_options);
   codegenARM.CompileBaseline(&allocator, true);
   if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
     Run(allocator, codegenARM, has_result, expected);
@@ -136,9 +161,9 @@ static void RunCodeOptimized(HGraph* graph,
                              Expected expected) {
   CompilerOptions compiler_options;
   if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
-    arm::CodeGeneratorARM codegenARM(graph,
-                                     *ArmInstructionSetFeatures::FromCppDefines(),
-                                     compiler_options);
+    TestCodeGeneratorARM codegenARM(graph,
+                                    *ArmInstructionSetFeatures::FromCppDefines(),
+                                    compiler_options);
     RunCodeOptimized(&codegenARM, graph, hook_before_codegen, has_result, expected);
   } else if (kRuntimeISA == kArm64) {
     arm64::CodeGeneratorARM64 codegenARM64(graph, compiler_options);
