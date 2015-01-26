@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
-#include "compiler_internals.h"
+#include "base/logging.h"
+#include "base/stringprintf.h"
+#include "compiler_ir.h"
 #include "dex/dataflow_iterator-inl.h"
+#include "dex_flags.h"
 
 namespace art {
 

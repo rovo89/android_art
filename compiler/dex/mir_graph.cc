@@ -21,13 +21,15 @@
 #include <unistd.h>
 
 #include "base/bit_vector-inl.h"
+#include "base/logging.h"
 #include "base/stl_util.h"
-#include "compiler_internals.h"
+#include "base/stringprintf.h"
+#include "compiler_ir.h"
 #include "dex_file-inl.h"
+#include "dex_flags.h"
 #include "dex_instruction-inl.h"
-#include "dex/global_value_numbering.h"
-#include "dex/quick/dex_file_to_method_inliner_map.h"
-#include "dex/quick/dex_file_method_inliner.h"
+#include "driver/compiler_driver.h"
+#include "driver/dex_compilation_unit.h"
 #include "leb128.h"
 #include "pass_driver_me_post_opt.h"
 #include "stack.h"
@@ -2521,4 +2523,9 @@ int MIR::DecodedInstruction::FlagsOf() const {
       return 0;
   }
 }
+
+const uint16_t* MIRGraph::GetInsns(int m_unit_index) const {
+  return m_units_[m_unit_index]->GetCodeItem()->insns_;
+}
+
 }  // namespace art

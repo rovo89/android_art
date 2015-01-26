@@ -16,11 +16,16 @@
 
 /* This file contains codegen for the Thumb2 ISA. */
 
+#include "codegen_arm.h"
+
 #include "arch/instruction_set_features.h"
 #include "arm_lir.h"
-#include "codegen_arm.h"
+#include "base/logging.h"
+#include "dex/compiler_ir.h"
+#include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
+#include "driver/compiler_driver.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/array-inl.h"
 #include "utils.h"
@@ -1140,7 +1145,7 @@ LIR* ArmMir2Lir::OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* targe
 }
 
 bool ArmMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind) {
-  if (!cu_->GetInstructionSetFeatures()->IsSmp()) {
+  if (!cu_->compiler_driver->GetInstructionSetFeatures()->IsSmp()) {
     return false;
   }
   // Start off with using the last LIR as the barrier. If it is not enough, then we will generate one.

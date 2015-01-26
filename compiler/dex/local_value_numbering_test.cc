@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include "compiler_internals.h"
 #include "dex/mir_field_info.h"
 #include "global_value_numbering.h"
 #include "local_value_numbering.h"
@@ -202,7 +201,7 @@ class LocalValueNumberingTest : public testing::Test {
 
   LocalValueNumberingTest()
       : pool_(),
-        cu_(&pool_),
+        cu_(&pool_, kRuntimeISA, nullptr, nullptr),
         mir_count_(0u),
         mirs_(nullptr),
         ssa_reps_(),

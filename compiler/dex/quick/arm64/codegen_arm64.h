@@ -18,7 +18,7 @@
 #define ART_COMPILER_DEX_QUICK_ARM64_CODEGEN_ARM64_H_
 
 #include "arm64_lir.h"
-#include "dex/compiler_internals.h"
+#include "base/logging.h"
 #include "dex/quick/mir_to_lir.h"
 
 #include <map>

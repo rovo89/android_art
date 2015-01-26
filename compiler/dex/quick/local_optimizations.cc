@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include "dex/compiler_internals.h"
 #include "dex/quick/mir_to_lir-inl.h"
+
+#include "base/logging.h"
 
 namespace art {
 

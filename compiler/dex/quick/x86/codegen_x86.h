@@ -17,7 +17,9 @@
 #ifndef ART_COMPILER_DEX_QUICK_X86_CODEGEN_X86_H_
 #define ART_COMPILER_DEX_QUICK_X86_CODEGEN_X86_H_
 
-#include "dex/compiler_internals.h"
+#include "base/logging.h"
+#include "dex/compiler_ir.h"
+#include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir.h"
 #include "x86_lir.h"
 

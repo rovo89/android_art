@@ -21,7 +21,8 @@
 #include <string>
 
 #include "backend_arm.h"
-#include "dex/compiler_internals.h"
+#include "base/logging.h"
+#include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir-inl.h"
 
 namespace art {

@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
-#include "dex/compiler_internals.h"
+#include "mir_to_lir-inl.h"
+
+#include "dex/mir_graph.h"
+#include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
+#include "driver/dex_compilation_unit.h"
 #include "dex_file-inl.h"
 #include "gc_map.h"
 #include "gc_map_builder.h"
 #include "mapping_table.h"
-#include "mir_to_lir-inl.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/verification_results.h"

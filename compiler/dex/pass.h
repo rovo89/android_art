@@ -19,14 +19,12 @@
 
 #include <string>
 
-#include "compiler_ir.h"
 #include "base/logging.h"
 
 namespace art {
 
 // Forward declarations.
 class BasicBlock;
-struct CompilationUnit;
 class Pass;
 
 // Empty Pass Data Class, can be extended by any pass extending the base Pass class.
@@ -87,21 +85,6 @@ class Pass {
     // Passes that do all their work in Start() or End() should not allow useless node iteration.
     LOG(FATAL) << "Unsupported default Worker() used for " << GetName();
     UNREACHABLE();
-  }
-
-  static void BasePrintMessage(CompilationUnit* c_unit, const char* pass_name, const char* message, ...) {
-    // Check if we want to log something or not.
-    if (c_unit->print_pass) {
-      // Stringify the message.
-      va_list args;
-      va_start(args, message);
-      std::string stringified_message;
-      StringAppendV(&stringified_message, message, args);
-      va_end(args);
-
-      // Log the message and ensure to include pass name.
-      LOG(INFO) << pass_name << ": " << stringified_message;
-    }
   }
 
  protected:

@@ -18,6 +18,7 @@
 
 #include "resource_mask.h"
 
+#include "base/logging.h"
 #include "utils/arena_allocator.h"
 #include "utils.h"
 

@@ -18,8 +18,10 @@
 
 #include <cstdint>
 
+#include "base/logging.h"
 #include "compiler.h"
 #include "dex_file-inl.h"
+#include "dex/compiler_ir.h"
 #include "dex/frontend.h"
 #include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir.h"
@@ -27,7 +29,6 @@
 #include "elf_writer_quick.h"
 #include "jni/quick/jni_compiler.h"
 #include "mirror/art_method-inl.h"
-#include "base/logging.h"
 
 // Specific compiler backends.
 #include "dex/quick/arm/backend_arm.h"

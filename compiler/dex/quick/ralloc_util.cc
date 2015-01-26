@@ -16,9 +16,12 @@
 
 /* This file contains register alloction support. */
 
-#include "dex/compiler_ir.h"
-#include "dex/compiler_internals.h"
 #include "mir_to_lir-inl.h"
+
+#include "dex/compiler_ir.h"
+#include "dex/mir_graph.h"
+#include "driver/compiler_driver.h"
+#include "driver/dex_compilation_unit.h"
 
 namespace art {
 

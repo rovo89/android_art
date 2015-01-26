@@ -18,18 +18,15 @@
 
 #include <algorithm>
 
+#include "base/logging.h"
 #include "base/macros.h"
-#include "base/mutex.h"
 #include "base/mutex-inl.h"
-#include "dex/frontend.h"
-#include "thread.h"
+#include "dex/compiler_ir.h"
 #include "thread-inl.h"
 #include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir.h"
-#include "dex_instruction.h"
 #include "dex_instruction-inl.h"
 #include "driver/dex_compilation_unit.h"
-#include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
 
 namespace art {

@@ -17,15 +17,18 @@
 #include <algorithm>
 #include <memory>
 
-#include "compiler_internals.h"
+#include "base/logging.h"
 #include "dataflow_iterator-inl.h"
-#include "dex_instruction.h"
+#include "compiler_ir.h"
+#include "dex_flags.h"
 #include "dex_instruction-inl.h"
 #include "dex/mir_field_info.h"
 #include "dex/verified_method.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
+#include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
+#include "driver/dex_compilation_unit.h"
 #include "utils/scoped_arena_containers.h"
 
 namespace art {
