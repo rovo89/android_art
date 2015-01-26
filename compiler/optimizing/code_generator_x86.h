@@ -89,7 +89,9 @@ class ParallelMoveResolverX86 : public ParallelMoveResolver {
  private:
   void Exchange(Register reg, int mem);
   void Exchange(int mem1, int mem2);
-  void MoveMemoryToMemory(int dst, int src);
+  void Exchange32(XmmRegister reg, int mem);
+  void MoveMemoryToMemory32(int dst, int src);
+  void MoveMemoryToMemory64(int dst, int src);
 
   CodeGeneratorX86* const codegen_;
 
@@ -173,6 +175,8 @@ class CodeGeneratorX86 : public CodeGenerator {
   void Move(HInstruction* instruction, Location location, HInstruction* move_for) OVERRIDE;
   size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
   size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
+  size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) OVERRIDE;
 
   size_t GetWordSize() const OVERRIDE {
     return kX86WordSize;

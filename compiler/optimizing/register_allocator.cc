@@ -83,12 +83,8 @@ bool RegisterAllocator::CanAllocateRegistersFor(const HGraph& graph,
          !it.Done();
          it.Advance()) {
       HInstruction* current = it.Current();
-      if (instruction_set == kX86) {
-        if (current->GetType() == Primitive::kPrimLong ||
-            current->GetType() == Primitive::kPrimFloat ||
-            current->GetType() == Primitive::kPrimDouble) {
-          return false;
-        }
+      if (instruction_set == kX86 && current->GetType() == Primitive::kPrimLong) {
+        return false;
       }
     }
   }
