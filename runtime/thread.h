@@ -75,7 +75,7 @@ class Monitor;
 class Runtime;
 class ScopedObjectAccessAlreadyRunnable;
 class ShadowFrame;
-struct SingleStepControl;
+class SingleStepControl;
 class Thread;
 class ThreadList;
 
@@ -708,6 +708,15 @@ class Thread {
   SingleStepControl* GetSingleStepControl() const {
     return tlsPtr_.single_step_control;
   }
+
+  // Activates single step control for debugging. The thread takes the
+  // ownership of the given SingleStepControl*. It is deleted by a call
+  // to DeactivateSingleStepControl or upon thread destruction.
+  void ActivateSingleStepControl(SingleStepControl* ssc);
+
+  // Deactivates single step control for debugging.
+  void DeactivateSingleStepControl();
+
 
   // Returns the fake exception used to activate deoptimization.
   static mirror::Throwable* GetDeoptimizationException() {
