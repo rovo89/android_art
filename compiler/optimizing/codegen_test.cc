@@ -36,7 +36,7 @@
 #include "utils.h"
 
 #include "gtest/gtest.h"
-  
+
 namespace art {
 
 // Provide our own codegen, that ensures the C calling conventions
@@ -59,7 +59,7 @@ class TestCodeGeneratorARM : public arm::CodeGeneratorARM {
     blocked_core_registers_[4] = true;
     blocked_core_registers_[6] = false;
     blocked_core_registers_[7] = false;
-    // Makes pari R6-R7 available.
+    // Makes pair R6-R7 available.
     blocked_register_pairs_[6 >> 1] = false;
   }
 };
