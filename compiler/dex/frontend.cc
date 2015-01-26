@@ -156,6 +156,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   if (!compiler->CanCompileMethod(method_idx, dex_file, &cu)) {
     VLOG(compiler)  << cu.instruction_set << ": Cannot compile method : "
         << PrettyMethod(method_idx, dex_file);
+    cu.EndTiming();
     return nullptr;
   }
 
@@ -164,6 +165,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   if (cu.mir_graph->SkipCompilation(&skip_message)) {
     VLOG(compiler) << cu.instruction_set << ": Skipping method : "
                    << PrettyMethod(method_idx, dex_file) << "  Reason = " << skip_message;
+    cu.EndTiming();
     return nullptr;
   }
 
@@ -175,6 +177,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   if (cu.compiler_driver->ProfilePresent()
       && !cu.mir_graph->MethodIsLeaf()
       && cu.mir_graph->SkipCompilationByName(PrettyMethod(method_idx, dex_file))) {
+    cu.EndTiming();
     return nullptr;
   }
 
@@ -203,6 +206,7 @@ static CompiledMethod* CompileMethod(CompilerDriver& driver,
   if (cu.mir_graph->PuntToInterpreter()) {
     VLOG(compiler) << cu.instruction_set << ": Punted method to interpreter: "
         << PrettyMethod(method_idx, dex_file);
+    cu.EndTiming();
     return nullptr;
   }
 
