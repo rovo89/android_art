@@ -64,7 +64,9 @@ TEST(GVNTest, LocalFieldElimination) {
   ASSERT_EQ(use_after_kill->GetBlock(), block);
 
   graph->TryBuildingSsa();
-  GlobalValueNumberer(&allocator, graph).Run();
+  SideEffectsAnalysis side_effects(graph);
+  side_effects.Run();
+  GlobalValueNumberer(&allocator, graph, side_effects).Run();
 
   ASSERT_TRUE(to_remove->GetBlock() == nullptr);
   ASSERT_EQ(different_offset->GetBlock(), block);
@@ -116,7 +118,9 @@ TEST(GVNTest, GlobalFieldElimination) {
   join->AddInstruction(new (&allocator) HExit());
 
   graph->TryBuildingSsa();
-  GlobalValueNumberer(&allocator, graph).Run();
+  SideEffectsAnalysis side_effects(graph);
+  side_effects.Run();
+  GlobalValueNumberer(&allocator, graph, side_effects).Run();
 
   // Check that all field get instructions have been GVN'ed.
   ASSERT_TRUE(then->GetFirstInstruction()->IsGoto());
@@ -184,7 +188,11 @@ TEST(GVNTest, LoopFieldElimination) {
   ASSERT_EQ(field_get_in_exit->GetBlock(), exit);
 
   graph->TryBuildingSsa();
-  GlobalValueNumberer(&allocator, graph).Run();
+  {
+    SideEffectsAnalysis side_effects(graph);
+    side_effects.Run();
+    GlobalValueNumberer(&allocator, graph, side_effects).Run();
+  }
 
   // Check that all field get instructions are still there.
   ASSERT_EQ(field_get_in_loop_header->GetBlock(), loop_header);
@@ -195,7 +203,11 @@ TEST(GVNTest, LoopFieldElimination) {
 
   // Now remove the field set, and check that all field get instructions have been GVN'ed.
   loop_body->RemoveInstruction(field_set);
-  GlobalValueNumberer(&allocator, graph).Run();
+  {
+    SideEffectsAnalysis side_effects(graph);
+    side_effects.Run();
+    GlobalValueNumberer(&allocator, graph, side_effects).Run();
+  }
 
   ASSERT_TRUE(field_get_in_loop_header->GetBlock() == nullptr);
   ASSERT_TRUE(field_get_in_loop_body->GetBlock() == nullptr);
@@ -256,12 +268,12 @@ TEST(GVNTest, LoopSideEffects) {
     entry->AddInstruction(new (&allocator) HInstanceFieldSet(
         parameter, parameter, Primitive::kPrimNot, MemberOffset(42), false));
 
-    GlobalValueNumberer gvn(&allocator, graph);
-    gvn.Run();
+    SideEffectsAnalysis side_effects(graph);
+    side_effects.Run();
 
-    ASSERT_TRUE(gvn.GetBlockEffects(entry).HasSideEffects());
-    ASSERT_FALSE(gvn.GetLoopEffects(outer_loop_header).HasSideEffects());
-    ASSERT_FALSE(gvn.GetLoopEffects(inner_loop_header).HasSideEffects());
+    ASSERT_TRUE(side_effects.GetBlockEffects(entry).HasSideEffects());
+    ASSERT_FALSE(side_effects.GetLoopEffects(outer_loop_header).HasSideEffects());
+    ASSERT_FALSE(side_effects.GetLoopEffects(inner_loop_header).HasSideEffects());
   }
 
   // Check that the side effects of the outer loop does not affect the inner loop.
@@ -271,13 +283,13 @@ TEST(GVNTest, LoopSideEffects) {
             parameter, parameter, Primitive::kPrimNot, MemberOffset(42), false),
         outer_loop_body->GetLastInstruction());
 
-    GlobalValueNumberer gvn(&allocator, graph);
-    gvn.Run();
+    SideEffectsAnalysis side_effects(graph);
+    side_effects.Run();
 
-    ASSERT_TRUE(gvn.GetBlockEffects(entry).HasSideEffects());
-    ASSERT_TRUE(gvn.GetBlockEffects(outer_loop_body).HasSideEffects());
-    ASSERT_TRUE(gvn.GetLoopEffects(outer_loop_header).HasSideEffects());
-    ASSERT_FALSE(gvn.GetLoopEffects(inner_loop_header).HasSideEffects());
+    ASSERT_TRUE(side_effects.GetBlockEffects(entry).HasSideEffects());
+    ASSERT_TRUE(side_effects.GetBlockEffects(outer_loop_body).HasSideEffects());
+    ASSERT_TRUE(side_effects.GetLoopEffects(outer_loop_header).HasSideEffects());
+    ASSERT_FALSE(side_effects.GetLoopEffects(inner_loop_header).HasSideEffects());
   }
 
   // Check that the side effects of the inner loop affects the outer loop.
@@ -288,13 +300,13 @@ TEST(GVNTest, LoopSideEffects) {
             parameter, parameter, Primitive::kPrimNot, MemberOffset(42), false),
         inner_loop_body->GetLastInstruction());
 
-    GlobalValueNumberer gvn(&allocator, graph);
-    gvn.Run();
+    SideEffectsAnalysis side_effects(graph);
+    side_effects.Run();
 
-    ASSERT_TRUE(gvn.GetBlockEffects(entry).HasSideEffects());
-    ASSERT_FALSE(gvn.GetBlockEffects(outer_loop_body).HasSideEffects());
-    ASSERT_TRUE(gvn.GetLoopEffects(outer_loop_header).HasSideEffects());
-    ASSERT_TRUE(gvn.GetLoopEffects(inner_loop_header).HasSideEffects());
+    ASSERT_TRUE(side_effects.GetBlockEffects(entry).HasSideEffects());
+    ASSERT_FALSE(side_effects.GetBlockEffects(outer_loop_body).HasSideEffects());
+    ASSERT_TRUE(side_effects.GetLoopEffects(outer_loop_header).HasSideEffects());
+    ASSERT_TRUE(side_effects.GetLoopEffects(inner_loop_header).HasSideEffects());
   }
 }
 }  // namespace art

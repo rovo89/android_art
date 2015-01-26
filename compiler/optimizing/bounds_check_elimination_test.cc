@@ -25,6 +25,12 @@
 
 namespace art {
 
+static void RunGvn(HGraph* graph) {
+  SideEffectsAnalysis side_effects(graph);
+  side_effects.Run();
+  GlobalValueNumberer(graph->GetArena(), graph, side_effects).Run();
+}
+
 // if (i < 0) { array[i] = 1; // Can't eliminate. }
 // else if (i >= array.length) { array[i] = 1; // Can't eliminate. }
 // else { array[i] = 1; // Can eliminate. }
@@ -120,7 +126,7 @@ TEST(BoundsCheckEliminationTest, NarrowingRangeArrayBoundsElimination) {
   block3->AddSuccessor(block4);  // False successor
 
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination(graph);
   bounds_check_elimination.Run();
   ASSERT_FALSE(IsRemoved(bounds_check2));
@@ -195,7 +201,7 @@ TEST(BoundsCheckEliminationTest, OverflowArrayBoundsElimination) {
   block3->AddSuccessor(exit);
 
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination(graph);
   bounds_check_elimination.Run();
   ASSERT_FALSE(IsRemoved(bounds_check));
@@ -270,7 +276,7 @@ TEST(BoundsCheckEliminationTest, UnderflowArrayBoundsElimination) {
   block3->AddSuccessor(exit);
 
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination(graph);
   bounds_check_elimination.Run();
   ASSERT_FALSE(IsRemoved(bounds_check));
@@ -344,7 +350,7 @@ TEST(BoundsCheckEliminationTest, ConstantArrayBoundsElimination) {
   exit->AddInstruction(new (&allocator) HExit());
 
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination(graph);
   bounds_check_elimination.Run();
   ASSERT_FALSE(IsRemoved(bounds_check5));
@@ -443,7 +449,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination1) {
   // HArrayLength which uses the null check as its input.
   graph = BuildSSAGraph1(&allocator, &bounds_check, 0, 1);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_after_gvn(graph);
   bounds_check_elimination_after_gvn.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
@@ -451,7 +457,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination1) {
   // for (int i=1; i<array.length; i++) { array[i] = 10; // Can eliminate. }
   graph = BuildSSAGraph1(&allocator, &bounds_check, 1, 1);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_with_initial_1(graph);
   bounds_check_elimination_with_initial_1.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
@@ -459,7 +465,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination1) {
   // for (int i=-1; i<array.length; i++) { array[i] = 10; // Can't eliminate. }
   graph = BuildSSAGraph1(&allocator, &bounds_check, -1, 1);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_with_initial_minus_1(graph);
   bounds_check_elimination_with_initial_minus_1.Run();
   ASSERT_FALSE(IsRemoved(bounds_check));
@@ -467,7 +473,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination1) {
   // for (int i=0; i<=array.length; i++) { array[i] = 10; // Can't eliminate. }
   graph = BuildSSAGraph1(&allocator, &bounds_check, 0, 1, kCondGT);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_with_greater_than(graph);
   bounds_check_elimination_with_greater_than.Run();
   ASSERT_FALSE(IsRemoved(bounds_check));
@@ -476,7 +482,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination1) {
   //   array[i] = 10; // Can't eliminate due to overflow concern. }
   graph = BuildSSAGraph1(&allocator, &bounds_check, 0, 2);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_with_increment_2(graph);
   bounds_check_elimination_with_increment_2.Run();
   ASSERT_FALSE(IsRemoved(bounds_check));
@@ -484,7 +490,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination1) {
   // for (int i=1; i<array.length; i += 2) { array[i] = 10; // Can eliminate. }
   graph = BuildSSAGraph1(&allocator, &bounds_check, 1, 2);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_with_increment_2_from_1(graph);
   bounds_check_elimination_with_increment_2_from_1.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
@@ -584,7 +590,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination2) {
   // HArrayLength which uses the null check as its input.
   graph = BuildSSAGraph2(&allocator, &bounds_check, 0);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_after_gvn(graph);
   bounds_check_elimination_after_gvn.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
@@ -592,7 +598,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination2) {
   // for (int i=array.length; i>1; i--) { array[i-1] = 10; // Can eliminate. }
   graph = BuildSSAGraph2(&allocator, &bounds_check, 1);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_with_initial_1(graph);
   bounds_check_elimination_with_initial_1.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
@@ -600,7 +606,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination2) {
   // for (int i=array.length; i>-1; i--) { array[i-1] = 10; // Can't eliminate. }
   graph = BuildSSAGraph2(&allocator, &bounds_check, -1);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_with_initial_minus_1(graph);
   bounds_check_elimination_with_initial_minus_1.Run();
   ASSERT_FALSE(IsRemoved(bounds_check));
@@ -608,7 +614,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination2) {
   // for (int i=array.length; i>=0; i--) { array[i-1] = 10; // Can't eliminate. }
   graph = BuildSSAGraph2(&allocator, &bounds_check, 0, -1, kCondLT);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_with_less_than(graph);
   bounds_check_elimination_with_less_than.Run();
   ASSERT_FALSE(IsRemoved(bounds_check));
@@ -616,7 +622,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination2) {
   // for (int i=array.length; i>0; i-=2) { array[i-1] = 10; // Can eliminate. }
   graph = BuildSSAGraph2(&allocator, &bounds_check, 0, -2);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_increment_minus_2(graph);
   bounds_check_elimination_increment_minus_2.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
@@ -703,7 +709,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination3) {
   HInstruction* bounds_check = nullptr;
   HGraph* graph = BuildSSAGraph3(&allocator, &bounds_check, 0, 1, kCondGE);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_after_gvn(graph);
   bounds_check_elimination_after_gvn.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
@@ -712,7 +718,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination3) {
   // for (int i=1; i<10; i++) { array[i] = 10; // Can eliminate. }
   graph = BuildSSAGraph3(&allocator, &bounds_check, 1, 1, kCondGE);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_with_initial_1(graph);
   bounds_check_elimination_with_initial_1.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
@@ -721,7 +727,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination3) {
   // for (int i=0; i<=10; i++) { array[i] = 10; // Can't eliminate. }
   graph = BuildSSAGraph3(&allocator, &bounds_check, 0, 1, kCondGT);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_with_greater_than(graph);
   bounds_check_elimination_with_greater_than.Run();
   ASSERT_FALSE(IsRemoved(bounds_check));
@@ -730,7 +736,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination3) {
   // for (int i=1; i<10; i+=8) { array[i] = 10; // Can eliminate. }
   graph = BuildSSAGraph3(&allocator, &bounds_check, 1, 8, kCondGE);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_increment_8(graph);
   bounds_check_elimination_increment_8.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
@@ -831,7 +837,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination4) {
   // HArrayLength which uses the null check as its input.
   graph = BuildSSAGraph4(&allocator, &bounds_check, 0);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_after_gvn(graph);
   bounds_check_elimination_after_gvn.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
@@ -839,7 +845,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination4) {
   // for (int i=1; i<array.length; i++) { array[array.length-i-1] = 10; // Can eliminate. }
   graph = BuildSSAGraph4(&allocator, &bounds_check, 1);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_with_initial_1(graph);
   bounds_check_elimination_with_initial_1.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
@@ -847,7 +853,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination4) {
   // for (int i=0; i<=array.length; i++) { array[array.length-i] = 10; // Can't eliminate. }
   graph = BuildSSAGraph4(&allocator, &bounds_check, 0, kCondGT);
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   BoundsCheckElimination bounds_check_elimination_with_greater_than(graph);
   bounds_check_elimination_with_greater_than.Run();
   ASSERT_FALSE(IsRemoved(bounds_check));
@@ -1023,7 +1029,7 @@ TEST(BoundsCheckEliminationTest, BubbleSortArrayBoundsElimination) {
   outer_body_add->AddSuccessor(outer_header);
 
   graph->BuildDominatorTree();
-  GlobalValueNumberer(&allocator, graph).Run();
+  RunGvn(graph);
   // gvn should remove the same bounds check.
   ASSERT_FALSE(IsRemoved(bounds_check1));
   ASSERT_FALSE(IsRemoved(bounds_check2));
