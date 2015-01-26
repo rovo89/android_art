@@ -607,9 +607,9 @@ void ConcurrentCopying::VerifyNoFromSpaceReferences() {
   // The alloc stack.
   {
     ConcurrentCopyingVerifyNoFromSpaceRefsVisitor ref_visitor(this);
-    for (mirror::Object** it = heap_->allocation_stack_->Begin(),
-             **end = heap_->allocation_stack_->End(); it < end; ++it) {
-      mirror::Object* obj = *it;
+    for (auto* it = heap_->allocation_stack_->Begin(), *end = heap_->allocation_stack_->End();
+        it < end; ++it) {
+      mirror::Object* const obj = it->AsMirrorPtr();
       if (obj != nullptr && obj->GetClass() != nullptr) {
         // TODO: need to call this only if obj is alive?
         ref_visitor(obj);
@@ -845,14 +845,14 @@ void ConcurrentCopying::ClearBlackPtrs() {
   // Objects on the allocation stack?
   if (ReadBarrier::kEnableReadBarrierInvariantChecks || kIsDebugBuild) {
     size_t count = GetAllocationStack()->Size();
-    mirror::Object** it = GetAllocationStack()->Begin();
-    mirror::Object** end = GetAllocationStack()->End();
+    auto* it = GetAllocationStack()->Begin();
+    auto* end = GetAllocationStack()->End();
     for (size_t i = 0; i < count; ++i, ++it) {
-      CHECK(it < end);
-      mirror::Object* obj = *it;
+      CHECK_LT(it, end);
+      mirror::Object* obj = it->AsMirrorPtr();
       if (obj != nullptr) {
         // Must have been cleared above.
-        CHECK(obj->GetReadBarrierPointer() == ReadBarrier::WhitePtr()) << obj;
+        CHECK_EQ(obj->GetReadBarrierPointer(), ReadBarrier::WhitePtr()) << obj;
       }
     }
   }
@@ -1446,10 +1446,7 @@ mirror::Object* ConcurrentCopying::IsMarked(mirror::Object* from_ref) {
 bool ConcurrentCopying::IsOnAllocStack(mirror::Object* ref) {
   QuasiAtomic::ThreadFenceAcquire();
   accounting::ObjectStack* alloc_stack = GetAllocationStack();
-  mirror::Object** begin = alloc_stack->Begin();
-  // Important to read end once as it could be concurrently updated and screw up std::find().
-  mirror::Object** end = alloc_stack->End();
-  return std::find(begin, end, ref) != end;
+  return alloc_stack->Contains(ref);
 }
 
 mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref) {

@@ -274,11 +274,11 @@ void MarkCompact::ReclaimPhase() {
 }
 
 void MarkCompact::ResizeMarkStack(size_t new_size) {
-  std::vector<Object*> temp(mark_stack_->Begin(), mark_stack_->End());
+  std::vector<StackReference<Object>> temp(mark_stack_->Begin(), mark_stack_->End());
   CHECK_LE(mark_stack_->Size(), new_size);
   mark_stack_->Resize(new_size);
-  for (const auto& obj : temp) {
-    mark_stack_->PushBack(obj);
+  for (auto& obj : temp) {
+    mark_stack_->PushBack(obj.AsMirrorPtr());
   }
 }
 
