@@ -357,7 +357,7 @@ MACRO2(LOOP_OVER_SHORTY_LOADING_XMMS, xmm_reg, finished)
     movb (%ebx), %al              // al := *shorty
     addl MACRO_LITERAL(1), %ebx   // shorty++
     cmpb MACRO_LITERAL(0), %al    // if (al == '\0') goto xmm_setup_finished
-    je VAR(finished, 1)
+    je RAW_VAR(finished, 1)
     cmpb MACRO_LITERAL(68), %al   // if (al == 'D') goto FOUND_DOUBLE
     je 2f
     cmpb MACRO_LITERAL(70), %al   // if (al == 'F') goto FOUND_FLOAT
@@ -388,7 +388,7 @@ MACRO1(SKIP_OVER_FLOATS, finished)
     movb (%esi), %al              // al := *shorty
     addl MACRO_LITERAL(1), %esi   // shorty++
     cmpb MACRO_LITERAL(0), %al    // if (al == '\0') goto gpr_setup_finished
-    je  VAR(finished, 2)
+    je RAW_VAR(finished, 0)
     cmpb MACRO_LITERAL(70), %al   // if (al == 'F') goto SKIP_FLOAT
     je 3f
     cmpb MACRO_LITERAL(68), %al   // if (al == 'D') goto SKIP_DOUBLE
