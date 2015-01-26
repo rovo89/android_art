@@ -245,6 +245,8 @@ class CodeGeneratorARM : public CodeGenerator {
     return type == Primitive::kPrimDouble || type == Primitive::kPrimLong;
   }
 
+  void ComputeSpillMask() OVERRIDE;
+
  private:
   // Labels for each block that will be compiled.
   GrowableArray<Label> block_labels_;
