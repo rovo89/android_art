@@ -39,6 +39,7 @@
 #include "nodes.h"
 #include "prepare_for_register_allocation.h"
 #include "register_allocator.h"
+#include "side_effects_analysis.h"
 #include "ssa_builder.h"
 #include "ssa_phi_elimination.h"
 #include "ssa_liveness_analysis.h"
