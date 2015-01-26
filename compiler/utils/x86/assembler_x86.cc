@@ -1537,8 +1537,12 @@ void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 
   uint32_t reg_offset = 1;
   CHECK_ALIGNED(frame_size, kStackAlignment);
+  int gpr_count = 0;
   for (int i = spill_regs.size() - 1; i >= 0; --i) {
-    pushl(spill_regs.at(i).AsX86().AsCpuRegister());
+    x86::X86ManagedRegister spill = spill_regs.at(i).AsX86();
+    DCHECK(spill.IsCpuRegister());
+    pushl(spill.AsCpuRegister());
+    gpr_count++;
 
     // DW_CFA_advance_loc
     DW_CFA_advance_loc(&cfi_info_, buffer_.Size() - cfi_pc_);
@@ -1552,7 +1556,7 @@ void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   }
 
   // return address then method on stack
-  int32_t adjust = frame_size - (spill_regs.size() * kFramePointerSize) -
+  int32_t adjust = frame_size - (gpr_count * kFramePointerSize) -
                    sizeof(StackReference<mirror::ArtMethod>) /*method*/ -
                    kFramePointerSize /*return address*/;
   addl(ESP, Immediate(-adjust));
@@ -1572,9 +1576,18 @@ void X86Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   DW_CFA_def_cfa_offset(&cfi_info_, cfi_cfa_offset_);
 
   for (size_t i = 0; i < entry_spills.size(); ++i) {
-    movl(Address(ESP, frame_size + sizeof(StackReference<mirror::ArtMethod>) +
-                 (i * kFramePointerSize)),
-         entry_spills.at(i).AsX86().AsCpuRegister());
+    ManagedRegisterSpill spill = entry_spills.at(i);
+    if (spill.AsX86().IsCpuRegister()) {
+      movl(Address(ESP, frame_size + spill.getSpillOffset()), spill.AsX86().AsCpuRegister());
+    } else {
+      DCHECK(spill.AsX86().IsXmmRegister());
+      if (spill.getSize() == 8) {
+        movsd(Address(ESP, frame_size + spill.getSpillOffset()), spill.AsX86().AsXmmRegister());
+      } else {
+        CHECK_EQ(spill.getSize(), 4);
+        movss(Address(ESP, frame_size + spill.getSpillOffset()), spill.AsX86().AsXmmRegister());
+      }
+    }
   }
 }
 
@@ -1584,7 +1597,9 @@ void X86Assembler::RemoveFrame(size_t frame_size,
   addl(ESP, Immediate(frame_size - (spill_regs.size() * kFramePointerSize) -
                       sizeof(StackReference<mirror::ArtMethod>)));
   for (size_t i = 0; i < spill_regs.size(); ++i) {
-    popl(spill_regs.at(i).AsX86().AsCpuRegister());
+    x86::X86ManagedRegister spill = spill_regs.at(i).AsX86();
+    DCHECK(spill.IsCpuRegister());
+    popl(spill.AsCpuRegister());
   }
   ret();
 }

@@ -198,16 +198,20 @@ class QuickArgumentVisitor {
   // | EBX         |    arg3
   // | EDX         |    arg2
   // | ECX         |    arg1
+  // | XMM3        |    float arg 4
+  // | XMM2        |    float arg 3
+  // | XMM1        |    float arg 2
+  // | XMM0        |    float arg 1
   // | EAX/Method* |  <- sp
   static constexpr bool kAlignPairRegister = false;
-  static constexpr bool kQuickSoftFloatAbi = true;  // This is a soft float ABI.
+  static constexpr bool kQuickSoftFloatAbi = false;  // This is a hard float ABI.
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
   static constexpr size_t kNumQuickGprArgs = 3;  // 3 arguments passed in GPRs.
-  static constexpr size_t kNumQuickFprArgs = 0;  // 0 arguments passed in FPRs.
+  static constexpr size_t kNumQuickFprArgs = 4;  // 4 arguments passed in FPRs.
   static constexpr bool kGprFprLockstep = false;
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 0;  // Offset of first FPR arg.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 4;  // Offset of first GPR arg.
-  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 28;  // Offset of return address.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Fpr1Offset = 4;  // Offset of first FPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_Gpr1Offset = 4 + 4*8;  // Offset of first GPR arg.
+  static constexpr size_t kQuickCalleeSaveFrame_RefAndArgs_LrOffset = 28 + 4*8;  // Offset of return address.
   static size_t GprIndexToGprOffset(uint32_t gpr_index) {
     return gpr_index * GetBytesPerGprSpillLocation(kRuntimeISA);
   }
