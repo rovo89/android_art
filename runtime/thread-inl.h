@@ -213,22 +213,23 @@ inline bool Thread::PushOnThreadLocalAllocationStack(mirror::Object* obj) {
   if (tlsPtr_.thread_local_alloc_stack_top < tlsPtr_.thread_local_alloc_stack_end) {
     // There's room.
     DCHECK_LE(reinterpret_cast<uint8_t*>(tlsPtr_.thread_local_alloc_stack_top) +
-                  sizeof(mirror::Object*),
+              sizeof(StackReference<mirror::Object>),
               reinterpret_cast<uint8_t*>(tlsPtr_.thread_local_alloc_stack_end));
-    DCHECK(*tlsPtr_.thread_local_alloc_stack_top == nullptr);
-    *tlsPtr_.thread_local_alloc_stack_top = obj;
+    DCHECK(tlsPtr_.thread_local_alloc_stack_top->AsMirrorPtr() == nullptr);
+    tlsPtr_.thread_local_alloc_stack_top->Assign(obj);
     ++tlsPtr_.thread_local_alloc_stack_top;
     return true;
   }
   return false;
 }
 
-inline void Thread::SetThreadLocalAllocationStack(mirror::Object** start, mirror::Object** end) {
+inline void Thread::SetThreadLocalAllocationStack(StackReference<mirror::Object>* start,
+                                                  StackReference<mirror::Object>* end) {
   DCHECK(Thread::Current() == this) << "Should be called by self";
   DCHECK(start != nullptr);
   DCHECK(end != nullptr);
-  DCHECK_ALIGNED(start, sizeof(mirror::Object*));
-  DCHECK_ALIGNED(end, sizeof(mirror::Object*));
+  DCHECK_ALIGNED(start, sizeof(StackReference<mirror::Object>));
+  DCHECK_ALIGNED(end, sizeof(StackReference<mirror::Object>));
   DCHECK_LT(start, end);
   tlsPtr_.thread_local_alloc_stack_end = end;
   tlsPtr_.thread_local_alloc_stack_top = start;

@@ -807,10 +807,12 @@ class Thread {
 
 
   // Push an object onto the allocation stack.
-  bool PushOnThreadLocalAllocationStack(mirror::Object* obj);
+  bool PushOnThreadLocalAllocationStack(mirror::Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Set the thread local allocation pointers to the given pointers.
-  void SetThreadLocalAllocationStack(mirror::Object** start, mirror::Object** end);
+  void SetThreadLocalAllocationStack(StackReference<mirror::Object>* start,
+                                     StackReference<mirror::Object>* end);
 
   // Resets the thread local allocation pointers.
   void RevokeThreadLocalAllocationStack();
@@ -1149,8 +1151,8 @@ class Thread {
     void* rosalloc_runs[kNumRosAllocThreadLocalSizeBrackets];
 
     // Thread-local allocation stack data/routines.
-    mirror::Object** thread_local_alloc_stack_top;
-    mirror::Object** thread_local_alloc_stack_end;
+    StackReference<mirror::Object>* thread_local_alloc_stack_top;
+    StackReference<mirror::Object>* thread_local_alloc_stack_end;
 
     // Support for Mutex lock hierarchy bug detection.
     BaseMutex* held_mutexes[kLockLevelCount];
