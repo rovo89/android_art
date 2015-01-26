@@ -129,6 +129,20 @@ class CodeGenerator {
   size_t GetNumberOfFloatingPointRegisters() const { return number_of_fpu_registers_; }
   virtual void SetupBlockedRegisters(bool is_baseline) const = 0;
 
+  virtual void ComputeSpillMask() {
+    core_spill_mask_ = allocated_registers_.GetCoreRegisters() & core_callee_save_mask_;
+    DCHECK_NE(core_spill_mask_, 0u) << "At least the return address register must be saved";
+    fpu_spill_mask_ = allocated_registers_.GetFloatingPointRegisters() & fpu_callee_save_mask_;
+  }
+
+  static uint32_t ComputeRegisterMask(const int* registers, size_t length) {
+    uint32_t mask = 0;
+    for (size_t i = 0, e = length; i < e; ++i) {
+      mask |= (1 << registers[i]);
+    }
+    return mask;
+  }
+
   virtual void DumpCoreRegister(std::ostream& stream, int reg) const = 0;
   virtual void DumpFloatingPointRegister(std::ostream& stream, int reg) const = 0;
   virtual InstructionSet GetInstructionSet() const = 0;
