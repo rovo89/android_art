@@ -94,7 +94,7 @@ class X86Context : public Context {
 
   // Pointers to register locations. Values are initialized to NULL or the special registers below.
   uintptr_t* gprs_[kNumberOfCpuRegisters];
-  uintptr_t* fprs_[kNumberOfFloatRegisters];
+  uint32_t* fprs_[kNumberOfFloatRegisters];
   // Hold values for esp and eip if they are not located within a stack frame. EIP is somewhat
   // special in that it cannot be encoded normally as a register operand to an instruction (except
   // in 64bit addressing modes).
