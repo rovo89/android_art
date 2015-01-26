@@ -125,7 +125,11 @@ public class Main {
     Assert.assertEquals('N', testStr.charAt(0));
     Assert.assertEquals('o', testStr.charAt(1));
     Assert.assertEquals(' ', testStr.charAt(10));
-    Assert.assertEquals('e', testStr.charAt(testStr.length()-1));
+    Assert.assertEquals('e', testStr.charAt(14));  // 14 = testStr.length()-1 as a constant.
+    Assert.assertEquals('N', test_String_charAt_inner(testStr, 0));
+    Assert.assertEquals('o', test_String_charAt_inner(testStr, 1));
+    Assert.assertEquals(' ', test_String_charAt_inner(testStr, 10));
+    Assert.assertEquals('e', test_String_charAt_inner(testStr, testStr.length()-1));
 
     try {
       testStr.charAt(-1);
@@ -137,6 +141,33 @@ public class Main {
       Assert.fail();
     } catch (StringIndexOutOfBoundsException expected) {
     }
+    try {
+      testStr.charAt(15);  // 15 = "Now is the time".length()
+      Assert.fail();
+    } catch (StringIndexOutOfBoundsException expected) {
+    }
+    try {
+      test_String_charAt_inner(testStr, -1);
+      Assert.fail();
+    } catch (StringIndexOutOfBoundsException expected) {
+    }
+    try {
+      test_String_charAt_inner(testStr, 80);
+      Assert.fail();
+    } catch (StringIndexOutOfBoundsException expected) {
+    }
+    try {
+      test_String_charAt_inner(testStr, 15);  // 15 = "Now is the time".length()
+      Assert.fail();
+    } catch (StringIndexOutOfBoundsException expected) {
+    }
+
+    String strEmpty = "";
+    try {
+      strEmpty.charAt(0);
+      Assert.fail();
+    } catch (StringIndexOutOfBoundsException expected) {
+    }
 
     String strNull = null;
     try {
@@ -144,6 +175,11 @@ public class Main {
       Assert.fail();
     } catch (NullPointerException expected) {
     }
+  }
+
+  private static char test_String_charAt_inner(String s, int index) {
+    // Using non-constant index here (assuming that this method wasn't inlined).
+    return s.charAt(index);
   }
 
   static int start;
