@@ -40,8 +40,7 @@ class GrowableArray : public ArenaObject<kArenaAllocGrowableArray> {
     GrowableArray(ArenaAllocator* arena, size_t init_length, T initial_data)
       : arena_(arena),
         num_allocated_(init_length),
-        num_used_(0) {
-      SetSize(init_length);
+        num_used_(init_length) {
       elem_list_ = static_cast<T*>(arena_->Alloc(sizeof(T) * init_length,
                                                  kArenaAllocGrowableArray));
       for (size_t i = 0; i < init_length; ++i) {

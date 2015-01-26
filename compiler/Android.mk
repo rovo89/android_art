@@ -107,6 +107,7 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/parallel_move_resolver.cc \
 	optimizing/prepare_for_register_allocation.cc \
 	optimizing/register_allocator.cc \
+	optimizing/side_effects_analysis.cc \
 	optimizing/ssa_builder.cc \
 	optimizing/ssa_liveness_analysis.cc \
 	optimizing/ssa_phi_elimination.cc \

@@ -18,6 +18,7 @@
 #include "gvn.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
+#include "side_effects_analysis.h"
 #include "utils/arena_allocator.h"
 
 #include "gtest/gtest.h"
@@ -66,7 +67,7 @@ TEST(GVNTest, LocalFieldElimination) {
   graph->TryBuildingSsa();
   SideEffectsAnalysis side_effects(graph);
   side_effects.Run();
-  GlobalValueNumberer(&allocator, graph, side_effects).Run();
+  GVNOptimization(graph, side_effects).Run();
 
   ASSERT_TRUE(to_remove->GetBlock() == nullptr);
   ASSERT_EQ(different_offset->GetBlock(), block);
@@ -120,7 +121,7 @@ TEST(GVNTest, GlobalFieldElimination) {
   graph->TryBuildingSsa();
   SideEffectsAnalysis side_effects(graph);
   side_effects.Run();
-  GlobalValueNumberer(&allocator, graph, side_effects).Run();
+  GVNOptimization(graph, side_effects).Run();
 
   // Check that all field get instructions have been GVN'ed.
   ASSERT_TRUE(then->GetFirstInstruction()->IsGoto());
@@ -191,7 +192,7 @@ TEST(GVNTest, LoopFieldElimination) {
   {
     SideEffectsAnalysis side_effects(graph);
     side_effects.Run();
-    GlobalValueNumberer(&allocator, graph, side_effects).Run();
+    GVNOptimization(graph, side_effects).Run();
   }
 
   // Check that all field get instructions are still there.
@@ -206,7 +207,7 @@ TEST(GVNTest, LoopFieldElimination) {
   {
     SideEffectsAnalysis side_effects(graph);
     side_effects.Run();
-    GlobalValueNumberer(&allocator, graph, side_effects).Run();
+    GVNOptimization(graph, side_effects).Run();
   }
 
   ASSERT_TRUE(field_get_in_loop_header->GetBlock() == nullptr);

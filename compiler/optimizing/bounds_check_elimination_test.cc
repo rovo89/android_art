@@ -19,6 +19,7 @@
 #include "gvn.h"
 #include "nodes.h"
 #include "optimizing_unit_test.h"
+#include "side_effects_analysis.h"
 #include "utils/arena_allocator.h"
 
 #include "gtest/gtest.h"
@@ -28,7 +29,7 @@ namespace art {
 static void RunGvn(HGraph* graph) {
   SideEffectsAnalysis side_effects(graph);
   side_effects.Run();
-  GlobalValueNumberer(graph->GetArena(), graph, side_effects).Run();
+  GVNOptimization(graph, side_effects).Run();
 }
 
 // if (i < 0) { array[i] = 1; // Can't eliminate. }
