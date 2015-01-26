@@ -1228,8 +1228,9 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     if (!it->map) {
       os << StringPrintf("%08" PRIxPTR "  ???", it->pc);
     } else {
-      os << StringPrintf("%08" PRIxPTR "  ", it->pc - it->map->start)
-         << it->map->name << " (";
+      os << StringPrintf("%08" PRIxPTR "  ", it->pc - it->map->start);
+      os << it->map->name;
+      os << " (";
       if (!it->func_name.empty()) {
         os << it->func_name;
         if (it->func_offset != 0) {
