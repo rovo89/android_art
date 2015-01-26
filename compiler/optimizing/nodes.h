@@ -587,24 +587,102 @@ FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
   }                                                                     \
   virtual void Accept(HGraphVisitor* visitor)
 
+template <typename T> class HUseList;
+
 template <typename T>
 class HUseListNode : public ArenaObject<kArenaAllocMisc> {
  public:
-  HUseListNode(T* user, size_t index, HUseListNode* tail)
-      : user_(user), index_(index), tail_(tail) {}
-
-  HUseListNode* GetTail() const { return tail_; }
-  T* GetUser() const { return user_; }
+  HUseListNode* GetPrevious() const { return prev_; }
+  HUseListNode* GetNext() const { return next_; }
+  T GetUser() const { return user_; }
   size_t GetIndex() const { return index_; }
 
-  void SetTail(HUseListNode<T>* node) { tail_ = node; }
-
  private:
-  T* const user_;
+  HUseListNode(T user, size_t index)
+      : user_(user), index_(index), prev_(nullptr), next_(nullptr) {}
+
+  T const user_;
   const size_t index_;
-  HUseListNode<T>* tail_;
+  HUseListNode<T>* prev_;
+  HUseListNode<T>* next_;
+
+  friend class HUseList<T>;
 
   DISALLOW_COPY_AND_ASSIGN(HUseListNode);
+};
+
+template <typename T>
+class HUseList : public ValueObject {
+ public:
+  HUseList() : first_(nullptr) {}
+
+  void Clear() {
+    first_ = nullptr;
+  }
+
+  // Adds a new entry at the beginning of the use list and returns
+  // the newly created node.
+  HUseListNode<T>* AddUse(T user, size_t index, ArenaAllocator* arena) {
+    HUseListNode<T>* new_node = new(arena) HUseListNode<T>(user, index);
+    if (IsEmpty()) {
+      first_ = new_node;
+    } else {
+      first_->prev_ = new_node;
+      new_node->next_ = first_;
+      first_ = new_node;
+    }
+    return new_node;
+  }
+
+  HUseListNode<T>* GetFirst() const {
+    return first_;
+  }
+
+  void Remove(HUseListNode<T>* node) {
+    if (node->prev_ != nullptr) {
+      node->prev_->next_ = node->next_;
+    }
+    if (node->next_ != nullptr) {
+      node->next_->prev_ = node->prev_;
+    }
+    if (node == first_) {
+      first_ = node->next_;
+    }
+  }
+
+  bool IsEmpty() const {
+    return first_ == nullptr;
+  }
+
+  bool HasOnlyOneUse() const {
+    return first_ != nullptr && first_->next_ == nullptr;
+  }
+
+ private:
+  HUseListNode<T>* first_;
+};
+
+template<typename T>
+class HUseIterator : public ValueObject {
+ public:
+  explicit HUseIterator(const HUseList<T>& uses) : current_(uses.GetFirst()) {}
+
+  bool Done() const { return current_ == nullptr; }
+
+  void Advance() {
+    DCHECK(!Done());
+    current_ = current_->GetNext();
+  }
+
+  HUseListNode<T>* Current() const {
+    DCHECK(!Done());
+    return current_;
+  }
+
+ private:
+  HUseListNode<T>* current_;
+
+  friend class HValue;
 };
 
 // Represents the side effects an instruction may have.
@@ -670,6 +748,57 @@ class SideEffects : public ValueObject {
   size_t flags_;
 };
 
+// A HEnvironment object contains the values of virtual registers at a given location.
+class HEnvironment : public ArenaObject<kArenaAllocMisc> {
+ public:
+  HEnvironment(ArenaAllocator* arena, size_t number_of_vregs)
+     : vregs_(arena, number_of_vregs) {
+    vregs_.SetSize(number_of_vregs);
+    for (size_t i = 0; i < number_of_vregs; i++) {
+      vregs_.Put(i, VRegInfo(nullptr, nullptr));
+    }
+  }
+
+  void CopyFrom(HEnvironment* env);
+
+  void SetRawEnvAt(size_t index, HInstruction* instruction) {
+    vregs_.Put(index, VRegInfo(instruction, nullptr));
+  }
+
+  // Record instructions' use entries of this environment for constant-time removal.
+  void RecordEnvUse(HUseListNode<HEnvironment*>* env_use) {
+    DCHECK(env_use->GetUser() == this);
+    size_t index = env_use->GetIndex();
+    VRegInfo info = vregs_.Get(index);
+    DCHECK(info.vreg_ != nullptr);
+    DCHECK(info.node_ == nullptr);
+    vregs_.Put(index, VRegInfo(info.vreg_, env_use));
+  }
+
+  HInstruction* GetInstructionAt(size_t index) const {
+    return vregs_.Get(index).vreg_;
+  }
+
+  HUseListNode<HEnvironment*>* GetInstructionEnvUseAt(size_t index) const {
+    return vregs_.Get(index).node_;
+  }
+
+  size_t Size() const { return vregs_.Size(); }
+
+ private:
+  struct VRegInfo {
+    HInstruction* vreg_;
+    HUseListNode<HEnvironment*>* node_;
+
+    VRegInfo(HInstruction* instruction, HUseListNode<HEnvironment*>* env_use)
+        : vreg_(instruction), node_(env_use) {}
+  };
+
+  GrowableArray<VRegInfo> vregs_;
+
+  DISALLOW_COPY_AND_ASSIGN(HEnvironment);
+};
+
 class HInstruction : public ArenaObject<kArenaAllocMisc> {
  public:
   explicit HInstruction(SideEffects side_effects)
@@ -678,8 +807,6 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
         block_(nullptr),
         id_(-1),
         ssa_index_(-1),
-        uses_(nullptr),
-        env_uses_(nullptr),
         environment_(nullptr),
         locations_(nullptr),
         live_interval_(nullptr),
@@ -723,30 +850,29 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   virtual bool CanDoImplicitNullCheck() const { return false; }
 
   void AddUseAt(HInstruction* user, size_t index) {
-    uses_ = new (block_->GetGraph()->GetArena()) HUseListNode<HInstruction>(user, index, uses_);
+    uses_.AddUse(user, index, GetBlock()->GetGraph()->GetArena());
   }
 
   void AddEnvUseAt(HEnvironment* user, size_t index) {
     DCHECK(user != nullptr);
-    env_uses_ = new (block_->GetGraph()->GetArena()) HUseListNode<HEnvironment>(
-        user, index, env_uses_);
+    HUseListNode<HEnvironment*>* env_use =
+        env_uses_.AddUse(user, index, GetBlock()->GetGraph()->GetArena());
+    user->RecordEnvUse(env_use);
   }
 
   void RemoveUser(HInstruction* user, size_t index);
-  void RemoveEnvironmentUser(HEnvironment* user, size_t index);
+  void RemoveEnvironmentUser(HUseListNode<HEnvironment*>* use);
 
-  HUseListNode<HInstruction>* GetUses() const { return uses_; }
-  HUseListNode<HEnvironment>* GetEnvUses() const { return env_uses_; }
+  HUseList<HInstruction*>& GetUses() { return uses_; }
+  HUseList<HEnvironment*>& GetEnvUses() { return env_uses_; }
 
-  bool HasUses() const { return uses_ != nullptr || env_uses_ != nullptr; }
-  bool HasEnvironmentUses() const { return env_uses_ != nullptr; }
+  bool HasUses() const { return !uses_.IsEmpty() || !env_uses_.IsEmpty(); }
+  bool HasEnvironmentUses() const { return !env_uses_.IsEmpty(); }
 
-  size_t NumberOfUses() const {
+  size_t ExpensiveComputeNumberOfUses() const {
     // TODO: Optimize this method if it is used outside of the HGraphVisualizer.
     size_t result = 0;
-    HUseListNode<HInstruction>* current = uses_;
-    while (current != nullptr) {
-      current = current->GetTail();
+    for (HUseIterator<HInstruction*> it(uses_); !it.Done(); it.Advance()) {
       ++result;
     }
     return result;
@@ -780,10 +906,6 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
 
   // Insert `this` instruction in `cursor`'s graph, just before `cursor`.
   void InsertBefore(HInstruction* cursor);
-
-  bool HasOnlyOneUse() const {
-    return uses_ != nullptr && uses_->GetTail() == nullptr;
-  }
 
 #define INSTRUCTION_TYPE_CHECK(type, super)                                    \
   bool Is##type() const { return (As##type() != nullptr); }                    \
@@ -847,10 +969,10 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   int ssa_index_;
 
   // List of instructions that have this instruction as input.
-  HUseListNode<HInstruction>* uses_;
+  HUseList<HInstruction*> uses_;
 
   // List of environments that contain this instruction.
-  HUseListNode<HEnvironment>* env_uses_;
+  HUseList<HEnvironment*> env_uses_;
 
   // The environment associated with this instruction. Not null if the instruction
   // might jump out of the method.
@@ -875,69 +997,6 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   DISALLOW_COPY_AND_ASSIGN(HInstruction);
 };
 std::ostream& operator<<(std::ostream& os, const HInstruction::InstructionKind& rhs);
-
-template<typename T>
-class HUseIterator : public ValueObject {
- public:
-  explicit HUseIterator(HUseListNode<T>* uses) : current_(uses) {}
-
-  bool Done() const { return current_ == nullptr; }
-
-  void Advance() {
-    DCHECK(!Done());
-    current_ = current_->GetTail();
-  }
-
-  HUseListNode<T>* Current() const {
-    DCHECK(!Done());
-    return current_;
-  }
-
- private:
-  HUseListNode<T>* current_;
-
-  friend class HValue;
-};
-
-// A HEnvironment object contains the values of virtual registers at a given location.
-class HEnvironment : public ArenaObject<kArenaAllocMisc> {
- public:
-  HEnvironment(ArenaAllocator* arena, size_t number_of_vregs) : vregs_(arena, number_of_vregs) {
-    vregs_.SetSize(number_of_vregs);
-    for (size_t i = 0; i < number_of_vregs; i++) {
-      vregs_.Put(i, nullptr);
-    }
-  }
-
-  void Populate(const GrowableArray<HInstruction*>& env) {
-    for (size_t i = 0; i < env.Size(); i++) {
-      HInstruction* instruction = env.Get(i);
-      vregs_.Put(i, instruction);
-      if (instruction != nullptr) {
-        instruction->AddEnvUseAt(this, i);
-      }
-    }
-  }
-
-  void SetRawEnvAt(size_t index, HInstruction* instruction) {
-    vregs_.Put(index, instruction);
-  }
-
-  HInstruction* GetInstructionAt(size_t index) const {
-    return vregs_.Get(index);
-  }
-
-  GrowableArray<HInstruction*>* GetVRegs() {
-    return &vregs_;
-  }
-
-  size_t Size() const { return vregs_.Size(); }
-
- private:
-  GrowableArray<HInstruction*> vregs_;
-
-  DISALLOW_COPY_AND_ASSIGN(HEnvironment);
-};
 
 class HInputIterator : public ValueObject {
  public:
