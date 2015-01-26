@@ -787,9 +787,8 @@ void Heap::VisitObjectsInternal(ObjectCallback callback, void* arg) {
     bump_pointer_space_->Walk(callback, arg);
   }
   // TODO: Switch to standard begin and end to use ranged a based loop.
-  for (mirror::Object** it = allocation_stack_->Begin(), **end = allocation_stack_->End();
-      it < end; ++it) {
-    mirror::Object* obj = *it;
+  for (auto* it = allocation_stack_->Begin(), *end = allocation_stack_->End(); it < end; ++it) {
+    mirror::Object* const obj = it->AsMirrorPtr();
     if (obj != nullptr && obj->GetClass() != nullptr) {
       // Avoid the race condition caused by the object not yet being written into the allocation
       // stack or the class not yet being written in the object. Or, if
@@ -2139,9 +2138,9 @@ void Heap::MarkAllocStack(accounting::ContinuousSpaceBitmap* bitmap1,
                           accounting::ObjectStack* stack) {
   DCHECK(bitmap1 != nullptr);
   DCHECK(bitmap2 != nullptr);
-  mirror::Object** limit = stack->End();
-  for (mirror::Object** it = stack->Begin(); it != limit; ++it) {
-    const mirror::Object* obj = *it;
+  const auto* limit = stack->End();
+  for (auto* it = stack->Begin(); it != limit; ++it) {
+    const mirror::Object* obj = it->AsMirrorPtr();
     if (!kUseThreadLocalAllocationStack || obj != nullptr) {
       if (bitmap1->HasAddress(obj)) {
         bitmap1->Set(obj);
@@ -2538,8 +2537,8 @@ void Heap::PushOnAllocationStackWithInternalGC(Thread* self, mirror::Object** ob
 void Heap::PushOnThreadLocalAllocationStackWithInternalGC(Thread* self, mirror::Object** obj) {
   // Slow path, the allocation stack push back must have already failed.
   DCHECK(!self->PushOnThreadLocalAllocationStack(*obj));
-  mirror::Object** start_address;
-  mirror::Object** end_address;
+  StackReference<mirror::Object>* start_address;
+  StackReference<mirror::Object>* end_address;
   while (!allocation_stack_->AtomicBumpBack(kThreadLocalAllocationStackSize, &start_address,
                                             &end_address)) {
     // TODO: Add handle VerifyObject.
@@ -2698,9 +2697,9 @@ bool Heap::VerifyMissingCardMarks() {
   VerifyLiveStackReferences visitor(this);
   GetLiveBitmap()->Visit(visitor);
   // We can verify objects in the live stack since none of these should reference dead objects.
-  for (mirror::Object** it = live_stack_->Begin(); it != live_stack_->End(); ++it) {
-    if (!kUseThreadLocalAllocationStack || *it != nullptr) {
-      visitor(*it);
+  for (auto* it = live_stack_->Begin(); it != live_stack_->End(); ++it) {
+    if (!kUseThreadLocalAllocationStack || it->AsMirrorPtr() != nullptr) {
+      visitor(it->AsMirrorPtr());
     }
   }
   return !visitor.Failed();

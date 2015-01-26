@@ -47,7 +47,7 @@ class Heap;
 
 namespace accounting {
   template<typename T> class AtomicStack;
-  typedef AtomicStack<mirror::Object*> ObjectStack;
+  typedef AtomicStack<mirror::Object> ObjectStack;
 }  // namespace accounting
 
 namespace collector {
@@ -136,7 +136,8 @@ class MarkSweep : public GarbageCollector {
 
   // Sweeps unmarked objects to complete the garbage collection. Virtual as by default it sweeps
   // all allocation spaces. Partial and sticky GCs want to just sweep a subset of the heap.
-  virtual void Sweep(bool swap_bitmaps) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+  virtual void Sweep(bool swap_bitmaps) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Sweeps unmarked objects to complete the garbage collection.
   void SweepLargeObjects(bool swap_bitmaps) EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
@@ -162,13 +163,14 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   static mirror::Object* VerifySystemWeakIsLiveCallback(mirror::Object* obj, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   void VerifySystemWeaks()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   // Verify that an object is live, either in a live bitmap or in the allocation stack.
   void VerifyIsLive(const mirror::Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   static mirror::Object* MarkObjectCallback(mirror::Object* obj, void* arg)
@@ -223,11 +225,12 @@ class MarkSweep : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
   void MarkObjectNonNull(mirror::Object* obj)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
-        EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Marks an object atomically, safe to use from multiple threads.
-  void MarkObjectNonNullParallel(mirror::Object* obj);
+  void MarkObjectNonNullParallel(mirror::Object* obj)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if we need to add obj to a mark stack.
   bool MarkObjectParallel(const mirror::Object* obj) NO_THREAD_SAFETY_ANALYSIS;
@@ -238,8 +241,10 @@ class MarkSweep : public GarbageCollector {
       NO_THREAD_SAFETY_ANALYSIS;
 
   // Expand mark stack to 2x its current size.
-  void ExpandMarkStack() EXCLUSIVE_LOCKS_REQUIRED(mark_stack_lock_);
-  void ResizeMarkStack(size_t new_size) EXCLUSIVE_LOCKS_REQUIRED(mark_stack_lock_);
+  void ExpandMarkStack() EXCLUSIVE_LOCKS_REQUIRED(mark_stack_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ResizeMarkStack(size_t new_size) EXCLUSIVE_LOCKS_REQUIRED(mark_stack_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns how many threads we should use for the current GC phase based on if we are paused,
   // whether or not we care about pauses.
@@ -250,7 +255,7 @@ class MarkSweep : public GarbageCollector {
   void VerifyRoot(const mirror::Object* root, const RootInfo& root_info) NO_THREAD_SAFETY_ANALYSIS;
 
   // Push a single reference on a mark stack.
-  void PushOnMarkStack(mirror::Object* obj);
+  void PushOnMarkStack(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Blackens objects grayed during a garbage collection.
   void ScanGrayObjects(bool paused, uint8_t minimum_age)

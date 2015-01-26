@@ -46,7 +46,7 @@ class Heap;
 
 namespace accounting {
   template <typename T> class AtomicStack;
-  typedef AtomicStack<mirror::Object*> ObjectStack;
+  typedef AtomicStack<mirror::Object> ObjectStack;
 }  // namespace accounting
 
 namespace space {
@@ -156,13 +156,13 @@ class MarkCompact : public GarbageCollector {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Expand mark stack to 2x its current size.
-  void ResizeMarkStack(size_t new_size);
+  void ResizeMarkStack(size_t new_size) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Returns true if we should sweep the space.
   bool ShouldSweepSpace(space::ContinuousSpace* space) const;
 
   // Push an object onto the mark stack.
-  void MarkStackPush(mirror::Object* obj);
+  void MarkStackPush(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void UpdateAndMarkModUnion()
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
