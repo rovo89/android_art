@@ -330,11 +330,11 @@ void MarkSweep::ResizeMarkStack(size_t new_size) {
     // Someone else acquired the lock and expanded the mark stack before us.
     return;
   }
-  std::vector<Object*> temp(mark_stack_->Begin(), mark_stack_->End());
+  std::vector<StackReference<Object>> temp(mark_stack_->Begin(), mark_stack_->End());
   CHECK_LE(mark_stack_->Size(), new_size);
   mark_stack_->Resize(new_size);
-  for (const auto& obj : temp) {
-    mark_stack_->PushBack(obj);
+  for (auto& obj : temp) {
+    mark_stack_->PushBack(obj.AsMirrorPtr());
   }
 }
 
@@ -554,7 +554,7 @@ template <bool kUseFinger = false>
 class MarkStackTask : public Task {
  public:
   MarkStackTask(ThreadPool* thread_pool, MarkSweep* mark_sweep, size_t mark_stack_size,
-                Object** mark_stack)
+                StackReference<Object>* mark_stack)
       : mark_sweep_(mark_sweep),
         thread_pool_(thread_pool),
         mark_stack_pos_(mark_stack_size) {
@@ -627,11 +627,11 @@ class MarkStackTask : public Task {
   MarkSweep* const mark_sweep_;
   ThreadPool* const thread_pool_;
   // Thread local mark stack for this task.
-  Object* mark_stack_[kMaxSize];
+  StackReference<Object> mark_stack_[kMaxSize];
   // Mark stack position.
   size_t mark_stack_pos_;
 
-  void MarkStackPush(Object* obj) ALWAYS_INLINE {
+  ALWAYS_INLINE void MarkStackPush(Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (UNLIKELY(mark_stack_pos_ == kMaxSize)) {
       // Mark stack overflow, give 1/2 the stack to the thread pool as a new work task.
       mark_stack_pos_ /= 2;
@@ -641,7 +641,7 @@ class MarkStackTask : public Task {
     }
     DCHECK(obj != nullptr);
     DCHECK_LT(mark_stack_pos_, kMaxSize);
-    mark_stack_[mark_stack_pos_++] = obj;
+    mark_stack_[mark_stack_pos_++].Assign(obj);
   }
 
   virtual void Finalize() {
@@ -660,7 +660,7 @@ class MarkStackTask : public Task {
       Object* obj = nullptr;
       if (kUseMarkStackPrefetch) {
         while (mark_stack_pos_ != 0 && prefetch_fifo.size() < kFifoSize) {
-          Object* mark_stack_obj = mark_stack_[--mark_stack_pos_];
+          Object* const mark_stack_obj = mark_stack_[--mark_stack_pos_].AsMirrorPtr();
           DCHECK(mark_stack_obj != nullptr);
           __builtin_prefetch(mark_stack_obj);
           prefetch_fifo.push_back(mark_stack_obj);
@@ -674,7 +674,7 @@ class MarkStackTask : public Task {
         if (UNLIKELY(mark_stack_pos_ == 0)) {
           break;
         }
-        obj = mark_stack_[--mark_stack_pos_];
+        obj = mark_stack_[--mark_stack_pos_].AsMirrorPtr();
       }
       DCHECK(obj != nullptr);
       visitor(obj);
@@ -687,7 +687,7 @@ class CardScanTask : public MarkStackTask<false> {
   CardScanTask(ThreadPool* thread_pool, MarkSweep* mark_sweep,
                accounting::ContinuousSpaceBitmap* bitmap,
                uint8_t* begin, uint8_t* end, uint8_t minimum_age, size_t mark_stack_size,
-               Object** mark_stack_obj, bool clear_card)
+               StackReference<Object>* mark_stack_obj, bool clear_card)
       : MarkStackTask<false>(thread_pool, mark_sweep, mark_stack_size, mark_stack_obj),
         bitmap_(bitmap),
         begin_(begin),
@@ -742,8 +742,8 @@ void MarkSweep::ScanGrayObjects(bool paused, uint8_t minimum_age) {
     TimingLogger::ScopedTiming t(paused ? "(Paused)ScanGrayObjects" : __FUNCTION__,
         GetTimings());
     // Try to take some of the mark stack since we can pass this off to the worker tasks.
-    Object** mark_stack_begin = mark_stack_->Begin();
-    Object** mark_stack_end = mark_stack_->End();
+    StackReference<Object>* mark_stack_begin = mark_stack_->Begin();
+    StackReference<Object>* mark_stack_end = mark_stack_->End();
     const size_t mark_stack_size = mark_stack_end - mark_stack_begin;
     // Estimated number of work tasks we will create.
     const size_t mark_stack_tasks = GetHeap()->GetContinuousSpaces().size() * thread_count;
@@ -954,9 +954,9 @@ mirror::Object* MarkSweep::VerifySystemWeakIsLiveCallback(Object* obj, void* arg
 
 void MarkSweep::VerifyIsLive(const Object* obj) {
   if (!heap_->GetLiveBitmap()->Test(obj)) {
-    accounting::ObjectStack* allocation_stack = heap_->allocation_stack_.get();
-    CHECK(std::find(allocation_stack->Begin(), allocation_stack->End(), obj) !=
-        allocation_stack->End()) << "Found dead object " << obj << "\n" << heap_->DumpSpaces();
+    // TODO: Consider live stack? Has this code bitrotted?
+    CHECK(!heap_->allocation_stack_->Contains(obj))
+        << "Found dead object " << obj << "\n" << heap_->DumpSpaces();
   }
 }
 
@@ -1025,7 +1025,7 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
   ObjectBytePair freed;
   ObjectBytePair freed_los;
   // How many objects are left in the array, modified after each space is swept.
-  Object** objects = allocations->Begin();
+  StackReference<Object>* objects = allocations->Begin();
   size_t count = allocations->Size();
   // Change the order to ensure that the non-moving space last swept as an optimization.
   std::vector<space::ContinuousSpace*> sweep_spaces;
@@ -1053,9 +1053,9 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
     if (swap_bitmaps) {
       std::swap(live_bitmap, mark_bitmap);
     }
-    Object** out = objects;
+    StackReference<Object>* out = objects;
     for (size_t i = 0; i < count; ++i) {
-      Object* obj = objects[i];
+      Object* const obj = objects[i].AsMirrorPtr();
       if (kUseThreadLocalAllocationStack && obj == nullptr) {
         continue;
       }
@@ -1072,7 +1072,7 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
           chunk_free_buffer[chunk_free_pos++] = obj;
         }
       } else {
-        *(out++) = obj;
+        (out++)->Assign(obj);
       }
     }
     if (chunk_free_pos > 0) {
@@ -1094,7 +1094,7 @@ void MarkSweep::SweepArray(accounting::ObjectStack* allocations, bool swap_bitma
       std::swap(large_live_objects, large_mark_objects);
     }
     for (size_t i = 0; i < count; ++i) {
-      Object* obj = objects[i];
+      Object* const obj = objects[i].AsMirrorPtr();
       // Handle large objects.
       if (kUseThreadLocalAllocationStack && obj == nullptr) {
         continue;
@@ -1195,7 +1195,7 @@ void MarkSweep::ProcessMarkStackParallel(size_t thread_count) {
                                      static_cast<size_t>(MarkStackTask<false>::kMaxSize));
   CHECK_GT(chunk_size, 0U);
   // Split the current mark stack up into work tasks.
-  for (mirror::Object **it = mark_stack_->Begin(), **end = mark_stack_->End(); it < end; ) {
+  for (auto* it = mark_stack_->Begin(), *end = mark_stack_->End(); it < end; ) {
     const size_t delta = std::min(static_cast<size_t>(end - it), chunk_size);
     thread_pool->AddTask(self, new MarkStackTask<false>(thread_pool, this, delta, it));
     it += delta;

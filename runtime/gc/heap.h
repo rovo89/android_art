@@ -515,6 +515,7 @@ class Heap {
 
   // Mark and empty stack.
   void FlushAllocStack()
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Revoke all the thread-local allocation stacks.
@@ -528,10 +529,12 @@ class Heap {
                       accounting::SpaceBitmap<kObjectAlignment>* bitmap2,
                       accounting::SpaceBitmap<kLargeObjectAlignment>* large_objects,
                       accounting::ObjectStack* stack)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Mark the specified allocation stack as live.
   void MarkAllocStackAsLive(accounting::ObjectStack* stack)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Unbind any bound bitmaps.
@@ -818,7 +821,7 @@ class Heap {
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_);
 
   // Swap the allocation stack with the live stack.
-  void SwapStacks(Thread* self);
+  void SwapStacks(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Clear cards and update the mod union table.
   void ProcessCards(TimingLogger* timings, bool use_rem_sets);
