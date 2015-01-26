@@ -28,7 +28,8 @@ class X86ManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingCon
  public:
   explicit X86ManagedRuntimeCallingConvention(bool is_static, bool is_synchronized,
                                               const char* shorty)
-      : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {}
+      : ManagedRuntimeCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize),
+        gpr_arg_count_(0) {}
   ~X86ManagedRuntimeCallingConvention() OVERRIDE {}
   // Calling convention
   ManagedRegister ReturnRegister() OVERRIDE;
@@ -40,7 +41,10 @@ class X86ManagedRuntimeCallingConvention FINAL : public ManagedRuntimeCallingCon
   ManagedRegister CurrentParamRegister() OVERRIDE;
   FrameOffset CurrentParamStackOffset() OVERRIDE;
   const ManagedRegisterEntrySpills& EntrySpills() OVERRIDE;
+
  private:
+  int gpr_arg_count_;
+  ManagedRegister CurrentParamHighLongRegister();
   ManagedRegisterEntrySpills entry_spills_;
   DISALLOW_COPY_AND_ASSIGN(X86ManagedRuntimeCallingConvention);
 };
