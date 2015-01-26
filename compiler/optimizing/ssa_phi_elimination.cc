@@ -26,8 +26,8 @@ void SsaDeadPhiElimination::Run() {
       HPhi* phi = inst_it.Current()->AsPhi();
       // Set dead ahead of running through uses. The phi may have no use.
       phi->SetDead();
-      for (HUseIterator<HInstruction> use_it(phi->GetUses()); !use_it.Done(); use_it.Advance()) {
-        HUseListNode<HInstruction>* current = use_it.Current();
+      for (HUseIterator<HInstruction*> use_it(phi->GetUses()); !use_it.Done(); use_it.Advance()) {
+        HUseListNode<HInstruction*>* current = use_it.Current();
         HInstruction* user = current->GetUser();
         if (!user->IsPhi()) {
           worklist_.Add(phi);
@@ -61,9 +61,9 @@ void SsaDeadPhiElimination::Run() {
       next = current->GetNext();
       if (current->AsPhi()->IsDead()) {
         if (current->HasUses()) {
-          for (HUseIterator<HInstruction> use_it(current->GetUses()); !use_it.Done();
+          for (HUseIterator<HInstruction*> use_it(current->GetUses()); !use_it.Done();
                use_it.Advance()) {
-            HUseListNode<HInstruction>* user_node = use_it.Current();
+            HUseListNode<HInstruction*>* user_node = use_it.Current();
             HInstruction* user = user_node->GetUser();
             DCHECK(user->IsLoopHeaderPhi()) << user->GetId();
             DCHECK(user->AsPhi()->IsDead()) << user->GetId();
@@ -73,12 +73,12 @@ void SsaDeadPhiElimination::Run() {
           }
         }
         if (current->HasEnvironmentUses()) {
-          for (HUseIterator<HEnvironment> use_it(current->GetEnvUses()); !use_it.Done();
+          for (HUseIterator<HEnvironment*> use_it(current->GetEnvUses()); !use_it.Done();
                use_it.Advance()) {
-            HUseListNode<HEnvironment>* user_node = use_it.Current();
+            HUseListNode<HEnvironment*>* user_node = use_it.Current();
             HEnvironment* user = user_node->GetUser();
             user->SetRawEnvAt(user_node->GetIndex(), nullptr);
-            current->RemoveEnvironmentUser(user, user_node->GetIndex());
+            current->RemoveEnvironmentUser(user_node);
           }
         }
         block->RemovePhi(current->AsPhi());
@@ -132,8 +132,8 @@ void SsaRedundantPhiElimination::Run() {
       // Because we're updating the users of this phi, we may have new
       // phis candidate for elimination if this phi is in a loop. Add phis that
       // used this phi to the worklist.
-      for (HUseIterator<HInstruction> it(phi->GetUses()); !it.Done(); it.Advance()) {
-        HUseListNode<HInstruction>* current = it.Current();
+      for (HUseIterator<HInstruction*> it(phi->GetUses()); !it.Done(); it.Advance()) {
+        HUseListNode<HInstruction*>* current = it.Current();
         HInstruction* user = current->GetUser();
         if (user->IsPhi()) {
           worklist_.Add(user->AsPhi());

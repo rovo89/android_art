@@ -55,11 +55,10 @@ void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
 
 void PrepareForRegisterAllocation::VisitCondition(HCondition* condition) {
   bool needs_materialization = false;
-  if (!condition->HasOnlyOneUse()) {
+  if (!condition->GetUses().HasOnlyOneUse()) {
     needs_materialization = true;
   } else {
-    HUseListNode<HInstruction>* uses = condition->GetUses();
-    HInstruction* user = uses->GetUser();
+    HInstruction* user = condition->GetUses().GetFirst()->GetUser();
     if (!user->IsIf()) {
       needs_materialization = true;
     } else {
