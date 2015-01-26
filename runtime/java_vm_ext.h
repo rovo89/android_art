@@ -34,10 +34,11 @@ namespace mirror {
 class Libraries;
 class ParsedOptions;
 class Runtime;
+struct RuntimeArgumentMap;
 
 class JavaVMExt : public JavaVM {
  public:
-  JavaVMExt(Runtime* runtime, ParsedOptions* options);
+  JavaVMExt(Runtime* runtime, const RuntimeArgumentMap& runtime_options);
   ~JavaVMExt();
 
   bool ForceCopy() const {

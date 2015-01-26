@@ -81,6 +81,7 @@ ART_GTEST_imgdiag_test_TARGET_DEPS := \
 LOCAL_PATH := art
 
 RUNTIME_GTEST_COMMON_SRC_FILES := \
+  cmdline/cmdline_parser_test.cc \
   imgdiag/imgdiag_test.cc \
   runtime/arch/arch_test.cc \
   runtime/arch/instruction_set_test.cc \
@@ -103,6 +104,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/base/scoped_flock_test.cc \
   runtime/base/stringprintf_test.cc \
   runtime/base/timing_logger_test.cc \
+  runtime/base/variant_map_test.cc \
   runtime/base/unix_file/fd_file_test.cc \
   runtime/class_linker_test.cc \
   runtime/dex_file_test.cc \

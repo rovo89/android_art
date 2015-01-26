@@ -364,11 +364,11 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   CHECK(non_moving_space_ != nullptr);
   CHECK(!non_moving_space_->CanMoveObjects());
   // Allocate the large object space.
-  if (large_object_space_type == space::kLargeObjectSpaceTypeFreeList) {
+  if (large_object_space_type == space::LargeObjectSpaceType::kFreeList) {
     large_object_space_ = space::FreeListSpace::Create("free list large object space", nullptr,
                                                        capacity_);
     CHECK(large_object_space_ != nullptr) << "Failed to create large object space";
-  } else if (large_object_space_type == space::kLargeObjectSpaceTypeMap) {
+  } else if (large_object_space_type == space::LargeObjectSpaceType::kMap) {
     large_object_space_ = space::LargeObjectMapSpace::Create("mem map large object space");
     CHECK(large_object_space_ != nullptr) << "Failed to create large object space";
   } else {

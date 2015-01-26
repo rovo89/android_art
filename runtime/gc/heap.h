@@ -152,7 +152,7 @@ class Heap {
       space::kLargeObjectSpaceTypeFreeList;
 #else
   static constexpr space::LargeObjectSpaceType kDefaultLargeObjectSpaceType =
-      space::kLargeObjectSpaceTypeMap;
+      space::LargeObjectSpaceType::kMap;
 #endif
   // Used so that we don't overflow the allocation time atomic integer.
   static constexpr size_t kTimeAdjust = 1024;

@@ -153,30 +153,30 @@ void Trace::SetDefaultClockSource(TraceClockSource clock_source) {
 #if defined(__linux__)
   default_clock_source_ = clock_source;
 #else
-  if (clock_source != kTraceClockSourceWall) {
+  if (clock_source != TraceClockSource::kWall) {
     LOG(WARNING) << "Ignoring tracing request to use CPU time.";
   }
 #endif
 }
 
 static uint16_t GetTraceVersion(TraceClockSource clock_source) {
-  return (clock_source == kTraceClockSourceDual) ? kTraceVersionDualClock
+  return (clock_source == TraceClockSource::kDual) ? kTraceVersionDualClock
                                                     : kTraceVersionSingleClock;
 }
 
 static uint16_t GetRecordSize(TraceClockSource clock_source) {
-  return (clock_source == kTraceClockSourceDual) ? kTraceRecordSizeDualClock
+  return (clock_source == TraceClockSource::kDual) ? kTraceRecordSizeDualClock
                                                     : kTraceRecordSizeSingleClock;
 }
 
 bool Trace::UseThreadCpuClock() {
-  return (clock_source_ == kTraceClockSourceThreadCpu) ||
-      (clock_source_ == kTraceClockSourceDual);
+  return (clock_source_ == TraceClockSource::kThreadCpu) ||
+      (clock_source_ == TraceClockSource::kDual);
 }
 
 bool Trace::UseWallClock() {
-  return (clock_source_ == kTraceClockSourceWall) ||
-      (clock_source_ == kTraceClockSourceDual);
+  return (clock_source_ == TraceClockSource::kWall) ||
+      (clock_source_ == TraceClockSource::kDual);
 }
 
 void Trace::MeasureClockOverhead() {

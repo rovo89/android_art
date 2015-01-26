@@ -46,6 +46,19 @@ enum CollectorType {
 };
 std::ostream& operator<<(std::ostream& os, const CollectorType& collector_type);
 
+static constexpr CollectorType kCollectorTypeDefault =
+#if ART_DEFAULT_GC_TYPE_IS_CMS
+    kCollectorTypeCMS
+#elif ART_DEFAULT_GC_TYPE_IS_SS
+    kCollectorTypeSS
+#elif ART_DEFAULT_GC_TYPE_IS_GSS
+    kCollectorTypeGSS
+#else
+    gc::kCollectorTypeCMS
+#error "ART default GC type must be set"
+#endif
+    ;  // NOLINT [whitespace/semicolon] [5]
+
 }  // namespace gc
 }  // namespace art
 
