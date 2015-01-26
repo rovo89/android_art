@@ -254,16 +254,28 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
 
   void AddLoopRange(size_t start, size_t end) {
     DCHECK(first_range_ != nullptr);
-    while (first_range_ != nullptr && first_range_->GetEnd() < end) {
-      DCHECK_LE(start, first_range_->GetStart());
-      first_range_ = first_range_->GetNext();
+    DCHECK_LE(start, first_range_->GetStart());
+    // Find the range that covers the positions after the loop.
+    LiveRange* after_loop = first_range_;
+    LiveRange* last_in_loop = nullptr;
+    while (after_loop != nullptr && after_loop->GetEnd() < end) {
+      DCHECK_LE(start, after_loop->GetStart());
+      last_in_loop = after_loop;
+      after_loop = after_loop->GetNext();
     }
-    if (first_range_ == nullptr) {
+    if (after_loop == nullptr) {
       // Uses are only in the loop.
       first_range_ = last_range_ = new (allocator_) LiveRange(start, end, nullptr);
-    } else {
+    } else if (after_loop->GetStart() <= end) {
+      first_range_ = after_loop;
       // There are uses after the loop.
       first_range_->start_ = start;
+    } else {
+      // The use after the loop is after a lifetime hole.
+      DCHECK(last_in_loop != nullptr);
+      first_range_ = last_in_loop;
+      first_range_->start_ = start;
+      first_range_->end_ = end;
     }
   }
 
@@ -479,10 +491,11 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
   void Dump(std::ostream& stream) const {
     stream << "ranges: { ";
     LiveRange* current = first_range_;
-    do {
+    while (current != nullptr) {
       current->Dump(stream);
       stream << " ";
-    } while ((current = current->GetNext()) != nullptr);
+      current = current->GetNext();
+    }
     stream << "}, uses: { ";
     UsePosition* use = first_use_;
     if (use != nullptr) {
