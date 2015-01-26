@@ -232,9 +232,9 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
 
       if (current->HasEnvironment()) {
         // All instructions in the environment must be live.
-        GrowableArray<HInstruction*>* environment = current->GetEnvironment()->GetVRegs();
+        HEnvironment* environment = current->GetEnvironment();
         for (size_t i = 0, e = environment->Size(); i < e; ++i) {
-          HInstruction* instruction = environment->Get(i);
+          HInstruction* instruction = environment->GetInstructionAt(i);
           if (instruction != nullptr) {
             DCHECK(instruction->HasSsaIndex());
             live_in->SetBit(instruction->GetSsaIndex());

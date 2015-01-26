@@ -225,7 +225,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       HInstruction* instruction = it.Current();
       AddIndent();
       int bci = 0;
-      output_ << bci << " " << instruction->NumberOfUses()
+      output_ << bci << " " << instruction->ExpensiveComputeNumberOfUses()
               << " " << GetTypeId(instruction->GetType()) << instruction->GetId() << " ";
       PrintInstruction(instruction);
       output_ << kEndInstructionMarker << std::endl;
