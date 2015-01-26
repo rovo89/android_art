@@ -68,7 +68,7 @@ void SsaBuilder::BuildSsa() {
 }
 
 HInstruction* SsaBuilder::ValueOfLocal(HBasicBlock* block, size_t local) {
-  return GetLocalsFor(block)->Get(local);
+  return GetLocalsFor(block)->GetInstructionAt(local);
 }
 
 void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
@@ -85,7 +85,7 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
         HPhi* phi = new (GetGraph()->GetArena()) HPhi(
             GetGraph()->GetArena(), local, 0, Primitive::kPrimVoid);
         block->AddPhi(phi);
-        current_locals_->Put(local, phi);
+        current_locals_->SetRawEnvAt(local, phi);
       }
     }
     // Save the loop header so that the last phase of the analysis knows which
@@ -125,7 +125,7 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
         block->AddPhi(phi);
         value = phi;
       }
-      current_locals_->Put(local, value);
+      current_locals_->SetRawEnvAt(local, value);
     }
   }
 
@@ -235,7 +235,7 @@ HInstruction* SsaBuilder::GetFloatOrDoubleEquivalent(HInstruction* user,
 }
 
 void SsaBuilder::VisitLoadLocal(HLoadLocal* load) {
-  HInstruction* value = current_locals_->Get(load->GetLocal()->GetRegNumber());
+  HInstruction* value = current_locals_->GetInstructionAt(load->GetLocal()->GetRegNumber());
   if (load->GetType() != value->GetType()
       && (load->GetType() == Primitive::kPrimFloat || load->GetType() == Primitive::kPrimDouble)) {
     // If the operation requests a specific type, we make sure its input is of that type.
@@ -246,7 +246,7 @@ void SsaBuilder::VisitLoadLocal(HLoadLocal* load) {
 }
 
 void SsaBuilder::VisitStoreLocal(HStoreLocal* store) {
-  current_locals_->Put(store->GetLocal()->GetRegNumber(), store->InputAt(1));
+  current_locals_->SetRawEnvAt(store->GetLocal()->GetRegNumber(), store->InputAt(1));
   store->GetBlock()->RemoveInstruction(store);
 }
 
@@ -256,7 +256,7 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
   }
   HEnvironment* environment = new (GetGraph()->GetArena()) HEnvironment(
       GetGraph()->GetArena(), current_locals_->Size());
-  environment->Populate(*current_locals_);
+  environment->CopyFrom(current_locals_);
   instruction->SetEnvironment(environment);
 }
 
