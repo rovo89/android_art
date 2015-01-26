@@ -220,46 +220,30 @@ class ValueSet : public ArenaObject<kArenaAllocMisc> {
   DISALLOW_COPY_AND_ASSIGN(ValueSet);
 };
 
-/**
- * Optimization phase that removes redundant instruction.
- */
-class GlobalValueNumberer : public ValueObject {
+class SideEffectsAnalysis : public HOptimization {
  public:
-  GlobalValueNumberer(ArenaAllocator* allocator, HGraph* graph)
-      : graph_(graph),
-        allocator_(allocator),
-        block_effects_(allocator, graph->GetBlocks().Size()),
-        loop_effects_(allocator, graph->GetBlocks().Size()),
-        sets_(allocator, graph->GetBlocks().Size()) {
-    size_t number_of_blocks = graph->GetBlocks().Size();
-    block_effects_.SetSize(number_of_blocks);
-    loop_effects_.SetSize(number_of_blocks);
-    sets_.SetSize(number_of_blocks);
+  explicit SideEffectsAnalysis(HGraph* graph)
+      : HOptimization(graph, true, "SideEffects"),
+        graph_(graph),
+        block_effects_(graph->GetArena(), graph->GetBlocks().Size(), SideEffects::None()),
+        loop_effects_(graph->GetArena(), graph->GetBlocks().Size(), SideEffects::None()) {}
 
-    for (size_t i = 0; i < number_of_blocks; ++i) {
-      block_effects_.Put(i, SideEffects::None());
-      loop_effects_.Put(i, SideEffects::None());
-    }
-  }
-
-  void Run();
-
- private:
-  // Per-block GVN. Will also update the ValueSet of the dominated and
-  // successor blocks.
-  void VisitBasicBlock(HBasicBlock* block);
-
-  // Compute side effects of individual blocks and loops. The GVN algorithm
-  // will use these side effects to update the ValueSet of individual blocks.
-  void ComputeSideEffects();
-
-  void UpdateLoopEffects(HLoopInformation* info, SideEffects effects);
   SideEffects GetLoopEffects(HBasicBlock* block) const;
   SideEffects GetBlockEffects(HBasicBlock* block) const;
 
+  // Compute side effects of individual blocks and loops.
+  void Run();
+
+  bool HasRun() const { return has_run_; }
+
+ private:
+  void UpdateLoopEffects(HLoopInformation* info, SideEffects effects);
+
   HGraph* graph_;
 
-  ArenaAllocator* const allocator_;
+  // Checked in debug build, to ensure the pass has been run prior to
+  // running a pass that depends on it.
+  bool has_run_ = false;
 
   // Side effects of individual blocks, that is the union of the side effects
   // of the instructions in the block.
@@ -269,25 +253,55 @@ class GlobalValueNumberer : public ValueObject {
   // blocks contained in that loop.
   GrowableArray<SideEffects> loop_effects_;
 
+  ART_FRIEND_TEST(GVNTest, LoopSideEffects);
+  DISALLOW_COPY_AND_ASSIGN(SideEffectsAnalysis);
+};
+
+/**
+ * Optimization phase that removes redundant instruction.
+ */
+class GlobalValueNumberer : public ValueObject {
+ public:
+  GlobalValueNumberer(ArenaAllocator* allocator,
+                      HGraph* graph,
+                      const SideEffectsAnalysis& side_effects)
+      : graph_(graph),
+        allocator_(allocator),
+        side_effects_(side_effects),
+        sets_(allocator, graph->GetBlocks().Size(), nullptr) {}
+
+  void Run();
+
+ private:
+  // Per-block GVN. Will also update the ValueSet of the dominated and
+  // successor blocks.
+  void VisitBasicBlock(HBasicBlock* block);
+
+  HGraph* graph_;
+  ArenaAllocator* const allocator_;
+  const SideEffectsAnalysis& side_effects_;
+
   // ValueSet for blocks. Initially null, but for an individual block they
   // are allocated and populated by the dominator, and updated by all blocks
   // in the path from the dominator to the block.
   GrowableArray<ValueSet*> sets_;
 
-  ART_FRIEND_TEST(GVNTest, LoopSideEffects);
   DISALLOW_COPY_AND_ASSIGN(GlobalValueNumberer);
 };
 
 class GVNOptimization : public HOptimization {
  public:
-  explicit GVNOptimization(HGraph* graph) : HOptimization(graph, true, "GVN") {}
+  GVNOptimization(HGraph* graph, const SideEffectsAnalysis& side_effects)
+      : HOptimization(graph, true, "GVN"), side_effects_(side_effects) {}
 
   void Run() OVERRIDE {
-    GlobalValueNumberer gvn(graph_->GetArena(), graph_);
+    GlobalValueNumberer gvn(graph_->GetArena(), graph_, side_effects_);
     gvn.Run();
   }
 
  private:
+  const SideEffectsAnalysis& side_effects_;
+
   DISALLOW_COPY_AND_ASSIGN(GVNOptimization);
 };
 
