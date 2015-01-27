@@ -823,8 +823,11 @@ class Heap {
   // Swap the allocation stack with the live stack.
   void SwapStacks(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Clear cards and update the mod union table.
-  void ProcessCards(TimingLogger* timings, bool use_rem_sets);
+  // Clear cards and update the mod union table. When process_alloc_space_cards is true,
+  // if clear_alloc_space_cards is true, then we clear cards instead of ageing them. We do
+  // not process the alloc space if process_alloc_space_cards is false.
+  void ProcessCards(TimingLogger* timings, bool use_rem_sets, bool process_alloc_space_cards,
+                    bool clear_alloc_space_cards);
 
   // Push an object onto the allocation stack.
   void PushOnAllocationStack(Thread* self, mirror::Object** obj)
