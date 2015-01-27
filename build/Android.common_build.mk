@@ -117,9 +117,7 @@ ART_TARGET_CLANG_CFLAGS_x86_64 :=
 
 # These are necessary for Clang ARM64 ART builds. TODO: remove.
 ART_TARGET_CLANG_CFLAGS_arm64  += \
-  -Wno-implicit-exception-spec-mismatch \
-  -DNVALGRIND \
-  -Wno-unused-value
+  -DNVALGRIND
 
 # FIXME: upstream LLVM has a vectorizer bug that needs to be fixed
 ART_TARGET_CLANG_CFLAGS_arm64 += \
@@ -191,7 +189,6 @@ art_cflags := \
   -Wstrict-aliasing \
   -fstrict-aliasing \
   -Wunreachable-code \
-  -Wno-conversion-null \
   -Wredundant-decls \
   -Wshadow \
   -fvisibility=protected \
