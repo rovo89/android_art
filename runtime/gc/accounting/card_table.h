@@ -113,6 +113,7 @@ class CardTable {
 
   // Resets all of the bytes in the card table to clean.
   void ClearCardTable();
+  void ClearCardRange(uint8_t* start, uint8_t* end);
 
   // Resets all of the bytes in the card table which do not map to the image space.
   void ClearSpaceCards(space::ContinuousSpace* space);
