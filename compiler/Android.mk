@@ -60,7 +60,6 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/dex_to_dex_compiler.cc \
 	dex/bb_optimizations.cc \
 	dex/compiler_ir.cc \
-	dex/frontend.cc \
 	dex/mir_analysis.cc \
 	dex/mir_dataflow.cc \
 	dex/mir_field_info.cc \
