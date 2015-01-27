@@ -98,39 +98,58 @@ struct DebugInvokeReq {
 };
 
 // Thread local data-structure that holds fields for controlling single-stepping.
-struct SingleStepControl {
-  SingleStepControl()
-      : is_active(false), step_size(JDWP::SS_MIN), step_depth(JDWP::SD_INTO),
-        method(nullptr), stack_depth(0) {
+class SingleStepControl {
+ public:
+  SingleStepControl(JDWP::JdwpStepSize step_size, JDWP::JdwpStepDepth step_depth,
+                    int stack_depth, mirror::ArtMethod* method)
+      : step_size_(step_size), step_depth_(step_depth),
+        stack_depth_(stack_depth), method_(method) {
   }
 
-  // Are we single-stepping right now?
-  bool is_active;
+  JDWP::JdwpStepSize GetStepSize() const {
+    return step_size_;
+  }
 
+  JDWP::JdwpStepDepth GetStepDepth() const {
+    return step_depth_;
+  }
+
+  int GetStackDepth() const {
+    return stack_depth_;
+  }
+
+  mirror::ArtMethod* GetMethod() const {
+    return method_;
+  }
+
+  const std::set<uint32_t>& GetDexPcs() const {
+    return dex_pcs_;
+  }
+
+  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  void AddDexPc(uint32_t dex_pc);
+
+  bool ContainsDexPc(uint32_t dex_pc) const;
+
+ private:
   // See JdwpStepSize and JdwpStepDepth for details.
-  JDWP::JdwpStepSize step_size;
-  JDWP::JdwpStepDepth step_depth;
+  const JDWP::JdwpStepSize step_size_;
+  const JDWP::JdwpStepDepth step_depth_;
+
+  // The stack depth when this single-step was initiated. This is used to support SD_OVER and SD_OUT
+  // single-step depth.
+  const int stack_depth_;
 
   // The location this single-step was initiated from.
   // A single-step is initiated in a suspended thread. We save here the current method and the
   // set of DEX pcs associated to the source line number where the suspension occurred.
   // This is used to support SD_INTO and SD_OVER single-step depths so we detect when a single-step
   // causes the execution of an instruction in a different method or at a different line number.
-  mirror::ArtMethod* method;
-  std::set<uint32_t> dex_pcs;
+  mirror::ArtMethod* method_;
+  std::set<uint32_t> dex_pcs_;
 
-  // The stack depth when this single-step was initiated. This is used to support SD_OVER and SD_OUT
-  // single-step depth.
-  int stack_depth;
-
-  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  bool ContainsDexPc(uint32_t dex_pc) const;
-
-  void Clear();
-
- private:
   DISALLOW_COPY_AND_ASSIGN(SingleStepControl);
 };
 
