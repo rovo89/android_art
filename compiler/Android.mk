@@ -69,12 +69,14 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/post_opt_passes.cc \
 	dex/pass_driver_me_opts.cc \
 	dex/pass_driver_me_post_opt.cc \
+	dex/pass_manager.cc \
 	dex/ssa_transformation.cc \
 	dex/verified_method.cc \
 	dex/verification_results.cc \
 	dex/vreg_analysis.cc \
 	dex/quick_compiler_callbacks.cc \
 	driver/compiler_driver.cc \
+	driver/compiler_options.cc \
 	driver/dex_compilation_unit.cc \
 	jni/quick/arm/calling_convention_arm.cc \
 	jni/quick/arm64/calling_convention_arm64.cc \

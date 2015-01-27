@@ -14,63 +14,35 @@
  * limitations under the License.
  */
 
+#include "pass_driver_me_post_opt.h"
+
 #include "base/macros.h"
 #include "post_opt_passes.h"
-#include "pass_driver_me_post_opt.h"
+#include "pass_manager.h"
 
 namespace art {
 
-/*
- * Create the pass list. These passes are immutable and are shared across the threads.
- *
- * Advantage is that there will be no race conditions here.
- * Disadvantage is the passes can't change their internal states depending on CompilationUnit:
- *   - This is not yet an issue: no current pass would require it.
- */
-// The initial list of passes to be used by the PassDriveMEPostOpt.
-template<>
-const Pass* const PassDriver<PassDriverMEPostOpt>::g_passes[] = {
-    GetPassInstance<DFSOrders>(),
-    GetPassInstance<BuildDomination>(),
-    GetPassInstance<TopologicalSortOrders>(),
-    GetPassInstance<InitializeSSATransformation>(),
-    GetPassInstance<ClearPhiInstructions>(),
-    GetPassInstance<DefBlockMatrix>(),
-    GetPassInstance<CreatePhiNodes>(),
-    GetPassInstance<SSAConversion>(),
-    GetPassInstance<PhiNodeOperands>(),
-    GetPassInstance<PerformInitRegLocations>(),
-    GetPassInstance<TypeInference>(),
-    GetPassInstance<FinishSSATransformation>(),
-};
-
-// The number of the passes in the initial list of Passes (g_passes).
-template<>
-uint16_t const PassDriver<PassDriverMEPostOpt>::g_passes_size =
-    arraysize(PassDriver<PassDriverMEPostOpt>::g_passes);
-
-// The default pass list is used by the PassDriverME instance of PassDriver
-// to initialize pass_list_.
-template<>
-std::vector<const Pass*> PassDriver<PassDriverMEPostOpt>::g_default_pass_list(
-    PassDriver<PassDriverMEPostOpt>::g_passes,
-    PassDriver<PassDriverMEPostOpt>::g_passes +
-    PassDriver<PassDriverMEPostOpt>::g_passes_size);
-
-// By default, do not have a dump pass list.
-template<>
-std::string PassDriver<PassDriverMEPostOpt>::dump_pass_list_ = std::string();
-
-// By default, do not have a print pass list.
-template<>
-std::string PassDriver<PassDriverMEPostOpt>::print_pass_list_ = std::string();
-
-// By default, we do not print the pass' information.
-template<>
-bool PassDriver<PassDriverMEPostOpt>::default_print_passes_ = false;
-
-// By default, there are no overridden pass settings.
-template<>
-std::string PassDriver<PassDriverMEPostOpt>::overridden_pass_options_list_ = std::string();
+void PassDriverMEPostOpt::SetupPasses(PassManager* pass_manager) {
+  /*
+   * Create the pass list. These passes are immutable and are shared across the threads.
+   *
+   * Advantage is that there will be no race conditions here.
+   * Disadvantage is the passes can't change their internal states depending on CompilationUnit:
+   *   - This is not yet an issue: no current pass would require it.
+   */
+  // The initial list of passes to be used by the PassDriveMEPostOpt.
+  pass_manager->AddPass(new DFSOrders);
+  pass_manager->AddPass(new BuildDomination);
+  pass_manager->AddPass(new TopologicalSortOrders);
+  pass_manager->AddPass(new InitializeSSATransformation);
+  pass_manager->AddPass(new ClearPhiInstructions);
+  pass_manager->AddPass(new DefBlockMatrix);
+  pass_manager->AddPass(new CreatePhiNodes);
+  pass_manager->AddPass(new SSAConversion);
+  pass_manager->AddPass(new PhiNodeOperands);
+  pass_manager->AddPass(new PerformInitRegLocations);
+  pass_manager->AddPass(new TypeInference);
+  pass_manager->AddPass(new FinishSSATransformation);
+}
 
 }  // namespace art
