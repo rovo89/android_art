@@ -15,7 +15,10 @@
  */
 
 #include "codegen_x86.h"
-#include "dex/quick/mir_to_lir-inl.h"
+
+#include "base/logging.h"
+#include "dex/compiler_ir.h"
+#include "dex/quick/mir_to_lir.h"
 #include "oat.h"
 #include "x86_lir.h"
 

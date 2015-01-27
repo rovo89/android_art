@@ -14,18 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_DEX_COMPILER_INTERNALS_H_
-#define ART_COMPILER_DEX_COMPILER_INTERNALS_H_
+#ifndef ART_COMPILER_DEX_DEX_TYPES_H_
+#define ART_COMPILER_DEX_DEX_TYPES_H_
 
-#include <assert.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
+namespace art {
 
-#include "base/logging.h"
-#include "mir_graph.h"
-#include "compiler_ir.h"
-#include "frontend.h"  // Debug flags.
-#include "utils.h"
+typedef uint32_t DexOffset;          // Dex offset in code units.
+typedef uint16_t NarrowDexOffset;    // For use in structs, Dex offsets range from 0 .. 0xffff.
 
-#endif  // ART_COMPILER_DEX_COMPILER_INTERNALS_H_
+}  // namespace art
+
+#endif  // ART_COMPILER_DEX_DEX_TYPES_H_

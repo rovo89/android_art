@@ -17,8 +17,10 @@
 #include "codegen_mips.h"
 
 #include "arch/mips/instruction_set_features_mips.h"
+#include "base/logging.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/reg_storage_eq.h"
+#include "driver/compiler_driver.h"
 #include "mips_lir.h"
 
 namespace art {
@@ -306,7 +308,7 @@ LIR* MipsMir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2)
     case kOpXor:
       return OpRegRegReg(op, r_dest_src1, r_dest_src1, r_src2);
     case kOp2Byte:
-      if (cu_->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()
+      if (cu_->compiler_driver->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()
           ->IsMipsIsaRevGreaterThanEqual2()) {
         res = NewLIR2(kMipsSeb, r_dest_src1.GetReg(), r_src2.GetReg());
       } else {
@@ -315,7 +317,7 @@ LIR* MipsMir2Lir::OpRegReg(OpKind op, RegStorage r_dest_src1, RegStorage r_src2)
       }
       return res;
     case kOp2Short:
-      if (cu_->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()
+      if (cu_->compiler_driver->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()
           ->IsMipsIsaRevGreaterThanEqual2()) {
         res = NewLIR2(kMipsSeh, r_dest_src1.GetReg(), r_src2.GetReg());
       } else {

@@ -15,8 +15,11 @@
  */
 
 #include "base/bit_vector-inl.h"
-#include "compiler_internals.h"
+#include "base/logging.h"
 #include "dataflow_iterator-inl.h"
+#include "dex_flags.h"
+#include "driver/compiler_driver.h"
+#include "driver/dex_compilation_unit.h"
 #include "global_value_numbering.h"
 #include "local_value_numbering.h"
 #include "mir_field_info.h"

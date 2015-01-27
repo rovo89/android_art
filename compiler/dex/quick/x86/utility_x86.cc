@@ -15,12 +15,15 @@
  */
 
 #include "codegen_x86.h"
+
+#include "base/logging.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "dex/dataflow_iterator-inl.h"
-#include "x86_lir.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/reg_storage_eq.h"
+#include "driver/compiler_driver.h"
+#include "x86_lir.h"
 
 namespace art {
 
@@ -509,7 +512,7 @@ LIR* X86Mir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src, int
     }
   }
   if (r_dest != r_src) {
-    if (false && op == kOpLsl && value >= 0 && value <= 3) {  // lea shift special case
+    if ((false) && op == kOpLsl && value >= 0 && value <= 3) {  // lea shift special case
       // TODO: fix bug in LEA encoding when disp == 0
       return NewLIR5(kX86Lea32RA, r_dest.GetReg(),  r5sib_no_base /* base */,
                      r_src.GetReg() /* index */, value /* scale */, 0 /* disp */);

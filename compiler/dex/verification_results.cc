@@ -16,15 +16,14 @@
 
 #include "verification_results.h"
 
+#include "base/logging.h"
 #include "base/stl_util.h"
-#include "base/mutex.h"
 #include "base/mutex-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "thread.h"
 #include "thread-inl.h"
 #include "verified_method.h"
-#include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
 
 namespace art {

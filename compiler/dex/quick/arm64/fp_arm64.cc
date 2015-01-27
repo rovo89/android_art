@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
-#include "arm64_lir.h"
 #include "codegen_arm64.h"
+
+#include "arm64_lir.h"
+#include "base/logging.h"
+#include "dex/mir_graph.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "utils.h"
 

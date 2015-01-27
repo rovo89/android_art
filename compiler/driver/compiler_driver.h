@@ -28,6 +28,7 @@
 #include "compiled_method.h"
 #include "compiler.h"
 #include "dex_file.h"
+#include "dex/verified_method.h"
 #include "driver/compiler_options.h"
 #include "invoke_type.h"
 #include "method_reference.h"
@@ -41,7 +42,6 @@
 #include "utils/dedupe_set.h"
 #include "utils/swap_space.h"
 #include "utils.h"
-#include "dex/verified_method.h"
 
 namespace art {
 

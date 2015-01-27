@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
+#include "mir_to_lir-inl.h"
+
 #include "arm/codegen_arm.h"
 #include "dex/compiler_ir.h"
-#include "dex/frontend.h"
+#include "dex/dex_flags.h"
+#include "dex/mir_graph.h"
 #include "dex/quick/dex_file_method_inliner.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex_file-inl.h"
+#include "driver/compiler_driver.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "invoke_type.h"
 #include "mirror/array.h"
@@ -27,7 +31,6 @@
 #include "mirror/dex_cache.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string.h"
-#include "mir_to_lir-inl.h"
 #include "scoped_thread_state_change.h"
 
 namespace art {

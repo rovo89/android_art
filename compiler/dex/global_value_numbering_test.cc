@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "compiler_internals.h"
+#include "base/logging.h"
 #include "dataflow_iterator.h"
 #include "dataflow_iterator-inl.h"
 #include "dex/mir_field_info.h"
@@ -337,7 +337,7 @@ class GlobalValueNumberingTest : public testing::Test {
 
   GlobalValueNumberingTest()
       : pool_(),
-        cu_(&pool_),
+        cu_(&pool_, kRuntimeISA, nullptr, nullptr),
         mir_count_(0u),
         mirs_(nullptr),
         ssa_reps_(),

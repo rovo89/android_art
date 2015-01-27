@@ -18,8 +18,10 @@
 #define ART_COMPILER_DEX_BB_OPTIMIZATIONS_H_
 
 #include "base/casts.h"
-#include "compiler_internals.h"
+#include "compiler_ir.h"
+#include "dex_flags.h"
 #include "pass_me.h"
+#include "mir_graph.h"
 
 namespace art {
 
