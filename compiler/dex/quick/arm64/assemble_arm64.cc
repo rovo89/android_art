@@ -20,7 +20,7 @@
 #include "arm64_lir.h"
 #include "base/logging.h"
 #include "dex/compiler_ir.h"
-#include "dex/quick/mir_to_lir.h"
+#include "dex/quick/mir_to_lir-inl.h"
 #include "driver/compiler_driver.h"
 
 namespace art {
