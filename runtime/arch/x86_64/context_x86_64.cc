@@ -91,26 +91,18 @@ void X86_64Context::SmashCallerSaves() {
   fprs_[XMM11] = nullptr;
 }
 
-bool X86_64Context::SetGPR(uint32_t reg, uintptr_t value) {
+void X86_64Context::SetGPR(uint32_t reg, uintptr_t value) {
   CHECK_LT(reg, static_cast<uint32_t>(kNumberOfCpuRegisters));
+  DCHECK(IsAccessibleGPR(reg));
   CHECK_NE(gprs_[reg], &gZero);
-  if (gprs_[reg] != nullptr) {
-    *gprs_[reg] = value;
-    return true;
-  } else {
-    return false;
-  }
+  *gprs_[reg] = value;
 }
 
-bool X86_64Context::SetFPR(uint32_t reg, uintptr_t value) {
+void X86_64Context::SetFPR(uint32_t reg, uintptr_t value) {
   CHECK_LT(reg, static_cast<uint32_t>(kNumberOfFloatRegisters));
+  DCHECK(IsAccessibleFPR(reg));
   CHECK_NE(fprs_[reg], reinterpret_cast<const uint64_t*>(&gZero));
-  if (fprs_[reg] != nullptr) {
-    *fprs_[reg] = value;
-    return true;
-  } else {
-    return false;
-  }
+  *fprs_[reg] = value;
 }
 
 extern "C" void art_quick_do_long_jump(uintptr_t*, uintptr_t*);
