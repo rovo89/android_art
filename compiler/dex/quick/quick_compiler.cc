@@ -18,17 +18,26 @@
 
 #include <cstdint>
 
+#include "base/dumpable.h"
 #include "base/logging.h"
+#include "base/macros.h"
+#include "base/timing_logger.h"
 #include "compiler.h"
 #include "dex_file-inl.h"
+#include "dex_file_to_method_inliner_map.h"
+#include "dex/backend.h"
 #include "dex/compiler_ir.h"
-#include "dex/frontend.h"
+#include "dex/dex_flags.h"
 #include "dex/mir_graph.h"
+#include "dex/pass_driver_me_opts.h"
 #include "dex/quick/mir_to_lir.h"
 #include "driver/compiler_driver.h"
+#include "driver/compiler_options.h"
 #include "elf_writer_quick.h"
 #include "jni/quick/jni_compiler.h"
 #include "mirror/art_method-inl.h"
+#include "mirror/object.h"
+#include "runtime.h"
 
 // Specific compiler backends.
 #include "dex/quick/arm/backend_arm.h"
@@ -38,7 +47,7 @@
 
 namespace art {
 
-class QuickCompiler : public Compiler {
+class QuickCompiler FINAL : public Compiler {
  public:
   explicit QuickCompiler(CompilerDriver* driver) : Compiler(driver, 100) {}
 
@@ -583,6 +592,47 @@ void QuickCompiler::UnInit() const {
   CHECK(GetCompilerDriver()->GetCompilerContext() == nullptr);
 }
 
+/* Default optimizer/debug setting for the compiler. */
+static uint32_t kCompilerOptimizerDisableFlags = 0 |  // Disable specific optimizations
+  // (1 << kLoadStoreElimination) |
+  // (1 << kLoadHoisting) |
+  // (1 << kSuppressLoads) |
+  // (1 << kNullCheckElimination) |
+  // (1 << kClassInitCheckElimination) |
+  // (1 << kGlobalValueNumbering) |
+  // (1 << kLocalValueNumbering) |
+  // (1 << kPromoteRegs) |
+  // (1 << kTrackLiveTemps) |
+  // (1 << kSafeOptimizations) |
+  // (1 << kBBOpt) |
+  // (1 << kSuspendCheckElimination) |
+  // (1 << kMatch) |
+  // (1 << kPromoteCompilerTemps) |
+  // (1 << kSuppressExceptionEdges) |
+  // (1 << kSuppressMethodInlining) |
+  0;
+
+static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
+  // (1 << kDebugDisplayMissingTargets) |
+  // (1 << kDebugVerbose) |
+  // (1 << kDebugDumpCFG) |
+  // (1 << kDebugSlowFieldPath) |
+  // (1 << kDebugSlowInvokePath) |
+  // (1 << kDebugSlowStringPath) |
+  // (1 << kDebugSlowestFieldPath) |
+  // (1 << kDebugSlowestStringPath) |
+  // (1 << kDebugExerciseResolveMethod) |
+  // (1 << kDebugVerifyDataflow) |
+  // (1 << kDebugShowMemoryUsage) |
+  // (1 << kDebugShowNops) |
+  // (1 << kDebugCountOpcodes) |
+  // (1 << kDebugDumpCheckStats) |
+  // (1 << kDebugShowSummaryMemoryUsage) |
+  // (1 << kDebugShowFilterStats) |
+  // (1 << kDebugTimings) |
+  // (1 << kDebugCodegenDump) |
+  0;
+
 CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
                                        uint32_t access_flags,
                                        InvokeType invoke_type,
@@ -593,8 +643,160 @@ CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
   // TODO: check method fingerprint here to determine appropriate backend type.  Until then, use
   // build default.
   CompilerDriver* driver = GetCompilerDriver();
-  return CompileOneMethod(driver, this, code_item, access_flags, invoke_type, class_def_idx,
-                          method_idx, class_loader, dex_file, nullptr /* use thread llvm_info */);
+
+  VLOG(compiler) << "Compiling " << PrettyMethod(method_idx, dex_file) << "...";
+  if (Compiler::IsPathologicalCase(*code_item, method_idx, dex_file)) {
+    return nullptr;
+  }
+
+  DCHECK(driver->GetCompilerOptions().IsCompilationEnabled());
+
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  InstructionSet instruction_set = driver->GetInstructionSet();
+  if (instruction_set == kArm) {
+    instruction_set = kThumb2;
+  }
+  CompilationUnit cu(driver->GetArenaPool(), instruction_set, driver, class_linker);
+
+  // TODO: Mips64 is not yet implemented.
+  CHECK((cu.instruction_set == kThumb2) ||
+        (cu.instruction_set == kArm64) ||
+        (cu.instruction_set == kX86) ||
+        (cu.instruction_set == kX86_64) ||
+        (cu.instruction_set == kMips));
+
+  // TODO: set this from command line
+  constexpr bool compiler_flip_match = false;
+  const std::string compiler_method_match = "";
+
+  bool use_match = !compiler_method_match.empty();
+  bool match = use_match && (compiler_flip_match ^
+      (PrettyMethod(method_idx, dex_file).find(compiler_method_match) != std::string::npos));
+  if (!use_match || match) {
+    cu.disable_opt = kCompilerOptimizerDisableFlags;
+    cu.enable_debug = kCompilerDebugFlags;
+    cu.verbose = VLOG_IS_ON(compiler) ||
+        (cu.enable_debug & (1 << kDebugVerbose));
+  }
+
+  if (driver->GetCompilerOptions().HasVerboseMethods()) {
+    cu.verbose = driver->GetCompilerOptions().IsVerboseMethod(PrettyMethod(method_idx, dex_file));
+  }
+
+  if (cu.verbose) {
+    cu.enable_debug |= (1 << kDebugCodegenDump);
+  }
+
+  /*
+   * TODO: rework handling of optimization and debug flags.  Should we split out
+   * MIR and backend flags?  Need command-line setting as well.
+   */
+
+  InitCompilationUnit(cu);
+
+  cu.StartTimingSplit("BuildMIRGraph");
+  cu.mir_graph.reset(new MIRGraph(&cu, &cu.arena));
+
+  /*
+   * After creation of the MIR graph, also create the code generator.
+   * The reason we do this is that optimizations on the MIR graph may need to get information
+   * that is only available if a CG exists.
+   */
+  cu.cg.reset(GetCodeGenerator(&cu, nullptr));
+
+  /* Gathering opcode stats? */
+  if (kCompilerDebugFlags & (1 << kDebugCountOpcodes)) {
+    cu.mir_graph->EnableOpcodeCounting();
+  }
+
+  /* Build the raw MIR graph */
+  cu.mir_graph->InlineMethod(code_item, access_flags, invoke_type, class_def_idx, method_idx,
+                             class_loader, dex_file);
+
+  if (!CanCompileMethod(method_idx, dex_file, &cu)) {
+    VLOG(compiler)  << cu.instruction_set << ": Cannot compile method : "
+        << PrettyMethod(method_idx, dex_file);
+    cu.EndTiming();
+    return nullptr;
+  }
+
+  cu.NewTimingSplit("MIROpt:CheckFilters");
+  std::string skip_message;
+  if (cu.mir_graph->SkipCompilation(&skip_message)) {
+    VLOG(compiler) << cu.instruction_set << ": Skipping method : "
+        << PrettyMethod(method_idx, dex_file) << "  Reason = " << skip_message;
+    cu.EndTiming();
+    return nullptr;
+  }
+
+  /* Create the pass driver and launch it */
+  PassDriverMEOpts pass_driver(&cu);
+  pass_driver.Launch();
+
+  /* For non-leaf methods check if we should skip compilation when the profiler is enabled. */
+  if (cu.compiler_driver->ProfilePresent()
+      && !cu.mir_graph->MethodIsLeaf()
+      && cu.mir_graph->SkipCompilationByName(PrettyMethod(method_idx, dex_file))) {
+    cu.EndTiming();
+    return nullptr;
+  }
+
+  if (cu.enable_debug & (1 << kDebugDumpCheckStats)) {
+    cu.mir_graph->DumpCheckStats();
+  }
+
+  if (kCompilerDebugFlags & (1 << kDebugCountOpcodes)) {
+    cu.mir_graph->ShowOpcodeStats();
+  }
+
+  /* Reassociate sreg names with original Dalvik vreg names. */
+  cu.mir_graph->RemapRegLocations();
+
+  /* Free Arenas from the cu.arena_stack for reuse by the cu.arena in the codegen. */
+  if (cu.enable_debug & (1 << kDebugShowMemoryUsage)) {
+    if (cu.arena_stack.PeakBytesAllocated() > 1 * 1024 * 1024) {
+      MemStats stack_stats(cu.arena_stack.GetPeakStats());
+      LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(stack_stats);
+    }
+  }
+  cu.arena_stack.Reset();
+
+  CompiledMethod* result = nullptr;
+
+  if (cu.mir_graph->PuntToInterpreter()) {
+    VLOG(compiler) << cu.instruction_set << ": Punted method to interpreter: "
+        << PrettyMethod(method_idx, dex_file);
+    cu.EndTiming();
+    return nullptr;
+  }
+
+  cu.cg->Materialize();
+
+  cu.NewTimingSplit("Dedupe");  /* deduping takes up the vast majority of time in GetCompiledMethod(). */
+  result = cu.cg->GetCompiledMethod();
+  cu.NewTimingSplit("Cleanup");
+
+  if (result) {
+    VLOG(compiler) << cu.instruction_set << ": Compiled " << PrettyMethod(method_idx, dex_file);
+  } else {
+    VLOG(compiler) << cu.instruction_set << ": Deferred " << PrettyMethod(method_idx, dex_file);
+  }
+
+  if (cu.enable_debug & (1 << kDebugShowMemoryUsage)) {
+    if (cu.arena.BytesAllocated() > (1 * 1024 *1024)) {
+      MemStats mem_stats(cu.arena.GetMemStats());
+      LOG(INFO) << PrettyMethod(method_idx, dex_file) << " " << Dumpable<MemStats>(mem_stats);
+    }
+  }
+
+  if (cu.enable_debug & (1 << kDebugShowSummaryMemoryUsage)) {
+    LOG(INFO) << "MEMINFO " << cu.arena.BytesAllocated() << " " << cu.mir_graph->GetNumBlocks()
+                    << " " << PrettyMethod(method_idx, dex_file);
+  }
+
+  cu.EndTiming();
+  driver->GetTimingsLogger()->AddLogger(cu.timings);
+  return result;
 }
 
 CompiledMethod* QuickCompiler::JniCompile(uint32_t access_flags,
