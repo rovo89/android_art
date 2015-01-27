@@ -2303,9 +2303,9 @@ void X86Mir2Lir::GenReduceVector(MIR* mir) {
       StoreFinalValue(rl_dest, rl_result);
     } else {
       int displacement = SRegOffset(rl_result.s_reg_low);
+      ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
       LIR *l = NewLIR4(extr_opcode, rs_rX86_SP_32.GetReg(), displacement, vector_src.GetReg(),
                        extract_index);
-      AnnotateDalvikRegAccess(l, displacement >> 2, true /* is_load */, is_wide /* is_64bit */);
       AnnotateDalvikRegAccess(l, displacement >> 2, false /* is_load */, is_wide /* is_64bit */);
     }
   }
