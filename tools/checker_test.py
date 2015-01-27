@@ -60,8 +60,14 @@ class TestCheckFile_PrefixExtraction(unittest.TestCase):
 
 
 class TestCheckLine_Parse(unittest.TestCase):
+  def __getPartPattern(self, linePart):
+    if linePart.variant == checker.CheckElement.Variant.Separator:
+      return "\s+"
+    else:
+      return linePart.pattern
+
   def __getRegex(self, checkLine):
-    return "".join(map(lambda x: "(" + x.pattern + ")", checkLine.lineParts))
+    return "".join(map(lambda x: "(" + self.__getPartPattern(x) + ")", checkLine.lineParts))
 
   def __tryParse(self, string):
     return checker.CheckLine(string)
@@ -188,14 +194,17 @@ class TestCheckLine_Match(unittest.TestCase):
 
   def test_TextAndWhitespace(self):
     self.__matchSingle("foo", "foo")
-    self.__matchSingle("foo", "XfooX")
+    self.__matchSingle("foo", "  foo  ")
     self.__matchSingle("foo", "foo bar")
+    self.__notMatchSingle("foo", "XfooX")
     self.__notMatchSingle("foo", "zoo")
 
     self.__matchSingle("foo bar", "foo   bar")
     self.__matchSingle("foo bar", "abc foo bar def")
     self.__matchSingle("foo bar", "foo foo bar bar")
-    self.__notMatchSingle("foo bar", "foo abc bar")
+
+    self.__matchSingle("foo bar", "foo X bar")
+    self.__notMatchSingle("foo bar", "foo Xbar")
 
   def test_Pattern(self):
     self.__matchSingle("foo{{A|B}}bar", "fooAbar")
