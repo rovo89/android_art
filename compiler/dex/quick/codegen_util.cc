@@ -967,12 +967,12 @@ ConditionCode Mir2Lir::NegateComparison(ConditionCode before) {
 
 // TODO: move to mir_to_lir.cc
 Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
-    : Backend(arena),
-      literal_list_(nullptr),
+    : literal_list_(nullptr),
       method_literal_list_(nullptr),
       class_literal_list_(nullptr),
       code_literal_list_(nullptr),
       first_fixup_(nullptr),
+      arena_(arena),
       cu_(cu),
       mir_graph_(mir_graph),
       switch_tables_(arena->Adapter(kArenaAllocSwitchTable)),

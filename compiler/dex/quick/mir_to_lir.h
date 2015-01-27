@@ -23,7 +23,6 @@
 #include "dex/dex_types.h"
 #include "dex/reg_location.h"
 #include "dex/reg_storage.h"
-#include "dex/backend.h"
 #include "dex/quick/resource_mask.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "invoke_type.h"
@@ -201,7 +200,7 @@ struct LIR {
 // Mask to denote sreg as the start of a 64-bit item.  Must not interfere with low 16 bits.
 #define STARTING_WIDE_SREG 0x10000
 
-class Mir2Lir : public Backend {
+class Mir2Lir {
   public:
     static constexpr bool kFailOnSizeError = true && kIsDebugBuild;
     static constexpr bool kReportSizeError = true && kIsDebugBuild;
@@ -1465,6 +1464,30 @@ class Mir2Lir : public Backend {
 
     virtual LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) = 0;
 
+    // Queries for backend support for vectors
+    /*
+     * Return the number of bits in a vector register.
+     * @return 0 if vector registers are not supported, or the
+     * number of bits in the vector register if supported.
+     */
+    virtual int VectorRegisterSize() {
+      return 0;
+    }
+
+    /*
+     * Return the number of reservable vector registers supported
+     * @param long_or_fp, true if floating point computations will be
+     * executed or the operations will be long type while vector
+     * registers are reserved.
+     * @return the number of vector registers that are available
+     * @note The backend should ensure that sufficient vector registers
+     * are held back to generate scalar code without exhausting vector
+     * registers, if scalar code also uses the vector registers.
+     */
+    virtual int NumReservableVectorRegisters(bool long_or_fp ATTRIBUTE_UNUSED) {
+      return 0;
+    }
+
   protected:
     Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena);
 
@@ -1687,6 +1710,7 @@ class Mir2Lir : public Backend {
     LIR* first_fixup_;                         // Doubly-linked list of LIR nodes requiring fixups.
 
   protected:
+    ArenaAllocator* const arena_;
     CompilationUnit* const cu_;
     MIRGraph* const mir_graph_;
     ArenaVector<SwitchTable*> switch_tables_;

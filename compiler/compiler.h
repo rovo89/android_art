@@ -70,8 +70,6 @@ class Compiler {
                         bool is_host) const
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
-  virtual Backend* GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const = 0;
-
   uint64_t GetMaximumCompilationTimeBeforeWarning() const {
     return maximum_compilation_time_before_warning_;
   }
