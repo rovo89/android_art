@@ -26,56 +26,6 @@ class CompiledMethod;
 class Compiler;
 class CompilerDriver;
 
-/*
- * Assembly is an iterative process, and usually terminates within
- * two or three passes.  This should be high enough to handle bizarre
- * cases, but detect an infinite loop bug.
- */
-#define MAX_ASSEMBLER_RETRIES 50
-
-// Suppress optimization if corresponding bit set.
-enum opt_control_vector {
-  kLoadStoreElimination = 0,
-  kLoadHoisting,
-  kSuppressLoads,
-  kNullCheckElimination,
-  kClassInitCheckElimination,
-  kGlobalValueNumbering,
-  kLocalValueNumbering,
-  kPromoteRegs,
-  kTrackLiveTemps,
-  kSafeOptimizations,
-  kBBOpt,
-  kSuspendCheckElimination,
-  kMatch,
-  kPromoteCompilerTemps,
-  kBranchFusing,
-  kSuppressExceptionEdges,
-  kSuppressMethodInlining,
-};
-
-// Force code generation paths for testing.
-enum debugControlVector {
-  kDebugVerbose,
-  kDebugDumpCFG,
-  kDebugSlowFieldPath,
-  kDebugSlowInvokePath,
-  kDebugSlowStringPath,
-  kDebugSlowTypePath,
-  kDebugSlowestFieldPath,
-  kDebugSlowestStringPath,
-  kDebugExerciseResolveMethod,
-  kDebugVerifyDataflow,
-  kDebugShowMemoryUsage,
-  kDebugShowNops,
-  kDebugCountOpcodes,
-  kDebugDumpCheckStats,
-  kDebugShowSummaryMemoryUsage,
-  kDebugShowFilterStats,
-  kDebugTimings,
-  kDebugCodegenDump
-};
-
 CompiledMethod* CompileOneMethod(CompilerDriver* driver,
                                  const Compiler* compiler,
                                  const DexFile::CodeItem* code_item,

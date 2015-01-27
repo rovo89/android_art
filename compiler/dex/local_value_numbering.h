@@ -19,7 +19,7 @@
 
 #include <memory>
 
-#include "compiler_internals.h"
+#include "base/logging.h"
 #include "global_value_numbering.h"
 #include "utils/arena_object.h"
 #include "utils/dex_instruction_utils.h"

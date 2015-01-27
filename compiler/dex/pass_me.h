@@ -18,14 +18,16 @@
 #define ART_COMPILER_DEX_PASS_ME_H_
 
 #include <string>
+
+#include "base/logging.h"
 #include "pass.h"
+#include "safe_map.h"
 
 namespace art {
 
 // Forward declarations.
 class BasicBlock;
 struct CompilationUnit;
-class Pass;
 
 /**
  * @brief OptimizationFlag is an enumeration to perform certain tasks for a given pass.
@@ -116,17 +118,6 @@ class PassME : public Pass {
     for (auto option_it = default_options_.begin(); option_it != default_options_.end(); option_it++) {
       LOG(INFO) << "\t" << option_it->first << ":" << std::dec << GetPassOption(option_it->first, overridden_options);
     }
-  }
-
-  /**
-   * @brief Used to obtain the option for a pass.
-   * @details Will return the overridden option if it exists or default one.
-   * @param option_name The name of option whose setting to look for.
-   * @param c_unit The compilation unit currently being handled.
-   * @return Returns the setting for the pass option.
-   */
-  int GetPassOption(const char* option_name, CompilationUnit* c_unit) const {
-    return GetPassOption(option_name, c_unit->overridden_pass_options);
   }
 
   const char* GetDumpCFGFolder() const {

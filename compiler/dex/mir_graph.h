@@ -19,10 +19,9 @@
 
 #include <stdint.h>
 
-#include "compiler_ir.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
-#include "driver/dex_compilation_unit.h"
+#include "dex_types.h"
 #include "invoke_type.h"
 #include "mir_field_info.h"
 #include "mir_method_info.h"
@@ -34,8 +33,13 @@
 
 namespace art {
 
+struct CompilationUnit;
+class DexCompilationUnit;
 class DexFileMethodInliner;
 class GlobalValueNumbering;
+
+// Forward declaration.
+class MIRGraph;
 
 enum DataFlowAttributePos {
   kUA = 0,
@@ -139,7 +143,6 @@ enum OatMethodAttributes {
 // Minimum field size to contain Dalvik v_reg number.
 #define VREG_NUM_WIDTH 16
 
-#define INVALID_SREG (-1)
 #define INVALID_VREG (0xFFFFU)
 #define INVALID_OFFSET (0xDEADF00FU)
 
@@ -553,9 +556,7 @@ class MIRGraph {
    * This is guaranteed to contain index 0 which is the base method being compiled.
    * @return Returns the raw instruction pointer.
    */
-  const uint16_t* GetInsns(int m_unit_index) const {
-    return m_units_[m_unit_index]->GetCodeItem()->insns_;
-  }
+  const uint16_t* GetInsns(int m_unit_index) const;
 
   /**
    * @brief Used to obtain the raw data table.

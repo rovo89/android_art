@@ -15,6 +15,8 @@
  */
 
 #include "global_value_numbering.h"
+
+#include "base/stl_util.h"
 #include "local_value_numbering.h"
 
 namespace art {

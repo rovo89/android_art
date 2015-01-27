@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
+#include "mir_to_lir-inl.h"
+
 #include <functional>
 
 #include "arch/arm/instruction_set_features_arm.h"
+#include "base/macros.h"
 #include "dex/compiler_ir.h"
-#include "dex/compiler_internals.h"
+#include "dex/mir_graph.h"
 #include "dex/quick/arm/arm_lir.h"
-#include "dex/quick/mir_to_lir-inl.h"
+#include "driver/compiler_driver.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "mirror/array.h"
 #include "mirror/object_array-inl.h"
@@ -40,6 +43,18 @@ typedef mirror::ObjectArray<mirror::Class> ClassArray;
  * be applicable to most targets.  Only mid-level support utilities
  * and "op" calls may be used here.
  */
+
+ALWAYS_INLINE static inline bool ForceSlowFieldPath(CompilationUnit* cu) {
+  return (cu->enable_debug & (1 << kDebugSlowFieldPath)) != 0;
+}
+
+ALWAYS_INLINE static inline bool ForceSlowStringPath(CompilationUnit* cu) {
+  return (cu->enable_debug & (1 << kDebugSlowStringPath)) != 0;
+}
+
+ALWAYS_INLINE static inline bool ForceSlowTypePath(CompilationUnit* cu) {
+  return (cu->enable_debug & (1 << kDebugSlowTypePath)) != 0;
+}
 
 /*
  * Generate a kPseudoBarrier marker to indicate the boundary of special
@@ -594,7 +609,7 @@ void Mir2Lir::GenSput(MIR* mir, RegLocation rl_src, OpSize size) {
   const MirSFieldLoweringInfo& field_info = mir_graph_->GetSFieldLoweringInfo(mir);
   DCHECK_EQ(SPutMemAccessType(mir->dalvikInsn.opcode), field_info.MemAccessType());
   cu_->compiler_driver->ProcessedStaticField(field_info.FastPut(), field_info.IsReferrersClass());
-  if (!SLOW_FIELD_PATH && field_info.FastPut()) {
+  if (!ForceSlowFieldPath(cu_) && field_info.FastPut()) {
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     RegStorage r_base;
     if (field_info.IsReferrersClass()) {
@@ -714,7 +729,7 @@ void Mir2Lir::GenSget(MIR* mir, RegLocation rl_dest, OpSize size, Primitive::Typ
   DCHECK_EQ(SGetMemAccessType(mir->dalvikInsn.opcode), field_info.MemAccessType());
   cu_->compiler_driver->ProcessedStaticField(field_info.FastGet(), field_info.IsReferrersClass());
 
-  if (!SLOW_FIELD_PATH && field_info.FastGet()) {
+  if (!ForceSlowFieldPath(cu_) && field_info.FastGet()) {
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
     RegStorage r_base;
     if (field_info.IsReferrersClass()) {
@@ -852,7 +867,7 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size, Primitive::Type type
   const MirIFieldLoweringInfo& field_info = mir_graph_->GetIFieldLoweringInfo(mir);
   DCHECK_EQ(IGetMemAccessType(mir->dalvikInsn.opcode), field_info.MemAccessType());
   cu_->compiler_driver->ProcessedInstanceField(field_info.FastGet());
-  if (!SLOW_FIELD_PATH && field_info.FastGet()) {
+  if (!ForceSlowFieldPath(cu_) && field_info.FastGet()) {
     RegisterClass reg_class = RegClassForFieldLoadStore(size, field_info.IsVolatile());
     // A load of the class will lead to an iget with offset 0.
     DCHECK_GE(field_info.FieldOffset().Int32Value(), 0);
@@ -926,7 +941,7 @@ void Mir2Lir::GenIPut(MIR* mir, int opt_flags, OpSize size,
   const MirIFieldLoweringInfo& field_info = mir_graph_->GetIFieldLoweringInfo(mir);
   DCHECK_EQ(IPutMemAccessType(mir->dalvikInsn.opcode), field_info.MemAccessType());
   cu_->compiler_driver->ProcessedInstanceField(field_info.FastPut());
-  if (!SLOW_FIELD_PATH && field_info.FastPut()) {
+  if (!ForceSlowFieldPath(cu_) && field_info.FastPut()) {
     RegisterClass reg_class = RegClassForFieldLoadStore(size, field_info.IsVolatile());
     // Dex code never writes to the class field.
     DCHECK_GE(static_cast<uint32_t>(field_info.FieldOffset().Int32Value()),
@@ -1016,7 +1031,7 @@ void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
     int32_t offset_of_type = ClassArray::OffsetOfElement(type_idx).Int32Value();
     LoadRefDisp(res_reg, offset_of_type, rl_result.reg, kNotVolatile);
     if (!cu_->compiler_driver->CanAssumeTypeIsPresentInDexCache(*cu_->dex_file,
-        type_idx) || SLOW_TYPE_PATH) {
+        type_idx) || ForceSlowTypePath(cu_)) {
       // Slow path, at runtime test if type is null and if so initialize
       FlushAllRegs();
       LIR* branch = OpCmpImmBranch(kCondEq, rl_result.reg, 0, NULL);
@@ -1061,7 +1076,7 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
   int32_t offset_of_string = mirror::ObjectArray<mirror::String>::OffsetOfElement(string_idx).
                                                                                       Int32Value();
   if (!cu_->compiler_driver->CanAssumeStringIsPresentInDexCache(
-      *cu_->dex_file, string_idx) || SLOW_STRING_PATH) {
+      *cu_->dex_file, string_idx) || ForceSlowStringPath(cu_)) {
     // slow path, resolve string if not in dex cache
     FlushAllRegs();
     LockCallTemps();  // Using explicit registers
@@ -1679,7 +1694,7 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
       rl_result = GenDivRem(rl_dest, rl_src1.reg, rl_src2.reg, op == kOpDiv);
       done = true;
     } else if (cu_->instruction_set == kThumb2) {
-      if (cu_->GetInstructionSetFeatures()->AsArmInstructionSetFeatures()->
+      if (cu_->compiler_driver->GetInstructionSetFeatures()->AsArmInstructionSetFeatures()->
               HasDivideInstruction()) {
         // Use ARM SDIV instruction for division.  For remainder we also need to
         // calculate using a MUL and subtract.
@@ -1973,7 +1988,7 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
         rl_result = GenDivRemLit(rl_dest, rl_src, lit, is_div);
         done = true;
       } else if (cu_->instruction_set == kThumb2) {
-        if (cu_->GetInstructionSetFeatures()->AsArmInstructionSetFeatures()->
+        if (cu_->compiler_driver->GetInstructionSetFeatures()->AsArmInstructionSetFeatures()->
                 HasDivideInstruction()) {
           // Use ARM SDIV instruction for division.  For remainder we also need to
           // calculate using a MUL and subtract.

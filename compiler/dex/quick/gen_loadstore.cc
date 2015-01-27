@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+#include "mir_to_lir-inl.h"
+
 #include "dex/compiler_ir.h"
-#include "dex/compiler_internals.h"
-#include "dex/quick/mir_to_lir-inl.h"
+#include "dex/mir_graph.h"
 #include "invoke_type.h"
 
 namespace art {

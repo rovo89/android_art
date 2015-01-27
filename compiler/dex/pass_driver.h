@@ -18,13 +18,13 @@
 #define ART_COMPILER_DEX_PASS_DRIVER_H_
 
 #include <vector>
+
+#include "base/logging.h"
 #include "pass.h"
 #include "safe_map.h"
 
-// Forward Declarations.
-class Pass;
-class PassDriver;
 namespace art {
+
 /**
  * @brief Helper function to create a single instance of a given Pass and can be shared across
  * the threads.

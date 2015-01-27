@@ -17,8 +17,11 @@
 #ifndef ART_COMPILER_DEX_GLOBAL_VALUE_NUMBERING_H_
 #define ART_COMPILER_DEX_GLOBAL_VALUE_NUMBERING_H_
 
+#include "base/logging.h"
 #include "base/macros.h"
-#include "compiler_internals.h"
+#include "mir_graph.h"
+#include "compiler_ir.h"
+#include "dex_flags.h"
 #include "utils/arena_object.h"
 
 namespace art {
@@ -252,7 +255,7 @@ class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
 };
 std::ostream& operator<<(std::ostream& os, const GlobalValueNumbering::Mode& rhs);
 
-inline  void GlobalValueNumbering::StartPostProcessing() {
+inline void GlobalValueNumbering::StartPostProcessing() {
   DCHECK(Good());
   DCHECK_EQ(mode_, kModeGvn);
   mode_ = kModeGvnPostProcessing;

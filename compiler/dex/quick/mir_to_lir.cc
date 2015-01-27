@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include "dex/compiler_internals.h"
+#include "mir_to_lir-inl.h"
+
 #include "dex/dataflow_iterator-inl.h"
 #include "dex/quick/dex_file_method_inliner.h"
-#include "mir_to_lir-inl.h"
+#include "driver/compiler_driver.h"
 #include "primitive.h"
 #include "thread-inl.h"
 

@@ -21,6 +21,7 @@
 
 namespace art {
 
+static constexpr int16_t INVALID_SREG = -1;
 
 /*
  * Whereas a SSA name describes a definition of a Dalvik vreg, the RegLocation describes
