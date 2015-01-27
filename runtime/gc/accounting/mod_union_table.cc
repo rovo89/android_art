@@ -26,6 +26,7 @@
 #include "gc/collector/mark_sweep-inl.h"
 #include "gc/heap.h"
 #include "gc/space/space.h"
+#include "gc/space/image_space.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/class-inl.h"
@@ -76,8 +77,9 @@ class ModUnionUpdateObjectReferencesVisitor {
  public:
   ModUnionUpdateObjectReferencesVisitor(MarkHeapReferenceCallback* callback, void* arg,
                                         space::ContinuousSpace* from_space,
+                                        space::ImageSpace* image_space,
                                         bool* contains_reference_to_other_space)
-    : callback_(callback), arg_(arg), from_space_(from_space),
+    : callback_(callback), arg_(arg), from_space_(from_space), image_space_(image_space),
       contains_reference_to_other_space_(contains_reference_to_other_space) {
   }
 
@@ -87,7 +89,7 @@ class ModUnionUpdateObjectReferencesVisitor {
     // Only add the reference if it is non null and fits our criteria.
     mirror::HeapReference<Object>* obj_ptr = obj->GetFieldObjectReferenceAddr(offset);
     mirror::Object* ref = obj_ptr->AsMirrorPtr();
-    if (ref != nullptr && !from_space_->HasAddress(ref)) {
+    if (ref != nullptr && !from_space_->HasAddress(ref) && !image_space_->HasAddress(ref)) {
       *contains_reference_to_other_space_ = true;
       callback_(obj_ptr, arg_);
     }
@@ -98,6 +100,7 @@ class ModUnionUpdateObjectReferencesVisitor {
   void* arg_;
   // Space which we are scanning
   space::ContinuousSpace* const from_space_;
+  space::ImageSpace* const image_space_;
   // Set if we have any references to another space.
   bool* const contains_reference_to_other_space_;
 };
@@ -105,16 +108,16 @@ class ModUnionUpdateObjectReferencesVisitor {
 class ModUnionScanImageRootVisitor {
  public:
   ModUnionScanImageRootVisitor(MarkHeapReferenceCallback* callback, void* arg,
-                               space::ContinuousSpace* from_space,
+                               space::ContinuousSpace* from_space, space::ImageSpace* image_space,
                                bool* contains_reference_to_other_space)
-      : callback_(callback), arg_(arg), from_space_(from_space),
+      : callback_(callback), arg_(arg), from_space_(from_space), image_space_(image_space),
         contains_reference_to_other_space_(contains_reference_to_other_space) {}
 
   void operator()(Object* root) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(root != NULL);
-    ModUnionUpdateObjectReferencesVisitor ref_visitor(callback_, arg_, from_space_,
+    ModUnionUpdateObjectReferencesVisitor ref_visitor(callback_, arg_, from_space_, image_space_,
                                                       contains_reference_to_other_space_);
     root->VisitReferences<kMovingClasses>(ref_visitor, VoidFunctor());
   }
@@ -124,6 +127,7 @@ class ModUnionScanImageRootVisitor {
   void* const arg_;
   // Space which we are scanning
   space::ContinuousSpace* const from_space_;
+  space::ImageSpace* const image_space_;
   // Set if we have any references to another space.
   bool* const contains_reference_to_other_space_;
 };
@@ -331,9 +335,11 @@ void ModUnionTableCardCache::ClearCards() {
 void ModUnionTableCardCache::UpdateAndMarkReferences(MarkHeapReferenceCallback* callback,
                                                      void* arg) {
   CardTable* card_table = heap_->GetCardTable();
+  space::ImageSpace* image_space = heap_->GetImageSpace();
   ContinuousSpaceBitmap* bitmap = space_->GetLiveBitmap();
   bool reference_to_other_space = false;
-  ModUnionScanImageRootVisitor scan_visitor(callback, arg, space_, &reference_to_other_space);
+  ModUnionScanImageRootVisitor scan_visitor(callback, arg, space_, image_space,
+                                            &reference_to_other_space);
   for (auto it = cleared_cards_.begin(), end = cleared_cards_.end(); it != end; ) {
     uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(*it));
     DCHECK(space_->HasAddress(reinterpret_cast<Object*>(start)));
