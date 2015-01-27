@@ -223,10 +223,16 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     const char* kEndInstructionMarker = "<|@";
     for (HInstructionIterator it(list); !it.Done(); it.Advance()) {
       HInstruction* instruction = it.Current();
-      AddIndent();
       int bci = 0;
-      output_ << bci << " " << instruction->ExpensiveComputeNumberOfUses()
-              << " " << GetTypeId(instruction->GetType()) << instruction->GetId() << " ";
+      size_t num_uses = 0;
+      for (HUseIterator<HInstruction*> use_it(instruction->GetUses());
+           !use_it.Done();
+           use_it.Advance()) {
+        ++num_uses;
+      }
+      AddIndent();
+      output_ << bci << " " << num_uses << " "
+              << GetTypeId(instruction->GetType()) << instruction->GetId() << " ";
       PrintInstruction(instruction);
       output_ << kEndInstructionMarker << std::endl;
     }

@@ -623,7 +623,7 @@ class HUseList : public ValueObject {
   // Adds a new entry at the beginning of the use list and returns
   // the newly created node.
   HUseListNode<T>* AddUse(T user, size_t index, ArenaAllocator* arena) {
-    HUseListNode<T>* new_node = new(arena) HUseListNode<T>(user, index);
+    HUseListNode<T>* new_node = new (arena) HUseListNode<T>(user, index);
     if (IsEmpty()) {
       first_ = new_node;
     } else {
@@ -863,20 +863,11 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   void RemoveUser(HInstruction* user, size_t index);
   void RemoveEnvironmentUser(HUseListNode<HEnvironment*>* use);
 
-  HUseList<HInstruction*>& GetUses() { return uses_; }
-  HUseList<HEnvironment*>& GetEnvUses() { return env_uses_; }
+  const HUseList<HInstruction*>& GetUses() { return uses_; }
+  const HUseList<HEnvironment*>& GetEnvUses() { return env_uses_; }
 
   bool HasUses() const { return !uses_.IsEmpty() || !env_uses_.IsEmpty(); }
   bool HasEnvironmentUses() const { return !env_uses_.IsEmpty(); }
-
-  size_t ExpensiveComputeNumberOfUses() const {
-    // TODO: Optimize this method if it is used outside of the HGraphVisualizer.
-    size_t result = 0;
-    for (HUseIterator<HInstruction*> it(uses_); !it.Done(); it.Advance()) {
-      ++result;
-    }
-    return result;
-  }
 
   // Does this instruction strictly dominate `other_instruction`?
   // Returns false if this instruction and `other_instruction` are the same.
