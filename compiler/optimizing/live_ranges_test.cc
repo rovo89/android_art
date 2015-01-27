@@ -432,7 +432,7 @@ TEST(LiveRangesTest, CFG4) {
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   HPhi* phi = liveness.GetInstructionFromSsaIndex(4)->AsPhi();
-  ASSERT_EQ(phi->ExpensiveComputeNumberOfUses(), 1u);
+  ASSERT_TRUE(phi->GetUses().HasOnlyOneUse());
   interval = phi->GetLiveInterval();
   range = interval->GetFirstRange();
   ASSERT_EQ(26u, range->GetStart());
