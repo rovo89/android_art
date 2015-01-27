@@ -110,9 +110,10 @@ class Logger(object):
       text = Logger.Color.terminalCode(color, out) + text + \
              Logger.Color.terminalCode(Logger.Color.Default, out)
       if newLine:
-        print(text, flush=True, file=out)
+        print(text, file=out)
       else:
-        print(text, end="", flush=True, file=out)
+        print(text, end="", file=out)
+      out.flush()
 
   @staticmethod
   def fail(msg, file=None, line=-1):
