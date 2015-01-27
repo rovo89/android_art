@@ -128,7 +128,7 @@ class Logger(object):
     Logger.log(location, Logger.Level.Error, color=Logger.Color.Gray, newLine=False, out=sys.stderr)
     Logger.log("error: ", Logger.Level.Error, color=Logger.Color.Red, newLine=False, out=sys.stderr)
     Logger.log(msg, Logger.Level.Error, out=sys.stderr)
-    sys.exit(1)
+    sys.exit(msg)
 
   @staticmethod
   def startTest(name):
@@ -162,7 +162,7 @@ class CheckElement(CommonEqualityMixin):
 
   class Variant(object):
     """Supported language constructs."""
-    Text, Pattern, VarRef, VarDef = range(4)
+    Text, Pattern, VarRef, VarDef, Separator = range(5)
 
   rStartOptional = r"("
   rEndOptional = r")?"
@@ -185,6 +185,10 @@ class CheckElement(CommonEqualityMixin):
     self.variant = variant
     self.name = name
     self.pattern = pattern
+
+  @staticmethod
+  def newSeparator():
+    return CheckElement(CheckElement.Variant.Separator, None, None)
 
   @staticmethod
   def parseText(text):
@@ -261,11 +265,10 @@ class CheckLine(CommonEqualityMixin):
       # If one of the above was identified at the current position, extract them
       # from the line, parse them and add to the list of line parts.
       if self.__isMatchAtStart(matchWhitespace):
-        # We want to be whitespace-agnostic so whenever a check line contains
-        # a whitespace, we add a regex pattern for an arbitrary non-zero number
-        # of whitespaces.
+        # A whitespace in the check line creates a new separator of line parts.
+        # This allows for ignored output between the previous and next parts.
         line = line[matchWhitespace.end():]
-        lineParts.append(CheckElement.parsePattern(r"{{\s+}}"))
+        lineParts.append(CheckElement.newSeparator())
       elif self.__isMatchAtStart(matchPattern):
         pattern = line[0:matchPattern.end()]
         line = line[matchPattern.end():]
@@ -298,49 +301,55 @@ class CheckLine(CommonEqualityMixin):
     else:
       return linePart.pattern
 
+  def __isSeparated(self, outputLine, matchStart):
+    return (matchStart == 0) or (outputLine[matchStart - 1:matchStart].isspace())
+
   # Attempts to match the check line against a line from the output file with
   # the given initial variable values. It returns the new variable state if
   # successful and None otherwise.
   def match(self, outputLine, initialVarState):
-    initialSearchFrom = 0
-    initialPattern = self.__generatePattern(self.lineParts[0], initialVarState)
-    while True:
-      # Search for the first element on the regex parts list. This will mark
-      # the point on the line from which we will attempt to match the rest of
-      # the check pattern. If this iteration produces only a partial match,
-      # the next iteration will start searching further in the output.
-      firstMatch = re.search(initialPattern, outputLine[initialSearchFrom:])
-      if firstMatch is None:
-        return None
-      matchStart = initialSearchFrom + firstMatch.start()
-      initialSearchFrom += firstMatch.start() + 1
+    # Do the full matching on a shadow copy of the variable state. If the
+    # matching fails half-way, we will not need to revert the state.
+    varState = dict(initialVarState)
 
-      # Do the full matching on a shadow copy of the variable state. If the
-      # matching fails half-way, we will not need to revert the state.
-      varState = dict(initialVarState)
+    matchStart = 0
+    isAfterSeparator = True
 
-      # Now try to parse all of the parts of the check line in the right order.
-      # Variable values are updated on-the-fly, meaning that a variable can
-      # be referenced immediately after its definition.
-      fullyMatched = True
-      for part in self.lineParts:
-        pattern = self.__generatePattern(part, varState)
-        match = re.match(pattern, outputLine[matchStart:])
-        if match is None:
-          fullyMatched = False
-          break
+    # Now try to parse all of the parts of the check line in the right order.
+    # Variable values are updated on-the-fly, meaning that a variable can
+    # be referenced immediately after its definition.
+    for part in self.lineParts:
+      if part.variant == CheckElement.Variant.Separator:
+        isAfterSeparator = True
+        continue
+
+      # Find the earliest match for this line part.
+      pattern = self.__generatePattern(part, varState)
+      while True:
+        match = re.search(pattern, outputLine[matchStart:])
+        if (match is None) or (not isAfterSeparator and not self.__isMatchAtStart(match)):
+          return None
         matchEnd = matchStart + match.end()
-        if part.variant == CheckElement.Variant.VarDef:
-          if part.name in varState:
-            Logger.testFailed("Multiple definitions of variable \"" + part.name + "\"",
-                              self.fileName, self.lineNo)
-          varState[part.name] = outputLine[matchStart:matchEnd]
-        matchStart = matchEnd
+        matchStart += match.start()
 
-      # Return the new variable state if all parts were successfully matched.
-      # Otherwise loop and try to find another start point on the same line.
-      if fullyMatched:
-        return varState
+        # Check if this is a valid match if we expect a whitespace separator
+        # before the matched text. Otherwise loop and look for another match.
+        if not isAfterSeparator or self.__isSeparated(outputLine, matchStart):
+          break
+        else:
+          matchStart += 1
+
+      if part.variant == CheckElement.Variant.VarDef:
+        if part.name in varState:
+          Logger.testFailed("Multiple definitions of variable \"" + part.name + "\"",
+                            self.fileName, self.lineNo)
+        varState[part.name] = outputLine[matchStart:matchEnd]
+
+      matchStart = matchEnd
+      isAfterSeparator = False
+
+    # All parts were successfully matched. Return the new variable state.
+    return varState
 
 
 class CheckGroup(CommonEqualityMixin):
