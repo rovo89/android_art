@@ -1149,7 +1149,7 @@ Thread::Thread(bool daemon) : tls32_(daemon), wait_monitor_(nullptr), interrupte
   wait_mutex_ = new Mutex("a thread wait mutex");
   wait_cond_ = new ConditionVariable("a thread wait condition variable", *wait_mutex_);
   tlsPtr_.debug_invoke_req = new DebugInvokeReq;
-  tlsPtr_.single_step_control = new SingleStepControl;
+  tlsPtr_.single_step_control = nullptr;
   tlsPtr_.instrumentation_stack = new std::deque<instrumentation::InstrumentationStackFrame>;
   tlsPtr_.name = new std::string(kThreadNameDuringStartup);
   tlsPtr_.nested_signal_state = static_cast<jmp_buf*>(malloc(sizeof(jmp_buf)));
@@ -1302,7 +1302,9 @@ Thread::~Thread() {
   }
 
   delete tlsPtr_.debug_invoke_req;
-  delete tlsPtr_.single_step_control;
+  if (tlsPtr_.single_step_control != nullptr) {
+    delete tlsPtr_.single_step_control;
+  }
   delete tlsPtr_.instrumentation_stack;
   delete tlsPtr_.name;
   delete tlsPtr_.stack_trace_sample;
@@ -2420,5 +2422,19 @@ bool Thread::UnprotectStack() {
   return mprotect(pregion, kStackOverflowProtectedSize, PROT_READ|PROT_WRITE) == 0;
 }
 
+void Thread::ActivateSingleStepControl(SingleStepControl* ssc) {
+  CHECK(Dbg::IsDebuggerActive());
+  CHECK(GetSingleStepControl() == nullptr) << "Single step already active in thread " << *this;
+  CHECK(ssc != nullptr);
+  tlsPtr_.single_step_control = ssc;
+}
+
+void Thread::DeactivateSingleStepControl() {
+  CHECK(Dbg::IsDebuggerActive());
+  CHECK(GetSingleStepControl() != nullptr) << "Single step not active in thread " << *this;
+  SingleStepControl* ssc = GetSingleStepControl();
+  tlsPtr_.single_step_control = nullptr;
+  delete ssc;
+}
 
 }  // namespace art
