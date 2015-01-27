@@ -18,7 +18,7 @@
 
 #include "base/logging.h"
 #include "dex/compiler_ir.h"
-#include "dex/quick/mir_to_lir.h"
+#include "dex/quick/mir_to_lir-inl.h"
 #include "mips_lir.h"
 
 namespace art {

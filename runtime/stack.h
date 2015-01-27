@@ -649,10 +649,29 @@ class StackVisitor {
   StackVisitor(Thread* thread, Context* context, size_t num_frames)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool GetGPR(uint32_t reg, uintptr_t* val) const;
-  bool SetGPR(uint32_t reg, uintptr_t value);
-  bool GetFPR(uint32_t reg, uintptr_t* val) const;
-  bool SetFPR(uint32_t reg, uintptr_t value);
+  bool IsAccessibleRegister(uint32_t reg, bool is_float) const {
+    return is_float ? IsAccessibleFPR(reg) : IsAccessibleGPR(reg);
+  }
+  uintptr_t GetRegister(uint32_t reg, bool is_float) const {
+    DCHECK(IsAccessibleRegister(reg, is_float));
+    return is_float ? GetFPR(reg) : GetGPR(reg);
+  }
+  void SetRegister(uint32_t reg, uintptr_t value, bool is_float) {
+    DCHECK(IsAccessibleRegister(reg, is_float));
+    if (is_float) {
+      SetFPR(reg, value);
+    } else {
+      SetGPR(reg, value);
+    }
+  }
+
+  bool IsAccessibleGPR(uint32_t reg) const;
+  uintptr_t GetGPR(uint32_t reg) const;
+  void SetGPR(uint32_t reg, uintptr_t value);
+
+  bool IsAccessibleFPR(uint32_t reg) const;
+  uintptr_t GetFPR(uint32_t reg) const;
+  void SetFPR(uint32_t reg, uintptr_t value);
 
   void SanityCheckFrame() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
