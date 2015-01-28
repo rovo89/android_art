@@ -16,9 +16,12 @@
 
 #include "code_generator_arm64.h"
 
+#include "common_arm64.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "gc/accounting/card_table.h"
+#include "intrinsics.h"
+#include "intrinsics_arm64.h"
 #include "mirror/array-inl.h"
 #include "mirror/art_method.h"
 #include "mirror/class.h"
@@ -35,174 +38,36 @@ using namespace vixl;   // NOLINT(build/namespaces)
 #error "ARM64 Codegen VIXL macro-assembler macro already defined."
 #endif
 
-
 namespace art {
 
 namespace arm64 {
 
-// TODO: Tune the use of Load-Acquire, Store-Release vs Data Memory Barriers.
-// For now we prefer the use of load-acquire, store-release over explicit memory barriers.
-static constexpr bool kUseAcquireRelease = true;
+using helpers::CPURegisterFrom;
+using helpers::DRegisterFrom;
+using helpers::FPRegisterFrom;
+using helpers::HeapOperand;
+using helpers::HeapOperandFrom;
+using helpers::InputCPURegisterAt;
+using helpers::InputFPRegisterAt;
+using helpers::InputRegisterAt;
+using helpers::InputOperandAt;
+using helpers::Int64ConstantFrom;
+using helpers::Is64BitType;
+using helpers::IsFPType;
+using helpers::IsIntegralType;
+using helpers::LocationFrom;
+using helpers::OperandFromMemOperand;
+using helpers::OutputCPURegister;
+using helpers::OutputFPRegister;
+using helpers::OutputRegister;
+using helpers::RegisterFrom;
+using helpers::StackOperandFrom;
+using helpers::VIXLRegCodeFromART;
+using helpers::WRegisterFrom;
+using helpers::XRegisterFrom;
+
 static constexpr size_t kHeapRefSize = sizeof(mirror::HeapReference<mirror::Object>);
 static constexpr int kCurrentMethodStackOffset = 0;
-
-namespace {
-
-bool IsFPType(Primitive::Type type) {
-  return type == Primitive::kPrimFloat || type == Primitive::kPrimDouble;
-}
-
-bool IsIntegralType(Primitive::Type type) {
-  switch (type) {
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimLong:
-      return true;
-    default:
-      return false;
-  }
-}
-
-bool Is64BitType(Primitive::Type type) {
-  return type == Primitive::kPrimLong || type == Primitive::kPrimDouble;
-}
-
-// Convenience helpers to ease conversion to and from VIXL operands.
-static_assert((SP == 31) && (WSP == 31) && (XZR == 32) && (WZR == 32),
-              "Unexpected values for register codes.");
-
-int VIXLRegCodeFromART(int code) {
-  if (code == SP) {
-    return vixl::kSPRegInternalCode;
-  }
-  if (code == XZR) {
-    return vixl::kZeroRegCode;
-  }
-  return code;
-}
-
-int ARTRegCodeFromVIXL(int code) {
-  if (code == vixl::kSPRegInternalCode) {
-    return SP;
-  }
-  if (code == vixl::kZeroRegCode) {
-    return XZR;
-  }
-  return code;
-}
-
-Register XRegisterFrom(Location location) {
-  DCHECK(location.IsRegister());
-  return Register::XRegFromCode(VIXLRegCodeFromART(location.reg()));
-}
-
-Register WRegisterFrom(Location location) {
-  DCHECK(location.IsRegister());
-  return Register::WRegFromCode(VIXLRegCodeFromART(location.reg()));
-}
-
-Register RegisterFrom(Location location, Primitive::Type type) {
-  DCHECK(type != Primitive::kPrimVoid && !IsFPType(type));
-  return type == Primitive::kPrimLong ? XRegisterFrom(location) : WRegisterFrom(location);
-}
-
-Register OutputRegister(HInstruction* instr) {
-  return RegisterFrom(instr->GetLocations()->Out(), instr->GetType());
-}
-
-Register InputRegisterAt(HInstruction* instr, int input_index) {
-  return RegisterFrom(instr->GetLocations()->InAt(input_index),
-                      instr->InputAt(input_index)->GetType());
-}
-
-FPRegister DRegisterFrom(Location location) {
-  DCHECK(location.IsFpuRegister());
-  return FPRegister::DRegFromCode(location.reg());
-}
-
-FPRegister SRegisterFrom(Location location) {
-  DCHECK(location.IsFpuRegister());
-  return FPRegister::SRegFromCode(location.reg());
-}
-
-FPRegister FPRegisterFrom(Location location, Primitive::Type type) {
-  DCHECK(IsFPType(type));
-  return type == Primitive::kPrimDouble ? DRegisterFrom(location) : SRegisterFrom(location);
-}
-
-FPRegister OutputFPRegister(HInstruction* instr) {
-  return FPRegisterFrom(instr->GetLocations()->Out(), instr->GetType());
-}
-
-FPRegister InputFPRegisterAt(HInstruction* instr, int input_index) {
-  return FPRegisterFrom(instr->GetLocations()->InAt(input_index),
-                        instr->InputAt(input_index)->GetType());
-}
-
-CPURegister CPURegisterFrom(Location location, Primitive::Type type) {
-  return IsFPType(type) ? CPURegister(FPRegisterFrom(location, type))
-                        : CPURegister(RegisterFrom(location, type));
-}
-
-CPURegister OutputCPURegister(HInstruction* instr) {
-  return IsFPType(instr->GetType()) ? static_cast<CPURegister>(OutputFPRegister(instr))
-                                    : static_cast<CPURegister>(OutputRegister(instr));
-}
-
-CPURegister InputCPURegisterAt(HInstruction* instr, int index) {
-  return IsFPType(instr->InputAt(index)->GetType())
-      ? static_cast<CPURegister>(InputFPRegisterAt(instr, index))
-      : static_cast<CPURegister>(InputRegisterAt(instr, index));
-}
-
-int64_t Int64ConstantFrom(Location location) {
-  HConstant* instr = location.GetConstant();
-  return instr->IsIntConstant() ? instr->AsIntConstant()->GetValue()
-                                : instr->AsLongConstant()->GetValue();
-}
-
-Operand OperandFrom(Location location, Primitive::Type type) {
-  if (location.IsRegister()) {
-    return Operand(RegisterFrom(location, type));
-  } else {
-    return Operand(Int64ConstantFrom(location));
-  }
-}
-
-Operand InputOperandAt(HInstruction* instr, int input_index) {
-  return OperandFrom(instr->GetLocations()->InAt(input_index),
-                     instr->InputAt(input_index)->GetType());
-}
-
-MemOperand StackOperandFrom(Location location) {
-  return MemOperand(sp, location.GetStackIndex());
-}
-
-MemOperand HeapOperand(const Register& base, size_t offset = 0) {
-  // A heap reference must be 32bit, so fit in a W register.
-  DCHECK(base.IsW());
-  return MemOperand(base.X(), offset);
-}
-
-MemOperand HeapOperand(const Register& base, Offset offset) {
-  return HeapOperand(base, offset.SizeValue());
-}
-
-MemOperand HeapOperandFrom(Location location, Offset offset) {
-  return HeapOperand(RegisterFrom(location, Primitive::kPrimNot), offset);
-}
-
-Location LocationFrom(const Register& reg) {
-  return Location::RegisterLocation(ARTRegCodeFromVIXL(reg.code()));
-}
-
-Location LocationFrom(const FPRegister& fpreg) {
-  return Location::FpuRegisterLocation(fpreg.code());
-}
-
-}  // namespace
 
 inline Condition ARM64Condition(IfCondition cond) {
   switch (cond) {
@@ -263,20 +128,6 @@ Location InvokeRuntimeCallingConvention::GetReturnLocation(Primitive::Type retur
 
 #define __ down_cast<CodeGeneratorARM64*>(codegen)->GetVIXLAssembler()->
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, x).Int32Value()
-
-class SlowPathCodeARM64 : public SlowPathCode {
- public:
-  SlowPathCodeARM64() : entry_label_(), exit_label_() {}
-
-  vixl::Label* GetEntryLabel() { return &entry_label_; }
-  vixl::Label* GetExitLabel() { return &exit_label_; }
-
- private:
-  vixl::Label entry_label_;
-  vixl::Label exit_label_;
-
-  DISALLOW_COPY_AND_ASSIGN(SlowPathCodeARM64);
-};
 
 class BoundsCheckSlowPathARM64 : public SlowPathCodeARM64 {
  public:
@@ -602,7 +453,7 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
   }
 
   int frame_size = GetFrameSize();
-  __ Str(w0, MemOperand(sp, -frame_size, PreIndex));
+  __ Str(kArtMethodRegister, MemOperand(sp, -frame_size, PreIndex));
   __ PokeCPURegList(GetFramePreservedRegisters(), frame_size - FrameEntrySpillSize());
 
   // Stack layout:
@@ -978,12 +829,11 @@ void CodeGeneratorARM64::LoadAcquire(HInstruction* instruction,
   Register temp_base = temps.AcquireX();
   Primitive::Type type = instruction->GetType();
 
-  DCHECK(!src.IsRegisterOffset());
   DCHECK(!src.IsPreIndex());
   DCHECK(!src.IsPostIndex());
 
   // TODO(vixl): Let the MacroAssembler handle MemOperand.
-  __ Add(temp_base, src.base(), src.offset());
+  __ Add(temp_base, src.base(), OperandFromMemOperand(src));
   MemOperand base = MemOperand(temp_base);
   switch (type) {
     case Primitive::kPrimBoolean:
@@ -1058,12 +908,12 @@ void CodeGeneratorARM64::StoreRelease(Primitive::Type type,
   UseScratchRegisterScope temps(GetVIXLAssembler());
   Register temp_base = temps.AcquireX();
 
-  DCHECK(!dst.IsRegisterOffset());
   DCHECK(!dst.IsPreIndex());
   DCHECK(!dst.IsPostIndex());
 
   // TODO(vixl): Let the MacroAssembler handle this.
-  __ Add(temp_base, dst.base(), dst.offset());
+  Operand op = OperandFromMemOperand(dst);
+  __ Add(temp_base, dst.base(), op);
   MemOperand base = MemOperand(temp_base);
   switch (type) {
     case Primitive::kPrimBoolean:
@@ -1956,19 +1806,37 @@ void InstructionCodeGeneratorARM64::VisitInvokeInterface(HInvokeInterface* invok
 }
 
 void LocationsBuilderARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
+  IntrinsicLocationsBuilderARM64 intrinsic(GetGraph()->GetArena());
+  if (intrinsic.TryDispatch(invoke)) {
+    return;
+  }
+
   HandleInvoke(invoke);
 }
 
 void LocationsBuilderARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+  IntrinsicLocationsBuilderARM64 intrinsic(GetGraph()->GetArena());
+  if (intrinsic.TryDispatch(invoke)) {
+    return;
+  }
+
   HandleInvoke(invoke);
 }
 
-void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  Register temp = WRegisterFrom(invoke->GetLocations()->GetTemp(0));
-  // Make sure that ArtMethod* is passed in W0 as per the calling convention
-  DCHECK(temp.Is(w0));
+static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorARM64* codegen) {
+  if (invoke->GetLocations()->Intrinsified()) {
+    IntrinsicCodeGeneratorARM64 intrinsic(codegen);
+    intrinsic.Dispatch(invoke);
+    return true;
+  }
+  return false;
+}
+
+void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Register temp) {
+  // Make sure that ArtMethod* is passed in kArtMethodRegister as per the calling convention.
+  DCHECK(temp.Is(kArtMethodRegister));
   size_t index_in_cache = mirror::Array::DataOffset(kHeapRefSize).SizeValue() +
-    invoke->GetDexMethodIndex() * kHeapRefSize;
+      invoke->GetDexMethodIndex() * kHeapRefSize;
 
   // TODO: Implement all kinds of calls:
   // 1) boot -> boot
@@ -1978,22 +1846,35 @@ void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDir
   // Currently we implement the app -> app logic, which looks up in the resolve cache.
 
   // temp = method;
-  codegen_->LoadCurrentMethod(temp);
+  LoadCurrentMethod(temp);
   // temp = temp->dex_cache_resolved_methods_;
   __ Ldr(temp, HeapOperand(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset()));
   // temp = temp[index_in_cache];
   __ Ldr(temp, HeapOperand(temp, index_in_cache));
   // lr = temp->entry_point_from_quick_compiled_code_;
   __ Ldr(lr, HeapOperand(temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-                          kArm64WordSize)));
+      kArm64WordSize)));
   // lr();
   __ Blr(lr);
 
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
-  DCHECK(!codegen_->IsLeafMethod());
+  RecordPcInfo(invoke, invoke->GetDexPc());
+  DCHECK(!IsLeafMethod());
+}
+
+void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+  if (TryGenerateIntrinsicCode(invoke, codegen_)) {
+    return;
+  }
+
+  Register temp = WRegisterFrom(invoke->GetLocations()->GetTemp(0));
+  codegen_->GenerateStaticOrDirectCall(invoke, temp);
 }
 
 void InstructionCodeGeneratorARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
+  if (TryGenerateIntrinsicCode(invoke, codegen_)) {
+    return;
+  }
+
   LocationSummary* locations = invoke->GetLocations();
   Location receiver = locations->InAt(0);
   Register temp = WRegisterFrom(invoke->GetLocations()->GetTemp(0));

@@ -37,8 +37,6 @@ static constexpr FloatRegister kParameterFloatRegisters[] =
 static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
 static constexpr size_t kParameterFloatRegistersLength = arraysize(kParameterFloatRegisters);
 
-static constexpr bool kCoalescedImplicitNullCheck = false;
-
 class InvokeDexCallingConvention : public CallingConvention<Register, FloatRegister> {
  public:
   InvokeDexCallingConvention() : CallingConvention(

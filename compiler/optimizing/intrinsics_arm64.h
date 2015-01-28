@@ -14,10 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_OPTIMIZING_INTRINSICS_X86_64_H_
-#define ART_COMPILER_OPTIMIZING_INTRINSICS_X86_64_H_
+#ifndef ART_COMPILER_OPTIMIZING_INTRINSICS_ARM64_H_
+#define ART_COMPILER_OPTIMIZING_INTRINSICS_ARM64_H_
 
 #include "intrinsics.h"
+
+namespace vixl {
+
+class MacroAssembler;
+
+}  // namespace vixl
 
 namespace art {
 
@@ -25,14 +31,13 @@ class ArenaAllocator;
 class HInvokeStaticOrDirect;
 class HInvokeVirtual;
 
-namespace x86_64 {
+namespace arm64 {
 
-class CodeGeneratorX86_64;
-class X86_64Assembler;
+class CodeGeneratorARM64;
 
-class IntrinsicLocationsBuilderX86_64 FINAL : public IntrinsicVisitor {
+class IntrinsicLocationsBuilderARM64 FINAL : public IntrinsicVisitor {
  public:
-  explicit IntrinsicLocationsBuilderX86_64(ArenaAllocator* arena) : arena_(arena) {}
+  explicit IntrinsicLocationsBuilderARM64(ArenaAllocator* arena) : arena_(arena) {}
 
   // Define visitor methods.
 
@@ -51,12 +56,12 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
  private:
   ArenaAllocator* arena_;
 
-  DISALLOW_COPY_AND_ASSIGN(IntrinsicLocationsBuilderX86_64);
+  DISALLOW_COPY_AND_ASSIGN(IntrinsicLocationsBuilderARM64);
 };
 
-class IntrinsicCodeGeneratorX86_64 FINAL : public IntrinsicVisitor {
+class IntrinsicCodeGeneratorARM64 FINAL : public IntrinsicVisitor {
  public:
-  explicit IntrinsicCodeGeneratorX86_64(CodeGeneratorX86_64* codegen) : codegen_(codegen) {}
+  explicit IntrinsicCodeGeneratorARM64(CodeGeneratorARM64* codegen) : codegen_(codegen) {}
 
   // Define visitor methods.
 
@@ -68,16 +73,16 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 #undef OPTIMIZING_INTRINSICS
 
  private:
-  X86_64Assembler* GetAssembler();
+  vixl::MacroAssembler* GetVIXLAssembler();
 
   ArenaAllocator* GetAllocator();
 
-  CodeGeneratorX86_64* codegen_;
+  CodeGeneratorARM64* codegen_;
 
-  DISALLOW_COPY_AND_ASSIGN(IntrinsicCodeGeneratorX86_64);
+  DISALLOW_COPY_AND_ASSIGN(IntrinsicCodeGeneratorARM64);
 };
 
-}  // namespace x86_64
+}  // namespace arm64
 }  // namespace art
 
-#endif  // ART_COMPILER_OPTIMIZING_INTRINSICS_X86_64_H_
+#endif  // ART_COMPILER_OPTIMIZING_INTRINSICS_ARM64_H_
