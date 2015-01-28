@@ -446,7 +446,8 @@ void Mutex::ExclusiveUnlock(Thread* self) {
     if (Thread::Current() != nullptr) {
       Thread::Current()->GetThreadName(name2);
     }
-    LOG(FATAL) << name1 << " " << name2;
+    LOG(FATAL) << GetName() << " level=" << level_ << " self=" << name1
+               << " Thread::Current()=" << name2;
   }
   AssertHeld(self);
   DCHECK_NE(exclusive_owner_, 0U);
