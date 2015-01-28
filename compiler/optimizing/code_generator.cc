@@ -290,7 +290,7 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
         result_location = locations->InAt(0);
         break;
     }
-    locations->SetOut(result_location);
+    locations->UpdateOut(result_location);
   }
 }
 
