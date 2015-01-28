@@ -47,25 +47,25 @@ static Primitive::Type GetType(uint64_t data, bool is_op_size) {
   if (is_op_size) {
     switch (static_cast<OpSize>(data)) {
       case kSignedByte:
-        return Primitive::Type::kPrimByte;
+        return Primitive::kPrimByte;
       case kSignedHalf:
-        return Primitive::Type::kPrimShort;
+        return Primitive::kPrimShort;
       case k32:
-        return Primitive::Type::kPrimInt;
+        return Primitive::kPrimInt;
       case k64:
-        return Primitive::Type::kPrimLong;
+        return Primitive::kPrimLong;
       default:
         LOG(FATAL) << "Unknown/unsupported op size " << data;
         UNREACHABLE();
     }
   } else {
     if ((data & kIntrinsicFlagIsLong) != 0) {
-      return Primitive::Type::kPrimLong;
+      return Primitive::kPrimLong;
     }
     if ((data & kIntrinsicFlagIsObject) != 0) {
-      return Primitive::Type::kPrimNot;
+      return Primitive::kPrimNot;
     }
-    return Primitive::Type::kPrimInt;
+    return Primitive::kPrimInt;
   }
 }
 
@@ -82,9 +82,9 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
     // Bit manipulations.
     case kIntrinsicReverseBits:
       switch (GetType(method.d.data, true)) {
-        case Primitive::Type::kPrimInt:
+        case Primitive::kPrimInt:
           return Intrinsics::kIntegerReverse;
-        case Primitive::Type::kPrimLong:
+        case Primitive::kPrimLong:
           return Intrinsics::kLongReverse;
         default:
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
@@ -93,11 +93,11 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
       break;
     case kIntrinsicReverseBytes:
       switch (GetType(method.d.data, true)) {
-        case Primitive::Type::kPrimShort:
+        case Primitive::kPrimShort:
           return Intrinsics::kShortReverseBytes;
-        case Primitive::Type::kPrimInt:
+        case Primitive::kPrimInt:
           return Intrinsics::kIntegerReverseBytes;
-        case Primitive::Type::kPrimLong:
+        case Primitive::kPrimLong:
           return Intrinsics::kLongReverseBytes;
         default:
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
@@ -154,13 +154,13 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
     // Memory.peek.
     case kIntrinsicPeek:
       switch (GetType(method.d.data, true)) {
-        case Primitive::Type::kPrimByte:
+        case Primitive::kPrimByte:
           return Intrinsics::kMemoryPeekByte;
-        case Primitive::Type::kPrimShort:
+        case Primitive::kPrimShort:
           return Intrinsics::kMemoryPeekShortNative;
-        case Primitive::Type::kPrimInt:
+        case Primitive::kPrimInt:
           return Intrinsics::kMemoryPeekIntNative;
-        case Primitive::Type::kPrimLong:
+        case Primitive::kPrimLong:
           return Intrinsics::kMemoryPeekLongNative;
         default:
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
@@ -171,13 +171,13 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
     // Memory.poke.
     case kIntrinsicPoke:
       switch (GetType(method.d.data, true)) {
-        case Primitive::Type::kPrimByte:
+        case Primitive::kPrimByte:
           return Intrinsics::kMemoryPokeByte;
-        case Primitive::Type::kPrimShort:
+        case Primitive::kPrimShort:
           return Intrinsics::kMemoryPokeShortNative;
-        case Primitive::Type::kPrimInt:
+        case Primitive::kPrimInt:
           return Intrinsics::kMemoryPokeIntNative;
-        case Primitive::Type::kPrimLong:
+        case Primitive::kPrimLong:
           return Intrinsics::kMemoryPokeLongNative;
         default:
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
@@ -199,11 +199,11 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
 
     case kIntrinsicCas:
       switch (GetType(method.d.data, false)) {
-        case Primitive::Type::kPrimNot:
+        case Primitive::kPrimNot:
           return Intrinsics::kUnsafeCASObject;
-        case Primitive::Type::kPrimInt:
+        case Primitive::kPrimInt:
           return Intrinsics::kUnsafeCASInt;
-        case Primitive::Type::kPrimLong:
+        case Primitive::kPrimLong:
           return Intrinsics::kUnsafeCASLong;
         default:
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
@@ -213,10 +213,12 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
     case kIntrinsicUnsafeGet: {
       const bool is_volatile = (method.d.data & kIntrinsicFlagIsVolatile);
       switch (GetType(method.d.data, false)) {
-        case Primitive::Type::kPrimInt:
+        case Primitive::kPrimInt:
           return is_volatile ? Intrinsics::kUnsafeGetVolatile : Intrinsics::kUnsafeGet;
-        case Primitive::Type::kPrimLong:
+        case Primitive::kPrimLong:
           return is_volatile ? Intrinsics::kUnsafeGetLongVolatile : Intrinsics::kUnsafeGetLong;
+        case Primitive::kPrimNot:
+          return is_volatile ? Intrinsics::kUnsafeGetObjectVolatile : Intrinsics::kUnsafeGetObject;
         default:
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
           UNREACHABLE();
@@ -230,7 +232,7 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
           ((method.d.data & kIntrinsicFlagIsOrdered) != 0)  ? kOrdered :
                                                               kNoSync;
       switch (GetType(method.d.data, false)) {
-        case Primitive::Type::kPrimInt:
+        case Primitive::kPrimInt:
           switch (sync) {
             case kNoSync:
               return Intrinsics::kUnsafePut;
@@ -240,7 +242,7 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
               return Intrinsics::kUnsafePutOrdered;
           }
           break;
-        case Primitive::Type::kPrimLong:
+        case Primitive::kPrimLong:
           switch (sync) {
             case kNoSync:
               return Intrinsics::kUnsafePutLong;
@@ -250,7 +252,7 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
               return Intrinsics::kUnsafePutLongOrdered;
           }
           break;
-        case Primitive::Type::kPrimNot:
+        case Primitive::kPrimNot:
           switch (sync) {
             case kNoSync:
               return Intrinsics::kUnsafePutObject;

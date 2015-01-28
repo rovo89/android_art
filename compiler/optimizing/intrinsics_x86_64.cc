@@ -30,13 +30,11 @@ namespace art {
 
 namespace x86_64 {
 
-static constexpr bool kIntrinsified = true;
-
 X86_64Assembler* IntrinsicCodeGeneratorX86_64::GetAssembler() {
   return reinterpret_cast<X86_64Assembler*>(codegen_->GetAssembler());
 }
 
-ArenaAllocator* IntrinsicCodeGeneratorX86_64::GetArena() {
+ArenaAllocator* IntrinsicCodeGeneratorX86_64::GetAllocator() {
   return codegen_->GetGraph()->GetArena();
 }
 
@@ -644,21 +642,18 @@ void IntrinsicCodeGeneratorX86_64::VisitStringCharAt(HInvoke* invoke) {
   Location temp_loc = locations->GetTemp(0);
   CpuRegister temp = temp_loc.AsRegister<CpuRegister>();
 
-  // Note: Nullcheck has been done before in a HNullCheck before the HInvokeVirtual. If/when we
-  //       move to (coalesced) implicit checks, we have to do a null check below.
-  DCHECK(!kCoalescedImplicitNullCheck);
-
   // TODO: Maybe we can support range check elimination. Overall, though, I think it's not worth
   //       the cost.
   // TODO: For simplicity, the index parameter is requested in a register, so different from Quick
   //       we will not optimize the code for constants (which would save a register).
 
-  SlowPathCodeX86_64* slow_path = new (GetArena()) IntrinsicSlowPathX86_64(invoke);
+  SlowPathCodeX86_64* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
   codegen_->AddSlowPath(slow_path);
 
   X86_64Assembler* assembler = GetAssembler();
 
   __ cmpl(idx, Address(obj, count_offset));
+  codegen_->MaybeRecordImplicitNullCheck(invoke);
   __ j(kAboveEqual, slow_path->GetEntryLabel());
 
   // Get the actual element.
@@ -803,18 +798,25 @@ void IntrinsicCodeGeneratorX86_64::VisitThreadCurrentThread(HInvoke* invoke) {
   GetAssembler()->gs()->movl(out, Address::Absolute(Thread::PeerOffset<kX86_64WordSize>(), true));
 }
 
-static void GenUnsafeGet(LocationSummary* locations, bool is_long,
+static void GenUnsafeGet(LocationSummary* locations, Primitive::Type type,
                          bool is_volatile ATTRIBUTE_UNUSED, X86_64Assembler* assembler) {
   CpuRegister base = locations->InAt(1).AsRegister<CpuRegister>();
   CpuRegister offset = locations->InAt(2).AsRegister<CpuRegister>();
   CpuRegister trg = locations->Out().AsRegister<CpuRegister>();
 
-  if (is_long) {
-    __ movq(trg, Address(base, offset, ScaleFactor::TIMES_1, 0));
-  } else {
-    // TODO: Distinguish object. In case we move to an actual compressed heap, retrieving an object
-    //       pointer will entail an unpack operation.
-    __ movl(trg, Address(base, offset, ScaleFactor::TIMES_1, 0));
+  switch (type) {
+    case Primitive::kPrimInt:
+    case Primitive::kPrimNot:
+      __ movl(trg, Address(base, offset, ScaleFactor::TIMES_1, 0));
+      break;
+
+    case Primitive::kPrimLong:
+      __ movq(trg, Address(base, offset, ScaleFactor::TIMES_1, 0));
+      break;
+
+    default:
+      LOG(FATAL) << "Unsupported op size " << type;
+      UNREACHABLE();
   }
 }
 
@@ -822,10 +824,10 @@ static void CreateIntIntIntToIntLocations(ArenaAllocator* arena, HInvoke* invoke
   LocationSummary* locations = new (arena) LocationSummary(invoke,
                                                            LocationSummary::kNoCall,
                                                            kIntrinsified);
-  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetInAt(2, Location::RequiresRegister());
-  locations->SetOut(Location::SameAsFirstInput());
+  locations->SetOut(Location::RequiresRegister());
 }
 
 void IntrinsicLocationsBuilderX86_64::VisitUnsafeGet(HInvoke* invoke) {
@@ -840,19 +842,33 @@ void IntrinsicLocationsBuilderX86_64::VisitUnsafeGetLong(HInvoke* invoke) {
 void IntrinsicLocationsBuilderX86_64::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
   CreateIntIntIntToIntLocations(arena_, invoke);
 }
+void IntrinsicLocationsBuilderX86_64::VisitUnsafeGetObject(HInvoke* invoke) {
+  CreateIntIntIntToIntLocations(arena_, invoke);
+}
+void IntrinsicLocationsBuilderX86_64::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
+  CreateIntIntIntToIntLocations(arena_, invoke);
+}
+
 
 void IntrinsicCodeGeneratorX86_64::VisitUnsafeGet(HInvoke* invoke) {
-  GenUnsafeGet(invoke->GetLocations(), false, false, GetAssembler());
+  GenUnsafeGet(invoke->GetLocations(), Primitive::kPrimInt, false, GetAssembler());
 }
 void IntrinsicCodeGeneratorX86_64::VisitUnsafeGetVolatile(HInvoke* invoke) {
-  GenUnsafeGet(invoke->GetLocations(), false, true, GetAssembler());
+  GenUnsafeGet(invoke->GetLocations(), Primitive::kPrimInt, true, GetAssembler());
 }
 void IntrinsicCodeGeneratorX86_64::VisitUnsafeGetLong(HInvoke* invoke) {
-  GenUnsafeGet(invoke->GetLocations(), true, false, GetAssembler());
+  GenUnsafeGet(invoke->GetLocations(), Primitive::kPrimLong, false, GetAssembler());
 }
 void IntrinsicCodeGeneratorX86_64::VisitUnsafeGetLongVolatile(HInvoke* invoke) {
-  GenUnsafeGet(invoke->GetLocations(), true, true, GetAssembler());
+  GenUnsafeGet(invoke->GetLocations(), Primitive::kPrimLong, true, GetAssembler());
 }
+void IntrinsicCodeGeneratorX86_64::VisitUnsafeGetObject(HInvoke* invoke) {
+  GenUnsafeGet(invoke->GetLocations(), Primitive::kPrimNot, false, GetAssembler());
+}
+void IntrinsicCodeGeneratorX86_64::VisitUnsafeGetObjectVolatile(HInvoke* invoke) {
+  GenUnsafeGet(invoke->GetLocations(), Primitive::kPrimNot, true, GetAssembler());
+}
+
 
 static void CreateIntIntIntIntToVoidPlusTempsLocations(ArenaAllocator* arena,
                                                        Primitive::Type type,
@@ -860,7 +876,7 @@ static void CreateIntIntIntIntToVoidPlusTempsLocations(ArenaAllocator* arena,
   LocationSummary* locations = new (arena) LocationSummary(invoke,
                                                            LocationSummary::kNoCall,
                                                            kIntrinsified);
-  locations->SetInAt(0, Location::NoLocation());
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
   locations->SetInAt(1, Location::RequiresRegister());
   locations->SetInAt(2, Location::RequiresRegister());
   locations->SetInAt(3, Location::RequiresRegister());
