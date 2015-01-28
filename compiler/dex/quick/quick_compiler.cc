@@ -25,7 +25,6 @@
 #include "compiler.h"
 #include "dex_file-inl.h"
 #include "dex_file_to_method_inliner_map.h"
-#include "dex/backend.h"
 #include "dex/compiler_ir.h"
 #include "dex/dex_flags.h"
 #include "dex/mir_graph.h"
@@ -35,6 +34,7 @@
 #include "driver/compiler_options.h"
 #include "elf_writer_quick.h"
 #include "jni/quick/jni_compiler.h"
+#include "mir_to_lir.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/object.h"
 #include "runtime.h"
@@ -81,7 +81,7 @@ class QuickCompiler FINAL : public Compiler {
     OVERRIDE
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Backend* GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const OVERRIDE;
+  Mir2Lir* GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const;
 
   void InitCompilationUnit(CompilationUnit& cu) const OVERRIDE;
 
@@ -819,7 +819,7 @@ bool QuickCompiler::WriteElf(art::File* file,
                                        *GetCompilerDriver());
 }
 
-Backend* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const {
+Mir2Lir* QuickCompiler::GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const {
   UNUSED(compilation_unit);
   Mir2Lir* mir_to_lir = nullptr;
   switch (cu->instruction_set) {
