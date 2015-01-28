@@ -652,7 +652,7 @@ static HGraph* BuildSSAGraph3(ArenaAllocator* allocator,
   graph->AddBlock(block);
   entry->AddSuccessor(block);
   HInstruction* new_array = new (allocator)
-      HNewArray(constant_10, 0, Primitive::kPrimInt);
+      HNewArray(constant_10, 0, Primitive::kPrimInt, kQuickAllocArray);
   block->AddInstruction(new_array);
   block->AddInstruction(new (allocator) HGoto());
 

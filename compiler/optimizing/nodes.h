@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_NODES_H_
 #define ART_COMPILER_OPTIMIZING_NODES_H_
 
+#include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "invoke_type.h"
 #include "locations.h"
 #include "offsets.h"
@@ -1794,10 +1795,11 @@ class HInvokeInterface : public HInvoke {
 
 class HNewInstance : public HExpression<0> {
  public:
-  HNewInstance(uint32_t dex_pc, uint16_t type_index)
+  HNewInstance(uint32_t dex_pc, uint16_t type_index, QuickEntrypointEnum entrypoint)
       : HExpression(Primitive::kPrimNot, SideEffects::None()),
         dex_pc_(dex_pc),
-        type_index_(type_index) {}
+        type_index_(type_index),
+        entrypoint_(entrypoint) {}
 
   uint32_t GetDexPc() const { return dex_pc_; }
   uint16_t GetTypeIndex() const { return type_index_; }
@@ -1812,11 +1814,14 @@ class HNewInstance : public HExpression<0> {
 
   bool CanBeNull() const OVERRIDE { return false; }
 
+  QuickEntrypointEnum GetEntrypoint() const { return entrypoint_; }
+
   DECLARE_INSTRUCTION(NewInstance);
 
  private:
   const uint32_t dex_pc_;
   const uint16_t type_index_;
+  const QuickEntrypointEnum entrypoint_;
 
   DISALLOW_COPY_AND_ASSIGN(HNewInstance);
 };
@@ -1837,10 +1842,14 @@ class HNeg : public HUnaryOperation {
 
 class HNewArray : public HExpression<1> {
  public:
-  HNewArray(HInstruction* length, uint32_t dex_pc, uint16_t type_index)
+  HNewArray(HInstruction* length,
+            uint32_t dex_pc,
+            uint16_t type_index,
+            QuickEntrypointEnum entrypoint)
       : HExpression(Primitive::kPrimNot, SideEffects::None()),
         dex_pc_(dex_pc),
-        type_index_(type_index) {
+        type_index_(type_index),
+        entrypoint_(entrypoint) {
     SetRawInputAt(0, length);
   }
 
@@ -1852,11 +1861,14 @@ class HNewArray : public HExpression<1> {
 
   bool CanBeNull() const OVERRIDE { return false; }
 
+  QuickEntrypointEnum GetEntrypoint() const { return entrypoint_; }
+
   DECLARE_INSTRUCTION(NewArray);
 
  private:
   const uint32_t dex_pc_;
   const uint16_t type_index_;
+  const QuickEntrypointEnum entrypoint_;
 
   DISALLOW_COPY_AND_ASSIGN(HNewArray);
 };
