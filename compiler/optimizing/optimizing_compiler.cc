@@ -105,11 +105,6 @@ class OptimizingCompiler FINAL : public Compiler {
                 const std::string& android_root,
                 bool is_host) const OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  Backend* GetCodeGenerator(CompilationUnit* cu ATTRIBUTE_UNUSED,
-                            void* compilation_unit ATTRIBUTE_UNUSED) const OVERRIDE {
-    return nullptr;
-  }
-
   void InitCompilationUnit(CompilationUnit& cu ATTRIBUTE_UNUSED) const OVERRIDE {}
 
   void Init() OVERRIDE;

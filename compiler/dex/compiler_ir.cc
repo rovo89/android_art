@@ -18,8 +18,8 @@
 
 #include "arch/instruction_set_features.h"
 #include "base/dumpable.h"
-#include "backend.h"
 #include "dex_flags.h"
+#include "dex/quick/mir_to_lir.h"
 #include "driver/compiler_driver.h"
 #include "mir_graph.h"
 
