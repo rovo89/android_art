@@ -50,14 +50,24 @@ static constexpr size_t kParameterFPRegistersLength = arraysize(kParameterFPRegi
 
 const vixl::Register tr = vixl::x18;                        // Thread Register
 static const vixl::Register kArtMethodRegister = vixl::w0;  // Method register on invoke.
+const vixl::Register kQuickSuspendRegister = vixl::x19;
 
 const vixl::CPURegList vixl_reserved_core_registers(vixl::ip0, vixl::ip1);
 const vixl::CPURegList vixl_reserved_fp_registers(vixl::d31);
-const vixl::CPURegList runtime_reserved_core_registers(tr, vixl::lr);
-const vixl::CPURegList quick_callee_saved_registers(vixl::CPURegister::kRegister,
-                                                    vixl::kXRegSize,
-                                                    kArm64CalleeSaveRefSpills);
 
+// TODO: When the runtime does not use kQuickSuspendRegister as a suspend
+// counter remove it from the reserved registers list.
+const vixl::CPURegList runtime_reserved_core_registers(tr, kQuickSuspendRegister, vixl::lr);
+
+// Callee-saved registers defined by AAPCS64.
+const vixl::CPURegList callee_saved_core_registers(vixl::CPURegister::kRegister,
+                                                   vixl::kXRegSize,
+                                                   vixl::x19.code(),
+                                                   vixl::x30.code());
+const vixl::CPURegList callee_saved_fp_registers(vixl::CPURegister::kFPRegister,
+                                                 vixl::kDRegSize,
+                                                 vixl::d8.code(),
+                                                 vixl::d15.code());
 Location ARM64ReturnLocation(Primitive::Type return_type);
 
 class SlowPathCodeARM64 : public SlowPathCode {
@@ -191,10 +201,14 @@ class CodeGeneratorARM64 : public CodeGenerator {
   void GenerateFrameEntry() OVERRIDE;
   void GenerateFrameExit() OVERRIDE;
 
-  static const vixl::CPURegList& GetFramePreservedRegisters() {
-    static const vixl::CPURegList frame_preserved_regs =
-        vixl::CPURegList(vixl::CPURegister::kRegister, vixl::kXRegSize, vixl::lr.Bit());
-    return frame_preserved_regs;
+  vixl::CPURegList GetFramePreservedCoreRegisters() const {
+    return vixl::CPURegList(vixl::CPURegister::kRegister, vixl::kXRegSize,
+                            core_spill_mask_);
+  }
+
+  vixl::CPURegList GetFramePreservedFPRegisters() const {
+    return vixl::CPURegList(vixl::CPURegister::kFPRegister, vixl::kDRegSize,
+                            fpu_spill_mask_);
   }
 
   void Bind(HBasicBlock* block) OVERRIDE;
