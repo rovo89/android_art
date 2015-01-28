@@ -166,7 +166,8 @@ endef  # name-to-var
 # Tests that are timing sensitive and flaky on heavily loaded systems.
 TEST_ART_TIMING_SENSITIVE_RUN_TESTS := \
   053-wait-some \
-  055-enum-performance
+  055-enum-performance \
+  133-static-invoke-super
 
  # disable timing sensitive tests on "dist" builds.
 ifdef dist_goal
