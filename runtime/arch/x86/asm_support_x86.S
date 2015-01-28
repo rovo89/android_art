@@ -25,6 +25,8 @@
     #define MACRO1(macro_name, macro_arg1) .macro macro_name
     #define MACRO2(macro_name, macro_arg1, macro_args2) .macro macro_name
     #define MACRO3(macro_name, macro_arg1, macro_args2, macro_args3) .macro macro_name
+    #define MACRO4(macro_name, macro_arg1, macro_arg2, macro_arg3, macro_arg4) .macro macro_name
+    #define MACRO5(macro_name, macro_arg1, macro_arg2, macro_arg3, macro_arg4, macro_arg5) .macro macro_name
     #define END_MACRO .endmacro
 
     // Clang's as(1) uses $0, $1, and so on for macro arguments.
@@ -43,6 +45,8 @@
     #define MACRO1(macro_name, macro_arg1) .macro macro_name macro_arg1
     #define MACRO2(macro_name, macro_arg1, macro_arg2) .macro macro_name macro_arg1, macro_arg2
     #define MACRO3(macro_name, macro_arg1, macro_arg2, macro_arg3) .macro macro_name macro_arg1, macro_arg2, macro_arg3
+    #define MACRO4(macro_name, macro_arg1, macro_arg2, macro_arg3, macro_arg4) .macro macro_name macro_arg1, macro_arg2, macro_arg3, macro_arg4
+    #define MACRO5(macro_name, macro_arg1, macro_arg2, macro_arg3, macro_arg4, macro_arg5) .macro macro_name macro_arg1, macro_arg2, macro_arg3, macro_arg4, macro_arg5
     #define END_MACRO .endm
 
     // Regular gas(1) uses \argument_name for macro arguments.
