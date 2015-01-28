@@ -24,25 +24,44 @@
 namespace art {
 namespace x86 {
 
+enum XMM {
+  XMM0 = 0,
+  XMM1 = 1,
+  XMM2 = 2,
+  XMM3 = 3,
+  XMM4 = 4,
+  XMM5 = 5,
+  XMM6 = 6,
+  XMM7 = 7,
+};
+
 static constexpr uint32_t kX86CalleeSaveRefSpills =
     (1 << art::x86::EBP) | (1 << art::x86::ESI) | (1 << art::x86::EDI);
 static constexpr uint32_t kX86CalleeSaveArgSpills =
     (1 << art::x86::ECX) | (1 << art::x86::EDX) | (1 << art::x86::EBX);
+static constexpr uint32_t kX86CalleeSaveFpArgSpills =
+    (1 << art::x86::XMM0) | (1 << art::x86::XMM1) |
+    (1 << art::x86::XMM2) | (1 << art::x86::XMM3);
 
 constexpr uint32_t X86CalleeSaveCoreSpills(Runtime::CalleeSaveType type) {
   return kX86CalleeSaveRefSpills | (type == Runtime::kRefsAndArgs ? kX86CalleeSaveArgSpills : 0) |
       (1 << art::x86::kNumberOfCpuRegisters);  // fake return address callee save
 }
 
+constexpr uint32_t X86CalleeSaveFpSpills(Runtime::CalleeSaveType type) {
+    return type == Runtime::kRefsAndArgs ? kX86CalleeSaveFpArgSpills : 0;
+}
+
 constexpr uint32_t X86CalleeSaveFrameSize(Runtime::CalleeSaveType type) {
   return RoundUp((POPCOUNT(X86CalleeSaveCoreSpills(type)) /* gprs */ +
+                  2 * POPCOUNT(X86CalleeSaveFpSpills(type)) /* fprs */ +
                   1 /* Method* */) * kX86PointerSize, kStackAlignment);
 }
 
 constexpr QuickMethodFrameInfo X86CalleeSaveMethodFrameInfo(Runtime::CalleeSaveType type) {
   return QuickMethodFrameInfo(X86CalleeSaveFrameSize(type),
                               X86CalleeSaveCoreSpills(type),
-                              0u);
+                              X86CalleeSaveFpSpills(type));
 }
 
 }  // namespace x86

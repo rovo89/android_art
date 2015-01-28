@@ -36,8 +36,8 @@ class SlowPathCodeX86;
 static constexpr Register kParameterCoreRegisters[] = { ECX, EDX, EBX };
 static constexpr RegisterPair kParameterCorePairRegisters[] = { ECX_EDX, EDX_EBX };
 static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
-static constexpr XmmRegister kParameterFpuRegisters[] = { };
-static constexpr size_t kParameterFpuRegistersLength = 0;
+static constexpr XmmRegister kParameterFpuRegisters[] = { XMM0, XMM1, XMM2, XMM3 };
+static constexpr size_t kParameterFpuRegistersLength = arraysize(kParameterFpuRegisters);
 
 class InvokeDexCallingConvention : public CallingConvention<Register, XmmRegister> {
  public:
@@ -58,13 +58,18 @@ class InvokeDexCallingConvention : public CallingConvention<Register, XmmRegiste
 
 class InvokeDexCallingConventionVisitor {
  public:
-  InvokeDexCallingConventionVisitor() : gp_index_(0) {}
+  InvokeDexCallingConventionVisitor() : gp_index_(0), fp_index_(0), stack_index_(0) {}
 
   Location GetNextLocation(Primitive::Type type);
 
  private:
   InvokeDexCallingConvention calling_convention;
+  // The current index for cpu registers.
   uint32_t gp_index_;
+  // The current index for fpu registers.
+  uint32_t fp_index_;
+  // The current stack index.
+  uint32_t stack_index_;
 
   DISALLOW_COPY_AND_ASSIGN(InvokeDexCallingConventionVisitor);
 };
