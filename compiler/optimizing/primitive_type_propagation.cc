@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include "ssa_builder.h"
-#include "ssa_type_propagation.h"
+#include "primitive_type_propagation.h"
 
 #include "nodes.h"
+#include "ssa_builder.h"
 
 namespace art {
 
@@ -39,7 +39,7 @@ static Primitive::Type MergeTypes(Primitive::Type existing, Primitive::Type new_
 
 // Re-compute and update the type of the instruction. Returns
 // whether or not the type was changed.
-bool SsaTypePropagation::UpdateType(HPhi* phi) {
+bool PrimitiveTypePropagation::UpdateType(HPhi* phi) {
   Primitive::Type existing = phi->GetType();
 
   Primitive::Type new_type = existing;
@@ -67,14 +67,14 @@ bool SsaTypePropagation::UpdateType(HPhi* phi) {
   return existing != new_type;
 }
 
-void SsaTypePropagation::Run() {
+void PrimitiveTypePropagation::Run() {
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     VisitBasicBlock(it.Current());
   }
   ProcessWorklist();
 }
 
-void SsaTypePropagation::VisitBasicBlock(HBasicBlock* block) {
+void PrimitiveTypePropagation::VisitBasicBlock(HBasicBlock* block) {
   if (block->IsLoopHeader()) {
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HPhi* phi = it.Current()->AsPhi();
@@ -100,7 +100,7 @@ void SsaTypePropagation::VisitBasicBlock(HBasicBlock* block) {
   }
 }
 
-void SsaTypePropagation::ProcessWorklist() {
+void PrimitiveTypePropagation::ProcessWorklist() {
   while (!worklist_.IsEmpty()) {
     HPhi* instruction = worklist_.Pop();
     if (UpdateType(instruction)) {
@@ -109,11 +109,11 @@ void SsaTypePropagation::ProcessWorklist() {
   }
 }
 
-void SsaTypePropagation::AddToWorklist(HPhi* instruction) {
+void PrimitiveTypePropagation::AddToWorklist(HPhi* instruction) {
   worklist_.Add(instruction);
 }
 
-void SsaTypePropagation::AddDependentInstructionsToWorklist(HPhi* instruction) {
+void PrimitiveTypePropagation::AddDependentInstructionsToWorklist(HPhi* instruction) {
   for (HUseIterator<HInstruction*> it(instruction->GetUses()); !it.Done(); it.Advance()) {
     HPhi* phi = it.Current()->GetUser()->AsPhi();
     if (phi != nullptr) {

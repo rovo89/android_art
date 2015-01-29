@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_OPTIMIZING_SSA_TYPE_PROPAGATION_H_
-#define ART_COMPILER_OPTIMIZING_SSA_TYPE_PROPAGATION_H_
+#ifndef ART_COMPILER_OPTIMIZING_PRIMITIVE_TYPE_PROPAGATION_H_
+#define ART_COMPILER_OPTIMIZING_PRIMITIVE_TYPE_PROPAGATION_H_
 
 #include "nodes.h"
 
 namespace art {
 
-// Compute and propagate types of phis in the graph.
-class SsaTypePropagation : public ValueObject {
+// Compute and propagate primitive types of phis in the graph.
+class PrimitiveTypePropagation : public ValueObject {
  public:
-  explicit SsaTypePropagation(HGraph* graph)
+  explicit PrimitiveTypePropagation(HGraph* graph)
       : graph_(graph), worklist_(graph->GetArena(), kDefaultWorklistSize) {}
 
   void Run();
@@ -41,9 +41,9 @@ class SsaTypePropagation : public ValueObject {
 
   static constexpr size_t kDefaultWorklistSize = 8;
 
-  DISALLOW_COPY_AND_ASSIGN(SsaTypePropagation);
+  DISALLOW_COPY_AND_ASSIGN(PrimitiveTypePropagation);
 };
 
 }  // namespace art
 
-#endif  // ART_COMPILER_OPTIMIZING_SSA_TYPE_PROPAGATION_H_
+#endif  // ART_COMPILER_OPTIMIZING_PRIMITIVE_TYPE_PROPAGATION_H_

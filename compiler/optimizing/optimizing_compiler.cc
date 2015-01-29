@@ -43,6 +43,7 @@
 #include "ssa_builder.h"
 #include "ssa_phi_elimination.h"
 #include "ssa_liveness_analysis.h"
+#include "reference_type_propagation.h"
 #include "utils/arena_allocator.h"
 
 namespace art {
@@ -196,6 +197,18 @@ static bool CanOptimize(const DexFile::CodeItem& code_item) {
   return code_item.tries_size_ == 0;
 }
 
+static void RunOptimizations(HOptimization* optimizations[],
+                             size_t length,
+                             const HGraphVisualizer& visualizer) {
+  for (size_t i = 0; i < length; ++i) {
+    HOptimization* optimization = optimizations[i];
+    visualizer.DumpGraph(optimization->GetPassName(), /*is_after=*/false);
+    optimization->Run();
+    visualizer.DumpGraph(optimization->GetPassName(), /*is_after=*/true);
+    optimization->Check();
+  }
+}
+
 static void RunOptimizations(HGraph* graph,
                              CompilerDriver* driver,
                              OptimizingCompilerStats* stats,
@@ -213,7 +226,8 @@ static void RunOptimizations(HGraph* graph,
   SideEffectsAnalysis side_effects(graph);
   GVNOptimization gvn(graph, side_effects);
   BoundsCheckElimination bce(graph);
-  InstructionSimplifier simplify2(graph);
+  ReferenceTypePropagation type_propagation(graph);
+  InstructionSimplifier simplify2(graph, "instruction_simplifier_after_types");
 
   IntrinsicsRecognizer intrinsics(graph, dex_compilation_unit.GetDexFile(), driver);
 
@@ -229,16 +243,11 @@ static void RunOptimizations(HGraph* graph,
     &side_effects,
     &gvn,
     &bce,
+    &type_propagation,
     &simplify2
   };
 
-  for (size_t i = 0; i < arraysize(optimizations); ++i) {
-    HOptimization* optimization = optimizations[i];
-    visualizer.DumpGraph(optimization->GetPassName(), /*is_after=*/false);
-    optimization->Run();
-    visualizer.DumpGraph(optimization->GetPassName(), /*is_after=*/true);
-    optimization->Check();
-  }
+  RunOptimizations(optimizations, arraysize(optimizations), visualizer);
 }
 
 // The stack map we generate must be 4-byte aligned on ARM. Since existing
