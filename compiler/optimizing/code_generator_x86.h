@@ -241,9 +241,12 @@ class CodeGeneratorX86 : public CodeGenerator {
     return type == Primitive::kPrimLong;
   }
 
+  Label* GetFrameEntryLabel() { return &frame_entry_label_; }
+
  private:
   // Labels for each block that will be compiled.
   GrowableArray<Label> block_labels_;
+  Label frame_entry_label_;
   LocationsBuilderX86 location_builder_;
   InstructionCodeGeneratorX86 instruction_visitor_;
   ParallelMoveResolverX86 move_resolver_;

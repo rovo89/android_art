@@ -449,6 +449,7 @@ InstructionCodeGeneratorX86::InstructionCodeGeneratorX86(HGraph* graph, CodeGene
         codegen_(codegen) {}
 
 void CodeGeneratorX86::GenerateFrameEntry() {
+  __ Bind(&frame_entry_label_);
   bool skip_overflow_check =
       IsLeafMethod() && !FrameNeedsStackCheck(GetFrameSize(), InstructionSet::kX86);
   DCHECK(GetCompilerOptions().GetImplicitStackOverflowChecks());
@@ -1125,13 +1126,17 @@ void InstructionCodeGeneratorX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirec
 
   // temp = method;
   codegen_->LoadCurrentMethod(temp);
-  // temp = temp->dex_cache_resolved_methods_;
-  __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
-  // temp = temp[index_in_cache]
-  __ movl(temp, Address(temp, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex())));
-  // (temp + offset_of_quick_compiled_code)()
-  __ call(Address(
-      temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
+  if (!invoke->IsRecursive()) {
+    // temp = temp->dex_cache_resolved_methods_;
+    __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
+    // temp = temp[index_in_cache]
+    __ movl(temp, Address(temp, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex())));
+    // (temp + offset_of_quick_compiled_code)()
+    __ call(Address(
+        temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
+  } else {
+    __ call(codegen_->GetFrameEntryLabel());
+  }
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
