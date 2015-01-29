@@ -1711,9 +1711,11 @@ class HInvokeStaticOrDirect : public HInvoke {
                         Primitive::Type return_type,
                         uint32_t dex_pc,
                         uint32_t dex_method_index,
+                        bool is_recursive,
                         InvokeType invoke_type)
       : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
-        invoke_type_(invoke_type) {}
+        invoke_type_(invoke_type),
+        is_recursive_(is_recursive) {}
 
   bool CanDoImplicitNullCheck() const OVERRIDE {
     // We access the method via the dex cache so we can't do an implicit null check.
@@ -1722,11 +1724,13 @@ class HInvokeStaticOrDirect : public HInvoke {
   }
 
   InvokeType GetInvokeType() const { return invoke_type_; }
+  bool IsRecursive() const { return is_recursive_; }
 
   DECLARE_INSTRUCTION(InvokeStaticOrDirect);
 
  private:
   const InvokeType invoke_type_;
+  const bool is_recursive_;
 
   DISALLOW_COPY_AND_ASSIGN(HInvokeStaticOrDirect);
 };

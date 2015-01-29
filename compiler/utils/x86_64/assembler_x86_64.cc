@@ -57,7 +57,8 @@ void X86_64Assembler::call(Label* label) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xE8);
   static const int kSize = 5;
-  EmitLabel(label, kSize);
+  // Offset by one because we already have emitted the opcode.
+  EmitLabel(label, kSize - 1);
 }
 
 void X86_64Assembler::pushq(CpuRegister reg) {
