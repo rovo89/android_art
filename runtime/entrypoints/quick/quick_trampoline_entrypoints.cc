@@ -827,6 +827,15 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
           caller->SetDexCacheResolvedMethod(method_index, called);
         }
       }
+    } else if (invoke_type == kStatic) {
+      const auto called_dex_method_idx = called->GetDexMethodIndex();
+      // For static invokes, we may dispatch to the static method in the superclass but resolve
+      // using the subclass. To prevent getting slow paths on each invoke, we force set the
+      // resolved method for the super class dex method index if we are in the same dex file.
+      // b/19175856
+      if (called->GetDexFile() == dex_file && dex_method_idx != called_dex_method_idx) {
+        called->GetDexCache()->SetResolvedMethod(called_dex_method_idx, called);
+      }
     }
     // Ensure that the called method's class is initialized.
     StackHandleScope<1> hs(soa.Self());
