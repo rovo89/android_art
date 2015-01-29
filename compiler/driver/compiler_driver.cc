@@ -1267,14 +1267,14 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   }
   // TODO: support patching on all architectures.
   use_dex_cache = use_dex_cache || (force_relocations && !support_boot_image_fixup_);
-  bool method_code_in_boot = (method->GetDeclaringClass()->GetClassLoader() == nullptr);
+  mirror::Class* declaring_class = method->GetDeclaringClass();
+  bool method_code_in_boot = (declaring_class->GetClassLoader() == nullptr);
   if (!use_dex_cache) {
     if (!method_code_in_boot) {
       use_dex_cache = true;
     } else {
-      bool has_clinit_trampoline =
-          method->IsStatic() && !method->GetDeclaringClass()->IsInitialized();
-      if (has_clinit_trampoline && (method->GetDeclaringClass() != referrer_class)) {
+      bool has_clinit_trampoline = method->IsStatic() && !declaring_class->IsInitialized();
+      if (has_clinit_trampoline && (declaring_class != referrer_class)) {
         // Ensure we run the clinit trampoline unless we are invoking a static method in the same
         // class.
         use_dex_cache = true;
@@ -1285,7 +1285,15 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
     *stats_flags |= kFlagDirectCallToBoot | kFlagDirectMethodToBoot;
   }
   if (!use_dex_cache && force_relocations) {
-    if (!IsImage() || !IsImageClass(method->GetDeclaringClassDescriptor())) {
+    bool is_in_image;
+    if (IsImage()) {
+      is_in_image = IsImageClass(method->GetDeclaringClassDescriptor());
+    } else {
+      is_in_image = instruction_set_ != kX86 && instruction_set_ != kX86_64 &&
+                    Runtime::Current()->GetHeap()->FindSpaceFromObject(declaring_class,
+                                                                       false)->IsImageSpace();
+    }
+    if (!is_in_image) {
       // We can only branch directly to Methods that are resolved in the DexCache.
       // Otherwise we won't invoke the resolution trampoline.
       use_dex_cache = true;
@@ -1294,7 +1302,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
   // The method is defined not within this dex file. We need a dex cache slot within the current
   // dex file or direct pointers.
   bool must_use_direct_pointers = false;
-  if (target_method->dex_file == method->GetDeclaringClass()->GetDexCache()->GetDexFile()) {
+  if (target_method->dex_file == declaring_class->GetDexCache()->GetDexFile()) {
     target_method->dex_method_index = method->GetDexMethodIndex();
   } else {
     if (no_guarantee_of_dex_cache_entry) {
@@ -1307,7 +1315,7 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       } else {
         if (force_relocations && !use_dex_cache) {
           target_method->dex_method_index = method->GetDexMethodIndex();
-          target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
+          target_method->dex_file = declaring_class->GetDexCache()->GetDexFile();
         }
         must_use_direct_pointers = true;
       }
@@ -1330,14 +1338,14 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       *type = sharp_type;
       *direct_method = force_relocations ? -1 : reinterpret_cast<uintptr_t>(method);
       *direct_code = force_relocations ? -1 : compiler_->GetEntryPointOf(method);
-      target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
+      target_method->dex_file = declaring_class->GetDexCache()->GetDexFile();
       target_method->dex_method_index = method->GetDexMethodIndex();
     } else if (!must_use_direct_pointers) {
       // Set the code and rely on the dex cache for the method.
       *type = sharp_type;
       if (force_relocations) {
         *direct_code = -1;
-        target_method->dex_file = method->GetDeclaringClass()->GetDexCache()->GetDexFile();
+        target_method->dex_file = declaring_class->GetDexCache()->GetDexFile();
         target_method->dex_method_index = method->GetDexMethodIndex();
       } else {
         *direct_code = compiler_->GetEntryPointOf(method);
