@@ -1847,9 +1847,9 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
   //
   // Currently we implement the app -> app logic, which looks up in the resolve cache.
 
+  // temp = method;
+  LoadCurrentMethod(temp);
   if (!invoke->IsRecursive()) {
-    // temp = method;
-    LoadCurrentMethod(temp);
     // temp = temp->dex_cache_resolved_methods_;
     __ Ldr(temp, HeapOperand(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset()));
     // temp = temp[index_in_cache];
