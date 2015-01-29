@@ -21,19 +21,14 @@
 
 #include "base/logging.h"
 #include "pass.h"
-#include "safe_map.h"
+#include "pass_manager.h"
 
 namespace art {
 
-/**
- * @brief Helper function to create a single instance of a given Pass and can be shared across
- * the threads.
- */
-template <typename PassType>
-const Pass* GetPassInstance() {
-  static const PassType pass;
-  return &pass;
-}
+class Pass;
+class PassDataHolder;
+class PassDriver;
+class PassManager;
 
 // Empty holder for the constructor.
 class PassDriverDataHolder {
@@ -43,11 +38,11 @@ class PassDriverDataHolder {
  * @class PassDriver
  * @brief PassDriver is the wrapper around all Pass instances in order to execute them
  */
-template <typename PassDriverType>
 class PassDriver {
  public:
-  explicit PassDriver() {
-    InitializePasses();
+  explicit PassDriver(const PassManager* const pass_manager) : pass_manager_(pass_manager) {
+    pass_list_ = *pass_manager_->GetDefaultPassList();
+    DCHECK(!pass_list_.empty());
   }
 
   virtual ~PassDriver() {
@@ -58,12 +53,12 @@ class PassDriver {
    */
   void InsertPass(const Pass* new_pass) {
     DCHECK(new_pass != nullptr);
-    DCHECK(new_pass->GetName() != nullptr && new_pass->GetName()[0] != 0);
+    DCHECK(new_pass->GetName() != nullptr);
+    DCHECK_NE(new_pass->GetName()[0], 0);
 
     // It is an error to override an existing pass.
     DCHECK(GetPass(new_pass->GetName()) == nullptr)
         << "Pass name " << new_pass->GetName() << " already used.";
-
     // Now add to the list.
     pass_list_.push_back(new_pass);
   }
@@ -74,7 +69,8 @@ class PassDriver {
    */
   virtual bool RunPass(const char* pass_name) {
     // Paranoid: c_unit cannot be nullptr and we need a pass name.
-    DCHECK(pass_name != nullptr && pass_name[0] != 0);
+    DCHECK(pass_name != nullptr);
+    DCHECK_NE(pass_name[0], 0);
 
     const Pass* cur_pass = GetPass(pass_name);
 
@@ -108,21 +104,6 @@ class PassDriver {
     return nullptr;
   }
 
-  static void CreateDefaultPassList(const std::string& disable_passes) {
-    // Insert each pass from g_passes into g_default_pass_list.
-    PassDriverType::g_default_pass_list.clear();
-    PassDriverType::g_default_pass_list.reserve(PassDriver<PassDriverType>::g_passes_size);
-    for (uint16_t i = 0; i < PassDriver<PassDriverType>::g_passes_size; ++i) {
-      const Pass* pass = PassDriver<PassDriverType>::g_passes[i];
-      // Check if we should disable this pass.
-      if (disable_passes.find(pass->GetName()) != std::string::npos) {
-        LOG(INFO) << "Skipping " << pass->GetName();
-      } else {
-        PassDriver<PassDriverType>::g_default_pass_list.push_back(pass);
-      }
-    }
-  }
-
   /**
    * @brief Run a pass using the Pass itself.
    * @param time_split do we want a time split request(default: false)?
@@ -130,57 +111,7 @@ class PassDriver {
    */
   virtual bool RunPass(const Pass* pass, bool time_split = false) = 0;
 
-  /**
-   * @brief Print the pass names of all the passes available.
-   */
-  static void PrintPassNames() {
-    LOG(INFO) << "Loop Passes are:";
-
-    for (const Pass* cur_pass : PassDriver<PassDriverType>::g_default_pass_list) {
-      LOG(INFO) << "\t-" << cur_pass->GetName();
-    }
-  }
-
-  /**
-   * @brief Gets the list of passes currently schedule to execute.
-   * @return pass_list_
-   */
-  std::vector<const Pass*>& GetPasses() {
-    return pass_list_;
-  }
-
-  static void SetPrintAllPasses() {
-    default_print_passes_ = true;
-  }
-
-  static void SetDumpPassList(const std::string& list) {
-    dump_pass_list_ = list;
-  }
-
-  static void SetPrintPassList(const std::string& list) {
-    print_pass_list_ = list;
-  }
-
-  /**
-   * @brief Used to set a string that contains the overridden pass options.
-   * @details An overridden pass option means that the pass uses this option
-   * instead of using its default option.
-   * @param s The string passed by user with overridden options. The string is in format
-   * Pass1Name:Pass1Option:Pass1Setting,Pass2Name:Pass2Option::Pass2Setting
-   */
-  static void SetOverriddenPassOptions(const std::string& s) {
-    overridden_pass_options_list_ = s;
-  }
-
-  void SetDefaultPasses() {
-    pass_list_ = PassDriver<PassDriverType>::g_default_pass_list;
-  }
-
  protected:
-  virtual void InitializePasses() {
-    SetDefaultPasses();
-  }
-
   /**
    * @brief Apply a patch: perform start/work/end functions.
    */
@@ -189,6 +120,7 @@ class PassDriver {
     DispatchPass(pass);
     pass->End(data);
   }
+
   /**
    * @brief Dispatch a patch.
    * Gives the ability to add logic when running the patch.
@@ -197,29 +129,11 @@ class PassDriver {
     UNUSED(pass);
   }
 
-  /** @brief List of passes: provides the order to execute the passes. */
+  /** @brief List of passes: provides the order to execute the passes.
+   *  Passes are owned by pass_manager_. */
   std::vector<const Pass*> pass_list_;
 
-  /** @brief The number of passes within g_passes.  */
-  static const uint16_t g_passes_size;
-
-  /** @brief The number of passes within g_passes.  */
-  static const Pass* const g_passes[];
-
-  /** @brief The default pass list is used to initialize pass_list_. */
-  static std::vector<const Pass*> g_default_pass_list;
-
-  /** @brief Do we, by default, want to be printing the log messages? */
-  static bool default_print_passes_;
-
-  /** @brief What are the passes we want to be printing the log messages? */
-  static std::string print_pass_list_;
-
-  /** @brief What are the passes we want to be dumping the CFG? */
-  static std::string dump_pass_list_;
-
-  /** @brief String of all options that should be overridden for selected passes */
-  static std::string overridden_pass_options_list_;
+  const PassManager* const pass_manager_;
 };
 
 }  // namespace art

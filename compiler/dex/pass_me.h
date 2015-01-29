@@ -42,11 +42,11 @@ std::ostream& operator<<(std::ostream& os, const OptimizationFlag& rhs);
 
 // Data holder class.
 class PassMEDataHolder: public PassDataHolder {
-  public:
-    CompilationUnit* c_unit;
-    BasicBlock* bb;
-    void* data;               /**< @brief Any data the pass wants to use */
-    bool dirty;               /**< @brief Has the pass rendered the CFG dirty, requiring post-opt? */
+ public:
+  CompilationUnit* c_unit;
+  BasicBlock* bb;
+  void* data;               /**< @brief Any data the pass wants to use */
+  bool dirty;               /**< @brief Has the pass rendered the CFG dirty, requiring post-opt? */
 };
 
 enum DataFlowAnalysisMode {
@@ -103,8 +103,8 @@ class PassME : public Pass {
    * @details The printing is done using LOG(INFO).
    */
   void PrintPassDefaultOptions() const {
-    for (auto option_it = default_options_.begin(); option_it != default_options_.end(); option_it++) {
-      LOG(INFO) << "\t" << option_it->first << ":" << std::dec << option_it->second;
+    for (const auto& option : default_options_) {
+      LOG(INFO) << "\t" << option.first << ":" << std::dec << option.second;
     }
   }
 
@@ -115,8 +115,9 @@ class PassME : public Pass {
   void PrintPassOptions(SafeMap<const std::string, int>& overridden_options) const {
     // We walk through the default options only to get the pass names. We use GetPassOption to
     // also consider the overridden ones.
-    for (auto option_it = default_options_.begin(); option_it != default_options_.end(); option_it++) {
-      LOG(INFO) << "\t" << option_it->first << ":" << std::dec << GetPassOption(option_it->first, overridden_options);
+    for (const auto& option : default_options_) {
+      LOG(INFO) << "\t" << option.first << ":" << std::dec
+                << GetPassOption(option.first, overridden_options);
     }
   }
 
