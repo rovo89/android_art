@@ -446,6 +446,8 @@ class RegisterSet : public ValueObject {
   DISALLOW_COPY_AND_ASSIGN(RegisterSet);
 };
 
+static constexpr bool kIntrinsified = true;
+
 /**
  * The code generator computes LocationSummary for each instruction so that
  * the instruction itself knows what code to generate: where to find the inputs
