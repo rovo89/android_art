@@ -19,20 +19,25 @@
 
 #include <cstdlib>
 #include <cstring>
+
 #include "bb_optimizations.h"
 #include "dataflow_iterator.h"
 #include "dataflow_iterator-inl.h"
 #include "dex_flags.h"
 #include "pass_driver.h"
+#include "pass_manager.h"
 #include "pass_me.h"
+#include "safe_map.h"
 
 namespace art {
 
-template <typename PassDriverType>
-class PassDriverME: public PassDriver<PassDriverType> {
+class PassManager;
+class PassManagerOptions;
+
+class PassDriverME: public PassDriver {
  public:
-  explicit PassDriverME(CompilationUnit* cu)
-      : pass_me_data_holder_(), dump_cfg_folder_("/sdcard/") {
+  explicit PassDriverME(const PassManager* const pass_manager, CompilationUnit* cu)
+      : PassDriver(pass_manager), pass_me_data_holder_(), dump_cfg_folder_("/sdcard/") {
         pass_me_data_holder_.bb = nullptr;
         pass_me_data_holder_.c_unit = cu;
   }
@@ -82,7 +87,7 @@ class PassDriverME: public PassDriver<PassDriverType> {
     }
   }
 
-  bool RunPass(const Pass* pass, bool time_split) {
+  bool RunPass(const Pass* pass, bool time_split) OVERRIDE {
     // Paranoid: c_unit and pass cannot be nullptr, and the pass should have a name
     DCHECK(pass != nullptr);
     DCHECK(pass->GetName() != nullptr && pass->GetName()[0] != 0);
@@ -96,15 +101,17 @@ class PassDriverME: public PassDriver<PassDriverType> {
 
     // First, work on determining pass verbosity.
     bool old_print_pass = c_unit->print_pass;
-    c_unit->print_pass = PassDriver<PassDriverType>::default_print_passes_;
-    const char* print_pass_list = PassDriver<PassDriverType>::print_pass_list_.c_str();
-    if (print_pass_list != nullptr && strstr(print_pass_list, pass->GetName()) != nullptr) {
+    c_unit->print_pass = pass_manager_->GetOptions().GetPrintAllPasses();
+    auto* const options = &pass_manager_->GetOptions();
+    const std::string& print_pass_list = options->GetPrintPassList();
+    if (!print_pass_list.empty() && strstr(print_pass_list.c_str(), pass->GetName()) != nullptr) {
       c_unit->print_pass = true;
     }
 
-    // Next, check if there are any overridden settings for the pass that change default configuration.
+    // Next, check if there are any overridden settings for the pass that change default
+    // configuration.
     c_unit->overridden_pass_options.clear();
-    FillOverriddenPassSettings(pass->GetName(), c_unit->overridden_pass_options);
+    FillOverriddenPassSettings(options, pass->GetName(), c_unit->overridden_pass_options);
     if (c_unit->print_pass) {
       for (auto setting_it : c_unit->overridden_pass_options) {
         LOG(INFO) << "Overridden option \"" << setting_it.first << ":"
@@ -118,13 +125,12 @@ class PassDriverME: public PassDriver<PassDriverType> {
       // Applying the pass: first start, doWork, and end calls.
       this->ApplyPass(&pass_me_data_holder_, pass);
 
-      bool should_dump = ((c_unit->enable_debug & (1 << kDebugDumpCFG)) != 0);
+      bool should_dump = (c_unit->enable_debug & (1 << kDebugDumpCFG)) != 0;
 
-      const char* dump_pass_list = PassDriver<PassDriverType>::dump_pass_list_.c_str();
-
-      if (dump_pass_list != nullptr) {
-        bool found = strstr(dump_pass_list, pass->GetName());
-        should_dump = (should_dump || found);
+      const std::string& dump_pass_list = pass_manager_->GetOptions().GetDumpPassList();
+      if (!dump_pass_list.empty()) {
+        const bool found = strstr(dump_pass_list.c_str(), pass->GetName());
+        should_dump = should_dump || found;
       }
 
       if (should_dump) {
@@ -154,20 +160,21 @@ class PassDriverME: public PassDriver<PassDriverType> {
     return should_apply_pass;
   }
 
-  const char* GetDumpCFGFolder() const {
-    return dump_cfg_folder_;
-  }
-
-  static void PrintPassOptions() {
-    for (auto pass : PassDriver<PassDriverType>::g_default_pass_list) {
+  static void PrintPassOptions(PassManager* manager) {
+    for (const auto* pass : *manager->GetDefaultPassList()) {
       const PassME* me_pass = down_cast<const PassME*>(pass);
       if (me_pass->HasOptions()) {
         LOG(INFO) << "Pass options for \"" << me_pass->GetName() << "\" are:";
         SafeMap<const std::string, int> overridden_settings;
-        FillOverriddenPassSettings(me_pass->GetName(), overridden_settings);
+        FillOverriddenPassSettings(&manager->GetOptions(), me_pass->GetName(),
+                                   overridden_settings);
         me_pass->PrintPassOptions(overridden_settings);
       }
     }
+  }
+
+  const char* GetDumpCFGFolder() const {
+    return dump_cfg_folder_;
   }
 
  protected:
@@ -198,12 +205,15 @@ class PassDriverME: public PassDriver<PassDriverType> {
     }
 
   /**
-   * @brief Fills the settings_to_fill by finding all of the applicable options in the overridden_pass_options_list_.
+   * @brief Fills the settings_to_fill by finding all of the applicable options in the
+   * overridden_pass_options_list_.
    * @param pass_name The pass name for which to fill settings.
-   * @param settings_to_fill Fills the options to contain the mapping of name of option to the new configuration.
+   * @param settings_to_fill Fills the options to contain the mapping of name of option to the new
+   * configuration.
    */
-  static void FillOverriddenPassSettings(const char* pass_name, SafeMap<const std::string, int>& settings_to_fill) {
-    const std::string& settings = PassDriver<PassDriverType>::overridden_pass_options_list_;
+  static void FillOverriddenPassSettings(const PassManagerOptions* options, const char* pass_name,
+                                         SafeMap<const std::string, int>& settings_to_fill) {
+    const std::string& settings = options->GetOverriddenPassOptions();
     const size_t settings_len = settings.size();
 
     // Before anything, check if we care about anything right now.
@@ -277,10 +287,12 @@ class PassDriverME: public PassDriver<PassDriverType> {
 
       // Get the actual setting itself. Strtol is being used to convert because it is
       // exception safe. If the input is not sane, it will set a setting of 0.
-      std::string setting_string = settings.substr(setting_pos, next_configuration_separator - setting_pos);
+      std::string setting_string =
+          settings.substr(setting_pos, next_configuration_separator - setting_pos);
       int setting = std::strtol(setting_string.c_str(), 0, 0);
 
-      std::string setting_name = settings.substr(setting_name_pos, setting_pos - setting_name_pos - 1);
+      std::string setting_name =
+          settings.substr(setting_name_pos, setting_pos - setting_name_pos - 1);
 
       settings_to_fill.Put(setting_name, setting);
 

@@ -44,7 +44,7 @@
 #include "compiler.h"
 #include "compiler_callbacks.h"
 #include "dex_file-inl.h"
-#include "dex/pass_driver_me_opts.h"
+#include "dex/pass_manager.h"
 #include "dex/verification_results.h"
 #include "dex/quick_compiler_callbacks.h"
 #include "dex/quick/dex_file_to_method_inliner_map.h"
@@ -490,11 +490,12 @@ class Dex2Oat FINAL {
     // Profile file to use
     double top_k_profile_threshold = CompilerOptions::kDefaultTopKProfileThreshold;
 
-    bool print_pass_options = false;
     bool include_patch_information = CompilerOptions::kDefaultIncludePatchInformation;
     bool include_debug_symbols = kIsDebugBuild;
     bool watch_dog_enabled = true;
     bool generate_gdb_information = kIsDebugBuild;
+
+    PassManagerOptions pass_manager_options;
 
     std::string error_msg;
 
@@ -685,23 +686,23 @@ class Dex2Oat FINAL {
       } else if (option.starts_with("--top-k-profile-threshold=")) {
         ParseDouble(option.data(), '=', 0.0, 100.0, &top_k_profile_threshold);
       } else if (option == "--print-pass-names") {
-        PassDriverMEOpts::PrintPassNames();
+        pass_manager_options.SetPrintPassNames(true);
       } else if (option.starts_with("--disable-passes=")) {
-        std::string disable_passes = option.substr(strlen("--disable-passes=")).data();
-        PassDriverMEOpts::CreateDefaultPassList(disable_passes);
+        const std::string disable_passes = option.substr(strlen("--disable-passes=")).data();
+        pass_manager_options.SetDisablePassList(disable_passes);
       } else if (option.starts_with("--print-passes=")) {
-        std::string print_passes = option.substr(strlen("--print-passes=")).data();
-        PassDriverMEOpts::SetPrintPassList(print_passes);
+        const std::string print_passes = option.substr(strlen("--print-passes=")).data();
+        pass_manager_options.SetPrintPassList(print_passes);
       } else if (option == "--print-all-passes") {
-        PassDriverMEOpts::SetPrintAllPasses();
+        pass_manager_options.SetPrintAllPasses();
       } else if (option.starts_with("--dump-cfg-passes=")) {
-        std::string dump_passes_string = option.substr(strlen("--dump-cfg-passes=")).data();
-        PassDriverMEOpts::SetDumpPassList(dump_passes_string);
+        const std::string dump_passes_string = option.substr(strlen("--dump-cfg-passes=")).data();
+        pass_manager_options.SetDumpPassList(dump_passes_string);
       } else if (option == "--print-pass-options") {
-        print_pass_options = true;
+        pass_manager_options.SetPrintPassOptions(true);
       } else if (option.starts_with("--pass-options=")) {
-        std::string options = option.substr(strlen("--pass-options=")).data();
-        PassDriverMEOpts::SetOverriddenPassOptions(options);
+        const std::string options = option.substr(strlen("--pass-options=")).data();
+        pass_manager_options.SetOverriddenPassOptions(options);
       } else if (option == "--include-patch-information") {
         include_patch_information = true;
       } else if (option == "--no-include-patch-information") {
@@ -924,10 +925,6 @@ class Dex2Oat FINAL {
         break;
     }
 
-    if (print_pass_options) {
-      PassDriverMEOpts::PrintPassOptions();
-    }
-
     compiler_options_.reset(new CompilerOptions(compiler_filter,
                                                 huge_method_threshold,
                                                 large_method_threshold,
@@ -945,6 +942,7 @@ class Dex2Oat FINAL {
                                                 verbose_methods_.empty() ?
                                                     nullptr :
                                                     &verbose_methods_,
+                                                new PassManagerOptions(pass_manager_options),
                                                 init_failure_output_.get()));
 
     // Done with usage checks, enable watchdog if requested

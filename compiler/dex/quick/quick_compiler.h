@@ -17,12 +17,70 @@
 #ifndef ART_COMPILER_DEX_QUICK_QUICK_COMPILER_H_
 #define ART_COMPILER_DEX_QUICK_QUICK_COMPILER_H_
 
+#include "compiler.h"
+
 namespace art {
 
 class Compiler;
 class CompilerDriver;
+class Mir2Lir;
+class PassManager;
 
-Compiler* CreateQuickCompiler(CompilerDriver* driver);
+class QuickCompiler : public Compiler {
+ public:
+  virtual ~QuickCompiler();
+
+  void Init() OVERRIDE;
+
+  void UnInit() const OVERRIDE;
+
+  bool CanCompileMethod(uint32_t method_idx, const DexFile& dex_file, CompilationUnit* cu) const
+      OVERRIDE;
+
+  CompiledMethod* Compile(const DexFile::CodeItem* code_item,
+                          uint32_t access_flags,
+                          InvokeType invoke_type,
+                          uint16_t class_def_idx,
+                          uint32_t method_idx,
+                          jobject class_loader,
+                          const DexFile& dex_file) const OVERRIDE;
+
+  CompiledMethod* JniCompile(uint32_t access_flags,
+                             uint32_t method_idx,
+                             const DexFile& dex_file) const OVERRIDE;
+
+  uintptr_t GetEntryPointOf(mirror::ArtMethod* method) const OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  bool WriteElf(art::File* file,
+                OatWriter* oat_writer,
+                const std::vector<const art::DexFile*>& dex_files,
+                const std::string& android_root,
+                bool is_host) const
+    OVERRIDE
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  Mir2Lir* GetCodeGenerator(CompilationUnit* cu, void* compilation_unit) const;
+
+  void InitCompilationUnit(CompilationUnit& cu) const OVERRIDE;
+
+  static Compiler* Create(CompilerDriver* driver);
+
+  const PassManager* GetPreOptPassManager() const {
+    return pre_opt_pass_manager_.get();
+  }
+  const PassManager* GetPostOptPassManager() const {
+    return post_opt_pass_manager_.get();
+  }
+
+ protected:
+  explicit QuickCompiler(CompilerDriver* driver);
+
+ private:
+  std::unique_ptr<PassManager> pre_opt_pass_manager_;
+  std::unique_ptr<PassManager> post_opt_pass_manager_;
+  DISALLOW_COPY_AND_ASSIGN(QuickCompiler);
+};
 
 }  // namespace art
 

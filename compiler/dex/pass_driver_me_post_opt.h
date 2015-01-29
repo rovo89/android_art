@@ -26,13 +26,19 @@ struct CompilationUnit;
 class Pass;
 class PassDataHolder;
 
-class PassDriverMEPostOpt : public PassDriverME<PassDriverMEPostOpt> {
+class PassDriverMEPostOpt : public PassDriverME {
  public:
-  explicit PassDriverMEPostOpt(CompilationUnit* cu) : PassDriverME<PassDriverMEPostOpt>(cu) {
+  explicit PassDriverMEPostOpt(const PassManager* const manager, CompilationUnit* cu)
+      : PassDriverME(manager, cu) {
   }
 
   ~PassDriverMEPostOpt() {
   }
+
+  /**
+   * @brief Write and allocate corresponding passes into the pass manager.
+   */
+  static void SetupPasses(PassManager* pass_manager);
 };
 
 }  // namespace art

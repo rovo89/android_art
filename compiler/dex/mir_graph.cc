@@ -30,6 +30,7 @@
 #include "dex_instruction-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
+#include "dex/quick/quick_compiler.h"
 #include "leb128.h"
 #include "pass_driver_me_post_opt.h"
 #include "stack.h"
@@ -2432,7 +2433,10 @@ BasicBlock* MIRGraph::CreateNewBB(BBType block_type) {
 }
 
 void MIRGraph::CalculateBasicBlockInformation() {
-  PassDriverMEPostOpt driver(cu_);
+  auto* quick_compiler = down_cast<QuickCompiler*>(cu_->compiler_driver->GetCompiler());
+  DCHECK(quick_compiler != nullptr);
+  /* Create the pass driver and launch it */
+  PassDriverMEPostOpt driver(quick_compiler->GetPostOptPassManager(), cu_);
   driver.Launch();
 }
 

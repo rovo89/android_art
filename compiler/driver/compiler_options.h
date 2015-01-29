@@ -26,6 +26,8 @@
 
 namespace art {
 
+class PassManagerOptions;
+
 class CompilerOptions FINAL {
  public:
   enum CompilerFilter {
@@ -53,24 +55,7 @@ class CompilerOptions FINAL {
   static const bool kDefaultIncludeDebugSymbols = kIsDebugBuild;
   static const bool kDefaultIncludePatchInformation = false;
 
-  CompilerOptions() :
-    compiler_filter_(kDefaultCompilerFilter),
-    huge_method_threshold_(kDefaultHugeMethodThreshold),
-    large_method_threshold_(kDefaultLargeMethodThreshold),
-    small_method_threshold_(kDefaultSmallMethodThreshold),
-    tiny_method_threshold_(kDefaultTinyMethodThreshold),
-    num_dex_methods_threshold_(kDefaultNumDexMethodsThreshold),
-    generate_gdb_information_(false),
-    include_patch_information_(kDefaultIncludePatchInformation),
-    top_k_profile_threshold_(kDefaultTopKProfileThreshold),
-    include_debug_symbols_(kDefaultIncludeDebugSymbols),
-    implicit_null_checks_(true),
-    implicit_so_checks_(true),
-    implicit_suspend_checks_(false),
-    compile_pic_(false),
-    verbose_methods_(nullptr),
-    init_failure_output_(nullptr) {
-  }
+  CompilerOptions();
 
   CompilerOptions(CompilerFilter compiler_filter,
                   size_t huge_method_threshold,
@@ -87,25 +72,8 @@ class CompilerOptions FINAL {
                   bool implicit_suspend_checks,
                   bool compile_pic,
                   const std::vector<std::string>* verbose_methods,
-                  std::ostream* init_failure_output
-                  ) :  // NOLINT(whitespace/parens)
-    compiler_filter_(compiler_filter),
-    huge_method_threshold_(huge_method_threshold),
-    large_method_threshold_(large_method_threshold),
-    small_method_threshold_(small_method_threshold),
-    tiny_method_threshold_(tiny_method_threshold),
-    num_dex_methods_threshold_(num_dex_methods_threshold),
-    generate_gdb_information_(generate_gdb_information),
-    include_patch_information_(include_patch_information),
-    top_k_profile_threshold_(top_k_profile_threshold),
-    include_debug_symbols_(include_debug_symbols),
-    implicit_null_checks_(implicit_null_checks),
-    implicit_so_checks_(implicit_so_checks),
-    implicit_suspend_checks_(implicit_suspend_checks),
-    compile_pic_(compile_pic),
-    verbose_methods_(verbose_methods),
-    init_failure_output_(init_failure_output) {
-  }
+                  PassManagerOptions* pass_manager_options,
+                  std::ostream* init_failure_output);
 
   CompilerFilter GetCompilerFilter() const {
     return compiler_filter_;
@@ -210,6 +178,10 @@ class CompilerOptions FINAL {
     return init_failure_output_;
   }
 
+  const PassManagerOptions* GetPassManagerOptions() const {
+    return pass_manager_options_.get();
+  }
+
  private:
   CompilerFilter compiler_filter_;
   const size_t huge_method_threshold_;
@@ -229,6 +201,8 @@ class CompilerOptions FINAL {
 
   // Vector of methods to have verbose output enabled for.
   const std::vector<std::string>* const verbose_methods_;
+
+  std::unique_ptr<PassManagerOptions> pass_manager_options_;
 
   // Log initialization of initialization failures to this stream if not null.
   std::ostream* const init_failure_output_;
