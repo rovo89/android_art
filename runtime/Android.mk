@@ -460,7 +460,6 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_C_INCLUDES += art/sigchainlib
 
   LOCAL_SHARED_LIBRARIES := libnativehelper libnativebridge libsigchain
-  include external/libcxx/libcxx.mk
   LOCAL_SHARED_LIBRARIES += libbacktrace
   ifeq ($$(art_target_or_host),target)
     LOCAL_SHARED_LIBRARIES += libdl
