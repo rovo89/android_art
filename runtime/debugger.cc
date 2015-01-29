@@ -4350,6 +4350,11 @@ class HeapChunkContext {
       return HPSG_STATE(SOLIDITY_HARD, KIND_UNKNOWN);
     }
 
+    if (c->GetClass() == nullptr) {
+      LOG(ERROR) << "Null class of class " << c << " for object " << o;
+      return HPSG_STATE(SOLIDITY_HARD, KIND_UNKNOWN);
+    }
+
     if (c->IsClassClass()) {
       return HPSG_STATE(SOLIDITY_HARD, KIND_CLASS_OBJECT);
     }
