@@ -148,6 +148,27 @@ class Primitive {
 
   static const char* PrettyDescriptor(Type type);
 
+  static bool IsFloatingPointType(Type type) {
+    return type == kPrimFloat || type == kPrimDouble;
+  }
+
+  static bool IsIntegralType(Type type) {
+    switch (type) {
+      case kPrimByte:
+      case kPrimChar:
+      case kPrimShort:
+      case kPrimInt:
+      case kPrimLong:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  static bool Is64BitType(Type type) {
+    return type == kPrimLong || type == kPrimDouble;
+  }
+
  private:
   DISALLOW_IMPLICIT_CONSTRUCTORS(Primitive);
 };
