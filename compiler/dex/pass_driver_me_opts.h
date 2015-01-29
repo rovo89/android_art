@@ -25,19 +25,26 @@ namespace art {
 struct CompilationUnit;
 class Pass;
 class PassDataHolder;
+class PassManager;
 
-class PassDriverMEOpts : public PassDriverME<PassDriverMEOpts> {
+class PassDriverMEOpts : public PassDriverME {
  public:
-  explicit PassDriverMEOpts(CompilationUnit* cu):PassDriverME<PassDriverMEOpts>(cu) {
+  explicit PassDriverMEOpts(const PassManager* const manager, CompilationUnit* cu)
+      : PassDriverME(manager, cu) {
   }
 
   ~PassDriverMEOpts() {
   }
 
   /**
+   * @brief Write and allocate corresponding passes into the pass manager.
+   */
+  static void SetupPasses(PassManager* pass_manasger);
+
+  /**
    * @brief Apply a patch: perform start/work/end functions.
    */
-  virtual void ApplyPass(PassDataHolder* data, const Pass* pass);
+  virtual void ApplyPass(PassDataHolder* data, const Pass* pass) OVERRIDE;
 };
 
 }  // namespace art
