@@ -27,27 +27,6 @@ namespace art {
 namespace arm64 {
 namespace helpers {
 
-constexpr bool IsFPType(Primitive::Type type) {
-  return type == Primitive::kPrimFloat || type == Primitive::kPrimDouble;
-}
-
-static inline bool IsIntegralType(Primitive::Type type) {
-  switch (type) {
-    case Primitive::kPrimByte:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimInt:
-    case Primitive::kPrimLong:
-      return true;
-    default:
-      return false;
-  }
-}
-
-constexpr bool Is64BitType(Primitive::Type type) {
-  return type == Primitive::kPrimLong || type == Primitive::kPrimDouble;
-}
-
 // Convenience helpers to ease conversion to and from VIXL operands.
 static_assert((SP == 31) && (WSP == 31) && (XZR == 32) && (WZR == 32),
               "Unexpected values for register codes.");
@@ -83,7 +62,7 @@ static inline vixl::Register WRegisterFrom(Location location) {
 }
 
 static inline vixl::Register RegisterFrom(Location location, Primitive::Type type) {
-  DCHECK(type != Primitive::kPrimVoid && !IsFPType(type));
+  DCHECK(type != Primitive::kPrimVoid && !Primitive::IsFloatingPointType(type));
   return type == Primitive::kPrimLong ? XRegisterFrom(location) : WRegisterFrom(location);
 }
 
@@ -107,7 +86,7 @@ static inline vixl::FPRegister SRegisterFrom(Location location) {
 }
 
 static inline vixl::FPRegister FPRegisterFrom(Location location, Primitive::Type type) {
-  DCHECK(IsFPType(type));
+  DCHECK(Primitive::IsFloatingPointType(type));
   return type == Primitive::kPrimDouble ? DRegisterFrom(location) : SRegisterFrom(location);
 }
 
@@ -121,17 +100,18 @@ static inline vixl::FPRegister InputFPRegisterAt(HInstruction* instr, int input_
 }
 
 static inline vixl::CPURegister CPURegisterFrom(Location location, Primitive::Type type) {
-  return IsFPType(type) ? vixl::CPURegister(FPRegisterFrom(location, type))
-                        : vixl::CPURegister(RegisterFrom(location, type));
+  return Primitive::IsFloatingPointType(type) ? vixl::CPURegister(FPRegisterFrom(location, type))
+                                              : vixl::CPURegister(RegisterFrom(location, type));
 }
 
 static inline vixl::CPURegister OutputCPURegister(HInstruction* instr) {
-  return IsFPType(instr->GetType()) ? static_cast<vixl::CPURegister>(OutputFPRegister(instr))
-                                    : static_cast<vixl::CPURegister>(OutputRegister(instr));
+  return Primitive::IsFloatingPointType(instr->GetType())
+      ? static_cast<vixl::CPURegister>(OutputFPRegister(instr))
+      : static_cast<vixl::CPURegister>(OutputRegister(instr));
 }
 
 static inline vixl::CPURegister InputCPURegisterAt(HInstruction* instr, int index) {
-  return IsFPType(instr->InputAt(index)->GetType())
+  return Primitive::IsFloatingPointType(instr->InputAt(index)->GetType())
       ? static_cast<vixl::CPURegister>(InputFPRegisterAt(instr, index))
       : static_cast<vixl::CPURegister>(InputRegisterAt(instr, index));
 }
