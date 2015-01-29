@@ -69,5 +69,4 @@ LOCAL_MODULE:= libsigchain
 LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
 LOCAL_LDLIBS = -ldl
 LOCAL_MULTILIB := both
-include external/libcxx/libcxx.mk
 include $(BUILD_HOST_STATIC_LIBRARY)
