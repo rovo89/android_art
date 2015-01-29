@@ -17,7 +17,7 @@
 #include "ssa_builder.h"
 
 #include "nodes.h"
-#include "ssa_type_propagation.h"
+#include "primitive_type_propagation.h"
 #include "ssa_phi_elimination.h"
 
 namespace art {
@@ -52,7 +52,7 @@ void SsaBuilder::BuildSsa() {
   // 4) Propagate types of phis. At this point, phis are typed void in the general
   // case, or float or double when we created a floating-point equivalent. So we
   // need to propagate the types across phis to give them a correct type.
-  SsaTypePropagation type_propagation(GetGraph());
+  PrimitiveTypePropagation type_propagation(GetGraph());
   type_propagation.Run();
 
   // 5) Clear locals.
