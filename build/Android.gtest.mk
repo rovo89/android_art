@@ -219,7 +219,6 @@ LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
 $(eval $(call set-target-local-clang-vars))
 $(eval $(call set-target-local-cflags-vars,debug))
-include external/libcxx/libcxx.mk
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
@@ -236,7 +235,6 @@ LOCAL_MULTILIB := both
 LOCAL_CLANG := $(ART_HOST_CLANG)
 LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
-include external/libcxx/libcxx.mk
 include $(BUILD_HOST_SHARED_LIBRARY)
 
 # Variables holding collections of gtest pre-requisits used to run a number of gtests.
@@ -368,7 +366,6 @@ define define-art-gtest
   endif
 
   LOCAL_CFLAGS := $$(ART_TEST_CFLAGS)
-  include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)
     $$(eval $$(call set-target-local-clang-vars))
     $$(eval $$(call set-target-local-cflags-vars,debug))
