@@ -69,6 +69,8 @@
   V(UnsafeCASObject, kDirect) \
   V(UnsafeGet, kDirect) \
   V(UnsafeGetVolatile, kDirect) \
+  V(UnsafeGetObject, kDirect) \
+  V(UnsafeGetObjectVolatile, kDirect) \
   V(UnsafeGetLong, kDirect) \
   V(UnsafeGetLongVolatile, kDirect) \
   V(UnsafePut, kDirect) \
@@ -80,8 +82,7 @@
   V(UnsafePutLong, kDirect) \
   V(UnsafePutLongOrdered, kDirect) \
   V(UnsafePutLongVolatile, kDirect) \
-  \
-  V(ReferenceGetReferent, kVirtual)
+  V(ReferenceGetReferent, kDirect)
 
 #endif  // ART_COMPILER_OPTIMIZING_INTRINSICS_LIST_H_
 #undef ART_COMPILER_OPTIMIZING_INTRINSICS_LIST_H_   // #define is only for lint.
