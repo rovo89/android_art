@@ -27,11 +27,20 @@ class InstructionSimplifierVisitor : public HGraphVisitor {
   void VisitEqual(HEqual* equal) OVERRIDE;
   void VisitArraySet(HArraySet* equal) OVERRIDE;
   void VisitTypeConversion(HTypeConversion* instruction) OVERRIDE;
+  void VisitNullCheck(HNullCheck* instruction) OVERRIDE;
 };
 
 void InstructionSimplifier::Run() {
   InstructionSimplifierVisitor visitor(graph_);
   visitor.VisitInsertionOrder();
+}
+
+void InstructionSimplifierVisitor::VisitNullCheck(HNullCheck* null_check) {
+  HInstruction* obj = null_check->InputAt(0);
+  if (!obj->CanBeNull()) {
+    null_check->ReplaceWith(obj);
+    null_check->GetBlock()->RemoveInstruction(null_check);
+  }
 }
 
 void InstructionSimplifierVisitor::VisitSuspendCheck(HSuspendCheck* check) {
