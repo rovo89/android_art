@@ -39,7 +39,6 @@ namespace arm64 {
 using helpers::DRegisterFrom;
 using helpers::FPRegisterFrom;
 using helpers::HeapOperand;
-using helpers::IsIntegralType;
 using helpers::RegisterFrom;
 using helpers::SRegisterFrom;
 using helpers::WRegisterFrom;
@@ -74,7 +73,7 @@ static void MoveFromReturnRegister(Location trg,
 
   DCHECK_NE(type, Primitive::kPrimVoid);
 
-  if (IsIntegralType(type)) {
+  if (Primitive::IsIntegralType(type)) {
     Register trg_reg = RegisterFrom(trg, type);
     Register res_reg = RegisterFrom(ARM64ReturnLocation(type), type);
     __ Mov(trg_reg, res_reg, kDiscardForSameWReg);

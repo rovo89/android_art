@@ -52,9 +52,6 @@ using helpers::InputFPRegisterAt;
 using helpers::InputRegisterAt;
 using helpers::InputOperandAt;
 using helpers::Int64ConstantFrom;
-using helpers::Is64BitType;
-using helpers::IsFPType;
-using helpers::IsIntegralType;
 using helpers::LocationFrom;
 using helpers::OperandFromMemOperand;
 using helpers::OutputCPURegister;
@@ -383,18 +380,20 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
     LOG(FATAL) << "Unreachable type " << type;
   }
 
-  if (IsFPType(type) && (fp_index_ < calling_convention.GetNumberOfFpuRegisters())) {
+  if (Primitive::IsFloatingPointType(type) &&
+      (fp_index_ < calling_convention.GetNumberOfFpuRegisters())) {
     next_location = LocationFrom(calling_convention.GetFpuRegisterAt(fp_index_++));
-  } else if (!IsFPType(type) && (gp_index_ < calling_convention.GetNumberOfRegisters())) {
+  } else if (!Primitive::IsFloatingPointType(type) &&
+             (gp_index_ < calling_convention.GetNumberOfRegisters())) {
     next_location = LocationFrom(calling_convention.GetRegisterAt(gp_index_++));
   } else {
     size_t stack_offset = calling_convention.GetStackOffsetOf(stack_index_);
-    next_location = Is64BitType(type) ? Location::DoubleStackSlot(stack_offset)
-                                      : Location::StackSlot(stack_offset);
+    next_location = Primitive::Is64BitType(type) ? Location::DoubleStackSlot(stack_offset)
+                                                 : Location::StackSlot(stack_offset);
   }
 
   // Space on the stack is reserved for all arguments.
-  stack_index_ += Is64BitType(type) ? 2 : 1;
+  stack_index_ += Primitive::Is64BitType(type) ? 2 : 1;
   return next_location;
 }
 
@@ -507,7 +506,7 @@ void CodeGeneratorARM64::Move(HInstruction* instruction,
     MoveLocation(location, temp_location, type);
   } else if (instruction->IsLoadLocal()) {
     uint32_t stack_slot = GetStackSlot(instruction->AsLoadLocal()->GetLocal());
-    if (Is64BitType(type)) {
+    if (Primitive::Is64BitType(type)) {
       MoveLocation(location, Location::DoubleStackSlot(stack_slot), type);
     } else {
       MoveLocation(location, Location::StackSlot(stack_slot), type);
@@ -583,7 +582,7 @@ Location CodeGeneratorARM64::AllocateFreeRegister(Primitive::Type type) const {
     LOG(FATAL) << "Unreachable type " << type;
   }
 
-  if (IsFPType(type)) {
+  if (Primitive::IsFloatingPointType(type)) {
     ssize_t reg = FindFreeEntry(blocked_fpu_registers_, kNumberOfAllocatableFPRegisters);
     DCHECK_NE(reg, -1);
     return Location::FpuRegisterLocation(reg);
@@ -675,8 +674,8 @@ void CodeGeneratorARM64::MoveLocation(Location destination, Location source, Pri
         type = destination.IsRegister() ? Primitive::kPrimLong : Primitive::kPrimDouble;
       }
     }
-    DCHECK((destination.IsFpuRegister() && IsFPType(type)) ||
-           (destination.IsRegister() && !IsFPType(type)));
+    DCHECK((destination.IsFpuRegister() && Primitive::IsFloatingPointType(type)) ||
+           (destination.IsRegister() && !Primitive::IsFloatingPointType(type)));
     CPURegister dst = CPURegisterFrom(destination, type);
     if (source.IsStackSlot() || source.IsDoubleStackSlot()) {
       DCHECK(dst.Is64Bits() == source.IsDoubleStackSlot());
@@ -702,8 +701,8 @@ void CodeGeneratorARM64::MoveLocation(Location destination, Location source, Pri
           type = destination.IsStackSlot() ? Primitive::kPrimFloat : Primitive::kPrimDouble;
         }
       }
-      DCHECK((destination.IsDoubleStackSlot() == Is64BitType(type)) &&
-             (source.IsFpuRegister() == IsFPType(type)));
+      DCHECK((destination.IsDoubleStackSlot() == Primitive::Is64BitType(type)) &&
+             (source.IsFpuRegister() == Primitive::IsFloatingPointType(type)));
       __ Str(CPURegisterFrom(source, type), StackOperandFrom(destination));
     } else if (source.IsConstant()) {
       DCHECK(unspecified_type || CoherentConstantAndType(source, type));
@@ -816,7 +815,7 @@ void CodeGeneratorARM64::Load(Primitive::Type type,
     case Primitive::kPrimLong:
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
-      DCHECK_EQ(dst.Is64Bits(), Is64BitType(type));
+      DCHECK_EQ(dst.Is64Bits(), Primitive::Is64BitType(type));
       __ Ldr(dst, src);
       break;
     case Primitive::kPrimVoid:
@@ -859,14 +858,14 @@ void CodeGeneratorARM64::LoadAcquire(HInstruction* instruction,
     case Primitive::kPrimInt:
     case Primitive::kPrimNot:
     case Primitive::kPrimLong:
-      DCHECK_EQ(dst.Is64Bits(), Is64BitType(type));
+      DCHECK_EQ(dst.Is64Bits(), Primitive::Is64BitType(type));
       __ Ldar(Register(dst), base);
       MaybeRecordImplicitNullCheck(instruction);
       break;
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       DCHECK(dst.IsFPRegister());
-      DCHECK_EQ(dst.Is64Bits(), Is64BitType(type));
+      DCHECK_EQ(dst.Is64Bits(), Primitive::Is64BitType(type));
 
       Register temp = dst.Is64Bits() ? temps.AcquireX() : temps.AcquireW();
       __ Ldar(temp, base);
@@ -896,7 +895,7 @@ void CodeGeneratorARM64::Store(Primitive::Type type,
     case Primitive::kPrimLong:
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble:
-      DCHECK_EQ(src.Is64Bits(), Is64BitType(type));
+      DCHECK_EQ(src.Is64Bits(), Primitive::Is64BitType(type));
       __ Str(src, dst);
       break;
     case Primitive::kPrimVoid:
@@ -929,13 +928,13 @@ void CodeGeneratorARM64::StoreRelease(Primitive::Type type,
     case Primitive::kPrimInt:
     case Primitive::kPrimNot:
     case Primitive::kPrimLong:
-      DCHECK_EQ(src.Is64Bits(), Is64BitType(type));
+      DCHECK_EQ(src.Is64Bits(), Primitive::Is64BitType(type));
       __ Stlr(Register(src), base);
       break;
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       DCHECK(src.IsFPRegister());
-      DCHECK_EQ(src.Is64Bits(), Is64BitType(type));
+      DCHECK_EQ(src.Is64Bits(), Primitive::Is64BitType(type));
 
       Register temp = src.Is64Bits() ? temps.AcquireX() : temps.AcquireW();
       __ Fmov(temp, FPRegister(src));
@@ -2243,8 +2242,8 @@ void InstructionCodeGeneratorARM64::VisitPhi(HPhi* instruction) {
 
 void LocationsBuilderARM64::VisitRem(HRem* rem) {
   Primitive::Type type = rem->GetResultType();
-  LocationSummary::CallKind call_kind = IsFPType(type) ? LocationSummary::kCall
-                                                       : LocationSummary::kNoCall;
+  LocationSummary::CallKind call_kind =
+      Primitive::IsFloatingPointType(type) ? LocationSummary::kCall : LocationSummary::kNoCall;
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(rem, call_kind);
 
   switch (type) {
@@ -2479,13 +2478,13 @@ void LocationsBuilderARM64::VisitTypeConversion(HTypeConversion* conversion) {
     LOG(FATAL) << "Unexpected type conversion from " << input_type << " to " << result_type;
   }
 
-  if (IsFPType(input_type)) {
+  if (Primitive::IsFloatingPointType(input_type)) {
     locations->SetInAt(0, Location::RequiresFpuRegister());
   } else {
     locations->SetInAt(0, Location::RequiresRegister());
   }
 
-  if (IsFPType(result_type)) {
+  if (Primitive::IsFloatingPointType(result_type)) {
     locations->SetOut(Location::RequiresFpuRegister(), Location::kNoOutputOverlap);
   } else {
     locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
@@ -2498,7 +2497,7 @@ void InstructionCodeGeneratorARM64::VisitTypeConversion(HTypeConversion* convers
 
   DCHECK_NE(input_type, result_type);
 
-  if (IsIntegralType(result_type) && IsIntegralType(input_type)) {
+  if (Primitive::IsIntegralType(result_type) && Primitive::IsIntegralType(input_type)) {
     int result_size = Primitive::ComponentSize(result_type);
     int input_size = Primitive::ComponentSize(input_type);
     int min_size = std::min(result_size, input_size);
@@ -2512,12 +2511,13 @@ void InstructionCodeGeneratorARM64::VisitTypeConversion(HTypeConversion* convers
     } else {
       __ Sbfx(output, output.IsX() ? source.X() : source.W(), 0, min_size * kBitsPerByte);
     }
-  } else if (IsFPType(result_type) && IsIntegralType(input_type)) {
+  } else if (Primitive::IsFloatingPointType(result_type) && Primitive::IsIntegralType(input_type)) {
     __ Scvtf(OutputFPRegister(conversion), InputRegisterAt(conversion, 0));
-  } else if (IsIntegralType(result_type) && IsFPType(input_type)) {
+  } else if (Primitive::IsIntegralType(result_type) && Primitive::IsFloatingPointType(input_type)) {
     CHECK(result_type == Primitive::kPrimInt || result_type == Primitive::kPrimLong);
     __ Fcvtzs(OutputRegister(conversion), InputFPRegisterAt(conversion, 0));
-  } else if (IsFPType(result_type) && IsFPType(input_type)) {
+  } else if (Primitive::IsFloatingPointType(result_type) &&
+             Primitive::IsFloatingPointType(input_type)) {
     __ Fcvt(OutputFPRegister(conversion), InputFPRegisterAt(conversion, 0));
   } else {
     LOG(FATAL) << "Unexpected or unimplemented type conversion from " << input_type
