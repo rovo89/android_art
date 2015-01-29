@@ -161,7 +161,7 @@ void HGraphBuilder::InitializeParameters(uint16_t number_of_parameters) {
   if (!dex_compilation_unit_->IsStatic()) {
     // Add the implicit 'this' argument, not expressed in the signature.
     HParameterValue* parameter =
-        new (arena_) HParameterValue(parameter_index++, Primitive::kPrimNot);
+        new (arena_) HParameterValue(parameter_index++, Primitive::kPrimNot, true);
     entry_block_->AddInstruction(parameter);
     HLocal* local = GetLocalAt(locals_index++);
     entry_block_->AddInstruction(new (arena_) HStoreLocal(local, parameter));
