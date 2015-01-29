@@ -297,6 +297,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
  private:
   // Labels for each block that will be compiled.
   vixl::Label* block_labels_;
+  vixl::Label frame_entry_label_;
 
   LocationsBuilderARM64 location_builder_;
   InstructionCodeGeneratorARM64 instruction_visitor_;

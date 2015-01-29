@@ -248,6 +248,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
  private:
   // Labels for each block that will be compiled.
   GrowableArray<Label> block_labels_;
+  Label frame_entry_label_;
   LocationsBuilderX86_64 location_builder_;
   InstructionCodeGeneratorX86_64 instruction_visitor_;
   ParallelMoveResolverX86_64 move_resolver_;
