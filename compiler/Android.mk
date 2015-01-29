@@ -209,7 +209,6 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   LOCAL_GENERATED_SOURCES += $$(ENUM_OPERATOR_OUT_GEN)
 
   LOCAL_CFLAGS := $$(LIBART_COMPILER_CFLAGS)
-  include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)
     $(call set-target-local-clang-vars)
     $(call set-target-local-cflags-vars,$(2))

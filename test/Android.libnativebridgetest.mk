@@ -47,7 +47,6 @@ define build-libnativebridgetest
   LOCAL_C_INCLUDES += $(ART_C_INCLUDES) art/runtime
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.libnativebridgetest.mk
-  include external/libcxx/libcxx.mk
   ifeq ($$(art_target_or_host),target)
     $(call set-target-local-clang-vars)
     $(call set-target-local-cflags-vars,debug)
