@@ -19,6 +19,7 @@
 
 #include "nodes.h"
 #include "builder.h"
+#include "compiler/dex/pass_manager.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "ssa_liveness_analysis.h"

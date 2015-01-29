@@ -17,7 +17,7 @@
 #include "compiler.h"
 
 #include "base/logging.h"
-#include "dex/quick/quick_compiler.h"
+#include "dex/quick/quick_compiler_factory.h"
 #include "driver/compiler_driver.h"
 #include "optimizing/optimizing_compiler.h"
 

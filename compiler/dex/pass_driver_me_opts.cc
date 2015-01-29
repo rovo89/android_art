@@ -21,77 +21,44 @@
 #include "bb_optimizations.h"
 #include "dataflow_iterator.h"
 #include "dataflow_iterator-inl.h"
+#include "pass_driver_me_opts.h"
+#include "pass_manager.h"
 #include "post_opt_passes.h"
 
 namespace art {
 
-/*
- * Create the pass list. These passes are immutable and are shared across the threads.
- *
- * Advantage is that there will be no race conditions here.
- * Disadvantage is the passes can't change their internal states depending on CompilationUnit:
- *   - This is not yet an issue: no current pass would require it.
- */
-// The initial list of passes to be used by the PassDriveMEOpts.
-template<>
-const Pass* const PassDriver<PassDriverMEOpts>::g_passes[] = {
-  GetPassInstance<CacheFieldLoweringInfo>(),
-  GetPassInstance<CacheMethodLoweringInfo>(),
-  GetPassInstance<CalculatePredecessors>(),
-  GetPassInstance<DFSOrders>(),
-  GetPassInstance<ClassInitCheckElimination>(),
-  GetPassInstance<SpecialMethodInliner>(),
-  GetPassInstance<NullCheckElimination>(),
-  GetPassInstance<BBCombine>(),
-  GetPassInstance<CodeLayout>(),
-  GetPassInstance<GlobalValueNumberingPass>(),
-  GetPassInstance<ConstantPropagation>(),
-  GetPassInstance<MethodUseCount>(),
-  GetPassInstance<BBOptimizations>(),
-  GetPassInstance<SuspendCheckElimination>(),
-};
-
-// The number of the passes in the initial list of Passes (g_passes).
-template<>
-uint16_t const PassDriver<PassDriverMEOpts>::g_passes_size =
-    arraysize(PassDriver<PassDriverMEOpts>::g_passes);
-
-// The default pass list is used by the PassDriverME instance of PassDriver
-// to initialize pass_list_.
-template<>
-std::vector<const Pass*> PassDriver<PassDriverMEOpts>::g_default_pass_list(
-    PassDriver<PassDriverMEOpts>::g_passes,
-    PassDriver<PassDriverMEOpts>::g_passes +
-    PassDriver<PassDriverMEOpts>::g_passes_size);
-
-// By default, do not have a dump pass list.
-template<>
-std::string PassDriver<PassDriverMEOpts>::dump_pass_list_ = std::string();
-
-// By default, do not have a print pass list.
-template<>
-std::string PassDriver<PassDriverMEOpts>::print_pass_list_ = std::string();
-
-// By default, we do not print the pass' information.
-template<>
-bool PassDriver<PassDriverMEOpts>::default_print_passes_ = false;
-
-// By default, there are no overridden pass settings.
-template<>
-std::string PassDriver<PassDriverMEOpts>::overridden_pass_options_list_ = std::string();
+void PassDriverMEOpts::SetupPasses(PassManager* pass_manager) {
+  /*
+   * Create the pass list. These passes are immutable and are shared across the threads.
+   *
+   * Advantage is that there will be no race conditions here.
+   * Disadvantage is the passes can't change their internal states depending on CompilationUnit:
+   *   - This is not yet an issue: no current pass would require it.
+   */
+  pass_manager->AddPass(new CacheFieldLoweringInfo);
+  pass_manager->AddPass(new CacheMethodLoweringInfo);
+  pass_manager->AddPass(new CalculatePredecessors);
+  pass_manager->AddPass(new DFSOrders);
+  pass_manager->AddPass(new ClassInitCheckElimination);
+  pass_manager->AddPass(new SpecialMethodInliner);
+  pass_manager->AddPass(new NullCheckElimination);
+  pass_manager->AddPass(new BBCombine);
+  pass_manager->AddPass(new CodeLayout);
+  pass_manager->AddPass(new GlobalValueNumberingPass);
+  pass_manager->AddPass(new ConstantPropagation);
+  pass_manager->AddPass(new MethodUseCount);
+  pass_manager->AddPass(new BBOptimizations);
+  pass_manager->AddPass(new SuspendCheckElimination);
+}
 
 void PassDriverMEOpts::ApplyPass(PassDataHolder* data, const Pass* pass) {
-  const PassME* pass_me = down_cast<const PassME*> (pass);
+  const PassME* const pass_me = down_cast<const PassME*>(pass);
   DCHECK(pass_me != nullptr);
-
-  PassMEDataHolder* pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
-
+  PassMEDataHolder* const pass_me_data_holder = down_cast<PassMEDataHolder*>(data);
   // Set to dirty.
   pass_me_data_holder->dirty = true;
-
   // First call the base class' version.
   PassDriver::ApplyPass(data, pass);
-
   // Now we care about flags.
   if ((pass_me->GetFlag(kOptimizationBasicBlockChange) == true) ||
       (pass_me->GetFlag(kOptimizationDefUsesChange) == true)) {
