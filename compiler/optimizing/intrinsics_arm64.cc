@@ -300,7 +300,6 @@ void IntrinsicCodeGeneratorARM64::VisitLongReverse(HInvoke* invoke) {
 }
 
 static void CreateFPToFPLocations(ArenaAllocator* arena, HInvoke* invoke) {
-  // We only support FP registers here.
   LocationSummary* locations = new (arena) LocationSummary(invoke,
                                                            LocationSummary::kNoCall,
                                                            kIntrinsified);
@@ -924,7 +923,6 @@ void IntrinsicCodeGeneratorARM64::VisitUnsafeCASObject(HInvoke* invoke) {
 }
 
 void IntrinsicLocationsBuilderARM64::VisitStringCharAt(HInvoke* invoke) {
-  // The inputs plus one temp.
   LocationSummary* locations = new (arena_) LocationSummary(invoke,
                                                             LocationSummary::kCallOnSlowPath,
                                                             kIntrinsified);

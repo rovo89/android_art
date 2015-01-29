@@ -39,6 +39,14 @@ static constexpr SRegister kParameterFpuRegisters[] =
     { S0, S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, S12, S13, S14, S15 };
 static constexpr size_t kParameterFpuRegistersLength = arraysize(kParameterFpuRegisters);
 
+static constexpr Register kArtMethodRegister = R0;
+
+static constexpr DRegister FromLowSToD(SRegister reg) {
+  return DCHECK_CONSTEXPR(reg % 2 == 0, , D0)
+      static_cast<DRegister>(reg / 2);
+}
+
+
 class InvokeDexCallingConvention : public CallingConvention<Register, SRegister> {
  public:
   InvokeDexCallingConvention()
@@ -88,6 +96,20 @@ class ParallelMoveResolverARM : public ParallelMoveResolver {
   CodeGeneratorARM* const codegen_;
 
   DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolverARM);
+};
+
+class SlowPathCodeARM : public SlowPathCode {
+ public:
+  SlowPathCodeARM() : entry_label_(), exit_label_() {}
+
+  Label* GetEntryLabel() { return &entry_label_; }
+  Label* GetExitLabel() { return &exit_label_; }
+
+ private:
+  Label entry_label_;
+  Label exit_label_;
+
+  DISALLOW_COPY_AND_ASSIGN(SlowPathCodeARM);
 };
 
 class LocationsBuilderARM : public HGraphVisitor {
@@ -248,6 +270,8 @@ class CodeGeneratorARM : public CodeGenerator {
   void ComputeSpillMask() OVERRIDE;
 
   Label* GetFrameEntryLabel() { return &frame_entry_label_; }
+
+  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Register temp);
 
  private:
   // Labels for each block that will be compiled.

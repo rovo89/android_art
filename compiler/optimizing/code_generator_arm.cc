@@ -19,6 +19,8 @@
 #include "arch/arm/instruction_set_features_arm.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "gc/accounting/card_table.h"
+#include "intrinsics.h"
+#include "intrinsics_arm.h"
 #include "mirror/array-inl.h"
 #include "mirror/art_method.h"
 #include "mirror/class.h"
@@ -31,11 +33,6 @@
 namespace art {
 
 namespace arm {
-
-static DRegister FromLowSToD(SRegister reg) {
-  DCHECK_EQ(reg % 2, 0);
-  return static_cast<DRegister>(reg / 2);
-}
 
 static bool ExpectedPairLayout(Location location) {
   // We expected this for both core and fpu register pairs.
@@ -72,20 +69,6 @@ class InvokeRuntimeCallingConvention : public CallingConvention<Register, SRegis
 
 #define __ reinterpret_cast<ArmAssembler*>(codegen->GetAssembler())->
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kArmWordSize, x).Int32Value()
-
-class SlowPathCodeARM : public SlowPathCode {
- public:
-  SlowPathCodeARM() : entry_label_(), exit_label_() {}
-
-  Label* GetEntryLabel() { return &entry_label_; }
-  Label* GetExitLabel() { return &exit_label_; }
-
- private:
-  Label entry_label_;
-  Label exit_label_;
-
-  DISALLOW_COPY_AND_ASSIGN(SlowPathCodeARM);
-};
 
 class NullCheckSlowPathARM : public SlowPathCodeARM {
  public:
@@ -1168,6 +1151,12 @@ void InstructionCodeGeneratorARM::VisitReturn(HReturn* ret) {
 }
 
 void LocationsBuilderARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+  IntrinsicLocationsBuilderARM intrinsic(GetGraph()->GetArena(),
+                                         codegen_->GetInstructionSetFeatures());
+  if (intrinsic.TryDispatch(invoke)) {
+    return;
+  }
+
   HandleInvoke(invoke);
 }
 
@@ -1175,37 +1164,23 @@ void CodeGeneratorARM::LoadCurrentMethod(Register reg) {
   __ LoadFromOffset(kLoadWord, reg, SP, kCurrentMethodStackOffset);
 }
 
+static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorARM* codegen) {
+  if (invoke->GetLocations()->Intrinsified()) {
+    IntrinsicCodeGeneratorARM intrinsic(codegen);
+    intrinsic.Dispatch(invoke);
+    return true;
+  }
+  return false;
+}
+
 void InstructionCodeGeneratorARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  Register temp = invoke->GetLocations()->GetTemp(0).AsRegister<Register>();
-
-  // TODO: Implement all kinds of calls:
-  // 1) boot -> boot
-  // 2) app -> boot
-  // 3) app -> app
-  //
-  // Currently we implement the app -> app logic, which looks up in the resolve cache.
-
-  // temp = method;
-  codegen_->LoadCurrentMethod(temp);
-  if (!invoke->IsRecursive()) {
-    // temp = temp->dex_cache_resolved_methods_;
-    __ LoadFromOffset(
-        kLoadWord, temp, temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
-    // temp = temp[index_in_cache]
-    __ LoadFromOffset(
-        kLoadWord, temp, temp, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex()));
-    // LR = temp[offset_of_quick_compiled_code]
-    __ LoadFromOffset(kLoadWord, LR, temp,
-                      mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
-                             kArmWordSize).Int32Value());
-    // LR()
-    __ blx(LR);
-  } else {
-    __ bl(codegen_->GetFrameEntryLabel());
+  if (TryGenerateIntrinsicCode(invoke, codegen_)) {
+    return;
   }
 
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
-  DCHECK(!codegen_->IsLeafMethod());
+  Register temp = invoke->GetLocations()->GetTemp(0).AsRegister<Register>();
+
+  codegen_->GenerateStaticOrDirectCall(invoke, temp);
 }
 
 void LocationsBuilderARM::HandleInvoke(HInvoke* invoke) {
@@ -1223,10 +1198,20 @@ void LocationsBuilderARM::HandleInvoke(HInvoke* invoke) {
 }
 
 void LocationsBuilderARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
+  IntrinsicLocationsBuilderARM intrinsic(GetGraph()->GetArena(),
+                                         codegen_->GetInstructionSetFeatures());
+  if (intrinsic.TryDispatch(invoke)) {
+    return;
+  }
+
   HandleInvoke(invoke);
 }
 
 void InstructionCodeGeneratorARM::VisitInvokeVirtual(HInvokeVirtual* invoke) {
+  if (TryGenerateIntrinsicCode(invoke, codegen_)) {
+    return;
+  }
+
   Register temp = invoke->GetLocations()->GetTemp(0).AsRegister<Register>();
   uint32_t method_offset = mirror::Class::EmbeddedVTableOffset().Uint32Value() +
           invoke->GetVTableIndex() * sizeof(mirror::Class::VTableEntry);
@@ -3774,6 +3759,39 @@ void InstructionCodeGeneratorARM::HandleBitwiseOperation(HBinaryOperation* instr
              ShifterOperand(second.AsRegisterPairHigh<Register>()));
     }
   }
+}
+
+void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Register temp) {
+  DCHECK_EQ(temp, kArtMethodRegister);
+
+  // TODO: Implement all kinds of calls:
+  // 1) boot -> boot
+  // 2) app -> boot
+  // 3) app -> app
+  //
+  // Currently we implement the app -> app logic, which looks up in the resolve cache.
+
+  // temp = method;
+  LoadCurrentMethod(temp);
+  if (!invoke->IsRecursive()) {
+    // temp = temp->dex_cache_resolved_methods_;
+    __ LoadFromOffset(
+        kLoadWord, temp, temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value());
+    // temp = temp[index_in_cache]
+    __ LoadFromOffset(
+        kLoadWord, temp, temp, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex()));
+    // LR = temp[offset_of_quick_compiled_code]
+    __ LoadFromOffset(kLoadWord, LR, temp,
+                      mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(
+                          kArmWordSize).Int32Value());
+    // LR()
+    __ blx(LR);
+  } else {
+    __ bl(GetFrameEntryLabel());
+  }
+
+  RecordPcInfo(invoke, invoke->GetDexPc());
+  DCHECK(!IsLeafMethod());
 }
 
 }  // namespace arm
