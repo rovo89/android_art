@@ -40,10 +40,6 @@
 #include "thread.h"
 #include "thread_list.h"
 
-#ifdef HAVE_ANDROID_OS
-#include "cutils/properties.h"
-#endif
-
 #include "entrypoints/quick/quick_entrypoints.h"
 
 namespace art {
