@@ -2112,7 +2112,9 @@ void InstructionCodeGeneratorARM64::VisitNewArray(HNewArray* instruction) {
   codegen_->LoadCurrentMethod(current_method);
   __ Mov(type_index, instruction->GetTypeIndex());
   codegen_->InvokeRuntime(
-      QUICK_ENTRY_POINT(pAllocArrayWithAccessCheck), instruction, instruction->GetDexPc());
+      GetThreadOffset<kArm64WordSize>(instruction->GetEntrypoint()).Int32Value(),
+      instruction,
+      instruction->GetDexPc());
   CheckEntrypointTypes<kQuickAllocArrayWithAccessCheck,
                        void*, uint32_t, int32_t, mirror::ArtMethod*>();
 }
@@ -2136,7 +2138,9 @@ void InstructionCodeGeneratorARM64::VisitNewInstance(HNewInstance* instruction) 
   codegen_->LoadCurrentMethod(current_method);
   __ Mov(type_index, instruction->GetTypeIndex());
   codegen_->InvokeRuntime(
-      QUICK_ENTRY_POINT(pAllocObjectWithAccessCheck), instruction, instruction->GetDexPc());
+      GetThreadOffset<kArm64WordSize>(instruction->GetEntrypoint()).Int32Value(),
+      instruction,
+      instruction->GetDexPc());
   CheckEntrypointTypes<kQuickAllocObjectWithAccessCheck, void*, uint32_t, mirror::ArtMethod*>();
 }
 
