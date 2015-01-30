@@ -34,6 +34,7 @@
 #include "inliner.h"
 #include "instruction_simplifier.h"
 #include "intrinsics.h"
+#include "licm.h"
 #include "jni/quick/jni_compiler.h"
 #include "mirror/art_method-inl.h"
 #include "nodes.h"
@@ -225,6 +226,7 @@ static void RunOptimizations(HGraph* graph,
   HConstantFolding fold2(graph);
   SideEffectsAnalysis side_effects(graph);
   GVNOptimization gvn(graph, side_effects);
+  LICM licm(graph, side_effects);
   BoundsCheckElimination bce(graph);
   ReferenceTypePropagation type_propagation(graph);
   InstructionSimplifier simplify2(graph, "instruction_simplifier_after_types");
@@ -242,6 +244,7 @@ static void RunOptimizations(HGraph* graph,
     &fold2,
     &side_effects,
     &gvn,
+    &licm,
     &bce,
     &type_propagation,
     &simplify2

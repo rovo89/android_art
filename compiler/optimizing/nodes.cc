@@ -707,7 +707,7 @@ std::ostream& operator<<(std::ostream& os, const HInstruction::InstructionKind& 
   return os;
 }
 
-void HInstruction::InsertBefore(HInstruction* cursor) {
+void HInstruction::MoveBefore(HInstruction* cursor) {
   next_->previous_ = previous_;
   if (previous_ != nullptr) {
     previous_->next_ = next_;
@@ -715,6 +715,7 @@ void HInstruction::InsertBefore(HInstruction* cursor) {
   if (block_->instructions_.first_instruction_ == this) {
     block_->instructions_.first_instruction_ = next_;
   }
+  DCHECK_NE(block_->instructions_.last_instruction_, this);
 
   previous_ = cursor->previous_;
   if (previous_ != nullptr) {
@@ -723,6 +724,10 @@ void HInstruction::InsertBefore(HInstruction* cursor) {
   next_ = cursor;
   cursor->previous_ = this;
   block_ = cursor->block_;
+
+  if (block_->instructions_.first_instruction_ == cursor) {
+    block_->instructions_.first_instruction_ = this;
+  }
 }
 
 void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
@@ -737,7 +742,7 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   for (HInstructionIterator it(entry_block_->GetInstructions()); !it.Done(); it.Advance()) {
     HInstruction* current = it.Current();
     if (current->IsConstant()) {
-      current->InsertBefore(outer_graph->GetEntryBlock()->GetLastInstruction());
+      current->MoveBefore(outer_graph->GetEntryBlock()->GetLastInstruction());
     } else if (current->IsParameterValue()) {
       current->ReplaceWith(invoke->InputAt(parameter_index++));
     } else {
