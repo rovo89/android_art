@@ -129,6 +129,8 @@ define build-art-executable
     endif
   endif
 
+  LOCAL_NATIVE_COVERAGE := $(ART_COVERAGE)
+
   ifeq ($$(art_target_or_host),target)
     include $(BUILD_EXECUTABLE)
     ART_TARGET_EXECUTABLES := $(ART_TARGET_EXECUTABLES) $$(foreach name,$$(art_out_binary_name),$(TARGET_OUT_EXECUTABLES)/$$(name))
