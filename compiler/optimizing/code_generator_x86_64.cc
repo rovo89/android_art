@@ -2424,8 +2424,8 @@ void InstructionCodeGeneratorX86_64::VisitNewInstance(HNewInstance* instruction)
   codegen_->LoadCurrentMethod(CpuRegister(calling_convention.GetRegisterAt(1)));
   __ movq(CpuRegister(calling_convention.GetRegisterAt(0)), Immediate(instruction->GetTypeIndex()));
 
-  __ gs()->call(Address::Absolute(
-      QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pAllocObjectWithAccessCheck), true));
+  __ gs()->call(
+      Address::Absolute(GetThreadOffset<kX86_64WordSize>(instruction->GetEntrypoint()), true));
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
@@ -2446,8 +2446,8 @@ void InstructionCodeGeneratorX86_64::VisitNewArray(HNewArray* instruction) {
   codegen_->LoadCurrentMethod(CpuRegister(calling_convention.GetRegisterAt(2)));
   __ movq(CpuRegister(calling_convention.GetRegisterAt(0)), Immediate(instruction->GetTypeIndex()));
 
-  __ gs()->call(Address::Absolute(
-      QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pAllocArrayWithAccessCheck), true));
+  __ gs()->call(
+      Address::Absolute(GetThreadOffset<kX86_64WordSize>(instruction->GetEntrypoint()), true));
 
   DCHECK(!codegen_->IsLeafMethod());
   codegen_->RecordPcInfo(instruction, instruction->GetDexPc());

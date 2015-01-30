@@ -17,6 +17,7 @@
 #include "code_generator_x86.h"
 
 #include "entrypoints/quick/quick_entrypoints.h"
+#include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "gc/accounting/card_table.h"
 #include "mirror/array-inl.h"
 #include "mirror/art_method.h"
@@ -2555,8 +2556,7 @@ void InstructionCodeGeneratorX86::VisitNewInstance(HNewInstance* instruction) {
   codegen_->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
   __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction->GetTypeIndex()));
 
-  __ fs()->call(
-      Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAllocObjectWithAccessCheck)));
+  __ fs()->call(Address::Absolute(GetThreadOffset<kX86WordSize>(instruction->GetEntrypoint())));
 
   codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
   DCHECK(!codegen_->IsLeafMethod());
@@ -2577,8 +2577,7 @@ void InstructionCodeGeneratorX86::VisitNewArray(HNewArray* instruction) {
   codegen_->LoadCurrentMethod(calling_convention.GetRegisterAt(2));
   __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction->GetTypeIndex()));
 
-  __ fs()->call(
-      Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pAllocArrayWithAccessCheck)));
+  __ fs()->call(Address::Absolute(GetThreadOffset<kX86WordSize>(instruction->GetEntrypoint())));
 
   codegen_->RecordPcInfo(instruction, instruction->GetDexPc());
   DCHECK(!codegen_->IsLeafMethod());
