@@ -18,6 +18,7 @@
 
 #include "code_generator.h"
 #include "nodes.h"
+#include "optimization.h"
 #include "ssa_liveness_analysis.h"
 
 namespace art {
@@ -216,6 +217,14 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
         }
       }
       output_ << " (liveness: " << instruction->GetLifetimePosition() << ")";
+    } else if (pass_name_ == kLoopInvariantCodeMotionPassName) {
+      output_ << " ( loop_header:";
+      HLoopInformation* info = instruction->GetBlock()->GetLoopInformation();
+      if (info == nullptr) {
+        output_ << "null )";
+      } else {
+        output_ << "B" << info->GetHeader()->GetBlockId() << " )";
+      }
     }
   }
 

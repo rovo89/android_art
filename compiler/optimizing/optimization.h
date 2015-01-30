@@ -21,6 +21,10 @@
 
 namespace art {
 
+static const char* kLivenessPassName = "liveness";
+static const char* kRegisterAllocatorPassName = "register";
+static const char* kLoopInvariantCodeMotionPassName = "licm";
+
 /**
  * Abstraction to implement an optimization pass.
  */
