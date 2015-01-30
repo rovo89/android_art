@@ -27,10 +27,6 @@ class CodeGenerator;
 class DexCompilationUnit;
 class HGraph;
 
-// TODO: Create an analysis/optimization abstraction.
-static const char* kLivenessPassName = "liveness";
-static const char* kRegisterAllocatorPassName = "register";
-
 /**
  * This class outputs the HGraph in the C1visualizer format.
  * Note: Currently only works if the compiler is single threaded.

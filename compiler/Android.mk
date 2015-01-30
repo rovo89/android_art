@@ -100,8 +100,9 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/inliner.cc \
 	optimizing/instruction_simplifier.cc \
 	optimizing/intrinsics.cc \
-	optimizing/intrinsics_x86_64.cc \
 	optimizing/intrinsics_arm64.cc \
+	optimizing/intrinsics_x86_64.cc \
+	optimizing/licm.cc \
 	optimizing/locations.cc \
 	optimizing/nodes.cc \
 	optimizing/optimization.cc \
