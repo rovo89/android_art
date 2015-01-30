@@ -28,6 +28,7 @@ LOCAL_MODULE:= libsigchain
 LOCAL_SHARED_LIBRARIES := liblog
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/Android.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.common_build.mk
+LOCAL_NATIVE_COVERAGE := $(ART_COVERAGE)
 $(eval $(call set-target-local-clang-vars))
 include $(BUILD_SHARED_LIBRARY)
 
@@ -56,6 +57,7 @@ LOCAL_MODULE:= libsigchain
 LOCAL_ADDITIONAL_DEPENDENCIES += $(LOCAL_PATH)/Android.mk
 LOCAL_LDLIBS = -ldl
 LOCAL_MULTILIB := both
+LOCAL_NATIVE_COVERAGE := $(ART_COVERAGE)
 include $(BUILD_HOST_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
