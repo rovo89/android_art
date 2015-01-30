@@ -275,7 +275,7 @@ $$(gtest_rule): test-art-target-sync
 	$(hide) adb shell rm $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID
 	$(hide) adb shell chmod 755 $(ART_TARGET_NATIVETEST_DIR)/$(TARGET_$(2)ARCH)/$(1)
 	$(hide) $$(call ART_TEST_SKIP,$$@) && \
-	  (adb shell "LD_LIBRARY_PATH=$(3) ANDROID_ROOT=$(ART_GTEST_TARGET_ANDROID_ROOT) \
+	  (adb shell "$(GCOV_ENV) LD_LIBRARY_PATH=$(3) ANDROID_ROOT=$(ART_GTEST_TARGET_ANDROID_ROOT) \
 	    $(ART_TARGET_NATIVETEST_DIR)/$(TARGET_$(2)ARCH)/$(1) && touch $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID" \
 	  && (adb pull $(ART_TARGET_TEST_DIR)/$(TARGET_$(2)ARCH)/$$@-$$$$PPID /tmp/ \
 	      && $$(call ART_TEST_PASSED,$$@)) \
