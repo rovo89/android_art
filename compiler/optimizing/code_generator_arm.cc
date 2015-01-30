@@ -2416,8 +2416,9 @@ void InstructionCodeGeneratorARM::VisitNewInstance(HNewInstance* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
   codegen_->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
   __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex());
-  codegen_->InvokeRuntime(
-      QUICK_ENTRY_POINT(pAllocObjectWithAccessCheck), instruction, instruction->GetDexPc());
+  codegen_->InvokeRuntime(GetThreadOffset<kArmWordSize>(instruction->GetEntrypoint()).Int32Value(),
+                          instruction,
+                          instruction->GetDexPc());
 }
 
 void LocationsBuilderARM::VisitNewArray(HNewArray* instruction) {
@@ -2434,8 +2435,9 @@ void InstructionCodeGeneratorARM::VisitNewArray(HNewArray* instruction) {
   InvokeRuntimeCallingConvention calling_convention;
   codegen_->LoadCurrentMethod(calling_convention.GetRegisterAt(2));
   __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex());
-  codegen_->InvokeRuntime(
-      QUICK_ENTRY_POINT(pAllocArrayWithAccessCheck), instruction, instruction->GetDexPc());
+  codegen_->InvokeRuntime(GetThreadOffset<kArmWordSize>(instruction->GetEntrypoint()).Int32Value(),
+                          instruction,
+                          instruction->GetDexPc());
 }
 
 void LocationsBuilderARM::VisitParameterValue(HParameterValue* instruction) {

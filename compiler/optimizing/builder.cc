@@ -847,7 +847,10 @@ void HGraphBuilder::BuildFilledNewArray(uint32_t dex_pc,
                                         uint32_t* args,
                                         uint32_t register_index) {
   HInstruction* length = GetIntConstant(number_of_vreg_arguments);
-  HInstruction* object = new (arena_) HNewArray(length, dex_pc, type_index);
+  QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index)
+      ? kQuickAllocArrayWithAccessCheck
+      : kQuickAllocArray;
+  HInstruction* object = new (arena_) HNewArray(length, dex_pc, type_index, entrypoint);
   current_block_->AddInstruction(object);
 
   const char* descriptor = dex_file_->StringByTypeIdx(type_index);
@@ -985,6 +988,11 @@ bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
         new (arena_) HCheckCast(object, cls, type_known_final, dex_pc));
   }
   return true;
+}
+
+bool HGraphBuilder::NeedsAccessCheck(uint32_t type_index) const {
+  return !compiler_driver_->CanAccessInstantiableTypeWithoutChecks(
+      dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index);
 }
 
 void HGraphBuilder::BuildPackedSwitch(const Instruction& instruction, uint32_t dex_pc) {
@@ -1772,16 +1780,24 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     }
 
     case Instruction::NEW_INSTANCE: {
-      current_block_->AddInstruction(
-          new (arena_) HNewInstance(dex_pc, instruction.VRegB_21c()));
+      uint16_t type_index = instruction.VRegB_21c();
+      QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index)
+          ? kQuickAllocObjectWithAccessCheck
+          : kQuickAllocObject;
+
+      current_block_->AddInstruction(new (arena_) HNewInstance(dex_pc, type_index, entrypoint));
       UpdateLocal(instruction.VRegA(), current_block_->GetLastInstruction());
       break;
     }
 
     case Instruction::NEW_ARRAY: {
+      uint16_t type_index = instruction.VRegC_22c();
       HInstruction* length = LoadLocal(instruction.VRegB_22c(), Primitive::kPrimInt);
+      QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index)
+          ? kQuickAllocArrayWithAccessCheck
+          : kQuickAllocArray;
       current_block_->AddInstruction(
-          new (arena_) HNewArray(length, dex_pc, instruction.VRegC_22c()));
+          new (arena_) HNewArray(length, dex_pc, type_index, entrypoint));
       UpdateLocal(instruction.VRegA_22c(), current_block_->GetLastInstruction());
       break;
     }
