@@ -238,10 +238,14 @@ art_target_non_debug_cflags := $(art_non_debug_cflags)
 
 ifeq ($(HOST_OS),linux)
   # Larger frame-size for host clang builds today
-  ifndef SANITIZE_HOST
-    art_host_non_debug_cflags += -Wframe-larger-than=2700
+  ifneq ($(ART_COVERAGE),true)
+    ifneq ($(NATIVE_COVERAGE),true)
+      ifndef SANITIZE_HOST
+        art_host_non_debug_cflags += -Wframe-larger-than=2700
+      endif
+      art_target_non_debug_cflags += -Wframe-larger-than=1728
+    endif
   endif
-  art_target_non_debug_cflags += -Wframe-larger-than=1728
 endif
 
 ifndef LIBART_IMG_HOST_BASE_ADDRESS
