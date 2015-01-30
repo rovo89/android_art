@@ -18,10 +18,6 @@
 
 #include <sstream>
 
-#ifdef HAVE_ANDROID_OS
-#include "cutils/properties.h"
-#endif
-
 #include "base/stringpiece.h"
 #include "debugger.h"
 #include "gc/heap.h"
