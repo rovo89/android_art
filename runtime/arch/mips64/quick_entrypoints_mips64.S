@@ -758,7 +758,24 @@ GENERATE_ALL_ALLOC_ENTRYPOINTS
 UNIMPLEMENTED art_quick_test_suspend
 UNIMPLEMENTED art_quick_proxy_invoke_handler
 UNIMPLEMENTED art_quick_imt_conflict_trampoline
-UNIMPLEMENTED art_quick_resolution_trampoline
+
+    .extern artQuickResolutionTrampoline
+ENTRY art_quick_resolution_trampoline
+    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    move    $a2, rSELF             # pass Thread::Current
+    jal     artQuickResolutionTrampoline  # (Method* called, receiver, Thread*, SP)
+    move    $a3, $sp               # pass $sp
+    beq     $v0, $zero, 1f
+    lwu     $a0, 0($sp)            # load resolved method in $a0
+                                   # artQuickResolutionTrampoline puts resolved method in *SP
+    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    move    $t9, $v0               # code pointer must be in $t9 to generate the global pointer
+    jalr    $zero, $t9             # tail call to method
+    nop
+1:
+    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    DELIVER_PENDING_EXCEPTION
+END art_quick_resolution_trampoline
 
     .extern artQuickGenericJniTrampoline
     .extern artQuickGenericJniEndTrampoline
