@@ -756,7 +756,29 @@ END \name
 GENERATE_ALL_ALLOC_ENTRYPOINTS
 
 UNIMPLEMENTED art_quick_test_suspend
-UNIMPLEMENTED art_quick_proxy_invoke_handler
+
+    /*
+     * Called by managed code that is attempting to call a method on a proxy class. On entry
+     * r0 holds the proxy method; r1, r2 and r3 may contain arguments.
+     */
+    .extern artQuickProxyInvokeHandler
+ENTRY art_quick_proxy_invoke_handler
+    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    sd      $a0, 0($sp)            # place proxy method at bottom of frame
+    move    $a2, rSELF             # pass Thread::Current
+    jal     artQuickProxyInvokeHandler  # (Method* proxy method, receiver, Thread*, SP)
+    move    $a3, $sp               # pass $sp
+    ld      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
+    daddiu  $sp, $sp, REFS_AND_ARGS_MINUS_REFS_SIZE  # skip a0-a7 and f12-f19
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+    bne     $t0, $zero, 1f
+    dmtc1   $v0, $f0               # place return value to FP return value
+    jalr    $zero, $ra
+    dmtc1   $v1, $f1               # place return value to FP return value
+1:
+    DELIVER_PENDING_EXCEPTION
+END art_quick_proxy_invoke_handler
+
 UNIMPLEMENTED art_quick_imt_conflict_trampoline
 
     .extern artQuickResolutionTrampoline
