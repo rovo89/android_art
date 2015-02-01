@@ -400,8 +400,9 @@ void Arm64Mir2Lir::GenSpecialExitSequence() {
 }
 
 static bool Arm64UseRelativeCall(CompilationUnit* cu, const MethodReference& target_method) {
-  // Emit relative calls anywhere in the image or within a dex file otherwise.
-  return cu->compiler_driver->IsImage() || cu->dex_file == target_method.dex_file;
+  UNUSED(cu, target_method);
+  // Always emit relative calls.
+  return true;
 }
 
 /*
