@@ -71,7 +71,7 @@ RegionSpace::RegionSpace(const std::string& name, MemMap* mem_map)
   }
   full_region_ = Region();
   DCHECK(!full_region_.IsFree());
-  DCHECK(full_region_.IsNormal());
+  DCHECK(full_region_.IsAllocated());
   current_region_ = &full_region_;
   evac_region_ = nullptr;
   size_t ignored;
@@ -115,7 +115,7 @@ size_t RegionSpace::ToSpaceSize() {
 }
 
 inline bool RegionSpace::Region::ShouldBeEvacuated() {
-  DCHECK(state_ == kRegionToSpace || state_ == kRegionLargeToSpace);
+  DCHECK((IsAllocated() || IsLarge()) && IsInToSpace());
   // if the region was allocated after the start of the
   // previous GC or the live ratio is below threshold, evacuate
   // it.
@@ -126,13 +126,13 @@ inline bool RegionSpace::Region::ShouldBeEvacuated() {
     bool is_live_percent_valid = live_bytes_ != static_cast<size_t>(-1);
     if (is_live_percent_valid) {
       uint live_percent = GetLivePercent();
-      if (state_ == kRegionToSpace) {
+      if (IsAllocated()) {
         // Side node: live_percent == 0 does not necessarily mean
         // there's no live objects due to rounding (there may be a
         // few).
         result = live_percent < kEvaculateLivePercentThreshold;
       } else {
-        DCHECK(state_ == kRegionLargeToSpace);
+        DCHECK(IsLarge());
         result = live_percent == 0U;
       }
     } else {
@@ -155,11 +155,14 @@ void RegionSpace::SetFromSpace(accounting::ReadBarrierTable* rb_table, bool forc
   bool prev_large_evacuated = false;
   for (size_t i = 0; i < num_regions_; ++i) {
     Region* r = &regions_[i];
-    RegionState state = static_cast<RegionState>(r->state_);
+    RegionState state = r->State();
+    RegionType type = r->Type();
     if (!r->IsFree()) {
       DCHECK(r->IsInToSpace());
       if (LIKELY(num_expected_large_tails == 0U)) {
-        DCHECK(state == kRegionToSpace || state == kRegionLargeToSpace);
+        DCHECK((state == RegionState::kRegionStateAllocated ||
+                state == RegionState::kRegionStateLarge) &&
+               type == RegionType::kRegionTypeToSpace);
         bool should_evacuate = force_evacuate_all || r->ShouldBeEvacuated();
         if (should_evacuate) {
           r->SetAsFromSpace();
@@ -168,13 +171,15 @@ void RegionSpace::SetFromSpace(accounting::ReadBarrierTable* rb_table, bool forc
           r->SetAsUnevacFromSpace();
           DCHECK(r->IsInUnevacFromSpace());
         }
-        if (UNLIKELY(state == kRegionLargeToSpace)) {
+        if (UNLIKELY(state == RegionState::kRegionStateLarge &&
+                     type == RegionType::kRegionTypeToSpace)) {
           prev_large_evacuated = should_evacuate;
           num_expected_large_tails = RoundUp(r->BytesAllocated(), kRegionSize) / kRegionSize - 1;
           DCHECK_GT(num_expected_large_tails, 0U);
         }
       } else {
-        DCHECK(state == kRegionLargeTailToSpace);
+        DCHECK(state == RegionState::kRegionStateLargeTail &&
+               type == RegionType::kRegionTypeToSpace);
         if (prev_large_evacuated) {
           r->SetAsFromSpace();
           DCHECK(r->IsInFromSpace());
@@ -361,7 +366,7 @@ void RegionSpace::RevokeThreadLocalBuffersLocked(Thread* thread) {
   if (tlab_start != nullptr) {
     DCHECK(IsAligned<kRegionSize>(tlab_start));
     Region* r = RefToRegionLocked(reinterpret_cast<mirror::Object*>(tlab_start));
-    DCHECK(r->IsNormal());
+    DCHECK(r->IsAllocated());
     DCHECK_EQ(thread->GetThreadLocalBytesAllocated(), kRegionSize);
     r->RecordThreadLocalAllocations(thread->GetThreadLocalObjectsAllocated(),
                                     thread->GetThreadLocalBytesAllocated());
@@ -402,7 +407,8 @@ void RegionSpace::AssertAllThreadLocalBuffersAreRevoked() {
 void RegionSpace::Region::Dump(std::ostream& os) const {
   os << "Region[" << idx_ << "]=" << reinterpret_cast<void*>(begin_) << "-" << reinterpret_cast<void*>(top_)
      << "-" << reinterpret_cast<void*>(end_)
-     << " state=" << static_cast<uint>(state_) << " objects_allocated=" << objects_allocated_
+     << " state=" << static_cast<uint>(state_) << " type=" << static_cast<uint>(type_)
+     << " objects_allocated=" << objects_allocated_
      << " alloc_time=" << alloc_time_ << " live_bytes=" << live_bytes_
      << " is_newly_allocated=" << is_newly_allocated_ << " is_a_tlab=" << is_a_tlab_ << " thread=" << thread_ << "\n";
 }

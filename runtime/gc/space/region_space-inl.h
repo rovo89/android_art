@@ -104,7 +104,7 @@ inline mirror::Object* RegionSpace::AllocNonvirtual(size_t num_bytes, size_t* by
 
 inline mirror::Object* RegionSpace::Region::Alloc(size_t num_bytes, size_t* bytes_allocated,
                                                   size_t* usable_size) {
-  DCHECK_EQ(state_, static_cast<uint8_t>(kRegionToSpace));
+  DCHECK(IsAllocated() && IsInToSpace());
   DCHECK(IsAligned<kAlignment>(num_bytes));
   Atomic<uint8_t*>* atomic_top = reinterpret_cast<Atomic<uint8_t*>*>(&top_);
   uint8_t* old_top;
@@ -132,7 +132,7 @@ inline size_t RegionSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t*
   size_t num_bytes = obj->SizeOf();
   if (usable_size != nullptr) {
     if (LIKELY(num_bytes <= kRegionSize)) {
-      DCHECK(RefToRegion(obj)->IsNormal());
+      DCHECK(RefToRegion(obj)->IsAllocated());
       *usable_size = RoundUp(num_bytes, kAlignment);
     } else {
       DCHECK(RefToRegion(obj)->IsLarge());
@@ -142,7 +142,7 @@ inline size_t RegionSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t*
   return num_bytes;
 }
 
-template<RegionSpace::SubSpaceType kSubSpaceType>
+template<RegionSpace::RegionType kRegionType>
 uint64_t RegionSpace::GetBytesAllocatedInternal() {
   uint64_t bytes = 0;
   MutexLock mu(Thread::Current(), region_lock_);
@@ -151,33 +151,33 @@ uint64_t RegionSpace::GetBytesAllocatedInternal() {
     if (r->IsFree()) {
       continue;
     }
-    switch (kSubSpaceType) {
-      case kAllSpaces:
+    switch (kRegionType) {
+      case RegionType::kRegionTypeAll:
         bytes += r->BytesAllocated();
         break;
-      case kFromSpace:
+      case RegionType::kRegionTypeFromSpace:
         if (r->IsInFromSpace()) {
           bytes += r->BytesAllocated();
         }
         break;
-      case kUnevacFromSpace:
+      case RegionType::kRegionTypeUnevacFromSpace:
         if (r->IsInUnevacFromSpace()) {
           bytes += r->BytesAllocated();
         }
         break;
-      case kToSpace:
+      case RegionType::kRegionTypeToSpace:
         if (r->IsInToSpace()) {
           bytes += r->BytesAllocated();
         }
         break;
       default:
-        LOG(FATAL) << "Unexpected space type : " << static_cast<int>(kSubSpaceType);
+        LOG(FATAL) << "Unexpected space type : " << kRegionType;
     }
   }
   return bytes;
 }
 
-template<RegionSpace::SubSpaceType kSubSpaceType>
+template<RegionSpace::RegionType kRegionType>
 uint64_t RegionSpace::GetObjectsAllocatedInternal() {
   uint64_t bytes = 0;
   MutexLock mu(Thread::Current(), region_lock_);
@@ -186,27 +186,27 @@ uint64_t RegionSpace::GetObjectsAllocatedInternal() {
     if (r->IsFree()) {
       continue;
     }
-    switch (kSubSpaceType) {
-      case kAllSpaces:
+    switch (kRegionType) {
+      case RegionType::kRegionTypeAll:
         bytes += r->ObjectsAllocated();
         break;
-      case kFromSpace:
+      case RegionType::kRegionTypeFromSpace:
         if (r->IsInFromSpace()) {
           bytes += r->ObjectsAllocated();
         }
         break;
-      case kUnevacFromSpace:
+      case RegionType::kRegionTypeUnevacFromSpace:
         if (r->IsInUnevacFromSpace()) {
           bytes += r->ObjectsAllocated();
         }
         break;
-      case kToSpace:
+      case RegionType::kRegionTypeToSpace:
         if (r->IsInToSpace()) {
           bytes += r->ObjectsAllocated();
         }
         break;
       default:
-        LOG(FATAL) << "Unexpected space type : " << static_cast<int>(kSubSpaceType);
+        LOG(FATAL) << "Unexpected space type : " << kRegionType;
     }
   }
   return bytes;
