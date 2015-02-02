@@ -1077,11 +1077,10 @@ void HGraphBuilder::PotentiallyAddSuspendCheck(HBasicBlock* target, uint32_t dex
   if (target_offset <= 0) {
     // DX generates back edges to the first encountered return. We can save
     // time of later passes by not adding redundant suspend checks.
-    if (target_offset != 0) {
-      DCHECK(target->GetLastInstruction() != nullptr);
-      if (target->GetLastInstruction()->IsReturn()) {
-        return;
-      }
+    HInstruction* last_in_target = target->GetLastInstruction();
+    if (last_in_target != nullptr &&
+        (last_in_target->IsReturn() || last_in_target->IsReturnVoid())) {
+      return;
     }
 
     // Add a suspend check to backward branches which may potentially loop. We
