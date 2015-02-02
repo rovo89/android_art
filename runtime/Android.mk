@@ -300,6 +300,7 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   gc/collector/gc_type.h \
   gc/allocator_type.h \
   gc/collector_type.h \
+  gc/space/region_space.h \
   gc/space/space.h \
   gc/heap.h \
   instrumentation.h \
