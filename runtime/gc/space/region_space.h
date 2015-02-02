@@ -17,9 +17,10 @@
 #ifndef ART_RUNTIME_GC_SPACE_REGION_SPACE_H_
 #define ART_RUNTIME_GC_SPACE_REGION_SPACE_H_
 
+#include "gc/accounting/read_barrier_table.h"
 #include "object_callbacks.h"
 #include "space.h"
-#include "gc/accounting/read_barrier_table.h"
+#include "thread.h"
 
 namespace art {
 namespace gc {
@@ -94,32 +95,40 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
   void AssertAllThreadLocalBuffersAreRevoked() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_,
                                                               Locks::thread_list_lock_);
 
-  enum SubSpaceType {
-    kAllSpaces,        // All spaces.
-    kFromSpace,        // From-space. To be evacuated.
-    kUnevacFromSpace,  // Unevacuated from-space. Not to be evacuated.
-    kToSpace,          // To-space.
+  enum class RegionType : uint8_t {
+    kRegionTypeAll,              // All types.
+    kRegionTypeFromSpace,        // From-space. To be evacuated.
+    kRegionTypeUnevacFromSpace,  // Unevacuated from-space. Not to be evacuated.
+    kRegionTypeToSpace,          // To-space.
+    kRegionTypeNone,             // None.
   };
 
-  template<SubSpaceType kSubSpaceType> uint64_t GetBytesAllocatedInternal();
-  template<SubSpaceType kSubSpaceType> uint64_t GetObjectsAllocatedInternal();
+  enum class RegionState : uint8_t {
+    kRegionStateFree,            // Free region.
+    kRegionStateAllocated,       // Allocated region.
+    kRegionStateLarge,           // Large allocated (allocation larger than the region size).
+    kRegionStateLargeTail,       // Large tail (non-first regions of a large allocation).
+  };
+
+  template<RegionType kRegionType> uint64_t GetBytesAllocatedInternal();
+  template<RegionType kRegionType> uint64_t GetObjectsAllocatedInternal();
   uint64_t GetBytesAllocated() {
-    return GetBytesAllocatedInternal<kAllSpaces>();
+    return GetBytesAllocatedInternal<RegionType::kRegionTypeAll>();
   }
   uint64_t GetObjectsAllocated() {
-    return GetObjectsAllocatedInternal<kAllSpaces>();
+    return GetObjectsAllocatedInternal<RegionType::kRegionTypeAll>();
   }
   uint64_t GetBytesAllocatedInFromSpace() {
-    return GetBytesAllocatedInternal<kFromSpace>();
+    return GetBytesAllocatedInternal<RegionType::kRegionTypeFromSpace>();
   }
   uint64_t GetObjectsAllocatedInFromSpace() {
-    return GetObjectsAllocatedInternal<kFromSpace>();
+    return GetObjectsAllocatedInternal<RegionType::kRegionTypeFromSpace>();
   }
   uint64_t GetBytesAllocatedInUnevacFromSpace() {
-    return GetBytesAllocatedInternal<kUnevacFromSpace>();
+    return GetBytesAllocatedInternal<RegionType::kRegionTypeUnevacFromSpace>();
   }
   uint64_t GetObjectsAllocatedInUnevacFromSpace() {
-    return GetObjectsAllocatedInternal<kUnevacFromSpace>();
+    return GetObjectsAllocatedInternal<RegionType::kRegionTypeUnevacFromSpace>();
   }
 
   bool CanMoveObjects() const OVERRIDE {
@@ -181,6 +190,14 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     return false;
   }
 
+  RegionType GetRegionType(mirror::Object* ref) {
+    if (HasAddress(ref)) {
+      Region* r = RefToRegionUnlocked(ref);
+      return r->Type();
+    }
+    return RegionType::kRegionTypeNone;
+  }
+
   void SetFromSpace(accounting::ReadBarrierTable* rb_table, bool force_evacuate_all)
       LOCKS_EXCLUDED(region_lock_);
 
@@ -190,7 +207,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
   void ClearFromSpace();
 
   void AddLiveBytes(mirror::Object* ref, size_t alloc_size) {
-    Region* reg = RefToRegion(ref);
+    Region* reg = RefToRegionUnlocked(ref);
     reg->AddLiveBytes(alloc_size);
   }
 
@@ -209,38 +226,36 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
   template<bool kToSpaceOnly>
   void WalkInternal(ObjectCallback* callback, void* arg) NO_THREAD_SAFETY_ANALYSIS;
 
-  enum RegionState {
-    kRegionFree,                      // Free region.
-    kRegionToSpace,                   // To-space region.
-    kRegionFromSpace,                 // From-space region. To be evacuated.
-    kRegionUnevacFromSpace,           // Unevacuated from-space region. Not to be evacuated.
-    kRegionLargeToSpace,              // Large (allocation larger than the region size) to-space.
-    kRegionLargeFromSpace,            // Large from-space. To be evacuated.
-    kRegionLargeUnevacFromSpace,      // Large unevacuated from-space.
-    kRegionLargeTailToSpace,          // Large tail (non-first regions of a large allocation).
-    kRegionLargeTailFromSpace,        // Large tail from-space.
-    kRegionLargeTailUnevacFromSpace,  // Large tail unevacuated from-space.
-  };
-
   class Region {
    public:
     Region()
         : idx_(static_cast<size_t>(-1)),
-          begin_(nullptr), top_(nullptr), end_(nullptr), state_(kRegionToSpace),
+          begin_(nullptr), top_(nullptr), end_(nullptr),
+          state_(RegionState::kRegionStateAllocated), type_(RegionType::kRegionTypeToSpace),
           objects_allocated_(0), alloc_time_(0), live_bytes_(static_cast<size_t>(-1)),
           is_newly_allocated_(false), is_a_tlab_(false), thread_(nullptr) {}
 
     Region(size_t idx, uint8_t* begin, uint8_t* end)
-        : idx_(idx), begin_(begin), top_(begin), end_(end), state_(kRegionFree),
+        : idx_(idx), begin_(begin), top_(begin), end_(end),
+          state_(RegionState::kRegionStateFree), type_(RegionType::kRegionTypeNone),
           objects_allocated_(0), alloc_time_(0), live_bytes_(static_cast<size_t>(-1)),
           is_newly_allocated_(false), is_a_tlab_(false), thread_(nullptr) {
       DCHECK_LT(begin, end);
       DCHECK_EQ(static_cast<size_t>(end - begin), kRegionSize);
     }
 
+    RegionState State() const {
+      return state_;
+    }
+
+    RegionType Type() const {
+      return type_;
+    }
+
     void Clear() {
       top_ = begin_;
-      state_ = kRegionFree;
+      state_ = RegionState::kRegionStateFree;
+      type_ = RegionType::kRegionTypeNone;
       objects_allocated_ = 0;
       alloc_time_ = 0;
       live_bytes_ = static_cast<size_t>(-1);
@@ -257,8 +272,9 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
                                         size_t* usable_size);
 
     bool IsFree() const {
-      bool is_free = state_ == kRegionFree;
+      bool is_free = state_ == RegionState::kRegionStateFree;
       if (is_free) {
+        DCHECK(IsInNoSpace());
         DCHECK_EQ(begin_, top_);
         DCHECK_EQ(objects_allocated_, 0U);
       }
@@ -268,19 +284,22 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     // Given a free region, declare it non-free (allocated).
     void Unfree(uint32_t alloc_time) {
       DCHECK(IsFree());
-      state_ = kRegionToSpace;
+      state_ = RegionState::kRegionStateAllocated;
+      type_ = RegionType::kRegionTypeToSpace;
       alloc_time_ = alloc_time;
     }
 
     void UnfreeLarge(uint32_t alloc_time) {
       DCHECK(IsFree());
-      state_ = kRegionLargeToSpace;
+      state_ = RegionState::kRegionStateLarge;
+      type_ = RegionType::kRegionTypeToSpace;
       alloc_time_ = alloc_time;
     }
 
     void UnfreeLargeTail(uint32_t alloc_time) {
       DCHECK(IsFree());
-      state_ = kRegionLargeTailToSpace;
+      state_ = RegionState::kRegionStateLargeTail;
+      type_ = RegionType::kRegionTypeToSpace;
       alloc_time_ = alloc_time;
     }
 
@@ -288,25 +307,23 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
       is_newly_allocated_ = true;
     }
 
-    // Non-large, non-large-tail.
-    bool IsNormal() const {
-      return state_ == kRegionToSpace || state_ == kRegionFromSpace ||
-          state_ == kRegionUnevacFromSpace;
+    // Non-large, non-large-tail allocated.
+    bool IsAllocated() const {
+      return state_ == RegionState::kRegionStateAllocated;
     }
 
+    // Large allocated.
     bool IsLarge() const {
-      bool is_large = state_ == kRegionLargeToSpace || state_ == kRegionLargeFromSpace ||
-          state_ == kRegionLargeUnevacFromSpace;
+      bool is_large = state_ == RegionState::kRegionStateLarge;
       if (is_large) {
         DCHECK_LT(begin_ + 1 * MB, top_);
       }
       return is_large;
     }
 
+    // Large-tail allocated.
     bool IsLargeTail() const {
-      bool is_large_tail = state_ == kRegionLargeTailToSpace ||
-          state_ == kRegionLargeTailFromSpace ||
-          state_ == kRegionLargeTailUnevacFromSpace;
+      bool is_large_tail = state_ == RegionState::kRegionStateLargeTail;
       if (is_large_tail) {
         DCHECK_EQ(begin_, top_);
       }
@@ -318,71 +335,36 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     }
 
     bool IsInFromSpace() const {
-      return state_ == kRegionFromSpace || state_ == kRegionLargeFromSpace ||
-          state_ == kRegionLargeTailFromSpace;
+      return type_ == RegionType::kRegionTypeFromSpace;
     }
 
     bool IsInToSpace() const {
-      return state_ == kRegionToSpace || state_ == kRegionLargeToSpace ||
-          state_ == kRegionLargeTailToSpace;
+      return type_ == RegionType::kRegionTypeToSpace;
     }
 
     bool IsInUnevacFromSpace() const {
-      return state_ == kRegionUnevacFromSpace || state_ == kRegionLargeUnevacFromSpace ||
-          state_ == kRegionLargeTailUnevacFromSpace;
+      return type_ == RegionType::kRegionTypeUnevacFromSpace;
+    }
+
+    bool IsInNoSpace() const {
+      return type_ == RegionType::kRegionTypeNone;
     }
 
     void SetAsFromSpace() {
-      switch (state_) {
-        case kRegionToSpace:
-          state_ = kRegionFromSpace;
-          break;
-        case kRegionLargeToSpace:
-          state_ = kRegionLargeFromSpace;
-          break;
-        case kRegionLargeTailToSpace:
-          state_ = kRegionLargeTailFromSpace;
-          break;
-        default:
-          LOG(FATAL) << "Unexpected region state : " << static_cast<uint>(state_)
-                     << " idx=" << idx_;
-      }
+      DCHECK(!IsFree() && IsInToSpace());
+      type_ = RegionType::kRegionTypeFromSpace;
       live_bytes_ = static_cast<size_t>(-1);
     }
 
     void SetAsUnevacFromSpace() {
-      switch (state_) {
-        case kRegionToSpace:
-          state_ = kRegionUnevacFromSpace;
-          break;
-        case kRegionLargeToSpace:
-          state_ = kRegionLargeUnevacFromSpace;
-          break;
-        case kRegionLargeTailToSpace:
-          state_ = kRegionLargeTailUnevacFromSpace;
-          break;
-        default:
-          LOG(FATAL) << "Unexpected region state : " << static_cast<uint>(state_)
-                     << " idx=" << idx_;
-      }
+      DCHECK(!IsFree() && IsInToSpace());
+      type_ = RegionType::kRegionTypeUnevacFromSpace;
       live_bytes_ = 0U;
     }
 
     void SetUnevacFromSpaceAsToSpace() {
-      switch (state_) {
-        case kRegionUnevacFromSpace:
-          state_ = kRegionToSpace;
-          break;
-        case kRegionLargeUnevacFromSpace:
-          state_ = kRegionLargeToSpace;
-          break;
-        case kRegionLargeTailUnevacFromSpace:
-          state_ = kRegionLargeTailToSpace;
-          break;
-        default:
-          LOG(FATAL) << "Unexpected region state : " << static_cast<uint>(state_)
-                     << " idx=" << idx_;
-      }
+      DCHECK(!IsFree() && IsInUnevacFromSpace());
+      type_ = RegionType::kRegionTypeToSpace;
     }
 
     ALWAYS_INLINE bool ShouldBeEvacuated();
@@ -419,7 +401,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
         DCHECK_EQ(begin_, top_);
         return 0;
       } else {
-        DCHECK(IsNormal()) << static_cast<uint>(state_);
+        DCHECK(IsAllocated()) << static_cast<uint>(state_);
         DCHECK_LE(begin_, top_);
         size_t bytes = static_cast<size_t>(top_ - begin_);
         DCHECK_LE(bytes, kRegionSize);
@@ -437,7 +419,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
         DCHECK_EQ(objects_allocated_, 0U);
         return 0;
       } else {
-        DCHECK(IsNormal()) << static_cast<uint>(state_);
+        DCHECK(IsAllocated()) << static_cast<uint>(state_);
         return objects_allocated_;
       }
     }
@@ -465,7 +447,7 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     void Dump(std::ostream& os) const;
 
     void RecordThreadLocalAllocations(size_t num_objects, size_t num_bytes) {
-      DCHECK(IsNormal());
+      DCHECK(IsAllocated());
       DCHECK_EQ(objects_allocated_, 0U);
       DCHECK_EQ(top_, end_);
       objects_allocated_ = num_objects;
@@ -479,7 +461,8 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     // Can't use Atomic<uint8_t*> as Atomic's copy operator is implicitly deleted.
     uint8_t* top_;                 // The current position of the allocation.
     uint8_t* end_;                 // The end address of the region.
-    uint8_t state_;                // The region state (see RegionState).
+    RegionState state_;            // The region state (see RegionState).
+    RegionType type_;              // The region type (see RegionType).
     uint64_t objects_allocated_;   // The number of objects allocated.
     uint32_t alloc_time_;          // The allocation time of the region.
     size_t live_bytes_;            // The live bytes. Used to compute the live percent.
@@ -533,6 +516,9 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
 
   DISALLOW_COPY_AND_ASSIGN(RegionSpace);
 };
+
+std::ostream& operator<<(std::ostream& os, const RegionSpace::RegionState& value);
+std::ostream& operator<<(std::ostream& os, const RegionSpace::RegionType& value);
 
 }  // namespace space
 }  // namespace gc
