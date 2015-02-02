@@ -106,7 +106,7 @@ class HGraphBuilder : public ValueObject {
   HLocal* GetLocalAt(int register_index) const;
   void UpdateLocal(int register_index, HInstruction* instruction) const;
   HInstruction* LoadLocal(int register_index, Primitive::Type type) const;
-  void PotentiallyAddSuspendCheck(int32_t target_offset, uint32_t dex_pc);
+  void PotentiallyAddSuspendCheck(HBasicBlock* target, uint32_t dex_pc);
   void InitializeParameters(uint16_t number_of_parameters);
   bool NeedsAccessCheck(uint32_t type_index) const;
 
