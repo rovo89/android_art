@@ -119,12 +119,6 @@ static void DumpBaseReg(std::ostream& os, uint8_t rex, uint8_t reg) {
   DumpAddrReg(os, rex, reg_num);
 }
 
-static void DumpIndexReg(std::ostream& os, uint8_t rex, uint8_t reg) {
-  bool rex_x = (rex & REX_X) != 0;
-  uint8_t reg_num = rex_x ? (reg + 8) : reg;
-  DumpAddrReg(os, rex, reg_num);
-}
-
 static void DumpOpcodeReg(std::ostream& os, uint8_t rex, uint8_t reg,
                           bool byte_operand, uint8_t size_override) {
   bool rex_b = (rex & REX_B) != 0;
@@ -184,18 +178,30 @@ std::string DisassemblerX86::DumpAddress(uint8_t mod, uint8_t rm, uint8_t rex64,
     uint8_t index = (sib >> 3) & 7;
     uint8_t base = sib & 7;
     address << "[";
+
+    // REX.x is bit 3 of index.
+    if ((rex64 & REX_X) != 0) {
+      index += 8;
+    }
+
+    // Mod = 0 && base = 5 (ebp): no base (ignores REX.b).
+    bool has_base = false;
     if (base != 5 || mod != 0) {
+      has_base = true;
       DumpBaseReg(address, rex64, base);
-      if (index != 4) {
+    }
+
+    // Index = 4 (esp/rsp) is disallowed.
+    if (index != 4) {
+      if (has_base) {
         address << " + ";
       }
-    }
-    if (index != 4) {
-      DumpIndexReg(address, rex64, index);
+      DumpAddrReg(address, rex64, index);
       if (scale != 0) {
         address << StringPrintf(" * %d", 1 << scale);
       }
     }
+
     if (mod == 0) {
       if (base == 5) {
         if (index != 4) {
