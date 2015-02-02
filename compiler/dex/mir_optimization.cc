@@ -116,13 +116,14 @@ MIR* MIRGraph::AdvanceMIR(BasicBlock** p_bb, MIR* mir) {
   BasicBlock* bb = *p_bb;
   if (mir != NULL) {
     mir = mir->next;
-    if (mir == NULL) {
+    while (mir == NULL) {
       bb = GetBasicBlock(bb->fall_through);
       if ((bb == NULL) || Predecessors(bb) != 1) {
-        mir = NULL;
+        // mir is null and we cannot proceed further.
+        break;
       } else {
-      *p_bb = bb;
-      mir = bb->first_mir_insn;
+        *p_bb = bb;
+        mir = bb->first_mir_insn;
       }
     }
   }
