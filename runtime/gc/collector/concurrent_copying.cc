@@ -810,10 +810,10 @@ class ConcurrentCopyingClearBlackPtrsVisitor {
   void operator()(mirror::Object* obj) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     DCHECK(obj != nullptr);
-    CHECK(collector_->heap_->GetMarkBitmap()->Test(obj)) << obj;
-    CHECK_EQ(obj->GetReadBarrierPointer(), ReadBarrier::BlackPtr()) << obj;
+    DCHECK(collector_->heap_->GetMarkBitmap()->Test(obj)) << obj;
+    DCHECK_EQ(obj->GetReadBarrierPointer(), ReadBarrier::BlackPtr()) << obj;
     obj->SetReadBarrierPointer(ReadBarrier::WhitePtr());
-    CHECK_EQ(obj->GetReadBarrierPointer(), ReadBarrier::WhitePtr()) << obj;
+    DCHECK_EQ(obj->GetReadBarrierPointer(), ReadBarrier::WhitePtr()) << obj;
   }
 
  private:
@@ -955,10 +955,10 @@ class ConcurrentCopyingComputeUnevacFromSpaceLiveRatioVisitor {
   void operator()(mirror::Object* ref) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
     DCHECK(ref != nullptr);
-    CHECK(collector_->region_space_bitmap_->Test(ref)) << ref;
-    CHECK(collector_->region_space_->IsInUnevacFromSpace(ref)) << ref;
+    DCHECK(collector_->region_space_bitmap_->Test(ref)) << ref;
+    DCHECK(collector_->region_space_->IsInUnevacFromSpace(ref)) << ref;
     if (kUseBakerReadBarrier) {
-      CHECK(ref->GetReadBarrierPointer() == ReadBarrier::BlackPtr()) << ref;
+      DCHECK_EQ(ref->GetReadBarrierPointer(), ReadBarrier::BlackPtr()) << ref;
       // Clear the black ptr.
       ref->SetReadBarrierPointer(ReadBarrier::WhitePtr());
     }
@@ -1380,17 +1380,18 @@ mirror::Object* ConcurrentCopying::Copy(mirror::Object* from_ref) {
 
 mirror::Object* ConcurrentCopying::IsMarked(mirror::Object* from_ref) {
   DCHECK(from_ref != nullptr);
-  if (region_space_->IsInToSpace(from_ref)) {
+  space::RegionSpace::RegionType rtype = region_space_->GetRegionType(from_ref);
+  if (rtype == space::RegionSpace::RegionType::kRegionTypeToSpace) {
     // It's already marked.
     return from_ref;
   }
   mirror::Object* to_ref;
-  if (region_space_->IsInFromSpace(from_ref)) {
+  if (rtype == space::RegionSpace::RegionType::kRegionTypeFromSpace) {
     to_ref = GetFwdPtr(from_ref);
     DCHECK(to_ref == nullptr || region_space_->IsInToSpace(to_ref) ||
            heap_->non_moving_space_->HasAddress(to_ref))
         << "from_ref=" << from_ref << " to_ref=" << to_ref;
-  } else if (region_space_->IsInUnevacFromSpace(from_ref)) {
+  } else if (rtype == space::RegionSpace::RegionType::kRegionTypeUnevacFromSpace) {
     if (region_space_bitmap_->Test(from_ref)) {
       to_ref = from_ref;
     } else {
@@ -1455,12 +1456,13 @@ mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref) {
   }
   DCHECK(from_ref != nullptr);
   DCHECK(heap_->collector_type_ == kCollectorTypeCC);
-  if (region_space_->IsInToSpace(from_ref)) {
+  space::RegionSpace::RegionType rtype = region_space_->GetRegionType(from_ref);
+  if (rtype == space::RegionSpace::RegionType::kRegionTypeToSpace) {
     // It's already marked.
     return from_ref;
   }
   mirror::Object* to_ref;
-  if (region_space_->IsInFromSpace(from_ref)) {
+  if (rtype == space::RegionSpace::RegionType::kRegionTypeFromSpace) {
     to_ref = GetFwdPtr(from_ref);
     if (kUseBakerReadBarrier) {
       DCHECK(to_ref != ReadBarrier::GrayPtr()) << "from_ref=" << from_ref << " to_ref=" << to_ref;
@@ -1471,7 +1473,7 @@ mirror::Object* ConcurrentCopying::Mark(mirror::Object* from_ref) {
     }
     DCHECK(region_space_->IsInToSpace(to_ref) || heap_->non_moving_space_->HasAddress(to_ref))
         << "from_ref=" << from_ref << " to_ref=" << to_ref;
-  } else if (region_space_->IsInUnevacFromSpace(from_ref)) {
+  } else if (rtype == space::RegionSpace::RegionType::kRegionTypeUnevacFromSpace) {
     // This may or may not succeed, which is ok.
     if (kUseBakerReadBarrier) {
       from_ref->AtomicSetReadBarrierPointer(ReadBarrier::WhitePtr(), ReadBarrier::GrayPtr());
