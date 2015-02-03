@@ -21,10 +21,10 @@ public class CatchHandlerOnEntryHelper {
 
   public static void throwExceptionDuringDeopt(int i) {
     if (i == 0) {
-      DeoptimizationController.startDeoptomization();
+      DeoptimizationController.startDeoptimization();
       throw new RuntimeException("Test exception");
     } else {
-      DeoptimizationController.stopDeoptomization();
+      DeoptimizationController.stopDeoptimization();
     }
   }
 }
