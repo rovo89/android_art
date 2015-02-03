@@ -30,11 +30,15 @@ class AssemblerThumb2Test : public AssemblerTest<arm::Thumb2Assembler,
   }
 
   std::string GetAssemblerParameters() OVERRIDE {
-    return " -mthumb -mfpu=neon";
+    return " -march=armv7-a -mcpu=cortex-a15 -mfpu=neon -mthumb";
+  }
+
+  const char* GetAssemblyHeader() OVERRIDE {
+    return kThumb2AssemblyHeader;
   }
 
   std::string GetDisassembleParameters() OVERRIDE {
-    return " -D -bbinary -marm --no-show-raw-insn";
+    return " -D -bbinary -marm --disassembler-options=force-thumb --no-show-raw-insn";
   }
 
   void SetUpHelpers() OVERRIDE {
@@ -76,6 +80,8 @@ class AssemblerThumb2Test : public AssemblerTest<arm::Thumb2Assembler,
 
  private:
   std::vector<arm::Register*> registers_;
+
+  static constexpr const char* kThumb2AssemblyHeader = ".syntax unified\n.thumb\n";
 };
 
 
@@ -190,6 +196,23 @@ TEST_F(AssemblerThumb2Test, strexd) {
       "strexd r9, r0, r1, [r2]\n"
       "strexd r9, r5, r3, [r7]\n";
   DriverStr(expected, "strexd");
+}
+
+TEST_F(AssemblerThumb2Test, eor) {
+#define __ GetAssembler()->
+  __ eor(arm::R1, arm::R1, arm::ShifterOperand(arm::R0));
+  __ eor(arm::R1, arm::R0, arm::ShifterOperand(arm::R1));
+  __ eor(arm::R1, arm::R8, arm::ShifterOperand(arm::R0));
+  __ eor(arm::R8, arm::R1, arm::ShifterOperand(arm::R0));
+  __ eor(arm::R1, arm::R0, arm::ShifterOperand(arm::R8));
+
+  const char* expected =
+      "eors r1, r0\n"
+      "eor r1, r0, r1\n"
+      "eor r1, r8, r0\n"
+      "eor r8, r1, r0\n"
+      "eor r1, r0, r8\n";
+  DriverStr(expected, "abs");
 }
 
 }  // namespace art
