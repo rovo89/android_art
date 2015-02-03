@@ -18,7 +18,7 @@
 
 #include <inttypes.h>
 
-#include <ostream>
+#include <sstream>
 
 #include "base/logging.h"
 #include "base/stringprintf.h"
@@ -27,22 +27,23 @@
 namespace art {
 namespace arm64 {
 
+// This enumeration should mirror the declarations in
+// runtime/arch/arm64/registers_arm64.h. We do not include that file to
+// avoid a dependency on libart.
+enum {
+  TR  = 18,
+  ETR = 21,
+  IP0 = 16,
+  IP1 = 17,
+  FP  = 29,
+  LR  = 30
+};
+
 void CustomDisassembler::AppendRegisterNameToOutput(
     const vixl::Instruction* instr,
     const vixl::CPURegister& reg) {
   USE(instr);
   if (reg.IsRegister()) {
-    // This enumeration should mirror the declarations in
-    // runtime/arch/arm64/registers_arm64.h. We do not include that file to
-    // avoid a dependency on libart.
-    enum {
-      TR  = 18,
-      ETR = 21,
-      IP0 = 16,
-      IP1 = 17,
-      FP  = 29,
-      LR  = 30
-    };
     switch (reg.code()) {
       case IP0: AppendToOutput(reg.Is64Bits() ? "ip0" : "wip0"); return;
       case IP1: AppendToOutput(reg.Is64Bits() ? "ip1" : "wip1"); return;
@@ -66,16 +67,7 @@ void CustomDisassembler::VisitLoadLiteral(const vixl::Instruction* instr) {
     return;
   }
 
-  char* buffer = buffer_;
-  char* buffer_end = buffer_ + buffer_size_;
-
-  // Find the end position in the buffer.
-  while ((*buffer != 0) && (buffer < buffer_end)) {
-    ++buffer;
-  }
-
   void* data_address = instr->LiteralAddress<void*>();
-  ptrdiff_t buf_size_remaining = buffer_end - buffer;
   vixl::Instr op = instr->Mask(vixl::LoadLiteralMask);
 
   switch (op) {
@@ -84,18 +76,29 @@ void CustomDisassembler::VisitLoadLiteral(const vixl::Instruction* instr) {
     case vixl::LDRSW_x_lit: {
       int64_t data = op == vixl::LDR_x_lit ? *reinterpret_cast<int64_t*>(data_address)
                                            : *reinterpret_cast<int32_t*>(data_address);
-      snprintf(buffer, buf_size_remaining, " (0x%" PRIx64 " / %" PRId64 ")", data, data);
+      AppendToOutput(" (0x%" PRIx64 " / %" PRId64 ")", data, data);
       break;
     }
     case vixl::LDR_s_lit:
     case vixl::LDR_d_lit: {
       double data = (op == vixl::LDR_s_lit) ? *reinterpret_cast<float*>(data_address)
                                             : *reinterpret_cast<double*>(data_address);
-      snprintf(buffer, buf_size_remaining, " (%g)", data);
+      AppendToOutput(" (%g)", data);
       break;
     }
     default:
       break;
+  }
+}
+
+void CustomDisassembler::VisitLoadStoreUnsignedOffset(const vixl::Instruction* instr) {
+  Disassembler::VisitLoadStoreUnsignedOffset(instr);
+
+  if (instr->Rn() == TR) {
+    int64_t offset = instr->ImmLSUnsigned() << instr->SizeLS();
+    std::ostringstream tmp_stream;
+    Thread::DumpThreadOffset<8>(tmp_stream, static_cast<uint32_t>(offset));
+    AppendToOutput(" (%s)", tmp_stream.str().c_str());
   }
 }
 
