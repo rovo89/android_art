@@ -1459,9 +1459,11 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
 }
 
 void RegisterAllocator::Resolve() {
-  codegen_->ComputeFrameSize(
-      spill_slots_.Size(), maximum_number_of_live_core_registers_,
-      maximum_number_of_live_fp_registers_, reserved_out_slots_);
+  codegen_->InitializeCodeGeneration(spill_slots_.Size(),
+                                     maximum_number_of_live_core_registers_,
+                                     maximum_number_of_live_fp_registers_,
+                                     reserved_out_slots_,
+                                     liveness_.GetLinearOrder());
 
   // Adjust the Out Location of instructions.
   // TODO: Use pointers of Location inside LiveInterval to avoid doing another iteration.
