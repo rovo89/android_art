@@ -35,7 +35,6 @@
 namespace art {
 
 static constexpr int kMaxInlineCodeUnits = 100;
-static constexpr int kMaxInlineNumberOfBlocks = 3;
 static constexpr int kDepthLimit = 5;
 
 void HInliner::Run() {
@@ -140,13 +139,6 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
     return false;
   }
 
-  if (callee_graph->GetBlocks().Size() > kMaxInlineNumberOfBlocks) {
-    VLOG(compiler) << "Method " << PrettyMethod(method_index, outer_dex_file)
-                   << " has too many blocks to be inlined: "
-                   << callee_graph->GetBlocks().Size();
-    return false;
-  }
-
   if (!RegisterAllocator::CanAllocateRegistersFor(*callee_graph,
                                                   compiler_driver_->GetInstructionSet())) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, outer_dex_file)
@@ -200,6 +192,10 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
          !instr_it.Done();
          instr_it.Advance()) {
       HInstruction* current = instr_it.Current();
+      if (current->IsSuspendCheck()) {
+        continue;
+      }
+
       if (current->CanThrow()) {
         VLOG(compiler) << "Method " << PrettyMethod(method_index, outer_dex_file)
                        << " could not be inlined because " << current->DebugName()

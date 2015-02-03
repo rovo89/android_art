@@ -19,6 +19,11 @@
 namespace art {
 
 void SideEffectsAnalysis::Run() {
+  // Inlining might have created more blocks, so we need to increase the size
+  // if needed.
+  block_effects_.SetSize(graph_->GetBlocks().Size());
+  loop_effects_.SetSize(graph_->GetBlocks().Size());
+
   if (kIsDebugBuild) {
     for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
       HBasicBlock* block = it.Current();
