@@ -298,7 +298,11 @@ class EmptyCheckpoint : public Closure {
     Thread* self = Thread::Current();
     CHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
         << thread->GetState() << " thread " << thread << " self " << self;
-    concurrent_copying_->GetBarrier().Pass(self);
+    // If thread is a running mutator, then act on behalf of the garbage collector.
+    // See the code in ThreadList::RunCheckpoint.
+    if (thread->GetState() == kRunnable) {
+      concurrent_copying_->GetBarrier().Pass(self);
+    }
   }
 
  private:
@@ -431,6 +435,11 @@ void ConcurrentCopying::IssueEmptyCheckpoint() {
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
   gc_barrier_->Init(self, 0);
   size_t barrier_count = thread_list->RunCheckpoint(&check_point);
+  // If there are no threads to wait which implys that all the checkpoint functions are finished,
+  // then no need to release the mutator lock.
+  if (barrier_count == 0) {
+    return;
+  }
   // Release locks then wait for all mutator threads to pass the barrier.
   Locks::mutator_lock_->SharedUnlock(self);
   {

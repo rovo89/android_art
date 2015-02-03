@@ -989,7 +989,11 @@ class CheckpointMarkThreadRoots : public Closure {
       mark_sweep_->GetHeap()->RevokeRosAllocThreadLocalBuffers(thread);
       ATRACE_END();
     }
-    mark_sweep_->GetBarrier().Pass(self);
+    // If thread is a running mutator, then act on behalf of the garbage collector.
+    // See the code in ThreadList::RunCheckpoint.
+    if (thread->GetState() == kRunnable) {
+      mark_sweep_->GetBarrier().Pass(self);
+    }
   }
 
  private:
@@ -1006,7 +1010,11 @@ void MarkSweep::MarkRootsCheckpoint(Thread* self,
   // run through the barrier including self.
   size_t barrier_count = thread_list->RunCheckpoint(&check_point);
   // Release locks then wait for all mutator threads to pass the barrier.
-  // TODO: optimize to not release locks when there are no threads to wait for.
+  // If there are no threads to wait which implys that all the checkpoint functions are finished,
+  // then no need to release locks.
+  if (barrier_count == 0) {
+    return;
+  }
   Locks::heap_bitmap_lock_->ExclusiveUnlock(self);
   Locks::mutator_lock_->SharedUnlock(self);
   {

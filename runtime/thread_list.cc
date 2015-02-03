@@ -174,7 +174,9 @@ class DumpCheckpoint FINAL : public Closure {
       MutexLock mu(self, *Locks::logging_lock_);
       *os_ << local_os.str();
     }
-    barrier_.Pass(self);
+    if (thread->GetState() == kRunnable) {
+      barrier_.Pass(self);
+    }
   }
 
   void WaitForThreadsToRunThroughCheckpoint(size_t threads_running_checkpoint) {
@@ -202,7 +204,9 @@ void ThreadList::Dump(std::ostream& os) {
   }
   DumpCheckpoint checkpoint(&os);
   size_t threads_running_checkpoint = RunCheckpoint(&checkpoint);
-  checkpoint.WaitForThreadsToRunThroughCheckpoint(threads_running_checkpoint);
+  if (threads_running_checkpoint != 0) {
+    checkpoint.WaitForThreadsToRunThroughCheckpoint(threads_running_checkpoint);
+  }
 }
 
 void ThreadList::AssertThreadsAreSuspended(Thread* self, Thread* ignore1, Thread* ignore2) {
@@ -324,8 +328,7 @@ size_t ThreadList::RunCheckpoint(Closure* checkpoint_function) {
     Thread::resume_cond_->Broadcast(self);
   }
 
-  // Add one for self.
-  return count + suspended_count_modified_threads.size() + 1;
+  return count;
 }
 
 // Request that a checkpoint function be run on all active (non-suspended)
