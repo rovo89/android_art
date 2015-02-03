@@ -73,6 +73,15 @@ class HInstructionList {
   bool FoundBefore(const HInstruction* instruction1,
                    const HInstruction* instruction2) const;
 
+  bool IsEmpty() const { return first_instruction_ == nullptr; }
+  void Clear() { first_instruction_ = last_instruction_ = nullptr; }
+
+  // Update the block of all instructions to be `block`.
+  void SetBlockOfInstructions(HBasicBlock* block) const;
+
+  void AddAfter(HInstruction* cursor, const HInstructionList& instruction_list);
+  void Add(const HInstructionList& instruction_list);
+
  private:
   HInstruction* first_instruction_;
   HInstruction* last_instruction_;
@@ -241,6 +250,10 @@ class HLoopInformation : public ArenaObject<kArenaAllocMisc> {
     return header_;
   }
 
+  void SetHeader(HBasicBlock* block) {
+    header_ = block;
+  }
+
   HSuspendCheck* GetSuspendCheck() const { return suspend_check_; }
   void SetSuspendCheck(HSuspendCheck* check) { suspend_check_ = check; }
   bool HasSuspendCheck() const { return suspend_check_ != nullptr; }
@@ -287,6 +300,8 @@ class HLoopInformation : public ArenaObject<kArenaAllocMisc> {
   bool IsIn(const HLoopInformation& other) const;
 
   const ArenaBitVector& GetBlocks() const { return blocks_; }
+
+  void Add(HBasicBlock* block);
 
  private:
   // Internal recursive implementation of `Populate`.
@@ -351,6 +366,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   }
 
   HGraph* GetGraph() const { return graph_; }
+  void SetGraph(HGraph* graph) { graph_ = graph; }
 
   int GetBlockId() const { return block_id_; }
   void SetBlockId(int id) { block_id_ = id; }
@@ -358,6 +374,16 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   HBasicBlock* GetDominator() const { return dominator_; }
   void SetDominator(HBasicBlock* dominator) { dominator_ = dominator; }
   void AddDominatedBlock(HBasicBlock* block) { dominated_blocks_.Add(block); }
+  void ReplaceDominatedBlock(HBasicBlock* existing, HBasicBlock* new_block) {
+    for (size_t i = 0, e = dominated_blocks_.Size(); i < e; ++i) {
+      if (dominated_blocks_.Get(i) == existing) {
+        dominated_blocks_.Put(i, new_block);
+        return;
+      }
+    }
+    LOG(FATAL) << "Unreachable";
+    UNREACHABLE();
+  }
 
   int NumberOfBackEdges() const {
     return loop_information_ == nullptr
@@ -384,8 +410,20 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
     successors_.Put(successor_index, new_block);
   }
 
+  void ReplacePredecessor(HBasicBlock* existing, HBasicBlock* new_block) {
+    size_t predecessor_index = GetPredecessorIndexOf(existing);
+    DCHECK_NE(predecessor_index, static_cast<size_t>(-1));
+    existing->RemoveSuccessor(this);
+    new_block->successors_.Add(this);
+    predecessors_.Put(predecessor_index, new_block);
+  }
+
   void RemovePredecessor(HBasicBlock* block) {
     predecessors_.Delete(block);
+  }
+
+  void RemoveSuccessor(HBasicBlock* block) {
+    successors_.Delete(block);
   }
 
   void ClearAllPredecessors() {
@@ -422,6 +460,26 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
     return -1;
   }
 
+  // Split the block into two blocks just after `cursor`. Returns the newly
+  // created block. Note that this method just updates raw block information,
+  // like predecessors, successors, dominators, and instruction list. It does not
+  // update the graph, reverse post order, loop information, nor make sure the
+  // blocks are consistent (for example ending with a control flow instruction).
+  HBasicBlock* SplitAfter(HInstruction* cursor);
+
+  // Merge `other` at the end of `this`. Successors and dominated blocks of
+  // `other` are changed to be successors and dominated blocks of `this`. Note
+  // that this method does not update the graph, reverse post order, loop
+  // information, nor make sure the blocks are consistent (for example ending
+  // with a control flow instruction).
+  void MergeWith(HBasicBlock* other);
+
+  // Replace `this` with `other`. Predecessors, successors, and dominated blocks
+  // of `this` are moved to `other`.
+  // Note that this method does not update the graph, reverse post order, loop
+  // information, nor make sure the blocks are consistent (for example ending
+  void ReplaceWith(HBasicBlock* other);
+
   void AddInstruction(HInstruction* instruction);
   void RemoveInstruction(HInstruction* instruction);
   void InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor);
@@ -446,8 +504,9 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
     return loop_information_;
   }
 
-  // Set the loop_information_ on this block. This method overrides the current
+  // Set the loop_information_ on this block. Overrides the current
   // loop_information if it is an outer loop of the passed loop information.
+  // Note that this method is called while creating the loop information.
   void SetInLoop(HLoopInformation* info) {
     if (IsLoopHeader()) {
       // Nothing to do. This just means `info` is an outer loop.
@@ -463,6 +522,11 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
       // Note that we cannot do the check `info->Contains(loop_information_)->GetHeader()`
       // at this point, because this method is being called while populating `info`.
     }
+  }
+
+  // Raw update of the loop information.
+  void SetLoopInformation(HLoopInformation* info) {
+    loop_information_ = info;
   }
 
   bool IsInLoop() const { return loop_information_ != nullptr; }
@@ -482,7 +546,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   void SetIsCatchBlock() { is_catch_block_ = true; }
 
  private:
-  HGraph* const graph_;
+  HGraph* graph_;
   GrowableArray<HBasicBlock*> predecessors_;
   GrowableArray<HBasicBlock*> successors_;
   HInstructionList instructions_;
@@ -2179,6 +2243,8 @@ class HTypeConversion : public HExpression<1> {
 
   DISALLOW_COPY_AND_ASSIGN(HTypeConversion);
 };
+
+static constexpr uint32_t kNoRegNumber = -1;
 
 class HPhi : public HInstruction {
  public:
