@@ -309,13 +309,13 @@ TEST(Thumb2AssemblerTest, DataProcessingRegister) {
   // 16 bit variants.
   __ add(R0, R1, ShifterOperand());
   __ sub(R0, R1, ShifterOperand());
-  __ and_(R0, R1, ShifterOperand());
-  __ orr(R0, R1, ShifterOperand());
-  __ eor(R0, R1, ShifterOperand());
-  __ bic(R0, R1, ShifterOperand());
-  __ adc(R0, R1, ShifterOperand());
-  __ sbc(R0, R1, ShifterOperand());
-  __ rsb(R0, R1, ShifterOperand());
+  __ and_(R0, R0, ShifterOperand(R1));
+  __ orr(R0, R0, ShifterOperand(R1));
+  __ eor(R0, R0, ShifterOperand(R1));
+  __ bic(R0, R0, ShifterOperand(R1));
+  __ adc(R0, R0, ShifterOperand(R1));
+  __ sbc(R0, R0, ShifterOperand(R1));
+  __ rsb(R0, R0, ShifterOperand(R1));
 
   __ tst(R0, ShifterOperand(R1));
   __ teq(R0, ShifterOperand(R1));
