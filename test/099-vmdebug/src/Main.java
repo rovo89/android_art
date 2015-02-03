@@ -28,14 +28,22 @@ public class Main {
         testMethodTracing();
     }
 
-    private static void testMethodTracing() throws Exception {
-        File tempFile;
+    private static File createTempFile() throws Exception {
         try {
-            tempFile = File.createTempFile("test", ".trace");
+            return  File.createTempFile("test", ".trace");
         } catch (IOException e) {
-            System.setProperty("java.io.tmpdir", "/sdcard");
-            tempFile = File.createTempFile("test", ".trace");
+            System.setProperty("java.io.tmpdir", "/data/local/tmp");
+            try {
+                return File.createTempFile("test", ".trace");
+            } catch (IOException e2) {
+                System.setProperty("java.io.tmpdir", "/sdcard");
+                return File.createTempFile("test", ".trace");
+            }
         }
+    }
+
+    private static void testMethodTracing() throws Exception {
+        File tempFile = createTempFile();
         tempFile.deleteOnExit();
         String tempFileName = tempFile.getPath();
 
