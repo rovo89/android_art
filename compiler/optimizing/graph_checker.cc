@@ -153,8 +153,9 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
         ? use->GetBlock()->GetPhis()
         : use->GetBlock()->GetInstructions();
     if (!list.Contains(use)) {
-      AddError(StringPrintf("User %d of instruction %d is not defined "
+      AddError(StringPrintf("User %s:%d of instruction %d is not defined "
                             "in a basic block of the control-flow graph.",
+                            use->DebugName(),
                             use->GetId(),
                             instruction->GetId()));
     }

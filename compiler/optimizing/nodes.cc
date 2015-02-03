@@ -292,6 +292,10 @@ bool HGraph::AnalyzeNaturalLoops() const {
   return true;
 }
 
+void HLoopInformation::Add(HBasicBlock* block) {
+  blocks_.SetBit(block->GetBlockId());
+}
+
 void HLoopInformation::PopulateRecursive(HBasicBlock* block) {
   if (blocks_.IsBitSet(block->GetBlockId())) {
     return;
@@ -730,10 +734,121 @@ void HInstruction::MoveBefore(HInstruction* cursor) {
   }
 }
 
-void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
-  // We currently only support graphs with one entry block, one body block, and one exit block.
-  DCHECK_EQ(GetBlocks().Size(), 3u);
+HBasicBlock* HBasicBlock::SplitAfter(HInstruction* cursor) {
+  DCHECK(!cursor->IsControlFlow());
+  DCHECK_NE(instructions_.last_instruction_, cursor);
+  DCHECK_EQ(cursor->GetBlock(), this);
 
+  HBasicBlock* new_block = new (GetGraph()->GetArena()) HBasicBlock(GetGraph(), GetDexPc());
+  new_block->instructions_.first_instruction_ = cursor->GetNext();
+  new_block->instructions_.last_instruction_ = instructions_.last_instruction_;
+  cursor->next_->previous_ = nullptr;
+  cursor->next_ = nullptr;
+  instructions_.last_instruction_ = cursor;
+
+  new_block->instructions_.SetBlockOfInstructions(new_block);
+  for (size_t i = 0, e = GetSuccessors().Size(); i < e; ++i) {
+    HBasicBlock* successor = GetSuccessors().Get(i);
+    new_block->successors_.Add(successor);
+    successor->predecessors_.Put(successor->GetPredecessorIndexOf(this), new_block);
+  }
+  successors_.Reset();
+
+  for (size_t i = 0, e = GetDominatedBlocks().Size(); i < e; ++i) {
+    HBasicBlock* dominated = GetDominatedBlocks().Get(i);
+    dominated->dominator_ = new_block;
+    new_block->dominated_blocks_.Add(dominated);
+  }
+  dominated_blocks_.Reset();
+  return new_block;
+}
+
+void HInstructionList::SetBlockOfInstructions(HBasicBlock* block) const {
+  for (HInstruction* current = first_instruction_;
+       current != nullptr;
+       current = current->GetNext()) {
+    current->SetBlock(block);
+  }
+}
+
+void HInstructionList::AddAfter(HInstruction* cursor, const HInstructionList& instruction_list) {
+  DCHECK(Contains(cursor));
+  if (!instruction_list.IsEmpty()) {
+    if (cursor == last_instruction_) {
+      last_instruction_ = instruction_list.last_instruction_;
+    } else {
+      cursor->next_->previous_ = instruction_list.last_instruction_;
+    }
+    instruction_list.last_instruction_->next_ = cursor->next_;
+    cursor->next_ = instruction_list.first_instruction_;
+    instruction_list.first_instruction_->previous_ = cursor;
+  }
+}
+
+void HInstructionList::Add(const HInstructionList& instruction_list) {
+  DCHECK(!IsEmpty());
+  AddAfter(last_instruction_, instruction_list);
+}
+
+void HBasicBlock::MergeWith(HBasicBlock* other) {
+  DCHECK(successors_.IsEmpty()) << "Unimplemented block merge scenario";
+  DCHECK(dominated_blocks_.IsEmpty()) << "Unimplemented block merge scenario";
+  DCHECK(other->GetDominator()->IsEntryBlock() && other->GetGraph() != graph_)
+      << "Unimplemented block merge scenario";
+  DCHECK(other->GetPhis().IsEmpty());
+
+  successors_.Reset();
+  dominated_blocks_.Reset();
+  instructions_.Add(other->GetInstructions());
+  other->GetInstructions().SetBlockOfInstructions(this);
+
+  while (!other->GetSuccessors().IsEmpty()) {
+    HBasicBlock* successor = other->GetSuccessors().Get(0);
+    successor->ReplacePredecessor(other, this);
+  }
+
+  for (size_t i = 0, e = other->GetDominatedBlocks().Size(); i < e; ++i) {
+    HBasicBlock* dominated = other->GetDominatedBlocks().Get(i);
+    dominated_blocks_.Add(dominated);
+    dominated->SetDominator(this);
+  }
+  other->dominated_blocks_.Reset();
+  other->dominator_ = nullptr;
+  other->graph_ = nullptr;
+}
+
+void HBasicBlock::ReplaceWith(HBasicBlock* other) {
+  while (!GetPredecessors().IsEmpty()) {
+    HBasicBlock* predecessor = GetPredecessors().Get(0);
+    predecessor->ReplaceSuccessor(this, other);
+  }
+  while (!GetSuccessors().IsEmpty()) {
+    HBasicBlock* successor = GetSuccessors().Get(0);
+    successor->ReplacePredecessor(this, other);
+  }
+  for (size_t i = 0; i < dominated_blocks_.Size(); ++i) {
+    other->AddDominatedBlock(dominated_blocks_.Get(i));
+  }
+  GetDominator()->ReplaceDominatedBlock(this, other);
+  other->SetDominator(GetDominator());
+  dominator_ = nullptr;
+  graph_ = nullptr;
+}
+
+// Create space in `blocks` for adding `number_of_new_blocks` entries
+// starting at location `at`. Blocks after `at` are moved accordingly.
+static void MakeRoomFor(GrowableArray<HBasicBlock*>* blocks,
+                        size_t number_of_new_blocks,
+                        size_t at) {
+  size_t old_size = blocks->Size();
+  size_t new_size = old_size + number_of_new_blocks;
+  blocks->SetSize(new_size);
+  for (size_t i = old_size - 1, j = new_size - 1; i > at; --i, --j) {
+    blocks->Put(j, blocks->Get(i));
+  }
+}
+
+void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   // Walk over the entry block and:
   // - Move constants from the entry block to the outer_graph's entry block,
   // - Replace HParameterValue instructions with their real value.
@@ -751,41 +866,122 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     }
   }
 
-  // Insert the body's instructions except the last, just after the `invoke`
-  // instruction.
-  HBasicBlock* body = GetBlocks().Get(1);
-  DCHECK(!body->IsExitBlock());
-  HInstruction* last = body->GetLastInstruction();
-  HInstruction* first = body->GetFirstInstruction();
+  if (GetBlocks().Size() == 3) {
+    // Simple case: Put the first block's instruction into `invoke`'s block.
+    HBasicBlock* body = GetBlocks().Get(1);
+    DCHECK(!body->IsExitBlock());
+    HInstruction* last = body->GetLastInstruction();
 
-  if (first != last) {
-    HInstruction* antelast = last->GetPrevious();
+    invoke->GetBlock()->instructions_.AddAfter(invoke, body->GetInstructions());
+    body->GetInstructions().SetBlockOfInstructions(invoke->GetBlock());
 
-    // Update the instruction list of the body to only contain the last
-    // instruction.
-    last->previous_ = nullptr;
-    body->instructions_.first_instruction_ = last;
-    body->instructions_.last_instruction_ = last;
-
-    // Update the instruction list of the `invoke`'s block to now contain the
-    // body's instructions.
-    antelast->next_ = invoke->GetNext();
-    antelast->next_->previous_ = antelast;
-    first->previous_ = invoke;
-    invoke->next_ = first;
-
-    // Update the block pointer of all instructions.
-    for (HInstruction* current = antelast; current != invoke; current = current->GetPrevious()) {
-      current->SetBlock(invoke->GetBlock());
+    // Replace the invoke with the return value of the inlined graph.
+    if (last->IsReturn()) {
+      invoke->ReplaceWith(last->InputAt(0));
+    } else {
+      DCHECK(last->IsReturnVoid());
     }
-  }
 
-  // Replace the invoke with the return value of the inlined graph.
-  if (last->IsReturn()) {
-    invoke->ReplaceWith(last->InputAt(0));
-    body->RemoveInstruction(last);
+    invoke->GetBlock()->RemoveInstruction(last);
   } else {
-    DCHECK(last->IsReturnVoid());
+    // Need to inline multiple blocks. We split `invoke`'s block
+    // into two blocks, merge the first block of the inlined graph into
+    // the first half, and replace the exit block if the inlined graph
+    // with the second half.
+    ArenaAllocator* allocator = outer_graph->GetArena();
+    HBasicBlock* at = invoke->GetBlock();
+    HBasicBlock* to = at->SplitAfter(invoke);
+
+    HBasicBlock* first = entry_block_->GetSuccessors().Get(0);
+    DCHECK(!first->IsInLoop());
+    at->MergeWith(first);
+    exit_block_->ReplaceWith(to);
+
+    // Update all predecessors of the exit block (now the `to` block)
+    // to not `HReturn` but `HGoto` instead. Also collect the return
+    // values if any, and potentially make it a phi if there are multiple
+    // predecessors.
+    HInstruction* return_value = nullptr;
+    for (size_t i = 0, e = to->GetPredecessors().Size(); i < e; ++i) {
+      HBasicBlock* predecessor = to->GetPredecessors().Get(i);
+      HInstruction* last = predecessor->GetLastInstruction();
+      if (!last->IsReturnVoid()) {
+        if (return_value != nullptr) {
+          if (!return_value->IsPhi()) {
+            HPhi* phi = new (allocator) HPhi(
+                allocator, kNoRegNumber, to->GetPredecessors().Size(), invoke->GetType());
+            return_value->AsPhi()->AddInput(return_value);
+            to->AddPhi(phi);
+            return_value = phi;
+          }
+          return_value->AsPhi()->AddInput(last->InputAt(0));
+        } else {
+          return_value = last->InputAt(0);
+        }
+      }
+      predecessor->AddInstruction(new (allocator) HGoto());
+      predecessor->RemoveInstruction(last);
+    }
+
+    if (return_value != nullptr) {
+      invoke->ReplaceWith(return_value);
+    }
+
+    // Update the meta information surrounding blocks:
+    // (1) the graph they are now in,
+    // (2) the reverse post order of that graph,
+    // (3) the potential loop information they are now in.
+
+    // We don't add the entry block, the exit block, and the first block, which
+    // has been merged with `at`.
+    static constexpr int kNumberOfSkippedBlocksInCallee = 3;
+
+    // We add the `to` block.
+    static constexpr int kNumberOfNewBlocksInCaller = 1;
+    size_t blocks_added = (reverse_post_order_.Size() - kNumberOfSkippedBlocksInCallee)
+        + kNumberOfNewBlocksInCaller;
+
+    // Find the location of `at` in the outer graph's reverse post order. The new
+    // blocks will be added after it.
+    size_t index_of_at = 0;
+    while (outer_graph->reverse_post_order_.Get(index_of_at) != at) {
+      index_of_at++;
+    }
+    MakeRoomFor(&outer_graph->reverse_post_order_, blocks_added, index_of_at);
+
+    // Do a reverse post order of the blocks in the callee and do (1), (2),
+    // and (3) to the blocks that apply.
+    HLoopInformation* info = at->GetLoopInformation();
+    for (HReversePostOrderIterator it(*this); !it.Done(); it.Advance()) {
+      HBasicBlock* current = it.Current();
+      if (current != exit_block_ && current != entry_block_ && current != first) {
+        DCHECK(!current->IsInLoop());
+        DCHECK(current->GetGraph() == this);
+        current->SetGraph(outer_graph);
+        outer_graph->AddBlock(current);
+        outer_graph->reverse_post_order_.Put(++index_of_at, current);
+        if (info != nullptr) {
+          info->Add(current);
+          current->SetLoopInformation(info);
+        }
+      }
+    }
+
+    // Do (1), (2), and (3) to `to`.
+    to->SetGraph(outer_graph);
+    outer_graph->AddBlock(to);
+    outer_graph->reverse_post_order_.Put(++index_of_at, to);
+    if (info != nullptr) {
+      info->Add(to);
+      to->SetLoopInformation(info);
+      if (info->IsBackEdge(at)) {
+        // Only `at` can become a back edge, as the inlined blocks
+        // are predecessors of `at`.
+        DCHECK_EQ(1u, info->NumberOfBackEdges());
+        info->ClearBackEdges();
+        info->AddBackEdge(to);
+      }
+    }
   }
 
   // Finally remove the invoke from the caller.
