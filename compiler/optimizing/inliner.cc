@@ -36,23 +36,26 @@ namespace art {
 
 static constexpr int kMaxInlineCodeUnits = 100;
 static constexpr int kMaxInlineNumberOfBlocks = 3;
+static constexpr int kDepthLimit = 5;
 
 void HInliner::Run() {
-  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
-    for (HInstructionIterator instr_it(it.Current()->GetInstructions());
-         !instr_it.Done();
-         instr_it.Advance()) {
-      HInvokeStaticOrDirect* current = instr_it.Current()->AsInvokeStaticOrDirect();
-      if (current != nullptr) {
-        if (!TryInline(current, current->GetDexMethodIndex(), current->GetInvokeType())) {
+  const GrowableArray<HBasicBlock*>& blocks = graph_->GetReversePostOrder();
+  for (size_t i = 0; i < blocks.Size(); ++i) {
+    HBasicBlock* block = blocks.Get(i);
+    for (HInstruction* instruction = block->GetFirstInstruction(); instruction != nullptr;) {
+      HInstruction* next = instruction->GetNext();
+      HInvokeStaticOrDirect* call = instruction->AsInvokeStaticOrDirect();
+      if (call != nullptr) {
+        if (!TryInline(call, call->GetDexMethodIndex(), call->GetInvokeType())) {
           if (kIsDebugBuild) {
             std::string callee_name =
-                PrettyMethod(current->GetDexMethodIndex(), *outer_compilation_unit_.GetDexFile());
+                PrettyMethod(call->GetDexMethodIndex(), *outer_compilation_unit_.GetDexFile());
             bool should_inline = callee_name.find("$inline$") != std::string::npos;
             CHECK(!should_inline) << "Could not inline " << callee_name;
           }
         }
       }
+      instruction = next;
     }
   }
 }
@@ -157,8 +160,34 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
     return false;
   }
 
+  // Run simple optimizations on the graph.
+  SsaRedundantPhiElimination redundant_phi(callee_graph);
+  SsaDeadPhiElimination dead_phi(callee_graph);
+  HDeadCodeElimination dce(callee_graph);
+  HConstantFolding fold(callee_graph);
+  InstructionSimplifier simplify(callee_graph);
+
+  HOptimization* optimizations[] = {
+    &redundant_phi,
+    &dead_phi,
+    &dce,
+    &fold,
+    &simplify,
+  };
+
+  for (size_t i = 0; i < arraysize(optimizations); ++i) {
+    HOptimization* optimization = optimizations[i];
+    optimization->Run();
+  }
+
+  if (depth_ + 1 < kDepthLimit) {
+    HInliner inliner(
+        callee_graph, outer_compilation_unit_, compiler_driver_, outer_stats_, depth_ + 1);
+    inliner.Run();
+  }
+
   HReversePostOrderIterator it(*callee_graph);
-  it.Advance();  // Past the entry block to avoid seeing the suspend check.
+  it.Advance();  // Past the entry block, it does not contain instructions that prevent inlining.
   for (; !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
     if (block->IsLoopHeader()) {
@@ -185,26 +214,6 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
         return false;
       }
     }
-  }
-
-  // Run simple optimizations on the graph.
-  SsaRedundantPhiElimination redundant_phi(callee_graph);
-  SsaDeadPhiElimination dead_phi(callee_graph);
-  HDeadCodeElimination dce(callee_graph);
-  HConstantFolding fold(callee_graph);
-  InstructionSimplifier simplify(callee_graph);
-
-  HOptimization* optimizations[] = {
-    &redundant_phi,
-    &dead_phi,
-    &dce,
-    &fold,
-    &simplify,
-  };
-
-  for (size_t i = 0; i < arraysize(optimizations); ++i) {
-    HOptimization* optimization = optimizations[i];
-    optimization->Run();
   }
 
   callee_graph->InlineInto(graph_, invoke_instruction);
