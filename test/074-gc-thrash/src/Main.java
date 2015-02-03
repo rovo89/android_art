@@ -292,8 +292,8 @@ class Deep extends Thread {
                     break;
             }
 
-            weak[depth] = new WeakReference(funStr);
             strong[depth] = funStr;
+            weak[depth] = new WeakReference(funStr);
             if (depth+1 < MAX_DEPTH)
                 dive(depth+1, iteration+1);
             else
