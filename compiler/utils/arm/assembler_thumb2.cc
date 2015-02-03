@@ -25,8 +25,8 @@
 namespace art {
 namespace arm {
 
-bool Thumb2Assembler::ShifterOperandCanHold(Register rd,
-                                            Register rn,
+bool Thumb2Assembler::ShifterOperandCanHold(Register rd ATTRIBUTE_UNUSED,
+                                            Register rn ATTRIBUTE_UNUSED,
                                             Opcode opcode,
                                             uint32_t immediate,
                                             ShifterOperand* shifter_op) {
