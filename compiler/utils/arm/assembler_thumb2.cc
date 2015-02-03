@@ -951,6 +951,8 @@ void Thumb2Assembler::Emit16BitDataProcessing(Condition cond,
           rn = so.GetRegister();
           break;
         }
+        case TST:
+        case TEQ:
         case MVN: {
           CHECK_EQ(rn, 0);
           rn = so.GetRegister();
