@@ -30,7 +30,8 @@ namespace art {
 // TODO: remove (only used for debugging purpose).
 static constexpr bool kEnableTransactionStats = false;
 
-Transaction::Transaction() : log_lock_("transaction log lock", kTransactionLogLock) {
+Transaction::Transaction()
+  : log_lock_("transaction log lock", kTransactionLogLock), aborted_(false) {
   CHECK(Runtime::Current()->IsCompiler());
 }
 
@@ -55,6 +56,35 @@ Transaction::~Transaction() {
               << ", array_values_count=" << array_values_count
               << ", string_count=" << string_count;
   }
+}
+
+void Transaction::Abort(const std::string& abort_message) {
+  MutexLock mu(Thread::Current(), log_lock_);
+  // We may abort more than once if the java.lang.InternalError thrown at the
+  // time of the abort has been caught during execution of a class initializer.
+  // We just keep the message of the first abort because it will cause the
+  // transaction to be rolled back anyway.
+  if (!aborted_) {
+    aborted_ = true;
+    abort_message_ = abort_message;
+  }
+}
+
+void Transaction::ThrowInternalError(Thread* self) {
+  DCHECK(IsAborted());
+  std::string abort_msg(GetAbortMessage());
+  self->ThrowNewException(self->GetCurrentLocationForThrow(), "Ljava/lang/InternalError;",
+                          abort_msg.c_str());
+}
+
+bool Transaction::IsAborted() {
+  MutexLock mu(Thread::Current(), log_lock_);
+  return aborted_;
+}
+
+const std::string& Transaction::GetAbortMessage() {
+  MutexLock mu(Thread::Current(), log_lock_);
+  return abort_message_;
 }
 
 void Transaction::RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset,
@@ -150,7 +180,7 @@ void Transaction::LogInternedString(const InternStringLog& log) {
   intern_string_logs_.push_front(log);
 }
 
-void Transaction::Abort() {
+void Transaction::Rollback() {
   CHECK(!Runtime::Current()->IsActiveTransaction());
   Thread* self = Thread::Current();
   self->AssertNoPendingException();

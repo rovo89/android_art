@@ -1443,6 +1443,31 @@ void Runtime::ExitTransactionMode() {
   preinitialization_transaction_ = nullptr;
 }
 
+
+bool Runtime::IsTransactionAborted() const {
+  if (!IsActiveTransaction()) {
+    return false;
+  } else {
+    DCHECK(IsCompiler());
+    return preinitialization_transaction_->IsAborted();
+  }
+}
+
+void Runtime::AbortTransactionAndThrowInternalError(Thread* self,
+                                                    const std::string& abort_message) {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  preinitialization_transaction_->Abort(abort_message);
+  ThrowInternalErrorForAbortedTransaction(self);
+}
+
+void Runtime::ThrowInternalErrorForAbortedTransaction(Thread* self) {
+  DCHECK(IsCompiler());
+  DCHECK(IsActiveTransaction());
+  DCHECK(IsTransactionAborted());
+  preinitialization_transaction_->ThrowInternalError(self);
+}
+
 void Runtime::RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset,
                                       uint8_t value, bool is_volatile) const {
   DCHECK(IsCompiler());
