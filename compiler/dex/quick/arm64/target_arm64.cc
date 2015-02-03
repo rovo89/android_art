@@ -19,6 +19,7 @@
 #include <inttypes.h>
 
 #include <string>
+#include <sstream>
 
 #include "backend_arm64.h"
 #include "base/logging.h"
@@ -521,6 +522,24 @@ std::string Arm64Mir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned ch
     } else {
        buf += *fmt++;
     }
+  }
+  // Dump thread offset.
+  std::string fmt_str = GetTargetInstFmt(lir->opcode);
+  if (std::string::npos != fmt_str.find(", [!1X, #!2") && rxSELF == lir->operands[1] &&
+      std::string::npos != buf.find(", [")) {
+    int offset = lir->operands[2];
+    if (std::string::npos != fmt_str.find("#!2d")) {
+    } else if (std::string::npos != fmt_str.find("#!2D")) {
+      offset *= (IS_WIDE(lir->opcode)) ? 8 : 4;
+    } else if (std::string::npos != fmt_str.find("#!2F")) {
+      offset *= 2;
+    } else {
+      LOG(FATAL) << "Should not reach here";
+    }
+    std::ostringstream tmp_stream;
+    Thread::DumpThreadOffset<8>(tmp_stream, offset);
+    buf += "  ; ";
+    buf += tmp_stream.str();
   }
   return buf;
 }

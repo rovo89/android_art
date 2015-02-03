@@ -34,11 +34,14 @@ class CustomDisassembler FINAL : public vixl::Disassembler {
       vixl::Disassembler(), read_literals_(read_literals) {}
 
   // Use register aliases in the disassembly.
-  virtual void AppendRegisterNameToOutput(const vixl::Instruction* instr,
-                                          const vixl::CPURegister& reg) OVERRIDE;
+  void AppendRegisterNameToOutput(const vixl::Instruction* instr,
+                                  const vixl::CPURegister& reg) OVERRIDE;
 
   // Improve the disassembly of literal load instructions.
-  virtual void VisitLoadLiteral(const vixl::Instruction* instr) OVERRIDE;
+  void VisitLoadLiteral(const vixl::Instruction* instr) OVERRIDE;
+
+  // Improve the disassembly of thread offset.
+  void VisitLoadStoreUnsignedOffset(const vixl::Instruction* instr) OVERRIDE;
 
  private:
   // Indicate if the disassembler should read data loaded from literal pools.
