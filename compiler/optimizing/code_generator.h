@@ -113,10 +113,11 @@ class CodeGenerator {
   virtual size_t GetWordSize() const = 0;
   virtual size_t GetFloatingPointSpillSlotSize() const = 0;
   virtual uintptr_t GetAddressOf(HBasicBlock* block) const = 0;
-  void ComputeFrameSize(size_t number_of_spill_slots,
-                        size_t maximum_number_of_live_core_registers,
-                        size_t maximum_number_of_live_fp_registers,
-                        size_t number_of_out_slots);
+  void InitializeCodeGeneration(size_t number_of_spill_slots,
+                                size_t maximum_number_of_live_core_registers,
+                                size_t maximum_number_of_live_fp_registers,
+                                size_t number_of_out_slots,
+                                const GrowableArray<HBasicBlock*>& block_order);
   int32_t GetStackSlot(HLocal* local) const;
   Location GetTemporaryLocation(HTemporary* temp) const;
 
@@ -180,8 +181,6 @@ class CodeGenerator {
   void AddSlowPath(SlowPathCode* slow_path) {
     slow_paths_.Add(slow_path);
   }
-
-  void GenerateSlowPaths();
 
   void BuildMappingTable(std::vector<uint8_t>* vector, DefaultSrcMap* src_map) const;
   void BuildVMapTable(std::vector<uint8_t>* vector) const;
@@ -253,6 +252,8 @@ class CodeGenerator {
         compiler_options_(compiler_options),
         pc_infos_(graph->GetArena(), 32),
         slow_paths_(graph->GetArena(), 8),
+        block_order_(nullptr),
+        current_block_index_(0),
         is_leaf_(true),
         stack_map_stream_(graph->GetArena()) {}
 
@@ -312,12 +313,20 @@ class CodeGenerator {
  private:
   void InitLocations(HInstruction* instruction);
   size_t GetStackOffsetOfSavedRegister(size_t index);
+  void CompileInternal(CodeAllocator* allocator, bool is_baseline);
 
   HGraph* const graph_;
   const CompilerOptions& compiler_options_;
 
   GrowableArray<PcInfo> pc_infos_;
   GrowableArray<SlowPathCode*> slow_paths_;
+
+  // The order to use for code generation.
+  const GrowableArray<HBasicBlock*>* block_order_;
+
+  // The current block index in `block_order_` of the block
+  // we are generating code for.
+  size_t current_block_index_;
 
   bool is_leaf_;
 

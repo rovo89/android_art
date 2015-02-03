@@ -41,60 +41,57 @@ size_t CodeGenerator::GetCacheOffset(uint32_t index) {
 }
 
 void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
-  const GrowableArray<HBasicBlock*>& blocks = GetGraph()->GetBlocks();
-  DCHECK(blocks.Get(0) == GetGraph()->GetEntryBlock());
-  DCHECK(GoesToNextBlock(GetGraph()->GetEntryBlock(), blocks.Get(1)));
-  Initialize();
-
   DCHECK_EQ(frame_size_, kUninitializedFrameSize);
+
+  Initialize();
   if (!is_leaf) {
     MarkNotLeaf();
   }
-  ComputeFrameSize(GetGraph()->GetNumberOfLocalVRegs()
-                     + GetGraph()->GetTemporariesVRegSlots()
-                     + 1 /* filler */,
-                   0, /* the baseline compiler does not have live registers at slow path */
-                   0, /* the baseline compiler does not have live registers at slow path */
-                   GetGraph()->GetMaximumNumberOfOutVRegs()
-                     + 1 /* current method */);
-  GenerateFrameEntry();
+  InitializeCodeGeneration(GetGraph()->GetNumberOfLocalVRegs()
+                             + GetGraph()->GetTemporariesVRegSlots()
+                             + 1 /* filler */,
+                           0, /* the baseline compiler does not have live registers at slow path */
+                           0, /* the baseline compiler does not have live registers at slow path */
+                           GetGraph()->GetMaximumNumberOfOutVRegs()
+                             + 1 /* current method */,
+                           GetGraph()->GetBlocks());
+  CompileInternal(allocator, /* is_baseline */ true);
+}
 
+void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) {
   HGraphVisitor* location_builder = GetLocationBuilder();
   HGraphVisitor* instruction_visitor = GetInstructionVisitor();
-  for (size_t i = 0, e = blocks.Size(); i < e; ++i) {
-    HBasicBlock* block = blocks.Get(i);
+  DCHECK_EQ(current_block_index_, 0u);
+  GenerateFrameEntry();
+  for (size_t e = block_order_->Size(); current_block_index_ < e; ++current_block_index_) {
+    HBasicBlock* block = block_order_->Get(current_block_index_);
     Bind(block);
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
-      current->Accept(location_builder);
-      InitLocations(current);
+      if (is_baseline) {
+        current->Accept(location_builder);
+        InitLocations(current);
+      }
       current->Accept(instruction_visitor);
     }
   }
-  GenerateSlowPaths();
+
+  // Generate the slow paths.
+  for (size_t i = 0, e = slow_paths_.Size(); i < e; ++i) {
+    slow_paths_.Get(i)->EmitNativeCode(this);
+  }
+
+  // Finalize instructions in assember;
   Finalize(allocator);
 }
 
 void CodeGenerator::CompileOptimized(CodeAllocator* allocator) {
-  // The frame size has already been computed during register allocation.
+  // The register allocator already called `InitializeCodeGeneration`,
+  // where the frame size has been computed.
   DCHECK_NE(frame_size_, kUninitializedFrameSize);
-  const GrowableArray<HBasicBlock*>& blocks = GetGraph()->GetBlocks();
-  DCHECK(blocks.Get(0) == GetGraph()->GetEntryBlock());
-  DCHECK(GoesToNextBlock(GetGraph()->GetEntryBlock(), blocks.Get(1)));
+  DCHECK(block_order_ != nullptr);
   Initialize();
-
-  GenerateFrameEntry();
-  HGraphVisitor* instruction_visitor = GetInstructionVisitor();
-  for (size_t i = 0, e = blocks.Size(); i < e; ++i) {
-    HBasicBlock* block = blocks.Get(i);
-    Bind(block);
-    for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
-      HInstruction* current = it.Current();
-      current->Accept(instruction_visitor);
-    }
-  }
-  GenerateSlowPaths();
-  Finalize(allocator);
+  CompileInternal(allocator, /* is_baseline */ false);
 }
 
 void CodeGenerator::Finalize(CodeAllocator* allocator) {
@@ -103,12 +100,6 @@ void CodeGenerator::Finalize(CodeAllocator* allocator) {
 
   MemoryRegion code(buffer, code_size);
   GetAssembler()->FinalizeInstructions(code);
-}
-
-void CodeGenerator::GenerateSlowPaths() {
-  for (size_t i = 0, e = slow_paths_.Size(); i < e; ++i) {
-    slow_paths_.Get(i)->EmitNativeCode(this);
-  }
 }
 
 size_t CodeGenerator::FindFreeEntry(bool* array, size_t length) {
@@ -136,10 +127,14 @@ size_t CodeGenerator::FindTwoFreeConsecutiveAlignedEntries(bool* array, size_t l
   return -1;
 }
 
-void CodeGenerator::ComputeFrameSize(size_t number_of_spill_slots,
-                                     size_t maximum_number_of_live_core_registers,
-                                     size_t maximum_number_of_live_fp_registers,
-                                     size_t number_of_out_slots) {
+void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,
+                                             size_t maximum_number_of_live_core_registers,
+                                             size_t maximum_number_of_live_fp_registers,
+                                             size_t number_of_out_slots,
+                                             const GrowableArray<HBasicBlock*>& block_order) {
+  block_order_ = &block_order;
+  DCHECK(block_order_->Get(0) == GetGraph()->GetEntryBlock());
+  DCHECK(GoesToNextBlock(GetGraph()->GetEntryBlock(), block_order_->Get(1)));
   ComputeSpillMask();
   first_register_slot_in_slow_path_ = (number_of_out_slots + number_of_spill_slots) * kVRegSize;
 
@@ -326,8 +321,9 @@ void CodeGenerator::InitLocations(HInstruction* instruction) {
 }
 
 bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) const {
-  // We currently iterate over the block in insertion order.
-  return current->GetBlockId() + 1 == next->GetBlockId();
+  DCHECK_EQ(block_order_->Get(current_block_index_), current);
+  return (current_block_index_ < block_order_->Size() - 1)
+      && (block_order_->Get(current_block_index_ + 1) == next);
 }
 
 CodeGenerator* CodeGenerator::Create(HGraph* graph,
