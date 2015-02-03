@@ -899,10 +899,11 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
                  dex_locations,
                  runtime_options.GetOrDefault(Opt::Image),
                  &boot_class_path);
+    instruction_set_ = runtime_options.GetOrDefault(Opt::ImageInstructionSet);
     class_linker_->InitWithoutImage(std::move(boot_class_path));
 
     // TODO: Should we move the following to InitWithoutImage?
-    SetInstructionSet(kRuntimeISA);
+    SetInstructionSet(instruction_set_);
     for (int i = 0; i < Runtime::kLastCalleeSaveType; i++) {
       Runtime::CalleeSaveType type = Runtime::CalleeSaveType(i);
       if (!HasCalleeSaveMethod(type)) {
@@ -1322,7 +1323,8 @@ mirror::ArtMethod* Runtime::CreateImtConflictMethod() {
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   // When compiling, the code pointer will get set later when the image is loaded.
   if (runtime->IsCompiler()) {
-    method->SetEntryPointFromQuickCompiledCode(nullptr);
+    size_t pointer_size = GetInstructionSetPointerSize(instruction_set_);
+    method->SetEntryPointFromQuickCompiledCodePtrSize(nullptr, pointer_size);
   } else {
     method->SetEntryPointFromQuickCompiledCode(GetQuickImtConflictStub());
   }
@@ -1340,7 +1342,8 @@ mirror::ArtMethod* Runtime::CreateResolutionMethod() {
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
   // When compiling, the code pointer will get set later when the image is loaded.
   if (runtime->IsCompiler()) {
-    method->SetEntryPointFromQuickCompiledCode(nullptr);
+    size_t pointer_size = GetInstructionSetPointerSize(instruction_set_);
+    method->SetEntryPointFromQuickCompiledCodePtrSize(nullptr, pointer_size);
   } else {
     method->SetEntryPointFromQuickCompiledCode(GetQuickResolutionStub());
   }
@@ -1356,7 +1359,8 @@ mirror::ArtMethod* Runtime::CreateCalleeSaveMethod() {
   method->SetDeclaringClass(mirror::ArtMethod::GetJavaLangReflectArtMethod());
   // TODO: use a special method for callee saves
   method->SetDexMethodIndex(DexFile::kDexNoIndex);
-  method->SetEntryPointFromQuickCompiledCode(nullptr);
+  size_t pointer_size = GetInstructionSetPointerSize(instruction_set_);
+  method->SetEntryPointFromQuickCompiledCodePtrSize(nullptr, pointer_size);
   DCHECK_NE(instruction_set_, kNone);
   return method.Get();
 }
