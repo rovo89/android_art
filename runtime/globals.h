@@ -110,16 +110,16 @@ static constexpr bool kPoisonHeapReferences = false;
 #endif
 
 // Kinds of tracing clocks.
-enum TraceClockSource {
-  kTraceClockSourceThreadCpu,
-  kTraceClockSourceWall,
-  kTraceClockSourceDual,  // Both wall and thread CPU clocks.
+enum class TraceClockSource {
+  kThreadCpu,
+  kWall,
+  kDual,  // Both wall and thread CPU clocks.
 };
 
 #if defined(__linux__)
-static constexpr TraceClockSource kDefaultTraceClockSource = kTraceClockSourceDual;
+static constexpr TraceClockSource kDefaultTraceClockSource = TraceClockSource::kDual;
 #else
-static constexpr TraceClockSource kDefaultTraceClockSource = kTraceClockSourceWall;
+static constexpr TraceClockSource kDefaultTraceClockSource = TraceClockSource::kWall;
 #endif
 
 static constexpr bool kDefaultMustRelocate = true;

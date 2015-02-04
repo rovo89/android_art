@@ -224,6 +224,7 @@ void CommonRuntimeTest::SetUp() {
   options.push_back(std::make_pair(max_heap_string, nullptr));
   options.push_back(std::make_pair("compilercallbacks", callbacks_.get()));
   SetUpRuntimeOptions(&options);
+
   if (!Runtime::Create(options, false)) {
     LOG(FATAL) << "Failed to create runtime";
     return;
