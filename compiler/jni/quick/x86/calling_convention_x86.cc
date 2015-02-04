@@ -85,9 +85,19 @@ ManagedRegister X86ManagedRuntimeCallingConvention::CurrentParamRegister() {
   ManagedRegister res = ManagedRegister::NoRegister();
   if (!IsCurrentParamAFloatOrDouble()) {
     switch (gpr_arg_count_) {
-      case 0: res = X86ManagedRegister::FromCpuRegister(ECX); break;
-      case 1: res = X86ManagedRegister::FromCpuRegister(EDX); break;
-      case 2: res = X86ManagedRegister::FromCpuRegister(EBX); break;
+      case 0:
+        res = X86ManagedRegister::FromCpuRegister(ECX);
+        break;
+      case 1:
+        res = X86ManagedRegister::FromCpuRegister(EDX);
+        break;
+      case 2:
+        // Don't split a long between the last register and the stack.
+        if (IsCurrentParamALong()) {
+          return ManagedRegister::NoRegister();
+        }
+        res = X86ManagedRegister::FromCpuRegister(EBX);
+        break;
     }
   } else if (itr_float_and_doubles_ < 4) {
     // First four float parameters are passed via XMM0..XMM3
@@ -120,27 +130,34 @@ const ManagedRegisterEntrySpills& X86ManagedRuntimeCallingConvention::EntrySpill
     ResetIterator(FrameOffset(0));
     while (HasNext()) {
       ManagedRegister in_reg = CurrentParamRegister();
+      bool is_long = IsCurrentParamALong();
       if (!in_reg.IsNoRegister()) {
         int32_t size = IsParamADouble(itr_args_) ? 8 : 4;
         int32_t spill_offset = CurrentParamStackOffset().Uint32Value();
         ManagedRegisterSpill spill(in_reg, size, spill_offset);
         entry_spills_.push_back(spill);
-        if (IsCurrentParamALong() && !IsCurrentParamAReference()) {  // Long.
-          // special case, as we may need a second register here.
+        if (is_long) {
+          // special case, as we need a second register here.
           in_reg = CurrentParamHighLongRegister();
-          if (!in_reg.IsNoRegister()) {
-            // We have to spill the second half of the long.
-            ManagedRegisterSpill spill2(in_reg, size, spill_offset + 4);
-            entry_spills_.push_back(spill2);
-            // Long was allocated in 2 registers.
-            gpr_arg_count_++;
-          }
+          DCHECK(!in_reg.IsNoRegister());
+          // We have to spill the second half of the long.
+          ManagedRegisterSpill spill2(in_reg, size, spill_offset + 4);
+          entry_spills_.push_back(spill2);
         }
 
         // Keep track of the number of GPRs allocated.
         if (!IsCurrentParamAFloatOrDouble()) {
-          gpr_arg_count_++;
+          if (is_long) {
+            // Long was allocated in 2 registers.
+            gpr_arg_count_ += 2;
+          } else {
+            gpr_arg_count_++;
+          }
         }
+      } else if (is_long) {
+        // We need to skip the unused last register, which is empty.
+        // If we are already out of registers, this is harmless.
+        gpr_arg_count_ += 2;
       }
       Next();
     }
