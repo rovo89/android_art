@@ -28,9 +28,10 @@
 namespace art {
 
 static HGraph* TestCode(const uint16_t* data, ArenaAllocator* allocator) {
-  HGraphBuilder builder(allocator);
+  HGraph* graph = new (allocator) HGraph(allocator);
+  HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  HGraph* graph = builder.BuildGraph(*item);
+  builder.BuildGraph(*item);
   graph->BuildDominatorTree();
   graph->AnalyzeNaturalLoops();
   return graph;
