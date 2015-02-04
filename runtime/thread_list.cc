@@ -615,7 +615,7 @@ static void ThreadSuspendByPeerWarning(Thread* self, LogSeverity severity, const
 
 Thread* ThreadList::SuspendThreadByPeer(jobject peer, bool request_suspension,
                                         bool debug_suspension, bool* timed_out) {
-  static const uint64_t start_time = NanoTime();
+  const uint64_t start_time = NanoTime();
   useconds_t sleep_us = kThreadSuspendInitialSleepUs;
   *timed_out = false;
   Thread* const self = Thread::Current();
@@ -718,7 +718,7 @@ static void ThreadSuspendByThreadIdWarning(LogSeverity severity, const char* mes
 
 Thread* ThreadList::SuspendThreadByThreadId(uint32_t thread_id, bool debug_suspension,
                                             bool* timed_out) {
-  static const uint64_t start_time = NanoTime();
+  const uint64_t start_time = NanoTime();
   useconds_t sleep_us = kThreadSuspendInitialSleepUs;
   *timed_out = false;
   Thread* suspended_thread = nullptr;
