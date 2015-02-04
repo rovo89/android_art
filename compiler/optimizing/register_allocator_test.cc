@@ -526,7 +526,7 @@ TEST(RegisterAllocatorTest, PhiHint) {
 
     // Set the phi to a specific register, and check that the inputs get allocated
     // the same register.
-    phi->GetLocations()->SetOut(Location::RegisterLocation(2));
+    phi->GetLocations()->UpdateOut(Location::RegisterLocation(2));
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
     register_allocator.AllocateRegisters();
 
@@ -543,7 +543,7 @@ TEST(RegisterAllocatorTest, PhiHint) {
 
     // Set input1 to a specific register, and check that the phi and other input get allocated
     // the same register.
-    input1->GetLocations()->SetOut(Location::RegisterLocation(2));
+    input1->GetLocations()->UpdateOut(Location::RegisterLocation(2));
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
     register_allocator.AllocateRegisters();
 
@@ -560,7 +560,7 @@ TEST(RegisterAllocatorTest, PhiHint) {
 
     // Set input2 to a specific register, and check that the phi and other input get allocated
     // the same register.
-    input2->GetLocations()->SetOut(Location::RegisterLocation(2));
+    input2->GetLocations()->UpdateOut(Location::RegisterLocation(2));
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
     register_allocator.AllocateRegisters();
 
@@ -685,7 +685,7 @@ TEST(RegisterAllocatorTest, SameAsFirstInputHint) {
     liveness.Analyze();
 
     // check that both adds get the same register.
-    // Don't use SetOutput because output is already allocated.
+    // Don't use UpdateOutput because output is already allocated.
     first_add->InputAt(0)->GetLocations()->output_ = Location::RegisterLocation(2);
     ASSERT_EQ(first_add->GetLocations()->Out().GetPolicy(), Location::kSameAsFirstInput);
     ASSERT_EQ(second_add->GetLocations()->Out().GetPolicy(), Location::kSameAsFirstInput);
