@@ -867,8 +867,11 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   }
 
   if (GetBlocks().Size() == 3) {
-    // Simple case: Put the first block's instruction into `invoke`'s block.
+    // Simple case of an entry block, a body block, and an exit block.
+    // Put the body block's instruction into `invoke`'s block.
     HBasicBlock* body = GetBlocks().Get(1);
+    DCHECK(GetBlocks().Get(0)->IsEntryBlock());
+    DCHECK(GetBlocks().Get(2)->IsExitBlock());
     DCHECK(!body->IsExitBlock());
     HInstruction* last = body->GetLastInstruction();
 
@@ -886,7 +889,7 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
   } else {
     // Need to inline multiple blocks. We split `invoke`'s block
     // into two blocks, merge the first block of the inlined graph into
-    // the first half, and replace the exit block if the inlined graph
+    // the first half, and replace the exit block of the inlined graph
     // with the second half.
     ArenaAllocator* allocator = outer_graph->GetArena();
     HBasicBlock* at = invoke->GetBlock();
@@ -908,10 +911,9 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
       if (!last->IsReturnVoid()) {
         if (return_value != nullptr) {
           if (!return_value->IsPhi()) {
-            HPhi* phi = new (allocator) HPhi(
-                allocator, kNoRegNumber, to->GetPredecessors().Size(), invoke->GetType());
-            return_value->AsPhi()->AddInput(return_value);
+            HPhi* phi = new (allocator) HPhi(allocator, kNoRegNumber, 0, invoke->GetType());
             to->AddPhi(phi);
+            phi->AddInput(return_value);
             return_value = phi;
           }
           return_value->AsPhi()->AddInput(last->InputAt(0));
