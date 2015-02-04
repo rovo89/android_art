@@ -482,16 +482,17 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
   }
 
   void SetOut(Location location, Location::OutputOverlap overlaps = Location::kOutputOverlap) {
-    DCHECK(output_.IsUnallocated() || output_.IsInvalid());
+    DCHECK(output_.IsInvalid());
     output_overlaps_ = overlaps;
     output_ = location;
   }
 
   void UpdateOut(Location location) {
-    // The only reason for updating an output is for parameters where
-    // we only know the exact stack slot after doing full register
-    // allocation.
-    DCHECK(output_.IsStackSlot() || output_.IsDoubleStackSlot());
+    // There are two reasons for updating an output:
+    // 1) Parameters, where we only know the exact stack slot after
+    //    doing full register allocation.
+    // 2) Unallocated location.
+    DCHECK(output_.IsStackSlot() || output_.IsDoubleStackSlot() || output_.IsUnallocated());
     output_ = location;
   }
 
@@ -563,28 +564,22 @@ class LocationSummary : public ArenaObject<kArenaAllocMisc> {
     return live_registers_.GetNumberOfRegisters();
   }
 
-  bool InputOverlapsWithOutputOrTemp(uint32_t input_index, bool is_environment) const {
-    if (is_environment) return true;
-    if ((input_index == 0)
+  bool OutputUsesSameAs(uint32_t input_index) const {
+    return (input_index == 0)
         && output_.IsUnallocated()
-        && (output_.GetPolicy() == Location::kSameAsFirstInput)) {
-      return false;
-    }
+        && (output_.GetPolicy() == Location::kSameAsFirstInput);
+  }
+
+  bool IsFixedInput(uint32_t input_index) const {
     Location input = inputs_.Get(input_index);
-    if (input.IsRegister()
+    return input.IsRegister()
         || input.IsFpuRegister()
         || input.IsPair()
         || input.IsStackSlot()
-        || input.IsDoubleStackSlot()) {
-      // For fixed locations, the register allocator requires to have inputs die before
-      // the instruction, so that input moves use the location of the input just
-      // before that instruction (and not potential moves due to splitting).
-      return false;
-    }
-    return true;
+        || input.IsDoubleStackSlot();
   }
 
-  bool OutputOverlapsWithInputs() const {
+  bool OutputCanOverlapWithInputs() const {
     return output_overlaps_ == Location::kOutputOverlap;
   }
 
