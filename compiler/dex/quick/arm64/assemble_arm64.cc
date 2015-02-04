@@ -111,7 +111,7 @@ namespace art {
 const A64EncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
     ENCODING_MAP(WIDE(kA64Adc3rrr), SF_VARIANTS(0x1a000000),
                  kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtRegR, 20, 16,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12 | USES_CCODES,
                  "adc", "!0r, !1r, !2r", kFixupNone),
     ENCODING_MAP(WIDE(kA64Add4RRdT), SF_VARIANTS(0x11000000),
                  kFmtRegROrSp, 4, 0, kFmtRegROrSp, 9, 5, kFmtBitBlt, 21, 10,
@@ -518,7 +518,7 @@ const A64EncodingMap Arm64Mir2Lir::EncodingMap[kA64Last] = {
                  "ror", "!0r, !1r, !2r", kFixupNone),
     ENCODING_MAP(WIDE(kA64Sbc3rrr), SF_VARIANTS(0x5a000000),
                  kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtRegR, 20, 16,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12 | USES_CCODES,
                  "sbc", "!0r, !1r, !2r", kFixupNone),
     ENCODING_MAP(WIDE(kA64Sbfm4rrdd), SF_N_VARIANTS(0x13000000),
                  kFmtRegR, 4, 0, kFmtRegR, 9, 5, kFmtBitBlt, 21, 16,
