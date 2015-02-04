@@ -108,6 +108,8 @@ struct JdwpOptions {
   uint16_t port;
 };
 
+bool operator==(const JdwpOptions& lhs, const JdwpOptions& rhs);
+
 struct JdwpEvent;
 class JdwpNetStateBase;
 struct ModBasket;

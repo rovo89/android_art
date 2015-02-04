@@ -76,6 +76,9 @@ class CommonRuntimeTest : public testing::Test {
   CommonRuntimeTest();
   ~CommonRuntimeTest();
 
+  // Gets the path of the libcore dex file.
+  static std::string GetLibCoreDexFileName();
+
  protected:
   static bool IsHost() {
     return !kIsTargetBuild;
@@ -98,11 +101,8 @@ class CommonRuntimeTest : public testing::Test {
 
   virtual void TearDown();
 
-  // Gets the path of the libcore dex file.
-  std::string GetLibCoreDexFileName();
-
   // Gets the path of the specified dex file for host or target.
-  std::string GetDexFileName(const std::string& jar_prefix);
+  static std::string GetDexFileName(const std::string& jar_prefix);
 
   std::string GetTestAndroidRoot();
 

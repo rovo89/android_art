@@ -32,6 +32,7 @@
 #include "java_vm_ext.h"
 #include "parsed_options.h"
 #include "runtime-inl.h"
+#include "runtime_options.h"
 #include "ScopedLocalRef.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
@@ -357,14 +358,15 @@ const JNIInvokeInterface gJniInvokeInterface = {
   JII::AttachCurrentThreadAsDaemon
 };
 
-JavaVMExt::JavaVMExt(Runtime* runtime, ParsedOptions* options)
+JavaVMExt::JavaVMExt(Runtime* runtime, const RuntimeArgumentMap& runtime_options)
     : runtime_(runtime),
       check_jni_abort_hook_(nullptr),
       check_jni_abort_hook_data_(nullptr),
       check_jni_(false),  // Initialized properly in the constructor body below.
-      force_copy_(options->force_copy_),
-      tracing_enabled_(!options->jni_trace_.empty() || VLOG_IS_ON(third_party_jni)),
-      trace_(options->jni_trace_),
+      force_copy_(runtime_options.Exists(RuntimeArgumentMap::JniOptsForceCopy)),
+      tracing_enabled_(runtime_options.Exists(RuntimeArgumentMap::JniTrace)
+                       || VLOG_IS_ON(third_party_jni)),
+      trace_(runtime_options.GetOrDefault(RuntimeArgumentMap::JniTrace)),
       globals_lock_("JNI global reference table lock"),
       globals_(gGlobalsInitial, gGlobalsMax, kGlobal),
       libraries_(new Libraries),
@@ -374,9 +376,7 @@ JavaVMExt::JavaVMExt(Runtime* runtime, ParsedOptions* options)
       allow_new_weak_globals_(true),
       weak_globals_add_condition_("weak globals add condition", weak_globals_lock_) {
   functions = unchecked_functions_;
-  if (options->check_jni_) {
-    SetCheckJniEnabled(true);
-  }
+  SetCheckJniEnabled(runtime_options.Exists(RuntimeArgumentMap::CheckJni));
 }
 
 JavaVMExt::~JavaVMExt() {

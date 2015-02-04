@@ -619,6 +619,18 @@ bool operator!=(const JdwpLocation& lhs, const JdwpLocation& rhs) {
   return !(lhs == rhs);
 }
 
+bool operator==(const JdwpOptions& lhs, const JdwpOptions& rhs) {
+  if (&lhs == &rhs) {
+    return true;
+  }
+
+  return lhs.transport == rhs.transport &&
+      lhs.server == rhs.server &&
+      lhs.suspend == rhs.suspend &&
+      lhs.host == rhs.host &&
+      lhs.port == rhs.port;
+}
+
 }  // namespace JDWP
 
 }  // namespace art
