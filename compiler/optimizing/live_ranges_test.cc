@@ -31,9 +31,10 @@
 namespace art {
 
 static HGraph* BuildGraph(const uint16_t* data, ArenaAllocator* allocator) {
-  HGraphBuilder builder(allocator);
+  HGraph* graph = new (allocator) HGraph(allocator);
+  HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  HGraph* graph = builder.BuildGraph(*item);
+  builder.BuildGraph(*item);
   // Suspend checks implementation may change in the future, and this test relies
   // on how instructions are ordered.
   RemoveSuspendChecks(graph);
