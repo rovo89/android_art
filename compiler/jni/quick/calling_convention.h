@@ -141,7 +141,7 @@ class CallingConvention {
     if (IsStatic()) {
       param++;  // 0th argument must skip return value at start of the shorty
     } else if (param == 0) {
-      return true;  // this argument
+      return false;  // this argument
     }
     return shorty_[param] == 'J';
   }

@@ -467,7 +467,8 @@ DEFINE_FUNCTION art_quick_invoke_stub
 
     // Now check ebx
     SKIP_OVER_FLOATS esi, edi, al, .Lgpr_setup_finished
-    // Must be first word of a long, or an integer.
+    // Must be first word of a long, or an integer. First word of long doesn't
+    // go into EBX, but can be loaded there anyways, as it is harmless.
     movl (%edi), %ebx
     jmp .Lgpr_setup_finished
 .LfirstLong:
@@ -569,7 +570,8 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
 
     // Is there anything for ebx?
     SKIP_OVER_FLOATS esi, edi, al, .Lgpr_setup_finished2
-    // First word of long or integer.  Load into EBX.
+    // Must be first word of a long, or an integer. First word of long doesn't
+    // go into EBX, but can be loaded there anyways, as it is harmless.
     movl (%edi), %ebx
     jmp .Lgpr_setup_finished2
 .LSecondLong2:
@@ -585,7 +587,8 @@ DEFINE_FUNCTION art_quick_invoke_static_stub
 
     // Anything for EBX?
     SKIP_OVER_FLOATS esi, edi, al, .Lgpr_setup_finished2
-    // First word of long or integer.  Load into EBX.
+    // Must be first word of a long, or an integer. First word of long doesn't
+    // go into EBX, but can be loaded there anyways, as it is harmless.
     movl (%edi), %ebx
     jmp .Lgpr_setup_finished2
     // Nothing left to load.
