@@ -1296,13 +1296,14 @@ void LocationsBuilderARM::VisitNeg(HNeg* neg) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(neg, LocationSummary::kNoCall);
   switch (neg->GetResultType()) {
-    case Primitive::kPrimInt:
-    case Primitive::kPrimLong: {
-      Location::OutputOverlap output_overlaps = (neg->GetResultType() == Primitive::kPrimLong)
-          ? Location::kOutputOverlap
-          : Location::kNoOutputOverlap;
+    case Primitive::kPrimInt: {
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetOut(Location::RequiresRegister(), output_overlaps);
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+    }
+    case Primitive::kPrimLong: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
       break;
     }
 
@@ -1837,7 +1838,7 @@ void LocationsBuilderARM::VisitAdd(HAdd* add) {
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RequiresRegister());
-      locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
     }
 
@@ -1914,7 +1915,7 @@ void LocationsBuilderARM::VisitSub(HSub* sub) {
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RequiresRegister());
-      locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
     }
     case Primitive::kPrimFloat:
@@ -2297,7 +2298,7 @@ void LocationsBuilderARM::HandleShift(HBinaryOperation* op) {
     case Primitive::kPrimInt: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RegisterOrConstant(op->InputAt(1)));
-      locations->SetOut(Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
     }
     case Primitive::kPrimLong: {
@@ -2492,7 +2493,8 @@ void LocationsBuilderARM::VisitCompare(HCompare* compare) {
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::RequiresRegister());
-      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      // Output overlaps because it is written before doing the low comparison.
+      locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
       break;
     }
     case Primitive::kPrimFloat:
@@ -2765,12 +2767,14 @@ void LocationsBuilderARM::HandleFieldGet(HInstruction* instruction, const FieldI
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
   locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 
-  bool generate_volatile = field_info.IsVolatile()
+  bool volatile_for_double = field_info.IsVolatile()
       && (field_info.GetFieldType() == Primitive::kPrimDouble)
       && !codegen_->GetInstructionSetFeatures().HasAtomicLdrdAndStrd();
-  if (generate_volatile) {
+  bool overlap = field_info.IsVolatile() && (field_info.GetFieldType() == Primitive::kPrimLong);
+  locations->SetOut(Location::RequiresRegister(),
+                    (overlap ? Location::kOutputOverlap : Location::kNoOutputOverlap));
+  if (volatile_for_double) {
     // Arm encoding have some additional constraints for ldrexd/strexd:
     // - registers need to be consecutive
     // - the first register should be even but not R14.
@@ -3614,7 +3618,8 @@ void LocationsBuilderARM::VisitInstanceOf(HInstanceOf* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction, call_kind);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister());
+  // The out register is used as a temporary, so it overlaps with the inputs.
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
 }
 
 void InstructionCodeGeneratorARM::VisitInstanceOf(HInstanceOf* instruction) {
@@ -3710,10 +3715,7 @@ void LocationsBuilderARM::HandleBitwiseOperation(HBinaryOperation* instruction) 
          || instruction->GetResultType() == Primitive::kPrimLong);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
-  Location::OutputOverlap output_overlaps = (instruction->GetResultType() == Primitive::kPrimLong)
-      ? Location::kOutputOverlap
-      : Location::kNoOutputOverlap;
-  locations->SetOut(Location::RequiresRegister(), output_overlaps);
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
 }
 
 void InstructionCodeGeneratorARM::VisitAnd(HAnd* instruction) {
