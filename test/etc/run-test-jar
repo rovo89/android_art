@@ -309,6 +309,9 @@ dalvikvm_cmdline="$INVOKE_WITH $GDB $ANDROID_ROOT/bin/$DALVIKVM \
                   $DALVIKVM_BOOT_OPT \
                   -cp $DEX_LOCATION/$TEST_NAME.jar$SECONDARY_DEX $MAIN"
 
+# Remove whitespace.
+dex2oat_cmdline=$(echo $dex2oat_cmdline)
+dalvikvm_cmdline=$(echo $dalvikvm_cmdline)
 
 if [ "$HOST" = "n" ]; then
     adb root > /dev/null

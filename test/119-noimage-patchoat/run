@@ -14,10 +14,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Force relocation otherwise we will just use the already created core.oat/art pair.
-flags="${@/--no-relocate/--relocate}"
+flags="$@"
 
-if [ $(basename $RUN) == 'host-run-test-jar' ]; then
+# Force relocation otherwise we will just use the already created core.oat/art pair.
+# Note: relocate is the default.
+if [[ "${flags}" == *--no-relocate* ]] ; then
+  echo "Test 119-noimage-patchoat is not intended to run in no-relocate mode."
+  exit 1
+fi
+
+if [[ $@ == *--host* ]]; then
   false_bin="/bin/false"
 else
   false_bin="/system/bin/false"
