@@ -16,10 +16,23 @@
 
 # ensure flags includes prebuild and relocate. It doesn't make sense unless we
 # have a oat file we want to relocate.
-# TODO Unfortunately we have no way to force prebuild on for both host and target (or skip if not on).
-flags="${@/--relocate/}"
-flags="${flags/--no-relocate/}"
-flags="${flags} --relocate"
+flags="$@"
+
+# This test is supposed to test with oat files. Make sure that the no-prebuild flag isn't set,
+# or complain.
+# Note: prebuild is the default.
+if [[ "${flags}" == *--no-prebuild* ]] ; then
+  echo "Test 117-nopatchoat is not intended to run in no-prebuild mode."
+  exit 1
+fi
+
+# This test is supposed to test relocation. Make sure that the no-relocate flag isn't set,
+# or complain.
+# Note: relocate is the default.
+if [[ "${flags}" == *--no-relocate* ]] ; then
+  echo "Test 117-nopatchoat is not intended to run in no-relocate mode."
+  exit 1
+fi
 
 # Make sure we can run without relocation
 echo "Run without dex2oat/patchoat"
