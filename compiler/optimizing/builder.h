@@ -34,19 +34,19 @@ class SwitchTable;
 
 class HGraphBuilder : public ValueObject {
  public:
-  HGraphBuilder(ArenaAllocator* arena,
+  HGraphBuilder(HGraph* graph,
                 DexCompilationUnit* dex_compilation_unit,
                 const DexCompilationUnit* const outer_compilation_unit,
                 const DexFile* dex_file,
                 CompilerDriver* driver,
                 OptimizingCompilerStats* compiler_stats)
-      : arena_(arena),
-        branch_targets_(arena, 0),
-        locals_(arena, 0),
+      : arena_(graph->GetArena()),
+        branch_targets_(graph->GetArena(), 0),
+        locals_(graph->GetArena(), 0),
         entry_block_(nullptr),
         exit_block_(nullptr),
         current_block_(nullptr),
-        graph_(nullptr),
+        graph_(graph),
         constant0_(nullptr),
         constant1_(nullptr),
         dex_file_(dex_file),
@@ -59,14 +59,14 @@ class HGraphBuilder : public ValueObject {
         compilation_stats_(compiler_stats) {}
 
   // Only for unit testing.
-  HGraphBuilder(ArenaAllocator* arena, Primitive::Type return_type = Primitive::kPrimInt)
-      : arena_(arena),
-        branch_targets_(arena, 0),
-        locals_(arena, 0),
+  HGraphBuilder(HGraph* graph, Primitive::Type return_type = Primitive::kPrimInt)
+      : arena_(graph->GetArena()),
+        branch_targets_(graph->GetArena(), 0),
+        locals_(graph->GetArena(), 0),
         entry_block_(nullptr),
         exit_block_(nullptr),
         current_block_(nullptr),
-        graph_(nullptr),
+        graph_(graph),
         constant0_(nullptr),
         constant1_(nullptr),
         dex_file_(nullptr),
@@ -78,7 +78,7 @@ class HGraphBuilder : public ValueObject {
         latest_result_(nullptr),
         compilation_stats_(nullptr) {}
 
-  HGraph* BuildGraph(const DexFile::CodeItem& code, int start_instruction_id = 0);
+  bool BuildGraph(const DexFile::CodeItem& code);
 
  private:
   // Analyzes the dex instruction and adds HInstruction to the graph
@@ -249,7 +249,7 @@ class HGraphBuilder : public ValueObject {
   HBasicBlock* entry_block_;
   HBasicBlock* exit_block_;
   HBasicBlock* current_block_;
-  HGraph* graph_;
+  HGraph* const graph_;
 
   HIntConstant* constant0_;
   HIntConstant* constant1_;

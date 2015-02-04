@@ -76,11 +76,12 @@ void RemoveSuspendChecks(HGraph* graph) {
 inline HGraph* CreateCFG(ArenaAllocator* allocator,
                          const uint16_t* data,
                          Primitive::Type return_type = Primitive::kPrimInt) {
-  HGraphBuilder builder(allocator, return_type);
+  HGraph* graph = new (allocator) HGraph(allocator);
+  HGraphBuilder builder(graph, return_type);
   const DexFile::CodeItem* item =
     reinterpret_cast<const DexFile::CodeItem*>(data);
-  HGraph* graph = builder.BuildGraph(*item);
-  return graph;
+  bool graph_built = builder.BuildGraph(*item);
+  return graph_built ? graph : nullptr;
 }
 
 // Naive string diff data type.

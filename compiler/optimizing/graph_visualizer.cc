@@ -194,7 +194,9 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       }
       output_ << "]";
     }
-    if (pass_name_ == kLivenessPassName && instruction->GetLifetimePosition() != kNoLifetime) {
+    if (pass_name_ == kLivenessPassName
+        && is_after_pass_
+        && instruction->GetLifetimePosition() != kNoLifetime) {
       output_ << " (liveness: " << instruction->GetLifetimePosition();
       if (instruction->HasLiveInterval()) {
         output_ << " ";
@@ -202,7 +204,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
         interval.Dump(output_);
       }
       output_ << ")";
-    } else if (pass_name_ == kRegisterAllocatorPassName) {
+    } else if (pass_name_ == kRegisterAllocatorPassName && is_after_pass_) {
       LocationSummary* locations = instruction->GetLocations();
       if (locations != nullptr) {
         output_ << " ( ";
@@ -310,18 +312,13 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
 
 HGraphVisualizer::HGraphVisualizer(std::ostream* output,
                                    HGraph* graph,
-                                   const char* string_filter,
                                    const CodeGenerator& codegen,
                                    const char* method_name)
-  : output_(output), graph_(graph), codegen_(codegen), is_enabled_(false) {
+  : output_(output), graph_(graph), codegen_(codegen) {
   if (output == nullptr) {
     return;
   }
-  if (strstr(method_name, string_filter) == nullptr) {
-    return;
-  }
 
-  is_enabled_ = true;
   HGraphVisualizerPrinter printer(graph_, *output_, "", true, codegen_);
   printer.StartTag("compilation");
   printer.PrintProperty("name", method_name);
@@ -331,7 +328,8 @@ HGraphVisualizer::HGraphVisualizer(std::ostream* output,
 }
 
 void HGraphVisualizer::DumpGraph(const char* pass_name, bool is_after_pass) const {
-  if (is_enabled_) {
+  DCHECK(output_ != nullptr);
+  if (!graph_->GetBlocks().IsEmpty()) {
     HGraphVisualizerPrinter printer(graph_, *output_, pass_name, is_after_pass, codegen_);
     printer.Run();
   }

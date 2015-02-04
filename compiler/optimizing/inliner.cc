@@ -124,16 +124,18 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
     resolved_method->GetAccessFlags(),
     nullptr);
 
+  HGraph* callee_graph =
+      new (graph_->GetArena()) HGraph(graph_->GetArena(), graph_->GetCurrentInstructionId());
+
   OptimizingCompilerStats inline_stats;
-  HGraphBuilder builder(graph_->GetArena(),
+  HGraphBuilder builder(callee_graph,
                         &dex_compilation_unit,
                         &outer_compilation_unit_,
                         &outer_dex_file,
                         compiler_driver_,
                         &inline_stats);
-  HGraph* callee_graph = builder.BuildGraph(*code_item, graph_->GetCurrentInstructionId());
 
-  if (callee_graph == nullptr) {
+  if (!builder.BuildGraph(*code_item)) {
     VLOG(compiler) << "Method " << PrettyMethod(method_index, outer_dex_file)
                    << " could not be built, so cannot be inlined";
     return false;
