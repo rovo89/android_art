@@ -930,7 +930,10 @@ void IntrinsicLocationsBuilderARM64::VisitStringCharAt(HInvoke* invoke) {
                                                             kIntrinsified);
   locations->SetInAt(0, Location::RequiresRegister());
   locations->SetInAt(1, Location::RequiresRegister());
-  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+  // In case we need to go in the slow path, we can't have the output be the same
+  // as the input: the current liveness analysis considers the input to be live
+  // at the point of the call.
+  locations->SetOut(Location::RequiresRegister(), Location::kOutputOverlap);
 }
 
 void IntrinsicCodeGeneratorARM64::VisitStringCharAt(HInvoke* invoke) {
