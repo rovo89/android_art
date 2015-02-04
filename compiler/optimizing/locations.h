@@ -62,17 +62,11 @@ class Location : public ValueObject {
     // We do not use the value 9 because it conflicts with kLocationConstantMask.
     kDoNotUse9 = 9,
 
-    // On 32bits architectures, quick can pass a long where the
-    // low bits are in the last parameter register, and the high
-    // bits are in a stack slot. The kQuickParameter kind is for
-    // handling this special case.
-    kQuickParameter = 10,
-
     // Unallocated location represents a location that is not fixed and can be
     // allocated by a register allocator.  Each unallocated location has
     // a policy that specifies what kind of location is suitable. Payload
     // contains register allocation policy.
-    kUnallocated = 11,
+    kUnallocated = 10,
   };
 
   Location() : value_(kInvalid) {
@@ -82,7 +76,6 @@ class Location : public ValueObject {
     static_assert((kStackSlot & kLocationConstantMask) != kConstant, "TagError");
     static_assert((kDoubleStackSlot & kLocationConstantMask) != kConstant, "TagError");
     static_assert((kRegister & kLocationConstantMask) != kConstant, "TagError");
-    static_assert((kQuickParameter & kLocationConstantMask) != kConstant, "TagError");
     static_assert((kFpuRegister & kLocationConstantMask) != kConstant, "TagError");
     static_assert((kRegisterPair & kLocationConstantMask) != kConstant, "TagError");
     static_assert((kFpuRegisterPair & kLocationConstantMask) != kConstant, "TagError");
@@ -267,24 +260,6 @@ class Location : public ValueObject {
     return GetPayload() - kStackIndexBias + word_size;
   }
 
-  static Location QuickParameter(uint16_t register_index, uint16_t stack_index) {
-    return Location(kQuickParameter, register_index << 16 | stack_index);
-  }
-
-  uint32_t GetQuickParameterRegisterIndex() const {
-    DCHECK(IsQuickParameter());
-    return GetPayload() >> 16;
-  }
-
-  uint32_t GetQuickParameterStackIndex() const {
-    DCHECK(IsQuickParameter());
-    return GetPayload() & 0xFFFF;
-  }
-
-  bool IsQuickParameter() const {
-    return GetKind() == kQuickParameter;
-  }
-
   Kind GetKind() const {
     return IsConstant() ? kConstant : KindField::Decode(value_);
   }
@@ -299,7 +274,6 @@ class Location : public ValueObject {
       case kRegister: return "R";
       case kStackSlot: return "S";
       case kDoubleStackSlot: return "DS";
-      case kQuickParameter: return "Q";
       case kUnallocated: return "U";
       case kConstant: return "C";
       case kFpuRegister: return "F";
