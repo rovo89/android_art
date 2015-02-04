@@ -34,6 +34,129 @@ class CompilerDriver;
 class Mir2Lir;
 class MIRGraph;
 
+constexpr size_t kOptionStringMaxLength = 2048;
+
+/**
+ * Structure abstracting pass option values, which can be of type string or integer.
+ */
+struct OptionContent {
+  OptionContent(const OptionContent& option) :
+    type(option.type), container(option.container, option.type) {}
+
+  explicit OptionContent(const char* value) :
+    type(kString), container(value) {}
+
+  explicit OptionContent(int value) :
+    type(kInteger), container(value) {}
+
+  explicit OptionContent(int64_t value) :
+    type(kInteger), container(value) {}
+
+  ~OptionContent() {
+    if (type == kString) {
+      container.StringDelete();
+    }
+  }
+
+  /**
+   * Allows for a transparent display of the option content.
+   */
+  friend std::ostream& operator<<(std::ostream& out, const OptionContent& option) {
+    if (option.type == kString) {
+      out << option.container.s;
+    } else {
+      out << option.container.i;
+    }
+
+    return out;
+  }
+
+  inline const char* GetString() const {
+    return container.s;
+  }
+
+  inline int64_t GetInteger() const {
+    return container.i;
+  }
+
+  /**
+   * @brief Used to compare a string option value to a given @p value.
+   * @details Will return whether the internal string option is equal to
+   * the parameter @p value. It will return false if the type of the
+   * object is not a string.
+   * @param value The string to compare to.
+   * @return Returns whether the internal string option is equal to the
+   * parameter @p value.
+  */
+  inline bool Equals(const char* value) const {
+    DCHECK(value != nullptr);
+    if (type != kString) {
+      return false;
+    }
+    return !strncmp(container.s, value, kOptionStringMaxLength);
+  }
+
+  /**
+   * @brief Used to compare an integer option value to a given @p value.
+   * @details Will return whether the internal integer option is equal to
+   * the parameter @p value. It will return false if the type of the
+   * object is not an integer.
+   * @param value The integer to compare to.
+   * @return Returns whether the internal integer option is equal to the
+   * parameter @p value.
+  */
+  inline bool Equals(int64_t value) const {
+    if (type != kInteger) {
+      return false;
+    }
+    return container.i == value;
+  }
+
+  /**
+   * Describes the type of parameters allowed as option values.
+   */
+  enum OptionType {
+    kString = 0,
+    kInteger
+  };
+
+  OptionType type;
+
+ private:
+  /**
+   * Union containing the option value of either type.
+   */
+  union OptionContainer {
+    explicit OptionContainer(const OptionContainer& c, OptionType t) {
+      if (t == kString) {
+        DCHECK(c.s != nullptr);
+        s = strndup(c.s, kOptionStringMaxLength);
+      } else {
+        i = c.i;
+      }
+    }
+
+    explicit OptionContainer(const char* value) {
+      DCHECK(value != nullptr);
+      s = strndup(value, kOptionStringMaxLength);
+    }
+
+    explicit OptionContainer(int64_t value) : i(value) {}
+    ~OptionContainer() {}
+
+    void StringDelete() {
+      if (s != nullptr) {
+        free(s);
+      }
+    }
+
+    char* s;
+    int64_t i;
+  };
+
+  OptionContainer container;
+};
+
 struct CompilationUnit {
   CompilationUnit(ArenaPool* pool, InstructionSet isa, CompilerDriver* driver, ClassLinker* linker);
   ~CompilationUnit();
@@ -77,7 +200,7 @@ struct CompilationUnit {
    * default settings have been changed. The key is simply the option string without
    * the pass name.
    */
-  SafeMap<const std::string, int> overridden_pass_options;
+  SafeMap<const std::string, const OptionContent> overridden_pass_options;
 };
 
 }  // namespace art
