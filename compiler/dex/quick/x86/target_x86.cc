@@ -2469,11 +2469,17 @@ RegStorage X86Mir2Lir::InToRegStorageX86Mapper::GetNextReg(ShortyArg arg) {
       return m2l_->TargetReg(fpArgMappingToPhysicalReg[cur_fp_reg_++],
                              arg.IsWide() ? kWide : kNotWide);
     }
-  } else {
-    if (cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
-      result = m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++],
-                               arg.IsRef() ? kRef : kNotWide);
-      if (arg.IsWide() && cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
+  } else if (cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
+    result = m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++],
+                             arg.IsRef() ? kRef : kNotWide);
+    if (arg.IsWide()) {
+      // This must be a long, as double is handled above.
+      // Ensure that we don't split a long across the last register and the stack.
+      if (cur_core_reg_ == coreArgMappingToPhysicalRegSize) {
+        // Leave the last core register unused and force the whole long to the stack.
+        cur_core_reg_++;
+        result = RegStorage::InvalidReg();
+      } else if (cur_core_reg_ < coreArgMappingToPhysicalRegSize) {
         result = RegStorage::MakeRegPair(
             result, m2l_->TargetReg(coreArgMappingToPhysicalReg[cur_core_reg_++], kNotWide));
       }
