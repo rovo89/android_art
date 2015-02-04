@@ -180,7 +180,8 @@ TEST_ART_TIMING_SENSITIVE_RUN_TESTS :=
 
 # Note 116-nodex2oat is not broken per-se it just doesn't (and isn't meant to) work with --prebuild.
 TEST_ART_BROKEN_PREBUILD_RUN_TESTS := \
-  116-nodex2oat
+  116-nodex2oat \
+  118-noimage-dex2oat
 
 ifneq (,$(filter prebuild,$(PREBUILD_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),prebuild, \
@@ -204,7 +205,9 @@ TEST_ART_BROKEN_NO_PREBUILD_TESTS :=
 # Note 117-nopatchoat is not broken per-se it just doesn't work (and isn't meant to) without
 # --prebuild --relocate
 TEST_ART_BROKEN_NO_RELOCATE_TESTS := \
-  117-nopatchoat
+  117-nopatchoat \
+  118-noimage-dex2oat \
+  119-noimage-patchoat
 
 ifneq (,$(filter no-relocate,$(RELOCATE_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \

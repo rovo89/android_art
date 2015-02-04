@@ -14,17 +14,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+flags="$@"
+
+# This test is supposed to test without oat files, so doesn't work for prebuild. Make sure that
+# flag isn't set, or complain.
+# Note: prebuild is the default.
+if [[ "${flags}" == *--prebuild* || "${flags}" != *--no-prebuild* ]] ; then
+  echo "Test 118-noimage-dex2oat cannot run in prebuild mode."
+  exit 1
+fi
+
 # Force relocation otherwise we will just use the already created core.oat/art pair.
-flags="${@/--no-relocate/--relocate}"
+# Note: relocate is the default.
+if [[ "${flags}" == *--no-relocate* ]] ; then
+  echo "Test 118-noimage-dex2oat is not intended to run in no-relocate mode."
+  exit 1
+fi
 
-# Use the non-prebuild script.
-RUN="${RUN/push-and-run-prebuilt-test-jar/push-and-run-test-jar}"
-
-if [ $(basename $RUN) == 'host-run-test-jar' ]; then
+if [[ $@ == *--host* ]]; then
     framework="${ANDROID_HOST_OUT}/framework"
     bpath_suffix="-hostdex"
-    # Remove prebuild from the flags, this test is for testing not having oat files.
-    flags="${flags/--prebuild/}"
 else
     framework="/system/framework"
     bpath_suffix=""
