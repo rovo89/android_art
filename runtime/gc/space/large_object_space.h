@@ -31,10 +31,10 @@ namespace space {
 
 class AllocationInfo;
 
-enum LargeObjectSpaceType {
-  kLargeObjectSpaceTypeDisabled,
-  kLargeObjectSpaceTypeMap,
-  kLargeObjectSpaceTypeFreeList,
+enum class LargeObjectSpaceType {
+  kDisabled,
+  kMap,
+  kFreeList,
 };
 
 // Abstraction implemented by all large object spaces.

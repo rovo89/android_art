@@ -549,6 +549,13 @@ struct FreeDelete {
 template <typename T>
 using UniqueCPtr = std::unique_ptr<T, FreeDelete>;
 
+// C++14 from-the-future import (std::make_unique)
+// Invoke the constructor of 'T' with the provided args, and wrap the result in a unique ptr.
+template <typename T, typename ... Args>
+std::unique_ptr<T> MakeUnique(Args&& ... args) {
+  return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+}
+
 }  // namespace art
 
 #endif  // ART_RUNTIME_UTILS_H_
