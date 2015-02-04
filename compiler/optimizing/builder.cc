@@ -259,13 +259,14 @@ bool HGraphBuilder::SkipCompilation(size_t number_of_dex_instructions,
   return false;
 }
 
-HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item, int start_instruction_id) {
+bool HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item) {
+  DCHECK(graph_->GetBlocks().IsEmpty());
+
   const uint16_t* code_ptr = code_item.insns_;
   const uint16_t* code_end = code_item.insns_ + code_item.insns_size_in_code_units_;
   code_start_ = code_ptr;
 
   // Setup the graph with the entry block and exit block.
-  graph_ = new (arena_) HGraph(arena_, start_instruction_id);
   entry_block_ = new (arena_) HBasicBlock(graph_, 0);
   graph_->AddBlock(entry_block_);
   exit_block_ = new (arena_) HBasicBlock(graph_, kNoDexPc);
@@ -289,7 +290,7 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item, int start_
   // Note that the compiler driver is null when unit testing.
   if ((compiler_driver_ != nullptr)
       && SkipCompilation(number_of_dex_instructions, number_of_blocks, number_of_branches)) {
-    return nullptr;
+    return false;
   }
 
   // Also create blocks for catch handlers.
@@ -319,7 +320,7 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item, int start_
     MaybeUpdateCurrentBlock(dex_pc);
     const Instruction& instruction = *Instruction::At(code_ptr);
     if (!AnalyzeDexInstruction(instruction, dex_pc)) {
-      return nullptr;
+      return false;
     }
     dex_pc += instruction.SizeInCodeUnits();
     code_ptr += instruction.SizeInCodeUnits();
@@ -331,7 +332,8 @@ HGraph* HGraphBuilder::BuildGraph(const DexFile::CodeItem& code_item, int start_
   // Add the suspend check to the entry block.
   entry_block_->AddInstruction(new (arena_) HSuspendCheck(0));
   entry_block_->AddInstruction(new (arena_) HGoto());
-  return graph_;
+
+  return true;
 }
 
 void HGraphBuilder::MaybeUpdateCurrentBlock(size_t index) {

@@ -30,10 +30,11 @@ namespace art {
 static void TestCode(const uint16_t* data) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HGraphBuilder builder(&allocator);
+  HGraph* graph = new (&allocator) HGraph(&allocator);
+  HGraphBuilder builder(graph);
   const DexFile::CodeItem* item = reinterpret_cast<const DexFile::CodeItem*>(data);
-  HGraph* graph = builder.BuildGraph(*item);
-  ASSERT_NE(graph, nullptr);
+  bool graph_built = builder.BuildGraph(*item);
+  ASSERT_TRUE(graph_built);
 
   HBasicBlock* first_block = graph->GetEntryBlock()->GetSuccessors().Get(0);
   HInstruction* first_instruction = first_block->GetFirstInstruction();

@@ -21,6 +21,8 @@
 
 namespace art {
 
+static const char* kBuilderPassName = "builder";
+static const char* kSsaBuilderPassName = "ssa_builder";
 static const char* kLivenessPassName = "liveness";
 static const char* kRegisterAllocatorPassName = "register";
 static const char* kLoopInvariantCodeMotionPassName = "licm";
