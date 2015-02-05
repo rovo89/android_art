@@ -1929,7 +1929,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
                 *file_log << exception->Dump() << "\n";
               }
               soa.Self()->ClearException();
-              transaction.Abort();
+              transaction.Rollback();
               CHECK_EQ(old_status, klass->GetStatus()) << "Previous class status not restored";
             }
           }

@@ -42,6 +42,14 @@ class Transaction FINAL {
   Transaction();
   ~Transaction();
 
+  void Abort(const std::string& abort_message)
+      LOCKS_EXCLUDED(log_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ThrowInternalError(Thread* self)
+      LOCKS_EXCLUDED(log_lock_)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsAborted() LOCKS_EXCLUDED(log_lock_);
+
   // Record object field changes.
   void RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset, uint8_t value,
                                bool is_volatile)
@@ -85,7 +93,7 @@ class Transaction FINAL {
       LOCKS_EXCLUDED(log_lock_);
 
   // Abort transaction by undoing all recorded changes.
-  void Abort()
+  void Rollback()
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       LOCKS_EXCLUDED(log_lock_);
 
@@ -206,10 +214,14 @@ class Transaction FINAL {
       EXCLUSIVE_LOCKS_REQUIRED(log_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  const std::string& GetAbortMessage() LOCKS_EXCLUDED(log_lock_);
+
   Mutex log_lock_ ACQUIRED_AFTER(Locks::intern_table_lock_);
   std::map<mirror::Object*, ObjectLog> object_logs_ GUARDED_BY(log_lock_);
   std::map<mirror::Array*, ArrayLog> array_logs_  GUARDED_BY(log_lock_);
   std::list<InternStringLog> intern_string_logs_ GUARDED_BY(log_lock_);
+  bool aborted_ GUARDED_BY(log_lock_);
+  std::string abort_message_ GUARDED_BY(log_lock_);
 
   DISALLOW_COPY_AND_ASSIGN(Transaction);
 };
