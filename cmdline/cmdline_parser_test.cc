@@ -301,14 +301,6 @@ TEST_F(CmdlineParserTest, DISABLED_TestXGcOption) {
 
     XGcOption option_all_default{};  // NOLINT [readability/braces] [4]
 
-    option_all_default.collector_type_ = gc::kCollectorTypeDefault;
-    option_all_default.verify_pre_gc_heap_ = false;
-    option_all_default.verify_pre_sweeping_heap_ = kIsDebugBuild;
-    option_all_default.verify_post_gc_heap_ = false;
-    option_all_default.verify_pre_gc_rosalloc_ = kIsDebugBuild;
-    option_all_default.verify_pre_sweeping_rosalloc_ = false;
-    option_all_default.verify_post_gc_rosalloc_ = false;
-
     const char* xgc_args_blank = "-Xgc:";
     EXPECT_SINGLE_PARSE_VALUE(option_all_default, xgc_args_blank, M::GcOption);
   }
