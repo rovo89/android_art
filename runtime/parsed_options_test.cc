@@ -22,7 +22,12 @@
 
 namespace art {
 
-class ParsedOptionsTest : public ::testing::Test {};
+class ParsedOptionsTest : public ::testing::Test {
+ public:
+  static void SetUpTestCase() {
+    CommonRuntimeTest::SetUpAndroidRoot();
+  }
+};
 
 TEST_F(ParsedOptionsTest, ParsedOptions) {
   void* test_vfprintf = reinterpret_cast<void*>(0xa);
