@@ -4220,6 +4220,14 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
       WrapExceptionInInitializer(klass);
       klass->SetStatus(mirror::Class::kStatusError, self);
       success = false;
+    } else if (Runtime::Current()->IsTransactionAborted()) {
+      // The exception thrown when the transaction aborted has been caught and cleared
+      // so we need to throw it again now.
+      LOG(WARNING) << "Return from class initializer of " << PrettyDescriptor(klass.Get())
+                   << " without exception while transaction was aborted: re-throw it now.";
+      Runtime::Current()->ThrowInternalErrorForAbortedTransaction(self);
+      klass->SetStatus(mirror::Class::kStatusError, self);
+      success = false;
     } else {
       RuntimeStats* global_stats = Runtime::Current()->GetStats();
       RuntimeStats* thread_stats = self->GetStats();

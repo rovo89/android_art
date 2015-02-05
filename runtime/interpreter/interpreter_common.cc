@@ -546,11 +546,13 @@ static inline void AssignRegister(ShadowFrame* new_shadow_frame, const ShadowFra
 
 void AbortTransaction(Thread* self, const char* fmt, ...) {
   CHECK(Runtime::Current()->IsActiveTransaction());
-  // Throw an exception so we can abort the transaction and undo every change.
+  // Constructs abort message.
   va_list args;
   va_start(args, fmt);
-  self->ThrowNewExceptionV(self->GetCurrentLocationForThrow(), "Ljava/lang/InternalError;", fmt,
-                           args);
+  std::string abort_msg;
+  StringAppendV(&abort_msg, fmt, args);
+  // Throws an exception so we can abort the transaction and rollback every change.
+  Runtime::Current()->AbortTransactionAndThrowInternalError(self, abort_msg);
   va_end(args);
 }
 
