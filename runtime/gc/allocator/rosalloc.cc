@@ -1119,12 +1119,19 @@ void RosAlloc::Run::InspectAllSlots(void (*handler)(void* start, void* end, size
   uint8_t* slot_base = reinterpret_cast<uint8_t*>(this) + headerSizes[idx];
   size_t num_slots = numOfSlots[idx];
   size_t bracket_size = IndexToBracketSize(idx);
-  DCHECK_EQ(slot_base + num_slots * bracket_size, reinterpret_cast<uint8_t*>(this) + numOfPages[idx] * kPageSize);
+  DCHECK_EQ(slot_base + num_slots * bracket_size,
+            reinterpret_cast<uint8_t*>(this) + numOfPages[idx] * kPageSize);
   size_t num_vec = RoundUp(num_slots, 32) / 32;
   size_t slots = 0;
+  const uint32_t* const tl_free_vecp = IsThreadLocal() ? ThreadLocalFreeBitMap() : nullptr;
   for (size_t v = 0; v < num_vec; v++, slots += 32) {
     DCHECK_GE(num_slots, slots);
     uint32_t vec = alloc_bit_map_[v];
+    if (tl_free_vecp != nullptr) {
+      // Clear out the set bits in the thread local free bitmap since these aren't actually
+      // allocated.
+      vec &= ~tl_free_vecp[v];
+    }
     size_t end = std::min(num_slots - slots, static_cast<size_t>(32));
     for (size_t i = 0; i < end; ++i) {
       bool is_allocated = ((vec >> i) & 0x1) != 0;
