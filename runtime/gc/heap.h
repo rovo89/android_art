@@ -145,15 +145,14 @@ class Heap {
   static constexpr double kDefaultHeapGrowthMultiplier = 2.0;
   // Primitive arrays larger than this size are put in the large object space.
   static constexpr size_t kDefaultLargeObjectThreshold = 3 * kPageSize;
+
   // Whether or not we use the free list large object space. Only use it if USE_ART_LOW_4G_ALLOCATOR
   // since this means that we have to use the slow msync loop in MemMap::MapAnonymous.
-#if USE_ART_LOW_4G_ALLOCATOR
   static constexpr space::LargeObjectSpaceType kDefaultLargeObjectSpaceType =
-      space::kLargeObjectSpaceTypeFreeList;
-#else
-  static constexpr space::LargeObjectSpaceType kDefaultLargeObjectSpaceType =
-      space::LargeObjectSpaceType::kMap;
-#endif
+      USE_ART_LOW_4G_ALLOCATOR ?
+          space::LargeObjectSpaceType::kFreeList
+        : space::LargeObjectSpaceType::kMap;
+
   // Used so that we don't overflow the allocation time atomic integer.
   static constexpr size_t kTimeAdjust = 1024;
 
