@@ -455,6 +455,13 @@ class Runtime {
   }
   void EnterTransactionMode(Transaction* transaction);
   void ExitTransactionMode();
+  bool IsTransactionAborted() const;
+
+  void AbortTransactionAndThrowInternalError(Thread* self, const std::string& abort_message)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void ThrowInternalErrorForAbortedTransaction(Thread* self)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   void RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset, uint8_t value,
                                bool is_volatile) const;
   void RecordWriteFieldByte(mirror::Object* obj, MemberOffset field_offset, int8_t value,
