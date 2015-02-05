@@ -54,7 +54,7 @@ static constexpr CollectorType kCollectorTypeDefault =
 #elif ART_DEFAULT_GC_TYPE_IS_GSS
     kCollectorTypeGSS
 #else
-    gc::kCollectorTypeCMS
+    kCollectorTypeCMS
 #error "ART default GC type must be set"
 #endif
     ;  // NOLINT [whitespace/semicolon] [5]
