@@ -762,7 +762,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
 
   verify_ = runtime_options.GetOrDefault(Opt::Verify);
 
-  if (runtime_options.Exists(Opt::Interpret)) {
+  if (runtime_options.GetOrDefault(Opt::Interpret)) {
     GetInstrumentation()->ForceInterpretOnly();
   }
 
