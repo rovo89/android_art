@@ -453,24 +453,27 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
     RecordPcInfo(nullptr, 0);
   }
 
-  int frame_size = GetFrameSize();
-  __ Str(kArtMethodRegister, MemOperand(sp, -frame_size, PreIndex));
-  __ PokeCPURegList(GetFramePreservedCoreRegisters(), frame_size - GetCoreSpillSize());
-  __ PokeCPURegList(GetFramePreservedFPRegisters(), frame_size - FrameEntrySpillSize());
-
-  // Stack layout:
-  //      sp[frame_size - 8]        : lr.
-  //      ...                       : other preserved core registers.
-  //      ...                       : other preserved fp registers.
-  //      ...                       : reserved frame space.
-  //      sp[0]                     : current method.
+  if (!HasEmptyFrame()) {
+    int frame_size = GetFrameSize();
+    // Stack layout:
+    //      sp[frame_size - 8]        : lr.
+    //      ...                       : other preserved core registers.
+    //      ...                       : other preserved fp registers.
+    //      ...                       : reserved frame space.
+    //      sp[0]                     : current method.
+    __ Str(kArtMethodRegister, MemOperand(sp, -frame_size, PreIndex));
+    __ PokeCPURegList(GetFramePreservedCoreRegisters(), frame_size - GetCoreSpillSize());
+    __ PokeCPURegList(GetFramePreservedFPRegisters(), frame_size - FrameEntrySpillSize());
+  }
 }
 
 void CodeGeneratorARM64::GenerateFrameExit() {
-  int frame_size = GetFrameSize();
-  __ PeekCPURegList(GetFramePreservedFPRegisters(), frame_size - FrameEntrySpillSize());
-  __ PeekCPURegList(GetFramePreservedCoreRegisters(), frame_size - GetCoreSpillSize());
-  __ Drop(frame_size);
+  if (!HasEmptyFrame()) {
+    int frame_size = GetFrameSize();
+    __ PeekCPURegList(GetFramePreservedFPRegisters(), frame_size - FrameEntrySpillSize());
+    __ PeekCPURegList(GetFramePreservedCoreRegisters(), frame_size - GetCoreSpillSize());
+    __ Drop(frame_size);
+  }
 }
 
 void CodeGeneratorARM64::Bind(HBasicBlock* block) {
@@ -961,6 +964,7 @@ void CodeGeneratorARM64::StoreRelease(Primitive::Type type,
 }
 
 void CodeGeneratorARM64::LoadCurrentMethod(vixl::Register current_method) {
+  DCHECK(RequiresCurrentMethod());
   DCHECK(current_method.IsW());
   __ Ldr(current_method, MemOperand(sp, kCurrentMethodStackOffset));
 }
