@@ -1225,11 +1225,11 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     // #XX. <RELATIVE_ADDR> has to be a hex number but with no 0x prefix.
     os << prefix << StringPrintf("#%02zu pc ", it->num);
     bool try_addr2line = false;
-    if (!it->map) {
+    if (!BacktraceMap::IsValid(it->map)) {
       os << StringPrintf("%08" PRIxPTR "  ???", it->pc);
     } else {
-      os << StringPrintf("%08" PRIxPTR "  ", it->pc - it->map->start);
-      os << it->map->name;
+      os << StringPrintf("%08" PRIxPTR "  ", it->pc - it->map.start);
+      os << it->map.name;
       os << " (";
       if (!it->func_name.empty()) {
         os << it->func_name;
@@ -1250,7 +1250,7 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
     }
     os << "\n";
     if (try_addr2line && use_addr2line) {
-      Addr2line(it->map->name, it->pc - it->map->start, os, prefix);
+      Addr2line(it->map.name, it->pc - it->map.start, os, prefix);
     }
   }
 #else
