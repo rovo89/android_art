@@ -328,6 +328,14 @@ void X86_64Assembler::leaq(CpuRegister dst, const Address& src) {
 }
 
 
+void X86_64Assembler::leal(CpuRegister dst, const Address& src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitOptionalRex32(dst, src);
+  EmitUint8(0x8D);
+  EmitOperand(dst.LowBits(), src);
+}
+
+
 void X86_64Assembler::movaps(XmmRegister dst, XmmRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitOptionalRex32(dst, src);
