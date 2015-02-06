@@ -790,7 +790,7 @@ void InstructionCodeGeneratorX86_64::VisitIf(HIf* if_instr) {
         // Materialized condition, compare against 0.
         Location lhs = if_instr->GetLocations()->InAt(0);
         if (lhs.IsRegister()) {
-          __ cmpl(lhs.AsRegister<CpuRegister>(), Immediate(0));
+          __ testl(lhs.AsRegister<CpuRegister>(), lhs.AsRegister<CpuRegister>());
         } else {
           __ cmpl(Address(CpuRegister(RSP), lhs.GetStackIndex()),
                   Immediate(0));
@@ -806,8 +806,12 @@ void InstructionCodeGeneratorX86_64::VisitIf(HIf* if_instr) {
       if (rhs.IsRegister()) {
         __ cmpl(lhs.AsRegister<CpuRegister>(), rhs.AsRegister<CpuRegister>());
       } else if (rhs.IsConstant()) {
-        __ cmpl(lhs.AsRegister<CpuRegister>(),
-                Immediate(rhs.GetConstant()->AsIntConstant()->GetValue()));
+        int32_t constant = rhs.GetConstant()->AsIntConstant()->GetValue();
+        if (constant == 0) {
+          __ testl(lhs.AsRegister<CpuRegister>(), lhs.AsRegister<CpuRegister>());
+        } else {
+          __ cmpl(lhs.AsRegister<CpuRegister>(), Immediate(constant));
+        }
       } else {
         __ cmpl(lhs.AsRegister<CpuRegister>(),
                 Address(CpuRegister(RSP), rhs.GetStackIndex()));
@@ -883,15 +887,19 @@ void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* comp) {
     CpuRegister reg = locations->Out().AsRegister<CpuRegister>();
     // Clear register: setcc only sets the low byte.
     __ xorq(reg, reg);
-    if (locations->InAt(1).IsRegister()) {
-      __ cmpl(locations->InAt(0).AsRegister<CpuRegister>(),
-              locations->InAt(1).AsRegister<CpuRegister>());
-    } else if (locations->InAt(1).IsConstant()) {
-      __ cmpl(locations->InAt(0).AsRegister<CpuRegister>(),
-              Immediate(locations->InAt(1).GetConstant()->AsIntConstant()->GetValue()));
+    Location lhs = locations->InAt(0);
+    Location rhs = locations->InAt(1);
+    if (rhs.IsRegister()) {
+      __ cmpl(lhs.AsRegister<CpuRegister>(), rhs.AsRegister<CpuRegister>());
+    } else if (rhs.IsConstant()) {
+      int32_t constant = rhs.GetConstant()->AsIntConstant()->GetValue();
+      if (constant == 0) {
+        __ testl(lhs.AsRegister<CpuRegister>(), lhs.AsRegister<CpuRegister>());
+      } else {
+        __ cmpl(lhs.AsRegister<CpuRegister>(), Immediate(constant));
+      }
     } else {
-      __ cmpl(locations->InAt(0).AsRegister<CpuRegister>(),
-              Address(CpuRegister(RSP), locations->InAt(1).GetStackIndex()));
+      __ cmpl(lhs.AsRegister<CpuRegister>(), Address(CpuRegister(RSP), rhs.GetStackIndex()));
     }
     __ setcc(X86_64Condition(comp->GetCondition()), reg);
   }
@@ -1840,8 +1848,8 @@ void LocationsBuilderX86_64::VisitAdd(HAdd* add) {
   switch (add->GetResultType()) {
     case Primitive::kPrimInt: {
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::Any());
-      locations->SetOut(Location::SameAsFirstInput());
+      locations->SetInAt(1, Location::RegisterOrConstant(add->InputAt(1)));
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
     }
 
@@ -1869,16 +1877,27 @@ void InstructionCodeGeneratorX86_64::VisitAdd(HAdd* add) {
   LocationSummary* locations = add->GetLocations();
   Location first = locations->InAt(0);
   Location second = locations->InAt(1);
-  DCHECK(first.Equals(locations->Out()));
+  Location out = locations->Out();
 
   switch (add->GetResultType()) {
     case Primitive::kPrimInt: {
       if (second.IsRegister()) {
-        __ addl(first.AsRegister<CpuRegister>(), second.AsRegister<CpuRegister>());
+        if (out.AsRegister<Register>() == first.AsRegister<Register>()) {
+          __ addl(out.AsRegister<CpuRegister>(), second.AsRegister<CpuRegister>());
+        } else {
+          __ leal(out.AsRegister<CpuRegister>(), Address(
+              first.AsRegister<CpuRegister>(), second.AsRegister<CpuRegister>(), TIMES_1, 0));
+        }
       } else if (second.IsConstant()) {
-        Immediate imm(second.GetConstant()->AsIntConstant()->GetValue());
-        __ addl(first.AsRegister<CpuRegister>(), imm);
+        if (out.AsRegister<Register>() == first.AsRegister<Register>()) {
+          __ addl(out.AsRegister<CpuRegister>(),
+                  Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
+        } else {
+          __ leal(out.AsRegister<CpuRegister>(), Address(
+              first.AsRegister<CpuRegister>(), second.GetConstant()->AsIntConstant()->GetValue()));
+        }
       } else {
+        DCHECK(first.Equals(locations->Out()));
         __ addl(first.AsRegister<CpuRegister>(), Address(CpuRegister(RSP), second.GetStackIndex()));
       }
       break;
@@ -2754,7 +2773,7 @@ void InstructionCodeGeneratorX86_64::GenerateExplicitNullCheck(HNullCheck* instr
   Location obj = locations->InAt(0);
 
   if (obj.IsRegister()) {
-    __ cmpl(obj.AsRegister<CpuRegister>(), Immediate(0));
+    __ testl(obj.AsRegister<CpuRegister>(), obj.AsRegister<CpuRegister>());
   } else if (obj.IsStackSlot()) {
     __ cmpl(Address(CpuRegister(RSP), obj.GetStackIndex()), Immediate(0));
   } else {
@@ -3237,12 +3256,16 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
   } else if (source.IsConstant()) {
     HConstant* constant = source.GetConstant();
     if (constant->IsIntConstant()) {
-      Immediate imm(constant->AsIntConstant()->GetValue());
+      int32_t value = constant->AsIntConstant()->GetValue();
       if (destination.IsRegister()) {
-        __ movl(destination.AsRegister<CpuRegister>(), imm);
+        if (value == 0) {
+          __ xorl(destination.AsRegister<CpuRegister>(), destination.AsRegister<CpuRegister>());
+        } else {
+          __ movl(destination.AsRegister<CpuRegister>(), Immediate(value));
+        }
       } else {
         DCHECK(destination.IsStackSlot()) << destination;
-        __ movl(Address(CpuRegister(RSP), destination.GetStackIndex()), imm);
+        __ movl(Address(CpuRegister(RSP), destination.GetStackIndex()), Immediate(value));
       }
     } else if (constant->IsLongConstant()) {
       int64_t value = constant->AsLongConstant()->GetValue();
