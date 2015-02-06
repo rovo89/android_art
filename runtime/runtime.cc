@@ -173,7 +173,8 @@ Runtime::Runtime()
       implicit_null_checks_(false),
       implicit_so_checks_(false),
       implicit_suspend_checks_(false),
-      is_native_bridge_loaded_(false) {
+      is_native_bridge_loaded_(false),
+      jdwp_options_(nullptr) {
   CheckAsmSupportOffsetsAndSizes();
 }
 
@@ -227,6 +228,10 @@ Runtime::~Runtime() {
 
   // Make sure our internal threads are dead before we start tearing down things they're using.
   Dbg::StopJdwp();
+  if (jdwp_options_ != nullptr) {
+    delete jdwp_options_;
+  }
+
   delete signal_catcher_;
 
   // Make sure all other non-daemon threads have terminated, and all daemon threads are suspended.
@@ -590,7 +595,7 @@ void Runtime::DidForkFromZygote(JNIEnv* env, NativeBridgeAction action, const ch
 
   // Start the JDWP thread. If the command-line debugger flags specified "suspend=y",
   // this will pause the runtime, so we probably want this to come last.
-  Dbg::StartJdwp();
+  Dbg::StartJdwp(jdwp_options_);
 }
 
 void Runtime::StartSignalCatcher() {
@@ -798,6 +803,11 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
                        runtime_options.GetOrDefault(Opt::HSpaceCompactForOOMMinIntervalsMs));
 
   dump_gc_performance_on_shutdown_ = runtime_options.Exists(Opt::DumpGCPerformanceOnShutdown);
+
+  if (runtime_options.Exists(Opt::JdwpOptions)) {
+    JDWP::JdwpOptions options = runtime_options.GetOrDefault(Opt::JdwpOptions);
+    jdwp_options_ = new JDWP::JdwpOptions(options);
+  }
 
   BlockSignals();
   InitPlatformSignalHandlers();
