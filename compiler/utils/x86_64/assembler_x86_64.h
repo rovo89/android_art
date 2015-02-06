@@ -296,6 +296,7 @@ class X86_64Assembler FINAL : public Assembler {
   void movw(const Address& dst, const Immediate& imm);
 
   void leaq(CpuRegister dst, const Address& src);
+  void leal(CpuRegister dst, const Address& src);
 
   void movaps(XmmRegister dst, XmmRegister src);
 
