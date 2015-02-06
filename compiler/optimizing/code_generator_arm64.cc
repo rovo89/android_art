@@ -402,15 +402,15 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph, const CompilerOptions& com
                     kNumberOfAllocatableRegisters,
                     kNumberOfAllocatableFPRegisters,
                     kNumberOfAllocatableRegisterPairs,
-                    (1 << LR),
-                    0,
+                    callee_saved_core_registers.list(),
+                    callee_saved_fp_registers.list(),
                     compiler_options),
       block_labels_(nullptr),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
       move_resolver_(graph->GetArena(), this) {
   // Save the link register (containing the return address) to mimic Quick.
-  AddAllocatedRegister(Location::RegisterLocation(LR));
+  AddAllocatedRegister(LocationFrom(lr));
 }
 
 #undef __
@@ -448,26 +448,28 @@ void CodeGeneratorARM64::GenerateFrameEntry() {
     UseScratchRegisterScope temps(GetVIXLAssembler());
     Register temp = temps.AcquireX();
     DCHECK(GetCompilerOptions().GetImplicitStackOverflowChecks());
-    __ Add(temp, sp, -static_cast<int32_t>(GetStackOverflowReservedBytes(kArm64)));
+    __ Sub(temp, sp, static_cast<int32_t>(GetStackOverflowReservedBytes(kArm64)));
     __ Ldr(wzr, MemOperand(temp, 0));
     RecordPcInfo(nullptr, 0);
   }
 
   int frame_size = GetFrameSize();
   __ Str(kArtMethodRegister, MemOperand(sp, -frame_size, PreIndex));
-  __ PokeCPURegList(GetFramePreservedRegisters(), frame_size - FrameEntrySpillSize());
+  __ PokeCPURegList(GetFramePreservedCoreRegisters(), frame_size - GetCoreSpillSize());
+  __ PokeCPURegList(GetFramePreservedFPRegisters(), frame_size - FrameEntrySpillSize());
 
   // Stack layout:
-  // sp[frame_size - 8]        : lr.
-  // ...                       : other preserved registers.
-  // sp[frame_size - regs_size]: first preserved register.
-  // ...                       : reserved frame space.
-  // sp[0]                     : current method.
+  //      sp[frame_size - 8]        : lr.
+  //      ...                       : other preserved core registers.
+  //      ...                       : other preserved fp registers.
+  //      ...                       : reserved frame space.
+  //      sp[0]                     : current method.
 }
 
 void CodeGeneratorARM64::GenerateFrameExit() {
   int frame_size = GetFrameSize();
-  __ PeekCPURegList(GetFramePreservedRegisters(), frame_size - FrameEntrySpillSize());
+  __ PeekCPURegList(GetFramePreservedFPRegisters(), frame_size - FrameEntrySpillSize());
+  __ PeekCPURegList(GetFramePreservedCoreRegisters(), frame_size - GetCoreSpillSize());
   __ Drop(frame_size);
 }
 
@@ -555,25 +557,37 @@ void CodeGeneratorARM64::MarkGCCard(Register object, Register value) {
   __ Bind(&done);
 }
 
-void CodeGeneratorARM64::SetupBlockedRegisters(bool is_baseline ATTRIBUTE_UNUSED) const {
-  // Block reserved registers:
-  //   ip0 (VIXL temporary)
-  //   ip1 (VIXL temporary)
-  //   tr
-  //   lr
-  // sp is not part of the allocatable registers, so we don't need to block it.
-  // TODO: Avoid blocking callee-saved registers, and instead preserve them
-  // where necessary.
+void CodeGeneratorARM64::SetupBlockedRegisters(bool is_baseline) const {
+  // Blocked core registers:
+  //      lr        : Runtime reserved.
+  //      tr        : Runtime reserved.
+  //      xSuspend  : Runtime reserved. TODO: Unblock this when the runtime stops using it.
+  //      ip1       : VIXL core temp.
+  //      ip0       : VIXL core temp.
+  //
+  // Blocked fp registers:
+  //      d31       : VIXL fp temp.
   CPURegList reserved_core_registers = vixl_reserved_core_registers;
   reserved_core_registers.Combine(runtime_reserved_core_registers);
-  reserved_core_registers.Combine(quick_callee_saved_registers);
   while (!reserved_core_registers.IsEmpty()) {
     blocked_core_registers_[reserved_core_registers.PopLowestIndex().code()] = true;
   }
+
   CPURegList reserved_fp_registers = vixl_reserved_fp_registers;
-  reserved_fp_registers.Combine(CPURegList::GetCalleeSavedFP());
   while (!reserved_core_registers.IsEmpty()) {
     blocked_fpu_registers_[reserved_fp_registers.PopLowestIndex().code()] = true;
+  }
+
+  if (is_baseline) {
+    CPURegList reserved_core_baseline_registers = callee_saved_core_registers;
+    while (!reserved_core_baseline_registers.IsEmpty()) {
+      blocked_core_registers_[reserved_core_baseline_registers.PopLowestIndex().code()] = true;
+    }
+
+    CPURegList reserved_fp_baseline_registers = callee_saved_fp_registers;
+    while (!reserved_fp_baseline_registers.IsEmpty()) {
+      blocked_fpu_registers_[reserved_fp_baseline_registers.PopLowestIndex().code()] = true;
+    }
   }
 }
 
