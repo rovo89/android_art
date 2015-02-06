@@ -464,13 +464,6 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
     }
 
     args.Set(M::BackgroundGc, BackgroundGcOption { background_collector_type_ });
-    {
-      XGcOption* xgc = args.Get(M::GcOption);
-      if (xgc != nullptr) {
-        xgc->collector_type_ = collector_type_;
-        args.Set(M::GcOption, *xgc);
-      }
-    }
   }
 
   // If a reference to the dalvik core.jar snuck in, replace it with
