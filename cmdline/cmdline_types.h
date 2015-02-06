@@ -56,6 +56,23 @@ struct CmdlineType<Unit> : CmdlineTypeParser<Unit> {
 
 template <>
 struct CmdlineType<JDWP::JdwpOptions> : CmdlineTypeParser<JDWP::JdwpOptions> {
+  /*
+   * Handle one of the JDWP name/value pairs.
+   *
+   * JDWP options are:
+   *  help: if specified, show help message and bail
+   *  transport: may be dt_socket or dt_shmem
+   *  address: for dt_socket, "host:port", or just "port" when listening
+   *  server: if "y", wait for debugger to attach; if "n", attach to debugger
+   *  timeout: how long to wait for debugger to connect / listen
+   *
+   * Useful with server=n (these aren't supported yet):
+   *  onthrow=<exception-name>: connect to debugger when exception thrown
+   *  onuncaught=y|n: connect to debugger when uncaught exception thrown
+   *  launch=<command-line>: launch the debugger itself
+   *
+   * The "transport" option is required, as is "address" if server=n.
+   */
   Result Parse(const std::string& options) {
     VLOG(jdwp) << "ParseJdwpOptions: " << options;
 
@@ -70,20 +87,20 @@ struct CmdlineType<JDWP::JdwpOptions> : CmdlineTypeParser<JDWP::JdwpOptions> {
     std::vector<std::string> pairs;
     Split(options, ',', &pairs);
 
-    JDWP::JdwpOptions jdwp_options = JDWP::JdwpOptions();
+    JDWP::JdwpOptions jdwp_options;
     std::stringstream error_stream;
 
-    for (size_t i = 0; i < pairs.size(); ++i) {
-      std::string::size_type equals = pairs[i].find('=');
-      if (equals == std::string::npos) {
+    for (const std::string& jdwp_option : pairs) {
+      std::string::size_type equals_pos = jdwp_option.find('=');
+      if (equals_pos == std::string::npos) {
         return Result::Failure(s +
-            "Can't parse JDWP option '" + pairs[i] + "' in '" + options + "'");
+            "Can't parse JDWP option '" + jdwp_option + "' in '" + options + "'");
       }
 
-      if (!ParseJdwpOption(pairs[i].substr(0, equals),
-                           pairs[i].substr(equals + 1),
+      if (!ParseJdwpOption(jdwp_option.substr(0, equals_pos),
+                           jdwp_option.substr(equals_pos + 1),
                            error_stream,
-                           jdwp_options)) {
+                           &jdwp_options)) {
         return Result::Failure(error_stream.str());
       }
     }
@@ -100,30 +117,30 @@ struct CmdlineType<JDWP::JdwpOptions> : CmdlineTypeParser<JDWP::JdwpOptions> {
 
   bool ParseJdwpOption(const std::string& name, const std::string& value,
                        std::ostream& error_stream,
-                       JDWP::JdwpOptions& jdwp_options) {
+                       JDWP::JdwpOptions* jdwp_options) {
     if (name == "transport") {
       if (value == "dt_socket") {
-        jdwp_options.transport = JDWP::kJdwpTransportSocket;
+        jdwp_options->transport = JDWP::kJdwpTransportSocket;
       } else if (value == "dt_android_adb") {
-        jdwp_options.transport = JDWP::kJdwpTransportAndroidAdb;
+        jdwp_options->transport = JDWP::kJdwpTransportAndroidAdb;
       } else {
         error_stream << "JDWP transport not supported: " << value;
         return false;
       }
     } else if (name == "server") {
       if (value == "n") {
-        jdwp_options.server = false;
+        jdwp_options->server = false;
       } else if (value == "y") {
-        jdwp_options.server = true;
+        jdwp_options->server = true;
       } else {
         error_stream << "JDWP option 'server' must be 'y' or 'n'";
         return false;
       }
     } else if (name == "suspend") {
       if (value == "n") {
-        jdwp_options.suspend = false;
+        jdwp_options->suspend = false;
       } else if (value == "y") {
-        jdwp_options.suspend = true;
+        jdwp_options->suspend = true;
       } else {
         error_stream << "JDWP option 'suspend' must be 'y' or 'n'";
         return false;
@@ -131,10 +148,10 @@ struct CmdlineType<JDWP::JdwpOptions> : CmdlineTypeParser<JDWP::JdwpOptions> {
     } else if (name == "address") {
       /* this is either <port> or <host>:<port> */
       std::string port_string;
-      jdwp_options.host.clear();
+      jdwp_options->host.clear();
       std::string::size_type colon = value.find(':');
       if (colon != std::string::npos) {
-        jdwp_options.host = value.substr(0, colon);
+        jdwp_options->host = value.substr(0, colon);
         port_string = value.substr(colon + 1);
       } else {
         port_string = value;
@@ -149,7 +166,7 @@ struct CmdlineType<JDWP::JdwpOptions> : CmdlineTypeParser<JDWP::JdwpOptions> {
         error_stream << "JDWP address has junk in port field: " << value;
         return false;
       }
-      jdwp_options.port = port;
+      jdwp_options->port = port;
     } else if (name == "launch" || name == "onthrow" || name == "oncaught" || name == "timeout") {
       /* valid but unsupported */
       LOG(INFO) << "Ignoring JDWP option '" << name << "'='" << value << "'";

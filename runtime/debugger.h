@@ -226,10 +226,9 @@ class Dbg {
     std::multimap<int32_t, jobject> objects_;
   };
 
-  static bool ParseJdwpOptions(const std::string& options);
   static void SetJdwpAllowed(bool allowed);
 
-  static void StartJdwp();
+  static void StartJdwp(const JDWP::JdwpOptions* jdwp_options);
   static void StopJdwp();
 
   // Invoked by the GC in case we need to keep DDMS informed.

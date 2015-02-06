@@ -101,11 +101,11 @@ enum JdwpTransportType {
 std::ostream& operator<<(std::ostream& os, const JdwpTransportType& rhs);
 
 struct JdwpOptions {
-  JdwpTransportType transport;
-  bool server;
-  bool suspend;
-  std::string host;
-  uint16_t port;
+  JdwpTransportType transport = kJdwpTransportUnknown;
+  bool server = false;
+  bool suspend = false;
+  std::string host = "";
+  uint16_t port = static_cast<uint16_t>(-1);
 };
 
 bool operator==(const JdwpOptions& lhs, const JdwpOptions& rhs);

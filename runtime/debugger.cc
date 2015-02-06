@@ -297,9 +297,6 @@ static bool gJdwpAllowed = true;
 // Was there a -Xrunjdwp or -agentlib:jdwp= argument on the command line?
 static bool gJdwpConfigured = false;
 
-// Broken-down JDWP options. (Only valid if IsJdwpConfigured() is true.)
-static JDWP::JdwpOptions gJdwpOptions;
-
 // Runtime JDWP state.
 static JDWP::JdwpState* gJdwpState = nullptr;
 static bool gDebuggerConnected;  // debugger or DDMS is connected.
@@ -532,119 +529,13 @@ static bool IsPrimitiveTag(JDWP::JdwpTag tag) {
   }
 }
 
-/*
- * Handle one of the JDWP name/value pairs.
- *
- * JDWP options are:
- *  help: if specified, show help message and bail
- *  transport: may be dt_socket or dt_shmem
- *  address: for dt_socket, "host:port", or just "port" when listening
- *  server: if "y", wait for debugger to attach; if "n", attach to debugger
- *  timeout: how long to wait for debugger to connect / listen
- *
- * Useful with server=n (these aren't supported yet):
- *  onthrow=<exception-name>: connect to debugger when exception thrown
- *  onuncaught=y|n: connect to debugger when uncaught exception thrown
- *  launch=<command-line>: launch the debugger itself
- *
- * The "transport" option is required, as is "address" if server=n.
- */
-static bool ParseJdwpOption(const std::string& name, const std::string& value) {
-  if (name == "transport") {
-    if (value == "dt_socket") {
-      gJdwpOptions.transport = JDWP::kJdwpTransportSocket;
-    } else if (value == "dt_android_adb") {
-      gJdwpOptions.transport = JDWP::kJdwpTransportAndroidAdb;
-    } else {
-      LOG(ERROR) << "JDWP transport not supported: " << value;
-      return false;
-    }
-  } else if (name == "server") {
-    if (value == "n") {
-      gJdwpOptions.server = false;
-    } else if (value == "y") {
-      gJdwpOptions.server = true;
-    } else {
-      LOG(ERROR) << "JDWP option 'server' must be 'y' or 'n'";
-      return false;
-    }
-  } else if (name == "suspend") {
-    if (value == "n") {
-      gJdwpOptions.suspend = false;
-    } else if (value == "y") {
-      gJdwpOptions.suspend = true;
-    } else {
-      LOG(ERROR) << "JDWP option 'suspend' must be 'y' or 'n'";
-      return false;
-    }
-  } else if (name == "address") {
-    /* this is either <port> or <host>:<port> */
-    std::string port_string;
-    gJdwpOptions.host.clear();
-    std::string::size_type colon = value.find(':');
-    if (colon != std::string::npos) {
-      gJdwpOptions.host = value.substr(0, colon);
-      port_string = value.substr(colon + 1);
-    } else {
-      port_string = value;
-    }
-    if (port_string.empty()) {
-      LOG(ERROR) << "JDWP address missing port: " << value;
-      return false;
-    }
-    char* end;
-    uint64_t port = strtoul(port_string.c_str(), &end, 10);
-    if (*end != '\0' || port > 0xffff) {
-      LOG(ERROR) << "JDWP address has junk in port field: " << value;
-      return false;
-    }
-    gJdwpOptions.port = port;
-  } else if (name == "launch" || name == "onthrow" || name == "oncaught" || name == "timeout") {
-    /* valid but unsupported */
-    LOG(INFO) << "Ignoring JDWP option '" << name << "'='" << value << "'";
-  } else {
-    LOG(INFO) << "Ignoring unrecognized JDWP option '" << name << "'='" << value << "'";
-  }
-
-  return true;
-}
-
-/*
- * Parse the latter half of a -Xrunjdwp/-agentlib:jdwp= string, e.g.:
- * "transport=dt_socket,address=8000,server=y,suspend=n"
- */
-bool Dbg::ParseJdwpOptions(const std::string& options) {
-  VLOG(jdwp) << "ParseJdwpOptions: " << options;
-
-  std::vector<std::string> pairs;
-  Split(options, ',', &pairs);
-
-  for (size_t i = 0; i < pairs.size(); ++i) {
-    std::string::size_type equals = pairs[i].find('=');
-    if (equals == std::string::npos) {
-      LOG(ERROR) << "Can't parse JDWP option '" << pairs[i] << "' in '" << options << "'";
-      return false;
-    }
-    ParseJdwpOption(pairs[i].substr(0, equals), pairs[i].substr(equals + 1));
-  }
-
-  if (gJdwpOptions.transport == JDWP::kJdwpTransportUnknown) {
-    LOG(ERROR) << "Must specify JDWP transport: " << options;
-  }
-  if (!gJdwpOptions.server && (gJdwpOptions.host.empty() || gJdwpOptions.port == 0)) {
-    LOG(ERROR) << "Must specify JDWP host and port when server=n: " << options;
-    return false;
-  }
-
-  gJdwpConfigured = true;
-  return true;
-}
-
-void Dbg::StartJdwp() {
+void Dbg::StartJdwp(const JDWP::JdwpOptions* jdwp_options) {
+  gJdwpConfigured = (jdwp_options != nullptr);
   if (!gJdwpAllowed || !IsJdwpConfigured()) {
     // No JDWP for you!
     return;
   }
+  DCHECK_NE(jdwp_options->transport, JDWP::kJdwpTransportUnknown);
 
   CHECK(gRegistry == nullptr);
   gRegistry = new ObjectRegistry;
@@ -652,7 +543,7 @@ void Dbg::StartJdwp() {
   // Init JDWP if the debugger is enabled. This may connect out to a
   // debugger, passively listen for a debugger, or block waiting for a
   // debugger.
-  gJdwpState = JDWP::JdwpState::Create(&gJdwpOptions);
+  gJdwpState = JDWP::JdwpState::Create(jdwp_options);
   if (gJdwpState == nullptr) {
     // We probably failed because some other process has the port already, which means that
     // if we don't abort the user is likely to think they're talking to us when they're actually
