@@ -38,10 +38,12 @@ namespace {
 
     static const Key<int> Apple;
     static const Key<double> Orange;
+    static const Key<std::string> Label;
   };
 
   const FruitMap::Key<int> FruitMap::Apple;
   const FruitMap::Key<double> FruitMap::Orange;
+  const FruitMap::Key<std::string> FruitMap::Label;
 }  // namespace
 
 TEST(VariantMaps, BasicReadWrite) {
@@ -67,12 +69,31 @@ TEST(VariantMaps, BasicReadWrite) {
   EXPECT_DOUBLE_EQ(555.0, *fm.Get(FruitMap::Orange));
   EXPECT_EQ(size_t(2), fm.Size());
 
+  // Simple remove
   fm.Remove(FruitMap::Apple);
   EXPECT_FALSE(fm.Exists(FruitMap::Apple));
 
   fm.Clear();
   EXPECT_EQ(size_t(0), fm.Size());
   EXPECT_FALSE(fm.Exists(FruitMap::Orange));
+}
+
+TEST(VariantMaps, SetPreviousValue) {
+  FruitMap fm;
+
+  // Indirect remove by setting yourself again
+  fm.Set(FruitMap::Label, std::string("hello_world"));
+  auto* ptr = fm.Get(FruitMap::Label);
+  ASSERT_TRUE(ptr != nullptr);
+  *ptr = "foobar";
+
+  // Set the value to the same exact pointer which we got out of the map.
+  // This should cleanly 'just work' and not try to delete the value too early.
+  fm.Set(FruitMap::Label, *ptr);
+
+  auto* new_ptr = fm.Get(FruitMap::Label);
+  ASSERT_TRUE(ptr != nullptr);
+  EXPECT_EQ(std::string("foobar"), *new_ptr);
 }
 
 TEST(VariantMaps, RuleOfFive) {
