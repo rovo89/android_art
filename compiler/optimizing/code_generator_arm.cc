@@ -396,10 +396,6 @@ CodeGeneratorARM::CodeGeneratorARM(HGraph* graph,
       move_resolver_(graph->GetArena(), this),
       assembler_(true),
       isa_features_(isa_features) {
-  // Save one extra register for baseline. Note that on thumb2, there is no easy
-  // instruction to restore just the PC, so this actually helps both baseline
-  // and non-baseline to save and restore at least two registers at entry and exit.
-  AddAllocatedRegister(Location::RegisterLocation(kCoreSavedRegisterForBaseline));
   // Save the PC register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(PC));
 }
@@ -508,6 +504,10 @@ static uint32_t LeastSignificantBit(uint32_t mask) {
 
 void CodeGeneratorARM::ComputeSpillMask() {
   core_spill_mask_ = allocated_registers_.GetCoreRegisters() & core_callee_save_mask_;
+  // Save one extra register for baseline. Note that on thumb2, there is no easy
+  // instruction to restore just the PC, so this actually helps both baseline
+  // and non-baseline to save and restore at least two registers at entry and exit.
+  core_spill_mask_ |= (1 << kCoreSavedRegisterForBaseline);
   DCHECK_NE(core_spill_mask_, 0u) << "At least the return address register must be saved";
   fpu_spill_mask_ = allocated_registers_.GetFloatingPointRegisters() & fpu_callee_save_mask_;
   // We use vpush and vpop for saving and restoring floating point registers, which take
@@ -529,6 +529,10 @@ void CodeGeneratorARM::GenerateFrameEntry() {
   DCHECK(GetCompilerOptions().GetImplicitStackOverflowChecks());
   __ Bind(&frame_entry_label_);
 
+  if (HasEmptyFrame()) {
+    return;
+  }
+
   if (!skip_overflow_check) {
     __ AddConstant(IP, SP, -static_cast<int32_t>(GetStackOverflowReservedBytes(kArm)));
     __ LoadFromOffset(kLoadWord, IP, IP, 0);
@@ -547,6 +551,10 @@ void CodeGeneratorARM::GenerateFrameEntry() {
 }
 
 void CodeGeneratorARM::GenerateFrameExit() {
+  if (HasEmptyFrame()) {
+    __ bx(LR);
+    return;
+  }
   __ AddConstant(SP, GetFrameSize() - FrameEntrySpillSize());
   if (fpu_spill_mask_ != 0) {
     SRegister start_register = SRegister(LeastSignificantBit(fpu_spill_mask_));
@@ -1172,6 +1180,7 @@ void LocationsBuilderARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invok
 }
 
 void CodeGeneratorARM::LoadCurrentMethod(Register reg) {
+  DCHECK(RequiresCurrentMethod());
   __ LoadFromOffset(kLoadWord, reg, SP, kCurrentMethodStackOffset);
 }
 
