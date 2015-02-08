@@ -1015,6 +1015,18 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   void SetLiveInterval(LiveInterval* interval) { live_interval_ = interval; }
   bool HasLiveInterval() const { return live_interval_ != nullptr; }
 
+  bool IsSuspendCheckEntry() const { return IsSuspendCheck() && GetBlock()->IsEntryBlock(); }
+
+  // Returns whether the code generation of the instruction will require to have access
+  // to the current method. Such instructions are:
+  // (1): Instructions that require an environment, as calling the runtime requires
+  //      to walk the stack and have the current method stored at a specific stack address.
+  // (2): Object literals like classes and strings, that are loaded from the dex cache
+  //      fields of the current method.
+  bool NeedsCurrentMethod() const {
+    return NeedsEnvironment() || IsLoadClass() || IsLoadString();
+  }
+
  private:
   HInstruction* previous_;
   HInstruction* next_;

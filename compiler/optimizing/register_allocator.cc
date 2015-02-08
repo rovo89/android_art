@@ -252,8 +252,13 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
       && (instruction->GetType() != Primitive::kPrimFloat);
 
   if (locations->CanCall()) {
-    if (!instruction->IsSuspendCheck()) {
-      codegen_->MarkNotLeaf();
+    if (codegen_->IsLeafMethod()) {
+      // TODO: We do this here because we do not want the suspend check to artificially
+      // create live registers. We should find another place, but this is currently the
+      // simplest.
+      DCHECK(instruction->IsSuspendCheckEntry());
+      instruction->GetBlock()->RemoveInstruction(instruction);
+      return;
     }
     safepoints_.Add(instruction);
     if (locations->OnlyCallsOnSlowPath()) {

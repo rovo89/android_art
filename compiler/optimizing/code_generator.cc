@@ -41,8 +41,6 @@ size_t CodeGenerator::GetCacheOffset(uint32_t index) {
 }
 
 void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
-  DCHECK_EQ(frame_size_, kUninitializedFrameSize);
-
   Initialize();
   if (!is_leaf) {
     MarkNotLeaf();
@@ -59,7 +57,6 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
 }
 
 void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) {
-  HGraphVisitor* location_builder = GetLocationBuilder();
   HGraphVisitor* instruction_visitor = GetInstructionVisitor();
   DCHECK_EQ(current_block_index_, 0u);
   GenerateFrameEntry();
@@ -69,8 +66,7 @@ void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) 
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
       if (is_baseline) {
-        current->Accept(location_builder);
-        InitLocations(current);
+        InitLocationsBaseline(current);
       }
       current->Accept(instruction_visitor);
     }
@@ -88,7 +84,6 @@ void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) 
 void CodeGenerator::CompileOptimized(CodeAllocator* allocator) {
   // The register allocator already called `InitializeCodeGeneration`,
   // where the frame size has been computed.
-  DCHECK_NE(frame_size_, kUninitializedFrameSize);
   DCHECK(block_order_ != nullptr);
   Initialize();
   CompileInternal(allocator, /* is_baseline */ false);
@@ -138,13 +133,22 @@ void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,
   ComputeSpillMask();
   first_register_slot_in_slow_path_ = (number_of_out_slots + number_of_spill_slots) * kVRegSize;
 
-  SetFrameSize(RoundUp(
-      number_of_spill_slots * kVRegSize
-      + number_of_out_slots * kVRegSize
-      + maximum_number_of_live_core_registers * GetWordSize()
-      + maximum_number_of_live_fp_registers * GetFloatingPointSpillSlotSize()
-      + FrameEntrySpillSize(),
-      kStackAlignment));
+  if (number_of_spill_slots == 0
+      && !HasAllocatedCalleeSaveRegisters()
+      && IsLeafMethod()
+      && !RequiresCurrentMethod()) {
+    DCHECK_EQ(maximum_number_of_live_core_registers, 0u);
+    DCHECK_EQ(maximum_number_of_live_fp_registers, 0u);
+    SetFrameSize(CallPushesPC() ? GetWordSize() : 0);
+  } else {
+    SetFrameSize(RoundUp(
+        number_of_spill_slots * kVRegSize
+        + number_of_out_slots * kVRegSize
+        + maximum_number_of_live_core_registers * GetWordSize()
+        + maximum_number_of_live_fp_registers * GetFloatingPointSpillSlotSize()
+        + FrameEntrySpillSize(),
+        kStackAlignment));
+  }
 }
 
 Location CodeGenerator::GetTemporaryLocation(HTemporary* temp) const {
@@ -294,7 +298,8 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
   }
 }
 
-void CodeGenerator::InitLocations(HInstruction* instruction) {
+void CodeGenerator::InitLocationsBaseline(HInstruction* instruction) {
+  AllocateLocations(instruction);
   if (instruction->GetLocations() == nullptr) {
     if (instruction->IsTemporary()) {
       HInstruction* previous = instruction->GetPrevious();
@@ -316,6 +321,19 @@ void CodeGenerator::InitLocations(HInstruction* instruction) {
       } else {
         Move(input, location, instruction);
       }
+    }
+  }
+}
+
+void CodeGenerator::AllocateLocations(HInstruction* instruction) {
+  instruction->Accept(GetLocationBuilder());
+  LocationSummary* locations = instruction->GetLocations();
+  if (!instruction->IsSuspendCheckEntry()) {
+    if (locations != nullptr && locations->CanCall()) {
+      MarkNotLeaf();
+    }
+    if (instruction->NeedsCurrentMethod()) {
+      SetRequiresCurrentMethod();
     }
   }
 }
