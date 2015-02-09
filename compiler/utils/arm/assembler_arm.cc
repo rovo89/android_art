@@ -245,6 +245,7 @@ uint32_t Address::encodingThumb(bool is_32bit) const {
 
 // This is very like the ARM encoding except the offset is 10 bits.
 uint32_t Address::encodingThumbLdrdStrd() const {
+  DCHECK(IsImmediate());
   uint32_t encoding;
   uint32_t am = am_;
   // If P is 0 then W must be 1 (Different from ARM).

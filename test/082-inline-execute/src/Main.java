@@ -375,6 +375,7 @@ public class Main {
     Assert.assertEquals(Math.abs(Long.MAX_VALUE), Long.MAX_VALUE);
     Assert.assertEquals(Math.abs(Long.MIN_VALUE), Long.MIN_VALUE);
     Assert.assertEquals(Math.abs(Long.MIN_VALUE - 1), Long.MAX_VALUE);
+    Assert.assertEquals(Math.abs(2147483648L), 2147483648L);
   }
 
   public static void test_Math_min_I() {
