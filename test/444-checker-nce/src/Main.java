@@ -39,11 +39,11 @@ public class Main {
   }
 
   // CHECK-START: Main Main.newInstanceRemoveTest() instruction_simplifier (before)
-  // CHECK-DAG:     NewInstance
-  // CHECK-DAG:     NullCheck
-  // CHECK-DAG:     InvokeStaticOrDirect
-  // CHECK-DAG:     NullCheck
-  // CHECK-DAG:     InvokeStaticOrDirect
+  // CHECK:         NewInstance
+  // CHECK:         NullCheck
+  // CHECK:         InvokeStaticOrDirect
+  // CHECK:         NullCheck
+  // CHECK:         InvokeStaticOrDirect
 
   // CHECK-START: Main Main.newInstanceRemoveTest() instruction_simplifier (after)
   // CHECK-NOT:     NullCheck
@@ -53,25 +53,25 @@ public class Main {
   }
 
   // CHECK-START: Main Main.newArrayRemoveTest() instruction_simplifier (before)
-  // CHECK-DAG:     NewArray
-  // CHECK-DAG:     NullCheck
-  // CHECK-DAG:     ArrayGet
+  // CHECK:         NewArray
+  // CHECK:         NullCheck
+  // CHECK:         ArrayGet
 
   // CHECK-START: Main Main.newArrayRemoveTest() instruction_simplifier (after)
-  // CHECK-DAG:     NewArray
+  // CHECK:         NewArray
   // CHECK-NOT:     NullCheck
-  // CHECK-DAG:     ArrayGet
+  // CHECK:         ArrayGet
   public Main newArrayRemoveTest() {
     Main[] ms = new Main[1];
     return ms[0];
   }
 
   // CHECK-START: Main Main.ifRemoveTest(boolean) instruction_simplifier_after_types (before)
-  // CHECK-DAG:     NewInstance
-  // CHECK-DAG:     NullCheck
+  // CHECK:         NewInstance
+  // CHECK:         NullCheck
 
   // CHECK-START: Main Main.ifRemoveTest(boolean) instruction_simplifier_after_types (after)
-  // CHECK-DAG:     NewInstance
+  // CHECK:         NewInstance
   // CHECK-NOT:     NullCheck
   public Main ifRemoveTest(boolean flag) {
     Main m = null;
@@ -84,12 +84,12 @@ public class Main {
   }
 
   // CHECK-START: Main Main.ifKeepTest(boolean) instruction_simplifier_after_types (before)
-  // CHECK-DAG:     NewInstance
-  // CHECK-DAG:     NullCheck
+  // CHECK:         NewInstance
+  // CHECK:         NullCheck
 
   // CHECK-START: Main Main.ifKeepTest(boolean) instruction_simplifier_after_types (after)
-  // CHECK-DAG:     NewInstance
-  // CHECK-DAG:     NullCheck
+  // CHECK:         NewInstance
+  // CHECK:         NullCheck
   public Main ifKeepTest(boolean flag) {
     Main m = null;
     if (flag) {
