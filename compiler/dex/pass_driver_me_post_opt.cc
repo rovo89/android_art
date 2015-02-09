@@ -37,7 +37,7 @@ void PassDriverMEPostOpt::SetupPasses(PassManager* pass_manager) {
   pass_manager->AddPass(new InitializeSSATransformation);
   pass_manager->AddPass(new ClearPhiInstructions);
   pass_manager->AddPass(new DefBlockMatrix);
-  pass_manager->AddPass(new CreatePhiNodes);
+  pass_manager->AddPass(new FindPhiNodeBlocksPass);
   pass_manager->AddPass(new SSAConversion);
   pass_manager->AddPass(new PhiNodeOperands);
   pass_manager->AddPass(new PerformInitRegLocations);

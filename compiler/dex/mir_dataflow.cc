@@ -1198,11 +1198,30 @@ void MIRGraph::DataFlowSSAFormatExtended(MIR* mir) {
 
 /* Entry function to convert a block into SSA representation */
 bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
-  MIR* mir;
-
   if (bb->data_flow_info == NULL) return false;
 
-  for (mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
+  /*
+   * Pruned SSA form: Insert phi nodes for each dalvik register marked in phi_node_blocks
+   * only if the dalvik register is in the live-in set.
+   */
+  BasicBlockId bb_id = bb->id;
+  for (int dalvik_reg = GetNumOfCodeAndTempVRs() - 1; dalvik_reg >= 0; dalvik_reg--) {
+    if (temp_.ssa.phi_node_blocks[dalvik_reg]->IsBitSet(bb_id)) {
+      if (!bb->data_flow_info->live_in_v->IsBitSet(dalvik_reg)) {
+        /* Variable will be clobbered before being used - no need for phi */
+        vreg_to_ssa_map_[dalvik_reg] = INVALID_SREG;
+        continue;
+      }
+      MIR *phi = NewMIR();
+      phi->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpPhi);
+      phi->dalvikInsn.vA = dalvik_reg;
+      phi->offset = bb->start_offset;
+      phi->m_unit_index = 0;  // Arbitrarily assign all Phi nodes to outermost method.
+      bb->PrependMIR(phi);
+    }
+  }
+
+  for (MIR* mir = bb->first_mir_insn; mir != NULL; mir = mir->next) {
     mir->ssa_rep =
         static_cast<struct SSARepresentation *>(arena_->Alloc(sizeof(SSARepresentation),
                                                               kArenaAllocDFInfo));
