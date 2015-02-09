@@ -198,6 +198,18 @@ TEST_F(AssemblerThumb2Test, strexd) {
   DriverStr(expected, "strexd");
 }
 
+TEST_F(AssemblerThumb2Test, LdrdStrd) {
+  GetAssembler()->ldrd(arm::R0, arm::Address(arm::R2, 8));
+  GetAssembler()->ldrd(arm::R0, arm::Address(arm::R12));
+  GetAssembler()->strd(arm::R0, arm::Address(arm::R2, 8));
+
+  const char* expected =
+      "ldrd r0, r1, [r2, #8]\n"
+      "ldrd r0, r1, [r12]\n"
+      "strd r0, r1, [r2, #8]\n";
+  DriverStr(expected, "ldrdstrd");
+}
+
 TEST_F(AssemblerThumb2Test, eor) {
 #define __ GetAssembler()->
   __ eor(arm::R1, arm::R1, arm::ShifterOperand(arm::R0));
