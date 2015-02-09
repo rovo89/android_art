@@ -32,7 +32,12 @@ static const int kLogSeverityToAndroidLogPriority[] = {
 
 void LogMessage::LogLine(const LogMessageData& data, const char* message) {
   const char* tag = ProgramInvocationShortName();
-  int priority = kLogSeverityToAndroidLogPriority[data.severity];
+  LogSeverity severity = data.severity;
+  if ((severity & LOG_XPOSED) != 0) {
+      tag = "Xposed";
+      severity &= ~LOG_XPOSED;
+  }
+  int priority = kLogSeverityToAndroidLogPriority[severity];
   if (priority == ANDROID_LOG_FATAL) {
     LOG_PRI(priority, tag, "%s:%d] %s", data.file, data.line_number, message);
   } else {

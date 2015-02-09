@@ -133,6 +133,7 @@
 #endif
 
 #define LOG(severity) ::art::LogMessage(__FILE__, __LINE__, severity, -1).stream()
+#define XLOG(severity) ::art::LogMessage(__FILE__, __LINE__, severity|LOG_XPOSED, -1).stream()
 #define PLOG(severity) ::art::LogMessage(__FILE__, __LINE__, severity, errno).stream()
 
 #define LG LOG(INFO)
