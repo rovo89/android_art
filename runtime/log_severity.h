@@ -21,5 +21,6 @@ typedef int LogSeverity;
 
 const int VERBOSE = 0, DEBUG = 1, INFO = 2, WARNING = 3, ERROR = 4, FATAL = 5;
 const int INTERNAL_FATAL = 6;  // For Runtime::Abort.
+const int LOG_XPOSED = 1024;
 
 #endif  // ART_RUNTIME_LOG_SEVERITY_H_
