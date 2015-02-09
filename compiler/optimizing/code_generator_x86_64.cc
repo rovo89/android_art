@@ -487,6 +487,10 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
     RecordPcInfo(nullptr, 0);
   }
 
+  if (HasEmptyFrame()) {
+    return;
+  }
+
   for (int i = arraysize(kCoreCalleeSaves) - 1; i >= 0; --i) {
     Register reg = kCoreCalleeSaves[i];
     if (allocated_registers_.ContainsCoreRegister(reg)) {
@@ -509,6 +513,9 @@ void CodeGeneratorX86_64::GenerateFrameEntry() {
 }
 
 void CodeGeneratorX86_64::GenerateFrameExit() {
+  if (HasEmptyFrame()) {
+    return;
+  }
   uint32_t xmm_spill_location = GetFpuSpillStart();
   size_t xmm_spill_slot_size = GetFloatingPointSpillSlotSize();
   for (size_t i = 0; i < arraysize(kFpuCalleeSaves); ++i) {
@@ -533,6 +540,7 @@ void CodeGeneratorX86_64::Bind(HBasicBlock* block) {
 }
 
 void CodeGeneratorX86_64::LoadCurrentMethod(CpuRegister reg) {
+  DCHECK(RequiresCurrentMethod());
   __ movl(reg, Address(CpuRegister(RSP), kCurrentMethodStackOffset));
 }
 

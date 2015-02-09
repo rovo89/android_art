@@ -470,12 +470,16 @@ void CodeGeneratorX86::GenerateFrameEntry() {
     RecordPcInfo(nullptr, 0);
   }
 
-  __ subl(ESP, Immediate(GetFrameSize() - FrameEntrySpillSize()));
-  __ movl(Address(ESP, kCurrentMethodStackOffset), EAX);
+  if (!HasEmptyFrame()) {
+    __ subl(ESP, Immediate(GetFrameSize() - FrameEntrySpillSize()));
+    __ movl(Address(ESP, kCurrentMethodStackOffset), EAX);
+  }
 }
 
 void CodeGeneratorX86::GenerateFrameExit() {
-  __ addl(ESP, Immediate(GetFrameSize() - FrameEntrySpillSize()));
+  if (!HasEmptyFrame()) {
+    __ addl(ESP, Immediate(GetFrameSize() - FrameEntrySpillSize()));
+  }
 }
 
 void CodeGeneratorX86::Bind(HBasicBlock* block) {
@@ -483,6 +487,7 @@ void CodeGeneratorX86::Bind(HBasicBlock* block) {
 }
 
 void CodeGeneratorX86::LoadCurrentMethod(Register reg) {
+  DCHECK(RequiresCurrentMethod());
   __ movl(reg, Address(ESP, kCurrentMethodStackOffset));
 }
 

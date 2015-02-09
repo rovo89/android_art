@@ -30,7 +30,6 @@
 namespace art {
 
 static size_t constexpr kVRegSize = 4;
-static size_t constexpr kUninitializedFrameSize = 0;
 
 // Binary encoding of 2^32 for type double.
 static int64_t constexpr k2Pow32EncodingForDouble = INT64_C(0x41F0000000000000);
@@ -107,8 +106,6 @@ class CodeGenerator {
   virtual void GenerateFrameExit() = 0;
   virtual void Bind(HBasicBlock* block) = 0;
   virtual void Move(HInstruction* instruction, Location location, HInstruction* move_for) = 0;
-  virtual HGraphVisitor* GetLocationBuilder() = 0;
-  virtual HGraphVisitor* GetInstructionVisitor() = 0;
   virtual Assembler* GetAssembler() = 0;
   virtual size_t GetWordSize() const = 0;
   virtual size_t GetFloatingPointSpillSlotSize() const = 0;
@@ -196,6 +193,15 @@ class CodeGenerator {
 
   void MarkNotLeaf() {
     is_leaf_ = false;
+    requires_current_method_ = true;
+  }
+
+  void SetRequiresCurrentMethod() {
+    requires_current_method_ = true;
+  }
+
+  bool RequiresCurrentMethod() const {
+    return requires_current_method_;
   }
 
   // Clears the spill slots taken by loop phis in the `LocationSummary` of the
@@ -228,6 +234,8 @@ class CodeGenerator {
     allocated_registers_.Add(location);
   }
 
+  void AllocateLocations(HInstruction* instruction);
+
  protected:
   CodeGenerator(HGraph* graph,
                 size_t number_of_core_registers,
@@ -236,7 +244,7 @@ class CodeGenerator {
                 uint32_t core_callee_save_mask,
                 uint32_t fpu_callee_save_mask,
                 const CompilerOptions& compiler_options)
-      : frame_size_(kUninitializedFrameSize),
+      : frame_size_(0),
         core_spill_mask_(0),
         fpu_spill_mask_(0),
         first_register_slot_in_slow_path_(0),
@@ -255,6 +263,7 @@ class CodeGenerator {
         block_order_(nullptr),
         current_block_index_(0),
         is_leaf_(true),
+        requires_current_method_(false),
         stack_map_stream_(graph->GetArena()) {}
 
   // Register allocation logic.
@@ -269,11 +278,12 @@ class CodeGenerator {
   virtual Location GetStackLocation(HLoadLocal* load) const = 0;
 
   virtual ParallelMoveResolver* GetMoveResolver() = 0;
+  virtual HGraphVisitor* GetLocationBuilder() = 0;
+  virtual HGraphVisitor* GetInstructionVisitor() = 0;
 
   // Returns the location of the first spilled entry for floating point registers,
   // relative to the stack pointer.
   uint32_t GetFpuSpillStart() const {
-    DCHECK_NE(frame_size_, kUninitializedFrameSize);
     return GetFrameSize() - FrameEntrySpillSize();
   }
 
@@ -287,6 +297,21 @@ class CodeGenerator {
 
   uint32_t FrameEntrySpillSize() const {
     return GetFpuSpillSize() + GetCoreSpillSize();
+  }
+
+  bool HasAllocatedCalleeSaveRegisters() const {
+    // We check the core registers against 1 because it always comprises the return PC.
+    return (POPCOUNT(allocated_registers_.GetCoreRegisters() & core_callee_save_mask_) != 1)
+      || (POPCOUNT(allocated_registers_.GetFloatingPointRegisters() & fpu_callee_save_mask_) != 0);
+  }
+
+  bool CallPushesPC() const {
+    InstructionSet instruction_set = GetInstructionSet();
+    return instruction_set == kX86 || instruction_set == kX86_64;
+  }
+
+  bool HasEmptyFrame() const {
+    return GetFrameSize() == (CallPushesPC() ? GetWordSize() : 0);
   }
 
   // Frame size required for this method.
@@ -311,7 +336,7 @@ class CodeGenerator {
   const uint32_t fpu_callee_save_mask_;
 
  private:
-  void InitLocations(HInstruction* instruction);
+  void InitLocationsBaseline(HInstruction* instruction);
   size_t GetStackOffsetOfSavedRegister(size_t index);
   void CompileInternal(CodeAllocator* allocator, bool is_baseline);
 
@@ -328,7 +353,11 @@ class CodeGenerator {
   // we are generating code for.
   size_t current_block_index_;
 
+  // Whether the method is a leaf method.
   bool is_leaf_;
+
+  // Whether an instruction in the graph accesses the current method.
+  bool requires_current_method_;
 
   StackMapStream stack_map_stream_;
 
