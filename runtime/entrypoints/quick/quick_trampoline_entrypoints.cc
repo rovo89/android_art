@@ -171,6 +171,7 @@ class QuickArgumentVisitor {
   // |            |    padding
   // | A0/Method* |  <- sp
   // NOTE: for Mip64, when A0 is skipped, F0 is also skipped.
+  static constexpr bool kSplitPairAcrossRegisterAndStack = false;
   static constexpr bool kAlignPairRegister = false;
   static constexpr bool kQuickSoftFloatAbi = false;
   static constexpr bool kQuickDoubleRegAlignedFloatBackFilled = false;
