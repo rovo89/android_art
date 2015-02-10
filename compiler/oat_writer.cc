@@ -1103,10 +1103,18 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
     if (UNLIKELY(target_offset == 0)) {
       mirror::ArtMethod* target = GetTargetMethod(patch);
       DCHECK(target != nullptr);
-      DCHECK_EQ(target->GetQuickOatCodeOffset(), 0u);
-      target_offset = target->IsNative()
-          ? writer_->oat_header_->GetQuickGenericJniTrampolineOffset()
-          : writer_->oat_header_->GetQuickToInterpreterBridgeOffset();
+      size_t size = GetInstructionSetPointerSize(writer_->compiler_driver_->GetInstructionSet());
+      const void* oat_code_offset = target->GetEntryPointFromQuickCompiledCodePtrSize(size);
+      if (oat_code_offset != 0) {
+        DCHECK(!Runtime::Current()->GetClassLinker()->IsQuickResolutionStub(oat_code_offset));
+        DCHECK(!Runtime::Current()->GetClassLinker()->IsQuickToInterpreterBridge(oat_code_offset));
+        DCHECK(!Runtime::Current()->GetClassLinker()->IsQuickGenericJniStub(oat_code_offset));
+        target_offset = PointerToLowMemUInt32(oat_code_offset);
+      } else {
+        target_offset = target->IsNative()
+            ? writer_->oat_header_->GetQuickGenericJniTrampolineOffset()
+            : writer_->oat_header_->GetQuickToInterpreterBridgeOffset();
+      }
     }
     return target_offset;
   }
@@ -1138,10 +1146,9 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
 
   void PatchCodeAddress(std::vector<uint8_t>* code, uint32_t offset, uint32_t target_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    // NOTE: Direct calls across oat files don't use linker patches.
-    DCHECK(writer_->image_writer_ != nullptr);
-    uint32_t address = PointerToLowMemUInt32(writer_->image_writer_->GetOatFileBegin() +
-                                             writer_->oat_data_offset_ + target_offset);
+    uint32_t address = writer_->image_writer_ == nullptr ? target_offset :
+        PointerToLowMemUInt32(writer_->image_writer_->GetOatFileBegin() +
+                              writer_->oat_data_offset_ + target_offset);
     DCHECK_LE(offset + 4, code->size());
     uint8_t* data = &(*code)[offset];
     data[0] = address & 0xffu;
