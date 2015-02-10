@@ -57,17 +57,49 @@ void ParallelMoveResolver::BuildInitialMoveList(HParallelMove* parallel_move) {
   // unallocated, or the move was already eliminated).
   for (size_t i = 0; i < parallel_move->NumMoves(); ++i) {
     MoveOperands* move = parallel_move->MoveOperandsAt(i);
-    // The parallel move resolver algorithm does not work with register pairs.
-    DCHECK(!move->GetSource().IsPair());
-    DCHECK(!move->GetDestination().IsPair());
     if (!move->IsRedundant()) {
       moves_.Add(move);
     }
   }
 }
 
+// Update the source of `move`, knowing that `updated_location` has been swapped
+// with `new_source`. Note that `updated_location` can be a pair, therefore if
+// `move` is non-pair, we need to extract which register to use.
+static void UpdateSourceOf(MoveOperands* move, Location updated_location, Location new_source) {
+  Location source = move->GetSource();
+  if (new_source.GetKind() == source.GetKind()) {
+    DCHECK(updated_location.Equals(source));
+    move->SetSource(new_source);
+  } else if (new_source.IsStackSlot()
+             || new_source.IsDoubleStackSlot()
+             || source.IsStackSlot()
+             || source.IsDoubleStackSlot()) {
+    // Stack slots never take part of a pair/non-pair swap.
+    DCHECK(updated_location.Equals(source));
+    move->SetSource(new_source);
+  } else if (source.IsRegister()) {
+    DCHECK(new_source.IsRegisterPair()) << new_source;
+    DCHECK(updated_location.IsRegisterPair()) << updated_location;
+    if (updated_location.low() == source.reg()) {
+      move->SetSource(Location::RegisterLocation(new_source.low()));
+    } else {
+      DCHECK_EQ(updated_location.high(), source.reg());
+      move->SetSource(Location::RegisterLocation(new_source.high()));
+    }
+  } else if (source.IsFpuRegister()) {
+    DCHECK(new_source.IsFpuRegisterPair()) << new_source;
+    DCHECK(updated_location.IsFpuRegisterPair()) << updated_location;
+    if (updated_location.low() == source.reg()) {
+      move->SetSource(Location::FpuRegisterLocation(new_source.low()));
+    } else {
+      DCHECK_EQ(updated_location.high(), source.reg());
+      move->SetSource(Location::FpuRegisterLocation(new_source.high()));
+    }
+  }
+}
 
-void ParallelMoveResolver::PerformMove(size_t index) {
+MoveOperands* ParallelMoveResolver::PerformMove(size_t index) {
   // Each call to this function performs a move and deletes it from the move
   // graph.  We first recursively perform any move blocking this one.  We
   // mark a move as "pending" on entry to PerformMove in order to detect
@@ -75,35 +107,59 @@ void ParallelMoveResolver::PerformMove(size_t index) {
   // which means that a call to PerformMove could change any source operand
   // in the move graph.
 
-  DCHECK(!moves_.Get(index)->IsPending());
-  DCHECK(!moves_.Get(index)->IsRedundant());
+  MoveOperands* move = moves_.Get(index);
+  DCHECK(!move->IsPending());
+  if (move->IsRedundant()) {
+    // Because we swap register pairs first, following, un-pending
+    // moves may become redundant.
+    move->Eliminate();
+    return nullptr;
+  }
 
   // Clear this move's destination to indicate a pending move.  The actual
   // destination is saved in a stack-allocated local.  Recursion may allow
   // multiple moves to be pending.
-  DCHECK(!moves_.Get(index)->GetSource().IsInvalid());
-  Location destination = moves_.Get(index)->MarkPending();
+  DCHECK(!move->GetSource().IsInvalid());
+  Location destination = move->MarkPending();
 
   // Perform a depth-first traversal of the move graph to resolve
   // dependencies.  Any unperformed, unpending move with a source the same
   // as this one's destination blocks this one so recursively perform all
   // such moves.
+  MoveOperands* required_swap = nullptr;
   for (size_t i = 0; i < moves_.Size(); ++i) {
     const MoveOperands& other_move = *moves_.Get(i);
     if (other_move.Blocks(destination) && !other_move.IsPending()) {
       // Though PerformMove can change any source operand in the move graph,
-      // this call cannot create a blocking move via a swap (this loop does
-      // not miss any).  Assume there is a non-blocking move with source A
+      // calling `PerformMove` cannot create a blocking move via a swap
+      // (this loop does not miss any).
+      // For example, assume there is a non-blocking move with source A
       // and this move is blocked on source B and there is a swap of A and
       // B.  Then A and B must be involved in the same cycle (or they would
       // not be swapped).  Since this move's destination is B and there is
       // only a single incoming edge to an operand, this move must also be
       // involved in the same cycle.  In that case, the blocking move will
       // be created but will be "pending" when we return from PerformMove.
-      PerformMove(i);
+      required_swap = PerformMove(i);
+
+      if (required_swap == move) {
+        // If this move is required to swap, we do so without looking
+        // at the next moves. Swapping is not blocked by anything, it just
+        // updates other moves's source.
+        break;
+      } else if (required_swap == moves_.Get(i)) {
+        // If `other_move` was swapped, we iterate again to find a new
+        // potential cycle.
+        required_swap = nullptr;
+        i = 0;
+      } else if (required_swap != nullptr) {
+        // A move is required to swap. We walk back the cycle to find the
+        // move by just returning from this `PerforrmMove`.
+        moves_.Get(index)->ClearPending(destination);
+        return required_swap;
+      }
     }
   }
-  MoveOperands* move = moves_.Get(index);
 
   // We are about to resolve this move and don't need it marked as
   // pending, so restore its destination.
@@ -113,19 +169,30 @@ void ParallelMoveResolver::PerformMove(size_t index) {
   // so it may now be the last move in the cycle.  If so remove it.
   if (move->GetSource().Equals(destination)) {
     move->Eliminate();
-    return;
+    DCHECK(required_swap == nullptr);
+    return nullptr;
   }
 
   // The move may be blocked on a (at most one) pending move, in which case
   // we have a cycle.  Search for such a blocking move and perform a swap to
   // resolve it.
   bool do_swap = false;
-  for (size_t i = 0; i < moves_.Size(); ++i) {
-    const MoveOperands& other_move = *moves_.Get(i);
-    if (other_move.Blocks(destination)) {
-      DCHECK(other_move.IsPending());
-      do_swap = true;
-      break;
+  if (required_swap != nullptr) {
+    DCHECK_EQ(required_swap, move);
+    do_swap = true;
+  } else {
+    for (size_t i = 0; i < moves_.Size(); ++i) {
+      const MoveOperands& other_move = *moves_.Get(i);
+      if (other_move.Blocks(destination)) {
+        DCHECK(other_move.IsPending());
+        if (!destination.IsPair() && other_move.GetSource().IsPair()) {
+          // We swap pairs before swapping non-pairs. Go back from the
+          // cycle by returning the pair that must be swapped.
+          return moves_.Get(i);
+        }
+        do_swap = true;
+        break;
+      }
     }
   }
 
@@ -140,15 +207,21 @@ void ParallelMoveResolver::PerformMove(size_t index) {
     for (size_t i = 0; i < moves_.Size(); ++i) {
       const MoveOperands& other_move = *moves_.Get(i);
       if (other_move.Blocks(source)) {
-        moves_.Get(i)->SetSource(swap_destination);
+        UpdateSourceOf(moves_.Get(i), source, swap_destination);
       } else if (other_move.Blocks(swap_destination)) {
-        moves_.Get(i)->SetSource(source);
+        UpdateSourceOf(moves_.Get(i), swap_destination, source);
       }
     }
+    // If the swap was required because of a pair in the middle of a cycle,
+    // we return the swapped move, so that the caller knows it needs to re-iterate
+    // its dependency loop.
+    return required_swap;
   } else {
     // This move is not blocked.
     EmitMove(index);
     move->Eliminate();
+    DCHECK(required_swap == nullptr);
+    return nullptr;
   }
 }
 

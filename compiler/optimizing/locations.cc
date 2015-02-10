@@ -64,6 +64,13 @@ Location Location::ByteRegisterOrConstant(int reg, HInstruction* instruction) {
 
 std::ostream& operator<<(std::ostream& os, const Location& location) {
   os << location.DebugString();
+  if (location.IsRegister() || location.IsFpuRegister()) {
+    os << location.reg();
+  } else if (location.IsPair()) {
+    os << location.low() << ":" << location.high();
+  } else if (location.IsStackSlot() || location.IsDoubleStackSlot()) {
+    os << location.GetStackIndex();
+  }
   return os;
 }
 
