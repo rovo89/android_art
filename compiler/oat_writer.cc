@@ -899,7 +899,8 @@ class OatWriter::InitMapMethodVisitor : public OatDexMethodVisitor {
 class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
  public:
   InitImageMethodVisitor(OatWriter* writer, size_t offset)
-    : OatDexMethodVisitor(writer, offset) {
+    : OatDexMethodVisitor(writer, offset),
+      pointer_size_(GetInstructionSetPointerSize(writer_->compiler_driver_->GetInstructionSet())) {
   }
 
   bool VisitMethod(size_t class_def_method_index, const ClassDataItemIterator& it)
@@ -932,10 +933,14 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
       std::string dump = exc->Dump();
       LOG(FATAL) << dump;
     }
-    method->SetQuickOatCodeOffset(offsets.code_offset_);
+    method->SetEntryPointFromQuickCompiledCodePtrSize(reinterpret_cast<void*>(offsets.code_offset_),
+                                                      pointer_size_);
 
     return true;
   }
+
+ protected:
+  const size_t pointer_size_;
 };
 
 class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {

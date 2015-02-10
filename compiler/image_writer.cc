@@ -273,13 +273,7 @@ void ImageWriter::SetImageBinSlot(mirror::Object* object, BinSlot bin_slot) {
 
 void ImageWriter::AssignImageBinSlot(mirror::Object* object) {
   DCHECK(object != nullptr);
-  size_t object_size;
-  if (object->IsArtMethod()) {
-    // Methods are sized based on the target pointer size.
-    object_size = mirror::ArtMethod::InstanceSize(target_ptr_size_);
-  } else {
-    object_size = object->SizeOf();
-  }
+  size_t object_size = object->SizeOf();
 
   // The magic happens here. We segregate objects into different bins based
   // on how likely they are to get dirty at runtime.
@@ -931,7 +925,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* obj, void* arg) {
   if (obj->IsArtMethod()) {
     // Size without pointer fields since we don't want to overrun the buffer if target art method
     // is 32 bits but source is 64 bits.
-    n = mirror::ArtMethod::SizeWithoutPointerFields(sizeof(void*));
+    n = mirror::ArtMethod::SizeWithoutPointerFields(image_writer->target_ptr_size_);
   } else {
     n = obj->SizeOf();
   }
@@ -1016,10 +1010,6 @@ void ImageWriter::FixupObject(Object* orig, Object* copy) {
   }
   if (orig->IsArtMethod<kVerifyNone>()) {
     FixupMethod(orig->AsArtMethod<kVerifyNone>(), down_cast<ArtMethod*>(copy));
-  } else if (orig->IsClass() && orig->AsClass()->IsArtMethodClass()) {
-    // Set the right size for the target.
-    size_t size = mirror::ArtMethod::InstanceSize(target_ptr_size_);
-    down_cast<mirror::Class*>(copy)->SetObjectSizeWithoutChecks(size);
   }
 }
 
@@ -1031,7 +1021,9 @@ const uint8_t* ImageWriter::GetQuickCode(mirror::ArtMethod* method, bool* quick_
   // trampoline.
 
   // Quick entrypoint:
-  const uint8_t* quick_code = GetOatAddress(method->GetQuickOatCodeOffset());
+  uint32_t quick_oat_code_offset = PointerToLowMemUInt32(
+      method->GetEntryPointFromQuickCompiledCodePtrSize(target_ptr_size_));
+  const uint8_t* quick_code = GetOatAddress(quick_oat_code_offset);
   *quick_is_interpreted = false;
   if (quick_code != nullptr &&
       (!method->IsStatic() || method->IsConstructor() || method->GetDeclaringClass()->IsInitialized())) {
@@ -1082,11 +1074,12 @@ void ImageWriter::FixupMethod(ArtMethod* orig, ArtMethod* copy) {
   // locations.
   // Copy all of the fields from the runtime methods to the target methods first since we did a
   // bytewise copy earlier.
-  copy->SetEntryPointFromInterpreterPtrSize<kVerifyNone>(orig->GetEntryPointFromInterpreter(),
-                                                         target_ptr_size_);
-  copy->SetEntryPointFromJniPtrSize<kVerifyNone>(orig->GetEntryPointFromJni(), target_ptr_size_);
+  copy->SetEntryPointFromInterpreterPtrSize<kVerifyNone>(
+      orig->GetEntryPointFromInterpreterPtrSize(target_ptr_size_), target_ptr_size_);
+  copy->SetEntryPointFromJniPtrSize<kVerifyNone>(
+      orig->GetEntryPointFromJniPtrSize(target_ptr_size_), target_ptr_size_);
   copy->SetEntryPointFromQuickCompiledCodePtrSize<kVerifyNone>(
-      orig->GetEntryPointFromQuickCompiledCode(), target_ptr_size_);
+      orig->GetEntryPointFromQuickCompiledCodePtrSize(target_ptr_size_), target_ptr_size_);
 
   // The resolution method has a special trampoline to call.
   Runtime* runtime = Runtime::Current();

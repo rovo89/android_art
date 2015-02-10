@@ -377,7 +377,8 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   Handle<mirror::Class> java_lang_reflect_ArtMethod(hs.NewHandle(
     AllocClass(self, java_lang_Class.Get(), mirror::ArtMethod::ClassSize())));
   CHECK(java_lang_reflect_ArtMethod.Get() != nullptr);
-  java_lang_reflect_ArtMethod->SetObjectSize(mirror::ArtMethod::InstanceSize(sizeof(void*)));
+  size_t pointer_size = GetInstructionSetPointerSize(Runtime::Current()->GetInstructionSet());
+  java_lang_reflect_ArtMethod->SetObjectSize(mirror::ArtMethod::InstanceSize(pointer_size));
   SetClassRoot(kJavaLangReflectArtMethod, java_lang_reflect_ArtMethod.Get());
   java_lang_reflect_ArtMethod->SetStatus(mirror::Class::kStatusResolved, self);
   mirror::ArtMethod::SetClass(java_lang_reflect_ArtMethod.Get());
@@ -5481,7 +5482,8 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
     klass->SetNumReferenceInstanceFields(num_reference_fields);
     if (!klass->IsVariableSize()) {
       if (klass->DescriptorEquals("Ljava/lang/reflect/ArtMethod;")) {
-        klass->SetObjectSize(mirror::ArtMethod::InstanceSize(sizeof(void*)));
+        size_t pointer_size = GetInstructionSetPointerSize(Runtime::Current()->GetInstructionSet());
+        klass->SetObjectSize(mirror::ArtMethod::InstanceSize(pointer_size));
       } else {
         std::string temp;
         DCHECK_GE(size, sizeof(mirror::Object)) << klass->GetDescriptor(&temp);
