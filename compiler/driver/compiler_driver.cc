@@ -1285,7 +1285,15 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
     *stats_flags |= kFlagDirectCallToBoot | kFlagDirectMethodToBoot;
   }
   if (!use_dex_cache && force_relocations) {
-    if (!IsImage() || !IsImageClass(method->GetDeclaringClassDescriptor())) {
+    bool is_in_image;
+    if (IsImage()) {
+      is_in_image = IsImageClass(method->GetDeclaringClassDescriptor());
+    } else {
+      is_in_image = instruction_set_ != kX86 && instruction_set_ != kX86_64 &&
+                    Runtime::Current()->GetHeap()->FindSpaceFromObject(method->GetDeclaringClass(),
+                                                                       false)->IsImageSpace();
+    }
+    if (!is_in_image) {
       // We can only branch directly to Methods that are resolved in the DexCache.
       // Otherwise we won't invoke the resolution trampoline.
       use_dex_cache = true;
