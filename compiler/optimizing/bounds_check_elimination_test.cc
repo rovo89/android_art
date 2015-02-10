@@ -632,7 +632,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination2) {
   ASSERT_TRUE(IsRemoved(bounds_check));
 }
 
-// int[] array = new array[10];
+// int[] array = new int[10];
 // for (int i=0; i<10; i+=increment) { array[i] = 10; }
 static HGraph* BuildSSAGraph3(ArenaAllocator* allocator,
                               HInstruction** bounds_check,
@@ -708,7 +708,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination3) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
 
-  // int[] array = new array[10];
+  // int[] array = new int[10];
   // for (int i=0; i<10; i++) { array[i] = 10; // Can eliminate. }
   HInstruction* bounds_check = nullptr;
   HGraph* graph = BuildSSAGraph3(&allocator, &bounds_check, 0, 1, kCondGE);
@@ -718,7 +718,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination3) {
   bounds_check_elimination_after_gvn.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
 
-  // int[] array = new array[10];
+  // int[] array = new int[10];
   // for (int i=1; i<10; i++) { array[i] = 10; // Can eliminate. }
   graph = BuildSSAGraph3(&allocator, &bounds_check, 1, 1, kCondGE);
   graph->BuildDominatorTree();
@@ -727,7 +727,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination3) {
   bounds_check_elimination_with_initial_1.Run();
   ASSERT_TRUE(IsRemoved(bounds_check));
 
-  // int[] array = new array[10];
+  // int[] array = new int[10];
   // for (int i=0; i<=10; i++) { array[i] = 10; // Can't eliminate. }
   graph = BuildSSAGraph3(&allocator, &bounds_check, 0, 1, kCondGT);
   graph->BuildDominatorTree();
@@ -736,7 +736,7 @@ TEST(BoundsCheckEliminationTest, LoopArrayBoundsElimination3) {
   bounds_check_elimination_with_greater_than.Run();
   ASSERT_FALSE(IsRemoved(bounds_check));
 
-  // int[] array = new array[10];
+  // int[] array = new int[10];
   // for (int i=1; i<10; i+=8) { array[i] = 10; // Can eliminate. }
   graph = BuildSSAGraph3(&allocator, &bounds_check, 1, 8, kCondGE);
   graph->BuildDominatorTree();
