@@ -1798,7 +1798,8 @@ void MIRGraph::SSATransformationEnd() {
 
   temp_.ssa.num_vregs = 0u;
   temp_.ssa.work_live_vregs = nullptr;
-  temp_.ssa.def_block_matrix = nullptr;
+  DCHECK(temp_.ssa.def_block_matrix == nullptr);
+  temp_.ssa.phi_node_blocks = nullptr;
   DCHECK(temp_scoped_alloc_.get() != nullptr);
   temp_scoped_alloc_.reset();
 
