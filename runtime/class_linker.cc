@@ -4297,7 +4297,9 @@ static bool HasSameSignatureWithDifferentClassLoaders(Thread* self,
   {
     StackHandleScope<1> hs(self);
     Handle<mirror::Class> return_type(hs.NewHandle(method1->GetReturnType()));
-    if (UNLIKELY(method2->GetReturnType() != return_type.Get())) {
+    mirror::Class* other_return_type = method2->GetReturnType();
+    // NOTE: return_type.Get() must be sequenced after method2->GetReturnType().
+    if (UNLIKELY(other_return_type != return_type.Get())) {
       return false;
     }
   }
@@ -4313,11 +4315,13 @@ static bool HasSameSignatureWithDifferentClassLoaders(Thread* self,
     return false;
   }
   for (uint32_t i = 0; i < num_types; ++i) {
-    mirror::Class* param_type =
-        method1->GetClassFromTypeIndex(types1->GetTypeItem(i).type_idx_, true);
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Class> param_type(hs.NewHandle(
+        method1->GetClassFromTypeIndex(types1->GetTypeItem(i).type_idx_, true)));
     mirror::Class* other_param_type =
         method2->GetClassFromTypeIndex(types2->GetTypeItem(i).type_idx_, true);
-    if (UNLIKELY(param_type != other_param_type)) {
+    // NOTE: param_type.Get() must be sequenced after method2->GetClassFromTypeIndex(...).
+    if (UNLIKELY(param_type.Get() != other_param_type)) {
       return false;
     }
   }
