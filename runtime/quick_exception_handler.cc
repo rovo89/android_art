@@ -203,15 +203,18 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     CHECK(code_item != nullptr);
     uint16_t num_regs = code_item->registers_size_;
     uint32_t dex_pc = GetDexPc();
-    ShadowFrame* new_frame = ShadowFrame::Create(num_regs, nullptr, m, dex_pc);
-    StackHandleScope<2> hs(self_);
+    StackHandleScope<3> hs(self_);  // Dex cache, class loader and method.
     mirror::Class* declaring_class = m->GetDeclaringClass();
     Handle<mirror::DexCache> h_dex_cache(hs.NewHandle(declaring_class->GetDexCache()));
     Handle<mirror::ClassLoader> h_class_loader(hs.NewHandle(declaring_class->GetClassLoader()));
+    Handle<mirror::ArtMethod> h_method(hs.NewHandle(m));
     verifier::MethodVerifier verifier(h_dex_cache->GetDexFile(), &h_dex_cache, &h_class_loader,
                                       &m->GetClassDef(), code_item, m->GetDexMethodIndex(), m,
-                                      m->GetAccessFlags(), false, true, true);
-    verifier.Verify();
+                                      m->GetAccessFlags(), true, true, true);
+    bool verifier_success = verifier.Verify();
+    CHECK(verifier_success) << PrettyMethod(h_method.Get());
+    ShadowFrame* new_frame = ShadowFrame::Create(num_regs, nullptr, h_method.Get(), dex_pc);
+    self_->SetShadowFrameUnderConstruction(new_frame);
     const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
     for (uint16_t reg = 0; reg < num_regs; ++reg) {
       VRegKind kind = GetVRegKind(reg, kinds);
@@ -224,40 +227,41 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
           break;
         case kReferenceVReg:
           new_frame->SetVRegReference(reg,
-                                      reinterpret_cast<mirror::Object*>(GetVReg(m, reg, kind)));
+                                      reinterpret_cast<mirror::Object*>(GetVReg(h_method.Get(),
+                                                                                reg, kind)));
           break;
         case kLongLoVReg:
           if (GetVRegKind(reg + 1, kinds) == kLongHiVReg) {
             // Treat it as a "long" register pair.
-            new_frame->SetVRegLong(reg, GetVRegPair(m, reg, kLongLoVReg, kLongHiVReg));
+            new_frame->SetVRegLong(reg, GetVRegPair(h_method.Get(), reg, kLongLoVReg, kLongHiVReg));
           } else {
-            new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+            new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
           }
           break;
         case kLongHiVReg:
           if (GetVRegKind(reg - 1, kinds) == kLongLoVReg) {
             // Nothing to do: we treated it as a "long" register pair.
           } else {
-            new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+            new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
           }
           break;
         case kDoubleLoVReg:
           if (GetVRegKind(reg + 1, kinds) == kDoubleHiVReg) {
             // Treat it as a "double" register pair.
-            new_frame->SetVRegLong(reg, GetVRegPair(m, reg, kDoubleLoVReg, kDoubleHiVReg));
+            new_frame->SetVRegLong(reg, GetVRegPair(h_method.Get(), reg, kDoubleLoVReg, kDoubleHiVReg));
           } else {
-            new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+            new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
           }
           break;
         case kDoubleHiVReg:
           if (GetVRegKind(reg - 1, kinds) == kDoubleLoVReg) {
             // Nothing to do: we treated it as a "double" register pair.
           } else {
-            new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+            new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
           }
           break;
         default:
-          new_frame->SetVReg(reg, GetVReg(m, reg, kind));
+          new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
           break;
       }
     }
@@ -266,6 +270,7 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     } else {
       self_->SetDeoptimizationShadowFrame(new_frame);
     }
+    self_->ClearShadowFrameUnderConstruction();
     prev_shadow_frame_ = new_frame;
     return true;
   }
