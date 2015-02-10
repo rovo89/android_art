@@ -541,6 +541,16 @@ class ArmAssembler : public Assembler {
     }
   }
 
+  void LoadDImmediate(DRegister sd, double value, Condition cond = AL) {
+    if (!vmovd(sd, value, cond)) {
+      uint64_t int_value = bit_cast<uint64_t, double>(value);
+      LoadSImmediate(
+          static_cast<SRegister>(sd << 1), bit_cast<float, uint32_t>(Low32Bits(int_value)));
+      LoadSImmediate(
+          static_cast<SRegister>((sd << 1) + 1), bit_cast<float, uint32_t>(High32Bits(int_value)));
+    }
+  }
+
   virtual void MarkExceptionHandler(Label* label) = 0;
   virtual void LoadFromOffset(LoadOperandType type,
                               Register reg,
