@@ -54,7 +54,7 @@ ThreadList::ThreadList()
     : suspend_all_count_(0), debug_suspend_all_count_(0),
       thread_exit_cond_("thread exit condition variable", *Locks::thread_list_lock_),
       suspend_all_historam_("suspend all histogram", 16, 64) {
-  CHECK(Monitor::IsValidLockWord(LockWord::FromThinLockId(kMaxThreadId, 1)));
+  CHECK(Monitor::IsValidLockWord(LockWord::FromThinLockId(kMaxThreadId, 1, 0U)));
 }
 
 ThreadList::~ThreadList() {

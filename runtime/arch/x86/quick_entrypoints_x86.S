@@ -922,29 +922,39 @@ DEFINE_FUNCTION art_quick_lock_object
     jz   .Lslow_lock
 .Lretry_lock:
     movl MIRROR_OBJECT_LOCK_WORD_OFFSET(%eax), %ecx  // ecx := lock word
-    test LITERAL(0xC0000000), %ecx        // test the 2 high bits.
+    test LITERAL(LOCK_WORD_STATE_MASK), %ecx         // test the 2 high bits.
     jne  .Lslow_lock                      // slow path if either of the two high bits are set.
-    movl %fs:THREAD_ID_OFFSET, %edx       // edx := thread id
+    movl %ecx, %edx                       // save lock word (edx) to keep read barrier bits.
+    andl LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED), %ecx  // zero the read barrier bits.
     test %ecx, %ecx
     jnz  .Lalready_thin                   // lock word contains a thin lock
-    // unlocked case - %edx holds thread id with count of 0
+    // unlocked case - edx: original lock word, eax: obj.
     movl %eax, %ecx                       // remember object in case of retry
-    xor  %eax, %eax                       // eax == 0 for comparison with lock word in cmpxchg
-    lock cmpxchg  %edx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%ecx)
-    jnz  .Lcmpxchg_fail                   // cmpxchg failed retry
+    movl %edx, %eax                       // eax: lock word zero except for read barrier bits.
+    movl %fs:THREAD_ID_OFFSET, %edx       // load thread id.
+    or   %eax, %edx                       // edx: thread id with count of 0 + read barrier bits.
+    lock cmpxchg  %edx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%ecx)  // eax: old val, edx: new val.
+    jnz  .Llock_cmpxchg_fail              // cmpxchg failed retry
     ret
-.Lcmpxchg_fail:
-    movl  %ecx, %eax                      // restore eax
-    jmp  .Lretry_lock
-.Lalready_thin:
+.Lalready_thin:  // edx: lock word (with high 2 bits zero and original rb bits), eax: obj.
+    movl %fs:THREAD_ID_OFFSET, %ecx       // ecx := thread id
     cmpw %cx, %dx                         // do we hold the lock already?
     jne  .Lslow_lock
-    addl LITERAL(65536), %ecx             // increment recursion count
-    test LITERAL(0xC0000000), %ecx        // overflowed if either of top two bits are set
+    movl %edx, %ecx                       // copy the lock word to check count overflow.
+    andl LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED), %ecx  // zero the read barrier bits.
+    addl LITERAL(LOCK_WORD_THIN_LOCK_COUNT_ONE), %ecx  // increment recursion count for overflow check.
+    test LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK), %ecx  // overflowed if either of the upper two bits (28-29) are set.
     jne  .Lslow_lock                      // count overflowed so go slow
-    // update lockword, cmpxchg not necessary as we hold lock
-    movl %ecx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%eax)
+    movl %eax, %ecx                       // save obj to use eax for cmpxchg.
+    movl %edx, %eax                       // copy the lock word as the old val for cmpxchg.
+    addl LITERAL(LOCK_WORD_THIN_LOCK_COUNT_ONE), %edx  // increment recursion count again for real.
+    // update lockword, cmpxchg necessary for read barrier bits.
+    lock cmpxchg  %edx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%ecx)  // eax: old val, edx: new val.
+    jnz  .Llock_cmpxchg_fail              // cmpxchg failed retry
     ret
+.Llock_cmpxchg_fail:
+    movl  %ecx, %eax                      // restore eax
+    jmp  .Lretry_lock
 .Lslow_lock:
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx  // save ref containing registers for GC
     // Outgoing argument set up
@@ -963,20 +973,43 @@ END_FUNCTION art_quick_lock_object
 DEFINE_FUNCTION art_quick_unlock_object
     testl %eax, %eax                      // null check object/eax
     jz   .Lslow_unlock
+.Lretry_unlock:
     movl MIRROR_OBJECT_LOCK_WORD_OFFSET(%eax), %ecx  // ecx := lock word
     movl %fs:THREAD_ID_OFFSET, %edx       // edx := thread id
-    test LITERAL(0xC0000000), %ecx
+    test LITERAL(LOCK_WORD_STATE_MASK), %ecx
     jnz  .Lslow_unlock                    // lock word contains a monitor
     cmpw %cx, %dx                         // does the thread id match?
     jne  .Lslow_unlock
-    cmpl LITERAL(65536), %ecx
+    movl %ecx, %edx                       // copy the lock word to detect new count of 0.
+    andl LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED), %edx  // zero the read barrier bits.
+    cmpl LITERAL(LOCK_WORD_THIN_LOCK_COUNT_ONE), %edx
     jae  .Lrecursive_thin_unlock
-    movl LITERAL(0), MIRROR_OBJECT_LOCK_WORD_OFFSET(%eax)
+    // update lockword, cmpxchg necessary for read barrier bits.
+    movl %eax, %edx                       // edx: obj
+    movl %ecx, %eax                       // eax: old lock word.
+    andl LITERAL(LOCK_WORD_READ_BARRIER_STATE_MASK), %ecx  // ecx: new lock word zero except original rb bits.
+#ifndef USE_READ_BARRIER
+    movl %ecx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%edx)
+#else
+    lock cmpxchg  %ecx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%edx)  // eax: old val, ecx: new val.
+    jnz  .Lunlock_cmpxchg_fail            // cmpxchg failed retry
+#endif
     ret
-.Lrecursive_thin_unlock:
-    subl LITERAL(65536), %ecx
-    mov  %ecx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%eax)
+.Lrecursive_thin_unlock:  // ecx: original lock word, eax: obj
+    // update lockword, cmpxchg necessary for read barrier bits.
+    movl %eax, %edx                       // edx: obj
+    movl %ecx, %eax                       // eax: old lock word.
+    subl LITERAL(LOCK_WORD_THIN_LOCK_COUNT_ONE), %ecx  // ecx: new lock word with decremented count.
+#ifndef USE_READ_BARRIER
+    mov  %ecx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%edx)
+#else
+    lock cmpxchg  %ecx, MIRROR_OBJECT_LOCK_WORD_OFFSET(%edx)  // eax: old val, ecx: new val.
+    jnz  .Lunlock_cmpxchg_fail            // cmpxchg failed retry
+#endif
     ret
+.Lunlock_cmpxchg_fail:  // edx: obj
+    movl %edx, %eax                       // restore eax
+    jmp  .Lretry_unlock
 .Lslow_unlock:
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  ebx, ebx  // save ref containing registers for GC
     // Outgoing argument set up
