@@ -261,8 +261,8 @@ class ValueRange : public ArenaObject<kArenaAllocMisc> {
 
   virtual ~ValueRange() {}
 
-  virtual const MonotonicValueRange* AsMonotonicValueRange() const { return nullptr; }
-  bool IsMonotonicValueRange() const {
+  virtual MonotonicValueRange* AsMonotonicValueRange() { return nullptr; }
+  bool IsMonotonicValueRange() {
     return AsMonotonicValueRange() != nullptr;
   }
 
@@ -345,7 +345,11 @@ class MonotonicValueRange : public ValueRange {
 
   virtual ~MonotonicValueRange() {}
 
-  const MonotonicValueRange* AsMonotonicValueRange() const OVERRIDE { return this; }
+  int32_t GetIncrement() const { return increment_; }
+
+  ValueBound GetBound() const { return bound_; }
+
+  MonotonicValueRange* AsMonotonicValueRange() OVERRIDE { return this; }
 
   // If it's certain that this value range fits in other_range.
   bool FitsIn(ValueRange* other_range) const OVERRIDE {
@@ -494,6 +498,74 @@ class BCEVisitor : public HGraphVisitor {
     }
   }
 
+  // Special case that we may simultaneously narrow two MonotonicValueRange's to
+  // regular value ranges.
+  void HandleIfBetweenTwoMonotonicValueRanges(HIf* instruction,
+                                              HInstruction* left,
+                                              HInstruction* right,
+                                              IfCondition cond,
+                                              MonotonicValueRange* left_range,
+                                              MonotonicValueRange* right_range) {
+    DCHECK(left->IsLoopHeaderPhi());
+    DCHECK(right->IsLoopHeaderPhi());
+    if (instruction->GetBlock() != left->GetBlock()) {
+      // Comparison needs to be in loop header to make sure it's done after each
+      // increment/decrement.
+      return;
+    }
+
+    // Handle common cases which also don't have overflow/underflow concerns.
+    if (left_range->GetIncrement() == 1 &&
+        left_range->GetBound().IsConstant() &&
+        right_range->GetIncrement() == -1 &&
+        right_range->GetBound().IsRelatedToArrayLength() &&
+        right_range->GetBound().GetConstant() < 0) {
+
+      HBasicBlock* successor = nullptr;
+      int32_t left_compensation = 0;
+      int32_t right_compensation = 0;
+      if (cond == kCondLT) {
+        left_compensation = -1;
+        right_compensation = 1;
+        successor = instruction->IfTrueSuccessor();
+      } else if (cond == kCondLE) {
+        successor = instruction->IfTrueSuccessor();
+      } else if (cond == kCondGT) {
+        successor = instruction->IfFalseSuccessor();
+      } else if (cond == kCondGE) {
+        left_compensation = -1;
+        right_compensation = 1;
+        successor = instruction->IfFalseSuccessor();
+      } else {
+        // We don't handle '=='/'!=' test in case left and right can cross and
+        // miss each other.
+        return;
+      }
+
+      if (successor != nullptr) {
+        bool overflow;
+        bool underflow;
+        ValueRange* new_left_range = new (GetGraph()->GetArena()) ValueRange(
+            GetGraph()->GetArena(),
+            left_range->GetBound(),
+            right_range->GetBound().Add(left_compensation, &overflow, &underflow));
+        if (!overflow && !underflow) {
+          ApplyRangeFromComparison(left, instruction->GetBlock(), successor,
+                                   new_left_range);
+        }
+
+        ValueRange* new_right_range = new (GetGraph()->GetArena()) ValueRange(
+            GetGraph()->GetArena(),
+            left_range->GetBound().Add(right_compensation, &overflow, &underflow),
+            right_range->GetBound());
+        if (!overflow && !underflow) {
+          ApplyRangeFromComparison(right, instruction->GetBlock(), successor,
+                                   new_right_range);
+        }
+      }
+    }
+  }
+
   // Handle "if (left cmp_cond right)".
   void HandleIf(HIf* instruction, HInstruction* left, HInstruction* right, IfCondition cond) {
     HBasicBlock* block = instruction->GetBlock();
@@ -515,10 +587,19 @@ class BCEVisitor : public HGraphVisitor {
     if (!found) {
       // No constant or array.length+c format bound found.
       // For i<j, we can still use j's upper bound as i's upper bound. Same for lower.
-      ValueRange* range = LookupValueRange(right, block);
-      if (range != nullptr) {
-        lower = range->GetLower();
-        upper = range->GetUpper();
+      ValueRange* right_range = LookupValueRange(right, block);
+      if (right_range != nullptr) {
+        if (right_range->IsMonotonicValueRange()) {
+          ValueRange* left_range = LookupValueRange(left, block);
+          if (left_range != nullptr && left_range->IsMonotonicValueRange()) {
+            HandleIfBetweenTwoMonotonicValueRanges(instruction, left, right, cond,
+                                                   left_range->AsMonotonicValueRange(),
+                                                   right_range->AsMonotonicValueRange());
+            return;
+          }
+        }
+        lower = right_range->GetLower();
+        upper = right_range->GetUpper();
       } else {
         lower = ValueBound::Min();
         upper = ValueBound::Max();
