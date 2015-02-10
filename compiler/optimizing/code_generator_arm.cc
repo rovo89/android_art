@@ -3366,11 +3366,41 @@ void ParallelMoveResolverARM::EmitMove(size_t index) {
       __ StoreSToOffset(source.AsFpuRegister<SRegister>(), SP, destination.GetStackIndex());
     }
   } else if (source.IsDoubleStackSlot()) {
-    DCHECK(destination.IsDoubleStackSlot()) << destination;
-    __ LoadFromOffset(kLoadWord, IP, SP, source.GetStackIndex());
-    __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
-    __ LoadFromOffset(kLoadWord, IP, SP, source.GetHighStackIndex(kArmWordSize));
-    __ StoreToOffset(kStoreWord, IP, SP, destination.GetHighStackIndex(kArmWordSize));
+    if (destination.IsDoubleStackSlot()) {
+      __ LoadFromOffset(kLoadWord, IP, SP, source.GetStackIndex());
+      __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
+      __ LoadFromOffset(kLoadWord, IP, SP, source.GetHighStackIndex(kArmWordSize));
+      __ StoreToOffset(kStoreWord, IP, SP, destination.GetHighStackIndex(kArmWordSize));
+    } else if (destination.IsRegisterPair()) {
+      DCHECK(ExpectedPairLayout(destination));
+      __ LoadFromOffset(
+          kLoadWordPair, destination.AsRegisterPairLow<Register>(), SP, source.GetStackIndex());
+    } else {
+      DCHECK(destination.IsFpuRegisterPair()) << destination;
+      __ LoadDFromOffset(FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>()),
+                         SP,
+                         source.GetStackIndex());
+    }
+  } else if (source.IsRegisterPair()) {
+    if (destination.IsRegisterPair()) {
+      __ Mov(destination.AsRegisterPairLow<Register>(), source.AsRegisterPairLow<Register>());
+      __ Mov(destination.AsRegisterPairHigh<Register>(), source.AsRegisterPairHigh<Register>());
+    } else {
+      DCHECK(destination.IsDoubleStackSlot()) << destination;
+      DCHECK(ExpectedPairLayout(source));
+      __ StoreToOffset(
+          kStoreWordPair, source.AsRegisterPairLow<Register>(), SP, destination.GetStackIndex());
+    }
+  } else if (source.IsFpuRegisterPair()) {
+    if (destination.IsFpuRegisterPair()) {
+      __ vmovd(FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>()),
+               FromLowSToD(source.AsFpuRegisterPairLow<SRegister>()));
+    } else {
+      DCHECK(destination.IsDoubleStackSlot()) << destination;
+      __ StoreDToOffset(FromLowSToD(source.AsFpuRegisterPairLow<SRegister>()),
+                        SP,
+                        destination.GetStackIndex());
+    }
   } else {
     DCHECK(source.IsConstant()) << source;
     HInstruction* constant = source.GetConstant();
@@ -3385,17 +3415,11 @@ void ParallelMoveResolverARM::EmitMove(size_t index) {
       }
     } else if (constant->IsLongConstant()) {
       int64_t value = constant->AsLongConstant()->GetValue();
-      if (destination.IsRegister()) {
-        // In the presence of long or double constants, the parallel move resolver will
-        // split the move into two, but keeps the same constant for both moves. Here,
-        // we use the low or high part depending on which register this move goes to.
-        if (destination.reg() % 2 == 0) {
-          __ LoadImmediate(destination.AsRegister<Register>(), Low32Bits(value));
-        } else {
-          __ LoadImmediate(destination.AsRegister<Register>(), High32Bits(value));
-        }
+      if (destination.IsRegisterPair()) {
+        __ LoadImmediate(destination.AsRegisterPairLow<Register>(), Low32Bits(value));
+        __ LoadImmediate(destination.AsRegisterPairHigh<Register>(), High32Bits(value));
       } else {
-        DCHECK(destination.IsDoubleStackSlot());
+        DCHECK(destination.IsDoubleStackSlot()) << destination;
         __ LoadImmediate(IP, Low32Bits(value));
         __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
         __ LoadImmediate(IP, High32Bits(value));
@@ -3403,20 +3427,11 @@ void ParallelMoveResolverARM::EmitMove(size_t index) {
       }
     } else if (constant->IsDoubleConstant()) {
       double value = constant->AsDoubleConstant()->GetValue();
-      uint64_t int_value = bit_cast<uint64_t, double>(value);
-      if (destination.IsFpuRegister()) {
-        // In the presence of long or double constants, the parallel move resolver will
-        // split the move into two, but keeps the same constant for both moves. Here,
-        // we use the low or high part depending on which register this move goes to.
-        if (destination.reg() % 2 == 0) {
-          __ LoadSImmediate(destination.AsFpuRegister<SRegister>(),
-                            bit_cast<float, uint32_t>(Low32Bits(int_value)));
-        } else {
-          __ LoadSImmediate(destination.AsFpuRegister<SRegister>(),
-                            bit_cast<float, uint32_t>(High32Bits(int_value)));
-        }
+      if (destination.IsFpuRegisterPair()) {
+        __ LoadDImmediate(FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>()), value);
       } else {
-        DCHECK(destination.IsDoubleStackSlot());
+        DCHECK(destination.IsDoubleStackSlot()) << destination;
+        uint64_t int_value = bit_cast<uint64_t, double>(value);
         __ LoadImmediate(IP, Low32Bits(int_value));
         __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
         __ LoadImmediate(IP, High32Bits(int_value));
@@ -3474,6 +3489,61 @@ void ParallelMoveResolverARM::EmitSwap(size_t index) {
     __ vmovrs(IP, source.AsFpuRegister<SRegister>());
     __ vmovs(source.AsFpuRegister<SRegister>(), destination.AsFpuRegister<SRegister>());
     __ vmovsr(destination.AsFpuRegister<SRegister>(), IP);
+  } else if (source.IsRegisterPair() && destination.IsRegisterPair()) {
+    __ Mov(IP, source.AsRegisterPairLow<Register>());
+    __ Mov(source.AsRegisterPairLow<Register>(), destination.AsRegisterPairLow<Register>());
+    __ Mov(destination.AsRegisterPairLow<Register>(), IP);
+    __ Mov(IP, source.AsRegisterPairHigh<Register>());
+    __ Mov(source.AsRegisterPairHigh<Register>(), destination.AsRegisterPairHigh<Register>());
+    __ Mov(destination.AsRegisterPairHigh<Register>(), IP);
+  } else if (source.IsRegisterPair() || destination.IsRegisterPair()) {
+    // TODO: Find a D register available in the parallel moves,
+    // or reserve globally a D register.
+    DRegister tmp = D0;
+    Register low_reg = source.IsRegisterPair()
+        ? source.AsRegisterPairLow<Register>()
+        : destination.AsRegisterPairLow<Register>();
+    int mem = source.IsRegisterPair()
+        ? destination.GetStackIndex()
+        : source.GetStackIndex();
+    DCHECK(ExpectedPairLayout(source.IsRegisterPair() ? source : destination));
+    // Make room for the pushed DRegister.
+    mem += 8;
+    __ vpushd(tmp, 1);
+    __ vmovdrr(tmp, low_reg, static_cast<Register>(low_reg + 1));
+    __ LoadFromOffset(kLoadWordPair, low_reg, SP, mem);
+    __ StoreDToOffset(tmp, SP, mem);
+    __ vpopd(tmp, 1);
+  } else if (source.IsFpuRegisterPair() && destination.IsFpuRegisterPair()) {
+    // TODO: Find a D register available in the parallel moves,
+    // or reserve globally a D register.
+    DRegister tmp = D0;
+    DRegister first = FromLowSToD(source.AsFpuRegisterPairLow<SRegister>());
+    DRegister second = FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>());
+    while (tmp == first || tmp == second) {
+      tmp = static_cast<DRegister>(tmp + 1);
+    }
+    __ vpushd(tmp, 1);
+    __ vmovd(tmp, first);
+    __ vmovd(first, second);
+    __ vmovd(second, tmp);
+    __ vpopd(tmp, 1);
+  } else if (source.IsFpuRegisterPair() || destination.IsFpuRegisterPair()) {
+    DRegister reg = source.IsFpuRegisterPair()
+        ? FromLowSToD(source.AsFpuRegisterPairLow<SRegister>())
+        : FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>());
+    int mem = source.IsFpuRegisterPair()
+        ? destination.GetStackIndex()
+        : source.GetStackIndex();
+    // TODO: Find or reserve a D register.
+    DRegister tmp = reg == D0 ? D1 : D0;
+    // Make room for the pushed DRegister.
+    mem += 8;
+    __ vpushd(tmp, 1);
+    __ vmovd(tmp, reg);
+    __ LoadDFromOffset(reg, SP, mem);
+    __ StoreDToOffset(tmp, SP, mem);
+    __ vpopd(tmp, 1);
   } else if (source.IsFpuRegister() || destination.IsFpuRegister()) {
     SRegister reg = source.IsFpuRegister() ? source.AsFpuRegister<SRegister>()
                                            : destination.AsFpuRegister<SRegister>();
@@ -3482,7 +3552,7 @@ void ParallelMoveResolverARM::EmitSwap(size_t index) {
         : source.GetStackIndex();
 
     __ vmovrs(IP, reg);
-    __ LoadFromOffset(kLoadWord, IP, SP, mem);
+    __ LoadSFromOffset(reg, SP, mem);
     __ StoreToOffset(kStoreWord, IP, SP, mem);
   } else if (source.IsDoubleStackSlot() && destination.IsDoubleStackSlot()) {
     Exchange(source.GetStackIndex(), destination.GetStackIndex());

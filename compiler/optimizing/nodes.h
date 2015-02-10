@@ -2959,7 +2959,7 @@ class MoveOperands : public ArenaObject<kArenaAllocMisc> {
 
   // True if this blocks a move from the given location.
   bool Blocks(Location loc) const {
-    return !IsEliminated() && source_.Equals(loc);
+    return !IsEliminated() && (source_.Contains(loc) || loc.Contains(source_));
   }
 
   // A move is redundant if it's been eliminated, if its source and
@@ -3000,46 +3000,19 @@ class HParallelMove : public HTemplateInstruction<0> {
   void AddMove(Location source, Location destination, HInstruction* instruction) {
     DCHECK(source.IsValid());
     DCHECK(destination.IsValid());
-    // The parallel move resolver does not handle pairs. So we decompose the
-    // pair locations into two moves.
-    if (source.IsPair() && destination.IsPair()) {
-      AddMove(source.ToLow(), destination.ToLow(), instruction);
-      AddMove(source.ToHigh(), destination.ToHigh(), nullptr);
-    } else if (source.IsPair()) {
-      DCHECK(destination.IsDoubleStackSlot()) << destination;
-      AddMove(source.ToLow(), Location::StackSlot(destination.GetStackIndex()), instruction);
-      AddMove(source.ToHigh(), Location::StackSlot(destination.GetHighStackIndex(4)), nullptr);
-    } else if (destination.IsPair()) {
-      if (source.IsConstant()) {
-        // We put the same constant in the move. The code generator will handle which
-        // low or high part to use.
-        AddMove(source, destination.ToLow(), instruction);
-        AddMove(source, destination.ToHigh(), nullptr);
-      } else {
-        DCHECK(source.IsDoubleStackSlot());
-        AddMove(Location::StackSlot(source.GetStackIndex()), destination.ToLow(), instruction);
-        // TODO: rewrite GetHighStackIndex to not require a word size. It's supposed to
-        // always be 4.
-        static constexpr int kHighOffset = 4;
-        AddMove(Location::StackSlot(source.GetHighStackIndex(kHighOffset)),
-                destination.ToHigh(),
-                nullptr);
-      }
-    } else {
-      if (kIsDebugBuild) {
-        if (instruction != nullptr) {
-          for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
-            DCHECK_NE(moves_.Get(i).GetInstruction(), instruction)
-              << "Doing parallel moves for the same instruction.";
-          }
-        }
+    if (kIsDebugBuild) {
+      if (instruction != nullptr) {
         for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
-          DCHECK(!destination.Equals(moves_.Get(i).GetDestination()))
-              << "Same destination for two moves in a parallel move.";
+          DCHECK_NE(moves_.Get(i).GetInstruction(), instruction)
+            << "Doing parallel moves for the same instruction.";
         }
       }
-      moves_.Add(MoveOperands(source, destination, instruction));
+      for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
+        DCHECK(!destination.Equals(moves_.Get(i).GetDestination()))
+            << "Same destination for two moves in a parallel move.";
+      }
     }
+    moves_.Add(MoveOperands(source, destination, instruction));
   }
 
   MoveOperands* MoveOperandsAt(size_t index) const {
