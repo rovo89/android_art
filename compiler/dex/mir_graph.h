@@ -1201,7 +1201,7 @@ class MIRGraph {
   void ComputeDominators();
   void CompilerInitializeSSAConversion();
   virtual void InitializeBasicBlockDataFlow();
-  void InsertPhiNodes();
+  void FindPhiNodeBlocks();
   void DoDFSPreOrderSSARename(BasicBlock* block);
 
   bool DfsOrdersUpToDate() const {
@@ -1378,6 +1378,7 @@ class MIRGraph {
       size_t num_vregs;
       ArenaBitVector* work_live_vregs;
       ArenaBitVector** def_block_matrix;  // num_vregs x num_blocks_.
+      ArenaBitVector** phi_node_blocks;  // num_vregs x num_blocks_.
     } ssa;
     // Global value numbering.
     struct {

@@ -35,14 +35,10 @@ enum OatBitMapKind {
   kBitMapDominators,
   kBitMapIDominated,
   kBitMapDomFrontier,
-  kBitMapPhi,
-  kBitMapTmpBlocks,
-  kBitMapInputBlocks,
   kBitMapRegisterV,
   kBitMapTempSSARegisterV,
   kBitMapNullCheck,
   kBitMapClInitCheck,
-  kBitMapTmpBlockV,
   kBitMapPredecessors,
   kNumBitMapKinds
 };
