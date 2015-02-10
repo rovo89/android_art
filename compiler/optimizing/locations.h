@@ -268,6 +268,20 @@ class Location : public ValueObject {
     return value_ == other.value_;
   }
 
+  bool Contains(Location other) const {
+    if (Equals(other)) {
+      return true;
+    } else if (IsFpuRegisterPair() && other.IsFpuRegister()) {
+      return other.reg() == low() || other.reg() == high();
+    } else if (IsRegisterPair() && other.IsRegister()) {
+      return other.reg() == low() || other.reg() == high();
+    } else if (IsDoubleStackSlot() && other.IsStackSlot()) {
+      return (GetStackIndex() == other.GetStackIndex())
+          || (GetStackIndex() + 4 == other.GetStackIndex());
+    }
+    return false;
+  }
+
   const char* DebugString() const {
     switch (GetKind()) {
       case kInvalid: return "I";

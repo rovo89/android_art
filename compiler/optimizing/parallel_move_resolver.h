@@ -83,7 +83,15 @@ class ParallelMoveResolver : public ValueObject {
 
   // Perform the move at the moves_ index in question (possibly requiring
   // other moves to satisfy dependencies).
-  void PerformMove(size_t index);
+  //
+  // Return whether another move in the dependency cycle needs to swap. This
+  // is to handle pair swaps, where we want the pair to swap first to avoid
+  // building pairs that are unexpected by the code generator. For example, if
+  // we were to swap R1 with R2, we would need to update all locations using
+  // R2 to R1. So a (R2,R3) pair register could become (R1,R3). We could make
+  // the code generator understand such pairs, but it's easier and cleaner to
+  // just not create such pairs and exchange pairs in priority.
+  MoveOperands* PerformMove(size_t index);
 
   DISALLOW_COPY_AND_ASSIGN(ParallelMoveResolver);
 };
