@@ -28,6 +28,7 @@ class InstructionSimplifierVisitor : public HGraphVisitor {
   void VisitArraySet(HArraySet* equal) OVERRIDE;
   void VisitTypeConversion(HTypeConversion* instruction) OVERRIDE;
   void VisitNullCheck(HNullCheck* instruction) OVERRIDE;
+  void VisitArrayLength(HArrayLength* instruction) OVERRIDE;
 };
 
 void InstructionSimplifier::Run() {
@@ -71,6 +72,18 @@ void InstructionSimplifierVisitor::VisitEqual(HEqual* equal) {
       // We should replace (bool_value == 0) with !bool_value, but we unfortunately
       // do not have such instruction.
       DCHECK_EQ(input2->AsIntConstant()->GetValue(), 0);
+    }
+  }
+}
+
+void InstructionSimplifierVisitor::VisitArrayLength(HArrayLength* instruction) {
+  HInstruction* input = instruction->InputAt(0);
+  // If the array is a NewArray with constant size, replace the array length
+  // with the constant instruction. This helps the bounds check elimination phase.
+  if (input->IsNewArray()) {
+    input = input->InputAt(0);
+    if (input->IsIntConstant()) {
+      instruction->ReplaceWith(input);
     }
   }
 }
