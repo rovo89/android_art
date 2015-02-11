@@ -59,10 +59,11 @@ ALWAYS_INLINE int CompareModifiedUtf8ToModifiedUtf8AsUtf16CodePointValues(const 
                                                                           const char* utf8_2);
 
 /*
- * Compare a modified UTF-8 string with a UTF-16 string as code point values in a non-locale
- * sensitive manner.
+ * Compare a null-terminated modified UTF-8 string with a UTF-16 string (not null-terminated)
+ * as code point values in a non-locale sensitive manner.
  */
-int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8_1, const uint16_t* utf8_2);
+int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8, const uint16_t* utf16,
+                                                size_t utf16_length);
 
 /*
  * Convert from UTF-16 to Modified UTF-8. Note that the output is _not_
