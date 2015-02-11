@@ -151,6 +151,10 @@ class Location : public ValueObject {
     return GetKind() == kFpuRegisterPair;
   }
 
+  bool IsRegisterKind() const {
+    return IsRegister() || IsFpuRegister() || IsRegisterPair() || IsFpuRegisterPair();
+  }
+
   int reg() const {
     DCHECK(IsRegister() || IsFpuRegister());
     return GetPayload();
