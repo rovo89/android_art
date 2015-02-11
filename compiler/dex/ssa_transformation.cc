@@ -463,24 +463,28 @@ bool MIRGraph::ComputeBlockLiveIns(BasicBlock* bb) {
   return false;
 }
 
-/* Insert phi nodes to for each variable to the dominance frontiers */
-void MIRGraph::InsertPhiNodes() {
-  int dalvik_reg;
-  ArenaBitVector* phi_blocks = new (temp_scoped_alloc_.get()) ArenaBitVector(
-      temp_scoped_alloc_.get(), GetNumBlocks(), false, kBitMapPhi);
-  ArenaBitVector* input_blocks = new (temp_scoped_alloc_.get()) ArenaBitVector(
-      temp_scoped_alloc_.get(), GetNumBlocks(), false, kBitMapInputBlocks);
-
+/* For each dalvik reg, find blocks that need phi nodes according to the dominance frontiers. */
+void MIRGraph::FindPhiNodeBlocks() {
   RepeatingPostOrderDfsIterator iter(this);
   bool change = false;
   for (BasicBlock* bb = iter.Next(false); bb != NULL; bb = iter.Next(change)) {
     change = ComputeBlockLiveIns(bb);
   }
 
+  ArenaBitVector* phi_blocks = new (temp_scoped_alloc_.get()) ArenaBitVector(
+      temp_scoped_alloc_.get(), GetNumBlocks(), false, kBitMapBMatrix);
+
+  // Reuse the def_block_matrix storage for phi_node_blocks.
+  ArenaBitVector** def_block_matrix = temp_.ssa.def_block_matrix;
+  ArenaBitVector** phi_node_blocks = def_block_matrix;
+  DCHECK(temp_.ssa.phi_node_blocks == nullptr);
+  temp_.ssa.phi_node_blocks = phi_node_blocks;
+  temp_.ssa.def_block_matrix = nullptr;
+
   /* Iterate through each Dalvik register */
-  for (dalvik_reg = GetNumOfCodeAndTempVRs() - 1; dalvik_reg >= 0; dalvik_reg--) {
-    input_blocks->Copy(temp_.ssa.def_block_matrix[dalvik_reg]);
+  for (int dalvik_reg = GetNumOfCodeAndTempVRs() - 1; dalvik_reg >= 0; dalvik_reg--) {
     phi_blocks->ClearAllBits();
+    ArenaBitVector* input_blocks = def_block_matrix[dalvik_reg];
     do {
       // TUNING: When we repeat this, we could skip indexes from the previous pass.
       for (uint32_t idx : input_blocks->Indexes()) {
@@ -491,23 +495,8 @@ void MIRGraph::InsertPhiNodes() {
       }
     } while (input_blocks->Union(phi_blocks));
 
-    /*
-     * Insert a phi node for dalvik_reg in the phi_blocks if the Dalvik
-     * register is in the live-in set.
-     */
-    for (uint32_t idx : phi_blocks->Indexes()) {
-      BasicBlock* phi_bb = GetBasicBlock(idx);
-      /* Variable will be clobbered before being used - no need for phi */
-      if (!phi_bb->data_flow_info->live_in_v->IsBitSet(dalvik_reg)) {
-        continue;
-      }
-      MIR *phi = NewMIR();
-      phi->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpPhi);
-      phi->dalvikInsn.vA = dalvik_reg;
-      phi->offset = phi_bb->start_offset;
-      phi->m_unit_index = 0;  // Arbitrarily assign all Phi nodes to outermost method.
-      phi_bb->PrependMIR(phi);
-    }
+    def_block_matrix[dalvik_reg] = phi_blocks;
+    phi_blocks = input_blocks;  // Reuse the bit vector in next iteration.
   }
 }
 

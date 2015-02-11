@@ -189,19 +189,19 @@ class DefBlockMatrix : public PassMEMirSsaRep {
 };
 
 /**
- * @class CreatePhiNodes
- * @brief Pass to create the phi nodes after SSA calculation
+ * @class FindPhiNodeBlocksPass
+ * @brief Pass to find out where we need to insert the phi nodes for the SSA conversion.
  */
-class CreatePhiNodes : public PassMEMirSsaRep {
+class FindPhiNodeBlocksPass : public PassMEMirSsaRep {
  public:
-  CreatePhiNodes() : PassMEMirSsaRep("CreatePhiNodes", kNoNodes) {
+  FindPhiNodeBlocksPass() : PassMEMirSsaRep("FindPhiNodeBlocks", kNoNodes) {
   }
 
   void Start(PassDataHolder* data) const {
     DCHECK(data != nullptr);
     CompilationUnit* c_unit = down_cast<PassMEDataHolder*>(data)->c_unit;
     DCHECK(c_unit != nullptr);
-    c_unit->mir_graph.get()->InsertPhiNodes();
+    c_unit->mir_graph.get()->FindPhiNodeBlocks();
   }
 };
 
