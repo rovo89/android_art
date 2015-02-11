@@ -224,7 +224,7 @@ class Mir2Lir {
 
     struct SwitchTable : EmbeddedData {
       LIR* anchor;                // Reference instruction for relative offsets.
-      LIR** targets;              // Array of case targets.
+      MIR* switch_mir;            // The switch mir.
     };
 
     /* Static register use counts */
@@ -653,7 +653,6 @@ class Mir2Lir {
     LIR* ScanLiteralPoolClass(LIR* data_target, const DexFile& dex_file, uint32_t type_idx);
     LIR* AddWordData(LIR* *constant_list_p, int value);
     LIR* AddWideData(LIR* *constant_list_p, int val_lo, int val_hi);
-    void ProcessSwitchTables();
     void DumpSparseSwitchTable(const uint16_t* table);
     void DumpPackedSwitchTable(const uint16_t* table);
     void MarkBoundary(DexOffset offset, const char* inst_str);
@@ -671,9 +670,7 @@ class Mir2Lir {
     int AssignLiteralOffset(CodeOffset offset);
     int AssignSwitchTablesOffset(CodeOffset offset);
     int AssignFillArrayDataOffset(CodeOffset offset);
-    virtual LIR* InsertCaseLabel(DexOffset vaddr, int keyVal);
-    virtual void MarkPackedCaseLabels(Mir2Lir::SwitchTable* tab_rec);
-    void MarkSparseCaseLabels(Mir2Lir::SwitchTable* tab_rec);
+    LIR* InsertCaseLabel(uint32_t bbid, int keyVal);
 
     // Handle bookkeeping to convert a wide RegLocation to a narrow RegLocation.  No code generated.
     virtual RegLocation NarrowRegLoc(RegLocation loc);
