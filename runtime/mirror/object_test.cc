@@ -67,7 +67,7 @@ class ObjectTest : public CommonRuntimeTest {
     ASSERT_TRUE(string->Equals(utf8_in) || (expected_utf16_length == 1 && strlen(utf8_in) == 0));
     ASSERT_TRUE(string->Equals(StringPiece(utf8_in)) || (expected_utf16_length == 1 && strlen(utf8_in) == 0));
     for (int32_t i = 0; i < expected_utf16_length; i++) {
-      EXPECT_EQ(utf16_expected[i], string->CharAt(i));
+      EXPECT_EQ(utf16_expected[i], string->UncheckedCharAt(i));
     }
     EXPECT_EQ(expected_hash, string->GetHashCode());
   }
@@ -424,6 +424,12 @@ TEST_F(ObjectTest, String) {
   AssertString(1, "\xe1\x88\xb4",   "\x12\x34",                 0x1234);
   AssertString(1, "\xef\xbf\xbf",   "\xff\xff",                 0xffff);
   AssertString(3, "h\xe1\x88\xb4i", "\x00\x68\x12\x34\x00\x69", (31 * ((31 * 0x68) + 0x1234)) + 0x69);
+
+  // Test four-byte characters.
+  AssertString(2, "\xf0\x9f\x8f\xa0",  "\xd8\x3c\xdf\xe0", (31 * 0xd83c) + 0xdfe0);
+  AssertString(2, "\xf0\x9f\x9a\x80",  "\xd8\x3d\xde\x80", (31 * 0xd83d) + 0xde80);
+  AssertString(4, "h\xf0\x9f\x9a\x80i", "\x00\x68\xd8\x3d\xde\x80\x00\x69",
+               (31 * (31 * (31 * 0x68 +  0xd83d) + 0xde80) + 0x69));
 }
 
 TEST_F(ObjectTest, StringEqualsUtf8) {

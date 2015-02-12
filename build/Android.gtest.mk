@@ -144,6 +144,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/reference_table_test.cc \
   runtime/thread_pool_test.cc \
   runtime/transaction_test.cc \
+  runtime/utf_test.cc \
   runtime/utils_test.cc \
   runtime/verifier/method_verifier_test.cc \
   runtime/verifier/reg_type_test.cc \
