@@ -17,6 +17,8 @@
 #ifndef ART_RUNTIME_HANDLE_SCOPE_H_
 #define ART_RUNTIME_HANDLE_SCOPE_H_
 
+#include <stack>
+
 #include "base/logging.h"
 #include "base/macros.h"
 #include "handle.h"
@@ -174,6 +176,54 @@ class PACKED(4) StackHandleScope FINAL : public HandleScope {
   size_t pos_;
 
   template<size_t kNumRefs> friend class StackHandleScope;
+};
+
+// Utility class to manage a collection (stack) of StackHandleScope. All the managed
+// scope handle have the same fixed sized.
+// Calls to NewHandle will create a new handle inside the top StackHandleScope.
+// When the handle scope becomes full a new one is created and push on top of the
+// previous.
+//
+// NB:
+// - it is not safe to use the *same* StackHandleScopeCollection intermix with
+// other StackHandleScopes.
+// - this is a an easy way around implementing a full ZoneHandleScope to manage an
+// arbitrary number of handles.
+class StackHandleScopeCollection {
+ public:
+  explicit StackHandleScopeCollection(Thread* const self) :
+      self_(self),
+      current_scope_num_refs_(0) {
+  }
+
+  ~StackHandleScopeCollection() {
+    while (!scopes_.empty()) {
+      delete scopes_.top();
+      scopes_.pop();
+    }
+  }
+
+  template<class T>
+  MutableHandle<T> NewHandle(T* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (scopes_.empty() || current_scope_num_refs_ >= kNumReferencesPerScope) {
+      StackHandleScope<kNumReferencesPerScope>* scope =
+          new StackHandleScope<kNumReferencesPerScope>(self_);
+      scopes_.push(scope);
+      current_scope_num_refs_ = 0;
+    }
+    current_scope_num_refs_++;
+    return scopes_.top()->NewHandle(object);
+  }
+
+ private:
+  static constexpr size_t kNumReferencesPerScope = 4;
+
+  Thread* const self_;
+
+  std::stack<StackHandleScope<kNumReferencesPerScope>*> scopes_;
+  size_t current_scope_num_refs_;
+
+  DISALLOW_COPY_AND_ASSIGN(StackHandleScopeCollection);
 };
 
 }  // namespace art

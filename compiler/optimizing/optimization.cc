@@ -21,6 +21,12 @@
 
 namespace art {
 
+void HOptimization::MaybeRecordStat(MethodCompilationStat compilation_stat) const {
+  if (stats_ != nullptr) {
+    stats_->RecordStat(compilation_stat);
+  }
+}
+
 void HOptimization::Check() {
   if (kIsDebugBuild) {
     if (is_in_ssa_form_) {
