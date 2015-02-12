@@ -625,7 +625,7 @@ std::string PrintableString(const char* utf) {
   const char* p = utf;
   size_t char_count = CountModifiedUtf8Chars(p);
   for (size_t i = 0; i < char_count; ++i) {
-    uint16_t ch = GetUtf16FromUtf8(&p);
+    uint32_t ch = GetUtf16FromUtf8(&p);
     if (ch == '\\') {
       result += "\\\\";
     } else if (ch == '\n') {
@@ -634,10 +634,20 @@ std::string PrintableString(const char* utf) {
       result += "\\r";
     } else if (ch == '\t') {
       result += "\\t";
-    } else if (NeedsEscaping(ch)) {
-      StringAppendF(&result, "\\u%04x", ch);
     } else {
-      result += ch;
+      const uint16_t leading = GetLeadingUtf16Char(ch);
+
+      if (NeedsEscaping(leading)) {
+        StringAppendF(&result, "\\u%04x", leading);
+      } else {
+        result += leading;
+      }
+
+      const uint32_t trailing = GetTrailingUtf16Char(ch);
+      if (trailing != 0) {
+        // All high surrogates will need escaping.
+        StringAppendF(&result, "\\u%04x", trailing);
+      }
     }
   }
   result += '"';
@@ -650,7 +660,7 @@ std::string MangleForJni(const std::string& s) {
   size_t char_count = CountModifiedUtf8Chars(s.c_str());
   const char* cp = &s[0];
   for (size_t i = 0; i < char_count; ++i) {
-    uint16_t ch = GetUtf16FromUtf8(&cp);
+    uint32_t ch = GetUtf16FromUtf8(&cp);
     if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
       result.push_back(ch);
     } else if (ch == '.' || ch == '/') {
@@ -662,7 +672,13 @@ std::string MangleForJni(const std::string& s) {
     } else if (ch == '[') {
       result += "_3";
     } else {
-      StringAppendF(&result, "_0%04x", ch);
+      const uint16_t leading = GetLeadingUtf16Char(ch);
+      const uint32_t trailing = GetTrailingUtf16Char(ch);
+
+      StringAppendF(&result, "_0%04x", leading);
+      if (trailing != 0) {
+        StringAppendF(&result, "_0%04x", trailing);
+      }
     }
   }
   return result;
@@ -757,41 +773,50 @@ bool IsValidPartOfMemberNameUtf8Slow(const char** pUtf8Ptr) {
    * document.
    */
 
-  uint16_t utf16 = GetUtf16FromUtf8(pUtf8Ptr);
+  const uint32_t pair = GetUtf16FromUtf8(pUtf8Ptr);
 
-  // Perform follow-up tests based on the high 8 bits.
-  switch (utf16 >> 8) {
-  case 0x00:
-    // It's only valid if it's above the ISO-8859-1 high space (0xa0).
-    return (utf16 > 0x00a0);
-  case 0xd8:
-  case 0xd9:
-  case 0xda:
-  case 0xdb:
-    // It's a leading surrogate. Check to see that a trailing
-    // surrogate follows.
-    utf16 = GetUtf16FromUtf8(pUtf8Ptr);
-    return (utf16 >= 0xdc00) && (utf16 <= 0xdfff);
-  case 0xdc:
-  case 0xdd:
-  case 0xde:
-  case 0xdf:
-    // It's a trailing surrogate, which is not valid at this point.
-    return false;
-  case 0x20:
-  case 0xff:
-    // It's in the range that has spaces, controls, and specials.
-    switch (utf16 & 0xfff8) {
-    case 0x2000:
-    case 0x2008:
-    case 0x2028:
-    case 0xfff0:
-    case 0xfff8:
+  const uint16_t leading = GetLeadingUtf16Char(pair);
+  const uint32_t trailing = GetTrailingUtf16Char(pair);
+
+  if (trailing == 0) {
+    // Perform follow-up tests based on the high 8 bits of the
+    // lower surrogate.
+    switch (leading >> 8) {
+    case 0x00:
+      // It's only valid if it's above the ISO-8859-1 high space (0xa0).
+      return (leading > 0x00a0);
+    case 0xd8:
+    case 0xd9:
+    case 0xda:
+    case 0xdb:
+      // It looks like a leading surrogate but we didn't find a trailing
+      // surrogate if we're here.
       return false;
+    case 0xdc:
+    case 0xdd:
+    case 0xde:
+    case 0xdf:
+      // It's a trailing surrogate, which is not valid at this point.
+      return false;
+    case 0x20:
+    case 0xff:
+      // It's in the range that has spaces, controls, and specials.
+      switch (leading & 0xfff8) {
+      case 0x2000:
+      case 0x2008:
+      case 0x2028:
+      case 0xfff0:
+      case 0xfff8:
+        return false;
+      }
+      break;
     }
-    break;
+
+    return true;
   }
-  return true;
+
+  // We have a surrogate pair. Check that trailing surrogate is well formed.
+  return (trailing >= 0xdc00 && trailing <= 0xdfff);
 }
 
 /* Return whether the pointed-at modified-UTF-8 encoded character is
