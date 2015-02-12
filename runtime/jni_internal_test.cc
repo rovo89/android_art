@@ -1351,7 +1351,36 @@ TEST_F(JniInternalTest, NewStringUTF) {
   EXPECT_EQ(5, env_->GetStringLength(s));
   EXPECT_EQ(5, env_->GetStringUTFLength(s));
 
-  // TODO: check some non-ASCII strings.
+  // Encoded surrogate pair.
+  s = env_->NewStringUTF("\xed\xa0\x81\xed\xb0\x80");
+  EXPECT_NE(s, nullptr);
+  EXPECT_EQ(2, env_->GetStringLength(s));
+  // Note that this uses 2 x 3 byte UTF sequences, one
+  // for each half of the surrogate pair.
+  EXPECT_EQ(6, env_->GetStringUTFLength(s));
+  const char* chars = env_->GetStringUTFChars(s, nullptr);
+  EXPECT_STREQ("\xed\xa0\x81\xed\xb0\x80", chars);
+  env_->ReleaseStringUTFChars(s, chars);
+
+  // 4 byte UTF sequence appended to an encoded surrogate pair.
+  s = env_->NewStringUTF("\xed\xa0\x81\xed\xb0\x80 \xf0\x9f\x8f\xa0");
+  EXPECT_NE(s, nullptr);
+  EXPECT_EQ(5, env_->GetStringLength(s));
+  EXPECT_EQ(13, env_->GetStringUTFLength(s));
+  chars = env_->GetStringUTFChars(s, nullptr);
+  // The 4 byte sequence {0xf0, 0x9f, 0x8f, 0xa0} is converted into a surrogate
+  // pair {0xd83c, 0xdfe0} which is then converted into a two three byte
+  // sequences {0xed 0xa0, 0xbc} and {0xed, 0xbf, 0xa0}, one for each half of
+  // the surrogate pair.
+  EXPECT_STREQ("\xed\xa0\x81\xed\xb0\x80 \xed\xa0\xbc\xed\xbf\xa0", chars);
+  env_->ReleaseStringUTFChars(s, chars);
+
+  // A string with 1, 2, 3 and 4 byte UTF sequences with spaces
+  // between them
+  s = env_->NewStringUTF("\x24 \xc2\xa2 \xe2\x82\xac \xf0\x9f\x8f\xa0");
+  EXPECT_NE(s, nullptr);
+  EXPECT_EQ(8, env_->GetStringLength(s));
+  EXPECT_EQ(15, env_->GetStringUTFLength(s));
 }
 
 TEST_F(JniInternalTest, NewString) {

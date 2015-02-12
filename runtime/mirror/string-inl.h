@@ -33,6 +33,10 @@ inline uint32_t String::ClassSize() {
   return Class::ComputeClassSize(true, vtable_entries, 0, 1, 0, 1, 2);
 }
 
+inline uint16_t String::UncheckedCharAt(int32_t index) {
+  return GetCharArray()->Get(index + GetOffset());
+}
+
 inline CharArray* String::GetCharArray() {
   return GetFieldObject<CharArray>(ValueOffset());
 }
@@ -52,20 +56,6 @@ inline void String::SetArray(CharArray* new_array) {
 
 inline String* String::Intern() {
   return Runtime::Current()->GetInternTable()->InternWeak(this);
-}
-
-inline uint16_t String::CharAt(int32_t index) {
-  // TODO: do we need this? Equals is the only caller, and could
-  // bounds check itself.
-  DCHECK_GE(count_, 0);  // ensures the unsigned comparison is safe.
-  if (UNLIKELY(static_cast<uint32_t>(index) >= static_cast<uint32_t>(count_))) {
-    Thread* self = Thread::Current();
-    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-    self->ThrowNewExceptionF(throw_location, "Ljava/lang/StringIndexOutOfBoundsException;",
-                             "length=%i; index=%i", count_, index);
-    return 0;
-  }
-  return GetCharArray()->Get(index + GetOffset());
 }
 
 inline int32_t String::GetHashCode() {
