@@ -147,7 +147,7 @@ bool String::Equals(String* that) {
     // Note: don't short circuit on hash code as we're presumably here as the
     // hash code was already equal
     for (int32_t i = 0; i < that->GetLength(); ++i) {
-      if (this->CharAt(i) != that->CharAt(i)) {
+      if (this->UncheckedCharAt(i) != that->UncheckedCharAt(i)) {
         return false;
       }
     }
@@ -160,7 +160,7 @@ bool String::Equals(const uint16_t* that_chars, int32_t that_offset, int32_t tha
     return false;
   } else {
     for (int32_t i = 0; i < that_length; ++i) {
-      if (this->CharAt(i) != that_chars[that_offset + i]) {
+      if (this->UncheckedCharAt(i) != that_chars[that_offset + i]) {
         return false;
       }
     }
@@ -169,21 +169,51 @@ bool String::Equals(const uint16_t* that_chars, int32_t that_offset, int32_t tha
 }
 
 bool String::Equals(const char* modified_utf8) {
-  for (int32_t i = 0; i < GetLength(); ++i) {
-    uint16_t ch = GetUtf16FromUtf8(&modified_utf8);
-    if (ch == '\0' || ch != CharAt(i)) {
+  const int32_t length = GetLength();
+  int32_t i = 0;
+  while (i < length) {
+    const uint32_t ch = GetUtf16FromUtf8(&modified_utf8);
+    if (ch == '\0') {
       return false;
+    }
+
+    if (GetLeadingUtf16Char(ch) != UncheckedCharAt(i++)) {
+      return false;
+    }
+
+    const uint16_t trailing = GetTrailingUtf16Char(ch);
+    if (trailing != 0) {
+      if (i == length) {
+        return false;
+      }
+
+      if (UncheckedCharAt(i++) != trailing) {
+        return false;
+      }
     }
   }
   return *modified_utf8 == '\0';
 }
 
 bool String::Equals(const StringPiece& modified_utf8) {
+  const int32_t length = GetLength();
   const char* p = modified_utf8.data();
-  for (int32_t i = 0; i < GetLength(); ++i) {
-    uint16_t ch = GetUtf16FromUtf8(&p);
-    if (ch != CharAt(i)) {
+  for (int32_t i = 0; i < length; ++i) {
+    uint32_t ch = GetUtf16FromUtf8(&p);
+
+    if (GetLeadingUtf16Char(ch) != UncheckedCharAt(i)) {
       return false;
+    }
+
+    const uint16_t trailing = GetTrailingUtf16Char(ch);
+    if (trailing != 0) {
+      if (i == (length - 1)) {
+        return false;
+      }
+
+      if (UncheckedCharAt(++i) != trailing) {
+        return false;
+      }
     }
   }
   return true;
