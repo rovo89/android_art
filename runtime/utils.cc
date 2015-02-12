@@ -1301,9 +1301,12 @@ std::string DexFilenameToOdexFilename(const std::string& location, const Instruc
   std::string odex_location(location);
   InsertIsaDirectory(isa, &odex_location);
   size_t dot_index = odex_location.size() - 3 - 1;  // 3=dex or zip or apk
-  CHECK_EQ('.', odex_location[dot_index]) << location;
-  odex_location.resize(dot_index + 1);
-  CHECK_EQ('.', odex_location[odex_location.size()-1]) << location << " " << odex_location;
+  if (odex_location[dot_index] == '.') {
+    odex_location.resize(dot_index + 1);
+    CHECK_EQ('.', odex_location[odex_location.size()-1]) << location << " " << odex_location;
+  } else {
+    odex_location += ".";
+  }
   odex_location += "odex";
   return odex_location;
 }
