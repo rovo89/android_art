@@ -4293,7 +4293,8 @@ bool ClassLinker::WaitForInitializeClass(Handle<mirror::Class> klass, Thread* se
 
 static bool HasSameSignatureWithDifferentClassLoaders(Thread* self,
                                                       Handle<mirror::ArtMethod> method1,
-                                                      Handle<mirror::ArtMethod> method2)
+                                                      Handle<mirror::ArtMethod> method2,
+                                                      std::string* error_msg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   {
     StackHandleScope<1> hs(self);
@@ -4301,18 +4302,35 @@ static bool HasSameSignatureWithDifferentClassLoaders(Thread* self,
     mirror::Class* other_return_type = method2->GetReturnType();
     // NOTE: return_type.Get() must be sequenced after method2->GetReturnType().
     if (UNLIKELY(other_return_type != return_type.Get())) {
+      *error_msg = StringPrintf("Return types mismatch: %s(%p) vs %s(%p)",
+                                PrettyClassAndClassLoader(return_type.Get()).c_str(),
+                                return_type.Get(),
+                                PrettyClassAndClassLoader(other_return_type).c_str(),
+                                other_return_type);
       return false;
     }
   }
   const DexFile::TypeList* types1 = method1->GetParameterTypeList();
   const DexFile::TypeList* types2 = method2->GetParameterTypeList();
   if (types1 == nullptr) {
-    return (types2 == nullptr) || (types2->Size() == 0);
+    if (types2 != nullptr && types2->Size() != 0) {
+      *error_msg = StringPrintf("Type list mismatch with %s",
+                                PrettyMethod(method2.Get(), true).c_str());
+      return false;
+    }
+    return true;
   } else if (UNLIKELY(types2 == nullptr)) {
-    return types1->Size() == 0;
+    if (types1->Size() != 0) {
+      *error_msg = StringPrintf("Type list mismatch with %s",
+                                PrettyMethod(method2.Get(), true).c_str());
+      return false;
+    }
+    return true;
   }
   uint32_t num_types = types1->Size();
   if (UNLIKELY(num_types != types2->Size())) {
+    *error_msg = StringPrintf("Type list mismatch with %s",
+                              PrettyMethod(method2.Get(), true).c_str());
     return false;
   }
   for (uint32_t i = 0; i < num_types; ++i) {
@@ -4323,6 +4341,12 @@ static bool HasSameSignatureWithDifferentClassLoaders(Thread* self,
         method2->GetClassFromTypeIndex(types2->GetTypeItem(i).type_idx_, true);
     // NOTE: param_type.Get() must be sequenced after method2->GetClassFromTypeIndex(...).
     if (UNLIKELY(param_type.Get() != other_param_type)) {
+      *error_msg = StringPrintf("Parameter %u type mismatch: %s(%p) vs %s(%p)",
+                                i,
+                                PrettyClassAndClassLoader(param_type.Get()).c_str(),
+                                param_type.Get(),
+                                PrettyClassAndClassLoader(other_param_type).c_str(),
+                                other_param_type);
       return false;
     }
   }
@@ -4344,14 +4368,17 @@ bool ClassLinker::ValidateSuperClassDescriptors(Handle<mirror::Class> klass) {
     for (int i = klass->GetSuperClass()->GetVTableLength() - 1; i >= 0; --i) {
       h_m.Assign(klass->GetVTableEntry(i));
       super_h_m.Assign(klass->GetSuperClass()->GetVTableEntry(i));
-      if (h_m.Get() != super_h_m.Get() &&
-          !HasSameSignatureWithDifferentClassLoaders(self, h_m, super_h_m)) {
-        ThrowLinkageError(klass.Get(),
-                          "Class %s method %s resolves differently in superclass %s",
-                          PrettyDescriptor(klass.Get()).c_str(),
-                          PrettyMethod(h_m.Get()).c_str(),
-                          PrettyDescriptor(klass->GetSuperClass()).c_str());
-        return false;
+      if (h_m.Get() != super_h_m.Get()) {
+        std::string error_msg;
+        if (!HasSameSignatureWithDifferentClassLoaders(self, h_m, super_h_m, &error_msg)) {
+          ThrowLinkageError(klass.Get(),
+                            "Class %s method %s resolves differently in superclass %s: %s",
+                            PrettyDescriptor(klass.Get()).c_str(),
+                            PrettyMethod(h_m.Get()).c_str(),
+                            PrettyDescriptor(klass->GetSuperClass()).c_str(),
+                            error_msg.c_str());
+          return false;
+        }
       }
     }
   }
@@ -4361,14 +4388,17 @@ bool ClassLinker::ValidateSuperClassDescriptors(Handle<mirror::Class> klass) {
       for (uint32_t j = 0; j < num_methods; ++j) {
         h_m.Assign(klass->GetIfTable()->GetMethodArray(i)->GetWithoutChecks(j));
         super_h_m.Assign(klass->GetIfTable()->GetInterface(i)->GetVirtualMethod(j));
-        if (h_m.Get() != super_h_m.Get() &&
-            !HasSameSignatureWithDifferentClassLoaders(self, h_m, super_h_m)) {
-          ThrowLinkageError(klass.Get(),
-                            "Class %s method %s resolves differently in interface %s",
-                            PrettyDescriptor(klass.Get()).c_str(),
-                            PrettyMethod(h_m.Get()).c_str(),
-                            PrettyDescriptor(klass->GetIfTable()->GetInterface(i)).c_str());
-          return false;
+        if (h_m.Get() != super_h_m.Get()) {
+          std::string error_msg;
+          if (!HasSameSignatureWithDifferentClassLoaders(self, h_m, super_h_m, &error_msg)) {
+            ThrowLinkageError(klass.Get(),
+                              "Class %s method %s resolves differently in interface %s: %s",
+                              PrettyDescriptor(klass.Get()).c_str(),
+                              PrettyMethod(h_m.Get()).c_str(),
+                              PrettyDescriptor(klass->GetIfTable()->GetInterface(i)).c_str(),
+                              error_msg.c_str());
+            return false;
+          }
         }
       }
     }
