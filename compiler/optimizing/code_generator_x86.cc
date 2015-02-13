@@ -819,7 +819,7 @@ void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
         // Materialized condition, compare against 0.
         Location lhs = if_instr->GetLocations()->InAt(0);
         if (lhs.IsRegister()) {
-          __ cmpl(lhs.AsRegister<Register>(), Immediate(0));
+          __ testl(lhs.AsRegister<Register>(), lhs.AsRegister<Register>());
         } else {
           __ cmpl(Address(ESP, lhs.GetStackIndex()), Immediate(0));
         }
@@ -836,9 +836,12 @@ void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
       if (rhs.IsRegister()) {
         __ cmpl(lhs.AsRegister<Register>(), rhs.AsRegister<Register>());
       } else if (rhs.IsConstant()) {
-        HIntConstant* instruction = rhs.GetConstant()->AsIntConstant();
-        Immediate imm(instruction->AsIntConstant()->GetValue());
-        __ cmpl(lhs.AsRegister<Register>(), imm);
+        int32_t constant = rhs.GetConstant()->AsIntConstant()->GetValue();
+        if (constant == 0) {
+          __ testl(lhs.AsRegister<Register>(), lhs.AsRegister<Register>());
+        } else {
+          __ cmpl(lhs.AsRegister<Register>(), Immediate(constant));
+        }
       } else {
         __ cmpl(lhs.AsRegister<Register>(), Address(ESP, rhs.GetStackIndex()));
       }
@@ -914,16 +917,19 @@ void InstructionCodeGeneratorX86::VisitCondition(HCondition* comp) {
     Register reg = locations->Out().AsRegister<Register>();
     // Clear register: setcc only sets the low byte.
     __ xorl(reg, reg);
-    if (locations->InAt(1).IsRegister()) {
-      __ cmpl(locations->InAt(0).AsRegister<Register>(),
-              locations->InAt(1).AsRegister<Register>());
-    } else if (locations->InAt(1).IsConstant()) {
-      HConstant* instruction = locations->InAt(1).GetConstant();
-      Immediate imm(CodeGenerator::GetInt32ValueOf(instruction));
-      __ cmpl(locations->InAt(0).AsRegister<Register>(), imm);
+    Location lhs = locations->InAt(0);
+    Location rhs = locations->InAt(1);
+    if (rhs.IsRegister()) {
+      __ cmpl(lhs.AsRegister<Register>(), rhs.AsRegister<Register>());
+    } else if (rhs.IsConstant()) {
+      int32_t constant = rhs.GetConstant()->AsIntConstant()->GetValue();
+      if (constant == 0) {
+        __ testl(lhs.AsRegister<Register>(), lhs.AsRegister<Register>());
+      } else {
+      __ cmpl(lhs.AsRegister<Register>(), Immediate(constant));
+      }
     } else {
-      __ cmpl(locations->InAt(0).AsRegister<Register>(),
-              Address(ESP, locations->InAt(1).GetStackIndex()));
+      __ cmpl(lhs.AsRegister<Register>(), Address(ESP, rhs.GetStackIndex()));
     }
     __ setb(X86Condition(comp->GetCondition()), reg);
   }
@@ -1798,7 +1804,13 @@ void LocationsBuilderX86::VisitAdd(HAdd* add) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(add, LocationSummary::kNoCall);
   switch (add->GetResultType()) {
-    case Primitive::kPrimInt:
+    case Primitive::kPrimInt: {
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RegisterOrConstant(add->InputAt(1)));
+      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      break;
+    }
+
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
       locations->SetInAt(1, Location::Any());
@@ -1824,15 +1836,26 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
   LocationSummary* locations = add->GetLocations();
   Location first = locations->InAt(0);
   Location second = locations->InAt(1);
-  DCHECK(first.Equals(locations->Out()));
+  Location out = locations->Out();
+
   switch (add->GetResultType()) {
     case Primitive::kPrimInt: {
       if (second.IsRegister()) {
-        __ addl(first.AsRegister<Register>(), second.AsRegister<Register>());
+        if (out.AsRegister<Register>() == first.AsRegister<Register>()) {
+          __ addl(out.AsRegister<Register>(), second.AsRegister<Register>());
+        } else {
+          __ leal(out.AsRegister<Register>(), Address(
+              first.AsRegister<Register>(), second.AsRegister<Register>(), TIMES_1, 0));
+          }
       } else if (second.IsConstant()) {
-        __ addl(first.AsRegister<Register>(),
-                Immediate(second.GetConstant()->AsIntConstant()->GetValue()));
+        int32_t value = second.GetConstant()->AsIntConstant()->GetValue();
+        if (out.AsRegister<Register>() == first.AsRegister<Register>()) {
+          __ addl(out.AsRegister<Register>(), Immediate(value));
+        } else {
+          __ leal(out.AsRegister<Register>(), Address(first.AsRegister<Register>(), value));
+        }
       } else {
+        DCHECK(first.Equals(locations->Out()));
         __ addl(first.AsRegister<Register>(), Address(ESP, second.GetStackIndex()));
       }
       break;
@@ -3502,12 +3525,16 @@ void ParallelMoveResolverX86::EmitMove(size_t index) {
   } else if (source.IsConstant()) {
     HConstant* constant = source.GetConstant();
     if (constant->IsIntConstant() || constant->IsNullConstant()) {
-      Immediate imm(CodeGenerator::GetInt32ValueOf(constant));
+      int32_t value = CodeGenerator::GetInt32ValueOf(constant);
       if (destination.IsRegister()) {
-        __ movl(destination.AsRegister<Register>(), imm);
+        if (value == 0) {
+          __ xorl(destination.AsRegister<Register>(), destination.AsRegister<Register>());
+        } else {
+          __ movl(destination.AsRegister<Register>(), Immediate(value));
+        }
       } else {
         DCHECK(destination.IsStackSlot()) << destination;
-        __ movl(Address(ESP, destination.GetStackIndex()), imm);
+        __ movl(Address(ESP, destination.GetStackIndex()), Immediate(value));
       }
     } else {
       DCHECK(constant->IsFloatConstant());
