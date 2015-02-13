@@ -536,18 +536,44 @@ class ArmAssembler : public Assembler {
   virtual void LoadImmediate(Register rd, int32_t value, Condition cond = AL) = 0;
   void LoadSImmediate(SRegister sd, float value, Condition cond = AL) {
     if (!vmovs(sd, value, cond)) {
-      LoadImmediate(IP, bit_cast<int32_t, float>(value), cond);
-      vmovsr(sd, IP, cond);
+      int32_t int_value = bit_cast<int32_t, float>(value);
+      if (int_value == bit_cast<int32_t, float>(0.0f)) {
+        // 0.0 is quite common, so we special case it by loading
+        // 2.0 in `sd` and then substracting it.
+        bool success = vmovs(sd, 2.0, cond);
+        CHECK(success);
+        vsubs(sd, sd, sd, cond);
+      } else {
+        LoadImmediate(IP, int_value, cond);
+        vmovsr(sd, IP, cond);
+      }
     }
   }
 
   void LoadDImmediate(DRegister sd, double value, Condition cond = AL) {
     if (!vmovd(sd, value, cond)) {
       uint64_t int_value = bit_cast<uint64_t, double>(value);
-      LoadSImmediate(
-          static_cast<SRegister>(sd << 1), bit_cast<float, uint32_t>(Low32Bits(int_value)));
-      LoadSImmediate(
-          static_cast<SRegister>((sd << 1) + 1), bit_cast<float, uint32_t>(High32Bits(int_value)));
+      if (int_value == bit_cast<uint64_t, double>(0.0)) {
+        // 0.0 is quite common, so we special case it by loading
+        // 2.0 in `sd` and then substracting it.
+        bool success = vmovd(sd, 2.0, cond);
+        CHECK(success);
+        vsubd(sd, sd, sd, cond);
+      } else {
+        if (sd < 16) {
+          SRegister low = static_cast<SRegister>(sd << 1);
+          SRegister high = static_cast<SRegister>(low + 1);
+          LoadSImmediate(low, bit_cast<float, uint32_t>(Low32Bits(int_value)), cond);
+          if (High32Bits(int_value) == Low32Bits(int_value)) {
+            vmovs(high, low);
+          } else {
+            LoadSImmediate(high, bit_cast<float, uint32_t>(High32Bits(int_value)), cond);
+          }
+        } else {
+          LOG(FATAL) << "Unimplemented loading of double into a D register "
+                     << "that cannot be split into two S registers";
+        }
+      }
     }
   }
 

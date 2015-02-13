@@ -55,6 +55,10 @@ static constexpr Register kCoreCalleeSaves[] =
 static constexpr SRegister kFpuCalleeSaves[] =
     { S16, S17, S18, S19, S20, S21, S22, S23, S24, S25, S26, S27, S28, S29, S30, S31 };
 
+// D31 cannot be split into two S registers, and the register allocator only works on
+// S registers. Therefore there is no need to block it.
+static constexpr DRegister DTMP = D31;
+
 class InvokeRuntimeCallingConvention : public CallingConvention<Register, SRegister> {
  public:
   InvokeRuntimeCallingConvention()
@@ -3361,10 +3365,8 @@ void ParallelMoveResolverARM::EmitMove(size_t index) {
     }
   } else if (source.IsDoubleStackSlot()) {
     if (destination.IsDoubleStackSlot()) {
-      __ LoadFromOffset(kLoadWord, IP, SP, source.GetStackIndex());
-      __ StoreToOffset(kStoreWord, IP, SP, destination.GetStackIndex());
-      __ LoadFromOffset(kLoadWord, IP, SP, source.GetHighStackIndex(kArmWordSize));
-      __ StoreToOffset(kStoreWord, IP, SP, destination.GetHighStackIndex(kArmWordSize));
+      __ LoadDFromOffset(DTMP, SP, source.GetStackIndex());
+      __ StoreDToOffset(DTMP, SP, destination.GetStackIndex());
     } else if (destination.IsRegisterPair()) {
       DCHECK(ExpectedPairLayout(destination));
       __ LoadFromOffset(
@@ -3484,16 +3486,13 @@ void ParallelMoveResolverARM::EmitSwap(size_t index) {
     __ vmovs(source.AsFpuRegister<SRegister>(), destination.AsFpuRegister<SRegister>());
     __ vmovsr(destination.AsFpuRegister<SRegister>(), IP);
   } else if (source.IsRegisterPair() && destination.IsRegisterPair()) {
-    __ Mov(IP, source.AsRegisterPairLow<Register>());
+    __ vmovdrr(DTMP, source.AsRegisterPairLow<Register>(), source.AsRegisterPairHigh<Register>());
     __ Mov(source.AsRegisterPairLow<Register>(), destination.AsRegisterPairLow<Register>());
-    __ Mov(destination.AsRegisterPairLow<Register>(), IP);
-    __ Mov(IP, source.AsRegisterPairHigh<Register>());
     __ Mov(source.AsRegisterPairHigh<Register>(), destination.AsRegisterPairHigh<Register>());
-    __ Mov(destination.AsRegisterPairHigh<Register>(), IP);
+    __ vmovrrd(destination.AsRegisterPairLow<Register>(),
+               destination.AsRegisterPairHigh<Register>(),
+               DTMP);
   } else if (source.IsRegisterPair() || destination.IsRegisterPair()) {
-    // TODO: Find a D register available in the parallel moves,
-    // or reserve globally a D register.
-    DRegister tmp = D0;
     Register low_reg = source.IsRegisterPair()
         ? source.AsRegisterPairLow<Register>()
         : destination.AsRegisterPairLow<Register>();
@@ -3501,27 +3500,15 @@ void ParallelMoveResolverARM::EmitSwap(size_t index) {
         ? destination.GetStackIndex()
         : source.GetStackIndex();
     DCHECK(ExpectedPairLayout(source.IsRegisterPair() ? source : destination));
-    // Make room for the pushed DRegister.
-    mem += 8;
-    __ vpushd(tmp, 1);
-    __ vmovdrr(tmp, low_reg, static_cast<Register>(low_reg + 1));
+    __ vmovdrr(DTMP, low_reg, static_cast<Register>(low_reg + 1));
     __ LoadFromOffset(kLoadWordPair, low_reg, SP, mem);
-    __ StoreDToOffset(tmp, SP, mem);
-    __ vpopd(tmp, 1);
+    __ StoreDToOffset(DTMP, SP, mem);
   } else if (source.IsFpuRegisterPair() && destination.IsFpuRegisterPair()) {
-    // TODO: Find a D register available in the parallel moves,
-    // or reserve globally a D register.
-    DRegister tmp = D0;
     DRegister first = FromLowSToD(source.AsFpuRegisterPairLow<SRegister>());
     DRegister second = FromLowSToD(destination.AsFpuRegisterPairLow<SRegister>());
-    while (tmp == first || tmp == second) {
-      tmp = static_cast<DRegister>(tmp + 1);
-    }
-    __ vpushd(tmp, 1);
-    __ vmovd(tmp, first);
+    __ vmovd(DTMP, first);
     __ vmovd(first, second);
-    __ vmovd(second, tmp);
-    __ vpopd(tmp, 1);
+    __ vmovd(second, DTMP);
   } else if (source.IsFpuRegisterPair() || destination.IsFpuRegisterPair()) {
     DRegister reg = source.IsFpuRegisterPair()
         ? FromLowSToD(source.AsFpuRegisterPairLow<SRegister>())
@@ -3529,15 +3516,9 @@ void ParallelMoveResolverARM::EmitSwap(size_t index) {
     int mem = source.IsFpuRegisterPair()
         ? destination.GetStackIndex()
         : source.GetStackIndex();
-    // TODO: Find or reserve a D register.
-    DRegister tmp = reg == D0 ? D1 : D0;
-    // Make room for the pushed DRegister.
-    mem += 8;
-    __ vpushd(tmp, 1);
-    __ vmovd(tmp, reg);
+    __ vmovd(DTMP, reg);
     __ LoadDFromOffset(reg, SP, mem);
-    __ StoreDToOffset(tmp, SP, mem);
-    __ vpopd(tmp, 1);
+    __ StoreDToOffset(DTMP, SP, mem);
   } else if (source.IsFpuRegister() || destination.IsFpuRegister()) {
     SRegister reg = source.IsFpuRegister() ? source.AsFpuRegister<SRegister>()
                                            : destination.AsFpuRegister<SRegister>();
