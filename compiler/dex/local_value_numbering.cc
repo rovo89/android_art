@@ -1657,7 +1657,7 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::CONST_WIDE_16:
     case Instruction::CONST_WIDE_32: {
         uint16_t low_res = gvn_->LookupValue(Instruction::CONST, Low16Bits(mir->dalvikInsn.vB),
-                                             High16Bits(mir->dalvikInsn.vB >> 16), 1);
+                                             High16Bits(mir->dalvikInsn.vB), 1);
         uint16_t high_res;
         if (mir->dalvikInsn.vB & 0x80000000) {
           high_res = gvn_->LookupValue(Instruction::CONST, 0xffff, 0xffff, 2);
