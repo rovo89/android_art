@@ -1195,9 +1195,7 @@ void Mir2Lir::MethodMIR2LIR() {
   cu_->NewTimingSplit("MIR2LIR");
 
   // Hold the labels of each block.
-  block_label_list_ =
-      static_cast<LIR*>(arena_->Alloc(sizeof(LIR) * mir_graph_->GetNumBlocks(),
-                                      kArenaAllocLIR));
+  block_label_list_ = arena_->AllocArray<LIR>(mir_graph_->GetNumBlocks(), kArenaAllocLIR);
 
   PreOrderDfsIterator iter(mir_graph_);
   BasicBlock* curr_bb = iter.Next();

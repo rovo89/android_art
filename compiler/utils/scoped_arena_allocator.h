@@ -115,9 +115,14 @@ class ScopedArenaAllocator
 
   void Reset();
 
-  void* Alloc(size_t bytes, ArenaAllocKind kind) ALWAYS_INLINE {
+  void* Alloc(size_t bytes, ArenaAllocKind kind = kArenaAllocMisc) ALWAYS_INLINE {
     DebugStackReference::CheckTop();
     return arena_stack_->Alloc(bytes, kind);
+  }
+
+  template <typename T>
+  T* AllocArray(size_t length, ArenaAllocKind kind = kArenaAllocMisc) {
+    return static_cast<T*>(Alloc(length * sizeof(T), kind));
   }
 
   // Get adapter for use in STL containers. See scoped_arena_containers.h .
