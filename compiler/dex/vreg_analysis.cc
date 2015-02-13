@@ -440,8 +440,7 @@ void MIRGraph::InitRegLocations() {
   // the temp allocation initializes reg location as well (in order to deal with
   // case when it will be called after this pass).
   int max_regs = GetNumSSARegs() + GetMaxPossibleCompilerTemps();
-  RegLocation* loc = static_cast<RegLocation*>(arena_->Alloc(max_regs * sizeof(*loc),
-                                                             kArenaAllocRegAlloc));
+  RegLocation* loc = arena_->AllocArray<RegLocation>(max_regs, kArenaAllocRegAlloc);
   for (int i = 0; i < GetNumSSARegs(); i++) {
     loc[i] = fresh_loc;
     loc[i].s_reg_low = i;

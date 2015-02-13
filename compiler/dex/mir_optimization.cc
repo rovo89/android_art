@@ -632,8 +632,7 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
               } else {
                 DCHECK_EQ(SelectKind(if_true), kSelectMove);
                 DCHECK_EQ(SelectKind(if_false), kSelectMove);
-                int* src_ssa =
-                    static_cast<int*>(arena_->Alloc(sizeof(int) * 3, kArenaAllocDFInfo));
+                int32_t* src_ssa = arena_->AllocArray<int32_t>(3, kArenaAllocDFInfo);
                 src_ssa[0] = mir->ssa_rep->uses[0];
                 src_ssa[1] = if_true->ssa_rep->uses[0];
                 src_ssa[2] = if_false->ssa_rep->uses[0];
@@ -641,15 +640,12 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
                 mir->ssa_rep->num_uses = 3;
               }
               mir->ssa_rep->num_defs = 1;
-              mir->ssa_rep->defs =
-                  static_cast<int*>(arena_->Alloc(sizeof(int) * 1, kArenaAllocDFInfo));
-              mir->ssa_rep->fp_def =
-                  static_cast<bool*>(arena_->Alloc(sizeof(bool) * 1, kArenaAllocDFInfo));
+              mir->ssa_rep->defs = arena_->AllocArray<int32_t>(1, kArenaAllocDFInfo);
+              mir->ssa_rep->fp_def = arena_->AllocArray<bool>(1, kArenaAllocDFInfo);
               mir->ssa_rep->fp_def[0] = if_true->ssa_rep->fp_def[0];
               // Match type of uses to def.
-              mir->ssa_rep->fp_use =
-                  static_cast<bool*>(arena_->Alloc(sizeof(bool) * mir->ssa_rep->num_uses,
-                                                   kArenaAllocDFInfo));
+              mir->ssa_rep->fp_use = arena_->AllocArray<bool>(mir->ssa_rep->num_uses,
+                                                              kArenaAllocDFInfo);
               for (int i = 0; i < mir->ssa_rep->num_uses; i++) {
                 mir->ssa_rep->fp_use[i] = mir->ssa_rep->fp_def[0];
               }
@@ -900,8 +896,8 @@ bool MIRGraph::EliminateNullChecksGate() {
   temp_.nce.num_vregs = GetNumOfCodeAndTempVRs();
   temp_.nce.work_vregs_to_check = new (temp_scoped_alloc_.get()) ArenaBitVector(
       temp_scoped_alloc_.get(), temp_.nce.num_vregs, false, kBitMapNullCheck);
-  temp_.nce.ending_vregs_to_check_matrix = static_cast<ArenaBitVector**>(
-      temp_scoped_alloc_->Alloc(sizeof(ArenaBitVector*) * GetNumBlocks(), kArenaAllocMisc));
+  temp_.nce.ending_vregs_to_check_matrix =
+      temp_scoped_alloc_->AllocArray<ArenaBitVector*>(GetNumBlocks(), kArenaAllocMisc);
   std::fill_n(temp_.nce.ending_vregs_to_check_matrix, GetNumBlocks(), nullptr);
 
   // reset MIR_MARK
@@ -1133,8 +1129,7 @@ bool MIRGraph::EliminateClassInitChecksGate() {
 
   // Each insn we use here has at least 2 code units, offset/2 will be a unique index.
   const size_t end = (GetNumDalvikInsns() + 1u) / 2u;
-  temp_.cice.indexes = static_cast<uint16_t*>(
-      temp_scoped_alloc_->Alloc(end * sizeof(*temp_.cice.indexes), kArenaAllocGrowableArray));
+  temp_.cice.indexes = temp_scoped_alloc_->AllocArray<uint16_t>(end, kArenaAllocGrowableArray);
   std::fill_n(temp_.cice.indexes, end, 0xffffu);
 
   uint32_t unique_class_count = 0u;
@@ -1215,8 +1210,8 @@ bool MIRGraph::EliminateClassInitChecksGate() {
   temp_.cice.num_class_bits = 2u * unique_class_count;
   temp_.cice.work_classes_to_check = new (temp_scoped_alloc_.get()) ArenaBitVector(
       temp_scoped_alloc_.get(), temp_.cice.num_class_bits, false, kBitMapClInitCheck);
-  temp_.cice.ending_classes_to_check_matrix = static_cast<ArenaBitVector**>(
-      temp_scoped_alloc_->Alloc(sizeof(ArenaBitVector*) * GetNumBlocks(), kArenaAllocMisc));
+  temp_.cice.ending_classes_to_check_matrix =
+      temp_scoped_alloc_->AllocArray<ArenaBitVector*>(GetNumBlocks(), kArenaAllocMisc);
   std::fill_n(temp_.cice.ending_classes_to_check_matrix, GetNumBlocks(), nullptr);
   DCHECK_GT(temp_.cice.num_class_bits, 0u);
   return true;
@@ -1441,8 +1436,8 @@ void MIRGraph::InlineSpecialMethodsStart() {
   temp_.smi.processed_indexes = new (temp_scoped_alloc_.get()) ArenaBitVector(
       temp_scoped_alloc_.get(), temp_.smi.num_indexes, false, kBitMapMisc);
   temp_.smi.processed_indexes->ClearAllBits();
-  temp_.smi.lowering_infos = static_cast<uint16_t*>(temp_scoped_alloc_->Alloc(
-      temp_.smi.num_indexes * sizeof(*temp_.smi.lowering_infos), kArenaAllocGrowableArray));
+  temp_.smi.lowering_infos =
+      temp_scoped_alloc_->AllocArray<uint16_t>(temp_.smi.num_indexes, kArenaAllocGrowableArray);
 }
 
 void MIRGraph::InlineSpecialMethods(BasicBlock* bb) {
@@ -1603,8 +1598,7 @@ bool MIRGraph::EliminateSuspendChecksGate() {
     temp_.sce.inliner =
         cu_->compiler_driver->GetMethodInlinerMap()->GetMethodInliner(cu_->dex_file);
   }
-  suspend_checks_in_loops_ = static_cast<uint32_t*>(
-      arena_->Alloc(GetNumBlocks() * sizeof(*suspend_checks_in_loops_), kArenaAllocMisc));
+  suspend_checks_in_loops_ = arena_->AllocArray<uint32_t>(GetNumBlocks(), kArenaAllocMisc);
   return true;
 }
 

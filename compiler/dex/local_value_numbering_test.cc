@@ -136,7 +136,7 @@ class LocalValueNumberingTest : public testing::Test {
 
   void DoPrepareMIRs(const MIRDef* defs, size_t count) {
     mir_count_ = count;
-    mirs_ = reinterpret_cast<MIR*>(cu_.arena.Alloc(sizeof(MIR) * count, kArenaAllocMIR));
+    mirs_ = cu_.arena.AllocArray<MIR>(count, kArenaAllocMIR);
     ssa_reps_.resize(count);
     for (size_t i = 0u; i != count; ++i) {
       const MIRDef* def = &defs[i];

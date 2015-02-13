@@ -626,8 +626,7 @@ class MIRGraph {
   }
 
   void EnableOpcodeCounting() {
-    opcode_count_ = static_cast<int*>(arena_->Alloc(kNumPackedOpcodes * sizeof(int),
-                                                    kArenaAllocMisc));
+    opcode_count_ = arena_->AllocArray<int>(kNumPackedOpcodes, kArenaAllocMisc);
   }
 
   void ShowOpcodeStats();
@@ -1324,7 +1323,7 @@ class MIRGraph {
   ArenaVector<int> ssa_base_vregs_;
   ArenaVector<int> ssa_subscripts_;
   // Map original Dalvik virtual reg i to the current SSA name.
-  int* vreg_to_ssa_map_;            // length == method->registers_size
+  int32_t* vreg_to_ssa_map_;        // length == method->registers_size
   int* ssa_last_defs_;              // length == method->registers_size
   ArenaBitVector* is_constant_v_;   // length == num_ssa_reg
   int* constant_values_;            // length == num_ssa_reg
