@@ -161,8 +161,7 @@ class ArenaAllocatorAdapter : private DebugStackReference, private ArenaAllocato
   pointer allocate(size_type n, ArenaAllocatorAdapter<void>::pointer hint = nullptr) {
     UNUSED(hint);
     DCHECK_LE(n, max_size());
-    return reinterpret_cast<T*>(arena_allocator_->Alloc(n * sizeof(T),
-                                                        ArenaAllocatorAdapterKind::Kind()));
+    return arena_allocator_->AllocArray<T>(n, ArenaAllocatorAdapterKind::Kind());
   }
   void deallocate(pointer p, size_type n) {
     UNUSED(p, n);

@@ -1084,9 +1084,9 @@ void MIRGraph::AllocateSSAUseData(MIR *mir, int num_uses) {
   mir->ssa_rep->num_uses = num_uses;
 
   if (mir->ssa_rep->num_uses_allocated < num_uses) {
-    mir->ssa_rep->uses = static_cast<int*>(arena_->Alloc(sizeof(int) * num_uses, kArenaAllocDFInfo));
+    mir->ssa_rep->uses = arena_->AllocArray<int32_t>(num_uses, kArenaAllocDFInfo);
     // NOTE: will be filled in during type & size inference pass
-    mir->ssa_rep->fp_use = static_cast<bool*>(arena_->Alloc(sizeof(bool) * num_uses, kArenaAllocDFInfo));
+    mir->ssa_rep->fp_use = arena_->AllocArray<bool>(num_uses, kArenaAllocDFInfo);
   }
 }
 
@@ -1094,10 +1094,8 @@ void MIRGraph::AllocateSSADefData(MIR *mir, int num_defs) {
   mir->ssa_rep->num_defs = num_defs;
 
   if (mir->ssa_rep->num_defs_allocated < num_defs) {
-    mir->ssa_rep->defs = static_cast<int*>(arena_->Alloc(sizeof(int) * num_defs,
-          kArenaAllocDFInfo));
-    mir->ssa_rep->fp_def = static_cast<bool*>(arena_->Alloc(sizeof(bool) * num_defs,
-          kArenaAllocDFInfo));
+    mir->ssa_rep->defs = arena_->AllocArray<int32_t>(num_defs, kArenaAllocDFInfo);
+    mir->ssa_rep->fp_def = arena_->AllocArray<bool>(num_defs, kArenaAllocDFInfo);
   }
 }
 
@@ -1334,8 +1332,7 @@ bool MIRGraph::DoSSAConversion(BasicBlock* bb) {
    * predecessor blocks.
    */
   bb->data_flow_info->vreg_to_ssa_map_exit =
-      static_cast<int*>(arena_->Alloc(sizeof(int) * GetNumOfCodeAndTempVRs(),
-                                      kArenaAllocDFInfo));
+      arena_->AllocArray<int32_t>(GetNumOfCodeAndTempVRs(), kArenaAllocDFInfo);
 
   memcpy(bb->data_flow_info->vreg_to_ssa_map_exit, vreg_to_ssa_map_,
          sizeof(int) * GetNumOfCodeAndTempVRs());
@@ -1387,13 +1384,9 @@ void MIRGraph::CompilerInitializeSSAConversion() {
    * Initialize the DalvikToSSAMap map. There is one entry for each
    * Dalvik register, and the SSA names for those are the same.
    */
-  vreg_to_ssa_map_ =
-      static_cast<int*>(arena_->Alloc(sizeof(int) * num_reg,
-                                      kArenaAllocDFInfo));
+  vreg_to_ssa_map_ = arena_->AllocArray<int32_t>(num_reg, kArenaAllocDFInfo);
   /* Keep track of the higest def for each dalvik reg */
-  ssa_last_defs_ =
-      static_cast<int*>(arena_->Alloc(sizeof(int) * num_reg,
-                                      kArenaAllocDFInfo));
+  ssa_last_defs_ = arena_->AllocArray<int>(num_reg, kArenaAllocDFInfo);
 
   for (unsigned int i = 0; i < num_reg; i++) {
     vreg_to_ssa_map_[i] = i;

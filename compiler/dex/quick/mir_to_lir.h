@@ -592,7 +592,7 @@ class Mir2Lir {
     // strdup(), but allocates from the arena.
     char* ArenaStrdup(const char* str) {
       size_t len = strlen(str) + 1;
-      char* res = reinterpret_cast<char*>(arena_->Alloc(len, kArenaAllocMisc));
+      char* res = arena_->AllocArray<char>(len, kArenaAllocMisc);
       if (res != NULL) {
         strncpy(res, str, len);
       }
