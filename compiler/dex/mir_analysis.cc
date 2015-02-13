@@ -1206,10 +1206,8 @@ void MIRGraph::DoCacheFieldLoweringInfo() {
   // All IGET/IPUT/SGET/SPUT instructions take 2 code units and there must also be a RETURN.
   const uint32_t max_refs = (GetNumDalvikInsns() - 1u) / 2u;
   ScopedArenaAllocator allocator(&cu_->arena_stack);
-  uint16_t* field_idxs =
-      reinterpret_cast<uint16_t*>(allocator.Alloc(max_refs * sizeof(uint16_t), kArenaAllocMisc));
-  DexMemAccessType* field_types = reinterpret_cast<DexMemAccessType*>(
-      allocator.Alloc(max_refs * sizeof(DexMemAccessType), kArenaAllocMisc));
+  uint16_t* field_idxs = allocator.AllocArray<uint16_t>(max_refs, kArenaAllocMisc);
+  DexMemAccessType* field_types = allocator.AllocArray<DexMemAccessType>(max_refs, kArenaAllocMisc);
 
   // Find IGET/IPUT/SGET/SPUT insns, store IGET/IPUT fields at the beginning, SGET/SPUT at the end.
   size_t ifield_pos = 0u;
@@ -1328,8 +1326,8 @@ void MIRGraph::DoCacheMethodLoweringInfo() {
   // multi_index_container with one ordered index and one sequential index.
   ScopedArenaSet<MapEntry, MapEntryComparator> invoke_map(MapEntryComparator(),
                                                           allocator.Adapter());
-  const MapEntry** sequential_entries = reinterpret_cast<const MapEntry**>(
-      allocator.Alloc(max_refs * sizeof(sequential_entries[0]), kArenaAllocMisc));
+  const MapEntry** sequential_entries =
+      allocator.AllocArray<const MapEntry*>(max_refs, kArenaAllocMisc);
 
   // Find INVOKE insns and their devirtualization targets.
   AllNodesIterator iter(this);

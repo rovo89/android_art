@@ -271,8 +271,7 @@ template <typename Container>  // Container of MirIFieldLoweringInfo or MirSFiel
 uint16_t* GlobalValueNumbering::PrepareGvnFieldIds(ScopedArenaAllocator* allocator,
                                                    const Container& field_infos) {
   size_t size = field_infos.size();
-  uint16_t* field_ids = reinterpret_cast<uint16_t*>(allocator->Alloc(size * sizeof(uint16_t),
-                                                                     kArenaAllocMisc));
+  uint16_t* field_ids = allocator->AllocArray<uint16_t>(size, kArenaAllocMisc);
   for (size_t i = 0u; i != size; ++i) {
     size_t idx = i;
     const MirFieldInfo& cur_info = field_infos[i];

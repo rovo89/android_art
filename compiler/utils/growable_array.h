@@ -33,16 +33,14 @@ class GrowableArray : public ArenaObject<kArenaAllocGrowableArray> {
       : arena_(arena),
         num_allocated_(init_length),
         num_used_(0) {
-      elem_list_ = static_cast<T*>(arena_->Alloc(sizeof(T) * init_length,
-                                                 kArenaAllocGrowableArray));
+      elem_list_ = arena_->AllocArray<T>(init_length, kArenaAllocGrowableArray);
     }
 
     GrowableArray(ArenaAllocator* arena, size_t init_length, T initial_data)
       : arena_(arena),
         num_allocated_(init_length),
         num_used_(init_length) {
-      elem_list_ = static_cast<T*>(arena_->Alloc(sizeof(T) * init_length,
-                                                 kArenaAllocGrowableArray));
+      elem_list_ = arena_->AllocArray<T>(init_length, kArenaAllocGrowableArray);
       for (size_t i = 0; i < init_length; ++i) {
         elem_list_[i] = initial_data;
       }
@@ -58,8 +56,7 @@ class GrowableArray : public ArenaObject<kArenaAllocGrowableArray> {
       if (new_length > target_length) {
          target_length = new_length;
       }
-      T* new_array = static_cast<T*>(arena_->Alloc(sizeof(T) * target_length,
-                                                   kArenaAllocGrowableArray));
+      T* new_array = arena_->AllocArray<T>(target_length, kArenaAllocGrowableArray);
       memcpy(new_array, elem_list_, sizeof(T) * num_allocated_);
       num_allocated_ = target_length;
       elem_list_ = new_array;
