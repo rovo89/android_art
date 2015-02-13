@@ -1599,7 +1599,7 @@ char* MIRGraph::GetDalvikDisassembly(const MIR* mir) {
     }
   }
   int length = str.length() + 1;
-  ret = static_cast<char*>(arena_->Alloc(length, kArenaAllocDFInfo));
+  ret = arena_->AllocArray<char>(length, kArenaAllocDFInfo);
   strncpy(ret, str.c_str(), length);
   return ret;
 }
@@ -1736,8 +1736,8 @@ CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
     move_result_mir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
   }
   info->num_arg_words = mir->ssa_rep->num_uses;
-  info->args = (info->num_arg_words == 0) ? NULL : static_cast<RegLocation*>
-      (arena_->Alloc(sizeof(RegLocation) * info->num_arg_words, kArenaAllocMisc));
+  info->args = (info->num_arg_words == 0) ? nullptr :
+      arena_->AllocArray<RegLocation>(info->num_arg_words, kArenaAllocMisc);
   for (int i = 0; i < info->num_arg_words; i++) {
     info->args[i] = GetRawSrc(mir, i);
   }
@@ -1768,7 +1768,7 @@ BasicBlock* MIRGraph::NewMemBB(BBType block_type, int block_id) {
 
 void MIRGraph::InitializeConstantPropagation() {
   is_constant_v_ = new (arena_) ArenaBitVector(arena_, GetNumSSARegs(), false);
-  constant_values_ = static_cast<int*>(arena_->Alloc(sizeof(int) * GetNumSSARegs(), kArenaAllocDFInfo));
+  constant_values_ = arena_->AllocArray<int>(GetNumSSARegs(), kArenaAllocDFInfo);
 }
 
 void MIRGraph::InitializeMethodUses() {

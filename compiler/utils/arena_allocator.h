@@ -176,7 +176,7 @@ class ArenaAllocator : private DebugStackRefCounter, private ArenaAllocatorStats
   ArenaAllocatorAdapter<void> Adapter(ArenaAllocKind kind = kArenaAllocSTL);
 
   // Returns zeroed memory.
-  void* Alloc(size_t bytes, ArenaAllocKind kind) ALWAYS_INLINE {
+  void* Alloc(size_t bytes, ArenaAllocKind kind = kArenaAllocMisc) ALWAYS_INLINE {
     if (UNLIKELY(running_on_valgrind_)) {
       return AllocValgrind(bytes, kind);
     }
@@ -194,8 +194,9 @@ class ArenaAllocator : private DebugStackRefCounter, private ArenaAllocatorStats
     return ret;
   }
 
-  template <typename T> T* AllocArray(size_t length) {
-    return static_cast<T*>(Alloc(length * sizeof(T), kArenaAllocMisc));
+  template <typename T>
+  T* AllocArray(size_t length, ArenaAllocKind kind = kArenaAllocMisc) {
+    return static_cast<T*>(Alloc(length * sizeof(T), kind));
   }
 
   void* AllocValgrind(size_t bytes, ArenaAllocKind kind);

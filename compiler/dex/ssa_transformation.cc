@@ -137,8 +137,8 @@ void MIRGraph::ComputeDefBlockMatrix() {
   /* Allocate num_registers bit vector pointers */
   DCHECK(temp_scoped_alloc_ != nullptr);
   DCHECK(temp_.ssa.def_block_matrix == nullptr);
-  temp_.ssa.def_block_matrix = static_cast<ArenaBitVector**>(
-      temp_scoped_alloc_->Alloc(sizeof(ArenaBitVector*) * num_registers, kArenaAllocDFInfo));
+  temp_.ssa.def_block_matrix =
+      temp_scoped_alloc_->AllocArray<ArenaBitVector*>(num_registers, kArenaAllocDFInfo);
   int i;
 
   /* Initialize num_register vectors with num_blocks bits each */
@@ -363,8 +363,7 @@ void MIRGraph::ComputeDominators() {
 
   /* Initialize & Clear i_dom_list */
   if (max_num_reachable_blocks_ < num_reachable_blocks_) {
-    i_dom_list_ = static_cast<int*>(arena_->Alloc(sizeof(int) * num_reachable_blocks,
-                                                  kArenaAllocDFInfo));
+    i_dom_list_ = arena_->AllocArray<int>(num_reachable_blocks, kArenaAllocDFInfo);
   }
   for (int i = 0; i < num_reachable_blocks; i++) {
     i_dom_list_[i] = NOTVISITED;
@@ -517,9 +516,7 @@ bool MIRGraph::InsertPhiNodeOperands(BasicBlock* bb) {
     size_t num_uses = bb->predecessors.size();
     AllocateSSAUseData(mir, num_uses);
     int* uses = mir->ssa_rep->uses;
-    BasicBlockId* incoming =
-        static_cast<BasicBlockId*>(arena_->Alloc(sizeof(BasicBlockId) * num_uses,
-                                                 kArenaAllocDFInfo));
+    BasicBlockId* incoming = arena_->AllocArray<BasicBlockId>(num_uses, kArenaAllocDFInfo);
     mir->meta.phi_incoming = incoming;
     int idx = 0;
     for (BasicBlockId pred_id : bb->predecessors) {
@@ -542,12 +539,12 @@ void MIRGraph::DoDFSPreOrderSSARename(BasicBlock* block) {
 
   /* Process this block */
   DoSSAConversion(block);
-  int map_size = sizeof(int) * GetNumOfCodeAndTempVRs();
 
   /* Save SSA map snapshot */
   ScopedArenaAllocator allocator(&cu_->arena_stack);
-  int* saved_ssa_map =
-      static_cast<int*>(allocator.Alloc(map_size, kArenaAllocDalvikToSSAMap));
+  uint32_t num_vregs = GetNumOfCodeAndTempVRs();
+  int32_t* saved_ssa_map = allocator.AllocArray<int32_t>(num_vregs, kArenaAllocDalvikToSSAMap);
+  size_t map_size = sizeof(saved_ssa_map[0]) * num_vregs;
   memcpy(saved_ssa_map, vreg_to_ssa_map_, map_size);
 
   if (block->fall_through != NullBasicBlockId) {
