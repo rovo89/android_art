@@ -772,4 +772,38 @@ TEST_F(LocalValueNumberingTest, DivZeroCheck) {
   }
 }
 
+TEST_F(LocalValueNumberingTest, ConstWide) {
+  static const MIRDef mirs[] = {
+      DEF_CONST(Instruction::CONST_WIDE_16, 0u, 0),
+      DEF_CONST(Instruction::CONST_WIDE_16, 1u, 1),
+      DEF_CONST(Instruction::CONST_WIDE_16, 2u, -1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 3u, 1 << 16),
+      DEF_CONST(Instruction::CONST_WIDE_32, 4u, -1 << 16),
+      DEF_CONST(Instruction::CONST_WIDE_32, 5u, (1 << 16) + 1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 6u, (1 << 16) - 1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 7u, -(1 << 16) + 1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 8u, -(1 << 16) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 9u, INT64_C(1) << 32),
+      DEF_CONST(Instruction::CONST_WIDE, 10u, INT64_C(-1) << 32),
+      DEF_CONST(Instruction::CONST_WIDE, 11u, (INT64_C(1) << 32) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 12u, (INT64_C(1) << 32) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 13u, (INT64_C(-1) << 32) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 14u, (INT64_C(-1) << 32) - 1),
+      DEF_CONST(Instruction::CONST_WIDE_HIGH16, 15u, 1),       // Effectively 1 << 48.
+      DEF_CONST(Instruction::CONST_WIDE_HIGH16, 16u, 0xffff),  // Effectively -1 << 48.
+      DEF_CONST(Instruction::CONST_WIDE, 17u, (INT64_C(1) << 48) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 18u, (INT64_C(1) << 48) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 19u, (INT64_C(-1) << 48) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 20u, (INT64_C(-1) << 48) - 1),
+  };
+
+  PrepareMIRs(mirs);
+  PerformLVN();
+  for (size_t i = 0u; i != mir_count_; ++i) {
+    for (size_t j = i + 1u; j != mir_count_; ++j) {
+      EXPECT_NE(value_names_[i], value_names_[j]) << i << " " << j;
+    }
+  }
+}
+
 }  // namespace art
