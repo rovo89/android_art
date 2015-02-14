@@ -35,10 +35,10 @@ class Immediate : public ValueObject {
 
   int32_t value() const { return value_; }
 
-  bool is_int8() const { return IsInt(8, value_); }
-  bool is_uint8() const { return IsUint(8, value_); }
-  bool is_int16() const { return IsInt(16, value_); }
-  bool is_uint16() const { return IsUint(16, value_); }
+  bool is_int8() const { return IsInt<8>(value_); }
+  bool is_uint8() const { return IsUint<8>(value_); }
+  bool is_int16() const { return IsInt<16>(value_); }
+  bool is_uint16() const { return IsUint<16>(value_); }
 
  private:
   const int32_t value_;
