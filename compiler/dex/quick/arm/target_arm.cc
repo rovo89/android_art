@@ -139,11 +139,18 @@ ResourceMask ArmMir2Lir::GetRegMaskCommon(const RegStorage& reg) const {
   return GetRegMaskArm(reg);
 }
 
+void ArmMir2Lir::CompilerPostInitializeRegAlloc()
+{
+    //nothing here
+}
+
 constexpr ResourceMask ArmMir2Lir::GetRegMaskArm(RegStorage reg) {
-  return reg.IsDouble()
+  return (reg.IsQuad())
+    ? (ResourceMask::FourBits((reg.GetRegNum() * 4) + kArmFPReg0))
+    : (reg.IsDouble()
       /* Each double register is equal to a pair of single-precision FP registers */
       ? ResourceMask::TwoBits(reg.GetRegNum() * 2 + kArmFPReg0)
-      : ResourceMask::Bit(reg.IsSingle() ? reg.GetRegNum() + kArmFPReg0 : reg.GetRegNum());
+      : ResourceMask::Bit(reg.IsSingle() ? reg.GetRegNum() + kArmFPReg0 : reg.GetRegNum()));
 }
 
 constexpr ResourceMask ArmMir2Lir::EncodeArmRegList(int reg_list) {
@@ -559,6 +566,11 @@ ArmMir2Lir::ArmMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator*
                  << static_cast<int>(ArmMir2Lir::EncodingMap[i].opcode);
     }
   }
+  qcm2l = nullptr;
+  ArmMir2LirPostInit(this);
+}
+
+void ArmMir2Lir::ArmMir2LirPostInit(ArmMir2Lir* mir_to_lir) {
 }
 
 Mir2Lir* ArmCodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
@@ -606,6 +618,8 @@ void ArmMir2Lir::CompilerInitializeRegAlloc() {
   reg_pool_->next_core_reg_ = 2;
   reg_pool_->next_sp_reg_ = 0;
   reg_pool_->next_dp_reg_ = 0;
+
+  CompilerPostInitializeRegAlloc();
 }
 
 /*
@@ -734,17 +748,17 @@ LIR* ArmMir2Lir::CheckSuspendUsingLoad() {
 
 uint64_t ArmMir2Lir::GetTargetInstFlags(int opcode) {
   DCHECK(!IsPseudoLirOp(opcode));
-  return ArmMir2Lir::EncodingMap[opcode].flags;
+  return GetEncoder(opcode)->flags;
 }
 
 const char* ArmMir2Lir::GetTargetInstName(int opcode) {
   DCHECK(!IsPseudoLirOp(opcode));
-  return ArmMir2Lir::EncodingMap[opcode].name;
+  return GetEncoder(opcode)->name;
 }
 
 const char* ArmMir2Lir::GetTargetInstFmt(int opcode) {
   DCHECK(!IsPseudoLirOp(opcode));
-  return ArmMir2Lir::EncodingMap[opcode].fmt;
+  return GetEncoder(opcode)->fmt;
 }
 
 /*
@@ -822,6 +836,19 @@ RegStorage ArmMir2Lir::AllocPreservedSingle(int s_reg) {
     }
   }
   return res;
+}
+
+void ArmMir2Lir::GenMoreMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir){
+    // nothing here
+}
+
+void ArmMir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
+
+    GenMoreMachineSpecificExtendedMethodMIR(bb,  mir);
+}
+
+
+void ArmMir2Lir::ApplyArchOptimizations(LIR* head_lir, LIR* tail_lir, BasicBlock* bb) {
 }
 
 }  // namespace art

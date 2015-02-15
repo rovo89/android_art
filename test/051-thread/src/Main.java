@@ -20,12 +20,17 @@ import java.util.ArrayList;
  * Test some basic thread stuff.
  */
 public class Main {
+    static {
+        System.loadLibrary("arttest");
+    }
+
     public static void main(String[] args) throws Exception {
         System.out.println("thread test starting");
         testThreadCapacity();
         testThreadDaemons();
         testSleepZero();
         testSetName();
+        testThreadPriorities();
         System.out.println("thread test done");
     }
 
@@ -132,5 +137,54 @@ public class Main {
             throw new AssertionError("Unexpected thread name after join: " + thread.getName());
         }
         System.out.print("testSetName finished\n");
+    }
+
+    private static void testThreadPriorities() throws Exception {
+        System.out.print("testThreadPriorities starting\n");
+
+        PriorityStoringThread t1 = new PriorityStoringThread(false);
+        t1.setPriority(Thread.MAX_PRIORITY);
+        t1.start();
+        t1.join();
+        if (supportsThreadPriorities() && (t1.getNativePriority() != Thread.MAX_PRIORITY)) {
+            System.out.print("thread priority for t1 was " + t1.getNativePriority() +
+                " [expected Thread.MAX_PRIORITY]\n");
+        }
+
+        PriorityStoringThread t2 = new PriorityStoringThread(true);
+        t2.start();
+        t2.join();
+        if (supportsThreadPriorities() && (t2.getNativePriority() != Thread.MAX_PRIORITY)) {
+            System.out.print("thread priority for t2 was " + t2.getNativePriority() +
+                " [expected Thread.MAX_PRIORITY]\n");
+        }
+
+        System.out.print("testThreadPriorities finished\n");
+    }
+
+    private static native int getNativePriority();
+    private static native boolean supportsThreadPriorities();
+
+    static class PriorityStoringThread extends Thread {
+        private final boolean setPriority;
+        private volatile int nativePriority;
+
+        public PriorityStoringThread(boolean setPriority) {
+            this.setPriority = setPriority;
+            this.nativePriority = -1;
+        }
+
+        @Override
+        public void run() {
+            if (setPriority) {
+                setPriority(Thread.MAX_PRIORITY);
+            }
+
+            nativePriority = Main.getNativePriority();
+        }
+
+        public int getNativePriority() {
+            return nativePriority;
+        }
     }
 }

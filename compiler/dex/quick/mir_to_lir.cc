@@ -869,7 +869,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
 
     case Instruction::NEG_INT:
     case Instruction::NOT_INT:
-      GenArithOpInt(opcode, rl_dest, rl_src[0], rl_src[0]);
+      GenArithOpInt(opcode, rl_dest, rl_src[0], rl_src[0], opt_flags);
       break;
 
     case Instruction::NEG_LONG:
@@ -934,7 +934,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
         GenArithOpIntLit(opcode, rl_dest, rl_src[0],
                              mir_graph_->ConstantValue(rl_src[1].orig_sreg));
       } else {
-        GenArithOpInt(opcode, rl_dest, rl_src[0], rl_src[1]);
+        GenArithOpInt(opcode, rl_dest, rl_src[0], rl_src[1], opt_flags);
       }
       break;
 
@@ -954,7 +954,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
           InexpensiveConstantInt(mir_graph_->ConstantValue(rl_src[1]), opcode)) {
         GenArithOpIntLit(opcode, rl_dest, rl_src[0], mir_graph_->ConstantValue(rl_src[1]));
       } else {
-        GenArithOpInt(opcode, rl_dest, rl_src[0], rl_src[1]);
+        GenArithOpInt(opcode, rl_dest, rl_src[0], rl_src[1], opt_flags);
       }
       break;
 
@@ -1178,6 +1178,7 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
       work_half->meta.throw_insn = mir;
     }
 
+    MachineSpecificPreprocessMIR(bb, mir);
     if (MIR::DecodedInstruction::IsPseudoMirOp(opcode)) {
       HandleExtendedMethodMIR(bb, mir);
       continue;
@@ -1189,6 +1190,8 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
   if (head_lir) {
     // Eliminate redundant loads/stores and delay stores into later slots.
     ApplyLocalOptimizations(head_lir, last_lir_insn_);
+    // Apply architecture-specific optimizations
+    ApplyArchOptimizations(head_lir, last_lir_insn_, bb);
   }
   return false;
 }

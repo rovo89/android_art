@@ -1536,7 +1536,7 @@ size_t DisassemblerArm::DumpThumb32(std::ostream& os, const uint8_t* instr_ptr) 
         } else if ((op2 >> 3) == 6) {       // 0110xxx
           // Multiply, multiply accumulate, and absolute difference
           op1 = (instr >> 20) & 0x7;
-          op2 = (instr >> 4) & 0x2;
+          op2 = (instr >> 4) & 0x1;
           ArmRegister Ra(instr, 12);
           ArmRegister Rn(instr, 16);
           ArmRegister Rm(instr, 0);

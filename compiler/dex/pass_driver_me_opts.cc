@@ -23,6 +23,10 @@
 
 namespace art {
 
+const Pass* GetMorePassInstance() {
+    static const DummyPass pass;
+    return &pass;
+}
 /*
  * Create the pass list. These passes are immutable and are shared across the threads.
  *
@@ -42,6 +46,7 @@ const Pass* const PassDriver<PassDriverMEOpts>::g_passes[] = {
   GetPassInstance<GlobalValueNumberingPass>(),
   GetPassInstance<BBCombine>(),
   GetPassInstance<BBOptimizations>(),
+  GetMorePassInstance(),
 };
 
 // The number of the passes in the initial list of Passes (g_passes).

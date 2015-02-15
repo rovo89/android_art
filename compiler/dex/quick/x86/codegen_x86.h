@@ -305,7 +305,8 @@ class X86Mir2Lir : public Mir2Lir {
    * @param rl_rhs Right hand operand.
    */
   void GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_lhs,
-                     RegLocation rl_rhs) OVERRIDE;
+                     RegLocation rl_rhs, int opt_flags) OVERRIDE;
+
 
   /*
    * @brief Load the Method* of a dex method into the register.

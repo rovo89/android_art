@@ -2688,7 +2688,7 @@ void X86Mir2Lir::GenInstanceofFinal(bool use_declaring_class, uint32_t type_idx,
 }
 
 void X86Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
-                            RegLocation rl_lhs, RegLocation rl_rhs) {
+                            RegLocation rl_lhs, RegLocation rl_rhs, int opt_flags) {
   OpKind op = kOpBkpt;
   bool is_div_rem = false;
   bool unary = false;

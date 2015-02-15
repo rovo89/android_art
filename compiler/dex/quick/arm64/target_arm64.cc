@@ -138,6 +138,11 @@ RegStorage Arm64Mir2Lir::TargetReg(SpecialTargetRegister reg) {
   return res_reg;
 }
 
+void Arm64Mir2Lir::CompilerPostInitializeRegAlloc()
+{
+    //nothing here
+}
+
 /*
  * Decode the register id. This routine makes assumptions on the encoding made by RegStorage.
  */
@@ -587,6 +592,12 @@ Arm64Mir2Lir::Arm64Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAlloca
                  << static_cast<int>(Arm64Mir2Lir::EncodingMap[i].opcode);
     }
   }
+
+  qcm2l = nullptr;
+  Arm64Mir2LirPostInit(this);
+}
+
+void Arm64Mir2Lir::Arm64Mir2LirPostInit(Arm64Mir2Lir* mir_to_lir) {
 }
 
 Mir2Lir* Arm64CodeGenerator(CompilationUnit* const cu, MIRGraph* const mir_graph,
@@ -633,6 +644,8 @@ void Arm64Mir2Lir::CompilerInitializeRegAlloc() {
   reg_pool_->next_core_reg_ = 2;
   reg_pool_->next_sp_reg_ = 0;
   reg_pool_->next_dp_reg_ = 0;
+
+  CompilerPostInitializeRegAlloc();
 }
 
 /*
@@ -772,17 +785,17 @@ LIR* Arm64Mir2Lir::CheckSuspendUsingLoad() {
 
 uint64_t Arm64Mir2Lir::GetTargetInstFlags(int opcode) {
   DCHECK(!IsPseudoLirOp(opcode));
-  return Arm64Mir2Lir::EncodingMap[UNWIDE(opcode)].flags;
+  return GetEncoder(UNWIDE(opcode))->flags;
 }
 
 const char* Arm64Mir2Lir::GetTargetInstName(int opcode) {
   DCHECK(!IsPseudoLirOp(opcode));
-  return Arm64Mir2Lir::EncodingMap[UNWIDE(opcode)].name;
+  return GetEncoder(UNWIDE(opcode))->name;
 }
 
 const char* Arm64Mir2Lir::GetTargetInstFmt(int opcode) {
   DCHECK(!IsPseudoLirOp(opcode));
-  return Arm64Mir2Lir::EncodingMap[UNWIDE(opcode)].fmt;
+  return GetEncoder(UNWIDE(opcode))->fmt;
 }
 
 RegStorage Arm64Mir2Lir::InToRegStorageArm64Mapper::GetNextReg(bool is_double_or_float,
@@ -1197,6 +1210,16 @@ int Arm64Mir2Lir::GenDalvikArgsRange(CallInfo* info, int call_state,
     }
   }
   return call_state;
+}
+
+void Arm64Mir2Lir::GenMoreMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
+}
+
+void Arm64Mir2Lir::GenMachineSpecificExtendedMethodMIR(BasicBlock* bb, MIR* mir) {
+  GenMoreMachineSpecificExtendedMethodMIR(bb, mir);
+}
+
+void Arm64Mir2Lir::ApplyArchOptimizations(LIR* head_lir, LIR* tail_lir, BasicBlock* bb) {
 }
 
 }  // namespace art

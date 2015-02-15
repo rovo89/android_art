@@ -26,7 +26,9 @@
 #if defined(HAVE_PRCTL)
 #include <sys/prctl.h>
 #endif
-
+#ifdef HAVE_ANDROID_OS
+#include <cutils/properties.h>
+#endif
 #include <sys/resource.h>
 
 namespace art {
@@ -41,7 +43,18 @@ static void EnableDebugger() {
 #endif
   // We don't want core dumps, though, so set the core dump size to 0.
   rlimit rl;
+#ifdef HAVE_ANDROID_OS
+  char prop_value[PROPERTY_VALUE_MAX];
+  property_get("persist.debug.trace", prop_value, "0");
+  if (prop_value[0] == '1') {
+      LOG(INFO) << "setting RLIM to infinity for process " << getpid();
+      rl.rlim_cur = RLIM_INFINITY;
+  } else {
+      rl.rlim_cur = 0;
+  }
+#else
   rl.rlim_cur = 0;
+#endif
   rl.rlim_max = RLIM_INFINITY;
   if (setrlimit(RLIMIT_CORE, &rl) == -1) {
     PLOG(ERROR) << "setrlimit(RLIMIT_CORE) failed for pid " << getpid();
