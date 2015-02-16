@@ -315,6 +315,26 @@ void MipsMir2Lir::GenSpecialExitSequence() {
   OpReg(kOpBx, rs_rRA);
 }
 
+void MipsMir2Lir::GenSpecialEntryForSuspend() {
+  // Keep 16-byte stack alignment - push A0, i.e. ArtMethod*, 2 filler words and RA.
+  core_spill_mask_ = (1u << rs_rRA.GetRegNum());
+  num_core_spills_ = 1u;
+  fp_spill_mask_ = 0u;
+  num_fp_spills_ = 0u;
+  frame_size_ = 16u;
+  core_vmap_table_.clear();
+  fp_vmap_table_.clear();
+  OpRegImm(kOpSub, rs_rMIPS_SP, frame_size_);
+  Store32Disp(rs_rMIPS_SP, frame_size_ - 4, rs_rRA);
+  Store32Disp(rs_rMIPS_SP, 0, rs_rA0);
+}
+
+void MipsMir2Lir::GenSpecialExitForSuspend() {
+  // Pop the frame. Don't pop ArtMethod*, it's no longer needed.
+  Load32Disp(rs_rMIPS_SP, frame_size_ - 4, rs_rRA);
+  OpRegImm(kOpAdd, rs_rMIPS_SP, frame_size_);
+}
+
 /*
  * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.

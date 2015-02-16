@@ -24,6 +24,69 @@
 
 namespace art {
 
+class Mir2Lir::SpecialSuspendCheckSlowPath : public Mir2Lir::LIRSlowPath {
+ public:
+  SpecialSuspendCheckSlowPath(Mir2Lir* m2l, LIR* branch, LIR* cont)
+      : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch, cont),
+        num_used_args_(0u) {
+  }
+
+  void PreserveArg(int in_position) {
+    // Avoid duplicates.
+    for (size_t i = 0; i != num_used_args_; ++i) {
+      if (used_args_[i] == in_position) {
+        return;
+      }
+    }
+    DCHECK_LT(num_used_args_, kMaxArgsToPreserve);
+    used_args_[num_used_args_] = in_position;
+    ++num_used_args_;
+  }
+
+  void Compile() OVERRIDE {
+    m2l_->ResetRegPool();
+    m2l_->ResetDefTracking();
+    GenerateTargetLabel(kPseudoSuspendTarget);
+
+    m2l_->LockCallTemps();
+
+    // Generate frame.
+    m2l_->GenSpecialEntryForSuspend();
+
+    // Spill all args.
+    for (size_t i = 0, end = m2l_->in_to_reg_storage_mapping_.GetEndMappedIn(); i < end;
+        i += m2l_->in_to_reg_storage_mapping_.GetShorty(i).IsWide() ? 2u : 1u) {
+      m2l_->SpillArg(i);
+    }
+
+    m2l_->FreeCallTemps();
+
+    // Do the actual suspend call to runtime.
+    m2l_->CallRuntimeHelper(kQuickTestSuspend, true);
+
+    m2l_->LockCallTemps();
+
+    // Unspill used regs. (Don't unspill unused args.)
+    for (size_t i = 0; i != num_used_args_; ++i) {
+      m2l_->UnspillArg(used_args_[i]);
+    }
+
+    // Pop the frame.
+    m2l_->GenSpecialExitForSuspend();
+
+    // Branch to the continue label.
+    DCHECK(cont_ != nullptr);
+    m2l_->OpUnconditionalBranch(cont_);
+
+    m2l_->FreeCallTemps();
+  }
+
+ private:
+  static constexpr size_t kMaxArgsToPreserve = 2u;
+  size_t num_used_args_;
+  int used_args_[kMaxArgsToPreserve];
+};
+
 RegisterClass Mir2Lir::ShortyToRegClass(char shorty_type) {
   RegisterClass res;
   switch (shorty_type) {
@@ -54,15 +117,15 @@ RegisterClass Mir2Lir::LocToRegClass(RegLocation loc) {
   return res;
 }
 
-void Mir2Lir::LockArg(int in_position, bool) {
-  RegStorage reg_arg = GetArgMappingToPhysicalReg(in_position);
+void Mir2Lir::LockArg(size_t in_position) {
+  RegStorage reg_arg = in_to_reg_storage_mapping_.GetReg(in_position);
 
   if (reg_arg.Valid()) {
     LockTemp(reg_arg);
   }
 }
 
-RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide) {
+RegStorage Mir2Lir::LoadArg(size_t in_position, RegisterClass reg_class, bool wide) {
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   int offset = StackVisitor::GetOutVROffset(in_position, cu_->instruction_set);
 
@@ -82,7 +145,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
     offset += sizeof(uint64_t);
   }
 
-  RegStorage reg_arg = GetArgMappingToPhysicalReg(in_position);
+  RegStorage reg_arg = in_to_reg_storage_mapping_.GetReg(in_position);
 
   // TODO: REVISIT: This adds a spill of low part while we could just copy it.
   if (reg_arg.Valid() && wide && (reg_arg.GetWideKind() == kNotWide)) {
@@ -112,7 +175,7 @@ RegStorage Mir2Lir::LoadArg(int in_position, RegisterClass reg_class, bool wide)
   return reg_arg;
 }
 
-void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
+void Mir2Lir::LoadArgDirect(size_t in_position, RegLocation rl_dest) {
   DCHECK_EQ(rl_dest.location, kLocPhysReg);
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   int offset = StackVisitor::GetOutVROffset(in_position, cu_->instruction_set);
@@ -132,7 +195,7 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
     offset += sizeof(uint64_t);
   }
 
-  RegStorage reg_arg = GetArgMappingToPhysicalReg(in_position);
+  RegStorage reg_arg = in_to_reg_storage_mapping_.GetReg(in_position);
 
   // TODO: REVISIT: This adds a spill of low part while we could just copy it.
   if (reg_arg.Valid() && rl_dest.wide && (reg_arg.GetWideKind() == kNotWide)) {
@@ -153,6 +216,41 @@ void Mir2Lir::LoadArgDirect(int in_position, RegLocation rl_dest) {
   }
 }
 
+void Mir2Lir::SpillArg(size_t in_position) {
+  RegStorage reg_arg = in_to_reg_storage_mapping_.GetReg(in_position);
+
+  if (reg_arg.Valid()) {
+    int offset = frame_size_ + StackVisitor::GetOutVROffset(in_position, cu_->instruction_set);
+    ShortyArg arg = in_to_reg_storage_mapping_.GetShorty(in_position);
+    OpSize size = arg.IsRef() ? kReference :
+        (arg.IsWide() && reg_arg.GetWideKind() == kWide) ? k64 : k32;
+    StoreBaseDisp(TargetPtrReg(kSp), offset, reg_arg, size, kNotVolatile);
+  }
+}
+
+void Mir2Lir::UnspillArg(size_t in_position) {
+  RegStorage reg_arg = in_to_reg_storage_mapping_.GetReg(in_position);
+
+  if (reg_arg.Valid()) {
+    int offset = frame_size_ + StackVisitor::GetOutVROffset(in_position, cu_->instruction_set);
+    ShortyArg arg = in_to_reg_storage_mapping_.GetShorty(in_position);
+    OpSize size = arg.IsRef() ? kReference :
+        (arg.IsWide() && reg_arg.GetWideKind() == kWide) ? k64 : k32;
+    LoadBaseDisp(TargetPtrReg(kSp), offset, reg_arg, size, kNotVolatile);
+  }
+}
+
+Mir2Lir::SpecialSuspendCheckSlowPath* Mir2Lir::GenSpecialSuspendTest() {
+  LockCallTemps();
+  LIR* branch = OpTestSuspend(nullptr);
+  FreeCallTemps();
+  LIR* cont = NewLIR0(kPseudoTargetLabel);
+  SpecialSuspendCheckSlowPath* slow_path =
+      new (arena_) SpecialSuspendCheckSlowPath(this, branch, cont);
+  AddSlowPath(slow_path);
+  return slow_path;
+}
+
 bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
   // FastInstance() already checked by DexFileMethodInliner.
   const InlineIGetIPutData& data = special.d.ifield_data;
@@ -161,13 +259,16 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
     return false;
   }
 
-  OpSize size = k32;
+  OpSize size;
   switch (data.op_variant) {
-    case InlineMethodAnalyser::IGetVariant(Instruction::IGET_OBJECT):
-      size = kReference;
+    case InlineMethodAnalyser::IGetVariant(Instruction::IGET):
+      size = in_to_reg_storage_mapping_.GetShorty(data.src_arg).IsFP() ? kSingle : k32;
       break;
     case InlineMethodAnalyser::IGetVariant(Instruction::IGET_WIDE):
-      size = k64;
+      size = in_to_reg_storage_mapping_.GetShorty(data.src_arg).IsFP() ? kDouble : k64;
+      break;
+    case InlineMethodAnalyser::IGetVariant(Instruction::IGET_OBJECT):
+      size = kReference;
       break;
     case InlineMethodAnalyser::IGetVariant(Instruction::IGET_SHORT):
       size = kSignedHalf;
@@ -181,11 +282,18 @@ bool Mir2Lir::GenSpecialIGet(MIR* mir, const InlineMethod& special) {
     case InlineMethodAnalyser::IGetVariant(Instruction::IGET_BOOLEAN):
       size = kUnsignedByte;
       break;
+    default:
+      LOG(FATAL) << "Unknown variant: " << data.op_variant;
+      UNREACHABLE();
   }
 
   // Point of no return - no aborts after this
-  GenPrintLabel(mir);
+  if (!kLeafOptimization) {
+    auto* slow_path = GenSpecialSuspendTest();
+    slow_path->PreserveArg(data.object_arg);
+  }
   LockArg(data.object_arg);
+  GenPrintLabel(mir);
   RegStorage reg_obj = LoadArg(data.object_arg, kRefReg);
   RegisterClass reg_class = RegClassForFieldLoadStore(size, data.is_volatile);
   RegisterClass ret_reg_class = ShortyToRegClass(cu_->shorty[0]);
@@ -223,13 +331,16 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
     return false;
   }
 
-  OpSize size = k32;
+  OpSize size;
   switch (data.op_variant) {
-    case InlineMethodAnalyser::IPutVariant(Instruction::IPUT_OBJECT):
-      size = kReference;
+    case InlineMethodAnalyser::IPutVariant(Instruction::IPUT):
+      size = in_to_reg_storage_mapping_.GetShorty(data.src_arg).IsFP() ? kSingle : k32;
       break;
     case InlineMethodAnalyser::IPutVariant(Instruction::IPUT_WIDE):
-      size = k64;
+      size = in_to_reg_storage_mapping_.GetShorty(data.src_arg).IsFP() ? kDouble : k64;
+      break;
+    case InlineMethodAnalyser::IPutVariant(Instruction::IPUT_OBJECT):
+      size = kReference;
       break;
     case InlineMethodAnalyser::IPutVariant(Instruction::IPUT_SHORT):
       size = kSignedHalf;
@@ -243,12 +354,20 @@ bool Mir2Lir::GenSpecialIPut(MIR* mir, const InlineMethod& special) {
     case InlineMethodAnalyser::IPutVariant(Instruction::IPUT_BOOLEAN):
       size = kUnsignedByte;
       break;
+    default:
+      LOG(FATAL) << "Unknown variant: " << data.op_variant;
+      UNREACHABLE();
   }
 
   // Point of no return - no aborts after this
-  GenPrintLabel(mir);
+  if (!kLeafOptimization) {
+    auto* slow_path = GenSpecialSuspendTest();
+    slow_path->PreserveArg(data.object_arg);
+    slow_path->PreserveArg(data.src_arg);
+  }
   LockArg(data.object_arg);
-  LockArg(data.src_arg, IsWide(size));
+  LockArg(data.src_arg);
+  GenPrintLabel(mir);
   RegStorage reg_obj = LoadArg(data.object_arg, kRefReg);
   RegisterClass reg_class = RegClassForFieldLoadStore(size, data.is_volatile);
   RegStorage reg_src = LoadArg(data.src_arg, reg_class, IsWide(size));
@@ -269,8 +388,12 @@ bool Mir2Lir::GenSpecialIdentity(MIR* mir, const InlineMethod& special) {
   bool wide = (data.is_wide != 0u);
 
   // Point of no return - no aborts after this
+  if (!kLeafOptimization) {
+    auto* slow_path = GenSpecialSuspendTest();
+    slow_path->PreserveArg(data.arg);
+  }
+  LockArg(data.arg);
   GenPrintLabel(mir);
-  LockArg(data.arg, wide);
   RegisterClass reg_class = ShortyToRegClass(cu_->shorty[0]);
   RegLocation rl_dest = wide ? GetReturnWide(reg_class) : GetReturn(reg_class);
   LoadArgDirect(data.arg, rl_dest);
@@ -285,15 +408,22 @@ bool Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& speci
   current_dalvik_offset_ = mir->offset;
   MIR* return_mir = nullptr;
   bool successful = false;
+  EnsureInitializedArgMappingToPhysicalReg();
 
   switch (special.opcode) {
     case kInlineOpNop:
       successful = true;
       DCHECK_EQ(mir->dalvikInsn.opcode, Instruction::RETURN_VOID);
+      if (!kLeafOptimization) {
+        GenSpecialSuspendTest();
+      }
       return_mir = mir;
       break;
     case kInlineOpNonWideConst: {
       successful = true;
+      if (!kLeafOptimization) {
+        GenSpecialSuspendTest();
+      }
       RegLocation rl_dest = GetReturn(ShortyToRegClass(cu_->shorty[0]));
       GenPrintLabel(mir);
       LoadConstant(rl_dest.reg, static_cast<int>(special.d.data));
@@ -333,13 +463,17 @@ bool Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& speci
     }
     GenSpecialExitSequence();
 
-    core_spill_mask_ = 0;
-    num_core_spills_ = 0;
-    fp_spill_mask_ = 0;
-    num_fp_spills_ = 0;
-    frame_size_ = 0;
-    core_vmap_table_.clear();
-    fp_vmap_table_.clear();
+    if (!kLeafOptimization) {
+      HandleSlowPaths();
+    } else {
+      core_spill_mask_ = 0;
+      num_core_spills_ = 0;
+      fp_spill_mask_ = 0;
+      num_fp_spills_ = 0;
+      frame_size_ = 0;
+      core_vmap_table_.clear();
+      fp_vmap_table_.clear();
+    }
   }
 
   return successful;
@@ -1287,31 +1421,41 @@ void Mir2Lir::InToRegStorageMapping::Initialize(ShortyIterator* shorty,
                                                 InToRegStorageMapper* mapper) {
   DCHECK(mapper != nullptr);
   DCHECK(shorty != nullptr);
-  max_mapped_in_ = -1;
-  has_arguments_on_stack_ = false;
+  DCHECK(!IsInitialized());
+  DCHECK_EQ(end_mapped_in_, 0u);
+  DCHECK(!has_arguments_on_stack_);
   while (shorty->Next()) {
      ShortyArg arg = shorty->GetArg();
      RegStorage reg = mapper->GetNextReg(arg);
+     mapping_.emplace_back(arg, reg);
+     if (arg.IsWide()) {
+       mapping_.emplace_back(ShortyArg(kInvalidShorty), RegStorage::InvalidReg());
+     }
      if (reg.Valid()) {
-       mapping_.Put(count_, reg);
-       max_mapped_in_ = count_;
-       // If the VR is wide and was mapped as wide then account for it.
-       if (arg.IsWide() && reg.Is64Bit()) {
-         max_mapped_in_++;
+       end_mapped_in_ = mapping_.size();
+       // If the VR is wide but wasn't mapped as wide then account for it.
+       if (arg.IsWide() && !reg.Is64Bit()) {
+         --end_mapped_in_;
        }
      } else {
        has_arguments_on_stack_ = true;
      }
-     count_ += arg.IsWide() ? 2 : 1;
   }
   initialized_ = true;
 }
 
-RegStorage Mir2Lir::InToRegStorageMapping::Get(int in_position) {
+RegStorage Mir2Lir::InToRegStorageMapping::GetReg(size_t in_position) {
   DCHECK(IsInitialized());
-  DCHECK_LT(in_position, count_);
-  auto res = mapping_.find(in_position);
-  return res != mapping_.end() ? res->second : RegStorage::InvalidReg();
+  DCHECK_LT(in_position, mapping_.size());
+  DCHECK_NE(mapping_[in_position].first.GetType(), kInvalidShorty);
+  return mapping_[in_position].second;
+}
+
+Mir2Lir::ShortyArg Mir2Lir::InToRegStorageMapping::GetShorty(size_t in_position) {
+  DCHECK(IsInitialized());
+  DCHECK_LT(static_cast<size_t>(in_position), mapping_.size());
+  DCHECK_NE(mapping_[in_position].first.GetType(), kInvalidShorty);
+  return mapping_[in_position].first;
 }
 
 }  // namespace art

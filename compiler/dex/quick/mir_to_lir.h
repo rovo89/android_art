@@ -515,6 +515,9 @@ class Mir2Lir {
       LIR* const cont_;
     };
 
+    class SuspendCheckSlowPath;
+    class SpecialSuspendCheckSlowPath;
+
     // Helper class for changing mem_ref_type_ until the end of current scope. See mem_ref_type_.
     class ScopedMemRefType {
      public:
@@ -1203,7 +1206,7 @@ class Mir2Lir {
       }
     }
 
-    RegStorage GetArgMappingToPhysicalReg(int arg_num);
+    void EnsureInitializedArgMappingToPhysicalReg();
     virtual RegLocation GetReturnAlt() = 0;
     virtual RegLocation GetReturnWideAlt() = 0;
     virtual RegLocation LocCReturn() = 0;
@@ -1570,6 +1573,16 @@ class Mir2Lir {
     virtual void GenSpecialExitSequence() = 0;
 
     /**
+     * @brief Used to generate stack frame for suspend path of special methods.
+     */
+    virtual void GenSpecialEntryForSuspend() = 0;
+
+    /**
+     * @brief Used to pop the stack frame for suspend path of special methods.
+     */
+    virtual void GenSpecialExitForSuspend() = 0;
+
+    /**
      * @brief Used to generate code for special methods that are known to be
      * small enough to work in frameless mode.
      * @param bb The basic block of the first MIR.
@@ -1590,9 +1603,8 @@ class Mir2Lir {
      * @brief Used to lock register if argument at in_position was passed that way.
      * @details Does nothing if the argument is passed via stack.
      * @param in_position The argument number whose register to lock.
-     * @param wide Whether the argument is wide.
      */
-    void LockArg(int in_position, bool wide = false);
+    void LockArg(size_t in_position);
 
     /**
      * @brief Used to load VR argument to a physical register.
@@ -1602,14 +1614,33 @@ class Mir2Lir {
      * @param wide Whether the argument is 64-bit or not.
      * @return Returns the register (or register pair) for the loaded argument.
      */
-    RegStorage LoadArg(int in_position, RegisterClass reg_class, bool wide = false);
+    RegStorage LoadArg(size_t in_position, RegisterClass reg_class, bool wide = false);
 
     /**
      * @brief Used to load a VR argument directly to a specified register location.
      * @param in_position The argument number to place in register.
      * @param rl_dest The register location where to place argument.
      */
-    void LoadArgDirect(int in_position, RegLocation rl_dest);
+    void LoadArgDirect(size_t in_position, RegLocation rl_dest);
+
+    /**
+     * @brief Used to spill register if argument at in_position was passed that way.
+     * @details Does nothing if the argument is passed via stack.
+     * @param in_position The argument number whose register to spill.
+     */
+    void SpillArg(size_t in_position);
+
+    /**
+     * @brief Used to unspill register if argument at in_position was passed that way.
+     * @details Does nothing if the argument is passed via stack.
+     * @param in_position The argument number whose register to spill.
+     */
+    void UnspillArg(size_t in_position);
+
+    /**
+     * @brief Generate suspend test in a special method.
+     */
+    SpecialSuspendCheckSlowPath* GenSpecialSuspendTest();
 
     /**
      * @brief Used to generate LIR for special getter method.
@@ -1802,21 +1833,22 @@ class Mir2Lir {
     class InToRegStorageMapping {
      public:
       explicit InToRegStorageMapping(ArenaAllocator* arena)
-          : mapping_(std::less<int>(), arena->Adapter()), count_(0),
-            max_mapped_in_(0), has_arguments_on_stack_(false),  initialized_(false) {}
+          : mapping_(arena->Adapter()),
+            end_mapped_in_(0u), has_arguments_on_stack_(false),  initialized_(false) {}
       void Initialize(ShortyIterator* shorty, InToRegStorageMapper* mapper);
       /**
-       * @return the index of last VR mapped to physical register. In other words
-       * any VR starting from (return value + 1) index is mapped to memory.
+       * @return the past-the-end index of VRs mapped to physical registers.
+       * In other words any VR starting from this index is mapped to memory.
        */
-      int GetMaxMappedIn() { return max_mapped_in_; }
+      size_t GetEndMappedIn() { return end_mapped_in_; }
       bool HasArgumentsOnStack() { return has_arguments_on_stack_; }
-      RegStorage Get(int in_position);
+      RegStorage GetReg(size_t in_position);
+      ShortyArg GetShorty(size_t in_position);
       bool IsInitialized() { return initialized_; }
      private:
-      ArenaSafeMap<int, RegStorage> mapping_;
-      int count_;
-      int max_mapped_in_;
+      static constexpr char kInvalidShorty = '-';
+      ArenaVector<std::pair<ShortyArg, RegStorage>> mapping_;
+      size_t end_mapped_in_;
       bool has_arguments_on_stack_;
       bool initialized_;
     };

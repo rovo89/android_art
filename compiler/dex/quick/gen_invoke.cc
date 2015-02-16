@@ -405,9 +405,10 @@ void Mir2Lir::FlushIns(RegLocation* ArgLocs, RegLocation rl_method) {
    */
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   RegLocation* t_loc = nullptr;
+  EnsureInitializedArgMappingToPhysicalReg();
   for (uint32_t i = 0; i < mir_graph_->GetNumOfInVRs(); i += t_loc->wide ? 2 : 1) {
     // get reg corresponding to input
-    RegStorage reg = GetArgMappingToPhysicalReg(i);
+    RegStorage reg = in_to_reg_storage_mapping_.GetReg(i);
     t_loc = &ArgLocs[i];
 
     // If the wide input appeared as single, flush it and go
@@ -661,7 +662,7 @@ void Mir2Lir::GenDalvikArgsFlushPromoted(CallInfo* info, int start) {
   }
   ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
   // Scan the rest of the args - if in phys_reg flush to memory
-  for (int next_arg = start; next_arg < info->num_arg_words;) {
+  for (size_t next_arg = start; next_arg < info->num_arg_words;) {
     RegLocation loc = info->args[next_arg];
     if (loc.wide) {
       loc = UpdateLocWide(loc);
@@ -719,10 +720,10 @@ int Mir2Lir::GenDalvikArgs(CallInfo* info, int call_state,
                            uint32_t vtable_idx, uintptr_t direct_code, uintptr_t direct_method,
                            InvokeType type, bool skip_this) {
   // If no arguments, just return.
-  if (info->num_arg_words == 0)
+  if (info->num_arg_words == 0u)
     return call_state;
 
-  const int start_index = skip_this ? 1 : 0;
+  const size_t start_index = skip_this ? 1 : 0;
 
   // Get architecture dependent mapping between output VRs and physical registers
   // basing on shorty of method to call.
@@ -733,13 +734,13 @@ int Mir2Lir::GenDalvikArgs(CallInfo* info, int call_state,
     in_to_reg_storage_mapping.Initialize(&shorty_iterator, GetResetedInToRegStorageMapper());
   }
 
-  int stack_map_start = std::max(in_to_reg_storage_mapping.GetMaxMappedIn() + 1, start_index);
+  size_t stack_map_start = std::max(in_to_reg_storage_mapping.GetEndMappedIn(), start_index);
   if ((stack_map_start < info->num_arg_words) && info->args[stack_map_start].high_word) {
     // It is possible that the last mapped reg is 32 bit while arg is 64-bit.
     // It will be handled together with low part mapped to register.
     stack_map_start++;
   }
-  int regs_left_to_pass_via_stack = info->num_arg_words - stack_map_start;
+  size_t regs_left_to_pass_via_stack = info->num_arg_words - stack_map_start;
 
   // If it is a range case we can try to copy remaining VRs (not mapped to physical registers)
   // using more optimal algorithm.
@@ -755,11 +756,10 @@ int Mir2Lir::GenDalvikArgs(CallInfo* info, int call_state,
     RegStorage regRef = TargetReg(kArg3, kRef);
     RegStorage regSingle = TargetReg(kArg3, kNotWide);
     RegStorage regWide = TargetReg(kArg2, kWide);
-    for (int i = start_index;
-         i < stack_map_start + regs_left_to_pass_via_stack; i++) {
+    for (size_t i = start_index; i < stack_map_start + regs_left_to_pass_via_stack; i++) {
       RegLocation rl_arg = info->args[i];
       rl_arg = UpdateRawLoc(rl_arg);
-      RegStorage reg = in_to_reg_storage_mapping.Get(i);
+      RegStorage reg = in_to_reg_storage_mapping.GetReg(i);
       if (!reg.Valid()) {
         int out_offset = StackVisitor::GetOutVROffset(i, cu_->instruction_set);
         {
@@ -799,10 +799,10 @@ int Mir2Lir::GenDalvikArgs(CallInfo* info, int call_state,
   }
 
   // Finish with VRs mapped to physical registers.
-  for (int i = start_index; i < stack_map_start; i++) {
+  for (size_t i = start_index; i < stack_map_start; i++) {
     RegLocation rl_arg = info->args[i];
     rl_arg = UpdateRawLoc(rl_arg);
-    RegStorage reg = in_to_reg_storage_mapping.Get(i);
+    RegStorage reg = in_to_reg_storage_mapping.GetReg(i);
     if (reg.Valid()) {
       if (rl_arg.wide) {
         // if reg is not 64-bit (it is half of 64-bit) then handle it separately.
@@ -852,12 +852,11 @@ int Mir2Lir::GenDalvikArgs(CallInfo* info, int call_state,
   return call_state;
 }
 
-RegStorage Mir2Lir::GetArgMappingToPhysicalReg(int arg_num) {
+void Mir2Lir::EnsureInitializedArgMappingToPhysicalReg() {
   if (!in_to_reg_storage_mapping_.IsInitialized()) {
     ShortyIterator shorty_iterator(cu_->shorty, cu_->invoke_type == kStatic);
     in_to_reg_storage_mapping_.Initialize(&shorty_iterator, GetResetedInToRegStorageMapper());
   }
-  return in_to_reg_storage_mapping_.Get(arg_num);
 }
 
 RegLocation Mir2Lir::InlineTarget(CallInfo* info) {

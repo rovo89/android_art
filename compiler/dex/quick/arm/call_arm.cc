@@ -484,6 +484,28 @@ void ArmMir2Lir::GenSpecialExitSequence() {
   NewLIR1(kThumbBx, rs_rARM_LR.GetReg());
 }
 
+void ArmMir2Lir::GenSpecialEntryForSuspend() {
+  // Keep 16-byte stack alignment - push r0, i.e. ArtMethod*, r5, r6, lr.
+  DCHECK(!IsTemp(rs_r5));
+  DCHECK(!IsTemp(rs_r6));
+  core_spill_mask_ =
+      (1u << rs_r5.GetRegNum()) | (1u << rs_r6.GetRegNum()) | (1u << rs_rARM_LR.GetRegNum());
+  num_core_spills_ = 3u;
+  fp_spill_mask_ = 0u;
+  num_fp_spills_ = 0u;
+  frame_size_ = 16u;
+  core_vmap_table_.clear();
+  fp_vmap_table_.clear();
+  NewLIR1(kThumbPush, (1u << rs_r0.GetRegNum()) |                 // ArtMethod*
+          (core_spill_mask_ & ~(1u << rs_rARM_LR.GetRegNum())) |  // Spills other than LR.
+          (1u << 8));                                             // LR encoded for 16-bit push.
+}
+
+void ArmMir2Lir::GenSpecialExitForSuspend() {
+  // Pop the frame. (ArtMethod* no longer needed but restore it anyway.)
+  NewLIR1(kThumb2Pop, (1u << rs_r0.GetRegNum()) | core_spill_mask_);  // 32-bit because of LR.
+}
+
 static bool ArmUseRelativeCall(CompilationUnit* cu, const MethodReference& target_method) {
   // Emit relative calls only within a dex file due to the limited range of the BL insn.
   return cu->dex_file == target_method.dex_file;
