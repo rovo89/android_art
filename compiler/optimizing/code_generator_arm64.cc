@@ -577,7 +577,7 @@ void CodeGeneratorARM64::SetupBlockedRegisters(bool is_baseline) const {
   }
 
   CPURegList reserved_fp_registers = vixl_reserved_fp_registers;
-  while (!reserved_core_registers.IsEmpty()) {
+  while (!reserved_fp_registers.IsEmpty()) {
     blocked_fpu_registers_[reserved_fp_registers.PopLowestIndex().code()] = true;
   }
 
