@@ -2582,6 +2582,18 @@ void InstructionCodeGeneratorARM64::VisitXor(HXor* instruction) {
   HandleBinaryOp(instruction);
 }
 
+void LocationsBuilderARM64::VisitBoundType(HBoundType* instruction) {
+  // Nothing to do, this should be removed during prepare for register allocator.
+  UNUSED(instruction);
+  LOG(FATAL) << "Unreachable";
+}
+
+void InstructionCodeGeneratorARM64::VisitBoundType(HBoundType* instruction) {
+  // Nothing to do, this should be removed during prepare for register allocator.
+  UNUSED(instruction);
+  LOG(FATAL) << "Unreachable";
+}
+
 #undef __
 #undef QUICK_ENTRY_POINT
 

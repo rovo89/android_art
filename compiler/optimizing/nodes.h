@@ -583,6 +583,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(ArrayLength, Instruction)                                           \
   M(ArraySet, Instruction)                                              \
   M(BoundsCheck, Instruction)                                           \
+  M(BoundType, Instruction)                                             \
   M(CheckCast, Instruction)                                             \
   M(ClinitCheck, Instruction)                                           \
   M(Compare, BinaryOperation)                                           \
@@ -876,9 +877,22 @@ class HEnvironment : public ArenaObject<kArenaAllocMisc> {
 
 class ReferenceTypeInfo : ValueObject {
  public:
-  ReferenceTypeInfo() : is_exact_(false), is_top_(true) {}
-  ReferenceTypeInfo(Handle<mirror::Class> type_handle, bool is_exact) {
-    SetTypeHandle(type_handle, is_exact);
+  typedef Handle<mirror::Class> TypeHandle;
+
+  static ReferenceTypeInfo Create(TypeHandle type_handle, bool is_exact)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (type_handle->IsObjectClass()) {
+      // Override the type handle to be consistent with the case when we get to
+      // Top but don't have the Object class available. It avoids having to guess
+      // what value the type_handle has when it's Top.
+      return ReferenceTypeInfo(TypeHandle(), is_exact, true);
+    } else {
+      return ReferenceTypeInfo(type_handle, is_exact, false);
+    }
+  }
+
+  static ReferenceTypeInfo CreateTop(bool is_exact) {
+    return ReferenceTypeInfo(TypeHandle(), is_exact, true);
   }
 
   bool IsExact() const { return is_exact_; }
@@ -886,29 +900,7 @@ class ReferenceTypeInfo : ValueObject {
 
   Handle<mirror::Class> GetTypeHandle() const { return type_handle_; }
 
-  void SetTop() {
-    is_top_ = true;
-    type_handle_ = Handle<mirror::Class>();
-  }
-
-  void SetInexact() { is_exact_ = false; }
-
-  void SetTypeHandle(Handle<mirror::Class> type_handle, bool is_exact)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    is_exact_ =  is_exact;
-    if (type_handle->IsObjectClass()) {
-      is_top_ = true;
-      // Override the type handle to be consistent with the case when we get to
-      // Top but don't have the Object class available. It avoids having to guess
-      // what value the type_handle has when it's Top.
-      type_handle_ = Handle<mirror::Class>();
-    } else {
-      is_top_ = false;
-      type_handle_ = type_handle;
-    }
-  }
-
-  bool IsSupertypeOf(ReferenceTypeInfo rti) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  bool IsSupertypeOf(ReferenceTypeInfo rti) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (IsTop()) {
       // Top (equivalent for java.lang.Object) is supertype of anything.
       return true;
@@ -943,9 +935,14 @@ class ReferenceTypeInfo : ValueObject {
   }
 
  private:
+  ReferenceTypeInfo() : ReferenceTypeInfo(TypeHandle(), false, true) {}
+  ReferenceTypeInfo(TypeHandle type_handle, bool is_exact, bool is_top)
+      : type_handle_(type_handle), is_exact_(is_exact), is_top_(is_top) {}
+
   // The class of the object.
-  Handle<mirror::Class> type_handle_;
+  TypeHandle type_handle_;
   // Whether or not the type is exact or a superclass of the actual type.
+  // Whether or not we have any information about this type.
   bool is_exact_;
   // A true value here means that the object type should be java.lang.Object.
   // We don't have access to the corresponding mirror object every time so this
@@ -968,7 +965,8 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
         locations_(nullptr),
         live_interval_(nullptr),
         lifetime_position_(kNoLifetime),
-        side_effects_(side_effects) {}
+        side_effects_(side_effects),
+        reference_type_info_(ReferenceTypeInfo::CreateTop(/* is_exact */ false)) {}
 
   virtual ~HInstruction() {}
 
@@ -2740,7 +2738,8 @@ class HLoadClass : public HExpression<0> {
         type_index_(type_index),
         is_referrers_class_(is_referrers_class),
         dex_pc_(dex_pc),
-        generate_clinit_check_(false) {}
+        generate_clinit_check_(false),
+        loaded_class_rti_(ReferenceTypeInfo::CreateTop(/* is_exact */ false)) {}
 
   bool CanBeMoved() const OVERRIDE { return true; }
 
@@ -3004,6 +3003,32 @@ class HInstanceOf : public HExpression<2> {
   const uint32_t dex_pc_;
 
   DISALLOW_COPY_AND_ASSIGN(HInstanceOf);
+};
+
+class HBoundType : public HExpression<1> {
+ public:
+  HBoundType(HInstruction* input, ReferenceTypeInfo bound_type)
+      : HExpression(Primitive::kPrimNot, SideEffects::None()),
+        bound_type_(bound_type) {
+    SetRawInputAt(0, input);
+  }
+
+  const ReferenceTypeInfo& GetBoundType() const { return bound_type_; }
+
+  bool CanBeNull() const OVERRIDE {
+    // `null instanceof ClassX` always return false so we can't be null.
+    return false;
+  }
+
+  DECLARE_INSTRUCTION(BoundType);
+
+ private:
+  // Encodes the most upper class that this instruction can have. In other words
+  // it is always the case that GetBoundType().IsSupertypeOf(GetReferenceType()).
+  // It is used to bound the type in cases like `if (x instanceof ClassX) {}`
+  const ReferenceTypeInfo bound_type_;
+
+  DISALLOW_COPY_AND_ASSIGN(HBoundType);
 };
 
 class HCheckCast : public HTemplateInstruction<2> {
