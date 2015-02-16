@@ -91,6 +91,8 @@ class CodeGenerator {
 
   HGraph* GetGraph() const { return graph_; }
 
+  HBasicBlock* GetNextBlockToEmit() const;
+  HBasicBlock* FirstNonEmptyBlock(HBasicBlock* block) const;
   bool GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) const;
 
   size_t GetStackSlotOfParameter(HParameterValue* parameter) const {
@@ -312,6 +314,14 @@ class CodeGenerator {
 
   bool HasEmptyFrame() const {
     return GetFrameSize() == (CallPushesPC() ? GetWordSize() : 0);
+  }
+
+  // Arm64 has its own type for a label, so we need to templatize this method
+  // to share the logic.
+  template <typename T>
+  T* CommonGetLabelOf(T* raw_pointer_to_labels_array, HBasicBlock* block) const {
+    block = FirstNonEmptyBlock(block);
+    return raw_pointer_to_labels_array + block->GetBlockId();
   }
 
   // Frame size required for this method.
