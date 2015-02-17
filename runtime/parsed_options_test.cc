@@ -98,4 +98,20 @@ TEST_F(ParsedOptionsTest, ParsedOptions) {
   EXPECT_EQ("baz=qux", properties_list[1]);
 }
 
+TEST_F(ParsedOptionsTest, ParsedOptionsGc) {
+  RuntimeOptions options;
+  options.push_back(std::make_pair("-Xgc:MC", nullptr));
+
+  RuntimeArgumentMap map;
+  std::unique_ptr<ParsedOptions> parsed(ParsedOptions::Create(options, false, &map));
+  ASSERT_TRUE(parsed.get() != NULL);
+  ASSERT_NE(0u, map.Size());
+
+  using Opt = RuntimeArgumentMap;
+
+  EXPECT_TRUE(map.Exists(Opt::GcOption));
+
+  XGcOption xgc = map.GetOrDefault(Opt::GcOption);
+  EXPECT_EQ(gc::kCollectorTypeMC, xgc.collector_type_);}
+
 }  // namespace art
