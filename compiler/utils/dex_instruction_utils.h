@@ -110,6 +110,10 @@ constexpr bool IsInstructionAGetOrAPut(Instruction::Code code) {
   return Instruction::AGET <= code && code <= Instruction::APUT_SHORT;
 }
 
+constexpr bool IsInstructionBinOp2Addr(Instruction::Code code) {
+  return Instruction::ADD_INT_2ADDR <= code && code <= Instruction::REM_DOUBLE_2ADDR;
+}
+
 // TODO: Remove the #if guards below when we fully migrate to C++14.
 
 constexpr bool IsInvokeInstructionRange(Instruction::Code opcode) {

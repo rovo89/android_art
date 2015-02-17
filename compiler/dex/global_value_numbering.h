@@ -31,6 +31,9 @@ class MirFieldInfo;
 
 class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
  public:
+  static constexpr uint16_t kNoValue = 0xffffu;
+  static constexpr uint16_t kNullValue = 1u;
+
   enum Mode {
     kModeGvn,
     kModeGvnPostProcessing,
@@ -51,6 +54,14 @@ class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
   GlobalValueNumbering(CompilationUnit* cu, ScopedArenaAllocator* allocator, Mode mode);
   ~GlobalValueNumbering();
 
+  CompilationUnit* GetCompilationUnit() const {
+    return cu_;
+  }
+
+  MIRGraph* GetMirGraph() const {
+    return mir_graph_;
+  }
+
   // Prepare LVN for the basic block.
   LocalValueNumbering* PrepareBasicBlock(BasicBlock* bb,
                                          ScopedArenaAllocator* allocator = nullptr);
@@ -70,9 +81,10 @@ class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
     return modifications_allowed_ && Good();
   }
 
- private:
-  static constexpr uint16_t kNoValue = 0xffffu;
+  // Retrieve the LVN with GVN results for a given BasicBlock.
+  const LocalValueNumbering* GetLvn(BasicBlockId bb_id) const;
 
+ private:
   // Allocate a new value name.
   uint16_t NewValueName();
 
@@ -88,7 +100,7 @@ class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
   uint16_t LookupValue(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier) {
     uint16_t res;
     uint64_t key = BuildKey(op, operand1, operand2, modifier);
-    ValueMap::iterator lb = global_value_map_.lower_bound(key);
+    auto lb = global_value_map_.lower_bound(key);
     if (lb != global_value_map_.end() && lb->first == key) {
       res = lb->second;
     } else {
@@ -99,28 +111,16 @@ class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
   }
 
   // Look up a value in the global value map, don't add a new entry if there was none before.
-  uint16_t FindValue(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier) {
+  uint16_t FindValue(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier) const {
     uint16_t res;
     uint64_t key = BuildKey(op, operand1, operand2, modifier);
-    ValueMap::iterator lb = global_value_map_.lower_bound(key);
+    auto lb = global_value_map_.lower_bound(key);
     if (lb != global_value_map_.end() && lb->first == key) {
       res = lb->second;
     } else {
       res = kNoValue;
     }
     return res;
-  }
-
-  // Check if the exact value is stored in the global value map.
-  bool HasValue(uint16_t op, uint16_t operand1, uint16_t operand2, uint16_t modifier,
-                uint16_t value) const {
-    DCHECK(value != 0u || !Good());
-    DCHECK_LE(value, last_value_);
-    // This is equivalent to value == LookupValue(op, operand1, operand2, modifier)
-    // except that it doesn't add an entry to the global value map if it's not there.
-    uint64_t key = BuildKey(op, operand1, operand2, modifier);
-    ValueMap::const_iterator it = global_value_map_.find(key);
-    return (it != global_value_map_.end() && it->second == value);
   }
 
   // Get an instance field id.
@@ -200,14 +200,6 @@ class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
 
   bool DivZeroCheckedInAllPredecessors(const ScopedArenaVector<uint16_t>& merge_names) const;
 
-  CompilationUnit* GetCompilationUnit() const {
-    return cu_;
-  }
-
-  MIRGraph* GetMirGraph() const {
-    return mir_graph_;
-  }
-
   ScopedArenaAllocator* Allocator() const {
     return allocator_;
   }
@@ -254,6 +246,13 @@ class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
   DISALLOW_COPY_AND_ASSIGN(GlobalValueNumbering);
 };
 std::ostream& operator<<(std::ostream& os, const GlobalValueNumbering::Mode& rhs);
+
+inline const LocalValueNumbering* GlobalValueNumbering::GetLvn(BasicBlockId bb_id) const {
+  DCHECK_EQ(mode_, kModeGvnPostProcessing);
+  DCHECK_LT(bb_id, lvns_.size());
+  DCHECK(lvns_[bb_id] != nullptr);
+  return lvns_[bb_id];
+}
 
 inline void GlobalValueNumbering::StartPostProcessing() {
   DCHECK(Good());
