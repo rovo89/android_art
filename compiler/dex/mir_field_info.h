@@ -149,6 +149,7 @@ class MirIFieldLoweringInfo : public MirFieldInfo {
 
   friend class NullCheckEliminationTest;
   friend class GlobalValueNumberingTest;
+  friend class GvnDeadCodeEliminationTest;
   friend class LocalValueNumberingTest;
 };
 
@@ -223,6 +224,7 @@ class MirSFieldLoweringInfo : public MirFieldInfo {
 
   friend class ClassInitCheckEliminationTest;
   friend class GlobalValueNumberingTest;
+  friend class GvnDeadCodeEliminationTest;
   friend class LocalValueNumberingTest;
 };
 
