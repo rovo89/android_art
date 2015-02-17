@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_DEX_INSTRUCTION_UTILS_H_
-#define ART_COMPILER_UTILS_DEX_INSTRUCTION_UTILS_H_
+#ifndef ART_RUNTIME_DEX_INSTRUCTION_UTILS_H_
+#define ART_RUNTIME_DEX_INSTRUCTION_UTILS_H_
 
 #include "dex_instruction.h"
 
@@ -56,6 +56,11 @@ constexpr bool IsInstructionReturn(Instruction::Code opcode) {
 constexpr bool IsInstructionInvoke(Instruction::Code opcode) {
   return Instruction::INVOKE_VIRTUAL <= opcode && opcode <= Instruction::INVOKE_INTERFACE_RANGE &&
       opcode != Instruction::RETURN_VOID_BARRIER;
+}
+
+constexpr bool IsInstructionQuickInvoke(Instruction::Code opcode) {
+  return opcode == Instruction::INVOKE_VIRTUAL_QUICK ||
+      opcode == Instruction::INVOKE_VIRTUAL_RANGE_QUICK;
 }
 
 constexpr bool IsInstructionInvokeStatic(Instruction::Code opcode) {
@@ -100,6 +105,11 @@ constexpr bool IsInstructionAPut(Instruction::Code code) {
 
 constexpr bool IsInstructionIGetOrIPut(Instruction::Code code) {
   return Instruction::IGET <= code && code <= Instruction::IPUT_SHORT;
+}
+
+constexpr bool IsInstructionIGetQuickOrIPutQuick(Instruction::Code code) {
+  return (code >= Instruction::IGET_QUICK && code <= Instruction::IPUT_OBJECT_QUICK) ||
+      (code >= Instruction::IPUT_BOOLEAN_QUICK && code <= Instruction::IGET_SHORT_QUICK);
 }
 
 constexpr bool IsInstructionSGetOrSPut(Instruction::Code code) {
@@ -181,6 +191,29 @@ constexpr DexMemAccessType IGetOrIPutMemAccessType(Instruction::Code code) {
   return (code >= Instruction::IPUT) ? IPutMemAccessType(code) : IGetMemAccessType(code);
 }
 
+static inline DexMemAccessType IGetQuickOrIPutQuickMemAccessType(Instruction::Code code) {
+  DCHECK(IsInstructionIGetQuickOrIPutQuick(code));
+  switch (code) {
+    case Instruction::IGET_QUICK: case Instruction::IPUT_QUICK:
+      return kDexMemAccessWord;
+    case Instruction::IGET_WIDE_QUICK: case Instruction::IPUT_WIDE_QUICK:
+      return kDexMemAccessWide;
+    case Instruction::IGET_OBJECT_QUICK: case Instruction::IPUT_OBJECT_QUICK:
+      return kDexMemAccessObject;
+    case Instruction::IGET_BOOLEAN_QUICK: case Instruction::IPUT_BOOLEAN_QUICK:
+      return kDexMemAccessBoolean;
+    case Instruction::IGET_BYTE_QUICK: case Instruction::IPUT_BYTE_QUICK:
+      return kDexMemAccessByte;
+    case Instruction::IGET_CHAR_QUICK: case Instruction::IPUT_CHAR_QUICK:
+      return kDexMemAccessChar;
+    case Instruction::IGET_SHORT_QUICK: case Instruction::IPUT_SHORT_QUICK:
+      return kDexMemAccessShort;
+    default:
+      LOG(FATAL) << code;
+      UNREACHABLE();
+  }
+}
+
 constexpr DexMemAccessType SGetOrSPutMemAccessType(Instruction::Code code) {
 #if __cplusplus >= 201402  // C++14 allows the DCHECK() in constexpr functions.
   DCHECK(IsInstructionSGetOrSPut(opcode));
@@ -197,4 +230,4 @@ constexpr DexMemAccessType AGetOrAPutMemAccessType(Instruction::Code code) {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_DEX_INSTRUCTION_UTILS_H_
+#endif  // ART_RUNTIME_DEX_INSTRUCTION_UTILS_H_

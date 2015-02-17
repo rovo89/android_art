@@ -84,6 +84,9 @@ endif
 ifeq ($(ART_TEST_INTERPRETER),true)
   COMPILER_TYPES += interpreter
 endif
+ifeq ($(ART_TEST_JIT),true)
+  COMPILER_TYPES += jit
+endif
 ifeq ($(ART_TEST_OPTIMIZING),true)
   COMPILER_TYPES += optimizing
 endif
@@ -496,7 +499,12 @@ define define-test-art-run-test
         test_groups += ART_RUN_TEST_$$(uc_host_or_target)_DEFAULT_RULES
         run_test_options += --quick
       else
-        $$(error found $(4) expected $(COMPILER_TYPES))
+        ifeq ($(4),jit)
+          test_groups += ART_RUN_TEST_$$(uc_host_or_target)_DEFAULT_RULES
+          run_test_options += --jit
+        else
+          $$(error found $(4) expected $(COMPILER_TYPES))
+        endif
       endif
     endif
   endif
