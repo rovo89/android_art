@@ -271,8 +271,11 @@ struct VariantMap {
   // Set a value for a given key, overwriting the previous value if any.
   template <typename TValue>
   void Set(const TKey<TValue>& key, const TValue& value) {
+    // Clone the value first, to protect against &value == GetValuePtr(key).
+    auto* new_value = new TValue(value);
+
     Remove(key);
-    storage_map_.insert({{key.Clone(), new TValue(value)}});
+    storage_map_.insert({{key.Clone(), new_value}});
   }
 
   // Set a value for a given key, only if there was no previous value before.
