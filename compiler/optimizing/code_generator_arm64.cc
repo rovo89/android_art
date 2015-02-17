@@ -1388,7 +1388,13 @@ void LocationsBuilderARM64::VisitCompare(HCompare* compare) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::RequiresFpuRegister());
+      HInstruction* right = compare->InputAt(1);
+      if ((right->IsFloatConstant() && (right->AsFloatConstant()->GetValue() == 0.0f)) ||
+          (right->IsDoubleConstant() && (right->AsDoubleConstant()->GetValue() == 0.0))) {
+        locations->SetInAt(1, Location::ConstantLocation(right->AsConstant()));
+      } else {
+        locations->SetInAt(1, Location::RequiresFpuRegister());
+      }
       locations->SetOut(Location::RequiresRegister());
       break;
     }
@@ -1418,9 +1424,17 @@ void InstructionCodeGeneratorARM64::VisitCompare(HCompare* compare) {
     case Primitive::kPrimDouble: {
       Register result = OutputRegister(compare);
       FPRegister left = InputFPRegisterAt(compare, 0);
-      FPRegister right = InputFPRegisterAt(compare, 1);
-
-      __ Fcmp(left, right);
+      if (compare->GetLocations()->InAt(1).IsConstant()) {
+        if (kIsDebugBuild) {
+          HInstruction* right = compare->GetLocations()->InAt(1).GetConstant();
+          DCHECK((right->IsFloatConstant() && (right->AsFloatConstant()->GetValue() == 0.0f)) ||
+                  (right->IsDoubleConstant() && (right->AsDoubleConstant()->GetValue() == 0.0)));
+        }
+        // 0.0 is the only immediate that can be encoded directly in a FCMP instruction.
+        __ Fcmp(left, 0.0);
+      } else {
+        __ Fcmp(left, InputFPRegisterAt(compare, 1));
+      }
       if (compare->IsGtBias()) {
         __ Cset(result, ne);
       } else {
