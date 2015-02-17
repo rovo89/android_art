@@ -29,7 +29,7 @@ class DexMethodIteratorTest : public CommonRuntimeTest {
 TEST_F(DexMethodIteratorTest, Basic) {
   ScopedObjectAccess soa(Thread::Current());
   std::vector<const DexFile*> dex_files;
-  const char* jars[] = { "core-libart", "conscrypt", "okhttp", "core-junit", "bouncycastle" };
+  const char* jars[] = { "core-oj", "core-libart", "conscrypt", "okhttp", "core-junit", "bouncycastle" };
   for (size_t i = 0; i < 5; ++i) {
     dex_files.push_back(LoadExpectSingleDexFile(GetDexFileName(jars[i]).c_str()));
   }
