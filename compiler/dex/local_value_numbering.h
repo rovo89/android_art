@@ -52,13 +52,22 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
     return div_zero_checked_.find(value_name) != div_zero_checked_.end();
   }
 
-  bool IsSregValue(uint16_t s_reg, uint16_t value_name) const {
-    auto it = sreg_value_map_.find(s_reg);
-    if (it != sreg_value_map_.end()) {
-      return it->second == value_name;
-    } else {
-      return gvn_->HasValue(kNoValue, s_reg, kNoValue, kNoValue, value_name);
-    }
+  uint16_t GetSregValue(uint16_t s_reg) const {
+    return GetSregValueImpl(s_reg, &sreg_value_map_);
+  }
+
+  uint16_t GetSregValueWide(uint16_t s_reg) const {
+    return GetSregValueImpl(s_reg, &sreg_wide_value_map_);
+  }
+
+  // Get the starting value number for a given dalvik register.
+  uint16_t GetStartingVregValueNumber(int v_reg) const {
+    return GetStartingVregValueNumberImpl(v_reg, false);
+  }
+
+  // Get the starting value number for a given wide dalvik register.
+  uint16_t GetStartingVregValueNumberWide(int v_reg) const {
+    return GetStartingVregValueNumberImpl(v_reg, true);
   }
 
   enum MergeType {
@@ -79,6 +88,20 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
 
   // Key is s_reg, value is value name.
   typedef ScopedArenaSafeMap<uint16_t, uint16_t> SregValueMap;
+
+  uint16_t GetEndingVregValueNumberImpl(int v_reg, bool wide) const;
+  uint16_t GetStartingVregValueNumberImpl(int v_reg, bool wide) const;
+
+  uint16_t GetSregValueImpl(int s_reg, const SregValueMap* map) const {
+    uint16_t res = kNoValue;
+    auto lb = map->find(s_reg);
+    if (lb != map->end()) {
+      res = lb->second;
+    } else {
+      res = gvn_->FindValue(kNoValue, s_reg, kNoValue, kNoValue);
+    }
+    return res;
+  }
 
   void SetOperandValueImpl(uint16_t s_reg, uint16_t value, SregValueMap* map) {
     DCHECK_EQ(map->count(s_reg), 0u) << PrettyMethod(gvn_->cu_->method_idx, *gvn_->cu_->dex_file)
@@ -370,9 +393,9 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
   ValueNameSet div_zero_checked_;
 
   // Reuse one vector for all merges to avoid leaking too much memory on the ArenaStack.
-  ScopedArenaVector<BasicBlockId> merge_names_;
+  mutable ScopedArenaVector<uint16_t> merge_names_;
   // Map to identify when different locations merge the same values.
-  ScopedArenaSafeMap<ScopedArenaVector<BasicBlockId>, uint16_t> merge_map_;
+  ScopedArenaSafeMap<ScopedArenaVector<uint16_t>, uint16_t> merge_map_;
   // New memory version for merge, kNoValue if all memory versions matched.
   uint16_t merge_new_memory_version_;
 

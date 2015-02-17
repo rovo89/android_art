@@ -134,8 +134,8 @@ class GlobalValueNumberingTest : public testing::Test {
     { bb, opcode, 0u, 0u, 2, { src, src + 1 }, 2, { reg, reg + 1 } }
 #define DEF_PHI2(bb, reg, src1, src2) \
     { bb, static_cast<Instruction::Code>(kMirOpPhi), 0, 0u, 2u, { src1, src2 }, 1, { reg } }
-#define DEF_DIV_REM(bb, opcode, result, dividend, divisor) \
-    { bb, opcode, 0u, 0u, 2, { dividend, divisor }, 1, { result } }
+#define DEF_BINOP(bb, opcode, result, src1, src2) \
+    { bb, opcode, 0u, 0u, 2, { src1, src2 }, 1, { result } }
 
   void DoPrepareIFields(const IFieldDef* defs, size_t count) {
     cu_.mir_graph->ifield_lowering_infos_.clear();
@@ -267,7 +267,6 @@ class GlobalValueNumberingTest : public testing::Test {
       mir->offset = i;  // LVN uses offset only for debug output
       mir->optimization_flags = 0u;
     }
-    mirs_[count - 1u].next = nullptr;
     DexFile::CodeItem* code_item = static_cast<DexFile::CodeItem*>(
         cu_.arena.Alloc(sizeof(DexFile::CodeItem), kArenaAllocMisc));
     code_item->insns_size_in_code_units_ = 2u * count;
@@ -277,6 +276,20 @@ class GlobalValueNumberingTest : public testing::Test {
   template <size_t count>
   void PrepareMIRs(const MIRDef (&defs)[count]) {
     DoPrepareMIRs(defs, count);
+  }
+
+  void DoPrepareVregToSsaMapExit(BasicBlockId bb_id, const int32_t* map, size_t count) {
+    BasicBlock* bb = cu_.mir_graph->GetBasicBlock(bb_id);
+    ASSERT_TRUE(bb != nullptr);
+    ASSERT_TRUE(bb->data_flow_info != nullptr);
+    bb->data_flow_info->vreg_to_ssa_map_exit =
+        cu_.arena.AllocArray<int32_t>(count, kArenaAllocDFInfo);
+    std::copy_n(map, count, bb->data_flow_info->vreg_to_ssa_map_exit);
+  }
+
+  template <size_t count>
+  void PrepareVregToSsaMapExit(BasicBlockId bb_id, const int32_t (&map)[count]) {
+    DoPrepareVregToSsaMapExit(bb_id, map, count);
   }
 
   void PerformGVN() {
@@ -294,9 +307,9 @@ class GlobalValueNumberingTest : public testing::Test {
     cu_.mir_graph->ComputeDominators();
     cu_.mir_graph->ComputeTopologicalSortOrder();
     cu_.mir_graph->SSATransformationEnd();
-    cu_.mir_graph->temp_.gvn.ifield_ids_ =  GlobalValueNumbering::PrepareGvnFieldIds(
+    cu_.mir_graph->temp_.gvn.ifield_ids =  GlobalValueNumbering::PrepareGvnFieldIds(
         allocator_.get(), cu_.mir_graph->ifield_lowering_infos_);
-    cu_.mir_graph->temp_.gvn.sfield_ids_ =  GlobalValueNumbering::PrepareGvnFieldIds(
+    cu_.mir_graph->temp_.gvn.sfield_ids =  GlobalValueNumbering::PrepareGvnFieldIds(
         allocator_.get(), cu_.mir_graph->sfield_lowering_infos_);
     ASSERT_TRUE(gvn_ == nullptr);
     gvn_.reset(new (allocator_.get()) GlobalValueNumbering(&cu_, allocator_.get(),
@@ -348,6 +361,10 @@ class GlobalValueNumberingTest : public testing::Test {
     cu_.mir_graph.reset(new MIRGraph(&cu_, &cu_.arena));
     cu_.access_flags = kAccStatic;  // Don't let "this" interfere with this test.
     allocator_.reset(ScopedArenaAllocator::Create(&cu_.arena_stack));
+    // By default, the zero-initialized reg_location_[.] with ref == false tells LVN that
+    // 0 constants are integral, not references. Nothing else is used by LVN/GVN.
+    cu_.mir_graph->reg_location_ =
+        cu_.arena.AllocArray<RegLocation>(kMaxSsaRegs, kArenaAllocRegAlloc);
     // Bind all possible sregs to live vregs for test purposes.
     live_in_v_->SetInitialBits(kMaxSsaRegs);
     cu_.mir_graph->ssa_base_vregs_.reserve(kMaxSsaRegs);
@@ -1570,6 +1587,40 @@ TEST_F(GlobalValueNumberingTestLoop, Phi) {
   EXPECT_NE(value_names_[4], value_names_[3]);
 }
 
+TEST_F(GlobalValueNumberingTestLoop, IFieldLoopVariable) {
+  static const IFieldDef ifields[] = {
+      { 0u, 1u, 0u, false, kDexMemAccessWord },
+  };
+  static const MIRDef mirs[] = {
+      DEF_CONST(3, Instruction::CONST, 0u, 0),
+      DEF_IPUT(3, Instruction::IPUT, 0u, 100u, 0u),
+      DEF_IGET(4, Instruction::IGET, 2u, 100u, 0u),
+      DEF_BINOP(4, Instruction::ADD_INT, 3u, 2u, 101u),
+      DEF_IPUT(4, Instruction::IPUT, 3u, 100u, 0u),
+  };
+
+  PrepareIFields(ifields);
+  PrepareMIRs(mirs);
+  PerformGVN();
+  ASSERT_EQ(arraysize(mirs), value_names_.size());
+  EXPECT_NE(value_names_[2], value_names_[0]);
+  EXPECT_NE(value_names_[3], value_names_[0]);
+  EXPECT_NE(value_names_[3], value_names_[2]);
+
+
+  // Set up vreg_to_ssa_map_exit for prologue and loop and set post-processing mode
+  // as needed for GetStartingVregValueNumber().
+  const int32_t prologue_vreg_to_ssa_map_exit[] = { 0 };
+  const int32_t loop_vreg_to_ssa_map_exit[] = { 3 };
+  PrepareVregToSsaMapExit(3, prologue_vreg_to_ssa_map_exit);
+  PrepareVregToSsaMapExit(4, loop_vreg_to_ssa_map_exit);
+  gvn_->StartPostProcessing();
+
+  // Check that vreg 0 has the same value number as the result of IGET 2u.
+  const LocalValueNumbering* loop = gvn_->GetLvn(4);
+  EXPECT_EQ(value_names_[2], loop->GetStartingVregValueNumber(0));
+}
+
 TEST_F(GlobalValueNumberingTestCatch, IFields) {
   static const IFieldDef ifields[] = {
       { 0u, 1u, 0u, false, kDexMemAccessWord },
@@ -2225,18 +2276,18 @@ TEST_F(GlobalValueNumberingTest, NormalPathToCatchEntry) {
 
 TEST_F(GlobalValueNumberingTestDiamond, DivZeroCheckDiamond) {
   static const MIRDef mirs[] = {
-      DEF_DIV_REM(3u, Instruction::DIV_INT, 1u, 20u, 21u),
-      DEF_DIV_REM(3u, Instruction::DIV_INT, 2u, 24u, 21u),
-      DEF_DIV_REM(3u, Instruction::DIV_INT, 3u, 20u, 23u),
-      DEF_DIV_REM(4u, Instruction::DIV_INT, 4u, 24u, 22u),
-      DEF_DIV_REM(4u, Instruction::DIV_INT, 9u, 24u, 25u),
-      DEF_DIV_REM(5u, Instruction::DIV_INT, 5u, 24u, 21u),
-      DEF_DIV_REM(5u, Instruction::DIV_INT, 10u, 24u, 26u),
+      DEF_BINOP(3u, Instruction::DIV_INT, 1u, 20u, 21u),
+      DEF_BINOP(3u, Instruction::DIV_INT, 2u, 24u, 21u),
+      DEF_BINOP(3u, Instruction::DIV_INT, 3u, 20u, 23u),
+      DEF_BINOP(4u, Instruction::DIV_INT, 4u, 24u, 22u),
+      DEF_BINOP(4u, Instruction::DIV_INT, 9u, 24u, 25u),
+      DEF_BINOP(5u, Instruction::DIV_INT, 5u, 24u, 21u),
+      DEF_BINOP(5u, Instruction::DIV_INT, 10u, 24u, 26u),
       DEF_PHI2(6u, 27u, 25u, 26u),
-      DEF_DIV_REM(6u, Instruction::DIV_INT, 12u, 20u, 27u),
-      DEF_DIV_REM(6u, Instruction::DIV_INT, 6u, 24u, 21u),
-      DEF_DIV_REM(6u, Instruction::DIV_INT, 7u, 20u, 23u),
-      DEF_DIV_REM(6u, Instruction::DIV_INT, 8u, 20u, 22u),
+      DEF_BINOP(6u, Instruction::DIV_INT, 12u, 20u, 27u),
+      DEF_BINOP(6u, Instruction::DIV_INT, 6u, 24u, 21u),
+      DEF_BINOP(6u, Instruction::DIV_INT, 7u, 20u, 23u),
+      DEF_BINOP(6u, Instruction::DIV_INT, 8u, 20u, 22u),
   };
 
   static const bool expected_ignore_div_zero_check[] = {
