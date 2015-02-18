@@ -620,7 +620,7 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
     Location location = locations->GetEnvironmentAt(i);
     switch (location.GetKind()) {
       case Location::kConstant: {
-        DCHECK(current == location.GetConstant());
+        DCHECK_EQ(current, location.GetConstant());
         if (current->IsLongConstant()) {
           int64_t value = current->AsLongConstant()->GetValue();
           stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, Low32Bits(value));

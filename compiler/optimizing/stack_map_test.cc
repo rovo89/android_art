@@ -61,6 +61,7 @@ TEST(StackMapTest, Test1) {
   MemoryRegion stack_mask = stack_map.GetStackMask();
   ASSERT_TRUE(SameBits(stack_mask, sp_mask));
 
+  ASSERT_TRUE(stack_map.HasDexRegisterMap());
   DexRegisterMap dex_registers = code_info.GetDexRegisterMapOf(stack_map, 2);
   ASSERT_EQ(DexRegisterMap::kInStack, dex_registers.GetLocationKind(0));
   ASSERT_EQ(DexRegisterMap::kConstant, dex_registers.GetLocationKind(1));
@@ -107,6 +108,7 @@ TEST(StackMapTest, Test2) {
   MemoryRegion stack_mask = stack_map.GetStackMask();
   ASSERT_TRUE(SameBits(stack_mask, sp_mask1));
 
+  ASSERT_TRUE(stack_map.HasDexRegisterMap());
   DexRegisterMap dex_registers = code_info.GetDexRegisterMapOf(stack_map, 2);
   ASSERT_EQ(DexRegisterMap::kInStack, dex_registers.GetLocationKind(0));
   ASSERT_EQ(DexRegisterMap::kConstant, dex_registers.GetLocationKind(1));
