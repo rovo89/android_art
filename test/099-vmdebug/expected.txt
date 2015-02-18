@@ -7,13 +7,17 @@ status=2
 status=0
 Test starting when already started
 status=1
+Trace already in progress, ignoring this request
 status=1
 Test stopping when already stopped
 status=0
+Trace stop requested, but no trace currently running
 status=0
 Test tracing with empty filename
+Unable to open trace file '': No such file or directory
 Got expected exception
 Test tracing with bogus (< 1024 && != 0) filesize
 Got expected exception
 Test sampling with bogus (<= 0) interval
+Invalid sampling interval: 0
 Got expected exception

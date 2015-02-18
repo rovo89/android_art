@@ -65,7 +65,7 @@ static jstring Runtime_nativeLoad(JNIEnv* env, jclass, jstring javaFilename, job
       Fn android_update_LD_LIBRARY_PATH = reinterpret_cast<Fn>(sym);
       (*android_update_LD_LIBRARY_PATH)(ldLibraryPath.c_str());
     } else {
-      LOG(ERROR) << "android_update_LD_LIBRARY_PATH not found; .so dependencies will not work!";
+      LOG(WARNING) << "android_update_LD_LIBRARY_PATH not found; .so dependencies will not work!";
     }
   }
 
