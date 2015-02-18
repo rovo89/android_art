@@ -25,6 +25,12 @@ namespace art {
 
 class QuickTrampolineEntrypointsTest : public CommonRuntimeTest {
  protected:
+  void SetUpRuntimeOptions(RuntimeOptions *options) OVERRIDE {
+    // Use 64-bit ISA for runtime setup to make method size potentially larger
+    // than necessary (rather than smaller) during CreateCalleeSaveMethod
+    options->push_back(std::make_pair("imageinstructionset", "x86_64"));
+  }
+
   static mirror::ArtMethod* CreateCalleeSaveMethod(InstructionSet isa,
                                                    Runtime::CalleeSaveType type)
       NO_THREAD_SAFETY_ANALYSIS {
