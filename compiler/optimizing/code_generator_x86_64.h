@@ -232,7 +232,7 @@ class CodeGeneratorX86_64 : public CodeGenerator {
   void LoadCurrentMethod(CpuRegister reg);
 
   Label* GetLabelOf(HBasicBlock* block) const {
-    return block_labels_.GetRawStorage() + block->GetBlockId();
+    return CommonGetLabelOf<Label>(block_labels_.GetRawStorage(), block);
   }
 
   void Initialize() OVERRIDE {
