@@ -47,9 +47,6 @@ namespace gc {
     class GarbageCollector;
   }  // namespace collector
 }  // namespace gc
-namespace JDWP {
-  struct JdwpOptions;
-}  // namespace JDWP
 namespace mirror {
   class ArtMethod;
   class ClassLoader;
@@ -684,9 +681,6 @@ class Runtime {
   // When non-empty the native bridge will be loaded from the given file. An empty value means
   // that there's no native bridge.
   bool is_native_bridge_loaded_;
-
-  // JDWP options for debugging.
-  const JDWP::JdwpOptions* jdwp_options_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
