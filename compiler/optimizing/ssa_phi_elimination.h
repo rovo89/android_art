@@ -34,6 +34,9 @@ class SsaDeadPhiElimination : public HOptimization {
 
   void Run() OVERRIDE;
 
+  void MarkDeadPhis();
+  void EliminateDeadPhis();
+
  private:
   GrowableArray<HPhi*> worklist_;
 

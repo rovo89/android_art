@@ -58,6 +58,8 @@ class SsaBuilder : public HGraphVisitor {
                                                   HInstruction* instruction,
                                                   Primitive::Type type);
 
+  static HInstruction* GetReferenceTypeEquivalent(HInstruction* instruction);
+
  private:
   // Locals for the current block being visited.
   HEnvironment* current_locals_;
