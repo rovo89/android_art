@@ -297,6 +297,9 @@ static bool gJdwpAllowed = true;
 // Was there a -Xrunjdwp or -agentlib:jdwp= argument on the command line?
 static bool gJdwpConfigured = false;
 
+// JDWP options for debugging. Only valid if IsJdwpConfigured() is true.
+static JDWP::JdwpOptions gJdwpOptions;
+
 // Runtime JDWP state.
 static JDWP::JdwpState* gJdwpState = nullptr;
 static bool gDebuggerConnected;  // debugger or DDMS is connected.
@@ -529,13 +532,11 @@ static bool IsPrimitiveTag(JDWP::JdwpTag tag) {
   }
 }
 
-void Dbg::StartJdwp(const JDWP::JdwpOptions* jdwp_options) {
-  gJdwpConfigured = (jdwp_options != nullptr);
+void Dbg::StartJdwp() {
   if (!gJdwpAllowed || !IsJdwpConfigured()) {
     // No JDWP for you!
     return;
   }
-  DCHECK_NE(jdwp_options->transport, JDWP::kJdwpTransportUnknown);
 
   CHECK(gRegistry == nullptr);
   gRegistry = new ObjectRegistry;
@@ -543,7 +544,7 @@ void Dbg::StartJdwp(const JDWP::JdwpOptions* jdwp_options) {
   // Init JDWP if the debugger is enabled. This may connect out to a
   // debugger, passively listen for a debugger, or block waiting for a
   // debugger.
-  gJdwpState = JDWP::JdwpState::Create(jdwp_options);
+  gJdwpState = JDWP::JdwpState::Create(&gJdwpOptions);
   if (gJdwpState == nullptr) {
     // We probably failed because some other process has the port already, which means that
     // if we don't abort the user is likely to think they're talking to us when they're actually
@@ -718,6 +719,12 @@ void Dbg::Disconnected() {
 
 bool Dbg::IsDebuggerActive() {
   return gDebuggerActive;
+}
+
+void Dbg::ConfigureJdwp(const JDWP::JdwpOptions& jdwp_options) {
+  CHECK_NE(jdwp_options.transport, JDWP::kJdwpTransportUnknown);
+  gJdwpOptions = jdwp_options;
+  gJdwpConfigured = true;
 }
 
 bool Dbg::IsJdwpConfigured() {
