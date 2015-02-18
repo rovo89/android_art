@@ -1854,7 +1854,7 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
 }
 
 void Thread::ThrowOutOfMemoryError(const char* msg) {
-  LOG(ERROR) << StringPrintf("Throwing OutOfMemoryError \"%s\"%s",
+  LOG(WARNING) << StringPrintf("Throwing OutOfMemoryError \"%s\"%s",
       msg, (tls32_.throwing_OutOfMemoryError ? " (recursive case)" : ""));
   ThrowLocation throw_location = GetCurrentLocationForThrow();
   if (!tls32_.throwing_OutOfMemoryError) {
@@ -1862,7 +1862,7 @@ void Thread::ThrowOutOfMemoryError(const char* msg) {
     ThrowNewException(throw_location, "Ljava/lang/OutOfMemoryError;", msg);
     tls32_.throwing_OutOfMemoryError = false;
   } else {
-    Dump(LOG(ERROR));  // The pre-allocated OOME has no stack, so help out and log one.
+    Dump(LOG(WARNING));  // The pre-allocated OOME has no stack, so help out and log one.
     SetException(throw_location, Runtime::Current()->GetPreAllocatedOutOfMemoryError());
   }
 }
