@@ -24,6 +24,12 @@ namespace art {
 
 class ArchTest : public CommonRuntimeTest {
  protected:
+  void SetUpRuntimeOptions(RuntimeOptions *options) OVERRIDE {
+    // Use 64-bit ISA for runtime setup to make method size potentially larger
+    // than necessary (rather than smaller) during CreateCalleeSaveMethod
+    options->push_back(std::make_pair("imageinstructionset", "x86_64"));
+  }
+
   static void CheckFrameSize(InstructionSet isa, Runtime::CalleeSaveType type, uint32_t save_size)
       NO_THREAD_SAFETY_ANALYSIS {
     Runtime* r = Runtime::Current();
