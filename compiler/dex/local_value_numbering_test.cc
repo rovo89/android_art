@@ -780,6 +780,7 @@ TEST_F(LocalValueNumberingTest, DivZeroCheck) {
 
 TEST_F(LocalValueNumberingTest, ConstWide) {
   static const MIRDef mirs[] = {
+      // Core reg constants.
       DEF_CONST(Instruction::CONST_WIDE_16, 0u, 0),
       DEF_CONST(Instruction::CONST_WIDE_16, 1u, 1),
       DEF_CONST(Instruction::CONST_WIDE_16, 2u, -1),
@@ -801,9 +802,86 @@ TEST_F(LocalValueNumberingTest, ConstWide) {
       DEF_CONST(Instruction::CONST_WIDE, 18u, (INT64_C(1) << 48) - 1),
       DEF_CONST(Instruction::CONST_WIDE, 19u, (INT64_C(-1) << 48) + 1),
       DEF_CONST(Instruction::CONST_WIDE, 20u, (INT64_C(-1) << 48) - 1),
+      // FP reg constants.
+      DEF_CONST(Instruction::CONST_WIDE_16, 21u, 0),
+      DEF_CONST(Instruction::CONST_WIDE_16, 22u, 1),
+      DEF_CONST(Instruction::CONST_WIDE_16, 23u, -1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 24u, 1 << 16),
+      DEF_CONST(Instruction::CONST_WIDE_32, 25u, -1 << 16),
+      DEF_CONST(Instruction::CONST_WIDE_32, 26u, (1 << 16) + 1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 27u, (1 << 16) - 1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 28u, -(1 << 16) + 1),
+      DEF_CONST(Instruction::CONST_WIDE_32, 29u, -(1 << 16) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 30u, INT64_C(1) << 32),
+      DEF_CONST(Instruction::CONST_WIDE, 31u, INT64_C(-1) << 32),
+      DEF_CONST(Instruction::CONST_WIDE, 32u, (INT64_C(1) << 32) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 33u, (INT64_C(1) << 32) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 34u, (INT64_C(-1) << 32) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 35u, (INT64_C(-1) << 32) - 1),
+      DEF_CONST(Instruction::CONST_WIDE_HIGH16, 36u, 1),       // Effectively 1 << 48.
+      DEF_CONST(Instruction::CONST_WIDE_HIGH16, 37u, 0xffff),  // Effectively -1 << 48.
+      DEF_CONST(Instruction::CONST_WIDE, 38u, (INT64_C(1) << 48) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 39u, (INT64_C(1) << 48) - 1),
+      DEF_CONST(Instruction::CONST_WIDE, 40u, (INT64_C(-1) << 48) + 1),
+      DEF_CONST(Instruction::CONST_WIDE, 41u, (INT64_C(-1) << 48) - 1),
   };
 
   PrepareMIRs(mirs);
+  for (size_t i = arraysize(mirs) / 2u; i != arraysize(mirs); ++i) {
+    cu_.mir_graph->reg_location_[mirs_[i].ssa_rep->defs[0]].fp = true;
+  }
+  PerformLVN();
+  for (size_t i = 0u; i != mir_count_; ++i) {
+    for (size_t j = i + 1u; j != mir_count_; ++j) {
+      EXPECT_NE(value_names_[i], value_names_[j]) << i << " " << j;
+    }
+  }
+}
+
+TEST_F(LocalValueNumberingTest, Const) {
+  static const MIRDef mirs[] = {
+      // Core reg constants.
+      DEF_CONST(Instruction::CONST_4, 0u, 0),
+      DEF_CONST(Instruction::CONST_4, 1u, 1),
+      DEF_CONST(Instruction::CONST_4, 2u, -1),
+      DEF_CONST(Instruction::CONST_16, 3u, 1 << 4),
+      DEF_CONST(Instruction::CONST_16, 4u, -1 << 4),
+      DEF_CONST(Instruction::CONST_16, 5u, (1 << 4) + 1),
+      DEF_CONST(Instruction::CONST_16, 6u, (1 << 4) - 1),
+      DEF_CONST(Instruction::CONST_16, 7u, -(1 << 4) + 1),
+      DEF_CONST(Instruction::CONST_16, 8u, -(1 << 4) - 1),
+      DEF_CONST(Instruction::CONST_HIGH16, 9u, 1),       // Effectively 1 << 16.
+      DEF_CONST(Instruction::CONST_HIGH16, 10u, 0xffff),  // Effectively -1 << 16.
+      DEF_CONST(Instruction::CONST, 11u, (1 << 16) + 1),
+      DEF_CONST(Instruction::CONST, 12u, (1 << 16) - 1),
+      DEF_CONST(Instruction::CONST, 13u, (-1 << 16) + 1),
+      DEF_CONST(Instruction::CONST, 14u, (-1 << 16) - 1),
+      // FP reg constants.
+      DEF_CONST(Instruction::CONST_4, 15u, 0),
+      DEF_CONST(Instruction::CONST_4, 16u, 1),
+      DEF_CONST(Instruction::CONST_4, 17u, -1),
+      DEF_CONST(Instruction::CONST_16, 18u, 1 << 4),
+      DEF_CONST(Instruction::CONST_16, 19u, -1 << 4),
+      DEF_CONST(Instruction::CONST_16, 20u, (1 << 4) + 1),
+      DEF_CONST(Instruction::CONST_16, 21u, (1 << 4) - 1),
+      DEF_CONST(Instruction::CONST_16, 22u, -(1 << 4) + 1),
+      DEF_CONST(Instruction::CONST_16, 23u, -(1 << 4) - 1),
+      DEF_CONST(Instruction::CONST_HIGH16, 24u, 1),       // Effectively 1 << 16.
+      DEF_CONST(Instruction::CONST_HIGH16, 25u, 0xffff),  // Effectively -1 << 16.
+      DEF_CONST(Instruction::CONST, 26u, (1 << 16) + 1),
+      DEF_CONST(Instruction::CONST, 27u, (1 << 16) - 1),
+      DEF_CONST(Instruction::CONST, 28u, (-1 << 16) + 1),
+      DEF_CONST(Instruction::CONST, 29u, (-1 << 16) - 1),
+      // null reference constant.
+      DEF_CONST(Instruction::CONST_4, 30u, 0),
+  };
+
+  PrepareMIRs(mirs);
+  static_assert((arraysize(mirs) & 1) != 0, "missing null or unmatched fp/core");
+  cu_.mir_graph->reg_location_[arraysize(mirs) - 1].ref = true;
+  for (size_t i = arraysize(mirs) / 2u; i != arraysize(mirs) - 1; ++i) {
+    cu_.mir_graph->reg_location_[mirs_[i].ssa_rep->defs[0]].fp = true;
+  }
   PerformLVN();
   for (size_t i = 0u; i != mir_count_; ++i) {
     for (size_t j = i + 1u; j != mir_count_; ++j) {

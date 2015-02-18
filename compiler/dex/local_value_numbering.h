@@ -308,6 +308,8 @@ class LocalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
   void HandleEscapingRef(uint16_t base);
   void HandleInvokeArgs(const MIR* mir, const LocalValueNumbering* mir_lvn);
   uint16_t HandlePhi(MIR* mir);
+  uint16_t HandleConst(MIR* mir, uint32_t value);
+  uint16_t HandleConstWide(MIR* mir, uint64_t value);
   uint16_t HandleAGet(MIR* mir, uint16_t opcode);
   void HandleAPut(MIR* mir, uint16_t opcode);
   uint16_t HandleIGet(MIR* mir, uint16_t opcode);
