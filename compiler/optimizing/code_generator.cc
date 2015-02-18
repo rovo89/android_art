@@ -40,6 +40,16 @@ size_t CodeGenerator::GetCacheOffset(uint32_t index) {
   return mirror::ObjectArray<mirror::Object>::OffsetOfElement(index).SizeValue();
 }
 
+static bool IsSingleGoto(HBasicBlock* block) {
+  HLoopInformation* loop_info = block->GetLoopInformation();
+  // TODO: Remove the null check b/19084197.
+  return (block->GetFirstInstruction() != nullptr)
+      && (block->GetFirstInstruction() == block->GetLastInstruction())
+      && block->GetLastInstruction()->IsGoto()
+      // Back edges generate the suspend check.
+      && (loop_info == nullptr || !loop_info->IsBackEdge(block));
+}
+
 void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
   Initialize();
   if (!is_leaf) {
@@ -56,12 +66,38 @@ void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
   CompileInternal(allocator, /* is_baseline */ true);
 }
 
+bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) const {
+  DCHECK_EQ(block_order_->Get(current_block_index_), current);
+  return GetNextBlockToEmit() == FirstNonEmptyBlock(next);
+}
+
+HBasicBlock* CodeGenerator::GetNextBlockToEmit() const {
+  for (size_t i = current_block_index_ + 1; i < block_order_->Size(); ++i) {
+    HBasicBlock* block = block_order_->Get(i);
+    if (!IsSingleGoto(block)) {
+      return block;
+    }
+  }
+  return nullptr;
+}
+
+HBasicBlock* CodeGenerator::FirstNonEmptyBlock(HBasicBlock* block) const {
+  while (IsSingleGoto(block)) {
+    block = block->GetSuccessors().Get(0);
+  }
+  return block;
+}
+
 void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) {
   HGraphVisitor* instruction_visitor = GetInstructionVisitor();
   DCHECK_EQ(current_block_index_, 0u);
   GenerateFrameEntry();
   for (size_t e = block_order_->Size(); current_block_index_ < e; ++current_block_index_) {
     HBasicBlock* block = block_order_->Get(current_block_index_);
+    // Don't generate code for an empty block. Its predecessors will branch to its successor
+    // directly. Also, the label of that block will not be emitted, so this helps catch
+    // errors where we reference that label.
+    if (IsSingleGoto(block)) continue;
     Bind(block);
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();
@@ -336,12 +372,6 @@ void CodeGenerator::AllocateLocations(HInstruction* instruction) {
       SetRequiresCurrentMethod();
     }
   }
-}
-
-bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) const {
-  DCHECK_EQ(block_order_->Get(current_block_index_), current);
-  return (current_block_index_ < block_order_->Size() - 1)
-      && (block_order_->Get(current_block_index_ + 1) == next);
 }
 
 CodeGenerator* CodeGenerator::Create(HGraph* graph,
