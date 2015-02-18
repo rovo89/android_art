@@ -1214,6 +1214,31 @@ uint16_t LocalValueNumbering::HandlePhi(MIR* mir) {
   return value_name;
 }
 
+uint16_t LocalValueNumbering::HandleConst(MIR* mir, uint32_t value) {
+  RegLocation raw_dest = gvn_->GetMirGraph()->GetRawDest(mir);
+  uint16_t res;
+  if (value == 0u && raw_dest.ref) {
+    res = GlobalValueNumbering::kNullValue;
+  } else {
+    Instruction::Code op = raw_dest.fp ? Instruction::CONST_HIGH16 : Instruction::CONST;
+    res = gvn_->LookupValue(op, Low16Bits(value), High16Bits(value), 0);
+  }
+  SetOperandValue(mir->ssa_rep->defs[0], res);
+  return res;
+}
+
+uint16_t LocalValueNumbering::HandleConstWide(MIR* mir, uint64_t value) {
+  RegLocation raw_dest = gvn_->GetMirGraph()->GetRawDest(mir);
+  Instruction::Code op = raw_dest.fp ? Instruction::CONST_HIGH16 : Instruction::CONST;
+  uint32_t low_word = Low32Bits(value);
+  uint32_t high_word = High32Bits(value);
+  uint16_t low_res = gvn_->LookupValue(op, Low16Bits(low_word), High16Bits(low_word), 1);
+  uint16_t high_res = gvn_->LookupValue(op, Low16Bits(high_word), High16Bits(high_word), 2);
+  uint16_t res = gvn_->LookupValue(op, low_res, high_res, 3);
+  SetOperandValueWide(mir->ssa_rep->defs[0], res);
+  return res;
+}
+
 uint16_t LocalValueNumbering::HandleAGet(MIR* mir, uint16_t opcode) {
   uint16_t array = GetOperandValue(mir->ssa_rep->uses[0]);
   HandleNullCheck(mir, array);
@@ -1652,58 +1677,28 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
       break;
 
     case Instruction::CONST_HIGH16:
-      if (mir->dalvikInsn.vB != 0) {
-        res = gvn_->LookupValue(Instruction::CONST, 0, mir->dalvikInsn.vB, 0);
-        SetOperandValue(mir->ssa_rep->defs[0], res);
-        break;
-      }
-      FALLTHROUGH_INTENDED;
+      res = HandleConst(mir, mir->dalvikInsn.vB << 16);
+      break;
     case Instruction::CONST:
     case Instruction::CONST_4:
     case Instruction::CONST_16:
-      if (mir->dalvikInsn.vB == 0 && gvn_->GetMirGraph()->GetRawDest(mir).ref) {
-        res = GlobalValueNumbering::kNullValue;
-      } else {
-        res = gvn_->LookupValue(Instruction::CONST, Low16Bits(mir->dalvikInsn.vB),
-                                High16Bits(mir->dalvikInsn.vB), 0);
-      }
-      SetOperandValue(mir->ssa_rep->defs[0], res);
+      res = HandleConst(mir, mir->dalvikInsn.vB);
       break;
 
     case Instruction::CONST_WIDE_16:
-    case Instruction::CONST_WIDE_32: {
-        uint16_t low_res = gvn_->LookupValue(Instruction::CONST, Low16Bits(mir->dalvikInsn.vB),
-                                             High16Bits(mir->dalvikInsn.vB), 1);
-        uint16_t high_res;
-        if (mir->dalvikInsn.vB & 0x80000000) {
-          high_res = gvn_->LookupValue(Instruction::CONST, 0xffff, 0xffff, 2);
-        } else {
-          high_res = gvn_->LookupValue(Instruction::CONST, 0, 0, 2);
-        }
-        res = gvn_->LookupValue(Instruction::CONST, low_res, high_res, 3);
-        SetOperandValueWide(mir->ssa_rep->defs[0], res);
-      }
+    case Instruction::CONST_WIDE_32:
+      res = HandleConstWide(
+          mir,
+          mir->dalvikInsn.vB +
+              ((mir->dalvikInsn.vB & 0x80000000) != 0 ? UINT64_C(0xffffffff00000000) : 0u));
       break;
 
-    case Instruction::CONST_WIDE: {
-        uint32_t low_word = Low32Bits(mir->dalvikInsn.vB_wide);
-        uint32_t high_word = High32Bits(mir->dalvikInsn.vB_wide);
-        uint16_t low_res = gvn_->LookupValue(Instruction::CONST, Low16Bits(low_word),
-                                             High16Bits(low_word), 1);
-        uint16_t high_res = gvn_->LookupValue(Instruction::CONST, Low16Bits(high_word),
-                                              High16Bits(high_word), 2);
-        res = gvn_->LookupValue(Instruction::CONST, low_res, high_res, 3);
-        SetOperandValueWide(mir->ssa_rep->defs[0], res);
-      }
+    case Instruction::CONST_WIDE:
+      res = HandleConstWide(mir, mir->dalvikInsn.vB_wide);
       break;
 
-    case Instruction::CONST_WIDE_HIGH16: {
-        uint16_t low_res = gvn_->LookupValue(Instruction::CONST, 0, 0, 1);
-        uint16_t high_res = gvn_->LookupValue(Instruction::CONST, 0,
-                                              Low16Bits(mir->dalvikInsn.vB), 2);
-        res = gvn_->LookupValue(Instruction::CONST, low_res, high_res, 3);
-        SetOperandValueWide(mir->ssa_rep->defs[0], res);
-      }
+    case Instruction::CONST_WIDE_HIGH16:
+      res = HandleConstWide(mir, static_cast<uint64_t>(mir->dalvikInsn.vB) << 48);
       break;
 
     case Instruction::ARRAY_LENGTH: {
