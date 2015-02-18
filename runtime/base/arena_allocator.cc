@@ -19,8 +19,8 @@
 #include <numeric>
 
 #include "arena_allocator.h"
-#include "base/logging.h"
-#include "base/mutex.h"
+#include "logging.h"
+#include "mutex.h"
 #include "thread-inl.h"
 #include <memcheck/memcheck.h>
 

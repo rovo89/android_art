@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "arch/instruction_set.h"
+#include "base/arena_allocator.h"
 #include "base/mutex.h"
 #include "base/timing_logger.h"
 #include "class_reference.h"
@@ -38,7 +39,6 @@
 #include "runtime.h"
 #include "safe_map.h"
 #include "thread_pool.h"
-#include "utils/arena_allocator.h"
 #include "utils/dedupe_set.h"
 #include "utils/swap_space.h"
 #include "utils.h"

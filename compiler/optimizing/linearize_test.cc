@@ -16,6 +16,7 @@
 
 #include <fstream>
 
+#include "base/arena_allocator.h"
 #include "base/stringprintf.h"
 #include "builder.h"
 #include "code_generator.h"
@@ -29,7 +30,6 @@
 #include "pretty_printer.h"
 #include "ssa_builder.h"
 #include "ssa_liveness_analysis.h"
-#include "utils/arena_allocator.h"
 
 #include "gtest/gtest.h"
 

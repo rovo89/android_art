@@ -18,6 +18,7 @@
 #include <memory>
 
 #include "base/logging.h"
+#include "base/scoped_arena_containers.h"
 #include "dataflow_iterator-inl.h"
 #include "compiler_ir.h"
 #include "dex_flags.h"
@@ -29,7 +30,6 @@
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "driver/dex_compilation_unit.h"
-#include "utils/scoped_arena_containers.h"
 
 namespace art {
 

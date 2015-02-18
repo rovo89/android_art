@@ -24,6 +24,7 @@
 #include "base/logging.h"
 #include "base/stl_util.h"
 #include "base/stringprintf.h"
+#include "base/scoped_arena_containers.h"
 #include "compiler_ir.h"
 #include "dex_file-inl.h"
 #include "dex_flags.h"
@@ -34,7 +35,6 @@
 #include "leb128.h"
 #include "pass_driver_me_post_opt.h"
 #include "stack.h"
-#include "utils/scoped_arena_containers.h"
 
 namespace art {
 

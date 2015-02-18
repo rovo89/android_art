@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_SCOPED_ARENA_ALLOCATOR_H_
-#define ART_COMPILER_UTILS_SCOPED_ARENA_ALLOCATOR_H_
+#ifndef ART_RUNTIME_BASE_SCOPED_ARENA_ALLOCATOR_H_
+#define ART_RUNTIME_BASE_SCOPED_ARENA_ALLOCATOR_H_
 
-#include "base/logging.h"
-#include "base/macros.h"
-#include "utils/arena_allocator.h"
-#include "utils/debug_stack.h"
+#include "arena_allocator.h"
+#include "debug_stack.h"
 #include "globals.h"
+#include "logging.h"
+#include "macros.h"
 
 namespace art {
 
@@ -147,4 +147,4 @@ class ScopedArenaAllocator
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_SCOPED_ARENA_ALLOCATOR_H_
+#endif  // ART_RUNTIME_BASE_SCOPED_ARENA_ALLOCATOR_H_

@@ -17,6 +17,9 @@
 #ifndef ART_COMPILER_DEX_QUICK_MIR_TO_LIR_H_
 #define ART_COMPILER_DEX_QUICK_MIR_TO_LIR_H_
 
+#include "base/arena_allocator.h"
+#include "base/arena_containers.h"
+#include "base/arena_object.h"
 #include "compiled_method.h"
 #include "dex/compiler_enums.h"
 #include "dex/dex_flags.h"
@@ -29,9 +32,6 @@
 #include "leb128.h"
 #include "safe_map.h"
 #include "utils/array_ref.h"
-#include "utils/arena_allocator.h"
-#include "utils/arena_containers.h"
-#include "utils/arena_object.h"
 #include "utils/stack_checks.h"
 
 namespace art {
