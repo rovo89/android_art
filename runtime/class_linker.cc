@@ -3511,7 +3511,7 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
           StringPrintf("Rejecting class %s that attempts to sub-class erroneous class %s",
                        PrettyDescriptor(klass.Get()).c_str(),
                        PrettyDescriptor(super.Get()).c_str()));
-      LOG(ERROR) << error_msg  << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
+      LOG(WARNING) << error_msg  << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
       Handle<mirror::Throwable> cause(hs.NewHandle(self->GetException(nullptr)));
       if (cause.Get() != nullptr) {
         self->ClearException();
@@ -3584,7 +3584,7 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
       }
     }
   } else {
-    LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(klass.Get())
+    LOG(WARNING) << "Verification failed on class " << PrettyDescriptor(klass.Get())
         << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8()
         << " because: " << error_msg;
     self->AssertNoPendingException();
