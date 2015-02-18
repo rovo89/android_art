@@ -228,7 +228,7 @@ class Dbg {
 
   static void SetJdwpAllowed(bool allowed);
 
-  static void StartJdwp(const JDWP::JdwpOptions* jdwp_options);
+  static void StartJdwp();
   static void StopJdwp();
 
   // Invoked by the GC in case we need to keep DDMS informed.
@@ -253,6 +253,9 @@ class Dbg {
   // Returns true if we're actually debugging with a real debugger, false if it's
   // just DDMS (or nothing at all).
   static bool IsDebuggerActive();
+
+  // Configures JDWP with parsed command-line options.
+  static void ConfigureJdwp(const JDWP::JdwpOptions& jdwp_options);
 
   // Returns true if we had -Xrunjdwp or -agentlib:jdwp= on the command line.
   static bool IsJdwpConfigured();
