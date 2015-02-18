@@ -88,7 +88,6 @@ struct CmdlineType<JDWP::JdwpOptions> : CmdlineTypeParser<JDWP::JdwpOptions> {
     Split(options, ',', &pairs);
 
     JDWP::JdwpOptions jdwp_options;
-    std::stringstream error_stream;
 
     for (const std::string& jdwp_option : pairs) {
       std::string::size_type equals_pos = jdwp_option.find('=');
@@ -97,11 +96,12 @@ struct CmdlineType<JDWP::JdwpOptions> : CmdlineTypeParser<JDWP::JdwpOptions> {
             "Can't parse JDWP option '" + jdwp_option + "' in '" + options + "'");
       }
 
-      if (!ParseJdwpOption(jdwp_option.substr(0, equals_pos),
-                           jdwp_option.substr(equals_pos + 1),
-                           error_stream,
-                           &jdwp_options)) {
-        return Result::Failure(error_stream.str());
+      Result parse_attempt = ParseJdwpOption(jdwp_option.substr(0, equals_pos),
+                                             jdwp_option.substr(equals_pos + 1),
+                                             &jdwp_options);
+      if (parse_attempt.IsError()) {
+        // We fail to parse this JDWP option.
+        return parse_attempt;
       }
     }
 
@@ -115,17 +115,15 @@ struct CmdlineType<JDWP::JdwpOptions> : CmdlineTypeParser<JDWP::JdwpOptions> {
     return Result::Success(std::move(jdwp_options));
   }
 
-  bool ParseJdwpOption(const std::string& name, const std::string& value,
-                       std::ostream& error_stream,
-                       JDWP::JdwpOptions* jdwp_options) {
+  Result ParseJdwpOption(const std::string& name, const std::string& value,
+                         JDWP::JdwpOptions* jdwp_options) {
     if (name == "transport") {
       if (value == "dt_socket") {
         jdwp_options->transport = JDWP::kJdwpTransportSocket;
       } else if (value == "dt_android_adb") {
         jdwp_options->transport = JDWP::kJdwpTransportAndroidAdb;
       } else {
-        error_stream << "JDWP transport not supported: " << value;
-        return false;
+        return Result::Failure("JDWP transport not supported: " + value);
       }
     } else if (name == "server") {
       if (value == "n") {
@@ -133,8 +131,7 @@ struct CmdlineType<JDWP::JdwpOptions> : CmdlineTypeParser<JDWP::JdwpOptions> {
       } else if (value == "y") {
         jdwp_options->server = true;
       } else {
-        error_stream << "JDWP option 'server' must be 'y' or 'n'";
-        return false;
+        return Result::Failure("JDWP option 'server' must be 'y' or 'n'");
       }
     } else if (name == "suspend") {
       if (value == "n") {
@@ -142,8 +139,7 @@ struct CmdlineType<JDWP::JdwpOptions> : CmdlineTypeParser<JDWP::JdwpOptions> {
       } else if (value == "y") {
         jdwp_options->suspend = true;
       } else {
-        error_stream << "JDWP option 'suspend' must be 'y' or 'n'";
-        return false;
+        return Result::Failure("JDWP option 'suspend' must be 'y' or 'n'");
       }
     } else if (name == "address") {
       /* this is either <port> or <host>:<port> */
@@ -157,14 +153,12 @@ struct CmdlineType<JDWP::JdwpOptions> : CmdlineTypeParser<JDWP::JdwpOptions> {
         port_string = value;
       }
       if (port_string.empty()) {
-        error_stream << "JDWP address missing port: " << value;
-        return false;
+        return Result::Failure("JDWP address missing port: " + value);
       }
       char* end;
       uint64_t port = strtoul(port_string.c_str(), &end, 10);
       if (*end != '\0' || port > 0xffff) {
-        error_stream << "JDWP address has junk in port field: " << value;
-        return false;
+        return Result::Failure("JDWP address has junk in port field: " + value);
       }
       jdwp_options->port = port;
     } else if (name == "launch" || name == "onthrow" || name == "oncaught" || name == "timeout") {
@@ -174,7 +168,7 @@ struct CmdlineType<JDWP::JdwpOptions> : CmdlineTypeParser<JDWP::JdwpOptions> {
       LOG(INFO) << "Ignoring unrecognized JDWP option '" << name << "'='" << value << "'";
     }
 
-    return true;
+    return Result::SuccessNoValue();
   }
 
   static const char* Name() { return "JdwpOptions"; }
