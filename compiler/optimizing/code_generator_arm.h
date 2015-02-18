@@ -252,7 +252,7 @@ class CodeGeneratorARM : public CodeGenerator {
   void MarkGCCard(Register temp, Register card, Register object, Register value);
 
   Label* GetLabelOf(HBasicBlock* block) const {
-    return block_labels_.GetRawStorage() + block->GetBlockId();
+    return CommonGetLabelOf<Label>(block_labels_.GetRawStorage(), block);
   }
 
   void Initialize() OVERRIDE {
