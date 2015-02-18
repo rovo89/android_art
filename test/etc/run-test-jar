@@ -370,7 +370,7 @@ else
     if [ "$DEV_MODE" = "y" ]; then
         export ANDROID_LOG_TAGS='*:d'
     else
-        export ANDROID_LOG_TAGS='*:s'
+        export ANDROID_LOG_TAGS='*:e'
     fi
     export ANDROID_DATA="$DEX_LOCATION"
     export ANDROID_ROOT="${ANDROID_ROOT}"
