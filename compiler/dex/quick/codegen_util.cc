@@ -865,7 +865,6 @@ LIR* Mir2Lir::InsertCaseLabel(uint32_t bbid, int keyVal) {
     DCHECK(!new_label->flags.use_def_invalid);
     new_label->u.m.def_mask = &kEncodeAll;
     InsertLIRAfter(boundary_lir, new_label);
-    res = new_label;
   }
   return res;
 }
