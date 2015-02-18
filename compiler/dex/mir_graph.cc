@@ -2559,4 +2559,13 @@ const uint16_t* MIRGraph::GetInsns(int m_unit_index) const {
   return m_units_[m_unit_index]->GetCodeItem()->insns_;
 }
 
+void MIRGraph::SetPuntToInterpreter(bool val) {
+  punt_to_interpreter_ = val;
+  if (val) {
+    // Disable all subsequent optimizations. They may not be safe to run. (For example,
+    // LVN/GVN assumes there are no conflicts found by the type inference pass.)
+    cu_->disable_opt = ~static_cast<decltype(cu_->disable_opt)>(0);
+  }
+}
+
 }  // namespace art

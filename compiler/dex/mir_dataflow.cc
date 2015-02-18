@@ -910,11 +910,6 @@ const uint64_t MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
   DF_FORMAT_EXTENDED,
 };
 
-/* Return the base virtual register for a SSA name */
-int MIRGraph::SRegToVReg(int ssa_reg) const {
-  return ssa_base_vregs_[ssa_reg];
-}
-
 /* Any register that is used before being defined is considered live-in */
 void MIRGraph::HandleLiveInUse(ArenaBitVector* use_v, ArenaBitVector* def_v,
                                ArenaBitVector* live_in_v, int dalvik_reg_id) {

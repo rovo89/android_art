@@ -154,6 +154,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   runtime/jni_internal_test.cc \
   runtime/proxy_test.cc \
   runtime/reflection_test.cc \
+  compiler/dex/gvn_dead_code_elimination_test.cc \
   compiler/dex/global_value_numbering_test.cc \
   compiler/dex/local_value_numbering_test.cc \
   compiler/dex/mir_graph_test.cc \
