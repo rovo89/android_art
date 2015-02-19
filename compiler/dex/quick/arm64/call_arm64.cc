@@ -392,6 +392,23 @@ void Arm64Mir2Lir::GenSpecialExitSequence() {
   NewLIR0(kA64Ret);
 }
 
+void Arm64Mir2Lir::GenSpecialEntryForSuspend() {
+  // Keep 16-byte stack alignment - push x0, i.e. ArtMethod*, lr.
+  core_spill_mask_ = (1u << rs_xLR.GetRegNum());
+  num_core_spills_ = 1u;
+  fp_spill_mask_ = 0u;
+  num_fp_spills_ = 0u;
+  frame_size_ = 16u;
+  core_vmap_table_.clear();
+  fp_vmap_table_.clear();
+  NewLIR4(WIDE(kA64StpPre4rrXD), rs_x0.GetReg(), rs_xLR.GetReg(), rs_sp.GetReg(), -frame_size_ / 8);
+}
+
+void Arm64Mir2Lir::GenSpecialExitForSuspend() {
+  // Pop the frame. (ArtMethod* no longer needed but restore it anyway.)
+  NewLIR4(WIDE(kA64LdpPost4rrXD), rs_x0.GetReg(), rs_xLR.GetReg(), rs_sp.GetReg(), frame_size_ / 8);
+}
+
 static bool Arm64UseRelativeCall(CompilationUnit* cu, const MethodReference& target_method) {
   // Emit relative calls anywhere in the image or within a dex file otherwise.
   return cu->compiler_driver->IsImage() || cu->dex_file == target_method.dex_file;

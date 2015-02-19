@@ -498,19 +498,19 @@ class ChildBlockIterator {
  * more efficient invoke code generation.
  */
 struct CallInfo {
-  int num_arg_words;    // Note: word count, not arg count.
-  RegLocation* args;    // One for each word of arguments.
-  RegLocation result;   // Eventual target of MOVE_RESULT.
+  size_t num_arg_words;   // Note: word count, not arg count.
+  RegLocation* args;      // One for each word of arguments.
+  RegLocation result;     // Eventual target of MOVE_RESULT.
   int opt_flags;
   InvokeType type;
   uint32_t dex_idx;
-  uint32_t index;       // Method idx for invokes, type idx for FilledNewArray.
+  uint32_t index;         // Method idx for invokes, type idx for FilledNewArray.
   uintptr_t direct_code;
   uintptr_t direct_method;
-  RegLocation target;    // Target of following move_result.
+  RegLocation target;     // Target of following move_result.
   bool skip_this;
   bool is_range;
-  DexOffset offset;      // Offset in code units.
+  DexOffset offset;       // Offset in code units.
   MIR* mir;
 };
 

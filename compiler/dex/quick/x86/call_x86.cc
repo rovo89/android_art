@@ -272,6 +272,41 @@ void X86Mir2Lir::GenSpecialExitSequence() {
   NewLIR0(kX86Ret);
 }
 
+void X86Mir2Lir::GenSpecialEntryForSuspend() {
+  // Keep 16-byte stack alignment, there's already the return address, so
+  //   - for 32-bit push EAX, i.e. ArtMethod*, ESI, EDI,
+  //   - for 64-bit push RAX, i.e. ArtMethod*.
+  if (!cu_->target64) {
+    DCHECK(!IsTemp(rs_rSI));
+    DCHECK(!IsTemp(rs_rDI));
+    core_spill_mask_ =
+        (1u << rs_rSI.GetRegNum()) | (1u << rs_rSI.GetRegNum()) | (1u << rs_rRET.GetRegNum());
+    num_core_spills_ = 3u;
+  } else {
+    core_spill_mask_ = (1u << rs_rRET.GetRegNum());
+    num_core_spills_ = 1u;
+  }
+  fp_spill_mask_ = 0u;
+  num_fp_spills_ = 0u;
+  frame_size_ = 16u;
+  core_vmap_table_.clear();
+  fp_vmap_table_.clear();
+  if (!cu_->target64) {
+    NewLIR1(kX86Push32R, rs_rDI.GetReg());
+    NewLIR1(kX86Push32R, rs_rSI.GetReg());
+  }
+  NewLIR1(kX86Push32R, TargetReg(kArg0, kRef).GetReg());  // ArtMethod*
+}
+
+void X86Mir2Lir::GenSpecialExitForSuspend() {
+  // Pop the frame. (ArtMethod* no longer needed but restore it anyway.)
+  NewLIR1(kX86Pop32R, TargetReg(kArg0, kRef).GetReg());  // ArtMethod*
+  if (!cu_->target64) {
+    NewLIR1(kX86Pop32R, rs_rSI.GetReg());
+    NewLIR1(kX86Pop32R, rs_rDI.GetReg());
+  }
+}
+
 void X86Mir2Lir::GenImplicitNullCheck(RegStorage reg, int opt_flags) {
   if (!(cu_->disable_opt & (1 << kNullCheckElimination)) && (opt_flags & MIR_IGNORE_NULL_CHECK)) {
     return;
