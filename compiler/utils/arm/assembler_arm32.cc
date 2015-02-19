@@ -1254,7 +1254,7 @@ void Arm32Assembler::vmstat(Condition cond) {  // VMRS APSR_nzcv, FPSCR
 
 
 void Arm32Assembler::svc(uint32_t imm24) {
-  CHECK(IsUint(24, imm24)) << imm24;
+  CHECK(IsUint<24>(imm24)) << imm24;
   int32_t encoding = (AL << kConditionShift) | B27 | B26 | B25 | B24 | imm24;
   Emit(encoding);
 }

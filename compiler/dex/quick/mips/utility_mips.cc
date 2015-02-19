@@ -56,7 +56,8 @@ LIR* MipsMir2Lir::OpFpRegCopy(RegStorage r_dest, RegStorage r_src) {
 }
 
 bool MipsMir2Lir::InexpensiveConstantInt(int32_t value) {
-  return ((value == 0) || IsUint(16, value) || ((value < 0) && (value >= -32768)));
+  // For encodings, see LoadConstantNoClobber below.
+  return ((value == 0) || IsUint<16>(value) || IsInt<16>(value));
 }
 
 bool MipsMir2Lir::InexpensiveConstantFloat(int32_t value) {
@@ -96,9 +97,11 @@ LIR* MipsMir2Lir::LoadConstantNoClobber(RegStorage r_dest, int value) {
   /* See if the value can be constructed cheaply */
   if (value == 0) {
     res = NewLIR2(kMipsMove, r_dest.GetReg(), rZERO);
-  } else if ((value > 0) && (value <= 65535)) {
+  } else if (IsUint<16>(value)) {
+    // Use OR with (unsigned) immediate to encode 16b unsigned int.
     res = NewLIR3(kMipsOri, r_dest.GetReg(), rZERO, value);
-  } else if ((value < 0) && (value >= -32768)) {
+  } else if (IsInt<16>(value)) {
+    // Use ADD with (signed) immediate to encode 16b signed int.
     res = NewLIR3(kMipsAddiu, r_dest.GetReg(), rZERO, value);
   } else {
     res = NewLIR2(kMipsLui, r_dest.GetReg(), value >> 16);
