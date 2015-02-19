@@ -169,6 +169,8 @@ class Arm64Mir2Lir FINAL : public Mir2Lir {
   void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) OVERRIDE;
   void GenExitSequence() OVERRIDE;
   void GenSpecialExitSequence() OVERRIDE;
+  void GenSpecialEntryForSuspend() OVERRIDE;
+  void GenSpecialExitForSuspend() OVERRIDE;
   void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double) OVERRIDE;
   void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) OVERRIDE;
   void GenSelect(BasicBlock* bb, MIR* mir) OVERRIDE;

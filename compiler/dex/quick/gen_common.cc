@@ -413,7 +413,7 @@ void Mir2Lir::GenNewArray(uint32_t type_idx, RegLocation rl_dest,
  * Current code also throws internal unimp if not 'L', '[' or 'I'.
  */
 void Mir2Lir::GenFilledNewArray(CallInfo* info) {
-  int elems = info->num_arg_words;
+  size_t elems = info->num_arg_words;
   int type_idx = info->index;
   FlushAllRegs();  /* Everything to home location */
   QuickEntrypointEnum target;
@@ -450,7 +450,7 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
      * of any regs in the source range that have been promoted to
      * home location.
      */
-    for (int i = 0; i < elems; i++) {
+    for (size_t i = 0; i < elems; i++) {
       RegLocation loc = UpdateLoc(info->args[i]);
       if (loc.location == kLocPhysReg) {
         ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
@@ -493,7 +493,7 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
     OpRegRegImm(kOpAdd, r_dst, ref_reg,
                 mirror::Array::DataOffset(component_size).Int32Value());
     // Set up the loop counter (known to be > 0)
-    LoadConstant(r_idx, elems - 1);
+    LoadConstant(r_idx, static_cast<int>(elems - 1));
     // Generate the copy loop.  Going backwards for convenience
     LIR* loop_head_target = NewLIR0(kPseudoTargetLabel);
     // Copy next element
@@ -515,9 +515,9 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
     FreeTemp(r_dst);
     FreeTemp(r_src);
   } else {
-    DCHECK_LE(elems, 5);  // Usually but not necessarily non-range.
+    DCHECK_LE(elems, 5u);  // Usually but not necessarily non-range.
     // TUNING: interleave
-    for (int i = 0; i < elems; i++) {
+    for (size_t i = 0; i < elems; i++) {
       RegLocation rl_arg;
       if (info->args[i].ref) {
         rl_arg = LoadValue(info->args[i], kRefReg);
@@ -537,7 +537,7 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
   }
   if (elems != 0 && info->args[0].ref) {
     // If there is at least one potentially non-null value, unconditionally mark the GC card.
-    for (int i = 0; i < elems; i++) {
+    for (size_t i = 0; i < elems; i++) {
       if (!mir_graph_->IsConstantNullRef(info->args[i])) {
         UnconditionallyMarkGCCard(ref_reg);
         break;
@@ -2158,7 +2158,7 @@ void Mir2Lir::GenConversionCall(QuickEntrypointEnum trampoline, RegLocation rl_d
   }
 }
 
-class SuspendCheckSlowPath : public Mir2Lir::LIRSlowPath {
+class Mir2Lir::SuspendCheckSlowPath : public Mir2Lir::LIRSlowPath {
  public:
   SuspendCheckSlowPath(Mir2Lir* m2l, LIR* branch, LIR* cont)
       : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch, cont) {
