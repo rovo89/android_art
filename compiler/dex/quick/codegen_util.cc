@@ -456,37 +456,29 @@ LIR* Mir2Lir::AddWideData(LIR* *constant_list_p, int val_lo, int val_hi) {
   return AddWordData(constant_list_p, val_lo);
 }
 
-static void Push32(std::vector<uint8_t>&buf, int data) {
-  buf.push_back(data & 0xff);
-  buf.push_back((data >> 8) & 0xff);
-  buf.push_back((data >> 16) & 0xff);
-  buf.push_back((data >> 24) & 0xff);
-}
-
 /**
  * @brief Push a compressed reference which needs patching at link/patchoat-time.
  * @details This needs to be kept consistent with the code which actually does the patching in
  *   oat_writer.cc and in the patchoat tool.
  */
-static void PushUnpatchedReference(std::vector<uint8_t>&buf) {
+static void PushUnpatchedReference(CodeBuffer* buf) {
   // Note that we can safely initialize the patches to zero. The code deduplication mechanism takes
   // the patches into account when determining whether two pieces of codes are functionally
   // equivalent.
   Push32(buf, UINT32_C(0));
 }
 
-static void AlignBuffer(std::vector<uint8_t>&buf, size_t offset) {
-  while (buf.size() < offset) {
-    buf.push_back(0);
-  }
+static void AlignBuffer(CodeBuffer* buf, size_t offset) {
+  DCHECK_LE(buf->size(), offset);
+  buf->insert(buf->end(), offset - buf->size(), 0u);
 }
 
 /* Write the literal pool to the output stream */
 void Mir2Lir::InstallLiteralPools() {
-  AlignBuffer(code_buffer_, data_offset_);
+  AlignBuffer(&code_buffer_, data_offset_);
   LIR* data_lir = literal_list_;
   while (data_lir != nullptr) {
-    Push32(code_buffer_, data_lir->operands[0]);
+    Push32(&code_buffer_, data_lir->operands[0]);
     data_lir = NEXT_LIR(data_lir);
   }
   // TODO: patches_.reserve() as needed.
@@ -498,7 +490,7 @@ void Mir2Lir::InstallLiteralPools() {
         reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
     patches_.push_back(LinkerPatch::CodePatch(code_buffer_.size(),
                                               target_dex_file, target_method_idx));
-    PushUnpatchedReference(code_buffer_);
+    PushUnpatchedReference(&code_buffer_);
     data_lir = NEXT_LIR(data_lir);
   }
   data_lir = method_literal_list_;
@@ -508,7 +500,7 @@ void Mir2Lir::InstallLiteralPools() {
         reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
     patches_.push_back(LinkerPatch::MethodPatch(code_buffer_.size(),
                                                 target_dex_file, target_method_idx));
-    PushUnpatchedReference(code_buffer_);
+    PushUnpatchedReference(&code_buffer_);
     data_lir = NEXT_LIR(data_lir);
   }
   // Push class literals.
@@ -519,7 +511,7 @@ void Mir2Lir::InstallLiteralPools() {
       reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
     patches_.push_back(LinkerPatch::TypePatch(code_buffer_.size(),
                                               class_dex_file, target_type_idx));
-    PushUnpatchedReference(code_buffer_);
+    PushUnpatchedReference(&code_buffer_);
     data_lir = NEXT_LIR(data_lir);
   }
 }
@@ -527,7 +519,7 @@ void Mir2Lir::InstallLiteralPools() {
 /* Write the switch tables to the output stream */
 void Mir2Lir::InstallSwitchTables() {
   for (Mir2Lir::SwitchTable* tab_rec : switch_tables_) {
-    AlignBuffer(code_buffer_, tab_rec->offset);
+    AlignBuffer(&code_buffer_, tab_rec->offset);
     /*
      * For Arm, our reference point is the address of the bx
      * instruction that does the launch, so we have to subtract
@@ -567,8 +559,8 @@ void Mir2Lir::InstallSwitchTables() {
         LIR* boundary_lir = InsertCaseLabel(target, key);
         DCHECK(boundary_lir != nullptr);
         int disp = boundary_lir->offset - bx_offset;
-        Push32(code_buffer_, key);
-        Push32(code_buffer_, disp);
+        Push32(&code_buffer_, key);
+        Push32(&code_buffer_, disp);
         if (cu_->verbose) {
           LOG(INFO) << "  Case[" << elems << "] key: 0x"
                     << std::hex << key << ", disp: 0x"
@@ -592,7 +584,7 @@ void Mir2Lir::InstallSwitchTables() {
         LIR* boundary_lir = InsertCaseLabel(target, key);
         DCHECK(boundary_lir != nullptr);
         int disp = boundary_lir->offset - bx_offset;
-        Push32(code_buffer_, disp);
+        Push32(&code_buffer_, disp);
         if (cu_->verbose) {
           LOG(INFO) << "  Case[" << elems << "] disp: 0x"
                     << std::hex << disp;
@@ -607,7 +599,7 @@ void Mir2Lir::InstallSwitchTables() {
 /* Write the fill array dta to the output stream */
 void Mir2Lir::InstallFillArrayData() {
   for (Mir2Lir::FillArrayData* tab_rec : fill_array_data_) {
-    AlignBuffer(code_buffer_, tab_rec->offset);
+    AlignBuffer(&code_buffer_, tab_rec->offset);
     for (int i = 0; i < (tab_rec->size + 1) / 2; i++) {
       code_buffer_.push_back(tab_rec->table[i] & 0xFF);
       code_buffer_.push_back((tab_rec->table[i] >> 8) & 0xFF);
@@ -975,8 +967,11 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       estimated_native_code_size_(0),
       reg_pool_(nullptr),
       live_sreg_(0),
+      code_buffer_(mir_graph->GetArena()->Adapter()),
+      encoded_mapping_table_(mir_graph->GetArena()->Adapter()),
       core_vmap_table_(mir_graph->GetArena()->Adapter()),
       fp_vmap_table_(mir_graph->GetArena()->Adapter()),
+      native_gc_map_(mir_graph->GetArena()->Adapter()),
       patches_(mir_graph->GetArena()->Adapter()),
       num_core_spills_(0),
       num_fp_spills_(0),

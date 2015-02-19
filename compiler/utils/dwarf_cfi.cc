@@ -37,7 +37,7 @@ void DW_CFA_advance_loc(std::vector<uint8_t>* buf, uint32_t increment) {
   } else {
     // Four byte delta.
     buf->push_back(0x04);
-    PushWord(buf, increment);
+    Push32(buf, increment);
   }
 }
 
@@ -68,35 +68,35 @@ void DW_CFA_restore_state(std::vector<uint8_t>* buf) {
 void WriteFDEHeader(std::vector<uint8_t>* buf, bool is_64bit) {
   // 'length' (filled in by other functions).
   if (is_64bit) {
-    PushWord(buf, 0xffffffff);  // Indicates 64bit
-    PushWord(buf, 0);
-    PushWord(buf, 0);
+    Push32(buf, 0xffffffff);  // Indicates 64bit
+    Push32(buf, 0);
+    Push32(buf, 0);
   } else {
-    PushWord(buf, 0);
+    Push32(buf, 0);
   }
 
   // 'CIE_pointer' (filled in by linker).
   if (is_64bit) {
-    PushWord(buf, 0);
-    PushWord(buf, 0);
+    Push32(buf, 0);
+    Push32(buf, 0);
   } else {
-    PushWord(buf, 0);
+    Push32(buf, 0);
   }
 
   // 'initial_location' (filled in by linker).
   if (is_64bit) {
-    PushWord(buf, 0);
-    PushWord(buf, 0);
+    Push32(buf, 0);
+    Push32(buf, 0);
   } else {
-    PushWord(buf, 0);
+    Push32(buf, 0);
   }
 
   // 'address_range' (filled in by other functions).
   if (is_64bit) {
-    PushWord(buf, 0);
-    PushWord(buf, 0);
+    Push32(buf, 0);
+    Push32(buf, 0);
   } else {
-    PushWord(buf, 0);
+    Push32(buf, 0);
   }
 
   // Augmentation length: 0
