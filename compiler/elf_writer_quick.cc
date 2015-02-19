@@ -90,19 +90,19 @@ std::vector<uint8_t>* ConstructCIEFrameX86(bool is_x86_64) {
 
   // Length (will be filled in later in this routine).
   if (is_x86_64) {
-    PushWord(cfi_info, 0xffffffff);  // Indicates 64bit
-    PushWord(cfi_info, 0);
-    PushWord(cfi_info, 0);
+    Push32(cfi_info, 0xffffffff);  // Indicates 64bit
+    Push32(cfi_info, 0);
+    Push32(cfi_info, 0);
   } else {
-    PushWord(cfi_info, 0);
+    Push32(cfi_info, 0);
   }
 
   // CIE id: always 0.
   if (is_x86_64) {
-    PushWord(cfi_info, 0);
-    PushWord(cfi_info, 0);
+    Push32(cfi_info, 0);
+    Push32(cfi_info, 0);
   } else {
-    PushWord(cfi_info, 0);
+    Push32(cfi_info, 0);
   }
 
   // Version: always 1.
@@ -318,7 +318,7 @@ class LineTableGenerator FINAL : public Leb128Encoder {
     PushByte(data_, 0);  // extended opcode:
     PushByte(data_, 1 + 4);  // length: opcode_size + address_size
     PushByte(data_, DW_LNE_set_address);
-    PushWord(data_, addr);
+    Push32(data_, addr);
   }
 
   void SetLine(unsigned line) {
@@ -507,13 +507,13 @@ static void FillInCFIInformation(OatWriter* oat_writer,
   // Start the debug_info section with the header information
   // 'unit_length' will be filled in later.
   int cunit_length = dbg_info->size();
-  PushWord(dbg_info, 0);
+  Push32(dbg_info, 0);
 
   // 'version' - 3.
   PushHalf(dbg_info, 3);
 
   // Offset into .debug_abbrev section (always 0).
-  PushWord(dbg_info, 0);
+  Push32(dbg_info, 0);
 
   // Address size: 4.
   PushByte(dbg_info, 4);
@@ -523,7 +523,7 @@ static void FillInCFIInformation(OatWriter* oat_writer,
   PushByte(dbg_info, 1);
 
   // The producer is Android dex2oat.
-  PushWord(dbg_info, producer_str_offset);
+  Push32(dbg_info, producer_str_offset);
 
   // The language is Java.
   PushByte(dbg_info, DW_LANG_Java);
@@ -532,8 +532,8 @@ static void FillInCFIInformation(OatWriter* oat_writer,
   uint32_t cunit_low_pc = 0 - 1;
   uint32_t cunit_high_pc = 0;
   int cunit_low_pc_pos = dbg_info->size();
-  PushWord(dbg_info, 0);
-  PushWord(dbg_info, 0);
+  Push32(dbg_info, 0);
+  Push32(dbg_info, 0);
 
   if (dbg_line == nullptr) {
     for (size_t i = 0; i < method_info.size(); ++i) {
@@ -546,9 +546,9 @@ static void FillInCFIInformation(OatWriter* oat_writer,
       PushByte(dbg_info, 2);
 
       // Enter name, low_pc, high_pc.
-      PushWord(dbg_info, PushStr(dbg_str, dbg.method_name_));
-      PushWord(dbg_info, dbg.low_pc_ + text_section_offset);
-      PushWord(dbg_info, dbg.high_pc_ + text_section_offset);
+      Push32(dbg_info, PushStr(dbg_str, dbg.method_name_));
+      Push32(dbg_info, dbg.low_pc_ + text_section_offset);
+      Push32(dbg_info, dbg.high_pc_ + text_section_offset);
     }
   } else {
     // TODO: in gdb info functions <regexp> - reports Java functions, but
@@ -559,15 +559,15 @@ static void FillInCFIInformation(OatWriter* oat_writer,
     // method ranges.
 
     // Line number table offset
-    PushWord(dbg_info, dbg_line->size());
+    Push32(dbg_info, dbg_line->size());
 
     size_t lnt_length = dbg_line->size();
-    PushWord(dbg_line, 0);
+    Push32(dbg_line, 0);
 
     PushHalf(dbg_line, 4);  // LNT Version DWARF v4 => 4
 
     size_t lnt_hdr_length = dbg_line->size();
-    PushWord(dbg_line, 0);  // TODO: 64-bit uses 8-byte here
+    Push32(dbg_line, 0);  // TODO: 64-bit uses 8-byte here
 
     PushByte(dbg_line, 1);  // minimum_instruction_length (ubyte)
     PushByte(dbg_line, 1);  // maximum_operations_per_instruction (ubyte) = always 1
@@ -629,9 +629,9 @@ static void FillInCFIInformation(OatWriter* oat_writer,
       PushByte(dbg_info, 2);
 
       // Enter name, low_pc, high_pc.
-      PushWord(dbg_info, PushStr(dbg_str, dbg.method_name_));
-      PushWord(dbg_info, dbg.low_pc_ + text_section_offset);
-      PushWord(dbg_info, dbg.high_pc_ + text_section_offset);
+      Push32(dbg_info, PushStr(dbg_str, dbg.method_name_));
+      Push32(dbg_info, dbg.low_pc_ + text_section_offset);
+      Push32(dbg_info, dbg.high_pc_ + text_section_offset);
 
       GetLineInfoForJava(dbg.dbgstream_, dbg.compiled_method_->GetSrcMappingTable(),
                          &pc2java_map, dbg.low_pc_);

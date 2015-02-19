@@ -1051,10 +1051,10 @@ void X86Mir2Lir::InstallLiteralPools() {
     }
 
     for (LIR *p = const_vectors_; p != nullptr; p = p->next) {
-      PushWord(&code_buffer_, p->operands[0]);
-      PushWord(&code_buffer_, p->operands[1]);
-      PushWord(&code_buffer_, p->operands[2]);
-      PushWord(&code_buffer_, p->operands[3]);
+      Push32(&code_buffer_, p->operands[0]);
+      Push32(&code_buffer_, p->operands[1]);
+      Push32(&code_buffer_, p->operands[2]);
+      Push32(&code_buffer_, p->operands[3]);
     }
   }
 

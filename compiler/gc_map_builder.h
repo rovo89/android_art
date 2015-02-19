@@ -26,15 +26,17 @@ namespace art {
 
 class GcMapBuilder {
  public:
-  GcMapBuilder(std::vector<uint8_t>* table, size_t entries, uint32_t max_native_offset,
+  template <typename Alloc>
+  GcMapBuilder(std::vector<uint8_t, Alloc>* table, size_t entries, uint32_t max_native_offset,
                size_t references_width)
       : entries_(entries), references_width_(entries != 0u ? references_width : 0u),
         native_offset_width_(entries != 0 && max_native_offset != 0
                              ? sizeof(max_native_offset) - CLZ(max_native_offset) / 8u
                              : 0u),
-        in_use_(entries), table_(table) {
+        in_use_(entries) {
     // Resize table and set up header.
     table->resize((EntryWidth() * entries) + sizeof(uint32_t));
+    table_ = table->data();
     CHECK_LT(native_offset_width_, 1U << 3);
     (*table)[0] = native_offset_width_ & 7;
     CHECK_LT(references_width_, 1U << 13);
@@ -65,7 +67,7 @@ class GcMapBuilder {
     uint32_t native_offset = 0;
     size_t table_offset = (table_index * EntryWidth()) + sizeof(uint32_t);
     for (size_t i = 0; i < native_offset_width_; i++) {
-      native_offset |= (*table_)[table_offset + i] << (i * 8);
+      native_offset |= table_[table_offset + i] << (i * 8);
     }
     return native_offset;
   }
@@ -73,13 +75,13 @@ class GcMapBuilder {
   void SetCodeOffset(size_t table_index, uint32_t native_offset) {
     size_t table_offset = (table_index * EntryWidth()) + sizeof(uint32_t);
     for (size_t i = 0; i < native_offset_width_; i++) {
-      (*table_)[table_offset + i] = (native_offset >> (i * 8)) & 0xFF;
+      table_[table_offset + i] = (native_offset >> (i * 8)) & 0xFF;
     }
   }
 
   void SetReferences(size_t table_index, const uint8_t* references) {
     size_t table_offset = (table_index * EntryWidth()) + sizeof(uint32_t);
-    memcpy(&(*table_)[table_offset + native_offset_width_], references, references_width_);
+    memcpy(&table_[table_offset + native_offset_width_], references, references_width_);
   }
 
   size_t EntryWidth() const {
@@ -95,7 +97,7 @@ class GcMapBuilder {
   // Entries that are in use.
   std::vector<bool> in_use_;
   // The table we're building.
-  std::vector<uint8_t>* const table_;
+  uint8_t* table_;
 };
 
 }  // namespace art
