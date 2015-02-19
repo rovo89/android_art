@@ -18,10 +18,6 @@
 
 namespace art {
 
-// TODO: Only do the analysis on reference types. We currently have to handle
-// the `null` constant, that is represented as a `HIntConstant` and therefore
-// has the Primitive::kPrimInt type.
-
 void ReferenceTypePropagation::Run() {
   // Compute null status for instructions.
 
@@ -54,8 +50,10 @@ void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
       // Set the initial type for the phi. Use the non back edge input for reaching
       // a fixed point faster.
       HPhi* phi = it.Current()->AsPhi();
-      AddToWorklist(phi);
-      phi->SetCanBeNull(phi->InputAt(0)->CanBeNull());
+      if (phi->GetType() == Primitive::kPrimNot) {
+        AddToWorklist(phi);
+        phi->SetCanBeNull(phi->InputAt(0)->CanBeNull());
+      }
     }
   } else {
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
@@ -64,7 +62,10 @@ void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
       // doing a reverse post-order visit, therefore either the phi users are
       // non-loop phi and will be visited later in the visit, or are loop-phis,
       // and they are already in the work list.
-      UpdateNullability(it.Current()->AsPhi());
+      HPhi* phi = it.Current()->AsPhi();
+      if (phi->GetType() == Primitive::kPrimNot) {
+        UpdateNullability(phi);
+      }
     }
   }
 }
@@ -79,6 +80,7 @@ void ReferenceTypePropagation::ProcessWorklist() {
 }
 
 void ReferenceTypePropagation::AddToWorklist(HPhi* instruction) {
+  DCHECK_EQ(instruction->GetType(), Primitive::kPrimNot);
   worklist_.Add(instruction);
 }
 

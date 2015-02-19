@@ -34,6 +34,7 @@ class HInstruction;
 class HIntConstant;
 class HInvoke;
 class HGraphVisitor;
+class HNullConstant;
 class HPhi;
 class HSuspendCheck;
 class LiveInterval;
@@ -194,6 +195,8 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
     return reverse_post_order_;
   }
 
+  HNullConstant* GetNullConstant();
+
  private:
   HBasicBlock* FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const;
   void VisitBlockForDominatorTree(HBasicBlock* block,
@@ -232,6 +235,9 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
 
   // The current id to assign to a newly added instruction. See HInstruction.id_.
   int32_t current_instruction_id_;
+
+  // Cached null constant that might be created when building SSA form.
+  HNullConstant* cached_null_constant_;
 
   ART_FRIEND_TEST(GraphTest, IfSuccessorSimpleJoinBlock1);
   DISALLOW_COPY_AND_ASSIGN(HGraph);
@@ -610,6 +616,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(NewInstance, Instruction)                                           \
   M(Not, UnaryOperation)                                                \
   M(NotEqual, Condition)                                                \
+  M(NullConstant, Instruction)                                          \
   M(NullCheck, Instruction)                                             \
   M(Or, BinaryOperation)                                                \
   M(ParallelMove, Instruction)                                          \
@@ -914,7 +921,10 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
 
   // Does not apply for all instructions, but having this at top level greatly
   // simplifies the null check elimination.
-  virtual bool CanBeNull() const { return true; }
+  virtual bool CanBeNull() const {
+    DCHECK_EQ(GetType(), Primitive::kPrimNot) << "CanBeNull only applies to reference types";
+    return true;
+  }
 
   virtual bool CanDoImplicitNullCheck() const { return false; }
 
@@ -1673,6 +1683,22 @@ class HDoubleConstant : public HConstant {
   const double value_;
 
   DISALLOW_COPY_AND_ASSIGN(HDoubleConstant);
+};
+
+class HNullConstant : public HConstant {
+ public:
+  HNullConstant() : HConstant(Primitive::kPrimNot) {}
+
+  bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
+    return true;
+  }
+
+  size_t ComputeHashCode() const OVERRIDE { return 0; }
+
+  DECLARE_INSTRUCTION(NullConstant);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(HNullConstant);
 };
 
 // Constants of the type int. Those can be from Dex instructions, or
