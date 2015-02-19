@@ -393,7 +393,7 @@ class ScopedCheck {
 
   bool CheckNonHeap(JavaVMExt* vm, bool entry, const char* fmt, JniValueType* args) {
     bool should_trace = (flags_ & kFlag_ForceTrace) != 0;
-    if (!should_trace && vm->IsTracingEnabled()) {
+    if (!should_trace && vm != nullptr && vm->IsTracingEnabled()) {
       // We need to guard some of the invocation interface's calls: a bad caller might
       // use DetachCurrentThread or GetEnv on a thread that's not yet attached.
       Thread* self = Thread::Current();
@@ -3630,7 +3630,9 @@ class CheckJII {
     sc.CheckNonHeap(reinterpret_cast<JavaVMExt*>(vm), true, "v", args);
     JniValueType result;
     result.i = BaseVm(vm)->DestroyJavaVM(vm);
-    sc.CheckNonHeap(reinterpret_cast<JavaVMExt*>(vm), false, "i", &result);
+    // Use null to signal that the JavaVM isn't valid anymore. DestroyJavaVM deletes the runtime,
+    // which will delete the JavaVMExt.
+    sc.CheckNonHeap(nullptr, false, "i", &result);
     return result.i;
   }
 
