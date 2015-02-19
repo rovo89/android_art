@@ -285,6 +285,19 @@ void SSAChecker::VisitInstruction(HInstruction* instruction) {
   }
 }
 
+static Primitive::Type PrimitiveKind(Primitive::Type type) {
+  switch (type) {
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimShort:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimInt:
+      return Primitive::kPrimInt;
+    default:
+      return type;
+  }
+}
+
 void SSAChecker::VisitPhi(HPhi* phi) {
   VisitInstruction(phi);
 
@@ -321,18 +334,17 @@ void SSAChecker::VisitPhi(HPhi* phi) {
       }
     }
   }
-}
-
-static Primitive::Type PrimitiveKind(Primitive::Type type) {
-  switch (type) {
-    case Primitive::kPrimBoolean:
-    case Primitive::kPrimByte:
-    case Primitive::kPrimShort:
-    case Primitive::kPrimChar:
-    case Primitive::kPrimInt:
-      return Primitive::kPrimInt;
-    default:
-      return type;
+  // Ensure that the inputs have the same primitive kind as the phi.
+  for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
+    HInstruction* input = phi->InputAt(i);
+    if (PrimitiveKind(input->GetType()) != PrimitiveKind(phi->GetType())) {
+        AddError(StringPrintf(
+            "Input %d at index %zu of phi %d from block %d does not have the "
+            "same type as the phi: %s versus %s",
+            input->GetId(), i, phi->GetId(), phi->GetBlock()->GetBlockId(),
+            Primitive::PrettyDescriptor(input->GetType()),
+            Primitive::PrettyDescriptor(phi->GetType())));
+    }
   }
 }
 

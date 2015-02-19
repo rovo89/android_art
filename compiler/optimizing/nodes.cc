@@ -292,6 +292,15 @@ bool HGraph::AnalyzeNaturalLoops() const {
   return true;
 }
 
+HNullConstant* HGraph::GetNullConstant() {
+  if (cached_null_constant_ == nullptr) {
+    cached_null_constant_ = new (arena_) HNullConstant();
+    entry_block_->InsertInstructionBefore(cached_null_constant_,
+                                          entry_block_->GetLastInstruction());
+  }
+  return cached_null_constant_;
+}
+
 void HLoopInformation::Add(HBasicBlock* block) {
   blocks_.SetBit(block->GetBlockId());
 }

@@ -607,13 +607,7 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
                source.AsFpuRegister<XmmRegister>());
     } else if (source.IsConstant()) {
       HConstant* constant = source.GetConstant();
-      int32_t value;
-      if (constant->IsFloatConstant()) {
-        value = bit_cast<float, int32_t>(constant->AsFloatConstant()->GetValue());
-      } else {
-        DCHECK(constant->IsIntConstant());
-        value = constant->AsIntConstant()->GetValue();
-      }
+      int32_t value = GetInt32ValueOf(constant);
       __ movl(Address(CpuRegister(RSP), destination.GetStackIndex()), Immediate(value));
     } else {
       DCHECK(source.IsStackSlot()) << source;
@@ -657,8 +651,8 @@ void CodeGeneratorX86_64::Move(HInstruction* instruction,
 
   if (locations != nullptr && locations->Out().IsConstant()) {
     HConstant* const_to_move = locations->Out().GetConstant();
-    if (const_to_move->IsIntConstant()) {
-      Immediate imm(const_to_move->AsIntConstant()->GetValue());
+    if (const_to_move->IsIntConstant() || const_to_move->IsNullConstant()) {
+      Immediate imm(GetInt32ValueOf(const_to_move));
       if (location.IsRegister()) {
         __ movl(location.AsRegister<CpuRegister>(), imm);
       } else if (location.IsStackSlot()) {
@@ -814,7 +808,7 @@ void InstructionCodeGeneratorX86_64::VisitIf(HIf* if_instr) {
       if (rhs.IsRegister()) {
         __ cmpl(lhs.AsRegister<CpuRegister>(), rhs.AsRegister<CpuRegister>());
       } else if (rhs.IsConstant()) {
-        int32_t constant = rhs.GetConstant()->AsIntConstant()->GetValue();
+        int32_t constant = CodeGenerator::GetInt32ValueOf(rhs.GetConstant());
         if (constant == 0) {
           __ testl(lhs.AsRegister<CpuRegister>(), lhs.AsRegister<CpuRegister>());
         } else {
@@ -1030,6 +1024,17 @@ void LocationsBuilderX86_64::VisitIntConstant(HIntConstant* constant) {
 }
 
 void InstructionCodeGeneratorX86_64::VisitIntConstant(HIntConstant* constant) {
+  // Will be generated at use site.
+  UNUSED(constant);
+}
+
+void LocationsBuilderX86_64::VisitNullConstant(HNullConstant* constant) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(constant, LocationSummary::kNoCall);
+  locations->SetOut(Location::ConstantLocation(constant));
+}
+
+void InstructionCodeGeneratorX86_64::VisitNullConstant(HNullConstant* constant) {
   // Will be generated at use site.
   UNUSED(constant);
 }
@@ -3263,8 +3268,8 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
     }
   } else if (source.IsConstant()) {
     HConstant* constant = source.GetConstant();
-    if (constant->IsIntConstant()) {
-      int32_t value = constant->AsIntConstant()->GetValue();
+    if (constant->IsIntConstant() || constant->IsNullConstant()) {
+      int32_t value = CodeGenerator::GetInt32ValueOf(constant);
       if (destination.IsRegister()) {
         if (value == 0) {
           __ xorl(destination.AsRegister<CpuRegister>(), destination.AsRegister<CpuRegister>());

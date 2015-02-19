@@ -491,18 +491,21 @@ void CodeGeneratorARM64::Move(HInstruction* instruction,
   Primitive::Type type = instruction->GetType();
   DCHECK_NE(type, Primitive::kPrimVoid);
 
-  if (instruction->IsIntConstant() || instruction->IsLongConstant()) {
-    int64_t value = instruction->IsIntConstant() ? instruction->AsIntConstant()->GetValue()
-                                                 : instruction->AsLongConstant()->GetValue();
+  if (instruction->IsIntConstant()
+      || instruction->IsLongConstant()
+      || instruction->IsNullConstant()) {
+    int64_t value = GetInt64ValueOf(instruction->AsConstant());
     if (location.IsRegister()) {
       Register dst = RegisterFrom(location, type);
-      DCHECK((instruction->IsIntConstant() && dst.Is32Bits()) ||
+      DCHECK(((instruction->IsIntConstant() || instruction->IsNullConstant()) && dst.Is32Bits()) ||
              (instruction->IsLongConstant() && dst.Is64Bits()));
       __ Mov(dst, value);
     } else {
       DCHECK(location.IsStackSlot() || location.IsDoubleStackSlot());
       UseScratchRegisterScope temps(GetVIXLAssembler());
-      Register temp = instruction->IsIntConstant() ? temps.AcquireW() : temps.AcquireX();
+      Register temp = (instruction->IsIntConstant() || instruction->IsNullConstant())
+          ? temps.AcquireW()
+          : temps.AcquireX();
       __ Mov(temp, value);
       __ Str(temp, StackOperandFrom(location));
     }
@@ -643,10 +646,12 @@ void CodeGeneratorARM64::DumpFloatingPointRegister(std::ostream& stream, int reg
 }
 
 void CodeGeneratorARM64::MoveConstant(CPURegister destination, HConstant* constant) {
-  if (constant->IsIntConstant() || constant->IsLongConstant()) {
-    __ Mov(Register(destination),
-           constant->IsIntConstant() ? constant->AsIntConstant()->GetValue()
-                                     : constant->AsLongConstant()->GetValue());
+  if (constant->IsIntConstant()) {
+    __ Mov(Register(destination), constant->AsIntConstant()->GetValue());
+  } else if (constant->IsLongConstant()) {
+    __ Mov(Register(destination), constant->AsLongConstant()->GetValue());
+  } else if (constant->IsNullConstant()) {
+    __ Mov(Register(destination), 0);
   } else if (constant->IsFloatConstant()) {
     __ Fmov(FPRegister(destination), constant->AsFloatConstant()->GetValue());
   } else {
@@ -660,6 +665,8 @@ static bool CoherentConstantAndType(Location constant, Primitive::Type type) {
   DCHECK(constant.IsConstant());
   HConstant* cst = constant.GetConstant();
   return (cst->IsIntConstant() && type == Primitive::kPrimInt) ||
+         // Null is mapped to a core W register, which we associate with kPrimInt.
+         (cst->IsNullConstant() && type == Primitive::kPrimInt) ||
          (cst->IsLongConstant() && type == Primitive::kPrimLong) ||
          (cst->IsFloatConstant() && type == Primitive::kPrimFloat) ||
          (cst->IsDoubleConstant() && type == Primitive::kPrimDouble);
@@ -680,7 +687,9 @@ void CodeGeneratorARM64::MoveLocation(Location destination, Location source, Pri
     if (unspecified_type) {
       HConstant* src_cst = source.IsConstant() ? source.GetConstant() : nullptr;
       if (source.IsStackSlot() ||
-          (src_cst != nullptr && (src_cst->IsIntConstant() || src_cst->IsFloatConstant()))) {
+          (src_cst != nullptr && (src_cst->IsIntConstant()
+                                  || src_cst->IsFloatConstant()
+                                  || src_cst->IsNullConstant()))) {
         // For stack slots and 32bit constants, a 64bit type is appropriate.
         type = destination.IsRegister() ? Primitive::kPrimInt : Primitive::kPrimFloat;
       } else {
@@ -726,7 +735,7 @@ void CodeGeneratorARM64::MoveLocation(Location destination, Location source, Pri
       UseScratchRegisterScope temps(GetVIXLAssembler());
       HConstant* src_cst = source.GetConstant();
       CPURegister temp;
-      if (src_cst->IsIntConstant()) {
+      if (src_cst->IsIntConstant() || src_cst->IsNullConstant()) {
         temp = temps.AcquireW();
       } else if (src_cst->IsLongConstant()) {
         temp = temps.AcquireX();
@@ -1766,6 +1775,16 @@ void LocationsBuilderARM64::VisitIntConstant(HIntConstant* constant) {
 }
 
 void InstructionCodeGeneratorARM64::VisitIntConstant(HIntConstant* constant) {
+  // Will be generated at use site.
+  UNUSED(constant);
+}
+
+void LocationsBuilderARM64::VisitNullConstant(HNullConstant* constant) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(constant);
+  locations->SetOut(Location::ConstantLocation(constant));
+}
+
+void InstructionCodeGeneratorARM64::VisitNullConstant(HNullConstant* constant) {
   // Will be generated at use site.
   UNUSED(constant);
 }
