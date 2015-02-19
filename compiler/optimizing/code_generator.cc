@@ -636,6 +636,8 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
         } else if (current->IsIntConstant()) {
           int32_t value = current->AsIntConstant()->GetValue();
           stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, value);
+        } else if (current->IsNullConstant()) {
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, 0);
         } else {
           DCHECK(current->IsFloatConstant());
           int32_t value = bit_cast<float, int32_t>(current->AsFloatConstant()->GetValue());

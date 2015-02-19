@@ -19,6 +19,11 @@
 namespace art {
 
 void SsaDeadPhiElimination::Run() {
+  MarkDeadPhis();
+  EliminateDeadPhis();
+}
+
+void SsaDeadPhiElimination::MarkDeadPhis() {
   // Add to the worklist phis referenced by non-phi instructions.
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
@@ -49,7 +54,9 @@ void SsaDeadPhiElimination::Run() {
       }
     }
   }
+}
 
+void SsaDeadPhiElimination::EliminateDeadPhis() {
   // Remove phis that are not live. Visit in post order so that phis
   // that are not inputs of loop phis can be removed when they have
   // no users left (dead phis might use dead phis).

@@ -40,6 +40,7 @@ static Primitive::Type MergeTypes(Primitive::Type existing, Primitive::Type new_
 // Re-compute and update the type of the instruction. Returns
 // whether or not the type was changed.
 bool PrimitiveTypePropagation::UpdateType(HPhi* phi) {
+  DCHECK(phi->IsLive());
   Primitive::Type existing = phi->GetType();
 
   Primitive::Type new_type = existing;
@@ -49,15 +50,20 @@ bool PrimitiveTypePropagation::UpdateType(HPhi* phi) {
   }
   phi->SetType(new_type);
 
-  if (new_type == Primitive::kPrimDouble || new_type == Primitive::kPrimFloat) {
+  if (new_type == Primitive::kPrimDouble
+      || new_type == Primitive::kPrimFloat
+      || new_type == Primitive::kPrimNot) {
     // If the phi is of floating point type, we need to update its inputs to that
     // type. For inputs that are phis, we need to recompute their types.
     for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
       HInstruction* input = phi->InputAt(i);
       if (input->GetType() != new_type) {
-        HInstruction* equivalent = SsaBuilder::GetFloatOrDoubleEquivalent(phi, input, new_type);
+        HInstruction* equivalent = (new_type == Primitive::kPrimNot)
+            ? SsaBuilder::GetReferenceTypeEquivalent(input)
+            : SsaBuilder::GetFloatOrDoubleEquivalent(phi, input, new_type);
         phi->ReplaceInput(equivalent, i);
         if (equivalent->IsPhi()) {
+          equivalent->AsPhi()->SetLive();
           AddToWorklist(equivalent->AsPhi());
         }
       }
@@ -78,15 +84,9 @@ void PrimitiveTypePropagation::VisitBasicBlock(HBasicBlock* block) {
   if (block->IsLoopHeader()) {
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       HPhi* phi = it.Current()->AsPhi();
-      // Set the initial type for the phi. Use the non back edge input for reaching
-      // a fixed point faster.
-      Primitive::Type phi_type = phi->GetType();
-      // We merge with the existing type, that has been set by the SSA builder.
-      DCHECK(phi_type == Primitive::kPrimVoid
-          || phi_type == Primitive::kPrimFloat
-          || phi_type == Primitive::kPrimDouble);
-      phi->SetType(MergeTypes(phi->InputAt(0)->GetType(), phi->GetType()));
-      AddToWorklist(phi);
+      if (phi->IsLive()) {
+        AddToWorklist(phi);
+      }
     }
   } else {
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
@@ -95,7 +95,10 @@ void PrimitiveTypePropagation::VisitBasicBlock(HBasicBlock* block) {
       // doing a reverse post-order visit, therefore either the phi users are
       // non-loop phi and will be visited later in the visit, or are loop-phis,
       // and they are already in the work list.
-      UpdateType(it.Current()->AsPhi());
+      HPhi* phi = it.Current()->AsPhi();
+      if (phi->IsLive()) {
+        UpdateType(phi);
+      }
     }
   }
 }
@@ -110,13 +113,14 @@ void PrimitiveTypePropagation::ProcessWorklist() {
 }
 
 void PrimitiveTypePropagation::AddToWorklist(HPhi* instruction) {
+  DCHECK(instruction->IsLive());
   worklist_.Add(instruction);
 }
 
 void PrimitiveTypePropagation::AddDependentInstructionsToWorklist(HPhi* instruction) {
   for (HUseIterator<HInstruction*> it(instruction->GetUses()); !it.Done(); it.Advance()) {
     HPhi* phi = it.Current()->GetUser()->AsPhi();
-    if (phi != nullptr) {
+    if (phi != nullptr && phi->IsLive()) {
       AddToWorklist(phi);
     }
   }
