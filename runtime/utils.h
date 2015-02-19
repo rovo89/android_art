@@ -546,7 +546,13 @@ class VoidFunctor {
   }
 };
 
-void PushWord(std::vector<uint8_t>* buf, int32_t data);
+template <typename Alloc>
+void Push32(std::vector<uint8_t, Alloc>* buf, int32_t data) {
+  buf->push_back(data & 0xff);
+  buf->push_back((data >> 8) & 0xff);
+  buf->push_back((data >> 16) & 0xff);
+  buf->push_back((data >> 24) & 0xff);
+}
 
 void EncodeUnsignedLeb128(uint32_t data, std::vector<uint8_t>* buf);
 void EncodeSignedLeb128(int32_t data, std::vector<uint8_t>* buf);

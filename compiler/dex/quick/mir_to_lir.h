@@ -146,7 +146,7 @@ typedef int (*NextCallInsn)(CompilationUnit*, CallInfo*, int,
                             uint32_t method_idx, uintptr_t direct_code,
                             uintptr_t direct_method, InvokeType type);
 
-typedef std::vector<uint8_t> CodeBuffer;
+typedef ArenaVector<uint8_t> CodeBuffer;
 typedef uint32_t CodeOffset;           // Native code offset in bytes.
 
 struct UseDefMasks {
@@ -1742,10 +1742,10 @@ class Mir2Lir {
     // The source mapping table data (pc -> dex). More entries than in encoded_mapping_table_
     DefaultSrcMap src_mapping_table_;
     // The encoding mapping table data (dex -> pc offset and pc offset -> dex) with a size prefix.
-    std::vector<uint8_t> encoded_mapping_table_;
+    ArenaVector<uint8_t> encoded_mapping_table_;
     ArenaVector<uint32_t> core_vmap_table_;
     ArenaVector<uint32_t> fp_vmap_table_;
-    std::vector<uint8_t> native_gc_map_;
+    ArenaVector<uint8_t> native_gc_map_;
     ArenaVector<LinkerPatch> patches_;
     int num_core_spills_;
     int num_fp_spills_;
