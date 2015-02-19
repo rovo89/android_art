@@ -1515,7 +1515,7 @@ void X86_64Assembler::imull(CpuRegister reg, const Immediate& imm) {
 
   // See whether imm can be represented as a sign-extended 8bit value.
   int32_t v32 = static_cast<int32_t>(imm.value());
-  if (IsInt32(8, v32)) {
+  if (IsInt<8>(v32)) {
     // Sign-extension works.
     EmitUint8(0x6B);
     EmitOperand(reg.LowBits(), Operand(reg));
@@ -1555,7 +1555,7 @@ void X86_64Assembler::imulq(CpuRegister reg, const Immediate& imm) {
 
   // See whether imm can be represented as a sign-extended 8bit value.
   int64_t v64 = imm.value();
-  if (IsInt64(8, v64)) {
+  if (IsInt<8>(v64)) {
     // Sign-extension works.
     EmitUint8(0x6B);
     EmitOperand(reg.LowBits(), Operand(reg));
@@ -1705,7 +1705,7 @@ void X86_64Assembler::notq(CpuRegister reg) {
 void X86_64Assembler::enter(const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xC8);
-  CHECK(imm.is_uint16());
+  CHECK(imm.is_uint16()) << imm.value();
   EmitUint8(imm.value() & 0xFF);
   EmitUint8((imm.value() >> 8) & 0xFF);
   EmitUint8(0x00);
@@ -1759,7 +1759,7 @@ void X86_64Assembler::j(Condition condition, Label* label) {
     static const int kLongSize = 6;
     int offset = label->Position() - buffer_.Size();
     CHECK_LE(offset, 0);
-    if (IsInt(8, offset - kShortSize)) {
+    if (IsInt<8>(offset - kShortSize)) {
       EmitUint8(0x70 + condition);
       EmitUint8((offset - kShortSize) & 0xFF);
     } else {
@@ -1796,7 +1796,7 @@ void X86_64Assembler::jmp(Label* label) {
     static const int kLongSize = 5;
     int offset = label->Position() - buffer_.Size();
     CHECK_LE(offset, 0);
-    if (IsInt(8, offset - kShortSize)) {
+    if (IsInt<8>(offset - kShortSize)) {
       EmitUint8(0xEB);
       EmitUint8((offset - kShortSize) & 0xFF);
     } else {

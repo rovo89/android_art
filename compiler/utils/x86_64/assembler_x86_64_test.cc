@@ -44,10 +44,10 @@ static constexpr size_t kRandomIterations = 100000;  // Hosts are pretty powerfu
 TEST(AssemblerX86_64, SignExtension) {
   // 32bit.
   for (int32_t i = 0; i < 128; i++) {
-    EXPECT_TRUE(IsInt32(8, i)) << i;
+    EXPECT_TRUE(IsInt<8>(i)) << i;
   }
   for (int32_t i = 128; i < 255; i++) {
-    EXPECT_FALSE(IsInt32(8, i)) << i;
+    EXPECT_FALSE(IsInt<8>(i)) << i;
   }
   // Do some higher ones randomly.
   std::random_device rd;
@@ -55,54 +55,65 @@ TEST(AssemblerX86_64, SignExtension) {
   std::uniform_int_distribution<int32_t> uniform_dist(256, INT32_MAX);
   for (size_t i = 0; i < kRandomIterations; i++) {
     int32_t value = uniform_dist(e1);
-    EXPECT_FALSE(IsInt32(8, value)) << value;
+    EXPECT_FALSE(IsInt<8>(value)) << value;
   }
 
   // Negative ones.
   for (int32_t i = -1; i >= -128; i--) {
-    EXPECT_TRUE(IsInt32(8, i)) << i;
+    EXPECT_TRUE(IsInt<8>(i)) << i;
   }
 
   for (int32_t i = -129; i > -256; i--) {
-    EXPECT_FALSE(IsInt32(8, i)) << i;
+    EXPECT_FALSE(IsInt<8>(i)) << i;
   }
 
   // Do some lower ones randomly.
   std::uniform_int_distribution<int32_t> uniform_dist2(INT32_MIN, -256);
   for (size_t i = 0; i < 100; i++) {
     int32_t value = uniform_dist2(e1);
-    EXPECT_FALSE(IsInt32(8, value)) << value;
+    EXPECT_FALSE(IsInt<8>(value)) << value;
   }
 
   // 64bit.
   for (int64_t i = 0; i < 128; i++) {
-    EXPECT_TRUE(IsInt64(8, i)) << i;
+    EXPECT_TRUE(IsInt<8>(i)) << i;
   }
   for (int32_t i = 128; i < 255; i++) {
-    EXPECT_FALSE(IsInt64(8, i)) << i;
+    EXPECT_FALSE(IsInt<8>(i)) << i;
   }
   // Do some higher ones randomly.
   std::uniform_int_distribution<int64_t> uniform_dist3(256, INT64_MAX);
   for (size_t i = 0; i < 100; i++) {
     int64_t value = uniform_dist3(e1);
-    EXPECT_FALSE(IsInt64(8, value)) << value;
+    EXPECT_FALSE(IsInt<8>(value)) << value;
   }
 
   // Negative ones.
   for (int64_t i = -1; i >= -128; i--) {
-    EXPECT_TRUE(IsInt64(8, i)) << i;
+    EXPECT_TRUE(IsInt<8>(i)) << i;
   }
 
   for (int64_t i = -129; i > -256; i--) {
-    EXPECT_FALSE(IsInt64(8, i)) << i;
+    EXPECT_FALSE(IsInt<8>(i)) << i;
   }
 
   // Do some lower ones randomly.
   std::uniform_int_distribution<int64_t> uniform_dist4(INT64_MIN, -256);
   for (size_t i = 0; i < kRandomIterations; i++) {
     int64_t value = uniform_dist4(e1);
-    EXPECT_FALSE(IsInt64(8, value)) << value;
+    EXPECT_FALSE(IsInt<8>(value)) << value;
   }
+
+  int64_t value = INT64_C(0x1200000010);
+  x86_64::Immediate imm(value);
+  EXPECT_FALSE(imm.is_int8());
+  EXPECT_FALSE(imm.is_int16());
+  EXPECT_FALSE(imm.is_int32());
+  value = INT64_C(0x8000000000000001);
+  x86_64::Immediate imm2(value);
+  EXPECT_FALSE(imm2.is_int8());
+  EXPECT_FALSE(imm2.is_int16());
+  EXPECT_FALSE(imm2.is_int32());
 }
 
 struct X86_64CpuRegisterCompare {
