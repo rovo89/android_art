@@ -18,8 +18,8 @@
 
 #include "resource_mask.h"
 
+#include "base/arena_allocator.h"
 #include "base/logging.h"
-#include "utils/arena_allocator.h"
 #include "utils.h"
 
 namespace art {

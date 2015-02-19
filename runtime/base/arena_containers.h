@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_ARENA_CONTAINERS_H_
-#define ART_COMPILER_UTILS_ARENA_CONTAINERS_H_
+#ifndef ART_RUNTIME_BASE_ARENA_CONTAINERS_H_
+#define ART_RUNTIME_BASE_ARENA_CONTAINERS_H_
 
 #include <deque>
 #include <queue>
 #include <set>
 #include <vector>
 
-#include "utils/arena_allocator.h"
+#include "arena_allocator.h"
 #include "safe_map.h"
 
 namespace art {
@@ -203,4 +203,4 @@ inline ArenaAllocatorAdapter<void> ArenaAllocator::Adapter(ArenaAllocKind kind) 
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_ARENA_CONTAINERS_H_
+#endif  // ART_RUNTIME_BASE_ARENA_CONTAINERS_H_

@@ -16,6 +16,7 @@
 
 #include "base/bit_vector-inl.h"
 #include "base/logging.h"
+#include "base/scoped_arena_containers.h"
 #include "dataflow_iterator-inl.h"
 #include "dex_flags.h"
 #include "driver/compiler_driver.h"
@@ -27,7 +28,6 @@
 #include "quick/dex_file_method_inliner.h"
 #include "quick/dex_file_to_method_inliner_map.h"
 #include "stack.h"
-#include "utils/scoped_arena_containers.h"
 
 namespace art {
 

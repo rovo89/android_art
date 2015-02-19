@@ -17,13 +17,13 @@
 #ifndef ART_COMPILER_OPTIMIZING_BUILDER_H_
 #define ART_COMPILER_OPTIMIZING_BUILDER_H_
 
+#include "base/arena_object.h"
 #include "dex_file.h"
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
 #include "optimizing_compiler_stats.h"
 #include "primitive.h"
-#include "utils/arena_object.h"
 #include "utils/growable_array.h"
 #include "nodes.h"
 

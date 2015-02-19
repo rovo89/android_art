@@ -17,12 +17,12 @@
 #ifndef ART_COMPILER_DEX_GLOBAL_VALUE_NUMBERING_H_
 #define ART_COMPILER_DEX_GLOBAL_VALUE_NUMBERING_H_
 
+#include "base/arena_object.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "mir_graph.h"
 #include "compiler_ir.h"
 #include "dex_flags.h"
-#include "utils/arena_object.h"
 
 namespace art {
 

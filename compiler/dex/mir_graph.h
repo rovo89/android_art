@@ -19,17 +19,17 @@
 
 #include <stdint.h>
 
+#include "base/arena_containers.h"
+#include "base/scoped_arena_containers.h"
 #include "dex_file.h"
 #include "dex_instruction.h"
 #include "dex_types.h"
 #include "invoke_type.h"
 #include "mir_field_info.h"
 #include "mir_method_info.h"
-#include "utils/arena_bit_vector.h"
-#include "utils/arena_containers.h"
-#include "utils/scoped_arena_containers.h"
 #include "reg_location.h"
 #include "reg_storage.h"
+#include "utils/arena_bit_vector.h"
 
 namespace art {
 

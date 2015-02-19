@@ -16,7 +16,7 @@
 
 #include "scoped_arena_allocator.h"
 
-#include "utils/arena_allocator.h"
+#include "arena_allocator.h"
 #include <memcheck/memcheck.h>
 
 namespace art {

@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_ARENA_ALLOCATOR_H_
-#define ART_COMPILER_UTILS_ARENA_ALLOCATOR_H_
+#ifndef ART_RUNTIME_BASE_ARENA_ALLOCATOR_H_
+#define ART_RUNTIME_BASE_ARENA_ALLOCATOR_H_
 
 #include <stdint.h>
 #include <stddef.h>
 
-#include "base/macros.h"
-#include "base/mutex.h"
+#include "debug_stack.h"
+#include "macros.h"
 #include "mem_map.h"
+#include "mutex.h"
 #include "utils.h"
-#include "utils/debug_stack.h"
 
 namespace art {
 
@@ -180,7 +180,7 @@ class ArenaAllocator : private DebugStackRefCounter, private ArenaAllocatorStats
     if (UNLIKELY(running_on_valgrind_)) {
       return AllocValgrind(bytes, kind);
     }
-    bytes = RoundUp(bytes, 8);
+    bytes = RoundUp(bytes, kAlignment);
     if (UNLIKELY(ptr_ + bytes > end_)) {
       // Obtain a new block.
       ObtainNewArenaForAllocation(bytes);
@@ -205,6 +205,8 @@ class ArenaAllocator : private DebugStackRefCounter, private ArenaAllocatorStats
   MemStats GetMemStats() const;
 
  private:
+  static constexpr size_t kAlignment = 8;
+
   void UpdateBytesAllocated();
 
   ArenaPool* pool_;
@@ -235,4 +237,4 @@ class MemStats {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_ARENA_ALLOCATOR_H_
+#endif  // ART_RUNTIME_BASE_ARENA_ALLOCATOR_H_

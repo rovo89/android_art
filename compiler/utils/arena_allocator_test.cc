@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
+#include "base/arena_allocator.h"
 #include "gtest/gtest.h"
-#include "utils/arena_allocator.h"
 #include "utils/arena_bit_vector.h"
 
 namespace art {

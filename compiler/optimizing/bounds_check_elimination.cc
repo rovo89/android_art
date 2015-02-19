@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+#include "base/arena_containers.h"
 #include "bounds_check_elimination.h"
 #include "nodes.h"
-#include "utils/arena_containers.h"
 
 namespace art {
 

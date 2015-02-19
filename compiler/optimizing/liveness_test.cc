@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "base/arena_allocator.h"
 #include "builder.h"
 #include "code_generator.h"
 #include "code_generator_x86.h"
@@ -24,7 +25,6 @@
 #include "optimizing_unit_test.h"
 #include "prepare_for_register_allocation.h"
 #include "ssa_liveness_analysis.h"
-#include "utils/arena_allocator.h"
 
 #include "gtest/gtest.h"
 

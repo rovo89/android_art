@@ -20,7 +20,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "arena_object.h"
+#include "base/arena_object.h"
 
 namespace art {
 

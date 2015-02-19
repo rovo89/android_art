@@ -21,11 +21,11 @@
 #include <string>
 #include <vector>
 
+#include "base/arena_allocator.h"
+#include "base/scoped_arena_allocator.h"
 #include "base/timing_logger.h"
 #include "invoke_type.h"
 #include "safe_map.h"
-#include "utils/arena_allocator.h"
-#include "utils/scoped_arena_allocator.h"
 
 namespace art {
 

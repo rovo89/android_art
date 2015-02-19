@@ -18,9 +18,9 @@
 #define ART_COMPILER_DEX_QUICK_ARM_CODEGEN_ARM_H_
 
 #include "arm_lir.h"
+#include "base/arena_containers.h"
 #include "base/logging.h"
 #include "dex/quick/mir_to_lir.h"
-#include "utils/arena_containers.h"
 
 namespace art {
 

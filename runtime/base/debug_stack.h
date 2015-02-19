@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_DEBUG_STACK_H_
-#define ART_COMPILER_UTILS_DEBUG_STACK_H_
+#ifndef ART_RUNTIME_BASE_DEBUG_STACK_H_
+#define ART_RUNTIME_BASE_DEBUG_STACK_H_
 
 #include "base/logging.h"
 #include "base/macros.h"
@@ -135,4 +135,4 @@ class DebugStackIndirectTopRefImpl {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_DEBUG_STACK_H_
+#endif  // ART_RUNTIME_BASE_DEBUG_STACK_H_
