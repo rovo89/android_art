@@ -645,6 +645,20 @@ ImageSpace* ImageSpace::Init(const char* image_filename, const char* image_locat
     return nullptr;
   }
 
+  // Check that the file is large enough.
+  uint64_t image_file_size = static_cast<uint64_t>(file->GetLength());
+  if (image_header.GetImageSize() > image_file_size) {
+    *error_msg = StringPrintf("Image file too small for image heap: %" PRIu64 " vs. %zu.",
+                              image_file_size, image_header.GetImageSize());
+    return nullptr;
+  }
+  if (image_header.GetBitmapOffset() + image_header.GetImageBitmapSize() != image_file_size) {
+    *error_msg = StringPrintf("Image file too small for image bitmap: %" PRIu64 " vs. %zu.",
+                              image_file_size,
+                              image_header.GetBitmapOffset() + image_header.GetImageBitmapSize());
+    return nullptr;
+  }
+
   // Note: The image header is part of the image due to mmap page alignment required of offset.
   std::unique_ptr<MemMap> map(MemMap::MapFileAtAddress(image_header.GetImageBegin(),
                                                  image_header.GetImageSize(),
