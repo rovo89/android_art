@@ -19,6 +19,7 @@
 #include <fstream>
 #include <stdint.h>
 
+#include "base/arena_allocator.h"
 #include "base/dumpable.h"
 #include "base/timing_logger.h"
 #include "bounds_check_elimination.h"
@@ -47,7 +48,6 @@
 #include "ssa_phi_elimination.h"
 #include "ssa_liveness_analysis.h"
 #include "reference_type_propagation.h"
-#include "utils/arena_allocator.h"
 
 namespace art {
 

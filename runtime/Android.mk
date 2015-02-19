@@ -22,10 +22,12 @@ LIBART_COMMON_SRC_FILES := \
   atomic.cc.arm \
   barrier.cc \
   base/allocator.cc \
+  base/arena_allocator.cc \
   base/bit_vector.cc \
   base/hex_dump.cc \
   base/logging.cc \
   base/mutex.cc \
+  base/scoped_arena_allocator.cc \
   base/scoped_flock.cc \
   base/stringpiece.cc \
   base/stringprintf.cc \

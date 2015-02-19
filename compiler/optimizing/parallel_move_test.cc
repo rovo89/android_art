@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+#include "base/arena_allocator.h"
 #include "nodes.h"
 #include "parallel_move_resolver.h"
-#include "utils/arena_allocator.h"
 
 #include "gtest/gtest.h"
 
