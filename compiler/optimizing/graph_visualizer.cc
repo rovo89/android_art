@@ -184,6 +184,10 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     output_ << " " << instruction->GetValue();
   }
 
+  void VisitPhi(HPhi* phi) OVERRIDE {
+    output_ << " " << phi->GetRegNumber();
+  }
+
   void PrintInstruction(HInstruction* instruction) {
     output_ << instruction->DebugName();
     instruction->Accept(this);
