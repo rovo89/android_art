@@ -1738,7 +1738,7 @@ CallInfo* MIRGraph::NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type,
   info->num_arg_words = mir->ssa_rep->num_uses;
   info->args = (info->num_arg_words == 0) ? nullptr :
       arena_->AllocArray<RegLocation>(info->num_arg_words, kArenaAllocMisc);
-  for (int i = 0; i < info->num_arg_words; i++) {
+  for (size_t i = 0; i < info->num_arg_words; i++) {
     info->args[i] = GetRawSrc(mir, i);
   }
   info->opt_flags = mir->optimization_flags;

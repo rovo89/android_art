@@ -167,7 +167,9 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     void GenDivZeroCheckWide(RegStorage reg);
     void GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method);
     void GenExitSequence();
-    void GenSpecialExitSequence();
+    void GenSpecialExitSequence() OVERRIDE;
+    void GenSpecialEntryForSuspend() OVERRIDE;
+    void GenSpecialExitForSuspend() OVERRIDE;
     void GenFusedFPCmpBranch(BasicBlock* bb, MIR* mir, bool gt_bias, bool is_double);
     void GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir);
     void GenSelect(BasicBlock* bb, MIR* mir);

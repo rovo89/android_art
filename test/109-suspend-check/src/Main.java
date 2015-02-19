@@ -19,30 +19,33 @@ public class Main {
 
     public static void main(String[] args) {
         System.out.println("Running (" + TEST_TIME + " seconds) ...");
-        InfiniteForLoop forLoop = new InfiniteForLoop();
-        InfiniteWhileLoop whileLoop = new InfiniteWhileLoop();
-        InfiniteWhileLoopWithIntrinsic whileLoopWithIntrinsic =
-            new InfiniteWhileLoopWithIntrinsic();
         InfiniteDoWhileLoopWithLong doWhileLoopWithLong = new InfiniteDoWhileLoopWithLong();
-        InfiniteDoWhileLoop doWhileLoop = new InfiniteDoWhileLoop();
-        MakeGarbage garbage = new MakeGarbage();
-        forLoop.start();
-        whileLoop.start();
-        whileLoopWithIntrinsic.start();
+        SimpleLoopThread[] simpleLoops = {
+                new InfiniteForLoop(),
+                new InfiniteWhileLoop(),
+                new InfiniteWhileLoopWithIntrinsic(),
+                new InfiniteDoWhileLoop(),
+                new MakeGarbage(),
+                new InfiniteWhileLoopWithSpecialReturnArgOrConst(new SpecialMethods1()),
+                new InfiniteWhileLoopWithSpecialReturnArgOrConst(new SpecialMethods2()),
+                new InfiniteWhileLoopWithSpecialPutOrNop(new SpecialMethods1()),
+                new InfiniteWhileLoopWithSpecialPutOrNop(new SpecialMethods2()),
+                new InfiniteWhileLoopWithSpecialConstOrIGet(new SpecialMethods1()),
+                new InfiniteWhileLoopWithSpecialConstOrIGet(new SpecialMethods2()),
+        };
         doWhileLoopWithLong.start();
-        doWhileLoop.start();
-        garbage.start();
+        for (SimpleLoopThread loop : simpleLoops) {
+            loop.start();
+        }
         for (int i = 0; i < TEST_TIME; i++) {
           Runtime.getRuntime().gc();
           System.out.println(".");
           sleep(1000);
         }
-        forLoop.stopNow();
-        whileLoop.stopNow();
-        whileLoopWithIntrinsic.stopNow();
         doWhileLoopWithLong.stopNow();
-        doWhileLoop.stopNow();
-        garbage.stopNow();
+        for (SimpleLoopThread loop : simpleLoops) {
+            loop.stopNow();
+        }
         System.out.println("Done.");
     }
 
@@ -55,8 +58,84 @@ public class Main {
     }
 }
 
-class InfiniteWhileLoopWithIntrinsic extends Thread {
-  volatile private boolean keepGoing = true;
+class SimpleLoopThread extends Thread {
+  volatile protected boolean keepGoing = true;
+  public void stopNow() {
+    keepGoing = false;
+  }
+}
+
+interface SpecialMethodInterface {
+  long ReturnArgOrConst(long arg);
+  void PutOrNop(long arg);
+  long ConstOrIGet();
+}
+
+class SpecialMethods1 implements SpecialMethodInterface {
+  public long ReturnArgOrConst(long arg) {
+    return 42L;
+  }
+  public void PutOrNop(long arg) {
+  }
+  public long ConstOrIGet() {
+    return 42L;
+  }
+}
+
+class SpecialMethods2 implements SpecialMethodInterface {
+  public long value = 42L;
+  public long ReturnArgOrConst(long arg) {
+    return arg;
+  }
+  public void PutOrNop(long arg) {
+    value = arg;
+  }
+  public long ConstOrIGet() {
+    return value;
+  }
+}
+
+class InfiniteWhileLoopWithSpecialReturnArgOrConst extends SimpleLoopThread {
+  private SpecialMethodInterface smi;
+  public InfiniteWhileLoopWithSpecialReturnArgOrConst(SpecialMethodInterface smi) {
+    this.smi = smi;
+  }
+  public void run() {
+    long i = 0L;
+    while (keepGoing) {
+      i += smi.ReturnArgOrConst(i);
+    }
+  }
+}
+
+class InfiniteWhileLoopWithSpecialPutOrNop extends SimpleLoopThread {
+  private SpecialMethodInterface smi;
+  public InfiniteWhileLoopWithSpecialPutOrNop(SpecialMethodInterface smi) {
+    this.smi = smi;
+  }
+  public void run() {
+    long i = 0L;
+    while (keepGoing) {
+      smi.PutOrNop(i);
+      i++;
+    }
+  }
+}
+
+class InfiniteWhileLoopWithSpecialConstOrIGet extends SimpleLoopThread {
+  private SpecialMethodInterface smi;
+  public InfiniteWhileLoopWithSpecialConstOrIGet(SpecialMethodInterface smi) {
+    this.smi = smi;
+  }
+  public void run() {
+    long i = 0L;
+    while (keepGoing) {
+      i += smi.ConstOrIGet();
+    }
+  }
+}
+
+class InfiniteWhileLoopWithIntrinsic extends SimpleLoopThread {
   private String[] strings = { "a", "b", "c", "d" };
   private int sum = 0;
   public void run() {
@@ -65,9 +144,6 @@ class InfiniteWhileLoopWithIntrinsic extends Thread {
       i++;
       sum += strings[i & 3].length();
     }
-  }
-  public void stopNow() {
-    keepGoing = false;
   }
 }
 
@@ -84,55 +160,37 @@ class InfiniteDoWhileLoopWithLong extends Thread {
   }
 }
 
-class InfiniteWhileLoop extends Thread {
-  volatile private boolean keepGoing = true;
+class InfiniteWhileLoop extends SimpleLoopThread {
   public void run() {
     int i = 0;
     while (keepGoing) {
       i++;
     }
   }
-  public void stopNow() {
-    keepGoing = false;
-  }
 }
 
-class InfiniteDoWhileLoop extends Thread {
-  volatile private boolean keepGoing = true;
+class InfiniteDoWhileLoop extends SimpleLoopThread {
   public void run() {
     int i = 0;
     do {
       i++;
     } while (keepGoing);
   }
-  public void stopNow() {
-    keepGoing = false;
-  }
 }
 
-class InfiniteForLoop extends Thread {
-  int count = 100000;
-  volatile private boolean keepGoing = true;
+class InfiniteForLoop extends SimpleLoopThread {
   public void run() {
     int i = 0;
     for (int j = 0; keepGoing; j++) {
       i += j;
     }
   }
-  public void stopNow() {
-    keepGoing = false;
-  }
 }
 
-
-class MakeGarbage extends Thread {
-  volatile private boolean keepGoing = true;
+class MakeGarbage extends SimpleLoopThread {
   public void run() {
     while (keepGoing) {
       byte[] garbage = new byte[100000];
     }
-  }
-  public void stopNow() {
-    keepGoing = false;
   }
 }
