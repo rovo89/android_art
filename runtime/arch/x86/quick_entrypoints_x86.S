@@ -1462,7 +1462,7 @@ DEFINE_FUNCTION art_quick_instrumentation_entry
 
     // Restore GPRs.
     movl 40(%esp), %ecx           // Restore ecx.
-    movl 48(%esp), %edx           // Restore edx.
+    movl 44(%esp), %edx           // Restore edx.
     movl 48(%esp), %ebx           // Restore ebx.
     movl 52(%esp), %ebp           // Restore ebp.
     movl 56(%esp), %esi           // Restore esi.
