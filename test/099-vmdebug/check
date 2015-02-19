@@ -15,6 +15,6 @@
 # limitations under the License.
 
 # Strip the process pids and line numbers from exact error messages.
-sed -e 's/^art E.*\] //' "$2" > "$2.tmp"
+sed -e '/^art E.*\] /d' "$2" > "$2.tmp"
 
 diff --strip-trailing-cr -q "$1" "$2.tmp" >/dev/null
