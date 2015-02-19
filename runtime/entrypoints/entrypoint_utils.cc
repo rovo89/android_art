@@ -198,7 +198,7 @@ void ThrowStackOverflowError(Thread* self) {
   }
 
   if (!error_msg.empty()) {
-    LOG(ERROR) << error_msg;
+    LOG(WARNING) << error_msg;
     CHECK(self->IsExceptionPending());
   }
 
