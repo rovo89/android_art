@@ -271,6 +271,19 @@ endif
 
 TEST_ART_BROKEN_FALLBACK_RUN_TESTS :=
 
+# This test dynamically enables tracing to force a deoptimization. This makes the test meaningless
+# when already tracing, and writes an error message that we do not want to check for.
+TEST_ART_BROKEN_TRACING_RUN_TESTS := \
+  802-deoptimization
+
+ifneq (,$(filter trace,$(TRACE_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      $(COMPILER_TYPES),$(RELOCATE_TYPES),trace,$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
+      $(PICTEST_TYPES),$(TEST_ART_BROKEN_TRACING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_TRACING_RUN_TESTS :=
+
 # The following tests use libarttest.so, which is linked against libartd.so, so will
 # not work when libart.so is the one loaded.
 # TODO: Find a way to run these tests in ndebug mode.
