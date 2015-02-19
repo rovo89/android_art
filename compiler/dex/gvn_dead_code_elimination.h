@@ -17,9 +17,9 @@
 #ifndef ART_COMPILER_DEX_GVN_DEAD_CODE_ELIMINATION_H_
 #define ART_COMPILER_DEX_GVN_DEAD_CODE_ELIMINATION_H_
 
+#include "base/arena_object.h"
+#include "base/scoped_arena_containers.h"
 #include "global_value_numbering.h"
-#include "utils/arena_object.h"
-#include "utils/scoped_arena_containers.h"
 
 namespace art {
 

@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef ART_COMPILER_UTILS_ARENA_OBJECT_H_
-#define ART_COMPILER_UTILS_ARENA_OBJECT_H_
+#ifndef ART_RUNTIME_BASE_ARENA_OBJECT_H_
+#define ART_RUNTIME_BASE_ARENA_OBJECT_H_
 
-#include "arena_allocator.h"
+#include "base/arena_allocator.h"
 #include "base/logging.h"
 #include "scoped_arena_allocator.h"
 
@@ -64,4 +64,4 @@ class DeletableArenaObject {
 
 }  // namespace art
 
-#endif  // ART_COMPILER_UTILS_ARENA_OBJECT_H_
+#endif  // ART_RUNTIME_BASE_ARENA_OBJECT_H_

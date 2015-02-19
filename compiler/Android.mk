@@ -119,7 +119,6 @@ LIBART_COMPILER_SRC_FILES := \
 	optimizing/primitive_type_propagation.cc \
 	optimizing/reference_type_propagation.cc \
 	trampolines/trampoline_compiler.cc \
-	utils/arena_allocator.cc \
 	utils/arena_bit_vector.cc \
 	utils/arm/assembler_arm.cc \
 	utils/arm/assembler_arm32.cc \
@@ -137,7 +136,6 @@ LIBART_COMPILER_SRC_FILES := \
 	utils/x86/managed_register_x86.cc \
 	utils/x86_64/assembler_x86_64.cc \
 	utils/x86_64/managed_register_x86_64.cc \
-	utils/scoped_arena_allocator.cc \
 	utils/swap_space.cc \
 	buffered_output_stream.cc \
 	compiler.cc \

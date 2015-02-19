@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+#include "base/arena_allocator.h"
 #include "optimizing_unit_test.h"
 #include "ssa_liveness_analysis.h"
-#include "utils/arena_allocator.h"
 
 #include "gtest/gtest.h"
 

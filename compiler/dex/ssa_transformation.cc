@@ -16,9 +16,9 @@
 
 #include "base/bit_vector-inl.h"
 #include "base/logging.h"
+#include "base/scoped_arena_containers.h"
 #include "compiler_ir.h"
 #include "dataflow_iterator-inl.h"
-#include "utils/scoped_arena_containers.h"
 
 #define NOTVISITED (-1)
 

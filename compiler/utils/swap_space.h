@@ -23,12 +23,12 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "base/debug_stack.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/mutex.h"
 #include "mem_map.h"
 #include "utils.h"
-#include "utils/debug_stack.h"
 
 namespace art {
 

@@ -17,12 +17,12 @@
 #ifndef ART_COMPILER_OPTIMIZING_NODES_H_
 #define ART_COMPILER_OPTIMIZING_NODES_H_
 
+#include "base/arena_object.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "invoke_type.h"
 #include "locations.h"
 #include "offsets.h"
 #include "primitive.h"
-#include "utils/arena_object.h"
 #include "utils/arena_bit_vector.h"
 #include "utils/growable_array.h"
 

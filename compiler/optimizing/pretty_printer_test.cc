@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "base/arena_allocator.h"
 #include "base/stringprintf.h"
 #include "builder.h"
 #include "dex_file.h"
@@ -21,7 +22,6 @@
 #include "nodes.h"
 #include "optimizing_unit_test.h"
 #include "pretty_printer.h"
-#include "utils/arena_allocator.h"
 
 #include "gtest/gtest.h"
 
