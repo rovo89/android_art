@@ -238,7 +238,7 @@ void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
   bool is_volatile;
   bool fast_path = driver_.ComputeInstanceFieldInfo(field_idx, &unit_, is_put,
                                                     &field_offset, &is_volatile);
-  if (fast_path && !is_volatile && IsUint(16, field_offset.Int32Value())) {
+  if (fast_path && !is_volatile && IsUint<16>(field_offset.Int32Value())) {
     VLOG(compiler) << "Quickening " << Instruction::Name(inst->Opcode())
                    << " to " << Instruction::Name(new_opcode)
                    << " by replacing field index " << field_idx
@@ -274,7 +274,7 @@ void DexCompiler::CompileInvokeVirtual(Instruction* inst,
                                              &target_method, &vtable_idx,
                                              &direct_code, &direct_method);
   if (fast_path && original_invoke_type == invoke_type) {
-    if (vtable_idx >= 0 && IsUint(16, vtable_idx)) {
+    if (vtable_idx >= 0 && IsUint<16>(vtable_idx)) {
       VLOG(compiler) << "Quickening " << Instruction::Name(inst->Opcode())
                      << "(" << PrettyMethod(method_idx, GetDexFile(), true) << ")"
                      << " to " << Instruction::Name(new_opcode)

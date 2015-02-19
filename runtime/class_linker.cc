@@ -4812,7 +4812,7 @@ bool ClassLinker::LinkMethods(Thread* self, Handle<mirror::Class> klass,
   if (klass->IsInterface()) {
     // No vtable.
     size_t count = klass->NumVirtualMethods();
-    if (!IsUint(16, count)) {
+    if (!IsUint<16>(count)) {
       ThrowClassFormatError(klass.Get(), "Too many methods on interface: %zd", count);
       return false;
     }
@@ -5033,7 +5033,7 @@ bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) 
       local_method->SetMethodIndex(actual_count);
       ++actual_count;
     }
-    if (!IsUint(16, actual_count)) {
+    if (!IsUint<16>(actual_count)) {
       ThrowClassFormatError(klass.Get(), "Too many methods defined on class: %zd", actual_count);
       return false;
     }
@@ -5049,7 +5049,7 @@ bool ClassLinker::LinkVirtualMethods(Thread* self, Handle<mirror::Class> klass) 
     klass->SetVTable(vtable.Get());
   } else {
     CHECK_EQ(klass.Get(), GetClassRoot(kJavaLangObject));
-    if (!IsUint(16, num_virtual_methods)) {
+    if (!IsUint<16>(num_virtual_methods)) {
       ThrowClassFormatError(klass.Get(), "Too many methods: %d",
                             static_cast<int>(num_virtual_methods));
       return false;

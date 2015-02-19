@@ -42,15 +42,11 @@ class Immediate : public ValueObject {
 
   int64_t value() const { return value_; }
 
-  bool is_int8() const { return IsInt(8, value_); }
-  bool is_uint8() const { return IsUint(8, value_); }
-  bool is_int16() const { return IsInt(16, value_); }
-  bool is_uint16() const { return IsUint(16, value_); }
-  bool is_int32() const {
-    // This does not work on 32b machines: return IsInt(32, value_);
-    int64_t limit = static_cast<int64_t>(1) << 31;
-    return (-limit <= value_) && (value_ < limit);
-  }
+  bool is_int8() const { return IsInt<8>(value_); }
+  bool is_uint8() const { return IsUint<8>(value_); }
+  bool is_int16() const { return IsInt<16>(value_); }
+  bool is_uint16() const { return IsUint<16>(value_); }
+  bool is_int32() const { return IsInt<32>(value_); }
 
  private:
   const int64_t value_;
