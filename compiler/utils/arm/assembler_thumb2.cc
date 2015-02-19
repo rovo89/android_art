@@ -2080,7 +2080,7 @@ void Thumb2Assembler::vmstat(Condition cond) {  // VMRS APSR_nzcv, FPSCR.
 
 
 void Thumb2Assembler::svc(uint32_t imm8) {
-  CHECK(IsUint(8, imm8)) << imm8;
+  CHECK(IsUint<8>(imm8)) << imm8;
   int16_t encoding = B15 | B14 | B12 |
        B11 | B10 | B9 | B8 |
        imm8;
@@ -2089,7 +2089,7 @@ void Thumb2Assembler::svc(uint32_t imm8) {
 
 
 void Thumb2Assembler::bkpt(uint16_t imm8) {
-  CHECK(IsUint(8, imm8)) << imm8;
+  CHECK(IsUint<8>(imm8)) << imm8;
   int16_t encoding = B15 | B13 | B12 |
       B11 | B10 | B9 |
       imm8;

@@ -1290,7 +1290,7 @@ void X86Assembler::j(Condition condition, Label* label) {
     static const int kLongSize = 6;
     int offset = label->Position() - buffer_.Size();
     CHECK_LE(offset, 0);
-    if (IsInt(8, offset - kShortSize)) {
+    if (IsInt<8>(offset - kShortSize)) {
       EmitUint8(0x70 + condition);
       EmitUint8((offset - kShortSize) & 0xFF);
     } else {
@@ -1325,7 +1325,7 @@ void X86Assembler::jmp(Label* label) {
     static const int kLongSize = 5;
     int offset = label->Position() - buffer_.Size();
     CHECK_LE(offset, 0);
-    if (IsInt(8, offset - kShortSize)) {
+    if (IsInt<8>(offset - kShortSize)) {
       EmitUint8(0xEB);
       EmitUint8((offset - kShortSize) & 0xFF);
     } else {
