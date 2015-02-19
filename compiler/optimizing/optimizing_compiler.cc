@@ -376,7 +376,10 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
       compiler_driver,
       codegen->GetInstructionSet(),
       ArrayRef<const uint8_t>(allocator.GetMemory()),
-      codegen->GetFrameSize(),
+      // Follow Quick's behavior and set the frame size to zero if it is
+      // considered "empty" (see the definition of
+      // art::CodeGenerator::HasEmptyFrame).
+      codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
       codegen->GetCoreSpillMask(),
       codegen->GetFpuSpillMask(),
       ArrayRef<const uint8_t>(stack_map));
@@ -400,17 +403,21 @@ CompiledMethod* OptimizingCompiler::CompileBaseline(
   codegen->BuildNativeGCMap(&gc_map, dex_compilation_unit);
 
   compilation_stats_.RecordStat(MethodCompilationStat::kCompiledBaseline);
-  return CompiledMethod::SwapAllocCompiledMethod(compiler_driver,
-                                                 codegen->GetInstructionSet(),
-                                                 ArrayRef<const uint8_t>(allocator.GetMemory()),
-                                                 codegen->GetFrameSize(),
-                                                 codegen->GetCoreSpillMask(),
-                                                 codegen->GetFpuSpillMask(),
-                                                 &src_mapping_table,
-                                                 AlignVectorSize(mapping_table),
-                                                 AlignVectorSize(vmap_table),
-                                                 AlignVectorSize(gc_map),
-                                                 ArrayRef<const uint8_t>());
+  return CompiledMethod::SwapAllocCompiledMethod(
+      compiler_driver,
+      codegen->GetInstructionSet(),
+      ArrayRef<const uint8_t>(allocator.GetMemory()),
+      // Follow Quick's behavior and set the frame size to zero if it is
+      // considered "empty" (see the definition of
+      // art::CodeGenerator::HasEmptyFrame).
+      codegen->HasEmptyFrame() ? 0 : codegen->GetFrameSize(),
+      codegen->GetCoreSpillMask(),
+      codegen->GetFpuSpillMask(),
+      &src_mapping_table,
+      AlignVectorSize(mapping_table),
+      AlignVectorSize(vmap_table),
+      AlignVectorSize(gc_map),
+      ArrayRef<const uint8_t>());
 }
 
 CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
