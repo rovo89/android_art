@@ -43,6 +43,8 @@ enum MethodCompilationStat {
   kNotCompiledCantAccesType,
   kNotOptimizedRegisterAllocator,
   kNotCompiledUnhandledInstruction,
+  kRemovedCheckedCast,
+  kRemovedNullCheck,
   kLastStat
 };
 
@@ -96,6 +98,8 @@ class OptimizingCompilerStats {
       case kNotCompiledCantAccesType : return "kNotCompiledCantAccesType";
       case kNotOptimizedRegisterAllocator : return "kNotOptimizedRegisterAllocator";
       case kNotCompiledUnhandledInstruction : return "kNotCompiledUnhandledInstruction";
+      case kRemovedCheckedCast: return "kRemovedCheckedCast";
+      case kRemovedNullCheck: return "kRemovedNullCheck";
       default: LOG(FATAL) << "invalid stat";
     }
     return "";

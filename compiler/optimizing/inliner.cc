@@ -159,7 +159,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
   SsaDeadPhiElimination dead_phi(callee_graph);
   HDeadCodeElimination dce(callee_graph);
   HConstantFolding fold(callee_graph);
-  InstructionSimplifier simplify(callee_graph);
+  InstructionSimplifier simplify(callee_graph, stats_);
 
   HOptimization* optimizations[] = {
     &redundant_phi,
@@ -176,7 +176,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
 
   if (depth_ + 1 < kDepthLimit) {
     HInliner inliner(
-        callee_graph, outer_compilation_unit_, compiler_driver_, outer_stats_, depth_ + 1);
+        callee_graph, outer_compilation_unit_, compiler_driver_, stats_, depth_ + 1);
     inliner.Run();
   }
 
@@ -221,7 +221,7 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
   // after optimizations get a unique id.
   graph_->SetCurrentInstructionId(callee_graph->GetNextInstructionId());
   VLOG(compiler) << "Successfully inlined " << PrettyMethod(method_index, outer_dex_file);
-  outer_stats_->RecordStat(kInlinedInvoke);
+  MaybeRecordStat(kInlinedInvoke);
   return true;
 }
 
