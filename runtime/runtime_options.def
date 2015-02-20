@@ -61,7 +61,7 @@ RUNTIME_OPTIONS_KEY (MillisecondsToNanoseconds, \
 RUNTIME_OPTIONS_KEY (Unit,                DumpGCPerformanceOnShutdown)
 RUNTIME_OPTIONS_KEY (Unit,                IgnoreMaxFootprint)
 RUNTIME_OPTIONS_KEY (Unit,                LowMemoryMode)
-RUNTIME_OPTIONS_KEY (Unit,                UseTLAB)
+RUNTIME_OPTIONS_KEY (bool,                UseTLAB,                        false)
 RUNTIME_OPTIONS_KEY (bool,                EnableHSpaceCompactForOOM,      true)
 RUNTIME_OPTIONS_KEY (MillisecondsToNanoseconds, \
                                           HSpaceCompactForOOMMinIntervalsMs,\
