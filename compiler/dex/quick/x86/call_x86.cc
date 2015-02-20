@@ -280,7 +280,7 @@ void X86Mir2Lir::GenSpecialEntryForSuspend() {
     DCHECK(!IsTemp(rs_rSI));
     DCHECK(!IsTemp(rs_rDI));
     core_spill_mask_ =
-        (1u << rs_rSI.GetRegNum()) | (1u << rs_rSI.GetRegNum()) | (1u << rs_rRET.GetRegNum());
+        (1u << rs_rDI.GetRegNum()) | (1u << rs_rSI.GetRegNum()) | (1u << rs_rRET.GetRegNum());
     num_core_spills_ = 3u;
   } else {
     core_spill_mask_ = (1u << rs_rRET.GetRegNum());
