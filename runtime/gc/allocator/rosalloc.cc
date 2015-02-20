@@ -1889,6 +1889,9 @@ void RosAlloc::Verify() {
     MutexLock lock_mu(self, lock_);
     size_t pm_end = page_map_size_;
     size_t i = 0;
+    size_t valgrind_modifier =  running_on_valgrind_ ?
+        2 * ::art::gc::space::kDefaultValgrindRedZoneBytes :  // Redzones before and after.
+        0;
     while (i < pm_end) {
       uint8_t pm = page_map_[i];
       switch (pm) {
@@ -1932,12 +1935,10 @@ void RosAlloc::Verify() {
           }
           mirror::Object* obj = reinterpret_cast<mirror::Object*>(start);
           size_t obj_size = obj->SizeOf();
-          CHECK_GT(obj_size +
-                   (running_on_valgrind_ ? 2 * ::art::gc::space::kDefaultValgrindRedZoneBytes : 0),
-                   kLargeSizeThreshold)
+          CHECK_GT(obj_size + valgrind_modifier, kLargeSizeThreshold)
               << "A rosalloc large object size must be > " << kLargeSizeThreshold;
-          CHECK_EQ(num_pages, RoundUp(obj_size, kPageSize) / kPageSize)
-              << "A rosalloc large object size " << obj_size
+          CHECK_EQ(num_pages, RoundUp(obj_size + valgrind_modifier, kPageSize) / kPageSize)
+              << "A rosalloc large object size " << obj_size + valgrind_modifier
               << " does not match the page map table " << (num_pages * kPageSize)
               << std::endl << DumpPageMap();
           i += num_pages;
