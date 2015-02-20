@@ -3154,12 +3154,8 @@ void Heap::ClearConcurrentGCRequest() {
 }
 
 void Heap::RequestConcurrentGC(Thread* self) {
-  // If we don't have a started runtime, then we don't have a thread which is running the heap
-  // tasks. In this case, do the GC in the allocating thread to ensure that memory gets freed.
-  if (!Runtime::Current()->IsFinishedStarting()) {
-    CollectGarbageInternal(collector::kGcTypeFull, kGcCauseForAlloc, false);
-  } else if (CanAddHeapTask(self) &&
-    concurrent_gc_pending_.CompareExchangeStrongSequentiallyConsistent(false, true)) {
+  if (CanAddHeapTask(self) &&
+      concurrent_gc_pending_.CompareExchangeStrongSequentiallyConsistent(false, true)) {
     task_processor_->AddTask(self, new ConcurrentGCTask(NanoTime()));  // Start straight away.
   }
 }
