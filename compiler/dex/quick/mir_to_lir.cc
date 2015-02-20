@@ -586,6 +586,9 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::MOVE_FROM16:
     case Instruction::MOVE_OBJECT_FROM16:
       StoreValue(rl_dest, rl_src[0]);
+      if (rl_src[0].is_const && (mir_graph_->ConstantValue(rl_src[0]) == 0)) {
+        Workaround7250540(rl_dest, RegStorage::InvalidReg());
+      }
       break;
 
     case Instruction::MOVE_WIDE:
