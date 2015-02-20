@@ -166,18 +166,23 @@ class StackMapStream : public ValueObject {
         stack_map.SetStackMask(*entry.sp_mask);
       }
 
-      // Set the register map.
-      MemoryRegion register_region = dex_register_maps_region.Subregion(
-          next_dex_register_map_offset,
-          DexRegisterMap::kFixedSize + entry.num_dex_registers * DexRegisterMap::SingleEntrySize());
-      next_dex_register_map_offset += register_region.size();
-      DexRegisterMap dex_register_map(register_region);
-      stack_map.SetDexRegisterMapOffset(register_region.start() - memory_start);
+      if (entry.num_dex_registers != 0) {
+        // Set the register map.
+        MemoryRegion register_region = dex_register_maps_region.Subregion(
+            next_dex_register_map_offset,
+            DexRegisterMap::kFixedSize
+            + entry.num_dex_registers * DexRegisterMap::SingleEntrySize());
+        next_dex_register_map_offset += register_region.size();
+        DexRegisterMap dex_register_map(register_region);
+        stack_map.SetDexRegisterMapOffset(register_region.start() - memory_start);
 
-      for (size_t j = 0; j < entry.num_dex_registers; ++j) {
-        DexRegisterEntry register_entry =
-            dex_register_maps_.Get(j + entry.dex_register_maps_start_index);
-        dex_register_map.SetRegisterInfo(j, register_entry.kind, register_entry.value);
+        for (size_t j = 0; j < entry.num_dex_registers; ++j) {
+          DexRegisterEntry register_entry =
+              dex_register_maps_.Get(j + entry.dex_register_maps_start_index);
+          dex_register_map.SetRegisterInfo(j, register_entry.kind, register_entry.value);
+        }
+      } else {
+        stack_map.SetDexRegisterMapOffset(StackMap::kNoDexRegisterMap);
       }
 
       // Set the inlining info.
@@ -196,7 +201,7 @@ class StackMapStream : public ValueObject {
           inline_info.SetMethodReferenceIndexAtDepth(j, inline_entry.method_index);
         }
       } else {
-        stack_map.SetInlineDescriptorOffset(InlineInfo::kNoInlineInfo);
+        stack_map.SetInlineDescriptorOffset(StackMap::kNoInlineInfo);
       }
     }
   }
