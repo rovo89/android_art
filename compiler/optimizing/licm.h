@@ -31,6 +31,8 @@ class LICM : public HOptimization {
 
   void Run() OVERRIDE;
 
+  static constexpr const char* kLoopInvariantCodeMotionPassName = "licm";
+
  private:
   const SideEffectsAnalysis& side_effects_;
 

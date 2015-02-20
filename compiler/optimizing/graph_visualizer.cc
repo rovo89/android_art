@@ -17,8 +17,10 @@
 #include "graph_visualizer.h"
 
 #include "code_generator.h"
+#include "licm.h"
 #include "nodes.h"
 #include "optimization.h"
+#include "register_allocator.h"
 #include "ssa_liveness_analysis.h"
 
 namespace art {
@@ -188,6 +190,10 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
     output_ << " " << phi->GetRegNumber();
   }
 
+  bool IsPass(const char* name) {
+    return strcmp(pass_name_, name) == 0;
+  }
+
   void PrintInstruction(HInstruction* instruction) {
     output_ << instruction->DebugName();
     instruction->Accept(this);
@@ -211,7 +217,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
       }
       output_ << "])";
     }
-    if (pass_name_ == kLivenessPassName
+    if (IsPass(SsaLivenessAnalysis::kLivenessPassName)
         && is_after_pass_
         && instruction->GetLifetimePosition() != kNoLifetime) {
       output_ << " (liveness: " << instruction->GetLifetimePosition();
@@ -221,7 +227,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
         interval.Dump(output_);
       }
       output_ << ")";
-    } else if (pass_name_ == kRegisterAllocatorPassName && is_after_pass_) {
+    } else if (IsPass(RegisterAllocator::kRegisterAllocatorPassName) && is_after_pass_) {
       LocationSummary* locations = instruction->GetLocations();
       if (locations != nullptr) {
         output_ << " ( ";
@@ -236,7 +242,7 @@ class HGraphVisualizerPrinter : public HGraphVisitor {
         }
       }
       output_ << " (liveness: " << instruction->GetLifetimePosition() << ")";
-    } else if (pass_name_ == kLoopInvariantCodeMotionPassName) {
+    } else if (IsPass(LICM::kLoopInvariantCodeMotionPassName)) {
       output_ << " ( loop_header:";
       HLoopInformation* info = instruction->GetBlock()->GetLoopInformation();
       if (info == nullptr) {

@@ -29,10 +29,12 @@ class DexFile;
 class IntrinsicsRecognizer : public HOptimization {
  public:
   IntrinsicsRecognizer(HGraph* graph, const DexFile* dex_file, CompilerDriver* driver)
-      : HOptimization(graph, true, "intrinsics_recognition"),
+      : HOptimization(graph, true, kIntrinsicsRecognizerPassName),
         dex_file_(dex_file), driver_(driver) {}
 
   void Run() OVERRIDE;
+
+  static constexpr const char* kIntrinsicsRecognizerPassName = "intrinsics_recognition";
 
  private:
   const DexFile* dex_file_;
