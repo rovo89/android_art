@@ -3865,5 +3865,17 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
   DCHECK(!IsLeafMethod());
 }
 
+void LocationsBuilderARM::VisitBoundType(HBoundType* instruction) {
+  // Nothing to do, this should be removed during prepare for register allocator.
+  UNUSED(instruction);
+  LOG(FATAL) << "Unreachable";
+}
+
+void InstructionCodeGeneratorARM::VisitBoundType(HBoundType* instruction) {
+  // Nothing to do, this should be removed during prepare for register allocator.
+  UNUSED(instruction);
+  LOG(FATAL) << "Unreachable";
+}
+
 }  // namespace arm
 }  // namespace art

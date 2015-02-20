@@ -3711,5 +3711,17 @@ void InstructionCodeGeneratorX86_64::HandleBitwiseOperation(HBinaryOperation* in
   }
 }
 
+void LocationsBuilderX86_64::VisitBoundType(HBoundType* instruction) {
+  // Nothing to do, this should be removed during prepare for register allocator.
+  UNUSED(instruction);
+  LOG(FATAL) << "Unreachable";
+}
+
+void InstructionCodeGeneratorX86_64::VisitBoundType(HBoundType* instruction) {
+  // Nothing to do, this should be removed during prepare for register allocator.
+  UNUSED(instruction);
+  LOG(FATAL) << "Unreachable";
+}
+
 }  // namespace x86_64
 }  // namespace art

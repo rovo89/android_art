@@ -36,6 +36,7 @@ class PrepareForRegisterAllocation : public HGraphDelegateVisitor {
   virtual void VisitNullCheck(HNullCheck* check) OVERRIDE;
   virtual void VisitDivZeroCheck(HDivZeroCheck* check) OVERRIDE;
   virtual void VisitBoundsCheck(HBoundsCheck* check) OVERRIDE;
+  virtual void VisitBoundType(HBoundType* bound_type) OVERRIDE;
   virtual void VisitClinitCheck(HClinitCheck* check) OVERRIDE;
   virtual void VisitCondition(HCondition* condition) OVERRIDE;
 

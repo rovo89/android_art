@@ -168,6 +168,170 @@ public class Main {
     ((SubclassC)x).g();
   }
 
+  // CHECK-START: void Main.testInstanceOf(java.lang.Object) instruction_simplifier_after_types (before)
+  // CHECK:         CheckCast
+  // CHECK:         CheckCast
+
+  // CHECK-START: void Main.testInstanceOf(java.lang.Object) instruction_simplifier_after_types (after)
+  // CHECK-NOT:     CheckCast
+  public void testInstanceOf(Object o) {
+    if (o instanceof SubclassC) {
+      ((SubclassC)o).g();
+    }
+    if (o instanceof SubclassB) {
+      ((SubclassB)o).g();
+    }
+  }
+
+  // CHECK-START: void Main.testInstanceOfKeep(java.lang.Object) instruction_simplifier_after_types (before)
+  // CHECK:         CheckCast
+  // CHECK:         CheckCast
+
+  // CHECK-START: void Main.testInstanceOfKeep(java.lang.Object) instruction_simplifier_after_types (after)
+  // CHECK:         CheckCast
+  // CHECK:         CheckCast
+  public void testInstanceOfKeep(Object o) {
+    if (o instanceof SubclassC) {
+      ((SubclassB)o).g();
+    }
+    if (o instanceof SubclassB) {
+      ((SubclassA)o).g();
+    }
+  }
+
+  // CHECK-START: void Main.testInstanceOfNested(java.lang.Object) instruction_simplifier_after_types (before)
+  // CHECK:         CheckCast
+  // CHECK:         CheckCast
+
+  // CHECK-START: void Main.testInstanceOfNested(java.lang.Object) instruction_simplifier_after_types (after)
+  // CHECK-NOT:     CheckCast
+  public void testInstanceOfNested(Object o) {
+    if (o instanceof SubclassC) {
+      if (o instanceof SubclassB) {
+        ((SubclassB)o).g();
+      } else {
+        ((SubclassC)o).g();
+      }
+    }
+  }
+
+  // CHECK-START: void Main.testInstanceOfWithPhi(int) instruction_simplifier_after_types (before)
+  // CHECK:         CheckCast
+
+  // CHECK-START: void Main.testInstanceOfWithPhi(int) instruction_simplifier_after_types (after)
+  // CHECK-NOT:     CheckCast
+  public void testInstanceOfWithPhi(int i) {
+    Object o;
+    if (i == 0) {
+      o = new SubclassA();
+    } else {
+      o = new SubclassB();
+    }
+
+    if (o instanceof SubclassB) {
+      ((SubclassB)o).g();
+    }
+  }
+
+  // CHECK-START: void Main.testInstanceOfInFor(int) instruction_simplifier_after_types (before)
+  // CHECK:         CheckCast
+
+  // CHECK-START: void Main.testInstanceOfInFor(int) instruction_simplifier_after_types (after)
+  // CHECK-NOT:     CheckCast
+  public void testInstanceOfInFor(int n) {
+    Object o = new SubclassA();
+    for (int i = 0; i < n; i++) {
+      if (i / 2 == 0) {
+        o = new SubclassB();
+      }
+      if (o instanceof SubclassB) {
+        ((SubclassB)o).g();
+      }
+    }
+  }
+
+  // CHECK-START: void Main.testInstanceOfSubclass() instruction_simplifier_after_types (before)
+  // CHECK:         CheckCast
+
+  // CHECK-START: void Main.testInstanceOfSubclass() instruction_simplifier_after_types (after)
+  // CHECK-NOT:     CheckCast
+  public void testInstanceOfSubclass() {
+    Object o = new SubclassA();
+    if (o instanceof Super) {
+      ((SubclassA)o).g();
+    }
+  }
+
+  // CHECK-START: void Main.testInstanceOfWithPhiSubclass(int) instruction_simplifier_after_types (before)
+  // CHECK:         CheckCast
+
+  // CHECK-START: void Main.testInstanceOfWithPhiSubclass(int) instruction_simplifier_after_types (after)
+  // CHECK-NOT:     CheckCast
+  public void testInstanceOfWithPhiSubclass(int i) {
+    Object o;
+    if (i == 0) {
+      o = new SubclassA();
+    } else {
+      o = new SubclassC();
+    }
+
+    if (o instanceof Super) {
+      ((SubclassA)o).g();
+    }
+  }
+
+  // CHECK-START: void Main.testInstanceOfWithPhiTop(int) instruction_simplifier_after_types (before)
+  // CHECK:         CheckCast
+
+  // CHECK-START: void Main.testInstanceOfWithPhiTop(int) instruction_simplifier_after_types (after)
+  // CHECK-NOT:     CheckCast
+  public void testInstanceOfWithPhiTop(int i) {
+    Object o;
+    if (i == 0) {
+      o = new Object();
+    } else {
+      o = new SubclassC();
+    }
+
+    if (o instanceof Super) {
+      ((Super)o).f();
+    }
+  }
+
+  // CHECK-START: void Main.testInstanceOfSubclassInFor(int) instruction_simplifier_after_types (before)
+  // CHECK:         CheckCast
+
+  // CHECK-START: void Main.testInstanceOfSubclassInFor(int) instruction_simplifier_after_types (after)
+  // CHECK-NOT:     CheckCast
+  public void testInstanceOfSubclassInFor(int n) {
+    Object o = new SubclassA();
+    for (int i = 0; i < n; i++) {
+      if (o instanceof Super) {
+        ((SubclassA)o).g();
+      }
+      if (i / 2 == 0) {
+        o = new SubclassC();
+      }
+    }
+  }
+
+  // CHECK-START: void Main.testInstanceOfTopInFor(int) instruction_simplifier_after_types (before)
+  // CHECK:         CheckCast
+
+  // CHECK-START: void Main.testInstanceOfTopInFor(int) instruction_simplifier_after_types (after)
+  // CHECK-NOT:     CheckCast
+  public void testInstanceOfTopInFor(int n) {
+    Object o = new SubclassA();
+    for (int i = 0; i < n; i++) {
+      if (o instanceof Super) {
+        ((Super)o).f();
+      }
+      if (i / 2 == 0) {
+        o = new Object();
+      }
+    }
+  }
+
   public Object newObject() {
     try {
       return Object.class.newInstance();

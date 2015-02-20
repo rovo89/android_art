@@ -42,6 +42,11 @@ void PrepareForRegisterAllocation::VisitBoundsCheck(HBoundsCheck* check) {
   check->ReplaceWith(check->InputAt(0));
 }
 
+void PrepareForRegisterAllocation::VisitBoundType(HBoundType* bound_type) {
+  bound_type->ReplaceWith(bound_type->InputAt(0));
+  bound_type->GetBlock()->RemoveInstruction(bound_type);
+}
+
 void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
   HLoadClass* cls = check->GetLoadClass();
   check->ReplaceWith(cls);
