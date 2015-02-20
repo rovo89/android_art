@@ -141,6 +141,7 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define("-XX:LowMemoryMode")
           .IntoKey(M::LowMemoryMode)
       .Define("-XX:UseTLAB")
+          .WithValue(true)
           .IntoKey(M::UseTLAB)
       .Define({"-XX:EnableHSpaceCompactForOOM", "-XX:DisableHSpaceCompactForOOM"})
           .WithValues({true, false})
