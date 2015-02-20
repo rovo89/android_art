@@ -18,6 +18,7 @@
 #define ART_COMPILER_OPTIMIZING_OPTIMIZATION_H_
 
 #include "nodes.h"
+#include "optimizing_compiler_stats.h"
 
 namespace art {
 
@@ -34,8 +35,10 @@ class HOptimization : public ValueObject {
  public:
   HOptimization(HGraph* graph,
                 bool is_in_ssa_form,
-                const char* pass_name)
+                const char* pass_name,
+                OptimizingCompilerStats* stats = nullptr)
       : graph_(graph),
+        stats_(stats),
         is_in_ssa_form_(is_in_ssa_form),
         pass_name_(pass_name) {}
 
@@ -51,7 +54,11 @@ class HOptimization : public ValueObject {
   void Check();
 
  protected:
+  void MaybeRecordStat(MethodCompilationStat compilation_stat) const;
+
   HGraph* const graph_;
+  // Used to record stats about the optimization.
+  OptimizingCompilerStats* const stats_;
 
  private:
   // Does the analyzed graph use the SSA form?

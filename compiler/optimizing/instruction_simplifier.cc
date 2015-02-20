@@ -16,11 +16,15 @@
 
 #include "instruction_simplifier.h"
 
+#include "mirror/class-inl.h"
+#include "scoped_thread_state_change.h"
+
 namespace art {
 
 class InstructionSimplifierVisitor : public HGraphVisitor {
  public:
-  explicit InstructionSimplifierVisitor(HGraph* graph) : HGraphVisitor(graph) {}
+  InstructionSimplifierVisitor(HGraph* graph, OptimizingCompilerStats* stats)
+      : HGraphVisitor(graph), stats_(stats) {}
 
  private:
   void VisitSuspendCheck(HSuspendCheck* check) OVERRIDE;
@@ -29,10 +33,13 @@ class InstructionSimplifierVisitor : public HGraphVisitor {
   void VisitTypeConversion(HTypeConversion* instruction) OVERRIDE;
   void VisitNullCheck(HNullCheck* instruction) OVERRIDE;
   void VisitArrayLength(HArrayLength* instruction) OVERRIDE;
+  void VisitCheckCast(HCheckCast* instruction) OVERRIDE;
+
+  OptimizingCompilerStats* stats_;
 };
 
 void InstructionSimplifier::Run() {
-  InstructionSimplifierVisitor visitor(graph_);
+  InstructionSimplifierVisitor visitor(graph_, stats_);
   visitor.VisitInsertionOrder();
 }
 
@@ -41,6 +48,28 @@ void InstructionSimplifierVisitor::VisitNullCheck(HNullCheck* null_check) {
   if (!obj->CanBeNull()) {
     null_check->ReplaceWith(obj);
     null_check->GetBlock()->RemoveInstruction(null_check);
+    if (stats_ != nullptr) {
+      stats_->RecordStat(MethodCompilationStat::kRemovedNullCheck);
+    }
+  }
+}
+
+void InstructionSimplifierVisitor::VisitCheckCast(HCheckCast* check_cast) {
+  HLoadClass* load_class = check_cast->InputAt(1)->AsLoadClass();
+  if (!load_class->IsResolved()) {
+    // If the class couldn't be resolve it's not safe to compare against it. It's
+    // default type would be Top which might be wider that the actual class type
+    // and thus producing wrong results.
+    return;
+  }
+  ReferenceTypeInfo obj_rti = check_cast->InputAt(0)->GetReferenceTypeInfo();
+  ReferenceTypeInfo class_rti = load_class->GetLoadedClassRTI();
+  ScopedObjectAccess soa(Thread::Current());
+  if (class_rti.IsSupertypeOf(obj_rti)) {
+    check_cast->GetBlock()->RemoveInstruction(check_cast);
+    if (stats_ != nullptr) {
+      stats_->RecordStat(MethodCompilationStat::kRemovedCheckedCast);
+    }
   }
 }
 

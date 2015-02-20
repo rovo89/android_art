@@ -35,10 +35,9 @@ class HInliner : public HOptimization {
            CompilerDriver* compiler_driver,
            OptimizingCompilerStats* stats,
            size_t depth = 0)
-      : HOptimization(outer_graph, true, "inliner"),
+      : HOptimization(outer_graph, true, "inliner", stats),
         outer_compilation_unit_(outer_compilation_unit),
         compiler_driver_(compiler_driver),
-        outer_stats_(stats),
         depth_(depth) {}
 
   void Run() OVERRIDE;
@@ -48,7 +47,6 @@ class HInliner : public HOptimization {
 
   const DexCompilationUnit& outer_compilation_unit_;
   CompilerDriver* const compiler_driver_;
-  OptimizingCompilerStats* const outer_stats_;
   const size_t depth_;
 
   DISALLOW_COPY_AND_ASSIGN(HInliner);

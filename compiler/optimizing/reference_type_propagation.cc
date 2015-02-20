@@ -16,12 +16,34 @@
 
 #include "reference_type_propagation.h"
 
+#include "class_linker.h"
+#include "mirror/class-inl.h"
+#include "mirror/dex_cache.h"
+#include "scoped_thread_state_change.h"
+
 namespace art {
 
-void ReferenceTypePropagation::Run() {
-  // Compute null status for instructions.
+// TODO: Only do the analysis on reference types. We currently have to handle
+// the `null` constant, that is represented as a `HIntConstant` and therefore
+// has the Primitive::kPrimInt type.
 
-  // To properly propagate not-null info we need to visit in the dominator-based order.
+// TODO: handle:
+//  public Main ifNullTest(int count, Main a) {
+//    Main m = new Main();
+//    if (a == null) {
+//      a = m;
+//    }
+//    return a.g();
+//  }
+//  public Main ifNotNullTest(Main a) {
+//    if (a != null) {
+//      return a.g();
+//    }
+//    return new Main();
+//  }
+
+void ReferenceTypePropagation::Run() {
+  // To properly propagate type info we need to visit in the dominator-based order.
   // Reverse post order guarantees a node's dominators are visited first.
   // We take advantage of this order in `VisitBasicBlock`.
   for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
@@ -43,8 +65,89 @@ bool ReferenceTypePropagation::UpdateNullability(HPhi* phi) {
   return existing_can_be_null != new_can_be_null;
 }
 
+bool ReferenceTypePropagation::UpdateReferenceTypeInfo(HPhi* phi) {
+  ScopedObjectAccess soa(Thread::Current());
+
+  ReferenceTypeInfo existing_rti = phi->GetReferenceTypeInfo();
+  ReferenceTypeInfo new_rti = phi->InputAt(0)->GetReferenceTypeInfo();
+
+  if (new_rti.IsTop() && !new_rti.IsExact()) {
+    // Early return if we are Top and inexact.
+    phi->SetReferenceTypeInfo(new_rti);
+    return !new_rti.IsEqual(existing_rti);;
+  }
+
+  for (size_t i = 1; i < phi->InputCount(); i++) {
+    ReferenceTypeInfo input_rti = phi->InputAt(i)->GetReferenceTypeInfo();
+
+    if (!input_rti.IsExact()) {
+      new_rti.SetInexact();
+    }
+
+    if (input_rti.IsTop()) {
+      new_rti.SetTop();
+    }
+
+    if (new_rti.IsTop()) {
+      if (!new_rti.IsExact()) {
+        break;
+      } else {
+        continue;
+      }
+    }
+
+    if (new_rti.GetTypeHandle().Get() == input_rti.GetTypeHandle().Get()) {
+      // nothing to do if we have the same type
+    } else if (input_rti.IsSupertypeOf(new_rti)) {
+      new_rti.SetTypeHandle(input_rti.GetTypeHandle(), false);
+    } else if (new_rti.IsSupertypeOf(input_rti)) {
+      new_rti.SetInexact();
+    } else {
+      // TODO: Find common parent.
+      new_rti.SetTop();
+      new_rti.SetInexact();
+    }
+  }
+
+  phi->SetReferenceTypeInfo(new_rti);
+  return !new_rti.IsEqual(existing_rti);
+}
+
+void ReferenceTypePropagation::VisitNewInstance(HNewInstance* instr) {
+  ScopedObjectAccess soa(Thread::Current());
+  mirror::DexCache* dex_cache = dex_compilation_unit_.GetClassLinker()->FindDexCache(dex_file_);
+  // Get type from dex cache assuming it was populated by the verifier.
+  mirror::Class* resolved_class = dex_cache->GetResolvedType(instr->GetTypeIndex());
+  if (resolved_class != nullptr) {
+    MutableHandle<mirror::Class> handle = handles_->NewHandle(resolved_class);
+    instr->SetReferenceTypeInfo(ReferenceTypeInfo(handle, true));
+  }
+}
+
+void ReferenceTypePropagation::VisitLoadClass(HLoadClass* instr) {
+  ScopedObjectAccess soa(Thread::Current());
+  mirror::DexCache* dex_cache = dex_compilation_unit_.GetClassLinker()->FindDexCache(dex_file_);
+  // Get type from dex cache assuming it was populated by the verifier.
+  mirror::Class* resolved_class = dex_cache->GetResolvedType(instr->GetTypeIndex());
+  if (resolved_class != nullptr) {
+    Handle<mirror::Class> handle = handles_->NewHandle(resolved_class);
+    instr->SetLoadedClassRTI(ReferenceTypeInfo(handle, true));
+  }
+  Handle<mirror::Class> class_handle = handles_->NewHandle(mirror::Class::GetJavaLangClass());
+  instr->SetReferenceTypeInfo(ReferenceTypeInfo(class_handle, true));
+}
 
 void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
+  // TODO: handle other instructions that give type info
+  // (NewArray/Call/Field accesses/array accesses)
+  for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
+    HInstruction* instr = it.Current();
+    if (instr->IsNewInstance()) {
+      VisitNewInstance(instr->AsNewInstance());
+    } else if (instr->IsLoadClass()) {
+      VisitLoadClass(instr->AsLoadClass());
+    }
+  }
   if (block->IsLoopHeader()) {
     for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
       // Set the initial type for the phi. Use the non back edge input for reaching
@@ -53,6 +156,7 @@ void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
       if (phi->GetType() == Primitive::kPrimNot) {
         AddToWorklist(phi);
         phi->SetCanBeNull(phi->InputAt(0)->CanBeNull());
+        phi->SetReferenceTypeInfo(phi->InputAt(0)->GetReferenceTypeInfo());
       }
     }
   } else {
@@ -65,6 +169,7 @@ void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
       HPhi* phi = it.Current()->AsPhi();
       if (phi->GetType() == Primitive::kPrimNot) {
         UpdateNullability(phi);
+        UpdateReferenceTypeInfo(phi);
       }
     }
   }
@@ -73,7 +178,7 @@ void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
 void ReferenceTypePropagation::ProcessWorklist() {
   while (!worklist_.IsEmpty()) {
     HPhi* instruction = worklist_.Pop();
-    if (UpdateNullability(instruction)) {
+    if (UpdateNullability(instruction) || UpdateReferenceTypeInfo(instruction)) {
       AddDependentInstructionsToWorklist(instruction);
     }
   }

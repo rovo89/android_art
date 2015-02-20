@@ -18,6 +18,7 @@
 
 #include "ssa_builder.h"
 #include "utils/growable_array.h"
+#include "scoped_thread_state_change.h"
 
 namespace art {
 
@@ -997,6 +998,16 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
 
   // Finally remove the invoke from the caller.
   invoke->GetBlock()->RemoveInstruction(invoke);
+}
+
+std::ostream& operator<<(std::ostream& os, const ReferenceTypeInfo& rhs) {
+  ScopedObjectAccess soa(Thread::Current());
+  os << "["
+     << " is_top=" << rhs.IsTop()
+     << " type=" << (rhs.IsTop() ? "?" : PrettyClass(rhs.GetTypeHandle().Get()))
+     << " is_exact=" << rhs.IsExact()
+     << " ]";
+  return os;
 }
 
 }  // namespace art

@@ -201,6 +201,7 @@ class OptimizingCompiler FINAL : public Compiler {
   CompiledMethod* CompileOptimized(HGraph* graph,
                                    CodeGenerator* codegen,
                                    CompilerDriver* driver,
+                                   const DexFile& dex_file,
                                    const DexCompilationUnit& dex_compilation_unit,
                                    PassInfoPrinter* pass_info) const;
 
@@ -293,13 +294,15 @@ static void RunOptimizations(HOptimization* optimizations[],
 static void RunOptimizations(HGraph* graph,
                              CompilerDriver* driver,
                              OptimizingCompilerStats* stats,
+                             const DexFile& dex_file,
                              const DexCompilationUnit& dex_compilation_unit,
-                             PassInfoPrinter* pass_info_printer) {
+                             PassInfoPrinter* pass_info_printer,
+                             StackHandleScopeCollection* handles) {
   SsaRedundantPhiElimination redundant_phi(graph);
   SsaDeadPhiElimination dead_phi(graph);
   HDeadCodeElimination dce(graph);
   HConstantFolding fold1(graph);
-  InstructionSimplifier simplify1(graph);
+  InstructionSimplifier simplify1(graph, stats);
 
   HInliner inliner(graph, dex_compilation_unit, driver, stats);
 
@@ -308,8 +311,8 @@ static void RunOptimizations(HGraph* graph,
   GVNOptimization gvn(graph, side_effects);
   LICM licm(graph, side_effects);
   BoundsCheckElimination bce(graph);
-  ReferenceTypePropagation type_propagation(graph);
-  InstructionSimplifier simplify2(graph, "instruction_simplifier_after_types");
+  ReferenceTypePropagation type_propagation(graph, dex_file, dex_compilation_unit, handles);
+  InstructionSimplifier simplify2(graph, stats, "instruction_simplifier_after_types");
 
   IntrinsicsRecognizer intrinsics(graph, dex_compilation_unit.GetDexFile(), driver);
 
@@ -348,10 +351,12 @@ static ArrayRef<const uint8_t> AlignVectorSize(std::vector<uint8_t>& vector) {
 CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
                                                      CodeGenerator* codegen,
                                                      CompilerDriver* compiler_driver,
+                                                     const DexFile& dex_file,
                                                      const DexCompilationUnit& dex_compilation_unit,
                                                      PassInfoPrinter* pass_info_printer) const {
-  RunOptimizations(
-      graph, compiler_driver, &compilation_stats_, dex_compilation_unit, pass_info_printer);
+  StackHandleScopeCollection handles(Thread::Current());
+  RunOptimizations(graph, compiler_driver, &compilation_stats_,
+                   dex_file, dex_compilation_unit, pass_info_printer, &handles);
 
   PrepareForRegisterAllocation(graph).Run();
   SsaLivenessAnalysis liveness(*graph, codegen);
@@ -515,6 +520,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     return CompileOptimized(graph,
                             codegen.get(),
                             compiler_driver,
+                            dex_file,
                             dex_compilation_unit,
                             &pass_info_printer);
   } else if (shouldOptimize && RegisterAllocator::Supports(instruction_set)) {
