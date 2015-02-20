@@ -764,7 +764,7 @@ class OatDumper {
                                     oat_method.GetVmapTableOffsetOffset());
         success = false;
       } else if (options_->dump_vmap_) {
-        DumpVmap(*indent2_os, oat_method);
+        DumpVmapData(*indent2_os, oat_method, code_item);
       }
     }
     {
@@ -869,37 +869,87 @@ class OatDumper {
     os << ")";
   }
 
-  void DumpVmap(std::ostream& os, const OatFile::OatMethod& oat_method) {
-    // If the native GC map is null, then this method has been compiled with the
-    // optimizing compiler. The optimizing compiler currently outputs its stack map
-    // in the vmap table, and the code below does not work with such a stack map.
+  // Display data stored at the the vmap offset of an oat method.
+  void DumpVmapData(std::ostream& os,
+                    const OatFile::OatMethod& oat_method,
+                    const DexFile::CodeItem* code_item) {
     if (oat_method.GetGcMap() == nullptr) {
-      return;
+      // If the native GC map is null, then this method has been
+      // compiled with the optimizing compiler. The optimizing
+      // compiler currently outputs its stack maps in the vmap table.
+      const void* raw_code_info = oat_method.GetVmapTable();
+      if (raw_code_info != nullptr) {
+        CodeInfo code_info(raw_code_info);
+        DCHECK(code_item != nullptr);
+        DumpCodeInfo(os, code_info, *code_item);
+      }
+    } else {
+      // Otherwise, display the vmap table.
+      const uint8_t* raw_table = oat_method.GetVmapTable();
+      if (raw_table != nullptr) {
+        VmapTable vmap_table(raw_table);
+        DumpVmapTable(os, oat_method, vmap_table);
+      }
     }
-    const uint8_t* raw_table = oat_method.GetVmapTable();
-    if (raw_table != nullptr) {
-      const VmapTable vmap_table(raw_table);
-      bool first = true;
-      bool processing_fp = false;
-      uint32_t spill_mask = oat_method.GetCoreSpillMask();
-      for (size_t i = 0; i < vmap_table.Size(); i++) {
-        uint16_t dex_reg = vmap_table[i];
-        uint32_t cpu_reg = vmap_table.ComputeRegister(spill_mask, i,
-                                                      processing_fp ? kFloatVReg : kIntVReg);
-        os << (first ? "v" : ", v")  << dex_reg;
-        if (!processing_fp) {
-          os << "/r" << cpu_reg;
-        } else {
-          os << "/fr" << cpu_reg;
-        }
-        first = false;
-        if (!processing_fp && dex_reg == 0xFFFF) {
-          processing_fp = true;
-          spill_mask = oat_method.GetFpSpillMask();
+  }
+
+  // Display a CodeInfo object emitted by the optimizing compiler.
+  void DumpCodeInfo(std::ostream& os,
+                    const CodeInfo& code_info,
+                    const DexFile::CodeItem& code_item) {
+    uint16_t number_of_dex_registers = code_item.registers_size_;
+    uint32_t code_info_size = code_info.GetOverallSize();
+    size_t number_of_stack_maps = code_info.GetNumberOfStackMaps();
+    os << "  Optimized CodeInfo (size=" << code_info_size
+       << ", number_of_dex_registers=" << number_of_dex_registers
+       << ", number_of_stack_maps=" << number_of_stack_maps << ")\n";
+    for (size_t i = 0; i < number_of_stack_maps; ++i) {
+      StackMap stack_map = code_info.GetStackMapAt(i);
+      // TODO: Display stack_mask value.
+      os << "    StackMap " << i
+         << std::hex
+         << " (dex_pc=0x" << stack_map.GetDexPc()
+         << ", native_pc_offset=0x" << stack_map.GetNativePcOffset()
+         << ", register_mask=0x" << stack_map.GetRegisterMask()
+         << std::dec
+         << ")\n";
+      if (stack_map.HasDexRegisterMap()) {
+        DexRegisterMap dex_register_map =
+            code_info.GetDexRegisterMapOf(stack_map, number_of_dex_registers);
+        for (size_t j = 0; j < number_of_dex_registers; ++j) {
+          os << "      v" << j << ": "
+             << DexRegisterMap::PrettyDescriptor(dex_register_map.GetLocationKind(j))
+             << " (" << dex_register_map.GetValue(j) << ")\n";
         }
       }
-      os << "\n";
+      // TODO: Display more information from code_info.
     }
+  }
+
+  // Display a vmap table.
+  void DumpVmapTable(std::ostream& os,
+                     const OatFile::OatMethod& oat_method,
+                     const VmapTable& vmap_table) {
+    bool first = true;
+    bool processing_fp = false;
+    uint32_t spill_mask = oat_method.GetCoreSpillMask();
+    for (size_t i = 0; i < vmap_table.Size(); i++) {
+      uint16_t dex_reg = vmap_table[i];
+      uint32_t cpu_reg = vmap_table.ComputeRegister(spill_mask, i,
+                                                    processing_fp ? kFloatVReg : kIntVReg);
+      os << (first ? "v" : ", v")  << dex_reg;
+      if (!processing_fp) {
+        os << "/r" << cpu_reg;
+      } else {
+        os << "/fr" << cpu_reg;
+      }
+      first = false;
+      if (!processing_fp && dex_reg == 0xFFFF) {
+        processing_fp = true;
+        spill_mask = oat_method.GetFpSpillMask();
+      }
+    }
+    os << "\n";
   }
 
   void DumpVregLocations(std::ostream& os, const OatFile::OatMethod& oat_method,
