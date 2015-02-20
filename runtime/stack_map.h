@@ -61,8 +61,6 @@ class InlineInfo {
   static constexpr int kDepthOffset = 0;
   static constexpr int kFixedSize = kDepthOffset + sizeof(uint8_t);
 
-  static constexpr uint32_t kNoInlineInfo = -1;
-
   MemoryRegion region_;
 
   friend class CodeInfo;
@@ -76,10 +74,11 @@ class InlineInfo {
  * [location_kind, register_value]+.
  *
  * The location_kind for a Dex register can either be:
- * - Constant: register_value holds the constant,
- * - Stack: register_value holds the stack offset,
- * - Register: register_value holds the physical register number.
- * - None: the register has no location yet, meaning it has not been set.
+ * - kConstant: register_value holds the constant,
+ * - kStack: register_value holds the stack offset,
+ * - kRegister: register_value holds the physical register number.
+ * - kFpuRegister: register_value holds the physical register number.
+ * - kNone: the register has no location yet, meaning it has not been set.
  */
 class DexRegisterMap {
  public:
@@ -92,6 +91,24 @@ class DexRegisterMap {
     kInFpuRegister,
     kConstant
   };
+
+  static const char* PrettyDescriptor(LocationKind kind) {
+    switch (kind) {
+      case kNone:
+        return "none";
+      case kInStack:
+        return "in stack";
+      case kInRegister:
+        return "in register";
+      case kInFpuRegister:
+        return "in fpu register";
+      case kConstant:
+        return "as constant";
+      default:
+        LOG(FATAL) << "Invalid location kind " << static_cast<int>(kind);
+        return nullptr;
+    }
+  }
 
   LocationKind GetLocationKind(uint16_t register_index) const {
     return region_.Load<LocationKind>(
@@ -191,11 +208,15 @@ class StackMap {
     }
   }
 
-  bool HasInlineInfo() const {
-    return GetInlineDescriptorOffset() != InlineInfo::kNoInlineInfo;
+  bool HasDexRegisterMap() const {
+    return GetDexRegisterMapOffset() != kNoDexRegisterMap;
   }
 
-  bool Equals(const StackMap& other) {
+  bool HasInlineInfo() const {
+    return GetInlineDescriptorOffset() != kNoInlineInfo;
+  }
+
+  bool Equals(const StackMap& other) const {
     return region_.pointer() == other.region_.pointer()
        && region_.size() == other.region_.size();
   }
@@ -204,6 +225,14 @@ class StackMap {
     // On ARM, the stack maps must be 4-byte aligned.
     return RoundUp(StackMap::kFixedSize + stack_mask_size, 4);
   }
+
+  // Special (invalid) offset for the DexRegisterMapOffset field meaning
+  // that there is no Dex register map for this stack map.
+  static constexpr uint32_t kNoDexRegisterMap = -1;
+
+  // Special (invalid) offset for the InlineDescriptorOffset field meaning
+  // that there is no inline info for this stack map.
+  static constexpr uint32_t kNoInlineInfo = -1;
 
  private:
   static constexpr int kDexPcOffset = 0;
@@ -271,20 +300,22 @@ class CodeInfo {
     return StackMap::ComputeAlignedStackMapSize(GetStackMaskSize());
   }
 
-  DexRegisterMap GetDexRegisterMapOf(StackMap stack_map, uint32_t number_of_dex_registers) {
+  DexRegisterMap GetDexRegisterMapOf(StackMap stack_map, uint32_t number_of_dex_registers) const {
+    DCHECK(stack_map.HasDexRegisterMap());
     uint32_t offset = stack_map.GetDexRegisterMapOffset();
     return DexRegisterMap(region_.Subregion(offset,
         DexRegisterMap::kFixedSize + number_of_dex_registers * DexRegisterMap::SingleEntrySize()));
   }
 
-  InlineInfo GetInlineInfoOf(StackMap stack_map) {
+  InlineInfo GetInlineInfoOf(StackMap stack_map) const {
+    DCHECK(stack_map.HasInlineInfo());
     uint32_t offset = stack_map.GetInlineDescriptorOffset();
     uint8_t depth = region_.Load<uint8_t>(offset);
     return InlineInfo(region_.Subregion(offset,
         InlineInfo::kFixedSize + depth * InlineInfo::SingleEntrySize()));
   }
 
-  StackMap GetStackMapForDexPc(uint32_t dex_pc) {
+  StackMap GetStackMapForDexPc(uint32_t dex_pc) const {
     for (size_t i = 0, e = GetNumberOfStackMaps(); i < e; ++i) {
       StackMap stack_map = GetStackMapAt(i);
       if (stack_map.GetDexPc() == dex_pc) {
@@ -295,7 +326,7 @@ class CodeInfo {
     UNREACHABLE();
   }
 
-  StackMap GetStackMapForNativePcOffset(uint32_t native_pc_offset) {
+  StackMap GetStackMapForNativePcOffset(uint32_t native_pc_offset) const {
     // TODO: stack maps are sorted by native pc, we can do a binary search.
     for (size_t i = 0, e = GetNumberOfStackMaps(); i < e; ++i) {
       StackMap stack_map = GetStackMapAt(i);
