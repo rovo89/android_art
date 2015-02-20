@@ -863,12 +863,21 @@ bool X86Mir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
     RegLocation rl_src1 = info->args[0];
     RegLocation rl_src2 = info->args[2];
     RegLocation rl_dest = InlineTargetWide(info);
-    int res_vreg, src1_vreg, src2_vreg;
 
     if (rl_dest.s_reg_low == INVALID_SREG) {
       // Result is unused, the code is dead. Inlining successful, no code generated.
       return true;
     }
+
+    if (PartiallyIntersects(rl_src1, rl_dest) &&
+        PartiallyIntersects(rl_src2, rl_dest)) {
+      // A special case which we don't want to handle.
+      // This is when src1 is mapped on v0 and v1,
+      // src2 is mapped on v2, v3,
+      // result is mapped on v1, v2
+      return false;
+    }
+
 
     /*
      * If the result register is the same as the second element, then we
@@ -876,9 +885,7 @@ bool X86Mir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
      * inadvertently clobber the second element with the first one thus
      * yielding the wrong result. Thus we do a swap in that case.
      */
-    res_vreg = mir_graph_->SRegToVReg(rl_dest.s_reg_low);
-    src2_vreg = mir_graph_->SRegToVReg(rl_src2.s_reg_low);
-    if (res_vreg == src2_vreg) {
+    if (Intersects(rl_src2, rl_dest)) {
       std::swap(rl_src1, rl_src2);
     }
 
@@ -893,19 +900,30 @@ bool X86Mir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
      * nothing else to do because they are equal and we have already
      * moved one into the result.
      */
-    src1_vreg = mir_graph_->SRegToVReg(rl_src1.s_reg_low);
-    src2_vreg = mir_graph_->SRegToVReg(rl_src2.s_reg_low);
-    if (src1_vreg == src2_vreg) {
+    if (mir_graph_->SRegToVReg(rl_src1.s_reg_low) ==
+        mir_graph_->SRegToVReg(rl_src2.s_reg_low)) {
       StoreValueWide(rl_dest, rl_result);
       return true;
     }
 
     // Free registers to make some room for the second operand.
-    // But don't try to free ourselves or promoted registers.
-    if (res_vreg != src1_vreg &&
-        IsTemp(rl_src1.reg.GetLow()) && IsTemp(rl_src1.reg.GetHigh())) {
-      FreeTemp(rl_src1.reg);
+    // But don't try to free part of a source which intersects
+    // part of result or promoted registers.
+
+    if (IsTemp(rl_src1.reg.GetLow()) &&
+       (rl_src1.reg.GetLowReg() != rl_result.reg.GetHighReg()) &&
+       (rl_src1.reg.GetLowReg() != rl_result.reg.GetLowReg())) {
+      // Is low part temporary and doesn't intersect any parts of result?
+      FreeTemp(rl_src1.reg.GetLow());
     }
+
+    if (IsTemp(rl_src1.reg.GetHigh()) &&
+       (rl_src1.reg.GetHighReg() != rl_result.reg.GetLowReg()) &&
+       (rl_src1.reg.GetHighReg() != rl_result.reg.GetHighReg())) {
+      // Is high part temporary and doesn't intersect any parts of result?
+      FreeTemp(rl_src1.reg.GetHigh());
+    }
+
     rl_src2 = LoadValueWide(rl_src2, kCoreReg);
 
     // Do we have a free register for intermediate calculations?
@@ -939,12 +957,15 @@ bool X86Mir2Lir::GenInlinedMinMax(CallInfo* info, bool is_min, bool is_long) {
     // Let's put pop 'edi' here to break a bit the dependency chain.
     if (tmp == rs_rDI) {
       NewLIR1(kX86Pop32R, tmp.GetReg());
+    } else {
+      FreeTemp(tmp);
     }
 
     // Conditionally move the other integer into the destination register.
     ConditionCode cc = is_min ? kCondGe : kCondLt;
     OpCondRegReg(kOpCmov, cc, rl_result.reg.GetLow(), rl_src2.reg.GetLow());
     OpCondRegReg(kOpCmov, cc, rl_result.reg.GetHigh(), rl_src2.reg.GetHigh());
+    FreeTemp(rl_src2.reg);
     StoreValueWide(rl_dest, rl_result);
     return true;
   }
