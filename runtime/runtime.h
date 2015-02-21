@@ -516,6 +516,10 @@ class Runtime {
     return target_sdk_version_;
   }
 
+  uint32_t GetZygoteMaxFailedBoots() const {
+    return zygote_max_failed_boots_;
+  }
+
  private:
   static void InitPlatformSignalHandlers();
 
@@ -681,6 +685,11 @@ class Runtime {
   // When non-empty the native bridge will be loaded from the given file. An empty value means
   // that there's no native bridge.
   bool is_native_bridge_loaded_;
+
+  // The maximum number of failed boots we allow before pruning the dalvik cache
+  // and trying again. This option is only inspected when we're running as a
+  // zygote.
+  uint32_t zygote_max_failed_boots_;
 
   DISALLOW_COPY_AND_ASSIGN(Runtime);
 };
