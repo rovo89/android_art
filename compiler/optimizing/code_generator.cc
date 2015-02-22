@@ -386,7 +386,9 @@ CodeGenerator* CodeGenerator::Create(HGraph* graph,
           compiler_options);
     }
     case kArm64: {
-      return new arm64::CodeGeneratorARM64(graph, compiler_options);
+      return new arm64::CodeGeneratorARM64(graph,
+          *isa_features.AsArm64InstructionSetFeatures(),
+          compiler_options);
     }
     case kMips:
       return nullptr;
