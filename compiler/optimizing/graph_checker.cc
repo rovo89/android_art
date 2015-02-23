@@ -160,6 +160,22 @@ void GraphChecker::VisitInstruction(HInstruction* instruction) {
                             instruction->GetId()));
     }
   }
+
+  // Ensure 'instruction' has pointers to its inputs' use entries.
+  for (size_t i = 0, e = instruction->InputCount(); i < e; ++i) {
+    HUserRecord<HInstruction*> input_record = instruction->InputRecordAt(i);
+    HInstruction* input = input_record.GetInstruction();
+    HUseListNode<HInstruction*>* use_node = input_record.GetUseNode();
+    if (use_node == nullptr || !input->GetUses().Contains(use_node)) {
+      AddError(StringPrintf("Instruction %s:%d has an invalid pointer to use entry "
+                            "at input %u (%s:%d).",
+                            instruction->DebugName(),
+                            instruction->GetId(),
+                            static_cast<unsigned>(i),
+                            input->DebugName(),
+                            input->GetId()));
+    }
+  }
 }
 
 void SSAChecker::VisitBasicBlock(HBasicBlock* block) {

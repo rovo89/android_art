@@ -64,31 +64,33 @@ void SsaDeadPhiElimination::EliminateDeadPhis() {
     HBasicBlock* block = it.Current();
     HInstruction* current = block->GetFirstPhi();
     HInstruction* next = nullptr;
+    HPhi* phi;
     while (current != nullptr) {
+      phi = current->AsPhi();
       next = current->GetNext();
-      if (current->AsPhi()->IsDead()) {
-        if (current->HasUses()) {
-          for (HUseIterator<HInstruction*> use_it(current->GetUses()); !use_it.Done();
+      if (phi->IsDead()) {
+        // Make sure the phi is only used by other dead phis.
+        if (kIsDebugBuild) {
+          for (HUseIterator<HInstruction*> use_it(phi->GetUses()); !use_it.Done();
                use_it.Advance()) {
-            HUseListNode<HInstruction*>* user_node = use_it.Current();
-            HInstruction* user = user_node->GetUser();
+            HInstruction* user = use_it.Current()->GetUser();
             DCHECK(user->IsLoopHeaderPhi()) << user->GetId();
             DCHECK(user->AsPhi()->IsDead()) << user->GetId();
-            // Just put itself as an input. The phi will be removed in this loop anyway.
-            user->SetRawInputAt(user_node->GetIndex(), user);
-            current->RemoveUser(user, user_node->GetIndex());
           }
         }
-        if (current->HasEnvironmentUses()) {
-          for (HUseIterator<HEnvironment*> use_it(current->GetEnvUses()); !use_it.Done();
-               use_it.Advance()) {
-            HUseListNode<HEnvironment*>* user_node = use_it.Current();
-            HEnvironment* user = user_node->GetUser();
-            user->SetRawEnvAt(user_node->GetIndex(), nullptr);
-            current->RemoveEnvironmentUser(user_node);
-          }
+        // Remove the phi from use lists of its inputs.
+        for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
+          phi->RemoveAsUserOfInput(i);
         }
-        block->RemovePhi(current->AsPhi());
+        // Remove the phi from environments that use it.
+        for (HUseIterator<HEnvironment*> use_it(phi->GetEnvUses()); !use_it.Done();
+             use_it.Advance()) {
+          HUseListNode<HEnvironment*>* user_node = use_it.Current();
+          HEnvironment* user = user_node->GetUser();
+          user->SetRawEnvAt(user_node->GetIndex(), nullptr);
+        }
+        // Delete it from the instruction list.
+        block->RemovePhi(phi, /*ensure_safety=*/ false);
       }
       current = next;
     }
