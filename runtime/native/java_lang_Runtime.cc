@@ -20,6 +20,7 @@
 #include <limits.h>
 #include <unistd.h>
 
+#include "base/macros.h"
 #include "gc/heap.h"
 #include "handle_scope-inl.h"
 #include "jni_internal.h"
@@ -39,7 +40,7 @@ static void Runtime_gc(JNIEnv*, jclass) {
   Runtime::Current()->GetHeap()->CollectGarbage(false);
 }
 
-[[noreturn]] static void Runtime_nativeExit(JNIEnv*, jclass, jint status) {
+NO_RETURN static void Runtime_nativeExit(JNIEnv*, jclass, jint status) {
   LOG(INFO) << "System.exit called, status: " << status;
   Runtime::Current()->CallExitHook(status);
   exit(status);

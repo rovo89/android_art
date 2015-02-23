@@ -18,6 +18,7 @@
 #define ART_RUNTIME_QUICK_EXCEPTION_HANDLER_H_
 
 #include "base/logging.h"
+#include "base/macros.h"
 #include "base/mutex.h"
 #include "stack.h"  // StackReference
 
@@ -48,7 +49,7 @@ class QuickExceptionHandler {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DeoptimizeStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void UpdateInstrumentationStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void DoLongJump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  NO_RETURN void DoLongJump() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void SetHandlerQuickFrame(StackReference<mirror::ArtMethod>* handler_quick_frame) {
     handler_quick_frame_ = handler_quick_frame;

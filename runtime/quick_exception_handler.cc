@@ -353,6 +353,7 @@ void QuickExceptionHandler::DoLongJump() {
   context_->SetPC(handler_quick_frame_pc_);
   context_->SmashCallerSaves();
   context_->DoLongJump();
+  UNREACHABLE();
 }
 
 }  // namespace art

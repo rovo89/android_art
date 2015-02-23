@@ -19,6 +19,7 @@
 
 #include "arch/context.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "registers_mips.h"
 
 namespace art {
@@ -75,7 +76,7 @@ class MipsContext : public Context {
   void SetFPR(uint32_t reg, uintptr_t value) OVERRIDE;
 
   void SmashCallerSaves() OVERRIDE;
-  void DoLongJump() OVERRIDE;
+  NO_RETURN void DoLongJump() OVERRIDE;
 
  private:
   // Pointers to registers in the stack, initialized to NULL except for the special cases below.

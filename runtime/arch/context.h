@@ -20,6 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "base/macros.h"
 #include "base/mutex.h"
 
 namespace art {
@@ -78,7 +79,7 @@ class Context {
   virtual void SmashCallerSaves() = 0;
 
   // Switches execution of the executing context to this context
-  virtual void DoLongJump() = 0;
+  NO_RETURN virtual void DoLongJump() = 0;
 
  protected:
   enum {
