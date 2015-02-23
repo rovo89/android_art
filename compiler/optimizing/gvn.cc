@@ -270,7 +270,7 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
     set = new (allocator_) ValueSet(allocator_);
   } else {
     HBasicBlock* dominator = block->GetDominator();
-    set = sets_.Get(dominator->GetBlockId())->Copy();
+    set = sets_.Get(dominator->GetBlockId());
     if (dominator->GetSuccessors().Size() != 1 || dominator->GetSuccessors().Get(0) != block) {
       // We have to copy if the dominator has other successors, or `block` is not a successor
       // of the dominator.
