@@ -190,7 +190,8 @@ Runtime::~Runtime() {
   }
 
   Thread* self = Thread::Current();
-  if (self == nullptr) {
+  const bool attach_shutdown_thread = self == nullptr;
+  if (attach_shutdown_thread) {
     CHECK(AttachCurrentThread("Shutdown thread", false, nullptr, false));
     self = Thread::Current();
   } else {
@@ -212,8 +213,10 @@ Runtime::~Runtime() {
     self->GetJniEnv()->CallStaticVoidMethod(WellKnownClasses::java_lang_Daemons,
                                             WellKnownClasses::java_lang_Daemons_stop);
   }
-  DetachCurrentThread();
-  self = nullptr;
+  if (attach_shutdown_thread) {
+    DetachCurrentThread();
+    self = nullptr;
+  }
 
   // Shut down background profiler before the runtime exits.
   if (profiler_started_) {
