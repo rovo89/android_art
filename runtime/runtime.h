@@ -505,6 +505,10 @@ class Runtime {
     return verify_;
   }
 
+  bool IsDexFileFallbackEnabled() const {
+    return allow_dex_file_fallback_;
+  }
+
   bool RunningOnValgrind() const {
     return running_on_valgrind_;
   }
@@ -667,6 +671,10 @@ class Runtime {
 
   // If false, verification is disabled. True by default.
   bool verify_;
+
+  // If true, the runtime may use dex files directly with the interpreter if an oat file is not
+  // available/usable.
+  bool allow_dex_file_fallback_;
 
   // Specifies target SDK version to allow workarounds for certain API levels.
   int32_t target_sdk_version_;
