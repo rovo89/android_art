@@ -66,8 +66,7 @@ static void UpdateLoopPhisIn(HEnvironment* environment, HLoopInformation* info) 
   for (size_t i = 0, e = environment->Size(); i < e; ++i) {
     HInstruction* input = environment->GetInstructionAt(i);
     if (input != nullptr && IsPhiOf(input, info->GetHeader())) {
-      HUseListNode<HEnvironment*>* env_use = environment->GetInstructionEnvUseAt(i);
-      input->RemoveEnvironmentUser(env_use);
+      environment->RemoveAsUserOfInput(i);
       HInstruction* incoming = input->InputAt(0);
       environment->SetRawEnvAt(i, incoming);
       incoming->AddEnvUseAt(environment, i);
