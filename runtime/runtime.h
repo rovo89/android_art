@@ -28,6 +28,7 @@
 
 #include "arch/instruction_set.h"
 #include "base/allocator.h"
+#include "base/macros.h"
 #include "compiler_callbacks.h"
 #include "gc_root.h"
 #include "instrumentation.h"
@@ -185,7 +186,7 @@ class Runtime {
 
   // Aborts semi-cleanly. Used in the implementation of LOG(FATAL), which most
   // callers should prefer.
-  [[noreturn]] static void Abort() LOCKS_EXCLUDED(Locks::abort_lock_);
+  NO_RETURN static void Abort() LOCKS_EXCLUDED(Locks::abort_lock_);
 
   // Returns the "main" ThreadGroup, used when attaching user threads.
   jobject GetMainThreadGroup() const;

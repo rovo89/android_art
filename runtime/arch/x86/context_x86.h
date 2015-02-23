@@ -19,6 +19,7 @@
 
 #include "arch/context.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "registers_x86.h"
 
 namespace art {
@@ -75,7 +76,7 @@ class X86Context : public Context {
   void SetFPR(uint32_t reg, uintptr_t value) OVERRIDE;
 
   void SmashCallerSaves() OVERRIDE;
-  void DoLongJump() OVERRIDE;
+  NO_RETURN void DoLongJump() OVERRIDE;
 
  private:
   // Pretend XMM registers are made of uin32_t pieces, because they are manipulated

@@ -133,6 +133,7 @@ void X86Context::DoLongJump() {
 #else
   UNIMPLEMENTED(FATAL);
 #endif
+  UNREACHABLE();
 }
 
 }  // namespace x86
