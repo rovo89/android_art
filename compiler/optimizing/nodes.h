@@ -1002,6 +1002,8 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   virtual bool CanThrow() const { return false; }
   bool HasSideEffects() const { return side_effects_.HasSideEffects(); }
 
+  virtual bool ActAsNullConstant() const { return false; }
+
   // Does not apply for all instructions, but having this at top level greatly
   // simplifies the null check elimination.
   virtual bool CanBeNull() const {
@@ -1012,10 +1014,14 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
   virtual bool CanDoImplicitNullCheck() const { return false; }
 
   void SetReferenceTypeInfo(ReferenceTypeInfo reference_type_info) {
+    DCHECK_EQ(GetType(), Primitive::kPrimNot);
     reference_type_info_ = reference_type_info;
   }
 
-  ReferenceTypeInfo GetReferenceTypeInfo() const { return reference_type_info_; }
+  ReferenceTypeInfo GetReferenceTypeInfo() const {
+    DCHECK_EQ(GetType(), Primitive::kPrimNot);
+    return reference_type_info_;
+  }
 
   void AddUseAt(HInstruction* user, size_t index) {
     uses_.AddUse(user, index, GetBlock()->GetGraph()->GetArena());
@@ -1787,6 +1793,8 @@ class HNullConstant : public HConstant {
 
   size_t ComputeHashCode() const OVERRIDE { return 0; }
 
+  bool ActAsNullConstant() const OVERRIDE { return true; }
+
   DECLARE_INSTRUCTION(NullConstant);
 
  private:
@@ -1801,11 +1809,16 @@ class HIntConstant : public HConstant {
 
   int32_t GetValue() const { return value_; }
 
-  virtual bool InstructionDataEquals(HInstruction* other) const {
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     return other->AsIntConstant()->value_ == value_;
   }
 
-  virtual size_t ComputeHashCode() const { return GetValue(); }
+  size_t ComputeHashCode() const OVERRIDE { return GetValue(); }
+
+  // TODO: Null is represented by the `0` constant. In most cases we replace it
+  // with a HNullConstant but we don't do it when comparing (a != null). This
+  // method is an workaround until we fix the above.
+  bool ActAsNullConstant() const OVERRIDE { return value_ == 0; }
 
   DECLARE_INSTRUCTION(IntConstant);
 
@@ -3010,6 +3023,7 @@ class HBoundType : public HExpression<1> {
   HBoundType(HInstruction* input, ReferenceTypeInfo bound_type)
       : HExpression(Primitive::kPrimNot, SideEffects::None()),
         bound_type_(bound_type) {
+    DCHECK_EQ(input->GetType(), Primitive::kPrimNot);
     SetRawInputAt(0, input);
   }
 
