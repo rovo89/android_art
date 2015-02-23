@@ -353,7 +353,7 @@ class Thread {
   }
 
   // Find catch block and perform long jump to appropriate exception handle
-  void QuickDeliverException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  NO_RETURN void QuickDeliverException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Context* GetLongJumpContext();
   void ReleaseLongJumpContext(Context* context) {

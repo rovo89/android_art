@@ -133,7 +133,7 @@ void Arm64Context::SmashCallerSaves() {
   fprs_[D31] = nullptr;
 }
 
-extern "C" void art_quick_do_long_jump(uint64_t*, uint64_t*);
+extern "C" NO_RETURN void art_quick_do_long_jump(uint64_t*, uint64_t*);
 
 void Arm64Context::DoLongJump() {
   uint64_t gprs[kNumberOfXRegisters];

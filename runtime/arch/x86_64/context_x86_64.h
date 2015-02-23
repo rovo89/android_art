@@ -19,6 +19,7 @@
 
 #include "arch/context.h"
 #include "base/logging.h"
+#include "base/macros.h"
 #include "registers_x86_64.h"
 
 namespace art {
@@ -75,7 +76,7 @@ class X86_64Context : public Context {
   void SetFPR(uint32_t reg, uintptr_t value) OVERRIDE;
 
   void SmashCallerSaves() OVERRIDE;
-  void DoLongJump() OVERRIDE;
+  NO_RETURN void DoLongJump() OVERRIDE;
 
  private:
   // Pointers to register locations. Values are initialized to NULL or the special registers below.
