@@ -197,7 +197,7 @@ union IRTSegmentState {
 // Contains multiple entries but only one active one, this helps us detect use after free errors
 // since the serial stored in the indirect ref wont match.
 static const size_t kIRTPrevCount = kIsDebugBuild ? 7 : 3;
-class PACKED(4) IrtEntry {
+class IrtEntry {
  public:
   void Add(mirror::Object* obj) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     ++serial_;
@@ -218,6 +218,8 @@ class PACKED(4) IrtEntry {
   uint32_t serial_;
   GcRoot<mirror::Object> references_[kIRTPrevCount];
 };
+static_assert(sizeof(IrtEntry) == (1 + kIRTPrevCount) * sizeof(uintptr_t),
+              "Unexpected sizeof(IrtEntry)");
 
 class IrtIterator {
  public:
