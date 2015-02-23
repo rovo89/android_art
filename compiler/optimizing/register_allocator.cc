@@ -48,7 +48,10 @@ RegisterAllocator::RegisterAllocator(ArenaAllocator* allocator,
         physical_core_register_intervals_(allocator, codegen->GetNumberOfCoreRegisters()),
         physical_fp_register_intervals_(allocator, codegen->GetNumberOfFloatingPointRegisters()),
         temp_intervals_(allocator, 4),
-        spill_slots_(allocator, kDefaultNumberOfSpillSlots),
+        int_spill_slots_(allocator, kDefaultNumberOfSpillSlots),
+        long_spill_slots_(allocator, kDefaultNumberOfSpillSlots),
+        float_spill_slots_(allocator, kDefaultNumberOfSpillSlots),
+        double_spill_slots_(allocator, kDefaultNumberOfSpillSlots),
         safepoints_(allocator, 0),
         processing_core_registers_(false),
         number_of_registers_(-1),
@@ -438,7 +441,7 @@ bool RegisterAllocator::ValidateInternal(bool log_fatal_on_failure) const {
     }
   }
 
-  return ValidateIntervals(intervals, spill_slots_.Size(), reserved_out_slots_, *codegen_,
+  return ValidateIntervals(intervals, GetNumberOfSpillSlots(), reserved_out_slots_, *codegen_,
                            allocator_, processing_core_registers_, log_fatal_on_failure);
 }
 
@@ -1133,41 +1136,62 @@ void RegisterAllocator::AllocateSpillSlotFor(LiveInterval* interval) {
   }
   size_t end = last_sibling->GetEnd();
 
+  GrowableArray<size_t>* spill_slots = nullptr;
+  switch (interval->GetType()) {
+    case Primitive::kPrimDouble:
+      spill_slots = &double_spill_slots_;
+      break;
+    case Primitive::kPrimLong:
+      spill_slots = &long_spill_slots_;
+      break;
+    case Primitive::kPrimFloat:
+      spill_slots = &float_spill_slots_;
+      break;
+    case Primitive::kPrimNot:
+    case Primitive::kPrimInt:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimByte:
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimShort:
+      spill_slots = &int_spill_slots_;
+      break;
+    case Primitive::kPrimVoid:
+      LOG(FATAL) << "Unexpected type for interval " << interval->GetType();
+  }
+
   // Find an available spill slot.
   size_t slot = 0;
-  for (size_t e = spill_slots_.Size(); slot < e; ++slot) {
-    // We check if it is less rather than less or equal because the parallel move
-    // resolver does not work when a single spill slot needs to be exchanged with
-    // a double spill slot. The strict comparison avoids needing to exchange these
-    // locations at the same lifetime position.
-    if (spill_slots_.Get(slot) < parent->GetStart()
-        && (slot == (e - 1) || spill_slots_.Get(slot + 1) < parent->GetStart())) {
+  for (size_t e = spill_slots->Size(); slot < e; ++slot) {
+    if (spill_slots->Get(slot) <= parent->GetStart()
+        && (slot == (e - 1) || spill_slots->Get(slot + 1) <= parent->GetStart())) {
       break;
     }
   }
 
   if (parent->NeedsTwoSpillSlots()) {
-    if (slot == spill_slots_.Size()) {
+    if (slot == spill_slots->Size()) {
       // We need a new spill slot.
-      spill_slots_.Add(end);
-      spill_slots_.Add(end);
-    } else if (slot == spill_slots_.Size() - 1) {
-      spill_slots_.Put(slot, end);
-      spill_slots_.Add(end);
+      spill_slots->Add(end);
+      spill_slots->Add(end);
+    } else if (slot == spill_slots->Size() - 1) {
+      spill_slots->Put(slot, end);
+      spill_slots->Add(end);
     } else {
-      spill_slots_.Put(slot, end);
-      spill_slots_.Put(slot + 1, end);
+      spill_slots->Put(slot, end);
+      spill_slots->Put(slot + 1, end);
     }
   } else {
-    if (slot == spill_slots_.Size()) {
+    if (slot == spill_slots->Size()) {
       // We need a new spill slot.
-      spill_slots_.Add(end);
+      spill_slots->Add(end);
     } else {
-      spill_slots_.Put(slot, end);
+      spill_slots->Put(slot, end);
     }
   }
 
-  parent->SetSpillSlot((slot + reserved_out_slots_) * kVRegSize);
+  // Note that the exact spill slot location will be computed when we resolve,
+  // that is when we know the number of spill slots for each type.
+  parent->SetSpillSlot(slot);
 }
 
 static bool IsValidDestination(Location destination) {
@@ -1516,7 +1540,7 @@ void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
 }
 
 void RegisterAllocator::Resolve() {
-  codegen_->InitializeCodeGeneration(spill_slots_.Size(),
+  codegen_->InitializeCodeGeneration(GetNumberOfSpillSlots(),
                                      maximum_number_of_live_core_registers_,
                                      maximum_number_of_live_fp_registers_,
                                      reserved_out_slots_,
@@ -1542,6 +1566,39 @@ void RegisterAllocator::Resolve() {
       } else if (current->HasSpillSlot()) {
         current->SetSpillSlot(current->GetSpillSlot() + codegen_->GetFrameSize());
       }
+    } else if (current->HasSpillSlot()) {
+      // Adjust the stack slot, now that we know the number of them for each type.
+      // The way this implementation lays out the stack is the following:
+      // [parameter slots     ]
+      // [double spill slots  ]
+      // [long spill slots    ]
+      // [float spill slots   ]
+      // [int/ref values      ]
+      // [maximum out values  ] (number of arguments for calls)
+      // [art method          ].
+      uint32_t slot = current->GetSpillSlot();
+      switch (current->GetType()) {
+        case Primitive::kPrimDouble:
+          slot += long_spill_slots_.Size();
+          FALLTHROUGH_INTENDED;
+        case Primitive::kPrimLong:
+          slot += float_spill_slots_.Size();
+          FALLTHROUGH_INTENDED;
+        case Primitive::kPrimFloat:
+          slot += int_spill_slots_.Size();
+          FALLTHROUGH_INTENDED;
+        case Primitive::kPrimNot:
+        case Primitive::kPrimInt:
+        case Primitive::kPrimChar:
+        case Primitive::kPrimByte:
+        case Primitive::kPrimBoolean:
+        case Primitive::kPrimShort:
+          slot += reserved_out_slots_;
+          break;
+        case Primitive::kPrimVoid:
+          LOG(FATAL) << "Unexpected type for interval " << current->GetType();
+      }
+      current->SetSpillSlot(slot * kVRegSize);
     }
 
     Location source = current->ToLocation();
