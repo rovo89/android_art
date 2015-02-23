@@ -90,7 +90,7 @@ void MipsContext::SmashCallerSaves() {
   gprs_[A3] = nullptr;
 }
 
-extern "C" void art_quick_do_long_jump(uint32_t*, uint32_t*);
+extern "C" NO_RETURN void art_quick_do_long_jump(uint32_t*, uint32_t*);
 
 void MipsContext::DoLongJump() {
   uintptr_t gprs[kNumberOfCoreRegisters];

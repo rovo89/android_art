@@ -105,7 +105,7 @@ void X86_64Context::SetFPR(uint32_t reg, uintptr_t value) {
   *fprs_[reg] = value;
 }
 
-extern "C" void art_quick_do_long_jump(uintptr_t*, uintptr_t*);
+extern "C" NO_RETURN void art_quick_do_long_jump(uintptr_t*, uintptr_t*);
 
 void X86_64Context::DoLongJump() {
 #if defined(__x86_64__)
@@ -127,6 +127,7 @@ void X86_64Context::DoLongJump() {
   art_quick_do_long_jump(gprs, fprs);
 #else
   UNIMPLEMENTED(FATAL);
+  UNREACHABLE();
 #endif
 }
 

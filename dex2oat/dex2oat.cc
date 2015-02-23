@@ -36,6 +36,7 @@
 #include "arch/instruction_set_features.h"
 #include "arch/mips/instruction_set_features_mips.h"
 #include "base/dumpable.h"
+#include "base/macros.h"
 #include "base/stl_util.h"
 #include "base/stringpiece.h"
 #include "base/timing_logger.h"
@@ -97,7 +98,7 @@ static void UsageError(const char* fmt, ...) {
   va_end(ap);
 }
 
-[[noreturn]] static void Usage(const char* fmt, ...) {
+NO_RETURN static void Usage(const char* fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   UsageErrorV(fmt, ap);
@@ -326,7 +327,7 @@ class WatchDog {
             message.c_str());
   }
 
-  [[noreturn]] static void Fatal(const std::string& message) {
+  NO_RETURN static void Fatal(const std::string& message) {
     Message('F', message);
     exit(1);
   }

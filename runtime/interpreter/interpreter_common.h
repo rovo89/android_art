@@ -25,6 +25,7 @@
 #include <sstream>
 
 #include "base/logging.h"
+#include "base/macros.h"
 #include "class_linker-inl.h"
 #include "common_throws.h"
 #include "dex_file-inl.h"
@@ -349,8 +350,8 @@ uint32_t FindNextInstructionFollowingException(Thread* self, ShadowFrame& shadow
     uint32_t dex_pc, const instrumentation::Instrumentation* instrumentation)
         SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-void UnexpectedOpcode(const Instruction* inst, const ShadowFrame& shadow_frame)
-  __attribute__((cold, noreturn))
+NO_RETURN void UnexpectedOpcode(const Instruction* inst, const ShadowFrame& shadow_frame)
+  __attribute__((cold))
   SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 static inline void TraceExecution(const ShadowFrame& shadow_frame, const Instruction* inst,
