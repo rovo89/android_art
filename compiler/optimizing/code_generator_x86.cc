@@ -1809,7 +1809,7 @@ void LocationsBuilderX86::VisitAdd(HAdd* add) {
     case Primitive::kPrimFloat:
     case Primitive::kPrimDouble: {
       locations->SetInAt(0, Location::RequiresFpuRegister());
-      locations->SetInAt(1, Location::Any());
+      locations->SetInAt(1, Location::RequiresFpuRegister());
       locations->SetOut(Location::SameAsFirstInput());
       break;
     }
@@ -1853,8 +1853,6 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
     case Primitive::kPrimFloat: {
       if (second.IsFpuRegister()) {
         __ addss(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
-      } else {
-        __ addss(first.AsFpuRegister<XmmRegister>(), Address(ESP, second.GetStackIndex()));
       }
       break;
     }
@@ -1862,8 +1860,6 @@ void InstructionCodeGeneratorX86::VisitAdd(HAdd* add) {
     case Primitive::kPrimDouble: {
       if (second.IsFpuRegister()) {
         __ addsd(first.AsFpuRegister<XmmRegister>(), second.AsFpuRegister<XmmRegister>());
-      } else {
-        __ addsd(first.AsFpuRegister<XmmRegister>(), Address(ESP, second.GetStackIndex()));
       }
       break;
     }
