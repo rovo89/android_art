@@ -202,6 +202,7 @@ TEST_F(CmdlineParserTest, TestSimpleSuccesses) {
   EXPECT_SINGLE_PARSE_VALUE(false, "-XX:DisableHSpaceCompactForOOM", M::EnableHSpaceCompactForOOM);
   EXPECT_SINGLE_PARSE_VALUE(0.5, "-XX:HeapTargetUtilization=0.5", M::HeapTargetUtilization);
   EXPECT_SINGLE_PARSE_VALUE(5u, "-XX:ParallelGCThreads=5", M::ParallelGCThreads);
+  EXPECT_SINGLE_PARSE_EXISTS("-Xno-dex-file-fallback", M::NoDexFileFallback);
 }  // TEST_F
 
 TEST_F(CmdlineParserTest, TestSimpleFailures) {
