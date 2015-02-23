@@ -75,7 +75,10 @@ class RegisterAllocator {
   }
 
   size_t GetNumberOfSpillSlots() const {
-    return spill_slots_.Size();
+    return int_spill_slots_.Size()
+        + long_spill_slots_.Size()
+        + float_spill_slots_.Size()
+        + double_spill_slots_.Size();
   }
 
  private:
@@ -171,8 +174,14 @@ class RegisterAllocator {
   // where an instruction requires a temporary.
   GrowableArray<LiveInterval*> temp_intervals_;
 
-  // The spill slots allocated for live intervals.
-  GrowableArray<size_t> spill_slots_;
+  // The spill slots allocated for live intervals. We ensure spill slots
+  // are typed to avoid (1) doing moves and swaps between two different kinds
+  // of registers, and (2) swapping between a single stack slot and a double
+  // stack slot. This simplifies the parallel move resolver.
+  GrowableArray<size_t> int_spill_slots_;
+  GrowableArray<size_t> long_spill_slots_;
+  GrowableArray<size_t> float_spill_slots_;
+  GrowableArray<size_t> double_spill_slots_;
 
   // Instructions that need a safepoint.
   GrowableArray<HInstruction*> safepoints_;
