@@ -186,6 +186,9 @@ template<typename... T> void UNUSED(const T&...) {}
 // without the UNREACHABLE a return statement would be necessary.
 #define UNREACHABLE  __builtin_unreachable
 
+// Add the C++11 noreturn attribute.
+#define NO_RETURN [[ noreturn ]]  // NOLINT[whitespace/braces] [5]
+
 // The FALLTHROUGH_INTENDED macro can be used to annotate implicit fall-through
 // between switch labels:
 //  switch (x) {

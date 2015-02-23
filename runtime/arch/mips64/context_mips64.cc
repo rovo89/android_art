@@ -121,7 +121,7 @@ void Mips64Context::SmashCallerSaves() {
   fprs_[F23] = nullptr;
 }
 
-extern "C" void art_quick_do_long_jump(uintptr_t*, uintptr_t*);
+extern "C" NO_RETURN void art_quick_do_long_jump(uintptr_t*, uintptr_t*);
 
 void Mips64Context::DoLongJump() {
   uintptr_t gprs[kNumberOfGpuRegisters];

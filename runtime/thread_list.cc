@@ -228,8 +228,7 @@ void ThreadList::AssertThreadsAreSuspended(Thread* self, Thread* ignore1, Thread
 
 #if HAVE_TIMED_RWLOCK
 // Attempt to rectify locks so that we dump thread list with required locks before exiting.
-static void UnsafeLogFatalForThreadSuspendAllTimeout() __attribute__((noreturn));
-static void UnsafeLogFatalForThreadSuspendAllTimeout() {
+NO_RETURN static void UnsafeLogFatalForThreadSuspendAllTimeout() {
   Runtime* runtime = Runtime::Current();
   std::ostringstream ss;
   ss << "Thread suspend timeout\n";
