@@ -71,7 +71,7 @@ class RootInfo {
 typedef void (RootCallback)(mirror::Object** root, void* arg, const RootInfo& root_info);
 
 template<class MirrorType>
-class PACKED(4) GcRoot {
+class GcRoot {
  public:
   template<ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   ALWAYS_INLINE MirrorType* Read() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
