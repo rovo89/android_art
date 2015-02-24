@@ -28,9 +28,18 @@ if [ ! -f $test_jar ]; then
 fi
 
 # Packages that currently work correctly with the expectation files.
-working_packages=("libcore.java.lang"
+working_packages=("libcore.icu"
+                  "libcore.io"
+                  "libcore.java.lang"
                   "libcore.java.math"
+                  "libcore.java.text"
                   "libcore.java.util"
+                  "libcore.javax.security"
+                  "libcore.javax.sql"
+                  "libcore.javax.xml"
+                  "libcore.net"
+                  "libcore.reflect"
+                  "libcore.util"
                   "org.apache.harmony.annotation"
                   "org.apache.harmony.regex"
                   "org.apache.harmony.tests.java.lang"
