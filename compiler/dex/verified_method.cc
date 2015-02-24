@@ -24,6 +24,7 @@
 #include "base/stl_util.h"
 #include "dex_file.h"
 #include "dex_instruction-inl.h"
+#include "dex_instruction_utils.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache-inl.h"
@@ -52,6 +53,11 @@ const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_ve
     if (method_verifier->HasVirtualOrInterfaceInvokes()) {
       verified_method->GenerateDevirtMap(method_verifier);
     }
+
+    // Only need dequicken info for JIT so far.
+    if (Runtime::Current()->UseJit()) {
+      verified_method->GenerateDequickenMap(method_verifier);
+    }
   }
 
   if (method_verifier->HasCheckCasts()) {
@@ -63,6 +69,12 @@ const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_ve
 const MethodReference* VerifiedMethod::GetDevirtTarget(uint32_t dex_pc) const {
   auto it = devirt_map_.find(dex_pc);
   return (it != devirt_map_.end()) ? &it->second : nullptr;
+}
+
+const DexFileReference* VerifiedMethod::GetDequickenIndex(uint32_t dex_pc) const {
+  DCHECK(Runtime::Current()->UseJit());
+  auto it = dequicken_map_.find(dex_pc);
+  return (it != dequicken_map_.end()) ? &it->second : nullptr;
 }
 
 bool VerifiedMethod::IsSafeCast(uint32_t pc) const {
@@ -182,7 +194,7 @@ void VerifiedMethod::ComputeGcMapSizes(verifier::MethodVerifier* method_verifier
   *log2_max_gc_pc = i;
 }
 
-void VerifiedMethod::GenerateDeQuickenMap(verifier::MethodVerifier* method_verifier) {
+void VerifiedMethod::GenerateDequickenMap(verifier::MethodVerifier* method_verifier) {
   if (method_verifier->HasFailures()) {
     return;
   }
@@ -196,13 +208,24 @@ void VerifiedMethod::GenerateDeQuickenMap(verifier::MethodVerifier* method_verif
     if (is_virtual_quick || is_range_quick) {
       uint32_t dex_pc = inst->GetDexPc(insns);
       verifier::RegisterLine* line = method_verifier->GetRegLine(dex_pc);
-      mirror::ArtMethod* method = method_verifier->GetQuickInvokedMethod(inst, line,
-                                                                         is_range_quick);
+      mirror::ArtMethod* method =
+          method_verifier->GetQuickInvokedMethod(inst, line, is_range_quick);
       CHECK(method != nullptr);
       // The verifier must know what the type of the object was or else we would have gotten a
       // failure. Put the dex method index in the dequicken map since we need this to get number of
       // arguments in the compiler.
-      dequicken_map_.Put(dex_pc, method->ToMethodReference());
+      dequicken_map_.Put(dex_pc, DexFileReference(method->GetDexFile(),
+                                                  method->GetDexMethodIndex()));
+    } else if (IsInstructionIGetQuickOrIPutQuick(inst->Opcode())) {
+      uint32_t dex_pc = inst->GetDexPc(insns);
+      verifier::RegisterLine* line = method_verifier->GetRegLine(dex_pc);
+      mirror::ArtField* field = method_verifier->GetQuickFieldAccess(inst, line);
+      CHECK(field != nullptr);
+      // The verifier must know what the type of the field was or else we would have gotten a
+      // failure. Put the dex field index in the dequicken map since we need this for lowering
+      // in the compiler.
+      // TODO: Putting a field index in a method reference is gross.
+      dequicken_map_.Put(dex_pc, DexFileReference(field->GetDexFile(), field->GetDexFieldIndex()));
     }
   }
 }
