@@ -2478,7 +2478,7 @@ void InstructionCodeGeneratorARM::VisitNot(HNot* not_) {
   LocationSummary* locations = not_->GetLocations();
   Location out = locations->Out();
   Location in = locations->InAt(0);
-  switch (not_->InputAt(0)->GetType()) {
+  switch (not_->GetResultType()) {
     case Primitive::kPrimInt:
       __ mvn(out.AsRegister<Register>(), ShifterOperand(in.AsRegister<Register>()));
       break;
