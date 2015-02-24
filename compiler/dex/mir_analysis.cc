@@ -416,8 +416,8 @@ static const uint16_t kAnalysisAttributes[kMirOpLast] = {
   // 72 INVOKE_INTERFACE {vD, vE, vF, vG, vA}
   kAnInvoke | kAnHeavyWeight,
 
-  // 73 UNUSED_73
-  kAnNone,
+  // 73 RETURN_VOID_BARRIER
+  kAnBranch,
 
   // 74 INVOKE_VIRTUAL_RANGE {vCCCC .. vNNNN}
   kAnInvoke | kAnHeavyWeight,
@@ -752,88 +752,88 @@ static const uint16_t kAnalysisAttributes[kMirOpLast] = {
   // E2 USHR_INT_LIT8 vAA, vBB, #+CC
   kAnMath | kAnInt,
 
-  // E3 IGET_VOLATILE
+  // E3 IGET_QUICK
   kAnNone,
 
-  // E4 IPUT_VOLATILE
+  // E4 IGET_WIDE_QUICK
   kAnNone,
 
-  // E5 SGET_VOLATILE
+  // E5 IGET_OBJECT_QUICK
   kAnNone,
 
-  // E6 SPUT_VOLATILE
+  // E6 IPUT_QUICK
   kAnNone,
 
-  // E7 IGET_OBJECT_VOLATILE
+  // E7 IPUT_WIDE_QUICK
   kAnNone,
 
-  // E8 IGET_WIDE_VOLATILE
+  // E8 IPUT_OBJECT_QUICK
   kAnNone,
 
-  // E9 IPUT_WIDE_VOLATILE
-  kAnNone,
-
-  // EA SGET_WIDE_VOLATILE
-  kAnNone,
-
-  // EB SPUT_WIDE_VOLATILE
-  kAnNone,
-
-  // EC BREAKPOINT
-  kAnNone,
-
-  // ED THROW_VERIFICATION_ERROR
-  kAnHeavyWeight | kAnBranch,
-
-  // EE EXECUTE_INLINE
-  kAnNone,
-
-  // EF EXECUTE_INLINE_RANGE
-  kAnNone,
-
-  // F0 INVOKE_OBJECT_INIT_RANGE
+  // E9 INVOKE_VIRTUAL_QUICK
   kAnInvoke | kAnHeavyWeight,
 
-  // F1 RETURN_VOID_BARRIER
-  kAnBranch,
-
-  // F2 IGET_QUICK
-  kAnNone,
-
-  // F3 IGET_WIDE_QUICK
-  kAnNone,
-
-  // F4 IGET_OBJECT_QUICK
-  kAnNone,
-
-  // F5 IPUT_QUICK
-  kAnNone,
-
-  // F6 IPUT_WIDE_QUICK
-  kAnNone,
-
-  // F7 IPUT_OBJECT_QUICK
-  kAnNone,
-
-  // F8 INVOKE_VIRTUAL_QUICK
+  // EA INVOKE_VIRTUAL_RANGE_QUICK
   kAnInvoke | kAnHeavyWeight,
 
-  // F9 INVOKE_VIRTUAL_QUICK_RANGE
-  kAnInvoke | kAnHeavyWeight,
-
-  // FA INVOKE_SUPER_QUICK
-  kAnInvoke | kAnHeavyWeight,
-
-  // FB INVOKE_SUPER_QUICK_RANGE
-  kAnInvoke | kAnHeavyWeight,
-
-  // FC IPUT_OBJECT_VOLATILE
+  // EB IPUT_BOOLEAN_QUICK
   kAnNone,
 
-  // FD SGET_OBJECT_VOLATILE
+  // EC IPUT_BYTE_QUICK
   kAnNone,
 
-  // FE SPUT_OBJECT_VOLATILE
+  // ED IPUT_CHAR_QUICK
+  kAnNone,
+
+  // EE IPUT_SHORT_QUICK
+  kAnNone,
+
+  // EF IGET_BOOLEAN_QUICK
+  kAnNone,
+
+  // F0 IGET_BYTE_QUICK
+  kAnNone,
+
+  // F1 IGET_CHAR_QUICK
+  kAnNone,
+
+  // F2 IGET_SHORT_QUICK
+  kAnNone,
+
+  // F3 UNUSED_F3
+  kAnNone,
+
+  // F4 UNUSED_F4
+  kAnNone,
+
+  // F5 UNUSED_F5
+  kAnNone,
+
+  // F6 UNUSED_F6
+  kAnNone,
+
+  // F7 UNUSED_F7
+  kAnNone,
+
+  // F8 UNUSED_F8
+  kAnNone,
+
+  // F9 UNUSED_F9
+  kAnNone,
+
+  // FA UNUSED_FA
+  kAnNone,
+
+  // FB UNUSED_FB
+  kAnNone,
+
+  // FC UNUSED_FC
+  kAnNone,
+
+  // FD UNUSED_FD
+  kAnNone,
+
+  // FE UNUSED_FE
   kAnNone,
 
   // FF UNUSED_FF
@@ -1203,12 +1203,13 @@ bool MIRGraph::SkipCompilation(std::string* skip_message) {
 }
 
 void MIRGraph::DoCacheFieldLoweringInfo() {
+  static constexpr uint32_t kFieldIndexFlagQuickened = 0x80000000;
   // All IGET/IPUT/SGET/SPUT instructions take 2 code units and there must also be a RETURN.
   const uint32_t max_refs = (GetNumDalvikInsns() - 1u) / 2u;
   ScopedArenaAllocator allocator(&cu_->arena_stack);
-  uint16_t* field_idxs = allocator.AllocArray<uint16_t>(max_refs, kArenaAllocMisc);
-  DexMemAccessType* field_types = allocator.AllocArray<DexMemAccessType>(max_refs, kArenaAllocMisc);
-
+  auto* field_idxs = allocator.AllocArray<uint32_t>(max_refs, kArenaAllocMisc);
+  DexMemAccessType* field_types = allocator.AllocArray<DexMemAccessType>(
+      max_refs, kArenaAllocMisc);
   // Find IGET/IPUT/SGET/SPUT insns, store IGET/IPUT fields at the beginning, SGET/SPUT at the end.
   size_t ifield_pos = 0u;
   size_t sfield_pos = max_refs;
@@ -1221,23 +1222,36 @@ void MIRGraph::DoCacheFieldLoweringInfo() {
       // Get field index and try to find it among existing indexes. If found, it's usually among
       // the last few added, so we'll start the search from ifield_pos/sfield_pos. Though this
       // is a linear search, it actually performs much better than map based approach.
-      if (IsInstructionIGetOrIPut(mir->dalvikInsn.opcode)) {
-        uint16_t field_idx = mir->dalvikInsn.vC;
+      const bool is_iget_or_iput = IsInstructionIGetOrIPut(mir->dalvikInsn.opcode);
+      const bool is_iget_or_iput_quick = IsInstructionIGetQuickOrIPutQuick(mir->dalvikInsn.opcode);
+      if (is_iget_or_iput || is_iget_or_iput_quick) {
+        uint32_t field_idx;
+        DexMemAccessType access_type;
+        if (is_iget_or_iput) {
+          field_idx = mir->dalvikInsn.vC;
+          access_type = IGetOrIPutMemAccessType(mir->dalvikInsn.opcode);
+        } else {
+          DCHECK(is_iget_or_iput_quick);
+          // Set kFieldIndexFlagQuickened so that we don't deduplicate against non quickened field
+          // indexes.
+          field_idx = mir->offset | kFieldIndexFlagQuickened;
+          access_type = IGetQuickOrIPutQuickMemAccessType(mir->dalvikInsn.opcode);
+        }
         size_t i = ifield_pos;
         while (i != 0u && field_idxs[i - 1] != field_idx) {
           --i;
         }
         if (i != 0u) {
           mir->meta.ifield_lowering_info = i - 1;
-          DCHECK_EQ(field_types[i - 1], IGetOrIPutMemAccessType(mir->dalvikInsn.opcode));
+          DCHECK_EQ(field_types[i - 1], access_type);
         } else {
           mir->meta.ifield_lowering_info = ifield_pos;
           field_idxs[ifield_pos] = field_idx;
-          field_types[ifield_pos] = IGetOrIPutMemAccessType(mir->dalvikInsn.opcode);
+          field_types[ifield_pos] = access_type;
           ++ifield_pos;
         }
       } else if (IsInstructionSGetOrSPut(mir->dalvikInsn.opcode)) {
-        uint16_t field_idx = mir->dalvikInsn.vB;
+        auto field_idx = mir->dalvikInsn.vB;
         size_t i = sfield_pos;
         while (i != max_refs && field_idxs[i] != field_idx) {
           ++i;
@@ -1261,7 +1275,12 @@ void MIRGraph::DoCacheFieldLoweringInfo() {
     DCHECK_EQ(ifield_lowering_infos_.size(), 0u);
     ifield_lowering_infos_.reserve(ifield_pos);
     for (size_t pos = 0u; pos != ifield_pos; ++pos) {
-      ifield_lowering_infos_.push_back(MirIFieldLoweringInfo(field_idxs[pos], field_types[pos]));
+      const uint32_t field_idx = field_idxs[pos];
+      const bool is_quickened = (field_idx & kFieldIndexFlagQuickened) != 0;
+      const uint32_t masked_field_idx = field_idx & ~kFieldIndexFlagQuickened;
+      CHECK_LT(masked_field_idx, 1u << 16);
+      ifield_lowering_infos_.push_back(
+          MirIFieldLoweringInfo(masked_field_idx, field_types[pos], is_quickened));
     }
     MirIFieldLoweringInfo::Resolve(cu_->compiler_driver, GetCurrentDexCompilationUnit(),
                                    ifield_lowering_infos_.data(), ifield_pos);
@@ -1282,18 +1301,19 @@ void MIRGraph::DoCacheFieldLoweringInfo() {
 
 void MIRGraph::DoCacheMethodLoweringInfo() {
   static constexpr uint16_t invoke_types[] = { kVirtual, kSuper, kDirect, kStatic, kInterface };
+  static constexpr uint32_t kMethodIdxFlagQuickened = 0x80000000;
 
   // Embed the map value in the entry to avoid extra padding in 64-bit builds.
   struct MapEntry {
     // Map key: target_method_idx, invoke_type, devirt_target. Ordered to avoid padding.
     const MethodReference* devirt_target;
-    uint16_t target_method_idx;
+    uint32_t target_method_idx;
+    uint32_t vtable_idx;
     uint16_t invoke_type;
     // Map value.
     uint32_t lowering_info_index;
   };
 
-  // Sort INVOKEs by method index, then by opcode, then by devirtualization target.
   struct MapEntryComparator {
     bool operator()(const MapEntry& lhs, const MapEntry& rhs) const {
       if (lhs.target_method_idx != rhs.target_method_idx) {
@@ -1301,6 +1321,9 @@ void MIRGraph::DoCacheMethodLoweringInfo() {
       }
       if (lhs.invoke_type != rhs.invoke_type) {
         return lhs.invoke_type < rhs.invoke_type;
+      }
+      if (lhs.vtable_idx != rhs.vtable_idx) {
+        return lhs.vtable_idx < rhs.vtable_idx;
       }
       if (lhs.devirt_target != rhs.devirt_target) {
         if (lhs.devirt_target == nullptr) {
@@ -1319,7 +1342,7 @@ void MIRGraph::DoCacheMethodLoweringInfo() {
   ScopedArenaAllocator allocator(&cu_->arena_stack);
 
   // All INVOKE instructions take 3 code units and there must also be a RETURN.
-  uint32_t max_refs = (GetNumDalvikInsns() - 1u) / 3u;
+  const uint32_t max_refs = (GetNumDalvikInsns() - 1u) / 3u;
 
   // Map invoke key (see MapEntry) to lowering info index and vice versa.
   // The invoke_map and sequential entries are essentially equivalent to Boost.MultiIndex's
@@ -1330,28 +1353,43 @@ void MIRGraph::DoCacheMethodLoweringInfo() {
       allocator.AllocArray<const MapEntry*>(max_refs, kArenaAllocMisc);
 
   // Find INVOKE insns and their devirtualization targets.
+  const VerifiedMethod* verified_method = GetCurrentDexCompilationUnit()->GetVerifiedMethod();
   AllNodesIterator iter(this);
   for (BasicBlock* bb = iter.Next(); bb != nullptr; bb = iter.Next()) {
     if (bb->block_type != kDalvikByteCode) {
       continue;
     }
     for (MIR* mir = bb->first_mir_insn; mir != nullptr; mir = mir->next) {
-      if (IsInstructionInvoke(mir->dalvikInsn.opcode)) {
-        // Decode target method index and invoke type.
-        uint16_t target_method_idx = mir->dalvikInsn.vB;
-        DexInvokeType invoke_type_idx = InvokeInstructionType(mir->dalvikInsn.opcode);
-
+      const bool is_quick_invoke = IsInstructionQuickInvoke(mir->dalvikInsn.opcode);
+      const bool is_invoke = IsInstructionInvoke(mir->dalvikInsn.opcode);
+      if (is_quick_invoke || is_invoke) {
+        uint32_t vtable_index = 0;
+        uint32_t target_method_idx = 0;
+        uint32_t invoke_type_idx = 0;  // Default to virtual (in case of quickened).
+        DCHECK_EQ(invoke_types[invoke_type_idx], kVirtual);
+        if (is_quick_invoke) {
+          // We need to store the vtable index since we can't necessarily recreate it at resolve
+          // phase if the dequickening resolved to an interface method.
+          vtable_index = mir->dalvikInsn.vB;
+          // Fake up the method index by storing the mir offset so that we can read the dequicken
+          // info in resolve.
+          target_method_idx = mir->offset | kMethodIdxFlagQuickened;
+        } else {
+          DCHECK(is_invoke);
+          // Decode target method index and invoke type.
+          invoke_type_idx = InvokeInstructionType(mir->dalvikInsn.opcode);
+          target_method_idx = mir->dalvikInsn.vB;
+        }
         // Find devirtualization target.
         // TODO: The devirt map is ordered by the dex pc here. Is there a way to get INVOKEs
         // ordered by dex pc as well? That would allow us to keep an iterator to devirt targets
         // and increment it as needed instead of making O(log n) lookups.
-        const VerifiedMethod* verified_method = GetCurrentDexCompilationUnit()->GetVerifiedMethod();
         const MethodReference* devirt_target = verified_method->GetDevirtTarget(mir->offset);
-
         // Try to insert a new entry. If the insertion fails, we will have found an old one.
         MapEntry entry = {
             devirt_target,
             target_method_idx,
+            vtable_index,
             invoke_types[invoke_type_idx],
             static_cast<uint32_t>(invoke_map.size())
         };
@@ -1362,21 +1400,23 @@ void MIRGraph::DoCacheMethodLoweringInfo() {
       }
     }
   }
-
   if (invoke_map.empty()) {
     return;
   }
-
   // Prepare unique method infos, set method info indexes for their MIRs.
-  DCHECK_EQ(method_lowering_infos_.size(), 0u);
   const size_t count = invoke_map.size();
   method_lowering_infos_.reserve(count);
   for (size_t pos = 0u; pos != count; ++pos) {
     const MapEntry* entry = sequential_entries[pos];
-    MirMethodLoweringInfo method_info(entry->target_method_idx,
-                                      static_cast<InvokeType>(entry->invoke_type));
+    const bool is_quick = (entry->target_method_idx & kMethodIdxFlagQuickened) != 0;
+    const uint32_t masked_method_idx = entry->target_method_idx & ~kMethodIdxFlagQuickened;
+    MirMethodLoweringInfo method_info(masked_method_idx,
+                                      static_cast<InvokeType>(entry->invoke_type), is_quick);
     if (entry->devirt_target != nullptr) {
       method_info.SetDevirtualizationTarget(*entry->devirt_target);
+    }
+    if (is_quick) {
+      method_info.SetVTableIndex(entry->vtable_idx);
     }
     method_lowering_infos_.push_back(method_info);
   }

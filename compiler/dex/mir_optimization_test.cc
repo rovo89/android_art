@@ -254,7 +254,7 @@ class MirOptimizationTest : public testing::Test {
     cu_.mir_graph->method_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const MethodDef* def = &defs[i];
-      MirMethodLoweringInfo method_info(def->method_idx, def->invoke_type);
+      MirMethodLoweringInfo method_info(def->method_idx, def->invoke_type, false);
       if (def->declaring_dex_file != 0u) {
         method_info.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
         method_info.declaring_class_idx_ = def->declaring_class_idx;
@@ -407,7 +407,7 @@ class NullCheckEliminationTest : public MirOptimizationTest {
     cu_.mir_graph->ifield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const IFieldDef* def = &defs[i];
-      MirIFieldLoweringInfo field_info(def->field_idx, def->type);
+      MirIFieldLoweringInfo field_info(def->field_idx, def->type, false);
       if (def->declaring_dex_file != 0u) {
         field_info.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
         field_info.declaring_class_idx_ = def->declaring_class_idx;
