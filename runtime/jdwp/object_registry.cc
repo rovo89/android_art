@@ -49,6 +49,8 @@ JDWP::ObjectId ObjectRegistry::InternalAdd(mirror::Object* o) {
   }
 
   Thread* const self = Thread::Current();
+  self->AssertNoPendingException();
+
   StackHandleScope<1> hs(self);
   Handle<mirror::Object> obj_h(hs.NewHandle(o));
 
