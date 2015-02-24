@@ -605,7 +605,7 @@ Thread* Dbg::GetDebugThread() {
 }
 
 void Dbg::ClearWaitForEventThread() {
-  gJdwpState->ClearWaitForEventThread();
+  gJdwpState->ReleaseJdwpTokenForEvent();
 }
 
 void Dbg::Connected() {
@@ -3644,6 +3644,11 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
         thread_list->Resume(targetThread, true);
       }
 
+      // The target thread is resumed but needs the JDWP token we're holding.
+      // We release it now and will acquire it again when the invocation is
+      // complete and the target thread suspends itself.
+      gJdwpState->ReleaseJdwpTokenForCommand();
+
       // Wait for the request to finish executing.
       while (req->invoke_needed) {
         req->cond.Wait(self);
@@ -3653,6 +3658,10 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
 
     /* wait for thread to re-suspend itself */
     SuspendThread(thread_id, false /* request_suspension */);
+
+    // Now the thread is suspended again, we can re-acquire the JDWP token.
+    gJdwpState->AcquireJdwpTokenForCommand();
+
     self->TransitionFromSuspendedToRunnable();
   }
 
@@ -3660,7 +3669,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
    * Suspend the threads.  We waited for the target thread to suspend
    * itself, so all we need to do is suspend the others.
    *
-   * The suspendAllThreads() call will double-suspend the event thread,
+   * The SuspendAllForDebugger() call will double-suspend the event thread,
    * so we want to resume the target thread once to keep the books straight.
    */
   if ((options & JDWP::INVOKE_SINGLE_THREADED) == 0) {
