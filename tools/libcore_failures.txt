@@ -45,6 +45,31 @@
           "org.apache.harmony.tests.java.text.MessageFormatTest#test19011159"]
 },
 {
+  description: "Failing due to a locale problem on hammerhead.",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["libcore.icu.DateIntervalFormatTest#test10089890",
+          "libcore.icu.DateIntervalFormatTest#test10209343_when_not_this_year",
+          "libcore.icu.DateIntervalFormatTest#test10560853_for_single_day_events",
+          "libcore.icu.DateIntervalFormatTest#test10560853_when_time_not_displayed",
+          "libcore.icu.RelativeDateTimeFormatterTest#test_getRelativeDateTimeString",
+          "libcore.icu.RelativeDateTimeFormatterTest#test_getRelativeTimeSpanString",
+          "libcore.icu.RelativeDateTimeFormatterTest#test_getRelativeTimeSpanStringAbbrev",
+          "libcore.java.text.OldDateFormatTest#test_parseLString",
+          "libcore.java.text.SimpleDateFormatTest#testDstZoneNameWithNonDstTimestamp",
+          "libcore.java.text.SimpleDateFormatTest#testDstZoneWithNonDstTimestampForNonHourDstZone",
+          "libcore.java.text.SimpleDateFormatTest#testNonDstZoneNameWithDstTimestamp",
+          "libcore.java.text.SimpleDateFormatTest#testNonDstZoneWithDstTimestampForNonHourDstZone"]
+},
+{
+  description: "Failing due to switched off network stack on volantisg.",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnectionTest",
+          "org.apache.harmony.luni.tests.internal.net.www.protocol.https.HttpsURLConnectionTest",
+          "org.apache.harmony.luni.tests.java.net.URLConnectionTest"]
+},
+{
   description: "Test timeouts",
   result: EXEC_TIMEOUT,
   modes: [device],
