@@ -66,10 +66,8 @@ bool VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method
     // TODO: Investigate why are we doing the work again for this method and try to avoid it.
     LOG(WARNING) << "Method processed more than once: "
         << PrettyMethod(ref.dex_method_index, *ref.dex_file);
-    if (!Runtime::Current()->UseJit()) {
-      DCHECK_EQ(it->second->GetDevirtMap().size(), verified_method->GetDevirtMap().size());
-      DCHECK_EQ(it->second->GetSafeCastSet().size(), verified_method->GetSafeCastSet().size());
-    }
+    DCHECK_EQ(it->second->GetDevirtMap().size(), verified_method->GetDevirtMap().size());
+    DCHECK_EQ(it->second->GetSafeCastSet().size(), verified_method->GetSafeCastSet().size());
     DCHECK_EQ(it->second->GetDexGcMap().size(), verified_method->GetDexGcMap().size());
     delete it->second;
     verified_methods_.erase(it);

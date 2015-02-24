@@ -48,12 +48,6 @@ namespace gc {
     class GarbageCollector;
   }  // namespace collector
 }  // namespace gc
-
-namespace jit {
-  class Jit;
-  class JitOptions;
-}  // namespace jit
-
 namespace mirror {
   class ArtMethod;
   class ClassLoader;
@@ -101,18 +95,12 @@ class Runtime {
   static bool Create(const RuntimeOptions& options, bool ignore_unrecognized)
       SHARED_TRYLOCK_FUNCTION(true, Locks::mutator_lock_);
 
-  // IsAotCompiler for compilers that don't have a running runtime. Only dex2oat currently.
-  bool IsAotCompiler() const {
-    return !UseJit() && IsCompiler();
-  }
-
-  // IsCompiler is any runtime which has a running compiler, either dex2oat or JIT.
   bool IsCompiler() const {
     return compiler_callbacks_ != nullptr;
   }
 
   bool CanRelocate() const {
-    return !IsAotCompiler() || compiler_callbacks_->IsRelocationPossible();
+    return !IsCompiler() || compiler_callbacks_->IsRelocationPossible();
   }
 
   bool ShouldRelocate() const {
@@ -351,7 +339,9 @@ class Runtime {
     return !imt_conflict_method_.IsNull();
   }
 
-  void SetImtConflictMethod(mirror::ArtMethod* method);
+  void SetImtConflictMethod(mirror::ArtMethod* method) {
+    imt_conflict_method_ = GcRoot<mirror::ArtMethod>(method);
+  }
   void SetImtUnimplementedMethod(mirror::ArtMethod* method) {
     imt_unimplemented_method_ = GcRoot<mirror::ArtMethod>(method);
   }
@@ -431,14 +421,6 @@ class Runtime {
     kUnload,
     kInitialize
   };
-
-  jit::Jit* GetJit() {
-    return jit_.get();
-  }
-  bool UseJit() const {
-    return jit_.get() != nullptr;
-  }
-
   void PreZygoteFork();
   bool InitZygote();
   void DidForkFromZygote(JNIEnv* env, NativeBridgeAction action, const char* isa);
@@ -539,8 +521,6 @@ class Runtime {
     return zygote_max_failed_boots_;
   }
 
-  void CreateJit();
-
  private:
   static void InitPlatformSignalHandlers();
 
@@ -619,9 +599,6 @@ class Runtime {
   std::string stack_trace_file_;
 
   JavaVMExt* java_vm_;
-
-  std::unique_ptr<jit::Jit> jit_;
-  std::unique_ptr<jit::JitOptions> jit_options_;
 
   // Fault message, printed when we get a SIGSEGV.
   Mutex fault_message_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;

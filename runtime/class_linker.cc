@@ -43,8 +43,6 @@
 #include "handle_scope.h"
 #include "intern_table.h"
 #include "interpreter/interpreter.h"
-#include "jit/jit.h"
-#include "jit/jit_code_cache.h"
 #include "leb128.h"
 #include "oat.h"
 #include "oat_file.h"
@@ -93,14 +91,15 @@ static void ThrowEarlierClassFailure(mirror::Class* c)
   // a NoClassDefFoundError (v2 2.17.5).  The exception to this rule is if we
   // failed in verification, in which case v2 5.4.1 says we need to re-throw
   // the previous error.
-  Runtime* const runtime = Runtime::Current();
-  if (!runtime->IsAotCompiler()) {  // Give info if this occurs at runtime.
+  Runtime* runtime = Runtime::Current();
+  bool is_compiler = runtime->IsCompiler();
+  if (!is_compiler) {  // Give info if this occurs at runtime.
     LOG(INFO) << "Rejecting re-init on previously-failed class " << PrettyClass(c);
   }
 
   CHECK(c->IsErroneous()) << PrettyClass(c) << " " << c->GetStatus();
   Thread* self = Thread::Current();
-  if (runtime->IsAotCompiler()) {
+  if (is_compiler) {
     // At compile time, accurate errors and NCDFE are disabled to speed compilation.
     mirror::Throwable* pre_allocated = runtime->GetPreAllocatedNoClassDefFoundError();
     self->SetException(ThrowLocation(), pre_allocated);
@@ -429,7 +428,7 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   // Set up GenericJNI entrypoint. That is mainly a hack for common_compiler_test.h so that
   // we do not need friend classes or a publicly exposed setter.
   quick_generic_jni_trampoline_ = GetQuickGenericJniStub();
-  if (!runtime->IsAotCompiler()) {
+  if (!runtime->IsCompiler()) {
     // We need to set up the generic trampolines since we don't have an image.
     quick_resolution_trampoline_ = GetQuickResolutionStub();
     quick_imt_conflict_trampoline_ = GetQuickImtConflictStub();
@@ -1033,7 +1032,8 @@ const OatFile* ClassLinker::FindOatFileInOatLocationForDexFile(const char* dex_l
                                                                const char* oat_location,
                                                                std::string* error_msg) {
   std::unique_ptr<OatFile> oat_file(OatFile::Open(oat_location, oat_location, nullptr, nullptr,
-                                                  !Runtime::Current()->IsAotCompiler(), error_msg));
+                                            !Runtime::Current()->IsCompiler(),
+                                            error_msg));
   if (oat_file.get() == nullptr) {
     *error_msg = StringPrintf("Failed to find existing oat file at %s: %s", oat_location,
                               error_msg->c_str());
@@ -1104,8 +1104,8 @@ const OatFile* ClassLinker::CreateOatFileForDexLocation(const char* dex_location
     return nullptr;
   }
   std::unique_ptr<OatFile> oat_file(OatFile::Open(oat_location, oat_location, nullptr, nullptr,
-                                                  !Runtime::Current()->IsAotCompiler(),
-                                                  &error_msg));
+                                            !Runtime::Current()->IsCompiler(),
+                                            &error_msg));
   if (oat_file.get() == nullptr) {
     std::string compound_msg = StringPrintf("\nFailed to open generated oat file '%s': %s",
                                             oat_location, error_msg.c_str());
@@ -1345,7 +1345,7 @@ const OatFile* ClassLinker::OpenOatFileFromDexLocation(const std::string& dex_lo
   *already_opened = false;
   const Runtime* runtime = Runtime::Current();
   CHECK(runtime != nullptr);
-  bool executable = !runtime->IsAotCompiler();
+  bool executable = !runtime->IsCompiler();
 
   std::string odex_error_msg;
   bool should_patch_system = false;
@@ -1513,7 +1513,7 @@ const OatFile* ClassLinker::PatchAndRetrieveOat(const std::string& input_oat,
   bool success = Exec(argv, error_msg);
   if (success) {
     std::unique_ptr<OatFile> output(OatFile::Open(output_oat, output_oat, nullptr, nullptr,
-                                                  !runtime->IsAotCompiler(), error_msg));
+                                                  !runtime->IsCompiler(), error_msg));
     bool checksum_verified = false;
     if (output.get() != nullptr && CheckOatFile(runtime, output.get(), isa, &checksum_verified,
                                                 error_msg)) {
@@ -1527,7 +1527,7 @@ const OatFile* ClassLinker::PatchAndRetrieveOat(const std::string& input_oat,
                                 "but was unable to open output file '%s': %s",
                                 input_oat.c_str(), output_oat.c_str(), error_msg->c_str());
     }
-  } else if (!runtime->IsAotCompiler()) {
+  } else if (!runtime->IsCompiler()) {
     // patchoat failed which means we probably don't have enough room to place the output oat file,
     // instead of failing we should just run the interpreter from the dex files in the input oat.
     LOG(WARNING) << "Patching of oat file '" << input_oat << "' failed. Attempting to use oat file "
@@ -1614,20 +1614,22 @@ const OatFile* ClassLinker::FindOatFileFromOatLocation(const std::string& oat_lo
   if (oat_file != nullptr) {
     return oat_file;
   }
-  return OatFile::Open(oat_location, oat_location, nullptr, nullptr,
-                       !Runtime::Current()->IsAotCompiler(), error_msg);
+
+  return OatFile::Open(oat_location, oat_location, nullptr, nullptr, !Runtime::Current()->IsCompiler(),
+                       error_msg);
 }
 
 void ClassLinker::InitFromImageInterpretOnlyCallback(mirror::Object* obj, void* arg) {
   ClassLinker* class_linker = reinterpret_cast<ClassLinker*>(arg);
   DCHECK(obj != nullptr);
   DCHECK(class_linker != nullptr);
+  size_t pointer_size = class_linker->image_pointer_size_;
+
   if (obj->IsArtMethod()) {
     mirror::ArtMethod* method = obj->AsArtMethod();
     if (!method->IsNative()) {
-      const size_t pointer_size = class_linker->image_pointer_size_;
       method->SetEntryPointFromInterpreterPtrSize(artInterpreterToInterpreterBridge, pointer_size);
-      if (!method->IsRuntimeMethod() && method != Runtime::Current()->GetResolutionMethod()) {
+      if (method != Runtime::Current()->GetResolutionMethod()) {
         method->SetEntryPointFromQuickCompiledCodePtrSize(GetQuickToInterpreterBridge(),
                                                           pointer_size);
       }
@@ -1696,8 +1698,8 @@ void ClassLinker::InitFromImage() {
   // bitmap walk.
   mirror::ArtMethod::SetClass(GetClassRoot(kJavaLangReflectArtMethod));
   size_t art_method_object_size = mirror::ArtMethod::GetJavaLangReflectArtMethod()->GetObjectSize();
-  if (!Runtime::Current()->IsAotCompiler()) {
-    // Aot compiler supports having an image with a different pointer size than the runtime. This
+  if (!Runtime::Current()->IsCompiler()) {
+    // Compiler supports having an image with a different pointer size than the runtime. This
     // happens on the host for compile 32 bit tests since we use a 64 bit libart compiler. We may
     // also use 32 bit dex2oat on a system with 64 bit apps.
     CHECK_EQ(art_method_object_size, mirror::ArtMethod::InstanceSize(sizeof(void*)))
@@ -1712,7 +1714,7 @@ void ClassLinker::InitFromImage() {
 
   // Set entry point to interpreter if in InterpretOnly mode.
   Runtime* runtime = Runtime::Current();
-  if (!runtime->IsAotCompiler() && runtime->GetInstrumentation()->InterpretOnly()) {
+  if (!runtime->IsCompiler() && runtime->GetInstrumentation()->InterpretOnly()) {
     heap->VisitObjects(InitFromImageInterpretOnlyCallback, this);
   }
 
@@ -2515,44 +2517,31 @@ const void* ClassLinker::GetQuickOatCodeFor(mirror::ArtMethod* method) {
     return GetQuickProxyInvokeHandler();
   }
   bool found;
-  jit::Jit* const jit = Runtime::Current()->GetJit();
-  if (jit != nullptr) {
-    auto* code = jit->GetCodeCache()->GetCodeFor(method);
-    if (code != nullptr) {
-      return code;
-    }
-  }
   OatFile::OatMethod oat_method = FindOatMethodFor(method, &found);
+  const void* result = nullptr;
   if (found) {
-    auto* code = oat_method.GetQuickCode();
-    if (code != nullptr) {
-      return code;
+    result = oat_method.GetQuickCode();
+  }
+
+  if (result == nullptr) {
+    if (method->IsNative()) {
+      // No code and native? Use generic trampoline.
+      result = GetQuickGenericJniStub();
+    } else {
+      // No code? You must mean to go into the interpreter.
+      result = GetQuickToInterpreterBridge();
     }
   }
-  if (method->IsNative()) {
-    // No code and native? Use generic trampoline.
-    return GetQuickGenericJniStub();
-  }
-  return GetQuickToInterpreterBridge();
+  return result;
 }
 
 const void* ClassLinker::GetOatMethodQuickCodeFor(mirror::ArtMethod* method) {
   if (method->IsNative() || method->IsAbstract() || method->IsProxyMethod()) {
     return nullptr;
   }
-  jit::Jit* jit = Runtime::Current()->GetJit();
-  if (jit != nullptr) {
-    auto* code = jit->GetCodeCache()->GetCodeFor(method);
-    if (code != nullptr) {
-      return code;
-    }
-  }
   bool found;
   OatFile::OatMethod oat_method = FindOatMethodFor(method, &found);
-  if (found) {
-    return oat_method.GetQuickCode();
-  }
-  return nullptr;
+  return found ? oat_method.GetQuickCode() : nullptr;
 }
 
 const void* ClassLinker::GetQuickOatCodeFor(const DexFile& dex_file, uint16_t class_def_idx,
@@ -2588,7 +2577,7 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
   }
   Runtime* runtime = Runtime::Current();
   if (!runtime->IsStarted() || runtime->UseCompileTimeClassPath()) {
-    if (runtime->IsAotCompiler() || runtime->GetHeap()->HasImageSpace()) {
+    if (runtime->IsCompiler() || runtime->GetHeap()->HasImageSpace()) {
       return;  // OAT file unavailable.
     }
   }
@@ -2641,7 +2630,7 @@ void ClassLinker::LinkCode(Handle<mirror::ArtMethod> method,
                            const OatFile::OatClass* oat_class,
                            uint32_t class_def_method_index) {
   Runtime* runtime = Runtime::Current();
-  if (runtime->IsAotCompiler()) {
+  if (runtime->IsCompiler()) {
     // The following code only applies to a non-compiler runtime.
     return;
   }
@@ -3480,7 +3469,7 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
     EnsurePreverifiedMethods(klass);
     return;
   }
-  if (klass->IsCompileTimeVerified() && Runtime::Current()->IsAotCompiler()) {
+  if (klass->IsCompileTimeVerified() && Runtime::Current()->IsCompiler()) {
     return;
   }
 
@@ -3496,7 +3485,7 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
   } else {
     CHECK_EQ(klass->GetStatus(), mirror::Class::kStatusRetryVerificationAtRuntime)
         << PrettyClass(klass.Get());
-    CHECK(!Runtime::Current()->IsAotCompiler());
+    CHECK(!Runtime::Current()->IsCompiler());
     klass->SetStatus(mirror::Class::kStatusVerifyingAtRuntime, self);
   }
 
@@ -3532,7 +3521,7 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
         self->GetException(nullptr)->SetCause(cause.Get());
       }
       ClassReference ref(klass->GetDexCache()->GetDexFile(), klass->GetDexClassDefIndex());
-      if (Runtime::Current()->IsAotCompiler()) {
+      if (Runtime::Current()->IsCompiler()) {
         Runtime::Current()->GetCompilerCallbacks()->ClassRejected(ref);
       }
       klass->SetStatus(mirror::Class::kStatusError, self);
@@ -3557,7 +3546,7 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
   std::string error_msg;
   if (!preverified) {
     verifier_failure = verifier::MethodVerifier::VerifyClass(self, klass.Get(),
-                                                             Runtime::Current()->IsAotCompiler(),
+                                                             Runtime::Current()->IsCompiler(),
                                                              &error_msg);
   }
   if (preverified || verifier_failure != verifier::MethodVerifier::kHardFailure) {
@@ -3585,7 +3574,7 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
       // Soft failures at compile time should be retried at runtime. Soft
       // failures at runtime will be handled by slow paths in the generated
       // code. Set status accordingly.
-      if (Runtime::Current()->IsAotCompiler()) {
+      if (Runtime::Current()->IsCompiler()) {
         klass->SetStatus(mirror::Class::kStatusRetryVerificationAtRuntime, self);
       } else {
         klass->SetStatus(mirror::Class::kStatusVerified, self);
@@ -3626,7 +3615,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class
   // we are not compiling the image or if the class we're verifying is not part of
   // the app.  In other words, we will only check for preverification of bootclasspath
   // classes.
-  if (Runtime::Current()->IsAotCompiler()) {
+  if (Runtime::Current()->IsCompiler()) {
     // Are we compiling the bootclasspath?
     if (!Runtime::Current()->UseCompileTimeClassPath()) {
       return false;
@@ -3652,7 +3641,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class
   // image (that we just failed loading), and the verifier can't be run on quickened opcodes when
   // the runtime isn't started. On the other hand, app classes can be re-verified even if they are
   // already pre-opted, as then the runtime is started.
-  if (!Runtime::Current()->IsAotCompiler() &&
+  if (!Runtime::Current()->IsCompiler() &&
       !Runtime::Current()->GetHeap()->HasImageSpace() &&
       klass->GetClassLoader() != nullptr) {
     return false;
@@ -4100,7 +4089,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
           CHECK(self->IsExceptionPending());
           VlogClassInitializationFailure(klass);
         } else {
-          CHECK(Runtime::Current()->IsAotCompiler());
+          CHECK(Runtime::Current()->IsCompiler());
           CHECK_EQ(klass->GetStatus(), mirror::Class::kStatusRetryVerificationAtRuntime);
         }
         return false;
@@ -4281,8 +4270,7 @@ bool ClassLinker::WaitForInitializeClass(Handle<mirror::Class> klass, Thread* se
     if (klass->GetStatus() == mirror::Class::kStatusInitializing) {
       continue;
     }
-    if (klass->GetStatus() == mirror::Class::kStatusVerified &&
-        Runtime::Current()->IsAotCompiler()) {
+    if (klass->GetStatus() == mirror::Class::kStatusVerified && Runtime::Current()->IsCompiler()) {
       // Compile time initialization failed.
       return false;
     }

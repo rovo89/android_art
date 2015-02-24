@@ -94,10 +94,6 @@ struct InstrumentationListener {
                                mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
                                mirror::Throwable* exception_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
-
-  // Call-back for when we get a backward branch.
-  virtual void BackwardBranch(Thread* thread, mirror::ArtMethod* method, int32_t dex_pc_offset)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 };
 
 // Instrumentation is a catch-all for when extra information is required from the runtime. The
@@ -107,14 +103,13 @@ struct InstrumentationListener {
 class Instrumentation {
  public:
   enum InstrumentationEvent {
-    kMethodEntered = 0x1,
-    kMethodExited = 0x2,
-    kMethodUnwind = 0x4,
-    kDexPcMoved = 0x8,
-    kFieldRead = 0x10,
-    kFieldWritten = 0x20,
-    kExceptionCaught = 0x40,
-    kBackwardBranch = 0x80,
+    kMethodEntered   = 1,  // 1 << 0
+    kMethodExited    = 2,  // 1 << 1
+    kMethodUnwind    = 4,  // 1 << 2
+    kDexPcMoved      = 8,  // 1 << 3
+    kFieldRead       = 16,  // 1 << 4,
+    kFieldWritten    = 32,  // 1 << 5
+    kExceptionCaught = 64,  // 1 << 6
   };
 
   Instrumentation();
@@ -249,10 +244,6 @@ class Instrumentation {
     return have_exception_caught_listeners_;
   }
 
-  bool HasBackwardBranchListeners() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return have_backward_branch_listeners_;
-  }
-
   bool IsActive() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return have_dex_pc_listeners_ || have_method_entry_listeners_ || have_method_exit_listeners_ ||
         have_field_read_listeners_ || have_field_write_listeners_ ||
@@ -290,14 +281,6 @@ class Instrumentation {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (UNLIKELY(HasDexPcListeners())) {
       DexPcMovedEventImpl(thread, this_object, method, dex_pc);
-    }
-  }
-
-  // Inform listeners that a backward branch has been taken (only supported by the interpreter).
-  void BackwardBranch(Thread* thread, mirror::ArtMethod* method, int32_t offset) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (UNLIKELY(HasBackwardBranchListeners())) {
-      BackwardBranchImpl(thread, method, offset);
     }
   }
 
@@ -378,8 +361,6 @@ class Instrumentation {
   void DexPcMovedEventImpl(Thread* thread, mirror::Object* this_object,
                            mirror::ArtMethod* method, uint32_t dex_pc) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void BackwardBranchImpl(Thread* thread, mirror::ArtMethod* method, int32_t offset) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void FieldReadEventImpl(Thread* thread, mirror::Object* this_object,
                            mirror::ArtMethod* method, uint32_t dex_pc,
                            mirror::ArtField* field) const
@@ -448,14 +429,10 @@ class Instrumentation {
   // Do we have any exception caught listeners? Short-cut to avoid taking the instrumentation_lock_.
   bool have_exception_caught_listeners_ GUARDED_BY(Locks::mutator_lock_);
 
-  // Do we have any backward branch listeners? Short-cut to avoid taking the instrumentation_lock_.
-  bool have_backward_branch_listeners_ GUARDED_BY(Locks::mutator_lock_);
-
   // The event listeners, written to with the mutator_lock_ exclusively held.
   std::list<InstrumentationListener*> method_entry_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> method_exit_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::list<InstrumentationListener*> method_unwind_listeners_ GUARDED_BY(Locks::mutator_lock_);
-  std::list<InstrumentationListener*> backward_branch_listeners_ GUARDED_BY(Locks::mutator_lock_);
   std::shared_ptr<std::list<InstrumentationListener*>> dex_pc_listeners_
       GUARDED_BY(Locks::mutator_lock_);
   std::shared_ptr<std::list<InstrumentationListener*>> field_read_listeners_

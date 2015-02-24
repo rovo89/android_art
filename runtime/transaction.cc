@@ -32,7 +32,7 @@ static constexpr bool kEnableTransactionStats = false;
 
 Transaction::Transaction()
   : log_lock_("transaction log lock", kTransactionLogLock), aborted_(false) {
-  CHECK(Runtime::Current()->IsAotCompiler());
+  CHECK(Runtime::Current()->IsCompiler());
 }
 
 Transaction::~Transaction() {

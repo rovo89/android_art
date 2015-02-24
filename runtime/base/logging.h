@@ -42,7 +42,6 @@ struct LogVerbosity {
   bool gc;
   bool heap;
   bool jdwp;
-  bool jit;
   bool jni;
   bool monitor;
   bool profiler;
