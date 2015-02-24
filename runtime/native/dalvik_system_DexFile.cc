@@ -58,6 +58,70 @@
 
 namespace art {
 
+static std::unique_ptr<std::vector<const DexFile*>>
+ConvertJavaArrayToNative(JNIEnv* env, jobject arrayObject) {
+  jarray array = reinterpret_cast<jarray>(arrayObject);
+
+  jsize array_size = env->GetArrayLength(array);
+  if (env->ExceptionCheck() == JNI_TRUE) {
+    return std::unique_ptr<std::vector<const DexFile*>>();
+  }
+
+  // TODO: Optimize. On 32bit we can use an int array.
+  jboolean is_long_data_copied;
+  jlong* long_data = env->GetLongArrayElements(reinterpret_cast<jlongArray>(array),
+                                               &is_long_data_copied);
+  if (env->ExceptionCheck() == JNI_TRUE) {
+    return std::unique_ptr<std::vector<const DexFile*>>();
+  }
+
+  std::unique_ptr<std::vector<const DexFile*>> ret(new std::vector<const DexFile*>());
+  ret->reserve(array_size);
+  for (jsize i = 0; i < array_size; ++i) {
+    ret->push_back(reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(*(long_data + i))));
+  }
+
+  env->ReleaseLongArrayElements(reinterpret_cast<jlongArray>(array), long_data, JNI_ABORT);
+  if (env->ExceptionCheck() == JNI_TRUE) {
+    return std::unique_ptr<std::vector<const DexFile*>>();
+  }
+
+  return ret;
+}
+
+static jlongArray ConvertNativeToJavaArray(JNIEnv* env,
+                                           std::vector<std::unique_ptr<const DexFile>>& vec) {
+  size_t vec_size = vec.size();
+  jlongArray long_array = env->NewLongArray(static_cast<jsize>(vec_size));
+  if (env->ExceptionCheck() == JNI_TRUE) {
+    return nullptr;
+  }
+
+  jboolean is_long_data_copied;
+  jlong* long_data = env->GetLongArrayElements(long_array, &is_long_data_copied);
+  if (env->ExceptionCheck() == JNI_TRUE) {
+    return nullptr;
+  }
+
+  jlong* tmp = long_data;
+  for (auto& dex_file : vec) {
+    *tmp = reinterpret_cast<uintptr_t>(dex_file.get());
+    tmp++;
+  }
+
+  env->ReleaseLongArrayElements(long_array, long_data, 0);
+  if (env->ExceptionCheck() == JNI_TRUE) {
+    return nullptr;
+  }
+
+  // Now release all the unique_ptrs.
+  for (auto& dex_file : vec) {
+    dex_file.release();
+  }
+
+  return long_array;
+}
+
 // A smart pointer that provides read-only access to a Java string's UTF chars.
 // Unlike libcore's NullableScopedUtfChars, this will *not* throw NullPointerException if
 // passed a null jstring. The correct idiom is:
@@ -104,7 +168,7 @@ class NullableScopedUtfChars {
   void operator=(const NullableScopedUtfChars&);
 };
 
-static jlong DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceName, jstring javaOutputName, jint) {
+static jobject DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceName, jstring javaOutputName, jint) {
   ScopedUtfChars sourceName(env, javaSourceName);
   if (sourceName.c_str() == NULL) {
     return 0;
@@ -115,20 +179,26 @@ static jlong DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNa
   }
 
   ClassLinker* linker = Runtime::Current()->GetClassLinker();
-  std::unique_ptr<std::vector<std::unique_ptr<const DexFile>>> dex_files(
-      new std::vector<std::unique_ptr<const DexFile>>());
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
   std::vector<std::string> error_msgs;
 
   bool success = linker->OpenDexFilesFromOat(sourceName.c_str(), outputName.c_str(), &error_msgs,
-                                             dex_files.get());
+                                             &dex_files);
 
-  if (success || !dex_files->empty()) {
-    // In the case of non-success, we have not found or could not generate the oat file.
-    // But we may still have found a dex file that we can use.
-    return static_cast<jlong>(reinterpret_cast<uintptr_t>(dex_files.release()));
+  if (success || !dex_files.empty()) {
+    jlongArray array = ConvertNativeToJavaArray(env, dex_files);
+    if (array == nullptr) {
+      ScopedObjectAccess soa(env);
+      for (auto& dex_file : dex_files) {
+        if (Runtime::Current()->GetClassLinker()->IsDexFileRegistered(*dex_file)) {
+          dex_file.release();
+        }
+      }
+    }
+    return array;
   } else {
     // The vector should be empty after a failed loading attempt.
-    DCHECK_EQ(0U, dex_files->size());
+    DCHECK_EQ(0U, dex_files.size());
 
     ScopedObjectAccess soa(env);
     CHECK(!error_msgs.empty());
@@ -140,27 +210,17 @@ static jlong DexFile_openDexFileNative(JNIEnv* env, jclass, jstring javaSourceNa
       ThrowWrappedIOException("%s", it->c_str());
     }
 
-    return 0;
+    return nullptr;
   }
 }
 
-static std::vector<std::unique_ptr<const DexFile>>*
-toDexFiles(jlong dex_file_address, JNIEnv* env) {
-  std::vector<std::unique_ptr<const DexFile>>* dex_files
-    = reinterpret_cast<std::vector<std::unique_ptr<const DexFile>>*>(
-        static_cast<uintptr_t>(dex_file_address));
-  if (UNLIKELY(dex_files == nullptr)) {
-    ScopedObjectAccess soa(env);
-    ThrowNullPointerException(NULL, "dex_file == null");
-  }
-  return dex_files;
-}
-
-static void DexFile_closeDexFile(JNIEnv* env, jclass, jlong cookie) {
-  std::unique_ptr<std::vector<std::unique_ptr<const DexFile>>> dex_files(toDexFiles(cookie, env));
+static void DexFile_closeDexFile(JNIEnv* env, jclass, jobject cookie) {
+  std::unique_ptr<std::vector<const DexFile*>> dex_files = ConvertJavaArrayToNative(env, cookie);
   if (dex_files.get() == nullptr) {
+    DCHECK(env->ExceptionCheck());
     return;
   }
+
   ScopedObjectAccess soa(env);
 
   // The Runtime currently never unloads classes, which means any registered
@@ -171,19 +231,21 @@ static void DexFile_closeDexFile(JNIEnv* env, jclass, jlong cookie) {
   // TODO: The Runtime should support unloading of classes and freeing of the
   // dex files for those unloaded classes rather than leaking dex files here.
   for (auto& dex_file : *dex_files) {
-    if (Runtime::Current()->GetClassLinker()->IsDexFileRegistered(*dex_file)) {
-      dex_file.release();
+    if (!Runtime::Current()->GetClassLinker()->IsDexFileRegistered(*dex_file)) {
+      delete dex_file;
     }
   }
 }
 
 static jclass DexFile_defineClassNative(JNIEnv* env, jclass, jstring javaName, jobject javaLoader,
-                                        jlong cookie) {
-  std::vector<std::unique_ptr<const DexFile>>* dex_files = toDexFiles(cookie, env);
-  if (dex_files == NULL) {
+                                        jobject cookie) {
+  std::unique_ptr<std::vector<const DexFile*>> dex_files = ConvertJavaArrayToNative(env, cookie);
+  if (dex_files.get() == nullptr) {
     VLOG(class_linker) << "Failed to find dex_file";
-    return NULL;
+    DCHECK(env->ExceptionCheck());
+    return nullptr;
   }
+
   ScopedUtfChars class_name(env, javaName);
   if (class_name.c_str() == NULL) {
     VLOG(class_linker) << "Failed to find class_name";
@@ -221,36 +283,38 @@ struct CharPointerComparator {
 };
 
 // Note: this can be an expensive call, as we sort out duplicates in MultiDex files.
-static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jlong cookie) {
-  jobjectArray result = nullptr;
-  std::vector<std::unique_ptr<const DexFile>>* dex_files = toDexFiles(cookie, env);
+static jobjectArray DexFile_getClassNameList(JNIEnv* env, jclass, jobject cookie) {
+  std::unique_ptr<std::vector<const DexFile*>> dex_files = ConvertJavaArrayToNative(env, cookie);
+  if (dex_files.get() == nullptr) {
+    DCHECK(env->ExceptionCheck());
+    return nullptr;
+  }
 
-  if (dex_files != nullptr) {
-    // Push all class descriptors into a set. Use set instead of unordered_set as we want to
-    // retrieve all in the end.
-    std::set<const char*, CharPointerComparator> descriptors;
-    for (auto& dex_file : *dex_files) {
-      for (size_t i = 0; i < dex_file->NumClassDefs(); ++i) {
-        const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
-        const char* descriptor = dex_file->GetClassDescriptor(class_def);
-        descriptors.insert(descriptor);
-      }
+  // Push all class descriptors into a set. Use set instead of unordered_set as we want to
+  // retrieve all in the end.
+  std::set<const char*, CharPointerComparator> descriptors;
+  for (auto& dex_file : *dex_files) {
+    for (size_t i = 0; i < dex_file->NumClassDefs(); ++i) {
+      const DexFile::ClassDef& class_def = dex_file->GetClassDef(i);
+      const char* descriptor = dex_file->GetClassDescriptor(class_def);
+      descriptors.insert(descriptor);
     }
+  }
 
-    // Now create output array and copy the set into it.
-    result = env->NewObjectArray(descriptors.size(), WellKnownClasses::java_lang_String, nullptr);
-    if (result != nullptr) {
-      auto it = descriptors.begin();
-      auto it_end = descriptors.end();
-      jsize i = 0;
-      for (; it != it_end; it++, ++i) {
-        std::string descriptor(DescriptorToDot(*it));
-        ScopedLocalRef<jstring> jdescriptor(env, env->NewStringUTF(descriptor.c_str()));
-        if (jdescriptor.get() == nullptr) {
-          return nullptr;
-        }
-        env->SetObjectArrayElement(result, i, jdescriptor.get());
+  // Now create output array and copy the set into it.
+  jobjectArray result = env->NewObjectArray(descriptors.size(), WellKnownClasses::java_lang_String,
+                                            nullptr);
+  if (result != nullptr) {
+    auto it = descriptors.begin();
+    auto it_end = descriptors.end();
+    jsize i = 0;
+    for (; it != it_end; it++, ++i) {
+      std::string descriptor(DescriptorToDot(*it));
+      ScopedLocalRef<jstring> jdescriptor(env, env->NewStringUTF(descriptor.c_str()));
+      if (jdescriptor.get() == nullptr) {
+        return nullptr;
       }
+      env->SetObjectArrayElement(result, i, jdescriptor.get());
     }
   }
   return result;
@@ -620,12 +684,12 @@ static jboolean DexFile_isDexOptNeeded(JNIEnv* env, jclass, jstring javaFilename
 
 
 static JNINativeMethod gMethods[] = {
-  NATIVE_METHOD(DexFile, closeDexFile, "(J)V"),
-  NATIVE_METHOD(DexFile, defineClassNative, "(Ljava/lang/String;Ljava/lang/ClassLoader;J)Ljava/lang/Class;"),
-  NATIVE_METHOD(DexFile, getClassNameList, "(J)[Ljava/lang/String;"),
+  NATIVE_METHOD(DexFile, closeDexFile, "(Ljava/lang/Object;)V"),
+  NATIVE_METHOD(DexFile, defineClassNative, "(Ljava/lang/String;Ljava/lang/ClassLoader;Ljava/lang/Object;)Ljava/lang/Class;"),
+  NATIVE_METHOD(DexFile, getClassNameList, "(Ljava/lang/Object;)[Ljava/lang/String;"),
   NATIVE_METHOD(DexFile, isDexOptNeeded, "(Ljava/lang/String;)Z"),
   NATIVE_METHOD(DexFile, isDexOptNeededInternal, "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Z)B"),
-  NATIVE_METHOD(DexFile, openDexFileNative, "(Ljava/lang/String;Ljava/lang/String;I)J"),
+  NATIVE_METHOD(DexFile, openDexFileNative, "(Ljava/lang/String;Ljava/lang/String;I)Ljava/lang/Object;"),
 };
 
 void register_dalvik_system_DexFile(JNIEnv* env) {

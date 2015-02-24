@@ -2135,15 +2135,16 @@ mirror::Class* ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlready
           }
           mirror::Object* dex_file = dex_file_field->GetObject(element);
           if (dex_file != nullptr) {
-            const uint64_t cookie = cookie_field->GetLong(dex_file);
-            auto* dex_files =
-                reinterpret_cast<std::vector<const DexFile*>*>(static_cast<uintptr_t>(cookie));
-            if (dex_files == nullptr) {
+            mirror::LongArray* long_array = cookie_field->GetObject(dex_file)->AsLongArray();
+            if (long_array == nullptr) {
               // This should never happen so log a warning.
               LOG(WARNING) << "Null DexFile::mCookie for " << descriptor;
               break;
             }
-            for (const DexFile* cp_dex_file : *dex_files) {
+            int32_t long_array_size = long_array->GetLength();
+            for (int32_t j = 0; j < long_array_size; ++j) {
+              const DexFile* cp_dex_file = reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(
+                  long_array->GetWithoutChecks(j)));
               const DexFile::ClassDef* dex_class_def = cp_dex_file->FindClassDef(descriptor, hash);
               if (dex_class_def != nullptr) {
                 RegisterDexFile(*cp_dex_file);
