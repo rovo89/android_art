@@ -220,12 +220,9 @@ JdwpState::JdwpState(const JdwpOptions* options)
       event_list_lock_("JDWP event list lock", kJdwpEventListLock),
       event_list_(nullptr),
       event_list_size_(0),
-      event_thread_lock_("JDWP event thread lock"),
-      event_thread_cond_("JDWP event thread condition variable", event_thread_lock_),
-      event_thread_id_(0),
-      process_request_lock_("JDWP process request lock"),
-      process_request_cond_("JDWP process request condition variable", process_request_lock_),
-      processing_request_(false),
+      jdwp_token_lock_("JDWP token lock"),
+      jdwp_token_cond_("JDWP token condition variable", jdwp_token_lock_),
+      jdwp_token_owner_thread_id_(0),
       ddm_is_active_(false),
       should_exit_(false),
       exit_status_(0) {
@@ -331,7 +328,7 @@ void JdwpState::ResetState() {
    * Should not have one of these in progress.  If the debugger went away
    * mid-request, though, we could see this.
    */
-  if (event_thread_id_ != 0) {
+  if (jdwp_token_owner_thread_id_ != 0) {
     LOG(WARNING) << "Resetting state while event in progress";
     DCHECK(false);
   }
@@ -382,10 +379,9 @@ bool JdwpState::HandlePacket() {
   ssize_t cc = netStateBase->WritePacket(pReply, replyLength);
 
   /*
-   * We processed this request and sent its reply. Notify other threads waiting for us they can now
-   * send events.
+   * We processed this request and sent its reply so we can release the JDWP token.
    */
-  EndProcessingRequest();
+  ReleaseJdwpTokenForCommand();
 
   if (cc != static_cast<ssize_t>(replyLength)) {
     PLOG(ERROR) << "Failed sending reply to debugger";

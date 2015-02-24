@@ -149,29 +149,19 @@ struct JdwpState {
 
   void ExitAfterReplying(int exit_status);
 
-  /*
-   * When we hit a debugger event that requires suspension, it's important
-   * that we wait for the thread to suspend itself before processing any
-   * additional requests.  (Otherwise, if the debugger immediately sends a
-   * "resume thread" command, the resume might arrive before the thread has
-   * suspended itself.)
-   *
-   * The thread should call the "set" function before sending the event to
-   * the debugger.  The main JDWP handler loop calls "get" before processing
-   * an event, and will wait for thread suspension if it's set.  Once the
-   * thread has suspended itself, the JDWP handler calls "clear" and
-   * continues processing the current event.  This works in the suspend-all
-   * case because the event thread doesn't suspend itself until everything
-   * else has suspended.
-   *
-   * It's possible that multiple threads could encounter thread-suspending
-   * events at the same time, so we grab a mutex in the "set" call, and
-   * release it in the "clear" call.
-   */
-  // ObjectId GetWaitForEventThread();
-  void SetWaitForEventThread(ObjectId threadId)
-      LOCKS_EXCLUDED(event_thread_lock_, process_request_lock_);
-  void ClearWaitForEventThread() LOCKS_EXCLUDED(event_thread_lock_);
+  // Acquires/releases the JDWP synchronization token for the debugger
+  // thread (command handler) so no event thread posts an event while
+  // it processes a command. This must be called only from the debugger
+  // thread.
+  void AcquireJdwpTokenForCommand() LOCKS_EXCLUDED(jdwp_token_lock_);
+  void ReleaseJdwpTokenForCommand() LOCKS_EXCLUDED(jdwp_token_lock_);
+
+  // Acquires/releases the JDWP synchronization token for the event thread
+  // so no other thread (debugger thread or event thread) interleaves with
+  // it when posting an event. This must NOT be called from the debugger
+  // thread, only event thread.
+  void AcquireJdwpTokenForEvent(ObjectId threadId) LOCKS_EXCLUDED(jdwp_token_lock_);
+  void ReleaseJdwpTokenForEvent() LOCKS_EXCLUDED(jdwp_token_lock_);
 
   /*
    * These notify the debug code that something interesting has happened.  This
@@ -330,9 +320,37 @@ struct JdwpState {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SendBufferedRequest(uint32_t type, const std::vector<iovec>& iov);
 
-  void StartProcessingRequest() LOCKS_EXCLUDED(process_request_lock_);
-  void EndProcessingRequest() LOCKS_EXCLUDED(process_request_lock_);
-  void WaitForProcessingRequest() LOCKS_EXCLUDED(process_request_lock_);
+  /*
+   * When we hit a debugger event that requires suspension, it's important
+   * that we wait for the thread to suspend itself before processing any
+   * additional requests. Otherwise, if the debugger immediately sends a
+   * "resume thread" command, the resume might arrive before the thread has
+   * suspended itself.
+   *
+   * It's also important no event thread suspends while we process a command
+   * from the debugger. Otherwise we could post an event ("thread death")
+   * before sending the reply of the command being processed ("resume") and
+   * cause bad synchronization with the debugger.
+   *
+   * The thread wanting "exclusive" access to the JDWP world must call the
+   * SetWaitForJdwpToken method before processing a command from the
+   * debugger or sending an event to the debugger.
+   * Once the command is processed or the event thread has posted its event,
+   * it must call the ClearWaitForJdwpToken method to allow another thread
+   * to do JDWP stuff.
+   *
+   * Therefore the main JDWP handler loop will wait for the event thread
+   * suspension before processing the next command. Once the event thread
+   * has suspended itself and cleared the token, the JDWP handler continues
+   * processing commands. This works in the suspend-all case because the
+   * event thread doesn't suspend itself until everything else has suspended.
+   *
+   * It's possible that multiple threads could encounter thread-suspending
+   * events at the same time, so we grab a mutex in the SetWaitForJdwpToken
+   * call, and release it in the ClearWaitForJdwpToken call.
+   */
+  void SetWaitForJdwpToken(ObjectId threadId) LOCKS_EXCLUDED(jdwp_token_lock_);
+  void ClearWaitForJdwpToken() LOCKS_EXCLUDED(jdwp_token_lock_);
 
  public:  // TODO: fix privacy
   const JdwpOptions* options_;
@@ -368,24 +386,21 @@ struct JdwpState {
 
   // Linked list of events requested by the debugger (breakpoints, class prep, etc).
   Mutex event_list_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER ACQUIRED_BEFORE(Locks::breakpoint_lock_);
-
   JdwpEvent* event_list_ GUARDED_BY(event_list_lock_);
   size_t event_list_size_ GUARDED_BY(event_list_lock_);  // Number of elements in event_list_.
 
-  // Used to synchronize suspension of the event thread (to avoid receiving "resume"
-  // events before the thread has finished suspending itself).
-  Mutex event_thread_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
-  ConditionVariable event_thread_cond_ GUARDED_BY(event_thread_lock_);
-  ObjectId event_thread_id_;
-
-  // Used to synchronize request processing and event sending (to avoid sending an event before
-  // sending the reply of a command being processed).
-  Mutex process_request_lock_ ACQUIRED_AFTER(event_thread_lock_);
-  ConditionVariable process_request_cond_ GUARDED_BY(process_request_lock_);
-  bool processing_request_ GUARDED_BY(process_request_lock_);
+  // Used to synchronize JDWP command handler thread and event threads so only one
+  // thread does JDWP stuff at a time. This prevent from interleaving command handling
+  // and event notification. Otherwise we could receive a "resume" command for an
+  // event thread that is not suspended yet, or post a "thread death" or event "VM death"
+  // event before sending the reply of the "resume" command that caused it.
+  Mutex jdwp_token_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
+  ConditionVariable jdwp_token_cond_ GUARDED_BY(jdwp_token_lock_);
+  ObjectId jdwp_token_owner_thread_id_;
 
   bool ddm_is_active_;
 
+  // Used for VirtualMachine.Exit command handling.
   bool should_exit_;
   int exit_status_;
 };
