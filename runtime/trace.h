@@ -99,7 +99,8 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
                        mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
                        mirror::Throwable* exception_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
-
+  void BackwardBranch(Thread* thread, mirror::ArtMethod* method, int32_t dex_pc_offset)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
   // Reuse an old stack trace if it exists, otherwise allocate a new one.
   static std::vector<mirror::ArtMethod*>* AllocStackTrace();
   // Clear and store an old stack trace for later use.

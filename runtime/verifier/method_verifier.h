@@ -156,6 +156,9 @@ class MethodVerifier {
                                              uint32_t method_access_flags)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static FailureKind VerifyMethod(mirror::ArtMethod* method, bool allow_soft_failures,
+                                  std::string* error) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   uint8_t EncodePcToReferenceMapData() const;
 
   uint32_t DexFileVersion() const {
@@ -239,10 +242,14 @@ class MethodVerifier {
   bool HasFailures() const;
   const RegType& ResolveCheckedClass(uint32_t class_idx)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::ArtMethod* GetQuickInvokedMethod(const Instruction* inst,
-                                           RegisterLine* reg_line,
+  // Returns the method of a quick invoke or nullptr if it cannot be found.
+  mirror::ArtMethod* GetQuickInvokedMethod(const Instruction* inst, RegisterLine* reg_line,
                                            bool is_range)
-        SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  // Returns the access field of a quick field access (iget/iput-quick) or nullptr
+  // if it cannot be found.
+  mirror::ArtField* GetQuickFieldAccess(const Instruction* inst, RegisterLine* reg_line)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Is the method being verified a constructor?
   bool IsConstructor() const {
@@ -530,11 +537,6 @@ class MethodVerifier {
   template <FieldAccessType kAccType>
   void VerifyISFieldAccess(const Instruction* inst, const RegType& insn_type,
                            bool is_primitive, bool is_static)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Returns the access field of a quick field access (iget/iput-quick) or nullptr
-  // if it cannot be found.
-  mirror::ArtField* GetQuickFieldAccess(const Instruction* inst, RegisterLine* reg_line)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   template <FieldAccessType kAccType>

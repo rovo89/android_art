@@ -26,6 +26,7 @@ GDB_SERVER="gdbserver"
 HAVE_IMAGE="y"
 HOST="n"
 INTERPRETER="n"
+JIT="n"
 INVOKE_WITH=""
 ISA=x86
 LIBRARY_DIRECTORY="lib"
@@ -126,6 +127,9 @@ while true; do
         shift
     elif [ "x$1" = "x--interpreter" ]; then
         INTERPRETER="y"
+        shift
+    elif [ "x$1" = "x--jit" ]; then
+        JIT="y"
         shift
     elif [ "x$1" = "x--jvm" ]; then
         USE_JVM="y"
@@ -252,6 +256,16 @@ fi
 
 if [ "$INTERPRETER" = "y" ]; then
     INT_OPTS="-Xint"
+    if [ "$VERIFY" = "y" ] ; then
+      COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=interpret-only"
+    else
+      COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=verify-none"
+      DEX_VERIFY="${DEX_VERIFY} -Xverify:none"
+    fi
+fi
+
+if [ "$JIT" = "y" ]; then
+    INT_OPTS="-Xjit"
     if [ "$VERIFY" = "y" ] ; then
       COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=interpret-only"
     else
