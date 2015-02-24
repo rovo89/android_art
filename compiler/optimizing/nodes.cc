@@ -893,28 +893,32 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     exit_block_->ReplaceWith(to);
 
     // Update all predecessors of the exit block (now the `to` block)
-    // to not `HReturn` but `HGoto` instead. Also collect the return
-    // values if any, and potentially make it a phi if there are multiple
-    // predecessors.
+    // to not `HReturn` but `HGoto` instead.
     HInstruction* return_value = nullptr;
-    for (size_t i = 0, e = to->GetPredecessors().Size(); i < e; ++i) {
-      HBasicBlock* predecessor = to->GetPredecessors().Get(i);
+    bool returns_void = to->GetPredecessors().Get(0)->GetLastInstruction()->IsReturnVoid();
+    if (to->GetPredecessors().Size() == 1) {
+      HBasicBlock* predecessor = to->GetPredecessors().Get(0);
       HInstruction* last = predecessor->GetLastInstruction();
-      if (!last->IsReturnVoid()) {
-        if (return_value != nullptr) {
-          if (!return_value->IsPhi()) {
-            HPhi* phi = new (allocator) HPhi(allocator, kNoRegNumber, 0, invoke->GetType());
-            to->AddPhi(phi);
-            phi->AddInput(return_value);
-            return_value = phi;
-          }
-          return_value->AsPhi()->AddInput(last->InputAt(0));
-        } else {
-          return_value = last->InputAt(0);
-        }
+      if (!returns_void) {
+        return_value = last->InputAt(0);
       }
       predecessor->AddInstruction(new (allocator) HGoto());
       predecessor->RemoveInstruction(last);
+    } else {
+      if (!returns_void) {
+        // There will be multiple returns.
+        return_value = new (allocator) HPhi(allocator, kNoRegNumber, 0, invoke->GetType());
+        to->AddPhi(return_value->AsPhi());
+      }
+      for (size_t i = 0, e = to->GetPredecessors().Size(); i < e; ++i) {
+        HBasicBlock* predecessor = to->GetPredecessors().Get(i);
+        HInstruction* last = predecessor->GetLastInstruction();
+        if (!returns_void) {
+          return_value->AsPhi()->AddInput(last->InputAt(0));
+        }
+        predecessor->AddInstruction(new (allocator) HGoto());
+        predecessor->RemoveInstruction(last);
+      }
     }
 
     if (return_value != nullptr) {
