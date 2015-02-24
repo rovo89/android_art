@@ -46,6 +46,7 @@ public class Main {
     return primeCount;
   }
 
+
   // CHECK-START: void Main.narrow(int[], int) BCE (before)
   // CHECK: BoundsCheck
   // CHECK: ArraySet
@@ -61,8 +62,12 @@ public class Main {
   // CHECK: ArraySet
   // CHECK: BoundsCheck
   // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
 
-  static void narrow(int array[], int offset) {
+  static void narrow(int[] array, int offset) {
     if (offset < 0) {
       return;
     }
@@ -87,10 +92,386 @@ public class Main {
         // eliminate this bounds check.
         array[biased_offset2] = 1;
       }
+
+      // offset_sub1 won't underflow since offset is no less than 0.
+      int offset_sub1 = offset - Integer.MAX_VALUE;
+      if (offset_sub1 >= 0) {
+        array[offset_sub1] = 1;  // Bounds check can be eliminated.
+      }
+
+      // offset_sub2 can underflow.
+      int offset_sub2 = offset_sub1 - Integer.MAX_VALUE;
+      if (offset_sub2 >= 0) {
+        array[offset_sub2] = 1;  // Bounds check can't be eliminated.
+      }
     }
   }
 
+
+  // CHECK-START: void Main.constantIndexing(int[]) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  // CHECK-START: void Main.constantIndexing(int[]) BCE (after)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  static void constantIndexing(int[] array) {
+    array[5] = 1;
+    array[4] = 1;
+    array[6] = 1;
+  }
+
+
+  // CHECK-START: void Main.loopPattern1(int[]) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  // CHECK-START: void Main.loopPattern1(int[]) BCE (after)
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+
+  static void loopPattern1(int[] array) {
+    for (int i = 0; i < array.length; i++) {
+      array[i] = 1;  // Bounds check can be eliminated.
+    }
+
+    for (int i = 1; i < array.length; i++) {
+      array[i] = 1;  // Bounds check can be eliminated.
+    }
+
+    for (int i = 1; i < array.length - 1; i++) {
+      array[i] = 1;  // Bounds check can be eliminated.
+    }
+
+    for (int i = -1; i < array.length; i++) {
+      array[i] = 1;  // Bounds check can't be eliminated.
+    }
+
+    for (int i = 0; i <= array.length; i++) {
+      array[i] = 1;  // Bounds check can't be eliminated.
+    }
+
+    for (int i = 0; i < array.length; i += 2) {
+      // We don't have any assumption on max array length yet.
+      // Bounds check can't be eliminated due to overflow concern.
+      array[i] = 1;
+    }
+
+    for (int i = 1; i < array.length; i += 2) {
+      // Bounds check can be eliminated since i is odd so the last
+      // i that's less than array.length is at most (Integer.MAX_VALUE - 2).
+      array[i] = 1;
+    }
+  }
+
+
+  // CHECK-START: void Main.loopPattern2(int[]) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  // CHECK-START: void Main.loopPattern2(int[]) BCE (after)
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+
+  static void loopPattern2(int[] array) {
+    for (int i = array.length - 1; i >= 0; i--) {
+      array[i] = 1;  // Bounds check can be eliminated.
+    }
+
+    for (int i = array.length; i > 0; i--) {
+      array[i - 1] = 1;  // Bounds check can be eliminated.
+    }
+
+    for (int i = array.length - 1; i > 0; i--) {
+      array[i] = 1;  // Bounds check can be eliminated.
+    }
+
+    for (int i = array.length; i >= 0; i--) {
+      array[i] = 1;  // Bounds check can't be eliminated.
+    }
+
+    for (int i = array.length; i >= 0; i--) {
+      array[i - 1] = 1;  // Bounds check can't be eliminated.
+    }
+
+    for (int i = array.length; i > 0; i -= 20) {
+      // For i >= 0, (i - 20 - 1) is guaranteed not to underflow.
+      array[i - 1] = 1;  // Bounds check can be eliminated.
+    }
+  }
+
+
+  // CHECK-START: void Main.loopPattern3(int[]) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  // CHECK-START: void Main.loopPattern3(int[]) BCE (after)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  static void loopPattern3(int[] array) {
+    java.util.Random random = new java.util.Random();
+    for (int i = 0; ; i++) {
+      if (random.nextInt() % 1000 == 0 && i < array.length) {
+        // Can't eliminate the bound check since not every i++ is
+        // matched with a array length check, so there is some chance that i
+        // overflows and is negative.
+        array[i] = 1;
+      }
+    }
+  }
+
+
+  // CHECK-START: void Main.constantNewArray() BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  // CHECK-START: void Main.constantNewArray() BCE (after)
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  static void constantNewArray() {
+    int[] array = new int[10];
+    for (int i = 0; i < 10; i++) {
+      array[i] = 1;  // Bounds check can be eliminated.
+    }
+
+    for (int i = 0; i <= 10; i++) {
+      array[i] = 1;  // Bounds check can't be eliminated.
+    }
+
+    array[0] = 1;  // Bounds check can be eliminated.
+    array[9] = 1;  // Bounds check can be eliminated.
+    array[10] = 1; // Bounds check can't be eliminated.
+  }
+
+  // CHECK-START: void Main.pyramid1(int[]) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  // CHECK-START: void Main.pyramid1(int[]) BCE (after)
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+
+  // Set array to something like {0, 1, 2, 3, 2, 1, 0}.
+  static void pyramid1(int[] array) {
+    for (int i = 0; i < (array.length + 1) / 2; i++) {
+      array[i] = i;
+      array[array.length - 1 - i] = i;
+    }
+  }
+
+
+  // CHECK-START: void Main.pyramid2(int[]) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  // CHECK-START: void Main.pyramid2(int[]) BCE (after)
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+
+  // Set array to something like {0, 1, 2, 3, 2, 1, 0}.
+  static void pyramid2(int[] array) {
+    for (int i = 0; i < (array.length + 1) >> 1; i++) {
+      array[i] = i;
+      array[array.length - 1 - i] = i;
+    }
+  }
+
+
+  // CHECK-START: void Main.pyramid3(int[]) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  // CHECK-START: void Main.pyramid3(int[]) BCE (after)
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+
+  // Set array to something like {0, 1, 2, 3, 2, 1, 0}.
+  static void pyramid3(int[] array) {
+    for (int i = 0; i < (array.length + 1) >>> 1; i++) {
+      array[i] = i;
+      array[array.length - 1 - i] = i;
+    }
+  }
+
+
+  // TODO: bce on the array accesses in this method.
+  static boolean isPyramid(int[] array) {
+    int i = 0;
+    int j = array.length - 1;
+    while (i <= j) {
+      if (array[i] != i) {
+        return false;
+      }
+      if (array[j] != i) {
+        return false;
+      }
+      i++; j--;
+    }
+    return true;
+  }
+
+
+  // CHECK-START: void Main.bubbleSort(int[]) GVN (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  // CHECK-START: void Main.bubbleSort(int[]) GVN (after)
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK-NOT: ArrayGet
+  // CHECK-NOT: ArrayGet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+
+  // CHECK-START: void Main.bubbleSort(int[]) BCE (after)
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK-NOT: ArrayGet
+  // CHECK-NOT: ArrayGet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+
+  static void bubbleSort(int[] array) {
+    for (int i = 0; i < array.length - 1; i++) {
+      for (int j = 0; j < array.length - i - 1; j++) {
+        if (array[j] > array[j + 1]) {
+          int temp = array[j + 1];
+          array[j + 1] = array[j];
+          array[j] = temp;
+        }
+      }
+    }
+  }
+
+
   public static void main(String[] args) {
     sieve(20);
+
+    int[] array = {5, 2, 3, 7, 0, 1, 6, 4};
+    bubbleSort(array);
+    for (int i = 0; i < 8; i++) {
+      if (array[i] != i) {
+        System.out.println("bubble sort failed!");
+      }
+    }
+
+    array = new int[7];
+    pyramid1(array);
+    if (!isPyramid(array)) {
+      System.out.println("pyramid1 failed!");
+    }
+
+    array = new int[8];
+    pyramid2(array);
+    if (!isPyramid(array)) {
+      System.out.println("pyramid2 failed!");
+    }
+
+    java.util.Arrays.fill(array, -1);
+    pyramid3(array);
+    if (!isPyramid(array)) {
+      System.out.println("pyramid3 failed!");
+    }
   }
 }
