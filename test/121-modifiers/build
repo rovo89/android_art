@@ -30,5 +30,11 @@ set -e
 # mv NonInf.out classes/NonInf.class
 # mv Main.class A.class A\$B.class A\$C.class classes/
 
-${DX} --debug --dex --dump-to=classes.lst --output=classes.dex classes
+if [ ${USE_JACK} = "true" ]; then
+  ${JILL} classes --output classes.jack
+  # Workaround b/19561685: disable sanity checks to produce a DEX file with invalid modifiers.
+  ${JACK} --sanity-checks off --import classes.jack --output-dex .
+else
+  ${DX} --debug --dex --dump-to=classes.lst --output=classes.dex classes
+fi
 zip $TEST_NAME.jar classes.dex

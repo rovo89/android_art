@@ -17,16 +17,32 @@
 # Stop if something fails.
 set -e
 
-mkdir classes
-
 # All except Main
+mkdir classes
 ${JAVAC} -d classes `find src -name '*.java'`
 rm classes/Main.class
-${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex classes
 
 # Only Main
-${JAVAC} -d classes `find src -name '*.java'`
-rm classes/Second.class classes/FillerA.class classes/FillerB.class classes/Inf*.class
-${DX} -JXmx256m --debug --dex --dump-to=classes2.lst --output=classes2.dex classes
+mkdir classes2
+${JAVAC} -d classes2 `find src -name '*.java'`
+rm classes2/Second.class classes2/FillerA.class classes2/FillerB.class classes2/Inf*.class
 
+if [ ${USE_JACK} = "true" ]; then
+  # Create .jack files from classes generated with javac.
+  ${JILL} classes --output classes.jack
+  ${JILL} classes2 --output classes2.jack
+
+  # Create DEX files from .jack files.
+  ${JACK} --import classes.jack --output-dex .
+  mv classes.dex classes-1.dex
+  ${JACK} --import classes2.jack --output-dex .
+  mv classes.dex classes2.dex
+  mv classes-1.dex classes.dex
+else
+  # All except Main
+  ${DX} -JXmx256m --debug --dex --dump-to=classes.lst --output=classes.dex classes
+
+  # Only Main
+  ${DX} -JXmx256m --debug --dex --dump-to=classes2.lst --output=classes2.dex classes2
+fi
 zip $TEST_NAME.jar classes.dex classes2.dex

@@ -39,8 +39,13 @@ function writeFile(name, start, end) {
     printf("}\n") > fileName;
 }'
 
-mkdir classes
-${JAVAC} -d classes src/*.java
+if [ ${USE_JACK} = "true" ]; then
+  ${JACK} --output-dex . src
+else
+  mkdir classes
+  ${JAVAC} -d classes src/*.java
 
-${DX} -JXmx500m --debug --dex --no-optimize --positions=none --no-locals --output=classes.dex classes
+  ${DX} -JXmx500m --debug --dex --no-optimize --positions=none --no-locals --output=classes.dex classes
+fi
+
 zip $TEST_NAME.jar classes.dex
