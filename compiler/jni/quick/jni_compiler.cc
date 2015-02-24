@@ -36,6 +36,7 @@
 #include "utils/arm/managed_register_arm.h"
 #include "utils/arm64/managed_register_arm64.h"
 #include "utils/mips/managed_register_mips.h"
+#include "utils/mips64/managed_register_mips64.h"
 #include "utils/x86/managed_register_x86.h"
 #include "thread.h"
 
@@ -329,7 +330,8 @@ CompiledMethod* ArtJniCompileMethodInternal(CompilerDriver* driver,
   // 11. Save return value
   FrameOffset return_save_location = main_jni_conv->ReturnValueSaveLocation();
   if (main_jni_conv->SizeOfReturnValue() != 0 && !reference_return) {
-    if (instruction_set == kMips && main_jni_conv->GetReturnType() == Primitive::kPrimDouble &&
+    if ((instruction_set == kMips || instruction_set == kMips64) &&
+        main_jni_conv->GetReturnType() == Primitive::kPrimDouble &&
         return_save_location.Uint32Value() % 8 != 0) {
       // Ensure doubles are 8-byte aligned for MIPS
       return_save_location = FrameOffset(return_save_location.Uint32Value() + kMipsPointerSize);

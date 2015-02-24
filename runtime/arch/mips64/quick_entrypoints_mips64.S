@@ -422,20 +422,120 @@ ENTRY art_quick_do_long_jump
     move    $v1, $zero
 END art_quick_do_long_jump
 
-UNIMPLEMENTED art_quick_deliver_exception
-UNIMPLEMENTED art_quick_throw_null_pointer_exception
-UNIMPLEMENTED art_quick_throw_div_zero
-UNIMPLEMENTED art_quick_throw_array_bounds
-UNIMPLEMENTED art_quick_throw_stack_overflow
-UNIMPLEMENTED art_quick_throw_no_such_method
+    /*
+     * Called by managed code, saves most registers (forms basis of long jump
+     * context) and passes the bottom of the stack.
+     * artDeliverExceptionFromCode will place the callee save Method* at
+     * the bottom of the thread. On entry v0 holds Throwable*
+     */
+ENTRY art_quick_deliver_exception
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    dla  $t9, artDeliverExceptionFromCode
+    jalr $zero, $t9                 # artDeliverExceptionFromCode(Throwable*, Thread*)
+    move $a1, rSELF                 # pass Thread::Current
+END art_quick_deliver_exception
 
-UNIMPLEMENTED art_quick_invoke_interface_trampoline
-UNIMPLEMENTED art_quick_invoke_interface_trampoline_with_access_check
+    /*
+     * Called by managed code to create and deliver a NullPointerException
+     */
+    .extern artThrowNullPointerExceptionFromCode
+ENTRY art_quick_throw_null_pointer_exception
+.Lart_quick_throw_null_pointer_exception_gp_set:
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    dla  $t9, artThrowNullPointerExceptionFromCode
+    jalr $zero, $t9                 # artThrowNullPointerExceptionFromCode(Thread*)
+    move $a0, rSELF                 # pass Thread::Current
+END art_quick_throw_null_pointer_exception
 
-UNIMPLEMENTED art_quick_invoke_static_trampoline_with_access_check
-UNIMPLEMENTED art_quick_invoke_direct_trampoline_with_access_check
-UNIMPLEMENTED art_quick_invoke_super_trampoline_with_access_check
-UNIMPLEMENTED art_quick_invoke_virtual_trampoline_with_access_check
+    /*
+     * Called by managed code to create and deliver an ArithmeticException
+     */
+    .extern artThrowDivZeroFromCode
+ENTRY art_quick_throw_div_zero
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    dla  $t9, artThrowDivZeroFromCode
+    jalr $zero, $t9                 # artThrowDivZeroFromCode(Thread*)
+    move $a0, rSELF                 # pass Thread::Current
+END art_quick_throw_div_zero
+
+    /*
+     * Called by managed code to create and deliver an
+     * ArrayIndexOutOfBoundsException
+     */
+    .extern artThrowArrayBoundsFromCode
+ENTRY art_quick_throw_array_bounds
+.Lart_quick_throw_array_bounds_gp_set:
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    dla  $t9, artThrowArrayBoundsFromCode
+    jalr $zero, $t9                 # artThrowArrayBoundsFromCode(index, limit, Thread*)
+    move $a2, rSELF                 # pass Thread::Current
+END art_quick_throw_array_bounds
+
+    /*
+     * Called by managed code to create and deliver a StackOverflowError.
+     */
+    .extern artThrowStackOverflowFromCode
+ENTRY art_quick_throw_stack_overflow
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    dla  $t9, artThrowStackOverflowFromCode
+    jalr $zero, $t9                 # artThrowStackOverflowFromCode(Thread*)
+    move $a0, rSELF                 # pass Thread::Current
+END art_quick_throw_stack_overflow
+
+    /*
+     * Called by managed code to create and deliver a NoSuchMethodError.
+     */
+    .extern artThrowNoSuchMethodFromCode
+ENTRY art_quick_throw_no_such_method
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    dla  $t9, artThrowNoSuchMethodFromCode
+    jalr $zero, $t9                 # artThrowNoSuchMethodFromCode(method_idx, Thread*)
+    move $a1, rSELF                 # pass Thread::Current
+END art_quick_throw_no_such_method
+
+    /*
+     * All generated callsites for interface invokes and invocation slow paths will load arguments
+     * as usual - except instead of loading arg0/$a0 with the target Method*, arg0/$a0 will contain
+     * the method_idx.  This wrapper will save arg1-arg3, load the caller's Method*, align the
+     * stack and call the appropriate C helper.
+     * NOTE: "this" is first visable argument of the target, and so can be found in arg1/$a1.
+     *
+     * The helper will attempt to locate the target and return a 128-bit result in $v0/$v1 consisting
+     * of the target Method* in $v0 and method->code_ in $v1.
+     *
+     * If unsuccessful, the helper will return NULL/NULL. There will be a pending exception in the
+     * thread and we branch to another stub to deliver it.
+     *
+     * On success this wrapper will restore arguments and *jump* to the target, leaving the ra
+     * pointing back to the original caller.
+     */
+.macro INVOKE_TRAMPOLINE c_name, cxx_name
+    .extern \cxx_name
+ENTRY \c_name
+    SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME  # save callee saves in case allocation triggers GC
+    lwu   $a2, FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE($sp)  # pass caller Method*
+    move  $a3, rSELF                       # pass Thread::Current
+    jal   \cxx_name                        # (method_idx, this, caller, Thread*, $sp)
+    move  $a4, $sp                         # pass $sp
+    move  $a0, $v0                         # save target Method*
+    move  $t9, $v1                         # save $v0->code_
+    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    beq   $v0, $zero, 1f
+    nop
+    jalr  $zero, $t9
+    nop
+1:
+    DELIVER_PENDING_EXCEPTION
+END \c_name
+.endm
+
+INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline, artInvokeInterfaceTrampoline
+INVOKE_TRAMPOLINE art_quick_invoke_interface_trampoline_with_access_check, artInvokeInterfaceTrampolineWithAccessCheck
+
+INVOKE_TRAMPOLINE art_quick_invoke_static_trampoline_with_access_check, artInvokeStaticTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_direct_trampoline_with_access_check, artInvokeDirectTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_super_trampoline_with_access_check, artInvokeSuperTrampolineWithAccessCheck
+INVOKE_TRAMPOLINE art_quick_invoke_virtual_trampoline_with_access_check, artInvokeVirtualTrampolineWithAccessCheck
 
     # On entry:
     #   t0 = shorty
@@ -454,7 +554,7 @@ UNIMPLEMENTED art_quick_invoke_virtual_trampoline_with_access_check
     li     $t9, 74               # put char 'J' into t9
     beq    $t9, $t3, 3f          # branch if result type char == 'J'
     nop
-    lwu    $\gpu, 0($t1)
+    lw     $\gpu, 0($t1)
     sw     $\gpu, 0($v0)
     daddiu $v0, 4
     daddiu $t1, 4
@@ -699,63 +799,534 @@ call_sfn:
     sw    $v1, 4($a4)           # store the other half of the result
 END art_quick_invoke_static_stub
 
+    /*
+     * Entry from managed code that calls artHandleFillArrayDataFromCode and
+     * delivers exception on failure.
+     */
+    .extern artHandleFillArrayDataFromCode
+ENTRY art_quick_handle_fill_data
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
+    lwu     $a2, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal     artHandleFillArrayDataFromCode              # (payload offset, Array*, method, Thread*)
+    move    $a3, rSELF                                  # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_handle_fill_data
 
+    /*
+     * Entry from managed code that calls artLockObjectFromCode, may block for GC.
+     */
+    .extern artLockObjectFromCode
+ENTRY art_quick_lock_object
+    beq     $a0, $zero, .Lart_quick_throw_null_pointer_exception_gp_set
+    nop
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME     # save callee saves in case we block
+    jal     artLockObjectFromCode         # (Object* obj, Thread*)
+    move    $a1, rSELF                    # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_lock_object
 
-UNIMPLEMENTED art_quick_handle_fill_data
-UNIMPLEMENTED art_quick_lock_object
-UNIMPLEMENTED art_quick_unlock_object
-UNIMPLEMENTED art_quick_check_cast
-UNIMPLEMENTED art_quick_aput_obj_with_null_and_bound_check
-UNIMPLEMENTED art_quick_aput_obj_with_bound_check
-UNIMPLEMENTED art_quick_aput_obj
-UNIMPLEMENTED art_quick_initialize_static_storage
-UNIMPLEMENTED art_quick_initialize_type
-UNIMPLEMENTED art_quick_initialize_type_and_verify_access
-UNIMPLEMENTED art_quick_get_boolean_static
-UNIMPLEMENTED art_quick_get_byte_static
-UNIMPLEMENTED art_quick_get_char_static
-UNIMPLEMENTED art_quick_get_short_static
-UNIMPLEMENTED art_quick_get32_static
-UNIMPLEMENTED art_quick_get64_static
-UNIMPLEMENTED art_quick_get_obj_static
-UNIMPLEMENTED art_quick_get_boolean_instance
-UNIMPLEMENTED art_quick_get_byte_instance
-UNIMPLEMENTED art_quick_get_char_instance
-UNIMPLEMENTED art_quick_get_short_instance
-UNIMPLEMENTED art_quick_get32_instance
-UNIMPLEMENTED art_quick_get64_instance
-UNIMPLEMENTED art_quick_get_obj_instance
-UNIMPLEMENTED art_quick_set8_static
-UNIMPLEMENTED art_quick_set16_static
-UNIMPLEMENTED art_quick_set32_static
-UNIMPLEMENTED art_quick_set64_static
-UNIMPLEMENTED art_quick_set_obj_static
-UNIMPLEMENTED art_quick_set8_instance
-UNIMPLEMENTED art_quick_set16_instance
-UNIMPLEMENTED art_quick_set32_instance
-UNIMPLEMENTED art_quick_set64_instance
-UNIMPLEMENTED art_quick_set_obj_instance
-UNIMPLEMENTED art_quick_resolve_string
+    /*
+     * Entry from managed code that calls artUnlockObjectFromCode and delivers exception on failure.
+     */
+    .extern artUnlockObjectFromCode
+ENTRY art_quick_unlock_object
+    beq     $a0, $zero, .Lart_quick_throw_null_pointer_exception_gp_set
+    nop
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case exception allocation triggers GC
+    jal     artUnlockObjectFromCode    # (Object* obj, Thread*)
+    move    $a1, rSELF                 # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_unlock_object
+
+    /*
+     * Entry from managed code that calls artCheckCastFromCode and delivers exception on failure.
+     */
+    .extern artThrowClassCastException
+ENTRY art_quick_check_cast
+    daddiu $sp, $sp, -32
+    .cfi_adjust_cfa_offset 32
+    sd     $ra, 24($sp)
+    .cfi_rel_offset 31, 24
+    sd     $t9, 16($sp)
+    sd     $a1, 8($sp)
+    sd     $a0, 0($sp)
+    jal    artIsAssignableFromCode
+    nop
+    beq    $v0, $zero, .Lthrow_class_cast_exception
+    ld     $ra, 24($sp)
+    jalr   $zero, $ra
+    daddiu $sp, $sp, 32
+    .cfi_adjust_cfa_offset -32
+.Lthrow_class_cast_exception:
+    ld     $t9, 16($sp)
+    ld     $a1, 8($sp)
+    ld     $a0, 0($sp)
+    daddiu $sp, $sp, 32
+    .cfi_adjust_cfa_offset -32
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    dla  $t9, artThrowClassCastException
+    jalr $zero, $t9                 # artThrowClassCastException (Class*, Class*, Thread*)
+    move $a2, rSELF                 # pass Thread::Current
+END art_quick_check_cast
+
+    /*
+     * Entry from managed code for array put operations of objects where the value being stored
+     * needs to be checked for compatibility.
+     * a0 = array, a1 = index, a2 = value
+     */
+ENTRY art_quick_aput_obj_with_null_and_bound_check
+    bne    $a0, $zero, .Lart_quick_aput_obj_with_bound_check_gp_set
+    nop
+    b .Lart_quick_throw_null_pointer_exception_gp_set
+    nop
+END art_quick_aput_obj_with_null_and_bound_check
+
+ENTRY art_quick_aput_obj_with_bound_check
+    lwu  $t0, MIRROR_ARRAY_LENGTH_OFFSET($a0)
+    sltu $t1, $a1, $t0
+    bne  $t1, $zero, .Lart_quick_aput_obj_gp_set
+    nop
+    move $a0, $a1
+    b .Lart_quick_throw_array_bounds_gp_set
+    move $a1, $t0
+END art_quick_aput_obj_with_bound_check
+
+ENTRY art_quick_aput_obj
+    beq  $a2, $zero, .Ldo_aput_null
+    nop
+    lwu $t0, MIRROR_OBJECT_CLASS_OFFSET($a0)
+    lwu $t1, MIRROR_OBJECT_CLASS_OFFSET($a2)
+    lwu $t0, MIRROR_CLASS_COMPONENT_TYPE_OFFSET($t0)
+    bne $t1, $t0, .Lcheck_assignability  # value's type == array's component type - trivial assignability
+    nop
+.Ldo_aput:
+    dsll  $a1, $a1, 2
+    daddu $t0, $a0, $a1
+    sw   $a2, MIRROR_OBJECT_ARRAY_DATA_OFFSET($t0)
+    ld   $t0, THREAD_CARD_TABLE_OFFSET(rSELF)
+    dsrl  $t1, $a0, 7
+    daddu $t1, $t1, $t0
+    sb   $t0, ($t1)
+    jalr $zero, $ra
+    nop
+.Ldo_aput_null:
+    dsll  $a1, $a1, 2
+    daddu $t0, $a0, $a1
+    sw   $a2, MIRROR_OBJECT_ARRAY_DATA_OFFSET($t0)
+    jalr $zero, $ra
+    nop
+.Lcheck_assignability:
+    daddiu $sp, $sp, -64
+    .cfi_adjust_cfa_offset 64
+    sd     $ra, 56($sp)
+    .cfi_rel_offset 31, 56
+    sd     $t9, 24($sp)
+    sd     $a2, 16($sp)
+    sd     $a1, 8($sp)
+    sd     $a0, 0($sp)
+    move   $a1, $t1
+    move   $a0, $t0
+    jal    artIsAssignableFromCode  # (Class*, Class*)
+    nop
+    ld     $ra, 56($sp)
+    ld     $t9, 24($sp)
+    ld     $a2, 16($sp)
+    ld     $a1, 8($sp)
+    ld     $a0, 0($sp)
+    daddiu $sp, $sp, 64
+    .cfi_adjust_cfa_offset -64
+    bne    $v0, $zero, .Ldo_aput
+    nop
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    move   $a1, $a2
+    dla  $t9, artThrowArrayStoreException
+    jalr $zero, $t9                 # artThrowArrayStoreException(Class*, Class*, Thread*)
+    move   $a2, rSELF               # pass Thread::Current
+END art_quick_aput_obj
+
+    /*
+     * Entry from managed code when uninitialized static storage, this stub will run the class
+     * initializer and deliver the exception on error. On success the static storage base is
+     * returned.
+     */
+    .extern artInitializeStaticStorageFromCode
+ENTRY art_quick_initialize_static_storage
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME           # save callee saves in case of GC
+    # artInitializeStaticStorageFromCode(uint32_t type_idx, Method* referrer, Thread*)
+    jal     artInitializeStaticStorageFromCode
+    move    $a2, rSELF                          # pass Thread::Current
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+END art_quick_initialize_static_storage
+
+    /*
+     * Entry from managed code when dex cache misses for a type_idx.
+     */
+    .extern artInitializeTypeFromCode
+ENTRY art_quick_initialize_type
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME          # save callee saves in case of GC
+    # artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*)
+    jal     artInitializeTypeFromCode
+    move    $a2, rSELF                         # pass Thread::Current
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+END art_quick_initialize_type
+
+    /*
+     * Entry from managed code when type_idx needs to be checked for access and dex cache may also
+     * miss.
+     */
+    .extern artInitializeTypeAndVerifyAccessFromCode
+ENTRY art_quick_initialize_type_and_verify_access
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME          # save callee saves in case of GC
+    # artInitializeTypeFromCode(uint32_t type_idx, Method* referrer, Thread*)
+    jal     artInitializeTypeAndVerifyAccessFromCode
+    move    $a2, rSELF                         # pass Thread::Current
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+END art_quick_initialize_type_and_verify_access
+
+    /*
+     * Called by managed code to resolve a static field and load a boolean primitive value.
+     */
+    .extern artGetBooleanStaticFromCode
+ENTRY art_quick_get_boolean_static
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a1, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artGetBooleanStaticFromCode   # (uint32_t field_idx, const Method* referrer, Thread*)
+    move   $a2, rSELF                    # pass Thread::Current
+    RETURN_IF_NO_EXCEPTION
+END art_quick_get_boolean_static
+
+    /*
+     * Called by managed code to resolve a static field and load a byte primitive value.
+     */
+    .extern artGetByteStaticFromCode
+ENTRY art_quick_get_byte_static
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a1, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artGetByteStaticFromCode      # (uint32_t field_idx, const Method* referrer, Thread*)
+    move   $a2, rSELF                    # pass Thread::Current
+    RETURN_IF_NO_EXCEPTION
+END art_quick_get_byte_static
+
+    /*
+     * Called by managed code to resolve a static field and load a char primitive value.
+     */
+    .extern artGetCharStaticFromCode
+ENTRY art_quick_get_char_static
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a1, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artGetCharStaticFromCode      # (uint32_t field_idx, const Method* referrer, Thread*)
+    move   $a2, rSELF                    # pass Thread::Current
+    RETURN_IF_NO_EXCEPTION
+END art_quick_get_char_static
+
+    /*
+     * Called by managed code to resolve a static field and load a short primitive value.
+     */
+    .extern artGetShortStaticFromCode
+ENTRY art_quick_get_short_static
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a1, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artGetShortStaticFromCode     # (uint32_t field_idx, const Method* referrer, Thread*)
+    move   $a2, rSELF                    # pass Thread::Current
+    RETURN_IF_NO_EXCEPTION
+END art_quick_get_short_static
+
+    /*
+     * Called by managed code to resolve a static field and load a 32-bit primitive value.
+     */
+    .extern artGet32StaticFromCode
+ENTRY art_quick_get32_static
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a1, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artGet32StaticFromCode        # (uint32_t field_idx, const Method* referrer, Thread*)
+    move   $a2, rSELF                    # pass Thread::Current
+    RETURN_IF_NO_EXCEPTION
+END art_quick_get32_static
+
+    /*
+     * Called by managed code to resolve a static field and load a 64-bit primitive value.
+     */
+    .extern artGet64StaticFromCode
+ENTRY art_quick_get64_static
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a1, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artGet64StaticFromCode        # (uint32_t field_idx, const Method* referrer, Thread*)
+    move   $a2, rSELF                    # pass Thread::Current
+    RETURN_IF_NO_EXCEPTION
+END art_quick_get64_static
+
+    /*
+     * Called by managed code to resolve a static field and load an object reference.
+     */
+    .extern artGetObjStaticFromCode
+ENTRY art_quick_get_obj_static
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a1, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artGetObjStaticFromCode       # (uint32_t field_idx, const Method* referrer, Thread*)
+    move   $a2, rSELF                    # pass Thread::Current
+    RETURN_IF_NO_EXCEPTION
+END art_quick_get_obj_static
+
+    /*
+     * Called by managed code to resolve an instance field and load a boolean primitive value.
+     */
+    .extern artGetBooleanInstanceFromCode
+ENTRY art_quick_get_boolean_instance
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a2, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artGetBooleanInstanceFromCode # (field_idx, Object*, referrer, Thread*)
+    move   $a3, rSELF                    # pass Thread::Current
+    RETURN_IF_NO_EXCEPTION
+END art_quick_get_boolean_instance
+
+    /*
+     * Called by managed code to resolve an instance field and load a byte primitive value.
+     */
+    .extern artGetByteInstanceFromCode
+ENTRY art_quick_get_byte_instance
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a2, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artGetByteInstanceFromCode    # (field_idx, Object*, referrer, Thread*)
+    move   $a3, rSELF                    # pass Thread::Current
+    RETURN_IF_NO_EXCEPTION
+END art_quick_get_byte_instance
+
+    /*
+     * Called by managed code to resolve an instance field and load a char primitive value.
+     */
+    .extern artGetCharInstanceFromCode
+ENTRY art_quick_get_char_instance
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a2, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artGetCharInstanceFromCode    # (field_idx, Object*, referrer, Thread*)
+    move   $a3, rSELF                    # pass Thread::Current
+    RETURN_IF_NO_EXCEPTION
+END art_quick_get_char_instance
+
+    /*
+     * Called by managed code to resolve an instance field and load a short primitive value.
+     */
+    .extern artGetShortInstanceFromCode
+ENTRY art_quick_get_short_instance
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a2, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artGetShortInstanceFromCode   # (field_idx, Object*, referrer, Thread*)
+    move   $a3, rSELF                    # pass Thread::Current
+    RETURN_IF_NO_EXCEPTION
+END art_quick_get_short_instance
+
+    /*
+     * Called by managed code to resolve an instance field and load a 32-bit primitive value.
+     */
+    .extern artGet32InstanceFromCode
+ENTRY art_quick_get32_instance
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a2, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artGet32InstanceFromCode      # (field_idx, Object*, referrer, Thread*)
+    move   $a3, rSELF                    # pass Thread::Current
+    RETURN_IF_NO_EXCEPTION
+END art_quick_get32_instance
+
+    /*
+     * Called by managed code to resolve an instance field and load a 64-bit primitive value.
+     */
+    .extern artGet64InstanceFromCode
+ENTRY art_quick_get64_instance
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a2, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artGet64InstanceFromCode      # (field_idx, Object*, referrer, Thread*)
+    move   $a3, rSELF                    # pass Thread::Current
+    RETURN_IF_NO_EXCEPTION
+END art_quick_get64_instance
+
+    /*
+     * Called by managed code to resolve an instance field and load an object reference.
+     */
+    .extern artGetObjInstanceFromCode
+ENTRY art_quick_get_obj_instance
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a2, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artGetObjInstanceFromCode     # (field_idx, Object*, referrer, Thread*)
+    move   $a3, rSELF                    # pass Thread::Current
+    RETURN_IF_NO_EXCEPTION
+END art_quick_get_obj_instance
+
+    /*
+     * Called by managed code to resolve a static field and store a 8-bit primitive value.
+     */
+    .extern artSet8StaticFromCode
+ENTRY art_quick_set8_static
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a2, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artSet8StaticFromCode         # (field_idx, new_val, referrer, Thread*)
+    move   $a3, rSELF                    # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_set8_static
+
+    /*
+     * Called by managed code to resolve a static field and store a 16-bit primitive value.
+     */
+    .extern artSet16StaticFromCode
+ENTRY art_quick_set16_static
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a2, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artSet16StaticFromCode        # (field_idx, new_val, referrer, Thread*)
+    move   $a3, rSELF                    # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_set16_static
+
+    /*
+     * Called by managed code to resolve a static field and store a 32-bit primitive value.
+     */
+    .extern artSet32StaticFromCode
+ENTRY art_quick_set32_static
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a2, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artSet32StaticFromCode        # (field_idx, new_val, referrer, Thread*)
+    move   $a3, rSELF                    # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_set32_static
+
+    /*
+     * Called by managed code to resolve a static field and store a 64-bit primitive value.
+     */
+    .extern artSet64StaticFromCode
+ENTRY art_quick_set64_static
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    move   $a2, $a1                      # pass new_val
+    lwu    $a1, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artSet64StaticFromCode        # (field_idx, referrer, new_val, Thread*)
+    move   $a3, rSELF                    # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_set64_static
+
+    /*
+     * Called by managed code to resolve a static field and store an object reference.
+     */
+    .extern artSetObjStaticFromCode
+ENTRY art_quick_set_obj_static
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a2, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artSetObjStaticFromCode       # (field_idx, new_val, referrer, Thread*)
+    move   $a3, rSELF                    # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_set_obj_static
+
+    /*
+     * Called by managed code to resolve an instance field and store a 8-bit primitive value.
+     */
+    .extern artSet8InstanceFromCode
+ENTRY art_quick_set8_instance
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a3, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artSet8InstanceFromCode       # (field_idx, Object*, new_val, referrer, Thread*)
+    move   $a4, rSELF                    # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_set8_instance
+
+    /*
+     * Called by managed code to resolve an instance field and store a 16-bit primitive value.
+     */
+    .extern artSet16InstanceFromCode
+ENTRY art_quick_set16_instance
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a3, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artSet16InstanceFromCode      # (field_idx, Object*, new_val, referrer, Thread*)
+    move   $a4, rSELF                    # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_set16_instance
+
+    /*
+     * Called by managed code to resolve an instance field and store a 32-bit primitive value.
+     */
+    .extern artSet32InstanceFromCode
+ENTRY art_quick_set32_instance
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a3, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artSet32InstanceFromCode      # (field_idx, Object*, new_val, referrer, Thread*)
+    move   $a4, rSELF                    # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_set32_instance
+
+    /*
+     * Called by managed code to resolve an instance field and store a 64-bit primitive value.
+     */
+    .extern artSet64InstanceFromCode
+ENTRY art_quick_set64_instance
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a3, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artSet64InstanceFromCode      # (field_idx, Object*, new_val, referrer, Thread*)
+    move   $a4, rSELF                    # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_set64_instance
+
+    /*
+     * Called by managed code to resolve an instance field and store an object reference.
+     */
+    .extern artSetObjInstanceFromCode
+ENTRY art_quick_set_obj_instance
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    # save callee saves in case of GC
+    lwu    $a3, FRAME_SIZE_REFS_ONLY_CALLEE_SAVE($sp)  # pass referrer's Method*
+    jal    artSetObjInstanceFromCode     # (field_idx, Object*, new_val, referrer, Thread*)
+    move   $a4, rSELF                    # pass Thread::Current
+    RETURN_IF_ZERO
+END art_quick_set_obj_instance
+
+    /*
+     * Entry from managed code to resolve a string, this stub will allocate a String and deliver an
+     * exception on error. On success the String is returned. R0 holds the referring method,
+     * R1 holds the string index. The fast path check for hit in strings cache has already been
+     * performed.
+     */
+    .extern artResolveStringFromCode
+ENTRY art_quick_resolve_string
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
+    # artResolveStringFromCode(Method* referrer, uint32_t string_idx, Thread*, $sp)
+    jal     artResolveStringFromCode
+    move    $a2, rSELF                 # pass Thread::Current
+    RETURN_IF_RESULT_IS_NON_ZERO_OR_DELIVER
+END art_quick_resolve_string
 
 // Macro to facilitate adding new allocation entrypoints.
 .macro TWO_ARG_DOWNCALL name, entrypoint, return
+    .extern \entrypoint
 ENTRY \name
-    break
-    break
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
+    jal     \entrypoint
+    move    $a2, rSELF                 # pass Thread::Current
+    \return
 END \name
 .endm
 
 .macro THREE_ARG_DOWNCALL name, entrypoint, return
+    .extern \entrypoint
 ENTRY \name
-    break
-    break
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  # save callee saves in case of GC
+    jal     \entrypoint
+    move    $a3, rSELF                 # pass Thread::Current
+    \return
 END \name
 .endm
 
 // Generate the allocation entrypoints for each allocator.
 GENERATE_ALL_ALLOC_ENTRYPOINTS
 
-UNIMPLEMENTED art_quick_test_suspend
+    /*
+     * Called by managed code when the value in rSUSPEND has been decremented to 0.
+     */
+    .extern artTestSuspendFromCode
+ENTRY art_quick_test_suspend
+    lh     $a0, THREAD_FLAGS_OFFSET(rSELF)
+    bne    $a0, $zero, 1f
+    daddiu rSUSPEND, $zero, SUSPEND_CHECK_INTERVAL   # reset rSUSPEND to SUSPEND_CHECK_INTERVAL
+    jalr   $zero, $ra
+    nop
+1:
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME         # save callee saves for stack crawl
+    jal    artTestSuspendFromCode             # (Thread*)
+    move   $a0, rSELF
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME_AND_RETURN
+END art_quick_test_suspend
 
     /*
      * Called by managed code that is attempting to call a method on a proxy class. On entry
@@ -779,7 +1350,19 @@ ENTRY art_quick_proxy_invoke_handler
     DELIVER_PENDING_EXCEPTION
 END art_quick_proxy_invoke_handler
 
-UNIMPLEMENTED art_quick_imt_conflict_trampoline
+    /*
+     * Called to resolve an imt conflict. t0 is a hidden argument that holds the target method's
+     * dex method index.
+     */
+ENTRY art_quick_imt_conflict_trampoline
+    lwu     $a0, 0($sp)            # load caller Method*
+    lwu     $a0, MIRROR_ART_METHOD_DEX_CACHE_METHODS_OFFSET($a0)  # load dex_cache_resolved_methods
+    dsll    $t0, 2                 # convert target method offset to bytes
+    daddu   $a0, $t0               # get address of target method
+    dla     $t9, art_quick_invoke_interface_trampoline
+    jalr    $zero, $t9
+    lwu     $a0, MIRROR_OBJECT_ARRAY_DATA_OFFSET($a0)  # load the target method
+END art_quick_imt_conflict_trampoline
 
     .extern artQuickResolutionTrampoline
 ENTRY art_quick_resolution_trampoline
@@ -930,6 +1513,18 @@ art_quick_instrumentation_exit:
     .cfi_adjust_cfa_offset -(16+FRAME_SIZE_REFS_ONLY_CALLEE_SAVE)
 END art_quick_instrumentation_exit
 
-UNIMPLEMENTED art_quick_deoptimize
+    /*
+     * Instrumentation has requested that we deoptimize into the interpreter. The deoptimization
+     * will long jump to the upcall with a special exception of -1.
+     */
+    .extern artDeoptimize
+    .extern artEnterInterpreterFromDeoptimize
+ENTRY art_quick_deoptimize
+    SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
+    jal      artDeoptimize     # artDeoptimize(Thread*, SP)
+                               # Returns caller method's frame size.
+    move     $a0, rSELF        # pass Thread::current
+END art_quick_deoptimize
+
 UNIMPLEMENTED art_quick_indexof
 UNIMPLEMENTED art_quick_string_compareto
