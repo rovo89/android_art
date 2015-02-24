@@ -88,9 +88,6 @@ LIBART_COMMON_SRC_FILES := \
   jdwp/jdwp_socket.cc \
   jdwp/object_registry.cc \
   jni_env_ext.cc \
-  jit/jit.cc \
-  jit/jit_code_cache.cc \
-  jit/jit_instrumentation.cc \
   jni_internal.cc \
   jobject_comparator.cc \
   mem_map.cc \
@@ -301,7 +298,6 @@ LIBART_ENUM_OPERATOR_OUT_HEADER_FILES := \
   base/unix_file/fd_file.h \
   dex_file.h \
   dex_instruction.h \
-  dex_instruction_utils.h \
   gc_root.h \
   gc/allocator/rosalloc.h \
   gc/collector/gc_type.h \

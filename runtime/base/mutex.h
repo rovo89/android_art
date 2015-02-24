@@ -67,7 +67,6 @@ enum LockLevel {
   kReferenceQueueWeakReferencesLock,
   kReferenceQueueClearedReferencesLock,
   kReferenceProcessorLock,
-  kJitCodeCacheLock,
   kRosAllocGlobalLock,
   kRosAllocBracketLock,
   kRosAllocBulkFreeLock,

@@ -26,8 +26,6 @@
 #include "runtime/base/logging.h"
 #include "cmdline/unit.h"
 #include "jdwp/jdwp.h"
-#include "jit/jit.h"
-#include "jit/jit_code_cache.h"
 #include "gc/collector_type.h"
 #include "gc/space/large_object_space.h"
 #include "profiler_options.h"

@@ -21,8 +21,8 @@
 
 #include "base/arena_object.h"
 #include "base/logging.h"
-#include "dex_instruction_utils.h"
 #include "global_value_numbering.h"
+#include "utils/dex_instruction_utils.h"
 
 namespace art {
 

@@ -305,8 +305,18 @@ class MANAGED ArtMethod FINAL : public Object {
   // quick entrypoint. This code isn't robust for instrumentation, etc. and is only used for
   // debug purposes.
   bool PcIsWithinQuickCode(uintptr_t pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return PcIsWithinQuickCode(
-        reinterpret_cast<uintptr_t>(GetEntryPointFromQuickCompiledCode()), pc);
+    uintptr_t code = reinterpret_cast<uintptr_t>(GetEntryPointFromQuickCompiledCode());
+    if (code == 0) {
+      return pc == 0;
+    }
+    /*
+     * During a stack walk, a return PC may point past-the-end of the code
+     * in the case that the last instruction is a call that isn't expected to
+     * return.  Thus, we check <= code + GetCodeSize().
+     *
+     * NOTE: For Thumb both pc and code are offset by 1 indicating the Thumb state.
+     */
+    return code <= pc && pc <= code + GetCodeSize();
   }
 
   void AssertPcIsWithinQuickCode(uintptr_t pc) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -610,23 +620,6 @@ class MANAGED ArtMethod FINAL : public Object {
     offset += pointer_size - sizeof(uint32_t);
 #endif
     return offset;
-  }
-
-  // Code points to the start of the quick code.
-  static uint32_t GetCodeSize(const void* code);
-
-  static bool PcIsWithinQuickCode(uintptr_t code, uintptr_t pc) {
-    if (code == 0) {
-      return pc == 0;
-    }
-    /*
-     * During a stack walk, a return PC may point past-the-end of the code
-     * in the case that the last instruction is a call that isn't expected to
-     * return.  Thus, we check <= code + GetCodeSize().
-     *
-     * NOTE: For Thumb both pc and code are offset by 1 indicating the Thumb state.
-     */
-    return code <= pc && pc <= code + GetCodeSize(reinterpret_cast<const void*>(code));
   }
 
   friend struct art::ArtMethodOffsets;  // for verifying offset information

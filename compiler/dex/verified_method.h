@@ -20,7 +20,6 @@
 #include <vector>
 
 #include "base/mutex.h"
-#include "dex_file.h"
 #include "method_reference.h"
 #include "safe_map.h"
 
@@ -40,9 +39,6 @@ class VerifiedMethod {
   // Devirtualization map type maps dex offset to concrete method reference.
   typedef SafeMap<uint32_t, MethodReference> DevirtualizationMap;
 
-  // Devirtualization map type maps dex offset to field / method idx.
-  typedef SafeMap<uint32_t, DexFileReference> DequickenMap;
-
   static const VerifiedMethod* Create(verifier::MethodVerifier* method_verifier, bool compile)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   ~VerifiedMethod() = default;
@@ -61,10 +57,6 @@ class VerifiedMethod {
 
   // Returns the devirtualization target method, or nullptr if none.
   const MethodReference* GetDevirtTarget(uint32_t dex_pc) const;
-
-  // Returns the dequicken field / method for a quick invoke / field get. Returns null if there is
-  // no entry for that dex pc.
-  const DexFileReference* GetDequickenIndex(uint32_t dex_pc) const;
 
   // Returns true if the cast can statically be verified to be redundant
   // by using the check-cast elision peephole optimization in the verifier.
@@ -94,7 +86,7 @@ class VerifiedMethod {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Generate dequickening map into dequicken_map_.
-  void GenerateDequickenMap(verifier::MethodVerifier* method_verifier)
+  void GenerateDeQuickenMap(verifier::MethodVerifier* method_verifier)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Generate safe case set into safe_cast_set_.
@@ -103,9 +95,9 @@ class VerifiedMethod {
 
   std::vector<uint8_t> dex_gc_map_;
   DevirtualizationMap devirt_map_;
-  // Dequicken map is required for compiling quickened byte codes. The quicken maps from
-  // dex PC to dex method index or dex field index based on the instruction.
-  DequickenMap dequicken_map_;
+  // Dequicken map is required for having the compiler compiled quickened invokes. The quicken map
+  // enables us to get the dex method index so that we can get the required argument count.
+  DevirtualizationMap dequicken_map_;
   SafeCastSet safe_cast_set_;
 };
 
