@@ -46,9 +46,13 @@ bpath="${bpath}:${framework}/bouncycastle${bpath_suffix}.jar"
 bpath_arg="--runtime-option -Xbootclasspath:${bpath}"
 
 
-# Make sure we can run without an oat file,
+# Make sure we can run without an oat file.
 echo "Run -Xnoimage-dex2oat"
 ${RUN} ${flags} ${bpath_arg} --runtime-option -Xnoimage-dex2oat --runtime-option -Xnodex2oat
+
+# Make sure we cannot run without an oat file without fallback.
+echo "Run -Xnoimage-dex2oat -Xno-dex-file-fallback"
+${RUN} ${flags} ${bpath_arg} --runtime-option -Xnoimage-dex2oat --runtime-option -Xnodex2oat --runtime-option -Xno-dex-file-fallback
 
 # Make sure we can run with the oat file.
 echo "Run -Ximage-dex2oat"

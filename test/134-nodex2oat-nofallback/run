@@ -16,22 +16,5 @@
 
 flags="${@}"
 
-# This test is supposed to test without oat files, so doesn't work for prebuild. Make sure that
-# flag isn't set, or complain.
-# Note: prebuild is the default.
-if [[ "${flags}" == *--prebuild* || "${flags}" != *--no-prebuild* ]] ; then
-  echo "Test 116-nodex2oat cannot run in prebuild mode."
-  exit 1
-fi
-
-# Make sure we can run without an oat file.
-echo "Run -Xnodex2oat"
-${RUN} ${flags} --runtime-option -Xnodex2oat
-
-# Make sure we can run with the oat file.
-echo "Run -Xdex2oat"
-${RUN} ${flags} --runtime-option -Xdex2oat
-
-# Make sure we can run with the default settings.
-echo "Run default"
-${RUN} ${flags}
+# Make sure we cannot run without an oat file without fallback.
+${RUN} ${flags} --runtime-option -Xnodex2oat --runtime-option -Xno-dex-file-fallback

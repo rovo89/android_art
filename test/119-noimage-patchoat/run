@@ -29,9 +29,13 @@ else
   false_bin="/system/bin/false"
 fi
 
-# Make sure we can run without an image file,
+# Make sure we can run without an image file.
 echo "Run -Xnoimage-dex2oat -Xpatchoat:/system/bin/false"
 ${RUN} ${flags} ${BPATH} --runtime-option -Xnoimage-dex2oat --runtime-option -Xpatchoat:${false_bin}
+
+# Make sure we cannot run without an image file without fallback.
+echo "Run -Xnoimage-dex2oat -Xpatchoat:/system/bin/false -Xno-dex-file-fallback"
+${RUN} ${flags} ${BPATH} --runtime-option -Xnoimage-dex2oat --runtime-option -Xpatchoat:${false_bin} --runtime-option -Xno-dex-file-fallback
 
 # Make sure we can run with the image file.
 echo "Run -Ximage-dex2oat"
