@@ -1262,9 +1262,9 @@ void DumpNativeStack(std::ostream& os, pid_t tid, const char* prefix,
           os << "+" << it->func_offset;
         }
         try_addr2line = true;
-      } else if (current_method != nullptr &&
-                 Locks::mutator_lock_->IsSharedHeld(Thread::Current()) &&
-                 current_method->PcIsWithinQuickCode(it->pc)) {
+      } else if (
+          current_method != nullptr && Locks::mutator_lock_->IsSharedHeld(Thread::Current()) &&
+          current_method->PcIsWithinQuickCode(it->pc)) {
         const void* start_of_code = current_method->GetEntryPointFromQuickCompiledCode();
         os << JniLongName(current_method) << "+"
            << (it->pc - reinterpret_cast<uintptr_t>(start_of_code));

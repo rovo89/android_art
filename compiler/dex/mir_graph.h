@@ -504,6 +504,7 @@ struct CallInfo {
   int opt_flags;
   InvokeType type;
   uint32_t dex_idx;
+  MethodReference method_ref;
   uint32_t index;         // Method idx for invokes, type idx for FilledNewArray.
   uintptr_t direct_code;
   uintptr_t direct_method;
@@ -687,7 +688,7 @@ class MIRGraph {
 
   void DoCacheMethodLoweringInfo();
 
-  const MirMethodLoweringInfo& GetMethodLoweringInfo(MIR* mir) {
+  const MirMethodLoweringInfo& GetMethodLoweringInfo(MIR* mir) const {
     DCHECK_LT(mir->meta.method_lowering_info, method_lowering_infos_.size());
     return method_lowering_infos_[mir->meta.method_lowering_info];
   }
@@ -1132,7 +1133,6 @@ class MIRGraph {
   std::string GetSSAName(int ssa_reg);
   std::string GetSSANameWithConst(int ssa_reg, bool singles_only);
   void GetBlockName(BasicBlock* bb, char* name);
-  const char* GetShortyFromTargetIdx(int);
   const char* GetShortyFromMethodReference(const MethodReference& target_method);
   void DumpMIRGraph();
   CallInfo* NewMemCallInfo(BasicBlock* bb, MIR* mir, InvokeType type, bool is_range);

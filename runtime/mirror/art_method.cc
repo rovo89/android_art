@@ -27,6 +27,8 @@
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc/accounting/card_table-inl.h"
 #include "interpreter/interpreter.h"
+#include "jit/jit.h"
+#include "jit/jit_code_cache.h"
 #include "jni_internal.h"
 #include "mapping_table.h"
 #include "object_array-inl.h"
@@ -229,6 +231,7 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
   if (abort_on_failure) {
       LOG(FATAL) << "Failed to find Dex offset for PC offset " << reinterpret_cast<void*>(sought_offset)
              << "(PC " << reinterpret_cast<void*>(pc) << ", entry_point=" << entry_point
+             << " current entry_point=" << GetQuickOatEntryPoint(sizeof(void*))
              << ") in " << PrettyMethod(this);
   }
   return DexFile::kDexNoIndex;
@@ -329,6 +332,13 @@ void ArtMethod::AssertPcIsWithinQuickCode(uintptr_t pc) {
       class_linker->IsQuickResolutionStub(code)) {
     return;
   }
+  // If we are the JIT then we may have just compiled the method after the
+  // IsQuickToInterpreterBridge check.
+  jit::Jit* const jit = Runtime::Current()->GetJit();
+  if (jit != nullptr &&
+      jit->GetCodeCache()->ContainsCodePtr(reinterpret_cast<const void*>(code))) {
+    return;
+  }
   /*
    * During a stack walk, a return PC may point past-the-end of the code
    * in the case that the last instruction is a call that isn't expected to
@@ -336,11 +346,11 @@ void ArtMethod::AssertPcIsWithinQuickCode(uintptr_t pc) {
    *
    * NOTE: For Thumb both pc and code are offset by 1 indicating the Thumb state.
    */
-  CHECK(PcIsWithinQuickCode(pc))
+  CHECK(PcIsWithinQuickCode(reinterpret_cast<uintptr_t>(code), pc))
       << PrettyMethod(this)
       << " pc=" << std::hex << pc
       << " code=" << code
-      << " size=" << GetCodeSize();
+      << " size=" << GetCodeSize(reinterpret_cast<const void*>(code));
 }
 
 bool ArtMethod::IsEntrypointInterpreter() {
@@ -410,7 +420,8 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
       }
 
       // Ensure that we won't be accidentally calling quick compiled code when -Xint.
-      if (kIsDebugBuild && Runtime::Current()->GetInstrumentation()->IsForcedInterpretOnly()) {
+      if (kIsDebugBuild && runtime->GetInstrumentation()->IsForcedInterpretOnly()) {
+        DCHECK(!runtime->UseJit());
         CHECK(IsEntrypointInterpreter())
             << "Don't call compiled code when -Xint " << PrettyMethod(this);
       }
