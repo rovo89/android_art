@@ -214,6 +214,30 @@ public class Main {
     return m;
   }
 
+  // CHECK-START: Main Main.scopeIfNotNullRemove(Main) instruction_simplifier_after_types (before)
+  // CHECK:         NullCheck
+
+  // CHECK-START: Main Main.scopeIfNotNullRemove(Main) instruction_simplifier_after_types (after)
+  // CHECK-NOT:     NullCheck
+  public Main scopeIfNotNullRemove(Main m) {
+    if (m != null) {
+      return m.g();
+    }
+    return m;
+  }
+
+  // CHECK-START: Main Main.scopeIfKeep(Main) instruction_simplifier_after_types (before)
+  // CHECK:         NullCheck
+
+  // CHECK-START: Main Main.scopeIfKeep(Main) instruction_simplifier_after_types (after)
+  // CHECK:         NullCheck
+  public Main scopeIfKeep(Main m) {
+    if (m == null) {
+      m = new Main();
+    }
+    return m.g();
+  }
+
   public Main() {}
   public Main(int dummy) {}
 
