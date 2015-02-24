@@ -2575,7 +2575,7 @@ void InstructionCodeGeneratorX86::VisitNot(HNot* not_) {
   Location in = locations->InAt(0);
   Location out = locations->Out();
   DCHECK(in.Equals(out));
-  switch (not_->InputAt(0)->GetType()) {
+  switch (not_->GetResultType()) {
     case Primitive::kPrimInt:
       __ notl(out.AsRegister<Register>());
       break;
