@@ -19,8 +19,8 @@
 
 #include "base/macros.h"
 #include "dex_file.h"
-#include "dex_instruction_utils.h"
 #include "offsets.h"
+#include "utils/dex_instruction_utils.h"
 
 namespace art {
 
@@ -39,9 +39,6 @@ class MirFieldInfo {
   uint16_t FieldIndex() const {
     return field_idx_;
   }
-  void SetFieldIndex(uint16_t field_idx) {
-    field_idx_ = field_idx;
-  }
 
   bool IsStatic() const {
     return (flags_ & kFlagIsStatic) != 0u;
@@ -53,9 +50,6 @@ class MirFieldInfo {
 
   const DexFile* DeclaringDexFile() const {
     return declaring_dex_file_;
-  }
-  void SetDeclaringDexFile(const DexFile* dex_file) {
-    declaring_dex_file_ = dex_file;
   }
 
   uint16_t DeclaringClassIndex() const {
@@ -70,35 +64,20 @@ class MirFieldInfo {
     return (flags_ & kFlagIsVolatile) != 0u;
   }
 
-  // IGET_QUICK, IGET_BYTE_QUICK, ...
-  bool IsQuickened() const {
-    return (flags_ & kFlagIsQuickened) != 0u;
-  }
-
   DexMemAccessType MemAccessType() const {
     return static_cast<DexMemAccessType>((flags_ >> kBitMemAccessTypeBegin) & kMemAccessTypeMask);
-  }
-
-  void CheckEquals(const MirFieldInfo& other) const {
-    CHECK_EQ(field_idx_, other.field_idx_);
-    CHECK_EQ(flags_, other.flags_);
-    CHECK_EQ(declaring_field_idx_, other.declaring_field_idx_);
-    CHECK_EQ(declaring_class_idx_, other.declaring_class_idx_);
-    CHECK_EQ(declaring_dex_file_, other.declaring_dex_file_);
   }
 
  protected:
   enum {
     kBitIsStatic = 0,
     kBitIsVolatile,
-    kBitIsQuickened,
     kBitMemAccessTypeBegin,
     kBitMemAccessTypeEnd = kBitMemAccessTypeBegin + 3,  // 3 bits for raw type.
     kFieldInfoBitEnd = kBitMemAccessTypeEnd
   };
   static constexpr uint16_t kFlagIsVolatile = 1u << kBitIsVolatile;
   static constexpr uint16_t kFlagIsStatic = 1u << kBitIsStatic;
-  static constexpr uint16_t kFlagIsQuickened = 1u << kBitIsQuickened;
   static constexpr uint16_t kMemAccessTypeMask = 7u;
   static_assert((1u << (kBitMemAccessTypeEnd - kBitMemAccessTypeBegin)) - 1u == kMemAccessTypeMask,
                 "Invalid raw type mask");
@@ -138,10 +117,8 @@ class MirIFieldLoweringInfo : public MirFieldInfo {
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
   // Construct an unresolved instance field lowering info.
-  explicit MirIFieldLoweringInfo(uint16_t field_idx, DexMemAccessType type, bool is_quickened)
-      : MirFieldInfo(field_idx,
-                     kFlagIsVolatile | (is_quickened ? kFlagIsQuickened : 0u),
-                     type),  // Without kFlagIsStatic.
+  explicit MirIFieldLoweringInfo(uint16_t field_idx, DexMemAccessType type)
+      : MirFieldInfo(field_idx, kFlagIsVolatile, type),  // Without kFlagIsStatic.
         field_offset_(0u) {
   }
 
@@ -155,11 +132,6 @@ class MirIFieldLoweringInfo : public MirFieldInfo {
 
   MemberOffset FieldOffset() const {
     return field_offset_;
-  }
-
-  void CheckEquals(const MirIFieldLoweringInfo& other) const {
-    MirFieldInfo::CheckEquals(other);
-    CHECK_EQ(field_offset_.Uint32Value(), other.field_offset_.Uint32Value());
   }
 
  private:

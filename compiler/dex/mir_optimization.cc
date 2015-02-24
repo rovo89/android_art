@@ -1437,7 +1437,7 @@ void MIRGraph::ComputeInlineIFieldLoweringInfo(uint16_t field_idx, MIR* invoke, 
       nullptr /* code_item not used */, 0u /* class_def_idx not used */, target.dex_method_index,
       0u /* access_flags not used */, nullptr /* verified_method not used */);
   DexMemAccessType type = IGetOrIPutMemAccessType(iget_or_iput->dalvikInsn.opcode);
-  MirIFieldLoweringInfo inlined_field_info(field_idx, type, false);
+  MirIFieldLoweringInfo inlined_field_info(field_idx, type);
   MirIFieldLoweringInfo::Resolve(cu_->compiler_driver, &inlined_unit, &inlined_field_info, 1u);
   DCHECK(inlined_field_info.IsResolved());
 

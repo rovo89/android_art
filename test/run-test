@@ -193,9 +193,6 @@ while true; do
         run_args="${run_args} --interpreter"
         image_suffix="-interpreter"
         shift
-    elif [ "x$1" = "x--jit" ]; then
-        run_args="${run_args} --jit"
-        shift
     elif [ "x$1" = "x--optimizing" ]; then
         run_args="${run_args} -Xcompiler-option --compiler-backend=Optimizing"
         image_suffix="-optimizing"
@@ -433,7 +430,6 @@ if [ "$usage" = "yes" ]; then
         echo "    --gdb                 Run under gdb; incompatible with some tests."
         echo "    --build-only          Build test files only (off by default)."
         echo "    --interpreter         Enable interpreter only mode (off by default)."
-        echo "    --jit                 Enable jit (off by default)."
         echo "    --optimizing          Enable optimizing compiler (off by default)."
         echo "    --quick               Use Quick compiler (default)."
         echo "    --no-verify           Turn off verification (on by default)."
