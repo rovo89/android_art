@@ -21,8 +21,14 @@ set -e
 gcc -Wall -Werror -o classes-gen classes-gen.c
 ./classes-gen
 
-mkdir classes
-${JAVAC} -d classes src/*.java
+if [ ${USE_JACK} = "true" ]; then
+  # Use the default Jack commands
+  ./default-build
+else
+  mkdir classes
+  ${JAVAC} -d classes src/*.java
 
-${DX} --debug --dex --output=classes.dex classes
-zip $TEST_NAME.jar classes.dex
+  # dx needs more memory for that test so do not pass Xmx option here.
+  ${DX} --debug --dex --output=classes.dex classes
+  zip $TEST_NAME.jar classes.dex
+fi
