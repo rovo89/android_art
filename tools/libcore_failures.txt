@@ -34,10 +34,11 @@
   modes: [device],
   names: ["libcore.java.util.TimeZoneTest#testDisplayNames",
           "libcore.java.util.TimeZoneTest#test_useDaylightTime_Taiwan",
+          "libcore.java.util.TimeZoneTest#testAllDisplayNames",
+          "libcore.io.OsTest#testUnixDomainSockets_in_file_system",
           "org.apache.harmony.tests.java.util.DateTest#test_Constructor",
           "org.apache.harmony.tests.java.util.ScannerTest#test_Constructor_LReadableByteChannel",
-          "org.apache.harmony.tests.java.util.TimeZoneTest#test_hasSameRules_Ljava_util_TimeZone",
-          "libcore.java.util.TimeZoneTest#testAllDisplayNames"]
+          "org.apache.harmony.tests.java.util.TimeZoneTest#test_hasSameRules_Ljava_util_TimeZone"]
 },
 {
   description: "Test timeouts",
@@ -50,5 +51,11 @@
   result: EXEC_FAILED,
   modes: [device],
   names: ["org.apache.harmony.tests.java.lang.ProcessTest#test_getErrorStream"]
+},
+{
+  description: "Short date format flag ignored for es_US locale.",
+  result: EXEC_FAILED,
+  name: "libcore.icu.DateIntervalFormatTest#test_formatDateInterval",
+  bug: 18619426
 }
 ]
