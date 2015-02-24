@@ -2202,6 +2202,7 @@ void X86Mir2Lir::GenAddReduceVector(MIR* mir) {
       StoreFinalValue(rl_dest, rl_result);
     } else {
       // Do the addition directly to memory.
+      ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
       OpMemReg(kOpAdd, rl_result, temp.GetReg());
     }
   }
