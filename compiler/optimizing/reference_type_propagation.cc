@@ -23,8 +23,6 @@
 
 namespace art {
 
-// TODO: handle: a !=/== null.
-
 void ReferenceTypePropagation::Run() {
   // To properly propagate type info we need to visit in the dominator-based order.
   // Reverse post order guarantees a node's dominators are visited first.
@@ -55,7 +53,44 @@ void ReferenceTypePropagation::VisitBasicBlock(HBasicBlock* block) {
   }
 
   // Add extra nodes to bound types.
+  BoundTypeForIfNotNull(block);
   BoundTypeForIfInstanceOf(block);
+}
+
+void ReferenceTypePropagation::BoundTypeForIfNotNull(HBasicBlock* block) {
+  HInstruction* lastInstruction = block->GetLastInstruction();
+  if (!lastInstruction->IsIf()) {
+    return;
+  }
+  HInstruction* ifInput = lastInstruction->InputAt(0);
+  if (!ifInput->IsNotEqual() && !ifInput->IsEqual()) {
+    return;
+  }
+  HInstruction* input0 = ifInput->InputAt(0);
+  HInstruction* input1 = ifInput->InputAt(1);
+  HInstruction* obj;
+
+  if ((input0->GetType() == Primitive::kPrimNot) && input1->ActAsNullConstant()) {
+    obj = input0;
+  } else if ((input1->GetType() == Primitive::kPrimNot) && input0->ActAsNullConstant()) {
+    obj = input1;
+  } else {
+    return;
+  }
+
+  HBoundType* bound_type =
+      new (graph_->GetArena()) HBoundType(obj, ReferenceTypeInfo::CreateTop(false));
+
+  block->InsertInstructionBefore(bound_type, lastInstruction);
+  HBasicBlock* notNullBlock = ifInput->IsNotEqual()
+      ? lastInstruction->AsIf()->IfTrueSuccessor()
+      : lastInstruction->AsIf()->IfFalseSuccessor();
+  for (HUseIterator<HInstruction*> it(obj->GetUses()); !it.Done(); it.Advance()) {
+    HInstruction* user = it.Current()->GetUser();
+    if (notNullBlock->Dominates(user->GetBlock())) {
+      user->ReplaceInput(bound_type, it.Current()->GetIndex());
+    }
+  }
 }
 
 // Detects if `block` is the True block for the pattern
