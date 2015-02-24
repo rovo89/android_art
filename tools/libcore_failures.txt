@@ -65,7 +65,8 @@
   description: "Failing due to switched off network stack on volantisg.",
   result: EXEC_FAILED,
   modes: [device],
-  names: ["org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnectionTest",
+  names: ["libcore.javax.crypto.CipherTest#testCipherInitWithCertificate",
+          "org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnectionTest",
           "org.apache.harmony.luni.tests.internal.net.www.protocol.https.HttpsURLConnectionTest",
           "org.apache.harmony.luni.tests.java.net.URLConnectionTest"]
 },
