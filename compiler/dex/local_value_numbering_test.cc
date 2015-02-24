@@ -96,7 +96,7 @@ class LocalValueNumberingTest : public testing::Test {
     cu_.mir_graph->ifield_lowering_infos_.reserve(count);
     for (size_t i = 0u; i != count; ++i) {
       const IFieldDef* def = &defs[i];
-      MirIFieldLoweringInfo field_info(def->field_idx, def->type, false);
+      MirIFieldLoweringInfo field_info(def->field_idx, def->type);
       if (def->declaring_dex_file != 0u) {
         field_info.declaring_dex_file_ = reinterpret_cast<const DexFile*>(def->declaring_dex_file);
         field_info.declaring_field_idx_ = def->declaring_field_idx;
