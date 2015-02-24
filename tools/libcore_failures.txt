@@ -59,7 +59,8 @@
           "libcore.java.text.SimpleDateFormatTest#testDstZoneNameWithNonDstTimestamp",
           "libcore.java.text.SimpleDateFormatTest#testDstZoneWithNonDstTimestampForNonHourDstZone",
           "libcore.java.text.SimpleDateFormatTest#testNonDstZoneNameWithDstTimestamp",
-          "libcore.java.text.SimpleDateFormatTest#testNonDstZoneWithDstTimestampForNonHourDstZone"]
+          "libcore.java.text.SimpleDateFormatTest#testNonDstZoneWithDstTimestampForNonHourDstZone",
+          "org.apache.harmony.tests.java.text.SimpleDateFormatTest#test_parseLjava_lang_StringLjava_text_ParsePosition"]
 },
 {
   description: "Failing due to switched off network stack on volantisg.",
