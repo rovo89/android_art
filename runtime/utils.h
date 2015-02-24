@@ -410,6 +410,7 @@ std::string JniLongName(mirror::ArtMethod* m)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 bool ReadFileToString(const std::string& file_name, std::string* result);
+bool PrintFileToLog(const std::string& file_name, LogSeverity level);
 
 // Returns the current date in ISO yyyy-mm-dd hh:mm:ss format.
 std::string GetIsoDate();
