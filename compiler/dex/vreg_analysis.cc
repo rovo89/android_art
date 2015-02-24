@@ -19,7 +19,6 @@
 #include "compiler_ir.h"
 #include "dex/dataflow_iterator-inl.h"
 #include "dex_flags.h"
-#include "driver/dex_compilation_unit.h"
 
 namespace art {
 
@@ -260,8 +259,8 @@ bool MIRGraph::InferTypeAndSize(BasicBlock* bb, MIR* mir, bool changed) {
     if ((flags & Instruction::kInvoke) &&
         (attrs & (DF_FORMAT_35C | DF_FORMAT_3RC))) {
       DCHECK_EQ(next, 0);
-      const auto& lowering_info = GetMethodLoweringInfo(mir);
-      const char* shorty = GetShortyFromMethodReference(lowering_info.GetTargetMethod());
+      int target_idx = mir->dalvikInsn.vB;
+      const char* shorty = GetShortyFromTargetIdx(target_idx);
       // Handle result type if floating point
       if ((shorty[0] == 'F') || (shorty[0] == 'D')) {
         MIR* move_result_mir = FindMoveResult(bb, mir);

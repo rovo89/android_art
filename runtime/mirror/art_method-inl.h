@@ -147,10 +147,7 @@ inline mirror::Class* ArtMethod::GetClassFromTypeIndex(uint16_t type_idx, bool r
 
 inline uint32_t ArtMethod::GetCodeSize() {
   DCHECK(!IsRuntimeMethod() && !IsProxyMethod()) << PrettyMethod(this);
-  return GetCodeSize(EntryPointToCodePointer(GetEntryPointFromQuickCompiledCode()));
-}
-
-inline uint32_t ArtMethod::GetCodeSize(const void* code) {
+  const void* code = EntryPointToCodePointer(GetEntryPointFromQuickCompiledCode());
   if (code == nullptr) {
     return 0u;
   }

@@ -287,13 +287,6 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
     Dbg::PostException(throw_location, catch_method, catch_dex_pc, exception_object);
   }
 
-  // We only care about how many backward branches were executed in the Jit.
-  void BackwardBranch(Thread* /*thread*/, mirror::ArtMethod* method, int32_t dex_pc_offset)
-      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    LOG(ERROR) << "Unexpected backward branch event in debugger " << PrettyMethod(method)
-               << " " << dex_pc_offset;
-  }
-
  private:
   DISALLOW_COPY_AND_ASSIGN(DebugInstrumentationListener);
 } gDebugInstrumentationListener;

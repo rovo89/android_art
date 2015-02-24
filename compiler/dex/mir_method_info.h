@@ -46,9 +46,6 @@ class MirMethodInfo {
   const DexFile* DeclaringDexFile() const {
     return declaring_dex_file_;
   }
-  void SetDeclaringDexFile(const DexFile* dex_file) {
-    declaring_dex_file_ = dex_file;
-  }
 
   uint16_t DeclaringClassIndex() const {
     return declaring_class_idx_;
@@ -101,12 +98,11 @@ class MirMethodLoweringInfo : public MirMethodInfo {
                       MirMethodLoweringInfo* method_infos, size_t count)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  MirMethodLoweringInfo(uint16_t method_idx, InvokeType type, bool is_quickened)
+  MirMethodLoweringInfo(uint16_t method_idx, InvokeType type)
       : MirMethodInfo(method_idx,
                       ((type == kStatic) ? kFlagIsStatic : 0u) |
                       (static_cast<uint16_t>(type) << kBitInvokeTypeBegin) |
-                      (static_cast<uint16_t>(type) << kBitSharpTypeBegin) |
-                      (is_quickened ? kFlagQuickened : 0u)),
+                      (static_cast<uint16_t>(type) << kBitSharpTypeBegin)),
         direct_code_(0u),
         direct_method_(0u),
         target_dex_file_(nullptr),
@@ -135,11 +131,6 @@ class MirMethodLoweringInfo : public MirMethodInfo {
     return (flags_ & kFlagClassIsInitialized) != 0u;
   }
 
-  // Returns true iff the method invoke is INVOKE_VIRTUAL_QUICK or INVOKE_VIRTUAL_RANGE_QUICK.
-  bool IsQuickened() const {
-    return (flags_ & kFlagQuickened) != 0u;
-  }
-
   InvokeType GetInvokeType() const {
     return static_cast<InvokeType>((flags_ >> kBitInvokeTypeBegin) & kInvokeTypeMask);
   }
@@ -155,9 +146,6 @@ class MirMethodLoweringInfo : public MirMethodInfo {
   uint16_t VTableIndex() const {
     return vtable_idx_;
   }
-  void SetVTableIndex(uint16_t index) {
-    vtable_idx_ = index;
-  }
 
   uintptr_t DirectCode() const {
     return direct_code_;
@@ -171,20 +159,6 @@ class MirMethodLoweringInfo : public MirMethodInfo {
     return stats_flags_;
   }
 
-  void CheckEquals(const MirMethodLoweringInfo& info) const {
-    CHECK_EQ(method_idx_, info.method_idx_);
-    CHECK_EQ(flags_, info.flags_);
-    CHECK_EQ(declaring_method_idx_, info.declaring_method_idx_);
-    CHECK_EQ(declaring_class_idx_, info.declaring_class_idx_);
-    CHECK_EQ(declaring_dex_file_, info.declaring_dex_file_);
-    CHECK_EQ(direct_code_, info.direct_code_);
-    CHECK_EQ(direct_method_, info.direct_method_);
-    CHECK_EQ(target_dex_file_, info.target_dex_file_);
-    CHECK_EQ(target_method_idx_, info.target_method_idx_);
-    CHECK_EQ(vtable_idx_, info.vtable_idx_);
-    CHECK_EQ(stats_flags_, info.stats_flags_);
-  }
-
  private:
   enum {
     kBitFastPath = kMethodInfoBitEnd,
@@ -194,14 +168,12 @@ class MirMethodLoweringInfo : public MirMethodInfo {
     kBitSharpTypeEnd = kBitSharpTypeBegin + 3,  // 3 bits for sharp type.
     kBitIsReferrersClass = kBitSharpTypeEnd,
     kBitClassIsInitialized,
-    kBitQuickened,
     kMethodLoweringInfoBitEnd
   };
   static_assert(kMethodLoweringInfoBitEnd <= 16, "Too many flags");
   static constexpr uint16_t kFlagFastPath = 1u << kBitFastPath;
   static constexpr uint16_t kFlagIsReferrersClass = 1u << kBitIsReferrersClass;
   static constexpr uint16_t kFlagClassIsInitialized = 1u << kBitClassIsInitialized;
-  static constexpr uint16_t kFlagQuickened = 1u << kBitQuickened;
   static constexpr uint16_t kInvokeTypeMask = 7u;
   static_assert((1u << (kBitInvokeTypeEnd - kBitInvokeTypeBegin)) - 1u == kInvokeTypeMask,
                 "assert invoke type bits failed");

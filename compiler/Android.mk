@@ -79,7 +79,6 @@ LIBART_COMPILER_SRC_FILES := \
 	driver/compiler_driver.cc \
 	driver/compiler_options.cc \
 	driver/dex_compilation_unit.cc \
-	jit/jit_compiler.cc \
 	jni/quick/arm/calling_convention_arm.cc \
 	jni/quick/arm64/calling_convention_arm64.cc \
 	jni/quick/mips/calling_convention_mips.cc \
@@ -162,7 +161,8 @@ LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
   driver/compiler_options.h \
   image_writer.h \
   optimizing/locations.h \
-  utils/arm/constants_arm.h
+  utils/arm/constants_arm.h \
+  utils/dex_instruction_utils.h
 
 # $(1): target or host
 # $(2): ndebug or debug

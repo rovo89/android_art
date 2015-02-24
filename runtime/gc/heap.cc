@@ -655,7 +655,7 @@ void Heap::DumpObject(std::ostream& stream, mirror::Object* obj) {
 }
 
 bool Heap::IsCompilingBoot() const {
-  if (!Runtime::Current()->IsAotCompiler()) {
+  if (!Runtime::Current()->IsCompiler()) {
     return false;
   }
   for (const auto& space : continuous_spaces_) {

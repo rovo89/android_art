@@ -542,11 +542,6 @@ bool QuickCompiler::CanCompileMethod(uint32_t method_idx, const DexFile& dex_fil
 void QuickCompiler::InitCompilationUnit(CompilationUnit& cu) const {
   // Disable optimizations according to instruction set.
   cu.disable_opt |= kDisabledOptimizationsPerISA[cu.instruction_set];
-  if (Runtime::Current()->UseJit()) {
-    // Disable these optimizations for JIT until quickened byte codes are done being implemented.
-    // TODO: Find a cleaner way to do this.
-    cu.disable_opt |= 1u << kLocalValueNumbering;
-  }
 }
 
 void QuickCompiler::Init() {

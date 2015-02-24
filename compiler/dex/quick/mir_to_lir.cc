@@ -540,7 +540,6 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       GenMoveException(rl_dest);
       break;
 
-    case Instruction::RETURN_VOID_BARRIER:
     case Instruction::RETURN_VOID:
       if (((cu_->access_flags & kAccConstructor) != 0) &&
           cu_->compiler_driver->RequiresConstructorBarrier(Thread::Current(), cu_->dex_file,
@@ -791,12 +790,10 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       GenArrayPut(opt_flags, kUnsignedByte, rl_src[1], rl_src[2], rl_src[0], 0, false);
       break;
 
-    case Instruction::IGET_OBJECT_QUICK:
     case Instruction::IGET_OBJECT:
       GenIGet(mir, opt_flags, kReference, Primitive::kPrimNot, rl_dest, rl_src[0]);
       break;
 
-    case Instruction::IGET_WIDE_QUICK:
     case Instruction::IGET_WIDE:
       // kPrimLong and kPrimDouble share the same entrypoints.
       if (rl_dest.fp) {
@@ -806,7 +803,6 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       }
       break;
 
-    case Instruction::IGET_QUICK:
     case Instruction::IGET:
       if (rl_dest.fp) {
         GenIGet(mir, opt_flags, kSingle, Primitive::kPrimFloat, rl_dest, rl_src[0]);
@@ -815,54 +811,43 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       }
       break;
 
-    case Instruction::IGET_CHAR_QUICK:
     case Instruction::IGET_CHAR:
       GenIGet(mir, opt_flags, kUnsignedHalf, Primitive::kPrimChar, rl_dest, rl_src[0]);
       break;
 
-    case Instruction::IGET_SHORT_QUICK:
     case Instruction::IGET_SHORT:
       GenIGet(mir, opt_flags, kSignedHalf, Primitive::kPrimShort, rl_dest, rl_src[0]);
       break;
 
-    case Instruction::IGET_BOOLEAN_QUICK:
     case Instruction::IGET_BOOLEAN:
       GenIGet(mir, opt_flags, kUnsignedByte, Primitive::kPrimBoolean, rl_dest, rl_src[0]);
       break;
 
-    case Instruction::IGET_BYTE_QUICK:
     case Instruction::IGET_BYTE:
       GenIGet(mir, opt_flags, kSignedByte, Primitive::kPrimByte, rl_dest, rl_src[0]);
       break;
 
-    case Instruction::IPUT_WIDE_QUICK:
     case Instruction::IPUT_WIDE:
       GenIPut(mir, opt_flags, rl_src[0].fp ? kDouble : k64, rl_src[0], rl_src[1]);
       break;
 
-    case Instruction::IPUT_OBJECT_QUICK:
     case Instruction::IPUT_OBJECT:
       GenIPut(mir, opt_flags, kReference, rl_src[0], rl_src[1]);
       break;
 
-    case Instruction::IPUT_QUICK:
     case Instruction::IPUT:
       GenIPut(mir, opt_flags, rl_src[0].fp ? kSingle : k32, rl_src[0], rl_src[1]);
       break;
 
-    case Instruction::IPUT_BYTE_QUICK:
-    case Instruction::IPUT_BOOLEAN_QUICK:
     case Instruction::IPUT_BYTE:
     case Instruction::IPUT_BOOLEAN:
       GenIPut(mir, opt_flags, kUnsignedByte, rl_src[0], rl_src[1]);
       break;
 
-    case Instruction::IPUT_CHAR_QUICK:
     case Instruction::IPUT_CHAR:
       GenIPut(mir, opt_flags, kUnsignedHalf, rl_src[0], rl_src[1]);
       break;
 
-    case Instruction::IPUT_SHORT_QUICK:
     case Instruction::IPUT_SHORT:
       GenIPut(mir, opt_flags, kSignedHalf, rl_src[0], rl_src[1]);
       break;
@@ -936,12 +921,9 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kDirect, true));
       break;
 
-    case Instruction::INVOKE_VIRTUAL_QUICK:
     case Instruction::INVOKE_VIRTUAL:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kVirtual, false));
       break;
-
-    case Instruction::INVOKE_VIRTUAL_RANGE_QUICK:
     case Instruction::INVOKE_VIRTUAL_RANGE:
       GenInvoke(mir_graph_->NewMemCallInfo(bb, mir, kVirtual, true));
       break;

@@ -45,10 +45,6 @@
 
 namespace art {
 
-namespace mirror {
-class DexCache;
-}  // namespace mirror
-
 namespace verifier {
 class MethodVerifier;
 }  // namespace verifier
@@ -111,11 +107,8 @@ class CompilerDriver {
                   TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  CompiledMethod* CompileMethod(Thread* self, mirror::ArtMethod*)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) WARN_UNUSED;
-
   // Compile a single Method.
-  void CompileOne(Thread* self, mirror::ArtMethod* method, TimingLogger* timings)
+  void CompileOne(mirror::ArtMethod* method, TimingLogger* timings)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   VerificationResults* GetVerificationResults() const {
@@ -179,9 +172,6 @@ class CompilerDriver {
   size_t GetNonRelativeLinkerPatchCount() const
       LOCKS_EXCLUDED(compiled_methods_lock_);
 
-  // Remove and delete a compiled method.
-  void RemoveCompiledMethod(const MethodReference& method_ref);
-
   void AddRequiresConstructorBarrier(Thread* self, const DexFile* dex_file,
                                      uint16_t class_def_index);
   bool RequiresConstructorBarrier(Thread* self, const DexFile* dex_file, uint16_t class_def_index);
@@ -236,13 +226,6 @@ class CompilerDriver {
       uint32_t field_idx, bool is_static)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Resolve a field with a given dex file.
-  mirror::ArtField* ResolveFieldWithDexFile(
-      const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
-      Handle<mirror::ClassLoader> class_loader, const DexFile* dex_file,
-      uint32_t field_idx, bool is_static)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Get declaration location of a resolved field.
   void GetResolvedFieldDexFileLocation(
       mirror::ArtField* resolved_field, const DexFile** declaring_dex_file,
@@ -251,10 +234,6 @@ class CompilerDriver {
 
   bool IsFieldVolatile(mirror::ArtField* field) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   MemberOffset GetFieldOffset(mirror::ArtField* field) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Find a dex cache for a dex file.
-  inline mirror::DexCache* FindDexCache(const DexFile* dex_file)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can we fast-path an IGET/IPUT access to an instance field? If yes, compute the field offset.
   std::pair<bool, bool> IsFastInstanceField(
@@ -282,7 +261,7 @@ class CompilerDriver {
   mirror::ArtMethod* ResolveMethod(
       ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
-      uint32_t method_idx, InvokeType invoke_type, bool check_incompatible_class_change = true)
+      uint32_t method_idx, InvokeType invoke_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Get declaration location of a resolved field.
@@ -315,13 +294,6 @@ class CompilerDriver {
   void ProcessedInstanceField(bool resolved);
   void ProcessedStaticField(bool resolved, bool local);
   void ProcessedInvoke(InvokeType invoke_type, int flags);
-
-  void ComputeFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
-                        const ScopedObjectAccess& soa, bool is_static,
-                        mirror::ArtField** resolved_field,
-                        mirror::Class** referrer_class,
-                        mirror::DexCache** dex_cache)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can we fast path instance field access? Computes field's offset and volatility.
   bool ComputeInstanceFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit, bool is_put,
@@ -406,13 +378,6 @@ class CompilerDriver {
 
   CumulativeLogger* GetTimingsLogger() const {
     return timings_logger_;
-  }
-
-  void SetDedupeEnabled(bool dedupe_enabled) {
-    dedupe_enabled_ = dedupe_enabled;
-  }
-  bool DedupeEnabled() const {
-    return dedupe_enabled_;
   }
 
   // Checks if class specified by type_idx is one of the image_classes_
@@ -519,7 +484,7 @@ class CompilerDriver {
                       const std::vector<const DexFile*>& dex_files,
                       ThreadPool* thread_pool, TimingLogger* timings)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
-  void CompileMethod(Thread* self, const DexFile::CodeItem* code_item, uint32_t access_flags,
+  void CompileMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
                      InvokeType invoke_type, uint16_t class_def_idx, uint32_t method_idx,
                      jobject class_loader, const DexFile& dex_file,
                      DexToDexCompilationLevel dex_to_dex_compilation_level,
@@ -580,7 +545,6 @@ class CompilerDriver {
   class AOTCompilationStats;
   std::unique_ptr<AOTCompilationStats> stats_;
 
-  bool dedupe_enabled_;
   bool dump_stats_;
   const bool dump_passes_;
   const std::string& dump_cfg_file_name_;

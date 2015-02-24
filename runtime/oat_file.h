@@ -147,8 +147,8 @@ class OatFile {
       return reinterpret_cast<T>(begin_ + offset);
     }
 
-    const uint8_t* begin_;
-    uint32_t code_offset_;
+    const uint8_t* const begin_;
+    const uint32_t code_offset_;
 
     friend class OatClass;
   };
