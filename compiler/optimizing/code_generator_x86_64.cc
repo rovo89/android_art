@@ -2514,7 +2514,7 @@ void InstructionCodeGeneratorX86_64::VisitNot(HNot* not_) {
   DCHECK_EQ(locations->InAt(0).AsRegister<CpuRegister>().AsRegister(),
             locations->Out().AsRegister<CpuRegister>().AsRegister());
   Location out = locations->Out();
-  switch (not_->InputAt(0)->GetType()) {
+  switch (not_->GetResultType()) {
     case Primitive::kPrimInt:
       __ notl(out.AsRegister<CpuRegister>());
       break;
