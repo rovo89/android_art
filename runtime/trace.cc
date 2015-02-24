@@ -298,7 +298,7 @@ void* Trace::RunSamplingThread(void* arg) {
   intptr_t interval_us = reinterpret_cast<intptr_t>(arg);
   CHECK_GE(interval_us, 0);
   CHECK(runtime->AttachCurrentThread("Sampling Profiler", true, runtime->GetSystemThreadGroup(),
-                                     !runtime->IsCompiler()));
+                                     !runtime->IsAotCompiler()));
 
   while (true) {
     usleep(interval_us);
@@ -625,6 +625,12 @@ void Trace::ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   UNUSED(thread, throw_location, catch_method, catch_dex_pc, exception_object);
   LOG(ERROR) << "Unexpected exception caught event in tracing";
+}
+
+void Trace::BackwardBranch(Thread* /*thread*/, mirror::ArtMethod* method,
+                           int32_t /*dex_pc_offset*/)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  LOG(ERROR) << "Unexpected backward branch event in tracing" << PrettyMethod(method);
 }
 
 void Trace::ReadClocks(Thread* thread, uint32_t* thread_clock_diff, uint32_t* wall_clock_diff) {
