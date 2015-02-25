@@ -31,6 +31,8 @@
 #include "entrypoints/runtime_asm_entrypoints.h"
 #include "gc_root-inl.h"
 #include "interpreter/interpreter.h"
+#include "jit/jit.h"
+#include "jit/jit_code_cache.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
@@ -92,6 +94,16 @@ void Instrumentation::InstallStubsForClass(mirror::Class* klass) {
 
 static void UpdateEntrypoints(mirror::ArtMethod* method, const void* quick_code)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Runtime* const runtime = Runtime::Current();
+  jit::Jit* jit = runtime->GetJit();
+  if (jit != nullptr) {
+    const void* old_code_ptr = method->GetEntryPointFromQuickCompiledCode();
+    jit::JitCodeCache* code_cache = jit->GetCodeCache();
+    if (code_cache->ContainsCodePtr(old_code_ptr)) {
+      // Save the old compiled code since we need it to implement ClassLinker::GetQuickOatCodeFor.
+      code_cache->SaveCompiledCode(method, old_code_ptr);
+    }
+  }
   method->SetEntryPointFromQuickCompiledCode(quick_code);
   if (!method->IsResolutionMethod()) {
     ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
@@ -120,7 +132,8 @@ void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
   }
   const void* new_quick_code;
   bool uninstall = !entry_exit_stubs_installed_ && !interpreter_stubs_installed_;
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Runtime* const runtime = Runtime::Current();
+  ClassLinker* const class_linker = runtime->GetClassLinker();
   bool is_class_initialized = method->GetDeclaringClass()->IsInitialized();
   if (uninstall) {
     if ((forced_interpret_only_ || IsDeoptimized(method)) && !method->IsNative()) {
@@ -143,7 +156,6 @@ void Instrumentation::InstallStubsForMethod(mirror::ArtMethod* method) {
           new_quick_code = GetQuickInstrumentationEntryPoint();
         } else {
           new_quick_code = class_linker->GetQuickOatCodeFor(method);
-          DCHECK(!class_linker->IsQuickToInterpreterBridge(new_quick_code));
         }
       } else {
         new_quick_code = GetQuickResolutionStub();
@@ -396,6 +408,10 @@ void Instrumentation::AddListener(InstrumentationListener* listener, uint32_t ev
   if ((events & kMethodUnwind) != 0) {
     method_unwind_listeners_.push_back(listener);
     have_method_unwind_listeners_ = true;
+  }
+  if ((events & kBackwardBranch) != 0) {
+    backward_branch_listeners_.push_back(listener);
+    have_backward_branch_listeners_ = true;
   }
   if ((events & kDexPcMoved) != 0) {
     std::list<InstrumentationListener*>* modified;
@@ -901,6 +917,13 @@ void Instrumentation::DexPcMovedEventImpl(Thread* thread, mirror::Object* this_o
     for (InstrumentationListener* listener : *original.get()) {
       listener->DexPcMoved(thread, this_object, method, dex_pc);
     }
+  }
+}
+
+void Instrumentation::BackwardBranchImpl(Thread* thread, mirror::ArtMethod* method,
+                                         int32_t offset) const {
+  for (InstrumentationListener* listener : backward_branch_listeners_) {
+    listener->BackwardBranch(thread, method, offset);
   }
 }
 
