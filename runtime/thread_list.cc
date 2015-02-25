@@ -1107,9 +1107,11 @@ void ThreadList::Unregister(Thread* self) {
     Locks::thread_list_lock_->ExclusiveLock(self);
     bool removed = true;
     if (!Contains(self)) {
+      std::string thread_name;
+      self->GetThreadName(thread_name);
       std::ostringstream os;
       DumpNativeStack(os, GetTid(), "  native: ", nullptr);
-      LOG(ERROR) << "Request to unregister unattached thread\n" << os.str();
+      LOG(ERROR) << "Request to unregister unattached thread " << thread_name << "\n" << os.str();
     } else {
       Locks::thread_suspend_count_lock_->ExclusiveLock(self);
       if (!self->IsSuspended()) {
