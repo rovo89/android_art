@@ -490,9 +490,9 @@ struct CmdlineParser {
   }
 
   // Ensure we have a default move constructor.
-  CmdlineParser(CmdlineParser&& other) = default;
+  CmdlineParser(CmdlineParser&&) = default;
   // Ensure we have a default move assignment operator.
-  CmdlineParser& operator=(CmdlineParser&& other) = default;
+  CmdlineParser& operator=(CmdlineParser&&) = default;
 
  private:
   friend struct Builder;

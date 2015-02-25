@@ -66,8 +66,8 @@ template <>
 class ArenaAllocatorAdapterKindImpl<false> {
  public:
   // Not tracking allocations, ignore the supplied kind and arbitrarily provide kArenaAllocSTL.
-  explicit ArenaAllocatorAdapterKindImpl(ArenaAllocKind kind) { UNUSED(kind); }
-  ArenaAllocatorAdapterKindImpl& operator=(const ArenaAllocatorAdapterKindImpl& other) = default;
+  explicit ArenaAllocatorAdapterKindImpl(ArenaAllocKind kind ATTRIBUTE_UNUSED) {}
+  ArenaAllocatorAdapterKindImpl& operator=(const ArenaAllocatorAdapterKindImpl&) = default;
   ArenaAllocKind Kind() { return kArenaAllocSTL; }
 };
 
@@ -75,7 +75,7 @@ template <bool kCount>
 class ArenaAllocatorAdapterKindImpl {
  public:
   explicit ArenaAllocatorAdapterKindImpl(ArenaAllocKind kind) : kind_(kind) { }
-  ArenaAllocatorAdapterKindImpl& operator=(const ArenaAllocatorAdapterKindImpl& other) = default;
+  ArenaAllocatorAdapterKindImpl& operator=(const ArenaAllocatorAdapterKindImpl&) = default;
   ArenaAllocKind Kind() { return kind_; }
 
  private:
@@ -109,8 +109,8 @@ class ArenaAllocatorAdapter<void>
         ArenaAllocatorAdapterKind(other),
         arena_allocator_(other.arena_allocator_) {
   }
-  ArenaAllocatorAdapter(const ArenaAllocatorAdapter& other) = default;
-  ArenaAllocatorAdapter& operator=(const ArenaAllocatorAdapter& other) = default;
+  ArenaAllocatorAdapter(const ArenaAllocatorAdapter&) = default;
+  ArenaAllocatorAdapter& operator=(const ArenaAllocatorAdapter&) = default;
   ~ArenaAllocatorAdapter() = default;
 
  private:
@@ -147,8 +147,8 @@ class ArenaAllocatorAdapter : private DebugStackReference, private ArenaAllocato
         ArenaAllocatorAdapterKind(other),
         arena_allocator_(other.arena_allocator_) {
   }
-  ArenaAllocatorAdapter(const ArenaAllocatorAdapter& other) = default;
-  ArenaAllocatorAdapter& operator=(const ArenaAllocatorAdapter& other) = default;
+  ArenaAllocatorAdapter(const ArenaAllocatorAdapter&) = default;
+  ArenaAllocatorAdapter& operator=(const ArenaAllocatorAdapter&) = default;
   ~ArenaAllocatorAdapter() = default;
 
   size_type max_size() const {
