@@ -278,6 +278,7 @@ class StubTest : public CommonRuntimeTest {
           "memory");  // clobber all
     // TODO: Should we clobber the other registers?
 #else
+    UNUSED(arg0, arg1, arg2, code, referrer);
     LOG(WARNING) << "Was asked to invoke for an architecture I do not understand.";
     result = 0;
 #endif
@@ -503,6 +504,7 @@ class StubTest : public CommonRuntimeTest {
           "memory");  // clobber all
     // TODO: Should we clobber the other registers?
 #else
+    UNUSED(arg0, arg1, arg2, code, referrer, hidden);
     LOG(WARNING) << "Was asked to invoke for an architecture I do not understand.";
     result = 0;
 #endif
@@ -792,6 +794,7 @@ static void TestUnlockObject(StubTest* test) NO_THREAD_SAFETY_ANALYSIS {
 
   // Test done.
 #else
+  UNUSED(test);
   LOG(INFO) << "Skipping unlock_object as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping unlock_object as I don't know how to do that on " << kRuntimeISA << std::endl;
@@ -1326,6 +1329,7 @@ static void GetSetBooleanStatic(Handle<mirror::ArtField>* f, Thread* self,
     EXPECT_EQ(values[i], static_cast<uint8_t>(res)) << "Iteration " << i;
   }
 #else
+  UNUSED(f, self, referrer, test);
   LOG(INFO) << "Skipping set_boolean_static as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping set_boolean_static as I don't know how to do that on " << kRuntimeISA << std::endl;
@@ -1353,6 +1357,7 @@ static void GetSetByteStatic(Handle<mirror::ArtField>* f, Thread* self,
     EXPECT_EQ(values[i], static_cast<int8_t>(res)) << "Iteration " << i;
   }
 #else
+  UNUSED(f, self, referrer, test);
   LOG(INFO) << "Skipping set_byte_static as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping set_byte_static as I don't know how to do that on " << kRuntimeISA << std::endl;
@@ -1388,6 +1393,7 @@ static void GetSetBooleanInstance(Handle<mirror::Object>* obj, Handle<mirror::Ar
     EXPECT_EQ(res, static_cast<uint8_t>(res2));
   }
 #else
+  UNUSED(obj, f, self, referrer, test);
   LOG(INFO) << "Skipping set_boolean_instance as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping set_boolean_instance as I don't know how to do that on " << kRuntimeISA << std::endl;
@@ -1420,6 +1426,7 @@ static void GetSetByteInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtFi
     EXPECT_EQ(res, static_cast<int8_t>(res2));
   }
 #else
+  UNUSED(obj, f, self, referrer, test);
   LOG(INFO) << "Skipping set_byte_instance as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping set_byte_instance as I don't know how to do that on " << kRuntimeISA << std::endl;
@@ -1449,6 +1456,7 @@ static void GetSetCharStatic(Handle<mirror::ArtField>* f, Thread* self, mirror::
     EXPECT_EQ(values[i], static_cast<uint16_t>(res)) << "Iteration " << i;
   }
 #else
+  UNUSED(f, self, referrer, test);
   LOG(INFO) << "Skipping set_char_static as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping set_char_static as I don't know how to do that on " << kRuntimeISA << std::endl;
@@ -1477,6 +1485,7 @@ static void GetSetShortStatic(Handle<mirror::ArtField>* f, Thread* self,
     EXPECT_EQ(static_cast<int16_t>(res), values[i]) << "Iteration " << i;
   }
 #else
+  UNUSED(f, self, referrer, test);
   LOG(INFO) << "Skipping set_short_static as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping set_short_static as I don't know how to do that on " << kRuntimeISA << std::endl;
@@ -1510,6 +1519,7 @@ static void GetSetCharInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtFi
     EXPECT_EQ(res, static_cast<uint16_t>(res2));
   }
 #else
+  UNUSED(obj, f, self, referrer, test);
   LOG(INFO) << "Skipping set_char_instance as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping set_char_instance as I don't know how to do that on " << kRuntimeISA << std::endl;
@@ -1542,6 +1552,7 @@ static void GetSetShortInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtF
     EXPECT_EQ(res, static_cast<int16_t>(res2));
   }
 #else
+  UNUSED(obj, f, self, referrer, test);
   LOG(INFO) << "Skipping set_short_instance as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping set_short_instance as I don't know how to do that on " << kRuntimeISA << std::endl;
@@ -1571,6 +1582,7 @@ static void GetSet32Static(Handle<mirror::ArtField>* f, Thread* self, mirror::Ar
     EXPECT_EQ(res, values[i]) << "Iteration " << i;
   }
 #else
+  UNUSED(f, self, referrer, test);
   LOG(INFO) << "Skipping set32static as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping set32static as I don't know how to do that on " << kRuntimeISA << std::endl;
@@ -1607,6 +1619,7 @@ static void GetSet32Instance(Handle<mirror::Object>* obj, Handle<mirror::ArtFiel
     EXPECT_EQ(res, static_cast<int32_t>(res2));
   }
 #else
+  UNUSED(obj, f, self, referrer, test);
   LOG(INFO) << "Skipping set32instance as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping set32instance as I don't know how to do that on " << kRuntimeISA << std::endl;
@@ -1648,6 +1661,7 @@ static void GetSetObjStatic(Handle<mirror::ArtField>* f, Thread* self, mirror::A
 
   set_and_check_static((*f)->GetDexFieldIndex(), nullptr, self, referrer, test);
 #else
+  UNUSED(f, self, referrer, test);
   LOG(INFO) << "Skipping setObjstatic as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping setObjstatic as I don't know how to do that on " << kRuntimeISA << std::endl;
@@ -1692,6 +1706,7 @@ static void GetSetObjInstance(Handle<mirror::Object>* obj, Handle<mirror::ArtFie
 
   set_and_check_instance(f, obj->Get(), nullptr, self, referrer, test);
 #else
+  UNUSED(obj, f, self, referrer, test);
   LOG(INFO) << "Skipping setObjinstance as I don't know how to do that on " << kRuntimeISA;
   // Force-print to std::cout so it's also outside the logcat.
   std::cout << "Skipping setObjinstance as I don't know how to do that on " << kRuntimeISA << std::endl;

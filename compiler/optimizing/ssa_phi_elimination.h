@@ -29,13 +29,15 @@ namespace art {
 class SsaDeadPhiElimination : public HOptimization {
  public:
   explicit SsaDeadPhiElimination(HGraph* graph)
-      : HOptimization(graph, true, "dead_phi_elimination"),
+      : HOptimization(graph, true, kSsaDeadPhiEliminationPassName),
         worklist_(graph->GetArena(), kDefaultWorklistSize) {}
 
   void Run() OVERRIDE;
 
   void MarkDeadPhis();
   void EliminateDeadPhis();
+
+  static constexpr const char* kSsaDeadPhiEliminationPassName = "dead_phi_elimination";
 
  private:
   GrowableArray<HPhi*> worklist_;
@@ -54,10 +56,12 @@ class SsaDeadPhiElimination : public HOptimization {
 class SsaRedundantPhiElimination : public HOptimization {
  public:
   explicit SsaRedundantPhiElimination(HGraph* graph)
-      : HOptimization(graph, true, "redundant_phi_elimination"),
+      : HOptimization(graph, true, kSsaRedundantPhiEliminationPassName),
         worklist_(graph->GetArena(), kDefaultWorklistSize) {}
 
   void Run() OVERRIDE;
+
+  static constexpr const char* kSsaRedundantPhiEliminationPassName = "redundant_phi_elimination";
 
  private:
   GrowableArray<HPhi*> worklist_;

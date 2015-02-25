@@ -81,6 +81,8 @@ class RegisterAllocator {
         + double_spill_slots_.Size();
   }
 
+  static constexpr const char* kRegisterAllocatorPassName = "register";
+
  private:
   // Main methods of the allocator.
   void LinearScan();
