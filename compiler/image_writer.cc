@@ -408,8 +408,8 @@ ImageWriter::BinSlot ImageWriter::GetImageBinSlot(mirror::Object* object) const 
 bool ImageWriter::AllocMemory() {
   size_t length = RoundUp(Runtime::Current()->GetHeap()->GetTotalMemory(), kPageSize);
   std::string error_msg;
-  image_.reset(MemMap::MapAnonymous("image writer image", NULL, length, PROT_READ | PROT_WRITE,
-                                    false, &error_msg));
+  image_.reset(MemMap::MapAnonymous("image writer image", nullptr, length, PROT_READ | PROT_WRITE,
+                                    false, false, &error_msg));
   if (UNLIKELY(image_.get() == nullptr)) {
     LOG(ERROR) << "Failed to allocate memory for image file generation: " << error_msg;
     return false;

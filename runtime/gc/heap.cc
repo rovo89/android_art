@@ -284,7 +284,8 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     // address.
     non_moving_space_mem_map.reset(
         MemMap::MapAnonymous(space_name, requested_alloc_space_begin,
-                             non_moving_space_capacity, PROT_READ | PROT_WRITE, true, &error_str));
+                             non_moving_space_capacity, PROT_READ | PROT_WRITE, true, false,
+                             &error_str));
     CHECK(non_moving_space_mem_map != nullptr) << error_str;
     // Try to reserve virtual memory at a lower address if we have a separate non moving space.
     request_begin = reinterpret_cast<uint8_t*>(300 * MB);
@@ -476,7 +477,7 @@ MemMap* Heap::MapAnonymousPreferredAddress(const char* name, uint8_t* request_be
                                            size_t capacity, std::string* out_error_str) {
   while (true) {
     MemMap* map = MemMap::MapAnonymous(name, request_begin, capacity,
-                                       PROT_READ | PROT_WRITE, true, out_error_str);
+                                       PROT_READ | PROT_WRITE, true, false, out_error_str);
     if (map != nullptr || request_begin == nullptr) {
       return map;
     }

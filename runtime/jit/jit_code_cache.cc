@@ -31,7 +31,7 @@ JitCodeCache* JitCodeCache::Create(size_t capacity, std::string* error_msg) {
   std::string error_str;
   // Map name specific for android_os_Debug.cpp accounting.
   MemMap* map = MemMap::MapAnonymous("jit-code-cache", nullptr, capacity,
-                                     PROT_READ | PROT_WRITE | PROT_EXEC, false, &error_str);
+                                     PROT_READ | PROT_WRITE | PROT_EXEC, false, false, &error_str);
   if (map == nullptr) {
     std::ostringstream oss;
     oss << "Failed to create read write execute cache: " << error_str << " size=" << capacity;

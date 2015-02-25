@@ -110,8 +110,8 @@ LargeObjectMapSpace* LargeObjectMapSpace::Create(const std::string& name) {
 mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
                                            size_t* bytes_allocated, size_t* usable_size) {
   std::string error_msg;
-  MemMap* mem_map = MemMap::MapAnonymous("large object space allocation", NULL, num_bytes,
-                                         PROT_READ | PROT_WRITE, true, &error_msg);
+  MemMap* mem_map = MemMap::MapAnonymous("large object space allocation", nullptr, num_bytes,
+                                         PROT_READ | PROT_WRITE, true, false, &error_msg);
   if (UNLIKELY(mem_map == NULL)) {
     LOG(WARNING) << "Large object allocation failed: " << error_msg;
     return NULL;
@@ -291,7 +291,7 @@ FreeListSpace* FreeListSpace::Create(const std::string& name, uint8_t* requested
   CHECK_EQ(size % kAlignment, 0U);
   std::string error_msg;
   MemMap* mem_map = MemMap::MapAnonymous(name.c_str(), requested_begin, size,
-                                         PROT_READ | PROT_WRITE, true, &error_msg);
+                                         PROT_READ | PROT_WRITE, true, false, &error_msg);
   CHECK(mem_map != NULL) << "Failed to allocate large object space mem map: " << error_msg;
   return new FreeListSpace(name, mem_map, mem_map->Begin(), mem_map->End());
 }
@@ -305,9 +305,10 @@ FreeListSpace::FreeListSpace(const std::string& name, MemMap* mem_map, uint8_t* 
   CHECK_ALIGNED(space_capacity, kAlignment);
   const size_t alloc_info_size = sizeof(AllocationInfo) * (space_capacity / kAlignment);
   std::string error_msg;
-  allocation_info_map_.reset(MemMap::MapAnonymous("large object free list space allocation info map",
-                                                  nullptr, alloc_info_size, PROT_READ | PROT_WRITE,
-                                                  false, &error_msg));
+  allocation_info_map_.reset(
+      MemMap::MapAnonymous("large object free list space allocation info map",
+                           nullptr, alloc_info_size, PROT_READ | PROT_WRITE,
+                           false, false, &error_msg));
   CHECK(allocation_info_map_.get() != nullptr) << "Failed to allocate allocation info map"
       << error_msg;
   allocation_info_ = reinterpret_cast<AllocationInfo*>(allocation_info_map_->Begin());
