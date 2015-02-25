@@ -161,7 +161,7 @@ void* BackgroundMethodSamplingProfiler::RunProfilerThread(void* arg) {
 
 
   CHECK(runtime->AttachCurrentThread("Profiler", true, runtime->GetSystemThreadGroup(),
-                                      !runtime->IsCompiler()));
+                                      !runtime->IsAotCompiler()));
 
   Thread* self = Thread::Current();
 

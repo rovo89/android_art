@@ -24,6 +24,7 @@
 #include "compiler_callbacks.h"
 #include "dex_file-inl.h"
 #include "dex_instruction-inl.h"
+#include "dex_instruction_utils.h"
 #include "dex_instruction_visitor.h"
 #include "gc/accounting/card_table-inl.h"
 #include "indenter.h"
@@ -111,6 +112,20 @@ static void SafelyMarkAllRegistersAsConflicts(MethodVerifier* verifier, Register
   reg_line->MarkAllRegistersAsConflicts(verifier);
 }
 
+MethodVerifier::FailureKind MethodVerifier::VerifyMethod(
+    mirror::ArtMethod* method, bool allow_soft_failures, std::string* error ATTRIBUTE_UNUSED) {
+  Thread* self = Thread::Current();
+  StackHandleScope<3> hs(self);
+  mirror::Class* klass = method->GetDeclaringClass();
+  auto h_dex_cache(hs.NewHandle(klass->GetDexCache()));
+  auto h_class_loader(hs.NewHandle(klass->GetClassLoader()));
+  auto h_method = hs.NewHandle(method);
+  return VerifyMethod(self, method->GetDexMethodIndex(), method->GetDexFile(), h_dex_cache,
+                      h_class_loader, klass->GetClassDef(), method->GetCodeItem(), h_method,
+                      method->GetAccessFlags(), allow_soft_failures, false);
+}
+
+
 MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
                                                         mirror::Class* klass,
                                                         bool allow_soft_failures,
@@ -136,7 +151,7 @@ MethodVerifier::FailureKind MethodVerifier::VerifyClass(Thread* self,
   }
   if (early_failure) {
     *error = "Verifier rejected class " + PrettyDescriptor(klass) + failure_message;
-    if (Runtime::Current()->IsCompiler()) {
+    if (Runtime::Current()->IsAotCompiler()) {
       ClassReference ref(&dex_file, klass->GetDexClassDefIndex());
       Runtime::Current()->GetCompilerCallbacks()->ClassRejected(ref);
     }
@@ -544,7 +559,7 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
     case VERIFY_ERROR_ACCESS_METHOD:
     case VERIFY_ERROR_INSTANTIATION:
     case VERIFY_ERROR_CLASS_CHANGE:
-      if (Runtime::Current()->IsCompiler() || !can_load_classes_) {
+      if (Runtime::Current()->IsAotCompiler() || !can_load_classes_) {
         // If we're optimistically running verification at compile time, turn NO_xxx, ACCESS_xxx,
         // class change and instantiation errors into soft verification errors so that we re-verify
         // at runtime. We may fail to find or to agree on access because of not yet available class
@@ -568,7 +583,7 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
       // Hard verification failures at compile time will still fail at runtime, so the class is
       // marked as rejected to prevent it from being compiled.
     case VERIFY_ERROR_BAD_CLASS_HARD: {
-      if (Runtime::Current()->IsCompiler()) {
+      if (Runtime::Current()->IsAotCompiler()) {
         ClassReference ref(dex_file_, dex_file_->GetIndexForClassDef(*class_def_));
         Runtime::Current()->GetCompilerCallbacks()->ClassRejected(ref);
       }
@@ -844,7 +859,7 @@ bool MethodVerifier::VerifyInstruction(const Instruction* inst, uint32_t code_of
       result = false;
       break;
   }
-  if (inst->GetVerifyIsRuntimeOnly() && Runtime::Current()->IsCompiler() && !verify_to_dump_) {
+  if (inst->GetVerifyIsRuntimeOnly() && Runtime::Current()->IsAotCompiler() && !verify_to_dump_) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "opcode only expected at runtime " << inst->Name();
     result = false;
   }
@@ -2812,8 +2827,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
   }
 
   if (have_pending_hard_failure_) {
-    if (Runtime::Current()->IsCompiler()) {
-      /* When compiling, check that the last failure is a hard failure */
+    if (Runtime::Current()->IsAotCompiler()) {
+      /* When AOT compiling, check that the last failure is a hard failure */
       CHECK_EQ(failures_[failures_.size() - 1], VERIFY_ERROR_BAD_CLASS_HARD);
     }
     /* immediate failure, reject class */
@@ -3941,28 +3956,16 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
 
 mirror::ArtField* MethodVerifier::GetQuickFieldAccess(const Instruction* inst,
                                                       RegisterLine* reg_line) {
-  DCHECK(inst->Opcode() == Instruction::IGET_QUICK ||
-         inst->Opcode() == Instruction::IGET_WIDE_QUICK ||
-         inst->Opcode() == Instruction::IGET_OBJECT_QUICK ||
-         inst->Opcode() == Instruction::IGET_BOOLEAN_QUICK ||
-         inst->Opcode() == Instruction::IGET_BYTE_QUICK ||
-         inst->Opcode() == Instruction::IGET_CHAR_QUICK ||
-         inst->Opcode() == Instruction::IGET_SHORT_QUICK ||
-         inst->Opcode() == Instruction::IPUT_QUICK ||
-         inst->Opcode() == Instruction::IPUT_WIDE_QUICK ||
-         inst->Opcode() == Instruction::IPUT_OBJECT_QUICK ||
-         inst->Opcode() == Instruction::IPUT_BOOLEAN_QUICK ||
-         inst->Opcode() == Instruction::IPUT_BYTE_QUICK ||
-         inst->Opcode() == Instruction::IPUT_CHAR_QUICK ||
-         inst->Opcode() == Instruction::IPUT_SHORT_QUICK);
+  DCHECK(IsInstructionIGetQuickOrIPutQuick(inst->Opcode())) << inst->Opcode();
   const RegType& object_type = reg_line->GetRegisterType(this, inst->VRegB_22c());
   if (!object_type.HasClass()) {
     VLOG(verifier) << "Failed to get mirror::Class* from '" << object_type << "'";
     return nullptr;
   }
   uint32_t field_offset = static_cast<uint32_t>(inst->VRegC_22c());
-  mirror::ArtField* f = mirror::ArtField::FindInstanceFieldWithOffset(object_type.GetClass(),
-                                                                      field_offset);
+  mirror::ArtField* const f = mirror::ArtField::FindInstanceFieldWithOffset(object_type.GetClass(),
+                                                                            field_offset);
+  DCHECK_EQ(f->GetOffset().Uint32Value(), field_offset);
   if (f == nullptr) {
     VLOG(verifier) << "Failed to find instance field at offset '" << field_offset
                    << "' from '" << PrettyDescriptor(object_type.GetClass()) << "'";

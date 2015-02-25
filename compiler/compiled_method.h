@@ -27,10 +27,6 @@
 #include "utils/array_ref.h"
 #include "utils/swap_space.h"
 
-namespace llvm {
-  class Function;
-}  // namespace llvm
-
 namespace art {
 
 class CompilerDriver;
@@ -39,7 +35,9 @@ class CompiledCode {
  public:
   // For Quick to supply an code blob
   CompiledCode(CompilerDriver* compiler_driver, InstructionSet instruction_set,
-               const ArrayRef<const uint8_t>& quick_code);
+               const ArrayRef<const uint8_t>& quick_code, bool owns_code_array);
+
+  virtual ~CompiledCode();
 
   InstructionSet GetInstructionSet() const {
     return instruction_set_;
@@ -56,8 +54,8 @@ class CompiledCode {
   // To align an offset from a page-aligned value to make it suitable
   // for code storage. For example on ARM, to ensure that PC relative
   // valu computations work out as expected.
-  uint32_t AlignCode(uint32_t offset) const;
-  static uint32_t AlignCode(uint32_t offset, InstructionSet instruction_set);
+  size_t AlignCode(size_t offset) const;
+  static size_t AlignCode(size_t offset, InstructionSet instruction_set);
 
   // returns the difference between the code address and a usable PC.
   // mainly to cope with kThumb2 where the lower bit must be set.
@@ -77,6 +75,9 @@ class CompiledCode {
   CompilerDriver* const compiler_driver_;
 
   const InstructionSet instruction_set_;
+
+  // If we own the code array (means that we free in destructor).
+  const bool owns_code_array_;
 
   // Used to store the PIC code for Quick.
   SwapVector<uint8_t>* quick_code_;
@@ -122,6 +123,7 @@ class SrcMap FINAL : public std::vector<SrcMapElem, Allocator> {
   using std::vector<SrcMapElem, Allocator>::size;
 
   explicit SrcMap() {}
+  explicit SrcMap(const Allocator& alloc) : std::vector<SrcMapElem, Allocator>(alloc) {}
 
   template <class InputIt>
   SrcMap(InputIt first, InputIt last, const Allocator& alloc)
@@ -291,7 +293,7 @@ class CompiledMethod FINAL : public CompiledCode {
                  const ArrayRef<const uint8_t>& cfi_info,
                  const ArrayRef<LinkerPatch>& patches = ArrayRef<LinkerPatch>());
 
-  ~CompiledMethod() {}
+  virtual ~CompiledMethod();
 
   static CompiledMethod* SwapAllocCompiledMethod(
       CompilerDriver* driver,
@@ -347,9 +349,9 @@ class CompiledMethod FINAL : public CompiledCode {
     return mapping_table_;
   }
 
-  const SwapVector<uint8_t>& GetVmapTable() const {
+  const SwapVector<uint8_t>* GetVmapTable() const {
     DCHECK(vmap_table_ != nullptr);
-    return *vmap_table_;
+    return vmap_table_;
   }
 
   SwapVector<uint8_t> const* GetGcMap() const {
@@ -365,6 +367,8 @@ class CompiledMethod FINAL : public CompiledCode {
   }
 
  private:
+  // Whether or not the arrays are owned by the compiled method or dedupe sets.
+  const bool owns_arrays_;
   // For quick code, the size of the activation used by the code.
   const size_t frame_size_in_bytes_;
   // For quick code, a bit mask describing spilled GPR callee-save registers.

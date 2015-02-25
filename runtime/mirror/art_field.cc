@@ -44,7 +44,7 @@ void ArtField::ResetClass() {
 
 void ArtField::SetOffset(MemberOffset num_bytes) {
   DCHECK(GetDeclaringClass()->IsLoaded() || GetDeclaringClass()->IsErroneous());
-  if (kIsDebugBuild && Runtime::Current()->IsCompiler() &&
+  if (kIsDebugBuild && Runtime::Current()->IsAotCompiler() &&
       !Runtime::Current()->UseCompileTimeClassPath()) {
     Primitive::Type type = GetTypeAsPrimitiveType();
     if (type == Primitive::kPrimDouble || type == Primitive::kPrimLong) {
