@@ -345,19 +345,19 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     LiveRange* my_range = first_range_;
     LiveRange* other_range = other->first_range_;
     do {
-      if (my_range->IntersectsWith(*other_range)) {
-        return std::max(my_range->GetStart(), other_range->GetStart());
-      } else if (my_range->IsBefore(*other_range)) {
+      if (my_range->IsBefore(*other_range)) {
         my_range = my_range->GetNext();
         if (my_range == nullptr) {
           return kNoLifetime;
         }
-      } else {
-        DCHECK(other_range->IsBefore(*my_range));
+      } else if (other_range->IsBefore(*my_range)) {
         other_range = other_range->GetNext();
         if (other_range == nullptr) {
           return kNoLifetime;
         }
+      } else {
+        DCHECK(my_range->IntersectsWith(*other_range));
+        return std::max(my_range->GetStart(), other_range->GetStart());
       }
     } while (true);
   }
