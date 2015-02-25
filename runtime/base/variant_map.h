@@ -120,8 +120,8 @@ namespace detail {
 
    protected:
     // Avoid the object slicing problem; use Clone() instead.
-    VariantMapKeyRaw(const VariantMapKeyRaw& other) = default;
-    VariantMapKeyRaw(VariantMapKeyRaw&& other) = default;
+    VariantMapKeyRaw(const VariantMapKeyRaw&) = default;
+    VariantMapKeyRaw(VariantMapKeyRaw&&) = default;
 
    private:
     size_t key_counter_;  // Runtime type ID. Unique each time a new type is reified.
@@ -174,8 +174,8 @@ struct VariantMapKey : detail::VariantMapKeyRaw {
     deleter(reinterpret_cast<TValue*>(value));
   }
 
-  VariantMapKey(const VariantMapKey& other) = default;
-  VariantMapKey(VariantMapKey&& other) = default;
+  VariantMapKey(const VariantMapKey&) = default;
+  VariantMapKey(VariantMapKey&&) = default;
 
   template <typename Base, template <typename TV> class TKey> friend struct VariantMap;
 

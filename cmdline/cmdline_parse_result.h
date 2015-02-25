@@ -117,9 +117,9 @@ struct CmdlineParseResult : CmdlineResult {
   }
 
   // Make sure copying is allowed
-  CmdlineParseResult(const CmdlineParseResult& other) = default;
+  CmdlineParseResult(const CmdlineParseResult&) = default;
   // Make sure moving is cheap
-  CmdlineParseResult(CmdlineParseResult&& other) = default;
+  CmdlineParseResult(CmdlineParseResult&&) = default;
 
  private:
   explicit CmdlineParseResult(const T& value)

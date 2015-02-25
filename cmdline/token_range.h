@@ -90,10 +90,10 @@ struct TokenRange {
   }
 
   // Non-copying copy constructor.
-  TokenRange(const TokenRange& other) = default;
+  TokenRange(const TokenRange&) = default;
 
   // Non-copying move constructor.
-  TokenRange(TokenRange&& other) = default;
+  TokenRange(TokenRange&&) = default;
 
   // Non-copying constructor. Retains reference to an existing list of tokens, with offset.
   explicit TokenRange(std::shared_ptr<TokenList> token_list)
