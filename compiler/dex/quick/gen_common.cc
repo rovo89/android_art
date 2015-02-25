@@ -895,9 +895,6 @@ void Mir2Lir::GenIGet(MIR* mir, int opt_flags, OpSize size, Primitive::Type type
       StoreValue(rl_dest, rl_result);
     }
   } else {
-    if (field_info.DeclaringDexFile() != nullptr) {
-      DCHECK_EQ(field_info.DeclaringDexFile(), cu_->dex_file);
-    }
     DCHECK(SizeMatchesTypeForEntrypoint(size, type));
     QuickEntrypointEnum target;
     switch (type) {
