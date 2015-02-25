@@ -80,6 +80,8 @@ class HGraphBuilder : public ValueObject {
 
   bool BuildGraph(const DexFile::CodeItem& code);
 
+  static constexpr const char* kBuilderPassName = "builder";
+
  private:
   // Analyzes the dex instruction and adds HInstruction to the graph
   // to execute that instruction. Returns whether the instruction can

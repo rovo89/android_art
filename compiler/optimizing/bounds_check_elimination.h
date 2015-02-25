@@ -23,9 +23,12 @@ namespace art {
 
 class BoundsCheckElimination : public HOptimization {
  public:
-  explicit BoundsCheckElimination(HGraph* graph) : HOptimization(graph, true, "BCE") {}
+  explicit BoundsCheckElimination(HGraph* graph)
+      : HOptimization(graph, true, kBoundsCheckEliminiationPassName) {}
 
   void Run() OVERRIDE;
+
+  static constexpr const char* kBoundsCheckEliminiationPassName = "BCE";
 
  private:
   DISALLOW_COPY_AND_ASSIGN(BoundsCheckElimination);

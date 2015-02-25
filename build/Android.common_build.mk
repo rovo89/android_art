@@ -191,6 +191,7 @@ art_cflags := \
   -Wunreachable-code \
   -Wredundant-decls \
   -Wshadow \
+  -Wunused \
   -fvisibility=protected \
   $(art_default_gc_type_cflags)
 
