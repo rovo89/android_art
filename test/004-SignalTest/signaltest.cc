@@ -65,6 +65,8 @@ static void signalhandler(int sig ATTRIBUTE_UNUSED, siginfo_t* info ATTRIBUTE_UN
 #elif defined(__i386__) || defined(__x86_64__)
   struct ucontext *uc = reinterpret_cast<struct ucontext*>(context);
   uc->CTX_EIP += 3;
+#else
+  UNUSED(context);
 #endif
 }
 

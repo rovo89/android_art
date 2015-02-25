@@ -30,8 +30,10 @@ class InstructionSimplifier : public HOptimization {
  public:
   InstructionSimplifier(HGraph* graph,
                         OptimizingCompilerStats* stats = nullptr,
-                        const char* name = "instruction_simplifier")
+                        const char* name = kInstructionSimplifierPassName)
     : HOptimization(graph, true, name, stats) {}
+
+  static constexpr const char* kInstructionSimplifierPassName = "instruction_simplifier";
 
   void Run() OVERRIDE;
 };

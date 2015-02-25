@@ -816,6 +816,8 @@ class SsaLivenessAnalysis : public ValueObject {
     return number_of_ssa_values_;
   }
 
+  static constexpr const char* kLivenessPassName = "liveness";
+
  private:
   // Linearize the graph so that:
   // (1): a block is always after its dominator,

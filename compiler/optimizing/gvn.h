@@ -27,9 +27,11 @@ class SideEffectsAnalysis;
 class GVNOptimization : public HOptimization {
  public:
   GVNOptimization(HGraph* graph, const SideEffectsAnalysis& side_effects)
-      : HOptimization(graph, true, "GVN"), side_effects_(side_effects) {}
+      : HOptimization(graph, true, kGlobalValueNumberingPassName), side_effects_(side_effects) {}
 
   void Run() OVERRIDE;
+
+  static constexpr const char* kGlobalValueNumberingPassName = "GVN";
 
  private:
   const SideEffectsAnalysis& side_effects_;

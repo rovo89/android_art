@@ -56,7 +56,7 @@ namespace art {
  */
 class CodeVectorAllocator FINAL : public CodeAllocator {
  public:
-  CodeVectorAllocator() {}
+  CodeVectorAllocator() : size_(0) {}
 
   virtual uint8_t* Allocate(size_t size) {
     size_ = size;
@@ -361,11 +361,11 @@ CompiledMethod* OptimizingCompiler::CompileOptimized(HGraph* graph,
   PrepareForRegisterAllocation(graph).Run();
   SsaLivenessAnalysis liveness(*graph, codegen);
   {
-    PassInfo pass_info(kLivenessPassName, pass_info_printer);
+    PassInfo pass_info(SsaLivenessAnalysis::kLivenessPassName, pass_info_printer);
     liveness.Analyze();
   }
   {
-    PassInfo pass_info(kRegisterAllocatorPassName, pass_info_printer);
+    PassInfo pass_info(RegisterAllocator::kRegisterAllocatorPassName, pass_info_printer);
     RegisterAllocator(graph->GetArena(), codegen, liveness).AllocateRegisters();
   }
 
@@ -495,7 +495,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
   VLOG(compiler) << "Building " << method_name;
 
   {
-    PassInfo pass_info(kBuilderPassName, &pass_info_printer);
+    PassInfo pass_info(HGraphBuilder::kBuilderPassName, &pass_info_printer);
     if (!builder.BuildGraph(*code_item)) {
       CHECK(!shouldCompile) << "Could not build graph in optimizing compiler";
       return nullptr;
@@ -508,7 +508,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     VLOG(compiler) << "Optimizing " << method_name;
 
     {
-      PassInfo pass_info(kSsaBuilderPassName, &pass_info_printer);
+      PassInfo pass_info(SsaBuilder::kSsaBuilderPassName, &pass_info_printer);
       if (!graph->TryBuildingSsa()) {
         // We could not transform the graph to SSA, bailout.
         LOG(INFO) << "Skipping compilation of " << method_name << ": it contains a non natural loop";
