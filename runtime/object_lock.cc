@@ -47,6 +47,7 @@ void ObjectLock<T>::NotifyAll() {
   obj_->NotifyAll(self_);
 }
 
+template class ObjectLock<mirror::ArtMethod>;
 template class ObjectLock<mirror::Class>;
 template class ObjectLock<mirror::Object>;
 

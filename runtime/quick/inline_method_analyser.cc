@@ -77,7 +77,9 @@ bool InlineMethodAnalyser::AnalyseMethodCode(verifier::MethodVerifier* verifier,
                                              InlineMethod* method) {
   DCHECK(verifier != nullptr);
   DCHECK_EQ(Runtime::Current()->IsCompiler(), method != nullptr);
-  DCHECK_EQ(verifier->CanLoadClasses(), method != nullptr);
+  if (!Runtime::Current()->UseJit()) {
+    DCHECK_EQ(verifier->CanLoadClasses(), method != nullptr);
+  }
   // We currently support only plain return or 2-instruction methods.
 
   const DexFile::CodeItem* code_item = verifier->CodeItem();
@@ -110,6 +112,10 @@ bool InlineMethodAnalyser::AnalyseMethodCode(verifier::MethodVerifier* verifier,
     case Instruction::IGET_CHAR:
     case Instruction::IGET_SHORT:
     case Instruction::IGET_WIDE:
+    // TODO: Add handling for JIT.
+    // case Instruction::IGET_QUICK:
+    // case Instruction::IGET_WIDE_QUICK:
+    // case Instruction::IGET_OBJECT_QUICK:
       return AnalyseIGetMethod(verifier, method);
     case Instruction::IPUT:
     case Instruction::IPUT_OBJECT:
@@ -118,6 +124,10 @@ bool InlineMethodAnalyser::AnalyseMethodCode(verifier::MethodVerifier* verifier,
     case Instruction::IPUT_CHAR:
     case Instruction::IPUT_SHORT:
     case Instruction::IPUT_WIDE:
+      // TODO: Add handling for JIT.
+    // case Instruction::IPUT_QUICK:
+    // case Instruction::IPUT_WIDE_QUICK:
+    // case Instruction::IPUT_OBJECT_QUICK:
       return AnalyseIPutMethod(verifier, method);
     default:
       return false;
