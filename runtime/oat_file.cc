@@ -171,10 +171,10 @@ bool OatFile::Dlopen(const std::string& elf_filename, uint8_t* requested_base,
     return false;
   }
   if (requested_base != NULL && begin_ != requested_base) {
+    PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
     *error_msg = StringPrintf("Failed to find oatdata symbol at expected address: "
-                              "oatdata=%p != expected=%p /proc/self/maps:\n",
+                              "oatdata=%p != expected=%p. See process maps in the log.",
                               begin_, requested_base);
-    ReadFileToString("/proc/self/maps", error_msg);
     return false;
   }
   end_ = reinterpret_cast<uint8_t*>(dlsym(dlopen_handle_, "oatlastword"));
@@ -209,10 +209,10 @@ bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file
     return false;
   }
   if (requested_base != NULL && begin_ != requested_base) {
+    PrintFileToLog("/proc/self/maps", LogSeverity::WARNING);
     *error_msg = StringPrintf("Failed to find oatdata symbol at expected address: "
-                              "oatdata=%p != expected=%p /proc/self/maps:\n",
+                              "oatdata=%p != expected=%p. See process maps in the log.",
                               begin_, requested_base);
-    ReadFileToString("/proc/self/maps", error_msg);
     return false;
   }
   end_ = elf_file_->FindDynamicSymbolAddress("oatlastword");
