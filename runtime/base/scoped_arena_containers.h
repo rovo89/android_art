@@ -85,8 +85,8 @@ class ScopedArenaAllocatorAdapter<void>
         ArenaAllocatorAdapterKind(other),
         arena_stack_(other.arena_stack_) {
   }
-  ScopedArenaAllocatorAdapter(const ScopedArenaAllocatorAdapter& other) = default;
-  ScopedArenaAllocatorAdapter& operator=(const ScopedArenaAllocatorAdapter& other) = default;
+  ScopedArenaAllocatorAdapter(const ScopedArenaAllocatorAdapter&) = default;
+  ScopedArenaAllocatorAdapter& operator=(const ScopedArenaAllocatorAdapter&) = default;
   ~ScopedArenaAllocatorAdapter() = default;
 
  private:
@@ -128,8 +128,8 @@ class ScopedArenaAllocatorAdapter
         ArenaAllocatorAdapterKind(other),
         arena_stack_(other.arena_stack_) {
   }
-  ScopedArenaAllocatorAdapter(const ScopedArenaAllocatorAdapter& other) = default;
-  ScopedArenaAllocatorAdapter& operator=(const ScopedArenaAllocatorAdapter& other) = default;
+  ScopedArenaAllocatorAdapter(const ScopedArenaAllocatorAdapter&) = default;
+  ScopedArenaAllocatorAdapter& operator=(const ScopedArenaAllocatorAdapter&) = default;
   ~ScopedArenaAllocatorAdapter() = default;
 
   size_type max_size() const {

@@ -65,9 +65,9 @@ namespace art {
     }
 
     // Make sure copying exists
-    CmdlineResult(const CmdlineResult& other) = default;
+    CmdlineResult(const CmdlineResult&) = default;
     // Make sure moving is cheap
-    CmdlineResult(CmdlineResult&& other) = default;
+    CmdlineResult(CmdlineResult&&) = default;
 
   private:
     const Status status_;
