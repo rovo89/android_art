@@ -35,12 +35,14 @@ class HInliner : public HOptimization {
            CompilerDriver* compiler_driver,
            OptimizingCompilerStats* stats,
            size_t depth = 0)
-      : HOptimization(outer_graph, true, "inliner", stats),
+      : HOptimization(outer_graph, true, kInlinerPassName, stats),
         outer_compilation_unit_(outer_compilation_unit),
         compiler_driver_(compiler_driver),
         depth_(depth) {}
 
   void Run() OVERRIDE;
+
+  static constexpr const char* kInlinerPassName = "inliner";
 
  private:
   bool TryInline(HInvoke* invoke_instruction, uint32_t method_index, InvokeType invoke_type) const;

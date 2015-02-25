@@ -60,6 +60,8 @@ class SsaBuilder : public HGraphVisitor {
 
   static HInstruction* GetReferenceTypeEquivalent(HInstruction* instruction);
 
+  static constexpr const char* kSsaBuilderPassName = "ssa_builder";
+
  private:
   // Locals for the current block being visited.
   HEnvironment* current_locals_;
