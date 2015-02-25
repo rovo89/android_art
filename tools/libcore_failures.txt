@@ -63,13 +63,18 @@
           "org.apache.harmony.tests.java.text.SimpleDateFormatTest#test_parseLjava_lang_StringLjava_text_ParsePosition"]
 },
 {
-  description: "Failing due to switched off network stack on volantisg.",
+  description: "Failing due to missing localhost on volantis.",
   result: EXEC_FAILED,
   modes: [device],
-  names: ["libcore.javax.crypto.CipherTest#testCipherInitWithCertificate",
-          "org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnectionTest",
+  names: ["org.apache.harmony.luni.tests.internal.net.www.protocol.http.HttpURLConnectionTest",
           "org.apache.harmony.luni.tests.internal.net.www.protocol.https.HttpsURLConnectionTest",
           "org.apache.harmony.luni.tests.java.net.URLConnectionTest"]
+},
+{
+  description: "Failing due to missing localhost on hammerhead and volantis.",
+  result: EXEC_FAILED,
+  modes: [device],
+  names: ["libcore.javax.crypto.CipherTest#testCipherInitWithCertificate"]
 },
 {
   description: "Test timeouts",
