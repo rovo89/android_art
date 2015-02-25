@@ -91,9 +91,9 @@ static JdwpError WriteTaggedObjectList(ExpandBuf* reply, const std::vector<Objec
  * If "is_constructor" is set, this returns "object_id" rather than the
  * expected-to-be-void return value of the called function.
  */
-static JdwpError FinishInvoke(JdwpState*, Request* request, ExpandBuf* pReply,
-                              ObjectId thread_id, ObjectId object_id,
-                              RefTypeId class_id, MethodId method_id, bool is_constructor)
+static JdwpError RequestInvoke(JdwpState*, Request* request, ExpandBuf* pReply,
+                               ObjectId thread_id, ObjectId object_id,
+                               RefTypeId class_id, MethodId method_id, bool is_constructor)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CHECK(!is_constructor || object_id != 0);
 
@@ -131,37 +131,35 @@ static JdwpError FinishInvoke(JdwpState*, Request* request, ExpandBuf* pReply,
     return err;
   }
 
-  if (err == ERR_NONE) {
-    if (is_constructor) {
-      // If we invoked a constructor (which actually returns void), return the receiver,
-      // unless we threw, in which case we return NULL.
-      resultTag = JT_OBJECT;
-      resultValue = (exceptObjId == 0) ? object_id : 0;
-    }
+  if (is_constructor) {
+    // If we invoked a constructor (which actually returns void), return the receiver,
+    // unless we threw, in which case we return NULL.
+    resultTag = JT_OBJECT;
+    resultValue = (exceptObjId == 0) ? object_id : 0;
+  }
 
-    size_t width = Dbg::GetTagWidth(resultTag);
-    expandBufAdd1(pReply, resultTag);
-    if (width != 0) {
-      WriteValue(pReply, width, resultValue);
-    }
-    expandBufAdd1(pReply, JT_OBJECT);
-    expandBufAddObjectId(pReply, exceptObjId);
+  size_t width = Dbg::GetTagWidth(resultTag);
+  expandBufAdd1(pReply, resultTag);
+  if (width != 0) {
+    WriteValue(pReply, width, resultValue);
+  }
+  expandBufAdd1(pReply, JT_OBJECT);
+  expandBufAddObjectId(pReply, exceptObjId);
 
-    VLOG(jdwp) << "  --> returned " << resultTag
-        << StringPrintf(" %#" PRIx64 " (except=%#" PRIx64 ")", resultValue, exceptObjId);
+  VLOG(jdwp) << "  --> returned " << resultTag
+      << StringPrintf(" %#" PRIx64 " (except=%#" PRIx64 ")", resultValue, exceptObjId);
 
-    /* show detailed debug output */
-    if (resultTag == JT_STRING && exceptObjId == 0) {
-      if (resultValue != 0) {
-        if (VLOG_IS_ON(jdwp)) {
-          std::string result_string;
-          JDWP::JdwpError error = Dbg::StringToUtf8(resultValue, &result_string);
-          CHECK_EQ(error, JDWP::ERR_NONE);
-          VLOG(jdwp) << "      string '" << result_string << "'";
-        }
-      } else {
-        VLOG(jdwp) << "      string (null)";
+  /* show detailed debug output */
+  if (resultTag == JT_STRING && exceptObjId == 0) {
+    if (resultValue != 0) {
+      if (VLOG_IS_ON(jdwp)) {
+        std::string result_string;
+        JDWP::JdwpError error = Dbg::StringToUtf8(resultValue, &result_string);
+        CHECK_EQ(error, JDWP::ERR_NONE);
+        VLOG(jdwp) << "      string '" << result_string << "'";
       }
+    } else {
+      VLOG(jdwp) << "      string (null)";
     }
   }
 
@@ -693,7 +691,7 @@ static JdwpError CT_InvokeMethod(JdwpState* state, Request* request, ExpandBuf* 
   ObjectId thread_id = request->ReadThreadId();
   MethodId method_id = request->ReadMethodId();
 
-  return FinishInvoke(state, request, pReply, thread_id, 0, class_id, method_id, false);
+  return RequestInvoke(state, request, pReply, thread_id, 0, class_id, method_id, false);
 }
 
 /*
@@ -717,7 +715,7 @@ static JdwpError CT_NewInstance(JdwpState* state, Request* request, ExpandBuf* p
   if (object_id == 0) {
     return ERR_OUT_OF_MEMORY;
   }
-  return FinishInvoke(state, request, pReply, thread_id, object_id, class_id, method_id, true);
+  return RequestInvoke(state, request, pReply, thread_id, object_id, class_id, method_id, true);
 }
 
 /*
@@ -879,7 +877,7 @@ static JdwpError OR_InvokeMethod(JdwpState* state, Request* request, ExpandBuf* 
   RefTypeId class_id = request->ReadRefTypeId();
   MethodId method_id = request->ReadMethodId();
 
-  return FinishInvoke(state, request, pReply, thread_id, object_id, class_id, method_id, false);
+  return RequestInvoke(state, request, pReply, thread_id, object_id, class_id, method_id, false);
 }
 
 static JdwpError OR_DisableCollection(JdwpState*, Request* request, ExpandBuf*)
