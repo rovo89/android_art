@@ -23,6 +23,7 @@
 #include "entrypoints/entrypoint_utils.h"
 #include "entrypoints/math_entrypoints.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
+#include "entrypoints_direct_mips.h"
 #include "interpreter/interpreter.h"
 
 namespace art {
@@ -72,83 +73,155 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
 
   // Cast
   qpoints->pInstanceofNonTrivial = artIsAssignableFromCode;
+  static_assert(IsDirectEntrypoint(kQuickInstanceofNonTrivial), "Direct C stub not marked direct.");
   qpoints->pCheckCast = art_quick_check_cast;
+  static_assert(!IsDirectEntrypoint(kQuickCheckCast), "Non-direct C stub marked direct.");
 
   // DexCache
   qpoints->pInitializeStaticStorage = art_quick_initialize_static_storage;
+  static_assert(!IsDirectEntrypoint(kQuickInitializeStaticStorage),
+                "Non-direct C stub marked direct.");
   qpoints->pInitializeTypeAndVerifyAccess = art_quick_initialize_type_and_verify_access;
+  static_assert(!IsDirectEntrypoint(kQuickInitializeTypeAndVerifyAccess),
+                "Non-direct C stub marked direct.");
   qpoints->pInitializeType = art_quick_initialize_type;
+  static_assert(!IsDirectEntrypoint(kQuickInitializeType), "Non-direct C stub marked direct.");
   qpoints->pResolveString = art_quick_resolve_string;
+  static_assert(!IsDirectEntrypoint(kQuickResolveString), "Non-direct C stub marked direct.");
 
   // Field
   qpoints->pSet8Instance = art_quick_set8_instance;
+  static_assert(!IsDirectEntrypoint(kQuickSet8Instance), "Non-direct C stub marked direct.");
   qpoints->pSet8Static = art_quick_set8_static;
+  static_assert(!IsDirectEntrypoint(kQuickSet8Static), "Non-direct C stub marked direct.");
   qpoints->pSet16Instance = art_quick_set16_instance;
+  static_assert(!IsDirectEntrypoint(kQuickSet16Instance), "Non-direct C stub marked direct.");
   qpoints->pSet16Static = art_quick_set16_static;
+  static_assert(!IsDirectEntrypoint(kQuickSet16Static), "Non-direct C stub marked direct.");
   qpoints->pSet32Instance = art_quick_set32_instance;
+  static_assert(!IsDirectEntrypoint(kQuickSet32Instance), "Non-direct C stub marked direct.");
   qpoints->pSet32Static = art_quick_set32_static;
+  static_assert(!IsDirectEntrypoint(kQuickSet32Static), "Non-direct C stub marked direct.");
   qpoints->pSet64Instance = art_quick_set64_instance;
+  static_assert(!IsDirectEntrypoint(kQuickSet64Instance), "Non-direct C stub marked direct.");
   qpoints->pSet64Static = art_quick_set64_static;
+  static_assert(!IsDirectEntrypoint(kQuickSet64Static), "Non-direct C stub marked direct.");
   qpoints->pSetObjInstance = art_quick_set_obj_instance;
+  static_assert(!IsDirectEntrypoint(kQuickSetObjInstance), "Non-direct C stub marked direct.");
   qpoints->pSetObjStatic = art_quick_set_obj_static;
+  static_assert(!IsDirectEntrypoint(kQuickSetObjStatic), "Non-direct C stub marked direct.");
   qpoints->pGetBooleanInstance = art_quick_get_boolean_instance;
+  static_assert(!IsDirectEntrypoint(kQuickGetBooleanInstance), "Non-direct C stub marked direct.");
   qpoints->pGetByteInstance = art_quick_get_byte_instance;
+  static_assert(!IsDirectEntrypoint(kQuickGetByteInstance), "Non-direct C stub marked direct.");
   qpoints->pGetCharInstance = art_quick_get_char_instance;
+  static_assert(!IsDirectEntrypoint(kQuickGetCharInstance), "Non-direct C stub marked direct.");
   qpoints->pGetShortInstance = art_quick_get_short_instance;
+  static_assert(!IsDirectEntrypoint(kQuickGetShortInstance), "Non-direct C stub marked direct.");
   qpoints->pGet32Instance = art_quick_get32_instance;
+  static_assert(!IsDirectEntrypoint(kQuickGet32Instance), "Non-direct C stub marked direct.");
   qpoints->pGet64Instance = art_quick_get64_instance;
+  static_assert(!IsDirectEntrypoint(kQuickGet64Instance), "Non-direct C stub marked direct.");
   qpoints->pGetObjInstance = art_quick_get_obj_instance;
+  static_assert(!IsDirectEntrypoint(kQuickGetObjInstance), "Non-direct C stub marked direct.");
   qpoints->pGetBooleanStatic = art_quick_get_boolean_static;
+  static_assert(!IsDirectEntrypoint(kQuickGetBooleanStatic), "Non-direct C stub marked direct.");
   qpoints->pGetByteStatic = art_quick_get_byte_static;
+  static_assert(!IsDirectEntrypoint(kQuickGetByteStatic), "Non-direct C stub marked direct.");
   qpoints->pGetCharStatic = art_quick_get_char_static;
+  static_assert(!IsDirectEntrypoint(kQuickGetCharStatic), "Non-direct C stub marked direct.");
   qpoints->pGetShortStatic = art_quick_get_short_static;
+  static_assert(!IsDirectEntrypoint(kQuickGetShortStatic), "Non-direct C stub marked direct.");
   qpoints->pGet32Static = art_quick_get32_static;
+  static_assert(!IsDirectEntrypoint(kQuickGet32Static), "Non-direct C stub marked direct.");
   qpoints->pGet64Static = art_quick_get64_static;
+  static_assert(!IsDirectEntrypoint(kQuickGet64Static), "Non-direct C stub marked direct.");
   qpoints->pGetObjStatic = art_quick_get_obj_static;
+  static_assert(!IsDirectEntrypoint(kQuickGetObjStatic), "Non-direct C stub marked direct.");
 
   // Array
   qpoints->pAputObjectWithNullAndBoundCheck = art_quick_aput_obj_with_null_and_bound_check;
+  static_assert(!IsDirectEntrypoint(kQuickAputObjectWithNullAndBoundCheck),
+                "Non-direct C stub marked direct.");
   qpoints->pAputObjectWithBoundCheck = art_quick_aput_obj_with_bound_check;
+  static_assert(!IsDirectEntrypoint(kQuickAputObjectWithBoundCheck),
+                "Non-direct C stub marked direct.");
   qpoints->pAputObject = art_quick_aput_obj;
+  static_assert(!IsDirectEntrypoint(kQuickAputObject), "Non-direct C stub marked direct.");
   qpoints->pHandleFillArrayData = art_quick_handle_fill_data;
+  static_assert(!IsDirectEntrypoint(kQuickHandleFillArrayData), "Non-direct C stub marked direct.");
 
   // JNI
   qpoints->pJniMethodStart = JniMethodStart;
+  static_assert(!IsDirectEntrypoint(kQuickJniMethodStart), "Non-direct C stub marked direct.");
   qpoints->pJniMethodStartSynchronized = JniMethodStartSynchronized;
+  static_assert(!IsDirectEntrypoint(kQuickJniMethodStartSynchronized),
+                "Non-direct C stub marked direct.");
   qpoints->pJniMethodEnd = JniMethodEnd;
+  static_assert(!IsDirectEntrypoint(kQuickJniMethodEnd), "Non-direct C stub marked direct.");
   qpoints->pJniMethodEndSynchronized = JniMethodEndSynchronized;
+  static_assert(!IsDirectEntrypoint(kQuickJniMethodEndSynchronized),
+                "Non-direct C stub marked direct.");
   qpoints->pJniMethodEndWithReference = JniMethodEndWithReference;
+  static_assert(!IsDirectEntrypoint(kQuickJniMethodEndWithReference),
+                "Non-direct C stub marked direct.");
   qpoints->pJniMethodEndWithReferenceSynchronized = JniMethodEndWithReferenceSynchronized;
+  static_assert(!IsDirectEntrypoint(kQuickJniMethodEndWithReferenceSynchronized),
+                "Non-direct C stub marked direct.");
   qpoints->pQuickGenericJniTrampoline = art_quick_generic_jni_trampoline;
+  static_assert(!IsDirectEntrypoint(kQuickQuickGenericJniTrampoline),
+                "Non-direct C stub marked direct.");
 
   // Locks
   qpoints->pLockObject = art_quick_lock_object;
+  static_assert(!IsDirectEntrypoint(kQuickLockObject), "Non-direct C stub marked direct.");
   qpoints->pUnlockObject = art_quick_unlock_object;
+  static_assert(!IsDirectEntrypoint(kQuickUnlockObject), "Non-direct C stub marked direct.");
 
   // Math
   qpoints->pCmpgDouble = CmpgDouble;
+  static_assert(IsDirectEntrypoint(kQuickCmpgDouble), "Direct C stub not marked direct.");
   qpoints->pCmpgFloat = CmpgFloat;
+  static_assert(IsDirectEntrypoint(kQuickCmpgFloat), "Direct C stub not marked direct.");
   qpoints->pCmplDouble = CmplDouble;
+  static_assert(IsDirectEntrypoint(kQuickCmplDouble), "Direct C stub not marked direct.");
   qpoints->pCmplFloat = CmplFloat;
+  static_assert(IsDirectEntrypoint(kQuickCmplFloat), "Direct C stub not marked direct.");
   qpoints->pFmod = fmod;
+  static_assert(IsDirectEntrypoint(kQuickFmod), "Direct C stub not marked direct.");
   qpoints->pL2d = art_l2d;
+  static_assert(IsDirectEntrypoint(kQuickL2d), "Direct C stub not marked direct.");
   qpoints->pFmodf = fmodf;
+  static_assert(IsDirectEntrypoint(kQuickFmodf), "Direct C stub not marked direct.");
   qpoints->pL2f = art_l2f;
+  static_assert(IsDirectEntrypoint(kQuickL2f), "Direct C stub not marked direct.");
   qpoints->pD2iz = art_d2i;
+  static_assert(IsDirectEntrypoint(kQuickD2iz), "Direct C stub not marked direct.");
   qpoints->pF2iz = art_f2i;
+  static_assert(IsDirectEntrypoint(kQuickF2iz), "Direct C stub not marked direct.");
   qpoints->pIdivmod = NULL;
   qpoints->pD2l = art_d2l;
+  static_assert(IsDirectEntrypoint(kQuickD2l), "Direct C stub not marked direct.");
   qpoints->pF2l = art_f2l;
+  static_assert(IsDirectEntrypoint(kQuickF2l), "Direct C stub not marked direct.");
   qpoints->pLdiv = artLdiv;
+  static_assert(IsDirectEntrypoint(kQuickLdiv), "Direct C stub not marked direct.");
   qpoints->pLmod = artLmod;
+  static_assert(IsDirectEntrypoint(kQuickLmod), "Direct C stub not marked direct.");
   qpoints->pLmul = artLmul;
+  static_assert(IsDirectEntrypoint(kQuickLmul), "Direct C stub not marked direct.");
   qpoints->pShlLong = art_quick_shl_long;
+  static_assert(!IsDirectEntrypoint(kQuickShlLong), "Non-direct C stub marked direct.");
   qpoints->pShrLong = art_quick_shr_long;
+  static_assert(!IsDirectEntrypoint(kQuickShrLong), "Non-direct C stub marked direct.");
   qpoints->pUshrLong = art_quick_ushr_long;
+  static_assert(!IsDirectEntrypoint(kQuickUshrLong), "Non-direct C stub marked direct.");
 
   // Intrinsics
   qpoints->pIndexOf = art_quick_indexof;
+  static_assert(!IsDirectEntrypoint(kQuickIndexOf), "Non-direct C stub marked direct.");
   qpoints->pStringCompareTo = art_quick_string_compareto;
+  static_assert(!IsDirectEntrypoint(kQuickStringCompareTo), "Non-direct C stub marked direct.");
   qpoints->pMemcpy = memcpy;
 
   // Invocation
@@ -156,25 +229,44 @@ void InitEntryPoints(InterpreterEntryPoints* ipoints, JniEntryPoints* jpoints,
   qpoints->pQuickResolutionTrampoline = art_quick_resolution_trampoline;
   qpoints->pQuickToInterpreterBridge = art_quick_to_interpreter_bridge;
   qpoints->pInvokeDirectTrampolineWithAccessCheck = art_quick_invoke_direct_trampoline_with_access_check;
+  static_assert(!IsDirectEntrypoint(kQuickInvokeDirectTrampolineWithAccessCheck),
+                "Non-direct C stub marked direct.");
   qpoints->pInvokeInterfaceTrampolineWithAccessCheck = art_quick_invoke_interface_trampoline_with_access_check;
+  static_assert(!IsDirectEntrypoint(kQuickInvokeInterfaceTrampolineWithAccessCheck),
+                "Non-direct C stub marked direct.");
   qpoints->pInvokeStaticTrampolineWithAccessCheck = art_quick_invoke_static_trampoline_with_access_check;
+  static_assert(!IsDirectEntrypoint(kQuickInvokeStaticTrampolineWithAccessCheck),
+                "Non-direct C stub marked direct.");
   qpoints->pInvokeSuperTrampolineWithAccessCheck = art_quick_invoke_super_trampoline_with_access_check;
+  static_assert(!IsDirectEntrypoint(kQuickInvokeSuperTrampolineWithAccessCheck),
+                "Non-direct C stub marked direct.");
   qpoints->pInvokeVirtualTrampolineWithAccessCheck = art_quick_invoke_virtual_trampoline_with_access_check;
+  static_assert(!IsDirectEntrypoint(kQuickInvokeVirtualTrampolineWithAccessCheck),
+                "Non-direct C stub marked direct.");
 
   // Thread
   qpoints->pTestSuspend = art_quick_test_suspend;
+  static_assert(!IsDirectEntrypoint(kQuickTestSuspend), "Non-direct C stub marked direct.");
 
   // Throws
   qpoints->pDeliverException = art_quick_deliver_exception;
+  static_assert(!IsDirectEntrypoint(kQuickDeliverException), "Non-direct C stub marked direct.");
   qpoints->pThrowArrayBounds = art_quick_throw_array_bounds;
+  static_assert(!IsDirectEntrypoint(kQuickThrowArrayBounds), "Non-direct C stub marked direct.");
   qpoints->pThrowDivZero = art_quick_throw_div_zero;
+  static_assert(!IsDirectEntrypoint(kQuickThrowDivZero), "Non-direct C stub marked direct.");
   qpoints->pThrowNoSuchMethod = art_quick_throw_no_such_method;
+  static_assert(!IsDirectEntrypoint(kQuickThrowNoSuchMethod), "Non-direct C stub marked direct.");
   qpoints->pThrowNullPointer = art_quick_throw_null_pointer_exception;
+  static_assert(!IsDirectEntrypoint(kQuickThrowNullPointer), "Non-direct C stub marked direct.");
   qpoints->pThrowStackOverflow = art_quick_throw_stack_overflow;
+  static_assert(!IsDirectEntrypoint(kQuickThrowStackOverflow), "Non-direct C stub marked direct.");
 
   // Atomic 64-bit load/store
   qpoints->pA64Load = QuasiAtomic::Read64;
+  static_assert(IsDirectEntrypoint(kQuickA64Load), "Non-direct C stub marked direct.");
   qpoints->pA64Store = QuasiAtomic::Write64;
+  static_assert(IsDirectEntrypoint(kQuickA64Store), "Non-direct C stub marked direct.");
 };
 
 }  // namespace art
