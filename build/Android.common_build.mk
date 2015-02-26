@@ -74,8 +74,8 @@ endif
 #
 # Used to change the default GC. Valid values are CMS, SS, GSS. The default is CMS.
 #
-art_default_gc_type ?= CMS
-art_default_gc_type_cflags := -DART_DEFAULT_GC_TYPE_IS_$(art_default_gc_type)
+ART_DEFAULT_GC_TYPE ?= CMS
+art_default_gc_type_cflags := -DART_DEFAULT_GC_TYPE_IS_$(ART_DEFAULT_GC_TYPE)
 
 ART_HOST_CFLAGS :=
 ART_TARGET_CFLAGS :=
