@@ -31,7 +31,7 @@ ifeq ($($(HOST_2ND_ARCH_VAR_PREFIX)DEX2OAT_HOST_INSTRUCTION_SET_FEATURES),)
 endif
 
 # Use dex2oat debug version for better error reporting
-# $(1): compiler - default, optimizing or interpreter.
+# $(1): compiler - default, optimizing, jit or interpreter.
 # $(2): pic/no-pic
 # $(3): 2ND_ or undefined, 2ND_ for 32-bit host builds.
 # $(4): wrapper, e.g., valgrind.
@@ -64,12 +64,16 @@ define create-core-oat-host-rules
     core_compile_options += --compiler-filter=interpret-only
     core_infix := -interpreter
   endif
+  ifeq ($(1),jit)
+    core_compile_options += --compiler-filter=interpret-only
+    core_infix := -jit
+  endif
   ifeq ($(1),default)
     # Default has no infix, no compile options.
   endif
-  ifneq ($(filter-out default interpreter optimizing,$(1)),)
+  ifneq ($(filter-out default interpreter jit optimizing,$(1)),)
     #Technically this test is not precise, but hopefully good enough.
-    $$(error found $(1) expected default, interpreter or optimizing)
+    $$(error found $(1) expected default, interpreter, jit or optimizing)
   endif
 
   ifeq ($(2),pic)
@@ -127,7 +131,7 @@ $$(core_oat_name): $$(core_image_name)
   core_pic_infix :=
 endef  # create-core-oat-host-rules
 
-# $(1): compiler - default, optimizing or interpreter.
+# $(1): compiler - default, optimizing, jit or interpreter.
 # $(2): wrapper.
 # $(3): dex2oat suffix.
 define create-core-oat-host-rule-combination
@@ -143,12 +147,14 @@ endef
 $(eval $(call create-core-oat-host-rule-combination,default,,))
 $(eval $(call create-core-oat-host-rule-combination,optimizing,,))
 $(eval $(call create-core-oat-host-rule-combination,interpreter,,))
+$(eval $(call create-core-oat-host-rule-combination,jit,,))
 
 valgrindHOST_CORE_IMG_OUTS :=
 valgrindHOST_CORE_OAT_OUTS :=
 $(eval $(call create-core-oat-host-rule-combination,default,valgrind,32))
 $(eval $(call create-core-oat-host-rule-combination,optimizing,valgrind,32))
 $(eval $(call create-core-oat-host-rule-combination,interpreter,valgrind,32))
+$(eval $(call create-core-oat-host-rule-combination,jit,valgrind,32))
 
 valgrind-test-art-host-dex2oat-host: $(valgrindHOST_CORE_IMG_OUTS)
 
@@ -178,12 +184,16 @@ define create-core-oat-target-rules
     core_compile_options += --compiler-filter=interpret-only
     core_infix := -interpreter
   endif
+  ifeq ($(1),jit)
+    core_compile_options += --compiler-filter=interpret-only
+    core_infix := -jit
+  endif
   ifeq ($(1),default)
     # Default has no infix, no compile options.
   endif
-  ifneq ($(filter-out default interpreter optimizing,$(1)),)
+  ifneq ($(filter-out default interpreter jit optimizing,$(1)),)
     # Technically this test is not precise, but hopefully good enough.
-    $$(error found $(1) expected default, interpreter or optimizing)
+    $$(error found $(1) expected default, interpreter, jit or optimizing)
   endif
 
   ifeq ($(2),pic)
@@ -245,7 +255,7 @@ $$(core_oat_name): $$(core_image_name)
   core_pic_infix :=
 endef  # create-core-oat-target-rules
 
-# $(1): compiler - default, optimizing or interpreter.
+# $(1): compiler - default, optimizing, jit or interpreter.
 # $(2): wrapper.
 # $(3): dex2oat suffix.
 define create-core-oat-target-rule-combination

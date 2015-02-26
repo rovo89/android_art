@@ -437,7 +437,7 @@ endif
 
 # Create a rule to build and run a tests following the form:
 # test-art-{1: host or target}-run-test-{2: debug ndebug}-{3: prebuild no-prebuild no-dex2oat}-
-#    {4: interpreter default optimizing}-{5: relocate no-relocate relocate-no-patchoat}-
+#    {4: interpreter default optimizing jit}-{5: relocate no-relocate relocate-no-patchoat}-
 #    {6: trace or no-trace}-{7: gcstress gcverify cms}-{8: forcecopy checkjni jni}-
 #    {9: no-image image picimage}-{10: pictest nopictest}-{11: test name}{12: 32 or 64}
 define define-test-art-run-test
@@ -501,7 +501,7 @@ define define-test-art-run-test
         run_test_options += --quick
       else
         ifeq ($(4),jit)
-          test_groups += ART_RUN_TEST_$$(uc_host_or_target)_DEFAULT_RULES
+          test_groups += ART_RUN_TEST_$$(uc_host_or_target)_JIT_RULES
           run_test_options += --jit
         else
           $$(error found $(4) expected $(COMPILER_TYPES))
