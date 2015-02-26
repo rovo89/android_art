@@ -46,6 +46,9 @@ ART_TEST_DEFAULT_COMPILER ?= true
 # Do you want interpreter tests run?
 ART_TEST_INTERPRETER ?= $(ART_TEST_FULL)
 
+# Do you want JIT tests run?
+ART_TEST_JIT ?= $(ART_TEST_FULL)
+
 # Do you want optimizing compiler tests run?
 ART_TEST_OPTIMIZING ?= $(ART_TEST_FULL)
 
