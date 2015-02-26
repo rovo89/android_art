@@ -718,7 +718,7 @@ bool DexFileMethodInliner::AddInlineMethod(int32_t method_idx, const InlineMetho
     if (PrettyMethod(method_idx, *dex_file_) == "int java.lang.String.length()") {
       // TODO: String.length is both kIntrinsicIsEmptyOrLength and kInlineOpIGet.
     } else {
-      LOG(ERROR) << "Inliner: " << PrettyMethod(method_idx, *dex_file_) << " already inline";
+      LOG(WARNING) << "Inliner: " << PrettyMethod(method_idx, *dex_file_) << " already inline";
     }
     return false;
   }
