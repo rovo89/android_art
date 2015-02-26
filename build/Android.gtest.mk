@@ -116,6 +116,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/entrypoints_order_test.cc \
   runtime/exception_test.cc \
   runtime/gc/accounting/card_table_test.cc \
+  runtime/gc/accounting/mod_union_table_test.cc \
   runtime/gc/accounting/space_bitmap_test.cc \
   runtime/gc/heap_test.cc \
   runtime/gc/reference_queue_test.cc \
