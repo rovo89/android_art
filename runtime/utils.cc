@@ -1519,14 +1519,16 @@ std::string GetSystemImageFilename(const char* location, const InstructionSet is
 std::string DexFilenameToOdexFilename(const std::string& location, const InstructionSet isa) {
   // location = /foo/bar/baz.jar
   // odex_location = /foo/bar/<isa>/baz.odex
-
-  CHECK_GE(location.size(), 4U) << location;  // must be at least .123
   std::string odex_location(location);
   InsertIsaDirectory(isa, &odex_location);
-  size_t dot_index = odex_location.size() - 3 - 1;  // 3=dex or zip or apk
-  CHECK_EQ('.', odex_location[dot_index]) << location;
+  size_t dot_index = odex_location.rfind('.');
+
+  // The location must have an extension, otherwise it's not clear what we
+  // should return.
+  CHECK_NE(dot_index, std::string::npos) << odex_location;
+  CHECK_EQ(std::string::npos, odex_location.find('/', dot_index)) << odex_location;
+
   odex_location.resize(dot_index + 1);
-  CHECK_EQ('.', odex_location[odex_location.size()-1]) << location << " " << odex_location;
   odex_location += "odex";
   return odex_location;
 }
