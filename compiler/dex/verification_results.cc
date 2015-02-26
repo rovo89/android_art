@@ -71,8 +71,11 @@ bool VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method
       DCHECK_EQ(it->second->GetSafeCastSet().size(), verified_method->GetSafeCastSet().size());
     }
     DCHECK_EQ(it->second->GetDexGcMap().size(), verified_method->GetDexGcMap().size());
-    delete it->second;
-    verified_methods_.erase(it);
+    // Delete the new verified method since there was already an existing one registered. It
+    // is unsafe to replace the existing one since the JIT may be using it to generate a
+    // native GC map.
+    delete verified_method;
+    return true;
   }
   verified_methods_.Put(ref, verified_method);
   DCHECK(verified_methods_.find(ref) != verified_methods_.end());

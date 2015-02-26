@@ -132,7 +132,20 @@ bool JitCompiler::CompileMethod(Thread* self, mirror::ArtMethod* method) {
     return false;
   }
   total_time_ += NanoTime() - start_time;
-  const bool result = MakeExecutable(compiled_method, h_method.Get());
+  // Don't add the method if we are supposed to be deoptimized.
+  bool result = false;
+  if (!runtime->GetInstrumentation()->AreAllMethodsDeoptimized()) {
+    const void* code = Runtime::Current()->GetClassLinker()->GetOatMethodQuickCodeFor(
+        h_method.Get());
+    if (code != nullptr) {
+      // Already have some compiled code, just use this instead of linking.
+      // TODO: Fix recompilation.
+      h_method->SetEntryPointFromQuickCompiledCode(code);
+      result = true;
+    } else {
+      result = MakeExecutable(compiled_method, h_method.Get());
+    }
+  }
   // Remove the compiled method to save memory.
   compiler_driver_->RemoveCompiledMethod(method_ref);
   return result;
