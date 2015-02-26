@@ -1079,6 +1079,7 @@ bool ArmMir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
 }
 
 LIR* ArmMir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
+  ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
   return RawLIR(current_dalvik_offset_, kThumb2LdrPcRel12, reg.GetReg(), 0, 0, 0, 0, target);
 }
 
