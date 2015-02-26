@@ -580,8 +580,9 @@ void RegTypeCache::VisitStaticRoots(RootCallback* callback, void* arg) {
 }
 
 void RegTypeCache::VisitRoots(RootCallback* callback, void* arg) {
-  for (const RegType* entry : entries_) {
-    entry->VisitRoots(callback, arg);
+  // Exclude the static roots that are visited by VisitStaticRoots().
+  for (size_t i = primitive_count_; i < entries_.size(); ++i) {
+    entries_[i]->VisitRoots(callback, arg);
   }
 }
 
