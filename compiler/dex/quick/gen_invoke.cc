@@ -248,14 +248,16 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(QuickEntrypointEnum trampo
     if (arg0.wide == 0) {
       LoadValueDirectFixed(arg0, TargetReg(arg0.fp ? kFArg0 : kArg0, kNotWide));
       if (arg1.wide == 0) {
+        // For Mips, when the 1st arg is integral, then remaining arg are passed in core reg.
         if (cu_->instruction_set == kMips) {
-          LoadValueDirectFixed(arg1, TargetReg(arg1.fp ? kFArg2 : kArg1, kNotWide));
+          LoadValueDirectFixed(arg1, TargetReg((arg1.fp && arg0.fp) ? kFArg2 : kArg1, kNotWide));
         } else {
           LoadValueDirectFixed(arg1, TargetReg(arg1.fp ? kFArg1 : kArg1, kNotWide));
         }
       } else {
+        // For Mips, when the 1st arg is integral, then remaining arg are passed in core reg.
         if (cu_->instruction_set == kMips) {
-          LoadValueDirectWideFixed(arg1, TargetReg(arg1.fp ? kFArg2 : kArg2, kWide));
+          LoadValueDirectWideFixed(arg1, TargetReg((arg1.fp && arg0.fp) ? kFArg2 : kArg2, kWide));
         } else {
           LoadValueDirectWideFixed(arg1, TargetReg(arg1.fp ? kFArg1 : kArg1, kWide));
         }
@@ -263,9 +265,19 @@ void Mir2Lir::CallRuntimeHelperRegLocationRegLocation(QuickEntrypointEnum trampo
     } else {
       LoadValueDirectWideFixed(arg0, TargetReg(arg0.fp ? kFArg0 : kArg0, kWide));
       if (arg1.wide == 0) {
-        LoadValueDirectFixed(arg1, TargetReg(arg1.fp ? kFArg2 : kArg2, kNotWide));
+        // For Mips, when the 1st arg is integral, then remaining arg are passed in core reg.
+        if (cu_->instruction_set == kMips) {
+          LoadValueDirectFixed(arg1, TargetReg((arg1.fp && arg0.fp) ? kFArg2 : kArg2, kNotWide));
+        } else {
+          LoadValueDirectFixed(arg1, TargetReg(arg1.fp ? kFArg2 : kArg2, kNotWide));
+        }
       } else {
-        LoadValueDirectWideFixed(arg1, TargetReg(arg1.fp ? kFArg2 : kArg2, kWide));
+        // For Mips, when the 1st arg is integral, then remaining arg are passed in core reg.
+        if (cu_->instruction_set == kMips) {
+          LoadValueDirectWideFixed(arg1, TargetReg((arg1.fp && arg0.fp) ? kFArg2 : kArg2, kWide));
+        } else {
+          LoadValueDirectWideFixed(arg1, TargetReg(arg1.fp ? kFArg2 : kArg2, kWide));
+        }
       }
     }
   }
