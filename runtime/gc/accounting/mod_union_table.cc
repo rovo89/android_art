@@ -19,6 +19,7 @@
 #include <memory>
 
 #include "base/stl_util.h"
+#include "bitmap-inl.h"
 #include "card_table-inl.h"
 #include "heap_bitmap.h"
 #include "gc/accounting/space_bitmap-inl.h"
@@ -40,14 +41,14 @@ namespace art {
 namespace gc {
 namespace accounting {
 
-class ModUnionClearCardSetVisitor {
+class ModUnionAddToCardSetVisitor {
  public:
-  explicit ModUnionClearCardSetVisitor(ModUnionTable::CardSet* const cleared_cards)
-    : cleared_cards_(cleared_cards) {
+  explicit ModUnionAddToCardSetVisitor(ModUnionTable::CardSet* const cleared_cards)
+      : cleared_cards_(cleared_cards) {
   }
 
-  inline void operator()(uint8_t* card, uint8_t expected_value, uint8_t new_value) const {
-    UNUSED(new_value);
+  inline void operator()(uint8_t* card, uint8_t expected_value,
+                         uint8_t new_value ATTRIBUTE_UNUSED) const {
     if (expected_value == CardTable::kCardDirty) {
       cleared_cards_->insert(card);
     }
@@ -57,18 +58,38 @@ class ModUnionClearCardSetVisitor {
   ModUnionTable::CardSet* const cleared_cards_;
 };
 
-class ModUnionClearCardVisitor {
+class ModUnionAddToCardBitmapVisitor {
  public:
-  explicit ModUnionClearCardVisitor(std::vector<uint8_t*>* cleared_cards)
-    : cleared_cards_(cleared_cards) {
+  explicit ModUnionAddToCardBitmapVisitor(ModUnionTable::CardBitmap* bitmap,
+                                          CardTable* card_table)
+      : bitmap_(bitmap), card_table_(card_table) {
   }
 
-  void operator()(uint8_t* card, uint8_t expected_card, uint8_t new_card) const {
-    UNUSED(new_card);
+  inline void operator()(uint8_t* card, uint8_t expected_value,
+                         uint8_t new_value ATTRIBUTE_UNUSED) const {
+    if (expected_value == CardTable::kCardDirty) {
+      // We want the address the card represents, not the address of the card.
+      bitmap_->Set(reinterpret_cast<uintptr_t>(card_table_->AddrFromCard(card)));
+    }
+  }
+
+ private:
+  ModUnionTable::CardBitmap* const bitmap_;
+  CardTable* const card_table_;
+};
+
+class ModUnionAddToCardVectorVisitor {
+ public:
+  explicit ModUnionAddToCardVectorVisitor(std::vector<uint8_t*>* cleared_cards)
+      : cleared_cards_(cleared_cards) {
+  }
+
+  void operator()(uint8_t* card, uint8_t expected_card, uint8_t new_card ATTRIBUTE_UNUSED) const {
     if (expected_card == CardTable::kCardDirty) {
       cleared_cards_->push_back(card);
     }
   }
+
  private:
   std::vector<uint8_t*>* const cleared_cards_;
 };
@@ -77,19 +98,19 @@ class ModUnionUpdateObjectReferencesVisitor {
  public:
   ModUnionUpdateObjectReferencesVisitor(MarkHeapReferenceCallback* callback, void* arg,
                                         space::ContinuousSpace* from_space,
-                                        space::ImageSpace* image_space,
+                                        space::ContinuousSpace* immune_space,
                                         bool* contains_reference_to_other_space)
-    : callback_(callback), arg_(arg), from_space_(from_space), image_space_(image_space),
+    : callback_(callback), arg_(arg), from_space_(from_space), immune_space_(immune_space),
       contains_reference_to_other_space_(contains_reference_to_other_space) {
   }
 
   // Extra parameters are required since we use this same visitor signature for checking objects.
-  void operator()(Object* obj, MemberOffset offset, bool /*is_static*/) const
+  void operator()(Object* obj, MemberOffset offset, bool is_static ATTRIBUTE_UNUSED) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Only add the reference if it is non null and fits our criteria.
-    mirror::HeapReference<Object>* obj_ptr = obj->GetFieldObjectReferenceAddr(offset);
+    mirror::HeapReference<Object>* const obj_ptr = obj->GetFieldObjectReferenceAddr(offset);
     mirror::Object* ref = obj_ptr->AsMirrorPtr();
-    if (ref != nullptr && !from_space_->HasAddress(ref) && !image_space_->HasAddress(ref)) {
+    if (ref != nullptr && !from_space_->HasAddress(ref) && !immune_space_->HasAddress(ref)) {
       *contains_reference_to_other_space_ = true;
       callback_(obj_ptr, arg_);
     }
@@ -97,27 +118,30 @@ class ModUnionUpdateObjectReferencesVisitor {
 
  private:
   MarkHeapReferenceCallback* const callback_;
-  void* arg_;
+  void* const arg_;
   // Space which we are scanning
   space::ContinuousSpace* const from_space_;
-  space::ImageSpace* const image_space_;
+  space::ContinuousSpace* const immune_space_;
   // Set if we have any references to another space.
   bool* const contains_reference_to_other_space_;
 };
 
 class ModUnionScanImageRootVisitor {
  public:
+  // Immune space is any other space which we don't care about references to. Currently this is
+  // the image space in the case of the zygote mod union table.
   ModUnionScanImageRootVisitor(MarkHeapReferenceCallback* callback, void* arg,
-                               space::ContinuousSpace* from_space, space::ImageSpace* image_space,
+                               space::ContinuousSpace* from_space,
+                               space::ContinuousSpace* immune_space,
                                bool* contains_reference_to_other_space)
-      : callback_(callback), arg_(arg), from_space_(from_space), image_space_(image_space),
+      : callback_(callback), arg_(arg), from_space_(from_space), immune_space_(immune_space),
         contains_reference_to_other_space_(contains_reference_to_other_space) {}
 
   void operator()(Object* root) const
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(root != NULL);
-    ModUnionUpdateObjectReferencesVisitor ref_visitor(callback_, arg_, from_space_, image_space_,
+    DCHECK(root != nullptr);
+    ModUnionUpdateObjectReferencesVisitor ref_visitor(callback_, arg_, from_space_, immune_space_,
                                                       contains_reference_to_other_space_);
     root->VisitReferences<kMovingClasses>(ref_visitor, VoidFunctor());
   }
@@ -127,14 +151,14 @@ class ModUnionScanImageRootVisitor {
   void* const arg_;
   // Space which we are scanning
   space::ContinuousSpace* const from_space_;
-  space::ImageSpace* const image_space_;
+  space::ContinuousSpace* const immune_space_;
   // Set if we have any references to another space.
   bool* const contains_reference_to_other_space_;
 };
 
 void ModUnionTableReferenceCache::ClearCards() {
   CardTable* card_table = GetHeap()->GetCardTable();
-  ModUnionClearCardSetVisitor visitor(&cleared_cards_);
+  ModUnionAddToCardSetVisitor visitor(&cleared_cards_);
   // Clear dirty cards in the this space and update the corresponding mod-union bits.
   card_table->ModifyCardsAtomic(space_->Begin(), space_->End(), AgeCardVisitor(), visitor);
 }
@@ -324,9 +348,54 @@ void ModUnionTableReferenceCache::UpdateAndMarkReferences(MarkHeapReferenceCallb
   }
 }
 
+ModUnionTableCardCache::ModUnionTableCardCache(const std::string& name, Heap* heap,
+                                               space::ContinuousSpace* space)
+    : ModUnionTable(name, heap, space) {
+  // Normally here we could use End() instead of Limit(), but for testing we may want to have a
+  // mod-union table for a space which can still grow.
+  if (!space->IsImageSpace()) {
+    CHECK_ALIGNED(reinterpret_cast<uintptr_t>(space->Limit()), CardTable::kCardSize);
+  }
+  card_bitmap_.reset(CardBitmap::Create(
+      "mod union bitmap", reinterpret_cast<uintptr_t>(space->Begin()),
+      RoundUp(reinterpret_cast<uintptr_t>(space->Limit()), CardTable::kCardSize)));
+}
+
+class CardBitVisitor {
+ public:
+  CardBitVisitor(MarkHeapReferenceCallback* callback, void* arg, space::ContinuousSpace* space,
+                 space::ContinuousSpace* immune_space, ModUnionTable::CardBitmap* card_bitmap)
+      : callback_(callback), arg_(arg), space_(space), immune_space_(immune_space),
+        bitmap_(space->GetLiveBitmap()), card_bitmap_(card_bitmap) {
+    DCHECK(immune_space_ != nullptr);
+  }
+
+  void operator()(size_t bit_index) const {
+    const uintptr_t start = card_bitmap_->AddrFromBitIndex(bit_index);
+    DCHECK(space_->HasAddress(reinterpret_cast<mirror::Object*>(start)))
+        << start << " " << *space_;
+    bool reference_to_other_space = false;
+    ModUnionScanImageRootVisitor scan_visitor(callback_, arg_, space_, immune_space_,
+                                              &reference_to_other_space);
+    bitmap_->VisitMarkedRange(start, start + CardTable::kCardSize, scan_visitor);
+    if (!reference_to_other_space) {
+      // No non null reference to another space, clear the bit.
+      card_bitmap_->ClearBit(bit_index);
+    }
+  }
+
+ private:
+  MarkHeapReferenceCallback* const callback_;
+  void* const arg_;
+  space::ContinuousSpace* const space_;
+  space::ContinuousSpace* const immune_space_;
+  ContinuousSpaceBitmap* const bitmap_;
+  ModUnionTable::CardBitmap* const card_bitmap_;
+};
+
 void ModUnionTableCardCache::ClearCards() {
-  CardTable* card_table = GetHeap()->GetCardTable();
-  ModUnionClearCardSetVisitor visitor(&cleared_cards_);
+  CardTable* const card_table = GetHeap()->GetCardTable();
+  ModUnionAddToCardBitmapVisitor visitor(card_bitmap_.get(), card_table);
   // Clear dirty cards in the this space and update the corresponding mod-union bits.
   card_table->ModifyCardsAtomic(space_->Begin(), space_->End(), AgeCardVisitor(), visitor);
 }
@@ -334,46 +403,51 @@ void ModUnionTableCardCache::ClearCards() {
 // Mark all references to the alloc space(s).
 void ModUnionTableCardCache::UpdateAndMarkReferences(MarkHeapReferenceCallback* callback,
                                                      void* arg) {
-  CardTable* card_table = heap_->GetCardTable();
-  space::ImageSpace* image_space = heap_->GetImageSpace();
-  ContinuousSpaceBitmap* bitmap = space_->GetLiveBitmap();
-  bool reference_to_other_space = false;
-  ModUnionScanImageRootVisitor scan_visitor(callback, arg, space_, image_space,
-                                            &reference_to_other_space);
-  for (auto it = cleared_cards_.begin(), end = cleared_cards_.end(); it != end; ) {
-    uintptr_t start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(*it));
-    DCHECK(space_->HasAddress(reinterpret_cast<Object*>(start)));
-    reference_to_other_space = false;
-    bitmap->VisitMarkedRange(start, start + CardTable::kCardSize, scan_visitor);
-    if (!reference_to_other_space) {
-      // No non null reference to another space, remove the card.
-      it = cleared_cards_.erase(it);
-    } else {
-      ++it;
-    }
-  }
+  auto* image_space = heap_->GetImageSpace();
+  // If we don't have an image space, just pass in space_ as the immune space. Pass in the same
+  // space_ instead of image_space to avoid a null check in ModUnionUpdateObjectReferencesVisitor.
+  CardBitVisitor visitor(callback, arg, space_, image_space != nullptr ? image_space : space_,
+      card_bitmap_.get());
+  card_bitmap_->VisitSetBits(
+      0, RoundUp(space_->Size(), CardTable::kCardSize) / CardTable::kCardSize, visitor);
 }
 
 void ModUnionTableCardCache::Dump(std::ostream& os) {
-  CardTable* card_table = heap_->GetCardTable();
   os << "ModUnionTable dirty cards: [";
-  for (const uint8_t* card_addr : cleared_cards_) {
-    auto start = reinterpret_cast<uintptr_t>(card_table->AddrFromCard(card_addr));
-    auto end = start + CardTable::kCardSize;
-    os << reinterpret_cast<void*>(start) << "-" << reinterpret_cast<void*>(end) << "\n";
+  // TODO: Find cleaner way of doing this.
+  for (uint8_t* addr = space_->Begin(); addr < AlignUp(space_->End(), CardTable::kCardSize);
+      addr += CardTable::kCardSize) {
+    if (card_bitmap_->Test(reinterpret_cast<uintptr_t>(addr))) {
+      os << reinterpret_cast<void*>(addr) << "-"
+         << reinterpret_cast<void*>(addr + CardTable::kCardSize) << "\n";
+    }
   }
   os << "]";
 }
 
 void ModUnionTableCardCache::SetCards() {
-  CardTable* card_table = heap_->GetCardTable();
+  // Only clean up to the end since there cannot be any objects past the End() of the space.
   for (uint8_t* addr = space_->Begin(); addr < AlignUp(space_->End(), CardTable::kCardSize);
        addr += CardTable::kCardSize) {
-    cleared_cards_.insert(card_table->CardFromAddr(addr));
+    card_bitmap_->Set(reinterpret_cast<uintptr_t>(addr));
   }
 }
 
+bool ModUnionTableCardCache::ContainsCardFor(uintptr_t addr) {
+  return card_bitmap_->Test(addr);
+}
+
 void ModUnionTableReferenceCache::SetCards() {
+  for (uint8_t* addr = space_->Begin(); addr < AlignUp(space_->End(), CardTable::kCardSize);
+       addr += CardTable::kCardSize) {
+    cleared_cards_.insert(heap_->GetCardTable()->CardFromAddr(reinterpret_cast<void*>(addr)));
+  }
+}
+
+bool ModUnionTableReferenceCache::ContainsCardFor(uintptr_t addr) {
+  auto* card_ptr = heap_->GetCardTable()->CardFromAddr(reinterpret_cast<void*>(addr));
+  return cleared_cards_.find(card_ptr) != cleared_cards_.end() ||
+      references_.find(card_ptr) != references_.end();
 }
 
 }  // namespace accounting
