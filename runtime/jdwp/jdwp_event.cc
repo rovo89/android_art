@@ -633,7 +633,11 @@ void JdwpState::SendRequestAndPossiblySuspend(ExpandBuf* pReq, JdwpSuspendPolicy
     AcquireJdwpTokenForEvent(threadId);
   }
   EventFinish(pReq);
-  SuspendByPolicy(suspend_policy, thread_self_id);
+  {
+    // Before suspending, we change our state to kSuspended so the debugger sees us as RUNNING.
+    ScopedThreadStateChange stsc(self, kSuspended);
+    SuspendByPolicy(suspend_policy, thread_self_id);
+  }
   self->TransitionFromSuspendedToRunnable();
 }
 
