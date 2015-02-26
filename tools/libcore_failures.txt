@@ -93,5 +93,12 @@
   result: EXEC_FAILED,
   name: "org.apache.harmony.security.tests.java.security.Signature2Test#test_verify$BII",
   bug: 18869265
+},
+{
+  description: "Test sometimes timeouts on volantis",
+  result: EXEC_TIMEOUT,
+  modes_variants: [[device,X64]],
+  names: ["libcore.java.lang.SystemTest#testArrayCopyConcurrentModification"],
+  bug: 19165288
 }
 ]
