@@ -2520,16 +2520,16 @@ const void* ClassLinker::GetQuickOatCodeFor(mirror::ArtMethod* method) {
     return GetQuickProxyInvokeHandler();
   }
   bool found;
-  jit::Jit* const jit = Runtime::Current()->GetJit();
-  if (jit != nullptr) {
-    auto* code = jit->GetCodeCache()->GetCodeFor(method);
+  OatFile::OatMethod oat_method = FindOatMethodFor(method, &found);
+  if (found) {
+    auto* code = oat_method.GetQuickCode();
     if (code != nullptr) {
       return code;
     }
   }
-  OatFile::OatMethod oat_method = FindOatMethodFor(method, &found);
-  if (found) {
-    auto* code = oat_method.GetQuickCode();
+  jit::Jit* const jit = Runtime::Current()->GetJit();
+  if (jit != nullptr) {
+    auto* code = jit->GetCodeCache()->GetCodeFor(method);
     if (code != nullptr) {
       return code;
     }
@@ -2545,17 +2545,17 @@ const void* ClassLinker::GetOatMethodQuickCodeFor(mirror::ArtMethod* method) {
   if (method->IsNative() || method->IsAbstract() || method->IsProxyMethod()) {
     return nullptr;
   }
+  bool found;
+  OatFile::OatMethod oat_method = FindOatMethodFor(method, &found);
+  if (found) {
+    return oat_method.GetQuickCode();
+  }
   jit::Jit* jit = Runtime::Current()->GetJit();
   if (jit != nullptr) {
     auto* code = jit->GetCodeCache()->GetCodeFor(method);
     if (code != nullptr) {
       return code;
     }
-  }
-  bool found;
-  OatFile::OatMethod oat_method = FindOatMethodFor(method, &found);
-  if (found) {
-    return oat_method.GetQuickCode();
   }
   return nullptr;
 }
