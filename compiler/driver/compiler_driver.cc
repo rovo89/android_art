@@ -1316,6 +1316,14 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
       }
     }
   }
+  if (runtime->UseJit()) {
+    // If we are the JIT, then don't allow a direct call to the interpreter bridge since this will
+    // never be updated even after we compile the method.
+    if (runtime->GetClassLinker()->IsQuickToInterpreterBridge(
+        reinterpret_cast<const void*>(compiler_->GetEntryPointOf(method)))) {
+      use_dex_cache = true;
+    }
+  }
   if (method_code_in_boot) {
     *stats_flags |= kFlagDirectCallToBoot | kFlagDirectMethodToBoot;
   }
