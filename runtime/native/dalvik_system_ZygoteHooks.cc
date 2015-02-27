@@ -18,14 +18,18 @@
 
 #include <stdlib.h>
 
+#include <cutils/process_name.h>
+
 #include "arch/instruction_set.h"
 #include "debugger.h"
 #include "java_vm_ext.h"
 #include "jit/jit.h"
 #include "jni_internal.h"
 #include "JNIHelp.h"
+#include "scoped_thread_state_change.h"
 #include "ScopedUtfChars.h"
 #include "thread-inl.h"
+#include "trace.h"
 
 #if defined(__linux__)
 #include <sys/prctl.h>
@@ -121,6 +125,11 @@ static jlong ZygoteHooks_nativePreFork(JNIEnv* env, jclass) {
 
   runtime->PreZygoteFork();
 
+  if (Trace::GetMethodTracingMode() != TracingMode::kTracingInactive) {
+    // Tracing active, pause it.
+    Trace::Pause();
+  }
+
   // Grab thread before fork potentially makes Thread::pthread_key_self_ unusable.
   return reinterpret_cast<jlong>(ThreadForEnv(env));
 }
@@ -131,6 +140,49 @@ static void ZygoteHooks_nativePostForkChild(JNIEnv* env, jclass, jlong token, ji
   // Our system thread ID, etc, has changed so reset Thread state.
   thread->InitAfterFork();
   EnableDebugFeatures(debug_flags);
+
+  // Update tracing.
+  if (Trace::GetMethodTracingMode() != TracingMode::kTracingInactive) {
+    Trace::TraceOutputMode output_mode = Trace::GetOutputMode();
+    Trace::TraceMode trace_mode = Trace::GetMode();
+
+    // Just drop it.
+    Trace::Abort();
+
+    // Only restart if it was streaming mode.
+    // TODO: Expose buffer size, so we can also do file mode.
+    if (output_mode == Trace::TraceOutputMode::kStreaming) {
+      const char* proc_name_cutils = get_process_name();
+      std::string proc_name;
+      if (proc_name_cutils != nullptr) {
+        proc_name = proc_name_cutils;
+      }
+      if (proc_name_cutils == nullptr || proc_name == "zygote" || proc_name == "zygote64") {
+        // Either no process name, or the name hasn't been changed, yet. Just use pid.
+        pid_t pid = getpid();
+        proc_name = StringPrintf("%u", static_cast<uint32_t>(pid));
+      }
+
+      std::string profiles_dir(GetDalvikCache("profiles", false /* create_if_absent */));
+      if (!profiles_dir.empty()) {
+        std::string trace_file = StringPrintf("%s/%s.trace.bin", profiles_dir.c_str(),
+                                              proc_name.c_str());
+        Trace::Start(trace_file.c_str(),
+                     -1,
+                     -1,  // TODO: Expose buffer size.
+                     0,   // TODO: Expose flags.
+                     output_mode,
+                     trace_mode,
+                     0);  // TODO: Expose interval.
+        if (thread->IsExceptionPending()) {
+          ScopedObjectAccess soa(env);
+          thread->ClearException();
+        }
+      } else {
+        LOG(ERROR) << "Profiles dir is empty?!?!";
+      }
+    }
+  }
 
   if (instruction_set != nullptr) {
     ScopedUtfChars isa_string(env, instruction_set);

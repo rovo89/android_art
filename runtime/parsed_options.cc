@@ -216,6 +216,8 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define("-Xmethod-trace-file-size:_")
           .WithType<unsigned int>()
           .IntoKey(M::MethodTraceFileSize)
+      .Define("-Xmethod-trace-stream")
+          .IntoKey(M::MethodTraceStreaming)
       .Define("-Xprofile:_")
           .WithType<TraceClockSource>()
           .WithValueMap({{"threadcpuclock", TraceClockSource::kThreadCpu},

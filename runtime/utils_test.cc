@@ -367,6 +367,15 @@ TEST_F(UtilsTest, GetDalvikCacheFilenameOrDie) {
                GetDalvikCacheFilenameOrDie("/system/framework/boot.oat", "/foo").c_str());
 }
 
+TEST_F(UtilsTest, GetDalvikCache) {
+  EXPECT_STREQ("", GetDalvikCache("should-not-exist123", false).c_str());
+
+  EXPECT_STREQ((android_data_ + "/dalvik-cache/.").c_str(), GetDalvikCache(".", false).c_str());
+  EXPECT_STREQ((android_data_ + "/dalvik-cache/should-not-be-there").c_str(),
+               GetDalvikCache("should-not-be-there", true).c_str());
+}
+
+
 TEST_F(UtilsTest, GetSystemImageFilename) {
   EXPECT_STREQ("/system/framework/arm/boot.art",
                GetSystemImageFilename("/system/framework/boot.art", kArm).c_str());
