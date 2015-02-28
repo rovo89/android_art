@@ -1052,6 +1052,13 @@ class Dex2Oat FINAL {
     runtime_options.push_back(
         std::make_pair("imageinstructionset", GetInstructionSetString(instruction_set_)));
 
+    // Only allow no boot image for the runtime if we're compiling one. When we compile an app,
+    // we don't want fallback mode, it will abort as we do not push a boot classpath (it might
+    // have been stripped in preopting, anyways).
+    if (!image_) {
+      runtime_options.push_back(std::make_pair("-Xno-dex-file-fallback", nullptr));
+    }
+
     if (!CreateRuntime(runtime_options)) {
       return false;
     }
@@ -1637,9 +1644,13 @@ class Dex2Oat FINAL {
   }
 
   void LogCompletionTime() {
+    // Note: when creation of a runtime fails, e.g., when trying to compile an app but when there
+    //       is no image, there won't be a Runtime::Current().
     LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_)
               << " (threads: " << thread_count_ << ") "
-              << driver_->GetMemoryUsageString(kIsDebugBuild || VLOG_IS_ON(compiler));
+              << ((Runtime::Current() != nullptr) ?
+                  driver_->GetMemoryUsageString(kIsDebugBuild || VLOG_IS_ON(compiler)) :
+                  "");
   }
 
   std::unique_ptr<CompilerOptions> compiler_options_;
