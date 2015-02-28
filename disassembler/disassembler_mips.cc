@@ -143,27 +143,31 @@ static const MipsInstruction gMipsInstructions[] = {
   { kITypeMask, 61u << kOpcodeShift, "sdc1", "tO", },
 
   // Floating point.
-  { kFpMask,                kCop1 | 0, "add", "fdst" },
-  { kFpMask,                kCop1 | 1, "sub", "fdst" },
-  { kFpMask,                kCop1 | 2, "mul", "fdst" },
-  { kFpMask,                kCop1 | 3, "div", "fdst" },
-  { kFpMask | (0x1f << 16), kCop1 | 4, "sqrt", "fdst" },
-  { kFpMask | (0x1f << 16), kCop1 | 5, "abs", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 6, "mov", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 7, "neg", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 8, "round.l", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 9, "trunc.l", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 10, "ceil.l", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 11, "floor.l", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 12, "round.w", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 13, "trunc.w", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 14, "ceil.w", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 15, "floor.w", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 32, "cvt.s", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 33, "cvt.d", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 36, "cvt.w", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 37, "cvt.l", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 38, "cvt.ps", "fds" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x00 << 21) | 0, "mfc1", "Td" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x03 << 21) | 0, "mfhc1", "Td" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x04 << 21) | 0, "mtc1", "Td" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x07 << 21) | 0, "mthc1", "Td" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 0, "add", "fadt" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 1, "sub", "fadt" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 2, "mul", "fadt" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 3, "div", "fadt" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 4, "sqrt", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 5, "abs", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 6, "mov", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 7, "neg", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 8, "round.l", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 9, "trunc.l", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 10, "ceil.l", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 11, "floor.l", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 12, "round.w", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 13, "trunc.w", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 14, "ceil.w", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 15, "floor.w", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 32, "cvt.s", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 33, "cvt.d", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 36, "cvt.w", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 37, "cvt.l", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 38, "cvt.ps", "fad" },
 };
 
 static uint32_t ReadU32(const uint8_t* ptr) {
@@ -206,6 +210,7 @@ size_t DisassemblerMips::Dump(std::ostream& os, const uint8_t* instr_ptr) {
             break;
           case 'D': args << 'r' << rd; break;
           case 'd': args << 'f' << rd; break;
+          case 'a': args << 'f' << sa; break;
           case 'f':  // Floating point "fmt".
             {
               size_t fmt = (instruction >> 21) & 0x7;  // TODO: other fmts?
