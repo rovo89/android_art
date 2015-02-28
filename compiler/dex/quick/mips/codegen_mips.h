@@ -76,7 +76,9 @@ class MipsMir2Lir FINAL : public Mir2Lir {
 
     // Required for target - register utilities.
     RegStorage Solo64ToPair64(RegStorage reg);
+    RegStorage Fp64ToSolo32(RegStorage reg);
     RegStorage TargetReg(SpecialTargetRegister reg);
+    RegStorage TargetReg(SpecialTargetRegister reg, WideKind wide_kind) OVERRIDE;
     RegLocation GetReturnAlt();
     RegLocation GetReturnWideAlt();
     RegLocation LocCReturn();
@@ -231,6 +233,12 @@ class MipsMir2Lir FINAL : public Mir2Lir {
         OVERRIDE {
       return false;
     }
+
+    // True if isa is rev R6.
+    const bool isaIsR6_;
+
+    // True if floating point unit is 32bits.
+    const bool fpuIs32Bit_;
 
   private:
     void GenNegLong(RegLocation rl_dest, RegLocation rl_src);

@@ -181,6 +181,30 @@ void MipsMir2Lir::GenConversion(Instruction::Code opcode, RegLocation rl_dest,
   }
 }
 
+// Get the reg storage for a wide FP. Is either a solo or a pair. Base is Mips-counted, e.g., even
+// values are valid (0, 2).
+static RegStorage GetWideArgFP(bool fpuIs32Bit, size_t base) {
+  // Think about how to make this be able to be computed. E.g., rMIPS_FARG0 + base. Right now
+  // inlining should optimize everything.
+  if (fpuIs32Bit) {
+    switch (base) {
+      case 0:
+        return RegStorage(RegStorage::k64BitPair, rMIPS_FARG0, rMIPS_FARG1);
+      case 2:
+        return RegStorage(RegStorage::k64BitPair, rMIPS_FARG2, rMIPS_FARG3);
+    }
+  } else {
+    switch (base) {
+      case 0:
+        return RegStorage(RegStorage::k64BitSolo, rMIPS_FARG0);
+      case 2:
+        return RegStorage(RegStorage::k64BitSolo, rMIPS_FARG2);
+    }
+  }
+  LOG(FATAL) << "Unsupported Mips.GetWideFP: " << fpuIs32Bit << " " << base;
+  UNREACHABLE();
+}
+
 void MipsMir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
                            RegLocation rl_src1, RegLocation rl_src2) {
   bool wide = true;
@@ -208,8 +232,8 @@ void MipsMir2Lir::GenCmpFP(Instruction::Code opcode, RegLocation rl_dest,
   FlushAllRegs();
   LockCallTemps();
   if (wide) {
-    RegStorage r_tmp1(RegStorage::k64BitPair, rMIPS_FARG0, rMIPS_FARG1);
-    RegStorage r_tmp2(RegStorage::k64BitPair, rMIPS_FARG2, rMIPS_FARG3);
+    RegStorage r_tmp1 = GetWideArgFP(fpuIs32Bit_, 0);
+    RegStorage r_tmp2 = GetWideArgFP(fpuIs32Bit_, 2);
     LoadValueDirectWideFixed(rl_src1, r_tmp1);
     LoadValueDirectWideFixed(rl_src2, r_tmp2);
   } else {

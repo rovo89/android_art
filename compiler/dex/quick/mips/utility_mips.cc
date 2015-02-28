@@ -182,7 +182,11 @@ LIR* MipsMir2Lir::OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1, R
       opcode = kMipsAnd;
       break;
     case kOpMul:
-      opcode = kMipsMul;
+      if (isaIsR6_) {
+          opcode = kMipsR6Mul;
+      } else {
+          opcode = kMipsMul;
+      }
       break;
     case kOpOr:
       opcode = kMipsOr;
@@ -271,7 +275,11 @@ LIR* MipsMir2Lir::OpRegRegImm(OpKind op, RegStorage r_dest, RegStorage r_src1, i
       break;
     case kOpMul:
       short_form = false;
-      opcode = kMipsMul;
+      if (isaIsR6_) {
+          opcode = kMipsR6Mul;
+      } else {
+          opcode = kMipsMul;
+      }
       break;
     default:
       LOG(FATAL) << "Bad case in OpRegRegImm";
@@ -359,12 +367,23 @@ LIR* MipsMir2Lir::OpCondRegReg(OpKind op, ConditionCode cc, RegStorage r_dest, R
 
 LIR* MipsMir2Lir::LoadConstantWide(RegStorage r_dest, int64_t value) {
   LIR *res;
-  if (!r_dest.IsPair()) {
-    // Form 64-bit pair
-    r_dest = Solo64ToPair64(r_dest);
+  if (fpuIs32Bit_ || !r_dest.IsFloat()) {
+    // 32bit FPU (pairs) or loading into GPR.
+    if (!r_dest.IsPair()) {
+      // Form 64-bit pair
+      r_dest = Solo64ToPair64(r_dest);
+    }
+    res = LoadConstantNoClobber(r_dest.GetLow(), Low32Bits(value));
+    LoadConstantNoClobber(r_dest.GetHigh(), High32Bits(value));
+  } else {
+    // Here if we have a 64bit FPU and loading into FPR.
+    RegStorage r_temp = AllocTemp();
+    r_dest = Fp64ToSolo32(r_dest);
+    res = LoadConstantNoClobber(r_dest, Low32Bits(value));
+    LoadConstantNoClobber(r_temp, High32Bits(value));
+    NewLIR2(kMipsMthc1, r_temp.GetReg(), r_dest.GetReg());
+    FreeTemp(r_temp);
   }
-  res = LoadConstantNoClobber(r_dest.GetLow(), Low32Bits(value));
-  LoadConstantNoClobber(r_dest.GetHigh(), High32Bits(value));
   return res;
 }
 
@@ -483,32 +502,29 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
   LIR *load2 = NULL;
   MipsOpCode opcode = kMipsNop;
   bool short_form = IS_SIMM16(displacement);
-  bool pair = r_dest.IsPair();
+  bool is64bit = false;
 
   switch (size) {
     case k64:
     case kDouble:
-      if (!pair) {
+      is64bit = true;
+      if (fpuIs32Bit_ && !r_dest.IsPair()) {
         // Form 64-bit pair
         r_dest = Solo64ToPair64(r_dest);
-        pair = 1;
-      }
-      if (r_dest.IsFloat()) {
-        DCHECK_EQ(r_dest.GetLowReg(), r_dest.GetHighReg() - 1);
-        opcode = kMipsFlwc1;
-      } else {
-        opcode = kMipsLw;
       }
       short_form = IS_SIMM16_2WORD(displacement);
-      DCHECK_EQ((displacement & 0x3), 0);
-      break;
+      FALLTHROUGH_INTENDED;
     case k32:
     case kSingle:
     case kReference:
       opcode = kMipsLw;
       if (r_dest.IsFloat()) {
         opcode = kMipsFlwc1;
-        DCHECK(r_dest.IsSingle());
+        if (!is64bit) {
+          DCHECK(r_dest.IsSingle());
+        } else {
+          DCHECK(r_dest.IsDouble());
+        }
       }
       DCHECK_EQ((displacement & 0x3), 0);
       break;
@@ -531,35 +547,56 @@ LIR* MipsMir2Lir::LoadBaseDispBody(RegStorage r_base, int displacement, RegStora
   }
 
   if (short_form) {
-    if (!pair) {
+    if (!is64bit) {
       load = res = NewLIR3(opcode, r_dest.GetReg(), displacement, r_base.GetReg());
     } else {
-      load = res = NewLIR3(opcode, r_dest.GetLowReg(), displacement + LOWORD_OFFSET, r_base.GetReg());
-      load2 = NewLIR3(opcode, r_dest.GetHighReg(), displacement + HIWORD_OFFSET, r_base.GetReg());
+      if (fpuIs32Bit_ || !r_dest.IsFloat()) {
+        DCHECK(r_dest.IsPair());
+        load = res = NewLIR3(opcode, r_dest.GetLowReg(), displacement + LOWORD_OFFSET, r_base.GetReg());
+        load2 = NewLIR3(opcode, r_dest.GetHighReg(), displacement + HIWORD_OFFSET, r_base.GetReg());
+      } else {
+        // Here if 64bit fpu and r_dest is a 64bit fp register.
+        RegStorage r_tmp = AllocTemp();
+        // FIXME: why is r_dest a 64BitPair here???
+        r_dest = Fp64ToSolo32(r_dest);
+        load = res = NewLIR3(kMipsFlwc1, r_dest.GetReg(), displacement + LOWORD_OFFSET, r_base.GetReg());
+        load2 = NewLIR3(kMipsLw, r_tmp.GetReg(), displacement + HIWORD_OFFSET, r_base.GetReg());
+        NewLIR2(kMipsMthc1, r_tmp.GetReg(), r_dest.GetReg());
+        FreeTemp(r_tmp);
+      }
     }
   } else {
-    if (pair) {
-      RegStorage r_tmp = AllocTemp();
-      res = OpRegRegImm(kOpAdd, r_tmp, r_base, displacement);
-      load = NewLIR3(opcode, r_dest.GetLowReg(), LOWORD_OFFSET, r_tmp.GetReg());
-      load2 = NewLIR3(opcode, r_dest.GetHighReg(), HIWORD_OFFSET, r_tmp.GetReg());
-      FreeTemp(r_tmp);
-    } else {
-      RegStorage r_tmp = (r_base == r_dest) ? AllocTemp() : r_dest;
+    if (!is64bit) {
+      RegStorage r_tmp = (r_base == r_dest || r_dest.IsFloat()) ? AllocTemp() : r_dest;
       res = OpRegRegImm(kOpAdd, r_tmp, r_base, displacement);
       load = NewLIR3(opcode, r_dest.GetReg(), 0, r_tmp.GetReg());
       if (r_tmp != r_dest)
         FreeTemp(r_tmp);
+    } else {
+      RegStorage r_tmp = AllocTemp();
+      res = OpRegRegImm(kOpAdd, r_tmp, r_base, displacement);
+      if (fpuIs32Bit_ || !r_dest.IsFloat()) {
+        DCHECK(r_dest.IsPair());
+        load = NewLIR3(opcode, r_dest.GetLowReg(), LOWORD_OFFSET, r_tmp.GetReg());
+        load2 = NewLIR3(opcode, r_dest.GetHighReg(), HIWORD_OFFSET, r_tmp.GetReg());
+      } else {
+        // Here if 64bit fpu and r_dest is a 64bit fp register
+        r_dest = Fp64ToSolo32(r_dest);
+        load = res = NewLIR3(kMipsFlwc1, r_dest.GetReg(), LOWORD_OFFSET, r_tmp.GetReg());
+        load2 = NewLIR3(kMipsLw, r_tmp.GetReg(), HIWORD_OFFSET, r_tmp.GetReg());
+        NewLIR2(kMipsMthc1, r_tmp.GetReg(), r_dest.GetReg());
+      }
+      FreeTemp(r_tmp);
     }
   }
 
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
     DCHECK_EQ(r_base, rs_rMIPS_SP);
-    AnnotateDalvikRegAccess(load, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
-                            true /* is_load */, pair /* is64bit */);
-    if (pair) {
+    AnnotateDalvikRegAccess(load, (displacement + (is64bit ? LOWORD_OFFSET : 0)) >> 2,
+                            true /* is_load */, is64bit /* is64bit */);
+    if (is64bit) {
       AnnotateDalvikRegAccess(load2, (displacement + HIWORD_OFFSET) >> 2,
-                              true /* is_load */, pair /* is64bit */);
+                              true /* is_load */, is64bit /* is64bit */);
     }
   }
   return load;
@@ -594,32 +631,29 @@ LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement,
   LIR *store2 = NULL;
   MipsOpCode opcode = kMipsNop;
   bool short_form = IS_SIMM16(displacement);
-  bool pair = r_src.IsPair();
+  bool is64bit = false;
 
   switch (size) {
     case k64:
     case kDouble:
-      if (!pair) {
+      is64bit = true;
+      if (fpuIs32Bit_ && !r_src.IsPair()) {
         // Form 64-bit pair
         r_src = Solo64ToPair64(r_src);
-        pair = 1;
-      }
-      if (r_src.IsFloat()) {
-        DCHECK_EQ(r_src.GetLowReg(), r_src.GetHighReg() - 1);
-        opcode = kMipsFswc1;
-      } else {
-        opcode = kMipsSw;
       }
       short_form = IS_SIMM16_2WORD(displacement);
-      DCHECK_EQ((displacement & 0x3), 0);
-      break;
+      FALLTHROUGH_INTENDED;
     case k32:
     case kSingle:
     case kReference:
       opcode = kMipsSw;
       if (r_src.IsFloat()) {
         opcode = kMipsFswc1;
-        DCHECK(r_src.IsSingle());
+        if (!is64bit) {
+          DCHECK(r_src.IsSingle());
+        } else {
+          DCHECK(r_src.IsDouble());
+        }
       }
       DCHECK_EQ((displacement & 0x3), 0);
       break;
@@ -637,31 +671,53 @@ LIR* MipsMir2Lir::StoreBaseDispBody(RegStorage r_base, int displacement,
   }
 
   if (short_form) {
-    if (!pair) {
+    if (!is64bit) {
       store = res = NewLIR3(opcode, r_src.GetReg(), displacement, r_base.GetReg());
     } else {
-      store = res = NewLIR3(opcode, r_src.GetLowReg(), displacement + LOWORD_OFFSET, r_base.GetReg());
-      store2 = NewLIR3(opcode, r_src.GetHighReg(), displacement + HIWORD_OFFSET, r_base.GetReg());
+      if (fpuIs32Bit_ || !r_src.IsFloat()) {
+        DCHECK(r_src.IsPair());
+        store = res = NewLIR3(opcode, r_src.GetLowReg(), displacement + LOWORD_OFFSET, r_base.GetReg());
+        store2 = NewLIR3(opcode, r_src.GetHighReg(), displacement + HIWORD_OFFSET, r_base.GetReg());
+      } else {
+        // Here if 64bit fpu and r_src is a 64bit fp register
+        RegStorage r_tmp = AllocTemp();
+        r_src = Fp64ToSolo32(r_src);
+        store = res = NewLIR3(kMipsFswc1, r_src.GetReg(), displacement + LOWORD_OFFSET, r_base.GetReg());
+        NewLIR2(kMipsMfhc1, r_tmp.GetReg(), r_src.GetReg());
+        store2 = NewLIR3(kMipsSw, r_tmp.GetReg(), displacement + HIWORD_OFFSET, r_base.GetReg());
+        FreeTemp(r_tmp);
+      }
     }
   } else {
     RegStorage r_scratch = AllocTemp();
     res = OpRegRegImm(kOpAdd, r_scratch, r_base, displacement);
-    if (!pair) {
+    if (!is64bit) {
       store =  NewLIR3(opcode, r_src.GetReg(), 0, r_scratch.GetReg());
     } else {
-      store =  NewLIR3(opcode, r_src.GetLowReg(), LOWORD_OFFSET, r_scratch.GetReg());
-      store2 = NewLIR3(opcode, r_src.GetHighReg(), HIWORD_OFFSET, r_scratch.GetReg());
+      if (fpuIs32Bit_ || !r_src.IsFloat()) {
+        DCHECK(r_src.IsPair());
+        store = NewLIR3(opcode, r_src.GetLowReg(), LOWORD_OFFSET, r_scratch.GetReg());
+        store2 = NewLIR3(opcode, r_src.GetHighReg(), HIWORD_OFFSET, r_scratch.GetReg());
+      } else {
+        // Here if 64bit fpu and r_src is a 64bit fp register
+        RegStorage r_tmp = AllocTemp();
+        r_src = Fp64ToSolo32(r_src);
+        store = NewLIR3(kMipsFswc1, r_src.GetReg(), LOWORD_OFFSET, r_scratch.GetReg());
+        NewLIR2(kMipsMfhc1, r_tmp.GetReg(), r_src.GetReg());
+        store2 = NewLIR3(kMipsSw, r_tmp.GetReg(), HIWORD_OFFSET, r_scratch.GetReg());
+        FreeTemp(r_tmp);
+      }
     }
     FreeTemp(r_scratch);
   }
 
   if (mem_ref_type_ == ResourceMask::kDalvikReg) {
     DCHECK_EQ(r_base, rs_rMIPS_SP);
-    AnnotateDalvikRegAccess(store, (displacement + (pair ? LOWORD_OFFSET : 0)) >> 2,
-                            false /* is_load */, pair /* is64bit */);
-    if (pair) {
+    AnnotateDalvikRegAccess(store, (displacement + (is64bit ? LOWORD_OFFSET : 0)) >> 2,
+                            false /* is_load */, is64bit /* is64bit */);
+    if (is64bit) {
       AnnotateDalvikRegAccess(store2, (displacement + HIWORD_OFFSET) >> 2,
-                              false /* is_load */, pair /* is64bit */);
+                              false /* is_load */, is64bit /* is64bit */);
     }
   }
 
