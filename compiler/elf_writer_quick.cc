@@ -229,6 +229,7 @@ bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
   const OatHeader& oat_header = oat_writer->GetOatHeader();
   Elf_Word oat_data_size = oat_header.GetExecutableOffset();
   uint32_t oat_exec_size = oat_writer->GetSize() - oat_data_size;
+  uint32_t oat_bss_size = oat_writer->GetBssSize();
 
   OatWriterWrapper wrapper(oat_writer);
 
@@ -243,6 +244,8 @@ bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
           oat_data_size,
           oat_data_size,
           oat_exec_size,
+          RoundUp(oat_data_size + oat_exec_size, kPageSize),
+          oat_bss_size,
           compiler_driver_->GetCompilerOptions().GetIncludeDebugSymbols(),
           debug));
 

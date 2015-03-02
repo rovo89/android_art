@@ -33,7 +33,8 @@ RegionSpace* RegionSpace::Create(const std::string& name, size_t capacity,
   capacity = RoundUp(capacity, kRegionSize);
   std::string error_msg;
   std::unique_ptr<MemMap> mem_map(MemMap::MapAnonymous(name.c_str(), requested_begin, capacity,
-                                                       PROT_READ | PROT_WRITE, true, &error_msg));
+                                                       PROT_READ | PROT_WRITE, true, false,
+                                                       &error_msg));
   if (mem_map.get() == nullptr) {
     LOG(ERROR) << "Failed to allocate pages for alloc space (" << name << ") of size "
         << PrettySize(capacity) << " with message " << error_msg;
