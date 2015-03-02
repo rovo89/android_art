@@ -491,6 +491,7 @@ class Dex2Oat FINAL {
     // Profile file to use
     double top_k_profile_threshold = CompilerOptions::kDefaultTopKProfileThreshold;
 
+    bool debuggable = false;
     bool include_patch_information = CompilerOptions::kDefaultIncludePatchInformation;
     bool include_debug_symbols = kIsDebugBuild;
     bool watch_dog_enabled = true;
@@ -679,6 +680,8 @@ class Dex2Oat FINAL {
       } else if (option == "--no-include-debug-symbols" || option == "--strip-symbols") {
         include_debug_symbols = false;
         generate_gdb_information = false;  // Depends on debug symbols, see above.
+      } else if (option == "--debuggable") {
+        debuggable = true;
       } else if (option.starts_with("--profile-file=")) {
         profile_file_ = option.substr(strlen("--profile-file=")).data();
         VLOG(compiler) << "dex2oat: profile file is " << profile_file_;
@@ -926,6 +929,10 @@ class Dex2Oat FINAL {
         break;
     }
 
+    if (debuggable) {
+      // TODO: Consider adding CFI info and symbols here.
+    }
+
     compiler_options_.reset(new CompilerOptions(compiler_filter,
                                                 huge_method_threshold,
                                                 large_method_threshold,
@@ -935,6 +942,7 @@ class Dex2Oat FINAL {
                                                 generate_gdb_information,
                                                 include_patch_information,
                                                 top_k_profile_threshold,
+                                                debuggable,
                                                 include_debug_symbols,
                                                 implicit_null_checks,
                                                 implicit_so_checks,

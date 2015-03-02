@@ -66,6 +66,7 @@ class CompilerOptions FINAL {
                   bool generate_gdb_information,
                   bool include_patch_information,
                   double top_k_profile_threshold,
+                  bool debuggable,
                   bool include_debug_symbols,
                   bool implicit_null_checks,
                   bool implicit_so_checks,
@@ -132,6 +133,10 @@ class CompilerOptions FINAL {
     return top_k_profile_threshold_;
   }
 
+  bool GetDebuggable() const {
+    return debuggable_;
+  }
+
   bool GetIncludeDebugSymbols() const {
     return include_debug_symbols_;
   }
@@ -193,6 +198,7 @@ class CompilerOptions FINAL {
   const bool include_patch_information_;
   // When using a profile file only the top K% of the profiled samples will be compiled.
   const double top_k_profile_threshold_;
+  const bool debuggable_;
   const bool include_debug_symbols_;
   const bool implicit_null_checks_;
   const bool implicit_so_checks_;
