@@ -580,27 +580,27 @@ define define-test-art-run-test
     run_test_options += --no-image
     # Add the core dependency. This is required for pre-building.
     ifeq ($(1),host)
-      prereq_rule += $(HOST_CORE_IMAGE_$(image_suffix)_no-pic_$(12))
+      prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
     else
-      prereq_rule += $(TARGET_CORE_IMAGE_$(image_suffix)_no-pic_$(12))
+      prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
     endif
   else
     ifeq ($(9),image)
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_IMAGE_RULES
       # Add the core dependency.
       ifeq ($(1),host)
-        prereq_rule += $(HOST_CORE_IMAGE_$(image_suffix)_no-pic_$(12))
+        prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
       else
-        prereq_rule += $(TARGET_CORE_IMAGE_$(image_suffix)_no-pic_$(12))
+        prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
       endif
     else
       ifeq ($(9),picimage)
         test_groups += ART_RUN_TEST_$$(uc_host_or_target)_PICIMAGE_RULES
         run_test_options += --pic-image
         ifeq ($(1),host)
-          prereq_rule += $(HOST_CORE_IMAGE_$(image_suffix)_pic_$(12))
+          prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_pic_$(12))
         else
-          prereq_rule += $(TARGET_CORE_IMAGE_$(image_suffix)_pic_$(12))
+          prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_pic_$(12))
         endif
       else
         $$(error found $(9) expected $(IMAGE_TYPES))
