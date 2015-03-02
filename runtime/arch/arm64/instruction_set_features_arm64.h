@@ -61,6 +61,15 @@ class Arm64InstructionSetFeatures FINAL : public InstructionSetFeatures {
       return fix_cortex_a53_835769_;
   }
 
+  // TODO: Tune this on a per CPU basis. For now, we pessimistically assume
+  // that all ARM64 CPUs prefer explicit memory barriers over acquire-release.
+  //
+  // NOTE: This should not be the case! However we want to exercise the
+  // explicit memory barriers code paths in the Optimizing Compiler.
+  bool PreferAcquireRelease() const {
+    return false;
+  }
+
   virtual ~Arm64InstructionSetFeatures() {}
 
  protected:

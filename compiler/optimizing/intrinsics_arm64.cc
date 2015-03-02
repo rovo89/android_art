@@ -16,6 +16,7 @@
 
 #include "intrinsics_arm64.h"
 
+#include "arch/arm64/instruction_set_features_arm64.h"
 #include "code_generator_arm64.h"
 #include "common_arm64.h"
 #include "entrypoints/quick/quick_entrypoints.h"
@@ -682,10 +683,11 @@ static void GenUnsafeGet(HInvoke* invoke,
   Register base = WRegisterFrom(locations->InAt(1));    // Object pointer.
   Register offset = XRegisterFrom(locations->InAt(2));  // Long offset.
   Register trg = RegisterFrom(locations->Out(), type);
+  bool use_acquire_release = codegen->GetInstructionSetFeatures().PreferAcquireRelease();
 
   MemOperand mem_op(base.X(), offset);
   if (is_volatile) {
-    if (kUseAcquireRelease) {
+    if (use_acquire_release) {
       codegen->LoadAcquire(invoke, trg, mem_op);
     } else {
       codegen->Load(type, trg, mem_op);
@@ -792,11 +794,12 @@ static void GenUnsafePut(LocationSummary* locations,
   Register base = WRegisterFrom(locations->InAt(1));    // Object pointer.
   Register offset = XRegisterFrom(locations->InAt(2));  // Long offset.
   Register value = RegisterFrom(locations->InAt(3), type);
+  bool use_acquire_release = codegen->GetInstructionSetFeatures().PreferAcquireRelease();
 
   MemOperand mem_op(base.X(), offset);
 
   if (is_volatile || is_ordered) {
-    if (kUseAcquireRelease) {
+    if (use_acquire_release) {
       codegen->StoreRelease(type, value, mem_op);
     } else {
       __ Dmb(InnerShareable, BarrierAll);
@@ -856,10 +859,7 @@ static void CreateIntIntIntIntIntToInt(ArenaAllocator* arena, HInvoke* invoke) {
 }
 
 static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGeneratorARM64* codegen) {
-  // TODO: Currently we use acquire-release load-stores in the CAS loop. One could reasonably write
-  //       a version relying on simple exclusive load-stores and barriers instead.
-  static_assert(kUseAcquireRelease, "Non-acquire-release inlined CAS not implemented, yet.");
-
+  bool use_acquire_release = codegen->GetInstructionSetFeatures().PreferAcquireRelease();
   vixl::MacroAssembler* masm = codegen->GetAssembler()->vixl_masm_;
 
   Register out = WRegisterFrom(locations->Out());                  // Boolean result.
@@ -889,15 +889,23 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   // result = tmp_value != 0;
 
   vixl::Label loop_head, exit_loop;
-  __ Bind(&loop_head);
-
-  __ Ldaxr(tmp_value, MemOperand(tmp_ptr));
-  __ Cmp(tmp_value, expected);
-  __ B(&exit_loop, ne);
-
-  __ Stlxr(tmp_32, value, MemOperand(tmp_ptr));
-  __ Cbnz(tmp_32, &loop_head);
-
+  if (use_acquire_release) {
+    __ Bind(&loop_head);
+    __ Ldaxr(tmp_value, MemOperand(tmp_ptr));
+    __ Cmp(tmp_value, expected);
+    __ B(&exit_loop, ne);
+    __ Stlxr(tmp_32, value, MemOperand(tmp_ptr));
+    __ Cbnz(tmp_32, &loop_head);
+  } else {
+    __ Dmb(InnerShareable, BarrierWrites);
+    __ Bind(&loop_head);
+    __ Ldxr(tmp_value, MemOperand(tmp_ptr));
+    __ Cmp(tmp_value, expected);
+    __ B(&exit_loop, ne);
+    __ Stxr(tmp_32, value, MemOperand(tmp_ptr));
+    __ Cbnz(tmp_32, &loop_head);
+    __ Dmb(InnerShareable, BarrierAll);
+  }
   __ Bind(&exit_loop);
   __ Cset(out, eq);
 }

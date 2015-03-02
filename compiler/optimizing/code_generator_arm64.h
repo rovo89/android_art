@@ -32,10 +32,6 @@ namespace arm64 {
 
 class CodeGeneratorARM64;
 
-// TODO: Tune the use of Load-Acquire, Store-Release vs Data Memory Barriers.
-// For now we prefer the use of load-acquire, store-release over explicit memory barriers.
-static constexpr bool kUseAcquireRelease = true;
-
 // Use a local definition to prevent copying mistakes.
 static constexpr size_t kArm64WordSize = kArm64PointerSize;
 
@@ -195,7 +191,9 @@ class ParallelMoveResolverARM64 : public ParallelMoveResolver {
 
 class CodeGeneratorARM64 : public CodeGenerator {
  public:
-  CodeGeneratorARM64(HGraph* graph, const CompilerOptions& compiler_options);
+  CodeGeneratorARM64(HGraph* graph,
+                     const Arm64InstructionSetFeatures& isa_features,
+                     const CompilerOptions& compiler_options);
   virtual ~CodeGeneratorARM64() {}
 
   void GenerateFrameEntry() OVERRIDE;
@@ -273,6 +271,10 @@ class CodeGeneratorARM64 : public CodeGenerator {
     return InstructionSet::kArm64;
   }
 
+  const Arm64InstructionSetFeatures& GetInstructionSetFeatures() const {
+    return isa_features_;
+  }
+
   void Initialize() OVERRIDE {
     HGraph* graph = GetGraph();
     int length = graph->GetBlocks().Size();
@@ -317,6 +319,7 @@ class CodeGeneratorARM64 : public CodeGenerator {
   InstructionCodeGeneratorARM64 instruction_visitor_;
   ParallelMoveResolverARM64 move_resolver_;
   Arm64Assembler assembler_;
+  const Arm64InstructionSetFeatures& isa_features_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorARM64);
 };
