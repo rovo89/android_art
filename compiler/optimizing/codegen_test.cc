@@ -18,6 +18,7 @@
 
 #include "arch/instruction_set.h"
 #include "arch/arm/instruction_set_features_arm.h"
+#include "arch/arm64/instruction_set_features_arm64.h"
 #include "base/macros.h"
 #include "builder.h"
 #include "code_generator_arm.h"
@@ -115,9 +116,9 @@ static void RunCodeBaseline(HGraph* graph, bool has_result, Expected expected) {
     Run(allocator, codegenX86, has_result, expected);
   }
 
-  std::unique_ptr<const ArmInstructionSetFeatures> features(
+  std::unique_ptr<const ArmInstructionSetFeatures> features_arm(
       ArmInstructionSetFeatures::FromCppDefines());
-  TestCodeGeneratorARM codegenARM(graph, *features.get(), compiler_options);
+  TestCodeGeneratorARM codegenARM(graph, *features_arm.get(), compiler_options);
   codegenARM.CompileBaseline(&allocator, true);
   if (kRuntimeISA == kArm || kRuntimeISA == kThumb2) {
     Run(allocator, codegenARM, has_result, expected);
@@ -129,7 +130,9 @@ static void RunCodeBaseline(HGraph* graph, bool has_result, Expected expected) {
     Run(allocator, codegenX86_64, has_result, expected);
   }
 
-  arm64::CodeGeneratorARM64 codegenARM64(graph, compiler_options);
+  std::unique_ptr<const Arm64InstructionSetFeatures> features_arm64(
+      Arm64InstructionSetFeatures::FromCppDefines());
+  arm64::CodeGeneratorARM64 codegenARM64(graph, *features_arm64.get(), compiler_options);
   codegenARM64.CompileBaseline(&allocator, true);
   if (kRuntimeISA == kArm64) {
     Run(allocator, codegenARM64, has_result, expected);
@@ -166,7 +169,9 @@ static void RunCodeOptimized(HGraph* graph,
                                     compiler_options);
     RunCodeOptimized(&codegenARM, graph, hook_before_codegen, has_result, expected);
   } else if (kRuntimeISA == kArm64) {
-    arm64::CodeGeneratorARM64 codegenARM64(graph, compiler_options);
+    arm64::CodeGeneratorARM64 codegenARM64(graph,
+                                           *Arm64InstructionSetFeatures::FromCppDefines(),
+                                           compiler_options);
     RunCodeOptimized(&codegenARM64, graph, hook_before_codegen, has_result, expected);
   } else if (kRuntimeISA == kX86) {
     x86::CodeGeneratorX86 codegenX86(graph, compiler_options);

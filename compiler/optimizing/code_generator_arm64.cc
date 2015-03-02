@@ -16,6 +16,7 @@
 
 #include "code_generator_arm64.h"
 
+#include "arch/arm64/instruction_set_features_arm64.h"
 #include "common_arm64.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
@@ -397,7 +398,9 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
   return next_location;
 }
 
-CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph, const CompilerOptions& compiler_options)
+CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
+                                       const Arm64InstructionSetFeatures& isa_features,
+                                       const CompilerOptions& compiler_options)
     : CodeGenerator(graph,
                     kNumberOfAllocatableRegisters,
                     kNumberOfAllocatableFPRegisters,
@@ -408,7 +411,8 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph, const CompilerOptions& com
       block_labels_(nullptr),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
-      move_resolver_(graph->GetArena(), this) {
+      move_resolver_(graph->GetArena(), this),
+      isa_features_(isa_features) {
   // Save the link register (containing the return address) to mimic Quick.
   AddAllocatedRegister(LocationFrom(lr));
 }
@@ -998,9 +1002,10 @@ void InstructionCodeGeneratorARM64::GenerateClassInitializationCheck(SlowPathCod
   UseScratchRegisterScope temps(GetVIXLAssembler());
   Register temp = temps.AcquireW();
   size_t status_offset = mirror::Class::StatusOffset().SizeValue();
+  bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
 
   // Even if the initialized flag is set, we need to ensure consistent memory ordering.
-  if (kUseAcquireRelease) {
+  if (use_acquire_release) {
     // TODO(vixl): Let the MacroAssembler handle MemOperand.
     __ Add(temp, class_reg, status_offset);
     __ Ldar(temp, HeapOperand(temp));
@@ -1689,9 +1694,10 @@ void LocationsBuilderARM64::VisitInstanceFieldGet(HInstanceFieldGet* instruction
 
 void InstructionCodeGeneratorARM64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {
   MemOperand field = HeapOperand(InputRegisterAt(instruction, 0), instruction->GetFieldOffset());
+  bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
 
   if (instruction->IsVolatile()) {
-    if (kUseAcquireRelease) {
+    if (use_acquire_release) {
       // NB: LoadAcquire will record the pc info if needed.
       codegen_->LoadAcquire(instruction, OutputCPURegister(instruction), field);
     } else {
@@ -1718,9 +1724,10 @@ void InstructionCodeGeneratorARM64::VisitInstanceFieldSet(HInstanceFieldSet* ins
   CPURegister value = InputCPURegisterAt(instruction, 1);
   Offset offset = instruction->GetFieldOffset();
   Primitive::Type field_type = instruction->GetFieldType();
+  bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
 
   if (instruction->IsVolatile()) {
-    if (kUseAcquireRelease) {
+    if (use_acquire_release) {
       codegen_->StoreRelease(field_type, value, HeapOperand(obj, offset));
       codegen_->MaybeRecordImplicitNullCheck(instruction);
     } else {
@@ -2437,9 +2444,10 @@ void LocationsBuilderARM64::VisitStaticFieldGet(HStaticFieldGet* instruction) {
 
 void InstructionCodeGeneratorARM64::VisitStaticFieldGet(HStaticFieldGet* instruction) {
   MemOperand field = HeapOperand(InputRegisterAt(instruction, 0), instruction->GetFieldOffset());
+  bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
 
   if (instruction->IsVolatile()) {
-    if (kUseAcquireRelease) {
+    if (use_acquire_release) {
       // NB: LoadAcquire will record the pc info if needed.
       codegen_->LoadAcquire(instruction, OutputCPURegister(instruction), field);
     } else {
@@ -2464,9 +2472,10 @@ void InstructionCodeGeneratorARM64::VisitStaticFieldSet(HStaticFieldSet* instruc
   CPURegister value = InputCPURegisterAt(instruction, 1);
   Offset offset = instruction->GetFieldOffset();
   Primitive::Type field_type = instruction->GetFieldType();
+  bool use_acquire_release = codegen_->GetInstructionSetFeatures().PreferAcquireRelease();
 
   if (instruction->IsVolatile()) {
-    if (kUseAcquireRelease) {
+    if (use_acquire_release) {
       codegen_->StoreRelease(field_type, value, HeapOperand(cls, offset));
     } else {
       GenerateMemoryBarrier(MemBarrierKind::kAnyStore);
