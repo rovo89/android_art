@@ -21,6 +21,8 @@
 
 namespace art {
 
+class DexFile;
+
 void register_dalvik_system_DexFile(JNIEnv* env);
 
 }  // namespace art
