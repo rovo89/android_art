@@ -477,12 +477,12 @@ Location LiveInterval::ToLocation() const {
   }
 }
 
-Location LiveInterval::GetLocationAt(size_t position) const {
+Location LiveInterval::GetLocationAt(size_t position) {
   return GetIntervalAt(position).ToLocation();
 }
 
-const LiveInterval& LiveInterval::GetIntervalAt(size_t position) const {
-  const LiveInterval* current = this;
+const LiveInterval& LiveInterval::GetIntervalAt(size_t position) {
+  LiveInterval* current = this;
   while (!current->Covers(position)) {
     current = current->GetNextSibling();
     DCHECK(current != nullptr);
