@@ -54,6 +54,7 @@ class MemMap {
  public:
   // Request an anonymous region of length 'byte_count' and a requested base address.
   // Use NULL as the requested base address if you don't care.
+  // "reuse" allows re-mapping an address range from an existing mapping.
   //
   // The word "anonymous" in this context means "not backed by a file". The supplied
   // 'ashmem_name' will be used -- on systems that support it -- to give the mapping
@@ -61,7 +62,7 @@ class MemMap {
   //
   // On success, returns returns a MemMap instance.  On failure, returns a NULL;
   static MemMap* MapAnonymous(const char* ashmem_name, uint8_t* addr, size_t byte_count, int prot,
-                              bool low_4gb, std::string* error_msg);
+                              bool low_4gb, bool reuse, std::string* error_msg);
 
   // Map part of a file, taking care of non-page aligned offsets.  The
   // "start" offset is absolute, not relative.

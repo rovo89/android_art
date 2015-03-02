@@ -96,6 +96,10 @@ class OatWriter {
     return size_;
   }
 
+  size_t GetBssSize() const {
+    return bss_size_;
+  }
+
   const std::vector<uintptr_t>& GetAbsolutePatchLocations() const {
     return absolute_patch_locations_;
   }
@@ -265,6 +269,9 @@ class OatWriter {
 
   // Size required for Oat data structures.
   size_t size_;
+
+  // The size of the required .bss section holding the DexCache data.
+  size_t bss_size_;
 
   // Offset of the oat data from the start of the mmapped region of the elf file.
   size_t oat_data_offset_;

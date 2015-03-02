@@ -88,6 +88,7 @@ class OatSymbolizer FINAL : public CodeOutput {
 
     uint32_t diff = static_cast<uint32_t>(oat_file_->End() - oat_file_->Begin());
     uint32_t oat_exec_size = diff - oat_data_size;
+    uint32_t oat_bss_size = oat_file_->BssSize();
 
     elf_output_ = OS::CreateEmptyFile(output_name_.c_str());
 
@@ -100,6 +101,8 @@ class OatSymbolizer FINAL : public CodeOutput {
         oat_data_size,
         oat_data_size,
         oat_exec_size,
+        RoundUp(oat_data_size + oat_exec_size, kPageSize),
+        oat_bss_size,
         true,
         false));
 
