@@ -322,18 +322,8 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     return last_range_->GetEnd() <= position;
   }
 
-  bool Covers(size_t position) const {
-    if (IsDeadAt(position)) {
-      return false;
-    }
-    LiveRange* current = first_range_;
-    while (current != nullptr) {
-      if (position >= current->GetStart() && position < current->GetEnd()) {
-        return true;
-      }
-      current = current->GetNext();
-    }
-    return false;
+  bool Covers(size_t position) {
+    return !IsDeadAt(position) && FindRangeAt(position) != nullptr;
   }
 
   /**
@@ -466,6 +456,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     new_interval->parent_ = parent_;
 
     new_interval->first_use_ = first_use_;
+    last_visited_range_ = nullptr;
     LiveRange* current = first_range_;
     LiveRange* previous = nullptr;
     // Iterate over the ranges, and either find a range that covers this position, or
@@ -569,10 +560,10 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
   Location ToLocation() const;
 
   // Returns the location of the interval following its siblings at `position`.
-  Location GetLocationAt(size_t position) const;
+  Location GetLocationAt(size_t position);
 
   // Finds the interval that covers `position`.
-  const LiveInterval& GetIntervalAt(size_t position) const;
+  const LiveInterval& GetIntervalAt(size_t position);
 
   // Returns whether `other` and `this` share the same kind of register.
   bool SameRegisterKind(Location other) const;
@@ -698,6 +689,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
       : allocator_(allocator),
         first_range_(nullptr),
         last_range_(nullptr),
+        last_visited_range_(nullptr),
         first_use_(nullptr),
         type_(type),
         next_sibling_(nullptr),
@@ -711,12 +703,51 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
         high_or_low_interval_(nullptr),
         defined_by_(defined_by) {}
 
+  // Returns a LiveRange covering the given position or nullptr if no such range
+  // exists in the interval.
+  // This is a linear search optimized for multiple queries in a non-decreasing
+  // position order typical for linear scan register allocation.
+  LiveRange* FindRangeAt(size_t position) {
+    // Make sure operations on the interval didn't leave us with a cached result
+    // from a sibling.
+    if (kIsDebugBuild) {
+      if (last_visited_range_ != nullptr) {
+        DCHECK_GE(last_visited_range_->GetStart(), GetStart());
+        DCHECK_LE(last_visited_range_->GetEnd(), GetEnd());
+      }
+    }
+
+    // If this method was called earlier on a lower position, use that result as
+    // a starting point to save time. However, linear scan performs 3 scans:
+    // integers, floats, and resolution. Instead of resetting at the beginning
+    // of a scan, we do it here.
+    LiveRange* current;
+    if (last_visited_range_ != nullptr && position >= last_visited_range_->GetStart()) {
+      current = last_visited_range_;
+    } else {
+      current = first_range_;
+    }
+    while (current != nullptr && current->GetEnd() <= position) {
+      current = current->GetNext();
+    }
+    last_visited_range_ = current;
+    if (current != nullptr && position >= current->GetStart()) {
+      return current;
+    } else {
+      return nullptr;
+    }
+  }
+
   ArenaAllocator* const allocator_;
 
   // Ranges of this interval. We need a quick access to the last range to test
   // for liveness (see `IsDeadAt`).
   LiveRange* first_range_;
   LiveRange* last_range_;
+
+  // Last visited range. This is a range search optimization leveraging the fact
+  // that the register allocator does a linear scan through the intervals.
+  LiveRange* last_visited_range_;
 
   // Uses of this interval. Note that this linked list is shared amongst siblings.
   UsePosition* first_use_;
