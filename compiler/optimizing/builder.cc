@@ -840,6 +840,7 @@ void HGraphBuilder::BuildArrayAccess(const Instruction& instruction,
     current_block_->AddInstruction(new (arena_) HArrayGet(object, index, anticipated_type));
     UpdateLocal(source_or_dest_reg, current_block_->GetLastInstruction());
   }
+  graph_->SetHasArrayAccesses(true);
 }
 
 void HGraphBuilder::BuildFilledNewArray(uint32_t dex_pc,
