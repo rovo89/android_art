@@ -138,9 +138,10 @@ uintptr_t MemMap::next_mem_pos_ = GenerateNextMemPos();
 #endif
 
 // Return true if the address range is contained in a single /proc/self/map entry.
-static bool ContainedWithinExistingMap(uintptr_t begin,
-                                       uintptr_t end,
+static bool ContainedWithinExistingMap(uint8_t* ptr, size_t size,
                                        std::string* error_msg) {
+  uintptr_t begin = reinterpret_cast<uintptr_t>(ptr);
+  uintptr_t end = begin + size;
   std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid(), true));
   if (map.get() == nullptr) {
     *error_msg = StringPrintf("Failed to build process map");
@@ -240,7 +241,7 @@ static bool CheckMapRequest(uint8_t* expected_ptr, void* actual_ptr, size_t byte
 }
 
 MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byte_count, int prot,
-                             bool low_4gb, std::string* error_msg) {
+                             bool low_4gb, bool reuse, std::string* error_msg) {
 #ifndef __LP64__
   UNUSED(low_4gb);
 #endif
@@ -250,6 +251,15 @@ MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byt
   size_t page_aligned_byte_count = RoundUp(byte_count, kPageSize);
 
   int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+  if (reuse) {
+    // reuse means it is okay that it overlaps an existing page mapping.
+    // Only use this if you actually made the page reservation yourself.
+    CHECK(expected_ptr != nullptr);
+
+    DCHECK(ContainedWithinExistingMap(expected_ptr, byte_count, error_msg)) << error_msg;
+    flags |= MAP_FIXED;
+  }
+
   ScopedFd fd(-1);
 
 #ifdef USE_ASHMEM
@@ -273,7 +283,7 @@ MemMap* MemMap::MapAnonymous(const char* name, uint8_t* expected_ptr, size_t byt
       *error_msg = StringPrintf("ashmem_create_region failed for '%s': %s", name, strerror(errno));
       return nullptr;
     }
-    flags = MAP_PRIVATE;
+    flags &= ~MAP_ANONYMOUS;
   }
 #endif
 
@@ -393,8 +403,6 @@ MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr, size_t byte_count, int p
                                  std::string* error_msg) {
   CHECK_NE(0, prot);
   CHECK_NE(0, flags & (MAP_SHARED | MAP_PRIVATE));
-  uintptr_t expected = reinterpret_cast<uintptr_t>(expected_ptr);
-  uintptr_t limit = expected + byte_count;
 
   // Note that we do not allow MAP_FIXED unless reuse == true, i.e we
   // expect his mapping to be contained within an existing map.
@@ -403,7 +411,7 @@ MemMap* MemMap::MapFileAtAddress(uint8_t* expected_ptr, size_t byte_count, int p
     // Only use this if you actually made the page reservation yourself.
     CHECK(expected_ptr != nullptr);
 
-    DCHECK(ContainedWithinExistingMap(expected, limit, error_msg));
+    DCHECK(ContainedWithinExistingMap(expected_ptr, byte_count, error_msg)) << error_msg;
     flags |= MAP_FIXED;
   } else {
     CHECK_EQ(0, flags & MAP_FIXED);

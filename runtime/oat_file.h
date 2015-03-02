@@ -62,11 +62,6 @@ class OatFile {
   // Opens an oat file from an already opened File. Maps it PROT_READ, MAP_PRIVATE.
   static OatFile* OpenReadable(File* file, const std::string& location, std::string* error_msg);
 
-  // Open an oat file backed by a std::vector with the given location.
-  static OatFile* OpenMemory(std::vector<uint8_t>& oat_contents,
-                             const std::string& location,
-                             std::string* error_msg);
-
   ~OatFile();
 
   bool IsExecutable() const {
@@ -274,16 +269,18 @@ class OatFile {
     return End() - Begin();
   }
 
+  size_t BssSize() const {
+    return BssEnd() - BssBegin();
+  }
+
   const uint8_t* Begin() const;
   const uint8_t* End() const;
 
+  const uint8_t* BssBegin() const;
+  const uint8_t* BssEnd() const;
+
  private:
   static void CheckLocation(const std::string& location);
-
-  static OatFile* OpenDlopen(const std::string& elf_filename,
-                             const std::string& location,
-                             uint8_t* requested_base,
-                             std::string* error_msg);
 
   static OatFile* OpenElfFile(File* file,
                               const std::string& location,
@@ -294,7 +291,6 @@ class OatFile {
                               std::string* error_msg);
 
   explicit OatFile(const std::string& filename, bool executable);
-  bool Dlopen(const std::string& elf_filename, uint8_t* requested_base, std::string* error_msg);
   bool ElfFileOpen(File* file, uint8_t* requested_base,
                    uint8_t* oat_file_begin,  // Override where the file is loaded to if not null
                    bool writable, bool executable,
@@ -311,6 +307,12 @@ class OatFile {
 
   // Pointer to end of oat region for bounds checking.
   const uint8_t* end_;
+
+  // Pointer to the .bss section, if present, otherwise nullptr.
+  const uint8_t* bss_begin_;
+
+  // Pointer to the end of the .bss section, if present, otherwise nullptr.
+  const uint8_t* bss_end_;
 
   // Was this oat_file loaded executable?
   const bool is_executable_;
