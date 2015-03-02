@@ -253,6 +253,7 @@ void CommonCompilerTest::ReserveImageSpace() {
                                                 (size_t)100 * 1024 * 1024,  // 100MB
                                                 PROT_NONE,
                                                 false /* no need for 4gb flag with fixed mmap*/,
+                                                false /* not reusing existing reservation */,
                                                 &error_msg));
   CHECK(image_reservation_.get() != nullptr) << error_msg;
 }

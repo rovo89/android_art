@@ -1370,7 +1370,7 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
       reservation_name += file_->GetPath();
       std::unique_ptr<MemMap> reserve(MemMap::MapAnonymous(reservation_name.c_str(),
                                                            reserve_base_override,
-                                                           GetLoadedSize(), PROT_NONE, false,
+                                                           GetLoadedSize(), PROT_NONE, false, false,
                                                            error_msg));
       if (reserve.get() == nullptr) {
         *error_msg = StringPrintf("Failed to allocate %s: %s",
@@ -1411,32 +1411,72 @@ bool ElfFileImpl<Elf_Ehdr, Elf_Phdr, Elf_Shdr, Elf_Word,
     } else {
       flags |= MAP_PRIVATE;
     }
-    if (file_length < (program_header->p_offset + program_header->p_memsz)) {
-      *error_msg = StringPrintf("File size of %zd bytes not large enough to contain ELF segment "
-                                "%d of %" PRIu64 " bytes: '%s'", file_length, i,
-                                static_cast<uint64_t>(program_header->p_offset + program_header->p_memsz),
+    if (program_header->p_filesz > program_header->p_memsz) {
+      *error_msg = StringPrintf("Invalid p_filesz > p_memsz (%" PRIu64 " > %" PRIu64 "): %s",
+                                static_cast<uint64_t>(program_header->p_filesz),
+                                static_cast<uint64_t>(program_header->p_memsz),
                                 file_->GetPath().c_str());
       return false;
     }
-    std::unique_ptr<MemMap> segment(MemMap::MapFileAtAddress(p_vaddr,
-                                                       program_header->p_memsz,
-                                                       prot, flags, file_->Fd(),
-                                                       program_header->p_offset,
-                                                       true,  // implies MAP_FIXED
-                                                       file_->GetPath().c_str(),
-                                                       error_msg));
-    if (segment.get() == nullptr) {
-      *error_msg = StringPrintf("Failed to map ELF file segment %d from %s: %s",
-                                i, file_->GetPath().c_str(), error_msg->c_str());
+    if (program_header->p_filesz < program_header->p_memsz &&
+        !IsAligned<kPageSize>(program_header->p_filesz)) {
+      *error_msg = StringPrintf("Unsupported unaligned p_filesz < p_memsz (%" PRIu64
+                                " < %" PRIu64 "): %s",
+                                static_cast<uint64_t>(program_header->p_filesz),
+                                static_cast<uint64_t>(program_header->p_memsz),
+                                file_->GetPath().c_str());
       return false;
     }
-    if (segment->Begin() != p_vaddr) {
-      *error_msg = StringPrintf("Failed to map ELF file segment %d from %s at expected address %p, "
-                                "instead mapped to %p",
-                                i, file_->GetPath().c_str(), p_vaddr, segment->Begin());
+    if (file_length < (program_header->p_offset + program_header->p_filesz)) {
+      *error_msg = StringPrintf("File size of %zd bytes not large enough to contain ELF segment "
+                                "%d of %" PRIu64 " bytes: '%s'", file_length, i,
+                                static_cast<uint64_t>(program_header->p_offset + program_header->p_filesz),
+                                file_->GetPath().c_str());
       return false;
     }
-    segments_.push_back(segment.release());
+    if (program_header->p_filesz != 0u) {
+      std::unique_ptr<MemMap> segment(
+          MemMap::MapFileAtAddress(p_vaddr,
+                                   program_header->p_filesz,
+                                   prot, flags, file_->Fd(),
+                                   program_header->p_offset,
+                                   true,  // implies MAP_FIXED
+                                   file_->GetPath().c_str(),
+                                   error_msg));
+      if (segment.get() == nullptr) {
+        *error_msg = StringPrintf("Failed to map ELF file segment %d from %s: %s",
+                                  i, file_->GetPath().c_str(), error_msg->c_str());
+        return false;
+      }
+      if (segment->Begin() != p_vaddr) {
+        *error_msg = StringPrintf("Failed to map ELF file segment %d from %s at expected address %p, "
+                                  "instead mapped to %p",
+                                  i, file_->GetPath().c_str(), p_vaddr, segment->Begin());
+        return false;
+      }
+      segments_.push_back(segment.release());
+    }
+    if (program_header->p_filesz < program_header->p_memsz) {
+      std::string name = StringPrintf("Zero-initialized segment %" PRIu64 " of ELF file %s",
+                                      static_cast<uint64_t>(i), file_->GetPath().c_str());
+      std::unique_ptr<MemMap> segment(
+          MemMap::MapAnonymous(name.c_str(),
+                               p_vaddr + program_header->p_filesz,
+                               program_header->p_memsz - program_header->p_filesz,
+                               prot, false, true /* reuse */, error_msg));
+      if (segment == nullptr) {
+        *error_msg = StringPrintf("Failed to map zero-initialized ELF file segment %d from %s: %s",
+                                  i, file_->GetPath().c_str(), error_msg->c_str());
+        return false;
+      }
+      if (segment->Begin() != p_vaddr) {
+        *error_msg = StringPrintf("Failed to map zero-initialized ELF file segment %d from %s "
+                                  "at expected address %p, instead mapped to %p",
+                                  i, file_->GetPath().c_str(), p_vaddr, segment->Begin());
+        return false;
+      }
+      segments_.push_back(segment.release());
+    }
   }
 
   // Now that we are done loading, .dynamic should be in memory to find .dynstr, .dynsym, .hash

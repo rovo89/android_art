@@ -538,6 +538,8 @@ class ElfBuilder FINAL {
              Elf_Word rodata_size,
              Elf_Word text_relative_offset,
              Elf_Word text_size,
+             Elf_Word bss_relative_offset,
+             Elf_Word bss_size,
              const bool add_symbols,
              bool debug = false)
     : oat_writer_(oat_writer),
@@ -547,6 +549,7 @@ class ElfBuilder FINAL {
       text_builder_(".text", text_size, text_relative_offset, SHT_PROGBITS,
                     SHF_ALLOC | SHF_EXECINSTR),
       rodata_builder_(".rodata", rodata_size, rodata_relative_offset, SHT_PROGBITS, SHF_ALLOC),
+      bss_builder_(".bss", bss_size, bss_relative_offset, SHT_NOBITS, SHF_ALLOC),
       dynsym_builder_(".dynsym", SHT_DYNSYM, ".dynstr", SHT_STRTAB, true),
       symtab_builder_(".symtab", SHT_SYMTAB, ".strtab", SHT_STRTAB, false),
       hash_builder_(".hash", SHT_HASH, SHF_ALLOC, &dynsym_builder_, 0, sizeof(Elf_Word),
@@ -569,6 +572,11 @@ class ElfBuilder FINAL {
   }
 
   bool Init() {
+    // Since the .text section of an oat file contains relative references to .rodata
+    // and (optionally) .bss, we keep these 2 or 3 sections together. This creates
+    // a non-traditional layout where the .bss section is mapped independently of the
+    // .dynamic section and needs its own program header with LOAD RW.
+    //
     // The basic layout of the elf file. Order may be different in final output.
     // +-------------------------+
     // | Elf_Ehdr                |
@@ -576,6 +584,7 @@ class ElfBuilder FINAL {
     // | Elf_Phdr PHDR           |
     // | Elf_Phdr LOAD R         | .dynsym .dynstr .hash .rodata
     // | Elf_Phdr LOAD R X       | .text
+    // | Elf_Phdr LOAD RW        | .bss (Optional)
     // | Elf_Phdr LOAD RW        | .dynamic
     // | Elf_Phdr DYNAMIC        | .dynamic
     // +-------------------------+
@@ -584,6 +593,8 @@ class ElfBuilder FINAL {
     // | Elf_Sym  oatdata        |
     // | Elf_Sym  oatexec        |
     // | Elf_Sym  oatlastword    |
+    // | Elf_Sym  oatbss         | (Optional)
+    // | Elf_Sym  oatbsslastword | (Optional)
     // +-------------------------+
     // | .dynstr                 |
     // | \0                      |
@@ -631,6 +642,7 @@ class ElfBuilder FINAL {
     // | .hash\0                 |
     // | .rodata\0               |
     // | .text\0                 |
+    // | .bss\0                  |  (Optional)
     // | .shstrtab\0             |
     // | .symtab\0               |  (Optional)
     // | .strtab\0               |  (Optional)
@@ -654,8 +666,9 @@ class ElfBuilder FINAL {
     // | Elf_Shdr .dynsym        |
     // | Elf_Shdr .dynstr        |
     // | Elf_Shdr .hash          |
-    // | Elf_Shdr .text          |
     // | Elf_Shdr .rodata        |
+    // | Elf_Shdr .text          |
+    // | Elf_Shdr .bss           |  (Optional)
     // | Elf_Shdr .dynamic       |
     // | Elf_Shdr .shstrtab      |
     // | Elf_Shdr .debug_info    |  (Optional)
@@ -694,8 +707,11 @@ class ElfBuilder FINAL {
     program_headers_[PH_LOAD_R_X].p_type    = PT_LOAD;
     program_headers_[PH_LOAD_R_X].p_flags   = PF_R | PF_X;
 
-    program_headers_[PH_LOAD_RW_].p_type    = PT_LOAD;
-    program_headers_[PH_LOAD_RW_].p_flags   = PF_R | PF_W;
+    program_headers_[PH_LOAD_RW_BSS].p_type    = PT_LOAD;
+    program_headers_[PH_LOAD_RW_BSS].p_flags   = PF_R | PF_W;
+
+    program_headers_[PH_LOAD_RW_DYNAMIC].p_type    = PT_LOAD;
+    program_headers_[PH_LOAD_RW_DYNAMIC].p_flags   = PF_R | PF_W;
 
     program_headers_[PH_DYNAMIC].p_type    = PT_DYNAMIC;
     program_headers_[PH_DYNAMIC].p_flags   = PF_R | PF_W;
@@ -760,6 +776,14 @@ class ElfBuilder FINAL {
     text_builder_.SetSectionIndex(section_index_);
     section_index_++;
 
+    // Setup .bss
+    if (bss_builder_.GetSize() != 0u) {
+      section_ptrs_.push_back(bss_builder_.GetSection());
+      AssignSectionStr(&bss_builder_, &shstrtab_);
+      bss_builder_.SetSectionIndex(section_index_);
+      section_index_++;
+    }
+
     // Setup .dynamic
     section_ptrs_.push_back(dynamic_builder_.GetSection());
     AssignSectionStr(&dynamic_builder_, &shstrtab_);
@@ -820,10 +844,20 @@ class ElfBuilder FINAL {
     CHECK_ALIGNED(rodata_builder_.GetSection()->sh_offset +
                   rodata_builder_.GetSection()->sh_size, kPageSize);
 
+    // Get the layout of the .bss section.
+    bss_builder_.GetSection()->sh_offset =
+        NextOffset<Elf_Word, Elf_Shdr>(*bss_builder_.GetSection(),
+                                       *text_builder_.GetSection());
+    bss_builder_.GetSection()->sh_addr = bss_builder_.GetSection()->sh_offset;
+    bss_builder_.GetSection()->sh_size = bss_builder_.GetSize();
+    bss_builder_.GetSection()->sh_link = bss_builder_.GetLink();
+
     // Get the layout of the dynamic section.
-    dynamic_builder_.GetSection()->sh_offset =
-        NextOffset<Elf_Word, Elf_Shdr>(*dynamic_builder_.GetSection(), *text_builder_.GetSection());
-    dynamic_builder_.GetSection()->sh_addr = dynamic_builder_.GetSection()->sh_offset;
+    CHECK(IsAlignedParam(bss_builder_.GetSection()->sh_offset,
+                         dynamic_builder_.GetSection()->sh_addralign));
+    dynamic_builder_.GetSection()->sh_offset = bss_builder_.GetSection()->sh_offset;
+    dynamic_builder_.GetSection()->sh_addr =
+        NextOffset<Elf_Word, Elf_Shdr>(*dynamic_builder_.GetSection(), *bss_builder_.GetSection());
     dynamic_builder_.GetSection()->sh_size = dynamic_builder_.GetSize() * sizeof(Elf_Dyn);
     dynamic_builder_.GetSection()->sh_link = dynamic_builder_.GetLink();
 
@@ -987,16 +1021,23 @@ class ElfBuilder FINAL {
     program_headers_[PH_LOAD_R_X].p_memsz  = load_rx_size;
     program_headers_[PH_LOAD_R_X].p_align  = text_builder_.GetSection()->sh_addralign;
 
-    program_headers_[PH_LOAD_RW_].p_offset = dynamic_builder_.GetSection()->sh_offset;
-    program_headers_[PH_LOAD_RW_].p_vaddr  = dynamic_builder_.GetSection()->sh_offset;
-    program_headers_[PH_LOAD_RW_].p_paddr  = dynamic_builder_.GetSection()->sh_offset;
-    program_headers_[PH_LOAD_RW_].p_filesz = dynamic_builder_.GetSection()->sh_size;
-    program_headers_[PH_LOAD_RW_].p_memsz  = dynamic_builder_.GetSection()->sh_size;
-    program_headers_[PH_LOAD_RW_].p_align  = dynamic_builder_.GetSection()->sh_addralign;
+    program_headers_[PH_LOAD_RW_BSS].p_offset = bss_builder_.GetSection()->sh_offset;
+    program_headers_[PH_LOAD_RW_BSS].p_vaddr  = bss_builder_.GetSection()->sh_offset;
+    program_headers_[PH_LOAD_RW_BSS].p_paddr  = bss_builder_.GetSection()->sh_offset;
+    program_headers_[PH_LOAD_RW_BSS].p_filesz = 0;
+    program_headers_[PH_LOAD_RW_BSS].p_memsz  = bss_builder_.GetSection()->sh_size;
+    program_headers_[PH_LOAD_RW_BSS].p_align  = bss_builder_.GetSection()->sh_addralign;
+
+    program_headers_[PH_LOAD_RW_DYNAMIC].p_offset = dynamic_builder_.GetSection()->sh_offset;
+    program_headers_[PH_LOAD_RW_DYNAMIC].p_vaddr  = dynamic_builder_.GetSection()->sh_addr;
+    program_headers_[PH_LOAD_RW_DYNAMIC].p_paddr  = dynamic_builder_.GetSection()->sh_addr;
+    program_headers_[PH_LOAD_RW_DYNAMIC].p_filesz = dynamic_builder_.GetSection()->sh_size;
+    program_headers_[PH_LOAD_RW_DYNAMIC].p_memsz  = dynamic_builder_.GetSection()->sh_size;
+    program_headers_[PH_LOAD_RW_DYNAMIC].p_align  = dynamic_builder_.GetSection()->sh_addralign;
 
     program_headers_[PH_DYNAMIC].p_offset = dynamic_builder_.GetSection()->sh_offset;
-    program_headers_[PH_DYNAMIC].p_vaddr  = dynamic_builder_.GetSection()->sh_offset;
-    program_headers_[PH_DYNAMIC].p_paddr  = dynamic_builder_.GetSection()->sh_offset;
+    program_headers_[PH_DYNAMIC].p_vaddr  = dynamic_builder_.GetSection()->sh_addr;
+    program_headers_[PH_DYNAMIC].p_paddr  = dynamic_builder_.GetSection()->sh_addr;
     program_headers_[PH_DYNAMIC].p_filesz = dynamic_builder_.GetSection()->sh_size;
     program_headers_[PH_DYNAMIC].p_memsz  = dynamic_builder_.GetSection()->sh_size;
     program_headers_[PH_DYNAMIC].p_align  = dynamic_builder_.GetSection()->sh_addralign;
@@ -1004,15 +1045,29 @@ class ElfBuilder FINAL {
     // Finish setup of the Ehdr values.
     elf_header_.e_phoff = PHDR_OFFSET;
     elf_header_.e_shoff = sections_offset;
-    elf_header_.e_phnum = PH_NUM;
+    elf_header_.e_phnum = (bss_builder_.GetSection()->sh_size != 0u) ? PH_NUM : PH_NUM - 1;
     elf_header_.e_shnum = section_ptrs_.size();
     elf_header_.e_shstrndx = shstrtab_builder_.GetSectionIndex();
 
     // Add the rest of the pieces to the list.
     pieces.push_back(new ElfFileMemoryPiece<Elf_Word>("Elf Header", 0, &elf_header_,
                                                       sizeof(elf_header_)));
-    pieces.push_back(new ElfFileMemoryPiece<Elf_Word>("Program headers", PHDR_OFFSET,
-                                                      &program_headers_, sizeof(program_headers_)));
+    if (bss_builder_.GetSection()->sh_size != 0u) {
+      pieces.push_back(new ElfFileMemoryPiece<Elf_Word>("Program headers", PHDR_OFFSET,
+                                                        &program_headers_[0],
+                                                        elf_header_.e_phnum * sizeof(Elf_Phdr)));
+    } else {
+      // Skip PH_LOAD_RW_BSS.
+      Elf_Word part1_size = PH_LOAD_RW_BSS * sizeof(Elf_Phdr);
+      Elf_Word part2_size = (PH_NUM - PH_LOAD_RW_BSS - 1) * sizeof(Elf_Phdr);
+      CHECK_EQ(part1_size + part2_size, elf_header_.e_phnum * sizeof(Elf_Phdr));
+      pieces.push_back(new ElfFileMemoryPiece<Elf_Word>("Program headers", PHDR_OFFSET,
+                                                        &program_headers_[0], part1_size));
+      pieces.push_back(new ElfFileMemoryPiece<Elf_Word>("Program headers part 2",
+                                                        PHDR_OFFSET + part1_size,
+                                                        &program_headers_[PH_LOAD_RW_BSS + 1],
+                                                        part2_size));
+    }
     pieces.push_back(new ElfFileMemoryPiece<Elf_Word>(".dynamic",
                                                       dynamic_builder_.GetSection()->sh_offset,
                                                       dynamic.data(),
@@ -1175,6 +1230,12 @@ class ElfBuilder FINAL {
                               text_builder_.GetSize(), STB_GLOBAL, STT_OBJECT);
     dynsym_builder_.AddSymbol("oatlastword", &text_builder_, text_builder_.GetSize() - 4,
                               true, 4, STB_GLOBAL, STT_OBJECT);
+    if (bss_builder_.GetSize() != 0u) {
+      dynsym_builder_.AddSymbol("oatbss", &bss_builder_, 0, true,
+                                bss_builder_.GetSize(), STB_GLOBAL, STT_OBJECT);
+      dynsym_builder_.AddSymbol("oatbsslastword", &bss_builder_, bss_builder_.GetSize() - 4,
+                                true, 4, STB_GLOBAL, STT_OBJECT);
+    }
   }
 
   void AssignSectionStr(ElfSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr>* builder,
@@ -1213,12 +1274,13 @@ class ElfBuilder FINAL {
   // What phdr is.
   static const uint32_t PHDR_OFFSET = sizeof(Elf_Ehdr);
   enum : uint8_t {
-    PH_PHDR     = 0,
-        PH_LOAD_R__ = 1,
-        PH_LOAD_R_X = 2,
-        PH_LOAD_RW_ = 3,
-        PH_DYNAMIC  = 4,
-        PH_NUM      = 5,
+    PH_PHDR             = 0,
+    PH_LOAD_R__         = 1,
+    PH_LOAD_R_X         = 2,
+    PH_LOAD_RW_BSS      = 3,
+    PH_LOAD_RW_DYNAMIC  = 4,
+    PH_DYNAMIC          = 5,
+    PH_NUM              = 6,
   };
   static const uint32_t PHDR_SIZE = sizeof(Elf_Phdr) * PH_NUM;
   Elf_Phdr program_headers_[PH_NUM];
@@ -1236,6 +1298,7 @@ class ElfBuilder FINAL {
 
   ElfOatSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> text_builder_;
   ElfOatSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> rodata_builder_;
+  ElfOatSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> bss_builder_;
   ElfSymtabBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Sym, Elf_Shdr> dynsym_builder_;
   ElfSymtabBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Sym, Elf_Shdr> symtab_builder_;
   ElfSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr> hash_builder_;

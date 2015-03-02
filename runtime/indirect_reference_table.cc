@@ -74,7 +74,7 @@ IndirectReferenceTable::IndirectReferenceTable(size_t initialCount,
   std::string error_str;
   const size_t table_bytes = maxCount * sizeof(IrtEntry);
   table_mem_map_.reset(MemMap::MapAnonymous("indirect ref table", nullptr, table_bytes,
-                                            PROT_READ | PROT_WRITE, false, &error_str));
+                                            PROT_READ | PROT_WRITE, false, false, &error_str));
   CHECK(table_mem_map_.get() != nullptr) << error_str;
   CHECK_EQ(table_mem_map_->Size(), table_bytes);
   table_ = reinterpret_cast<IrtEntry*>(table_mem_map_->Begin());

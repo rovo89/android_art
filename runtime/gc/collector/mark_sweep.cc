@@ -106,7 +106,7 @@ MarkSweep::MarkSweep(Heap* heap, bool is_concurrent, const std::string& name_pre
   MemMap* mem_map = MemMap::MapAnonymous(
       "mark sweep sweep array free buffer", nullptr,
       RoundUp(kSweepArrayChunkFreeSize * sizeof(mirror::Object*), kPageSize),
-      PROT_READ | PROT_WRITE, false, &error_msg);
+      PROT_READ | PROT_WRITE, false, false, &error_msg);
   CHECK(mem_map != nullptr) << "Couldn't allocate sweep array free buffer: " << error_msg;
   sweep_array_free_buffer_mem_map_.reset(mem_map);
 }

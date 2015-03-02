@@ -129,7 +129,7 @@ Arena::Arena(size_t size)
       next_(nullptr) {
   if (kUseMemMap) {
     std::string error_msg;
-    map_ = MemMap::MapAnonymous("dalvik-arena", NULL, size, PROT_READ | PROT_WRITE, false,
+    map_ = MemMap::MapAnonymous("dalvik-arena", nullptr, size, PROT_READ | PROT_WRITE, false, false,
                                 &error_msg);
     CHECK(map_ != nullptr) << error_msg;
     memory_ = map_->Begin();
