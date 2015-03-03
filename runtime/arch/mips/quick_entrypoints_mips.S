@@ -1142,10 +1142,10 @@ ENTRY art_quick_generic_jni_trampoline
     addiu   $sp, $sp, -24          # reserve arg slots
     jal     artQuickGenericJniEndTrampoline
     s.d     $f0, 16($sp)           # pass result_f
-    addiu   $sp, $sp, 24           # remove arg slots
 
     lw      $t0, THREAD_EXCEPTION_OFFSET(rSELF) # load Thread::Current()->exception_
-    bne     $t0, $zero, 2f         # check for pending exceptions
+    bne     $t0, $zero, 1f         # check for pending exceptions
+
     move    $sp, $s8               # tear down the alloca
 
     # tear dpown the callee-save frame
@@ -1156,9 +1156,8 @@ ENTRY art_quick_generic_jni_trampoline
     nop
 
 1:
-    move    $sp, $s8               # tear down the alloca
-2:
-    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    lw $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)
+    # This will create a new save-all frame, required by the runtime.
     DELIVER_PENDING_EXCEPTION
 END art_quick_generic_jni_trampoline
 
