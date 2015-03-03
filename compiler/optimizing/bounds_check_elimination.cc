@@ -823,6 +823,21 @@ class BCEVisitor : public HGraphVisitor {
     FindAndHandlePartialArrayLength(ushr);
   }
 
+  void VisitAnd(HAnd* instruction) {
+    if (instruction->GetRight()->IsIntConstant()) {
+      int32_t constant = instruction->GetRight()->AsIntConstant()->GetValue();
+      if (constant > 0) {
+        // constant serves as a mask so any number masked with it
+        // gets a [0, constant] value range.
+        ValueRange* range = new (GetGraph()->GetArena()) ValueRange(
+            GetGraph()->GetArena(),
+            ValueBound(nullptr, 0),
+            ValueBound(nullptr, constant));
+        GetValueRangeMap(instruction->GetBlock())->Overwrite(instruction->GetId(), range);
+      }
+    }
+  }
+
   void VisitNewArray(HNewArray* new_array) {
     HInstruction* len = new_array->InputAt(0);
     if (!len->IsIntConstant()) {
