@@ -890,7 +890,7 @@ ENTRY art_quick_generic_jni_trampoline
     // r1: pointer to the bottom of the used area of the alloca, can restore stack till there.
 
     // Check for error = 0.
-    cbz r0, .Lentry_error
+    cbz r0, .Lexception_in_native
 
     // Release part of the alloca.
     mov sp, r1
@@ -920,16 +920,16 @@ ENTRY art_quick_generic_jni_trampoline
 
     blx artQuickGenericJniEndTrampoline
 
-    // Tear down the alloca.
-    mov sp, r10
-    .cfi_def_cfa_register sp
-
     // Restore self pointer.
     mov r9, r11
 
     // Pending exceptions possible.
     ldr r2, [r9, #THREAD_EXCEPTION_OFFSET]  @ load Thread::Current()->exception_
     cbnz r2, .Lexception_in_native
+
+    // Tear down the alloca.
+    mov sp, r10
+    .cfi_def_cfa_register sp
 
     // Tear down the callee-save frame. Skip arg registers.
     add     sp, #FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE-FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
@@ -943,14 +943,11 @@ ENTRY art_quick_generic_jni_trampoline
     .cfi_def_cfa_register r10
     .cfi_adjust_cfa_offset FRAME_SIZE_REFS_AND_ARGS_CALLEE_SAVE-FRAME_SIZE_REFS_ONLY_CALLEE_SAVE
 
-.Lentry_error:
-    mov sp, r10
-    .cfi_def_cfa_register sp
-    mov r9, r11
 .Lexception_in_native:
-    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    ldr sp, [r9, #THREAD_TOP_QUICK_FRAME_OFFSET]
+    .cfi_def_cfa_register sp
+    # This will create a new save-all frame, required by the runtime.
     DELIVER_PENDING_EXCEPTION
-
 END art_quick_generic_jni_trampoline
 
     .extern artQuickToInterpreterBridge
