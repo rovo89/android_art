@@ -314,6 +314,29 @@ public class Main {
     array[10] = 1; // Bounds check can't be eliminated.
   }
 
+
+  static byte readData() {
+    return 1;
+  }
+
+  // CHECK-START: void Main.circularBufferProducer() BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArraySet
+
+  // CHECK-START: void Main.circularBufferProducer() BCE (after)
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArraySet
+
+  static void circularBufferProducer() {
+    byte[] array = new byte[4096];
+    int i = 0;
+    while (true) {
+      array[i & (array.length - 1)] = readData();
+      i++;
+    }
+  }
+
+
   // CHECK-START: void Main.pyramid1(int[]) BCE (before)
   // CHECK: BoundsCheck
   // CHECK: ArraySet
