@@ -399,11 +399,11 @@ TEST(LiveRangesTest, CFG4) {
   LiveInterval* interval = liveness.GetInstructionFromSsaIndex(0)->GetLiveInterval();
   LiveRange* range = interval->GetFirstRange();
   ASSERT_EQ(2u, range->GetStart());
-  ASSERT_EQ(16u, range->GetEnd());
+  ASSERT_EQ(17u, range->GetEnd());
   range = range->GetNext();
   ASSERT_TRUE(range != nullptr);
   ASSERT_EQ(20u, range->GetStart());
-  ASSERT_EQ(22u, range->GetEnd());
+  ASSERT_EQ(23u, range->GetEnd());
   ASSERT_TRUE(range->GetNext() == nullptr);
 
   // Test for the 4 constant.
