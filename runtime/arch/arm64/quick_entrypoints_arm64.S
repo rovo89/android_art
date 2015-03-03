@@ -1510,7 +1510,7 @@ ENTRY art_quick_generic_jni_trampoline
     // x1: pointer to the bottom of the used area of the alloca, can restore stack till there.
 
     // Check for error = 0.
-    cbz x0, .Lentry_error
+    cbz x0, .Lexception_in_native
 
     // Release part of the alloca.
     mov sp, x1
@@ -1545,14 +1545,14 @@ ENTRY art_quick_generic_jni_trampoline
 
     bl artQuickGenericJniEndTrampoline
 
+    // Pending exceptions possible.
+    // Use xETR as xSELF might be scratched by native code
+    ldr x2, [xETR, THREAD_EXCEPTION_OFFSET]
+    cbnz x2, .Lexception_in_native
+
     // Tear down the alloca.
     mov sp, x28
     .cfi_def_cfa_register sp
-
-    // Pending exceptions possible.
-    // Use xETR as xSELF might be scratched by native code
-    ldr x1, [xETR, THREAD_EXCEPTION_OFFSET]
-    cbnz x1, .Lexception_in_native
 
     // Tear down the callee-save frame.
     RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
@@ -1561,13 +1561,15 @@ ENTRY art_quick_generic_jni_trampoline
     fmov d0, x0
     ret
 
-.Lentry_error:
-    mov sp, x28
-    .cfi_def_cfa_register sp
 .Lexception_in_native:
-    RESTORE_REFS_AND_ARGS_CALLEE_SAVE_FRAME
+    // Restore xSELF. It might have been scratched by native code.
+    mov xSELF, xETR
+    // Move to x1 then sp to please assembler.
+    ldr x1, [xSELF, # THREAD_TOP_QUICK_FRAME_OFFSET]
+    mov sp, x1
+    .cfi_def_cfa_register sp
+    # This will create a new save-all frame, required by the runtime.
     DELIVER_PENDING_EXCEPTION
-
 END art_quick_generic_jni_trampoline
 
 /*
