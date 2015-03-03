@@ -400,7 +400,18 @@ public class Main {
   }
 
 
-  // TODO: bce on the array accesses in this method.
+  // CHECK-START: boolean Main.isPyramid(int[]) BCE (before)
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK: BoundsCheck
+  // CHECK: ArrayGet
+
+  // CHECK-START: boolean Main.isPyramid(int[]) BCE (after)
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+  // CHECK-NOT: BoundsCheck
+  // CHECK: ArrayGet
+
   static boolean isPyramid(int[] array) {
     int i = 0;
     int j = array.length - 1;
