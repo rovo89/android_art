@@ -70,8 +70,10 @@ void Transaction::Abort(const std::string& abort_message) {
   }
 }
 
-void Transaction::ThrowInternalError(Thread* self) {
-  DCHECK(IsAborted());
+void Transaction::ThrowInternalError(Thread* self, bool rethrow) {
+  if (kIsDebugBuild && rethrow) {
+    CHECK(IsAborted()) << "Rethrow InternalError while transaction is not aborted";
+  }
   std::string abort_msg(GetAbortMessage());
   self->ThrowNewException(self->GetCurrentLocationForThrow(), "Ljava/lang/InternalError;",
                           abort_msg.c_str());
