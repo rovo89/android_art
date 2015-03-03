@@ -385,12 +385,24 @@ void ArmAssembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   // Push callee saves and link register.
   RegList push_list = 1 << LR;
   size_t pushed_values = 1;
+  int32_t min_s = kNumberOfSRegisters;
+  int32_t max_s = -1;
   for (size_t i = 0; i < callee_save_regs.size(); i++) {
-    Register reg = callee_save_regs.at(i).AsArm().AsCoreRegister();
-    push_list |= 1 << reg;
-    pushed_values++;
+    if (callee_save_regs.at(i).AsArm().IsCoreRegister()) {
+      Register reg = callee_save_regs.at(i).AsArm().AsCoreRegister();
+      push_list |= 1 << reg;
+      pushed_values++;
+    } else {
+      CHECK(callee_save_regs.at(i).AsArm().IsSRegister());
+      min_s = std::min(static_cast<int>(callee_save_regs.at(i).AsArm().AsSRegister()), min_s);
+      max_s = std::max(static_cast<int>(callee_save_regs.at(i).AsArm().AsSRegister()), max_s);
+    }
   }
   PushList(push_list);
+  if (max_s != -1) {
+    pushed_values += 1 + max_s - min_s;
+    vpushs(static_cast<SRegister>(min_s), 1 + max_s - min_s);
+  }
 
   // Increase frame to required size.
   CHECK_GT(frame_size, pushed_values * kFramePointerSize);  // Must at least have space for Method*.
@@ -427,16 +439,32 @@ void ArmAssembler::RemoveFrame(size_t frame_size,
   // Compute callee saves to pop and PC.
   RegList pop_list = 1 << PC;
   size_t pop_values = 1;
+  int32_t min_s = kNumberOfSRegisters;
+  int32_t max_s = -1;
   for (size_t i = 0; i < callee_save_regs.size(); i++) {
-    Register reg = callee_save_regs.at(i).AsArm().AsCoreRegister();
-    pop_list |= 1 << reg;
-    pop_values++;
+    if (callee_save_regs.at(i).AsArm().IsCoreRegister()) {
+      Register reg = callee_save_regs.at(i).AsArm().AsCoreRegister();
+      pop_list |= 1 << reg;
+      pop_values++;
+    } else {
+      CHECK(callee_save_regs.at(i).AsArm().IsSRegister());
+      min_s = std::min(static_cast<int>(callee_save_regs.at(i).AsArm().AsSRegister()), min_s);
+      max_s = std::max(static_cast<int>(callee_save_regs.at(i).AsArm().AsSRegister()), max_s);
+    }
+  }
+
+  if (max_s != -1) {
+    pop_values += 1 + max_s - min_s;
   }
 
   // Decrease frame to start of callee saves.
   CHECK_GT(frame_size, pop_values * kFramePointerSize);
   size_t adjust = frame_size - (pop_values * kFramePointerSize);
   DecreaseFrameSize(adjust);
+
+  if (max_s != -1) {
+    vpops(static_cast<SRegister>(min_s), 1 + max_s - min_s);
+  }
 
   // Pop callee saves and PC.
   PopList(pop_list);

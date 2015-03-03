@@ -27,7 +27,9 @@ LIBARTTEST_COMMON_SRC_FILES := \
   051-thread/thread_test.cc \
   116-nodex2oat/nodex2oat.cc \
   117-nopatchoat/nopatchoat.cc \
-  118-noimage-dex2oat/noimage-dex2oat.cc
+  118-noimage-dex2oat/noimage-dex2oat.cc \
+  454-get-vreg/get_vreg_jni.cc \
+  455-set-vreg/set_vreg_jni.cc
 
 ART_TARGET_LIBARTTEST_$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttest.so
 ifdef TARGET_2ND_ARCH
