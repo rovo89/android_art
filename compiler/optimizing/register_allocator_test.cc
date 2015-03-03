@@ -322,9 +322,9 @@ TEST(RegisterAllocatorTest, Loop3) {
 TEST(RegisterAllocatorTest, FirstRegisterUse) {
   const uint16_t data[] = THREE_REGISTERS_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
-    Instruction::ADD_INT_LIT8 | 1 << 8, 1 << 8,
-    Instruction::ADD_INT_LIT8 | 0 << 8, 1 << 8,
-    Instruction::ADD_INT_LIT8 | 1 << 8, 1 << 8 | 1,
+    Instruction::XOR_INT_LIT8 | 1 << 8, 1 << 8,
+    Instruction::XOR_INT_LIT8 | 0 << 8, 1 << 8,
+    Instruction::XOR_INT_LIT8 | 1 << 8, 1 << 8 | 1,
     Instruction::RETURN_VOID);
 
   ArenaPool pool;
@@ -334,27 +334,27 @@ TEST(RegisterAllocatorTest, FirstRegisterUse) {
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
-  HAdd* first_add = graph->GetBlocks().Get(1)->GetFirstInstruction()->AsAdd();
-  HAdd* last_add = graph->GetBlocks().Get(1)->GetLastInstruction()->GetPrevious()->AsAdd();
-  ASSERT_EQ(last_add->InputAt(0), first_add);
-  LiveInterval* interval = first_add->GetLiveInterval();
-  ASSERT_EQ(interval->GetEnd(), last_add->GetLifetimePosition());
+  HXor* first_xor = graph->GetBlocks().Get(1)->GetFirstInstruction()->AsXor();
+  HXor* last_xor = graph->GetBlocks().Get(1)->GetLastInstruction()->GetPrevious()->AsXor();
+  ASSERT_EQ(last_xor->InputAt(0), first_xor);
+  LiveInterval* interval = first_xor->GetLiveInterval();
+  ASSERT_EQ(interval->GetEnd(), last_xor->GetLifetimePosition());
   ASSERT_TRUE(interval->GetNextSibling() == nullptr);
 
   // We need a register for the output of the instruction.
-  ASSERT_EQ(interval->FirstRegisterUse(), first_add->GetLifetimePosition());
+  ASSERT_EQ(interval->FirstRegisterUse(), first_xor->GetLifetimePosition());
 
   // Split at the next instruction.
-  interval = interval->SplitAt(first_add->GetLifetimePosition() + 2);
+  interval = interval->SplitAt(first_xor->GetLifetimePosition() + 2);
   // The user of the split is the last add.
-  ASSERT_EQ(interval->FirstRegisterUse(), last_add->GetLifetimePosition());
+  ASSERT_EQ(interval->FirstRegisterUse(), last_xor->GetLifetimePosition());
 
   // Split before the last add.
-  LiveInterval* new_interval = interval->SplitAt(last_add->GetLifetimePosition() - 1);
+  LiveInterval* new_interval = interval->SplitAt(last_xor->GetLifetimePosition() - 1);
   // Ensure the current interval has no register use...
   ASSERT_EQ(interval->FirstRegisterUse(), kNoLifetime);
   // And the new interval has it for the last add.
-  ASSERT_EQ(new_interval->FirstRegisterUse(), last_add->GetLifetimePosition());
+  ASSERT_EQ(new_interval->FirstRegisterUse(), last_xor->GetLifetimePosition());
 }
 
 TEST(RegisterAllocatorTest, DeadPhi) {
@@ -634,9 +634,9 @@ TEST(RegisterAllocatorTest, ExpectedInRegisterHint) {
   }
 }
 
-static HGraph* BuildTwoAdds(ArenaAllocator* allocator,
-                            HInstruction** first_add,
-                            HInstruction** second_add) {
+static HGraph* BuildTwoSubs(ArenaAllocator* allocator,
+                            HInstruction** first_sub,
+                            HInstruction** second_sub) {
   HGraph* graph = new (allocator) HGraph(allocator);
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
@@ -652,10 +652,10 @@ static HGraph* BuildTwoAdds(ArenaAllocator* allocator,
   graph->AddBlock(block);
   entry->AddSuccessor(block);
 
-  *first_add = new (allocator) HAdd(Primitive::kPrimInt, parameter, constant1);
-  block->AddInstruction(*first_add);
-  *second_add = new (allocator) HAdd(Primitive::kPrimInt, *first_add, constant2);
-  block->AddInstruction(*second_add);
+  *first_sub = new (allocator) HSub(Primitive::kPrimInt, parameter, constant1);
+  block->AddInstruction(*first_sub);
+  *second_sub = new (allocator) HSub(Primitive::kPrimInt, *first_sub, constant2);
+  block->AddInstruction(*second_sub);
 
   block->AddInstruction(new (allocator) HExit());
   return graph;
@@ -664,10 +664,10 @@ static HGraph* BuildTwoAdds(ArenaAllocator* allocator,
 TEST(RegisterAllocatorTest, SameAsFirstInputHint) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
-  HInstruction *first_add, *second_add;
+  HInstruction *first_sub, *second_sub;
 
   {
-    HGraph* graph = BuildTwoAdds(&allocator, &first_add, &second_add);
+    HGraph* graph = BuildTwoSubs(&allocator, &first_sub, &second_sub);
     x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
     SsaLivenessAnalysis liveness(*graph, &codegen);
     liveness.Analyze();
@@ -676,27 +676,27 @@ TEST(RegisterAllocatorTest, SameAsFirstInputHint) {
     register_allocator.AllocateRegisters();
 
     // Sanity check that in normal conditions, the registers are the same.
-    ASSERT_EQ(first_add->GetLiveInterval()->GetRegister(), 1);
-    ASSERT_EQ(second_add->GetLiveInterval()->GetRegister(), 1);
+    ASSERT_EQ(first_sub->GetLiveInterval()->GetRegister(), 1);
+    ASSERT_EQ(second_sub->GetLiveInterval()->GetRegister(), 1);
   }
 
   {
-    HGraph* graph = BuildTwoAdds(&allocator, &first_add, &second_add);
+    HGraph* graph = BuildTwoSubs(&allocator, &first_sub, &second_sub);
     x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
     SsaLivenessAnalysis liveness(*graph, &codegen);
     liveness.Analyze();
 
     // check that both adds get the same register.
     // Don't use UpdateOutput because output is already allocated.
-    first_add->InputAt(0)->GetLocations()->output_ = Location::RegisterLocation(2);
-    ASSERT_EQ(first_add->GetLocations()->Out().GetPolicy(), Location::kSameAsFirstInput);
-    ASSERT_EQ(second_add->GetLocations()->Out().GetPolicy(), Location::kSameAsFirstInput);
+    first_sub->InputAt(0)->GetLocations()->output_ = Location::RegisterLocation(2);
+    ASSERT_EQ(first_sub->GetLocations()->Out().GetPolicy(), Location::kSameAsFirstInput);
+    ASSERT_EQ(second_sub->GetLocations()->Out().GetPolicy(), Location::kSameAsFirstInput);
 
     RegisterAllocator register_allocator(&allocator, &codegen, liveness);
     register_allocator.AllocateRegisters();
 
-    ASSERT_EQ(first_add->GetLiveInterval()->GetRegister(), 2);
-    ASSERT_EQ(second_add->GetLiveInterval()->GetRegister(), 2);
+    ASSERT_EQ(first_sub->GetLiveInterval()->GetRegister(), 2);
+    ASSERT_EQ(second_sub->GetLiveInterval()->GetRegister(), 2);
   }
 }
 
