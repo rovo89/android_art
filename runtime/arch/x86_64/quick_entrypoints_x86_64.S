@@ -1361,7 +1361,7 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
 
     // Check for error = 0.
     test %rax, %rax
-    jz .Lentry_error
+    jz .Lexception_in_native
 
     // Release part of the alloca.
     movq %rdx, %rsp
@@ -1398,15 +1398,15 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     movq %xmm0, %rdx
     call SYMBOL(artQuickGenericJniEndTrampoline)
 
-    // Tear down the alloca.
-    movq %rbp, %rsp
-    CFI_DEF_CFA_REGISTER(rsp)
-
     // Pending exceptions possible.
     // TODO: use cmpq, needs direct encoding because of gas bug
     movq %gs:THREAD_EXCEPTION_OFFSET, %rcx
     test %rcx, %rcx
     jnz .Lexception_in_native
+
+    // Tear down the alloca.
+    movq %rbp, %rsp
+    CFI_DEF_CFA_REGISTER(rsp)
 
     // Tear down the callee-save frame.
     // Load FPRs.
@@ -1440,40 +1440,12 @@ DEFINE_FUNCTION art_quick_generic_jni_trampoline
     // store into fpr, for when it's a fpr return...
     movq %rax, %xmm0
     ret
-.Lentry_error:
-    movq %rbp, %rsp
-    CFI_DEF_CFA_REGISTER(rsp)
 .Lexception_in_native:
-    // TODO: the handle scope contains the this pointer which is used by the debugger for exception
-    //       delivery.
-    movq %xmm0, 16(%rsp)         // doesn't make sense!!!
-    movq 24(%rsp), %xmm1            // neither does this!!!
-    movq 32(%rsp), %xmm2
-    movq 40(%rsp), %xmm3
-    movq 48(%rsp), %xmm4
-    movq 56(%rsp), %xmm5
-    movq 64(%rsp), %xmm6
-    movq 72(%rsp), %xmm7
-    movq 80(%rsp), %xmm12
-    movq 88(%rsp), %xmm13
-    movq 96(%rsp), %xmm14
-    movq 104(%rsp), %xmm15
-    // was 80 + 32 bytes
-    addq LITERAL(80 + 4*8), %rsp
-    CFI_ADJUST_CFA_OFFSET(-80 - 4*8)
-    // Save callee and GPR args, mixed together to agree with core spills bitmap.
-    POP rcx  // Arg.
-    POP rdx  // Arg.
-    POP rbx  // Callee save.
-    POP rbp  // Callee save.
-    POP rsi  // Arg.
-    POP r8   // Arg.
-    POP r9   // Arg.
-    POP r12  // Callee save.
-    POP r13  // Callee save.
-    POP r14  // Callee save.
-    POP r15  // Callee save.
-
+    movq %gs:THREAD_TOP_QUICK_FRAME_OFFSET, %rsp
+    CFI_DEF_CFA_REGISTER(rsp)
+    // Do a call to push a new save-all frame required by the runtime.
+    call .Lexception_call
+.Lexception_call:
     DELIVER_PENDING_EXCEPTION
 END_FUNCTION art_quick_generic_jni_trampoline
 
