@@ -639,6 +639,7 @@ void Arm64Assembler::EmitExceptionPoll(Arm64Exception *exception) {
 }
 
 constexpr size_t kFramePointerSize = 8;
+constexpr unsigned int kJniRefSpillRegsSize = 11 + 8;
 
 void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
                         const std::vector<ManagedRegister>& callee_save_regs,
@@ -648,7 +649,7 @@ void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
 
   // TODO: *create APCS FP - end of FP chain;
   //       *add support for saving a different set of callee regs.
-  // For now we check that the size of callee regs vector is 11.
+  // For now we check that the size of callee regs vector is 11 core registers and 8 fp registers.
   CHECK_EQ(callee_save_regs.size(), kJniRefSpillRegsSize);
   // Increase frame to required size - must be at least space to push StackReference<Method>.
   CHECK_GT(frame_size, kJniRefSpillRegsSize * kFramePointerSize);
@@ -681,6 +682,23 @@ void Arm64Assembler::BuildFrame(size_t frame_size, ManagedRegister method_reg,
   StoreToOffset(X21, SP, reg_offset);
   reg_offset -= 8;
   StoreToOffset(X20, SP, reg_offset);
+
+  reg_offset -= 8;
+  StoreDToOffset(D15, SP, reg_offset);
+  reg_offset -= 8;
+  StoreDToOffset(D14, SP, reg_offset);
+  reg_offset -= 8;
+  StoreDToOffset(D13, SP, reg_offset);
+  reg_offset -= 8;
+  StoreDToOffset(D12, SP, reg_offset);
+  reg_offset -= 8;
+  StoreDToOffset(D11, SP, reg_offset);
+  reg_offset -= 8;
+  StoreDToOffset(D10, SP, reg_offset);
+  reg_offset -= 8;
+  StoreDToOffset(D9, SP, reg_offset);
+  reg_offset -= 8;
+  StoreDToOffset(D8, SP, reg_offset);
 
   // Move TR(Caller saved) to ETR(Callee saved). The original (ETR)X21 has been saved on stack.
   // This way we make sure that TR is not trashed by native code.
@@ -752,6 +770,23 @@ void Arm64Assembler::RemoveFrame(size_t frame_size, const std::vector<ManagedReg
   LoadFromOffset(X21, SP, reg_offset);
   reg_offset -= 8;
   LoadFromOffset(X20, SP, reg_offset);
+
+  reg_offset -= 8;
+  LoadDFromOffset(D15, SP, reg_offset);
+  reg_offset -= 8;
+  LoadDFromOffset(D14, SP, reg_offset);
+  reg_offset -= 8;
+  LoadDFromOffset(D13, SP, reg_offset);
+  reg_offset -= 8;
+  LoadDFromOffset(D12, SP, reg_offset);
+  reg_offset -= 8;
+  LoadDFromOffset(D11, SP, reg_offset);
+  reg_offset -= 8;
+  LoadDFromOffset(D10, SP, reg_offset);
+  reg_offset -= 8;
+  LoadDFromOffset(D9, SP, reg_offset);
+  reg_offset -= 8;
+  LoadDFromOffset(D8, SP, reg_offset);
 
   // Decrease frame size to start of callee saved regs.
   DecreaseFrameSize(frame_size);

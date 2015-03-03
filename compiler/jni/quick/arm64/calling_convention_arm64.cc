@@ -38,6 +38,10 @@ static const SRegister kSArgumentRegisters[] = {
   S0, S1, S2, S3, S4, S5, S6, S7
 };
 
+static const DRegister kDCalleeSaveRegisters[] = {
+  D8, D9, D10, D11, D12, D13, D14, D15
+};
+
 // Calling convention
 ManagedRegister Arm64ManagedRuntimeCallingConvention::InterproceduralScratchRegister() {
   return Arm64ManagedRegister::FromXRegister(X20);  // saved on entry restored on exit
@@ -166,6 +170,10 @@ Arm64JniCallingConvention::Arm64JniCallingConvention(bool is_static, bool is_syn
   callee_save_regs_.push_back(Arm64ManagedRegister::FromXRegister(X28));
   callee_save_regs_.push_back(Arm64ManagedRegister::FromXRegister(X29));
   callee_save_regs_.push_back(Arm64ManagedRegister::FromXRegister(X30));
+
+  for (size_t i = 0; i < arraysize(kDCalleeSaveRegisters); ++i) {
+    callee_save_regs_.push_back(Arm64ManagedRegister::FromDRegister(kDCalleeSaveRegisters[i]));
+  }
 }
 
 uint32_t Arm64JniCallingConvention::CoreSpillMask() const {
@@ -184,10 +192,11 @@ uint32_t Arm64JniCallingConvention::CoreSpillMask() const {
 }
 
 uint32_t Arm64JniCallingConvention::FpSpillMask() const {
-  // Compute spill mask to agree with callee saves initialized in the constructor
-  // Note: All callee-save fp registers will be preserved by aapcs64. And they are not used
-  // in the jni method.
-  return 0;
+  uint32_t result = 0;
+  for (size_t i = 0; i < arraysize(kDCalleeSaveRegisters); ++i) {
+    result |= (1 << kDCalleeSaveRegisters[i]);
+  }
+  return result;
 }
 
 ManagedRegister Arm64JniCallingConvention::ReturnScratchRegister() const {

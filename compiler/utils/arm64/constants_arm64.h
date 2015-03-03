@@ -29,8 +29,6 @@
 namespace art {
 namespace arm64 {
 
-constexpr unsigned int kJniRefSpillRegsSize = 11;
-
 constexpr size_t kArm64BaseBufferSize = 4096;
 
 }  // namespace arm64

@@ -63,9 +63,7 @@ class ArmJniCallingConvention FINAL : public JniCallingConvention {
   }
   ManagedRegister ReturnScratchRegister() const OVERRIDE;
   uint32_t CoreSpillMask() const OVERRIDE;
-  uint32_t FpSpillMask() const OVERRIDE {
-    return 0;  // Floats aren't spilled in JNI down call
-  }
+  uint32_t FpSpillMask() const OVERRIDE;
   bool IsCurrentParamInRegister() OVERRIDE;
   bool IsCurrentParamOnStack() OVERRIDE;
   ManagedRegister CurrentParamRegister() OVERRIDE;
