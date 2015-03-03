@@ -520,7 +520,6 @@ class BCEVisitor : public HGraphVisitor {
         right_range->GetIncrement() == -1 &&
         right_range->GetBound().IsRelatedToArrayLength() &&
         right_range->GetBound().GetConstant() < 0) {
-
       HBasicBlock* successor = nullptr;
       int32_t left_compensation = 0;
       int32_t right_compensation = 0;
