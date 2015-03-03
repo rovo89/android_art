@@ -1962,8 +1962,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
 
             if (!success) {
               CHECK(soa.Self()->IsExceptionPending());
-              ThrowLocation throw_location;
-              mirror::Throwable* exception = soa.Self()->GetException(&throw_location);
+              mirror::Throwable* exception = soa.Self()->GetException(nullptr);
               VLOG(compiler) << "Initialization of " << descriptor << " aborted because of "
                   << exception->Dump();
               std::ostream* file_log = manager->GetCompiler()->

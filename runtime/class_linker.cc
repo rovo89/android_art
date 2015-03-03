@@ -4240,8 +4240,8 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
     } else if (Runtime::Current()->IsTransactionAborted()) {
       // The exception thrown when the transaction aborted has been caught and cleared
       // so we need to throw it again now.
-      LOG(WARNING) << "Return from class initializer of " << PrettyDescriptor(klass.Get())
-                   << " without exception while transaction was aborted: re-throw it now.";
+      VLOG(compiler) << "Return from class initializer of " << PrettyDescriptor(klass.Get())
+                     << " without exception while transaction was aborted: re-throw it now.";
       Runtime::Current()->ThrowInternalErrorForAbortedTransaction(self);
       klass->SetStatus(mirror::Class::kStatusError, self);
       success = false;
