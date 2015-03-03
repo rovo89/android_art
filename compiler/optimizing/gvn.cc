@@ -16,30 +16,12 @@
 
 #include "gvn.h"
 #include "side_effects_analysis.h"
+#include "utils.h"
+
+#include "utils/arena_bit_vector.h"
+#include "base/bit_vector-inl.h"
 
 namespace art {
-
-/**
- * A node in the collision list of a ValueSet. Encodes the instruction,
- * the hash code, and the next node in the collision list.
- */
-class ValueSetNode : public ArenaObject<kArenaAllocMisc> {
- public:
-  ValueSetNode(HInstruction* instruction, size_t hash_code, ValueSetNode* next)
-      : instruction_(instruction), hash_code_(hash_code), next_(next) {}
-
-  size_t GetHashCode() const { return hash_code_; }
-  HInstruction* GetInstruction() const { return instruction_; }
-  ValueSetNode* GetNext() const { return next_; }
-  void SetNext(ValueSetNode* node) { next_ = node; }
-
- private:
-  HInstruction* const instruction_;
-  const size_t hash_code_;
-  ValueSetNode* next_;
-
-  DISALLOW_COPY_AND_ASSIGN(ValueSetNode);
-};
 
 /**
  * A ValueSet holds instructions that can replace other instructions. It is updated
@@ -52,39 +34,68 @@ class ValueSetNode : public ArenaObject<kArenaAllocMisc> {
  */
 class ValueSet : public ArenaObject<kArenaAllocMisc> {
  public:
+  // Constructs an empty ValueSet which owns all its buckets.
   explicit ValueSet(ArenaAllocator* allocator)
-      : allocator_(allocator), number_of_entries_(0), collisions_(nullptr) {
-    for (size_t i = 0; i < kDefaultNumberOfEntries; ++i) {
-      table_[i] = nullptr;
+      : allocator_(allocator),
+        num_buckets_(kMinimumNumberOfBuckets),
+        buckets_(allocator->AllocArray<Node*>(num_buckets_)),
+        buckets_owned_(allocator, num_buckets_, false),
+        num_entries_(0) {
+    // ArenaAllocator returns zeroed memory, so no need to set buckets to null.
+    DCHECK(IsPowerOfTwo(num_buckets_));
+    buckets_owned_.SetInitialBits(num_buckets_);
+  }
+
+  // Copy constructor. Depending on the load factor, it will either make a deep
+  // copy (all buckets owned) or a shallow one (buckets pointing to the parent).
+  ValueSet(ArenaAllocator* allocator, const ValueSet& to_copy)
+      : allocator_(allocator),
+        num_buckets_(to_copy.IdealBucketCount()),
+        buckets_(allocator->AllocArray<Node*>(num_buckets_)),
+        buckets_owned_(allocator, num_buckets_, false),
+        num_entries_(to_copy.num_entries_) {
+    // ArenaAllocator returns zeroed memory, so entries of buckets_ and
+    // buckets_owned_ are initialized to nullptr and false, respectively.
+    DCHECK(IsPowerOfTwo(num_buckets_));
+    if (num_buckets_ == to_copy.num_buckets_) {
+      // Hash table remains the same size. We copy the bucket pointers and leave
+      // all buckets_owned_ bits false.
+      memcpy(buckets_, to_copy.buckets_, num_buckets_ * sizeof(Node*));
+    } else {
+      // Hash table size changes. We copy and rehash all entries, and set all
+      // buckets_owned_ bits to true.
+      for (size_t i = 0; i < to_copy.num_buckets_; ++i) {
+        for (Node* node = to_copy.buckets_[i]; node != nullptr; node = node->GetNext()) {
+          size_t new_index = BucketIndex(node->GetHashCode());
+          buckets_[new_index] = node->Dup(allocator_, buckets_[new_index]);
+        }
+      }
+      buckets_owned_.SetInitialBits(num_buckets_);
     }
   }
 
   // Adds an instruction in the set.
   void Add(HInstruction* instruction) {
     DCHECK(Lookup(instruction) == nullptr);
-    size_t hash_code = instruction->ComputeHashCode();
-    size_t index = hash_code % kDefaultNumberOfEntries;
-    if (table_[index] == nullptr) {
-      table_[index] = instruction;
-    } else {
-      collisions_ = new (allocator_) ValueSetNode(instruction, hash_code, collisions_);
+    size_t hash_code = HashCode(instruction);
+    size_t index = BucketIndex(hash_code);
+
+    if (!buckets_owned_.IsBitSet(index)) {
+      CloneBucket(index);
     }
-    ++number_of_entries_;
+    buckets_[index] = new (allocator_) Node(instruction, hash_code, buckets_[index]);
+    ++num_entries_;
   }
 
-  // If in the set, returns an equivalent instruction to the given instruction. Returns
-  // null otherwise.
+  // If in the set, returns an equivalent instruction to the given instruction.
+  // Returns null otherwise.
   HInstruction* Lookup(HInstruction* instruction) const {
-    size_t hash_code = instruction->ComputeHashCode();
-    size_t index = hash_code % kDefaultNumberOfEntries;
-    HInstruction* existing = table_[index];
-    if (existing != nullptr && existing->Equals(instruction)) {
-      return existing;
-    }
+    size_t hash_code = HashCode(instruction);
+    size_t index = BucketIndex(hash_code);
 
-    for (ValueSetNode* node = collisions_; node != nullptr; node = node->GetNext()) {
+    for (Node* node = buckets_[index]; node != nullptr; node = node->GetNext()) {
       if (node->GetHashCode() == hash_code) {
-        existing = node->GetInstruction();
+        HInstruction* existing = node->GetInstruction();
         if (existing->Equals(instruction)) {
           return existing;
         }
@@ -93,126 +104,193 @@ class ValueSet : public ArenaObject<kArenaAllocMisc> {
     return nullptr;
   }
 
-  // Returns whether `instruction` is in the set.
-  HInstruction* IdentityLookup(HInstruction* instruction) const {
-    size_t hash_code = instruction->ComputeHashCode();
-    size_t index = hash_code % kDefaultNumberOfEntries;
-    HInstruction* existing = table_[index];
-    if (existing != nullptr && existing == instruction) {
-      return existing;
-    }
+  // Returns whether instruction is in the set.
+  bool Contains(HInstruction* instruction) const {
+    size_t hash_code = HashCode(instruction);
+    size_t index = BucketIndex(hash_code);
 
-    for (ValueSetNode* node = collisions_; node != nullptr; node = node->GetNext()) {
-      if (node->GetHashCode() == hash_code) {
-        existing = node->GetInstruction();
-        if (existing == instruction) {
-          return existing;
-        }
+    for (Node* node = buckets_[index]; node != nullptr; node = node->GetNext()) {
+      if (node->GetInstruction() == instruction) {
+        return true;
       }
     }
-    return nullptr;
+    return false;
   }
 
-  // Removes all instructions in the set that are affected by the given side effects.
+  // Removes all instructions in the set affected by the given side effects.
   void Kill(SideEffects side_effects) {
-    for (size_t i = 0; i < kDefaultNumberOfEntries; ++i) {
-      HInstruction* instruction = table_[i];
-      if (instruction != nullptr && instruction->GetSideEffects().DependsOn(side_effects)) {
-        table_[i] = nullptr;
-        --number_of_entries_;
-      }
-    }
+    DeleteAllImpureWhich([side_effects](Node* node) {
+      return node->GetInstruction()->GetSideEffects().DependsOn(side_effects);
+    });
+  }
 
-    for (ValueSetNode* current = collisions_, *previous = nullptr;
-         current != nullptr;
-         current = current->GetNext()) {
-      HInstruction* instruction = current->GetInstruction();
-      if (instruction->GetSideEffects().DependsOn(side_effects)) {
-        if (previous == nullptr) {
-          collisions_ = current->GetNext();
-        } else {
-          previous->SetNext(current->GetNext());
-        }
-        --number_of_entries_;
-      } else {
-        previous = current;
-      }
+  // Updates this set by intersecting with instructions in a predecessor's set.
+  void IntersectWith(ValueSet* predecessor) {
+    if (IsEmpty()) {
+      return;
+    } else if (predecessor->IsEmpty()) {
+      Clear();
+    } else {
+      // Pure instructions do not need to be tested because only impure
+      // instructions can be killed.
+      DeleteAllImpureWhich([predecessor](Node* node) {
+        return !predecessor->Contains(node->GetInstruction());
+      });
     }
   }
 
-  // Returns a copy of this set.
-  ValueSet* Copy() const {
-    ValueSet* copy = new (allocator_) ValueSet(allocator_);
+  bool IsEmpty() const { return num_entries_ == 0; }
+  size_t GetNumberOfEntries() const { return num_entries_; }
 
-    for (size_t i = 0; i < kDefaultNumberOfEntries; ++i) {
-      copy->table_[i] = table_[i];
+ private:
+  class Node : public ArenaObject<kArenaAllocMisc> {
+   public:
+    Node(HInstruction* instruction, size_t hash_code, Node* next)
+        : instruction_(instruction), hash_code_(hash_code), next_(next) {}
+
+    size_t GetHashCode() const { return hash_code_; }
+    HInstruction* GetInstruction() const { return instruction_; }
+    Node* GetNext() const { return next_; }
+    void SetNext(Node* node) { next_ = node; }
+
+    Node* Dup(ArenaAllocator* allocator, Node* new_next = nullptr) {
+      return new (allocator) Node(instruction_, hash_code_, new_next);
     }
 
-    // Note that the order will be inverted in the copy. This is fine, as the order is not
-    // relevant for a ValueSet.
-    for (ValueSetNode* node = collisions_; node != nullptr; node = node->GetNext()) {
-      copy->collisions_ = new (allocator_) ValueSetNode(
-          node->GetInstruction(), node->GetHashCode(), copy->collisions_);
-    }
+   private:
+    HInstruction* const instruction_;
+    const size_t hash_code_;
+    Node* next_;
 
-    copy->number_of_entries_ = number_of_entries_;
-    return copy;
+    DISALLOW_COPY_AND_ASSIGN(Node);
+  };
+
+  // Creates our own copy of a bucket that is currently pointing to a parent.
+  // This algorithm can be called while iterating over the bucket because it
+  // preserves the order of entries in the bucket and will return the clone of
+  // the given 'iterator'.
+  Node* CloneBucket(size_t index, Node* iterator = nullptr) {
+    DCHECK(!buckets_owned_.IsBitSet(index));
+    Node* clone_current = nullptr;
+    Node* clone_previous = nullptr;
+    Node* clone_iterator = nullptr;
+    for (Node* node = buckets_[index]; node != nullptr; node = node->GetNext()) {
+      clone_current = node->Dup(allocator_, nullptr);
+      if (node == iterator) {
+        clone_iterator = clone_current;
+      }
+      if (clone_previous == nullptr) {
+        buckets_[index] = clone_current;
+      } else {
+        clone_previous->SetNext(clone_current);
+      }
+      clone_previous = clone_current;
+    }
+    buckets_owned_.SetBit(index);
+    return clone_iterator;
   }
 
   void Clear() {
-    number_of_entries_ = 0;
-    collisions_ = nullptr;
-    for (size_t i = 0; i < kDefaultNumberOfEntries; ++i) {
-      table_[i] = nullptr;
+    num_entries_ = 0;
+    for (size_t i = 0; i < num_buckets_; ++i) {
+      buckets_[i] = nullptr;
     }
+    buckets_owned_.SetInitialBits(num_buckets_);
   }
 
-  // Update this `ValueSet` by intersecting with instructions in `other`.
-  void IntersectionWith(ValueSet* other) {
-    if (IsEmpty()) {
-      return;
-    } else if (other->IsEmpty()) {
-      Clear();
-    } else {
-      for (size_t i = 0; i < kDefaultNumberOfEntries; ++i) {
-        if (table_[i] != nullptr && other->IdentityLookup(table_[i]) == nullptr) {
-          --number_of_entries_;
-          table_[i] = nullptr;
-        }
+  // Iterates over buckets with impure instructions (even indices) and deletes
+  // the ones on which 'cond' returns true.
+  template<typename Functor>
+  void DeleteAllImpureWhich(Functor cond) {
+    for (size_t i = 0; i < num_buckets_; i += 2) {
+      Node* node = buckets_[i];
+      Node* previous = nullptr;
+
+      if (node == nullptr) {
+        continue;
       }
-      for (ValueSetNode* current = collisions_, *previous = nullptr;
-           current != nullptr;
-           current = current->GetNext()) {
-        if (other->IdentityLookup(current->GetInstruction()) == nullptr) {
-          if (previous == nullptr) {
-            collisions_ = current->GetNext();
-          } else {
-            previous->SetNext(current->GetNext());
+
+      if (!buckets_owned_.IsBitSet(i)) {
+        // Bucket is not owned but maybe we won't need to change it at all.
+        // Iterate as long as the entries don't satisfy 'cond'.
+        while (node != nullptr) {
+          if (cond(node)) {
+            // We do need to delete an entry but we do not own the bucket.
+            // Clone the bucket, make sure 'previous' and 'node' point to
+            // the cloned entries and break.
+            previous = CloneBucket(i, previous);
+            node = (previous == nullptr) ? buckets_[i] : previous->GetNext();
+            break;
           }
-          --number_of_entries_;
-        } else {
-          previous = current;
+          previous = node;
+          node = node->GetNext();
         }
+      }
+
+      // By this point we either own the bucket and can start deleting entries,
+      // or we do not own it but no entries matched 'cond'.
+      DCHECK(buckets_owned_.IsBitSet(i) || node == nullptr);
+
+      // We iterate over the remainder of entries and delete those that match
+      // the given condition.
+      while (node != nullptr) {
+        Node* next = node->GetNext();
+        if (cond(node)) {
+          if (previous == nullptr) {
+            buckets_[i] = next;
+          } else {
+            previous->SetNext(next);
+          }
+        } else {
+          previous = node;
+        }
+        node = next;
       }
     }
   }
 
-  bool IsEmpty() const { return number_of_entries_ == 0; }
-  size_t GetNumberOfEntries() const { return number_of_entries_; }
+  // Computes a bucket count such that the load factor is reasonable.
+  // This is estimated as (num_entries_ * 1.5) and rounded up to nearest pow2.
+  size_t IdealBucketCount() const {
+    size_t bucket_count = RoundUpToPowerOfTwo(num_entries_ + (num_entries_ >> 1));
+    if (bucket_count > kMinimumNumberOfBuckets) {
+      return bucket_count;
+    } else {
+      return kMinimumNumberOfBuckets;
+    }
+  }
 
- private:
-  static constexpr size_t kDefaultNumberOfEntries = 8;
+  // Generates a hash code for an instruction. Pure instructions are put into
+  // odd buckets to speed up deletion.
+  size_t HashCode(HInstruction* instruction) const {
+    size_t hash_code = instruction->ComputeHashCode();
+    if (instruction->GetSideEffects().HasDependencies()) {
+      return (hash_code << 1) | 0;
+    } else {
+      return (hash_code << 1) | 1;
+    }
+  }
+
+  // Converts a hash code to a bucket index.
+  size_t BucketIndex(size_t hash_code) const {
+    return hash_code & (num_buckets_ - 1);
+  }
 
   ArenaAllocator* const allocator_;
 
-  // The number of entries in the set.
-  size_t number_of_entries_;
+  // The internal bucket implementation of the set.
+  size_t const num_buckets_;
+  Node** const buckets_;
 
-  // The internal implementation of the set. It uses a combination of a hash code based
-  // fixed-size list, and a linked list to handle hash code collisions.
-  // TODO: Tune the fixed size list original size, and support growing it.
-  ValueSetNode* collisions_;
-  HInstruction* table_[kDefaultNumberOfEntries];
+  // Flags specifying which buckets were copied into the set from its parent.
+  // If a flag is not set, the corresponding bucket points to entries in the
+  // parent and must be cloned prior to making changes.
+  ArenaBitVector buckets_owned_;
+
+  // The number of entries in the set.
+  size_t num_entries_;
+
+  static constexpr size_t kMinimumNumberOfBuckets = 8;
 
   DISALLOW_COPY_AND_ASSIGN(ValueSet);
 };
@@ -270,11 +348,14 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
     set = new (allocator_) ValueSet(allocator_);
   } else {
     HBasicBlock* dominator = block->GetDominator();
-    set = sets_.Get(dominator->GetBlockId());
-    if (dominator->GetSuccessors().Size() != 1 || dominator->GetSuccessors().Get(0) != block) {
+    ValueSet* dominator_set = sets_.Get(dominator->GetBlockId());
+    if (dominator->GetSuccessors().Size() == 1) {
+      DCHECK_EQ(dominator->GetSuccessors().Get(0), block);
+      set = dominator_set;
+    } else {
       // We have to copy if the dominator has other successors, or `block` is not a successor
       // of the dominator.
-      set = set->Copy();
+      set = new (allocator_) ValueSet(allocator_, *dominator_set);
     }
     if (!set->IsEmpty()) {
       if (block->IsLoopHeader()) {
@@ -282,7 +363,7 @@ void GlobalValueNumberer::VisitBasicBlock(HBasicBlock* block) {
         set->Kill(side_effects_.GetLoopEffects(block));
       } else if (predecessors.Size() > 1) {
         for (size_t i = 0, e = predecessors.Size(); i < e; ++i) {
-          set->IntersectionWith(sets_.Get(predecessors.Get(i)->GetBlockId()));
+          set->IntersectWith(sets_.Get(predecessors.Get(i)->GetBlockId()));
           if (set->IsEmpty()) {
             break;
           }
