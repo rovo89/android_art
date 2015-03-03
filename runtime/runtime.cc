@@ -1560,15 +1560,17 @@ void Runtime::AbortTransactionAndThrowInternalError(Thread* self,
                                                     const std::string& abort_message) {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
+  // Throwing an exception may cause its class initialization. If we mark the transaction
+  // aborted before that, we may warn with a false alarm. Throwing the exception before
+  // marking the transaction aborted avoids that.
+  preinitialization_transaction_->ThrowInternalError(self, false);
   preinitialization_transaction_->Abort(abort_message);
-  ThrowInternalErrorForAbortedTransaction(self);
 }
 
 void Runtime::ThrowInternalErrorForAbortedTransaction(Thread* self) {
   DCHECK(IsCompiler());
   DCHECK(IsActiveTransaction());
-  DCHECK(IsTransactionAborted());
-  preinitialization_transaction_->ThrowInternalError(self);
+  preinitialization_transaction_->ThrowInternalError(self, true);
 }
 
 void Runtime::RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset,
