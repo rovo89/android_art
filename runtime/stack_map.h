@@ -104,10 +104,9 @@ class DexRegisterMap {
         return "in fpu register";
       case kConstant:
         return "as constant";
-      default:
-        LOG(FATAL) << "Invalid location kind " << static_cast<int>(kind);
-        return nullptr;
     }
+    UNREACHABLE();
+    return nullptr;
   }
 
   LocationKind GetLocationKind(uint16_t register_index) const {
@@ -124,6 +123,23 @@ class DexRegisterMap {
   int32_t GetValue(uint16_t register_index) const {
     return region_.Load<int32_t>(
         kFixedSize + sizeof(LocationKind) + register_index * SingleEntrySize());
+  }
+
+  int32_t GetStackOffsetInBytes(uint16_t register_index) const {
+    DCHECK(GetLocationKind(register_index) == kInStack);
+    // We currently encode the offset in bytes.
+    return GetValue(register_index);
+  }
+
+  int32_t GetConstant(uint16_t register_index) const {
+    DCHECK(GetLocationKind(register_index) == kConstant);
+    return GetValue(register_index);
+  }
+
+  int32_t GetMachineRegister(uint16_t register_index) const {
+    DCHECK(GetLocationKind(register_index) == kInRegister
+        || GetLocationKind(register_index) == kInFpuRegister);
+    return GetValue(register_index);
   }
 
   static size_t SingleEntrySize() {

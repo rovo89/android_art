@@ -31,6 +31,10 @@ static const SRegister kHFSArgumentRegisters[] = {
   S0, S1, S2, S3, S4, S5, S6, S7, S8, S9, S10, S11, S12, S13, S14, S15
 };
 
+static const SRegister kHFSCalleeSaveRegisters[] = {
+  S16, S17, S18, S19, S20, S21, S22, S23, S24, S25, S26, S27, S28, S29, S30, S31
+};
+
 static const DRegister kHFDArgumentRegisters[] = {
   D0, D1, D2, D3, D4, D5, D6, D7
 };
@@ -226,12 +230,24 @@ ArmJniCallingConvention::ArmJniCallingConvention(bool is_static, bool is_synchro
   callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R8));
   callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R10));
   callee_save_regs_.push_back(ArmManagedRegister::FromCoreRegister(R11));
+
+  for (size_t i = 0; i < arraysize(kHFSCalleeSaveRegisters); ++i) {
+    callee_save_regs_.push_back(ArmManagedRegister::FromSRegister(kHFSCalleeSaveRegisters[i]));
+  }
 }
 
 uint32_t ArmJniCallingConvention::CoreSpillMask() const {
   // Compute spill mask to agree with callee saves initialized in the constructor
   uint32_t result = 0;
   result = 1 << R5 | 1 << R6 | 1 << R7 | 1 << R8 | 1 << R10 | 1 << R11 | 1 << LR;
+  return result;
+}
+
+uint32_t ArmJniCallingConvention::FpSpillMask() const {
+  uint32_t result = 0;
+  for (size_t i = 0; i < arraysize(kHFSCalleeSaveRegisters); ++i) {
+    result |= (1 << kHFSCalleeSaveRegisters[i]);
+  }
   return result;
 }
 

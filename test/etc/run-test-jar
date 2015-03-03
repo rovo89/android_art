@@ -361,8 +361,8 @@ if [ "$HOST" = "n" ]; then
              export ANDROID_DATA=$DEX_LOCATION && \
              export DEX_LOCATION=$DEX_LOCATION && \
              export ANDROID_ROOT=$ANDROID_ROOT && \
-             export LD_LIBRARY_PATH=$LD_LIBRARY_PATH && \
              $mkdir_cmdline && \
+             export LD_LIBRARY_PATH=$LD_LIBRARY_PATH && \
              $dex2oat_cmdline && \
              $dalvikvm_cmdline"
 
