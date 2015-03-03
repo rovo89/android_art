@@ -304,6 +304,8 @@ TEST_ART_BROKEN_NDEBUG_TESTS := \
   118-noimage-dex2oat \
   119-noimage-patchoat \
   131-structural-change \
+  454-get-vreg \
+  455-set-vreg \
 
 ifneq (,$(filter ndebug,$(RUN_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),ndebug,$(PREBUILD_TYPES), \
