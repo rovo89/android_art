@@ -177,8 +177,8 @@ class ThreadList {
   int suspend_all_count_ GUARDED_BY(Locks::thread_suspend_count_lock_);
   int debug_suspend_all_count_ GUARDED_BY(Locks::thread_suspend_count_lock_);
 
-  // Signaled when threads terminate. Used to determine when all non-daemons have terminated.
-  ConditionVariable thread_exit_cond_ GUARDED_BY(Locks::thread_list_lock_);
+  // Number of threads unregistering, ~ThreadList blocks until this hits 0.
+  int unregistering_count_ GUARDED_BY(Locks::thread_list_lock_);
 
   // Thread suspend time histogram. Only modified when all the threads are suspended, so guarding
   // by mutator lock ensures no thread can read when another thread is modifying it.
