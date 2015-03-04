@@ -466,7 +466,6 @@ class JNI {
     auto old_throw_method(hs.NewHandle<mirror::ArtMethod>(nullptr));
     auto old_exception(hs.NewHandle<mirror::Throwable>(nullptr));
     uint32_t old_throw_dex_pc;
-    bool old_is_exception_reported;
     {
       ThrowLocation old_throw_location;
       mirror::Throwable* old_exception_obj = soa.Self()->GetException(&old_throw_location);
@@ -474,7 +473,6 @@ class JNI {
       old_throw_method.Assign(old_throw_location.GetMethod());
       old_exception.Assign(old_exception_obj);
       old_throw_dex_pc = old_throw_location.GetDexPc();
-      old_is_exception_reported = soa.Self()->IsExceptionReportedToInstrumentation();
       soa.Self()->ClearException();
     }
     ScopedLocalRef<jthrowable> exception(env,
@@ -496,7 +494,6 @@ class JNI {
                                          old_throw_dex_pc);
 
     soa.Self()->SetException(gc_safe_throw_location, old_exception.Get());
-    soa.Self()->SetExceptionReportedToInstrumentation(old_is_exception_reported);
   }
 
   static jthrowable ExceptionOccurred(JNIEnv* env) {
