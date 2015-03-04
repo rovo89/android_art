@@ -100,7 +100,8 @@ bool DexFile::GetChecksum(const char* filename, uint32_t* checksum, std::string*
   if (IsZipMagic(magic)) {
     std::unique_ptr<ZipArchive> zip_archive(ZipArchive::OpenFromFd(fd.release(), filename, error_msg));
     if (zip_archive.get() == NULL) {
-      *error_msg = StringPrintf("Failed to open zip archive '%s'", file_part);
+      *error_msg = StringPrintf("Failed to open zip archive '%s' (error msg: %s)", file_part,
+                                error_msg->c_str());
       return false;
     }
     std::unique_ptr<ZipEntry> zip_entry(zip_archive->Find(zip_entry_name, error_msg));
