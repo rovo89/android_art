@@ -19,12 +19,10 @@
 
 #include <pthread.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include <iosfwd>
 #include <list>
-#ifndef __LP64__
-#include <malloc.h>  // For memalign.
-#endif
 #include <vector>
 
 #include "atomic.h"
@@ -138,7 +136,10 @@ class Monitor {
 #ifndef __LP64__
   void* operator new(size_t size) {
     // Align Monitor* as per the monitor ID field size in the lock word.
-    return memalign(LockWord::kMonitorIdAlignment, size);
+    void* result;
+    int error = posix_memalign(&result, LockWord::kMonitorIdAlignment, size);
+    CHECK_EQ(error, 0) << strerror(error);
+    return result;
   }
 #endif
 
@@ -173,7 +174,8 @@ class Monitor {
                           const char* owner_filename, uint32_t owner_line_number)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void FailedUnlock(mirror::Object* obj, Thread* expected_owner, Thread* found_owner, Monitor* mon)
+  static void FailedUnlock(mirror::Object* obj, Thread* expected_owner, Thread* found_owner,
+                           Monitor* mon)
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
