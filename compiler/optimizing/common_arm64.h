@@ -118,8 +118,14 @@ static inline vixl::CPURegister InputCPURegisterAt(HInstruction* instr, int inde
 
 static inline int64_t Int64ConstantFrom(Location location) {
   HConstant* instr = location.GetConstant();
-  return instr->IsIntConstant() ? instr->AsIntConstant()->GetValue()
-                                : instr->AsLongConstant()->GetValue();
+  if (instr->IsIntConstant()) {
+    return instr->AsIntConstant()->GetValue();
+  } else if (instr->IsNullConstant()) {
+    return 0;
+  } else {
+    DCHECK(instr->IsLongConstant());
+    return instr->AsLongConstant()->GetValue();
+  }
 }
 
 static inline vixl::Operand OperandFrom(Location location, Primitive::Type type) {
