@@ -69,6 +69,13 @@ bool Throwable::IsCheckedException() {
   return !InstanceOf(WellKnownClasses::ToClass(WellKnownClasses::java_lang_RuntimeException));
 }
 
+int32_t Throwable::GetStackDepth() {
+  Object* stack_state = GetStackState();
+  if (stack_state == nullptr || !stack_state->IsObjectArray()) return -1;
+  ObjectArray<Object>* method_trace = down_cast<ObjectArray<Object>*>(stack_state);
+  return method_trace->GetLength() - 1;
+}
+
 std::string Throwable::Dump() {
   std::string result(PrettyTypeOf(this));
   result += ": ";

@@ -955,7 +955,6 @@ void Instrumentation::ExceptionCaughtEvent(Thread* thread, const ThrowLocation& 
                                            mirror::Throwable* exception_object) const {
   if (HasExceptionCaughtListeners()) {
     DCHECK_EQ(thread->GetException(nullptr), exception_object);
-    bool is_exception_reported = thread->IsExceptionReportedToInstrumentation();
     thread->ClearException();
     std::shared_ptr<std::list<InstrumentationListener*>> original(exception_caught_listeners_);
     for (InstrumentationListener* listener : *original.get()) {
@@ -963,7 +962,6 @@ void Instrumentation::ExceptionCaughtEvent(Thread* thread, const ThrowLocation& 
                                 exception_object);
     }
     thread->SetException(throw_location, exception_object);
-    thread->SetExceptionReportedToInstrumentation(is_exception_reported);
   }
 }
 

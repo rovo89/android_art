@@ -84,7 +84,6 @@ void Class::SetStatus(Status new_status, Thread* self) {
     Handle<mirror::Object> old_throw_this_object(hs.NewHandle(old_throw_location.GetThis()));
     Handle<mirror::ArtMethod> old_throw_method(hs.NewHandle(old_throw_location.GetMethod()));
     uint32_t old_throw_dex_pc = old_throw_location.GetDexPc();
-    bool is_exception_reported = self->IsExceptionReportedToInstrumentation();
     Class* eiie_class;
     // Do't attempt to use FindClass if we have an OOM error since this can try to do more
     // allocations and may cause infinite loops.
@@ -113,7 +112,6 @@ void Class::SetStatus(Status new_status, Thread* self) {
     ThrowLocation gc_safe_throw_location(old_throw_this_object.Get(), old_throw_method.Get(),
                                          old_throw_dex_pc);
     self->SetException(gc_safe_throw_location, old_exception.Get());
-    self->SetExceptionReportedToInstrumentation(is_exception_reported);
   }
   static_assert(sizeof(Status) == sizeof(uint32_t), "Size of status not equal to uint32");
   if (Runtime::Current()->IsActiveTransaction()) {
