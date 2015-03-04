@@ -165,7 +165,7 @@ bool Monitor::Install(Thread* self) {
       return false;
     }
   }
-  LockWord fat(this);
+  LockWord fat(this, lw.ReadBarrierState());
   // Publish the updated lock word, which may race with other threads.
   bool success = GetObject()->CasLockWordWeakSequentiallyConsistent(lw, fat);
   // Lock profiling.
@@ -610,15 +610,22 @@ bool Monitor::Deflate(Thread* self, mirror::Object* obj) {
         return false;
       }
       // Deflate to a thin lock.
-      obj->SetLockWord(LockWord::FromThinLockId(owner->GetThreadId(), monitor->lock_count_), false);
+      LockWord new_lw = LockWord::FromThinLockId(owner->GetThreadId(), monitor->lock_count_,
+                                                 lw.ReadBarrierState());
+      // Assume no concurrent read barrier state changes as mutators are suspended.
+      obj->SetLockWord(new_lw, false);
       VLOG(monitor) << "Deflated " << obj << " to thin lock " << owner->GetTid() << " / "
           << monitor->lock_count_;
     } else if (monitor->HasHashCode()) {
-      obj->SetLockWord(LockWord::FromHashCode(monitor->GetHashCode()), false);
+      LockWord new_lw = LockWord::FromHashCode(monitor->GetHashCode(), lw.ReadBarrierState());
+      // Assume no concurrent read barrier state changes as mutators are suspended.
+      obj->SetLockWord(new_lw, false);
       VLOG(monitor) << "Deflated " << obj << " to hash monitor " << monitor->GetHashCode();
     } else {
       // No lock and no hash, just put an empty lock word inside the object.
-      obj->SetLockWord(LockWord(), false);
+      LockWord new_lw = LockWord::FromDefault(lw.ReadBarrierState());
+      // Assume no concurrent read barrier state changes as mutators are suspended.
+      obj->SetLockWord(new_lw, false);
       VLOG(monitor) << "Deflated" << obj << " to empty lock word";
     }
     // The monitor is deflated, mark the object as nullptr so that we know to delete it during the
@@ -704,7 +711,7 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
     LockWord lock_word = h_obj->GetLockWord(true);
     switch (lock_word.GetState()) {
       case LockWord::kUnlocked: {
-        LockWord thin_locked(LockWord::FromThinLockId(thread_id, 0));
+        LockWord thin_locked(LockWord::FromThinLockId(thread_id, 0, lock_word.ReadBarrierState()));
         if (h_obj->CasLockWordWeakSequentiallyConsistent(lock_word, thin_locked)) {
           // CasLockWord enforces more than the acquire ordering we need here.
           return h_obj.Get();  // Success!
@@ -717,9 +724,18 @@ mirror::Object* Monitor::MonitorEnter(Thread* self, mirror::Object* obj) {
           // We own the lock, increase the recursion count.
           uint32_t new_count = lock_word.ThinLockCount() + 1;
           if (LIKELY(new_count <= LockWord::kThinLockMaxCount)) {
-            LockWord thin_locked(LockWord::FromThinLockId(thread_id, new_count));
-            h_obj->SetLockWord(thin_locked, true);
-            return h_obj.Get();  // Success!
+            LockWord thin_locked(LockWord::FromThinLockId(thread_id, new_count,
+                                                          lock_word.ReadBarrierState()));
+            if (!kUseReadBarrier) {
+              h_obj->SetLockWord(thin_locked, true);
+              return h_obj.Get();  // Success!
+            } else {
+              // Use CAS to preserve the read barrier state.
+              if (h_obj->CasLockWordWeakSequentiallyConsistent(lock_word, thin_locked)) {
+                return h_obj.Get();  // Success!
+              }
+            }
+            continue;  // Go again.
           } else {
             // We'd overflow the recursion count, so inflate the monitor.
             InflateThinLocked(self, h_obj, lock_word, 0);
@@ -762,43 +778,57 @@ bool Monitor::MonitorExit(Thread* self, mirror::Object* obj) {
   DCHECK(self != NULL);
   DCHECK(obj != NULL);
   obj = FakeUnlock(obj);
-  LockWord lock_word = obj->GetLockWord(true);
   StackHandleScope<1> hs(self);
   Handle<mirror::Object> h_obj(hs.NewHandle(obj));
-  switch (lock_word.GetState()) {
-    case LockWord::kHashCode:
-      // Fall-through.
-    case LockWord::kUnlocked:
-      FailedUnlock(h_obj.Get(), self, nullptr, nullptr);
-      return false;  // Failure.
-    case LockWord::kThinLocked: {
-      uint32_t thread_id = self->GetThreadId();
-      uint32_t owner_thread_id = lock_word.ThinLockOwner();
-      if (owner_thread_id != thread_id) {
-        // TODO: there's a race here with the owner dying while we unlock.
-        Thread* owner =
-            Runtime::Current()->GetThreadList()->FindThreadByThreadId(lock_word.ThinLockOwner());
-        FailedUnlock(h_obj.Get(), self, owner, nullptr);
+  while (true) {
+    LockWord lock_word = obj->GetLockWord(true);
+    switch (lock_word.GetState()) {
+      case LockWord::kHashCode:
+        // Fall-through.
+      case LockWord::kUnlocked:
+        FailedUnlock(h_obj.Get(), self, nullptr, nullptr);
         return false;  // Failure.
-      } else {
-        // We own the lock, decrease the recursion count.
-        if (lock_word.ThinLockCount() != 0) {
-          uint32_t new_count = lock_word.ThinLockCount() - 1;
-          LockWord thin_locked(LockWord::FromThinLockId(thread_id, new_count));
-          h_obj->SetLockWord(thin_locked, true);
+      case LockWord::kThinLocked: {
+        uint32_t thread_id = self->GetThreadId();
+        uint32_t owner_thread_id = lock_word.ThinLockOwner();
+        if (owner_thread_id != thread_id) {
+          // TODO: there's a race here with the owner dying while we unlock.
+          Thread* owner =
+              Runtime::Current()->GetThreadList()->FindThreadByThreadId(lock_word.ThinLockOwner());
+          FailedUnlock(h_obj.Get(), self, owner, nullptr);
+          return false;  // Failure.
         } else {
-          h_obj->SetLockWord(LockWord(), true);
+          // We own the lock, decrease the recursion count.
+          LockWord new_lw = LockWord::Default();
+          if (lock_word.ThinLockCount() != 0) {
+            uint32_t new_count = lock_word.ThinLockCount() - 1;
+            new_lw = LockWord::FromThinLockId(thread_id, new_count, lock_word.ReadBarrierState());
+          } else {
+            new_lw = LockWord::FromDefault(lock_word.ReadBarrierState());
+          }
+          if (!kUseReadBarrier) {
+            DCHECK_EQ(new_lw.ReadBarrierState(), 0U);
+            h_obj->SetLockWord(new_lw, true);
+            // Success!
+            return true;
+          } else {
+            // Use CAS to preserve the read barrier state.
+            if (h_obj->CasLockWordWeakSequentiallyConsistent(lock_word, new_lw)) {
+              // Success!
+              return true;
+            }
+          }
+          continue;  // Go again.
         }
-        return true;  // Success!
       }
-    }
-    case LockWord::kFatLocked: {
-      Monitor* mon = lock_word.FatLockMonitor();
-      return mon->Unlock(self);
-    }
-    default: {
-      LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
-      return false;
+      case LockWord::kFatLocked: {
+        Monitor* mon = lock_word.FatLockMonitor();
+        return mon->Unlock(self);
+      }
+      default: {
+        LOG(FATAL) << "Invalid monitor state " << lock_word.GetState();
+        return false;
+      }
     }
   }
 }

@@ -1000,25 +1000,33 @@ ENTRY art_quick_lock_object
 .Lretry_lock:
     ldr    w2, [xSELF, #THREAD_ID_OFFSET] // TODO: Can the thread ID really change during the loop?
     ldxr   w1, [x4]
-    cbnz   w1, .Lnot_unlocked         // already thin locked
+    mov    x3, x1
+    and    w3, w3, #LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED  // zero the read barrier bits
+    cbnz   w3, .Lnot_unlocked         // already thin locked
+    // unlocked case - x1: original lock word that's zero except for the read barrier bits.
+    orr    x2, x1, x2                 // x2 holds thread id with count of 0 with preserved read barrier bits
     stxr   w3, w2, [x4]
-    cbnz   w3, .Lstrex_fail           // store failed, retry
+    cbnz   w3, .Llock_stxr_fail       // store failed, retry
     dmb    ishld                      // full (LoadLoad|LoadStore) memory barrier
     ret
-.Lstrex_fail:
-    b .Lretry_lock                    // unlikely forward branch, need to reload and recheck r1/r2
-.Lnot_unlocked:
-    lsr    w3, w1, 30
+.Lnot_unlocked:  // x1: original lock word
+    lsr    w3, w1, LOCK_WORD_STATE_SHIFT
     cbnz   w3, .Lslow_lock            // if either of the top two bits are set, go slow path
     eor    w2, w1, w2                 // lock_word.ThreadId() ^ self->ThreadId()
     uxth   w2, w2                     // zero top 16 bits
     cbnz   w2, .Lslow_lock            // lock word and self thread id's match -> recursive lock
                                       // else contention, go to slow path
-    add    w2, w1, #65536             // increment count in lock word placing in w2 for storing
-    lsr    w1, w2, 30                 // if either of the top two bits are set, we overflowed.
-    cbnz   w1, .Lslow_lock            // if we overflow the count go slow path
-    str    w2, [x0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]  // no need for stxr as we hold the lock
+    mov    x3, x1                     // copy the lock word to check count overflow.
+    and    w3, w3, #LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED  // zero the read barrier bits.
+    add    w2, w3, #LOCK_WORD_THIN_LOCK_COUNT_ONE  // increment count in lock word placing in w2 to check overflow
+    lsr    w3, w2, LOCK_WORD_READ_BARRIER_STATE_SHIFT  // if either of the upper two bits (28-29) are set, we overflowed.
+    cbnz   w3, .Lslow_lock            // if we overflow the count go slow path
+    add    w2, w1, #LOCK_WORD_THIN_LOCK_COUNT_ONE  // increment count for real
+    stxr   w3, w2, [x4]
+    cbnz   w3, .Llock_stxr_fail       // store failed, retry
     ret
+.Llock_stxr_fail:
+    b      .Lretry_lock               // retry
 .Lslow_lock:
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case we block
     mov    x1, xSELF                  // pass Thread::Current
@@ -1036,23 +1044,47 @@ END art_quick_lock_object
     .extern artUnlockObjectFromCode
 ENTRY art_quick_unlock_object
     cbz    x0, .Lslow_unlock
-    ldr    w1, [x0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
-    lsr    w2, w1, 30
+    add    x4, x0, #MIRROR_OBJECT_LOCK_WORD_OFFSET  // exclusive load/store has no immediate anymore
+.Lretry_unlock:
+#ifndef USE_READ_BARRIER
+    ldr    w1, [x4]
+#else
+    ldxr   w1, [x4]                   // Need to use atomic instructions for read barrier
+#endif
+    lsr    w2, w1, LOCK_WORD_STATE_SHIFT
     cbnz   w2, .Lslow_unlock          // if either of the top two bits are set, go slow path
     ldr    w2, [xSELF, #THREAD_ID_OFFSET]
-    eor    w3, w1, w2                 // lock_word.ThreadId() ^ self->ThreadId()
+    mov    x3, x1                     // copy lock word to check thread id equality
+    and    w3, w3, #LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED  // zero the read barrier bits
+    eor    w3, w3, w2                 // lock_word.ThreadId() ^ self->ThreadId()
     uxth   w3, w3                     // zero top 16 bits
     cbnz   w3, .Lslow_unlock          // do lock word and self thread id's match?
-    cmp    w1, #65536
+    mov    x3, x1                     // copy lock word to detect transition to unlocked
+    and    w3, w3, #LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED  // zero the read barrier bits
+    cmp    w3, #LOCK_WORD_THIN_LOCK_COUNT_ONE
     bpl    .Lrecursive_thin_unlock
-    // transition to unlocked, w3 holds 0
+    // transition to unlocked
+    mov    x3, x1
+    and    w3, w3, #LOCK_WORD_READ_BARRIER_STATE_MASK  // w3: zero except for the preserved read barrier bits
     dmb    ish                        // full (LoadStore|StoreStore) memory barrier
-    str    w3, [x0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+#ifndef USE_READ_BARRIER
+    str    w3, [x4]
+#else
+    stxr   w2, w3, [x4]               // Need to use atomic instructions for read barrier
+    cbnz   w2, .Lunlock_stxr_fail     // store failed, retry
+#endif
     ret
-.Lrecursive_thin_unlock:
-    sub    w1, w1, #65536
-    str    w1, [x0, #MIRROR_OBJECT_LOCK_WORD_OFFSET]
+.Lrecursive_thin_unlock:  // w1: original lock word
+    sub    w1, w1, #LOCK_WORD_THIN_LOCK_COUNT_ONE  // decrement count
+#ifndef USE_READ_BARRIER
+    str    w1, [x4]
+#else
+    stxr   w2, w1, [x4]               // Need to use atomic instructions for read barrier
+    cbnz   w2, .Lunlock_stxr_fail     // store failed, retry
+#endif
     ret
+.Lunlock_stxr_fail:
+    b      .Lretry_unlock               // retry
 .Lslow_unlock:
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME  // save callee saves in case exception allocation triggers GC
     mov    x1, xSELF                  // pass Thread::Current
