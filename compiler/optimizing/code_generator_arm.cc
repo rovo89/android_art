@@ -988,7 +988,7 @@ void InstructionCodeGeneratorARM::VisitCondition(HCondition* comp) {
     __ cmp(left, ShifterOperand(locations->InAt(1).AsRegister<Register>()));
   } else {
     DCHECK(locations->InAt(1).IsConstant());
-    int32_t value = locations->InAt(1).GetConstant()->AsIntConstant()->GetValue();
+    int32_t value = CodeGenerator::GetInt32ValueOf(locations->InAt(1).GetConstant());
     ShifterOperand operand;
     if (GetAssembler()->ShifterOperandCanHold(R0, left, CMP, value, &operand)) {
       __ cmp(left, operand);
