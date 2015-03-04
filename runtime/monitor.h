@@ -22,12 +22,16 @@
 
 #include <iosfwd>
 #include <list>
+#ifndef __LP64__
+#include <malloc.h>  // For memalign.
+#endif
 #include <vector>
 
 #include "atomic.h"
 #include "base/allocator.h"
 #include "base/mutex.h"
 #include "gc_root.h"
+#include "lock_word.h"
 #include "object_callbacks.h"
 #include "read_barrier_option.h"
 #include "thread_state.h"
@@ -127,7 +131,16 @@ class Monitor {
                                 uint32_t hash_code) NO_THREAD_SAFETY_ANALYSIS;
 
   static bool Deflate(Thread* self, mirror::Object* obj)
+      // Not exclusive because ImageWriter calls this during a Heap::VisitObjects() that
+      // does not allow a thread suspension in the middle. TODO: maybe make this exclusive.
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+#ifndef __LP64__
+  void* operator new(size_t size) {
+    // Align Monitor* as per the monitor ID field size in the lock word.
+    return memalign(LockWord::kMonitorIdAlignment, size);
+  }
+#endif
 
  private:
   explicit Monitor(Thread* self, Thread* owner, mirror::Object* obj, int32_t hash_code)

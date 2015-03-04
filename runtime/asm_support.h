@@ -18,6 +18,7 @@
 #define ART_RUNTIME_ASM_SUPPORT_H_
 
 #if defined(__cplusplus)
+#include "lock_word.h"
 #include "mirror/art_method.h"
 #include "mirror/class.h"
 #include "mirror/string.h"
@@ -155,6 +156,27 @@ ADD_TEST_EQ(MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32,
 #define MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64        (48 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_ART_METHOD_QUICK_CODE_OFFSET_64,
             art::mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(8).Int32Value())
+
+#define LOCK_WORD_STATE_SHIFT 30
+ADD_TEST_EQ(LOCK_WORD_STATE_SHIFT, static_cast<int32_t>(art::LockWord::kStateShift))
+
+#define LOCK_WORD_STATE_MASK 0xC0000000
+ADD_TEST_EQ(LOCK_WORD_STATE_MASK, static_cast<uint32_t>(art::LockWord::kStateMaskShifted))
+
+#define LOCK_WORD_READ_BARRIER_STATE_SHIFT 28
+ADD_TEST_EQ(LOCK_WORD_READ_BARRIER_STATE_SHIFT,
+            static_cast<int32_t>(art::LockWord::kReadBarrierStateShift))
+
+#define LOCK_WORD_READ_BARRIER_STATE_MASK 0x30000000
+ADD_TEST_EQ(LOCK_WORD_READ_BARRIER_STATE_MASK,
+            static_cast<int32_t>(art::LockWord::kReadBarrierStateMaskShifted))
+
+#define LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED 0xCFFFFFFF
+ADD_TEST_EQ(LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED,
+            static_cast<uint32_t>(art::LockWord::kReadBarrierStateMaskShiftedToggled))
+
+#define LOCK_WORD_THIN_LOCK_COUNT_ONE 65536
+ADD_TEST_EQ(LOCK_WORD_THIN_LOCK_COUNT_ONE, static_cast<int32_t>(art::LockWord::kThinLockCountOne))
 
 #if defined(__cplusplus)
 }  // End of CheckAsmSupportOffsets.

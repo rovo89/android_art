@@ -35,6 +35,10 @@
 #define USE_BAKER_OR_BROOKS_READ_BARRIER
 #endif
 
+#if defined(USE_BAKER_READ_BARRIER) || defined(USE_BROOKS_READ_BARRIER) || defined(USE_TABLE_LOOKUP_READ_BARRIER)
+#define USE_READ_BARRIER
+#endif
+
 #if defined(USE_BAKER_READ_BARRIER) && defined(USE_BROOKS_READ_BARRIER)
 #error "Only one of Baker or Brooks can be enabled at a time."
 #endif
