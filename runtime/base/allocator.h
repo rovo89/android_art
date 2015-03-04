@@ -18,6 +18,7 @@
 #define ART_RUNTIME_BASE_ALLOCATOR_H_
 
 #include <map>
+#include <set>
 
 #include "atomic.h"
 #include "base/macros.h"
