@@ -91,7 +91,7 @@ void MarkCompact::ForwardObject(mirror::Object* obj) {
   const size_t alloc_size = RoundUp(obj->SizeOf(), space::BumpPointerSpace::kAlignment);
   LockWord lock_word = obj->GetLockWord(false);
   // If we have a non empty lock word, store it and restore it later.
-  if (lock_word.GetValue() != LockWord().GetValue()) {
+  if (!LockWord::IsDefault(lock_word)) {
     // Set the bit in the bitmap so that we know to restore it later.
     objects_with_lockword_->Set(obj);
     lock_words_to_restore_.push_back(lock_word);
@@ -509,7 +509,7 @@ void MarkCompact::MoveObject(mirror::Object* obj, size_t len) {
   // Use memmove since there may be overlap.
   memmove(reinterpret_cast<void*>(dest_addr), reinterpret_cast<const void*>(obj), len);
   // Restore the saved lock word if needed.
-  LockWord lock_word;
+  LockWord lock_word = LockWord::Default();
   if (UNLIKELY(objects_with_lockword_->Test(obj))) {
     lock_word = lock_words_to_restore_.front();
     lock_words_to_restore_.pop_front();

@@ -24,17 +24,20 @@ namespace art {
 
 inline uint32_t LockWord::ThinLockOwner() const {
   DCHECK_EQ(GetState(), kThinLocked);
+  CheckReadBarrierState();
   return (value_ >> kThinLockOwnerShift) & kThinLockOwnerMask;
 }
 
 inline uint32_t LockWord::ThinLockCount() const {
   DCHECK_EQ(GetState(), kThinLocked);
+  CheckReadBarrierState();
   return (value_ >> kThinLockCountShift) & kThinLockCountMask;
 }
 
 inline Monitor* LockWord::FatLockMonitor() const {
   DCHECK_EQ(GetState(), kFatLocked);
-  MonitorId mon_id = value_ & ~(kStateMask << kStateShift);
+  CheckReadBarrierState();
+  MonitorId mon_id = (value_ >> kMonitorIdShift) & kMonitorIdMask;
   return MonitorPool::MonitorFromMonitorId(mon_id);
 }
 
@@ -47,14 +50,20 @@ inline LockWord::LockWord() : value_(0) {
   DCHECK_EQ(GetState(), kUnlocked);
 }
 
-inline LockWord::LockWord(Monitor* mon)
-    : value_(mon->GetMonitorId() | (kStateFat << kStateShift)) {
+inline LockWord::LockWord(Monitor* mon, uint32_t rb_state)
+    : value_(mon->GetMonitorId() | (rb_state << kReadBarrierStateShift) |
+             (kStateFat << kStateShift)) {
+#ifndef __LP64__
+  DCHECK_ALIGNED(mon, kMonitorIdAlignment);
+#endif
   DCHECK_EQ(FatLockMonitor(), mon);
   DCHECK_LE(mon->GetMonitorId(), static_cast<uint32_t>(kMaxMonitorId));
+  CheckReadBarrierState();
 }
 
 inline int32_t LockWord::GetHashCode() const {
   DCHECK_EQ(GetState(), kHashCode);
+  CheckReadBarrierState();
   return (value_ >> kHashShift) & kHashMask;
 }
 

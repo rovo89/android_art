@@ -63,7 +63,7 @@ class TransactionTest : public CommonRuntimeTest {
     ASSERT_TRUE(h_klass->IsVerified());
 
     mirror::Class::Status old_status = h_klass->GetStatus();
-    uint32_t old_lock_word = h_klass->GetLockWord(false).GetValue();
+    LockWord old_lock_word = h_klass->GetLockWord(false);
 
     Transaction transaction;
     Runtime::Current()->EnterTransactionMode(&transaction);
@@ -75,8 +75,8 @@ class TransactionTest : public CommonRuntimeTest {
     ASSERT_TRUE(transaction.IsAborted());
 
     // Check class's monitor get back to its original state without rolling back changes.
-    uint32_t new_lock_word = h_klass->GetLockWord(false).GetValue();
-    EXPECT_EQ(old_lock_word, new_lock_word);
+    LockWord new_lock_word = h_klass->GetLockWord(false);
+    EXPECT_TRUE(LockWord::Equal<false>(old_lock_word, new_lock_word));
 
     // Check class status is rolled back properly.
     soa.Self()->ClearException();
@@ -118,20 +118,20 @@ TEST_F(TransactionTest, Object_monitor) {
 
   // Lock object's monitor outside the transaction.
   h_obj->MonitorEnter(soa.Self());
-  uint32_t old_lock_word = h_obj->GetLockWord(false).GetValue();
+  LockWord old_lock_word = h_obj->GetLockWord(false);
 
   Transaction transaction;
   Runtime::Current()->EnterTransactionMode(&transaction);
   // Unlock object's monitor inside the transaction.
   h_obj->MonitorExit(soa.Self());
-  uint32_t new_lock_word = h_obj->GetLockWord(false).GetValue();
+  LockWord new_lock_word = h_obj->GetLockWord(false);
   Runtime::Current()->ExitTransactionMode();
 
   // Rolling back transaction's changes must not change monitor's state.
   transaction.Rollback();
-  uint32_t aborted_lock_word = h_obj->GetLockWord(false).GetValue();
-  EXPECT_NE(old_lock_word, new_lock_word);
-  EXPECT_EQ(aborted_lock_word, new_lock_word);
+  LockWord aborted_lock_word = h_obj->GetLockWord(false);
+  EXPECT_FALSE(LockWord::Equal<false>(old_lock_word, new_lock_word));
+  EXPECT_TRUE(LockWord::Equal<false>(aborted_lock_word, new_lock_word));
 }
 
 // Tests array's length is preserved after transaction rollback.
