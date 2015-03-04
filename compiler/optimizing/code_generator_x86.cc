@@ -3389,7 +3389,7 @@ void InstructionCodeGeneratorX86::VisitArrayLength(HArrayLength* instruction) {
 void LocationsBuilderX86::VisitBoundsCheck(HBoundsCheck* instruction) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(instruction, LocationSummary::kNoCall);
-  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetInAt(0, Location::RegisterOrConstant(instruction->InputAt(0)));
   locations->SetInAt(1, Location::RequiresRegister());
   if (instruction->HasUses()) {
     locations->SetOut(Location::SameAsFirstInput());
@@ -3398,15 +3398,20 @@ void LocationsBuilderX86::VisitBoundsCheck(HBoundsCheck* instruction) {
 
 void InstructionCodeGeneratorX86::VisitBoundsCheck(HBoundsCheck* instruction) {
   LocationSummary* locations = instruction->GetLocations();
-  SlowPathCodeX86* slow_path = new (GetGraph()->GetArena()) BoundsCheckSlowPathX86(
-      instruction, locations->InAt(0), locations->InAt(1));
+  Location index_loc = locations->InAt(0);
+  Location length_loc = locations->InAt(1);
+  SlowPathCodeX86* slow_path =
+    new (GetGraph()->GetArena()) BoundsCheckSlowPathX86(instruction, index_loc, length_loc);
   codegen_->AddSlowPath(slow_path);
 
-  Register index = locations->InAt(0).AsRegister<Register>();
-  Register length = locations->InAt(1).AsRegister<Register>();
-
-  __ cmpl(index, length);
-  __ j(kAboveEqual, slow_path->GetEntryLabel());
+  Register length = length_loc.AsRegister<Register>();
+  if (index_loc.IsConstant()) {
+    int32_t value = CodeGenerator::GetInt32ValueOf(index_loc.GetConstant());
+    __ cmpl(length, Immediate(value));
+  } else {
+    __ cmpl(length, index_loc.AsRegister<Register>());
+  }
+  __ j(kBelowEqual, slow_path->GetEntryLabel());
 }
 
 void LocationsBuilderX86::VisitTemporary(HTemporary* temp) {
