@@ -44,8 +44,7 @@ class QuickExceptionHandler {
     UNREACHABLE();
   }
 
-  void FindCatch(const ThrowLocation& throw_location, mirror::Throwable* exception,
-                 bool is_exception_reported)
+  void FindCatch(const ThrowLocation& throw_location, mirror::Throwable* exception)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void DeoptimizeStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void UpdateInstrumentationStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

@@ -3709,7 +3709,6 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   auto old_throw_method = hs.NewHandle<mirror::ArtMethod>(nullptr);
   auto old_exception = hs.NewHandle<mirror::Throwable>(nullptr);
   uint32_t old_throw_dex_pc;
-  bool old_exception_report_flag;
   {
     ThrowLocation old_throw_location;
     mirror::Throwable* old_exception_obj = soa.Self()->GetException(&old_throw_location);
@@ -3717,7 +3716,6 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
     old_throw_method.Assign(old_throw_location.GetMethod());
     old_exception.Assign(old_exception_obj);
     old_throw_dex_pc = old_throw_location.GetDexPc();
-    old_exception_report_flag = soa.Self()->IsExceptionReportedToInstrumentation();
     soa.Self()->ClearException();
   }
 
@@ -3772,7 +3770,6 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
     ThrowLocation gc_safe_throw_location(old_throw_this_object.Get(), old_throw_method.Get(),
                                          old_throw_dex_pc);
     soa.Self()->SetException(gc_safe_throw_location, old_exception.Get());
-    soa.Self()->SetExceptionReportedToInstrumentation(old_exception_report_flag);
   }
 }
 

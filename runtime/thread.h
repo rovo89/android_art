@@ -349,7 +349,6 @@ class Thread {
   void ClearException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     tlsPtr_.exception = nullptr;
     tlsPtr_.throw_location.Clear();
-    SetExceptionReportedToInstrumentation(false);
   }
 
   // Find catch block and perform long jump to appropriate exception handle
@@ -364,6 +363,11 @@ class Thread {
   // Get the current method and dex pc. If there are errors in retrieving the dex pc, this will
   // abort the runtime iff abort_on_error is true.
   mirror::ArtMethod* GetCurrentMethod(uint32_t* dex_pc, bool abort_on_error = true) const
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Returns whether the given exception was thrown by the current Java method being executed
+  // (Note that this includes native Java methods).
+  bool IsExceptionThrownByCurrentMethod(mirror::Throwable* exception) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ThrowLocation GetCurrentLocationForThrow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -842,14 +846,6 @@ class Thread {
     tlsPtr_.rosalloc_runs[index] = run;
   }
 
-  bool IsExceptionReportedToInstrumentation() const {
-    return tls32_.is_exception_reported_to_instrumentation_;
-  }
-
-  void SetExceptionReportedToInstrumentation(bool reported) {
-    tls32_.is_exception_reported_to_instrumentation_ = reported;
-  }
-
   void ProtectStack();
   bool UnprotectStack();
 
@@ -976,8 +972,7 @@ class Thread {
     explicit tls_32bit_sized_values(bool is_daemon) :
       suspend_count(0), debug_suspend_count(0), thin_lock_thread_id(0), tid(0),
       daemon(is_daemon), throwing_OutOfMemoryError(false), no_thread_suspension(0),
-      thread_exit_check_count(0), is_exception_reported_to_instrumentation_(false),
-      handling_signal_(false), suspended_at_suspend_check(false) {
+      thread_exit_check_count(0), handling_signal_(false), suspended_at_suspend_check(false) {
     }
 
     union StateAndFlags state_and_flags;
@@ -1013,10 +1008,6 @@ class Thread {
 
     // How many times has our pthread key's destructor been called?
     uint32_t thread_exit_check_count;
-
-    // When true this field indicates that the exception associated with this thread has already
-    // been reported to instrumentation.
-    bool32_t is_exception_reported_to_instrumentation_;
 
     // True if signal is being handled by this thread.
     bool32_t handling_signal_;
