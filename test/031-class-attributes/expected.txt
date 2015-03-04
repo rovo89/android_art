@@ -33,8 +33,8 @@ abstract final [LClassAttrs$PackagePrivateInnerInterface;
   enclosingMeth: null
   modifiers: 1
   package: null
-  declaredClasses: [10] class ClassAttrs$PublicMemberClass, class ClassAttrs$MemberClass, interface ClassAttrs$PackagePrivateInnerInterface, interface ClassAttrs$PrivateInnerInterface, interface ClassAttrs$ProtectedInnerInterface, interface ClassAttrs$PublicInnerInterface, class ClassAttrs$PackagePrivateInnerClass, class ClassAttrs$PrivateInnerClass, class ClassAttrs$ProtectedInnerClass, class ClassAttrs$PublicInnerClass
-  member classes: [3] class ClassAttrs$PublicMemberClass, interface ClassAttrs$PublicInnerInterface, class ClassAttrs$PublicInnerClass
+  declaredClasses: [10] class ClassAttrs$MemberClass, class ClassAttrs$PackagePrivateInnerClass, class ClassAttrs$PrivateInnerClass, class ClassAttrs$ProtectedInnerClass, class ClassAttrs$PublicInnerClass, class ClassAttrs$PublicMemberClass, interface ClassAttrs$PackagePrivateInnerInterface, interface ClassAttrs$PrivateInnerInterface, interface ClassAttrs$ProtectedInnerInterface, interface ClassAttrs$PublicInnerInterface
+  member classes: [3] class ClassAttrs$PublicInnerClass, class ClassAttrs$PublicMemberClass, interface ClassAttrs$PublicInnerInterface
   isAnnotation: false
   isAnonymous: false
   isArray: false
