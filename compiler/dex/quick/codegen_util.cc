@@ -1067,7 +1067,10 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
     return lhs.LiteralOffset() < rhs.LiteralOffset();
   });
 
-  std::unique_ptr<std::vector<uint8_t>> cfi_info(ReturnFrameDescriptionEntry());
+  std::unique_ptr<std::vector<uint8_t>> cfi_info(
+      cu_->compiler_driver->GetCompilerOptions().GetGenerateGDBInformation() ?
+          ReturnFrameDescriptionEntry() :
+          nullptr);
   ArrayRef<const uint8_t> cfi_ref;
   if (cfi_info.get() != nullptr) {
     cfi_ref = ArrayRef<const uint8_t>(*cfi_info);
