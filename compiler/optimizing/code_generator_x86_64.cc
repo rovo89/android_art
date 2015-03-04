@@ -894,7 +894,7 @@ void InstructionCodeGeneratorX86_64::VisitCondition(HCondition* comp) {
     if (rhs.IsRegister()) {
       __ cmpl(lhs.AsRegister<CpuRegister>(), rhs.AsRegister<CpuRegister>());
     } else if (rhs.IsConstant()) {
-      int32_t constant = rhs.GetConstant()->AsIntConstant()->GetValue();
+      int32_t constant = CodeGenerator::GetInt32ValueOf(rhs.GetConstant());
       if (constant == 0) {
         __ testl(lhs.AsRegister<CpuRegister>(), lhs.AsRegister<CpuRegister>());
       } else {
