@@ -487,7 +487,7 @@ class SCOPED_LOCKABLE WriterMutexLock {
 class Locks {
  public:
   static void Init();
-
+  static void InitConditions() NO_THREAD_SAFETY_ANALYSIS;  // Condition variables.
   // Guards allocation entrypoint instrumenting.
   static Mutex* instrument_entrypoints_lock_;
 
@@ -574,6 +574,9 @@ class Locks {
   // The thread_list_lock_ guards ThreadList::list_. It is also commonly held to stop threads
   // attaching and detaching.
   static Mutex* thread_list_lock_ ACQUIRED_AFTER(deoptimization_lock_);
+
+  // Signaled when threads terminate. Used to determine when all non-daemons have terminated.
+  static ConditionVariable* thread_exit_cond_ GUARDED_BY(Locks::thread_list_lock_);
 
   // Guards maintaining loading library data structures.
   static Mutex* jni_libraries_lock_ ACQUIRED_AFTER(thread_list_lock_);

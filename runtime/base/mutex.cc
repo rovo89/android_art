@@ -57,6 +57,7 @@ Mutex* Locks::reference_queue_soft_references_lock_ = nullptr;
 Mutex* Locks::reference_queue_weak_references_lock_ = nullptr;
 Mutex* Locks::runtime_shutdown_lock_ = nullptr;
 Mutex* Locks::thread_list_lock_ = nullptr;
+ConditionVariable* Locks::thread_exit_cond_ = nullptr;
 Mutex* Locks::thread_suspend_count_lock_ = nullptr;
 Mutex* Locks::trace_lock_ = nullptr;
 Mutex* Locks::unexpected_signal_lock_ = nullptr;
@@ -1063,8 +1064,13 @@ void Locks::Init() {
     logging_lock_ = new Mutex("logging lock", current_lock_level, true);
 
     #undef UPDATE_CURRENT_LOCK_LEVEL
+
+    InitConditions();
   }
 }
 
+void Locks::InitConditions() {
+  thread_exit_cond_ = new ConditionVariable("thread exit condition variable", *thread_list_lock_);
+}
 
 }  // namespace art
