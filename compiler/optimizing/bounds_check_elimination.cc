@@ -944,6 +944,10 @@ class BCEVisitor : public HGraphVisitor {
 };
 
 void BoundsCheckElimination::Run() {
+  if (!graph_->HasArrayAccesses()) {
+    return;
+  }
+
   BCEVisitor visitor(graph_);
   // Reverse post order guarantees a node's dominators are visited first.
   // We want to visit in the dominator-based order since if a value is known to
