@@ -909,7 +909,9 @@ void ImageWriter::CopyAndFixupObjects() {
   heap->VisitObjects(CopyAndFixupObjectsCallback, this);
   // Fix up the object previously had hash codes.
   for (const std::pair<mirror::Object*, uint32_t>& hash_pair : saved_hashes_) {
-    hash_pair.first->SetLockWord(LockWord::FromHashCode(hash_pair.second), false);
+    Object* obj = hash_pair.first;
+    DCHECK_EQ(obj->GetLockWord(false).ReadBarrierState(), 0U);
+    obj->SetLockWord(LockWord::FromHashCode(hash_pair.second, 0U), false);
   }
   saved_hashes_.clear();
 }
@@ -935,7 +937,7 @@ void ImageWriter::CopyAndFixupObjectsCallback(Object* obj, void* arg) {
   Object* copy = reinterpret_cast<Object*>(dst);
   // Write in a hash code of objects which have inflated monitors or a hash code in their monitor
   // word.
-  copy->SetLockWord(LockWord(), false);
+  copy->SetLockWord(LockWord::Default(), false);
   image_writer->FixupObject(obj, copy);
 }
 

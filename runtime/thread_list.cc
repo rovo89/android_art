@@ -53,7 +53,7 @@ static constexpr useconds_t kThreadSuspendMaxSleepUs = 5000;
 ThreadList::ThreadList()
     : suspend_all_count_(0), debug_suspend_all_count_(0), unregistering_count_(0),
       suspend_all_historam_("suspend all histogram", 16, 64) {
-  CHECK(Monitor::IsValidLockWord(LockWord::FromThinLockId(kMaxThreadId, 1)));
+  CHECK(Monitor::IsValidLockWord(LockWord::FromThinLockId(kMaxThreadId, 1, 0U)));
 }
 
 ThreadList::~ThreadList() {
