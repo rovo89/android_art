@@ -216,6 +216,10 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
 
   callee_graph->InlineInto(graph_, invoke_instruction);
 
+  if (callee_graph->HasArrayAccesses()) {
+    graph_->SetHasArrayAccesses(true);
+  }
+
   // Now that we have inlined the callee, we need to update the next
   // instruction id of the caller, so that new instructions added
   // after optimizations get a unique id.

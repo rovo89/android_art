@@ -113,6 +113,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
         number_of_vregs_(0),
         number_of_in_vregs_(0),
         temporaries_vreg_slots_(0),
+        has_array_accesses_(false),
         current_instruction_id_(start_instruction_id) {}
 
   ArenaAllocator* GetArena() const { return arena_; }
@@ -199,6 +200,14 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
     return reverse_post_order_;
   }
 
+  bool HasArrayAccesses() const {
+    return has_array_accesses_;
+  }
+
+  void SetHasArrayAccesses(bool value) {
+    has_array_accesses_ = value;
+  }
+
   HNullConstant* GetNullConstant();
 
  private:
@@ -235,6 +244,9 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
 
   // Number of vreg size slots that the temporaries use (used in baseline compiler).
   size_t temporaries_vreg_slots_;
+
+  // Has array accesses. We can totally skip BCE if it's false.
+  bool has_array_accesses_;
 
   // The current id to assign to a newly added instruction. See HInstruction.id_.
   int32_t current_instruction_id_;
