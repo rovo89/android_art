@@ -871,6 +871,11 @@ class ClinitImageUpdate {
     const char* name = klass->GetDescriptor(&temp);
     if (data->image_class_descriptors_->find(name) != data->image_class_descriptors_->end()) {
       data->image_classes_.push_back(klass);
+    } else {
+      // Check whether it is initialized and has a clinit. They must be kept, too.
+      if (klass->IsInitialized() && klass->FindClassInitializer() != nullptr) {
+        data->image_classes_.push_back(klass);
+      }
     }
 
     return true;
