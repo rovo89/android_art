@@ -408,7 +408,7 @@ static void* StartJdwpThread(void* arg) {
 void JdwpState::Run() {
   Runtime* runtime = Runtime::Current();
   CHECK(runtime->AttachCurrentThread("JDWP", true, runtime->GetSystemThreadGroup(),
-                                     !runtime->IsCompiler()));
+                                     !runtime->IsAotCompiler()));
 
   VLOG(jdwp) << "JDWP: thread running";
 
