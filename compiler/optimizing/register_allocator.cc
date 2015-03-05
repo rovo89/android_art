@@ -1381,6 +1381,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
                         : Location::StackSlot(interval->GetParent()->GetSpillSlot()));
   }
   UsePosition* use = current->GetFirstUse();
+  size_t safepoint_index = safepoints_.Size();
 
   // Walk over all siblings, updating locations of use positions, and
   // connecting them when they are adjacent.
@@ -1422,19 +1423,27 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
     }
 
     // At each safepoint, we record stack and register information.
-    for (size_t i = 0, e = safepoints_.Size(); i < e; ++i) {
-      HInstruction* safepoint = safepoints_.Get(i);
+    // We iterate backwards to test safepoints in ascending order of positions,
+    // which is what LiveInterval::Covers is optimized for.
+    while (safepoint_index > 0) {
+      HInstruction* safepoint = safepoints_.Get(--safepoint_index);
       size_t position = safepoint->GetLifetimePosition();
-      LocationSummary* locations = safepoint->GetLocations();
-      if (!current->Covers(position)) {
+
+      // Test that safepoints are ordered in the optimal way.
+      DCHECK(safepoint_index == 0
+             || safepoints_.Get(safepoint_index - 1)->GetLifetimePosition() >= position);
+
+      if (current->IsDeadAt(position)) {
+        break;
+      } else if (!current->Covers(position)) {
         continue;
-      }
-      if (interval->GetStart() == position) {
+      } else if (interval->GetStart() == position) {
         // The safepoint is for this instruction, so the location of the instruction
         // does not need to be saved.
         continue;
       }
 
+      LocationSummary* locations = safepoint->GetLocations();
       if ((current->GetType() == Primitive::kPrimNot) && current->GetParent()->HasSpillSlot()) {
         locations->SetStackBit(current->GetParent()->GetSpillSlot() / kVRegSize);
       }
