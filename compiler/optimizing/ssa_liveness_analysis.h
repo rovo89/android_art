@@ -373,13 +373,17 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
       if (location.IsUnallocated()) {
         if ((location.GetPolicy() == Location::kRequiresRegister)
              || (location.GetPolicy() == Location::kSameAsFirstInput
-                 && locations->InAt(0).GetPolicy() == Location::kRequiresRegister)) {
+                 && (locations->InAt(0).IsRegister()
+                     || locations->InAt(0).IsRegisterPair()
+                     || locations->InAt(0).GetPolicy() == Location::kRequiresRegister))) {
           return position;
         } else if ((location.GetPolicy() == Location::kRequiresFpuRegister)
                    || (location.GetPolicy() == Location::kSameAsFirstInput
                        && locations->InAt(0).GetPolicy() == Location::kRequiresFpuRegister)) {
           return position;
         }
+      } else if (location.IsRegister() || location.IsRegisterPair()) {
+        return position;
       }
     }
 
