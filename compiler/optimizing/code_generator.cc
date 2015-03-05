@@ -216,6 +216,29 @@ int32_t CodeGenerator::GetStackSlot(HLocal* local) const {
   }
 }
 
+void CodeGenerator::BlockIfInRegister(Location location, bool is_out) const {
+  // The DCHECKS below check that a register is not specified twice in
+  // the summary. The out location can overlap with an input, so we need
+  // to special case it.
+  if (location.IsRegister()) {
+    DCHECK(is_out || !blocked_core_registers_[location.reg()]);
+    blocked_core_registers_[location.reg()] = true;
+  } else if (location.IsFpuRegister()) {
+    DCHECK(is_out || !blocked_fpu_registers_[location.reg()]);
+    blocked_fpu_registers_[location.reg()] = true;
+  } else if (location.IsFpuRegisterPair()) {
+    DCHECK(is_out || !blocked_fpu_registers_[location.AsFpuRegisterPairLow<int>()]);
+    blocked_fpu_registers_[location.AsFpuRegisterPairLow<int>()] = true;
+    DCHECK(is_out || !blocked_fpu_registers_[location.AsFpuRegisterPairHigh<int>()]);
+    blocked_fpu_registers_[location.AsFpuRegisterPairHigh<int>()] = true;
+  } else if (location.IsRegisterPair()) {
+    DCHECK(is_out || !blocked_core_registers_[location.AsRegisterPairLow<int>()]);
+    blocked_core_registers_[location.AsRegisterPairLow<int>()] = true;
+    DCHECK(is_out || !blocked_core_registers_[location.AsRegisterPairHigh<int>()]);
+    blocked_core_registers_[location.AsRegisterPairHigh<int>()] = true;
+  }
+}
+
 void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
   LocationSummary* locations = instruction->GetLocations();
   if (locations == nullptr) return;
@@ -234,46 +257,19 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
 
   // Mark all fixed input, temp and output registers as used.
   for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
-    Location loc = locations->InAt(i);
-    // The DCHECKS below check that a register is not specified twice in
-    // the summary.
-    if (loc.IsRegister()) {
-      DCHECK(!blocked_core_registers_[loc.reg()]);
-      blocked_core_registers_[loc.reg()] = true;
-    } else if (loc.IsFpuRegister()) {
-      DCHECK(!blocked_fpu_registers_[loc.reg()]);
-      blocked_fpu_registers_[loc.reg()] = true;
-    } else if (loc.IsFpuRegisterPair()) {
-      DCHECK(!blocked_fpu_registers_[loc.AsFpuRegisterPairLow<int>()]);
-      blocked_fpu_registers_[loc.AsFpuRegisterPairLow<int>()] = true;
-      DCHECK(!blocked_fpu_registers_[loc.AsFpuRegisterPairHigh<int>()]);
-      blocked_fpu_registers_[loc.AsFpuRegisterPairHigh<int>()] = true;
-    } else if (loc.IsRegisterPair()) {
-      DCHECK(!blocked_core_registers_[loc.AsRegisterPairLow<int>()]);
-      blocked_core_registers_[loc.AsRegisterPairLow<int>()] = true;
-      DCHECK(!blocked_core_registers_[loc.AsRegisterPairHigh<int>()]);
-      blocked_core_registers_[loc.AsRegisterPairHigh<int>()] = true;
-    }
+    BlockIfInRegister(locations->InAt(i));
   }
 
   for (size_t i = 0, e = locations->GetTempCount(); i < e; ++i) {
     Location loc = locations->GetTemp(i);
-    // The DCHECKS below check that a register is not specified twice in
-    // the summary.
-    if (loc.IsRegister()) {
-      DCHECK(!blocked_core_registers_[loc.reg()]);
-      blocked_core_registers_[loc.reg()] = true;
-    } else if (loc.IsFpuRegister()) {
-      DCHECK(!blocked_fpu_registers_[loc.reg()]);
-      blocked_fpu_registers_[loc.reg()] = true;
-    } else {
-      DCHECK(loc.GetPolicy() == Location::kRequiresRegister
-             || loc.GetPolicy() == Location::kRequiresFpuRegister);
-    }
+    BlockIfInRegister(loc);
+  }
+  Location result_location = locations->Out();
+  if (locations->OutputCanOverlapWithInputs()) {
+    BlockIfInRegister(result_location, /* is_out */ true);
   }
 
-  static constexpr bool kBaseline = true;
-  SetupBlockedRegisters(kBaseline);
+  SetupBlockedRegisters(/* is_baseline */ true);
 
   // Allocate all unallocated input locations.
   for (size_t i = 0, e = locations->GetInputCount(); i < e; ++i) {
@@ -318,7 +314,6 @@ void CodeGenerator::AllocateRegistersLocally(HInstruction* instruction) const {
       locations->SetTempAt(i, loc);
     }
   }
-  Location result_location = locations->Out();
   if (result_location.IsUnallocated()) {
     switch (result_location.GetPolicy()) {
       case Location::kAny:
