@@ -206,7 +206,7 @@ class FlipCallback : public Closure {
     }
     cc->is_marking_ = true;
     if (UNLIKELY(Runtime::Current()->IsActiveTransaction())) {
-      CHECK(Runtime::Current()->IsCompiler());
+      CHECK(Runtime::Current()->IsAotCompiler());
       TimingLogger::ScopedTiming split2("(Paused)VisitTransactionRoots", cc->GetTimings());
       Runtime::Current()->VisitTransactionRoots(ConcurrentCopying::ProcessRootCallback, cc);
     }
