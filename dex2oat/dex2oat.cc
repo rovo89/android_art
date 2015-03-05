@@ -492,6 +492,7 @@ class Dex2Oat FINAL {
     bool include_debug_symbols = kIsDebugBuild;
     bool watch_dog_enabled = true;
     bool generate_gdb_information = kIsDebugBuild;
+    bool abort_on_hard_verifier_error = false;
 
     PassManagerOptions pass_manager_options;
 
@@ -732,6 +733,8 @@ class Dex2Oat FINAL {
         if (swap_fd_ < 0) {
           Usage("--swap-fd passed a negative value %d", swap_fd_);
         }
+      } else if (option == "--abort-on-hard-verifier-error") {
+        abort_on_hard_verifier_error = true;
       } else {
         Usage("Unknown argument %s", option.data());
       }
@@ -941,7 +944,8 @@ class Dex2Oat FINAL {
                                                     nullptr :
                                                     &verbose_methods_,
                                                 new PassManagerOptions(pass_manager_options),
-                                                init_failure_output_.get()));
+                                                init_failure_output_.get(),
+                                                abort_on_hard_verifier_error));
 
     // Done with usage checks, enable watchdog if requested
     if (watch_dog_enabled) {
