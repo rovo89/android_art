@@ -130,13 +130,14 @@ class DexRegisterMap {
     return sizeof(LocationKind) + sizeof(int32_t);
   }
 
- private:
+  size_t Size() const {
+    return region_.size();
+  }
+
   static constexpr int kFixedSize = 0;
 
+ private:
   MemoryRegion region_;
-
-  friend class CodeInfo;
-  friend class StackMapStream;
 };
 
 /**
