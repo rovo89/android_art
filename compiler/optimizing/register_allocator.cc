@@ -1425,13 +1425,13 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
     // At each safepoint, we record stack and register information.
     // We iterate backwards to test safepoints in ascending order of positions,
     // which is what LiveInterval::Covers is optimized for.
-    while (safepoint_index > 0) {
-      HInstruction* safepoint = safepoints_.Get(--safepoint_index);
+    for (; safepoint_index > 0; --safepoint_index) {
+      HInstruction* safepoint = safepoints_.Get(safepoint_index - 1);
       size_t position = safepoint->GetLifetimePosition();
 
       // Test that safepoints are ordered in the optimal way.
-      DCHECK(safepoint_index == 0
-             || safepoints_.Get(safepoint_index - 1)->GetLifetimePosition() >= position);
+      DCHECK(safepoint_index == safepoints_.Size()
+             || safepoints_.Get(safepoint_index)->GetLifetimePosition() <= position);
 
       if (current->IsDeadAt(position)) {
         break;
