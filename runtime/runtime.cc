@@ -846,7 +846,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
     Dbg::ConfigureJdwp(runtime_options.GetOrDefault(Opt::JdwpOptions));
   }
 
-  if (!IsCompiler()) {
+  if (!IsAotCompiler()) {
     // If we are already the compiler at this point, we must be dex2oat. Don't create the jit in
     // this case.
     // If runtime_options doesn't have UseJIT set to true then CreateFromRuntimeArguments returns
@@ -1551,14 +1551,14 @@ bool Runtime::IsTransactionAborted() const {
   if (!IsActiveTransaction()) {
     return false;
   } else {
-    DCHECK(IsCompiler());
+    DCHECK(IsAotCompiler());
     return preinitialization_transaction_->IsAborted();
   }
 }
 
 void Runtime::AbortTransactionAndThrowInternalError(Thread* self,
                                                     const std::string& abort_message) {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   // Throwing an exception may cause its class initialization. If we mark the transaction
   // aborted before that, we may warn with a false alarm. Throwing the exception before
@@ -1568,35 +1568,35 @@ void Runtime::AbortTransactionAndThrowInternalError(Thread* self,
 }
 
 void Runtime::ThrowInternalErrorForAbortedTransaction(Thread* self) {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->ThrowInternalError(self, true);
 }
 
 void Runtime::RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset,
                                       uint8_t value, bool is_volatile) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteFieldBoolean(obj, field_offset, value, is_volatile);
 }
 
 void Runtime::RecordWriteFieldByte(mirror::Object* obj, MemberOffset field_offset,
                                    int8_t value, bool is_volatile) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteFieldByte(obj, field_offset, value, is_volatile);
 }
 
 void Runtime::RecordWriteFieldChar(mirror::Object* obj, MemberOffset field_offset,
                                    uint16_t value, bool is_volatile) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteFieldChar(obj, field_offset, value, is_volatile);
 }
 
 void Runtime::RecordWriteFieldShort(mirror::Object* obj, MemberOffset field_offset,
                                     int16_t value, bool is_volatile) const {
-  DCHECK(IsCompiler());
+  DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   preinitialization_transaction_->RecordWriteFieldShort(obj, field_offset, value, is_volatile);
 }
