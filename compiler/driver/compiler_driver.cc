@@ -1610,7 +1610,7 @@ static bool SkipClass(jobject class_loader, const DexFile& dex_file, mirror::Cla
 static void CheckAndClearResolveException(Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   CHECK(self->IsExceptionPending());
-  mirror::Throwable* exception = self->GetException(nullptr);
+  mirror::Throwable* exception = self->GetException();
   std::string temp;
   const char* descriptor = exception->GetClass()->GetDescriptor(&temp);
   const char* expected_exceptions[] = {
@@ -1755,7 +1755,7 @@ static void ResolveType(const ParallelCompilationManager* manager, size_t type_i
 
   if (klass == nullptr) {
     CHECK(soa.Self()->IsExceptionPending());
-    mirror::Throwable* exception = soa.Self()->GetException(nullptr);
+    mirror::Throwable* exception = soa.Self()->GetException();
     VLOG(compiler) << "Exception during type resolution: " << exception->Dump();
     if (exception->GetClass()->DescriptorEquals("Ljava/lang/OutOfMemoryError;")) {
       // There's little point continuing compilation if the heap is exhausted.
@@ -1970,7 +1970,7 @@ static void InitializeClass(const ParallelCompilationManager* manager, size_t cl
 
             if (!success) {
               CHECK(soa.Self()->IsExceptionPending());
-              mirror::Throwable* exception = soa.Self()->GetException(nullptr);
+              mirror::Throwable* exception = soa.Self()->GetException();
               VLOG(compiler) << "Initialization of " << descriptor << " aborted because of "
                   << exception->Dump();
               std::ostream* file_log = manager->GetCompiler()->
@@ -2233,7 +2233,7 @@ void CompilerDriver::CompileMethod(Thread* self, const DexFile::CodeItem* code_i
   if (self->IsExceptionPending()) {
     ScopedObjectAccess soa(self);
     LOG(FATAL) << "Unexpected exception compiling: " << PrettyMethod(method_idx, dex_file) << "\n"
-        << self->GetException(nullptr)->Dump();
+        << self->GetException()->Dump();
   }
 }
 

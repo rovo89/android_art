@@ -366,7 +366,7 @@ static void CheckMethodArguments(JavaVMExt* vm, mirror::ArtMethod* m, uint32_t* 
       CHECK(self->IsExceptionPending());
       LOG(ERROR) << "Internal error: unresolvable type for argument type in JNI invoke: "
           << h_m->GetTypeDescriptorFromTypeIdx(type_idx) << "\n"
-          << self->GetException(nullptr)->Dump();
+          << self->GetException()->Dump();
       self->ClearException();
       ++error_count;
     } else if (!param_type->IsPrimitive()) {

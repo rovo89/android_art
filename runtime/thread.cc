@@ -1033,18 +1033,11 @@ void Thread::DumpJavaStack(std::ostream& os) const {
   // assumption that there is no exception pending on entry. Thus, stash any pending exception.
   // Thread::Current() instead of this in case a thread is dumping the stack of another suspended
   // thread.
-  StackHandleScope<3> scope(Thread::Current());
+  StackHandleScope<1> scope(Thread::Current());
   Handle<mirror::Throwable> exc;
-  Handle<mirror::Object> throw_location_this_object;
-  Handle<mirror::ArtMethod> throw_location_method;
-  uint32_t throw_location_dex_pc;
   bool have_exception = false;
   if (IsExceptionPending()) {
-    ThrowLocation exc_location;
-    exc = scope.NewHandle(GetException(&exc_location));
-    throw_location_this_object = scope.NewHandle(exc_location.GetThis());
-    throw_location_method = scope.NewHandle(exc_location.GetMethod());
-    throw_location_dex_pc = exc_location.GetDexPc();
+    exc = scope.NewHandle(GetException());
     const_cast<Thread*>(this)->ClearException();
     have_exception = true;
   }
@@ -1055,10 +1048,7 @@ void Thread::DumpJavaStack(std::ostream& os) const {
   dumper.WalkStack();
 
   if (have_exception) {
-    ThrowLocation exc_location(throw_location_this_object.Get(),
-                               throw_location_method.Get(),
-                               throw_location_dex_pc);
-    const_cast<Thread*>(this)->SetException(exc_location, exc.Get());
+    const_cast<Thread*>(this)->SetException(exc.Get());
   }
 }
 
@@ -1188,7 +1178,7 @@ void Thread::AssertPendingException() const {
 void Thread::AssertNoPendingException() const {
   if (UNLIKELY(IsExceptionPending())) {
     ScopedObjectAccess soa(Thread::Current());
-    mirror::Throwable* exception = GetException(nullptr);
+    mirror::Throwable* exception = GetException();
     LOG(FATAL) << "No pending exception expected: " << exception->Dump();
   }
 }
@@ -1196,7 +1186,7 @@ void Thread::AssertNoPendingException() const {
 void Thread::AssertNoPendingExceptionForNewException(const char* msg) const {
   if (UNLIKELY(IsExceptionPending())) {
     ScopedObjectAccess soa(Thread::Current());
-    mirror::Throwable* exception = GetException(nullptr);
+    mirror::Throwable* exception = GetException();
     LOG(FATAL) << "Throwing new exception '" << msg << "' with unexpected pending exception: "
         << exception->Dump();
   }
@@ -1740,25 +1730,24 @@ void Thread::ThrowNewException(const ThrowLocation& throw_location,
   ThrowNewWrappedException(throw_location, exception_class_descriptor, msg);
 }
 
+static mirror::ClassLoader* GetClassLoaderFromThrowLocation(const ThrowLocation& throw_location)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  return throw_location.GetMethod() != nullptr
+      ? throw_location.GetMethod()->GetDeclaringClass()->GetClassLoader()
+      : nullptr;
+}
+
 void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
                                       const char* exception_class_descriptor,
                                       const char* msg) {
   DCHECK_EQ(this, Thread::Current());
   ScopedObjectAccessUnchecked soa(this);
-  StackHandleScope<5> hs(soa.Self());
-  // Ensure we don't forget arguments over object allocation.
-  Handle<mirror::Object> saved_throw_this(hs.NewHandle(throw_location.GetThis()));
-  Handle<mirror::ArtMethod> saved_throw_method(hs.NewHandle(throw_location.GetMethod()));
-  // Ignore the cause throw location. TODO: should we report this as a re-throw?
-  ScopedLocalRef<jobject> cause(GetJniEnv(), soa.AddLocalReference<jobject>(GetException(nullptr)));
+  StackHandleScope<3> hs(soa.Self());
+  Handle<mirror::ClassLoader> class_loader(
+      hs.NewHandle(GetClassLoaderFromThrowLocation(throw_location)));
+  ScopedLocalRef<jobject> cause(GetJniEnv(), soa.AddLocalReference<jobject>(GetException()));
   ClearException();
   Runtime* runtime = Runtime::Current();
-
-  mirror::ClassLoader* cl = nullptr;
-  if (saved_throw_method.Get() != nullptr) {
-    cl = saved_throw_method.Get()->GetDeclaringClass()->GetClassLoader();
-  }
-  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(cl));
   Handle<mirror::Class> exception_class(
       hs.NewHandle(runtime->GetClassLinker()->FindClass(this, exception_class_descriptor,
                                                         class_loader)));
@@ -1779,9 +1768,7 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
 
   // If we couldn't allocate the exception, throw the pre-allocated out of memory exception.
   if (exception.Get() == nullptr) {
-    ThrowLocation gc_safe_throw_location(saved_throw_this.Get(), saved_throw_method.Get(),
-                                         throw_location.GetDexPc());
-    SetException(gc_safe_throw_location, Runtime::Current()->GetPreAllocatedOutOfMemoryError());
+    SetException(Runtime::Current()->GetPreAllocatedOutOfMemoryError());
     return;
   }
 
@@ -1831,9 +1818,7 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
     if (trace.get() != nullptr) {
       exception->SetStackState(down_cast<mirror::Throwable*>(DecodeJObject(trace.get())));
     }
-    ThrowLocation gc_safe_throw_location(saved_throw_this.Get(), saved_throw_method.Get(),
-                                         throw_location.GetDexPc());
-    SetException(gc_safe_throw_location, exception.Get());
+    SetException(exception.Get());
   } else {
     jvalue jv_args[2];
     size_t i = 0;
@@ -1848,9 +1833,7 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
     }
     InvokeWithJValues(soa, exception.Get(), soa.EncodeMethod(exception_init_method), jv_args);
     if (LIKELY(!IsExceptionPending())) {
-      ThrowLocation gc_safe_throw_location(saved_throw_this.Get(), saved_throw_method.Get(),
-                                           throw_location.GetDexPc());
-      SetException(gc_safe_throw_location, exception.Get());
+      SetException(exception.Get());
     }
   }
 }
@@ -1858,14 +1841,13 @@ void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
 void Thread::ThrowOutOfMemoryError(const char* msg) {
   LOG(WARNING) << StringPrintf("Throwing OutOfMemoryError \"%s\"%s",
       msg, (tls32_.throwing_OutOfMemoryError ? " (recursive case)" : ""));
-  ThrowLocation throw_location = GetCurrentLocationForThrow();
   if (!tls32_.throwing_OutOfMemoryError) {
     tls32_.throwing_OutOfMemoryError = true;
-    ThrowNewException(throw_location, "Ljava/lang/OutOfMemoryError;", msg);
+    ThrowNewException(GetCurrentLocationForThrow(), "Ljava/lang/OutOfMemoryError;", msg);
     tls32_.throwing_OutOfMemoryError = false;
   } else {
     Dump(LOG(WARNING));  // The pre-allocated OOME has no stack, so help out and log one.
-    SetException(throw_location, Runtime::Current()->GetPreAllocatedOutOfMemoryError());
+    SetException(Runtime::Current()->GetPreAllocatedOutOfMemoryError());
   }
 }
 
@@ -2030,8 +2012,7 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
 
 void Thread::QuickDeliverException() {
   // Get exception from thread.
-  ThrowLocation throw_location;
-  mirror::Throwable* exception = GetException(&throw_location);
+  mirror::Throwable* exception = GetException();
   CHECK(exception != nullptr);
   // Don't leave exception visible while we try to find the handler, which may cause class
   // resolution.
@@ -2041,7 +2022,7 @@ void Thread::QuickDeliverException() {
   if (is_deoptimization) {
     exception_handler.DeoptimizeStack();
   } else {
-    exception_handler.FindCatch(throw_location, exception);
+    exception_handler.FindCatch(exception);
   }
   exception_handler.UpdateInstrumentationStack();
   exception_handler.DoLongJump();
@@ -2302,7 +2283,6 @@ void Thread::VisitRoots(RootCallback* visitor, void* arg) {
     visitor(reinterpret_cast<mirror::Object**>(&tlsPtr_.exception), arg,
             RootInfo(kRootNativeStack, thread_id));
   }
-  tlsPtr_.throw_location.VisitRoots(visitor, arg);
   if (tlsPtr_.monitor_enter_object != nullptr) {
     visitor(&tlsPtr_.monitor_enter_object, arg, RootInfo(kRootNativeStack, thread_id));
   }

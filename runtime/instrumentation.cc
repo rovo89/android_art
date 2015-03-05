@@ -949,19 +949,16 @@ void Instrumentation::FieldWriteEventImpl(Thread* thread, mirror::Object* this_o
   }
 }
 
-void Instrumentation::ExceptionCaughtEvent(Thread* thread, const ThrowLocation& throw_location,
-                                           mirror::ArtMethod* catch_method,
-                                           uint32_t catch_dex_pc,
+void Instrumentation::ExceptionCaughtEvent(Thread* thread,
                                            mirror::Throwable* exception_object) const {
   if (HasExceptionCaughtListeners()) {
-    DCHECK_EQ(thread->GetException(nullptr), exception_object);
+    DCHECK_EQ(thread->GetException(), exception_object);
     thread->ClearException();
     std::shared_ptr<std::list<InstrumentationListener*>> original(exception_caught_listeners_);
     for (InstrumentationListener* listener : *original.get()) {
-      listener->ExceptionCaught(thread, throw_location, catch_method, catch_dex_pc,
-                                exception_object);
+      listener->ExceptionCaught(thread, exception_object);
     }
-    thread->SetException(throw_location, exception_object);
+    thread->SetException(exception_object);
   }
 }
 

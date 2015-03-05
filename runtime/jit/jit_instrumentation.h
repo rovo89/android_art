@@ -83,8 +83,7 @@ class JitInstrumentationListener : public instrumentation::InstrumentationListen
                             mirror::ArtMethod* /*method*/, uint32_t /*dex_pc*/,
                             mirror::ArtField* /*field*/, const JValue& /*field_value*/)
       OVERRIDE { }
-  virtual void ExceptionCaught(Thread* /*thread*/, const ThrowLocation& /*throw_location*/,
-                               mirror::ArtMethod* /*catch_method*/, uint32_t /*catch_dex_pc*/,
+  virtual void ExceptionCaught(Thread* /*thread*/,
                                mirror::Throwable* /*exception_object*/) OVERRIDE { }
 
   virtual void DexPcMoved(Thread* /*self*/, mirror::Object* /*this_object*/,

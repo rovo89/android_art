@@ -529,8 +529,7 @@ class Dbg {
                                          mirror::Object* this_object, mirror::ArtField* f,
                                          const JValue* field_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  static void PostException(const ThrowLocation& throw_location, mirror::ArtMethod* catch_method,
-                            uint32_t catch_dex_pc, mirror::Throwable* exception)
+  static void PostException(mirror::Throwable* exception)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostThreadStart(Thread* t)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
