@@ -50,6 +50,11 @@ void ArtInterpreterToInterpreterBridge(Thread* self, const DexFile::CodeItem* co
                                        ShadowFrame* shadow_frame, JValue* result)
     SHARED_REQUIRES(Locks::mutator_lock_);
 
+// One-time sanity check.
+void CheckInterpreterAsmConstants();
+
+void InitInterpreterTls(Thread* self);
+
 }  // namespace interpreter
 
 }  // namespace art
