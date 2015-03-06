@@ -70,7 +70,8 @@ class CompilerOptions FINAL {
                   bool compile_pic,
                   const std::vector<std::string>* verbose_methods,
                   PassManagerOptions* pass_manager_options,
-                  std::ostream* init_failure_output);
+                  std::ostream* init_failure_output,
+                  bool abort_on_hard_verifier_failure);
 
   CompilerFilter GetCompilerFilter() const {
     return compiler_filter_;
@@ -183,6 +184,10 @@ class CompilerOptions FINAL {
     return pass_manager_options_.get();
   }
 
+  bool AbortOnHardVerifierFailure() const {
+    return abort_on_hard_verifier_failure_;
+  }
+
  private:
   CompilerFilter compiler_filter_;
   const size_t huge_method_threshold_;
@@ -205,6 +210,10 @@ class CompilerOptions FINAL {
   const std::vector<std::string>* const verbose_methods_;
 
   std::unique_ptr<PassManagerOptions> pass_manager_options_;
+
+  // Abort compilation with an error if we find a class that fails verification with a hard
+  // failure.
+  const bool abort_on_hard_verifier_failure_;
 
   // Log initialization of initialization failures to this stream if not null.
   std::ostream* const init_failure_output_;
