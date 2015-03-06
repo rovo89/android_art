@@ -33,12 +33,12 @@ class PrepareForRegisterAllocation : public HGraphDelegateVisitor {
   void Run();
 
  private:
-  virtual void VisitNullCheck(HNullCheck* check) OVERRIDE;
-  virtual void VisitDivZeroCheck(HDivZeroCheck* check) OVERRIDE;
-  virtual void VisitBoundsCheck(HBoundsCheck* check) OVERRIDE;
-  virtual void VisitBoundType(HBoundType* bound_type) OVERRIDE;
-  virtual void VisitClinitCheck(HClinitCheck* check) OVERRIDE;
-  virtual void VisitCondition(HCondition* condition) OVERRIDE;
+  void VisitNullCheck(HNullCheck* check) OVERRIDE;
+  void VisitDivZeroCheck(HDivZeroCheck* check) OVERRIDE;
+  void VisitBoundsCheck(HBoundsCheck* check) OVERRIDE;
+  void VisitBoundType(HBoundType* bound_type) OVERRIDE;
+  void VisitClinitCheck(HClinitCheck* check) OVERRIDE;
+  void VisitCondition(HCondition* condition) OVERRIDE;
 
   DISALLOW_COPY_AND_ASSIGN(PrepareForRegisterAllocation);
 };
