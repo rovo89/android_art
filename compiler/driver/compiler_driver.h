@@ -437,6 +437,10 @@ class CompilerDriver {
   // Get memory usage during compilation.
   std::string GetMemoryUsageString(bool extended) const;
 
+  void SetHadHardVerifierFailure() {
+    had_hard_verifier_failure_ = true;
+  }
+
  private:
   // These flags are internal to CompilerDriver for collecting INVOKE resolution statistics.
   // The only external contract is that unresolved method has flags 0 and resolved non-0.
@@ -574,6 +578,8 @@ class CompilerDriver {
   // the image. Note if classes_to_compile_ is nullptr, all classes are
   // included in the image.
   std::unique_ptr<std::set<std::string>> classes_to_compile_;
+
+  bool had_hard_verifier_failure_;
 
   size_t thread_count_;
 
