@@ -330,8 +330,9 @@ public class ClassAttrs {
         for (Type t : types) {
           typeStringList.add(t.toString());
         }
-        // Sort types alphabetically so they're always printed in the same order, whichever
-        // tool generated the DEX file of the test.
+        // Sort types alphabetically so they're always printed in the same order.
+        // For instance, Class.getClasses() does not guarantee any order for the
+        // returned Class[].
         Collections.sort(typeStringList);
 
         StringBuilder stb = new StringBuilder();
