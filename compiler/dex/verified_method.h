@@ -93,8 +93,8 @@ class VerifiedMethod {
   void GenerateDevirtMap(verifier::MethodVerifier* method_verifier)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Generate dequickening map into dequicken_map_.
-  void GenerateDequickenMap(verifier::MethodVerifier* method_verifier)
+  // Generate dequickening map into dequicken_map_. Returns false if there is an error.
+  bool GenerateDequickenMap(verifier::MethodVerifier* method_verifier)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Generate safe case set into safe_cast_set_.
