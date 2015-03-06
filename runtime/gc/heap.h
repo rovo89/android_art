@@ -661,6 +661,9 @@ class Heap {
   // Request asynchronous GC.
   void RequestConcurrentGC(Thread* self) LOCKS_EXCLUDED(pending_task_lock_);
 
+  // Whether or not we may use a garbage collector, used so that we only create collectors we need.
+  bool MayUseCollector(CollectorType type) const;
+
  private:
   class ConcurrentGCTask;
   class CollectorTransitionTask;
