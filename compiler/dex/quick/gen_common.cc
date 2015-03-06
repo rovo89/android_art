@@ -482,6 +482,7 @@ void Mir2Lir::GenFilledNewArray(CallInfo* info) {
         r_val = AllocTemp();
         break;
       case kMips:
+      case kMips64:
         r_val = AllocTemp();
         break;
       default: LOG(FATAL) << "Unexpected instruction set: " << cu_->instruction_set;
@@ -1695,7 +1696,8 @@ void Mir2Lir::GenArithOpInt(Instruction::Code opcode, RegLocation rl_dest,
     StoreValue(rl_dest, rl_result);
   } else {
     bool done = false;      // Set to true if we happen to find a way to use a real instruction.
-    if (cu_->instruction_set == kMips || cu_->instruction_set == kArm64) {
+    if (cu_->instruction_set == kMips || cu_->instruction_set == kMips64 ||
+        cu_->instruction_set == kArm64) {
       rl_src1 = LoadValue(rl_src1, kCoreReg);
       rl_src2 = LoadValue(rl_src2, kCoreReg);
       if (check_zero && (flags & MIR_IGNORE_DIV_ZERO_CHECK) == 0) {
@@ -1990,7 +1992,8 @@ void Mir2Lir::GenArithOpIntLit(Instruction::Code opcode, RegLocation rl_dest, Re
       }
 
       bool done = false;
-      if (cu_->instruction_set == kMips || cu_->instruction_set == kArm64) {
+      if (cu_->instruction_set == kMips || cu_->instruction_set == kMips64 ||
+          cu_->instruction_set == kArm64) {
         rl_src = LoadValue(rl_src, kCoreReg);
         rl_result = GenDivRemLit(rl_dest, rl_src.reg, lit, is_div);
         done = true;
