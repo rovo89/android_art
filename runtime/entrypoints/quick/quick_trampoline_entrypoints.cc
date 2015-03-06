@@ -154,8 +154,6 @@ class QuickArgumentVisitor {
   // | F7         |    f_arg7
   // | F6         |    f_arg6
   // | F5         |    f_arg5
-  // | F6         |    f_arg6
-  // | F5         |    f_arg5
   // | F4         |    f_arg4
   // | F3         |    f_arg3
   // | F2         |    f_arg2
