@@ -43,18 +43,15 @@ void CustomDisassembler::AppendRegisterNameToOutput(
     const vixl::Instruction* instr,
     const vixl::CPURegister& reg) {
   USE(instr);
-  if (reg.IsRegister()) {
-    switch (reg.code()) {
-      case IP0: AppendToOutput(reg.Is64Bits() ? "ip0" : "wip0"); return;
-      case IP1: AppendToOutput(reg.Is64Bits() ? "ip1" : "wip1"); return;
-      case TR:  AppendToOutput(reg.Is64Bits() ? "tr"  :  "w18"); return;
-      case ETR: AppendToOutput(reg.Is64Bits() ? "etr" :  "w21"); return;
-      case FP:  AppendToOutput(reg.Is64Bits() ? "fp"  :  "w29"); return;
-      case LR:  AppendToOutput(reg.Is64Bits() ? "lr"  :  "w30"); return;
-      default:
-        // Fall through.
-        break;
+  if (reg.IsRegister() && reg.Is64Bits()) {
+    if (reg.code() == TR) {
+      AppendToOutput("tr");
+      return;
+    } else if (reg.code() == LR) {
+      AppendToOutput("lr");
+      return;
     }
+    // Fall through.
   }
   // Print other register names as usual.
   Disassembler::AppendRegisterNameToOutput(instr, reg);
@@ -105,13 +102,7 @@ void CustomDisassembler::VisitLoadStoreUnsignedOffset(const vixl::Instruction* i
 size_t DisassemblerArm64::Dump(std::ostream& os, const uint8_t* begin) {
   const vixl::Instruction* instr = reinterpret_cast<const vixl::Instruction*>(begin);
   decoder.Decode(instr);
-  // TODO: Use FormatInstructionPointer() once VIXL provides the appropriate
-  // features.
-  // VIXL does not yet allow remapping addresses disassembled. Using
-  // FormatInstructionPointer() would show incoherences between the instruction
-  // location addresses and the target addresses disassembled by VIXL (eg. for
-  // branch instructions).
-  os << StringPrintf("%p", instr)
+    os << FormatInstructionPointer(begin)
      << StringPrintf(": %08x\t%s\n", instr->InstructionBits(), disasm.GetOutput());
   return vixl::kInstructionSize;
 }
