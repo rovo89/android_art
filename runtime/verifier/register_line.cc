@@ -89,18 +89,23 @@ void RegisterLine::SetResultRegisterTypeWide(RegType& new_type1,
   result_[1] = new_type2.GetId();
 }
 
-RegType& RegisterLine::GetInvocationThis(const Instruction* inst, bool is_range) {
+RegType& RegisterLine::GetInvocationThis(const Instruction* inst, bool is_range, bool allow_failure) {
   const size_t args_count = is_range ? inst->VRegA_3rc() : inst->VRegA_35c();
   if (args_count < 1) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke lacks 'this'";
+    if (!allow_failure) {
+      verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invoke lacks 'this'";
+    }
     return verifier_->GetRegTypeCache()->Conflict();
   }
   /* Get the element type of the array held in vsrc */
   const uint32_t this_reg = (is_range) ? inst->VRegC_3rc() : inst->VRegC_35c();
   RegType& this_type = GetRegisterType(this_reg);
   if (!this_type.IsReferenceTypes()) {
-    verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "tried to get class from non-reference register v"
-                                                 << this_reg << " (type=" << this_type << ")";
+    if (!allow_failure) {
+      verifier_->Fail(VERIFY_ERROR_BAD_CLASS_HARD)
+          << "tried to get class from non-reference register v" << this_reg
+          << " (type=" << this_type << ")";
+    }
     return verifier_->GetRegTypeCache()->Conflict();
   }
   return this_type;
