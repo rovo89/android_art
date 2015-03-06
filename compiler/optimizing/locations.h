@@ -211,25 +211,15 @@ class Location : public ValueObject {
   }
 
   Location ToLow() const {
-    if (IsRegisterPair()) {
-      return Location::RegisterLocation(low());
-    } else if (IsFpuRegisterPair()) {
-      return Location::FpuRegisterLocation(low());
-    } else {
-      DCHECK(IsDoubleStackSlot());
-      return Location::StackSlot(GetStackIndex());
-    }
+    return IsRegisterPair()
+        ? Location::RegisterLocation(low())
+        : Location::FpuRegisterLocation(low());
   }
 
   Location ToHigh() const {
-    if (IsRegisterPair()) {
-      return Location::RegisterLocation(high());
-    } else if (IsFpuRegisterPair()) {
-      return Location::FpuRegisterLocation(high());
-    } else {
-      DCHECK(IsDoubleStackSlot());
-      return Location::StackSlot(GetHighStackIndex(4));
-    }
+    return IsRegisterPair()
+        ? Location::RegisterLocation(high())
+        : Location::FpuRegisterLocation(high());
   }
 
   static uintptr_t EncodeStackIndex(intptr_t stack_index) {

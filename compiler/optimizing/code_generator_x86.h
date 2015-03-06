@@ -245,8 +245,6 @@ class CodeGeneratorX86 : public CodeGenerator {
     return type == Primitive::kPrimLong;
   }
 
-  bool ShouldSplitLongMoves() const OVERRIDE { return true; }
-
   Label* GetFrameEntryLabel() { return &frame_entry_label_; }
 
  private:
