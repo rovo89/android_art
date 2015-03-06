@@ -1010,10 +1010,10 @@ void Hprof::DumpHeapClass(mirror::Class* klass, EndianOutput* output) {
       __ AddU1(t);
       switch (size) {
         case 1:
-          __ AddU1(static_cast<uint8_t>(f->Get32(klass)));
+          __ AddU1(f->GetByte(klass));
           break;
         case 2:
-          __ AddU2(static_cast<uint16_t>(f->Get32(klass)));
+          __ AddU2(f->GetChar(klass));
           break;
         case 4:
           __ AddU4(f->Get32(klass));
@@ -1101,9 +1101,9 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass,
       size_t size;
       SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
       if (size == 1) {
-        __ AddU1(f->Get32(obj));
+        __ AddU1(f->GetByte(obj));
       } else if (size == 2) {
-        __ AddU2(f->Get32(obj));
+        __ AddU2(f->GetChar(obj));
       } else if (size == 4) {
         __ AddU4(f->Get32(obj));
       } else {
