@@ -418,8 +418,8 @@ TEST_F(CmdlineParserTest, TestJitOptions) {
   * Test successes
   */
   {
-    EXPECT_SINGLE_PARSE_VALUE(true, "-Xjit", M::UseJIT);
-    EXPECT_SINGLE_PARSE_VALUE(false, "-Xnojit", M::UseJIT);
+    EXPECT_SINGLE_PARSE_VALUE(true, "-Xusejit:true", M::UseJIT);
+    EXPECT_SINGLE_PARSE_VALUE(false, "-Xusejit:false", M::UseJIT);
   }
   {
     EXPECT_SINGLE_PARSE_VALUE(MemoryKiB(16 * KB), "-Xjitcodecachesize:16K", M::JITCodeCacheCapacity);
