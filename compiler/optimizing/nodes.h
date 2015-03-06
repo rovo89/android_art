@@ -669,14 +669,14 @@ FOR_EACH_INSTRUCTION(FORWARD_DECLARATION)
 #undef FORWARD_DECLARATION
 
 #define DECLARE_INSTRUCTION(type)                                       \
-  virtual InstructionKind GetKind() const { return k##type; }           \
-  virtual const char* DebugName() const { return #type; }               \
-  virtual const H##type* As##type() const OVERRIDE { return this; }     \
-  virtual H##type* As##type() OVERRIDE { return this; }                 \
-  virtual bool InstructionTypeEquals(HInstruction* other) const {       \
+  InstructionKind GetKind() const OVERRIDE { return k##type; }          \
+  const char* DebugName() const OVERRIDE { return #type; }              \
+  const H##type* As##type() const OVERRIDE { return this; }             \
+  H##type* As##type() OVERRIDE { return this; }                         \
+  bool InstructionTypeEquals(HInstruction* other) const OVERRIDE {      \
     return other->Is##type();                                           \
   }                                                                     \
-  virtual void Accept(HGraphVisitor* visitor)
+  void Accept(HGraphVisitor* visitor) OVERRIDE
 
 template <typename T> class HUseList;
 
@@ -1351,7 +1351,7 @@ class HTemplateInstruction: public HInstruction {
       : HInstruction(side_effects), inputs_() {}
   virtual ~HTemplateInstruction() {}
 
-  virtual size_t InputCount() const { return N; }
+  size_t InputCount() const OVERRIDE { return N; }
 
  protected:
   const HUserRecord<HInstruction*> InputRecordAt(size_t i) const OVERRIDE { return inputs_[i]; }
@@ -1373,7 +1373,7 @@ class HExpression : public HTemplateInstruction<N> {
       : HTemplateInstruction<N>(side_effects), type_(type) {}
   virtual ~HExpression() {}
 
-  virtual Primitive::Type GetType() const { return type_; }
+  Primitive::Type GetType() const OVERRIDE { return type_; }
 
  protected:
   Primitive::Type type_;
@@ -1385,7 +1385,7 @@ class HReturnVoid : public HTemplateInstruction<0> {
  public:
   HReturnVoid() : HTemplateInstruction(SideEffects::None()) {}
 
-  virtual bool IsControlFlow() const { return true; }
+  bool IsControlFlow() const OVERRIDE { return true; }
 
   DECLARE_INSTRUCTION(ReturnVoid);
 
@@ -1401,7 +1401,7 @@ class HReturn : public HTemplateInstruction<1> {
     SetRawInputAt(0, value);
   }
 
-  virtual bool IsControlFlow() const { return true; }
+  bool IsControlFlow() const OVERRIDE { return true; }
 
   DECLARE_INSTRUCTION(Return);
 
@@ -1416,7 +1416,7 @@ class HExit : public HTemplateInstruction<0> {
  public:
   HExit() : HTemplateInstruction(SideEffects::None()) {}
 
-  virtual bool IsControlFlow() const { return true; }
+  bool IsControlFlow() const OVERRIDE { return true; }
 
   DECLARE_INSTRUCTION(Exit);
 
@@ -1478,8 +1478,8 @@ class HUnaryOperation : public HExpression<1> {
   HInstruction* GetInput() const { return InputAt(0); }
   Primitive::Type GetResultType() const { return GetType(); }
 
-  virtual bool CanBeMoved() const { return true; }
-  virtual bool InstructionDataEquals(HInstruction* other) const {
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     UNUSED(other);
     return true;
   }
@@ -1546,8 +1546,8 @@ class HBinaryOperation : public HExpression<2> {
     }
   }
 
-  virtual bool CanBeMoved() const { return true; }
-  virtual bool InstructionDataEquals(HInstruction* other) const {
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     UNUSED(other);
     return true;
   }
@@ -1600,16 +1600,16 @@ class HEqual : public HCondition {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
     return x == y ? 1 : 0;
   }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
     return x == y ? 1 : 0;
   }
 
   DECLARE_INSTRUCTION(Equal);
 
-  virtual IfCondition GetCondition() const {
+  IfCondition GetCondition() const OVERRIDE {
     return kCondEQ;
   }
 
@@ -1624,16 +1624,16 @@ class HNotEqual : public HCondition {
 
   bool IsCommutative() const OVERRIDE { return true; }
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
     return x != y ? 1 : 0;
   }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
     return x != y ? 1 : 0;
   }
 
   DECLARE_INSTRUCTION(NotEqual);
 
-  virtual IfCondition GetCondition() const {
+  IfCondition GetCondition() const OVERRIDE {
     return kCondNE;
   }
 
@@ -1646,16 +1646,16 @@ class HLessThan : public HCondition {
   HLessThan(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
     return x < y ? 1 : 0;
   }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
     return x < y ? 1 : 0;
   }
 
   DECLARE_INSTRUCTION(LessThan);
 
-  virtual IfCondition GetCondition() const {
+  IfCondition GetCondition() const OVERRIDE {
     return kCondLT;
   }
 
@@ -1668,16 +1668,16 @@ class HLessThanOrEqual : public HCondition {
   HLessThanOrEqual(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
     return x <= y ? 1 : 0;
   }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
     return x <= y ? 1 : 0;
   }
 
   DECLARE_INSTRUCTION(LessThanOrEqual);
 
-  virtual IfCondition GetCondition() const {
+  IfCondition GetCondition() const OVERRIDE {
     return kCondLE;
   }
 
@@ -1690,16 +1690,16 @@ class HGreaterThan : public HCondition {
   HGreaterThan(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
     return x > y ? 1 : 0;
   }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
     return x > y ? 1 : 0;
   }
 
   DECLARE_INSTRUCTION(GreaterThan);
 
-  virtual IfCondition GetCondition() const {
+  IfCondition GetCondition() const OVERRIDE {
     return kCondGT;
   }
 
@@ -1712,16 +1712,16 @@ class HGreaterThanOrEqual : public HCondition {
   HGreaterThanOrEqual(HInstruction* first, HInstruction* second)
       : HCondition(first, second) {}
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
     return x >= y ? 1 : 0;
   }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
     return x >= y ? 1 : 0;
   }
 
   DECLARE_INSTRUCTION(GreaterThanOrEqual);
 
-  virtual IfCondition GetCondition() const {
+  IfCondition GetCondition() const OVERRIDE {
     return kCondGE;
   }
 
@@ -1830,7 +1830,7 @@ class HConstant : public HExpression<0> {
  public:
   explicit HConstant(Primitive::Type type) : HExpression(type, SideEffects::None()) {}
 
-  virtual bool CanBeMoved() const { return true; }
+  bool CanBeMoved() const OVERRIDE { return true; }
 
   DECLARE_INSTRUCTION(Constant);
 
@@ -1844,12 +1844,12 @@ class HFloatConstant : public HConstant {
 
   float GetValue() const { return value_; }
 
-  virtual bool InstructionDataEquals(HInstruction* other) const {
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     return bit_cast<float, int32_t>(other->AsFloatConstant()->value_) ==
         bit_cast<float, int32_t>(value_);
   }
 
-  virtual size_t ComputeHashCode() const { return static_cast<size_t>(GetValue()); }
+  size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
 
   DECLARE_INSTRUCTION(FloatConstant);
 
@@ -1865,12 +1865,12 @@ class HDoubleConstant : public HConstant {
 
   double GetValue() const { return value_; }
 
-  virtual bool InstructionDataEquals(HInstruction* other) const {
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     return bit_cast<double, int64_t>(other->AsDoubleConstant()->value_) ==
         bit_cast<double, int64_t>(value_);
   }
 
-  virtual size_t ComputeHashCode() const { return static_cast<size_t>(GetValue()); }
+  size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
 
   DECLARE_INSTRUCTION(DoubleConstant);
 
@@ -1931,11 +1931,11 @@ class HLongConstant : public HConstant {
 
   int64_t GetValue() const { return value_; }
 
-  virtual bool InstructionDataEquals(HInstruction* other) const {
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     return other->AsLongConstant()->value_ == value_;
   }
 
-  virtual size_t ComputeHashCode() const { return static_cast<size_t>(GetValue()); }
+  size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
 
   DECLARE_INSTRUCTION(LongConstant);
 
@@ -1957,7 +1957,7 @@ std::ostream& operator<<(std::ostream& os, const Intrinsics& intrinsic);
 
 class HInvoke : public HInstruction {
  public:
-  virtual size_t InputCount() const { return inputs_.Size(); }
+  size_t InputCount() const OVERRIDE { return inputs_.Size(); }
 
   // Runtime needs to walk the stack, so Dex -> Dex calls need to
   // know their environment.
@@ -1967,7 +1967,7 @@ class HInvoke : public HInstruction {
     SetRawInputAt(index, argument);
   }
 
-  virtual Primitive::Type GetType() const { return return_type_; }
+  Primitive::Type GetType() const OVERRIDE { return return_type_; }
 
   uint32_t GetDexPc() const { return dex_pc_; }
 
@@ -2135,8 +2135,8 @@ class HNeg : public HUnaryOperation {
   explicit HNeg(Primitive::Type result_type, HInstruction* input)
       : HUnaryOperation(result_type, input) {}
 
-  virtual int32_t Evaluate(int32_t x) const OVERRIDE { return -x; }
-  virtual int64_t Evaluate(int64_t x) const OVERRIDE { return -x; }
+  int32_t Evaluate(int32_t x) const OVERRIDE { return -x; }
+  int64_t Evaluate(int64_t x) const OVERRIDE { return -x; }
 
   DECLARE_INSTRUCTION(Neg);
 
@@ -2182,12 +2182,12 @@ class HAdd : public HBinaryOperation {
   HAdd(Primitive::Type result_type, HInstruction* left, HInstruction* right)
       : HBinaryOperation(result_type, left, right) {}
 
-  virtual bool IsCommutative() const OVERRIDE { return true; }
+  bool IsCommutative() const OVERRIDE { return true; }
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
     return x + y;
   }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
     return x + y;
   }
 
@@ -2202,10 +2202,10 @@ class HSub : public HBinaryOperation {
   HSub(Primitive::Type result_type, HInstruction* left, HInstruction* right)
       : HBinaryOperation(result_type, left, right) {}
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
+  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
     return x - y;
   }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
+  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
     return x - y;
   }
 
@@ -2220,10 +2220,10 @@ class HMul : public HBinaryOperation {
   HMul(Primitive::Type result_type, HInstruction* left, HInstruction* right)
       : HBinaryOperation(result_type, left, right) {}
 
-  virtual bool IsCommutative() const OVERRIDE { return true; }
+  bool IsCommutative() const OVERRIDE { return true; }
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const { return x * y; }
-  virtual int64_t Evaluate(int64_t x, int64_t y) const { return x * y; }
+  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE { return x * y; }
+  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE { return x * y; }
 
   DECLARE_INSTRUCTION(Mul);
 
@@ -2236,14 +2236,14 @@ class HDiv : public HBinaryOperation {
   HDiv(Primitive::Type result_type, HInstruction* left, HInstruction* right, uint32_t dex_pc)
       : HBinaryOperation(result_type, left, right), dex_pc_(dex_pc) {}
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const {
+  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
     // Our graph structure ensures we never have 0 for `y` during constant folding.
     DCHECK_NE(y, 0);
     // Special case -1 to avoid getting a SIGFPE on x86(_64).
     return (y == -1) ? -x : x / y;
   }
 
-  virtual int64_t Evaluate(int64_t x, int64_t y) const {
+  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
     DCHECK_NE(y, 0);
     // Special case -1 to avoid getting a SIGFPE on x86(_64).
     return (y == -1) ? -x : x / y;
@@ -2264,13 +2264,13 @@ class HRem : public HBinaryOperation {
   HRem(Primitive::Type result_type, HInstruction* left, HInstruction* right, uint32_t dex_pc)
       : HBinaryOperation(result_type, left, right), dex_pc_(dex_pc) {}
 
-  virtual int32_t Evaluate(int32_t x, int32_t y) const {
+  int32_t Evaluate(int32_t x, int32_t y) const OVERRIDE {
     DCHECK_NE(y, 0);
     // Special case -1 to avoid getting a SIGFPE on x86(_64).
     return (y == -1) ? 0 : x % y;
   }
 
-  virtual int64_t Evaluate(int64_t x, int64_t y) const {
+  int64_t Evaluate(int64_t x, int64_t y) const OVERRIDE {
     DCHECK_NE(y, 0);
     // Special case -1 to avoid getting a SIGFPE on x86(_64).
     return (y == -1) ? 0 : x % y;
@@ -2441,14 +2441,14 @@ class HNot : public HUnaryOperation {
   explicit HNot(Primitive::Type result_type, HInstruction* input)
       : HUnaryOperation(result_type, input) {}
 
-  virtual bool CanBeMoved() const { return true; }
-  virtual bool InstructionDataEquals(HInstruction* other) const {
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     UNUSED(other);
     return true;
   }
 
-  virtual int32_t Evaluate(int32_t x) const OVERRIDE { return ~x; }
-  virtual int64_t Evaluate(int64_t x) const OVERRIDE { return ~x; }
+  int32_t Evaluate(int32_t x) const OVERRIDE { return ~x; }
+  int64_t Evaluate(int64_t x) const OVERRIDE { return ~x; }
 
   DECLARE_INSTRUCTION(Not);
 
@@ -2772,15 +2772,15 @@ class HBoundsCheck : public HExpression<2> {
     SetRawInputAt(1, length);
   }
 
-  virtual bool CanBeMoved() const { return true; }
-  virtual bool InstructionDataEquals(HInstruction* other) const {
+  bool CanBeMoved() const OVERRIDE { return true; }
+  bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
     UNUSED(other);
     return true;
   }
 
-  virtual bool NeedsEnvironment() const { return true; }
+  bool NeedsEnvironment() const OVERRIDE { return true; }
 
-  virtual bool CanThrow() const { return true; }
+  bool CanThrow() const OVERRIDE { return true; }
 
   uint32_t GetDexPc() const { return dex_pc_; }
 
@@ -2824,7 +2824,7 @@ class HSuspendCheck : public HTemplateInstruction<0> {
   explicit HSuspendCheck(uint32_t dex_pc)
       : HTemplateInstruction(SideEffects::None()), dex_pc_(dex_pc) {}
 
-  virtual bool NeedsEnvironment() const {
+  bool NeedsEnvironment() const OVERRIDE {
     return true;
   }
 
@@ -3363,7 +3363,7 @@ class HGraphDelegateVisitor : public HGraphVisitor {
 
   // Visit functions that delegate to to super class.
 #define DECLARE_VISIT_INSTRUCTION(name, super)                                        \
-  virtual void Visit##name(H##name* instr) OVERRIDE { Visit##super(instr); }
+  void Visit##name(H##name* instr) OVERRIDE { Visit##super(instr); }
 
   FOR_EACH_INSTRUCTION(DECLARE_VISIT_INSTRUCTION)
 

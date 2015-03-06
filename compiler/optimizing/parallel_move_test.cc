@@ -36,7 +36,7 @@ class TestParallelMoveResolver : public ParallelMoveResolver {
     }
   }
 
-  virtual void EmitMove(size_t index) {
+  void EmitMove(size_t index) OVERRIDE {
     MoveOperands* move = moves_.Get(index);
     if (!message_.str().empty()) {
       message_ << " ";
@@ -48,7 +48,7 @@ class TestParallelMoveResolver : public ParallelMoveResolver {
     message_ << ")";
   }
 
-  virtual void EmitSwap(size_t index) {
+  void EmitSwap(size_t index) OVERRIDE {
     MoveOperands* move = moves_.Get(index);
     if (!message_.str().empty()) {
       message_ << " ";
@@ -60,8 +60,8 @@ class TestParallelMoveResolver : public ParallelMoveResolver {
     message_ << ")";
   }
 
-  virtual void SpillScratch(int reg ATTRIBUTE_UNUSED) {}
-  virtual void RestoreScratch(int reg ATTRIBUTE_UNUSED) {}
+  void SpillScratch(int reg ATTRIBUTE_UNUSED) OVERRIDE {}
+  void RestoreScratch(int reg ATTRIBUTE_UNUSED) OVERRIDE {}
 
   std::string GetMessage() const {
     return  message_.str();
