@@ -146,8 +146,9 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define({"-XX:EnableHSpaceCompactForOOM", "-XX:DisableHSpaceCompactForOOM"})
           .WithValues({true, false})
           .IntoKey(M::EnableHSpaceCompactForOOM)
-      .Define({"-Xjit", "-Xnojit"})
-          .WithValues({true, false})
+      .Define("-Xusejit:_")
+          .WithType<bool>()
+          .WithValueMap({{"false", false}, {"true", true}})
           .IntoKey(M::UseJIT)
       .Define("-Xjitcodecachesize:_")
           .WithType<MemoryKiB>()
@@ -642,8 +643,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -Xcompiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Ximage-compiler-option dex2oat-option\n");
   UsageMessage(stream, "  -Xpatchoat:filename\n");
-  UsageMessage(stream, "  -Xjit\n");
-  UsageMessage(stream, "  -Xnojit\n");
+  UsageMessage(stream, "  -Xusejit:booleanvalue\n");
   UsageMessage(stream, "  -X[no]relocate\n");
   UsageMessage(stream, "  -X[no]dex2oat (Whether to invoke dex2oat on the application)\n");
   UsageMessage(stream, "  -X[no]image-dex2oat (Whether to create and use a boot image)\n");
