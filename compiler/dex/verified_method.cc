@@ -60,7 +60,9 @@ const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_ve
       verified_method->GenerateDevirtMap(method_verifier);
     }
 
-    verified_method->GenerateDequickenMap(method_verifier);
+    if (!verified_method->GenerateDequickenMap(method_verifier)) {
+      return nullptr;
+    }
   }
 
   if (method_verifier->HasCheckCasts()) {
@@ -196,9 +198,9 @@ void VerifiedMethod::ComputeGcMapSizes(verifier::MethodVerifier* method_verifier
   *log2_max_gc_pc = i;
 }
 
-void VerifiedMethod::GenerateDequickenMap(verifier::MethodVerifier* method_verifier) {
+bool VerifiedMethod::GenerateDequickenMap(verifier::MethodVerifier* method_verifier) {
   if (method_verifier->HasFailures()) {
-    return;
+    return false;
   }
   const DexFile::CodeItem* code_item = method_verifier->CodeItem();
   const uint16_t* insns = code_item->insns_;
@@ -212,9 +214,12 @@ void VerifiedMethod::GenerateDequickenMap(verifier::MethodVerifier* method_verif
     if (is_virtual_quick || is_range_quick) {
       uint32_t dex_pc = inst->GetDexPc(insns);
       verifier::RegisterLine* line = method_verifier->GetRegLine(dex_pc);
-      mirror::ArtMethod* method = method_verifier->GetQuickInvokedMethod(inst, line,
-                                                                         is_range_quick);
-      CHECK(method != nullptr);
+      mirror::ArtMethod* method =
+          method_verifier->GetQuickInvokedMethod(inst, line, is_range_quick, true);
+      if (method == nullptr) {
+        // It can be null if the line wasn't verified since it was unreachable.
+        return false;
+      }
       // The verifier must know what the type of the object was or else we would have gotten a
       // failure. Put the dex method index in the dequicken map since we need this to get number of
       // arguments in the compiler.
@@ -224,7 +229,10 @@ void VerifiedMethod::GenerateDequickenMap(verifier::MethodVerifier* method_verif
       uint32_t dex_pc = inst->GetDexPc(insns);
       verifier::RegisterLine* line = method_verifier->GetRegLine(dex_pc);
       mirror::ArtField* field = method_verifier->GetQuickFieldAccess(inst, line);
-      CHECK(field != nullptr);
+      if (field == nullptr) {
+        // It can be null if the line wasn't verified since it was unreachable.
+        return false;
+      }
       // The verifier must know what the type of the field was or else we would have gotten a
       // failure. Put the dex field index in the dequicken map since we need this for lowering
       // in the compiler.
@@ -232,6 +240,7 @@ void VerifiedMethod::GenerateDequickenMap(verifier::MethodVerifier* method_verif
       dequicken_map_.Put(dex_pc, DexFileReference(field->GetDexFile(), field->GetDexFieldIndex()));
     }
   }
+  return true;
 }
 
 void VerifiedMethod::GenerateDevirtMap(verifier::MethodVerifier* method_verifier) {

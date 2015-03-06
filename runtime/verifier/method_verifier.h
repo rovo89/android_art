@@ -240,7 +240,7 @@ class MethodVerifier {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Returns the method of a quick invoke or nullptr if it cannot be found.
   mirror::ArtMethod* GetQuickInvokedMethod(const Instruction* inst, RegisterLine* reg_line,
-                                           bool is_range)
+                                           bool is_range, bool allow_failure)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   // Returns the access field of a quick field access (iget/iput-quick) or nullptr
   // if it cannot be found.
