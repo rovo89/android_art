@@ -1600,14 +1600,17 @@ END_FUNCTION art_quick_instrumentation_exit
      * will long jump to the upcall with a special exception of -1.
      */
 DEFINE_FUNCTION art_quick_deoptimize
-    pushq %rsi                     // Fake that we were called. Use hidden arg.
+    pushq %rsi                     // Entry point for a jump. Fake that we were called.
+                                   // Use hidden arg.
+.globl SYMBOL(art_quick_deoptimize_from_compiled_slow_path)  // Entry point for real calls
+                                                             // from compiled slow paths.
+SYMBOL(art_quick_deoptimize_from_compiled_slow_path):
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME
                                    // Stack should be aligned now.
     movq %gs:THREAD_SELF_OFFSET, %rdi         // Pass Thread.
     call SYMBOL(artDeoptimize) // artDeoptimize(Thread*)
     int3                           // Unreachable.
 END_FUNCTION art_quick_deoptimize
-
 
     /*
      * String's compareTo.

@@ -401,7 +401,9 @@ void EnterInterpreterFromDeoptimize(Thread* self, ShadowFrame* shadow_frame, JVa
                                   // or DexFile::kDexNoIndex if there is none.
     } else {
       const Instruction* instr = Instruction::At(&code_item->insns_[dex_pc]);
-      new_dex_pc = dex_pc + instr->SizeInCodeUnits();  // the dex pc of the next instruction.
+      // For an invoke, use the dex pc of the next instruction.
+      // TODO: should be tested more once b/17586779 is fixed.
+      new_dex_pc = dex_pc + (instr->IsInvoke() ? instr->SizeInCodeUnits() : 0);
     }
     if (new_dex_pc != DexFile::kDexNoIndex) {
       shadow_frame->SetDexPC(new_dex_pc);
