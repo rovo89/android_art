@@ -986,7 +986,8 @@ static void UnstartedRuntimeInvoke(Thread* self,  const DexFile::CodeItem* code_
     mirror::ArtMethod* method = shadow_frame->GetVRegReference(arg_offset)->AsArtMethod();
     result->SetL(method->GetNameAsString(self));
   } else if (name == "void java.lang.System.arraycopy(java.lang.Object, int, java.lang.Object, int, int)" ||
-             name == "void java.lang.System.arraycopy(char[], int, char[], int, int)") {
+             name == "void java.lang.System.arraycopy(char[], int, char[], int, int)" ||
+             name == "void java.lang.System.arraycopy(int[], int, int[], int, int)") {
     // Special case array copying without initializing System.
     Class* ctype = shadow_frame->GetVRegReference(arg_offset)->GetClass()->GetComponentType();
     jint srcPos = shadow_frame->GetVReg(arg_offset + 1);
