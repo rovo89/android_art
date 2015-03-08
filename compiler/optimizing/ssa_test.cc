@@ -32,15 +32,15 @@ class SsaPrettyPrinter : public HPrettyPrinter {
  public:
   explicit SsaPrettyPrinter(HGraph* graph) : HPrettyPrinter(graph), str_("") {}
 
-  virtual void PrintInt(int value) {
+  void PrintInt(int value) OVERRIDE {
     str_ += StringPrintf("%d", value);
   }
 
-  virtual void PrintString(const char* value) {
+  void PrintString(const char* value) OVERRIDE {
     str_ += value;
   }
 
-  virtual void PrintNewLine() {
+  void PrintNewLine() OVERRIDE {
     str_ += '\n';
   }
 
@@ -48,7 +48,7 @@ class SsaPrettyPrinter : public HPrettyPrinter {
 
   std::string str() const { return str_; }
 
-  virtual void VisitIntConstant(HIntConstant* constant) {
+  void VisitIntConstant(HIntConstant* constant) OVERRIDE {
     PrintPreInstruction(constant);
     str_ += constant->DebugName();
     str_ += " ";

@@ -78,7 +78,7 @@ class NullCheckSlowPathX86 : public SlowPathCodeX86 {
  public:
   explicit NullCheckSlowPathX86(HNullCheck* instruction) : instruction_(instruction) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
     __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pThrowNullPointer)));
     codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
@@ -93,7 +93,7 @@ class DivZeroCheckSlowPathX86 : public SlowPathCodeX86 {
  public:
   explicit DivZeroCheckSlowPathX86(HDivZeroCheck* instruction) : instruction_(instruction) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
     __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pThrowDivZero)));
     codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
@@ -108,7 +108,7 @@ class DivRemMinusOneSlowPathX86 : public SlowPathCodeX86 {
  public:
   explicit DivRemMinusOneSlowPathX86(Register reg, bool is_div) : reg_(reg), is_div_(is_div) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
     if (is_div_) {
       __ negl(reg_);
@@ -133,7 +133,7 @@ class BoundsCheckSlowPathX86 : public SlowPathCodeX86 {
         index_location_(index_location),
         length_location_(length_location) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
     __ Bind(GetEntryLabel());
     // We're moving two locations to locations that could overlap, so we need a parallel
@@ -161,7 +161,7 @@ class SuspendCheckSlowPathX86 : public SlowPathCodeX86 {
   explicit SuspendCheckSlowPathX86(HSuspendCheck* instruction, HBasicBlock* successor)
       : instruction_(instruction), successor_(successor) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
     __ Bind(GetEntryLabel());
     codegen->SaveLiveRegisters(instruction_->GetLocations());
@@ -192,7 +192,7 @@ class LoadStringSlowPathX86 : public SlowPathCodeX86 {
  public:
   explicit LoadStringSlowPathX86(HLoadString* instruction) : instruction_(instruction) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
     DCHECK(!locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
 
@@ -227,7 +227,7 @@ class LoadClassSlowPathX86 : public SlowPathCodeX86 {
     DCHECK(at->IsLoadClass() || at->IsClinitCheck());
   }
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = at_->GetLocations();
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
     __ Bind(GetEntryLabel());
@@ -280,7 +280,7 @@ class TypeCheckSlowPathX86 : public SlowPathCodeX86 {
         object_class_(object_class),
         dex_pc_(dex_pc) {}
 
-  virtual void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     LocationSummary* locations = instruction_->GetLocations();
     DCHECK(instruction_->IsCheckCast()
            || !locations->GetLiveRegisters()->ContainsCoreRegister(locations->Out().reg()));
