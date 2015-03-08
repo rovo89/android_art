@@ -39,7 +39,7 @@ class PACKED(4) OatHeader {
 
   static constexpr const char* kOriginalOatChecksumKey = "original-oat-checksum";
   static constexpr const char* kXposedOatVersionKey = "xposed-oat-version";
-  static constexpr const char* kXposedOatCurrentVersion = "1";
+  static constexpr const char* kXposedOatCurrentVersion = "2";
 
   static OatHeader* Create(InstructionSet instruction_set,
                            const InstructionSetFeatures& instruction_set_features,

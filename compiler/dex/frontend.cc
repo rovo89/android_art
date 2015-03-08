@@ -55,7 +55,7 @@ static uint32_t kCompilerOptimizerDisableFlags = 0 |  // Disable specific optimi
   // (1 << kMatch) |
   // (1 << kPromoteCompilerTemps) |
   // (1 << kSuppressExceptionEdges) |
-  // (1 << kSuppressMethodInlining) |
+  (1 << kSuppressMethodInlining) |
   0;
 
 static uint32_t kCompilerDebugFlags = 0 |     // Enable debug/testing modes
