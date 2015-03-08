@@ -42,7 +42,7 @@ class PACKED(4) OatHeader {
   static constexpr const char* kClassPathKey = "classpath";
   static constexpr const char* kXposedOriginalChecksumKey = "xposed-original-checksum";
   static constexpr const char* kXposedOatVersionKey = "xposed-oat-version";
-  static constexpr const char* kXposedOatCurrentVersion = "1";
+  static constexpr const char* kXposedOatCurrentVersion = "3";
 
   static constexpr const char kTrueValue[] = "true";
   static constexpr const char kFalseValue[] = "false";
