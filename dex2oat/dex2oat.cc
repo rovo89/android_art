@@ -1647,9 +1647,10 @@ class Dex2Oat FINAL {
   void LogCompletionTime() {
     // Note: when creation of a runtime fails, e.g., when trying to compile an app but when there
     //       is no image, there won't be a Runtime::Current().
+    // Note: driver creation can fail when loading an invalid dex file.
     LOG(INFO) << "dex2oat took " << PrettyDuration(NanoTime() - start_ns_)
               << " (threads: " << thread_count_ << ") "
-              << ((Runtime::Current() != nullptr) ?
+              << ((Runtime::Current() != nullptr && driver_.get() != nullptr) ?
                   driver_->GetMemoryUsageString(kIsDebugBuild || VLOG_IS_ON(compiler)) :
                   "");
   }
