@@ -30,8 +30,12 @@ namespace arm64 {
 
 class CustomDisassembler FINAL : public vixl::Disassembler {
  public:
-  explicit CustomDisassembler(bool read_literals) :
-      vixl::Disassembler(), read_literals_(read_literals) {}
+  explicit CustomDisassembler(DisassemblerOptions* options) :
+      vixl::Disassembler(), read_literals_(options->can_read_literals_) {
+    if (!options->absolute_addresses_) {
+      MapCodeAddress(0, reinterpret_cast<const vixl::Instruction*>(options->base_address_));
+    }
+  }
 
   // Use register aliases in the disassembly.
   void AppendRegisterNameToOutput(const vixl::Instruction* instr,
@@ -55,11 +59,8 @@ class CustomDisassembler FINAL : public vixl::Disassembler {
 
 class DisassemblerArm64 FINAL : public Disassembler {
  public:
-  // TODO: Update this code once VIXL provides the ability to map code addresses
-  // to disassemble as a different address (the way FormatInstructionPointer()
-  // does).
   explicit DisassemblerArm64(DisassemblerOptions* options) :
-      Disassembler(options), disasm(options->can_read_literals_) {
+      Disassembler(options), disasm(options) {
     decoder.AppendVisitor(&disasm);
   }
 
