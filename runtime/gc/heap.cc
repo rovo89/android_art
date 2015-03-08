@@ -438,20 +438,31 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
   // Create our garbage collectors.
   for (size_t i = 0; i < 2; ++i) {
     const bool concurrent = i != 0;
-    garbage_collectors_.push_back(new collector::MarkSweep(this, concurrent));
-    garbage_collectors_.push_back(new collector::PartialMarkSweep(this, concurrent));
-    garbage_collectors_.push_back(new collector::StickyMarkSweep(this, concurrent));
+    if ((MayUseCollector(kCollectorTypeCMS) && concurrent) ||
+        (MayUseCollector(kCollectorTypeMS) && !concurrent)) {
+      garbage_collectors_.push_back(new collector::MarkSweep(this, concurrent));
+      garbage_collectors_.push_back(new collector::PartialMarkSweep(this, concurrent));
+      garbage_collectors_.push_back(new collector::StickyMarkSweep(this, concurrent));
+    }
   }
   if (kMovingCollector) {
-    // TODO: Clean this up.
-    const bool generational = foreground_collector_type_ == kCollectorTypeGSS;
-    semi_space_collector_ = new collector::SemiSpace(this, generational,
-                                                     generational ? "generational" : "");
-    garbage_collectors_.push_back(semi_space_collector_);
-    concurrent_copying_collector_ = new collector::ConcurrentCopying(this);
-    garbage_collectors_.push_back(concurrent_copying_collector_);
-    mark_compact_collector_ = new collector::MarkCompact(this);
-    garbage_collectors_.push_back(mark_compact_collector_);
+    if (MayUseCollector(kCollectorTypeSS) || MayUseCollector(kCollectorTypeGSS) ||
+        MayUseCollector(kCollectorTypeHomogeneousSpaceCompact) ||
+        use_homogeneous_space_compaction_for_oom_) {
+      // TODO: Clean this up.
+      const bool generational = foreground_collector_type_ == kCollectorTypeGSS;
+      semi_space_collector_ = new collector::SemiSpace(this, generational,
+                                                       generational ? "generational" : "");
+      garbage_collectors_.push_back(semi_space_collector_);
+    }
+    if (MayUseCollector(kCollectorTypeCC)) {
+      concurrent_copying_collector_ = new collector::ConcurrentCopying(this);
+      garbage_collectors_.push_back(concurrent_copying_collector_);
+    }
+    if (MayUseCollector(kCollectorTypeMC)) {
+      mark_compact_collector_ = new collector::MarkCompact(this);
+      garbage_collectors_.push_back(mark_compact_collector_);
+    }
   }
   if (GetImageSpace() != nullptr && non_moving_space_ != nullptr &&
       (is_zygote || separate_non_moving_space || foreground_collector_type_ == kCollectorTypeGSS)) {
@@ -485,6 +496,10 @@ MemMap* Heap::MapAnonymousPreferredAddress(const char* name, uint8_t* request_be
     request_begin = nullptr;
   }
   return nullptr;
+}
+
+bool Heap::MayUseCollector(CollectorType type) const {
+  return foreground_collector_type_ == type || background_collector_type_ == type;
 }
 
 space::MallocSpace* Heap::CreateMallocSpaceFromMemMap(MemMap* mem_map, size_t initial_size,
