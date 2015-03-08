@@ -1008,17 +1008,26 @@ void Hprof::DumpHeapClass(mirror::Class* klass, EndianOutput* output) {
       HprofBasicType t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
       __ AddStringId(LookupStringId(f->GetName()));
       __ AddU1(t);
-      switch (size) {
-        case 1:
+      switch (t) {
+        case hprof_basic_byte:
           __ AddU1(f->GetByte(klass));
           break;
-        case 2:
+        case hprof_basic_boolean:
+          __ AddU1(f->GetBoolean(klass));
+          break;
+        case hprof_basic_char:
           __ AddU2(f->GetChar(klass));
           break;
-        case 4:
+        case hprof_basic_short:
+          __ AddU2(f->GetShort(klass));
+          break;
+        case hprof_basic_float:
+        case hprof_basic_int:
+        case hprof_basic_object:
           __ AddU4(f->Get32(klass));
           break;
-        case 8:
+        case hprof_basic_double:
+        case hprof_basic_long:
           __ AddU8(f->Get64(klass));
           break;
         default:
@@ -1099,16 +1108,29 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass,
     for (int i = 0; i < ifieldCount; ++i) {
       mirror::ArtField* f = klass->GetInstanceField(i);
       size_t size;
-      SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
-      if (size == 1) {
+      auto t = SignatureToBasicTypeAndSize(f->GetTypeDescriptor(), &size);
+      switch (t) {
+      case hprof_basic_byte:
         __ AddU1(f->GetByte(obj));
-      } else if (size == 2) {
+        break;
+      case hprof_basic_boolean:
+        __ AddU1(f->GetBoolean(obj));
+        break;
+      case hprof_basic_char:
         __ AddU2(f->GetChar(obj));
-      } else if (size == 4) {
+        break;
+      case hprof_basic_short:
+        __ AddU2(f->GetShort(obj));
+        break;
+      case hprof_basic_float:
+      case hprof_basic_int:
+      case hprof_basic_object:
         __ AddU4(f->Get32(obj));
-      } else {
-        CHECK_EQ(size, 8U);
+        break;
+      case hprof_basic_double:
+      case hprof_basic_long:
         __ AddU8(f->Get64(obj));
+        break;
       }
     }
 
