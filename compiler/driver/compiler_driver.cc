@@ -358,6 +358,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
       image_(image),
       image_classes_(image_classes),
       classes_to_compile_(compiled_classes),
+      had_hard_verifier_failure_(false),
       thread_count_(thread_count),
       stats_(new AOTCompilationStats),
       dedupe_enabled_(true),
@@ -615,6 +616,11 @@ void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const De
 
   Verify(class_loader, dex_files, thread_pool, timings);
   VLOG(compiler) << "Verify: " << GetMemoryUsageString(false);
+
+  if (had_hard_verifier_failure_ && GetCompilerOptions().AbortOnHardVerifierFailure()) {
+    LOG(FATAL) << "Had a hard failure verifying all classes, and was asked to abort in such "
+               << "situations. Please check the log.";
+  }
 
   InitializeClasses(class_loader, dex_files, thread_pool, timings);
   VLOG(compiler) << "InitializeClasses: " << GetMemoryUsageString(false);
@@ -1839,6 +1845,7 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
                                                   verifier::MethodVerifier::kHardFailure) {
       LOG(ERROR) << "Verification failed on class " << PrettyDescriptor(descriptor)
                  << " because: " << error_msg;
+      manager->GetCompiler()->SetHadHardVerifierFailure();
     }
   } else if (!SkipClass(jclass_loader, dex_file, klass.Get())) {
     CHECK(klass->IsResolved()) << PrettyClass(klass.Get());
@@ -1848,6 +1855,7 @@ static void VerifyClass(const ParallelCompilationManager* manager, size_t class_
       // ClassLinker::VerifyClass throws, which isn't useful in the compiler.
       CHECK(soa.Self()->IsExceptionPending());
       soa.Self()->ClearException();
+      manager->GetCompiler()->SetHadHardVerifierFailure();
     }
 
     CHECK(klass->IsCompileTimeVerified() || klass->IsErroneous())

@@ -80,7 +80,8 @@ JitCompiler::JitCompiler() : total_time_(0) {
       false,  // pic
       nullptr,
       pass_manager_options,
-      nullptr));
+      nullptr,
+      false));
   const InstructionSet instruction_set = kRuntimeISA;
   instruction_set_features_.reset(InstructionSetFeatures::FromCppDefines());
   cumulative_logger_.reset(new CumulativeLogger("jit times"));
