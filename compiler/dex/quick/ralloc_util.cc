@@ -1355,7 +1355,7 @@ RegLocation Mir2Lir::GetReturn(RegisterClass reg_class) {
     default: res = LocCReturn(); break;
   }
   Clobber(res.reg);
-  if (cu_->instruction_set == kMips) {
+  if (cu_->instruction_set == kMips || cu_->instruction_set == kMips64) {
     MarkInUse(res.reg);
   } else {
     LockTemp(res.reg);

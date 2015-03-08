@@ -43,7 +43,7 @@ static const uint32_t kCop1 = (17 << kOpcodeShift);
 static const uint32_t kITypeMask = (0x3f << kOpcodeShift);
 static const uint32_t kJTypeMask = (0x3f << kOpcodeShift);
 static const uint32_t kRTypeMask = ((0x3f << kOpcodeShift) | (0x3f));
-static const uint32_t kSpecial2Mask = (0x3f << kOpcodeShift);
+static const uint32_t kSpecial0Mask = (0x3f << kOpcodeShift);
 static const uint32_t kFpMask = kRTypeMask;
 
 static const Mips64Instruction gMips64Instructions[] = {
@@ -58,24 +58,15 @@ static const Mips64Instruction gMips64Instructions[] = {
   { kRTypeMask, 4, "sllv", "DTS", },
   { kRTypeMask, 6, "srlv", "DTS", },
   { kRTypeMask, 7, "srav", "DTS", },
-  { kRTypeMask, 8, "jr", "S", },
-  // rd = 31 is implicit.
-  { kRTypeMask | (0x1f << 11), 9 | (31 << 11), "jalr", "S", },
+  { kRTypeMask | (0x1f << 11), 9 | (31 << 11), "jalr", "S", },  // rd = 31 is implicit.
+  { kRTypeMask | (0x1f << 11), 9, "jr", "S", },  // rd = 0 is implicit.
   { kRTypeMask, 9, "jalr", "DS", },  // General case.
-  { kRTypeMask | (0x1f << 6), 10, "movz", "DST", },
-  { kRTypeMask | (0x1f << 6), 11, "movn", "DST", },
   { kRTypeMask, 12, "syscall", "", },  // TODO: code
   { kRTypeMask, 13, "break", "", },  // TODO: code
   { kRTypeMask, 15, "sync", "", },  // TODO: type
-  { kRTypeMask, 16, "mfhi", "D", },
-  { kRTypeMask, 17, "mthi", "S", },
-  { kRTypeMask, 18, "mflo", "D", },
-  { kRTypeMask, 19, "mtlo", "S", },
-  { kRTypeMask, 24, "mult", "ST", },
-  { kRTypeMask, 25, "multu", "ST", },
-  { kRTypeMask, 26, "div", "ST", },
-  { kRTypeMask, 27, "divu", "ST", },
-  { kRTypeMask, 32, "add", "DST", },
+  { kRTypeMask, 20, "dsllv", "DTS", },
+  { kRTypeMask, 22, "dsrlv", "DTS", },
+  { kRTypeMask, 23, "dsrav", "DTS", },
   { kRTypeMask, 33, "addu", "DST", },
   { kRTypeMask, 34, "sub", "DST", },
   { kRTypeMask, 35, "subu", "DST", },
@@ -85,27 +76,37 @@ static const Mips64Instruction gMips64Instructions[] = {
   { kRTypeMask, 39, "nor", "DST", },
   { kRTypeMask, 42, "slt", "DST", },
   { kRTypeMask, 43, "sltu", "DST", },
-  { kRTypeMask, 44, "dadd", "DST", },
   { kRTypeMask, 45, "daddu", "DST", },
   { kRTypeMask, 46, "dsub", "DST", },
   { kRTypeMask, 47, "dsubu", "DST", },
-  // 0, 48, tge
-  // 0, 49, tgeu
-  // 0, 50, tlt
-  // 0, 51, tltu
-  // 0, 52, teq
-  // 0, 54, tne
+  // TODO: seleqz, selnez
+  { kRTypeMask, 56, "dsll", "DTA", },
+  { kRTypeMask, 58, "dsrl", "DTA", },
+  { kRTypeMask, 59, "dsra", "DTA", },
+  { kRTypeMask, 60, "dsll32", "DTA", },
+  { kRTypeMask | (0x1f << 21), 62 | (1 << 21), "drotr32", "DTA", },
+  { kRTypeMask, 62, "dsrl32", "DTA", },
+  { kRTypeMask, 63, "dsra32", "DTA", },
 
-  // SPECIAL2
-  { kSpecial2Mask | 0x7ff, (28 << kOpcodeShift) | 2, "mul", "DST" },
-  { kSpecial2Mask | 0x7ff, (28 << kOpcodeShift) | 32, "clz", "DS" },
-  { kSpecial2Mask | 0x7ff, (28 << kOpcodeShift) | 36, "dclz", "DS" },
-  { kSpecial2Mask | 0xffff, (28 << kOpcodeShift) | 0, "madd", "ST" },
-  { kSpecial2Mask | 0xffff, (28 << kOpcodeShift) | 1, "maddu", "ST" },
-  { kSpecial2Mask | 0xffff, (28 << kOpcodeShift) | 2, "mul", "DST" },
-  { kSpecial2Mask | 0xffff, (28 << kOpcodeShift) | 4, "msub", "ST" },
-  { kSpecial2Mask | 0xffff, (28 << kOpcodeShift) | 5, "msubu", "ST" },
-  { kSpecial2Mask | 0x3f, (28 << kOpcodeShift) | 0x3f, "sdbbp", "" },
+  // SPECIAL0
+  { kSpecial0Mask | 0x7ff, (2 << 6) | 24, "mul", "DST" },
+  { kSpecial0Mask | 0x7ff, (3 << 6) | 24, "muh", "DST" },
+  { kSpecial0Mask | 0x7ff, (2 << 6) | 25, "mulu", "DST" },
+  { kSpecial0Mask | 0x7ff, (3 << 6) | 25, "muhu", "DST" },
+  { kSpecial0Mask | 0x7ff, (2 << 6) | 26, "div", "DST" },
+  { kSpecial0Mask | 0x7ff, (3 << 6) | 26, "mod", "DST" },
+  { kSpecial0Mask | 0x7ff, (2 << 6) | 27, "divu", "DST" },
+  { kSpecial0Mask | 0x7ff, (3 << 6) | 27, "modu", "DST" },
+  { kSpecial0Mask | 0x7ff, (2 << 6) | 28, "dmul", "DST" },
+  { kSpecial0Mask | 0x7ff, (3 << 6) | 28, "dmuh", "DST" },
+  { kSpecial0Mask | 0x7ff, (2 << 6) | 29, "dmulu", "DST" },
+  { kSpecial0Mask | 0x7ff, (3 << 6) | 29, "dmuhu", "DST" },
+  { kSpecial0Mask | 0x7ff, (2 << 6) | 30, "ddiv", "DST" },
+  { kSpecial0Mask | 0x7ff, (3 << 6) | 30, "dmod", "DST" },
+  { kSpecial0Mask | 0x7ff, (2 << 6) | 31, "ddivu", "DST" },
+  { kSpecial0Mask | 0x7ff, (3 << 6) | 31, "dmodu", "DST" },
+  // TODO: [d]clz, [d]clo
+  // TODO: sdbbp
 
   // J-type instructions.
   { kJTypeMask, 2 << kOpcodeShift, "j", "L" },
@@ -116,33 +117,31 @@ static const Mips64Instruction gMips64Instructions[] = {
   { kITypeMask, 5 << kOpcodeShift, "bne", "STB" },
   { kITypeMask | (0x1f << 16), 1 << kOpcodeShift | (1 << 16), "bgez", "SB" },
   { kITypeMask | (0x1f << 16), 1 << kOpcodeShift | (0 << 16), "bltz", "SB" },
-  { kITypeMask | (0x1f << 16), 1 << kOpcodeShift | (2 << 16), "bltzl", "SB" },
-  { kITypeMask | (0x1f << 16), 1 << kOpcodeShift | (16 << 16), "bltzal", "SB" },
-  { kITypeMask | (0x1f << 16), 1 << kOpcodeShift | (18 << 16), "bltzall", "SB" },
   { kITypeMask | (0x1f << 16), 6 << kOpcodeShift | (0 << 16), "blez", "SB" },
   { kITypeMask | (0x1f << 16), 7 << kOpcodeShift | (0 << 16), "bgtz", "SB" },
+  { kITypeMask | (0x1f << 16), 1 << kOpcodeShift | (6 << 16), "dahi", "Si", },
+  { kITypeMask | (0x1f << 16), 1 << kOpcodeShift | (30 << 16), "dati", "Si", },
 
   { 0xffff0000, (4 << kOpcodeShift), "b", "B" },
   { 0xffff0000, (1 << kOpcodeShift) | (17 << 16), "bal", "B" },
 
-  { kITypeMask, 8 << kOpcodeShift, "addi", "TSi", },
   { kITypeMask, 9 << kOpcodeShift, "addiu", "TSi", },
   { kITypeMask, 10 << kOpcodeShift, "slti", "TSi", },
   { kITypeMask, 11 << kOpcodeShift, "sltiu", "TSi", },
   { kITypeMask, 12 << kOpcodeShift, "andi", "TSi", },
   { kITypeMask, 13 << kOpcodeShift, "ori", "TSi", },
-  { kITypeMask, 14 << kOpcodeShift, "ori", "TSi", },
-  { kITypeMask, 15 << kOpcodeShift, "lui", "TI", },
-
-  { kITypeMask, 24 << kOpcodeShift, "daddi", "TSi", },
+  { kITypeMask, 14 << kOpcodeShift, "xori", "TSi", },
+  { kITypeMask | (0x1f << 21), 15 << kOpcodeShift, "lui", "TI", },
+  { kITypeMask, 15 << kOpcodeShift, "aui", "TSI", },
   { kITypeMask, 25 << kOpcodeShift, "daddiu", "TSi", },
-
+  { kITypeMask, 29 << kOpcodeShift, "daui", "TSi", },
 
   { kITypeMask, 32u << kOpcodeShift, "lb", "TO", },
   { kITypeMask, 33u << kOpcodeShift, "lh", "TO", },
   { kITypeMask, 35u << kOpcodeShift, "lw", "TO", },
   { kITypeMask, 36u << kOpcodeShift, "lbu", "TO", },
   { kITypeMask, 37u << kOpcodeShift, "lhu", "TO", },
+  { kITypeMask, 39u << kOpcodeShift, "lwu", "TO", },
   { kITypeMask, 40u << kOpcodeShift, "sb", "TO", },
   { kITypeMask, 41u << kOpcodeShift, "sh", "TO", },
   { kITypeMask, 43u << kOpcodeShift, "sw", "TO", },
@@ -154,27 +153,31 @@ static const Mips64Instruction gMips64Instructions[] = {
   { kITypeMask, 63u << kOpcodeShift, "sd", "TO", },
 
   // Floating point.
-  { kFpMask,                kCop1 | 0, "add", "fdst" },
-  { kFpMask,                kCop1 | 1, "sub", "fdst" },
-  { kFpMask,                kCop1 | 2, "mul", "fdst" },
-  { kFpMask,                kCop1 | 3, "div", "fdst" },
-  { kFpMask | (0x1f << 16), kCop1 | 4, "sqrt", "fdst" },
-  { kFpMask | (0x1f << 16), kCop1 | 5, "abs", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 6, "mov", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 7, "neg", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 8, "round.l", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 9, "trunc.l", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 10, "ceil.l", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 11, "floor.l", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 12, "round.w", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 13, "trunc.w", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 14, "ceil.w", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 15, "floor.w", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 32, "cvt.s", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 33, "cvt.d", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 36, "cvt.w", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 37, "cvt.l", "fds" },
-  { kFpMask | (0x1f << 16), kCop1 | 38, "cvt.ps", "fds" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x00 << 21), "mfc1", "Td" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x01 << 21), "dmfc1", "Td" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x04 << 21), "mtc1", "Td" },
+  { kFpMask | (0x1f << 21), kCop1 | (0x05 << 21), "dmtc1", "Td" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 0, "add", "fadt" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 1, "sub", "fadt" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 2, "mul", "fadt" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 3, "div", "fadt" },
+  { kFpMask | (0x10 << 21), kCop1 | (0x10 << 21) | 4, "sqrt", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 5, "abs", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 6, "mov", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 7, "neg", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 8, "round.l", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 9, "trunc.l", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 10, "ceil.l", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 11, "floor.l", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 12, "round.w", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 13, "trunc.w", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 14, "ceil.w", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 15, "floor.w", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 32, "cvt.s", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 33, "cvt.d", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 36, "cvt.w", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 37, "cvt.l", "fad" },
+  { kFpMask | (0x21f << 16), kCop1 | (0x200 << 16) | 38, "cvt.ps", "fad" },
 };
 
 static uint32_t ReadU32(const uint8_t* ptr) {
@@ -216,6 +219,7 @@ static void DumpMips64(std::ostream& os, const uint8_t* instr_ptr) {
             break;
           case 'D': args << 'r' << rd; break;
           case 'd': args << 'f' << rd; break;
+          case 'a': args << 'f' << sa; break;
           case 'f':  // Floating point "fmt".
             {
               size_t fmt = (instruction >> 21) & 0x7;  // TODO: other fmts?
