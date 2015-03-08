@@ -32,7 +32,7 @@ class HPrettyPrinter : public HGraphVisitor {
     PrintString(": ");
   }
 
-  virtual void VisitInstruction(HInstruction* instruction) {
+  void VisitInstruction(HInstruction* instruction) OVERRIDE {
     PrintPreInstruction(instruction);
     PrintString(instruction->DebugName());
     PrintPostInstruction(instruction);
@@ -68,7 +68,7 @@ class HPrettyPrinter : public HGraphVisitor {
     PrintNewLine();
   }
 
-  virtual void VisitBasicBlock(HBasicBlock* block) {
+  void VisitBasicBlock(HBasicBlock* block) OVERRIDE {
     PrintString("BasicBlock ");
     PrintInt(block->GetBlockId());
     const GrowableArray<HBasicBlock*>& predecessors = block->GetPredecessors();
@@ -106,15 +106,15 @@ class StringPrettyPrinter : public HPrettyPrinter {
   explicit StringPrettyPrinter(HGraph* graph)
       : HPrettyPrinter(graph), str_(""), current_block_(nullptr) { }
 
-  virtual void PrintInt(int value) {
+  void PrintInt(int value) OVERRIDE {
     str_ += StringPrintf("%d", value);
   }
 
-  virtual void PrintString(const char* value) {
+  void PrintString(const char* value) OVERRIDE {
     str_ += value;
   }
 
-  virtual void PrintNewLine() {
+  void PrintNewLine() OVERRIDE {
     str_ += '\n';
   }
 
@@ -122,12 +122,12 @@ class StringPrettyPrinter : public HPrettyPrinter {
 
   std::string str() const { return str_; }
 
-  virtual void VisitBasicBlock(HBasicBlock* block) {
+  void VisitBasicBlock(HBasicBlock* block) OVERRIDE {
     current_block_ = block;
     HPrettyPrinter::VisitBasicBlock(block);
   }
 
-  virtual void VisitGoto(HGoto* gota) {
+  void VisitGoto(HGoto* gota) OVERRIDE {
     PrintString("  ");
     PrintInt(gota->GetId());
     PrintString(": Goto ");
