@@ -77,13 +77,9 @@ void Class::SetStatus(Status new_status, Thread* self) {
         << "Attempt to set as erroneous an already erroneous class " << PrettyClass(this);
 
     // Stash current exception.
-    StackHandleScope<3> hs(self);
-    ThrowLocation old_throw_location;
-    Handle<mirror::Throwable> old_exception(hs.NewHandle(self->GetException(&old_throw_location)));
+    StackHandleScope<1> hs(self);
+    Handle<mirror::Throwable> old_exception(hs.NewHandle(self->GetException()));
     CHECK(old_exception.Get() != nullptr);
-    Handle<mirror::Object> old_throw_this_object(hs.NewHandle(old_throw_location.GetThis()));
-    Handle<mirror::ArtMethod> old_throw_method(hs.NewHandle(old_throw_location.GetMethod()));
-    uint32_t old_throw_dex_pc = old_throw_location.GetDexPc();
     Class* eiie_class;
     // Do't attempt to use FindClass if we have an OOM error since this can try to do more
     // allocations and may cause infinite loops.
@@ -109,9 +105,7 @@ void Class::SetStatus(Status new_status, Thread* self) {
     }
 
     // Restore exception.
-    ThrowLocation gc_safe_throw_location(old_throw_this_object.Get(), old_throw_method.Get(),
-                                         old_throw_dex_pc);
-    self->SetException(gc_safe_throw_location, old_exception.Get());
+    self->SetException(old_exception.Get());
   }
   static_assert(sizeof(Status) == sizeof(uint32_t), "Size of status not equal to uint32");
   if (Runtime::Current()->IsActiveTransaction()) {

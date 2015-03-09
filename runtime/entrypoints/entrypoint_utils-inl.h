@@ -613,9 +613,8 @@ inline mirror::String* ResolveStringFromCode(mirror::ArtMethod* referrer,
 inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self) {
   // Save any pending exception over monitor exit call.
   mirror::Throwable* saved_exception = NULL;
-  ThrowLocation saved_throw_location;
   if (UNLIKELY(self->IsExceptionPending())) {
-    saved_exception = self->GetException(&saved_throw_location);
+    saved_exception = self->GetException();
     self->ClearException();
   }
   // Decode locked object and unlock, before popping local references.
@@ -624,11 +623,11 @@ inline void UnlockJniSynchronizedMethod(jobject locked, Thread* self) {
     LOG(FATAL) << "Synchronized JNI code returning with an exception:\n"
         << saved_exception->Dump()
         << "\nEncountered second exception during implicit MonitorExit:\n"
-        << self->GetException(NULL)->Dump();
+        << self->GetException()->Dump();
   }
   // Restore pending exception.
   if (saved_exception != NULL) {
-    self->SetException(saved_throw_location, saved_exception);
+    self->SetException(saved_exception);
   }
 }
 

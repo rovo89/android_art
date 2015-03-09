@@ -95,9 +95,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
                     mirror::ArtMethod* method, uint32_t dex_pc, mirror::ArtField* field,
                     const JValue& field_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
-  void ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
-                       mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
-                       mirror::Throwable* exception_object)
+  void ExceptionCaught(Thread* thread, mirror::Throwable* exception_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;
   void BackwardBranch(Thread* thread, mirror::ArtMethod* method, int32_t dex_pc_offset)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) OVERRIDE;

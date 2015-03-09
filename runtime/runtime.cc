@@ -306,11 +306,8 @@ struct AbortState {
     DCHECK(Locks::mutator_lock_->IsExclusiveHeld(self) || Locks::mutator_lock_->IsSharedHeld(self));
     self->Dump(os);
     if (self->IsExceptionPending()) {
-      ThrowLocation throw_location;
-      mirror::Throwable* exception = self->GetException(&throw_location);
-      os << "Pending exception " << PrettyTypeOf(exception)
-          << " thrown by '" << throw_location.Dump() << "'\n"
-          << exception->Dump();
+      mirror::Throwable* exception = self->GetException();
+      os << "Pending exception " << exception->Dump();
     }
   }
 
@@ -1020,14 +1017,14 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   self->ThrowNewException(ThrowLocation(), "Ljava/lang/OutOfMemoryError;",
                           "OutOfMemoryError thrown while trying to throw OutOfMemoryError; "
                           "no stack trace available");
-  pre_allocated_OutOfMemoryError_ = GcRoot<mirror::Throwable>(self->GetException(NULL));
+  pre_allocated_OutOfMemoryError_ = GcRoot<mirror::Throwable>(self->GetException());
   self->ClearException();
 
   // Pre-allocate a NoClassDefFoundError for the common case of failing to find a system class
   // ahead of checking the application's class loader.
   self->ThrowNewException(ThrowLocation(), "Ljava/lang/NoClassDefFoundError;",
                           "Class not found using the boot class loader; no stack trace available");
-  pre_allocated_NoClassDefFoundError_ = GcRoot<mirror::Throwable>(self->GetException(NULL));
+  pre_allocated_NoClassDefFoundError_ = GcRoot<mirror::Throwable>(self->GetException());
   self->ClearException();
 
   // Look for a native bridge.
