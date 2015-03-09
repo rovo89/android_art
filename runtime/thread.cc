@@ -1730,21 +1730,21 @@ void Thread::ThrowNewException(const ThrowLocation& throw_location,
   ThrowNewWrappedException(throw_location, exception_class_descriptor, msg);
 }
 
-static mirror::ClassLoader* GetClassLoaderFromThrowLocation(const ThrowLocation& throw_location)
+static mirror::ClassLoader* GetCurrentClassLoader(Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  return throw_location.GetMethod() != nullptr
-      ? throw_location.GetMethod()->GetDeclaringClass()->GetClassLoader()
+  mirror::ArtMethod* method = self->GetCurrentMethod(nullptr);
+  return method != nullptr
+      ? method->GetDeclaringClass()->GetClassLoader()
       : nullptr;
 }
 
-void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location,
+void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location ATTRIBUTE_UNUSED,
                                       const char* exception_class_descriptor,
                                       const char* msg) {
   DCHECK_EQ(this, Thread::Current());
   ScopedObjectAccessUnchecked soa(this);
   StackHandleScope<3> hs(soa.Self());
-  Handle<mirror::ClassLoader> class_loader(
-      hs.NewHandle(GetClassLoaderFromThrowLocation(throw_location)));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(GetCurrentClassLoader(soa.Self())));
   ScopedLocalRef<jobject> cause(GetJniEnv(), soa.AddLocalReference<jobject>(GetException()));
   ClearException();
   Runtime* runtime = Runtime::Current();
