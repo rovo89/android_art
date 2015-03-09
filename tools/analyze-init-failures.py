@@ -40,6 +40,8 @@ def ProcessFile(filename):
 
   class_fail_class = {}
   class_fail_method = {}
+  class_fail_load_library = {}
+  class_fail_get_property = {}
   root_failures = set()
   root_errors = {}
 
@@ -82,6 +84,8 @@ def ProcessFile(filename):
       immediate_class = root_err_class
       immediate_method = root_method_name
       root_errors[root_err_class] = error
+      was_load_library = False
+      was_get_property = False
       # Now go "up" the stack.
       while True:
         raw_line = it.next()
@@ -95,8 +99,19 @@ def ProcessFile(filename):
           # A class initializer is on the stack...
           class_fail_class[err_class] = immediate_class
           class_fail_method[err_class] = immediate_method
+          class_fail_load_library[err_class] = was_load_library
           immediate_class = err_class
           immediate_method = err_method_name
+          class_fail_get_property[err_class] = was_get_property
+          was_get_property = False
+        was_load_library = err_method_name == "loadLibrary"
+        was_get_property = was_get_property or err_method_name == "getProperty"
+      failed_clazz_norm = re.sub(r"^L", "", failed_clazz)
+      failed_clazz_norm = re.sub(r";$", "", failed_clazz_norm)
+      failed_clazz_norm = re.sub(r"/", "", failed_clazz_norm)
+      if immediate_class != failed_clazz_norm:
+        class_fail_class[failed_clazz_norm] = immediate_class
+        class_fail_method[failed_clazz_norm] = immediate_method
     except StopIteration:
       # print('Done')
       break  # Done
@@ -114,7 +129,11 @@ def ProcessFile(filename):
   for (r_class, r_id) in class_index.items():
     error_string = ''
     if r_class in root_failures:
-      error_string = ',color=Red,tooltip="' + root_errors[r_class] + '",URL="' + root_errors[r_class] + '"'
+      error_string = ',style=filled,fillcolor=Red,tooltip="' + root_errors[r_class] + '",URL="' + root_errors[r_class] + '"'
+    elif r_class in class_fail_load_library and class_fail_load_library[r_class] == True:
+      error_string = error_string + ',style=filled,fillcolor=Bisque'
+    elif r_class in class_fail_get_property and class_fail_get_property[r_class] == True:
+      error_string = error_string + ',style=filled,fillcolor=Darkseagreen'
     print('  n%d [shape=box,label="%s"%s];' % (r_id, r_class, error_string))
 
   # Some space.
