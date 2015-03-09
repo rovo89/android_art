@@ -326,11 +326,7 @@ class Thread {
     return tlsPtr_.exception != nullptr;
   }
 
-  mirror::Throwable* GetException(ThrowLocation* throw_location) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    if (throw_location != nullptr) {
-      *throw_location = tlsPtr_.throw_location;
-    }
+  mirror::Throwable* GetException() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     return tlsPtr_.exception;
   }
 
@@ -338,17 +334,15 @@ class Thread {
   void AssertNoPendingException() const;
   void AssertNoPendingExceptionForNewException(const char* msg) const;
 
-  void SetException(const ThrowLocation& throw_location, mirror::Throwable* new_exception)
+  void SetException(mirror::Throwable* new_exception)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     CHECK(new_exception != NULL);
     // TODO: DCHECK(!IsExceptionPending());
     tlsPtr_.exception = new_exception;
-    tlsPtr_.throw_location = throw_location;
   }
 
   void ClearException() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     tlsPtr_.exception = nullptr;
-    tlsPtr_.throw_location.Clear();
   }
 
   // Find catch block and perform long jump to appropriate exception handle
@@ -1034,7 +1028,7 @@ class Thread {
   struct PACKED(4) tls_ptr_sized_values {
       tls_ptr_sized_values() : card_table(nullptr), exception(nullptr), stack_end(nullptr),
       managed_stack(), suspend_trigger(nullptr), jni_env(nullptr), self(nullptr), opeer(nullptr),
-      jpeer(nullptr), stack_begin(nullptr), stack_size(0), throw_location(),
+      jpeer(nullptr), stack_begin(nullptr), stack_size(0),
       stack_trace_sample(nullptr), wait_next(nullptr), monitor_enter_object(nullptr),
       top_handle_scope(nullptr), class_loader_override(nullptr), long_jump_context(nullptr),
       instrumentation_stack(nullptr), debug_invoke_req(nullptr), single_step_control(nullptr),
@@ -1083,9 +1077,6 @@ class Thread {
 
     // Size of the stack.
     size_t stack_size;
-
-    // The location the current exception was thrown from.
-    ThrowLocation throw_location;
 
     // Pointer to previous stack trace captured by sampling profiler.
     std::vector<mirror::ArtMethod*>* stack_trace_sample;

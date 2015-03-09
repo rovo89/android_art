@@ -187,8 +187,7 @@ void ThrowStackOverflowError(Thread* self) {
         error_msg = "Could not create stack trace.";
       }
       // Throw the exception.
-      self->SetException(self->GetCurrentLocationForThrow(),
-                         reinterpret_cast<mirror::Throwable*>(self->DecodeJObject(exc.get())));
+      self->SetException(reinterpret_cast<mirror::Throwable*>(self->DecodeJObject(exc.get())));
     } else {
       // Could not allocate a string object.
       error_msg = "Couldn't throw new StackOverflowError because JNI NewStringUTF failed.";
@@ -302,7 +301,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
   } else {
     // In the case of checked exceptions that aren't declared, the exception must be wrapped by
     // a UndeclaredThrowableException.
-    mirror::Throwable* exception = soa.Self()->GetException(NULL);
+    mirror::Throwable* exception = soa.Self()->GetException();
     if (exception->IsCheckedException()) {
       mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
       mirror::Class* proxy_class = rcvr->GetClass();

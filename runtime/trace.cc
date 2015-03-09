@@ -619,11 +619,9 @@ void Trace::MethodUnwind(Thread* thread, mirror::Object* this_object ATTRIBUTE_U
                       thread_clock_diff, wall_clock_diff);
 }
 
-void Trace::ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
-                            mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
-                            mirror::Throwable* exception_object)
+void Trace::ExceptionCaught(Thread* thread, mirror::Throwable* exception_object)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  UNUSED(thread, throw_location, catch_method, catch_dex_pc, exception_object);
+  UNUSED(thread, exception_object);
   LOG(ERROR) << "Unexpected exception caught event in tracing";
 }
 

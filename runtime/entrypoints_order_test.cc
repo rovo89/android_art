@@ -93,8 +93,7 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, opeer, jpeer, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, jpeer, stack_begin, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, stack_begin, stack_size, sizeof(void*));
-    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, stack_size, throw_location, sizeof(void*));
-    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, throw_location, stack_trace_sample, sizeof(ThrowLocation));
+    EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, stack_size, stack_trace_sample, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, stack_trace_sample, wait_next, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, wait_next, monitor_enter_object, sizeof(void*));
     EXPECT_OFFSET_DIFFP(Thread, tlsPtr_, monitor_enter_object, top_handle_scope, sizeof(void*));

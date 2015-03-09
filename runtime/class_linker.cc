@@ -103,7 +103,7 @@ static void ThrowEarlierClassFailure(mirror::Class* c)
   if (runtime->IsAotCompiler()) {
     // At compile time, accurate errors and NCDFE are disabled to speed compilation.
     mirror::Throwable* pre_allocated = runtime->GetPreAllocatedNoClassDefFoundError();
-    self->SetException(ThrowLocation(), pre_allocated);
+    self->SetException(pre_allocated);
   } else {
     ThrowLocation throw_location = self->GetCurrentLocationForThrow();
     if (c->GetVerifyErrorClass() != NULL) {
@@ -123,7 +123,7 @@ static void VlogClassInitializationFailure(Handle<mirror::Class> klass)
   if (VLOG_IS_ON(class_linker)) {
     std::string temp;
     LOG(INFO) << "Failed to initialize class " << klass->GetDescriptor(&temp) << " from "
-              << klass->GetLocation() << "\n" << Thread::Current()->GetException(nullptr)->Dump();
+              << klass->GetLocation() << "\n" << Thread::Current()->GetException()->Dump();
   }
 }
 
@@ -2195,7 +2195,7 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
       // expected and will be wrapped in a ClassNotFoundException. Use the pre-allocated error to
       // trigger the chaining with a proper stack trace.
       mirror::Throwable* pre_allocated = Runtime::Current()->GetPreAllocatedNoClassDefFoundError();
-      self->SetException(ThrowLocation(), pre_allocated);
+      self->SetException(pre_allocated);
       return nullptr;
     }
   } else if (Runtime::Current()->UseCompileTimeClassPath()) {
@@ -2227,7 +2227,7 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
     } else {
       // Use the pre-allocated NCDFE at compile time to avoid wasting time constructing exceptions.
       mirror::Throwable* pre_allocated = Runtime::Current()->GetPreAllocatedNoClassDefFoundError();
-      self->SetException(ThrowLocation(), pre_allocated);
+      self->SetException(pre_allocated);
       return nullptr;
     }
   } else {
@@ -3529,13 +3529,13 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
                        PrettyDescriptor(klass.Get()).c_str(),
                        PrettyDescriptor(super.Get()).c_str()));
       LOG(WARNING) << error_msg  << " in " << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
-      Handle<mirror::Throwable> cause(hs.NewHandle(self->GetException(nullptr)));
+      Handle<mirror::Throwable> cause(hs.NewHandle(self->GetException()));
       if (cause.Get() != nullptr) {
         self->ClearException();
       }
       ThrowVerifyError(klass.Get(), "%s", error_msg.c_str());
       if (cause.Get() != nullptr) {
-        self->GetException(nullptr)->SetCause(cause.Get());
+        self->GetException()->SetCause(cause.Get());
       }
       ClassReference ref(klass->GetDexCache()->GetDexFile(), klass->GetDexClassDefIndex());
       if (Runtime::Current()->IsAotCompiler()) {
@@ -4168,7 +4168,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
             << PrettyDescriptor(handle_scope_super.Get())
             << " that has unexpected status " << handle_scope_super->GetStatus()
             << "\nPending exception:\n"
-            << (self->GetException(nullptr) != nullptr ? self->GetException(nullptr)->Dump() : "");
+            << (self->GetException() != nullptr ? self->GetException()->Dump() : "");
         ObjectLock<mirror::Class> lock(self, klass);
         // Initialization failed because the super-class is erroneous.
         klass->SetStatus(mirror::Class::kStatusError, self);
@@ -5671,12 +5671,12 @@ mirror::Class* ClassLinker::ResolveType(const DexFile& dex_file, uint16_t type_i
           << "Expected pending exception for failed resolution of: " << descriptor;
       // Convert a ClassNotFoundException to a NoClassDefFoundError.
       StackHandleScope<1> hs(self);
-      Handle<mirror::Throwable> cause(hs.NewHandle(self->GetException(nullptr)));
+      Handle<mirror::Throwable> cause(hs.NewHandle(self->GetException()));
       if (cause->InstanceOf(GetClassRoot(kJavaLangClassNotFoundException))) {
         DCHECK(resolved == nullptr);  // No Handle needed to preserve resolved.
         self->ClearException();
         ThrowNoClassDefFoundError("Failed resolution of: %s", descriptor);
-        self->GetException(nullptr)->SetCause(cause.Get());
+        self->GetException()->SetCause(cause.Get());
       }
     }
   }
