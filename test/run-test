@@ -147,6 +147,9 @@ while true; do
         run_args="${run_args} --prebuild"
         prebuild_mode="yes"
         shift;
+    elif [ "x$1" = "x--debuggable" ]; then
+        run_args="${run_args} -Xcompiler-option --debuggable"
+        shift;
     elif [ "x$1" = "x--no-prebuild" ]; then
         run_args="${run_args} --no-prebuild"
         prebuild_mode="no"
@@ -431,6 +434,7 @@ if [ "$usage" = "yes" ]; then
         echo "    -Xcompiler-option     Pass an option to the compiler."
         echo "    --runtime-option      Pass an option to the runtime."
         echo "    --debug               Wait for a debugger to attach."
+        echo "    --debuggable          Whether to compile Java code for a debugger."
         echo "    --gdb                 Run under gdb; incompatible with some tests."
         echo "    --build-only          Build test files only (off by default)."
         echo "    --interpreter         Enable interpreter only mode (off by default)."
@@ -464,7 +468,7 @@ if [ "$usage" = "yes" ]; then
         echo "    --gcverify            Run with gc verification"
         echo "    --always-clean        Delete the test files even if the test fails."
         echo "    --android-root [path] The path on target for the android root. (/system by default)."
-        echo "    --dex2oat-swap       Use a dex2oat swap file."
+        echo "    --dex2oat-swap        Use a dex2oat swap file."
     ) 1>&2
     exit 1
 fi
