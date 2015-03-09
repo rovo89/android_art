@@ -1065,11 +1065,10 @@ class ScopedCheck {
     // Verify that, if an exception has been raised, the native code doesn't
     // make any JNI calls other than the Exception* methods.
     if ((flags_ & kFlag_ExcepOkay) == 0 && self->IsExceptionPending()) {
-      ThrowLocation throw_location;
-      mirror::Throwable* exception = self->GetException(&throw_location);
-      std::string type(PrettyTypeOf(exception));
-      AbortF("JNI %s called with pending exception '%s' thrown in %s",
-             function_name_, type.c_str(), throw_location.Dump().c_str());
+      mirror::Throwable* exception = self->GetException();
+      AbortF("JNI %s called with pending exception %s",
+             function_name_,
+             exception->Dump().c_str());
       return false;
     }
     return true;

@@ -1171,7 +1171,7 @@ TEST_F(StubTest, AllocObjectArray) {
                             reinterpret_cast<size_t>(nullptr),
                             StubTest::GetEntrypoint(self, kQuickAllocArrayResolved),
                             self);
-    EXPECT_FALSE(self->IsExceptionPending()) << PrettyTypeOf(self->GetException(nullptr));
+    EXPECT_FALSE(self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
     EXPECT_NE(reinterpret_cast<size_t>(nullptr), result);
     mirror::Object* obj = reinterpret_cast<mirror::Object*>(result);
     EXPECT_TRUE(obj->IsArrayInstance());
@@ -2060,7 +2060,7 @@ TEST_F(StubTest, IMT) {
 
   env->CallBooleanMethod(jarray_list, add_jmethod, jobj);
 
-  ASSERT_FALSE(self->IsExceptionPending()) << PrettyTypeOf(self->GetException(nullptr));
+  ASSERT_FALSE(self->IsExceptionPending()) << PrettyTypeOf(self->GetException());
 
   // Contains.
 

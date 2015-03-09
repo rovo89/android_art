@@ -48,7 +48,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     Thread* self = Thread::Current();
     EXPECT_TRUE(class_linker_->FindSystemClass(self, descriptor.c_str()) == nullptr);
     EXPECT_TRUE(self->IsExceptionPending());
-    mirror::Object* exception = self->GetException(nullptr);
+    mirror::Object* exception = self->GetException();
     self->ClearException();
     mirror::Class* exception_class =
         class_linker_->FindSystemClass(self, "Ljava/lang/NoClassDefFoundError;");

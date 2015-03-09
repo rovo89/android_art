@@ -244,7 +244,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   HANDLE_INSTRUCTION_END();
 
   HANDLE_INSTRUCTION_START(MOVE_EXCEPTION) {
-    Throwable* exception = self->GetException(nullptr);
+    Throwable* exception = self->GetException();
     DCHECK(exception != nullptr) << "No pending exception on MOVE_EXCEPTION instruction";
     shadow_frame.SetVRegReference(inst->VRegA_11x(inst_data), exception);
     self->ClearException();
@@ -605,7 +605,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
                                "Throwing '%s' that is not instance of Throwable",
                                exception->GetClass()->GetDescriptor(&temp));
     } else {
-      self->SetException(shadow_frame.GetCurrentLocationForThrow(), exception->AsThrowable());
+      self->SetException(exception->AsThrowable());
     }
     HANDLE_PENDING_EXCEPTION();
   }

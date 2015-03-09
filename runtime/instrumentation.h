@@ -90,9 +90,7 @@ struct InstrumentationListener {
                             uint32_t dex_pc, mirror::ArtField* field, const JValue& field_value) = 0;
 
   // Call-back when an exception is caught.
-  virtual void ExceptionCaught(Thread* thread, const ThrowLocation& throw_location,
-                               mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
-                               mirror::Throwable* exception_object)
+  virtual void ExceptionCaught(Thread* thread, mirror::Throwable* exception_object)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
 
   // Call-back for when we get a backward branch.
@@ -322,9 +320,7 @@ class Instrumentation {
   }
 
   // Inform listeners that an exception was caught.
-  void ExceptionCaughtEvent(Thread* thread, const ThrowLocation& throw_location,
-                            mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
-                            mirror::Throwable* exception_object) const
+  void ExceptionCaughtEvent(Thread* thread, mirror::Throwable* exception_object) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Called when an instrumented method is entered. The intended link register (lr) is saved so
