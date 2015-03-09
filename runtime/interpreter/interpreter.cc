@@ -19,115 +19,12 @@
 #include <limits>
 
 #include "mirror/string-inl.h"
+#include "scoped_thread_state_change.h"
+#include "ScopedLocalRef.h"
+#include "unstarted_runtime.h"
 
 namespace art {
 namespace interpreter {
-
-// Hand select a number of methods to be run in a not yet started runtime without using JNI.
-static void UnstartedRuntimeJni(Thread* self, ArtMethod* method,
-                                Object* receiver, uint32_t* args, JValue* result)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  std::string name(PrettyMethod(method));
-  if (name == "java.lang.Object dalvik.system.VMRuntime.newUnpaddedArray(java.lang.Class, int)") {
-    int32_t length = args[1];
-    DCHECK_GE(length, 0);
-    mirror::Class* element_class = reinterpret_cast<Object*>(args[0])->AsClass();
-    Runtime* runtime = Runtime::Current();
-    mirror::Class* array_class = runtime->GetClassLinker()->FindArrayClass(self, &element_class);
-    DCHECK(array_class != nullptr);
-    gc::AllocatorType allocator = runtime->GetHeap()->GetCurrentAllocator();
-    result->SetL(mirror::Array::Alloc<true, true>(self, array_class, length,
-                                                  array_class->GetComponentSizeShift(), allocator));
-  } else if (name == "java.lang.ClassLoader dalvik.system.VMStack.getCallingClassLoader()") {
-    result->SetL(NULL);
-  } else if (name == "java.lang.Class dalvik.system.VMStack.getStackClass2()") {
-    NthCallerVisitor visitor(self, 3);
-    visitor.WalkStack();
-    result->SetL(visitor.caller->GetDeclaringClass());
-  } else if (name == "double java.lang.Math.log(double)") {
-    JValue value;
-    value.SetJ((static_cast<uint64_t>(args[1]) << 32) | args[0]);
-    result->SetD(log(value.GetD()));
-  } else if (name == "java.lang.String java.lang.Class.getNameNative()") {
-    StackHandleScope<1> hs(self);
-    result->SetL(mirror::Class::ComputeName(hs.NewHandle(receiver->AsClass())));
-  } else if (name == "int java.lang.Float.floatToRawIntBits(float)") {
-    result->SetI(args[0]);
-  } else if (name == "float java.lang.Float.intBitsToFloat(int)") {
-    result->SetI(args[0]);
-  } else if (name == "double java.lang.Math.exp(double)") {
-    JValue value;
-    value.SetJ((static_cast<uint64_t>(args[1]) << 32) | args[0]);
-    result->SetD(exp(value.GetD()));
-  } else if (name == "java.lang.Object java.lang.Object.internalClone()") {
-    result->SetL(receiver->Clone(self));
-  } else if (name == "void java.lang.Object.notifyAll()") {
-    receiver->NotifyAll(self);
-  } else if (name == "int java.lang.String.compareTo(java.lang.String)") {
-    String* rhs = reinterpret_cast<Object*>(args[0])->AsString();
-    CHECK(rhs != NULL);
-    result->SetI(receiver->AsString()->CompareTo(rhs));
-  } else if (name == "java.lang.String java.lang.String.intern()") {
-    result->SetL(receiver->AsString()->Intern());
-  } else if (name == "int java.lang.String.fastIndexOf(int, int)") {
-    result->SetI(receiver->AsString()->FastIndexOf(args[0], args[1]));
-  } else if (name == "java.lang.Object java.lang.reflect.Array.createMultiArray(java.lang.Class, int[])") {
-    StackHandleScope<2> hs(self);
-    auto h_class(hs.NewHandle(reinterpret_cast<mirror::Class*>(args[0])->AsClass()));
-    auto h_dimensions(hs.NewHandle(reinterpret_cast<mirror::IntArray*>(args[1])->AsIntArray()));
-    result->SetL(Array::CreateMultiArray(self, h_class, h_dimensions));
-  } else if (name == "java.lang.Object java.lang.Throwable.nativeFillInStackTrace()") {
-    ScopedObjectAccessUnchecked soa(self);
-    if (Runtime::Current()->IsActiveTransaction()) {
-      result->SetL(soa.Decode<Object*>(self->CreateInternalStackTrace<true>(soa)));
-    } else {
-      result->SetL(soa.Decode<Object*>(self->CreateInternalStackTrace<false>(soa)));
-    }
-  } else if (name == "int java.lang.System.identityHashCode(java.lang.Object)") {
-    mirror::Object* obj = reinterpret_cast<Object*>(args[0]);
-    result->SetI((obj != nullptr) ? obj->IdentityHashCode() : 0);
-  } else if (name == "boolean java.nio.ByteOrder.isLittleEndian()") {
-    result->SetZ(JNI_TRUE);
-  } else if (name == "boolean sun.misc.Unsafe.compareAndSwapInt(java.lang.Object, long, int, int)") {
-    Object* obj = reinterpret_cast<Object*>(args[0]);
-    jlong offset = (static_cast<uint64_t>(args[2]) << 32) | args[1];
-    jint expectedValue = args[3];
-    jint newValue = args[4];
-    bool success;
-    if (Runtime::Current()->IsActiveTransaction()) {
-      success = obj->CasFieldStrongSequentiallyConsistent32<true>(MemberOffset(offset),
-                                                                  expectedValue, newValue);
-    } else {
-      success = obj->CasFieldStrongSequentiallyConsistent32<false>(MemberOffset(offset),
-                                                                   expectedValue, newValue);
-    }
-    result->SetZ(success ? JNI_TRUE : JNI_FALSE);
-  } else if (name == "void sun.misc.Unsafe.putObject(java.lang.Object, long, java.lang.Object)") {
-    Object* obj = reinterpret_cast<Object*>(args[0]);
-    jlong offset = (static_cast<uint64_t>(args[2]) << 32) | args[1];
-    Object* newValue = reinterpret_cast<Object*>(args[3]);
-    if (Runtime::Current()->IsActiveTransaction()) {
-      obj->SetFieldObject<true>(MemberOffset(offset), newValue);
-    } else {
-      obj->SetFieldObject<false>(MemberOffset(offset), newValue);
-    }
-  } else if (name == "int sun.misc.Unsafe.getArrayBaseOffsetForComponentType(java.lang.Class)") {
-    mirror::Class* component = reinterpret_cast<Object*>(args[0])->AsClass();
-    Primitive::Type primitive_type = component->GetPrimitiveType();
-    result->SetI(mirror::Array::DataOffset(Primitive::ComponentSize(primitive_type)).Int32Value());
-  } else if (name == "int sun.misc.Unsafe.getArrayIndexScaleForComponentType(java.lang.Class)") {
-    mirror::Class* component = reinterpret_cast<Object*>(args[0])->AsClass();
-    Primitive::Type primitive_type = component->GetPrimitiveType();
-    result->SetI(Primitive::ComponentSize(primitive_type));
-  } else if (Runtime::Current()->IsActiveTransaction()) {
-    AbortTransaction(self, "Attempt to invoke native method in non-started runtime: %s",
-                     name.c_str());
-
-  } else {
-    LOG(FATAL) << "Calling native method " << PrettyMethod(method) << " in an unstarted "
-        "non-transactional runtime";
-  }
-}
 
 static void InterpreterJni(Thread* self, ArtMethod* method, const StringPiece& shorty,
                            Object* receiver, uint32_t* args, JValue* result)

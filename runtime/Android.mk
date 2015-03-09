@@ -80,6 +80,7 @@ LIBART_COMMON_SRC_FILES := \
   interpreter/interpreter.cc \
   interpreter/interpreter_common.cc \
   interpreter/interpreter_switch_impl.cc \
+  interpreter/unstarted_runtime.cc \
   java_vm_ext.cc \
   jdwp/jdwp_event.cc \
   jdwp/jdwp_expand_buf.cc \
