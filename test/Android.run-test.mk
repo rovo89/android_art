@@ -449,12 +449,15 @@ endif
 # test-art-{1: host or target}-run-test-{2: debug ndebug}-{3: prebuild no-prebuild no-dex2oat}-
 #    {4: interpreter default optimizing jit}-{5: relocate no-relocate relocate-no-patchoat}-
 #    {6: trace or no-trace}-{7: gcstress gcverify cms}-{8: forcecopy checkjni jni}-
-#    {9: no-image image picimage}-{10: pictest nopictest}-{11: test name}{12: 32 or 64}
+#    {9: no-image image picimage}-{10: pictest nopictest}-
+#    {11: nondebuggable debuggable}-{12: test name}{13: 32 or 64}
 define define-test-art-run-test
   run_test_options :=
   prereq_rule :=
   test_groups :=
   uc_host_or_target :=
+  test_name := $(12)
+  address_size := $(13)
   ifeq ($(ART_TEST_RUN_TEST_ALWAYS_CLEAN),true)
     run_test_options += --always-clean
   endif
@@ -590,27 +593,27 @@ define define-test-art-run-test
     run_test_options += --no-image
     # Add the core dependency. This is required for pre-building.
     ifeq ($(1),host)
-      prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
+      prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_$(address_size))
     else
-      prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
+      prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_$(address_size))
     endif
   else
     ifeq ($(9),image)
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_IMAGE_RULES
       # Add the core dependency.
       ifeq ($(1),host)
-        prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
+        prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_$(address_size))
       else
-        prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
+        prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_$(address_size))
       endif
     else
       ifeq ($(9),picimage)
         test_groups += ART_RUN_TEST_$$(uc_host_or_target)_PICIMAGE_RULES
         run_test_options += --pic-image
         ifeq ($(1),host)
-          prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_pic_$(12))
+          prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_pic_$(address_size))
         else
-          prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_pic_$(12))
+          prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_pic_$(address_size))
         endif
       else
         $$(error found $(9) expected $(IMAGE_TYPES))
@@ -637,19 +640,18 @@ define define-test-art-run-test
       $$(error found $(11) expected $(DEBUGGABLE_TYPES))
     endif
   endif
-  # $(12) is the test name
-  test_groups += ART_RUN_TEST_$$(uc_host_or_target)_$(call name-to-var,$(12))_RULES
-  ifeq ($(13),64)
+  test_groups += ART_RUN_TEST_$$(uc_host_or_target)_$(call name-to-var,$(test_name))_RULES
+  ifeq ($(address_size),64)
     test_groups += ART_RUN_TEST_$$(uc_host_or_target)_64_RULES
     run_test_options += --64
   else
-    ifeq ($(13),32)
+    ifeq ($(address_size),32)
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_32_RULES
     else
-      $$(error found $(13) expected $(ALL_ADDRESS_SIZES))
+      $$(error found $(address_size) expected $(ALL_ADDRESS_SIZES))
     endif
   endif
-  run_test_rule_name := test-art-$(1)-run-test-$(2)-$(3)-$(4)-$(5)-$(6)-$(7)-$(8)-$(9)-$(10)-$(11)-$(12)$(13)
+  run_test_rule_name := test-art-$(1)-run-test-$(2)-$(3)-$(4)-$(5)-$(6)-$(7)-$(8)-$(9)-$(10)-$(11)-$(test_name)$(address_size)
   run_test_options := --output-path $(ART_HOST_TEST_DIR)/run-test-output/$$(run_test_rule_name) \
       $$(run_test_options)
   ifneq ($(ART_TEST_ANDROID_ROOT),)
