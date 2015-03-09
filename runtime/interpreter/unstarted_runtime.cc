@@ -97,8 +97,8 @@ static void CheckExceptionGenerateClassNotFound(Thread* self)
   }
 }
 
-static void UnstartedClassForName(Thread* self, ShadowFrame* shadow_frame, JValue* result,
-                                  size_t arg_offset)
+static void UnstartedClassForName(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset)->AsString();
   StackHandleScope<1> hs(self);
@@ -108,8 +108,8 @@ static void UnstartedClassForName(Thread* self, ShadowFrame* shadow_frame, JValu
   CheckExceptionGenerateClassNotFound(self);
 }
 
-static void UnstartedClassForNameLong(Thread* self, ShadowFrame* shadow_frame, JValue* result,
-                                      size_t arg_offset)
+static void UnstartedClassForNameLong(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset)->AsString();
   bool initialize_class = shadow_frame->GetVReg(arg_offset + 1) != 0;
@@ -123,8 +123,8 @@ static void UnstartedClassForNameLong(Thread* self, ShadowFrame* shadow_frame, J
   CheckExceptionGenerateClassNotFound(self);
 }
 
-static void UnstartedClassClassForName(Thread* self, ShadowFrame* shadow_frame, JValue* result,
-                                       size_t arg_offset)
+static void UnstartedClassClassForName(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset)->AsString();
   bool initialize_class = shadow_frame->GetVReg(arg_offset + 1) != 0;
@@ -138,8 +138,8 @@ static void UnstartedClassClassForName(Thread* self, ShadowFrame* shadow_frame, 
   CheckExceptionGenerateClassNotFound(self);
 }
 
-static void UnstartedClassNewInstance(Thread* self, ShadowFrame* shadow_frame, JValue* result,
-                                      size_t arg_offset)
+static void UnstartedClassNewInstance(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   StackHandleScope<3> hs(self);  // Class, constructor, object.
   mirror::Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
@@ -189,8 +189,8 @@ static void UnstartedClassNewInstance(Thread* self, ShadowFrame* shadow_frame, J
   }
 }
 
-static void UnstartedClassGetDeclaredField(Thread* self, ShadowFrame* shadow_frame, JValue* result,
-                                           size_t arg_offset)
+static void UnstartedClassGetDeclaredField(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Special managed code cut-out to allow field lookup in a un-started runtime that'd fail
   // going the reflective Dex way.
@@ -234,8 +234,8 @@ static void UnstartedClassGetDeclaredField(Thread* self, ShadowFrame* shadow_fra
   result->SetL(field.Get());
 }
 
-static void UnstartedVmClassLoaderFindLoadedClass(Thread* self, ShadowFrame* shadow_frame,
-                                                  JValue* result, size_t arg_offset)
+static void UnstartedVmClassLoaderFindLoadedClass(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::String* class_name = shadow_frame->GetVRegReference(arg_offset + 1)->AsString();
   mirror::ClassLoader* class_loader =
@@ -263,8 +263,8 @@ static void UnstartedVoidLookupType(Thread* self ATTRIBUTE_UNUSED,
   result->SetL(Runtime::Current()->GetClassLinker()->FindPrimitiveClass('V'));
 }
 
-static void UnstartedSystemArraycopy(Thread* self, ShadowFrame* shadow_frame,
-                                     JValue* result ATTRIBUTE_UNUSED, size_t arg_offset)
+static void UnstartedSystemArraycopy(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result ATTRIBUTE_UNUSED, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Special case array copying without initializing System.
   mirror::Class* ctype = shadow_frame->GetVRegReference(arg_offset)->GetClass()->GetComponentType();
@@ -297,8 +297,8 @@ static void UnstartedSystemArraycopy(Thread* self, ShadowFrame* shadow_frame,
   }
 }
 
-static void UnstartedThreadLocalGet(Thread* self, ShadowFrame* shadow_frame, JValue* result,
-                                    size_t arg_offset ATTRIBUTE_UNUSED)
+static void UnstartedThreadLocalGet(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset ATTRIBUTE_UNUSED)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::string caller(PrettyMethod(shadow_frame->GetLink()->GetMethod()));
   bool ok = false;
@@ -347,8 +347,8 @@ static void UnstartedThreadLocalGet(Thread* self, ShadowFrame* shadow_frame, JVa
   }
 }
 
-static void UnstartedMathCeil(Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame,
-                              JValue* result, size_t arg_offset) {
+static void UnstartedMathCeil(
+    Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   double in = shadow_frame->GetVRegDouble(arg_offset);
   double out;
   // Special cases:
@@ -362,25 +362,188 @@ static void UnstartedMathCeil(Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow
   result->SetD(out);
 }
 
-static void UnstartedArtMethodGetMethodName(Thread* self, ShadowFrame* shadow_frame,
-                                            JValue* result, size_t arg_offset)
+static void UnstartedArtMethodGetMethodName(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::ArtMethod* method = shadow_frame->GetVRegReference(arg_offset)->AsArtMethod();
   result->SetL(method->GetNameAsString(self));
 }
 
-static void UnstartedObjectHashCode(Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame,
-                                    JValue* result, size_t arg_offset)
+static void UnstartedObjectHashCode(
+    Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset);
   result->SetI(obj->IdentityHashCode());
 }
 
-static void UnstartedDoubleDoubleToRawLongBits(Thread* self ATTRIBUTE_UNUSED,
-                                               ShadowFrame* shadow_frame, JValue* result,
-                                               size_t arg_offset) {
+static void UnstartedDoubleDoubleToRawLongBits(
+    Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   double in = shadow_frame->GetVRegDouble(arg_offset);
   result->SetJ(bit_cast<int64_t>(in));
+}
+
+static mirror::Object* GetDexFromDexCache(Thread* self, mirror::DexCache* dex_cache)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  const DexFile* dex_file = dex_cache->GetDexFile();
+  if (dex_file == nullptr) {
+    return nullptr;
+  }
+
+  // Create the direct byte buffer.
+  JNIEnv* env = self->GetJniEnv();
+  DCHECK(env != nullptr);
+  void* address = const_cast<void*>(reinterpret_cast<const void*>(dex_file->Begin()));
+  jobject byte_buffer = env->NewDirectByteBuffer(address, dex_file->Size());
+  if (byte_buffer == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    return nullptr;
+  }
+
+  jvalue args[1];
+  args[0].l = byte_buffer;
+  return self->DecodeJObject(
+      env->CallStaticObjectMethodA(WellKnownClasses::com_android_dex_Dex,
+                                   WellKnownClasses::com_android_dex_Dex_create,
+                                   args));
+}
+
+static void UnstartedDexCacheGetDexNative(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  // We will create the Dex object, but the image writer will release it before creating the
+  // art file.
+  mirror::Object* src = shadow_frame->GetVRegReference(arg_offset);
+  bool have_dex = false;
+  if (src != nullptr) {
+    mirror::Object* dex = GetDexFromDexCache(self, reinterpret_cast<mirror::DexCache*>(src));
+    if (dex != nullptr) {
+      have_dex = true;
+      result->SetL(dex);
+    }
+  }
+  if (!have_dex) {
+    self->ClearException();
+    Runtime::Current()->AbortTransactionAndThrowInternalError(self, "Could not create Dex object");
+  }
+}
+
+static void UnstartedMemoryPeek(
+    Primitive::Type type, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
+  int64_t address = shadow_frame->GetVRegLong(arg_offset);
+  // TODO: Check that this is in the heap somewhere. Otherwise we will segfault instead of
+  //       aborting the transaction.
+
+  switch (type) {
+    case Primitive::kPrimByte: {
+      result->SetB(*reinterpret_cast<int8_t*>(static_cast<intptr_t>(address)));
+      return;
+    }
+
+    case Primitive::kPrimShort: {
+      result->SetS(*reinterpret_cast<int16_t*>(static_cast<intptr_t>(address)));
+      return;
+    }
+
+    case Primitive::kPrimInt: {
+      result->SetI(*reinterpret_cast<int32_t*>(static_cast<intptr_t>(address)));
+      return;
+    }
+
+    case Primitive::kPrimLong: {
+      result->SetJ(*reinterpret_cast<int64_t*>(static_cast<intptr_t>(address)));
+      return;
+    }
+
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+    case Primitive::kPrimVoid:
+    case Primitive::kPrimNot:
+      LOG(FATAL) << "Not in the Memory API: " << type;
+      UNREACHABLE();
+  }
+  LOG(FATAL) << "Should not reach here";
+  UNREACHABLE();
+}
+
+static void UnstartedMemoryPeekEntry(
+    Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  std::string name(PrettyMethod(shadow_frame->GetMethod()));
+  if (name == "byte libcore.io.Memory.peekByte(long)") {
+    UnstartedMemoryPeek(Primitive::kPrimByte, shadow_frame, result, arg_offset);
+  } else if (name == "short libcore.io.Memory.peekShortNative(long)") {
+    UnstartedMemoryPeek(Primitive::kPrimShort, shadow_frame, result, arg_offset);
+  } else if (name == "int libcore.io.Memory.peekIntNative(long)") {
+    UnstartedMemoryPeek(Primitive::kPrimInt, shadow_frame, result, arg_offset);
+  } else if (name == "long libcore.io.Memory.peekLongNative(long)") {
+    UnstartedMemoryPeek(Primitive::kPrimLong, shadow_frame, result, arg_offset);
+  } else {
+    LOG(FATAL) << "Unsupported Memory.peek entry: " << name;
+    UNREACHABLE();
+  }
+}
+
+static void UnstartedMemoryPeekArray(
+    Primitive::Type type, Thread* self, ShadowFrame* shadow_frame, size_t arg_offset)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  int64_t address_long = shadow_frame->GetVRegLong(arg_offset);
+  mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 2);
+  if (obj == nullptr) {
+    Runtime::Current()->AbortTransactionAndThrowInternalError(self, "Null pointer in peekArray");
+    return;
+  }
+  mirror::Array* array = obj->AsArray();
+
+  int offset = shadow_frame->GetVReg(arg_offset + 3);
+  int count = shadow_frame->GetVReg(arg_offset + 4);
+  if (offset < 0 || offset + count > array->GetLength()) {
+    std::string error_msg(StringPrintf("Array out of bounds in peekArray: %d/%d vs %d",
+                                       offset, count, array->GetLength()));
+    Runtime::Current()->AbortTransactionAndThrowInternalError(self, error_msg.c_str());
+    return;
+  }
+
+  switch (type) {
+    case Primitive::kPrimByte: {
+      int8_t* address = reinterpret_cast<int8_t*>(static_cast<intptr_t>(address_long));
+      mirror::ByteArray* byte_array = array->AsByteArray();
+      for (int32_t i = 0; i < count; ++i, ++address) {
+        byte_array->SetWithoutChecks<true>(i + offset, *address);
+      }
+      return;
+    }
+
+    case Primitive::kPrimShort:
+    case Primitive::kPrimInt:
+    case Primitive::kPrimLong:
+      LOG(FATAL) << "Type unimplemented for Memory Array API, should not reach here: " << type;
+      UNREACHABLE();
+
+    case Primitive::kPrimBoolean:
+    case Primitive::kPrimChar:
+    case Primitive::kPrimFloat:
+    case Primitive::kPrimDouble:
+    case Primitive::kPrimVoid:
+    case Primitive::kPrimNot:
+      LOG(FATAL) << "Not in the Memory API: " << type;
+      UNREACHABLE();
+  }
+  LOG(FATAL) << "Should not reach here";
+  UNREACHABLE();
+}
+
+static void UnstartedMemoryPeekArrayEntry(
+    Thread* self, ShadowFrame* shadow_frame, JValue* result ATTRIBUTE_UNUSED, size_t arg_offset)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  std::string name(PrettyMethod(shadow_frame->GetMethod()));
+  if (name == "void libcore.io.Memory.peekByteArray(long, byte[], int, int)") {
+    UnstartedMemoryPeekArray(Primitive::kPrimByte, self, shadow_frame, arg_offset);
+  } else {
+    LOG(FATAL) << "Unsupported Memory.peekArray entry: " << name;
+    UNREACHABLE();
+  }
 }
 
 static void UnstartedJNIVMRuntimeNewUnpaddedArray(Thread* self,
@@ -621,10 +784,10 @@ static void UnstartedJNIUnsafeGetArrayIndexScaleForComponentType(
   result->SetI(Primitive::ComponentSize(primitive_type));
 }
 
-typedef void(*InvokeHandler)(Thread* self, ShadowFrame* shadow_frame, JValue* result,
+typedef void (*InvokeHandler)(Thread* self, ShadowFrame* shadow_frame, JValue* result,
     size_t arg_size);
 
-typedef void(*JNIHandler)(Thread* self, mirror::ArtMethod* method, mirror::Object* receiver,
+typedef void (*JNIHandler)(Thread* self, mirror::ArtMethod* method, mirror::Object* receiver,
     uint32_t* args, JValue* result);
 
 static bool tables_initialized_ = false;
@@ -668,6 +831,18 @@ static void UnstartedRuntimeInitializeInvokeHandlers() {
           &UnstartedMathCeil },
       { "java.lang.Object java.lang.ThreadLocal.get()",
           &UnstartedThreadLocalGet },
+      { "com.android.dex.Dex java.lang.DexCache.getDexNative()",
+          &UnstartedDexCacheGetDexNative },
+      { "byte libcore.io.Memory.peekByte(long)",
+          &UnstartedMemoryPeekEntry },
+      { "short libcore.io.Memory.peekShortNative(long)",
+          &UnstartedMemoryPeekEntry },
+      { "int libcore.io.Memory.peekIntNative(long)",
+          &UnstartedMemoryPeekEntry },
+      { "long libcore.io.Memory.peekLongNative(long)",
+          &UnstartedMemoryPeekEntry },
+      { "void libcore.io.Memory.peekByteArray(long, byte[], int, int)",
+          &UnstartedMemoryPeekArrayEntry },
   };
 
   for (auto& def : defs) {
