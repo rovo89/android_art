@@ -24,6 +24,26 @@ namespace art {
 
 static constexpr int kDefaultNumberOfLoops = 2;
 
+/**
+ * Transforms a graph into SSA form. The liveness guarantees of
+ * this transformation are listed below. A DEX register
+ * being killed means its value at a given position in the code
+ * will not be available to its environment uses. A merge in the
+ * following text is materialized as a `HPhi`.
+ *
+ * (a) Dex registers that do not require merging (that is, they do not
+ *     have different values at a join block) are available to all their
+ *     environment uses.
+ *
+ * (b) Dex registers that require merging, and the merging gives
+ *     incompatible types, will be killed for environment uses of that merge.
+ *
+ * (c) When the `debuggable` flag is passed to the compiler, Dex registers
+ *     that require merging and have a proper type after the merge, are
+ *     available to all their environment uses. If the `debuggable` flag
+ *     is not set, values of Dex registers only used by environments
+ *     are killed.
+ */
 class SsaBuilder : public HGraphVisitor {
  public:
   explicit SsaBuilder(HGraph* graph)

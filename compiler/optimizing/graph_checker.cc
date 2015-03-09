@@ -362,6 +362,12 @@ void SSAChecker::VisitPhi(HPhi* phi) {
             Primitive::PrettyDescriptor(phi->GetType())));
     }
   }
+  if (phi->GetType() != HPhi::ToPhiType(phi->GetType())) {
+    AddError(StringPrintf("Phi %d in block %d does not have an expected phi type: %s",
+                          phi->GetId(),
+                          phi->GetBlock()->GetBlockId(),
+                          Primitive::PrettyDescriptor(phi->GetType())));
+  }
 }
 
 void SSAChecker::VisitIf(HIf* instruction) {
