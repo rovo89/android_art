@@ -271,9 +271,8 @@ uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> excep
   const DexFile::CodeItem* code_item = h_this->GetCodeItem();
   // Set aside the exception while we resolve its type.
   Thread* self = Thread::Current();
-  ThrowLocation throw_location;
   StackHandleScope<1> hs(self);
-  Handle<mirror::Throwable> exception(hs.NewHandle(self->GetException(&throw_location)));
+  Handle<mirror::Throwable> exception(hs.NewHandle(self->GetException()));
   self->ClearException();
   // Default to handler not found.
   uint32_t found_dex_pc = DexFile::kDexNoIndex;
@@ -309,7 +308,7 @@ uint32_t ArtMethod::FindCatchBlock(Handle<ArtMethod> h_this, Handle<Class> excep
   }
   // Put the exception back.
   if (exception.Get() != nullptr) {
-    self->SetException(throw_location, exception.Get());
+    self->SetException(exception.Get());
   }
   return found_dex_pc;
 }
@@ -434,7 +433,7 @@ void ArtMethod::Invoke(Thread* self, uint32_t* args, uint32_t args_size, JValue*
 #else
       (*art_quick_invoke_stub)(this, args, args_size, self, result, shorty);
 #endif
-      if (UNLIKELY(self->GetException(nullptr) == Thread::GetDeoptimizationException())) {
+      if (UNLIKELY(self->GetException() == Thread::GetDeoptimizationException())) {
         // Unusual case where we were running generated code and an
         // exception was thrown to force the activations to be removed from the
         // stack. Continue execution in the interpreter.

@@ -930,7 +930,7 @@ class OatWriter::InitImageMethodVisitor : public OatDexMethodVisitor {
       LOG(ERROR) << "Unexpected failure to resolve a method: "
                  << PrettyMethod(it.GetMemberIndex(), *dex_file_, true);
       soa.Self()->AssertPendingException();
-      mirror::Throwable* exc = soa.Self()->GetException(nullptr);
+      mirror::Throwable* exc = soa.Self()->GetException();
       std::string dump = exc->Dump();
       LOG(FATAL) << dump;
     }

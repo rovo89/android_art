@@ -196,16 +196,16 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
   if (field_type == nullptr) {
     // Failed to find type from the signature of the field.
     DCHECK(soa.Self()->IsExceptionPending());
-    ThrowLocation throw_location;
     StackHandleScope<1> hs2(soa.Self());
-    Handle<mirror::Throwable> cause(hs2.NewHandle(soa.Self()->GetException(&throw_location)));
+    Handle<mirror::Throwable> cause(hs2.NewHandle(soa.Self()->GetException()));
     soa.Self()->ClearException();
     std::string temp;
+    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
     soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
                                    "no type \"%s\" found and so no field \"%s\" "
                                    "could be found in class \"%s\" or its superclasses", sig, name,
                                    c->GetDescriptor(&temp));
-    soa.Self()->GetException(nullptr)->SetCause(cause.Get());
+    soa.Self()->GetException()->SetCause(cause.Get());
     return nullptr;
   }
   std::string temp;
@@ -282,8 +282,7 @@ int ThrowNewException(JNIEnv* env, jclass exception_class, const char* msg, jobj
     return JNI_ERR;
   }
   ScopedObjectAccess soa(env);
-  ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
-  soa.Self()->SetException(throw_location, soa.Decode<mirror::Throwable*>(exception.get()));
+  soa.Self()->SetException(soa.Decode<mirror::Throwable*>(exception.get()));
   return JNI_OK;
 }
 
@@ -433,8 +432,7 @@ class JNI {
     if (exception == nullptr) {
       return JNI_ERR;
     }
-    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
-    soa.Self()->SetException(throw_location, exception);
+    soa.Self()->SetException(exception);
     return JNI_OK;
   }
 
@@ -456,25 +454,14 @@ class JNI {
     ScopedObjectAccess soa(env);
 
     // If we have no exception to describe, pass through.
-    if (!soa.Self()->GetException(nullptr)) {
+    if (!soa.Self()->GetException()) {
       return;
     }
 
-    StackHandleScope<3> hs(soa.Self());
-    // TODO: Use nullptr instead of null handles?
-    auto old_throw_this_object(hs.NewHandle<mirror::Object>(nullptr));
-    auto old_throw_method(hs.NewHandle<mirror::ArtMethod>(nullptr));
-    auto old_exception(hs.NewHandle<mirror::Throwable>(nullptr));
-    uint32_t old_throw_dex_pc;
-    {
-      ThrowLocation old_throw_location;
-      mirror::Throwable* old_exception_obj = soa.Self()->GetException(&old_throw_location);
-      old_throw_this_object.Assign(old_throw_location.GetThis());
-      old_throw_method.Assign(old_throw_location.GetMethod());
-      old_exception.Assign(old_exception_obj);
-      old_throw_dex_pc = old_throw_location.GetDexPc();
-      soa.Self()->ClearException();
-    }
+    StackHandleScope<1> hs(soa.Self());
+    Handle<mirror::Throwable> old_exception(
+        hs.NewHandle<mirror::Throwable>(soa.Self()->GetException()));
+    soa.Self()->ClearException();
     ScopedLocalRef<jthrowable> exception(env,
                                          soa.AddLocalReference<jthrowable>(old_exception.Get()));
     ScopedLocalRef<jclass> exception_class(env, env->GetObjectClass(exception.get()));
@@ -485,20 +472,17 @@ class JNI {
     } else {
       env->CallVoidMethod(exception.get(), mid);
       if (soa.Self()->IsExceptionPending()) {
-        LOG(WARNING) << "JNI WARNING: " << PrettyTypeOf(soa.Self()->GetException(nullptr))
+        LOG(WARNING) << "JNI WARNING: " << PrettyTypeOf(soa.Self()->GetException())
                      << " thrown while calling printStackTrace";
         soa.Self()->ClearException();
       }
     }
-    ThrowLocation gc_safe_throw_location(old_throw_this_object.Get(), old_throw_method.Get(),
-                                         old_throw_dex_pc);
-
-    soa.Self()->SetException(gc_safe_throw_location, old_exception.Get());
+    soa.Self()->SetException(old_exception.Get());
   }
 
   static jthrowable ExceptionOccurred(JNIEnv* env) {
     ScopedObjectAccess soa(env);
-    mirror::Object* exception = soa.Self()->GetException(nullptr);
+    mirror::Object* exception = soa.Self()->GetException();
     return soa.AddLocalReference<jthrowable>(exception);
   }
 

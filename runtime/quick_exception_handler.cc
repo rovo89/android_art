@@ -114,8 +114,7 @@ class CatchBlockStackVisitor FINAL : public StackVisitor {
   DISALLOW_COPY_AND_ASSIGN(CatchBlockStackVisitor);
 };
 
-void QuickExceptionHandler::FindCatch(const ThrowLocation& throw_location,
-                                      mirror::Throwable* exception) {
+void QuickExceptionHandler::FindCatch(mirror::Throwable* exception) {
   DCHECK(!is_deoptimization_);
   if (kDebugExceptionDelivery) {
     mirror::String* msg = exception->GetDetailMessage();
@@ -145,15 +144,14 @@ void QuickExceptionHandler::FindCatch(const ThrowLocation& throw_location,
     DCHECK(!self_->IsExceptionPending());
   } else {
     // Put exception back in root set with clear throw location.
-    self_->SetException(ThrowLocation(), exception_ref.Get());
+    self_->SetException(exception_ref.Get());
   }
   // The debugger may suspend this thread and walk its stack. Let's do this before popping
   // instrumentation frames.
   instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
   if (instrumentation->HasExceptionCaughtListeners()
       && self_->IsExceptionThrownByCurrentMethod(exception)) {
-    instrumentation->ExceptionCaughtEvent(self_, throw_location, handler_method_, handler_dex_pc_,
-                                          exception_ref.Get());
+    instrumentation->ExceptionCaughtEvent(self_, exception_ref.Get());
   }
 }
 
@@ -283,7 +281,7 @@ void QuickExceptionHandler::DeoptimizeStack() {
   visitor.WalkStack(true);
 
   // Restore deoptimization exception
-  self_->SetException(ThrowLocation(), Thread::GetDeoptimizationException());
+  self_->SetException(Thread::GetDeoptimizationException());
 }
 
 // Unwinds all instrumentation stack frame prior to catch handler or upcall.

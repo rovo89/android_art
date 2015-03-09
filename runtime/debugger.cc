@@ -280,11 +280,9 @@ class DebugInstrumentationListener FINAL : public instrumentation::Instrumentati
     Dbg::PostFieldModificationEvent(method, dex_pc, this_object, field, &field_value);
   }
 
-  void ExceptionCaught(Thread* thread ATTRIBUTE_UNUSED, const ThrowLocation& throw_location,
-                       mirror::ArtMethod* catch_method, uint32_t catch_dex_pc,
-                       mirror::Throwable* exception_object)
+  void ExceptionCaught(Thread* thread ATTRIBUTE_UNUSED, mirror::Throwable* exception_object)
       OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Dbg::PostException(throw_location, catch_method, catch_dex_pc, exception_object);
+    Dbg::PostException(exception_object);
   }
 
   // We only care about how many backward branches were executed in the Jit.
@@ -2785,19 +2783,110 @@ void Dbg::PostFieldModificationEvent(mirror::ArtMethod* m, int dex_pc,
   gJdwpState->PostFieldEvent(&location, f, this_object, field_value, true);
 }
 
-void Dbg::PostException(const ThrowLocation& throw_location,
-                        mirror::ArtMethod* catch_method,
-                        uint32_t catch_dex_pc, mirror::Throwable* exception_object) {
+/**
+ * Finds the location where this exception will be caught. We search until we reach the top
+ * frame, in which case this exception is considered uncaught.
+ */
+class CatchLocationFinder : public StackVisitor {
+ public:
+  CatchLocationFinder(Thread* self, const Handle<mirror::Throwable>& exception, Context* context)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+    : StackVisitor(self, context),
+      self_(self),
+      exception_(exception),
+      handle_scope_(self),
+      this_at_throw_(handle_scope_.NewHandle<mirror::Object>(nullptr)),
+      catch_method_(handle_scope_.NewHandle<mirror::ArtMethod>(nullptr)),
+      throw_method_(handle_scope_.NewHandle<mirror::ArtMethod>(nullptr)),
+      catch_dex_pc_(DexFile::kDexNoIndex),
+      throw_dex_pc_(DexFile::kDexNoIndex) {
+  }
+
+  bool VisitFrame() OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::ArtMethod* method = GetMethod();
+    DCHECK(method != nullptr);
+    if (method->IsRuntimeMethod()) {
+      // Ignore callee save method.
+      DCHECK(method->IsCalleeSaveMethod());
+      return true;
+    }
+
+    uint32_t dex_pc = GetDexPc();
+    if (throw_method_.Get() == nullptr) {
+      // First Java method found. It is either the method that threw the exception,
+      // or the Java native method that is reporting an exception thrown by
+      // native code.
+      this_at_throw_.Assign(GetThisObject());
+      throw_method_.Assign(method);
+      throw_dex_pc_ = dex_pc;
+    }
+
+    if (dex_pc != DexFile::kDexNoIndex) {
+      StackHandleScope<2> hs(self_);
+      uint32_t found_dex_pc;
+      Handle<mirror::Class> exception_class(hs.NewHandle(exception_->GetClass()));
+      Handle<mirror::ArtMethod> h_method(hs.NewHandle(method));
+      bool unused_clear_exception;
+      found_dex_pc = mirror::ArtMethod::FindCatchBlock(
+          h_method, exception_class, dex_pc, &unused_clear_exception);
+      if (found_dex_pc != DexFile::kDexNoIndex) {
+        catch_method_.Assign(method);
+        catch_dex_pc_ = found_dex_pc;
+        return false;  // End stack walk.
+      }
+    }
+    return true;  // Continue stack walk.
+  }
+
+  mirror::ArtMethod* GetCatchMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return catch_method_.Get();
+  }
+
+  mirror::ArtMethod* GetThrowMethod() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return throw_method_.Get();
+  }
+
+  mirror::Object* GetThisAtThrow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return this_at_throw_.Get();
+  }
+
+  uint32_t GetCatchDexPc() const {
+    return catch_dex_pc_;
+  }
+
+  uint32_t GetThrowDexPc() const {
+    return throw_dex_pc_;
+  }
+
+ private:
+  Thread* const self_;
+  const Handle<mirror::Throwable>& exception_;
+  StackHandleScope<3> handle_scope_;
+  MutableHandle<mirror::Object> this_at_throw_;
+  MutableHandle<mirror::ArtMethod> catch_method_;
+  MutableHandle<mirror::ArtMethod> throw_method_;
+  uint32_t catch_dex_pc_;
+  uint32_t throw_dex_pc_;
+
+  DISALLOW_COPY_AND_ASSIGN(CatchLocationFinder);
+};
+
+void Dbg::PostException(mirror::Throwable* exception_object) {
   if (!IsDebuggerActive()) {
     return;
   }
+  StackHandleScope<1> handle_scope(Thread::Current());
+  Handle<mirror::Throwable> h_exception(handle_scope.NewHandle(exception_object));
+  std::unique_ptr<Context> context(Context::Create());
+  CatchLocationFinder clf(Thread::Current(), h_exception, context.get());
+  clf.WalkStack(/* include_transitions */ false);
   JDWP::EventLocation exception_throw_location;
-  SetEventLocation(&exception_throw_location, throw_location.GetMethod(), throw_location.GetDexPc());
+  SetEventLocation(&exception_throw_location, clf.GetThrowMethod(), clf.GetThrowDexPc());
   JDWP::EventLocation exception_catch_location;
-  SetEventLocation(&exception_catch_location, catch_method, catch_dex_pc);
+  SetEventLocation(&exception_catch_location, clf.GetCatchMethod(), clf.GetCatchDexPc());
 
-  gJdwpState->PostException(&exception_throw_location, exception_object, &exception_catch_location,
-                            throw_location.GetThis());
+  gJdwpState->PostException(&exception_throw_location, h_exception.Get(), &exception_catch_location,
+                            clf.GetThisAtThrow());
 }
 
 void Dbg::PostClassPrepare(mirror::Class* c) {
@@ -3704,18 +3793,12 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 
   // We can be called while an exception is pending. We need
   // to preserve that across the method invocation.
-  StackHandleScope<4> hs(soa.Self());
-  auto old_throw_this_object = hs.NewHandle<mirror::Object>(nullptr);
-  auto old_throw_method = hs.NewHandle<mirror::ArtMethod>(nullptr);
+  StackHandleScope<2> hs(soa.Self());
   auto old_exception = hs.NewHandle<mirror::Throwable>(nullptr);
-  uint32_t old_throw_dex_pc;
   {
     ThrowLocation old_throw_location;
-    mirror::Throwable* old_exception_obj = soa.Self()->GetException(&old_throw_location);
-    old_throw_this_object.Assign(old_throw_location.GetThis());
-    old_throw_method.Assign(old_throw_location.GetMethod());
+    mirror::Throwable* old_exception_obj = soa.Self()->GetException();
     old_exception.Assign(old_exception_obj);
-    old_throw_dex_pc = old_throw_location.GetDexPc();
     soa.Self()->ClearException();
   }
 
@@ -3738,7 +3821,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   pReq->result_value = InvokeWithJValues(soa, pReq->receiver, soa.EncodeMethod(m.Get()),
                                          reinterpret_cast<jvalue*>(pReq->arg_values));
 
-  mirror::Throwable* exception = soa.Self()->GetException(nullptr);
+  mirror::Throwable* exception = soa.Self()->GetException();
   soa.Self()->ClearException();
   pReq->exception = gRegistry->Add(exception);
   pReq->result_tag = BasicTagFromDescriptor(m.Get()->GetShorty());
@@ -3767,9 +3850,7 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
   }
 
   if (old_exception.Get() != nullptr) {
-    ThrowLocation gc_safe_throw_location(old_throw_this_object.Get(), old_throw_method.Get(),
-                                         old_throw_dex_pc);
-    soa.Self()->SetException(gc_safe_throw_location, old_exception.Get());
+    soa.Self()->SetException(old_exception.Get());
   }
 }
 
