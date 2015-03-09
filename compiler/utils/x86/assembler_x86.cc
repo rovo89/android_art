@@ -451,6 +451,36 @@ void X86Assembler::movsd(XmmRegister dst, XmmRegister src) {
 }
 
 
+void X86Assembler::movhpd(XmmRegister dst, const Address& src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x16);
+  EmitOperand(dst, src);
+}
+
+
+void X86Assembler::movhpd(const Address& dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x17);
+  EmitOperand(src, dst);
+}
+
+
+void X86Assembler::psrldq(XmmRegister reg, const Immediate& shift_count) {
+  DCHECK(shift_count.is_uint8());
+
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x73);
+  EmitXmmRegisterOperand(3, reg);
+  EmitUint8(shift_count.value());
+}
+
+
 void X86Assembler::psrlq(XmmRegister reg, const Immediate& shift_count) {
   DCHECK(shift_count.is_uint8());
 
