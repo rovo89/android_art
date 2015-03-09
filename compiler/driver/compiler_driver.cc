@@ -2412,8 +2412,9 @@ bool CompilerDriver::SkipCompilation(const std::string& method_name) {
 
 std::string CompilerDriver::GetMemoryUsageString(bool extended) const {
   std::ostringstream oss;
-  const ArenaPool* arena_pool = GetArenaPool();
-  gc::Heap* heap = Runtime::Current()->GetHeap();
+  Runtime* const runtime = Runtime::Current();
+  const ArenaPool* arena_pool = runtime->GetArenaPool();
+  gc::Heap* const heap = runtime->GetHeap();
   oss << "arena alloc=" << PrettySize(arena_pool->GetBytesAllocated());
   oss << " java alloc=" << PrettySize(heap->GetBytesAllocated());
 #ifdef HAVE_MALLOC_H
