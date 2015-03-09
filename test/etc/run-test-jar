@@ -265,7 +265,7 @@ if [ "$INTERPRETER" = "y" ]; then
 fi
 
 if [ "$JIT" = "y" ]; then
-    INT_OPTS="-Xjit"
+    INT_OPTS="-Xusejit:true"
     if [ "$VERIFY" = "y" ] ; then
       COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=interpret-only"
     else
