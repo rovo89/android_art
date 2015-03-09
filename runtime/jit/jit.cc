@@ -40,16 +40,32 @@ JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& opt
       options.GetOrDefault(RuntimeArgumentMap::JITCodeCacheCapacity);
   jit_options->compile_threshold_ =
       options.GetOrDefault(RuntimeArgumentMap::JITCompileThreshold);
+  jit_options->dump_info_on_shutdown_ =
+      options.Exists(RuntimeArgumentMap::DumpJITInfoOnShutdown);
   return jit_options;
+}
+
+void Jit::DumpInfo(std::ostream& os) {
+  os << "Code cache size=" << PrettySize(code_cache_->CodeCacheSize())
+     << " data cache size=" << PrettySize(code_cache_->DataCacheSize())
+     << " num methods=" << code_cache_->NumMethods()
+     << "\n";
+  cumulative_timings_.Dump(os);
+}
+
+void Jit::AddTimingLogger(const TimingLogger& logger) {
+  cumulative_timings_.AddLogger(logger);
 }
 
 Jit::Jit()
     : jit_library_handle_(nullptr), jit_compiler_handle_(nullptr), jit_load_(nullptr),
-      jit_compile_method_(nullptr) {
+      jit_compile_method_(nullptr), dump_info_on_shutdown_(false),
+      cumulative_timings_("JIT timings") {
 }
 
 Jit* Jit::Create(JitOptions* options, std::string* error_msg) {
   std::unique_ptr<Jit> jit(new Jit);
+  jit->dump_info_on_shutdown_ = options->DumpJitInfoOnShutdown();
   if (!jit->LoadCompiler(error_msg)) {
     return nullptr;
   }
@@ -133,6 +149,9 @@ void Jit::DeleteThreadPool() {
 }
 
 Jit::~Jit() {
+  if (dump_info_on_shutdown_) {
+    DumpInfo(LOG(INFO));
+  }
   DeleteThreadPool();
   if (jit_compiler_handle_ != nullptr) {
     jit_unload_(jit_compiler_handle_);

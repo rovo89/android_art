@@ -136,6 +136,8 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
           .IntoKey(M::LongGCLogThreshold)
       .Define("-XX:DumpGCPerformanceOnShutdown")
           .IntoKey(M::DumpGCPerformanceOnShutdown)
+      .Define("-XX:DumpJITInfoOnShutdown")
+          .IntoKey(M::DumpJITInfoOnShutdown)
       .Define("-XX:IgnoreMaxFootprint")
           .IntoKey(M::IgnoreMaxFootprint)
       .Define("-XX:LowMemoryMode")
@@ -620,6 +622,7 @@ void ParsedOptions::Usage(const char* fmt, ...) {
   UsageMessage(stream, "  -XX:LongPauseLogThreshold=integervalue\n");
   UsageMessage(stream, "  -XX:LongGCLogThreshold=integervalue\n");
   UsageMessage(stream, "  -XX:DumpGCPerformanceOnShutdown\n");
+  UsageMessage(stream, "  -XX:DumpJITInfoOnShutdown\n");
   UsageMessage(stream, "  -XX:IgnoreMaxFootprint\n");
   UsageMessage(stream, "  -XX:UseTLAB\n");
   UsageMessage(stream, "  -XX:BackgroundGC=none\n");
