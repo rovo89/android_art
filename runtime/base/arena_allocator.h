@@ -118,7 +118,10 @@ class Arena {
   static constexpr size_t kDefaultSize = 128 * KB;
   explicit Arena(size_t size = kDefaultSize);
   ~Arena();
+  // Reset is for pre-use and uses memset for performance.
   void Reset();
+  // Release is used inbetween uses and uses madvise for memory usage.
+  void Release();
   uint8_t* Begin() {
     return memory_;
   }
@@ -160,6 +163,9 @@ class ArenaPool {
   Arena* AllocArena(size_t size) LOCKS_EXCLUDED(lock_);
   void FreeArenaChain(Arena* first) LOCKS_EXCLUDED(lock_);
   size_t GetBytesAllocated() const LOCKS_EXCLUDED(lock_);
+  // Trim the maps in arenas by madvising, used by JIT to reduce memory usage. This only works if
+  // kUseMemMap is true.
+  void TrimMaps() LOCKS_EXCLUDED(lock_);
 
  private:
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
