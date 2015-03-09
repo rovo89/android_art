@@ -130,6 +130,10 @@ endif
 ifeq ($(ART_TEST_RUN_TEST_NDEBUG),true)
   RUN_TYPES += ndebug
 endif
+DEBUGGABLE_TYPES := nondebuggable
+ifeq ($(ART_TEST_RUN_TEST_DEBUGGABLE),true)
+DEBUGGABLE_TYPES += debuggable
+endif
 ADDRESS_SIZES_TARGET := $(ART_PHONY_TEST_TARGET_SUFFIX)
 ADDRESS_SIZES_HOST := $(ART_PHONY_TEST_HOST_SUFFIX)
 ifeq ($(ART_TEST_RUN_TEST_2ND_ARCH),true)
@@ -150,16 +154,17 @@ define all-run-test-names
                 $(foreach jni, $(8), \
                   $(foreach image, $(9), \
                     $(foreach pictest, $(10), \
-                      $(foreach test, $(11), \
-                        $(foreach address_size, $(12), \
-                          test-art-$(target)-run-test-$(run-type)-$(prebuild)-$(compiler)-$(relocate)-$(trace)-$(gc)-$(jni)-$(image)-$(pictest)-$(test)$(address_size) \
-                    ))))))))))))
+                      $(foreach debuggable, $(11), \
+                        $(foreach test, $(12), \
+                          $(foreach address_size, $(13), \
+                            test-art-$(target)-run-test-$(run-type)-$(prebuild)-$(compiler)-$(relocate)-$(trace)-$(gc)-$(jni)-$(image)-$(pictest)-$(debuggable)-$(test)$(address_size) \
+                    )))))))))))))
 endef  # all-run-test-names
 
 # To generate a full list or tests:
 # $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES),$(COMPILER_TYPES), \
 #        $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
-#        $(TEST_ART_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+#        $(DEBUGGABLE_TYPES) $(TEST_ART_RUN_TESTS), $(ALL_ADDRESS_SIZES)
 
 # Convert's a rule name to the form used in variables, e.g. no-relocate to NO_RELOCATE
 define name-to-var
@@ -176,7 +181,7 @@ TEST_ART_TIMING_SENSITIVE_RUN_TESTS := \
 ifdef dist_goal
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
         $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-        $(IMAGE_TYPES), $(PICTEST_TYPES), $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+        $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_TIMING_SENSITIVE_RUN_TESTS), $(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_TIMING_SENSITIVE_RUN_TESTS :=
@@ -190,7 +195,7 @@ TEST_ART_BROKEN_PREBUILD_RUN_TESTS := \
 ifneq (,$(filter prebuild,$(PREBUILD_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),prebuild, \
       $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES), $(PICTEST_TYPES), $(TEST_ART_BROKEN_PREBUILD_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+      $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_PREBUILD_RUN_TESTS), $(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_BROKEN_PREBUILD_RUN_TESTS :=
@@ -201,7 +206,7 @@ TEST_ART_BROKEN_NO_PREBUILD_TESTS := \
 ifneq (,$(filter no-prebuild,$(PREBUILD_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),no-prebuild, \
       $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES), $(PICTEST_TYPES), $(TEST_ART_BROKEN_NO_PREBUILD_TESTS), $(ALL_ADDRESS_SIZES))
+      $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_NO_PREBUILD_TESTS), $(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_BROKEN_NO_PREBUILD_TESTS :=
@@ -216,7 +221,7 @@ TEST_ART_BROKEN_NO_RELOCATE_TESTS := \
 ifneq (,$(filter no-relocate,$(RELOCATE_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
       $(COMPILER_TYPES), no-relocate,$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES), $(PICTEST_TYPES), $(TEST_ART_BROKEN_NO_RELOCATE_TESTS), $(ALL_ADDRESS_SIZES))
+      $(IMAGE_TYPES), $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_NO_RELOCATE_TESTS), $(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_BROKEN_NO_RELOCATE_TESTS :=
@@ -227,14 +232,14 @@ TEST_ART_BROKEN_GCSTRESS_RUN_TESTS :=
 ifneq (,$(filter gcstress,$(GC_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
       $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),gcstress,$(JNI_TYPES), \
-      $(IMAGE_TYPES), $(PICTEST_TYPES), $(TEST_ART_BROKEN_GCSTRESS_RUN_TESTS), $(ALL_ADDRESS_SIZES))
+      $(IMAGE_TYPES), $(PICTEST_TYPES), $(DBEUGGABLE_TYPES), $(TEST_ART_BROKEN_GCSTRESS_RUN_TESTS), $(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_BROKEN_GCSTRESS_RUN_TESTS :=
 
 # 115-native-bridge setup is complicated. Need to implement it correctly for the target.
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES),$(COMPILER_TYPES), \
-    $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),115-native-bridge, \
+    $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), 115-native-bridge, \
     $(ALL_ADDRESS_SIZES))
 
 # 130-hprof dumps the heap and runs hprof-conv to check whether the file is somewhat readable. This
@@ -243,7 +248,7 @@ ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUIL
 #       very hard to write here, as (for a complete test) JDWP must be set up.
 ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
     $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
-    $(PICTEST_TYPES),130-hprof,$(ALL_ADDRESS_SIZES))
+    $(PICTEST_TYPES),$(DEBUGGABLE_TYPES),130-hprof,$(ALL_ADDRESS_SIZES))
 
 # All these tests check that we have sane behavior if we don't have a patchoat or dex2oat.
 # Therefore we shouldn't run them in situations where we actually don't have these since they
@@ -257,20 +262,20 @@ TEST_ART_BROKEN_FALLBACK_RUN_TESTS := \
 ifneq (,$(filter no-dex2oat,$(PREBUILD_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),no-dex2oat, \
       $(COMPILER_TYPES),$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
-      $(PICTEST_TYPES),$(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+      $(PICTEST_TYPES),$(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
 
 ifneq (,$(filter no-image,$(IMAGE_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
       $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),no-image, \
-      $(PICTEST_TYPES), $(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+      $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
 ifneq (,$(filter relocate-no-patchoat,$(RELOCATE_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
       $(COMPILER_TYPES), relocate-no-patchoat,$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES),$(PICTEST_TYPES),$(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_BROKEN_FALLBACK_RUN_TESTS :=
@@ -283,7 +288,7 @@ TEST_ART_BROKEN_TRACING_RUN_TESTS := \
 ifneq (,$(filter trace,$(TRACE_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
       $(COMPILER_TYPES),$(RELOCATE_TYPES),trace,$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
-      $(PICTEST_TYPES),$(TEST_ART_BROKEN_TRACING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+      $(PICTEST_TYPES),$(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_TRACING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_BROKEN_TRACING_RUN_TESTS :=
@@ -310,7 +315,7 @@ TEST_ART_BROKEN_NDEBUG_TESTS := \
 ifneq (,$(filter ndebug,$(RUN_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),ndebug,$(PREBUILD_TYPES), \
       $(COMPILER_TYPES), $(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES),$(IMAGE_TYPES), \
-      $(PICTEST_TYPES),$(TEST_ART_BROKEN_NDEBUG_TESTS),$(ALL_ADDRESS_SIZES))
+      $(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_NDEBUG_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_BROKEN_NDEBUG_TESTS :=
@@ -321,7 +326,7 @@ TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
 ifneq (,$(filter default,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
       default,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES),$(PICTEST_TYPES),$(TEST_ART_BROKEN_DEFAULT_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_DEFAULT_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
@@ -335,7 +340,7 @@ TEST_ART_BROKEN_OPTIMIZING_32_RUN_TESTS := \
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
       optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES),$(PICTEST_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_32_RUN_TESTS),32)
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_32_RUN_TESTS),32)
 endif
 
 TEST_ART_BROKEN_OPTIMIZING_32_RUN_TESTS :=
@@ -346,7 +351,7 @@ TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS :=
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,target,$(RUN_TYPES),$(PREBUILD_TYPES), \
       optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES),$(PICTEST_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS),64)
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS),64)
 endif
 
 TEST_ART_BROKEN_OPTIMIZING_ARM64_RUN_TESTS :=
@@ -359,7 +364,7 @@ TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS += 802-deoptimization # b/18547544
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
       optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES),$(PICTEST_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
 # If ART_USE_OPTIMIZING_COMPILER is set to true, then the default core.art has been
@@ -367,7 +372,7 @@ endif
 ifeq ($(ART_USE_OPTIMIZING_COMPILER),true)
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
       default,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES),$(PICTEST_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+      $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES),$(TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS :=
@@ -405,6 +410,9 @@ $(foreach target, $(TARGET_TYPES), \
 $(foreach target, $(TARGET_TYPES), \
   $(foreach run_type, $(RUN_TYPES), \
     $(eval ART_RUN_TEST_$(call name-to-var,$(target))_$(call name-to-var,$(run_type))_RULES :=)))
+$(foreach target, $(TARGET_TYPES), \
+  $(foreach debuggable_type, $(DEBUGGABLE_TYPES), \
+    $(eval ART_RUN_TEST_$(call name-to-var,$(target))_$(call name-to-var,$(debuggable_type))_RULES :=)))
 
 # We need dex2oat and dalvikvm on the target as well as the core images (all images as we sync
 # only once).
@@ -441,7 +449,8 @@ endif
 # test-art-{1: host or target}-run-test-{2: debug ndebug}-{3: prebuild no-prebuild no-dex2oat}-
 #    {4: interpreter default optimizing jit}-{5: relocate no-relocate relocate-no-patchoat}-
 #    {6: trace or no-trace}-{7: gcstress gcverify cms}-{8: forcecopy checkjni jni}-
-#    {9: no-image image picimage}-{10: pictest nopictest}-{11: test name}{12: 32 or 64}
+#    {9: no-image image picimage}-{10: pictest nopictest}-
+#    {11: nondebuggable debuggable}-{12: test name}{13: 32 or 64}
 define define-test-art-run-test
   run_test_options :=
   prereq_rule :=
@@ -582,27 +591,27 @@ define define-test-art-run-test
     run_test_options += --no-image
     # Add the core dependency. This is required for pre-building.
     ifeq ($(1),host)
-      prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
+      prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_$(13))
     else
-      prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
+      prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_$(13))
     endif
   else
     ifeq ($(9),image)
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_IMAGE_RULES
       # Add the core dependency.
       ifeq ($(1),host)
-        prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
+        prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_no-pic_$(13))
       else
-        prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_$(12))
+        prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_no-pic_$(13))
       endif
     else
       ifeq ($(9),picimage)
         test_groups += ART_RUN_TEST_$$(uc_host_or_target)_PICIMAGE_RULES
         run_test_options += --pic-image
         ifeq ($(1),host)
-          prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_pic_$(12))
+          prereq_rule += $$(HOST_CORE_IMAGE_$$(image_suffix)_pic_$(13))
         else
-          prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_pic_$(12))
+          prereq_rule += $$(TARGET_CORE_IMAGE_$$(image_suffix)_pic_$(13))
         endif
       else
         $$(error found $(9) expected $(IMAGE_TYPES))
@@ -618,19 +627,30 @@ define define-test-art-run-test
       $$(error found $(10) expected $(PICTEST_TYPES))
     endif
   endif
-  # $(11) is the test name
-  test_groups += ART_RUN_TEST_$$(uc_host_or_target)_$(call name-to-var,$(11))_RULES
-  ifeq ($(12),64)
+  ifeq ($(11),debuggable)
+    test_groups += ART_RUN_TEST_$$(uc_host_or_target)_DEBUGGABLE_RULES
+    run_test_options += --debuggable
+  else
+    ifeq ($(11),nondebuggable)
+    test_groups += ART_RUN_TEST_$$(uc_host_or_target)_NONDEBUGGABLE_RULES
+      # Nothing to be done.
+    else
+      $$(error found $(11) expected $(DEBUGGABLE_TYPES))
+    endif
+  endif
+  # $(12) is the test name.
+  test_groups += ART_RUN_TEST_$$(uc_host_or_target)_$(call name-to-var,$(12))_RULES
+  ifeq ($(13),64)
     test_groups += ART_RUN_TEST_$$(uc_host_or_target)_64_RULES
     run_test_options += --64
   else
-    ifeq ($(12),32)
+    ifeq ($(13),32)
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_32_RULES
     else
-      $$(error found $(12) expected $(ALL_ADDRESS_SIZES))
+      $$(error found $(13) expected $(ALL_ADDRESS_SIZES))
     endif
   endif
-  run_test_rule_name := test-art-$(1)-run-test-$(2)-$(3)-$(4)-$(5)-$(6)-$(7)-$(8)-$(9)-$(10)-$(11)$(12)
+  run_test_rule_name := test-art-$(1)-run-test-$(2)-$(3)-$(4)-$(5)-$(6)-$(7)-$(8)-$(9)-$(10)-$(11)-$(12)$(13)
   run_test_options := --output-path $(ART_HOST_TEST_DIR)/run-test-output/$$(run_test_rule_name) \
       $$(run_test_options)
   ifneq ($(ART_TEST_ANDROID_ROOT),)
@@ -643,7 +663,7 @@ $$(run_test_rule_name): $(DX) $(HOST_OUT_EXECUTABLES)/jasmin $(HOST_OUT_EXECUTAB
 	  DX=$(abspath $(DX)) JASMIN=$(abspath $(HOST_OUT_EXECUTABLES)/jasmin) \
 	    SMALI=$(abspath $(HOST_OUT_EXECUTABLES)/smali) \
 	    DXMERGER=$(abspath $(HOST_OUT_EXECUTABLES)/dexmerger) \
-	    art/test/run-test $$(PRIVATE_RUN_TEST_OPTIONS) $(11) \
+	    art/test/run-test $$(PRIVATE_RUN_TEST_OPTIONS) $(12) \
 	      && $$(call ART_TEST_PASSED,$$@) || $$(call ART_TEST_FAILED,$$@)
 	$$(hide) (echo $(MAKECMDGOALS) | grep -q $$@ && \
 	  echo "run-test run as top-level target, removing test directory $(ART_HOST_TEST_DIR)" && \
@@ -671,8 +691,9 @@ $(foreach target, $(TARGET_TYPES), \
                   $(foreach jni, $(JNI_TYPES), \
                     $(foreach image, $(IMAGE_TYPES), \
                       $(foreach pictest, $(PICTEST_TYPES), \
-                        $(eval $(call define-test-art-run-test,$(target),$(run_type),$(prebuild),$(compiler),$(relocate),$(trace),$(gc),$(jni),$(image),$(pictest),$(test),$(address_size))) \
-                  ))))))))))))
+                        $(foreach debuggable, $(DEBUGGABLE_TYPES), \
+                          $(eval $(call define-test-art-run-test,$(target),$(run_type),$(prebuild),$(compiler),$(relocate),$(trace),$(gc),$(jni),$(image),$(pictest),$(debuggable),$(test),$(address_size))) \
+                  )))))))))))))
 define-test-art-run-test :=
 
 # Define a phony rule whose purpose is to test its prerequisites.
@@ -710,6 +731,9 @@ $(foreach target, $(TARGET_TYPES), \
   $(foreach jni, $(JNI_TYPES), $(eval \
     $(call define-test-art-run-test-group,test-art-$(target)-run-test-$(jni),$(ART_RUN_TEST_$(call name-to-var,$(target))_$(call name-to-var,$(jni))_RULES)))))
 $(foreach target, $(TARGET_TYPES), \
+  $(foreach debuggable, $(DEBUGGABLE_TYPES), $(eval \
+    $(call define-test-art-run-test-group,test-art-$(target)-run-test-$(debuggable),$(ART_RUN_TEST_$(call name-to-var,$(target))_$(call name-to-var,$(debuggable))_RULES)))))
+$(foreach target, $(TARGET_TYPES), \
   $(foreach image, $(IMAGE_TYPES), $(eval \
     $(call define-test-art-run-test-group,test-art-$(target)-run-test-$(image),$(ART_RUN_TEST_$(call name-to-var,$(target))_$(call name-to-var,$(image))_RULES)))))
 $(foreach target, $(TARGET_TYPES), \
@@ -740,6 +764,9 @@ $(foreach target, $(TARGET_TYPES), \
   $(foreach jni, $(JNI_TYPES), \
     $(eval ART_RUN_TEST_$(call name-to-var,$(target))_$(call name-to-var,$(jni))_RULES :=)))
 $(foreach target, $(TARGET_TYPES), \
+  $(foreach debuggable, $(DEBUGGABLE_TYPES), \
+    $(eval ART_RUN_TEST_$(call name-to-var,$(target))_$(call name-to-var,$(debuggable))_RULES :=)))
+$(foreach target, $(TARGET_TYPES), \
   $(foreach image, $(IMAGE_TYPES), \
     $(eval ART_RUN_TEST_$(call name-to-var,$(target))_$(call name-to-var,$(image))_RULES :=)))
 $(foreach target, $(TARGET_TYPES), \
@@ -764,6 +791,7 @@ ADDRESS_SIZES_TARGET :=
 ADDRESS_SIZES_HOST :=
 ALL_ADDRESS_SIZES :=
 RUN_TYPES :=
+DEBUGGABLE_TYPES :=
 
 include $(LOCAL_PATH)/Android.libarttest.mk
 include art/test/Android.libnativebridgetest.mk
