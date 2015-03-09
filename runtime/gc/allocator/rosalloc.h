@@ -230,8 +230,10 @@ class RosAlloc {
     static uint32_t GetBitmapLastVectorMask(size_t num_slots, size_t num_vec);
     // Returns true if all the slots in the run are not in use.
     bool IsAllFree();
+    // Returns the number of free slots.
+    size_t NumberOfFreeSlots();
     // Returns true if all the slots in the run are in use.
-    bool IsFull();
+    ALWAYS_INLINE bool IsFull();
     // Returns true if the bulk free bit map is clean.
     bool IsBulkFreeBitmapClean();
     // Returns true if the thread local free bit map is clean.
@@ -308,6 +310,15 @@ class RosAlloc {
     }
     DCHECK(bracketSizes[idx] == size);
     return idx;
+  }
+  // Returns true if the given allocation size is for a thread local allocation.
+  static bool IsSizeForThreadLocal(size_t size) {
+    DCHECK_GT(kNumThreadLocalSizeBrackets, 0U);
+    size_t max_thread_local_bracket_idx = kNumThreadLocalSizeBrackets - 1;
+    bool is_size_for_thread_local = size <= bracketSizes[max_thread_local_bracket_idx];
+    DCHECK(size > kLargeSizeThreshold ||
+           (is_size_for_thread_local == (SizeToIndex(size) < kNumThreadLocalSizeBrackets)));
+    return is_size_for_thread_local;
   }
   // Rounds up the size up the nearest bracket size.
   static size_t RoundToBracketSize(size_t size) {
@@ -504,11 +515,13 @@ class RosAlloc {
   size_t FreePages(Thread* self, void* ptr, bool already_zero) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // Allocate/free a run slot.
-  void* AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated)
+  void* AllocFromRun(Thread* self, size_t size, size_t* bytes_allocated, size_t* usable_size,
+                     size_t* bytes_tl_bulk_allocated)
       LOCKS_EXCLUDED(lock_);
   // Allocate/free a run slot without acquiring locks.
   // TODO: EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_)
-  void* AllocFromRunThreadUnsafe(Thread* self, size_t size, size_t* bytes_allocated)
+  void* AllocFromRunThreadUnsafe(Thread* self, size_t size, size_t* bytes_allocated,
+                                 size_t* usable_size, size_t* bytes_tl_bulk_allocated)
       LOCKS_EXCLUDED(lock_);
   void* AllocFromCurrentRunUnlocked(Thread* self, size_t idx);
 
@@ -527,7 +540,9 @@ class RosAlloc {
   size_t FreeInternal(Thread* self, void* ptr) LOCKS_EXCLUDED(lock_);
 
   // Allocates large objects.
-  void* AllocLargeObject(Thread* self, size_t size, size_t* bytes_allocated) LOCKS_EXCLUDED(lock_);
+  void* AllocLargeObject(Thread* self, size_t size, size_t* bytes_allocated,
+                         size_t* usable_size, size_t* bytes_tl_bulk_allocated)
+      LOCKS_EXCLUDED(lock_);
 
   // Revoke a run by adding it to non_full_runs_ or freeing the pages.
   void RevokeRun(Thread* self, size_t idx, Run* run);
@@ -551,12 +566,25 @@ class RosAlloc {
   // If kThreadUnsafe is true then the allocator may avoid acquiring some locks as an optimization.
   // If used, this may cause race conditions if multiple threads are allocating at the same time.
   template<bool kThreadSafe = true>
-  void* Alloc(Thread* self, size_t size, size_t* bytes_allocated)
+  void* Alloc(Thread* self, size_t size, size_t* bytes_allocated, size_t* usable_size,
+              size_t* bytes_tl_bulk_allocated)
       LOCKS_EXCLUDED(lock_);
   size_t Free(Thread* self, void* ptr)
       LOCKS_EXCLUDED(bulk_free_lock_);
   size_t BulkFree(Thread* self, void** ptrs, size_t num_ptrs)
       LOCKS_EXCLUDED(bulk_free_lock_);
+
+  // Returns true if the given allocation request can be allocated in
+  // an existing thread local run without allocating a new run.
+  ALWAYS_INLINE bool CanAllocFromThreadLocalRun(Thread* self, size_t size);
+  // Allocate the given allocation request in an existing thread local
+  // run without allocating a new run.
+  ALWAYS_INLINE void* AllocFromThreadLocalRun(Thread* self, size_t size, size_t* bytes_allocated);
+
+  // Returns the maximum bytes that could be allocated for the given
+  // size in bulk, that is the maximum value for the
+  // bytes_allocated_bulk out param returned by RosAlloc::Alloc().
+  ALWAYS_INLINE size_t MaxBytesBulkAllocatedFor(size_t size);
 
   // Returns the size of the allocated slot for a given allocated memory chunk.
   size_t UsableSize(const void* ptr);
@@ -586,9 +614,13 @@ class RosAlloc {
   void SetFootprintLimit(size_t bytes) LOCKS_EXCLUDED(lock_);
 
   // Releases the thread-local runs assigned to the given thread back to the common set of runs.
-  void RevokeThreadLocalRuns(Thread* thread);
+  // Returns the total bytes of free slots in the revoked thread local runs. This is to be
+  // subtracted from Heap::num_bytes_allocated_ to cancel out the ahead-of-time counting.
+  size_t RevokeThreadLocalRuns(Thread* thread);
   // Releases the thread-local runs assigned to all the threads back to the common set of runs.
-  void RevokeAllThreadLocalRuns() LOCKS_EXCLUDED(Locks::thread_list_lock_);
+  // Returns the total bytes of free slots in the revoked thread local runs. This is to be
+  // subtracted from Heap::num_bytes_allocated_ to cancel out the ahead-of-time counting.
+  size_t RevokeAllThreadLocalRuns() LOCKS_EXCLUDED(Locks::thread_list_lock_);
   // Assert the thread local runs of a thread are revoked.
   void AssertThreadLocalRunsAreRevoked(Thread* thread);
   // Assert all the thread local runs are revoked.

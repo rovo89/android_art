@@ -38,10 +38,11 @@ class ValgrindLargeObjectMapSpace FINAL : public LargeObjectMapSpace {
   }
 
   virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                                size_t* usable_size) OVERRIDE {
+                                size_t* usable_size, size_t* bytes_tl_bulk_allocated)
+      OVERRIDE {
     mirror::Object* obj =
         LargeObjectMapSpace::Alloc(self, num_bytes + kValgrindRedZoneBytes * 2, bytes_allocated,
-                                   usable_size);
+                                   usable_size, bytes_tl_bulk_allocated);
     mirror::Object* object_without_rdz = reinterpret_cast<mirror::Object*>(
         reinterpret_cast<uintptr_t>(obj) + kValgrindRedZoneBytes);
     VALGRIND_MAKE_MEM_NOACCESS(reinterpret_cast<void*>(obj), kValgrindRedZoneBytes);
@@ -108,7 +109,8 @@ LargeObjectMapSpace* LargeObjectMapSpace::Create(const std::string& name) {
 }
 
 mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
-                                           size_t* bytes_allocated, size_t* usable_size) {
+                                           size_t* bytes_allocated, size_t* usable_size,
+                                           size_t* bytes_tl_bulk_allocated) {
   std::string error_msg;
   MemMap* mem_map = MemMap::MapAnonymous("large object space allocation", nullptr, num_bytes,
                                          PROT_READ | PROT_WRITE, true, false, &error_msg);
@@ -131,6 +133,8 @@ mirror::Object* LargeObjectMapSpace::Alloc(Thread* self, size_t num_bytes,
   if (usable_size != nullptr) {
     *usable_size = allocation_size;
   }
+  DCHECK(bytes_tl_bulk_allocated != nullptr);
+  *bytes_tl_bulk_allocated = allocation_size;
   num_bytes_allocated_ += allocation_size;
   total_bytes_allocated_ += allocation_size;
   ++num_objects_allocated_;
@@ -413,7 +417,7 @@ size_t FreeListSpace::AllocationSize(mirror::Object* obj, size_t* usable_size) {
 }
 
 mirror::Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                                     size_t* usable_size) {
+                                     size_t* usable_size, size_t* bytes_tl_bulk_allocated) {
   MutexLock mu(self, lock_);
   const size_t allocation_size = RoundUp(num_bytes, kAlignment);
   AllocationInfo temp_info;
@@ -451,6 +455,8 @@ mirror::Object* FreeListSpace::Alloc(Thread* self, size_t num_bytes, size_t* byt
   if (usable_size != nullptr) {
     *usable_size = allocation_size;
   }
+  DCHECK(bytes_tl_bulk_allocated != nullptr);
+  *bytes_tl_bulk_allocated = allocation_size;
   // Need to do these inside of the lock.
   ++num_objects_allocated_;
   ++total_objects_allocated_;

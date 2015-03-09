@@ -46,7 +46,7 @@ class ZygoteSpace FINAL : public ContinuousMemMapAllocSpace {
   }
 
   mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                        size_t* usable_size) OVERRIDE;
+                        size_t* usable_size, size_t* bytes_tl_bulk_allocated) OVERRIDE;
 
   size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE;
 
@@ -55,9 +55,11 @@ class ZygoteSpace FINAL : public ContinuousMemMapAllocSpace {
   size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs) OVERRIDE;
 
   // ZygoteSpaces don't have thread local state.
-  void RevokeThreadLocalBuffers(art::Thread*) OVERRIDE {
+  size_t RevokeThreadLocalBuffers(art::Thread*) OVERRIDE {
+    return 0U;
   }
-  void RevokeAllThreadLocalBuffers() OVERRIDE {
+  size_t RevokeAllThreadLocalBuffers() OVERRIDE {
+    return 0U;
   }
 
   uint64_t GetBytesAllocated() {

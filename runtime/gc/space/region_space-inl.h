@@ -24,30 +24,36 @@ namespace gc {
 namespace space {
 
 inline mirror::Object* RegionSpace::Alloc(Thread*, size_t num_bytes, size_t* bytes_allocated,
-                                          size_t* usable_size) {
+                                          size_t* usable_size,
+                                          size_t* bytes_tl_bulk_allocated) {
   num_bytes = RoundUp(num_bytes, kAlignment);
-  return AllocNonvirtual<false>(num_bytes, bytes_allocated, usable_size);
+  return AllocNonvirtual<false>(num_bytes, bytes_allocated, usable_size,
+                                bytes_tl_bulk_allocated);
 }
 
 inline mirror::Object* RegionSpace::AllocThreadUnsafe(Thread* self, size_t num_bytes,
                                                       size_t* bytes_allocated,
-                                                      size_t* usable_size) {
+                                                      size_t* usable_size,
+                                                      size_t* bytes_tl_bulk_allocated) {
   Locks::mutator_lock_->AssertExclusiveHeld(self);
-  return Alloc(self, num_bytes, bytes_allocated, usable_size);
+  return Alloc(self, num_bytes, bytes_allocated, usable_size, bytes_tl_bulk_allocated);
 }
 
 template<bool kForEvac>
 inline mirror::Object* RegionSpace::AllocNonvirtual(size_t num_bytes, size_t* bytes_allocated,
-                                                    size_t* usable_size) {
+                                                    size_t* usable_size,
+                                                    size_t* bytes_tl_bulk_allocated) {
   DCHECK(IsAligned<kAlignment>(num_bytes));
   mirror::Object* obj;
   if (LIKELY(num_bytes <= kRegionSize)) {
     // Non-large object.
     if (!kForEvac) {
-      obj = current_region_->Alloc(num_bytes, bytes_allocated, usable_size);
+      obj = current_region_->Alloc(num_bytes, bytes_allocated, usable_size,
+                                   bytes_tl_bulk_allocated);
     } else {
       DCHECK(evac_region_ != nullptr);
-      obj = evac_region_->Alloc(num_bytes, bytes_allocated, usable_size);
+      obj = evac_region_->Alloc(num_bytes, bytes_allocated, usable_size,
+                                bytes_tl_bulk_allocated);
     }
     if (LIKELY(obj != nullptr)) {
       return obj;
@@ -55,9 +61,11 @@ inline mirror::Object* RegionSpace::AllocNonvirtual(size_t num_bytes, size_t* by
     MutexLock mu(Thread::Current(), region_lock_);
     // Retry with current region since another thread may have updated it.
     if (!kForEvac) {
-      obj = current_region_->Alloc(num_bytes, bytes_allocated, usable_size);
+      obj = current_region_->Alloc(num_bytes, bytes_allocated, usable_size,
+                                   bytes_tl_bulk_allocated);
     } else {
-      obj = evac_region_->Alloc(num_bytes, bytes_allocated, usable_size);
+      obj = evac_region_->Alloc(num_bytes, bytes_allocated, usable_size,
+                                bytes_tl_bulk_allocated);
     }
     if (LIKELY(obj != nullptr)) {
       return obj;
@@ -73,7 +81,7 @@ inline mirror::Object* RegionSpace::AllocNonvirtual(size_t num_bytes, size_t* by
           r->Unfree(time_);
           r->SetNewlyAllocated();
           ++num_non_free_regions_;
-          obj = r->Alloc(num_bytes, bytes_allocated, usable_size);
+          obj = r->Alloc(num_bytes, bytes_allocated, usable_size, bytes_tl_bulk_allocated);
           CHECK(obj != nullptr);
           current_region_ = r;
           return obj;
@@ -85,7 +93,7 @@ inline mirror::Object* RegionSpace::AllocNonvirtual(size_t num_bytes, size_t* by
         if (r->IsFree()) {
           r->Unfree(time_);
           ++num_non_free_regions_;
-          obj = r->Alloc(num_bytes, bytes_allocated, usable_size);
+          obj = r->Alloc(num_bytes, bytes_allocated, usable_size, bytes_tl_bulk_allocated);
           CHECK(obj != nullptr);
           evac_region_ = r;
           return obj;
@@ -94,7 +102,8 @@ inline mirror::Object* RegionSpace::AllocNonvirtual(size_t num_bytes, size_t* by
     }
   } else {
     // Large object.
-    obj = AllocLarge<kForEvac>(num_bytes, bytes_allocated, usable_size);
+    obj = AllocLarge<kForEvac>(num_bytes, bytes_allocated, usable_size,
+                               bytes_tl_bulk_allocated);
     if (LIKELY(obj != nullptr)) {
       return obj;
     }
@@ -103,7 +112,8 @@ inline mirror::Object* RegionSpace::AllocNonvirtual(size_t num_bytes, size_t* by
 }
 
 inline mirror::Object* RegionSpace::Region::Alloc(size_t num_bytes, size_t* bytes_allocated,
-                                                  size_t* usable_size) {
+                                                  size_t* usable_size,
+                                                  size_t* bytes_tl_bulk_allocated) {
   DCHECK(IsAllocated() && IsInToSpace());
   DCHECK(IsAligned<kAlignment>(num_bytes));
   Atomic<uint8_t*>* atomic_top = reinterpret_cast<Atomic<uint8_t*>*>(&top_);
@@ -124,6 +134,7 @@ inline mirror::Object* RegionSpace::Region::Alloc(size_t num_bytes, size_t* byte
   if (usable_size != nullptr) {
     *usable_size = num_bytes;
   }
+  *bytes_tl_bulk_allocated = num_bytes;
   return reinterpret_cast<mirror::Object*>(old_top);
 }
 
@@ -253,7 +264,8 @@ inline mirror::Object* RegionSpace::GetNextObject(mirror::Object* obj) {
 
 template<bool kForEvac>
 mirror::Object* RegionSpace::AllocLarge(size_t num_bytes, size_t* bytes_allocated,
-                                        size_t* usable_size) {
+                                        size_t* usable_size,
+                                        size_t* bytes_tl_bulk_allocated) {
   DCHECK(IsAligned<kAlignment>(num_bytes));
   DCHECK_GT(num_bytes, kRegionSize);
   size_t num_regs = RoundUp(num_bytes, kRegionSize) / kRegionSize;
@@ -300,6 +312,7 @@ mirror::Object* RegionSpace::AllocLarge(size_t num_bytes, size_t* bytes_allocate
       if (usable_size != nullptr) {
         *usable_size = num_regs * kRegionSize;
       }
+      *bytes_tl_bulk_allocated = num_bytes;
       return reinterpret_cast<mirror::Object*>(first_reg->Begin());
     } else {
       // right points to the non-free region. Start with the one after it.

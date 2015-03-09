@@ -76,7 +76,7 @@ RegionSpace::RegionSpace(const std::string& name, MemMap* mem_map)
   current_region_ = &full_region_;
   evac_region_ = nullptr;
   size_t ignored;
-  DCHECK(full_region_.Alloc(kAlignment, &ignored, nullptr) == nullptr);
+  DCHECK(full_region_.Alloc(kAlignment, &ignored, nullptr, &ignored) == nullptr);
 }
 
 size_t RegionSpace::FromSpaceSize() {
@@ -356,9 +356,10 @@ bool RegionSpace::AllocNewTlab(Thread* self) {
   return false;
 }
 
-void RegionSpace::RevokeThreadLocalBuffers(Thread* thread) {
+size_t RegionSpace::RevokeThreadLocalBuffers(Thread* thread) {
   MutexLock mu(Thread::Current(), region_lock_);
   RevokeThreadLocalBuffersLocked(thread);
+  return 0U;
 }
 
 void RegionSpace::RevokeThreadLocalBuffersLocked(Thread* thread) {
@@ -377,7 +378,7 @@ void RegionSpace::RevokeThreadLocalBuffersLocked(Thread* thread) {
   thread->SetTlab(nullptr, nullptr);
 }
 
-void RegionSpace::RevokeAllThreadLocalBuffers() {
+size_t RegionSpace::RevokeAllThreadLocalBuffers() {
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::runtime_shutdown_lock_);
   MutexLock mu2(self, *Locks::thread_list_lock_);
@@ -385,6 +386,7 @@ void RegionSpace::RevokeAllThreadLocalBuffers() {
   for (Thread* thread : thread_list) {
     RevokeThreadLocalBuffers(thread);
   }
+  return 0U;
 }
 
 void RegionSpace::AssertThreadLocalBuffersAreRevoked(Thread* thread) {

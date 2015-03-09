@@ -49,11 +49,13 @@ void LargeObjectSpaceTest::LargeObjectTest() {
       while (requests.size() < num_allocations) {
         size_t request_size = test_rand(&rand_seed) % max_allocation_size;
         size_t allocation_size = 0;
+        size_t bytes_tl_bulk_allocated;
         mirror::Object* obj = los->Alloc(Thread::Current(), request_size, &allocation_size,
-                                         nullptr);
+                                         nullptr, &bytes_tl_bulk_allocated);
         ASSERT_TRUE(obj != nullptr);
         ASSERT_EQ(allocation_size, los->AllocationSize(obj, nullptr));
         ASSERT_GE(allocation_size, request_size);
+        ASSERT_EQ(allocation_size, bytes_tl_bulk_allocated);
         // Fill in our magic value.
         uint8_t magic = (request_size & 0xFF) | 1;
         memset(obj, magic, request_size);
@@ -83,9 +85,10 @@ void LargeObjectSpaceTest::LargeObjectTest() {
     // Test that dump doesn't crash.
     los->Dump(LOG(INFO));
 
-    size_t bytes_allocated = 0;
+    size_t bytes_allocated = 0, bytes_tl_bulk_allocated;
     // Checks that the coalescing works.
-    mirror::Object* obj = los->Alloc(Thread::Current(), 100 * MB, &bytes_allocated, nullptr);
+    mirror::Object* obj = los->Alloc(Thread::Current(), 100 * MB, &bytes_allocated, nullptr,
+                                     &bytes_tl_bulk_allocated);
     EXPECT_TRUE(obj != nullptr);
     los->Free(Thread::Current(), obj);
 
@@ -102,8 +105,9 @@ class AllocRaceTask : public Task {
 
   void Run(Thread* self) {
     for (size_t i = 0; i < iterations_ ; ++i) {
-      size_t alloc_size;
-      mirror::Object* ptr = los_->Alloc(self, size_, &alloc_size, nullptr);
+      size_t alloc_size, bytes_tl_bulk_allocated;
+      mirror::Object* ptr = los_->Alloc(self, size_, &alloc_size, nullptr,
+                                        &bytes_tl_bulk_allocated);
 
       NanoSleep((id_ + 3) * 1000);  // (3+id) mu s
 
