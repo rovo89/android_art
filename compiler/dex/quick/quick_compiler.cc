@@ -628,12 +628,13 @@ CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
 
   DCHECK(driver->GetCompilerOptions().IsCompilationEnabled());
 
-  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  Runtime* const runtime = Runtime::Current();
+  ClassLinker* const class_linker = runtime->GetClassLinker();
   InstructionSet instruction_set = driver->GetInstructionSet();
   if (instruction_set == kArm) {
     instruction_set = kThumb2;
   }
-  CompilationUnit cu(driver->GetArenaPool(), instruction_set, driver, class_linker);
+  CompilationUnit cu(runtime->GetArenaPool(), instruction_set, driver, class_linker);
 
   CHECK((cu.instruction_set == kThumb2) ||
         (cu.instruction_set == kArm64) ||

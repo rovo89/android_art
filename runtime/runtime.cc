@@ -251,6 +251,7 @@ Runtime::~Runtime() {
     VLOG(jit) << "Deleting jit";
     jit_.reset(nullptr);
   }
+  arena_pool_.reset();
 
   // Shutdown the fault manager if it was initialized.
   fault_manager.Shutdown();
@@ -787,6 +788,7 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   max_spins_before_thin_lock_inflation_ =
       runtime_options.GetOrDefault(Opt::MaxSpinsBeforeThinLockInflation);
 
+  arena_pool_.reset(new ArenaPool);
   monitor_list_ = new MonitorList;
   monitor_pool_ = MonitorPool::Create();
   thread_list_ = new ThreadList;
