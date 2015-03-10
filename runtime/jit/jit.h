@@ -24,6 +24,7 @@
 #include "atomic.h"
 #include "base/macros.h"
 #include "base/mutex.h"
+#include "base/timing_logger.h"
 #include "gc_root.h"
 #include "jni.h"
 #include "object_callbacks.h"
@@ -61,6 +62,11 @@ class Jit {
     return code_cache_.get();
   }
   void DeleteThreadPool();
+  // Dump interesting info: #methods compiled, code vs data size, compile / verify cumulative
+  // loggers.
+  void DumpInfo(std::ostream& os);
+  // Add a timing logger to cumulative_timings_.
+  void AddTimingLogger(const TimingLogger& logger);
 
  private:
   Jit();
@@ -72,6 +78,10 @@ class Jit {
   void* (*jit_load_)(CompilerCallbacks**);
   void (*jit_unload_)(void*);
   bool (*jit_compile_method_)(void*, mirror::ArtMethod*, Thread*);
+
+  // Performance monitoring.
+  bool dump_info_on_shutdown_;
+  CumulativeLogger cumulative_timings_;
 
   std::unique_ptr<jit::JitInstrumentationCache> instrumentation_cache_;
   std::unique_ptr<jit::JitCodeCache> code_cache_;
@@ -87,12 +97,16 @@ class JitOptions {
   size_t GetCodeCacheCapacity() const {
     return code_cache_capacity_;
   }
+  bool DumpJitInfoOnShutdown() const {
+    return dump_info_on_shutdown_;
+  }
 
  private:
   size_t code_cache_capacity_;
   size_t compile_threshold_;
+  bool dump_info_on_shutdown_;
 
-  JitOptions() : code_cache_capacity_(0), compile_threshold_(0) {
+  JitOptions() : code_cache_capacity_(0), compile_threshold_(0), dump_info_on_shutdown_(false) {
   }
 };
 

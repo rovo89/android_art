@@ -77,6 +77,7 @@ uint8_t* JitCodeCache::ReserveCode(Thread* self, size_t size) {
   if (size > CodeCacheRemain()) {
     return nullptr;
   }
+  ++num_methods_;  // TODO: This is hacky but works since each method has exactly one code region.
   code_cache_ptr_ += size;
   return code_cache_ptr_ - size;
 }
