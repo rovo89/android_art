@@ -28,6 +28,7 @@ GTEST_DEX_DIRECTORIES := \
   GetMethodSignature \
   Interfaces \
   Main \
+  MultiDex \
   MyClass \
   MyClassNatives \
   Nested \
@@ -45,6 +46,19 @@ $(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval $(call build-art-test-dex,art-gte
   $(ART_TARGET_NATIVETEST_OUT),art/build/Android.gtest.mk,ART_TEST_TARGET_GTEST_$(dir)_DEX, \
   ART_TEST_HOST_GTEST_$(dir)_DEX)))
 
+# Create rules for MainStripped, a copy of Main with the classes.dex stripped
+# for the oat file assistant tests.
+ART_TEST_HOST_GTEST_MainStripped_DEX := $(basename $(ART_TEST_HOST_GTEST_Main_DEX))Stripped$(suffix $(ART_TEST_HOST_GTEST_Main_DEX))
+ART_TEST_TARGET_GTEST_MainStripped_DEX := $(basename $(ART_TEST_TARGET_GTEST_Main_DEX))Stripped$(suffix $(ART_TEST_TARGET_GTEST_Main_DEX))
+
+$(ART_TEST_HOST_GTEST_MainStripped_DEX): $(ART_TEST_HOST_GTEST_Main_DEX)
+	cp $< $@
+	$(call dexpreopt-remove-classes.dex,$@)
+
+$(ART_TEST_TARGET_GTEST_MainStripped_DEX): $(ART_TEST_TARGET_GTEST_Main_DEX)
+	cp $< $@
+	$(call dexpreopt-remove-classes.dex,$@)
+
 # Dex file dependencies for each gtest.
 ART_GTEST_class_linker_test_DEX_DEPS := Interfaces MyClass Nested Statics StaticsFromCode
 ART_GTEST_compiler_driver_test_DEX_DEPS := AbstractMethod
@@ -52,6 +66,7 @@ ART_GTEST_dex_file_test_DEX_DEPS := GetMethodSignature Main Nested
 ART_GTEST_exception_test_DEX_DEPS := ExceptionHandle
 ART_GTEST_jni_compiler_test_DEX_DEPS := MyClassNatives
 ART_GTEST_jni_internal_test_DEX_DEPS := AllFields StaticLeafMethods
+ART_GTEST_oat_file_assistant_test_DEX_DEPS := Main MainStripped MultiDex Nested
 ART_GTEST_object_test_DEX_DEPS := ProtoCompare ProtoCompare2 StaticsFromCode XandY
 ART_GTEST_proxy_test_DEX_DEPS := Interfaces
 ART_GTEST_reflection_test_DEX_DEPS := Main NonStaticLeafMethods StaticLeafMethods
@@ -61,6 +76,9 @@ ART_GTEST_transaction_test_DEX_DEPS := Transaction
 # The elf writer test has dependencies on core.oat.
 ART_GTEST_elf_writer_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
 ART_GTEST_elf_writer_test_TARGET_DEPS := $(TARGET_CORE_IMAGE_default_no-pic_64) $(TARGET_CORE_IMAGE_default_no-pic_32)
+
+ART_GTEST_oat_file_assistant_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
+ART_GTEST_oat_file_assistant_test_TARGET_DEPS := $(TARGET_CORE_IMAGE_default_no-pic_64) $(TARGET_CORE_IMAGE_default_no-pic_32)
 
 # TODO: document why this is needed.
 ART_GTEST_proxy_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
@@ -141,6 +159,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/mirror/object_test.cc \
   runtime/monitor_pool_test.cc \
   runtime/monitor_test.cc \
+  runtime/oat_file_assistant_test.cc \
   runtime/parsed_options_test.cc \
   runtime/reference_table_test.cc \
   runtime/thread_pool_test.cc \
@@ -462,12 +481,12 @@ valgrind-test-art-host-gtest-$$(art_gtest_name): $$(ART_TEST_HOST_VALGRIND_GTEST
 endef  # define-art-gtest
 
 ifeq ($(ART_BUILD_TARGET),true)
-  $(foreach file,$(RUNTIME_GTEST_TARGET_SRC_FILES), $(eval $(call define-art-gtest,target,$(file),,)))
-  $(foreach file,$(COMPILER_GTEST_TARGET_SRC_FILES), $(eval $(call define-art-gtest,target,$(file),art/compiler,libartd-compiler)))
+  $(foreach file,$(RUNTIME_GTEST_TARGET_SRC_FILES), $(eval $(call define-art-gtest,target,$(file),,libbacktrace)))
+  $(foreach file,$(COMPILER_GTEST_TARGET_SRC_FILES), $(eval $(call define-art-gtest,target,$(file),art/compiler,libartd-compiler libbacktrace)))
 endif
 ifeq ($(ART_BUILD_HOST),true)
-  $(foreach file,$(RUNTIME_GTEST_HOST_SRC_FILES), $(eval $(call define-art-gtest,host,$(file),,)))
-  $(foreach file,$(COMPILER_GTEST_HOST_SRC_FILES), $(eval $(call define-art-gtest,host,$(file),art/compiler,libartd-compiler)))
+  $(foreach file,$(RUNTIME_GTEST_HOST_SRC_FILES), $(eval $(call define-art-gtest,host,$(file),,libbacktrace)))
+  $(foreach file,$(COMPILER_GTEST_HOST_SRC_FILES), $(eval $(call define-art-gtest,host,$(file),art/compiler,libartd-compiler libbacktrace)))
 endif
 
 # Used outside the art project to get a list of the current tests
@@ -559,6 +578,9 @@ ART_GTEST_elf_writer_test_HOST_DEPS :=
 ART_GTEST_elf_writer_test_TARGET_DEPS :=
 ART_GTEST_jni_compiler_test_DEX_DEPS :=
 ART_GTEST_jni_internal_test_DEX_DEPS :=
+ART_GTEST_oat_file_assistant_test_DEX_DEPS :=
+ART_GTEST_oat_file_assistant_test_HOST_DEPS :=
+ART_GTEST_oat_file_assistant_test_TARGET_DEPS :=
 ART_GTEST_object_test_DEX_DEPS :=
 ART_GTEST_proxy_test_DEX_DEPS :=
 ART_GTEST_reflection_test_DEX_DEPS :=
@@ -567,5 +589,7 @@ ART_GTEST_transaction_test_DEX_DEPS :=
 ART_VALGRIND_DEPENDENCIES :=
 $(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval ART_TEST_TARGET_GTEST_$(dir)_DEX :=))
 $(foreach dir,$(GTEST_DEX_DIRECTORIES), $(eval ART_TEST_HOST_GTEST_$(dir)_DEX :=))
+ART_TEST_HOST_GTEST_MainStripped_DEX :=
+ART_TEST_TARGET_GTEST_MainStripped_DEX :=
 GTEST_DEX_DIRECTORIES :=
 LOCAL_PATH :=

@@ -1508,23 +1508,6 @@ std::string GetSystemImageFilename(const char* location, const InstructionSet is
   return filename;
 }
 
-std::string DexFilenameToOdexFilename(const std::string& location, const InstructionSet isa) {
-  // location = /foo/bar/baz.jar
-  // odex_location = /foo/bar/<isa>/baz.odex
-  std::string odex_location(location);
-  InsertIsaDirectory(isa, &odex_location);
-  size_t dot_index = odex_location.rfind('.');
-
-  // The location must have an extension, otherwise it's not clear what we
-  // should return.
-  CHECK_NE(dot_index, std::string::npos) << odex_location;
-  CHECK_EQ(std::string::npos, odex_location.find('/', dot_index)) << odex_location;
-
-  odex_location.resize(dot_index + 1);
-  odex_location += "odex";
-  return odex_location;
-}
-
 bool IsZipMagic(uint32_t magic) {
   return (('P' == ((magic >> 0) & 0xff)) &&
           ('K' == ((magic >> 8) & 0xff)));
