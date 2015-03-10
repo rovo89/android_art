@@ -103,7 +103,7 @@ JitCompiler::~JitCompiler() {
 }
 
 bool JitCompiler::CompileMethod(Thread* self, mirror::ArtMethod* method) {
-  uint64_t start_time = NanoTime();
+  const uint64_t start_time = NanoTime();
   StackHandleScope<2> hs(self);
   self->AssertNoPendingException();
   Runtime* runtime = Runtime::Current();
@@ -130,6 +130,8 @@ bool JitCompiler::CompileMethod(Thread* self, mirror::ArtMethod* method) {
     }
   }
   CompiledMethod* compiled_method(compiler_driver_->CompileMethod(self, h_method.Get()));
+  // Trim maps to reduce memory usage, TODO: measure how much this increases compile time.
+  runtime->GetArenaPool()->TrimMaps();
   if (compiled_method == nullptr) {
     return false;
   }
@@ -137,7 +139,7 @@ bool JitCompiler::CompileMethod(Thread* self, mirror::ArtMethod* method) {
   // Don't add the method if we are supposed to be deoptimized.
   bool result = false;
   if (!runtime->GetInstrumentation()->AreAllMethodsDeoptimized()) {
-    const void* code = Runtime::Current()->GetClassLinker()->GetOatMethodQuickCodeFor(
+    const void* code = runtime->GetClassLinker()->GetOatMethodQuickCodeFor(
         h_method.Get());
     if (code != nullptr) {
       // Already have some compiled code, just use this instead of linking.
