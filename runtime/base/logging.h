@@ -45,6 +45,7 @@ struct LogVerbosity {
   bool jit;
   bool jni;
   bool monitor;
+  bool oat;
   bool profiler;
   bool signals;
   bool startup;

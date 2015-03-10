@@ -516,12 +516,6 @@ std::string GetDalvikCacheFilenameOrDie(const char* file_location,
 // Returns the system location for an image
 std::string GetSystemImageFilename(const char* location, InstructionSet isa);
 
-// Returns an .odex file name adjacent to the dex location.
-// For example, for "/foo/bar/baz.jar", return "/foo/bar/<isa>/baz.odex".
-// The dex location must include a directory component and have an extension.
-// Note: does not support multidex location strings.
-std::string DexFilenameToOdexFilename(const std::string& location, InstructionSet isa);
-
 // Check whether the given magic matches a known file type.
 bool IsZipMagic(uint32_t magic);
 bool IsDexMagic(uint32_t magic);
