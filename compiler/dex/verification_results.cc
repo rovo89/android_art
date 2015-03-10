@@ -49,11 +49,6 @@ bool VerificationResults::ProcessVerifiedMethod(verifier::MethodVerifier* method
   DCHECK(method_verifier != NULL);
   MethodReference ref = method_verifier->GetMethodReference();
   bool compile = IsCandidateForCompilation(ref, method_verifier->GetAccessFlags());
-  // TODO: Check also for virtual/interface invokes when DEX-to-DEX supports devirtualization.
-  if (!compile && !method_verifier->HasCheckCasts()) {
-    return true;
-  }
-
   const VerifiedMethod* verified_method = VerifiedMethod::Create(method_verifier, compile);
   if (verified_method == nullptr) {
     // Do not report an error to the verifier. We'll just punt this later.
