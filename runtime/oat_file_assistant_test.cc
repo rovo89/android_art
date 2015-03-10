@@ -67,7 +67,7 @@ class OatFileAssistantTest : public CommonRuntimeTest {
   }
 
   virtual void SetUpRuntimeOptions(RuntimeOptions* options) {
-    // options->push_back(std::make_pair("-verbose:oat", nullptr));
+    options->push_back(std::make_pair("-verbose:oat", nullptr));
 
     // Set up the image location.
     options->push_back(std::make_pair("-Ximage:" + GetImageLocation(),
