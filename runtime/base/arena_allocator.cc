@@ -26,8 +26,9 @@
 
 namespace art {
 
-// Memmap is a bit slower than malloc according to my measurements.
-static constexpr bool kUseMemMap = false;
+// Memmap is a bit slower than malloc to allocate, but this is mitigated by the arena pool which
+// only allocates few arenas and recycles them afterwards.
+static constexpr bool kUseMemMap = true;
 static constexpr bool kUseMemSet = true && kUseMemMap;
 static constexpr size_t kValgrindRedZoneBytes = 8;
 constexpr size_t Arena::kDefaultSize;
@@ -129,8 +130,8 @@ Arena::Arena(size_t size)
       next_(nullptr) {
   if (kUseMemMap) {
     std::string error_msg;
-    map_ = MemMap::MapAnonymous("dalvik-arena", nullptr, size, PROT_READ | PROT_WRITE, false, false,
-                                &error_msg);
+    map_ = MemMap::MapAnonymous("dalvik-LinearAlloc", nullptr, size, PROT_READ | PROT_WRITE, false,
+                                false, &error_msg);
     CHECK(map_ != nullptr) << error_msg;
     memory_ = map_->Begin();
     size_ = map_->Size();
@@ -148,8 +149,15 @@ Arena::~Arena() {
   }
 }
 
+void Arena::Release() {
+  if (kUseMemMap && bytes_allocated_ > 0) {
+    map_->MadviseDontNeedAndZero();
+    bytes_allocated_ = 0;
+  }
+}
+
 void Arena::Reset() {
-  if (bytes_allocated_) {
+  if (bytes_allocated_ > 0) {
     if (kUseMemSet || !kUseMemMap) {
       memset(Begin(), 0, bytes_allocated_);
     } else {
@@ -162,6 +170,9 @@ void Arena::Reset() {
 ArenaPool::ArenaPool()
     : lock_("Arena pool lock"),
       free_arenas_(nullptr) {
+  if (kUseMemMap) {
+    MemMap::Init();
+  }
 }
 
 ArenaPool::~ArenaPool() {
@@ -187,6 +198,13 @@ Arena* ArenaPool::AllocArena(size_t size) {
   }
   ret->Reset();
   return ret;
+}
+
+void ArenaPool::TrimMaps() {
+  MutexLock lock(Thread::Current(), lock_);
+  for (auto* arena = free_arenas_; arena != nullptr; arena = arena->next_) {
+    arena->Release();
+  }
 }
 
 size_t ArenaPool::GetBytesAllocated() const {
