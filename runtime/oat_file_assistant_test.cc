@@ -175,6 +175,10 @@ class OatFileAssistantTest : public CommonRuntimeTest {
       args.push_back("--compile-pic");
     } else {
       args.push_back("--include-patch-information");
+
+      // We need to use the quick compiler to generate non-PIC code, because
+      // the optimizing compiler always generates PIC.
+      args.push_back("--compiler-backend=Quick");
     }
     args.push_back("--runtime-arg");
     args.push_back("-Xnorelocate");
