@@ -707,6 +707,16 @@ class Thread {
     return tlsPtr_.single_step_control;
   }
 
+  // Indicates whether this thread is ready to invoke a method for debugging. This
+  // is only true if the thread has been suspended by a debug event.
+  bool IsReadyForDebugInvoke() const {
+    return tls32_.ready_for_debug_invoke;
+  }
+
+  void SetReadyForDebugInvoke(bool ready) {
+    tls32_.ready_for_debug_invoke = ready;
+  }
+
   // Activates single step control for debugging. The thread takes the
   // ownership of the given SingleStepControl*. It is deleted by a call
   // to DeactivateSingleStepControl or upon thread destruction.
@@ -715,6 +725,17 @@ class Thread {
   // Deactivates single step control for debugging.
   void DeactivateSingleStepControl();
 
+  // Sets debug invoke request for debugging. When the thread is resumed,
+  // it executes the method described by this request then suspends itself.
+  // The thread does not take ownership of the given DebugInvokeReq*, it is
+  // owned by the JDWP thread which is waiting for the execution of the
+  // method.
+  void SetDebugInvokeReq(DebugInvokeReq* req);
+
+  // Clears debug invoke request for debugging. When the thread completes
+  // method invocation, it clears its debug invoke request, signals the
+  // JDWP thread and suspends itself.
+  void ClearDebugInvokeReq();
 
   // Returns the fake exception used to activate deoptimization.
   static mirror::Throwable* GetDeoptimizationException() {
@@ -966,7 +987,8 @@ class Thread {
     explicit tls_32bit_sized_values(bool is_daemon) :
       suspend_count(0), debug_suspend_count(0), thin_lock_thread_id(0), tid(0),
       daemon(is_daemon), throwing_OutOfMemoryError(false), no_thread_suspension(0),
-      thread_exit_check_count(0), handling_signal_(false), suspended_at_suspend_check(false) {
+      thread_exit_check_count(0), handling_signal_(false), suspended_at_suspend_check(false),
+      ready_for_debug_invoke(false) {
     }
 
     union StateAndFlags state_and_flags;
@@ -1010,6 +1032,11 @@ class Thread {
     // used to distinguish runnable threads that are suspended due to
     // a normal suspend check from other threads.
     bool32_t suspended_at_suspend_check;
+
+    // True if the thread has been suspended by a debugger event. This is
+    // used to invoke method from the debugger which is only allowed when
+    // the thread is suspended by an event.
+    bool32_t ready_for_debug_invoke;
   } tls32_;
 
   struct PACKED(8) tls_64bit_sized_values {

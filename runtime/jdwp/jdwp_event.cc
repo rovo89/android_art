@@ -596,17 +596,15 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy, JDWP::ObjectId
     return;
   }
 
-  DebugInvokeReq* pReq = Dbg::GetInvokeReq();
   while (true) {
-    pReq->ready = true;
     Dbg::SuspendSelf();
-    pReq->ready = false;
 
     /*
      * The JDWP thread has told us (and possibly all other threads) to
      * resume.  See if it has left anything in our DebugInvokeReq mailbox.
      */
-    if (!pReq->invoke_needed) {
+    DebugInvokeReq* const pReq = Dbg::GetInvokeReq();
+    if (pReq == nullptr) {
       /*LOGD("SuspendByPolicy: no invoke needed");*/
       break;
     }
@@ -614,10 +612,7 @@ void JdwpState::SuspendByPolicy(JdwpSuspendPolicy suspend_policy, JDWP::ObjectId
     /* grab this before posting/suspending again */
     AcquireJdwpTokenForEvent(thread_self_id);
 
-    /* leave pReq->invoke_needed_ raised so we can check reentrancy */
     Dbg::ExecuteMethod(pReq);
-
-    pReq->error = ERR_NONE;
   }
 }
 
@@ -650,7 +645,7 @@ void JdwpState::SendRequestAndPossiblySuspend(ExpandBuf* pReq, JdwpSuspendPolicy
  */
 bool JdwpState::InvokeInProgress() {
   DebugInvokeReq* pReq = Dbg::GetInvokeReq();
-  return pReq->invoke_needed;
+  return pReq != nullptr;
 }
 
 void JdwpState::AcquireJdwpTokenForCommand() {
