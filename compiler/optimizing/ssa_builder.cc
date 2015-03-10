@@ -22,6 +22,158 @@
 
 namespace art {
 
+/**
+ * A debuggable application may require to reviving phis, to ensure their
+ * associated DEX register is available to a debugger. This class implements
+ * the logic for statement (c) of the SsaBuilder (see ssa_builder.h). It
+ * also makes sure that phis with incompatible input types are not revived
+ * (statement (b) of the SsaBuilder).
+ *
+ * This phase must be run after detecting dead phis through the
+ * DeadPhiElimination phase, and before deleting the dead phis.
+ */
+class DeadPhiHandling : public ValueObject {
+ public:
+  explicit DeadPhiHandling(HGraph* graph)
+      : graph_(graph), worklist_(graph->GetArena(), kDefaultWorklistSize) {}
+
+  void Run();
+
+ private:
+  void VisitBasicBlock(HBasicBlock* block);
+  void ProcessWorklist();
+  void AddToWorklist(HPhi* phi);
+  void AddDependentInstructionsToWorklist(HPhi* phi);
+  bool UpdateType(HPhi* phi);
+
+  HGraph* const graph_;
+  GrowableArray<HPhi*> worklist_;
+
+  static constexpr size_t kDefaultWorklistSize = 8;
+
+  DISALLOW_COPY_AND_ASSIGN(DeadPhiHandling);
+};
+
+bool DeadPhiHandling::UpdateType(HPhi* phi) {
+  Primitive::Type existing = phi->GetType();
+  DCHECK(phi->IsLive());
+
+  bool conflict = false;
+  Primitive::Type new_type = existing;
+  for (size_t i = 0, e = phi->InputCount(); i < e; ++i) {
+    HInstruction* input = phi->InputAt(i);
+    if (input->IsPhi() && input->AsPhi()->IsDead()) {
+      // We are doing a reverse post order visit of the graph, reviving
+      // phis that have environment uses and updating their types. If an
+      // input is a phi, and it is dead (because its input types are
+      // conflicting), this phi must be marked dead as well.
+      conflict = true;
+      break;
+    }
+    Primitive::Type input_type = HPhi::ToPhiType(input->GetType());
+
+    // The only acceptable transitions are:
+    // - From void to typed: first time we update the type of this phi.
+    // - From int to reference (or reference to int): the phi has to change
+    //   to reference type. If the integer input cannot be converted to a
+    //   reference input, the phi will remain dead.
+    if (new_type == Primitive::kPrimVoid) {
+      new_type = input_type;
+    } else if (new_type == Primitive::kPrimNot && input_type == Primitive::kPrimInt) {
+      HInstruction* equivalent = SsaBuilder::GetReferenceTypeEquivalent(input);
+      if (equivalent == nullptr) {
+        conflict = true;
+        break;
+      } else {
+        phi->ReplaceInput(equivalent, i);
+        if (equivalent->IsPhi()) {
+          DCHECK_EQ(equivalent->GetType(), Primitive::kPrimNot);
+          // We created a new phi, but that phi has the same inputs as the old phi. We
+          // add it to the worklist to ensure its inputs can also be converted to reference.
+          // If not, it will remain dead, and the algorithm will make the current phi dead
+          // as well.
+          equivalent->AsPhi()->SetLive();
+          AddToWorklist(equivalent->AsPhi());
+        }
+      }
+    } else if (new_type == Primitive::kPrimInt && input_type == Primitive::kPrimNot) {
+      new_type = Primitive::kPrimNot;
+      // Start over, we may request reference equivalents for the inputs of the phi.
+      i = -1;
+    } else if (new_type != input_type) {
+      conflict = true;
+      break;
+    }
+  }
+
+  if (conflict) {
+    phi->SetType(Primitive::kPrimVoid);
+    phi->SetDead();
+    return true;
+  } else {
+    DCHECK(phi->IsLive());
+    phi->SetType(new_type);
+    return existing != new_type;
+  }
+}
+
+void DeadPhiHandling::VisitBasicBlock(HBasicBlock* block) {
+  for (HInstructionIterator it(block->GetPhis()); !it.Done(); it.Advance()) {
+    HPhi* phi = it.Current()->AsPhi();
+    if (phi->IsDead() && phi->HasEnvironmentUses()) {
+      phi->SetLive();
+      if (block->IsLoopHeader()) {
+        // Give a type to the loop phi, to guarantee convergence of the algorithm.
+        phi->SetType(phi->InputAt(0)->GetType());
+        AddToWorklist(phi);
+      } else {
+        // Because we are doing a reverse post order visit, all inputs of
+        // this phi have been visited and therefore had their (initial) type set.
+        UpdateType(phi);
+      }
+    }
+  }
+}
+
+void DeadPhiHandling::ProcessWorklist() {
+  while (!worklist_.IsEmpty()) {
+    HPhi* instruction = worklist_.Pop();
+    // Note that the same equivalent phi can be added multiple times in the work list, if
+    // used by multiple phis. The first call to `UpdateType` will know whether the phi is
+    // dead or live.
+    if (instruction->IsLive() && UpdateType(instruction)) {
+      AddDependentInstructionsToWorklist(instruction);
+    }
+  }
+}
+
+void DeadPhiHandling::AddToWorklist(HPhi* instruction) {
+  DCHECK(instruction->IsLive());
+  worklist_.Add(instruction);
+}
+
+void DeadPhiHandling::AddDependentInstructionsToWorklist(HPhi* instruction) {
+  for (HUseIterator<HInstruction*> it(instruction->GetUses()); !it.Done(); it.Advance()) {
+    HPhi* phi = it.Current()->GetUser()->AsPhi();
+    if (phi != nullptr && !phi->IsDead()) {
+      AddToWorklist(phi);
+    }
+  }
+}
+
+void DeadPhiHandling::Run() {
+  for (HReversePostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
+    VisitBasicBlock(it.Current());
+  }
+  ProcessWorklist();
+}
+
+static bool IsPhiEquivalentOf(HInstruction* instruction, HPhi* phi) {
+  return instruction != nullptr
+      && instruction->IsPhi()
+      && instruction->AsPhi()->GetRegNumber() == phi->GetRegNumber();
+}
+
 void SsaBuilder::BuildSsa() {
   // 1) Visit in reverse post order. We need to have all predecessors of a block visited
   // (with the exception of loops) in order to create the right environment for that
@@ -47,11 +199,9 @@ void SsaBuilder::BuildSsa() {
   // our code generator will complain if the inputs of a phi do not have the same
   // type. The marking allows the type propagation to know which phis it needs
   // to handle. We mark but do not eliminate: the elimination will be done in
-  // step 5).
-  {
-    SsaDeadPhiElimination dead_phis(GetGraph());
-    dead_phis.MarkDeadPhis();
-  }
+  // step 8).
+  SsaDeadPhiElimination dead_phis(GetGraph());
+  dead_phis.MarkDeadPhis();
 
   // 4) Propagate types of phis. At this point, phis are typed void in the general
   // case, or float/double/reference when we created an equivalent phi. So we
@@ -59,17 +209,58 @@ void SsaBuilder::BuildSsa() {
   PrimitiveTypePropagation type_propagation(GetGraph());
   type_propagation.Run();
 
-  // 5) Step 4) changes inputs of phis which may lead to dead phis again. We re-run
-  // the algorithm and this time elimimates them.
-  // TODO: Make this work with debug info and reference liveness. We currently
-  // eagerly remove phis used in environments.
-  {
-    SsaDeadPhiElimination dead_phis(GetGraph());
-    dead_phis.Run();
+  // 5) Now that the graph is correclty typed, we can get rid of redundant phis.
+  // Note that we cannot do this phase before type propagation, otherwise
+  // we could get rid of phi equivalents, whose presence is a requirement for the
+  // type propagation phase. Note that this is to satisfy statement (a) of the
+  // SsaBuilder (see ssa_builder.h).
+  SsaRedundantPhiElimination redundant_phi(GetGraph());
+  redundant_phi.Run();
+
+  // 6) Make sure environments use the right phi "equivalent": a phi marked dead
+  // can have a phi equivalent that is not dead. We must therefore update
+  // all environment uses of the dead phi to use its equivalent. Note that there
+  // can be multiple phis for the same Dex register that are live (for example
+  // when merging constants), in which case it is OK for the environments
+  // to just reference one.
+  for (HReversePostOrderIterator it(*GetGraph()); !it.Done(); it.Advance()) {
+    HBasicBlock* block = it.Current();
+    for (HInstructionIterator it_phis(block->GetPhis()); !it_phis.Done(); it_phis.Advance()) {
+      HPhi* phi = it_phis.Current()->AsPhi();
+      // If the phi is not dead, or has no environment uses, there is nothing to do.
+      if (!phi->IsDead() || !phi->HasEnvironmentUses()) continue;
+      HInstruction* next = phi->GetNext();
+      if (!IsPhiEquivalentOf(next, phi)) continue;
+      if (next->AsPhi()->IsDead()) {
+        // If the phi equivalent is dead, check if there is another one.
+        next = next->GetNext();
+        if (!IsPhiEquivalentOf(next, phi)) continue;
+        // There can be at most two phi equivalents.
+        DCHECK(!IsPhiEquivalentOf(next->GetNext(), phi));
+        if (next->AsPhi()->IsDead()) continue;
+      }
+      // We found a live phi equivalent. Update the environment uses of `phi` with it.
+      phi->ReplaceWith(next);
+    }
   }
 
-  // 6) Clear locals.
-  // TODO: Move this to a dead code eliminator phase.
+  // 7) Deal with phis to guarantee liveness of phis in case of a debuggable
+  // application. This is for satisfying statement (c) of the SsaBuilder
+  // (see ssa_builder.h).
+  if (GetGraph()->IsDebuggable()) {
+    DeadPhiHandling dead_phi_handler(GetGraph());
+    dead_phi_handler.Run();
+  }
+
+  // 8) Now that the right phis are used for the environments, and we
+  // have potentially revive dead phis in case of a debuggable application,
+  // we can eliminate phis we do not need. Regardless of the debuggable status,
+  // this phase is necessary for statement (b) of the SsaBuilder (see ssa_builder.h),
+  // as well as for the code generation, which does not deal with phis of conflicting
+  // input types.
+  dead_phis.EliminateDeadPhis();
+
+  // 9) Clear locals.
   for (HInstructionIterator it(GetGraph()->GetEntryBlock()->GetInstructions());
        !it.Done();
        it.Advance()) {
@@ -257,12 +448,12 @@ HInstruction* SsaBuilder::GetFloatOrDoubleEquivalent(HInstruction* user,
 }
 
 HInstruction* SsaBuilder::GetReferenceTypeEquivalent(HInstruction* value) {
-  if (value->IsIntConstant()) {
-    DCHECK_EQ(value->AsIntConstant()->GetValue(), 0);
+  if (value->IsIntConstant() && value->AsIntConstant()->GetValue() == 0) {
     return value->GetBlock()->GetGraph()->GetNullConstant();
-  } else {
-    DCHECK(value->IsPhi());
+  } else if (value->IsPhi()) {
     return GetFloatDoubleOrReferenceEquivalentOfPhi(value->AsPhi(), Primitive::kPrimNot);
+  } else {
+    return nullptr;
   }
 }
 
