@@ -42,8 +42,7 @@ static jobject Constructor_newInstance(JNIEnv* env, jobject javaMethod, jobjectA
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::Class> c(hs.NewHandle(m->GetDeclaringClass()));
   if (UNLIKELY(c->IsAbstract())) {
-    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
-    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/InstantiationException;",
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/InstantiationException;",
                                    "Can't instantiate %s %s",
                                    c->IsInterface() ? "interface" : "abstract class",
                                    PrettyDescriptor(c.Get()).c_str());

@@ -42,9 +42,7 @@ extern "C" void artDeliverExceptionFromCode(mirror::Throwable* exception, Thread
    */
   ScopedQuickEntrypointChecks sqec(self);
   if (exception == nullptr) {
-    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-    self->ThrowNewException(throw_location, "Ljava/lang/NullPointerException;",
-                            "throw with null exception");
+    self->ThrowNewException("Ljava/lang/NullPointerException;", "throw with null exception");
   } else {
     self->SetException(exception);
   }
@@ -56,8 +54,7 @@ extern "C" void artThrowNullPointerExceptionFromCode(Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   ScopedQuickEntrypointChecks sqec(self);
   self->NoteSignalBeingHandled();
-  ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-  ThrowNullPointerExceptionFromDexPC(throw_location);
+  ThrowNullPointerExceptionFromDexPC();
   self->NoteSignalHandlerDone();
   self->QuickDeliverException();
 }

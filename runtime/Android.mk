@@ -151,7 +151,6 @@ LIBART_COMMON_SRC_FILES := \
   thread.cc \
   thread_list.cc \
   thread_pool.cc \
-  throw_location.cc \
   trace.cc \
   transaction.cc \
   profiler.cc \

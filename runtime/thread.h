@@ -41,7 +41,6 @@
 #include "runtime_stats.h"
 #include "stack.h"
 #include "thread_state.h"
-#include "throw_location.h"
 
 namespace art {
 
@@ -364,8 +363,6 @@ class Thread {
   bool IsExceptionThrownByCurrentMethod(mirror::Throwable* exception) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  ThrowLocation GetCurrentLocationForThrow() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   void SetTopOfStack(StackReference<mirror::ArtMethod>* top_method) {
     tlsPtr_.managed_stack.SetTopQuickFrame(top_method);
   }
@@ -380,24 +377,19 @@ class Thread {
   }
 
   // If 'msg' is NULL, no detail message is set.
-  void ThrowNewException(const ThrowLocation& throw_location,
-                         const char* exception_class_descriptor, const char* msg)
+  void ThrowNewException(const char* exception_class_descriptor, const char* msg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // If 'msg' is NULL, no detail message is set. An exception must be pending, and will be
   // used as the new exception's cause.
-  void ThrowNewWrappedException(const ThrowLocation& throw_location,
-                                const char* exception_class_descriptor,
-                                const char* msg)
+  void ThrowNewWrappedException(const char* exception_class_descriptor, const char* msg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ThrowNewExceptionF(const ThrowLocation& throw_location,
-                          const char* exception_class_descriptor, const char* fmt, ...)
-      __attribute__((format(printf, 4, 5)))
+  void ThrowNewExceptionF(const char* exception_class_descriptor, const char* fmt, ...)
+      __attribute__((format(printf, 3, 4)))
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ThrowNewExceptionV(const ThrowLocation& throw_location,
-                          const char* exception_class_descriptor, const char* fmt, va_list ap)
+  void ThrowNewExceptionV(const char* exception_class_descriptor, const char* fmt, va_list ap)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // OutOfMemoryError is special, because we need to pre-allocate an instance.
