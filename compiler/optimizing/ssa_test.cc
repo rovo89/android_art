@@ -332,8 +332,8 @@ TEST(SsaTest, Loop5) {
   const char* expected =
     "BasicBlock 0, succ: 1\n"
     "  0: IntConstant 0 [4, 4]\n"
-    "  1: IntConstant 4 [14]\n"
-    "  2: IntConstant 5 [14]\n"
+    "  1: IntConstant 4 [13]\n"
+    "  2: IntConstant 5 [13]\n"
     "  3: Goto\n"
     "BasicBlock 1, pred: 0, succ: 3, 2\n"
     "  4: Equal(0, 0) [5]\n"
@@ -343,18 +343,17 @@ TEST(SsaTest, Loop5) {
     "BasicBlock 3, pred: 1, succ: 8\n"
     "  7: Goto\n"
     "BasicBlock 4, pred: 8, 5, succ: 6, 5\n"
-    "  8: Phi(14, 8) [8, 12, 9, 9]\n"
-    "  9: Equal(8, 8) [10]\n"
-    "  10: If(9)\n"
+    "  8: Equal(13, 13) [9]\n"
+    "  9: If(8)\n"
     "BasicBlock 5, pred: 4, succ: 4\n"
-    "  11: Goto\n"
+    "  10: Goto\n"
     "BasicBlock 6, pred: 4, succ: 7\n"
-    "  12: Return(8)\n"
+    "  11: Return(13)\n"
     "BasicBlock 7, pred: 6\n"
-    "  13: Exit\n"
+    "  12: Exit\n"
     "BasicBlock 8, pred: 2, 3, succ: 4\n"
-    "  14: Phi(1, 2) [8]\n"
-    "  15: Goto\n";
+    "  13: Phi(1, 2) [8, 8, 11]\n"
+    "  14: Goto\n";
 
   const uint16_t data[] = ONE_REGISTER_CODE_ITEM(
     Instruction::CONST_4 | 0 | 0,
