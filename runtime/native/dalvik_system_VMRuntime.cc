@@ -72,7 +72,7 @@ static jobject VMRuntime_newNonMovableArray(JNIEnv* env, jobject, jclass javaEle
   }
   mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
   if (UNLIKELY(element_class == nullptr)) {
-    ThrowNullPointerException(NULL, "element class == null");
+    ThrowNullPointerException("element class == null");
     return nullptr;
   }
   Runtime* runtime = Runtime::Current();
@@ -97,7 +97,7 @@ static jobject VMRuntime_newUnpaddedArray(JNIEnv* env, jobject, jclass javaEleme
   }
   mirror::Class* element_class = soa.Decode<mirror::Class*>(javaElementClass);
   if (UNLIKELY(element_class == nullptr)) {
-    ThrowNullPointerException(NULL, "element class == null");
+    ThrowNullPointerException("element class == null");
     return nullptr;
   }
   Runtime* runtime = Runtime::Current();
@@ -120,7 +120,7 @@ static jlong VMRuntime_addressOf(JNIEnv* env, jobject, jobject javaArray) {
   ScopedFastNativeObjectAccess soa(env);
   mirror::Array* array = soa.Decode<mirror::Array*>(javaArray);
   if (!array->IsArrayInstance()) {
-    ThrowIllegalArgumentException(NULL, "not an array");
+    ThrowIllegalArgumentException("not an array");
     return 0;
   }
   if (Runtime::Current()->GetHeap()->IsMovableObject(array)) {

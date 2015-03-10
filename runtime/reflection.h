@@ -31,18 +31,16 @@ namespace mirror {
 union JValue;
 class ScopedObjectAccessAlreadyRunnable;
 class ShadowFrame;
-class ThrowLocation;
 
 mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 bool UnboxPrimitiveForField(mirror::Object* o, mirror::Class* dst_class, mirror::ArtField* f,
                             JValue* unboxed_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-bool UnboxPrimitiveForResult(const ThrowLocation& throw_location, mirror::Object* o,
-                             mirror::Class* dst_class, JValue* unboxed_value)
+bool UnboxPrimitiveForResult(mirror::Object* o, mirror::Class* dst_class, JValue* unboxed_value)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-ALWAYS_INLINE bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbox_for_result,
+ALWAYS_INLINE bool ConvertPrimitiveValue(bool unbox_for_result,
                                          Primitive::Type src_class, Primitive::Type dst_class,
                                          const JValue& src, JValue* dst)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

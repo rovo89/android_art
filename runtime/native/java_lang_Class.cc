@@ -55,8 +55,7 @@ static jclass Class_classForName(JNIEnv* env, jclass, jstring javaName, jboolean
   // is especially handy for array types, since we want to avoid
   // auto-generating bogus array classes.
   if (!IsValidBinaryClassName(name.c_str())) {
-    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
-    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/ClassNotFoundException;",
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/ClassNotFoundException;",
                                    "Invalid name: %s", name.c_str());
     return nullptr;
   }

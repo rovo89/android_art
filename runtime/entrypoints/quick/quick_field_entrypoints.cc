@@ -155,8 +155,7 @@ extern "C" int8_t artGetByteInstanceFromCode(uint32_t field_idx, mirror::Object*
                                                          sizeof(int8_t));
   if (LIKELY(field != nullptr)) {
     if (UNLIKELY(obj == nullptr)) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      ThrowNullPointerExceptionForFieldAccess(throw_location, field, true);
+      ThrowNullPointerExceptionForFieldAccess(field, true);
     } else {
       return field->GetByte(obj);
     }
@@ -177,8 +176,7 @@ extern "C" uint8_t artGetBooleanInstanceFromCode(uint32_t field_idx, mirror::Obj
                                                          sizeof(int8_t));
   if (LIKELY(field != nullptr)) {
     if (UNLIKELY(obj == nullptr)) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      ThrowNullPointerExceptionForFieldAccess(throw_location, field, true);
+      ThrowNullPointerExceptionForFieldAccess(field, true);
     } else {
       return field->GetBoolean(obj);
     }
@@ -198,8 +196,7 @@ extern "C" int16_t artGetShortInstanceFromCode(uint32_t field_idx, mirror::Objec
                                                          sizeof(int16_t));
   if (LIKELY(field != nullptr)) {
     if (UNLIKELY(obj == nullptr)) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      ThrowNullPointerExceptionForFieldAccess(throw_location, field, true);
+      ThrowNullPointerExceptionForFieldAccess(field, true);
     } else {
       return field->GetShort(obj);
     }
@@ -220,8 +217,7 @@ extern "C" uint16_t artGetCharInstanceFromCode(uint32_t field_idx, mirror::Objec
                                                          sizeof(int16_t));
   if (LIKELY(field != nullptr)) {
     if (UNLIKELY(obj == nullptr)) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      ThrowNullPointerExceptionForFieldAccess(throw_location, field, true);
+      ThrowNullPointerExceptionForFieldAccess(field, true);
     } else {
       return field->GetChar(obj);
     }
@@ -242,8 +238,7 @@ extern "C" uint32_t artGet32InstanceFromCode(uint32_t field_idx, mirror::Object*
                                                          sizeof(int32_t));
   if (LIKELY(field != nullptr)) {
     if (UNLIKELY(obj == nullptr)) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      ThrowNullPointerExceptionForFieldAccess(throw_location, field, true);
+      ThrowNullPointerExceptionForFieldAccess(field, true);
     } else {
       return field->Get32(obj);
     }
@@ -264,8 +259,7 @@ extern "C" uint64_t artGet64InstanceFromCode(uint32_t field_idx, mirror::Object*
                                                          sizeof(int64_t));
   if (LIKELY(field != nullptr)) {
     if (UNLIKELY(obj == nullptr)) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      ThrowNullPointerExceptionForFieldAccess(throw_location, field, true);
+      ThrowNullPointerExceptionForFieldAccess(field, true);
     } else {
       return field->Get64(obj);
     }
@@ -287,8 +281,7 @@ extern "C" mirror::Object* artGetObjInstanceFromCode(uint32_t field_idx, mirror:
                                                       sizeof(mirror::HeapReference<mirror::Object>));
   if (LIKELY(field != nullptr)) {
     if (UNLIKELY(obj == nullptr)) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      ThrowNullPointerExceptionForFieldAccess(throw_location, field, true);
+      ThrowNullPointerExceptionForFieldAccess(field, true);
     } else {
       return field->GetObj(obj);
     }
@@ -448,8 +441,7 @@ extern "C" int artSet8InstanceFromCode(uint32_t field_idx, mirror::Object* obj, 
   }
   if (LIKELY(field != nullptr)) {
     if (UNLIKELY(obj == nullptr)) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      ThrowNullPointerExceptionForFieldAccess(throw_location, field, false);
+      ThrowNullPointerExceptionForFieldAccess(field, false);
     } else {
       Primitive::Type type = field->GetTypeAsPrimitiveType();
       // Compiled code can't use transactional mode.
@@ -489,8 +481,7 @@ extern "C" int artSet16InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
   }
   if (LIKELY(field != nullptr)) {
     if (UNLIKELY(obj == nullptr)) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      ThrowNullPointerExceptionForFieldAccess(throw_location, field, false);
+      ThrowNullPointerExceptionForFieldAccess(field, false);
     } else {
       Primitive::Type type = field->GetTypeAsPrimitiveType();
       // Compiled code can't use transactional mode.
@@ -525,8 +516,7 @@ extern "C" int artSet32InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
   }
   if (LIKELY(field != nullptr)) {
     if (UNLIKELY(obj == nullptr)) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      ThrowNullPointerExceptionForFieldAccess(throw_location, field, false);
+      ThrowNullPointerExceptionForFieldAccess(field, false);
     } else {
       // Compiled code can't use transactional mode.
       field->Set32<false>(obj, new_value);
@@ -551,8 +541,7 @@ extern "C" int artSet64InstanceFromCode(uint32_t field_idx, mirror::Object* obj,
                                                           sizeof(int64_t));
   if (LIKELY(field != nullptr)) {
     if (UNLIKELY(obj == nullptr)) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      ThrowNullPointerExceptionForFieldAccess(throw_location, field, false);
+      ThrowNullPointerExceptionForFieldAccess(field, false);
     } else {
       // Compiled code can't use transactional mode.
       field->Set64<false>(obj, new_value);
@@ -578,8 +567,7 @@ extern "C" int artSetObjInstanceFromCode(uint32_t field_idx, mirror::Object* obj
                                                        sizeof(mirror::HeapReference<mirror::Object>));
   if (LIKELY(field != nullptr)) {
     if (UNLIKELY(obj == nullptr)) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      ThrowNullPointerExceptionForFieldAccess(throw_location, field, false);
+      ThrowNullPointerExceptionForFieldAccess(field, false);
     } else {
       // Compiled code can't use transactional mode.
       field->SetObj<false>(obj, new_value);

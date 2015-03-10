@@ -23,8 +23,8 @@
 namespace art {
 namespace interpreter {
 
-void ThrowNullPointerExceptionFromInterpreter(const ShadowFrame& shadow_frame) {
-  ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
+void ThrowNullPointerExceptionFromInterpreter() {
+  ThrowNullPointerExceptionFromDexPC();
 }
 
 template<FindFieldType find_type, Primitive::Type field_type, bool do_access_check>
@@ -44,7 +44,7 @@ bool DoFieldGet(Thread* self, ShadowFrame& shadow_frame, const Instruction* inst
   } else {
     obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
     if (UNLIKELY(obj == nullptr)) {
-      ThrowNullPointerExceptionForFieldAccess(shadow_frame.GetCurrentLocationForThrow(), f, true);
+      ThrowNullPointerExceptionForFieldAccess(f, true);
       return false;
     }
   }
@@ -126,7 +126,7 @@ bool DoIGetQuick(ShadowFrame& shadow_frame, const Instruction* inst, uint16_t in
   if (UNLIKELY(obj == nullptr)) {
     // We lost the reference to the field index so we cannot get a more
     // precised exception message.
-    ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
+    ThrowNullPointerExceptionFromDexPC();
     return false;
   }
   MemberOffset field_offset(inst->VRegC_22c());
@@ -238,8 +238,7 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
   } else {
     obj = shadow_frame.GetVRegReference(inst->VRegB_22c(inst_data));
     if (UNLIKELY(obj == nullptr)) {
-      ThrowNullPointerExceptionForFieldAccess(shadow_frame.GetCurrentLocationForThrow(),
-                                              f, false);
+      ThrowNullPointerExceptionForFieldAccess(f, false);
       return false;
     }
   }
@@ -289,8 +288,7 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
         if (!reg->VerifierInstanceOf(field_class)) {
           // This should never happen.
           std::string temp1, temp2, temp3;
-          self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
-                                   "Ljava/lang/VirtualMachineError;",
+          self->ThrowNewExceptionF("Ljava/lang/VirtualMachineError;",
                                    "Put '%s' that is not instance of field '%s' in '%s'",
                                    reg->GetClass()->GetDescriptor(&temp1),
                                    field_class->GetDescriptor(&temp2),
@@ -346,7 +344,7 @@ bool DoIPutQuick(const ShadowFrame& shadow_frame, const Instruction* inst, uint1
   if (UNLIKELY(obj == nullptr)) {
     // We lost the reference to the field index so we cannot get a more
     // precised exception message.
-    ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
+    ThrowNullPointerExceptionFromDexPC();
     return false;
   }
   MemberOffset field_offset(inst->VRegC_22c());
@@ -555,8 +553,7 @@ bool DoCall(ArtMethod* called_method, Thread* self, ShadowFrame& shadow_frame,
             if (!o->VerifierInstanceOf(arg_type)) {
               // This should never happen.
               std::string temp1, temp2;
-              self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
-                                       "Ljava/lang/VirtualMachineError;",
+              self->ThrowNewExceptionF("Ljava/lang/VirtualMachineError;",
                                        "Invoking %s with bad arg %d, type '%s' not instance of '%s'",
                                        new_shadow_frame->GetMethod()->GetName(), shorty_pos,
                                        o->GetClass()->GetDescriptor(&temp1),
@@ -658,8 +655,7 @@ bool DoFilledNewArray(const Instruction* inst, const ShadowFrame& shadow_frame,
       ThrowRuntimeException("Bad filled array request for type %s",
                             PrettyDescriptor(componentClass).c_str());
     } else {
-      self->ThrowNewExceptionF(shadow_frame.GetCurrentLocationForThrow(),
-                               "Ljava/lang/InternalError;",
+      self->ThrowNewExceptionF("Ljava/lang/InternalError;",
                                "Found type %s; filled-new-array not implemented for anything but 'int'",
                                PrettyDescriptor(componentClass).c_str());
     }
@@ -776,8 +772,7 @@ static void CheckExceptionGenerateClassNotFound(Thread* self)
     // If it is not an InternalError, wrap it.
     std::string type(PrettyTypeOf(self->GetException()));
     if (type != "java.lang.InternalError") {
-      self->ThrowNewWrappedException(self->GetCurrentLocationForThrow(),
-                                     "Ljava/lang/ClassNotFoundException;",
+      self->ThrowNewWrappedException("Ljava/lang/ClassNotFoundException;",
                                      "ClassNotFoundException");
     }
   }
@@ -856,7 +851,7 @@ static void UnstartedRuntimeInvoke(Thread* self,  const DexFile::CodeItem* code_
           ok = true;
         }
       } else {
-        self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(), "Ljava/lang/InternalError;",
+        self->ThrowNewExceptionF("Ljava/lang/InternalError;",
                                  "Could not find default constructor for '%s'",
                                  PrettyClass(h_klass.Get()).c_str());
       }
@@ -865,9 +860,7 @@ static void UnstartedRuntimeInvoke(Thread* self,  const DexFile::CodeItem* code_
       std::string error_msg = StringPrintf("Failed in Class.newInstance for '%s' with %s",
                                            PrettyClass(h_klass.Get()).c_str(),
                                            PrettyTypeOf(self->GetException()).c_str());
-      self->ThrowNewWrappedException(self->GetCurrentLocationForThrow(),
-                                     "Ljava/lang/InternalError;",
-                                     error_msg.c_str());
+      self->ThrowNewWrappedException("Ljava/lang/InternalError;", error_msg.c_str());
     }
   } else if (name == "java.lang.reflect.Field java.lang.Class.getDeclaredField(java.lang.String)") {
     // Special managed code cut-out to allow field lookup in a un-started runtime that'd fail
@@ -938,7 +931,7 @@ static void UnstartedRuntimeInvoke(Thread* self,  const DexFile::CodeItem* code_
         dst->Set(dstPos + i, src->Get(srcPos + i));
       }
     } else {
-      self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(), "Ljava/lang/InternalError;",
+      self->ThrowNewExceptionF("Ljava/lang/InternalError;",
                                "Unimplemented System.arraycopy for type '%s'",
                                PrettyDescriptor(ctype).c_str());
     }
@@ -1005,8 +998,7 @@ static void UnstartedRuntimeInvoke(Thread* self,  const DexFile::CodeItem* code_
     }
 
     if (!ok) {
-      self->ThrowNewException(self->GetCurrentLocationForThrow(), "Ljava/lang/InternalError;",
-                              "Unimplemented ThreadLocal.get");
+      self->ThrowNewException("Ljava/lang/InternalError;", "Unimplemented ThreadLocal.get");
     }
   } else {
     // Not special, continue with regular interpreter execution.

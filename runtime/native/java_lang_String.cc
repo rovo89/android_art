@@ -29,7 +29,7 @@ namespace art {
 static jint String_compareTo(JNIEnv* env, jobject javaThis, jobject javaRhs) {
   ScopedFastNativeObjectAccess soa(env);
   if (UNLIKELY(javaRhs == NULL)) {
-    ThrowNullPointerException(NULL, "rhs == null");
+    ThrowNullPointerException("rhs == null");
     return -1;
   } else {
     return soa.Decode<mirror::String*>(javaThis)->CompareTo(soa.Decode<mirror::String*>(javaRhs));

@@ -88,9 +88,8 @@ static std::string NormalizeJniClassDescriptor(const char* name) {
 static void ThrowNoSuchMethodError(ScopedObjectAccess& soa, mirror::Class* c,
                                    const char* name, const char* sig, const char* kind)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
   std::string temp;
-  soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchMethodError;",
+  soa.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
                                  "no %s method \"%s.%s%s\"",
                                  kind, c->GetDescriptor(&temp), name, sig);
 }
@@ -101,8 +100,7 @@ static void ReportInvalidJNINativeMethod(const ScopedObjectAccess& soa, mirror::
   LOG(return_errors ? ERROR : FATAL) << "Failed to register native method in "
       << PrettyDescriptor(c) << " in " << c->GetDexCache()->GetLocation()->ToModifiedUtf8()
       << ": " << kind << " is null at index " << idx;
-  ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
-  soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchMethodError;",
+  soa.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchMethodError;",
                                  "%s is null at index %d", kind, idx);
 }
 
@@ -199,8 +197,7 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     Handle<mirror::Throwable> cause(hs2.NewHandle(soa.Self()->GetException()));
     soa.Self()->ClearException();
     std::string temp;
-    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
-    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                    "no type \"%s\" found and so no field \"%s\" "
                                    "could be found in class \"%s\" or its superclasses", sig, name,
                                    c->GetDescriptor(&temp));
@@ -215,8 +212,7 @@ static jfieldID FindFieldID(const ScopedObjectAccess& soa, jclass jni_class, con
     field = c->FindInstanceField(name, field_type->GetDescriptor(&temp));
   }
   if (field == nullptr) {
-    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
-    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                    "no \"%s\" field \"%s\" in class \"%s\" or its superclasses",
                                    sig, name, c->GetDescriptor(&temp));
     return nullptr;
@@ -228,8 +224,7 @@ static void ThrowAIOOBE(ScopedObjectAccess& soa, mirror::Array* array, jsize sta
                         jsize length, const char* identifier)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::string type(PrettyTypeOf(array));
-  ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
-  soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/ArrayIndexOutOfBoundsException;",
+  soa.Self()->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
                                  "%s offset=%d length=%d %s.length=%d",
                                  type.c_str(), start, length, identifier, array->GetLength());
 }
@@ -237,8 +232,7 @@ static void ThrowAIOOBE(ScopedObjectAccess& soa, mirror::Array* array, jsize sta
 static void ThrowSIOOBE(ScopedObjectAccess& soa, jsize start, jsize length,
                         jsize array_length)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
-  soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/StringIndexOutOfBoundsException;",
+  soa.Self()->ThrowNewExceptionF("Ljava/lang/StringIndexOutOfBoundsException;",
                                  "offset=%d length=%d string.length()=%d", start, length,
                                  array_length);
 }

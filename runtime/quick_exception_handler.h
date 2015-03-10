@@ -30,7 +30,6 @@ class Throwable;
 }  // namespace mirror
 class Context;
 class Thread;
-class ThrowLocation;
 class ShadowFrame;
 
 // Manages exception delivery for Quick backend.

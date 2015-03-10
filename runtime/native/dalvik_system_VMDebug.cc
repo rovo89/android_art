@@ -93,8 +93,7 @@ static void VMDebug_startMethodTracingFd(JNIEnv* env, jclass, jstring javaTraceF
   int fd = dup(originalFd);
   if (fd < 0) {
     ScopedObjectAccess soa(env);
-    ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
-    soa.Self()->ThrowNewExceptionF(throw_location, "Ljava/lang/RuntimeException;",
+    soa.Self()->ThrowNewExceptionF("Ljava/lang/RuntimeException;",
                                    "dup(%d) failed: %s", originalFd, strerror(errno));
     return;
   }
@@ -148,8 +147,7 @@ static jlong VMDebug_lastDebuggerActivity(JNIEnv*, jclass) {
 
 static void ThrowUnsupportedOperationException(JNIEnv* env) {
   ScopedObjectAccess soa(env);
-  ThrowLocation throw_location = soa.Self()->GetCurrentLocationForThrow();
-  soa.Self()->ThrowNewException(throw_location, "Ljava/lang/UnsupportedOperationException;", NULL);
+  soa.Self()->ThrowNewException("Ljava/lang/UnsupportedOperationException;", NULL);
 }
 
 static void VMDebug_startInstructionCounting(JNIEnv* env, jclass) {
@@ -196,7 +194,7 @@ static void VMDebug_dumpHprofData(JNIEnv* env, jclass, jstring javaFilename, job
   // Only one of these may be NULL.
   if (javaFilename == NULL && javaFd == NULL) {
     ScopedObjectAccess soa(env);
-    ThrowNullPointerException(NULL, "fileName == null && fd == null");
+    ThrowNullPointerException("fileName == null && fd == null");
     return;
   }
 

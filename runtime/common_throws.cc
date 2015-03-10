@@ -43,7 +43,7 @@ static void AddReferrerLocation(std::ostream& os, mirror::Class* referrer)
   }
 }
 
-static void ThrowException(const ThrowLocation* throw_location, const char* exception_descriptor,
+static void ThrowException(const char* exception_descriptor,
                            mirror::Class* referrer, const char* fmt, va_list* args = NULL)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::ostringstream msg;
@@ -56,16 +56,10 @@ static void ThrowException(const ThrowLocation* throw_location, const char* exce
   }
   AddReferrerLocation(msg, referrer);
   Thread* self = Thread::Current();
-  if (throw_location == NULL) {
-    ThrowLocation computed_throw_location = self->GetCurrentLocationForThrow();
-    self->ThrowNewException(computed_throw_location, exception_descriptor, msg.str().c_str());
-  } else {
-    self->ThrowNewException(*throw_location, exception_descriptor, msg.str().c_str());
-  }
+  self->ThrowNewException(exception_descriptor, msg.str().c_str());
 }
 
-static void ThrowWrappedException(const ThrowLocation* throw_location,
-                                  const char* exception_descriptor,
+static void ThrowWrappedException(const char* exception_descriptor,
                                   mirror::Class* referrer, const char* fmt, va_list* args = NULL)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::ostringstream msg;
@@ -78,18 +72,13 @@ static void ThrowWrappedException(const ThrowLocation* throw_location,
   }
   AddReferrerLocation(msg, referrer);
   Thread* self = Thread::Current();
-  if (throw_location == NULL) {
-    ThrowLocation computed_throw_location = self->GetCurrentLocationForThrow();
-    self->ThrowNewWrappedException(computed_throw_location, exception_descriptor, msg.str().c_str());
-  } else {
-    self->ThrowNewWrappedException(*throw_location, exception_descriptor, msg.str().c_str());
-  }
+  self->ThrowNewWrappedException(exception_descriptor, msg.str().c_str());
 }
 
 // AbstractMethodError
 
 void ThrowAbstractMethodError(mirror::ArtMethod* method) {
-  ThrowException(NULL, "Ljava/lang/AbstractMethodError;", NULL,
+  ThrowException("Ljava/lang/AbstractMethodError;", NULL,
                  StringPrintf("abstract method \"%s\"",
                               PrettyMethod(method).c_str()).c_str());
 }
@@ -97,20 +86,20 @@ void ThrowAbstractMethodError(mirror::ArtMethod* method) {
 // ArithmeticException
 
 void ThrowArithmeticExceptionDivideByZero() {
-  ThrowException(NULL, "Ljava/lang/ArithmeticException;", NULL, "divide by zero");
+  ThrowException("Ljava/lang/ArithmeticException;", NULL, "divide by zero");
 }
 
 // ArrayIndexOutOfBoundsException
 
 void ThrowArrayIndexOutOfBoundsException(int index, int length) {
-  ThrowException(NULL, "Ljava/lang/ArrayIndexOutOfBoundsException;", NULL,
+  ThrowException("Ljava/lang/ArrayIndexOutOfBoundsException;", NULL,
                  StringPrintf("length=%d; index=%d", length, index).c_str());
 }
 
 // ArrayStoreException
 
 void ThrowArrayStoreException(mirror::Class* element_class, mirror::Class* array_class) {
-  ThrowException(NULL, "Ljava/lang/ArrayStoreException;", NULL,
+  ThrowException("Ljava/lang/ArrayStoreException;", NULL,
                  StringPrintf("%s cannot be stored in an array of type %s",
                               PrettyDescriptor(element_class).c_str(),
                               PrettyDescriptor(array_class).c_str()).c_str());
@@ -119,14 +108,14 @@ void ThrowArrayStoreException(mirror::Class* element_class, mirror::Class* array
 // ClassCastException
 
 void ThrowClassCastException(mirror::Class* dest_type, mirror::Class* src_type) {
-  ThrowException(NULL, "Ljava/lang/ClassCastException;", NULL,
+  ThrowException("Ljava/lang/ClassCastException;", NULL,
                  StringPrintf("%s cannot be cast to %s",
                               PrettyDescriptor(src_type).c_str(),
                               PrettyDescriptor(dest_type).c_str()).c_str());
 }
 
-void ThrowClassCastException(const ThrowLocation* throw_location, const char* msg) {
-  ThrowException(throw_location, "Ljava/lang/ClassCastException;", NULL, msg);
+void ThrowClassCastException(const char* msg) {
+  ThrowException("Ljava/lang/ClassCastException;", NULL, msg);
 }
 
 // ClassCircularityError
@@ -134,7 +123,7 @@ void ThrowClassCastException(const ThrowLocation* throw_location, const char* ms
 void ThrowClassCircularityError(mirror::Class* c) {
   std::ostringstream msg;
   msg << PrettyDescriptor(c);
-  ThrowException(NULL, "Ljava/lang/ClassCircularityError;", c, msg.str().c_str());
+  ThrowException("Ljava/lang/ClassCircularityError;", c, msg.str().c_str());
 }
 
 // ClassFormatError
@@ -142,7 +131,7 @@ void ThrowClassCircularityError(mirror::Class* c) {
 void ThrowClassFormatError(mirror::Class* referrer, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  ThrowException(NULL, "Ljava/lang/ClassFormatError;", referrer, fmt, &args);
+  ThrowException("Ljava/lang/ClassFormatError;", referrer, fmt, &args);
   va_end(args);}
 
 // IllegalAccessError
@@ -151,7 +140,7 @@ void ThrowIllegalAccessErrorClass(mirror::Class* referrer, mirror::Class* access
   std::ostringstream msg;
   msg << "Illegal class access: '" << PrettyDescriptor(referrer) << "' attempting to access '"
       << PrettyDescriptor(accessed) << "'";
-  ThrowException(NULL, "Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
+  ThrowException("Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
 void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirror::Class* accessed,
@@ -161,21 +150,21 @@ void ThrowIllegalAccessErrorClassForMethodDispatch(mirror::Class* referrer, mirr
   msg << "Illegal class access ('" << PrettyDescriptor(referrer) << "' attempting to access '"
       << PrettyDescriptor(accessed) << "') in attempt to invoke " << type
       << " method " << PrettyMethod(called).c_str();
-  ThrowException(NULL, "Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
+  ThrowException("Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
 void ThrowIllegalAccessErrorMethod(mirror::Class* referrer, mirror::ArtMethod* accessed) {
   std::ostringstream msg;
   msg << "Method '" << PrettyMethod(accessed) << "' is inaccessible to class '"
       << PrettyDescriptor(referrer) << "'";
-  ThrowException(NULL, "Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
+  ThrowException("Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
 void ThrowIllegalAccessErrorField(mirror::Class* referrer, mirror::ArtField* accessed) {
   std::ostringstream msg;
   msg << "Field '" << PrettyField(accessed, false) << "' is inaccessible to class '"
       << PrettyDescriptor(referrer) << "'";
-  ThrowException(NULL, "Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
+  ThrowException("Ljava/lang/IllegalAccessError;", referrer, msg.str().c_str());
 }
 
 void ThrowIllegalAccessErrorFinalField(mirror::ArtMethod* referrer,
@@ -183,7 +172,7 @@ void ThrowIllegalAccessErrorFinalField(mirror::ArtMethod* referrer,
   std::ostringstream msg;
   msg << "Final field '" << PrettyField(accessed, false) << "' cannot be written to by method '"
       << PrettyMethod(referrer) << "'";
-  ThrowException(NULL, "Ljava/lang/IllegalAccessError;",
+  ThrowException("Ljava/lang/IllegalAccessError;",
                  referrer != NULL ? referrer->GetClass() : NULL,
                  msg.str().c_str());
 }
@@ -191,20 +180,20 @@ void ThrowIllegalAccessErrorFinalField(mirror::ArtMethod* referrer,
 void ThrowIllegalAccessError(mirror::Class* referrer, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  ThrowException(NULL, "Ljava/lang/IllegalAccessError;", referrer, fmt, &args);
+  ThrowException("Ljava/lang/IllegalAccessError;", referrer, fmt, &args);
   va_end(args);
 }
 
 // IllegalAccessException
 
-void ThrowIllegalAccessException(const ThrowLocation* throw_location, const char* msg) {
-  ThrowException(throw_location, "Ljava/lang/IllegalAccessException;", NULL, msg);
+void ThrowIllegalAccessException(const char* msg) {
+  ThrowException("Ljava/lang/IllegalAccessException;", NULL, msg);
 }
 
 // IllegalArgumentException
 
-void ThrowIllegalArgumentException(const ThrowLocation* throw_location, const char* msg) {
-  ThrowException(throw_location, "Ljava/lang/IllegalArgumentException;", NULL, msg);
+void ThrowIllegalArgumentException(const char* msg) {
+  ThrowException("Ljava/lang/IllegalArgumentException;", NULL, msg);
 }
 
 
@@ -216,7 +205,7 @@ void ThrowIncompatibleClassChangeError(InvokeType expected_type, InvokeType foun
   std::ostringstream msg;
   msg << "The method '" << PrettyMethod(method) << "' was expected to be of type "
       << expected_type << " but instead was found to be of type " << found_type;
-  ThrowException(NULL, "Ljava/lang/IncompatibleClassChangeError;",
+  ThrowException("Ljava/lang/IncompatibleClassChangeError;",
                  referrer != NULL ? referrer->GetClass() : NULL,
                  msg.str().c_str());
 }
@@ -232,7 +221,7 @@ void ThrowIncompatibleClassChangeErrorClassForInterfaceDispatch(mirror::ArtMetho
       << "' does not implement interface '"
       << PrettyDescriptor(interface_method->GetDeclaringClass())
       << "' in call to '" << PrettyMethod(interface_method) << "'";
-  ThrowException(NULL, "Ljava/lang/IncompatibleClassChangeError;",
+  ThrowException("Ljava/lang/IncompatibleClassChangeError;",
                  referrer != NULL ? referrer->GetClass() : NULL,
                  msg.str().c_str());
 }
@@ -243,14 +232,14 @@ void ThrowIncompatibleClassChangeErrorField(mirror::ArtField* resolved_field, bo
   msg << "Expected '" << PrettyField(resolved_field) << "' to be a "
       << (is_static ? "static" : "instance") << " field" << " rather than a "
       << (is_static ? "instance" : "static") << " field";
-  ThrowException(NULL, "Ljava/lang/IncompatibleClassChangeError;", referrer->GetClass(),
+  ThrowException("Ljava/lang/IncompatibleClassChangeError;", referrer->GetClass(),
                  msg.str().c_str());
 }
 
 void ThrowIncompatibleClassChangeError(mirror::Class* referrer, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  ThrowException(NULL, "Ljava/lang/IncompatibleClassChangeError;", referrer, fmt, &args);
+  ThrowException("Ljava/lang/IncompatibleClassChangeError;", referrer, fmt, &args);
   va_end(args);
 }
 
@@ -259,14 +248,14 @@ void ThrowIncompatibleClassChangeError(mirror::Class* referrer, const char* fmt,
 void ThrowIOException(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  ThrowException(NULL, "Ljava/io/IOException;", NULL, fmt, &args);
+  ThrowException("Ljava/io/IOException;", NULL, fmt, &args);
   va_end(args);
 }
 
 void ThrowWrappedIOException(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  ThrowWrappedException(NULL, "Ljava/io/IOException;", NULL, fmt, &args);
+  ThrowWrappedException("Ljava/io/IOException;", NULL, fmt, &args);
   va_end(args);
 }
 
@@ -275,19 +264,19 @@ void ThrowWrappedIOException(const char* fmt, ...) {
 void ThrowLinkageError(mirror::Class* referrer, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  ThrowException(NULL, "Ljava/lang/LinkageError;", referrer, fmt, &args);
+  ThrowException("Ljava/lang/LinkageError;", referrer, fmt, &args);
   va_end(args);
 }
 
 // NegativeArraySizeException
 
 void ThrowNegativeArraySizeException(int size) {
-  ThrowException(NULL, "Ljava/lang/NegativeArraySizeException;", NULL,
+  ThrowException("Ljava/lang/NegativeArraySizeException;", NULL,
                  StringPrintf("%d", size).c_str());
 }
 
 void ThrowNegativeArraySizeException(const char* msg) {
-  ThrowException(NULL, "Ljava/lang/NegativeArraySizeException;", NULL, msg);
+  ThrowException("Ljava/lang/NegativeArraySizeException;", NULL, msg);
 }
 
 // NoSuchFieldError
@@ -299,7 +288,7 @@ void ThrowNoSuchFieldError(const StringPiece& scope, mirror::Class* c,
   std::string temp;
   msg << "No " << scope << "field " << name << " of type " << type
       << " in class " << c->GetDescriptor(&temp) << " or its superclasses";
-  ThrowException(NULL, "Ljava/lang/NoSuchFieldError;", c, msg.str().c_str());
+  ThrowException("Ljava/lang/NoSuchFieldError;", c, msg.str().c_str());
 }
 
 // NoSuchMethodError
@@ -310,97 +299,91 @@ void ThrowNoSuchMethodError(InvokeType type, mirror::Class* c, const StringPiece
   std::string temp;
   msg << "No " << type << " method " << name << signature
       << " in class " << c->GetDescriptor(&temp) << " or its super classes";
-  ThrowException(NULL, "Ljava/lang/NoSuchMethodError;", c, msg.str().c_str());
+  ThrowException("Ljava/lang/NoSuchMethodError;", c, msg.str().c_str());
 }
 
 void ThrowNoSuchMethodError(uint32_t method_idx) {
-  Thread* self = Thread::Current();
-  ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-  mirror::DexCache* dex_cache = throw_location.GetMethod()->GetDeclaringClass()->GetDexCache();
+  mirror::ArtMethod* method = Thread::Current()->GetCurrentMethod(nullptr);
+  mirror::DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = *dex_cache->GetDexFile();
   std::ostringstream msg;
   msg << "No method '" << PrettyMethod(method_idx, dex_file, true) << "'";
-  ThrowException(&throw_location, "Ljava/lang/NoSuchMethodError;",
-                 throw_location.GetMethod()->GetDeclaringClass(), msg.str().c_str());
+  ThrowException("Ljava/lang/NoSuchMethodError;",
+                 method->GetDeclaringClass(), msg.str().c_str());
 }
 
 // NullPointerException
 
-void ThrowNullPointerExceptionForFieldAccess(const ThrowLocation& throw_location,
-                                             mirror::ArtField* field, bool is_read) {
+void ThrowNullPointerExceptionForFieldAccess(mirror::ArtField* field, bool is_read) {
   std::ostringstream msg;
   msg << "Attempt to " << (is_read ? "read from" : "write to")
       << " field '" << PrettyField(field, true) << "' on a null object reference";
-  ThrowException(&throw_location, "Ljava/lang/NullPointerException;", NULL, msg.str().c_str());
+  ThrowException("Ljava/lang/NullPointerException;", NULL, msg.str().c_str());
 }
 
-static void ThrowNullPointerExceptionForMethodAccessImpl(const ThrowLocation& throw_location,
-                                                         uint32_t method_idx,
+static void ThrowNullPointerExceptionForMethodAccessImpl(uint32_t method_idx,
                                                          const DexFile& dex_file,
                                                          InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   std::ostringstream msg;
   msg << "Attempt to invoke " << type << " method '"
       << PrettyMethod(method_idx, dex_file, true) << "' on a null object reference";
-  ThrowException(&throw_location, "Ljava/lang/NullPointerException;", NULL, msg.str().c_str());
+  ThrowException("Ljava/lang/NullPointerException;", NULL, msg.str().c_str());
 }
 
-void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_location,
-                                              uint32_t method_idx,
+void ThrowNullPointerExceptionForMethodAccess(uint32_t method_idx,
                                               InvokeType type) {
-  mirror::DexCache* dex_cache = throw_location.GetMethod()->GetDeclaringClass()->GetDexCache();
+  mirror::DexCache* dex_cache =
+      Thread::Current()->GetCurrentMethod(nullptr)->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = *dex_cache->GetDexFile();
-  ThrowNullPointerExceptionForMethodAccessImpl(throw_location, method_idx,
-                                               dex_file, type);
+  ThrowNullPointerExceptionForMethodAccessImpl(method_idx, dex_file, type);
 }
 
-void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_location,
-                                              mirror::ArtMethod* method,
+void ThrowNullPointerExceptionForMethodAccess(mirror::ArtMethod* method,
                                               InvokeType type) {
   mirror::DexCache* dex_cache = method->GetDeclaringClass()->GetDexCache();
   const DexFile& dex_file = *dex_cache->GetDexFile();
-  ThrowNullPointerExceptionForMethodAccessImpl(throw_location, method->GetDexMethodIndex(),
+  ThrowNullPointerExceptionForMethodAccessImpl(method->GetDexMethodIndex(),
                                                dex_file, type);
 }
 
-void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
-  const DexFile::CodeItem* code = throw_location.GetMethod()->GetCodeItem();
-  uint32_t throw_dex_pc = throw_location.GetDexPc();
+void ThrowNullPointerExceptionFromDexPC() {
+  uint32_t throw_dex_pc;
+  mirror::ArtMethod* method = Thread::Current()->GetCurrentMethod(&throw_dex_pc);
+  const DexFile::CodeItem* code = method->GetCodeItem();
   CHECK_LT(throw_dex_pc, code->insns_size_in_code_units_);
   const Instruction* instr = Instruction::At(&code->insns_[throw_dex_pc]);
   switch (instr->Opcode()) {
     case Instruction::INVOKE_DIRECT:
-      ThrowNullPointerExceptionForMethodAccess(throw_location, instr->VRegB_35c(), kDirect);
+      ThrowNullPointerExceptionForMethodAccess(instr->VRegB_35c(), kDirect);
       break;
     case Instruction::INVOKE_DIRECT_RANGE:
-      ThrowNullPointerExceptionForMethodAccess(throw_location, instr->VRegB_3rc(), kDirect);
+      ThrowNullPointerExceptionForMethodAccess(instr->VRegB_3rc(), kDirect);
       break;
     case Instruction::INVOKE_VIRTUAL:
-      ThrowNullPointerExceptionForMethodAccess(throw_location, instr->VRegB_35c(), kVirtual);
+      ThrowNullPointerExceptionForMethodAccess(instr->VRegB_35c(), kVirtual);
       break;
     case Instruction::INVOKE_VIRTUAL_RANGE:
-      ThrowNullPointerExceptionForMethodAccess(throw_location, instr->VRegB_3rc(), kVirtual);
+      ThrowNullPointerExceptionForMethodAccess(instr->VRegB_3rc(), kVirtual);
       break;
     case Instruction::INVOKE_INTERFACE:
-      ThrowNullPointerExceptionForMethodAccess(throw_location, instr->VRegB_35c(), kInterface);
+      ThrowNullPointerExceptionForMethodAccess(instr->VRegB_35c(), kInterface);
       break;
     case Instruction::INVOKE_INTERFACE_RANGE:
-      ThrowNullPointerExceptionForMethodAccess(throw_location, instr->VRegB_3rc(), kInterface);
+      ThrowNullPointerExceptionForMethodAccess(instr->VRegB_3rc(), kInterface);
       break;
     case Instruction::INVOKE_VIRTUAL_QUICK:
     case Instruction::INVOKE_VIRTUAL_RANGE_QUICK: {
       // Since we replaced the method index, we ask the verifier to tell us which
       // method is invoked at this location.
-      mirror::ArtMethod* method =
-          verifier::MethodVerifier::FindInvokedMethodAtDexPc(throw_location.GetMethod(),
-                                                             throw_location.GetDexPc());
-      if (method != NULL) {
+      mirror::ArtMethod* invoked_method =
+          verifier::MethodVerifier::FindInvokedMethodAtDexPc(method, throw_dex_pc);
+      if (invoked_method != NULL) {
         // NPE with precise message.
-        ThrowNullPointerExceptionForMethodAccess(throw_location, method, kVirtual);
+        ThrowNullPointerExceptionForMethodAccess(invoked_method, kVirtual);
       } else {
         // NPE with imprecise message.
-        ThrowNullPointerException(&throw_location,
-                                  "Attempt to invoke a virtual method on a null object reference");
+        ThrowNullPointerException("Attempt to invoke a virtual method on a null object reference");
       }
       break;
     }
@@ -412,9 +395,8 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
     case Instruction::IGET_CHAR:
     case Instruction::IGET_SHORT: {
       mirror::ArtField* field =
-          Runtime::Current()->GetClassLinker()->ResolveField(instr->VRegC_22c(),
-                                                             throw_location.GetMethod(), false);
-      ThrowNullPointerExceptionForFieldAccess(throw_location, field, true /* read */);
+          Runtime::Current()->GetClassLinker()->ResolveField(instr->VRegC_22c(), method, false);
+      ThrowNullPointerExceptionForFieldAccess(field, true /* read */);
       break;
     }
     case Instruction::IGET_QUICK:
@@ -427,15 +409,13 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
       // Since we replaced the field index, we ask the verifier to tell us which
       // field is accessed at this location.
       mirror::ArtField* field =
-          verifier::MethodVerifier::FindAccessedFieldAtDexPc(throw_location.GetMethod(),
-                                                             throw_location.GetDexPc());
+          verifier::MethodVerifier::FindAccessedFieldAtDexPc(method, throw_dex_pc);
       if (field != NULL) {
         // NPE with precise message.
-        ThrowNullPointerExceptionForFieldAccess(throw_location, field, true /* read */);
+        ThrowNullPointerExceptionForFieldAccess(field, true /* read */);
       } else {
         // NPE with imprecise message.
-        ThrowNullPointerException(&throw_location,
-                                  "Attempt to read from a field on a null object reference");
+        ThrowNullPointerException("Attempt to read from a field on a null object reference");
       }
       break;
     }
@@ -447,9 +427,8 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
     case Instruction::IPUT_CHAR:
     case Instruction::IPUT_SHORT: {
       mirror::ArtField* field =
-          Runtime::Current()->GetClassLinker()->ResolveField(instr->VRegC_22c(),
-                                                             throw_location.GetMethod(), false);
-      ThrowNullPointerExceptionForFieldAccess(throw_location, field, false /* write */);
+          Runtime::Current()->GetClassLinker()->ResolveField(instr->VRegC_22c(), method, false);
+      ThrowNullPointerExceptionForFieldAccess(field, false /* write */);
       break;
     }
     case Instruction::IPUT_QUICK:
@@ -462,15 +441,13 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
       // Since we replaced the field index, we ask the verifier to tell us which
       // field is accessed at this location.
       mirror::ArtField* field =
-          verifier::MethodVerifier::FindAccessedFieldAtDexPc(throw_location.GetMethod(),
-                                                             throw_location.GetDexPc());
+          verifier::MethodVerifier::FindAccessedFieldAtDexPc(method, throw_dex_pc);
       if (field != NULL) {
         // NPE with precise message.
-        ThrowNullPointerExceptionForFieldAccess(throw_location, field, false /* write */);
+        ThrowNullPointerExceptionForFieldAccess(field, false /* write */);
       } else {
         // NPE with imprecise message.
-        ThrowNullPointerException(&throw_location,
-                                  "Attempt to write to a field on a null object reference");
+        ThrowNullPointerException("Attempt to write to a field on a null object reference");
       }
       break;
     }
@@ -481,7 +458,7 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
     case Instruction::AGET_BYTE:
     case Instruction::AGET_CHAR:
     case Instruction::AGET_SHORT:
-      ThrowException(&throw_location, "Ljava/lang/NullPointerException;", NULL,
+      ThrowException("Ljava/lang/NullPointerException;", NULL,
                      "Attempt to read from null array");
       break;
     case Instruction::APUT:
@@ -491,28 +468,28 @@ void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location) {
     case Instruction::APUT_BYTE:
     case Instruction::APUT_CHAR:
     case Instruction::APUT_SHORT:
-      ThrowException(&throw_location, "Ljava/lang/NullPointerException;", NULL,
+      ThrowException("Ljava/lang/NullPointerException;", NULL,
                      "Attempt to write to null array");
       break;
     case Instruction::ARRAY_LENGTH:
-      ThrowException(&throw_location, "Ljava/lang/NullPointerException;", NULL,
+      ThrowException("Ljava/lang/NullPointerException;", NULL,
                      "Attempt to get length of null array");
       break;
     default: {
       // TODO: We should have covered all the cases where we expect a NPE above, this
       //       message/logging is so we can improve any cases we've missed in the future.
-      const DexFile& dex_file =
-          *throw_location.GetMethod()->GetDeclaringClass()->GetDexCache()->GetDexFile();
-      ThrowException(&throw_location, "Ljava/lang/NullPointerException;", NULL,
+      const DexFile* dex_file =
+          method->GetDeclaringClass()->GetDexCache()->GetDexFile();
+      ThrowException("Ljava/lang/NullPointerException;", NULL,
                      StringPrintf("Null pointer exception during instruction '%s'",
-                                  instr->DumpString(&dex_file).c_str()).c_str());
+                                  instr->DumpString(dex_file).c_str()).c_str());
       break;
     }
   }
 }
 
-void ThrowNullPointerException(const ThrowLocation* throw_location, const char* msg) {
-  ThrowException(throw_location, "Ljava/lang/NullPointerException;", NULL, msg);
+void ThrowNullPointerException(const char* msg) {
+  ThrowException("Ljava/lang/NullPointerException;", NULL, msg);
 }
 
 // RuntimeException
@@ -520,7 +497,7 @@ void ThrowNullPointerException(const ThrowLocation* throw_location, const char* 
 void ThrowRuntimeException(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  ThrowException(NULL, "Ljava/lang/RuntimeException;", NULL, fmt, &args);
+  ThrowException("Ljava/lang/RuntimeException;", NULL, fmt, &args);
   va_end(args);
 }
 
@@ -529,7 +506,7 @@ void ThrowRuntimeException(const char* fmt, ...) {
 void ThrowVerifyError(mirror::Class* referrer, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  ThrowException(NULL, "Ljava/lang/VerifyError;", referrer, fmt, &args);
+  ThrowException("Ljava/lang/VerifyError;", referrer, fmt, &args);
   va_end(args);
 }
 
