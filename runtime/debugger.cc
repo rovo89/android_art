@@ -347,26 +347,9 @@ uint32_t Dbg::instrumentation_events_ = 0;
 static std::vector<Breakpoint> gBreakpoints GUARDED_BY(Locks::breakpoint_lock_);
 
 void DebugInvokeReq::VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info) {
-  if (receiver != nullptr) {
-    callback(&receiver, arg, root_info);
-  }
-  if (thread != nullptr) {
-    callback(&thread, arg, root_info);
-  }
-  if (klass != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&klass), arg, root_info);
-  }
-  if (method != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&method), arg, root_info);
-  }
-}
-
-void DebugInvokeReq::Clear() {
-  invoke_needed = false;
-  receiver = nullptr;
-  thread = nullptr;
-  klass = nullptr;
-  method = nullptr;
+  receiver.VisitRootIfNonNull(callback, arg, root_info);  // null for static method call.
+  klass.VisitRoot(callback, arg, root_info);
+  method.VisitRoot(callback, arg, root_info);
 }
 
 void SingleStepControl::VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info) {
@@ -3517,10 +3500,14 @@ JDWP::JdwpError Dbg::ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize 
   };
 
   // Allocate single step.
-  SingleStepControl* single_step_control = new SingleStepControl(step_size, step_depth,
-                                                                 visitor.stack_depth,
-                                                                 visitor.method);
-  CHECK(single_step_control != nullptr) << "Failed to allocate SingleStepControl";
+  SingleStepControl* single_step_control =
+      new (std::nothrow) SingleStepControl(step_size, step_depth,
+                                           visitor.stack_depth, visitor.method);
+  if (single_step_control == nullptr) {
+    LOG(ERROR) << "Failed to allocate SingleStepControl";
+    return JDWP::ERR_OUT_OF_MEMORY;
+  }
+
   mirror::ArtMethod* m = single_step_control->GetMethod();
   const int32_t line_number = visitor.line_number;
   if (!m->IsNative()) {
@@ -3597,7 +3584,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
   ThreadList* thread_list = Runtime::Current()->GetThreadList();
 
   Thread* targetThread = nullptr;
-  DebugInvokeReq* req = nullptr;
+  std::unique_ptr<DebugInvokeReq> req;
   Thread* self = Thread::Current();
   {
     ScopedObjectAccessUnchecked soa(self);
@@ -3608,8 +3595,13 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
       LOG(ERROR) << "InvokeMethod request for invalid thread id " << thread_id;
       return error;
     }
-    req = targetThread->GetInvokeReq();
-    if (!req->ready) {
+    if (targetThread->GetInvokeReq() != nullptr) {
+      // Thread is already invoking a method on behalf of the debugger.
+      LOG(ERROR) << "InvokeMethod request for thread already invoking a method: " << *targetThread;
+      return JDWP::ERR_ALREADY_INVOKING;
+    }
+    if (!targetThread->IsReadyForDebugInvoke()) {
+      // Thread is not suspended by an event so it cannot invoke a method.
       LOG(ERROR) << "InvokeMethod request for thread not stopped by event: " << *targetThread;
       return JDWP::ERR_INVALID_THREAD;
     }
@@ -3643,11 +3635,10 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
       return JDWP::ERR_INVALID_OBJECT;
     }
 
-    mirror::Object* thread = gRegistry->Get<mirror::Object*>(thread_id, &error);
+    gRegistry->Get<mirror::Object*>(thread_id, &error);
     if (error != JDWP::ERR_NONE) {
       return JDWP::ERR_INVALID_OBJECT;
     }
-    // TODO: check that 'thread' is actually a java.lang.Thread!
 
     mirror::Class* c = DecodeClass(class_id, &error);
     if (c == nullptr) {
@@ -3705,14 +3696,17 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
       }
     }
 
-    req->receiver = receiver;
-    req->thread = thread;
-    req->klass = c;
-    req->method = m;
-    req->arg_count = arg_count;
-    req->arg_values = arg_values;
-    req->options = options;
-    req->invoke_needed = true;
+    // Allocates a DebugInvokeReq.
+    req.reset(new (std::nothrow) DebugInvokeReq(receiver, c, m, options, arg_values, arg_count));
+    if (req.get() == nullptr) {
+      LOG(ERROR) << "Failed to allocate DebugInvokeReq";
+      return JDWP::ERR_OUT_OF_MEMORY;
+    }
+
+    // Attach the DebugInvokeReq to the target thread so it executes the method when
+    // it is resumed. Once the invocation completes, it will detach it and signal us
+    // before suspending itself.
+    targetThread->SetDebugInvokeReq(req.get());
   }
 
   // The fact that we've released the thread list lock is a bit risky --- if the thread goes
@@ -3746,7 +3740,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
       gJdwpState->ReleaseJdwpTokenForCommand();
 
       // Wait for the request to finish executing.
-      while (req->invoke_needed) {
+      while (targetThread->GetInvokeReq() != nullptr) {
         req->cond.Wait(self);
       }
     }
@@ -3779,11 +3773,7 @@ JDWP::JdwpError Dbg::InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId objec
 
   // Copy the result.
   *pResultTag = req->result_tag;
-  if (IsPrimitiveTag(req->result_tag)) {
-    *pResultValue = req->result_value.GetJ();
-  } else {
-    *pResultValue = gRegistry->Add(req->result_value.GetL());
-  }
+  *pResultValue = req->result_value;
   *pExceptionId = req->exception;
   return req->error;
 }
@@ -3793,60 +3783,55 @@ void Dbg::ExecuteMethod(DebugInvokeReq* pReq) {
 
   // We can be called while an exception is pending. We need
   // to preserve that across the method invocation.
-  StackHandleScope<2> hs(soa.Self());
-  auto old_exception = hs.NewHandle<mirror::Throwable>(nullptr);
-  {
-    ThrowLocation old_throw_location;
-    mirror::Throwable* old_exception_obj = soa.Self()->GetException();
-    old_exception.Assign(old_exception_obj);
-    soa.Self()->ClearException();
-  }
+  StackHandleScope<4> hs(soa.Self());
+  auto old_exception = hs.NewHandle<mirror::Throwable>(soa.Self()->GetException());
+  soa.Self()->ClearException();
 
   // Translate the method through the vtable, unless the debugger wants to suppress it.
-  MutableHandle<mirror::ArtMethod> m(hs.NewHandle(pReq->method));
-  if ((pReq->options & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver != nullptr) {
-    mirror::ArtMethod* actual_method = pReq->klass->FindVirtualMethodForVirtualOrInterface(m.Get());
+  MutableHandle<mirror::ArtMethod> m(hs.NewHandle(pReq->method.Read()));
+  if ((pReq->options & JDWP::INVOKE_NONVIRTUAL) == 0 && pReq->receiver.Read() != nullptr) {
+    mirror::ArtMethod* actual_method = pReq->klass.Read()->FindVirtualMethodForVirtualOrInterface(m.Get());
     if (actual_method != m.Get()) {
-      VLOG(jdwp) << "ExecuteMethod translated " << PrettyMethod(m.Get()) << " to " << PrettyMethod(actual_method);
+      VLOG(jdwp) << "ExecuteMethod translated " << PrettyMethod(m.Get())
+                 << " to " << PrettyMethod(actual_method);
       m.Assign(actual_method);
     }
   }
   VLOG(jdwp) << "ExecuteMethod " << PrettyMethod(m.Get())
-             << " receiver=" << pReq->receiver
+             << " receiver=" << pReq->receiver.Read()
              << " arg_count=" << pReq->arg_count;
   CHECK(m.Get() != nullptr);
 
   CHECK_EQ(sizeof(jvalue), sizeof(uint64_t));
 
-  pReq->result_value = InvokeWithJValues(soa, pReq->receiver, soa.EncodeMethod(m.Get()),
-                                         reinterpret_cast<jvalue*>(pReq->arg_values));
+  JValue result = InvokeWithJValues(soa, pReq->receiver.Read(), soa.EncodeMethod(m.Get()),
+                                    reinterpret_cast<jvalue*>(pReq->arg_values));
 
-  mirror::Throwable* exception = soa.Self()->GetException();
-  soa.Self()->ClearException();
-  pReq->exception = gRegistry->Add(exception);
   pReq->result_tag = BasicTagFromDescriptor(m.Get()->GetShorty());
+  const bool is_object_result = (pReq->result_tag == JDWP::JT_OBJECT);
+  Handle<mirror::Object> object_result = hs.NewHandle(is_object_result ? result.GetL() : nullptr);
+  Handle<mirror::Throwable> exception = hs.NewHandle(soa.Self()->GetException());
+  soa.Self()->ClearException();
+  pReq->exception = gRegistry->Add(exception.Get());
   if (pReq->exception != 0) {
-    VLOG(jdwp) << "  JDWP invocation returning with exception=" << exception
-        << " " << exception->Dump();
-    pReq->result_value.SetJ(0);
-  } else if (pReq->result_tag == JDWP::JT_OBJECT) {
+    VLOG(jdwp) << "  JDWP invocation returning with exception=" << exception.Get()
+               << " " << exception->Dump();
+    pReq->result_value = 0;
+  } else if (is_object_result) {
     /* if no exception thrown, examine object result more closely */
-    JDWP::JdwpTag new_tag = TagFromObject(soa, pReq->result_value.GetL());
+    JDWP::JdwpTag new_tag = TagFromObject(soa, object_result.Get());
     if (new_tag != pReq->result_tag) {
       VLOG(jdwp) << "  JDWP promoted result from " << pReq->result_tag << " to " << new_tag;
       pReq->result_tag = new_tag;
     }
 
-    /*
-     * Register the object.  We don't actually need an ObjectId yet,
-     * but we do need to be sure that the GC won't move or discard the
-     * object when we switch out of RUNNING.  The ObjectId conversion
-     * will add the object to the "do not touch" list.
-     *
-     * We can't use the "tracked allocation" mechanism here because
-     * the object is going to be handed off to a different thread.
-     */
-    gRegistry->Add(pReq->result_value.GetL());
+    // Register the object in the registry and reference its ObjectId. This ensures
+    // GC safety and prevents from accessing stale reference if the object is moved.
+    pReq->result_value = gRegistry->Add(object_result.Get());
+  } else {
+    // Primitive result.
+    DCHECK(IsPrimitiveTag(pReq->result_tag));
+    pReq->result_value = result.GetJ();
   }
 
   if (old_exception.Get() != nullptr) {

@@ -1138,8 +1138,6 @@ void Thread::Shutdown() {
 Thread::Thread(bool daemon) : tls32_(daemon), wait_monitor_(nullptr), interrupted_(false) {
   wait_mutex_ = new Mutex("a thread wait mutex");
   wait_cond_ = new ConditionVariable("a thread wait condition variable", *wait_mutex_);
-  tlsPtr_.debug_invoke_req = new DebugInvokeReq;
-  tlsPtr_.single_step_control = nullptr;
   tlsPtr_.instrumentation_stack = new std::deque<instrumentation::InstrumentationStackFrame>;
   tlsPtr_.name = new std::string(kThreadNameDuringStartup);
   tlsPtr_.nested_signal_state = static_cast<jmp_buf*>(malloc(sizeof(jmp_buf)));
@@ -1291,7 +1289,6 @@ Thread::~Thread() {
     CleanupCpu();
   }
 
-  delete tlsPtr_.debug_invoke_req;
   if (tlsPtr_.single_step_control != nullptr) {
     delete tlsPtr_.single_step_control;
   }
@@ -2414,6 +2411,23 @@ void Thread::DeactivateSingleStepControl() {
   SingleStepControl* ssc = GetSingleStepControl();
   tlsPtr_.single_step_control = nullptr;
   delete ssc;
+}
+
+void Thread::SetDebugInvokeReq(DebugInvokeReq* req) {
+  CHECK(Dbg::IsDebuggerActive());
+  CHECK(GetInvokeReq() == nullptr) << "Debug invoke req already active in thread " << *this;
+  CHECK(Thread::Current() != this) << "Debug invoke can't be dispatched by the thread itself";
+  CHECK(req != nullptr);
+  tlsPtr_.debug_invoke_req = req;
+}
+
+void Thread::ClearDebugInvokeReq() {
+  CHECK(Dbg::IsDebuggerActive());
+  CHECK(GetInvokeReq() != nullptr) << "Debug invoke req not active in thread " << *this;
+  CHECK(Thread::Current() == this) << "Debug invoke must be finished by the thread itself";
+  // We do not own the DebugInvokeReq* so we must not delete it, it is the responsibility of
+  // the owner (the JDWP thread).
+  tlsPtr_.debug_invoke_req = nullptr;
 }
 
 }  // namespace art

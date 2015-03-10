@@ -54,34 +54,28 @@ class ThrowLocation;
  * Invoke-during-breakpoint support.
  */
 struct DebugInvokeReq {
-  DebugInvokeReq()
-      : ready(false), invoke_needed(false),
-        receiver(NULL), thread(NULL), klass(NULL), method(NULL),
-        arg_count(0), arg_values(NULL), options(0), error(JDWP::ERR_NONE),
-        result_tag(JDWP::JT_VOID), exception(0),
+  DebugInvokeReq(mirror::Object* invoke_receiver, mirror::Class* invoke_class,
+                 mirror::ArtMethod* invoke_method, uint32_t invoke_options,
+                 uint64_t* args, uint32_t args_count)
+      : receiver(invoke_receiver), klass(invoke_class), method(invoke_method),
+        arg_count(args_count), arg_values(args), options(invoke_options),
+        error(JDWP::ERR_NONE), result_tag(JDWP::JT_VOID), result_value(0), exception(0),
         lock("a DebugInvokeReq lock", kBreakpointInvokeLock),
         cond("a DebugInvokeReq condition variable", lock) {
   }
 
-  /* boolean; only set when we're in the tail end of an event handler */
-  bool ready;
-
-  /* boolean; set if the JDWP thread wants this thread to do work */
-  bool invoke_needed;
-
   /* request */
-  mirror::Object* receiver;      /* not used for ClassType.InvokeMethod */
-  mirror::Object* thread;
-  mirror::Class* klass;
-  mirror::ArtMethod* method;
-  uint32_t arg_count;
-  uint64_t* arg_values;   /* will be NULL if arg_count_ == 0 */
-  uint32_t options;
+  GcRoot<mirror::Object> receiver;      // not used for ClassType.InvokeMethod
+  GcRoot<mirror::Class> klass;
+  GcRoot<mirror::ArtMethod> method;
+  const uint32_t arg_count;
+  uint64_t* const arg_values;   // will be NULL if arg_count_ == 0
+  const uint32_t options;
 
   /* result */
   JDWP::JdwpError error;
   JDWP::JdwpTag result_tag;
-  JValue result_value;
+  uint64_t result_value;        // either a primitive value or an ObjectId
   JDWP::ObjectId exception;
 
   /* condition variable to wait on while the method executes */
@@ -90,8 +84,6 @@ struct DebugInvokeReq {
 
   void VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  void Clear();
 
  private:
   DISALLOW_COPY_AND_ASSIGN(DebugInvokeReq);
@@ -581,6 +573,8 @@ class Dbg {
       LOCKS_EXCLUDED(Locks::thread_list_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Invoke support for commands ClassType.InvokeMethod, ClassType.NewInstance and
+  // ObjectReference.InvokeMethod.
   static JDWP::JdwpError InvokeMethod(JDWP::ObjectId thread_id, JDWP::ObjectId object_id,
                                       JDWP::RefTypeId class_id, JDWP::MethodId method_id,
                                       uint32_t arg_count, uint64_t* arg_values,
