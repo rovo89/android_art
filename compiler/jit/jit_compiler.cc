@@ -18,6 +18,7 @@
 
 #include "arch/instruction_set.h"
 #include "arch/instruction_set_features.h"
+#include "base/timing_logger.h"
 #include "compiler_callbacks.h"
 #include "dex/pass_manager.h"
 #include "dex/quick_compiler_callbacks.h"
@@ -103,6 +104,7 @@ JitCompiler::~JitCompiler() {
 }
 
 bool JitCompiler::CompileMethod(Thread* self, mirror::ArtMethod* method) {
+  TimingLogger logger("JIT compiler timing logger", true, VLOG_IS_ON(jit));
   const uint64_t start_time = NanoTime();
   StackHandleScope<2> hs(self);
   self->AssertNoPendingException();
@@ -113,14 +115,18 @@ bool JitCompiler::CompileMethod(Thread* self, mirror::ArtMethod* method) {
     return true;  // Already compiled
   }
   Handle<mirror::Class> h_class(hs.NewHandle(h_method->GetDeclaringClass()));
-  if (!runtime->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
-    VLOG(jit) << "JIT failed to initialize " << PrettyMethod(h_method.Get());
-    return false;
+  {
+    TimingLogger::ScopedTiming t2("Initializing", &logger);
+    if (!runtime->GetClassLinker()->EnsureInitialized(self, h_class, true, true)) {
+      VLOG(jit) << "JIT failed to initialize " << PrettyMethod(h_method.Get());
+      return false;
+    }
   }
   const DexFile* dex_file = h_class->GetDexCache()->GetDexFile();
   MethodReference method_ref(dex_file, h_method->GetDexMethodIndex());
   // Only verify if we don't already have verification results.
   if (verification_results_->GetVerifiedMethod(method_ref) == nullptr) {
+    TimingLogger::ScopedTiming t2("Verifying", &logger);
     std::string error;
     if (verifier::MethodVerifier::VerifyMethod(h_method.Get(), true, &error) ==
         verifier::MethodVerifier::kHardFailure) {
@@ -129,9 +135,16 @@ bool JitCompiler::CompileMethod(Thread* self, mirror::ArtMethod* method) {
       return false;
     }
   }
-  CompiledMethod* compiled_method(compiler_driver_->CompileMethod(self, h_method.Get()));
-  // Trim maps to reduce memory usage, TODO: measure how much this increases compile time.
-  runtime->GetArenaPool()->TrimMaps();
+  CompiledMethod* compiled_method = nullptr;
+  {
+    TimingLogger::ScopedTiming t2("Compiling", &logger);
+    compiled_method = compiler_driver_->CompileMethod(self, h_method.Get());
+  }
+  {
+    TimingLogger::ScopedTiming t2("TrimMaps", &logger);
+    // Trim maps to reduce memory usage, TODO: measure how much this increases compile time.
+    runtime->GetArenaPool()->TrimMaps();
+  }
   if (compiled_method == nullptr) {
     return false;
   }
@@ -147,11 +160,13 @@ bool JitCompiler::CompileMethod(Thread* self, mirror::ArtMethod* method) {
       h_method->SetEntryPointFromQuickCompiledCode(code);
       result = true;
     } else {
+      TimingLogger::ScopedTiming t2("MakeExecutable", &logger);
       result = MakeExecutable(compiled_method, h_method.Get());
     }
   }
   // Remove the compiled method to save memory.
   compiler_driver_->RemoveCompiledMethod(method_ref);
+  runtime->GetJit()->AddTimingLogger(logger);
   return result;
 }
 
