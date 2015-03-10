@@ -311,6 +311,7 @@ TEST_ART_BROKEN_NDEBUG_TESTS := \
   131-structural-change \
   454-get-vreg \
   455-set-vreg \
+  457-regs \
 
 ifneq (,$(filter ndebug,$(RUN_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),ndebug,$(PREBUILD_TYPES), \
