@@ -300,8 +300,7 @@ static void ThrowIllegalMonitorStateExceptionF(const char* fmt, ...)
   va_list args;
   va_start(args, fmt);
   Thread* self = Thread::Current();
-  ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-  self->ThrowNewExceptionV(throw_location, "Ljava/lang/IllegalMonitorStateException;", fmt, args);
+  self->ThrowNewExceptionV("Ljava/lang/IllegalMonitorStateException;", fmt, args);
   if (!Runtime::Current()->IsStarted() || VLOG_IS_ON(monitor)) {
     std::ostringstream ss;
     self->Dump(ss);
@@ -428,8 +427,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
   // Enforce the timeout range.
   if (ms < 0 || ns < 0 || ns > 999999) {
     monitor_lock_.Unlock(self);
-    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-    self->ThrowNewExceptionF(throw_location, "Ljava/lang/IllegalArgumentException;",
+    self->ThrowNewExceptionF("Ljava/lang/IllegalArgumentException;",
                              "timeout arguments out of range: ms=%" PRId64 " ns=%d", ms, ns);
     return;
   }
@@ -540,8 +538,7 @@ void Monitor::Wait(Thread* self, int64_t ms, int32_t ns,
       self->SetInterruptedLocked(false);
     }
     if (interruptShouldThrow) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      self->ThrowNewException(throw_location, "Ljava/lang/InterruptedException;", NULL);
+      self->ThrowNewException("Ljava/lang/InterruptedException;", NULL);
     }
   }
 }

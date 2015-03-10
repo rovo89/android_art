@@ -248,8 +248,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           if (!obj_result->VerifierInstanceOf(return_type)) {
             // This should never happen.
             std::string temp1, temp2;
-            self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
-                                     "Ljava/lang/VirtualMachineError;",
+            self->ThrowNewExceptionF("Ljava/lang/VirtualMachineError;",
                                      "Returning '%s' that is not instance of return type '%s'",
                                      obj_result->GetClass()->GetDescriptor(&temp1),
                                      return_type->GetDescriptor(&temp2));
@@ -370,7 +369,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* obj = shadow_frame.GetVRegReference(inst->VRegA_11x(inst_data));
         if (UNLIKELY(obj == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
         } else {
           DoMonitorEnter(self, obj);
@@ -382,7 +381,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* obj = shadow_frame.GetVRegReference(inst->VRegA_11x(inst_data));
         if (UNLIKELY(obj == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
         } else {
           DoMonitorExit(self, obj);
@@ -424,7 +423,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* array = shadow_frame.GetVRegReference(inst->VRegB_12x(inst_data));
         if (UNLIKELY(array == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
         } else {
           shadow_frame.SetVReg(inst->VRegA_12x(inst_data), array->AsArray()->GetLength());
@@ -506,12 +505,11 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* exception = shadow_frame.GetVRegReference(inst->VRegA_11x(inst_data));
         if (UNLIKELY(exception == NULL)) {
-          ThrowNullPointerException(NULL, "throw with null exception");
+          ThrowNullPointerException("throw with null exception");
         } else if (do_assignability_check && !exception->GetClass()->IsThrowableClass()) {
           // This should never happen.
           std::string temp;
-          self->ThrowNewExceptionF(self->GetCurrentLocationForThrow(),
-                                   "Ljava/lang/VirtualMachineError;",
+          self->ThrowNewExceptionF("Ljava/lang/VirtualMachineError;",
                                    "Throwing '%s' that is not instance of Throwable",
                                    exception->GetClass()->GetDescriptor(&temp));
         } else {
@@ -817,7 +815,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
           break;
         }
@@ -835,7 +833,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
           break;
         }
@@ -853,7 +851,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
           break;
         }
@@ -871,7 +869,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
           break;
         }
@@ -889,7 +887,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
           break;
         }
@@ -907,7 +905,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
           break;
         }
@@ -925,7 +923,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
           break;
         }
@@ -943,7 +941,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
           break;
         }
@@ -962,7 +960,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
           break;
         }
@@ -981,7 +979,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
           break;
         }
@@ -1000,7 +998,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
           break;
         }
@@ -1019,7 +1017,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
           break;
         }
@@ -1038,7 +1036,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
           break;
         }
@@ -1057,7 +1055,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         PREAMBLE();
         Object* a = shadow_frame.GetVRegReference(inst->VRegB_23x());
         if (UNLIKELY(a == NULL)) {
-          ThrowNullPointerExceptionFromInterpreter(shadow_frame);
+          ThrowNullPointerExceptionFromInterpreter();
           HANDLE_PENDING_EXCEPTION();
           break;
         }

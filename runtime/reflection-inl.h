@@ -27,7 +27,7 @@
 
 namespace art {
 
-inline bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbox_for_result,
+inline bool ConvertPrimitiveValue(bool unbox_for_result,
                                   Primitive::Type srcType, Primitive::Type dstType,
                                   const JValue& src, JValue* dst) {
   DCHECK(srcType != Primitive::kPrimNot && dstType != Primitive::kPrimNot);
@@ -88,13 +88,11 @@ inline bool ConvertPrimitiveValue(const ThrowLocation* throw_location, bool unbo
     break;
   }
   if (!unbox_for_result) {
-    ThrowIllegalArgumentException(throw_location,
-                                  StringPrintf("Invalid primitive conversion from %s to %s",
+    ThrowIllegalArgumentException(StringPrintf("Invalid primitive conversion from %s to %s",
                                                PrettyDescriptor(srcType).c_str(),
                                                PrettyDescriptor(dstType).c_str()).c_str());
   } else {
-    ThrowClassCastException(throw_location,
-                            StringPrintf("Couldn't convert result of type %s to %s",
+    ThrowClassCastException(StringPrintf("Couldn't convert result of type %s to %s",
                                          PrettyDescriptor(srcType).c_str(),
                                          PrettyDescriptor(dstType).c_str()).c_str());
   }

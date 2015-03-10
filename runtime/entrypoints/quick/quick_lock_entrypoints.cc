@@ -25,9 +25,7 @@ extern "C" int artLockObjectFromCode(mirror::Object* obj, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS /* EXCLUSIVE_LOCK_FUNCTION(Monitor::monitor_lock_) */ {
   ScopedQuickEntrypointChecks sqec(self);
   if (UNLIKELY(obj == nullptr)) {
-    ThrowLocation throw_location(self->GetCurrentLocationForThrow());
-    ThrowNullPointerException(&throw_location,
-                              "Null reference used for synchronization (monitor-enter)");
+    ThrowNullPointerException("Null reference used for synchronization (monitor-enter)");
     return -1;  // Failure.
   } else {
     if (kIsDebugBuild) {
@@ -47,9 +45,7 @@ extern "C" int artUnlockObjectFromCode(mirror::Object* obj, Thread* self)
     NO_THREAD_SAFETY_ANALYSIS /* UNLOCK_FUNCTION(Monitor::monitor_lock_) */ {
   ScopedQuickEntrypointChecks sqec(self);
   if (UNLIKELY(obj == nullptr)) {
-    ThrowLocation throw_location(self->GetCurrentLocationForThrow());
-    ThrowNullPointerException(&throw_location,
-                              "Null reference used for synchronization (monitor-exit)");
+    ThrowNullPointerException("Null reference used for synchronization (monitor-exit)");
     return -1;  // Failure.
   } else {
     // MonitorExit may throw exception.

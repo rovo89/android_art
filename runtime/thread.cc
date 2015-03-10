@@ -1702,29 +1702,25 @@ jobjectArray Thread::InternalStackTraceToStackTraceElementArray(
   return result;
 }
 
-void Thread::ThrowNewExceptionF(const ThrowLocation& throw_location,
-                                const char* exception_class_descriptor, const char* fmt, ...) {
+void Thread::ThrowNewExceptionF(const char* exception_class_descriptor, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  ThrowNewExceptionV(throw_location, exception_class_descriptor,
-                     fmt, args);
+  ThrowNewExceptionV(exception_class_descriptor, fmt, args);
   va_end(args);
 }
 
-void Thread::ThrowNewExceptionV(const ThrowLocation& throw_location,
-                                const char* exception_class_descriptor,
+void Thread::ThrowNewExceptionV(const char* exception_class_descriptor,
                                 const char* fmt, va_list ap) {
   std::string msg;
   StringAppendV(&msg, fmt, ap);
-  ThrowNewException(throw_location, exception_class_descriptor, msg.c_str());
+  ThrowNewException(exception_class_descriptor, msg.c_str());
 }
 
-void Thread::ThrowNewException(const ThrowLocation& throw_location,
-                               const char* exception_class_descriptor,
+void Thread::ThrowNewException(const char* exception_class_descriptor,
                                const char* msg) {
   // Callers should either clear or call ThrowNewWrappedException.
   AssertNoPendingExceptionForNewException(msg);
-  ThrowNewWrappedException(throw_location, exception_class_descriptor, msg);
+  ThrowNewWrappedException(exception_class_descriptor, msg);
 }
 
 static mirror::ClassLoader* GetCurrentClassLoader(Thread* self)
@@ -1735,8 +1731,7 @@ static mirror::ClassLoader* GetCurrentClassLoader(Thread* self)
       : nullptr;
 }
 
-void Thread::ThrowNewWrappedException(const ThrowLocation& throw_location ATTRIBUTE_UNUSED,
-                                      const char* exception_class_descriptor,
+void Thread::ThrowNewWrappedException(const char* exception_class_descriptor,
                                       const char* msg) {
   DCHECK_EQ(this, Thread::Current());
   ScopedObjectAccessUnchecked soa(this);
@@ -1840,7 +1835,7 @@ void Thread::ThrowOutOfMemoryError(const char* msg) {
       msg, (tls32_.throwing_OutOfMemoryError ? " (recursive case)" : ""));
   if (!tls32_.throwing_OutOfMemoryError) {
     tls32_.throwing_OutOfMemoryError = true;
-    ThrowNewException(GetCurrentLocationForThrow(), "Ljava/lang/OutOfMemoryError;", msg);
+    ThrowNewException("Ljava/lang/OutOfMemoryError;", msg);
     tls32_.throwing_OutOfMemoryError = false;
   } else {
     Dump(LOG(WARNING));  // The pre-allocated OOME has no stack, so help out and log one.
@@ -2069,14 +2064,6 @@ mirror::ArtMethod* Thread::GetCurrentMethod(uint32_t* dex_pc, bool abort_on_erro
     *dex_pc = visitor.dex_pc_;
   }
   return visitor.method_;
-}
-
-ThrowLocation Thread::GetCurrentLocationForThrow() {
-  Context* context = GetLongJumpContext();
-  CurrentMethodVisitor visitor(this, context, true);
-  visitor.WalkStack(false);
-  ReleaseLongJumpContext(context);
-  return ThrowLocation(visitor.this_object_, visitor.method_, visitor.dex_pc_);
 }
 
 bool Thread::HoldsLock(mirror::Object* object) const {
