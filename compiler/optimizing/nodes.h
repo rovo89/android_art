@@ -103,7 +103,7 @@ class HInstructionList {
 // Control-flow graph of a method. Contains a list of basic blocks.
 class HGraph : public ArenaObject<kArenaAllocMisc> {
  public:
-  HGraph(ArenaAllocator* arena, int start_instruction_id = 0)
+  HGraph(ArenaAllocator* arena, bool debuggable = false, int start_instruction_id = 0)
       : arena_(arena),
         blocks_(arena, kDefaultNumberOfBlocks),
         reverse_post_order_(arena, kDefaultNumberOfBlocks),
@@ -114,6 +114,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
         number_of_in_vregs_(0),
         temporaries_vreg_slots_(0),
         has_array_accesses_(false),
+        debuggable_(debuggable),
         current_instruction_id_(start_instruction_id) {}
 
   ArenaAllocator* GetArena() const { return arena_; }
@@ -208,6 +209,8 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
     has_array_accesses_ = value;
   }
 
+  bool IsDebuggable() const { return debuggable_; }
+
   HNullConstant* GetNullConstant();
 
  private:
@@ -247,6 +250,11 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
 
   // Has array accesses. We can totally skip BCE if it's false.
   bool has_array_accesses_;
+
+  // Indicates whether the graph should be compiled in a way that
+  // ensures full debuggability. If false, we can apply more
+  // aggressive optimizations that may limit the level of debugging.
+  const bool debuggable_;
 
   // The current id to assign to a newly added instruction. See HInstruction.id_.
   int32_t current_instruction_id_;
@@ -2496,6 +2504,19 @@ class HPhi : public HInstruction {
         is_live_(false),
         can_be_null_(true) {
     inputs_.SetSize(number_of_inputs);
+  }
+
+  // Returns a type equivalent to the given `type`, but that a `HPhi` can hold.
+  static Primitive::Type ToPhiType(Primitive::Type type) {
+    switch (type) {
+      case Primitive::kPrimBoolean:
+      case Primitive::kPrimByte:
+      case Primitive::kPrimShort:
+      case Primitive::kPrimChar:
+        return Primitive::kPrimInt;
+      default:
+        return type;
+    }
   }
 
   size_t InputCount() const OVERRIDE { return inputs_.Size(); }

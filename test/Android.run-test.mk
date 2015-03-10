@@ -321,7 +321,8 @@ endif
 TEST_ART_BROKEN_NDEBUG_TESTS :=
 
 # Known broken tests for the default compiler (Quick).
-TEST_ART_BROKEN_DEFAULT_RUN_TESTS :=
+TEST_ART_BROKEN_DEFAULT_RUN_TESTS := \
+  457-regs
 
 ifneq (,$(filter default,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
@@ -376,6 +377,18 @@ ifeq ($(ART_USE_OPTIMIZING_COMPILER),true)
 endif
 
 TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS :=
+
+# Tests that should fail when the optimizing compiler compiles them non-debuggable.
+TEST_ART_BROKEN_OPTIMIZING_NONDEBUGGABLE_RUN_TESTS := \
+  457-regs \
+
+ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),$(PICTEST_TYPES),nondebuggable,$(TEST_ART_BROKEN_OPTIMIZING_NONDEBUGGABLE_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_OPTIMIZING_NONDEBUGGABLE_RUN_TESTS :=
 
 
 # Clear variables ahead of appending to them when defining tests.
