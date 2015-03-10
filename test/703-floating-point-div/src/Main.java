@@ -41,7 +41,7 @@ public class Main {
         double d7 = -0.0;
         double d8 = Double.MAX_VALUE;
         double d9 = Double.MIN_VALUE;
-        double d0 = Double.NaN;
+        double dNaN = Double.NaN;
 
         expectEquals(Double.doubleToRawLongBits(dPi/d1), 0x1921fb54442d18L);
         expectEquals(Double.doubleToRawLongBits(dPi/d2), 0xbff921fb54442d18L);
@@ -53,7 +53,10 @@ public class Main {
 
         expectEquals(Double.doubleToRawLongBits(dPi/d8), 0xc90fdaa22168cL);
         expectEquals(Double.doubleToRawLongBits(dPi/d9), 0x7ff0000000000000L);
-        expectEquals(Double.doubleToRawLongBits(dPi/d0), 0x7ff8000000000000L);
+
+        // Not-a-number computation. Use doubleToLongBits to get canonical NaN. The literal value
+        // is the canonical NaN (see Double.doubleToLongBits).
+        expectEquals(Double.doubleToLongBits(dPi/dNaN), 0x7ff8000000000000L);
     }
 
     public static void divFloatTest() {
@@ -66,7 +69,7 @@ public class Main {
         float f7 = -0.0f;
         float f8 = Float.MAX_VALUE;
         float f9 = Float.MIN_VALUE;
-        float f0 = Float.NaN;
+        float fNaN = Float.NaN;
 
         expectEquals(Float.floatToRawIntBits(fPi/f1), 0xc90fdb);
         expectEquals(Float.floatToRawIntBits(fPi/f2), 0xbfc90fdb);
@@ -78,7 +81,10 @@ public class Main {
 
         expectEquals(Float.floatToRawIntBits(fPi/f8), 0x6487ee);
         expectEquals(Float.floatToRawIntBits(fPi/f9), 0x7f800000);
-        expectEquals(Float.floatToRawIntBits(fPi/f0), 0x7fc00000);
+
+        // Not-a-number computation. Use floatToIntBits to get canonical NaN. The literal value
+        // is the canonical NaN (see Float.floatToIntBits).
+        expectEquals(Float.floatToIntBits(fPi/fNaN), 0x7fc00000);
     }
 
     public static void main(String[] args) {
