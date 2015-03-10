@@ -124,8 +124,8 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
     resolved_method->GetAccessFlags(),
     nullptr);
 
-  HGraph* callee_graph =
-      new (graph_->GetArena()) HGraph(graph_->GetArena(), graph_->GetCurrentInstructionId());
+  HGraph* callee_graph = new (graph_->GetArena()) HGraph(
+      graph_->GetArena(), graph_->IsDebuggable(), graph_->GetCurrentInstructionId());
 
   OptimizingCompilerStats inline_stats;
   HGraphBuilder builder(callee_graph,
@@ -155,15 +155,11 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
   }
 
   // Run simple optimizations on the graph.
-  SsaRedundantPhiElimination redundant_phi(callee_graph);
-  SsaDeadPhiElimination dead_phi(callee_graph);
   HDeadCodeElimination dce(callee_graph);
   HConstantFolding fold(callee_graph);
   InstructionSimplifier simplify(callee_graph, stats_);
 
   HOptimization* optimizations[] = {
-    &redundant_phi,
-    &dead_phi,
     &dce,
     &fold,
     &simplify,
