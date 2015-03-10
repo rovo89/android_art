@@ -39,7 +39,6 @@ namespace mirror {
 }  // namespace mirror
 union JValue;
 class Thread;
-class ThrowLocation;
 
 namespace jit {
 

@@ -34,7 +34,7 @@ ALWAYS_INLINE inline static bool VerifyFieldAccess(Thread* self, mirror::ArtFiel
                                                    mirror::Object* obj)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (kIsSet && field->IsFinal()) {
-    ThrowIllegalAccessException(nullptr,
+    ThrowIllegalAccessException(
             StringPrintf("Cannot set %s field %s of class %s",
                 PrettyJavaAccessFlags(field->GetAccessFlags()).c_str(),
                 PrettyField(field).c_str(),
@@ -45,7 +45,7 @@ ALWAYS_INLINE inline static bool VerifyFieldAccess(Thread* self, mirror::ArtFiel
   mirror::Class* calling_class = nullptr;
   if (!VerifyAccess(self, obj, field->GetDeclaringClass(), field->GetAccessFlags(),
                     &calling_class)) {
-    ThrowIllegalAccessException(nullptr,
+    ThrowIllegalAccessException(
             StringPrintf("Class %s cannot access %s field %s of class %s",
                 calling_class == nullptr ? "null" : PrettyClass(calling_class).c_str(),
                 PrettyJavaAccessFlags(field->GetAccessFlags()).c_str(),
@@ -98,8 +98,8 @@ ALWAYS_INLINE inline static bool GetFieldValue(mirror::Object* o, mirror::ArtFie
       // Never okay.
       break;
   }
-  ThrowIllegalArgumentException(nullptr, StringPrintf("Not a primitive field: %s",
-                                                      PrettyField(f).c_str()).c_str());
+  ThrowIllegalArgumentException(StringPrintf("Not a primitive field: %s",
+                                             PrettyField(f).c_str()).c_str());
   return false;
 }
 
@@ -190,7 +190,7 @@ ALWAYS_INLINE inline static JValue GetPrimitiveField(JNIEnv* env, jobject javaFi
   }
   // Widen it if necessary (and possible).
   JValue wide_value;
-  if (!ConvertPrimitiveValue(nullptr, false, field_type, kPrimitiveType, field_value,
+  if (!ConvertPrimitiveValue(false, field_type, kPrimitiveType, field_value,
                              &wide_value)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return JValue();
@@ -270,8 +270,8 @@ static void SetFieldValue(mirror::Object* o, mirror::ArtField* f, Primitive::Typ
     FALLTHROUGH_INTENDED;
   case Primitive::kPrimVoid:
     // Never okay.
-    ThrowIllegalArgumentException(nullptr, StringPrintf("Not a primitive field: %s",
-                                                        PrettyField(f).c_str()).c_str());
+    ThrowIllegalArgumentException(StringPrintf("Not a primitive field: %s",
+                                               PrettyField(f).c_str()).c_str());
     return;
   }
 }
@@ -329,14 +329,14 @@ static void SetPrimitiveField(JNIEnv* env, jobject javaField, jobject javaObj,
   }
   Primitive::Type field_type = f->GetTypeAsPrimitiveType();
   if (UNLIKELY(field_type == Primitive::kPrimNot)) {
-    ThrowIllegalArgumentException(nullptr, StringPrintf("Not a primitive field: %s",
-                                                        PrettyField(f).c_str()).c_str());
+    ThrowIllegalArgumentException(StringPrintf("Not a primitive field: %s",
+                                               PrettyField(f).c_str()).c_str());
     return;
   }
 
   // Widen the value if necessary (and possible).
   JValue wide_value;
-  if (!ConvertPrimitiveValue(nullptr, false, kPrimitiveType, field_type, new_value, &wide_value)) {
+  if (!ConvertPrimitiveValue(false, kPrimitiveType, field_type, new_value, &wide_value)) {
     DCHECK(soa.Self()->IsExceptionPending());
     return;
   }

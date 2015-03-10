@@ -741,8 +741,7 @@ void* JavaVMExt::FindCodeForNativeMethod(mirror::ArtMethod* m) {
   }
   // Throwing can cause libraries_lock to be reacquired.
   if (native_method == nullptr) {
-    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-    self->ThrowNewException(throw_location, "Ljava/lang/UnsatisfiedLinkError;", detail.c_str());
+    self->ThrowNewException("Ljava/lang/UnsatisfiedLinkError;", detail.c_str());
   }
   return native_method;
 }

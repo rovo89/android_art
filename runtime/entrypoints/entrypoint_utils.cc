@@ -55,10 +55,8 @@ static inline mirror::Class* CheckFilledNewArrayAlloc(uint32_t type_idx,
       ThrowRuntimeException("Bad filled array request for type %s",
                             PrettyDescriptor(klass).c_str());
     } else {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      DCHECK(throw_location.GetMethod() == referrer);
       self->ThrowNewExceptionF(
-          throw_location, "Ljava/lang/InternalError;",
+          "Ljava/lang/InternalError;",
           "Found type %s; filled-new-array not implemented for anything but 'int'",
           PrettyDescriptor(klass).c_str());
     }
@@ -281,18 +279,8 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
       // This can cause thread suspension.
       mirror::Class* result_type = h_interface_method->GetReturnType();
       mirror::Object* result_ref = soa.Decode<mirror::Object*>(result);
-      mirror::Object* rcvr = soa.Decode<mirror::Object*>(rcvr_jobj);
-      mirror::ArtMethod* proxy_method;
-      if (h_interface_method->GetDeclaringClass()->IsInterface()) {
-        proxy_method = rcvr->GetClass()->FindVirtualMethodForInterface(h_interface_method.Get());
-      } else {
-        // Proxy dispatch to a method defined in Object.
-        DCHECK(h_interface_method->GetDeclaringClass()->IsObjectClass());
-        proxy_method = h_interface_method.Get();
-      }
-      ThrowLocation throw_location(rcvr, proxy_method, -1);
       JValue result_unboxed;
-      if (!UnboxPrimitiveForResult(throw_location, result_ref, result_type, &result_unboxed)) {
+      if (!UnboxPrimitiveForResult(result_ref, result_type, &result_unboxed)) {
         DCHECK(soa.Self()->IsExceptionPending());
         return zero;
       }
@@ -327,9 +315,7 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
         declares_exception = declared_exception->IsAssignableFrom(exception_class);
       }
       if (!declares_exception) {
-        ThrowLocation throw_location(rcvr, proxy_method, -1);
-        soa.Self()->ThrowNewWrappedException(throw_location,
-                                             "Ljava/lang/reflect/UndeclaredThrowableException;",
+        soa.Self()->ThrowNewWrappedException("Ljava/lang/reflect/UndeclaredThrowableException;",
                                              NULL);
       }
     }
@@ -340,16 +326,14 @@ JValue InvokeProxyInvocationHandler(ScopedObjectAccessAlreadyRunnable& soa, cons
 bool FillArrayData(mirror::Object* obj, const Instruction::ArrayDataPayload* payload) {
   DCHECK_EQ(payload->ident, static_cast<uint16_t>(Instruction::kArrayDataSignature));
   if (UNLIKELY(obj == nullptr)) {
-    ThrowNullPointerException(nullptr, "null array in FILL_ARRAY_DATA");
+    ThrowNullPointerException("null array in FILL_ARRAY_DATA");
     return false;
   }
   mirror::Array* array = obj->AsArray();
   DCHECK(!array->IsObjectArray());
   if (UNLIKELY(static_cast<int32_t>(payload->element_count) > array->GetLength())) {
     Thread* self = Thread::Current();
-    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-    self->ThrowNewExceptionF(throw_location,
-                             "Ljava/lang/ArrayIndexOutOfBoundsException;",
+    self->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
                              "failed FILL_ARRAY_DATA; length=%d, index=%d",
                              array->GetLength(), payload->element_count);
     return false;

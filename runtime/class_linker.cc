@@ -83,8 +83,7 @@ static void ThrowNoClassDefFoundError(const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
   Thread* self = Thread::Current();
-  ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-  self->ThrowNewExceptionV(throw_location, "Ljava/lang/NoClassDefFoundError;", fmt, args);
+  self->ThrowNewExceptionV("Ljava/lang/NoClassDefFoundError;", fmt, args);
   va_end(args);
 }
 
@@ -106,14 +105,13 @@ static void ThrowEarlierClassFailure(mirror::Class* c)
     mirror::Throwable* pre_allocated = runtime->GetPreAllocatedNoClassDefFoundError();
     self->SetException(pre_allocated);
   } else {
-    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
     if (c->GetVerifyErrorClass() != NULL) {
       // TODO: change the verifier to store an _instance_, with a useful detail message?
       std::string temp;
-      self->ThrowNewException(throw_location, c->GetVerifyErrorClass()->GetDescriptor(&temp),
+      self->ThrowNewException(c->GetVerifyErrorClass()->GetDescriptor(&temp),
                               PrettyDescriptor(c).c_str());
     } else {
-      self->ThrowNewException(throw_location, "Ljava/lang/NoClassDefFoundError;",
+      self->ThrowNewException("Ljava/lang/NoClassDefFoundError;",
                               PrettyDescriptor(c).c_str());
     }
   }
@@ -142,9 +140,7 @@ static void WrapExceptionInInitializer(Handle<mirror::Class> klass)
 
   // We only wrap non-Error exceptions; an Error can just be used as-is.
   if (!is_error) {
-    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-    self->ThrowNewWrappedException(throw_location, "Ljava/lang/ExceptionInInitializerError;",
-                                   nullptr);
+    self->ThrowNewWrappedException("Ljava/lang/ExceptionInInitializerError;", nullptr);
   }
   VlogClassInitializationFailure(klass);
 }
@@ -1437,8 +1433,8 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
       return nullptr;
     } else if (result.get() == nullptr) {
       // broken loader - throw NPE to be compatible with Dalvik
-      ThrowNullPointerException(nullptr, StringPrintf("ClassLoader.loadClass returned null for %s",
-                                                      class_name_string.c_str()).c_str());
+      ThrowNullPointerException(StringPrintf("ClassLoader.loadClass returned null for %s",
+                                             class_name_string.c_str()).c_str());
       return nullptr;
     } else {
       // success, return mirror::Class*

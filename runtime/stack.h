@@ -25,7 +25,6 @@
 #include "gc_root.h"
 #include "mirror/object_reference.h"
 #include "read_barrier.h"
-#include "throw_location.h"
 #include "utils.h"
 #include "verify_object.h"
 
@@ -40,6 +39,7 @@ class Context;
 class ShadowFrame;
 class HandleScope;
 class ScopedObjectAccess;
+class StackVisitor;
 class Thread;
 
 // The kind of vreg being accessed in calls to Set/GetVReg.
@@ -257,8 +257,6 @@ class ShadowFrame {
   mirror::Object* GetThisObject() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Object* GetThisObject(uint16_t num_ins) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  ThrowLocation GetCurrentLocationForThrow() const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool Contains(StackReference<mirror::Object>* shadow_frame_entry_obj) const {
     if (HasReferenceArray()) {
