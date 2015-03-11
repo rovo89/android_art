@@ -2299,10 +2299,8 @@ void InstructionCodeGeneratorARM::VisitDivZeroCheck(HDivZeroCheck* instruction) 
 void LocationsBuilderARM::HandleShift(HBinaryOperation* op) {
   DCHECK(op->IsShl() || op->IsShr() || op->IsUShr());
 
-  LocationSummary::CallKind call_kind = op->GetResultType() == Primitive::kPrimLong
-      ? LocationSummary::kCall
-      : LocationSummary::kNoCall;
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(op, call_kind);
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(op, LocationSummary::kNoCall);
 
   switch (op->GetResultType()) {
     case Primitive::kPrimInt: {
@@ -2312,12 +2310,10 @@ void LocationsBuilderARM::HandleShift(HBinaryOperation* op) {
       break;
     }
     case Primitive::kPrimLong: {
-      InvokeRuntimeCallingConvention calling_convention;
-      locations->SetInAt(0, Location::RegisterPairLocation(
-          calling_convention.GetRegisterAt(0), calling_convention.GetRegisterAt(1)));
-      locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
-      // The runtime helper puts the output in R0,R1.
-      locations->SetOut(Location::RegisterPairLocation(R0, R1));
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RequiresRegister());
+      locations->AddTemp(Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister());
       break;
     }
     default:
@@ -2365,24 +2361,56 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
       break;
     }
     case Primitive::kPrimLong: {
-      // TODO: Inline the assembly instead of calling the runtime.
-      InvokeRuntimeCallingConvention calling_convention;
-      DCHECK_EQ(calling_convention.GetRegisterAt(0), first.AsRegisterPairLow<Register>());
-      DCHECK_EQ(calling_convention.GetRegisterAt(1), first.AsRegisterPairHigh<Register>());
-      DCHECK_EQ(calling_convention.GetRegisterAt(2), second.AsRegister<Register>());
-      DCHECK_EQ(R0, out.AsRegisterPairLow<Register>());
-      DCHECK_EQ(R1, out.AsRegisterPairHigh<Register>());
+      Register o_h = out.AsRegisterPairHigh<Register>();
+      Register o_l = out.AsRegisterPairLow<Register>();
 
-      int32_t entry_point_offset;
+      Register temp = locations->GetTemp(0).AsRegister<Register>();
+
+      Register high = first.AsRegisterPairHigh<Register>();
+      Register low = first.AsRegisterPairLow<Register>();
+
+      Register second_reg = second.AsRegister<Register>();
+
       if (op->IsShl()) {
-        entry_point_offset = QUICK_ENTRY_POINT(pShlLong);
+        // Shift the high part
+        __ and_(second_reg, second_reg, ShifterOperand(63));
+        __ Lsl(o_h, high, second_reg);
+        // Shift the low part and `or` what overflew on the high part
+        __ rsb(temp, second_reg, ShifterOperand(32));
+        __ Lsr(temp, low, temp);
+        __ orr(o_h, o_h, ShifterOperand(temp));
+        // If the shift is > 32 bits, override the high part
+        __ subs(temp, second_reg, ShifterOperand(32));
+        __ it(PL);
+        __ Lsl(o_h, low, temp, false, PL);
+        // Shift the low part
+        __ Lsl(o_l, low, second_reg);
       } else if (op->IsShr()) {
-        entry_point_offset = QUICK_ENTRY_POINT(pShrLong);
+        // Shift the low part
+        __ and_(second_reg, second_reg, ShifterOperand(63));
+        __ Lsr(o_l, low, second_reg);
+        // Shift the high part and `or` what underflew on the low part
+        __ rsb(temp, second_reg, ShifterOperand(32));
+        __ Lsl(temp, high, temp);
+        __ orr(o_l, o_l, ShifterOperand(temp));
+        // If the shift is > 32 bits, override the low part
+        __ subs(temp, second_reg, ShifterOperand(32));
+        __ it(PL);
+        __ Asr(o_l, high, temp, false, PL);
+        // Shift the high part
+        __ Asr(o_h, high, second_reg);
       } else {
-        entry_point_offset = QUICK_ENTRY_POINT(pUshrLong);
+        // same as Shr except we use `Lsr`s and not `Asr`s
+        __ and_(second_reg, second_reg, ShifterOperand(63));
+        __ Lsr(o_l, low, second_reg);
+        __ rsb(temp, second_reg, ShifterOperand(32));
+        __ Lsl(temp, high, temp);
+        __ orr(o_l, o_l, ShifterOperand(temp));
+        __ subs(temp, second_reg, ShifterOperand(32));
+        __ it(PL);
+        __ Lsr(o_l, high, temp, false, PL);
+        __ Lsr(o_h, high, second_reg);
       }
-      __ LoadFromOffset(kLoadWord, LR, TR, entry_point_offset);
-      __ blx(LR);
       break;
     }
     default:
