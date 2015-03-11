@@ -673,8 +673,41 @@ HConstant* HBinaryOperation::TryStaticEvaluation() const {
   return nullptr;
 }
 
+HConstant* HBinaryOperation::GetConstantRight() const {
+  if (GetRight()->IsConstant()) {
+    return GetRight()->AsConstant();
+  } else if (IsCommutative() && GetLeft()->IsConstant()) {
+    return GetLeft()->AsConstant();
+  } else {
+    return nullptr;
+  }
+}
+
+// If `GetConstantRight()` returns one of the input, this returns the other
+// one. Otherwise it returns nullptr.
+HInstruction* HBinaryOperation::GetLeastConstantLeft() const {
+  HInstruction* most_constant_right = GetConstantRight();
+  if (most_constant_right == nullptr) {
+    return nullptr;
+  } else if (most_constant_right == GetLeft()) {
+    return GetRight();
+  } else {
+    return GetLeft();
+  }
+}
+
 bool HCondition::IsBeforeWhenDisregardMoves(HIf* if_) const {
   return this == if_->GetPreviousDisregardingMoves();
+}
+
+HConstant* HConstant::NewConstant(ArenaAllocator* allocator, Primitive::Type type, int64_t val) {
+  if (type == Primitive::kPrimInt) {
+    DCHECK(IsInt<32>(val));
+    return new (allocator) HIntConstant(val);
+  } else {
+    DCHECK_EQ(type, Primitive::kPrimLong);
+    return new (allocator) HLongConstant(val);
+  }
 }
 
 bool HInstruction::Equals(HInstruction* other) const {

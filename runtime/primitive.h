@@ -165,6 +165,10 @@ class Primitive {
     }
   }
 
+  static bool IsIntOrLongType(Type type) {
+    return type == kPrimInt || type == kPrimLong;
+  }
+
   static bool Is64BitType(Type type) {
     return type == kPrimLong || type == kPrimDouble;
   }

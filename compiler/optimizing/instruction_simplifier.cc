@@ -27,6 +27,8 @@ class InstructionSimplifierVisitor : public HGraphVisitor {
       : HGraphVisitor(graph), stats_(stats) {}
 
  private:
+  void VisitShift(HBinaryOperation* shift);
+
   void VisitSuspendCheck(HSuspendCheck* check) OVERRIDE;
   void VisitEqual(HEqual* equal) OVERRIDE;
   void VisitArraySet(HArraySet* equal) OVERRIDE;
@@ -34,6 +36,16 @@ class InstructionSimplifierVisitor : public HGraphVisitor {
   void VisitNullCheck(HNullCheck* instruction) OVERRIDE;
   void VisitArrayLength(HArrayLength* instruction) OVERRIDE;
   void VisitCheckCast(HCheckCast* instruction) OVERRIDE;
+  void VisitAdd(HAdd* instruction) OVERRIDE;
+  void VisitAnd(HAnd* instruction) OVERRIDE;
+  void VisitDiv(HDiv* instruction) OVERRIDE;
+  void VisitMul(HMul* instruction) OVERRIDE;
+  void VisitOr(HOr* instruction) OVERRIDE;
+  void VisitShl(HShl* instruction) OVERRIDE;
+  void VisitShr(HShr* instruction) OVERRIDE;
+  void VisitSub(HSub* instruction) OVERRIDE;
+  void VisitUShr(HUShr* instruction) OVERRIDE;
+  void VisitXor(HXor* instruction) OVERRIDE;
 
   OptimizingCompilerStats* stats_;
 };
@@ -41,6 +53,29 @@ class InstructionSimplifierVisitor : public HGraphVisitor {
 void InstructionSimplifier::Run() {
   InstructionSimplifierVisitor visitor(graph_, stats_);
   visitor.VisitInsertionOrder();
+}
+
+namespace {
+
+bool AreAllBitsSet(HConstant* constant) {
+  return Int64FromConstant(constant) == -1;
+}
+
+}  // namespace
+
+void InstructionSimplifierVisitor::VisitShift(HBinaryOperation* instruction) {
+  DCHECK(instruction->IsShl() || instruction->IsShr() || instruction->IsUShr());
+  HConstant* input_cst = instruction->GetConstantRight();
+  HInstruction* input_other = instruction->GetLeastConstantLeft();
+
+  if ((input_cst != nullptr) && input_cst->IsZero()) {
+    // Replace code looking like
+    //    SHL dst, src, 0
+    // with
+    //    src
+    instruction->ReplaceWith(input_other);
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  }
 }
 
 void InstructionSimplifierVisitor::VisitNullCheck(HNullCheck* null_check) {
@@ -134,6 +169,236 @@ void InstructionSimplifierVisitor::VisitTypeConversion(HTypeConversion* instruct
     // Remove the instruction if it's converting to the same type.
     instruction->ReplaceWith(instruction->GetInput());
     instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionSimplifierVisitor::VisitAdd(HAdd* instruction) {
+  HConstant* input_cst = instruction->GetConstantRight();
+  HInstruction* input_other = instruction->GetLeastConstantLeft();
+  if ((input_cst != nullptr) && input_cst->IsZero()) {
+    // Replace code looking like
+    //    ADD dst, src, 0
+    // with
+    //    src
+    instruction->ReplaceWith(input_other);
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionSimplifierVisitor::VisitAnd(HAnd* instruction) {
+  HConstant* input_cst = instruction->GetConstantRight();
+  HInstruction* input_other = instruction->GetLeastConstantLeft();
+
+  if ((input_cst != nullptr) && AreAllBitsSet(input_cst)) {
+    // Replace code looking like
+    //    AND dst, src, 0xFFF...FF
+    // with
+    //    src
+    instruction->ReplaceWith(input_other);
+    instruction->GetBlock()->RemoveInstruction(instruction);
+    return;
+  }
+
+  // We assume that GVN has run before, so we only perform a pointer comparison.
+  // If for some reason the values are equal but the pointers are different, we
+  // are still correct and only miss an optimisation opportunity.
+  if (instruction->GetLeft() == instruction->GetRight()) {
+    // Replace code looking like
+    //    AND dst, src, src
+    // with
+    //    src
+    instruction->ReplaceWith(instruction->GetLeft());
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionSimplifierVisitor::VisitDiv(HDiv* instruction) {
+  HConstant* input_cst = instruction->GetConstantRight();
+  HInstruction* input_other = instruction->GetLeastConstantLeft();
+  Primitive::Type type = instruction->GetType();
+
+  if ((input_cst != nullptr) && input_cst->IsOne()) {
+    // Replace code looking like
+    //    DIV dst, src, 1
+    // with
+    //    src
+    instruction->ReplaceWith(input_other);
+    instruction->GetBlock()->RemoveInstruction(instruction);
+    return;
+  }
+
+  if ((input_cst != nullptr) && input_cst->IsMinusOne() &&
+      (Primitive::IsFloatingPointType(type) || Primitive::IsIntOrLongType(type))) {
+    // Replace code looking like
+    //    DIV dst, src, -1
+    // with
+    //    NEG dst, src
+    instruction->GetBlock()->ReplaceAndRemoveInstructionWith(
+        instruction, (new (GetGraph()->GetArena()) HNeg(type, input_other)));
+  }
+}
+
+void InstructionSimplifierVisitor::VisitMul(HMul* instruction) {
+  HConstant* input_cst = instruction->GetConstantRight();
+  HInstruction* input_other = instruction->GetLeastConstantLeft();
+  Primitive::Type type = instruction->GetType();
+  HBasicBlock* block = instruction->GetBlock();
+  ArenaAllocator* allocator = GetGraph()->GetArena();
+
+  if (input_cst == nullptr) {
+    return;
+  }
+
+  if (input_cst->IsOne()) {
+    // Replace code looking like
+    //    MUL dst, src, 1
+    // with
+    //    src
+    instruction->ReplaceWith(input_other);
+    instruction->GetBlock()->RemoveInstruction(instruction);
+    return;
+  }
+
+  if (input_cst->IsMinusOne() &&
+      (Primitive::IsFloatingPointType(type) || Primitive::IsIntOrLongType(type))) {
+    // Replace code looking like
+    //    MUL dst, src, -1
+    // with
+    //    NEG dst, src
+    HNeg* neg = new (allocator) HNeg(type, input_other);
+    block->ReplaceAndRemoveInstructionWith(instruction, neg);
+    return;
+  }
+
+  if (Primitive::IsFloatingPointType(type) &&
+      ((input_cst->IsFloatConstant() && input_cst->AsFloatConstant()->GetValue() == 2.0f) ||
+       (input_cst->IsDoubleConstant() && input_cst->AsDoubleConstant()->GetValue() == 2.0))) {
+    // Replace code looking like
+    //    FP_MUL dst, src, 2.0
+    // with
+    //    FP_ADD dst, src, src
+    // The 'int' and 'long' cases are handled below.
+    block->ReplaceAndRemoveInstructionWith(instruction,
+                                           new (allocator) HAdd(type, input_other, input_other));
+    return;
+  }
+
+  if (Primitive::IsIntOrLongType(type)) {
+    int64_t factor = Int64FromConstant(input_cst);
+    // We expect the `0` case to have been handled in the constant folding pass.
+    DCHECK_NE(factor, 0);
+    if (IsPowerOfTwo(factor)) {
+      // Replace code looking like
+      //    MUL dst, src, pow_of_2
+      // with
+      //    SHL dst, src, log2(pow_of_2)
+      HIntConstant* shift = new (allocator) HIntConstant(WhichPowerOf2(factor));
+      block->InsertInstructionBefore(shift, instruction);
+      HShl* shl = new(allocator) HShl(type, input_other, shift);
+      block->ReplaceAndRemoveInstructionWith(instruction, shl);
+    }
+  }
+}
+
+void InstructionSimplifierVisitor::VisitOr(HOr* instruction) {
+  HConstant* input_cst = instruction->GetConstantRight();
+  HInstruction* input_other = instruction->GetLeastConstantLeft();
+
+  if ((input_cst != nullptr) && input_cst->IsZero()) {
+    // Replace code looking like
+    //    OR dst, src, 0
+    // with
+    //    src
+    instruction->ReplaceWith(input_other);
+    instruction->GetBlock()->RemoveInstruction(instruction);
+    return;
+  }
+
+  // We assume that GVN has run before, so we only perform a pointer comparison.
+  // If for some reason the values are equal but the pointers are different, we
+  // are still correct and only miss an optimisation opportunity.
+  if (instruction->GetLeft() == instruction->GetRight()) {
+    // Replace code looking like
+    //    OR dst, src, src
+    // with
+    //    src
+    instruction->ReplaceWith(instruction->GetLeft());
+    instruction->GetBlock()->RemoveInstruction(instruction);
+  }
+}
+
+void InstructionSimplifierVisitor::VisitShl(HShl* instruction) {
+  VisitShift(instruction);
+}
+
+void InstructionSimplifierVisitor::VisitShr(HShr* instruction) {
+  VisitShift(instruction);
+}
+
+void InstructionSimplifierVisitor::VisitSub(HSub* instruction) {
+  HConstant* input_cst = instruction->GetConstantRight();
+  HInstruction* input_other = instruction->GetLeastConstantLeft();
+
+  if ((input_cst != nullptr) && input_cst->IsZero()) {
+    // Replace code looking like
+    //    SUB dst, src, 0
+    // with
+    //    src
+    instruction->ReplaceWith(input_other);
+    instruction->GetBlock()->RemoveInstruction(instruction);
+    return;
+  }
+
+  Primitive::Type type = instruction->GetType();
+  if (!Primitive::IsIntegralType(type)) {
+    return;
+  }
+
+  HBasicBlock* block = instruction->GetBlock();
+  ArenaAllocator* allocator = GetGraph()->GetArena();
+
+  if (instruction->GetLeft()->IsConstant()) {
+    int64_t left = Int64FromConstant(instruction->GetLeft()->AsConstant());
+    if (left == 0) {
+      // Replace code looking like
+      //    SUB dst, 0, src
+      // with
+      //    NEG dst, src
+      // Note that we cannot optimise `0.0 - x` to `-x` for floating-point. When
+      // `x` is `0.0`, the former expression yields `0.0`, while the later
+      // yields `-0.0`.
+      HNeg* neg = new (allocator) HNeg(type, instruction->GetRight());
+      block->ReplaceAndRemoveInstructionWith(instruction, neg);
+    }
+  }
+}
+
+void InstructionSimplifierVisitor::VisitUShr(HUShr* instruction) {
+  VisitShift(instruction);
+}
+
+void InstructionSimplifierVisitor::VisitXor(HXor* instruction) {
+  HConstant* input_cst = instruction->GetConstantRight();
+  HInstruction* input_other = instruction->GetLeastConstantLeft();
+
+  if ((input_cst != nullptr) && input_cst->IsZero()) {
+    // Replace code looking like
+    //    XOR dst, src, 0
+    // with
+    //    src
+    instruction->ReplaceWith(input_other);
+    instruction->GetBlock()->RemoveInstruction(instruction);
+    return;
+  }
+
+  if ((input_cst != nullptr) && AreAllBitsSet(input_cst)) {
+    // Replace code looking like
+    //    XOR dst, src, 0xFFF...FF
+    // with
+    //    NOT dst, src
+    HNot* bitwise_not = new (GetGraph()->GetArena()) HNot(instruction->GetType(), input_other);
+    instruction->GetBlock()->ReplaceAndRemoveInstructionWith(instruction, bitwise_not);
+    return;
   }
 }
 

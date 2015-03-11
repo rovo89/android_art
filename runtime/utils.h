@@ -271,6 +271,12 @@ static constexpr int CTZ(T x) {
 }
 
 template<typename T>
+static inline int WhichPowerOf2(T x) {
+  DCHECK((x != 0) && IsPowerOfTwo(x));
+  return CTZ(x);
+}
+
+template<typename T>
 static constexpr int POPCOUNT(T x) {
   return (sizeof(T) == sizeof(uint32_t))
       ? __builtin_popcount(x)
