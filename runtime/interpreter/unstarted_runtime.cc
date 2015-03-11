@@ -39,6 +39,19 @@
 namespace art {
 namespace interpreter {
 
+static void AbortTransactionOrFail(Thread* self, const char* fmt, ...)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  va_list args;
+  va_start(args, fmt);
+  if (Runtime::Current()->IsActiveTransaction()) {
+    AbortTransaction(self, fmt, args);
+    va_end(args);
+  } else {
+    LOG(FATAL) << "Trying to abort, but not in transaction mode: " << StringPrintf(fmt, args);
+    UNREACHABLE();
+  }
+}
+
 // Helper function to deal with class loading in an unstarted runtime.
 static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> className,
                                       Handle<mirror::ClassLoader> class_loader, JValue* result,
@@ -52,8 +65,8 @@ static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> class
   mirror::Class* found = class_linker->FindClass(self, descriptor.c_str(), class_loader);
   if (found == nullptr && abort_if_not_found) {
     if (!self->IsExceptionPending()) {
-      AbortTransaction(self, "%s failed in un-started runtime for class: %s",
-                       method_name.c_str(), PrettyDescriptor(descriptor.c_str()).c_str());
+      AbortTransactionOrFail(self, "%s failed in un-started runtime for class: %s",
+                             method_name.c_str(), PrettyDescriptor(descriptor.c_str()).c_str());
     }
     return;
   }
@@ -154,10 +167,9 @@ static void UnstartedClassNewInstance(Thread* self, ShadowFrame* shadow_frame, J
     }
   }
   if (!ok) {
-    std::string error_msg = StringPrintf("Failed in Class.newInstance for '%s' with %s",
-                                         PrettyClass(h_klass.Get()).c_str(),
-                                         PrettyTypeOf(self->GetException()).c_str());
-    Runtime::Current()->AbortTransactionAndThrowInternalError(self, error_msg);
+    AbortTransactionOrFail(self, "Failed in Class.newInstance for '%s' with %s",
+                           PrettyClass(h_klass.Get()).c_str(),
+                           PrettyTypeOf(self->GetException()).c_str());
   }
 }
 
@@ -185,9 +197,12 @@ static void UnstartedClassGetDeclaredField(Thread* self, ShadowFrame* shadow_fra
       }
     }
   }
-  CHECK(found != nullptr)
-  << "Failed to find field in Class.getDeclaredField in un-started runtime. name="
-  << name2->ToModifiedUtf8() << " class=" << PrettyDescriptor(klass);
+  if (found == nullptr) {
+    AbortTransactionOrFail(self, "Failed to find field in Class.getDeclaredField in un-started "
+                           " runtime. name=%s class=%s", name2->ToModifiedUtf8().c_str(),
+                           PrettyDescriptor(klass).c_str());
+    return;
+  }
   // TODO: getDeclaredField calls GetType once the field is found to ensure a
   //       NoClassDefFoundError is thrown if the field's type cannot be resolved.
   mirror::Class* jlr_Field = self->DecodeJObject(
@@ -261,9 +276,8 @@ static void UnstartedSystemArraycopy(Thread* self, ShadowFrame* shadow_frame,
       dst->Set(dstPos + i, src->Get(srcPos + i));
     }
   } else {
-    std::string tmp = StringPrintf("Unimplemented System.arraycopy for type '%s'",
-                                   PrettyDescriptor(ctype).c_str());
-    Runtime::Current()->AbortTransactionAndThrowInternalError(self, tmp);
+    AbortTransactionOrFail(self, "Unimplemented System.arraycopy for type '%s'",
+                           PrettyDescriptor(ctype).c_str());
   }
 }
 
@@ -308,18 +322,12 @@ static void UnstartedThreadLocalGet(Thread* self, ShadowFrame* shadow_frame, JVa
             }
           }
         }
-
-        if (!ok) {
-          // We'll abort, so clear exception.
-          self->ClearException();
-        }
       }
     }
   }
 
   if (!ok) {
-    Runtime::Current()->AbortTransactionAndThrowInternalError(self,
-        "Could not create RealToString object");
+    AbortTransactionOrFail(self, "Could not create RealToString object");
   }
 }
 
@@ -469,7 +477,7 @@ static void UnstartedJNIStringCompareTo(Thread* self,
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   mirror::String* rhs = reinterpret_cast<mirror::Object*>(args[0])->AsString();
   if (rhs == nullptr) {
-    AbortTransaction(self, "String.compareTo with null object");
+    AbortTransactionOrFail(self, "String.compareTo with null object");
   }
   result->SetI(receiver->AsString()->CompareTo(rhs));
 }
