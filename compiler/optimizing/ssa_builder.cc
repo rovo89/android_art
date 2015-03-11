@@ -199,9 +199,9 @@ void SsaBuilder::BuildSsa() {
   // our code generator will complain if the inputs of a phi do not have the same
   // type. The marking allows the type propagation to know which phis it needs
   // to handle. We mark but do not eliminate: the elimination will be done in
-  // step 8).
-  SsaDeadPhiElimination dead_phis(GetGraph());
-  dead_phis.MarkDeadPhis();
+  // step 9).
+  SsaDeadPhiElimination dead_phis_for_type_propagation(GetGraph());
+  dead_phis_for_type_propagation.MarkDeadPhis();
 
   // 4) Propagate types of phis. At this point, phis are typed void in the general
   // case, or float/double/reference when we created an equivalent phi. So we
@@ -209,7 +209,11 @@ void SsaBuilder::BuildSsa() {
   PrimitiveTypePropagation type_propagation(GetGraph());
   type_propagation.Run();
 
-  // 5) Now that the graph is correclty typed, we can get rid of redundant phis.
+  // 5) Mark dead phis again. Steph 4) may have introduced new phis.
+  SsaDeadPhiElimination dead_phis(GetGraph());
+  dead_phis.MarkDeadPhis();
+
+  // 6) Now that the graph is correclty typed, we can get rid of redundant phis.
   // Note that we cannot do this phase before type propagation, otherwise
   // we could get rid of phi equivalents, whose presence is a requirement for the
   // type propagation phase. Note that this is to satisfy statement (a) of the
@@ -217,7 +221,7 @@ void SsaBuilder::BuildSsa() {
   SsaRedundantPhiElimination redundant_phi(GetGraph());
   redundant_phi.Run();
 
-  // 6) Make sure environments use the right phi "equivalent": a phi marked dead
+  // 7) Make sure environments use the right phi "equivalent": a phi marked dead
   // can have a phi equivalent that is not dead. We must therefore update
   // all environment uses of the dead phi to use its equivalent. Note that there
   // can be multiple phis for the same Dex register that are live (for example
@@ -244,7 +248,7 @@ void SsaBuilder::BuildSsa() {
     }
   }
 
-  // 7) Deal with phis to guarantee liveness of phis in case of a debuggable
+  // 8) Deal with phis to guarantee liveness of phis in case of a debuggable
   // application. This is for satisfying statement (c) of the SsaBuilder
   // (see ssa_builder.h).
   if (GetGraph()->IsDebuggable()) {
@@ -252,7 +256,7 @@ void SsaBuilder::BuildSsa() {
     dead_phi_handler.Run();
   }
 
-  // 8) Now that the right phis are used for the environments, and we
+  // 9) Now that the right phis are used for the environments, and we
   // have potentially revive dead phis in case of a debuggable application,
   // we can eliminate phis we do not need. Regardless of the debuggable status,
   // this phase is necessary for statement (b) of the SsaBuilder (see ssa_builder.h),
@@ -260,7 +264,7 @@ void SsaBuilder::BuildSsa() {
   // input types.
   dead_phis.EliminateDeadPhis();
 
-  // 9) Clear locals.
+  // 10) Clear locals.
   for (HInstructionIterator it(GetGraph()->GetEntryBlock()->GetInstructions());
        !it.Done();
        it.Advance()) {
