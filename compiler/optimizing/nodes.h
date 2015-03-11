@@ -3310,8 +3310,19 @@ class HParallelMove : public HTemplateInstruction<0> {
     if (kIsDebugBuild) {
       if (instruction != nullptr) {
         for (size_t i = 0, e = moves_.Size(); i < e; ++i) {
-          DCHECK_NE(moves_.Get(i).GetInstruction(), instruction)
-            << "Doing parallel moves for the same instruction.";
+          if (moves_.Get(i).GetInstruction() == instruction) {
+            // Special case the situation where the move is for the spill slot
+            // of the instruction.
+            if ((GetPrevious() == instruction)
+                || ((GetPrevious() == nullptr)
+                    && instruction->IsPhi()
+                    && instruction->GetBlock() == GetBlock())) {
+              DCHECK_NE(destination.GetKind(), moves_.Get(i).GetDestination().GetKind())
+                  << "Doing parallel moves for the same instruction.";
+            } else {
+              DCHECK(false) << "Doing parallel moves for the same instruction.";
+            }
+          }
         }
       }
       for (size_t i = 0, e = moves_.Size(); i < e; ++i) {

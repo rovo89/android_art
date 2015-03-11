@@ -520,7 +520,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
                             dex_file,
                             dex_compilation_unit,
                             &pass_info_printer);
-  } else if (shouldOptimize && RegisterAllocator::Supports(instruction_set)) {
+  } else if (shouldOptimize && can_allocate_registers) {
     LOG(FATAL) << "Could not allocate registers in optimizing compiler";
     UNREACHABLE();
   } else {
