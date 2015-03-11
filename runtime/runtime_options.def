@@ -59,6 +59,7 @@ RUNTIME_OPTIONS_KEY (MillisecondsToNanoseconds, \
 RUNTIME_OPTIONS_KEY (MillisecondsToNanoseconds, \
                                           LongGCLogThreshold,             gc::Heap::kDefaultLongGCLogThreshold)
 RUNTIME_OPTIONS_KEY (Unit,                DumpGCPerformanceOnShutdown)
+RUNTIME_OPTIONS_KEY (Unit,                DumpJITInfoOnShutdown)
 RUNTIME_OPTIONS_KEY (Unit,                IgnoreMaxFootprint)
 RUNTIME_OPTIONS_KEY (Unit,                LowMemoryMode)
 RUNTIME_OPTIONS_KEY (bool,                UseTLAB,                        false)
