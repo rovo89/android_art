@@ -2311,12 +2311,9 @@ void LocationsBuilderARM::HandleShift(HBinaryOperation* op) {
       break;
     }
     case Primitive::kPrimLong: {
-      InvokeRuntimeCallingConvention calling_convention;
-      locations->SetInAt(0, Location::RegisterPairLocation(
-          calling_convention.GetRegisterAt(0), calling_convention.GetRegisterAt(1)));
-      locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(2)));
-      // The runtime helper puts the output in R0,R1.
-      locations->SetOut(Location::RegisterPairLocation(R0, R1));
+      locations->SetInAt(0, Location::RequiresRegister());
+      locations->SetInAt(1, Location::RequiresRegister());
+      locations->SetOut(Location::RequiresRegister());
       break;
     }
     default:
@@ -2364,24 +2361,54 @@ void InstructionCodeGeneratorARM::HandleShift(HBinaryOperation* op) {
       break;
     }
     case Primitive::kPrimLong: {
-      // TODO: Inline the assembly instead of calling the runtime.
-      InvokeRuntimeCallingConvention calling_convention;
-      DCHECK_EQ(calling_convention.GetRegisterAt(0), first.AsRegisterPairLow<Register>());
-      DCHECK_EQ(calling_convention.GetRegisterAt(1), first.AsRegisterPairHigh<Register>());
-      DCHECK_EQ(calling_convention.GetRegisterAt(2), second.AsRegister<Register>());
-      DCHECK_EQ(R0, out.AsRegisterPairLow<Register>());
-      DCHECK_EQ(R1, out.AsRegisterPairHigh<Register>());
+      Register o_h = out.AsRegisterPairHigh<Register>();
+      Register o_l = out.AsRegisterPairLow<Register>();
 
-      int32_t entry_point_offset;
+      Register high = first.AsRegisterPairHigh<Register>();
+      Register low = first.AsRegisterPairLow<Register>();
+
+      Register second_reg = second.AsRegister<Register>();
+
       if (op->IsShl()) {
-        entry_point_offset = QUICK_ENTRY_POINT(pShlLong);
+        // Shift the high part
+        __ and_(second_reg, second_reg, ShifterOperand(63));
+        __ Lsl(high, high, second_reg);
+        // Shift the low part and `or` what overflowed on the high part
+        __ rsb(IP, second_reg, ShifterOperand(32));
+        __ Lsr(IP, low, IP);
+        __ orr(o_h, high, ShifterOperand(IP));
+        // If the shift is > 32 bits, override the high part
+        __ subs(IP, second_reg, ShifterOperand(32));
+        __ it(PL);
+        __ Lsl(o_h, low, IP, false, PL);
+        // Shift the low part
+        __ Lsl(o_l, low, second_reg);
       } else if (op->IsShr()) {
-        entry_point_offset = QUICK_ENTRY_POINT(pShrLong);
+        // Shift the low part
+        __ and_(second_reg, second_reg, ShifterOperand(63));
+        __ Lsr(low, low, second_reg);
+        // Shift the high part and `or` what underflowed on the low part
+        __ rsb(IP, second_reg, ShifterOperand(32));
+        __ Lsl(IP, high, IP);
+        __ orr(o_l, low, ShifterOperand(IP));
+        // If the shift is > 32 bits, override the low part
+        __ subs(IP, second_reg, ShifterOperand(32));
+        __ it(PL);
+        __ Asr(o_l, high, IP, false, PL);
+        // Shift the high part
+        __ Asr(o_h, high, second_reg);
       } else {
-        entry_point_offset = QUICK_ENTRY_POINT(pUshrLong);
+        // same as Shr except we use `Lsr`s and not `Asr`s
+        __ and_(second_reg, second_reg, ShifterOperand(63));
+        __ Lsr(low, low, second_reg);
+        __ rsb(IP, second_reg, ShifterOperand(32));
+        __ Lsl(IP, high, IP);
+        __ orr(o_l, low, ShifterOperand(IP));
+        __ subs(IP, second_reg, ShifterOperand(32));
+        __ it(PL);
+        __ Lsr(o_l, high, IP, false, PL);
+        __ Lsr(o_h, high, second_reg);
       }
-      __ LoadFromOffset(kLoadWord, LR, TR, entry_point_offset);
-      __ blx(LR);
       break;
     }
     default:
