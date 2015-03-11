@@ -47,10 +47,10 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
 
   // Allocate num_bytes, returns nullptr if the space is full.
   mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                        size_t* usable_size) OVERRIDE;
+                        size_t* usable_size, size_t* bytes_tl_bulk_allocated) OVERRIDE;
   // Thread-unsafe allocation for when mutators are suspended, used by the semispace collector.
   mirror::Object* AllocThreadUnsafe(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                                    size_t* usable_size)
+                                    size_t* usable_size, size_t* bytes_tl_bulk_allocated)
       OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Object* AllocNonvirtual(size_t num_bytes);
@@ -103,9 +103,9 @@ class BumpPointerSpace FINAL : public ContinuousMemMapAllocSpace {
 
   void Dump(std::ostream& os) const;
 
-  void RevokeThreadLocalBuffers(Thread* thread) LOCKS_EXCLUDED(block_lock_);
-  void RevokeAllThreadLocalBuffers() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_,
-                                                    Locks::thread_list_lock_);
+  size_t RevokeThreadLocalBuffers(Thread* thread) LOCKS_EXCLUDED(block_lock_);
+  size_t RevokeAllThreadLocalBuffers() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_,
+                                                      Locks::thread_list_lock_);
   void AssertThreadLocalBuffersAreRevoked(Thread* thread) LOCKS_EXCLUDED(block_lock_);
   void AssertAllThreadLocalBuffersAreRevoked() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_,
                                                               Locks::thread_list_lock_);

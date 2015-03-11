@@ -390,6 +390,9 @@ class Heap {
   // free-list backed space.
   void RecordFree(uint64_t freed_objects, int64_t freed_bytes);
 
+  // Record the bytes freed by thread-local buffer revoke.
+  void RecordFreeRevoke();
+
   // Must be called if a field of an Object in the heap changes, and before any GC safe-point.
   // The call is not needed if NULL is stored in the field.
   ALWAYS_INLINE void WriteBarrierField(const mirror::Object* dst, MemberOffset /*offset*/,
@@ -664,6 +667,11 @@ class Heap {
   // Whether or not we may use a garbage collector, used so that we only create collectors we need.
   bool MayUseCollector(CollectorType type) const;
 
+  // Used by tests to reduce timinig-dependent flakiness in OOME behavior.
+  void SetMinIntervalHomogeneousSpaceCompactionByOom(uint64_t interval) {
+    min_interval_homogeneous_space_compaction_by_oom_ = interval;
+  }
+
  private:
   class ConcurrentGCTask;
   class CollectorTransitionTask;
@@ -724,6 +732,7 @@ class Heap {
   // an initial allocation attempt failed.
   mirror::Object* AllocateInternalWithGc(Thread* self, AllocatorType allocator, size_t num_bytes,
                                          size_t* bytes_allocated, size_t* usable_size,
+                                         size_t* bytes_tl_bulk_allocated,
                                          mirror::Class** klass)
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -742,7 +751,8 @@ class Heap {
   template <const bool kInstrumented, const bool kGrow>
   ALWAYS_INLINE mirror::Object* TryToAllocate(Thread* self, AllocatorType allocator_type,
                                               size_t alloc_size, size_t* bytes_allocated,
-                                              size_t* usable_size)
+                                              size_t* usable_size,
+                                              size_t* bytes_tl_bulk_allocated)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void ThrowOutOfMemoryError(Thread* self, size_t byte_count, AllocatorType allocator_type)
@@ -997,6 +1007,13 @@ class Heap {
 
   // Bytes which are allocated and managed by native code but still need to be accounted for.
   Atomic<size_t> native_bytes_allocated_;
+
+  // Number of bytes freed by thread local buffer revokes. This will
+  // cancel out the ahead-of-time bulk counting of bytes allocated in
+  // rosalloc thread-local buffers.  It is temporarily accumulated
+  // here to be subtracted from num_bytes_allocated_ later at the next
+  // GC.
+  Atomic<size_t> num_bytes_freed_revoke_;
 
   // Info related to the current or previous GC iteration.
   collector::Iteration current_gc_iteration_;

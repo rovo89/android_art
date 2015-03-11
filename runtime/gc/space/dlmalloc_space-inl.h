@@ -27,11 +27,13 @@ namespace space {
 
 inline mirror::Object* DlMallocSpace::AllocNonvirtual(Thread* self, size_t num_bytes,
                                                       size_t* bytes_allocated,
-                                                      size_t* usable_size) {
+                                                      size_t* usable_size,
+                                                      size_t* bytes_tl_bulk_allocated) {
   mirror::Object* obj;
   {
     MutexLock mu(self, lock_);
-    obj = AllocWithoutGrowthLocked(self, num_bytes, bytes_allocated, usable_size);
+    obj = AllocWithoutGrowthLocked(self, num_bytes, bytes_allocated, usable_size,
+                                   bytes_tl_bulk_allocated);
   }
   if (LIKELY(obj != NULL)) {
     // Zero freshly allocated memory, done while not holding the space's lock.
@@ -49,9 +51,11 @@ inline size_t DlMallocSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_
   return size + kChunkOverhead;
 }
 
-inline mirror::Object* DlMallocSpace::AllocWithoutGrowthLocked(Thread* /*self*/, size_t num_bytes,
-                                                               size_t* bytes_allocated,
-                                                               size_t* usable_size) {
+inline mirror::Object* DlMallocSpace::AllocWithoutGrowthLocked(
+    Thread* /*self*/, size_t num_bytes,
+    size_t* bytes_allocated,
+    size_t* usable_size,
+    size_t* bytes_tl_bulk_allocated) {
   mirror::Object* result = reinterpret_cast<mirror::Object*>(mspace_malloc(mspace_, num_bytes));
   if (LIKELY(result != NULL)) {
     if (kDebugSpaces) {
@@ -61,6 +65,7 @@ inline mirror::Object* DlMallocSpace::AllocWithoutGrowthLocked(Thread* /*self*/,
     size_t allocation_size = AllocationSizeNonvirtual(result, usable_size);
     DCHECK(bytes_allocated != NULL);
     *bytes_allocated = allocation_size;
+    *bytes_tl_bulk_allocated = allocation_size;
   }
   return result;
 }

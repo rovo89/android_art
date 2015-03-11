@@ -242,6 +242,7 @@ void SemiSpace::MarkingPhase() {
   // Revoke buffers before measuring how many objects were moved since the TLABs need to be revoked
   // before they are properly counted.
   RevokeAllThreadLocalBuffers();
+  GetHeap()->RecordFreeRevoke();  // this is for the non-moving rosalloc space used by GSS.
   // Record freed memory.
   const int64_t from_bytes = from_space_->GetBytesAllocated();
   const int64_t to_bytes = bytes_moved_;
@@ -489,17 +490,18 @@ static inline size_t CopyAvoidingDirtyingPages(void* dest, const void* src, size
 
 mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
   const size_t object_size = obj->SizeOf();
-  size_t bytes_allocated;
+  size_t bytes_allocated, dummy;
   mirror::Object* forward_address = nullptr;
   if (generational_ && reinterpret_cast<uint8_t*>(obj) < last_gc_to_space_end_) {
     // If it's allocated before the last GC (older), move
     // (pseudo-promote) it to the main free list space (as sort
     // of an old generation.)
     forward_address = promo_dest_space_->AllocThreadUnsafe(self_, object_size, &bytes_allocated,
-                                                           nullptr);
+                                                           nullptr, &dummy);
     if (UNLIKELY(forward_address == nullptr)) {
       // If out of space, fall back to the to-space.
-      forward_address = to_space_->AllocThreadUnsafe(self_, object_size, &bytes_allocated, nullptr);
+      forward_address = to_space_->AllocThreadUnsafe(self_, object_size, &bytes_allocated, nullptr,
+                                                     &dummy);
       // No logic for marking the bitmap, so it must be null.
       DCHECK(to_space_live_bitmap_ == nullptr);
     } else {
@@ -544,7 +546,8 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
     }
   } else {
     // If it's allocated after the last GC (younger), copy it to the to-space.
-    forward_address = to_space_->AllocThreadUnsafe(self_, object_size, &bytes_allocated, nullptr);
+    forward_address = to_space_->AllocThreadUnsafe(self_, object_size, &bytes_allocated, nullptr,
+                                                   &dummy);
     if (forward_address != nullptr && to_space_live_bitmap_ != nullptr) {
       to_space_live_bitmap_->Set(forward_address);
     }
@@ -552,7 +555,7 @@ mirror::Object* SemiSpace::MarkNonForwardedObject(mirror::Object* obj) {
   // If it's still null, attempt to use the fallback space.
   if (UNLIKELY(forward_address == nullptr)) {
     forward_address = fallback_space_->AllocThreadUnsafe(self_, object_size, &bytes_allocated,
-                                                         nullptr);
+                                                         nullptr, &dummy);
     CHECK(forward_address != nullptr) << "Out of memory in the to-space and fallback space.";
     accounting::ContinuousSpaceBitmap* bitmap = fallback_space_->GetLiveBitmap();
     if (bitmap != nullptr) {

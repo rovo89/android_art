@@ -154,7 +154,8 @@ allocator::RosAlloc* RosAllocSpace::CreateRosAlloc(void* begin, size_t morecore_
 }
 
 mirror::Object* RosAllocSpace::AllocWithGrowth(Thread* self, size_t num_bytes,
-                                               size_t* bytes_allocated, size_t* usable_size) {
+                                               size_t* bytes_allocated, size_t* usable_size,
+                                               size_t* bytes_tl_bulk_allocated) {
   mirror::Object* result;
   {
     MutexLock mu(self, lock_);
@@ -162,7 +163,8 @@ mirror::Object* RosAllocSpace::AllocWithGrowth(Thread* self, size_t num_bytes,
     size_t max_allowed = Capacity();
     rosalloc_->SetFootprintLimit(max_allowed);
     // Try the allocation.
-    result = AllocCommon(self, num_bytes, bytes_allocated, usable_size);
+    result = AllocCommon(self, num_bytes, bytes_allocated, usable_size,
+                         bytes_tl_bulk_allocated);
     // Shrink back down as small as possible.
     size_t footprint = rosalloc_->Footprint();
     rosalloc_->SetFootprintLimit(footprint);
@@ -209,7 +211,7 @@ size_t RosAllocSpace::FreeList(Thread* self, size_t num_ptrs, mirror::Object** p
       __builtin_prefetch(reinterpret_cast<char*>(ptrs[i + kPrefetchLookAhead]));
     }
     if (kVerifyFreedBytes) {
-      verify_bytes += AllocationSizeNonvirtual(ptrs[i], nullptr);
+      verify_bytes += AllocationSizeNonvirtual<true>(ptrs[i], nullptr);
     }
   }
 
@@ -338,12 +340,12 @@ void RosAllocSpace::InspectAllRosAlloc(void (*callback)(void *start, void *end, 
   }
 }
 
-void RosAllocSpace::RevokeThreadLocalBuffers(Thread* thread) {
-  rosalloc_->RevokeThreadLocalRuns(thread);
+size_t RosAllocSpace::RevokeThreadLocalBuffers(Thread* thread) {
+  return rosalloc_->RevokeThreadLocalRuns(thread);
 }
 
-void RosAllocSpace::RevokeAllThreadLocalBuffers() {
-  rosalloc_->RevokeAllThreadLocalRuns();
+size_t RosAllocSpace::RevokeAllThreadLocalBuffers() {
+  return rosalloc_->RevokeAllThreadLocalRuns();
 }
 
 void RosAllocSpace::AssertThreadLocalBuffersAreRevoked(Thread* thread) {

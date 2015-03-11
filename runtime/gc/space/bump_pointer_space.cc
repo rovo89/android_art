@@ -93,12 +93,13 @@ mirror::Object* BumpPointerSpace::GetNextObject(mirror::Object* obj) {
   return reinterpret_cast<mirror::Object*>(RoundUp(position, kAlignment));
 }
 
-void BumpPointerSpace::RevokeThreadLocalBuffers(Thread* thread) {
+size_t BumpPointerSpace::RevokeThreadLocalBuffers(Thread* thread) {
   MutexLock mu(Thread::Current(), block_lock_);
   RevokeThreadLocalBuffersLocked(thread);
+  return 0U;
 }
 
-void BumpPointerSpace::RevokeAllThreadLocalBuffers() {
+size_t BumpPointerSpace::RevokeAllThreadLocalBuffers() {
   Thread* self = Thread::Current();
   MutexLock mu(self, *Locks::runtime_shutdown_lock_);
   MutexLock mu2(self, *Locks::thread_list_lock_);
@@ -107,6 +108,7 @@ void BumpPointerSpace::RevokeAllThreadLocalBuffers() {
   for (Thread* thread : thread_list) {
     RevokeThreadLocalBuffers(thread);
   }
+  return 0U;
 }
 
 void BumpPointerSpace::AssertThreadLocalBuffersAreRevoked(Thread* thread) {

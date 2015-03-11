@@ -75,6 +75,12 @@ class Iteration {
   uint64_t GetFreedLargeObjects() const {
     return freed_los_.objects;
   }
+  uint64_t GetFreedRevokeBytes() const {
+    return freed_bytes_revoke_;
+  }
+  void SetFreedRevoke(uint64_t freed) {
+    freed_bytes_revoke_ = freed;
+  }
   void Reset(GcCause gc_cause, bool clear_soft_references);
   // Returns the estimated throughput of the iteration.
   uint64_t GetEstimatedThroughput() const;
@@ -99,6 +105,7 @@ class Iteration {
   TimingLogger timings_;
   ObjectBytePair freed_;
   ObjectBytePair freed_los_;
+  uint64_t freed_bytes_revoke_;  // see Heap::num_bytes_freed_revoke_.
   std::vector<uint64_t> pause_times_;
 
   friend class GarbageCollector;
