@@ -826,7 +826,9 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond ATTRIBUTE_UNUSED,
     // Check special cases.
     if ((opcode == SUB || opcode == ADD) && (so.GetImmediate() < (1u << 12))) {
       if (opcode == SUB) {
-        thumb_opcode = 5U /* 0b0101 */;
+        if (!set_cc) {
+          thumb_opcode = 5U /* 0b0101 */;
+        }
       } else {
         thumb_opcode = 0;
       }
@@ -836,13 +838,14 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond ATTRIBUTE_UNUSED,
       uint32_t imm3 = (imm >> 8) & 7U /* 0b111 */;
       uint32_t imm8 = imm & 0xff;
 
-      encoding = B31 | B30 | B29 | B28 | B25 |
-           thumb_opcode << 21 |
-           rn << 16 |
-           rd << 8 |
-           i << 26 |
-           imm3 << 12 |
-           imm8;
+      encoding = B31 | B30 | B29 | B28 |
+          (set_cc ? B20 : B25) |
+          thumb_opcode << 21 |
+          rn << 16 |
+          rd << 8 |
+          i << 26 |
+          imm3 << 12 |
+          imm8;
     } else {
       // Modified immediate.
       uint32_t imm = ModifiedImmediate(so.encodingThumb());
@@ -858,13 +861,13 @@ void Thumb2Assembler::Emit32BitDataProcessing(Condition cond ATTRIBUTE_UNUSED,
           imm;
     }
   } else if (so.IsRegister()) {
-     // Register (possibly shifted)
-     encoding = B31 | B30 | B29 | B27 | B25 |
-         thumb_opcode << 21 |
-         (set_cc ? 1 : 0) << 20 |
-         rn << 16 |
-         rd << 8 |
-         so.encodingThumb();
+    // Register (possibly shifted)
+    encoding = B31 | B30 | B29 | B27 | B25 |
+        thumb_opcode << 21 |
+        (set_cc ? 1 : 0) << 20 |
+        rn << 16 |
+        rd << 8 |
+        so.encodingThumb();
   }
   Emit32(encoding);
 }
