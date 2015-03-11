@@ -401,9 +401,8 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
 
 void Trace::Stop() {
   bool stop_alloc_counting = false;
-  Runtime* runtime = Runtime::Current();
-  runtime->GetThreadList()->SuspendAll();
-  Trace* the_trace = NULL;
+  Runtime* const runtime = Runtime::Current();
+  Trace* the_trace = nullptr;
   pthread_t sampling_pthread = 0U;
   {
     MutexLock mu(Thread::Current(), *Locks::trace_lock_);
@@ -415,19 +414,27 @@ void Trace::Stop() {
       sampling_pthread = sampling_pthread_;
     }
   }
-  if (the_trace != NULL) {
+  // Make sure that we join before we delete the trace since we don't want to have
+  // the sampling thread access a stale pointer. This finishes since the sampling thread exits when
+  // the_trace_ is null.
+  if (sampling_pthread != 0U) {
+    CHECK_PTHREAD_CALL(pthread_join, (sampling_pthread, NULL), "sampling thread shutdown");
+    sampling_pthread_ = 0U;
+  }
+  runtime->GetThreadList()->SuspendAll();
+  if (the_trace != nullptr) {
     stop_alloc_counting = (the_trace->flags_ & kTraceCountAllocs) != 0;
     the_trace->FinishTracing();
 
     if (the_trace->sampling_enabled_) {
       MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
-      runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, NULL);
+      runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, nullptr);
     } else {
       runtime->GetInstrumentation()->DisableMethodTracing();
-      runtime->GetInstrumentation()->RemoveListener(the_trace,
-                                                    instrumentation::Instrumentation::kMethodEntered |
-                                                    instrumentation::Instrumentation::kMethodExited |
-                                                    instrumentation::Instrumentation::kMethodUnwind);
+      runtime->GetInstrumentation()->RemoveListener(
+          the_trace, instrumentation::Instrumentation::kMethodEntered |
+          instrumentation::Instrumentation::kMethodExited |
+          instrumentation::Instrumentation::kMethodUnwind);
     }
     if (the_trace->trace_file_.get() != nullptr) {
       // Do not try to erase, so flush and close explicitly.
@@ -441,15 +448,9 @@ void Trace::Stop() {
     delete the_trace;
   }
   runtime->GetThreadList()->ResumeAll();
-
   if (stop_alloc_counting) {
     // Can be racy since SetStatsEnabled is not guarded by any locks.
-    Runtime::Current()->SetStatsEnabled(false);
-  }
-
-  if (sampling_pthread != 0U) {
-    CHECK_PTHREAD_CALL(pthread_join, (sampling_pthread, NULL), "sampling thread shutdown");
-    sampling_pthread_ = 0U;
+    runtime->SetStatsEnabled(false);
   }
 }
 
