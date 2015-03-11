@@ -1175,6 +1175,9 @@ static int patchoat(int argc, char **argv) {
         input_oat_filename = "input-oat-file";
       }
       input_oat.reset(new File(input_oat_fd, input_oat_filename, false));
+      if (input_oat_fd == output_oat_fd) {
+        input_oat.get()->DisableAutoClose();
+      }
       if (input_oat == nullptr) {
         // Unlikely, but ensure exhaustive logging in non-0 exit code case
         LOG(ERROR) << "Failed to open input oat file by its FD" << input_oat_fd;
