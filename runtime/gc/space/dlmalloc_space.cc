@@ -123,7 +123,8 @@ void* DlMallocSpace::CreateMspace(void* begin, size_t morecore_start, size_t ini
 }
 
 mirror::Object* DlMallocSpace::AllocWithGrowth(Thread* self, size_t num_bytes,
-                                               size_t* bytes_allocated, size_t* usable_size) {
+                                               size_t* bytes_allocated, size_t* usable_size,
+                                               size_t* bytes_tl_bulk_allocated) {
   mirror::Object* result;
   {
     MutexLock mu(self, lock_);
@@ -131,7 +132,8 @@ mirror::Object* DlMallocSpace::AllocWithGrowth(Thread* self, size_t num_bytes,
     size_t max_allowed = Capacity();
     mspace_set_footprint_limit(mspace_, max_allowed);
     // Try the allocation.
-    result = AllocWithoutGrowthLocked(self, num_bytes, bytes_allocated, usable_size);
+    result = AllocWithoutGrowthLocked(self, num_bytes, bytes_allocated, usable_size,
+                                      bytes_tl_bulk_allocated);
     // Shrink back down as small as possible.
     size_t footprint = mspace_footprint(mspace_);
     mspace_set_footprint_limit(mspace_, footprint);

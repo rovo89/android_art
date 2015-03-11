@@ -292,6 +292,7 @@ void MarkSweep::ReclaimPhase() {
   Runtime::Current()->AllowNewSystemWeaks();
   {
     WriterMutexLock mu(self, *Locks::heap_bitmap_lock_);
+    GetHeap()->RecordFreeRevoke();
     // Reclaim unmarked objects.
     Sweep(false);
     // Swap the live and mark bitmaps for each space which we modified space. This is an

@@ -26,13 +26,19 @@ namespace art {
 namespace gc {
 namespace space {
 
+template<bool kMaybeRunningOnValgrind>
 inline size_t RosAllocSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size) {
   // obj is a valid object. Use its class in the header to get the size.
   // Don't use verification since the object may be dead if we are sweeping.
   size_t size = obj->SizeOf<kVerifyNone>();
-  bool running_on_valgrind = RUNNING_ON_VALGRIND != 0;
-  if (running_on_valgrind) {
-    size += 2 * kDefaultValgrindRedZoneBytes;
+  bool running_on_valgrind = false;
+  if (kMaybeRunningOnValgrind) {
+    running_on_valgrind = RUNNING_ON_VALGRIND != 0;
+    if (running_on_valgrind) {
+      size += 2 * kDefaultValgrindRedZoneBytes;
+    }
+  } else {
+    DCHECK_EQ(RUNNING_ON_VALGRIND, 0U);
   }
   size_t size_by_size = rosalloc_->UsableSize(size);
   if (kIsDebugBuild) {
@@ -55,26 +61,48 @@ inline size_t RosAllocSpace::AllocationSizeNonvirtual(mirror::Object* obj, size_
 
 template<bool kThreadSafe>
 inline mirror::Object* RosAllocSpace::AllocCommon(Thread* self, size_t num_bytes,
-                                                  size_t* bytes_allocated, size_t* usable_size) {
-  size_t rosalloc_size = 0;
+                                                  size_t* bytes_allocated, size_t* usable_size,
+                                                  size_t* bytes_tl_bulk_allocated) {
+  size_t rosalloc_bytes_allocated = 0;
+  size_t rosalloc_usable_size = 0;
+  size_t rosalloc_bytes_tl_bulk_allocated = 0;
   if (!kThreadSafe) {
     Locks::mutator_lock_->AssertExclusiveHeld(self);
   }
   mirror::Object* result = reinterpret_cast<mirror::Object*>(
-      rosalloc_->Alloc<kThreadSafe>(self, num_bytes, &rosalloc_size));
+      rosalloc_->Alloc<kThreadSafe>(self, num_bytes, &rosalloc_bytes_allocated,
+                                    &rosalloc_usable_size,
+                                    &rosalloc_bytes_tl_bulk_allocated));
   if (LIKELY(result != NULL)) {
     if (kDebugSpaces) {
       CHECK(Contains(result)) << "Allocation (" << reinterpret_cast<void*>(result)
             << ") not in bounds of allocation space " << *this;
     }
     DCHECK(bytes_allocated != NULL);
-    *bytes_allocated = rosalloc_size;
-    DCHECK_EQ(rosalloc_size, rosalloc_->UsableSize(result));
+    *bytes_allocated = rosalloc_bytes_allocated;
+    DCHECK_EQ(rosalloc_usable_size, rosalloc_->UsableSize(result));
     if (usable_size != nullptr) {
-      *usable_size = rosalloc_size;
+      *usable_size = rosalloc_usable_size;
     }
+    DCHECK(bytes_tl_bulk_allocated != NULL);
+    *bytes_tl_bulk_allocated = rosalloc_bytes_tl_bulk_allocated;
   }
   return result;
+}
+
+inline bool RosAllocSpace::CanAllocThreadLocal(Thread* self, size_t num_bytes) {
+  return rosalloc_->CanAllocFromThreadLocalRun(self, num_bytes);
+}
+
+inline mirror::Object* RosAllocSpace::AllocThreadLocal(Thread* self, size_t num_bytes,
+                                                       size_t* bytes_allocated) {
+  DCHECK(bytes_allocated != nullptr);
+  return reinterpret_cast<mirror::Object*>(
+      rosalloc_->AllocFromThreadLocalRun(self, num_bytes, bytes_allocated));
+}
+
+inline size_t RosAllocSpace::MaxBytesBulkAllocatedForNonvirtual(size_t num_bytes) {
+  return rosalloc_->MaxBytesBulkAllocatedFor(num_bytes);
 }
 
 }  // namespace space

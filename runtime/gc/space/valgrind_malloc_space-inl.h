@@ -32,9 +32,14 @@ namespace valgrind_details {
 template <size_t kValgrindRedZoneBytes, bool kUseObjSizeForUsable>
 inline mirror::Object* AdjustForValgrind(void* obj_with_rdz, size_t num_bytes,
                                          size_t bytes_allocated, size_t usable_size,
-                                         size_t* bytes_allocated_out, size_t* usable_size_out) {
+                                         size_t bytes_tl_bulk_allocated,
+                                         size_t* bytes_allocated_out, size_t* usable_size_out,
+                                         size_t* bytes_tl_bulk_allocated_out) {
   if (bytes_allocated_out != nullptr) {
     *bytes_allocated_out = bytes_allocated;
+  }
+  if (bytes_tl_bulk_allocated_out != nullptr) {
+    *bytes_tl_bulk_allocated_out = bytes_tl_bulk_allocated;
   }
 
   // This cuts over-provision and is a trade-off between testing the over-provisioning code paths
@@ -82,20 +87,25 @@ ValgrindMallocSpace<S,
                     kValgrindRedZoneBytes,
                     kAdjustForRedzoneInAllocSize,
                     kUseObjSizeForUsable>::AllocWithGrowth(
-    Thread* self, size_t num_bytes, size_t* bytes_allocated_out, size_t* usable_size_out) {
+    Thread* self, size_t num_bytes, size_t* bytes_allocated_out, size_t* usable_size_out,
+    size_t* bytes_tl_bulk_allocated_out) {
   size_t bytes_allocated;
   size_t usable_size;
+  size_t bytes_tl_bulk_allocated;
   void* obj_with_rdz = S::AllocWithGrowth(self, num_bytes + 2 * kValgrindRedZoneBytes,
-                                          &bytes_allocated, &usable_size);
+                                          &bytes_allocated, &usable_size,
+                                          &bytes_tl_bulk_allocated);
   if (obj_with_rdz == nullptr) {
     return nullptr;
   }
 
-  return valgrind_details::AdjustForValgrind<kValgrindRedZoneBytes,
-                                             kUseObjSizeForUsable>(obj_with_rdz, num_bytes,
-                                                                   bytes_allocated, usable_size,
-                                                                   bytes_allocated_out,
-                                                                   usable_size_out);
+  return valgrind_details::AdjustForValgrind<kValgrindRedZoneBytes, kUseObjSizeForUsable>(
+      obj_with_rdz, num_bytes,
+      bytes_allocated, usable_size,
+      bytes_tl_bulk_allocated,
+      bytes_allocated_out,
+      usable_size_out,
+      bytes_tl_bulk_allocated_out);
 }
 
 template <typename S,
@@ -106,11 +116,13 @@ mirror::Object* ValgrindMallocSpace<S,
                                     kValgrindRedZoneBytes,
                                     kAdjustForRedzoneInAllocSize,
                                     kUseObjSizeForUsable>::Alloc(
-    Thread* self, size_t num_bytes, size_t* bytes_allocated_out, size_t* usable_size_out) {
+    Thread* self, size_t num_bytes, size_t* bytes_allocated_out, size_t* usable_size_out,
+    size_t* bytes_tl_bulk_allocated_out) {
   size_t bytes_allocated;
   size_t usable_size;
+  size_t bytes_tl_bulk_allocated;
   void* obj_with_rdz = S::Alloc(self, num_bytes + 2 * kValgrindRedZoneBytes,
-                                &bytes_allocated, &usable_size);
+                                &bytes_allocated, &usable_size, &bytes_tl_bulk_allocated);
   if (obj_with_rdz == nullptr) {
     return nullptr;
   }
@@ -118,8 +130,10 @@ mirror::Object* ValgrindMallocSpace<S,
   return valgrind_details::AdjustForValgrind<kValgrindRedZoneBytes,
                                              kUseObjSizeForUsable>(obj_with_rdz, num_bytes,
                                                                    bytes_allocated, usable_size,
+                                                                   bytes_tl_bulk_allocated,
                                                                    bytes_allocated_out,
-                                                                   usable_size_out);
+                                                                   usable_size_out,
+                                                                   bytes_tl_bulk_allocated_out);
 }
 
 template <typename S,
@@ -130,20 +144,25 @@ mirror::Object* ValgrindMallocSpace<S,
                                     kValgrindRedZoneBytes,
                                     kAdjustForRedzoneInAllocSize,
                                     kUseObjSizeForUsable>::AllocThreadUnsafe(
-    Thread* self, size_t num_bytes, size_t* bytes_allocated_out, size_t* usable_size_out) {
+    Thread* self, size_t num_bytes, size_t* bytes_allocated_out, size_t* usable_size_out,
+    size_t* bytes_tl_bulk_allocated_out) {
   size_t bytes_allocated;
   size_t usable_size;
+  size_t bytes_tl_bulk_allocated;
   void* obj_with_rdz = S::AllocThreadUnsafe(self, num_bytes + 2 * kValgrindRedZoneBytes,
-                                &bytes_allocated, &usable_size);
+                                            &bytes_allocated, &usable_size,
+                                            &bytes_tl_bulk_allocated);
   if (obj_with_rdz == nullptr) {
     return nullptr;
   }
 
-  return valgrind_details::AdjustForValgrind<kValgrindRedZoneBytes,
-                                             kUseObjSizeForUsable>(obj_with_rdz, num_bytes,
-                                                                   bytes_allocated, usable_size,
-                                                                   bytes_allocated_out,
-                                                                   usable_size_out);
+  return valgrind_details::AdjustForValgrind<kValgrindRedZoneBytes, kUseObjSizeForUsable>(
+      obj_with_rdz, num_bytes,
+      bytes_allocated, usable_size,
+      bytes_tl_bulk_allocated,
+      bytes_allocated_out,
+      usable_size_out,
+      bytes_tl_bulk_allocated_out);
 }
 
 template <typename S,
@@ -224,6 +243,17 @@ ValgrindMallocSpace<S,
     MemMap* mem_map, size_t initial_size, Params... params) : S(mem_map, initial_size, params...) {
   VALGRIND_MAKE_MEM_UNDEFINED(mem_map->Begin() + initial_size,
                               mem_map->Size() - initial_size);
+}
+
+template <typename S,
+          size_t kValgrindRedZoneBytes,
+          bool kAdjustForRedzoneInAllocSize,
+          bool kUseObjSizeForUsable>
+size_t ValgrindMallocSpace<S,
+                           kValgrindRedZoneBytes,
+                           kAdjustForRedzoneInAllocSize,
+                           kUseObjSizeForUsable>::MaxBytesBulkAllocatedFor(size_t num_bytes) {
+  return S::MaxBytesBulkAllocatedFor(num_bytes + 2 * kValgrindRedZoneBytes);
 }
 
 }  // namespace space

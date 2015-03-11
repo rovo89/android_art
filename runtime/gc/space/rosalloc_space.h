@@ -47,18 +47,21 @@ class RosAllocSpace : public MallocSpace {
                                          bool low_memory_mode, bool can_move_objects);
 
   mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                                  size_t* usable_size) OVERRIDE LOCKS_EXCLUDED(lock_);
+                                  size_t* usable_size, size_t* bytes_tl_bulk_allocated)
+      OVERRIDE LOCKS_EXCLUDED(lock_);
   mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                        size_t* usable_size) OVERRIDE {
-    return AllocNonvirtual(self, num_bytes, bytes_allocated, usable_size);
+                        size_t* usable_size, size_t* bytes_tl_bulk_allocated) OVERRIDE {
+    return AllocNonvirtual(self, num_bytes, bytes_allocated, usable_size,
+                           bytes_tl_bulk_allocated);
   }
   mirror::Object* AllocThreadUnsafe(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                                    size_t* usable_size)
+                                    size_t* usable_size, size_t* bytes_tl_bulk_allocated)
       OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return AllocNonvirtualThreadUnsafe(self, num_bytes, bytes_allocated, usable_size);
+    return AllocNonvirtualThreadUnsafe(self, num_bytes, bytes_allocated, usable_size,
+                                       bytes_tl_bulk_allocated);
   }
   size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE {
-    return AllocationSizeNonvirtual(obj, usable_size);
+    return AllocationSizeNonvirtual<true>(obj, usable_size);
   }
   size_t Free(Thread* self, mirror::Object* ptr) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -66,17 +69,33 @@ class RosAllocSpace : public MallocSpace {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Object* AllocNonvirtual(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                                  size_t* usable_size) {
+                                  size_t* usable_size, size_t* bytes_tl_bulk_allocated) {
     // RosAlloc zeroes memory internally.
-    return AllocCommon(self, num_bytes, bytes_allocated, usable_size);
+    return AllocCommon(self, num_bytes, bytes_allocated, usable_size,
+                       bytes_tl_bulk_allocated);
   }
   mirror::Object* AllocNonvirtualThreadUnsafe(Thread* self, size_t num_bytes,
-                                              size_t* bytes_allocated, size_t* usable_size) {
+                                              size_t* bytes_allocated, size_t* usable_size,
+                                              size_t* bytes_tl_bulk_allocated) {
     // RosAlloc zeroes memory internally. Pass in false for thread unsafe.
-    return AllocCommon<false>(self, num_bytes, bytes_allocated, usable_size);
+    return AllocCommon<false>(self, num_bytes, bytes_allocated, usable_size,
+                              bytes_tl_bulk_allocated);
   }
 
+  // Returns true if the given allocation request can be allocated in
+  // an existing thread local run without allocating a new run.
+  ALWAYS_INLINE bool CanAllocThreadLocal(Thread* self, size_t num_bytes);
+  // Allocate the given allocation request in an existing thread local
+  // run without allocating a new run.
+  ALWAYS_INLINE mirror::Object* AllocThreadLocal(Thread* self, size_t num_bytes,
+                                                 size_t* bytes_allocated);
+  size_t MaxBytesBulkAllocatedFor(size_t num_bytes) OVERRIDE {
+    return MaxBytesBulkAllocatedForNonvirtual(num_bytes);
+  }
+  ALWAYS_INLINE size_t MaxBytesBulkAllocatedForNonvirtual(size_t num_bytes);
+
   // TODO: NO_THREAD_SAFETY_ANALYSIS because SizeOf() requires that mutator_lock is held.
+  template<bool kMaybeRunningOnValgrind>
   size_t AllocationSizeNonvirtual(mirror::Object* obj, size_t* usable_size)
       NO_THREAD_SAFETY_ANALYSIS;
 
@@ -99,8 +118,8 @@ class RosAllocSpace : public MallocSpace {
   uint64_t GetBytesAllocated() OVERRIDE;
   uint64_t GetObjectsAllocated() OVERRIDE;
 
-  void RevokeThreadLocalBuffers(Thread* thread);
-  void RevokeAllThreadLocalBuffers();
+  size_t RevokeThreadLocalBuffers(Thread* thread);
+  size_t RevokeAllThreadLocalBuffers();
   void AssertThreadLocalBuffersAreRevoked(Thread* thread);
   void AssertAllThreadLocalBuffersAreRevoked();
 
@@ -134,7 +153,7 @@ class RosAllocSpace : public MallocSpace {
  private:
   template<bool kThreadSafe = true>
   mirror::Object* AllocCommon(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                              size_t* usable_size);
+                              size_t* usable_size, size_t* bytes_tl_bulk_allocated);
 
   void* CreateAllocator(void* base, size_t morecore_start, size_t initial_size,
                         size_t maximum_size, bool low_memory_mode) OVERRIDE {
