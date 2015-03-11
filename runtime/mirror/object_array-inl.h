@@ -233,9 +233,8 @@ inline void ObjectArray<T>::AssignableCheckingMemcpy(int32_t dst_pos, ObjectArra
     std::string actualSrcType(PrettyTypeOf(o));
     std::string dstType(PrettyTypeOf(this));
     Thread* self = Thread::Current();
-    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
     if (throw_exception) {
-      self->ThrowNewExceptionF(throw_location, "Ljava/lang/ArrayStoreException;",
+      self->ThrowNewExceptionF("Ljava/lang/ArrayStoreException;",
                                "source[%d] of type %s cannot be stored in destination array of type %s",
                                src_pos + i, actualSrcType.c_str(), dstType.c_str());
     } else {

@@ -100,7 +100,7 @@ static jboolean Thread_nativeHoldsLock(JNIEnv* env, jobject java_thread, jobject
   ScopedObjectAccess soa(env);
   mirror::Object* object = soa.Decode<mirror::Object*>(java_object);
   if (object == NULL) {
-    ThrowNullPointerException(NULL, "object == null");
+    ThrowNullPointerException("object == null");
     return JNI_FALSE;
   }
   MutexLock mu(soa.Self(), *Locks::thread_list_lock_);

@@ -77,7 +77,7 @@ template<bool do_access_check, bool transaction_active>
 extern JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item,
                               ShadowFrame& shadow_frame, JValue result_register);
 
-void ThrowNullPointerExceptionFromInterpreter(const ShadowFrame& shadow_frame)
+void ThrowNullPointerExceptionFromInterpreter()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 static inline void DoMonitorEnter(Thread* self, Object* ref) NO_THREAD_SAFETY_ANALYSIS {
@@ -138,7 +138,7 @@ static inline bool DoInvokeVirtualQuick(Thread* self, ShadowFrame& shadow_frame,
   if (UNLIKELY(receiver == nullptr)) {
     // We lost the reference to the method index so we cannot get a more
     // precised exception message.
-    ThrowNullPointerExceptionFromDexPC(shadow_frame.GetCurrentLocationForThrow());
+    ThrowNullPointerExceptionFromDexPC();
     return false;
   }
   const uint32_t vtable_idx = (is_range) ? inst->VRegB_3rc() : inst->VRegB_35c();

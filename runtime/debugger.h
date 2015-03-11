@@ -48,7 +48,6 @@ class ObjectRegistry;
 class ScopedObjectAccessUnchecked;
 class StackVisitor;
 class Thread;
-class ThrowLocation;
 
 /*
  * Invoke-during-breakpoint support.

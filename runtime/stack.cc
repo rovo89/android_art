@@ -28,7 +28,6 @@
 #include "runtime.h"
 #include "thread.h"
 #include "thread_list.h"
-#include "throw_location.h"
 #include "verify_object-inl.h"
 #include "vmap_table.h"
 
@@ -55,10 +54,6 @@ mirror::Object* ShadowFrame::GetThisObject(uint16_t num_ins) const {
   } else {
     return GetVRegReference(NumberOfVRegs() - num_ins);
   }
-}
-
-ThrowLocation ShadowFrame::GetCurrentLocationForThrow() const {
-  return ThrowLocation(GetThisObject(), GetMethod(), GetDexPC());
 }
 
 size_t ManagedStack::NumJniShadowFrameReferences() const {

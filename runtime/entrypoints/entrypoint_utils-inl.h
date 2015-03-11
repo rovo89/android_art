@@ -53,9 +53,7 @@ inline mirror::Class* CheckObjectAlloc(uint32_t type_idx,
   }
   if (kAccessCheck) {
     if (UNLIKELY(!klass->IsInstantiable())) {
-      ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-      self->ThrowNewException(throw_location, "Ljava/lang/InstantiationError;",
-                              PrettyDescriptor(klass).c_str());
+      self->ThrowNewException("Ljava/lang/InstantiationError;", PrettyDescriptor(klass).c_str());
       *slow_path = true;
       return nullptr;  // Failure
     }
@@ -294,9 +292,7 @@ inline mirror::ArtField* FindFieldFromCode(uint32_t field_idx, mirror::ArtMethod
     } else {
       if (UNLIKELY(resolved_field->IsPrimitiveType() != is_primitive ||
                    resolved_field->FieldSize() != expected_size)) {
-        ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-        DCHECK(throw_location.GetMethod() == referrer);
-        self->ThrowNewExceptionF(throw_location, "Ljava/lang/NoSuchFieldError;",
+        self->ThrowNewExceptionF("Ljava/lang/NoSuchFieldError;",
                                  "Attempted read of %zd-bit %s on field '%s'",
                                  expected_size * (32 / sizeof(int32_t)),
                                  is_primitive ? "primitive" : "non-primitive",
@@ -367,9 +363,7 @@ inline mirror::ArtMethod* FindMethodFromCode(uint32_t method_idx,
   } else if (UNLIKELY(*this_object == nullptr && type != kStatic)) {
     // Maintain interpreter-like semantics where NullPointerException is thrown
     // after potential NoSuchMethodError from class linker.
-    ThrowLocation throw_location = self->GetCurrentLocationForThrow();
-    DCHECK_EQ(*referrer, throw_location.GetMethod());
-    ThrowNullPointerExceptionForMethodAccess(throw_location, method_idx, type);
+    ThrowNullPointerExceptionForMethodAccess(method_idx, type);
     return nullptr;  // Failure.
   } else if (access_check) {
     // Incompatible class change should have been handled in resolve method.

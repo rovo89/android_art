@@ -29,7 +29,6 @@ namespace mirror {
 }  // namespace mirror
 class Signature;
 class StringPiece;
-class ThrowLocation;
 
 // AbstractMethodError
 
@@ -60,7 +59,7 @@ void ThrowClassCircularityError(mirror::Class* c)
 void ThrowClassCastException(mirror::Class* dest_type, mirror::Class* src_type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowClassCastException(const ThrowLocation* throw_location, const char* msg)
+void ThrowClassCastException(const char* msg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
 // ClassFormatError
@@ -94,12 +93,12 @@ void ThrowIllegalAccessError(mirror::Class* referrer, const char* fmt, ...)
 
 // IllegalAccessException
 
-void ThrowIllegalAccessException(const ThrowLocation* throw_location, const char* msg)
+void ThrowIllegalAccessException(const char* msg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
 // IllegalArgumentException
 
-void ThrowIllegalArgumentException(const ThrowLocation* throw_location, const char* msg)
+void ThrowIllegalArgumentException(const char* msg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
 // IncompatibleClassChangeError
@@ -161,25 +160,22 @@ void ThrowNoSuchMethodError(uint32_t method_idx)
 
 // NullPointerException
 
-void ThrowNullPointerExceptionForFieldAccess(const ThrowLocation& throw_location,
-                                             mirror::ArtField* field,
+void ThrowNullPointerExceptionForFieldAccess(mirror::ArtField* field,
                                              bool is_read)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_location,
-                                              uint32_t method_idx,
+void ThrowNullPointerExceptionForMethodAccess(uint32_t method_idx,
                                               InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowNullPointerExceptionForMethodAccess(const ThrowLocation& throw_location,
-                                              mirror::ArtMethod* method,
+void ThrowNullPointerExceptionForMethodAccess(mirror::ArtMethod* method,
                                               InvokeType type)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowNullPointerExceptionFromDexPC(const ThrowLocation& throw_location)
+void ThrowNullPointerExceptionFromDexPC()
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
-void ThrowNullPointerException(const ThrowLocation* throw_location, const char* msg)
+void ThrowNullPointerException(const char* msg)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) COLD_ATTR;
 
 // RuntimeException
