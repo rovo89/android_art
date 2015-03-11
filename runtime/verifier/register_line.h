@@ -188,9 +188,11 @@ class RegisterLine {
    *
    * The argument count is in vA, and the first argument is in vC, for both "simple" and "range"
    * versions. We just need to make sure vA is >= 1 and then return vC.
+   * allow_failure will return Conflict() instead of causing a verification failure if there is an
+   * error.
    */
   const RegType& GetInvocationThis(MethodVerifier* verifier, const Instruction* inst,
-                                   bool is_range)
+                                   bool is_range, bool allow_failure = false)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*

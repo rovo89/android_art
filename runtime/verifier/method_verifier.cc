@@ -513,7 +513,7 @@ mirror::ArtMethod* MethodVerifier::FindInvokedMethodAtDexPc(uint32_t dex_pc) {
   }
   const Instruction* inst = Instruction::At(code_item_->insns_ + dex_pc);
   const bool is_range = (inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE_QUICK);
-  return GetQuickInvokedMethod(inst, register_line, is_range);
+  return GetQuickInvokedMethod(inst, register_line, is_range, false);
 }
 
 bool MethodVerifier::Verify() {
@@ -3431,10 +3431,14 @@ mirror::ArtMethod* MethodVerifier::VerifyInvocationArgs(const Instruction* inst,
 }
 
 mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst,
-                                                         RegisterLine* reg_line, bool is_range) {
-  DCHECK(inst->Opcode() == Instruction::INVOKE_VIRTUAL_QUICK ||
-         inst->Opcode() == Instruction::INVOKE_VIRTUAL_RANGE_QUICK);
-  const RegType& actual_arg_type = reg_line->GetInvocationThis(this, inst, is_range);
+                                                         RegisterLine* reg_line, bool is_range,
+                                                         bool allow_failure) {
+  if (is_range) {
+    DCHECK_EQ(inst->Opcode(), Instruction::INVOKE_VIRTUAL_RANGE_QUICK);
+  } else {
+    DCHECK_EQ(inst->Opcode(), Instruction::INVOKE_VIRTUAL_QUICK);
+  }
+  const RegType& actual_arg_type = reg_line->GetInvocationThis(this, inst, is_range, allow_failure);
   if (!actual_arg_type.HasClass()) {
     VLOG(verifier) << "Failed to get mirror::Class* from '" << actual_arg_type << "'";
     return nullptr;
@@ -3445,29 +3449,29 @@ mirror::ArtMethod* MethodVerifier::GetQuickInvokedMethod(const Instruction* inst
     // Derive Object.class from Class.class.getSuperclass().
     mirror::Class* object_klass = klass->GetClass()->GetSuperClass();
     if (FailOrAbort(this, object_klass->IsObjectClass(),
-                    "Failed to find Object class in quickened invoke receiver",
-                    work_insn_idx_)) {
+                    "Failed to find Object class in quickened invoke receiver", work_insn_idx_)) {
       return nullptr;
     }
     dispatch_class = object_klass;
   } else {
     dispatch_class = klass;
   }
-  if (FailOrAbort(this, dispatch_class->HasVTable(),
-                  "Receiver class has no vtable for quickened invoke at ",
-                  work_insn_idx_)) {
+  if (!dispatch_class->HasVTable()) {
+    FailOrAbort(this, allow_failure, "Receiver class has no vtable for quickened invoke at ",
+                work_insn_idx_);
     return nullptr;
   }
   uint16_t vtable_index = is_range ? inst->VRegB_3rc() : inst->VRegB_35c();
-  if (FailOrAbort(this, static_cast<int32_t>(vtable_index) < dispatch_class->GetVTableLength(),
-                  "Receiver class has not enough vtable slots for quickened invoke at ",
-                  work_insn_idx_)) {
+  if (static_cast<int32_t>(vtable_index) >= dispatch_class->GetVTableLength()) {
+    FailOrAbort(this, allow_failure,
+                "Receiver class has not enough vtable slots for quickened invoke at ",
+                work_insn_idx_);
     return nullptr;
   }
   mirror::ArtMethod* res_method = dispatch_class->GetVTableEntry(vtable_index);
-  if (FailOrAbort(this, !self_->IsExceptionPending(),
-                  "Unexpected exception pending for quickened invoke at ",
-                  work_insn_idx_)) {
+  if (self_->IsExceptionPending()) {
+    FailOrAbort(this, allow_failure, "Unexpected exception pending for quickened invoke at ",
+                work_insn_idx_);
     return nullptr;
   }
   return res_method;
@@ -3478,8 +3482,7 @@ mirror::ArtMethod* MethodVerifier::VerifyInvokeVirtualQuickArgs(const Instructio
   DCHECK(Runtime::Current()->IsStarted() || verify_to_dump_)
       << PrettyMethod(dex_method_idx_, *dex_file_, true) << "@" << work_insn_idx_;
 
-  mirror::ArtMethod* res_method = GetQuickInvokedMethod(inst, work_line_.get(),
-                                                             is_range);
+  mirror::ArtMethod* res_method = GetQuickInvokedMethod(inst, work_line_.get(), is_range, false);
   if (res_method == nullptr) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "Cannot infer method from " << inst->Name();
     return nullptr;

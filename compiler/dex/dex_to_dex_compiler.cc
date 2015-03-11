@@ -252,10 +252,8 @@ void DexCompiler::CompileInstanceFieldAccess(Instruction* inst,
   }
 }
 
-void DexCompiler::CompileInvokeVirtual(Instruction* inst,
-                                uint32_t dex_pc,
-                                Instruction::Code new_opcode,
-                                bool is_range) {
+void DexCompiler::CompileInvokeVirtual(Instruction* inst, uint32_t dex_pc,
+                                       Instruction::Code new_opcode, bool is_range) {
   if (!kEnableQuickening || !PerformOptimizations()) {
     return;
   }
