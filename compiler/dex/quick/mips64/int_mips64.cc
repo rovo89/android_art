@@ -260,9 +260,8 @@ bool Mips64Mir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
     return false;
   }
   RegLocation rl_src_address = info->args[0];     // Long address.
-  rl_src_address = NarrowRegLoc(rl_src_address);  // Ignore high half in info->args[1].
   RegLocation rl_dest = InlineTarget(info);
-  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  RegLocation rl_address = LoadValueWide(rl_src_address, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   DCHECK(size == kSignedByte);
   LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size, kNotVolatile);
@@ -276,9 +275,8 @@ bool Mips64Mir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
     return false;
   }
   RegLocation rl_src_address = info->args[0];     // Long address.
-  rl_src_address = NarrowRegLoc(rl_src_address);  // Ignore high half in info->args[1].
   RegLocation rl_src_value = info->args[2];       // [size] value.
-  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  RegLocation rl_address = LoadValueWide(rl_src_address, kCoreReg);
   DCHECK(size == kSignedByte);
   RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
   StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size, kNotVolatile);
