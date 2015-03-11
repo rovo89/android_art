@@ -33,7 +33,9 @@ static constexpr int kDefaultNumberOfLoops = 2;
  *
  * (a) Dex registers that do not require merging (that is, they do not
  *     have different values at a join block) are available to all their
- *     environment uses.
+ *     environment uses. Note that it does not imply the instruction will
+ *     have a physical location after register allocation. See the
+ *     SsaLivenessAnalysis phase.
  *
  * (b) Dex registers that require merging, and the merging gives
  *     incompatible types, will be killed for environment uses of that merge.

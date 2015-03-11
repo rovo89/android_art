@@ -230,11 +230,12 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
       }
 
       if (current->HasEnvironment()) {
-        // All instructions in the environment must be live.
+        // Handle environment uses. See statements (b) and (c) of the
+        // SsaLivenessAnalysis.
         HEnvironment* environment = current->GetEnvironment();
         for (size_t i = 0, e = environment->Size(); i < e; ++i) {
           HInstruction* instruction = environment->GetInstructionAt(i);
-          if (instruction != nullptr) {
+          if (ShouldBeLiveForEnvironment(instruction)) {
             DCHECK(instruction->HasSsaIndex());
             live_in->SetBit(instruction->GetSsaIndex());
             instruction->GetLiveInterval()->AddUse(current, i, true);
