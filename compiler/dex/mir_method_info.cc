@@ -58,8 +58,9 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
   auto current_dex_cache(hs.NewHandle<mirror::DexCache>(nullptr));
   // Even if the referrer class is unresolved (i.e. we're compiling a method without class
   // definition) we still want to resolve methods and record all available info.
+  Runtime* const runtime = Runtime::Current();
   const DexFile* const dex_file = mUnit->GetDexFile();
-  const bool use_jit = Runtime::Current()->UseJit();
+  const bool use_jit = runtime->UseJit();
   const VerifiedMethod* const verified_method = mUnit->GetVerifiedMethod();
 
   for (auto it = method_infos, end = method_infos + count; it != end; ++it) {
@@ -80,7 +81,7 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
       it->target_method_idx_ = it->MethodIndex();
       current_dex_cache.Assign(dex_cache.Get());
       resolved_method = compiler_driver->ResolveMethod(soa, dex_cache, class_loader, mUnit,
-                                                       it->MethodIndex(), invoke_type);
+                                                       it->target_method_idx_, invoke_type, true);
     } else {
       // The method index is actually the dex PC in this case.
       // Calculate the proper dex file and target method idx.
@@ -89,8 +90,7 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
       // Don't devirt if we are in a different dex file since we can't have direct invokes in
       // another dex file unless we always put a direct / patch pointer.
       devirt_target = nullptr;
-      current_dex_cache.Assign(
-          Runtime::Current()->GetClassLinker()->FindDexCache(*it->target_dex_file_));
+      current_dex_cache.Assign(runtime->GetClassLinker()->FindDexCache(*it->target_dex_file_));
       CHECK(current_dex_cache.Get() != nullptr);
       DexCompilationUnit cu(
           mUnit->GetCompilationUnit(), mUnit->GetClassLoader(), mUnit->GetClassLinker(),
@@ -99,6 +99,14 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
           nullptr /* verified_method not used */);
       resolved_method = compiler_driver->ResolveMethod(soa, current_dex_cache, class_loader, &cu,
                                                        it->target_method_idx_, invoke_type, false);
+      if (resolved_method == nullptr) {
+        // If the method is null then it should be a miranda method, in this case try
+        // re-loading it, this time as an interface method. The actual miranda method is in the
+        // vtable, but it will resolve to an interface method.
+        resolved_method = compiler_driver->ResolveMethod(
+            soa, current_dex_cache, class_loader, &cu, it->target_method_idx_, kInterface, false);
+        CHECK(resolved_method != nullptr);
+      }
       if (resolved_method != nullptr) {
         // Since this was a dequickened virtual, it is guaranteed to be resolved. However, it may be
         // resolved to an interface method. If this is the case then change the invoke type to
@@ -123,10 +131,9 @@ void MirMethodLoweringInfo::Resolve(CompilerDriver* compiler_driver,
       it->vtable_idx_ =
           compiler_driver->GetResolvedMethodVTableIndex(resolved_method, invoke_type);
     }
-
     MethodReference target_method(it->target_dex_file_, it->target_method_idx_);
     int fast_path_flags = compiler_driver->IsFastInvoke(
-        soa, dex_cache, class_loader, mUnit, referrer_class.Get(), resolved_method,
+        soa, current_dex_cache, class_loader, mUnit, referrer_class.Get(), resolved_method,
         &invoke_type, &target_method, devirt_target, &it->direct_code_, &it->direct_method_);
     const bool is_referrers_class = referrer_class.Get() == resolved_method->GetDeclaringClass();
     const bool is_class_initialized =
