@@ -153,17 +153,13 @@ class CodeGenerator {
   virtual size_t SaveCoreRegister(size_t stack_index, uint32_t reg_id) = 0;
   // Restores the register from the stack. Returns the size taken on stack.
   virtual size_t RestoreCoreRegister(size_t stack_index, uint32_t reg_id) = 0;
-  virtual size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) {
-    UNUSED(stack_index, reg_id);
-    UNIMPLEMENTED(FATAL);
-    UNREACHABLE();
-  }
-  virtual size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) {
-    UNUSED(stack_index, reg_id);
-    UNIMPLEMENTED(FATAL);
-    UNREACHABLE();
-  }
+
+  virtual size_t SaveFloatingPointRegister(size_t stack_index, uint32_t reg_id) = 0;
+  virtual size_t RestoreFloatingPointRegister(size_t stack_index, uint32_t reg_id) = 0;
+
   virtual bool NeedsTwoRegisters(Primitive::Type type) const = 0;
+  // Returns whether we should split long moves in parallel moves.
+  virtual bool ShouldSplitLongMoves() const { return false; }
 
   bool IsCoreCalleeSaveRegister(int reg) const {
     return (core_callee_save_mask_ & (1 << reg)) != 0;
