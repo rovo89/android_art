@@ -42,18 +42,20 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
 
   // Allocate num_bytes, returns nullptr if the space is full.
   mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                        size_t* usable_size) OVERRIDE;
+                        size_t* usable_size, size_t* bytes_tl_bulk_allocated) OVERRIDE;
   // Thread-unsafe allocation for when mutators are suspended, used by the semispace collector.
   mirror::Object* AllocThreadUnsafe(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                                    size_t* usable_size)
+                                    size_t* usable_size, size_t* bytes_tl_bulk_allocated)
       OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
   // The main allocation routine.
   template<bool kForEvac>
   ALWAYS_INLINE mirror::Object* AllocNonvirtual(size_t num_bytes, size_t* bytes_allocated,
-                                                size_t* usable_size);
+                                                size_t* usable_size,
+                                                size_t* bytes_tl_bulk_allocated);
   // Allocate/free large objects (objects that are larger than the region size.)
   template<bool kForEvac>
-  mirror::Object* AllocLarge(size_t num_bytes, size_t* bytes_allocated, size_t* usable_size);
+  mirror::Object* AllocLarge(size_t num_bytes, size_t* bytes_allocated, size_t* usable_size,
+                             size_t* bytes_tl_bulk_allocated);
   void FreeLarge(mirror::Object* large_obj, size_t bytes_allocated);
 
   // Return the storage space required by obj.
@@ -87,10 +89,10 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
   void DumpRegions(std::ostream& os);
   void DumpNonFreeRegions(std::ostream& os);
 
-  void RevokeThreadLocalBuffers(Thread* thread) LOCKS_EXCLUDED(region_lock_);
+  size_t RevokeThreadLocalBuffers(Thread* thread) LOCKS_EXCLUDED(region_lock_);
   void RevokeThreadLocalBuffersLocked(Thread* thread) EXCLUSIVE_LOCKS_REQUIRED(region_lock_);
-  void RevokeAllThreadLocalBuffers() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_,
-                                                    Locks::thread_list_lock_);
+  size_t RevokeAllThreadLocalBuffers() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_,
+                                                      Locks::thread_list_lock_);
   void AssertThreadLocalBuffersAreRevoked(Thread* thread) LOCKS_EXCLUDED(region_lock_);
   void AssertAllThreadLocalBuffersAreRevoked() LOCKS_EXCLUDED(Locks::runtime_shutdown_lock_,
                                                               Locks::thread_list_lock_);
@@ -269,7 +271,8 @@ class RegionSpace FINAL : public ContinuousMemMapAllocSpace {
     }
 
     ALWAYS_INLINE mirror::Object* Alloc(size_t num_bytes, size_t* bytes_allocated,
-                                        size_t* usable_size);
+                                        size_t* usable_size,
+                                        size_t* bytes_tl_bulk_allocated);
 
     bool IsFree() const {
       bool is_free = state_ == RegionState::kRegionStateFree;

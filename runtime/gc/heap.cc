@@ -156,6 +156,7 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
       total_objects_freed_ever_(0),
       num_bytes_allocated_(0),
       native_bytes_allocated_(0),
+      num_bytes_freed_revoke_(0),
       verify_missing_card_marks_(false),
       verify_system_weaks_(false),
       verify_pre_gc_heap_(verify_pre_gc_heap),
@@ -1344,6 +1345,19 @@ void Heap::RecordFree(uint64_t freed_objects, int64_t freed_bytes) {
   }
 }
 
+void Heap::RecordFreeRevoke() {
+  // Subtract num_bytes_freed_revoke_ from num_bytes_allocated_ to cancel out the
+  // the ahead-of-time, bulk counting of bytes allocated in rosalloc thread-local buffers.
+  // If there's a concurrent revoke, ok to not necessarily reset num_bytes_freed_revoke_
+  // all the way to zero exactly as the remainder will be subtracted at the next GC.
+  size_t bytes_freed = num_bytes_freed_revoke_.LoadSequentiallyConsistent();
+  CHECK_GE(num_bytes_freed_revoke_.FetchAndSubSequentiallyConsistent(bytes_freed),
+           bytes_freed) << "num_bytes_freed_revoke_ underflow";
+  CHECK_GE(num_bytes_allocated_.FetchAndSubSequentiallyConsistent(bytes_freed),
+           bytes_freed) << "num_bytes_allocated_ underflow";
+  GetCurrentGcIteration()->SetFreedRevoke(bytes_freed);
+}
+
 space::RosAllocSpace* Heap::GetRosAllocSpace(gc::allocator::RosAlloc* rosalloc) const {
   for (const auto& space : continuous_spaces_) {
     if (space->AsContinuousSpace()->IsRosAllocSpace()) {
@@ -1358,6 +1372,7 @@ space::RosAllocSpace* Heap::GetRosAllocSpace(gc::allocator::RosAlloc* rosalloc) 
 mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocator,
                                              size_t alloc_size, size_t* bytes_allocated,
                                              size_t* usable_size,
+                                             size_t* bytes_tl_bulk_allocated,
                                              mirror::Class** klass) {
   bool was_default_allocator = allocator == GetCurrentAllocator();
   // Make sure there is no pending exception since we may need to throw an OOME.
@@ -1377,7 +1392,7 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
     }
     // A GC was in progress and we blocked, retry allocation now that memory has been freed.
     mirror::Object* ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated,
-                                                     usable_size);
+                                                     usable_size, bytes_tl_bulk_allocated);
     if (ptr != nullptr) {
       return ptr;
     }
@@ -1391,7 +1406,7 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
   }
   if (gc_ran) {
     mirror::Object* ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated,
-                                                     usable_size);
+                                                     usable_size, bytes_tl_bulk_allocated);
     if (ptr != nullptr) {
       return ptr;
     }
@@ -1411,7 +1426,7 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
     if (plan_gc_ran) {
       // Did we free sufficient memory for the allocation to succeed?
       mirror::Object* ptr = TryToAllocate<true, false>(self, allocator, alloc_size, bytes_allocated,
-                                                       usable_size);
+                                                       usable_size, bytes_tl_bulk_allocated);
       if (ptr != nullptr) {
         return ptr;
       }
@@ -1420,7 +1435,7 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
   // Allocations have failed after GCs;  this is an exceptional state.
   // Try harder, growing the heap if necessary.
   mirror::Object* ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated,
-                                                  usable_size);
+                                                  usable_size, bytes_tl_bulk_allocated);
   if (ptr != nullptr) {
     return ptr;
   }
@@ -1437,7 +1452,8 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
   if (was_default_allocator && allocator != GetCurrentAllocator()) {
     return nullptr;
   }
-  ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated, usable_size);
+  ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated, usable_size,
+                                  bytes_tl_bulk_allocated);
   if (ptr == nullptr) {
     const uint64_t current_time = NanoTime();
     switch (allocator) {
@@ -1453,7 +1469,7 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
             case HomogeneousSpaceCompactResult::kSuccess:
               // If the allocation succeeded, we delayed an oom.
               ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated,
-                                              usable_size);
+                                              usable_size, bytes_tl_bulk_allocated);
               if (ptr != nullptr) {
                 count_delayed_oom_++;
               }
@@ -1498,7 +1514,7 @@ mirror::Object* Heap::AllocateInternalWithGc(Thread* self, AllocatorType allocat
           } else {
             LOG(WARNING) << "Disabled moving GC due to the non moving space being full";
             ptr = TryToAllocate<true, true>(self, allocator, alloc_size, bytes_allocated,
-                                            usable_size);
+                                            usable_size, bytes_tl_bulk_allocated);
           }
         }
         break;
@@ -1984,8 +2000,8 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
     if (it == bins_.end()) {
       // No available space in the bins, place it in the target space instead (grows the zygote
       // space).
-      size_t bytes_allocated;
-      forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated, nullptr);
+      size_t bytes_allocated, dummy;
+      forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated, nullptr, &dummy);
       if (to_space_live_bitmap_ != nullptr) {
         to_space_live_bitmap_->Set(forward_address);
       } else {
@@ -3084,7 +3100,8 @@ void Heap::GrowForUtilization(collector::GarbageCollector* collector_ran,
     SetIdealFootprint(target_size);
     if (IsGcConcurrent()) {
       const uint64_t freed_bytes = current_gc_iteration_.GetFreedBytes() +
-          current_gc_iteration_.GetFreedLargeObjectBytes();
+          current_gc_iteration_.GetFreedLargeObjectBytes() +
+          current_gc_iteration_.GetFreedRevokeBytes();
       // Bytes allocated will shrink by freed_bytes after the GC runs, so if we want to figure out
       // how many bytes were allocated during the GC we need to add freed_bytes back on.
       CHECK_GE(bytes_allocated + freed_bytes, bytes_allocated_before_gc);
@@ -3290,31 +3307,43 @@ void Heap::RequestTrim(Thread* self) {
 
 void Heap::RevokeThreadLocalBuffers(Thread* thread) {
   if (rosalloc_space_ != nullptr) {
-    rosalloc_space_->RevokeThreadLocalBuffers(thread);
+    size_t freed_bytes_revoke = rosalloc_space_->RevokeThreadLocalBuffers(thread);
+    if (freed_bytes_revoke > 0U) {
+      num_bytes_freed_revoke_.FetchAndAddSequentiallyConsistent(freed_bytes_revoke);
+      CHECK_GE(num_bytes_allocated_.LoadRelaxed(), num_bytes_freed_revoke_.LoadRelaxed());
+    }
   }
   if (bump_pointer_space_ != nullptr) {
-    bump_pointer_space_->RevokeThreadLocalBuffers(thread);
+    CHECK_EQ(bump_pointer_space_->RevokeThreadLocalBuffers(thread), 0U);
   }
   if (region_space_ != nullptr) {
-    region_space_->RevokeThreadLocalBuffers(thread);
+    CHECK_EQ(region_space_->RevokeThreadLocalBuffers(thread), 0U);
   }
 }
 
 void Heap::RevokeRosAllocThreadLocalBuffers(Thread* thread) {
   if (rosalloc_space_ != nullptr) {
-    rosalloc_space_->RevokeThreadLocalBuffers(thread);
+    size_t freed_bytes_revoke = rosalloc_space_->RevokeThreadLocalBuffers(thread);
+    if (freed_bytes_revoke > 0U) {
+      num_bytes_freed_revoke_.FetchAndAddSequentiallyConsistent(freed_bytes_revoke);
+      CHECK_GE(num_bytes_allocated_.LoadRelaxed(), num_bytes_freed_revoke_.LoadRelaxed());
+    }
   }
 }
 
 void Heap::RevokeAllThreadLocalBuffers() {
   if (rosalloc_space_ != nullptr) {
-    rosalloc_space_->RevokeAllThreadLocalBuffers();
+    size_t freed_bytes_revoke = rosalloc_space_->RevokeAllThreadLocalBuffers();
+    if (freed_bytes_revoke > 0U) {
+      num_bytes_freed_revoke_.FetchAndAddSequentiallyConsistent(freed_bytes_revoke);
+      CHECK_GE(num_bytes_allocated_.LoadRelaxed(), num_bytes_freed_revoke_.LoadRelaxed());
+    }
   }
   if (bump_pointer_space_ != nullptr) {
-    bump_pointer_space_->RevokeAllThreadLocalBuffers();
+    CHECK_EQ(bump_pointer_space_->RevokeAllThreadLocalBuffers(), 0U);
   }
   if (region_space_ != nullptr) {
-    region_space_->RevokeAllThreadLocalBuffers();
+    CHECK_EQ(region_space_->RevokeAllThreadLocalBuffers(), 0U);
   }
 }
 

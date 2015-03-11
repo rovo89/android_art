@@ -203,14 +203,24 @@ class AllocSpace {
   // succeeds, the output parameter bytes_allocated will be set to the
   // actually allocated bytes which is >= num_bytes.
   // Alloc can be called from multiple threads at the same time and must be thread-safe.
+  //
+  // bytes_tl_bulk_allocated - bytes allocated in bulk ahead of time for a thread local allocation,
+  // if applicable. It can be
+  // 1) equal to bytes_allocated if it's not a thread local allocation,
+  // 2) greater than bytes_allocated if it's a thread local
+  //    allocation that required a new buffer, or
+  // 3) zero if it's a thread local allocation in an existing
+  //    buffer.
+  // This is what is to be added to Heap::num_bytes_allocated_.
   virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                                size_t* usable_size) = 0;
+                                size_t* usable_size, size_t* bytes_tl_bulk_allocated) = 0;
 
   // Thread-unsafe allocation for when mutators are suspended, used by the semispace collector.
   virtual mirror::Object* AllocThreadUnsafe(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                                            size_t* usable_size)
+                                            size_t* usable_size,
+                                            size_t* bytes_tl_bulk_allocated)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    return Alloc(self, num_bytes, bytes_allocated, usable_size);
+    return Alloc(self, num_bytes, bytes_allocated, usable_size, bytes_tl_bulk_allocated);
   }
 
   // Return the storage space required by obj.
@@ -224,11 +234,15 @@ class AllocSpace {
 
   // Revoke any sort of thread-local buffers that are used to speed up allocations for the given
   // thread, if the alloc space implementation uses any.
-  virtual void RevokeThreadLocalBuffers(Thread* thread) = 0;
+  // Returns the total free bytes in the revoked thread local runs that's to be subtracted
+  // from Heap::num_bytes_allocated_ or zero if unnecessary.
+  virtual size_t RevokeThreadLocalBuffers(Thread* thread) = 0;
 
   // Revoke any sort of thread-local buffers that are used to speed up allocations for all the
   // threads, if the alloc space implementation uses any.
-  virtual void RevokeAllThreadLocalBuffers() = 0;
+  // Returns the total free bytes in the revoked thread local runs that's to be subtracted
+  // from Heap::num_bytes_allocated_ or zero if unnecessary.
+  virtual size_t RevokeAllThreadLocalBuffers() = 0;
 
   virtual void LogFragmentationAllocFailure(std::ostream& os, size_t failed_alloc_bytes) = 0;
 

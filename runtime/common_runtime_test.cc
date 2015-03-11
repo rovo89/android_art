@@ -263,6 +263,8 @@ void CommonRuntimeTest::SetUp() {
   // pool is created by the runtime.
   runtime_->GetHeap()->CreateThreadPool();
   runtime_->GetHeap()->VerifyHeap();  // Check for heap corruption before the test
+  // Reduce timinig-dependent flakiness in OOME behavior (eg StubTest.AllocObject).
+  runtime_->GetHeap()->SetMinIntervalHomogeneousSpaceCompactionByOom(0U);
 
   // Get the boot class path from the runtime so it can be used in tests.
   boot_class_path_ = class_linker_->GetBootClassPath();

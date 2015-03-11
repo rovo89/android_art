@@ -77,7 +77,7 @@ void ZygoteSpace::Dump(std::ostream& os) const {
       << ",name=\"" << GetName() << "\"]";
 }
 
-mirror::Object* ZygoteSpace::Alloc(Thread*, size_t, size_t*, size_t*) {
+mirror::Object* ZygoteSpace::Alloc(Thread*, size_t, size_t*, size_t*, size_t*) {
   UNIMPLEMENTED(FATAL);
   UNREACHABLE();
 }

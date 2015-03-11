@@ -34,12 +34,13 @@ template <typename BaseMallocSpaceType,
 class ValgrindMallocSpace FINAL : public BaseMallocSpaceType {
  public:
   mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                                  size_t* usable_size) OVERRIDE;
+                                  size_t* usable_size, size_t* bytes_tl_bulk_allocated)
+      OVERRIDE;
   mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                        size_t* usable_size) OVERRIDE;
+                        size_t* usable_size, size_t* bytes_tl_bulk_allocated) OVERRIDE;
   mirror::Object* AllocThreadUnsafe(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                                    size_t* usable_size) OVERRIDE
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
+                                    size_t* usable_size, size_t* bytes_tl_bulk_allocated)
+      OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   size_t AllocationSize(mirror::Object* obj, size_t* usable_size) OVERRIDE;
 
@@ -52,6 +53,8 @@ class ValgrindMallocSpace FINAL : public BaseMallocSpaceType {
   void RegisterRecentFree(mirror::Object* ptr) OVERRIDE {
     UNUSED(ptr);
   }
+
+  size_t MaxBytesBulkAllocatedFor(size_t num_bytes) OVERRIDE;
 
   template <typename... Params>
   explicit ValgrindMallocSpace(MemMap* mem_map, size_t initial_size, Params... params);

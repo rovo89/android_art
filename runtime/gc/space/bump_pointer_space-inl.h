@@ -24,7 +24,8 @@ namespace gc {
 namespace space {
 
 inline mirror::Object* BumpPointerSpace::Alloc(Thread*, size_t num_bytes, size_t* bytes_allocated,
-                                               size_t* usable_size) {
+                                               size_t* usable_size,
+                                               size_t* bytes_tl_bulk_allocated) {
   num_bytes = RoundUp(num_bytes, kAlignment);
   mirror::Object* ret = AllocNonvirtual(num_bytes);
   if (LIKELY(ret != nullptr)) {
@@ -32,13 +33,15 @@ inline mirror::Object* BumpPointerSpace::Alloc(Thread*, size_t num_bytes, size_t
     if (usable_size != nullptr) {
       *usable_size = num_bytes;
     }
+    *bytes_tl_bulk_allocated = num_bytes;
   }
   return ret;
 }
 
 inline mirror::Object* BumpPointerSpace::AllocThreadUnsafe(Thread* self, size_t num_bytes,
                                                            size_t* bytes_allocated,
-                                                           size_t* usable_size) {
+                                                           size_t* usable_size,
+                                                           size_t* bytes_tl_bulk_allocated) {
   Locks::mutator_lock_->AssertExclusiveHeld(self);
   num_bytes = RoundUp(num_bytes, kAlignment);
   uint8_t* end = end_.LoadRelaxed();
@@ -54,6 +57,7 @@ inline mirror::Object* BumpPointerSpace::AllocThreadUnsafe(Thread* self, size_t 
   if (UNLIKELY(usable_size != nullptr)) {
     *usable_size = num_bytes;
   }
+  *bytes_tl_bulk_allocated = num_bytes;
   return obj;
 }
 

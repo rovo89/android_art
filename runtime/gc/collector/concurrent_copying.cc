@@ -1259,8 +1259,9 @@ mirror::Object* ConcurrentCopying::Copy(mirror::Object* from_ref) {
   size_t region_space_bytes_allocated = 0U;
   size_t non_moving_space_bytes_allocated = 0U;
   size_t bytes_allocated = 0U;
+  size_t dummy;
   mirror::Object* to_ref = region_space_->AllocNonvirtual<true>(
-      region_space_alloc_size, &region_space_bytes_allocated, nullptr);
+      region_space_alloc_size, &region_space_bytes_allocated, nullptr, &dummy);
   bytes_allocated = region_space_bytes_allocated;
   if (to_ref != nullptr) {
     DCHECK_EQ(region_space_alloc_size, region_space_bytes_allocated);
@@ -1286,7 +1287,7 @@ mirror::Object* ConcurrentCopying::Copy(mirror::Object* from_ref) {
       }
       fall_back_to_non_moving = true;
       to_ref = heap_->non_moving_space_->Alloc(Thread::Current(), obj_size,
-                                               &non_moving_space_bytes_allocated, nullptr);
+                                               &non_moving_space_bytes_allocated, nullptr, &dummy);
       CHECK(to_ref != nullptr) << "Fall-back non-moving space allocation failed";
       bytes_allocated = non_moving_space_bytes_allocated;
       // Mark it in the mark bitmap.

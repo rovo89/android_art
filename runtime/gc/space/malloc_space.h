@@ -55,10 +55,11 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
 
   // Allocate num_bytes allowing the underlying space to grow.
   virtual mirror::Object* AllocWithGrowth(Thread* self, size_t num_bytes,
-                                          size_t* bytes_allocated, size_t* usable_size) = 0;
+                                          size_t* bytes_allocated, size_t* usable_size,
+                                          size_t* bytes_tl_bulk_allocated) = 0;
   // Allocate num_bytes without allowing the underlying space to grow.
   virtual mirror::Object* Alloc(Thread* self, size_t num_bytes, size_t* bytes_allocated,
-                                size_t* usable_size) = 0;
+                                size_t* usable_size, size_t* bytes_tl_bulk_allocated) = 0;
   // Return the storage space required by obj. If usable_size isn't nullptr then it is set to the
   // amount of the storage space that may be used by obj.
   virtual size_t AllocationSize(mirror::Object* obj, size_t* usable_size) = 0;
@@ -66,6 +67,11 @@ class MallocSpace : public ContinuousMemMapAllocSpace {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
   virtual size_t FreeList(Thread* self, size_t num_ptrs, mirror::Object** ptrs)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) = 0;
+
+  // Returns the maximum bytes that could be allocated for the given
+  // size in bulk, that is the maximum value for the
+  // bytes_allocated_bulk out param returned by MallocSpace::Alloc().
+  virtual size_t MaxBytesBulkAllocatedFor(size_t num_bytes) = 0;
 
 #ifndef NDEBUG
   virtual void CheckMoreCoreForPrecondition() {}  // to be overridden in the debug build.
