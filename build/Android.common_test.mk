@@ -161,9 +161,9 @@ endef
 # $(5): a make variable used to collate target dependencies, e.g ART_TEST_TARGET_OAT_HelloWorld_DEX
 # $(6): a make variable used to collate host dependencies, e.g ART_TEST_HOST_OAT_HelloWorld_DEX
 #
-# If the input test directory contains a file called main.list, then a
-# multi-dex file is created passing main.list as the --main-dex-list argument
-# to dx.
+# If the input test directory contains a file called main.list and main.jpp,
+# then a multi-dex file is created passing main.list as the --main-dex-list
+# argument to dx and main.jpp for Jack.
 define build-art-test-dex
   ifeq ($(ART_BUILD_TARGET),true)
     include $(CLEAR_VARS)
@@ -178,6 +178,7 @@ define build-art-test-dex
     LOCAL_DEX_PREOPT_IMAGE_LOCATION := $(TARGET_CORE_IMG_OUT)
     ifneq ($(wildcard $(LOCAL_PATH)/$(2)/main.list),)
       LOCAL_DX_FLAGS := --multi-dex --main-dex-list=$(LOCAL_PATH)/$(2)/main.list --minimal-main-dex
+      LOCAL_JACK_FLAGS := -D jack.dex.output.policy=minimal-multidex -D jack.preprocessor=true -D jack.preprocessor.file=$(LOCAL_PATH)/$(2)/main.jpp
     endif
     include $(BUILD_JAVA_LIBRARY)
     $(5) := $$(LOCAL_INSTALLED_MODULE)
@@ -193,6 +194,7 @@ define build-art-test-dex
     LOCAL_DEX_PREOPT_IMAGE := $(HOST_CORE_IMG_LOCATION)
     ifneq ($(wildcard $(LOCAL_PATH)/$(2)/main.list),)
       LOCAL_DX_FLAGS := --multi-dex --main-dex-list=$(LOCAL_PATH)/$(2)/main.list --minimal-main-dex
+      LOCAL_JACK_FLAGS := -D jack.dex.output.policy=minimal-multidex -D jack.preprocessor=true -D jack.preprocessor.file=$(LOCAL_PATH)/$(2)/main.jpp
     endif
     include $(BUILD_HOST_DALVIK_JAVA_LIBRARY)
     $(6) := $$(LOCAL_INSTALLED_MODULE)
