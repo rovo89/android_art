@@ -66,13 +66,6 @@ class RegisterAllocator {
                                 bool log_fatal_on_failure);
 
   static bool CanAllocateRegistersFor(const HGraph& graph, InstructionSet instruction_set);
-  static bool Supports(InstructionSet instruction_set) {
-    return instruction_set == kArm
-        || instruction_set == kArm64
-        || instruction_set == kThumb2
-        || instruction_set == kX86
-        || instruction_set == kX86_64;
-  }
 
   size_t GetNumberOfSpillSlots() const {
     return int_spill_slots_.Size()
@@ -121,11 +114,20 @@ class RegisterAllocator {
                                    Location source,
                                    Location destination) const;
   void InsertMoveAfter(HInstruction* instruction, Location source, Location destination) const;
-  void AddInputMoveFor(HInstruction* user, Location source, Location destination) const;
+  void AddInputMoveFor(HInstruction* input,
+                       HInstruction* user,
+                       Location source,
+                       Location destination) const;
   void InsertParallelMoveAt(size_t position,
                             HInstruction* instruction,
                             Location source,
                             Location destination) const;
+
+  void AddMove(HParallelMove* move,
+               Location source,
+               Location destination,
+               HInstruction* instruction,
+               Primitive::Type type) const;
 
   // Helper methods.
   void AllocateRegistersInternal();
@@ -136,9 +138,11 @@ class RegisterAllocator {
   int FindAvailableRegisterPair(size_t* next_use, size_t starting_at) const;
   int FindAvailableRegister(size_t* next_use) const;
 
-  // Try splitting an active non-pair interval at the given `position`.
+  // Try splitting an active non-pair or unaligned pair interval at the given `position`.
   // Returns whether it was successful at finding such an interval.
-  bool TrySplitNonPairIntervalAt(size_t position, size_t first_register_use, size_t* next_use);
+  bool TrySplitNonPairOrUnalignedPairIntervalAt(size_t position,
+                                                size_t first_register_use,
+                                                size_t* next_use);
 
   ArenaAllocator* const allocator_;
   CodeGenerator* const codegen_;
