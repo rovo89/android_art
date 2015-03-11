@@ -298,8 +298,6 @@ static void RunOptimizations(HGraph* graph,
                              const DexCompilationUnit& dex_compilation_unit,
                              PassInfoPrinter* pass_info_printer,
                              StackHandleScopeCollection* handles) {
-  SsaRedundantPhiElimination redundant_phi(graph);
-  SsaDeadPhiElimination dead_phi(graph);
   HDeadCodeElimination dce(graph);
   HConstantFolding fold1(graph);
   InstructionSimplifier simplify1(graph, stats);
@@ -317,8 +315,6 @@ static void RunOptimizations(HGraph* graph,
   IntrinsicsRecognizer intrinsics(graph, dex_compilation_unit.GetDexFile(), driver);
 
   HOptimization* optimizations[] = {
-    &redundant_phi,
-    &dead_phi,
     &intrinsics,
     &dce,
     &fold1,
@@ -461,7 +457,8 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
 
   ArenaPool pool;
   ArenaAllocator arena(&pool);
-  HGraph* graph = new (&arena) HGraph(&arena);
+  HGraph* graph = new (&arena) HGraph(
+      &arena, compiler_driver->GetCompilerOptions().GetDebuggable());
 
   // For testing purposes, we put a special marker on method names that should be compiled
   // with this compiler. This makes sure we're not regressing.
