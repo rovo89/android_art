@@ -3384,6 +3384,8 @@ void Heap::RegisterNativeAllocation(JNIEnv* env, size_t bytes) {
         // Just finished a GC, attempt to run finalizers.
         RunFinalization(env);
         CHECK(!env->ExceptionCheck());
+        // Native bytes allocated may be updated by finalization, refresh it.
+        new_native_bytes_allocated = native_bytes_allocated_.LoadRelaxed();
       }
       // If we still are over the watermark, attempt a GC for alloc and run finalizers.
       if (new_native_bytes_allocated > growth_limit_) {
