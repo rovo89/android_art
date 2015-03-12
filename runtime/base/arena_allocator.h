@@ -116,12 +116,12 @@ typedef ArenaAllocatorStatsImpl<kArenaAllocatorCountAllocations> ArenaAllocatorS
 class Arena {
  public:
   static constexpr size_t kDefaultSize = 128 * KB;
-  explicit Arena(size_t size = kDefaultSize);
-  ~Arena();
+  Arena();
+  virtual ~Arena() { }
   // Reset is for pre-use and uses memset for performance.
   void Reset();
   // Release is used inbetween uses and uses madvise for memory usage.
-  void Release();
+  virtual void Release() { }
   uint8_t* Begin() {
     return memory_;
   }
@@ -142,32 +142,50 @@ class Arena {
     return bytes_allocated_;
   }
 
- private:
+ protected:
   size_t bytes_allocated_;
   uint8_t* memory_;
   size_t size_;
-  MemMap* map_;
   Arena* next_;
   friend class ArenaPool;
   friend class ArenaAllocator;
   friend class ArenaStack;
   friend class ScopedArenaAllocator;
   template <bool kCount> friend class ArenaAllocatorStatsImpl;
+
+ private:
   DISALLOW_COPY_AND_ASSIGN(Arena);
+};
+
+class MallocArena FINAL : public Arena {
+ public:
+  explicit MallocArena(size_t size = Arena::kDefaultSize);
+  virtual ~MallocArena();
+};
+
+class MemMapArena FINAL : public Arena {
+ public:
+  explicit MemMapArena(size_t size = Arena::kDefaultSize);
+  virtual ~MemMapArena() { }
+  void Release() OVERRIDE;
+
+ private:
+  std::unique_ptr<MemMap> map_;
 };
 
 class ArenaPool {
  public:
-  ArenaPool();
+  explicit ArenaPool(bool use_malloc = true);
   ~ArenaPool();
   Arena* AllocArena(size_t size) LOCKS_EXCLUDED(lock_);
   void FreeArenaChain(Arena* first) LOCKS_EXCLUDED(lock_);
   size_t GetBytesAllocated() const LOCKS_EXCLUDED(lock_);
-  // Trim the maps in arenas by madvising, used by JIT to reduce memory usage. This only works if
-  // kUseMemMap is true.
+  // Trim the maps in arenas by madvising, used by JIT to reduce memory usage. This only works
+  // use_malloc is false.
   void TrimMaps() LOCKS_EXCLUDED(lock_);
 
  private:
+  const bool use_malloc_;
   mutable Mutex lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   Arena* free_arenas_ GUARDED_BY(lock_);
   DISALLOW_COPY_AND_ASSIGN(ArenaPool);
