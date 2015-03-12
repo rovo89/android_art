@@ -1322,9 +1322,9 @@ void Mir2Lir::DoPromotion() {
 /* Returns sp-relative offset in bytes for a VReg */
 int Mir2Lir::VRegOffset(int v_reg) {
   const DexFile::CodeItem* code_item = mir_graph_->GetCurrentDexCompilationUnit()->GetCodeItem();
-  return StackVisitor::GetVRegOffset(code_item, core_spill_mask_,
-                                     fp_spill_mask_, frame_size_, v_reg,
-                                     cu_->instruction_set);
+  return StackVisitor::GetVRegOffsetFromQuickCode(code_item, core_spill_mask_,
+                                                  fp_spill_mask_, frame_size_, v_reg,
+                                                  cu_->instruction_set);
 }
 
 /* Returns sp-relative offset in bytes for a SReg */
