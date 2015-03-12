@@ -236,6 +236,11 @@ void CommonRuntimeTest::SetUp() {
   runtime_.reset(Runtime::Current());
   class_linker_ = runtime_->GetClassLinker();
   class_linker_->FixupDexCaches(runtime_->GetResolutionMethod());
+
+  // Initialize maps for unstarted runtime. This needs to be here, as running clinits needs this
+  // set up.
+  interpreter::UnstartedRuntimeInitialize();
+
   class_linker_->RunRootClinits();
   boot_class_path_ = class_linker_->GetBootClassPath();
   java_lang_dex_file_ = boot_class_path_[0];

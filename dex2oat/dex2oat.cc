@@ -56,6 +56,7 @@
 #include "gc/space/image_space.h"
 #include "gc/space/space-inl.h"
 #include "image_writer.h"
+#include "interpreter/unstarted_runtime.h"
 #include "leb128.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
@@ -1541,8 +1542,14 @@ class Dex2Oat FINAL {
       }
     }
     runtime->GetClassLinker()->FixupDexCaches(runtime->GetResolutionMethod());
+
+    // Initialize maps for unstarted runtime. This needs to be here, as running clinits needs this
+    // set up.
+    interpreter::UnstartedRuntimeInitialize();
+
     runtime->GetClassLinker()->RunRootClinits();
     runtime_ = runtime;
+
     return true;
   }
 
