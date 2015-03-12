@@ -1551,7 +1551,9 @@ DEFINE_FUNCTION art_quick_instrumentation_exit
     CFI_ADJUST_CFA_OFFSET(-8)
     POP rax                   // Restore integer result.
 
-    addq LITERAL(FRAME_SIZE_REFS_ONLY_CALLEE_SAVE), %rsp   // Drop save frame and fake return pc.
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME
+
+    addq LITERAL(8), %rsp     // Drop fake return pc.
 
     jmp   *%rdi               // Return.
 END_FUNCTION art_quick_instrumentation_exit
