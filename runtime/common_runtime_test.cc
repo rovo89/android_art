@@ -34,6 +34,7 @@
 #include "gc_root-inl.h"
 #include "gc/heap.h"
 #include "gtest/gtest.h"
+#include "interpreter/unstarted_runtime.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
 #include "mem_map.h"
@@ -107,6 +108,8 @@ void ScratchFile::Unlink() {
   int unlink_result = unlink(filename_.c_str());
   CHECK_EQ(0, unlink_result);
 }
+
+static bool unstarted_initialized_ = false;
 
 CommonRuntimeTest::CommonRuntimeTest() {}
 CommonRuntimeTest::~CommonRuntimeTest() {
@@ -239,7 +242,10 @@ void CommonRuntimeTest::SetUp() {
 
   // Initialize maps for unstarted runtime. This needs to be here, as running clinits needs this
   // set up.
-  interpreter::UnstartedRuntimeInitialize();
+  if (!unstarted_initialized_) {
+    interpreter::UnstartedRuntimeInitialize();
+    unstarted_initialized_ = true;
+  }
 
   class_linker_->RunRootClinits();
   boot_class_path_ = class_linker_->GetBootClassPath();
