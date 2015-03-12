@@ -204,29 +204,32 @@ bool StackVisitor::GetVRegFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg,
   DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be NULL or how would we compile
                                                     // its instructions?
   DCHECK_LT(vreg, code_item->registers_size_);
-  DexRegisterMap dex_register_map = code_info.GetDexRegisterMapOf(stack_map,
-                                                                  code_item->registers_size_);
-  DexRegisterMap::LocationKind location_kind = dex_register_map.GetLocationKind(vreg);
+  DexRegisterMap dex_register_map =
+      code_info.GetDexRegisterMapOf(stack_map, code_item->registers_size_);
+  DexRegisterLocation::Kind location_kind = dex_register_map.GetLocationKind(vreg);
   switch (location_kind) {
-    case DexRegisterMap::kInStack: {
+    case DexRegisterLocation::Kind::kInStack: {
       const int32_t offset = dex_register_map.GetStackOffsetInBytes(vreg);
       const uint8_t* addr = reinterpret_cast<const uint8_t*>(cur_quick_frame_) + offset;
       *val = *reinterpret_cast<const uint32_t*>(addr);
       return true;
     }
-    case DexRegisterMap::kInRegister:
-    case DexRegisterMap::kInFpuRegister: {
+    case DexRegisterLocation::Kind::kInRegister:
+    case DexRegisterLocation::Kind::kInFpuRegister: {
       uint32_t reg = dex_register_map.GetMachineRegister(vreg);
       return GetRegisterIfAccessible(reg, kind, val);
     }
-    case DexRegisterMap::kConstant:
+    case DexRegisterLocation::Kind::kConstant:
       *val = dex_register_map.GetConstant(vreg);
       return true;
-    case DexRegisterMap::kNone:
+    case DexRegisterLocation::Kind::kNone:
       return false;
+    default:
+      LOG(FATAL)
+          << "Unexpected location kind"
+          << DexRegisterLocation::PrettyDescriptor(dex_register_map.GetLocationInternalKind(vreg));
+      UNREACHABLE();
   }
-  UNREACHABLE();
-  return false;
 }
 
 bool StackVisitor::GetRegisterIfAccessible(uint32_t reg, VRegKind kind, uint32_t* val) const {
@@ -386,29 +389,29 @@ bool StackVisitor::SetVRegFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg,
   DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be NULL or how would we compile
                                                     // its instructions?
   DCHECK_LT(vreg, code_item->registers_size_);
-  DexRegisterMap dex_register_map = code_info.GetDexRegisterMapOf(stack_map,
-                                                                  code_item->registers_size_);
-  DexRegisterMap::LocationKind location_kind = dex_register_map.GetLocationKind(vreg);
+  DexRegisterMap dex_register_map =
+      code_info.GetDexRegisterMapOf(stack_map, code_item->registers_size_);
+  DexRegisterLocation::Kind location_kind = dex_register_map.GetLocationKind(vreg);
   uint32_t dex_pc = m->ToDexPc(cur_quick_frame_pc_, false);
   switch (location_kind) {
-    case DexRegisterMap::kInStack: {
+    case DexRegisterLocation::Kind::kInStack: {
       const int32_t offset = dex_register_map.GetStackOffsetInBytes(vreg);
       uint8_t* addr = reinterpret_cast<uint8_t*>(cur_quick_frame_) + offset;
       *reinterpret_cast<uint32_t*>(addr) = new_value;
       return true;
     }
-    case DexRegisterMap::kInRegister:
-    case DexRegisterMap::kInFpuRegister: {
+    case DexRegisterLocation::Kind::kInRegister:
+    case DexRegisterLocation::Kind::kInFpuRegister: {
       uint32_t reg = dex_register_map.GetMachineRegister(vreg);
       return SetRegisterIfAccessible(reg, new_value, kind);
     }
-    case DexRegisterMap::kConstant:
+    case DexRegisterLocation::Kind::kConstant:
       LOG(ERROR) << StringPrintf("Cannot change value of DEX register v%u used as a constant at "
                                  "DEX pc 0x%x (native pc 0x%x) of method %s",
                                  vreg, dex_pc, native_pc_offset,
                                  PrettyMethod(cur_quick_frame_->AsMirrorPtr()).c_str());
       return false;
-    case DexRegisterMap::kNone:
+    case DexRegisterLocation::Kind::kNone:
       LOG(ERROR) << StringPrintf("No location for DEX register v%u at DEX pc 0x%x "
                                  "(native pc 0x%x) of method %s",
                                  vreg, dex_pc, native_pc_offset,

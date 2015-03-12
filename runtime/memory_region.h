@@ -23,6 +23,7 @@
 #include "base/macros.h"
 #include "base/value_object.h"
 #include "globals.h"
+#include "utils.h"
 
 namespace art {
 
@@ -45,12 +46,62 @@ class MemoryRegion FINAL : public ValueObject {
   uint8_t* start() const { return reinterpret_cast<uint8_t*>(pointer_); }
   uint8_t* end() const { return start() + size_; }
 
+  // Load value of type `T` at `offset`.  The memory address corresponding
+  // to `offset` should be word-aligned.
   template<typename T> T Load(uintptr_t offset) const {
+    // TODO: DCHECK that the address is word-aligned.
     return *ComputeInternalPointer<T>(offset);
   }
 
+  // Store `value` (of type `T`) at `offset`.  The memory address
+  // corresponding to `offset` should be word-aligned.
   template<typename T> void Store(uintptr_t offset, T value) const {
+    // TODO: DCHECK that the address is word-aligned.
     *ComputeInternalPointer<T>(offset) = value;
+  }
+
+  // TODO: Local hack to prevent name clashes between two conflicting
+  // implementations of bit_cast:
+  // - art::bit_cast<Destination, Source> runtime/base/casts.h, and
+  // - art::bit_cast<Source, Destination> from runtime/utils.h.
+  // Remove this when these routines have been merged.
+  template<typename Source, typename Destination>
+  static Destination local_bit_cast(Source in) {
+    static_assert(sizeof(Source) <= sizeof(Destination),
+                  "Size of Source not <= size of Destination");
+    union {
+      Source u;
+      Destination v;
+    } tmp;
+    tmp.u = in;
+    return tmp.v;
+  }
+
+  // Load value of type `T` at `offset`.  The memory address corresponding
+  // to `offset` does not need to be word-aligned.
+  template<typename T> T LoadUnaligned(uintptr_t offset) const {
+    // Equivalent unsigned integer type corresponding to T.
+    typedef typename UnsignedIntegerType<sizeof(T)>::type U;
+    U equivalent_unsigned_integer_value = 0;
+    // Read the value byte by byte in a little-endian fashion.
+    for (size_t i = 0; i < sizeof(U); ++i) {
+      equivalent_unsigned_integer_value +=
+          *ComputeInternalPointer<uint8_t>(offset + i) << (i * kBitsPerByte);
+    }
+    return local_bit_cast<U, T>(equivalent_unsigned_integer_value);
+  }
+
+  // Store `value` (of type `T`) at `offset`.  The memory address
+  // corresponding to `offset` does not need to be word-aligned.
+  template<typename T> void StoreUnaligned(uintptr_t offset, T value) const {
+    // Equivalent unsigned integer type corresponding to T.
+    typedef typename UnsignedIntegerType<sizeof(T)>::type U;
+    U equivalent_unsigned_integer_value = local_bit_cast<T, U>(value);
+    // Write the value byte by byte in a little-endian fashion.
+    for (size_t i = 0; i < sizeof(U); ++i) {
+      *ComputeInternalPointer<uint8_t>(offset + i) =
+          (equivalent_unsigned_integer_value >> (i * kBitsPerByte)) & 0xFF;
+    }
   }
 
   template<typename T> T* PointerTo(uintptr_t offset) const {

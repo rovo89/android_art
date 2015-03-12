@@ -173,6 +173,24 @@ static inline uint32_t High32Bits(uint64_t value) {
   return static_cast<uint32_t>(value >> 32);
 }
 
+// Traits class providing an unsigned integer type of (byte) size `n`.
+template <size_t n>
+struct UnsignedIntegerType {
+  // No defined `type`.
+};
+
+template <>
+struct UnsignedIntegerType<1> { typedef uint8_t type; };
+
+template <>
+struct UnsignedIntegerType<2> { typedef uint16_t type; };
+
+template <>
+struct UnsignedIntegerType<4> { typedef uint32_t type; };
+
+template <>
+struct UnsignedIntegerType<8> { typedef uint64_t type; };
+
 // Type identity.
 template <typename T>
 struct TypeIdentity {
