@@ -183,6 +183,41 @@ static inline vixl::Operand OperandFromMemOperand(const vixl::MemOperand& mem_op
   }
 }
 
+static bool CanEncodeConstantAsImmediate(HConstant* constant, HInstruction* instr) {
+  DCHECK(constant->IsIntConstant() || constant->IsLongConstant());
+
+  // For single uses we let VIXL handle the constant generation since it will
+  // use registers that are not managed by the register allocator (wip0, wip1).
+  if (constant->GetUses().HasOnlyOneUse()) {
+    return true;
+  }
+
+  int64_t value = constant->IsIntConstant() ? constant->AsIntConstant()->GetValue()
+                                            : constant->AsLongConstant()->GetValue();
+
+  if (instr->IsAdd() || instr->IsSub() || instr->IsCondition() || instr->IsCompare()) {
+    // Uses aliases of ADD/SUB instructions.
+    return vixl::Assembler::IsImmAddSub(value);
+  } else if (instr->IsAnd() || instr->IsOr() || instr->IsXor()) {
+    // Uses logical operations.
+    return vixl::Assembler::IsImmLogical(value, vixl::kXRegSize);
+  } else {
+    DCHECK(instr->IsNeg());
+    // Uses mov -immediate.
+    return vixl::Assembler::IsImmMovn(value, vixl::kXRegSize);
+  }
+}
+
+static inline Location ARM64EncodableConstantOrRegister(HInstruction* constant,
+                                                        HInstruction* instr) {
+  if (constant->IsConstant()
+      && CanEncodeConstantAsImmediate(constant->AsConstant(), instr)) {
+    return Location::ConstantLocation(constant->AsConstant());
+  }
+
+  return Location::RequiresRegister();
+}
+
 }  // namespace helpers
 }  // namespace arm64
 }  // namespace art
