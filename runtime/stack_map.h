@@ -28,6 +28,9 @@ namespace art {
 // (signed) values.
 static ssize_t constexpr kFrameSlotSize = 4;
 
+// Word alignment required on ARM, in bytes.
+static constexpr size_t kWordAlignment = 4;
+
 /**
  * Classes in the following file are wrapper on stack map information backed
  * by a MemoryRegion. As such they read and write to the region, they don't have
@@ -526,9 +529,9 @@ class StackMap {
        && region_.size() == other.region_.size();
   }
 
-  static size_t ComputeAlignedStackMapSize(size_t stack_map_size) {
+  static size_t ComputeAlignedStackMapSize(size_t stack_mask_size) {
     // On ARM, the stack maps must be 4-byte aligned.
-    return RoundUp(StackMap::kFixedSize + stack_map_size, 4);
+    return RoundUp(StackMap::kFixedSize + stack_mask_size, kWordAlignment);
   }
 
   // Special (invalid) offset for the DexRegisterMapOffset field meaning
