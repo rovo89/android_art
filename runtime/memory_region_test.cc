@@ -54,4 +54,5 @@ TEST(MemoryRegion, StoreUnaligned) {
     ASSERT_EQ(expected[i], data[i]);
   }
 }
-}
+
+}  // namespace art
