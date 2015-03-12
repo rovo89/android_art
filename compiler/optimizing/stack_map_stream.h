@@ -129,7 +129,8 @@ class StackMapStream : public ValueObject {
       DexRegisterLocation entry = dex_register_maps_.Get(i);
       size += DexRegisterMap::EntrySize(entry);
     }
-    return size;
+    // On ARM, the Dex register maps must be 4-byte aligned.
+    return RoundUp(size, kWordAlignment);
   }
 
   // Compute the size of all the inline information pieces.
@@ -139,12 +140,12 @@ class StackMapStream : public ValueObject {
       + (number_of_stack_maps_with_inline_info_ * InlineInfo::kFixedSize);
   }
 
-  size_t ComputeDexRegisterMapStart() const {
+  size_t ComputeDexRegisterMapsStart() const {
     return CodeInfo::kFixedSize + ComputeStackMapSize();
   }
 
   size_t ComputeInlineInfoStart() const {
-    return ComputeDexRegisterMapStart() + ComputeDexRegisterMapsSize();
+    return ComputeDexRegisterMapsStart() + ComputeDexRegisterMapsSize();
   }
 
   void FillIn(MemoryRegion region) {
@@ -155,7 +156,7 @@ class StackMapStream : public ValueObject {
     uint8_t* memory_start = region.start();
 
     MemoryRegion dex_register_maps_region = region.Subregion(
-      ComputeDexRegisterMapStart(),
+      ComputeDexRegisterMapsStart(),
       ComputeDexRegisterMapsSize());
 
     MemoryRegion inline_infos_region = region.Subregion(
