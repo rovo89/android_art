@@ -907,7 +907,8 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     } else {
       if (!returns_void) {
         // There will be multiple returns.
-        return_value = new (allocator) HPhi(allocator, kNoRegNumber, 0, invoke->GetType());
+        return_value = new (allocator) HPhi(
+            allocator, kNoRegNumber, 0, HPhi::ToPhiType(invoke->GetType()));
         to->AddPhi(return_value->AsPhi());
       }
       for (size_t i = 0, e = to->GetPredecessors().Size(); i < e; ++i) {
