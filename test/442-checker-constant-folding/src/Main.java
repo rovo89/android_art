@@ -16,6 +16,18 @@
 
 public class Main {
 
+  public static void assertIntEquals(int expected, int result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
+  public static void assertLongEquals(long expected, long result) {
+    if (expected != result) {
+      throw new Error("Expected: " + expected + ", found: " + result);
+    }
+  }
+
   /**
    * Tiny three-register program exercising int constant folding
    * on negation.
@@ -219,41 +231,203 @@ public class Main {
     return c;
   }
 
+  /**
+   * Test optimizations of arithmetic identities yielding a constant result.
+   */
+
+  // CHECK-START: int Main.And0(int) constant_folding (before)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-DAG:     [[And:i\d+]]      And [ [[Arg]] [[Const0]] ]
+  // CHECK-DAG:                       Return [ [[And]] ]
+
+  // CHECK-START: int Main.And0(int) constant_folding (after)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-NOT:                       And
+  // CHECK-DAG:                       Return [ [[Const0]] ]
+
+  public static int And0(int arg) {
+    return arg & 0;
+  }
+
+  // CHECK-START: long Main.Mul0(long) constant_folding (before)
+  // CHECK-DAG:     [[Arg:j\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:j\d+]]   LongConstant 0
+  // CHECK-DAG:     [[Mul:j\d+]]      Mul [ [[Arg]] [[Const0]] ]
+  // CHECK-DAG:                       Return [ [[Mul]] ]
+
+  // CHECK-START: long Main.Mul0(long) constant_folding (after)
+  // CHECK-DAG:     [[Arg:j\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:j\d+]]   LongConstant 0
+  // CHECK-NOT:                       Mul
+  // CHECK-DAG:                       Return [ [[Const0]] ]
+
+  public static long Mul0(long arg) {
+    return arg * 0;
+  }
+
+  // CHECK-START: int Main.OrAllOnes(int) constant_folding (before)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[ConstF:i\d+]]   IntConstant -1
+  // CHECK-DAG:     [[Or:i\d+]]       Or [ [[Arg]] [[ConstF]] ]
+  // CHECK-DAG:                       Return [ [[Or]] ]
+
+  // CHECK-START: int Main.OrAllOnes(int) constant_folding (after)
+  // CHECK-DAG:     [[ConstF:i\d+]]   IntConstant -1
+  // CHECK-NOT:                       Or
+  // CHECK-DAG:                       Return [ [[ConstF]] ]
+
+  public static int OrAllOnes(int arg) {
+    return arg | -1;
+  }
+
+  // CHECK-START: long Main.Rem0(long) constant_folding (before)
+  // CHECK-DAG:     [[Arg:j\d+]]           ParameterValue
+  // CHECK-DAG:     [[Const0:j\d+]]        LongConstant 0
+  // CHECK-DAG:     [[DivZeroCheck:j\d+]]  DivZeroCheck [ [[Arg]] ]
+  // CHECK-DAG:     [[Rem:j\d+]]           Rem [ [[Const0]] [[DivZeroCheck]] ]
+  // CHECK-DAG:                            Return [ [[Rem]] ]
+
+  // CHECK-START: long Main.Rem0(long) constant_folding (after)
+  // CHECK-DAG:     [[Const0:j\d+]]        LongConstant 0
+  // CHECK-NOT:                            Rem
+  // CHECK-DAG:                            Return [ [[Const0]] ]
+
+  public static long Rem0(long arg) {
+    return 0 % arg;
+  }
+
+  // CHECK-START: int Main.Rem1(int) constant_folding (before)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const1:i\d+]]   IntConstant 1
+  // CHECK-DAG:     [[Rem:i\d+]]      Rem [ [[Arg]] [[Const1]] ]
+  // CHECK-DAG:                       Return [ [[Rem]] ]
+
+  // CHECK-START: int Main.Rem1(int) constant_folding (after)
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-NOT:                       Rem
+  // CHECK-DAG:                       Return [ [[Const0]] ]
+
+  public static int Rem1(int arg) {
+    return arg % 1;
+  }
+
+  // CHECK-START: long Main.RemN1(long) constant_folding (before)
+  // CHECK-DAG:     [[Arg:j\d+]]           ParameterValue
+  // CHECK-DAG:     [[ConstN1:j\d+]]       LongConstant -1
+  // CHECK-DAG:     [[DivZeroCheck:j\d+]]  DivZeroCheck [ [[Arg]] ]
+  // CHECK-DAG:     [[Rem:j\d+]]           Rem [ [[Arg]] [[DivZeroCheck]] ]
+  // CHECK-DAG:                            Return [ [[Rem]] ]
+
+  // CHECK-START: long Main.RemN1(long) constant_folding (after)
+  // CHECK-DAG:     [[Const0:j\d+]]        LongConstant 0
+  // CHECK-NOT:                            Rem
+  // CHECK-DAG:                            Return [ [[Const0]] ]
+
+  public static long RemN1(long arg) {
+    return arg % -1;
+  }
+
+  // CHECK-START: int Main.Shl0(int) constant_folding (before)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-DAG:     [[Shl:i\d+]]      Shl [ [[Const0]] [[Arg]] ]
+  // CHECK-DAG:                       Return [ [[Shl]] ]
+
+  // CHECK-START: int Main.Shl0(int) constant_folding (after)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-NOT:                       Shl
+  // CHECK-DAG:                       Return [ [[Const0]] ]
+
+  public static int Shl0(int arg) {
+    return 0 << arg;
+  }
+
+  // CHECK-START: long Main.Shr0(int) constant_folding (before)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:j\d+]]   LongConstant 0
+  // CHECK-DAG:     [[Shr:j\d+]]      Shr [ [[Const0]] [[Arg]] ]
+  // CHECK-DAG:                       Return [ [[Shr]] ]
+
+  // CHECK-START: long Main.Shr0(int) constant_folding (after)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:j\d+]]   LongConstant 0
+  // CHECK-NOT:                       Shr
+  // CHECK-DAG:                       Return [ [[Const0]] ]
+
+  public static long Shr0(int arg) {
+    return (long)0 >> arg;
+  }
+
+  // CHECK-START: long Main.SubSameLong(long) constant_folding (before)
+  // CHECK-DAG:     [[Arg:j\d+]]      ParameterValue
+  // CHECK-DAG:     [[Sub:j\d+]]      Sub [ [[Arg]] [[Arg]] ]
+  // CHECK-DAG:                       Return [ [[Sub]] ]
+
+  // CHECK-START: long Main.SubSameLong(long) constant_folding (after)
+  // CHECK-DAG:     [[Arg:j\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:j\d+]]   LongConstant 0
+  // CHECK-NOT:                       Sub
+  // CHECK-DAG:                       Return [ [[Const0]] ]
+
+  public static long SubSameLong(long arg) {
+    return arg - arg;
+  }
+
+  // CHECK-START: int Main.UShr0(int) constant_folding (before)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-DAG:     [[UShr:i\d+]]     UShr [ [[Const0]] [[Arg]] ]
+  // CHECK-DAG:                       Return [ [[UShr]] ]
+
+  // CHECK-START: int Main.UShr0(int) constant_folding (after)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-NOT:                       UShr
+  // CHECK-DAG:                       Return [ [[Const0]] ]
+
+  public static int UShr0(int arg) {
+    return 0 >>> arg;
+  }
+
+  // CHECK-START: int Main.XorSameInt(int) constant_folding (before)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Xor:i\d+]]      Xor [ [[Arg]] [[Arg]] ]
+  // CHECK-DAG:                       Return [ [[Xor]] ]
+
+  // CHECK-START: int Main.XorSameInt(int) constant_folding (after)
+  // CHECK-DAG:     [[Arg:i\d+]]      ParameterValue
+  // CHECK-DAG:     [[Const0:i\d+]]   IntConstant 0
+  // CHECK-NOT:                       Xor
+  // CHECK-DAG:                       Return [ [[Const0]] ]
+
+  public static int XorSameInt(int arg) {
+    return arg ^ arg;
+  }
+
   public static void main(String[] args) {
-    if (IntNegation() != -42) {
-      throw new Error();
-    }
-
-    if (IntAddition1() != 3) {
-      throw new Error();
-    }
-
-    if (IntAddition2() != 14) {
-      throw new Error();
-    }
-
-    if (IntSubtraction() != 4) {
-      throw new Error();
-    }
-
-    if (LongAddition() != 3L) {
-      throw new Error();
-    }
-
-    if (LongSubtraction() != 4L) {
-      throw new Error();
-    }
-
-    if (StaticCondition() != 5) {
-      throw new Error();
-    }
-
-    if (JumpsAndConditionals(true) != 7) {
-      throw new Error();
-    }
-
-    if (JumpsAndConditionals(false) != 3) {
-      throw new Error();
-    }
+    assertIntEquals(IntNegation(), -42);
+    assertIntEquals(IntAddition1(), 3);
+    assertIntEquals(IntAddition2(), 14);
+    assertIntEquals(IntSubtraction(), 4);
+    assertLongEquals(LongAddition(), 3L);
+    assertLongEquals(LongSubtraction(), 4L);
+    assertIntEquals(StaticCondition(), 5);
+    assertIntEquals(JumpsAndConditionals(true), 7);
+    assertIntEquals(JumpsAndConditionals(false), 3);
+    int random = 123456;  // Chosen randomly.
+    assertIntEquals(And0(random), 0);
+    assertLongEquals(Mul0(random), 0);
+    assertIntEquals(OrAllOnes(random), -1);
+    assertLongEquals(Rem0(random), 0);
+    assertIntEquals(Rem1(random), 0);
+    assertLongEquals(RemN1(random), 0);
+    assertIntEquals(Shl0(random), 0);
+    assertLongEquals(Shr0(random), 0);
+    assertLongEquals(SubSameLong(random), 0);
+    assertIntEquals(UShr0(random), 0);
+    assertIntEquals(XorSameInt(random), 0);
   }
 }
