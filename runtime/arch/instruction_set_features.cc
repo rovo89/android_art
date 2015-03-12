@@ -250,7 +250,11 @@ const InstructionSetFeatures* InstructionSetFeatures::AddFeaturesFromString(
     }
     first = true;
   }
-  DCHECK_EQ(use_default, features.empty());
+  // Expectation: "default" is standalone, no other flags. But an empty features vector after
+  // processing can also come along if the handled flags (at the moment only smp) are the only
+  // ones in the list. So logically, we check "default -> features.empty."
+  DCHECK(!use_default || features.empty());
+
   return AddFeaturesFromSplitString(smp, features, error_msg);
 }
 
