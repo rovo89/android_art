@@ -26,10 +26,6 @@
 
 namespace art {
 
-// Memmap is a bit slower than malloc to allocate, but this is mitigated by the arena pool which
-// only allocates few arenas and recycles them afterwards.
-static constexpr bool kUseMemMap = true;
-static constexpr bool kUseMemSet = true && kUseMemMap;
 static constexpr size_t kValgrindRedZoneBytes = 8;
 constexpr size_t Arena::kDefaultSize;
 
@@ -124,33 +120,30 @@ void ArenaAllocatorStatsImpl<kCount>::Dump(std::ostream& os, const Arena* first,
 // Explicitly instantiate the used implementation.
 template class ArenaAllocatorStatsImpl<kArenaAllocatorCountAllocations>;
 
-Arena::Arena(size_t size)
-    : bytes_allocated_(0),
-      map_(nullptr),
-      next_(nullptr) {
-  if (kUseMemMap) {
-    std::string error_msg;
-    map_ = MemMap::MapAnonymous("dalvik-LinearAlloc", nullptr, size, PROT_READ | PROT_WRITE, false,
-                                false, &error_msg);
-    CHECK(map_ != nullptr) << error_msg;
-    memory_ = map_->Begin();
-    size_ = map_->Size();
-  } else {
-    memory_ = reinterpret_cast<uint8_t*>(calloc(1, size));
-    size_ = size;
-  }
+Arena::Arena() : bytes_allocated_(0), next_(nullptr) {
 }
 
-Arena::~Arena() {
-  if (kUseMemMap) {
-    delete map_;
-  } else {
-    free(reinterpret_cast<void*>(memory_));
-  }
+MallocArena::MallocArena(size_t size) {
+  memory_ = reinterpret_cast<uint8_t*>(calloc(1, size));
+  size_ = size;
 }
 
-void Arena::Release() {
-  if (kUseMemMap && bytes_allocated_ > 0) {
+MallocArena::~MallocArena() {
+  free(reinterpret_cast<void*>(memory_));
+}
+
+MemMapArena::MemMapArena(size_t size) {
+  std::string error_msg;
+  map_.reset(
+      MemMap::MapAnonymous("dalvik-LinearAlloc", nullptr, size, PROT_READ | PROT_WRITE, false,
+                           false, &error_msg));
+  CHECK(map_.get() != nullptr) << error_msg;
+  memory_ = map_->Begin();
+  size_ = map_->Size();
+}
+
+void MemMapArena::Release() {
+  if (bytes_allocated_ > 0) {
     map_->MadviseDontNeedAndZero();
     bytes_allocated_ = 0;
   }
@@ -158,19 +151,14 @@ void Arena::Release() {
 
 void Arena::Reset() {
   if (bytes_allocated_ > 0) {
-    if (kUseMemSet || !kUseMemMap) {
-      memset(Begin(), 0, bytes_allocated_);
-    } else {
-      map_->MadviseDontNeedAndZero();
-    }
+    memset(Begin(), 0, bytes_allocated_);
     bytes_allocated_ = 0;
   }
 }
 
-ArenaPool::ArenaPool()
-    : lock_("Arena pool lock"),
-      free_arenas_(nullptr) {
-  if (kUseMemMap) {
+ArenaPool::ArenaPool(bool use_malloc)
+    : use_malloc_(use_malloc), lock_("Arena pool lock"), free_arenas_(nullptr) {
+  if (!use_malloc) {
     MemMap::Init();
   }
 }
@@ -194,16 +182,19 @@ Arena* ArenaPool::AllocArena(size_t size) {
     }
   }
   if (ret == nullptr) {
-    ret = new Arena(size);
+    ret = use_malloc_ ? static_cast<Arena*>(new MallocArena(size)) : new MemMapArena(size);
   }
   ret->Reset();
   return ret;
 }
 
 void ArenaPool::TrimMaps() {
-  MutexLock lock(Thread::Current(), lock_);
-  for (auto* arena = free_arenas_; arena != nullptr; arena = arena->next_) {
-    arena->Release();
+  if (!use_malloc_) {
+    // Doesn't work for malloc.
+    MutexLock lock(Thread::Current(), lock_);
+    for (auto* arena = free_arenas_; arena != nullptr; arena = arena->next_) {
+      arena->Release();
+    }
   }
 }
 
