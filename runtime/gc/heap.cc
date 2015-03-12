@@ -2064,8 +2064,6 @@ void Heap::PreZygoteFork() {
   non_moving_space_->GetMemMap()->Protect(PROT_READ | PROT_WRITE);
   const bool same_space = non_moving_space_ == main_space_;
   if (kCompactZygote) {
-    // Can't compact if the non moving space is the same as the main space.
-    DCHECK(semi_space_collector_ != nullptr);
     // Temporarily disable rosalloc verification because the zygote
     // compaction will mess up the rosalloc internal metadata.
     ScopedDisableRosAllocVerification disable_rosalloc_verif(this);
@@ -2084,6 +2082,8 @@ void Heap::PreZygoteFork() {
       }
     } else {
       CHECK(main_space_ != nullptr);
+      CHECK_NE(main_space_, non_moving_space_)
+          << "Does not make sense to compact within the same space";
       // Copy from the main space.
       zygote_collector.SetFromSpace(main_space_);
       reset_main_space = true;
