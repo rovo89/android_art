@@ -77,8 +77,14 @@ ART_GTEST_transaction_test_DEX_DEPS := Transaction
 ART_GTEST_elf_writer_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
 ART_GTEST_elf_writer_test_TARGET_DEPS := $(TARGET_CORE_IMAGE_default_no-pic_64) $(TARGET_CORE_IMAGE_default_no-pic_32)
 
-ART_GTEST_oat_file_assistant_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
-ART_GTEST_oat_file_assistant_test_TARGET_DEPS := $(TARGET_CORE_IMAGE_default_no-pic_64) $(TARGET_CORE_IMAGE_default_no-pic_32)
+ART_GTEST_oat_file_assistant_test_HOST_DEPS := \
+  $(HOST_CORE_IMAGE_default_no-pic_64) \
+  $(HOST_CORE_IMAGE_default_no-pic_32) \
+  $(HOST_OUT_EXECUTABLES)/patchoatd
+ART_GTEST_oat_file_assistant_test_TARGET_DEPS := \
+  $(TARGET_CORE_IMAGE_default_no-pic_64) \
+  $(TARGET_CORE_IMAGE_default_no-pic_32) \
+  $(TARGET_OUT_EXECUTABLES)/patchoatd
 
 # TODO: document why this is needed.
 ART_GTEST_proxy_test_HOST_DEPS := $(HOST_CORE_IMAGE_default_no-pic_64) $(HOST_CORE_IMAGE_default_no-pic_32)
