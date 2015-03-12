@@ -133,8 +133,13 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   // recognition. Returns whether it was successful in doing all these steps.
   bool TryBuildingSsa() {
     BuildDominatorTree();
+    // The SSA builder requires loops to all be natural. Specifically, the dead phi
+    // elimination phase checks the consistency of the graph when doing a post-order
+    // visit for eliminating dead phis: a dead phi can only have loop header phi
+    // users remaining when being visited.
+    if (!AnalyzeNaturalLoops()) return false;
     TransformToSsa();
-    return AnalyzeNaturalLoops();
+    return true;
   }
 
   void BuildDominatorTree();
