@@ -788,7 +788,6 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   max_spins_before_thin_lock_inflation_ =
       runtime_options.GetOrDefault(Opt::MaxSpinsBeforeThinLockInflation);
 
-  arena_pool_.reset(new ArenaPool);
   monitor_list_ = new MonitorList;
   monitor_pool_ = MonitorPool::Create();
   thread_list_ = new ThreadList;
@@ -855,6 +854,11 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   if (!IsZygote() && jit_options_.get() != nullptr) {
     CreateJit();
   }
+
+  // Use MemMap arena pool for jit, malloc otherwise. Malloc arenas are faster to allocate but
+  // can't be trimmed as easily.
+  const bool use_malloc = jit_options_.get() == nullptr;
+  arena_pool_.reset(new ArenaPool(use_malloc));
 
   BlockSignals();
   InitPlatformSignalHandlers();
