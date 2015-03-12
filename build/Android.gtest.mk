@@ -155,6 +155,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/java_vm_ext_test.cc \
   runtime/leb128_test.cc \
   runtime/mem_map_test.cc \
+  runtime/memory_region_test.cc \
   runtime/mirror/dex_cache_test.cc \
   runtime/mirror/object_test.cc \
   runtime/monitor_pool_test.cc \

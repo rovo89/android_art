@@ -610,7 +610,7 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
   for (size_t i = 0; i < environment_size; ++i) {
     HInstruction* current = environment->GetInstructionAt(i);
     if (current == nullptr) {
-      stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kNone, 0);
+      stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kNone, 0);
       continue;
     }
 
@@ -620,37 +620,43 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
         DCHECK_EQ(current, location.GetConstant());
         if (current->IsLongConstant()) {
           int64_t value = current->AsLongConstant()->GetValue();
-          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, Low32Bits(value));
-          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, High32Bits(value));
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant,
+                                                Low32Bits(value));
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant,
+                                                High32Bits(value));
           ++i;
           DCHECK_LT(i, environment_size);
         } else if (current->IsDoubleConstant()) {
           int64_t value = bit_cast<double, int64_t>(current->AsDoubleConstant()->GetValue());
-          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, Low32Bits(value));
-          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, High32Bits(value));
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant,
+                                                Low32Bits(value));
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant,
+                                                High32Bits(value));
           ++i;
           DCHECK_LT(i, environment_size);
         } else if (current->IsIntConstant()) {
           int32_t value = current->AsIntConstant()->GetValue();
-          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, value);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant, value);
         } else if (current->IsNullConstant()) {
-          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, 0);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant, 0);
         } else {
           DCHECK(current->IsFloatConstant());
           int32_t value = bit_cast<float, int32_t>(current->AsFloatConstant()->GetValue());
-          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kConstant, value);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant, value);
         }
         break;
       }
 
       case Location::kStackSlot: {
-        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInStack, location.GetStackIndex());
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInStack,
+                                              location.GetStackIndex());
         break;
       }
 
       case Location::kDoubleStackSlot: {
-        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInStack, location.GetStackIndex());
-        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInStack,
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInStack,
+                                              location.GetStackIndex());
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInStack,
                                               location.GetHighStackIndex(kVRegSize));
         ++i;
         DCHECK_LT(i, environment_size);
@@ -659,9 +665,9 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
 
       case Location::kRegister : {
         int id = location.reg();
-        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInRegister, id);
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInRegister, id);
         if (current->GetType() == Primitive::kPrimLong) {
-          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInRegister, id);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInRegister, id);
           ++i;
           DCHECK_LT(i, environment_size);
         }
@@ -670,9 +676,9 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
 
       case Location::kFpuRegister : {
         int id = location.reg();
-        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInFpuRegister, id);
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInFpuRegister, id);
         if (current->GetType() == Primitive::kPrimDouble) {
-          stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInFpuRegister, id);
+          stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInFpuRegister, id);
           ++i;
           DCHECK_LT(i, environment_size);
         }
@@ -680,16 +686,20 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
       }
 
       case Location::kFpuRegisterPair : {
-        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInFpuRegister, location.low());
-        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInFpuRegister, location.high());
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInFpuRegister,
+                                              location.low());
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInFpuRegister,
+                                              location.high());
         ++i;
         DCHECK_LT(i, environment_size);
         break;
       }
 
       case Location::kRegisterPair : {
-        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInRegister, location.low());
-        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kInRegister, location.high());
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInRegister,
+                                              location.low());
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kInRegister,
+                                              location.high());
         ++i;
         DCHECK_LT(i, environment_size);
         break;
