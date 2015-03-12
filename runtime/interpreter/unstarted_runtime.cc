@@ -263,37 +263,118 @@ static void UnstartedVoidLookupType(Thread* self ATTRIBUTE_UNUSED,
   result->SetL(Runtime::Current()->GetClassLinker()->FindPrimitiveClass('V'));
 }
 
+// Arraycopy emulation.
+// Note: we can't use any fast copy functions, as they are not available under transaction.
+
+template <typename T>
+static void PrimitiveArrayCopy(Thread* self,
+                               mirror::Array* src_array, int32_t src_pos,
+                               mirror::Array* dst_array, int32_t dst_pos,
+                               int32_t length)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  if (src_array->GetClass()->GetComponentType() != dst_array->GetClass()->GetComponentType()) {
+    AbortTransactionOrFail(self, "Types mismatched in arraycopy: %s vs %s.",
+                           PrettyDescriptor(src_array->GetClass()->GetComponentType()).c_str(),
+                           PrettyDescriptor(dst_array->GetClass()->GetComponentType()).c_str());
+    return;
+  }
+  mirror::PrimitiveArray<T>* src = down_cast<mirror::PrimitiveArray<T>*>(src_array);
+  mirror::PrimitiveArray<T>* dst = down_cast<mirror::PrimitiveArray<T>*>(dst_array);
+  const bool copy_forward = (dst_pos < src_pos) || (dst_pos - src_pos >= length);
+  if (copy_forward) {
+    for (int32_t i = 0; i < length; ++i) {
+      dst->Set(dst_pos + i, src->Get(src_pos + i));
+    }
+  } else {
+    for (int32_t i = 1; i <= length; ++i) {
+      dst->Set(dst_pos + length - i, src->Get(src_pos + length - i));
+    }
+  }
+}
+
 static void UnstartedSystemArraycopy(
     Thread* self, ShadowFrame* shadow_frame, JValue* result ATTRIBUTE_UNUSED, size_t arg_offset)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   // Special case array copying without initializing System.
-  mirror::Class* ctype = shadow_frame->GetVRegReference(arg_offset)->GetClass()->GetComponentType();
-  jint srcPos = shadow_frame->GetVReg(arg_offset + 1);
-  jint dstPos = shadow_frame->GetVReg(arg_offset + 3);
+  jint src_pos = shadow_frame->GetVReg(arg_offset + 1);
+  jint dst_pos = shadow_frame->GetVReg(arg_offset + 3);
   jint length = shadow_frame->GetVReg(arg_offset + 4);
-  if (!ctype->IsPrimitive()) {
-    mirror::ObjectArray<mirror::Object>* src = shadow_frame->GetVRegReference(arg_offset)->
-        AsObjectArray<mirror::Object>();
-    mirror::ObjectArray<mirror::Object>* dst = shadow_frame->GetVRegReference(arg_offset + 2)->
-        AsObjectArray<mirror::Object>();
-    for (jint i = 0; i < length; ++i) {
-      dst->Set(dstPos + i, src->Get(srcPos + i));
+  mirror::Array* src_array = shadow_frame->GetVRegReference(arg_offset)->AsArray();
+  mirror::Array* dst_array = shadow_frame->GetVRegReference(arg_offset + 2)->AsArray();
+
+  // Null checking.
+  if (src_array == nullptr) {
+    AbortTransactionOrFail(self, "src is null in arraycopy.");
+    return;
+  }
+  if (dst_array == nullptr) {
+    AbortTransactionOrFail(self, "dst is null in arraycopy.");
+    return;
+  }
+
+  // Bounds checking.
+  if (UNLIKELY(src_pos < 0) || UNLIKELY(dst_pos < 0) || UNLIKELY(length < 0) ||
+      UNLIKELY(src_pos > src_array->GetLength() - length) ||
+      UNLIKELY(dst_pos > dst_array->GetLength() - length)) {
+    self->ThrowNewExceptionF("Ljava/lang/ArrayIndexOutOfBoundsException;",
+                             "src.length=%d srcPos=%d dst.length=%d dstPos=%d length=%d",
+                             src_array->GetLength(), src_pos, dst_array->GetLength(), dst_pos,
+                             length);
+    AbortTransactionOrFail(self, "Index out of bounds.");
+    return;
+  }
+
+  // Type checking.
+  mirror::Class* src_type = shadow_frame->GetVRegReference(arg_offset)->GetClass()->
+      GetComponentType();
+
+  if (!src_type->IsPrimitive()) {
+    // Check that the second type is not primitive.
+    mirror::Class* trg_type = shadow_frame->GetVRegReference(arg_offset + 2)->GetClass()->
+        GetComponentType();
+    if (trg_type->IsPrimitiveInt()) {
+      AbortTransactionOrFail(self, "Type mismatch in arraycopy: %s vs %s",
+                             PrettyDescriptor(src_array->GetClass()->GetComponentType()).c_str(),
+                             PrettyDescriptor(dst_array->GetClass()->GetComponentType()).c_str());
+      return;
     }
-  } else if (ctype->IsPrimitiveChar()) {
-    mirror::CharArray* src = shadow_frame->GetVRegReference(arg_offset)->AsCharArray();
-    mirror::CharArray* dst = shadow_frame->GetVRegReference(arg_offset + 2)->AsCharArray();
-    for (jint i = 0; i < length; ++i) {
-      dst->Set(dstPos + i, src->Get(srcPos + i));
+
+    // For simplicity only do this if the component types are the same. Otherwise we have to copy
+    // even more code from the object-array functions.
+    if (src_type != trg_type) {
+      AbortTransactionOrFail(self, "Types not the same in arraycopy: %s vs %s",
+                             PrettyDescriptor(src_array->GetClass()->GetComponentType()).c_str(),
+                             PrettyDescriptor(dst_array->GetClass()->GetComponentType()).c_str());
+      return;
     }
-  } else if (ctype->IsPrimitiveInt()) {
-    mirror::IntArray* src = shadow_frame->GetVRegReference(arg_offset)->AsIntArray();
-    mirror::IntArray* dst = shadow_frame->GetVRegReference(arg_offset + 2)->AsIntArray();
-    for (jint i = 0; i < length; ++i) {
-      dst->Set(dstPos + i, src->Get(srcPos + i));
+
+    mirror::ObjectArray<mirror::Object>* src = src_array->AsObjectArray<mirror::Object>();
+    mirror::ObjectArray<mirror::Object>* dst = dst_array->AsObjectArray<mirror::Object>();
+    if (src == dst) {
+      // Can overlap, but not have type mismatches.
+      const bool copy_forward = (dst_pos < src_pos) || (dst_pos - src_pos >= length);
+      if (copy_forward) {
+        for (int32_t i = 0; i < length; ++i) {
+          dst->Set(dst_pos + i, src->Get(src_pos + i));
+        }
+      } else {
+        for (int32_t i = 1; i <= length; ++i) {
+          dst->Set(dst_pos + length - i, src->Get(src_pos + length - i));
+        }
+      }
+    } else {
+      // Can't overlap. Would need type checks, but we abort above.
+      for (int32_t i = 0; i < length; ++i) {
+        dst->Set(dst_pos + i, src->Get(src_pos + i));
+      }
     }
+  } else if (src_type->IsPrimitiveChar()) {
+    PrimitiveArrayCopy<uint16_t>(self, src_array, src_pos, dst_array, dst_pos, length);
+  } else if (src_type->IsPrimitiveInt()) {
+    PrimitiveArrayCopy<int32_t>(self, src_array, src_pos, dst_array, dst_pos, length);
   } else {
     AbortTransactionOrFail(self, "Unimplemented System.arraycopy for type '%s'",
-                           PrettyDescriptor(ctype).c_str());
+                           PrettyDescriptor(src_type).c_str());
   }
 }
 
