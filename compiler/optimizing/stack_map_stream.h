@@ -56,11 +56,6 @@ class StackMapStream : public ValueObject {
     size_t inline_infos_start_index;
   };
 
-  struct DexRegisterEntry {
-    DexRegisterMap::LocationKind kind;
-    int32_t value;
-  };
-
   struct InlineInfoEntry {
     uint32_t method_index;
   };
@@ -90,11 +85,11 @@ class StackMapStream : public ValueObject {
     }
   }
 
-  void AddDexRegisterEntry(DexRegisterMap::LocationKind kind, int32_t value) {
-    DexRegisterEntry entry;
-    entry.kind = kind;
-    entry.value = value;
-    dex_register_maps_.Add(entry);
+  void AddDexRegisterEntry(DexRegisterLocation::Kind kind, int32_t value) {
+    // Ensure we only use non-compressed location kind at this stage.
+    DCHECK(DexRegisterLocation::IsShortLocationKind(kind))
+        << DexRegisterLocation::PrettyDescriptor(kind);
+    dex_register_maps_.Add(DexRegisterLocation(kind, value));
   }
 
   void AddInlineInfoEntry(uint32_t method_index) {
@@ -106,7 +101,7 @@ class StackMapStream : public ValueObject {
   size_t ComputeNeededSize() const {
     return CodeInfo::kFixedSize
         + ComputeStackMapSize()
-        + ComputeDexRegisterMapSize()
+        + ComputeDexRegisterMapsSize()
         + ComputeInlineInfoSize();
   }
 
@@ -114,25 +109,42 @@ class StackMapStream : public ValueObject {
     return stack_maps_.Size() * StackMap::ComputeAlignedStackMapSize(stack_mask_max_);
   }
 
-  size_t ComputeDexRegisterMapSize() const {
-    // We currently encode all dex register information per stack map.
-    return stack_maps_.Size() * DexRegisterMap::kFixedSize
-      // For each dex register entry.
-      + (dex_register_maps_.Size() * DexRegisterMap::SingleEntrySize());
+  // Compute the size of the Dex register map of `entry`.
+  size_t ComputeDexRegisterMapSize(const StackMapEntry& entry) const {
+    size_t size = DexRegisterMap::kFixedSize;
+    for (size_t j = 0; j < entry.num_dex_registers; ++j) {
+      DexRegisterLocation dex_register_location =
+          dex_register_maps_.Get(entry.dex_register_maps_start_index + j);
+      size += DexRegisterMap::EntrySize(dex_register_location);
+    }
+    return size;
   }
 
+  // Compute the size of all the Dex register maps.
+  size_t ComputeDexRegisterMapsSize() const {
+    size_t size = stack_maps_.Size() * DexRegisterMap::kFixedSize;
+    // The size of each register location depends on the type of
+    // the entry.
+    for (size_t i = 0, e = dex_register_maps_.Size(); i < e; ++i) {
+      DexRegisterLocation entry = dex_register_maps_.Get(i);
+      size += DexRegisterMap::EntrySize(entry);
+    }
+    return size;
+  }
+
+  // Compute the size of all the inline information pieces.
   size_t ComputeInlineInfoSize() const {
     return inline_infos_.Size() * InlineInfo::SingleEntrySize()
       // For encoding the depth.
       + (number_of_stack_maps_with_inline_info_ * InlineInfo::kFixedSize);
   }
 
-  size_t ComputeInlineInfoStart() const {
-    return ComputeDexRegisterMapStart() + ComputeDexRegisterMapSize();
-  }
-
   size_t ComputeDexRegisterMapStart() const {
     return CodeInfo::kFixedSize + ComputeStackMapSize();
+  }
+
+  size_t ComputeInlineInfoStart() const {
+    return ComputeDexRegisterMapStart() + ComputeDexRegisterMapsSize();
   }
 
   void FillIn(MemoryRegion region) {
@@ -144,7 +156,7 @@ class StackMapStream : public ValueObject {
 
     MemoryRegion dex_register_maps_region = region.Subregion(
       ComputeDexRegisterMapStart(),
-      ComputeDexRegisterMapSize());
+      ComputeDexRegisterMapsSize());
 
     MemoryRegion inline_infos_region = region.Subregion(
       ComputeInlineInfoStart(),
@@ -167,20 +179,25 @@ class StackMapStream : public ValueObject {
       }
 
       if (entry.num_dex_registers != 0) {
-        // Set the register map.
-        MemoryRegion register_region = dex_register_maps_region.Subregion(
-            next_dex_register_map_offset,
-            DexRegisterMap::kFixedSize
-            + entry.num_dex_registers * DexRegisterMap::SingleEntrySize());
+        // Set the Dex register map.
+        MemoryRegion register_region =
+            dex_register_maps_region.Subregion(
+                next_dex_register_map_offset,
+                ComputeDexRegisterMapSize(entry));
         next_dex_register_map_offset += register_region.size();
         DexRegisterMap dex_register_map(register_region);
         stack_map.SetDexRegisterMapOffset(register_region.start() - memory_start);
 
+        // Offset in `dex_register_map` where to store the next register entry.
+        size_t offset = DexRegisterMap::kFixedSize;
         for (size_t j = 0; j < entry.num_dex_registers; ++j) {
-          DexRegisterEntry register_entry =
-              dex_register_maps_.Get(j + entry.dex_register_maps_start_index);
-          dex_register_map.SetRegisterInfo(j, register_entry.kind, register_entry.value);
+          DexRegisterLocation dex_register_location =
+              dex_register_maps_.Get(entry.dex_register_maps_start_index + j);
+          dex_register_map.SetRegisterInfo(offset, dex_register_location);
+          offset += DexRegisterMap::EntrySize(dex_register_location);
         }
+        // Ensure we reached the end of the Dex registers region.
+        DCHECK_EQ(offset, register_region.size());
       } else {
         stack_map.SetDexRegisterMapOffset(StackMap::kNoDexRegisterMap);
       }
@@ -208,7 +225,7 @@ class StackMapStream : public ValueObject {
 
  private:
   GrowableArray<StackMapEntry> stack_maps_;
-  GrowableArray<DexRegisterEntry> dex_register_maps_;
+  GrowableArray<DexRegisterLocation> dex_register_maps_;
   GrowableArray<InlineInfoEntry> inline_infos_;
   int stack_mask_max_;
   size_t number_of_stack_maps_with_inline_info_;
