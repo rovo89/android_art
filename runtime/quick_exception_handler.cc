@@ -205,52 +205,97 @@ class DeoptimizeStackVisitor FINAL : public StackVisitor {
     ShadowFrame* new_frame = ShadowFrame::Create(num_regs, nullptr, h_method.Get(), dex_pc);
     self_->SetShadowFrameUnderConstruction(new_frame);
     const std::vector<int32_t> kinds(verifier.DescribeVRegs(dex_pc));
+
+    // Markers for dead values, used when the verifier knows a Dex register is undefined,
+    // or when the compiler knows the register has not been initialized, or is not used
+    // anymore in the method.
+    static constexpr uint32_t kDeadValue = 0xEBADDE09;
+    static constexpr uint64_t kLongDeadValue = 0xEBADDE09EBADDE09;
     for (uint16_t reg = 0; reg < num_regs; ++reg) {
       VRegKind kind = GetVRegKind(reg, kinds);
       switch (kind) {
         case kUndefined:
-          new_frame->SetVReg(reg, 0xEBADDE09);
+          new_frame->SetVReg(reg, kDeadValue);
           break;
         case kConstant:
           new_frame->SetVReg(reg, kinds.at((reg * 2) + 1));
           break;
-        case kReferenceVReg:
-          new_frame->SetVRegReference(reg,
-                                      reinterpret_cast<mirror::Object*>(GetVReg(h_method.Get(),
-                                                                                reg, kind)));
+        case kReferenceVReg: {
+          uint32_t value = 0;
+          if (GetVReg(h_method.Get(), reg, kind, &value)) {
+            new_frame->SetVRegReference(reg, reinterpret_cast<mirror::Object*>(value));
+          } else {
+            new_frame->SetVReg(reg, kDeadValue);
+          }
           break;
+        }
         case kLongLoVReg:
           if (GetVRegKind(reg + 1, kinds) == kLongHiVReg) {
             // Treat it as a "long" register pair.
-            new_frame->SetVRegLong(reg, GetVRegPair(h_method.Get(), reg, kLongLoVReg, kLongHiVReg));
+            uint64_t value = 0;
+            if (GetVRegPair(h_method.Get(), reg, kLongLoVReg, kLongHiVReg, &value)) {
+              new_frame->SetVRegLong(reg, value);
+            } else {
+              new_frame->SetVRegLong(reg, kLongDeadValue);
+            }
           } else {
-            new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
+            uint32_t value = 0;
+            if (GetVReg(h_method.Get(), reg, kind, &value)) {
+              new_frame->SetVReg(reg, value);
+            } else {
+              new_frame->SetVReg(reg, kDeadValue);
+            }
           }
           break;
         case kLongHiVReg:
           if (GetVRegKind(reg - 1, kinds) == kLongLoVReg) {
             // Nothing to do: we treated it as a "long" register pair.
           } else {
-            new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
+            uint32_t value = 0;
+            if (GetVReg(h_method.Get(), reg, kind, &value)) {
+              new_frame->SetVReg(reg, value);
+            } else {
+              new_frame->SetVReg(reg, kDeadValue);
+            }
           }
           break;
         case kDoubleLoVReg:
           if (GetVRegKind(reg + 1, kinds) == kDoubleHiVReg) {
-            // Treat it as a "double" register pair.
-            new_frame->SetVRegLong(reg, GetVRegPair(h_method.Get(), reg, kDoubleLoVReg, kDoubleHiVReg));
+            uint64_t value = 0;
+            if (GetVRegPair(h_method.Get(), reg, kDoubleLoVReg, kDoubleHiVReg, &value)) {
+              // Treat it as a "double" register pair.
+              new_frame->SetVRegLong(reg, value);
+            } else {
+              new_frame->SetVRegLong(reg, kLongDeadValue);
+            }
           } else {
-            new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
+            uint32_t value = 0;
+            if (GetVReg(h_method.Get(), reg, kind, &value)) {
+              new_frame->SetVReg(reg, value);
+            } else {
+              new_frame->SetVReg(reg, kDeadValue);
+            }
           }
           break;
         case kDoubleHiVReg:
           if (GetVRegKind(reg - 1, kinds) == kDoubleLoVReg) {
             // Nothing to do: we treated it as a "double" register pair.
           } else {
-            new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
+            uint32_t value = 0;
+            if (GetVReg(h_method.Get(), reg, kind, &value)) {
+              new_frame->SetVReg(reg, value);
+            } else {
+              new_frame->SetVReg(reg, kDeadValue);
+            }
           }
           break;
         default:
-          new_frame->SetVReg(reg, GetVReg(h_method.Get(), reg, kind));
+          uint32_t value = 0;
+          if (GetVReg(h_method.Get(), reg, kind, &value)) {
+            new_frame->SetVReg(reg, value);
+          } else {
+            new_frame->SetVReg(reg, kDeadValue);
+          }
           break;
       }
     }

@@ -1138,10 +1138,13 @@ class OatDumper {
           os << "\n\tlocals:";
         }
 
-        uint32_t offset = StackVisitor::GetVRegOffset(code_item, oat_method.GetCoreSpillMask(),
-                                                      oat_method.GetFpSpillMask(),
-                                                      oat_method.GetFrameSizeInBytes(), reg,
-                                                      GetInstructionSet());
+        uint32_t offset = StackVisitor::GetVRegOffsetFromQuickCode(
+            code_item,
+            oat_method.GetCoreSpillMask(),
+            oat_method.GetFpSpillMask(),
+            oat_method.GetFrameSizeInBytes(),
+            reg,
+            GetInstructionSet());
         os << " v" << reg << "[sp + #" << offset << "]";
       }
 
@@ -1170,10 +1173,13 @@ class OatDumper {
                                        : oat_method.GetCoreSpillMask();
         os << (is_float ? "fr" : "r") << vmap_table.ComputeRegister(spill_mask, vmap_offset, kind);
       } else {
-        uint32_t offset = StackVisitor::GetVRegOffset(code_item, oat_method.GetCoreSpillMask(),
-                                                      oat_method.GetFpSpillMask(),
-                                                      oat_method.GetFrameSizeInBytes(), reg,
-                                                      GetInstructionSet());
+        uint32_t offset = StackVisitor::GetVRegOffsetFromQuickCode(
+            code_item,
+            oat_method.GetCoreSpillMask(),
+            oat_method.GetFpSpillMask(),
+            oat_method.GetFrameSizeInBytes(),
+            reg,
+            GetInstructionSet());
         os << "[sp + #" << offset << "]";
       }
     }

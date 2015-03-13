@@ -1043,8 +1043,11 @@ void Monitor::VisitLocks(StackVisitor* stack_visitor, void (*callback)(mirror::O
     }
 
     uint16_t monitor_register = ((monitor_enter_instruction >> 8) & 0xff);
-    mirror::Object* o = reinterpret_cast<mirror::Object*>(
-        stack_visitor->GetVReg(m, monitor_register, kReferenceVReg));
+    uint32_t value;
+    bool success = stack_visitor->GetVReg(m, monitor_register, kReferenceVReg, &value);
+    CHECK(success) << "Failed to read v" << monitor_register << " of kind "
+                   << kReferenceVReg << " in method " << PrettyMethod(m);
+    mirror::Object* o = reinterpret_cast<mirror::Object*>(value);
     callback(o, callback_context);
   }
 }
