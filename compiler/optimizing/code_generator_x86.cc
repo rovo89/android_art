@@ -158,16 +158,16 @@ class BoundsCheckSlowPathX86 : public SlowPathCodeX86 {
 
 class SuspendCheckSlowPathX86 : public SlowPathCodeX86 {
  public:
-  explicit SuspendCheckSlowPathX86(HSuspendCheck* instruction, HBasicBlock* successor)
+  SuspendCheckSlowPathX86(HSuspendCheck* instruction, HBasicBlock* successor)
       : instruction_(instruction), successor_(successor) {}
 
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
     __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(instruction_->GetLocations());
+    SaveLiveRegisters(codegen, instruction_->GetLocations());
     __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pTestSuspend)));
     codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
-    codegen->RestoreLiveRegisters(instruction_->GetLocations());
+    RestoreLiveRegisters(codegen, instruction_->GetLocations());
     if (successor_ == nullptr) {
       __ jmp(GetReturnLabel());
     } else {
@@ -198,15 +198,15 @@ class LoadStringSlowPathX86 : public SlowPathCodeX86 {
 
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
     __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(locations);
+    SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
     x86_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
     __ movl(calling_convention.GetRegisterAt(0), Immediate(instruction_->GetStringIndex()));
     __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pResolveString)));
-    codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
+    RecordPcInfo(codegen, instruction_, instruction_->GetDexPc());
     x86_codegen->Move32(locations->Out(), Location::RegisterLocation(EAX));
-    codegen->RestoreLiveRegisters(locations);
+    RestoreLiveRegisters(codegen, locations);
 
     __ jmp(GetExitLabel());
   }
@@ -231,7 +231,7 @@ class LoadClassSlowPathX86 : public SlowPathCodeX86 {
     LocationSummary* locations = at_->GetLocations();
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
     __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(locations);
+    SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
     __ movl(calling_convention.GetRegisterAt(0), Immediate(cls_->GetTypeIndex()));
@@ -239,7 +239,7 @@ class LoadClassSlowPathX86 : public SlowPathCodeX86 {
     __ fs()->call(Address::Absolute(do_clinit_
         ? QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pInitializeStaticStorage)
         : QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pInitializeType)));
-    codegen->RecordPcInfo(at_, dex_pc_);
+    RecordPcInfo(codegen, at_, dex_pc_);
 
     // Move the class to the desired location.
     Location out = locations->Out();
@@ -248,7 +248,7 @@ class LoadClassSlowPathX86 : public SlowPathCodeX86 {
       x86_codegen->Move32(out, Location::RegisterLocation(EAX));
     }
 
-    codegen->RestoreLiveRegisters(locations);
+    RestoreLiveRegisters(codegen, locations);
     __ jmp(GetExitLabel());
   }
 
@@ -287,7 +287,7 @@ class TypeCheckSlowPathX86 : public SlowPathCodeX86 {
 
     CodeGeneratorX86* x86_codegen = down_cast<CodeGeneratorX86*>(codegen);
     __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(locations);
+    SaveLiveRegisters(codegen, locations);
 
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
@@ -306,11 +306,11 @@ class TypeCheckSlowPathX86 : public SlowPathCodeX86 {
       __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pCheckCast)));
     }
 
-    codegen->RecordPcInfo(instruction_, dex_pc_);
+    RecordPcInfo(codegen, instruction_, dex_pc_);
     if (instruction_->IsInstanceOf()) {
       x86_codegen->Move32(locations->Out(), Location::RegisterLocation(EAX));
     }
-    codegen->RestoreLiveRegisters(locations);
+    RestoreLiveRegisters(codegen, locations);
 
     __ jmp(GetExitLabel());
   }

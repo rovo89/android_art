@@ -191,7 +191,7 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
 
     __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(locations);
+    SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
     __ Mov(calling_convention.GetRegisterAt(0).W(), cls_->GetTypeIndex());
@@ -213,7 +213,7 @@ class LoadClassSlowPathARM64 : public SlowPathCodeARM64 {
       arm64_codegen->MoveLocation(out, calling_convention.GetReturnLocation(type), type);
     }
 
-    codegen->RestoreLiveRegisters(locations);
+    RestoreLiveRegisters(codegen, locations);
     __ B(GetExitLabel());
   }
 
@@ -244,7 +244,7 @@ class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
 
     __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(locations);
+    SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
     arm64_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1).W());
@@ -255,7 +255,7 @@ class LoadStringSlowPathARM64 : public SlowPathCodeARM64 {
     Primitive::Type type = instruction_->GetType();
     arm64_codegen->MoveLocation(locations->Out(), calling_convention.GetReturnLocation(type), type);
 
-    codegen->RestoreLiveRegisters(locations);
+    RestoreLiveRegisters(codegen, locations);
     __ B(GetExitLabel());
   }
 
@@ -292,11 +292,11 @@ class SuspendCheckSlowPathARM64 : public SlowPathCodeARM64 {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
     __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(instruction_->GetLocations());
+    SaveLiveRegisters(codegen, instruction_->GetLocations());
     arm64_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pTestSuspend), instruction_, instruction_->GetDexPc());
     CheckEntrypointTypes<kQuickTestSuspend, void, void>();
-    codegen->RestoreLiveRegisters(instruction_->GetLocations());
+    RestoreLiveRegisters(codegen, instruction_->GetLocations());
     if (successor_ == nullptr) {
       __ B(GetReturnLabel());
     } else {
@@ -338,7 +338,7 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
     CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
 
     __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(locations);
+    SaveLiveRegisters(codegen, locations);
 
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
@@ -360,7 +360,7 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
       CheckEntrypointTypes<kQuickCheckCast, void, const mirror::Class*, const mirror::Class*>();
     }
 
-    codegen->RestoreLiveRegisters(locations);
+    RestoreLiveRegisters(codegen, locations);
     __ B(GetExitLabel());
   }
 
@@ -1920,7 +1920,6 @@ void CodeGeneratorARM64::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invok
     __ Bl(&frame_entry_label_);
   }
 
-  RecordPcInfo(invoke, invoke->GetDexPc());
   DCHECK(!IsLeafMethod());
 }
 
@@ -1931,6 +1930,7 @@ void InstructionCodeGeneratorARM64::VisitInvokeStaticOrDirect(HInvokeStaticOrDir
 
   Register temp = WRegisterFrom(invoke->GetLocations()->GetTemp(0));
   codegen_->GenerateStaticOrDirectCall(invoke, temp);
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void InstructionCodeGeneratorARM64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
