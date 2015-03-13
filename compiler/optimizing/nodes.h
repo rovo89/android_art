@@ -1574,6 +1574,14 @@ class HBinaryOperation : public HExpression<2> {
   virtual int32_t Evaluate(int32_t x, int32_t y) const = 0;
   virtual int64_t Evaluate(int64_t x, int64_t y) const = 0;
 
+  // Returns an input that can legally be used as the right input and is
+  // constant, or nullptr.
+  HConstant* GetConstantRight() const;
+
+  // If `GetConstantRight()` returns one of the input, this returns the other
+  // one. Otherwise it returns nullptr.
+  HInstruction* GetLeastConstantLeft() const;
+
   DECLARE_INSTRUCTION(BinaryOperation);
 
  private:
@@ -1845,6 +1853,12 @@ class HConstant : public HExpression<0> {
 
   bool CanBeMoved() const OVERRIDE { return true; }
 
+  virtual bool IsMinusOne() const { return false; }
+  virtual bool IsZero() const { return false; }
+  virtual bool IsOne() const { return false; }
+
+  static HConstant* NewConstant(ArenaAllocator* allocator, Primitive::Type type, int64_t val);
+
   DECLARE_INSTRUCTION(Constant);
 
  private:
@@ -1863,6 +1877,16 @@ class HFloatConstant : public HConstant {
   }
 
   size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
+
+  bool IsMinusOne() const OVERRIDE {
+    return bit_cast<uint32_t>(AsFloatConstant()->GetValue()) == bit_cast<uint32_t>((-1.0f));
+  }
+  bool IsZero() const OVERRIDE {
+    return AsFloatConstant()->GetValue() == 0.0f;
+  }
+  bool IsOne() const OVERRIDE {
+    return bit_cast<uint32_t>(AsFloatConstant()->GetValue()) == bit_cast<uint32_t>(1.0f);
+  }
 
   DECLARE_INSTRUCTION(FloatConstant);
 
@@ -1884,6 +1908,16 @@ class HDoubleConstant : public HConstant {
   }
 
   size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
+
+  bool IsMinusOne() const OVERRIDE {
+    return bit_cast<uint64_t>(AsDoubleConstant()->GetValue()) == bit_cast<uint64_t>((-1.0));
+  }
+  bool IsZero() const OVERRIDE {
+    return AsDoubleConstant()->GetValue() == 0.0;
+  }
+  bool IsOne() const OVERRIDE {
+    return bit_cast<uint64_t>(AsDoubleConstant()->GetValue()) == bit_cast<uint64_t>(1.0);
+  }
 
   DECLARE_INSTRUCTION(DoubleConstant);
 
@@ -1930,6 +1964,10 @@ class HIntConstant : public HConstant {
   // method is an workaround until we fix the above.
   bool ActAsNullConstant() const OVERRIDE { return value_ == 0; }
 
+  bool IsMinusOne() const OVERRIDE { return GetValue() == -1; }
+  bool IsZero() const OVERRIDE { return GetValue() == 0; }
+  bool IsOne() const OVERRIDE { return GetValue() == 1; }
+
   DECLARE_INSTRUCTION(IntConstant);
 
  private:
@@ -1949,6 +1987,10 @@ class HLongConstant : public HConstant {
   }
 
   size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
+
+  bool IsMinusOne() const OVERRIDE { return GetValue() == -1; }
+  bool IsZero() const OVERRIDE { return GetValue() == 0; }
+  bool IsOne() const OVERRIDE { return GetValue() == 1; }
 
   DECLARE_INSTRUCTION(LongConstant);
 
@@ -3477,6 +3519,12 @@ class HBlocksInLoopIterator : public ValueObject {
 
   DISALLOW_COPY_AND_ASSIGN(HBlocksInLoopIterator);
 };
+
+inline int64_t Int64FromConstant(HConstant* constant) {
+  DCHECK(constant->IsIntConstant() || constant->IsLongConstant());
+  return constant->IsIntConstant() ? constant->AsIntConstant()->GetValue()
+                                   : constant->AsLongConstant()->GetValue();
+}
 
 }  // namespace art
 
