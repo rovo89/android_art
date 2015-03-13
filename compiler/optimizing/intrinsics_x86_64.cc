@@ -134,12 +134,13 @@ class IntrinsicSlowPathX86_64 : public SlowPathCodeX86_64 {
     CodeGeneratorX86_64* codegen = down_cast<CodeGeneratorX86_64*>(codegen_in);
     __ Bind(GetEntryLabel());
 
-    codegen->SaveLiveRegisters(invoke_->GetLocations());
+    SaveLiveRegisters(codegen, invoke_->GetLocations());
 
     MoveArguments(invoke_, codegen->GetGraph()->GetArena(), codegen);
 
     if (invoke_->IsInvokeStaticOrDirect()) {
       codegen->GenerateStaticOrDirectCall(invoke_->AsInvokeStaticOrDirect(), CpuRegister(RDI));
+      RecordPcInfo(codegen, invoke_, invoke_->GetDexPc());
     } else {
       UNIMPLEMENTED(FATAL) << "Non-direct intrinsic slow-path not yet implemented";
       UNREACHABLE();
@@ -153,7 +154,7 @@ class IntrinsicSlowPathX86_64 : public SlowPathCodeX86_64 {
       MoveFromReturnRegister(out, invoke_->GetType(), codegen);
     }
 
-    codegen->RestoreLiveRegisters(invoke_->GetLocations());
+    RestoreLiveRegisters(codegen, invoke_->GetLocations());
     __ jmp(GetExitLabel());
   }
 
