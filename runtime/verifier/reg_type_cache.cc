@@ -238,7 +238,9 @@ const RegType& RegTypeCache::FromClass(const char* descriptor, mirror::Class* kl
   }
 }
 
-RegTypeCache::RegTypeCache(bool can_load_classes) : can_load_classes_(can_load_classes) {
+RegTypeCache::RegTypeCache(bool can_load_classes)
+    : entries_lock_("entries lock"),
+      can_load_classes_(can_load_classes) {
   if (kIsDebugBuild) {
     Thread::Current()->AssertThreadSuspensionIsAllowable(gAborting == 0);
   }
@@ -580,6 +582,7 @@ void RegTypeCache::VisitStaticRoots(RootCallback* callback, void* arg) {
 }
 
 void RegTypeCache::VisitRoots(RootCallback* callback, void* arg) {
+  MutexLock mu(Thread::Current(), entries_lock_);
   // Exclude the static roots that are visited by VisitStaticRoots().
   for (size_t i = primitive_count_; i < entries_.size(); ++i) {
     entries_[i]->VisitRoots(callback, arg);
@@ -587,6 +590,8 @@ void RegTypeCache::VisitRoots(RootCallback* callback, void* arg) {
 }
 
 void RegTypeCache::AddEntry(RegType* new_entry) {
+  // TODO: There is probably a faster way to do this by using thread local roots.
+  MutexLock mu(Thread::Current(), entries_lock_);
   entries_.push_back(new_entry);
 }
 
