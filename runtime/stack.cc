@@ -129,12 +129,6 @@ mirror::Object* StackVisitor::GetThisObject() const {
     } else {
       return cur_shadow_frame_->GetVRegReference(0);
     }
-  } else if (m->IsOptimized(GetInstructionSetPointerSize(
-      Runtime::Current()->GetInstructionSet()))) {
-    // TODO: Implement, currently only used for exceptions when jdwp is enabled.
-    UNIMPLEMENTED(WARNING)
-        << "StackVisitor::GetThisObject is unimplemented with the optimizing compiler";
-    return nullptr;
   } else {
     const DexFile::CodeItem* code_item = m->GetCodeItem();
     if (code_item == nullptr) {
