@@ -148,7 +148,6 @@ Runtime::Runtime()
       java_vm_(nullptr),
       fault_message_lock_("Fault message lock"),
       fault_message_(""),
-      method_verifier_lock_("Method verifiers lock"),
       threads_being_born_(0),
       shutdown_cond_(new ConditionVariable("Runtime shutdown", *Locks::runtime_shutdown_lock_)),
       shutting_down_(false),
@@ -1333,7 +1332,7 @@ void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
   }
   verifier::MethodVerifier::VisitStaticRoots(callback, arg);
   {
-    MutexLock mu(Thread::Current(), method_verifier_lock_);
+    MutexLock mu(Thread::Current(), *Locks::method_verifiers_lock_);
     for (verifier::MethodVerifier* verifier : method_verifiers_) {
       verifier->VisitRoots(callback, arg);
     }
@@ -1514,7 +1513,7 @@ void Runtime::AddMethodVerifier(verifier::MethodVerifier* verifier) {
   if (gAborting) {
     return;
   }
-  MutexLock mu(Thread::Current(), method_verifier_lock_);
+  MutexLock mu(Thread::Current(), *Locks::method_verifiers_lock_);
   method_verifiers_.insert(verifier);
 }
 
@@ -1523,7 +1522,7 @@ void Runtime::RemoveMethodVerifier(verifier::MethodVerifier* verifier) {
   if (gAborting) {
     return;
   }
-  MutexLock mu(Thread::Current(), method_verifier_lock_);
+  MutexLock mu(Thread::Current(), *Locks::method_verifiers_lock_);
   auto it = method_verifiers_.find(verifier);
   CHECK(it != method_verifiers_.end());
   method_verifiers_.erase(it);
