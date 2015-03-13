@@ -59,13 +59,22 @@ public class Main {
         // Keep holder alive to make instance OOM happen faster.
         holder = new char[128 * 1024][];
         if (!triggerArrayOOM(holder)) {
+            // The test failed here. To avoid potential OOME during println,
+            // make holder unreachable.
+            holder = null;
             System.out.println("NEW_ARRAY did not throw OOME");
         }
 
         if (!triggerInstanceFinalizerOOM()) {
+            // The test failed here. To avoid potential OOME during println,
+            // make holder unreachable.
+            holder = null;
             System.out.println("NEW_INSTANCE (finalize) did not throw OOME");
         }
 
+        // Make holder unreachable here so that the Sentinel
+        // allocation in runFinalization() won't fail.
+        holder = null;
         System.runFinalization();
     }
 }
