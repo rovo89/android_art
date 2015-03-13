@@ -144,6 +144,22 @@ static void UnstartedClassNewInstance(Thread* self, ShadowFrame* shadow_frame, J
   StackHandleScope<3> hs(self);  // Class, constructor, object.
   mirror::Class* klass = shadow_frame->GetVRegReference(arg_offset)->AsClass();
   Handle<mirror::Class> h_klass(hs.NewHandle(klass));
+
+  // Check that it's not null.
+  if (h_klass.Get() == nullptr) {
+    AbortTransactionOrFail(self, "Class reference is null for newInstance");
+    return;
+  }
+
+  // If we're in a transaction, class must not be finalizable (it or a superclass has a finalizer).
+  if (Runtime::Current()->IsActiveTransaction()) {
+    if (h_klass.Get()->IsFinalizable()) {
+      AbortTransaction(self, "Class for newInstance is finalizable: '%s'",
+                       PrettyClass(h_klass.Get()).c_str());
+      return;
+    }
+  }
+
   // There are two situations in which we'll abort this run.
   //  1) If the class isn't yet initialized and initialization fails.
   //  2) If we can't find the default constructor. We'll postpone the exception to runtime.
