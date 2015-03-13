@@ -100,13 +100,17 @@ class StackMapStream : public ValueObject {
 
   size_t ComputeNeededSize() const {
     return CodeInfo::kFixedSize
-        + ComputeStackMapSize()
+        + ComputeStackMapsSize()
         + ComputeDexRegisterMapsSize()
         + ComputeInlineInfoSize();
   }
 
-  size_t ComputeStackMapSize() const {
-    return stack_maps_.Size() * StackMap::ComputeAlignedStackMapSize(stack_mask_max_);
+  size_t ComputeStackMaskSize() const {
+    return StackMaskEncodingSize(stack_mask_max_);
+  }
+
+  size_t ComputeStackMapsSize() const {
+    return stack_maps_.Size() * StackMap::ComputeAlignedStackMapSize(ComputeStackMaskSize());
   }
 
   // Compute the size of the Dex register map of `entry`.
@@ -141,7 +145,7 @@ class StackMapStream : public ValueObject {
   }
 
   size_t ComputeDexRegisterMapsStart() const {
-    return CodeInfo::kFixedSize + ComputeStackMapSize();
+    return CodeInfo::kFixedSize + ComputeStackMapsSize();
   }
 
   size_t ComputeInlineInfoStart() const {
@@ -150,9 +154,10 @@ class StackMapStream : public ValueObject {
 
   void FillIn(MemoryRegion region) {
     CodeInfo code_info(region);
+    DCHECK_EQ(region.size(), ComputeNeededSize());
     code_info.SetOverallSize(region.size());
 
-    size_t stack_mask_size = StackMaskEncodingSize(stack_mask_max_);
+    size_t stack_mask_size = ComputeStackMaskSize();
     uint8_t* memory_start = region.start();
 
     MemoryRegion dex_register_maps_region = region.Subregion(
@@ -165,6 +170,7 @@ class StackMapStream : public ValueObject {
 
     code_info.SetNumberOfStackMaps(stack_maps_.Size());
     code_info.SetStackMaskSize(stack_mask_size);
+    DCHECK_EQ(code_info.StackMapsSize(), ComputeStackMapsSize());
 
     uintptr_t next_dex_register_map_offset = 0;
     uintptr_t next_inline_info_offset = 0;
