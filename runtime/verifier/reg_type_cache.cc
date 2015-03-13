@@ -238,9 +238,7 @@ const RegType& RegTypeCache::FromClass(const char* descriptor, mirror::Class* kl
   }
 }
 
-RegTypeCache::RegTypeCache(bool can_load_classes)
-    : entries_lock_("entries lock"),
-      can_load_classes_(can_load_classes) {
+RegTypeCache::RegTypeCache(bool can_load_classes) : can_load_classes_(can_load_classes) {
   if (kIsDebugBuild) {
     Thread::Current()->AssertThreadSuspensionIsAllowable(gAborting == 0);
   }
@@ -563,35 +561,33 @@ void RegTypeCache::VisitStaticRoots(RootCallback* callback, void* arg) {
   // Visit the primitive types, this is required since if there are no active verifiers they wont
   // be in the entries array, and therefore not visited as roots.
   if (primitive_initialized_) {
-    UndefinedType::GetInstance()->VisitRoots(callback, arg);
-    ConflictType::GetInstance()->VisitRoots(callback, arg);
-    BooleanType::GetInstance()->VisitRoots(callback, arg);
-    ByteType::GetInstance()->VisitRoots(callback, arg);
-    ShortType::GetInstance()->VisitRoots(callback, arg);
-    CharType::GetInstance()->VisitRoots(callback, arg);
-    IntegerType::GetInstance()->VisitRoots(callback, arg);
-    LongLoType::GetInstance()->VisitRoots(callback, arg);
-    LongHiType::GetInstance()->VisitRoots(callback, arg);
-    FloatType::GetInstance()->VisitRoots(callback, arg);
-    DoubleLoType::GetInstance()->VisitRoots(callback, arg);
-    DoubleHiType::GetInstance()->VisitRoots(callback, arg);
+    RootInfo ri(kRootUnknown);
+    UndefinedType::GetInstance()->VisitRoots(callback, arg, ri);
+    ConflictType::GetInstance()->VisitRoots(callback, arg, ri);
+    BooleanType::GetInstance()->VisitRoots(callback, arg, ri);
+    ByteType::GetInstance()->VisitRoots(callback, arg, ri);
+    ShortType::GetInstance()->VisitRoots(callback, arg, ri);
+    CharType::GetInstance()->VisitRoots(callback, arg, ri);
+    IntegerType::GetInstance()->VisitRoots(callback, arg, ri);
+    LongLoType::GetInstance()->VisitRoots(callback, arg, ri);
+    LongHiType::GetInstance()->VisitRoots(callback, arg, ri);
+    FloatType::GetInstance()->VisitRoots(callback, arg, ri);
+    DoubleLoType::GetInstance()->VisitRoots(callback, arg, ri);
+    DoubleHiType::GetInstance()->VisitRoots(callback, arg, ri);
     for (int32_t value = kMinSmallConstant; value <= kMaxSmallConstant; ++value) {
-      small_precise_constants_[value - kMinSmallConstant]->VisitRoots(callback, arg);
+      small_precise_constants_[value - kMinSmallConstant]->VisitRoots(callback, arg, ri);
     }
   }
 }
 
-void RegTypeCache::VisitRoots(RootCallback* callback, void* arg) {
-  MutexLock mu(Thread::Current(), entries_lock_);
+void RegTypeCache::VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info) {
   // Exclude the static roots that are visited by VisitStaticRoots().
   for (size_t i = primitive_count_; i < entries_.size(); ++i) {
-    entries_[i]->VisitRoots(callback, arg);
+    entries_[i]->VisitRoots(callback, arg, root_info);
   }
 }
 
 void RegTypeCache::AddEntry(RegType* new_entry) {
-  // TODO: There is probably a faster way to do this by using thread local roots.
-  MutexLock mu(Thread::Current(), entries_lock_);
   entries_.push_back(new_entry);
 }
 

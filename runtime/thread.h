@@ -62,6 +62,11 @@ namespace mirror {
   class StackTraceElement;
   class Throwable;
 }  // namespace mirror
+
+namespace verifier {
+class MethodVerifier;
+}  // namespace verifier
+
 class BaseMutex;
 class ClassLinker;
 class Closure;
@@ -875,6 +880,9 @@ class Thread {
     return tls32_.suspended_at_suspend_check;
   }
 
+  void SetVerifier(verifier::MethodVerifier* verifier);
+  void ClearVerifier(verifier::MethodVerifier* verifier);
+
  private:
   explicit Thread(bool daemon);
   ~Thread() LOCKS_EXCLUDED(Locks::mutator_lock_,
@@ -1055,10 +1063,8 @@ class Thread {
       pthread_self(0), last_no_thread_suspension_cause(nullptr), thread_local_start(nullptr),
       thread_local_pos(nullptr), thread_local_end(nullptr), thread_local_objects(0),
       thread_local_alloc_stack_top(nullptr), thread_local_alloc_stack_end(nullptr),
-      nested_signal_state(nullptr), flip_function(nullptr) {
-        for (size_t i = 0; i < kLockLevelCount; ++i) {
-          held_mutexes[i] = nullptr;
-        }
+      nested_signal_state(nullptr), flip_function(nullptr), method_verifier(nullptr) {
+      std::fill(held_mutexes, held_mutexes + kLockLevelCount, nullptr);
     }
 
     // The biased card table, see CardTable for details.
@@ -1172,6 +1178,9 @@ class Thread {
 
     // The function used for thread flip.
     Closure* flip_function;
+
+    // Current method verifier, used for root marking.
+    verifier::MethodVerifier* method_verifier;
   } tlsPtr_;
 
   // Guards the 'interrupted_' and 'wait_monitor_' members.

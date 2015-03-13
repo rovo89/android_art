@@ -137,7 +137,8 @@ class RegTypeCache {
   void Dump(std::ostream& os) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   const RegType& RegTypeFromPrimitiveType(Primitive::Type) const;
 
-  void VisitRoots(RootCallback* callback, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void VisitStaticRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -170,9 +171,6 @@ class RegTypeCache {
 
   // Number of well known primitives that will be copied into a RegTypeCache upon construction.
   static uint16_t primitive_count_;
-
-  // Guards adding and visitng roots to prevent race conditions.
-  Mutex entries_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
 
   // The actual storage for the RegTypes.
   std::vector<const RegType*> entries_;

@@ -227,7 +227,8 @@ class MethodVerifier {
 
   static void VisitStaticRoots(RootCallback* callback, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void VisitRoots(RootCallback* callback, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& roots)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Accessors used by the compiler via CompilerCallback
   const DexFile::CodeItem* CodeItem() const;
