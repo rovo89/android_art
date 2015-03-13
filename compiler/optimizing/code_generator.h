@@ -73,6 +73,10 @@ class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
 
   virtual void EmitNativeCode(CodeGenerator* codegen) = 0;
 
+  void SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations);
+  void RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary* locations);
+  void RecordPcInfo(CodeGenerator* codegen, HInstruction* instruction, uint32_t dex_pc);
+
  private:
   DISALLOW_COPY_AND_ASSIGN(SlowPathCode);
 };
@@ -182,8 +186,6 @@ class CodeGenerator {
   void BuildNativeGCMap(
       std::vector<uint8_t>* vector, const DexCompilationUnit& dex_compilation_unit) const;
   void BuildStackMaps(std::vector<uint8_t>* vector);
-  void SaveLiveRegisters(LocationSummary* locations);
-  void RestoreLiveRegisters(LocationSummary* locations);
 
   bool IsLeafMethod() const {
     return is_leaf_;
@@ -267,6 +269,15 @@ class CodeGenerator {
     }
   }
 
+  size_t GetFirstRegisterSlotInSlowPath() const {
+    return first_register_slot_in_slow_path_;
+  }
+
+  uint32_t FrameEntrySpillSize() const {
+    return GetFpuSpillSize() + GetCoreSpillSize();
+  }
+
+
  protected:
   CodeGenerator(HGraph* graph,
                 size_t number_of_core_registers,
@@ -324,10 +335,6 @@ class CodeGenerator {
 
   uint32_t GetCoreSpillSize() const {
     return POPCOUNT(core_spill_mask_) * GetWordSize();
-  }
-
-  uint32_t FrameEntrySpillSize() const {
-    return GetFpuSpillSize() + GetCoreSpillSize();
   }
 
   bool HasAllocatedCalleeSaveRegisters() const {
