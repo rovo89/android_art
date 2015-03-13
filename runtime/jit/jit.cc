@@ -32,6 +32,9 @@ namespace art {
 namespace jit {
 
 JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& options) {
+  if (kRuntimeISA == kArm64) {
+    return nullptr;
+  }
   if (!options.GetOrDefault(RuntimeArgumentMap::UseJIT)) {
     return nullptr;
   }
