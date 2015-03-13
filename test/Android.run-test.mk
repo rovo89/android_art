@@ -312,6 +312,7 @@ TEST_ART_BROKEN_NDEBUG_TESTS := \
   454-get-vreg \
   455-set-vreg \
   457-regs \
+  461-get-reference-vreg \
 
 ifneq (,$(filter ndebug,$(RUN_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),ndebug,$(PREBUILD_TYPES), \
@@ -367,6 +368,8 @@ TEST_ART_BROKEN_OPTIMIZING_RUN_TESTS :=
 
 # Tests that should fail when the optimizing compiler compiles them non-debuggable.
 TEST_ART_BROKEN_OPTIMIZING_NONDEBUGGABLE_RUN_TESTS := \
+  454-get-vreg \
+  455-set-vreg \
   457-regs \
 
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))

@@ -1109,6 +1109,7 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
 
   bool HasUses() const { return !uses_.IsEmpty() || !env_uses_.IsEmpty(); }
   bool HasEnvironmentUses() const { return !env_uses_.IsEmpty(); }
+  bool HasNonEnvironmentUses() const { return !uses_.IsEmpty(); }
 
   // Does this instruction strictly dominate `other_instruction`?
   // Returns false if this instruction and `other_instruction` are the same.
