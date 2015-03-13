@@ -46,19 +46,19 @@ class InlineInfo {
   explicit InlineInfo(MemoryRegion region) : region_(region) {}
 
   uint8_t GetDepth() const {
-    return region_.Load<uint8_t>(kDepthOffset);
+    return region_.LoadUnaligned<uint8_t>(kDepthOffset);
   }
 
   void SetDepth(uint8_t depth) {
-    region_.Store<uint8_t>(kDepthOffset, depth);
+    region_.StoreUnaligned<uint8_t>(kDepthOffset, depth);
   }
 
   uint32_t GetMethodReferenceIndexAtDepth(uint8_t depth) const {
-    return region_.Load<uint32_t>(kFixedSize + depth * SingleEntrySize());
+    return region_.LoadUnaligned<uint32_t>(kFixedSize + depth * SingleEntrySize());
   }
 
   void SetMethodReferenceIndexAtDepth(uint8_t depth, uint32_t index) {
-    region_.Store<uint32_t>(kFixedSize + depth * SingleEntrySize(), index);
+    region_.StoreUnaligned<uint32_t>(kFixedSize + depth * SingleEntrySize(), index);
   }
 
   static size_t SingleEntrySize() {
@@ -466,43 +466,43 @@ class StackMap {
   explicit StackMap(MemoryRegion region) : region_(region) {}
 
   uint32_t GetDexPc() const {
-    return region_.Load<uint32_t>(kDexPcOffset);
+    return region_.LoadUnaligned<uint32_t>(kDexPcOffset);
   }
 
   void SetDexPc(uint32_t dex_pc) {
-    region_.Store<uint32_t>(kDexPcOffset, dex_pc);
+    region_.StoreUnaligned<uint32_t>(kDexPcOffset, dex_pc);
   }
 
   uint32_t GetNativePcOffset() const {
-    return region_.Load<uint32_t>(kNativePcOffsetOffset);
+    return region_.LoadUnaligned<uint32_t>(kNativePcOffsetOffset);
   }
 
   void SetNativePcOffset(uint32_t native_pc_offset) {
-    region_.Store<uint32_t>(kNativePcOffsetOffset, native_pc_offset);
+    region_.StoreUnaligned<uint32_t>(kNativePcOffsetOffset, native_pc_offset);
   }
 
   uint32_t GetDexRegisterMapOffset() const {
-    return region_.Load<uint32_t>(kDexRegisterMapOffsetOffset);
+    return region_.LoadUnaligned<uint32_t>(kDexRegisterMapOffsetOffset);
   }
 
   void SetDexRegisterMapOffset(uint32_t offset) {
-    region_.Store<uint32_t>(kDexRegisterMapOffsetOffset, offset);
+    region_.StoreUnaligned<uint32_t>(kDexRegisterMapOffsetOffset, offset);
   }
 
   uint32_t GetInlineDescriptorOffset() const {
-    return region_.Load<uint32_t>(kInlineDescriptorOffsetOffset);
+    return region_.LoadUnaligned<uint32_t>(kInlineDescriptorOffsetOffset);
   }
 
   void SetInlineDescriptorOffset(uint32_t offset) {
-    region_.Store<uint32_t>(kInlineDescriptorOffsetOffset, offset);
+    region_.StoreUnaligned<uint32_t>(kInlineDescriptorOffsetOffset, offset);
   }
 
   uint32_t GetRegisterMask() const {
-    return region_.Load<uint32_t>(kRegisterMaskOffset);
+    return region_.LoadUnaligned<uint32_t>(kRegisterMaskOffset);
   }
 
   void SetRegisterMask(uint32_t mask) {
-    region_.Store<uint32_t>(kRegisterMaskOffset, mask);
+    region_.StoreUnaligned<uint32_t>(kRegisterMaskOffset, mask);
   }
 
   MemoryRegion GetStackMask() const {
@@ -529,9 +529,8 @@ class StackMap {
        && region_.size() == other.region_.size();
   }
 
-  static size_t ComputeAlignedStackMapSize(size_t stack_mask_size) {
-    // On ARM, the stack maps must be 4-byte aligned.
-    return RoundUp(StackMap::kFixedSize + stack_mask_size, kWordAlignment);
+  static size_t ComputeStackMapSize(size_t stack_mask_size) {
+    return StackMap::kFixedSize + stack_mask_size;
   }
 
   // Special (invalid) offset for the DexRegisterMapOffset field meaning
@@ -609,7 +608,7 @@ class CodeInfo {
   // Get the size of one stack map of this CodeInfo object, in bytes.
   // All stack maps of a CodeInfo have the same size.
   size_t StackMapSize() const {
-    return StackMap::ComputeAlignedStackMapSize(GetStackMaskSize());
+    return StackMap::ComputeStackMapSize(GetStackMaskSize());
   }
 
   // Get the size all the stack maps of this CodeInfo object, in bytes.
