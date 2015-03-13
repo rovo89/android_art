@@ -456,11 +456,6 @@ class Runtime {
     return use_compile_time_class_path_;
   }
 
-  void AddMethodVerifier(verifier::MethodVerifier* verifier)
-      LOCKS_EXCLUDED(Locks::method_verifiers_lock_);
-  void RemoveMethodVerifier(verifier::MethodVerifier* verifier)
-      LOCKS_EXCLUDED(Locks::method_verifiers_lock_);
-
   const std::vector<const DexFile*>& GetCompileTimeClassPath(jobject class_loader);
 
   // The caller is responsible for ensuring the class_path DexFiles remain
@@ -641,9 +636,6 @@ class Runtime {
   // Fault message, printed when we get a SIGSEGV.
   Mutex fault_message_lock_ DEFAULT_MUTEX_ACQUIRED_AFTER;
   std::string fault_message_ GUARDED_BY(fault_message_lock_);
-
-  // Method verifier set, used so that we can update their GC roots.
-  std::set<verifier::MethodVerifier*> method_verifiers_ GUARDED_BY(Locks::method_verifiers_lock_);
 
   // A non-zero value indicates that a thread has been created but not yet initialized. Guarded by
   // the shutdown lock so that threads aren't born while we're shutting down.

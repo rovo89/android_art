@@ -70,6 +70,7 @@
 #include "thread-inl.h"
 #include "utils.h"
 #include "verifier/dex_gc_map.h"
+#include "verifier/method_verifier.h"
 #include "verify_object-inl.h"
 #include "vmap_table.h"
 #include "well_known_classes.h"
@@ -2296,6 +2297,9 @@ void Thread::VisitRoots(RootCallback* visitor, void* arg) {
       mapper.VisitShadowFrame(shadow_frame);
     }
   }
+  if (tlsPtr_.method_verifier != nullptr) {
+    tlsPtr_.method_verifier->VisitRoots(visitor, arg, RootInfo(kRootNativeStack, thread_id));
+  }
   // Visit roots on this thread's stack
   Context* context = GetLongJumpContext();
   RootCallbackVisitor visitor_to_callback(visitor, arg, thread_id);
@@ -2415,6 +2419,16 @@ void Thread::ClearDebugInvokeReq() {
   // We do not own the DebugInvokeReq* so we must not delete it, it is the responsibility of
   // the owner (the JDWP thread).
   tlsPtr_.debug_invoke_req = nullptr;
+}
+
+void Thread::SetVerifier(verifier::MethodVerifier* verifier) {
+  CHECK(tlsPtr_.method_verifier == nullptr);
+  tlsPtr_.method_verifier = verifier;
+}
+
+void Thread::ClearVerifier(verifier::MethodVerifier* verifier) {
+  CHECK_EQ(tlsPtr_.method_verifier, verifier);
+  tlsPtr_.method_verifier = nullptr;
 }
 
 }  // namespace art

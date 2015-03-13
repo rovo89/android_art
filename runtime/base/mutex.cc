@@ -46,7 +46,6 @@ Mutex* Locks::intern_table_lock_ = nullptr;
 Mutex* Locks::jni_libraries_lock_ = nullptr;
 Mutex* Locks::logging_lock_ = nullptr;
 Mutex* Locks::mem_maps_lock_ = nullptr;
-Mutex* Locks::method_verifiers_lock_ = nullptr;
 Mutex* Locks::modify_ldt_lock_ = nullptr;
 ReaderWriterMutex* Locks::mutator_lock_ = nullptr;
 Mutex* Locks::profiler_lock_ = nullptr;
@@ -1001,10 +1000,6 @@ void Locks::Init() {
     DCHECK(classlinker_classes_lock_ == nullptr);
     classlinker_classes_lock_ = new ReaderWriterMutex("ClassLinker classes lock",
                                                       current_lock_level);
-
-    UPDATE_CURRENT_LOCK_LEVEL(kMethodVerifiersLock);
-    DCHECK(method_verifiers_lock_ == nullptr);
-    method_verifiers_lock_ = new Mutex("Method verifiers lock", current_lock_level);
 
     UPDATE_CURRENT_LOCK_LEVEL(kMonitorPoolLock);
     DCHECK(allocated_monitor_ids_lock_ == nullptr);
