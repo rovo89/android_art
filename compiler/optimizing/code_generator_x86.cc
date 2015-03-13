@@ -2734,26 +2734,45 @@ void InstructionCodeGeneratorX86::VisitCompare(HCompare* compare) {
   Label less, greater, done;
   switch (compare->InputAt(0)->GetType()) {
     case Primitive::kPrimLong: {
+      Register left_low = left.AsRegisterPairLow<Register>();
+      Register left_high = left.AsRegisterPairHigh<Register>();
+      int32_t val_low = 0;
+      int32_t val_high = 0;
+      bool right_is_const = false;
+
+      if (right.IsConstant()) {
+        DCHECK(right.GetConstant()->IsLongConstant());
+        right_is_const = true;
+        int64_t val = right.GetConstant()->AsLongConstant()->GetValue();
+        val_low = Low32Bits(val);
+        val_high = High32Bits(val);
+      }
+
       if (right.IsRegisterPair()) {
-        __ cmpl(left.AsRegisterPairHigh<Register>(), right.AsRegisterPairHigh<Register>());
+        __ cmpl(left_high, right.AsRegisterPairHigh<Register>());
       } else if (right.IsDoubleStackSlot()) {
-        __ cmpl(left.AsRegisterPairHigh<Register>(),
-                Address(ESP, right.GetHighStackIndex(kX86WordSize)));
+        __ cmpl(left_high, Address(ESP, right.GetHighStackIndex(kX86WordSize)));
       } else {
-        DCHECK(right.IsConstant()) << right;
-        __ cmpl(left.AsRegisterPairHigh<Register>(),
-                Immediate(High32Bits(right.GetConstant()->AsLongConstant()->GetValue())));
+        DCHECK(right_is_const) << right;
+        if (val_high == 0) {
+          __ testl(left_high, left_high);
+        } else {
+          __ cmpl(left_high, Immediate(val_high));
+        }
       }
       __ j(kLess, &less);  // Signed compare.
       __ j(kGreater, &greater);  // Signed compare.
       if (right.IsRegisterPair()) {
-        __ cmpl(left.AsRegisterPairLow<Register>(), right.AsRegisterPairLow<Register>());
+        __ cmpl(left_low, right.AsRegisterPairLow<Register>());
       } else if (right.IsDoubleStackSlot()) {
-        __ cmpl(left.AsRegisterPairLow<Register>(), Address(ESP, right.GetStackIndex()));
+        __ cmpl(left_low, Address(ESP, right.GetStackIndex()));
       } else {
-        DCHECK(right.IsConstant()) << right;
-        __ cmpl(left.AsRegisterPairLow<Register>(),
-                Immediate(Low32Bits(right.GetConstant()->AsLongConstant()->GetValue())));
+        DCHECK(right_is_const) << right;
+        if (val_low == 0) {
+          __ testl(left_low, left_low);
+        } else {
+          __ cmpl(left_low, Immediate(val_low));
+        }
       }
       break;
     }
@@ -3649,14 +3668,21 @@ void ParallelMoveResolverX86::EmitMove(size_t index) {
         __ movl(Address(ESP, destination.GetStackIndex()), Immediate(value));
       }
     } else if (constant->IsFloatConstant()) {
-      float value = constant->AsFloatConstant()->GetValue();
-      Immediate imm(bit_cast<float, int32_t>(value));
+      float fp_value = constant->AsFloatConstant()->GetValue();
+      int32_t value = bit_cast<float, int32_t>(fp_value);
+      Immediate imm(value);
       if (destination.IsFpuRegister()) {
-        ScratchRegisterScope ensure_scratch(
-            this, kNoRegister, EAX, codegen_->GetNumberOfCoreRegisters());
-        Register temp = static_cast<Register>(ensure_scratch.GetRegister());
-        __ movl(temp, imm);
-        __ movd(destination.AsFpuRegister<XmmRegister>(), temp);
+        XmmRegister dest = destination.AsFpuRegister<XmmRegister>();
+        if (value == 0) {
+          // Easy handling of 0.0.
+          __ xorps(dest, dest);
+        } else {
+          ScratchRegisterScope ensure_scratch(
+              this, kNoRegister, EAX, codegen_->GetNumberOfCoreRegisters());
+          Register temp = static_cast<Register>(ensure_scratch.GetRegister());
+          __ movl(temp, Immediate(value));
+          __ movd(dest, temp);
+        }
       } else {
         DCHECK(destination.IsStackSlot()) << destination;
         __ movl(Address(ESP, destination.GetStackIndex()), imm);
@@ -4111,18 +4137,38 @@ void InstructionCodeGeneratorX86::HandleBitwiseOperation(HBinaryOperation* instr
     } else {
       DCHECK(second.IsConstant()) << second;
       int64_t value = second.GetConstant()->AsLongConstant()->GetValue();
-      Immediate low(Low32Bits(value));
-      Immediate high(High32Bits(value));
+      int32_t low_value = Low32Bits(value);
+      int32_t high_value = High32Bits(value);
+      Immediate low(low_value);
+      Immediate high(high_value);
+      Register first_low = first.AsRegisterPairLow<Register>();
+      Register first_high = first.AsRegisterPairHigh<Register>();
       if (instruction->IsAnd()) {
-        __ andl(first.AsRegisterPairLow<Register>(), low);
-        __ andl(first.AsRegisterPairHigh<Register>(), high);
+        if (low_value == 0) {
+          __ xorl(first_low, first_low);
+        } else if (low_value != -1) {
+          __ andl(first_low, low);
+        }
+        if (high_value == 0) {
+          __ xorl(first_high, first_high);
+        } else if (high_value != -1) {
+          __ andl(first_high, high);
+        }
       } else if (instruction->IsOr()) {
-        __ orl(first.AsRegisterPairLow<Register>(), low);
-        __ orl(first.AsRegisterPairHigh<Register>(), high);
+        if (low_value != 0) {
+          __ orl(first_low, low);
+        }
+        if (high_value != 0) {
+          __ orl(first_high, high);
+        }
       } else {
         DCHECK(instruction->IsXor());
-        __ xorl(first.AsRegisterPairLow<Register>(), low);
-        __ xorl(first.AsRegisterPairHigh<Register>(), high);
+        if (low_value != 0) {
+          __ xorl(first_low, low);
+        }
+        if (high_value != 0) {
+          __ xorl(first_high, high);
+        }
       }
     }
   }

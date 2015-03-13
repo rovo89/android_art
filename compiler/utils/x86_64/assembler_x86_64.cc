@@ -1277,6 +1277,14 @@ void X86_64Assembler::orl(CpuRegister dst, const Immediate& imm) {
 }
 
 
+void X86_64Assembler::orq(CpuRegister dst, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  CHECK(imm.is_int32());  // orq only supports 32b immediate.
+  EmitRex64(dst);
+  EmitComplex(1, Operand(dst), imm);
+}
+
+
 void X86_64Assembler::orq(CpuRegister dst, CpuRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitRex64(dst, src);
@@ -1548,26 +1556,29 @@ void X86_64Assembler::imulq(CpuRegister dst, CpuRegister src) {
 
 
 void X86_64Assembler::imulq(CpuRegister reg, const Immediate& imm) {
+  imulq(reg, reg, imm);
+}
+
+void X86_64Assembler::imulq(CpuRegister dst, CpuRegister reg, const Immediate& imm) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   CHECK(imm.is_int32());  // imulq only supports 32b immediate.
 
-  EmitRex64(reg, reg);
+  EmitRex64(dst, reg);
 
   // See whether imm can be represented as a sign-extended 8bit value.
   int64_t v64 = imm.value();
   if (IsInt<8>(v64)) {
     // Sign-extension works.
     EmitUint8(0x6B);
-    EmitOperand(reg.LowBits(), Operand(reg));
+    EmitOperand(dst.LowBits(), Operand(reg));
     EmitUint8(static_cast<uint8_t>(v64 & 0xFF));
   } else {
     // Not representable, use full immediate.
     EmitUint8(0x69);
-    EmitOperand(reg.LowBits(), Operand(reg));
+    EmitOperand(dst.LowBits(), Operand(reg));
     EmitImmediate(imm);
   }
 }
-
 
 void X86_64Assembler::imulq(CpuRegister reg, const Address& address) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
