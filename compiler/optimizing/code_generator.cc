@@ -706,7 +706,7 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
       }
 
       case Location::kInvalid: {
-        stack_map_stream_.AddDexRegisterEntry(DexRegisterMap::kNone, 0);
+        stack_map_stream_.AddDexRegisterEntry(DexRegisterLocation::Kind::kNone, 0);
         break;
       }
 
