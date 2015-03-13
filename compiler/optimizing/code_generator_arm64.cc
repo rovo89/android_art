@@ -63,7 +63,6 @@ using helpers::StackOperandFrom;
 using helpers::VIXLRegCodeFromART;
 using helpers::WRegisterFrom;
 using helpers::XRegisterFrom;
-using helpers::ARM64EncodableConstantOrRegister;
 
 static constexpr size_t kHeapRefSize = sizeof(mirror::HeapReference<mirror::Object>);
 static constexpr int kCurrentMethodStackOffset = 0;
@@ -1105,7 +1104,7 @@ void LocationsBuilderARM64::HandleBinaryOp(HBinaryOperation* instr) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong:
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, ARM64EncodableConstantOrRegister(instr->InputAt(1), instr));
+      locations->SetInAt(1, Location::RegisterOrConstant(instr->InputAt(1)));
       locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
 
@@ -1396,7 +1395,7 @@ void LocationsBuilderARM64::VisitCompare(HCompare* compare) {
   switch (in_type) {
     case Primitive::kPrimLong: {
       locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, ARM64EncodableConstantOrRegister(compare->InputAt(1), compare));
+      locations->SetInAt(1, Location::RegisterOrConstant(compare->InputAt(1)));
       locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
     }
@@ -1466,7 +1465,7 @@ void InstructionCodeGeneratorARM64::VisitCompare(HCompare* compare) {
 void LocationsBuilderARM64::VisitCondition(HCondition* instruction) {
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(instruction);
   locations->SetInAt(0, Location::RequiresRegister());
-  locations->SetInAt(1, ARM64EncodableConstantOrRegister(instruction->InputAt(1), instruction));
+  locations->SetInAt(1, Location::RegisterOrConstant(instruction->InputAt(1)));
   if (instruction->NeedsMaterialization()) {
     locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
   }
@@ -2117,7 +2116,7 @@ void LocationsBuilderARM64::VisitNeg(HNeg* neg) {
   switch (neg->GetResultType()) {
     case Primitive::kPrimInt:
     case Primitive::kPrimLong:
-      locations->SetInAt(0, ARM64EncodableConstantOrRegister(neg->InputAt(0), neg));
+      locations->SetInAt(0, Location::RegisterOrConstant(neg->InputAt(0)));
       locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
       break;
 
