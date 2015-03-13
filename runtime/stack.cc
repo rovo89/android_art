@@ -202,30 +202,33 @@ bool StackVisitor::GetVRegFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg,
   DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be NULL or how would we compile
                                                     // its instructions?
   DCHECK_LT(vreg, code_item->registers_size_);
+  uint16_t number_of_dex_registers = code_item->registers_size_;
   DexRegisterMap dex_register_map =
-      code_info.GetDexRegisterMapOf(stack_map, code_item->registers_size_);
-  DexRegisterLocation::Kind location_kind = dex_register_map.GetLocationKind(vreg);
+      code_info.GetDexRegisterMapOf(stack_map, number_of_dex_registers);
+  DexRegisterLocation::Kind location_kind =
+      dex_register_map.GetLocationKind(vreg, number_of_dex_registers);
   switch (location_kind) {
     case DexRegisterLocation::Kind::kInStack: {
-      const int32_t offset = dex_register_map.GetStackOffsetInBytes(vreg);
+      const int32_t offset = dex_register_map.GetStackOffsetInBytes(vreg, number_of_dex_registers);
       const uint8_t* addr = reinterpret_cast<const uint8_t*>(cur_quick_frame_) + offset;
       *val = *reinterpret_cast<const uint32_t*>(addr);
       return true;
     }
     case DexRegisterLocation::Kind::kInRegister:
     case DexRegisterLocation::Kind::kInFpuRegister: {
-      uint32_t reg = dex_register_map.GetMachineRegister(vreg);
+      uint32_t reg = dex_register_map.GetMachineRegister(vreg, number_of_dex_registers);
       return GetRegisterIfAccessible(reg, kind, val);
     }
     case DexRegisterLocation::Kind::kConstant:
-      *val = dex_register_map.GetConstant(vreg);
+      *val = dex_register_map.GetConstant(vreg, number_of_dex_registers);
       return true;
     case DexRegisterLocation::Kind::kNone:
       return false;
     default:
       LOG(FATAL)
           << "Unexpected location kind"
-          << DexRegisterLocation::PrettyDescriptor(dex_register_map.GetLocationInternalKind(vreg));
+          << DexRegisterLocation::PrettyDescriptor(
+                dex_register_map.GetLocationInternalKind(vreg, number_of_dex_registers));
       UNREACHABLE();
   }
 }
@@ -388,21 +391,23 @@ bool StackVisitor::SetVRegFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg,
   const DexFile::CodeItem* code_item = m->GetCodeItem();
   DCHECK(code_item != nullptr) << PrettyMethod(m);  // Can't be NULL or how would we compile
                                                     // its instructions?
-  DCHECK_LT(vreg, code_item->registers_size_);
+  uint16_t number_of_dex_registers = code_item->registers_size_;
+  DCHECK_LT(vreg, number_of_dex_registers);
   DexRegisterMap dex_register_map =
-      code_info.GetDexRegisterMapOf(stack_map, code_item->registers_size_);
-  DexRegisterLocation::Kind location_kind = dex_register_map.GetLocationKind(vreg);
+      code_info.GetDexRegisterMapOf(stack_map, number_of_dex_registers);
+  DexRegisterLocation::Kind location_kind =
+      dex_register_map.GetLocationKind(vreg, number_of_dex_registers);
   uint32_t dex_pc = m->ToDexPc(cur_quick_frame_pc_, false);
   switch (location_kind) {
     case DexRegisterLocation::Kind::kInStack: {
-      const int32_t offset = dex_register_map.GetStackOffsetInBytes(vreg);
+      const int32_t offset = dex_register_map.GetStackOffsetInBytes(vreg, number_of_dex_registers);
       uint8_t* addr = reinterpret_cast<uint8_t*>(cur_quick_frame_) + offset;
       *reinterpret_cast<uint32_t*>(addr) = new_value;
       return true;
     }
     case DexRegisterLocation::Kind::kInRegister:
     case DexRegisterLocation::Kind::kInFpuRegister: {
-      uint32_t reg = dex_register_map.GetMachineRegister(vreg);
+      uint32_t reg = dex_register_map.GetMachineRegister(vreg, number_of_dex_registers);
       return SetRegisterIfAccessible(reg, new_value, kind);
     }
     case DexRegisterLocation::Kind::kConstant:

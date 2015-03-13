@@ -29,8 +29,6 @@
 
 namespace art {
 
-static size_t constexpr kVRegSize = 4;
-
 // Binary encoding of 2^32 for type double.
 static int64_t constexpr k2Pow32EncodingForDouble = INT64_C(0x41F0000000000000);
 // Binary encoding of 2^31 for type double.

@@ -66,14 +66,16 @@ class CheckReferenceMapVisitor : public StackVisitor {
     mirror::ArtMethod* m = GetMethod();
     CodeInfo code_info = m->GetOptimizedCodeInfo();
     StackMap stack_map = code_info.GetStackMapForNativePcOffset(native_pc_offset);
+    uint16_t number_of_dex_registers = m->GetCodeItem()->registers_size_;
     DexRegisterMap dex_register_map =
-        code_info.GetDexRegisterMapOf(stack_map, m->GetCodeItem()->registers_size_);
+        code_info.GetDexRegisterMapOf(stack_map, number_of_dex_registers);
     MemoryRegion stack_mask = stack_map.GetStackMask();
     uint32_t register_mask = stack_map.GetRegisterMask();
     for (int i = 0; i < number_of_references; ++i) {
       int reg = registers[i];
       CHECK(reg < m->GetCodeItem()->registers_size_);
-      DexRegisterLocation location = dex_register_map.GetLocationKindAndValue(reg);
+      DexRegisterLocation location =
+          dex_register_map.GetLocationKindAndValue(reg, number_of_dex_registers);
       switch (location.GetKind()) {
         case DexRegisterLocation::Kind::kNone:
           // Not set, should not be a reference.

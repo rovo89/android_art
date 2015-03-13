@@ -31,19 +31,17 @@ static bool SameBits(MemoryRegion region, const BitVector& bit_vector) {
   return true;
 }
 
-static size_t ComputeDexRegisterMapSize(const DexRegisterMap& dex_registers,
-                                        size_t number_of_dex_registers) {
-  return dex_registers.FindLocationOffset(number_of_dex_registers);
-}
-
 TEST(StackMapTest, Test1) {
   ArenaPool pool;
   ArenaAllocator arena(&pool);
   StackMapStream stream(&arena);
 
   ArenaBitVector sp_mask(&arena, 0, false);
+  ArenaBitVector live_registers_mask(&arena, 0, true);
+  live_registers_mask.SetBit(0);
+  live_registers_mask.SetBit(1);
   size_t number_of_dex_registers = 2;
-  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
+  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0, &live_registers_mask);
   stream.AddDexRegisterEntry(DexRegisterLocation::Kind::kInStack, 0);
   stream.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant, -2);
 
@@ -68,10 +66,9 @@ TEST(StackMapTest, Test1) {
 
   ASSERT_TRUE(stack_map.HasDexRegisterMap());
   DexRegisterMap dex_registers = code_info.GetDexRegisterMapOf(stack_map, number_of_dex_registers);
-  ASSERT_EQ(6u, dex_registers.Size());
-  ASSERT_EQ(6u, ComputeDexRegisterMapSize(dex_registers, number_of_dex_registers));
-  DexRegisterLocation location0 = dex_registers.GetLocationKindAndValue(0);
-  DexRegisterLocation location1 = dex_registers.GetLocationKindAndValue(1);
+  ASSERT_EQ(7u, dex_registers.Size());
+  DexRegisterLocation location0 = dex_registers.GetLocationKindAndValue(0, number_of_dex_registers);
+  DexRegisterLocation location1 = dex_registers.GetLocationKindAndValue(1, number_of_dex_registers);
   ASSERT_EQ(DexRegisterLocation::Kind::kInStack, location0.GetKind());
   ASSERT_EQ(DexRegisterLocation::Kind::kConstant, location1.GetKind());
   ASSERT_EQ(DexRegisterLocation::Kind::kInStack, location0.GetInternalKind());
@@ -91,7 +88,10 @@ TEST(StackMapTest, Test2) {
   sp_mask1.SetBit(2);
   sp_mask1.SetBit(4);
   size_t number_of_dex_registers = 2;
-  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask1, number_of_dex_registers, 2);
+  ArenaBitVector live_registers_mask1(&arena, 0, true);
+  live_registers_mask1.SetBit(0);
+  live_registers_mask1.SetBit(1);
+  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask1, number_of_dex_registers, 2, &live_registers_mask1);
   stream.AddDexRegisterEntry(DexRegisterLocation::Kind::kInStack, 0);
   stream.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant, -2);
   stream.AddInlineInfoEntry(42);
@@ -100,7 +100,10 @@ TEST(StackMapTest, Test2) {
   ArenaBitVector sp_mask2(&arena, 0, true);
   sp_mask2.SetBit(3);
   sp_mask1.SetBit(8);
-  stream.AddStackMapEntry(1, 128, 0xFF, &sp_mask2, number_of_dex_registers, 0);
+  ArenaBitVector live_registers_mask2(&arena, 0, true);
+  live_registers_mask2.SetBit(0);
+  live_registers_mask2.SetBit(1);
+  stream.AddStackMapEntry(1, 128, 0xFF, &sp_mask2, number_of_dex_registers, 0, &live_registers_mask2);
   stream.AddDexRegisterEntry(DexRegisterLocation::Kind::kInRegister, 18);
   stream.AddDexRegisterEntry(DexRegisterLocation::Kind::kInFpuRegister, 3);
 
@@ -128,10 +131,11 @@ TEST(StackMapTest, Test2) {
     ASSERT_TRUE(stack_map.HasDexRegisterMap());
     DexRegisterMap dex_registers =
         code_info.GetDexRegisterMapOf(stack_map, number_of_dex_registers);
-    ASSERT_EQ(6u, dex_registers.Size());
-    ASSERT_EQ(6u, ComputeDexRegisterMapSize(dex_registers, number_of_dex_registers));
-    DexRegisterLocation location0 = dex_registers.GetLocationKindAndValue(0);
-    DexRegisterLocation location1 = dex_registers.GetLocationKindAndValue(1);
+    ASSERT_EQ(7u, dex_registers.Size());
+    DexRegisterLocation location0 =
+        dex_registers.GetLocationKindAndValue(0, number_of_dex_registers);
+    DexRegisterLocation location1 =
+        dex_registers.GetLocationKindAndValue(1, number_of_dex_registers);
     ASSERT_EQ(DexRegisterLocation::Kind::kInStack, location0.GetKind());
     ASSERT_EQ(DexRegisterLocation::Kind::kConstant, location1.GetKind());
     ASSERT_EQ(DexRegisterLocation::Kind::kInStack, location0.GetInternalKind());
@@ -161,10 +165,11 @@ TEST(StackMapTest, Test2) {
     ASSERT_TRUE(stack_map.HasDexRegisterMap());
     DexRegisterMap dex_registers =
         code_info.GetDexRegisterMapOf(stack_map, number_of_dex_registers);
-    ASSERT_EQ(2u, dex_registers.Size());
-    ASSERT_EQ(2u, ComputeDexRegisterMapSize(dex_registers, number_of_dex_registers));
-    DexRegisterLocation location0 = dex_registers.GetLocationKindAndValue(0);
-    DexRegisterLocation location1 = dex_registers.GetLocationKindAndValue(1);
+    ASSERT_EQ(3u, dex_registers.Size());
+    DexRegisterLocation location0 =
+        dex_registers.GetLocationKindAndValue(0, number_of_dex_registers);
+    DexRegisterLocation location1 =
+        dex_registers.GetLocationKindAndValue(1, number_of_dex_registers);
     ASSERT_EQ(DexRegisterLocation::Kind::kInRegister, location0.GetKind());
     ASSERT_EQ(DexRegisterLocation::Kind::kInFpuRegister, location1.GetKind());
     ASSERT_EQ(DexRegisterLocation::Kind::kInRegister, location0.GetInternalKind());
@@ -174,6 +179,35 @@ TEST(StackMapTest, Test2) {
 
     ASSERT_FALSE(stack_map.HasInlineInfo());
   }
+}
+
+TEST(StackMapTest, TestNonLiveDexRegisters) {
+  ArenaPool pool;
+  ArenaAllocator arena(&pool);
+  StackMapStream stream(&arena);
+
+  ArenaBitVector sp_mask(&arena, 0, false);
+  ArenaBitVector live_registers_mask(&arena, 0, true);
+  live_registers_mask.SetBit(1);
+  uint32_t number_of_dex_registers = 2;
+  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0, &live_registers_mask);
+  stream.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant, -2);
+
+  size_t size = stream.ComputeNeededSize();
+  void* memory = arena.Alloc(size, kArenaAllocMisc);
+  MemoryRegion region(memory, size);
+  stream.FillIn(region);
+
+  CodeInfo code_info(region);
+  StackMap stack_map = code_info.GetStackMapAt(0);
+  ASSERT_TRUE(stack_map.HasDexRegisterMap());
+  DexRegisterMap dex_registers = code_info.GetDexRegisterMapOf(stack_map, 2);
+  ASSERT_EQ(DexRegisterLocation::Kind::kNone,
+            dex_registers.GetLocationKind(0, number_of_dex_registers));
+  ASSERT_EQ(DexRegisterLocation::Kind::kConstant,
+            dex_registers.GetLocationKind(1, number_of_dex_registers));
+  ASSERT_EQ(-2, dex_registers.GetConstant(1, number_of_dex_registers));
+  ASSERT_FALSE(stack_map.HasInlineInfo());
 }
 
 }  // namespace art
