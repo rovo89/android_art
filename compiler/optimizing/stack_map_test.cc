@@ -37,13 +37,10 @@ TEST(StackMapTest, Test1) {
   StackMapStream stream(&arena);
 
   ArenaBitVector sp_mask(&arena, 0, false);
-  ArenaBitVector live_registers_mask(&arena, 0, true);
-  live_registers_mask.SetBit(0);
-  live_registers_mask.SetBit(1);
   size_t number_of_dex_registers = 2;
-  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0, &live_registers_mask);
-  stream.AddDexRegisterEntry(DexRegisterLocation::Kind::kInStack, 0);
-  stream.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant, -2);
+  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
+  stream.AddDexRegisterEntry(0, DexRegisterLocation::Kind::kInStack, 0);
+  stream.AddDexRegisterEntry(1, DexRegisterLocation::Kind::kConstant, -2);
 
   size_t size = stream.ComputeNeededSize();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
@@ -88,24 +85,18 @@ TEST(StackMapTest, Test2) {
   sp_mask1.SetBit(2);
   sp_mask1.SetBit(4);
   size_t number_of_dex_registers = 2;
-  ArenaBitVector live_registers_mask1(&arena, 0, true);
-  live_registers_mask1.SetBit(0);
-  live_registers_mask1.SetBit(1);
-  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask1, number_of_dex_registers, 2, &live_registers_mask1);
-  stream.AddDexRegisterEntry(DexRegisterLocation::Kind::kInStack, 0);
-  stream.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant, -2);
+  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask1, number_of_dex_registers, 2);
+  stream.AddDexRegisterEntry(0, DexRegisterLocation::Kind::kInStack, 0);
+  stream.AddDexRegisterEntry(1, DexRegisterLocation::Kind::kConstant, -2);
   stream.AddInlineInfoEntry(42);
   stream.AddInlineInfoEntry(82);
 
   ArenaBitVector sp_mask2(&arena, 0, true);
   sp_mask2.SetBit(3);
   sp_mask1.SetBit(8);
-  ArenaBitVector live_registers_mask2(&arena, 0, true);
-  live_registers_mask2.SetBit(0);
-  live_registers_mask2.SetBit(1);
-  stream.AddStackMapEntry(1, 128, 0xFF, &sp_mask2, number_of_dex_registers, 0, &live_registers_mask2);
-  stream.AddDexRegisterEntry(DexRegisterLocation::Kind::kInRegister, 18);
-  stream.AddDexRegisterEntry(DexRegisterLocation::Kind::kInFpuRegister, 3);
+  stream.AddStackMapEntry(1, 128, 0xFF, &sp_mask2, number_of_dex_registers, 0);
+  stream.AddDexRegisterEntry(0, DexRegisterLocation::Kind::kInRegister, 18);
+  stream.AddDexRegisterEntry(1, DexRegisterLocation::Kind::kInFpuRegister, 3);
 
   size_t size = stream.ComputeNeededSize();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
@@ -187,11 +178,10 @@ TEST(StackMapTest, TestNonLiveDexRegisters) {
   StackMapStream stream(&arena);
 
   ArenaBitVector sp_mask(&arena, 0, false);
-  ArenaBitVector live_registers_mask(&arena, 0, true);
-  live_registers_mask.SetBit(1);
   uint32_t number_of_dex_registers = 2;
-  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0, &live_registers_mask);
-  stream.AddDexRegisterEntry(DexRegisterLocation::Kind::kConstant, -2);
+  stream.AddStackMapEntry(0, 64, 0x3, &sp_mask, number_of_dex_registers, 0);
+  stream.AddDexRegisterEntry(0, DexRegisterLocation::Kind::kNone, 0);
+  stream.AddDexRegisterEntry(1, DexRegisterLocation::Kind::kConstant, -2);
 
   size_t size = stream.ComputeNeededSize();
   void* memory = arena.Alloc(size, kArenaAllocMisc);
