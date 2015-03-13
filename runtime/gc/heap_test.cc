@@ -71,5 +71,17 @@ TEST_F(HeapTest, HeapBitmapCapacityTest) {
   bitmap->Set(fake_end_of_heap_object);
 }
 
+class ZygoteHeapTest : public CommonRuntimeTest {
+  void SetUpRuntimeOptions(RuntimeOptions* options) {
+    CommonRuntimeTest::SetUpRuntimeOptions(options);
+    options->push_back(std::make_pair("-Xzygote", nullptr));
+  }
+};
+
+TEST_F(ZygoteHeapTest, PreZygoteFork) {
+  // Exercise Heap::PreZygoteFork() to check it does not crash.
+  Runtime::Current()->GetHeap()->PreZygoteFork();
+}
+
 }  // namespace gc
 }  // namespace art
