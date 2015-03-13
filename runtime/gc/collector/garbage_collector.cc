@@ -48,6 +48,7 @@ void Iteration::Reset(GcCause gc_cause, bool clear_soft_references) {
   gc_cause_ = gc_cause;
   freed_ = ObjectBytePair();
   freed_los_ = ObjectBytePair();
+  freed_bytes_revoke_ = 0;
 }
 
 uint64_t Iteration::GetEstimatedThroughput() const {

@@ -48,9 +48,9 @@ class ModUnionTableTest : public CommonRuntimeTest {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     auto* klass = GetObjectArrayClass(self, space);
     const size_t size = ComputeArraySize(self, klass, component_count, 2);
-    size_t bytes_allocated = 0;
+    size_t bytes_allocated = 0, bytes_tl_bulk_allocated;
     auto* obj = down_cast<mirror::ObjectArray<mirror::Object>*>(
-        space->Alloc(self, size, &bytes_allocated, nullptr));
+        space->Alloc(self, size, &bytes_allocated, nullptr, &bytes_tl_bulk_allocated));
     if (obj != nullptr) {
       obj->SetClass(klass);
       obj->SetLength(static_cast<int32_t>(component_count));
@@ -77,9 +77,10 @@ class ModUnionTableTest : public CommonRuntimeTest {
       // copy of the class in the same space that we are allocating in.
       DCHECK(java_lang_object_array_ != nullptr);
       const size_t class_size = java_lang_object_array_->GetClassSize();
-      size_t bytes_allocated = 0;
+      size_t bytes_allocated = 0, bytes_tl_bulk_allocated;
       auto* klass = down_cast<mirror::Class*>(space->Alloc(self, class_size, &bytes_allocated,
-                                                           nullptr));
+                                                           nullptr,
+                                                           &bytes_tl_bulk_allocated));
       DCHECK(klass != nullptr);
       memcpy(klass, java_lang_object_array_, class_size);
       Runtime::Current()->GetHeap()->GetCardTable()->MarkCard(klass);
