@@ -1993,15 +1993,16 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
 
   virtual mirror::Object* MarkNonForwardedObject(mirror::Object* obj)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_) {
-    size_t object_size = RoundUp(obj->SizeOf(), kObjectAlignment);
+    size_t obj_size = obj->SizeOf();
+    size_t alloc_size = RoundUp(obj_size, kObjectAlignment);
     mirror::Object* forward_address;
     // Find the smallest bin which we can move obj in.
-    auto it = bins_.lower_bound(object_size);
+    auto it = bins_.lower_bound(alloc_size);
     if (it == bins_.end()) {
       // No available space in the bins, place it in the target space instead (grows the zygote
       // space).
       size_t bytes_allocated, dummy;
-      forward_address = to_space_->Alloc(self_, object_size, &bytes_allocated, nullptr, &dummy);
+      forward_address = to_space_->Alloc(self_, alloc_size, &bytes_allocated, nullptr, &dummy);
       if (to_space_live_bitmap_ != nullptr) {
         to_space_live_bitmap_->Set(forward_address);
       } else {
@@ -2016,11 +2017,12 @@ class ZygoteCompactingCollector FINAL : public collector::SemiSpace {
       // Set the live and mark bits so that sweeping system weaks works properly.
       bin_live_bitmap_->Set(forward_address);
       bin_mark_bitmap_->Set(forward_address);
-      DCHECK_GE(size, object_size);
-      AddBin(size - object_size, pos + object_size);  // Add a new bin with the remaining space.
+      DCHECK_GE(size, alloc_size);
+      // Add a new bin with the remaining space.
+      AddBin(size - alloc_size, pos + alloc_size);
     }
-    // Copy the object over to its new location.
-    memcpy(reinterpret_cast<void*>(forward_address), obj, object_size);
+    // Copy the object over to its new location. Don't use alloc_size to avoid valgrind error.
+    memcpy(reinterpret_cast<void*>(forward_address), obj, obj_size);
     if (kUseBakerOrBrooksReadBarrier) {
       obj->AssertReadBarrierPointer();
       if (kUseBrooksReadBarrier) {
