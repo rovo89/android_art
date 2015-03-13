@@ -71,6 +71,17 @@ namespace art {
 // Separate objects into multiple bins to optimize dirty memory use.
 static constexpr bool kBinObjects = true;
 
+static void CheckNoDexObjectsCallback(Object* obj, void* arg ATTRIBUTE_UNUSED)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  Class* klass = obj->GetClass();
+  CHECK_NE(PrettyClass(klass), "com.android.dex.Dex");
+}
+
+static void CheckNoDexObjects() {
+  ScopedObjectAccess soa(Thread::Current());
+  Runtime::Current()->GetHeap()->VisitObjects(CheckNoDexObjectsCallback, nullptr);
+}
+
 bool ImageWriter::PrepareImageAddressSpace() {
   target_ptr_size_ = InstructionSetPointerSize(compiler_driver_.GetInstructionSet());
   {
@@ -82,6 +93,16 @@ bool ImageWriter::PrepareImageAddressSpace() {
   }
   gc::Heap* heap = Runtime::Current()->GetHeap();
   heap->CollectGarbage(false);  // Remove garbage.
+
+  // Dex caches must not have their dex fields set in the image. These are memory buffers of mapped
+  // dex files.
+  //
+  // We may open them in the unstarted-runtime code for class metadata. Their fields should all be
+  // reset in PruneNonImageClasses and the objects reclaimed in the GC. Make sure that's actually
+  // true.
+  if (kIsDebugBuild) {
+    CheckNoDexObjects();
+  }
 
   if (!AllocMemory()) {
     return false;
@@ -644,6 +665,9 @@ void ImageWriter::PruneNonImageClasses() {
         dex_cache->SetResolvedField(i, NULL);
       }
     }
+    // Clean the dex field. It might have been populated during the initialization phase, but
+    // contains data only valid during a real run.
+    dex_cache->SetFieldObject<false>(mirror::DexCache::DexOffset(), nullptr);
   }
 }
 

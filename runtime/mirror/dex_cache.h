@@ -59,6 +59,10 @@ class MANAGED DexCache FINAL : public Object {
     return GetFieldObject<String>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_));
   }
 
+  static MemberOffset DexOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(DexCache, dex_);
+  }
+
   static MemberOffset StringsOffset() {
     return OFFSET_OF_OBJECT_MEMBER(DexCache, strings_);
   }
