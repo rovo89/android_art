@@ -122,12 +122,13 @@ class IntrinsicSlowPathARM64 : public SlowPathCodeARM64 {
     CodeGeneratorARM64* codegen = down_cast<CodeGeneratorARM64*>(codegen_in);
     __ Bind(GetEntryLabel());
 
-    codegen->SaveLiveRegisters(invoke_->GetLocations());
+    SaveLiveRegisters(codegen, invoke_->GetLocations());
 
     MoveArguments(invoke_, codegen->GetGraph()->GetArena(), codegen);
 
     if (invoke_->IsInvokeStaticOrDirect()) {
       codegen->GenerateStaticOrDirectCall(invoke_->AsInvokeStaticOrDirect(), kArtMethodRegister);
+      RecordPcInfo(codegen, invoke_, invoke_->GetDexPc());
     } else {
       UNIMPLEMENTED(FATAL) << "Non-direct intrinsic slow-path not yet implemented";
       UNREACHABLE();
@@ -141,7 +142,7 @@ class IntrinsicSlowPathARM64 : public SlowPathCodeARM64 {
       MoveFromReturnRegister(out, invoke_->GetType(), codegen);
     }
 
-    codegen->RestoreLiveRegisters(invoke_->GetLocations());
+    RestoreLiveRegisters(codegen, invoke_->GetLocations());
     __ B(GetExitLabel());
   }
 

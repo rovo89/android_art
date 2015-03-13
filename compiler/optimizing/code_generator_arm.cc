@@ -114,10 +114,10 @@ class SuspendCheckSlowPathARM : public SlowPathCodeARM {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(instruction_->GetLocations());
+    SaveLiveRegisters(codegen, instruction_->GetLocations());
     arm_codegen->InvokeRuntime(
         QUICK_ENTRY_POINT(pTestSuspend), instruction_, instruction_->GetDexPc());
-    codegen->RestoreLiveRegisters(instruction_->GetLocations());
+    RestoreLiveRegisters(codegen, instruction_->GetLocations());
     if (successor_ == nullptr) {
       __ b(GetReturnLabel());
     } else {
@@ -188,7 +188,7 @@ class LoadClassSlowPathARM : public SlowPathCodeARM {
 
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(locations);
+    SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
     __ LoadImmediate(calling_convention.GetRegisterAt(0), cls_->GetTypeIndex());
@@ -204,7 +204,7 @@ class LoadClassSlowPathARM : public SlowPathCodeARM {
       DCHECK(out.IsRegister() && !locations->GetLiveRegisters()->ContainsCoreRegister(out.reg()));
       arm_codegen->Move32(locations->Out(), Location::RegisterLocation(R0));
     }
-    codegen->RestoreLiveRegisters(locations);
+    RestoreLiveRegisters(codegen, locations);
     __ b(GetExitLabel());
   }
 
@@ -235,7 +235,7 @@ class LoadStringSlowPathARM : public SlowPathCodeARM {
 
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(locations);
+    SaveLiveRegisters(codegen, locations);
 
     InvokeRuntimeCallingConvention calling_convention;
     arm_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
@@ -244,7 +244,7 @@ class LoadStringSlowPathARM : public SlowPathCodeARM {
         QUICK_ENTRY_POINT(pResolveString), instruction_, instruction_->GetDexPc());
     arm_codegen->Move32(locations->Out(), Location::RegisterLocation(R0));
 
-    codegen->RestoreLiveRegisters(locations);
+    RestoreLiveRegisters(codegen, locations);
     __ b(GetExitLabel());
   }
 
@@ -272,7 +272,7 @@ class TypeCheckSlowPathARM : public SlowPathCodeARM {
 
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
-    codegen->SaveLiveRegisters(locations);
+    SaveLiveRegisters(codegen, locations);
 
     // We're moving two locations to locations that could overlap, so we need a parallel
     // move resolver.
@@ -291,7 +291,7 @@ class TypeCheckSlowPathARM : public SlowPathCodeARM {
       arm_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast), instruction_, dex_pc_);
     }
 
-    codegen->RestoreLiveRegisters(locations);
+    RestoreLiveRegisters(codegen, locations);
     __ b(GetExitLabel());
   }
 
@@ -1205,6 +1205,7 @@ void InstructionCodeGeneratorARM::VisitInvokeStaticOrDirect(HInvokeStaticOrDirec
   Register temp = invoke->GetLocations()->GetTemp(0).AsRegister<Register>();
 
   codegen_->GenerateStaticOrDirectCall(invoke, temp);
+  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
 }
 
 void LocationsBuilderARM::HandleInvoke(HInvoke* invoke) {
@@ -3861,7 +3862,6 @@ void CodeGeneratorARM::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
     __ bl(GetFrameEntryLabel());
   }
 
-  RecordPcInfo(invoke, invoke->GetDexPc());
   DCHECK(!IsLeafMethod());
 }
 
