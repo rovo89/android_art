@@ -106,5 +106,11 @@
   modes_variants: [[device,X64]],
   names: ["libcore.java.lang.SystemTest#testArrayCopyConcurrentModification"],
   bug: 19165288
+},
+{
+  description: "Bug in libcore",
+  result: EXEC_FAILED,
+  names: ["libcore.javax.crypto.ECDHKeyAgreementTest#testInit_withUnsupportedPrivateKeyType"],
+  bug: 19730263
 }
 ]
