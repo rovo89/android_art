@@ -333,7 +333,7 @@ std::string PrintableString(const char* utf8);
 // Tests whether 's' starts with 'prefix'.
 bool StartsWith(const std::string& s, const char* prefix);
 
-// Tests whether 's' starts with 'suffix'.
+// Tests whether 's' ends with 'suffix'.
 bool EndsWith(const std::string& s, const char* suffix);
 
 // Used to implement PrettyClass, PrettyField, PrettyMethod, and PrettyTypeOf,
