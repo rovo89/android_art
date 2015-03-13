@@ -99,10 +99,12 @@ class StackMapStream : public ValueObject {
   }
 
   size_t ComputeNeededSize() const {
-    return CodeInfo::kFixedSize
+    size_t size = CodeInfo::kFixedSize
         + ComputeStackMapsSize()
         + ComputeDexRegisterMapsSize()
         + ComputeInlineInfoSize();
+    // On ARM, CodeInfo data must be 4-byte aligned.
+    return RoundUp(size, kWordAlignment);
   }
 
   size_t ComputeStackMaskSize() const {
@@ -110,7 +112,7 @@ class StackMapStream : public ValueObject {
   }
 
   size_t ComputeStackMapsSize() const {
-    return stack_maps_.Size() * StackMap::ComputeAlignedStackMapSize(ComputeStackMaskSize());
+    return stack_maps_.Size() * StackMap::ComputeStackMapSize(ComputeStackMaskSize());
   }
 
   // Compute the size of the Dex register map of `entry`.
@@ -133,8 +135,7 @@ class StackMapStream : public ValueObject {
       DexRegisterLocation entry = dex_register_maps_.Get(i);
       size += DexRegisterMap::EntrySize(entry);
     }
-    // On ARM, the Dex register maps must be 4-byte aligned.
-    return RoundUp(size, kWordAlignment);
+    return size;
   }
 
   // Compute the size of all the inline information pieces.
