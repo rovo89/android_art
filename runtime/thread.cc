@@ -2216,9 +2216,9 @@ class ReferenceMapVisitor : public StackVisitor {
                 }
               } else {
                 StackReference<mirror::Object>* ref_addr =
-                    reinterpret_cast<StackReference<mirror::Object>*>(
-                        GetVRegAddr(cur_quick_frame, code_item, frame_info.CoreSpillMask(),
-                                    frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), reg));
+                    reinterpret_cast<StackReference<mirror::Object>*>(GetVRegAddrFromQuickCode(
+                        cur_quick_frame, code_item, frame_info.CoreSpillMask(),
+                        frame_info.FpSpillMask(), frame_info.FrameSizeInBytes(), reg));
                 mirror::Object* ref = ref_addr->AsMirrorPtr();
                 if (ref != nullptr) {
                   mirror::Object* new_ref = ref;
