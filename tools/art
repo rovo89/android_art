@@ -45,7 +45,7 @@ LIBART=libart.so
 while true; do
   if [ "$1" = "--invoke-with" ]; then
     shift
-    invoke_with="$1"
+    invoke_with="$invoke_with $1"
     shift
   elif [ "$1" = "-d" ]; then
     LIBART="libartd.so"
