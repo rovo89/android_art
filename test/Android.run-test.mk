@@ -377,6 +377,20 @@ endif
 
 TEST_ART_BROKEN_OPTIMIZING_NONDEBUGGABLE_RUN_TESTS :=
 
+# Tests that should fail when the optimizing compiler compiles them debuggable.
+TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS := \
+  441-checker-inliner \
+  446-checker-inliner2 \
+  447-checker-inliner3 \
+
+ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
+  ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
+      optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(IMAGE_TYPES),$(PICTEST_TYPES),debuggable,$(TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+endif
+
+TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS :=
+
 
 # Clear variables ahead of appending to them when defining tests.
 $(foreach target, $(TARGET_TYPES), $(eval ART_RUN_TEST_$(call name-to-var,$(target))_RULES :=))
