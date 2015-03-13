@@ -302,7 +302,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
       first_range_->start_ = from;
     } else {
       // Instruction without uses.
-      DCHECK(!defined_by_->HasUses());
+      DCHECK(!defined_by_->HasNonEnvironmentUses());
       DCHECK(from == defined_by_->GetLifetimePosition());
       first_range_ = last_range_ = new (allocator_) LiveRange(from, from + 2, nullptr);
     }
@@ -798,6 +798,22 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
   DISALLOW_COPY_AND_ASSIGN(LiveInterval);
 };
 
+/**
+ * Analysis that computes the liveness of instructions:
+ *
+ * (a) Non-environment uses of an instruction always make
+ *     the instruction live.
+ * (b) Environment uses of an instruction whose type is
+ *     object (that is, non-primitive), make the instruction live.
+ *     This is due to having to keep alive objects that have
+ *     finalizers deleting native objects.
+ * (c) When the graph has the debuggable property, environment uses
+ *     of an instruction that has a primitive type make the instruction live.
+ *     If the graph does not have the debuggable property, the environment
+ *     use has no effect, and may get a 'none' value after register allocation.
+ *
+ * (b) and (c) are implemented through SsaLivenessAnalysis::ShouldBeLiveForEnvironment.
+ */
 class SsaLivenessAnalysis : public ValueObject {
  public:
   SsaLivenessAnalysis(const HGraph& graph, CodeGenerator* codegen)
@@ -881,6 +897,12 @@ class SsaLivenessAnalysis : public ValueObject {
 
   // Update the live_out set of the block and returns whether it has changed.
   bool UpdateLiveOut(const HBasicBlock& block);
+
+  static bool ShouldBeLiveForEnvironment(HInstruction* instruction) {
+    if (instruction == nullptr) return false;
+    if (instruction->GetBlock()->GetGraph()->IsDebuggable()) return true;
+    return instruction->GetType() == Primitive::kPrimNot;
+  }
 
   const HGraph& graph_;
   CodeGenerator* const codegen_;
