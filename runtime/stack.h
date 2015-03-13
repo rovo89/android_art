@@ -486,28 +486,9 @@ class StackVisitor {
   bool GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind, uint32_t* val) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  uint32_t GetVReg(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind) const
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uint32_t val;
-    bool success = GetVReg(m, vreg, kind, &val);
-    CHECK(success) << "Failed to read v" << vreg << " of kind " << kind << " in method "
-                   << PrettyMethod(m);
-    return val;
-  }
-
   bool GetVRegPair(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind_lo, VRegKind kind_hi,
                    uint64_t* val) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  uint64_t GetVRegPair(mirror::ArtMethod* m, uint16_t vreg, VRegKind kind_lo,
-                       VRegKind kind_hi) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    uint64_t val;
-    bool success = GetVRegPair(m, vreg, kind_lo, kind_hi, &val);
-    CHECK(success) << "Failed to read vreg pair " << vreg
-                   << " of kind [" << kind_lo << "," << kind_hi << "] in method "
-                   << PrettyMethod(m);
-    return val;
-  }
 
   bool SetVReg(mirror::ArtMethod* m, uint16_t vreg, uint32_t new_value, VRegKind kind)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -519,11 +500,12 @@ class StackVisitor {
   uintptr_t* GetGPRAddress(uint32_t reg) const;
 
   // This is a fast-path for getting/setting values in a quick frame.
-  uint32_t* GetVRegAddr(StackReference<mirror::ArtMethod>* cur_quick_frame,
-                        const DexFile::CodeItem* code_item,
-                        uint32_t core_spills, uint32_t fp_spills, size_t frame_size,
-                        uint16_t vreg) const {
-    int offset = GetVRegOffset(code_item, core_spills, fp_spills, frame_size, vreg, kRuntimeISA);
+  uint32_t* GetVRegAddrFromQuickCode(StackReference<mirror::ArtMethod>* cur_quick_frame,
+                                     const DexFile::CodeItem* code_item,
+                                     uint32_t core_spills, uint32_t fp_spills, size_t frame_size,
+                                     uint16_t vreg) const {
+    int offset = GetVRegOffsetFromQuickCode(
+        code_item, core_spills, fp_spills, frame_size, vreg, kRuntimeISA);
     DCHECK_EQ(cur_quick_frame, GetCurrentQuickFrame());
     uint8_t* vreg_addr = reinterpret_cast<uint8_t*>(cur_quick_frame) + offset;
     return reinterpret_cast<uint32_t*>(vreg_addr);
@@ -582,9 +564,9 @@ class StackVisitor {
    *     | StackReference<ArtMethod>     |  ... (reg == num_total_code_regs == special_temp_value) <<== sp, 16-byte aligned
    *     +===============================+
    */
-  static int GetVRegOffset(const DexFile::CodeItem* code_item,
-                           uint32_t core_spills, uint32_t fp_spills,
-                           size_t frame_size, int reg, InstructionSet isa) {
+  static int GetVRegOffsetFromQuickCode(const DexFile::CodeItem* code_item,
+                                        uint32_t core_spills, uint32_t fp_spills,
+                                        size_t frame_size, int reg, InstructionSet isa) {
     DCHECK_EQ(frame_size & (kStackAlignment - 1), 0U);
     DCHECK_NE(reg, -1);
     int spill_size = POPCOUNT(core_spills) * GetBytesPerGprSpillLocation(isa)
