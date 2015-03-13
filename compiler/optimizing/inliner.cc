@@ -38,6 +38,11 @@ static constexpr int kMaxInlineCodeUnits = 100;
 static constexpr int kDepthLimit = 5;
 
 void HInliner::Run() {
+  if (graph_->IsDebuggable()) {
+    // For simplicity, we currently never inline when the graph is debuggable. This avoids
+    // doing some logic in the runtime to discover if a method could have been inlined.
+    return;
+  }
   const GrowableArray<HBasicBlock*>& blocks = graph_->GetReversePostOrder();
   for (size_t i = 0; i < blocks.Size(); ++i) {
     HBasicBlock* block = blocks.Get(i);
