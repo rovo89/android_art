@@ -572,6 +572,17 @@ std::ostream& MethodVerifier::Fail(VerifyError error) {
         // If we fail again at runtime, mark that this instruction would throw and force this
         // method to be executed using the interpreter with checks.
         have_pending_runtime_throw_failure_ = true;
+
+        // We need to save the work_line if the instruction wasn't throwing before. Otherwise we'll
+        // try to merge garbage.
+        // Note: this assumes that Fail is called before we do any work_line modifications.
+        const uint16_t* insns = code_item_->insns_ + work_insn_idx_;
+        const Instruction* inst = Instruction::At(insns);
+        int opcode_flags = Instruction::FlagsOf(inst->Opcode());
+
+        if ((opcode_flags & Instruction::kThrow) == 0 && CurrentInsnFlags()->IsInTry()) {
+          saved_line_->CopyFromLine(work_line_.get());
+        }
       }
       break;
       // Indication that verification should be retried at runtime.
