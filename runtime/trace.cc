@@ -313,7 +313,7 @@ void* Trace::RunSamplingThread(void* arg) {
       }
     }
 
-    runtime->GetThreadList()->SuspendAll();
+    runtime->GetThreadList()->SuspendAll(__FUNCTION__);
     {
       MutexLock mu(self, *Locks::thread_list_lock_);
       runtime->GetThreadList()->ForEach(GetSample, the_trace);
@@ -367,7 +367,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
   // Enable count of allocs if specified in the flags.
   bool enable_stats = false;
 
-  runtime->GetThreadList()->SuspendAll();
+  runtime->GetThreadList()->SuspendAll(__FUNCTION__);
 
   // Create Trace object.
   {
@@ -421,7 +421,7 @@ void Trace::Stop() {
     CHECK_PTHREAD_CALL(pthread_join, (sampling_pthread, NULL), "sampling thread shutdown");
     sampling_pthread_ = 0U;
   }
-  runtime->GetThreadList()->SuspendAll();
+  runtime->GetThreadList()->SuspendAll(__FUNCTION__);
   if (the_trace != nullptr) {
     stop_alloc_counting = (the_trace->flags_ & kTraceCountAllocs) != 0;
     the_trace->FinishTracing();

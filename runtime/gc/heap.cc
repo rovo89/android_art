@@ -576,7 +576,7 @@ void Heap::DisableMovingGc() {
   ThreadList* tl = Runtime::Current()->GetThreadList();
   Thread* self = Thread::Current();
   ScopedThreadStateChange tsc(self, kSuspended);
-  tl->SuspendAll();
+  tl->SuspendAll(__FUNCTION__);
   // Something may have caused the transition to fail.
   if (!IsMovingGc(collector_type_) && non_moving_space_ != main_space_) {
     CHECK(main_space_ != nullptr);
@@ -758,7 +758,7 @@ void Heap::VisitObjects(ObjectCallback callback, void* arg) {
     IncrementDisableMovingGC(self);
     self->TransitionFromRunnableToSuspended(kWaitingForVisitObjects);
     ThreadList* tl = Runtime::Current()->GetThreadList();
-    tl->SuspendAll();
+    tl->SuspendAll(__FUNCTION__);
     VisitObjectsInternalRegionSpace(callback, arg);
     VisitObjectsInternal(callback, arg);
     tl->ResumeAll();
@@ -1058,7 +1058,7 @@ void Heap::Trim(Thread* self) {
     // Deflate the monitors, this can cause a pause but shouldn't matter since we don't care
     // about pauses.
     Runtime* runtime = Runtime::Current();
-    runtime->GetThreadList()->SuspendAll();
+    runtime->GetThreadList()->SuspendAll(__FUNCTION__);
     uint64_t start_time = NanoTime();
     size_t count = runtime->GetMonitorList()->DeflateMonitors();
     VLOG(heap) << "Deflating " << count << " monitors took "
@@ -1697,7 +1697,7 @@ HomogeneousSpaceCompactResult Heap::PerformHomogeneousSpaceCompact() {
     return HomogeneousSpaceCompactResult::kErrorVMShuttingDown;
   }
   // Suspend all threads.
-  tl->SuspendAll();
+  tl->SuspendAll(__FUNCTION__);
   uint64_t start_time = NanoTime();
   // Launch compaction.
   space::MallocSpace* to_space = main_space_backup_.release();
@@ -1779,7 +1779,7 @@ void Heap::TransitionCollector(CollectorType collector_type) {
     return;
   }
   collector::GarbageCollector* collector = nullptr;
-  tl->SuspendAll();
+  tl->SuspendAll(__FUNCTION__);
   switch (collector_type) {
     case kCollectorTypeSS: {
       if (!IsMovingGc(collector_type_)) {

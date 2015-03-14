@@ -157,7 +157,7 @@ void GarbageCollector::ResetMeasurements() {
 
 GarbageCollector::ScopedPause::ScopedPause(GarbageCollector* collector)
     : start_time_(NanoTime()), collector_(collector) {
-  Runtime::Current()->GetThreadList()->SuspendAll();
+  Runtime::Current()->GetThreadList()->SuspendAll(__FUNCTION__);
 }
 
 GarbageCollector::ScopedPause::~ScopedPause() {

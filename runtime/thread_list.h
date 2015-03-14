@@ -61,7 +61,7 @@ class ThreadList {
       LOCKS_EXCLUDED(Locks::thread_suspend_count_lock_);
 
   // Suspends all threads and gets exclusive access to the mutator_lock_.
-  void SuspendAll()
+  void SuspendAll(const char* cause)
       EXCLUSIVE_LOCK_FUNCTION(Locks::mutator_lock_)
       LOCKS_EXCLUDED(Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_);
