@@ -356,12 +356,12 @@ static int Mips64NextSDCallInsn(CompilationUnit* cu, CallInfo* info ATTRIBUTE_UN
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
       if (direct_code != static_cast<uintptr_t>(-1)) {
-        cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
+        cg->LoadConstantWide(cg->TargetPtrReg(kInvokeTgt), direct_code);
       } else {
         cg->LoadCodeAddress(target_method, type, kInvokeTgt);
       }
       if (direct_method != static_cast<uintptr_t>(-1)) {
-        cg->LoadConstant(cg->TargetReg(kArg0, kRef), direct_method);
+        cg->LoadConstantWide(cg->TargetReg(kArg0, kRef), direct_method);
       } else {
         cg->LoadMethodAddress(target_method, type, kArg0);
       }
@@ -382,7 +382,7 @@ static int Mips64NextSDCallInsn(CompilationUnit* cu, CallInfo* info ATTRIBUTE_UN
       // Set up direct code if known.
       if (direct_code != 0) {
         if (direct_code != static_cast<uintptr_t>(-1)) {
-          cg->LoadConstant(cg->TargetPtrReg(kInvokeTgt), direct_code);
+          cg->LoadConstantWide(cg->TargetPtrReg(kInvokeTgt), direct_code);
         } else {
           CHECK_LT(target_method.dex_method_index, target_method.dex_file->NumMethodIds());
           cg->LoadCodeAddress(target_method, type, kInvokeTgt);
