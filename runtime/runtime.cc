@@ -1331,12 +1331,6 @@ void Runtime::VisitNonThreadRoots(RootCallback* callback, void* arg) {
     callee_save_methods_[i].VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
   }
   verifier::MethodVerifier::VisitStaticRoots(callback, arg);
-  {
-    MutexLock mu(Thread::Current(), *Locks::method_verifiers_lock_);
-    for (verifier::MethodVerifier* verifier : method_verifiers_) {
-      verifier->VisitRoots(callback, arg);
-    }
-  }
   VisitTransactionRoots(callback, arg);
   instrumentation_.VisitRoots(callback, arg);
 }
@@ -1506,26 +1500,6 @@ void Runtime::SetCompileTimeClassPath(jobject class_loader,
   CHECK(!IsStarted());
   use_compile_time_class_path_ = true;
   compile_time_class_paths_.Put(class_loader, class_path);
-}
-
-void Runtime::AddMethodVerifier(verifier::MethodVerifier* verifier) {
-  DCHECK(verifier != nullptr);
-  if (gAborting) {
-    return;
-  }
-  MutexLock mu(Thread::Current(), *Locks::method_verifiers_lock_);
-  method_verifiers_.insert(verifier);
-}
-
-void Runtime::RemoveMethodVerifier(verifier::MethodVerifier* verifier) {
-  DCHECK(verifier != nullptr);
-  if (gAborting) {
-    return;
-  }
-  MutexLock mu(Thread::Current(), *Locks::method_verifiers_lock_);
-  auto it = method_verifiers_.find(verifier);
-  CHECK(it != method_verifiers_.end());
-  method_verifiers_.erase(it);
 }
 
 void Runtime::StartProfiler(const char* profile_output_filename) {
