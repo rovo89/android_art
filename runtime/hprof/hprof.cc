@@ -1180,7 +1180,7 @@ void DumpHeap(const char* filename, int fd, bool direct_to_ddms) {
     // comment in Heap::VisitObjects().
     heap->IncrementDisableMovingGC(self);
   }
-  Runtime::Current()->GetThreadList()->SuspendAll();
+  Runtime::Current()->GetThreadList()->SuspendAll(__FUNCTION__);
   Hprof hprof(filename, fd, direct_to_ddms);
   hprof.Dump();
   Runtime::Current()->GetThreadList()->ResumeAll();

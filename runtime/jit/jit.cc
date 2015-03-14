@@ -167,7 +167,7 @@ Jit::~Jit() {
 void Jit::CreateInstrumentationCache(size_t compile_threshold) {
   CHECK_GT(compile_threshold, 0U);
   Runtime* const runtime = Runtime::Current();
-  runtime->GetThreadList()->SuspendAll();
+  runtime->GetThreadList()->SuspendAll(__FUNCTION__);
   // Add Jit interpreter instrumentation, tells the interpreter when to notify the jit to compile
   // something.
   instrumentation_cache_.reset(new jit::JitInstrumentationCache(compile_threshold));
