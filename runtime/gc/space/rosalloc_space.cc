@@ -303,7 +303,7 @@ void RosAllocSpace::InspectAllRosAllocWithSuspendAll(
   // TODO: NO_THREAD_SAFETY_ANALYSIS.
   Thread* self = Thread::Current();
   ThreadList* tl = Runtime::Current()->GetThreadList();
-  tl->SuspendAll();
+  tl->SuspendAll(__FUNCTION__);
   {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);
     MutexLock mu2(self, *Locks::thread_list_lock_);
