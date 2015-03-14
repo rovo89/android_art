@@ -1539,7 +1539,7 @@ class ImageDumper {
       {
         self->TransitionFromRunnableToSuspended(kNative);
         ThreadList* thread_list = Runtime::Current()->GetThreadList();
-        thread_list->SuspendAll();
+        thread_list->SuspendAll(__FUNCTION__);
         heap->RevokeAllThreadLocalAllocationStacks(self);
         thread_list->ResumeAll();
         self->TransitionFromSuspendedToRunnable();

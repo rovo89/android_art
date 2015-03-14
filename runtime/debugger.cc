@@ -644,7 +644,7 @@ void Dbg::GoActive() {
   }
 
   Runtime* runtime = Runtime::Current();
-  runtime->GetThreadList()->SuspendAll();
+  runtime->GetThreadList()->SuspendAll(__FUNCTION__);
   Thread* self = Thread::Current();
   ThreadState old_state = self->SetStateUnsafe(kRunnable);
   CHECK_NE(old_state, kRunnable);
@@ -668,7 +668,7 @@ void Dbg::Disconnected() {
   // to kRunnable to avoid scoped object access transitions. Remove the debugger as a listener
   // and clear the object registry.
   Runtime* runtime = Runtime::Current();
-  runtime->GetThreadList()->SuspendAll();
+  runtime->GetThreadList()->SuspendAll(__FUNCTION__);
   Thread* self = Thread::Current();
   ThreadState old_state = self->SetStateUnsafe(kRunnable);
 
@@ -819,7 +819,7 @@ JDWP::JdwpError Dbg::GetMonitorInfo(JDWP::ObjectId object_id, JDWP::ExpandBuf* r
   Thread* self = Thread::Current();
   CHECK_EQ(self->GetState(), kRunnable);
   self->TransitionFromRunnableToSuspended(kSuspended);
-  Runtime::Current()->GetThreadList()->SuspendAll();
+  Runtime::Current()->GetThreadList()->SuspendAll(__FUNCTION__);
 
   MonitorInfo monitor_info(o);
 
@@ -3135,7 +3135,7 @@ void Dbg::ManageDeoptimization() {
   self->TransitionFromRunnableToSuspended(kWaitingForDeoptimization);
   // We need to suspend mutator threads first.
   Runtime* const runtime = Runtime::Current();
-  runtime->GetThreadList()->SuspendAll();
+  runtime->GetThreadList()->SuspendAll(__FUNCTION__);
   const ThreadState old_state = self->SetStateUnsafe(kRunnable);
   {
     MutexLock mu(self, *Locks::deoptimization_lock_);
@@ -4436,7 +4436,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
         // RosAlloc's internal logic doesn't know to release and reacquire the heap bitmap lock.
         self->TransitionFromRunnableToSuspended(kSuspended);
         ThreadList* tl = Runtime::Current()->GetThreadList();
-        tl->SuspendAll();
+        tl->SuspendAll(__FUNCTION__);
         {
           ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
           space->AsRosAllocSpace()->Walk(HeapChunkContext::HeapChunkJavaCallback, &context);
@@ -4452,7 +4452,7 @@ void Dbg::DdmSendHeapSegments(bool native) {
         heap->IncrementDisableMovingGC(self);
         self->TransitionFromRunnableToSuspended(kSuspended);
         ThreadList* tl = Runtime::Current()->GetThreadList();
-        tl->SuspendAll();
+        tl->SuspendAll(__FUNCTION__);
         ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
         context.SetChunkOverhead(0);
         space->AsRegionSpace()->Walk(BumpPointerSpaceCallback, &context);

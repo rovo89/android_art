@@ -448,13 +448,13 @@ size_t ThreadList::FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_c
   return runnable_threads.size() + other_threads.size() + 1;  // +1 for self.
 }
 
-void ThreadList::SuspendAll() {
+void ThreadList::SuspendAll(const char* cause) {
   Thread* self = Thread::Current();
 
   if (self != nullptr) {
-    VLOG(threads) << *self << " SuspendAll starting...";
+    VLOG(threads) << *self << " SuspendAll for " << cause << " starting...";
   } else {
-    VLOG(threads) << "Thread[null] SuspendAll starting...";
+    VLOG(threads) << "Thread[null] SuspendAll for " << cause << " starting...";
   }
   ATRACE_BEGIN("Suspending mutator threads");
   const uint64_t start_time = NanoTime();
@@ -503,7 +503,7 @@ void ThreadList::SuspendAll() {
   }
 
   ATRACE_END();
-  ATRACE_BEGIN("Mutator threads suspended");
+  ATRACE_BEGIN((std::string("Mutator threads suspended for ") + cause).c_str());
 
   if (self != nullptr) {
     VLOG(threads) << *self << " SuspendAll complete";

@@ -607,7 +607,7 @@ void Instrumentation::SetEntrypointsInstrumented(bool instrumented) {
   Locks::mutator_lock_->AssertNotHeld(self);
   Locks::instrument_entrypoints_lock_->AssertHeld(self);
   if (runtime->IsStarted()) {
-    tl->SuspendAll();
+    tl->SuspendAll(__FUNCTION__);
   }
   {
     MutexLock mu(self, *Locks::runtime_shutdown_lock_);

@@ -932,7 +932,7 @@ void CompilerDriver::UpdateImageClasses(TimingLogger* timings) {
     Runtime* current = Runtime::Current();
 
     // Suspend all threads.
-    current->GetThreadList()->SuspendAll();
+    current->GetThreadList()->SuspendAll(__FUNCTION__);
 
     std::string error_msg;
     std::unique_ptr<ClinitImageUpdate> update(ClinitImageUpdate::Create(image_classes_.get(),
