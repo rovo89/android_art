@@ -395,12 +395,12 @@ MethodVerifier::MethodVerifier(Thread* self,
       has_virtual_or_interface_invokes_(false),
       verify_to_dump_(verify_to_dump),
       allow_thread_suspension_(allow_thread_suspension) {
-  Runtime::Current()->AddMethodVerifier(this);
+  self->SetVerifier(this);
   DCHECK(class_def != nullptr);
 }
 
 MethodVerifier::~MethodVerifier() {
-  Runtime::Current()->RemoveMethodVerifier(this);
+  Thread::Current()->ClearVerifier(this);
   STLDeleteElements(&failure_messages_);
 }
 
@@ -4334,8 +4334,8 @@ void MethodVerifier::VisitStaticRoots(RootCallback* callback, void* arg) {
   RegTypeCache::VisitStaticRoots(callback, arg);
 }
 
-void MethodVerifier::VisitRoots(RootCallback* callback, void* arg) {
-  reg_types_.VisitRoots(callback, arg);
+void MethodVerifier::VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info) {
+  reg_types_.VisitRoots(callback, arg, root_info);
 }
 
 }  // namespace verifier
