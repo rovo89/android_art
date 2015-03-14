@@ -332,7 +332,12 @@ static int X86NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
       if (direct_method != static_cast<uintptr_t>(-1)) {
-        cg->LoadConstant(cg->TargetReg(kArg0, kRef), direct_method);
+        auto target_reg = cg->TargetReg(kArg0, kRef);
+        if (target_reg.Is64Bit()) {
+          cg->LoadConstantWide(target_reg, direct_method);
+        } else {
+          cg->LoadConstant(target_reg, direct_method);
+        }
       } else {
         cg->LoadMethodAddress(target_method, type, kArg0);
       }
