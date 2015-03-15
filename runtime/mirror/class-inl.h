@@ -439,7 +439,7 @@ inline void Class::SetIFields(ObjectArray<ArtField>* new_ifields)
 }
 
 inline ObjectArray<ArtField>* Class::GetSFields() {
-  DCHECK(IsLoaded() || IsErroneous());
+  DCHECK(IsLoaded() || IsErroneous()) << GetStatus();
   return GetFieldObject<ObjectArray<ArtField>>(OFFSET_OF_OBJECT_MEMBER(Class, sfields_));
 }
 
