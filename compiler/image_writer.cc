@@ -137,6 +137,7 @@ bool ImageWriter::Write(const std::string& image_filename,
   if (oat_file_ == nullptr) {
     PLOG(ERROR) << "Failed to open writable oat file " << oat_filename << " for " << oat_location
         << ": " << error_msg;
+    oat_file->Erase();
     return false;
   }
   CHECK_EQ(class_linker->RegisterOatFile(oat_file_), oat_file_);
