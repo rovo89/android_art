@@ -222,7 +222,8 @@ static const int kMaximumCompilationTimeBeforeWarning = 100; /* ms */
 OptimizingCompiler::OptimizingCompiler(CompilerDriver* driver)
     : Compiler(driver, kMaximumCompilationTimeBeforeWarning),
       run_optimizations_(
-          driver->GetCompilerOptions().GetCompilerFilter() != CompilerOptions::kTime),
+          (driver->GetCompilerOptions().GetCompilerFilter() != CompilerOptions::kTime)
+          && !driver->GetCompilerOptions().GetDebuggable()),
       compilation_stats_() {}
 
 void OptimizingCompiler::Init() {
@@ -463,7 +464,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
   // For testing purposes, we put a special marker on method names that should be compiled
   // with this compiler. This makes sure we're not regressing.
   bool shouldCompile = method_name.find("$opt$") != std::string::npos;
-  bool shouldOptimize = method_name.find("$opt$reg$") != std::string::npos;
+  bool shouldOptimize = method_name.find("$opt$reg$") != std::string::npos && run_optimizations_;
 
   std::unique_ptr<CodeGenerator> codegen(
       CodeGenerator::Create(graph,
