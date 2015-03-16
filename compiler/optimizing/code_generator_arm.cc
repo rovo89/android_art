@@ -82,7 +82,7 @@ class NullCheckSlowPathARM : public SlowPathCodeARM {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
     arm_codegen->InvokeRuntime(
-        QUICK_ENTRY_POINT(pThrowNullPointer), instruction_, instruction_->GetDexPc());
+        QUICK_ENTRY_POINT(pThrowNullPointer), instruction_, instruction_->GetDexPc(), this);
   }
 
  private:
@@ -98,7 +98,7 @@ class DivZeroCheckSlowPathARM : public SlowPathCodeARM {
     CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
     __ Bind(GetEntryLabel());
     arm_codegen->InvokeRuntime(
-        QUICK_ENTRY_POINT(pThrowDivZero), instruction_, instruction_->GetDexPc());
+        QUICK_ENTRY_POINT(pThrowDivZero), instruction_, instruction_->GetDexPc(), this);
   }
 
  private:
@@ -116,7 +116,7 @@ class SuspendCheckSlowPathARM : public SlowPathCodeARM {
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, instruction_->GetLocations());
     arm_codegen->InvokeRuntime(
-        QUICK_ENTRY_POINT(pTestSuspend), instruction_, instruction_->GetDexPc());
+        QUICK_ENTRY_POINT(pTestSuspend), instruction_, instruction_->GetDexPc(), this);
     RestoreLiveRegisters(codegen, instruction_->GetLocations());
     if (successor_ == nullptr) {
       __ b(GetReturnLabel());
@@ -162,7 +162,7 @@ class BoundsCheckSlowPathARM : public SlowPathCodeARM {
         length_location_,
         Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
     arm_codegen->InvokeRuntime(
-        QUICK_ENTRY_POINT(pThrowArrayBounds), instruction_, instruction_->GetDexPc());
+        QUICK_ENTRY_POINT(pThrowArrayBounds), instruction_, instruction_->GetDexPc(), this);
   }
 
  private:
@@ -196,7 +196,7 @@ class LoadClassSlowPathARM : public SlowPathCodeARM {
     int32_t entry_point_offset = do_clinit_
         ? QUICK_ENTRY_POINT(pInitializeStaticStorage)
         : QUICK_ENTRY_POINT(pInitializeType);
-    arm_codegen->InvokeRuntime(entry_point_offset, at_, dex_pc_);
+    arm_codegen->InvokeRuntime(entry_point_offset, at_, dex_pc_, this);
 
     // Move the class to the desired location.
     Location out = locations->Out();
@@ -241,7 +241,7 @@ class LoadStringSlowPathARM : public SlowPathCodeARM {
     arm_codegen->LoadCurrentMethod(calling_convention.GetRegisterAt(1));
     __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction_->GetStringIndex());
     arm_codegen->InvokeRuntime(
-        QUICK_ENTRY_POINT(pResolveString), instruction_, instruction_->GetDexPc());
+        QUICK_ENTRY_POINT(pResolveString), instruction_, instruction_->GetDexPc(), this);
     arm_codegen->Move32(locations->Out(), Location::RegisterLocation(R0));
 
     RestoreLiveRegisters(codegen, locations);
@@ -284,11 +284,12 @@ class TypeCheckSlowPathARM : public SlowPathCodeARM {
         Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
 
     if (instruction_->IsInstanceOf()) {
-      arm_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pInstanceofNonTrivial), instruction_, dex_pc_);
+      arm_codegen->InvokeRuntime(
+          QUICK_ENTRY_POINT(pInstanceofNonTrivial), instruction_, dex_pc_, this);
       arm_codegen->Move32(locations->Out(), Location::RegisterLocation(R0));
     } else {
       DCHECK(instruction_->IsCheckCast());
-      arm_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast), instruction_, dex_pc_);
+      arm_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pCheckCast), instruction_, dex_pc_, this);
     }
 
     RestoreLiveRegisters(codegen, locations);
@@ -857,10 +858,11 @@ void CodeGeneratorARM::Move(HInstruction* instruction, Location location, HInstr
 
 void CodeGeneratorARM::InvokeRuntime(int32_t entry_point_offset,
                                      HInstruction* instruction,
-                                     uint32_t dex_pc) {
+                                     uint32_t dex_pc,
+                                     SlowPathCode* slow_path) {
   __ LoadFromOffset(kLoadWord, LR, TR, entry_point_offset);
   __ blx(LR);
-  RecordPcInfo(instruction, dex_pc);
+  RecordPcInfo(instruction, dex_pc, slow_path);
   DCHECK(instruction->IsSuspendCheck()
       || instruction->IsBoundsCheck()
       || instruction->IsNullCheck()
@@ -1674,14 +1676,16 @@ void InstructionCodeGeneratorARM::VisitTypeConversion(HTypeConversion* conversio
           // Processing a Dex `float-to-long' instruction.
           codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pF2l),
                                   conversion,
-                                  conversion->GetDexPc());
+                                  conversion->GetDexPc(),
+                                  nullptr);
           break;
 
         case Primitive::kPrimDouble:
           // Processing a Dex `double-to-long' instruction.
           codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pD2l),
                                   conversion,
-                                  conversion->GetDexPc());
+                                  conversion->GetDexPc(),
+                                  nullptr);
           break;
 
         default:
@@ -2135,7 +2139,7 @@ void InstructionCodeGeneratorARM::VisitDiv(HDiv* div) {
       DCHECK_EQ(R0, out.AsRegisterPairLow<Register>());
       DCHECK_EQ(R1, out.AsRegisterPairHigh<Register>());
 
-      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pLdiv), div, div->GetDexPc());
+      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pLdiv), div, div->GetDexPc(), nullptr);
       break;
     }
 
@@ -2229,17 +2233,17 @@ void InstructionCodeGeneratorARM::VisitRem(HRem* rem) {
     }
 
     case Primitive::kPrimLong: {
-      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pLmod), rem, rem->GetDexPc());
+      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pLmod), rem, rem->GetDexPc(), nullptr);
       break;
     }
 
     case Primitive::kPrimFloat: {
-      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pFmodf), rem, rem->GetDexPc());
+      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pFmodf), rem, rem->GetDexPc(), nullptr);
       break;
     }
 
     case Primitive::kPrimDouble: {
-      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pFmod), rem, rem->GetDexPc());
+      codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pFmod), rem, rem->GetDexPc(), nullptr);
       break;
     }
 
@@ -2429,7 +2433,8 @@ void InstructionCodeGeneratorARM::VisitNewInstance(HNewInstance* instruction) {
   __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex());
   codegen_->InvokeRuntime(GetThreadOffset<kArmWordSize>(instruction->GetEntrypoint()).Int32Value(),
                           instruction,
-                          instruction->GetDexPc());
+                          instruction->GetDexPc(),
+                          nullptr);
 }
 
 void LocationsBuilderARM::VisitNewArray(HNewArray* instruction) {
@@ -2448,7 +2453,8 @@ void InstructionCodeGeneratorARM::VisitNewArray(HNewArray* instruction) {
   __ LoadImmediate(calling_convention.GetRegisterAt(0), instruction->GetTypeIndex());
   codegen_->InvokeRuntime(GetThreadOffset<kArmWordSize>(instruction->GetEntrypoint()).Int32Value(),
                           instruction,
-                          instruction->GetDexPc());
+                          instruction->GetDexPc(),
+                          nullptr);
 }
 
 void LocationsBuilderARM::VisitParameterValue(HParameterValue* instruction) {
@@ -3178,7 +3184,8 @@ void InstructionCodeGeneratorARM::VisitArraySet(HArraySet* instruction) {
         DCHECK_EQ(value_type, Primitive::kPrimNot);
         codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pAputObject),
                                 instruction,
-                                instruction->GetDexPc());
+                                instruction->GetDexPc(),
+                                nullptr);
       }
       break;
     }
@@ -3665,7 +3672,7 @@ void LocationsBuilderARM::VisitThrow(HThrow* instruction) {
 
 void InstructionCodeGeneratorARM::VisitThrow(HThrow* instruction) {
   codegen_->InvokeRuntime(
-      QUICK_ENTRY_POINT(pDeliverException), instruction, instruction->GetDexPc());
+      QUICK_ENTRY_POINT(pDeliverException), instruction, instruction->GetDexPc(), nullptr);
 }
 
 void LocationsBuilderARM::VisitInstanceOf(HInstanceOf* instruction) {
@@ -3758,7 +3765,8 @@ void InstructionCodeGeneratorARM::VisitMonitorOperation(HMonitorOperation* instr
   codegen_->InvokeRuntime(instruction->IsEnter()
         ? QUICK_ENTRY_POINT(pLockObject) : QUICK_ENTRY_POINT(pUnlockObject),
       instruction,
-      instruction->GetDexPc());
+      instruction->GetDexPc(),
+      nullptr);
 }
 
 void LocationsBuilderARM::VisitAnd(HAnd* instruction) { HandleBitwiseOperation(instruction); }
