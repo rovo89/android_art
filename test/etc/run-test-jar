@@ -384,16 +384,15 @@ if [ "$HOST" = "n" ]; then
     rm -f $cmdfile
 else
     export ANDROID_PRINTF_LOG=brief
+
+    # By default, and for prebuild dex2oat, we are interested in errors being logged. In dev mode
+    # we want debug messages.
     if [ "$DEV_MODE" = "y" ]; then
         export ANDROID_LOG_TAGS='*:d'
-    elif [ "$USE_DEX2OAT_AND_PATCHOAT" = "n" ]; then
-        # All tests would log the error of failing dex2oat/patchoat. Be silent here and only
-        # log fatal events. This is the old default.
-        export ANDROID_LOG_TAGS='*:s'
     else
-        # We are interested in LOG(ERROR) output.
         export ANDROID_LOG_TAGS='*:e'
     fi
+
     export ANDROID_DATA="$DEX_LOCATION"
     export ANDROID_ROOT="${ANDROID_ROOT}"
     export LD_LIBRARY_PATH="${ANDROID_ROOT}/lib"
@@ -426,7 +425,20 @@ else
     cd $ANDROID_BUILD_TOP
 
     $mkdir_cmdline || exit 1
-    $dex2oat_cmdline || exit 2
+    $dex2oat_cmdline || { echo "Dex2oat failed." >&2 ; exit 2; }
+
+    # For running, we must turn off logging when dex2oat or patchoat are missing. Otherwise we use
+    # the same defaults as for prebuilt: everything when --dev, otherwise errors and above only.
+    if [ "$DEV_MODE" = "y" ]; then
+        export ANDROID_LOG_TAGS='*:d'
+    elif [ "$USE_DEX2OAT_AND_PATCHOAT" = "n" ]; then
+        # All tests would log the error of failing dex2oat/patchoat. Be silent here and only
+        # log fatal events.
+        export ANDROID_LOG_TAGS='*:s'
+    else
+        # We are interested in LOG(ERROR) output.
+        export ANDROID_LOG_TAGS='*:e'
+    fi
 
     if [ "$USE_GDB" = "y" ]; then
       # When running under gdb, we cannot do piping and grepping...
