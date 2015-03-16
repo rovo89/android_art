@@ -66,7 +66,13 @@ struct PcInfo {
 
 class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
  public:
-  SlowPathCode() {}
+  SlowPathCode() {
+    for (size_t i = 0; i < kMaximumNumberOfExpectedRegisters; ++i) {
+      saved_core_stack_offsets_[i] = kRegisterNotSaved;
+      saved_fpu_stack_offsets_[i] = kRegisterNotSaved;
+    }
+  }
+
   virtual ~SlowPathCode() {}
 
   virtual void EmitNativeCode(CodeGenerator* codegen) = 0;
@@ -75,7 +81,27 @@ class SlowPathCode : public ArenaObject<kArenaAllocSlowPaths> {
   void RestoreLiveRegisters(CodeGenerator* codegen, LocationSummary* locations);
   void RecordPcInfo(CodeGenerator* codegen, HInstruction* instruction, uint32_t dex_pc);
 
+  bool IsCoreRegisterSaved(int reg) const {
+    return saved_core_stack_offsets_[reg] != kRegisterNotSaved;
+  }
+
+  bool IsFpuRegisterSaved(int reg) const {
+    return saved_fpu_stack_offsets_[reg] != kRegisterNotSaved;
+  }
+
+  uint32_t GetStackOffsetOfCoreRegister(int reg) const {
+    return saved_core_stack_offsets_[reg];
+  }
+
+  uint32_t GetStackOffsetOfFpuRegister(int reg) const {
+    return saved_fpu_stack_offsets_[reg];
+  }
+
  private:
+  static constexpr size_t kMaximumNumberOfExpectedRegisters = 32;
+  static constexpr uint32_t kRegisterNotSaved = -1;
+  uint32_t saved_core_stack_offsets_[kMaximumNumberOfExpectedRegisters];
+  uint32_t saved_fpu_stack_offsets_[kMaximumNumberOfExpectedRegisters];
   DISALLOW_COPY_AND_ASSIGN(SlowPathCode);
 };
 
@@ -171,7 +197,7 @@ class CodeGenerator {
     return (fpu_callee_save_mask_ & (1 << reg)) != 0;
   }
 
-  void RecordPcInfo(HInstruction* instruction, uint32_t dex_pc);
+  void RecordPcInfo(HInstruction* instruction, uint32_t dex_pc, SlowPathCode* slow_path = nullptr);
   bool CanMoveNullCheckToUser(HNullCheck* null_check);
   void MaybeRecordImplicitNullCheck(HInstruction* instruction);
 

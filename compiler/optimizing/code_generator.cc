@@ -547,7 +547,9 @@ void CodeGenerator::BuildStackMaps(std::vector<uint8_t>* data) {
   stack_map_stream_.FillIn(region);
 }
 
-void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
+void CodeGenerator::RecordPcInfo(HInstruction* instruction,
+                                 uint32_t dex_pc,
+                                 SlowPathCode* slow_path) {
   if (instruction != nullptr) {
     // The code generated for some type conversions may call the
     // runtime, thus normally requiring a subsequent call to this
@@ -578,41 +580,177 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction, uint32_t dex_pc) {
   pc_infos_.Add(pc_info);
 
   uint32_t inlining_depth = 0;
+
   if (instruction == nullptr) {
     // For stack overflow checks.
-    stack_map_stream_.RecordEnvironment(
-       /* environment */ nullptr,
-       /* environment_size */ 0,
-       /* locations */ nullptr,
-       dex_pc,
-       pc_info.native_pc,
-       /* register_mask */ 0,
-       inlining_depth);
-  } else {
-    LocationSummary* locations = instruction->GetLocations();
-    HEnvironment* environment = instruction->GetEnvironment();
-    size_t environment_size = instruction->EnvironmentSize();
+    stack_map_stream_.AddStackMapEntry(dex_pc, pc_info.native_pc, 0, 0, 0, inlining_depth);
+    return;
+  }
+  LocationSummary* locations = instruction->GetLocations();
+  HEnvironment* environment = instruction->GetEnvironment();
+  size_t environment_size = instruction->EnvironmentSize();
 
-    uint32_t register_mask = locations->GetRegisterMask();
-    if (locations->OnlyCallsOnSlowPath()) {
-      // In case of slow path, we currently set the location of caller-save registers
-      // to register (instead of their stack location when pushed before the slow-path
-      // call). Therefore register_mask contains both callee-save and caller-save
-      // registers that hold objects. We must remove the caller-save from the mask, since
-      // they will be overwritten by the callee.
-      register_mask &= core_callee_save_mask_;
+  uint32_t register_mask = locations->GetRegisterMask();
+  if (locations->OnlyCallsOnSlowPath()) {
+    // In case of slow path, we currently set the location of caller-save registers
+    // to register (instead of their stack location when pushed before the slow-path
+    // call). Therefore register_mask contains both callee-save and caller-save
+    // registers that hold objects. We must remove the caller-save from the mask, since
+    // they will be overwritten by the callee.
+    register_mask &= core_callee_save_mask_;
+  }
+  // The register mask must be a subset of callee-save registers.
+  DCHECK_EQ(register_mask & core_callee_save_mask_, register_mask);
+  stack_map_stream_.AddStackMapEntry(dex_pc,
+                                     pc_info.native_pc,
+                                     register_mask,
+                                     locations->GetStackMask(),
+                                     environment_size,
+                                     inlining_depth);
+
+  // Walk over the environment, and record the location of dex registers.
+  for (size_t i = 0; i < environment_size; ++i) {
+    HInstruction* current = environment->GetInstructionAt(i);
+    if (current == nullptr) {
+      stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kNone, 0);
+      continue;
     }
-    // The register mask must be a subset of callee-save registers.
-    DCHECK_EQ(register_mask & core_callee_save_mask_, register_mask);
 
-    // Populate stack map information.
-    stack_map_stream_.RecordEnvironment(environment,
-                                        environment_size,
-                                        locations,
-                                        dex_pc,
-                                        pc_info.native_pc,
-                                        register_mask,
-                                        inlining_depth);
+    Location location = locations->GetEnvironmentAt(i);
+    switch (location.GetKind()) {
+      case Location::kConstant: {
+        DCHECK_EQ(current, location.GetConstant());
+        if (current->IsLongConstant()) {
+          int64_t value = current->AsLongConstant()->GetValue();
+          stack_map_stream_.AddDexRegisterEntry(
+              i, DexRegisterLocation::Kind::kConstant, Low32Bits(value));
+          stack_map_stream_.AddDexRegisterEntry(
+              ++i, DexRegisterLocation::Kind::kConstant, High32Bits(value));
+          DCHECK_LT(i, environment_size);
+        } else if (current->IsDoubleConstant()) {
+          int64_t value = bit_cast<double, int64_t>(current->AsDoubleConstant()->GetValue());
+          stack_map_stream_.AddDexRegisterEntry(
+              i, DexRegisterLocation::Kind::kConstant, Low32Bits(value));
+          stack_map_stream_.AddDexRegisterEntry(
+              ++i, DexRegisterLocation::Kind::kConstant, High32Bits(value));
+          DCHECK_LT(i, environment_size);
+        } else if (current->IsIntConstant()) {
+          int32_t value = current->AsIntConstant()->GetValue();
+          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kConstant, value);
+        } else if (current->IsNullConstant()) {
+          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kConstant, 0);
+        } else {
+          DCHECK(current->IsFloatConstant()) << current->DebugName();
+          int32_t value = bit_cast<float, int32_t>(current->AsFloatConstant()->GetValue());
+          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kConstant, value);
+        }
+        break;
+      }
+
+      case Location::kStackSlot: {
+        stack_map_stream_.AddDexRegisterEntry(
+            i, DexRegisterLocation::Kind::kInStack, location.GetStackIndex());
+        break;
+      }
+
+      case Location::kDoubleStackSlot: {
+        stack_map_stream_.AddDexRegisterEntry(
+            i, DexRegisterLocation::Kind::kInStack, location.GetStackIndex());
+        stack_map_stream_.AddDexRegisterEntry(
+            ++i, DexRegisterLocation::Kind::kInStack, location.GetHighStackIndex(kVRegSize));
+        DCHECK_LT(i, environment_size);
+        break;
+      }
+
+      case Location::kRegister : {
+        int id = location.reg();
+        if (slow_path != nullptr && slow_path->IsCoreRegisterSaved(id)) {
+          uint32_t offset = slow_path->GetStackOffsetOfCoreRegister(id);
+          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInStack, offset);
+          if (current->GetType() == Primitive::kPrimLong) {
+            stack_map_stream_.AddDexRegisterEntry(
+                ++i, DexRegisterLocation::Kind::kInStack, offset + kVRegSize);
+            DCHECK_LT(i, environment_size);
+          }
+        } else {
+          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInRegister, id);
+          if (current->GetType() == Primitive::kPrimLong) {
+            stack_map_stream_.AddDexRegisterEntry(++i, DexRegisterLocation::Kind::kInRegister, id);
+            DCHECK_LT(i, environment_size);
+          }
+        }
+        break;
+      }
+
+      case Location::kFpuRegister : {
+        int id = location.reg();
+        if (slow_path != nullptr && slow_path->IsFpuRegisterSaved(id)) {
+          uint32_t offset = slow_path->GetStackOffsetOfFpuRegister(id);
+          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInStack, offset);
+          if (current->GetType() == Primitive::kPrimDouble) {
+            stack_map_stream_.AddDexRegisterEntry(
+                ++i, DexRegisterLocation::Kind::kInStack, offset + kVRegSize);
+            DCHECK_LT(i, environment_size);
+          }
+        } else {
+          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInFpuRegister, id);
+          if (current->GetType() == Primitive::kPrimDouble) {
+            stack_map_stream_.AddDexRegisterEntry(
+                ++i, DexRegisterLocation::Kind::kInFpuRegister, id);
+            DCHECK_LT(i, environment_size);
+          }
+        }
+        break;
+      }
+
+      case Location::kFpuRegisterPair : {
+        int low = location.low();
+        int high = location.high();
+        if (slow_path != nullptr && slow_path->IsFpuRegisterSaved(low)) {
+          uint32_t offset = slow_path->GetStackOffsetOfFpuRegister(low);
+          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInStack, offset);
+        } else {
+          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInFpuRegister, low);
+        }
+        if (slow_path != nullptr && slow_path->IsFpuRegisterSaved(high)) {
+          uint32_t offset = slow_path->GetStackOffsetOfFpuRegister(high);
+          stack_map_stream_.AddDexRegisterEntry(++i, DexRegisterLocation::Kind::kInStack, offset);
+        } else {
+          stack_map_stream_.AddDexRegisterEntry(
+              ++i, DexRegisterLocation::Kind::kInFpuRegister, high);
+        }
+        DCHECK_LT(i, environment_size);
+        break;
+      }
+
+      case Location::kRegisterPair : {
+        int low = location.low();
+        int high = location.high();
+        if (slow_path != nullptr && slow_path->IsCoreRegisterSaved(low)) {
+          uint32_t offset = slow_path->GetStackOffsetOfCoreRegister(low);
+          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInStack, offset);
+        } else {
+          stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kInRegister, low);
+        }
+        if (slow_path != nullptr && slow_path->IsCoreRegisterSaved(high)) {
+          uint32_t offset = slow_path->GetStackOffsetOfCoreRegister(high);
+          stack_map_stream_.AddDexRegisterEntry(++i, DexRegisterLocation::Kind::kInStack, offset);
+        } else {
+          stack_map_stream_.AddDexRegisterEntry(
+              ++i, DexRegisterLocation::Kind::kInRegister, high);
+        }
+        DCHECK_LT(i, environment_size);
+        break;
+      }
+
+      case Location::kInvalid: {
+        stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kNone, 0);
+        break;
+      }
+
+      default:
+        LOG(FATAL) << "Unexpected kind " << location.GetKind();
+    }
   }
 }
 
@@ -677,7 +815,7 @@ void CodeGenerator::EmitParallelMoves(Location from1, Location to1, Location fro
 }
 
 void SlowPathCode::RecordPcInfo(CodeGenerator* codegen, HInstruction* instruction, uint32_t dex_pc) {
-  codegen->RecordPcInfo(instruction, dex_pc);
+  codegen->RecordPcInfo(instruction, dex_pc, this);
 }
 
 void SlowPathCode::SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* locations) {
@@ -691,6 +829,8 @@ void SlowPathCode::SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* lo
           locations->SetStackBit(stack_offset / kVRegSize);
         }
         DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
+        DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
+        saved_core_stack_offsets_[i] = stack_offset;
         stack_offset += codegen->SaveCoreRegister(stack_offset, i);
       }
     }
@@ -700,6 +840,8 @@ void SlowPathCode::SaveLiveRegisters(CodeGenerator* codegen, LocationSummary* lo
     if (!codegen->IsFloatingPointCalleeSaveRegister(i)) {
       if (register_set->ContainsFloatingPointRegister(i)) {
         DCHECK_LT(stack_offset, codegen->GetFrameSize() - codegen->FrameEntrySpillSize());
+        DCHECK_LT(i, kMaximumNumberOfExpectedRegisters);
+        saved_fpu_stack_offsets_[i] = stack_offset;
         stack_offset += codegen->SaveFloatingPointRegister(stack_offset, i);
       }
     }
