@@ -246,7 +246,8 @@ class CodeGeneratorARM : public CodeGenerator {
   void LoadCurrentMethod(Register reg);
 
   // Generate code to invoke a runtime entry point.
-  void InvokeRuntime(int32_t offset, HInstruction* instruction, uint32_t dex_pc);
+  void InvokeRuntime(
+      int32_t offset, HInstruction* instruction, uint32_t dex_pc, SlowPathCode* slow_path);
 
   // Emit a write barrier.
   void MarkGCCard(Register temp, Register card, Register object, Register value);
