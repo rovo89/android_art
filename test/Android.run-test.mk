@@ -382,9 +382,6 @@ TEST_ART_BROKEN_OPTIMIZING_NONDEBUGGABLE_RUN_TESTS :=
 
 # Tests that should fail when the optimizing compiler compiles them debuggable.
 TEST_ART_BROKEN_OPTIMIZING_DEBUGGABLE_RUN_TESTS := \
-  441-checker-inliner \
-  446-checker-inliner2 \
-  447-checker-inliner3 \
 
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
