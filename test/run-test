@@ -80,6 +80,7 @@ lib="libartd.so"
 run_args="--quiet"
 build_args=""
 
+debuggable="no"
 prebuild_mode="yes"
 target_mode="yes"
 dev_mode="no"
@@ -149,6 +150,7 @@ while true; do
         shift;
     elif [ "x$1" = "x--debuggable" ]; then
         run_args="${run_args} -Xcompiler-option --debuggable"
+        debuggable="yes"
         shift;
     elif [ "x$1" = "x--no-prebuild" ]; then
         run_args="${run_args} --no-prebuild"
@@ -523,7 +525,7 @@ if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
   # if Checker is not invoked and the test only runs the program.
   build_args="${build_args} --dx-option --no-optimize"
 
-  if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" -a "$target_mode" = "no" ]; then
+  if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" -a "$target_mode" = "no" -a "$debuggable" = "no"]; then
     run_checker="yes"
     run_args="${run_args} -Xcompiler-option --dump-cfg=$tmp_dir/$cfg_output \
                           -Xcompiler-option -j1"
