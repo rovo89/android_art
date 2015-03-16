@@ -185,7 +185,7 @@ void HGraph::SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor) {
   if (successor->IsLoopHeader()) {
     // If we split at a back edge boundary, make the new block the back edge.
     HLoopInformation* info = successor->GetLoopInformation();
-    if (info->IsBackEdge(block)) {
+    if (info->IsBackEdge(*block)) {
       info->RemoveBackEdge(block);
       info->AddBackEdge(new_block);
     }
@@ -287,17 +287,47 @@ bool HGraph::AnalyzeNaturalLoops() const {
   return true;
 }
 
+void HGraph::AddConstant(HConstant* instruction) {
+  HInstruction* last_instruction = entry_block_->GetLastInstruction();
+  if (last_instruction == nullptr || !last_instruction->IsControlFlow()) {
+    // Called from the builder. Insert at the end of the block.
+    entry_block_->AddInstruction(instruction);
+  } else {
+    // Entry block ends with control-flow. Insert before the last instruction.
+    entry_block_->InsertInstructionBefore(instruction, last_instruction);
+  }
+}
+
 HNullConstant* HGraph::GetNullConstant() {
   if (cached_null_constant_ == nullptr) {
     cached_null_constant_ = new (arena_) HNullConstant();
-    entry_block_->InsertInstructionBefore(cached_null_constant_,
-                                          entry_block_->GetLastInstruction());
+    AddConstant(cached_null_constant_);
   }
   return cached_null_constant_;
 }
 
+HIntConstant* HGraph::GetIntConstant0() {
+  if (cached_int_constant0_ == nullptr) {
+    cached_int_constant0_ = new (arena_) HIntConstant(0);
+    AddConstant(cached_int_constant0_);
+  }
+  return cached_int_constant0_;
+}
+
+HIntConstant* HGraph::GetIntConstant1() {
+  if (cached_int_constant1_ == nullptr) {
+    cached_int_constant1_ = new (arena_) HIntConstant(1);
+    AddConstant(cached_int_constant1_);
+  }
+  return cached_int_constant1_;
+}
+
 void HLoopInformation::Add(HBasicBlock* block) {
   blocks_.SetBit(block->GetBlockId());
+}
+
+void HLoopInformation::Remove(HBasicBlock* block) {
+  blocks_.ClearBit(block->GetBlockId());
 }
 
 void HLoopInformation::PopulateRecursive(HBasicBlock* block) {
@@ -621,7 +651,10 @@ FOR_EACH_INSTRUCTION(DEFINE_ACCEPT)
 void HGraphVisitor::VisitInsertionOrder() {
   const GrowableArray<HBasicBlock*>& blocks = graph_->GetBlocks();
   for (size_t i = 0 ; i < blocks.Size(); i++) {
-    VisitBasicBlock(blocks.Get(i));
+    HBasicBlock* block = blocks.Get(i);
+    if (block != nullptr) {
+      VisitBasicBlock(block);
+    }
   }
 }
 
@@ -788,6 +821,17 @@ HBasicBlock* HBasicBlock::SplitAfter(HInstruction* cursor) {
   return new_block;
 }
 
+bool HBasicBlock::IsSingleGoto() const {
+  HLoopInformation* loop_info = GetLoopInformation();
+  // TODO: Remove the null check b/19084197.
+  return GetFirstInstruction() != nullptr
+         && GetPhis().IsEmpty()
+         && GetFirstInstruction() == GetLastInstruction()
+         && GetLastInstruction()->IsGoto()
+         // Back edges generate the suspend check.
+         && (loop_info == nullptr || !loop_info->IsBackEdge(*this));
+}
+
 void HInstructionList::SetBlockOfInstructions(HBasicBlock* block) const {
   for (HInstruction* current = first_instruction_;
        current != nullptr;
@@ -811,14 +855,35 @@ void HInstructionList::AddAfter(HInstruction* cursor, const HInstructionList& in
 }
 
 void HInstructionList::Add(const HInstructionList& instruction_list) {
-  DCHECK(!IsEmpty());
-  AddAfter(last_instruction_, instruction_list);
+  if (IsEmpty()) {
+    first_instruction_ = instruction_list.first_instruction_;
+    last_instruction_ = instruction_list.last_instruction_;
+  } else {
+    AddAfter(last_instruction_, instruction_list);
+  }
+}
+
+void HBasicBlock::DisconnectFromAll() {
+  DCHECK(dominated_blocks_.IsEmpty()) << "Unimplemented scenario";
+
+  for (size_t i = 0, e = predecessors_.Size(); i < e; ++i) {
+    predecessors_.Get(i)->successors_.Delete(this);
+  }
+  for (size_t i = 0, e = successors_.Size(); i < e; ++i) {
+    successors_.Get(i)->predecessors_.Delete(this);
+  }
+  dominator_->dominated_blocks_.Delete(this);
+
+  predecessors_.Reset();
+  successors_.Reset();
+  dominator_ = nullptr;
+  graph_ = nullptr;
 }
 
 void HBasicBlock::MergeWith(HBasicBlock* other) {
   DCHECK(successors_.IsEmpty()) << "Unimplemented block merge scenario";
-  DCHECK(dominated_blocks_.IsEmpty()) << "Unimplemented block merge scenario";
-  DCHECK(other->GetDominator()->IsEntryBlock() && other->GetGraph() != graph_)
+  DCHECK(dominated_blocks_.IsEmpty()
+         || (dominated_blocks_.Size() == 1 && dominated_blocks_.Get(0) == other))
       << "Unimplemented block merge scenario";
   DCHECK(other->GetPhis().IsEmpty());
 
@@ -1006,7 +1071,7 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
     if (info != nullptr) {
       info->Add(to);
       to->SetLoopInformation(info);
-      if (info->IsBackEdge(at)) {
+      if (info->IsBackEdge(*at)) {
         // Only `at` can become a back edge, as the inlined blocks
         // are predecessors of `at`.
         DCHECK_EQ(1u, info->NumberOfBackEdges());
@@ -1018,6 +1083,57 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
 
   // Finally remove the invoke from the caller.
   invoke->GetBlock()->RemoveInstruction(invoke);
+}
+
+void HGraph::MergeEmptyBranches(HBasicBlock* start_block, HBasicBlock* end_block) {
+  // Make sure this is a diamond control-flow path, find the two branches.
+  DCHECK_EQ(start_block->GetSuccessors().Size(), 2u);
+  DCHECK_EQ(end_block->GetPredecessors().Size(), 2u);
+  HBasicBlock* left_branch = start_block->GetSuccessors().Get(0);
+  HBasicBlock* right_branch = start_block->GetSuccessors().Get(1);
+  DCHECK_EQ(left_branch->GetSuccessors().Get(0), end_block);
+  DCHECK_EQ(right_branch->GetSuccessors().Get(0), end_block);
+  DCHECK_EQ(start_block, end_block->GetDominator());
+
+  // Disconnect the branches and merge the two blocks. This will move
+  // all instructions from 'end_block' to 'start_block'.
+  DCHECK(left_branch->IsSingleGoto());
+  DCHECK(right_branch->IsSingleGoto());
+  left_branch->DisconnectFromAll();
+  right_branch->DisconnectFromAll();
+  start_block->RemoveInstruction(start_block->GetLastInstruction());
+  start_block->MergeWith(end_block);
+
+  // Delete the now redundant blocks from the graph.
+  blocks_.Put(left_branch->GetBlockId(), nullptr);
+  blocks_.Put(right_branch->GetBlockId(), nullptr);
+  blocks_.Put(end_block->GetBlockId(), nullptr);
+
+  // Update reverse post order.
+  reverse_post_order_.Delete(left_branch);
+  reverse_post_order_.Delete(right_branch);
+  reverse_post_order_.Delete(end_block);
+
+  // Update loop information.
+  HLoopInformation* loop_info = start_block->GetLoopInformation();
+  if (kIsDebugBuild) {
+    if (loop_info != nullptr) {
+      DCHECK_EQ(loop_info, left_branch->GetLoopInformation());
+      DCHECK_EQ(loop_info, right_branch->GetLoopInformation());
+      DCHECK_EQ(loop_info, end_block->GetLoopInformation());
+    }
+  }
+  while (loop_info != nullptr) {
+    loop_info->Remove(left_branch);
+    loop_info->Remove(right_branch);
+    loop_info->Remove(end_block);
+    if (loop_info->IsBackEdge(*end_block)) {
+      loop_info->RemoveBackEdge(end_block);
+      loop_info->AddBackEdge(start_block);
+    }
+    // Move to parent loop if nested.
+    loop_info = loop_info->GetHeader()->GetDominator()->GetLoopInformation();
+  }
 }
 
 std::ostream& operator<<(std::ostream& os, const ReferenceTypeInfo& rhs) {

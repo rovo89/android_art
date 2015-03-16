@@ -40,16 +40,6 @@ size_t CodeGenerator::GetCacheOffset(uint32_t index) {
   return mirror::ObjectArray<mirror::Object>::OffsetOfElement(index).SizeValue();
 }
 
-static bool IsSingleGoto(HBasicBlock* block) {
-  HLoopInformation* loop_info = block->GetLoopInformation();
-  // TODO: Remove the null check b/19084197.
-  return (block->GetFirstInstruction() != nullptr)
-      && (block->GetFirstInstruction() == block->GetLastInstruction())
-      && block->GetLastInstruction()->IsGoto()
-      // Back edges generate the suspend check.
-      && (loop_info == nullptr || !loop_info->IsBackEdge(block));
-}
-
 void CodeGenerator::CompileBaseline(CodeAllocator* allocator, bool is_leaf) {
   Initialize();
   if (!is_leaf) {
@@ -74,7 +64,7 @@ bool CodeGenerator::GoesToNextBlock(HBasicBlock* current, HBasicBlock* next) con
 HBasicBlock* CodeGenerator::GetNextBlockToEmit() const {
   for (size_t i = current_block_index_ + 1; i < block_order_->Size(); ++i) {
     HBasicBlock* block = block_order_->Get(i);
-    if (!IsSingleGoto(block)) {
+    if (!block->IsSingleGoto()) {
       return block;
     }
   }
@@ -82,7 +72,7 @@ HBasicBlock* CodeGenerator::GetNextBlockToEmit() const {
 }
 
 HBasicBlock* CodeGenerator::FirstNonEmptyBlock(HBasicBlock* block) const {
-  while (IsSingleGoto(block)) {
+  while (block->IsSingleGoto()) {
     block = block->GetSuccessors().Get(0);
   }
   return block;
@@ -97,7 +87,7 @@ void CodeGenerator::CompileInternal(CodeAllocator* allocator, bool is_baseline) 
     // Don't generate code for an empty block. Its predecessors will branch to its successor
     // directly. Also, the label of that block will not be emitted, so this helps catch
     // errors where we reference that label.
-    if (IsSingleGoto(block)) continue;
+    if (block->IsSingleGoto()) continue;
     Bind(block);
     for (HInstructionIterator it(block->GetInstructions()); !it.Done(); it.Advance()) {
       HInstruction* current = it.Current();

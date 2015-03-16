@@ -2060,31 +2060,13 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
   return true;
 }  // NOLINT(readability/fn_size)
 
-HIntConstant* HGraphBuilder::GetIntConstant0() {
-  if (constant0_ != nullptr) {
-    return constant0_;
-  }
-  constant0_ = new(arena_) HIntConstant(0);
-  entry_block_->AddInstruction(constant0_);
-  return constant0_;
-}
-
-HIntConstant* HGraphBuilder::GetIntConstant1() {
-  if (constant1_ != nullptr) {
-    return constant1_;
-  }
-  constant1_ = new(arena_) HIntConstant(1);
-  entry_block_->AddInstruction(constant1_);
-  return constant1_;
-}
-
 HIntConstant* HGraphBuilder::GetIntConstant(int32_t constant) {
   switch (constant) {
-    case 0: return GetIntConstant0();
-    case 1: return GetIntConstant1();
+    case 0: return graph_->GetIntConstant0();
+    case 1: return graph_->GetIntConstant1();
     default: {
       HIntConstant* instruction = new (arena_) HIntConstant(constant);
-      entry_block_->AddInstruction(instruction);
+      graph_->AddConstant(instruction);
       return instruction;
     }
   }
@@ -2092,7 +2074,7 @@ HIntConstant* HGraphBuilder::GetIntConstant(int32_t constant) {
 
 HLongConstant* HGraphBuilder::GetLongConstant(int64_t constant) {
   HLongConstant* instruction = new (arena_) HLongConstant(constant);
-  entry_block_->AddInstruction(instruction);
+  graph_->AddConstant(instruction);
   return instruction;
 }
 
