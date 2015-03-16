@@ -112,5 +112,16 @@
   result: EXEC_FAILED,
   names: ["libcore.javax.crypto.ECDHKeyAgreementTest#testInit_withUnsupportedPrivateKeyType"],
   bug: 19730263
+},
+{
+  description: "Needs to be run as root",
+  result: EXEC_FAILED,
+  modes: [host],
+  names: ["libcore.io.OsTest#test_PacketSocketAddress"]
+},
+{
+  description: "Needs kernel updates on host/device",
+  result: EXEC_FAILED,
+  names: ["libcore.io.OsTest#test_socketPing"]
 }
 ]
