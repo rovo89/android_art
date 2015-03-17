@@ -525,7 +525,7 @@ if [[ "$TEST_NAME" =~ ^[0-9]+-checker- ]]; then
   # if Checker is not invoked and the test only runs the program.
   build_args="${build_args} --dx-option --no-optimize"
 
-  if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" -a "$target_mode" = "no" -a "$debuggable" = "no"]; then
+  if [ "$runtime" = "art" -a "$image_suffix" = "-optimizing" -a "$target_mode" = "no" -a "$debuggable" = "no" ]; then
     run_checker="yes"
     run_args="${run_args} -Xcompiler-option --dump-cfg=$tmp_dir/$cfg_output \
                           -Xcompiler-option -j1"
