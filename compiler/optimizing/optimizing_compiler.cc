@@ -173,24 +173,40 @@ class OptimizingCompiler FINAL : public Compiler {
                           jobject class_loader,
                           const DexFile& dex_file) const OVERRIDE;
 
+  CompiledMethod* TryCompile(const DexFile::CodeItem* code_item,
+                             uint32_t access_flags,
+                             InvokeType invoke_type,
+                             uint16_t class_def_idx,
+                             uint32_t method_idx,
+                             jobject class_loader,
+                             const DexFile& dex_file) const;
+
   CompiledMethod* JniCompile(uint32_t access_flags,
                              uint32_t method_idx,
-                             const DexFile& dex_file) const OVERRIDE;
+                             const DexFile& dex_file) const OVERRIDE {
+    return ArtQuickJniCompileMethod(GetCompilerDriver(), access_flags, method_idx, dex_file);
+  }
 
   uintptr_t GetEntryPointOf(mirror::ArtMethod* method) const OVERRIDE
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCodePtrSize(
+        InstructionSetPointerSize(GetCompilerDriver()->GetInstructionSet())));
+  }
 
   bool WriteElf(art::File* file,
                 OatWriter* oat_writer,
                 const std::vector<const art::DexFile*>& dex_files,
                 const std::string& android_root,
-                bool is_host) const OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+                bool is_host) const OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return art::ElfWriterQuick32::Create(file, oat_writer, dex_files, android_root, is_host,
+                                        *GetCompilerDriver());
+  }
 
-  void InitCompilationUnit(CompilationUnit& cu ATTRIBUTE_UNUSED) const OVERRIDE {}
+  void InitCompilationUnit(CompilationUnit& cu) const OVERRIDE;
 
   void Init() OVERRIDE;
 
-  void UnInit() const OVERRIDE {}
+  void UnInit() const OVERRIDE;
 
  private:
   // Whether we should run any optimization or register allocation. If false, will
@@ -214,6 +230,9 @@ class OptimizingCompiler FINAL : public Compiler {
 
   std::unique_ptr<std::ostream> visualizer_output_;
 
+  // Delegate to Quick in case the optimizing compiler cannot compile a method.
+  std::unique_ptr<Compiler> delegate_;
+
   DISALLOW_COPY_AND_ASSIGN(OptimizingCompiler);
 };
 
@@ -224,9 +243,11 @@ OptimizingCompiler::OptimizingCompiler(CompilerDriver* driver)
       run_optimizations_(
           (driver->GetCompilerOptions().GetCompilerFilter() != CompilerOptions::kTime)
           && !driver->GetCompilerOptions().GetDebuggable()),
-      compilation_stats_() {}
+      compilation_stats_(),
+      delegate_(Create(driver, Compiler::Kind::kQuick)) {}
 
 void OptimizingCompiler::Init() {
+  delegate_->Init();
   // Enable C1visualizer output. Must be done in Init() because the compiler
   // driver is not fully initialized when passed to the compiler's constructor.
   CompilerDriver* driver = GetCompilerDriver();
@@ -239,32 +260,22 @@ void OptimizingCompiler::Init() {
   }
 }
 
+void OptimizingCompiler::UnInit() const {
+  delegate_->UnInit();
+}
+
 OptimizingCompiler::~OptimizingCompiler() {
   compilation_stats_.Log();
+}
+
+void OptimizingCompiler::InitCompilationUnit(CompilationUnit& cu) const {
+  delegate_->InitCompilationUnit(cu);
 }
 
 bool OptimizingCompiler::CanCompileMethod(uint32_t method_idx ATTRIBUTE_UNUSED,
                                           const DexFile& dex_file ATTRIBUTE_UNUSED,
                                           CompilationUnit* cu ATTRIBUTE_UNUSED) const {
   return true;
-}
-
-CompiledMethod* OptimizingCompiler::JniCompile(uint32_t access_flags,
-                                               uint32_t method_idx,
-                                               const DexFile& dex_file) const {
-  return ArtQuickJniCompileMethod(GetCompilerDriver(), access_flags, method_idx, dex_file);
-}
-
-uintptr_t OptimizingCompiler::GetEntryPointOf(mirror::ArtMethod* method) const {
-  return reinterpret_cast<uintptr_t>(method->GetEntryPointFromQuickCompiledCodePtrSize(
-      InstructionSetPointerSize(GetCompilerDriver()->GetInstructionSet())));
-}
-
-bool OptimizingCompiler::WriteElf(art::File* file, OatWriter* oat_writer,
-                                  const std::vector<const art::DexFile*>& dex_files,
-                                  const std::string& android_root, bool is_host) const {
-  return art::ElfWriterQuick32::Create(file, oat_writer, dex_files, android_root, is_host,
-                                       *GetCompilerDriver());
 }
 
 static bool IsInstructionSetSupported(InstructionSet instruction_set) {
@@ -422,13 +433,13 @@ CompiledMethod* OptimizingCompiler::CompileBaseline(
       ArrayRef<const uint8_t>());
 }
 
-CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
-                                            uint32_t access_flags,
-                                            InvokeType invoke_type,
-                                            uint16_t class_def_idx,
-                                            uint32_t method_idx,
-                                            jobject class_loader,
-                                            const DexFile& dex_file) const {
+CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_item,
+                                               uint32_t access_flags,
+                                               InvokeType invoke_type,
+                                               uint16_t class_def_idx,
+                                               uint32_t method_idx,
+                                               jobject class_loader,
+                                               const DexFile& dex_file) const {
   UNUSED(invoke_type);
   std::string method_name = PrettyMethod(method_idx, dex_file);
   compilation_stats_.RecordStat(MethodCompilationStat::kAttemptCompilation);
@@ -502,6 +513,11 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
 
   bool can_optimize = CanOptimize(*code_item);
   bool can_allocate_registers = RegisterAllocator::CanAllocateRegistersFor(*graph, instruction_set);
+
+  // `run_optimizations_` is set explicitly (either through a compiler filter
+  // or the debuggable flag). If it is set, we can run baseline. Otherwise, we fall back
+  // to Quick.
+  bool can_use_baseline = !run_optimizations_;
   if (run_optimizations_ && can_optimize && can_allocate_registers) {
     VLOG(compiler) << "Optimizing " << method_name;
 
@@ -524,7 +540,7 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
   } else if (shouldOptimize && can_allocate_registers) {
     LOG(FATAL) << "Could not allocate registers in optimizing compiler";
     UNREACHABLE();
-  } else {
+  } else if (can_use_baseline) {
     VLOG(compiler) << "Compile baseline " << method_name;
 
     if (!run_optimizations_) {
@@ -536,7 +552,25 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
     }
 
     return CompileBaseline(codegen.get(), compiler_driver, dex_compilation_unit);
+  } else {
+    return nullptr;
   }
+}
+
+CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
+                                            uint32_t access_flags,
+                                            InvokeType invoke_type,
+                                            uint16_t class_def_idx,
+                                            uint32_t method_idx,
+                                            jobject class_loader,
+                                            const DexFile& dex_file) const {
+  CompiledMethod* method = TryCompile(code_item, access_flags, invoke_type, class_def_idx,
+                                      method_idx, class_loader, dex_file);
+  if (method != nullptr) {
+    return method;
+  }
+  return delegate_->Compile(code_item, access_flags, invoke_type, class_def_idx, method_idx,
+                            class_loader, dex_file);
 }
 
 Compiler* CreateOptimizingCompiler(CompilerDriver* driver) {

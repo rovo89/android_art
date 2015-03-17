@@ -66,7 +66,7 @@ void PassDriverMEOpts::ApplyPass(PassDataHolder* data, const Pass* pass) {
     // Is it dirty at least?
     if (pass_me_data_holder->dirty == true) {
       CompilationUnit* c_unit = pass_me_data_holder->c_unit;
-      c_unit->mir_graph.get()->CalculateBasicBlockInformation();
+      c_unit->mir_graph.get()->CalculateBasicBlockInformation(post_opt_pass_manager_);
     }
   }
 }

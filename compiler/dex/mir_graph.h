@@ -38,6 +38,7 @@ class DexCompilationUnit;
 class DexFileMethodInliner;
 class GlobalValueNumbering;
 class GvnDeadCodeElimination;
+class PassManager;
 
 // Forward declaration.
 class MIRGraph;
@@ -1201,7 +1202,7 @@ class MIRGraph {
 
   void AllocateSSAUseData(MIR *mir, int num_uses);
   void AllocateSSADefData(MIR *mir, int num_defs);
-  void CalculateBasicBlockInformation();
+  void CalculateBasicBlockInformation(const PassManager* const post_opt);
   void ComputeDFSOrders();
   void ComputeDefBlockMatrix();
   void ComputeDominators();
