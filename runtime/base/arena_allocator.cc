@@ -33,7 +33,7 @@ template <bool kCount>
 const char* const ArenaAllocatorStatsImpl<kCount>::kAllocNames[] = {
   "Misc       ",
   "BasicBlock ",
-  "BBList     "
+  "BBList     ",
   "BBPreds    ",
   "DfsPreOrd  ",
   "DfsPostOrd ",
