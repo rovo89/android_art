@@ -903,10 +903,6 @@ void LocationsBuilderARM::VisitExit(HExit* exit) {
 
 void InstructionCodeGeneratorARM::VisitExit(HExit* exit) {
   UNUSED(exit);
-  if (kIsDebugBuild) {
-    __ Comment("Unreachable");
-    __ bkpt(0);
-  }
 }
 
 void LocationsBuilderARM::VisitIf(HIf* if_instr) {

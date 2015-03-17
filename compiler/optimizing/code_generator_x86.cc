@@ -812,10 +812,6 @@ void LocationsBuilderX86::VisitExit(HExit* exit) {
 
 void InstructionCodeGeneratorX86::VisitExit(HExit* exit) {
   UNUSED(exit);
-  if (kIsDebugBuild) {
-    __ Comment("Unreachable");
-    __ int3();
-  }
 }
 
 void LocationsBuilderX86::VisitIf(HIf* if_instr) {

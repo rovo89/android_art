@@ -1596,10 +1596,6 @@ void LocationsBuilderARM64::VisitExit(HExit* exit) {
 
 void InstructionCodeGeneratorARM64::VisitExit(HExit* exit) {
   UNUSED(exit);
-  if (kIsDebugBuild) {
-    down_cast<Arm64Assembler*>(GetAssembler())->Comment("Unreachable");
-    __ Brk(__LINE__);    // TODO: Introduce special markers for such code locations.
-  }
 }
 
 void LocationsBuilderARM64::VisitFloatConstant(HFloatConstant* constant) {
