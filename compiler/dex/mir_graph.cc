@@ -2459,11 +2459,9 @@ BasicBlock* MIRGraph::CreateNewBB(BBType block_type) {
   return res;
 }
 
-void MIRGraph::CalculateBasicBlockInformation() {
-  auto* quick_compiler = down_cast<QuickCompiler*>(cu_->compiler_driver->GetCompiler());
-  DCHECK(quick_compiler != nullptr);
+void MIRGraph::CalculateBasicBlockInformation(const PassManager* const post_opt_pass_manager) {
   /* Create the pass driver and launch it */
-  PassDriverMEPostOpt driver(quick_compiler->GetPostOptPassManager(), cu_);
+  PassDriverMEPostOpt driver(post_opt_pass_manager, cu_);
   driver.Launch();
 }
 
