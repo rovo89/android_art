@@ -708,7 +708,7 @@ CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
   }
 
   /* Create the pass driver and launch it */
-  PassDriverMEOpts pass_driver(GetPreOptPassManager(), &cu);
+  PassDriverMEOpts pass_driver(GetPreOptPassManager(), GetPostOptPassManager(), &cu);
   pass_driver.Launch();
 
   /* For non-leaf methods check if we should skip compilation when the profiler is enabled. */
