@@ -637,6 +637,9 @@ bool ArmMir2Lir::GetEasyMultiplyTwoOps(int lit, EasyMultiplyOp* ops) {
     return true;
   }
 
+  ops[1].op = kOpInvalid;
+  ops[1].shift = 0;
+
   return false;
 }
 
