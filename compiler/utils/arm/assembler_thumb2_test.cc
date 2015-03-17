@@ -227,4 +227,14 @@ TEST_F(AssemblerThumb2Test, eor) {
   DriverStr(expected, "abs");
 }
 
+TEST_F(AssemblerThumb2Test, sub) {
+  __ subs(arm::R1, arm::R0, arm::ShifterOperand(42));
+  __ sub(arm::R1, arm::R0, arm::ShifterOperand(42));
+
+  const char* expected =
+      "subs r1, r0, #42\n"
+      "subw r1, r0, #42\n";
+  DriverStr(expected, "sub");
+}
+
 }  // namespace art
