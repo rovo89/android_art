@@ -632,27 +632,27 @@ class CodeInfo {
   }
 
   uint32_t GetOverallSize() const {
-    return region_.Load<uint32_t>(kOverallSizeOffset);
+    return region_.LoadUnaligned<uint32_t>(kOverallSizeOffset);
   }
 
   void SetOverallSize(uint32_t size) {
-    region_.Store<uint32_t>(kOverallSizeOffset, size);
+    region_.StoreUnaligned<uint32_t>(kOverallSizeOffset, size);
   }
 
   uint32_t GetStackMaskSize() const {
-    return region_.Load<uint32_t>(kStackMaskSizeOffset);
+    return region_.LoadUnaligned<uint32_t>(kStackMaskSizeOffset);
   }
 
   void SetStackMaskSize(uint32_t size) {
-    region_.Store<uint32_t>(kStackMaskSizeOffset, size);
+    region_.StoreUnaligned<uint32_t>(kStackMaskSizeOffset, size);
   }
 
   size_t GetNumberOfStackMaps() const {
-    return region_.Load<uint32_t>(kNumberOfStackMapsOffset);
+    return region_.LoadUnaligned<uint32_t>(kNumberOfStackMapsOffset);
   }
 
   void SetNumberOfStackMaps(uint32_t number_of_stack_maps) {
-    region_.Store<uint32_t>(kNumberOfStackMapsOffset, number_of_stack_maps);
+    region_.StoreUnaligned<uint32_t>(kNumberOfStackMapsOffset, number_of_stack_maps);
   }
 
   // Get the size of one stack map of this CodeInfo object, in bytes.
