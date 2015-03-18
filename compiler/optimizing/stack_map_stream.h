@@ -105,8 +105,8 @@ class StackMapStream : public ValueObject {
         + ComputeStackMapsSize()
         + ComputeDexRegisterMapsSize()
         + ComputeInlineInfoSize();
-    // On ARM, CodeInfo data must be 4-byte aligned.
-    return RoundUp(size, kWordAlignment);
+    // Note: use RoundUp to word-size here if you want CodeInfo objects to be word aligned.
+    return size;
   }
 
   size_t ComputeStackMaskSize() const {
