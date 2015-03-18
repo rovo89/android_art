@@ -1058,7 +1058,6 @@ bool GvnDeadCodeElimination::RecordMIR(MIR* mir) {
     case Instruction::INVOKE_INTERFACE_RANGE:
     case Instruction::INVOKE_STATIC:
     case Instruction::INVOKE_STATIC_RANGE:
-    case Instruction::CHECK_CAST:
     case Instruction::THROW:
     case Instruction::FILLED_NEW_ARRAY:
     case Instruction::FILLED_NEW_ARRAY_RANGE:
@@ -1071,6 +1070,12 @@ bool GvnDeadCodeElimination::RecordMIR(MIR* mir) {
     case Instruction::NEW_ARRAY:
       must_keep = true;
       uses_all_vregs = true;
+      break;
+
+    case Instruction::CHECK_CAST:
+      DCHECK_EQ(mir->ssa_rep->num_uses, 1);
+      must_keep = true;  // Keep for type information even if MIR_IGNORE_CHECK_CAST.
+      uses_all_vregs = (mir->optimization_flags & MIR_IGNORE_CHECK_CAST) == 0;
       break;
 
     case kMirOpNullCheck:

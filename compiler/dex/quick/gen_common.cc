@@ -1403,7 +1403,12 @@ void Mir2Lir::GenInstanceof(uint32_t type_idx, RegLocation rl_dest, RegLocation 
   }
 }
 
-void Mir2Lir::GenCheckCast(uint32_t insn_idx, uint32_t type_idx, RegLocation rl_src) {
+void Mir2Lir::GenCheckCast(int opt_flags, uint32_t insn_idx, uint32_t type_idx,
+                           RegLocation rl_src) {
+  if ((opt_flags & MIR_IGNORE_CHECK_CAST) != 0) {
+    // Compiler analysis proved that this check-cast would never cause an exception.
+    return;
+  }
   bool type_known_final, type_known_abstract, use_declaring_class;
   bool needs_access_check = !cu_->compiler_driver->CanAccessTypeWithoutChecks(cu_->method_idx,
                                                                               *cu_->dex_file,
