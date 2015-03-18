@@ -79,6 +79,7 @@ LIBART_COMMON_SRC_FILES := \
   intern_table.cc \
   interpreter/interpreter.cc \
   interpreter/interpreter_common.cc \
+  interpreter/interpreter_goto_table_impl.cc \
   interpreter/interpreter_switch_impl.cc \
   interpreter/unstarted_runtime.cc \
   java_vm_ext.cc \
@@ -201,10 +202,6 @@ LIBART_COMMON_SRC_FILES += \
   entrypoints/quick/quick_thread_entrypoints.cc \
   entrypoints/quick/quick_throw_entrypoints.cc \
   entrypoints/quick/quick_trampoline_entrypoints.cc
-
-# Source files that only compile with GCC.
-LIBART_GCC_ONLY_SRC_FILES := \
-  interpreter/interpreter_goto_table_impl.cc
 
 LIBART_TARGET_LDFLAGS :=
 LIBART_HOST_LDFLAGS :=
@@ -436,19 +433,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
     $$(eval $$(call set-target-local-cflags-vars,$(2)))
     LOCAL_CFLAGS_$(DEX2OAT_TARGET_ARCH) += -DART_DEFAULT_INSTRUCTION_SET_FEATURES="$(LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES)"
     LOCAL_CFLAGS_$(2ND_DEX2OAT_TARGET_ARCH) += -DART_DEFAULT_INSTRUCTION_SET_FEATURES="$(2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES)"
-
-    # TODO: Loop with ifeq, ART_TARGET_CLANG
-    ifneq ($$(ART_TARGET_CLANG_$$(TARGET_ARCH)),true)
-      LOCAL_SRC_FILES_$$(TARGET_ARCH) += $$(LIBART_GCC_ONLY_SRC_FILES)
-    endif
-    ifneq ($$(ART_TARGET_CLANG_$$(TARGET_2ND_ARCH)),true)
-      LOCAL_SRC_FILES_$$(TARGET_2ND_ARCH) += $$(LIBART_GCC_ONLY_SRC_FILES)
-    endif
   else # host
-    ifneq ($$(ART_HOST_CLANG),true)
-      # Add files only built with GCC on the host.
-      LOCAL_SRC_FILES += $$(LIBART_GCC_ONLY_SRC_FILES)
-    endif
     LOCAL_CLANG := $$(ART_HOST_CLANG)
     LOCAL_LDLIBS := $$(ART_HOST_LDLIBS)
     LOCAL_LDLIBS += -ldl -lpthread
@@ -534,7 +519,6 @@ endif
 # Clear locally defined variables.
 LOCAL_PATH :=
 LIBART_COMMON_SRC_FILES :=
-LIBART_GCC_ONLY_SRC_FILES :=
 LIBART_HOST_DEFAULT_INSTRUCTION_SET_FEATURES :=
 LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES :=
 2ND_LIBART_TARGET_DEFAULT_INSTRUCTION_SET_FEATURES :=
