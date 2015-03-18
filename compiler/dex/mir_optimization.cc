@@ -1751,6 +1751,9 @@ bool MIRGraph::CanThrow(MIR* mir) const {
     DCHECK_NE(opt_flags & MIR_IGNORE_NULL_CHECK, 0);
     // Non-throwing only if range check has been eliminated.
     return ((opt_flags & MIR_IGNORE_RANGE_CHECK) == 0);
+  } else if (mir->dalvikInsn.opcode == Instruction::CHECK_CAST &&
+      (opt_flags & MIR_IGNORE_CHECK_CAST) != 0) {
+    return false;
   } else if (mir->dalvikInsn.opcode == Instruction::ARRAY_LENGTH ||
       static_cast<int>(mir->dalvikInsn.opcode) == kMirOpNullCheck) {
     // No more checks for these (null check was processed above).

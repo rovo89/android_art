@@ -136,6 +136,7 @@ class GlobalValueNumberingTest : public testing::Test {
     { bb, static_cast<Instruction::Code>(kMirOpPhi), 0, 0u, 2u, { src1, src2 }, 1, { reg } }
 #define DEF_BINOP(bb, opcode, result, src1, src2) \
     { bb, opcode, 0u, 0u, 2, { src1, src2 }, 1, { result } }
+#define DEF_UNOP(bb, opcode, result, src) DEF_MOVE(bb, opcode, result, src)
 
   void DoPrepareIFields(const IFieldDef* defs, size_t count) {
     cu_.mir_graph->ifield_lowering_infos_.clear();
@@ -2311,6 +2312,97 @@ TEST_F(GlobalValueNumberingTestDiamond, DivZeroCheckDiamond) {
   ASSERT_EQ(arraysize(expected_ignore_div_zero_check), mir_count_);
   for (size_t i = 0u; i != mir_count_; ++i) {
     int expected = expected_ignore_div_zero_check[i] ? MIR_IGNORE_DIV_ZERO_CHECK : 0u;
+    EXPECT_EQ(expected, mirs_[i].optimization_flags) << i;
+  }
+}
+
+TEST_F(GlobalValueNumberingTestDiamond, CheckCastDiamond) {
+  static const MIRDef mirs[] = {
+      DEF_UNOP(3u, Instruction::INSTANCE_OF, 0u, 100u),
+      DEF_UNOP(3u, Instruction::INSTANCE_OF, 1u, 200u),
+      DEF_IFZ(3u, Instruction::IF_NEZ, 0u),
+      DEF_INVOKE1(4u, Instruction::CHECK_CAST, 100u),
+      DEF_INVOKE1(5u, Instruction::CHECK_CAST, 100u),
+      DEF_INVOKE1(5u, Instruction::CHECK_CAST, 200u),
+      DEF_INVOKE1(5u, Instruction::CHECK_CAST, 100u),
+      DEF_INVOKE1(6u, Instruction::CHECK_CAST, 100u),
+  };
+
+  static const bool expected_ignore_check_cast[] = {
+      false,  // instance-of
+      false,  // instance-of
+      false,  // if-nez
+      false,  // Not eliminated, fall-through branch.
+      true,   // Eliminated.
+      false,  // Not eliminated, different value.
+      false,  // Not eliminated, different type.
+      false,  // Not eliminated, bottom block.
+  };
+
+  PrepareMIRs(mirs);
+  mirs_[0].dalvikInsn.vC = 1234;  // type for instance-of
+  mirs_[1].dalvikInsn.vC = 1234;  // type for instance-of
+  mirs_[3].dalvikInsn.vB = 1234;  // type for check-cast
+  mirs_[4].dalvikInsn.vB = 1234;  // type for check-cast
+  mirs_[5].dalvikInsn.vB = 1234;  // type for check-cast
+  mirs_[6].dalvikInsn.vB = 4321;  // type for check-cast
+  mirs_[7].dalvikInsn.vB = 1234;  // type for check-cast
+  PerformGVN();
+  PerformGVNCodeModifications();
+  ASSERT_EQ(arraysize(expected_ignore_check_cast), mir_count_);
+  for (size_t i = 0u; i != mir_count_; ++i) {
+    int expected = expected_ignore_check_cast[i] ? MIR_IGNORE_CHECK_CAST : 0u;
+    EXPECT_EQ(expected, mirs_[i].optimization_flags) << i;
+  }
+}
+
+TEST_F(GlobalValueNumberingTest, CheckCastDominators) {
+  const BBDef bbs[] = {
+      DEF_BB(kNullBlock, DEF_SUCC0(), DEF_PRED0()),
+      DEF_BB(kEntryBlock, DEF_SUCC1(3), DEF_PRED0()),
+      DEF_BB(kExitBlock, DEF_SUCC0(), DEF_PRED1(7)),
+      DEF_BB(kDalvikByteCode, DEF_SUCC2(4, 5), DEF_PRED1(1)),  // Block #3, top of the diamond.
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(7), DEF_PRED1(3)),     // Block #4, left side.
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(6), DEF_PRED1(3)),     // Block #5, right side.
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(7), DEF_PRED1(5)),     // Block #6, right side.
+      DEF_BB(kDalvikByteCode, DEF_SUCC1(2), DEF_PRED2(4, 6)),  // Block #7, bottom.
+  };
+  static const MIRDef mirs[] = {
+      DEF_UNOP(3u, Instruction::INSTANCE_OF, 0u, 100u),
+      DEF_UNOP(3u, Instruction::INSTANCE_OF, 1u, 200u),
+      DEF_IFZ(3u, Instruction::IF_NEZ, 0u),
+      DEF_INVOKE1(4u, Instruction::CHECK_CAST, 100u),
+      DEF_INVOKE1(6u, Instruction::CHECK_CAST, 100u),
+      DEF_INVOKE1(6u, Instruction::CHECK_CAST, 200u),
+      DEF_INVOKE1(6u, Instruction::CHECK_CAST, 100u),
+      DEF_INVOKE1(7u, Instruction::CHECK_CAST, 100u),
+  };
+
+  static const bool expected_ignore_check_cast[] = {
+      false,  // instance-of
+      false,  // instance-of
+      false,  // if-nez
+      false,  // Not eliminated, fall-through branch.
+      true,   // Eliminated.
+      false,  // Not eliminated, different value.
+      false,  // Not eliminated, different type.
+      false,  // Not eliminated, bottom block.
+  };
+
+  PrepareBasicBlocks(bbs);
+  PrepareMIRs(mirs);
+  mirs_[0].dalvikInsn.vC = 1234;  // type for instance-of
+  mirs_[1].dalvikInsn.vC = 1234;  // type for instance-of
+  mirs_[3].dalvikInsn.vB = 1234;  // type for check-cast
+  mirs_[4].dalvikInsn.vB = 1234;  // type for check-cast
+  mirs_[5].dalvikInsn.vB = 1234;  // type for check-cast
+  mirs_[6].dalvikInsn.vB = 4321;  // type for check-cast
+  mirs_[7].dalvikInsn.vB = 1234;  // type for check-cast
+  PerformGVN();
+  PerformGVNCodeModifications();
+  ASSERT_EQ(arraysize(expected_ignore_check_cast), mir_count_);
+  for (size_t i = 0u; i != mir_count_; ++i) {
+    int expected = expected_ignore_check_cast[i] ? MIR_IGNORE_CHECK_CAST : 0u;
     EXPECT_EQ(expected, mirs_[i].optimization_flags) << i;
   }
 }
