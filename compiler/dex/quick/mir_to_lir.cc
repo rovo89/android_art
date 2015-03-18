@@ -632,7 +632,7 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
       break;
 
     case Instruction::CHECK_CAST: {
-      GenCheckCast(mir->offset, vB, rl_src[0]);
+      GenCheckCast(opt_flags, mir->offset, vB, rl_src[0]);
       break;
     }
     case Instruction::INSTANCE_OF:

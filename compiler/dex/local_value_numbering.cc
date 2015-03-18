@@ -1520,7 +1520,6 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
     case Instruction::GOTO:
     case Instruction::GOTO_16:
     case Instruction::GOTO_32:
-    case Instruction::CHECK_CAST:
     case Instruction::THROW:
     case Instruction::FILL_ARRAY_DATA:
     case Instruction::PACKED_SWITCH:
@@ -1612,9 +1611,32 @@ uint16_t LocalValueNumbering::GetValueNumber(MIR* mir) {
       HandleInvokeOrClInitOrAcquireOp(mir);
       break;
 
+    case Instruction::INSTANCE_OF: {
+        uint16_t operand = GetOperandValue(mir->ssa_rep->uses[0]);
+        uint16_t type = mir->dalvikInsn.vC;
+        res = gvn_->LookupValue(Instruction::INSTANCE_OF, operand, type, kNoValue);
+        SetOperandValue(mir->ssa_rep->defs[0], res);
+      }
+      break;
+    case Instruction::CHECK_CAST:
+      if (gvn_->CanModify()) {
+        // Check if there was an instance-of operation on the same value and if we are
+        // in a block where its result is true. If so, we can eliminate the check-cast.
+        uint16_t operand = GetOperandValue(mir->ssa_rep->uses[0]);
+        uint16_t type = mir->dalvikInsn.vB;
+        uint16_t cond = gvn_->FindValue(Instruction::INSTANCE_OF, operand, type, kNoValue);
+        if (cond != kNoValue && gvn_->IsTrueInBlock(cond, Id())) {
+          if (gvn_->GetCompilationUnit()->verbose) {
+            LOG(INFO) << "Removing check-cast at 0x" << std::hex << mir->offset;
+          }
+          // Don't use kMirOpNop. Keep the check-cast as it defines the type of the register.
+          mir->optimization_flags |= MIR_IGNORE_CHECK_CAST;
+        }
+      }
+      break;
+
     case Instruction::MOVE_RESULT:
     case Instruction::MOVE_RESULT_OBJECT:
-    case Instruction::INSTANCE_OF:
       // 1 result, treat as unique each time, use result s_reg - will be unique.
       res = GetOperandValue(mir->ssa_rep->defs[0]);
       SetOperandValue(mir->ssa_rep->defs[0], res);

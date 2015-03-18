@@ -150,6 +150,7 @@ enum OatMethodAttributes {
 
 #define MIR_IGNORE_NULL_CHECK           (1 << kMIRIgnoreNullCheck)
 #define MIR_IGNORE_RANGE_CHECK          (1 << kMIRIgnoreRangeCheck)
+#define MIR_IGNORE_CHECK_CAST           (1 << kMIRIgnoreCheckCast)
 #define MIR_STORE_NON_NULL_VALUE        (1 << kMIRStoreNonNullValue)
 #define MIR_CLASS_IS_INITIALIZED        (1 << kMIRClassIsInitialized)
 #define MIR_CLASS_IS_IN_DEX_CACHE       (1 << kMIRClassIsInDexCache)
