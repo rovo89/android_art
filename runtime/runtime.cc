@@ -692,7 +692,7 @@ static bool OpenDexFilesFromImage(const std::string& image_location,
     return false;
   }
   std::unique_ptr<OatFile> oat_file(OatFile::OpenWithElfFile(elf_file.release(), oat_location,
-                                                             &error_msg));
+                                                             nullptr, &error_msg));
   if (oat_file.get() == nullptr) {
     LOG(INFO) << "Unable to use '" << oat_filename << "' because " << error_msg;
     return false;

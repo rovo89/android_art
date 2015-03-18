@@ -133,7 +133,7 @@ bool ImageWriter::Write(const std::string& image_filename,
     return false;
   }
   std::string error_msg;
-  oat_file_ = OatFile::OpenReadable(oat_file.get(), oat_location, &error_msg);
+  oat_file_ = OatFile::OpenReadable(oat_file.get(), oat_location, nullptr, &error_msg);
   if (oat_file_ == nullptr) {
     PLOG(ERROR) << "Failed to open writable oat file " << oat_filename << " for " << oat_location
         << ": " << error_msg;

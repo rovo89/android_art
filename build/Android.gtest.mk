@@ -166,6 +166,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/mirror/object_test.cc \
   runtime/monitor_pool_test.cc \
   runtime/monitor_test.cc \
+  runtime/oat_file_test.cc \
   runtime/oat_file_assistant_test.cc \
   runtime/parsed_options_test.cc \
   runtime/reference_table_test.cc \

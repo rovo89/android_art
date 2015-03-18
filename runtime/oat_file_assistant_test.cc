@@ -324,12 +324,43 @@ TEST_F(OatFileAssistantTest, MultiDexOatUpToDate) {
   GenerateOatForTest(dex_location.c_str());
 
   // Verify we can load both dex files.
-  OatFileAssistant executable_oat_file_assistant(dex_location.c_str(), kRuntimeISA, true);
-  std::unique_ptr<OatFile> oat_file = executable_oat_file_assistant.GetBestOatFile();
+  OatFileAssistant oat_file_assistant(dex_location.c_str(), kRuntimeISA, true);
+  std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
   ASSERT_TRUE(oat_file.get() != nullptr);
   EXPECT_TRUE(oat_file->IsExecutable());
   std::vector<std::unique_ptr<const DexFile>> dex_files;
-  dex_files = executable_oat_file_assistant.LoadDexFiles(*oat_file, dex_location.c_str());
+  dex_files = oat_file_assistant.LoadDexFiles(*oat_file, dex_location.c_str());
+  EXPECT_EQ(2u, dex_files.size());
+}
+
+// Case: We have a MultiDEX file and up-to-date OAT file for it with relative
+// encoded dex locations.
+// Expect: The oat file status is kUpToDate.
+TEST_F(OatFileAssistantTest, RelativeEncodedDexLocation) {
+  std::string dex_location = GetScratchDir() + "/RelativeEncodedDexLocation.jar";
+  std::string oat_location = GetISADir() + "/RelativeEncodedDexLocation.oat";
+
+  // Create the dex file
+  Copy(GetMultiDexSrc1(), dex_location);
+
+  // Create the oat file with relative encoded dex location.
+  std::vector<std::string> args;
+  args.push_back("--dex-file=" + dex_location);
+  args.push_back("--dex-location=" + std::string("RelativeEncodedDexLocation.jar"));
+  args.push_back("--oat-file=" + oat_location);
+
+  std::string error_msg;
+  ASSERT_TRUE(OatFileAssistant::Dex2Oat(args, &error_msg)) << error_msg;
+
+  // Verify we can load both dex files.
+  OatFileAssistant oat_file_assistant(dex_location.c_str(),
+                                      oat_location.c_str(),
+                                      kRuntimeISA, true);
+  std::unique_ptr<OatFile> oat_file = oat_file_assistant.GetBestOatFile();
+  ASSERT_TRUE(oat_file.get() != nullptr);
+  EXPECT_TRUE(oat_file->IsExecutable());
+  std::vector<std::unique_ptr<const DexFile>> dex_files;
+  dex_files = oat_file_assistant.LoadDexFiles(*oat_file, dex_location.c_str());
   EXPECT_EQ(2u, dex_files.size());
 }
 
