@@ -200,6 +200,9 @@ class GlobalValueNumbering : public DeletableArenaObject<kArenaAllocMisc> {
 
   bool DivZeroCheckedInAllPredecessors(const ScopedArenaVector<uint16_t>& merge_names) const;
 
+  bool IsBlockEnteredOnTrue(uint16_t cond, BasicBlockId bb_id);
+  bool IsTrueInBlock(uint16_t cond, BasicBlockId bb_id);
+
   ScopedArenaAllocator* Allocator() const {
     return allocator_;
   }

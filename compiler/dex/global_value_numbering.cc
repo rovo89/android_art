@@ -16,6 +16,7 @@
 
 #include "global_value_numbering.h"
 
+#include "base/bit_vector-inl.h"
 #include "base/stl_util.h"
 #include "local_value_numbering.h"
 
@@ -204,6 +205,43 @@ bool GlobalValueNumbering::DivZeroCheckedInAllPredecessors(
     }
   }
   return true;
+}
+
+bool GlobalValueNumbering::IsBlockEnteredOnTrue(uint16_t cond, BasicBlockId bb_id) {
+  DCHECK_NE(cond, kNoValue);
+  BasicBlock* bb = mir_graph_->GetBasicBlock(bb_id);
+  if (bb->predecessors.size() == 1u) {
+    BasicBlockId pred_id = bb->predecessors[0];
+    BasicBlock* pred_bb = mir_graph_->GetBasicBlock(pred_id);
+    if (pred_bb->last_mir_insn != nullptr) {
+      Instruction::Code opcode = pred_bb->last_mir_insn->dalvikInsn.opcode;
+      if ((opcode == Instruction::IF_NEZ && pred_bb->taken == bb_id) ||
+          (opcode == Instruction::IF_EQZ && pred_bb->fall_through == bb_id)) {
+        DCHECK(lvns_[pred_id] != nullptr);
+        uint16_t operand = lvns_[pred_id]->GetSregValue(pred_bb->last_mir_insn->ssa_rep->uses[0]);
+        if (operand == cond) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+bool GlobalValueNumbering::IsTrueInBlock(uint16_t cond, BasicBlockId bb_id) {
+  // We're not doing proper value propagation, so just see if the condition is used
+  // with if-nez/if-eqz to branch/fall-through to this bb or one of its dominators.
+  DCHECK_NE(cond, kNoValue);
+  if (IsBlockEnteredOnTrue(cond, bb_id)) {
+    return true;
+  }
+  BasicBlock* bb = mir_graph_->GetBasicBlock(bb_id);
+  for (uint32_t dom_id : bb->dominators->Indexes()) {
+    if (IsBlockEnteredOnTrue(cond, dom_id)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 }  // namespace art
