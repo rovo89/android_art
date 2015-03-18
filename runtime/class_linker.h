@@ -661,16 +661,16 @@ class ClassLinker {
    public:
     // Same class loader and descriptor.
     std::size_t operator()(const GcRoot<mirror::Class>& root) const NO_THREAD_SAFETY_ANALYSIS;
-    bool operator()(const GcRoot<mirror::Class>& a, const GcRoot<mirror::Class>& b)
+    bool operator()(const GcRoot<mirror::Class>& a, const GcRoot<mirror::Class>& b) const
         NO_THREAD_SAFETY_ANALYSIS;
     // Same class loader and descriptor.
     std::size_t operator()(const std::pair<const char*, mirror::ClassLoader*>& element) const
         NO_THREAD_SAFETY_ANALYSIS;
     bool operator()(const GcRoot<mirror::Class>& a,
-                    const std::pair<const char*, mirror::ClassLoader*>& b)
+                    const std::pair<const char*, mirror::ClassLoader*>& b) const
         NO_THREAD_SAFETY_ANALYSIS;
     // Same descriptor.
-    bool operator()(const GcRoot<mirror::Class>& a, const char* descriptor)
+    bool operator()(const GcRoot<mirror::Class>& a, const char* descriptor) const
         NO_THREAD_SAFETY_ANALYSIS;
     std::size_t operator()(const char* descriptor) const NO_THREAD_SAFETY_ANALYSIS;
   };

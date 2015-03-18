@@ -5255,7 +5255,7 @@ std::size_t ClassLinker::ClassDescriptorHashEquals::operator()(const GcRoot<mirr
 }
 
 bool ClassLinker::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::Class>& a,
-                                                        const GcRoot<mirror::Class>& b) {
+                                                        const GcRoot<mirror::Class>& b) const {
   if (a.Read()->GetClassLoader() != b.Read()->GetClassLoader()) {
     return false;
   }
@@ -5269,7 +5269,7 @@ std::size_t ClassLinker::ClassDescriptorHashEquals::operator()(
 }
 
 bool ClassLinker::ClassDescriptorHashEquals::operator()(
-    const GcRoot<mirror::Class>& a, const std::pair<const char*, mirror::ClassLoader*>& b) {
+    const GcRoot<mirror::Class>& a, const std::pair<const char*, mirror::ClassLoader*>& b) const {
   if (a.Read()->GetClassLoader() != b.second) {
     return false;
   }
@@ -5277,7 +5277,7 @@ bool ClassLinker::ClassDescriptorHashEquals::operator()(
 }
 
 bool ClassLinker::ClassDescriptorHashEquals::operator()(const GcRoot<mirror::Class>& a,
-                                                        const char* descriptor) {
+                                                        const char* descriptor) const {
   return a.Read()->DescriptorEquals(descriptor);
 }
 
