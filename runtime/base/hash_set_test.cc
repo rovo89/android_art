@@ -21,7 +21,7 @@
 #include <string>
 #include <unordered_set>
 
-#include "common_runtime_test.h"
+#include <gtest/gtest.h>
 #include "hash_map.h"
 
 namespace art {
@@ -35,7 +35,7 @@ struct IsEmptyFnString {
   }
 };
 
-class HashSetTest : public CommonRuntimeTest {
+class HashSetTest : public testing::Test {
  public:
   HashSetTest() : seed_(97421), unique_number_(0) {
   }
