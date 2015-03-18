@@ -360,6 +360,7 @@ $$(OUT_OAT_FILE): $(PRODUCT_OUT)/$(1) $(DEFAULT_DEX_PREOPT_BUILT_IMAGE) $(DEX2OA
 		--boot-image=$(DEFAULT_DEX_PREOPT_BUILT_IMAGE) --dex-file=$(PRODUCT_OUT)/$(1) \
 		--dex-location=/$(1) --oat-file=$$@ \
 		--instruction-set=$(DEX2OAT_TARGET_ARCH) \
+		--instruction-set-variant=$(DEX2OAT_TARGET_CPU_VARIANT) \
 		--instruction-set-features=$(DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES) \
 		--android-root=$(PRODUCT_OUT)/system --include-patch-information \
 		--runtime-arg -Xnorelocate

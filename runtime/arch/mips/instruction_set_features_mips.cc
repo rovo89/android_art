@@ -24,13 +24,56 @@
 
 namespace art {
 
+// An enum for the Mips revision.
+enum class MipsLevel {
+  kBase,
+  kR2,
+  kR5,
+  kR6
+};
+
+#if defined(_MIPS_ARCH_MIPS32R6)
+static constexpr MipsLevel kRuntimeMipsLevel = MipsLevel::kR6;
+#elif defined(_MIPS_ARCH_MIPS32R5)
+static constexpr MipsLevel kRuntimeMipsLevel = MipsLevel::kR5;
+#elif defined(_MIPS_ARCH_MIPS32R2)
+static constexpr MipsLevel kRuntimeMipsLevel = MipsLevel::kR2;
+#else
+static constexpr MipsLevel kRuntimeMipsLevel = MipsLevel::kBase;
+#endif
+
+static void GetFlagsFromCppDefined(bool* mips_isa_gte2, bool* r6, bool* fpu_32bit) {
+  // Override defaults based on compiler flags.
+  if (kRuntimeMipsLevel >= MipsLevel::kR2) {
+    *mips_isa_gte2 = true;
+  } else {
+    *mips_isa_gte2 = false;
+  }
+
+  if (kRuntimeMipsLevel >= MipsLevel::kR5) {
+    *fpu_32bit = false;
+  } else {
+    *fpu_32bit = true;
+  }
+
+  if (kRuntimeMipsLevel >= MipsLevel::kR6) {
+    *r6 = true;
+  } else {
+    *r6 = false;
+  }
+}
+
 const MipsInstructionSetFeatures* MipsInstructionSetFeatures::FromVariant(
     const std::string& variant, std::string* error_msg ATTRIBUTE_UNUSED) {
 
   bool smp = true;  // Conservative default.
-  bool fpu_32bit = true;
-  bool mips_isa_gte2 = false;
-  bool r6 = false;
+
+  // Override defaults based on compiler flags.
+  // This is needed when running ART test where the variant is not defined.
+  bool fpu_32bit;
+  bool mips_isa_gte2;
+  bool r6;
+  GetFlagsFromCppDefined(&mips_isa_gte2, &r6, &fpu_32bit);
 
   // Override defaults based on variant string.
   // Only care if it is R1, R2 or R6 and we assume all CPUs will have a FP unit.
@@ -67,19 +110,11 @@ const MipsInstructionSetFeatures* MipsInstructionSetFeatures::FromBitmap(uint32_
 const MipsInstructionSetFeatures* MipsInstructionSetFeatures::FromCppDefines() {
   // Assume conservative defaults.
   const bool smp = true;
-  bool fpu_32bit = true;
-  bool mips_isa_gte2 = false;
-  bool r6 = false;
 
-  // Override defaults based on compiler flags.
-#if (_MIPS_ARCH_MIPS32R2) || defined(_MIPS_ARCH_MIPS32R5) || defined(_MIPS_ARCH_MIPS32R6)
-  mips_isa_gte2 = true;
-#endif
-
-#if defined(_MIPS_ARCH_MIPS32R6)
-  r6 = true;
-  fpu_32bit = false;
-#endif
+  bool fpu_32bit;
+  bool mips_isa_gte2;
+  bool r6;
+  GetFlagsFromCppDefined(&mips_isa_gte2, &r6, &fpu_32bit);
 
   return new MipsInstructionSetFeatures(smp, fpu_32bit, mips_isa_gte2, r6);
 }
@@ -89,19 +124,11 @@ const MipsInstructionSetFeatures* MipsInstructionSetFeatures::FromCpuInfo() {
   // the kernel puts the appropriate feature flags in here.  Sometimes it doesn't.
   // Assume conservative defaults.
   bool smp = false;
-  bool fpu_32bit = true;
-  bool mips_isa_gte2 = false;
-  bool r6 = false;
 
-  // Override defaults based on compiler flags.
-#if (_MIPS_ARCH_MIPS32R2) || defined(_MIPS_ARCH_MIPS32R5) || defined(_MIPS_ARCH_MIPS32R6)
-  mips_isa_gte2 = true;
-#endif
-
-#if defined(_MIPS_ARCH_MIPS32R6)
-  r6 = true;
-  fpu_32bit = false;
-#endif
+  bool fpu_32bit;
+  bool mips_isa_gte2;
+  bool r6;
+  GetFlagsFromCppDefined(&mips_isa_gte2, &r6, &fpu_32bit);
 
   std::ifstream in("/proc/cpuinfo");
   if (!in.fail()) {
