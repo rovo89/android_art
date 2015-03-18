@@ -203,7 +203,9 @@ class OatFileAssistantTest : public CommonRuntimeTest {
     // Ensure a chunk of memory is reserved for the image space.
     uintptr_t reservation_start = ART_BASE_ADDRESS + ART_BASE_ADDRESS_MIN_DELTA;
     uintptr_t reservation_end = ART_BASE_ADDRESS + ART_BASE_ADDRESS_MAX_DELTA
-      + 100 * 1024 * 1024;
+        // Include the main space that has to come right after the
+        // image in case of the GSS collector.
+        + 384 * MB;
 
     std::string error_msg;
     std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid(), true));
