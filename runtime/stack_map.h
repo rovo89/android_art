@@ -212,6 +212,14 @@ class DexRegisterLocation {
   // Get the actual kind of the location.
   Kind GetInternalKind() const { return kind_; }
 
+  bool operator==(DexRegisterLocation other) const {
+    return kind_ == other.kind_ && value_ == other.value_;
+  }
+
+  bool operator!=(DexRegisterLocation other) const {
+    return !(*this == other);
+  }
+
  private:
   Kind kind_;
   int32_t value_;
