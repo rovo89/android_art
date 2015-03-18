@@ -291,10 +291,18 @@ Heap::Heap(size_t initial_size, size_t growth_limit, size_t min_free, size_t max
     // Try to reserve virtual memory at a lower address if we have a separate non moving space.
     request_begin = reinterpret_cast<uint8_t*>(300 * MB);
   }
+  // Attempt to create 2 mem maps at or after the requested begin.
   if (foreground_collector_type_ != kCollectorTypeCC) {
-    // Attempt to create 2 mem maps at or after the requested begin.
-    main_mem_map_1.reset(MapAnonymousPreferredAddress(kMemMapSpaceName[0], request_begin, capacity_,
-                                                      &error_str));
+    if (separate_non_moving_space) {
+      main_mem_map_1.reset(MapAnonymousPreferredAddress(kMemMapSpaceName[0], request_begin,
+                                                        capacity_, &error_str));
+    } else {
+      // If no separate non-moving space, the main space must come
+      // right after the image space to avoid a gap.
+      main_mem_map_1.reset(MemMap::MapAnonymous(kMemMapSpaceName[0], request_begin, capacity_,
+                                                PROT_READ | PROT_WRITE, true, false,
+                                                &error_str));
+    }
     CHECK(main_mem_map_1.get() != nullptr) << error_str;
   }
   if (support_homogeneous_space_compaction ||
