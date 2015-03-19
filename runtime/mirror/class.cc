@@ -55,26 +55,27 @@ void Class::VisitRoots(RootCallback* callback, void* arg) {
   java_lang_Class_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
 }
 
-void Class::SetStatus(Status new_status, Thread* self) {
-  Status old_status = GetStatus();
+void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {
+  Status old_status = h_this->GetStatus();
   ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
   bool class_linker_initialized = class_linker != nullptr && class_linker->IsInitialized();
   if (LIKELY(class_linker_initialized)) {
     if (UNLIKELY(new_status <= old_status && new_status != kStatusError &&
                  new_status != kStatusRetired)) {
-      LOG(FATAL) << "Unexpected change back of class status for " << PrettyClass(this) << " "
-          << old_status << " -> " << new_status;
+      LOG(FATAL) << "Unexpected change back of class status for " << PrettyClass(h_this.Get())
+                 << " " << old_status << " -> " << new_status;
     }
     if (new_status >= kStatusResolved || old_status >= kStatusResolved) {
       // When classes are being resolved the resolution code should hold the lock.
-      CHECK_EQ(GetLockOwnerThreadId(), self->GetThreadId())
+      CHECK_EQ(h_this->GetLockOwnerThreadId(), self->GetThreadId())
             << "Attempt to change status of class while not holding its lock: "
-            << PrettyClass(this) << " " << old_status << " -> " << new_status;
+            << PrettyClass(h_this.Get()) << " " << old_status << " -> " << new_status;
     }
   }
   if (UNLIKELY(new_status == kStatusError)) {
-    CHECK_NE(GetStatus(), kStatusError)
-        << "Attempt to set as erroneous an already erroneous class " << PrettyClass(this);
+    CHECK_NE(h_this->GetStatus(), kStatusError)
+        << "Attempt to set as erroneous an already erroneous class "
+        << PrettyClass(h_this.Get());
 
     // Stash current exception.
     StackHandleScope<1> hs(self);
@@ -100,7 +101,7 @@ void Class::SetStatus(Status new_status, Thread* self) {
       // case.
       Class* exception_class = old_exception->GetClass();
       if (!eiie_class->IsAssignableFrom(exception_class)) {
-        SetVerifyErrorClass(exception_class);
+        h_this->SetVerifyErrorClass(exception_class);
       }
     }
 
@@ -109,9 +110,9 @@ void Class::SetStatus(Status new_status, Thread* self) {
   }
   static_assert(sizeof(Status) == sizeof(uint32_t), "Size of status not equal to uint32");
   if (Runtime::Current()->IsActiveTransaction()) {
-    SetField32Volatile<true>(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status);
+    h_this->SetField32Volatile<true>(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status);
   } else {
-    SetField32Volatile<false>(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status);
+    h_this->SetField32Volatile<false>(OFFSET_OF_OBJECT_MEMBER(Class, status_), new_status);
   }
 
   if (!class_linker_initialized) {
@@ -121,17 +122,17 @@ void Class::SetStatus(Status new_status, Thread* self) {
   } else {
     // Classes that are being resolved or initialized need to notify waiters that the class status
     // changed. See ClassLinker::EnsureResolved and ClassLinker::WaitForInitializeClass.
-    if (IsTemp()) {
+    if (h_this->IsTemp()) {
       // Class is a temporary one, ensure that waiters for resolution get notified of retirement
       // so that they can grab the new version of the class from the class linker's table.
-      CHECK_LT(new_status, kStatusResolved) << PrettyDescriptor(this);
+      CHECK_LT(new_status, kStatusResolved) << PrettyDescriptor(h_this.Get());
       if (new_status == kStatusRetired || new_status == kStatusError) {
-        NotifyAll(self);
+        h_this->NotifyAll(self);
       }
     } else {
       CHECK_NE(new_status, kStatusRetired);
       if (old_status >= kStatusResolved || new_status >= kStatusResolved) {
-        NotifyAll(self);
+        h_this->NotifyAll(self);
       }
     }
   }
@@ -828,11 +829,12 @@ class CopyClassVisitor {
   void operator()(Object* obj, size_t usable_size) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     UNUSED(usable_size);
-    mirror::Class* new_class_obj = obj->AsClass();
-    mirror::Object::CopyObject(self_, new_class_obj, orig_->Get(), copy_bytes_);
-    new_class_obj->SetStatus(Class::kStatusResolving, self_);
-    new_class_obj->PopulateEmbeddedImtAndVTable(imt_handle_scope_);
-    new_class_obj->SetClassSize(new_length_);
+    StackHandleScope<1> hs(self_);
+    Handle<mirror::Class> h_new_class_obj(hs.NewHandle(obj->AsClass()));
+    mirror::Object::CopyObject(self_, h_new_class_obj.Get(), orig_->Get(), copy_bytes_);
+    mirror::Class::SetStatus(h_new_class_obj, Class::kStatusResolving, self_);
+    h_new_class_obj->PopulateEmbeddedImtAndVTable(imt_handle_scope_);
+    h_new_class_obj->SetClassSize(new_length_);
   }
 
  private:
