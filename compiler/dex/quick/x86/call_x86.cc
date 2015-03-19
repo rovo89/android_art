@@ -21,6 +21,7 @@
 #include "base/logging.h"
 #include "dex/quick/mir_to_lir-inl.h"
 #include "driver/compiler_driver.h"
+#include "driver/compiler_options.h"
 #include "gc/accounting/card_table.h"
 #include "mirror/art_method.h"
 #include "mirror/object_array-inl.h"

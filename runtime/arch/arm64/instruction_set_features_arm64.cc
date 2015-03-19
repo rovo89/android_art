@@ -48,19 +48,23 @@ const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromVariant(
       return nullptr;
     }
   }
-  return new Arm64InstructionSetFeatures(smp, needs_a53_835769_fix);
+
+  // The variants that need a fix for 843419 are the same that need a fix for 835769.
+  bool needs_a53_843419_fix = needs_a53_835769_fix;
+
+  return new Arm64InstructionSetFeatures(smp, needs_a53_835769_fix, needs_a53_843419_fix);
 }
 
 const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromBitmap(uint32_t bitmap) {
   bool smp = (bitmap & kSmpBitfield) != 0;
   bool is_a53 = (bitmap & kA53Bitfield) != 0;
-  return new Arm64InstructionSetFeatures(smp, is_a53);
+  return new Arm64InstructionSetFeatures(smp, is_a53, is_a53);
 }
 
 const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromCppDefines() {
   const bool smp = true;
   const bool is_a53 = true;  // Pessimistically assume all ARM64s are A53s.
-  return new Arm64InstructionSetFeatures(smp, is_a53);
+  return new Arm64InstructionSetFeatures(smp, is_a53, is_a53);
 }
 
 const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromCpuInfo() {
@@ -85,13 +89,13 @@ const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromCpuInfo() {
   } else {
     LOG(ERROR) << "Failed to open /proc/cpuinfo";
   }
-  return new Arm64InstructionSetFeatures(smp, is_a53);
+  return new Arm64InstructionSetFeatures(smp, is_a53, is_a53);
 }
 
 const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromHwcap() {
   bool smp = sysconf(_SC_NPROCESSORS_CONF) > 1;
   const bool is_a53 = true;  // Pessimistically assume all ARM64s are A53s.
-  return new Arm64InstructionSetFeatures(smp, is_a53);
+  return new Arm64InstructionSetFeatures(smp, is_a53, is_a53);
 }
 
 const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromAssembly() {
@@ -140,7 +144,7 @@ const InstructionSetFeatures* Arm64InstructionSetFeatures::AddFeaturesFromSplitS
       return nullptr;
     }
   }
-  return new Arm64InstructionSetFeatures(smp, is_a53);
+  return new Arm64InstructionSetFeatures(smp, is_a53, is_a53);
 }
 
 }  // namespace art

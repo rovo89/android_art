@@ -688,7 +688,7 @@ BasicBlock* MIRGraph::ProcessCanThrow(BasicBlock* cur_block, MIR* insn, DexOffse
 
 /* Parse a Dex method and insert it into the MIRGraph at the current insert point. */
 void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_flags,
-                           InvokeType invoke_type, uint16_t class_def_idx,
+                           InvokeType invoke_type ATTRIBUTE_UNUSED, uint16_t class_def_idx,
                            uint32_t method_idx, jobject class_loader, const DexFile& dex_file) {
   current_code_item_ = code_item;
   method_stack_.push_back(std::make_pair(current_method_, current_offset_));
@@ -726,13 +726,6 @@ void MIRGraph::InlineMethod(const DexFile::CodeItem* code_item, uint32_t access_
     null_block->hidden = true;
     entry_block_ = CreateNewBB(kEntryBlock);
     exit_block_ = CreateNewBB(kExitBlock);
-    // TODO: deprecate all "cu->" fields; move what's left to wherever CompilationUnit is allocated.
-    cu_->dex_file = &dex_file;
-    cu_->class_def_idx = class_def_idx;
-    cu_->method_idx = method_idx;
-    cu_->access_flags = access_flags;
-    cu_->invoke_type = invoke_type;
-    cu_->shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
   } else {
     UNIMPLEMENTED(FATAL) << "Nested inlining not implemented.";
     /*

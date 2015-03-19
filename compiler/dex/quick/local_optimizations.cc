@@ -493,15 +493,14 @@ void Mir2Lir::ApplyLoadHoisting(LIR* head_lir, LIR* tail_lir) {
       /* Found a slot to hoist to */
       if (slot >= 0) {
         LIR* cur_lir = prev_inst_list[slot];
-        LIR* new_load_lir =
-          static_cast<LIR*>(arena_->Alloc(sizeof(LIR), kArenaAllocLIR));
-        *new_load_lir = *this_lir;
+        LIR* prev_lir = PREV_LIR(this_lir);
+        UnlinkLIR(this_lir);
         /*
          * Insertion is guaranteed to succeed since check_lir
          * is never the first LIR on the list
          */
-        InsertLIRBefore(cur_lir, new_load_lir);
-        NopLIR(this_lir);
+        InsertLIRBefore(cur_lir, this_lir);
+        this_lir = prev_lir;  // Continue the loop with the next LIR.
       }
     }
   }

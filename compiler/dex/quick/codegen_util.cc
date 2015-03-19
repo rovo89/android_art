@@ -29,6 +29,7 @@
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/verification_results.h"
 #include "dex/verified_method.h"
+#include "utils/dex_cache_arrays_layout-inl.h"
 #include "verifier/dex_gc_map.h"
 #include "verifier/method_verifier.h"
 #include "vmap_table.h"
@@ -1053,6 +1054,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
       mem_ref_type_(ResourceMask::kHeapRef),
       mask_cache_(arena),
       safepoints_(arena->Adapter()),
+      dex_cache_arrays_layout_(cu->compiler_driver->GetDexCacheArraysLayout(cu->dex_file)),
       in_to_reg_storage_mapping_(arena) {
   switch_tables_.reserve(4);
   fill_array_data_.reserve(4);
@@ -1302,6 +1304,17 @@ void Mir2Lir::LoadClassType(const DexFile& dex_file, uint32_t type_idx,
   }
   // Loads a Class pointer, which is a reference as it lives in the heap.
   OpPcRelLoad(TargetReg(symbolic_reg, kRef), data_target);
+}
+
+bool Mir2Lir::CanUseOpPcRelDexCacheArrayLoad() const {
+  return false;
+}
+
+void Mir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file ATTRIBUTE_UNUSED,
+                                       int offset ATTRIBUTE_UNUSED,
+                                       RegStorage r_dest ATTRIBUTE_UNUSED) {
+  LOG(FATAL) << "No generic implementation.";
+  UNREACHABLE();
 }
 
 std::vector<uint8_t>* Mir2Lir::ReturnFrameDescriptionEntry() {

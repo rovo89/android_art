@@ -32,6 +32,7 @@
 #include "leb128.h"
 #include "safe_map.h"
 #include "utils/array_ref.h"
+#include "utils/dex_cache_arrays_layout.h"
 #include "utils/stack_checks.h"
 
 namespace art {
@@ -956,6 +957,7 @@ class Mir2Lir {
     // Shared by all targets - implemented in gen_loadstore.cc.
     RegLocation LoadCurrMethod();
     void LoadCurrMethodDirect(RegStorage r_tgt);
+    RegStorage LoadCurrMethodWithHint(RegStorage r_hint);
     virtual LIR* LoadConstant(RegStorage r_dest, int value);
     // Natural word size.
     LIR* LoadWordDisp(RegStorage r_base, int displacement, RegStorage r_dest) {
@@ -1092,6 +1094,18 @@ class Mir2Lir {
      */
     virtual void LoadClassType(const DexFile& dex_file, uint32_t type_idx,
                                SpecialTargetRegister symbolic_reg);
+
+    // TODO: Support PC-relative dex cache array loads on all platforms and
+    // replace CanUseOpPcRelDexCacheArrayLoad() with dex_cache_arrays_layout_.Valid().
+    virtual bool CanUseOpPcRelDexCacheArrayLoad() const;
+
+    /*
+     * @brief Load an element of one of the dex cache arrays.
+     * @param dex_file the dex file associated with the target dex cache.
+     * @param offset the offset of the element in the fixed dex cache arrays' layout.
+     * @param r_dest the register where to load the element.
+     */
+    virtual void OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, RegStorage r_dest);
 
     // Routines that work for the generic case, but may be overriden by target.
     /*
@@ -1596,7 +1610,6 @@ class Mir2Lir {
      */
     virtual bool GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special);
 
-  protected:
     void ClobberBody(RegisterInfo* p);
     void SetCurrentDexPc(DexOffset dexpc) {
       current_dalvik_offset_ = dexpc;
@@ -1668,6 +1681,16 @@ class Mir2Lir {
      * @return Returns whether LIR was successfully generated.
      */
     bool GenSpecialIdentity(MIR* mir, const InlineMethod& special);
+
+    /**
+     * @brief Generate code to check if result is null and, if it is, call helper to load it.
+     * @param r_result the result register.
+     * @param trampoline the helper to call in slow path.
+     * @param imm the immediate passed to the helper.
+     * @param r_method the register with ArtMethod* if available, otherwise RegStorage::Invalid().
+     */
+    void GenIfNullUseHelperImmMethod(
+        RegStorage r_result, QuickEntrypointEnum trampoline, int imm, RegStorage r_method);
 
     void AddDivZeroCheckSlowPath(LIR* branch);
 
@@ -1815,7 +1838,9 @@ class Mir2Lir {
     // Record the MIR that generated a given safepoint (nullptr for prologue safepoints).
     ArenaVector<std::pair<LIR*, MIR*>> safepoints_;
 
-  protected:
+    // The layout of the cu_->dex_file's dex cache arrays for PC-relative addressing.
+    const DexCacheArraysLayout dex_cache_arrays_layout_;
+
     // ABI support
     class ShortyArg {
       public:

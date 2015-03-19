@@ -18,6 +18,7 @@
 
 #include "codegen_arm64.h"
 
+#include "arch/arm64/instruction_set_features_arm64.h"
 #include "arch/instruction_set_features.h"
 #include "arm64_lir.h"
 #include "base/logging.h"
@@ -941,6 +942,28 @@ void Arm64Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
   ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
   LIR* lir = NewLIR2(kA64Ldr2rp, As32BitReg(reg).GetReg(), 0);
   lir->target = target;
+}
+
+bool Arm64Mir2Lir::CanUseOpPcRelDexCacheArrayLoad() const {
+  if (cu_->compiler_driver->GetInstructionSetFeatures()->AsArm64InstructionSetFeatures()
+      ->NeedFixCortexA53_843419()) {
+    // TODO: Implement link-time workaround in OatWriter so that we can use ADRP on Cortex-A53.
+    return false;
+  }
+  return dex_cache_arrays_layout_.Valid();
+}
+
+void Arm64Mir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset,
+                                            RegStorage r_dest) {
+  LIR* adrp = NewLIR2(kA64Adrp2xd, r_dest.GetReg(), 0);
+  adrp->operands[2] = WrapPointer(dex_file);
+  adrp->operands[3] = offset;
+  adrp->operands[4] = WrapPointer(adrp);
+  dex_cache_access_insns_.push_back(adrp);
+  LIR* ldr = LoadBaseDisp(r_dest, 0, r_dest, kReference, kNotVolatile);
+  ldr->operands[4] = adrp->operands[4];
+  ldr->flags.fixup = kFixupLabel;
+  dex_cache_access_insns_.push_back(ldr);
 }
 
 LIR* Arm64Mir2Lir::OpVldm(RegStorage r_base, int count) {

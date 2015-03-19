@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 
 #include <memory>
+#include <numeric>
 #include <vector>
 
 #include "base/logging.h"
@@ -54,8 +55,7 @@
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "handle_scope-inl.h"
-
-#include <numeric>
+#include "utils/dex_cache_arrays_layout-inl.h"
 
 using ::art::mirror::ArtField;
 using ::art::mirror::ArtMethod;
@@ -238,7 +238,7 @@ void ImageWriter::AssignImageOffset(mirror::Object* object, ImageWriter::BinSlot
   DCHECK(object != nullptr);
   DCHECK_NE(image_objects_offset_begin_, 0u);
 
-  size_t previous_bin_sizes = GetBinSizeSum(bin_slot.GetBin());  // sum sizes in [0..bin#)
+  size_t previous_bin_sizes = bin_slot_previous_sizes_[bin_slot.GetBin()];
   size_t new_offset = image_objects_offset_begin_ + previous_bin_sizes + bin_slot.GetIndex();
   DCHECK_ALIGNED(new_offset, kObjectAlignment);
 
@@ -293,6 +293,28 @@ void ImageWriter::SetImageBinSlot(mirror::Object* object, BinSlot bin_slot) {
   DCHECK(IsImageBinSlotAssigned(object));
 }
 
+void ImageWriter::PrepareDexCacheArraySlots() {
+  ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
+  ReaderMutexLock mu(Thread::Current(), *class_linker->DexLock());
+  size_t dex_cache_count = class_linker->GetDexCacheCount();
+  uint32_t size = 0u;
+  for (size_t idx = 0; idx < dex_cache_count; ++idx) {
+    DexCache* dex_cache = class_linker->GetDexCache(idx);
+    const DexFile* dex_file = dex_cache->GetDexFile();
+    dex_cache_array_starts_.Put(dex_file, size);
+    DexCacheArraysLayout layout(dex_file);
+    DCHECK(layout.Valid());
+    dex_cache_array_indexes_.Put(dex_cache->GetResolvedTypes(), size + layout.TypesOffset());
+    dex_cache_array_indexes_.Put(dex_cache->GetResolvedMethods(), size + layout.MethodsOffset());
+    dex_cache_array_indexes_.Put(dex_cache->GetResolvedFields(), size + layout.FieldsOffset());
+    dex_cache_array_indexes_.Put(dex_cache->GetStrings(), size + layout.StringsOffset());
+    size += layout.Size();
+  }
+  // Set the slot size early to avoid DCHECK() failures in IsImageBinSlotAssigned()
+  // when AssignImageBinSlot() assigns their indexes out or order.
+  bin_slot_sizes_[kBinDexCacheArray] = size;
+}
+
 void ImageWriter::AssignImageBinSlot(mirror::Object* object) {
   DCHECK(object != nullptr);
   size_t object_size = object->SizeOf();
@@ -307,6 +329,7 @@ void ImageWriter::AssignImageBinSlot(mirror::Object* object) {
   // This means more pages will stay either clean or shared dirty (with zygote) and
   // the app will use less of its own (private) memory.
   Bin bin = kBinRegular;
+  size_t current_offset = 0u;
 
   if (kBinObjects) {
     //
@@ -316,6 +339,12 @@ void ImageWriter::AssignImageBinSlot(mirror::Object* object) {
     // Memory analysis has determined that the following types of objects get dirtied
     // the most:
     //
+    // * Dex cache arrays are stored in a special bin. The arrays for each dex cache have
+    //   a fixed layout which helps improve generated code (using PC-relative addressing),
+    //   so we pre-calculate their offsets separately in PrepareDexCacheArraySlots().
+    //   Since these arrays are huge, most pages do not overlap other objects and it's not
+    //   really important where they are for the clean/dirty separation. Due to their
+    //   special PC-relative addressing, we arbitrarily keep them at the beginning.
     // * Class'es which are verified [their clinit runs only at runtime]
     //   - classes in general [because their static fields get overwritten]
     //   - initialized classes with all-final statics are unlikely to be ever dirty,
@@ -376,13 +405,21 @@ void ImageWriter::AssignImageBinSlot(mirror::Object* object) {
       }
     } else if (object->GetClass<kVerifyNone>()->IsStringClass()) {
       bin = kBinString;  // Strings are almost always immutable (except for object header).
+    } else if (object->IsObjectArray()) {
+      auto it = dex_cache_array_indexes_.find(object);
+      if (it != dex_cache_array_indexes_.end()) {
+        bin = kBinDexCacheArray;
+        current_offset = it->second;  // Use prepared offset defined by the DexCacheLayout.
+      }  // else bin = kBinRegular
     }  // else bin = kBinRegular
   }
 
-  size_t current_offset = bin_slot_sizes_[bin];  // How many bytes the current bin is at (aligned).
-  // Move the current bin size up to accomodate the object we just assigned a bin slot.
   size_t offset_delta = RoundUp(object_size, kObjectAlignment);  // 64-bit alignment
-  bin_slot_sizes_[bin] += offset_delta;
+  if (bin != kBinDexCacheArray) {
+    current_offset = bin_slot_sizes_[bin];  // How many bytes the current bin is at (aligned).
+    // Move the current bin size up to accomodate the object we just assigned a bin slot.
+    bin_slot_sizes_[bin] += offset_delta;
+  }
 
   BinSlot new_bin_slot(bin, current_offset);
   SetImageBinSlot(object, new_bin_slot);
@@ -887,8 +924,17 @@ void ImageWriter::CalculateNewObjectOffsets() {
   // TODO: Image spaces only?
   DCHECK_LT(image_end_, image_->Size());
   image_objects_offset_begin_ = image_end_;
+  // Prepare bin slots for dex cache arrays.
+  PrepareDexCacheArraySlots();
   // Clear any pre-existing monitors which may have been in the monitor words, assign bin slots.
   heap->VisitObjects(WalkFieldsCallback, this);
+  // Calculate cumulative bin slot sizes.
+  size_t previous_sizes = 0u;
+  for (size_t i = 0; i != kBinSize; ++i) {
+    bin_slot_previous_sizes_[i] = previous_sizes;
+    previous_sizes += bin_slot_sizes_[i];
+  }
+  DCHECK_EQ(previous_sizes, GetBinSizeSum());
   // Transform each object's bin slot into an offset which will be used to do the final copy.
   heap->VisitObjects(UnbinObjectsIntoOffsetCallback, this);
   DCHECK(saved_hashes_map_.empty());  // All binslot hashes should've been put into vector by now.
@@ -1187,8 +1233,8 @@ size_t ImageWriter::GetBinSizeSum(ImageWriter::Bin up_to) const {
 
 ImageWriter::BinSlot::BinSlot(uint32_t lockword) : lockword_(lockword) {
   // These values may need to get updated if more bins are added to the enum Bin
-  static_assert(kBinBits == 3, "wrong number of bin bits");
-  static_assert(kBinShift == 29, "wrong number of shift");
+  static_assert(kBinBits == 4, "wrong number of bin bits");
+  static_assert(kBinShift == 28, "wrong number of shift");
   static_assert(sizeof(BinSlot) == sizeof(LockWord), "BinSlot/LockWord must have equal sizes");
 
   DCHECK_LT(GetBin(), kBinSize);

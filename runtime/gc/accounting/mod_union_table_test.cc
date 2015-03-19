@@ -47,7 +47,7 @@ class ModUnionTableTest : public CommonRuntimeTest {
       Thread* self, space::ContinuousMemMapAllocSpace* space, size_t component_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     auto* klass = GetObjectArrayClass(self, space);
-    const size_t size = ComputeArraySize(self, klass, component_count, 2);
+    const size_t size = mirror::ComputeArraySize(component_count, 2);
     size_t bytes_allocated = 0, bytes_tl_bulk_allocated;
     auto* obj = down_cast<mirror::ObjectArray<mirror::Object>*>(
         space->Alloc(self, size, &bytes_allocated, nullptr, &bytes_tl_bulk_allocated));

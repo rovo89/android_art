@@ -635,6 +635,12 @@ CompiledMethod* QuickCompiler::Compile(const DexFile::CodeItem* code_item,
     instruction_set = kThumb2;
   }
   CompilationUnit cu(runtime->GetArenaPool(), instruction_set, driver, class_linker);
+  cu.dex_file = &dex_file;
+  cu.class_def_idx = class_def_idx;
+  cu.method_idx = method_idx;
+  cu.access_flags = access_flags;
+  cu.invoke_type = invoke_type;
+  cu.shorty = dex_file.GetMethodShorty(dex_file.GetMethodId(method_idx));
 
   CHECK((cu.instruction_set == kThumb2) ||
         (cu.instruction_set == kArm64) ||

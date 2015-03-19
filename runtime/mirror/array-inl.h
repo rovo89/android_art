@@ -64,25 +64,20 @@ inline bool Array::CheckIsValidIndex(int32_t index) {
   return true;
 }
 
-static inline size_t ComputeArraySize(Thread* self, Class* array_class, int32_t component_count,
-                                      size_t component_size_shift)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  DCHECK(array_class != NULL);
+static inline size_t ComputeArraySize(int32_t component_count, size_t component_size_shift) {
   DCHECK_GE(component_count, 0);
-  DCHECK(array_class->IsArrayClass());
 
   size_t component_size = 1U << component_size_shift;
   size_t header_size = Array::DataOffset(component_size).SizeValue();
   size_t data_size = static_cast<size_t>(component_count) << component_size_shift;
   size_t size = header_size + data_size;
 
-  // Check for size_t overflow and throw OutOfMemoryError if this was
-  // an unreasonable request.
+  // Check for size_t overflow if this was an unreasonable request
+  // but let the caller throw OutOfMemoryError.
 #ifdef __LP64__
   // 64-bit. No overflow as component_count is 32-bit and the maximum
   // component size is 8.
   DCHECK_LE((1U << component_size_shift), 8U);
-  UNUSED(self);
 #else
   // 32-bit.
   DCHECK_NE(header_size, 0U);
@@ -90,9 +85,6 @@ static inline size_t ComputeArraySize(Thread* self, Class* array_class, int32_t 
   // The array length limit (exclusive).
   const size_t length_limit = (0U - header_size) >> component_size_shift;
   if (UNLIKELY(length_limit <= static_cast<size_t>(component_count))) {
-    self->ThrowOutOfMemoryError(StringPrintf("%s of length %d would overflow",
-                                             PrettyDescriptor(array_class).c_str(),
-                                             component_count).c_str());
     return 0;  // failure
   }
 #endif
@@ -159,15 +151,20 @@ template <bool kIsInstrumented, bool kFillUsable>
 inline Array* Array::Alloc(Thread* self, Class* array_class, int32_t component_count,
                            size_t component_size_shift, gc::AllocatorType allocator_type) {
   DCHECK(allocator_type != gc::kAllocatorTypeLOS);
+  DCHECK(array_class != nullptr);
+  DCHECK(array_class->IsArrayClass());
   DCHECK_EQ(array_class->GetComponentSizeShift(), component_size_shift);
   DCHECK_EQ(array_class->GetComponentSize(), (1U << component_size_shift));
-  size_t size = ComputeArraySize(self, array_class, component_count, component_size_shift);
+  size_t size = ComputeArraySize(component_count, component_size_shift);
 #ifdef __LP64__
   // 64-bit. No size_t overflow.
   DCHECK_NE(size, 0U);
 #else
   // 32-bit.
   if (UNLIKELY(size == 0)) {
+    self->ThrowOutOfMemoryError(StringPrintf("%s of length %d would overflow",
+                                             PrettyDescriptor(array_class).c_str(),
+                                             component_count).c_str());
     return nullptr;
   }
 #endif
