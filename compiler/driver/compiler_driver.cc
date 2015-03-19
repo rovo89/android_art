@@ -1901,7 +1901,7 @@ static void SetVerifiedClass(const ParallelCompilationManager* manager, size_t c
     if (klass->IsResolved()) {
       if (klass->GetStatus() < mirror::Class::kStatusVerified) {
         ObjectLock<mirror::Class> lock(soa.Self(), klass);
-        klass->SetStatus(mirror::Class::kStatusVerified, soa.Self());
+        mirror::Class::SetStatus(klass, mirror::Class::kStatusVerified, soa.Self());
       }
       // Record the final class status if necessary.
       ClassReference ref(manager->GetDexFile(), class_def_index);
