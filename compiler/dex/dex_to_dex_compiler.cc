@@ -180,22 +180,21 @@ void DexCompiler::Compile() {
 }
 
 void DexCompiler::CompileReturnVoid(Instruction* inst, uint32_t dex_pc) {
-  DCHECK(inst->Opcode() == Instruction::RETURN_VOID);
-  // Are we compiling a non-clinit constructor?
-  if (!unit_.IsConstructor() || unit_.IsStatic()) {
-    return;
+  DCHECK_EQ(inst->Opcode(), Instruction::RETURN_VOID);
+  if (unit_.IsConstructor()) {
+    // Are we compiling a non clinit constructor which needs a barrier ?
+    if (!unit_.IsStatic() &&
+        driver_.RequiresConstructorBarrier(Thread::Current(), unit_.GetDexFile(),
+                                           unit_.GetClassDefIndex())) {
+      return;
+    }
   }
-  // Do we need a constructor barrier ?
-  if (!driver_.RequiresConstructorBarrier(Thread::Current(), unit_.GetDexFile(),
-                                         unit_.GetClassDefIndex())) {
-    return;
-  }
-  // Replace RETURN_VOID by RETURN_VOID_BARRIER.
+  // Replace RETURN_VOID by RETURN_VOID_NO_BARRIER.
   VLOG(compiler) << "Replacing " << Instruction::Name(inst->Opcode())
-                 << " by " << Instruction::Name(Instruction::RETURN_VOID_BARRIER)
+                 << " by " << Instruction::Name(Instruction::RETURN_VOID_NO_BARRIER)
                  << " at dex pc " << StringPrintf("0x%x", dex_pc) << " in method "
                  << PrettyMethod(unit_.GetDexMethodIndex(), GetDexFile(), true);
-  inst->SetOpcode(Instruction::RETURN_VOID_BARRIER);
+  inst->SetOpcode(Instruction::RETURN_VOID_NO_BARRIER);
 }
 
 Instruction* DexCompiler::CompileCheckCast(Instruction* inst, uint32_t dex_pc) {

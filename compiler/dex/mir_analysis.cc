@@ -416,7 +416,7 @@ static const uint16_t kAnalysisAttributes[kMirOpLast] = {
   // 72 INVOKE_INTERFACE {vD, vE, vF, vG, vA}
   kAnInvoke | kAnHeavyWeight,
 
-  // 73 RETURN_VOID_BARRIER
+  // 73 RETURN_VOID_NO_BARRIER
   kAnBranch,
 
   // 74 INVOKE_VIRTUAL_RANGE {vCCCC .. vNNNN}
