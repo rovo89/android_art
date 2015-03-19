@@ -100,13 +100,21 @@ class JitOptions {
   bool DumpJitInfoOnShutdown() const {
     return dump_info_on_shutdown_;
   }
+  bool UseJIT() const {
+    return use_jit_;
+  }
+  void SetUseJIT(bool b) {
+    use_jit_ = b;
+  }
 
  private:
+  bool use_jit_;
   size_t code_cache_capacity_;
   size_t compile_threshold_;
   bool dump_info_on_shutdown_;
 
-  JitOptions() : code_cache_capacity_(0), compile_threshold_(0), dump_info_on_shutdown_(false) {
+  JitOptions() : use_jit_(false), code_cache_capacity_(0), compile_threshold_(0),
+      dump_info_on_shutdown_(false) {
   }
 };
 

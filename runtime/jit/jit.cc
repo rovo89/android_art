@@ -32,10 +32,8 @@ namespace art {
 namespace jit {
 
 JitOptions* JitOptions::CreateFromRuntimeArguments(const RuntimeArgumentMap& options) {
-  if (!options.GetOrDefault(RuntimeArgumentMap::UseJIT)) {
-    return nullptr;
-  }
   auto* jit_options = new JitOptions;
+  jit_options->use_jit_ = options.GetOrDefault(RuntimeArgumentMap::UseJIT);
   jit_options->code_cache_capacity_ =
       options.GetOrDefault(RuntimeArgumentMap::JITCodeCacheCapacity);
   jit_options->compile_threshold_ =
