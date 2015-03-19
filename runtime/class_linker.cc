@@ -282,7 +282,7 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   CHECK(java_lang_Object.Get() != nullptr);
   // backfill Object as the super class of Class.
   java_lang_Class->SetSuperClass(java_lang_Object.Get());
-  java_lang_Object->SetStatus(mirror::Class::kStatusLoaded, self);
+  mirror::Class::SetStatus(java_lang_Object, mirror::Class::kStatusLoaded, self);
 
   // Object[] next to hold class roots.
   Handle<mirror::Class> object_array_class(hs.NewHandle(
@@ -311,14 +311,14 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
       AllocClass(self, java_lang_Class.Get(), mirror::String::ClassSize())));
   mirror::String::SetClass(java_lang_String.Get());
   java_lang_String->SetObjectSize(mirror::String::InstanceSize());
-  java_lang_String->SetStatus(mirror::Class::kStatusResolved, self);
+  mirror::Class::SetStatus(java_lang_String, mirror::Class::kStatusResolved, self);
 
   // Setup Reference.
   Handle<mirror::Class> java_lang_ref_Reference(hs.NewHandle(
       AllocClass(self, java_lang_Class.Get(), mirror::Reference::ClassSize())));
   mirror::Reference::SetClass(java_lang_ref_Reference.Get());
   java_lang_ref_Reference->SetObjectSize(mirror::Reference::InstanceSize());
-  java_lang_ref_Reference->SetStatus(mirror::Class::kStatusResolved, self);
+  mirror::Class::SetStatus(java_lang_ref_Reference, mirror::Class::kStatusResolved, self);
 
   // Create storage for root classes, save away our work so far (requires descriptors).
   class_roots_ = GcRoot<mirror::ObjectArray<mirror::Class> >(
@@ -360,7 +360,7 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
       AllocClass(self, java_lang_Class.Get(), mirror::DexCache::ClassSize())));
   SetClassRoot(kJavaLangDexCache, java_lang_DexCache.Get());
   java_lang_DexCache->SetObjectSize(mirror::DexCache::InstanceSize());
-  java_lang_DexCache->SetStatus(mirror::Class::kStatusResolved, self);
+  mirror::Class::SetStatus(java_lang_DexCache, mirror::Class::kStatusResolved, self);
 
   // Constructor, Field, Method, and AbstractMethod are necessary so
   // that FindClass can link members.
@@ -369,7 +369,7 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   CHECK(java_lang_reflect_ArtField.Get() != nullptr);
   java_lang_reflect_ArtField->SetObjectSize(mirror::ArtField::InstanceSize());
   SetClassRoot(kJavaLangReflectArtField, java_lang_reflect_ArtField.Get());
-  java_lang_reflect_ArtField->SetStatus(mirror::Class::kStatusResolved, self);
+  mirror::Class::SetStatus(java_lang_reflect_ArtField, mirror::Class::kStatusResolved, self);
   mirror::ArtField::SetClass(java_lang_reflect_ArtField.Get());
 
   Handle<mirror::Class> java_lang_reflect_ArtMethod(hs.NewHandle(
@@ -378,7 +378,7 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   size_t pointer_size = GetInstructionSetPointerSize(Runtime::Current()->GetInstructionSet());
   java_lang_reflect_ArtMethod->SetObjectSize(mirror::ArtMethod::InstanceSize(pointer_size));
   SetClassRoot(kJavaLangReflectArtMethod, java_lang_reflect_ArtMethod.Get());
-  java_lang_reflect_ArtMethod->SetStatus(mirror::Class::kStatusResolved, self);
+  mirror::Class::SetStatus(java_lang_reflect_ArtMethod, mirror::Class::kStatusResolved, self);
   mirror::ArtMethod::SetClass(java_lang_reflect_ArtMethod.Get());
 
   // Set up array classes for string, field, method
@@ -434,18 +434,18 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   }
 
   // Object, String and DexCache need to be rerun through FindSystemClass to finish init
-  java_lang_Object->SetStatus(mirror::Class::kStatusNotReady, self);
+  mirror::Class::SetStatus(java_lang_Object, mirror::Class::kStatusNotReady, self);
   mirror::Class* Object_class = FindSystemClass(self, "Ljava/lang/Object;");
   CHECK_EQ(java_lang_Object.Get(), Object_class);
   CHECK_EQ(java_lang_Object->GetObjectSize(), mirror::Object::InstanceSize());
-  java_lang_String->SetStatus(mirror::Class::kStatusNotReady, self);
+  mirror::Class::SetStatus(java_lang_String, mirror::Class::kStatusNotReady, self);
   mirror::Class* String_class = FindSystemClass(self, "Ljava/lang/String;");
   std::ostringstream os1, os2;
   java_lang_String->DumpClass(os1, mirror::Class::kDumpClassFullDetail);
   String_class->DumpClass(os2, mirror::Class::kDumpClassFullDetail);
   CHECK_EQ(java_lang_String.Get(), String_class) << os1.str() << "\n\n" << os2.str();
   CHECK_EQ(java_lang_String->GetObjectSize(), mirror::String::InstanceSize());
-  java_lang_DexCache->SetStatus(mirror::Class::kStatusNotReady, self);
+  mirror::Class::SetStatus(java_lang_DexCache, mirror::Class::kStatusNotReady, self);
   mirror::Class* DexCache_class = FindSystemClass(self, "Ljava/lang/DexCache;");
   CHECK_EQ(java_lang_String.Get(), String_class);
   CHECK_EQ(java_lang_DexCache.Get(), DexCache_class);
@@ -505,11 +505,11 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   mirror::Class* Class_class = FindSystemClass(self, "Ljava/lang/Class;");
   CHECK_EQ(java_lang_Class.Get(), Class_class);
 
-  java_lang_reflect_ArtMethod->SetStatus(mirror::Class::kStatusNotReady, self);
+  mirror::Class::SetStatus(java_lang_reflect_ArtMethod, mirror::Class::kStatusNotReady, self);
   mirror::Class* Art_method_class = FindSystemClass(self, "Ljava/lang/reflect/ArtMethod;");
   CHECK_EQ(java_lang_reflect_ArtMethod.Get(), Art_method_class);
 
-  java_lang_reflect_ArtField->SetStatus(mirror::Class::kStatusNotReady, self);
+  mirror::Class::SetStatus(java_lang_reflect_ArtField, mirror::Class::kStatusNotReady, self);
   mirror::Class* Art_field_class = FindSystemClass(self, "Ljava/lang/reflect/ArtField;");
   CHECK_EQ(java_lang_reflect_ArtField.Get(), Art_field_class);
 
@@ -533,7 +533,7 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
 
   // java.lang.ref classes need to be specially flagged, but otherwise are normal classes
   // finish initializing Reference class
-  java_lang_ref_Reference->SetStatus(mirror::Class::kStatusNotReady, self);
+  mirror::Class::SetStatus(java_lang_ref_Reference, mirror::Class::kStatusNotReady, self);
   mirror::Class* Reference_class = FindSystemClass(self, "Ljava/lang/ref/Reference;");
   CHECK_EQ(java_lang_ref_Reference.Get(), Reference_class);
   CHECK_EQ(java_lang_ref_Reference->GetObjectSize(), mirror::Reference::InstanceSize());
@@ -1213,7 +1213,7 @@ mirror::Class* ClassLinker::EnsureResolved(Thread* self, const char* descriptor,
     // Check for circular dependencies between classes.
     if (!h_class->IsResolved() && h_class->GetClinitThreadId() == self->GetTid()) {
       ThrowClassCircularityError(h_class.Get());
-      h_class->SetStatus(mirror::Class::kStatusError, self);
+      mirror::Class::SetStatus(h_class, mirror::Class::kStatusError, self);
       return nullptr;
     }
     // Wait for the pending initialization to complete.
@@ -1489,7 +1489,7 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, si
     // An exception occured during load, set status to erroneous while holding klass' lock in case
     // notification is necessary.
     if (!klass->IsErroneous()) {
-      klass->SetStatus(mirror::Class::kStatusError, self);
+      mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
     }
     return nullptr;
   }
@@ -1508,7 +1508,7 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, si
   if (!LoadSuperAndInterfaces(klass, dex_file)) {
     // Loading failed.
     if (!klass->IsErroneous()) {
-      klass->SetStatus(mirror::Class::kStatusError, self);
+      mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
     }
     return nullptr;
   }
@@ -1522,7 +1522,7 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, si
   if (!LinkClass(self, descriptor, klass, interfaces, &new_class)) {
     // Linking failed.
     if (!klass->IsErroneous()) {
-      klass->SetStatus(mirror::Class::kStatusError, self);
+      mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
     }
     return nullptr;
   }
@@ -1894,7 +1894,7 @@ void ClassLinker::LoadClass(Thread* self, const DexFile& dex_file,
   klass->SetAccessFlags(access_flags);
   klass->SetClassLoader(class_loader);
   DCHECK_EQ(klass->GetPrimitiveType(), Primitive::kPrimNot);
-  klass->SetStatus(mirror::Class::kStatusIdx, nullptr);
+  mirror::Class::SetStatus(klass, mirror::Class::kStatusIdx, nullptr);
 
   klass->SetDexClassDefIndex(dex_file.GetIndexForClassDef(dex_class_def));
   klass->SetDexTypeIndex(dex_class_def.class_idx_);
@@ -2223,14 +2223,14 @@ mirror::Class* ClassLinker::InitializePrimitiveClass(mirror::Class* primitive_cl
   StackHandleScope<1> hs(self);
   Handle<mirror::Class> h_class(hs.NewHandle(primitive_class));
   ObjectLock<mirror::Class> lock(self, h_class);
-  primitive_class->SetAccessFlags(kAccPublic | kAccFinal | kAccAbstract);
-  primitive_class->SetPrimitiveType(type);
-  primitive_class->SetStatus(mirror::Class::kStatusInitialized, self);
+  h_class->SetAccessFlags(kAccPublic | kAccFinal | kAccAbstract);
+  h_class->SetPrimitiveType(type);
+  mirror::Class::SetStatus(h_class, mirror::Class::kStatusInitialized, self);
   const char* descriptor = Primitive::Descriptor(type);
-  mirror::Class* existing = InsertClass(descriptor, primitive_class,
+  mirror::Class* existing = InsertClass(descriptor, h_class.Get(),
                                         ComputeModifiedUtf8Hash(descriptor));
   CHECK(existing == nullptr) << "InitPrimitiveClass(" << type << ") failed";
-  return primitive_class;
+  return h_class.Get();
 }
 
 // Create an array class (i.e. the class object for the array, not the
@@ -2336,13 +2336,13 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
   new_class->SetVTable(java_lang_Object->GetVTable());
   new_class->SetPrimitiveType(Primitive::kPrimNot);
   new_class->SetClassLoader(component_type->GetClassLoader());
-  new_class->SetStatus(mirror::Class::kStatusLoaded, self);
+  mirror::Class::SetStatus(new_class, mirror::Class::kStatusLoaded, self);
   {
     StackHandleScope<mirror::Class::kImtSize> hs2(self,
                                                   Runtime::Current()->GetImtUnimplementedMethod());
     new_class->PopulateEmbeddedImtAndVTable(&hs2);
   }
-  new_class->SetStatus(mirror::Class::kStatusInitialized, self);
+  mirror::Class::SetStatus(new_class, mirror::Class::kStatusInitialized, self);
   // don't need to set new_class->SetObjectSize(..)
   // because Object::SizeOf delegates to Array::SizeOf
 
@@ -2672,17 +2672,17 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
   }
 
   if (klass->GetStatus() == mirror::Class::kStatusResolved) {
-    klass->SetStatus(mirror::Class::kStatusVerifying, self);
+    mirror::Class::SetStatus(klass, mirror::Class::kStatusVerifying, self);
   } else {
     CHECK_EQ(klass->GetStatus(), mirror::Class::kStatusRetryVerificationAtRuntime)
         << PrettyClass(klass.Get());
     CHECK(!Runtime::Current()->IsAotCompiler());
-    klass->SetStatus(mirror::Class::kStatusVerifyingAtRuntime, self);
+    mirror::Class::SetStatus(klass, mirror::Class::kStatusVerifyingAtRuntime, self);
   }
 
   // Skip verification if disabled.
   if (!Runtime::Current()->IsVerificationEnabled()) {
-    klass->SetStatus(mirror::Class::kStatusVerified, self);
+    mirror::Class::SetStatus(klass, mirror::Class::kStatusVerified, self);
     EnsurePreverifiedMethods(klass);
     return;
   }
@@ -2715,7 +2715,7 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
       if (Runtime::Current()->IsAotCompiler()) {
         Runtime::Current()->GetCompilerCallbacks()->ClassRejected(ref);
       }
-      klass->SetStatus(mirror::Class::kStatusError, self);
+      mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
       return;
     }
   }
@@ -2730,7 +2730,7 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
         << klass->GetDexCache()->GetLocation()->ToModifiedUtf8();
     ThrowVerifyError(klass.Get(), "Rejecting class %s because it failed compile-time verification",
                      PrettyDescriptor(klass.Get()).c_str());
-    klass->SetStatus(mirror::Class::kStatusError, self);
+    mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
     return;
   }
   verifier::MethodVerifier::FailureKind verifier_failure = verifier::MethodVerifier::kNoFailure;
@@ -2753,10 +2753,10 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
       // Even though there were no verifier failures we need to respect whether the super-class
       // was verified or requiring runtime reverification.
       if (super.Get() == nullptr || super->IsVerified()) {
-        klass->SetStatus(mirror::Class::kStatusVerified, self);
+        mirror::Class::SetStatus(klass, mirror::Class::kStatusVerified, self);
       } else {
         CHECK_EQ(super->GetStatus(), mirror::Class::kStatusRetryVerificationAtRuntime);
-        klass->SetStatus(mirror::Class::kStatusRetryVerificationAtRuntime, self);
+        mirror::Class::SetStatus(klass, mirror::Class::kStatusRetryVerificationAtRuntime, self);
         // Pretend a soft failure occured so that we don't consider the class verified below.
         verifier_failure = verifier::MethodVerifier::kSoftFailure;
       }
@@ -2766,9 +2766,9 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
       // failures at runtime will be handled by slow paths in the generated
       // code. Set status accordingly.
       if (Runtime::Current()->IsAotCompiler()) {
-        klass->SetStatus(mirror::Class::kStatusRetryVerificationAtRuntime, self);
+        mirror::Class::SetStatus(klass, mirror::Class::kStatusRetryVerificationAtRuntime, self);
       } else {
-        klass->SetStatus(mirror::Class::kStatusVerified, self);
+        mirror::Class::SetStatus(klass, mirror::Class::kStatusVerified, self);
         // As this is a fake verified status, make sure the methods are _not_ marked preverified
         // later.
         klass->SetPreverified();
@@ -2780,7 +2780,7 @@ void ClassLinker::VerifyClass(Thread* self, Handle<mirror::Class> klass) {
         << " because: " << error_msg;
     self->AssertNoPendingException();
     ThrowVerifyError(klass.Get(), "%s", error_msg.c_str());
-    klass->SetStatus(mirror::Class::kStatusError, self);
+    mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
   }
   if (preverified || verifier_failure == verifier::MethodVerifier::kNoFailure) {
     // Class is verified so we don't need to do any access check on its methods.
@@ -2947,7 +2947,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   klass->SetName(soa.Decode<mirror::String*>(name));
   mirror::Class* proxy_class = GetClassRoot(kJavaLangReflectProxy);
   klass->SetDexCache(proxy_class->GetDexCache());
-  klass->SetStatus(mirror::Class::kStatusIdx, self);
+  mirror::Class::SetStatus(klass, mirror::Class::kStatusIdx, self);
 
   // Instance fields are inherited, but we add a couple of static fields...
   {
@@ -3022,7 +3022,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   }
 
   klass->SetSuperClass(proxy_class);  // The super class is java.lang.reflect.Proxy
-  klass->SetStatus(mirror::Class::kStatusLoaded, self);  // Now effectively in the loaded state.
+  mirror::Class::SetStatus(klass, mirror::Class::kStatusLoaded, self);  // Now effectively in the loaded state.
   self->AssertNoPendingException();
 
   std::string descriptor(GetDescriptorForProxy(klass.Get()));
@@ -3034,7 +3034,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
     Handle<mirror::ObjectArray<mirror::Class> > h_interfaces(
         hs.NewHandle(soa.Decode<mirror::ObjectArray<mirror::Class>*>(interfaces)));
     if (!LinkClass(self, descriptor.c_str(), klass, h_interfaces, &new_class)) {
-      klass->SetStatus(mirror::Class::kStatusError, self);
+      mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
       return nullptr;
     }
   }
@@ -3053,7 +3053,7 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   {
     // Lock on klass is released. Lock new class object.
     ObjectLock<mirror::Class> initialization_lock(self, klass);
-    klass->SetStatus(mirror::Class::kStatusInitialized, self);
+    mirror::Class::SetStatus(klass, mirror::Class::kStatusInitialized, self);
   }
 
   // sanity checks
@@ -3310,7 +3310,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
     }
 
     if (!ValidateSuperClassDescriptors(klass)) {
-      klass->SetStatus(mirror::Class::kStatusError, self);
+      mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
       return false;
     }
     self->AllowThreadSuspension();
@@ -3320,7 +3320,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
     // From here out other threads may observe that we're initializing and so changes of state
     // require the a notification.
     klass->SetClinitThreadId(self->GetTid());
-    klass->SetStatus(mirror::Class::kStatusInitializing, self);
+    mirror::Class::SetStatus(klass, mirror::Class::kStatusInitializing, self);
 
     t0 = NanoTime();
   }
@@ -3345,7 +3345,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
             << (self->GetException() != nullptr ? self->GetException()->Dump() : "");
         ObjectLock<mirror::Class> lock(self, klass);
         // Initialization failed because the super-class is erroneous.
-        klass->SetStatus(mirror::Class::kStatusError, self);
+        mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
         return false;
       }
     }
@@ -3410,7 +3410,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
 
     if (self->IsExceptionPending()) {
       WrapExceptionInInitializer(klass);
-      klass->SetStatus(mirror::Class::kStatusError, self);
+      mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
       success = false;
     } else if (Runtime::Current()->IsTransactionAborted()) {
       // The exception thrown when the transaction aborted has been caught and cleared
@@ -3418,7 +3418,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
       VLOG(compiler) << "Return from class initializer of " << PrettyDescriptor(klass.Get())
                      << " without exception while transaction was aborted: re-throw it now.";
       Runtime::Current()->ThrowInternalErrorForAbortedTransaction(self);
-      klass->SetStatus(mirror::Class::kStatusError, self);
+      mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
       success = false;
     } else {
       RuntimeStats* global_stats = Runtime::Current()->GetStats();
@@ -3428,7 +3428,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
       global_stats->class_init_time_ns += (t1 - t0);
       thread_stats->class_init_time_ns += (t1 - t0);
       // Set the class as initialized except if failed to initialize static fields.
-      klass->SetStatus(mirror::Class::kStatusInitialized, self);
+      mirror::Class::SetStatus(klass, mirror::Class::kStatusInitialized, self);
       if (VLOG_IS_ON(class_linker)) {
         std::string temp;
         LOG(INFO) << "Initialized class " << klass->GetDescriptor(&temp) << " from " <<
@@ -3454,7 +3454,7 @@ bool ClassLinker::WaitForInitializeClass(Handle<mirror::Class> klass, Thread* se
     // we were not using WaitIgnoringInterrupts), bail out.
     if (self->IsExceptionPending()) {
       WrapExceptionInInitializer(klass);
-      klass->SetStatus(mirror::Class::kStatusError, self);
+      mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
       return false;
     }
     // Spurious wakeup? Go back to waiting.
@@ -3688,7 +3688,7 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
 
     // This will notify waiters on klass that saw the not yet resolved
     // class in the class_table_ during EnsureResolved.
-    klass->SetStatus(mirror::Class::kStatusResolved, self);
+    mirror::Class::SetStatus(klass, mirror::Class::kStatusResolved, self);
     *new_class = klass.Get();
   } else {
     CHECK(!klass->IsResolved());
@@ -3696,7 +3696,7 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
     *new_class = klass->CopyOf(self, class_size, &imt_handle_scope);
     if (UNLIKELY(*new_class == nullptr)) {
       CHECK(self->IsExceptionPending());  // Expect an OOME.
-      klass->SetStatus(mirror::Class::kStatusError, self);
+      mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
       return false;
     }
 
@@ -3713,12 +3713,12 @@ bool ClassLinker::LinkClass(Thread* self, const char* descriptor, Handle<mirror:
 
     // This will notify waiters on temp class that saw the not yet resolved class in the
     // class_table_ during EnsureResolved.
-    klass->SetStatus(mirror::Class::kStatusRetired, self);
+    mirror::Class::SetStatus(klass, mirror::Class::kStatusRetired, self);
 
     CHECK_EQ(new_class_h->GetStatus(), mirror::Class::kStatusResolving);
     // This will notify waiters on new_class that saw the not yet resolved
     // class in the class_table_ during EnsureResolved.
-    new_class_h->SetStatus(mirror::Class::kStatusResolved, self);
+    mirror::Class::SetStatus(new_class_h, mirror::Class::kStatusResolved, self);
   }
   return true;
 }
@@ -3933,7 +3933,7 @@ bool ClassLinker::LoadSuperAndInterfaces(Handle<mirror::Class> klass, const DexF
     }
   }
   // Mark the class as loaded.
-  klass->SetStatus(mirror::Class::kStatusLoaded, nullptr);
+  mirror::Class::SetStatus(klass, mirror::Class::kStatusLoaded, nullptr);
   return true;
 }
 
