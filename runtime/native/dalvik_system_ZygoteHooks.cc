@@ -21,6 +21,7 @@
 #include "arch/instruction_set.h"
 #include "debugger.h"
 #include "java_vm_ext.h"
+#include "jit/jit.h"
 #include "jni_internal.h"
 #include "JNIHelp.h"
 #include "ScopedUtfChars.h"
@@ -94,18 +95,17 @@ static void EnableDebugFeatures(uint32_t debug_flags) {
     debug_flags &= ~DEBUG_ENABLE_SAFEMODE;
   }
 
+  bool use_jit = false;
   if ((debug_flags & DEBUG_ENABLE_JIT) != 0) {
     if (safe_mode) {
-      LOG(INFO) << "Not enabling JIT due to VM safe mode";
+      LOG(INFO) << "Not enabling JIT due to safe mode";
     } else {
-      if (runtime->GetJit() == nullptr) {
-        runtime->CreateJit();
-      } else {
-        LOG(INFO) << "Not late-enabling JIT (already on)";
-      }
+      use_jit = true;
+      LOG(INFO) << "Late-enabling JIT";
     }
     debug_flags &= ~DEBUG_ENABLE_JIT;
   }
+  runtime->GetJITOptions()->SetUseJIT(use_jit);
 
   // This is for backwards compatibility with Dalvik.
   debug_flags &= ~DEBUG_ENABLE_ASSERT;
