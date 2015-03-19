@@ -540,6 +540,7 @@ class Runtime {
     return zygote_max_failed_boots_;
   }
 
+  // Create the JIT and instrumentation and code cache.
   void CreateJit();
 
   ArenaPool* GetArenaPool() {
@@ -547,6 +548,10 @@ class Runtime {
   }
   const ArenaPool* GetArenaPool() const {
     return arena_pool_.get();
+  }
+
+  jit::JitOptions* GetJITOptions() {
+    return jit_options_.get();
   }
 
  private:
