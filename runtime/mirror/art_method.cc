@@ -202,8 +202,8 @@ uint32_t ArtMethod::ToDexPc(const uintptr_t pc, bool abort_on_failure) {
   const void* entry_point = GetQuickOatEntryPoint(sizeof(void*));
   uint32_t sought_offset = pc - reinterpret_cast<uintptr_t>(entry_point);
   if (IsOptimized(sizeof(void*))) {
-    uint32_t ret = GetStackMap(sought_offset).GetDexPc();
-    return ret;
+    CodeInfo code_info = GetOptimizedCodeInfo();
+    return code_info.GetStackMapForNativePcOffset(sought_offset).GetDexPc(code_info);
   }
 
   MappingTable table(entry_point != nullptr ?
