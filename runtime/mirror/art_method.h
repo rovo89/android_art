@@ -356,7 +356,6 @@ class MANAGED ArtMethod FINAL : public Object {
   const uint8_t* GetVmapTable(const void* code_pointer, size_t pointer_size)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  StackMap GetStackMap(uint32_t native_pc_offset) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   CodeInfo GetOptimizedCodeInfo() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Callers should wrap the uint8_t* in a GcMap instance for convenient access.
