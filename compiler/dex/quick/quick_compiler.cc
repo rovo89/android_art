@@ -250,7 +250,7 @@ static int kAllOpcodes[] = {
     Instruction::INVOKE_DIRECT,
     Instruction::INVOKE_STATIC,
     Instruction::INVOKE_INTERFACE,
-    Instruction::RETURN_VOID_BARRIER,
+    Instruction::RETURN_VOID_NO_BARRIER,
     Instruction::INVOKE_VIRTUAL_RANGE,
     Instruction::INVOKE_SUPER_RANGE,
     Instruction::INVOKE_DIRECT_RANGE,

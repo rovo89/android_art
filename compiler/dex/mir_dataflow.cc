@@ -374,7 +374,7 @@ const uint64_t MIRGraph::oat_data_flow_attributes_[kMirOpLast] = {
   // 72 INVOKE_INTERFACE {vD, vE, vF, vG, vA}
   DF_FORMAT_35C | DF_NULL_CHK_OUT0 | DF_UMS,
 
-  // 73 RETURN_VOID_BARRIER
+  // 73 RETURN_VOID_NO_BARRIER
   DF_NOP,
 
   // 74 INVOKE_VIRTUAL_RANGE {vCCCC .. vNNNN}
