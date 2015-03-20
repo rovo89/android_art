@@ -204,6 +204,9 @@ class MANAGED Class FINAL : public Object {
 
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags>
   ALWAYS_INLINE uint32_t GetAccessFlags() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static MemberOffset AccessFlagsOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Class, access_flags_);
+  }
 
   void SetAccessFlags(uint32_t new_access_flags) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -527,6 +530,9 @@ class MANAGED Class FINAL : public Object {
   template<VerifyObjectFlags kVerifyFlags = kDefaultVerifyFlags,
            ReadBarrierOption kReadBarrierOption = kWithReadBarrier>
   uint32_t GetObjectSize() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static MemberOffset ObjectSizeOffset() {
+    return OFFSET_OF_OBJECT_MEMBER(Class, object_size_);
+  }
 
   void SetObjectSize(uint32_t new_object_size) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(!IsVariableSize());

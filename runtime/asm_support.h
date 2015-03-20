@@ -103,6 +103,16 @@ ADD_TEST_EQ(THREAD_TOP_QUICK_FRAME_OFFSET,
 ADD_TEST_EQ(THREAD_SELF_OFFSET,
             art::Thread::SelfOffset<__SIZEOF_POINTER__>().Int32Value())
 
+#define THREAD_LOCAL_POS_OFFSET (THREAD_CARD_TABLE_OFFSET + 125 * __SIZEOF_POINTER__)
+ADD_TEST_EQ(THREAD_LOCAL_POS_OFFSET,
+            art::Thread::ThreadLocalPosOffset<__SIZEOF_POINTER__>().Int32Value())
+#define THREAD_LOCAL_END_OFFSET (THREAD_LOCAL_POS_OFFSET + __SIZEOF_POINTER__)
+ADD_TEST_EQ(THREAD_LOCAL_END_OFFSET,
+            art::Thread::ThreadLocalEndOffset<__SIZEOF_POINTER__>().Int32Value())
+#define THREAD_LOCAL_OBJECTS_OFFSET (THREAD_LOCAL_POS_OFFSET + 2 * __SIZEOF_POINTER__)
+ADD_TEST_EQ(THREAD_LOCAL_OBJECTS_OFFSET,
+            art::Thread::ThreadLocalObjectsOffset<__SIZEOF_POINTER__>().Int32Value())
+
 // Offsets within java.lang.Object.
 #define MIRROR_OBJECT_CLASS_OFFSET 0
 ADD_TEST_EQ(MIRROR_OBJECT_CLASS_OFFSET, art::mirror::Object::ClassOffset().Int32Value())
@@ -120,6 +130,22 @@ ADD_TEST_EQ(size_t(MIRROR_OBJECT_HEADER_SIZE), sizeof(art::mirror::Object))
 #define MIRROR_CLASS_COMPONENT_TYPE_OFFSET (4 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_CLASS_COMPONENT_TYPE_OFFSET,
             art::mirror::Class::ComponentTypeOffset().Int32Value())
+#define MIRROR_CLASS_ACCESS_FLAGS_OFFSET (52 + MIRROR_OBJECT_HEADER_SIZE)
+ADD_TEST_EQ(MIRROR_CLASS_ACCESS_FLAGS_OFFSET,
+            art::mirror::Class::AccessFlagsOffset().Int32Value())
+#define MIRROR_CLASS_OBJECT_SIZE_OFFSET (80 + MIRROR_OBJECT_HEADER_SIZE)
+ADD_TEST_EQ(MIRROR_CLASS_OBJECT_SIZE_OFFSET,
+            art::mirror::Class::ObjectSizeOffset().Int32Value())
+#define MIRROR_CLASS_STATUS_OFFSET (92 + MIRROR_OBJECT_HEADER_SIZE)
+ADD_TEST_EQ(MIRROR_CLASS_STATUS_OFFSET,
+            art::mirror::Class::StatusOffset().Int32Value())
+
+#define MIRROR_CLASS_STATUS_INITIALIZED 10
+ADD_TEST_EQ(static_cast<uint32_t>(MIRROR_CLASS_STATUS_INITIALIZED),
+            static_cast<uint32_t>(art::mirror::Class::kStatusInitialized))
+#define ACCESS_FLAGS_CLASS_IS_FINALIZABLE 0x80000000
+ADD_TEST_EQ(static_cast<uint32_t>(ACCESS_FLAGS_CLASS_IS_FINALIZABLE),
+            static_cast<uint32_t>(kAccClassIsFinalizable))
 
 // Array offsets.
 #define MIRROR_ARRAY_LENGTH_OFFSET      MIRROR_OBJECT_HEADER_SIZE
@@ -133,6 +159,10 @@ ADD_TEST_EQ(MIRROR_CHAR_ARRAY_DATA_OFFSET,
 ADD_TEST_EQ(MIRROR_OBJECT_ARRAY_DATA_OFFSET,
     art::mirror::Array::DataOffset(
         sizeof(art::mirror::HeapReference<art::mirror::Object>)).Int32Value())
+
+#define MIRROR_OBJECT_ARRAY_COMPONENT_SIZE 4
+ADD_TEST_EQ(static_cast<size_t>(MIRROR_OBJECT_ARRAY_COMPONENT_SIZE),
+            sizeof(art::mirror::HeapReference<art::mirror::Object>))
 
 // Offsets within java.lang.String.
 #define MIRROR_STRING_VALUE_OFFSET  MIRROR_OBJECT_HEADER_SIZE
@@ -148,6 +178,10 @@ ADD_TEST_EQ(MIRROR_STRING_OFFSET_OFFSET, art::mirror::String::OffsetOffset().Int
 #define MIRROR_ART_METHOD_DEX_CACHE_METHODS_OFFSET (4 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_ART_METHOD_DEX_CACHE_METHODS_OFFSET,
             art::mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value())
+
+#define MIRROR_ART_METHOD_DEX_CACHE_TYPES_OFFSET (8 + MIRROR_OBJECT_HEADER_SIZE)
+ADD_TEST_EQ(MIRROR_ART_METHOD_DEX_CACHE_TYPES_OFFSET,
+            art::mirror::ArtMethod::DexCacheResolvedTypesOffset().Int32Value())
 
 #define MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32        (36 + MIRROR_OBJECT_HEADER_SIZE)
 ADD_TEST_EQ(MIRROR_ART_METHOD_QUICK_CODE_OFFSET_32,
@@ -177,6 +211,13 @@ ADD_TEST_EQ(LOCK_WORD_READ_BARRIER_STATE_MASK_TOGGLED,
 
 #define LOCK_WORD_THIN_LOCK_COUNT_ONE 65536
 ADD_TEST_EQ(LOCK_WORD_THIN_LOCK_COUNT_ONE, static_cast<int32_t>(art::LockWord::kThinLockCountOne))
+
+#define OBJECT_ALIGNMENT_MASK 7
+ADD_TEST_EQ(static_cast<size_t>(OBJECT_ALIGNMENT_MASK), art::kObjectAlignment - 1)
+
+#define OBJECT_ALIGNMENT_MASK_TOGGLED 0xFFFFFFF8
+ADD_TEST_EQ(static_cast<uint32_t>(OBJECT_ALIGNMENT_MASK_TOGGLED),
+            ~static_cast<uint32_t>(art::kObjectAlignment - 1))
 
 #if defined(__cplusplus)
 }  // End of CheckAsmSupportOffsets.

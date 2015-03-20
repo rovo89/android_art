@@ -45,7 +45,7 @@ inline uint32_t Class::GetObjectSize() {
     bool is_variable_size = IsVariableSize<kVerifyFlags, kReadBarrierOption>();
     CHECK(!is_variable_size) << " class=" << PrettyTypeOf(this);
   }
-  return GetField32(OFFSET_OF_OBJECT_MEMBER(Class, object_size_));
+  return GetField32(ObjectSizeOffset());
 }
 
 inline Class* Class::GetSuperClass() {
@@ -523,7 +523,7 @@ inline uint32_t Class::GetAccessFlags() {
       << " IsArtField=" << (this == ArtField::GetJavaLangReflectArtField())
       << " IsArtMethod=" << (this == ArtMethod::GetJavaLangReflectArtMethod())
       << " descriptor=" << PrettyDescriptor(this);
-  return GetField32<kVerifyFlags>(OFFSET_OF_OBJECT_MEMBER(Class, access_flags_));
+  return GetField32<kVerifyFlags>(AccessFlagsOffset());
 }
 
 inline String* Class::GetName() {
