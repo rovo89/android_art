@@ -573,6 +573,21 @@ class Thread {
         OFFSETOF_MEMBER(tls_ptr_sized_values, suspend_trigger));
   }
 
+  template<size_t pointer_size>
+  static ThreadOffset<pointer_size> ThreadLocalPosOffset() {
+    return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values, thread_local_pos));
+  }
+
+  template<size_t pointer_size>
+  static ThreadOffset<pointer_size> ThreadLocalEndOffset() {
+    return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values, thread_local_end));
+  }
+
+  template<size_t pointer_size>
+  static ThreadOffset<pointer_size> ThreadLocalObjectsOffset() {
+    return ThreadOffsetFromTlsPtr<pointer_size>(OFFSETOF_MEMBER(tls_ptr_sized_values, thread_local_objects));
+  }
+
   // Size of stack less any space reserved for stack overflow
   size_t GetStackSize() const {
     return tlsPtr_.stack_size - (tlsPtr_.stack_end - tlsPtr_.stack_begin);
