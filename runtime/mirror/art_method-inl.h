@@ -230,10 +230,6 @@ inline const uint8_t* ArtMethod::GetVmapTable(const void* code_pointer, size_t p
   return reinterpret_cast<const uint8_t*>(code_pointer) - offset;
 }
 
-inline StackMap ArtMethod::GetStackMap(uint32_t native_pc_offset) {
-  return GetOptimizedCodeInfo().GetStackMapForNativePcOffset(native_pc_offset);
-}
-
 inline CodeInfo ArtMethod::GetOptimizedCodeInfo() {
   DCHECK(IsOptimized(sizeof(void*)));
   const void* code_pointer = GetQuickOatCodePointer(sizeof(void*));
