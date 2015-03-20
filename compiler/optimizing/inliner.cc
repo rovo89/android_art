@@ -118,6 +118,29 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
     return false;
   }
 
+  if (resolved_method->ShouldNotInline()) {
+    VLOG(compiler) << "Method " << PrettyMethod(method_index, outer_dex_file)
+                   << " was already flagged as non inlineable";
+    return false;
+  }
+
+  if (!TryBuildAndInline(resolved_method, invoke_instruction, method_index)) {
+    resolved_method->SetShouldNotInline();
+    return false;
+  }
+
+  VLOG(compiler) << "Successfully inlined " << PrettyMethod(method_index, outer_dex_file);
+  MaybeRecordStat(kInlinedInvoke);
+  return true;
+}
+
+bool HInliner::TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
+                                 HInvoke* invoke_instruction,
+                                 uint32_t method_index) const {
+  ScopedObjectAccess soa(Thread::Current());
+  const DexFile::CodeItem* code_item = resolved_method->GetCodeItem();
+  const DexFile& outer_dex_file = *outer_compilation_unit_.GetDexFile();
+
   DexCompilationUnit dex_compilation_unit(
     nullptr,
     outer_compilation_unit_.GetClassLoader(),
@@ -225,8 +248,6 @@ bool HInliner::TryInline(HInvoke* invoke_instruction,
   // instruction id of the caller, so that new instructions added
   // after optimizations get a unique id.
   graph_->SetCurrentInstructionId(callee_graph->GetNextInstructionId());
-  VLOG(compiler) << "Successfully inlined " << PrettyMethod(method_index, outer_dex_file);
-  MaybeRecordStat(kInlinedInvoke);
   return true;
 }
 
