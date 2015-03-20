@@ -434,7 +434,7 @@ public class Instruction implements RawDexObject {
     addOpcodeInfo(Opcode.INVOKE_DIRECT, "invoke-direct", 0x70, new Format35c());
     addOpcodeInfo(Opcode.INVOKE_STATIC, "invoke-static", 0x71, new Format35c());
     addOpcodeInfo(Opcode.INVOKE_INTERFACE, "invoke-interface", 0x72, new Format35c());
-    addOpcodeInfo(Opcode.RETURN_VOID_BARRIER, "return-void-barrier", 0x73, new Format10x());
+    addOpcodeInfo(Opcode.RETURN_VOID_NO_BARRIER, "return-void-no-barrier", 0x73, new Format10x());
     addOpcodeInfo(Opcode.INVOKE_VIRTUAL_RANGE, "invoke-virtual/range", 0x74, new Format3rc());
     addOpcodeInfo(Opcode.INVOKE_SUPER_RANGE, "invoke-super/range", 0x75, new Format3rc());
     addOpcodeInfo(Opcode.INVOKE_DIRECT_RANGE, "invoke-direct/range", 0x76, new Format3rc());

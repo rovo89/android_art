@@ -255,14 +255,8 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   }
   HANDLE_INSTRUCTION_END();
 
-  HANDLE_INSTRUCTION_START(RETURN_VOID) {
+  HANDLE_INSTRUCTION_START(RETURN_VOID_NO_BARRIER) {
     JValue result;
-    if (do_access_check) {
-      // If access checks are required then the dex-to-dex compiler and analysis of
-      // whether the class has final fields hasn't been performed. Conservatively
-      // perform the memory barrier now.
-      QuasiAtomic::ThreadFenceForConstructor();
-    }
     self->AllowThreadSuspension();
     instrumentation::Instrumentation* instrumentation = Runtime::Current()->GetInstrumentation();
     if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
@@ -277,7 +271,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
   }
   HANDLE_INSTRUCTION_END();
 
-  HANDLE_INSTRUCTION_START(RETURN_VOID_BARRIER) {
+  HANDLE_INSTRUCTION_START(RETURN_VOID) {
     QuasiAtomic::ThreadFenceForConstructor();
     JValue result;
     self->AllowThreadSuspension();
@@ -2440,7 +2434,7 @@ JValue ExecuteGotoImpl(Thread* self, const DexFile::CodeItem* code_item, ShadowF
 #define INSTRUMENTATION_INSTRUCTION_HANDLER(o, code, n, f, r, i, a, v)                            \
   alt_op_##code: {                                                                                \
     if (Instruction::code != Instruction::RETURN_VOID &&                                          \
-        Instruction::code != Instruction::RETURN_VOID_BARRIER &&                                  \
+        Instruction::code != Instruction::RETURN_VOID_NO_BARRIER &&                               \
         Instruction::code != Instruction::RETURN &&                                               \
         Instruction::code != Instruction::RETURN_WIDE &&                                          \
         Instruction::code != Instruction::RETURN_OBJECT) {                                        \
