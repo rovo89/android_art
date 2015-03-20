@@ -1412,7 +1412,7 @@ void X86Mir2Lir::GenArrayBoundsCheck(RegStorage index,
    public:
     ArrayBoundsCheckSlowPath(Mir2Lir* m2l, LIR* branch_in,
                              RegStorage index_in, RegStorage array_base_in, int32_t len_offset_in)
-        : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch_in),
+        : LIRSlowPath(m2l, branch_in),
           index_(index_in), array_base_(array_base_in), len_offset_(len_offset_in) {
     }
 
@@ -1460,7 +1460,7 @@ void X86Mir2Lir::GenArrayBoundsCheck(int32_t index,
    public:
     ArrayBoundsCheckSlowPath(Mir2Lir* m2l, LIR* branch_in,
                              int32_t index_in, RegStorage array_base_in, int32_t len_offset_in)
-        : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch_in),
+        : LIRSlowPath(m2l, branch_in),
           index_(index_in), array_base_(array_base_in), len_offset_(len_offset_in) {
     }
 
