@@ -34,6 +34,8 @@ static constexpr size_t kWordAlignment = 4;
 // Size of Dex virtual registers.
 static size_t constexpr kVRegSize = 4;
 
+class CodeInfo;
+
 /**
  * Classes in the following file are wrapper on stack map information backed
  * by a MemoryRegion. As such they read and write to the region, they don't have
@@ -515,63 +517,41 @@ class StackMap {
  public:
   explicit StackMap(MemoryRegion region) : region_(region) {}
 
-  uint32_t GetDexPc() const {
-    return region_.LoadUnaligned<uint32_t>(kDexPcOffset);
-  }
+  uint32_t GetDexPc(const CodeInfo& info) const;
 
-  void SetDexPc(uint32_t dex_pc) {
-    region_.StoreUnaligned<uint32_t>(kDexPcOffset, dex_pc);
-  }
+  void SetDexPc(const CodeInfo& info, uint32_t dex_pc);
 
-  uint32_t GetNativePcOffset() const {
-    return region_.LoadUnaligned<uint32_t>(kNativePcOffsetOffset);
-  }
+  uint32_t GetNativePcOffset(const CodeInfo& info) const;
 
-  void SetNativePcOffset(uint32_t native_pc_offset) {
-    region_.StoreUnaligned<uint32_t>(kNativePcOffsetOffset, native_pc_offset);
-  }
+  void SetNativePcOffset(const CodeInfo& info, uint32_t native_pc_offset);
 
-  uint32_t GetDexRegisterMapOffset() const {
-    return region_.LoadUnaligned<uint32_t>(kDexRegisterMapOffsetOffset);
-  }
+  uint32_t GetDexRegisterMapOffset(const CodeInfo& info) const;
 
-  void SetDexRegisterMapOffset(uint32_t offset) {
-    region_.StoreUnaligned<uint32_t>(kDexRegisterMapOffsetOffset, offset);
-  }
+  void SetDexRegisterMapOffset(const CodeInfo& info, uint32_t offset);
 
-  uint32_t GetInlineDescriptorOffset() const {
-    return region_.LoadUnaligned<uint32_t>(kInlineDescriptorOffsetOffset);
-  }
+  uint32_t GetInlineDescriptorOffset(const CodeInfo& info) const;
 
-  void SetInlineDescriptorOffset(uint32_t offset) {
-    region_.StoreUnaligned<uint32_t>(kInlineDescriptorOffsetOffset, offset);
-  }
+  void SetInlineDescriptorOffset(const CodeInfo& info, uint32_t offset);
 
-  uint32_t GetRegisterMask() const {
-    return region_.LoadUnaligned<uint32_t>(kRegisterMaskOffset);
-  }
+  uint32_t GetRegisterMask(const CodeInfo& info) const;
 
-  void SetRegisterMask(uint32_t mask) {
-    region_.StoreUnaligned<uint32_t>(kRegisterMaskOffset, mask);
-  }
+  void SetRegisterMask(const CodeInfo& info, uint32_t mask);
 
-  MemoryRegion GetStackMask() const {
-    return region_.Subregion(kStackMaskOffset, StackMaskSize());
-  }
+  MemoryRegion GetStackMask(const CodeInfo& info) const;
 
-  void SetStackMask(const BitVector& sp_map) {
-    MemoryRegion region = GetStackMask();
+  void SetStackMask(const CodeInfo& info, const BitVector& sp_map) {
+    MemoryRegion region = GetStackMask(info);
     for (size_t i = 0; i < region.size_in_bits(); i++) {
       region.StoreBit(i, sp_map.IsBitSet(i));
     }
   }
 
-  bool HasDexRegisterMap() const {
-    return GetDexRegisterMapOffset() != kNoDexRegisterMap;
+  bool HasDexRegisterMap(const CodeInfo& info) const {
+    return GetDexRegisterMapOffset(info) != kNoDexRegisterMap;
   }
 
-  bool HasInlineInfo() const {
-    return GetInlineDescriptorOffset() != kNoInlineInfo;
+  bool HasInlineInfo(const CodeInfo& info) const {
+    return GetInlineDescriptorOffset(info) != kNoInlineInfo;
   }
 
   bool Equals(const StackMap& other) const {
@@ -579,31 +559,50 @@ class StackMap {
        && region_.size() == other.region_.size();
   }
 
-  static size_t ComputeStackMapSize(size_t stack_mask_size) {
-    return StackMap::kFixedSize + stack_mask_size;
-  }
+  static size_t ComputeStackMapSize(size_t stack_mask_size,
+                                    bool has_inline_info,
+                                    bool is_small_inline_info,
+                                    bool is_small_dex_map,
+                                    bool is_small_dex_pc,
+                                    bool is_small_native_pc);
+
+  static size_t ComputeStackMapSize(size_t stack_mask_size,
+                                    size_t inline_info_size,
+                                    size_t dex_register_map_size,
+                                    size_t dex_pc_max,
+                                    size_t native_pc_max);
+
+  // TODO: Revisit this abstraction if we allow 3 bytes encoding.
+  typedef uint8_t kSmallEncoding;
+  typedef uint32_t kLargeEncoding;
+  static constexpr size_t kBytesForSmallEncoding = sizeof(kSmallEncoding);
+  static constexpr size_t kBitsForSmallEncoding = kBitsPerByte * kBytesForSmallEncoding;
+  static constexpr size_t kBytesForLargeEncoding = sizeof(kLargeEncoding);
+  static constexpr size_t kBitsForLargeEncoding = kBitsPerByte * kBytesForLargeEncoding;
 
   // Special (invalid) offset for the DexRegisterMapOffset field meaning
   // that there is no Dex register map for this stack map.
   static constexpr uint32_t kNoDexRegisterMap = -1;
+  static constexpr uint32_t kNoDexRegisterMapSmallEncoding =
+      std::numeric_limits<kSmallEncoding>::max();
 
   // Special (invalid) offset for the InlineDescriptorOffset field meaning
   // that there is no inline info for this stack map.
   static constexpr uint32_t kNoInlineInfo = -1;
+  static constexpr uint32_t kNoInlineInfoSmallEncoding =
+    std::numeric_limits<kSmallEncoding>::max();
+
+  // Returns the number of bytes needed for an entry in the StackMap.
+  static size_t NumberOfBytesForEntry(bool small_encoding) {
+    return small_encoding ? kBytesForSmallEncoding : kBytesForLargeEncoding;
+  }
 
  private:
   // TODO: Instead of plain types such as "uint32_t", introduce
   // typedefs (and document the memory layout of StackMap).
-  static constexpr int kDexPcOffset = 0;
-  static constexpr int kNativePcOffsetOffset = kDexPcOffset + sizeof(uint32_t);
-  static constexpr int kDexRegisterMapOffsetOffset = kNativePcOffsetOffset + sizeof(uint32_t);
-  static constexpr int kInlineDescriptorOffsetOffset =
-      kDexRegisterMapOffsetOffset + sizeof(uint32_t);
-  static constexpr int kRegisterMaskOffset = kInlineDescriptorOffsetOffset + sizeof(uint32_t);
+  static constexpr int kRegisterMaskOffset = 0;
   static constexpr int kFixedSize = kRegisterMaskOffset + sizeof(uint32_t);
   static constexpr int kStackMaskOffset = kFixedSize;
-
-  size_t StackMaskSize() const { return region_.size() - kFixedSize; }
 
   MemoryRegion region_;
 
@@ -624,6 +623,80 @@ class CodeInfo {
   explicit CodeInfo(const void* data) {
     uint32_t size = reinterpret_cast<const uint32_t*>(data)[0];
     region_ = MemoryRegion(const_cast<void*>(data), size);
+  }
+
+  void SetEncoding(size_t inline_info_size,
+                   size_t dex_register_map_size,
+                   size_t dex_pc_max,
+                   size_t native_pc_max) {
+    if (inline_info_size != 0) {
+      region_.StoreBit(kHasInlineInfoBitOffset, 1);
+      region_.StoreBit(kHasSmallInlineInfoBitOffset, IsUint<StackMap::kBitsForSmallEncoding>(
+          // + 1 to also encode kNoInlineInfo: if an inline info offset
+          // is at 0xFF, we want to overflow to a larger encoding, because it will
+          // conflict with kNoInlineInfo.
+          // The offset is relative to the dex register map. TODO: Change this.
+          inline_info_size + dex_register_map_size + 1));
+    } else {
+      region_.StoreBit(kHasInlineInfoBitOffset, 0);
+      region_.StoreBit(kHasSmallInlineInfoBitOffset, 0);
+    }
+    region_.StoreBit(kHasSmallDexRegisterMapBitOffset,
+                     // + 1 to also encode kNoDexRegisterMap: if a dex register map offset
+                     // is at 0xFF, we want to overflow to a larger encoding, because it will
+                     // conflict with kNoDexRegisterMap.
+                     IsUint<StackMap::kBitsForSmallEncoding>(dex_register_map_size + 1));
+    region_.StoreBit(kHasSmallDexPcBitOffset, IsUint<StackMap::kBitsForSmallEncoding>(dex_pc_max));
+    region_.StoreBit(kHasSmallNativePcBitOffset,
+                     IsUint<StackMap::kBitsForSmallEncoding>(native_pc_max));
+  }
+
+  bool HasInlineInfo() const {
+    return region_.LoadBit(kHasInlineInfoBitOffset);
+  }
+
+  bool HasSmallInlineInfo() const {
+    return region_.LoadBit(kHasSmallInlineInfoBitOffset);
+  }
+
+  bool HasSmallDexRegisterMap() const {
+    return region_.LoadBit(kHasSmallDexRegisterMapBitOffset);
+  }
+
+  bool HasSmallNativePc() const {
+    return region_.LoadBit(kHasSmallNativePcBitOffset);
+  }
+
+  bool HasSmallDexPc() const {
+    return region_.LoadBit(kHasSmallDexPcBitOffset);
+  }
+
+  size_t ComputeStackMapRegisterMaskOffset() const {
+    return StackMap::kRegisterMaskOffset;
+  }
+
+  size_t ComputeStackMapStackMaskOffset() const {
+    return StackMap::kStackMaskOffset;
+  }
+
+  size_t ComputeStackMapDexPcOffset() const {
+    return ComputeStackMapStackMaskOffset() + GetStackMaskSize();
+  }
+
+  size_t ComputeStackMapNativePcOffset() const {
+    return ComputeStackMapDexPcOffset()
+        + (HasSmallDexPc() ? sizeof(uint8_t) : sizeof(uint32_t));
+  }
+
+  size_t ComputeStackMapDexRegisterMapOffset() const {
+    return ComputeStackMapNativePcOffset()
+        + (HasSmallNativePc() ? sizeof(uint8_t) : sizeof(uint32_t));
+  }
+
+  size_t ComputeStackMapInlineInfoOffset() const {
+    CHECK(HasInlineInfo());
+    return ComputeStackMapDexRegisterMapOffset()
+        + (HasSmallDexRegisterMap() ? sizeof(uint8_t) : sizeof(uint32_t));
   }
 
   StackMap GetStackMapAt(size_t i) const {
@@ -658,7 +731,12 @@ class CodeInfo {
   // Get the size of one stack map of this CodeInfo object, in bytes.
   // All stack maps of a CodeInfo have the same size.
   size_t StackMapSize() const {
-    return StackMap::ComputeStackMapSize(GetStackMaskSize());
+    return StackMap::ComputeStackMapSize(GetStackMaskSize(),
+                                         HasInlineInfo(),
+                                         HasSmallInlineInfo(),
+                                         HasSmallDexRegisterMap(),
+                                         HasSmallDexPc(),
+                                         HasSmallNativePc());
   }
 
   // Get the size all the stack maps of this CodeInfo object, in bytes.
@@ -666,21 +744,25 @@ class CodeInfo {
     return StackMapSize() * GetNumberOfStackMaps();
   }
 
+  size_t GetDexRegisterMapsOffset() const {
+    return CodeInfo::kFixedSize + StackMapsSize();
+  }
+
   uint32_t GetStackMapsOffset() const {
     return kFixedSize;
   }
 
   DexRegisterMap GetDexRegisterMapOf(StackMap stack_map, uint32_t number_of_dex_registers) const {
-    DCHECK(stack_map.HasDexRegisterMap());
-    uint32_t offset = stack_map.GetDexRegisterMapOffset();
+    DCHECK(stack_map.HasDexRegisterMap(*this));
+    uint32_t offset = stack_map.GetDexRegisterMapOffset(*this) + GetDexRegisterMapsOffset();
     size_t size = ComputeDexRegisterMapSize(offset, number_of_dex_registers);
     return DexRegisterMap(region_.Subregion(offset, size));
   }
 
   InlineInfo GetInlineInfoOf(StackMap stack_map) const {
-    DCHECK(stack_map.HasInlineInfo());
-    uint32_t offset = stack_map.GetInlineDescriptorOffset();
-    uint8_t depth = region_.Load<uint8_t>(offset);
+    DCHECK(stack_map.HasInlineInfo(*this));
+    uint32_t offset = stack_map.GetInlineDescriptorOffset(*this) + GetDexRegisterMapsOffset();
+    uint8_t depth = region_.LoadUnaligned<uint8_t>(offset);
     return InlineInfo(region_.Subregion(offset,
         InlineInfo::kFixedSize + depth * InlineInfo::SingleEntrySize()));
   }
@@ -688,7 +770,7 @@ class CodeInfo {
   StackMap GetStackMapForDexPc(uint32_t dex_pc) const {
     for (size_t i = 0, e = GetNumberOfStackMaps(); i < e; ++i) {
       StackMap stack_map = GetStackMapAt(i);
-      if (stack_map.GetDexPc() == dex_pc) {
+      if (stack_map.GetDexPc(*this) == dex_pc) {
         return stack_map;
       }
     }
@@ -700,7 +782,7 @@ class CodeInfo {
     // TODO: stack maps are sorted by native pc, we can do a binary search.
     for (size_t i = 0, e = GetNumberOfStackMaps(); i < e; ++i) {
       StackMap stack_map = GetStackMapAt(i);
-      if (stack_map.GetNativePcOffset() == native_pc_offset) {
+      if (stack_map.GetNativePcOffset(*this) == native_pc_offset) {
         return stack_map;
       }
     }
@@ -708,13 +790,23 @@ class CodeInfo {
     UNREACHABLE();
   }
 
+  void Dump(std::ostream& os, uint16_t number_of_dex_registers) const;
+  void DumpStackMapHeader(std::ostream& os, size_t stack_map_num) const;
+
  private:
   // TODO: Instead of plain types such as "uint32_t", introduce
   // typedefs (and document the memory layout of CodeInfo).
   static constexpr int kOverallSizeOffset = 0;
-  static constexpr int kNumberOfStackMapsOffset = kOverallSizeOffset + sizeof(uint32_t);
+  static constexpr int kEncodingInfoOffset = kOverallSizeOffset + sizeof(uint32_t);
+  static constexpr int kNumberOfStackMapsOffset = kEncodingInfoOffset + sizeof(uint8_t);
   static constexpr int kStackMaskSizeOffset = kNumberOfStackMapsOffset + sizeof(uint32_t);
   static constexpr int kFixedSize = kStackMaskSizeOffset + sizeof(uint32_t);
+
+  static constexpr int kHasInlineInfoBitOffset = (kEncodingInfoOffset * kBitsPerByte);
+  static constexpr int kHasSmallInlineInfoBitOffset = kHasInlineInfoBitOffset + 1;
+  static constexpr int kHasSmallDexRegisterMapBitOffset = kHasSmallInlineInfoBitOffset + 1;
+  static constexpr int kHasSmallDexPcBitOffset = kHasSmallDexRegisterMapBitOffset + 1;
+  static constexpr int kHasSmallNativePcBitOffset = kHasSmallDexPcBitOffset + 1;
 
   MemoryRegion GetStackMaps() const {
     return region_.size() == 0
