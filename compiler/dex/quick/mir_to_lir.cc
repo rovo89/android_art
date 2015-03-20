@@ -406,6 +406,7 @@ bool Mir2Lir::GenSpecialIdentity(MIR* mir, const InlineMethod& special) {
 bool Mir2Lir::GenSpecialCase(BasicBlock* bb, MIR* mir, const InlineMethod& special) {
   DCHECK(special.flags & kInlineSpecial);
   current_dalvik_offset_ = mir->offset;
+  DCHECK(current_mir_ == nullptr);  // Safepoints attributed to prologue.
   MIR* return_mir = nullptr;
   bool successful = false;
   EnsureInitializedArgMappingToPhysicalReg();
@@ -587,9 +588,6 @@ void Mir2Lir::CompileDalvikInstruction(MIR* mir, BasicBlock* bb, LIR* label_list
     case Instruction::MOVE_FROM16:
     case Instruction::MOVE_OBJECT_FROM16:
       StoreValue(rl_dest, rl_src[0]);
-      if (rl_src[0].is_const && (mir_graph_->ConstantValue(rl_src[0]) == 0)) {
-        Workaround7250540(rl_dest, RegStorage::InvalidReg());
-      }
       break;
 
     case Instruction::MOVE_WIDE:
@@ -1276,6 +1274,7 @@ bool Mir2Lir::MethodBlockCodeGen(BasicBlock* bb) {
     }
 
     current_dalvik_offset_ = mir->offset;
+    current_mir_ = mir;
     int opcode = mir->dalvikInsn.opcode;
 
     GenPrintLabel(mir);
@@ -1376,6 +1375,7 @@ void Mir2Lir::MethodMIR2LIR() {
 
 LIR* Mir2Lir::LIRSlowPath::GenerateTargetLabel(int opcode) {
   m2l_->SetCurrentDexPc(current_dex_pc_);
+  m2l_->current_mir_ = current_mir_;
   LIR* target = m2l_->NewLIR0(opcode);
   fromfast_->target = target;
   return target;

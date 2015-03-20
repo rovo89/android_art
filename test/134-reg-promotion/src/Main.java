@@ -38,5 +38,11 @@ public class Main {
             m.invoke(null, (Object[]) null);
             holder = null;
         }
+        m = c.getMethod("run2", (Class[]) null);
+        for (int i = 0; i < 10; i++) {
+            holder = new char[128 * 1024][];
+            m.invoke(null, (Object[]) null);
+            holder = null;
+        }
     }
 }
