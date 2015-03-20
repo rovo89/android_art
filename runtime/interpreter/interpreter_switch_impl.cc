@@ -170,14 +170,8 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         inst = inst->Next_1xx();
         break;
       }
-      case Instruction::RETURN_VOID: {
+      case Instruction::RETURN_VOID_NO_BARRIER: {
         JValue result;
-        if (do_access_check) {
-          // If access checks are required then the dex-to-dex compiler and analysis of
-          // whether the class has final fields hasn't been performed. Conservatively
-          // perform the memory barrier now.
-          QuasiAtomic::ThreadFenceForConstructor();
-        }
         self->AllowThreadSuspension();
         if (UNLIKELY(instrumentation->HasMethodExitListeners())) {
           instrumentation->MethodExitEvent(self, shadow_frame.GetThisObject(code_item->ins_size_),
@@ -189,7 +183,7 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
         }
         return result;
       }
-      case Instruction::RETURN_VOID_BARRIER: {
+      case Instruction::RETURN_VOID: {
         QuasiAtomic::ThreadFenceForConstructor();
         JValue result;
         self->AllowThreadSuspension();
