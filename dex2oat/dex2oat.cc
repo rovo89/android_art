@@ -894,6 +894,8 @@ class Dex2Oat FINAL {
       compiler_filter = CompilerOptions::kVerifyNone;
     } else if (strcmp(compiler_filter_string, "interpret-only") == 0) {
       compiler_filter = CompilerOptions::kInterpretOnly;
+    } else if (strcmp(compiler_filter_string, "verify-at-runtime") == 0) {
+      compiler_filter = CompilerOptions::kVerifyAtRuntime;
     } else if (strcmp(compiler_filter_string, "space") == 0) {
       compiler_filter = CompilerOptions::kSpace;
     } else if (strcmp(compiler_filter_string, "balanced") == 0) {

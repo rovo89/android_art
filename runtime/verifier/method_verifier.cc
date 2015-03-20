@@ -2748,7 +2748,8 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
         auto* klass = declaring_class.GetClass();
         for (uint32_t i = 0, num_fields = klass->NumInstanceFields(); i < num_fields; ++i) {
           if (klass->GetInstanceField(i)->IsFinal()) {
-            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-void-no-barrier not expected";
+            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-void-no-barrier not expected for "
+                << PrettyField(klass->GetInstanceField(i));
             break;
           }
         }

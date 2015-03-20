@@ -491,11 +491,12 @@ void CompilerDriver::CompileAll(jobject class_loader,
   }
 }
 
-static DexToDexCompilationLevel GetDexToDexCompilationlevel(
+DexToDexCompilationLevel CompilerDriver::GetDexToDexCompilationlevel(
     Thread* self, Handle<mirror::ClassLoader> class_loader, const DexFile& dex_file,
-    const DexFile::ClassDef& class_def) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    const DexFile::ClassDef& class_def) {
   auto* const runtime = Runtime::Current();
-  if (runtime->UseJit()) {
+  if (runtime->UseJit() || GetCompilerOptions().VerifyAtRuntime()) {
+    // Verify at runtime shouldn't dex to dex since we didn't resolve of verify.
     return kDontDexToDexCompile;
   }
   const char* descriptor = dex_file.GetClassDescriptor(class_def);
@@ -605,12 +606,22 @@ void CompilerDriver::PreCompile(jobject class_loader, const std::vector<const De
   LoadImageClasses(timings);
   VLOG(compiler) << "LoadImageClasses: " << GetMemoryUsageString(false);
 
-  Resolve(class_loader, dex_files, thread_pool, timings);
-  VLOG(compiler) << "Resolve: " << GetMemoryUsageString(false);
+  const bool verification_enabled = compiler_options_->IsVerificationEnabled();
+  const bool never_verify = compiler_options_->NeverVerify();
 
-  if (!compiler_options_->IsVerificationEnabled()) {
+  // We need to resolve for never_verify since it needs to run dex to dex to add the
+  // RETURN_VOID_NO_BARRIER.
+  if (never_verify || verification_enabled) {
+    Resolve(class_loader, dex_files, thread_pool, timings);
+    VLOG(compiler) << "Resolve: " << GetMemoryUsageString(false);
+  }
+
+  if (never_verify) {
     VLOG(compiler) << "Verify none mode specified, skipping verification.";
     SetVerified(class_loader, dex_files, thread_pool, timings);
+  }
+
+  if (!verification_enabled) {
     return;
   }
 
@@ -2090,6 +2101,8 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
     return;
   }
 
+  CompilerDriver* const driver = manager->GetCompiler();
+
   // Can we run DEX-to-DEX compiler on this class ?
   DexToDexCompilationLevel dex_to_dex_compilation_level = kDontDexToDexCompile;
   {
@@ -2097,8 +2110,8 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::ClassLoader> class_loader(
         hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
-    dex_to_dex_compilation_level = GetDexToDexCompilationlevel(soa.Self(), class_loader, dex_file,
-                                                               class_def);
+    dex_to_dex_compilation_level = driver->GetDexToDexCompilationlevel(
+        soa.Self(), class_loader, dex_file, class_def);
   }
   ClassDataItemIterator it(dex_file, class_data);
   // Skip fields
@@ -2108,7 +2121,6 @@ void CompilerDriver::CompileClass(const ParallelCompilationManager* manager, siz
   while (it.HasNextInstanceField()) {
     it.Next();
   }
-  CompilerDriver* driver = manager->GetCompiler();
 
   bool compilation_enabled = driver->IsClassToCompile(
       dex_file.StringByTypeIdx(class_def.class_idx_));
