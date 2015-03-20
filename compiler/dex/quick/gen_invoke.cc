@@ -48,7 +48,8 @@ void Mir2Lir::AddIntrinsicSlowPath(CallInfo* info, LIR* branch, LIR* resume) {
   class IntrinsicSlowPathPath : public Mir2Lir::LIRSlowPath {
    public:
     IntrinsicSlowPathPath(Mir2Lir* m2l, CallInfo* info_in, LIR* branch_in, LIR* resume_in)
-        : LIRSlowPath(m2l, info_in->offset, branch_in, resume_in), info_(info_in) {
+        : LIRSlowPath(m2l, branch_in, resume_in), info_(info_in) {
+      DCHECK_EQ(info_in->offset, current_dex_pc_);
     }
 
     void Compile() {

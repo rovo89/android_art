@@ -351,8 +351,8 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
     if (generate_explicit_stack_overflow_check) {
       class StackOverflowSlowPath: public LIRSlowPath {
       public:
-        StackOverflowSlowPath(Mir2Lir* m2l, LIR* branch, size_t sp_displace) :
-              LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch, nullptr),
+        StackOverflowSlowPath(Mir2Lir* m2l, LIR* branch, size_t sp_displace)
+            : LIRSlowPath(m2l, branch),
               sp_displace_(sp_displace) {
         }
         void Compile() OVERRIDE {

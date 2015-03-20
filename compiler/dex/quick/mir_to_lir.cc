@@ -27,7 +27,7 @@ namespace art {
 class Mir2Lir::SpecialSuspendCheckSlowPath : public Mir2Lir::LIRSlowPath {
  public:
   SpecialSuspendCheckSlowPath(Mir2Lir* m2l, LIR* branch, LIR* cont)
-      : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch, cont),
+      : LIRSlowPath(m2l, branch, cont),
         num_used_args_(0u) {
   }
 

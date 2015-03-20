@@ -433,7 +433,7 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
       class StackOverflowSlowPath : public LIRSlowPath {
        public:
         StackOverflowSlowPath(Mir2Lir* m2l, LIR* branch, bool restore_lr, size_t sp_displace)
-            : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch, nullptr), restore_lr_(restore_lr),
+            : LIRSlowPath(m2l, branch), restore_lr_(restore_lr),
               sp_displace_(sp_displace) {
         }
         void Compile() OVERRIDE {
