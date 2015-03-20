@@ -230,6 +230,7 @@ $$(core_image_name): $$(TARGET_CORE_DEX_FILES) $$(core_dex2oat_dependency)
 	  $$(addprefix --dex-location=,$$(TARGET_CORE_DEX_LOCATIONS)) --oat-file=$$(PRIVATE_CORE_OAT_NAME) \
 	  --oat-location=$$(PRIVATE_CORE_OAT_NAME) --image=$$(PRIVATE_CORE_IMG_NAME) \
 	  --base=$$(LIBART_IMG_TARGET_BASE_ADDRESS) --instruction-set=$$($(3)TARGET_ARCH) \
+	  --instruction-set-variant=$$($(3)DEX2OAT_TARGET_CPU_VARIANT) \
 	  --instruction-set-features=$$($(3)DEX2OAT_TARGET_INSTRUCTION_SET_FEATURES) \
 	  --android-root=$$(PRODUCT_OUT)/system --include-patch-information \
 	  $$(PRIVATE_CORE_COMPILE_OPTIONS) || (rm $$(PRIVATE_CORE_OAT_NAME); exit 1)
