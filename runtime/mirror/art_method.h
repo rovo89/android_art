@@ -125,6 +125,14 @@ class MANAGED ArtMethod FINAL : public Object {
     return (GetAccessFlags() & kAccNative) != 0;
   }
 
+  bool ShouldNotInline() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return (GetAccessFlags() & kAccDontInline) != 0;
+  }
+
+  void SetShouldNotInline() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    SetAccessFlags(GetAccessFlags() | kAccDontInline);
+  }
+
   bool IsFastNative() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t mask = kAccFastNative | kAccNative;
     return (GetAccessFlags() & mask) == mask;
