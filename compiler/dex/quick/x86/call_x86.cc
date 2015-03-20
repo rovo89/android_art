@@ -193,7 +193,7 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
     class StackOverflowSlowPath : public LIRSlowPath {
      public:
       StackOverflowSlowPath(Mir2Lir* m2l, LIR* branch, size_t sp_displace)
-          : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch, nullptr), sp_displace_(sp_displace) {
+          : LIRSlowPath(m2l, branch), sp_displace_(sp_displace) {
       }
       void Compile() OVERRIDE {
         m2l_->ResetRegPool();
