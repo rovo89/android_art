@@ -109,6 +109,13 @@ static constexpr bool kPoisonHeapReferences = true;
 static constexpr bool kPoisonHeapReferences = false;
 #endif
 
+// If true, enable the tlab allocator by default.
+#ifdef ART_USE_TLAB
+static constexpr bool kUseTlab = true;
+#else
+static constexpr bool kUseTlab = false;
+#endif
+
 // Kinds of tracing clocks.
 enum class TraceClockSource {
   kThreadCpu,
