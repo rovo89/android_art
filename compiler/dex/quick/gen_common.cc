@@ -86,7 +86,7 @@ void Mir2Lir::AddDivZeroCheckSlowPath(LIR* branch) {
   class DivZeroCheckSlowPath : public Mir2Lir::LIRSlowPath {
    public:
     DivZeroCheckSlowPath(Mir2Lir* m2l, LIR* branch_in)
-        : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch_in) {
+        : LIRSlowPath(m2l, branch_in) {
     }
 
     void Compile() OVERRIDE {
@@ -105,7 +105,7 @@ void Mir2Lir::GenArrayBoundsCheck(RegStorage index, RegStorage length) {
    public:
     ArrayBoundsCheckSlowPath(Mir2Lir* m2l, LIR* branch_in, RegStorage index_in,
                              RegStorage length_in)
-        : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch_in),
+        : LIRSlowPath(m2l, branch_in),
           index_(index_in), length_(length_in) {
     }
 
@@ -129,7 +129,7 @@ void Mir2Lir::GenArrayBoundsCheck(int index, RegStorage length) {
   class ArrayBoundsCheckSlowPath : public Mir2Lir::LIRSlowPath {
    public:
     ArrayBoundsCheckSlowPath(Mir2Lir* m2l, LIR* branch_in, int index_in, RegStorage length_in)
-        : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch_in),
+        : LIRSlowPath(m2l, branch_in),
           index_(index_in), length_(length_in) {
     }
 
@@ -159,7 +159,7 @@ LIR* Mir2Lir::GenNullCheck(RegStorage reg) {
   class NullCheckSlowPath : public Mir2Lir::LIRSlowPath {
    public:
     NullCheckSlowPath(Mir2Lir* m2l, LIR* branch)
-        : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch) {
+        : LIRSlowPath(m2l, branch) {
     }
 
     void Compile() OVERRIDE {
@@ -581,7 +581,7 @@ class StaticFieldSlowPath : public Mir2Lir::LIRSlowPath {
   // At least one will be non-null here, otherwise we wouldn't generate the slow path.
   StaticFieldSlowPath(Mir2Lir* m2l, LIR* unresolved, LIR* uninit, LIR* cont, int storage_index,
                       RegStorage r_base)
-      : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), unresolved != nullptr ? unresolved : uninit, cont),
+      : LIRSlowPath(m2l, unresolved != nullptr ? unresolved : uninit, cont),
         second_branch_(unresolved != nullptr ? uninit : nullptr),
         storage_index_(storage_index), r_base_(r_base) {
   }
@@ -1052,9 +1052,9 @@ void Mir2Lir::GenConstClass(uint32_t type_idx, RegLocation rl_dest) {
       class SlowPath : public LIRSlowPath {
        public:
         SlowPath(Mir2Lir* m2l, LIR* fromfast, LIR* cont_in, const int type_idx_in,
-                 const RegLocation& rl_method_in, const RegLocation& rl_result_in) :
-                   LIRSlowPath(m2l, m2l->GetCurrentDexPc(), fromfast, cont_in),
-                   type_idx_(type_idx_in), rl_method_(rl_method_in), rl_result_(rl_result_in) {
+                 const RegLocation& rl_method_in, const RegLocation& rl_result_in)
+            : LIRSlowPath(m2l, fromfast, cont_in),
+              type_idx_(type_idx_in), rl_method_(rl_method_in), rl_result_(rl_result_in) {
         }
 
         void Compile() {
@@ -1120,9 +1120,9 @@ void Mir2Lir::GenConstString(uint32_t string_idx, RegLocation rl_dest) {
       class SlowPath : public LIRSlowPath {
        public:
         SlowPath(Mir2Lir* m2l, LIR* fromfast_in, LIR* cont_in, RegStorage r_method_in,
-                 int32_t string_idx_in) :
-            LIRSlowPath(m2l, m2l->GetCurrentDexPc(), fromfast_in, cont_in),
-            r_method_(r_method_in), string_idx_(string_idx_in) {
+                 int32_t string_idx_in)
+            : LIRSlowPath(m2l, fromfast_in, cont_in),
+              r_method_(r_method_in), string_idx_(string_idx_in) {
         }
 
         void Compile() {
@@ -1304,7 +1304,7 @@ void Mir2Lir::GenInstanceofCallingHelper(bool needs_access_check, bool type_know
        public:
         InitTypeSlowPath(Mir2Lir* m2l, LIR* branch, LIR* cont, uint32_t type_idx_in,
                          RegLocation rl_src_in)
-            : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch, cont), type_idx_(type_idx_in),
+            : LIRSlowPath(m2l, branch, cont), type_idx_(type_idx_in),
               rl_src_(rl_src_in) {
         }
 
@@ -1453,9 +1453,9 @@ void Mir2Lir::GenCheckCast(int opt_flags, uint32_t insn_idx, uint32_t type_idx,
       class SlowPath : public LIRSlowPath {
        public:
         SlowPath(Mir2Lir* m2l, LIR* fromfast, LIR* cont_in, const int type_idx_in,
-                 const RegStorage class_reg_in) :
-                   LIRSlowPath(m2l, m2l->GetCurrentDexPc(), fromfast, cont_in),
-                   type_idx_(type_idx_in), class_reg_(class_reg_in) {
+                 const RegStorage class_reg_in)
+            : LIRSlowPath(m2l, fromfast, cont_in),
+              type_idx_(type_idx_in), class_reg_(class_reg_in) {
         }
 
         void Compile() {
@@ -1484,8 +1484,8 @@ void Mir2Lir::GenCheckCast(int opt_flags, uint32_t insn_idx, uint32_t type_idx,
   // to call a helper function to do the check.
   class SlowPath : public LIRSlowPath {
    public:
-    SlowPath(Mir2Lir* m2l, LIR* fromfast, LIR* cont, bool load):
-               LIRSlowPath(m2l, m2l->GetCurrentDexPc(), fromfast, cont), load_(load) {
+    SlowPath(Mir2Lir* m2l, LIR* fromfast, LIR* cont, bool load)
+        : LIRSlowPath(m2l, fromfast, cont), load_(load) {
     }
 
     void Compile() {
@@ -2179,7 +2179,7 @@ void Mir2Lir::GenConversionCall(QuickEntrypointEnum trampoline, RegLocation rl_d
 class Mir2Lir::SuspendCheckSlowPath : public Mir2Lir::LIRSlowPath {
  public:
   SuspendCheckSlowPath(Mir2Lir* m2l, LIR* branch, LIR* cont)
-      : LIRSlowPath(m2l, m2l->GetCurrentDexPc(), branch, cont) {
+      : LIRSlowPath(m2l, branch, cont) {
   }
 
   void Compile() OVERRIDE {

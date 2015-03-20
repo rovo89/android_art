@@ -490,9 +490,9 @@ class Mir2Lir {
 
     class LIRSlowPath : public ArenaObject<kArenaAllocSlowPaths> {
      public:
-      LIRSlowPath(Mir2Lir* m2l, const DexOffset dexpc, LIR* fromfast,
-                  LIR* cont = nullptr) :
-        m2l_(m2l), cu_(m2l->cu_), current_dex_pc_(dexpc), fromfast_(fromfast), cont_(cont) {
+      LIRSlowPath(Mir2Lir* m2l, LIR* fromfast, LIR* cont = nullptr)
+          : m2l_(m2l), cu_(m2l->cu_), current_dex_pc_(m2l->current_dalvik_offset_),
+            fromfast_(fromfast), cont_(cont) {
       }
       virtual ~LIRSlowPath() {}
       virtual void Compile() = 0;
