@@ -883,7 +883,44 @@ GENERATE_ALLOC_ENTRYPOINTS_ALLOC_ARRAY_WITH_ACCESS_CHECK(_bump_pointer_instrumen
 GENERATE_ALLOC_ENTRYPOINTS_CHECK_AND_ALLOC_ARRAY(_bump_pointer_instrumented, BumpPointerInstrumented)
 GENERATE_ALLOC_ENTRYPOINTS_CHECK_AND_ALLOC_ARRAY_WITH_ACCESS_CHECK(_bump_pointer_instrumented, BumpPointerInstrumented)
 
-GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT(_tlab, TLAB)
+DEFINE_FUNCTION art_quick_alloc_object_tlab
+    // Fast path tlab allocation.
+    // RDI: uint32_t type_idx, RSI: ArtMethod*
+    // RDX, RCX, R8, R9: free. RAX: return val.
+    movl MIRROR_ART_METHOD_DEX_CACHE_TYPES_OFFSET(%rsi), %edx  // Load dex cache resolved types array
+                                                               // Load the class
+    movl MIRROR_OBJECT_ARRAY_DATA_OFFSET(%rdx, %rdi, MIRROR_OBJECT_ARRAY_COMPONENT_SIZE), %edx
+    testl %edx, %edx                                           // Check null class
+    jz   .Lart_quick_alloc_object_tlab_slow_path
+                                                               // Check class status.
+    cmpl LITERAL(MIRROR_CLASS_STATUS_INITIALIZED), MIRROR_CLASS_STATUS_OFFSET(%rdx)
+    jne  .Lart_quick_alloc_object_tlab_slow_path
+                                                               // Check access flags has kAccClassIsFinalizable
+    testl LITERAL(ACCESS_FLAGS_CLASS_IS_FINALIZABLE), MIRROR_CLASS_ACCESS_FLAGS_OFFSET(%rdx)
+    jnz  .Lart_quick_alloc_object_tlab_slow_path
+    movl MIRROR_CLASS_OBJECT_SIZE_OFFSET(%rdx), %ecx           // Load the object size.
+    addl LITERAL(OBJECT_ALIGNMENT_MASK), %ecx                  // Align the size by 8. (addr + 7) & ~7.
+    andl LITERAL(OBJECT_ALIGNMENT_MASK_TOGGLED), %ecx
+    movq %gs:THREAD_SELF_OFFSET, %r8                           // r8 = thread
+    movq THREAD_LOCAL_POS_OFFSET(%r8), %rax                    // Load thread_local_pos.
+    addq %rax, %rcx                                            // Add the object size.
+    cmpq THREAD_LOCAL_END_OFFSET(%r8), %rcx                    // Check if it fits.
+    ja   .Lart_quick_alloc_object_tlab_slow_path
+    movq %rcx, THREAD_LOCAL_POS_OFFSET(%r8)                    // Update thread_local_pos.
+    addq LITERAL(1), THREAD_LOCAL_OBJECTS_OFFSET(%r8)          // Increment thread_local_objects.
+                                                               // Store the class pointer in the header.
+                                                               // No fence needed for x86.
+    movl %edx, MIRROR_OBJECT_CLASS_OFFSET(%rax)
+    ret                                                        // Fast path succeeded.
+.Lart_quick_alloc_object_tlab_slow_path:
+    SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    // save ref containing registers for GC
+    // Outgoing argument set up
+    movq %gs:THREAD_SELF_OFFSET, %rdx    // pass Thread::Current()
+    call artAllocObjectFromCodeTLAB      // cxx_name(arg0, arg1, Thread*)
+    RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
+    RETURN_IF_RESULT_IS_NON_ZERO         // return or deliver exception
+END_FUNCTION art_quick_alloc_object_tlab
+
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_RESOLVED(_tlab, TLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_INITIALIZED(_tlab, TLAB)
 GENERATE_ALLOC_ENTRYPOINTS_ALLOC_OBJECT_WITH_ACCESS_CHECK(_tlab, TLAB)
