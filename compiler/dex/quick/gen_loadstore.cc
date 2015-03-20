@@ -36,46 +36,6 @@ LIR* Mir2Lir::LoadConstant(RegStorage r_dest, int value) {
 }
 
 /*
- * Temporary workaround for Issue 7250540.  If we're loading a constant zero into a
- * promoted floating point register, also copy a zero into the int/ref identity of
- * that sreg.
- */
-void Mir2Lir::Workaround7250540(RegLocation rl_dest, RegStorage zero_reg) {
-  if (rl_dest.fp) {
-    int pmap_index = SRegToPMap(rl_dest.s_reg_low);
-    if (promotion_map_[pmap_index].fp_location == kLocPhysReg) {
-      // Now, determine if this vreg is ever used as a reference.  If not, we're done.
-      bool used_as_reference = false;
-      int base_vreg = mir_graph_->SRegToVReg(rl_dest.s_reg_low);
-      for (int i = 0; !used_as_reference && (i < mir_graph_->GetNumSSARegs()); i++) {
-        if (mir_graph_->SRegToVReg(mir_graph_->reg_location_[i].s_reg_low) == base_vreg) {
-          used_as_reference |= mir_graph_->reg_location_[i].ref;
-        }
-      }
-      if (!used_as_reference) {
-        return;
-      }
-      RegStorage temp_reg = zero_reg;
-      if (!temp_reg.Valid()) {
-        temp_reg = AllocTemp();
-        LoadConstant(temp_reg, 0);
-      }
-      if (promotion_map_[pmap_index].core_location == kLocPhysReg) {
-        // Promoted - just copy in a zero
-        OpRegCopy(RegStorage::Solo32(promotion_map_[pmap_index].core_reg), temp_reg);
-      } else {
-        // Lives in the frame, need to store.
-        ScopedMemRefType mem_ref_type(this, ResourceMask::kDalvikReg);
-        StoreBaseDisp(TargetPtrReg(kSp), SRegOffset(rl_dest.s_reg_low), temp_reg, k32, kNotVolatile);
-      }
-      if (!zero_reg.Valid()) {
-        FreeTemp(temp_reg);
-      }
-    }
-  }
-}
-
-/*
  * Load a Dalvik register into a physical register.  Take care when
  * using this routine, as it doesn't perform any bookkeeping regarding
  * register liveness.  That is the responsibility of the caller.

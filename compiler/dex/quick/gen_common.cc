@@ -1935,9 +1935,6 @@ void Mir2Lir::GenConst(RegLocation rl_dest, int value) {
   RegLocation rl_result = EvalLoc(rl_dest, kAnyReg, true);
   LoadConstantNoClobber(rl_result.reg, value);
   StoreValue(rl_dest, rl_result);
-  if (value == 0) {
-    Workaround7250540(rl_dest, rl_result.reg);
-  }
 }
 
 void Mir2Lir::GenConversionCall(QuickEntrypointEnum trampoline, RegLocation rl_dest,

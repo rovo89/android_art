@@ -105,27 +105,28 @@ struct ReferenceMap2Visitor : public StackVisitor {
       // We eliminate the non-live registers at a return, so only v3 is live:
       CHECK_REGS_CONTAIN_REFS(3);  // v3: y
 
+      // Note that v0: ex can be eliminated because it's a dead merge of two different exceptions.
       ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x18U)));
       CHECK(ref_bitmap);
-      CHECK_REGS_CONTAIN_REFS(8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
+      CHECK_REGS_CONTAIN_REFS(8, 2, 1);  // v8: this, v2: y, v1: x (dead v0: ex)
 
       ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x1aU)));
       CHECK(ref_bitmap);
-      CHECK_REGS_CONTAIN_REFS(8, 5, 2, 1, 0);  // v8: this, v5: x[1], v2: y, v1: x, v0: ex
+      CHECK_REGS_CONTAIN_REFS(8, 5, 2, 1);  // v8: this, v5: x[1], v2: y, v1: x(dead v0: ex)
 
       ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x1dU)));
       CHECK(ref_bitmap);
-      CHECK_REGS_CONTAIN_REFS(8, 5, 2, 1, 0);  // v8: this, v5: x[1], v2: y, v1: x, v0: ex
+      CHECK_REGS_CONTAIN_REFS(8, 5, 2, 1);  // v8: this, v5: x[1], v2: y, v1: x(dead v0: ex)
 
       ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x1fU)));
       CHECK(ref_bitmap);
       // v5 is removed from the root set because there is a "merge" operation.
       // See 0015: if-nez v2, 001f.
-      CHECK_REGS_CONTAIN_REFS(8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
+      CHECK_REGS_CONTAIN_REFS(8, 2, 1);  // v8: this, v2: y, v1: x (dead v0: ex)
 
       ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x21U)));
       CHECK(ref_bitmap);
-      CHECK_REGS_CONTAIN_REFS(8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
+      CHECK_REGS_CONTAIN_REFS(8, 2, 1);  // v8: this, v2: y, v1: x (dead v0: ex)
 
       ref_bitmap = map.FindBitMap(m->NativePcOffset(m->ToNativePc(0x27U)));
       CHECK(ref_bitmap);
