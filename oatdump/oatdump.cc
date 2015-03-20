@@ -1039,62 +1039,11 @@ class OatDumper {
     }
   }
 
-  void DumpRegisterMapping(std::ostream& os,
-                           size_t dex_register_num,
-                           DexRegisterLocation::Kind kind,
-                           int32_t value,
-                           const std::string& prefix = "v",
-                           const std::string& suffix = "") {
-    os << "      " << prefix << dex_register_num << ": "
-       << DexRegisterLocation::PrettyDescriptor(kind)
-       << " (" << value << ")" << suffix << '\n';
-  }
-
-  void DumpStackMapHeader(std::ostream& os, const CodeInfo& code_info, size_t stack_map_num) {
-    StackMap stack_map = code_info.GetStackMapAt(stack_map_num);
-    os << "    StackMap " << stack_map_num
-       << std::hex
-       << " (dex_pc=0x" << stack_map.GetDexPc()
-       << ", native_pc_offset=0x" << stack_map.GetNativePcOffset()
-       << ", register_mask=0x" << stack_map.GetRegisterMask()
-       << std::dec
-       << ", stack_mask=0b";
-    MemoryRegion stack_mask = stack_map.GetStackMask();
-    for (size_t i = 0, e = stack_mask.size_in_bits(); i < e; ++i) {
-      os << stack_mask.LoadBit(e - i - 1);
-    }
-    os << ")\n";
-  };
-
   // Display a CodeInfo object emitted by the optimizing compiler.
   void DumpCodeInfo(std::ostream& os,
                     const CodeInfo& code_info,
                     const DexFile::CodeItem& code_item) {
-    uint16_t number_of_dex_registers = code_item.registers_size_;
-    uint32_t code_info_size = code_info.GetOverallSize();
-    size_t number_of_stack_maps = code_info.GetNumberOfStackMaps();
-    os << "  Optimized CodeInfo (size=" << code_info_size
-       << ", number_of_dex_registers=" << number_of_dex_registers
-       << ", number_of_stack_maps=" << number_of_stack_maps << ")\n";
-
-    // Display stack maps along with Dex register maps.
-    for (size_t i = 0; i < number_of_stack_maps; ++i) {
-      StackMap stack_map = code_info.GetStackMapAt(i);
-      DumpStackMapHeader(os, code_info, i);
-      if (stack_map.HasDexRegisterMap()) {
-        DexRegisterMap dex_register_map =
-            code_info.GetDexRegisterMapOf(stack_map, number_of_dex_registers);
-        // TODO: Display the bit mask of live Dex registers.
-        for (size_t j = 0; j < number_of_dex_registers; ++j) {
-          if (dex_register_map.IsDexRegisterLive(j)) {
-            DexRegisterLocation location =
-                dex_register_map.GetLocationKindAndValue(j, number_of_dex_registers);
-            DumpRegisterMapping(os, j, location.GetInternalKind(), location.GetValue());
-          }
-        }
-      }
-    }
-    // TODO: Dump the stack map's inline information.
+    code_info.Dump(os, code_item.registers_size_);
   }
 
   // Display a vmap table.

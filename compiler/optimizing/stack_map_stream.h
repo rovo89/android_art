@@ -38,6 +38,8 @@ class StackMapStream : public ValueObject {
         dex_register_locations_(allocator, 10 * 4),
         inline_infos_(allocator, 2),
         stack_mask_max_(-1),
+        dex_pc_max_(0),
+        native_pc_offset_max_(0),
         number_of_stack_maps_with_inline_info_(0) {}
 
   // Compute bytes needed to encode a mask with the given maximum element.
@@ -92,6 +94,9 @@ class StackMapStream : public ValueObject {
     if (inlining_depth > 0) {
       number_of_stack_maps_with_inline_info_++;
     }
+
+    dex_pc_max_ = std::max(dex_pc_max_, dex_pc);
+    native_pc_offset_max_ = std::max(native_pc_offset_max_, native_pc_offset);
   }
 
   void AddInlineInfoEntry(uint32_t method_index) {
@@ -114,7 +119,12 @@ class StackMapStream : public ValueObject {
   }
 
   size_t ComputeStackMapsSize() const {
-    return stack_maps_.Size() * StackMap::ComputeStackMapSize(ComputeStackMaskSize());
+    return stack_maps_.Size() * StackMap::ComputeStackMapSize(
+        ComputeStackMaskSize(),
+        ComputeInlineInfoSize(),
+        ComputeDexRegisterMapsSize(),
+        dex_pc_max_,
+        native_pc_offset_max_);
   }
 
   // Compute the size of the Dex register map of `entry`.
@@ -165,16 +175,20 @@ class StackMapStream : public ValueObject {
     code_info.SetOverallSize(region.size());
 
     size_t stack_mask_size = ComputeStackMaskSize();
-    uint8_t* memory_start = region.start();
+
+    size_t dex_register_map_size = ComputeDexRegisterMapsSize();
+    size_t inline_info_size = ComputeInlineInfoSize();
 
     MemoryRegion dex_register_locations_region = region.Subregion(
       ComputeDexRegisterMapsStart(),
-      ComputeDexRegisterMapsSize());
+      dex_register_map_size);
 
     MemoryRegion inline_infos_region = region.Subregion(
       ComputeInlineInfoStart(),
-      ComputeInlineInfoSize());
+      inline_info_size);
 
+    code_info.SetEncoding(
+        inline_info_size, dex_register_map_size, dex_pc_max_, native_pc_offset_max_);
     code_info.SetNumberOfStackMaps(stack_maps_.Size());
     code_info.SetStackMaskSize(stack_mask_size);
     DCHECK_EQ(code_info.StackMapsSize(), ComputeStackMapsSize());
@@ -185,11 +199,11 @@ class StackMapStream : public ValueObject {
       StackMap stack_map = code_info.GetStackMapAt(i);
       StackMapEntry entry = stack_maps_.Get(i);
 
-      stack_map.SetDexPc(entry.dex_pc);
-      stack_map.SetNativePcOffset(entry.native_pc_offset);
-      stack_map.SetRegisterMask(entry.register_mask);
+      stack_map.SetDexPc(code_info, entry.dex_pc);
+      stack_map.SetNativePcOffset(code_info, entry.native_pc_offset);
+      stack_map.SetRegisterMask(code_info, entry.register_mask);
       if (entry.sp_mask != nullptr) {
-        stack_map.SetStackMask(*entry.sp_mask);
+        stack_map.SetStackMask(code_info, *entry.sp_mask);
       }
 
       if (entry.num_dex_registers != 0) {
@@ -200,7 +214,8 @@ class StackMapStream : public ValueObject {
                 ComputeDexRegisterMapSize(entry));
         next_dex_register_map_offset += register_region.size();
         DexRegisterMap dex_register_map(register_region);
-        stack_map.SetDexRegisterMapOffset(register_region.start() - memory_start);
+        stack_map.SetDexRegisterMapOffset(
+            code_info, register_region.start() - dex_register_locations_region.start());
 
         // Offset in `dex_register_map` where to store the next register entry.
         size_t offset = DexRegisterMap::kFixedSize;
@@ -222,7 +237,7 @@ class StackMapStream : public ValueObject {
         // Ensure we reached the end of the Dex registers region.
         DCHECK_EQ(offset, register_region.size());
       } else {
-        stack_map.SetDexRegisterMapOffset(StackMap::kNoDexRegisterMap);
+        stack_map.SetDexRegisterMapOffset(code_info, StackMap::kNoDexRegisterMap);
       }
 
       // Set the inlining info.
@@ -233,7 +248,9 @@ class StackMapStream : public ValueObject {
         next_inline_info_offset += inline_region.size();
         InlineInfo inline_info(inline_region);
 
-        stack_map.SetInlineDescriptorOffset(inline_region.start() - memory_start);
+        // Currently relative to the dex register map.
+        stack_map.SetInlineDescriptorOffset(
+            code_info, inline_region.start() - dex_register_locations_region.start());
 
         inline_info.SetDepth(entry.inlining_depth);
         for (size_t j = 0; j < entry.inlining_depth; ++j) {
@@ -241,7 +258,9 @@ class StackMapStream : public ValueObject {
           inline_info.SetMethodReferenceIndexAtDepth(j, inline_entry.method_index);
         }
       } else {
-        stack_map.SetInlineDescriptorOffset(StackMap::kNoInlineInfo);
+        if (inline_info_size != 0) {
+          stack_map.SetInlineDescriptorOffset(code_info, StackMap::kNoInlineInfo);
+        }
       }
     }
   }
@@ -262,6 +281,8 @@ class StackMapStream : public ValueObject {
   GrowableArray<DexRegisterLocation> dex_register_locations_;
   GrowableArray<InlineInfoEntry> inline_infos_;
   int stack_mask_max_;
+  uint32_t dex_pc_max_;
+  uint32_t native_pc_offset_max_;
   size_t number_of_stack_maps_with_inline_info_;
 
   ART_FRIEND_TEST(StackMapTest, Test1);
