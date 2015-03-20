@@ -267,7 +267,7 @@ fi
 if [ "$JIT" = "y" ]; then
     INT_OPTS="-Xusejit:true"
     if [ "$VERIFY" = "y" ] ; then
-      COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=interpret-only"
+      COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=verify-at-runtime"
     else
       COMPILE_FLAGS="${COMPILE_FLAGS} --compiler-filter=verify-none"
       DEX_VERIFY="${DEX_VERIFY} -Xverify:none"
