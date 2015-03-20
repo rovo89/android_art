@@ -2742,9 +2742,16 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       break;
 
     // Special instructions.
-    case Instruction::RETURN_VOID_BARRIER:
-      if (!IsConstructor() || IsStatic()) {
-          Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-void-barrier not expected";
+    case Instruction::RETURN_VOID_NO_BARRIER:
+      if (IsConstructor() && !IsStatic()) {
+        auto& declaring_class = GetDeclaringClass();
+        auto* klass = declaring_class.GetClass();
+        for (uint32_t i = 0, num_fields = klass->NumInstanceFields(); i < num_fields; ++i) {
+          if (klass->GetInstanceField(i)->IsFinal()) {
+            Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "return-void-no-barrier not expected";
+            break;
+          }
+        }
       }
       break;
     // Note: the following instructions encode offsets derived from class linking.
@@ -3017,7 +3024,7 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
       // For returns we only care about the operand to the return, all other registers are dead.
       const Instruction* ret_inst = Instruction::At(code_item_->insns_ + next_insn_idx);
       Instruction::Code opcode = ret_inst->Opcode();
-      if ((opcode == Instruction::RETURN_VOID) || (opcode == Instruction::RETURN_VOID_BARRIER)) {
+      if (opcode == Instruction::RETURN_VOID || opcode == Instruction::RETURN_VOID_NO_BARRIER) {
         SafelyMarkAllRegistersAsConflicts(this, work_line_.get());
       } else {
         if (opcode == Instruction::RETURN_WIDE) {
@@ -4163,7 +4170,7 @@ bool MethodVerifier::UpdateRegisters(uint32_t next_insn, RegisterLine* merge_lin
       // Initialize them as conflicts so they don't add to GC and deoptimization information.
       const Instruction* ret_inst = Instruction::At(code_item_->insns_ + next_insn);
       Instruction::Code opcode = ret_inst->Opcode();
-      if ((opcode == Instruction::RETURN_VOID) || (opcode == Instruction::RETURN_VOID_BARRIER)) {
+      if (opcode == Instruction::RETURN_VOID || opcode == Instruction::RETURN_VOID_NO_BARRIER) {
         SafelyMarkAllRegistersAsConflicts(this, target_line);
       } else {
         target_line->CopyFromLine(merge_line);
