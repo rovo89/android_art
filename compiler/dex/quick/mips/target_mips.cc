@@ -86,14 +86,46 @@ RegLocation MipsMir2Lir::LocCReturnFloat() {
 }
 
 RegLocation MipsMir2Lir::LocCReturnDouble() {
-  return mips_loc_c_return_double;
+  if (fpuIs32Bit_) {
+      return mips_loc_c_return_double_fr0;
+  } else {
+      return mips_loc_c_return_double_fr1;
+  }
 }
 
 // Convert k64BitSolo into k64BitPair
 RegStorage MipsMir2Lir::Solo64ToPair64(RegStorage reg) {
   DCHECK(reg.IsDouble());
+  DCHECK_EQ(reg.GetRegNum() & 1, 0);
   int reg_num = (reg.GetRegNum() & ~1) | RegStorage::kFloatingPoint;
   return RegStorage(RegStorage::k64BitPair, reg_num, reg_num + 1);
+}
+
+// Convert 64bit FP (k64BitSolo or k64BitPair) into k32BitSolo.
+// This routine is only used to allow a 64bit FPU to access FP registers 32bits at a time.
+RegStorage MipsMir2Lir::Fp64ToSolo32(RegStorage reg) {
+  DCHECK(!fpuIs32Bit_);
+  DCHECK(reg.IsDouble());
+  DCHECK(!reg.IsPair());
+  int reg_num = reg.GetRegNum() | RegStorage::kFloatingPoint;
+  return RegStorage(RegStorage::k32BitSolo, reg_num);
+}
+
+// Return a target-dependent special register.
+RegStorage MipsMir2Lir::TargetReg(SpecialTargetRegister reg, WideKind wide_kind) {
+  if (wide_kind == kWide) {
+      DCHECK((kArg0 <= reg && reg < kArg7) || (kFArg0 <= reg && reg < kFArg15) || (kRet0 == reg));
+      RegStorage ret_reg = RegStorage::MakeRegPair(TargetReg(reg),
+                                       TargetReg(static_cast<SpecialTargetRegister>(reg + 1)));
+      if (!fpuIs32Bit_ && ret_reg.IsFloat()) {
+        // convert 64BitPair to 64BitSolo for 64bit FPUs.
+        RegStorage low = ret_reg.GetLow();
+        ret_reg = RegStorage::FloatSolo64(low.GetRegNum());
+      }
+      return ret_reg;
+  } else {
+    return TargetReg(reg);
+  }
 }
 
 // Return a target-dependent special register.
@@ -145,12 +177,7 @@ RegStorage MipsMir2Lir::InToRegStorageMipsMapper::GetNextReg(ShortyArg arg) {
  */
 ResourceMask MipsMir2Lir::GetRegMaskCommon(const RegStorage& reg) const {
   if (reg.IsDouble()) {
-    if (cu_->compiler_driver->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()
-        ->Is32BitFloatingPoint()) {
-      return ResourceMask::TwoBits((reg.GetRegNum() & ~1) + kMipsFPReg0);
-    } else {
-      return ResourceMask::TwoBits(reg.GetRegNum() * 2 + kMipsFPReg0);
-    }
+    return ResourceMask::TwoBits((reg.GetRegNum() & ~1) + kMipsFPReg0);
   } else if (reg.IsSingle()) {
     return ResourceMask::Bit(reg.GetRegNum() + kMipsFPReg0);
   } else {
@@ -401,8 +428,7 @@ void MipsMir2Lir::ClobberCallerSave() {
   Clobber(rs_rF13);
   Clobber(rs_rF14);
   Clobber(rs_rF15);
-  if (cu_->compiler_driver->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()
-      ->Is32BitFloatingPoint()) {
+  if (fpuIs32Bit_) {
     Clobber(rs_rD0_fr0);
     Clobber(rs_rD1_fr0);
     Clobber(rs_rD2_fr0);
@@ -462,28 +488,20 @@ bool MipsMir2Lir::GenMemBarrier(MemBarrierKind barrier_kind ATTRIBUTE_UNUSED) {
 }
 
 void MipsMir2Lir::CompilerInitializeRegAlloc() {
-  const bool fpu_is_32bit =
-      cu_->compiler_driver->GetInstructionSetFeatures()->AsMipsInstructionSetFeatures()
-      ->Is32BitFloatingPoint();
   reg_pool_.reset(new (arena_) RegisterPool(this, arena_, core_regs, empty_pool /* core64 */,
                                             sp_regs,
-                                            fpu_is_32bit ? dp_fr0_regs : dp_fr1_regs,
+                                            fpuIs32Bit_ ? dp_fr0_regs : dp_fr1_regs,
                                             reserved_regs, empty_pool /* reserved64 */,
                                             core_temps, empty_pool /* core64_temps */,
                                             sp_temps,
-                                            fpu_is_32bit ? dp_fr0_temps : dp_fr1_temps));
+                                            fpuIs32Bit_ ? dp_fr0_temps : dp_fr1_temps));
 
   // Target-specific adjustments.
 
   // Alias single precision floats to appropriate half of overlapping double.
   for (RegisterInfo* info : reg_pool_->sp_regs_) {
     int sp_reg_num = info->GetReg().GetRegNum();
-    int dp_reg_num;
-    if (fpu_is_32bit) {
-      dp_reg_num = sp_reg_num & ~1;
-    } else {
-      dp_reg_num = sp_reg_num >> 1;
-    }
+    int dp_reg_num = sp_reg_num & ~1;
     RegStorage dp_reg = RegStorage::Solo64(RegStorage::kFloatingPoint | dp_reg_num);
     RegisterInfo* dp_reg_info = GetRegInfo(dp_reg);
     // Double precision register's master storage should refer to itself.
@@ -502,11 +520,7 @@ void MipsMir2Lir::CompilerInitializeRegAlloc() {
   // TODO: adjust when we roll to hard float calling convention.
   reg_pool_->next_core_reg_ = 2;
   reg_pool_->next_sp_reg_ = 2;
-  if (fpu_is_32bit) {
-    reg_pool_->next_dp_reg_ = 2;
-  } else {
-    reg_pool_->next_dp_reg_ = 1;
-  }
+  reg_pool_->next_dp_reg_ = 2;
 }
 
 /*
@@ -610,7 +624,11 @@ RegisterClass MipsMir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volati
 }
 
 MipsMir2Lir::MipsMir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
-    : Mir2Lir(cu, mir_graph, arena), in_to_reg_storage_mips_mapper_(this) {
+    : Mir2Lir(cu, mir_graph, arena), in_to_reg_storage_mips_mapper_(this),
+      isaIsR6_(cu->compiler_driver->GetInstructionSetFeatures()
+                 ->AsMipsInstructionSetFeatures()->IsR6()),
+      fpuIs32Bit_(cu->compiler_driver->GetInstructionSetFeatures()
+                    ->AsMipsInstructionSetFeatures()->Is32BitFloatingPoint()) {
   for (int i = 0; i < kMipsLast; i++) {
     DCHECK_EQ(MipsMir2Lir::EncodingMap[i].opcode, i)
         << "Encoding order for " << MipsMir2Lir::EncodingMap[i].name

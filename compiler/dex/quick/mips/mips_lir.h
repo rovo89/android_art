@@ -236,22 +236,22 @@ enum MipsNativeRegisterPool {  // private marker to avoid generate-operator-out.
 #endif
   // Double precision registers where the FPU is in 64-bit mode.
   rD0_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  0,
-  rD1_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  1,
-  rD2_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  2,
-  rD3_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  3,
-  rD4_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  4,
-  rD5_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  5,
-  rD6_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  6,
-  rD7_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  7,
+  rD1_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  2,
+  rD2_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  4,
+  rD3_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  6,
+  rD4_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  8,
+  rD5_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 10,
+  rD6_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 12,
+  rD7_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 14,
 #if 0  // TODO: expand resource mask to enable use of all MIPS fp registers.
-  rD8_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  8,
-  rD9_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint |  9,
-  rD10_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 10,
-  rD11_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 11,
-  rD12_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 12,
-  rD13_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 13,
-  rD14_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 14,
-  rD15_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 15,
+  rD8_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 16,
+  rD9_fr1  = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 18,
+  rD10_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 20,
+  rD11_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 22,
+  rD12_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 24,
+  rD13_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 26,
+  rD14_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 28,
+  rD15_fr1 = RegStorage::k64BitSolo | RegStorage::kFloatingPoint | 30,
 #endif
 };
 
@@ -368,10 +368,12 @@ const RegLocation mips_loc_c_return_wide
 const RegLocation mips_loc_c_return_float
     {kLocPhysReg, 0, 0, 0, 1, 0, 0, 0, 1,
      RegStorage(RegStorage::k32BitSolo, rF0), INVALID_SREG, INVALID_SREG};
-// FIXME: move MIPS to k64Bitsolo for doubles
-const RegLocation mips_loc_c_return_double
+const RegLocation mips_loc_c_return_double_fr0
     {kLocPhysReg, 1, 0, 0, 1, 0, 0, 0, 1,
      RegStorage(RegStorage::k64BitPair, rF0, rF1), INVALID_SREG, INVALID_SREG};
+const RegLocation mips_loc_c_return_double_fr1
+    {kLocPhysReg, 1, 0, 0, 1, 0, 0, 0, 1,
+     RegStorage(RegStorage::k64BitSolo, rF0), INVALID_SREG, INVALID_SREG};
 
 enum MipsShiftEncodings {
   kMipsLsl = 0x0,
@@ -476,13 +478,21 @@ enum MipsOpCode {
   kMipsFldc1,  // ldc1 t,o(b) [110101] b[25..21] t[20..16] o[15..0].
   kMipsFswc1,  // swc1 t,o(b) [111001] b[25..21] t[20..16] o[15..0].
   kMipsFsdc1,  // sdc1 t,o(b) [111101] b[25..21] t[20..16] o[15..0].
-  kMipsMfc1,  // mfc1 t,s [01000100000] t[20..16] s[15..11] [00000000000].
-  kMipsMtc1,  // mtc1 t,s [01000100100] t[20..16] s[15..11] [00000000000].
+  kMipsMfc1,   // mfc1 t,s [01000100000] t[20..16] s[15..11] [00000000000].
+  kMipsMtc1,   // mtc1 t,s [01000100100] t[20..16] s[15..11] [00000000000].
+  kMipsMfhc1,  // mfhc1 t,s [01000100011] t[20..16] s[15..11] [00000000000].
+  kMipsMthc1,  // mthc1 t,s [01000100111] t[20..16] s[15..11] [00000000000].
   kMipsDelta,  // Psuedo for ori t, s, <label>-<label>.
   kMipsDeltaHi,  // Pseudo for lui t, high16(<label>-<label>).
   kMipsDeltaLo,  // Pseudo for ori t, s, low16(<label>-<label>).
   kMipsCurrPC,  // jal to .+8 to materialize pc.
   kMipsSync,    // sync kind [000000] [0000000000000000] s[10..6] [001111].
+
+  // The following are mips32r6 instructions.
+  kMipsR6Div,   // div d,s,t [000000] s[25..21] t[20..16] d[15..11] [00010011010].
+  kMipsR6Mod,   // mod d,s,t [000000] s[25..21] t[20..16] d[15..11] [00011011010].
+  kMipsR6Mul,   // mul d,s,t [000000] s[25..21] t[20..16] d[15..11] [00010011000].
+
   kMipsUndefined,  // undefined [011001xxxxxxxxxxxxxxxx].
   kMipsLast
 };
