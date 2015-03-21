@@ -194,17 +194,34 @@ void MipsMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
     bool src_fp = r_src.IsFloat();
     if (dest_fp) {
       if (src_fp) {
+        // Here if both src and dest are fp registers. OpRegCopy will choose the right copy
+        // (solo or pair).
         OpRegCopy(r_dest, r_src);
       } else {
-        /* note the operands are swapped for the mtc1 instr */
-        NewLIR2(kMipsMtc1, r_src.GetLowReg(), r_dest.GetLowReg());
-        NewLIR2(kMipsMtc1, r_src.GetHighReg(), r_dest.GetHighReg());
+        // note the operands are swapped for the mtc1 and mthc1 instr.
+        // Here if dest is fp reg and src is core reg.
+        if (fpuIs32Bit_) {
+            NewLIR2(kMipsMtc1, r_src.GetLowReg(), r_dest.GetLowReg());
+            NewLIR2(kMipsMtc1, r_src.GetHighReg(), r_dest.GetHighReg());
+        } else {
+            r_dest = Fp64ToSolo32(r_dest);
+            NewLIR2(kMipsMtc1, r_src.GetLowReg(), r_dest.GetReg());
+            NewLIR2(kMipsMthc1, r_src.GetHighReg(), r_dest.GetReg());
+        }
       }
     } else {
       if (src_fp) {
-        NewLIR2(kMipsMfc1, r_dest.GetLowReg(), r_src.GetLowReg());
-        NewLIR2(kMipsMfc1, r_dest.GetHighReg(), r_src.GetHighReg());
+        // Here if dest is core reg and src is fp reg.
+        if (fpuIs32Bit_) {
+            NewLIR2(kMipsMfc1, r_dest.GetLowReg(), r_src.GetLowReg());
+            NewLIR2(kMipsMfc1, r_dest.GetHighReg(), r_src.GetHighReg());
+        } else {
+            r_src = Fp64ToSolo32(r_src);
+            NewLIR2(kMipsMfc1, r_dest.GetLowReg(), r_src.GetReg());
+            NewLIR2(kMipsMfhc1, r_dest.GetHighReg(), r_src.GetReg());
+        }
       } else {
+        // Here if both src and dest are core registers.
         // Handle overlap
         if (r_src.GetHighReg() == r_dest.GetLowReg()) {
           OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
@@ -243,12 +260,14 @@ void MipsMir2Lir::GenFusedLongCmpBranch(BasicBlock* bb, MIR* mir) {
 
 RegLocation MipsMir2Lir::GenDivRem(RegLocation rl_dest, RegStorage reg1, RegStorage reg2,
                                    bool is_div) {
-  NewLIR2(kMipsDiv, reg1.GetReg(), reg2.GetReg());
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  if (is_div) {
-    NewLIR1(kMipsMflo, rl_result.reg.GetReg());
+
+  if (isaIsR6_) {
+      NewLIR3(is_div ? kMipsR6Div : kMipsR6Mod,
+          rl_result.reg.GetReg(), reg1.GetReg(), reg2.GetReg());
   } else {
-    NewLIR1(kMipsMfhi, rl_result.reg.GetReg());
+      NewLIR2(kMipsDiv, reg1.GetReg(), reg2.GetReg());
+      NewLIR1(is_div ? kMipsMflo : kMipsMfhi, rl_result.reg.GetReg());
   }
   return rl_result;
 }
@@ -257,13 +276,7 @@ RegLocation MipsMir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg1, int 
                                       bool is_div) {
   RegStorage t_reg = AllocTemp();
   NewLIR3(kMipsAddiu, t_reg.GetReg(), rZERO, lit);
-  NewLIR2(kMipsDiv, reg1.GetReg(), t_reg.GetReg());
-  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  if (is_div) {
-    NewLIR1(kMipsMflo, rl_result.reg.GetReg());
-  } else {
-    NewLIR1(kMipsMfhi, rl_result.reg.GetReg());
-  }
+  RegLocation rl_result = GenDivRem(rl_dest, reg1, t_reg, is_div);
   FreeTemp(t_reg);
   return rl_result;
 }
