@@ -2061,7 +2061,6 @@ void Heap::PreZygoteFork() {
   MutexLock mu(self, zygote_creation_lock_);
   // Try to see if we have any Zygote spaces.
   if (HasZygoteSpace()) {
-    LOG(WARNING) << __FUNCTION__ << " called when we already have a zygote space.";
     return;
   }
   Runtime::Current()->GetInternTable()->SwapPostZygoteWithPreZygote();
