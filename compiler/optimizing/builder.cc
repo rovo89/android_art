@@ -1024,8 +1024,6 @@ void HGraphBuilder::BuildSparseSwitch(const Instruction& instruction, uint32_t d
   HInstruction* value = LoadLocal(instruction.VRegA(), Primitive::kPrimInt);
 
   uint16_t num_entries = table.GetNumEntries();
-  // There should be at least one entry here.
-  DCHECK_GT(num_entries, 0U);
 
   for (size_t i = 0; i < num_entries; i++) {
     BuildSwitchCaseHelper(instruction, i, i == static_cast<size_t>(num_entries) - 1, table, value,

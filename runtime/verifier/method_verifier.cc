@@ -1086,7 +1086,7 @@ bool MethodVerifier::CheckSwitchTargets(uint32_t cur_offset) {
   const uint16_t* insns = code_item_->insns_ + cur_offset;
   /* make sure the start of the switch is in range */
   int32_t switch_offset = insns[1] | ((int32_t) insns[2]) << 16;
-  if ((int32_t) cur_offset + switch_offset < 0 || cur_offset + switch_offset + 2 >= insn_count) {
+  if ((int32_t) cur_offset + switch_offset < 0 || cur_offset + switch_offset + 2 > insn_count) {
     Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "invalid switch start: at " << cur_offset
                                       << ", switch offset " << switch_offset
                                       << ", count " << insn_count;
