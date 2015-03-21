@@ -33,7 +33,7 @@ void PassManager::CreateDefaultPassList() {
   // Add each pass which isn't disabled into default_pass_list_.
   for (const auto* pass : passes_) {
     if (options_.GetDisablePassList().find(pass->GetName()) != std::string::npos) {
-      LOG(INFO) << "Skipping disabled pass " << pass->GetName();
+      VLOG(compiler) << "Skipping disabled pass " << pass->GetName();
     } else {
       default_pass_list_.push_back(pass);
     }
