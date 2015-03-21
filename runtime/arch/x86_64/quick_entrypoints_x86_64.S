@@ -916,7 +916,7 @@ DEFINE_FUNCTION art_quick_alloc_object_tlab
     SETUP_REFS_ONLY_CALLEE_SAVE_FRAME    // save ref containing registers for GC
     // Outgoing argument set up
     movq %gs:THREAD_SELF_OFFSET, %rdx    // pass Thread::Current()
-    call artAllocObjectFromCodeTLAB      // cxx_name(arg0, arg1, Thread*)
+    call SYMBOL(artAllocObjectFromCodeTLAB)      // cxx_name(arg0, arg1, Thread*)
     RESTORE_REFS_ONLY_CALLEE_SAVE_FRAME  // restore frame up to return address
     RETURN_IF_RESULT_IS_NON_ZERO         // return or deliver exception
 END_FUNCTION art_quick_alloc_object_tlab
