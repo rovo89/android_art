@@ -1398,8 +1398,11 @@ void CompilerDriver::GetCodeAndMethodForDirectCall(InvokeType* type, InvokeType 
     }
   } else {
     bool method_in_image = heap->FindSpaceFromObject(method, false)->IsImageSpace();
-    if (method_in_image || compiling_boot) {
+    if (method_in_image || compiling_boot || runtime->UseJit()) {
       // We know we must be able to get to the method in the image, so use that pointer.
+      // In the case where we are the JIT, we can always use direct pointers since we know where
+      // the method and its code are / will be. We don't sharpen to interpreter bridge since we
+      // check IsQuickToInterpreterBridge above.
       CHECK(!method->IsAbstract());
       *type = sharp_type;
       *direct_method = force_relocations ? -1 : reinterpret_cast<uintptr_t>(method);
