@@ -95,9 +95,9 @@ ifeq ($(ART_TEST_RUN_TEST_NO_RELOCATE),true)
   RELOCATE_TYPES += no-relocate
 endif
 ifeq ($(ART_TEST_RUN_TEST_RELOCATE_NO_PATCHOAT),true)
-  RELOCATE_TYPES := relocate-no-patchoat
+  RELOCATE_TYPES := relocate-npatchoat
 endif
-TRACE_TYPES := no-trace
+TRACE_TYPES := ntrace
 ifeq ($(ART_TEST_TRACE),true)
   TRACE_TYPES += trace
 endif
@@ -119,7 +119,7 @@ endif
 ifeq ($(ART_TEST_PIC_IMAGE),true)
   IMAGE_TYPES += picimage
 endif
-PICTEST_TYPES := nopictest
+PICTEST_TYPES := npictest
 ifeq ($(ART_TEST_PIC_TEST),true)
   PICTEST_TYPES += pictest
 endif
@@ -130,7 +130,7 @@ endif
 ifeq ($(ART_TEST_RUN_TEST_NDEBUG),true)
   RUN_TYPES += ndebug
 endif
-DEBUGGABLE_TYPES := nondebuggable
+DEBUGGABLE_TYPES := ndebuggable
 ifeq ($(ART_TEST_RUN_TEST_DEBUGGABLE),true)
 DEBUGGABLE_TYPES += debuggable
 endif
@@ -272,9 +272,9 @@ ifneq (,$(filter no-image,$(IMAGE_TYPES)))
       $(PICTEST_TYPES), $(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
-ifneq (,$(filter relocate-no-patchoat,$(RELOCATE_TYPES)))
+ifneq (,$(filter relocate-npatchoat,$(RELOCATE_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
-      $(COMPILER_TYPES), relocate-no-patchoat,$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
+      $(COMPILER_TYPES), relocate-npatchoat,$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
       $(IMAGE_TYPES),$(PICTEST_TYPES),$(DEBUGGABLE_TYPES), $(TEST_ART_BROKEN_FALLBACK_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
@@ -375,7 +375,7 @@ TEST_ART_BROKEN_OPTIMIZING_NONDEBUGGABLE_RUN_TESTS := \
 ifneq (,$(filter optimizing,$(COMPILER_TYPES)))
   ART_TEST_KNOWN_BROKEN += $(call all-run-test-names,$(TARGET_TYPES),$(RUN_TYPES),$(PREBUILD_TYPES), \
       optimizing,$(RELOCATE_TYPES),$(TRACE_TYPES),$(GC_TYPES),$(JNI_TYPES), \
-      $(IMAGE_TYPES),$(PICTEST_TYPES),nondebuggable,$(TEST_ART_BROKEN_OPTIMIZING_NONDEBUGGABLE_RUN_TESTS),$(ALL_ADDRESS_SIZES))
+      $(IMAGE_TYPES),$(PICTEST_TYPES),ndebuggable,$(TEST_ART_BROKEN_OPTIMIZING_NONDEBUGGABLE_RUN_TESTS),$(ALL_ADDRESS_SIZES))
 endif
 
 TEST_ART_BROKEN_OPTIMIZING_NONDEBUGGABLE_RUN_TESTS :=
@@ -461,10 +461,10 @@ endif
 
 # Create a rule to build and run a tests following the form:
 # test-art-{1: host or target}-run-test-{2: debug ndebug}-{3: prebuild no-prebuild no-dex2oat}-
-#    {4: interpreter default optimizing jit}-{5: relocate no-relocate relocate-no-patchoat}-
-#    {6: trace or no-trace}-{7: gcstress gcverify cms}-{8: forcecopy checkjni jni}-
-#    {9: no-image image picimage}-{10: pictest nopictest}-
-#    {11: nondebuggable debuggable}-{12: test name}{13: 32 or 64}
+#    {4: interpreter default optimizing jit}-{5: relocate nrelocate relocate-npatchoat}-
+#    {6: trace or ntrace}-{7: gcstress gcverify cms}-{8: forcecopy checkjni jni}-
+#    {9: no-image image picimage}-{10: pictest npictest}-
+#    {11: ndebuggable debuggable}-{12: test name}{13: 32 or 64}
 define define-test-art-run-test
   run_test_options :=
   prereq_rule :=
@@ -543,7 +543,7 @@ define define-test-art-run-test
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_NO_RELOCATE_RULES
       run_test_options += --no-relocate
     else
-      ifeq ($(5),relocate-no-patchoat)
+      ifeq ($(5),relocate-npatchoat)
         test_groups += ART_RUN_TEST_$$(uc_host_or_target)_RELOCATE_NO_PATCHOAT_RULES
         run_test_options += --relocate --no-patchoat
       else
@@ -555,7 +555,7 @@ define define-test-art-run-test
     test_groups += ART_RUN_TEST_$$(uc_host_or_target)_TRACE_RULES
     run_test_options += --trace
   else
-    ifeq ($(6),no-trace)
+    ifeq ($(6),ntrace)
       test_groups += ART_RUN_TEST_$$(uc_host_or_target)_NO_TRACE_RULES
     else
       $$(error found $(6) expected $(TRACE_TYPES))
@@ -635,7 +635,7 @@ define define-test-art-run-test
   ifeq ($(10),pictest)
     run_test_options += --pic-test
   else
-    ifeq ($(10),nopictest)
+    ifeq ($(10),npictest)
       # Nothing to be done.
     else
       $$(error found $(10) expected $(PICTEST_TYPES))
@@ -645,7 +645,7 @@ define define-test-art-run-test
     test_groups += ART_RUN_TEST_$$(uc_host_or_target)_DEBUGGABLE_RULES
     run_test_options += --debuggable
   else
-    ifeq ($(11),nondebuggable)
+    ifeq ($(11),ndebuggable)
     test_groups += ART_RUN_TEST_$$(uc_host_or_target)_NONDEBUGGABLE_RULES
       # Nothing to be done.
     else
