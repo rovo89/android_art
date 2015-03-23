@@ -462,6 +462,16 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     return nullptr;
   }
 
+  // Implementation of the space filter: do not compile a code item whose size in
+  // code units is bigger than 256.
+  static constexpr size_t kSpaceFilterOptimizingThreshold = 256;
+  const CompilerOptions& compiler_options = compiler_driver->GetCompilerOptions();
+  if ((compiler_options.GetCompilerFilter() == CompilerOptions::kSpace)
+      && (code_item->insns_size_in_code_units_ > kSpaceFilterOptimizingThreshold)) {
+    compilation_stats_.RecordStat(MethodCompilationStat::kNotCompiledSpaceFilter);
+    return nullptr;
+  }
+
   DexCompilationUnit dex_compilation_unit(
     nullptr, class_loader, art::Runtime::Current()->GetClassLinker(), dex_file, code_item,
     class_def_idx, method_idx, access_flags,
