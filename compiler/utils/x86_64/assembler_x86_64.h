@@ -429,6 +429,7 @@ class X86_64Assembler FINAL : public Assembler {
   void orl(CpuRegister dst, CpuRegister src);
   void orl(CpuRegister reg, const Address& address);
   void orq(CpuRegister dst, CpuRegister src);
+  void orq(CpuRegister dst, const Immediate& imm);
 
   void xorl(CpuRegister dst, CpuRegister src);
   void xorl(CpuRegister dst, const Immediate& imm);
@@ -467,6 +468,7 @@ class X86_64Assembler FINAL : public Assembler {
   void imulq(CpuRegister dst, CpuRegister src);
   void imulq(CpuRegister reg, const Immediate& imm);
   void imulq(CpuRegister reg, const Address& address);
+  void imulq(CpuRegister dst, CpuRegister reg, const Immediate& imm);
 
   void imull(CpuRegister reg);
   void imull(const Address& address);
