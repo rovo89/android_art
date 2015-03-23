@@ -159,6 +159,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/intern_table_test.cc \
   runtime/interpreter/safe_math_test.cc \
   runtime/java_vm_ext_test.cc \
+  runtime/jit/jit_code_cache_test.cc \
   runtime/leb128_test.cc \
   runtime/mem_map_test.cc \
   runtime/memory_region_test.cc \
