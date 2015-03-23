@@ -877,15 +877,7 @@ class Dex2Oat FINAL {
     }
 
     if (compiler_filter_string == nullptr) {
-      if (instruction_set_ == kMips &&
-          reinterpret_cast<const MipsInstructionSetFeatures*>(instruction_set_features_.get())->
-          IsR6()) {
-        // For R6, only interpreter mode is working.
-        // TODO: fix compiler for Mips32r6.
-        compiler_filter_string = "interpret-only";
-      } else {
-        compiler_filter_string = "speed";
-      }
+      compiler_filter_string = "speed";
     }
 
     CHECK(compiler_filter_string != nullptr);
