@@ -614,7 +614,6 @@ class Dex2Oat FINAL {
           Usage("Unknown compiler backend: %s", backend_str.data());
         }
       } else if (option.starts_with("--compiler-filter=")) {
-        requested_specific_compiler = true;
         compiler_filter_string = option.substr(strlen("--compiler-filter=")).data();
       } else if (option == "--compile-pic") {
         compile_pic = true;
