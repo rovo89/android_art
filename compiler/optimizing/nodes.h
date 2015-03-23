@@ -1200,6 +1200,8 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
     return NeedsEnvironment() || IsLoadClass() || IsLoadString();
   }
 
+  virtual bool NeedsDexCache() const { return false; }
+
  protected:
   virtual const HUserRecord<HInstruction*> InputRecordAt(size_t i) const = 0;
   virtual void SetRawInputRecordAt(size_t index, const HUserRecord<HInstruction*>& input) = 0;
@@ -2090,6 +2092,7 @@ class HInvokeStaticOrDirect : public HInvoke {
 
   InvokeType GetInvokeType() const { return invoke_type_; }
   bool IsRecursive() const { return is_recursive_; }
+  bool NeedsDexCache() const OVERRIDE { return !IsRecursive(); }
 
   DECLARE_INSTRUCTION(InvokeStaticOrDirect);
 
@@ -2972,6 +2975,8 @@ class HLoadClass : public HExpression<0> {
     return loaded_class_rti_.IsExact();
   }
 
+  bool NeedsDexCache() const OVERRIDE { return !is_referrers_class_; }
+
   DECLARE_INSTRUCTION(LoadClass);
 
  private:
@@ -3007,6 +3012,7 @@ class HLoadString : public HExpression<0> {
 
   // TODO: Can we deopt or debug when we resolve a string?
   bool NeedsEnvironment() const OVERRIDE { return false; }
+  bool NeedsDexCache() const OVERRIDE { return true; }
 
   DECLARE_INSTRUCTION(LoadString);
 
