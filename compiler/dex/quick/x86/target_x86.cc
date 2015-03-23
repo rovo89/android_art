@@ -390,7 +390,7 @@ std::string X86Mir2Lir::BuildInsnString(const char *fmt, LIR *lir, unsigned char
              break;
           }
           case 'p': {
-            EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(operand));
+            const EmbeddedData* tab_rec = UnwrapPointer<EmbeddedData>(operand);
             buf += StringPrintf("0x%08x", tab_rec->offset);
             break;
           }
@@ -1062,8 +1062,7 @@ void X86Mir2Lir::InstallLiteralPools() {
   for (LIR* p : method_address_insns_) {
       DCHECK_EQ(p->opcode, kX86Mov32RI);
       uint32_t target_method_idx = p->operands[2];
-      const DexFile* target_dex_file =
-          reinterpret_cast<const DexFile*>(UnwrapPointer(p->operands[3]));
+      const DexFile* target_dex_file = UnwrapPointer<DexFile>(p->operands[3]);
 
       // The offset to patch is the last 4 bytes of the instruction.
       int patch_offset = p->offset + p->flags.size - 4;
@@ -1075,8 +1074,7 @@ void X86Mir2Lir::InstallLiteralPools() {
   for (LIR* p : class_type_address_insns_) {
       DCHECK_EQ(p->opcode, kX86Mov32RI);
 
-      const DexFile* class_dex_file =
-        reinterpret_cast<const DexFile*>(UnwrapPointer(p->operands[3]));
+      const DexFile* class_dex_file = UnwrapPointer<DexFile>(p->operands[3]);
       uint32_t target_type_idx = p->operands[2];
 
       // The offset to patch is the last 4 bytes of the instruction.
@@ -1090,8 +1088,7 @@ void X86Mir2Lir::InstallLiteralPools() {
   for (LIR* p : call_method_insns_) {
       DCHECK_EQ(p->opcode, kX86CallI);
       uint32_t target_method_idx = p->operands[1];
-      const DexFile* target_dex_file =
-          reinterpret_cast<const DexFile*>(UnwrapPointer(p->operands[2]));
+      const DexFile* target_dex_file = UnwrapPointer<DexFile>(p->operands[2]);
 
       // The offset to patch is the last 4 bytes of the instruction.
       int patch_offset = p->offset + p->flags.size - 4;

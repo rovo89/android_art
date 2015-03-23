@@ -585,14 +585,16 @@ class Mir2Lir {
      * TUNING: If use of these utilities becomes more common on 32-bit builds, it
      * may be worth conditionally-compiling a set of identity functions here.
      */
-    uint32_t WrapPointer(void* pointer) {
+    template <typename T>
+    uint32_t WrapPointer(const T* pointer) {
       uint32_t res = pointer_storage_.size();
       pointer_storage_.push_back(pointer);
       return res;
     }
 
-    void* UnwrapPointer(size_t index) {
-      return pointer_storage_[index];
+    template <typename T>
+    const T* UnwrapPointer(size_t index) {
+      return reinterpret_cast<const T*>(pointer_storage_[index]);
     }
 
     // strdup(), but allocates from the arena.
@@ -1383,7 +1385,7 @@ class Mir2Lir {
     virtual LIR* OpIT(ConditionCode cond, const char* guide) = 0;
     virtual void OpEndIT(LIR* it) = 0;
     virtual LIR* OpMem(OpKind op, RegStorage r_base, int disp) = 0;
-    virtual LIR* OpPcRelLoad(RegStorage reg, LIR* target) = 0;
+    virtual void OpPcRelLoad(RegStorage reg, LIR* target) = 0;
     virtual LIR* OpReg(OpKind op, RegStorage r_dest_src) = 0;
     virtual void OpRegCopy(RegStorage r_dest, RegStorage r_src) = 0;
     virtual LIR* OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) = 0;
@@ -1759,7 +1761,7 @@ class Mir2Lir {
     ArenaVector<FillArrayData*> fill_array_data_;
     ArenaVector<RegisterInfo*> tempreg_info_;
     ArenaVector<RegisterInfo*> reginfo_map_;
-    ArenaVector<void*> pointer_storage_;
+    ArenaVector<const void*> pointer_storage_;
     CodeOffset data_offset_;            // starting offset of literal pool.
     size_t total_size_;                   // header + code size.
     LIR* block_label_list_;

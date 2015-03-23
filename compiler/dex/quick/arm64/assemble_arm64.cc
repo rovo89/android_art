@@ -1003,7 +1003,7 @@ void Arm64Mir2Lir::AssembleLIR() {
                                       0 : offset_adjustment) + target_lir->offset;
             delta = target_offs - lir->offset;
           } else if (lir->operands[2] >= 0) {
-            EmbeddedData* tab = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[2]));
+            const EmbeddedData* tab = UnwrapPointer<EmbeddedData>(lir->operands[2]);
             delta = tab->offset + offset_adjustment - lir->offset;
           } else {
             // No fixup: this usage allows to retrieve the current PC.

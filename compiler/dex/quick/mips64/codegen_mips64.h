@@ -182,7 +182,7 @@ class Mips64Mir2Lir FINAL : public Mir2Lir {
   LIR* OpIT(ConditionCode cond, const char* guide);
   void OpEndIT(LIR* it);
   LIR* OpMem(OpKind op, RegStorage r_base, int disp);
-  LIR* OpPcRelLoad(RegStorage reg, LIR* target);
+  void OpPcRelLoad(RegStorage reg, LIR* target);
   LIR* OpReg(OpKind op, RegStorage r_dest_src);
   void OpRegCopy(RegStorage r_dest, RegStorage r_src);
   LIR* OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src);
