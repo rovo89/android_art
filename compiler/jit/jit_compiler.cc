@@ -217,20 +217,21 @@ bool JitCompiler::AddToCodeCache(mirror::ArtMethod* method, const CompiledMethod
   auto* const mapping_table = compiled_method->GetMappingTable();
   auto* const vmap_table = compiled_method->GetVmapTable();
   auto* const gc_map = compiled_method->GetGcMap();
+  CHECK(gc_map != nullptr) << PrettyMethod(method);
   // Write out pre-header stuff.
   uint8_t* const mapping_table_ptr = code_cache->AddDataArray(
       self, mapping_table->data(), mapping_table->data() + mapping_table->size());
-  if (mapping_table == nullptr) {
+  if (mapping_table_ptr == nullptr) {
     return false;  // Out of data cache.
   }
   uint8_t* const vmap_table_ptr = code_cache->AddDataArray(
       self, vmap_table->data(), vmap_table->data() + vmap_table->size());
-  if (vmap_table == nullptr) {
+  if (vmap_table_ptr == nullptr) {
     return false;  // Out of data cache.
   }
   uint8_t* const gc_map_ptr = code_cache->AddDataArray(
       self, gc_map->data(), gc_map->data() + gc_map->size());
-  if (gc_map == nullptr) {
+  if (gc_map_ptr == nullptr) {
     return false;  // Out of data cache.
   }
   // Don't touch this until you protect / unprotect the code.
