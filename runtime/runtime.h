@@ -524,6 +524,10 @@ class Runtime {
     return allow_dex_file_fallback_;
   }
 
+  const std::vector<std::string>& GetCpuAbilist() const {
+    return cpu_abilist_;
+  }
+
   bool RunningOnValgrind() const {
     return running_on_valgrind_;
   }
@@ -705,6 +709,9 @@ class Runtime {
   // If true, the runtime may use dex files directly with the interpreter if an oat file is not
   // available/usable.
   bool allow_dex_file_fallback_;
+
+  // List of supported cpu abis.
+  std::vector<std::string> cpu_abilist_;
 
   // Specifies target SDK version to allow workarounds for certain API levels.
   int32_t target_sdk_version_;
