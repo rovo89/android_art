@@ -47,33 +47,50 @@ class JitCodeCache {
   static constexpr size_t kMaxCapacity = 1 * GB;
   static constexpr size_t kDefaultCapacity = 2 * MB;
 
+  // Create the code cache with a code + data capacity equal to "capacity", error message is passed
+  // in the out arg error_msg.
   static JitCodeCache* Create(size_t capacity, std::string* error_msg);
 
   const uint8_t* CodeCachePtr() const {
     return code_cache_ptr_;
   }
+
   size_t CodeCacheSize() const {
     return code_cache_ptr_ - code_cache_begin_;
   }
+
   size_t CodeCacheRemain() const {
     return code_cache_end_ - code_cache_ptr_;
   }
+
+  const uint8_t* DataCachePtr() const {
+    return data_cache_ptr_;
+  }
+
   size_t DataCacheSize() const {
     return data_cache_ptr_ - data_cache_begin_;
   }
+
   size_t DataCacheRemain() const {
     return data_cache_end_ - data_cache_ptr_;
   }
+
   size_t NumMethods() const {
     return num_methods_;
   }
 
+  // Return true if the code cache contains the code pointer which si the entrypoint of the method.
   bool ContainsMethod(mirror::ArtMethod* method) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Return true if the code cache contains a code ptr.
   bool ContainsCodePtr(const void* ptr) const;
 
+  // Reserve a region of code of size at least "size". Returns nullptr if there is no more room.
   uint8_t* ReserveCode(Thread* self, size_t size) LOCKS_EXCLUDED(lock_);
 
+  // Add a data array of size (end - begin) with the associated contents, returns nullptr if there
+  // is no more room.
   uint8_t* AddDataArray(Thread* self, const uint8_t* begin, const uint8_t* end)
       LOCKS_EXCLUDED(lock_);
 
@@ -81,14 +98,19 @@ class JitCodeCache {
   const void* GetCodeFor(mirror::ArtMethod* method)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
 
+  // Save the compiled code for a method so that GetCodeFor(method) will return old_code_ptr if the
+  // entrypoint isn't within the cache.
   void SaveCompiledCode(mirror::ArtMethod* method, const void* old_code_ptr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(lock_);
 
  private:
   // Takes ownership of code_mem_map.
   explicit JitCodeCache(MemMap* code_mem_map);
+
+  // Unimplemented, TODO: Determine if it is necessary.
   void FlushInstructionCache();
 
+  // Lock which guards.
   Mutex lock_;
   // Mem map which holds code and data. We do this since we need to have 32 bit offsets from method
   // headers in code cache which point to things in the data cache. If the maps are more than 4GB
@@ -106,7 +128,7 @@ class JitCodeCache {
   // TODO: This relies on methods not moving.
   // This map holds code for methods if they were deoptimized by the instrumentation stubs. This is
   // required since we have to implement ClassLinker::GetQuickOatCodeFor for walking stacks.
-  SafeMap<mirror::ArtMethod*, const void*> method_code_map_;
+  SafeMap<mirror::ArtMethod*, const void*> method_code_map_ GUARDED_BY(lock_);
 
   DISALLOW_COPY_AND_ASSIGN(JitCodeCache);
 };
