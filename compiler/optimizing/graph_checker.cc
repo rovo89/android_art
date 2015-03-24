@@ -227,13 +227,13 @@ void SSAChecker::CheckLoop(HBasicBlock* loop_header) {
   } else {
     HLoopInformation* loop_information = loop_header->GetLoopInformation();
     HBasicBlock* first_predecessor = loop_header->GetPredecessors().Get(0);
-    if (loop_information->IsBackEdge(first_predecessor)) {
+    if (loop_information->IsBackEdge(*first_predecessor)) {
       AddError(StringPrintf(
           "First predecessor of loop header %d is a back edge.",
           id));
     }
     HBasicBlock* second_predecessor = loop_header->GetPredecessors().Get(1);
-    if (!loop_information->IsBackEdge(second_predecessor)) {
+    if (!loop_information->IsBackEdge(*second_predecessor)) {
       AddError(StringPrintf(
           "Second predecessor of loop header %d is not a back edge.",
           id));
