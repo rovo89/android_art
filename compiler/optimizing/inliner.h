@@ -48,8 +48,7 @@ class HInliner : public HOptimization {
   bool TryInline(HInvoke* invoke_instruction, uint32_t method_index, InvokeType invoke_type) const;
   bool TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
                          HInvoke* invoke_instruction,
-                         uint32_t method_index,
-                         bool can_use_dex_cache) const;
+                         uint32_t method_index) const;
 
   const DexCompilationUnit& outer_compilation_unit_;
   CompilerDriver* const compiler_driver_;
