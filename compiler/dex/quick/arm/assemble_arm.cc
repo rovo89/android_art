@@ -848,7 +848,7 @@ const ArmEncodingMap ArmMir2Lir::EncodingMap[kArmLast] = {
     ENCODING_MAP(kThumb2LdrPcRel12,       0xf8df0000,
                  kFmtBitBlt, 15, 12, kFmtBitBlt, 11, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1,
-                 IS_TERTIARY_OP | REG_DEF0 | REG_USE_PC | IS_LOAD_OFF | NEEDS_FIXUP,
+                 IS_BINARY_OP | REG_DEF0 | REG_USE_PC | IS_LOAD_OFF | NEEDS_FIXUP,
                  "ldr", "!0C, [r15pc, #!1d]", 4, kFixupLoad),
     ENCODING_MAP(kThumb2BCond,        0xf0008000,
                  kFmtBrOffset, -1, -1, kFmtBitBlt, 25, 22, kFmtUnused, -1, -1,
@@ -1502,7 +1502,7 @@ void ArmMir2Lir::AssembleLIR() {
           break;
         }
         case kFixupAdr: {
-          EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[2]));
+          const EmbeddedData* tab_rec = UnwrapPointer<EmbeddedData>(lir->operands[2]);
           LIR* target = lir->target;
           int32_t target_disp = (tab_rec != NULL) ?  tab_rec->offset + offset_adjustment
               : target->offset + ((target->flags.generation == lir->flags.generation) ? 0 :
@@ -1555,8 +1555,8 @@ void ArmMir2Lir::AssembleLIR() {
         }
         case kFixupMovImmLST: {
           // operands[1] should hold disp, [2] has add, [3] has tab_rec
-          LIR *addPCInst = reinterpret_cast<LIR*>(UnwrapPointer(lir->operands[2]));
-          EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[3]));
+          const LIR* addPCInst = UnwrapPointer<LIR>(lir->operands[2]);
+          const EmbeddedData* tab_rec = UnwrapPointer<EmbeddedData>(lir->operands[3]);
           // If tab_rec is null, this is a literal load. Use target
           LIR* target = lir->target;
           int32_t target_disp = tab_rec ? tab_rec->offset : target->offset;
@@ -1565,8 +1565,8 @@ void ArmMir2Lir::AssembleLIR() {
         }
         case kFixupMovImmHST: {
           // operands[1] should hold disp, [2] has add, [3] has tab_rec
-          LIR *addPCInst = reinterpret_cast<LIR*>(UnwrapPointer(lir->operands[2]));
-          EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[3]));
+          const LIR* addPCInst = UnwrapPointer<LIR>(lir->operands[2]);
+          const EmbeddedData* tab_rec = UnwrapPointer<EmbeddedData>(lir->operands[3]);
           // If tab_rec is null, this is a literal load. Use target
           LIR* target = lir->target;
           int32_t target_disp = tab_rec ? tab_rec->offset : target->offset;

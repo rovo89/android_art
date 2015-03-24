@@ -1586,13 +1586,11 @@ void X86Mir2Lir::EmitPcRel(const X86EncodingMap* entry, int32_t raw_reg, int32_t
                            int32_t raw_index, int scale, int32_t table_or_disp) {
   int disp;
   if (entry->opcode == kX86PcRelLoadRA) {
-    Mir2Lir::EmbeddedData *tab_rec =
-        reinterpret_cast<Mir2Lir::EmbeddedData*>(UnwrapPointer(table_or_disp));
+    const EmbeddedData* tab_rec = UnwrapPointer<EmbeddedData>(table_or_disp);
     disp = tab_rec->offset;
   } else {
     DCHECK(entry->opcode == kX86PcRelAdr);
-    Mir2Lir::EmbeddedData *tab_rec =
-        reinterpret_cast<Mir2Lir::EmbeddedData*>(UnwrapPointer(raw_base_or_table));
+    const EmbeddedData* tab_rec = UnwrapPointer<EmbeddedData>(raw_base_or_table);
     disp = tab_rec->offset;
   }
   if (entry->opcode == kX86PcRelLoadRA) {
@@ -1794,8 +1792,7 @@ AssemblerStatus X86Mir2Lir::AssembleInstructions(CodeOffset start_addr) {
             DCHECK_EQ(lir->opcode, kX86Lea64RM) << "Unknown instruction: " << X86Mir2Lir::EncodingMap[lir->opcode].name;
             DCHECK_EQ(lir->operands[1], static_cast<int>(kRIPReg));
             // Grab the target offset from the saved data.
-            Mir2Lir::EmbeddedData* tab_rec =
-                reinterpret_cast<Mir2Lir::EmbeddedData*>(UnwrapPointer(lir->operands[4]));
+            const EmbeddedData* tab_rec = UnwrapPointer<Mir2Lir::EmbeddedData>(lir->operands[4]);
             CodeOffset target = tab_rec->offset;
             // Handle 64 bit RIP addressing.
             // Offset is relative to next instruction.
