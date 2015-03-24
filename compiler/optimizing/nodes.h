@@ -128,6 +128,7 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   void SetExitBlock(HBasicBlock* block) { exit_block_ = block; }
 
   void AddBlock(HBasicBlock* block);
+  void AddConstant(HConstant* instruction);
 
   // Try building the SSA form of this graph, with dominance computation and loop
   // recognition. Returns whether it was successful in doing all these steps.
@@ -153,6 +154,8 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
 
   // Inline this graph in `outer_graph`, replacing the given `invoke` instruction.
   void InlineInto(HGraph* outer_graph, HInvoke* invoke);
+
+  void MergeEmptyBranches(HBasicBlock* start_block, HBasicBlock* end_block);
 
   void SplitCriticalEdge(HBasicBlock* block, HBasicBlock* successor);
   void SimplifyLoop(HBasicBlock* header);
@@ -217,6 +220,8 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   bool IsDebuggable() const { return debuggable_; }
 
   HNullConstant* GetNullConstant();
+  HIntConstant* GetIntConstant0();
+  HIntConstant* GetIntConstant1();
 
  private:
   HBasicBlock* FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const;
@@ -267,6 +272,10 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   // Cached null constant that might be created when building SSA form.
   HNullConstant* cached_null_constant_;
 
+  // Cached common constants often needed by optimization passes.
+  HIntConstant* cached_int_constant0_;
+  HIntConstant* cached_int_constant1_;
+
   ART_FRIEND_TEST(GraphTest, IfSuccessorSimpleJoinBlock1);
   DISALLOW_COPY_AND_ASSIGN(HGraph);
 };
@@ -300,9 +309,9 @@ class HLoopInformation : public ArenaObject<kArenaAllocMisc> {
     back_edges_.Delete(back_edge);
   }
 
-  bool IsBackEdge(HBasicBlock* block) {
+  bool IsBackEdge(const HBasicBlock& block) const {
     for (size_t i = 0, e = back_edges_.Size(); i < e; ++i) {
-      if (back_edges_.Get(i) == block) return true;
+      if (back_edges_.Get(i) == &block) return true;
     }
     return false;
   }
@@ -336,6 +345,7 @@ class HLoopInformation : public ArenaObject<kArenaAllocMisc> {
   const ArenaBitVector& GetBlocks() const { return blocks_; }
 
   void Add(HBasicBlock* block);
+  void Remove(HBasicBlock* block);
 
  private:
   // Internal recursive implementation of `Populate`.
@@ -390,6 +400,8 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   bool IsExitBlock() const {
     return graph_->GetExitBlock() == this;
   }
+
+  bool IsSingleGoto() const;
 
   void AddBackEdge(HBasicBlock* back_edge) {
     if (loop_information_ == nullptr) {
@@ -512,7 +524,15 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   // of `this` are moved to `other`.
   // Note that this method does not update the graph, reverse post order, loop
   // information, nor make sure the blocks are consistent (for example ending
+  // with a control flow instruction).
   void ReplaceWith(HBasicBlock* other);
+
+  // Disconnects `this` from all its predecessors, successors and the dominator.
+  // It assumes that `this` does not dominate any blocks.
+  // Note that this method does not update the graph, reverse post order, loop
+  // information, nor make sure the blocks are consistent (for example ending
+  // with a control flow instruction).
+  void DisconnectFromAll();
 
   void AddInstruction(HInstruction* instruction);
   void InsertInstructionBefore(HInstruction* instruction, HInstruction* cursor);
