@@ -616,8 +616,8 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
     DCHECK((optimized_invoke_type == invoke_type) || (optimized_invoke_type != kDirect)
            || compiler_driver_->GetCompilerOptions().GetCompilePic());
     bool is_recursive =
-        (target_method.dex_method_index == dex_compilation_unit_->GetDexMethodIndex());
-    DCHECK(!is_recursive || (target_method.dex_file == dex_compilation_unit_->GetDexFile()));
+        (target_method.dex_method_index == outer_compilation_unit_->GetDexMethodIndex());
+    DCHECK(!is_recursive || (target_method.dex_file == outer_compilation_unit_->GetDexFile()));
     invoke = new (arena_) HInvokeStaticOrDirect(
         arena_, number_of_arguments, return_type, dex_pc, target_method.dex_method_index,
         is_recursive, optimized_invoke_type);
@@ -711,7 +711,7 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   uint16_t field_index = instruction.VRegB_21c();
 
   ScopedObjectAccess soa(Thread::Current());
-  StackHandleScope<5> hs(soa.Self());
+  StackHandleScope<4> hs(soa.Self());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(
       dex_compilation_unit_->GetClassLinker()->FindDexCache(*dex_compilation_unit_->GetDexFile())));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
@@ -724,10 +724,8 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
     return false;
   }
 
-  Handle<mirror::DexCache> outer_dex_cache(hs.NewHandle(
-      outer_compilation_unit_->GetClassLinker()->FindDexCache(*outer_compilation_unit_->GetDexFile())));
   Handle<mirror::Class> referrer_class(hs.NewHandle(compiler_driver_->ResolveCompilingMethodsClass(
-      soa, outer_dex_cache, class_loader, outer_compilation_unit_)));
+      soa, dex_cache, class_loader, outer_compilation_unit_)));
 
   // The index at which the field's class is stored in the DexCache's type array.
   uint32_t storage_index;
@@ -740,7 +738,7 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
 
   // TODO: find out why this check is needed.
   bool is_in_dex_cache = compiler_driver_->CanAssumeTypeIsPresentInDexCache(
-      *dex_compilation_unit_->GetDexFile(), storage_index);
+      *outer_compilation_unit_->GetDexFile(), storage_index);
   bool is_initialized = resolved_field->GetDeclaringClass()->IsInitialized() && is_in_dex_cache;
   bool is_referrer_class = (referrer_class.Get() == resolved_field->GetDeclaringClass());
 
