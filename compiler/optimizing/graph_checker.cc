@@ -80,8 +80,7 @@ void GraphChecker::VisitBasicBlock(HBasicBlock* block) {
   }
 
   // Ensure `block` ends with a branch instruction.
-  HInstruction* last_inst = block->GetLastInstruction();
-  if (last_inst == nullptr || !last_inst->IsControlFlow()) {
+  if (!block->EndsWithControlFlowInstruction()) {
     AddError(StringPrintf("Block %d does not end with a branch instruction.",
                           block->GetBlockId()));
   }
@@ -473,6 +472,17 @@ void SSAChecker::VisitBinaryOperation(HBinaryOperation* op) {
           Primitive::PrettyDescriptor(op->GetType()),
           Primitive::PrettyDescriptor(op->InputAt(1)->GetType())));
     }
+  }
+}
+
+void SSAChecker::VisitConstant(HConstant* instruction) {
+  HBasicBlock* block = instruction->GetBlock();
+  if (!block->IsEntryBlock()) {
+    AddError(StringPrintf(
+        "%s %d should be in the entry block but is in block %d.",
+        instruction->DebugName(),
+        instruction->GetId(),
+        block->GetBlockId()));
   }
 }
 

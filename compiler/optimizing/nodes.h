@@ -17,6 +17,7 @@
 #ifndef ART_COMPILER_OPTIMIZING_NODES_H_
 #define ART_COMPILER_OPTIMIZING_NODES_H_
 
+#include "base/arena_containers.h"
 #include "base/arena_object.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "handle.h"
@@ -33,16 +34,20 @@ namespace art {
 
 class GraphChecker;
 class HBasicBlock;
+class HDoubleConstant;
 class HEnvironment;
+class HFloatConstant;
+class HGraphVisitor;
 class HInstruction;
 class HIntConstant;
 class HInvoke;
-class HGraphVisitor;
+class HLongConstant;
 class HNullConstant;
 class HPhi;
 class HSuspendCheck;
 class LiveInterval;
 class LocationSummary;
+class SsaBuilder;
 
 static const int kDefaultNumberOfBlocks = 8;
 static const int kDefaultNumberOfSuccessors = 2;
@@ -115,7 +120,10 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
         temporaries_vreg_slots_(0),
         has_array_accesses_(false),
         debuggable_(debuggable),
-        current_instruction_id_(start_instruction_id) {}
+        current_instruction_id_(start_instruction_id),
+        cached_null_constant_(nullptr),
+        cached_int_constants_(std::less<int32_t>(), arena->Adapter()),
+        cached_long_constants_(std::less<int64_t>(), arena->Adapter()) {}
 
   ArenaAllocator* GetArena() const { return arena_; }
   const GrowableArray<HBasicBlock*>& GetBlocks() const { return blocks_; }
@@ -128,7 +136,6 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   void SetExitBlock(HBasicBlock* block) { exit_block_ = block; }
 
   void AddBlock(HBasicBlock* block);
-  void AddConstant(HConstant* instruction);
 
   // Try building the SSA form of this graph, with dominance computation and loop
   // recognition. Returns whether it was successful in doing all these steps.
@@ -219,9 +226,17 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
 
   bool IsDebuggable() const { return debuggable_; }
 
+  // Returns a constant of the given type and value. If it does not exist
+  // already, it is created and inserted into the graph. Only integral types
+  // are currently supported.
+  HConstant* GetConstant(Primitive::Type type, int64_t value);
   HNullConstant* GetNullConstant();
-  HIntConstant* GetIntConstant0();
-  HIntConstant* GetIntConstant1();
+  HIntConstant* GetIntConstant(int32_t value) {
+    return CreateConstant(value, &cached_int_constants_);
+  }
+  HLongConstant* GetLongConstant(int64_t value) {
+    return CreateConstant(value, &cached_long_constants_);
+  }
 
  private:
   HBasicBlock* FindCommonDominator(HBasicBlock* first, HBasicBlock* second) const;
@@ -234,6 +249,10 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
                               ArenaBitVector* visiting);
   void RemoveInstructionsAsUsersFromDeadBlocks(const ArenaBitVector& visited) const;
   void RemoveDeadBlocks(const ArenaBitVector& visited) const;
+
+  template <class InstType, typename ValueType>
+  InstType* CreateConstant(ValueType value, ArenaSafeMap<ValueType, InstType*>* cache);
+  void InsertConstant(HConstant* instruction);
 
   ArenaAllocator* const arena_;
 
@@ -269,12 +288,10 @@ class HGraph : public ArenaObject<kArenaAllocMisc> {
   // The current id to assign to a newly added instruction. See HInstruction.id_.
   int32_t current_instruction_id_;
 
-  // Cached null constant that might be created when building SSA form.
-  HNullConstant* cached_null_constant_;
-
   // Cached common constants often needed by optimization passes.
-  HIntConstant* cached_int_constant0_;
-  HIntConstant* cached_int_constant1_;
+  HNullConstant* cached_null_constant_;
+  ArenaSafeMap<int32_t, HIntConstant*> cached_int_constants_;
+  ArenaSafeMap<int64_t, HLongConstant*> cached_long_constants_;
 
   ART_FRIEND_TEST(GraphTest, IfSuccessorSimpleJoinBlock1);
   DISALLOW_COPY_AND_ASSIGN(HGraph);
@@ -602,6 +619,7 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   bool IsCatchBlock() const { return is_catch_block_; }
   void SetIsCatchBlock() { is_catch_block_ = true; }
 
+  bool EndsWithControlFlowInstruction() const;
   bool EndsWithIf() const;
   bool HasSinglePhi() const;
 
@@ -1908,8 +1926,6 @@ class HConstant : public HExpression<0> {
   virtual bool IsZero() const { return false; }
   virtual bool IsOne() const { return false; }
 
-  static HConstant* NewConstant(ArenaAllocator* allocator, Primitive::Type type, int64_t val);
-
   DECLARE_INSTRUCTION(Constant);
 
  private:
@@ -1918,8 +1934,6 @@ class HConstant : public HExpression<0> {
 
 class HFloatConstant : public HConstant {
  public:
-  explicit HFloatConstant(float value) : HConstant(Primitive::kPrimFloat), value_(value) {}
-
   float GetValue() const { return value_; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
@@ -1944,15 +1958,19 @@ class HFloatConstant : public HConstant {
   DECLARE_INSTRUCTION(FloatConstant);
 
  private:
+  explicit HFloatConstant(float value) : HConstant(Primitive::kPrimFloat), value_(value) {}
+
   const float value_;
 
+  // Only the SsaBuilder can currently create floating-point constants. If we
+  // ever need to create them later in the pipeline, we will have to handle them
+  // the same way as integral constants.
+  friend class SsaBuilder;
   DISALLOW_COPY_AND_ASSIGN(HFloatConstant);
 };
 
 class HDoubleConstant : public HConstant {
  public:
-  explicit HDoubleConstant(double value) : HConstant(Primitive::kPrimDouble), value_(value) {}
-
   double GetValue() const { return value_; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
@@ -1977,15 +1995,19 @@ class HDoubleConstant : public HConstant {
   DECLARE_INSTRUCTION(DoubleConstant);
 
  private:
+  explicit HDoubleConstant(double value) : HConstant(Primitive::kPrimDouble), value_(value) {}
+
   const double value_;
 
+  // Only the SsaBuilder can currently create floating-point constants. If we
+  // ever need to create them later in the pipeline, we will have to handle them
+  // the same way as integral constants.
+  friend class SsaBuilder;
   DISALLOW_COPY_AND_ASSIGN(HDoubleConstant);
 };
 
 class HNullConstant : public HConstant {
  public:
-  HNullConstant() : HConstant(Primitive::kPrimNot) {}
-
   bool InstructionDataEquals(HInstruction* other ATTRIBUTE_UNUSED) const OVERRIDE {
     return true;
   }
@@ -1997,6 +2019,9 @@ class HNullConstant : public HConstant {
   DECLARE_INSTRUCTION(NullConstant);
 
  private:
+  HNullConstant() : HConstant(Primitive::kPrimNot) {}
+
+  friend class HGraph;
   DISALLOW_COPY_AND_ASSIGN(HNullConstant);
 };
 
@@ -2004,8 +2029,6 @@ class HNullConstant : public HConstant {
 // synthesized (for example with the if-eqz instruction).
 class HIntConstant : public HConstant {
  public:
-  explicit HIntConstant(int32_t value) : HConstant(Primitive::kPrimInt), value_(value) {}
-
   int32_t GetValue() const { return value_; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
@@ -2026,15 +2049,18 @@ class HIntConstant : public HConstant {
   DECLARE_INSTRUCTION(IntConstant);
 
  private:
+  explicit HIntConstant(int32_t value) : HConstant(Primitive::kPrimInt), value_(value) {}
+
   const int32_t value_;
 
+  friend class HGraph;
+  ART_FRIEND_TEST(GraphTest, InsertInstructionBefore);
+  ART_FRIEND_TEST(ParallelMoveTest, ConstantLast);
   DISALLOW_COPY_AND_ASSIGN(HIntConstant);
 };
 
 class HLongConstant : public HConstant {
  public:
-  explicit HLongConstant(int64_t value) : HConstant(Primitive::kPrimLong), value_(value) {}
-
   int64_t GetValue() const { return value_; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
@@ -2050,8 +2076,11 @@ class HLongConstant : public HConstant {
   DECLARE_INSTRUCTION(LongConstant);
 
  private:
+  explicit HLongConstant(int64_t value) : HConstant(Primitive::kPrimLong), value_(value) {}
+
   const int64_t value_;
 
+  friend class HGraph;
   DISALLOW_COPY_AND_ASSIGN(HLongConstant);
 };
 

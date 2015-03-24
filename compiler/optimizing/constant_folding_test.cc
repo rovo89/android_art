@@ -101,14 +101,16 @@ TEST(ConstantFolding, IntConstantFoldingNegation) {
   // Expected difference after constant folding.
   diff_t expected_cf_diff = {
     { "  2: IntConstant [5]\n", "  2: IntConstant\n" },
-    { "  5: Neg(2) [8]\n",      "  12: IntConstant [8]\n" },
+    { "  10: SuspendCheck\n",   "  10: SuspendCheck\n"
+                                "  12: IntConstant [8]\n" },
+    { "  5: Neg(2) [8]\n",      removed },
     { "  8: Return(5)\n",       "  8: Return(12)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
   // Check the value of the computed constant.
   auto check_after_cf = [](HGraph* graph) {
-    HInstruction* inst = graph->GetBlock(1)->GetFirstInstruction();
+    HInstruction* inst = graph->GetBlock(1)->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst->IsIntConstant());
     ASSERT_EQ(inst->AsIntConstant()->GetValue(), -1);
   };
@@ -160,14 +162,16 @@ TEST(ConstantFolding, IntConstantFoldingOnAddition1) {
   diff_t expected_cf_diff = {
     { "  3: IntConstant [9]\n", "  3: IntConstant\n" },
     { "  5: IntConstant [9]\n", "  5: IntConstant\n" },
-    { "  9: Add(3, 5) [12]\n",  "  16: IntConstant [12]\n" },
+    { "  14: SuspendCheck\n",   "  14: SuspendCheck\n"
+                                "  16: IntConstant [12]\n" },
+    { "  9: Add(3, 5) [12]\n",  removed },
     { "  12: Return(9)\n",      "  12: Return(16)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
   // Check the value of the computed constant.
   auto check_after_cf = [](HGraph* graph) {
-    HInstruction* inst = graph->GetBlock(1)->GetFirstInstruction();
+    HInstruction* inst = graph->GetBlock(1)->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst->IsIntConstant());
     ASSERT_EQ(inst->AsIntConstant()->GetValue(), 3);
   };
@@ -195,8 +199,8 @@ TEST(ConstantFolding, IntConstantFoldingOnAddition1) {
  *     v0 <- 1                  0.      const/4 v0, #+1
  *     v1 <- 2                  1.      const/4 v1, #+2
  *     v0 <- v0 + v1            2.      add-int/2addr v0, v1
- *     v1 <- 3                  3.      const/4 v1, #+3
- *     v2 <- 4                  4.      const/4 v2, #+4
+ *     v1 <- 4                  3.      const/4 v1, #+4
+ *     v2 <- 5                  4.      const/4 v2, #+5
  *     v1 <- v1 + v2            5.      add-int/2addr v1, v2
  *     v2 <- v0 + v1            6.      add-int v2, v0, v1
  *     return v2                8.      return v2
@@ -206,8 +210,8 @@ TEST(ConstantFolding, IntConstantFoldingOnAddition2) {
     Instruction::CONST_4 | 0 << 8 | 1 << 12,
     Instruction::CONST_4 | 1 << 8 | 2 << 12,
     Instruction::ADD_INT_2ADDR | 0 << 8 | 1 << 12,
-    Instruction::CONST_4 | 1 << 8 | 3 << 12,
-    Instruction::CONST_4 | 2 << 8 | 4 << 12,
+    Instruction::CONST_4 | 1 << 8 | 4 << 12,
+    Instruction::CONST_4 | 2 << 8 | 5 << 12,
     Instruction::ADD_INT_2ADDR | 1 << 8 | 2 << 12,
     Instruction::ADD_INT | 2 << 8, 0 | 1 << 8,
     Instruction::RETURN | 2 << 8);
@@ -234,24 +238,28 @@ TEST(ConstantFolding, IntConstantFoldingOnAddition2) {
     { "  5: IntConstant [9]\n",   "  5: IntConstant\n" },
     { "  11: IntConstant [17]\n", "  11: IntConstant\n" },
     { "  13: IntConstant [17]\n", "  13: IntConstant\n" },
-    { "  9: Add(3, 5) [21]\n",    "  28: IntConstant\n" },
-    { "  17: Add(11, 13) [21]\n", "  29: IntConstant\n" },
-    { "  21: Add(9, 17) [24]\n",  "  30: IntConstant [24]\n" },
+    { "  26: SuspendCheck\n",     "  26: SuspendCheck\n"
+                                  "  28: IntConstant\n"
+                                  "  29: IntConstant\n"
+                                  "  30: IntConstant [24]\n" },
+    { "  9: Add(3, 5) [21]\n",    removed },
+    { "  17: Add(11, 13) [21]\n", removed },
+    { "  21: Add(9, 17) [24]\n",  removed  },
     { "  24: Return(21)\n",       "  24: Return(30)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
   // Check the values of the computed constants.
   auto check_after_cf = [](HGraph* graph) {
-    HInstruction* inst1 = graph->GetBlock(1)->GetFirstInstruction();
+    HInstruction* inst1 = graph->GetBlock(1)->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst1->IsIntConstant());
-    ASSERT_EQ(inst1->AsIntConstant()->GetValue(), 3);
-    HInstruction* inst2 = inst1->GetNext();
+    ASSERT_EQ(inst1->AsIntConstant()->GetValue(), 12);
+    HInstruction* inst2 = inst1->GetPrevious();
     ASSERT_TRUE(inst2->IsIntConstant());
-    ASSERT_EQ(inst2->AsIntConstant()->GetValue(), 7);
-    HInstruction* inst3 = inst2->GetNext();
+    ASSERT_EQ(inst2->AsIntConstant()->GetValue(), 9);
+    HInstruction* inst3 = inst2->GetPrevious();
     ASSERT_TRUE(inst3->IsIntConstant());
-    ASSERT_EQ(inst3->AsIntConstant()->GetValue(), 10);
+    ASSERT_EQ(inst3->AsIntConstant()->GetValue(), 3);
   };
 
   // Expected difference after dead code elimination.
@@ -306,14 +314,16 @@ TEST(ConstantFolding, IntConstantFoldingOnSubtraction) {
   diff_t expected_cf_diff = {
     { "  3: IntConstant [9]\n", "  3: IntConstant\n" },
     { "  5: IntConstant [9]\n", "  5: IntConstant\n" },
-    { "  9: Sub(3, 5) [12]\n",  "  16: IntConstant [12]\n" },
+    { "  14: SuspendCheck\n",   "  14: SuspendCheck\n"
+                                "  16: IntConstant [12]\n" },
+    { "  9: Sub(3, 5) [12]\n",  removed },
     { "  12: Return(9)\n",      "  12: Return(16)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
   // Check the value of the computed constant.
   auto check_after_cf = [](HGraph* graph) {
-    HInstruction* inst = graph->GetBlock(1)->GetFirstInstruction();
+    HInstruction* inst = graph->GetBlock(1)->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst->IsIntConstant());
     ASSERT_EQ(inst->AsIntConstant()->GetValue(), 1);
   };
@@ -368,14 +378,16 @@ TEST(ConstantFolding, LongConstantFoldingOnAddition) {
   diff_t expected_cf_diff = {
     { "  6: LongConstant [12]\n", "  6: LongConstant\n" },
     { "  8: LongConstant [12]\n", "  8: LongConstant\n" },
-    { "  12: Add(6, 8) [15]\n",   "  19: LongConstant [15]\n" },
+    { "  17: SuspendCheck\n",     "  17: SuspendCheck\n"
+                                  "  19: LongConstant [15]\n" },
+    { "  12: Add(6, 8) [15]\n",   removed },
     { "  15: Return(12)\n",       "  15: Return(19)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
   // Check the value of the computed constant.
   auto check_after_cf = [](HGraph* graph) {
-    HInstruction* inst = graph->GetBlock(1)->GetFirstInstruction();
+    HInstruction* inst = graph->GetBlock(1)->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst->IsLongConstant());
     ASSERT_EQ(inst->AsLongConstant()->GetValue(), 3);
   };
@@ -431,14 +443,16 @@ TEST(ConstantFolding, LongConstantFoldingOnSubtraction) {
   diff_t expected_cf_diff = {
     { "  6: LongConstant [12]\n", "  6: LongConstant\n" },
     { "  8: LongConstant [12]\n", "  8: LongConstant\n" },
-    { "  12: Sub(6, 8) [15]\n",   "  19: LongConstant [15]\n" },
+    { "  17: SuspendCheck\n",     "  17: SuspendCheck\n"
+                                  "  19: LongConstant [15]\n" },
+    { "  12: Sub(6, 8) [15]\n",   removed },
     { "  15: Return(12)\n",       "  15: Return(19)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
   // Check the value of the computed constant.
   auto check_after_cf = [](HGraph* graph) {
-    HInstruction* inst = graph->GetBlock(1)->GetFirstInstruction();
+    HInstruction* inst = graph->GetBlock(1)->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst->IsLongConstant());
     ASSERT_EQ(inst->AsLongConstant()->GetValue(), 1);
   };
@@ -469,51 +483,51 @@ TEST(ConstantFolding, LongConstantFoldingOnSubtraction) {
  *                              16-bit
  *                              offset
  *                              ------
- *     v0 <- 0                   0.     const/4 v0, #+0
- *     v1 <- 1                   1.     const/4 v1, #+1
+ *     v0 <- 1                   0.     const/4 v0, #+1
+ *     v1 <- 2                   1.     const/4 v1, #+2
  *     v2 <- v0 + v1             2.     add-int v2, v0, v1
  *     goto L2                   4.     goto +4
- * L1: v1 <- v0 + 3              5.     add-int/lit16 v1, v0, #+3
+ * L1: v1 <- v0 + 5              5.     add-int/lit16 v1, v0, #+5
  *     goto L3                   7.     goto +4
- * L2: v0 <- v2 + 2              8.     add-int/lit16 v0, v2, #+2
+ * L2: v0 <- v2 + 4              8.     add-int/lit16 v0, v2, #+4
  *     goto L1                  10.     goto +(-5)
- * L3: v2 <- v1 + 4             11.     add-int/lit16 v2, v1, #+4
+ * L3: v2 <- v1 + 8             11.     add-int/lit16 v2, v1, #+8
  *     return v2                13.     return v2
  */
 TEST(ConstantFolding, IntConstantFoldingAndJumps) {
   const uint16_t data[] = THREE_REGISTERS_CODE_ITEM(
-    Instruction::CONST_4 | 0 << 8 | 0 << 12,
-    Instruction::CONST_4 | 1 << 8 | 1 << 12,
+    Instruction::CONST_4 | 0 << 8 | 1 << 12,
+    Instruction::CONST_4 | 1 << 8 | 2 << 12,
     Instruction::ADD_INT | 2 << 8, 0 | 1 << 8,
     Instruction::GOTO | 4 << 8,
-    Instruction::ADD_INT_LIT16 | 1 << 8 | 0 << 12, 3,
+    Instruction::ADD_INT_LIT16 | 1 << 8 | 0 << 12, 5,
     Instruction::GOTO | 4 << 8,
-    Instruction::ADD_INT_LIT16 | 0 << 8 | 2 << 12, 2,
+    Instruction::ADD_INT_LIT16 | 0 << 8 | 2 << 12, 4,
     static_cast<uint16_t>(Instruction::GOTO | -5 << 8),
-    Instruction::ADD_INT_LIT16 | 2 << 8 | 1 << 12, 4,
+    Instruction::ADD_INT_LIT16 | 2 << 8 | 1 << 12, 8,
     Instruction::RETURN | 2 << 8);
 
   std::string expected_before =
     "BasicBlock 0, succ: 1\n"
-    "  3: IntConstant [9]\n"            // v0 <- 0
-    "  5: IntConstant [9]\n"            // v1 <- 1
-    "  13: IntConstant [14]\n"          // const 3
-    "  18: IntConstant [19]\n"          // const 2
-    "  24: IntConstant [25]\n"          // const 4
+    "  3: IntConstant [9]\n"            // v0 <- 1
+    "  5: IntConstant [9]\n"            // v1 <- 2
+    "  13: IntConstant [14]\n"          // const 5
+    "  18: IntConstant [19]\n"          // const 4
+    "  24: IntConstant [25]\n"          // const 8
     "  30: SuspendCheck\n"
     "  31: Goto 1\n"
     "BasicBlock 1, pred: 0, succ: 3\n"
-    "  9: Add(3, 5) [19]\n"             // v2 <- v0 + v1 = 0 + 1 = 1
+    "  9: Add(3, 5) [19]\n"             // v2 <- v0 + v1 = 1 + 2 = 3
     "  11: Goto 3\n"                    // goto L2
     "BasicBlock 2, pred: 3, succ: 4\n"  // L1:
-    "  14: Add(19, 13) [25]\n"          // v1 <- v0 + 3 = 3 + 3 = 6
+    "  14: Add(19, 13) [25]\n"          // v1 <- v0 + 3 = 7 + 5 = 12
     "  16: Goto 4\n"                    // goto L3
     "BasicBlock 3, pred: 1, succ: 2\n"  // L2:
-    "  19: Add(9, 18) [14]\n"           // v0 <- v2 + 2 = 1 + 2 = 3
+    "  19: Add(9, 18) [14]\n"           // v0 <- v2 + 2 = 3 + 4 = 7
     "  21: SuspendCheck\n"
     "  22: Goto 2\n"                    // goto L1
     "BasicBlock 4, pred: 2, succ: 5\n"  // L3:
-    "  25: Add(14, 24) [28]\n"          // v2 <- v1 + 4 = 6 + 4 = 10
+    "  25: Add(14, 24) [28]\n"          // v2 <- v1 + 4 = 12 + 8 = 20
     "  28: Return(25)\n"                // return v2
     "BasicBlock 5, pred: 4\n"
     "  29: Exit\n";
@@ -525,28 +539,33 @@ TEST(ConstantFolding, IntConstantFoldingAndJumps) {
     { "  13: IntConstant [14]\n", "  13: IntConstant\n" },
     { "  18: IntConstant [19]\n", "  18: IntConstant\n" },
     { "  24: IntConstant [25]\n", "  24: IntConstant\n" },
-    { "  9: Add(3, 5) [19]\n",    "  32: IntConstant []\n" },
-    { "  14: Add(19, 13) [25]\n", "  34: IntConstant\n" },
-    { "  19: Add(9, 18) [14]\n",  "  33: IntConstant []\n" },
-    { "  25: Add(14, 24) [28]\n", "  35: IntConstant [28]\n" },
+    { "  30: SuspendCheck\n",     "  30: SuspendCheck\n"
+                                  "  32: IntConstant []\n"
+                                  "  33: IntConstant []\n"
+                                  "  34: IntConstant\n"
+                                  "  35: IntConstant [28]\n" },
+    { "  9: Add(3, 5) [19]\n",    removed },
+    { "  14: Add(19, 13) [25]\n", removed },
+    { "  19: Add(9, 18) [14]\n",  removed },
+    { "  25: Add(14, 24) [28]\n", removed },
     { "  28: Return(25)\n",       "  28: Return(35)\n"}
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
   // Check the values of the computed constants.
   auto check_after_cf = [](HGraph* graph) {
-    HInstruction* inst1 = graph->GetBlock(1)->GetFirstInstruction();
+    HInstruction* inst1 = graph->GetBlock(4)->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst1->IsIntConstant());
-    ASSERT_EQ(inst1->AsIntConstant()->GetValue(), 1);
-    HInstruction* inst2 = graph->GetBlock(2)->GetFirstInstruction();
+    ASSERT_EQ(inst1->AsIntConstant()->GetValue(), 20);
+    HInstruction* inst2 = inst1->GetPrevious();
     ASSERT_TRUE(inst2->IsIntConstant());
-    ASSERT_EQ(inst2->AsIntConstant()->GetValue(), 6);
-    HInstruction* inst3 = graph->GetBlock(3)->GetFirstInstruction();
+    ASSERT_EQ(inst2->AsIntConstant()->GetValue(), 12);
+    HInstruction* inst3 = inst2->GetPrevious();
     ASSERT_TRUE(inst3->IsIntConstant());
-    ASSERT_EQ(inst3->AsIntConstant()->GetValue(), 3);
-    HInstruction* inst4 = graph->GetBlock(4)->GetFirstInstruction();
+    ASSERT_EQ(inst3->AsIntConstant()->GetValue(), 7);
+    HInstruction* inst4 = inst3->GetPrevious();
     ASSERT_TRUE(inst4->IsIntConstant());
-    ASSERT_EQ(inst4->AsIntConstant()->GetValue(), 10);
+    ASSERT_EQ(inst4->AsIntConstant()->GetValue(), 3);
   };
 
   // Expected difference after dead code elimination.
@@ -611,25 +630,25 @@ TEST(ConstantFolding, ConstantCondition) {
 
   // Expected difference after constant folding.
   diff_t expected_cf_diff = {
-    { "  3: IntConstant [15, 22, 8]\n",      "  3: IntConstant [15, 22]\n" },
+    { "  3: IntConstant [15, 22, 8]\n",      "  3: IntConstant [9, 15, 22]\n" },
     { "  5: IntConstant [22, 8]\n",          "  5: IntConstant [22]\n" },
-    { "  8: GreaterThanOrEqual(3, 5) [9]\n", "  23: IntConstant [9]\n" },
-    { "  9: If(8)\n",                        "  9: If(23)\n" }
+    { "  8: GreaterThanOrEqual(3, 5) [9]\n", removed },
+    { "  9: If(8)\n",                        "  9: If(3)\n" }
   };
   std::string expected_after_cf = Patch(expected_before, expected_cf_diff);
 
   // Check the values of the computed constants.
   auto check_after_cf = [](HGraph* graph) {
-    HInstruction* inst = graph->GetBlock(1)->GetFirstInstruction();
+    HInstruction* inst = graph->GetBlock(1)->GetFirstInstruction()->InputAt(0);
     ASSERT_TRUE(inst->IsIntConstant());
     ASSERT_EQ(inst->AsIntConstant()->GetValue(), 1);
   };
 
   // Expected difference after dead code elimination.
   diff_t expected_dce_diff = {
-    { "  3: IntConstant [15, 22]\n", "  3: IntConstant [22]\n" },
-    { "  22: Phi(3, 5) [15]\n",      "  22: Phi(3, 5)\n" },
-    { "  15: Add(22, 3)\n",          removed }
+    { "  3: IntConstant [9, 15, 22]\n", "  3: IntConstant [9, 22]\n" },
+    { "  22: Phi(3, 5) [15]\n",         "  22: Phi(3, 5)\n" },
+    { "  15: Add(22, 3)\n",             removed }
   };
   std::string expected_after_dce = Patch(expected_after_cf, expected_dce_diff);
 
