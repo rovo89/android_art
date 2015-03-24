@@ -403,6 +403,14 @@ struct JdwpState {
   // Used for VirtualMachine.Exit command handling.
   bool should_exit_;
   int exit_status_;
+
+  // Used to synchronize runtime shutdown with JDWP command handler thread.
+  // When the runtime shuts down, it needs to stop JDWP command handler thread by closing the
+  // JDWP connection. However, if the JDWP thread is processing a command, it needs to wait
+  // for the command to finish so we can send its reply before closing the connection.
+  Mutex shutdown_lock_ ACQUIRED_AFTER(event_list_lock_);
+  ConditionVariable shutdown_cond_ GUARDED_BY(shutdown_lock_);
+  bool processing_request_ GUARDED_BY(shutdown_lock_);
 };
 
 std::string DescribeField(const FieldId& field_id) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
