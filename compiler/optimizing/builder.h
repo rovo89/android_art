@@ -47,8 +47,6 @@ class HGraphBuilder : public ValueObject {
         exit_block_(nullptr),
         current_block_(nullptr),
         graph_(graph),
-        constant0_(nullptr),
-        constant1_(nullptr),
         dex_file_(dex_file),
         dex_compilation_unit_(dex_compilation_unit),
         compiler_driver_(driver),
@@ -67,8 +65,6 @@ class HGraphBuilder : public ValueObject {
         exit_block_(nullptr),
         current_block_(nullptr),
         graph_(graph),
-        constant0_(nullptr),
-        constant1_(nullptr),
         dex_file_(nullptr),
         dex_compilation_unit_(nullptr),
         compiler_driver_(nullptr),
@@ -100,8 +96,6 @@ class HGraphBuilder : public ValueObject {
   void MaybeUpdateCurrentBlock(size_t index);
   HBasicBlock* FindBlockStartingAt(int32_t index) const;
 
-  HIntConstant* GetIntConstant0();
-  HIntConstant* GetIntConstant1();
   HIntConstant* GetIntConstant(int32_t constant);
   HLongConstant* GetLongConstant(int64_t constant);
   void InitializeLocals(uint16_t count);
@@ -252,9 +246,6 @@ class HGraphBuilder : public ValueObject {
   HBasicBlock* exit_block_;
   HBasicBlock* current_block_;
   HGraph* const graph_;
-
-  HIntConstant* constant0_;
-  HIntConstant* constant1_;
 
   // The dex file where the method being compiled is.
   const DexFile* const dex_file_;
