@@ -265,8 +265,7 @@ class EntrypointsOrderTest : public CommonRuntimeTest {
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowDivZero, pThrowNoSuchMethod, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowNoSuchMethod, pThrowNullPointer, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowNullPointer, pThrowStackOverflow, sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowStackOverflow, pDeoptimize, sizeof(void*));
-    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pDeoptimize, pA64Load, sizeof(void*));
+    EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pThrowStackOverflow, pA64Load, sizeof(void*));
     EXPECT_OFFSET_DIFFNP(QuickEntryPoints, pA64Load, pA64Store, sizeof(void*));
 
     CHECKED(OFFSETOF_MEMBER(QuickEntryPoints, pA64Store)

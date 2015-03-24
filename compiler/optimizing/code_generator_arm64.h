@@ -140,10 +140,6 @@ class InstructionCodeGeneratorARM64 : public HGraphVisitor {
   void HandleShift(HBinaryOperation* instr);
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
-  void GenerateTestAndBranch(HInstruction* instruction,
-                             vixl::Label* true_target,
-                             vixl::Label* false_target,
-                             vixl::Label* always_true_target);
 
   Arm64Assembler* const assembler_;
   CodeGeneratorARM64* const codegen_;

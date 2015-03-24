@@ -120,7 +120,6 @@
   V(ThrowNoSuchMethod, void, int32_t) \
   V(ThrowNullPointer, void, void) \
   V(ThrowStackOverflow, void, void*) \
-  V(Deoptimize, void, void) \
 \
   V(A64Load, int64_t, volatile const int64_t *) \
   V(A64Store, void, volatile int64_t *, int64_t)
