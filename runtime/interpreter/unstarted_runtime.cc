@@ -460,7 +460,7 @@ static void UnstartedObjectHashCode(
 static void UnstartedDoubleDoubleToRawLongBits(
     Thread* self ATTRIBUTE_UNUSED, ShadowFrame* shadow_frame, JValue* result, size_t arg_offset) {
   double in = shadow_frame->GetVRegDouble(arg_offset);
-  result->SetJ(bit_cast<int64_t>(in));
+  result->SetJ(bit_cast<int64_t, double>(in));
 }
 
 static mirror::Object* GetDexFromDexCache(Thread* self, mirror::DexCache* dex_cache)

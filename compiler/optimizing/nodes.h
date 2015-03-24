@@ -1873,20 +1873,22 @@ class HFloatConstant : public HConstant {
   float GetValue() const { return value_; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
-    return bit_cast<float, int32_t>(other->AsFloatConstant()->value_) ==
-        bit_cast<float, int32_t>(value_);
+    return bit_cast<uint32_t, float>(other->AsFloatConstant()->value_) ==
+        bit_cast<uint32_t, float>(value_);
   }
 
   size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
 
   bool IsMinusOne() const OVERRIDE {
-    return bit_cast<uint32_t>(AsFloatConstant()->GetValue()) == bit_cast<uint32_t>((-1.0f));
+    return bit_cast<uint32_t, float>(AsFloatConstant()->GetValue()) ==
+        bit_cast<uint32_t, float>((-1.0f));
   }
   bool IsZero() const OVERRIDE {
     return AsFloatConstant()->GetValue() == 0.0f;
   }
   bool IsOne() const OVERRIDE {
-    return bit_cast<uint32_t>(AsFloatConstant()->GetValue()) == bit_cast<uint32_t>(1.0f);
+    return bit_cast<uint32_t, float>(AsFloatConstant()->GetValue()) ==
+        bit_cast<uint32_t, float>(1.0f);
   }
 
   DECLARE_INSTRUCTION(FloatConstant);
@@ -1904,20 +1906,22 @@ class HDoubleConstant : public HConstant {
   double GetValue() const { return value_; }
 
   bool InstructionDataEquals(HInstruction* other) const OVERRIDE {
-    return bit_cast<double, int64_t>(other->AsDoubleConstant()->value_) ==
-        bit_cast<double, int64_t>(value_);
+    return bit_cast<uint64_t, double>(other->AsDoubleConstant()->value_) ==
+        bit_cast<uint64_t, double>(value_);
   }
 
   size_t ComputeHashCode() const OVERRIDE { return static_cast<size_t>(GetValue()); }
 
   bool IsMinusOne() const OVERRIDE {
-    return bit_cast<uint64_t>(AsDoubleConstant()->GetValue()) == bit_cast<uint64_t>((-1.0));
+    return bit_cast<uint64_t, double>(AsDoubleConstant()->GetValue()) ==
+        bit_cast<uint64_t, double>((-1.0));
   }
   bool IsZero() const OVERRIDE {
     return AsDoubleConstant()->GetValue() == 0.0;
   }
   bool IsOne() const OVERRIDE {
-    return bit_cast<uint64_t>(AsDoubleConstant()->GetValue()) == bit_cast<uint64_t>(1.0);
+    return bit_cast<uint64_t, double>(AsDoubleConstant()->GetValue()) ==
+        bit_cast<uint64_t, double>(1.0);
   }
 
   DECLARE_INSTRUCTION(DoubleConstant);

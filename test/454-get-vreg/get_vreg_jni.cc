@@ -55,7 +55,7 @@ class TestVisitor : public StackVisitor {
       CHECK_EQ(value, 1u);
 
       CHECK(GetVReg(m, 5, kFloatVReg, &value));
-      uint32_t cast = bit_cast<float, uint32_t>(1.0f);
+      uint32_t cast = bit_cast<uint32_t, float>(1.0f);
       CHECK_EQ(value, cast);
 
       CHECK(GetVReg(m, 6, kIntVReg, &value));
@@ -95,7 +95,7 @@ class TestVisitor : public StackVisitor {
       CHECK_EQ(value, 0u);
 
       CHECK(GetVRegPair(m, 13, kDoubleLoVReg, kDoubleHiVReg, &value));
-      uint64_t cast = bit_cast<double, uint64_t>(2.0);
+      uint64_t cast = bit_cast<uint64_t, double>(2.0);
       CHECK_EQ(value, cast);
     }
 

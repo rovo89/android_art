@@ -628,7 +628,7 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
               ++i, DexRegisterLocation::Kind::kConstant, High32Bits(value));
           DCHECK_LT(i, environment_size);
         } else if (current->IsDoubleConstant()) {
-          int64_t value = bit_cast<double, int64_t>(current->AsDoubleConstant()->GetValue());
+          int64_t value = bit_cast<int64_t, double>(current->AsDoubleConstant()->GetValue());
           stack_map_stream_.AddDexRegisterEntry(
               i, DexRegisterLocation::Kind::kConstant, Low32Bits(value));
           stack_map_stream_.AddDexRegisterEntry(
@@ -641,7 +641,7 @@ void CodeGenerator::RecordPcInfo(HInstruction* instruction,
           stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kConstant, 0);
         } else {
           DCHECK(current->IsFloatConstant()) << current->DebugName();
-          int32_t value = bit_cast<float, int32_t>(current->AsFloatConstant()->GetValue());
+          int32_t value = bit_cast<int32_t, float>(current->AsFloatConstant()->GetValue());
           stack_map_stream_.AddDexRegisterEntry(i, DexRegisterLocation::Kind::kConstant, value);
         }
         break;

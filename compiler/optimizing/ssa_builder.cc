@@ -359,12 +359,12 @@ static HFloatConstant* GetFloatEquivalent(HIntConstant* constant) {
   if (result == nullptr) {
     HGraph* graph = constant->GetBlock()->GetGraph();
     ArenaAllocator* allocator = graph->GetArena();
-    result = new (allocator) HFloatConstant(bit_cast<int32_t, float>(constant->GetValue()));
+    result = new (allocator) HFloatConstant(bit_cast<float, int32_t>(constant->GetValue()));
     constant->GetBlock()->InsertInstructionBefore(result, constant->GetNext());
   } else {
     // If there is already a constant with the expected type, we know it is
     // the floating point equivalent of this constant.
-    DCHECK_EQ((bit_cast<float, int32_t>(result->GetValue())), constant->GetValue());
+    DCHECK_EQ((bit_cast<int32_t, float>(result->GetValue())), constant->GetValue());
   }
   return result;
 }
@@ -381,12 +381,12 @@ static HDoubleConstant* GetDoubleEquivalent(HLongConstant* constant) {
   if (result == nullptr) {
     HGraph* graph = constant->GetBlock()->GetGraph();
     ArenaAllocator* allocator = graph->GetArena();
-    result = new (allocator) HDoubleConstant(bit_cast<int64_t, double>(constant->GetValue()));
+    result = new (allocator) HDoubleConstant(bit_cast<double, int64_t>(constant->GetValue()));
     constant->GetBlock()->InsertInstructionBefore(result, constant->GetNext());
   } else {
     // If there is already a constant with the expected type, we know it is
     // the floating point equivalent of this constant.
-    DCHECK_EQ((bit_cast<double, int64_t>(result->GetValue())), constant->GetValue());
+    DCHECK_EQ((bit_cast<int64_t, double>(result->GetValue())), constant->GetValue());
   }
   return result;
 }
