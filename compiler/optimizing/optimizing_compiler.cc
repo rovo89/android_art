@@ -477,8 +477,7 @@ CompiledMethod* OptimizingCompiler::TryCompile(const DexFile::CodeItem* code_ite
     class_def_idx, method_idx, access_flags,
     compiler_driver->GetVerifiedMethod(&dex_file, method_idx));
 
-  ArenaPool pool;
-  ArenaAllocator arena(&pool);
+  ArenaAllocator arena(Runtime::Current()->GetArenaPool());
   HGraph* graph = new (&arena) HGraph(
       &arena, compiler_driver->GetCompilerOptions().GetDebuggable());
 
