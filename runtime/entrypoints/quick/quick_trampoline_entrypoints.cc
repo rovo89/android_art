@@ -1184,7 +1184,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
       gpr_index_--;
       if (kMultiGPRegistersWidened) {
         DCHECK_EQ(sizeof(uintptr_t), sizeof(int64_t));
-        PushGpr(static_cast<int64_t>(bit_cast<uint32_t, int32_t>(val)));
+        PushGpr(static_cast<int64_t>(bit_cast<int32_t, uint32_t>(val)));
       } else {
         PushGpr(val);
       }
@@ -1192,7 +1192,7 @@ template<class T> class BuildNativeCallFrameStateMachine {
       stack_entries_++;
       if (kMultiGPRegistersWidened) {
         DCHECK_EQ(sizeof(uintptr_t), sizeof(int64_t));
-        PushStack(static_cast<int64_t>(bit_cast<uint32_t, int32_t>(val)));
+        PushStack(static_cast<int64_t>(bit_cast<int32_t, uint32_t>(val)));
       } else {
         PushStack(val);
       }
@@ -1252,16 +1252,16 @@ template<class T> class BuildNativeCallFrameStateMachine {
 
   void AdvanceFloat(float val) {
     if (kNativeSoftFloatAbi) {
-      AdvanceInt(bit_cast<float, uint32_t>(val));
+      AdvanceInt(bit_cast<uint32_t, float>(val));
     } else {
       if (HaveFloatFpr()) {
         fpr_index_--;
         if (kRegistersNeededForDouble == 1) {
           if (kMultiFPRegistersWidened) {
-            PushFpr8(bit_cast<double, uint64_t>(val));
+            PushFpr8(bit_cast<uint64_t, double>(val));
           } else {
             // No widening, just use the bits.
-            PushFpr8(bit_cast<float, uint64_t>(val));
+            PushFpr8(static_cast<uint64_t>(bit_cast<uint32_t, float>(val)));
           }
         } else {
           PushFpr4(val);
@@ -1272,9 +1272,9 @@ template<class T> class BuildNativeCallFrameStateMachine {
           // Need to widen before storing: Note the "double" in the template instantiation.
           // Note: We need to jump through those hoops to make the compiler happy.
           DCHECK_EQ(sizeof(uintptr_t), sizeof(uint64_t));
-          PushStack(static_cast<uintptr_t>(bit_cast<double, uint64_t>(val)));
+          PushStack(static_cast<uintptr_t>(bit_cast<uint64_t, double>(val)));
         } else {
-          PushStack(bit_cast<float, uintptr_t>(val));
+          PushStack(static_cast<uintptr_t>(bit_cast<uint32_t, float>(val)));
         }
         fpr_index_ = 0;
       }
@@ -1908,8 +1908,8 @@ extern "C" uint64_t artQuickGenericJniEndTrampoline(Thread* self, jvalue result,
       case 'F': {
         if (kRuntimeISA == kX86) {
           // Convert back the result to float.
-          double d = bit_cast<uint64_t, double>(result_f);
-          return bit_cast<float, uint32_t>(static_cast<float>(d));
+          double d = bit_cast<double, uint64_t>(result_f);
+          return bit_cast<uint32_t, float>(static_cast<float>(d));
         } else {
           return result_f;
         }
