@@ -60,21 +60,21 @@ class TestVisitor : public StackVisitor {
       CHECK(GetVReg(m, 1, kReferenceVReg, &value));
       CHECK_EQ(reinterpret_cast<mirror::Object*>(value), this_value_);
 
-      CHECK(SetVReg(m, 2, bit_cast<float, uint32_t>(5.0f), kFloatVReg));
-      CHECK(SetVReg(m, 3, bit_cast<float, uint32_t>(4.0f), kFloatVReg));
-      CHECK(SetVReg(m, 4, bit_cast<float, uint32_t>(3.0f), kFloatVReg));
-      CHECK(SetVReg(m, 5, bit_cast<float, uint32_t>(2.0f), kFloatVReg));
-      CHECK(SetVReg(m, 6, bit_cast<float, uint32_t>(1.0f), kFloatVReg));
+      CHECK(SetVReg(m, 2, bit_cast<uint32_t, float>(5.0f), kFloatVReg));
+      CHECK(SetVReg(m, 3, bit_cast<uint32_t, float>(4.0f), kFloatVReg));
+      CHECK(SetVReg(m, 4, bit_cast<uint32_t, float>(3.0f), kFloatVReg));
+      CHECK(SetVReg(m, 5, bit_cast<uint32_t, float>(2.0f), kFloatVReg));
+      CHECK(SetVReg(m, 6, bit_cast<uint32_t, float>(1.0f), kFloatVReg));
     } else if (m_name.compare("testDoubleVReg") == 0) {
       uint32_t value = 0;
       CHECK(GetVReg(m, 3, kReferenceVReg, &value));
       CHECK_EQ(reinterpret_cast<mirror::Object*>(value), this_value_);
 
-      CHECK(SetVRegPair(m, 4, bit_cast<double, uint64_t>(5.0), kDoubleLoVReg, kDoubleHiVReg));
-      CHECK(SetVRegPair(m, 6, bit_cast<double, uint64_t>(4.0), kDoubleLoVReg, kDoubleHiVReg));
-      CHECK(SetVRegPair(m, 8, bit_cast<double, uint64_t>(3.0), kDoubleLoVReg, kDoubleHiVReg));
-      CHECK(SetVRegPair(m, 10, bit_cast<double, uint64_t>(2.0), kDoubleLoVReg, kDoubleHiVReg));
-      CHECK(SetVRegPair(m, 12, bit_cast<double, uint64_t>(1.0), kDoubleLoVReg, kDoubleHiVReg));
+      CHECK(SetVRegPair(m, 4, bit_cast<uint64_t, double>(5.0), kDoubleLoVReg, kDoubleHiVReg));
+      CHECK(SetVRegPair(m, 6, bit_cast<uint64_t, double>(4.0), kDoubleLoVReg, kDoubleHiVReg));
+      CHECK(SetVRegPair(m, 8, bit_cast<uint64_t, double>(3.0), kDoubleLoVReg, kDoubleHiVReg));
+      CHECK(SetVRegPair(m, 10, bit_cast<uint64_t, double>(2.0), kDoubleLoVReg, kDoubleHiVReg));
+      CHECK(SetVRegPair(m, 12, bit_cast<uint64_t, double>(1.0), kDoubleLoVReg, kDoubleHiVReg));
     }
 
     return true;

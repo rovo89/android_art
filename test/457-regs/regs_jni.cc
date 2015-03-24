@@ -69,7 +69,7 @@ class TestVisitor : public StackVisitor {
       CHECK_EQ(value, 1u);
 
       CHECK(GetVReg(m, 4, kFloatVReg, &value));
-      uint32_t cast = bit_cast<float, uint32_t>(4.0f);
+      uint32_t cast = bit_cast<uint32_t, float>(4.0f);
       CHECK_EQ(value, cast);
       did_check_ = true;
     } else if (m_name.compare("phiEquivalent") == 0) {
@@ -138,7 +138,7 @@ extern "C" JNIEXPORT void JNICALL Java_PhiLiveness_regsNativeCallWithParameters(
   std::unique_ptr<Context> context(Context::Create());
   CHECK(soa.Decode<mirror::Object*>(main) == nullptr);
   CHECK_EQ(int_value, 0);
-  int32_t cast = bit_cast<float, int32_t>(float_value);
+  int32_t cast = bit_cast<int32_t, float>(float_value);
   CHECK_EQ(cast, 0);
   TestVisitor visitor(soa.Self(), context.get());
   visitor.WalkStack();

@@ -1874,8 +1874,8 @@ bool Mir2Lir::HandleEasyFloatingPointDiv(RegLocation rl_dest, RegLocation rl_src
     int32_t divisor = mir_graph_->ConstantValue(rl_src2);
     if (CanDivideByReciprocalMultiplyFloat(divisor)) {
       // Generate multiply by reciprocal instead of div.
-      float recip = 1.0f/bit_cast<int32_t, float>(divisor);
-      GenMultiplyByConstantFloat(rl_dest, rl_src1, bit_cast<float, int32_t>(recip));
+      float recip = 1.0f/bit_cast<float, int32_t>(divisor);
+      GenMultiplyByConstantFloat(rl_dest, rl_src1, bit_cast<int32_t, float>(recip));
       return true;
     }
   } else {
@@ -1883,7 +1883,7 @@ bool Mir2Lir::HandleEasyFloatingPointDiv(RegLocation rl_dest, RegLocation rl_src
     if (CanDivideByReciprocalMultiplyDouble(divisor)) {
       // Generate multiply by reciprocal instead of div.
       double recip = 1.0/bit_cast<double, int64_t>(divisor);
-      GenMultiplyByConstantDouble(rl_dest, rl_src1, bit_cast<double, int64_t>(recip));
+      GenMultiplyByConstantDouble(rl_dest, rl_src1, bit_cast<int64_t, double>(recip));
       return true;
     }
   }
