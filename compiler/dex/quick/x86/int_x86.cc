@@ -1324,7 +1324,7 @@ bool X86Mir2Lir::GenInlinedReverseBits(CallInfo* info, OpSize size) {
   return true;
 }
 
-LIR* X86Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
+void X86Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
   if (cu_->target64) {
     // We can do this directly using RIP addressing.
     // We don't know the proper offset for the value, so pick one that will force
@@ -1334,7 +1334,7 @@ LIR* X86Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
     LIR* res = NewLIR3(kX86Mov32RM, reg.GetReg(), kRIPReg, 256);
     res->target = target;
     res->flags.fixup = kFixupLoad;
-    return res;
+    return;
   }
 
   CHECK(base_of_code_ != nullptr);
@@ -1353,11 +1353,9 @@ LIR* X86Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
   // 4 byte offset.  We will fix this up in the assembler later to have the right
   // value.
   ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
-  LIR *res = RawLIR(current_dalvik_offset_, kX86Mov32RM, reg.GetReg(), reg.GetReg(), 256,
-                    0, 0, target);
+  LIR* res = NewLIR3(kX86Mov32RM, reg.GetReg(), reg.GetReg(), 256);
   res->target = target;
   res->flags.fixup = kFixupLoad;
-  return res;
 }
 
 LIR* X86Mir2Lir::OpVldm(RegStorage r_base, int count) {

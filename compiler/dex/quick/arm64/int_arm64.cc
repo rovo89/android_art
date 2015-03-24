@@ -937,9 +937,10 @@ bool Arm64Mir2Lir::GenInlinedArrayCopyCharArray(CallInfo* info) {
   return true;
 }
 
-LIR* Arm64Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
+void Arm64Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
   ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
-  return RawLIR(current_dalvik_offset_, kA64Ldr2rp, As32BitReg(reg).GetReg(), 0, 0, 0, 0, target);
+  LIR* lir = NewLIR2(kA64Ldr2rp, As32BitReg(reg).GetReg(), 0);
+  lir->target = target;
 }
 
 LIR* Arm64Mir2Lir::OpVldm(RegStorage r_base, int count) {

@@ -562,8 +562,8 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(CodeOffset start_addr) {
          * and is found in lir->target.  If operands[3] is non-NULL,
          * then it is a Switch/Data table.
          */
-        int offset1 = (reinterpret_cast<LIR*>(UnwrapPointer(lir->operands[2])))->offset;
-        EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[3]));
+        int offset1 = UnwrapPointer<LIR>(lir->operands[2])->offset;
+        const EmbeddedData* tab_rec = UnwrapPointer<EmbeddedData>(lir->operands[3]);
         int offset2 = tab_rec ? tab_rec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         if ((delta & 0xffff) == delta && ((delta & 0x8000) == 0)) {
@@ -589,14 +589,14 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(CodeOffset start_addr) {
           res = kRetryAll;
         }
       } else if (lir->opcode == kMipsDeltaLo) {
-        int offset1 = (reinterpret_cast<LIR*>(UnwrapPointer(lir->operands[2])))->offset;
-        EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[3]));
+        int offset1 = UnwrapPointer<LIR>(lir->operands[2])->offset;
+        const EmbeddedData* tab_rec = UnwrapPointer<EmbeddedData>(lir->operands[3]);
         int offset2 = tab_rec ? tab_rec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         lir->operands[1] = delta & 0xffff;
       } else if (lir->opcode == kMipsDeltaHi) {
-        int offset1 = (reinterpret_cast<LIR*>(UnwrapPointer(lir->operands[2])))->offset;
-        EmbeddedData *tab_rec = reinterpret_cast<EmbeddedData*>(UnwrapPointer(lir->operands[3]));
+        int offset1 = UnwrapPointer<LIR>(lir->operands[2])->offset;
+        const EmbeddedData* tab_rec = UnwrapPointer<EmbeddedData>(lir->operands[3]);
         int offset2 = tab_rec ? tab_rec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         lir->operands[1] = (delta >> 16) & 0xffff;

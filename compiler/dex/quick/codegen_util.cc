@@ -222,7 +222,7 @@ void Mir2Lir::DumpLIRInsn(LIR* lir, unsigned char* base_addr) {
       }
       LOG(INFO) << "-------- dalvik offset: 0x" << std::hex
                 << lir->dalvik_offset << " @ "
-                << reinterpret_cast<char*>(UnwrapPointer(lir->operands[0]));
+                << UnwrapPointer<char>(lir->operands[0]);
       break;
     case kPseudoExitBlock:
       LOG(INFO) << "-------- exit offset: 0x" << std::hex << dest;
@@ -416,7 +416,7 @@ LIR* Mir2Lir::ScanLiteralPoolWide(LIR* data_target, int val_lo, int val_hi) {
 LIR* Mir2Lir::ScanLiteralPoolMethod(LIR* data_target, const MethodReference& method) {
   while (data_target) {
     if (static_cast<uint32_t>(data_target->operands[0]) == method.dex_method_index &&
-        UnwrapPointer(data_target->operands[1]) == method.dex_file) {
+        UnwrapPointer<DexFile>(data_target->operands[1]) == method.dex_file) {
       return data_target;
     }
     data_target = data_target->next;
@@ -428,7 +428,7 @@ LIR* Mir2Lir::ScanLiteralPoolMethod(LIR* data_target, const MethodReference& met
 LIR* Mir2Lir::ScanLiteralPoolClass(LIR* data_target, const DexFile& dex_file, uint32_t type_idx) {
   while (data_target) {
     if (static_cast<uint32_t>(data_target->operands[0]) == type_idx &&
-        UnwrapPointer(data_target->operands[1]) == &dex_file) {
+        UnwrapPointer<DexFile>(data_target->operands[1]) == &dex_file) {
       return data_target;
     }
     data_target = data_target->next;
@@ -491,8 +491,7 @@ void Mir2Lir::InstallLiteralPools() {
   data_lir = code_literal_list_;
   while (data_lir != nullptr) {
     uint32_t target_method_idx = data_lir->operands[0];
-    const DexFile* target_dex_file =
-        reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
+    const DexFile* target_dex_file = UnwrapPointer<DexFile>(data_lir->operands[1]);
     patches_.push_back(LinkerPatch::CodePatch(code_buffer_.size(),
                                               target_dex_file, target_method_idx));
     PushUnpatchedReference(&code_buffer_);
@@ -501,8 +500,7 @@ void Mir2Lir::InstallLiteralPools() {
   data_lir = method_literal_list_;
   while (data_lir != nullptr) {
     uint32_t target_method_idx = data_lir->operands[0];
-    const DexFile* target_dex_file =
-        reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
+    const DexFile* target_dex_file = UnwrapPointer<DexFile>(data_lir->operands[1]);
     patches_.push_back(LinkerPatch::MethodPatch(code_buffer_.size(),
                                                 target_dex_file, target_method_idx));
     PushUnpatchedReference(&code_buffer_);
@@ -512,8 +510,7 @@ void Mir2Lir::InstallLiteralPools() {
   data_lir = class_literal_list_;
   while (data_lir != nullptr) {
     uint32_t target_type_idx = data_lir->operands[0];
-    const DexFile* class_dex_file =
-      reinterpret_cast<const DexFile*>(UnwrapPointer(data_lir->operands[1]));
+    const DexFile* class_dex_file = UnwrapPointer<DexFile>(data_lir->operands[1]);
     patches_.push_back(LinkerPatch::TypePatch(code_buffer_.size(),
                                               class_dex_file, target_type_idx));
     PushUnpatchedReference(&code_buffer_);
@@ -1054,7 +1051,7 @@ Mir2Lir::Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena
   pointer_storage_.reserve(128);
   slow_paths_.reserve(32);
   // Reserve pointer id 0 for nullptr.
-  size_t null_idx = WrapPointer(nullptr);
+  size_t null_idx = WrapPointer<void>(nullptr);
   DCHECK_EQ(null_idx, 0U);
 }
 
@@ -1263,8 +1260,7 @@ void Mir2Lir::LoadCodeAddress(const MethodReference& target_method, InvokeType t
     data_target->operands[2] = type;
   }
   // Loads a code pointer. Code from oat file can be mapped anywhere.
-  LIR* load_pc_rel = OpPcRelLoad(TargetPtrReg(symbolic_reg), data_target);
-  AppendLIR(load_pc_rel);
+  OpPcRelLoad(TargetPtrReg(symbolic_reg), data_target);
   DCHECK_NE(cu_->instruction_set, kMips) << reinterpret_cast<void*>(data_target);
   DCHECK_NE(cu_->instruction_set, kMips64) << reinterpret_cast<void*>(data_target);
 }
@@ -1281,8 +1277,7 @@ void Mir2Lir::LoadMethodAddress(const MethodReference& target_method, InvokeType
     data_target->operands[2] = type;
   }
   // Loads an ArtMethod pointer, which is a reference as it lives in the heap.
-  LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg, kRef), data_target);
-  AppendLIR(load_pc_rel);
+  OpPcRelLoad(TargetReg(symbolic_reg, kRef), data_target);
   DCHECK_NE(cu_->instruction_set, kMips) << reinterpret_cast<void*>(data_target);
   DCHECK_NE(cu_->instruction_set, kMips64) << reinterpret_cast<void*>(data_target);
 }
@@ -1296,8 +1291,7 @@ void Mir2Lir::LoadClassType(const DexFile& dex_file, uint32_t type_idx,
     data_target->operands[1] = WrapPointer(const_cast<DexFile*>(&dex_file));
   }
   // Loads a Class pointer, which is a reference as it lives in the heap.
-  LIR* load_pc_rel = OpPcRelLoad(TargetReg(symbolic_reg, kRef), data_target);
-  AppendLIR(load_pc_rel);
+  OpPcRelLoad(TargetReg(symbolic_reg, kRef), data_target);
 }
 
 std::vector<uint8_t>* Mir2Lir::ReturnFrameDescriptionEntry() {
