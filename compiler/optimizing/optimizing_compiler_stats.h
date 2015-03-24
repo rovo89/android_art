@@ -38,6 +38,7 @@ enum MethodCompilationStat {
   kNotCompiledUnresolvedMethod,
   kNotCompiledUnresolvedField,
   kNotCompiledNonSequentialRegPair,
+  kNotCompiledSpaceFilter,
   kNotOptimizedTryCatch,
   kNotOptimizedDisabled,
   kNotCompiledCantAccesType,
@@ -96,6 +97,7 @@ class OptimizingCompilerStats {
       case kNotOptimizedDisabled : return "kNotOptimizedDisabled";
       case kNotOptimizedTryCatch : return "kNotOptimizedTryCatch";
       case kNotCompiledCantAccesType : return "kNotCompiledCantAccesType";
+      case kNotCompiledSpaceFilter : return "kNotCompiledSpaceFilter";
       case kNotOptimizedRegisterAllocator : return "kNotOptimizedRegisterAllocator";
       case kNotCompiledUnhandledInstruction : return "kNotCompiledUnhandledInstruction";
       case kRemovedCheckedCast: return "kRemovedCheckedCast";
