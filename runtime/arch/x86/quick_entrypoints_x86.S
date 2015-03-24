@@ -1542,10 +1542,7 @@ END_FUNCTION art_quick_instrumentation_exit
      * will long jump to the upcall with a special exception of -1.
      */
 DEFINE_FUNCTION art_quick_deoptimize
-    pushl %ebx                    // Entry point for a jump. Fake that we were called.
-.globl SYMBOL(art_quick_deoptimize_from_compiled_slow_path)  // Entry point for real calls
-                                                             // from compiled slow paths.
-SYMBOL(art_quick_deoptimize_from_compiled_slow_path):
+    pushl %ebx                    // Fake that we were called.
     SETUP_SAVE_ALL_CALLEE_SAVE_FRAME ebx, ebx
     subl LITERAL(12), %esp        // Align stack.
     CFI_ADJUST_CFA_OFFSET(12)

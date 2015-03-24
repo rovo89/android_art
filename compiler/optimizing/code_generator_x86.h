@@ -157,10 +157,6 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
 
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
-  void GenerateTestAndBranch(HInstruction* instruction,
-                             Label* true_target,
-                             Label* false_target,
-                             Label* always_true_target);
 
   X86Assembler* const assembler_;
   CodeGeneratorX86* const codegen_;
