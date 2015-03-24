@@ -39,7 +39,7 @@ if [ -e classes.dex ]; then
 fi
 
 mkdir classes
-${JAVAC} -implicit:none -classpath src-multidex -d classes `find src -name '*.java'`
+${JAVAC} -d classes `find src -name '*.java'`
 
 if [ -d src2 ]; then
   ${JAVAC} -d classes `find src2 -name '*.java'`
@@ -74,15 +74,4 @@ fi
 
 if [ ${NEED_DEX} = "true" ]; then
   zip $TEST_NAME.jar classes.dex
-fi
-
-# Create a single jar with two dex files for multidex.
-if [ -d src-multidex ]; then
-  mkdir classes2
-  ${JAVAC} -implicit:none -classpath src -d classes2 `find src-multidex -name '*.java'`
-  if [ ${NEED_DEX} = "true" ]; then
-    ${DX} -JXmx256m --debug --dex --dump-to=classes2.lst --output=classes2.dex \
-      --dump-width=1000 ${DX_FLAGS} classes2
-    zip $TEST_NAME.jar classes.dex classes2.dex
-  fi
 fi
