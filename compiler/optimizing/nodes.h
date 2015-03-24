@@ -3483,7 +3483,10 @@ class HInsertionOrderIterator : public ValueObject {
 
 class HReversePostOrderIterator : public ValueObject {
  public:
-  explicit HReversePostOrderIterator(const HGraph& graph) : graph_(graph), index_(0) {}
+  explicit HReversePostOrderIterator(const HGraph& graph) : graph_(graph), index_(0) {
+    // Check that reverse post order of the graph has been built.
+    DCHECK(!graph.GetReversePostOrder().IsEmpty());
+  }
 
   bool Done() const { return index_ == graph_.GetReversePostOrder().Size(); }
   HBasicBlock* Current() const { return graph_.GetReversePostOrder().Get(index_); }
@@ -3499,7 +3502,10 @@ class HReversePostOrderIterator : public ValueObject {
 class HPostOrderIterator : public ValueObject {
  public:
   explicit HPostOrderIterator(const HGraph& graph)
-      : graph_(graph), index_(graph_.GetReversePostOrder().Size()) {}
+      : graph_(graph), index_(graph_.GetReversePostOrder().Size()) {
+    // Check that reverse post order of the graph has been built.
+    DCHECK(!graph.GetReversePostOrder().IsEmpty());
+  }
 
   bool Done() const { return index_ == 0; }
   HBasicBlock* Current() const { return graph_.GetReversePostOrder().Get(index_ - 1); }
