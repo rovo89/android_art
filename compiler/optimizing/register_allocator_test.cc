@@ -596,6 +596,8 @@ static HGraph* BuildFieldReturn(ArenaAllocator* allocator,
   graph->AddBlock(exit);
   block->AddSuccessor(exit);
   exit->AddInstruction(new (allocator) HExit());
+
+  graph->BuildDominatorTree();
   return graph;
 }
 
@@ -658,6 +660,8 @@ static HGraph* BuildTwoSubs(ArenaAllocator* allocator,
   block->AddInstruction(*second_sub);
 
   block->AddInstruction(new (allocator) HExit());
+
+  graph->BuildDominatorTree();
   return graph;
 }
 
@@ -719,6 +723,8 @@ static HGraph* BuildDiv(ArenaAllocator* allocator,
   block->AddInstruction(*div);
 
   block->AddInstruction(new (allocator) HExit());
+
+  graph->BuildDominatorTree();
   return graph;
 }
 
