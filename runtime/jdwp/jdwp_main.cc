@@ -322,8 +322,6 @@ void JdwpState::ResetState() {
     CHECK(event_list_ == nullptr);
   }
 
-  Dbg::ProcessDelayedFullUndeoptimizations();
-
   /*
    * Should not have one of these in progress.  If the debugger went away
    * mid-request, though, we could see this.
