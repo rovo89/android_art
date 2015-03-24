@@ -289,9 +289,9 @@ TEST(BoundsCheckEliminationTest, UnderflowArrayBoundsElimination) {
   ASSERT_FALSE(IsRemoved(bounds_check));
 }
 
-// array[5] = 1; // Can't eliminate.
-// array[4] = 1; // Can eliminate.
 // array[6] = 1; // Can't eliminate.
+// array[5] = 1; // Can eliminate.
+// array[4] = 1; // Can eliminate.
 TEST(BoundsCheckEliminationTest, ConstantArrayBoundsElimination) {
   ArenaPool pool;
   ArenaAllocator allocator(&pool);
@@ -319,9 +319,20 @@ TEST(BoundsCheckEliminationTest, ConstantArrayBoundsElimination) {
 
   HNullCheck* null_check = new (&allocator) HNullCheck(parameter, 0);
   HArrayLength* array_length = new (&allocator) HArrayLength(null_check);
+  HBoundsCheck* bounds_check6 = new (&allocator)
+      HBoundsCheck(constant_6, array_length, 0);
+  HInstruction* array_set = new (&allocator) HArraySet(
+    null_check, bounds_check6, constant_1, Primitive::kPrimInt, 0);
+  block->AddInstruction(null_check);
+  block->AddInstruction(array_length);
+  block->AddInstruction(bounds_check6);
+  block->AddInstruction(array_set);
+
+  null_check = new (&allocator) HNullCheck(parameter, 0);
+  array_length = new (&allocator) HArrayLength(null_check);
   HBoundsCheck* bounds_check5 = new (&allocator)
       HBoundsCheck(constant_5, array_length, 0);
-  HInstruction* array_set = new (&allocator) HArraySet(
+  array_set = new (&allocator) HArraySet(
     null_check, bounds_check5, constant_1, Primitive::kPrimInt, 0);
   block->AddInstruction(null_check);
   block->AddInstruction(array_length);
@@ -339,17 +350,6 @@ TEST(BoundsCheckEliminationTest, ConstantArrayBoundsElimination) {
   block->AddInstruction(bounds_check4);
   block->AddInstruction(array_set);
 
-  null_check = new (&allocator) HNullCheck(parameter, 0);
-  array_length = new (&allocator) HArrayLength(null_check);
-  HBoundsCheck* bounds_check6 = new (&allocator)
-      HBoundsCheck(constant_6, array_length, 0);
-  array_set = new (&allocator) HArraySet(
-    null_check, bounds_check6, constant_1, Primitive::kPrimInt, 0);
-  block->AddInstruction(null_check);
-  block->AddInstruction(array_length);
-  block->AddInstruction(bounds_check6);
-  block->AddInstruction(array_set);
-
   block->AddInstruction(new (&allocator) HGoto());
 
   HBasicBlock* exit = new (&allocator) HBasicBlock(graph);
@@ -361,9 +361,9 @@ TEST(BoundsCheckEliminationTest, ConstantArrayBoundsElimination) {
   RunSimplifierAndGvn(graph);
   BoundsCheckElimination bounds_check_elimination(graph);
   bounds_check_elimination.Run();
-  ASSERT_FALSE(IsRemoved(bounds_check5));
-  ASSERT_TRUE(IsRemoved(bounds_check4));
   ASSERT_FALSE(IsRemoved(bounds_check6));
+  ASSERT_TRUE(IsRemoved(bounds_check5));
+  ASSERT_TRUE(IsRemoved(bounds_check4));
 }
 
 // for (int i=initial; i<array.length; i+=increment) { array[i] = 10; }
