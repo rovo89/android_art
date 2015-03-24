@@ -21,7 +21,7 @@ import dexfuzz.listeners.BaseListener;
 public class ArmOptimizingBackendExecutor extends Executor {
 
   public ArmOptimizingBackendExecutor(BaseListener listener, Device device) {
-    super("ARM Optimizing Backend", 5, listener, Architecture.ARM, device);
+    super("ARM Optimizing Backend", 5, listener, Architecture.ARM, device, true);
   }
 
   @Override
@@ -33,17 +33,6 @@ public class ArmOptimizingBackendExecutor extends Executor {
     }
     commandBuilder.append("-cp ").append(testLocation).append("/").append(programName).append(" ");
     commandBuilder.append(executeClass);
-    executionResult = executeOnDevice(commandBuilder.toString(), true);
-  }
-
-  @Override
-  public void deleteGeneratedOatFile(String programName) {
-    String command = "rm -f /data/dalvik-cache/arm/" + getOatFileName(programName);
-    executeOnDevice(command, false);
-  }
-
-  @Override
-  public boolean needsCleanCodeCache() {
-    return true;
+    executionResult = executeCommandWithTimeout(commandBuilder.toString(), true);
   }
 }
