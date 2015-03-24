@@ -1996,7 +1996,6 @@ void Thread::DumpThreadOffset(std::ostream& os, uint32_t offset) {
   QUICK_ENTRY_POINT_INFO(pThrowNoSuchMethod)
   QUICK_ENTRY_POINT_INFO(pThrowNullPointer)
   QUICK_ENTRY_POINT_INFO(pThrowStackOverflow)
-  QUICK_ENTRY_POINT_INFO(pDeoptimize)
   QUICK_ENTRY_POINT_INFO(pA64Load)
   QUICK_ENTRY_POINT_INFO(pA64Store)
 #undef QUICK_ENTRY_POINT_INFO
