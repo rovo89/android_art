@@ -658,7 +658,7 @@ LIR* ArmMir2Lir::CallWithLinkerFixup(const MethodReference& target_method, Invok
   // NOTE: Method deduplication takes linker patches into account, so we can just pass 0
   // as a placeholder for the offset.
   LIR* call = RawLIR(current_dalvik_offset_, kThumb2Bl, 0,
-                     target_method_idx, WrapPointer(const_cast<DexFile*>(target_dex_file)), type);
+                     target_method_idx, WrapPointer(target_dex_file), type);
   AppendLIR(call);
   call_method_insns_.push_back(call);
   return call;

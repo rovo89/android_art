@@ -296,7 +296,7 @@ class X86Mir2Lir : public Mir2Lir {
   LIR* OpIT(ConditionCode cond, const char* guide) OVERRIDE;
   void OpEndIT(LIR* it) OVERRIDE;
   LIR* OpMem(OpKind op, RegStorage r_base, int disp) OVERRIDE;
-  LIR* OpPcRelLoad(RegStorage reg, LIR* target) OVERRIDE;
+  void OpPcRelLoad(RegStorage reg, LIR* target) OVERRIDE;
   LIR* OpReg(OpKind op, RegStorage r_dest_src) OVERRIDE;
   void OpRegCopy(RegStorage r_dest, RegStorage r_src) OVERRIDE;
   LIR* OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) OVERRIDE;
