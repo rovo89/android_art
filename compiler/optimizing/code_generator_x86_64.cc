@@ -625,7 +625,7 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
       HConstant* constant = source.GetConstant();
       int64_t value = constant->AsLongConstant()->GetValue();
       if (constant->IsDoubleConstant()) {
-        value = bit_cast<double, int64_t>(constant->AsDoubleConstant()->GetValue());
+        value = bit_cast<int64_t, double>(constant->AsDoubleConstant()->GetValue());
       } else {
         DCHECK(constant->IsLongConstant());
         value = constant->AsLongConstant()->GetValue();
@@ -3344,7 +3344,7 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
       }
     } else if (constant->IsFloatConstant()) {
       float fp_value = constant->AsFloatConstant()->GetValue();
-      int32_t value = bit_cast<float, int32_t>(fp_value);
+      int32_t value = bit_cast<int32_t, float>(fp_value);
       Immediate imm(value);
       if (destination.IsFpuRegister()) {
         XmmRegister dest = destination.AsFpuRegister<XmmRegister>();
@@ -3362,7 +3362,7 @@ void ParallelMoveResolverX86_64::EmitMove(size_t index) {
     } else {
       DCHECK(constant->IsDoubleConstant()) << constant->DebugName();
       double fp_value =  constant->AsDoubleConstant()->GetValue();
-      int64_t value = bit_cast<double, int64_t>(fp_value);
+      int64_t value = bit_cast<int64_t, double>(fp_value);
       Immediate imm(value);
       if (destination.IsFpuRegister()) {
         XmmRegister dest = destination.AsFpuRegister<XmmRegister>();

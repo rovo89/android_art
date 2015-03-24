@@ -1510,25 +1510,25 @@ void Java_MyClassNatives_stackArgsIntsFirst(JNIEnv*, jclass, jint i1, jint i2, j
   EXPECT_EQ(i9, 9);
   EXPECT_EQ(i10, 10);
 
-  jint i11 = bit_cast<jfloat, jint>(f1);
+  jint i11 = bit_cast<jint, jfloat>(f1);
   EXPECT_EQ(i11, 11);
-  jint i12 = bit_cast<jfloat, jint>(f2);
+  jint i12 = bit_cast<jint, jfloat>(f2);
   EXPECT_EQ(i12, 12);
-  jint i13 = bit_cast<jfloat, jint>(f3);
+  jint i13 = bit_cast<jint, jfloat>(f3);
   EXPECT_EQ(i13, 13);
-  jint i14 = bit_cast<jfloat, jint>(f4);
+  jint i14 = bit_cast<jint, jfloat>(f4);
   EXPECT_EQ(i14, 14);
-  jint i15 = bit_cast<jfloat, jint>(f5);
+  jint i15 = bit_cast<jint, jfloat>(f5);
   EXPECT_EQ(i15, 15);
-  jint i16 = bit_cast<jfloat, jint>(f6);
+  jint i16 = bit_cast<jint, jfloat>(f6);
   EXPECT_EQ(i16, 16);
-  jint i17 = bit_cast<jfloat, jint>(f7);
+  jint i17 = bit_cast<jint, jfloat>(f7);
   EXPECT_EQ(i17, 17);
-  jint i18 = bit_cast<jfloat, jint>(f8);
+  jint i18 = bit_cast<jint, jfloat>(f8);
   EXPECT_EQ(i18, 18);
-  jint i19 = bit_cast<jfloat, jint>(f9);
+  jint i19 = bit_cast<jint, jfloat>(f9);
   EXPECT_EQ(i19, 19);
-  jint i20 = bit_cast<jfloat, jint>(f10);
+  jint i20 = bit_cast<jint, jfloat>(f10);
   EXPECT_EQ(i20, 20);
 }
 
@@ -1547,16 +1547,16 @@ void JniCompilerTest::StackArgsIntsFirstImpl() {
   jint i9 = 9;
   jint i10 = 10;
 
-  jfloat f1 = bit_cast<jint, jfloat>(11);
-  jfloat f2 = bit_cast<jint, jfloat>(12);
-  jfloat f3 = bit_cast<jint, jfloat>(13);
-  jfloat f4 = bit_cast<jint, jfloat>(14);
-  jfloat f5 = bit_cast<jint, jfloat>(15);
-  jfloat f6 = bit_cast<jint, jfloat>(16);
-  jfloat f7 = bit_cast<jint, jfloat>(17);
-  jfloat f8 = bit_cast<jint, jfloat>(18);
-  jfloat f9 = bit_cast<jint, jfloat>(19);
-  jfloat f10 = bit_cast<jint, jfloat>(20);
+  jfloat f1 = bit_cast<jfloat, jint>(11);
+  jfloat f2 = bit_cast<jfloat, jint>(12);
+  jfloat f3 = bit_cast<jfloat, jint>(13);
+  jfloat f4 = bit_cast<jfloat, jint>(14);
+  jfloat f5 = bit_cast<jfloat, jint>(15);
+  jfloat f6 = bit_cast<jfloat, jint>(16);
+  jfloat f7 = bit_cast<jfloat, jint>(17);
+  jfloat f8 = bit_cast<jfloat, jint>(18);
+  jfloat f9 = bit_cast<jfloat, jint>(19);
+  jfloat f10 = bit_cast<jfloat, jint>(20);
 
   env_->CallStaticVoidMethod(jklass_, jmethod_, i1, i2, i3, i4, i5, i6, i7, i8, i9, i10, f1, f2,
                              f3, f4, f5, f6, f7, f8, f9, f10);
@@ -1580,25 +1580,25 @@ void Java_MyClassNatives_stackArgsFloatsFirst(JNIEnv*, jclass, jfloat f1, jfloat
   EXPECT_EQ(i9, 9);
   EXPECT_EQ(i10, 10);
 
-  jint i11 = bit_cast<jfloat, jint>(f1);
+  jint i11 = bit_cast<jint, jfloat>(f1);
   EXPECT_EQ(i11, 11);
-  jint i12 = bit_cast<jfloat, jint>(f2);
+  jint i12 = bit_cast<jint, jfloat>(f2);
   EXPECT_EQ(i12, 12);
-  jint i13 = bit_cast<jfloat, jint>(f3);
+  jint i13 = bit_cast<jint, jfloat>(f3);
   EXPECT_EQ(i13, 13);
-  jint i14 = bit_cast<jfloat, jint>(f4);
+  jint i14 = bit_cast<jint, jfloat>(f4);
   EXPECT_EQ(i14, 14);
-  jint i15 = bit_cast<jfloat, jint>(f5);
+  jint i15 = bit_cast<jint, jfloat>(f5);
   EXPECT_EQ(i15, 15);
-  jint i16 = bit_cast<jfloat, jint>(f6);
+  jint i16 = bit_cast<jint, jfloat>(f6);
   EXPECT_EQ(i16, 16);
-  jint i17 = bit_cast<jfloat, jint>(f7);
+  jint i17 = bit_cast<jint, jfloat>(f7);
   EXPECT_EQ(i17, 17);
-  jint i18 = bit_cast<jfloat, jint>(f8);
+  jint i18 = bit_cast<jint, jfloat>(f8);
   EXPECT_EQ(i18, 18);
-  jint i19 = bit_cast<jfloat, jint>(f9);
+  jint i19 = bit_cast<jint, jfloat>(f9);
   EXPECT_EQ(i19, 19);
-  jint i20 = bit_cast<jfloat, jint>(f10);
+  jint i20 = bit_cast<jint, jfloat>(f10);
   EXPECT_EQ(i20, 20);
 }
 
@@ -1617,16 +1617,16 @@ void JniCompilerTest::StackArgsFloatsFirstImpl() {
   jint i9 = 9;
   jint i10 = 10;
 
-  jfloat f1 = bit_cast<jint, jfloat>(11);
-  jfloat f2 = bit_cast<jint, jfloat>(12);
-  jfloat f3 = bit_cast<jint, jfloat>(13);
-  jfloat f4 = bit_cast<jint, jfloat>(14);
-  jfloat f5 = bit_cast<jint, jfloat>(15);
-  jfloat f6 = bit_cast<jint, jfloat>(16);
-  jfloat f7 = bit_cast<jint, jfloat>(17);
-  jfloat f8 = bit_cast<jint, jfloat>(18);
-  jfloat f9 = bit_cast<jint, jfloat>(19);
-  jfloat f10 = bit_cast<jint, jfloat>(20);
+  jfloat f1 = bit_cast<jfloat, jint>(11);
+  jfloat f2 = bit_cast<jfloat, jint>(12);
+  jfloat f3 = bit_cast<jfloat, jint>(13);
+  jfloat f4 = bit_cast<jfloat, jint>(14);
+  jfloat f5 = bit_cast<jfloat, jint>(15);
+  jfloat f6 = bit_cast<jfloat, jint>(16);
+  jfloat f7 = bit_cast<jfloat, jint>(17);
+  jfloat f8 = bit_cast<jfloat, jint>(18);
+  jfloat f9 = bit_cast<jfloat, jint>(19);
+  jfloat f10 = bit_cast<jfloat, jint>(20);
 
   env_->CallStaticVoidMethod(jklass_, jmethod_, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, i1, i2, i3,
                              i4, i5, i6, i7, i8, i9, i10);
@@ -1649,25 +1649,25 @@ void Java_MyClassNatives_stackArgsMixed(JNIEnv*, jclass, jint i1, jfloat f1, jin
   EXPECT_EQ(i9, 9);
   EXPECT_EQ(i10, 10);
 
-  jint i11 = bit_cast<jfloat, jint>(f1);
+  jint i11 = bit_cast<jint, jfloat>(f1);
   EXPECT_EQ(i11, 11);
-  jint i12 = bit_cast<jfloat, jint>(f2);
+  jint i12 = bit_cast<jint, jfloat>(f2);
   EXPECT_EQ(i12, 12);
-  jint i13 = bit_cast<jfloat, jint>(f3);
+  jint i13 = bit_cast<jint, jfloat>(f3);
   EXPECT_EQ(i13, 13);
-  jint i14 = bit_cast<jfloat, jint>(f4);
+  jint i14 = bit_cast<jint, jfloat>(f4);
   EXPECT_EQ(i14, 14);
-  jint i15 = bit_cast<jfloat, jint>(f5);
+  jint i15 = bit_cast<jint, jfloat>(f5);
   EXPECT_EQ(i15, 15);
-  jint i16 = bit_cast<jfloat, jint>(f6);
+  jint i16 = bit_cast<jint, jfloat>(f6);
   EXPECT_EQ(i16, 16);
-  jint i17 = bit_cast<jfloat, jint>(f7);
+  jint i17 = bit_cast<jint, jfloat>(f7);
   EXPECT_EQ(i17, 17);
-  jint i18 = bit_cast<jfloat, jint>(f8);
+  jint i18 = bit_cast<jint, jfloat>(f8);
   EXPECT_EQ(i18, 18);
-  jint i19 = bit_cast<jfloat, jint>(f9);
+  jint i19 = bit_cast<jint, jfloat>(f9);
   EXPECT_EQ(i19, 19);
-  jint i20 = bit_cast<jfloat, jint>(f10);
+  jint i20 = bit_cast<jint, jfloat>(f10);
   EXPECT_EQ(i20, 20);
 }
 
@@ -1686,16 +1686,16 @@ void JniCompilerTest::StackArgsMixedImpl() {
   jint i9 = 9;
   jint i10 = 10;
 
-  jfloat f1 = bit_cast<jint, jfloat>(11);
-  jfloat f2 = bit_cast<jint, jfloat>(12);
-  jfloat f3 = bit_cast<jint, jfloat>(13);
-  jfloat f4 = bit_cast<jint, jfloat>(14);
-  jfloat f5 = bit_cast<jint, jfloat>(15);
-  jfloat f6 = bit_cast<jint, jfloat>(16);
-  jfloat f7 = bit_cast<jint, jfloat>(17);
-  jfloat f8 = bit_cast<jint, jfloat>(18);
-  jfloat f9 = bit_cast<jint, jfloat>(19);
-  jfloat f10 = bit_cast<jint, jfloat>(20);
+  jfloat f1 = bit_cast<jfloat, jint>(11);
+  jfloat f2 = bit_cast<jfloat, jint>(12);
+  jfloat f3 = bit_cast<jfloat, jint>(13);
+  jfloat f4 = bit_cast<jfloat, jint>(14);
+  jfloat f5 = bit_cast<jfloat, jint>(15);
+  jfloat f6 = bit_cast<jfloat, jint>(16);
+  jfloat f7 = bit_cast<jfloat, jint>(17);
+  jfloat f8 = bit_cast<jfloat, jint>(18);
+  jfloat f9 = bit_cast<jfloat, jint>(19);
+  jfloat f10 = bit_cast<jfloat, jint>(20);
 
   env_->CallStaticVoidMethod(jklass_, jmethod_, i1, f1, i2, f2, i3, f3, i4, f4, i5, f5, i6, f6, i7,
                              f7, i8, f8, i9, f9, i10, f10);

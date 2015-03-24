@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include "base/casts.h"
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/value_object.h"
@@ -60,23 +61,6 @@ class MemoryRegion FINAL : public ValueObject {
     *ComputeInternalPointer<T>(offset) = value;
   }
 
-  // TODO: Local hack to prevent name clashes between two conflicting
-  // implementations of bit_cast:
-  // - art::bit_cast<Destination, Source> runtime/base/casts.h, and
-  // - art::bit_cast<Source, Destination> from runtime/utils.h.
-  // Remove this when these routines have been merged.
-  template<typename Source, typename Destination>
-  static Destination local_bit_cast(Source in) {
-    static_assert(sizeof(Source) <= sizeof(Destination),
-                  "Size of Source not <= size of Destination");
-    union {
-      Source u;
-      Destination v;
-    } tmp;
-    tmp.u = in;
-    return tmp.v;
-  }
-
   // Load value of type `T` at `offset`.  The memory address corresponding
   // to `offset` does not need to be word-aligned.
   template<typename T> T LoadUnaligned(uintptr_t offset) const {
@@ -88,7 +72,7 @@ class MemoryRegion FINAL : public ValueObject {
       equivalent_unsigned_integer_value +=
           *ComputeInternalPointer<uint8_t>(offset + i) << (i * kBitsPerByte);
     }
-    return local_bit_cast<U, T>(equivalent_unsigned_integer_value);
+    return bit_cast<T, U>(equivalent_unsigned_integer_value);
   }
 
   // Store `value` (of type `T`) at `offset`.  The memory address
@@ -96,7 +80,7 @@ class MemoryRegion FINAL : public ValueObject {
   template<typename T> void StoreUnaligned(uintptr_t offset, T value) const {
     // Equivalent unsigned integer type corresponding to T.
     typedef typename UnsignedIntegerType<sizeof(T)>::type U;
-    U equivalent_unsigned_integer_value = local_bit_cast<T, U>(value);
+    U equivalent_unsigned_integer_value = bit_cast<U, T>(value);
     // Write the value byte by byte in a little-endian fashion.
     for (size_t i = 0; i < sizeof(U); ++i) {
       *ComputeInternalPointer<uint8_t>(offset + i) =
