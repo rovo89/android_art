@@ -145,6 +145,7 @@ static void RunCodeOptimized(CodeGenerator* codegen,
                              std::function<void(HGraph*)> hook_before_codegen,
                              bool has_result,
                              Expected expected) {
+  graph->BuildDominatorTree();
   SsaLivenessAnalysis liveness(*graph, codegen);
   liveness.Analyze();
 
