@@ -631,20 +631,20 @@ bool JavaVMExt::LoadNativeLibrary(JNIEnv* env, const std::string& path, jobject 
 
   Locks::mutator_lock_->AssertNotHeld(self);
   const char* path_str = path.empty() ? nullptr : path.c_str();
-  void* handle = dlopen(path_str, RTLD_LAZY);
+  void* handle = dlopen(path_str, RTLD_NOW);
   bool needs_native_bridge = false;
   if (handle == nullptr) {
     if (android::NativeBridgeIsSupported(path_str)) {
-      handle = android::NativeBridgeLoadLibrary(path_str, RTLD_LAZY);
+      handle = android::NativeBridgeLoadLibrary(path_str, RTLD_NOW);
       needs_native_bridge = true;
     }
   }
 
-  VLOG(jni) << "[Call to dlopen(\"" << path << "\", RTLD_LAZY) returned " << handle << "]";
+  VLOG(jni) << "[Call to dlopen(\"" << path << "\", RTLD_NOW) returned " << handle << "]";
 
   if (handle == nullptr) {
     *error_msg = dlerror();
-    VLOG(jni) << "dlopen(\"" << path << "\", RTLD_LAZY) failed: " << *error_msg;
+    VLOG(jni) << "dlopen(\"" << path << "\", RTLD_NOW) failed: " << *error_msg;
     return false;
   }
 
