@@ -30,6 +30,7 @@
 #include "mirror/object_array-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
+#include "debugger.h"
 
 namespace art {
 
@@ -639,6 +640,14 @@ extern "C" uint64_t artQuickToInterpreterBridge(mirror::ArtMethod* method, Threa
     JValue result = interpreter::EnterInterpreterFromEntryPoint(self, code_item, shadow_frame);
     // Pop transition.
     self->PopManagedStackFragment(fragment);
+
+    // Request a stack deoptimization if needed
+    mirror::ArtMethod* caller = QuickArgumentVisitor::GetCallingMethod(sp);
+    if (UNLIKELY(Dbg::IsForcedInterpreterNeededForUpcall(self, caller))) {
+      self->SetException(Thread::GetDeoptimizationException());
+      self->SetDeoptimizationReturnValue(result);
+    }
+
     // No need to restore the args since the method has already been run by the interpreter.
     return result.GetJ();
   }
@@ -950,14 +959,37 @@ extern "C" const void* artQuickResolutionTrampoline(mirror::ArtMethod* called,
         called->GetDexCache()->SetResolvedMethod(called_dex_method_idx, called);
       }
     }
+
     // Ensure that the called method's class is initialized.
     StackHandleScope<1> hs(soa.Self());
     Handle<mirror::Class> called_class(hs.NewHandle(called->GetDeclaringClass()));
     linker->EnsureInitialized(soa.Self(), called_class, true, true);
     if (LIKELY(called_class->IsInitialized())) {
-      code = called->GetEntryPointFromQuickCompiledCode();
+      if (UNLIKELY(Dbg::IsForcedInterpreterNeededForResolution(self, called))) {
+        // If we are single-stepping or the called method is deoptimized (by a
+        // breakpoint, for example), then we have to execute the called method
+        // with the interpreter.
+        code = GetQuickToInterpreterBridge();
+      } else if (UNLIKELY(Dbg::IsForcedInstrumentationNeededForResolution(self, caller))) {
+        // If the caller is deoptimized (by a breakpoint, for example), we have to
+        // continue its execution with interpreter when returning from the called
+        // method. Because we do not want to execute the called method with the
+        // interpreter, we wrap its execution into the instrumentation stubs.
+        // When the called method returns, it will execute the instrumentation
+        // exit hook that will determine the need of the interpreter with a call
+        // to Dbg::IsForcedInterpreterNeededForUpcall and deoptimize the stack if
+        // it is needed.
+        code = GetQuickInstrumentationEntryPoint();
+      } else {
+        code = called->GetEntryPointFromQuickCompiledCode();
+      }
     } else if (called_class->IsInitializing()) {
-      if (invoke_type == kStatic) {
+      if (UNLIKELY(Dbg::IsForcedInterpreterNeededForResolution(self, called))) {
+        // If we are single-stepping or the called method is deoptimized (by a
+        // breakpoint, for example), then we have to execute the called method
+        // with the interpreter.
+        code = GetQuickToInterpreterBridge();
+      } else if (invoke_type == kStatic) {
         // Class is still initializing, go to oat and grab code (trampoline must be left in place
         // until class is initialized to stop races between threads).
         code = linker->GetQuickOatCodeFor(called);

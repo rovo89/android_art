@@ -1030,7 +1030,8 @@ TwoWordReturn Instrumentation::PopInstrumentationStackFrame(Thread* self, uintpt
   NthCallerVisitor visitor(self, 1, true);
   visitor.WalkStack(true);
   bool deoptimize = (visitor.caller != nullptr) &&
-                    (interpreter_stubs_installed_ || IsDeoptimized(visitor.caller));
+                    (interpreter_stubs_installed_ || IsDeoptimized(visitor.caller) ||
+                    Dbg::IsForcedInterpreterNeededForUpcall(self, visitor.caller));
   if (deoptimize) {
     if (kVerboseInstrumentation) {
       LOG(INFO) << StringPrintf("Deoptimizing %s by returning from %s with result %#" PRIx64 " in ",
