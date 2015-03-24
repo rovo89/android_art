@@ -57,14 +57,15 @@ struct ReferenceMap2Visitor : public CheckReferenceMapVisitor {
       // We eliminate the non-live registers at a return, so only v3 is live.
       // Note that it is OK for a compiler to not have a dex map at this dex PC because
       // a return is not necessarily a safepoint.
-      CHECK_REGS_CONTAIN_REFS(0x13U, false);  // v3: y
-      CHECK_REGS_CONTAIN_REFS(0x18U, true, 8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
-      CHECK_REGS_CONTAIN_REFS(0x1aU, true, 8, 5, 2, 1, 0);  // v8: this, v5: x[1], v2: y, v1: x, v0: ex
-      CHECK_REGS_CONTAIN_REFS(0x1dU, true, 8, 5, 2, 1, 0);  // v8: this, v5: x[1], v2: y, v1: x, v0: ex
+      CHECK_REGS_CONTAIN_REFS(0x13U, false, 3);  // v3: y
+      // Note that v0: ex can be eliminated because it's a dead merge of two different exceptions.
+      CHECK_REGS_CONTAIN_REFS(0x18U, true, 8, 2, 1);  // v8: this, v2: y, v1: x (dead v0: ex)
+      CHECK_REGS_CONTAIN_REFS(0x1aU, true, 8, 5, 2, 1);  // v8: this, v5: x[1], v2: y, v1: x (dead v0: ex)
+      CHECK_REGS_CONTAIN_REFS(0x1dU, true, 8, 5, 2, 1);  // v8: this, v5: x[1], v2: y, v1: x (dead v0: ex)
       // v5 is removed from the root set because there is a "merge" operation.
       // See 0015: if-nez v2, 001f.
-      CHECK_REGS_CONTAIN_REFS(0x1fU, true, 8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
-      CHECK_REGS_CONTAIN_REFS(0x21U, true, 8, 2, 1, 0);  // v8: this, v2: y, v1: x, v0: ex
+      CHECK_REGS_CONTAIN_REFS(0x1fU, true, 8, 2, 1);  // v8: this, v2: y, v1: x (dead v0: ex)
+      CHECK_REGS_CONTAIN_REFS(0x21U, true, 8, 2, 1);  // v8: this, v2: y, v1: x (dead v0: ex)
       CHECK_REGS_CONTAIN_REFS(0x27U, true, 8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
       CHECK_REGS_CONTAIN_REFS(0x29U, true, 8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
       CHECK_REGS_CONTAIN_REFS(0x2cU, true, 8, 4, 2, 1);  // v8: this, v4: ex, v2: y, v1: x
