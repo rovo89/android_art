@@ -305,6 +305,26 @@ class TypeCheckSlowPathARM : public SlowPathCodeARM {
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathARM);
 };
 
+class DeoptimizationSlowPathARM : public SlowPathCodeARM {
+ public:
+  explicit DeoptimizationSlowPathARM(HInstruction* instruction)
+    : instruction_(instruction) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    __ Bind(GetEntryLabel());
+    SaveLiveRegisters(codegen, instruction_->GetLocations());
+    DCHECK(instruction_->IsDeoptimize());
+    HDeoptimize* deoptimize = instruction_->AsDeoptimize();
+    uint32_t dex_pc = deoptimize->GetDexPc();
+    CodeGeneratorARM* arm_codegen = down_cast<CodeGeneratorARM*>(codegen);
+    arm_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pDeoptimize), instruction_, dex_pc, this);
+  }
+
+ private:
+  HInstruction* const instruction_;
+  DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathARM);
+};
+
 #undef __
 
 #undef __
@@ -905,24 +925,17 @@ void InstructionCodeGeneratorARM::VisitExit(HExit* exit) {
   UNUSED(exit);
 }
 
-void LocationsBuilderARM::VisitIf(HIf* if_instr) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(if_instr, LocationSummary::kNoCall);
-  HInstruction* cond = if_instr->InputAt(0);
-  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
-    locations->SetInAt(0, Location::RequiresRegister());
-  }
-}
-
-void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
-  HInstruction* cond = if_instr->InputAt(0);
+void InstructionCodeGeneratorARM::GenerateTestAndBranch(HInstruction* instruction,
+                                                        Label* true_target,
+                                                        Label* false_target,
+                                                        Label* always_true_target) {
+  HInstruction* cond = instruction->InputAt(0);
   if (cond->IsIntConstant()) {
     // Constant condition, statically compared against 1.
     int32_t cond_value = cond->AsIntConstant()->GetValue();
     if (cond_value == 1) {
-      if (!codegen_->GoesToNextBlock(if_instr->GetBlock(),
-                                     if_instr->IfTrueSuccessor())) {
-        __ b(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
+      if (always_true_target != nullptr) {
+        __ b(always_true_target);
       }
       return;
     } else {
@@ -931,10 +944,10 @@ void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
   } else {
     if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
       // Condition has been materialized, compare the output to 0
-      DCHECK(if_instr->GetLocations()->InAt(0).IsRegister());
-      __ cmp(if_instr->GetLocations()->InAt(0).AsRegister<Register>(),
+      DCHECK(instruction->GetLocations()->InAt(0).IsRegister());
+      __ cmp(instruction->GetLocations()->InAt(0).AsRegister<Register>(),
              ShifterOperand(0));
-      __ b(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()), NE);
+      __ b(true_target, NE);
     } else {
       // Condition has not been materialized, use its inputs as the
       // comparison and its condition as the branch condition.
@@ -956,16 +969,55 @@ void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
           __ cmp(left, ShifterOperand(temp));
         }
       }
-      __ b(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()),
-           ARMCondition(cond->AsCondition()->GetCondition()));
+      __ b(true_target);
     }
   }
-  if (!codegen_->GoesToNextBlock(if_instr->GetBlock(),
-                                 if_instr->IfFalseSuccessor())) {
-    __ b(codegen_->GetLabelOf(if_instr->IfFalseSuccessor()));
+  if (false_target != nullptr) {
+    __ b(false_target);
   }
 }
 
+void LocationsBuilderARM::VisitIf(HIf* if_instr) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(if_instr, LocationSummary::kNoCall);
+  HInstruction* cond = if_instr->InputAt(0);
+  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
+    locations->SetInAt(0, Location::RequiresRegister());
+  }
+}
+
+void InstructionCodeGeneratorARM::VisitIf(HIf* if_instr) {
+  Label* true_target = codegen_->GetLabelOf(if_instr->IfTrueSuccessor());
+  Label* false_target = codegen_->GetLabelOf(if_instr->IfFalseSuccessor());
+  Label* always_true_target = true_target;
+  if (codegen_->GoesToNextBlock(if_instr->GetBlock(),
+                                if_instr->IfTrueSuccessor())) {
+    always_true_target = nullptr;
+  }
+  if (codegen_->GoesToNextBlock(if_instr->GetBlock(),
+                                if_instr->IfFalseSuccessor())) {
+    false_target = nullptr;
+  }
+  GenerateTestAndBranch(if_instr, true_target, false_target, always_true_target);
+}
+
+void LocationsBuilderARM::VisitDeoptimize(HDeoptimize* deoptimize) {
+  LocationSummary* locations = new (GetGraph()->GetArena())
+      LocationSummary(deoptimize, LocationSummary::kCallOnSlowPath);
+  HInstruction* cond = deoptimize->InputAt(0);
+  DCHECK(cond->IsCondition());
+  if (cond->AsCondition()->NeedsMaterialization()) {
+    locations->SetInAt(0, Location::RequiresRegister());
+  }
+}
+
+void InstructionCodeGeneratorARM::VisitDeoptimize(HDeoptimize* deoptimize) {
+  SlowPathCodeARM* slow_path = new (GetGraph()->GetArena())
+      DeoptimizationSlowPathARM(deoptimize);
+  codegen_->AddSlowPath(slow_path);
+  Label* slow_path_entry = slow_path->GetEntryLabel();
+  GenerateTestAndBranch(deoptimize, slow_path_entry, nullptr, slow_path_entry);
+}
 
 void LocationsBuilderARM::VisitCondition(HCondition* comp) {
   LocationSummary* locations =

@@ -163,6 +163,10 @@ class InstructionCodeGeneratorX86_64 : public HGraphVisitor {
   void GenerateExplicitNullCheck(HNullCheck* instruction);
   void PushOntoFPStack(Location source, uint32_t temp_offset,
                        uint32_t stack_adjustment, bool is_float);
+  void GenerateTestAndBranch(HInstruction* instruction,
+                             Label* true_target,
+                             Label* false_target,
+                             Label* always_true_target);
 
   X86_64Assembler* const assembler_;
   CodeGeneratorX86_64* const codegen_;
