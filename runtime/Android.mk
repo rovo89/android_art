@@ -103,6 +103,7 @@ LIBART_COMMON_SRC_FILES := \
   mirror/array.cc \
   mirror/class.cc \
   mirror/dex_cache.cc \
+  mirror/field.cc \
   mirror/object.cc \
   mirror/reference.cc \
   mirror/stack_trace_element.cc \

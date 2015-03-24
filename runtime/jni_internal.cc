@@ -41,6 +41,7 @@
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
+#include "mirror/field.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
@@ -346,7 +347,13 @@ class JNI {
   static jfieldID FromReflectedField(JNIEnv* env, jobject jlr_field) {
     CHECK_NON_NULL_ARGUMENT(jlr_field);
     ScopedObjectAccess soa(env);
-    return soa.EncodeField(mirror::ArtField::FromReflectedField(soa, jlr_field));
+    mirror::Object* obj_field = soa.Decode<mirror::Object*>(jlr_field);
+    if (obj_field->GetClass() != mirror::Field::StaticClass()) {
+      // Not even a java.lang.reflect.Field, return nullptr.
+      return nullptr;
+    }
+    auto* field = static_cast<mirror::Field*>(obj_field);
+    return soa.EncodeField(field->GetArtField());
   }
 
   static jobject ToReflectedMethod(JNIEnv* env, jclass, jmethodID mid, jboolean) {
@@ -373,14 +380,7 @@ class JNI {
     CHECK_NON_NULL_ARGUMENT(fid);
     ScopedObjectAccess soa(env);
     mirror::ArtField* f = soa.DecodeField(fid);
-    ScopedLocalRef<jobject> art_field(env, soa.AddLocalReference<jobject>(f));
-    jobject reflect_field = env->AllocObject(WellKnownClasses::java_lang_reflect_Field);
-    if (env->ExceptionCheck()) {
-      return nullptr;
-    }
-    SetObjectField(env, reflect_field,
-                   WellKnownClasses::java_lang_reflect_Field_artField, art_field.get());
-    return reflect_field;
+    return soa.AddLocalReference<jobject>(mirror::Field::CreateFromArtField(soa.Self(), f, true));
   }
 
   static jclass GetObjectClass(JNIEnv* env, jobject java_object) {

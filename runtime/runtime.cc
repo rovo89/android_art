@@ -75,6 +75,7 @@
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
+#include "mirror/field.h"
 #include "mirror/stack_trace_element.h"
 #include "mirror/throwable.h"
 #include "monitor.h"
@@ -1291,6 +1292,7 @@ void Runtime::VisitConstantRoots(RootCallback* callback, void* arg) {
   mirror::StackTraceElement::VisitRoots(callback, arg);
   mirror::String::VisitRoots(callback, arg);
   mirror::Throwable::VisitRoots(callback, arg);
+  mirror::Field::VisitRoots(callback, arg);
   // Visit all the primitive array types classes.
   mirror::PrimitiveArray<uint8_t>::VisitRoots(callback, arg);   // BooleanArray
   mirror::PrimitiveArray<int8_t>::VisitRoots(callback, arg);    // ByteArray

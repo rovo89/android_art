@@ -24,11 +24,13 @@
 #include "dex_file.h"
 #include "entrypoints/entrypoint_utils-inl.h"
 #include "gc/heap.h"
+#include "mirror/accessible_object.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
 #include "mirror/dex_cache.h"
+#include "mirror/field.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/proxy.h"
@@ -177,7 +179,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     EXPECT_TRUE(field->GetClass() != nullptr);
     EXPECT_EQ(klass, field->GetDeclaringClass());
     EXPECT_TRUE(field->GetName() != nullptr);
-    EXPECT_TRUE(field->GetType(true) != nullptr);
+    EXPECT_TRUE(field->GetType<true>() != nullptr);
   }
 
   void AssertClass(const std::string& descriptor, Handle<mirror::Class> klass)
@@ -283,7 +285,7 @@ class ClassLinkerTest : public CommonRuntimeTest {
     for (size_t i = 0; i < klass->NumInstanceFields(); i++) {
       mirror::ArtField* field = klass->GetInstanceField(i);
       fhandle.Assign(field);
-      mirror::Class* field_type = fhandle->GetType(true);
+      mirror::Class* field_type = fhandle->GetType<true>();
       ASSERT_TRUE(field_type != nullptr);
       if (!field->IsPrimitiveType()) {
         ASSERT_TRUE(!field_type->IsPrimitive());
@@ -394,7 +396,12 @@ struct CheckOffsets {
 
     // Art method have a different size due to the padding field.
     if (!klass->IsArtMethodClass() && !klass->IsClassClass() && !is_static) {
-      size_t expected_size = is_static ? klass->GetClassSize(): klass->GetObjectSize();
+      // Currently only required for AccessibleObject since of the padding fields. The class linker
+      // says AccessibleObject is 9 bytes but sizeof(AccessibleObject) is 12 bytes due to padding.
+      // The RoundUp is to get around this case.
+      static constexpr size_t kPackAlignment = 4;
+      size_t expected_size = RoundUp(is_static ? klass->GetClassSize(): klass->GetObjectSize(),
+          kPackAlignment);
       if (sizeof(T) != expected_size) {
         LOG(ERROR) << "Class size mismatch:"
            << " class=" << class_descriptor
@@ -596,6 +603,22 @@ struct FinalizerReferenceOffsets : public CheckOffsets<mirror::FinalizerReferenc
   };
 };
 
+struct AccessibleObjectOffsets : public CheckOffsets<mirror::AccessibleObject> {
+  AccessibleObjectOffsets() : CheckOffsets<mirror::AccessibleObject>(false, "Ljava/lang/reflect/AccessibleObject;") {
+    offsets.push_back(CheckOffset(mirror::AccessibleObject::FlagOffset().Uint32Value(),   "flag"));
+  };
+};
+
+struct FieldOffsets : public CheckOffsets<mirror::Field> {
+  FieldOffsets() : CheckOffsets<mirror::Field>(false, "Ljava/lang/reflect/Field;") {
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Field, access_flags_),     "accessFlags"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Field, declaring_class_),  "declaringClass"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Field, dex_field_index_),  "dexFieldIndex"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Field, offset_),           "offset"));
+    offsets.push_back(CheckOffset(OFFSETOF_MEMBER(mirror::Field, type_),             "type"));
+  };
+};
+
 // C++ fields must exactly match the fields in the Java classes. If this fails,
 // reorder the fields in the C++ class. Managed class fields are ordered by
 // ClassLinker::LinkFields.
@@ -613,6 +636,8 @@ TEST_F(ClassLinkerTest, ValidateFieldOrderOfJavaCppUnionClasses) {
   EXPECT_TRUE(DexCacheOffsets().Check());
   EXPECT_TRUE(ReferenceOffsets().Check());
   EXPECT_TRUE(FinalizerReferenceOffsets().Check());
+  EXPECT_TRUE(AccessibleObjectOffsets().Check());
+  EXPECT_TRUE(FieldOffsets().Check());
 }
 
 TEST_F(ClassLinkerTest, FindClassNonexistent) {
