@@ -271,7 +271,7 @@ class CodeGenerator {
       return 0;
     } else {
       DCHECK(constant->IsFloatConstant());
-      return bit_cast<float, int32_t>(constant->AsFloatConstant()->GetValue());
+      return bit_cast<int32_t, float>(constant->AsFloatConstant()->GetValue());
     }
   }
 
@@ -281,12 +281,12 @@ class CodeGenerator {
     } else if (constant->IsNullConstant()) {
       return 0;
     } else if (constant->IsFloatConstant()) {
-      return bit_cast<float, int32_t>(constant->AsFloatConstant()->GetValue());
+      return bit_cast<int32_t, float>(constant->AsFloatConstant()->GetValue());
     } else if (constant->IsLongConstant()) {
       return constant->AsLongConstant()->GetValue();
     } else {
       DCHECK(constant->IsDoubleConstant());
-      return bit_cast<double, int64_t>(constant->AsDoubleConstant()->GetValue());
+      return bit_cast<int64_t, double>(constant->AsDoubleConstant()->GetValue());
     }
   }
 
