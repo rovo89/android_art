@@ -729,7 +729,7 @@ void InstructionCodeGeneratorX86_64::VisitGoto(HGoto* got) {
   HInstruction* previous = got->GetPrevious();
 
   HLoopInformation* info = block->GetLoopInformation();
-  if (info != nullptr && info->IsBackEdge(block) && info->HasSuspendCheck()) {
+  if (info != nullptr && info->IsBackEdge(*block) && info->HasSuspendCheck()) {
     codegen_->ClearSpillSlotsFromLoopPhisInStackMap(info->GetSuspendCheck());
     GenerateSuspendCheck(info->GetSuspendCheck(), successor);
     return;
@@ -1409,9 +1409,15 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
   Primitive::Type result_type = conversion->GetResultType();
   Primitive::Type input_type = conversion->GetInputType();
   DCHECK_NE(result_type, input_type);
+
+  // Java language does not allow treating boolean as an integral type but our
+  // bit representation makes it safe.
+
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
+        case Primitive::kPrimBoolean:
+          // Boolean input is a result of code transformations.
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
         case Primitive::kPrimChar:
@@ -1428,6 +1434,8 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimShort:
       switch (input_type) {
+        case Primitive::kPrimBoolean:
+          // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
         case Primitive::kPrimInt:
         case Primitive::kPrimChar:
@@ -1472,6 +1480,8 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimLong:
       switch (input_type) {
+        case Primitive::kPrimBoolean:
+          // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
@@ -1505,6 +1515,8 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimChar:
       switch (input_type) {
+        case Primitive::kPrimBoolean:
+          // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
@@ -1521,6 +1533,8 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimFloat:
       switch (input_type) {
+        case Primitive::kPrimBoolean:
+          // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
@@ -1550,6 +1564,8 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
 
     case Primitive::kPrimDouble:
       switch (input_type) {
+        case Primitive::kPrimBoolean:
+          // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
@@ -1593,6 +1609,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
   switch (result_type) {
     case Primitive::kPrimByte:
       switch (input_type) {
+        case Primitive::kPrimBoolean:
+          // Boolean input is a result of code transformations.
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
         case Primitive::kPrimChar:
@@ -1617,6 +1635,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
 
     case Primitive::kPrimShort:
       switch (input_type) {
+        case Primitive::kPrimBoolean:
+          // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
         case Primitive::kPrimInt:
         case Primitive::kPrimChar:
@@ -1715,6 +1735,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
     case Primitive::kPrimLong:
       switch (input_type) {
         DCHECK(out.IsRegister());
+        case Primitive::kPrimBoolean:
+          // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
@@ -1782,6 +1804,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
 
     case Primitive::kPrimChar:
       switch (input_type) {
+        case Primitive::kPrimBoolean:
+          // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
@@ -1806,6 +1830,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
 
     case Primitive::kPrimFloat:
       switch (input_type) {
+        case Primitive::kPrimBoolean:
+          // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:
@@ -1832,6 +1858,8 @@ void InstructionCodeGeneratorX86_64::VisitTypeConversion(HTypeConversion* conver
 
     case Primitive::kPrimDouble:
       switch (input_type) {
+        case Primitive::kPrimBoolean:
+          // Boolean input is a result of code transformations.
         case Primitive::kPrimByte:
         case Primitive::kPrimShort:
         case Primitive::kPrimInt:

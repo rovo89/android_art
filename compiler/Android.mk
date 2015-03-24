@@ -94,6 +94,7 @@ LIBART_COMPILER_SRC_FILES := \
 	jni/quick/x86_64/calling_convention_x86_64.cc \
 	jni/quick/calling_convention.cc \
 	jni/quick/jni_compiler.cc \
+	optimizing/boolean_simplifier.cc \
 	optimizing/builder.cc \
 	optimizing/bounds_check_elimination.cc \
 	optimizing/code_generator.cc \
