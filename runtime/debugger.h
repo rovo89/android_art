@@ -243,7 +243,9 @@ class Dbg {
 
   // Returns true if we're actually debugging with a real debugger, false if it's
   // just DDMS (or nothing at all).
-  static bool IsDebuggerActive();
+  static bool IsDebuggerActive() {
+    return gDebuggerActive;
+  }
 
   // Configures JDWP with parsed command-line options.
   static void ConfigureJdwp(const JDWP::JdwpOptions& jdwp_options);
@@ -543,13 +545,6 @@ class Dbg {
       LOCKS_EXCLUDED(Locks::deoptimization_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  // Support delayed full undeoptimization requests. This is currently only used for single-step
-  // events.
-  static void DelayFullUndeoptimization() LOCKS_EXCLUDED(Locks::deoptimization_lock_);
-  static void ProcessDelayedFullUndeoptimizations()
-      LOCKS_EXCLUDED(Locks::deoptimization_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
   // Manage deoptimization after updating JDWP events list. Suspends all threads, processes each
   // request and finally resumes all threads.
   static void ManageDeoptimization()
@@ -563,6 +558,53 @@ class Dbg {
   static void UnwatchLocation(const JDWP::JdwpLocation* pLoc, DeoptimizationRequest* req)
       LOCKS_EXCLUDED(Locks::breakpoint_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  /*
+   * Forced interpreter checkers for single-step and continue support.
+   */
+
+  // Indicates whether we need to force the use of interpreter to invoke a method.
+  // This allows to single-step or continue into the called method.
+  static bool IsForcedInterpreterNeededForCalling(Thread* thread, mirror::ArtMethod* m)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (!IsDebuggerActive()) {
+      return false;
+    }
+    return IsForcedInterpreterNeededForCallingImpl(thread, m);
+  }
+
+  // Indicates whether we need to force the use of interpreter entrypoint when calling a
+  // method through the resolution trampoline. This allows to single-step or continue into
+  // the called method.
+  static bool IsForcedInterpreterNeededForResolution(Thread* thread, mirror::ArtMethod* m)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (!IsDebuggerActive()) {
+      return false;
+    }
+    return IsForcedInterpreterNeededForResolutionImpl(thread, m);
+  }
+
+  // Indicates whether we need to force the use of instrumentation entrypoint when calling
+  // a method through the resolution trampoline. This allows to deoptimize the stack for
+  // debugging when we returned from the called method.
+  static bool IsForcedInstrumentationNeededForResolution(Thread* thread, mirror::ArtMethod* m)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (!IsDebuggerActive()) {
+      return false;
+    }
+    return IsForcedInstrumentationNeededForResolutionImpl(thread, m);
+  }
+
+  // Indicates whether we need to force the use of interpreter when returning from the
+  // interpreter into the runtime. This allows to deoptimize the stack and continue
+  // execution with interpreter for debugging.
+  static bool IsForcedInterpreterNeededForUpcall(Thread* thread, mirror::ArtMethod* m)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (!IsDebuggerActive()) {
+      return false;
+    }
+    return IsForcedInterpreterNeededForUpcallImpl(thread, m);
+  }
 
   // Single-stepping.
   static JDWP::JdwpError ConfigureStep(JDWP::ObjectId thread_id, JDWP::JdwpStepSize size,
@@ -690,11 +732,27 @@ class Dbg {
       EXCLUSIVE_LOCKS_REQUIRED(Locks::deoptimization_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  static bool IsForcedInterpreterNeededForCallingImpl(Thread* thread, mirror::ArtMethod* m)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static bool IsForcedInterpreterNeededForResolutionImpl(Thread* thread, mirror::ArtMethod* m)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static bool IsForcedInstrumentationNeededForResolutionImpl(Thread* thread, mirror::ArtMethod* m)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  static bool IsForcedInterpreterNeededForUpcallImpl(Thread* thread, mirror::ArtMethod* m)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   static AllocRecord* recent_allocation_records_ PT_GUARDED_BY(Locks::alloc_tracker_lock_);
   static size_t alloc_record_max_ GUARDED_BY(Locks::alloc_tracker_lock_);
   static size_t alloc_record_head_ GUARDED_BY(Locks::alloc_tracker_lock_);
   static size_t alloc_record_count_ GUARDED_BY(Locks::alloc_tracker_lock_);
 
+  // Indicates whether the debugger is making requests.
+  static bool gDebuggerActive;
+
+  // The registry mapping objects to JDWP ids.
   static ObjectRegistry* gRegistry;
 
   // Deoptimization requests to be processed each time the event list is updated. This is used when
@@ -708,10 +766,6 @@ class Dbg {
   // Note: we fully deoptimize on the first event only (when the counter is set to 1). We fully
   // undeoptimize when the last event is unregistered (when the counter is set to 0).
   static size_t full_deoptimization_event_count_ GUARDED_BY(Locks::deoptimization_lock_);
-
-  // Count the number of full undeoptimization requests delayed to next resume or end of debug
-  // session.
-  static size_t delayed_full_undeoptimization_count_ GUARDED_BY(Locks::deoptimization_lock_);
 
   static size_t* GetReferenceCounterForEvent(uint32_t instrumentation_event);
 
