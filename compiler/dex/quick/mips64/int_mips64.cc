@@ -283,7 +283,7 @@ bool Mips64Mir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
   return true;
 }
 
-LIR* Mips64Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
+void Mips64Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
   UNUSED(reg, target);
   LOG(FATAL) << "Unexpected use of OpPcRelLoad for Mips64";
   UNREACHABLE();

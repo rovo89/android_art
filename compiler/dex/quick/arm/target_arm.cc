@@ -455,7 +455,7 @@ std::string ArmMir2Lir::BuildInsnString(const char* fmt, LIR* lir, unsigned char
            case 'T':
              snprintf(tbuf, arraysize(tbuf), "%s", PrettyMethod(
                  static_cast<uint32_t>(lir->operands[1]),
-                 *reinterpret_cast<const DexFile*>(UnwrapPointer(lir->operands[2]))).c_str());
+                 *UnwrapPointer<DexFile>(lir->operands[2])).c_str());
              break;
            case 'u': {
              int offset_1 = lir->operands[0];
@@ -906,9 +906,7 @@ void ArmMir2Lir::InstallLiteralPools() {
   for (LIR* p : call_method_insns_) {
       DCHECK_EQ(p->opcode, kThumb2Bl);
       uint32_t target_method_idx = p->operands[1];
-      const DexFile* target_dex_file =
-          reinterpret_cast<const DexFile*>(UnwrapPointer(p->operands[2]));
-
+      const DexFile* target_dex_file = UnwrapPointer<DexFile>(p->operands[2]);
       patches_.push_back(LinkerPatch::RelativeCodePatch(p->offset,
                                                         target_dex_file, target_method_idx));
   }

@@ -851,9 +851,7 @@ void Arm64Mir2Lir::InstallLiteralPools() {
   for (LIR* p : call_method_insns_) {
       DCHECK_EQ(p->opcode, kA64Bl1t);
       uint32_t target_method_idx = p->operands[1];
-      const DexFile* target_dex_file =
-          reinterpret_cast<const DexFile*>(UnwrapPointer(p->operands[2]));
-
+      const DexFile* target_dex_file = UnwrapPointer<DexFile>(p->operands[2]);
       patches_.push_back(LinkerPatch::RelativeCodePatch(p->offset,
                                                         target_dex_file, target_method_idx));
   }
