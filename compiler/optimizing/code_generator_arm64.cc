@@ -375,26 +375,6 @@ class TypeCheckSlowPathARM64 : public SlowPathCodeARM64 {
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathARM64);
 };
 
-class DeoptimizationSlowPathARM64 : public SlowPathCodeARM64 {
- public:
-  explicit DeoptimizationSlowPathARM64(HInstruction* instruction)
-    : instruction_(instruction) {}
-
-  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
-    __ Bind(GetEntryLabel());
-    SaveLiveRegisters(codegen, instruction_->GetLocations());
-    DCHECK(instruction_->IsDeoptimize());
-    HDeoptimize* deoptimize = instruction_->AsDeoptimize();
-    uint32_t dex_pc = deoptimize->GetDexPc();
-    CodeGeneratorARM64* arm64_codegen = down_cast<CodeGeneratorARM64*>(codegen);
-    arm64_codegen->InvokeRuntime(QUICK_ENTRY_POINT(pDeoptimize), instruction_, dex_pc, this);
-  }
-
- private:
-  HInstruction* const instruction_;
-  DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathARM64);
-};
-
 #undef __
 
 Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type) {
@@ -1654,18 +1634,25 @@ void InstructionCodeGeneratorARM64::VisitGoto(HGoto* got) {
   }
 }
 
-void InstructionCodeGeneratorARM64::GenerateTestAndBranch(HInstruction* instruction,
-                                                          vixl::Label* true_target,
-                                                          vixl::Label* false_target,
-                                                          vixl::Label* always_true_target) {
-  HInstruction* cond = instruction->InputAt(0);
+void LocationsBuilderARM64::VisitIf(HIf* if_instr) {
+  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(if_instr);
+  HInstruction* cond = if_instr->InputAt(0);
+  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
+    locations->SetInAt(0, Location::RequiresRegister());
+  }
+}
+
+void InstructionCodeGeneratorARM64::VisitIf(HIf* if_instr) {
+  HInstruction* cond = if_instr->InputAt(0);
   HCondition* condition = cond->AsCondition();
+  vixl::Label* true_target = codegen_->GetLabelOf(if_instr->IfTrueSuccessor());
+  vixl::Label* false_target = codegen_->GetLabelOf(if_instr->IfFalseSuccessor());
 
   if (cond->IsIntConstant()) {
     int32_t cond_value = cond->AsIntConstant()->GetValue();
     if (cond_value == 1) {
-      if (always_true_target != nullptr) {
-        __ B(always_true_target);
+      if (!codegen_->GoesToNextBlock(if_instr->GetBlock(), if_instr->IfTrueSuccessor())) {
+        __ B(true_target);
       }
       return;
     } else {
@@ -1673,9 +1660,9 @@ void InstructionCodeGeneratorARM64::GenerateTestAndBranch(HInstruction* instruct
     }
   } else if (!cond->IsCondition() || condition->NeedsMaterialization()) {
     // The condition instruction has been materialized, compare the output to 0.
-    Location cond_val = instruction->GetLocations()->InAt(0);
+    Location cond_val = if_instr->GetLocations()->InAt(0);
     DCHECK(cond_val.IsRegister());
-    __ Cbnz(InputRegisterAt(instruction, 0), true_target);
+    __ Cbnz(InputRegisterAt(if_instr, 0), true_target);
   } else {
     // The condition instruction has not been materialized, use its inputs as
     // the comparison and its condition as the branch condition.
@@ -1693,50 +1680,9 @@ void InstructionCodeGeneratorARM64::GenerateTestAndBranch(HInstruction* instruct
       __ B(arm64_cond, true_target);
     }
   }
-  if (false_target != nullptr) {
+  if (!codegen_->GoesToNextBlock(if_instr->GetBlock(), if_instr->IfFalseSuccessor())) {
     __ B(false_target);
   }
-}
-
-void LocationsBuilderARM64::VisitIf(HIf* if_instr) {
-  LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(if_instr);
-  HInstruction* cond = if_instr->InputAt(0);
-  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
-    locations->SetInAt(0, Location::RequiresRegister());
-  }
-}
-
-void InstructionCodeGeneratorARM64::VisitIf(HIf* if_instr) {
-  vixl::Label* true_target = codegen_->GetLabelOf(if_instr->IfTrueSuccessor());
-  vixl::Label* false_target = codegen_->GetLabelOf(if_instr->IfFalseSuccessor());
-  vixl::Label* always_true_target = true_target;
-  if (codegen_->GoesToNextBlock(if_instr->GetBlock(),
-                                if_instr->IfTrueSuccessor())) {
-    always_true_target = nullptr;
-  }
-  if (codegen_->GoesToNextBlock(if_instr->GetBlock(),
-                                if_instr->IfFalseSuccessor())) {
-    false_target = nullptr;
-  }
-  GenerateTestAndBranch(if_instr, true_target, false_target, always_true_target);
-}
-
-void LocationsBuilderARM64::VisitDeoptimize(HDeoptimize* deoptimize) {
-  LocationSummary* locations = new (GetGraph()->GetArena())
-      LocationSummary(deoptimize, LocationSummary::kCallOnSlowPath);
-  HInstruction* cond = deoptimize->InputAt(0);
-  DCHECK(cond->IsCondition());
-  if (cond->AsCondition()->NeedsMaterialization()) {
-    locations->SetInAt(0, Location::RequiresRegister());
-  }
-}
-
-void InstructionCodeGeneratorARM64::VisitDeoptimize(HDeoptimize* deoptimize) {
-  SlowPathCodeARM64* slow_path = new (GetGraph()->GetArena())
-      DeoptimizationSlowPathARM64(deoptimize);
-  codegen_->AddSlowPath(slow_path);
-  vixl::Label* slow_path_entry = slow_path->GetEntryLabel();
-  GenerateTestAndBranch(deoptimize, slow_path_entry, nullptr, slow_path_entry);
 }
 
 void LocationsBuilderARM64::VisitInstanceFieldGet(HInstanceFieldGet* instruction) {

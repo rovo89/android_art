@@ -616,7 +616,6 @@ class HBasicBlock : public ArenaObject<kArenaAllocMisc> {
   M(ClinitCheck, Instruction)                                           \
   M(Compare, BinaryOperation)                                           \
   M(Condition, BinaryOperation)                                         \
-  M(Deoptimize, Instruction)                                            \
   M(Div, BinaryOperation)                                               \
   M(DivZeroCheck, Instruction)                                          \
   M(DoubleConstant, Constant)                                           \
@@ -1479,29 +1478,10 @@ class HIf : public HTemplateInstruction<1> {
 
   DECLARE_INSTRUCTION(If);
 
+  virtual bool IsIfInstruction() const { return true; }
+
  private:
   DISALLOW_COPY_AND_ASSIGN(HIf);
-};
-
-// Deoptimize to interpreter, upon checking a condition.
-class HDeoptimize : public HTemplateInstruction<1> {
- public:
-  HDeoptimize(HInstruction* cond, uint32_t dex_pc)
-      : HTemplateInstruction(SideEffects::None()),
-        dex_pc_(dex_pc) {
-    SetRawInputAt(0, cond);
-  }
-
-  bool NeedsEnvironment() const OVERRIDE { return true; }
-  bool CanThrow() const OVERRIDE { return true; }
-  uint32_t GetDexPc() const { return dex_pc_; }
-
-  DECLARE_INSTRUCTION(Deoptimize);
-
- private:
-  uint32_t dex_pc_;
-
-  DISALLOW_COPY_AND_ASSIGN(HDeoptimize);
 };
 
 class HUnaryOperation : public HExpression<1> {
@@ -1621,8 +1601,8 @@ class HCondition : public HBinaryOperation {
   void ClearNeedsMaterialization() { needs_materialization_ = false; }
 
   // For code generation purposes, returns whether this instruction is just before
-  // `instruction`, and disregard moves in between.
-  bool IsBeforeWhenDisregardMoves(HInstruction* instruction) const;
+  // `if_`, and disregard moves in between.
+  bool IsBeforeWhenDisregardMoves(HIf* if_) const;
 
   DECLARE_INSTRUCTION(Condition);
 
