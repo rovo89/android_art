@@ -228,6 +228,12 @@ class CompilerDriver {
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  mirror::Class* ResolveClass(
+      const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+      Handle<mirror::ClassLoader> class_loader, uint16_t type_index,
+      const DexCompilationUnit* mUnit)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Resolve a field. Returns nullptr on failure, including incompatible class change.
   // NOTE: Unlike ClassLinker's ResolveField(), this method enforces is_static.
   mirror::ArtField* ResolveField(

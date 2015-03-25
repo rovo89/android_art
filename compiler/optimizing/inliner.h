@@ -32,11 +32,13 @@ class HInliner : public HOptimization {
  public:
   HInliner(HGraph* outer_graph,
            const DexCompilationUnit& outer_compilation_unit,
+           const DexCompilationUnit& caller_compilation_unit,
            CompilerDriver* compiler_driver,
            OptimizingCompilerStats* stats,
            size_t depth = 0)
       : HOptimization(outer_graph, true, kInlinerPassName, stats),
         outer_compilation_unit_(outer_compilation_unit),
+        caller_compilation_unit_(caller_compilation_unit),
         compiler_driver_(compiler_driver),
         depth_(depth) {}
 
@@ -48,9 +50,11 @@ class HInliner : public HOptimization {
   bool TryInline(HInvoke* invoke_instruction, uint32_t method_index, InvokeType invoke_type) const;
   bool TryBuildAndInline(Handle<mirror::ArtMethod> resolved_method,
                          HInvoke* invoke_instruction,
-                         uint32_t method_index) const;
+                         uint32_t method_index,
+                         bool can_use_dex_cache) const;
 
   const DexCompilationUnit& outer_compilation_unit_;
+  const DexCompilationUnit& caller_compilation_unit_;
   CompilerDriver* const compiler_driver_;
   const size_t depth_;
 
