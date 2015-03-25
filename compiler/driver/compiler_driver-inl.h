@@ -39,6 +39,22 @@ inline mirror::ClassLoader* CompilerDriver::GetClassLoader(ScopedObjectAccess& s
   return soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader());
 }
 
+inline mirror::Class* CompilerDriver::ResolveClass(
+    const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
+    Handle<mirror::ClassLoader> class_loader, uint16_t cls_index,
+    const DexCompilationUnit* mUnit) {
+  DCHECK_EQ(dex_cache->GetDexFile(), mUnit->GetDexFile());
+  DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
+  mirror::Class* cls = mUnit->GetClassLinker()->ResolveType(
+      *mUnit->GetDexFile(), cls_index, dex_cache, class_loader);
+  DCHECK_EQ(cls == nullptr, soa.Self()->IsExceptionPending());
+  if (UNLIKELY(cls == nullptr)) {
+    // Clean up any exception left by type resolution.
+    soa.Self()->ClearException();
+  }
+  return cls;
+}
+
 inline mirror::Class* CompilerDriver::ResolveCompilingMethodsClass(
     const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit) {
@@ -46,14 +62,7 @@ inline mirror::Class* CompilerDriver::ResolveCompilingMethodsClass(
   DCHECK_EQ(class_loader.Get(), soa.Decode<mirror::ClassLoader*>(mUnit->GetClassLoader()));
   const DexFile::MethodId& referrer_method_id =
       mUnit->GetDexFile()->GetMethodId(mUnit->GetDexMethodIndex());
-  mirror::Class* referrer_class = mUnit->GetClassLinker()->ResolveType(
-      *mUnit->GetDexFile(), referrer_method_id.class_idx_, dex_cache, class_loader);
-  DCHECK_EQ(referrer_class == nullptr, soa.Self()->IsExceptionPending());
-  if (UNLIKELY(referrer_class == nullptr)) {
-    // Clean up any exception left by type resolution.
-    soa.Self()->ClearException();
-  }
-  return referrer_class;
+  return ResolveClass(soa, dex_cache, class_loader, referrer_method_id.class_idx_, mUnit);
 }
 
 inline mirror::ArtField* CompilerDriver::ResolveFieldWithDexFile(

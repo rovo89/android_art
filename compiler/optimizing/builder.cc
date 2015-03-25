@@ -616,8 +616,8 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
     DCHECK((optimized_invoke_type == invoke_type) || (optimized_invoke_type != kDirect)
            || compiler_driver_->GetCompilerOptions().GetCompilePic());
     bool is_recursive =
-        (target_method.dex_method_index == outer_compilation_unit_->GetDexMethodIndex());
-    DCHECK(!is_recursive || (target_method.dex_file == outer_compilation_unit_->GetDexFile()));
+        (target_method.dex_method_index == dex_compilation_unit_->GetDexMethodIndex());
+    DCHECK(!is_recursive || (target_method.dex_file == dex_compilation_unit_->GetDexFile()));
     invoke = new (arena_) HInvokeStaticOrDirect(
         arena_, number_of_arguments, return_type, dex_pc, target_method.dex_method_index,
         is_recursive, optimized_invoke_type);
@@ -704,6 +704,34 @@ bool HGraphBuilder::BuildInstanceFieldAccess(const Instruction& instruction,
   return true;
 }
 
+mirror::Class* HGraphBuilder::GetOutermostCompilingClass() const {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<2> hs(soa.Self());
+  const DexFile& outer_dex_file = *outer_compilation_unit_->GetDexFile();
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
+      soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
+  Handle<mirror::DexCache> outer_dex_cache(hs.NewHandle(
+      outer_compilation_unit_->GetClassLinker()->FindDexCache(outer_dex_file)));
+
+  return compiler_driver_->ResolveCompilingMethodsClass(
+      soa, outer_dex_cache, class_loader, outer_compilation_unit_);
+}
+
+bool HGraphBuilder::IsOutermostCompilingClass(uint16_t type_index) const {
+  ScopedObjectAccess soa(Thread::Current());
+  StackHandleScope<4> hs(soa.Self());
+  Handle<mirror::DexCache> dex_cache(hs.NewHandle(
+      dex_compilation_unit_->GetClassLinker()->FindDexCache(*dex_compilation_unit_->GetDexFile())));
+  Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
+      soa.Decode<mirror::ClassLoader*>(dex_compilation_unit_->GetClassLoader())));
+  Handle<mirror::Class> cls(hs.NewHandle(compiler_driver_->ResolveClass(
+      soa, dex_cache, class_loader, type_index, dex_compilation_unit_)));
+  Handle<mirror::Class> compiling_class(hs.NewHandle(GetOutermostCompilingClass()));
+
+  return compiling_class.Get() == cls.Get();
+}
+
+
 bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
                                            uint32_t dex_pc,
                                            bool is_put) {
@@ -711,7 +739,7 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
   uint16_t field_index = instruction.VRegB_21c();
 
   ScopedObjectAccess soa(Thread::Current());
-  StackHandleScope<4> hs(soa.Self());
+  StackHandleScope<5> hs(soa.Self());
   Handle<mirror::DexCache> dex_cache(hs.NewHandle(
       dex_compilation_unit_->GetClassLinker()->FindDexCache(*dex_compilation_unit_->GetDexFile())));
   Handle<mirror::ClassLoader> class_loader(hs.NewHandle(
@@ -724,23 +752,36 @@ bool HGraphBuilder::BuildStaticFieldAccess(const Instruction& instruction,
     return false;
   }
 
-  Handle<mirror::Class> referrer_class(hs.NewHandle(compiler_driver_->ResolveCompilingMethodsClass(
-      soa, dex_cache, class_loader, outer_compilation_unit_)));
+  const DexFile& outer_dex_file = *outer_compilation_unit_->GetDexFile();
+  Handle<mirror::DexCache> outer_dex_cache(hs.NewHandle(
+      outer_compilation_unit_->GetClassLinker()->FindDexCache(outer_dex_file)));
+  Handle<mirror::Class> referrer_class(hs.NewHandle(GetOutermostCompilingClass()));
 
   // The index at which the field's class is stored in the DexCache's type array.
   uint32_t storage_index;
-  std::pair<bool, bool> pair = compiler_driver_->IsFastStaticField(
-      dex_cache.Get(), referrer_class.Get(), resolved_field.Get(), field_index, &storage_index);
-  bool can_easily_access = is_put ? pair.second : pair.first;
-  if (!can_easily_access) {
+  bool is_referrer_class = (referrer_class.Get() == resolved_field->GetDeclaringClass());
+  if (is_referrer_class) {
+    storage_index = referrer_class->GetDexTypeIndex();
+  } else if (outer_dex_cache.Get() != dex_cache.Get()) {
+    // The compiler driver cannot currently understand multple dex caches involved. Just bailout.
     return false;
+  } else {
+    std::pair<bool, bool> pair = compiler_driver_->IsFastStaticField(
+        outer_dex_cache.Get(),
+        referrer_class.Get(),
+        resolved_field.Get(),
+        field_index,
+        &storage_index);
+    bool can_easily_access = is_put ? pair.second : pair.first;
+    if (!can_easily_access) {
+      return false;
+    }
   }
 
   // TODO: find out why this check is needed.
   bool is_in_dex_cache = compiler_driver_->CanAssumeTypeIsPresentInDexCache(
       *outer_compilation_unit_->GetDexFile(), storage_index);
   bool is_initialized = resolved_field->GetDeclaringClass()->IsInitialized() && is_in_dex_cache;
-  bool is_referrer_class = (referrer_class.Get() == resolved_field->GetDeclaringClass());
 
   HLoadClass* constant = new (arena_) HLoadClass(storage_index, is_referrer_class, dex_pc);
   current_block_->AddInstruction(constant);
@@ -966,7 +1007,7 @@ bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
   // `CanAccessTypeWithoutChecks` will tell whether the method being
   // built is trying to access its own class, so that the generated
   // code can optimize for this case. However, the optimization does not
-  // work for inlining, so we use `IsCompilingClass` instead.
+  // work for inlining, so we use `IsOutermostCompilingClass` instead.
   bool dont_use_is_referrers_class;
   bool can_access = compiler_driver_->CanAccessTypeWithoutChecks(
       dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index,
@@ -976,7 +1017,8 @@ bool HGraphBuilder::BuildTypeCheck(const Instruction& instruction,
     return false;
   }
   HInstruction* object = LoadLocal(reference, Primitive::kPrimNot);
-  HLoadClass* cls = new (arena_) HLoadClass(type_index, IsCompilingClass(type_index), dex_pc);
+  HLoadClass* cls = new (arena_) HLoadClass(
+      type_index, IsOutermostCompilingClass(type_index), dex_pc);
   current_block_->AddInstruction(cls);
   // The class needs a temporary before being used by the type check.
   Temporaries temps(graph_);
@@ -1971,7 +2013,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       // `CanAccessTypeWithoutChecks` will tell whether the method being
       // built is trying to access its own class, so that the generated
       // code can optimize for this case. However, the optimization does not
-      // work for inlining, so we use `IsCompilingClass` instead.
+      // work for inlining, so we use `IsOutermostCompilingClass` instead.
       bool can_access = compiler_driver_->CanAccessTypeWithoutChecks(
           dex_compilation_unit_->GetDexMethodIndex(), *dex_file_, type_index,
           &type_known_final, &type_known_abstract, &dont_use_is_referrers_class);
@@ -1980,7 +2022,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
         return false;
       }
       current_block_->AddInstruction(
-          new (arena_) HLoadClass(type_index, IsCompilingClass(type_index), dex_pc));
+          new (arena_) HLoadClass(type_index, IsOutermostCompilingClass(type_index), dex_pc));
       UpdateLocal(instruction.VRegA_21c(), current_block_->GetLastInstruction());
       break;
     }

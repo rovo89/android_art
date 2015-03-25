@@ -316,7 +316,7 @@ static void RunOptimizations(HGraph* graph,
   InstructionSimplifier simplify1(graph, stats);
   HBooleanSimplifier boolean_not(graph);
 
-  HInliner inliner(graph, dex_compilation_unit, driver, stats);
+  HInliner inliner(graph, dex_compilation_unit, dex_compilation_unit, driver, stats);
 
   HConstantFolding fold2(graph);
   SideEffectsAnalysis side_effects(graph);
