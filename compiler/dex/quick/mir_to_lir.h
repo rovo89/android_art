@@ -1465,9 +1465,6 @@ class Mir2Lir {
     virtual void GenMonitorEnter(int opt_flags, RegLocation rl_src);
     virtual void GenMonitorExit(int opt_flags, RegLocation rl_src);
 
-    // Temp workaround
-    void Workaround7250540(RegLocation rl_dest, RegStorage zero_reg);
-
     virtual LIR* InvokeTrampoline(OpKind op, RegStorage r_tgt, QuickEntrypointEnum trampoline) = 0;
 
     // Queries for backend support for vectors

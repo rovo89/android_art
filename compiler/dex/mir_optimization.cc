@@ -671,6 +671,9 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
               }
               int dead_true_def = if_true->ssa_rep->defs[0];
               raw_use_counts_[dead_true_def] = use_counts_[dead_true_def] = 0;
+              // Update ending vreg->sreg map for GC maps generation.
+              int def_vreg = SRegToVReg(mir->ssa_rep->defs[0]);
+              bb->data_flow_info->vreg_to_ssa_map_exit[def_vreg] = mir->ssa_rep->defs[0];
               // We want to remove ft and tk and link bb directly to ft_ft. First, we need
               // to update all Phi inputs correctly with UpdatePredecessor(ft->id, bb->id)
               // since the live_def above comes from ft->first_mir_insn (if_false).
