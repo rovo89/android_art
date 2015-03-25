@@ -788,7 +788,8 @@ OatFile* ImageSpace::OpenOatFile(const char* image_path, std::string* error_msg)
 
   OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, image_header.GetOatDataBegin(),
                                     image_header.GetOatFileBegin(),
-                                    !Runtime::Current()->IsAotCompiler(), error_msg);
+                                    !Runtime::Current()->IsAotCompiler(),
+                                    nullptr, error_msg);
   if (oat_file == NULL) {
     *error_msg = StringPrintf("Failed to open oat file '%s' referenced from image %s: %s",
                               oat_filename.c_str(), GetName(), error_msg->c_str());
