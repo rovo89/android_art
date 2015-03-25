@@ -67,15 +67,39 @@ void ConvertModifiedUtf8ToUtf16(uint16_t* utf16_data_out, const char* utf8_data_
 
 void ConvertUtf16ToModifiedUtf8(char* utf8_out, const uint16_t* utf16_in, size_t char_count) {
   while (char_count--) {
-    uint16_t ch = *utf16_in++;
+    const uint16_t ch = *utf16_in++;
     if (ch > 0 && ch <= 0x7f) {
       *utf8_out++ = ch;
     } else {
+      // char_count == 0 here implies we've encountered an unpaired
+      // surrogate and we have no choice but to encode it as 3-byte UTF
+      // sequence. Note that unpaired surrogates can occur as a part of
+      // "normal" operation.
+      if ((ch >= 0xd800 && ch <= 0xdbff) && (char_count > 0)) {
+        const uint16_t ch2 = *utf16_in;
+
+        // Check if the other half of the pair is within the expected
+        // range. If it isn't, we will have to emit both "halves" as
+        // separate 3 byte sequences.
+        if (ch2 >= 0xdc00 && ch2 <= 0xdfff) {
+          utf16_in++;
+          char_count--;
+          const uint32_t code_point = (ch << 10) + ch2 - 0x035fdc00;
+          *utf8_out++ = (code_point >> 18) | 0xf0;
+          *utf8_out++ = ((code_point >> 12) & 0x3f) | 0x80;
+          *utf8_out++ = ((code_point >> 6) & 0x3f) | 0x80;
+          *utf8_out++ = (code_point & 0x3f) | 0x80;
+          continue;
+        }
+      }
+
       if (ch > 0x07ff) {
+        // Three byte encoding.
         *utf8_out++ = (ch >> 12) | 0xe0;
         *utf8_out++ = ((ch >> 6) & 0x3f) | 0x80;
         *utf8_out++ = (ch & 0x3f) | 0x80;
       } else /*(ch > 0x7f || ch == 0)*/ {
+        // Two byte encoding.
         *utf8_out++ = (ch >> 6) | 0xc0;
         *utf8_out++ = (ch & 0x3f) | 0x80;
       }
@@ -147,15 +171,32 @@ int CompareModifiedUtf8ToUtf16AsCodePointValues(const char* utf8, const uint16_t
 size_t CountUtf8Bytes(const uint16_t* chars, size_t char_count) {
   size_t result = 0;
   while (char_count--) {
-    uint16_t ch = *chars++;
+    const uint16_t ch = *chars++;
     if (ch > 0 && ch <= 0x7f) {
       ++result;
-    } else {
-      if (ch > 0x7ff) {
-        result += 3;
+    } else if (ch >= 0xd800 && ch <= 0xdbff) {
+      if (char_count > 0) {
+        const uint16_t ch2 = *chars;
+        // If we find a properly paired surrogate, we emit it as a 4 byte
+        // UTF sequence. If we find an unpaired leading or trailing surrogate,
+        // we emit it as a 3 byte sequence like would have done earlier.
+        if (ch2 >= 0xdc00 && ch2 <= 0xdfff) {
+          chars++;
+          char_count--;
+
+          result += 4;
+        } else {
+          result += 3;
+        }
       } else {
-        result += 2;
+        // This implies we found an unpaired trailing surrogate at the end
+        // of a string.
+        result += 3;
       }
+    } else if (ch > 0x7ff) {
+      result += 3;
+    } else {
+      result += 2;
     }
   }
   return result;
