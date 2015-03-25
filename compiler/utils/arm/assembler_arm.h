@@ -100,6 +100,10 @@ class ShifterOperand {
     return rm_;
   }
 
+  Register GetSecondRegister() const {
+    return rs_;
+  }
+
   enum Type {
     kUnknown = -1,
     kRegister,
