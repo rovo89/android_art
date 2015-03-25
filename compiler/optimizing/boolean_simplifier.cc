@@ -18,15 +18,6 @@
 
 namespace art {
 
-static bool EndsWithAnIf(HBasicBlock* block) {
-  return block->GetLastInstruction()->IsIf();
-}
-
-static bool HasSinglePhi(HBasicBlock* block) {
-  return !block->GetPhis().IsEmpty()
-      && block->GetFirstPhi()->GetNext() == nullptr;
-}
-
 // Returns true if 'block1' and 'block2' are empty, merge into the same single
 // successor and the successor can only be reached from them.
 static bool BlocksDoMergeTogether(HBasicBlock* block1, HBasicBlock* block2) {
@@ -39,15 +30,15 @@ static bool BlocksDoMergeTogether(HBasicBlock* block1, HBasicBlock* block2) {
 // Returns true if the outcome of the branching matches the boolean value of
 // the branching condition.
 static bool PreservesCondition(HInstruction* input_true, HInstruction* input_false) {
-  return input_true->IsIntConstant() && input_true->AsIntConstant()->GetValue() == 1
-         && input_false->IsIntConstant() && input_false->AsIntConstant()->GetValue() == 0;
+  return input_true->IsIntConstant() && input_true->AsIntConstant()->IsOne()
+      && input_false->IsIntConstant() && input_false->AsIntConstant()->IsZero();
 }
 
 // Returns true if the outcome of the branching is exactly opposite of the
 // boolean value of the branching condition.
 static bool NegatesCondition(HInstruction* input_true, HInstruction* input_false) {
-  return input_true->IsIntConstant() && input_true->AsIntConstant()->GetValue() == 0
-         && input_false->IsIntConstant() && input_false->AsIntConstant()->GetValue() == 1;
+  return input_true->IsIntConstant() && input_true->AsIntConstant()->IsZero()
+      && input_false->IsIntConstant() && input_false->AsIntConstant()->IsOne();
 }
 
 // Returns an instruction with the opposite boolean value from 'cond'.
@@ -72,11 +63,11 @@ static HInstruction* GetOppositeCondition(HInstruction* cond) {
       return new (allocator) HLessThan(lhs, rhs);
     }
   } else if (cond->IsIntConstant()) {
-    int32_t value = cond->AsIntConstant()->GetValue();
-    if (value == 0) {
+    HIntConstant* int_const = cond->AsIntConstant();
+    if (int_const->IsZero()) {
       return graph->GetIntConstant1();
     } else {
-      DCHECK_EQ(value, 1);
+      DCHECK(int_const->IsOne());
       return graph->GetIntConstant0();
     }
   }
@@ -91,7 +82,7 @@ void HBooleanSimplifier::Run() {
   // order does not matter.
   for (HPostOrderIterator it(*graph_); !it.Done(); it.Advance()) {
     HBasicBlock* block = it.Current();
-    if (!EndsWithAnIf(block)) continue;
+    if (!block->EndsWithIf()) continue;
 
     // Find elements of the pattern.
     HIf* if_instruction = block->GetLastInstruction()->AsIf();
@@ -101,7 +92,7 @@ void HBooleanSimplifier::Run() {
       continue;
     }
     HBasicBlock* merge_block = true_block->GetSuccessors().Get(0);
-    if (!HasSinglePhi(merge_block)) {
+    if (!merge_block->HasSinglePhi()) {
       continue;
     }
     HPhi* phi = merge_block->GetFirstPhi()->AsPhi();

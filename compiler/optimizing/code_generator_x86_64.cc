@@ -1410,8 +1410,8 @@ void LocationsBuilderX86_64::VisitTypeConversion(HTypeConversion* conversion) {
   Primitive::Type input_type = conversion->GetInputType();
   DCHECK_NE(result_type, input_type);
 
-  // Java language does not allow treating boolean as an integral type but our
-  // bit representation makes it safe.
+  // The Java language does not allow treating boolean as an integral type but
+  // our bit representation makes it safe.
 
   switch (result_type) {
     case Primitive::kPrimByte:

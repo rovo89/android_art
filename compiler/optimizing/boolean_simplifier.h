@@ -15,7 +15,7 @@
  */
 
 // This optimization recognizes a common pattern where a boolean value is
-// either casted to an integer or negated by selecting from zero/one integer
+// either cast to an integer or negated by selecting from zero/one integer
 // constants with an If statement. Because boolean values are internally
 // represented as zero/one, we can safely replace the pattern with a suitable
 // condition instruction.
