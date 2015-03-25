@@ -558,6 +558,9 @@ bool MIRGraph::BasicBlockOpt(BasicBlock* bb) {
               for (MIR* tmir = ft->first_mir_insn; tmir != NULL; tmir = tmir->next) {
                 tmir->dalvikInsn.opcode = static_cast<Instruction::Code>(kMirOpNop);
               }
+              // Update ending vreg->sreg map for GC maps generation.
+              int def_vreg = SRegToVReg(mir->ssa_rep->defs[0]);
+              bb->data_flow_info->vreg_to_ssa_map_exit[def_vreg] = mir->ssa_rep->defs[0];
             }
           }
         }
