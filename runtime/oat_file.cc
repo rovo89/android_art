@@ -17,9 +17,10 @@
 #include "oat_file.h"
 
 #include <dlfcn.h>
-#include <sstream>
 #include <string.h>
 #include <unistd.h>
+
+#include <sstream>
 
 #include "base/bit_vector.h"
 #include "base/stl_util.h"
@@ -38,12 +39,33 @@
 
 namespace art {
 
+std::string OatFile::ResolveRelativeEncodedDexLocation(
+      const char* abs_dex_location, const std::string& rel_dex_location) {
+  if (abs_dex_location != nullptr && rel_dex_location[0] != '/') {
+    // Strip :classes<N>.dex used for secondary multidex files.
+    std::string base = DexFile::GetBaseLocation(rel_dex_location);
+    std::string multidex_suffix = DexFile::GetMultiDexSuffix(rel_dex_location);
+
+    // Check if the base is a suffix of the provided abs_dex_location.
+    std::string target_suffix = "/" + base;
+    std::string abs_location(abs_dex_location);
+    if (abs_location.size() > target_suffix.size()) {
+      size_t pos = abs_location.size() - target_suffix.size();
+      if (abs_location.compare(pos, std::string::npos, target_suffix) == 0) {
+        return abs_location + multidex_suffix;
+      }
+    }
+  }
+  return rel_dex_location;
+}
+
 void OatFile::CheckLocation(const std::string& location) {
   CHECK(!location.empty());
 }
 
 OatFile* OatFile::OpenWithElfFile(ElfFile* elf_file,
                                   const std::string& location,
+                                  const char* abs_dex_location,
                                   std::string* error_msg) {
   std::unique_ptr<OatFile> oat_file(new OatFile(location, false));
   oat_file->elf_file_.reset(elf_file);
@@ -53,7 +75,7 @@ OatFile* OatFile::OpenWithElfFile(ElfFile* elf_file,
   oat_file->begin_ = elf_file->Begin() + offset;
   oat_file->end_ = elf_file->Begin() + size + offset;
   // Ignore the optional .bss section when opening non-executable.
-  return oat_file->Setup(error_msg) ? oat_file.release() : nullptr;
+  return oat_file->Setup(abs_dex_location, error_msg) ? oat_file.release() : nullptr;
 }
 
 OatFile* OatFile::Open(const std::string& filename,
@@ -61,6 +83,7 @@ OatFile* OatFile::Open(const std::string& filename,
                        uint8_t* requested_base,
                        uint8_t* oat_file_begin,
                        bool executable,
+                       const char* abs_dex_location,
                        std::string* error_msg) {
   CHECK(!filename.empty()) << location;
   CheckLocation(location);
@@ -80,7 +103,7 @@ OatFile* OatFile::Open(const std::string& filename,
     return nullptr;
   }
   ret.reset(OpenElfFile(file.get(), location, requested_base, oat_file_begin, false, executable,
-                        error_msg));
+                        abs_dex_location, error_msg));
 
   // It would be nice to unlink here. But we might have opened the file created by the
   // ScopedLock, which we better not delete to avoid races. TODO: Investigate how to fix the API
@@ -88,14 +111,18 @@ OatFile* OatFile::Open(const std::string& filename,
   return ret.release();
 }
 
-OatFile* OatFile::OpenWritable(File* file, const std::string& location, std::string* error_msg) {
+OatFile* OatFile::OpenWritable(File* file, const std::string& location,
+                               const char* abs_dex_location,
+                               std::string* error_msg) {
   CheckLocation(location);
-  return OpenElfFile(file, location, nullptr, nullptr, true, false, error_msg);
+  return OpenElfFile(file, location, nullptr, nullptr, true, false, abs_dex_location, error_msg);
 }
 
-OatFile* OatFile::OpenReadable(File* file, const std::string& location, std::string* error_msg) {
+OatFile* OatFile::OpenReadable(File* file, const std::string& location,
+                               const char* abs_dex_location,
+                               std::string* error_msg) {
   CheckLocation(location);
-  return OpenElfFile(file, location, nullptr, nullptr, false, false, error_msg);
+  return OpenElfFile(file, location, nullptr, nullptr, false, false, abs_dex_location, error_msg);
 }
 
 OatFile* OatFile::OpenElfFile(File* file,
@@ -104,10 +131,11 @@ OatFile* OatFile::OpenElfFile(File* file,
                               uint8_t* oat_file_begin,
                               bool writable,
                               bool executable,
+                              const char* abs_dex_location,
                               std::string* error_msg) {
   std::unique_ptr<OatFile> oat_file(new OatFile(location, executable));
   bool success = oat_file->ElfFileOpen(file, requested_base, oat_file_begin, writable, executable,
-                                       error_msg);
+                                       abs_dex_location, error_msg);
   if (!success) {
     CHECK(!error_msg->empty());
     return nullptr;
@@ -131,6 +159,7 @@ OatFile::~OatFile() {
 
 bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file_begin,
                           bool writable, bool executable,
+                          const char* abs_dex_location,
                           std::string* error_msg) {
   // TODO: rename requested_base to oat_data_begin
   elf_file_.reset(ElfFile::Open(file, writable, /*program_header_only*/true, error_msg,
@@ -180,10 +209,10 @@ bool OatFile::ElfFileOpen(File* file, uint8_t* requested_base, uint8_t* oat_file
     bss_end_ += sizeof(uint32_t);
   }
 
-  return Setup(error_msg);
+  return Setup(abs_dex_location, error_msg);
 }
 
-bool OatFile::Setup(std::string* error_msg) {
+bool OatFile::Setup(const char* abs_dex_location, std::string* error_msg) {
   if (!GetOatHeader().IsValid()) {
     std::string cause = GetOatHeader().GetValidationErrorMessage();
     *error_msg = StringPrintf("Invalid oat header for '%s': %s", GetLocation().c_str(),
@@ -230,7 +259,9 @@ bool OatFile::Setup(std::string* error_msg) {
       return false;
     }
 
-    std::string dex_file_location(dex_file_location_data, dex_file_location_size);
+    std::string dex_file_location = ResolveRelativeEncodedDexLocation(
+        abs_dex_location,
+        std::string(dex_file_location_data, dex_file_location_size));
 
     uint32_t dex_file_checksum = *reinterpret_cast<const uint32_t*>(oat);
     oat += sizeof(dex_file_checksum);

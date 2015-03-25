@@ -1453,7 +1453,9 @@ class ImageDumper {
     std::string error_msg;
     const OatFile* oat_file = class_linker->FindOpenedOatFileFromOatLocation(oat_location);
     if (oat_file == nullptr) {
-      oat_file = OatFile::Open(oat_location, oat_location, nullptr, nullptr, false, &error_msg);
+      oat_file = OatFile::Open(oat_location, oat_location,
+                               nullptr, nullptr, false, nullptr,
+                               &error_msg);
       if (oat_file == nullptr) {
         os << "NOT FOUND: " << error_msg << "\n";
         return false;
@@ -2193,7 +2195,7 @@ static int DumpOat(Runtime* runtime, const char* oat_filename, OatDumperOptions*
                    std::ostream* os) {
   std::string error_msg;
   OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, nullptr, nullptr, false,
-                                    &error_msg);
+                                    nullptr, &error_msg);
   if (oat_file == nullptr) {
     fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
     return EXIT_FAILURE;
@@ -2209,7 +2211,7 @@ static int DumpOat(Runtime* runtime, const char* oat_filename, OatDumperOptions*
 static int SymbolizeOat(const char* oat_filename, std::string& output_name) {
   std::string error_msg;
   OatFile* oat_file = OatFile::Open(oat_filename, oat_filename, nullptr, nullptr, false,
-                                    &error_msg);
+                                    nullptr, &error_msg);
   if (oat_file == nullptr) {
     fprintf(stderr, "Failed to open oat file from '%s': %s\n", oat_filename, error_msg.c_str());
     return EXIT_FAILURE;

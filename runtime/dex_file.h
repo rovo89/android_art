@@ -421,13 +421,24 @@ class DexFile {
     }
   }
 
-  std::string GetBaseLocation() const {
-    size_t pos = location_.rfind(kMultiDexSeparator);
+  static std::string GetBaseLocation(const std::string& location) {
+    return GetBaseLocation(location.c_str());
+  }
+
+  // Returns the ':classes*.dex' part of the dex location. Returns an empty
+  // string if there is no multidex suffix for the given location.
+  // The kMultiDexSeparator is included in the returned suffix.
+  static std::string GetMultiDexSuffix(const std::string& location) {
+    size_t pos = location.rfind(kMultiDexSeparator);
     if (pos == std::string::npos) {
-      return location_;
+      return "";
     } else {
-      return location_.substr(0, pos);
+      return location.substr(pos);
     }
+  }
+
+  std::string GetBaseLocation() const {
+    return GetBaseLocation(location_);
   }
 
   // For DexFiles directly from .dex files, this is the checksum from the DexFile::Header.
