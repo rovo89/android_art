@@ -1388,8 +1388,8 @@ void LocationsBuilderARM::VisitTypeConversion(HTypeConversion* conversion) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(conversion, call_kind);
 
-  // Java language does not allow treating boolean as an integral type but our
-  // bit representation makes it safe.
+  // The Java language does not allow treating boolean as an integral type but
+  // our bit representation makes it safe.
 
   switch (result_type) {
     case Primitive::kPrimByte:

@@ -153,8 +153,8 @@ class Primitive {
   }
 
   static bool IsIntegralType(Type type) {
-    // Java language does not allow treating boolean as an integral type but our
-    // bit representation makes it safe.
+    // The Java language does not allow treating boolean as an integral type but
+    // our bit representation makes it safe.
     switch (type) {
       case kPrimBoolean:
       case kPrimByte:
