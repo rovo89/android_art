@@ -43,14 +43,18 @@ class OatFile {
   // Opens an oat file contained within the given elf file. This is always opened as
   // non-executable at the moment.
   static OatFile* OpenWithElfFile(ElfFile* elf_file, const std::string& location,
+                                  const char* abs_dex_location,
                                   std::string* error_msg);
   // Open an oat file. Returns NULL on failure.  Requested base can
   // optionally be used to request where the file should be loaded.
+  // See the ResolveRelativeEncodedDexLocation for a description of how the
+  // abs_dex_location argument is used.
   static OatFile* Open(const std::string& filename,
                        const std::string& location,
                        uint8_t* requested_base,
                        uint8_t* oat_file_begin,
                        bool executable,
+                       const char* abs_dex_location,
                        std::string* error_msg);
 
   // Open an oat file from an already opened File.
@@ -58,9 +62,13 @@ class OatFile {
   // where relocations may be required. Currently used from
   // ImageWriter which wants to open a writable version from an existing
   // file descriptor for patching.
-  static OatFile* OpenWritable(File* file, const std::string& location, std::string* error_msg);
+  static OatFile* OpenWritable(File* file, const std::string& location,
+                               const char* abs_dex_location,
+                               std::string* error_msg);
   // Opens an oat file from an already opened File. Maps it PROT_READ, MAP_PRIVATE.
-  static OatFile* OpenReadable(File* file, const std::string& location, std::string* error_msg);
+  static OatFile* OpenReadable(File* file, const std::string& location,
+                               const char* abs_dex_location,
+                               std::string* error_msg);
 
   ~OatFile();
 
@@ -279,6 +287,18 @@ class OatFile {
   const uint8_t* BssBegin() const;
   const uint8_t* BssEnd() const;
 
+  // Returns the absolute dex location for the encoded relative dex location.
+  //
+  // If not nullptr, abs_dex_location is used to resolve the absolute dex
+  // location of relative dex locations encoded in the oat file.
+  // For example, given absolute location "/data/app/foo/base.apk", encoded
+  // dex locations "base.apk", "base.apk:classes2.dex", etc. would be resolved
+  // to "/data/app/foo/base.apk", "/data/app/foo/base.apk:classes2.dex", etc.
+  // Relative encoded dex locations that don't match the given abs_dex_location
+  // are left unchanged.
+  static std::string ResolveRelativeEncodedDexLocation(
+      const char* abs_dex_location, const std::string& rel_dex_location);
+
  private:
   static void CheckLocation(const std::string& location);
 
@@ -288,14 +308,17 @@ class OatFile {
                               uint8_t* oat_file_begin,  // Override base if not null
                               bool writable,
                               bool executable,
+                              const char* abs_dex_location,
                               std::string* error_msg);
 
   explicit OatFile(const std::string& filename, bool executable);
   bool ElfFileOpen(File* file, uint8_t* requested_base,
                    uint8_t* oat_file_begin,  // Override where the file is loaded to if not null
                    bool writable, bool executable,
+                   const char* abs_dex_location,
                    std::string* error_msg);
-  bool Setup(std::string* error_msg);
+
+  bool Setup(const char* abs_dex_location, std::string* error_msg);
 
   // The oat file name.
   //

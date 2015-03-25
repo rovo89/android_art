@@ -377,4 +377,13 @@ TEST_F(DexFileTest, GetDexCanonicalLocation) {
   ASSERT_EQ(0, unlink(dex_location_sym.c_str()));
 }
 
+TEST(DexFileUtilsTest, GetBaseLocationAndMultiDexSuffix) {
+  EXPECT_EQ("/foo/bar/baz.jar", DexFile::GetBaseLocation("/foo/bar/baz.jar"));
+  EXPECT_EQ("/foo/bar/baz.jar", DexFile::GetBaseLocation("/foo/bar/baz.jar:classes2.dex"));
+  EXPECT_EQ("/foo/bar/baz.jar", DexFile::GetBaseLocation("/foo/bar/baz.jar:classes8.dex"));
+  EXPECT_EQ("", DexFile::GetMultiDexSuffix("/foo/bar/baz.jar"));
+  EXPECT_EQ(":classes2.dex", DexFile::GetMultiDexSuffix("/foo/bar/baz.jar:classes2.dex"));
+  EXPECT_EQ(":classes8.dex", DexFile::GetMultiDexSuffix("/foo/bar/baz.jar:classes8.dex"));
+}
+
 }  // namespace art
