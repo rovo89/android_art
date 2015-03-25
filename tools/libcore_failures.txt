@@ -74,7 +74,11 @@
   description: "Failing due to missing localhost on hammerhead and volantis.",
   result: EXEC_FAILED,
   modes: [device],
-  names: ["libcore.javax.crypto.CipherTest#testCipherInitWithCertificate"]
+  names: ["libcore.javax.crypto.CipherTest#testCipherInitWithCertificate",
+          "libcore.net.NetworkSecurityPolicyTest#testCleartextTrafficPolicyWithFtpURLConnection",
+          "libcore.net.NetworkSecurityPolicyTest#testCleartextTrafficPolicyWithJarFtpURLConnection",
+          "libcore.net.NetworkSecurityPolicyTest#testCleartextTrafficPolicyWithLoggingSocketHandler"
+         ]
 },
 {
   description: "Test timeouts",
