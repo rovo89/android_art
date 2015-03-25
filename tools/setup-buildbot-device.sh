@@ -24,5 +24,9 @@ echo -e "${green}Turn off selinux${nc}"
 adb shell setenforce 0
 adb shell getenforce
 
+echo -e "${green}Setting local loopback${nc}"
+adb shell ifconfig lo up
+adb shell ifconfig
+
 echo -e "${green}List properties${nc}"
 adb shell getprop
