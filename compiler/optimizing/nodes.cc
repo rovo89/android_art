@@ -832,6 +832,14 @@ bool HBasicBlock::IsSingleGoto() const {
          && (loop_info == nullptr || !loop_info->IsBackEdge(*this));
 }
 
+bool HBasicBlock::EndsWithIf() const {
+  return !GetInstructions().IsEmpty() && GetLastInstruction()->IsIf();
+}
+
+bool HBasicBlock::HasSinglePhi() const {
+  return !GetPhis().IsEmpty() && GetFirstPhi()->GetNext() == nullptr;
+}
+
 void HInstructionList::SetBlockOfInstructions(HBasicBlock* block) const {
   for (HInstruction* current = first_instruction_;
        current != nullptr;
@@ -1086,13 +1094,15 @@ void HGraph::InlineInto(HGraph* outer_graph, HInvoke* invoke) {
 }
 
 void HGraph::MergeEmptyBranches(HBasicBlock* start_block, HBasicBlock* end_block) {
-  // Make sure this is a diamond control-flow path, find the two branches.
+  // Find the two branches of an If.
   DCHECK_EQ(start_block->GetSuccessors().Size(), 2u);
-  DCHECK_EQ(end_block->GetPredecessors().Size(), 2u);
   HBasicBlock* left_branch = start_block->GetSuccessors().Get(0);
   HBasicBlock* right_branch = start_block->GetSuccessors().Get(1);
+
+  // Make sure this is a diamond control-flow path.
   DCHECK_EQ(left_branch->GetSuccessors().Get(0), end_block);
   DCHECK_EQ(right_branch->GetSuccessors().Get(0), end_block);
+  DCHECK_EQ(end_block->GetPredecessors().Size(), 2u);
   DCHECK_EQ(start_block, end_block->GetDominator());
 
   // Disconnect the branches and merge the two blocks. This will move
@@ -1114,16 +1124,12 @@ void HGraph::MergeEmptyBranches(HBasicBlock* start_block, HBasicBlock* end_block
   reverse_post_order_.Delete(right_branch);
   reverse_post_order_.Delete(end_block);
 
-  // Update loop information.
-  HLoopInformation* loop_info = start_block->GetLoopInformation();
-  if (kIsDebugBuild) {
-    if (loop_info != nullptr) {
-      DCHECK_EQ(loop_info, left_branch->GetLoopInformation());
-      DCHECK_EQ(loop_info, right_branch->GetLoopInformation());
-      DCHECK_EQ(loop_info, end_block->GetLoopInformation());
-    }
-  }
-  while (loop_info != nullptr) {
+  // Update loops which contain the code.
+  for (HLoopInformationOutwardIterator it(*start_block); !it.Done(); it.Advance()) {
+    HLoopInformation* loop_info = it.Current();
+    DCHECK(loop_info->Contains(*left_branch));
+    DCHECK(loop_info->Contains(*right_branch));
+    DCHECK(loop_info->Contains(*end_block));
     loop_info->Remove(left_branch);
     loop_info->Remove(right_branch);
     loop_info->Remove(end_block);
@@ -1131,8 +1137,6 @@ void HGraph::MergeEmptyBranches(HBasicBlock* start_block, HBasicBlock* end_block
       loop_info->RemoveBackEdge(end_block);
       loop_info->AddBackEdge(start_block);
     }
-    // Move to parent loop if nested.
-    loop_info = loop_info->GetHeader()->GetDominator()->GetLoopInformation();
   }
 }
 

@@ -116,7 +116,7 @@ public class Main {
   // CHECK-DAG:                       Return [ [[Cond]] ]
 
   public static boolean LessThan(int x, int y) {
-    return x < y;
+    return (x < y) ? true : false;
   }
 
   /*
