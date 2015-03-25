@@ -225,13 +225,10 @@ class HGraphBuilder : public ValueObject {
 
   void MaybeRecordStat(MethodCompilationStat compilation_stat);
 
+  mirror::Class* GetOutermostCompilingClass() const;
+
   // Returns whether `type_index` points to the outer-most compiling method's class.
-  bool IsCompilingClass(uint16_t type_index) const {
-    uint32_t referrer_index = outer_compilation_unit_->GetDexMethodIndex();
-    const DexFile::MethodId& method_id =
-        outer_compilation_unit_->GetDexFile()->GetMethodId(referrer_index);
-    return method_id.class_idx_ == type_index;
-  }
+  bool IsOutermostCompilingClass(uint16_t type_index) const;
 
   ArenaAllocator* const arena_;
 
