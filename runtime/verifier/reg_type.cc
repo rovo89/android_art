@@ -822,5 +822,42 @@ std::ostream& operator<<(std::ostream& os, const RegType& rhs) {
   return os;
 }
 
+bool RegType::CanAssignArray(const RegType& src, RegTypeCache& reg_types,
+                             Handle<mirror::ClassLoader> class_loader, bool* soft_error) const {
+  if (!IsArrayTypes() || !src.IsArrayTypes()) {
+    *soft_error = false;
+    return false;
+  }
+
+  const RegType& cmp1 = reg_types.GetComponentType(*this, class_loader.Get());
+  const RegType& cmp2 = reg_types.GetComponentType(src, class_loader.Get());
+
+  if (cmp1.IsAssignableFrom(cmp2)) {
+    return true;
+  }
+  if (cmp1.IsUnresolvedTypes()) {
+    if (cmp2.IsIntegralTypes() || cmp2.IsFloatTypes() || cmp2.IsArrayTypes()) {
+      *soft_error = false;
+      return false;
+    }
+    *soft_error = true;
+    return false;
+  }
+  if (cmp2.IsUnresolvedTypes()) {
+    if (cmp1.IsIntegralTypes() || cmp1.IsFloatTypes() || cmp1.IsArrayTypes()) {
+      *soft_error = false;
+      return false;
+    }
+    *soft_error = true;
+    return false;
+  }
+  if (!cmp1.IsArrayTypes() || !cmp2.IsArrayTypes()) {
+    *soft_error = false;
+    return false;
+  }
+  return cmp1.CanAssignArray(cmp2, reg_types, class_loader, soft_error);
+}
+
+
 }  // namespace verifier
 }  // namespace art
