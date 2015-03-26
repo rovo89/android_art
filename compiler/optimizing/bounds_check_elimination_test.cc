@@ -52,12 +52,11 @@ TEST(BoundsCheckEliminationTest, NarrowingRangeArrayBoundsElimination) {
       HParameterValue(0, Primitive::kPrimNot);  // array
   HInstruction* parameter2 = new (&allocator)
       HParameterValue(0, Primitive::kPrimInt);  // i
-  HInstruction* constant_1 = new (&allocator) HIntConstant(1);
-  HInstruction* constant_0 = new (&allocator) HIntConstant(0);
   entry->AddInstruction(parameter1);
   entry->AddInstruction(parameter2);
-  entry->AddInstruction(constant_1);
-  entry->AddInstruction(constant_0);
+
+  HInstruction* constant_1 = graph->GetIntConstant(1);
+  HInstruction* constant_0 = graph->GetIntConstant(0);
 
   HBasicBlock* block1 = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(block1);
@@ -158,14 +157,12 @@ TEST(BoundsCheckEliminationTest, OverflowArrayBoundsElimination) {
       HParameterValue(0, Primitive::kPrimNot);  // array
   HInstruction* parameter2 = new (&allocator)
       HParameterValue(0, Primitive::kPrimInt);  // i
-  HInstruction* constant_1 = new (&allocator) HIntConstant(1);
-  HInstruction* constant_0 = new (&allocator) HIntConstant(0);
-  HInstruction* constant_max_int = new (&allocator) HIntConstant(INT_MAX);
   entry->AddInstruction(parameter1);
   entry->AddInstruction(parameter2);
-  entry->AddInstruction(constant_1);
-  entry->AddInstruction(constant_0);
-  entry->AddInstruction(constant_max_int);
+
+  HInstruction* constant_1 = graph->GetIntConstant(1);
+  HInstruction* constant_0 = graph->GetIntConstant(0);
+  HInstruction* constant_max_int = graph->GetIntConstant(INT_MAX);
 
   HBasicBlock* block1 = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(block1);
@@ -232,14 +229,12 @@ TEST(BoundsCheckEliminationTest, UnderflowArrayBoundsElimination) {
       HParameterValue(0, Primitive::kPrimNot);  // array
   HInstruction* parameter2 = new (&allocator)
       HParameterValue(0, Primitive::kPrimInt);  // i
-  HInstruction* constant_1 = new (&allocator) HIntConstant(1);
-  HInstruction* constant_0 = new (&allocator) HIntConstant(0);
-  HInstruction* constant_max_int = new (&allocator) HIntConstant(INT_MAX);
   entry->AddInstruction(parameter1);
   entry->AddInstruction(parameter2);
-  entry->AddInstruction(constant_1);
-  entry->AddInstruction(constant_0);
-  entry->AddInstruction(constant_max_int);
+
+  HInstruction* constant_1 = graph->GetIntConstant(1);
+  HInstruction* constant_0 = graph->GetIntConstant(0);
+  HInstruction* constant_max_int = graph->GetIntConstant(INT_MAX);
 
   HBasicBlock* block1 = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(block1);
@@ -303,15 +298,12 @@ TEST(BoundsCheckEliminationTest, ConstantArrayBoundsElimination) {
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
   HInstruction* parameter = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
-  HInstruction* constant_5 = new (&allocator) HIntConstant(5);
-  HInstruction* constant_4 = new (&allocator) HIntConstant(4);
-  HInstruction* constant_6 = new (&allocator) HIntConstant(6);
-  HInstruction* constant_1 = new (&allocator) HIntConstant(1);
   entry->AddInstruction(parameter);
-  entry->AddInstruction(constant_5);
-  entry->AddInstruction(constant_4);
-  entry->AddInstruction(constant_6);
-  entry->AddInstruction(constant_1);
+
+  HInstruction* constant_5 = graph->GetIntConstant(5);
+  HInstruction* constant_4 = graph->GetIntConstant(4);
+  HInstruction* constant_6 = graph->GetIntConstant(6);
+  HInstruction* constant_1 = graph->GetIntConstant(1);
 
   HBasicBlock* block = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(block);
@@ -379,13 +371,11 @@ static HGraph* BuildSSAGraph1(ArenaAllocator* allocator,
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
   HInstruction* parameter = new (allocator) HParameterValue(0, Primitive::kPrimNot);
-  HInstruction* constant_initial = new (allocator) HIntConstant(initial);
-  HInstruction* constant_increment = new (allocator) HIntConstant(increment);
-  HInstruction* constant_10 = new (allocator) HIntConstant(10);
   entry->AddInstruction(parameter);
-  entry->AddInstruction(constant_initial);
-  entry->AddInstruction(constant_increment);
-  entry->AddInstruction(constant_10);
+
+  HInstruction* constant_initial = graph->GetIntConstant(initial);
+  HInstruction* constant_increment = graph->GetIntConstant(increment);
+  HInstruction* constant_10 = graph->GetIntConstant(10);
 
   HBasicBlock* block = new (allocator) HBasicBlock(graph);
   graph->AddBlock(block);
@@ -518,15 +508,12 @@ static HGraph* BuildSSAGraph2(ArenaAllocator* allocator,
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
   HInstruction* parameter = new (allocator) HParameterValue(0, Primitive::kPrimNot);
-  HInstruction* constant_initial = new (allocator) HIntConstant(initial);
-  HInstruction* constant_increment = new (allocator) HIntConstant(increment);
-  HInstruction* constant_minus_1 = new (allocator) HIntConstant(-1);
-  HInstruction* constant_10 = new (allocator) HIntConstant(10);
   entry->AddInstruction(parameter);
-  entry->AddInstruction(constant_initial);
-  entry->AddInstruction(constant_increment);
-  entry->AddInstruction(constant_minus_1);
-  entry->AddInstruction(constant_10);
+
+  HInstruction* constant_initial = graph->GetIntConstant(initial);
+  HInstruction* constant_increment = graph->GetIntConstant(increment);
+  HInstruction* constant_minus_1 = graph->GetIntConstant(-1);
+  HInstruction* constant_10 = graph->GetIntConstant(10);
 
   HBasicBlock* block = new (allocator) HBasicBlock(graph);
   graph->AddBlock(block);
@@ -651,12 +638,10 @@ static HGraph* BuildSSAGraph3(ArenaAllocator* allocator,
   HBasicBlock* entry = new (allocator) HBasicBlock(graph);
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
-  HInstruction* constant_10 = new (allocator) HIntConstant(10);
-  HInstruction* constant_initial = new (allocator) HIntConstant(initial);
-  HInstruction* constant_increment = new (allocator) HIntConstant(increment);
-  entry->AddInstruction(constant_10);
-  entry->AddInstruction(constant_initial);
-  entry->AddInstruction(constant_increment);
+
+  HInstruction* constant_10 = graph->GetIntConstant(10);
+  HInstruction* constant_initial = graph->GetIntConstant(initial);
+  HInstruction* constant_increment = graph->GetIntConstant(increment);
 
   HBasicBlock* block = new (allocator) HBasicBlock(graph);
   graph->AddBlock(block);
@@ -765,15 +750,12 @@ static HGraph* BuildSSAGraph4(ArenaAllocator* allocator,
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
   HInstruction* parameter = new (allocator) HParameterValue(0, Primitive::kPrimNot);
-  HInstruction* constant_initial = new (allocator) HIntConstant(initial);
-  HInstruction* constant_1 = new (allocator) HIntConstant(1);
-  HInstruction* constant_10 = new (allocator) HIntConstant(10);
-  HInstruction* constant_minus_1 = new (allocator) HIntConstant(-1);
   entry->AddInstruction(parameter);
-  entry->AddInstruction(constant_initial);
-  entry->AddInstruction(constant_1);
-  entry->AddInstruction(constant_10);
-  entry->AddInstruction(constant_minus_1);
+
+  HInstruction* constant_initial = graph->GetIntConstant(initial);
+  HInstruction* constant_1 = graph->GetIntConstant(1);
+  HInstruction* constant_10 = graph->GetIntConstant(10);
+  HInstruction* constant_minus_1 = graph->GetIntConstant(-1);
 
   HBasicBlock* block = new (allocator) HBasicBlock(graph);
   graph->AddBlock(block);
@@ -893,13 +875,11 @@ TEST(BoundsCheckEliminationTest, BubbleSortArrayBoundsElimination) {
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
   HInstruction* parameter = new (&allocator) HParameterValue(0, Primitive::kPrimNot);
-  HInstruction* constant_0 = new (&allocator) HIntConstant(0);
-  HInstruction* constant_minus_1 = new (&allocator) HIntConstant(-1);
-  HInstruction* constant_1 = new (&allocator) HIntConstant(1);
   entry->AddInstruction(parameter);
-  entry->AddInstruction(constant_0);
-  entry->AddInstruction(constant_minus_1);
-  entry->AddInstruction(constant_1);
+
+  HInstruction* constant_0 = graph->GetIntConstant(0);
+  HInstruction* constant_minus_1 = graph->GetIntConstant(-1);
+  HInstruction* constant_1 = graph->GetIntConstant(1);
 
   HBasicBlock* block = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(block);

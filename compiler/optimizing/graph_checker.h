@@ -107,6 +107,7 @@ class SSAChecker : public GraphChecker {
   void VisitBinaryOperation(HBinaryOperation* op) OVERRIDE;
   void VisitCondition(HCondition* op) OVERRIDE;
   void VisitIf(HIf* instruction) OVERRIDE;
+  void VisitConstant(HConstant* instruction) OVERRIDE;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(SSAChecker);

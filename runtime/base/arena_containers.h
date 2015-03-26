@@ -85,8 +85,7 @@ class ArenaAllocatorAdapterKindImpl {
 typedef ArenaAllocatorAdapterKindImpl<kArenaAllocatorCountAllocations> ArenaAllocatorAdapterKind;
 
 template <>
-class ArenaAllocatorAdapter<void>
-    : private DebugStackReference, private ArenaAllocatorAdapterKind {
+class ArenaAllocatorAdapter<void> : private ArenaAllocatorAdapterKind {
  public:
   typedef void value_type;
   typedef void* pointer;
@@ -99,14 +98,12 @@ class ArenaAllocatorAdapter<void>
 
   explicit ArenaAllocatorAdapter(ArenaAllocator* arena_allocator,
                                  ArenaAllocKind kind = kArenaAllocSTL)
-      : DebugStackReference(arena_allocator),
-        ArenaAllocatorAdapterKind(kind),
+      : ArenaAllocatorAdapterKind(kind),
         arena_allocator_(arena_allocator) {
   }
   template <typename U>
   ArenaAllocatorAdapter(const ArenaAllocatorAdapter<U>& other)
-      : DebugStackReference(other),
-        ArenaAllocatorAdapterKind(other),
+      : ArenaAllocatorAdapterKind(other),
         arena_allocator_(other.arena_allocator_) {
   }
   ArenaAllocatorAdapter(const ArenaAllocatorAdapter&) = default;
@@ -121,7 +118,7 @@ class ArenaAllocatorAdapter<void>
 };
 
 template <typename T>
-class ArenaAllocatorAdapter : private DebugStackReference, private ArenaAllocatorAdapterKind {
+class ArenaAllocatorAdapter : private ArenaAllocatorAdapterKind {
  public:
   typedef T value_type;
   typedef T* pointer;
@@ -137,14 +134,12 @@ class ArenaAllocatorAdapter : private DebugStackReference, private ArenaAllocato
   };
 
   explicit ArenaAllocatorAdapter(ArenaAllocator* arena_allocator, ArenaAllocKind kind)
-      : DebugStackReference(arena_allocator),
-        ArenaAllocatorAdapterKind(kind),
+      : ArenaAllocatorAdapterKind(kind),
         arena_allocator_(arena_allocator) {
   }
   template <typename U>
   ArenaAllocatorAdapter(const ArenaAllocatorAdapter<U>& other)
-      : DebugStackReference(other),
-        ArenaAllocatorAdapterKind(other),
+      : ArenaAllocatorAdapterKind(other),
         arena_allocator_(other.arena_allocator_) {
   }
   ArenaAllocatorAdapter(const ArenaAllocatorAdapter&) = default;

@@ -96,8 +96,6 @@ class HGraphBuilder : public ValueObject {
   void MaybeUpdateCurrentBlock(size_t index);
   HBasicBlock* FindBlockStartingAt(int32_t index) const;
 
-  HIntConstant* GetIntConstant(int32_t constant);
-  HLongConstant* GetLongConstant(int64_t constant);
   void InitializeLocals(uint16_t count);
   HLocal* GetLocalAt(int register_index) const;
   void UpdateLocal(int register_index, HInstruction* instruction) const;

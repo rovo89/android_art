@@ -65,10 +65,10 @@ static HInstruction* GetOppositeCondition(HInstruction* cond) {
   } else if (cond->IsIntConstant()) {
     HIntConstant* int_const = cond->AsIntConstant();
     if (int_const->IsZero()) {
-      return graph->GetIntConstant1();
+      return graph->GetIntConstant(1);
     } else {
       DCHECK(int_const->IsOne());
-      return graph->GetIntConstant0();
+      return graph->GetIntConstant(0);
     }
   }
 
