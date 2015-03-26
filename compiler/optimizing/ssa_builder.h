@@ -85,6 +85,10 @@ class SsaBuilder : public HGraphVisitor {
   static constexpr const char* kSsaBuilderPassName = "ssa_builder";
 
  private:
+  static HFloatConstant* GetFloatEquivalent(HIntConstant* constant);
+  static HDoubleConstant* GetDoubleEquivalent(HLongConstant* constant);
+  static HPhi* GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, Primitive::Type type);
+
   // Locals for the current block being visited.
   HEnvironment* current_locals_;
 

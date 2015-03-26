@@ -353,7 +353,7 @@ void SsaBuilder::VisitBasicBlock(HBasicBlock* block) {
  * is used for floating point operations. We create a floating-point equivalent
  * constant to make the operations correctly typed.
  */
-static HFloatConstant* GetFloatEquivalent(HIntConstant* constant) {
+HFloatConstant* SsaBuilder::GetFloatEquivalent(HIntConstant* constant) {
   // We place the floating point constant next to this constant.
   HFloatConstant* result = constant->GetNext()->AsFloatConstant();
   if (result == nullptr) {
@@ -375,7 +375,7 @@ static HFloatConstant* GetFloatEquivalent(HIntConstant* constant) {
  * is used for floating point operations. We create a floating-point equivalent
  * constant to make the operations correctly typed.
  */
-static HDoubleConstant* GetDoubleEquivalent(HLongConstant* constant) {
+HDoubleConstant* SsaBuilder::GetDoubleEquivalent(HLongConstant* constant) {
   // We place the floating point constant next to this constant.
   HDoubleConstant* result = constant->GetNext()->AsDoubleConstant();
   if (result == nullptr) {
@@ -398,7 +398,7 @@ static HDoubleConstant* GetDoubleEquivalent(HLongConstant* constant) {
  * floating point registers and core registers), we need to create a copy of the
  * phi with a floating point / reference type.
  */
-static HPhi* GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, Primitive::Type type) {
+HPhi* SsaBuilder::GetFloatDoubleOrReferenceEquivalentOfPhi(HPhi* phi, Primitive::Type type) {
   // We place the floating point /reference phi next to this phi.
   HInstruction* next = phi->GetNext();
   if (next != nullptr

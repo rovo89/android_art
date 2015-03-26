@@ -644,11 +644,10 @@ static HGraph* BuildTwoSubs(ArenaAllocator* allocator,
   graph->AddBlock(entry);
   graph->SetEntryBlock(entry);
   HInstruction* parameter = new (allocator) HParameterValue(0, Primitive::kPrimInt);
-  HInstruction* constant1 = new (allocator) HIntConstant(0);
-  HInstruction* constant2 = new (allocator) HIntConstant(0);
   entry->AddInstruction(parameter);
-  entry->AddInstruction(constant1);
-  entry->AddInstruction(constant2);
+
+  HInstruction* constant1 = graph->GetIntConstant(1);
+  HInstruction* constant2 = graph->GetIntConstant(2);
 
   HBasicBlock* block = new (allocator) HBasicBlock(graph);
   graph->AddBlock(block);

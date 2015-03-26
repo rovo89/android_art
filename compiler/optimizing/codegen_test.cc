@@ -474,10 +474,8 @@ TEST(CodegenTest, NonMaterializedCondition) {
   HBasicBlock* first_block = new (&allocator) HBasicBlock(graph);
   graph->AddBlock(first_block);
   entry->AddSuccessor(first_block);
-  HIntConstant* constant0 = new (&allocator) HIntConstant(0);
-  entry->AddInstruction(constant0);
-  HIntConstant* constant1 = new (&allocator) HIntConstant(1);
-  entry->AddInstruction(constant1);
+  HIntConstant* constant0 = graph->GetIntConstant(0);
+  HIntConstant* constant1 = graph->GetIntConstant(1);
   HEqual* equal = new (&allocator) HEqual(constant0, constant0);
   first_block->AddInstruction(equal);
   first_block->AddInstruction(new (&allocator) HIf(equal));
@@ -582,11 +580,9 @@ TEST(CodegenTest, MaterializedCondition1) {
     code_block->AddSuccessor(exit_block);
     graph->SetExitBlock(exit_block);
 
-    HIntConstant cst_lhs(lhs[i]);
-    code_block->AddInstruction(&cst_lhs);
-    HIntConstant cst_rhs(rhs[i]);
-    code_block->AddInstruction(&cst_rhs);
-    HLessThan cmp_lt(&cst_lhs, &cst_rhs);
+    HIntConstant* cst_lhs = graph->GetIntConstant(lhs[i]);
+    HIntConstant* cst_rhs = graph->GetIntConstant(rhs[i]);
+    HLessThan cmp_lt(cst_lhs, cst_rhs);
     code_block->AddInstruction(&cmp_lt);
     HReturn ret(&cmp_lt);
     code_block->AddInstruction(&ret);
@@ -639,11 +635,9 @@ TEST(CodegenTest, MaterializedCondition2) {
     if_false_block->AddSuccessor(exit_block);
     graph->SetExitBlock(exit_block);
 
-    HIntConstant cst_lhs(lhs[i]);
-    if_block->AddInstruction(&cst_lhs);
-    HIntConstant cst_rhs(rhs[i]);
-    if_block->AddInstruction(&cst_rhs);
-    HLessThan cmp_lt(&cst_lhs, &cst_rhs);
+    HIntConstant* cst_lhs = graph->GetIntConstant(lhs[i]);
+    HIntConstant* cst_rhs = graph->GetIntConstant(rhs[i]);
+    HLessThan cmp_lt(cst_lhs, cst_rhs);
     if_block->AddInstruction(&cmp_lt);
     // We insert a temporary to separate the HIf from the HLessThan and force
     // the materialization of the condition.
@@ -652,13 +646,11 @@ TEST(CodegenTest, MaterializedCondition2) {
     HIf if_lt(&cmp_lt);
     if_block->AddInstruction(&if_lt);
 
-    HIntConstant cst_lt(1);
-    if_true_block->AddInstruction(&cst_lt);
-    HReturn ret_lt(&cst_lt);
+    HIntConstant* cst_lt = graph->GetIntConstant(1);
+    HReturn ret_lt(cst_lt);
     if_true_block->AddInstruction(&ret_lt);
-    HIntConstant cst_ge(0);
-    if_false_block->AddInstruction(&cst_ge);
-    HReturn ret_ge(&cst_ge);
+    HIntConstant* cst_ge = graph->GetIntConstant(0);
+    HReturn ret_ge(cst_ge);
     if_false_block->AddInstruction(&ret_ge);
 
     auto hook_before_codegen = [](HGraph* graph_in) {

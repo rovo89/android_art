@@ -28,8 +28,7 @@ namespace art {
 static HBasicBlock* createIfBlock(HGraph* graph, ArenaAllocator* allocator) {
   HBasicBlock* if_block = new (allocator) HBasicBlock(graph);
   graph->AddBlock(if_block);
-  HInstruction* instr = new (allocator) HIntConstant(4);
-  if_block->AddInstruction(instr);
+  HInstruction* instr = graph->GetIntConstant(4);
   HInstruction* equal = new (allocator) HEqual(instr, instr);
   if_block->AddInstruction(equal);
   instr = new (allocator) HIf(equal);
@@ -42,6 +41,12 @@ static HBasicBlock* createGotoBlock(HGraph* graph, ArenaAllocator* allocator) {
   graph->AddBlock(block);
   HInstruction* got = new (allocator) HGoto();
   block->AddInstruction(got);
+  return block;
+}
+
+static HBasicBlock* createEntryBlock(HGraph* graph, ArenaAllocator* allocator) {
+  HBasicBlock* block = createGotoBlock(graph, allocator);
+  graph->SetEntryBlock(block);
   return block;
 }
 
@@ -69,7 +74,7 @@ TEST(GraphTest, IfSuccessorSimpleJoinBlock1) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
-  HBasicBlock* entry_block = createGotoBlock(graph, &allocator);
+  HBasicBlock* entry_block = createEntryBlock(graph, &allocator);
   HBasicBlock* if_block = createIfBlock(graph, &allocator);
   HBasicBlock* if_true = createGotoBlock(graph, &allocator);
   HBasicBlock* return_block = createReturnBlock(graph, &allocator);
@@ -104,7 +109,7 @@ TEST(GraphTest, IfSuccessorSimpleJoinBlock2) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
-  HBasicBlock* entry_block = createGotoBlock(graph, &allocator);
+  HBasicBlock* entry_block = createEntryBlock(graph, &allocator);
   HBasicBlock* if_block = createIfBlock(graph, &allocator);
   HBasicBlock* if_false = createGotoBlock(graph, &allocator);
   HBasicBlock* return_block = createReturnBlock(graph, &allocator);
@@ -139,12 +144,11 @@ TEST(GraphTest, IfSuccessorMultipleBackEdges1) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
-  HBasicBlock* entry_block = createGotoBlock(graph, &allocator);
+  HBasicBlock* entry_block = createEntryBlock(graph, &allocator);
   HBasicBlock* if_block = createIfBlock(graph, &allocator);
   HBasicBlock* return_block = createReturnBlock(graph, &allocator);
   HBasicBlock* exit_block = createExitBlock(graph, &allocator);
 
-  graph->SetEntryBlock(entry_block);
   entry_block->AddSuccessor(if_block);
   if_block->AddSuccessor(if_block);
   if_block->AddSuccessor(return_block);
@@ -175,12 +179,11 @@ TEST(GraphTest, IfSuccessorMultipleBackEdges2) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
-  HBasicBlock* entry_block = createGotoBlock(graph, &allocator);
+  HBasicBlock* entry_block = createEntryBlock(graph, &allocator);
   HBasicBlock* if_block = createIfBlock(graph, &allocator);
   HBasicBlock* return_block = createReturnBlock(graph, &allocator);
   HBasicBlock* exit_block = createExitBlock(graph, &allocator);
 
-  graph->SetEntryBlock(entry_block);
   entry_block->AddSuccessor(if_block);
   if_block->AddSuccessor(return_block);
   if_block->AddSuccessor(if_block);
@@ -211,13 +214,12 @@ TEST(GraphTest, IfSuccessorMultiplePreHeaders1) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
-  HBasicBlock* entry_block = createGotoBlock(graph, &allocator);
+  HBasicBlock* entry_block = createEntryBlock(graph, &allocator);
   HBasicBlock* first_if_block = createIfBlock(graph, &allocator);
   HBasicBlock* if_block = createIfBlock(graph, &allocator);
   HBasicBlock* loop_block = createGotoBlock(graph, &allocator);
   HBasicBlock* return_block = createReturnBlock(graph, &allocator);
 
-  graph->SetEntryBlock(entry_block);
   entry_block->AddSuccessor(first_if_block);
   first_if_block->AddSuccessor(if_block);
   first_if_block->AddSuccessor(loop_block);
@@ -251,13 +253,12 @@ TEST(GraphTest, IfSuccessorMultiplePreHeaders2) {
   ArenaAllocator allocator(&pool);
 
   HGraph* graph = new (&allocator) HGraph(&allocator);
-  HBasicBlock* entry_block = createGotoBlock(graph, &allocator);
+  HBasicBlock* entry_block = createEntryBlock(graph, &allocator);
   HBasicBlock* first_if_block = createIfBlock(graph, &allocator);
   HBasicBlock* if_block = createIfBlock(graph, &allocator);
   HBasicBlock* loop_block = createGotoBlock(graph, &allocator);
   HBasicBlock* return_block = createReturnBlock(graph, &allocator);
 
-  graph->SetEntryBlock(entry_block);
   entry_block->AddSuccessor(first_if_block);
   first_if_block->AddSuccessor(if_block);
   first_if_block->AddSuccessor(loop_block);
