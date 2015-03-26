@@ -128,6 +128,10 @@ bool Jit::LoadCompiler(std::string* error_msg) {
 
 bool Jit::CompileMethod(mirror::ArtMethod* method, Thread* self) {
   DCHECK(!method->IsRuntimeMethod());
+  if (Dbg::IsDebuggerActive() && Dbg::MethodHasAnyBreakpoints(method)) {
+    VLOG(jit) << "JIT not compiling " << PrettyMethod(method) << " due to breakpoint";
+    return false;
+  }
   const bool result = jit_compile_method_(jit_compiler_handle_, method, self);
   if (result) {
     method->SetEntryPointFromInterpreter(artInterpreterToCompiledCodeBridge);
