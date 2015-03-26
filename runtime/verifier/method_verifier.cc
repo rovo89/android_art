@@ -1752,8 +1752,21 @@ bool MethodVerifier::CodeFlowVerifyInstruction(uint32_t* start_guess) {
               Fail(VERIFY_ERROR_NO_CLASS) << " can't resolve returned type '" << return_type
                   << "' or '" << reg_type << "'";
             } else {
-              Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "returning '" << reg_type
-                  << "', but expected from declaration '" << return_type << "'";
+              bool soft_error = false;
+              // Check whether arrays are involved. They will show a valid class status, even
+              // if their components are erroneous.
+              if (reg_type.IsArrayTypes() && return_type.IsArrayTypes()) {
+                return_type.CanAssignArray(reg_type, reg_types_, class_loader_, &soft_error);
+                if (soft_error) {
+                  Fail(VERIFY_ERROR_BAD_CLASS_SOFT) << "array with erroneous component type: "
+                        << reg_type << " vs " << return_type;
+                }
+              }
+
+              if (!soft_error) {
+                Fail(VERIFY_ERROR_BAD_CLASS_HARD) << "returning '" << reg_type
+                    << "', but expected from declaration '" << return_type << "'";
+              }
             }
           }
         }
