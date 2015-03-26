@@ -2131,8 +2131,10 @@ class HInvokeStaticOrDirect : public HInvoke {
                         uint32_t dex_pc,
                         uint32_t dex_method_index,
                         bool is_recursive,
+                        InvokeType original_invoke_type,
                         InvokeType invoke_type)
       : HInvoke(arena, number_of_arguments, return_type, dex_pc, dex_method_index),
+        original_invoke_type_(original_invoke_type),
         invoke_type_(invoke_type),
         is_recursive_(is_recursive) {}
 
@@ -2142,6 +2144,7 @@ class HInvokeStaticOrDirect : public HInvoke {
     return false;
   }
 
+  InvokeType GetOriginalInvokeType() const { return original_invoke_type_; }
   InvokeType GetInvokeType() const { return invoke_type_; }
   bool IsRecursive() const { return is_recursive_; }
   bool NeedsDexCache() const OVERRIDE { return !IsRecursive(); }
@@ -2149,6 +2152,7 @@ class HInvokeStaticOrDirect : public HInvoke {
   DECLARE_INSTRUCTION(InvokeStaticOrDirect);
 
  private:
+  const InvokeType original_invoke_type_;
   const InvokeType invoke_type_;
   const bool is_recursive_;
 
