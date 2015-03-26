@@ -737,18 +737,19 @@ bool OatFileAssistant::DexFilenameToOdexFilename(const std::string& location,
   CHECK(error_msg != nullptr);
 
   // The odex file name is formed by replacing the dex_location extension with
-  // .odex and inserting an isa directory. For example:
+  // .odex and inserting an oat/<isa> directory. For example:
   //   location = /foo/bar/baz.jar
-  //   odex_location = /foo/bar/<isa>/baz.odex
+  //   odex_location = /foo/bar/oat/<isa>/baz.odex
 
-  // Find the directory portion of the dex location and add the isa directory.
+  // Find the directory portion of the dex location and add the oat/<isa>
+  // directory.
   size_t pos = location.rfind('/');
   if (pos == std::string::npos) {
     *error_msg = "Dex location " + location + " has no directory.";
     return false;
   }
   std::string dir = location.substr(0, pos+1);
-  dir += std::string(GetInstructionSetString(isa));
+  dir += "oat/" + std::string(GetInstructionSetString(isa));
 
   // Find the file portion of the dex location.
   std::string file;
