@@ -3153,6 +3153,11 @@ static const Breakpoint* FindFirstBreakpointForMethod(mirror::ArtMethod* m)
   return nullptr;
 }
 
+bool Dbg::MethodHasAnyBreakpoints(mirror::ArtMethod* method) {
+  ReaderMutexLock mu(Thread::Current(), *Locks::breakpoint_lock_);
+  return FindFirstBreakpointForMethod(method) != nullptr;
+}
+
 // Sanity checks all existing breakpoints on the same method.
 static void SanityCheckExistingBreakpoints(mirror::ArtMethod* m,
                                            DeoptimizationRequest::Kind deoptimization_kind)
