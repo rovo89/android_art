@@ -151,11 +151,12 @@ class OatFileAssistant {
   static std::vector<std::unique_ptr<const DexFile>> LoadDexFiles(
       const OatFile& oat_file, const char* dex_location);
 
-  // If the dex file has been pre-compiled on the host, the compiled oat file
-  // will have the extension .odex, and is referred to as the odex file.
-  // It is called odex for legacy reasons; the file is really an oat file. The
-  // odex file will typically have a patch delta of 0 and need to be relocated
-  // before use for the purposes of ASLR.
+  // If the dex file has been installed with a compiled oat file alongside
+  // it, the compiled oat file will have the extension .odex, and is referred
+  // to as the odex file. It is called odex for legacy reasons; the file is
+  // really an oat file. The odex file will often, but not always, have a
+  // patch delta of 0 and need to be relocated before use for the purposes of
+  // ASLR. The odex file is treated as if it were read-only.
   // These methods return the location and status of the odex file for the dex
   // location.
   // Notes:
