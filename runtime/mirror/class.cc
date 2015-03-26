@@ -228,8 +228,12 @@ void Class::DumpClass(std::ostream& os, int flags) {
     os << "  interfaces (" << num_direct_interfaces << "):\n";
     for (size_t i = 0; i < num_direct_interfaces; ++i) {
       Class* interface = GetDirectInterface(self, h_this, i);
-      const ClassLoader* cl = interface->GetClassLoader();
-      os << StringPrintf("    %2zd: %s (cl=%p)\n", i, PrettyClass(interface).c_str(), cl);
+      if (interface == nullptr) {
+        os << StringPrintf("    %2zd: nullptr!\n", i);
+      } else {
+        const ClassLoader* cl = interface->GetClassLoader();
+        os << StringPrintf("    %2zd: %s (cl=%p)\n", i, PrettyClass(interface).c_str(), cl);
+      }
     }
   }
   if (!IsLoaded()) {
