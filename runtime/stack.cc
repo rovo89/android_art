@@ -206,21 +206,22 @@ bool StackVisitor::GetVRegFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg,
   DexRegisterMap dex_register_map =
       code_info.GetDexRegisterMapOf(stack_map, number_of_dex_registers);
   DexRegisterLocation::Kind location_kind =
-      dex_register_map.GetLocationKind(vreg, number_of_dex_registers);
+      dex_register_map.GetLocationKind(vreg, number_of_dex_registers, code_info);
   switch (location_kind) {
     case DexRegisterLocation::Kind::kInStack: {
-      const int32_t offset = dex_register_map.GetStackOffsetInBytes(vreg, number_of_dex_registers);
+      const int32_t offset =
+          dex_register_map.GetStackOffsetInBytes(vreg, number_of_dex_registers, code_info);
       const uint8_t* addr = reinterpret_cast<const uint8_t*>(cur_quick_frame_) + offset;
       *val = *reinterpret_cast<const uint32_t*>(addr);
       return true;
     }
     case DexRegisterLocation::Kind::kInRegister:
     case DexRegisterLocation::Kind::kInFpuRegister: {
-      uint32_t reg = dex_register_map.GetMachineRegister(vreg, number_of_dex_registers);
+      uint32_t reg = dex_register_map.GetMachineRegister(vreg, number_of_dex_registers, code_info);
       return GetRegisterIfAccessible(reg, kind, val);
     }
     case DexRegisterLocation::Kind::kConstant:
-      *val = dex_register_map.GetConstant(vreg, number_of_dex_registers);
+      *val = dex_register_map.GetConstant(vreg, number_of_dex_registers, code_info);
       return true;
     case DexRegisterLocation::Kind::kNone:
       return false;
@@ -228,7 +229,7 @@ bool StackVisitor::GetVRegFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg,
       LOG(FATAL)
           << "Unexpected location kind"
           << DexRegisterLocation::PrettyDescriptor(
-                dex_register_map.GetLocationInternalKind(vreg, number_of_dex_registers));
+                dex_register_map.GetLocationInternalKind(vreg, number_of_dex_registers, code_info));
       UNREACHABLE();
   }
 }
@@ -396,18 +397,19 @@ bool StackVisitor::SetVRegFromOptimizedCode(mirror::ArtMethod* m, uint16_t vreg,
   DexRegisterMap dex_register_map =
       code_info.GetDexRegisterMapOf(stack_map, number_of_dex_registers);
   DexRegisterLocation::Kind location_kind =
-      dex_register_map.GetLocationKind(vreg, number_of_dex_registers);
+      dex_register_map.GetLocationKind(vreg, number_of_dex_registers, code_info);
   uint32_t dex_pc = m->ToDexPc(cur_quick_frame_pc_, false);
   switch (location_kind) {
     case DexRegisterLocation::Kind::kInStack: {
-      const int32_t offset = dex_register_map.GetStackOffsetInBytes(vreg, number_of_dex_registers);
+      const int32_t offset =
+          dex_register_map.GetStackOffsetInBytes(vreg, number_of_dex_registers, code_info);
       uint8_t* addr = reinterpret_cast<uint8_t*>(cur_quick_frame_) + offset;
       *reinterpret_cast<uint32_t*>(addr) = new_value;
       return true;
     }
     case DexRegisterLocation::Kind::kInRegister:
     case DexRegisterLocation::Kind::kInFpuRegister: {
-      uint32_t reg = dex_register_map.GetMachineRegister(vreg, number_of_dex_registers);
+      uint32_t reg = dex_register_map.GetMachineRegister(vreg, number_of_dex_registers, code_info);
       return SetRegisterIfAccessible(reg, new_value, kind);
     }
     case DexRegisterLocation::Kind::kConstant:
