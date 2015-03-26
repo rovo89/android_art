@@ -5286,6 +5286,10 @@ std::size_t ClassLinker::ClassDescriptorHashEquals::operator()(const char* descr
 }
 
 bool ClassLinker::MayBeCalledWithDirectCodePointer(mirror::ArtMethod* m) {
+  if (Runtime::Current()->UseJit()) {
+    // JIT can have direct code pointers from any method to any other method.
+    return true;
+  }
   // Non-image methods don't use direct code pointer.
   if (!m->GetDeclaringClass()->IsBootStrapClassLoaded()) {
     return false;
