@@ -215,7 +215,7 @@ void HGraphBuilder::If_21t(const Instruction& instruction, uint32_t dex_pc) {
   DCHECK(fallthrough_target != nullptr);
   PotentiallyAddSuspendCheck(branch_target, dex_pc);
   HInstruction* value = LoadLocal(instruction.VRegA(), Primitive::kPrimInt);
-  T* comparison = new (arena_) T(value, GetIntConstant(0));
+  T* comparison = new (arena_) T(value, graph_->GetIntConstant(0));
   current_block_->AddInstruction(comparison);
   HInstruction* ifinst = new (arena_) HIf(comparison);
   current_block_->AddInstruction(ifinst);
@@ -515,7 +515,7 @@ void HGraphBuilder::Binop_12x(const Instruction& instruction,
 template<typename T>
 void HGraphBuilder::Binop_22s(const Instruction& instruction, bool reverse) {
   HInstruction* first = LoadLocal(instruction.VRegB(), Primitive::kPrimInt);
-  HInstruction* second = GetIntConstant(instruction.VRegC_22s());
+  HInstruction* second = graph_->GetIntConstant(instruction.VRegC_22s());
   if (reverse) {
     std::swap(first, second);
   }
@@ -526,7 +526,7 @@ void HGraphBuilder::Binop_22s(const Instruction& instruction, bool reverse) {
 template<typename T>
 void HGraphBuilder::Binop_22b(const Instruction& instruction, bool reverse) {
   HInstruction* first = LoadLocal(instruction.VRegB(), Primitive::kPrimInt);
-  HInstruction* second = GetIntConstant(instruction.VRegC_22b());
+  HInstruction* second = graph_->GetIntConstant(instruction.VRegC_22b());
   if (reverse) {
     std::swap(first, second);
   }
@@ -824,9 +824,9 @@ void HGraphBuilder::BuildCheckedDivRem(uint16_t out_vreg,
   HInstruction* second = nullptr;
   if (second_is_constant) {
     if (type == Primitive::kPrimInt) {
-      second = GetIntConstant(second_vreg_or_constant);
+      second = graph_->GetIntConstant(second_vreg_or_constant);
     } else {
-      second = GetLongConstant(second_vreg_or_constant);
+      second = graph_->GetLongConstant(second_vreg_or_constant);
     }
   } else {
     second = LoadLocal(second_vreg_or_constant, type);
@@ -890,7 +890,7 @@ void HGraphBuilder::BuildFilledNewArray(uint32_t dex_pc,
                                         bool is_range,
                                         uint32_t* args,
                                         uint32_t register_index) {
-  HInstruction* length = GetIntConstant(number_of_vreg_arguments);
+  HInstruction* length = graph_->GetIntConstant(number_of_vreg_arguments);
   QuickEntrypointEnum entrypoint = NeedsAccessCheck(type_index)
       ? kQuickAllocArrayWithAccessCheck
       : kQuickAllocArray;
@@ -910,7 +910,7 @@ void HGraphBuilder::BuildFilledNewArray(uint32_t dex_pc,
   temps.Add(object);
   for (size_t i = 0; i < number_of_vreg_arguments; ++i) {
     HInstruction* value = LoadLocal(is_range ? register_index + i : args[i], type);
-    HInstruction* index = GetIntConstant(i);
+    HInstruction* index = graph_->GetIntConstant(i);
     current_block_->AddInstruction(
         new (arena_) HArraySet(object, index, value, type, dex_pc));
   }
@@ -924,8 +924,8 @@ void HGraphBuilder::BuildFillArrayData(HInstruction* object,
                                        Primitive::Type anticipated_type,
                                        uint32_t dex_pc) {
   for (uint32_t i = 0; i < element_count; ++i) {
-    HInstruction* index = GetIntConstant(i);
-    HInstruction* value = GetIntConstant(data[i]);
+    HInstruction* index = graph_->GetIntConstant(i);
+    HInstruction* value = graph_->GetIntConstant(data[i]);
     current_block_->AddInstruction(new (arena_) HArraySet(
       object, index, value, anticipated_type, dex_pc));
   }
@@ -949,7 +949,7 @@ void HGraphBuilder::BuildFillArrayData(const Instruction& instruction, uint32_t 
 
   // Implementation of this DEX instruction seems to be that the bounds check is
   // done before doing any stores.
-  HInstruction* last_index = GetIntConstant(payload->element_count - 1);
+  HInstruction* last_index = graph_->GetIntConstant(payload->element_count - 1);
   current_block_->AddInstruction(new (arena_) HBoundsCheck(last_index, length, dex_pc));
 
   switch (payload->element_width) {
@@ -990,8 +990,8 @@ void HGraphBuilder::BuildFillWideArrayData(HInstruction* object,
                                            uint32_t element_count,
                                            uint32_t dex_pc) {
   for (uint32_t i = 0; i < element_count; ++i) {
-    HInstruction* index = GetIntConstant(i);
-    HInstruction* value = GetLongConstant(data[i]);
+    HInstruction* index = graph_->GetIntConstant(i);
+    HInstruction* value = graph_->GetLongConstant(data[i]);
     current_block_->AddInstruction(new (arena_) HArraySet(
       object, index, value, Primitive::kPrimLong, dex_pc));
   }
@@ -1082,7 +1082,7 @@ void HGraphBuilder::BuildSwitchCaseHelper(const Instruction& instruction, size_t
   PotentiallyAddSuspendCheck(case_target, dex_pc);
 
   // The current case's value.
-  HInstruction* this_case_value = GetIntConstant(case_value_int);
+  HInstruction* this_case_value = graph_->GetIntConstant(case_value_int);
 
   // Compare value and this_case_value.
   HEqual* comparison = new (arena_) HEqual(value, this_case_value);
@@ -1140,28 +1140,28 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
   switch (instruction.Opcode()) {
     case Instruction::CONST_4: {
       int32_t register_index = instruction.VRegA();
-      HIntConstant* constant = GetIntConstant(instruction.VRegB_11n());
+      HIntConstant* constant = graph_->GetIntConstant(instruction.VRegB_11n());
       UpdateLocal(register_index, constant);
       break;
     }
 
     case Instruction::CONST_16: {
       int32_t register_index = instruction.VRegA();
-      HIntConstant* constant = GetIntConstant(instruction.VRegB_21s());
+      HIntConstant* constant = graph_->GetIntConstant(instruction.VRegB_21s());
       UpdateLocal(register_index, constant);
       break;
     }
 
     case Instruction::CONST: {
       int32_t register_index = instruction.VRegA();
-      HIntConstant* constant = GetIntConstant(instruction.VRegB_31i());
+      HIntConstant* constant = graph_->GetIntConstant(instruction.VRegB_31i());
       UpdateLocal(register_index, constant);
       break;
     }
 
     case Instruction::CONST_HIGH16: {
       int32_t register_index = instruction.VRegA();
-      HIntConstant* constant = GetIntConstant(instruction.VRegB_21h() << 16);
+      HIntConstant* constant = graph_->GetIntConstant(instruction.VRegB_21h() << 16);
       UpdateLocal(register_index, constant);
       break;
     }
@@ -1172,7 +1172,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       int64_t value = instruction.VRegB_21s();
       value <<= 48;
       value >>= 48;
-      HLongConstant* constant = GetLongConstant(value);
+      HLongConstant* constant = graph_->GetLongConstant(value);
       UpdateLocal(register_index, constant);
       break;
     }
@@ -1183,14 +1183,14 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
       int64_t value = instruction.VRegB_31i();
       value <<= 32;
       value >>= 32;
-      HLongConstant* constant = GetLongConstant(value);
+      HLongConstant* constant = graph_->GetLongConstant(value);
       UpdateLocal(register_index, constant);
       break;
     }
 
     case Instruction::CONST_WIDE: {
       int32_t register_index = instruction.VRegA();
-      HLongConstant* constant = GetLongConstant(instruction.VRegB_51l());
+      HLongConstant* constant = graph_->GetLongConstant(instruction.VRegB_51l());
       UpdateLocal(register_index, constant);
       break;
     }
@@ -1198,7 +1198,7 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
     case Instruction::CONST_WIDE_HIGH16: {
       int32_t register_index = instruction.VRegA();
       int64_t value = static_cast<int64_t>(instruction.VRegB_21h()) << 48;
-      HLongConstant* constant = GetLongConstant(value);
+      HLongConstant* constant = graph_->GetLongConstant(value);
       UpdateLocal(register_index, constant);
       break;
     }
@@ -2099,24 +2099,6 @@ bool HGraphBuilder::AnalyzeDexInstruction(const Instruction& instruction, uint32
   }
   return true;
 }  // NOLINT(readability/fn_size)
-
-HIntConstant* HGraphBuilder::GetIntConstant(int32_t constant) {
-  switch (constant) {
-    case 0: return graph_->GetIntConstant0();
-    case 1: return graph_->GetIntConstant1();
-    default: {
-      HIntConstant* instruction = new (arena_) HIntConstant(constant);
-      graph_->AddConstant(instruction);
-      return instruction;
-    }
-  }
-}
-
-HLongConstant* HGraphBuilder::GetLongConstant(int64_t constant) {
-  HLongConstant* instruction = new (arena_) HLongConstant(constant);
-  graph_->AddConstant(instruction);
-  return instruction;
-}
 
 HLocal* HGraphBuilder::GetLocalAt(int register_index) const {
   return locals_.Get(register_index);
