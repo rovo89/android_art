@@ -253,6 +253,10 @@ class Dbg {
   // Returns true if we had -Xrunjdwp or -agentlib:jdwp= on the command line.
   static bool IsJdwpConfigured();
 
+  // Returns true if a method has any breakpoints.
+  static bool MethodHasAnyBreakpoints(mirror::ArtMethod* method)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) LOCKS_EXCLUDED(Locks::breakpoint_lock_);
+
   static bool IsDisposed();
 
   /*
