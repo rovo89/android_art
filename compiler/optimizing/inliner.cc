@@ -50,7 +50,9 @@ void HInliner::Run() {
       HInstruction* next = instruction->GetNext();
       HInvokeStaticOrDirect* call = instruction->AsInvokeStaticOrDirect();
       if (call != nullptr) {
-        if (!TryInline(call, call->GetDexMethodIndex(), call->GetInvokeType())) {
+        // We use the original invoke type to ensure the resolution of the called method
+        // works properly.
+        if (!TryInline(call, call->GetDexMethodIndex(), call->GetOriginalInvokeType())) {
           if (kIsDebugBuild) {
             std::string callee_name =
                 PrettyMethod(call->GetDexMethodIndex(), *outer_compilation_unit_.GetDexFile());

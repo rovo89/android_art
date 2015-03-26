@@ -620,7 +620,7 @@ bool HGraphBuilder::BuildInvoke(const Instruction& instruction,
     DCHECK(!is_recursive || (target_method.dex_file == dex_compilation_unit_->GetDexFile()));
     invoke = new (arena_) HInvokeStaticOrDirect(
         arena_, number_of_arguments, return_type, dex_pc, target_method.dex_method_index,
-        is_recursive, optimized_invoke_type);
+        is_recursive, invoke_type, optimized_invoke_type);
   }
 
   size_t start_index = 0;
