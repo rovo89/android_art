@@ -28,8 +28,8 @@
 #include "utils/arm64/assembler_arm64.h"
 #include "utils/arm64/constants_arm64.h"
 
-#include "a64/disasm-a64.h"
-#include "a64/macro-assembler-a64.h"
+#include "vixl/a64/disasm-a64.h"
+#include "vixl/a64/macro-assembler-a64.h"
 
 using namespace vixl;   // NOLINT(build/namespaces)
 
