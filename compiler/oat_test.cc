@@ -86,7 +86,8 @@ TEST_F(OatTest, WriteRead) {
   verification_results_.reset(new VerificationResults(compiler_options_.get()));
   method_inliner_map_.reset(new DexFileToMethodInlinerMap);
   callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(),
-                                              method_inliner_map_.get()));
+                                              method_inliner_map_.get(),
+                                              false));
   timer_.reset(new CumulativeLogger("Compilation times"));
   compiler_driver_.reset(new CompilerDriver(compiler_options_.get(),
                                             verification_results_.get(),

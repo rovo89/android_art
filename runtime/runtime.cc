@@ -163,7 +163,6 @@ Runtime::Runtime()
       method_trace_(false),
       method_trace_file_size_(0),
       instrumentation_(),
-      use_compile_time_class_path_(false),
       main_thread_group_(nullptr),
       system_thread_group_(nullptr),
       system_class_loader_(nullptr),
@@ -405,9 +404,9 @@ bool Runtime::Create(const RuntimeOptions& options, bool ignore_unrecognized) {
   return true;
 }
 
-static jobject CreateSystemClassLoader() {
-  if (Runtime::Current()->UseCompileTimeClassPath()) {
-    return NULL;
+static jobject CreateSystemClassLoader(Runtime* runtime) {
+  if (runtime->IsAotCompiler() && !runtime->GetCompilerCallbacks()->IsBootImage()) {
+    return nullptr;
   }
 
   ScopedObjectAccess soa(Thread::Current());
@@ -505,7 +504,7 @@ bool Runtime::Start() {
 
   Thread::FinishStartup();
 
-  system_class_loader_ = CreateSystemClassLoader();
+  system_class_loader_ = CreateSystemClassLoader(this);
 
   if (is_zygote_) {
     if (!InitZygote()) {
@@ -1481,23 +1480,6 @@ void Runtime::SetInstructionSet(InstructionSet instruction_set) {
 void Runtime::SetCalleeSaveMethod(mirror::ArtMethod* method, CalleeSaveType type) {
   DCHECK_LT(static_cast<int>(type), static_cast<int>(kLastCalleeSaveType));
   callee_save_methods_[type] = GcRoot<mirror::ArtMethod>(method);
-}
-
-const std::vector<const DexFile*>& Runtime::GetCompileTimeClassPath(jobject class_loader) {
-  if (class_loader == NULL) {
-    return GetClassLinker()->GetBootClassPath();
-  }
-  CHECK(UseCompileTimeClassPath());
-  CompileTimeClassPaths::const_iterator it = compile_time_class_paths_.find(class_loader);
-  CHECK(it != compile_time_class_paths_.end());
-  return it->second;
-}
-
-void Runtime::SetCompileTimeClassPath(jobject class_loader,
-                                      std::vector<const DexFile*>& class_path) {
-  CHECK(!IsStarted());
-  use_compile_time_class_path_ = true;
-  compile_time_class_paths_.Put(class_loader, class_path);
 }
 
 void Runtime::StartProfiler(const char* profile_output_filename) {

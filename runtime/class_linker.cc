@@ -1372,38 +1372,6 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
       self->SetException(pre_allocated);
       return nullptr;
     }
-  } else if (Runtime::Current()->UseCompileTimeClassPath()) {
-    // First try with the bootstrap class loader.
-    if (class_loader.Get() != nullptr) {
-      klass = LookupClass(self, descriptor, hash, nullptr);
-      if (klass != nullptr) {
-        return EnsureResolved(self, descriptor, klass);
-      }
-    }
-    // If the lookup failed search the boot class path. We don't perform a recursive call to avoid
-    // a NoClassDefFoundError being allocated.
-    ClassPathEntry pair = FindInClassPath(descriptor, hash, boot_class_path_);
-    if (pair.second != nullptr) {
-      return DefineClass(self, descriptor, hash, NullHandle<mirror::ClassLoader>(), *pair.first,
-                         *pair.second);
-    }
-    // Next try the compile time class path.
-    const std::vector<const DexFile*>* class_path;
-    {
-      ScopedObjectAccessUnchecked soa(self);
-      ScopedLocalRef<jobject> jclass_loader(soa.Env(),
-                                            soa.AddLocalReference<jobject>(class_loader.Get()));
-      class_path = &Runtime::Current()->GetCompileTimeClassPath(jclass_loader.get());
-    }
-    pair = FindInClassPath(descriptor, hash, *class_path);
-    if (pair.second != nullptr) {
-      return DefineClass(self, descriptor, hash, class_loader, *pair.first, *pair.second);
-    } else {
-      // Use the pre-allocated NCDFE at compile time to avoid wasting time constructing exceptions.
-      mirror::Throwable* pre_allocated = Runtime::Current()->GetPreAllocatedNoClassDefFoundError();
-      self->SetException(pre_allocated);
-      return nullptr;
-    }
   } else {
     ScopedObjectAccessUnchecked soa(self);
     mirror::Class* cp_klass = FindClassInPathClassLoader(soa, self, descriptor, hash,
@@ -1411,6 +1379,14 @@ mirror::Class* ClassLinker::FindClass(Thread* self, const char* descriptor,
     if (cp_klass != nullptr) {
       return cp_klass;
     }
+
+    if (Runtime::Current()->IsAotCompiler()) {
+      // Oops, compile-time, can't run actual class-loader code.
+      mirror::Throwable* pre_allocated = Runtime::Current()->GetPreAllocatedNoClassDefFoundError();
+      self->SetException(pre_allocated);
+      return nullptr;
+    }
+
     ScopedLocalRef<jobject> class_loader_object(soa.Env(),
                                                 soa.AddLocalReference<jobject>(class_loader.Get()));
     std::string class_name_string(DescriptorToDot(descriptor));
@@ -1767,7 +1743,7 @@ void ClassLinker::FixupStaticTrampolines(mirror::Class* klass) {
     return;  // No direct methods => no static methods.
   }
   Runtime* runtime = Runtime::Current();
-  if (!runtime->IsStarted() || runtime->UseCompileTimeClassPath()) {
+  if (!runtime->IsStarted()) {
     if (runtime->IsAotCompiler() || runtime->GetHeap()->HasImageSpace()) {
       return;  // OAT file unavailable.
     }
@@ -1907,7 +1883,7 @@ void ClassLinker::LoadClass(Thread* self, const DexFile& dex_file,
 
 
   bool has_oat_class = false;
-  if (Runtime::Current()->IsStarted() && !Runtime::Current()->UseCompileTimeClassPath()) {
+  if (Runtime::Current()->IsStarted() && !Runtime::Current()->IsAotCompiler()) {
     OatFile::OatClass oat_class = FindOatClass(dex_file, klass->GetDexClassDefIndex(),
                                                &has_oat_class);
     if (has_oat_class) {
@@ -2808,7 +2784,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class
   // classes.
   if (Runtime::Current()->IsAotCompiler()) {
     // Are we compiling the bootclasspath?
-    if (!Runtime::Current()->UseCompileTimeClassPath()) {
+    if (Runtime::Current()->GetCompilerCallbacks()->IsBootImage()) {
       return false;
     }
     // We are compiling an app (not the image).
@@ -5313,6 +5289,100 @@ bool ClassLinker::MayBeCalledWithDirectCodePointer(mirror::ArtMethod* m) {
     }
     return false;
   }
+}
+
+jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFile*>& dex_files) {
+  // SOAAlreadyRunnable is protected, and we need something to add a global reference.
+  // We could move the jobject to the callers, but all call-sites do this...
+  ScopedObjectAccessUnchecked soa(self);
+
+  // Register the dex files.
+  for (const DexFile* dex_file : dex_files) {
+    RegisterDexFile(*dex_file);
+  }
+
+  // For now, create a libcore-level DexFile for each ART DexFile. This "explodes" multidex.
+  StackHandleScope<11> hs(self);
+
+  Handle<mirror::ArtField> h_dex_elements_field =
+      hs.NewHandle(soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements));
+
+  mirror::Class* dex_elements_class = h_dex_elements_field->GetType(true);
+  DCHECK(dex_elements_class != nullptr);
+  DCHECK(dex_elements_class->IsArrayClass());
+  Handle<mirror::ObjectArray<mirror::Object>> h_dex_elements =
+      hs.NewHandle(reinterpret_cast<mirror::ObjectArray<mirror::Object>*>(
+          mirror::Array::Alloc<false>(self, dex_elements_class, dex_files.size(),
+                                      dex_elements_class->GetComponentSizeShift(),
+                                      Runtime::Current()->GetHeap()->GetCurrentAllocator())));
+  Handle<mirror::Class> h_dex_element_class =
+      hs.NewHandle(dex_elements_class->GetComponentType());
+
+  Handle<mirror::ArtField> h_element_file_field =
+      hs.NewHandle(
+          soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile));
+  DCHECK_EQ(h_dex_element_class.Get(), h_element_file_field->GetDeclaringClass());
+
+  Handle<mirror::ArtField> h_cookie_field =
+      hs.NewHandle(soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie));
+  DCHECK_EQ(h_cookie_field->GetDeclaringClass(), h_element_file_field->GetType(false));
+
+  // Fill the elements array.
+  int32_t index = 0;
+  for (const DexFile* dex_file : dex_files) {
+    StackHandleScope<3> hs2(self);
+
+    Handle<mirror::LongArray> h_long_array = hs2.NewHandle(mirror::LongArray::Alloc(self, 1));
+    DCHECK(h_long_array.Get() != nullptr);
+    h_long_array->Set(0, reinterpret_cast<intptr_t>(dex_file));
+
+    Handle<mirror::Object> h_dex_file = hs2.NewHandle(
+        h_cookie_field->GetDeclaringClass()->AllocObject(self));
+    DCHECK(h_dex_file.Get() != nullptr);
+    h_cookie_field->SetObject<false>(h_dex_file.Get(), h_long_array.Get());
+
+    Handle<mirror::Object> h_element = hs2.NewHandle(h_dex_element_class->AllocObject(self));
+    DCHECK(h_element.Get() != nullptr);
+    h_element_file_field->SetObject<false>(h_element.Get(), h_dex_file.Get());
+
+    h_dex_elements->Set(index, h_element.Get());
+    index++;
+  }
+  DCHECK_EQ(index, h_dex_elements->GetLength());
+
+  // Create DexPathList.
+  Handle<mirror::Object> h_dex_path_list = hs.NewHandle(
+      h_dex_elements_field->GetDeclaringClass()->AllocObject(self));
+  DCHECK(h_dex_path_list.Get() != nullptr);
+  // Set elements.
+  h_dex_elements_field->SetObject<false>(h_dex_path_list.Get(), h_dex_elements.Get());
+
+  // Create PathClassLoader.
+  Handle<mirror::Class> h_path_class_class = hs.NewHandle(
+      soa.Decode<mirror::Class*>(WellKnownClasses::dalvik_system_PathClassLoader));
+  Handle<mirror::Object> h_path_class_loader = hs.NewHandle(
+      h_path_class_class->AllocObject(self));
+  DCHECK(h_path_class_loader.Get() != nullptr);
+  // Set DexPathList.
+  Handle<mirror::ArtField> h_path_list_field = hs.NewHandle(
+      soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList));
+  DCHECK(h_path_list_field.Get() != nullptr);
+  h_path_list_field->SetObject<false>(h_path_class_loader.Get(), h_dex_path_list.Get());
+
+  // Make a pretend boot-classpath.
+  // TODO: Should we scan the image?
+  Handle<mirror::ArtField> h_parent_field = hs.NewHandle(
+      mirror::Class::FindField(self, hs.NewHandle(h_path_class_loader->GetClass()), "parent",
+                               "Ljava/lang/ClassLoader;"));
+  DCHECK(h_parent_field.Get() != nullptr);
+  mirror::Object* boot_cl =
+      soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_BootClassLoader)->AllocObject(self);
+  h_parent_field->SetObject<false>(h_path_class_loader.Get(), boot_cl);
+
+  // Make it a global ref and return.
+  ScopedLocalRef<jobject> local_ref(
+      soa.Env(), soa.Env()->AddLocalReference<jobject>(h_path_class_loader.Get()));
+  return soa.Env()->NewGlobalRef(local_ref.get());
 }
 
 }  // namespace art
