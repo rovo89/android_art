@@ -110,6 +110,7 @@ static inline bool IsAlignedParam(T x, int n) {
 
 // Check whether an N-bit two's-complement representation can hold value.
 static inline bool IsInt(int N, intptr_t value) {
+  if (N == kBitsPerIntPtrT) return true;
   CHECK_LT(0, N);
   CHECK_LT(N, kBitsPerIntPtrT);
   intptr_t limit = static_cast<intptr_t>(1) << (N - 1);
