@@ -292,8 +292,7 @@ void InstructionSimplifierVisitor::VisitMul(HMul* instruction) {
       //    MUL dst, src, pow_of_2
       // with
       //    SHL dst, src, log2(pow_of_2)
-      HIntConstant* shift = new (allocator) HIntConstant(WhichPowerOf2(factor));
-      block->InsertInstructionBefore(shift, instruction);
+      HIntConstant* shift = GetGraph()->GetIntConstant(WhichPowerOf2(factor));
       HShl* shl = new(allocator) HShl(type, input_other, shift);
       block->ReplaceAndRemoveInstructionWith(instruction, shl);
     }
