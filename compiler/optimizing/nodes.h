@@ -3115,7 +3115,7 @@ class HLoadString : public HExpression<0> {
 class HClinitCheck : public HExpression<1> {
  public:
   explicit HClinitCheck(HLoadClass* constant, uint32_t dex_pc)
-      : HExpression(Primitive::kPrimNot, SideEffects::All()),
+      : HExpression(Primitive::kPrimNot, SideEffects::ChangesSomething()),
         dex_pc_(dex_pc) {
     SetRawInputAt(0, constant);
   }
