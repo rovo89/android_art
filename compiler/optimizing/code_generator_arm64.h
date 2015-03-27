@@ -80,6 +80,31 @@ class SlowPathCodeARM64 : public SlowPathCode {
   DISALLOW_COPY_AND_ASSIGN(SlowPathCodeARM64);
 };
 
+static const vixl::Register kRuntimeParameterCoreRegisters[] =
+    { vixl::x0, vixl::x1, vixl::x2, vixl::x3, vixl::x4, vixl::x5, vixl::x6, vixl::x7 };
+static constexpr size_t kRuntimeParameterCoreRegistersLength =
+    arraysize(kRuntimeParameterCoreRegisters);
+static const vixl::FPRegister kRuntimeParameterFpuRegisters[] =
+    { vixl::d0, vixl::d1, vixl::d2, vixl::d3, vixl::d4, vixl::d5, vixl::d6, vixl::d7 };
+static constexpr size_t kRuntimeParameterFpuRegistersLength =
+    arraysize(kRuntimeParameterCoreRegisters);
+
+class InvokeRuntimeCallingConvention : public CallingConvention<vixl::Register, vixl::FPRegister> {
+ public:
+  static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
+
+  InvokeRuntimeCallingConvention()
+      : CallingConvention(kRuntimeParameterCoreRegisters,
+                          kRuntimeParameterCoreRegistersLength,
+                          kRuntimeParameterFpuRegisters,
+                          kRuntimeParameterFpuRegistersLength) {}
+
+  Location GetReturnLocation(Primitive::Type return_type);
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
+};
+
 class InvokeDexCallingConvention : public CallingConvention<vixl::Register, vixl::FPRegister> {
  public:
   InvokeDexCallingConvention()
