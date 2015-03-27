@@ -231,6 +231,8 @@ class X86Assembler FINAL : public Assembler {
   void movl(const Address& dst, const Immediate& imm);
   void movl(const Address& dst, Label* lbl);
 
+  void bswapl(Register dst);
+
   void movzxb(Register dst, ByteRegister src);
   void movzxb(Register dst, const Address& src);
   void movsxb(Register dst, ByteRegister src);
@@ -318,7 +320,13 @@ class X86Assembler FINAL : public Assembler {
   void xorps(XmmRegister dst, const Address& src);
   void xorps(XmmRegister dst, XmmRegister src);
 
+  void andpd(XmmRegister dst, XmmRegister src);
   void andpd(XmmRegister dst, const Address& src);
+  void andps(XmmRegister dst, XmmRegister src);
+  void andps(XmmRegister dst, const Address& src);
+
+  void orpd(XmmRegister dst, XmmRegister src);
+  void orps(XmmRegister dst, XmmRegister src);
 
   void flds(const Address& src);
   void fstps(const Address& dst);
@@ -389,6 +397,7 @@ class X86Assembler FINAL : public Assembler {
   void subl(Register dst, Register src);
   void subl(Register reg, const Immediate& imm);
   void subl(Register reg, const Address& address);
+  void subl(const Address& address, Register src);
 
   void cdq();
 
@@ -407,6 +416,7 @@ class X86Assembler FINAL : public Assembler {
   void sbbl(Register dst, Register src);
   void sbbl(Register reg, const Immediate& imm);
   void sbbl(Register reg, const Address& address);
+  void sbbl(const Address& address, Register src);
 
   void incl(Register reg);
   void incl(const Address& address);
