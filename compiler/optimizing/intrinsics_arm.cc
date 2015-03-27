@@ -903,8 +903,6 @@ UNIMPLEMENTED_INTRINSIC(MathRoundDouble)   // Could be done by changing rounding
 UNIMPLEMENTED_INTRINSIC(MathRoundFloat)    // Could be done by changing rounding mode, maybe?
 UNIMPLEMENTED_INTRINSIC(UnsafeCASLong)     // High register pressure.
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
-UNIMPLEMENTED_INTRINSIC(StringIsEmpty)  // Might not want to do these two anyways, inlining should
-UNIMPLEMENTED_INTRINSIC(StringLength)   // be good enough here.
 UNIMPLEMENTED_INTRINSIC(StringIndexOf)
 UNIMPLEMENTED_INTRINSIC(StringIndexOfAfter)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)

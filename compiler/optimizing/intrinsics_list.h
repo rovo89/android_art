@@ -60,10 +60,8 @@
   V(MemoryPokeShortNative, kStatic) \
   V(StringCharAt, kDirect) \
   V(StringCompareTo, kDirect) \
-  V(StringIsEmpty, kDirect) \
   V(StringIndexOf, kDirect) \
   V(StringIndexOfAfter, kDirect) \
-  V(StringLength, kDirect) \
   V(UnsafeCASInt, kDirect) \
   V(UnsafeCASLong, kDirect) \
   V(UnsafeCASObject, kDirect) \
