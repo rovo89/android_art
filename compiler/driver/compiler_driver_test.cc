@@ -132,7 +132,7 @@ TEST_F(CompilerDriverTest, DISABLED_LARGE_CompileDexLibCore) {
   }
   EXPECT_EQ(dex.NumFieldIds(), dex_cache->NumResolvedFields());
   for (size_t i = 0; i < dex_cache->NumResolvedFields(); i++) {
-    mirror::ArtField* field = dex_cache->GetResolvedField(i);
+    ArtField* field = Runtime::Current()->GetClassLinker()->GetResolvedField(i, dex_cache);
     EXPECT_TRUE(field != NULL) << "field_idx=" << i
                                << " " << dex.GetFieldDeclaringClassDescriptor(dex.GetFieldId(i))
                                << " " << dex.GetFieldName(dex.GetFieldId(i));

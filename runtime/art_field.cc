@@ -18,28 +18,17 @@
 
 #include "art_field-inl.h"
 #include "gc/accounting/card_table-inl.h"
-#include "object-inl.h"
-#include "object_array-inl.h"
+#include "mirror/object-inl.h"
+#include "mirror/object_array-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"
 #include "utils.h"
 #include "well_known_classes.h"
 
 namespace art {
-namespace mirror {
 
-// TODO: Get global references for these
-GcRoot<Class> ArtField::java_lang_reflect_ArtField_;
-
-void ArtField::SetClass(Class* java_lang_reflect_ArtField) {
-  CHECK(java_lang_reflect_ArtField_.IsNull());
-  CHECK(java_lang_reflect_ArtField != NULL);
-  java_lang_reflect_ArtField_ = GcRoot<Class>(java_lang_reflect_ArtField);
-}
-
-void ArtField::ResetClass() {
-  CHECK(!java_lang_reflect_ArtField_.IsNull());
-  java_lang_reflect_ArtField_ = GcRoot<Class>(nullptr);
+ArtField::ArtField() : access_flags_(0), field_dex_idx_(0), offset_(0) {
+  declaring_class_ = GcRoot<mirror::Class>(nullptr);
 }
 
 void ArtField::SetOffset(MemberOffset num_bytes) {
@@ -52,32 +41,24 @@ void ArtField::SetOffset(MemberOffset num_bytes) {
     }
   }
   // Not called within a transaction.
-  SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtField, offset_), num_bytes.Uint32Value());
+  offset_ = num_bytes.Uint32Value();
 }
 
 void ArtField::VisitRoots(RootVisitor* visitor) {
-  java_lang_reflect_ArtField_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
+  declaring_class_.VisitRoot(visitor, RootInfo(kRootStickyClass));
 }
 
-// TODO: we could speed up the search if fields are ordered by offsets.
 ArtField* ArtField::FindInstanceFieldWithOffset(mirror::Class* klass, uint32_t field_offset) {
   DCHECK(klass != nullptr);
-  ObjectArray<ArtField>* instance_fields = klass->GetIFields();
-  if (instance_fields != nullptr) {
-    for (int32_t i = 0, e = instance_fields->GetLength(); i < e; ++i) {
-      mirror::ArtField* field = instance_fields->GetWithoutChecks(i);
-      if (field->GetOffset().Uint32Value() == field_offset) {
-        return field;
-      }
+  auto* instance_fields = klass->GetIFields();
+  for (size_t i = 0, count = klass->NumInstanceFields(); i < count; ++i) {
+    if (instance_fields[i].GetOffset().Uint32Value() == field_offset) {
+      return &instance_fields[i];
     }
   }
   // We did not find field in the class: look into superclass.
-  if (klass->GetSuperClass() != NULL) {
-    return FindInstanceFieldWithOffset(klass->GetSuperClass(), field_offset);
-  } else {
-    return nullptr;
-  }
+  return (klass->GetSuperClass() != nullptr) ?
+      FindInstanceFieldWithOffset(klass->GetSuperClass(), field_offset) : nullptr;
 }
 
-}  // namespace mirror
 }  // namespace art

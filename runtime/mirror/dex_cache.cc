@@ -36,7 +36,7 @@ void DexCache::Init(const DexFile* dex_file,
                     ObjectArray<String>* strings,
                     ObjectArray<Class>* resolved_types,
                     ObjectArray<ArtMethod>* resolved_methods,
-                    ObjectArray<ArtField>* resolved_fields) {
+                    Array* resolved_fields) {
   CHECK(dex_file != nullptr);
   CHECK(location != nullptr);
   CHECK(strings != nullptr);
@@ -44,19 +44,18 @@ void DexCache::Init(const DexFile* dex_file,
   CHECK(resolved_methods != nullptr);
   CHECK(resolved_fields != nullptr);
 
-  SetFieldPtr<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, dex_file_), dex_file);
+  SetDexFile(dex_file);
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, location_), location);
   SetFieldObject<false>(StringsOffset(), strings);
+  SetFieldObject<false>(ResolvedFieldsOffset(), resolved_fields);
   SetFieldObject<false>(OFFSET_OF_OBJECT_MEMBER(DexCache, resolved_types_), resolved_types);
   SetFieldObject<false>(ResolvedMethodsOffset(), resolved_methods);
-  SetFieldObject<false>(ResolvedFieldsOffset(), resolved_fields);
 
   Runtime* runtime = Runtime::Current();
   if (runtime->HasResolutionMethod()) {
     // Initialize the resolve methods array to contain trampolines for resolution.
     ArtMethod* trampoline = runtime->GetResolutionMethod();
-    size_t length = resolved_methods->GetLength();
-    for (size_t i = 0; i < length; i++) {
+    for (size_t i = 0, length = resolved_methods->GetLength(); i < length; i++) {
       resolved_methods->SetWithoutChecks<false>(i, trampoline);
     }
   }

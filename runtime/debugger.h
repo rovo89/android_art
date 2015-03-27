@@ -37,13 +37,13 @@
 
 namespace art {
 namespace mirror {
-class ArtField;
 class ArtMethod;
 class Class;
 class Object;
 class Throwable;
 }  // namespace mirror
 class AllocRecord;
+class ArtField;
 class ObjectRegistry;
 class ScopedObjectAccessUnchecked;
 class StackVisitor;
@@ -340,7 +340,7 @@ class Dbg {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static bool MatchField(JDWP::RefTypeId expected_type_id, JDWP::FieldId expected_field_id,
-                         mirror::ArtField* event_field)
+                         ArtField* event_field)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static bool MatchInstance(JDWP::ObjectId expected_instance_id, mirror::Object* event_instance)
@@ -525,10 +525,10 @@ class Dbg {
     kMethodExit     = 0x08,
   };
   static void PostFieldAccessEvent(mirror::ArtMethod* m, int dex_pc, mirror::Object* this_object,
-                                   mirror::ArtField* f)
+                                   ArtField* f)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostFieldModificationEvent(mirror::ArtMethod* m, int dex_pc,
-                                         mirror::Object* this_object, mirror::ArtField* f,
+                                         mirror::Object* this_object, ArtField* f,
                                          const JValue* field_value)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static void PostException(mirror::Throwable* exception)
@@ -706,7 +706,7 @@ class Dbg {
   static JDWP::JdwpTypeTag GetTypeTag(mirror::Class* klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static JDWP::FieldId ToFieldId(const mirror::ArtField* f)
+  static JDWP::FieldId ToFieldId(const ArtField* f)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static void SetJdwpLocation(JDWP::JdwpLocation* location, mirror::ArtMethod* m, uint32_t dex_pc)

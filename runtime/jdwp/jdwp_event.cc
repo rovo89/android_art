@@ -21,6 +21,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "art_field-inl.h"
 #include "base/logging.h"
 #include "base/stringprintf.h"
 #include "debugger.h"
@@ -28,7 +29,6 @@
 #include "jdwp/jdwp_expand_buf.h"
 #include "jdwp/jdwp_priv.h"
 #include "jdwp/object_registry.h"
-#include "mirror/art_field-inl.h"
 #include "scoped_thread_state_change.h"
 #include "thread-inl.h"
 
@@ -119,7 +119,7 @@ struct ModBasket {
   mirror::Class*        locationClass;    /* ClassOnly */
   mirror::Class*        exceptionClass;   /* ExceptionOnly */
   bool                  caught;           /* ExceptionOnly */
-  mirror::ArtField*     field;            /* FieldOnly */
+  ArtField*             field;            /* FieldOnly */
   mirror::Object*       thisPtr;          /* InstanceOnly */
   /* nothing for StepOnly -- handled differently */
 };
@@ -914,7 +914,7 @@ void JdwpState::PostLocationEvent(const EventLocation* pLoc, mirror::Object* thi
   SendRequestAndPossiblySuspend(pReq, suspend_policy, thread_id);
 }
 
-void JdwpState::PostFieldEvent(const EventLocation* pLoc, mirror::ArtField* field,
+void JdwpState::PostFieldEvent(const EventLocation* pLoc, ArtField* field,
                                mirror::Object* this_object, const JValue* fieldValue,
                                bool is_modification) {
   DCHECK(pLoc != nullptr);

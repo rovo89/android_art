@@ -19,12 +19,11 @@
 
 #include "compiler_driver.h"
 
+#include "art_field-inl.h"
 #include "dex_compilation_unit.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
-#include "mirror/art_field-inl.h"
 #include "scoped_thread_state_change.h"
 #include "handle_scope-inl.h"
 
@@ -65,12 +64,12 @@ inline mirror::Class* CompilerDriver::ResolveCompilingMethodsClass(
   return ResolveClass(soa, dex_cache, class_loader, referrer_method_id.class_idx_, mUnit);
 }
 
-inline mirror::ArtField* CompilerDriver::ResolveFieldWithDexFile(
+inline ArtField* CompilerDriver::ResolveFieldWithDexFile(
     const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
     Handle<mirror::ClassLoader> class_loader, const DexFile* dex_file,
     uint32_t field_idx, bool is_static) {
   DCHECK_EQ(dex_cache->GetDexFile(), dex_file);
-  mirror::ArtField* resolved_field = Runtime::Current()->GetClassLinker()->ResolveField(
+  ArtField* resolved_field = Runtime::Current()->GetClassLinker()->ResolveField(
       *dex_file, field_idx, dex_cache, class_loader, is_static);
   DCHECK_EQ(resolved_field == nullptr, soa.Self()->IsExceptionPending());
   if (UNLIKELY(resolved_field == nullptr)) {
@@ -90,7 +89,7 @@ inline mirror::DexCache* CompilerDriver::FindDexCache(const DexFile* dex_file) {
   return Runtime::Current()->GetClassLinker()->FindDexCache(*dex_file);
 }
 
-inline mirror::ArtField* CompilerDriver::ResolveField(
+inline ArtField* CompilerDriver::ResolveField(
     const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
     Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
     uint32_t field_idx, bool is_static) {
@@ -100,7 +99,7 @@ inline mirror::ArtField* CompilerDriver::ResolveField(
 }
 
 inline void CompilerDriver::GetResolvedFieldDexFileLocation(
-    mirror::ArtField* resolved_field, const DexFile** declaring_dex_file,
+    ArtField* resolved_field, const DexFile** declaring_dex_file,
     uint16_t* declaring_class_idx, uint16_t* declaring_field_idx) {
   mirror::Class* declaring_class = resolved_field->GetDeclaringClass();
   *declaring_dex_file = declaring_class->GetDexCache()->GetDexFile();
@@ -108,17 +107,17 @@ inline void CompilerDriver::GetResolvedFieldDexFileLocation(
   *declaring_field_idx = resolved_field->GetDexFieldIndex();
 }
 
-inline bool CompilerDriver::IsFieldVolatile(mirror::ArtField* field) {
+inline bool CompilerDriver::IsFieldVolatile(ArtField* field) {
   return field->IsVolatile();
 }
 
-inline MemberOffset CompilerDriver::GetFieldOffset(mirror::ArtField* field) {
+inline MemberOffset CompilerDriver::GetFieldOffset(ArtField* field) {
   return field->GetOffset();
 }
 
 inline std::pair<bool, bool> CompilerDriver::IsFastInstanceField(
     mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-    mirror::ArtField* resolved_field, uint16_t field_idx) {
+    ArtField* resolved_field, uint16_t field_idx) {
   DCHECK(!resolved_field->IsStatic());
   mirror::Class* fields_class = resolved_field->GetDeclaringClass();
   bool fast_get = referrer_class != nullptr &&
@@ -130,7 +129,7 @@ inline std::pair<bool, bool> CompilerDriver::IsFastInstanceField(
 
 inline std::pair<bool, bool> CompilerDriver::IsFastStaticField(
     mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-    mirror::ArtField* resolved_field, uint16_t field_idx, uint32_t* storage_index) {
+    ArtField* resolved_field, uint16_t field_idx, uint32_t* storage_index) {
   DCHECK(resolved_field->IsStatic());
   if (LIKELY(referrer_class != nullptr)) {
     mirror::Class* fields_class = resolved_field->GetDeclaringClass();
@@ -177,14 +176,14 @@ inline std::pair<bool, bool> CompilerDriver::IsFastStaticField(
 }
 
 inline bool CompilerDriver::IsStaticFieldInReferrerClass(mirror::Class* referrer_class,
-                                                         mirror::ArtField* resolved_field) {
+                                                         ArtField* resolved_field) {
   DCHECK(resolved_field->IsStatic());
   mirror::Class* fields_class = resolved_field->GetDeclaringClass();
   return referrer_class == fields_class;
 }
 
 inline bool CompilerDriver::IsStaticFieldsClassInitialized(mirror::Class* referrer_class,
-                                                           mirror::ArtField* resolved_field) {
+                                                           ArtField* resolved_field) {
   DCHECK(resolved_field->IsStatic());
   mirror::Class* fields_class = resolved_field->GetDeclaringClass();
   return fields_class == referrer_class || fields_class->IsInitialized();

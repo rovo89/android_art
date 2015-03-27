@@ -25,6 +25,7 @@
 #include <utility>
 #include <vector>
 
+#include "art_field-inl.h"
 #include "base/casts.h"
 #include "base/logging.h"
 #include "base/scoped_flock.h"
@@ -46,11 +47,11 @@
 #include "jit/jit.h"
 #include "jit/jit_code_cache.h"
 #include "leb128.h"
+#include "linear_alloc.h"
 #include "oat.h"
 #include "oat_file.h"
 #include "oat_file_assistant.h"
 #include "object_lock.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class.h"
 #include "mirror/class-inl.h"
@@ -76,6 +77,8 @@
 #include "well_known_classes.h"
 
 namespace art {
+
+static constexpr bool kSanityCheckObjects = kIsDebugBuild;
 
 static void ThrowNoClassDefFoundError(const char* fmt, ...)
     __attribute__((__format__(__printf__, 1, 2)))
@@ -186,7 +189,7 @@ static void AddFieldGap(uint32_t gap_start, uint32_t gap_end, FieldGaps* gaps) {
 template<int n>
 static void ShuffleForward(size_t* current_field_idx,
                            MemberOffset* field_offset,
-                           std::deque<mirror::ArtField*>* grouped_and_sorted_fields,
+                           std::deque<ArtField*>* grouped_and_sorted_fields,
                            FieldGaps* gaps)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   DCHECK(current_field_idx != nullptr);
@@ -196,7 +199,7 @@ static void ShuffleForward(size_t* current_field_idx,
 
   DCHECK(IsPowerOfTwo(n));
   while (!grouped_and_sorted_fields->empty()) {
-    mirror::ArtField* field = grouped_and_sorted_fields->front();
+    ArtField* field = grouped_and_sorted_fields->front();
     Primitive::Type type = field->GetTypeAsPrimitiveType();
     if (Primitive::ComponentSize(type) < n) {
       break;
@@ -357,6 +360,13 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   mirror::IntArray::SetArrayClass(int_array_class.Get());
   SetClassRoot(kIntArrayClass, int_array_class.Get());
 
+  // Create long array type for AllocDexCache (done in AppendToBootClassPath).
+  Handle<mirror::Class> long_array_class(hs.NewHandle(
+      AllocClass(self, java_lang_Class.Get(), mirror::Array::ClassSize())));
+  long_array_class->SetComponentType(GetClassRoot(kPrimitiveLong));
+  mirror::LongArray::SetArrayClass(long_array_class.Get());
+  SetClassRoot(kLongArrayClass, long_array_class.Get());
+
   // now that these are registered, we can use AllocClass() and AllocObjectArray
 
   // Set up DexCache. This cannot be done later since AppendToBootClassPath calls AllocDexCache.
@@ -366,15 +376,8 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   java_lang_DexCache->SetObjectSize(mirror::DexCache::InstanceSize());
   mirror::Class::SetStatus(java_lang_DexCache, mirror::Class::kStatusResolved, self);
 
-  // Constructor, Field, Method, and AbstractMethod are necessary so
+  // Constructor, Method, and AbstractMethod are necessary so
   // that FindClass can link members.
-  Handle<mirror::Class> java_lang_reflect_ArtField(hs.NewHandle(
-      AllocClass(self, java_lang_Class.Get(), mirror::ArtField::ClassSize())));
-  CHECK(java_lang_reflect_ArtField.Get() != nullptr);
-  java_lang_reflect_ArtField->SetObjectSize(mirror::ArtField::InstanceSize());
-  SetClassRoot(kJavaLangReflectArtField, java_lang_reflect_ArtField.Get());
-  mirror::Class::SetStatus(java_lang_reflect_ArtField, mirror::Class::kStatusResolved, self);
-  mirror::ArtField::SetClass(java_lang_reflect_ArtField.Get());
 
   Handle<mirror::Class> java_lang_reflect_ArtMethod(hs.NewHandle(
     AllocClass(self, java_lang_Class.Get(), mirror::ArtMethod::ClassSize())));
@@ -397,12 +400,6 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
                  mirror::ObjectArray<mirror::ArtMethod>::ClassSize())));
   object_array_art_method->SetComponentType(java_lang_reflect_ArtMethod.Get());
   SetClassRoot(kJavaLangReflectArtMethodArrayClass, object_array_art_method.Get());
-
-  Handle<mirror::Class> object_array_art_field(hs.NewHandle(
-      AllocClass(self, java_lang_Class.Get(),
-                 mirror::ObjectArray<mirror::ArtField>::ClassSize())));
-  object_array_art_field->SetComponentType(java_lang_reflect_ArtField.Get());
-  SetClassRoot(kJavaLangReflectArtFieldArrayClass, object_array_art_field.Get());
 
   // Setup boot_class_path_ and register class_path now that we can use AllocObjectArray to create
   // DexCache instances. Needs to be after String, Field, Method arrays since AllocDexCache uses
@@ -471,8 +468,8 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   mirror::Class* found_int_array_class = FindSystemClass(self, "[I");
   CHECK_EQ(int_array_class.Get(), found_int_array_class);
 
-  SetClassRoot(kLongArrayClass, FindSystemClass(self, "[J"));
-  mirror::LongArray::SetArrayClass(GetClassRoot(kLongArrayClass));
+  mirror::Class* found_long_array_class = FindSystemClass(self, "[J");
+  CHECK_EQ(long_array_class.Get(), found_long_array_class);
 
   SetClassRoot(kFloatArrayClass, FindSystemClass(self, "[F"));
   mirror::FloatArray::SetArrayClass(GetClassRoot(kFloatArrayClass));
@@ -513,10 +510,6 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   mirror::Class* Art_method_class = FindSystemClass(self, "Ljava/lang/reflect/ArtMethod;");
   CHECK_EQ(java_lang_reflect_ArtMethod.Get(), Art_method_class);
 
-  mirror::Class::SetStatus(java_lang_reflect_ArtField, mirror::Class::kStatusNotReady, self);
-  mirror::Class* Art_field_class = FindSystemClass(self, "Ljava/lang/reflect/ArtField;");
-  CHECK_EQ(java_lang_reflect_ArtField.Get(), Art_field_class);
-
   mirror::Class* String_array_class =
       FindSystemClass(self, GetClassRootDescriptor(kJavaLangStringArrayClass));
   CHECK_EQ(object_array_string.Get(), String_array_class);
@@ -524,10 +517,6 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   mirror::Class* Art_method_array_class =
       FindSystemClass(self, GetClassRootDescriptor(kJavaLangReflectArtMethodArrayClass));
   CHECK_EQ(object_array_art_method.Get(), Art_method_array_class);
-
-  mirror::Class* Art_field_array_class =
-      FindSystemClass(self, GetClassRootDescriptor(kJavaLangReflectArtFieldArrayClass));
-  CHECK_EQ(object_array_art_field.Get(), Art_field_array_class);
 
   // End of special init trickery, subsequent classes may be loaded via FindSystemClass.
 
@@ -624,23 +613,23 @@ void ClassLinker::FinishInit(Thread* self) {
   mirror::Class* java_lang_ref_FinalizerReference =
       FindSystemClass(self, "Ljava/lang/ref/FinalizerReference;");
 
-  mirror::ArtField* pendingNext = java_lang_ref_Reference->GetInstanceField(0);
+  ArtField* pendingNext = java_lang_ref_Reference->GetInstanceField(0);
   CHECK_STREQ(pendingNext->GetName(), "pendingNext");
   CHECK_STREQ(pendingNext->GetTypeDescriptor(), "Ljava/lang/ref/Reference;");
 
-  mirror::ArtField* queue = java_lang_ref_Reference->GetInstanceField(1);
+  ArtField* queue = java_lang_ref_Reference->GetInstanceField(1);
   CHECK_STREQ(queue->GetName(), "queue");
   CHECK_STREQ(queue->GetTypeDescriptor(), "Ljava/lang/ref/ReferenceQueue;");
 
-  mirror::ArtField* queueNext = java_lang_ref_Reference->GetInstanceField(2);
+  ArtField* queueNext = java_lang_ref_Reference->GetInstanceField(2);
   CHECK_STREQ(queueNext->GetName(), "queueNext");
   CHECK_STREQ(queueNext->GetTypeDescriptor(), "Ljava/lang/ref/Reference;");
 
-  mirror::ArtField* referent = java_lang_ref_Reference->GetInstanceField(3);
+  ArtField* referent = java_lang_ref_Reference->GetInstanceField(3);
   CHECK_STREQ(referent->GetName(), "referent");
   CHECK_STREQ(referent->GetTypeDescriptor(), "Ljava/lang/Object;");
 
-  mirror::ArtField* zombie = java_lang_ref_FinalizerReference->GetInstanceField(2);
+  ArtField* zombie = java_lang_ref_FinalizerReference->GetInstanceField(2);
   CHECK_STREQ(zombie->GetName(), "zombie");
   CHECK_STREQ(zombie->GetTypeDescriptor(), "Ljava/lang/Object;");
 
@@ -802,6 +791,23 @@ void ClassLinker::InitFromImageInterpretOnlyCallback(mirror::Object* obj, void* 
   }
 }
 
+void SanityCheckObjectsCallback(mirror::Object* obj, void* arg ATTRIBUTE_UNUSED)
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  DCHECK(obj != nullptr);
+  CHECK(obj->GetClass() != nullptr) << "Null class " << obj;
+  CHECK(obj->GetClass()->GetClass() != nullptr) << "Null class class " << obj;
+  if (obj->IsClass()) {
+    auto klass = obj->AsClass();
+    ArtField* fields[2] = { klass->GetSFields(), klass->GetIFields() };
+    size_t num_fields[2] = { klass->NumStaticFields(), klass->NumInstanceFields() };
+    for (size_t i = 0; i < 2; ++i) {
+      for (size_t j = 0; j < num_fields[i]; ++j) {
+        CHECK_EQ(fields[i][j].GetDeclaringClass(), klass);
+      }
+    }
+  }
+}
+
 void ClassLinker::InitFromImage() {
   VLOG(startup) << "ClassLinker::InitFromImage entering";
   CHECK(!init_done_);
@@ -882,6 +888,18 @@ void ClassLinker::InitFromImage() {
   if (!runtime->IsAotCompiler() && runtime->GetInstrumentation()->InterpretOnly()) {
     heap->VisitObjects(InitFromImageInterpretOnlyCallback, this);
   }
+  if (kSanityCheckObjects) {
+    for (int32_t i = 0; i < dex_caches->GetLength(); i++) {
+      auto* dex_cache = dex_caches->Get(i);
+      for (size_t j = 0; j < dex_cache->NumResolvedFields(); ++j) {
+        auto* field = dex_cache->GetResolvedField(j, image_pointer_size_);
+        if (field != nullptr) {
+          CHECK(field->GetDeclaringClass()->GetClass() != nullptr);
+        }
+      }
+    }
+    heap->VisitObjects(SanityCheckObjectsCallback, nullptr);
+  }
 
   // reinit class_roots_
   mirror::Class::SetClassClass(class_roots->Get(kJavaLangClass));
@@ -894,7 +912,6 @@ void ClassLinker::InitFromImage() {
   mirror::Field::SetClass(GetClassRoot(kJavaLangReflectField));
   mirror::Field::SetArrayClass(GetClassRoot(kJavaLangReflectFieldArrayClass));
   mirror::Reference::SetClass(GetClassRoot(kJavaLangRefReference));
-  mirror::ArtField::SetClass(GetClassRoot(kJavaLangReflectArtField));
   mirror::BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
   mirror::ByteArray::SetArrayClass(GetClassRoot(kByteArrayClass));
   mirror::CharArray::SetArrayClass(GetClassRoot(kCharArrayClass));
@@ -913,18 +930,22 @@ void ClassLinker::InitFromImage() {
 
 void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
+  BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(
+      visitor, RootInfo(kRootStickyClass));
   if ((flags & kVisitRootFlagAllRoots) != 0) {
-    BufferedRootVisitor<kDefaultBufferedRootCount> buffered_visitor(
-        visitor, RootInfo(kRootStickyClass));
     for (GcRoot<mirror::Class>& root : class_table_) {
       buffered_visitor.VisitRoot(root);
+      root.Read()->VisitFieldRoots(buffered_visitor);
     }
+    // PreZygote classes can't move so we won't need to update fields' declaring classes.
     for (GcRoot<mirror::Class>& root : pre_zygote_class_table_) {
       buffered_visitor.VisitRoot(root);
+      root.Read()->VisitFieldRoots(buffered_visitor);
     }
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_class_roots_) {
       mirror::Class* old_ref = root.Read<kWithoutReadBarrier>();
+      old_ref->VisitFieldRoots(buffered_visitor);
       root.VisitRoot(visitor, RootInfo(kRootStickyClass));
       mirror::Class* new_ref = root.Read<kWithoutReadBarrier>();
       if (UNLIKELY(new_ref != old_ref)) {
@@ -937,6 +958,7 @@ void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
       }
     }
   }
+  buffered_visitor.Flush();  // Flush before clearing new_class_roots_.
   if ((flags & kVisitRootFlagClearRootLog) != 0) {
     new_class_roots_.clear();
   }
@@ -1077,7 +1099,6 @@ ClassLinker::~ClassLinker() {
   mirror::Class::ResetClass();
   mirror::String::ResetClass();
   mirror::Reference::ResetClass();
-  mirror::ArtField::ResetClass();
   mirror::ArtMethod::ResetClass();
   mirror::Field::ResetClass();
   mirror::Field::ResetArrayClass();
@@ -1095,7 +1116,7 @@ ClassLinker::~ClassLinker() {
 }
 
 mirror::DexCache* ClassLinker::AllocDexCache(Thread* self, const DexFile& dex_file) {
-  gc::Heap* heap = Runtime::Current()->GetHeap();
+  gc::Heap* const heap = Runtime::Current()->GetHeap();
   StackHandleScope<16> hs(self);
   Handle<mirror::Class> dex_cache_class(hs.NewHandle(GetClassRoot(kJavaLangDexCache)));
   Handle<mirror::DexCache> dex_cache(
@@ -1125,8 +1146,12 @@ mirror::DexCache* ClassLinker::AllocDexCache(Thread* self, const DexFile& dex_fi
   if (methods.Get() == nullptr) {
     return nullptr;
   }
-  Handle<mirror::ObjectArray<mirror::ArtField>>
-      fields(hs.NewHandle(AllocArtFieldArray(self, dex_file.NumFieldIds())));
+  Handle<mirror::Array> fields;
+  if (image_pointer_size_ == 8) {
+    fields = hs.NewHandle<mirror::Array>(mirror::LongArray::Alloc(self, dex_file.NumFieldIds()));
+  } else {
+    fields = hs.NewHandle<mirror::Array>(mirror::IntArray::Alloc(self, dex_file.NumFieldIds()));
+  }
   if (fields.Get() == nullptr) {
     return nullptr;
   }
@@ -1152,11 +1177,6 @@ mirror::Class* ClassLinker::AllocClass(Thread* self, mirror::Class* java_lang_Cl
 
 mirror::Class* ClassLinker::AllocClass(Thread* self, uint32_t class_size) {
   return AllocClass(self, GetClassRoot(kJavaLangClass), class_size);
-}
-
-mirror::ArtField* ClassLinker::AllocArtField(Thread* self) {
-  return down_cast<mirror::ArtField*>(
-      GetClassRoot(kJavaLangReflectArtField)->AllocNonMovableObject(self));
 }
 
 mirror::ArtMethod* ClassLinker::AllocArtMethod(Thread* self) {
@@ -1273,16 +1293,13 @@ mirror::Class* ClassLinker::FindClassInPathClassLoader(ScopedObjectAccessAlready
     StackHandleScope<3> hs(self);
     // The class loader is a PathClassLoader which inherits from BaseDexClassLoader.
     // We need to get the DexPathList and loop through it.
-    Handle<mirror::ArtField> cookie_field =
-        hs.NewHandle(soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie));
-    Handle<mirror::ArtField> dex_file_field =
-        hs.NewHandle(
-            soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile));
+    ArtField* const cookie_field = soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie);
+    ArtField* const dex_file_field =
+        soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
     mirror::Object* dex_path_list =
         soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList)->
         GetObject(class_loader.Get());
-    if (dex_path_list != nullptr && dex_file_field.Get() != nullptr &&
-        cookie_field.Get() != nullptr) {
+    if (dex_path_list != nullptr && dex_file_field != nullptr && cookie_field != nullptr) {
       // DexPathList has an array dexElements of Elements[] which each contain a dex file.
       mirror::Object* dex_elements_obj =
           soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->
@@ -1433,8 +1450,6 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, si
       klass.Assign(GetClassRoot(kJavaLangRefReference));
     } else if (strcmp(descriptor, "Ljava/lang/DexCache;") == 0) {
       klass.Assign(GetClassRoot(kJavaLangDexCache));
-    } else if (strcmp(descriptor, "Ljava/lang/reflect/ArtField;") == 0) {
-      klass.Assign(GetClassRoot(kJavaLangReflectArtField));
     } else if (strcmp(descriptor, "Ljava/lang/reflect/ArtMethod;") == 0) {
       klass.Assign(GetClassRoot(kJavaLangReflectArtMethod));
     }
@@ -1452,16 +1467,10 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, si
     return nullptr;
   }
   klass->SetDexCache(FindDexCache(dex_file));
-  LoadClass(self, dex_file, dex_class_def, klass, class_loader.Get());
+
+  SetupClass(dex_file, dex_class_def, klass, class_loader.Get());
+
   ObjectLock<mirror::Class> lock(self, klass);
-  if (self->IsExceptionPending()) {
-    // An exception occured during load, set status to erroneous while holding klass' lock in case
-    // notification is necessary.
-    if (!klass->IsErroneous()) {
-      mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
-    }
-    return nullptr;
-  }
   klass->SetClinitThreadId(self->GetTid());
 
   // Add the newly loaded class to the loaded classes table.
@@ -1470,6 +1479,20 @@ mirror::Class* ClassLinker::DefineClass(Thread* self, const char* descriptor, si
     // We failed to insert because we raced with another thread. Calling EnsureResolved may cause
     // this thread to block.
     return EnsureResolved(self, descriptor, existing);
+  }
+
+  // Load the fields and other things after we are inserted in the table. This is so that we don't
+  // end up allocating unfree-able linear alloc resources and then lose the race condition. The
+  // other reason is that the field roots are only visited from the class table. So we need to be
+  // inserted before we allocate / fill in these fields.
+  LoadClass(self, dex_file, dex_class_def, klass);
+  if (self->IsExceptionPending()) {
+    // An exception occured during load, set status to erroneous while holding klass' lock in case
+    // notification is necessary.
+    if (!klass->IsErroneous()) {
+      mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
+    }
+    return nullptr;
   }
 
   // Finish loading (if necessary) by finding parents
@@ -1845,12 +1868,8 @@ void ClassLinker::LinkCode(Handle<mirror::ArtMethod> method,
   }
 }
 
-
-
-void ClassLinker::LoadClass(Thread* self, const DexFile& dex_file,
-                            const DexFile::ClassDef& dex_class_def,
-                            Handle<mirror::Class> klass,
-                            mirror::ClassLoader* class_loader) {
+void ClassLinker::SetupClass(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
+                             Handle<mirror::Class> klass, mirror::ClassLoader* class_loader) {
   CHECK(klass.Get() != nullptr);
   CHECK(klass->GetDexCache() != nullptr);
   CHECK_EQ(mirror::Class::kStatusNotReady, klass->GetStatus());
@@ -1868,13 +1887,15 @@ void ClassLinker::LoadClass(Thread* self, const DexFile& dex_file,
   klass->SetDexClassDefIndex(dex_file.GetIndexForClassDef(dex_class_def));
   klass->SetDexTypeIndex(dex_class_def.class_idx_);
   CHECK(klass->GetDexCacheStrings() != nullptr);
+}
 
+void ClassLinker::LoadClass(Thread* self, const DexFile& dex_file,
+                            const DexFile::ClassDef& dex_class_def,
+                            Handle<mirror::Class> klass) {
   const uint8_t* class_data = dex_file.GetClassData(dex_class_def);
   if (class_data == nullptr) {
     return;  // no fields or methods - for example a marker interface
   }
-
-
   bool has_oat_class = false;
   if (Runtime::Current()->IsStarted() && !Runtime::Current()->IsAotCompiler()) {
     OatFile::OatClass oat_class = FindOatClass(dex_file, klass->GetDexClassDefIndex(),
@@ -1888,51 +1909,41 @@ void ClassLinker::LoadClass(Thread* self, const DexFile& dex_file,
   }
 }
 
+ArtField* ClassLinker::AllocArtFieldArray(Thread* self, size_t length) {
+  auto* const la = Runtime::Current()->GetLinearAlloc();
+  auto* ptr = reinterpret_cast<ArtField*>(la->AllocArray<ArtField>(self, length));
+  CHECK(ptr!= nullptr);
+  std::uninitialized_fill_n(ptr, length, ArtField());
+  return ptr;
+}
+
 void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
                                    const uint8_t* class_data,
                                    Handle<mirror::Class> klass,
                                    const OatFile::OatClass* oat_class) {
-  // Load fields.
+  // Load static fields.
   ClassDataItemIterator it(dex_file, class_data);
-  if (it.NumStaticFields() != 0) {
-    mirror::ObjectArray<mirror::ArtField>* statics = AllocArtFieldArray(self, it.NumStaticFields());
-    if (UNLIKELY(statics == nullptr)) {
-      CHECK(self->IsExceptionPending());  // OOME.
-      return;
-    }
-    klass->SetSFields(statics);
-  }
-  if (it.NumInstanceFields() != 0) {
-    mirror::ObjectArray<mirror::ArtField>* fields =
-        AllocArtFieldArray(self, it.NumInstanceFields());
-    if (UNLIKELY(fields == nullptr)) {
-      CHECK(self->IsExceptionPending());  // OOME.
-      return;
-    }
-    klass->SetIFields(fields);
-  }
+  const size_t num_sfields = it.NumStaticFields();
+  ArtField* sfields = num_sfields != 0 ? AllocArtFieldArray(self, num_sfields) : nullptr;
   for (size_t i = 0; it.HasNextStaticField(); i++, it.Next()) {
+    CHECK_LT(i, num_sfields);
     self->AllowThreadSuspension();
-    StackHandleScope<1> hs(self);
-    Handle<mirror::ArtField> sfield(hs.NewHandle(AllocArtField(self)));
-    if (UNLIKELY(sfield.Get() == nullptr)) {
-      CHECK(self->IsExceptionPending());  // OOME.
-      return;
-    }
-    klass->SetStaticField(i, sfield.Get());
-    LoadField(dex_file, it, klass, sfield);
+    LoadField(it, klass, &sfields[i]);
   }
+  klass->SetSFields(sfields);
+  klass->SetNumStaticFields(num_sfields);
+  DCHECK_EQ(klass->NumStaticFields(), num_sfields);
+  // Load instance fields.
+  const size_t num_ifields = it.NumInstanceFields();
+  ArtField* ifields = num_ifields != 0 ? AllocArtFieldArray(self, num_ifields) : nullptr;
   for (size_t i = 0; it.HasNextInstanceField(); i++, it.Next()) {
+    CHECK_LT(i, num_ifields);
     self->AllowThreadSuspension();
-    StackHandleScope<1> hs(self);
-    Handle<mirror::ArtField> ifield(hs.NewHandle(AllocArtField(self)));
-    if (UNLIKELY(ifield.Get() == nullptr)) {
-      CHECK(self->IsExceptionPending());  // OOME.
-      return;
-    }
-    klass->SetInstanceField(i, ifield.Get());
-    LoadField(dex_file, it, klass, ifield);
+    LoadField(it, klass, &ifields[i]);
   }
+  klass->SetIFields(ifields);
+  klass->SetNumInstanceFields(num_ifields);
+  DCHECK_EQ(klass->NumInstanceFields(), num_ifields);
 
   // Load methods.
   if (it.NumDirectMethods() != 0) {
@@ -1995,10 +2006,9 @@ void ClassLinker::LoadClassMembers(Thread* self, const DexFile& dex_file,
   DCHECK(!it.HasNext());
 }
 
-void ClassLinker::LoadField(const DexFile& /*dex_file*/, const ClassDataItemIterator& it,
-                            Handle<mirror::Class> klass,
-                            Handle<mirror::ArtField> dst) {
-  uint32_t field_idx = it.GetMemberIndex();
+void ClassLinker::LoadField(const ClassDataItemIterator& it, Handle<mirror::Class> klass,
+                            ArtField* dst) {
+  const uint32_t field_idx = it.GetMemberIndex();
   dst->SetDexFieldIndex(field_idx);
   dst->SetDeclaringClass(klass.Get());
   dst->SetAccessFlags(it.GetFieldAccessFlags());
@@ -2282,13 +2292,12 @@ mirror::Class* ClassLinker::CreateArrayClass(Thread* self, const char* descripto
     } else if (strcmp(descriptor,
                       GetClassRootDescriptor(kJavaLangReflectArtMethodArrayClass)) == 0) {
       new_class.Assign(GetClassRoot(kJavaLangReflectArtMethodArrayClass));
-    } else if (strcmp(descriptor,
-                      GetClassRootDescriptor(kJavaLangReflectArtFieldArrayClass)) == 0) {
-      new_class.Assign(GetClassRoot(kJavaLangReflectArtFieldArrayClass));
     } else if (strcmp(descriptor, "[C") == 0) {
       new_class.Assign(GetClassRoot(kCharArrayClass));
     } else if (strcmp(descriptor, "[I") == 0) {
       new_class.Assign(GetClassRoot(kIntArrayClass));
+    } else if (strcmp(descriptor, "[J") == 0) {
+      new_class.Assign(GetClassRoot(kLongArrayClass));
     }
   }
   if (new_class.Get() == nullptr) {
@@ -2919,32 +2928,20 @@ mirror::Class* ClassLinker::CreateProxyClass(ScopedObjectAccessAlreadyRunnable& 
   mirror::Class::SetStatus(klass, mirror::Class::kStatusIdx, self);
 
   // Instance fields are inherited, but we add a couple of static fields...
-  {
-    mirror::ObjectArray<mirror::ArtField>* sfields = AllocArtFieldArray(self, 2);
-    if (UNLIKELY(sfields == nullptr)) {
-      CHECK(self->IsExceptionPending());  // OOME.
-      return nullptr;
-    }
-    klass->SetSFields(sfields);
-  }
+  const size_t num_fields = 2;
+  ArtField* sfields = AllocArtFieldArray(self, num_fields);
+  klass->SetSFields(sfields);
+  klass->SetNumStaticFields(num_fields);
+
   // 1. Create a static field 'interfaces' that holds the _declared_ interfaces implemented by
   // our proxy, so Class.getInterfaces doesn't return the flattened set.
-  Handle<mirror::ArtField> interfaces_sfield(hs.NewHandle(AllocArtField(self)));
-  if (UNLIKELY(interfaces_sfield.Get() == nullptr)) {
-    CHECK(self->IsExceptionPending());  // OOME.
-    return nullptr;
-  }
-  klass->SetStaticField(0, interfaces_sfield.Get());
+  ArtField* interfaces_sfield = &sfields[0];
   interfaces_sfield->SetDexFieldIndex(0);
   interfaces_sfield->SetDeclaringClass(klass.Get());
   interfaces_sfield->SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
+
   // 2. Create a static field 'throws' that holds exceptions thrown by our methods.
-  Handle<mirror::ArtField> throws_sfield(hs.NewHandle(AllocArtField(self)));
-  if (UNLIKELY(throws_sfield.Get() == nullptr)) {
-    CHECK(self->IsExceptionPending());  // OOME.
-    return nullptr;
-  }
-  klass->SetStaticField(1, throws_sfield.Get());
+  ArtField* throws_sfield = &sfields[1];
   throws_sfield->SetDexFieldIndex(1);
   throws_sfield->SetDeclaringClass(klass.Get());
   throws_sfield->SetAccessFlags(kAccStatic | kAccPublic | kAccFinal);
@@ -3332,11 +3329,11 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
     // Eagerly fill in static fields so that the we don't have to do as many expensive
     // Class::FindStaticField in ResolveField.
     for (size_t i = 0; i < num_static_fields; ++i) {
-      mirror::ArtField* field = klass->GetStaticField(i);
+      ArtField* field = klass->GetStaticField(i);
       const uint32_t field_idx = field->GetDexFieldIndex();
-      mirror::ArtField* resolved_field = dex_cache->GetResolvedField(field_idx);
+      ArtField* resolved_field = dex_cache->GetResolvedField(field_idx, image_pointer_size_);
       if (resolved_field == nullptr) {
-        dex_cache->SetResolvedField(field_idx, field);
+        dex_cache->SetResolvedField(field_idx, field, image_pointer_size_);
       } else {
         DCHECK_EQ(field, resolved_field);
       }
@@ -3350,9 +3347,8 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
       DCHECK(field_it.HasNextStaticField());
       CHECK(can_init_statics);
       for ( ; value_it.HasNext(); value_it.Next(), field_it.Next()) {
-        StackHandleScope<1> hs2(self);
-        Handle<mirror::ArtField> field(hs2.NewHandle(
-            ResolveField(dex_file, field_it.GetMemberIndex(), dex_cache, class_loader, true)));
+        ArtField* field = ResolveField(
+            dex_file, field_it.GetMemberIndex(), dex_cache, class_loader, true);
         if (Runtime::Current()->IsActiveTransaction()) {
           value_it.ReadValueToField<true>(field);
         } else {
@@ -3586,21 +3582,17 @@ bool ClassLinker::EnsureInitialized(Thread* self, Handle<mirror::Class> c, bool 
 }
 
 void ClassLinker::FixupTemporaryDeclaringClass(mirror::Class* temp_class, mirror::Class* new_class) {
-  mirror::ObjectArray<mirror::ArtField>* fields = new_class->GetIFields();
-  if (fields != nullptr) {
-    for (int index = 0; index < fields->GetLength(); index ++) {
-      if (fields->Get(index)->GetDeclaringClass() == temp_class) {
-        fields->Get(index)->SetDeclaringClass(new_class);
-      }
+  ArtField* fields = new_class->GetIFields();
+  for (size_t i = 0, count = new_class->NumInstanceFields(); i < count; i++) {
+    if (fields[i].GetDeclaringClass() == temp_class) {
+      fields[i].SetDeclaringClass(new_class);
     }
   }
 
   fields = new_class->GetSFields();
-  if (fields != nullptr) {
-    for (int index = 0; index < fields->GetLength(); index ++) {
-      if (fields->Get(index)->GetDeclaringClass() == temp_class) {
-        fields->Get(index)->SetDeclaringClass(new_class);
-      }
+  for (size_t i = 0, count = new_class->NumStaticFields(); i < count; i++) {
+    if (fields[i].GetDeclaringClass() == temp_class) {
+      fields[i].SetDeclaringClass(new_class);
     }
   }
 
@@ -4567,7 +4559,7 @@ struct LinkFieldsComparator {
   explicit LinkFieldsComparator() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   }
   // No thread safety analysis as will be called from STL. Checked lock held in constructor.
-  bool operator()(mirror::ArtField* field1, mirror::ArtField* field2)
+  bool operator()(ArtField* field1, ArtField* field2)
       NO_THREAD_SAFETY_ANALYSIS {
     // First come reference fields, then 64-bit, then 32-bit, and then 16-bit, then finally 8-bit.
     Primitive::Type type1 = field1->GetTypeAsPrimitiveType();
@@ -4600,11 +4592,8 @@ struct LinkFieldsComparator {
 bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_static,
                              size_t* class_size) {
   self->AllowThreadSuspension();
-  size_t num_fields =
-      is_static ? klass->NumStaticFields() : klass->NumInstanceFields();
-
-  mirror::ObjectArray<mirror::ArtField>* fields =
-      is_static ? klass->GetSFields() : klass->GetIFields();
+  const size_t num_fields = is_static ? klass->NumStaticFields() : klass->NumInstanceFields();
+  ArtField* const fields = is_static ? klass->GetSFields() : klass->GetIFields();
 
   // Initialize field_offset
   MemberOffset field_offset(0);
@@ -4623,13 +4612,11 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
 
   // we want a relatively stable order so that adding new fields
   // minimizes disruption of C++ version such as Class and Method.
-  std::deque<mirror::ArtField*> grouped_and_sorted_fields;
+  std::deque<ArtField*> grouped_and_sorted_fields;
   const char* old_no_suspend_cause = self->StartAssertNoThreadSuspension(
       "Naked ArtField references in deque");
   for (size_t i = 0; i < num_fields; i++) {
-    mirror::ArtField* f = fields->Get(i);
-    CHECK(f != nullptr) << PrettyClass(klass.Get());
-    grouped_and_sorted_fields.push_back(f);
+    grouped_and_sorted_fields.push_back(&fields[i]);
   }
   std::sort(grouped_and_sorted_fields.begin(), grouped_and_sorted_fields.end(),
             LinkFieldsComparator());
@@ -4640,7 +4627,7 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
   FieldGaps gaps;
 
   for (; current_field < num_fields; current_field++) {
-    mirror::ArtField* field = grouped_and_sorted_fields.front();
+    ArtField* field = grouped_and_sorted_fields.front();
     Primitive::Type type = field->GetTypeAsPrimitiveType();
     bool isPrimitive = type != Primitive::kPrimNot;
     if (isPrimitive) {
@@ -4674,7 +4661,7 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
     // We know there are no non-reference fields in the Reference classes, and we know
     // that 'referent' is alphabetically last, so this is easy...
     CHECK_EQ(num_reference_fields, num_fields) << PrettyClass(klass.Get());
-    CHECK_STREQ(fields->Get(num_fields - 1)->GetName(), "referent") << PrettyClass(klass.Get());
+    CHECK_STREQ(fields[num_fields - 1].GetName(), "referent") << PrettyClass(klass.Get());
     --num_reference_fields;
   }
 
@@ -4713,16 +4700,12 @@ bool ClassLinker::LinkFields(Thread* self, Handle<mirror::Class> klass, bool is_
                                     sizeof(mirror::HeapReference<mirror::Object>));
     MemberOffset current_ref_offset = start_ref_offset;
     for (size_t i = 0; i < num_fields; i++) {
-      mirror::ArtField* field = fields->Get(i);
-      if ((false)) {  // enable to debug field layout
-        LOG(INFO) << "LinkFields: " << (is_static ? "static" : "instance")
-                    << " class=" << PrettyClass(klass.Get())
-                    << " field=" << PrettyField(field)
-                    << " offset="
-                    << field->GetField32(mirror::ArtField::OffsetOffset());
-      }
+      ArtField* field = &fields[i];
+      VLOG(class_linker) << "LinkFields: " << (is_static ? "static" : "instance")
+          << " class=" << PrettyClass(klass.Get()) << " field=" << PrettyField(field) << " offset="
+          << field->GetOffset();
       if (i != 0) {
-        mirror::ArtField* prev_field = fields->Get(i - 1u);
+        ArtField* const prev_field = &fields[i - 1];
         // NOTE: The field names can be the same. This is not possible in the Java language
         // but it's valid Java/dex bytecode and for example proguard can generate such bytecode.
         CHECK_LE(strcmp(prev_field->GetName(), field->GetName()), 0);
@@ -4994,12 +4977,11 @@ mirror::ArtMethod* ClassLinker::ResolveMethod(const DexFile& dex_file, uint32_t 
   }
 }
 
-mirror::ArtField* ClassLinker::ResolveField(const DexFile& dex_file, uint32_t field_idx,
-                                            Handle<mirror::DexCache> dex_cache,
-                                            Handle<mirror::ClassLoader> class_loader,
-                                            bool is_static) {
+ArtField* ClassLinker::ResolveField(const DexFile& dex_file, uint32_t field_idx,
+                                    Handle<mirror::DexCache> dex_cache,
+                                    Handle<mirror::ClassLoader> class_loader, bool is_static) {
   DCHECK(dex_cache.Get() != nullptr);
-  mirror::ArtField* resolved = dex_cache->GetResolvedField(field_idx);
+  ArtField* resolved = dex_cache->GetResolvedField(field_idx, image_pointer_size_);
   if (resolved != nullptr) {
     return resolved;
   }
@@ -5032,16 +5014,15 @@ mirror::ArtField* ClassLinker::ResolveField(const DexFile& dex_file, uint32_t fi
       return nullptr;
     }
   }
-  dex_cache->SetResolvedField(field_idx, resolved);
+  dex_cache->SetResolvedField(field_idx, resolved, image_pointer_size_);
   return resolved;
 }
 
-mirror::ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
-                                               uint32_t field_idx,
-                                               Handle<mirror::DexCache> dex_cache,
-                                               Handle<mirror::ClassLoader> class_loader) {
+ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file, uint32_t field_idx,
+                                       Handle<mirror::DexCache> dex_cache,
+                                       Handle<mirror::ClassLoader> class_loader) {
   DCHECK(dex_cache.Get() != nullptr);
-  mirror::ArtField* resolved = dex_cache->GetResolvedField(field_idx);
+  ArtField* resolved = dex_cache->GetResolvedField(field_idx, image_pointer_size_);
   if (resolved != nullptr) {
     return resolved;
   }
@@ -5060,7 +5041,7 @@ mirror::ArtField* ClassLinker::ResolveFieldJLS(const DexFile& dex_file,
       dex_file.GetTypeId(field_id.type_idx_).descriptor_idx_));
   resolved = mirror::Class::FindField(self, klass, name, type);
   if (resolved != nullptr) {
-    dex_cache->SetResolvedField(field_idx, resolved);
+    dex_cache->SetResolvedField(field_idx, resolved, image_pointer_size_);
   } else {
     ThrowNoSuchFieldError("", klass.Get(), type, name);
   }
@@ -5190,12 +5171,10 @@ const char* ClassLinker::GetClassRootDescriptor(ClassRoot class_root) {
     "Ljava/lang/String;",
     "Ljava/lang/DexCache;",
     "Ljava/lang/ref/Reference;",
-    "Ljava/lang/reflect/ArtField;",
     "Ljava/lang/reflect/ArtMethod;",
     "Ljava/lang/reflect/Field;",
     "Ljava/lang/reflect/Proxy;",
     "[Ljava/lang/String;",
-    "[Ljava/lang/reflect/ArtField;",
     "[Ljava/lang/reflect/ArtMethod;",
     "[Ljava/lang/reflect/Field;",
     "Ljava/lang/ClassLoader;",
@@ -5310,12 +5289,12 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
   }
 
   // For now, create a libcore-level DexFile for each ART DexFile. This "explodes" multidex.
-  StackHandleScope<11> hs(self);
+  StackHandleScope<10> hs(self);
 
-  Handle<mirror::ArtField> h_dex_elements_field =
-      hs.NewHandle(soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements));
+  ArtField* dex_elements_field =
+      soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements);
 
-  mirror::Class* dex_elements_class = h_dex_elements_field->GetType<true>();
+  mirror::Class* dex_elements_class = dex_elements_field->GetType<true>();
   DCHECK(dex_elements_class != nullptr);
   DCHECK(dex_elements_class->IsArrayClass());
   Handle<mirror::ObjectArray<mirror::Object>> h_dex_elements(hs.NewHandle(
@@ -5323,14 +5302,12 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
   Handle<mirror::Class> h_dex_element_class =
       hs.NewHandle(dex_elements_class->GetComponentType());
 
-  Handle<mirror::ArtField> h_element_file_field =
-      hs.NewHandle(
-          soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile));
-  DCHECK_EQ(h_dex_element_class.Get(), h_element_file_field->GetDeclaringClass());
+  ArtField* element_file_field =
+      soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile);
+  DCHECK_EQ(h_dex_element_class.Get(), element_file_field->GetDeclaringClass());
 
-  Handle<mirror::ArtField> h_cookie_field =
-      hs.NewHandle(soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie));
-  DCHECK_EQ(h_cookie_field->GetDeclaringClass(), h_element_file_field->GetType<false>());
+  ArtField* cookie_field = soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie);
+  DCHECK_EQ(cookie_field->GetDeclaringClass(), element_file_field->GetType<false>());
 
   // Fill the elements array.
   int32_t index = 0;
@@ -5342,13 +5319,13 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
     h_long_array->Set(0, reinterpret_cast<intptr_t>(dex_file));
 
     Handle<mirror::Object> h_dex_file = hs2.NewHandle(
-        h_cookie_field->GetDeclaringClass()->AllocObject(self));
+        cookie_field->GetDeclaringClass()->AllocObject(self));
     DCHECK(h_dex_file.Get() != nullptr);
-    h_cookie_field->SetObject<false>(h_dex_file.Get(), h_long_array.Get());
+    cookie_field->SetObject<false>(h_dex_file.Get(), h_long_array.Get());
 
     Handle<mirror::Object> h_element = hs2.NewHandle(h_dex_element_class->AllocObject(self));
     DCHECK(h_element.Get() != nullptr);
-    h_element_file_field->SetObject<false>(h_element.Get(), h_dex_file.Get());
+    element_file_field->SetObject<false>(h_element.Get(), h_dex_file.Get());
 
     h_dex_elements->Set(index, h_element.Get());
     index++;
@@ -5357,10 +5334,10 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
 
   // Create DexPathList.
   Handle<mirror::Object> h_dex_path_list = hs.NewHandle(
-      h_dex_elements_field->GetDeclaringClass()->AllocObject(self));
+      dex_elements_field->GetDeclaringClass()->AllocObject(self));
   DCHECK(h_dex_path_list.Get() != nullptr);
   // Set elements.
-  h_dex_elements_field->SetObject<false>(h_dex_path_list.Get(), h_dex_elements.Get());
+  dex_elements_field->SetObject<false>(h_dex_path_list.Get(), h_dex_elements.Get());
 
   // Create PathClassLoader.
   Handle<mirror::Class> h_path_class_class = hs.NewHandle(
@@ -5369,20 +5346,20 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
       h_path_class_class->AllocObject(self));
   DCHECK(h_path_class_loader.Get() != nullptr);
   // Set DexPathList.
-  Handle<mirror::ArtField> h_path_list_field = hs.NewHandle(
-      soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList));
-  DCHECK(h_path_list_field.Get() != nullptr);
-  h_path_list_field->SetObject<false>(h_path_class_loader.Get(), h_dex_path_list.Get());
+  ArtField* path_list_field =
+      soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList);
+  DCHECK(path_list_field != nullptr);
+  path_list_field->SetObject<false>(h_path_class_loader.Get(), h_dex_path_list.Get());
 
   // Make a pretend boot-classpath.
   // TODO: Should we scan the image?
-  Handle<mirror::ArtField> h_parent_field = hs.NewHandle(
+  ArtField* const parent_field =
       mirror::Class::FindField(self, hs.NewHandle(h_path_class_loader->GetClass()), "parent",
-                               "Ljava/lang/ClassLoader;"));
-  DCHECK(h_parent_field.Get() != nullptr);
+                               "Ljava/lang/ClassLoader;");
+  DCHECK(parent_field!= nullptr);
   mirror::Object* boot_cl =
       soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_BootClassLoader)->AllocObject(self);
-  h_parent_field->SetObject<false>(h_path_class_loader.Get(), boot_cl);
+  parent_field->SetObject<false>(h_path_class_loader.Get(), boot_cl);
 
   // Make it a global ref and return.
   ScopedLocalRef<jobject> local_ref(

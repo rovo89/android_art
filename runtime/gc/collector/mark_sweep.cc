@@ -39,7 +39,6 @@
 #include "gc/space/large_object_space.h"
 #include "gc/space/space-inl.h"
 #include "mark_sweep-inl.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/object-inl.h"
 #include "runtime.h"
 #include "scoped_thread_state_change.h"

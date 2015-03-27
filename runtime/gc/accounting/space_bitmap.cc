@@ -16,12 +16,12 @@
 
 #include "space_bitmap-inl.h"
 
+#include "art_field-inl.h"
 #include "base/stringprintf.h"
 #include "dex_file-inl.h"
 #include "mem_map.h"
 #include "mirror/object-inl.h"
 #include "mirror/class.h"
-#include "mirror/art_field.h"
 #include "mirror/object_array.h"
 
 namespace art {
@@ -190,15 +190,13 @@ void SpaceBitmap<kAlignment>::WalkInstanceFields(SpaceBitmap<kAlignment>* visite
     WalkInstanceFields(visited, callback, obj, super, arg);
   }
   // Walk instance fields
-  mirror::ObjectArray<mirror::ArtField>* fields = klass->GetIFields();
-  if (fields != NULL) {
-    for (int32_t i = 0; i < fields->GetLength(); i++) {
-      mirror::ArtField* field = fields->Get(i);
-      if (!field->IsPrimitiveType()) {
-        mirror::Object* value = field->GetObj(obj);
-        if (value != NULL) {
-          WalkFieldsInOrder(visited, callback, value, arg);
-        }
+  auto* fields = klass->GetIFields();
+  for (size_t i = 0, count = klass->NumInstanceFields(); i < count; ++i) {
+    ArtField* field = &fields[i];
+    if (!field->IsPrimitiveType()) {
+      mirror::Object* value = field->GetObj(obj);
+      if (value != nullptr) {
+        WalkFieldsInOrder(visited, callback, value, arg);
       }
     }
   }
@@ -219,15 +217,13 @@ void SpaceBitmap<kAlignment>::WalkFieldsInOrder(SpaceBitmap<kAlignment>* visited
   WalkInstanceFields(visited, callback, obj, klass, arg);
   // Walk static fields of a Class
   if (obj->IsClass()) {
-    mirror::ObjectArray<mirror::ArtField>* fields = klass->GetSFields();
-    if (fields != NULL) {
-      for (int32_t i = 0; i < fields->GetLength(); i++) {
-        mirror::ArtField* field = fields->Get(i);
-        if (!field->IsPrimitiveType()) {
-          mirror::Object* value = field->GetObj(NULL);
-          if (value != NULL) {
-            WalkFieldsInOrder(visited, callback, value, arg);
-          }
+    auto* sfields = klass->GetSFields();
+    for (size_t i = 0, count = klass->NumStaticFields(); i < count; ++i) {
+      ArtField* field = &sfields[i];
+      if (!field->IsPrimitiveType()) {
+        mirror::Object* value = field->GetObj(nullptr);
+        if (value != nullptr) {
+          WalkFieldsInOrder(visited, callback, value, arg);
         }
       }
     }

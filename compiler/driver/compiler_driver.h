@@ -239,14 +239,14 @@ class CompilerDriver {
 
   // Resolve a field. Returns nullptr on failure, including incompatible class change.
   // NOTE: Unlike ClassLinker's ResolveField(), this method enforces is_static.
-  mirror::ArtField* ResolveField(
+  ArtField* ResolveField(
       const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexCompilationUnit* mUnit,
       uint32_t field_idx, bool is_static)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a field with a given dex file.
-  mirror::ArtField* ResolveFieldWithDexFile(
+  ArtField* ResolveFieldWithDexFile(
       const ScopedObjectAccess& soa, Handle<mirror::DexCache> dex_cache,
       Handle<mirror::ClassLoader> class_loader, const DexFile* dex_file,
       uint32_t field_idx, bool is_static)
@@ -254,12 +254,12 @@ class CompilerDriver {
 
   // Get declaration location of a resolved field.
   void GetResolvedFieldDexFileLocation(
-      mirror::ArtField* resolved_field, const DexFile** declaring_dex_file,
+      ArtField* resolved_field, const DexFile** declaring_dex_file,
       uint16_t* declaring_class_idx, uint16_t* declaring_field_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  bool IsFieldVolatile(mirror::ArtField* field) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  MemberOffset GetFieldOffset(mirror::ArtField* field) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  bool IsFieldVolatile(ArtField* field) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  MemberOffset GetFieldOffset(ArtField* field) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Find a dex cache for a dex file.
   inline mirror::DexCache* FindDexCache(const DexFile* dex_file)
@@ -268,23 +268,23 @@ class CompilerDriver {
   // Can we fast-path an IGET/IPUT access to an instance field? If yes, compute the field offset.
   std::pair<bool, bool> IsFastInstanceField(
       mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-      mirror::ArtField* resolved_field, uint16_t field_idx)
+      ArtField* resolved_field, uint16_t field_idx)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Can we fast-path an SGET/SPUT access to a static field? If yes, compute the type index
   // of the declaring class in the referrer's dex file.
   std::pair<bool, bool> IsFastStaticField(
       mirror::DexCache* dex_cache, mirror::Class* referrer_class,
-      mirror::ArtField* resolved_field, uint16_t field_idx, uint32_t* storage_index)
+      ArtField* resolved_field, uint16_t field_idx, uint32_t* storage_index)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Is static field's in referrer's class?
-  bool IsStaticFieldInReferrerClass(mirror::Class* referrer_class, mirror::ArtField* resolved_field)
+  bool IsStaticFieldInReferrerClass(mirror::Class* referrer_class, ArtField* resolved_field)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Is static field's class initialized?
   bool IsStaticFieldsClassInitialized(mirror::Class* referrer_class,
-                                      mirror::ArtField* resolved_field)
+                                      ArtField* resolved_field)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a method. Returns nullptr on failure, including incompatible class change.
@@ -331,7 +331,7 @@ class CompilerDriver {
 
   void ComputeFieldInfo(uint32_t field_idx, const DexCompilationUnit* mUnit,
                         const ScopedObjectAccess& soa, bool is_static,
-                        mirror::ArtField** resolved_field,
+                        ArtField** resolved_field,
                         mirror::Class** referrer_class,
                         mirror::DexCache** dex_cache)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -341,7 +341,7 @@ class CompilerDriver {
                                 MemberOffset* field_offset, bool* is_volatile)
       LOCKS_EXCLUDED(Locks::mutator_lock_);
 
-  mirror::ArtField* ComputeInstanceFieldInfo(uint32_t field_idx,
+  ArtField* ComputeInstanceFieldInfo(uint32_t field_idx,
                                              const DexCompilationUnit* mUnit,
                                              bool is_put,
                                              const ScopedObjectAccess& soa)

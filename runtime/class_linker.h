@@ -70,12 +70,10 @@ class ClassLinker {
     kJavaLangString,
     kJavaLangDexCache,
     kJavaLangRefReference,
-    kJavaLangReflectArtField,
     kJavaLangReflectArtMethod,
     kJavaLangReflectField,
     kJavaLangReflectProxy,
     kJavaLangStringArrayClass,
-    kJavaLangReflectArtFieldArrayClass,
     kJavaLangReflectArtMethodArrayClass,
     kJavaLangReflectFieldArrayClass,
     kJavaLangClassLoader,
@@ -201,7 +199,7 @@ class ClassLinker {
   mirror::Class* ResolveType(uint16_t type_idx, mirror::ArtMethod* referrer)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::Class* ResolveType(uint16_t type_idx, mirror::ArtField* referrer)
+  mirror::Class* ResolveType(uint16_t type_idx, ArtField* referrer)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a type with the given ID from the DexFile, storing the
@@ -232,10 +230,11 @@ class ClassLinker {
                                    InvokeType type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::ArtField* GetResolvedField(uint32_t field_idx, mirror::Class* field_declaring_class)
+  ArtField* GetResolvedField(uint32_t field_idx, mirror::Class* field_declaring_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::ArtField* ResolveField(uint32_t field_idx, mirror::ArtMethod* referrer,
-                                 bool is_static)
+  ArtField* GetResolvedField(uint32_t field_idx, mirror::DexCache* dex_cache)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  ArtField* ResolveField(uint32_t field_idx, mirror::ArtMethod* referrer, bool is_static)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Resolve a field with a given ID from the DexFile, storing the
@@ -243,7 +242,7 @@ class ClassLinker {
   // in ResolveType. What is unique is the is_static argument which is
   // used to determine if we are resolving a static or non-static
   // field.
-  mirror::ArtField* ResolveField(const DexFile& dex_file,
+  ArtField* ResolveField(const DexFile& dex_file,
                                  uint32_t field_idx,
                                  Handle<mirror::DexCache> dex_cache,
                                  Handle<mirror::ClassLoader> class_loader,
@@ -254,7 +253,7 @@ class ClassLinker {
   // result in DexCache. The ClassLinker and ClassLoader are used as
   // in ResolveType. No is_static argument is provided so that Java
   // field resolution semantics are followed.
-  mirror::ArtField* ResolveFieldJLS(const DexFile& dex_file, uint32_t field_idx,
+  ArtField* ResolveFieldJLS(const DexFile& dex_file, uint32_t field_idx,
                                     Handle<mirror::DexCache> dex_cache,
                                     Handle<mirror::ClassLoader> class_loader)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -354,7 +353,7 @@ class ClassLinker {
   mirror::IfTable* AllocIfTable(Thread* self, size_t ifcount)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  mirror::ObjectArray<mirror::ArtField>* AllocArtFieldArray(Thread* self, size_t length)
+  ArtField* AllocArtFieldArray(Thread* self, size_t length)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::ObjectArray<mirror::StackTraceElement>* AllocStackTraceElementArray(Thread* self,
@@ -485,7 +484,6 @@ class ClassLinker {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::DexCache* AllocDexCache(Thread* self, const DexFile& dex_file)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  mirror::ArtField* AllocArtField(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::Class* CreatePrimitiveClass(Thread* self, Primitive::Type type)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -507,15 +505,21 @@ class ClassLinker {
   uint32_t SizeOfClassWithoutEmbeddedTables(const DexFile& dex_file,
                                             const DexFile::ClassDef& dex_class_def);
 
+  // Setup the classloader, class def index, type idx so that we can insert this class in the class
+  // table.
+  void SetupClass(const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
+                  Handle<mirror::Class> klass, mirror::ClassLoader* class_loader)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   void LoadClass(Thread* self, const DexFile& dex_file, const DexFile::ClassDef& dex_class_def,
-                 Handle<mirror::Class> klass, mirror::ClassLoader* class_loader)
+                 Handle<mirror::Class> klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void LoadClassMembers(Thread* self, const DexFile& dex_file, const uint8_t* class_data,
                         Handle<mirror::Class> klass, const OatFile::OatClass* oat_class)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void LoadField(const DexFile& dex_file, const ClassDataItemIterator& it,
-                 Handle<mirror::Class> klass, Handle<mirror::ArtField> dst)
+  void LoadField(const ClassDataItemIterator& it, Handle<mirror::Class> klass,
+                 ArtField* dst)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   mirror::ArtMethod* LoadMethod(Thread* self, const DexFile& dex_file,

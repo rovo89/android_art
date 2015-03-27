@@ -16,9 +16,9 @@
 
 #include "transaction.h"
 
+#include "art_field-inl.h"
 #include "common_runtime_test.h"
 #include "mirror/array-inl.h"
-#include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "scoped_thread_state_change.h"
 
@@ -181,47 +181,47 @@ TEST_F(TransactionTest, StaticFieldsTest) {
   ASSERT_FALSE(soa.Self()->IsExceptionPending());
 
   // Lookup fields.
-  mirror::ArtField* booleanField = h_klass->FindDeclaredStaticField("booleanField", "Z");
+  ArtField* booleanField = h_klass->FindDeclaredStaticField("booleanField", "Z");
   ASSERT_TRUE(booleanField != nullptr);
   ASSERT_EQ(booleanField->GetTypeAsPrimitiveType(), Primitive::kPrimBoolean);
   ASSERT_EQ(booleanField->GetBoolean(h_klass.Get()), false);
 
-  mirror::ArtField* byteField = h_klass->FindDeclaredStaticField("byteField", "B");
+  ArtField* byteField = h_klass->FindDeclaredStaticField("byteField", "B");
   ASSERT_TRUE(byteField != nullptr);
   ASSERT_EQ(byteField->GetTypeAsPrimitiveType(), Primitive::kPrimByte);
   ASSERT_EQ(byteField->GetByte(h_klass.Get()), 0);
 
-  mirror::ArtField* charField = h_klass->FindDeclaredStaticField("charField", "C");
+  ArtField* charField = h_klass->FindDeclaredStaticField("charField", "C");
   ASSERT_TRUE(charField != nullptr);
   ASSERT_EQ(charField->GetTypeAsPrimitiveType(), Primitive::kPrimChar);
   ASSERT_EQ(charField->GetChar(h_klass.Get()), 0u);
 
-  mirror::ArtField* shortField = h_klass->FindDeclaredStaticField("shortField", "S");
+  ArtField* shortField = h_klass->FindDeclaredStaticField("shortField", "S");
   ASSERT_TRUE(shortField != nullptr);
   ASSERT_EQ(shortField->GetTypeAsPrimitiveType(), Primitive::kPrimShort);
   ASSERT_EQ(shortField->GetShort(h_klass.Get()), 0);
 
-  mirror::ArtField* intField = h_klass->FindDeclaredStaticField("intField", "I");
+  ArtField* intField = h_klass->FindDeclaredStaticField("intField", "I");
   ASSERT_TRUE(intField != nullptr);
   ASSERT_EQ(intField->GetTypeAsPrimitiveType(), Primitive::kPrimInt);
   ASSERT_EQ(intField->GetInt(h_klass.Get()), 0);
 
-  mirror::ArtField* longField = h_klass->FindDeclaredStaticField("longField", "J");
+  ArtField* longField = h_klass->FindDeclaredStaticField("longField", "J");
   ASSERT_TRUE(longField != nullptr);
   ASSERT_EQ(longField->GetTypeAsPrimitiveType(), Primitive::kPrimLong);
   ASSERT_EQ(longField->GetLong(h_klass.Get()), static_cast<int64_t>(0));
 
-  mirror::ArtField* floatField = h_klass->FindDeclaredStaticField("floatField", "F");
+  ArtField* floatField = h_klass->FindDeclaredStaticField("floatField", "F");
   ASSERT_TRUE(floatField != nullptr);
   ASSERT_EQ(floatField->GetTypeAsPrimitiveType(), Primitive::kPrimFloat);
   ASSERT_FLOAT_EQ(floatField->GetFloat(h_klass.Get()), static_cast<float>(0.0f));
 
-  mirror::ArtField* doubleField = h_klass->FindDeclaredStaticField("doubleField", "D");
+  ArtField* doubleField = h_klass->FindDeclaredStaticField("doubleField", "D");
   ASSERT_TRUE(doubleField != nullptr);
   ASSERT_EQ(doubleField->GetTypeAsPrimitiveType(), Primitive::kPrimDouble);
   ASSERT_DOUBLE_EQ(doubleField->GetDouble(h_klass.Get()), static_cast<double>(0.0));
 
-  mirror::ArtField* objectField = h_klass->FindDeclaredStaticField("objectField",
+  ArtField* objectField = h_klass->FindDeclaredStaticField("objectField",
                                                                    "Ljava/lang/Object;");
   ASSERT_TRUE(objectField != nullptr);
   ASSERT_EQ(objectField->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
@@ -283,47 +283,47 @@ TEST_F(TransactionTest, InstanceFieldsTest) {
   ASSERT_TRUE(h_instance.Get() != nullptr);
 
   // Lookup fields.
-  mirror::ArtField* booleanField = h_klass->FindDeclaredInstanceField("booleanField", "Z");
+  ArtField* booleanField = h_klass->FindDeclaredInstanceField("booleanField", "Z");
   ASSERT_TRUE(booleanField != nullptr);
   ASSERT_EQ(booleanField->GetTypeAsPrimitiveType(), Primitive::kPrimBoolean);
   ASSERT_EQ(booleanField->GetBoolean(h_instance.Get()), false);
 
-  mirror::ArtField* byteField = h_klass->FindDeclaredInstanceField("byteField", "B");
+  ArtField* byteField = h_klass->FindDeclaredInstanceField("byteField", "B");
   ASSERT_TRUE(byteField != nullptr);
   ASSERT_EQ(byteField->GetTypeAsPrimitiveType(), Primitive::kPrimByte);
   ASSERT_EQ(byteField->GetByte(h_instance.Get()), 0);
 
-  mirror::ArtField* charField = h_klass->FindDeclaredInstanceField("charField", "C");
+  ArtField* charField = h_klass->FindDeclaredInstanceField("charField", "C");
   ASSERT_TRUE(charField != nullptr);
   ASSERT_EQ(charField->GetTypeAsPrimitiveType(), Primitive::kPrimChar);
   ASSERT_EQ(charField->GetChar(h_instance.Get()), 0u);
 
-  mirror::ArtField* shortField = h_klass->FindDeclaredInstanceField("shortField", "S");
+  ArtField* shortField = h_klass->FindDeclaredInstanceField("shortField", "S");
   ASSERT_TRUE(shortField != nullptr);
   ASSERT_EQ(shortField->GetTypeAsPrimitiveType(), Primitive::kPrimShort);
   ASSERT_EQ(shortField->GetShort(h_instance.Get()), 0);
 
-  mirror::ArtField* intField = h_klass->FindDeclaredInstanceField("intField", "I");
+  ArtField* intField = h_klass->FindDeclaredInstanceField("intField", "I");
   ASSERT_TRUE(intField != nullptr);
   ASSERT_EQ(intField->GetTypeAsPrimitiveType(), Primitive::kPrimInt);
   ASSERT_EQ(intField->GetInt(h_instance.Get()), 0);
 
-  mirror::ArtField* longField = h_klass->FindDeclaredInstanceField("longField", "J");
+  ArtField* longField = h_klass->FindDeclaredInstanceField("longField", "J");
   ASSERT_TRUE(longField != nullptr);
   ASSERT_EQ(longField->GetTypeAsPrimitiveType(), Primitive::kPrimLong);
   ASSERT_EQ(longField->GetLong(h_instance.Get()), static_cast<int64_t>(0));
 
-  mirror::ArtField* floatField = h_klass->FindDeclaredInstanceField("floatField", "F");
+  ArtField* floatField = h_klass->FindDeclaredInstanceField("floatField", "F");
   ASSERT_TRUE(floatField != nullptr);
   ASSERT_EQ(floatField->GetTypeAsPrimitiveType(), Primitive::kPrimFloat);
   ASSERT_FLOAT_EQ(floatField->GetFloat(h_instance.Get()), static_cast<float>(0.0f));
 
-  mirror::ArtField* doubleField = h_klass->FindDeclaredInstanceField("doubleField", "D");
+  ArtField* doubleField = h_klass->FindDeclaredInstanceField("doubleField", "D");
   ASSERT_TRUE(doubleField != nullptr);
   ASSERT_EQ(doubleField->GetTypeAsPrimitiveType(), Primitive::kPrimDouble);
   ASSERT_DOUBLE_EQ(doubleField->GetDouble(h_instance.Get()), static_cast<double>(0.0));
 
-  mirror::ArtField* objectField = h_klass->FindDeclaredInstanceField("objectField",
+  ArtField* objectField = h_klass->FindDeclaredInstanceField("objectField",
                                                                         "Ljava/lang/Object;");
   ASSERT_TRUE(objectField != nullptr);
   ASSERT_EQ(objectField->GetTypeAsPrimitiveType(), Primitive::kPrimNot);
@@ -381,63 +381,63 @@ TEST_F(TransactionTest, StaticArrayFieldsTest) {
   ASSERT_FALSE(soa.Self()->IsExceptionPending());
 
   // Lookup fields.
-  mirror::ArtField* booleanArrayField = h_klass->FindDeclaredStaticField("booleanArrayField", "[Z");
+  ArtField* booleanArrayField = h_klass->FindDeclaredStaticField("booleanArrayField", "[Z");
   ASSERT_TRUE(booleanArrayField != nullptr);
   mirror::BooleanArray* booleanArray = booleanArrayField->GetObject(h_klass.Get())->AsBooleanArray();
   ASSERT_TRUE(booleanArray != nullptr);
   ASSERT_EQ(booleanArray->GetLength(), 1);
   ASSERT_EQ(booleanArray->GetWithoutChecks(0), false);
 
-  mirror::ArtField* byteArrayField = h_klass->FindDeclaredStaticField("byteArrayField", "[B");
+  ArtField* byteArrayField = h_klass->FindDeclaredStaticField("byteArrayField", "[B");
   ASSERT_TRUE(byteArrayField != nullptr);
   mirror::ByteArray* byteArray = byteArrayField->GetObject(h_klass.Get())->AsByteArray();
   ASSERT_TRUE(byteArray != nullptr);
   ASSERT_EQ(byteArray->GetLength(), 1);
   ASSERT_EQ(byteArray->GetWithoutChecks(0), 0);
 
-  mirror::ArtField* charArrayField = h_klass->FindDeclaredStaticField("charArrayField", "[C");
+  ArtField* charArrayField = h_klass->FindDeclaredStaticField("charArrayField", "[C");
   ASSERT_TRUE(charArrayField != nullptr);
   mirror::CharArray* charArray = charArrayField->GetObject(h_klass.Get())->AsCharArray();
   ASSERT_TRUE(charArray != nullptr);
   ASSERT_EQ(charArray->GetLength(), 1);
   ASSERT_EQ(charArray->GetWithoutChecks(0), 0u);
 
-  mirror::ArtField* shortArrayField = h_klass->FindDeclaredStaticField("shortArrayField", "[S");
+  ArtField* shortArrayField = h_klass->FindDeclaredStaticField("shortArrayField", "[S");
   ASSERT_TRUE(shortArrayField != nullptr);
   mirror::ShortArray* shortArray = shortArrayField->GetObject(h_klass.Get())->AsShortArray();
   ASSERT_TRUE(shortArray != nullptr);
   ASSERT_EQ(shortArray->GetLength(), 1);
   ASSERT_EQ(shortArray->GetWithoutChecks(0), 0);
 
-  mirror::ArtField* intArrayField = h_klass->FindDeclaredStaticField("intArrayField", "[I");
+  ArtField* intArrayField = h_klass->FindDeclaredStaticField("intArrayField", "[I");
   ASSERT_TRUE(intArrayField != nullptr);
   mirror::IntArray* intArray = intArrayField->GetObject(h_klass.Get())->AsIntArray();
   ASSERT_TRUE(intArray != nullptr);
   ASSERT_EQ(intArray->GetLength(), 1);
   ASSERT_EQ(intArray->GetWithoutChecks(0), 0);
 
-  mirror::ArtField* longArrayField = h_klass->FindDeclaredStaticField("longArrayField", "[J");
+  ArtField* longArrayField = h_klass->FindDeclaredStaticField("longArrayField", "[J");
   ASSERT_TRUE(longArrayField != nullptr);
   mirror::LongArray* longArray = longArrayField->GetObject(h_klass.Get())->AsLongArray();
   ASSERT_TRUE(longArray != nullptr);
   ASSERT_EQ(longArray->GetLength(), 1);
   ASSERT_EQ(longArray->GetWithoutChecks(0), static_cast<int64_t>(0));
 
-  mirror::ArtField* floatArrayField = h_klass->FindDeclaredStaticField("floatArrayField", "[F");
+  ArtField* floatArrayField = h_klass->FindDeclaredStaticField("floatArrayField", "[F");
   ASSERT_TRUE(floatArrayField != nullptr);
   mirror::FloatArray* floatArray = floatArrayField->GetObject(h_klass.Get())->AsFloatArray();
   ASSERT_TRUE(floatArray != nullptr);
   ASSERT_EQ(floatArray->GetLength(), 1);
   ASSERT_FLOAT_EQ(floatArray->GetWithoutChecks(0), static_cast<float>(0.0f));
 
-  mirror::ArtField* doubleArrayField = h_klass->FindDeclaredStaticField("doubleArrayField", "[D");
+  ArtField* doubleArrayField = h_klass->FindDeclaredStaticField("doubleArrayField", "[D");
   ASSERT_TRUE(doubleArrayField != nullptr);
   mirror::DoubleArray* doubleArray = doubleArrayField->GetObject(h_klass.Get())->AsDoubleArray();
   ASSERT_TRUE(doubleArray != nullptr);
   ASSERT_EQ(doubleArray->GetLength(), 1);
   ASSERT_DOUBLE_EQ(doubleArray->GetWithoutChecks(0), static_cast<double>(0.0f));
 
-  mirror::ArtField* objectArrayField = h_klass->FindDeclaredStaticField("objectArrayField",
+  ArtField* objectArrayField = h_klass->FindDeclaredStaticField("objectArrayField",
                                                                            "[Ljava/lang/Object;");
   ASSERT_TRUE(objectArrayField != nullptr);
   mirror::ObjectArray<mirror::Object>* objectArray =
