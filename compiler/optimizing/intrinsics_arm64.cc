@@ -1006,7 +1006,7 @@ void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
   vixl::MacroAssembler* masm = GetVIXLAssembler();
   LocationSummary* locations = invoke->GetLocations();
 
-  // Note that the null check must have be done earlier.
+  // Note that the null check must have been done earlier.
   DCHECK(!invoke->CanDoImplicitNullCheck());
 
   Register argument = WRegisterFrom(locations->InAt(1));
