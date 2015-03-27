@@ -109,12 +109,17 @@ static inline bool IsAlignedParam(T x, int n) {
   DCHECK(::art::IsAlignedParam(value, alignment)) << reinterpret_cast<const void*>(value)
 
 // Check whether an N-bit two's-complement representation can hold value.
-static inline bool IsInt(int N, intptr_t value) {
-  if (N == kBitsPerIntPtrT) return true;
-  CHECK_LT(0, N);
-  CHECK_LT(N, kBitsPerIntPtrT);
-  intptr_t limit = static_cast<intptr_t>(1) << (N - 1);
-  return (-limit <= value) && (value < limit);
+template <typename T>
+static inline bool IsInt(int N, T value) {
+  int bitsPerT = sizeof(T) * kBitsPerByte;
+  if (N == bitsPerT) {
+    return true;
+  } else {
+    CHECK_LT(0, N);
+    CHECK_LT(N, bitsPerT);
+    T limit = static_cast<T>(1) << (N - 1);
+    return (-limit <= value) && (value < limit);
+  }
 }
 
 template <typename T>
