@@ -19,6 +19,8 @@
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "entrypoints/quick/quick_entrypoints_enum.h"
 #include "gc/accounting/card_table.h"
+#include "intrinsics.h"
+#include "intrinsics_x86.h"
 #include "mirror/array-inl.h"
 #include "mirror/art_method.h"
 #include "mirror/class.h"
@@ -59,20 +61,6 @@ class InvokeRuntimeCallingConvention : public CallingConvention<Register, XmmReg
 };
 
 #define __ reinterpret_cast<X86Assembler*>(codegen->GetAssembler())->
-
-class SlowPathCodeX86 : public SlowPathCode {
- public:
-  SlowPathCodeX86() : entry_label_(), exit_label_() {}
-
-  Label* GetEntryLabel() { return &entry_label_; }
-  Label* GetExitLabel() { return &exit_label_; }
-
- private:
-  Label entry_label_;
-  Label exit_label_;
-
-  DISALLOW_COPY_AND_ASSIGN(SlowPathCodeX86);
-};
 
 class NullCheckSlowPathX86 : public SlowPathCodeX86 {
  public:
@@ -1140,35 +1128,30 @@ void InstructionCodeGeneratorX86::VisitReturn(HReturn* ret) {
 }
 
 void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
+  IntrinsicLocationsBuilderX86 intrinsic(GetGraph()->GetArena());
+  if (intrinsic.TryDispatch(invoke)) {
+    return;
+  }
+
   HandleInvoke(invoke);
 }
 
+static bool TryGenerateIntrinsicCode(HInvoke* invoke, CodeGeneratorX86* codegen) {
+  if (invoke->GetLocations()->Intrinsified()) {
+    IntrinsicCodeGeneratorX86 intrinsic(codegen);
+    intrinsic.Dispatch(invoke);
+    return true;
+  }
+  return false;
+}
+
 void InstructionCodeGeneratorX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  Register temp = invoke->GetLocations()->GetTemp(0).AsRegister<Register>();
-
-  // TODO: Implement all kinds of calls:
-  // 1) boot -> boot
-  // 2) app -> boot
-  // 3) app -> app
-  //
-  // Currently we implement the app -> app logic, which looks up in the resolve cache.
-
-  // temp = method;
-  codegen_->LoadCurrentMethod(temp);
-  if (!invoke->IsRecursive()) {
-    // temp = temp->dex_cache_resolved_methods_;
-    __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
-    // temp = temp[index_in_cache]
-    __ movl(temp, Address(temp, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex())));
-    // (temp + offset_of_quick_compiled_code)()
-    __ call(Address(
-        temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
-  } else {
-    __ call(codegen_->GetFrameEntryLabel());
+  if (TryGenerateIntrinsicCode(invoke, codegen_)) {
+    return;
   }
 
-  DCHECK(!codegen_->IsLeafMethod());
-  codegen_->RecordPcInfo(invoke, invoke->GetDexPc());
+  codegen_->GenerateStaticOrDirectCall(
+      invoke, invoke->GetLocations()->GetTemp(0).AsRegister<Register>());
 }
 
 void LocationsBuilderX86::VisitInvokeVirtual(HInvokeVirtual* invoke) {
@@ -2862,6 +2845,32 @@ void InstructionCodeGeneratorX86::GenerateMemoryBarrier(MemBarrierKind kind) {
   }
 }
 
+
+void CodeGeneratorX86::GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke,
+                                                  Register temp) {
+  // TODO: Implement all kinds of calls:
+  // 1) boot -> boot
+  // 2) app -> boot
+  // 3) app -> app
+  //
+  // Currently we implement the app -> app logic, which looks up in the resolve cache.
+  // temp = method;
+  LoadCurrentMethod(temp);
+  if (!invoke->IsRecursive()) {
+    // temp = temp->dex_cache_resolved_methods_;
+    __ movl(temp, Address(temp, mirror::ArtMethod::DexCacheResolvedMethodsOffset().Int32Value()));
+    // temp = temp[index_in_cache]
+    __ movl(temp, Address(temp, CodeGenerator::GetCacheOffset(invoke->GetDexMethodIndex())));
+    // (temp + offset_of_quick_compiled_code)()
+    __ call(Address(
+        temp, mirror::ArtMethod::EntryPointFromQuickCompiledCodeOffset(kX86WordSize).Int32Value()));
+  } else {
+    __ call(GetFrameEntryLabel());
+  }
+
+  DCHECK(!IsLeafMethod());
+  RecordPcInfo(invoke, invoke->GetDexPc());
+}
 
 void CodeGeneratorX86::MarkGCCard(Register temp, Register card, Register object, Register value) {
   Label is_null;

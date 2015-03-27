@@ -228,6 +228,9 @@ class CodeGeneratorX86 : public CodeGenerator {
   // Helper method to move a 64bits value between two locations.
   void Move64(Location destination, Location source);
 
+  // Generate a call to a static or direct method.
+  void GenerateStaticOrDirectCall(HInvokeStaticOrDirect* invoke, Register temp);
+
   // Emit a write barrier.
   void MarkGCCard(Register temp, Register card, Register object, Register value);
 
@@ -259,6 +262,20 @@ class CodeGeneratorX86 : public CodeGenerator {
   X86Assembler assembler_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorX86);
+};
+
+class SlowPathCodeX86 : public SlowPathCode {
+ public:
+  SlowPathCodeX86() : entry_label_(), exit_label_() {}
+
+  Label* GetEntryLabel() { return &entry_label_; }
+  Label* GetExitLabel() { return &exit_label_; }
+
+ private:
+  Label entry_label_;
+  Label exit_label_;
+
+  DISALLOW_COPY_AND_ASSIGN(SlowPathCodeX86);
 };
 
 }  // namespace x86
