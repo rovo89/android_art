@@ -27,7 +27,7 @@ public class Mips64QuickBackendExecutor extends Executor {
   @Override
   public void execute(String programName) {
     StringBuilder commandBuilder = new StringBuilder();
-    commandBuilder.append("dalvikvm64 ");
+    commandBuilder.append("dalvikvm64 -Xcompiler-option --compiler-backend=Quick ");
     commandBuilder.append("-cp ").append(testLocation).append("/").append(programName).append(" ");
     commandBuilder.append(executeClass);
     executionResult = executeCommandWithTimeout(commandBuilder.toString(), true);
