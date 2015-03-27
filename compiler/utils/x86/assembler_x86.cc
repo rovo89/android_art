@@ -146,6 +146,12 @@ void X86Assembler::movl(const Address& dst, Label* lbl) {
   EmitLabel(lbl, dst.length_ + 5);
 }
 
+void X86Assembler::bswapl(Register dst) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0xC8 + dst);
+}
+
 void X86Assembler::movzxb(Register dst, ByteRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0F);
@@ -725,6 +731,32 @@ void X86Assembler::xorpd(XmmRegister dst, XmmRegister src) {
 }
 
 
+void X86Assembler::andps(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0x54);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::andpd(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x54);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::orpd(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x56);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
 void X86Assembler::xorps(XmmRegister dst, const Address& src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0F);
@@ -733,11 +765,27 @@ void X86Assembler::xorps(XmmRegister dst, const Address& src) {
 }
 
 
+void X86Assembler::orps(XmmRegister dst, XmmRegister src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0x56);
+  EmitXmmRegisterOperand(dst, src);
+}
+
+
 void X86Assembler::xorps(XmmRegister dst, XmmRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0F);
   EmitUint8(0x57);
   EmitXmmRegisterOperand(dst, src);
+}
+
+
+void X86Assembler::andps(XmmRegister dst, const Address& src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0x54);
+  EmitOperand(dst, src);
 }
 
 
@@ -1090,6 +1138,13 @@ void X86Assembler::subl(Register reg, const Address& address) {
 }
 
 
+void X86Assembler::subl(const Address& address, Register reg) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x29);
+  EmitOperand(reg, address);
+}
+
+
 void X86Assembler::cdq() {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x99);
@@ -1172,6 +1227,13 @@ void X86Assembler::sbbl(Register dst, const Address& address) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x1B);
   EmitOperand(dst, address);
+}
+
+
+void X86Assembler::sbbl(const Address& address, Register src) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x19);
+  EmitOperand(src, address);
 }
 
 
