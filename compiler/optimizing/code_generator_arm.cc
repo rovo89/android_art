@@ -41,12 +41,6 @@ static bool ExpectedPairLayout(Location location) {
 
 static constexpr int kCurrentMethodStackOffset = 0;
 
-static constexpr Register kRuntimeParameterCoreRegisters[] = { R0, R1, R2, R3 };
-static constexpr size_t kRuntimeParameterCoreRegistersLength =
-    arraysize(kRuntimeParameterCoreRegisters);
-static constexpr SRegister kRuntimeParameterFpuRegisters[] = { S0, S1, S2, S3 };
-static constexpr size_t kRuntimeParameterFpuRegistersLength =
-    arraysize(kRuntimeParameterFpuRegisters);
 // We unconditionally allocate R5 to ensure we can do long operations
 // with baseline.
 static constexpr Register kCoreSavedRegisterForBaseline = R5;
@@ -58,18 +52,6 @@ static constexpr SRegister kFpuCalleeSaves[] =
 // D31 cannot be split into two S registers, and the register allocator only works on
 // S registers. Therefore there is no need to block it.
 static constexpr DRegister DTMP = D31;
-
-class InvokeRuntimeCallingConvention : public CallingConvention<Register, SRegister> {
- public:
-  InvokeRuntimeCallingConvention()
-      : CallingConvention(kRuntimeParameterCoreRegisters,
-                          kRuntimeParameterCoreRegistersLength,
-                          kRuntimeParameterFpuRegisters,
-                          kRuntimeParameterFpuRegistersLength) {}
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
-};
 
 #define __ reinterpret_cast<ArmAssembler*>(codegen->GetAssembler())->
 #define QUICK_ENTRY_POINT(x) QUICK_ENTRYPOINT_OFFSET(kArmWordSize, x).Int32Value()
