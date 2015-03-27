@@ -39,28 +39,11 @@ static constexpr Register TMP = R11;
 
 static constexpr int kCurrentMethodStackOffset = 0;
 
-static constexpr Register kRuntimeParameterCoreRegisters[] = { RDI, RSI, RDX };
-static constexpr size_t kRuntimeParameterCoreRegistersLength =
-    arraysize(kRuntimeParameterCoreRegisters);
-static constexpr FloatRegister kRuntimeParameterFpuRegisters[] = { XMM0, XMM1 };
-static constexpr size_t kRuntimeParameterFpuRegistersLength =
-    arraysize(kRuntimeParameterFpuRegisters);
 static constexpr Register kCoreCalleeSaves[] = { RBX, RBP, R12, R13, R14, R15 };
 static constexpr FloatRegister kFpuCalleeSaves[] = { XMM12, XMM13, XMM14, XMM15 };
 
 static constexpr int kC2ConditionMask = 0x400;
 
-class InvokeRuntimeCallingConvention : public CallingConvention<Register, FloatRegister> {
- public:
-  InvokeRuntimeCallingConvention()
-      : CallingConvention(kRuntimeParameterCoreRegisters,
-                          kRuntimeParameterCoreRegistersLength,
-                          kRuntimeParameterFpuRegisters,
-                          kRuntimeParameterFpuRegistersLength) {}
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
-};
 
 #define __ reinterpret_cast<X86_64Assembler*>(codegen->GetAssembler())->
 
