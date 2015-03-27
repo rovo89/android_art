@@ -98,29 +98,6 @@ Location ARM64ReturnLocation(Primitive::Type return_type) {
   }
 }
 
-static const Register kRuntimeParameterCoreRegisters[] = { x0, x1, x2, x3, x4, x5, x6, x7 };
-static constexpr size_t kRuntimeParameterCoreRegistersLength =
-    arraysize(kRuntimeParameterCoreRegisters);
-static const FPRegister kRuntimeParameterFpuRegisters[] = { d0, d1, d2, d3, d4, d5, d6, d7 };
-static constexpr size_t kRuntimeParameterFpuRegistersLength =
-    arraysize(kRuntimeParameterCoreRegisters);
-
-class InvokeRuntimeCallingConvention : public CallingConvention<Register, FPRegister> {
- public:
-  static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
-
-  InvokeRuntimeCallingConvention()
-      : CallingConvention(kRuntimeParameterCoreRegisters,
-                          kRuntimeParameterCoreRegistersLength,
-                          kRuntimeParameterFpuRegisters,
-                          kRuntimeParameterFpuRegistersLength) {}
-
-  Location GetReturnLocation(Primitive::Type return_type);
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
-};
-
 Location InvokeRuntimeCallingConvention::GetReturnLocation(Primitive::Type return_type) {
   return ARM64ReturnLocation(return_type);
 }

@@ -39,6 +39,25 @@ static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCore
 static constexpr XmmRegister kParameterFpuRegisters[] = { XMM0, XMM1, XMM2, XMM3 };
 static constexpr size_t kParameterFpuRegistersLength = arraysize(kParameterFpuRegisters);
 
+static constexpr Register kRuntimeParameterCoreRegisters[] = { EAX, ECX, EDX, EBX };
+static constexpr size_t kRuntimeParameterCoreRegistersLength =
+    arraysize(kRuntimeParameterCoreRegisters);
+static constexpr XmmRegister kRuntimeParameterFpuRegisters[] = { XMM0, XMM1, XMM2, XMM3 };
+static constexpr size_t kRuntimeParameterFpuRegistersLength =
+    arraysize(kRuntimeParameterFpuRegisters);
+
+class InvokeRuntimeCallingConvention : public CallingConvention<Register, XmmRegister> {
+ public:
+  InvokeRuntimeCallingConvention()
+      : CallingConvention(kRuntimeParameterCoreRegisters,
+                          kRuntimeParameterCoreRegistersLength,
+                          kRuntimeParameterFpuRegisters,
+                          kRuntimeParameterFpuRegistersLength) {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
+};
+
 class InvokeDexCallingConvention : public CallingConvention<Register, XmmRegister> {
  public:
   InvokeDexCallingConvention() : CallingConvention(

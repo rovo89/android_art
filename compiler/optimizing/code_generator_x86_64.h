@@ -37,6 +37,25 @@ static constexpr FloatRegister kParameterFloatRegisters[] =
 static constexpr size_t kParameterCoreRegistersLength = arraysize(kParameterCoreRegisters);
 static constexpr size_t kParameterFloatRegistersLength = arraysize(kParameterFloatRegisters);
 
+static constexpr Register kRuntimeParameterCoreRegisters[] = { RDI, RSI, RDX };
+static constexpr size_t kRuntimeParameterCoreRegistersLength =
+    arraysize(kRuntimeParameterCoreRegisters);
+static constexpr FloatRegister kRuntimeParameterFpuRegisters[] = { XMM0, XMM1 };
+static constexpr size_t kRuntimeParameterFpuRegistersLength =
+    arraysize(kRuntimeParameterFpuRegisters);
+
+class InvokeRuntimeCallingConvention : public CallingConvention<Register, FloatRegister> {
+ public:
+  InvokeRuntimeCallingConvention()
+      : CallingConvention(kRuntimeParameterCoreRegisters,
+                          kRuntimeParameterCoreRegistersLength,
+                          kRuntimeParameterFpuRegisters,
+                          kRuntimeParameterFpuRegistersLength) {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
+};
+
 class InvokeDexCallingConvention : public CallingConvention<Register, FloatRegister> {
  public:
   InvokeDexCallingConvention() : CallingConvention(

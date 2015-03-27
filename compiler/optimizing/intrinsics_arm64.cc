@@ -40,6 +40,7 @@ namespace arm64 {
 using helpers::DRegisterFrom;
 using helpers::FPRegisterFrom;
 using helpers::HeapOperand;
+using helpers::LocationFrom;
 using helpers::RegisterFrom;
 using helpers::SRegisterFrom;
 using helpers::WRegisterFrom;
@@ -990,6 +991,36 @@ void IntrinsicCodeGeneratorARM64::VisitStringCharAt(HInvoke* invoke) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+void IntrinsicLocationsBuilderARM64::VisitStringCompareTo(HInvoke* invoke) {
+  // The inputs plus one temp.
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, LocationFrom(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, LocationFrom(calling_convention.GetRegisterAt(1)));
+  locations->SetOut(calling_convention.GetReturnLocation(Primitive::kPrimInt));
+}
+
+void IntrinsicCodeGeneratorARM64::VisitStringCompareTo(HInvoke* invoke) {
+  vixl::MacroAssembler* masm = GetVIXLAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  // Note that the null check must have be done earlier.
+  DCHECK(!invoke->CanDoImplicitNullCheck());
+
+  Register argument = WRegisterFrom(locations->InAt(1));
+  __ Cmp(argument, 0);
+  SlowPathCodeARM64* slow_path = new (GetAllocator()) IntrinsicSlowPathARM64(invoke);
+  codegen_->AddSlowPath(slow_path);
+  __ B(eq, slow_path->GetEntryLabel());
+
+  __ Ldr(
+      lr, MemOperand(tr, QUICK_ENTRYPOINT_OFFSET(kArm64WordSize, pStringCompareTo).Int32Value()));
+  __ Blr(lr);
+  __ Bind(slow_path->GetExitLabel());
+}
+
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                  \
@@ -999,7 +1030,6 @@ void IntrinsicCodeGeneratorARM64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED
 }
 
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
-UNIMPLEMENTED_INTRINSIC(StringCompareTo)
 UNIMPLEMENTED_INTRINSIC(StringIsEmpty)  // Might not want to do these two anyways, inlining should
 UNIMPLEMENTED_INTRINSIC(StringLength)   // be good enough here.
 UNIMPLEMENTED_INTRINSIC(StringIndexOf)
