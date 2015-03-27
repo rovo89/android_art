@@ -432,4 +432,79 @@ TEST_F(UtilsTest, MinimumBitsToStore) {
   EXPECT_EQ(32u, MinimumBitsToStore(~static_cast<uint32_t>(0)));
 }
 
+static constexpr int64_t INT_MIN_minus1 = static_cast<int64_t>(INT_MIN) - 1;
+static constexpr int64_t INT_MAX_plus1 = static_cast<int64_t>(INT_MAX) + 1;
+static constexpr int64_t UINT_MAX_plus1 = static_cast<int64_t>(UINT_MAX) + 1;
+
+TEST_F(UtilsTest, IsInt) {
+  EXPECT_FALSE(IsInt(1, -2));
+  EXPECT_TRUE(IsInt(1, -1));
+  EXPECT_TRUE(IsInt(1, 0));
+  EXPECT_FALSE(IsInt(1, 1));
+
+  EXPECT_FALSE(IsInt(4, -9));
+  EXPECT_TRUE(IsInt(4, -8));
+  EXPECT_TRUE(IsInt(4, 7));
+  EXPECT_FALSE(IsInt(4, 8));
+
+  EXPECT_FALSE(IsInt(32, INT_MIN_minus1));
+  EXPECT_TRUE(IsInt(32, INT_MIN));
+  EXPECT_TRUE(IsInt(32, INT_MAX));
+  EXPECT_FALSE(IsInt(32, INT_MAX_plus1));
+}
+
+TEST_F(UtilsTest, IsInt_Static) {
+  EXPECT_FALSE(IsInt<1>(-2));
+  EXPECT_TRUE(IsInt<1>(-1));
+  EXPECT_TRUE(IsInt<1>(0));
+  EXPECT_FALSE(IsInt<1>(1));
+
+  EXPECT_FALSE(IsInt<4>(-9));
+  EXPECT_TRUE(IsInt<4>(-8));
+  EXPECT_TRUE(IsInt<4>(7));
+  EXPECT_FALSE(IsInt<4>(8));
+
+  EXPECT_FALSE(IsInt<32>(INT_MIN_minus1));
+  EXPECT_TRUE(IsInt<32>(INT_MIN));
+  EXPECT_TRUE(IsInt<32>(INT_MAX));
+  EXPECT_FALSE(IsInt<32>(INT_MAX_plus1));
+}
+
+TEST_F(UtilsTest, IsUint) {
+  EXPECT_FALSE(IsUint<1>(-1));
+  EXPECT_TRUE(IsUint<1>(0));
+  EXPECT_TRUE(IsUint<1>(1));
+  EXPECT_FALSE(IsUint<1>(2));
+
+  EXPECT_FALSE(IsUint<4>(-1));
+  EXPECT_TRUE(IsUint<4>(0));
+  EXPECT_TRUE(IsUint<4>(15));
+  EXPECT_FALSE(IsUint<4>(16));
+
+  EXPECT_FALSE(IsUint<32>(-1));
+  EXPECT_TRUE(IsUint<32>(0));
+  EXPECT_TRUE(IsUint<32>(UINT_MAX));
+  EXPECT_FALSE(IsUint<32>(UINT_MAX_plus1));
+}
+
+TEST_F(UtilsTest, IsAbsoluteUint) {
+  EXPECT_FALSE(IsAbsoluteUint<1>(-2));
+  EXPECT_TRUE(IsAbsoluteUint<1>(-1));
+  EXPECT_TRUE(IsAbsoluteUint<32>(0));
+  EXPECT_TRUE(IsAbsoluteUint<1>(1));
+  EXPECT_FALSE(IsAbsoluteUint<1>(2));
+
+  EXPECT_FALSE(IsAbsoluteUint<4>(-16));
+  EXPECT_TRUE(IsAbsoluteUint<4>(-15));
+  EXPECT_TRUE(IsAbsoluteUint<32>(0));
+  EXPECT_TRUE(IsAbsoluteUint<4>(15));
+  EXPECT_FALSE(IsAbsoluteUint<4>(16));
+
+  EXPECT_FALSE(IsAbsoluteUint<32>(-UINT_MAX_plus1));
+  EXPECT_TRUE(IsAbsoluteUint<32>(-UINT_MAX));
+  EXPECT_TRUE(IsAbsoluteUint<32>(0));
+  EXPECT_TRUE(IsAbsoluteUint<32>(UINT_MAX));
+  EXPECT_FALSE(IsAbsoluteUint<32>(UINT_MAX_plus1));
+}
+
 }  // namespace art
