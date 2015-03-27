@@ -1378,11 +1378,16 @@ void Mir2Lir::InitReferenceVRegs(BasicBlock* bb, BitVector* references) {
     // In Mir2Lir::MethodBlockCodeGen() we have artificially moved the throwing
     // instruction to the previous block. However, the MIRGraph data used above
     // doesn't reflect that, so we still need to process that MIR insn here.
-    DCHECK_EQ(bb->predecessors.size(), 1u);
-    BasicBlock* pred_bb = mir_graph_->GetBasicBlock(bb->predecessors[0]);
-    DCHECK(pred_bb != nullptr);
-    DCHECK(pred_bb->last_mir_insn != nullptr);
-    UpdateReferenceVRegsLocal(nullptr, pred_bb->last_mir_insn, references);
+    MIR* mir = nullptr;
+    BasicBlock* pred_bb = bb;
+    // Traverse empty blocks.
+    while (mir == nullptr && pred_bb->predecessors.size() == 1u) {
+      pred_bb = mir_graph_->GetBasicBlock(bb->predecessors[0]);
+      DCHECK(pred_bb != nullptr);
+      mir = pred_bb->last_mir_insn;
+    }
+    DCHECK(mir != nullptr);
+    UpdateReferenceVRegsLocal(nullptr, mir, references);
   }
 }
 
