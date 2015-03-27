@@ -773,6 +773,37 @@ void IntrinsicCodeGeneratorX86::VisitStringCharAt(HInvoke* invoke) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+void IntrinsicLocationsBuilderX86::VisitStringCompareTo(HInvoke* invoke) {
+  // The inputs plus one temp.
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetOut(Location::RegisterLocation(EAX));
+  // Needs to be EAX for the invoke.
+  locations->AddTemp(Location::RegisterLocation(EAX));
+}
+
+void IntrinsicCodeGeneratorX86::VisitStringCompareTo(HInvoke* invoke) {
+  X86Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  // Note that the null check must have be done earlier.
+  DCHECK(!invoke->CanDoImplicitNullCheck());
+
+  Register argument = locations->InAt(1).AsRegister<Register>();
+  __ testl(argument, argument);
+  SlowPathCodeX86* slow_path = new (GetAllocator()) IntrinsicSlowPathX86(
+      invoke, locations->GetTemp(0).AsRegister<Register>());
+  codegen_->AddSlowPath(slow_path);
+  __ j(kEqual, slow_path->GetEntryLabel());
+
+  __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pStringCompareTo)));
+  __ Bind(slow_path->GetExitLabel());
+}
+
 static void GenPeek(LocationSummary* locations, Primitive::Type size, X86Assembler* assembler) {
   Register address = locations->InAt(0).AsRegisterPairLow<Register>();
   Location out_loc = locations->Out();
@@ -1167,7 +1198,6 @@ UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(MathRoundFloat)
 UNIMPLEMENTED_INTRINSIC(StringIsEmpty)  // Might not want to do these two anyways, inlining should
 UNIMPLEMENTED_INTRINSIC(StringLength)   // be good enough here.
-UNIMPLEMENTED_INTRINSIC(StringCompareTo)
 UNIMPLEMENTED_INTRINSIC(StringIndexOf)
 UNIMPLEMENTED_INTRINSIC(StringIndexOfAfter)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)

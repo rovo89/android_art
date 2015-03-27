@@ -41,6 +41,25 @@ static constexpr size_t kParameterFpuRegistersLength = arraysize(kParameterFpuRe
 
 static constexpr Register kArtMethodRegister = R0;
 
+static constexpr Register kRuntimeParameterCoreRegisters[] = { R0, R1, R2, R3 };
+static constexpr size_t kRuntimeParameterCoreRegistersLength =
+    arraysize(kRuntimeParameterCoreRegisters);
+static constexpr SRegister kRuntimeParameterFpuRegisters[] = { S0, S1, S2, S3 };
+static constexpr size_t kRuntimeParameterFpuRegistersLength =
+    arraysize(kRuntimeParameterFpuRegisters);
+
+class InvokeRuntimeCallingConvention : public CallingConvention<Register, SRegister> {
+ public:
+  InvokeRuntimeCallingConvention()
+      : CallingConvention(kRuntimeParameterCoreRegisters,
+                          kRuntimeParameterCoreRegistersLength,
+                          kRuntimeParameterFpuRegisters,
+                          kRuntimeParameterFpuRegistersLength) {}
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
+};
+
 static constexpr DRegister FromLowSToD(SRegister reg) {
   return DCHECK_CONSTEXPR(reg % 2 == 0, , D0)
       static_cast<DRegister>(reg / 2);

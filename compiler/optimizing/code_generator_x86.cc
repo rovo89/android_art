@@ -36,29 +36,11 @@ namespace x86 {
 
 static constexpr int kCurrentMethodStackOffset = 0;
 
-static constexpr Register kRuntimeParameterCoreRegisters[] = { EAX, ECX, EDX, EBX };
-static constexpr size_t kRuntimeParameterCoreRegistersLength =
-    arraysize(kRuntimeParameterCoreRegisters);
 static constexpr Register kCoreCalleeSaves[] = { EBP, ESI, EDI };
-static constexpr XmmRegister kRuntimeParameterFpuRegisters[] = { XMM0, XMM1, XMM2, XMM3 };
-static constexpr size_t kRuntimeParameterFpuRegistersLength =
-    arraysize(kRuntimeParameterFpuRegisters);
 
 static constexpr int kC2ConditionMask = 0x400;
 
 static constexpr int kFakeReturnRegister = Register(8);
-
-class InvokeRuntimeCallingConvention : public CallingConvention<Register, XmmRegister> {
- public:
-  InvokeRuntimeCallingConvention()
-      : CallingConvention(kRuntimeParameterCoreRegisters,
-                          kRuntimeParameterCoreRegistersLength,
-                          kRuntimeParameterFpuRegisters,
-                          kRuntimeParameterFpuRegistersLength) {}
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(InvokeRuntimeCallingConvention);
-};
 
 #define __ reinterpret_cast<X86Assembler*>(codegen->GetAssembler())->
 

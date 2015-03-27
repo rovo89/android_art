@@ -667,6 +667,34 @@ void IntrinsicCodeGeneratorX86_64::VisitStringCharAt(HInvoke* invoke) {
   __ Bind(slow_path->GetExitLabel());
 }
 
+void IntrinsicLocationsBuilderX86_64::VisitStringCompareTo(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                            LocationSummary::kCall,
+                                                            kIntrinsified);
+  InvokeRuntimeCallingConvention calling_convention;
+  locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+  locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+  locations->SetOut(Location::RegisterLocation(RAX));
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitStringCompareTo(HInvoke* invoke) {
+  X86_64Assembler* assembler = GetAssembler();
+  LocationSummary* locations = invoke->GetLocations();
+
+  // Note that the null check must have be done earlier.
+  DCHECK(!invoke->CanDoImplicitNullCheck());
+
+  CpuRegister argument = locations->InAt(1).AsRegister<CpuRegister>();
+  __ testl(argument, argument);
+  SlowPathCodeX86_64* slow_path = new (GetAllocator()) IntrinsicSlowPathX86_64(invoke);
+  codegen_->AddSlowPath(slow_path);
+  __ j(kEqual, slow_path->GetEntryLabel());
+
+  __ gs()->call(Address::Absolute(
+        QUICK_ENTRYPOINT_OFFSET(kX86_64WordSize, pStringCompareTo), true));
+  __ Bind(slow_path->GetExitLabel());
+}
+
 static void GenPeek(LocationSummary* locations, Primitive::Type size, X86_64Assembler* assembler) {
   CpuRegister address = locations->InAt(0).AsRegister<CpuRegister>();
   CpuRegister out = locations->Out().AsRegister<CpuRegister>();  // == address, here for clarity.
@@ -988,7 +1016,6 @@ UNIMPLEMENTED_INTRINSIC(MathRoundDouble)
 UNIMPLEMENTED_INTRINSIC(MathRoundFloat)
 UNIMPLEMENTED_INTRINSIC(StringIsEmpty)  // Might not want to do these two anyways, inlining should
 UNIMPLEMENTED_INTRINSIC(StringLength)   // be good enough here.
-UNIMPLEMENTED_INTRINSIC(StringCompareTo)
 UNIMPLEMENTED_INTRINSIC(StringIndexOf)
 UNIMPLEMENTED_INTRINSIC(StringIndexOfAfter)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
