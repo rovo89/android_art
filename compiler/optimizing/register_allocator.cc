@@ -213,7 +213,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
           LiveInterval* interval =
               LiveInterval::MakeTempInterval(allocator_, Primitive::kPrimInt);
           temp_intervals_.Add(interval);
-          interval->AddRange(position, position + 1);
+          interval->AddTempUse(instruction, i);
           unhandled_core_intervals_.Add(interval);
           break;
         }
@@ -222,7 +222,7 @@ void RegisterAllocator::ProcessInstruction(HInstruction* instruction) {
           LiveInterval* interval =
               LiveInterval::MakeTempInterval(allocator_, Primitive::kPrimDouble);
           temp_intervals_.Add(interval);
-          interval->AddRange(position, position + 1);
+          interval->AddTempUse(instruction, i);
           if (codegen_->NeedsTwoRegisters(Primitive::kPrimDouble)) {
             interval->AddHighInterval(true);
             LiveInterval* high = interval->GetHighInterval();
@@ -1695,8 +1695,6 @@ void RegisterAllocator::Resolve() {
   }
 
   // Assign temp locations.
-  HInstruction* current = nullptr;
-  size_t temp_index = 0;
   for (size_t i = 0; i < temp_intervals_.Size(); ++i) {
     LiveInterval* temp = temp_intervals_.Get(i);
     if (temp->IsHighInterval()) {
@@ -1704,25 +1702,20 @@ void RegisterAllocator::Resolve() {
       continue;
     }
     HInstruction* at = liveness_.GetTempUser(temp);
-    if (at != current) {
-      temp_index = 0;
-      current = at;
-    }
+    size_t temp_index = liveness_.GetTempIndex(temp);
     LocationSummary* locations = at->GetLocations();
     switch (temp->GetType()) {
       case Primitive::kPrimInt:
-        locations->SetTempAt(
-            temp_index++, Location::RegisterLocation(temp->GetRegister()));
+        locations->SetTempAt(temp_index, Location::RegisterLocation(temp->GetRegister()));
         break;
 
       case Primitive::kPrimDouble:
         if (codegen_->NeedsTwoRegisters(Primitive::kPrimDouble)) {
           Location location = Location::FpuRegisterPairLocation(
               temp->GetRegister(), temp->GetHighInterval()->GetRegister());
-          locations->SetTempAt(temp_index++, location);
+          locations->SetTempAt(temp_index, location);
         } else {
-          locations->SetTempAt(
-              temp_index++, Location::FpuRegisterLocation(temp->GetRegister()));
+          locations->SetTempAt(temp_index, Location::FpuRegisterLocation(temp->GetRegister()));
         }
         break;
 
