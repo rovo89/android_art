@@ -41,7 +41,7 @@ class CompilerDriverTest : public CommonCompilerTest {
     TimingLogger timings("CompilerDriverTest::CompileAll", false, false);
     TimingLogger::ScopedTiming t(__FUNCTION__, &timings);
     compiler_driver_->CompileAll(class_loader,
-                                 Runtime::Current()->GetCompileTimeClassPath(class_loader),
+                                 GetDexFiles(class_loader),
                                  &timings);
     t.NewTiming("MakeAllExecutable");
     MakeAllExecutable(class_loader);
@@ -66,8 +66,7 @@ class CompilerDriverTest : public CommonCompilerTest {
   }
 
   void MakeAllExecutable(jobject class_loader) {
-    const std::vector<const DexFile*>& class_path
-        = Runtime::Current()->GetCompileTimeClassPath(class_loader);
+    const std::vector<const DexFile*> class_path = GetDexFiles(class_loader);
     for (size_t i = 0; i != class_path.size(); ++i) {
       const DexFile* dex_file = class_path[i];
       CHECK(dex_file != NULL);
