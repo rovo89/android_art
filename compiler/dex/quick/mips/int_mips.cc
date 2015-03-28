@@ -34,6 +34,7 @@ namespace art {
  *    x < y     return -1
  *    x > y     return  1
  *
+ * Mips32 implementation
  *    slt   t0,  x.hi, y.hi;        # (x.hi < y.hi) ? 1:0
  *    sgt   t1,  x.hi, y.hi;        # (y.hi > x.hi) ? 1:0
  *    subu  res, t0, t1             # res = -1:1:0 for [ < > = ]
@@ -43,26 +44,40 @@ namespace art {
  *    subu  res, t0, t1
  * finish:
  *
+ * Mips64 implementation
+ *    slt   temp, x, y;             # (x < y) ? 1:0
+ *    slt   res, y, x;              # (x > y) ? 1:0
+ *    subu  res, res, temp;         # res = -1:1:0 for [ < > = ]
+ *
  */
-void MipsMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1,
-                             RegLocation rl_src2) {
+void MipsMir2Lir::GenCmpLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
-  RegStorage t0 = AllocTemp();
-  RegStorage t1 = AllocTemp();
-  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  NewLIR3(kMipsSlt, t0.GetReg(), rl_src1.reg.GetHighReg(), rl_src2.reg.GetHighReg());
-  NewLIR3(kMipsSlt, t1.GetReg(), rl_src2.reg.GetHighReg(), rl_src1.reg.GetHighReg());
-  NewLIR3(kMipsSubu, rl_result.reg.GetReg(), t1.GetReg(), t0.GetReg());
-  LIR* branch = OpCmpImmBranch(kCondNe, rl_result.reg, 0, NULL);
-  NewLIR3(kMipsSltu, t0.GetReg(), rl_src1.reg.GetLowReg(), rl_src2.reg.GetLowReg());
-  NewLIR3(kMipsSltu, t1.GetReg(), rl_src2.reg.GetLowReg(), rl_src1.reg.GetLowReg());
-  NewLIR3(kMipsSubu, rl_result.reg.GetReg(), t1.GetReg(), t0.GetReg());
-  FreeTemp(t0);
-  FreeTemp(t1);
-  LIR* target = NewLIR0(kPseudoTargetLabel);
-  branch->target = target;
-  StoreValue(rl_dest, rl_result);
+  if (cu_->target64) {
+    RegStorage temp = AllocTempWide();
+    RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+    NewLIR3(kMipsSlt, temp.GetReg(), rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
+    NewLIR3(kMipsSlt, rl_result.reg.GetReg(), rl_src2.reg.GetReg(), rl_src1.reg.GetReg());
+    NewLIR3(kMipsSubu, rl_result.reg.GetReg(), rl_result.reg.GetReg(), temp.GetReg());
+    FreeTemp(temp);
+    StoreValue(rl_dest, rl_result);
+  } else {
+    RegStorage t0 = AllocTemp();
+    RegStorage t1 = AllocTemp();
+    RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
+    NewLIR3(kMipsSlt, t0.GetReg(), rl_src1.reg.GetHighReg(), rl_src2.reg.GetHighReg());
+    NewLIR3(kMipsSlt, t1.GetReg(), rl_src2.reg.GetHighReg(), rl_src1.reg.GetHighReg());
+    NewLIR3(kMipsSubu, rl_result.reg.GetReg(), t1.GetReg(), t0.GetReg());
+    LIR* branch = OpCmpImmBranch(kCondNe, rl_result.reg, 0, NULL);
+    NewLIR3(kMipsSltu, t0.GetReg(), rl_src1.reg.GetLowReg(), rl_src2.reg.GetLowReg());
+    NewLIR3(kMipsSltu, t1.GetReg(), rl_src2.reg.GetLowReg(), rl_src1.reg.GetLowReg());
+    NewLIR3(kMipsSubu, rl_result.reg.GetReg(), t1.GetReg(), t0.GetReg());
+    FreeTemp(t0);
+    FreeTemp(t1);
+    LIR* target = NewLIR0(kPseudoTargetLabel);
+    branch->target = target;
+    StoreValue(rl_dest, rl_result);
+  }
 }
 
 LIR* MipsMir2Lir::OpCmpBranch(ConditionCode cond, RegStorage src1, RegStorage src2, LIR* target) {
@@ -134,7 +149,7 @@ LIR* MipsMir2Lir::OpCmpBranch(ConditionCode cond, RegStorage src1, RegStorage sr
 LIR* MipsMir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_value, LIR* target) {
   LIR* branch;
   if (check_value != 0) {
-    // TUNING: handle s16 & kCondLt/Mi case using slti
+    // TUNING: handle s16 & kCondLt/Mi case using slti.
     RegStorage t_reg = AllocTemp();
     LoadConstant(t_reg, check_value);
     branch = OpCmpBranch(cond, reg, t_reg, target);
@@ -164,17 +179,34 @@ LIR* MipsMir2Lir::OpCmpImmBranch(ConditionCode cond, RegStorage reg, int check_v
 }
 
 LIR* MipsMir2Lir::OpRegCopyNoInsert(RegStorage r_dest, RegStorage r_src) {
-  // If src or dest is a pair, we'll be using low reg.
-  if (r_dest.IsPair()) {
-    r_dest = r_dest.GetLow();
+  LIR* res;
+  MipsOpCode opcode;
+
+  if (!cu_->target64) {
+    // If src or dest is a pair, we'll be using low reg.
+    if (r_dest.IsPair()) {
+      r_dest = r_dest.GetLow();
+    }
+    if (r_src.IsPair()) {
+      r_src = r_src.GetLow();
+    }
+  } else {
+    DCHECK(!r_dest.IsPair() && !r_src.IsPair());
   }
-  if (r_src.IsPair()) {
-    r_src = r_src.GetLow();
-  }
+
   if (r_dest.IsFloat() || r_src.IsFloat())
     return OpFpRegCopy(r_dest, r_src);
-  LIR* res = RawLIR(current_dalvik_offset_, kMipsMove,
-                    r_dest.GetReg(), r_src.GetReg());
+  if (cu_->target64) {
+    // TODO: Check that r_src and r_dest are both 32 or both 64 bits length on Mips64.
+    if (r_dest.Is64Bit() || r_src.Is64Bit()) {
+      opcode = kMipsMove;
+    } else {
+      opcode = kMipsSll;
+    }
+  } else {
+    opcode = kMipsMove;
+  }
+  res = RawLIR(current_dalvik_offset_, opcode, r_dest.GetReg(), r_src.GetReg());
   if (!(cu_->disable_opt & (1 << kSafeOptimizations)) && r_dest == r_src) {
     res->flags.is_nop = true;
   }
@@ -189,6 +221,10 @@ void MipsMir2Lir::OpRegCopy(RegStorage r_dest, RegStorage r_src) {
 }
 
 void MipsMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
+  if (cu_->target64) {
+    OpRegCopy(r_dest, r_src);
+    return;
+  }
   if (r_dest != r_src) {
     bool dest_fp = r_dest.IsFloat();
     bool src_fp = r_src.IsFloat();
@@ -213,16 +249,16 @@ void MipsMir2Lir::OpRegCopyWide(RegStorage r_dest, RegStorage r_src) {
       if (src_fp) {
         // Here if dest is core reg and src is fp reg.
         if (fpuIs32Bit_) {
-            NewLIR2(kMipsMfc1, r_dest.GetLowReg(), r_src.GetLowReg());
-            NewLIR2(kMipsMfc1, r_dest.GetHighReg(), r_src.GetHighReg());
+          NewLIR2(kMipsMfc1, r_dest.GetLowReg(), r_src.GetLowReg());
+          NewLIR2(kMipsMfc1, r_dest.GetHighReg(), r_src.GetHighReg());
         } else {
-            r_src = Fp64ToSolo32(r_src);
-            NewLIR2(kMipsMfc1, r_dest.GetLowReg(), r_src.GetReg());
-            NewLIR2(kMipsMfhc1, r_dest.GetHighReg(), r_src.GetReg());
+          r_src = Fp64ToSolo32(r_src);
+          NewLIR2(kMipsMfc1, r_dest.GetLowReg(), r_src.GetReg());
+          NewLIR2(kMipsMfhc1, r_dest.GetHighReg(), r_src.GetReg());
         }
       } else {
         // Here if both src and dest are core registers.
-        // Handle overlap
+        // Handle overlap.
         if (r_src.GetHighReg() == r_dest.GetLowReg()) {
           OpRegCopy(r_dest.GetHigh(), r_src.GetHigh());
           OpRegCopy(r_dest.GetLow(), r_src.GetLow());
@@ -263,17 +299,15 @@ RegLocation MipsMir2Lir::GenDivRem(RegLocation rl_dest, RegStorage reg1, RegStor
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
 
   if (isaIsR6_) {
-      NewLIR3(is_div ? kMipsR6Div : kMipsR6Mod,
-          rl_result.reg.GetReg(), reg1.GetReg(), reg2.GetReg());
+    NewLIR3(is_div ? kMipsR6Div : kMipsR6Mod, rl_result.reg.GetReg(), reg1.GetReg(), reg2.GetReg());
   } else {
-      NewLIR2(kMipsDiv, reg1.GetReg(), reg2.GetReg());
-      NewLIR1(is_div ? kMipsMflo : kMipsMfhi, rl_result.reg.GetReg());
+    NewLIR2(kMipsR2Div, reg1.GetReg(), reg2.GetReg());
+    NewLIR1(is_div ? kMipsR2Mflo : kMipsR2Mfhi, rl_result.reg.GetReg());
   }
   return rl_result;
 }
 
-RegLocation MipsMir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg1, int lit,
-                                      bool is_div) {
+RegLocation MipsMir2Lir::GenDivRemLit(RegLocation rl_dest, RegStorage reg1, int lit, bool is_div) {
   RegStorage t_reg = AllocTemp();
   NewLIR3(kMipsAddiu, t_reg.GetReg(), rZERO, lit);
   RegLocation rl_result = GenDivRem(rl_dest, reg1, t_reg, is_div);
@@ -322,10 +356,17 @@ bool MipsMir2Lir::GenInlinedPeek(CallInfo* info, OpSize size) {
     // MIPS supports only aligned access. Defer unaligned access to JNI implementation.
     return false;
   }
-  RegLocation rl_src_address = info->args[0];  // long address
-  rl_src_address = NarrowRegLoc(rl_src_address);  // ignore high half in info->args[1]
+  RegLocation rl_src_address = info->args[0];       // Long address.
+  if (!cu_->target64) {
+    rl_src_address = NarrowRegLoc(rl_src_address);  // Ignore high half in info->args[1].
+  }
   RegLocation rl_dest = InlineTarget(info);
-  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  RegLocation rl_address;
+  if (cu_->target64) {
+    rl_address = LoadValueWide(rl_src_address, kCoreReg);
+  } else {
+    rl_address = LoadValue(rl_src_address, kCoreReg);
+  }
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
   DCHECK(size == kSignedByte);
   LoadBaseDisp(rl_address.reg, 0, rl_result.reg, size, kNotVolatile);
@@ -338,10 +379,17 @@ bool MipsMir2Lir::GenInlinedPoke(CallInfo* info, OpSize size) {
     // MIPS supports only aligned access. Defer unaligned access to JNI implementation.
     return false;
   }
-  RegLocation rl_src_address = info->args[0];  // long address
-  rl_src_address = NarrowRegLoc(rl_src_address);  // ignore high half in info->args[1]
-  RegLocation rl_src_value = info->args[2];  // [size] value
-  RegLocation rl_address = LoadValue(rl_src_address, kCoreReg);
+  RegLocation rl_src_address = info->args[0];       // Long address.
+  if (!cu_->target64) {
+    rl_src_address = NarrowRegLoc(rl_src_address);  // Ignore high half in info->args[1].
+  }
+  RegLocation rl_src_value = info->args[2];         // [size] value.
+  RegLocation rl_address;
+  if (cu_->target64) {
+    rl_address = LoadValueWide(rl_src_address, kCoreReg);
+  } else {
+    rl_address = LoadValue(rl_src_address, kCoreReg);
+  }
   DCHECK(size == kSignedByte);
   RegLocation rl_value = LoadValue(rl_src_value, kCoreReg);
   StoreBaseDisp(rl_address.reg, 0, rl_value.reg, size, kNotVolatile);
@@ -366,8 +414,7 @@ LIR* MipsMir2Lir::OpVstm(RegStorage r_base, int count) {
   UNREACHABLE();
 }
 
-void MipsMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
-                                                RegLocation rl_result, int lit,
+void MipsMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src, RegLocation rl_result, int lit,
                                                 int first_bit, int second_bit) {
   UNUSED(lit);
   RegStorage t_reg = AllocTemp();
@@ -380,20 +427,24 @@ void MipsMir2Lir::GenMultiplyByTwoBitMultiplier(RegLocation rl_src,
 }
 
 void MipsMir2Lir::GenDivZeroCheckWide(RegStorage reg) {
-  DCHECK(reg.IsPair());   // TODO: support k64BitSolo.
-  RegStorage t_reg = AllocTemp();
-  OpRegRegReg(kOpOr, t_reg, reg.GetLow(), reg.GetHigh());
-  GenDivZeroCheck(t_reg);
-  FreeTemp(t_reg);
+  if (cu_->target64) {
+    GenDivZeroCheck(reg);
+  } else {
+    DCHECK(reg.IsPair());   // TODO: support k64BitSolo.
+    RegStorage t_reg = AllocTemp();
+    OpRegRegReg(kOpOr, t_reg, reg.GetLow(), reg.GetHigh());
+    GenDivZeroCheck(t_reg);
+    FreeTemp(t_reg);
+  }
 }
 
-// Test suspend flag, return target of taken suspend branch
+// Test suspend flag, return target of taken suspend branch.
 LIR* MipsMir2Lir::OpTestSuspend(LIR* target) {
-  OpRegImm(kOpSub, rs_rMIPS_SUSPEND, 1);
-  return OpCmpImmBranch((target == NULL) ? kCondEq : kCondNe, rs_rMIPS_SUSPEND, 0, target);
+  OpRegImm(kOpSub, TargetPtrReg(kSuspend), 1);
+  return OpCmpImmBranch((target == NULL) ? kCondEq : kCondNe, TargetPtrReg(kSuspend), 0, target);
 }
 
-// Decrement register and branch on condition
+// Decrement register and branch on condition.
 LIR* MipsMir2Lir::OpDecAndBranch(ConditionCode c_code, RegStorage reg, LIR* target) {
   OpRegImm(kOpSub, reg, 1);
   return OpCmpImmBranch(c_code, reg, 0, target);
@@ -423,9 +474,7 @@ void MipsMir2Lir::OpEndIT(LIR* it) {
   LOG(FATAL) << "Unexpected use of OpEndIT in Mips";
 }
 
-void MipsMir2Lir::GenAddLong(Instruction::Code opcode, RegLocation rl_dest,
-                             RegLocation rl_src1, RegLocation rl_src2) {
-  UNUSED(opcode);
+void MipsMir2Lir::GenAddLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
@@ -440,15 +489,14 @@ void MipsMir2Lir::GenAddLong(Instruction::Code opcode, RegLocation rl_dest,
   OpRegRegReg(kOpAdd, rl_result.reg.GetLow(), rl_src2.reg.GetLow(), rl_src1.reg.GetLow());
   RegStorage t_reg = AllocTemp();
   OpRegRegReg(kOpAdd, t_reg, rl_src2.reg.GetHigh(), rl_src1.reg.GetHigh());
-  NewLIR3(kMipsSltu, rl_result.reg.GetHighReg(), rl_result.reg.GetLowReg(), rl_src2.reg.GetLowReg());
+  NewLIR3(kMipsSltu, rl_result.reg.GetHighReg(), rl_result.reg.GetLowReg(),
+          rl_src2.reg.GetLowReg());
   OpRegRegReg(kOpAdd, rl_result.reg.GetHigh(), rl_result.reg.GetHigh(), t_reg);
   FreeTemp(t_reg);
   StoreValueWide(rl_dest, rl_result);
 }
 
-void MipsMir2Lir::GenSubLong(Instruction::Code opcode, RegLocation rl_dest,
-                             RegLocation rl_src1, RegLocation rl_src2) {
-  UNUSED(opcode);
+void MipsMir2Lir::GenSubLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
   rl_src1 = LoadValueWide(rl_src1, kCoreReg);
   rl_src2 = LoadValueWide(rl_src2, kCoreReg);
   RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
@@ -471,45 +519,134 @@ void MipsMir2Lir::GenSubLong(Instruction::Code opcode, RegLocation rl_dest,
 
 void MipsMir2Lir::GenArithOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
                                  RegLocation rl_src2, int flags) {
-  switch (opcode) {
-    case Instruction::ADD_LONG:
-    case Instruction::ADD_LONG_2ADDR:
-      GenAddLong(opcode, rl_dest, rl_src1, rl_src2);
-      return;
-    case Instruction::SUB_LONG:
-    case Instruction::SUB_LONG_2ADDR:
-      GenSubLong(opcode, rl_dest, rl_src1, rl_src2);
-      return;
-    case Instruction::NEG_LONG:
-      GenNegLong(rl_dest, rl_src2);
-      return;
+  if (cu_->target64) {
+    switch (opcode) {
+      case Instruction::NOT_LONG:
+        GenNotLong(rl_dest, rl_src2);
+        return;
+      case Instruction::ADD_LONG:
+      case Instruction::ADD_LONG_2ADDR:
+        GenLongOp(kOpAdd, rl_dest, rl_src1, rl_src2);
+        return;
+      case Instruction::SUB_LONG:
+      case Instruction::SUB_LONG_2ADDR:
+        GenLongOp(kOpSub, rl_dest, rl_src1, rl_src2);
+        return;
+      case Instruction::MUL_LONG:
+      case Instruction::MUL_LONG_2ADDR:
+        GenMulLong(rl_dest, rl_src1, rl_src2);
+        return;
+      case Instruction::DIV_LONG:
+      case Instruction::DIV_LONG_2ADDR:
+        GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ true, flags);
+        return;
+      case Instruction::REM_LONG:
+      case Instruction::REM_LONG_2ADDR:
+        GenDivRemLong(opcode, rl_dest, rl_src1, rl_src2, /*is_div*/ false, flags);
+        return;
+      case Instruction::AND_LONG:
+      case Instruction::AND_LONG_2ADDR:
+        GenLongOp(kOpAnd, rl_dest, rl_src1, rl_src2);
+        return;
+      case Instruction::OR_LONG:
+      case Instruction::OR_LONG_2ADDR:
+        GenLongOp(kOpOr, rl_dest, rl_src1, rl_src2);
+        return;
+      case Instruction::XOR_LONG:
+      case Instruction::XOR_LONG_2ADDR:
+        GenLongOp(kOpXor, rl_dest, rl_src1, rl_src2);
+        return;
+      case Instruction::NEG_LONG:
+        GenNegLong(rl_dest, rl_src2);
+        return;
 
-    default:
-      break;
+      default:
+        LOG(FATAL) << "Invalid long arith op";
+        return;
+    }
+  } else {
+    switch (opcode) {
+      case Instruction::ADD_LONG:
+      case Instruction::ADD_LONG_2ADDR:
+        GenAddLong(rl_dest, rl_src1, rl_src2);
+        return;
+      case Instruction::SUB_LONG:
+      case Instruction::SUB_LONG_2ADDR:
+        GenSubLong(rl_dest, rl_src1, rl_src2);
+        return;
+      case Instruction::NEG_LONG:
+        GenNegLong(rl_dest, rl_src2);
+        return;
+      default:
+        break;
+    }
+    // Fallback for all other ops.
+    Mir2Lir::GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2, flags);
   }
+}
 
-  // Fallback for all other ops.
-  Mir2Lir::GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2, flags);
+void MipsMir2Lir::GenLongOp(OpKind op, RegLocation rl_dest, RegLocation rl_src1,
+                            RegLocation rl_src2) {
+  rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+  rl_src2 = LoadValueWide(rl_src2, kCoreReg);
+  RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+  OpRegRegReg(op, rl_result.reg, rl_src1.reg, rl_src2.reg);
+  StoreValueWide(rl_dest, rl_result);
+}
+
+void MipsMir2Lir::GenNotLong(RegLocation rl_dest, RegLocation rl_src) {
+  rl_src = LoadValueWide(rl_src, kCoreReg);
+  RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+  OpRegReg(kOpMvn, rl_result.reg, rl_src.reg);
+  StoreValueWide(rl_dest, rl_result);
+}
+
+void MipsMir2Lir::GenMulLong(RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2) {
+  rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+  rl_src2 = LoadValueWide(rl_src2, kCoreReg);
+  RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+  NewLIR3(kMips64Dmul, rl_result.reg.GetReg(), rl_src1.reg.GetReg(), rl_src2.reg.GetReg());
+  StoreValueWide(rl_dest, rl_result);
+}
+
+void MipsMir2Lir::GenDivRemLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                                RegLocation rl_src2, bool is_div, int flags) {
+  UNUSED(opcode);
+  // TODO: Implement easy div/rem?
+  rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+  rl_src2 = LoadValueWide(rl_src2, kCoreReg);
+  if ((flags & MIR_IGNORE_DIV_ZERO_CHECK) == 0) {
+    GenDivZeroCheckWide(rl_src2.reg);
+  }
+  RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+  NewLIR3(is_div ? kMips64Ddiv : kMips64Dmod, rl_result.reg.GetReg(), rl_src1.reg.GetReg(),
+          rl_src2.reg.GetReg());
+  StoreValueWide(rl_dest, rl_result);
 }
 
 void MipsMir2Lir::GenNegLong(RegLocation rl_dest, RegLocation rl_src) {
   rl_src = LoadValueWide(rl_src, kCoreReg);
-  RegLocation rl_result = EvalLoc(rl_dest, kCoreReg, true);
-  /*
-   *  [v1 v0] =  -[a1 a0]
-   *  negu  v0,a0
-   *  negu  v1,a1
-   *  sltu  t1,r_zero
-   *  subu  v1,v1,t1
-   */
+  RegLocation rl_result;
 
-  OpRegReg(kOpNeg, rl_result.reg.GetLow(), rl_src.reg.GetLow());
-  OpRegReg(kOpNeg, rl_result.reg.GetHigh(), rl_src.reg.GetHigh());
-  RegStorage t_reg = AllocTemp();
-  NewLIR3(kMipsSltu, t_reg.GetReg(), rZERO, rl_result.reg.GetLowReg());
-  OpRegRegReg(kOpSub, rl_result.reg.GetHigh(), rl_result.reg.GetHigh(), t_reg);
-  FreeTemp(t_reg);
-  StoreValueWide(rl_dest, rl_result);
+  if (cu_->target64) {
+    rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+    OpRegReg(kOpNeg, rl_result.reg, rl_src.reg);
+    StoreValueWide(rl_dest, rl_result);
+  } else {
+    rl_result = EvalLoc(rl_dest, kCoreReg, true);
+    //  [v1 v0] =  -[a1 a0]
+    //  negu  v0,a0
+    //  negu  v1,a1
+    //  sltu  t1,r_zero
+    //  subu  v1,v1,t1
+    OpRegReg(kOpNeg, rl_result.reg.GetLow(), rl_src.reg.GetLow());
+    OpRegReg(kOpNeg, rl_result.reg.GetHigh(), rl_src.reg.GetHigh());
+    RegStorage t_reg = AllocTemp();
+    NewLIR3(kMipsSltu, t_reg.GetReg(), rZERO, rl_result.reg.GetLowReg());
+    OpRegRegReg(kOpSub, rl_result.reg.GetHigh(), rl_result.reg.GetHigh(), t_reg);
+    FreeTemp(t_reg);
+    StoreValueWide(rl_dest, rl_result);
+  }
 }
 
 /*
@@ -532,18 +669,18 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
     data_offset = mirror::Array::DataOffset(sizeof(int32_t)).Int32Value();
   }
 
-  /* null object? */
+  // Null object?
   GenNullCheck(rl_array.reg, opt_flags);
 
-  RegStorage reg_ptr = AllocTemp();
+  RegStorage reg_ptr = (cu_->target64) ? AllocTempRef() : AllocTemp();
   bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
   RegStorage reg_len;
   if (needs_range_check) {
     reg_len = AllocTemp();
-    /* Get len */
+    // Get len.
     Load32Disp(rl_array.reg, len_offset, reg_len);
   }
-  /* reg_ptr -> array data */
+  // reg_ptr -> array data.
   OpRegRegImm(kOpAdd, reg_ptr, rl_array.reg, data_offset);
   FreeTemp(rl_array.reg);
   if ((size == k64) || (size == kDouble)) {
@@ -573,7 +710,17 @@ void MipsMir2Lir::GenArrayGet(int opt_flags, OpSize size, RegLocation rl_array,
       GenArrayBoundsCheck(rl_index.reg, reg_len);
       FreeTemp(reg_len);
     }
-    LoadBaseIndexed(reg_ptr, rl_index.reg, rl_result.reg, scale, size);
+
+    if (cu_->target64) {
+      if (rl_result.ref) {
+        LoadBaseIndexed(reg_ptr, As64BitReg(rl_index.reg), As32BitReg(rl_result.reg), scale,
+                        kReference);
+      } else {
+        LoadBaseIndexed(reg_ptr, As64BitReg(rl_index.reg), rl_result.reg, scale, size);
+      }
+    } else {
+      LoadBaseIndexed(reg_ptr, rl_index.reg, rl_result.reg, scale, size);
+    }
 
     FreeTemp(reg_ptr);
     StoreValue(rl_dest, rl_result);
@@ -612,7 +759,7 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
     allocated_reg_ptr_temp = true;
   }
 
-  /* null object? */
+  // Null object?
   GenNullCheck(rl_array.reg, opt_flags);
 
   bool needs_range_check = (!(opt_flags & MIR_IGNORE_RANGE_CHECK));
@@ -620,14 +767,14 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   if (needs_range_check) {
     reg_len = AllocTemp();
     // NOTE: max live temps(4) here.
-    /* Get len */
+    // Get len.
     Load32Disp(rl_array.reg, len_offset, reg_len);
   }
-  /* reg_ptr -> array data */
+  // reg_ptr -> array data.
   OpRegImm(kOpAdd, reg_ptr, data_offset);
-  /* at this point, reg_ptr points to array, 2 live temps */
+  // At this point, reg_ptr points to array, 2 live temps.
   if ((size == k64) || (size == kDouble)) {
-    // TUNING: specific wide routine that can handle fp regs
+    // TUNING: specific wide routine that can handle fp regs.
     if (scale) {
       RegStorage r_new_index = AllocTemp();
       OpRegRegImm(kOpLsl, r_new_index, rl_index.reg, scale);
@@ -660,18 +807,104 @@ void MipsMir2Lir::GenArrayPut(int opt_flags, OpSize size, RegLocation rl_array,
   }
 }
 
+void MipsMir2Lir::GenShiftOpLong(Instruction::Code opcode, RegLocation rl_dest, RegLocation rl_src1,
+                                 RegLocation rl_shift) {
+  if (!cu_->target64) {
+    Mir2Lir::GenShiftOpLong(opcode, rl_dest, rl_src1, rl_shift);
+    return;
+  }
+  OpKind op = kOpBkpt;
+  switch (opcode) {
+  case Instruction::SHL_LONG:
+  case Instruction::SHL_LONG_2ADDR:
+    op = kOpLsl;
+    break;
+  case Instruction::SHR_LONG:
+  case Instruction::SHR_LONG_2ADDR:
+    op = kOpAsr;
+    break;
+  case Instruction::USHR_LONG:
+  case Instruction::USHR_LONG_2ADDR:
+    op = kOpLsr;
+    break;
+  default:
+    LOG(FATAL) << "Unexpected case: " << opcode;
+  }
+  rl_shift = LoadValue(rl_shift, kCoreReg);
+  rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+  RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+  OpRegRegReg(op, rl_result.reg, rl_src1.reg, As64BitReg(rl_shift.reg));
+  StoreValueWide(rl_dest, rl_result);
+}
+
 void MipsMir2Lir::GenShiftImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
                                     RegLocation rl_src1, RegLocation rl_shift, int flags) {
   UNUSED(flags);
-  // Default implementation is just to ignore the constant case.
-  GenShiftOpLong(opcode, rl_dest, rl_src1, rl_shift);
+  if (!cu_->target64) {
+    // Default implementation is just to ignore the constant case.
+    GenShiftOpLong(opcode, rl_dest, rl_src1, rl_shift);
+    return;
+  }
+  OpKind op = kOpBkpt;
+  // Per spec, we only care about low 6 bits of shift amount.
+  int shift_amount = mir_graph_->ConstantValue(rl_shift) & 0x3f;
+  rl_src1 = LoadValueWide(rl_src1, kCoreReg);
+  if (shift_amount == 0) {
+    StoreValueWide(rl_dest, rl_src1);
+    return;
+  }
+
+  RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+  switch (opcode) {
+    case Instruction::SHL_LONG:
+    case Instruction::SHL_LONG_2ADDR:
+      op = kOpLsl;
+      break;
+    case Instruction::SHR_LONG:
+    case Instruction::SHR_LONG_2ADDR:
+      op = kOpAsr;
+      break;
+    case Instruction::USHR_LONG:
+    case Instruction::USHR_LONG_2ADDR:
+      op = kOpLsr;
+      break;
+    default:
+      LOG(FATAL) << "Unexpected case";
+  }
+  OpRegRegImm(op, rl_result.reg, rl_src1.reg, shift_amount);
+  StoreValueWide(rl_dest, rl_result);
 }
 
-void MipsMir2Lir::GenArithImmOpLong(Instruction::Code opcode,
-                                    RegLocation rl_dest, RegLocation rl_src1, RegLocation rl_src2,
-                                    int flags) {
+void MipsMir2Lir::GenArithImmOpLong(Instruction::Code opcode, RegLocation rl_dest,
+                                    RegLocation rl_src1, RegLocation rl_src2, int flags) {
   // Default - bail to non-const handler.
   GenArithOpLong(opcode, rl_dest, rl_src1, rl_src2, flags);
+}
+
+void MipsMir2Lir::GenIntToLong(RegLocation rl_dest, RegLocation rl_src) {
+  if (!cu_->target64) {
+    Mir2Lir::GenIntToLong(rl_dest, rl_src);
+    return;
+  }
+  rl_src = LoadValue(rl_src, kCoreReg);
+  RegLocation rl_result = EvalLocWide(rl_dest, kCoreReg, true);
+  NewLIR3(kMipsSll, rl_result.reg.GetReg(), As64BitReg(rl_src.reg).GetReg(), 0);
+  StoreValueWide(rl_dest, rl_result);
+}
+
+void MipsMir2Lir::GenConversionCall(QuickEntrypointEnum trampoline, RegLocation rl_dest,
+                                    RegLocation rl_src, RegisterClass reg_class) {
+  FlushAllRegs();   // Send everything to home location.
+  CallRuntimeHelperRegLocation(trampoline, rl_src, false);
+  if (rl_dest.wide) {
+    RegLocation rl_result;
+    rl_result = GetReturnWide(reg_class);
+    StoreValueWide(rl_dest, rl_result);
+  } else {
+    RegLocation rl_result;
+    rl_result = GetReturn(reg_class);
+    StoreValue(rl_dest, rl_result);
+  }
 }
 
 }  // namespace art

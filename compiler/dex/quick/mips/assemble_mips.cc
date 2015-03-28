@@ -77,7 +77,7 @@ namespace art {
  *
  *  [!] escape.  To insert "!", use "!!"
  */
-/* NOTE: must be kept in sync with enum MipsOpcode from LIR.h */
+/* NOTE: must be kept in sync with enum MipsOpcode from mips_lir.h */
 /*
  * TUNING: We're currently punting on the branch delay slots.  All branch
  * instructions in this map are given a size of 8, which during assembly
@@ -85,6 +85,7 @@ namespace art {
  * an assembler pass to fill those slots when possible.
  */
 const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
+    // The following are common mips32r2, mips32r6 and mips64r6 instructions.
     ENCODING_MAP(kMips32BitData, 0x00000000,
                  kFmtBitBlt, 31, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP,
@@ -117,7 +118,7 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0,
                  kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | REG_USE01 |
                  NEEDS_FIXUP, "beq", "!0r,!1r,!2t!0N", 8),
-    ENCODING_MAP(kMipsBeqz, 0x10000000, /* same as beq above with t = $zero */
+    ENCODING_MAP(kMipsBeqz, 0x10000000,  // Same as beq above with t = $zero.
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0 |
                  NEEDS_FIXUP, "beqz", "!0r,!1t!0N", 8),
@@ -137,7 +138,7 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0 |
                  NEEDS_FIXUP, "bltz", "!0r,!1t!0N", 8),
-    ENCODING_MAP(kMipsBnez, 0x14000000, /* same as bne below with t = $zero */
+    ENCODING_MAP(kMipsBnez, 0x14000000,  // Same as bne below with t = $zero.
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_USE0 |
                  NEEDS_FIXUP, "bnez", "!0r,!1t!0N", 8),
@@ -145,14 +146,98 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0,
                  kFmtUnused, -1, -1, IS_BINARY_OP | IS_BRANCH | REG_USE01 |
                  NEEDS_FIXUP, "bne", "!0r,!1r,!2t!0N", 8),
-    ENCODING_MAP(kMipsDiv, 0x0000001a,
-                 kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF_HI | REG_DEF_LO | REG_USE01,
-                 "div", "!0r,!1r", 4),
     ENCODING_MAP(kMipsExt, 0x7c000000,
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 25, 21, kFmtBitBlt, 10, 6,
                  kFmtBitBlt, 15, 11, IS_QUAD_OP | REG_DEF0 | REG_USE1,
                  "ext", "!0r,!1r,!2d,!3D", 4),
+    ENCODING_MAP(kMipsFaddd, 0x46200000,
+                 kFmtDfp, 10, 6, kFmtDfp, 15, 11, kFmtDfp, 20, 16,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 "add.d", "!0S,!1S,!2S", 4),
+    ENCODING_MAP(kMipsFadds, 0x46000000,
+                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtSfp, 20, 16,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 "add.s", "!0s,!1s,!2s", 4),
+    ENCODING_MAP(kMipsFsubd, 0x46200001,
+                 kFmtDfp, 10, 6, kFmtDfp, 15, 11, kFmtDfp, 20, 16,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 "sub.d", "!0S,!1S,!2S", 4),
+    ENCODING_MAP(kMipsFsubs, 0x46000001,
+                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtSfp, 20, 16,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 "sub.s", "!0s,!1s,!2s", 4),
+    ENCODING_MAP(kMipsFdivd, 0x46200003,
+                 kFmtDfp, 10, 6, kFmtDfp, 15, 11, kFmtDfp, 20, 16,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 "div.d", "!0S,!1S,!2S", 4),
+    ENCODING_MAP(kMipsFdivs, 0x46000003,
+                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtSfp, 20, 16,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 "div.s", "!0s,!1s,!2s", 4),
+    ENCODING_MAP(kMipsFmuld, 0x46200002,
+                 kFmtDfp, 10, 6, kFmtDfp, 15, 11, kFmtDfp, 20, 16,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 "mul.d", "!0S,!1S,!2S", 4),
+    ENCODING_MAP(kMipsFmuls, 0x46000002,
+                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtSfp, 20, 16,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 "mul.s", "!0s,!1s,!2s", 4),
+    ENCODING_MAP(kMipsFcvtsd, 0x46200020,
+                 kFmtSfp, 10, 6, kFmtDfp, 15, 11, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
+                 "cvt.s.d", "!0s,!1S", 4),
+    ENCODING_MAP(kMipsFcvtsw, 0x46800020,
+                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
+                 "cvt.s.w", "!0s,!1s", 4),
+    ENCODING_MAP(kMipsFcvtds, 0x46000021,
+                 kFmtDfp, 10, 6, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
+                 "cvt.d.s", "!0S,!1s", 4),
+    ENCODING_MAP(kMipsFcvtdw, 0x46800021,
+                 kFmtDfp, 10, 6, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
+                 "cvt.d.w", "!0S,!1s", 4),
+    ENCODING_MAP(kMipsFcvtwd, 0x46200024,
+                 kFmtSfp, 10, 6, kFmtDfp, 15, 11, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
+                 "cvt.w.d", "!0s,!1S", 4),
+    ENCODING_MAP(kMipsFcvtws, 0x46000024,
+                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
+                 "cvt.w.s", "!0s,!1s", 4),
+    ENCODING_MAP(kMipsFmovd, 0x46200006,
+                 kFmtDfp, 10, 6, kFmtDfp, 15, 11, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
+                 "mov.d", "!0S,!1S", 4),
+    ENCODING_MAP(kMipsFmovs, 0x46000006,
+                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
+                 "mov.s", "!0s,!1s", 4),
+    ENCODING_MAP(kMipsFnegd, 0x46200007,
+                 kFmtDfp, 10, 6, kFmtDfp, 15, 11, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
+                 "neg.d", "!0S,!1S", 4),
+    ENCODING_MAP(kMipsFnegs, 0x46000007,
+                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
+                 "neg.s", "!0s,!1s", 4),
+    ENCODING_MAP(kMipsFldc1, 0xd4000000,
+                 kFmtDfp, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE2 | IS_LOAD,
+                 "ldc1", "!0S,!1d(!2r)", 4),
+    ENCODING_MAP(kMipsFlwc1, 0xc4000000,
+                 kFmtSfp, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE2 | IS_LOAD,
+                 "lwc1", "!0s,!1d(!2r)", 4),
+    ENCODING_MAP(kMipsFsdc1, 0xf4000000,
+                 kFmtDfp, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_USE02 | IS_STORE,
+                 "sdc1", "!0S,!1d(!2r)", 4),
+    ENCODING_MAP(kMipsFswc1, 0xe4000000,
+                 kFmtSfp, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_USE02 | IS_STORE,
+                 "swc1", "!0s,!1d(!2r)", 4),
     ENCODING_MAP(kMipsJal, 0x0c000000,
                  kFmtBitBlt, 25, 0, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_UNARY_OP | IS_BRANCH | REG_DEF_LR,
@@ -197,31 +282,31 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE2 | IS_LOAD,
                  "lw", "!0r,!1d(!2r)", 4),
-    ENCODING_MAP(kMipsMfhi, 0x00000010,
-                 kFmtBitBlt, 15, 11, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_UNARY_OP | REG_DEF0 | REG_USE_HI,
-                 "mfhi", "!0r", 4),
-    ENCODING_MAP(kMipsMflo, 0x00000012,
-                 kFmtBitBlt, 15, 11, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_UNARY_OP | REG_DEF0 | REG_USE_LO,
-                 "mflo", "!0r", 4),
-    ENCODING_MAP(kMipsMove, 0x00000025, /* or using zero reg */
+    ENCODING_MAP(kMipsMove, 0x00000025,  // Or using zero reg.
                  kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
                  "move", "!0r,!1r", 4),
-    ENCODING_MAP(kMipsMovz, 0x0000000a,
-                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
-                 "movz", "!0r,!1r,!2r", 4),
-    ENCODING_MAP(kMipsMul, 0x70000002,
-                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
-                 "mul", "!0r,!1r,!2r", 4),
+    ENCODING_MAP(kMipsMfc1, 0x44000000,
+                 kFmtBitBlt, 20, 16, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
+                 "mfc1", "!0r,!1s", 4),
+    ENCODING_MAP(kMipsMtc1, 0x44800000,
+                 kFmtBitBlt, 20, 16, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_USE0 | REG_DEF1,
+                 "mtc1", "!0r,!1s", 4),
+    ENCODING_MAP(kMipsMfhc1, 0x44600000,
+                 kFmtBitBlt, 20, 16, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
+                 "mfhc1", "!0r,!1s", 4),
+    ENCODING_MAP(kMipsMthc1, 0x44e00000,
+                 kFmtBitBlt, 20, 16, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_USE0 | REG_DEF1,
+                 "mthc1", "!0r,!1s", 4),
     ENCODING_MAP(kMipsNop, 0x00000000,
                  kFmtUnused, -1, -1, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, NO_OPERAND,
                  "nop", ";", 4),
-    ENCODING_MAP(kMipsNor, 0x00000027, /* used for "not" too */
+    ENCODING_MAP(kMipsNor, 0x00000027,  // Used for "not" too.
                  kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
                  "nor", "!0r,!1r,!2r", 4),
@@ -289,7 +374,7 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  kFmtBitBlt, 15, 11, kFmtBitBlt, 20, 16, kFmtBitBlt, 25, 21,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
                  "srlv", "!0r,!1r,!2r", 4),
-    ENCODING_MAP(kMipsSubu, 0x00000023, /* used for "neg" too */
+    ENCODING_MAP(kMipsSubu, 0x00000023,  // Used for "neg" too.
                  kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
                  "subu", "!0r,!1r,!2r", 4),
@@ -297,6 +382,10 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_USE02 | IS_STORE,
                  "sw", "!0r,!1d(!2r)", 4),
+    ENCODING_MAP(kMipsSync, 0x0000000f,
+                 kFmtBitBlt, 10, 6, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_UNARY_OP,
+                 "sync", ";", 4),
     ENCODING_MAP(kMipsXor, 0x00000026,
                  kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
@@ -305,103 +394,143 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1,
                  "xori", "!0r,!1r,0x!2h(!2d)", 4),
-    ENCODING_MAP(kMipsFadds, 0x46000000,
-                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtSfp, 20, 16,
+
+    // The following are mips32r2 instructions.
+    ENCODING_MAP(kMipsR2Div, 0x0000001a,
+                 kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF_HI | REG_DEF_LO | REG_USE01,
+                 "div", "!0r,!1r", 4),
+    ENCODING_MAP(kMipsR2Mul, 0x70000002,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
-                 "add.s", "!0s,!1s,!2s", 4),
-    ENCODING_MAP(kMipsFsubs, 0x46000001,
-                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtSfp, 20, 16,
+                 "mul", "!0r,!1r,!2r", 4),
+    ENCODING_MAP(kMipsR2Mfhi, 0x00000010,
+                 kFmtBitBlt, 15, 11, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_UNARY_OP | REG_DEF0 | REG_USE_HI,
+                 "mfhi", "!0r", 4),
+    ENCODING_MAP(kMipsR2Mflo, 0x00000012,
+                 kFmtBitBlt, 15, 11, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_UNARY_OP | REG_DEF0 | REG_USE_LO,
+                 "mflo", "!0r", 4),
+    ENCODING_MAP(kMipsR2Movz, 0x0000000a,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
-                 "sub.s", "!0s,!1s,!2s", 4),
-    ENCODING_MAP(kMipsFmuls, 0x46000002,
-                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtSfp, 20, 16,
+                 "movz", "!0r,!1r,!2r", 4),
+
+    // The following are mips32r6 and mips64r6 instructions.
+    ENCODING_MAP(kMipsR6Div, 0x0000009a,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
-                 "mul.s", "!0s,!1s,!2s", 4),
-    ENCODING_MAP(kMipsFdivs, 0x46000003,
-                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtSfp, 20, 16,
+                 "div", "!0r,!1r,!2r", 4),
+    ENCODING_MAP(kMipsR6Mod, 0x000000da,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
-                 "div.s", "!0s,!1s,!2s", 4),
-    ENCODING_MAP(kMipsFaddd, 0x46200000,
-                 kFmtDfp, 10, 6, kFmtDfp, 15, 11, kFmtDfp, 20, 16,
+                 "mod", "!0r,!1r,!2r", 4),
+    ENCODING_MAP(kMipsR6Mul, 0x00000098,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
-                 "add.d", "!0S,!1S,!2S", 4),
-    ENCODING_MAP(kMipsFsubd, 0x46200001,
-                 kFmtDfp, 10, 6, kFmtDfp, 15, 11, kFmtDfp, 20, 16,
+                 "mul", "!0r,!1r,!2r", 4),
+
+    // The following are mips64r6 instructions.
+    ENCODING_MAP(kMips64Daddiu, 0x64000000,
+                 kFmtBitBlt, 20, 16, kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1,
+                 "daddiu", "!0r,!1r,0x!2h(!2d)", 4),
+    ENCODING_MAP(kMips64Daddu, 0x0000002d,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
-                 "sub.d", "!0S,!1S,!2S", 4),
-    ENCODING_MAP(kMipsFmuld, 0x46200002,
-                 kFmtDfp, 10, 6, kFmtDfp, 15, 11, kFmtDfp, 20, 16,
+                 "daddu", "!0r,!1r,!2r", 4),
+    ENCODING_MAP(kMips64Dahi, 0x04060000,
+                 kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE0,
+                 "dahi", "!0r,0x!1h(!1d)", 4),
+    ENCODING_MAP(kMips64Dati, 0x041E0000,
+                 kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0, kFmtUnused, -1, -1,
+                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE0,
+                 "dati", "!0r,0x!1h(!1d)", 4),
+    ENCODING_MAP(kMips64Daui, 0x74000000,
+                 kFmtBitBlt, 20, 16, kFmtBitBlt, 25, 21, kFmtBitBlt, 15, 0,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1,
+                 "daui", "!0r,!1r,0x!2h(!2d)", 4),
+    ENCODING_MAP(kMips64Ddiv, 0x0000009e,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
-                 "mul.d", "!0S,!1S,!2S", 4),
-    ENCODING_MAP(kMipsFdivd, 0x46200003,
-                 kFmtDfp, 10, 6, kFmtDfp, 15, 11, kFmtDfp, 20, 16,
+                 "ddiv", "!0r,!1r,!2r", 4),
+    ENCODING_MAP(kMips64Dmod, 0x000000de,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
                  kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
-                 "div.d", "!0S,!1S,!2S", 4),
-    ENCODING_MAP(kMipsFcvtsd, 0x46200020,
-                 kFmtSfp, 10, 6, kFmtDfp, 15, 11, kFmtUnused, -1, -1,
+                 "dmod", "!0r,!1r,!2r", 4),
+    ENCODING_MAP(kMips64Dmul, 0x0000009c,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 "dmul", "!0r,!1r,!2r", 4),
+    ENCODING_MAP(kMips64Dmfc1, 0x44200000,
+                 kFmtBitBlt, 20, 16, kFmtDfp, 15, 11, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
-                 "cvt.s.d", "!0s,!1S", 4),
-    ENCODING_MAP(kMipsFcvtsw, 0x46800020,
-                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
-                 "cvt.s.w", "!0s,!1s", 4),
-    ENCODING_MAP(kMipsFcvtds, 0x46000021,
-                 kFmtDfp, 10, 6, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
-                 "cvt.d.s", "!0S,!1s", 4),
-    ENCODING_MAP(kMipsFcvtdw, 0x46800021,
-                 kFmtDfp, 10, 6, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
-                 "cvt.d.w", "!0S,!1s", 4),
-    ENCODING_MAP(kMipsFcvtws, 0x46000024,
-                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
-                 "cvt.w.s", "!0s,!1s", 4),
-    ENCODING_MAP(kMipsFcvtwd, 0x46200024,
-                 kFmtSfp, 10, 6, kFmtDfp, 15, 11, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
-                 "cvt.w.d", "!0s,!1S", 4),
-    ENCODING_MAP(kMipsFmovs, 0x46000006,
-                 kFmtSfp, 10, 6, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
-                 "mov.s", "!0s,!1s", 4),
-    ENCODING_MAP(kMipsFmovd, 0x46200006,
-                 kFmtDfp, 10, 6, kFmtDfp, 15, 11, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
-                 "mov.d", "!0S,!1S", 4),
-    ENCODING_MAP(kMipsFlwc1, 0xC4000000,
-                 kFmtSfp, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE2 | IS_LOAD,
-                 "lwc1", "!0s,!1d(!2r)", 4),
-    ENCODING_MAP(kMipsFldc1, 0xD4000000,
-                 kFmtDfp, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE2 | IS_LOAD,
-                 "ldc1", "!0S,!1d(!2r)", 4),
-    ENCODING_MAP(kMipsFswc1, 0xE4000000,
-                 kFmtSfp, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_USE02 | IS_STORE,
-                 "swc1", "!0s,!1d(!2r)", 4),
-    ENCODING_MAP(kMipsFsdc1, 0xF4000000,
-                 kFmtDfp, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_USE02 | IS_STORE,
-                 "sdc1", "!0S,!1d(!2r)", 4),
-    ENCODING_MAP(kMipsMfc1, 0x44000000,
-                 kFmtBitBlt, 20, 16, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
-                 "mfc1", "!0r,!1s", 4),
-    ENCODING_MAP(kMipsMtc1, 0x44800000,
-                 kFmtBitBlt, 20, 16, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
+                 "dmfc1", "!0r,!1s", 4),
+    ENCODING_MAP(kMips64Dmtc1, 0x44a00000,
+                 kFmtBitBlt, 20, 16, kFmtDfp, 15, 11, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, IS_BINARY_OP | REG_USE0 | REG_DEF1,
-                 "mtc1", "!0r,!1s", 4),
-    ENCODING_MAP(kMipsMfhc1, 0x44600000,
-                 kFmtBitBlt, 20, 16, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_DEF0_USE1,
-                 "mfhc1", "!0r,!1s", 4),
-    ENCODING_MAP(kMipsMthc1, 0x44e00000,
-                 kFmtBitBlt, 20, 16, kFmtSfp, 15, 11, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_BINARY_OP | REG_USE0 | REG_DEF1,
-                 "mthc1", "!0r,!1s", 4),
-    ENCODING_MAP(kMipsDelta, 0x27e00000,
+                 "dmtc1", "!0r,!1s", 4),
+    ENCODING_MAP(kMips64Drotr32, 0x0000003e | (1 << 21),
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 20, 16, kFmtBitBlt, 10, 6,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1,
+                 "drotr32", "!0r,!1r,0x!2h(!2d)", 4),
+    ENCODING_MAP(kMips64Dsll, 0x00000038,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 20, 16, kFmtBitBlt, 10, 6,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1,
+                 "dsll", "!0r,!1r,0x!2h(!2d)", 4),
+    ENCODING_MAP(kMips64Dsll32, 0x0000003c,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 20, 16, kFmtBitBlt, 10, 6,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1,
+                 "dsll32", "!0r,!1r,0x!2h(!2d)", 4),
+    ENCODING_MAP(kMips64Dsrl, 0x0000003a,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 20, 16, kFmtBitBlt, 10, 6,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1,
+                 "dsrl", "!0r,!1r,0x!2h(!2d)", 4),
+    ENCODING_MAP(kMips64Dsrl32, 0x0000003e,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 20, 16, kFmtBitBlt, 10, 6,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1,
+                 "dsrl32", "!0r,!1r,0x!2h(!2d)", 4),
+    ENCODING_MAP(kMips64Dsra, 0x0000003b,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 20, 16, kFmtBitBlt, 10, 6,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1,
+                 "dsra", "!0r,!1r,0x!2h(!2d)", 4),
+    ENCODING_MAP(kMips64Dsra32, 0x0000003f,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 20, 16, kFmtBitBlt, 10, 6,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE1,
+                 "dsra32", "!0r,!1r,0x!2h(!2d)", 4),
+    ENCODING_MAP(kMips64Dsllv, 0x00000014,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 20, 16, kFmtBitBlt, 25, 21,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 "dsllv", "!0r,!1r,!2r", 4),
+    ENCODING_MAP(kMips64Dsrlv, 0x00000016,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 20, 16, kFmtBitBlt, 25, 21,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 "dsrlv", "!0r,!1r,!2r", 4),
+    ENCODING_MAP(kMips64Dsrav, 0x00000017,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 20, 16, kFmtBitBlt, 25, 21,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 "dsrav", "!0r,!1r,!2r", 4),
+    ENCODING_MAP(kMips64Dsubu, 0x0000002f,
+                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
+                 "dsubu", "!0r,!1r,!2r", 4),
+    ENCODING_MAP(kMips64Ld, 0xdc000000,
+                 kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE2 | IS_LOAD,
+                 "ld", "!0r,!1d(!2r)", 4),
+    ENCODING_MAP(kMips64Lwu, 0x9c000000,
+                 kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE2 | IS_LOAD,
+                 "lwu", "!0r,!1d(!2r)", 4),
+    ENCODING_MAP(kMips64Sd, 0xfc000000,
+                 kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtBitBlt, 25, 21,
+                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_USE02 | IS_STORE,
+                 "sd", "!0r,!1d(!2r)", 4),
+
+    // The following are pseudoinstructions.
+    ENCODING_MAP(kMipsDelta, 0x27e00000,  // It is implemented as daddiu for mips64.
                  kFmtBitBlt, 20, 16, kFmtBitBlt, 15, 0, kFmtUnused, 15, 0,
                  kFmtUnused, -1, -1, IS_QUAD_OP | REG_DEF0 | REG_USE_LR |
                  NEEDS_FIXUP, "addiu", "!0r,ra,0x!1h(!1d)", 4),
@@ -417,25 +546,6 @@ const MipsEncodingMap MipsMir2Lir::EncodingMap[kMipsLast] = {
                  kFmtUnused, -1, -1, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, NO_OPERAND | IS_BRANCH | REG_DEF_LR,
                  "addiu", "ra,pc,8", 4),
-    ENCODING_MAP(kMipsSync, 0x0000000f,
-                 kFmtBitBlt, 10, 6, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
-                 kFmtUnused, -1, -1, IS_UNARY_OP,
-                 "sync", ";", 4),
-
-    // The following are mips32r6 instructions.
-    ENCODING_MAP(kMipsR6Div, 0x0000009a,
-                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
-                 "div", "!0r,!1r,!2r", 4),
-    ENCODING_MAP(kMipsR6Mod, 0x000000da,
-                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
-                 "mod", "!0r,!1r,!2r", 4),
-    ENCODING_MAP(kMipsR6Mul, 0x00000098,
-                 kFmtBitBlt, 15, 11, kFmtBitBlt, 25, 21, kFmtBitBlt, 20, 16,
-                 kFmtUnused, -1, -1, IS_TERTIARY_OP | REG_DEF0_USE12,
-                 "mul", "!0r,!1r,!2r", 4),
-
     ENCODING_MAP(kMipsUndefined, 0x64000000,
                  kFmtUnused, -1, -1, kFmtUnused, -1, -1, kFmtUnused, -1, -1,
                  kFmtUnused, -1, -1, NO_OPERAND,
@@ -538,13 +648,12 @@ void MipsMir2Lir::ConvertShortToLongBranch(LIR* lir) {
  */
 AssemblerStatus MipsMir2Lir::AssembleInstructions(CodeOffset start_addr) {
   LIR *lir;
-  AssemblerStatus res = kSuccess;  // Assume success
+  AssemblerStatus res = kSuccess;  // Assume success.
 
   for (lir = first_lir_insn_; lir != NULL; lir = NEXT_LIR(lir)) {
     if (lir->opcode < 0) {
       continue;
     }
-
 
     if (lir->flags.is_nop) {
       continue;
@@ -567,23 +676,31 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(CodeOffset start_addr) {
         int offset2 = tab_rec ? tab_rec->offset : lir->target->offset;
         int delta = offset2 - offset1;
         if ((delta & 0xffff) == delta && ((delta & 0x8000) == 0)) {
-          // Fits
+          // Fits.
           lir->operands[1] = delta;
+          if (cu_->target64) {
+            LIR *new_addiu = RawLIR(lir->dalvik_offset, kMips64Daddiu, lir->operands[0], rRAd,
+                                    delta);
+            InsertLIRBefore(lir, new_addiu);
+            NopLIR(lir);
+            res = kRetryAll;
+          }
         } else {
-          // Doesn't fit - must expand to kMipsDelta[Hi|Lo] pair
-          LIR *new_delta_hi =
-              RawLIR(lir->dalvik_offset, kMipsDeltaHi,
-                     lir->operands[0], 0, lir->operands[2],
-                     lir->operands[3], 0, lir->target);
+          // Doesn't fit - must expand to kMipsDelta[Hi|Lo] pair.
+          LIR *new_delta_hi = RawLIR(lir->dalvik_offset, kMipsDeltaHi, lir->operands[0], 0,
+                                     lir->operands[2], lir->operands[3], 0, lir->target);
           InsertLIRBefore(lir, new_delta_hi);
-          LIR *new_delta_lo =
-              RawLIR(lir->dalvik_offset, kMipsDeltaLo,
-                     lir->operands[0], 0, lir->operands[2],
-                     lir->operands[3], 0, lir->target);
+          LIR *new_delta_lo = RawLIR(lir->dalvik_offset, kMipsDeltaLo, lir->operands[0], 0,
+                                     lir->operands[2], lir->operands[3], 0, lir->target);
           InsertLIRBefore(lir, new_delta_lo);
-          LIR *new_addu =
-              RawLIR(lir->dalvik_offset, kMipsAddu,
-                     lir->operands[0], lir->operands[0], rRA);
+          LIR *new_addu;
+          if (cu_->target64) {
+            new_addu = RawLIR(lir->dalvik_offset, kMips64Daddu, lir->operands[0], lir->operands[0],
+                              rRAd);
+          } else {
+            new_addu = RawLIR(lir->dalvik_offset, kMipsAddu, lir->operands[0], lir->operands[0],
+                              rRA);
+          }
           InsertLIRBefore(lir, new_addu);
           NopLIR(lir);
           res = kRetryAll;
@@ -698,7 +815,9 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(CodeOffset start_addr) {
         case kFmtDfp: {
           // TODO: do we need to adjust now that we're using 64BitSolo?
           DCHECK(RegStorage::IsDouble(operand)) << ", Operand = 0x" << std::hex << operand;
-          DCHECK_EQ((operand & 0x1), 0U);
+          if (!cu_->target64) {
+            DCHECK_EQ((operand & 0x1), 0U);  // May only use even numbered registers for mips32.
+          }
           value = (RegStorage::RegNum(operand) << encoder->field_loc[i].start) &
               ((1 << (encoder->field_loc[i].end + 1)) - 1);
           bits |= value;
@@ -719,7 +838,7 @@ AssemblerStatus MipsMir2Lir::AssembleInstructions(CodeOffset start_addr) {
     code_buffer_.push_back((bits >> 8) & 0xff);
     code_buffer_.push_back((bits >> 16) & 0xff);
     code_buffer_.push_back((bits >> 24) & 0xff);
-    // TUNING: replace with proper delay slot handling
+    // TUNING: replace with proper delay slot handling.
     if (encoder->size == 8) {
       DCHECK(!IsPseudoLirOp(lir->opcode));
       const MipsEncodingMap *encoder2 = &EncodingMap[kMipsNop];
@@ -758,7 +877,7 @@ int MipsMir2Lir::AssignInsnOffsets() {
         lir->operands[0] = 0;
       }
     }
-    /* Pseudo opcodes don't consume space */
+    // Pseudo opcodes don't consume space.
   }
   return offset;
 }
@@ -771,10 +890,10 @@ int MipsMir2Lir::AssignInsnOffsets() {
 void MipsMir2Lir::AssignOffsets() {
   int offset = AssignInsnOffsets();
 
-  /* Const values have to be word aligned */
+  // Const values have to be word aligned.
   offset = RoundUp(offset, 4);
 
-  /* Set up offsets for literals */
+  // Set up offsets for literals.
   data_offset_ = offset;
 
   offset = AssignLiteralOffset(offset);
@@ -811,19 +930,19 @@ void MipsMir2Lir::AssembleLIR() {
         CodegenDump();
         LOG(FATAL) << "Assembler error - too many retries";
       }
-      // Redo offsets and try again
+      // Redo offsets and try again.
       AssignOffsets();
       code_buffer_.clear();
     }
   }
 
-  // Install literals
+  // Install literals.
   InstallLiteralPools();
 
-  // Install switch tables
+  // Install switch tables.
   InstallSwitchTables();
 
-  // Install fill array data
+  // Install fill array data.
   InstallFillArrayData();
 
   // Create the mapping table and native offset to reference map.
