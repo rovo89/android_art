@@ -40,8 +40,16 @@ class CompilerCallbacks {
     // done so. Return false if relocating in this way would be problematic.
     virtual bool IsRelocationPossible() = 0;
 
+    bool IsBootImage() {
+      return boot_image_;
+    }
+
   protected:
-    CompilerCallbacks() { }
+    explicit CompilerCallbacks(bool boot_image) : boot_image_(boot_image) { }
+
+  private:
+    // Whether the compiler is creating a boot image.
+    const bool boot_image_;
 };
 
 }  // namespace art

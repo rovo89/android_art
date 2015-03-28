@@ -178,7 +178,8 @@ void CommonCompilerTest::SetUpRuntimeOptions(RuntimeOptions* options) {
   verification_results_.reset(new VerificationResults(compiler_options_.get()));
   method_inliner_map_.reset(new DexFileToMethodInlinerMap);
   callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(),
-                                              method_inliner_map_.get()));
+                                              method_inliner_map_.get(),
+                                              false));
   options->push_back(std::make_pair("compilercallbacks", callbacks_.get()));
 }
 

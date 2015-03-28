@@ -454,6 +454,11 @@ class ClassLinker {
   bool MayBeCalledWithDirectCodePointer(mirror::ArtMethod* m)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Creates a GlobalRef PathClassLoader that can be used to load classes from the given dex files.
+  // Note: the objects are not completely set up. Do not use this outside of tests and the compiler.
+  jobject CreatePathClassLoader(Thread* self, std::vector<const DexFile*>& dex_files)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
  private:
   static void InitFromImageInterpretOnlyCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

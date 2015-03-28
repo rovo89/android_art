@@ -34,6 +34,7 @@
 #include "gc_root-inl.h"
 #include "gc/heap.h"
 #include "gtest/gtest.h"
+#include "handle_scope-inl.h"
 #include "interpreter/unstarted_runtime.h"
 #include "jni_internal.h"
 #include "mirror/class_loader.h"
@@ -386,22 +387,89 @@ std::unique_ptr<const DexFile> CommonRuntimeTest::OpenTestDexFile(const char* na
   return std::move(vector[0]);
 }
 
+std::vector<const DexFile*> CommonRuntimeTest::GetDexFiles(jobject jclass_loader) {
+  std::vector<const DexFile*> ret;
+
+  ScopedObjectAccess soa(Thread::Current());
+
+  StackHandleScope<4> hs(Thread::Current());
+  Handle<mirror::ClassLoader> class_loader = hs.NewHandle(
+      soa.Decode<mirror::ClassLoader*>(jclass_loader));
+
+  DCHECK_EQ(class_loader->GetClass(),
+            soa.Decode<mirror::Class*>(WellKnownClasses::dalvik_system_PathClassLoader));
+  DCHECK_EQ(class_loader->GetParent()->GetClass(),
+            soa.Decode<mirror::Class*>(WellKnownClasses::java_lang_BootClassLoader));
+
+  // The class loader is a PathClassLoader which inherits from BaseDexClassLoader.
+  // We need to get the DexPathList and loop through it.
+  Handle<mirror::ArtField> cookie_field =
+      hs.NewHandle(soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie));
+  Handle<mirror::ArtField> dex_file_field =
+      hs.NewHandle(
+          soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList__Element_dexFile));
+  mirror::Object* dex_path_list =
+      soa.DecodeField(WellKnownClasses::dalvik_system_PathClassLoader_pathList)->
+      GetObject(class_loader.Get());
+  if (dex_path_list != nullptr && dex_file_field.Get() != nullptr &&
+      cookie_field.Get() != nullptr) {
+    // DexPathList has an array dexElements of Elements[] which each contain a dex file.
+    mirror::Object* dex_elements_obj =
+        soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements)->
+        GetObject(dex_path_list);
+    // Loop through each dalvik.system.DexPathList$Element's dalvik.system.DexFile and look
+    // at the mCookie which is a DexFile vector.
+    if (dex_elements_obj != nullptr) {
+      Handle<mirror::ObjectArray<mirror::Object>> dex_elements =
+          hs.NewHandle(dex_elements_obj->AsObjectArray<mirror::Object>());
+      for (int32_t i = 0; i < dex_elements->GetLength(); ++i) {
+        mirror::Object* element = dex_elements->GetWithoutChecks(i);
+        if (element == nullptr) {
+          // Should never happen, fall back to java code to throw a NPE.
+          break;
+        }
+        mirror::Object* dex_file = dex_file_field->GetObject(element);
+        if (dex_file != nullptr) {
+          mirror::LongArray* long_array = cookie_field->GetObject(dex_file)->AsLongArray();
+          DCHECK(long_array != nullptr);
+          int32_t long_array_size = long_array->GetLength();
+          for (int32_t j = 0; j < long_array_size; ++j) {
+            const DexFile* cp_dex_file = reinterpret_cast<const DexFile*>(static_cast<uintptr_t>(
+                long_array->GetWithoutChecks(j)));
+            if (cp_dex_file == nullptr) {
+              LOG(WARNING) << "Null DexFile";
+              continue;
+            }
+            ret.push_back(cp_dex_file);
+          }
+        }
+      }
+    }
+  }
+
+  return ret;
+}
+
+const DexFile* CommonRuntimeTest::GetFirstDexFile(jobject jclass_loader) {
+  std::vector<const DexFile*> tmp(GetDexFiles(jclass_loader));
+  DCHECK(!tmp.empty());
+  const DexFile* ret = tmp[0];
+  DCHECK(ret != nullptr);
+  return ret;
+}
+
 jobject CommonRuntimeTest::LoadDex(const char* dex_name) {
   std::vector<std::unique_ptr<const DexFile>> dex_files = OpenTestDexFiles(dex_name);
   std::vector<const DexFile*> class_path;
   CHECK_NE(0U, dex_files.size());
   for (auto& dex_file : dex_files) {
     class_path.push_back(dex_file.get());
-    class_linker_->RegisterDexFile(*dex_file);
     loaded_dex_files_.push_back(std::move(dex_file));
   }
+
   Thread* self = Thread::Current();
-  JNIEnvExt* env = self->GetJniEnv();
-  ScopedLocalRef<jobject> class_loader_local(env,
-      env->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader));
-  jobject class_loader = env->NewGlobalRef(class_loader_local.get());
-  self->SetClassLoaderOverride(class_loader_local.get());
-  Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path);
+  jobject class_loader = Runtime::Current()->GetClassLinker()->CreatePathClassLoader(self,                                                                                   class_path);
+  self->SetClassLoaderOverride(class_loader);
   return class_loader;
 }
 

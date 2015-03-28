@@ -164,8 +164,10 @@ static mirror::ClassLoader* GetClassLoader(const ScopedObjectAccess& soa)
   // See if the override ClassLoader is set for gtests.
   class_loader = soa.Decode<mirror::ClassLoader*>(soa.Self()->GetClassLoaderOverride());
   if (class_loader != nullptr) {
-    // If so, CommonCompilerTest should have set UseCompileTimeClassPath.
-    CHECK(Runtime::Current()->UseCompileTimeClassPath());
+    // If so, CommonCompilerTest should have marked the runtime as a compiler not compiling an
+    // image.
+    CHECK(Runtime::Current()->IsAotCompiler());
+    CHECK(!Runtime::Current()->GetCompilerCallbacks()->IsBootImage());
     return class_loader;
   }
   // Use the BOOTCLASSPATH.

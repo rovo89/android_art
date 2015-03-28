@@ -452,16 +452,6 @@ class Runtime {
     return &instrumentation_;
   }
 
-  bool UseCompileTimeClassPath() const {
-    return use_compile_time_class_path_;
-  }
-
-  const std::vector<const DexFile*>& GetCompileTimeClassPath(jobject class_loader);
-
-  // The caller is responsible for ensuring the class_path DexFiles remain
-  // valid as long as the Runtime object remains valid.
-  void SetCompileTimeClassPath(jobject class_loader, std::vector<const DexFile*>& class_path);
-
   void StartProfiler(const char* profile_output_filename);
   void UpdateProfilerState(int state);
 
@@ -684,12 +674,6 @@ class Runtime {
   std::string method_trace_file_;
   size_t method_trace_file_size_;
   instrumentation::Instrumentation instrumentation_;
-
-  typedef AllocationTrackingSafeMap<jobject, std::vector<const DexFile*>,
-                                    kAllocatorTagCompileTimeClassPath, JobjectComparator>
-      CompileTimeClassPaths;
-  CompileTimeClassPaths compile_time_class_paths_;
-  bool use_compile_time_class_path_;
 
   jobject main_thread_group_;
   jobject system_thread_group_;
