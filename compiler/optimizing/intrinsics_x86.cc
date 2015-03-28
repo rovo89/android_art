@@ -790,7 +790,7 @@ void IntrinsicCodeGeneratorX86::VisitStringCompareTo(HInvoke* invoke) {
   X86Assembler* assembler = GetAssembler();
   LocationSummary* locations = invoke->GetLocations();
 
-  // Note that the null check must have be done earlier.
+  // Note that the null check must have been done earlier.
   DCHECK(!invoke->CanDoImplicitNullCheck());
 
   Register argument = locations->InAt(1).AsRegister<Register>();
