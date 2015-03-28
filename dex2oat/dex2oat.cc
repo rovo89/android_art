@@ -1053,7 +1053,9 @@ class Dex2Oat FINAL {
     }
 
     verification_results_.reset(new VerificationResults(compiler_options_.get()));
-    callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(), &method_inliner_map_));
+    callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(),
+                                                &method_inliner_map_,
+                                                image_));
     runtime_options.push_back(std::make_pair("compilercallbacks", callbacks_.get()));
     runtime_options.push_back(
         std::make_pair("imageinstructionset", GetInstructionSetString(instruction_set_)));
@@ -1224,19 +1226,16 @@ class Dex2Oat FINAL {
       ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
       OpenClassPathFiles(runtime_->GetClassPathString(), dex_files_, &class_path_files_);
       ScopedObjectAccess soa(self);
-      std::vector<const DexFile*> class_path_files(dex_files_);
+
+      // Classpath: first the class-path given.
+      std::vector<const DexFile*> class_path_files;
       for (auto& class_path_file : class_path_files_) {
         class_path_files.push_back(class_path_file.get());
       }
+      // Then the dex files we'll compile. Thus we'll resolve the class-path first.
+      class_path_files.insert(class_path_files.end(), dex_files_.begin(), dex_files_.end());
 
-      for (size_t i = 0; i < class_path_files.size(); i++) {
-        class_linker->RegisterDexFile(*class_path_files[i]);
-      }
-      soa.Env()->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader);
-      ScopedLocalRef<jobject> class_loader_local(soa.Env(),
-          soa.Env()->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader));
-      class_loader = soa.Env()->NewGlobalRef(class_loader_local.get());
-      Runtime::Current()->SetCompileTimeClassPath(class_loader, class_path_files);
+      class_loader = class_linker->CreatePathClassLoader(self, class_path_files);
     }
 
     driver_.reset(new CompilerDriver(compiler_options_.get(),

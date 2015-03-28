@@ -621,6 +621,20 @@ TEST_F(ClassLinkerTest, FindClassNonexistent) {
   AssertNonExistentClass("LNoSuchClass;");
 }
 
+TEST_F(ClassLinkerTest, GetDexFiles) {
+  ScopedObjectAccess soa(Thread::Current());
+
+  jobject jclass_loader = LoadDex("Nested");
+  std::vector<const DexFile*> dex_files(GetDexFiles(jclass_loader));
+  ASSERT_EQ(dex_files.size(), 1U);
+  EXPECT_TRUE(EndsWith(dex_files[0]->GetLocation(), "Nested.jar"));
+
+  jobject jclass_loader2 = LoadDex("MultiDex");
+  std::vector<const DexFile*> dex_files2(GetDexFiles(jclass_loader2));
+  ASSERT_EQ(dex_files2.size(), 2U);
+  EXPECT_TRUE(EndsWith(dex_files2[0]->GetLocation(), "MultiDex.jar"));
+}
+
 TEST_F(ClassLinkerTest, FindClassNested) {
   ScopedObjectAccess soa(Thread::Current());
   StackHandleScope<1> hs(soa.Self());
@@ -985,11 +999,10 @@ TEST_F(ClassLinkerTest, ResolveVerifyAndClinit) {
 
   ScopedObjectAccess soa(Thread::Current());
   jobject jclass_loader = LoadDex("StaticsFromCode");
+  const DexFile* dex_file = GetFirstDexFile(jclass_loader);
   StackHandleScope<1> hs(soa.Self());
   Handle<mirror::ClassLoader> class_loader(
       hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
-  const DexFile* dex_file = Runtime::Current()->GetCompileTimeClassPath(jclass_loader)[0];
-  CHECK(dex_file != nullptr);
   mirror::Class* klass = class_linker_->FindClass(soa.Self(), "LStaticsFromCode;", class_loader);
   mirror::ArtMethod* clinit = klass->FindClassInitializer();
   mirror::ArtMethod* getS0 = klass->FindDirectMethod("getS0", "()Ljava/lang/Object;");

@@ -2158,16 +2158,12 @@ static int DumpOatWithRuntime(Runtime* runtime, OatFile* oat_file, OatDumperOpti
   }
 
   // Need a class loader.
-  soa.Env()->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader);
-  ScopedLocalRef<jobject> class_loader_local(soa.Env(),
-      soa.Env()->AllocObject(WellKnownClasses::dalvik_system_PathClassLoader));
-  jobject class_loader = soa.Env()->NewGlobalRef(class_loader_local.get());
   // Fake that we're a compiler.
   std::vector<const DexFile*> class_path;
   for (auto& dex_file : dex_files) {
     class_path.push_back(dex_file.get());
   }
-  runtime->SetCompileTimeClassPath(class_loader, class_path);
+  jobject class_loader = class_linker->CreatePathClassLoader(self, class_path);
 
   // Use the class loader while dumping.
   StackHandleScope<1> scope(self);
