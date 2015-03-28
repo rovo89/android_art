@@ -5316,9 +5316,9 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
   DCHECK(dex_elements_class->IsArrayClass());
   Handle<mirror::ObjectArray<mirror::Object>> h_dex_elements =
       hs.NewHandle(reinterpret_cast<mirror::ObjectArray<mirror::Object>*>(
-          mirror::Array::Alloc<false>(self, dex_elements_class, dex_files.size(),
-                                      dex_elements_class->GetComponentSizeShift(),
-                                      Runtime::Current()->GetHeap()->GetCurrentAllocator())));
+          mirror::Array::Alloc<true>(self, dex_elements_class, dex_files.size(),
+                                     dex_elements_class->GetComponentSizeShift(),
+                                     Runtime::Current()->GetHeap()->GetCurrentAllocator())));
   Handle<mirror::Class> h_dex_element_class =
       hs.NewHandle(dex_elements_class->GetComponentType());
 
