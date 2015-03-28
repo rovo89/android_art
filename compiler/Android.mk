@@ -48,12 +48,6 @@ LIBART_COMPILER_SRC_FILES := \
 	dex/quick/mips/int_mips.cc \
 	dex/quick/mips/target_mips.cc \
 	dex/quick/mips/utility_mips.cc \
-	dex/quick/mips64/assemble_mips64.cc \
-	dex/quick/mips64/call_mips64.cc \
-	dex/quick/mips64/fp_mips64.cc \
-	dex/quick/mips64/int_mips64.cc \
-	dex/quick/mips64/target_mips64.cc \
-	dex/quick/mips64/utility_mips64.cc \
 	dex/quick/mir_to_lir.cc \
 	dex/quick/quick_compiler.cc \
 	dex/quick/ralloc_util.cc \
@@ -163,7 +157,6 @@ LIBART_COMPILER_ENUM_OPERATOR_OUT_HEADER_FILES := \
   dex/quick/arm/arm_lir.h \
   dex/quick/arm64/arm64_lir.h \
   dex/quick/mips/mips_lir.h \
-  dex/quick/mips64/mips64_lir.h \
   dex/quick/resource_mask.h \
   dex/compiler_enums.h \
   dex/global_value_numbering.h \
