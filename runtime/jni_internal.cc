@@ -167,7 +167,7 @@ static mirror::ClassLoader* GetClassLoader(const ScopedObjectAccess& soa)
     // If so, CommonCompilerTest should have marked the runtime as a compiler not compiling an
     // image.
     CHECK(Runtime::Current()->IsAotCompiler());
-    CHECK(!Runtime::Current()->GetCompilerCallbacks()->IsBootImage());
+    CHECK(!Runtime::Current()->IsCompilingBootImage());
     return class_loader;
   }
   // Use the BOOTCLASSPATH.
