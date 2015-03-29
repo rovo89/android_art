@@ -51,10 +51,20 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
     kTraceCountAllocs = 1,
   };
 
+  enum class TraceOutputMode {
+    kFile,
+    kDDMS
+  };
+
+  enum class TraceMode {
+    kMethodTracing,
+    kSampling
+  };
+
   static void SetDefaultClockSource(TraceClockSource clock_source);
 
   static void Start(const char* trace_filename, int trace_fd, int buffer_size, int flags,
-                    bool direct_to_ddms, bool sampling_enabled, int interval_us)
+                    TraceOutputMode output_mode, TraceMode trace_mode, int interval_us)
       LOCKS_EXCLUDED(Locks::mutator_lock_,
                      Locks::thread_list_lock_,
                      Locks::thread_suspend_count_lock_,
@@ -107,7 +117,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   static void StoreExitingThreadInfo(Thread* thread);
 
  private:
-  explicit Trace(File* trace_file, int buffer_size, int flags, bool sampling_enabled);
+  explicit Trace(File* trace_file, int buffer_size, int flags, TraceMode trace_mode);
 
   // The sampling interval in microseconds is passed as an argument.
   static void* RunSamplingThread(void* arg) LOCKS_EXCLUDED(Locks::trace_lock_);
@@ -148,7 +158,7 @@ class Trace FINAL : public instrumentation::InstrumentationListener {
   const int flags_;
 
   // True if traceview should sample instead of instrumenting method entry/exit.
-  const bool sampling_enabled_;
+  const TraceMode trace_mode_;
 
   const TraceClockSource clock_source_;
 

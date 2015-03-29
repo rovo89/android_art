@@ -1012,8 +1012,8 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
                  -1,
                  static_cast<int>(method_trace_file_size_),
                  0,
-                 false,
-                 false,
+                 Trace::TraceOutputMode::kFile,
+                 Trace::TraceMode::kMethodTracing,
                  0);
   }
 
