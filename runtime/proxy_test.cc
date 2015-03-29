@@ -185,7 +185,7 @@ TEST_F(ProxyTest, ProxyFieldHelper) {
   MutableHandle<mirror::ArtField> fhandle = hs.NewHandle(static_fields->Get(0));
   EXPECT_EQ("interfaces", std::string(fhandle->GetName()));
   EXPECT_EQ("[Ljava/lang/Class;", std::string(fhandle->GetTypeDescriptor()));
-  EXPECT_EQ(interfacesFieldClass.Get(), fhandle->GetType(true));
+  EXPECT_EQ(interfacesFieldClass.Get(), fhandle->GetType<true>());
   std::string temp;
   EXPECT_EQ("L$Proxy1234;", std::string(fhandle->GetDeclaringClass()->GetDescriptor(&temp)));
   EXPECT_FALSE(fhandle->IsPrimitiveType());
@@ -194,7 +194,7 @@ TEST_F(ProxyTest, ProxyFieldHelper) {
   fhandle.Assign(static_fields->Get(1));
   EXPECT_EQ("throws", std::string(fhandle->GetName()));
   EXPECT_EQ("[[Ljava/lang/Class;", std::string(fhandle->GetTypeDescriptor()));
-  EXPECT_EQ(throwsFieldClass.Get(), fhandle->GetType(true));
+  EXPECT_EQ(throwsFieldClass.Get(), fhandle->GetType<true>());
   EXPECT_EQ("L$Proxy1234;", std::string(fhandle->GetDeclaringClass()->GetDescriptor(&temp)));
   EXPECT_FALSE(fhandle->IsPrimitiveType());
 }

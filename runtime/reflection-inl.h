@@ -22,6 +22,7 @@
 #include "base/stringprintf.h"
 #include "common_throws.h"
 #include "jvalue.h"
+#include "mirror/object-inl.h"
 #include "primitive.h"
 #include "utils.h"
 
@@ -97,6 +98,17 @@ inline bool ConvertPrimitiveValue(bool unbox_for_result,
                                          PrettyDescriptor(dstType).c_str()).c_str());
   }
   return false;
+}
+
+inline bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c) {
+  if (UNLIKELY(o == nullptr)) {
+    ThrowNullPointerException("null receiver");
+    return false;
+  } else if (UNLIKELY(!o->InstanceOf(c))) {
+    InvalidReceiverError(o, c);
+    return false;
+  }
+  return true;
 }
 
 }  // namespace art
