@@ -28,8 +28,8 @@ class QuickCompilerCallbacks FINAL : public CompilerCallbacks {
   public:
     QuickCompilerCallbacks(VerificationResults* verification_results,
                            DexFileToMethodInlinerMap* method_inliner_map,
-                           bool boot_image)
-        : CompilerCallbacks(boot_image), verification_results_(verification_results),
+                           CompilerCallbacks::CallbackMode mode)
+        : CompilerCallbacks(mode), verification_results_(verification_results),
           method_inliner_map_(method_inliner_map) {
       CHECK(verification_results != nullptr);
       CHECK(method_inliner_map != nullptr);

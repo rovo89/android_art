@@ -90,7 +90,7 @@ JitCompiler::JitCompiler() : total_time_(0) {
   method_inliner_map_.reset(new DexFileToMethodInlinerMap);
   callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(),
                                               method_inliner_map_.get(),
-                                              false));
+                                              CompilerCallbacks::CallbackMode::kCompileApp));
   compiler_driver_.reset(new CompilerDriver(
       compiler_options_.get(), verification_results_.get(), method_inliner_map_.get(),
       Compiler::kQuick, instruction_set, instruction_set_features_.get(), false,
