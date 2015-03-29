@@ -3919,7 +3919,7 @@ void MethodVerifier::VerifyISFieldAccess(const Instruction* inst, const RegType&
     {
       StackHandleScope<1> hs(self_);
       HandleWrapper<mirror::ArtField> h_field(hs.NewHandleWrapper(&field));
-      field_type_class = h_field->GetType(can_load_classes_);
+      field_type_class = can_load_classes_ ? h_field->GetType<true>() : h_field->GetType<false>();
     }
     if (field_type_class != nullptr) {
       field_type = &reg_types_.FromClass(field->GetTypeDescriptor(), field_type_class,
@@ -4035,7 +4035,7 @@ void MethodVerifier::VerifyQuickFieldAccess(const Instruction* inst, const RegTy
     {
       StackHandleScope<1> hs(Thread::Current());
       HandleWrapper<mirror::ArtField> h_field(hs.NewHandleWrapper(&field));
-      field_type_class = h_field->GetType(can_load_classes_);
+      field_type_class = can_load_classes_ ? h_field->GetType<true>() : h_field->GetType<false>();
     }
 
     if (field_type_class != nullptr) {
