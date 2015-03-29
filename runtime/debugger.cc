@@ -1798,7 +1798,7 @@ static JDWP::JdwpError SetFieldValueImpl(JDWP::ObjectId object_id, JDWP::FieldId
         HandleWrapper<mirror::Object> h_v(hs.NewHandleWrapper(&v));
         HandleWrapper<mirror::ArtField> h_f(hs.NewHandleWrapper(&f));
         HandleWrapper<mirror::Object> h_o(hs.NewHandleWrapper(&o));
-        field_type = h_f->GetType(true);
+        field_type = h_f->GetType<true>();
       }
       if (!field_type->IsAssignableFrom(v->GetClass())) {
         return JDWP::ERR_INVALID_OBJECT;

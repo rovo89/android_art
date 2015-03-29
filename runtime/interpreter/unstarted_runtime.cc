@@ -29,6 +29,7 @@
 #include "mirror/array-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class.h"
+#include "mirror/field-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/string-inl.h"
@@ -219,19 +220,11 @@ static void UnstartedClassGetDeclaredField(
                            PrettyDescriptor(klass).c_str());
     return;
   }
-  // TODO: getDeclaredField calls GetType once the field is found to ensure a
-  //       NoClassDefFoundError is thrown if the field's type cannot be resolved.
-  mirror::Class* jlr_Field = self->DecodeJObject(
-      WellKnownClasses::java_lang_reflect_Field)->AsClass();
-  StackHandleScope<1> hs(self);
-  Handle<mirror::Object> field(hs.NewHandle(jlr_Field->AllocNonMovableObject(self)));
-  CHECK(field.Get() != nullptr);
-  mirror::ArtMethod* c = jlr_Field->FindDeclaredDirectMethod("<init>",
-                                                             "(Ljava/lang/reflect/ArtField;)V");
-  uint32_t args[1];
-  args[0] = StackReference<mirror::Object>::FromMirrorPtr(found).AsVRegValue();
-  EnterInterpreterFromInvoke(self, c, field.Get(), args, nullptr);
-  result->SetL(field.Get());
+  if (Runtime::Current()->IsActiveTransaction()) {
+    result->SetL(mirror::Field::CreateFromArtField<true>(self, found, true));
+  } else {
+    result->SetL(mirror::Field::CreateFromArtField<false>(self, found, true));
+  }
 }
 
 static void UnstartedVmClassLoaderFindLoadedClass(

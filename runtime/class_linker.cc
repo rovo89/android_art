@@ -56,6 +56,7 @@
 #include "mirror/class-inl.h"
 #include "mirror/class_loader.h"
 #include "mirror/dex_cache-inl.h"
+#include "mirror/field.h"
 #include "mirror/iftable-inl.h"
 #include "mirror/object-inl.h"
 #include "mirror/object_array-inl.h"
@@ -313,7 +314,7 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   java_lang_String->SetObjectSize(mirror::String::InstanceSize());
   mirror::Class::SetStatus(java_lang_String, mirror::Class::kStatusResolved, self);
 
-  // Setup Reference.
+  // Setup java.lang.ref.Reference.
   Handle<mirror::Class> java_lang_ref_Reference(hs.NewHandle(
       AllocClass(self, java_lang_Class.Get(), mirror::Reference::ClassSize())));
   mirror::Reference::SetClass(java_lang_ref_Reference.Get());
@@ -321,7 +322,7 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   mirror::Class::SetStatus(java_lang_ref_Reference, mirror::Class::kStatusResolved, self);
 
   // Create storage for root classes, save away our work so far (requires descriptors).
-  class_roots_ = GcRoot<mirror::ObjectArray<mirror::Class> >(
+  class_roots_ = GcRoot<mirror::ObjectArray<mirror::Class>>(
       mirror::ObjectArray<mirror::Class>::Alloc(self, object_array_class.Get(),
                                                 kClassRootsMax));
   CHECK(!class_roots_.IsNull());
@@ -530,6 +531,19 @@ void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> b
   // Create java.lang.reflect.Proxy root.
   mirror::Class* java_lang_reflect_Proxy = FindSystemClass(self, "Ljava/lang/reflect/Proxy;");
   SetClassRoot(kJavaLangReflectProxy, java_lang_reflect_Proxy);
+
+  // Create java.lang.reflect.Field.class root.
+  mirror::Class* java_lang_reflect_Field = FindSystemClass(self, "Ljava/lang/reflect/Field;");
+  CHECK(java_lang_reflect_Field != nullptr);
+  SetClassRoot(kJavaLangReflectField, java_lang_reflect_Field);
+  mirror::Field::SetClass(java_lang_reflect_Field);
+
+  // Create java.lang.reflect.Field array root.
+  mirror::Class* java_lang_reflect_Field_array =
+      FindSystemClass(self, "[Ljava/lang/reflect/Field;");
+  CHECK(java_lang_reflect_Field_array != nullptr);
+  SetClassRoot(kJavaLangReflectFieldArrayClass, java_lang_reflect_Field_array);
+  mirror::Field::SetArrayClass(java_lang_reflect_Field_array);
 
   // java.lang.ref classes need to be specially flagged, but otherwise are normal classes
   // finish initializing Reference class
@@ -818,9 +832,10 @@ void ClassLinker::InitFromImage() {
   VLOG(startup) << "ClassLinker::InitFromImage entering";
   CHECK(!init_done_);
 
-  Thread* self = Thread::Current();
-  gc::Heap* heap = Runtime::Current()->GetHeap();
-  gc::space::ImageSpace* space = heap->GetImageSpace();
+  Runtime* const runtime = Runtime::Current();
+  Thread* const self = Thread::Current();
+  gc::Heap* const heap = runtime->GetHeap();
+  gc::space::ImageSpace* const space = heap->GetImageSpace();
   dex_cache_image_class_lookup_required_ = true;
   CHECK(space != nullptr);
   OatFile& oat_file = GetImageOatFile(space);
@@ -875,7 +890,7 @@ void ClassLinker::InitFromImage() {
   // bitmap walk.
   mirror::ArtMethod::SetClass(GetClassRoot(kJavaLangReflectArtMethod));
   size_t art_method_object_size = mirror::ArtMethod::GetJavaLangReflectArtMethod()->GetObjectSize();
-  if (!Runtime::Current()->IsAotCompiler()) {
+  if (!runtime->IsAotCompiler()) {
     // Aot compiler supports having an image with a different pointer size than the runtime. This
     // happens on the host for compile 32 bit tests since we use a 64 bit libart compiler. We may
     // also use 32 bit dex2oat on a system with 64 bit apps.
@@ -890,7 +905,6 @@ void ClassLinker::InitFromImage() {
   }
 
   // Set entry point to interpreter if in InterpretOnly mode.
-  Runtime* runtime = Runtime::Current();
   if (!runtime->IsAotCompiler() && runtime->GetInstrumentation()->InterpretOnly()) {
     heap->VisitObjects(InitFromImageInterpretOnlyCallback, this);
   }
@@ -903,6 +917,8 @@ void ClassLinker::InitFromImage() {
   array_iftable_ = GcRoot<mirror::IfTable>(GetClassRoot(kObjectArrayClass)->GetIfTable());
   DCHECK_EQ(array_iftable_.Read(), GetClassRoot(kBooleanArrayClass)->GetIfTable());
   // String class root was set above
+  mirror::Field::SetClass(GetClassRoot(kJavaLangReflectField));
+  mirror::Field::SetArrayClass(GetClassRoot(kJavaLangReflectFieldArrayClass));
   mirror::Reference::SetClass(GetClassRoot(kJavaLangRefReference));
   mirror::ArtField::SetClass(GetClassRoot(kJavaLangReflectArtField));
   mirror::BooleanArray::SetArrayClass(GetClassRoot(kBooleanArrayClass));
@@ -1088,6 +1104,8 @@ ClassLinker::~ClassLinker() {
   mirror::Reference::ResetClass();
   mirror::ArtField::ResetClass();
   mirror::ArtMethod::ResetClass();
+  mirror::Field::ResetClass();
+  mirror::Field::ResetArrayClass();
   mirror::BooleanArray::ResetArrayClass();
   mirror::ByteArray::ResetArrayClass();
   mirror::CharArray::ResetArrayClass();
@@ -5189,10 +5207,12 @@ const char* ClassLinker::GetClassRootDescriptor(ClassRoot class_root) {
     "Ljava/lang/ref/Reference;",
     "Ljava/lang/reflect/ArtField;",
     "Ljava/lang/reflect/ArtMethod;",
+    "Ljava/lang/reflect/Field;",
     "Ljava/lang/reflect/Proxy;",
     "[Ljava/lang/String;",
     "[Ljava/lang/reflect/ArtField;",
     "[Ljava/lang/reflect/ArtMethod;",
+    "[Ljava/lang/reflect/Field;",
     "Ljava/lang/ClassLoader;",
     "Ljava/lang/Throwable;",
     "Ljava/lang/ClassNotFoundException;",
@@ -5311,14 +5331,11 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
   Handle<mirror::ArtField> h_dex_elements_field =
       hs.NewHandle(soa.DecodeField(WellKnownClasses::dalvik_system_DexPathList_dexElements));
 
-  mirror::Class* dex_elements_class = h_dex_elements_field->GetType(true);
+  mirror::Class* dex_elements_class = h_dex_elements_field->GetType<true>();
   DCHECK(dex_elements_class != nullptr);
   DCHECK(dex_elements_class->IsArrayClass());
-  Handle<mirror::ObjectArray<mirror::Object>> h_dex_elements =
-      hs.NewHandle(reinterpret_cast<mirror::ObjectArray<mirror::Object>*>(
-          mirror::Array::Alloc<true>(self, dex_elements_class, dex_files.size(),
-                                     dex_elements_class->GetComponentSizeShift(),
-                                     Runtime::Current()->GetHeap()->GetCurrentAllocator())));
+  Handle<mirror::ObjectArray<mirror::Object>> h_dex_elements(hs.NewHandle(
+      mirror::ObjectArray<mirror::Object>::Alloc(self, dex_elements_class, dex_files.size())));
   Handle<mirror::Class> h_dex_element_class =
       hs.NewHandle(dex_elements_class->GetComponentType());
 
@@ -5329,7 +5346,7 @@ jobject ClassLinker::CreatePathClassLoader(Thread* self, std::vector<const DexFi
 
   Handle<mirror::ArtField> h_cookie_field =
       hs.NewHandle(soa.DecodeField(WellKnownClasses::dalvik_system_DexFile_cookie));
-  DCHECK_EQ(h_cookie_field->GetDeclaringClass(), h_element_file_field->GetType(false));
+  DCHECK_EQ(h_cookie_field->GetDeclaringClass(), h_element_file_field->GetType<false>());
 
   // Fill the elements array.
   int32_t index = 0;

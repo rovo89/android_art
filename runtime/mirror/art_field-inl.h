@@ -34,7 +34,7 @@ namespace art {
 namespace mirror {
 
 inline uint32_t ArtField::ClassSize() {
-  uint32_t vtable_entries = Object::kVTableLength + 6;
+  uint32_t vtable_entries = Object::kVTableLength;
   return Class::ComputeClassSize(true, vtable_entries, 0, 0, 0, 0, 0);
 }
 
@@ -290,16 +290,19 @@ inline bool ArtField::IsPrimitiveType() SHARED_LOCKS_REQUIRED(Locks::mutator_loc
   return GetTypeAsPrimitiveType() != Primitive::kPrimNot;
 }
 
-inline Class* ArtField::GetType(bool resolve) {
-  uint32_t field_index = GetDexFieldIndex();
-  if (UNLIKELY(GetDeclaringClass()->IsProxyClass())) {
+template <bool kResolve>
+inline Class* ArtField::GetType() {
+  const uint32_t field_index = GetDexFieldIndex();
+  auto* declaring_class = GetDeclaringClass();
+  if (UNLIKELY(declaring_class->IsProxyClass())) {
     return Runtime::Current()->GetClassLinker()->FindSystemClass(Thread::Current(),
                                                                  GetTypeDescriptor());
   }
-  const DexFile* dex_file = GetDexFile();
+  auto* dex_cache = declaring_class->GetDexCache();
+  const DexFile* const dex_file = dex_cache->GetDexFile();
   const DexFile::FieldId& field_id = dex_file->GetFieldId(field_index);
-  mirror::Class* type = GetDexCache()->GetResolvedType(field_id.type_idx_);
-  if (resolve && (type == nullptr)) {
+  mirror::Class* type = dex_cache->GetResolvedType(field_id.type_idx_);
+  if (kResolve && UNLIKELY(type == nullptr)) {
     type = Runtime::Current()->GetClassLinker()->ResolveType(field_id.type_idx_, this);
     CHECK(type != nullptr || Thread::Current()->IsExceptionPending());
   }
@@ -318,12 +321,19 @@ inline const DexFile* ArtField::GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutato
   return GetDexCache()->GetDexFile();
 }
 
-inline ArtField* ArtField::FromReflectedField(const ScopedObjectAccessAlreadyRunnable& soa,
-                                              jobject jlr_field) {
-  mirror::ArtField* f = soa.DecodeField(WellKnownClasses::java_lang_reflect_Field_artField);
-  mirror::ArtField* field = f->GetObject(soa.Decode<mirror::Object*>(jlr_field))->AsArtField();
-  DCHECK(field != nullptr);
-  return field;
+inline String* ArtField::GetStringName(Thread* self, bool resolve) {
+  auto dex_field_index = GetDexFieldIndex();
+  CHECK_NE(dex_field_index, DexFile::kDexNoIndex);
+  auto* dex_cache = GetDexCache();
+  const auto* dex_file = dex_cache->GetDexFile();
+  const auto& field_id = dex_file->GetFieldId(dex_field_index);
+  auto* name = dex_cache->GetResolvedString(field_id.name_idx_);
+  if (resolve && name == nullptr) {
+    StackHandleScope<1> hs(self);
+    name = Runtime::Current()->GetClassLinker()->ResolveString(
+        *dex_file, field_id.name_idx_, hs.NewHandle(dex_cache));
+  }
+  return name;
 }
 
 }  // namespace mirror

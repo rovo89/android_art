@@ -109,7 +109,6 @@ jfieldID WellKnownClasses::java_lang_Throwable_stackTrace;
 jfieldID WellKnownClasses::java_lang_Throwable_stackState;
 jfieldID WellKnownClasses::java_lang_Throwable_suppressedExceptions;
 jfieldID WellKnownClasses::java_lang_reflect_AbstractMethod_artMethod;
-jfieldID WellKnownClasses::java_lang_reflect_Field_artField;
 jfieldID WellKnownClasses::java_lang_reflect_Proxy_h;
 jfieldID WellKnownClasses::java_nio_DirectByteBuffer_capacity;
 jfieldID WellKnownClasses::java_nio_DirectByteBuffer_effectiveDirectAddress;
@@ -244,7 +243,6 @@ void WellKnownClasses::Init(JNIEnv* env) {
   java_lang_Throwable_stackState = CacheField(env, java_lang_Throwable, false, "stackState", "Ljava/lang/Object;");
   java_lang_Throwable_suppressedExceptions = CacheField(env, java_lang_Throwable, false, "suppressedExceptions", "Ljava/util/List;");
   java_lang_reflect_AbstractMethod_artMethod = CacheField(env, java_lang_reflect_AbstractMethod, false, "artMethod", "Ljava/lang/reflect/ArtMethod;");
-  java_lang_reflect_Field_artField = CacheField(env, java_lang_reflect_Field, false, "artField", "Ljava/lang/reflect/ArtField;");
   java_lang_reflect_Proxy_h = CacheField(env, java_lang_reflect_Proxy, false, "h", "Ljava/lang/reflect/InvocationHandler;");
   java_nio_DirectByteBuffer_capacity = CacheField(env, java_nio_DirectByteBuffer, false, "capacity", "I");
   java_nio_DirectByteBuffer_effectiveDirectAddress = CacheField(env, java_nio_DirectByteBuffer, false, "effectiveDirectAddress", "J");
