@@ -50,9 +50,11 @@
 #include "arch/x86_64/registers_x86_64.h"
 #include "asm_support.h"
 #include "atomic.h"
+#include "base/arena_allocator.h"
 #include "base/dumpable.h"
 #include "base/unix_file/fd_file.h"
 #include "class_linker.h"
+#include "compiler_callbacks.h"
 #include "debugger.h"
 #include "elf_file.h"
 #include "entrypoints/runtime_asm_entrypoints.h"
@@ -1651,6 +1653,14 @@ void Runtime::CreateJit() {
   } else {
     LOG(WARNING) << "Failed to create JIT " << error_msg;
   }
+}
+
+bool Runtime::CanRelocate() const {
+  return !IsAotCompiler() || compiler_callbacks_->IsRelocationPossible();
+}
+
+bool Runtime::IsCompilingBootImage() const {
+  return IsCompiler() && compiler_callbacks_->IsBootImage();
 }
 
 }  // namespace art
