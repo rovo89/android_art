@@ -285,7 +285,7 @@ bool DoFieldPut(Thread* self, const ShadowFrame& shadow_frame, const Instruction
           HandleWrapper<mirror::ArtField> h_f(hs.NewHandleWrapper(&f));
           HandleWrapper<mirror::Object> h_reg(hs.NewHandleWrapper(&reg));
           HandleWrapper<mirror::Object> h_obj(hs.NewHandleWrapper(&obj));
-          field_class = h_f->GetType(true);
+          field_class = h_f->GetType<true>();
         }
         if (!reg->VerifierInstanceOf(field_class)) {
           // This should never happen.

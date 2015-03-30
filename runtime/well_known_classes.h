@@ -103,7 +103,6 @@ struct WellKnownClasses {
   static jfieldID dalvik_system_DexPathList__Element_dexFile;
   static jfieldID dalvik_system_PathClassLoader_pathList;
   static jfieldID java_lang_reflect_AbstractMethod_artMethod;
-  static jfieldID java_lang_reflect_Field_artField;
   static jfieldID java_lang_reflect_Proxy_h;
   static jfieldID java_lang_Thread_daemon;
   static jfieldID java_lang_Thread_group;

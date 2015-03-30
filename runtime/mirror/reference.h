@@ -99,7 +99,7 @@ class MANAGED Reference : public Object {
     return java_lang_ref_Reference_.Read<kReadBarrierOption>();
   }
   static void SetClass(Class* klass);
-  static void ResetClass(void);
+  static void ResetClass();
   static void VisitRoots(RootCallback* callback, void* arg);
 
  private:

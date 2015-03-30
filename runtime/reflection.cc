@@ -24,7 +24,6 @@
 #include "mirror/art_field-inl.h"
 #include "mirror/art_method-inl.h"
 #include "mirror/class-inl.h"
-#include "mirror/class.h"
 #include "mirror/object_array-inl.h"
 #include "mirror/object_array.h"
 #include "nth_caller_visitor.h"
@@ -628,21 +627,6 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   return soa.AddLocalReference<jobject>(BoxPrimitive(Primitive::GetType(shorty[0]), result));
 }
 
-bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c) {
-  if (o == nullptr) {
-    ThrowNullPointerException("null receiver");
-    return false;
-  } else if (!o->InstanceOf(c)) {
-    std::string expected_class_name(PrettyDescriptor(c));
-    std::string actual_class_name(PrettyTypeOf(o));
-    ThrowIllegalArgumentException(StringPrintf("Expected receiver of type %s, but got %s",
-                                               expected_class_name.c_str(),
-                                               actual_class_name.c_str()).c_str());
-    return false;
-  }
-  return true;
-}
-
 mirror::Object* BoxPrimitive(Primitive::Type src_class, const JValue& value) {
   if (src_class == Primitive::kPrimNot) {
     return value.GetL();
@@ -838,6 +822,14 @@ bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_cl
     }
   }
   return declaring_class->IsInSamePackage(caller_class);
+}
+
+void InvalidReceiverError(mirror::Object* o, mirror::Class* c) {
+  std::string expected_class_name(PrettyDescriptor(c));
+  std::string actual_class_name(PrettyTypeOf(o));
+  ThrowIllegalArgumentException(StringPrintf("Expected receiver of type %s, but got %s",
+                                             expected_class_name.c_str(),
+                                             actual_class_name.c_str()).c_str());
 }
 
 }  // namespace art
