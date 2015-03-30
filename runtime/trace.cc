@@ -328,7 +328,7 @@ void* Trace::RunSamplingThread(void* arg) {
 }
 
 void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int flags,
-                  bool direct_to_ddms, bool sampling_enabled, int interval_us) {
+                  TraceOutputMode output_mode, TraceMode trace_mode, int interval_us) {
   Thread* self = Thread::Current();
   {
     MutexLock mu(self, *Locks::trace_lock_);
@@ -339,7 +339,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
   }
 
   // Check interval if sampling is enabled
-  if (sampling_enabled && interval_us <= 0) {
+  if (trace_mode == TraceMode::kSampling && interval_us <= 0) {
     LOG(ERROR) << "Invalid sampling interval: " << interval_us;
     ScopedObjectAccess soa(self);
     ThrowRuntimeException("Invalid sampling interval: %d", interval_us);
@@ -348,7 +348,7 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
 
   // Open trace file if not going directly to ddms.
   std::unique_ptr<File> trace_file;
-  if (!direct_to_ddms) {
+  if (output_mode != TraceOutputMode::kDDMS) {
     if (trace_fd < 0) {
       trace_file.reset(OS::CreateEmptyFile(trace_filename));
     } else {
@@ -377,8 +377,8 @@ void Trace::Start(const char* trace_filename, int trace_fd, int buffer_size, int
       LOG(ERROR) << "Trace already in progress, ignoring this request";
     } else {
       enable_stats = (flags && kTraceCountAllocs) != 0;
-      the_trace_ = new Trace(trace_file.release(), buffer_size, flags, sampling_enabled);
-      if (sampling_enabled) {
+      the_trace_ = new Trace(trace_file.release(), buffer_size, flags, trace_mode);
+      if (trace_mode == TraceMode::kSampling) {
         CHECK_PTHREAD_CALL(pthread_create, (&sampling_pthread_, NULL, &RunSamplingThread,
                                             reinterpret_cast<void*>(interval_us)),
                                             "Sampling profiler thread");
@@ -427,7 +427,7 @@ void Trace::Stop() {
     stop_alloc_counting = (the_trace->flags_ & kTraceCountAllocs) != 0;
     the_trace->FinishTracing();
 
-    if (the_trace->sampling_enabled_) {
+    if (the_trace->trace_mode_ == TraceMode::kSampling) {
       MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
       runtime->GetThreadList()->ForEach(ClearThreadStackTraceAndClockBase, nullptr);
     } else {
@@ -465,16 +465,21 @@ TracingMode Trace::GetMethodTracingMode() {
   MutexLock mu(Thread::Current(), *Locks::trace_lock_);
   if (the_trace_ == NULL) {
     return kTracingInactive;
-  } else if (the_trace_->sampling_enabled_) {
-    return kSampleProfilingActive;
   } else {
-    return kMethodTracingActive;
+    switch (the_trace_->trace_mode_) {
+      case TraceMode::kSampling:
+        return kSampleProfilingActive;
+      case TraceMode::kMethodTracing:
+        return kMethodTracingActive;
+    }
+    LOG(FATAL) << "Unreachable";
+    UNREACHABLE();
   }
 }
 
-Trace::Trace(File* trace_file, int buffer_size, int flags, bool sampling_enabled)
+Trace::Trace(File* trace_file, int buffer_size, int flags, TraceMode trace_mode)
     : trace_file_(trace_file), buf_(new uint8_t[buffer_size]()), flags_(flags),
-      sampling_enabled_(sampling_enabled), clock_source_(default_clock_source_),
+      trace_mode_(trace_mode), clock_source_(default_clock_source_),
       buffer_size_(buffer_size), start_time_(MicroTime()),
       clock_overhead_ns_(GetClockOverheadNanoSeconds()), cur_offset_(0), overflow_(false) {
   // Set up the beginning of the trace.
