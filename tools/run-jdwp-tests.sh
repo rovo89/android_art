@@ -19,7 +19,7 @@ if [ ! -d libcore ]; then
   exit 1
 fi
 
-if [ $ANDROID_SERIAL == 03a79ae90ae5889b ] || [ $ANDROID_SERIAL == HT4CTJT03670 ] || [ $ANDROID_SERIAL == HT49CJT00070 ]; then
+if [[ $ANDROID_SERIAL == 03a79ae90ae5889b ]] || [[ $ANDROID_SERIAL == HT4CTJT03670 ]] || [[ $ANDROID_SERIAL == HT49CJT00070 ]]; then
   echo "Not run because of localhost failures. Investigating."
   exit 0
 fi
@@ -40,13 +40,19 @@ image="-Ximage:/data/art-test/core.art"
 args=$@
 debuggee_args="-Xcompiler-option --compiler-backend=Optimizing -Xcompiler-option --debuggable"
 device_dir="--device-dir=/data/local/tmp"
+# We use the art script on target to ensure the runner and the debuggee share the same
+# image.
+vm_command="--vm-command=$art"
 
 while true; do
   if [[ "$1" == "--mode=host" ]]; then
     art="art"
     # We force generation of a new image to avoid build-time and run-time classpath differences.
     image="-Ximage:/system/non/existent"
+    # We do not need a device directory on host.
     device_dir=""
+    # Vogar knows which VM to use on host.
+    vm_command=""
     shift
   elif [[ $1 == -Ximage:* ]]; then
     image="$1"
@@ -59,7 +65,7 @@ while true; do
 done
 
 # Run the tests using vogar.
-vogar --vm-command=$art \
+vogar $vm_command \
       --vm-arg $image \
       --verbose \
       $args \
