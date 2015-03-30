@@ -73,7 +73,7 @@ ALWAYS_INLINE bool VerifyObjectIsClass(mirror::Object* o, mirror::Class* c)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_class,
-                  uint32_t access_flags, mirror::Class** calling_class)
+                  uint32_t access_flags, mirror::Class** calling_class, size_t num_frames)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
 void InvalidReceiverError(mirror::Object* o, mirror::Class* c)
