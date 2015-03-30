@@ -28,6 +28,7 @@ enum MethodCompilationStat {
   kAttemptCompilation = 0,
   kCompiledBaseline,
   kCompiledOptimized,
+  kCompiledQuick,
   kInlinedInvoke,
   kNotCompiledUnsupportedIsa,
   kNotCompiledPathological,
@@ -65,16 +66,22 @@ class OptimizingCompilerStats {
           compile_stats_[kCompiledBaseline] * 100 / compile_stats_[kAttemptCompilation];
       size_t optimized_percent =
           compile_stats_[kCompiledOptimized] * 100 / compile_stats_[kAttemptCompilation];
+      size_t quick_percent =
+          compile_stats_[kCompiledQuick] * 100 / compile_stats_[kAttemptCompilation];
       std::ostringstream oss;
-      oss << "Attempted compilation of " << compile_stats_[kAttemptCompilation] << " methods: "
-          << unoptimized_percent << "% (" << compile_stats_[kCompiledBaseline] << ") unoptimized, "
-          << optimized_percent << "% (" << compile_stats_[kCompiledOptimized] << ") optimized.";
+      oss << "Attempted compilation of " << compile_stats_[kAttemptCompilation] << " methods: ";
+
+      oss << unoptimized_percent << "% (" << compile_stats_[kCompiledBaseline] << ") unoptimized, ";
+      oss << optimized_percent << "% (" << compile_stats_[kCompiledOptimized] << ") optimized, ";
+      oss << quick_percent << "% (" << compile_stats_[kCompiledQuick] << ") quick.";
+
+      LOG(INFO) << oss.str();
+
       for (int i = 0; i < kLastStat; i++) {
         if (compile_stats_[i] != 0) {
-          oss << "\n" << PrintMethodCompilationStat(i) << ": " << compile_stats_[i];
+          VLOG(compiler) << PrintMethodCompilationStat(i) << ": " << compile_stats_[i];
         }
       }
-      LOG(INFO) << oss.str();
     }
   }
 
@@ -84,6 +91,7 @@ class OptimizingCompilerStats {
       case kAttemptCompilation : return "kAttemptCompilation";
       case kCompiledBaseline : return "kCompiledBaseline";
       case kCompiledOptimized : return "kCompiledOptimized";
+      case kCompiledQuick : return "kCompiledQuick";
       case kInlinedInvoke : return "kInlinedInvoke";
       case kNotCompiledUnsupportedIsa : return "kNotCompiledUnsupportedIsa";
       case kNotCompiledPathological : return "kNotCompiledPathological";
