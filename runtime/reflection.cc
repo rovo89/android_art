@@ -587,7 +587,7 @@ jobject InvokeMethod(const ScopedObjectAccessAlreadyRunnable& soa, jobject javaM
   // If method is not set to be accessible, verify it can be accessed by the caller.
   mirror::Class* calling_class = nullptr;
   if (!accessible && !VerifyAccess(soa.Self(), receiver, declaring_class, m->GetAccessFlags(),
-                                   &calling_class)) {
+                                   &calling_class, 2)) {
     ThrowIllegalAccessException(
         StringPrintf("Class %s cannot access %s method %s of class %s",
             calling_class == nullptr ? "null" : PrettyClass(calling_class).c_str(),
@@ -794,11 +794,11 @@ bool UnboxPrimitiveForResult(mirror::Object* o,
 }
 
 bool VerifyAccess(Thread* self, mirror::Object* obj, mirror::Class* declaring_class,
-                  uint32_t access_flags, mirror::Class** calling_class) {
+                  uint32_t access_flags, mirror::Class** calling_class, size_t num_frames) {
   if ((access_flags & kAccPublic) != 0) {
     return true;
   }
-  NthCallerVisitor visitor(self, 2);
+  NthCallerVisitor visitor(self, num_frames);
   visitor.WalkStack();
   if (UNLIKELY(visitor.caller == nullptr)) {
     // The caller is an attached native thread.
