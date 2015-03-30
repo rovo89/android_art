@@ -186,7 +186,6 @@ void X86Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
   stack_decrement_ = OpRegImm(kOpSub, rs_rSP, frame_size_ -
                               GetInstructionSetPointerSize(cu_->instruction_set));
 
-  NewLIR0(kPseudoMethodEntry);
   /* Spill core callee saves */
   SpillCoreRegs();
   SpillFPRegs();
@@ -259,7 +258,6 @@ void X86Mir2Lir::GenExitSequence() {
   LockTemp(rs_rX86_RET0);
   LockTemp(rs_rX86_RET1);
 
-  NewLIR0(kPseudoMethodExit);
   UnSpillCoreRegs();
   UnSpillFPRegs();
   /* Remove frame except for return address */
