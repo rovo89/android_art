@@ -318,6 +318,8 @@ static int RegisterOrLowRegister(Location location) {
 
 int LiveInterval::FindFirstRegisterHint(size_t* free_until) const {
   DCHECK(!IsHighInterval());
+  if (IsTemp()) return kNoRegister;
+
   if (GetParent() == this && defined_by_ != nullptr) {
     // This is the first interval for the instruction. Try to find
     // a register based on its definition.
