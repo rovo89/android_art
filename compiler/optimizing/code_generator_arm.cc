@@ -2087,16 +2087,32 @@ void InstructionCodeGeneratorARM::VisitMul(HMul* mul) {
 }
 
 void LocationsBuilderARM::VisitDiv(HDiv* div) {
-  LocationSummary::CallKind call_kind = div->GetResultType() == Primitive::kPrimLong
-      ? LocationSummary::kCall
-      : LocationSummary::kNoCall;
+  LocationSummary::CallKind call_kind = LocationSummary::kNoCall;
+  if (div->GetResultType() == Primitive::kPrimLong) {
+    // pLdiv runtime call.
+    call_kind = LocationSummary::kCall;
+  } else if (div->GetResultType() == Primitive::kPrimInt &&
+             !codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
+    // pIdivmod runtime call.
+    call_kind = LocationSummary::kCall;
+  }
+
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(div, call_kind);
 
   switch (div->GetResultType()) {
     case Primitive::kPrimInt: {
-      locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
-      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
+        locations->SetInAt(0, Location::RequiresRegister());
+        locations->SetInAt(1, Location::RequiresRegister());
+        locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+      } else {
+        InvokeRuntimeCallingConvention calling_convention;
+        locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+        locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+        // Note: divrem will compute both the quotient and the remainder as the pair R0 and R1, but
+        //       we only need the former.
+        locations->SetOut(Location::RegisterLocation(R0));
+      }
       break;
     }
     case Primitive::kPrimLong: {
@@ -2129,9 +2145,18 @@ void InstructionCodeGeneratorARM::VisitDiv(HDiv* div) {
 
   switch (div->GetResultType()) {
     case Primitive::kPrimInt: {
-      __ sdiv(out.AsRegister<Register>(),
-              first.AsRegister<Register>(),
-              second.AsRegister<Register>());
+      if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
+        __ sdiv(out.AsRegister<Register>(),
+                first.AsRegister<Register>(),
+                second.AsRegister<Register>());
+      } else {
+        InvokeRuntimeCallingConvention calling_convention;
+        DCHECK_EQ(calling_convention.GetRegisterAt(0), first.AsRegister<Register>());
+        DCHECK_EQ(calling_convention.GetRegisterAt(1), second.AsRegister<Register>());
+        DCHECK_EQ(R0, out.AsRegister<Register>());
+
+        codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pIdivmod), div, div->GetDexPc(), nullptr);
+      }
       break;
     }
 
@@ -2169,17 +2194,32 @@ void InstructionCodeGeneratorARM::VisitDiv(HDiv* div) {
 
 void LocationsBuilderARM::VisitRem(HRem* rem) {
   Primitive::Type type = rem->GetResultType();
-  LocationSummary::CallKind call_kind = type == Primitive::kPrimInt
-      ? LocationSummary::kNoCall
-      : LocationSummary::kCall;
+
+  // Most remainders are implemented in the runtime.
+  LocationSummary::CallKind call_kind = LocationSummary::kCall;
+  if (rem->GetResultType() == Primitive::kPrimInt &&
+      codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
+    // Have hardware divide instruction for int, do it with three instructions.
+    call_kind = LocationSummary::kNoCall;
+  }
+
   LocationSummary* locations = new (GetGraph()->GetArena()) LocationSummary(rem, call_kind);
 
   switch (type) {
     case Primitive::kPrimInt: {
-      locations->SetInAt(0, Location::RequiresRegister());
-      locations->SetInAt(1, Location::RequiresRegister());
-      locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
-      locations->AddTemp(Location::RequiresRegister());
+      if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
+        locations->SetInAt(0, Location::RequiresRegister());
+        locations->SetInAt(1, Location::RequiresRegister());
+        locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+        locations->AddTemp(Location::RequiresRegister());
+      } else {
+        InvokeRuntimeCallingConvention calling_convention;
+        locations->SetInAt(0, Location::RegisterLocation(calling_convention.GetRegisterAt(0)));
+        locations->SetInAt(1, Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
+        // Note: divrem will compute both the quotient and the remainder as the pair R0 and R1, but
+        //       we only need the latter.
+        locations->SetOut(Location::RegisterLocation(R1));
+      }
       break;
     }
     case Primitive::kPrimLong: {
@@ -2224,16 +2264,25 @@ void InstructionCodeGeneratorARM::VisitRem(HRem* rem) {
   Primitive::Type type = rem->GetResultType();
   switch (type) {
     case Primitive::kPrimInt: {
-      Register reg1 = first.AsRegister<Register>();
-      Register reg2 = second.AsRegister<Register>();
-      Register temp = locations->GetTemp(0).AsRegister<Register>();
+      if (codegen_->GetInstructionSetFeatures().HasDivideInstruction()) {
+        Register reg1 = first.AsRegister<Register>();
+        Register reg2 = second.AsRegister<Register>();
+        Register temp = locations->GetTemp(0).AsRegister<Register>();
 
-      // temp = reg1 / reg2  (integer division)
-      // temp = temp * reg2
-      // dest = reg1 - temp
-      __ sdiv(temp, reg1, reg2);
-      __ mul(temp, temp, reg2);
-      __ sub(out.AsRegister<Register>(), reg1, ShifterOperand(temp));
+        // temp = reg1 / reg2  (integer division)
+        // temp = temp * reg2
+        // dest = reg1 - temp
+        __ sdiv(temp, reg1, reg2);
+        __ mul(temp, temp, reg2);
+        __ sub(out.AsRegister<Register>(), reg1, ShifterOperand(temp));
+      } else {
+        InvokeRuntimeCallingConvention calling_convention;
+        DCHECK_EQ(calling_convention.GetRegisterAt(0), first.AsRegister<Register>());
+        DCHECK_EQ(calling_convention.GetRegisterAt(1), second.AsRegister<Register>());
+        DCHECK_EQ(R1, out.AsRegister<Register>());
+
+        codegen_->InvokeRuntime(QUICK_ENTRY_POINT(pIdivmod), rem, rem->GetDexPc(), nullptr);
+      }
       break;
     }
 
