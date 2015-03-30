@@ -253,7 +253,10 @@ static jobject Class_getDeclaredField(JNIEnv* env, jobject javaThis, jstring nam
   mirror::Field* result = GetDeclaredField(soa.Self(), klass, name_string);
   if (result == nullptr) {
     std::string name_str = name_string->ToModifiedUtf8();
-    soa.Self()->ThrowNewException("Ljava/lang/NoSuchFieldException;", name_str.c_str());
+    // We may have a pending exception if we failed to resolve.
+    if (!soa.Self()->IsExceptionPending()) {
+      soa.Self()->ThrowNewException("Ljava/lang/NoSuchFieldException;", name_str.c_str());
+    }
     return nullptr;
   }
   return soa.AddLocalReference<jobject>(result);
