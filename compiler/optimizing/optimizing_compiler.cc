@@ -583,8 +583,13 @@ CompiledMethod* OptimizingCompiler::Compile(const DexFile::CodeItem* code_item,
   if (method != nullptr) {
     return method;
   }
-  return delegate_->Compile(code_item, access_flags, invoke_type, class_def_idx, method_idx,
-                            class_loader, dex_file);
+  method = delegate_->Compile(code_item, access_flags, invoke_type, class_def_idx, method_idx,
+                              class_loader, dex_file);
+
+  if (method != nullptr) {
+    compilation_stats_.RecordStat(MethodCompilationStat::kCompiledQuick);
+  }
+  return method;
 }
 
 Compiler* CreateOptimizingCompiler(CompilerDriver* driver) {
