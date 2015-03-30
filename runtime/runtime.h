@@ -27,10 +27,7 @@
 #include <vector>
 
 #include "arch/instruction_set.h"
-#include "base/allocator.h"
-#include "base/arena_allocator.h"
 #include "base/macros.h"
-#include "compiler_callbacks.h"
 #include "gc_root.h"
 #include "instrumentation.h"
 #include "jobject_comparator.h"
@@ -42,6 +39,9 @@
 #include "safe_map.h"
 
 namespace art {
+
+class ArenaPool;
+class CompilerCallbacks;
 
 namespace gc {
   class Heap;
@@ -112,9 +112,10 @@ class Runtime {
     return compiler_callbacks_ != nullptr;
   }
 
-  bool CanRelocate() const {
-    return !IsAotCompiler() || compiler_callbacks_->IsRelocationPossible();
-  }
+  // If a compiler, are we compiling a boot image?
+  bool IsCompilingBootImage() const;
+
+  bool CanRelocate() const;
 
   bool ShouldRelocate() const {
     return must_relocate_ && CanRelocate();

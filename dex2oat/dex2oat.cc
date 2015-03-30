@@ -1053,9 +1053,12 @@ class Dex2Oat FINAL {
     }
 
     verification_results_.reset(new VerificationResults(compiler_options_.get()));
-    callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(),
-                                                &method_inliner_map_,
-                                                image_));
+    callbacks_.reset(new QuickCompilerCallbacks(
+        verification_results_.get(),
+        &method_inliner_map_,
+        image_ ?
+            CompilerCallbacks::CallbackMode::kCompileBootImage :
+            CompilerCallbacks::CallbackMode::kCompileApp));
     runtime_options.push_back(std::make_pair("compilercallbacks", callbacks_.get()));
     runtime_options.push_back(
         std::make_pair("imageinstructionset", GetInstructionSetString(instruction_set_)));
