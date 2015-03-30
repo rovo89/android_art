@@ -44,7 +44,7 @@ ALWAYS_INLINE inline static bool VerifyFieldAccess(Thread* self, mirror::Field* 
   }
   mirror::Class* calling_class = nullptr;
   if (!VerifyAccess(self, obj, field->GetDeclaringClass(), field->GetAccessFlags(),
-                    &calling_class)) {
+                    &calling_class, 1)) {
     ThrowIllegalAccessException(
             StringPrintf("Class %s cannot access %s field %s of class %s",
                 calling_class == nullptr ? "null" : PrettyClass(calling_class).c_str(),
@@ -276,9 +276,9 @@ ALWAYS_INLINE inline static void SetFieldValue(mirror::Object* o, mirror::Field*
     break;
   case Primitive::kPrimShort:
     if (is_volatile) {
-      o->SetFieldShortVolatile<false>(offset, new_value.GetZ());
+      o->SetFieldShortVolatile<false>(offset, new_value.GetS());
     } else {
-      o->SetFieldShort<false>(offset, new_value.GetZ());
+      o->SetFieldShort<false>(offset, new_value.GetS());
     }
     break;
   case Primitive::kPrimNot:
