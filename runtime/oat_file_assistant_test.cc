@@ -213,29 +213,29 @@ class OatFileAssistantTest : public CommonRuntimeTest {
         // image in case of the GSS collector.
         + 384 * MB;
 
-    std::string error_msg;
     std::unique_ptr<BacktraceMap> map(BacktraceMap::Create(getpid(), true));
     ASSERT_TRUE(map.get() != nullptr) << "Failed to build process map";
     for (BacktraceMap::const_iterator it = map->begin();
         reservation_start < reservation_end && it != map->end(); ++it) {
-      if (it->end <= reservation_start) {
-        continue;
-      }
+      ReserveImageSpaceChunk(reservation_start, std::min(it->start, reservation_end));
+      reservation_start = std::max(reservation_start, it->end);
+    }
+    ReserveImageSpaceChunk(reservation_start, reservation_end);
+  }
 
-      if (it->start < reservation_start) {
-        reservation_start = std::min(reservation_end, it->end);
-      }
-
+  // Reserve a chunk of memory for the image space in the given range.
+  // Only has effect for chunks with a positive number of bytes.
+  void ReserveImageSpaceChunk(uintptr_t start, uintptr_t end) {
+    if (start < end) {
+      std::string error_msg;
       image_reservation_.push_back(std::unique_ptr<MemMap>(
           MemMap::MapAnonymous("image reservation",
-              reinterpret_cast<uint8_t*>(reservation_start),
-              std::min(it->start, reservation_end) - reservation_start,
+              reinterpret_cast<uint8_t*>(start), end - start,
               PROT_NONE, false, false, &error_msg)));
       ASSERT_TRUE(image_reservation_.back().get() != nullptr) << error_msg;
       LOG(INFO) << "Reserved space for image " <<
         reinterpret_cast<void*>(image_reservation_.back()->Begin()) << "-" <<
         reinterpret_cast<void*>(image_reservation_.back()->End());
-      reservation_start = it->end;
     }
   }
 
