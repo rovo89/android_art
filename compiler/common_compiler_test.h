@@ -78,7 +78,6 @@ class CommonCompilerTest : public CommonRuntimeTest {
   std::unique_ptr<CompilerOptions> compiler_options_;
   std::unique_ptr<VerificationResults> verification_results_;
   std::unique_ptr<DexFileToMethodInlinerMap> method_inliner_map_;
-  std::unique_ptr<CompilerCallbacks> callbacks_;
   std::unique_ptr<CompilerDriver> compiler_driver_;
   std::unique_ptr<CumulativeLogger> timer_;
   std::unique_ptr<const InstructionSetFeatures> instruction_set_features_;

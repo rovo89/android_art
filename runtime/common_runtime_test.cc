@@ -220,7 +220,6 @@ void CommonRuntimeTest::SetUp() {
   std::string min_heap_string(StringPrintf("-Xms%zdm", gc::Heap::kDefaultInitialSize / MB));
   std::string max_heap_string(StringPrintf("-Xmx%zdm", gc::Heap::kDefaultMaximumSize / MB));
 
-  callbacks_.reset(new NoopCompilerCallbacks());
 
   RuntimeOptions options;
   std::string boot_class_path_string = "-Xbootclasspath:" + GetLibCoreDexFileName();
@@ -228,8 +227,15 @@ void CommonRuntimeTest::SetUp() {
   options.push_back(std::make_pair("-Xcheck:jni", nullptr));
   options.push_back(std::make_pair(min_heap_string, nullptr));
   options.push_back(std::make_pair(max_heap_string, nullptr));
-  options.push_back(std::make_pair("compilercallbacks", callbacks_.get()));
+
+  callbacks_.reset(new NoopCompilerCallbacks());
+
   SetUpRuntimeOptions(&options);
+
+  // Install compiler-callbacks if SetupRuntimeOptions hasn't deleted them.
+  if (callbacks_.get() != nullptr) {
+    options.push_back(std::make_pair("compilercallbacks", callbacks_.get()));
+  }
 
   PreRuntimeCreate();
   if (!Runtime::Create(options, false)) {
