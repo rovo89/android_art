@@ -46,6 +46,8 @@ vm_command="--vm-command=$art"
 
 while true; do
   if [[ "$1" == "--mode=host" ]]; then
+    echo "Host testing currently disabled because of buildbot. Investigating..."
+    exit 0
     # Specify bash explicitly since the art script cannot, since it has to run on the device
     # with mksh.
     art="bash out/host/linux-x86/bin/art"
