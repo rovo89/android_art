@@ -180,6 +180,15 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
   // This interval is the result of a split.
   bool IsSplit() const { return parent_ != this; }
 
+  void AddTempUse(HInstruction* instruction, size_t temp_index) {
+    DCHECK(IsTemp());
+    DCHECK(first_use_ == nullptr) << "A temporary can only have one user";
+    size_t position = instruction->GetLifetimePosition();
+    first_use_ = new (allocator_) UsePosition(
+        instruction, temp_index, /* is_environment */ false, position, first_use_);
+    AddRange(position, position + 1);
+  }
+
   void AddUse(HInstruction* instruction, size_t input_index, bool is_environment) {
     // Set the use within the instruction.
     size_t position = instruction->GetLifetimePosition() + 1;
@@ -856,7 +865,15 @@ class SsaLivenessAnalysis : public ValueObject {
   HInstruction* GetTempUser(LiveInterval* temp) const {
     // A temporary shares the same lifetime start as the instruction that requires it.
     DCHECK(temp->IsTemp());
-    return GetInstructionFromPosition(temp->GetStart() / 2);
+    HInstruction* user = GetInstructionFromPosition(temp->GetStart() / 2);
+    DCHECK_EQ(user, temp->GetFirstUse()->GetUser());
+    return user;
+  }
+
+  size_t GetTempIndex(LiveInterval* temp) const {
+    // We use the input index to store the index of the temporary in the user's temporary list.
+    DCHECK(temp->IsTemp());
+    return temp->GetFirstUse()->GetInputIndex();
   }
 
   size_t GetMaxLifetimePosition() const {
