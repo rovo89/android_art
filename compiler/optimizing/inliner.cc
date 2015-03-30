@@ -49,7 +49,8 @@ void HInliner::Run() {
     for (HInstruction* instruction = block->GetFirstInstruction(); instruction != nullptr;) {
       HInstruction* next = instruction->GetNext();
       HInvokeStaticOrDirect* call = instruction->AsInvokeStaticOrDirect();
-      if (call != nullptr) {
+      // As long as the call is not intrinsified, it is worth trying to inline.
+      if (call != nullptr && call->GetIntrinsic() == Intrinsics::kNone) {
         // We use the original invoke type to ensure the resolution of the called method
         // works properly.
         if (!TryInline(call, call->GetDexMethodIndex(), call->GetOriginalInvokeType())) {
