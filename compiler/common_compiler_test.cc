@@ -180,7 +180,6 @@ void CommonCompilerTest::SetUpRuntimeOptions(RuntimeOptions* options) {
   callbacks_.reset(new QuickCompilerCallbacks(verification_results_.get(),
                                               method_inliner_map_.get(),
                                               CompilerCallbacks::CallbackMode::kCompileApp));
-  options->push_back(std::make_pair("compilercallbacks", callbacks_.get()));
 }
 
 void CommonCompilerTest::TearDown() {

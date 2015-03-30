@@ -27,6 +27,7 @@
 
 #include "class_linker.h"
 #include "common_runtime_test.h"
+#include "compiler_callbacks.h"
 #include "mem_map.h"
 #include "os.h"
 #include "thread-inl.h"
@@ -77,11 +78,7 @@ class OatFileAssistantTest : public CommonRuntimeTest {
           nullptr));
     // Make sure compilercallbacks are not set so that relocation will be
     // enabled.
-    for (std::pair<std::string, const void*>& pair : *options) {
-      if (pair.first == "compilercallbacks") {
-        pair.second = nullptr;
-      }
-    }
+    callbacks_.reset();
   }
 
   virtual void PreRuntimeCreate() {

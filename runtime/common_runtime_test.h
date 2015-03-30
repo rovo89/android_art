@@ -140,10 +140,11 @@ class CommonRuntimeTest : public testing::Test {
   // Get the first dex file from a PathClassLoader. Will abort if it is null.
   const DexFile* GetFirstDexFile(jobject jclass_loader);
 
+  std::unique_ptr<CompilerCallbacks> callbacks_;
+
  private:
   static std::string GetCoreFileLocation(const char* suffix);
 
-  std::unique_ptr<CompilerCallbacks> callbacks_;
   std::vector<std::unique_ptr<const DexFile>> loaded_dex_files_;
 };
 
