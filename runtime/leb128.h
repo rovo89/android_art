@@ -124,6 +124,18 @@ static inline uint8_t* EncodeUnsignedLeb128(uint8_t* dest, uint32_t value) {
   return dest;
 }
 
+template<typename Allocator>
+static inline void EncodeUnsignedLeb128(std::vector<uint8_t, Allocator>* dest, uint32_t value) {
+  uint8_t out = value & 0x7f;
+  value >>= 7;
+  while (value != 0) {
+    dest->push_back(out | 0x80);
+    out = value & 0x7f;
+    value >>= 7;
+  }
+  dest->push_back(out);
+}
+
 static inline uint8_t* EncodeSignedLeb128(uint8_t* dest, int32_t value) {
   uint32_t extra_bits = static_cast<uint32_t>(value ^ (value >> 31)) >> 6;
   uint8_t out = value & 0x7f;
@@ -135,6 +147,19 @@ static inline uint8_t* EncodeSignedLeb128(uint8_t* dest, int32_t value) {
   }
   *dest++ = out;
   return dest;
+}
+
+template<typename Allocator>
+static inline void EncodeSignedLeb128(std::vector<uint8_t, Allocator>* dest, int32_t value) {
+  uint32_t extra_bits = static_cast<uint32_t>(value ^ (value >> 31)) >> 6;
+  uint8_t out = value & 0x7f;
+  while (extra_bits != 0u) {
+    dest->push_back(out | 0x80);
+    value >>= 7;
+    out = value & 0x7f;
+    extra_bits >>= 7;
+  }
+  dest->push_back(out);
 }
 
 // An encoder that pushed uint32_t data onto the given std::vector.
@@ -149,14 +174,7 @@ class Leb128Encoder {
   }
 
   void PushBackUnsigned(uint32_t value) {
-    uint8_t out = value & 0x7f;
-    value >>= 7;
-    while (value != 0) {
-      data_->push_back(out | 0x80);
-      out = value & 0x7f;
-      value >>= 7;
-    }
-    data_->push_back(out);
+    EncodeUnsignedLeb128(data_, value);
   }
 
   template<typename It>
@@ -167,15 +185,7 @@ class Leb128Encoder {
   }
 
   void PushBackSigned(int32_t value) {
-    uint32_t extra_bits = static_cast<uint32_t>(value ^ (value >> 31)) >> 6;
-    uint8_t out = value & 0x7f;
-    while (extra_bits != 0u) {
-      data_->push_back(out | 0x80);
-      value >>= 7;
-      out = value & 0x7f;
-      extra_bits >>= 7;
-    }
-    data_->push_back(out);
+    EncodeSignedLeb128(data_, value);
   }
 
   template<typename It>
