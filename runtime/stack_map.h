@@ -28,9 +28,6 @@ namespace art {
 // (signed) values.
 static ssize_t constexpr kFrameSlotSize = 4;
 
-// Word alignment required on ARM, in bytes.
-static constexpr size_t kWordAlignment = 4;
-
 // Size of Dex virtual registers.
 static size_t constexpr kVRegSize = 4;
 
