@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <iostream>
 
 #include "parallel_move_resolver.h"
 #include "nodes.h"
@@ -63,39 +64,42 @@ void ParallelMoveResolver::BuildInitialMoveList(HParallelMove* parallel_move) {
   }
 }
 
+Location LowOf(Location location) {
+  if (location.IsRegisterPair()) {
+    return Location::RegisterLocation(location.low());
+  } else if (location.IsFpuRegisterPair()) {
+    return Location::FpuRegisterLocation(location.low());
+  } else if (location.IsDoubleStackSlot()) {
+    return Location::StackSlot(location.GetStackIndex());
+  } else {
+    return Location::NoLocation();
+  }
+}
+
+Location HighOf(Location location) {
+  if (location.IsRegisterPair()) {
+    return Location::RegisterLocation(location.high());
+  } else if (location.IsFpuRegisterPair()) {
+    return Location::FpuRegisterLocation(location.high());
+  } else if (location.IsDoubleStackSlot()) {
+    return Location::StackSlot(location.GetHighStackIndex(4));
+  } else {
+    return Location::NoLocation();
+  }
+}
+
 // Update the source of `move`, knowing that `updated_location` has been swapped
 // with `new_source`. Note that `updated_location` can be a pair, therefore if
 // `move` is non-pair, we need to extract which register to use.
 static void UpdateSourceOf(MoveOperands* move, Location updated_location, Location new_source) {
   Location source = move->GetSource();
-  if (new_source.GetKind() == source.GetKind()) {
-    DCHECK(updated_location.Equals(source));
+  if (LowOf(updated_location).Equals(source)) {
+    move->SetSource(LowOf(new_source));
+  } else if (HighOf(updated_location).Equals(source)) {
+    move->SetSource(HighOf(new_source));
+  } else {
+    DCHECK(updated_location.Equals(source)) << updated_location << " " << source;
     move->SetSource(new_source);
-  } else if (new_source.IsStackSlot()
-             || new_source.IsDoubleStackSlot()
-             || source.IsStackSlot()
-             || source.IsDoubleStackSlot()) {
-    // Stack slots never take part of a pair/non-pair swap.
-    DCHECK(updated_location.Equals(source));
-    move->SetSource(new_source);
-  } else if (source.IsRegister()) {
-    DCHECK(new_source.IsRegisterPair()) << new_source;
-    DCHECK(updated_location.IsRegisterPair()) << updated_location;
-    if (updated_location.low() == source.reg()) {
-      move->SetSource(Location::RegisterLocation(new_source.low()));
-    } else {
-      DCHECK_EQ(updated_location.high(), source.reg());
-      move->SetSource(Location::RegisterLocation(new_source.high()));
-    }
-  } else if (source.IsFpuRegister()) {
-    DCHECK(new_source.IsFpuRegisterPair()) << new_source;
-    DCHECK(updated_location.IsFpuRegisterPair()) << updated_location;
-    if (updated_location.low() == source.reg()) {
-      move->SetSource(Location::FpuRegisterLocation(new_source.low()));
-    } else {
-      DCHECK_EQ(updated_location.high(), source.reg());
-      move->SetSource(Location::FpuRegisterLocation(new_source.high()));
-    }
   }
 }
 
