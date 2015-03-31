@@ -1521,7 +1521,7 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
       DCHECK(use->GetIsEnvironment());
       use = use->GetNext();
     }
-  } 
+  }
 }
 
 void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
