@@ -218,6 +218,26 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
         current->GetLiveInterval()->SetFrom(current->GetLifetimePosition());
       }
 
+      // Process the environment first, because we know their uses come after
+      // or at the same liveness position of inputs.
+      if (current->HasEnvironment()) {
+        // Handle environment uses. See statements (b) and (c) of the
+        // SsaLivenessAnalysis.
+        HEnvironment* environment = current->GetEnvironment();
+        for (size_t i = 0, e = environment->Size(); i < e; ++i) {
+          HInstruction* instruction = environment->GetInstructionAt(i);
+          bool should_be_live = ShouldBeLiveForEnvironment(instruction);
+          if (should_be_live) {
+            DCHECK(instruction->HasSsaIndex());
+            live_in->SetBit(instruction->GetSsaIndex());
+          }
+          if (instruction != nullptr) {
+            instruction->GetLiveInterval()->AddUse(
+                current, i, /* is_environment */ true, should_be_live);
+          }
+        }
+      }
+
       // All inputs of an instruction must be live.
       for (size_t i = 0, e = current->InputCount(); i < e; ++i) {
         HInstruction* input = current->InputAt(i);
@@ -225,21 +245,7 @@ void SsaLivenessAnalysis::ComputeLiveRanges() {
         // to be materialized.
         if (input->HasSsaIndex()) {
           live_in->SetBit(input->GetSsaIndex());
-          input->GetLiveInterval()->AddUse(current, i, false);
-        }
-      }
-
-      if (current->HasEnvironment()) {
-        // Handle environment uses. See statements (b) and (c) of the
-        // SsaLivenessAnalysis.
-        HEnvironment* environment = current->GetEnvironment();
-        for (size_t i = 0, e = environment->Size(); i < e; ++i) {
-          HInstruction* instruction = environment->GetInstructionAt(i);
-          if (ShouldBeLiveForEnvironment(instruction)) {
-            DCHECK(instruction->HasSsaIndex());
-            live_in->SetBit(instruction->GetSsaIndex());
-            instruction->GetLiveInterval()->AddUse(current, i, true);
-          }
+          input->GetLiveInterval()->AddUse(current, i, /* is_environment */ false);
         }
       }
     }
