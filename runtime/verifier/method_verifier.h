@@ -31,6 +31,7 @@ namespace art {
 
 class Instruction;
 struct ReferenceMap2Visitor;
+class Thread;
 
 namespace verifier {
 
@@ -738,6 +739,10 @@ class MethodVerifier {
   // FindLocksAtDexPC, resulting in deadlocks.
   const bool allow_thread_suspension_;
 
+  // Link, for the method verifier root linked list.
+  MethodVerifier* link_;
+
+  friend class art::Thread;
   DISALLOW_COPY_AND_ASSIGN(MethodVerifier);
 };
 std::ostream& operator<<(std::ostream& os, const MethodVerifier::FailureKind& rhs);
