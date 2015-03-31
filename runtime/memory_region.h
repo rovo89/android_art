@@ -113,6 +113,31 @@ class MemoryRegion FINAL : public ValueObject {
     }
   }
 
+  // Load `length` bits from the region starting at bit offset `bit_offset`.
+  // The bit at the smallest offset is the least significant bit in the
+  // loaded value.  `length` must not be larger than the number of bits
+  // contained in the return value (32).
+  uint32_t LoadBits(uintptr_t bit_offset, size_t length) const {
+    CHECK_LE(length, sizeof(uint32_t) * kBitsPerByte);
+    uint32_t value = 0u;
+    for (size_t i = 0; i < length; ++i) {
+      value |= LoadBit(bit_offset + i) << i;
+    }
+    return value;
+  }
+
+  // Store `value` on `length` bits in the region starting at bit offset
+  // `bit_offset`.  The bit at the smallest offset is the least significant
+  // bit of the stored `value`.  `value` must not be larger than `length`
+  // bits.
+  void StoreBits(uintptr_t bit_offset, uint32_t value, size_t length) {
+    CHECK_LT(value, 2u << length);
+    for (size_t i = 0; i < length; ++i) {
+      bool ith_bit = value & (1 << i);
+      StoreBit(bit_offset + i, ith_bit);
+    }
+  }
+
   void CopyFrom(size_t offset, const MemoryRegion& from) const;
 
   // Compute a sub memory region based on an existing one.

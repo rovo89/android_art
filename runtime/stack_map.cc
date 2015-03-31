@@ -18,10 +18,36 @@
 
 namespace art {
 
+constexpr size_t DexRegisterLocationCatalog::kNoLocationEntryIndex;
+
 constexpr uint32_t StackMap::kNoDexRegisterMapSmallEncoding;
 constexpr uint32_t StackMap::kNoInlineInfoSmallEncoding;
 constexpr uint32_t StackMap::kNoDexRegisterMap;
 constexpr uint32_t StackMap::kNoInlineInfo;
+
+DexRegisterLocation::Kind DexRegisterMap::GetLocationInternalKind(uint16_t dex_register_number,
+                                                                  uint16_t number_of_dex_registers,
+                                                                  const CodeInfo& code_info) const {
+  DexRegisterLocationCatalog dex_register_location_catalog =
+      code_info.GetDexRegisterLocationCatalog();
+  size_t location_catalog_entry_index = GetLocationCatalogEntryIndex(
+      dex_register_number,
+      number_of_dex_registers,
+      code_info.GetNumberOfDexRegisterLocationCatalogEntries());
+  return dex_register_location_catalog.GetLocationInternalKind(location_catalog_entry_index);
+}
+
+DexRegisterLocation DexRegisterMap::GetDexRegisterLocation(uint16_t dex_register_number,
+                                                           uint16_t number_of_dex_registers,
+                                                           const CodeInfo& code_info) const {
+  DexRegisterLocationCatalog dex_register_location_catalog =
+      code_info.GetDexRegisterLocationCatalog();
+  size_t location_catalog_entry_index = GetLocationCatalogEntryIndex(
+      dex_register_number,
+      number_of_dex_registers,
+      code_info.GetNumberOfDexRegisterLocationCatalogEntries());
+  return dex_register_location_catalog.GetDexRegisterLocation(location_catalog_entry_index);
+}
 
 uint32_t StackMap::GetDexPc(const CodeInfo& info) const {
   return info.HasSmallDexPc()
@@ -143,6 +169,16 @@ MemoryRegion StackMap::GetStackMask(const CodeInfo& info) const {
   return region_.Subregion(info.ComputeStackMapStackMaskOffset(), info.GetStackMaskSize());
 }
 
+static void DumpRegisterMapping(std::ostream& os,
+                                size_t dex_register_num,
+                                DexRegisterLocation location,
+                                const std::string& prefix = "v",
+                                const std::string& suffix = "") {
+  os << "      " << prefix << dex_register_num << ": "
+     << DexRegisterLocation::PrettyDescriptor(location.GetInternalKind())
+     << " (" << location.GetValue() << ")" << suffix << '\n';
+}
+
 void CodeInfo::DumpStackMapHeader(std::ostream& os, size_t stack_map_num) const {
   StackMap stack_map = GetStackMapAt(stack_map_num);
   os << "    StackMap " << stack_map_num
@@ -174,7 +210,18 @@ void CodeInfo::Dump(std::ostream& os, uint16_t number_of_dex_registers) const {
      << ", has_small_native_pc=" << HasSmallNativePc()
      << ")\n";
 
-  // Display stack maps along with Dex register maps.
+  // Display the Dex register location catalog.
+  size_t number_of_location_catalog_entries = GetNumberOfDexRegisterLocationCatalogEntries();
+  size_t location_catalog_size_in_bytes = GetDexRegisterLocationCatalogSize();
+  os << "  DexRegisterLocationCatalog (number_of_entries=" << number_of_location_catalog_entries
+     << ", size_in_bytes=" << location_catalog_size_in_bytes << ")\n";
+  DexRegisterLocationCatalog dex_register_location_catalog = GetDexRegisterLocationCatalog();
+  for (size_t i = 0; i < number_of_location_catalog_entries; ++i) {
+    DexRegisterLocation location = dex_register_location_catalog.GetDexRegisterLocation(i);
+    DumpRegisterMapping(os, i, location, "entry ");
+  }
+
+  // Display stack maps along with (live) Dex register maps.
   for (size_t i = 0; i < number_of_stack_maps; ++i) {
     StackMap stack_map = GetStackMapAt(i);
     DumpStackMapHeader(os, i);
@@ -183,11 +230,13 @@ void CodeInfo::Dump(std::ostream& os, uint16_t number_of_dex_registers) const {
       // TODO: Display the bit mask of live Dex registers.
       for (size_t j = 0; j < number_of_dex_registers; ++j) {
         if (dex_register_map.IsDexRegisterLive(j)) {
+          size_t location_catalog_entry_index = dex_register_map.GetLocationCatalogEntryIndex(
+              j, number_of_dex_registers, number_of_location_catalog_entries);
           DexRegisterLocation location =
-              dex_register_map.GetLocationKindAndValue(j, number_of_dex_registers);
-           os << "      " << "v" << j << ": "
-              << DexRegisterLocation::PrettyDescriptor(location.GetInternalKind())
-              << " (" << location.GetValue() << ")" << '\n';
+              dex_register_map.GetDexRegisterLocation(j, number_of_dex_registers, *this);
+          DumpRegisterMapping(
+              os, j, location, "v",
+              "\t[entry " + std::to_string(static_cast<int>(location_catalog_entry_index)) + "]");
         }
       }
     }
