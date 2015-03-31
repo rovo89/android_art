@@ -31,8 +31,13 @@ class TestParallelMoveResolver : public ParallelMoveResolver {
       message_ << "C";
     } else if (location.IsPair()) {
       message_ << location.low() << "," << location.high();
-    } else {
+    } else if (location.IsRegister()) {
       message_ << location.reg();
+    } else if (location.IsStackSlot()) {
+      message_ << location.GetStackIndex() << "(sp)";
+    } else {
+      message_ << "2x" << location.GetStackIndex() << "(sp)";
+      DCHECK(location.IsDoubleStackSlot()) << location;
     }
   }
 
@@ -278,6 +283,26 @@ TEST(ParallelMoveTest, Pairs) {
         nullptr);
     resolver.EmitNativeCode(moves);
     ASSERT_STREQ("(0,1 <-> 2,3)", resolver.GetMessage().c_str());
+  }
+
+  {
+    // Test involving registers used in single context and pair context.
+    TestParallelMoveResolver resolver(&allocator);
+    HParallelMove* moves = new (&allocator) HParallelMove(&allocator);
+    moves->AddMove(
+        Location::RegisterLocation(10),
+        Location::RegisterLocation(5),
+        nullptr);
+    moves->AddMove(
+        Location::RegisterPairLocation(4, 5),
+        Location::DoubleStackSlot(32),
+        nullptr);
+    moves->AddMove(
+        Location::DoubleStackSlot(32),
+        Location::RegisterPairLocation(10, 11),
+        nullptr);
+    resolver.EmitNativeCode(moves);
+    ASSERT_STREQ("(2x32(sp) <-> 10,11) (4,5 <-> 2x32(sp)) (4 -> 5)", resolver.GetMessage().c_str());
   }
 }
 
