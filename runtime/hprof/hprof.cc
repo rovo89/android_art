@@ -507,6 +507,7 @@ class Hprof {
 
     Env env = { this, output };
     runtime->VisitRoots(RootVisitor, &env);
+    runtime->VisitImageRoots(RootVisitor, &env);
     runtime->GetHeap()->VisitObjectsPaused(VisitObjectCallback, &env);
 
     output->StartNewRecord(HPROF_TAG_HEAP_DUMP_END, kHprofTime);

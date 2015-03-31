@@ -298,6 +298,10 @@ class Runtime {
   void VisitRoots(RootCallback* visitor, void* arg, VisitRootFlags flags = kVisitRootFlagAllRoots)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  // Visit image roots, only used for hprof since the GC uses the image space mod union table
+  // instead.
+  void VisitImageRoots(RootCallback* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
   // Visit all of the roots we can do safely do concurrently.
   void VisitConcurrentRoots(RootCallback* visitor, void* arg,
                             VisitRootFlags flags = kVisitRootFlagAllRoots)
