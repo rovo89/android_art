@@ -19,6 +19,7 @@
 #include <string.h>
 
 #include "base/logging.h"
+#include "dex/verified_method.h"
 #include "driver/compiler_driver.h"
 #include "driver/compiler_driver-inl.h"
 #include "mirror/class_loader.h"  // Only to allow casts in Handle<ClassLoader>.

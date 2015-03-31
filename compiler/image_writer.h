@@ -52,7 +52,8 @@ class ImageWriter FINAL {
         quick_imt_conflict_trampoline_offset_(0), quick_resolution_trampoline_offset_(0),
         quick_to_interpreter_bridge_offset_(0), compile_pic_(compile_pic),
         target_ptr_size_(InstructionSetPointerSize(compiler_driver_.GetInstructionSet())),
-        bin_slot_sizes_(), bin_slot_count_() {
+        bin_slot_sizes_(), bin_slot_previous_sizes_(), bin_slot_count_(),
+        string_data_array_(nullptr) {
     CHECK_NE(image_begin, 0U);
   }
 
@@ -80,6 +81,14 @@ class ImageWriter FINAL {
     return reinterpret_cast<mirror::Object*>(image_begin_ + GetImageOffset(object));
   }
 
+  mirror::HeapReference<mirror::Object>* GetDexCacheArrayElementImageAddress(
+      const DexFile* dex_file, uint32_t offset) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    auto it = dex_cache_array_starts_.find(dex_file);
+    DCHECK(it != dex_cache_array_starts_.end());
+    return reinterpret_cast<mirror::HeapReference<mirror::Object>*>(
+        image_begin_ + RoundUp(sizeof(ImageHeader), kObjectAlignment) + it->second + offset);
+  }
+
   uint8_t* GetOatFileBegin() const {
     return image_begin_ + RoundUp(image_end_, kPageSize);
   }
@@ -101,6 +110,10 @@ class ImageWriter FINAL {
 
   // Classify different kinds of bins that objects end up getting packed into during image writing.
   enum Bin {
+    // Dex cache arrays have a special slot for PC-relative addressing. Since they are
+    // huge, and as such their dirtiness is not important for the clean/dirty separation,
+    // we arbitrarily keep them at the beginning.
+    kBinDexCacheArray,            // Object arrays belonging to dex cache.
     // Likely-clean:
     kBinString,                        // [String] Almost always immutable (except for obj header).
     kBinArtMethodsManagedInitialized,  // [ArtMethod] Not-native, and initialized. Unlikely to dirty
@@ -113,7 +126,6 @@ class ImageWriter FINAL {
     kBinClassVerified,            // Class verified, but initializers haven't been run
     kBinArtMethodNative,          // Art method that is actually native
     kBinArtMethodNotInitialized,  // Art method with a declaring class that wasn't initialized
-    // Don't care about other art methods since they don't dirty
     // Add more bins here if we add more segregation code.
     kBinSize,
   };
@@ -157,6 +169,7 @@ class ImageWriter FINAL {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   size_t GetImageOffset(mirror::Object* object) const SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
+  void PrepareDexCacheArraySlots() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void AssignImageBinSlot(mirror::Object* object) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void SetImageBinSlot(mirror::Object* object, BinSlot bin_slot)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
@@ -282,6 +295,12 @@ class ImageWriter FINAL {
   // Memory mapped for generating the image.
   std::unique_ptr<MemMap> image_;
 
+  // Indexes for dex cache arrays (objects are inside of the image so that they don't move).
+  SafeMap<mirror::Object*, size_t> dex_cache_array_indexes_;
+
+  // The start offsets of the dex cache arrays.
+  SafeMap<const DexFile*, size_t> dex_cache_array_starts_;
+
   // Saved hashes (objects are inside of the image so that they don't move).
   std::vector<std::pair<mirror::Object*, uint32_t>> saved_hashes_;
 
@@ -309,6 +328,7 @@ class ImageWriter FINAL {
 
   // Bin slot tracking for dirty object packing
   size_t bin_slot_sizes_[kBinSize];  // Number of bytes in a bin
+  size_t bin_slot_previous_sizes_[kBinSize];  // Number of bytes in previous bins.
   size_t bin_slot_count_[kBinSize];  // Number of objects in a bin
 
   void* string_data_array_;  // The backing for the interned strings.
