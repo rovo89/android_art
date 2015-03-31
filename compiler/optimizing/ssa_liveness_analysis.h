@@ -189,7 +189,10 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     AddRange(position, position + 1);
   }
 
-  void AddUse(HInstruction* instruction, size_t input_index, bool is_environment) {
+  void AddUse(HInstruction* instruction,
+              size_t input_index,
+              bool is_environment,
+              bool keep_alive = false) {
     // Set the use within the instruction.
     size_t position = instruction->GetLifetimePosition() + 1;
     LocationSummary* locations = instruction->GetLocations();
@@ -211,6 +214,7 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
         && (first_use_->GetPosition() < position)) {
       // The user uses the instruction multiple times, and one use dies before the other.
       // We update the use list so that the latter is first.
+      DCHECK(!is_environment);
       UsePosition* cursor = first_use_;
       while ((cursor->GetNext() != nullptr) && (cursor->GetNext()->GetPosition() < position)) {
         cursor = cursor->GetNext();
@@ -222,6 +226,15 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
       if (first_range_->GetEnd() == first_use_->GetPosition()) {
         first_range_->end_ = position;
       }
+      return;
+    }
+
+    first_use_ = new (allocator_) UsePosition(
+        instruction, input_index, is_environment, position, first_use_);
+
+    if (is_environment && !keep_alive) {
+      // If this environment use does not keep the instruction live, it does not
+      // affect the live range of that instruction.
       return;
     }
 
@@ -246,8 +259,6 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
       // and the check line 205 would succeed.
       first_range_ = new (allocator_) LiveRange(start_block_position, position, first_range_);
     }
-    first_use_ = new (allocator_) UsePosition(
-        instruction, input_index, is_environment, position, first_use_);
   }
 
   void AddPhiUse(HInstruction* instruction, size_t input_index, HBasicBlock* block) {
@@ -425,9 +436,11 @@ class LiveInterval : public ArenaObject<kArenaAllocMisc> {
     UsePosition* use = first_use_;
     size_t end = GetEnd();
     while (use != nullptr && use->GetPosition() <= end) {
-      size_t use_position = use->GetPosition();
-      if (use_position > position) {
-        return use_position;
+      if (!use->GetIsEnvironment()) {
+        size_t use_position = use->GetPosition();
+        if (use_position > position) {
+          return use_position;
+        }
       }
       use = use->GetNext();
     }
