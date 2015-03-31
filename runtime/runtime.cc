@@ -62,7 +62,7 @@
 #include "gc/accounting/card_table-inl.h"
 #include "gc/heap.h"
 #include "gc/space/image_space.h"
-#include "gc/space/space.h"
+#include "gc/space/space-inl.h"
 #include "handle_scope-inl.h"
 #include "image.h"
 #include "instrumentation.h"
@@ -1353,6 +1353,23 @@ size_t Runtime::FlipThreadRoots(Closure* thread_flip_visitor, Closure* flip_call
 void Runtime::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
   VisitNonConcurrentRoots(callback, arg);
   VisitConcurrentRoots(callback, arg, flags);
+}
+
+void Runtime::VisitImageRoots(RootCallback* callback, void* arg) {
+  for (auto* space : GetHeap()->GetContinuousSpaces()) {
+    if (space->IsImageSpace()) {
+      auto* image_space = space->AsImageSpace();
+      const auto& image_header = image_space->GetImageHeader();
+      for (size_t i = 0; i < ImageHeader::kImageRootsMax; ++i) {
+        auto* obj = image_header.GetImageRoot(static_cast<ImageHeader::ImageRoot>(i));
+        if (obj != nullptr) {
+          auto* after_obj = obj;
+          callback(&after_obj, arg, RootInfo(kRootStickyClass));
+          CHECK_EQ(after_obj, obj);
+        }
+      }
+    }
+  }
 }
 
 mirror::ObjectArray<mirror::ArtMethod>* Runtime::CreateDefaultImt(ClassLinker* cl) {
