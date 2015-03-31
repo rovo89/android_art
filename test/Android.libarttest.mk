@@ -31,7 +31,8 @@ LIBARTTEST_COMMON_SRC_FILES := \
   454-get-vreg/get_vreg_jni.cc \
   455-set-vreg/set_vreg_jni.cc \
   457-regs/regs_jni.cc \
-  461-get-reference-vreg/get_reference_vreg_jni.cc
+  461-get-reference-vreg/get_reference_vreg_jni.cc \
+  466-get-live-vreg/get_live_vreg_jni.cc
 
 ART_TARGET_LIBARTTEST_$(ART_PHONY_TEST_TARGET_SUFFIX) += $(ART_TARGET_TEST_OUT)/$(TARGET_ARCH)/libarttest.so
 ifdef TARGET_2ND_ARCH

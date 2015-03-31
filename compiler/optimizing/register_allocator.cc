@@ -1408,26 +1408,36 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
 
     // Walk over all uses covered by this interval, and update the location
     // information.
-    while (use != nullptr && use->GetPosition() <= current->GetEnd()) {
-      LocationSummary* locations = use->GetUser()->GetLocations();
-      if (use->GetIsEnvironment()) {
-        locations->SetEnvironmentAt(use->GetInputIndex(), source);
-      } else {
-        Location expected_location = locations->InAt(use->GetInputIndex());
-        // The expected (actual) location may be invalid in case the input is unused. Currently
-        // this only happens for intrinsics.
-        if (expected_location.IsValid()) {
-          if (expected_location.IsUnallocated()) {
-            locations->SetInAt(use->GetInputIndex(), source);
-          } else if (!expected_location.IsConstant()) {
-            AddInputMoveFor(interval->GetDefinedBy(), use->GetUser(), source, expected_location);
-          }
-        } else {
-          DCHECK(use->GetUser()->IsInvoke());
-          DCHECK(use->GetUser()->AsInvoke()->GetIntrinsic() != Intrinsics::kNone);
-        }
+
+    LiveRange* range = current->GetFirstRange();
+    while (range != nullptr) {
+      while (use != nullptr && use->GetPosition() < range->GetStart()) {
+        DCHECK(use->GetIsEnvironment());
+        use = use->GetNext();
       }
-      use = use->GetNext();
+      while (use != nullptr && use->GetPosition() <= range->GetEnd()) {
+        DCHECK(current->Covers(use->GetPosition()) || (use->GetPosition() == range->GetEnd()));
+        LocationSummary* locations = use->GetUser()->GetLocations();
+        if (use->GetIsEnvironment()) {
+          locations->SetEnvironmentAt(use->GetInputIndex(), source);
+        } else {
+          Location expected_location = locations->InAt(use->GetInputIndex());
+          // The expected (actual) location may be invalid in case the input is unused. Currently
+          // this only happens for intrinsics.
+          if (expected_location.IsValid()) {
+            if (expected_location.IsUnallocated()) {
+              locations->SetInAt(use->GetInputIndex(), source);
+            } else if (!expected_location.IsConstant()) {
+              AddInputMoveFor(interval->GetDefinedBy(), use->GetUser(), source, expected_location);
+            }
+          } else {
+            DCHECK(use->GetUser()->IsInvoke());
+            DCHECK(use->GetUser()->AsInvoke()->GetIntrinsic() != Intrinsics::kNone);
+          }
+        }
+        use = use->GetNext();
+      }
+      range = range->GetNext();
     }
 
     // If the next interval starts just after this one, and has a register,
@@ -1503,7 +1513,15 @@ void RegisterAllocator::ConnectSiblings(LiveInterval* interval) {
     }
     current = next_sibling;
   } while (current != nullptr);
-  DCHECK(use == nullptr);
+
+  if (kIsDebugBuild) {
+    // Following uses can only be environment uses. The location for
+    // these environments will be none.
+    while (use != nullptr) {
+      DCHECK(use->GetIsEnvironment());
+      use = use->GetNext();
+    }
+  } 
 }
 
 void RegisterAllocator::ConnectSplitSiblings(LiveInterval* interval,
