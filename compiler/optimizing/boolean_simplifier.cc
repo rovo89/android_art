@@ -59,7 +59,8 @@ static HInstruction* GetOppositeCondition(HInstruction* cond) {
       return new (allocator) HGreaterThan(lhs, rhs);
     } else if (cond->IsGreaterThan()) {
       return new (allocator) HLessThanOrEqual(lhs, rhs);
-    } else if (cond->IsGreaterThanOrEqual()) {
+    } else {
+      DCHECK(cond->IsGreaterThanOrEqual());
       return new (allocator) HLessThan(lhs, rhs);
     }
   } else if (cond->IsIntConstant()) {
@@ -70,10 +71,11 @@ static HInstruction* GetOppositeCondition(HInstruction* cond) {
       DCHECK(int_const->IsOne());
       return graph->GetIntConstant(0);
     }
+  } else {
+    // General case when 'cond' is another instruction of type boolean.
+    // Negate with 'cond == 0'.
+    return new (allocator) HEqual(cond, graph->GetIntConstant(0));
   }
-
-  // TODO: b/19992954
-  return nullptr;
 }
 
 void HBooleanSimplifier::Run() {
@@ -105,10 +107,6 @@ void HBooleanSimplifier::Run() {
     HInstruction* replacement;
     if (NegatesCondition(true_value, false_value)) {
       replacement = GetOppositeCondition(if_condition);
-      if (replacement == nullptr) {
-        // Something we could not handle.
-        continue;
-      }
       if (replacement->GetBlock() == nullptr) {
         block->InsertInstructionBefore(replacement, if_instruction);
       }
