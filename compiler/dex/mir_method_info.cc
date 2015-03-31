@@ -16,9 +16,11 @@
 
 # include "mir_method_info.h"
 
+#include "dex/verified_method.h"
 #include "driver/compiler_driver.h"
 #include "driver/dex_compilation_unit.h"
 #include "driver/compiler_driver-inl.h"
+#include "driver/compiler_options.h"
 #include "mirror/class_loader.h"  // Only to allow casts in Handle<ClassLoader>.
 #include "mirror/dex_cache.h"     // Only to allow casts in Handle<DexCache>.
 #include "scoped_thread_state_change.h"
