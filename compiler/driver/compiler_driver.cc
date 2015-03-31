@@ -31,6 +31,7 @@
 #include "base/timing_logger.h"
 #include "class_linker.h"
 #include "compiled_class.h"
+#include "compiled_method.h"
 #include "compiler.h"
 #include "compiler_driver-inl.h"
 #include "dex_compilation_unit.h"
@@ -62,6 +63,7 @@
 #include "thread_pool.h"
 #include "trampolines/trampoline_compiler.h"
 #include "transaction.h"
+#include "utils/dex_cache_arrays_layout-inl.h"
 #include "utils/swap_space.h"
 #include "verifier/method_verifier.h"
 #include "verifier/method_verifier-inl.h"
@@ -1173,6 +1175,13 @@ uint32_t CompilerDriver::GetReferenceDisableFlagOffset() const {
   return klass->GetDisableIntrinsicFlagOffset().Uint32Value();
 }
 
+DexCacheArraysLayout CompilerDriver::GetDexCacheArraysLayout(const DexFile* dex_file) {
+  // Currently only image dex caches have fixed array layout.
+  return IsImage() && GetSupportBootImageFixup()
+      ? DexCacheArraysLayout(dex_file)
+      : DexCacheArraysLayout();
+}
+
 void CompilerDriver::ProcessedInstanceField(bool resolved) {
   if (!resolved) {
     stats_->UnresolvedInstanceField();
@@ -2246,7 +2255,7 @@ void CompilerDriver::CompileMethod(Thread* self, const DexFile::CodeItem* code_i
     // Count non-relative linker patches.
     size_t non_relative_linker_patch_count = 0u;
     for (const LinkerPatch& patch : compiled_method->GetPatches()) {
-      if (patch.Type() != kLinkerPatchCallRelative) {
+      if (!patch.IsPcRelative()) {
         ++non_relative_linker_patch_count;
       }
     }

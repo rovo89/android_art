@@ -185,6 +185,7 @@ enum LinkerPatchType {
   kLinkerPatchCall,
   kLinkerPatchCallRelative,  // NOTE: Actual patching is instruction_set-dependent.
   kLinkerPatchType,
+  kLinkerPatchDexCacheArray,  // NOTE: Actual patching is instruction_set-dependent.
 };
 
 class LinkerPatch {
@@ -192,28 +193,44 @@ class LinkerPatch {
   static LinkerPatch MethodPatch(size_t literal_offset,
                                  const DexFile* target_dex_file,
                                  uint32_t target_method_idx) {
-    return LinkerPatch(literal_offset, kLinkerPatchMethod,
-                       target_method_idx, target_dex_file);
+    LinkerPatch patch(literal_offset, kLinkerPatchMethod, target_dex_file);
+    patch.method_idx_ = target_method_idx;
+    return patch;
   }
 
   static LinkerPatch CodePatch(size_t literal_offset,
                                const DexFile* target_dex_file,
                                uint32_t target_method_idx) {
-    return LinkerPatch(literal_offset, kLinkerPatchCall,
-                       target_method_idx, target_dex_file);
+    LinkerPatch patch(literal_offset, kLinkerPatchCall, target_dex_file);
+    patch.method_idx_ = target_method_idx;
+    return patch;
   }
 
   static LinkerPatch RelativeCodePatch(size_t literal_offset,
                                        const DexFile* target_dex_file,
                                        uint32_t target_method_idx) {
-    return LinkerPatch(literal_offset, kLinkerPatchCallRelative,
-                       target_method_idx, target_dex_file);
+    LinkerPatch patch(literal_offset, kLinkerPatchCallRelative, target_dex_file);
+    patch.method_idx_ = target_method_idx;
+    return patch;
   }
 
   static LinkerPatch TypePatch(size_t literal_offset,
                                const DexFile* target_dex_file,
                                uint32_t target_type_idx) {
-    return LinkerPatch(literal_offset, kLinkerPatchType, target_type_idx, target_dex_file);
+    LinkerPatch patch(literal_offset, kLinkerPatchType, target_dex_file);
+    patch.type_idx_ = target_type_idx;
+    return patch;
+  }
+
+  static LinkerPatch DexCacheArrayPatch(size_t literal_offset,
+                                        const DexFile* target_dex_file,
+                                        uint32_t pc_insn_offset,
+                                        size_t element_offset) {
+    DCHECK(IsUint<32>(element_offset));
+    LinkerPatch patch(literal_offset, kLinkerPatchDexCacheArray, target_dex_file);
+    patch.pc_insn_offset_ = pc_insn_offset;
+    patch.element_offset_ = element_offset;
+    return patch;
   }
 
   LinkerPatch(const LinkerPatch& other) = default;
@@ -227,10 +244,14 @@ class LinkerPatch {
     return patch_type_;
   }
 
+  bool IsPcRelative() const {
+    return Type() == kLinkerPatchCallRelative || Type() == kLinkerPatchDexCacheArray;
+  }
+
   MethodReference TargetMethod() const {
     DCHECK(patch_type_ == kLinkerPatchMethod ||
            patch_type_ == kLinkerPatchCall || patch_type_ == kLinkerPatchCallRelative);
-    return MethodReference(target_dex_file_, target_idx_);
+    return MethodReference(target_dex_file_, method_idx_);
   }
 
   const DexFile* TargetTypeDexFile() const {
@@ -240,22 +261,52 @@ class LinkerPatch {
 
   uint32_t TargetTypeIndex() const {
     DCHECK(patch_type_ == kLinkerPatchType);
-    return target_idx_;
+    return type_idx_;
+  }
+
+  const DexFile* TargetDexCacheDexFile() const {
+    DCHECK(patch_type_ == kLinkerPatchDexCacheArray);
+    return target_dex_file_;
+  }
+
+  size_t TargetDexCacheElementOffset() const {
+    DCHECK(patch_type_ == kLinkerPatchDexCacheArray);
+    return element_offset_;
+  }
+
+  uint32_t PcInsnOffset() const {
+    DCHECK(patch_type_ == kLinkerPatchDexCacheArray);
+    return pc_insn_offset_;
   }
 
  private:
-  LinkerPatch(size_t literal_offset, LinkerPatchType patch_type,
-              uint32_t target_idx, const DexFile* target_dex_file)
-      : literal_offset_(literal_offset),
-        patch_type_(patch_type),
-        target_idx_(target_idx),
-        target_dex_file_(target_dex_file) {
+  LinkerPatch(size_t literal_offset, LinkerPatchType patch_type, const DexFile* target_dex_file)
+      : target_dex_file_(target_dex_file),
+        literal_offset_(literal_offset),
+        patch_type_(patch_type) {
+    cmp1_ = 0u;
+    cmp2_ = 0u;
+    // The compiler rejects methods that are too big, so the compiled code
+    // of a single method really shouln't be anywhere close to 16MiB.
+    DCHECK(IsUint<24>(literal_offset));
   }
 
-  size_t literal_offset_;
-  LinkerPatchType patch_type_;
-  uint32_t target_idx_;  // Method index (Call/Method patches) or type index (Type patches).
   const DexFile* target_dex_file_;
+  uint32_t literal_offset_ : 24;  // Method code size up to 16MiB.
+  LinkerPatchType patch_type_ : 8;
+  union {
+    uint32_t cmp1_;             // Used for relational operators.
+    uint32_t method_idx_;       // Method index for Call/Method patches.
+    uint32_t type_idx_;         // Type index for Type patches.
+    uint32_t element_offset_;   // Element offset in the dex cache arrays.
+  };
+  union {
+    uint32_t cmp2_;             // Used for relational operators.
+    // Literal offset of the insn loading PC (same as literal_offset if it's the same insn,
+    // may be different if the PC-relative addressing needs multiple insns).
+    uint32_t pc_insn_offset_;
+    static_assert(sizeof(pc_insn_offset_) == sizeof(cmp2_), "needed by relational operators");
+  };
 
   friend bool operator==(const LinkerPatch& lhs, const LinkerPatch& rhs);
   friend bool operator<(const LinkerPatch& lhs, const LinkerPatch& rhs);
@@ -264,15 +315,17 @@ class LinkerPatch {
 inline bool operator==(const LinkerPatch& lhs, const LinkerPatch& rhs) {
   return lhs.literal_offset_ == rhs.literal_offset_ &&
       lhs.patch_type_ == rhs.patch_type_ &&
-      lhs.target_idx_ == rhs.target_idx_ &&
-      lhs.target_dex_file_ == rhs.target_dex_file_;
+      lhs.target_dex_file_ == rhs.target_dex_file_ &&
+      lhs.cmp1_ == rhs.cmp1_ &&
+      lhs.cmp2_ == rhs.cmp2_;
 }
 
 inline bool operator<(const LinkerPatch& lhs, const LinkerPatch& rhs) {
   return (lhs.literal_offset_ != rhs.literal_offset_) ? lhs.literal_offset_ < rhs.literal_offset_
       : (lhs.patch_type_ != rhs.patch_type_) ? lhs.patch_type_ < rhs.patch_type_
-      : (lhs.target_idx_ != rhs.target_idx_) ? lhs.target_idx_ < rhs.target_idx_
-      : lhs.target_dex_file_ < rhs.target_dex_file_;
+      : (lhs.target_dex_file_ != rhs.target_dex_file_) ? lhs.target_dex_file_ < rhs.target_dex_file_
+      : (lhs.cmp1_ != rhs.cmp1_) ? lhs.cmp1_ < rhs.cmp1_
+      : lhs.cmp2_ < rhs.cmp2_;
 }
 
 class CompiledMethod FINAL : public CompiledCode {

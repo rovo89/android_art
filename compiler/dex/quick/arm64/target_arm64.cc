@@ -606,7 +606,8 @@ RegisterClass Arm64Mir2Lir::RegClassForFieldLoadStore(OpSize size, bool is_volat
 
 Arm64Mir2Lir::Arm64Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator* arena)
     : Mir2Lir(cu, mir_graph, arena),
-      call_method_insns_(arena->Adapter()) {
+      call_method_insns_(arena->Adapter()),
+      dex_cache_access_insns_(arena->Adapter()) {
   // Sanity check - make sure encoding map lines up.
   for (int i = 0; i < kA64Last; i++) {
     DCHECK_EQ(UNWIDE(Arm64Mir2Lir::EncodingMap[i].opcode), i)
@@ -846,14 +847,27 @@ RegStorage Arm64Mir2Lir::InToRegStorageArm64Mapper::GetNextReg(ShortyArg arg) {
 }
 
 void Arm64Mir2Lir::InstallLiteralPools() {
+  patches_.reserve(call_method_insns_.size() + dex_cache_access_insns_.size());
+
   // PC-relative calls to methods.
-  patches_.reserve(call_method_insns_.size());
   for (LIR* p : call_method_insns_) {
       DCHECK_EQ(p->opcode, kA64Bl1t);
       uint32_t target_method_idx = p->operands[1];
       const DexFile* target_dex_file = UnwrapPointer<DexFile>(p->operands[2]);
       patches_.push_back(LinkerPatch::RelativeCodePatch(p->offset,
                                                         target_dex_file, target_method_idx));
+  }
+
+  // PC-relative references to dex cache arrays.
+  for (LIR* p : dex_cache_access_insns_) {
+    DCHECK(p->opcode == kA64Adrp2xd || p->opcode == kA64Ldr3rXD);
+    const LIR* adrp = UnwrapPointer<LIR>(p->operands[4]);
+    DCHECK_EQ(adrp->opcode, kA64Adrp2xd);
+    const DexFile* dex_file = UnwrapPointer<DexFile>(adrp->operands[2]);
+    uint32_t offset = adrp->operands[3];
+    DCHECK(!p->flags.is_nop);
+    DCHECK(!adrp->flags.is_nop);
+    patches_.push_back(LinkerPatch::DexCacheArrayPatch(p->offset, dex_file, adrp->offset, offset));
   }
 
   // And do the normal processing.

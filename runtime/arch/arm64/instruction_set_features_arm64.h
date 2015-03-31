@@ -61,6 +61,11 @@ class Arm64InstructionSetFeatures FINAL : public InstructionSetFeatures {
       return fix_cortex_a53_835769_;
   }
 
+  // Generate code addressing Cortex-A53 erratum 843419?
+  bool NeedFixCortexA53_843419() const {
+      return fix_cortex_a53_843419_;
+  }
+
   // TODO: Tune this on a per CPU basis. For now, we pessimistically assume
   // that all ARM64 CPUs prefer explicit memory barriers over acquire-release.
   //
@@ -79,8 +84,12 @@ class Arm64InstructionSetFeatures FINAL : public InstructionSetFeatures {
                                  std::string* error_msg) const OVERRIDE;
 
  private:
-  explicit Arm64InstructionSetFeatures(bool smp, bool needs_a53_835769_fix)
-      : InstructionSetFeatures(smp), fix_cortex_a53_835769_(needs_a53_835769_fix) {
+  explicit Arm64InstructionSetFeatures(bool smp,
+                                       bool needs_a53_835769_fix,
+                                       bool needs_a53_843419_fix)
+      : InstructionSetFeatures(smp),
+        fix_cortex_a53_835769_(needs_a53_835769_fix),
+        fix_cortex_a53_843419_(needs_a53_843419_fix) {
   }
 
   // Bitmap positions for encoding features as a bitmap.
@@ -90,6 +99,7 @@ class Arm64InstructionSetFeatures FINAL : public InstructionSetFeatures {
   };
 
   const bool fix_cortex_a53_835769_;
+  const bool fix_cortex_a53_843419_;
 
   DISALLOW_COPY_AND_ASSIGN(Arm64InstructionSetFeatures);
 };
