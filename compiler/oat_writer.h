@@ -313,6 +313,7 @@ class OatWriter {
   uint32_t size_code_;
   uint32_t size_code_alignment_;
   uint32_t size_relative_call_thunks_;
+  uint32_t size_misc_thunks_;
   uint32_t size_mapping_table_;
   uint32_t size_vmap_table_;
   uint32_t size_gc_map_;
