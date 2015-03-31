@@ -401,9 +401,8 @@ TEST(StackMapTest, DexRegisterMapOffsetOverflow) {
   // ...the offset of the second Dex register map (relative to the
   // beginning of the Dex register maps region) is 255 (i.e.,
   // kNoDexRegisterMapSmallEncoding).
-  ASSERT_NE(StackMap::kNoDexRegisterMap, stack_map1.GetDexRegisterMapOffset(code_info));
-  ASSERT_EQ(StackMap::kNoDexRegisterMapSmallEncoding,
-            stack_map1.GetDexRegisterMapOffset(code_info));
+  ASSERT_NE(stack_map1.GetDexRegisterMapOffset(code_info), StackMap::kNoDexRegisterMap);
+  ASSERT_EQ(stack_map1.GetDexRegisterMapOffset(code_info), 0xFFu);
 }
 
 TEST(StackMapTest, TestShareDexRegisterMap) {
