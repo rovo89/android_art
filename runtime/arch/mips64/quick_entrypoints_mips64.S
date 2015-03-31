@@ -1504,11 +1504,11 @@ art_quick_instrumentation_exit:
     move     $a1, $t0          # pass $sp
     jal      artInstrumentationMethodExitFromCode  # (Thread*, SP, gpr_res, fpr_res)
     move     $a0, rSELF        # pass Thread::Current
-    move     $t0, $v0          # set aside returned link register
+    move     $t9, $v0          # set aside returned link register
     move     $ra, $v1          # set link register for deoptimization
     ld       $v0, 0($sp)       # restore return values
     l.d      $f0, 8($sp)
-    jalr     $zero, $t0        # return
+    jalr     $zero, $t9        # return
     daddiu   $sp, $sp, 16+FRAME_SIZE_REFS_ONLY_CALLEE_SAVE  # 16 bytes of saved values + ref_only callee save frame
     .cfi_adjust_cfa_offset -(16+FRAME_SIZE_REFS_ONLY_CALLEE_SAVE)
 END art_quick_instrumentation_exit
