@@ -72,8 +72,8 @@ static HInstruction* GetOppositeCondition(HInstruction* cond) {
     }
   }
 
-  LOG(FATAL) << "Instruction " << cond->DebugName() << " used as a condition";
-  UNREACHABLE();
+  // TODO: b/19992954
+  return nullptr;
 }
 
 void HBooleanSimplifier::Run() {
@@ -105,6 +105,10 @@ void HBooleanSimplifier::Run() {
     HInstruction* replacement;
     if (NegatesCondition(true_value, false_value)) {
       replacement = GetOppositeCondition(if_condition);
+      if (replacement == nullptr) {
+        // Something we could not handle.
+        continue;
+      }
       if (replacement->GetBlock() == nullptr) {
         block->InsertInstructionBefore(replacement, if_instruction);
       }
