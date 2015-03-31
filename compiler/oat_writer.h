@@ -21,7 +21,6 @@
 #include <cstddef>
 #include <memory>
 
-#include "driver/compiler_driver.h"
 #include "mem_map.h"
 #include "method_reference.h"
 #include "oat.h"
@@ -32,8 +31,10 @@ namespace art {
 
 class BitVector;
 class CompiledMethod;
+class CompilerDriver;
 class ImageWriter;
 class OutputStream;
+class TimingLogger;
 
 // OatHeader         variable length with count of D OatDexFiles
 //
@@ -325,50 +326,19 @@ class OatWriter {
   uint32_t size_oat_class_method_bitmaps_;
   uint32_t size_oat_class_method_offsets_;
 
-  class RelativeCallPatcher;
-  class NoRelativeCallPatcher;
-  class X86RelativeCallPatcher;
-  class ArmBaseRelativeCallPatcher;
-  class Thumb2RelativeCallPatcher;
-  class Arm64RelativeCallPatcher;
+  class RelativePatcher;
+  class NoRelativePatcher;
+  class X86RelativePatcher;
+  class ArmBaseRelativePatcher;
+  class Thumb2RelativePatcher;
+  class Arm64RelativePatcher;
 
-  std::unique_ptr<RelativeCallPatcher> relative_call_patcher_;
+  std::unique_ptr<RelativePatcher> relative_patcher_;
 
   // The locations of absolute patches relative to the start of the executable section.
   std::vector<uintptr_t> absolute_patch_locations_;
 
   SafeMap<MethodReference, uint32_t, MethodReferenceComparator> method_offset_map_;
-
-  struct CodeOffsetsKeyComparator {
-    bool operator()(const CompiledMethod* lhs, const CompiledMethod* rhs) const {
-      if (lhs->GetQuickCode() != rhs->GetQuickCode()) {
-        return lhs->GetQuickCode() < rhs->GetQuickCode();
-      }
-      // If the code is the same, all other fields are likely to be the same as well.
-      if (UNLIKELY(lhs->GetMappingTable() != rhs->GetMappingTable())) {
-        return lhs->GetMappingTable() < rhs->GetMappingTable();
-      }
-      if (UNLIKELY(lhs->GetVmapTable() != rhs->GetVmapTable())) {
-        return lhs->GetVmapTable() < rhs->GetVmapTable();
-      }
-      if (UNLIKELY(lhs->GetGcMap() != rhs->GetGcMap())) {
-        return lhs->GetGcMap() < rhs->GetGcMap();
-      }
-      const auto& lhs_patches = lhs->GetPatches();
-      const auto& rhs_patches = rhs->GetPatches();
-      if (UNLIKELY(lhs_patches.size() != rhs_patches.size())) {
-        return lhs_patches.size() < rhs_patches.size();
-      }
-      auto rit = rhs_patches.begin();
-      for (const LinkerPatch& lpatch : lhs_patches) {
-        if (UNLIKELY(!(lpatch == *rit))) {
-          return lpatch < *rit;
-        }
-        ++rit;
-      }
-      return false;
-    }
-  };
 
   DISALLOW_COPY_AND_ASSIGN(OatWriter);
 };

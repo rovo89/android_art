@@ -340,6 +340,20 @@ void Mir2Lir::LoadCurrMethodDirect(RegStorage r_tgt) {
   LoadValueDirectFixed(mir_graph_->GetMethodLoc(), r_tgt);
 }
 
+RegStorage Mir2Lir::LoadCurrMethodWithHint(RegStorage r_hint) {
+  // If the method is promoted to a register, return that register, otherwise load it to r_hint.
+  // (Replacement for LoadCurrMethod() usually used when LockCallTemps() is in effect.)
+  DCHECK(r_hint.Valid());
+  RegLocation rl_method = mir_graph_->GetMethodLoc();
+  if (rl_method.location == kLocPhysReg) {
+    DCHECK(!IsTemp(rl_method.reg));
+    return rl_method.reg;
+  } else {
+    LoadCurrMethodDirect(r_hint);
+    return r_hint;
+  }
+}
+
 RegLocation Mir2Lir::LoadCurrMethod() {
   return LoadValue(mir_graph_->GetMethodLoc(), kRefReg);
 }

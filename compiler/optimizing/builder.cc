@@ -23,6 +23,7 @@
 #include "dex_instruction.h"
 #include "dex_instruction-inl.h"
 #include "driver/compiler_driver-inl.h"
+#include "driver/compiler_options.h"
 #include "mirror/art_field.h"
 #include "mirror/art_field-inl.h"
 #include "mirror/class_loader.h"

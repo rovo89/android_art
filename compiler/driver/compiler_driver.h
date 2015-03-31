@@ -26,11 +26,8 @@
 #include "base/mutex.h"
 #include "base/timing_logger.h"
 #include "class_reference.h"
-#include "compiled_method.h"
 #include "compiler.h"
 #include "dex_file.h"
-#include "dex/verified_method.h"
-#include "driver/compiler_options.h"
 #include "invoke_type.h"
 #include "method_reference.h"
 #include "mirror/class.h"  // For mirror::Class::Status.
@@ -39,7 +36,9 @@
 #include "runtime.h"
 #include "safe_map.h"
 #include "thread_pool.h"
+#include "utils/array_ref.h"
 #include "utils/dedupe_set.h"
+#include "utils/dex_cache_arrays_layout.h"
 #include "utils/swap_space.h"
 #include "utils.h"
 
@@ -54,6 +53,7 @@ class MethodVerifier;
 }  // namespace verifier
 
 class CompiledClass;
+class CompiledMethod;
 class CompilerOptions;
 class DexCompilationUnit;
 class DexFileToMethodInlinerMap;
@@ -62,6 +62,9 @@ class InstructionSetFeatures;
 class OatWriter;
 class ParallelCompilationManager;
 class ScopedObjectAccess;
+template <class Allocator> class SrcMap;
+class SrcMapElem;
+using SwapSrcMap = SrcMap<SwapAllocator<SrcMapElem>>;
 template<class T> class Handle;
 class TimingLogger;
 class VerificationResults;
@@ -317,6 +320,10 @@ class CompilerDriver {
   // For non-static invokes, assuming a non-null reference, the class is always initialized.
   bool IsMethodsClassInitialized(mirror::Class* referrer_class, mirror::ArtMethod* resolved_method)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // Get the layout of dex cache arrays for a dex file. Returns invalid layout if the
+  // dex cache arrays don't have a fixed layout.
+  DexCacheArraysLayout GetDexCacheArraysLayout(const DexFile* dex_file);
 
   void ProcessedInstanceField(bool resolved);
   void ProcessedStaticField(bool resolved, bool local);

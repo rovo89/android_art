@@ -24,6 +24,7 @@
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex_file-inl.h"
 #include "driver/compiler_driver.h"
+#include "driver/compiler_options.h"
 #include "entrypoints/quick/quick_entrypoints.h"
 #include "invoke_type.h"
 #include "mirror/array.h"

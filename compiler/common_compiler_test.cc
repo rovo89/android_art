@@ -24,6 +24,7 @@
 #include "dex/quick/dex_file_to_method_inliner_map.h"
 #include "dex/verification_results.h"
 #include "driver/compiler_driver.h"
+#include "driver/compiler_options.h"
 #include "interpreter/interpreter.h"
 #include "mirror/art_method.h"
 #include "mirror/dex_cache.h"
