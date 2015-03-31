@@ -18,6 +18,7 @@
 
 #include <zlib.h>
 
+#include "arch/arm64/instruction_set_features_arm64.h"
 #include "base/allocator.h"
 #include "base/bit_vector.h"
 #include "base/stl_util.h"
@@ -50,8 +51,8 @@ class OatWriter::RelativePatcher {
  public:
   virtual ~RelativePatcher() { }
 
-  // Reserve space for relative call thunks if needed, return adjusted offset.
-  // After all methods have been processed it's call one last time with compiled_method == nullptr.
+  // Reserve space for relative call thunks if needed, return adjusted offset. After all methods
+  // of a class have been processed it's called one last time with compiled_method == nullptr.
   virtual uint32_t ReserveSpace(uint32_t offset, const CompiledMethod* compiled_method) = 0;
 
   // Write relative call thunks if needed, return adjusted offset.
@@ -155,41 +156,7 @@ class OatWriter::ArmBaseRelativePatcher : public RelativePatcher {
   }
 
   uint32_t ReserveSpace(uint32_t offset, const CompiledMethod* compiled_method) OVERRIDE {
-    // NOTE: The final thunk can be reserved from InitCodeMethodVisitor::EndClass() while it
-    // may be written early by WriteCodeMethodVisitor::VisitMethod() for a deduplicated chunk
-    // of code. To avoid any alignment discrepancies for the final chunk, we always align the
-    // offset after reserving of writing any chunk.
-    if (UNLIKELY(compiled_method == nullptr)) {
-      uint32_t aligned_offset = CompiledMethod::AlignCode(offset, instruction_set_);
-      bool needs_thunk = ReserveSpaceProcessPatches(aligned_offset);
-      if (needs_thunk) {
-        thunk_locations_.push_back(aligned_offset);
-        offset = CompiledMethod::AlignCode(aligned_offset + thunk_code_.size(), instruction_set_);
-      }
-      return offset;
-    }
-    DCHECK(compiled_method->GetQuickCode() != nullptr);
-    uint32_t quick_code_size = compiled_method->GetQuickCode()->size();
-    uint32_t quick_code_offset = compiled_method->AlignCode(offset) + sizeof(OatQuickMethodHeader);
-    uint32_t next_aligned_offset = compiled_method->AlignCode(quick_code_offset + quick_code_size);
-    if (!unprocessed_patches_.empty() &&
-        next_aligned_offset - unprocessed_patches_.front().second > max_positive_displacement_) {
-      bool needs_thunk = ReserveSpaceProcessPatches(next_aligned_offset);
-      if (needs_thunk) {
-        // A single thunk will cover all pending patches.
-        unprocessed_patches_.clear();
-        uint32_t thunk_location = compiled_method->AlignCode(offset);
-        thunk_locations_.push_back(thunk_location);
-        offset = CompiledMethod::AlignCode(thunk_location + thunk_code_.size(), instruction_set_);
-      }
-    }
-    for (const LinkerPatch& patch : compiled_method->GetPatches()) {
-      if (patch.Type() == kLinkerPatchCallRelative) {
-        unprocessed_patches_.emplace_back(patch.TargetMethod(),
-                                          quick_code_offset + patch.LiteralOffset());
-      }
-    }
-    return offset;
+    return ReserveSpaceInternal(offset, compiled_method, 0u);
   }
 
   uint32_t WriteThunks(OutputStream* out, uint32_t offset) OVERRIDE {
@@ -219,6 +186,47 @@ class OatWriter::ArmBaseRelativePatcher : public RelativePatcher {
   }
 
  protected:
+  uint32_t ReserveSpaceInternal(uint32_t offset, const CompiledMethod* compiled_method,
+                                uint32_t max_extra_space) {
+    // NOTE: The final thunk can be reserved from InitCodeMethodVisitor::EndClass() while it
+    // may be written early by WriteCodeMethodVisitor::VisitMethod() for a deduplicated chunk
+    // of code. To avoid any alignment discrepancies for the final chunk, we always align the
+    // offset after reserving of writing any chunk.
+    if (UNLIKELY(compiled_method == nullptr)) {
+      uint32_t aligned_offset = CompiledMethod::AlignCode(offset, instruction_set_);
+      bool needs_thunk = ReserveSpaceProcessPatches(aligned_offset);
+      if (needs_thunk) {
+        thunk_locations_.push_back(aligned_offset);
+        offset = CompiledMethod::AlignCode(aligned_offset + thunk_code_.size(), instruction_set_);
+      }
+      return offset;
+    }
+    DCHECK(compiled_method->GetQuickCode() != nullptr);
+    uint32_t quick_code_size = compiled_method->GetQuickCode()->size();
+    uint32_t quick_code_offset = compiled_method->AlignCode(offset) + sizeof(OatQuickMethodHeader);
+    uint32_t next_aligned_offset = compiled_method->AlignCode(quick_code_offset + quick_code_size);
+    // Adjust for extra space required by the subclass.
+    next_aligned_offset = compiled_method->AlignCode(next_aligned_offset + max_extra_space);
+    if (!unprocessed_patches_.empty() &&
+        next_aligned_offset - unprocessed_patches_.front().second > max_positive_displacement_) {
+      bool needs_thunk = ReserveSpaceProcessPatches(next_aligned_offset);
+      if (needs_thunk) {
+        // A single thunk will cover all pending patches.
+        unprocessed_patches_.clear();
+        uint32_t thunk_location = compiled_method->AlignCode(offset);
+        thunk_locations_.push_back(thunk_location);
+        offset = CompiledMethod::AlignCode(thunk_location + thunk_code_.size(), instruction_set_);
+      }
+    }
+    for (const LinkerPatch& patch : compiled_method->GetPatches()) {
+      if (patch.Type() == kLinkerPatchCallRelative) {
+        unprocessed_patches_.emplace_back(patch.TargetMethod(),
+                                          quick_code_offset + patch.LiteralOffset());
+      }
+    }
+    return offset;
+  }
+
   uint32_t CalculateDisplacement(uint32_t patch_offset, uint32_t target_offset) {
     // Unsigned arithmetic with its well-defined overflow behavior is just fine here.
     uint32_t displacement = target_offset - patch_offset;
@@ -239,6 +247,10 @@ class OatWriter::ArmBaseRelativePatcher : public RelativePatcher {
       }
     }
     return displacement;
+  }
+
+  OatWriter* Writer() const {
+    return writer_;
   }
 
  private:
@@ -362,7 +374,91 @@ class OatWriter::Arm64RelativePatcher FINAL : public ArmBaseRelativePatcher {
  public:
   explicit Arm64RelativePatcher(OatWriter* writer)
       : ArmBaseRelativePatcher(writer, kArm64, CompileThunkCode(),
-                                   kMaxPositiveDisplacement, kMaxNegativeDisplacement) {
+                                   kMaxPositiveDisplacement, kMaxNegativeDisplacement),
+        fix_cortex_a53_843419_(writer->compiler_driver_->GetInstructionSetFeatures()
+                               ->AsArm64InstructionSetFeatures()->NeedFixCortexA53_835769()),
+        reserved_adrp_thunks_(0u),
+        processed_adrp_thunks_(0u) {
+    if (fix_cortex_a53_843419_) {
+      adrp_thunk_locations_.reserve(16u);
+      current_method_thunks_.reserve(16u * kAdrpThunkSize);
+    }
+  }
+
+  uint32_t ReserveSpace(uint32_t offset, const CompiledMethod* compiled_method) OVERRIDE {
+    if (!fix_cortex_a53_843419_) {
+      DCHECK(adrp_thunk_locations_.empty());
+      return ReserveSpaceInternal(offset, compiled_method, 0u);
+    }
+
+    // Add thunks for previous method if any.
+    if (reserved_adrp_thunks_ != adrp_thunk_locations_.size()) {
+      size_t num_adrp_thunks = adrp_thunk_locations_.size() - reserved_adrp_thunks_;
+      offset = CompiledMethod::AlignCode(offset, kArm64) + kAdrpThunkSize * num_adrp_thunks;
+      reserved_adrp_thunks_ = adrp_thunk_locations_.size();
+    }
+
+    // Count the number of ADRP insns as the upper bound on the number of thunks needed
+    // and use it to reserve space for other linker patches.
+    size_t num_adrp = 0u;
+    if (LIKELY(compiled_method != nullptr)) {
+      for (const LinkerPatch& patch : compiled_method->GetPatches()) {
+        if (patch.Type() == kLinkerPatchDexCacheArray &&
+            patch.LiteralOffset() == patch.PcInsnOffset()) {  // ADRP patch
+          ++num_adrp;
+        }
+      }
+    }
+    offset = ReserveSpaceInternal(offset, compiled_method, kAdrpThunkSize * num_adrp);
+    if (num_adrp == 0u) {
+      return offset;
+    }
+
+    // Now that we have the actual offset where the code will be placed, locate the ADRP insns
+    // that actually require the thunk.
+    uint32_t quick_code_offset = compiled_method->AlignCode(offset) + sizeof(OatQuickMethodHeader);
+    ArrayRef<const uint8_t> code(*compiled_method->GetQuickCode());
+    uint32_t thunk_offset = compiled_method->AlignCode(quick_code_offset + code.size());
+    DCHECK(compiled_method != nullptr);
+    for (const LinkerPatch& patch : compiled_method->GetPatches()) {
+      if (patch.Type() == kLinkerPatchDexCacheArray &&
+          patch.LiteralOffset() == patch.PcInsnOffset()) {  // ADRP patch
+        uint32_t patch_offset = quick_code_offset + patch.LiteralOffset();
+        if (NeedsErratum843419Thunk(code, patch.LiteralOffset(), patch_offset)) {
+          adrp_thunk_locations_.emplace_back(patch_offset, thunk_offset);
+          thunk_offset += kAdrpThunkSize;
+        }
+      }
+    }
+    return offset;
+  }
+
+  uint32_t WriteThunks(OutputStream* out, uint32_t offset) OVERRIDE {
+    if (fix_cortex_a53_843419_) {
+      if (!current_method_thunks_.empty()) {
+        uint32_t aligned_offset = CompiledMethod::AlignCode(offset, kArm64);
+        if (kIsDebugBuild) {
+          CHECK(IsAligned<kAdrpThunkSize>(current_method_thunks_.size()));
+          size_t num_thunks = current_method_thunks_.size() / kAdrpThunkSize;
+          CHECK_LE(num_thunks, processed_adrp_thunks_);
+          for (size_t i = 0u; i != num_thunks; ++i) {
+            const auto& entry = adrp_thunk_locations_[processed_adrp_thunks_ - num_thunks + i];
+            CHECK_EQ(entry.second, aligned_offset + i * kAdrpThunkSize);
+          }
+        }
+        uint32_t aligned_code_delta = aligned_offset - offset;
+        if (aligned_code_delta != 0u && !Writer()->WriteCodeAlignment(out, aligned_code_delta)) {
+          return 0u;
+        }
+        if (!out->WriteFully(&current_method_thunks_[0], current_method_thunks_.size())) {
+          return 0u;
+        }
+        Writer()->size_misc_thunks_ += current_method_thunks_.size();
+        offset = aligned_offset + current_method_thunks_.size();
+        current_method_thunks_.clear();
+      }
+    }
+    return ArmBaseRelativePatcher::WriteThunks(out, offset);
   }
 
   void PatchCall(std::vector<uint8_t>* code, uint32_t literal_offset,
@@ -397,21 +493,60 @@ class OatWriter::Arm64RelativePatcher FINAL : public ArmBaseRelativePatcher {
       // Check it's an ADRP with imm == 0 (unset).
       DCHECK_EQ((insn & 0xffffffe0u), 0x90000000u)
           << literal_offset << ", " << pc_insn_offset << ", 0x" << std::hex << insn;
-      insn = (insn & 0x9f00001fu) |
-          ((disp & 0x00003000u) << (29 - 12)) |
-          ((disp & 0xffffc000u) >> (12 + 2 - 5)) |
-          // Since the target_offset is based on the beginning of the oat file and the
-          // image space precedes the oat file, the target_offset into image space will
-          // be negative yet passed as uint32_t. Therefore we limit the displacement
-          // to +-2GiB (rather than the maximim +-4GiB) and determine the sign bit from
-          // the highest bit of the displacement.
-          ((disp & 0x80000000u) >> (31 - 23));
-      // Write the new ADRP.
+      if (fix_cortex_a53_843419_ && processed_adrp_thunks_ != adrp_thunk_locations_.size() &&
+          adrp_thunk_locations_[processed_adrp_thunks_].first == patch_offset) {
+        DCHECK(NeedsErratum843419Thunk(ArrayRef<const uint8_t>(*code),
+                                       literal_offset, patch_offset));
+        uint32_t thunk_offset = adrp_thunk_locations_[processed_adrp_thunks_].second;
+        uint32_t adrp_disp = target_offset - (thunk_offset & ~0xfffu);
+        uint32_t adrp = PatchAdrp(insn, adrp_disp);
+
+        uint32_t out_disp = thunk_offset - patch_offset;
+        DCHECK_EQ(out_disp & 3u, 0u);
+        DCHECK((out_disp >> 27) == 0u || (out_disp >> 27) == 31u);  // 28-bit signed.
+        insn = (out_disp & 0x0fffffffu) >> 2;
+        insn |= 0x14000000;  // B <thunk>
+
+        uint32_t back_disp = -out_disp;
+        DCHECK_EQ(back_disp & 3u, 0u);
+        DCHECK((back_disp >> 27) == 0u || (back_disp >> 27) == 31u);  // 28-bit signed.
+        uint32_t b_back = (back_disp & 0x0fffffffu) >> 2;
+        b_back |= 0x14000000;  // B <back>
+        size_t thunks_code_offset = current_method_thunks_.size();
+        current_method_thunks_.resize(thunks_code_offset + kAdrpThunkSize);
+        SetInsn(&current_method_thunks_, thunks_code_offset, adrp);
+        SetInsn(&current_method_thunks_, thunks_code_offset + 4u, b_back);
+        static_assert(kAdrpThunkSize == 2 * 4u, "thunk has 2 instructions");
+
+        processed_adrp_thunks_ += 1u;
+      } else {
+        insn = PatchAdrp(insn, disp);
+      }
+      // Write the new ADRP (or B to the erratum 843419 thunk).
       SetInsn(code, literal_offset, insn);
     } else {
       DCHECK_EQ(insn & 0xfffffc00, 0xb9400000);  // LDR 32-bit with imm12 == 0 (unset).
-      DCHECK_EQ(GetInsn(code, pc_insn_offset) & 0x9f00001fu,  // Check that pc_insn_offset points
-                0x90000000 | ((insn >> 5) & 0x1fu));          // to ADRP with matching register.
+      if (kIsDebugBuild) {
+        uint32_t adrp = GetInsn(code, pc_insn_offset);
+        if ((adrp & 0x9f000000u) != 0x90000000u) {
+          CHECK(fix_cortex_a53_843419_);
+          CHECK_EQ(adrp & 0xfc000000u, 0x14000000u);  // B <thunk>
+          CHECK(IsAligned<kAdrpThunkSize>(current_method_thunks_.size()));
+          size_t num_thunks = current_method_thunks_.size() / kAdrpThunkSize;
+          CHECK_LE(num_thunks, processed_adrp_thunks_);
+          uint32_t b_offset = patch_offset - literal_offset + pc_insn_offset;
+          for (size_t i = processed_adrp_thunks_ - num_thunks; ; ++i) {
+            CHECK_NE(i, processed_adrp_thunks_);
+            if (adrp_thunk_locations_[i].first == b_offset) {
+              size_t idx = num_thunks - (processed_adrp_thunks_ - i);
+              adrp = GetInsn(&current_method_thunks_, idx * kAdrpThunkSize);
+              break;
+            }
+          }
+        }
+        CHECK_EQ(adrp & 0x9f00001fu,                    // Check that pc_insn_offset points
+                 0x90000000 | ((insn >> 5) & 0x1fu));   // to ADRP with matching register.
+      }
       uint32_t imm12 = (disp & 0xfffu) >> 2;
       insn = (insn & ~(0xfffu << 10)) | (imm12 << 10);
       SetInsn(code, literal_offset, insn);
@@ -419,6 +554,20 @@ class OatWriter::Arm64RelativePatcher FINAL : public ArmBaseRelativePatcher {
   }
 
  private:
+  static uint32_t PatchAdrp(uint32_t adrp, uint32_t disp) {
+    return (adrp & 0x9f00001fu) |  // Clear offset bits, keep ADRP with destination reg.
+        // Bottom 12 bits are ignored, the next 2 lowest bits are encoded in bits 29-30.
+        ((disp & 0x00003000u) << (29 - 12)) |
+        // The next 16 bits are encoded in bits 5-22.
+        ((disp & 0xffffc000u) >> (12 + 2 - 5)) |
+        // Since the target_offset is based on the beginning of the oat file and the
+        // image space precedes the oat file, the target_offset into image space will
+        // be negative yet passed as uint32_t. Therefore we limit the displacement
+        // to +-2GiB (rather than the maximim +-4GiB) and determine the sign bit from
+        // the highest bit of the displacement. This is encoded in bit 23.
+        ((disp & 0x80000000u) >> (31 - 23));
+  }
+
   static std::vector<uint8_t> CompileThunkCode() {
     // The thunk just uses the entry point in the ArtMethod. This works even for calls
     // to the generic JNI and interpreter trampolines.
@@ -434,15 +583,36 @@ class OatWriter::Arm64RelativePatcher FINAL : public ArmBaseRelativePatcher {
     return thunk_code;
   }
 
-  uint32_t GetInsn(std::vector<uint8_t>* code, uint32_t offset) {
-    DCHECK_LE(offset + 4u, code->size());
+  static bool NeedsErratum843419Thunk(ArrayRef<const uint8_t> code, uint32_t literal_offset,
+                                      uint32_t patch_offset) {
+    DCHECK_EQ(patch_offset & 0x3u, 0u);
+    if ((patch_offset & 0xff8) == 0xff8) {  // ...ff8 or ...ffc
+      uint32_t adrp = GetInsn(code, literal_offset);
+      DCHECK_EQ(adrp & 0xff000000, 0x90000000);
+      // TODO: Improve the check. For now, we're just checking if the next insn is
+      // the LDR using the result of the ADRP, otherwise we implement the workaround.
+      uint32_t next_insn = GetInsn(code, literal_offset + 4u);
+      bool ok = (next_insn & 0xffc00000) == 0xb9400000 &&  // LDR <Wt>, [<Xn>, #pimm]
+          (((next_insn >> 5) ^ adrp) & 0x1f) == 0;         // <Xn> == ADRP destination reg
+      return !ok;
+    }
+    return false;
+  }
+
+  static uint32_t GetInsn(ArrayRef<const uint8_t> code, uint32_t offset) {
+    DCHECK_LE(offset + 4u, code.size());
     DCHECK_EQ(offset & 3u, 0u);
-    uint8_t* addr = &(*code)[offset];
+    const uint8_t* addr = &code[offset];
     return
         (static_cast<uint32_t>(addr[0]) << 0) +
         (static_cast<uint32_t>(addr[1]) << 8) +
         (static_cast<uint32_t>(addr[2]) << 16)+
         (static_cast<uint32_t>(addr[3]) << 24);
+  }
+
+  template <typename Alloc>
+  static uint32_t GetInsn(std::vector<uint8_t, Alloc>* code, uint32_t offset) {
+    return GetInsn(ArrayRef<const uint8_t>(*code), offset);
   }
 
   void SetInsn(std::vector<uint8_t>* code, uint32_t offset, uint32_t value) {
@@ -460,6 +630,16 @@ class OatWriter::Arm64RelativePatcher FINAL : public ArmBaseRelativePatcher {
   // the ARM64 PC pointing to the BL.)
   static constexpr uint32_t kMaxPositiveDisplacement = (1u << 27) - 4u;
   static constexpr uint32_t kMaxNegativeDisplacement = (1u << 27);
+
+  // The ADRP thunk for erratum 843419 is 2 instructions, i.e. 8 bytes.
+  static constexpr uint32_t kAdrpThunkSize = 8u;
+
+  const bool fix_cortex_a53_843419_;
+  // Map original patch_offset to thunk offset.
+  std::vector<std::pair<uint32_t, uint32_t>> adrp_thunk_locations_;
+  size_t reserved_adrp_thunks_;
+  size_t processed_adrp_thunks_;
+  std::vector<uint8_t> current_method_thunks_;
 
   DISALLOW_COPY_AND_ASSIGN(Arm64RelativePatcher);
 };
@@ -508,6 +688,7 @@ OatWriter::OatWriter(const std::vector<const DexFile*>& dex_files,
     size_code_(0),
     size_code_alignment_(0),
     size_relative_call_thunks_(0),
+    size_misc_thunks_(0),
     size_mapping_table_(0),
     size_vmap_table_(0),
     size_gc_map_(0),
@@ -803,23 +984,22 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
 
       const SwapVector<uint8_t>* quick_code = compiled_method->GetQuickCode();
       CHECK(quick_code != nullptr);
-      offset_ = writer_->relative_patcher_->ReserveSpace(offset_, compiled_method);
-      offset_ = compiled_method->AlignCode(offset_);
-      DCHECK_ALIGNED_PARAM(offset_,
-                           GetInstructionSetAlignment(compiled_method->GetInstructionSet()));
       uint32_t code_size = quick_code->size() * sizeof(uint8_t);
       CHECK_NE(code_size, 0U);
       uint32_t thumb_offset = compiled_method->CodeDelta();
-      quick_code_offset = offset_ + sizeof(OatQuickMethodHeader) + thumb_offset;
-
-      bool deduped = false;
 
       // Deduplicate code arrays.
+      bool deduped = false;
       auto lb = dedupe_map_.lower_bound(compiled_method);
       if (lb != dedupe_map_.end() && !dedupe_map_.key_comp()(compiled_method, lb->first)) {
         quick_code_offset = lb->second;
         deduped = true;
       } else {
+        offset_ = writer_->relative_patcher_->ReserveSpace(offset_, compiled_method);
+        offset_ = compiled_method->AlignCode(offset_);
+        DCHECK_ALIGNED_PARAM(offset_,
+                             GetInstructionSetAlignment(compiled_method->GetInstructionSet()));
+        quick_code_offset = offset_ + sizeof(OatQuickMethodHeader) + thumb_offset;
         dedupe_map_.PutBefore(lb, compiled_method, quick_code_offset);
       }
 
@@ -1112,33 +1292,32 @@ class OatWriter::WriteCodeMethodVisitor : public OatDexMethodVisitor {
       if (quick_code != nullptr) {
         // Need a wrapper if we create a copy for patching.
         ArrayRef<const uint8_t> wrapped(*quick_code);
-
-        offset_ = writer_->relative_patcher_->WriteThunks(out, offset_);
-        if (offset_ == 0u) {
-          ReportWriteFailure("relative call thunk", it);
-          return false;
-        }
-        uint32_t aligned_offset = compiled_method->AlignCode(offset_);
-        uint32_t aligned_code_delta = aligned_offset - offset_;
-        if (aligned_code_delta != 0) {
-          if (!writer_->WriteCodeAlignment(out, aligned_code_delta)) {
-            ReportWriteFailure("code alignment padding", it);
-            return false;
-          }
-          offset_ += aligned_code_delta;
-          DCHECK_OFFSET_();
-        }
-        DCHECK_ALIGNED_PARAM(offset_,
-                             GetInstructionSetAlignment(compiled_method->GetInstructionSet()));
         uint32_t code_size = quick_code->size() * sizeof(uint8_t);
         CHECK_NE(code_size, 0U);
 
         // Deduplicate code arrays.
         const OatMethodOffsets& method_offsets = oat_class->method_offsets_[method_offsets_index_];
-        DCHECK(method_offsets.code_offset_ < offset_ || method_offsets.code_offset_ ==
-                   offset_ + sizeof(OatQuickMethodHeader) + compiled_method->CodeDelta())
-            << PrettyMethod(it.GetMemberIndex(), *dex_file_);
         if (method_offsets.code_offset_ >= offset_) {
+          offset_ = writer_->relative_patcher_->WriteThunks(out, offset_);
+          if (offset_ == 0u) {
+            ReportWriteFailure("relative call thunk", it);
+            return false;
+          }
+          uint32_t aligned_offset = compiled_method->AlignCode(offset_);
+          uint32_t aligned_code_delta = aligned_offset - offset_;
+          if (aligned_code_delta != 0) {
+            if (!writer_->WriteCodeAlignment(out, aligned_code_delta)) {
+              ReportWriteFailure("code alignment padding", it);
+              return false;
+            }
+            offset_ += aligned_code_delta;
+            DCHECK_OFFSET_();
+          }
+          DCHECK_ALIGNED_PARAM(offset_,
+                               GetInstructionSetAlignment(compiled_method->GetInstructionSet()));
+          DCHECK_EQ(method_offsets.code_offset_,
+                    offset_ + sizeof(OatQuickMethodHeader) + compiled_method->CodeDelta())
+              << PrettyMethod(it.GetMemberIndex(), *dex_file_);
           const OatQuickMethodHeader& method_header =
               oat_class->method_headers_[method_offsets_index_];
           writer_->oat_header_->UpdateChecksum(&method_header, sizeof(method_header));
@@ -1602,6 +1781,7 @@ bool OatWriter::Write(OutputStream* out) {
     DO_STAT(size_code_);
     DO_STAT(size_code_alignment_);
     DO_STAT(size_relative_call_thunks_);
+    DO_STAT(size_misc_thunks_);
     DO_STAT(size_mapping_table_);
     DO_STAT(size_vmap_table_);
     DO_STAT(size_gc_map_);
