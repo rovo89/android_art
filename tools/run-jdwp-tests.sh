@@ -19,11 +19,6 @@ if [ ! -d libcore ]; then
   exit 1
 fi
 
-if [[ $ANDROID_SERIAL == 03a79ae90ae5889b ]] || [[ $ANDROID_SERIAL == HT4CTJT03670 ]] || [[ $ANDROID_SERIAL == HT49CJT00070 ]]; then
-  echo "Not run because of localhost failures. Investigating."
-  exit 0
-fi
-
 # Jar containing all the tests.
 test_jar=out/host/linux-x86/framework/apache-harmony-jdwp-tests-hostdex.jar
 junit_jar=out/host/linux-x86/framework/junit.jar
@@ -43,11 +38,10 @@ device_dir="--device-dir=/data/local/tmp"
 # We use the art script on target to ensure the runner and the debuggee share the same
 # image.
 vm_command="--vm-command=$art"
+image_compiler_option=""
 
 while true; do
   if [[ "$1" == "--mode=host" ]]; then
-    echo "Host testing currently disabled because of buildbot. Investigating..."
-    exit 0
     # Specify bash explicitly since the art script cannot, since it has to run on the device
     # with mksh.
     art="bash out/host/linux-x86/bin/art"
@@ -57,6 +51,9 @@ while true; do
     device_dir=""
     # Vogar knows which VM to use on host.
     vm_command=""
+    # We only compile the image on the host. Note that not providing this option
+    # puts us below the adb command limit for vogar.
+    image_compiler_option="--vm-arg -Ximage-compiler-option --vm-arg --debuggable"
     shift
   elif [[ $1 == -Ximage:* ]]; then
     image="$1"
@@ -74,11 +71,11 @@ vogar $vm_command \
       --verbose \
       $args \
       $device_dir \
-      --vm-arg -Ximage-compiler-option \
-      --vm-arg --debuggable \
+      $image_compiler_option \
       --timeout 600 \
       --vm-arg -Djpda.settings.verbose=true \
       --vm-arg -Djpda.settings.syncPort=34016 \
+      --vm-arg -Djpda.settings.transportAddress=127.0.0.1:55107 \
       --vm-arg -Djpda.settings.debuggeeJavaPath="$art $image $debuggee_args" \
       --classpath $test_jar \
       --classpath $junit_jar \
