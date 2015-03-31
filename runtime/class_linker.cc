@@ -4678,9 +4678,19 @@ static bool CheckSuperClassChange(Handle<mirror::Class> klass,
     // Now comes the expensive part: things can be broken if (a) the klass' dex file has a
     // definition for the super-class, and (b) the files are in separate oat files. The oat files
     // are referenced from the dex file, so do (b) first. Only relevant if we have oat files.
-    const OatFile* class_oat_file = dex_file.GetOatFile();
+    const OatDexFile* class_oat_dex_file = dex_file.GetOatDexFile();
+    const OatFile* class_oat_file = nullptr;
+    if (class_oat_dex_file != nullptr) {
+      class_oat_file = class_oat_dex_file->GetOatFile();
+    }
+
     if (class_oat_file != nullptr) {
-      const OatFile* loaded_super_oat_file = super_class->GetDexFile().GetOatFile();
+      const OatDexFile* loaded_super_oat_dex_file = super_class->GetDexFile().GetOatDexFile();
+      const OatFile* loaded_super_oat_file = nullptr;
+      if (loaded_super_oat_dex_file != nullptr) {
+        loaded_super_oat_file = loaded_super_oat_dex_file->GetOatFile();
+      }
+
       if (loaded_super_oat_file != nullptr && class_oat_file != loaded_super_oat_file) {
         // Now check (a).
         const DexFile::ClassDef* super_class_def = dex_file.FindClassDef(class_def.superclass_idx_);
