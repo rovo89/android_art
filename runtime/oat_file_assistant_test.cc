@@ -787,7 +787,8 @@ class RaceGenerateTask : public Task {
     std::vector<std::string> error_msgs;
     dex_files = linker->OpenDexFilesFromOat(dex_location_.c_str(), oat_location_.c_str(), &error_msgs);
     CHECK(!dex_files.empty()) << Join(error_msgs, '\n');
-    loaded_oat_file_ = dex_files[0]->GetOatFile();
+    CHECK(dex_files[0]->GetOatDexFile() != nullptr) << dex_files[0]->GetLocation();
+    loaded_oat_file_ = dex_files[0]->GetOatDexFile()->GetOatFile();
   }
 
   const OatFile* GetLoadedOatFile() const {

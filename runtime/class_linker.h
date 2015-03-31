@@ -600,17 +600,6 @@ class ClassLinker {
   }
   mirror::DexCache* GetDexCache(size_t idx) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, dex_lock_);
 
-  const OatFile::OatDexFile* FindOpenedOatDexFileForDexFile(const DexFile& dex_file)
-      LOCKS_EXCLUDED(dex_lock_)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-
-  // Find an opened oat dex file that contains dex_location. If oat_location is not nullptr,
-  // the file must have that location, else any oat location is accepted.
-  const OatFile::OatDexFile* FindOpenedOatDexFile(const char* oat_location,
-                                                  const char* dex_location,
-                                                  const uint32_t* dex_location_checksum)
-      LOCKS_EXCLUDED(dex_lock_);
-
   const OatFile* FindOpenedOatFileFromOatLocation(const std::string& oat_location)
       LOCKS_EXCLUDED(dex_lock_);
 
@@ -739,8 +728,6 @@ class ClassLinker {
   friend class ImageWriter;  // for GetClassRoots
   friend class ImageDumper;  // for FindOpenedOatFileFromOatLocation
   friend class JniCompilerTest;  // for GetRuntimeQuickGenericJniStub
-  friend class NoDex2OatTest;  // for FindOpenedOatFileForDexFile
-  friend class NoPatchoatTest;  // for FindOpenedOatFileForDexFile
   ART_FRIEND_TEST(mirror::DexCacheTest, Open);  // for AllocDexCache
 
   DISALLOW_COPY_AND_ASSIGN(ClassLinker);
