@@ -42,27 +42,7 @@ clean-oat: clean-oat-host clean-oat-target
 
 .PHONY: clean-oat-host
 clean-oat-host:
-	rm -f $(HOST_CORE_IMG_OUTS)
-	rm -f $(HOST_CORE_OAT_OUTS)
-	rm -f $(HOST_OUT_JAVA_LIBRARIES)/$(ART_HOST_ARCH)/*.odex
-ifneq ($(HOST_PREFER_32_BIT),true)
-	rm -f $(HOST_OUT_JAVA_LIBRARIES)/$(2ND_ART_HOST_ARCH)/*.odex
-endif
-	rm -f $(TARGET_CORE_IMG_OUTS)
-	rm -f $(TARGET_CORE_OAT_OUTS)
-	rm -rf $(DEXPREOPT_PRODUCT_DIR_FULL_PATH)
-	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*.odex
-	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*/*.oat
-	rm -f $(TARGET_OUT_UNSTRIPPED)/system/framework/*/*.art
-	rm -f $(TARGET_OUT)/framework/*/*.oat
-	rm -f $(TARGET_OUT)/framework/*/*.art
-	rm -f $(TARGET_OUT_APPS)/*.odex
-	rm -f $(TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.odex
-	rm -f $(TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/*.odex
-ifdef TARGET_2ND_ARCH
-	rm -f $(2ND_TARGET_OUT_INTERMEDIATES)/JAVA_LIBRARIES/*_intermediates/javalib.odex
-	rm -f $(2ND_TARGET_OUT_INTERMEDIATES)/APPS/*_intermediates/*.odex
-endif
+	find $(OUT_DIR) -name "*.oat" -o -name "*.odex" -o -name "*.art" | xargs rm -f
 ifneq ($(TMPDIR),)
 	rm -rf $(TMPDIR)/$(USER)/test-*/dalvik-cache/*
 	rm -rf $(TMPDIR)/android-data/dalvik-cache/*
