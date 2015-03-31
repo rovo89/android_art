@@ -2307,6 +2307,9 @@ class HNewArray : public HExpression<1> {
   // Calls runtime so needs an environment.
   bool NeedsEnvironment() const OVERRIDE { return true; }
 
+  // May throw NegativeArraySizeException, OutOfMemoryError, etc.
+  bool CanThrow() const OVERRIDE { return true; }
+
   bool CanBeNull() const OVERRIDE { return false; }
 
   QuickEntrypointEnum GetEntrypoint() const { return entrypoint_; }
