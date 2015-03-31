@@ -68,6 +68,7 @@ class StackMapStream : public ValueObject {
         stack_mask_max_(-1),
         dex_pc_max_(0),
         native_pc_offset_max_(0),
+        register_mask_max_(0),
         number_of_stack_maps_with_inline_info_(0),
         dex_map_hash_to_stack_map_indices_(std::less<uint32_t>(), allocator->Adapter()) {}
 
@@ -128,6 +129,7 @@ class StackMapStream : public ValueObject {
 
     dex_pc_max_ = std::max(dex_pc_max_, dex_pc);
     native_pc_offset_max_ = std::max(native_pc_offset_max_, native_pc_offset);
+    register_mask_max_ = std::max(register_mask_max_, register_mask);
   }
 
   void AddInlineInfoEntry(uint32_t method_index) {
@@ -156,7 +158,8 @@ class StackMapStream : public ValueObject {
         ComputeInlineInfoSize(),
         ComputeDexRegisterMapsSize(),
         dex_pc_max_,
-        native_pc_offset_max_);
+        native_pc_offset_max_,
+        register_mask_max_);
   }
 
   // Compute the size of the Dex register location catalog of `entry`.
@@ -248,8 +251,11 @@ class StackMapStream : public ValueObject {
       ComputeInlineInfoStart(),
       inline_info_size);
 
-    code_info.SetEncoding(
-        inline_info_size, dex_register_map_size, dex_pc_max_, native_pc_offset_max_);
+    code_info.SetEncoding(inline_info_size,
+                          dex_register_map_size,
+                          dex_pc_max_,
+                          native_pc_offset_max_,
+                          register_mask_max_);
     code_info.SetNumberOfStackMaps(stack_maps_.Size());
     code_info.SetStackMaskSize(stack_mask_size);
     DCHECK_EQ(code_info.GetStackMapsSize(), ComputeStackMapsSize());
@@ -476,6 +482,7 @@ class StackMapStream : public ValueObject {
   int stack_mask_max_;
   uint32_t dex_pc_max_;
   uint32_t native_pc_offset_max_;
+  uint32_t register_mask_max_;
   size_t number_of_stack_maps_with_inline_info_;
 
   ArenaSafeMap<uint32_t, GrowableArray<uint32_t>> dex_map_hash_to_stack_map_indices_;
