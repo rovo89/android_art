@@ -3146,7 +3146,7 @@ void InstructionCodeGeneratorX86::GenerateExplicitNullCheck(HNullCheck* instruct
   Location obj = locations->InAt(0);
 
   if (obj.IsRegister()) {
-    __ cmpl(obj.AsRegister<Register>(), Immediate(0));
+    __ testl(obj.AsRegister<Register>(), obj.AsRegister<Register>());
   } else if (obj.IsStackSlot()) {
     __ cmpl(Address(ESP, obj.GetStackIndex()), Immediate(0));
   } else {
