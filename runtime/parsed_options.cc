@@ -250,7 +250,7 @@ std::unique_ptr<RuntimeParser> ParsedOptions::MakeParser(bool ignore_unrecognize
       .Define("-XX:NativeBridge=_")
           .WithType<std::string>()
           .IntoKey(M::NativeBridge)
-      .Define("-Xzygote-max-failed-boots=_")
+      .Define("-Xzygote-max-boot-retry=_")
           .WithType<unsigned int>()
           .IntoKey(M::ZygoteMaxFailedBoots)
       .Define("-Xno-dex-file-fallback")
