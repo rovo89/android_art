@@ -60,7 +60,7 @@ void PrepareForRegisterAllocation::VisitClinitCheck(HClinitCheck* check) {
 
 void PrepareForRegisterAllocation::VisitCondition(HCondition* condition) {
   bool needs_materialization = false;
-  if (!condition->GetUses().HasOnlyOneUse()) {
+  if (!condition->GetUses().HasOnlyOneUse() || !condition->GetEnvUses().IsEmpty()) {
     needs_materialization = true;
   } else {
     HInstruction* user = condition->GetUses().GetFirst()->GetUser();
