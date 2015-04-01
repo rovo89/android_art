@@ -294,6 +294,27 @@ class TypeCheckSlowPathX86 : public SlowPathCodeX86 {
   DISALLOW_COPY_AND_ASSIGN(TypeCheckSlowPathX86);
 };
 
+class DeoptimizationSlowPathX86 : public SlowPathCodeX86 {
+ public:
+  explicit DeoptimizationSlowPathX86(HInstruction* instruction)
+    : instruction_(instruction) {}
+
+  void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
+    __ Bind(GetEntryLabel());
+    SaveLiveRegisters(codegen, instruction_->GetLocations());
+    __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pDeoptimize)));
+    // No need to restore live registers.
+    DCHECK(instruction_->IsDeoptimize());
+    HDeoptimize* deoptimize = instruction_->AsDeoptimize();
+    uint32_t dex_pc = deoptimize->GetDexPc();
+    codegen->RecordPcInfo(instruction_, dex_pc, this);
+  }
+
+ private:
+  HInstruction* const instruction_;
+  DISALLOW_COPY_AND_ASSIGN(DeoptimizationSlowPathX86);
+};
+
 #undef __
 #define __ reinterpret_cast<X86Assembler*>(GetAssembler())->
 
@@ -784,24 +805,17 @@ void InstructionCodeGeneratorX86::VisitExit(HExit* exit) {
   UNUSED(exit);
 }
 
-void LocationsBuilderX86::VisitIf(HIf* if_instr) {
-  LocationSummary* locations =
-      new (GetGraph()->GetArena()) LocationSummary(if_instr, LocationSummary::kNoCall);
-  HInstruction* cond = if_instr->InputAt(0);
-  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
-    locations->SetInAt(0, Location::Any());
-  }
-}
-
-void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
-  HInstruction* cond = if_instr->InputAt(0);
+void InstructionCodeGeneratorX86::GenerateTestAndBranch(HInstruction* instruction,
+                                                        Label* true_target,
+                                                        Label* false_target,
+                                                        Label* always_true_target) {
+  HInstruction* cond = instruction->InputAt(0);
   if (cond->IsIntConstant()) {
     // Constant condition, statically compared against 1.
     int32_t cond_value = cond->AsIntConstant()->GetValue();
     if (cond_value == 1) {
-      if (!codegen_->GoesToNextBlock(if_instr->GetBlock(),
-                                     if_instr->IfTrueSuccessor())) {
-        __ jmp(codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
+      if (always_true_target != nullptr) {
+        __ jmp(always_true_target);
       }
       return;
     } else {
@@ -814,20 +828,19 @@ void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
     // evaluated just before the if, we don't need to evaluate it
     // again.
     bool eflags_set = cond->IsCondition()
-        && cond->AsCondition()->IsBeforeWhenDisregardMoves(if_instr);
+        && cond->AsCondition()->IsBeforeWhenDisregardMoves(instruction);
     if (materialized) {
       if (!eflags_set) {
         // Materialized condition, compare against 0.
-        Location lhs = if_instr->GetLocations()->InAt(0);
+        Location lhs = instruction->GetLocations()->InAt(0);
         if (lhs.IsRegister()) {
           __ testl(lhs.AsRegister<Register>(), lhs.AsRegister<Register>());
         } else {
           __ cmpl(Address(ESP, lhs.GetStackIndex()), Immediate(0));
         }
-        __ j(kNotEqual,  codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
+        __ j(kNotEqual, true_target);
       } else {
-        __ j(X86Condition(cond->AsCondition()->GetCondition()),
-             codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
+        __ j(X86Condition(cond->AsCondition()->GetCondition()), true_target);
       }
     } else {
       Location lhs = cond->GetLocations()->InAt(0);
@@ -846,14 +859,54 @@ void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
       } else {
         __ cmpl(lhs.AsRegister<Register>(), Address(ESP, rhs.GetStackIndex()));
       }
-      __ j(X86Condition(cond->AsCondition()->GetCondition()),
-           codegen_->GetLabelOf(if_instr->IfTrueSuccessor()));
+      __ j(X86Condition(cond->AsCondition()->GetCondition()), true_target);
     }
   }
-  if (!codegen_->GoesToNextBlock(if_instr->GetBlock(),
-                                 if_instr->IfFalseSuccessor())) {
-    __ jmp(codegen_->GetLabelOf(if_instr->IfFalseSuccessor()));
+  if (false_target != nullptr) {
+    __ jmp(false_target);
   }
+}
+
+void LocationsBuilderX86::VisitIf(HIf* if_instr) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(if_instr, LocationSummary::kNoCall);
+  HInstruction* cond = if_instr->InputAt(0);
+  if (!cond->IsCondition() || cond->AsCondition()->NeedsMaterialization()) {
+    locations->SetInAt(0, Location::Any());
+  }
+}
+
+void InstructionCodeGeneratorX86::VisitIf(HIf* if_instr) {
+  Label* true_target = codegen_->GetLabelOf(if_instr->IfTrueSuccessor());
+  Label* false_target = codegen_->GetLabelOf(if_instr->IfFalseSuccessor());
+  Label* always_true_target = true_target;
+  if (codegen_->GoesToNextBlock(if_instr->GetBlock(),
+                                if_instr->IfTrueSuccessor())) {
+    always_true_target = nullptr;
+  }
+  if (codegen_->GoesToNextBlock(if_instr->GetBlock(),
+                                if_instr->IfFalseSuccessor())) {
+    false_target = nullptr;
+  }
+  GenerateTestAndBranch(if_instr, true_target, false_target, always_true_target);
+}
+
+void LocationsBuilderX86::VisitDeoptimize(HDeoptimize* deoptimize) {
+  LocationSummary* locations = new (GetGraph()->GetArena())
+      LocationSummary(deoptimize, LocationSummary::kCallOnSlowPath);
+  HInstruction* cond = deoptimize->InputAt(0);
+  DCHECK(cond->IsCondition());
+  if (cond->AsCondition()->NeedsMaterialization()) {
+    locations->SetInAt(0, Location::Any());
+  }
+}
+
+void InstructionCodeGeneratorX86::VisitDeoptimize(HDeoptimize* deoptimize) {
+  SlowPathCodeX86* slow_path = new (GetGraph()->GetArena())
+      DeoptimizationSlowPathX86(deoptimize);
+  codegen_->AddSlowPath(slow_path);
+  Label* slow_path_entry = slow_path->GetEntryLabel();
+  GenerateTestAndBranch(deoptimize, slow_path_entry, nullptr, slow_path_entry);
 }
 
 void LocationsBuilderX86::VisitLocal(HLocal* local) {

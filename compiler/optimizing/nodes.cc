@@ -752,8 +752,8 @@ HInstruction* HBinaryOperation::GetLeastConstantLeft() const {
   }
 }
 
-bool HCondition::IsBeforeWhenDisregardMoves(HIf* if_) const {
-  return this == if_->GetPreviousDisregardingMoves();
+bool HCondition::IsBeforeWhenDisregardMoves(HInstruction* instruction) const {
+  return this == instruction->GetPreviousDisregardingMoves();
 }
 
 bool HInstruction::Equals(HInstruction* other) const {
