@@ -21,7 +21,13 @@ resulting new tests on the Android device.
 How to run DexFuzz
 ==================
 
-1. Build dexfuzz with mmm tools/dexfuzz from within art/.
+DexFuzz can run its test programs on either an ADB-connected device, or a host-build of
+ART locally.
+
+Execution on an ADB-connected device
+------------------------------------
+
+1. Build dexfuzz with mmma tools/dexfuzz from within art/.
 2. Make sure you have an Android device connected via ADB, that is capable of
    having DEX files pushed to it and executed with the dalvikvm command.
 3. Make sure you're in the Android build environment!
@@ -62,6 +68,19 @@ Some legal examples:
 Add in --device=<device name, e.g. device:generic> if you want to specify a device.
 Add in --execute-dir=<dir on device> if you want to specify an execution directory.
   (The default is /data/art-test/)
+
+Host Execution
+--------------
+
+DexFuzz now supports execution on your host machine.
+Follow steps 1, 3, 4, and 7 as above, but also observe the following:
+ - instead of specifying an ISA, use --host
+ - ANDROID_DATA must be set, pointing to a location where dex2oat will place
+   OAT files after compilation.
+ - Files will always be executed in the same directory where you are executing DexFuzz.
+
+Fuzzer Operation
+----------------
 
 As the fuzzer works, you'll see output like:
 

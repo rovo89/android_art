@@ -58,7 +58,7 @@ public class Options {
 
   // FLAG OPTIONS
   public static boolean execute;
-  public static boolean local;
+  public static boolean executeOnHost;
   public static boolean noBootImage;
   public static boolean useInterpreter;
   public static boolean useQuick;
@@ -90,7 +90,7 @@ public class Options {
     Log.always("  --output=<file>        : Output DEX file to be produced");
     Log.always("");
     Log.always("  --execute              : Execute the resulting fuzzed program");
-    Log.always("    --local              : Execute on host (Not available yet.)");
+    Log.always("    --host               : Execute on host");
     Log.always("    --device=<device>    : Execute on an ADB-connected-device, where <device> is");
     Log.always("                           the argument given to adb -s. Default execution mode.");
     Log.always("    --execute-dir=<dir>  : Push tests to this directory to execute them.");
@@ -150,8 +150,8 @@ public class Options {
   private static void handleFlagOption(String flag) {
     if (flag.equals("execute")) {
       execute = true;
-    } else if (flag.equals("local")) {
-      local = true;
+    } else if (flag.equals("host")) {
+      executeOnHost = true;
     } else if (flag.equals("no-boot-image")) {
       noBootImage = true;
     } else if (flag.equals("skip-host-verify")) {
@@ -383,19 +383,25 @@ public class Options {
       Log.error("Cannot use --max-methods that's smaller than --min-methods");
       return false;
     }
-    if (local && usingSpecificDevice) {
-      Log.error("Cannot use --local and --device!");
+    if (executeOnHost && usingSpecificDevice) {
+      Log.error("Cannot use --host and --device!");
       return false;
     }
     if (execute) {
-      if (!(useArchArm
-          || useArchArm64
-          || useArchX86
-          || useArchX86_64
-          || useArchMips
-          || useArchMips64)) {
-        Log.error("No architecture to execute on was specified!");
-        return false;
+      // When host-execution mode is specified, we don't need to select an architecture.
+      if (!executeOnHost) {
+        if (!(useArchArm
+            || useArchArm64
+            || useArchX86
+            || useArchX86_64
+            || useArchMips
+            || useArchMips64)) {
+          Log.error("No architecture to execute on was specified!");
+          return false;
+        }
+      } else {
+        // TODO: Select the correct architecture. For now, just assume x86.
+        useArchX86 = true;
       }
       if ((useArchArm || useArchArm64) && (useArchX86 || useArchX86_64)) {
         Log.error("Did you mean to specify ARM and x86?");

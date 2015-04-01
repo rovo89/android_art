@@ -21,7 +21,7 @@ import dexfuzz.listeners.BaseListener;
 public class MipsQuickBackendExecutor extends Executor {
 
   public MipsQuickBackendExecutor(BaseListener listener, Device device) {
-    super("MIPS Quick Backend", 5, listener, Architecture.MIPS, device);
+    super("MIPS Quick Backend", 5, listener, Architecture.MIPS, device, true);
   }
 
   @Override
@@ -30,17 +30,6 @@ public class MipsQuickBackendExecutor extends Executor {
     commandBuilder.append("dalvikvm32 ");
     commandBuilder.append("-cp ").append(testLocation).append("/").append(programName).append(" ");
     commandBuilder.append(executeClass);
-    executionResult = executeOnDevice(commandBuilder.toString(), true);
-  }
-
-  @Override
-  public void deleteGeneratedOatFile(String programName) {
-    String command = "rm -f /data/dalvik-cache/mips/" + getOatFileName(programName);
-    executeOnDevice(command, false);
-  }
-
-  @Override
-  public boolean needsCleanCodeCache() {
-    return true;
+    executionResult = executeCommandWithTimeout(commandBuilder.toString(), true);
   }
 }
