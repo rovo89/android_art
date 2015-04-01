@@ -378,10 +378,14 @@ CodeGenerator* CodeGenerator::Create(HGraph* graph,
     case kMips:
       return nullptr;
     case kX86: {
-      return new x86::CodeGeneratorX86(graph, compiler_options);
+      return new x86::CodeGeneratorX86(graph,
+           *isa_features.AsX86InstructionSetFeatures(),
+           compiler_options);
     }
     case kX86_64: {
-      return new x86_64::CodeGeneratorX86_64(graph, compiler_options);
+      return new x86_64::CodeGeneratorX86_64(graph,
+          *isa_features.AsX86_64InstructionSetFeatures(),
+          compiler_options);
     }
     default:
       return nullptr;

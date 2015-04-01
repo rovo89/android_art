@@ -32,7 +32,7 @@ class X86_64Assembler;
 
 class IntrinsicLocationsBuilderX86_64 FINAL : public IntrinsicVisitor {
  public:
-  explicit IntrinsicLocationsBuilderX86_64(ArenaAllocator* arena) : arena_(arena) {}
+  explicit IntrinsicLocationsBuilderX86_64(CodeGeneratorX86_64* codegen);
 
   // Define visitor methods.
 
@@ -50,6 +50,7 @@ INTRINSICS_LIST(OPTIMIZING_INTRINSICS)
 
  private:
   ArenaAllocator* arena_;
+  CodeGeneratorX86_64* codegen_;
 
   DISALLOW_COPY_AND_ASSIGN(IntrinsicLocationsBuilderX86_64);
 };
