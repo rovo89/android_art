@@ -394,6 +394,10 @@ CodeGeneratorARM64::CodeGeneratorARM64(HGraph* graph,
       isa_features_(isa_features) {
   // Save the link register (containing the return address) to mimic Quick.
   AddAllocatedRegister(LocationFrom(lr));
+
+  // Workaround for valgrind undefined recommended_checkpoint_.
+  // This won't do anything, as the literal pool is empty, but initialize the field.
+  GetVIXLAssembler()->EmitLiteralPool(LiteralPool::EmitOption::kNoBranchRequired);
 }
 
 #undef __
