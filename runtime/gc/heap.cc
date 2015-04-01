@@ -2056,7 +2056,11 @@ void Heap::UnBindBitmaps() {
 }
 
 void Heap::PreZygoteFork() {
-  CollectGarbageInternal(collector::kGcTypeFull, kGcCauseBackground, false);
+  if (!HasZygoteSpace()) {
+    // We still want to GC in case there is some unreachable non moving objects that could cause a
+    // suboptimal bin packing when we compact the zygote space.
+    CollectGarbageInternal(collector::kGcTypeFull, kGcCauseBackground, false);
+  }
   Thread* self = Thread::Current();
   MutexLock mu(self, zygote_creation_lock_);
   // Try to see if we have any Zygote spaces.
@@ -2125,7 +2129,7 @@ void Heap::PreZygoteFork() {
     // Update the end and write out image.
     non_moving_space_->SetEnd(target_space.End());
     non_moving_space_->SetLimit(target_space.Limit());
-    VLOG(heap) << "Zygote space size " << non_moving_space_->Size() << " bytes";
+    VLOG(heap) << "Create zygote space with size=" << non_moving_space_->Size() << " bytes";
   }
   // Change the collector to the post zygote one.
   ChangeCollector(foreground_collector_type_);
