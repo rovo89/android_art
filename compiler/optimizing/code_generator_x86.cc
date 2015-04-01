@@ -51,7 +51,7 @@ class NullCheckSlowPathX86 : public SlowPathCodeX86 {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
     __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pThrowNullPointer)));
-    codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
+    RecordPcInfo(codegen, instruction_, instruction_->GetDexPc());
   }
 
  private:
@@ -66,7 +66,7 @@ class DivZeroCheckSlowPathX86 : public SlowPathCodeX86 {
   void EmitNativeCode(CodeGenerator* codegen) OVERRIDE {
     __ Bind(GetEntryLabel());
     __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pThrowDivZero)));
-    codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
+    RecordPcInfo(codegen, instruction_, instruction_->GetDexPc());
   }
 
  private:
@@ -115,7 +115,7 @@ class BoundsCheckSlowPathX86 : public SlowPathCodeX86 {
         length_location_,
         Location::RegisterLocation(calling_convention.GetRegisterAt(1)));
     __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pThrowArrayBounds)));
-    codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
+    RecordPcInfo(codegen, instruction_, instruction_->GetDexPc());
   }
 
  private:
@@ -136,7 +136,7 @@ class SuspendCheckSlowPathX86 : public SlowPathCodeX86 {
     __ Bind(GetEntryLabel());
     SaveLiveRegisters(codegen, instruction_->GetLocations());
     __ fs()->call(Address::Absolute(QUICK_ENTRYPOINT_OFFSET(kX86WordSize, pTestSuspend)));
-    codegen->RecordPcInfo(instruction_, instruction_->GetDexPc());
+    RecordPcInfo(codegen, instruction_, instruction_->GetDexPc());
     RestoreLiveRegisters(codegen, instruction_->GetLocations());
     if (successor_ == nullptr) {
       __ jmp(GetReturnLabel());
