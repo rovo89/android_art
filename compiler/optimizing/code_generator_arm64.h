@@ -23,8 +23,8 @@
 #include "nodes.h"
 #include "parallel_move_resolver.h"
 #include "utils/arm64/assembler_arm64.h"
-#include "a64/disasm-a64.h"
-#include "a64/macro-assembler-a64.h"
+#include "vixl/a64/disasm-a64.h"
+#include "vixl/a64/macro-assembler-a64.h"
 #include "arch/arm64/quick_method_frame_info_arm64.h"
 
 namespace art {
