@@ -443,9 +443,31 @@ class MonotonicValueRange : public ValueRange {
 
 class BCEVisitor : public HGraphVisitor {
  public:
+  // The least number of bounds checks that should be eliminated by triggering
+  // the deoptimization technique.
+  static constexpr size_t kThresholdForAddingDeoptimize = 2;
+
+  // Very large constant index is considered as an anomaly. This is a threshold
+  // beyond which we don't bother to apply the deoptimization technique since
+  // it's likely some AIOOBE will be thrown.
+  static constexpr int32_t kMaxConstantForAddingDeoptimize = INT_MAX - 1024 * 1024;
+
   explicit BCEVisitor(HGraph* graph)
       : HGraphVisitor(graph),
-        maps_(graph->GetBlocks().Size()) {}
+        maps_(graph->GetBlocks().Size()),
+        need_to_revisit_block_(false) {}
+
+  void VisitBasicBlock(HBasicBlock* block) OVERRIDE {
+    first_constant_index_bounds_check_map_.clear();
+    HGraphVisitor::VisitBasicBlock(block);
+    if (need_to_revisit_block_) {
+      AddComparesWithDeoptimization(block);
+      need_to_revisit_block_ = false;
+      first_constant_index_bounds_check_map_.clear();
+      GetValueRangeMap(block)->clear();
+      HGraphVisitor::VisitBasicBlock(block);
+    }
+  }
 
  private:
   // Return the map of proven value ranges at the beginning of a basic block.
@@ -701,9 +723,26 @@ class BCEVisitor : public HGraphVisitor {
         }
       }
 
+      if (first_constant_index_bounds_check_map_.find(array_length->GetId()) ==
+          first_constant_index_bounds_check_map_.end()) {
+        // Remember the first bounds check against array_length of a constant index.
+        // That bounds check instruction has an associated HEnvironment where we
+        // may add an HDeoptimize to eliminate bounds checks of constant indices
+        // against array_length.
+        first_constant_index_bounds_check_map_.Put(array_length->GetId(), bounds_check);
+      } else {
+        // We've seen it at least twice. It's beneficial to introduce a compare with
+        // deoptimization fallback to eliminate the bounds checks.
+        need_to_revisit_block_ = true;
+      }
+
       // Once we have an array access like 'array[5] = 1', we record array.length >= 6.
       // We currently don't do it for non-constant index since a valid array[i] can't prove
       // a valid array[i-1] yet due to the lower bound side.
+      if (constant == INT_MAX) {
+        // INT_MAX as an index will definitely throw AIOOBE.
+        return;
+      }
       ValueBound lower = ValueBound(nullptr, constant + 1);
       ValueBound upper = ValueBound::Max();
       ValueRange* range = new (GetGraph()->GetArena())
@@ -938,7 +977,89 @@ class BCEVisitor : public HGraphVisitor {
     }
   }
 
+  void VisitDeoptimize(HDeoptimize* deoptimize) {
+    // Right now it's only HLessThanOrEqual.
+    DCHECK(deoptimize->InputAt(0)->IsLessThanOrEqual());
+    HLessThanOrEqual* less_than_or_equal = deoptimize->InputAt(0)->AsLessThanOrEqual();
+    HInstruction* instruction = less_than_or_equal->InputAt(0);
+    if (instruction->IsArrayLength()) {
+      HInstruction* constant = less_than_or_equal->InputAt(1);
+      DCHECK(constant->IsIntConstant());
+      DCHECK(constant->AsIntConstant()->GetValue() <= kMaxConstantForAddingDeoptimize);
+      ValueBound lower = ValueBound(nullptr, constant->AsIntConstant()->GetValue() + 1);
+      ValueRange* range = new (GetGraph()->GetArena())
+          ValueRange(GetGraph()->GetArena(), lower, ValueBound::Max());
+      GetValueRangeMap(deoptimize->GetBlock())->Overwrite(instruction->GetId(), range);
+    }
+  }
+
+  void AddCompareWithDeoptimization(HInstruction* array_length,
+                                    HIntConstant* const_instr,
+                                    HBasicBlock* block) {
+    DCHECK(array_length->IsArrayLength());
+    ValueRange* range = LookupValueRange(array_length, block);
+    ValueBound lower_bound = range->GetLower();
+    DCHECK(lower_bound.IsConstant());
+    DCHECK(const_instr->GetValue() <= kMaxConstantForAddingDeoptimize);
+    DCHECK_EQ(lower_bound.GetConstant(), const_instr->GetValue() + 1);
+
+    // If array_length is less than lower_const, deoptimize.
+    HBoundsCheck* bounds_check = first_constant_index_bounds_check_map_.Get(
+        array_length->GetId())->AsBoundsCheck();
+    HCondition* cond = new (GetGraph()->GetArena()) HLessThanOrEqual(array_length, const_instr);
+    HDeoptimize* deoptimize = new (GetGraph()->GetArena())
+        HDeoptimize(cond, bounds_check->GetDexPc());
+    block->InsertInstructionBefore(cond, bounds_check);
+    block->InsertInstructionBefore(deoptimize, bounds_check);
+    deoptimize->SetEnvironment(bounds_check->GetEnvironment());
+  }
+
+  void AddComparesWithDeoptimization(HBasicBlock* block) {
+    for (ArenaSafeMap<int, HBoundsCheck*>::iterator it =
+             first_constant_index_bounds_check_map_.begin();
+         it != first_constant_index_bounds_check_map_.end();
+         ++it) {
+      HBoundsCheck* bounds_check = it->second;
+      HArrayLength* array_length = bounds_check->InputAt(1)->AsArrayLength();
+      HIntConstant* lower_bound_const_instr = nullptr;
+      int32_t lower_bound_const = INT_MIN;
+      size_t counter = 0;
+      // Count the constant indexing for which bounds checks haven't
+      // been removed yet.
+      for (HUseIterator<HInstruction*> it2(array_length->GetUses());
+           !it2.Done();
+           it2.Advance()) {
+        HInstruction* user = it2.Current()->GetUser();
+        if (user->GetBlock() == block &&
+            user->IsBoundsCheck() &&
+            user->AsBoundsCheck()->InputAt(0)->IsIntConstant()) {
+          DCHECK_EQ(array_length, user->AsBoundsCheck()->InputAt(1));
+          HIntConstant* const_instr = user->AsBoundsCheck()->InputAt(0)->AsIntConstant();
+          if (const_instr->GetValue() > lower_bound_const) {
+            lower_bound_const = const_instr->GetValue();
+            lower_bound_const_instr = const_instr;
+          }
+          counter++;
+        }
+      }
+      if (counter >= kThresholdForAddingDeoptimize &&
+          lower_bound_const_instr->GetValue() <= kMaxConstantForAddingDeoptimize) {
+        AddCompareWithDeoptimization(array_length, lower_bound_const_instr, block);
+      }
+    }
+  }
+
   std::vector<std::unique_ptr<ArenaSafeMap<int, ValueRange*>>> maps_;
+
+  // Map an HArrayLength instruction's id to the first HBoundsCheck instruction in
+  // a block that checks a constant index against that HArrayLength.
+  SafeMap<int, HBoundsCheck*> first_constant_index_bounds_check_map_;
+
+  // For the block, there is at least one HArrayLength instruction for which there
+  // is more than one bounds check instruction with constant indexing. And it's
+  // beneficial to add a compare instruction that has deoptimization fallback and
+  // eliminate those bounds checks.
+  bool need_to_revisit_block_;
 
   DISALLOW_COPY_AND_ASSIGN(BCEVisitor);
 };
