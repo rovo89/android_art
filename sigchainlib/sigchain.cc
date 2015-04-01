@@ -136,15 +136,15 @@ extern "C" void InvokeUserSignalHandler(int sig, siginfo_t* info, void* context)
     if (action.sa_handler != NULL) {
       action.sa_handler(sig);
     } else {
-       signal(sig, SIG_DFL);
-       raise(sig);
+      signal(sig, SIG_DFL);
+      raise(sig);
     }
   } else {
     if (action.sa_sigaction != NULL) {
       action.sa_sigaction(sig, info, context);
     } else {
-       signal(sig, SIG_DFL);
-       raise(sig);
+      signal(sig, SIG_DFL);
+      raise(sig);
     }
   }
 }
@@ -249,7 +249,7 @@ extern "C" int sigprocmask(int how, const sigset_t* bionic_new_set, sigset_t* bi
       // we can't allow the user to block that signal.
       for (int i = 0 ; i < _NSIG; ++i) {
         if (user_sigactions[i].IsClaimed() && sigismember(&tmpset, i)) {
-            sigdelset(&tmpset, i);
+          sigdelset(&tmpset, i);
         }
       }
     }
@@ -286,8 +286,8 @@ extern "C" void InitializeSignalChain() {
   if (linked_sigaction_sym == nullptr) {
     linked_sigaction_sym = dlsym(RTLD_DEFAULT, "sigaction");
     if (linked_sigaction_sym == nullptr ||
-      linked_sigaction_sym == reinterpret_cast<void*>(sigaction)) {
-        linked_sigaction_sym = nullptr;
+        linked_sigaction_sym == reinterpret_cast<void*>(sigaction)) {
+      linked_sigaction_sym = nullptr;
     }
   }
 
@@ -296,7 +296,7 @@ extern "C" void InitializeSignalChain() {
     linked_sigprocmask_sym = dlsym(RTLD_DEFAULT, "sigprocmask");
     if (linked_sigprocmask_sym == nullptr ||
         linked_sigprocmask_sym == reinterpret_cast<void*>(sigprocmask)) {
-         linked_sigprocmask_sym = nullptr;
+      linked_sigprocmask_sym = nullptr;
     }
   }
   initialized = true;
