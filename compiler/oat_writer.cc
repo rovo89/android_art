@@ -357,7 +357,8 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
   bool EndClass() {
     OatDexMethodVisitor::EndClass();
     if (oat_class_index_ == writer_->oat_classes_.size()) {
-      offset_ = writer_->relative_patcher_->ReserveSpace(offset_, nullptr);
+      offset_ = writer_->relative_patcher_->ReserveSpace(offset_, nullptr,
+                                                         MethodReference(nullptr, 0u));
     }
     return true;
   }
@@ -384,7 +385,8 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
         quick_code_offset = lb->second;
         deduped = true;
       } else {
-        offset_ = writer_->relative_patcher_->ReserveSpace(offset_, compiled_method);
+        offset_ = writer_->relative_patcher_->ReserveSpace(
+            offset_, compiled_method, MethodReference(dex_file_, it.GetMemberIndex()));
         offset_ = compiled_method->AlignCode(offset_);
         DCHECK_ALIGNED_PARAM(offset_,
                              GetInstructionSetAlignment(compiled_method->GetInstructionSet()));

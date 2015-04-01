@@ -33,7 +33,8 @@ std::unique_ptr<RelativePatcher> RelativePatcher::Create(
     RelativePatcherNone() { }
 
     uint32_t ReserveSpace(uint32_t offset,
-                          const CompiledMethod* compiled_method ATTRIBUTE_UNUSED) OVERRIDE {
+                          const CompiledMethod* compiled_method ATTRIBUTE_UNUSED,
+                          MethodReference method_ref ATTRIBUTE_UNUSED) OVERRIDE {
       return offset;  // No space reserved; no patches expected.
     }
 
