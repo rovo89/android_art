@@ -21,7 +21,7 @@ import dexfuzz.listeners.BaseListener;
 public class MipsInterpreterExecutor extends Executor {
 
   public MipsInterpreterExecutor(BaseListener listener, Device device) {
-    super("MIPS Interpreter", 30, listener, Architecture.MIPS, device);
+    super("MIPS Interpreter", 30, listener, Architecture.MIPS, device, false);
   }
 
   @Override
@@ -30,17 +30,6 @@ public class MipsInterpreterExecutor extends Executor {
     commandBuilder.append("dalvikvm32 -Xint ");
     commandBuilder.append("-cp ").append(testLocation).append("/").append(programName).append(" ");
     commandBuilder.append(executeClass);
-    executionResult = executeOnDevice(commandBuilder.toString(), true);
-  }
-
-  @Override
-  public void deleteGeneratedOatFile(String programName) {
-    String command = "rm -f /data/dalvik-cache/mips/" + getOatFileName(programName);
-    executeOnDevice(command, false);
-  }
-
-  @Override
-  public boolean needsCleanCodeCache() {
-    return false;
+    executionResult = executeCommandWithTimeout(commandBuilder.toString(), true);
   }
 }
