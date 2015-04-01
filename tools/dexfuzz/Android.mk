@@ -31,7 +31,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_CLASS := EXECUTABLES
 LOCAL_MODULE := dexfuzz
 include $(BUILD_SYSTEM)/base_rules.mk
-$(LOCAL_BUILT_MODULE): $(LOCAL_PATH)/dexfuzz $(ACP)
+$(LOCAL_BUILT_MODULE): $(LOCAL_PATH)/dexfuzz $(ACP) $(HOST_CORE_IMG_OUTS)
 	@echo "Copy: $(PRIVATE_MODULE) ($@)"
 	$(copy-file-to-new-target)
 	$(hide) chmod 755 $@
