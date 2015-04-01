@@ -26,6 +26,7 @@ GTEST_DEX_DIRECTORIES := \
   AllFields \
   ExceptionHandle \
   GetMethodSignature \
+  Instrumentation \
   Interfaces \
   Main \
   MultiDex \
@@ -64,6 +65,7 @@ ART_GTEST_class_linker_test_DEX_DEPS := Interfaces MultiDex MyClass Nested Stati
 ART_GTEST_compiler_driver_test_DEX_DEPS := AbstractMethod StaticLeafMethods
 ART_GTEST_dex_file_test_DEX_DEPS := GetMethodSignature Main Nested
 ART_GTEST_exception_test_DEX_DEPS := ExceptionHandle
+ART_GTEST_instrumentation_test_DEX_DEPS := Instrumentation
 ART_GTEST_jni_compiler_test_DEX_DEPS := MyClassNatives
 ART_GTEST_jni_internal_test_DEX_DEPS := AllFields StaticLeafMethods
 ART_GTEST_oat_file_assistant_test_DEX_DEPS := Main MainStripped MultiDex Nested
@@ -157,6 +159,7 @@ RUNTIME_GTEST_COMMON_SRC_FILES := \
   runtime/handle_scope_test.cc \
   runtime/indenter_test.cc \
   runtime/indirect_reference_table_test.cc \
+  runtime/instrumentation_test.cc \
   runtime/intern_table_test.cc \
   runtime/interpreter/safe_math_test.cc \
   runtime/java_vm_ext_test.cc \

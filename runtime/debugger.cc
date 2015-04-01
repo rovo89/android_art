@@ -57,6 +57,9 @@
 
 namespace art {
 
+// The key identifying the debugger to update instrumentation.
+static constexpr const char* kDbgInstrumentationKey = "Debugger";
+
 static const size_t kMaxAllocRecordStackDepth = 16;  // Max 255.
 static const size_t kDefaultNumAllocRecords = 64*1024;  // Must be a power of 2. 2BE can hold 64k-1.
 
@@ -677,7 +680,7 @@ void Dbg::Disconnected() {
       instrumentation_events_ = 0;
     }
     if (RequiresDeoptimization()) {
-      runtime->GetInstrumentation()->DisableDeoptimization();
+      runtime->GetInstrumentation()->DisableDeoptimization(kDbgInstrumentationKey);
     }
     gDebuggerActive = false;
   }
@@ -2998,12 +3001,12 @@ void Dbg::ProcessDeoptimizationRequest(const DeoptimizationRequest& request) {
       break;
     case DeoptimizationRequest::kFullDeoptimization:
       VLOG(jdwp) << "Deoptimize the world ...";
-      instrumentation->DeoptimizeEverything();
+      instrumentation->DeoptimizeEverything(kDbgInstrumentationKey);
       VLOG(jdwp) << "Deoptimize the world DONE";
       break;
     case DeoptimizationRequest::kFullUndeoptimization:
       VLOG(jdwp) << "Undeoptimize the world ...";
-      instrumentation->UndeoptimizeEverything();
+      instrumentation->UndeoptimizeEverything(kDbgInstrumentationKey);
       VLOG(jdwp) << "Undeoptimize the world DONE";
       break;
     case DeoptimizationRequest::kSelectiveDeoptimization:
