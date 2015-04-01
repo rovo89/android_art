@@ -90,8 +90,6 @@ class HGraphBuilder : public ValueObject {
   // branches.
   void ComputeBranchTargets(const uint16_t* start,
                             const uint16_t* end,
-                            size_t* number_of_dex_instructions,
-                            size_t* number_of_block,
                             size_t* number_of_branches);
   void MaybeUpdateCurrentBlock(size_t index);
   HBasicBlock* FindBlockStartingAt(int32_t index) const;
@@ -217,9 +215,7 @@ class HGraphBuilder : public ValueObject {
                              HInstruction* value, int32_t case_value_int,
                              int32_t target_offset, uint32_t dex_pc);
 
-  bool SkipCompilation(size_t number_of_dex_instructions,
-                       size_t number_of_blocks,
-                       size_t number_of_branches);
+  bool SkipCompilation(const DexFile::CodeItem& code_item, size_t number_of_branches);
 
   void MaybeRecordStat(MethodCompilationStat compilation_stat);
 
