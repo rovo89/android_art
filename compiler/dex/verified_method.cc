@@ -40,6 +40,7 @@ namespace art {
 const VerifiedMethod* VerifiedMethod::Create(verifier::MethodVerifier* method_verifier,
                                              bool compile) {
   std::unique_ptr<VerifiedMethod> verified_method(new VerifiedMethod);
+  verified_method->has_verification_failures_ = method_verifier->HasFailures();
   if (compile) {
     /* Generate a register map. */
     if (!verified_method->GenerateGcMap(method_verifier)) {
