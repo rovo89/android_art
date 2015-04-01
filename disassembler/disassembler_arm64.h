@@ -21,8 +21,8 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
-#include "a64/decoder-a64.h"
-#include "a64/disasm-a64.h"
+#include "vixl/a64/decoder-a64.h"
+#include "vixl/a64/disasm-a64.h"
 #pragma GCC diagnostic pop
 
 namespace art {
