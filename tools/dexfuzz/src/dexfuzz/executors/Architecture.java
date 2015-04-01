@@ -17,15 +17,23 @@
 package dexfuzz.executors;
 
 /**
- * Every Executor must specify an Architecture. It is important that when reduced
- * to lower case, these match the ISA string that ART would produce. For example,
- * the architecture directory used for /data/dalvik-cache/${ISA}
+ * Every Executor must specify an Architecture.
  */
 public enum Architecture {
-  ARM,
-  ARM64,
-  X86,
-  X86_64,
-  MIPS,
-  MIPS64
+  ARM("arm"),
+  ARM64("arm64"),
+  X86("x86"),
+  X86_64("x86_64"),
+  MIPS("mips"),
+  MIPS64("mips64");
+
+  private String archString = "";
+
+  private Architecture(String archString) {
+    this.archString = archString;
+  }
+
+  public String asString() {
+    return archString;
+  }
 }

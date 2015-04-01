@@ -17,21 +17,14 @@
 package dexfuzz.executors;
 
 import dexfuzz.ExecutionResult;
-import dexfuzz.Log;
 import dexfuzz.Options;
 import dexfuzz.StreamConsumer;
 import dexfuzz.listeners.BaseListener;
-
-import java.io.IOException;
-import java.util.Map;
 
 /**
  * Base class containing the common methods for executing a particular backend of ART.
  */
 public abstract class Executor {
-  private String androidHostOut;
-  private String androidProductOut;
-
   private StreamConsumer outputConsumer;
   private StreamConsumer errorConsumer;
 
@@ -45,9 +38,10 @@ public abstract class Executor {
   protected String testLocation;
   protected Architecture architecture;
   protected Device device;
+  private boolean needsCleanCodeCache;
 
   protected Executor(String name, int timeout, BaseListener listener, Architecture architecture,
-      Device device) {
+      Device device, boolean needsCleanCodeCache) {
     executeClass = Options.executeClass;
 
     if (Options.shortTimeouts) {
@@ -60,106 +54,27 @@ public abstract class Executor {
     this.listener = listener;
     this.architecture = architecture;
     this.device = device;
+    this.needsCleanCodeCache = needsCleanCodeCache;
 
-    this.testLocation = Options.executeDirectory;
-
-    Map<String, String> envVars = System.getenv();
-    androidProductOut = checkForEnvVar(envVars, "ANDROID_PRODUCT_OUT");
-    androidHostOut = checkForEnvVar(envVars, "ANDROID_HOST_OUT");
+    if (Options.executeOnHost) {
+      this.testLocation = System.getProperty("user.dir");
+    } else {
+      this.testLocation = Options.executeDirectory;
+    }
 
     outputConsumer = new StreamConsumer();
     outputConsumer.start();
     errorConsumer = new StreamConsumer();
     errorConsumer.start();
-
-    if (!device.isLocal()) {
-      // Check for ADB.
-      try {
-        ProcessBuilder pb = new ProcessBuilder();
-        pb.command("adb", "devices");
-        Process process = pb.start();
-        int exitValue = process.waitFor();
-        if (exitValue != 0) {
-          Log.errorAndQuit("Problem executing ADB - is it in your $PATH?");
-        }
-      } catch (IOException e) {
-        Log.errorAndQuit("IOException when executing ADB, is it working?");
-      } catch (InterruptedException e) {
-        Log.errorAndQuit("InterruptedException when executing ADB, is it working?");
-      }
-
-      // Check we can run something on ADB.
-      ExecutionResult result = executeOnDevice("true", true);
-      if (result.getFlattenedAll().contains("device not found")) {
-        Log.errorAndQuit("Couldn't connect to specified ADB device: " + device.getName());
-      }
-    }
-  }
-
-  private String checkForEnvVar(Map<String, String> envVars, String key) {
-    if (!envVars.containsKey(key)) {
-      Log.errorAndQuit("Cannot run a fuzzed program if $" + key + " is not set!");
-    }
-    return envVars.get(key);
-  }
-
-  private ExecutionResult executeCommand(String command, boolean captureOutput) {
-    ExecutionResult result = new ExecutionResult();
-
-    Log.info("Executing: " + command);
-
-    try {
-      ProcessBuilder processBuilder = new ProcessBuilder(command.split(" "));
-      processBuilder.environment().put("ANDROID_ROOT", androidHostOut);
-      Process process = processBuilder.start();
-
-      if (captureOutput) {
-        // Give the streams to the StreamConsumers.
-        outputConsumer.giveStreamAndStartConsuming(process.getInputStream());
-        errorConsumer.giveStreamAndStartConsuming(process.getErrorStream());
-      }
-
-      // Wait until the process is done - the StreamConsumers will keep the
-      // buffers drained, so this shouldn't block indefinitely.
-      // Get the return value as well.
-      result.returnValue = process.waitFor();
-
-      Log.info("Return value: " + result.returnValue);
-
-      if (captureOutput) {
-        // Tell the StreamConsumers to stop consuming, and wait for them to finish
-        // so we know we have all of the output.
-        outputConsumer.processFinished();
-        errorConsumer.processFinished();
-        result.output = outputConsumer.getOutput();
-        result.error = errorConsumer.getOutput();
-
-        // Always explicitly indicate the return code in the text output now.
-        // NB: adb shell doesn't actually return exit codes currently, but this will
-        // be useful if/when it does.
-        result.output.add("RETURN CODE: " + result.returnValue);
-      }
-
-    } catch (IOException e) {
-      Log.errorAndQuit("ExecutionResult.execute() caught an IOException");
-    } catch (InterruptedException e) {
-      Log.errorAndQuit("ExecutionResult.execute() caught an InterruptedException");
-    }
-
-    return result;
   }
 
   /**
    * Called by subclass Executors in their execute() implementations.
    */
-  protected ExecutionResult executeOnDevice(String command, boolean captureOutput) {
+  protected ExecutionResult executeCommandWithTimeout(String command, boolean captureOutput) {
     String timeoutString = "timeout " + timeout + " ";
-    return executeCommand(timeoutString + device.getExecutionShellPrefix() + command,
-        captureOutput);
-  }
-
-  private ExecutionResult pushToDevice(String command) {
-    return executeCommand(device.getExecutionPushPrefix() + command, false);
+    return device.executeCommand(timeoutString + device.getExecutionShellPrefix() + command,
+        captureOutput, outputConsumer, errorConsumer);
   }
 
   /**
@@ -184,13 +99,11 @@ public abstract class Executor {
     StringBuilder commandBuilder = new StringBuilder();
     commandBuilder.append("dex2oat ");
 
-    // This assumes that the Architecture enum's name, when reduced to lower-case,
-    // matches what dex2oat would expect.
-    commandBuilder.append("--instruction-set=").append(architecture.toString().toLowerCase());
+    commandBuilder.append("--instruction-set=").append(architecture.asString());
     commandBuilder.append(" --instruction-set-features=default ");
 
     // Select the correct boot image.
-    commandBuilder.append("--boot-image=").append(androidProductOut);
+    commandBuilder.append("--boot-image=").append(device.getAndroidProductOut());
     if (device.noBootImageAvailable()) {
       commandBuilder.append("/data/art-test/core.art ");
     } else {
@@ -198,13 +111,14 @@ public abstract class Executor {
     }
 
     commandBuilder.append("--oat-file=output.oat ");
-    commandBuilder.append("--android-root=").append(androidHostOut).append(" ");
+    commandBuilder.append("--android-root=").append(device.getAndroidHostOut()).append(" ");
     commandBuilder.append("--runtime-arg -classpath ");
     commandBuilder.append("--runtime-arg ").append(programName).append(" ");
     commandBuilder.append("--dex-file=").append(programName).append(" ");
     commandBuilder.append("--compiler-filter=interpret-only --runtime-arg -Xnorelocate ");
 
-    ExecutionResult verificationResult = executeCommand(commandBuilder.toString(), true);
+    ExecutionResult verificationResult = device.executeCommand(commandBuilder.toString(), true,
+        outputConsumer, errorConsumer);
 
     boolean success = true;
 
@@ -232,17 +146,23 @@ public abstract class Executor {
       listener.handleFailedHostVerification(verificationResult);
     }
 
-    executeCommand("rm output.oat", false);
+    device.executeCommand("rm output.oat", false);
 
     return success;
   }
 
   /**
    * Called by the Fuzzer to upload the program to the target device.
-   * TODO: Check if we're executing on a local device, and don't do this?
    */
-  public void uploadToTarget(String programName) {
-    pushToDevice(programName + " " + testLocation);
+  public void prepareProgramForExecution(String programName) {
+    if (!Options.executeOnHost) {
+      device.pushProgramToDevice(programName, testLocation);
+    }
+
+    if (needsCleanCodeCache) {
+      // Get the device to clean the code cache
+      device.cleanCodeCache(architecture, testLocation, programName);
+    }
   }
 
   /**
@@ -252,28 +172,10 @@ public abstract class Executor {
   public abstract void execute(String programName);
 
   /**
-   * Executor subclasses need to override this, to delete their generated OAT file correctly.
-   */
-  public abstract void deleteGeneratedOatFile(String programName);
-
-  /**
-   * Executor subclasses need to override this, to report if they need a cleaned code cache.
-   */
-  public abstract boolean needsCleanCodeCache();
-
-  /**
    * Fuzzer.checkForArchitectureSplit() will use this determine the architecture of the Executor.
    */
   public Architecture getArchitecture() {
     return architecture;
-  }
-
-  /**
-   * Used in each subclass of Executor's deleteGeneratedOatFile() method, to know what to delete.
-   */
-  protected String getOatFileName(String programName) {
-    // Converts e.g. /data/art-test/file.dex to data@art-test@file.dex
-    return (testLocation.replace("/", "@").substring(1) + "@" + programName);
   }
 
   /**
@@ -289,9 +191,10 @@ public abstract class Executor {
    * a target verification failure, before doing anything else with the resulting output.
    * Used by the Fuzzer.
    */
-  public boolean verifyOnTarget() {
+  public boolean didTargetVerify() {
     // TODO: Remove this once host-verification can be forced to always fail?
-    if (executionResult.getFlattenedOutput().contains("VerifyError")) {
+    String output = executionResult.getFlattenedAll();
+    if (output.contains("VerifyError") || output.contains("Verification failed on class")) {
       return false;
     }
     return true;
@@ -299,5 +202,9 @@ public abstract class Executor {
 
   public String getName() {
     return name;
+  }
+
+  public void finishedWithProgramOnDevice() {
+    device.resetProgramPushed();
   }
 }
