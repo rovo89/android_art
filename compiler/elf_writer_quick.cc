@@ -495,7 +495,7 @@ static void FillInCFIInformation(OatWriter* oat_writer,
         isa = 1;  // DW_ISA_ARM_thumb.
         break;
       case kArm:
-        code_factor_bits_ = 2;  // 32-bit instructions
+        code_factor_bits_ = 1;  // 16-bit instructions
         isa = 2;  // DW_ISA_ARM_arm.
         break;
       case kArm64:
