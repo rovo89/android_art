@@ -309,7 +309,7 @@ class Heap {
 
   // Make the current growth limit the new maximum capacity, unmaps pages at the end of spaces
   // which will never be used. Used to implement dalvik.system.VMRuntime.clampGrowthLimit.
-  void ClampGrowthLimit();
+  void ClampGrowthLimit() LOCKS_EXCLUDED(Locks::heap_bitmap_lock_);
 
   // Target ideal heap utilization ratio, implements
   // dalvik.system.VMRuntime.getTargetHeapUtilization.
