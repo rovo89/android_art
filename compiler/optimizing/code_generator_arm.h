@@ -188,6 +188,10 @@ class InstructionCodeGeneratorARM : public HGraphVisitor {
   void HandleFieldGet(HInstruction* instruction, const FieldInfo& field_info);
   void GenerateImplicitNullCheck(HNullCheck* instruction);
   void GenerateExplicitNullCheck(HNullCheck* instruction);
+  void GenerateTestAndBranch(HInstruction* instruction,
+                             Label* true_target,
+                             Label* false_target,
+                             Label* always_true_target);
 
   ArmAssembler* const assembler_;
   CodeGeneratorARM* const codegen_;
