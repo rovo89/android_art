@@ -98,7 +98,7 @@ class RelativePatcherTest : public testing::Test {
       method_offset_map_.map.Put(compiled_method_refs_[idx], quick_code_offset);
       ++idx;
     }
-    offset = patcher_->ReserveSpace(offset, nullptr, MethodReference(nullptr, 0u));
+    offset = patcher_->ReserveSpaceEnd(offset);
     uint32_t output_size = offset;
     output_.reserve(output_size);
 
