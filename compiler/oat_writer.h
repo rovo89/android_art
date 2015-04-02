@@ -329,7 +329,9 @@ class OatWriter {
 
   class RelativePatcher;
   class NoRelativePatcher;
+  class X86BaseRelativePatcher;
   class X86RelativePatcher;
+  class X86_64RelativePatcher;
   class ArmBaseRelativePatcher;
   class Thumb2RelativePatcher;
   class Arm64RelativePatcher;

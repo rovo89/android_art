@@ -829,6 +829,7 @@ X86Mir2Lir::X86Mir2Lir(CompilationUnit* cu, MIRGraph* mir_graph, ArenaAllocator*
       method_address_insns_(arena->Adapter()),
       class_type_address_insns_(arena->Adapter()),
       call_method_insns_(arena->Adapter()),
+      dex_cache_access_insns_(arena->Adapter()),
       stack_decrement_(nullptr), stack_increment_(nullptr),
       const_vectors_(nullptr) {
   method_address_insns_.reserve(100);
@@ -1058,6 +1059,9 @@ void X86Mir2Lir::InstallLiteralPools() {
     }
   }
 
+  patches_.reserve(method_address_insns_.size() + class_type_address_insns_.size() +
+                   call_method_insns_.size() + dex_cache_access_insns_.size());
+
   // Handle the fixups for methods.
   for (LIR* p : method_address_insns_) {
       DCHECK_EQ(p->opcode, kX86Mov32RI);
@@ -1084,7 +1088,6 @@ void X86Mir2Lir::InstallLiteralPools() {
   }
 
   // And now the PC-relative calls to methods.
-  patches_.reserve(call_method_insns_.size());
   for (LIR* p : call_method_insns_) {
       DCHECK_EQ(p->opcode, kX86CallI);
       uint32_t target_method_idx = p->operands[1];
@@ -1094,6 +1097,17 @@ void X86Mir2Lir::InstallLiteralPools() {
       int patch_offset = p->offset + p->flags.size - 4;
       patches_.push_back(LinkerPatch::RelativeCodePatch(patch_offset,
                                                         target_dex_file, target_method_idx));
+  }
+
+  // PC-relative references to dex cache arrays.
+  for (LIR* p : dex_cache_access_insns_) {
+    DCHECK(p->opcode == kX86Mov32RM);
+    const DexFile* dex_file = UnwrapPointer<DexFile>(p->operands[3]);
+    uint32_t offset = p->operands[4];
+    // The offset to patch is the last 4 bytes of the instruction.
+    int patch_offset = p->offset + p->flags.size - 4;
+    DCHECK(!p->flags.is_nop);
+    patches_.push_back(LinkerPatch::DexCacheArrayPatch(patch_offset, dex_file, p->offset, offset));
   }
 
   // And do the normal processing.

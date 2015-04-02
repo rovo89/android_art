@@ -25,6 +25,7 @@
 #include "gc/accounting/card_table.h"
 #include "mirror/art_method.h"
 #include "mirror/object_array-inl.h"
+#include "utils/dex_cache_arrays_layout-inl.h"
 #include "x86_lir.h"
 
 namespace art {
@@ -322,13 +323,13 @@ void X86Mir2Lir::GenImplicitNullCheck(RegStorage reg, int opt_flags) {
  * Bit of a hack here - in the absence of a real scheduling pass,
  * emit the next instruction in static & direct invoke sequences.
  */
-static int X86NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
-                             int state, const MethodReference& target_method,
-                             uint32_t,
-                             uintptr_t direct_code, uintptr_t direct_method,
-                             InvokeType type) {
+int X86Mir2Lir::X86NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
+                                  int state, const MethodReference& target_method,
+                                  uint32_t,
+                                  uintptr_t direct_code, uintptr_t direct_method,
+                                  InvokeType type) {
   UNUSED(info, direct_code);
-  Mir2Lir* cg = static_cast<Mir2Lir*>(cu->cg.get());
+  X86Mir2Lir* cg = static_cast<X86Mir2Lir*>(cu->cg.get());
   if (direct_method != 0) {
     switch (state) {
     case 0:  // Get the current Method* [sets kArg0]
@@ -345,6 +346,17 @@ static int X86NextSDCallInsn(CompilationUnit* cu, CallInfo* info,
       break;
     default:
       return -1;
+    }
+  } else if (cg->CanUseOpPcRelDexCacheArrayLoad()) {
+    switch (state) {
+      case 0: {
+        CHECK_EQ(cu->dex_file, target_method.dex_file);
+        size_t offset = cg->dex_cache_arrays_layout_.MethodOffset(target_method.dex_method_index);
+        cg->OpPcRelDexCacheArrayLoad(cu->dex_file, offset, cg->TargetReg(kArg0, kRef));
+        break;
+      }
+      default:
+        return -1;
     }
   } else {
     RegStorage arg0_ref = cg->TargetReg(kArg0, kRef);
