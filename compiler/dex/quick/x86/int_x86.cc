@@ -1324,14 +1324,16 @@ bool X86Mir2Lir::GenInlinedReverseBits(CallInfo* info, OpSize size) {
   return true;
 }
 
+// When we don't know the proper offset for the value, pick one that will force
+// 4 byte offset.  We will fix this up in the assembler or linker later to have
+// the right value.
+static constexpr int kDummy32BitOffset = 256;
+
 void X86Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
   if (cu_->target64) {
     // We can do this directly using RIP addressing.
-    // We don't know the proper offset for the value, so pick one that will force
-    // 4 byte offset.  We will fix this up in the assembler later to have the right
-    // value.
     ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
-    LIR* res = NewLIR3(kX86Mov32RM, reg.GetReg(), kRIPReg, 256);
+    LIR* res = NewLIR3(kX86Mov32RM, reg.GetReg(), kRIPReg, kDummy32BitOffset);
     res->target = target;
     res->flags.fixup = kFixupLoad;
     return;
@@ -1349,13 +1351,30 @@ void X86Mir2Lir::OpPcRelLoad(RegStorage reg, LIR* target) {
   store_method_addr_used_ = true;
 
   // Load the proper value from the literal area.
-  // We don't know the proper offset for the value, so pick one that will force
-  // 4 byte offset.  We will fix this up in the assembler later to have the right
-  // value.
   ScopedMemRefType mem_ref_type(this, ResourceMask::kLiteral);
-  LIR* res = NewLIR3(kX86Mov32RM, reg.GetReg(), reg.GetReg(), 256);
+  LIR* res = NewLIR3(kX86Mov32RM, reg.GetReg(), reg.GetReg(), kDummy32BitOffset);
   res->target = target;
   res->flags.fixup = kFixupLoad;
+}
+
+bool X86Mir2Lir::CanUseOpPcRelDexCacheArrayLoad() const {
+  // TODO: Implement for 32-bit.
+  return cu_->target64 && dex_cache_arrays_layout_.Valid();
+}
+
+void X86Mir2Lir::OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset,
+                                          RegStorage r_dest) {
+  if (cu_->target64) {
+    LIR* mov = NewLIR3(kX86Mov32RM, r_dest.GetReg(), kRIPReg, kDummy32BitOffset);
+    mov->flags.fixup = kFixupLabel;
+    mov->operands[3] = WrapPointer(dex_file);
+    mov->operands[4] = offset;
+    dex_cache_access_insns_.push_back(mov);
+  } else {
+    // TODO: Implement for 32-bit.
+    LOG(FATAL) << "Unimplemented.";
+    UNREACHABLE();
+  }
 }
 
 LIR* X86Mir2Lir::OpVldm(RegStorage r_base, int count) {
