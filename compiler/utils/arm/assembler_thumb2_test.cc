@@ -247,4 +247,48 @@ TEST_F(AssemblerThumb2Test, add) {
   DriverStr(expected, "add");
 }
 
+TEST_F(AssemblerThumb2Test, StoreWordToThumbOffset) {
+  arm::StoreOperandType type = arm::kStoreWord;
+  int32_t offset = 4092;
+  ASSERT_TRUE(arm::Address::CanHoldStoreOffsetThumb(type, offset));
+
+  __ StoreToOffset(type, arm::R0, arm::SP, offset);
+  __ StoreToOffset(type, arm::IP, arm::SP, offset);
+  __ StoreToOffset(type, arm::IP, arm::R5, offset);
+
+  const char* expected =
+      "str r0, [sp, #4092]\n"
+      "str ip, [sp, #4092]\n"
+      "str ip, [r5, #4092]\n";
+  DriverStr(expected, "StoreWordToThumbOffset");
+}
+
+TEST_F(AssemblerThumb2Test, StoreWordToNonThumbOffset) {
+  arm::StoreOperandType type = arm::kStoreWord;
+  int32_t offset = 4096;
+  ASSERT_FALSE(arm::Address::CanHoldStoreOffsetThumb(type, offset));
+
+  __ StoreToOffset(type, arm::R0, arm::SP, offset);
+  __ StoreToOffset(type, arm::IP, arm::SP, offset);
+  __ StoreToOffset(type, arm::IP, arm::R5, offset);
+
+  const char* expected =
+      "mov ip, #4096\n"       // LoadImmediate(ip, 4096)
+      "add ip, ip, sp\n"
+      "str r0, [ip, #0]\n"
+
+      "str r5, [sp, #-4]!\n"  // Push(r5)
+      "movw r5, #4100\n"      // LoadImmediate(r5, 4096 + kRegisterSize)
+      "add r5, r5, sp\n"
+      "str ip, [r5, #0]\n"
+      "ldr r5, [sp], #4\n"    // Pop(r5)
+
+      "str r6, [sp, #-4]!\n"  // Push(r6)
+      "mov r6, #4096\n"       // LoadImmediate(r6, 4096)
+      "add r6, r6, r5\n"
+      "str ip, [r6, #0]\n"
+      "ldr r6, [sp], #4\n";   // Pop(r6)
+  DriverStr(expected, "StoreWordToNonThumbOffset");
+}
+
 }  // namespace art
