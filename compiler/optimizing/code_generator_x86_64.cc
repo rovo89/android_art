@@ -411,7 +411,9 @@ size_t CodeGeneratorX86_64::RestoreFloatingPointRegister(size_t stack_index, uin
 static constexpr int kNumberOfCpuRegisterPairs = 0;
 // Use a fake return address register to mimic Quick.
 static constexpr Register kFakeReturnRegister = Register(kLastCpuRegister + 1);
-CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph, const CompilerOptions& compiler_options)
+CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph,
+                const X86_64InstructionSetFeatures& isa_features,
+                const CompilerOptions& compiler_options)
       : CodeGenerator(graph,
                       kNumberOfCpuRegisters,
                       kNumberOfFloatRegisters,
@@ -425,7 +427,8 @@ CodeGeneratorX86_64::CodeGeneratorX86_64(HGraph* graph, const CompilerOptions& c
         block_labels_(graph->GetArena(), 0),
         location_builder_(graph, this),
         instruction_visitor_(graph, this),
-        move_resolver_(graph->GetArena(), this) {
+        move_resolver_(graph->GetArena(), this),
+        isa_features_(isa_features) {
   AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
 }
 
@@ -1233,7 +1236,7 @@ Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type
 }
 
 void LocationsBuilderX86_64::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  IntrinsicLocationsBuilderX86_64 intrinsic(GetGraph()->GetArena());
+  IntrinsicLocationsBuilderX86_64 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
     return;
   }
@@ -1294,7 +1297,7 @@ void LocationsBuilderX86_64::HandleInvoke(HInvoke* invoke) {
 }
 
 void LocationsBuilderX86_64::VisitInvokeVirtual(HInvokeVirtual* invoke) {
-  IntrinsicLocationsBuilderX86_64 intrinsic(GetGraph()->GetArena());
+  IntrinsicLocationsBuilderX86_64 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
     return;
   }

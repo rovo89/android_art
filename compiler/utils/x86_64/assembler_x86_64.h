@@ -353,6 +353,9 @@ class X86_64Assembler FINAL : public Assembler {
   void ucomiss(XmmRegister a, XmmRegister b);
   void ucomisd(XmmRegister a, XmmRegister b);
 
+  void roundsd(XmmRegister dst, XmmRegister src, const Immediate& imm);
+  void roundss(XmmRegister dst, XmmRegister src, const Immediate& imm);
+
   void sqrtsd(XmmRegister dst, XmmRegister src);
   void sqrtss(XmmRegister dst, XmmRegister src);
 

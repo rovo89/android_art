@@ -360,7 +360,9 @@ size_t CodeGeneratorX86::RestoreFloatingPointRegister(size_t stack_index, uint32
   return GetFloatingPointSpillSlotSize();
 }
 
-CodeGeneratorX86::CodeGeneratorX86(HGraph* graph, const CompilerOptions& compiler_options)
+CodeGeneratorX86::CodeGeneratorX86(HGraph* graph,
+                   const X86InstructionSetFeatures& isa_features,
+                   const CompilerOptions& compiler_options)
     : CodeGenerator(graph,
                     kNumberOfCpuRegisters,
                     kNumberOfXmmRegisters,
@@ -373,7 +375,8 @@ CodeGeneratorX86::CodeGeneratorX86(HGraph* graph, const CompilerOptions& compile
       block_labels_(graph->GetArena(), 0),
       location_builder_(graph, this),
       instruction_visitor_(graph, this),
-      move_resolver_(graph->GetArena(), this) {
+      move_resolver_(graph->GetArena(), this),
+      isa_features_(isa_features) {
   // Use a fake return address register to mimic Quick.
   AddAllocatedRegister(Location::RegisterLocation(kFakeReturnRegister));
 }
@@ -1163,7 +1166,7 @@ void InstructionCodeGeneratorX86::VisitReturn(HReturn* ret) {
 }
 
 void LocationsBuilderX86::VisitInvokeStaticOrDirect(HInvokeStaticOrDirect* invoke) {
-  IntrinsicLocationsBuilderX86 intrinsic(GetGraph()->GetArena());
+  IntrinsicLocationsBuilderX86 intrinsic(codegen_);
   if (intrinsic.TryDispatch(invoke)) {
     return;
   }
