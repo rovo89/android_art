@@ -29,6 +29,12 @@ class X86_64RelativePatcherTest : public RelativePatcherTest {
   static const ArrayRef<const uint8_t> kCallCode;
   static const uint8_t kDexCacheLoadRawCode[];
   static const ArrayRef<const uint8_t> kDexCacheLoadCode;
+
+  uint32_t GetMethodOffset(uint32_t method_idx) {
+    auto result = method_offset_map_.FindMethodOffset(MethodRef(method_idx));
+    CHECK(result.first);
+    return result.second;
+  }
 };
 
 const uint8_t X86_64RelativePatcherTest::kCallRawCode[] = {
@@ -47,45 +53,54 @@ const ArrayRef<const uint8_t> X86_64RelativePatcherTest::kDexCacheLoadCode(
 
 TEST_F(X86_64RelativePatcherTest, CallSelf) {
   LinkerPatch patches[] = {
-      LinkerPatch::RelativeCodePatch(kCallCode.size() - 4u, nullptr, 0u),
+      LinkerPatch::RelativeCodePatch(kCallCode.size() - 4u, nullptr, 1u),
   };
-  AddCompiledMethod(MethodRef(0u), kCallCode, ArrayRef<LinkerPatch>(patches));
+  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<LinkerPatch>(patches));
   Link();
 
   static const uint8_t expected_code[] = {
       0xe8, 0xfb, 0xff, 0xff, 0xff
   };
-  EXPECT_TRUE(CheckLinkedMethod(MethodRef(0), ArrayRef<const uint8_t>(expected_code)));
+  EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
 }
 
 TEST_F(X86_64RelativePatcherTest, CallOther) {
-  static constexpr uint32_t kMethod1Offset = 0x12345678;
-  method_offset_map_.map.Put(MethodRef(1), kMethod1Offset);
-  LinkerPatch patches[] = {
+  LinkerPatch method1_patches[] = {
+      LinkerPatch::RelativeCodePatch(kCallCode.size() - 4u, nullptr, 2u),
+  };
+  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<LinkerPatch>(method1_patches));
+  LinkerPatch method2_patches[] = {
       LinkerPatch::RelativeCodePatch(kCallCode.size() - 4u, nullptr, 1u),
   };
-  AddCompiledMethod(MethodRef(0u), kCallCode, ArrayRef<LinkerPatch>(patches));
+  AddCompiledMethod(MethodRef(2u), kCallCode, ArrayRef<LinkerPatch>(method2_patches));
   Link();
 
-  auto result = method_offset_map_.FindMethodOffset(MethodRef(0));
-  ASSERT_TRUE(result.first);
-  uint32_t diff = kMethod1Offset - (result.second + kCallCode.size());
-  static const uint8_t expected_code[] = {
+  uint32_t method1_offset = GetMethodOffset(1u);
+  uint32_t method2_offset = GetMethodOffset(2u);
+  uint32_t diff_after = method2_offset - (method1_offset + kCallCode.size() /* PC adjustment */);
+  static const uint8_t method1_expected_code[] = {
       0xe8,
-      static_cast<uint8_t>(diff), static_cast<uint8_t>(diff >> 8),
-      static_cast<uint8_t>(diff >> 16), static_cast<uint8_t>(diff >> 24)
+      static_cast<uint8_t>(diff_after), static_cast<uint8_t>(diff_after >> 8),
+      static_cast<uint8_t>(diff_after >> 16), static_cast<uint8_t>(diff_after >> 24)
   };
-  EXPECT_TRUE(CheckLinkedMethod(MethodRef(0), ArrayRef<const uint8_t>(expected_code)));
+  EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(method1_expected_code)));
+  uint32_t diff_before = method1_offset - (method2_offset + kCallCode.size() /* PC adjustment */);
+  static const uint8_t method2_expected_code[] = {
+      0xe8,
+      static_cast<uint8_t>(diff_before), static_cast<uint8_t>(diff_before >> 8),
+      static_cast<uint8_t>(diff_before >> 16), static_cast<uint8_t>(diff_before >> 24)
+  };
+  EXPECT_TRUE(CheckLinkedMethod(MethodRef(2u), ArrayRef<const uint8_t>(method2_expected_code)));
 }
 
 TEST_F(X86_64RelativePatcherTest, CallTrampoline) {
   LinkerPatch patches[] = {
-      LinkerPatch::RelativeCodePatch(kCallCode.size() - 4u, nullptr, 1u),
+      LinkerPatch::RelativeCodePatch(kCallCode.size() - 4u, nullptr, 2u),
   };
-  AddCompiledMethod(MethodRef(0u), kCallCode, ArrayRef<LinkerPatch>(patches));
+  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<LinkerPatch>(patches));
   Link();
 
-  auto result = method_offset_map_.FindMethodOffset(MethodRef(0));
+  auto result = method_offset_map_.FindMethodOffset(MethodRef(1u));
   ASSERT_TRUE(result.first);
   uint32_t diff = kTrampolineOffset - (result.second + kCallCode.size());
   static const uint8_t expected_code[] = {
@@ -93,7 +108,7 @@ TEST_F(X86_64RelativePatcherTest, CallTrampoline) {
       static_cast<uint8_t>(diff), static_cast<uint8_t>(diff >> 8),
       static_cast<uint8_t>(diff >> 16), static_cast<uint8_t>(diff >> 24)
   };
-  EXPECT_TRUE(CheckLinkedMethod(MethodRef(0), ArrayRef<const uint8_t>(expected_code)));
+  EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
 }
 
 TEST_F(X86_64RelativePatcherTest, DexCacheReference) {
@@ -102,10 +117,10 @@ TEST_F(X86_64RelativePatcherTest, DexCacheReference) {
   LinkerPatch patches[] = {
       LinkerPatch::DexCacheArrayPatch(kDexCacheLoadCode.size() - 4u, nullptr, 0u, kElementOffset),
   };
-  AddCompiledMethod(MethodRef(0u), kDexCacheLoadCode, ArrayRef<LinkerPatch>(patches));
+  AddCompiledMethod(MethodRef(1u), kDexCacheLoadCode, ArrayRef<LinkerPatch>(patches));
   Link();
 
-  auto result = method_offset_map_.FindMethodOffset(MethodRef(0));
+  auto result = method_offset_map_.FindMethodOffset(MethodRef(1u));
   ASSERT_TRUE(result.first);
   uint32_t diff =
       dex_cache_arrays_begin_ + kElementOffset - (result.second + kDexCacheLoadCode.size());
@@ -114,7 +129,7 @@ TEST_F(X86_64RelativePatcherTest, DexCacheReference) {
       static_cast<uint8_t>(diff), static_cast<uint8_t>(diff >> 8),
       static_cast<uint8_t>(diff >> 16), static_cast<uint8_t>(diff >> 24)
   };
-  EXPECT_TRUE(CheckLinkedMethod(MethodRef(0), ArrayRef<const uint8_t>(expected_code)));
+  EXPECT_TRUE(CheckLinkedMethod(MethodRef(1u), ArrayRef<const uint8_t>(expected_code)));
 }
 
 }  // namespace linker
