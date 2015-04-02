@@ -38,6 +38,10 @@ std::unique_ptr<RelativePatcher> RelativePatcher::Create(
       return offset;  // No space reserved; no patches expected.
     }
 
+    uint32_t ReserveSpaceEnd(uint32_t offset) OVERRIDE {
+      return offset;  // No space reserved; no patches expected.
+    }
+
     uint32_t WriteThunks(OutputStream* out ATTRIBUTE_UNUSED, uint32_t offset) OVERRIDE {
       return offset;  // No thunks added; no patches expected.
     }
