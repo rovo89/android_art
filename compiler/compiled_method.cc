@@ -142,7 +142,6 @@ CompiledMethod::CompiledMethod(CompilerDriver* driver,
     if (src_mapping_table == nullptr) {
       src_mapping_table_ = new SwapSrcMap(driver->GetSwapSpaceAllocator());
     } else {
-      src_mapping_table->Arrange();
       src_mapping_table_ = new SwapSrcMap(src_mapping_table->begin(), src_mapping_table->end(),
                                           driver->GetSwapSpaceAllocator());
     }
@@ -159,7 +158,7 @@ CompiledMethod::CompiledMethod(CompilerDriver* driver,
   } else {
     src_mapping_table_ = src_mapping_table == nullptr ?
         driver->DeduplicateSrcMappingTable(ArrayRef<SrcMapElem>()) :
-        driver->DeduplicateSrcMappingTable(ArrayRef<SrcMapElem>(src_mapping_table->Arrange()));
+        driver->DeduplicateSrcMappingTable(ArrayRef<SrcMapElem>(*src_mapping_table));
     mapping_table_ = mapping_table.empty() ?
         nullptr : driver->DeduplicateMappingTable(mapping_table);
     vmap_table_ = driver->DeduplicateVMapTable(vmap_table);

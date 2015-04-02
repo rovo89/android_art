@@ -18,6 +18,7 @@
 #define ART_RUNTIME_DWARF_H_
 
 namespace art {
+namespace dwarf {
 
 // Based on the Dwarf 4 specification at dwarfstd.com and issues marked
 // for inclusion in Dwarf 5 on same. Values not specified in the Dwarf 4
@@ -657,6 +658,7 @@ enum CallFrameInstruction : uint8_t {
   DW_CFA_hi_user = 0x3f
 };
 
+}  // namespace dwarf
 }  // namespace art
 
 #endif  // ART_RUNTIME_DWARF_H_

@@ -115,14 +115,18 @@ class OatWriter {
   ~OatWriter();
 
   struct DebugInfo {
-    DebugInfo(const std::string& method_name, const char* src_file_name,
-              uint32_t low_pc, uint32_t high_pc, const uint8_t* dbgstream,
-              CompiledMethod* compiled_method)
-      : method_name_(method_name), src_file_name_(src_file_name),
-        low_pc_(low_pc), high_pc_(high_pc), dbgstream_(dbgstream),
-        compiled_method_(compiled_method) {
+    DebugInfo(const std::string& method_name, bool deduped,
+              const char* class_descriptor, const char* src_file_name,
+              uint32_t low_pc, uint32_t high_pc,
+              const uint8_t* dbgstream, CompiledMethod* compiled_method)
+      : method_name_(method_name), deduped_(deduped),
+        class_descriptor_(class_descriptor), src_file_name_(src_file_name),
+        low_pc_(low_pc), high_pc_(high_pc),
+        dbgstream_(dbgstream), compiled_method_(compiled_method) {
     }
     std::string method_name_;  // Note: this name is a pretty-printed name.
+    bool        deduped_;
+    const char* class_descriptor_;
     const char* src_file_name_;
     uint32_t    low_pc_;
     uint32_t    high_pc_;

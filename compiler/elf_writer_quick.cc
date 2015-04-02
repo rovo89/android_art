@@ -25,6 +25,8 @@
 #include "driver/compiler_driver.h"
 #include "driver/compiler_options.h"
 #include "dwarf.h"
+#include "dwarf/debug_frame_writer.h"
+#include "dwarf/debug_line_writer.h"
 #include "elf_builder.h"
 #include "elf_file.h"
 #include "elf_utils.h"
@@ -275,96 +277,8 @@ bool ElfWriterQuick<Elf_Word, Elf_Sword, Elf_Addr, Elf_Dyn,
   return builder->Write();
 }
 
-class LineTableGenerator FINAL : public Leb128Encoder {
- public:
-  LineTableGenerator(int line_base, int line_range, int opcode_base,
-                     std::vector<uint8_t>* data, uintptr_t current_address,
-                     size_t current_line)
-    : Leb128Encoder(data), line_base_(line_base), line_range_(line_range),
-      opcode_base_(opcode_base), current_address_(current_address),
-      current_line_(current_line), current_file_index_(0) {}
-
-  void PutDelta(unsigned delta_addr, int delta_line) {
-    current_line_ += delta_line;
-    current_address_ += delta_addr;
-
-    if (delta_line >= line_base_ && delta_line < line_base_ + line_range_) {
-      unsigned special_opcode = (delta_line - line_base_) +
-                                (line_range_ * delta_addr) + opcode_base_;
-      if (special_opcode <= 255) {
-        PushByte(data_, special_opcode);
-        return;
-      }
-    }
-
-    // generate standart opcode for address advance
-    if (delta_addr != 0) {
-      PushByte(data_, DW_LNS_advance_pc);
-      PushBackUnsigned(delta_addr);
-    }
-
-    // generate standart opcode for line delta
-    if (delta_line != 0) {
-      PushByte(data_, DW_LNS_advance_line);
-      PushBackSigned(delta_line);
-    }
-
-    // generate standart opcode for new LTN entry
-    PushByte(data_, DW_LNS_copy);
-  }
-
-  void SetAddr(uintptr_t addr) {
-    if (current_address_ == addr) {
-      return;
-    }
-
-    current_address_ = addr;
-
-    PushByte(data_, 0);  // extended opcode:
-    PushByte(data_, 1 + 4);  // length: opcode_size + address_size
-    PushByte(data_, DW_LNE_set_address);
-    Push32(data_, addr);
-  }
-
-  void SetLine(unsigned line) {
-    int delta_line = line - current_line_;
-    if (delta_line) {
-      current_line_ = line;
-      PushByte(data_, DW_LNS_advance_line);
-      PushBackSigned(delta_line);
-    }
-  }
-
-  void SetFile(unsigned file_index) {
-    if (current_file_index_ != file_index) {
-      current_file_index_ = file_index;
-      PushByte(data_, DW_LNS_set_file);
-      PushBackUnsigned(file_index);
-    }
-  }
-
-  void EndSequence() {
-    // End of Line Table Program
-    // 0(=ext), 1(len), DW_LNE_end_sequence
-    PushByte(data_, 0);
-    PushByte(data_, 1);
-    PushByte(data_, DW_LNE_end_sequence);
-  }
-
- private:
-  const int line_base_;
-  const int line_range_;
-  const int opcode_base_;
-  uintptr_t current_address_;
-  size_t current_line_;
-  unsigned current_file_index_;
-
-  DISALLOW_COPY_AND_ASSIGN(LineTableGenerator);
-};
-
 // TODO: rewriting it using DexFile::DecodeDebugInfo needs unneeded stuff.
-static void GetLineInfoForJava(const uint8_t* dbgstream, const SwapSrcMap& pc2dex,
-                               DefaultSrcMap* result, uint32_t start_pc = 0) {
+static void GetLineInfoForJava(const uint8_t* dbgstream, DefaultSrcMap* dex2line) {
   if (dbgstream == nullptr) {
     return;
   }
@@ -419,12 +333,7 @@ static void GetLineInfoForJava(const uint8_t* dbgstream, const SwapSrcMap& pc2de
       adjopcode = opcode - DexFile::DBG_FIRST_SPECIAL;
       dex_offset += adjopcode / DexFile::DBG_LINE_RANGE;
       java_line += DexFile::DBG_LINE_BASE + (adjopcode % DexFile::DBG_LINE_RANGE);
-
-      for (SwapSrcMap::const_iterator found = pc2dex.FindByTo(dex_offset);
-          found != pc2dex.end() && found->to_ == static_cast<int32_t>(dex_offset);
-          found++) {
-        result->push_back({found->from_ + start_pc, static_cast<int32_t>(java_line)});
-      }
+      dex2line->push_back({dex_offset, static_cast<int32_t>(java_line)});
       break;
     }
   }
@@ -443,9 +352,11 @@ static void FillInCFIInformation(OatWriter* oat_writer,
                                  std::vector<uint8_t>* dbg_str,
                                  std::vector<uint8_t>* dbg_line,
                                  uint32_t text_section_offset) {
-  const std::vector<OatWriter::DebugInfo>& method_info = oat_writer->GetCFIMethodInfo();
+  const std::vector<OatWriter::DebugInfo>& method_infos = oat_writer->GetCFIMethodInfo();
 
   uint32_t producer_str_offset = PushStr(dbg_str, "Android dex2oat");
+
+  constexpr bool use_64bit_addresses = false;
 
   // Create the debug_abbrev section with boilerplate information.
   // We only care about low_pc and high_pc right now for the compilation
@@ -453,61 +364,66 @@ static void FillInCFIInformation(OatWriter* oat_writer,
 
   // Tag 1: Compilation unit: DW_TAG_compile_unit.
   PushByte(dbg_abbrev, 1);
-  PushByte(dbg_abbrev, DW_TAG_compile_unit);
+  PushByte(dbg_abbrev, dwarf::DW_TAG_compile_unit);
 
   // There are children (the methods).
-  PushByte(dbg_abbrev, DW_CHILDREN_yes);
+  PushByte(dbg_abbrev, dwarf::DW_CHILDREN_yes);
 
   // DW_AT_producer DW_FORM_data1.
   // REVIEW: we can get rid of dbg_str section if
   // DW_FORM_string (immediate string) was used everywhere instead of
   // DW_FORM_strp (ref to string from .debug_str section).
   // DW_FORM_strp makes sense only if we reuse the strings.
-  PushByte(dbg_abbrev, DW_AT_producer);
-  PushByte(dbg_abbrev, DW_FORM_strp);
+  PushByte(dbg_abbrev, dwarf::DW_AT_producer);
+  PushByte(dbg_abbrev, dwarf::DW_FORM_strp);
 
   // DW_LANG_Java DW_FORM_data1.
-  PushByte(dbg_abbrev, DW_AT_language);
-  PushByte(dbg_abbrev, DW_FORM_data1);
+  PushByte(dbg_abbrev, dwarf::DW_AT_language);
+  PushByte(dbg_abbrev, dwarf::DW_FORM_data1);
 
   // DW_AT_low_pc DW_FORM_addr.
-  PushByte(dbg_abbrev, DW_AT_low_pc);
-  PushByte(dbg_abbrev, DW_FORM_addr);
+  PushByte(dbg_abbrev, dwarf::DW_AT_low_pc);
+  PushByte(dbg_abbrev, dwarf::DW_FORM_addr);
 
   // DW_AT_high_pc DW_FORM_addr.
-  PushByte(dbg_abbrev, DW_AT_high_pc);
-  PushByte(dbg_abbrev, DW_FORM_addr);
+  PushByte(dbg_abbrev, dwarf::DW_AT_high_pc);
+  PushByte(dbg_abbrev, dwarf::DW_FORM_addr);
 
   if (dbg_line != nullptr) {
     // DW_AT_stmt_list DW_FORM_sec_offset.
-    PushByte(dbg_abbrev, DW_AT_stmt_list);
-    PushByte(dbg_abbrev, DW_FORM_sec_offset);
+    PushByte(dbg_abbrev, dwarf::DW_AT_stmt_list);
+    PushByte(dbg_abbrev, dwarf::DW_FORM_data4);
   }
 
   // End of DW_TAG_compile_unit.
-  PushHalf(dbg_abbrev, 0);
+  PushByte(dbg_abbrev, 0);  // DW_AT.
+  PushByte(dbg_abbrev, 0);  // DW_FORM.
 
   // Tag 2: Compilation unit: DW_TAG_subprogram.
   PushByte(dbg_abbrev, 2);
-  PushByte(dbg_abbrev, DW_TAG_subprogram);
+  PushByte(dbg_abbrev, dwarf::DW_TAG_subprogram);
 
   // There are no children.
-  PushByte(dbg_abbrev, DW_CHILDREN_no);
+  PushByte(dbg_abbrev, dwarf::DW_CHILDREN_no);
 
   // Name of the method.
-  PushByte(dbg_abbrev, DW_AT_name);
-  PushByte(dbg_abbrev, DW_FORM_strp);
+  PushByte(dbg_abbrev, dwarf::DW_AT_name);
+  PushByte(dbg_abbrev, dwarf::DW_FORM_strp);
 
   // DW_AT_low_pc DW_FORM_addr.
-  PushByte(dbg_abbrev, DW_AT_low_pc);
-  PushByte(dbg_abbrev, DW_FORM_addr);
+  PushByte(dbg_abbrev, dwarf::DW_AT_low_pc);
+  PushByte(dbg_abbrev, dwarf::DW_FORM_addr);
 
   // DW_AT_high_pc DW_FORM_addr.
-  PushByte(dbg_abbrev, DW_AT_high_pc);
-  PushByte(dbg_abbrev, DW_FORM_addr);
+  PushByte(dbg_abbrev, dwarf::DW_AT_high_pc);
+  PushByte(dbg_abbrev, dwarf::DW_FORM_addr);
 
   // End of DW_TAG_subprogram.
-  PushHalf(dbg_abbrev, 0);
+  PushByte(dbg_abbrev, 0);  // DW_AT.
+  PushByte(dbg_abbrev, 0);  // DW_FORM.
+
+  // End of abbrevs for compilation unit
+  PushByte(dbg_abbrev, 0);
 
   // Start the debug_info section with the header information
   // 'unit_length' will be filled in later.
@@ -520,8 +436,8 @@ static void FillInCFIInformation(OatWriter* oat_writer,
   // Offset into .debug_abbrev section (always 0).
   Push32(dbg_info, 0);
 
-  // Address size: 4.
-  PushByte(dbg_info, 4);
+  // Address size: 4 or 8.
+  PushByte(dbg_info, use_64bit_addresses ? 8 : 4);
 
   // Start the description for the compilation unit.
   // This uses tag 1.
@@ -531,31 +447,34 @@ static void FillInCFIInformation(OatWriter* oat_writer,
   Push32(dbg_info, producer_str_offset);
 
   // The language is Java.
-  PushByte(dbg_info, DW_LANG_Java);
+  PushByte(dbg_info, dwarf::DW_LANG_Java);
 
   // low_pc and high_pc.
-  uint32_t cunit_low_pc = 0 - 1;
+  uint32_t cunit_low_pc = static_cast<uint32_t>(-1);
   uint32_t cunit_high_pc = 0;
-  int cunit_low_pc_pos = dbg_info->size();
-  Push32(dbg_info, 0);
-  Push32(dbg_info, 0);
+  for (auto method_info : method_infos) {
+    cunit_low_pc = std::min(cunit_low_pc, method_info.low_pc_);
+    cunit_high_pc = std::max(cunit_high_pc, method_info.high_pc_);
+  }
+  Push32(dbg_info, cunit_low_pc + text_section_offset);
+  Push32(dbg_info, cunit_high_pc + text_section_offset);
 
-  if (dbg_line == nullptr) {
-    for (size_t i = 0; i < method_info.size(); ++i) {
-      const OatWriter::DebugInfo &dbg = method_info[i];
+  if (dbg_line != nullptr) {
+    // Line number table offset.
+    Push32(dbg_info, dbg_line->size());
+  }
 
-      cunit_low_pc = std::min(cunit_low_pc, dbg.low_pc_);
-      cunit_high_pc = std::max(cunit_high_pc, dbg.high_pc_);
+  for (auto method_info : method_infos) {
+    // Start a new TAG: subroutine (2).
+    PushByte(dbg_info, 2);
 
-      // Start a new TAG: subroutine (2).
-      PushByte(dbg_info, 2);
+    // Enter name, low_pc, high_pc.
+    Push32(dbg_info, PushStr(dbg_str, method_info.method_name_));
+    Push32(dbg_info, method_info.low_pc_ + text_section_offset);
+    Push32(dbg_info, method_info.high_pc_ + text_section_offset);
+  }
 
-      // Enter name, low_pc, high_pc.
-      Push32(dbg_info, PushStr(dbg_str, dbg.method_name_));
-      Push32(dbg_info, dbg.low_pc_ + text_section_offset);
-      Push32(dbg_info, dbg.high_pc_ + text_section_offset);
-    }
-  } else {
+  if (dbg_line != nullptr) {
     // TODO: in gdb info functions <regexp> - reports Java functions, but
     // source file is <unknown> because .debug_line is formed as one
     // compilation unit. To fix this it is possible to generate
@@ -563,109 +482,134 @@ static void FillInCFIInformation(OatWriter* oat_writer,
     // Each of the these compilation units can have several non-adjacent
     // method ranges.
 
-    // Line number table offset
-    Push32(dbg_info, dbg_line->size());
+    std::vector<dwarf::DebugLineWriter<>::FileEntry> files;
+    std::unordered_map<std::string, size_t> files_map;
+    std::vector<std::string> directories;
+    std::unordered_map<std::string, size_t> directories_map;
 
-    size_t lnt_length = dbg_line->size();
-    Push32(dbg_line, 0);
-
-    PushHalf(dbg_line, 4);  // LNT Version DWARF v4 => 4
-
-    size_t lnt_hdr_length = dbg_line->size();
-    Push32(dbg_line, 0);  // TODO: 64-bit uses 8-byte here
-
-    PushByte(dbg_line, 1);  // minimum_instruction_length (ubyte)
-    PushByte(dbg_line, 1);  // maximum_operations_per_instruction (ubyte) = always 1
-    PushByte(dbg_line, 1);  // default_is_stmt (ubyte)
-
-    const int8_t LINE_BASE = -5;
-    PushByte(dbg_line, LINE_BASE);  // line_base (sbyte)
-
-    const uint8_t LINE_RANGE = 14;
-    PushByte(dbg_line, LINE_RANGE);  // line_range (ubyte)
-
-    const uint8_t OPCODE_BASE = 13;
-    PushByte(dbg_line, OPCODE_BASE);  // opcode_base (ubyte)
-
-    // Standard_opcode_lengths (array of ubyte).
-    PushByte(dbg_line, 0); PushByte(dbg_line, 1); PushByte(dbg_line, 1);
-    PushByte(dbg_line, 1); PushByte(dbg_line, 1); PushByte(dbg_line, 0);
-    PushByte(dbg_line, 0); PushByte(dbg_line, 0); PushByte(dbg_line, 1);
-    PushByte(dbg_line, 0); PushByte(dbg_line, 0); PushByte(dbg_line, 1);
-
-    PushByte(dbg_line, 0);  // include_directories (sequence of path names) = EMPTY
-
-    // File_names (sequence of file entries).
-    std::unordered_map<const char*, size_t> files;
-    for (size_t i = 0; i < method_info.size(); ++i) {
-      const OatWriter::DebugInfo &dbg = method_info[i];
-      // TODO: add package directory to the file name
-      const char* file_name = dbg.src_file_name_ == nullptr ? "null" : dbg.src_file_name_;
-      auto found = files.find(file_name);
-      if (found == files.end()) {
-        size_t file_index = 1 + files.size();
-        files[file_name] = file_index;
-        PushStr(dbg_line, file_name);
-        PushByte(dbg_line, 0);  // include directory index = LEB128(0) - no directory
-        PushByte(dbg_line, 0);  // modification time = LEB128(0) - NA
-        PushByte(dbg_line, 0);  // file length = LEB128(0) - NA
-      }
+    int code_factor_bits_ = 0;
+    int isa = -1;
+    switch (oat_writer->GetOatHeader().GetInstructionSet()) {
+      case kThumb2:
+        code_factor_bits_ = 1;  // 16-bit instuctions
+        isa = 1;  // DW_ISA_ARM_thumb.
+        break;
+      case kArm:
+        code_factor_bits_ = 2;  // 32-bit instructions
+        isa = 2;  // DW_ISA_ARM_arm.
+        break;
+      case kArm64:
+      case kMips:
+      case kMips64:
+        code_factor_bits_ = 2;  // 32-bit instructions
+        break;
+      case kNone:
+      case kX86:
+      case kX86_64:
+        break;
     }
-    PushByte(dbg_line, 0);  // End of file_names.
 
-    // Set lnt header length.
-    UpdateWord(dbg_line, lnt_hdr_length, dbg_line->size() - lnt_hdr_length - 4);
+    dwarf::DebugLineOpCodeWriter<> opcodes(use_64bit_addresses, code_factor_bits_);
+    opcodes.SetAddress(text_section_offset + cunit_low_pc);
+    if (isa != -1) {
+      opcodes.SetISA(isa);
+    }
+    DefaultSrcMap dex2line_map;
+    for (size_t i = 0; i < method_infos.size(); i++) {
+      const OatWriter::DebugInfo& method_info = method_infos[i];
 
-    // Generate Line Number Program code, one long program for all methods.
-    LineTableGenerator line_table_generator(LINE_BASE, LINE_RANGE, OPCODE_BASE,
-                                            dbg_line, 0, 1);
+      // Addresses in the line table should be unique and increasing.
+      if (method_info.deduped_) {
+        continue;
+      }
 
-    DefaultSrcMap pc2java_map;
-    for (size_t i = 0; i < method_info.size(); ++i) {
-      const OatWriter::DebugInfo &dbg = method_info[i];
-      const char* file_name = (dbg.src_file_name_ == nullptr) ? "null" : dbg.src_file_name_;
-      size_t file_index = files[file_name];
-      DCHECK_NE(file_index, 0U) << file_name;
+      // Get and deduplicate directory and filename.
+      int file_index = 0;  // 0 - primary source file of the compilation.
+      if (method_info.src_file_name_ != nullptr) {
+        std::string file_name(method_info.src_file_name_);
+        size_t file_name_slash = file_name.find_last_of('/');
+        std::string class_name(method_info.class_descriptor_);
+        size_t class_name_slash = class_name.find_last_of('/');
+        std::string full_path(file_name);
 
-      cunit_low_pc = std::min(cunit_low_pc, dbg.low_pc_);
-      cunit_high_pc = std::max(cunit_high_pc, dbg.high_pc_);
-
-      // Start a new TAG: subroutine (2).
-      PushByte(dbg_info, 2);
-
-      // Enter name, low_pc, high_pc.
-      Push32(dbg_info, PushStr(dbg_str, dbg.method_name_));
-      Push32(dbg_info, dbg.low_pc_ + text_section_offset);
-      Push32(dbg_info, dbg.high_pc_ + text_section_offset);
-
-      GetLineInfoForJava(dbg.dbgstream_, dbg.compiled_method_->GetSrcMappingTable(),
-                         &pc2java_map, dbg.low_pc_);
-      pc2java_map.DeltaFormat({dbg.low_pc_, 1}, dbg.high_pc_);
-      if (!pc2java_map.empty()) {
-        line_table_generator.SetFile(file_index);
-        line_table_generator.SetAddr(dbg.low_pc_ + text_section_offset);
-        line_table_generator.SetLine(1);
-        for (auto& src_map_elem : pc2java_map) {
-          line_table_generator.PutDelta(src_map_elem.from_, src_map_elem.to_);
+        // Guess directory from package name.
+        int directory_index = 0;  // 0 - current directory of the compilation.
+        if (file_name_slash == std::string::npos &&  // Just filename.
+            class_name.front() == 'L' &&  // Type descriptor for a class.
+            class_name_slash != std::string::npos) {  // Has package name.
+          std::string package_name = class_name.substr(1, class_name_slash - 1);
+          auto it = directories_map.find(package_name);
+          if (it == directories_map.end()) {
+            directory_index = 1 + directories.size();
+            directories_map.emplace(package_name, directory_index);
+            directories.push_back(package_name);
+          } else {
+            directory_index = it->second;
+          }
+          full_path = package_name + "/" + file_name;
         }
-        pc2java_map.clear();
+
+        // Add file entry.
+        auto it2 = files_map.find(full_path);
+        if (it2 == files_map.end()) {
+          file_index = 1 + files.size();
+          files_map.emplace(full_path, file_index);
+          files.push_back(dwarf::DebugLineWriter<>::FileEntry {
+            file_name,
+            directory_index,
+            0,  // Modification time - NA.
+            0,  // File size - NA.
+          });
+        } else {
+          file_index = it2->second;
+        }
+      }
+      opcodes.SetFile(file_index);
+
+      // Generate mapping opcodes from PC to Java lines.
+      dex2line_map.clear();
+      GetLineInfoForJava(method_info.dbgstream_, &dex2line_map);
+      uint32_t low_pc = text_section_offset + method_info.low_pc_;
+      if (file_index != 0 && !dex2line_map.empty()) {
+        bool first = true;
+        for (SrcMapElem pc2dex : method_info.compiled_method_->GetSrcMappingTable()) {
+          uint32_t pc = pc2dex.from_;
+          int dex = pc2dex.to_;
+          auto dex2line = dex2line_map.Find(static_cast<uint32_t>(dex));
+          if (dex2line.first) {
+            int line = dex2line.second;
+            if (first) {
+              first = false;
+              if (pc > 0) {
+                // Assume that any preceding code is prologue.
+                int first_line = dex2line_map.front().to_;
+                // Prologue is not a sensible place for a breakpoint.
+                opcodes.NegateStmt();
+                opcodes.AddRow(low_pc, first_line);
+                opcodes.NegateStmt();
+                opcodes.SetPrologueEnd();
+              }
+              opcodes.AddRow(low_pc + pc, line);
+            } else if (line != opcodes.CurrentLine()) {
+              opcodes.AddRow(low_pc + pc, line);
+            }
+          }
+        }
+      } else {
+        // line 0 - instruction cannot be attributed to any source line.
+        opcodes.AddRow(low_pc, 0);
       }
     }
 
-    // End Sequence should have the highest address set.
-    line_table_generator.SetAddr(cunit_high_pc + text_section_offset);
-    line_table_generator.EndSequence();
+    opcodes.AdvancePC(text_section_offset + cunit_high_pc);
+    opcodes.EndSequence();
 
-    // set lnt length
-    UpdateWord(dbg_line, lnt_length, dbg_line->size() - lnt_length - 4);
+    dwarf::DebugLineWriter<> dbg_line_writer(dbg_line);
+    dbg_line_writer.WriteTable(directories, files, opcodes);
   }
 
-  // One byte terminator
+  // One byte terminator.
   PushByte(dbg_info, 0);
-
-  // Fill in cunit's low_pc and high_pc.
-  UpdateWord(dbg_info, cunit_low_pc_pos, cunit_low_pc + text_section_offset);
-  UpdateWord(dbg_info, cunit_low_pc_pos + 4, cunit_high_pc + text_section_offset);
 
   // We have now walked all the methods.  Fill in lengths.
   UpdateWord(dbg_info, cunit_length, dbg_info->size() - cunit_length - 4);
@@ -690,8 +634,11 @@ static void WriteDebugSymbols(const CompilerDriver* compiler_driver,
   ElfSymtabBuilder<Elf_Word, Elf_Sword, Elf_Addr, Elf_Sym, Elf_Shdr>* symtab =
       builder->GetSymtabBuilder();
   for (auto it = method_info.begin(); it != method_info.end(); ++it) {
-    symtab->AddSymbol(it->method_name_, &builder->GetTextBuilder(), it->low_pc_, true,
-                      it->high_pc_ - it->low_pc_, STB_GLOBAL, STT_FUNC);
+    uint32_t low_pc = it->low_pc_;
+    // Add in code delta, e.g., thumb bit 0 for Thumb2 code.
+    low_pc += it->compiled_method_->CodeDelta();
+    symtab->AddSymbol(it->method_name_, &builder->GetTextBuilder(), low_pc,
+                      true, it->high_pc_ - it->low_pc_, STB_GLOBAL, STT_FUNC);
 
     // Conforming to aaelf, add $t mapping symbol to indicate start of a sequence of thumb2
     // instructions, so that disassembler tools can correctly disassemble.

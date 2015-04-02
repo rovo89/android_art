@@ -312,8 +312,6 @@ void Arm64Mir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method)
   bool skip_overflow_check = mir_graph_->MethodIsLeaf() &&
     !FrameNeedsStackCheck(frame_size_, kArm64);
 
-  NewLIR0(kPseudoMethodEntry);
-
   const size_t kStackOverflowReservedUsableBytes = GetStackOverflowReservedBytes(kArm64);
   const bool large_frame = static_cast<size_t>(frame_size_) > kStackOverflowReservedUsableBytes;
   bool generate_explicit_stack_overflow_check = large_frame ||
@@ -401,9 +399,6 @@ void Arm64Mir2Lir::GenExitSequence() {
    */
   LockTemp(rs_x0);
   LockTemp(rs_x1);
-
-  NewLIR0(kPseudoMethodExit);
-
   UnspillRegs(rs_sp, core_spill_mask_, fp_spill_mask_, frame_size_);
 
   // Finally return.
