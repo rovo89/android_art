@@ -19,6 +19,8 @@
 #include <cmath>
 #include <unordered_map>
 
+#include "ScopedLocalRef.h"
+
 #include "base/logging.h"
 #include "base/macros.h"
 #include "class_linker.h"
@@ -467,18 +469,21 @@ static mirror::Object* GetDexFromDexCache(Thread* self, mirror::DexCache* dex_ca
   JNIEnv* env = self->GetJniEnv();
   DCHECK(env != nullptr);
   void* address = const_cast<void*>(reinterpret_cast<const void*>(dex_file->Begin()));
-  jobject byte_buffer = env->NewDirectByteBuffer(address, dex_file->Size());
-  if (byte_buffer == nullptr) {
+  ScopedLocalRef<jobject> byte_buffer(env, env->NewDirectByteBuffer(address, dex_file->Size()));
+  if (byte_buffer.get() == nullptr) {
     DCHECK(self->IsExceptionPending());
     return nullptr;
   }
 
   jvalue args[1];
-  args[0].l = byte_buffer;
-  return self->DecodeJObject(
-      env->CallStaticObjectMethodA(WellKnownClasses::com_android_dex_Dex,
-                                   WellKnownClasses::com_android_dex_Dex_create,
-                                   args));
+  args[0].l = byte_buffer.get();
+
+  ScopedLocalRef<jobject> dex(env, env->CallStaticObjectMethodA(
+      WellKnownClasses::com_android_dex_Dex,
+      WellKnownClasses::com_android_dex_Dex_create,
+      args));
+
+  return self->DecodeJObject(dex.get());
 }
 
 static void UnstartedDexCacheGetDexNative(
