@@ -606,7 +606,7 @@ void CodeGeneratorX86_64::Move(Location destination, Location source) {
                source.AsFpuRegister<XmmRegister>());
     } else if (source.IsConstant()) {
       HConstant* constant = source.GetConstant();
-      int64_t value = constant->AsLongConstant()->GetValue();
+      int64_t value;
       if (constant->IsDoubleConstant()) {
         value = bit_cast<int64_t, double>(constant->AsDoubleConstant()->GetValue());
       } else {
