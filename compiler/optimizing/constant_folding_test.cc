@@ -16,6 +16,7 @@
 
 #include <functional>
 
+#include "arch/x86/instruction_set_features_x86.h"
 #include "code_generator_x86.h"
 #include "constant_folding.h"
 #include "dead_code_elimination.h"
@@ -46,7 +47,9 @@ static void TestCode(const uint16_t* data,
   std::string actual_before = printer_before.str();
   ASSERT_EQ(expected_before, actual_before);
 
-  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
+  std::unique_ptr<const X86InstructionSetFeatures> features_x86(
+      X86InstructionSetFeatures::FromCppDefines());
+  x86::CodeGeneratorX86 codegenX86(graph, *features_x86.get(), CompilerOptions());
   HConstantFolding(graph).Run();
   SSAChecker ssa_checker_cf(&allocator, graph);
   ssa_checker_cf.Run();

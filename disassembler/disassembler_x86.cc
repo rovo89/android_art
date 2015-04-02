@@ -561,6 +561,24 @@ DISASSEMBLER_ENTRY(cmp,
         instr++;
         if (prefix[2] == 0x66) {
           switch (*instr) {
+            case 0x0A:
+              opcode1 = "roundss";
+              prefix[2] = 0;
+              has_modrm = true;
+              store = true;
+              src_reg_file = SSE;
+              dst_reg_file = SSE;
+              immediate_bytes = 1;
+              break;
+            case 0x0B:
+              opcode1 = "roundsd";
+              prefix[2] = 0;
+              has_modrm = true;
+              store = true;
+              src_reg_file = SSE;
+              dst_reg_file = SSE;
+              immediate_bytes = 1;
+              break;
             case 0x14:
               opcode1 = "pextrb";
               prefix[2] = 0;
