@@ -189,7 +189,9 @@ class InstructionCodeGeneratorX86 : public HGraphVisitor {
 
 class CodeGeneratorX86 : public CodeGenerator {
  public:
-  CodeGeneratorX86(HGraph* graph, const CompilerOptions& compiler_options);
+  CodeGeneratorX86(HGraph* graph,
+                   const X86InstructionSetFeatures& isa_features,
+                   const CompilerOptions& compiler_options);
   virtual ~CodeGeneratorX86() {}
 
   void GenerateFrameEntry() OVERRIDE;
@@ -275,6 +277,10 @@ class CodeGeneratorX86 : public CodeGenerator {
 
   Label* GetFrameEntryLabel() { return &frame_entry_label_; }
 
+  const X86InstructionSetFeatures& GetInstructionSetFeatures() const {
+    return isa_features_;
+  }
+
  private:
   // Labels for each block that will be compiled.
   GrowableArray<Label> block_labels_;
@@ -283,6 +289,7 @@ class CodeGeneratorX86 : public CodeGenerator {
   InstructionCodeGeneratorX86 instruction_visitor_;
   ParallelMoveResolverX86 move_resolver_;
   X86Assembler assembler_;
+  const X86InstructionSetFeatures& isa_features_;
 
   DISALLOW_COPY_AND_ASSIGN(CodeGeneratorX86);
 };

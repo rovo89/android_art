@@ -692,6 +692,14 @@ TEST_F(AssemblerX86_64Test, Sqrtsd) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::sqrtsd, "sqrtsd %{reg2}, %{reg1}"), "sqrtsd");
 }
 
+TEST_F(AssemblerX86_64Test, Roundss) {
+  DriverStr(RepeatFFI(&x86_64::X86_64Assembler::roundss, 1, "roundss ${imm}, %{reg2}, %{reg1}"), "roundss");
+}
+
+TEST_F(AssemblerX86_64Test, Roundsd) {
+  DriverStr(RepeatFFI(&x86_64::X86_64Assembler::roundsd, 1, "roundsd ${imm}, %{reg2}, %{reg1}"), "roundsd");
+}
+
 TEST_F(AssemblerX86_64Test, Xorps) {
   DriverStr(RepeatFF(&x86_64::X86_64Assembler::xorps, "xorps %{reg2}, %{reg1}"), "xorps");
 }

@@ -16,6 +16,7 @@
 
 #include <fstream>
 
+#include "arch/x86/instruction_set_features_x86.h"
 #include "base/arena_allocator.h"
 #include "base/stringprintf.h"
 #include "builder.h"
@@ -46,7 +47,9 @@ static void TestCode(const uint16_t* data, const int* expected_order, size_t num
 
   graph->TryBuildingSsa();
 
-  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
+  std::unique_ptr<const X86InstructionSetFeatures> features_x86(
+      X86InstructionSetFeatures::FromCppDefines());
+  x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 
