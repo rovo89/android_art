@@ -82,10 +82,12 @@ class RelativePatcher {
     return size_misc_thunks_;
   }
 
-  // Reserve space for relative call thunks if needed, return adjusted offset. After all methods
-  // of a class have been processed it's called one last time with compiled_method == nullptr.
+  // Reserve space for thunks if needed before a method, return adjusted offset.
   virtual uint32_t ReserveSpace(uint32_t offset, const CompiledMethod* compiled_method,
                                 MethodReference method_ref) = 0;
+
+  // Reserve space for thunks if needed after the last method, return adjusted offset.
+  virtual uint32_t ReserveSpaceEnd(uint32_t offset) = 0;
 
   // Write relative call thunks if needed, return adjusted offset.
   virtual uint32_t WriteThunks(OutputStream* out, uint32_t offset) = 0;

@@ -58,12 +58,11 @@ uint32_t Arm64RelativePatcher::ReserveSpace(uint32_t offset,
   // Count the number of ADRP insns as the upper bound on the number of thunks needed
   // and use it to reserve space for other linker patches.
   size_t num_adrp = 0u;
-  if (LIKELY(compiled_method != nullptr)) {
-    for (const LinkerPatch& patch : compiled_method->GetPatches()) {
-      if (patch.Type() == kLinkerPatchDexCacheArray &&
-          patch.LiteralOffset() == patch.PcInsnOffset()) {  // ADRP patch
-        ++num_adrp;
-      }
+  DCHECK(compiled_method != nullptr);
+  for (const LinkerPatch& patch : compiled_method->GetPatches()) {
+    if (patch.Type() == kLinkerPatchDexCacheArray &&
+        patch.LiteralOffset() == patch.PcInsnOffset()) {  // ADRP patch
+      ++num_adrp;
     }
   }
   offset = ReserveSpaceInternal(offset, compiled_method, method_ref, kAdrpThunkSize * num_adrp);
@@ -88,6 +87,20 @@ uint32_t Arm64RelativePatcher::ReserveSpace(uint32_t offset,
     }
   }
   return offset;
+}
+
+uint32_t Arm64RelativePatcher::ReserveSpaceEnd(uint32_t offset) {
+  if (!fix_cortex_a53_843419_) {
+    DCHECK(adrp_thunk_locations_.empty());
+  } else {
+    // Add thunks for the last method if any.
+    if (reserved_adrp_thunks_ != adrp_thunk_locations_.size()) {
+      size_t num_adrp_thunks = adrp_thunk_locations_.size() - reserved_adrp_thunks_;
+      offset = CompiledMethod::AlignCode(offset, kArm64) + kAdrpThunkSize * num_adrp_thunks;
+      reserved_adrp_thunks_ = adrp_thunk_locations_.size();
+    }
+  }
+  return ArmBaseRelativePatcher::ReserveSpaceEnd(offset);
 }
 
 uint32_t Arm64RelativePatcher::WriteThunks(OutputStream* out, uint32_t offset) {
