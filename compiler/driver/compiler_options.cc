@@ -42,6 +42,11 @@ CompilerOptions::CompilerOptions()
       init_failure_output_(nullptr) {
 }
 
+CompilerOptions::~CompilerOptions() {
+  // The destructor looks empty but it destroys a PassManagerOptions object. We keep it here
+  // because we don't want to include the PassManagerOptions definition from the header file.
+}
+
 CompilerOptions::CompilerOptions(CompilerFilter compiler_filter,
                                  size_t huge_method_threshold,
                                  size_t large_method_threshold,

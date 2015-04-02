@@ -53,6 +53,7 @@ class CompilerOptions FINAL {
   static const bool kDefaultIncludePatchInformation = false;
 
   CompilerOptions();
+  ~CompilerOptions();
 
   CompilerOptions(CompilerFilter compiler_filter,
                   size_t huge_method_threshold,
