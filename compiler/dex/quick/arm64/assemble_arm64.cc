@@ -686,7 +686,9 @@ void Arm64Mir2Lir::InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir)
 #define PADDING_NOP (UINT32_C(0xd503201f))
 
 uint8_t* Arm64Mir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
+  uint8_t* const write_buffer = write_pos;
   for (; lir != nullptr; lir = NEXT_LIR(lir)) {
+    lir->offset = (write_pos - write_buffer);
     bool opcode_is_wide = IS_WIDE(lir->opcode);
     A64Opcode opcode = UNWIDE(lir->opcode);
 

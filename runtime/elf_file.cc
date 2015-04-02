@@ -1665,7 +1665,6 @@ struct PACKED(1) DebugLineHeader {
   uint16_t version_;
   uint32_t header_length_;  // TODO 32-bit specific size
   uint8_t minimum_instruction_lenght_;
-  uint8_t maximum_operations_per_instruction_;
   uint8_t default_is_stmt_;
   int8_t line_base_;
   uint8_t line_range_;
@@ -1691,7 +1690,7 @@ struct PACKED(1) DebugLineHeader {
       return length_field + length;
     } else if (!IsStandardOpcode(op)) {
       return op + 1;
-    } else if (*op == DW_LNS_fixed_advance_pc) {
+    } else if (*op == dwarf::DW_LNS_fixed_advance_pc) {
       return op + 1 + sizeof(uint16_t);
     } else {
       uint8_t num_args = GetStandardOpcodeLengths()[*op - 1];
@@ -1774,8 +1773,8 @@ class DebugLineInstructionIterator FINAL {
 };
 
 static bool FixupDebugLine(off_t base_offset_delta, DebugLineInstructionIterator* iter) {
-  while (iter->Next()) {
-    if (iter->IsExtendedOpcode() && iter->GetOpcode() == DW_LNE_set_address) {
+  for (; iter->GetInstruction(); iter->Next()) {
+    if (iter->IsExtendedOpcode() && iter->GetOpcode() == dwarf::DW_LNE_set_address) {
       *reinterpret_cast<uint32_t*>(iter->GetArguments()) += base_offset_delta;
     }
   }
@@ -1792,39 +1791,39 @@ struct PACKED(1) DebugInfoHeader {
 // Returns -1 if it is variable length, which we will just disallow for now.
 static int32_t FormLength(uint32_t att) {
   switch (att) {
-    case DW_FORM_data1:
-    case DW_FORM_flag:
-    case DW_FORM_flag_present:
-    case DW_FORM_ref1:
+    case dwarf::DW_FORM_data1:
+    case dwarf::DW_FORM_flag:
+    case dwarf::DW_FORM_flag_present:
+    case dwarf::DW_FORM_ref1:
       return 1;
 
-    case DW_FORM_data2:
-    case DW_FORM_ref2:
+    case dwarf::DW_FORM_data2:
+    case dwarf::DW_FORM_ref2:
       return 2;
 
-    case DW_FORM_addr:        // TODO 32-bit only
-    case DW_FORM_ref_addr:    // TODO 32-bit only
-    case DW_FORM_sec_offset:  // TODO 32-bit only
-    case DW_FORM_strp:        // TODO 32-bit only
-    case DW_FORM_data4:
-    case DW_FORM_ref4:
+    case dwarf::DW_FORM_addr:        // TODO 32-bit only
+    case dwarf::DW_FORM_ref_addr:    // TODO 32-bit only
+    case dwarf::DW_FORM_sec_offset:  // TODO 32-bit only
+    case dwarf::DW_FORM_strp:        // TODO 32-bit only
+    case dwarf::DW_FORM_data4:
+    case dwarf::DW_FORM_ref4:
       return 4;
 
-    case DW_FORM_data8:
-    case DW_FORM_ref8:
-    case DW_FORM_ref_sig8:
+    case dwarf::DW_FORM_data8:
+    case dwarf::DW_FORM_ref8:
+    case dwarf::DW_FORM_ref_sig8:
       return 8;
 
-    case DW_FORM_block:
-    case DW_FORM_block1:
-    case DW_FORM_block2:
-    case DW_FORM_block4:
-    case DW_FORM_exprloc:
-    case DW_FORM_indirect:
-    case DW_FORM_ref_udata:
-    case DW_FORM_sdata:
-    case DW_FORM_string:
-    case DW_FORM_udata:
+    case dwarf::DW_FORM_block:
+    case dwarf::DW_FORM_block1:
+    case dwarf::DW_FORM_block2:
+    case dwarf::DW_FORM_block4:
+    case dwarf::DW_FORM_exprloc:
+    case dwarf::DW_FORM_indirect:
+    case dwarf::DW_FORM_ref_udata:
+    case dwarf::DW_FORM_sdata:
+    case dwarf::DW_FORM_string:
+    case dwarf::DW_FORM_udata:
     default:
       return -1;
   }
@@ -2047,13 +2046,13 @@ class DebugInfoIterator {
 
 static bool FixupDebugInfo(off_t base_address_delta, DebugInfoIterator* iter) {
   do {
-    if (iter->GetCurrentTag()->GetAttrSize(DW_AT_low_pc) != sizeof(int32_t) ||
-        iter->GetCurrentTag()->GetAttrSize(DW_AT_high_pc) != sizeof(int32_t)) {
+    if (iter->GetCurrentTag()->GetAttrSize(dwarf::DW_AT_low_pc) != sizeof(int32_t) ||
+        iter->GetCurrentTag()->GetAttrSize(dwarf::DW_AT_high_pc) != sizeof(int32_t)) {
       LOG(ERROR) << "DWARF information with 64 bit pointers is not supported yet.";
       return false;
     }
-    uint32_t* PC_low = reinterpret_cast<uint32_t*>(iter->GetPointerToField(DW_AT_low_pc));
-    uint32_t* PC_high = reinterpret_cast<uint32_t*>(iter->GetPointerToField(DW_AT_high_pc));
+    uint32_t* PC_low = reinterpret_cast<uint32_t*>(iter->GetPointerToField(dwarf::DW_AT_low_pc));
+    uint32_t* PC_high = reinterpret_cast<uint32_t*>(iter->GetPointerToField(dwarf::DW_AT_high_pc));
     if (PC_low != nullptr && PC_high != nullptr) {
       *PC_low  += base_address_delta;
       *PC_high += base_address_delta;

@@ -94,20 +94,12 @@ class SrcMapElem {
   uint32_t from_;
   int32_t to_;
 
-  explicit operator int64_t() const {
-    return (static_cast<int64_t>(to_) << 32) | from_;
-  }
-
-  bool operator<(const SrcMapElem& sme) const {
-    return int64_t(*this) < int64_t(sme);
-  }
-
-  bool operator==(const SrcMapElem& sme) const {
-    return int64_t(*this) == int64_t(sme);
-  }
-
-  explicit operator uint8_t() const {
-    return static_cast<uint8_t>(from_ + to_);
+  // Lexicographical compare.
+  bool operator<(const SrcMapElem& other) const {
+    if (from_ != other.from_) {
+      return from_ < other.from_;
+    }
+    return to_ < other.to_;
   }
 };
 
@@ -129,49 +121,33 @@ class SrcMap FINAL : public std::vector<SrcMapElem, Allocator> {
   SrcMap(InputIt first, InputIt last, const Allocator& alloc)
       : std::vector<SrcMapElem, Allocator>(first, last, alloc) {}
 
-  void SortByFrom() {
-    std::sort(begin(), end(), [] (const SrcMapElem& lhs, const SrcMapElem& rhs) -> bool {
-      return lhs.from_ < rhs.from_;
-    });
-  }
-
-  const_iterator FindByTo(int32_t to) const {
-    return std::lower_bound(begin(), end(), SrcMapElem({0, to}));
-  }
-
-  SrcMap& Arrange() {
+  void push_back(const SrcMapElem& elem) {
     if (!empty()) {
-      std::sort(begin(), end());
-      resize(std::unique(begin(), end()) - begin());
-      shrink_to_fit();
+      // Check that the addresses are inserted in sorted order.
+      DCHECK_GE(elem.from_, this->back().from_);
+      // If two consequitive entries map to the same value, ignore the later.
+      // E.g. for map {{0, 1}, {4, 1}, {8, 2}}, all values in [0,8) map to 1.
+      if (elem.to_ == this->back().to_) {
+        return;
+      }
     }
-    return *this;
+    std::vector<SrcMapElem, Allocator>::push_back(elem);
   }
 
-  void DeltaFormat(const SrcMapElem& start, uint32_t highest_pc) {
-    // Convert from abs values to deltas.
-    if (!empty()) {
-      SortByFrom();
-
-      // TODO: one PC can be mapped to several Java src lines.
-      // do we want such a one-to-many correspondence?
-
-      // get rid of the highest values
-      size_t i = size() - 1;
-      for (; i > 0 ; i--) {
-        if ((*this)[i].from_ < highest_pc) {
-          break;
-        }
-      }
-      this->resize(i + 1);
-
-      for (i = size(); --i >= 1; ) {
-        (*this)[i].from_ -= (*this)[i-1].from_;
-        (*this)[i].to_ -= (*this)[i-1].to_;
-      }
-      DCHECK((*this)[0].from_ >= start.from_);
-      (*this)[0].from_ -= start.from_;
-      (*this)[0].to_ -= start.to_;
+  // Returns true and the corresponding "to" value if the mapping is found.
+  // Oterwise returns false and 0.
+  std::pair<bool, int32_t> Find(uint32_t from) const {
+    // Finds first mapping such that lb.from_ >= from.
+    auto lb = std::lower_bound(begin(), end(), SrcMapElem {from, INT32_MIN});
+    if (lb != end() && lb->from_ == from) {
+      // Found exact match.
+      return std::make_pair(true, lb->to_);
+    } else if (lb != begin()) {
+      // The previous mapping is still in effect.
+      return std::make_pair(true, (--lb)->to_);
+    } else {
+      // Not found because 'from' is smaller than first entry in the map.
+      return std::make_pair(false, 0);
     }
   }
 };
@@ -428,7 +404,7 @@ class CompiledMethod FINAL : public CompiledCode {
   const uint32_t core_spill_mask_;
   // For quick code, a bit mask describing spilled FPR callee-save registers.
   const uint32_t fp_spill_mask_;
-  // For quick code, a set of pairs (PC, Line) mapping from native PC offset to Java line
+  // For quick code, a set of pairs (PC, DEX) mapping from native PC offset to DEX offset.
   SwapSrcMap* src_mapping_table_;
   // For quick code, a uleb128 encoded map from native PC offset to dex PC aswell as dex PC to
   // native PC offset. Size prefixed.
