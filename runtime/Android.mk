@@ -471,7 +471,7 @@ $$(ENUM_OPERATOR_OUT_GEN): $$(GENERATED_SRC_DIR)/%_operator_out.cc : $(LOCAL_PAT
   else # host
     LOCAL_SHARED_LIBRARIES += libziparchive-host
     # For ashmem_create_region.
-    LOCAL_STATIC_LIBRARIES += libcutils
+    LOCAL_SHARED_LIBRARIES += libcutils
   endif
   LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
   LOCAL_ADDITIONAL_DEPENDENCIES += $$(LOCAL_PATH)/Android.mk
