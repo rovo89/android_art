@@ -357,8 +357,7 @@ class OatWriter::InitCodeMethodVisitor : public OatDexMethodVisitor {
   bool EndClass() {
     OatDexMethodVisitor::EndClass();
     if (oat_class_index_ == writer_->oat_classes_.size()) {
-      offset_ = writer_->relative_patcher_->ReserveSpace(offset_, nullptr,
-                                                         MethodReference(nullptr, 0u));
+      offset_ = writer_->relative_patcher_->ReserveSpaceEnd(offset_);
     }
     return true;
   }
