@@ -253,6 +253,10 @@ void MallocSpace::ClampGrowthLimit() {
   CHECK_LE(new_capacity, NonGrowthLimitCapacity());
   GetLiveBitmap()->SetHeapSize(new_capacity);
   GetMarkBitmap()->SetHeapSize(new_capacity);
+  if (temp_bitmap_.get() != nullptr) {
+    // If the bitmaps are clamped, then the temp bitmap is actually the mark bitmap.
+    temp_bitmap_->SetHeapSize(new_capacity);
+  }
   GetMemMap()->SetSize(new_capacity);
   limit_ = Begin() + new_capacity;
   CHECK(temp_bitmap_.get() == nullptr);
