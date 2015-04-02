@@ -189,17 +189,29 @@ class RelativePatcherTest : public testing::Test {
     for (size_t i = 0; i != expected_code.size(); ++i) {
       expected_hex << " " << digits[expected_code[i] >> 4] << digits[expected_code[i] & 0xf];
       linked_hex << " " << digits[linked_code[i] >> 4] << digits[linked_code[i] & 0xf];
-      diff_indicator << " ";
       if (!found_diff) {
         found_diff = (expected_code[i] != linked_code[i]);
-        diff_indicator << (found_diff ? "^^" : "  ");
+        diff_indicator << (found_diff ? " ^^" : "   ");
       }
     }
     CHECK(found_diff);
+    std::string expected_hex_str = expected_hex.str();
+    std::string linked_hex_str = linked_hex.str();
+    std::string diff_indicator_str = diff_indicator.str();
+    if (diff_indicator_str.length() > 60) {
+      CHECK_EQ(diff_indicator_str.length() % 3u, 0u);
+      size_t remove = diff_indicator_str.length() / 3 - 5;
+      std::ostringstream oss;
+      oss << "[stripped " << remove << "]";
+      std::string replacement = oss.str();
+      expected_hex_str.replace(0u, remove * 3u, replacement);
+      linked_hex_str.replace(0u, remove * 3u, replacement);
+      diff_indicator_str.replace(0u, remove * 3u, replacement);
+    }
     LOG(ERROR) << "diff expected_code linked_code";
-    LOG(ERROR) << "<" << expected_hex.str();
-    LOG(ERROR) << ">" << linked_hex.str();
-    LOG(ERROR) << " " << diff_indicator.str();
+    LOG(ERROR) << "<" << expected_hex_str;
+    LOG(ERROR) << ">" << linked_hex_str;
+    LOG(ERROR) << " " << diff_indicator_str;
   }
 
   // Map method reference to assinged offset.
