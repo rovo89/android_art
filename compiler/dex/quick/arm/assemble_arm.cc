@@ -1083,7 +1083,9 @@ void ArmMir2Lir::InsertFixupBefore(LIR* prev_lir, LIR* orig_lir, LIR* new_lir) {
 #define PADDING_MOV_R5_R5               0x1C2D
 
 uint8_t* ArmMir2Lir::EncodeLIRs(uint8_t* write_pos, LIR* lir) {
+  uint8_t* const write_buffer = write_pos;
   for (; lir != NULL; lir = NEXT_LIR(lir)) {
+    lir->offset = (write_pos - write_buffer);
     if (!lir->flags.is_nop) {
       int opcode = lir->opcode;
       if (IsPseudoLirOp(opcode)) {
