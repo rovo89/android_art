@@ -28,7 +28,7 @@ public class X86QuickBackendExecutor extends Executor {
   @Override
   public void execute(String programName) {
     StringBuilder commandBuilder = new StringBuilder();
-    commandBuilder.append("dalvikvm32 ");
+    commandBuilder.append("dalvikvm32 -Xcompiler-option --compiler-backend=Quick ");
     if (Options.executeOnHost) {
       commandBuilder.append(device.getHostExecutionFlags()).append(" ");
     }

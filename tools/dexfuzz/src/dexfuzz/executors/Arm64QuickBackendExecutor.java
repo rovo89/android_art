@@ -27,7 +27,7 @@ public class Arm64QuickBackendExecutor extends Executor {
   @Override
   public void execute(String programName) {
     StringBuilder commandBuilder = new StringBuilder();
-    commandBuilder.append("dalvikvm64 ");
+    commandBuilder.append("dalvikvm64 -Xcompiler-option --compiler-backend=Quick ");
     if (device.noBootImageAvailable()) {
       commandBuilder.append("-Ximage:/data/art-test/core.art -Xnorelocate ");
     }
