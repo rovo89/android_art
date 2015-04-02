@@ -193,6 +193,7 @@ COMPILER_GTEST_COMMON_SRC_FILES := \
   compiler/elf_writer_test.cc \
   compiler/image_test.cc \
   compiler/jni/jni_compiler_test.cc \
+  compiler/linker/arm64/relative_patcher_arm64_test.cc \
   compiler/linker/arm/relative_patcher_thumb2_test.cc \
   compiler/linker/x86/relative_patcher_x86_test.cc \
   compiler/linker/x86_64/relative_patcher_x86_64_test.cc \
