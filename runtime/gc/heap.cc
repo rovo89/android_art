@@ -3145,6 +3145,8 @@ void Heap::GrowForUtilization(collector::GarbageCollector* collector_ran,
 }
 
 void Heap::ClampGrowthLimit() {
+  // Use heap bitmap lock to guard against races with BindLiveToMarkBitmap.
+  WriterMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
   capacity_ = growth_limit_;
   for (const auto& space : continuous_spaces_) {
     if (space->IsMallocSpace()) {
