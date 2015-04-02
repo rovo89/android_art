@@ -26,6 +26,7 @@ public class Main extends TestCase {
     $opt$TestWithInitializations();
     $opt$TestNegativeValueNewByteArray();
     $opt$TestNegativeValueNewCharArray();
+    testNegativeArraySize();
     testSmaliFilledNewArray();
     testSmaliFillArrayData();
     testSmaliVerifyError();
@@ -127,6 +128,21 @@ public class Main extends TestCase {
     for (int i = 0; i < a.length; i++) {
       assertEquals((char)0xa000 + i, a[i]);
     }
+  }
+
+  static void testNegativeArraySize() {
+    int i = 0;
+    try {
+      $opt$TestNegativeArraySize();
+    } catch (NegativeArraySizeException e) {
+      i = 1;
+    }
+    assertEquals(i, 1);
+  }
+
+  static int[] $opt$TestNegativeArraySize() {
+    int[] array = new int[-1];
+    return null;
   }
 
   public static void testSmaliFilledNewArray() throws Exception {
