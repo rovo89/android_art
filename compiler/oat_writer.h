@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <memory>
 
+#include "linker/relative_patcher.h"  // For linker::RelativePatcherTargetProvider.
 #include "mem_map.h"
 #include "method_reference.h"
 #include "oat.h"
@@ -131,6 +132,10 @@ class OatWriter {
 
   const std::vector<DebugInfo>& GetCFIMethodInfo() const {
     return method_info_;
+  }
+
+  const CompilerDriver* GetCompilerDriver() {
+    return compiler_driver_;
   }
 
  private:
@@ -327,21 +332,19 @@ class OatWriter {
   uint32_t size_oat_class_method_bitmaps_;
   uint32_t size_oat_class_method_offsets_;
 
-  class RelativePatcher;
-  class NoRelativePatcher;
-  class X86BaseRelativePatcher;
-  class X86RelativePatcher;
-  class X86_64RelativePatcher;
-  class ArmBaseRelativePatcher;
-  class Thumb2RelativePatcher;
-  class Arm64RelativePatcher;
-
-  std::unique_ptr<RelativePatcher> relative_patcher_;
+  std::unique_ptr<linker::RelativePatcher> relative_patcher_;
 
   // The locations of absolute patches relative to the start of the executable section.
   std::vector<uintptr_t> absolute_patch_locations_;
 
-  SafeMap<MethodReference, uint32_t, MethodReferenceComparator> method_offset_map_;
+  // Map method reference to assigned offset.
+  // Wrap the map in a class implementing linker::RelativePatcherTargetProvider.
+  class MethodOffsetMap FINAL : public linker::RelativePatcherTargetProvider {
+   public:
+    std::pair<bool, uint32_t> FindMethodOffset(MethodReference ref) OVERRIDE;
+    SafeMap<MethodReference, uint32_t, MethodReferenceComparator> map;
+  };
+  MethodOffsetMap method_offset_map_;
 
   DISALLOW_COPY_AND_ASSIGN(OatWriter);
 };
