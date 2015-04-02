@@ -43,14 +43,14 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
   static constexpr uint32_t kLdurInsn = 0xf840405fu;
 
   uint32_t Create2MethodsWithGap(const ArrayRef<const uint8_t>& method1_code,
-                                 const ArrayRef<LinkerPatch>& method1_patches,
+                                 const ArrayRef<const LinkerPatch>& method1_patches,
                                  const ArrayRef<const uint8_t>& last_method_code,
-                                 const ArrayRef<LinkerPatch>& last_method_patches,
+                                 const ArrayRef<const LinkerPatch>& last_method_patches,
                                  uint32_t distance_without_thunks) {
     CHECK_EQ(distance_without_thunks % kArm64Alignment, 0u);
     const uint32_t method1_offset =
         CompiledCode::AlignCode(kTrampolineSize, kArm64) + sizeof(OatQuickMethodHeader);
-    AddCompiledMethod(MethodRef(1u), method1_code, ArrayRef<LinkerPatch>(method1_patches));
+    AddCompiledMethod(MethodRef(1u), method1_code, method1_patches);
     const uint32_t gap_start =
         CompiledCode::AlignCode(method1_offset + method1_code.size(), kArm64);
 
@@ -70,13 +70,13 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
       uint32_t chunk_code_size = kSmallChunkSize - sizeof(OatQuickMethodHeader);
       gap_code.resize(chunk_code_size, 0u);
       AddCompiledMethod(MethodRef(method_idx), ArrayRef<const uint8_t>(gap_code),
-                        ArrayRef<LinkerPatch>());
+                        ArrayRef<const LinkerPatch>());
       method_idx += 1u;
     }
     uint32_t chunk_code_size = gap_size - sizeof(OatQuickMethodHeader);
     gap_code.resize(chunk_code_size, 0u);
     AddCompiledMethod(MethodRef(method_idx), ArrayRef<const uint8_t>(gap_code),
-                      ArrayRef<LinkerPatch>());
+                      ArrayRef<const LinkerPatch>());
     method_idx += 1u;
 
     // Add the last method and link
@@ -174,7 +174,8 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
         LinkerPatch::DexCacheArrayPatch(num_nops * 4u     , nullptr, num_nops * 4u, element_offset),
         LinkerPatch::DexCacheArrayPatch(num_nops * 4u + 4u, nullptr, num_nops * 4u, element_offset),
     };
-    AddCompiledMethod(MethodRef(1u), ArrayRef<const uint8_t>(code), ArrayRef<LinkerPatch>(patches));
+    AddCompiledMethod(MethodRef(1u), ArrayRef<const uint8_t>(code),
+                      ArrayRef<const LinkerPatch>(patches));
     Link();
 
     uint32_t method1_offset = GetMethodOffset(1u);
@@ -202,7 +203,8 @@ class Arm64RelativePatcherTest : public RelativePatcherTest {
         LinkerPatch::DexCacheArrayPatch(num_nops * 4u     , nullptr, num_nops * 4u, element_offset),
         LinkerPatch::DexCacheArrayPatch(num_nops * 4u + 8u, nullptr, num_nops * 4u, element_offset),
     };
-    AddCompiledMethod(MethodRef(1u), ArrayRef<const uint8_t>(code), ArrayRef<LinkerPatch>(patches));
+    AddCompiledMethod(MethodRef(1u), ArrayRef<const uint8_t>(code),
+                      ArrayRef<const LinkerPatch>(patches));
     Link();
   }
 
@@ -300,7 +302,7 @@ TEST_F(Arm64RelativePatcherTestDefault, CallSelf) {
   LinkerPatch patches[] = {
       LinkerPatch::RelativeCodePatch(0u, nullptr, 1u),
   };
-  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<LinkerPatch>(patches));
+  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<const LinkerPatch>(patches));
   Link();
 
   static const uint8_t expected_code[] = {
@@ -313,11 +315,11 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOther) {
   LinkerPatch method1_patches[] = {
       LinkerPatch::RelativeCodePatch(0u, nullptr, 2u),
   };
-  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<LinkerPatch>(method1_patches));
+  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<const LinkerPatch>(method1_patches));
   LinkerPatch method2_patches[] = {
       LinkerPatch::RelativeCodePatch(0u, nullptr, 1u),
   };
-  AddCompiledMethod(MethodRef(2u), kCallCode, ArrayRef<LinkerPatch>(method2_patches));
+  AddCompiledMethod(MethodRef(2u), kCallCode, ArrayRef<const LinkerPatch>(method2_patches));
   Link();
 
   uint32_t method1_offset = GetMethodOffset(1u);
@@ -340,7 +342,7 @@ TEST_F(Arm64RelativePatcherTestDefault, CallTrampoline) {
   LinkerPatch patches[] = {
       LinkerPatch::RelativeCodePatch(0u, nullptr, 2u),
   };
-  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<LinkerPatch>(patches));
+  AddCompiledMethod(MethodRef(1u), kCallCode, ArrayRef<const LinkerPatch>(patches));
   Link();
 
   uint32_t method1_offset = GetMethodOffset(1u);
@@ -363,7 +365,7 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherAlmostTooFarAfter) {
 
   constexpr uint32_t max_positive_disp = 128 * MB - 4u;
   uint32_t last_method_idx = Create2MethodsWithGap(method1_code, method1_patches,
-                                                   kNopCode, ArrayRef<LinkerPatch>(),
+                                                   kNopCode, ArrayRef<const LinkerPatch>(),
                                                    bl_offset_in_method1 + max_positive_disp);
   ASSERT_EQ(expected_last_method_idx, last_method_idx);
 
@@ -386,7 +388,7 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherAlmostTooFarBefore) {
   };
 
   constexpr uint32_t max_negative_disp = 128 * MB;
-  uint32_t last_method_idx = Create2MethodsWithGap(kNopCode, ArrayRef<LinkerPatch>(),
+  uint32_t last_method_idx = Create2MethodsWithGap(kNopCode, ArrayRef<const LinkerPatch>(),
                                                    last_method_code, last_method_patches,
                                                    max_negative_disp - bl_offset_in_last_method);
   uint32_t method1_offset = GetMethodOffset(1u);
@@ -411,7 +413,7 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherJustTooFarAfter) {
 
   constexpr uint32_t just_over_max_positive_disp = 128 * MB;
   uint32_t last_method_idx = Create2MethodsWithGap(
-      method1_code, method1_patches, kNopCode, ArrayRef<LinkerPatch>(),
+      method1_code, method1_patches, kNopCode, ArrayRef<const LinkerPatch>(),
       bl_offset_in_method1 + just_over_max_positive_disp);
   ASSERT_EQ(expected_last_method_idx, last_method_idx);
 
@@ -440,7 +442,7 @@ TEST_F(Arm64RelativePatcherTestDefault, CallOtherJustTooFarBefore) {
 
   constexpr uint32_t just_over_max_negative_disp = 128 * MB + 4;
   uint32_t last_method_idx = Create2MethodsWithGap(
-      kNopCode, ArrayRef<LinkerPatch>(), last_method_code, last_method_patches,
+      kNopCode, ArrayRef<const LinkerPatch>(), last_method_code, last_method_patches,
       just_over_max_negative_disp - bl_offset_in_last_method);
   uint32_t method1_offset = GetMethodOffset(1u);
   uint32_t last_method_offset = GetMethodOffset(last_method_idx);
