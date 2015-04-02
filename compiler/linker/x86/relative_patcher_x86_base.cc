@@ -20,7 +20,9 @@ namespace art {
 namespace linker {
 
 uint32_t X86BaseRelativePatcher::ReserveSpace(
-    uint32_t offset, const CompiledMethod* compiled_method ATTRIBUTE_UNUSED) {
+    uint32_t offset,
+    const CompiledMethod* compiled_method ATTRIBUTE_UNUSED,
+    MethodReference method_ref ATTRIBUTE_UNUSED) {
   return offset;  // No space reserved; no limit on relative call distance.
 }
 

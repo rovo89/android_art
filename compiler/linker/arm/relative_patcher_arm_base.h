@@ -27,7 +27,8 @@ namespace linker {
 
 class ArmBaseRelativePatcher : public RelativePatcher {
  public:
-  uint32_t ReserveSpace(uint32_t offset, const CompiledMethod* compiled_method) OVERRIDE;
+  uint32_t ReserveSpace(uint32_t offset, const CompiledMethod* compiled_method,
+                        MethodReference method_ref) OVERRIDE;
   uint32_t WriteThunks(OutputStream* out, uint32_t offset) OVERRIDE;
 
  protected:
@@ -36,11 +37,12 @@ class ArmBaseRelativePatcher : public RelativePatcher {
                          uint32_t max_positive_displacement, uint32_t max_negative_displacement);
 
   uint32_t ReserveSpaceInternal(uint32_t offset, const CompiledMethod* compiled_method,
-                                uint32_t max_extra_space);
+                                MethodReference method_ref, uint32_t max_extra_space);
   uint32_t CalculateDisplacement(uint32_t patch_offset, uint32_t target_offset);
 
  private:
-  bool ReserveSpaceProcessPatches(uint32_t next_aligned_offset);
+  bool ReserveSpaceProcessPatches(uint32_t quick_code_offset, MethodReference method_ref,
+                                  uint32_t next_aligned_offset);
 
   RelativePatcherTargetProvider* const provider_;
   const InstructionSet instruction_set_;
@@ -53,6 +55,8 @@ class ArmBaseRelativePatcher : public RelativePatcher {
   // ReserveSpace() tracks unprocessed patches.
   typedef std::pair<MethodReference, uint32_t> UnprocessedPatch;
   std::deque<UnprocessedPatch> unprocessed_patches_;
+
+  friend class Thumb2RelativePatcherTest;
 
   DISALLOW_COPY_AND_ASSIGN(ArmBaseRelativePatcher);
 };
