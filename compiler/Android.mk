@@ -79,6 +79,13 @@ LIBART_COMPILER_SRC_FILES := \
 	driver/compiler_driver.cc \
 	driver/compiler_options.cc \
 	driver/dex_compilation_unit.cc \
+	linker/relative_patcher.cc \
+	linker/arm/relative_patcher_arm_base.cc \
+	linker/arm/relative_patcher_thumb2.cc \
+	linker/arm64/relative_patcher_arm64.cc \
+	linker/x86/relative_patcher_x86_base.cc \
+	linker/x86/relative_patcher_x86.cc \
+	linker/x86_64/relative_patcher_x86_64.cc \
 	jit/jit_compiler.cc \
 	jni/quick/arm/calling_convention_arm.cc \
 	jni/quick/arm64/calling_convention_arm64.cc \
