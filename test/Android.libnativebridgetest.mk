@@ -60,7 +60,7 @@ define build-libnativebridgetest
   else # host
     LOCAL_CLANG := $(ART_HOST_CLANG)
     LOCAL_CFLAGS := $(ART_HOST_CFLAGS) $(ART_HOST_DEBUG_CFLAGS)
-    LOCAL_STATIC_LIBRARIES := libcutils
+    LOCAL_SHARED_LIBRARIES := libcutils
     LOCAL_LDLIBS := $(ART_HOST_LDLIBS) -ldl -lpthread
     ifeq ($(HOST_OS),linux)
       LOCAL_LDLIBS += -lrt
