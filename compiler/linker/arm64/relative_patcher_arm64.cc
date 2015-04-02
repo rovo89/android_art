@@ -41,10 +41,11 @@ Arm64RelativePatcher::Arm64RelativePatcher(RelativePatcherTargetProvider* provid
 }
 
 uint32_t Arm64RelativePatcher::ReserveSpace(uint32_t offset,
-                                            const CompiledMethod* compiled_method) {
+                                            const CompiledMethod* compiled_method,
+                                            MethodReference method_ref) {
   if (!fix_cortex_a53_843419_) {
     DCHECK(adrp_thunk_locations_.empty());
-    return ReserveSpaceInternal(offset, compiled_method, 0u);
+    return ReserveSpaceInternal(offset, compiled_method, method_ref, 0u);
   }
 
   // Add thunks for previous method if any.
@@ -65,7 +66,7 @@ uint32_t Arm64RelativePatcher::ReserveSpace(uint32_t offset,
       }
     }
   }
-  offset = ReserveSpaceInternal(offset, compiled_method, kAdrpThunkSize * num_adrp);
+  offset = ReserveSpaceInternal(offset, compiled_method, method_ref, kAdrpThunkSize * num_adrp);
   if (num_adrp == 0u) {
     return offset;
   }
