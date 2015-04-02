@@ -372,7 +372,6 @@ void ArmMir2Lir::GenEntrySequence(RegLocation* ArgLocs, RegLocation rl_method) {
    * a leaf *and* our frame size < fudge factor.
    */
   bool skip_overflow_check = mir_graph_->MethodIsLeaf() && !FrameNeedsStackCheck(frame_size_, kArm);
-  NewLIR0(kPseudoMethodEntry);
   const size_t kStackOverflowReservedUsableBytes = GetStackOverflowReservedBytes(kArm);
   bool large_frame = (static_cast<size_t>(frame_size_) > kStackOverflowReservedUsableBytes);
   bool generate_explicit_stack_overflow_check = large_frame ||
@@ -507,7 +506,6 @@ void ArmMir2Lir::GenExitSequence() {
   LockTemp(rs_r0);
   LockTemp(rs_r1);
 
-  NewLIR0(kPseudoMethodExit);
   OpRegImm(kOpAdd, rs_rARM_SP, frame_size_ - (spill_count * 4));
   /* Need to restore any FP callee saves? */
   if (num_fp_spills_) {
