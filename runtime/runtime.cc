@@ -1533,21 +1533,20 @@ bool Runtime::IsTransactionAborted() const {
   }
 }
 
-void Runtime::AbortTransactionAndThrowInternalError(Thread* self,
-                                                    const std::string& abort_message) {
+void Runtime::AbortTransactionAndThrowAbortError(Thread* self, const std::string& abort_message) {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
   // Throwing an exception may cause its class initialization. If we mark the transaction
   // aborted before that, we may warn with a false alarm. Throwing the exception before
   // marking the transaction aborted avoids that.
-  preinitialization_transaction_->ThrowInternalError(self, false);
+  preinitialization_transaction_->ThrowAbortError(self, false);
   preinitialization_transaction_->Abort(abort_message);
 }
 
-void Runtime::ThrowInternalErrorForAbortedTransaction(Thread* self) {
+void Runtime::ThrowTransactionAbortError(Thread* self) {
   DCHECK(IsAotCompiler());
   DCHECK(IsActiveTransaction());
-  preinitialization_transaction_->ThrowInternalError(self, true);
+  preinitialization_transaction_->ThrowAbortError(self, true);
 }
 
 void Runtime::RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset,
