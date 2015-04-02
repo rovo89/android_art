@@ -63,6 +63,7 @@ class TaskProcessor {
   bool IsRunning() const LOCKS_EXCLUDED(lock_);
   void UpdateTargetRunTime(Thread* self, HeapTask* target_time, uint64_t new_target_time)
       LOCKS_EXCLUDED(lock_);
+  Thread* GetRunningThread() const LOCKS_EXCLUDED(lock_);
 
  private:
   class CompareByTargetRunTime {
@@ -76,6 +77,7 @@ class TaskProcessor {
   bool is_running_ GUARDED_BY(lock_);
   std::unique_ptr<ConditionVariable> cond_ GUARDED_BY(lock_);
   std::multiset<HeapTask*, CompareByTargetRunTime> tasks_ GUARDED_BY(lock_);
+  Thread* running_thread_ GUARDED_BY(lock_);
 };
 
 }  // namespace gc

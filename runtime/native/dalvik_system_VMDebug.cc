@@ -19,6 +19,9 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <sstream>
+
+#include "base/histogram-inl.h"
 #include "class_linker.h"
 #include "common_throws.h"
 #include "debugger.h"
@@ -329,6 +332,123 @@ static void VMDebug_getHeapSpaceStats(JNIEnv* env, jclass, jlongArray data) {
   env->ReleasePrimitiveArrayCritical(data, arr, 0);
 }
 
+// The runtime stat names for VMDebug.getRuntimeStat().
+enum class VMDebugRuntimeStatId {
+  kArtGcGcCount = 0,
+  kArtGcGcTime,
+  kArtGcBytesAllocated,
+  kArtGcBytesFreed,
+  kArtGcBlockingGcCount,
+  kArtGcBlockingGcTime,
+  kArtGcGcCountRateHistogram,
+  kArtGcBlockingGcCountRateHistogram,
+  kNumRuntimeStats,
+};
+
+static jobject VMDebug_getRuntimeStatInternal(JNIEnv* env, jclass, jint statId) {
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  switch (static_cast<VMDebugRuntimeStatId>(statId)) {
+    case VMDebugRuntimeStatId::kArtGcGcCount: {
+      std::string output = std::to_string(heap->GetGcCount());
+      return env->NewStringUTF(output.c_str());
+    }
+    case VMDebugRuntimeStatId::kArtGcGcTime: {
+      std::string output = std::to_string(NsToMs(heap->GetGcTime()));
+      return env->NewStringUTF(output.c_str());
+    }
+    case VMDebugRuntimeStatId::kArtGcBytesAllocated: {
+      std::string output = std::to_string(heap->GetBytesAllocatedEver());
+      return env->NewStringUTF(output.c_str());
+    }
+    case VMDebugRuntimeStatId::kArtGcBytesFreed: {
+      std::string output = std::to_string(heap->GetBytesFreedEver());
+      return env->NewStringUTF(output.c_str());
+    }
+    case VMDebugRuntimeStatId::kArtGcBlockingGcCount: {
+      std::string output = std::to_string(heap->GetBlockingGcCount());
+      return env->NewStringUTF(output.c_str());
+    }
+    case VMDebugRuntimeStatId::kArtGcBlockingGcTime: {
+      std::string output = std::to_string(NsToMs(heap->GetBlockingGcTime()));
+      return env->NewStringUTF(output.c_str());
+    }
+    case VMDebugRuntimeStatId::kArtGcGcCountRateHistogram: {
+      std::ostringstream output;
+      heap->DumpGcCountRateHistogram(output);
+      return env->NewStringUTF(output.str().c_str());
+    }
+    case VMDebugRuntimeStatId::kArtGcBlockingGcCountRateHistogram: {
+      std::ostringstream output;
+      heap->DumpBlockingGcCountRateHistogram(output);
+      return env->NewStringUTF(output.str().c_str());
+    }
+    default:
+      return nullptr;
+  }
+}
+
+static bool SetRuntimeStatValue(JNIEnv* env, jobjectArray result, VMDebugRuntimeStatId id,
+                                std::string value) {
+  ScopedLocalRef<jstring> jvalue(env, env->NewStringUTF(value.c_str()));
+  if (jvalue.get() == nullptr) {
+    return false;
+  }
+  env->SetObjectArrayElement(result, static_cast<jint>(id), jvalue.get());
+  return true;
+}
+
+static jobjectArray VMDebug_getRuntimeStatsInternal(JNIEnv* env, jclass) {
+  jobjectArray result = env->NewObjectArray(
+      static_cast<jint>(VMDebugRuntimeStatId::kNumRuntimeStats),
+      WellKnownClasses::java_lang_String,
+      nullptr);
+  if (result == nullptr) {
+    return nullptr;
+  }
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  if (!SetRuntimeStatValue(env, result, VMDebugRuntimeStatId::kArtGcGcCount,
+                           std::to_string(heap->GetGcCount()))) {
+    return nullptr;
+  }
+  if (!SetRuntimeStatValue(env, result, VMDebugRuntimeStatId::kArtGcGcTime,
+                           std::to_string(NsToMs(heap->GetGcTime())))) {
+    return nullptr;
+  }
+  if (!SetRuntimeStatValue(env, result, VMDebugRuntimeStatId::kArtGcBytesAllocated,
+                           std::to_string(heap->GetBytesAllocatedEver()))) {
+    return nullptr;
+  }
+  if (!SetRuntimeStatValue(env, result, VMDebugRuntimeStatId::kArtGcBytesFreed,
+                           std::to_string(heap->GetBytesFreedEver()))) {
+    return nullptr;
+  }
+  if (!SetRuntimeStatValue(env, result, VMDebugRuntimeStatId::kArtGcBlockingGcCount,
+                           std::to_string(heap->GetBlockingGcCount()))) {
+    return nullptr;
+  }
+  if (!SetRuntimeStatValue(env, result, VMDebugRuntimeStatId::kArtGcBlockingGcTime,
+                           std::to_string(NsToMs(heap->GetBlockingGcTime())))) {
+    return nullptr;
+  }
+  {
+    std::ostringstream output;
+    heap->DumpGcCountRateHistogram(output);
+    if (!SetRuntimeStatValue(env, result, VMDebugRuntimeStatId::kArtGcGcCountRateHistogram,
+                             output.str())) {
+      return nullptr;
+    }
+  }
+  {
+    std::ostringstream output;
+    heap->DumpBlockingGcCountRateHistogram(output);
+    if (!SetRuntimeStatValue(env, result, VMDebugRuntimeStatId::kArtGcBlockingGcCountRateHistogram,
+                             output.str())) {
+      return nullptr;
+    }
+  }
+  return result;
+}
+
 static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMDebug, countInstancesOfClass, "(Ljava/lang/Class;Z)J"),
   NATIVE_METHOD(VMDebug, crash, "()V"),
@@ -359,6 +479,8 @@ static JNINativeMethod gMethods[] = {
   NATIVE_METHOD(VMDebug, stopInstructionCounting, "()V"),
   NATIVE_METHOD(VMDebug, stopMethodTracing, "()V"),
   NATIVE_METHOD(VMDebug, threadCpuTimeNanos, "!()J"),
+  NATIVE_METHOD(VMDebug, getRuntimeStatInternal, "(I)Ljava/lang/String;"),
+  NATIVE_METHOD(VMDebug, getRuntimeStatsInternal, "()[Ljava/lang/String;")
 };
 
 void register_dalvik_system_VMDebug(JNIEnv* env) {
