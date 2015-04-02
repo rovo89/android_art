@@ -1285,18 +1285,37 @@ JDWP::JdwpError Dbg::SetArrayElements(JDWP::ObjectId array_id, int offset, int c
   return JDWP::ERR_NONE;
 }
 
-JDWP::ObjectId Dbg::CreateString(const std::string& str) {
-  return gRegistry->Add(mirror::String::AllocFromModifiedUtf8(Thread::Current(), str.c_str()));
+JDWP::JdwpError Dbg::CreateString(const std::string& str, JDWP::ObjectId* new_string_id) {
+  Thread* self = Thread::Current();
+  mirror::String* new_string = mirror::String::AllocFromModifiedUtf8(self, str.c_str());
+  if (new_string == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    self->ClearException();
+    LOG(ERROR) << "Could not allocate string";
+    *new_string_id = 0;
+    return JDWP::ERR_OUT_OF_MEMORY;
+  }
+  *new_string_id = gRegistry->Add(new_string);
+  return JDWP::ERR_NONE;
 }
 
-JDWP::JdwpError Dbg::CreateObject(JDWP::RefTypeId class_id, JDWP::ObjectId* new_object) {
+JDWP::JdwpError Dbg::CreateObject(JDWP::RefTypeId class_id, JDWP::ObjectId* new_object_id) {
   JDWP::JdwpError error;
   mirror::Class* c = DecodeClass(class_id, &error);
   if (c == nullptr) {
-    *new_object = 0;
+    *new_object_id = 0;
     return error;
   }
-  *new_object = gRegistry->Add(c->AllocObject(Thread::Current()));
+  Thread* self = Thread::Current();
+  mirror::Object* new_object = c->AllocObject(self);
+  if (new_object == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    self->ClearException();
+    LOG(ERROR) << "Could not allocate object of type " << PrettyDescriptor(c);
+    *new_object_id = 0;
+    return JDWP::ERR_OUT_OF_MEMORY;
+  }
+  *new_object_id = gRegistry->Add(new_object);
   return JDWP::ERR_NONE;
 }
 
@@ -1304,16 +1323,26 @@ JDWP::JdwpError Dbg::CreateObject(JDWP::RefTypeId class_id, JDWP::ObjectId* new_
  * Used by Eclipse's "Display" view to evaluate "new byte[5]" to get "(byte[]) [0, 0, 0, 0, 0]".
  */
 JDWP::JdwpError Dbg::CreateArrayObject(JDWP::RefTypeId array_class_id, uint32_t length,
-                                       JDWP::ObjectId* new_array) {
+                                       JDWP::ObjectId* new_array_id) {
   JDWP::JdwpError error;
   mirror::Class* c = DecodeClass(array_class_id, &error);
   if (c == nullptr) {
-    *new_array = 0;
+    *new_array_id = 0;
     return error;
   }
-  *new_array = gRegistry->Add(mirror::Array::Alloc<true>(Thread::Current(), c, length,
-                                                         c->GetComponentSizeShift(),
-                                                         Runtime::Current()->GetHeap()->GetCurrentAllocator()));
+  Thread* self = Thread::Current();
+  gc::Heap* heap = Runtime::Current()->GetHeap();
+  mirror::Array* new_array = mirror::Array::Alloc<true>(self, c, length,
+                                                        c->GetComponentSizeShift(),
+                                                        heap->GetCurrentAllocator());
+  if (new_array == nullptr) {
+    DCHECK(self->IsExceptionPending());
+    self->ClearException();
+    LOG(ERROR) << "Could not allocate array of type " << PrettyDescriptor(c);
+    *new_array_id = 0;
+    return JDWP::ERR_OUT_OF_MEMORY;
+  }
+  *new_array_id = gRegistry->Add(new_array);
   return JDWP::ERR_NONE;
 }
 
