@@ -81,6 +81,7 @@ class StackOverflowHandler;
 class SuspensionHandler;
 class ThreadList;
 class Trace;
+struct TraceConfig;
 class Transaction;
 
 typedef std::vector<std::pair<std::string, const void*>> RuntimeOptions;
@@ -675,9 +676,8 @@ class Runtime {
   ProfilerOptions profiler_options_;
   bool profiler_started_;
 
-  bool method_trace_;
-  std::string method_trace_file_;
-  size_t method_trace_file_size_;
+  std::unique_ptr<TraceConfig> trace_config_;
+
   instrumentation::Instrumentation instrumentation_;
 
   jobject main_thread_group_;
