@@ -1011,7 +1011,7 @@ class BCEVisitor : public HGraphVisitor {
         HDeoptimize(cond, bounds_check->GetDexPc());
     block->InsertInstructionBefore(cond, bounds_check);
     block->InsertInstructionBefore(deoptimize, bounds_check);
-    deoptimize->SetEnvironment(bounds_check->GetEnvironment());
+    deoptimize->CopyEnvironmentFrom(bounds_check->GetEnvironment());
   }
 
   void AddComparesWithDeoptimization(HBasicBlock* block) {
