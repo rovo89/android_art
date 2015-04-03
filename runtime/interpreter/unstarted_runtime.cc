@@ -44,14 +44,21 @@ namespace art {
 namespace interpreter {
 
 static void AbortTransactionOrFail(Thread* self, const char* fmt, ...)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    __attribute__((__format__(__printf__, 2, 3)))
+    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+static void AbortTransactionOrFail(Thread* self, const char* fmt, ...) {
   va_list args;
-  va_start(args, fmt);
   if (Runtime::Current()->IsActiveTransaction()) {
-    AbortTransaction(self, fmt, args);
+    va_start(args, fmt);
+    AbortTransactionV(self, fmt, args);
     va_end(args);
   } else {
-    LOG(FATAL) << "Trying to abort, but not in transaction mode: " << StringPrintf(fmt, args);
+    va_start(args, fmt);
+    std::string msg;
+    StringAppendV(&msg, fmt, args);
+    va_end(args);
+    LOG(FATAL) << "Trying to abort, but not in transaction mode: " << msg;
     UNREACHABLE();
   }
 }
@@ -159,8 +166,8 @@ static void UnstartedClassNewInstance(
   // If we're in a transaction, class must not be finalizable (it or a superclass has a finalizer).
   if (Runtime::Current()->IsActiveTransaction()) {
     if (h_klass.Get()->IsFinalizable()) {
-      AbortTransaction(self, "Class for newInstance is finalizable: '%s'",
-                       PrettyClass(h_klass.Get()).c_str());
+      AbortTransactionF(self, "Class for newInstance is finalizable: '%s'",
+                        PrettyClass(h_klass.Get()).c_str());
       return;
     }
   }
@@ -1020,8 +1027,8 @@ void UnstartedRuntimeJni(Thread* self, mirror::ArtMethod* method, mirror::Object
   if (iter != jni_handlers_.end()) {
     (*iter->second)(self, method, receiver, args, result);
   } else if (Runtime::Current()->IsActiveTransaction()) {
-    AbortTransaction(self, "Attempt to invoke native method in non-started runtime: %s",
-                     name.c_str());
+    AbortTransactionF(self, "Attempt to invoke native method in non-started runtime: %s",
+                      name.c_str());
   } else {
     LOG(FATAL) << "Calling native method " << PrettyMethod(method) << " in an unstarted "
         "non-transactional runtime";
