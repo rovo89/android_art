@@ -76,11 +76,7 @@ void Transaction::ThrowAbortError(Thread* self, bool rethrow) {
                        << " while transaction is not aborted";
   }
   std::string abort_msg(GetAbortMessage());
-  // Temporary workaround for b/20019689.
-  if (self->IsExceptionPending()) {
-    self->ClearException();
-  }
-  self->ThrowNewException(Transaction::kAbortExceptionSignature, abort_msg.c_str());
+  self->ThrowNewWrappedException(Transaction::kAbortExceptionSignature, abort_msg.c_str());
 }
 
 bool Transaction::IsAborted() {
