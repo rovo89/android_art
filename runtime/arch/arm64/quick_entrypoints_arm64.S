@@ -32,7 +32,7 @@
 
     // xIP0 = (ArtMethod*) Runtime.instance_.callee_save_methods[kRefAndArgs]  .
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ldr xIP0, [xIP0, RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET ]
+    ldr wIP0, [xIP0, RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET ]
 
     sub sp, sp, #176
     .cfi_adjust_cfa_offset 176
@@ -97,7 +97,7 @@
 
     // xIP0 = (ArtMethod*) Runtime.instance_.callee_save_methods[kRefAndArgs]  .
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ldr xIP0, [xIP0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET ]
+    ldr wIP0, [xIP0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET ]
 
     sub sp, sp, #96
     .cfi_adjust_cfa_offset 96
@@ -266,7 +266,7 @@
 
     // xIP0 = (ArtMethod*) Runtime.instance_.callee_save_methods[kRefAndArgs]  .
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ldr xIP0, [xIP0, RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET ]
+    ldr wIP0, [xIP0, RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET ]
 
     SETUP_REFS_AND_ARGS_CALLEE_SAVE_FRAME_INTERNAL
 

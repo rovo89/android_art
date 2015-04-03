@@ -225,9 +225,9 @@ class MethodVerifier {
   // Describe VRegs at the given dex pc.
   std::vector<int32_t> DescribeVRegs(uint32_t dex_pc);
 
-  static void VisitStaticRoots(RootCallback* callback, void* arg)
+  static void VisitStaticRoots(RootVisitor* visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& roots)
+  void VisitRoots(RootVisitor* visitor, const RootInfo& roots)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Accessors used by the compiler via CompilerCallback

@@ -242,16 +242,10 @@ void IndirectReferenceTable::Trim() {
   madvise(release_start, release_end - release_start, MADV_DONTNEED);
 }
 
-void IndirectReferenceTable::VisitRoots(RootCallback* callback, void* arg,
-                                        const RootInfo& root_info) {
+void IndirectReferenceTable::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) {
+  BufferedRootVisitor<128> root_visitor(visitor, root_info);
   for (auto ref : *this) {
-    if (*ref == nullptr) {
-      // Need to skip null entries to make it possible to do the
-      // non-null check after the call back.
-      continue;
-    }
-    callback(ref, arg, root_info);
-    DCHECK(*ref != nullptr);
+    root_visitor.VisitRootIfNonNull(*ref);
   }
 }
 

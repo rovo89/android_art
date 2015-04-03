@@ -89,7 +89,7 @@ class MANAGED Field : public AccessibleObject {
 
   static void ResetArrayClass() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void VisitRoots(RootCallback* callback, void* arg)
+  static void VisitRoots(RootVisitor* visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Slow, try to use only for PrettyField and such.

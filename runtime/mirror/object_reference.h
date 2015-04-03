@@ -43,6 +43,11 @@ class MANAGED ObjectReference {
 
   void Clear() {
     reference_ = 0;
+    DCHECK(IsNull());
+  }
+
+  bool IsNull() const {
+    return reference_ == 0;
   }
 
   uint32_t AsVRegValue() const {
@@ -84,6 +89,23 @@ class MANAGED HeapReference : public ObjectReference<kPoisonHeapReferences, Mirr
  private:
   HeapReference<MirrorType>(MirrorType* mirror_ptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
       : ObjectReference<kPoisonHeapReferences, MirrorType>(mirror_ptr) {}
+};
+
+// Standard compressed reference used in the runtime. Used for StackRefernce and GC roots.
+template<class MirrorType>
+class MANAGED CompressedReference : public mirror::ObjectReference<false, MirrorType> {
+ public:
+  CompressedReference<MirrorType>() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : mirror::ObjectReference<false, MirrorType>(nullptr) {}
+
+  static CompressedReference<MirrorType> FromMirrorPtr(MirrorType* p)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    return CompressedReference<MirrorType>(p);
+  }
+
+ private:
+  CompressedReference<MirrorType>(MirrorType* p) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      : mirror::ObjectReference<false, MirrorType>(p) {}
 };
 
 }  // namespace mirror

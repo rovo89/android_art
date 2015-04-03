@@ -485,7 +485,7 @@ class Thread {
       jobjectArray output_array = nullptr, int* stack_depth = nullptr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void VisitRoots(RootCallback* visitor, void* arg) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VisitRoots(RootVisitor* visitor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   ALWAYS_INLINE void VerifyStack() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
@@ -686,7 +686,7 @@ class Thread {
   // Is the given obj in this thread's stack indirect reference table?
   bool HandleScopeContains(jobject obj) const;
 
-  void HandleScopeVisitRoots(RootCallback* visitor, void* arg, uint32_t thread_id)
+  void HandleScopeVisitRoots(RootVisitor* visitor, uint32_t thread_id)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   HandleScope* GetTopHandleScope() {

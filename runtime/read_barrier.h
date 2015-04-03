@@ -20,6 +20,7 @@
 #include "base/mutex.h"
 #include "base/macros.h"
 #include "jni.h"
+#include "mirror/object_reference.h"
 #include "offsets.h"
 #include "read_barrier_c.h"
 
@@ -56,6 +57,13 @@ class ReadBarrier {
   template <typename MirrorType, ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
             bool kMaybeDuringStartup = false>
   ALWAYS_INLINE static MirrorType* BarrierForRoot(MirrorType** root)
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+
+  // It's up to the implementation whether the given root gets updated
+  // whereas the return value must be an updated reference.
+  template <typename MirrorType, ReadBarrierOption kReadBarrierOption = kWithReadBarrier,
+            bool kMaybeDuringStartup = false>
+  ALWAYS_INLINE static MirrorType* BarrierForRoot(mirror::CompressedReference<MirrorType>* root)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   static bool IsDuringStartup();

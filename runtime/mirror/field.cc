@@ -48,9 +48,9 @@ void Field::ResetArrayClass() {
   array_class_ = GcRoot<Class>(nullptr);
 }
 
-void Field::VisitRoots(RootCallback* callback, void* arg) {
-  static_class_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
-  array_class_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
+void Field::VisitRoots(RootVisitor* visitor) {
+  static_class_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
+  array_class_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
 ArtField* Field::GetArtField() {

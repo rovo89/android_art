@@ -166,8 +166,7 @@ class MANAGED PrimitiveArray : public Array {
     array_class_ = GcRoot<Class>(nullptr);
   }
 
-  static void VisitRoots(RootCallback* callback, void* arg)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  static void VisitRoots(RootVisitor* visitor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   static GcRoot<Class> array_class_;

@@ -16,6 +16,9 @@
 
 #include "reference.h"
 
+#include "mirror/art_method.h"
+#include "gc_root-inl.h"
+
 namespace art {
 namespace mirror {
 
@@ -32,8 +35,8 @@ void Reference::ResetClass() {
   java_lang_ref_Reference_ = GcRoot<Class>(nullptr);
 }
 
-void Reference::VisitRoots(RootCallback* callback, void* arg) {
-  java_lang_ref_Reference_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
+void Reference::VisitRoots(RootVisitor* visitor) {
+  java_lang_ref_Reference_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
 }  // namespace mirror

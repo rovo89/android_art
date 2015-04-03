@@ -61,8 +61,8 @@ ArtMethod* ArtMethod::FromReflectedMethod(const ScopedObjectAccessAlreadyRunnabl
 }
 
 
-void ArtMethod::VisitRoots(RootCallback* callback, void* arg) {
-  java_lang_reflect_ArtMethod_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
+void ArtMethod::VisitRoots(RootVisitor* visitor) {
+  java_lang_reflect_ArtMethod_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
 mirror::String* ArtMethod::GetNameAsString(Thread* self) {

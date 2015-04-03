@@ -462,42 +462,66 @@ inline void MarkSweep::MarkObject(Object* obj) {
   }
 }
 
-void MarkSweep::MarkRootParallelCallback(Object** root, void* arg, const RootInfo& /*root_info*/) {
-  reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNullParallel(*root);
+class VerifyRootMarkedVisitor : public SingleRootVisitor {
+ public:
+  explicit VerifyRootMarkedVisitor(MarkSweep* collector) : collector_(collector) { }
+
+  void VisitRoot(mirror::Object* root, const RootInfo& info) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+    CHECK(collector_->IsMarked(root)) << info.ToString();
+  }
+
+ private:
+  MarkSweep* const collector_;
+};
+
+void MarkSweep::VisitRoots(mirror::Object*** roots, size_t count,
+                           const RootInfo& info ATTRIBUTE_UNUSED) {
+  for (size_t i = 0; i < count; ++i) {
+    MarkObjectNonNull(*roots[i]);
+  }
 }
 
-void MarkSweep::VerifyRootMarked(Object** root, void* arg, const RootInfo& /*root_info*/) {
-  CHECK(reinterpret_cast<MarkSweep*>(arg)->IsMarked(*root));
+void MarkSweep::VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
+                           const RootInfo& info ATTRIBUTE_UNUSED) {
+  for (size_t i = 0; i < count; ++i) {
+    MarkObjectNonNull(roots[i]->AsMirrorPtr());
+  }
 }
 
-void MarkSweep::MarkRootCallback(Object** root, void* arg, const RootInfo& /*root_info*/) {
-  reinterpret_cast<MarkSweep*>(arg)->MarkObjectNonNull(*root);
-}
+class VerifyRootVisitor : public SingleRootVisitor {
+ public:
+  explicit VerifyRootVisitor(MarkSweep* collector) : collector_(collector) { }
 
-void MarkSweep::VerifyRootCallback(Object** root, void* arg, const RootInfo& root_info) {
-  reinterpret_cast<MarkSweep*>(arg)->VerifyRoot(*root, root_info);
-}
+  void VisitRoot(mirror::Object* root, const RootInfo& info) OVERRIDE
+      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
+    collector_->VerifyRoot(root, info);
+  }
+
+ private:
+  MarkSweep* const collector_;
+};
 
 void MarkSweep::VerifyRoot(const Object* root, const RootInfo& root_info) {
   // See if the root is on any space bitmap.
   if (heap_->GetLiveBitmap()->GetContinuousSpaceBitmap(root) == nullptr) {
     space::LargeObjectSpace* large_object_space = GetHeap()->GetLargeObjectsSpace();
     if (large_object_space != nullptr && !large_object_space->Contains(root)) {
-      LOG(ERROR) << "Found invalid root: " << root << " ";
-      root_info.Describe(LOG(ERROR));
+      LOG(ERROR) << "Found invalid root: " << root << " " << root_info;
     }
   }
 }
 
 void MarkSweep::VerifyRoots() {
-  Runtime::Current()->GetThreadList()->VisitRoots(VerifyRootCallback, this);
+  VerifyRootVisitor visitor(this);
+  Runtime::Current()->GetThreadList()->VisitRoots(&visitor);
 }
 
 void MarkSweep::MarkRoots(Thread* self) {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   if (Locks::mutator_lock_->IsExclusiveHeld(self)) {
     // If we exclusively hold the mutator lock, all threads must be suspended.
-    Runtime::Current()->VisitRoots(MarkRootCallback, this);
+    Runtime::Current()->VisitRoots(this);
     RevokeAllThreadLocalAllocationStacks(self);
   } else {
     MarkRootsCheckpoint(self, kRevokeRosAllocThreadLocalBuffersAtCheckpoint);
@@ -510,13 +534,13 @@ void MarkSweep::MarkRoots(Thread* self) {
 
 void MarkSweep::MarkNonThreadRoots() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
-  Runtime::Current()->VisitNonThreadRoots(MarkRootCallback, this);
+  Runtime::Current()->VisitNonThreadRoots(this);
 }
 
 void MarkSweep::MarkConcurrentRoots(VisitRootFlags flags) {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   // Visit all runtime roots and clear dirty flags.
-  Runtime::Current()->VisitConcurrentRoots(MarkRootCallback, this, flags);
+  Runtime::Current()->VisitConcurrentRoots(this, flags);
 }
 
 class ScanObjectVisitor {
@@ -932,13 +956,12 @@ void MarkSweep::RecursiveMarkDirtyObjects(bool paused, uint8_t minimum_age) {
 void MarkSweep::ReMarkRoots() {
   TimingLogger::ScopedTiming t(__FUNCTION__, GetTimings());
   Locks::mutator_lock_->AssertExclusiveHeld(Thread::Current());
-  Runtime::Current()->VisitRoots(
-      MarkRootCallback, this, static_cast<VisitRootFlags>(kVisitRootFlagNewRoots |
-                                                          kVisitRootFlagStopLoggingNewRoots |
-                                                          kVisitRootFlagClearRootLog));
+  Runtime::Current()->VisitRoots(this, static_cast<VisitRootFlags>(
+      kVisitRootFlagNewRoots | kVisitRootFlagStopLoggingNewRoots | kVisitRootFlagClearRootLog));
   if (kVerifyRootsMarked) {
     TimingLogger::ScopedTiming t2("(Paused)VerifyRoots", GetTimings());
-    Runtime::Current()->VisitRoots(VerifyRootMarked, this);
+    VerifyRootMarkedVisitor visitor(this);
+    Runtime::Current()->VisitRoots(&visitor);
   }
 }
 
@@ -968,7 +991,7 @@ void MarkSweep::VerifySystemWeaks() {
   Runtime::Current()->SweepSystemWeaks(VerifySystemWeakIsLiveCallback, this);
 }
 
-class CheckpointMarkThreadRoots : public Closure {
+class CheckpointMarkThreadRoots : public Closure, public RootVisitor {
  public:
   explicit CheckpointMarkThreadRoots(MarkSweep* mark_sweep,
                                      bool revoke_ros_alloc_thread_local_buffers_at_checkpoint)
@@ -977,13 +1000,30 @@ class CheckpointMarkThreadRoots : public Closure {
             revoke_ros_alloc_thread_local_buffers_at_checkpoint) {
   }
 
+  void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED)
+      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    for (size_t i = 0; i < count; ++i) {
+      mark_sweep_->MarkObjectNonNullParallel(*roots[i]);
+    }
+  }
+
+  void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
+                  const RootInfo& info ATTRIBUTE_UNUSED)
+      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_) {
+    for (size_t i = 0; i < count; ++i) {
+      mark_sweep_->MarkObjectNonNullParallel(roots[i]->AsMirrorPtr());
+    }
+  }
+
   virtual void Run(Thread* thread) OVERRIDE NO_THREAD_SAFETY_ANALYSIS {
     ATRACE_BEGIN("Marking thread roots");
     // Note: self is not necessarily equal to thread since thread may be suspended.
-    Thread* self = Thread::Current();
+    Thread* const self = Thread::Current();
     CHECK(thread == self || thread->IsSuspended() || thread->GetState() == kWaitingPerformingGc)
         << thread->GetState() << " thread " << thread << " self " << self;
-    thread->VisitRoots(MarkSweep::MarkRootParallelCallback, mark_sweep_);
+    thread->VisitRoots(this);
     ATRACE_END();
     if (revoke_ros_alloc_thread_local_buffers_at_checkpoint_) {
       ATRACE_BEGIN("RevokeRosAllocThreadLocalBuffers");

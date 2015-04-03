@@ -1077,13 +1077,14 @@ void Instrumentation::PopMethodForUnwind(Thread* self, bool is_deoptimization) c
   }
 }
 
-void Instrumentation::VisitRoots(RootCallback* callback, void* arg) {
+void Instrumentation::VisitRoots(RootVisitor* visitor) {
   WriterMutexLock mu(Thread::Current(), deoptimized_methods_lock_);
   if (IsDeoptimizedMethodsEmpty()) {
     return;
   }
+  BufferedRootVisitor<128> roots(visitor, RootInfo(kRootVMInternal));
   for (auto pair : deoptimized_methods_) {
-    pair.second.VisitRoot(callback, arg, RootInfo(kRootVMInternal));
+    roots.VisitRoot(pair.second);
   }
 }
 

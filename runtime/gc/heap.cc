@@ -2395,13 +2395,21 @@ void Heap::FinishGC(Thread* self, collector::GcType gc_type) {
   gc_complete_cond_->Broadcast(self);
 }
 
-static void RootMatchesObjectVisitor(mirror::Object** root, void* arg,
-                                     const RootInfo& /*root_info*/) {
-  mirror::Object* obj = reinterpret_cast<mirror::Object*>(arg);
-  if (*root == obj) {
-    LOG(INFO) << "Object " << obj << " is a root";
+class RootMatchesObjectVisitor : public SingleRootVisitor {
+ public:
+  explicit RootMatchesObjectVisitor(const mirror::Object* obj) : obj_(obj) { }
+
+  void VisitRoot(mirror::Object* root, const RootInfo& info)
+      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    if (root == obj_) {
+      LOG(INFO) << "Object " << obj_ << " is a root " << info.ToString();
+    }
   }
-}
+
+ private:
+  const mirror::Object* const obj_;
+};
+
 
 class ScanVisitor {
  public:
@@ -2411,7 +2419,7 @@ class ScanVisitor {
 };
 
 // Verify a reference from an object.
-class VerifyReferenceVisitor {
+class VerifyReferenceVisitor : public SingleRootVisitor {
  public:
   explicit VerifyReferenceVisitor(Heap* heap, Atomic<size_t>* fail_count, bool verify_referent)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_)
@@ -2438,11 +2446,12 @@ class VerifyReferenceVisitor {
     return heap_->IsLiveObjectLocked(obj, true, false, true);
   }
 
-  static void VerifyRootCallback(mirror::Object** root, void* arg, const RootInfo& root_info)
+  void VisitRoot(mirror::Object* root, const RootInfo& root_info) OVERRIDE
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    VerifyReferenceVisitor* visitor = reinterpret_cast<VerifyReferenceVisitor*>(arg);
-    if (!visitor->VerifyReference(nullptr, *root, MemberOffset(0))) {
-      LOG(ERROR) << "Root " << *root << " is dead with type " << PrettyTypeOf(*root)
+    if (root == nullptr) {
+      LOG(ERROR) << "Root is null with info " << root_info.GetType();
+    } else if (!VerifyReference(nullptr, root, MemberOffset(0))) {
+      LOG(ERROR) << "Root " << root << " is dead with type " << PrettyTypeOf(root)
           << " thread_id= " << root_info.GetThreadId() << " root_type= " << root_info.GetType();
     }
   }
@@ -2534,12 +2543,11 @@ class VerifyReferenceVisitor {
       }
 
       // Search to see if any of the roots reference our object.
-      void* arg = const_cast<void*>(reinterpret_cast<const void*>(obj));
-      Runtime::Current()->VisitRoots(&RootMatchesObjectVisitor, arg);
-
+      RootMatchesObjectVisitor visitor1(obj);
+      Runtime::Current()->VisitRoots(&visitor1);
       // Search to see if any of the roots reference our reference.
-      arg = const_cast<void*>(reinterpret_cast<const void*>(ref));
-      Runtime::Current()->VisitRoots(&RootMatchesObjectVisitor, arg);
+      RootMatchesObjectVisitor visitor2(ref);
+      Runtime::Current()->VisitRoots(&visitor2);
     }
     return false;
   }
@@ -2569,6 +2577,13 @@ class VerifyObjectVisitor {
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_) {
     VerifyObjectVisitor* visitor = reinterpret_cast<VerifyObjectVisitor*>(arg);
     visitor->operator()(obj);
+  }
+
+  void VerifyRoots() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_)
+      LOCKS_EXCLUDED(Locks::heap_bitmap_lock_) {
+    ReaderMutexLock mu(Thread::Current(), *Locks::heap_bitmap_lock_);
+    VerifyReferenceVisitor visitor(heap_, fail_count_, verify_referent_);
+    Runtime::Current()->VisitRoots(&visitor);
   }
 
   size_t GetFailureCount() const {
@@ -2637,7 +2652,7 @@ size_t Heap::VerifyHeapReferences(bool verify_referents) {
   // pointing to dead objects if they are not reachable.
   VisitObjectsPaused(VerifyObjectVisitor::VisitCallback, &visitor);
   // Verify the roots:
-  Runtime::Current()->VisitRoots(VerifyReferenceVisitor::VerifyRootCallback, &visitor);
+  visitor.VerifyRoots();
   if (visitor.GetFailureCount() > 0) {
     // Dump mod-union tables.
     for (const auto& table_pair : mod_union_tables_) {

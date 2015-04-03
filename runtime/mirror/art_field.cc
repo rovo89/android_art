@@ -55,8 +55,8 @@ void ArtField::SetOffset(MemberOffset num_bytes) {
   SetField32<false>(OFFSET_OF_OBJECT_MEMBER(ArtField, offset_), num_bytes.Uint32Value());
 }
 
-void ArtField::VisitRoots(RootCallback* callback, void* arg) {
-  java_lang_reflect_ArtField_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
+void ArtField::VisitRoots(RootVisitor* visitor) {
+  java_lang_reflect_ArtField_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
 // TODO: we could speed up the search if fields are ordered by offsets.
