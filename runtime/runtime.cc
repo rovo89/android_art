@@ -1646,6 +1646,10 @@ void Runtime::UpdateProfilerState(int state) {
 
 void Runtime::CreateJit() {
   CHECK(!IsAotCompiler());
+  if (GetInstrumentation()->IsForcedInterpretOnly()) {
+    // Don't create JIT if forced interpret only.
+    return;
+  }
   std::string error_msg;
   jit_.reset(jit::Jit::Create(jit_options_.get(), &error_msg));
   if (jit_.get() != nullptr) {
