@@ -457,6 +457,7 @@ class X86Assembler FINAL : public Assembler {
 
   X86Assembler* lock();
   void cmpxchgl(const Address& address, Register reg);
+  void cmpxchg8b(const Address& address);
 
   void mfence();
 
@@ -474,6 +475,10 @@ class X86Assembler FINAL : public Assembler {
 
   void LockCmpxchgl(const Address& address, Register reg) {
     lock()->cmpxchgl(address, reg);
+  }
+
+  void LockCmpxchg8b(const Address& address) {
+    lock()->cmpxchg8b(address);
   }
 
   //

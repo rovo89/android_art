@@ -539,6 +539,56 @@ TEST_F(AssemblerX86_64Test, Xchgl) {
   // DriverStr(Repeatrr(&x86_64::X86_64Assembler::xchgl, "xchgl %{reg2}, %{reg1}"), "xchgl");
 }
 
+TEST_F(AssemblerX86_64Test, LockCmpxchgl) {
+  GetAssembler()->LockCmpxchgl(x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12),
+      x86_64::CpuRegister(x86_64::RSI));
+  GetAssembler()->LockCmpxchgl(x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12),
+      x86_64::CpuRegister(x86_64::RSI));
+  GetAssembler()->LockCmpxchgl(x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12),
+      x86_64::CpuRegister(x86_64::R8));
+  GetAssembler()->LockCmpxchgl(x86_64::Address(
+      x86_64::CpuRegister(x86_64::R13), 0), x86_64::CpuRegister(x86_64::RSI));
+  GetAssembler()->LockCmpxchgl(x86_64::Address(
+      x86_64::CpuRegister(x86_64::R13), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_1, 0),
+      x86_64::CpuRegister(x86_64::RSI));
+  const char* expected =
+    "lock cmpxchgl %ESI, 0xc(%RDI,%RBX,4)\n"
+    "lock cmpxchgl %ESI, 0xc(%RDI,%R9,4)\n"
+    "lock cmpxchgl %R8d, 0xc(%RDI,%R9,4)\n"
+    "lock cmpxchgl %ESI, (%R13)\n"
+    "lock cmpxchgl %ESI, (%R13,%R9,1)\n";
+
+  DriverStr(expected, "lock_cmpxchgl");
+}
+
+TEST_F(AssemblerX86_64Test, LockCmpxchgq) {
+  GetAssembler()->LockCmpxchgq(x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12),
+      x86_64::CpuRegister(x86_64::RSI));
+  GetAssembler()->LockCmpxchgq(x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12),
+      x86_64::CpuRegister(x86_64::RSI));
+  GetAssembler()->LockCmpxchgq(x86_64::Address(
+      x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_4, 12),
+      x86_64::CpuRegister(x86_64::R8));
+  GetAssembler()->LockCmpxchgq(x86_64::Address(
+      x86_64::CpuRegister(x86_64::R13), 0), x86_64::CpuRegister(x86_64::RSI));
+  GetAssembler()->LockCmpxchgq(x86_64::Address(
+      x86_64::CpuRegister(x86_64::R13), x86_64::CpuRegister(x86_64::R9), x86_64::TIMES_1, 0),
+      x86_64::CpuRegister(x86_64::RSI));
+  const char* expected =
+    "lock cmpxchg %RSI, 0xc(%RDI,%RBX,4)\n"
+    "lock cmpxchg %RSI, 0xc(%RDI,%R9,4)\n"
+    "lock cmpxchg %R8, 0xc(%RDI,%R9,4)\n"
+    "lock cmpxchg %RSI, (%R13)\n"
+    "lock cmpxchg %RSI, (%R13,%R9,1)\n";
+
+  DriverStr(expected, "lock_cmpxchg");
+}
+
 TEST_F(AssemblerX86_64Test, Movl) {
   GetAssembler()->movl(x86_64::CpuRegister(x86_64::RAX), x86_64::Address(
       x86_64::CpuRegister(x86_64::RDI), x86_64::CpuRegister(x86_64::RBX), x86_64::TIMES_4, 12));

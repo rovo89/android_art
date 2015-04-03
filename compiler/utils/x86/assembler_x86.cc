@@ -1467,6 +1467,15 @@ void X86Assembler::cmpxchgl(const Address& address, Register reg) {
   EmitOperand(reg, address);
 }
 
+
+void X86Assembler::cmpxchg8b(const Address& address) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x0F);
+  EmitUint8(0xC7);
+  EmitOperand(1, address);
+}
+
+
 void X86Assembler::mfence() {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0x0F);

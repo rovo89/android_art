@@ -1202,6 +1202,175 @@ void IntrinsicCodeGeneratorX86_64::VisitUnsafePutLongVolatile(HInvoke* invoke) {
   GenUnsafePut(invoke->GetLocations(), Primitive::kPrimLong, true, codegen_);
 }
 
+static void CreateIntIntIntIntIntToInt(ArenaAllocator* arena, Primitive::Type type,
+                                       HInvoke* invoke) {
+  LocationSummary* locations = new (arena) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::NoLocation());        // Unused receiver.
+  locations->SetInAt(1, Location::RequiresRegister());
+  locations->SetInAt(2, Location::RequiresRegister());
+  // expected value must be in EAX/RAX.
+  locations->SetInAt(3, Location::RegisterLocation(RAX));
+  locations->SetInAt(4, Location::RequiresRegister());
+
+  locations->SetOut(Location::RequiresRegister());
+  if (type == Primitive::kPrimNot) {
+    // Need temp registers for card-marking.
+    locations->AddTemp(Location::RequiresRegister());
+    locations->AddTemp(Location::RequiresRegister());
+  }
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitUnsafeCASInt(HInvoke* invoke) {
+  CreateIntIntIntIntIntToInt(arena_, Primitive::kPrimInt, invoke);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitUnsafeCASLong(HInvoke* invoke) {
+  CreateIntIntIntIntIntToInt(arena_, Primitive::kPrimLong, invoke);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitUnsafeCASObject(HInvoke* invoke) {
+  CreateIntIntIntIntIntToInt(arena_, Primitive::kPrimNot, invoke);
+}
+
+static void GenCAS(Primitive::Type type, HInvoke* invoke, CodeGeneratorX86_64* codegen) {
+  X86_64Assembler* assembler =
+    reinterpret_cast<X86_64Assembler*>(codegen->GetAssembler());
+  LocationSummary* locations = invoke->GetLocations();
+
+  CpuRegister base = locations->InAt(1).AsRegister<CpuRegister>();
+  CpuRegister offset = locations->InAt(2).AsRegister<CpuRegister>();
+  CpuRegister expected = locations->InAt(3).AsRegister<CpuRegister>();
+  DCHECK_EQ(expected.AsRegister(), RAX);
+  CpuRegister value = locations->InAt(4).AsRegister<CpuRegister>();
+  CpuRegister out = locations->Out().AsRegister<CpuRegister>();
+
+  if (type == Primitive::kPrimLong) {
+    __ LockCmpxchgq(Address(base, offset, TIMES_1, 0), value);
+  } else {
+    // Integer or object.
+    if (type == Primitive::kPrimNot) {
+      // Mark card for object assuming new value is stored.
+      codegen->MarkGCCard(locations->GetTemp(0).AsRegister<CpuRegister>(),
+                          locations->GetTemp(1).AsRegister<CpuRegister>(),
+                          base,
+                          value);
+    }
+
+    __ LockCmpxchgl(Address(base, offset, TIMES_1, 0), value);
+  }
+
+  // locked cmpxchg has full barrier semantics, and we don't need scheduling
+  // barriers at this time.
+
+  // Convert ZF into the boolean result.
+  __ setcc(kZero, out);
+  __ movzxb(out, out);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitUnsafeCASInt(HInvoke* invoke) {
+  GenCAS(Primitive::kPrimInt, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitUnsafeCASLong(HInvoke* invoke) {
+  GenCAS(Primitive::kPrimLong, invoke, codegen_);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitUnsafeCASObject(HInvoke* invoke) {
+  GenCAS(Primitive::kPrimNot, invoke, codegen_);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitIntegerReverse(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::SameAsFirstInput());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+static void SwapBits(CpuRegister reg, CpuRegister temp, int32_t shift, int32_t mask,
+                     X86_64Assembler* assembler) {
+  Immediate imm_shift(shift);
+  Immediate imm_mask(mask);
+  __ movl(temp, reg);
+  __ shrl(reg, imm_shift);
+  __ andl(temp, imm_mask);
+  __ andl(reg, imm_mask);
+  __ shll(temp, imm_shift);
+  __ orl(reg, temp);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitIntegerReverse(HInvoke* invoke) {
+  X86_64Assembler* assembler =
+    reinterpret_cast<X86_64Assembler*>(codegen_->GetAssembler());
+  LocationSummary* locations = invoke->GetLocations();
+
+  CpuRegister reg = locations->InAt(0).AsRegister<CpuRegister>();
+  CpuRegister temp = locations->GetTemp(0).AsRegister<CpuRegister>();
+
+  /*
+   * Use one bswap instruction to reverse byte order first and then use 3 rounds of
+   * swapping bits to reverse bits in a number x. Using bswap to save instructions
+   * compared to generic luni implementation which has 5 rounds of swapping bits.
+   * x = bswap x
+   * x = (x & 0x55555555) << 1 | (x >> 1) & 0x55555555;
+   * x = (x & 0x33333333) << 2 | (x >> 2) & 0x33333333;
+   * x = (x & 0x0F0F0F0F) << 4 | (x >> 4) & 0x0F0F0F0F;
+   */
+  __ bswapl(reg);
+  SwapBits(reg, temp, 1, 0x55555555, assembler);
+  SwapBits(reg, temp, 2, 0x33333333, assembler);
+  SwapBits(reg, temp, 4, 0x0f0f0f0f, assembler);
+}
+
+void IntrinsicLocationsBuilderX86_64::VisitLongReverse(HInvoke* invoke) {
+  LocationSummary* locations = new (arena_) LocationSummary(invoke,
+                                                           LocationSummary::kNoCall,
+                                                           kIntrinsified);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::SameAsFirstInput());
+  locations->AddTemp(Location::RequiresRegister());
+  locations->AddTemp(Location::RequiresRegister());
+}
+
+static void SwapBits64(CpuRegister reg, CpuRegister temp, CpuRegister temp_mask,
+                       int32_t shift, int64_t mask, X86_64Assembler* assembler) {
+  Immediate imm_shift(shift);
+  __ movq(temp_mask, Immediate(mask));
+  __ movq(temp, reg);
+  __ shrq(reg, imm_shift);
+  __ andq(temp, temp_mask);
+  __ andq(reg, temp_mask);
+  __ shlq(temp, imm_shift);
+  __ orq(reg, temp);
+}
+
+void IntrinsicCodeGeneratorX86_64::VisitLongReverse(HInvoke* invoke) {
+  X86_64Assembler* assembler =
+    reinterpret_cast<X86_64Assembler*>(codegen_->GetAssembler());
+  LocationSummary* locations = invoke->GetLocations();
+
+  CpuRegister reg = locations->InAt(0).AsRegister<CpuRegister>();
+  CpuRegister temp1 = locations->GetTemp(0).AsRegister<CpuRegister>();
+  CpuRegister temp2 = locations->GetTemp(1).AsRegister<CpuRegister>();
+
+  /*
+   * Use one bswap instruction to reverse byte order first and then use 3 rounds of
+   * swapping bits to reverse bits in a long number x. Using bswap to save instructions
+   * compared to generic luni implementation which has 5 rounds of swapping bits.
+   * x = bswap x
+   * x = (x & 0x5555555555555555) << 1 | (x >> 1) & 0x5555555555555555;
+   * x = (x & 0x3333333333333333) << 2 | (x >> 2) & 0x3333333333333333;
+   * x = (x & 0x0F0F0F0F0F0F0F0F) << 4 | (x >> 4) & 0x0F0F0F0F0F0F0F0F;
+   */
+  __ bswapq(reg);
+  SwapBits64(reg, temp1, temp2, 1, INT64_C(0x5555555555555555), assembler);
+  SwapBits64(reg, temp1, temp2, 2, INT64_C(0x3333333333333333), assembler);
+  SwapBits64(reg, temp1, temp2, 4, INT64_C(0x0f0f0f0f0f0f0f0f), assembler);
+}
+
 // Unimplemented intrinsics.
 
 #define UNIMPLEMENTED_INTRINSIC(Name)                                                   \
@@ -1210,14 +1379,9 @@ void IntrinsicLocationsBuilderX86_64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UN
 void IntrinsicCodeGeneratorX86_64::Visit ## Name(HInvoke* invoke ATTRIBUTE_UNUSED) {    \
 }
 
-UNIMPLEMENTED_INTRINSIC(IntegerReverse)
-UNIMPLEMENTED_INTRINSIC(LongReverse)
 UNIMPLEMENTED_INTRINSIC(StringIndexOf)
 UNIMPLEMENTED_INTRINSIC(StringIndexOfAfter)
 UNIMPLEMENTED_INTRINSIC(SystemArrayCopyChar)
-UNIMPLEMENTED_INTRINSIC(UnsafeCASInt)
-UNIMPLEMENTED_INTRINSIC(UnsafeCASLong)
-UNIMPLEMENTED_INTRINSIC(UnsafeCASObject)
 UNIMPLEMENTED_INTRINSIC(ReferenceGetReferent)
 
 }  // namespace x86_64
