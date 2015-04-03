@@ -469,9 +469,9 @@ class Runtime {
   void ExitTransactionMode();
   bool IsTransactionAborted() const;
 
-  void AbortTransactionAndThrowInternalError(Thread* self, const std::string& abort_message)
+  void AbortTransactionAndThrowAbortError(Thread* self, const std::string& abort_message)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void ThrowInternalErrorForAbortedTransaction(Thread* self)
+  void ThrowTransactionAbortError(Thread* self)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void RecordWriteFieldBoolean(mirror::Object* obj, MemberOffset field_offset, uint8_t value,

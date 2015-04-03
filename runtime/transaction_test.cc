@@ -35,8 +35,9 @@ class TransactionTest : public CommonRuntimeTest {
         hs.NewHandle(soa.Decode<mirror::ClassLoader*>(jclass_loader)));
     ASSERT_TRUE(class_loader.Get() != nullptr);
 
-    // Load and initialize java.lang.ExceptionInInitializerError and java.lang.InternalError
-    // classes so they can be thrown during class initialization if the transaction aborts.
+    // Load and initialize java.lang.ExceptionInInitializerError and the exception class used
+    // to abort transaction so they can be thrown during class initialization if the transaction
+    // aborts.
     MutableHandle<mirror::Class> h_klass(
         hs.NewHandle(class_linker_->FindSystemClass(soa.Self(),
                                                     "Ljava/lang/ExceptionInInitializerError;")));
@@ -44,7 +45,8 @@ class TransactionTest : public CommonRuntimeTest {
     class_linker_->EnsureInitialized(soa.Self(), h_klass, true, true);
     ASSERT_TRUE(h_klass->IsInitialized());
 
-    h_klass.Assign(class_linker_->FindSystemClass(soa.Self(), "Ljava/lang/InternalError;"));
+    h_klass.Assign(class_linker_->FindSystemClass(soa.Self(),
+                                                  Transaction::kAbortExceptionSignature));
     ASSERT_TRUE(h_klass.Get() != nullptr);
     class_linker_->EnsureInitialized(soa.Self(), h_klass, true, true);
     ASSERT_TRUE(h_klass->IsInitialized());

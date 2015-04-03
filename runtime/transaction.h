@@ -39,13 +39,16 @@ class InternTable;
 
 class Transaction FINAL {
  public:
+  static constexpr const char* kAbortExceptionDescriptor = "dalvik.system.TransactionAbortError";
+  static constexpr const char* kAbortExceptionSignature = "Ldalvik/system/TransactionAbortError;";
+
   Transaction();
   ~Transaction();
 
   void Abort(const std::string& abort_message)
       LOCKS_EXCLUDED(log_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void ThrowInternalError(Thread* self, bool rethrow)
+  void ThrowAbortError(Thread* self, bool rethrow)
       LOCKS_EXCLUDED(log_lock_)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool IsAborted() LOCKS_EXCLUDED(log_lock_);
