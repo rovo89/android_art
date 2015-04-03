@@ -50,7 +50,7 @@ TEST(Node, RemoveInstruction) {
   exit_block->AddInstruction(new (&allocator) HExit());
 
   HEnvironment* environment = new (&allocator) HEnvironment(&allocator, 1);
-  null_check->SetEnvironment(environment);
+  null_check->SetRawEnvironment(environment);
   environment->SetRawEnvAt(0, parameter);
   parameter->AddEnvUseAt(null_check->GetEnvironment(), 0);
 

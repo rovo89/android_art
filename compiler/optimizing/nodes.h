@@ -1192,7 +1192,17 @@ class HInstruction : public ArenaObject<kArenaAllocMisc> {
 
   bool HasEnvironment() const { return environment_ != nullptr; }
   HEnvironment* GetEnvironment() const { return environment_; }
-  void SetEnvironment(HEnvironment* environment) { environment_ = environment; }
+  // Set the `environment_` field. Raw because this method does not
+  // update the uses lists.
+  void SetRawEnvironment(HEnvironment* environment) { environment_ = environment; }
+
+  // Set the environment of this instruction, copying it from `environment`. While
+  // copying, the uses lists are being updated.
+  void CopyEnvironmentFrom(HEnvironment* environment) {
+    ArenaAllocator* allocator = GetBlock()->GetGraph()->GetArena();
+    environment_ = new (allocator) HEnvironment(allocator, environment->Size());
+    environment_->CopyFrom(environment);
+  }
 
   // Returns the number of entries in the environment. Typically, that is the
   // number of dex registers in a method. It could be more in case of inlining.
