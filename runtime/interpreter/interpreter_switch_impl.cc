@@ -438,8 +438,8 @@ JValue ExecuteSwitchImpl(Thread* self, const DexFile::CodeItem* code_item,
           // Don't allow finalizable objects to be allocated during a transaction since these can't
           // be finalized without a started runtime.
           if (transaction_active && obj->GetClass()->IsFinalizable()) {
-            AbortTransaction(self, "Allocating finalizable object in transaction: %s",
-                             PrettyTypeOf(obj).c_str());
+            AbortTransactionF(self, "Allocating finalizable object in transaction: %s",
+                              PrettyTypeOf(obj).c_str());
             HANDLE_PENDING_EXCEPTION();
             break;
           }
