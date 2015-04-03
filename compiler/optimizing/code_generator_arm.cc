@@ -2657,6 +2657,21 @@ void InstructionCodeGeneratorARM::VisitNot(HNot* not_) {
   }
 }
 
+void LocationsBuilderARM::VisitBooleanNot(HBooleanNot* bool_not) {
+  LocationSummary* locations =
+      new (GetGraph()->GetArena()) LocationSummary(bool_not, LocationSummary::kNoCall);
+  locations->SetInAt(0, Location::RequiresRegister());
+  locations->SetOut(Location::RequiresRegister(), Location::kNoOutputOverlap);
+}
+
+void InstructionCodeGeneratorARM::VisitBooleanNot(HBooleanNot* bool_not) {
+  DCHECK_EQ(bool_not->InputAt(0)->GetType(), Primitive::kPrimBoolean);
+  LocationSummary* locations = bool_not->GetLocations();
+  Location out = locations->Out();
+  Location in = locations->InAt(0);
+  __ eor(out.AsRegister<Register>(), in.AsRegister<Register>(), ShifterOperand(1));
+}
+
 void LocationsBuilderARM::VisitCompare(HCompare* compare) {
   LocationSummary* locations =
       new (GetGraph()->GetArena()) LocationSummary(compare, LocationSummary::kNoCall);

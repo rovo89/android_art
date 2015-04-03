@@ -73,8 +73,8 @@ static HInstruction* GetOppositeCondition(HInstruction* cond) {
     }
   } else {
     // General case when 'cond' is another instruction of type boolean.
-    // Negate with 'cond == 0'.
-    return new (allocator) HEqual(cond, graph->GetIntConstant(0));
+    DCHECK_EQ(cond->GetType(), Primitive::Type::kPrimBoolean);
+    return new (allocator) HBooleanNot(cond);
   }
 }
 
