@@ -2447,7 +2447,7 @@ std::string CompilerDriver::GetMemoryUsageString(bool extended) const {
   gc::Heap* const heap = runtime->GetHeap();
   oss << "arena alloc=" << PrettySize(arena_pool->GetBytesAllocated());
   oss << " java alloc=" << PrettySize(heap->GetBytesAllocated());
-#ifdef HAVE_MALLOC_H
+#if defined(__BIONIC__) || defined(__GLIBC__)
   struct mallinfo info = mallinfo();
   const size_t allocated_space = static_cast<size_t>(info.uordblks);
   const size_t free_space = static_cast<size_t>(info.fordblks);
