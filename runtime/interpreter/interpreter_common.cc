@@ -475,7 +475,7 @@ void AbortTransaction(Thread* self, const char* fmt, ...) {
   std::string abort_msg;
   StringAppendV(&abort_msg, fmt, args);
   // Throws an exception so we can abort the transaction and rollback every change.
-  Runtime::Current()->AbortTransactionAndThrowInternalError(self, abort_msg);
+  Runtime::Current()->AbortTransactionAndThrowAbortError(self, abort_msg);
   va_end(args);
 }
 

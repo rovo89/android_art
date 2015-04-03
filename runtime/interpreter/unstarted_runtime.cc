@@ -37,6 +37,7 @@
 #include "mirror/string-inl.h"
 #include "nth_caller_visitor.h"
 #include "thread.h"
+#include "transaction.h"
 #include "well_known_classes.h"
 
 namespace art {
@@ -87,13 +88,14 @@ static void UnstartedRuntimeFindClass(Thread* self, Handle<mirror::String> class
 // Common helper for class-loading cutouts in an unstarted runtime. We call Runtime methods that
 // rely on Java code to wrap errors in the correct exception class (i.e., NoClassDefFoundError into
 // ClassNotFoundException), so need to do the same. The only exception is if the exception is
-// actually InternalError. This must not be wrapped, as it signals an initialization abort.
+// actually the transaction abort exception. This must not be wrapped, as it signals an
+// initialization abort.
 static void CheckExceptionGenerateClassNotFound(Thread* self)
     SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
   if (self->IsExceptionPending()) {
-    // If it is not an InternalError, wrap it.
+    // If it is not the transaction abort exception, wrap it.
     std::string type(PrettyTypeOf(self->GetException()));
-    if (type != "java.lang.InternalError") {
+    if (type != Transaction::kAbortExceptionDescriptor) {
       self->ThrowNewWrappedException("Ljava/lang/ClassNotFoundException;",
                                      "ClassNotFoundException");
     }
@@ -502,7 +504,7 @@ static void UnstartedDexCacheGetDexNative(
   }
   if (!have_dex) {
     self->ClearException();
-    Runtime::Current()->AbortTransactionAndThrowInternalError(self, "Could not create Dex object");
+    Runtime::Current()->AbortTransactionAndThrowAbortError(self, "Could not create Dex object");
   }
 }
 
@@ -570,7 +572,7 @@ static void UnstartedMemoryPeekArray(
   int64_t address_long = shadow_frame->GetVRegLong(arg_offset);
   mirror::Object* obj = shadow_frame->GetVRegReference(arg_offset + 2);
   if (obj == nullptr) {
-    Runtime::Current()->AbortTransactionAndThrowInternalError(self, "Null pointer in peekArray");
+    Runtime::Current()->AbortTransactionAndThrowAbortError(self, "Null pointer in peekArray");
     return;
   }
   mirror::Array* array = obj->AsArray();
@@ -580,7 +582,7 @@ static void UnstartedMemoryPeekArray(
   if (offset < 0 || offset + count > array->GetLength()) {
     std::string error_msg(StringPrintf("Array out of bounds in peekArray: %d/%d vs %d",
                                        offset, count, array->GetLength()));
-    Runtime::Current()->AbortTransactionAndThrowInternalError(self, error_msg.c_str());
+    Runtime::Current()->AbortTransactionAndThrowAbortError(self, error_msg.c_str());
     return;
   }
 
