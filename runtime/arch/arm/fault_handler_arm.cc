@@ -95,6 +95,13 @@ void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo ATTRIBUTE_UNUSED
   // Need to work out the size of the instruction that caused the exception.
   uint8_t* ptr = reinterpret_cast<uint8_t*>(sc->arm_pc);
   VLOG(signals) << "pc: " << std::hex << static_cast<void*>(ptr);
+
+  if (ptr == nullptr) {
+    // Somebody jumped to 0x0. Definitely not ours, and will definitely segfault below.
+    *out_method = nullptr;
+    return;
+  }
+
   uint32_t instr_size = GetInstructionSize(ptr);
 
   *out_return_pc = (sc->arm_pc + instr_size) | 1;

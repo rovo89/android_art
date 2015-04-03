@@ -275,6 +275,12 @@ void FaultManager::GetMethodAndReturnPcAndSp(siginfo_t* siginfo, void* context,
   uint8_t* pc = reinterpret_cast<uint8_t*>(uc->CTX_EIP);
   VLOG(signals) << HexDump(pc, 32, true, "PC ");
 
+  if (pc == nullptr) {
+    // Somebody jumped to 0x0. Definitely not ours, and will definitely segfault below.
+    *out_method = nullptr;
+    return;
+  }
+
   uint32_t instr_size = GetInstructionSize(pc);
   if (instr_size == 0) {
     // Unknown instruction, tell caller it's not ours.
