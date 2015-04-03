@@ -695,6 +695,28 @@ void X86Assembler::ucomisd(XmmRegister a, XmmRegister b) {
 }
 
 
+void X86Assembler::roundsd(XmmRegister dst, XmmRegister src, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x3A);
+  EmitUint8(0x0B);
+  EmitXmmRegisterOperand(dst, src);
+  EmitUint8(imm.value());
+}
+
+
+void X86Assembler::roundss(XmmRegister dst, XmmRegister src, const Immediate& imm) {
+  AssemblerBuffer::EnsureCapacity ensured(&buffer_);
+  EmitUint8(0x66);
+  EmitUint8(0x0F);
+  EmitUint8(0x3A);
+  EmitUint8(0x0A);
+  EmitXmmRegisterOperand(dst, src);
+  EmitUint8(imm.value());
+}
+
+
 void X86Assembler::sqrtsd(XmmRegister dst, XmmRegister src) {
   AssemblerBuffer::EnsureCapacity ensured(&buffer_);
   EmitUint8(0xF2);

@@ -19,6 +19,8 @@
 #include "arch/instruction_set.h"
 #include "arch/arm/instruction_set_features_arm.h"
 #include "arch/arm64/instruction_set_features_arm64.h"
+#include "arch/x86/instruction_set_features_x86.h"
+#include "arch/x86_64/instruction_set_features_x86_64.h"
 #include "base/macros.h"
 #include "builder.h"
 #include "code_generator_arm.h"
@@ -108,7 +110,9 @@ static void RunCodeBaseline(HGraph* graph, bool has_result, Expected expected) {
   InternalCodeAllocator allocator;
 
   CompilerOptions compiler_options;
-  x86::CodeGeneratorX86 codegenX86(graph, compiler_options);
+  std::unique_ptr<const X86InstructionSetFeatures> features_x86(
+      X86InstructionSetFeatures::FromCppDefines());
+  x86::CodeGeneratorX86 codegenX86(graph, *features_x86.get(), compiler_options);
   // We avoid doing a stack overflow check that requires the runtime being setup,
   // by making sure the compiler knows the methods we are running are leaf methods.
   codegenX86.CompileBaseline(&allocator, true);
@@ -124,7 +128,9 @@ static void RunCodeBaseline(HGraph* graph, bool has_result, Expected expected) {
     Run(allocator, codegenARM, has_result, expected);
   }
 
-  x86_64::CodeGeneratorX86_64 codegenX86_64(graph, compiler_options);
+  std::unique_ptr<const X86_64InstructionSetFeatures> features_x86_64(
+      X86_64InstructionSetFeatures::FromCppDefines());
+  x86_64::CodeGeneratorX86_64 codegenX86_64(graph, *features_x86_64.get(), compiler_options);
   codegenX86_64.CompileBaseline(&allocator, true);
   if (kRuntimeISA == kX86_64) {
     Run(allocator, codegenX86_64, has_result, expected);
@@ -175,10 +181,14 @@ static void RunCodeOptimized(HGraph* graph,
                                            compiler_options);
     RunCodeOptimized(&codegenARM64, graph, hook_before_codegen, has_result, expected);
   } else if (kRuntimeISA == kX86) {
-    x86::CodeGeneratorX86 codegenX86(graph, compiler_options);
+    std::unique_ptr<const X86InstructionSetFeatures> features_x86(
+        X86InstructionSetFeatures::FromCppDefines());
+    x86::CodeGeneratorX86 codegenX86(graph, *features_x86.get(), compiler_options);
     RunCodeOptimized(&codegenX86, graph, hook_before_codegen, has_result, expected);
   } else if (kRuntimeISA == kX86_64) {
-    x86_64::CodeGeneratorX86_64 codegenX86_64(graph, compiler_options);
+    std::unique_ptr<const X86_64InstructionSetFeatures> features_x86_64(
+        X86_64InstructionSetFeatures::FromCppDefines());
+    x86_64::CodeGeneratorX86_64 codegenX86_64(graph, *features_x86_64.get(), compiler_options);
     RunCodeOptimized(&codegenX86_64, graph, hook_before_codegen, has_result, expected);
   }
 }

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "arch/x86/instruction_set_features_x86.h"
 #include "base/arena_allocator.h"
 #include "builder.h"
 #include "code_generator.h"
@@ -53,7 +54,9 @@ static void TestCode(const uint16_t* data, const char* expected) {
   graph->TryBuildingSsa();
   // `Inline` conditions into ifs.
   PrepareForRegisterAllocation(graph).Run();
-  x86::CodeGeneratorX86 codegen(graph, CompilerOptions());
+  std::unique_ptr<const X86InstructionSetFeatures> features_x86(
+      X86InstructionSetFeatures::FromCppDefines());
+  x86::CodeGeneratorX86 codegen(graph, *features_x86.get(), CompilerOptions());
   SsaLivenessAnalysis liveness(*graph, &codegen);
   liveness.Analyze();
 

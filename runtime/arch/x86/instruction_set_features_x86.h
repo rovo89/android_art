@@ -58,6 +58,8 @@ class X86InstructionSetFeatures : public InstructionSetFeatures {
 
   virtual ~X86InstructionSetFeatures() {}
 
+  bool HasSSE4_1() const { return has_SSE4_1_; }
+
  protected:
   // Parse a string of the form "ssse3" adding these to a new InstructionSetFeatures.
   virtual const InstructionSetFeatures*
