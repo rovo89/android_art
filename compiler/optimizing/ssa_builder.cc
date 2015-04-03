@@ -487,7 +487,7 @@ void SsaBuilder::VisitInstruction(HInstruction* instruction) {
   HEnvironment* environment = new (GetGraph()->GetArena()) HEnvironment(
       GetGraph()->GetArena(), current_locals_->Size());
   environment->CopyFrom(current_locals_);
-  instruction->SetEnvironment(environment);
+  instruction->SetRawEnvironment(environment);
 }
 
 void SsaBuilder::VisitTemporary(HTemporary* temp) {
