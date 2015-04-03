@@ -28,21 +28,21 @@ ENTRY art_jni_dlsym_lookup_stub
     .cfi_adjust_cfa_offset 80
     sd     $ra, 64($sp)
     .cfi_rel_offset 31, 64
-    sw     $a7, 56($sp)
+    sd     $a7, 56($sp)
     .cfi_rel_offset 11, 56
-    sw     $a6, 48($sp)
+    sd     $a6, 48($sp)
     .cfi_rel_offset 10, 48
-    sw     $a5, 40($sp)
+    sd     $a5, 40($sp)
     .cfi_rel_offset 9, 40
-    sw     $a4, 32($sp)
+    sd     $a4, 32($sp)
     .cfi_rel_offset 8, 32
-    sw     $a3, 24($sp)
+    sd     $a3, 24($sp)
     .cfi_rel_offset 7, 24
-    sw     $a2, 16($sp)
+    sd     $a2, 16($sp)
     .cfi_rel_offset 6, 16
-    sw     $a1, 8($sp)
+    sd     $a1, 8($sp)
     .cfi_rel_offset 5, 8
-    sw     $a0, 0($sp)
+    sd     $a0, 0($sp)
     .cfi_rel_offset 4, 0
     jal    artFindNativeMethod  # (Thread*)
     move   $a0, $s1             # pass Thread::Current()

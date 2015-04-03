@@ -2214,10 +2214,8 @@ void CompilerDriver::CompileMethod(Thread* self, const DexFile::CodeItem* code_i
         InstructionSetHasGenericJniStub(instruction_set_)) {
       // Leaving this empty will trigger the generic JNI version
     } else {
-      if (instruction_set_ != kMips64) {  // Use generic JNI for Mips64 (temporarily).
-        compiled_method = compiler_->JniCompile(access_flags, method_idx, dex_file);
-        CHECK(compiled_method != nullptr);
-      }
+      compiled_method = compiler_->JniCompile(access_flags, method_idx, dex_file);
+      CHECK(compiled_method != nullptr);
     }
   } else if ((access_flags & kAccAbstract) != 0) {
     // Abstract methods don't have code.
