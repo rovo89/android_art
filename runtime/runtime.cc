@@ -130,6 +130,13 @@ namespace art {
 static constexpr bool kEnableJavaStackTraceHandler = false;
 Runtime* Runtime::instance_ = nullptr;
 
+struct TraceConfig {
+  Trace::TraceMode trace_mode;
+  Trace::TraceOutputMode trace_output_mode;
+  std::string trace_file;
+  size_t trace_file_size;
+};
+
 Runtime::Runtime()
     : instruction_set_(kNone),
       compiler_callbacks_(nullptr),
@@ -163,8 +170,6 @@ Runtime::Runtime()
       stats_enabled_(false),
       running_on_valgrind_(RUNNING_ON_VALGRIND > 0),
       profiler_started_(false),
-      method_trace_(false),
-      method_trace_file_size_(0),
       instrumentation_(),
       main_thread_group_(nullptr),
       system_thread_group_(nullptr),
@@ -980,9 +985,13 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
 
   verifier::MethodVerifier::Init();
 
-  method_trace_ = runtime_options.Exists(Opt::MethodTrace);
-  method_trace_file_ = runtime_options.ReleaseOrDefault(Opt::MethodTraceFile);
-  method_trace_file_size_ = runtime_options.ReleaseOrDefault(Opt::MethodTraceFileSize);
+  if (runtime_options.Exists(Opt::MethodTrace)) {
+    trace_config_.reset(new TraceConfig());
+    trace_config_->trace_file = runtime_options.ReleaseOrDefault(Opt::MethodTraceFile);
+    trace_config_->trace_file_size = runtime_options.ReleaseOrDefault(Opt::MethodTraceFileSize);
+    trace_config_->trace_mode = Trace::TraceMode::kMethodTracing;
+    trace_config_->trace_output_mode = Trace::TraceOutputMode::kFile;
+  }
 
   {
     auto&& profiler_options = runtime_options.ReleaseOrDefault(Opt::ProfilerOpts);
@@ -1007,14 +1016,14 @@ bool Runtime::Init(const RuntimeOptions& raw_options, bool ignore_unrecognized) 
   // TODO: move this to just be an Trace::Start argument
   Trace::SetDefaultClockSource(runtime_options.GetOrDefault(Opt::ProfileClock));
 
-  if (method_trace_) {
+  if (trace_config_.get() != nullptr) {
     ScopedThreadStateChange tsc(self, kWaitingForMethodTracingStart);
-    Trace::Start(method_trace_file_.c_str(),
+    Trace::Start(trace_config_->trace_file.c_str(),
                  -1,
-                 static_cast<int>(method_trace_file_size_),
+                 static_cast<int>(trace_config_->trace_file_size),
                  0,
-                 Trace::TraceOutputMode::kFile,
-                 Trace::TraceMode::kMethodTracing,
+                 trace_config_->trace_output_mode,
+                 trace_config_->trace_mode,
                  0);
   }
 
