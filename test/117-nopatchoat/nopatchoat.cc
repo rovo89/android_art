@@ -28,11 +28,7 @@ class NoPatchoatTest {
     ScopedObjectAccess soa(Thread::Current());
     mirror::Class* klass = soa.Decode<mirror::Class*>(cls);
     const DexFile& dex_file = klass->GetDexFile();
-
-    const OatFile::OatDexFile* oat_dex_file =
-        Runtime::Current()->GetClassLinker()->FindOpenedOatDexFileForDexFile(dex_file);
-
-    return oat_dex_file;
+    return dex_file.GetOatDexFile();
   }
 
   static bool hasExecutableOat(jclass cls) {

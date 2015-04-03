@@ -44,7 +44,7 @@ namespace mirror {
 }  // namespace mirror
 class ClassLinker;
 class MemMap;
-class OatFile;
+class OatDexFile;
 class Signature;
 template<class T> class Handle;
 class StringPiece;
@@ -392,9 +392,9 @@ class DexFile {
   static std::unique_ptr<const DexFile> Open(const uint8_t* base, size_t size,
                                              const std::string& location,
                                              uint32_t location_checksum,
-                                             const OatFile* oat_file,
+                                             const OatDexFile* oat_dex_file,
                                              std::string* error_msg) {
-    return OpenMemory(base, size, location, location_checksum, NULL, oat_file, error_msg);
+    return OpenMemory(base, size, location, location_checksum, NULL, oat_dex_file, error_msg);
   }
 
   // Open all classesXXX.dex files from a zip archive.
@@ -904,8 +904,8 @@ class DexFile {
   //     the dex_location where it's file name part has been made canonical.
   static std::string GetDexCanonicalLocation(const char* dex_location);
 
-  const OatFile* GetOatFile() const {
-    return oat_file_;
+  const OatDexFile* GetOatDexFile() const {
+    return oat_dex_file_;
   }
 
  private:
@@ -944,14 +944,14 @@ class DexFile {
                                                    const std::string& location,
                                                    uint32_t location_checksum,
                                                    MemMap* mem_map,
-                                                   const OatFile* oat_file,
+                                                   const OatDexFile* oat_dex_file,
                                                    std::string* error_msg);
 
   DexFile(const uint8_t* base, size_t size,
           const std::string& location,
           uint32_t location_checksum,
           MemMap* mem_map,
-          const OatFile* oat_file);
+          const OatDexFile* oat_dex_file);
 
   // Top-level initializer that calls other Init methods.
   bool Init(std::string* error_msg);
@@ -1035,9 +1035,10 @@ class DexFile {
   typedef HashMap<const char*, const ClassDef*, UTF16EmptyFn, UTF16HashCmp, UTF16HashCmp> Index;
   mutable Atomic<Index*> class_def_index_;
 
-  // The oat file this dex file was loaded from. May be null in case the dex file is not coming
-  // from an oat file, e.g., directly from an apk.
-  const OatFile* oat_file_;
+  // If this dex file was loaded from an oat file, oat_dex_file_ contains a
+  // pointer to the OatDexFile it was loaded from. Otherwise oat_dex_file_ is
+  // null.
+  const OatDexFile* oat_dex_file_;
 };
 
 struct DexFileReference {
