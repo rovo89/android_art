@@ -3411,7 +3411,7 @@ bool ClassLinker::InitializeClass(Thread* self, Handle<mirror::Class> klass,
       // so we need to throw it again now.
       VLOG(compiler) << "Return from class initializer of " << PrettyDescriptor(klass.Get())
                      << " without exception while transaction was aborted: re-throw it now.";
-      Runtime::Current()->ThrowInternalErrorForAbortedTransaction(self);
+      Runtime::Current()->ThrowTransactionAbortError(self);
       mirror::Class::SetStatus(klass, mirror::Class::kStatusError, self);
       success = false;
     } else {
