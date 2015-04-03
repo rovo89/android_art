@@ -467,16 +467,20 @@ static inline void AssignRegister(ShadowFrame* new_shadow_frame, const ShadowFra
   }
 }
 
-void AbortTransaction(Thread* self, const char* fmt, ...) {
-  CHECK(Runtime::Current()->IsActiveTransaction());
-  // Constructs abort message.
+void AbortTransactionF(Thread* self, const char* fmt, ...) {
   va_list args;
   va_start(args, fmt);
+  AbortTransactionV(self, fmt, args);
+  va_end(args);
+}
+
+void AbortTransactionV(Thread* self, const char* fmt, va_list args) {
+  CHECK(Runtime::Current()->IsActiveTransaction());
+  // Constructs abort message.
   std::string abort_msg;
   StringAppendV(&abort_msg, fmt, args);
   // Throws an exception so we can abort the transaction and rollback every change.
   Runtime::Current()->AbortTransactionAndThrowAbortError(self, abort_msg);
-  va_end(args);
 }
 
 template<bool is_range, bool do_assignability_check>
