@@ -693,35 +693,6 @@ OatFile& ClassLinker::GetImageOatFile(gc::space::ImageSpace* space) {
   return *oat_file;
 }
 
-const OatFile::OatDexFile* ClassLinker::FindOpenedOatDexFileForDexFile(const DexFile& dex_file) {
-  const char* dex_location = dex_file.GetLocation().c_str();
-  uint32_t dex_location_checksum = dex_file.GetLocationChecksum();
-  return FindOpenedOatDexFile(nullptr, dex_location, &dex_location_checksum);
-}
-
-const OatFile::OatDexFile* ClassLinker::FindOpenedOatDexFile(const char* oat_location,
-                                                             const char* dex_location,
-                                                             const uint32_t* dex_location_checksum) {
-  ReaderMutexLock mu(Thread::Current(), dex_lock_);
-  for (const OatFile* oat_file : oat_files_) {
-    DCHECK(oat_file != nullptr);
-
-    if (oat_location != nullptr) {
-      if (oat_file->GetLocation() != oat_location) {
-        continue;
-      }
-    }
-
-    const OatFile::OatDexFile* oat_dex_file = oat_file->GetOatDexFile(dex_location,
-                                                                      dex_location_checksum,
-                                                                      false);
-    if (oat_dex_file != nullptr) {
-      return oat_dex_file;
-    }
-  }
-  return nullptr;
-}
-
 std::vector<std::unique_ptr<const DexFile>> ClassLinker::OpenDexFilesFromOat(
     const char* dex_location, const char* oat_location,
     std::vector<std::string>* error_msgs) {
@@ -1600,7 +1571,7 @@ uint32_t ClassLinker::SizeOfClassWithoutEmbeddedTables(const DexFile& dex_file,
 OatFile::OatClass ClassLinker::FindOatClass(const DexFile& dex_file, uint16_t class_def_idx,
                                             bool* found) {
   DCHECK_NE(class_def_idx, DexFile::kDexNoIndex16);
-  const OatFile::OatDexFile* oat_dex_file = FindOpenedOatDexFileForDexFile(dex_file);
+  const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
   if (oat_dex_file == nullptr) {
     *found = false;
     return OatFile::OatClass::Invalid();
@@ -2813,7 +2784,7 @@ bool ClassLinker::VerifyClassUsingOatFile(const DexFile& dex_file, mirror::Class
     }
   }
 
-  const OatFile::OatDexFile* oat_dex_file = FindOpenedOatDexFileForDexFile(dex_file);
+  const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
   // In case we run without an image there won't be a backing oat file.
   if (oat_dex_file == nullptr) {
     return false;
@@ -3845,9 +3816,19 @@ static bool CheckSuperClassChange(Handle<mirror::Class> klass,
     // Now comes the expensive part: things can be broken if (a) the klass' dex file has a
     // definition for the super-class, and (b) the files are in separate oat files. The oat files
     // are referenced from the dex file, so do (b) first. Only relevant if we have oat files.
-    const OatFile* class_oat_file = dex_file.GetOatFile();
+    const OatDexFile* class_oat_dex_file = dex_file.GetOatDexFile();
+    const OatFile* class_oat_file = nullptr;
+    if (class_oat_dex_file != nullptr) {
+      class_oat_file = class_oat_dex_file->GetOatFile();
+    }
+
     if (class_oat_file != nullptr) {
-      const OatFile* loaded_super_oat_file = super_class->GetDexFile().GetOatFile();
+      const OatDexFile* loaded_super_oat_dex_file = super_class->GetDexFile().GetOatDexFile();
+      const OatFile* loaded_super_oat_file = nullptr;
+      if (loaded_super_oat_dex_file != nullptr) {
+        loaded_super_oat_file = loaded_super_oat_dex_file->GetOatFile();
+      }
+
       if (loaded_super_oat_file != nullptr && class_oat_file != loaded_super_oat_file) {
         // Now check (a).
         const DexFile::ClassDef* super_class_def = dex_file.FindClassDef(class_def.superclass_idx_);
@@ -5293,9 +5274,8 @@ bool ClassLinker::MayBeCalledWithDirectCodePointer(mirror::ArtMethod* m) {
   if (m->IsPrivate()) {
     // The method can only be called inside its own oat file. Therefore it won't be called using
     // its direct code if the oat file has been compiled in PIC mode.
-    ClassLinker* class_linker = Runtime::Current()->GetClassLinker();
     const DexFile& dex_file = m->GetDeclaringClass()->GetDexFile();
-    const OatFile::OatDexFile* oat_dex_file = class_linker->FindOpenedOatDexFileForDexFile(dex_file);
+    const OatFile::OatDexFile* oat_dex_file = dex_file.GetOatDexFile();
     if (oat_dex_file == nullptr) {
       // No oat file: the method has not been compiled.
       return false;
