@@ -158,6 +158,7 @@ class IntrinsicSlowPathX86 : public SlowPathCodeX86 {
 
     if (invoke_->IsInvokeStaticOrDirect()) {
       codegen->GenerateStaticOrDirectCall(invoke_->AsInvokeStaticOrDirect(), EAX);
+      RecordPcInfo(codegen, invoke_, invoke_->GetDexPc());
     } else {
       UNIMPLEMENTED(FATAL) << "Non-direct intrinsic slow-path not yet implemented";
       UNREACHABLE();
@@ -730,6 +731,7 @@ static void InvokeOutOfLineIntrinsic(CodeGeneratorX86* codegen, HInvoke* invoke)
 
   DCHECK(invoke->IsInvokeStaticOrDirect());
   codegen->GenerateStaticOrDirectCall(invoke->AsInvokeStaticOrDirect(), EAX);
+  codegen->RecordPcInfo(invoke, invoke->GetDexPc());
 
   // Copy the result back to the expected output.
   Location out = invoke->GetLocations()->Out();
