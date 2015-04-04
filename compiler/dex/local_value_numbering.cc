@@ -166,9 +166,9 @@ class LocalValueNumbering::AliasingArrayVersions {
     return gvn->LookupValue(kAliasingArrayOp, type, location, memory_version);
   }
 
-  static uint16_t LookupMergeValue(GlobalValueNumbering* gvn ATTRIBUTE_UNUSED,
+  static uint16_t LookupMergeValue(GlobalValueNumbering* gvn,
                                    const LocalValueNumbering* lvn,
-                                   uint16_t type ATTRIBUTE_UNUSED, uint16_t location) {
+                                   uint16_t type, uint16_t location) {
     // If the location is non-aliasing in lvn, use the non-aliasing value.
     uint16_t array = gvn->GetArrayLocationBase(location);
     if (lvn->IsNonAliasingArray(array, type)) {
@@ -182,8 +182,6 @@ class LocalValueNumbering::AliasingArrayVersions {
   static bool HasNewBaseVersion(GlobalValueNumbering* gvn ATTRIBUTE_UNUSED,
                                 const LocalValueNumbering* lvn,
                                 uint16_t type ATTRIBUTE_UNUSED) {
-    UNUSED(gvn);
-    UNUSED(type);
     return lvn->global_memory_version_ == lvn->merge_new_memory_version_;
   }
 

@@ -222,7 +222,7 @@ class EndianOutput {
     HandleU4List(values, count);
     length_ += count * sizeof(uint32_t);
   }
-  virtual void UpdateU4(size_t offset ATTRIBUTE_UNUSED, uint32_t new_value ATTRIBUTE_UNUSED) {
+  virtual void UpdateU4(size_t offset, uint32_t new_value ATTRIBUTE_UNUSED) {
     DCHECK_LE(offset, length_ - 4);
   }
   void AddU8List(const uint64_t* values, size_t count) {

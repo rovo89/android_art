@@ -718,7 +718,7 @@ static void UnstartedJNIFloatIntBitsToFloat(Thread* self ATTRIBUTE_UNUSED,
   result->SetI(args[0]);
 }
 
-static void UnstartedJNIObjectInternalClone(Thread* self ATTRIBUTE_UNUSED,
+static void UnstartedJNIObjectInternalClone(Thread* self,
                                             mirror::ArtMethod* method ATTRIBUTE_UNUSED,
                                             mirror::Object* receiver,
                                             uint32_t* args ATTRIBUTE_UNUSED,
@@ -727,7 +727,7 @@ static void UnstartedJNIObjectInternalClone(Thread* self ATTRIBUTE_UNUSED,
   result->SetL(receiver->Clone(self));
 }
 
-static void UnstartedJNIObjectNotifyAll(Thread* self ATTRIBUTE_UNUSED,
+static void UnstartedJNIObjectNotifyAll(Thread* self,
                                         mirror::ArtMethod* method ATTRIBUTE_UNUSED,
                                         mirror::Object* receiver,
                                         uint32_t* args ATTRIBUTE_UNUSED,

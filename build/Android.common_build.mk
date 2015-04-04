@@ -135,6 +135,10 @@ art_clang_cflags += -Wfloat-equal
 # Enable warning of converting ints to void*.
 art_clang_cflags += -Wint-to-void-pointer-cast
 
+# Enable warning of wrong unused annotations.
+art_clang_cflags += -Wused-but-marked-unused
+
+
 # GCC-only warnings.
 art_gcc_cflags := -Wunused-but-set-parameter
 # Suggest const: too many false positives, but good for a trial run.
