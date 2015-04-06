@@ -89,6 +89,8 @@ class ArrayRef {
       : array_(v.data()), size_(v.size()) {
   }
 
+  ArrayRef(const ArrayRef&) = default;
+
   // Assignment operators.
 
   ArrayRef& operator=(const ArrayRef& other) {

@@ -54,6 +54,7 @@ class RootInfo {
   explicit RootInfo(RootType type, uint32_t thread_id = 0)
      : type_(type), thread_id_(thread_id) {
   }
+  RootInfo(const RootInfo&) = default;
   virtual ~RootInfo() {
   }
   RootType GetType() const {

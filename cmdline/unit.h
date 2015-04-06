@@ -24,6 +24,7 @@ struct Unit {
   // Avoid 'Conditional jump or move depends on uninitialised value(s)' errors
   // when running valgrind by specifying a user-defined constructor.
   Unit() {}
+  Unit(const Unit&) = default;
   ~Unit() {}
   bool operator==(Unit) const {
     return true;
