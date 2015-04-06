@@ -26,7 +26,7 @@
 namespace art {
 
 const X86InstructionSetFeatures* X86InstructionSetFeatures::FromVariant(
-    const std::string& variant ATTRIBUTE_UNUSED, std::string* error_msg ATTRIBUTE_UNUSED,
+    const std::string& variant, std::string* error_msg ATTRIBUTE_UNUSED,
     bool x86_64) {
   bool known_variant = false;
   bool smp = true;  // Conservative default.
