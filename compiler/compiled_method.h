@@ -320,7 +320,7 @@ class CompiledMethod FINAL : public CompiledCode {
                  const ArrayRef<const uint8_t>& vmap_table,
                  const ArrayRef<const uint8_t>& native_gc_map,
                  const ArrayRef<const uint8_t>& cfi_info,
-                 const ArrayRef<LinkerPatch>& patches = ArrayRef<LinkerPatch>());
+                 const ArrayRef<const LinkerPatch>& patches = ArrayRef<const LinkerPatch>());
 
   virtual ~CompiledMethod();
 
@@ -336,7 +336,7 @@ class CompiledMethod FINAL : public CompiledCode {
       const ArrayRef<const uint8_t>& vmap_table,
       const ArrayRef<const uint8_t>& native_gc_map,
       const ArrayRef<const uint8_t>& cfi_info,
-      const ArrayRef<LinkerPatch>& patches = ArrayRef<LinkerPatch>());
+      const ArrayRef<const LinkerPatch>& patches = ArrayRef<const LinkerPatch>());
 
   static CompiledMethod* SwapAllocCompiledMethodStackMap(
       CompilerDriver* driver,
@@ -391,8 +391,8 @@ class CompiledMethod FINAL : public CompiledCode {
     return cfi_info_;
   }
 
-  const SwapVector<LinkerPatch>& GetPatches() const {
-    return patches_;
+  ArrayRef<const LinkerPatch> GetPatches() const {
+    return ArrayRef<const LinkerPatch>(patches_);
   }
 
  private:
@@ -417,7 +417,7 @@ class CompiledMethod FINAL : public CompiledCode {
   // For quick code, a FDE entry for the debug_frame section.
   SwapVector<uint8_t>* cfi_info_;
   // For quick code, linker patches needed by the method.
-  SwapVector<LinkerPatch> patches_;
+  const SwapVector<LinkerPatch> patches_;
 };
 
 }  // namespace art

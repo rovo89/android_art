@@ -69,7 +69,7 @@ class RelativePatcherTest : public testing::Test {
 
   void AddCompiledMethod(MethodReference method_ref,
                          const ArrayRef<const uint8_t>& code,
-                         const ArrayRef<LinkerPatch>& patches) {
+                         const ArrayRef<const LinkerPatch>& patches) {
     compiled_method_refs_.push_back(method_ref);
     compiled_methods_.emplace_back(new CompiledMethod(
         &driver_, instruction_set_, code,
