@@ -504,7 +504,6 @@ MemMap* Heap::MapAnonymousPreferredAddress(const char* name, uint8_t* request_be
     // Retry a  second time with no specified request begin.
     request_begin = nullptr;
   }
-  return nullptr;
 }
 
 bool Heap::MayUseCollector(CollectorType type) const {

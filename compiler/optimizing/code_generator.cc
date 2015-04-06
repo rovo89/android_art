@@ -132,7 +132,6 @@ size_t CodeGenerator::FindFreeEntry(bool* array, size_t length) {
   }
   LOG(FATAL) << "Could not find a register in baseline register allocator";
   UNREACHABLE();
-  return -1;
 }
 
 size_t CodeGenerator::FindTwoFreeConsecutiveAlignedEntries(bool* array, size_t length) {
@@ -145,7 +144,6 @@ size_t CodeGenerator::FindTwoFreeConsecutiveAlignedEntries(bool* array, size_t l
   }
   LOG(FATAL) << "Could not find a register in baseline register allocator";
   UNREACHABLE();
-  return -1;
 }
 
 void CodeGenerator::InitializeCodeGeneration(size_t number_of_spill_slots,

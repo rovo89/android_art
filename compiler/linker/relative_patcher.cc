@@ -67,22 +67,17 @@ std::unique_ptr<RelativePatcher> RelativePatcher::Create(
   switch (instruction_set) {
     case kX86:
       return std::unique_ptr<RelativePatcher>(new X86RelativePatcher());
-      break;
     case kX86_64:
       return std::unique_ptr<RelativePatcher>(new X86_64RelativePatcher());
-      break;
     case kArm:
       // Fall through: we generate Thumb2 code for "arm".
     case kThumb2:
       return std::unique_ptr<RelativePatcher>(new Thumb2RelativePatcher(provider));
-      break;
     case kArm64:
       return std::unique_ptr<RelativePatcher>(
           new Arm64RelativePatcher(provider, features->AsArm64InstructionSetFeatures()));
-      break;
     default:
       return std::unique_ptr<RelativePatcher>(new RelativePatcherNone);
-      break;
   }
 }
 

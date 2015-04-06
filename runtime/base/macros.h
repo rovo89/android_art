@@ -66,7 +66,7 @@ friend class test_set_name##_##individual_test##_Test
 // A macro to disallow new and delete operators for a class. It goes in the private: declarations.
 #define DISALLOW_ALLOCATION() \
   public: \
-    ALWAYS_INLINE void operator delete(void*, size_t) { UNREACHABLE(); } \
+    NO_RETURN ALWAYS_INLINE void operator delete(void*, size_t) { UNREACHABLE(); } \
   private: \
     void* operator new(size_t) = delete
 

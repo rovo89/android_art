@@ -90,7 +90,6 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
           UNREACHABLE();
       }
-      break;
     case kIntrinsicReverseBytes:
       switch (GetType(method.d.data, true)) {
         case Primitive::kPrimShort:
@@ -103,7 +102,6 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
           UNREACHABLE();
       }
-      break;
 
     // Abs.
     case kIntrinsicAbsDouble:
@@ -166,7 +164,6 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
           UNREACHABLE();
       }
-      break;
 
     // Memory.poke.
     case kIntrinsicPoke:
@@ -183,7 +180,6 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
           UNREACHABLE();
       }
-      break;
 
     // String.
     case kIntrinsicCharAt:
@@ -211,7 +207,6 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
           UNREACHABLE();
       }
-      break;
     case kIntrinsicUnsafeGet: {
       const bool is_volatile = (method.d.data & kIntrinsicFlagIsVolatile);
       switch (GetType(method.d.data, false)) {
@@ -225,7 +220,6 @@ static Intrinsics GetIntrinsic(InlineMethod method) {
           LOG(FATAL) << "Unknown/unsupported op size " << method.d.data;
           UNREACHABLE();
       }
-      break;
     }
     case kIntrinsicUnsafePut: {
       enum Sync { kNoSync, kVolatile, kOrdered };

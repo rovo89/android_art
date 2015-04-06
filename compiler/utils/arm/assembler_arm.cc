@@ -89,7 +89,6 @@ uint32_t ShifterOperand::encodingArm() const {
       } else {
         return immed_;
       }
-      break;
     case kRegister:
       if (is_shift_) {
         uint32_t shift_type;
@@ -121,7 +120,6 @@ uint32_t ShifterOperand::encodingArm() const {
         // Simple register
         return static_cast<uint32_t>(rm_);
       }
-      break;
     default:
       // Can't get here.
       LOG(FATAL) << "Invalid shifter operand for ARM";
@@ -156,13 +154,11 @@ uint32_t ShifterOperand::encodingThumb() const {
         // Simple register
         return static_cast<uint32_t>(rm_);
       }
-      break;
     default:
       // Can't get here.
       LOG(FATAL) << "Invalid shifter operand for thumb";
-      return 0;
+      UNREACHABLE();
   }
-  return 0;
 }
 
 uint32_t Address::encodingArm() const {
