@@ -44,6 +44,7 @@ class SafeMap {
   typedef typename ::std::map<K, V, Comparator, Allocator>::value_type value_type;
 
   SafeMap() = default;
+  SafeMap(const SafeMap&) = default;
   explicit SafeMap(const key_compare& cmp, const allocator_type& allocator = allocator_type())
     : map_(cmp, allocator) {
   }

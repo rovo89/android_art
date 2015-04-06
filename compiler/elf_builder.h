@@ -40,6 +40,7 @@ class ElfSectionBuilder : public ValueObject {
     section_.sh_addralign = align;
     section_.sh_entsize = entsize;
   }
+  ElfSectionBuilder(const ElfSectionBuilder&) = default;
 
   ~ElfSectionBuilder() {}
 
@@ -144,6 +145,7 @@ class ElfRawSectionBuilder FINAL : public ElfSectionBuilder<Elf_Word, Elf_Sword,
     : ElfSectionBuilder<Elf_Word, Elf_Sword, Elf_Shdr>(sec_name, type, flags, link, info, align,
                                                        entsize) {
   }
+  ElfRawSectionBuilder(const ElfRawSectionBuilder&) = default;
 
   ~ElfRawSectionBuilder() {}
 

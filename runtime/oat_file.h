@@ -134,7 +134,10 @@ class OatFile FINAL {
     OatMethod(const uint8_t* base, const uint32_t code_offset)
         : begin_(base), code_offset_(code_offset) {
     }
+    OatMethod(const OatMethod&) = default;
     ~OatMethod() {}
+
+    OatMethod& operator=(const OatMethod&) = default;
 
     // A representation of an invalid OatMethod, used when an OatMethod or OatClass can't be found.
     // See ClassLinker::FindOatMethodFor.
