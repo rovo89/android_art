@@ -185,7 +185,7 @@ static uint32_t ReadU32(const uint8_t* ptr) {
   return ptr[0] | (ptr[1] << 8) | (ptr[2] << 16) | (ptr[3] << 24);
 }
 
-static void DumpMips64(std::ostream& os, const uint8_t* instr_ptr) {
+size_t DisassemblerMips64::Dump(std::ostream& os, const uint8_t* instr_ptr) {
   uint32_t instruction = ReadU32(instr_ptr);
 
   uint32_t rs = (instruction >> 21) & 0x1f;  // I-type, R-type.
@@ -273,19 +273,16 @@ static void DumpMips64(std::ostream& os, const uint8_t* instr_ptr) {
     }
   }
 
-  os << StringPrintf("%p: %08x\t%-7s ", instr_ptr, instruction, opcode.c_str())
+  os << FormatInstructionPointer(instr_ptr)
+     << StringPrintf(": %08x\t%-7s ", instruction, opcode.c_str())
      << args.str() << '\n';
-}
-
-size_t DisassemblerMips64::Dump(std::ostream& os, const uint8_t* begin) {
-  DumpMips64(os, begin);
   return 4;
 }
 
 void DisassemblerMips64::Dump(std::ostream& os, const uint8_t* begin,
                             const uint8_t* end) {
   for (const uint8_t* cur = begin; cur < end; cur += 4) {
-    DumpMips64(os, cur);
+    Dump(os, cur);
   }
 }
 
