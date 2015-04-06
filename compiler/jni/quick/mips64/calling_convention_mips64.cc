@@ -126,25 +126,20 @@ const ManagedRegisterEntrySpills& Mips64ManagedRuntimeCallingConvention::EntrySp
 Mips64JniCallingConvention::Mips64JniCallingConvention(bool is_static, bool is_synchronized,
                                                        const char* shorty)
     : JniCallingConvention(is_static, is_synchronized, shorty, kFramePointerSize) {
-  callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S0));
-  callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S1));
   callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S2));
   callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S3));
   callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S4));
   callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S5));
   callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S6));
   callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S7));
-
   callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(GP));
-  callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(SP));
   callee_save_regs_.push_back(Mips64ManagedRegister::FromGpuRegister(S8));
 }
 
 uint32_t Mips64JniCallingConvention::CoreSpillMask() const {
   // Compute spill mask to agree with callee saves initialized in the constructor
   uint32_t result = 0;
-  result = 1 << S0 | 1 << S1 | 1 << S2 | 1 << S3 | 1 << S4 | 1 << S5 | 1 << S6 |
-           1 << S7 | 1 << GP | 1 << SP | 1 << S8;
+  result = 1 << S2 | 1 << S3 | 1 << S4 | 1 << S5 | 1 << S6 | 1 << S7 | 1 << GP | 1 << S8 | 1 << RA;
   return result;
 }
 

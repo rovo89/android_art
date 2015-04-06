@@ -1025,7 +1025,7 @@ void Mips64ExceptionSlowPath::Emit(Assembler* sasm) {
   __ Move(A0, scratch_.AsGpuRegister());
   // Set up call to Thread::Current()->pDeliverException
   __ LoadFromOffset(kLoadDoubleword, T9, S1,
-                    QUICK_ENTRYPOINT_OFFSET(4, pDeliverException).Int32Value());
+                    QUICK_ENTRYPOINT_OFFSET(8, pDeliverException).Int32Value());
   __ Jr(T9);
   // Call never returns
   __ Break();
