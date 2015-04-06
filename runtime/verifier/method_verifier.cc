@@ -4351,12 +4351,12 @@ void MethodVerifier::Shutdown() {
   verifier::RegTypeCache::ShutDown();
 }
 
-void MethodVerifier::VisitStaticRoots(RootCallback* callback, void* arg) {
-  RegTypeCache::VisitStaticRoots(callback, arg);
+void MethodVerifier::VisitStaticRoots(RootVisitor* visitor) {
+  RegTypeCache::VisitStaticRoots(visitor);
 }
 
-void MethodVerifier::VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info) {
-  reg_types_.VisitRoots(callback, arg, root_info);
+void MethodVerifier::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) {
+  reg_types_.VisitRoots(visitor, root_info);
 }
 
 }  // namespace verifier

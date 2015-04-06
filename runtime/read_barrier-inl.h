@@ -111,6 +111,48 @@ inline MirrorType* ReadBarrier::BarrierForRoot(MirrorType** root) {
   }
 }
 
+// TODO: Reduce copy paste
+template <typename MirrorType, ReadBarrierOption kReadBarrierOption, bool kMaybeDuringStartup>
+inline MirrorType* ReadBarrier::BarrierForRoot(mirror::CompressedReference<MirrorType>* root) {
+  MirrorType* ref = root->AsMirrorPtr();
+  const bool with_read_barrier = kReadBarrierOption == kWithReadBarrier;
+  if (with_read_barrier && kUseBakerReadBarrier) {
+    if (kMaybeDuringStartup && IsDuringStartup()) {
+      // During startup, the heap may not be initialized yet. Just
+      // return the given ref.
+      return ref;
+    }
+    // TODO: separate the read barrier code from the collector code more.
+    if (Runtime::Current()->GetHeap()->ConcurrentCopyingCollector()->IsMarking()) {
+      ref = reinterpret_cast<MirrorType*>(Mark(ref));
+    }
+    AssertToSpaceInvariant(nullptr, MemberOffset(0), ref);
+    return ref;
+  } else if (with_read_barrier && kUseBrooksReadBarrier) {
+    // To be implemented.
+    return ref;
+  } else if (with_read_barrier && kUseTableLookupReadBarrier) {
+    if (kMaybeDuringStartup && IsDuringStartup()) {
+      // During startup, the heap may not be initialized yet. Just
+      // return the given ref.
+      return ref;
+    }
+    if (Runtime::Current()->GetHeap()->GetReadBarrierTable()->IsSet(ref)) {
+      auto old_ref = mirror::CompressedReference<MirrorType>::FromMirrorPtr(ref);
+      ref = reinterpret_cast<MirrorType*>(Mark(ref));
+      auto new_ref = mirror::CompressedReference<MirrorType>::FromMirrorPtr(ref);
+      // Update the field atomically. This may fail if mutator updates before us, but it's ok.
+      auto* atomic_root =
+          reinterpret_cast<Atomic<mirror::CompressedReference<MirrorType>>*>(root);
+      atomic_root->CompareExchangeStrongSequentiallyConsistent(old_ref, new_ref);
+    }
+    AssertToSpaceInvariant(nullptr, MemberOffset(0), ref);
+    return ref;
+  } else {
+    return ref;
+  }
+}
+
 inline bool ReadBarrier::IsDuringStartup() {
   gc::Heap* heap = Runtime::Current()->GetHeap();
   if (heap == nullptr) {

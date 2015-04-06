@@ -403,9 +403,9 @@ class NetStateEndianOutput FINAL : public EndianOutputBuffered {
   JDWP::JdwpNetStateBase* net_state_;
 };
 
-#define __ output->
+#define __ output_->
 
-class Hprof {
+class Hprof : public SingleRootVisitor {
  public:
   Hprof(const char* output_filename, int fd, bool direct_to_ddms)
       : filename_(output_filename),
@@ -426,9 +426,11 @@ class Hprof {
     size_t max_length;
     {
       EndianOutput count_output;
-      ProcessHeap(&count_output, false);
+      output_ = &count_output;
+      ProcessHeap(false);
       overall_size = count_output.SumLength();
       max_length = count_output.MaxLength();
+      output_ = nullptr;
     }
 
     bool okay;
@@ -451,86 +453,70 @@ class Hprof {
   }
 
  private:
-  struct Env {
-    Hprof* hprof;
-    EndianOutput* output;
-  };
-
-  static void RootVisitor(mirror::Object** obj, void* arg, const RootInfo& root_info)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    DCHECK(arg != nullptr);
-    DCHECK(obj != nullptr);
-    DCHECK(*obj != nullptr);
-    Env* env = reinterpret_cast<Env*>(arg);
-    env->hprof->VisitRoot(*obj, root_info, env->output);
-  }
-
   static void VisitObjectCallback(mirror::Object* obj, void* arg)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(obj != nullptr);
     DCHECK(arg != nullptr);
-    Env* env = reinterpret_cast<Env*>(arg);
-    env->hprof->DumpHeapObject(obj, env->output);
+    reinterpret_cast<Hprof*>(arg)->DumpHeapObject(obj);
   }
 
-  void DumpHeapObject(mirror::Object* obj, EndianOutput* output)
+  void DumpHeapObject(mirror::Object* obj)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void DumpHeapClass(mirror::Class* klass, EndianOutput* output)
+  void DumpHeapClass(mirror::Class* klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void DumpHeapArray(mirror::Array* obj, mirror::Class* klass, EndianOutput* output)
+  void DumpHeapArray(mirror::Array* obj, mirror::Class* klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass, EndianOutput* output)
+  void DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  void ProcessHeap(EndianOutput* output, bool header_first)
+  void ProcessHeap(bool header_first)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Reset current heap and object count.
     current_heap_ = HPROF_HEAP_DEFAULT;
     objects_in_segment_ = 0;
 
     if (header_first) {
-      ProcessHeader(output);
-      ProcessBody(output);
+      ProcessHeader();
+      ProcessBody();
     } else {
-      ProcessBody(output);
-      ProcessHeader(output);
+      ProcessBody();
+      ProcessHeader();
     }
   }
 
-  void ProcessBody(EndianOutput* output) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    Runtime* runtime = Runtime::Current();
+  void ProcessBody() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    Runtime* const runtime = Runtime::Current();
     // Walk the roots and the heap.
-    output->StartNewRecord(HPROF_TAG_HEAP_DUMP_SEGMENT, kHprofTime);
+    output_->StartNewRecord(HPROF_TAG_HEAP_DUMP_SEGMENT, kHprofTime);
 
-    Env env = { this, output };
-    runtime->VisitRoots(RootVisitor, &env);
-    runtime->VisitImageRoots(RootVisitor, &env);
-    runtime->GetHeap()->VisitObjectsPaused(VisitObjectCallback, &env);
+    runtime->VisitRoots(this);
+    runtime->VisitImageRoots(this);
+    runtime->GetHeap()->VisitObjectsPaused(VisitObjectCallback, this);
 
-    output->StartNewRecord(HPROF_TAG_HEAP_DUMP_END, kHprofTime);
-    output->EndRecord();
+    output_->StartNewRecord(HPROF_TAG_HEAP_DUMP_END, kHprofTime);
+    output_->EndRecord();
   }
 
-  void ProcessHeader(EndianOutput* output) EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void ProcessHeader() EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_) {
     // Write the header.
-    WriteFixedHeader(output);
+    WriteFixedHeader();
     // Write the string and class tables, and any stack traces, to the header.
     // (jhat requires that these appear before any of the data in the body that refers to them.)
-    WriteStringTable(output);
-    WriteClassTable(output);
-    WriteStackTraces(output);
-    output->EndRecord();
+    WriteStringTable();
+    WriteClassTable();
+    WriteStackTraces();
+    output_->EndRecord();
   }
 
-  void WriteClassTable(EndianOutput* output) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+  void WriteClassTable() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     uint32_t nextSerialNumber = 1;
 
     for (mirror::Class* c : classes_) {
       CHECK(c != nullptr);
-      output->StartNewRecord(HPROF_TAG_LOAD_CLASS, kHprofTime);
+      output_->StartNewRecord(HPROF_TAG_LOAD_CLASS, kHprofTime);
       // LOAD CLASS format:
       // U4: class serial number (always > 0)
       // ID: class object ID. We use the address of the class object structure as its ID.
@@ -543,12 +529,12 @@ class Hprof {
     }
   }
 
-  void WriteStringTable(EndianOutput* output) {
+  void WriteStringTable() {
     for (const std::pair<std::string, HprofStringId>& p : strings_) {
       const std::string& string = p.first;
       const size_t id = p.second;
 
-      output->StartNewRecord(HPROF_TAG_STRING, kHprofTime);
+      output_->StartNewRecord(HPROF_TAG_STRING, kHprofTime);
 
       // STRING format:
       // ID:  ID for this string
@@ -559,24 +545,24 @@ class Hprof {
     }
   }
 
-  void StartNewHeapDumpSegment(EndianOutput* output) {
+  void StartNewHeapDumpSegment() {
     // This flushes the old segment and starts a new one.
-    output->StartNewRecord(HPROF_TAG_HEAP_DUMP_SEGMENT, kHprofTime);
+    output_->StartNewRecord(HPROF_TAG_HEAP_DUMP_SEGMENT, kHprofTime);
     objects_in_segment_ = 0;
     // Starting a new HEAP_DUMP resets the heap to default.
     current_heap_ = HPROF_HEAP_DEFAULT;
   }
 
-  void CheckHeapSegmentConstraints(EndianOutput* output) {
-    if (objects_in_segment_ >= kMaxObjectsPerSegment || output->Length() >= kMaxBytesPerSegment) {
-      StartNewHeapDumpSegment(output);
+  void CheckHeapSegmentConstraints() {
+    if (objects_in_segment_ >= kMaxObjectsPerSegment || output_->Length() >= kMaxBytesPerSegment) {
+      StartNewHeapDumpSegment();
     }
   }
 
-  void VisitRoot(const mirror::Object* obj, const RootInfo& root_info, EndianOutput* output)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+  void VisitRoot(mirror::Object* obj, const RootInfo& root_info)
+      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void MarkRootObject(const mirror::Object* obj, jobject jni_obj, HprofHeapTag heap_tag,
-                      uint32_t thread_serial, EndianOutput* output);
+                      uint32_t thread_serial);
 
   HprofClassObjectId LookupClassId(mirror::Class* c) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     if (c != nullptr) {
@@ -611,7 +597,7 @@ class Hprof {
     return LookupStringId(PrettyDescriptor(c));
   }
 
-  void WriteFixedHeader(EndianOutput* output) {
+  void WriteFixedHeader() {
     // Write the file header.
     // U1: NUL-terminated magic string.
     const char magic[] = "JAVA PROFILE 1.0.3";
@@ -635,9 +621,9 @@ class Hprof {
     __ AddU4(static_cast<uint32_t>(nowMs & 0xFFFFFFFF));
   }
 
-  void WriteStackTraces(EndianOutput* output) {
+  void WriteStackTraces() {
     // Write a dummy stack trace record so the analysis tools don't freak out.
-    output->StartNewRecord(HPROF_TAG_STACK_TRACE, kHprofTime);
+    output_->StartNewRecord(HPROF_TAG_STACK_TRACE, kHprofTime);
     __ AddU4(kHprofNullStackTrace);
     __ AddU4(kHprofNullThread);
     __ AddU4(0);    // no frames
@@ -679,13 +665,15 @@ class Hprof {
     bool okay;
     {
       FileEndianOutput file_output(file.get(), max_length);
-      ProcessHeap(&file_output, true);
+      output_ = &file_output;
+      ProcessHeap(true);
       okay = !file_output.Errors();
 
       if (okay) {
         // Check for expected size.
         CHECK_EQ(file_output.SumLength(), overall_size);
       }
+      output_ = nullptr;
     }
 
     if (okay) {
@@ -721,13 +709,15 @@ class Hprof {
 
     // Prepare the output and send the chunk header.
     NetStateEndianOutput net_output(net_state, max_length);
+    output_ = &net_output;
     net_output.AddU1List(chunk_header, kChunkHeaderSize);
 
     // Write the dump.
-    ProcessHeap(&net_output, true);
+    ProcessHeap(true);
 
     // Check for expected size.
     CHECK_EQ(net_output.SumLength(), overall_size + kChunkHeaderSize);
+    output_ = nullptr;
 
     return true;
   }
@@ -740,6 +730,8 @@ class Hprof {
   bool direct_to_ddms_;
 
   uint64_t start_ns_;
+
+  EndianOutput* output_;
 
   HprofHeapId current_heap_;  // Which heap we're currently dumping.
   size_t objects_in_segment_;
@@ -811,12 +803,12 @@ static HprofBasicType SignatureToBasicTypeAndSize(const char* sig, size_t* size_
 // only true when marking the root set or unreachable
 // objects.  Used to add rootset references to obj.
 void Hprof::MarkRootObject(const mirror::Object* obj, jobject jni_obj, HprofHeapTag heap_tag,
-                           uint32_t thread_serial, EndianOutput* output) {
+                           uint32_t thread_serial) {
   if (heap_tag == 0) {
     return;
   }
 
-  CheckHeapSegmentConstraints(output);
+  CheckHeapSegmentConstraints();
 
   switch (heap_tag) {
     // ID: object ID
@@ -892,7 +884,7 @@ static int StackTraceSerialNumber(const mirror::Object* /*obj*/) {
   return kHprofNullStackTrace;
 }
 
-void Hprof::DumpHeapObject(mirror::Object* obj, EndianOutput* output) {
+void Hprof::DumpHeapObject(mirror::Object* obj) {
   // Ignore classes that are retired.
   if (obj->IsClass() && obj->AsClass()->IsRetired()) {
     return;
@@ -908,7 +900,7 @@ void Hprof::DumpHeapObject(mirror::Object* obj, EndianOutput* output) {
       heap_type = HPROF_HEAP_IMAGE;
     }
   }
-  CheckHeapSegmentConstraints(output);
+  CheckHeapSegmentConstraints();
 
   if (heap_type != current_heap_) {
     HprofStringId nameId;
@@ -945,18 +937,18 @@ void Hprof::DumpHeapObject(mirror::Object* obj, EndianOutput* output) {
     // allocated which hasn't been initialized yet.
   } else {
     if (obj->IsClass()) {
-      DumpHeapClass(obj->AsClass(), output);
+      DumpHeapClass(obj->AsClass());
     } else if (c->IsArrayClass()) {
-      DumpHeapArray(obj->AsArray(), c, output);
+      DumpHeapArray(obj->AsArray(), c);
     } else {
-      DumpHeapInstanceObject(obj, c, output);
+      DumpHeapInstanceObject(obj, c);
     }
   }
 
   ++objects_in_segment_;
 }
 
-void Hprof::DumpHeapClass(mirror::Class* klass, EndianOutput* output) {
+void Hprof::DumpHeapClass(mirror::Class* klass) {
   size_t sFieldCount = klass->NumStaticFields();
   if (sFieldCount != 0) {
     int byteLength = sFieldCount * sizeof(JValue);  // TODO bogus; fields are packed
@@ -1049,7 +1041,7 @@ void Hprof::DumpHeapClass(mirror::Class* klass, EndianOutput* output) {
   }
 }
 
-void Hprof::DumpHeapArray(mirror::Array* obj, mirror::Class* klass, EndianOutput* output) {
+void Hprof::DumpHeapArray(mirror::Array* obj, mirror::Class* klass) {
   uint32_t length = obj->GetLength();
 
   if (obj->IsObjectArray()) {
@@ -1089,8 +1081,7 @@ void Hprof::DumpHeapArray(mirror::Array* obj, mirror::Class* klass, EndianOutput
   }
 }
 
-void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass,
-                                   EndianOutput* output) {
+void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass) {
   // obj is an instance object.
   __ AddU1(HPROF_INSTANCE_DUMP);
   __ AddObjectId(obj);
@@ -1099,7 +1090,7 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass,
 
   // Reserve some space for the length of the instance data, which we won't
   // know until we're done writing it.
-  size_t size_patch_offset = output->Length();
+  size_t size_patch_offset = output_->Length();
   __ AddU4(0x77777777);
 
   // Write the instance data;  fields for this class, followed by super class fields,
@@ -1139,10 +1130,10 @@ void Hprof::DumpHeapInstanceObject(mirror::Object* obj, mirror::Class* klass,
   }
 
   // Patch the instance field length.
-  __ UpdateU4(size_patch_offset, output->Length() - (size_patch_offset + 4));
+  __ UpdateU4(size_patch_offset, output_->Length() - (size_patch_offset + 4));
 }
 
-void Hprof::VisitRoot(const mirror::Object* obj, const RootInfo& info, EndianOutput* output) {
+void Hprof::VisitRoot(mirror::Object* obj, const RootInfo& info) {
   static const HprofHeapTag xlate[] = {
     HPROF_ROOT_UNKNOWN,
     HPROF_ROOT_JNI_GLOBAL,
@@ -1164,7 +1155,7 @@ void Hprof::VisitRoot(const mirror::Object* obj, const RootInfo& info, EndianOut
   if (obj == nullptr) {
     return;
   }
-  MarkRootObject(obj, 0, xlate[info.GetType()], info.GetThreadId(), output);
+  MarkRootObject(obj, 0, xlate[info.GetType()], info.GetThreadId());
 }
 
 // If "direct_to_ddms" is true, the other arguments are ignored, and data is

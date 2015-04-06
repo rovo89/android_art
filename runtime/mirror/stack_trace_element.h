@@ -54,7 +54,7 @@ class MANAGED StackTraceElement FINAL : public Object {
 
   static void SetClass(Class* java_lang_StackTraceElement);
   static void ResetClass();
-  static void VisitRoots(RootCallback* callback, void* arg)
+  static void VisitRoots(RootVisitor* visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   static Class* GetStackTraceElement() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(!java_lang_StackTraceElement_.IsNull());

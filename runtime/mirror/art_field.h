@@ -138,7 +138,7 @@ class MANAGED ArtField FINAL : public Object {
 
   static void SetClass(Class* java_lang_reflect_ArtField);
   static void ResetClass();
-  static void VisitRoots(RootCallback* callback, void* arg)
+  static void VisitRoots(RootVisitor* visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   bool IsVolatile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {

@@ -218,7 +218,7 @@ class IrtEntry {
   uint32_t serial_;
   GcRoot<mirror::Object> references_[kIRTPrevCount];
 };
-static_assert(sizeof(IrtEntry) == (1 + kIRTPrevCount) * sizeof(uintptr_t),
+static_assert(sizeof(IrtEntry) == (1 + kIRTPrevCount) * sizeof(uint32_t),
               "Unexpected sizeof(IrtEntry)");
 
 class IrtIterator {
@@ -233,9 +233,9 @@ class IrtIterator {
     return *this;
   }
 
-  mirror::Object** operator*() {
+  GcRoot<mirror::Object>* operator*() {
     // This does not have a read barrier as this is used to visit roots.
-    return table_[i_].GetReference()->AddressWithoutBarrier();
+    return table_[i_].GetReference();
   }
 
   bool equals(const IrtIterator& rhs) const {
@@ -320,7 +320,7 @@ class IndirectReferenceTable {
     return IrtIterator(table_, Capacity(), Capacity());
   }
 
-  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info)
+  void VisitRoots(RootVisitor* visitor, const RootInfo& root_info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   uint32_t GetSegmentState() const {

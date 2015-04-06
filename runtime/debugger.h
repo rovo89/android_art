@@ -81,7 +81,7 @@ struct DebugInvokeReq {
   Mutex lock DEFAULT_MUTEX_ACQUIRED_AFTER;
   ConditionVariable cond GUARDED_BY(lock);
 
-  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info)
+  void VisitRoots(RootVisitor* visitor, const RootInfo& root_info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
@@ -117,7 +117,7 @@ class SingleStepControl {
     return dex_pcs_;
   }
 
-  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info)
+  void VisitRoots(RootVisitor* visitor, const RootInfo& root_info)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   void AddDexPc(uint32_t dex_pc);
@@ -648,7 +648,7 @@ class Dbg {
   static void DdmSendChunkV(uint32_t type, const iovec* iov, int iov_count)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
-  static void VisitRoots(RootCallback* callback, void* arg)
+  static void VisitRoots(RootVisitor* visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   /*

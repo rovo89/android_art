@@ -248,13 +248,20 @@ static void VMRuntime_runHeapTasks(JNIEnv* env, jobject) {
 
 typedef std::map<std::string, mirror::String*> StringTable;
 
-static void PreloadDexCachesStringsCallback(mirror::Object** root, void* arg,
-                                            const RootInfo& /*root_info*/)
-    SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-  StringTable& table = *reinterpret_cast<StringTable*>(arg);
-  mirror::String* string = const_cast<mirror::Object*>(*root)->AsString();
-  table[string->ToModifiedUtf8()] = string;
-}
+class PreloadDexCachesStringsVisitor : public SingleRootVisitor {
+ public:
+  explicit PreloadDexCachesStringsVisitor(StringTable* table) : table_(table) {
+  }
+
+  void VisitRoot(mirror::Object* root, const RootInfo& info ATTRIBUTE_UNUSED)
+      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
+    mirror::String* string = root->AsString();
+    table_->operator[](string->ToModifiedUtf8()) = string;
+  }
+
+ private:
+  StringTable* const table_;
+};
 
 // Based on ClassLinker::ResolveString.
 static void PreloadDexCachesResolveString(Handle<mirror::DexCache> dex_cache, uint32_t string_idx,
@@ -469,8 +476,8 @@ static void VMRuntime_preloadDexCaches(JNIEnv* env, jobject) {
   // We use a std::map to avoid heap allocating StringObjects to lookup in gDvm.literalStrings
   StringTable strings;
   if (kPreloadDexCachesStrings) {
-    runtime->GetInternTable()->VisitRoots(PreloadDexCachesStringsCallback, &strings,
-                                          kVisitRootFlagAllRoots);
+    PreloadDexCachesStringsVisitor visitor(&strings);
+    runtime->GetInternTable()->VisitRoots(&visitor, kVisitRootFlagAllRoots);
   }
 
   const std::vector<const DexFile*>& boot_class_path = linker->GetBootClassPath();
