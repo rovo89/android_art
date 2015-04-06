@@ -239,7 +239,6 @@ class ValueBound : public ValueObject {
       *underflow = true;
       return Min();
     }
-    return ValueBound(instruction_, new_constant);
   }
 
  private:

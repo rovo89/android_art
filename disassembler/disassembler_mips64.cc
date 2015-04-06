@@ -233,7 +233,6 @@ static void DumpMips64(std::ostream& os, const uint8_t* instr_ptr) {
               }
               continue;  // No ", ".
             }
-            break;
           case 'I':  // Upper 16-bit immediate.
             args << reinterpret_cast<void*>((instruction & 0xffff) << 16);
             break;

@@ -232,7 +232,7 @@ class ConcurrentCopying : public GarbageCollector {
   bool IsOnAllocStack(mirror::Object* ref) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   mirror::Object* GetFwdPtr(mirror::Object* from_ref)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
-  void FlipThreadRoots() LOCKS_EXCLUDED(Locks::mutator_lock_);;
+  void FlipThreadRoots() LOCKS_EXCLUDED(Locks::mutator_lock_);
   void SwapStacks(Thread* self) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   void RecordLiveStackFreezeSize(Thread* self);
   void ComputeUnevacFromSpaceLiveRatio();
