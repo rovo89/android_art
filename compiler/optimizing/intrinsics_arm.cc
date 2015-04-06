@@ -776,10 +776,10 @@ static void GenCas(LocationSummary* locations, Primitive::Type type, CodeGenerat
   __ mov(out, ShifterOperand(0), CC);
 }
 
-void IntrinsicLocationsBuilderARM::VisitUnsafeCASInt(HInvoke* invoke ATTRIBUTE_UNUSED) {
+void IntrinsicLocationsBuilderARM::VisitUnsafeCASInt(HInvoke* invoke) {
   CreateIntIntIntIntIntToIntPlusTemps(arena_, invoke);
 }
-void IntrinsicLocationsBuilderARM::VisitUnsafeCASObject(HInvoke* invoke ATTRIBUTE_UNUSED) {
+void IntrinsicLocationsBuilderARM::VisitUnsafeCASObject(HInvoke* invoke) {
   CreateIntIntIntIntIntToIntPlusTemps(arena_, invoke);
 }
 void IntrinsicCodeGeneratorARM::VisitUnsafeCASInt(HInvoke* invoke) {

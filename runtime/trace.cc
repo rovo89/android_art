@@ -243,8 +243,7 @@ static void GetSample(Thread* thread, void* arg) SHARED_LOCKS_REQUIRED(Locks::mu
   the_trace->CompareAndUpdateStackTrace(thread, stack_trace);
 }
 
-static void ClearThreadStackTraceAndClockBase(Thread* thread ATTRIBUTE_UNUSED,
-                                              void* arg ATTRIBUTE_UNUSED) {
+static void ClearThreadStackTraceAndClockBase(Thread* thread, void* arg ATTRIBUTE_UNUSED) {
   thread->SetTraceClockBase(0);
   std::vector<mirror::ArtMethod*>* stack_trace = thread->GetStackTraceSample();
   thread->SetStackTraceSample(NULL);
