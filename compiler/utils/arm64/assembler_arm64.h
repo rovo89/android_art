@@ -30,7 +30,9 @@
 
 // TODO: make vixl clean wrt -Wshadow.
 #pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
 #pragma GCC diagnostic ignored "-Wshadow"
+#pragma GCC diagnostic ignored "-Wmissing-noreturn"
 #include "vixl/a64/macro-assembler-a64.h"
 #include "vixl/a64/disasm-a64.h"
 #pragma GCC diagnostic pop

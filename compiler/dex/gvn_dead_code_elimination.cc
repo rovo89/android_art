@@ -1357,7 +1357,6 @@ bool GvnDeadCodeElimination::RecordMIR(MIR* mir) {
     default:
       LOG(FATAL) << "Unexpected opcode: " << opcode;
       UNREACHABLE();
-      break;
   }
 
   if (mir->ssa_rep->num_defs != 0) {

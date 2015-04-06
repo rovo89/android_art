@@ -413,7 +413,6 @@ bool ParsedOptions::Parse(const RuntimeOptions& options, bool ignore_unrecognize
     }
 
     UNREACHABLE();
-    return false;
   }
 
   using M = RuntimeArgumentMap;

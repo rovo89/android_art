@@ -67,7 +67,6 @@ HeapTask* TaskProcessor::GetTask(Thread* self) {
     }
   }
   UNREACHABLE();
-  return nullptr;
 }
 
 void TaskProcessor::UpdateTargetRunTime(Thread* self, HeapTask* task, uint64_t new_target_time) {

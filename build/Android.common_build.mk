@@ -141,6 +141,9 @@ art_clang_cflags += -Wused-but-marked-unused
 # Enable warning for deprecated language features.
 art_clang_cflags += -Wdeprecated
 
+# Enable warning for unreachable break & return, and missing NO_RETURN annotations.
+art_clang_cflags += -Wunreachable-code-break -Wunreachable-code-return -Wmissing-noreturn
+
 
 # GCC-only warnings.
 art_gcc_cflags := -Wunused-but-set-parameter
