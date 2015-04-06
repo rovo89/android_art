@@ -557,33 +557,33 @@ void RegTypeCache::Dump(std::ostream& os) {
   }
 }
 
-void RegTypeCache::VisitStaticRoots(RootCallback* callback, void* arg) {
+void RegTypeCache::VisitStaticRoots(RootVisitor* visitor) {
   // Visit the primitive types, this is required since if there are no active verifiers they wont
   // be in the entries array, and therefore not visited as roots.
   if (primitive_initialized_) {
     RootInfo ri(kRootUnknown);
-    UndefinedType::GetInstance()->VisitRoots(callback, arg, ri);
-    ConflictType::GetInstance()->VisitRoots(callback, arg, ri);
-    BooleanType::GetInstance()->VisitRoots(callback, arg, ri);
-    ByteType::GetInstance()->VisitRoots(callback, arg, ri);
-    ShortType::GetInstance()->VisitRoots(callback, arg, ri);
-    CharType::GetInstance()->VisitRoots(callback, arg, ri);
-    IntegerType::GetInstance()->VisitRoots(callback, arg, ri);
-    LongLoType::GetInstance()->VisitRoots(callback, arg, ri);
-    LongHiType::GetInstance()->VisitRoots(callback, arg, ri);
-    FloatType::GetInstance()->VisitRoots(callback, arg, ri);
-    DoubleLoType::GetInstance()->VisitRoots(callback, arg, ri);
-    DoubleHiType::GetInstance()->VisitRoots(callback, arg, ri);
+    UndefinedType::GetInstance()->VisitRoots(visitor, ri);
+    ConflictType::GetInstance()->VisitRoots(visitor, ri);
+    BooleanType::GetInstance()->VisitRoots(visitor, ri);
+    ByteType::GetInstance()->VisitRoots(visitor, ri);
+    ShortType::GetInstance()->VisitRoots(visitor, ri);
+    CharType::GetInstance()->VisitRoots(visitor, ri);
+    IntegerType::GetInstance()->VisitRoots(visitor, ri);
+    LongLoType::GetInstance()->VisitRoots(visitor, ri);
+    LongHiType::GetInstance()->VisitRoots(visitor, ri);
+    FloatType::GetInstance()->VisitRoots(visitor, ri);
+    DoubleLoType::GetInstance()->VisitRoots(visitor, ri);
+    DoubleHiType::GetInstance()->VisitRoots(visitor, ri);
     for (int32_t value = kMinSmallConstant; value <= kMaxSmallConstant; ++value) {
-      small_precise_constants_[value - kMinSmallConstant]->VisitRoots(callback, arg, ri);
+      small_precise_constants_[value - kMinSmallConstant]->VisitRoots(visitor, ri);
     }
   }
 }
 
-void RegTypeCache::VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info) {
+void RegTypeCache::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) {
   // Exclude the static roots that are visited by VisitStaticRoots().
   for (size_t i = primitive_count_; i < entries_.size(); ++i) {
-    entries_[i]->VisitRoots(callback, arg, root_info);
+    entries_[i]->VisitRoots(visitor, root_info);
   }
 }
 

@@ -77,7 +77,7 @@
     ld      $v0, %got(_ZN3art7Runtime9instance_E)($gp)
     ld      $v0, 0($v0)
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ld      $v0, RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET($v0)
+    lwu     $v0, RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET($v0)
     sw      $v0, 0($sp)                                # Place Method* at bottom of stack.
     sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
 .endm
@@ -120,7 +120,7 @@
     ld      $v0, %got(_ZN3art7Runtime9instance_E)($gp)
     ld      $v0, 0($v0)
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ld      $v0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET($v0)
+    lwu     $v0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET($v0)
     sw      $v0, 0($sp)                                # Place Method* at bottom of stack.
     sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
 .endm
@@ -237,7 +237,7 @@
     ld      $v0, %got(_ZN3art7Runtime9instance_E)($gp)
     ld      $v0, 0($v0)
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ld      $v0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET($v0)
+    lwu     $v0, RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET($v0)
     sw      $v0, 0($sp)                                # Place Method* at bottom of stack.
     sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
 .endm
@@ -248,7 +248,7 @@
     ld      $v0, %got(_ZN3art7Runtime9instance_E)($gp)
     ld      $v0, 0($v0)
     THIS_LOAD_REQUIRES_READ_BARRIER
-    ld      $v0, RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET($v0)
+    lwu     $v0, RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET($v0)
     sw      $v0, 0($sp)                                # Place Method* at bottom of stack.
     sd      $sp, THREAD_TOP_QUICK_FRAME_OFFSET(rSELF)  # Place sp in Thread::Current()->top_quick_frame.
 .endm

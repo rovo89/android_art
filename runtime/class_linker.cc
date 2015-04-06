@@ -242,7 +242,10 @@ ClassLinker::ClassLinker(InternTable* intern_table)
       quick_generic_jni_trampoline_(nullptr),
       quick_to_interpreter_bridge_trampoline_(nullptr),
       image_pointer_size_(sizeof(void*)) {
-  memset(find_array_class_cache_, 0, kFindArrayCacheSize * sizeof(mirror::Class*));
+  CHECK(intern_table_ != nullptr);
+  for (size_t i = 0; i < kFindArrayCacheSize; ++i) {
+    find_array_class_cache_[i] = GcRoot<mirror::Class>(nullptr);
+  }
 }
 
 void ClassLinker::InitWithoutImage(std::vector<std::unique_ptr<const DexFile>> boot_class_path) {
@@ -908,19 +911,20 @@ void ClassLinker::InitFromImage() {
   VLOG(startup) << "ClassLinker::InitFromImage exiting";
 }
 
-void ClassLinker::VisitClassRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
+void ClassLinker::VisitClassRoots(RootVisitor* visitor, VisitRootFlags flags) {
   WriterMutexLock mu(Thread::Current(), *Locks::classlinker_classes_lock_);
   if ((flags & kVisitRootFlagAllRoots) != 0) {
+    BufferedRootVisitor<128> buffered_visitor(visitor, RootInfo(kRootStickyClass));
     for (GcRoot<mirror::Class>& root : class_table_) {
-      root.VisitRoot(callback, arg, RootInfo(kRootStickyClass));
+      buffered_visitor.VisitRoot(root);
     }
     for (GcRoot<mirror::Class>& root : pre_zygote_class_table_) {
-      root.VisitRoot(callback, arg, RootInfo(kRootStickyClass));
+      buffered_visitor.VisitRoot(root);
     }
   } else if ((flags & kVisitRootFlagNewRoots) != 0) {
     for (auto& root : new_class_roots_) {
       mirror::Class* old_ref = root.Read<kWithoutReadBarrier>();
-      root.VisitRoot(callback, arg, RootInfo(kRootStickyClass));
+      root.VisitRoot(visitor, RootInfo(kRootStickyClass));
       mirror::Class* new_ref = root.Read<kWithoutReadBarrier>();
       if (UNLIKELY(new_ref != old_ref)) {
         // Uh ohes, GC moved a root in the log. Need to search the class_table and update the
@@ -947,18 +951,18 @@ void ClassLinker::VisitClassRoots(RootCallback* callback, void* arg, VisitRootFl
 // Keep in sync with InitCallback. Anything we visit, we need to
 // reinit references to when reinitializing a ClassLinker from a
 // mapped image.
-void ClassLinker::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags flags) {
-  class_roots_.VisitRoot(callback, arg, RootInfo(kRootVMInternal));
-  Thread* self = Thread::Current();
+void ClassLinker::VisitRoots(RootVisitor* visitor, VisitRootFlags flags) {
+  class_roots_.VisitRoot(visitor, RootInfo(kRootVMInternal));
+  Thread* const self = Thread::Current();
   {
     ReaderMutexLock mu(self, dex_lock_);
     if ((flags & kVisitRootFlagAllRoots) != 0) {
       for (GcRoot<mirror::DexCache>& dex_cache : dex_caches_) {
-        dex_cache.VisitRoot(callback, arg, RootInfo(kRootVMInternal));
+        dex_cache.VisitRoot(visitor, RootInfo(kRootVMInternal));
       }
     } else if ((flags & kVisitRootFlagNewRoots) != 0) {
       for (size_t index : new_dex_cache_roots_) {
-        dex_caches_[index].VisitRoot(callback, arg, RootInfo(kRootVMInternal));
+        dex_caches_[index].VisitRoot(visitor, RootInfo(kRootVMInternal));
       }
     }
     if ((flags & kVisitRootFlagClearRootLog) != 0) {
@@ -970,11 +974,10 @@ void ClassLinker::VisitRoots(RootCallback* callback, void* arg, VisitRootFlags f
       log_new_dex_caches_roots_ = false;
     }
   }
-  VisitClassRoots(callback, arg, flags);
-  array_iftable_.VisitRoot(callback, arg, RootInfo(kRootVMInternal));
-  DCHECK(!array_iftable_.IsNull());
+  VisitClassRoots(visitor, flags);
+  array_iftable_.VisitRoot(visitor, RootInfo(kRootVMInternal));
   for (size_t i = 0; i < kFindArrayCacheSize; ++i) {
-    find_array_class_cache_[i].VisitRootIfNonNull(callback, arg, RootInfo(kRootVMInternal));
+    find_array_class_cache_[i].VisitRootIfNonNull(visitor, RootInfo(kRootVMInternal));
   }
 }
 

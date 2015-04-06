@@ -174,7 +174,7 @@ class ThreadFlipVisitor : public Closure {
       thread->RevokeThreadLocalAllocationStack();
     }
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    thread->VisitRoots(ConcurrentCopying::ProcessRootCallback, concurrent_copying_);
+    thread->VisitRoots(concurrent_copying_);
     concurrent_copying_->GetBarrier().Pass(self);
   }
 
@@ -208,7 +208,7 @@ class FlipCallback : public Closure {
     if (UNLIKELY(Runtime::Current()->IsActiveTransaction())) {
       CHECK(Runtime::Current()->IsAotCompiler());
       TimingLogger::ScopedTiming split2("(Paused)VisitTransactionRoots", cc->GetTimings());
-      Runtime::Current()->VisitTransactionRoots(ConcurrentCopying::ProcessRootCallback, cc);
+      Runtime::Current()->VisitTransactionRoots(cc);
     }
   }
 
@@ -332,22 +332,20 @@ void ConcurrentCopying::MarkingPhase() {
   }
   {
     TimingLogger::ScopedTiming split2("VisitConstantRoots", GetTimings());
-    Runtime::Current()->VisitConstantRoots(ProcessRootCallback, this);
+    Runtime::Current()->VisitConstantRoots(this);
   }
   {
     TimingLogger::ScopedTiming split3("VisitInternTableRoots", GetTimings());
-    Runtime::Current()->GetInternTable()->VisitRoots(ProcessRootCallback,
-                                                     this, kVisitRootFlagAllRoots);
+    Runtime::Current()->GetInternTable()->VisitRoots(this, kVisitRootFlagAllRoots);
   }
   {
     TimingLogger::ScopedTiming split4("VisitClassLinkerRoots", GetTimings());
-    Runtime::Current()->GetClassLinker()->VisitRoots(ProcessRootCallback,
-                                                     this, kVisitRootFlagAllRoots);
+    Runtime::Current()->GetClassLinker()->VisitRoots(this, kVisitRootFlagAllRoots);
   }
   {
     // TODO: don't visit the transaction roots if it's not active.
     TimingLogger::ScopedTiming split5("VisitNonThreadRoots", GetTimings());
-    Runtime::Current()->VisitNonThreadRoots(ProcessRootCallback, this);
+    Runtime::Current()->VisitNonThreadRoots(this);
   }
 
   // Immune spaces.
@@ -486,7 +484,7 @@ inline mirror::Object* ConcurrentCopying::GetFwdPtr(mirror::Object* from_ref) {
 
 // The following visitors are that used to verify that there's no
 // references to the from-space left after marking.
-class ConcurrentCopyingVerifyNoFromSpaceRefsVisitor {
+class ConcurrentCopyingVerifyNoFromSpaceRefsVisitor : public SingleRootVisitor {
  public:
   explicit ConcurrentCopyingVerifyNoFromSpaceRefsVisitor(ConcurrentCopying* collector)
       : collector_(collector) {}
@@ -516,16 +514,14 @@ class ConcurrentCopyingVerifyNoFromSpaceRefsVisitor {
     }
   }
 
-  static void RootCallback(mirror::Object** root, void *arg, const RootInfo& /*root_info*/)
-      SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
-    ConcurrentCopying* collector = reinterpret_cast<ConcurrentCopying*>(arg);
-    ConcurrentCopyingVerifyNoFromSpaceRefsVisitor visitor(collector);
+  void VisitRoot(mirror::Object* root, const RootInfo& info ATTRIBUTE_UNUSED)
+      OVERRIDE SHARED_LOCKS_REQUIRED(Locks::mutator_lock_) {
     DCHECK(root != nullptr);
-    visitor(*root);
+    operator()(root);
   }
 
  private:
-  ConcurrentCopying* collector_;
+  ConcurrentCopying* const collector_;
 };
 
 class ConcurrentCopyingVerifyNoFromSpaceRefsFieldVisitor {
@@ -594,8 +590,8 @@ void ConcurrentCopying::VerifyNoFromSpaceReferences() {
   // Roots.
   {
     ReaderMutexLock mu(self, *Locks::heap_bitmap_lock_);
-    Runtime::Current()->VisitRoots(
-        ConcurrentCopyingVerifyNoFromSpaceRefsVisitor::RootCallback, this);
+    ConcurrentCopyingVerifyNoFromSpaceRefsVisitor ref_visitor(this);
+    Runtime::Current()->VisitRoots(&ref_visitor);
   }
   // The to-space.
   region_space_->WalkToSpace(ConcurrentCopyingVerifyNoFromSpaceRefsObjectVisitor::ObjectCallback,
@@ -1087,11 +1083,6 @@ void ConcurrentCopying::AssertToSpaceInvariant(mirror::Object* obj, MemberOffset
   }
 }
 
-void ConcurrentCopying::ProcessRootCallback(mirror::Object** root, void* arg,
-                                            const RootInfo& /*root_info*/) {
-  reinterpret_cast<ConcurrentCopying*>(arg)->Process(root);
-}
-
 // Used to scan ref fields of an object.
 class ConcurrentCopyingRefFieldsVisitor {
  public:
@@ -1144,25 +1135,54 @@ inline void ConcurrentCopying::Process(mirror::Object* obj, MemberOffset offset)
       offset, expected_ref, new_ref));
 }
 
-// Process a root.
-void ConcurrentCopying::Process(mirror::Object** root) {
-  mirror::Object* ref = *root;
-  if (ref == nullptr || region_space_->IsInToSpace(ref)) {
-    return;
-  }
-  mirror::Object* to_ref = Mark(ref);
-  if (to_ref == ref) {
-    return;
-  }
-  Atomic<mirror::Object*>* addr = reinterpret_cast<Atomic<mirror::Object*>*>(root);
-  mirror::Object* expected_ref = ref;
-  mirror::Object* new_ref = to_ref;
-  do {
-    if (expected_ref != addr->LoadRelaxed()) {
-      // It was updated by the mutator.
-      break;
+// Process some roots.
+void ConcurrentCopying::VisitRoots(
+    mirror::Object*** roots, size_t count, const RootInfo& info ATTRIBUTE_UNUSED) {
+  for (size_t i = 0; i < count; ++i) {
+    mirror::Object** root = roots[i];
+    mirror::Object* ref = *root;
+    if (ref == nullptr || region_space_->IsInToSpace(ref)) {
+      return;
     }
-  } while (!addr->CompareExchangeWeakSequentiallyConsistent(expected_ref, new_ref));
+    mirror::Object* to_ref = Mark(ref);
+    if (to_ref == ref) {
+      return;
+    }
+    Atomic<mirror::Object*>* addr = reinterpret_cast<Atomic<mirror::Object*>*>(root);
+    mirror::Object* expected_ref = ref;
+    mirror::Object* new_ref = to_ref;
+    do {
+      if (expected_ref != addr->LoadRelaxed()) {
+        // It was updated by the mutator.
+        break;
+      }
+    } while (!addr->CompareExchangeWeakSequentiallyConsistent(expected_ref, new_ref));
+  }
+}
+
+void ConcurrentCopying::VisitRoots(
+    mirror::CompressedReference<mirror::Object>** roots, size_t count,
+    const RootInfo& info ATTRIBUTE_UNUSED) {
+  for (size_t i = 0; i < count; ++i) {
+    mirror::CompressedReference<mirror::Object>* root = roots[i];
+    mirror::Object* ref = root->AsMirrorPtr();
+    if (ref == nullptr || region_space_->IsInToSpace(ref)) {
+      return;
+    }
+    mirror::Object* to_ref = Mark(ref);
+    if (to_ref == ref) {
+      return;
+    }
+    auto* addr = reinterpret_cast<Atomic<mirror::CompressedReference<mirror::Object>>*>(root);
+    auto expected_ref = mirror::CompressedReference<mirror::Object>::FromMirrorPtr(ref);
+    auto new_ref = mirror::CompressedReference<mirror::Object>::FromMirrorPtr(to_ref);
+    do {
+      if (ref != addr->LoadRelaxed().AsMirrorPtr()) {
+        // It was updated by the mutator.
+        break;
+      }
+    } while (!addr->CompareExchangeWeakSequentiallyConsistent(expected_ref, new_ref));
+  }
 }
 
 // Fill the given memory block with a dummy object. Used to fill in a

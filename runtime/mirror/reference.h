@@ -100,7 +100,7 @@ class MANAGED Reference : public Object {
   }
   static void SetClass(Class* klass);
   static void ResetClass();
-  static void VisitRoots(RootCallback* callback, void* arg);
+  static void VisitRoots(RootVisitor* visitor) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  private:
   // Note: This avoids a read barrier, it should only be used by the GC.

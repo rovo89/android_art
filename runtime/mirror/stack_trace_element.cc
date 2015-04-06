@@ -67,8 +67,8 @@ void StackTraceElement::Init(Handle<String> declaring_class, Handle<String> meth
                                  line_number);
 }
 
-void StackTraceElement::VisitRoots(RootCallback* callback, void* arg) {
-  java_lang_StackTraceElement_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
+void StackTraceElement::VisitRoots(RootVisitor* visitor) {
+  java_lang_StackTraceElement_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
 

@@ -488,7 +488,7 @@ class MANAGED ArtMethod FINAL : public Object {
 
   static void ResetClass();
 
-  static void VisitRoots(RootCallback* callback, void* arg)
+  static void VisitRoots(RootVisitor* visitor)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   const DexFile* GetDexFile() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

@@ -1156,10 +1156,10 @@ void ThreadList::ForEach(void (*callback)(Thread*, void*), void* context) {
   }
 }
 
-void ThreadList::VisitRoots(RootCallback* callback, void* arg) const {
+void ThreadList::VisitRoots(RootVisitor* visitor) const {
   MutexLock mu(Thread::Current(), *Locks::thread_list_lock_);
   for (const auto& thread : list_) {
-    thread->VisitRoots(callback, arg);
+    thread->VisitRoots(visitor);
   }
 }
 

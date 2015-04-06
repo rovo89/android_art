@@ -51,8 +51,8 @@ void Class::ResetClass() {
   java_lang_Class_ = GcRoot<Class>(nullptr);
 }
 
-void Class::VisitRoots(RootCallback* callback, void* arg) {
-  java_lang_Class_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
+void Class::VisitRoots(RootVisitor* visitor) {
+  java_lang_Class_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
 void Class::SetStatus(Handle<Class> h_this, Status new_status, Thread* self) {

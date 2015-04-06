@@ -262,7 +262,7 @@ class RegType {
 
   virtual ~RegType() {}
 
-  void VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info) const
+  void VisitRoots(RootVisitor* visitor, const RootInfo& root_info) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
  protected:

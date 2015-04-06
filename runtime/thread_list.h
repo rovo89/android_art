@@ -136,7 +136,7 @@ class ThreadList {
       LOCKS_EXCLUDED(Locks::mutator_lock_, Locks::thread_list_lock_);
   void Unregister(Thread* self) LOCKS_EXCLUDED(Locks::mutator_lock_, Locks::thread_list_lock_);
 
-  void VisitRoots(RootCallback* callback, void* arg) const
+  void VisitRoots(RootVisitor* visitor) const
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   // Return a copy of the thread list.

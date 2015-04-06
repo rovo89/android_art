@@ -114,8 +114,12 @@ class MarkCompact : public GarbageCollector {
   void SweepSystemWeaks()
       SHARED_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
 
-  static void MarkRootCallback(mirror::Object** root, void* arg, const RootInfo& root_info)
-      EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
+  virtual void VisitRoots(mirror::Object*** roots, size_t count, const RootInfo& info)
+      OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
+
+  virtual void VisitRoots(mirror::CompressedReference<mirror::Object>** roots, size_t count,
+                          const RootInfo& info)
+      OVERRIDE EXCLUSIVE_LOCKS_REQUIRED(Locks::mutator_lock_, Locks::heap_bitmap_lock_);
 
   static mirror::Object* MarkObjectCallback(mirror::Object* root, void* arg)
       EXCLUSIVE_LOCKS_REQUIRED(Locks::heap_bitmap_lock_, Locks::mutator_lock_);
@@ -245,6 +249,8 @@ class MarkCompact : public GarbageCollector {
   friend class MoveObjectVisitor;
   friend class UpdateObjectReferencesVisitor;
   friend class UpdateReferenceVisitor;
+  friend class UpdateRootVisitor;
+
   DISALLOW_COPY_AND_ASSIGN(MarkCompact);
 };
 

@@ -344,16 +344,14 @@ uint32_t Dbg::instrumentation_events_ = 0;
 // Breakpoints.
 static std::vector<Breakpoint> gBreakpoints GUARDED_BY(Locks::breakpoint_lock_);
 
-void DebugInvokeReq::VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info) {
-  receiver.VisitRootIfNonNull(callback, arg, root_info);  // null for static method call.
-  klass.VisitRoot(callback, arg, root_info);
-  method.VisitRoot(callback, arg, root_info);
+void DebugInvokeReq::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) {
+  receiver.VisitRootIfNonNull(visitor, root_info);  // null for static method call.
+  klass.VisitRoot(visitor, root_info);
+  method.VisitRoot(visitor, root_info);
 }
 
-void SingleStepControl::VisitRoots(RootCallback* callback, void* arg, const RootInfo& root_info) {
-  if (method_ != nullptr) {
-    callback(reinterpret_cast<mirror::Object**>(&method_), arg, root_info);
-  }
+void SingleStepControl::VisitRoots(RootVisitor* visitor, const RootInfo& root_info) {
+  visitor->VisitRootIfNonNull(reinterpret_cast<mirror::Object**>(&method_), root_info);
 }
 
 void SingleStepControl::AddDexPc(uint32_t dex_pc) {

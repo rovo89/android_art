@@ -144,8 +144,8 @@ void Throwable::ResetClass() {
   java_lang_Throwable_ = GcRoot<Class>(nullptr);
 }
 
-void Throwable::VisitRoots(RootCallback* callback, void* arg) {
-  java_lang_Throwable_.VisitRootIfNonNull(callback, arg, RootInfo(kRootStickyClass));
+void Throwable::VisitRoots(RootVisitor* visitor) {
+  java_lang_Throwable_.VisitRootIfNonNull(visitor, RootInfo(kRootStickyClass));
 }
 
 }  // namespace mirror

@@ -57,6 +57,11 @@ static inline void CheckAsmSupportOffsetsAndSizes() {
 #define STACK_REFERENCE_SIZE 4
 ADD_TEST_EQ(static_cast<size_t>(STACK_REFERENCE_SIZE), sizeof(art::StackReference<art::mirror::Object>))
 
+// Size of heap references
+#define COMPRESSED_REFERENCE_SIZE 4
+ADD_TEST_EQ(static_cast<size_t>(COMPRESSED_REFERENCE_SIZE),
+            sizeof(art::mirror::CompressedReference<art::mirror::Object>))
+
 // Note: these callee save methods loads require read barriers.
 // Offset of field Runtime::callee_save_methods_[kSaveAll]
 #define RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET 0
@@ -64,12 +69,12 @@ ADD_TEST_EQ(static_cast<size_t>(RUNTIME_SAVE_ALL_CALLEE_SAVE_FRAME_OFFSET),
             art::Runtime::GetCalleeSaveMethodOffset(art::Runtime::kSaveAll))
 
 // Offset of field Runtime::callee_save_methods_[kRefsOnly]
-#define RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET __SIZEOF_POINTER__
+#define RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET COMPRESSED_REFERENCE_SIZE
 ADD_TEST_EQ(static_cast<size_t>(RUNTIME_REFS_ONLY_CALLEE_SAVE_FRAME_OFFSET),
             art::Runtime::GetCalleeSaveMethodOffset(art::Runtime::kRefsOnly))
 
 // Offset of field Runtime::callee_save_methods_[kRefsAndArgs]
-#define RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET (2 * __SIZEOF_POINTER__)
+#define RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET (2 * COMPRESSED_REFERENCE_SIZE)
 ADD_TEST_EQ(static_cast<size_t>(RUNTIME_REFS_AND_ARGS_CALLEE_SAVE_FRAME_OFFSET),
             art::Runtime::GetCalleeSaveMethodOffset(art::Runtime::kRefsAndArgs))
 

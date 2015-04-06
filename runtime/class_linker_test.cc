@@ -358,7 +358,8 @@ class ClassLinkerTest : public CommonRuntimeTest {
       const char* descriptor = dex.GetTypeDescriptor(type_id);
       AssertDexFileClass(class_loader, descriptor);
     }
-    class_linker_->VisitRoots(TestRootVisitor, nullptr, kVisitRootFlagAllRoots);
+    TestRootVisitor visitor;
+    class_linker_->VisitRoots(&visitor, kVisitRootFlagAllRoots);
     // Verify the dex cache has resolution methods in all resolved method slots
     mirror::DexCache* dex_cache = class_linker_->FindDexCache(dex);
     mirror::ObjectArray<mirror::ArtMethod>* resolved_methods = dex_cache->GetResolvedMethods();
@@ -367,9 +368,12 @@ class ClassLinkerTest : public CommonRuntimeTest {
     }
   }
 
-  static void TestRootVisitor(mirror::Object** root, void*, const RootInfo&) {
-    EXPECT_TRUE(*root != nullptr);
-  }
+  class TestRootVisitor : public SingleRootVisitor {
+   public:
+    void VisitRoot(mirror::Object* root, const RootInfo& info ATTRIBUTE_UNUSED) OVERRIDE {
+      EXPECT_TRUE(root != nullptr);
+    }
+  };
 };
 
 struct CheckOffset {
