@@ -350,6 +350,7 @@ CompilerDriver::CompilerDriver(const CompilerOptions* compiler_options,
       verification_results_(verification_results),
       method_inliner_map_(method_inliner_map),
       compiler_(Compiler::Create(this, compiler_kind)),
+      compiler_kind_(compiler_kind),
       instruction_set_(instruction_set),
       instruction_set_features_(instruction_set_features),
       freezing_constructor_lock_("freezing constructor lock"),
@@ -2270,8 +2271,11 @@ void CompilerDriver::CompileMethod(Thread* self, const DexFile::CodeItem* code_i
     DCHECK(GetCompiledMethod(method_ref) != nullptr) << PrettyMethod(method_idx, dex_file);
   }
 
-  // Done compiling, delete the verified method to reduce native memory usage.
-  verification_results_->RemoveVerifiedMethod(method_ref);
+  // Done compiling, delete the verified method to reduce native memory usage. Do not delete in
+  // optimizing compiler, which may need the verified method again for inlining.
+  if (compiler_kind_ != Compiler::kOptimizing) {
+    verification_results_->RemoveVerifiedMethod(method_ref);
+  }
 
   if (self->IsExceptionPending()) {
     ScopedObjectAccess soa(self);
