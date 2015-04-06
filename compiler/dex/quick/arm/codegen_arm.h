@@ -82,6 +82,9 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     /// @copydoc Mir2Lir::UnconditionallyMarkGCCard(RegStorage)
     void UnconditionallyMarkGCCard(RegStorage tgt_addr_reg) OVERRIDE;
 
+    bool CanUseOpPcRelDexCacheArrayLoad() const OVERRIDE;
+    void OpPcRelDexCacheArrayLoad(const DexFile* dex_file, int offset, RegStorage r_dest) OVERRIDE;
+
     // Required for target - register utilities.
     RegStorage TargetReg(SpecialTargetRegister reg) OVERRIDE;
     RegStorage TargetReg(SpecialTargetRegister reg, WideKind wide_kind) OVERRIDE {
@@ -300,6 +303,9 @@ class ArmMir2Lir FINAL : public Mir2Lir {
 
     ArenaVector<LIR*> call_method_insns_;
 
+    // Instructions needing patching with PC relative code addresses.
+    ArenaVector<LIR*> dex_cache_access_insns_;
+
     /**
      * @brief Given float register pair, returns Solo64 float register.
      * @param reg #RegStorage containing a float register pair (e.g. @c s2 and @c s3).
@@ -329,6 +335,12 @@ class ArmMir2Lir FINAL : public Mir2Lir {
     }
 
     int GenDalvikArgsBulkCopy(CallInfo* info, int first, int count) OVERRIDE;
+
+    static int ArmNextSDCallInsn(CompilationUnit* cu, CallInfo* info ATTRIBUTE_UNUSED,
+                                 int state, const MethodReference& target_method,
+                                 uint32_t unused_idx ATTRIBUTE_UNUSED,
+                                 uintptr_t direct_code, uintptr_t direct_method,
+                                 InvokeType type);
 };
 
 }  // namespace art
