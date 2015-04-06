@@ -28,6 +28,11 @@
 
 #define ATTRIBUTE_UNUSED __attribute__((__unused__))
 
+// We cannot annotate the declarations, as they are not no-return in the non-dummy version.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
+#pragma GCC diagnostic ignored "-Wmissing-noreturn"
+
 static void log(const char* format, ...) {
   char buf[256];
   va_list ap;
@@ -72,5 +77,7 @@ extern "C" void EnsureFrontOfChain(int signal ATTRIBUTE_UNUSED,
   log("EnsureFrontOfChain is not exported by the main executable.");
   abort();
 }
+
+#pragma GCC diagnostic pop
 
 }  // namespace art
