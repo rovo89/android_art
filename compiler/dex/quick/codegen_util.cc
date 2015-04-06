@@ -1171,7 +1171,7 @@ CompiledMethod* Mir2Lir::GetCompiledMethod() {
       ArrayRef<const uint8_t>(vmap_encoder.GetData()),
       ArrayRef<const uint8_t>(native_gc_map_),
       cfi_ref,
-      ArrayRef<LinkerPatch>(patches_));
+      ArrayRef<const LinkerPatch>(patches_));
 }
 
 size_t Mir2Lir::GetMaxPossibleCompilerTemps() const {
