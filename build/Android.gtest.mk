@@ -257,7 +257,7 @@ LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
 $(eval $(call set-target-local-clang-vars))
 $(eval $(call set-target-local-cflags-vars,debug))
-LOCAL_CLANG_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated  # gtest issue
+LOCAL_CLANG_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn # gtest issue
 include $(BUILD_SHARED_LIBRARY)
 
 include $(CLEAR_VARS)
@@ -272,7 +272,7 @@ LOCAL_STATIC_LIBRARIES := libgtest_host
 LOCAL_LDLIBS += -ldl -lpthread
 LOCAL_MULTILIB := both
 LOCAL_CLANG := $(ART_HOST_CLANG)
-LOCAL_CLANG_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated  # gtest issue
+LOCAL_CLANG_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn  # gtest issue
 LOCAL_ADDITIONAL_DEPENDENCIES := art/build/Android.common_build.mk
 LOCAL_ADDITIONAL_DEPENDENCIES += art/build/Android.gtest.mk
 include $(BUILD_HOST_SHARED_LIBRARY)
@@ -425,7 +425,7 @@ define define-art-gtest
     LOCAL_MODULE_PATH_32 := $$(ART_TARGET_NATIVETEST_OUT)/$$(ART_TARGET_ARCH_32)
     LOCAL_MODULE_PATH_64 := $$(ART_TARGET_NATIVETEST_OUT)/$$(ART_TARGET_ARCH_64)
     LOCAL_MULTILIB := both
-    LOCAL_CLANG_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated  # gtest issue
+    LOCAL_CLANG_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn  # gtest issue
     include $$(BUILD_EXECUTABLE)
     library_path :=
     2nd_library_path :=
@@ -464,7 +464,7 @@ test-art-target-gtest-$$(art_gtest_name): $$(ART_TEST_TARGET_GTEST_$$(art_gtest_
     LOCAL_MULTILIB := both
     LOCAL_MODULE_STEM_32 := $$(art_gtest_name)32
     LOCAL_MODULE_STEM_64 := $$(art_gtest_name)64
-    LOCAL_CLANG_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated  # gtest issue
+    LOCAL_CLANG_CFLAGS += -Wno-used-but-marked-unused -Wno-deprecated -Wno-missing-noreturn  # gtest issue
     include $$(BUILD_HOST_EXECUTABLE)
 
     ART_TEST_HOST_GTEST_$$(art_gtest_name)_RULES :=
