@@ -138,6 +138,9 @@ art_clang_cflags += -Wint-to-void-pointer-cast
 # Enable warning of wrong unused annotations.
 art_clang_cflags += -Wused-but-marked-unused
 
+# Enable warning for deprecated language features.
+art_clang_cflags += -Wdeprecated
+
 
 # GCC-only warnings.
 art_gcc_cflags := -Wunused-but-set-parameter

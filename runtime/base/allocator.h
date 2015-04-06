@@ -114,12 +114,12 @@ class TrackingAllocatorImpl : public std::allocator<T> {
 
   // Used internally by STL data structures.
   template <class U>
-  TrackingAllocatorImpl(const TrackingAllocatorImpl<U, kTag>& alloc) throw() {
+  TrackingAllocatorImpl(const TrackingAllocatorImpl<U, kTag>& alloc) noexcept {
     UNUSED(alloc);
   }
 
   // Used internally by STL data structures.
-  TrackingAllocatorImpl() throw() {
+  TrackingAllocatorImpl() noexcept {
     static_assert(kTag < kAllocatorTagCount, "kTag must be less than kAllocatorTagCount");
   }
 
