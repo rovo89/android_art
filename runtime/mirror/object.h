@@ -90,6 +90,9 @@ class MANAGED LOCKABLE Object {
   void SetClass(Class* new_klass) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
 
   Object* GetReadBarrierPointer() SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
+#ifndef USE_BAKER_OR_BROOKS_READ_BARRIER
+  NO_RETURN
+#endif
   void SetReadBarrierPointer(Object* rb_ptr) SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);
   bool AtomicSetReadBarrierPointer(Object* expected_rb_ptr, Object* rb_ptr)
       SHARED_LOCKS_REQUIRED(Locks::mutator_lock_);

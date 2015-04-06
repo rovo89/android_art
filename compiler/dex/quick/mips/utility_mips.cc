@@ -283,9 +283,9 @@ LIR* MipsMir2Lir::OpReg(OpKind op, RegStorage r_dest_src) {
       break;
     case kOpBx:
       return NewLIR2(kMipsJalr, rZERO, r_dest_src.GetReg());
-      break;
     default:
       LOG(FATAL) << "Bad case in OpReg";
+      UNREACHABLE();
   }
   return NewLIR2(opcode, cu_->target64 ? rRAd : rRA, r_dest_src.GetReg());
 }
@@ -295,8 +295,8 @@ LIR* MipsMir2Lir::OpRegImm(OpKind op, RegStorage r_dest_src1, int value) {
     return OpRegRegImm(op, r_dest_src1, r_dest_src1, value);
   } else {
     LOG(FATAL) << "Bad case in OpRegImm";
+    UNREACHABLE();
   }
-  UNREACHABLE();
 }
 
 LIR* MipsMir2Lir::OpRegRegReg(OpKind op, RegStorage r_dest, RegStorage r_src1, RegStorage r_src2) {

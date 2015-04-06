@@ -514,7 +514,6 @@ Location CodeGeneratorX86::GetStackLocation(HLoadLocal* load) const {
     case Primitive::kPrimLong:
     case Primitive::kPrimDouble:
       return Location::DoubleStackSlot(GetStackSlot(load->GetLocal()));
-      break;
 
     case Primitive::kPrimInt:
     case Primitive::kPrimNot:
@@ -527,10 +526,11 @@ Location CodeGeneratorX86::GetStackLocation(HLoadLocal* load) const {
     case Primitive::kPrimShort:
     case Primitive::kPrimVoid:
       LOG(FATAL) << "Unexpected type " << load->GetType();
+      UNREACHABLE();
   }
 
   LOG(FATAL) << "Unreachable";
-  return Location();
+  UNREACHABLE();
 }
 
 Location InvokeDexCallingConventionVisitor::GetNextLocation(Primitive::Type type) {

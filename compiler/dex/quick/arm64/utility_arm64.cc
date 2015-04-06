@@ -589,13 +589,11 @@ LIR* Arm64Mir2Lir::OpRegRegShift(OpKind op, RegStorage r_dest_src1, RegStorage r
       DCHECK_EQ(shift, 0);
       // Binary, but rm is encoded twice.
       return NewLIR2(kA64Rev2rr | wide, r_dest_src1.GetReg(), r_src2.GetReg());
-      break;
     case kOpRevsh:
       // Binary, but rm is encoded twice.
       NewLIR2(kA64Rev162rr | wide, r_dest_src1.GetReg(), r_src2.GetReg());
       // "sxth r1, r2" is "sbfm r1, r2, #0, #15"
       return NewLIR4(kA64Sbfm4rrdd | wide, r_dest_src1.GetReg(), r_dest_src1.GetReg(), 0, 15);
-      break;
     case kOp2Byte:
       DCHECK_EQ(shift, ENCODE_NO_SHIFT);
       // "sbfx r1, r2, #imm1, #imm2" is "sbfm r1, r2, #imm1, #(imm1 + imm2 - 1)".
@@ -645,10 +643,9 @@ LIR* Arm64Mir2Lir::OpRegRegExtend(OpKind op, RegStorage r_dest_src1, RegStorage 
       // Note: intentional fallthrough
     case kOpSub:
       return OpRegRegRegExtend(op, r_dest_src1, r_dest_src1, r_src2, ext, amount);
-      break;
     default:
       LOG(FATAL) << "Bad Opcode: " << opcode;
-      break;
+      UNREACHABLE();
   }
 
   DCHECK(!IsPseudoLirOp(opcode));
