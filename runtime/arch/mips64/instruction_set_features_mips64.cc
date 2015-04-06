@@ -26,8 +26,7 @@ namespace art {
 
 const Mips64InstructionSetFeatures* Mips64InstructionSetFeatures::FromVariant(
     const std::string& variant, std::string* error_msg ATTRIBUTE_UNUSED) {
-  // TODO: r6 variant.
-  if (variant != "default") {
+  if (variant != "default" && variant != "mips64r6") {
     std::ostringstream os;
     LOG(WARNING) << "Unexpected CPU variant for Mips64 using defaults: " << variant;
   }
