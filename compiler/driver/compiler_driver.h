@@ -557,6 +557,7 @@ class CompilerDriver {
   DexFileToMethodInlinerMap* const method_inliner_map_;
 
   std::unique_ptr<Compiler> compiler_;
+  Compiler::Kind compiler_kind_;
 
   const InstructionSet instruction_set_;
   const InstructionSetFeatures* const instruction_set_features_;
