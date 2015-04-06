@@ -25,7 +25,7 @@
 namespace art {
 
 const Arm64InstructionSetFeatures* Arm64InstructionSetFeatures::FromVariant(
-    const std::string& variant ATTRIBUTE_UNUSED, std::string* error_msg ATTRIBUTE_UNUSED) {
+    const std::string& variant, std::string* error_msg) {
   const bool smp = true;  // Conservative default.
 
   // Look for variants that need a fix for a53 erratum 835769.

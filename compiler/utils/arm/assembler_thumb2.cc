@@ -683,7 +683,7 @@ void Thumb2Assembler::Emit16(int16_t value) {
 
 bool Thumb2Assembler::Is32BitDataProcessing(Condition cond ATTRIBUTE_UNUSED,
                                             Opcode opcode,
-                                            bool set_cc ATTRIBUTE_UNUSED,
+                                            bool set_cc,
                                             Register rn,
                                             Register rd,
                                             const ShifterOperand& so) {
